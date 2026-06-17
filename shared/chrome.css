@@ -33,6 +33,11 @@
   letter-spacing: 2.5px;
   color: var(--accent);
 }
+.brand-logo {
+  height: 36px;
+  width: auto;
+  display: block;
+}
 
 /* ---------- PAGE ---------- */
 .page {

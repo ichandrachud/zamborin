@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Zamborin Games</title>
   <meta name="description" content="A small studio making daily puzzle games. Free. No login." />
+  <link rel="icon" type="image/svg+xml" href="/images/zamborin-favicon.svg" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -135,12 +136,18 @@
       letter-spacing: 1.4px;
       color: var(--text-mute);
     }
+
+    /* Chrome.css hides .site-header below 1099px so game pages can auto-focus.
+       The lobby is not a game — keep the header visible at every viewport. */
+    @media (max-width: 1099px) {
+      .site-header { display: flex; }
+    }
   </style>
 </head>
 <body>
   <header class="site-header">
     <div class="brand">
-      <span class="brand-mark">ZAMBORIN</span>
+      <img class="brand-logo" src="./images/zamborin-logo.svg" alt="Zamborin" />
     </div>
   </header>
 
