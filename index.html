@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=1200" />
+  <title>TESSERA Words — Endless word puzzle</title>
+  <meta name="description" content="Stack falling letter tiles into words. The longer the word, the more the points. The game gets faster the longer you survive. Free." />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./play.css?v=1" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="brand">
+      <span class="brand-mark">TESSERA</span>
+    </div>
+  </header>
+
+  <main class="page">
+    <!-- Top leaderboard ad: 728×90 -->
+    <div class="ad-slot ad-leaderboard" aria-label="Advertisement">
+      <span class="ad-label">AD · 728 × 90</span>
+    </div>
+
+    <!-- Main play area: 760×570 game left, two 300×250 stacked right -->
+    <section class="play-row">
+      <div class="game-wrap">
+        <canvas id="game" width="760" height="570" aria-label="Word puzzle"></canvas>
+      </div>
+      <aside class="sidebar">
+        <div class="ad-slot ad-medrec" aria-label="Advertisement">
+          <span class="ad-label">AD · 300 × 250</span>
+        </div>
+        <div class="ad-slot ad-medrec" aria-label="Advertisement">
+          <span class="ad-label">AD · 300 × 250</span>
+        </div>
+      </aside>
+    </section>
+
+    <!-- Bottom leaderboard ad: 728×90 -->
+    <div class="ad-slot ad-leaderboard" aria-label="Advertisement">
+      <span class="ad-label">AD · 728 × 90</span>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <span>TESSERA · A daily word puzzle · Free</span>
+  </footer>
+
+  <script src="./play.js?v=1"></script>
+</body>
+</html>

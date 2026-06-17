@@ -1,0 +1,17 @@
+# macOS noise
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+
+# editor noise
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# logs
+*.log
+
+# system
+Thumbs.db
