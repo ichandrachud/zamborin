@@ -15,7 +15,7 @@
   --text-dim:  #C5CFE0;     /* secondary, AA-safe vs --bg */
   --text-mute: #8E9CB5;     /* tertiary; passes 4.5:1 vs --bg */
 
-  --accent:    #FF6B5C;     /* warm coral — TESSERA terracotta, brighter for dark */
+  --accent:    #D8523F;     /* coral, darkened to 4.55:1 with white text */
   --accent-2:  #FFD23F;     /* sunshine highlight */
   --green:     #5DD39E;
 }
@@ -104,12 +104,12 @@ html, body {
   align-items: flex-start;
 }
 .game-wrap {
-  width: 760px;
-  height: 570px;
+  /* Canvas dimensions are mode-driven (set on body by play.js). */
+  width:  var(--canvas-w);
+  height: var(--canvas-h);
   background:
     radial-gradient(at 30% 0%, #1B2A47 0%, #131F36 60%, #0E1726 100%);
   border-radius: 16px;
-  /* Subtle border glow ties the card to the accent system */
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.06),
     0 1px 0 rgba(0,0,0,0.4),
@@ -118,10 +118,13 @@ html, body {
   overflow: hidden;
   position: relative;
 }
+/* Mode-driven canvas size — read by .game-wrap and #game. */
+body.mode-desktop { --canvas-w: 760px; --canvas-h: 570px; }
+body.mode-mobile  { --canvas-w: 393px; --canvas-h: 852px; }
 #game {
   display: block;
-  width: 760px;
-  height: 570px;
+  width:  var(--canvas-w);
+  height: var(--canvas-h);
   cursor: pointer;
   touch-action: none;                  /* prevents the browser from interpreting taps as scrolls */
   -webkit-user-select: none;
@@ -146,21 +149,21 @@ html, body {
 
 /* ---------- SPLASH ----------
    Sits INSIDE .game-wrap (which is position: relative, overflow: hidden)
-   so it covers only the game card — the page header / footer stay visible. */
+   so it covers only the game card. The image is mode-aware so portrait
+   phones get a 9:20 composition and desktop gets the 4:3 hero shot. */
 .splash {
   position: absolute;
   inset: 0;
-  z-index: 10;                                          /* above the canvas */
-  background-color: var(--bg);                          /* navy fallback while image loads */
-  background-image: url('./splash.jpg');
+  z-index: 10;
+  background-color: var(--bg);
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
   transition: opacity 0.6s ease-out;
-  /* During the 2 s reveal, swallow taps so a player can't accidentally
-     drop tiles in the game underneath. */
   pointer-events: auto;
 }
+body.mode-desktop .splash { background-image: url('./splash-desktop.jpg'); }
+body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg'); }
 .splash.fading {
   opacity: 0;
   pointer-events: none;
@@ -187,6 +190,11 @@ html, body {
 }
 .focus-btn:hover { color: var(--text); background: var(--bg-panel); }
 .focus-btn:active { transform: scale(0.94); }
+.focus-btn:focus-visible {
+  outline: 2px solid var(--accent-2);
+  outline-offset: 3px;
+  color: var(--text);
+}
 /* default: show enter icon, hide exit icon */
 .focus-btn .icon-exit { display: none; }
 body.focus-mode .focus-btn .icon-enter { display: none; }
@@ -219,8 +227,8 @@ body.focus-mode .play-row {
 }
 body.focus-mode .game-wrap {
   /* Scale to fit the viewport while preserving the 760 : 570 (4:3) aspect ratio */
-  width:  min(100vw, calc(100dvh * 760 / 570));
-  height: min(100dvh, calc(100vw * 570 / 760));
+  width:  min(100vw, calc(100dvh * var(--canvas-w) / var(--canvas-h)));
+  height: min(100dvh, calc(100vw * var(--canvas-h) / var(--canvas-w)));
   border-radius: 0;
   box-shadow: none;
 }
@@ -250,8 +258,9 @@ body.focus-mode #game {
     gap: 0;
   }
   .game-wrap {
-    width:  min(100vw, calc(100dvh * 760 / 570));
-    height: min(100dvh, calc(100vw * 570 / 760));
+    /* Use the same --canvas-w / --canvas-h vars; aspect-fit to viewport */
+    width:  min(100vw, calc(100dvh * var(--canvas-w) / var(--canvas-h)));
+    height: min(100dvh, calc(100vw * var(--canvas-h) / var(--canvas-w)));
     border-radius: 0;
     box-shadow: none;
   }
@@ -261,4 +270,15 @@ body.focus-mode #game {
   }
   /* Already focus-style; the button is redundant on phones — hide it. */
   .focus-btn { display: none; }
+}
+
+/* ---------- REDUCED MOTION ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }

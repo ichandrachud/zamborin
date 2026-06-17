@@ -8,11 +8,64 @@
 (() => {
   'use strict';
 
+  // ---------- MODE DETECTION ----------
+  // Mobile is anything with a coarse pointer (touchscreen) or a narrow viewport.
+  // Locked at page load — we don't hot-swap layouts on resize.
+  const MODE = (matchMedia('(pointer: coarse)').matches || window.innerWidth < 768)
+    ? 'mobile' : 'desktop';
+  document.body.classList.add('mode-' + MODE);
+
+  // Per-mode canvas + grid configuration.
+  //   Desktop: fixed 760×570 with 12×8 grid (fits any laptop window).
+  //   Mobile : LOGICAL canvas = current viewport (innerWidth × innerHeight),
+  //            so we always fill 100 % of what the browser actually gives us
+  //            — no letterboxing whether the user is in Safari with chrome
+  //            visible, in a PWA, or anywhere in between. CELL is then sized
+  //            to fit 13 rows of the locked 6-column grid inside the
+  //            available vertical space (HUD + hint band + banner reserved).
+  function buildMobileCFG() {
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const HUD_H        = 56;
+    const BANNER_H     = 50;
+    const BOTTOM_PAD   = 22;
+    const HINT_AREA    = 36;          // gap above hint + text band + gap below
+    const GRID_TOP_GAP = 8;
+    const SIDE_PAD     = 8;
+    const gridMaxH = vh - HUD_H - GRID_TOP_GAP - HINT_AREA - BANNER_H - BOTTOM_PAD;
+    const cellByH  = Math.floor(gridMaxH / 13);
+    const cellByW  = Math.floor((vw - SIDE_PAD * 2) / 6);
+    // Cap at 70 so a tablet in mobile mode doesn't grow into giant tiles.
+    const CELL     = Math.min(70, cellByH, cellByW);
+    // Inline-style CSS vars so .game-wrap renders at the same dimensions.
+    document.body.style.setProperty('--canvas-w', vw + 'px');
+    document.body.style.setProperty('--canvas-h', vh + 'px');
+    return { W: vw, H: vh, COLS: 6, ROWS: 13, CELL, HUD_H, BANNER_W: 320, BANNER_H };
+  }
+  const CFG = MODE === 'mobile' ? buildMobileCFG() : {
+    W: 760, H: 570,
+    COLS: 12, ROWS: 8, CELL: 56,
+    HUD_H: 56,
+    BANNER_W: 0, BANNER_H: 0,
+  };
+
+  // Orientation change → reload so we recompute against the new viewport.
+  // Plain resize is ignored (iOS chrome toggle shouldn't restart the game).
+  if (MODE === 'mobile') {
+    let wasPortrait = window.innerHeight > window.innerWidth;
+    window.addEventListener('resize', () => {
+      const nowPortrait = window.innerHeight > window.innerWidth;
+      if (wasPortrait !== nowPortrait) { wasPortrait = nowPortrait; location.reload(); }
+    });
+  }
+
   // ---------- CANVAS + SHARP-DPR ----------
   const canvas = document.getElementById('game');
   const ctx    = canvas.getContext('2d');
-  const W = 760;             // logical width
-  const H = 570;             // logical height
+  const W = CFG.W;
+  const H = CFG.H;
+  canvas.setAttribute('width', String(W));
+  canvas.setAttribute('height', String(H));
   function resizeCanvas() {
     const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
     const backingW = Math.round(W * dpr);
@@ -25,24 +78,28 @@
   window.addEventListener('resize', resizeCanvas);
 
   // ---------- GRID ----------
-  // Layout budget for a 760×570 canvas:
-  //   HUD:     56 px (top)
-  //   gap:      8 px
-  //   GRID:   448 px (8 rows × 56)
-  //   gap:     14 px
-  //   hint:    16 px text band
-  //   pad:     28 px bottom breathing room
-  //   ===========================
-  //           570 px total
-  //   sides:  (760 − 672) / 2 = 44 px each — well over the 10 px minimum
-  const COLS = 12;
-  const ROWS = 8;
-  const CELL = 56;
-  const GRID_W = COLS * CELL;   // 672
-  const GRID_H = ROWS * CELL;   // 448
-  const HUD_H = 56;
-  const GRID_X = (W - GRID_W) / 2;   // 44 px side padding
-  const GRID_Y = HUD_H + 8;          // 64 — 8 px breathing room above grid
+  // Geometry derives from the per-mode CFG so the same drawing/logic code
+  // serves both desktop (12 × 8) and mobile (6 × 13) layouts.
+  //
+  // Desktop budget (760 × 570):
+  //   HUD 56 · gap 8 · grid 448 · hint band · 28 bottom breathing
+  //
+  // Mobile budget (393 × 852):
+  //   HUD 56 · gap 8 · grid 676 · gap 12 · hint 20 · gap 8 · banner 50 · 22 bottom pad
+  const COLS = CFG.COLS;
+  const ROWS = CFG.ROWS;
+  const CELL = CFG.CELL;
+  const GRID_W = COLS * CELL;
+  const GRID_H = ROWS * CELL;
+  const HUD_H  = CFG.HUD_H;
+  const GRID_X = Math.floor((W - GRID_W) / 2);
+  const GRID_Y = HUD_H + 8;
+
+  // Banner ad slot — only drawn in mobile mode (BANNER_H = 0 on desktop).
+  const BANNER_W = CFG.BANNER_W;
+  const BANNER_H = CFG.BANNER_H;
+  const BANNER_X = Math.floor((W - BANNER_W) / 2);
+  const BANNER_Y = H - BANNER_H - 22;   // 22 px bottom safe-area pad on mobile
 
   // grid[r][c] = { letter, color } or null
   let grid = [];
@@ -75,9 +132,38 @@
       [bag[i], bag[j]] = [bag[j], bag[i]];
     }
   }
+  // Streak-aware draw: never emits more than MAX_STREAK same-type letters
+  // in a row (vowel vs consonant). Prevents the Scrabble bag from dealing
+  // "AEIOUA…" or "QZXKJ…" runs that lock the player out of word formation.
+  // We rummage the bag for an alternate-type letter when the streak is hit,
+  // putting the original back into the bag so frequency stays Scrabble-honest.
+  const VOWELS = 'AEIOU';
+  const MAX_STREAK = 3;
+  let vowelStreak = 0;
+  let consonantStreak = 0;
   function drawLetter() {
     if (bag.length === 0) refillBag();
-    return bag.pop();
+    let letter = bag.pop();
+    const wantVowel = consonantStreak >= MAX_STREAK;
+    const wantConsonant = vowelStreak >= MAX_STREAK;
+    if (wantVowel || wantConsonant) {
+      const isVowelNow = VOWELS.includes(letter);
+      if ((wantVowel && !isVowelNow) || (wantConsonant && isVowelNow)) {
+        const match = (l) => wantVowel ? VOWELS.includes(l) : !VOWELS.includes(l);
+        let idx = bag.findIndex(match);
+        // If the bag has nothing of the needed type left, refill it before retrying.
+        if (idx === -1) { refillBag(); idx = bag.findIndex(match); }
+        if (idx >= 0) {
+          const swap = bag[idx];
+          bag.splice(idx, 1);
+          bag.unshift(letter);            // recycle the rejected letter
+          letter = swap;
+        }
+      }
+    }
+    if (VOWELS.includes(letter)) { vowelStreak++; consonantStreak = 0; }
+    else { consonantStreak++; vowelStreak = 0; }
+    return letter;
   }
 
   // ---------- WORD LIST (TWL06 Scrabble, 3-7 letters) ----------
@@ -108,8 +194,8 @@
     cellEmpty2: '#22355A',          // alt checker cell (subtle)
     cellLine:   'rgba(255, 255, 255, 0.06)',
     tileFace:   '#FFFFFF',          // letter glyphs sit on dark tile bodies
-    accent:     '#FF6B5C',          // coral
-    accentHi:   '#FFA08C',
+    accent:     '#D8523F',          // coral, darkened to 4.55:1 with white text
+    accentHi:   '#FF6B5C',
     text:       '#FFFFFF',
     textDim:    '#C5CFE0',
     textMute:   '#8E9CB5',
@@ -121,10 +207,12 @@
   };
 
   // Six candy palettes — body, then highlight strip — rotates per level.
-  // Each pair: dark-enough body for white text, lighter highlight on top.
+  // Each pair tuned so the body holds ≥4.5:1 (AA-large) with the white glyph.
+  // Burnt orange was originally too light (2.7:1) and got darkened to #D85B0E
+  // to clear AA-large; the old #F07F2A now lives on the highlight strip.
   const TILE_PALETTES = [
     ['#E84855', '#FF6B7A'],   // cherry red
-    ['#F07F2A', '#FF9E5E'],   // burnt orange
+    ['#D85B0E', '#F07F2A'],   // burnt orange (darkened for AA contrast)
     ['#3D5AFE', '#6577FF'],   // royal blue
     ['#00897B', '#26A69A'],   // emerald
     ['#7E57C2', '#9575CD'],   // royal purple
@@ -133,34 +221,38 @@
   let levelIdx = 0;
   function tileColor() { return TILE_PALETTES[levelIdx % TILE_PALETTES.length]; }
 
-  // ---------- ACTIVE FALLING TILE ----------
-  let active = null;        // { letter, col, y, vy } y in pixels (top of tile)
+  // ---------- ACTIVE TILE — STOP-MOTION CELL STEPPING ----------
+  // Tile occupies one grid cell at a time and snaps down by one row every
+  // `currentStepInterval()` ms. No pixel-by-pixel drift — feels deliberate
+  // and gives the player time to think.
+  let active = null;        // { letter, col, row, nextStepAt }
   let nextLetter = null;
-  let dropping = false;
-  const FALL_SPEED = 90;    // base px/sec drift (when 0 letters have dropped)
-  const FAST_DROP  = 720;   // px/sec when player presses down/space
-  // Progressive speed-up — every dropped letter adds a touch of pressure.
-  //   0 letters → 90 px/sec  (gentle warm-up)
-  //   50       → 215         (noticeable squeeze)
-  //   150+     → 360 cap     (nearly unsurvivable)
-  const SPEED_PER_LETTER = 2.5;
-  const SPEED_CAP = 360;
-  function currentFallSpeed() {
-    return Math.min(SPEED_CAP, FALL_SPEED + lettersDropped * SPEED_PER_LETTER);
+  const STEP_BASE_MS  = 750;        // gentle warm-up speed (0 letters dropped)
+  const STEP_DELTA_MS = 4;          // ms shaved off per letter
+  const STEP_MIN_MS   = 350;        // cap so end-game stays playable
+  const FAST_DROP_MS  = 80;         // when player presses ↓ / Space
+  function currentStepInterval() {
+    return Math.max(STEP_MIN_MS, STEP_BASE_MS - lettersDropped * STEP_DELTA_MS);
   }
+  let fastDropActive = false;
 
   // ---------- GAME STATE ----------
   let score = 0;
   let wordsFound = 0;
   let lettersDropped = 0;
   let gameOver = false;
-  let lastFrame = 0;
+  let awaitingStart = true;          // true → instructions overlay; false → live game
+  // Hit-test rect for the START button drawn during the instructions scene.
+  // Filled by drawInstructions() each frame; consumed by the pointer handler.
+  const START_BTN = { x: 0, y: 0, w: 0, h: 0 };
   let clearFlashes = [];    // { cells: [{r,c}], startAt }
 
   // ---------- INIT ----------
   function initGame() {
     grid = emptyGrid();
     refillBag();
+    vowelStreak = 0;
+    consonantStreak = 0;
     score = 0;
     wordsFound = 0;
     lettersDropped = 0;
@@ -169,7 +261,6 @@
     clearFlashes = [];
     nextLetter = drawLetter();
     spawnTile();
-    lastFrame = performance.now();
     requestAnimationFrame(loop);
   }
 
@@ -177,9 +268,11 @@
     const col = Math.floor(COLS / 2);
     const letter = nextLetter || drawLetter();
     nextLetter = drawLetter();
-    // Spawn just inside the grid top so the tile never overlaps the HUD area above.
-    active = { letter, col, y: GRID_Y - 2, vy: currentFallSpeed() };
-    // If the spawn column is already full, game over.
+    // Active tile starts in row 0; next step (move to row 1) is scheduled
+    // one full interval later so the player can read it before it falls.
+    active = { letter, col, row: 0, nextStepAt: performance.now() + currentStepInterval() };
+    fastDropActive = false;
+    // If the spawn cell is already occupied, the stack is full → game over.
     if (grid[0][col] !== null) {
       gameOver = true;
     }
@@ -291,6 +384,12 @@
   const HORIZ_REPEAT_MS = 110;
 
   window.addEventListener('keydown', (e) => {
+    if (awaitingStart && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault();
+      awaitingStart = false;
+      initGame();
+      return;
+    }
     if (gameOver && (e.key === 'Enter' || e.key === ' ')) {
       e.preventDefault();
       initGame();
@@ -300,7 +399,11 @@
     if (e.key === 'ArrowLeft')  { if (active.col > 0) active.col--; keys.ArrowLeft = true; e.preventDefault(); }
     else if (e.key === 'ArrowRight') { if (active.col < COLS - 1) active.col++; keys.ArrowRight = true; e.preventDefault(); }
     else if (e.key === 'ArrowDown' || e.key === ' ') {
-      active.vy = FAST_DROP;
+      // Fast-drop: shorten the next step to FAST_DROP_MS so the tile rains
+      // down quickly. The flag persists until keyup so it keeps applying as
+      // each step completes.
+      fastDropActive = true;
+      active.nextStepAt = Math.min(active.nextStepAt, performance.now() + FAST_DROP_MS);
       keys.ArrowDown = true;
       e.preventDefault();
     }
@@ -308,23 +411,35 @@
   window.addEventListener('keyup', (e) => {
     if (e.key in keys) keys[e.key] = false;
     if (e.key === 'ArrowDown' || e.key === ' ') {
-      if (active) active.vy = currentFallSpeed();
+      fastDropActive = false;
     }
   });
 
-  // Mouse / pointer: click a column to slide & drop into it.
+  // Mouse / pointer
+  function inRect(r, lx, ly) {
+    return lx >= r.x && lx <= r.x + r.w && ly >= r.y && ly <= r.y + r.h;
+  }
   canvas.addEventListener('pointerdown', (e) => {
     e.preventDefault();
-    if (gameOver) { initGame(); return; }
-    if (!active) return;
     const rect = canvas.getBoundingClientRect();
     const lx = ((e.clientX - rect.left) / rect.width) * W;
     const ly = ((e.clientY - rect.top)  / rect.height) * H;
-    // If click is inside grid, choose column. Otherwise just fast-drop.
+
+    // Instructions scene: only the START pill is interactive.
+    if (awaitingStart) {
+      if (inRect(START_BTN, lx, ly)) {
+        awaitingStart = false;
+        initGame();
+      }
+      return;
+    }
+    if (gameOver) { initGame(); return; }
+    if (!active) return;
     if (ly > GRID_Y - CELL && ly < GRID_Y + GRID_H + 40) {
       const col = Math.max(0, Math.min(COLS - 1, Math.floor((lx - GRID_X) / CELL)));
       active.col = col;
-      active.vy = FAST_DROP;
+      fastDropActive = true;
+      active.nextStepAt = performance.now() + FAST_DROP_MS;
     }
   });
 
@@ -446,11 +561,11 @@
   function drawActiveTile() {
     if (!active || gameOver) return;
     const x = GRID_X + active.col * CELL + 2;
-    const y = active.y + 2;
+    const y = GRID_Y + active.row * CELL + 2;
     const [body, top] = tileColor();
-    // Drop shadow guide at landing row
+    // Landing-row preview: faded outline at the cell the tile will lock into.
     const landRow = lowestEmpty(active.col);
-    if (landRow !== -1) {
+    if (landRow !== -1 && landRow !== active.row) {
       const ly = GRID_Y + landRow * CELL + 2;
       ctx.fillStyle = C.accent;
       ctx.globalAlpha = 0.2;
@@ -482,14 +597,107 @@
   }
 
   function drawHintRow() {
-    // Vertically centred in the space between the bottom of the grid (GRID_Y+GRID_H)
-    // and the bottom of the canvas (H).
-    const y = GRID_Y + GRID_H + (H - (GRID_Y + GRID_H)) / 2;
+    // Optically centred between the grid bottom and either the banner top
+    // (mobile) or the canvas bottom (desktop). actualBoundingBox* gives the
+    // tight glyph rectangle so caps don't drift above true visual centre.
+    const text = MODE === 'mobile'
+      ? 'TAP A COLUMN TO DROP'
+      : '← →  MOVE   ·   ↓ / SPACE  FAST DROP   ·   CLICK A COLUMN TO DROP';
+    const stripTop    = GRID_Y + GRID_H;
+    const stripBot    = BANNER_H > 0 ? BANNER_Y : H;
+    const stripHeight = stripBot - stripTop;
     ctx.font = '500 11px Inter, sans-serif';
     ctx.fillStyle = C.textMute;
     ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    const m = ctx.measureText(text);
+    const ascent  = m.actualBoundingBoxAscent;
+    const descent = m.actualBoundingBoxDescent;
+    const glyphH  = ascent + descent;
+    const baselineY = stripTop + (stripHeight - glyphH) / 2 + ascent;
+    ctx.fillText(text, W / 2, baselineY);
+  }
+
+  // Banner-ad placeholder — mobile-only. Dashed rectangle with "AD · 320 × 50",
+  // matches the desktop ad-slot style so wiring a real ad network later is a
+  // visual no-op. Disabled on desktop (BANNER_H === 0).
+  function drawBannerAd() {
+    if (BANNER_H === 0) return;
+    ctx.fillStyle = C.panel;
+    roundRect(BANNER_X, BANNER_Y, BANNER_W, BANNER_H, 8);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    roundRect(BANNER_X + 0.5, BANNER_Y + 0.5, BANNER_W - 1, BANNER_H - 1, 8);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.font = '700 11px Inter, sans-serif';
+    ctx.fillStyle = C.textMute;
+    ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('← →  MOVE   ·   ↓ / SPACE  FAST DROP   ·   CLICK A COLUMN TO DROP', W / 2, y);
+    ctx.fillText('AD · 320 × 50', BANNER_X + BANNER_W / 2, BANNER_Y + BANNER_H / 2);
+  }
+
+  // Instructions screen — shown once on first load (after splash) and dismissed
+  // by the START button. Subsequent restarts (after game-over) skip straight to
+  // gameplay since the player already knows the rules.
+  function drawInstructions() {
+    // Full canvas background (banner stays visible underneath in mobile mode).
+    ctx.fillStyle = C.bg;
+    ctx.fillRect(0, 0, W, BANNER_H > 0 ? BANNER_Y - 8 : H);
+
+    const midX = W / 2;
+    // Vertical centre of the play area (above banner on mobile, full canvas on desktop).
+    const playBot = BANNER_H > 0 ? BANNER_Y - 8 : H;
+    const midY = playBot / 2;
+
+    // TITLE
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = '700 11px Inter, sans-serif';
+    ctx.fillStyle = C.accent;
+    ctx.fillText('HOW TO PLAY', midX, midY - 160);
+
+    ctx.font = '800 ' + (MODE === 'mobile' ? 32 : 36) + 'px Inter, sans-serif';
+    ctx.fillStyle = C.text;
+    ctx.fillText('TESSERA Words', midX, midY - 120);
+
+    // RULES — three short lines
+    const rules = [
+      'Tiles fall into the column you tap.',
+      'Form English words across or down — 3 letters or more.',
+      'Longer words score exponentially more.',
+      'Beat the stack. Game gets faster as you play.',
+    ];
+    ctx.font = '500 ' + (MODE === 'mobile' ? 14 : 14) + 'px Inter, sans-serif';
+    ctx.fillStyle = C.textDim;
+    const lineH = 24;
+    const rulesTop = midY - 60;
+    for (let i = 0; i < rules.length; i++) {
+      ctx.fillText(rules[i], midX, rulesTop + i * lineH);
+    }
+
+    // START button — generous pill, accent fill, white text
+    const btnW = MODE === 'mobile' ? 240 : 280;
+    const btnH = MODE === 'mobile' ? 56 : 52;
+    const btnY = rulesTop + rules.length * lineH + 28;
+    const btnX = midX - btnW / 2;
+    START_BTN.x = btnX; START_BTN.y = btnY; START_BTN.w = btnW; START_BTN.h = btnH;
+    ctx.fillStyle = C.accent;
+    roundRect(btnX, btnY, btnW, btnH, btnH / 2);
+    ctx.fill();
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = '700 14px Inter, sans-serif';
+    ctx.fillText('START', midX, btnY + btnH / 2 + 1);
+
+    // Controls hint (small, beneath the button)
+    ctx.font = '500 10px Inter, sans-serif';
+    ctx.fillStyle = C.textMute;
+    const ctrlHint = MODE === 'mobile'
+      ? 'TAP A COLUMN TO DROP A TILE'
+      : '← →  MOVE   ·   ↓ / SPACE  FAST DROP   ·   CLICK A COLUMN TO DROP';
+    ctx.fillText(ctrlHint, midX, btnY + btnH + 26);
   }
 
   function drawGameOver() {
@@ -532,31 +740,37 @@
 
   // ---------- LOOP ----------
   function loop(now) {
-    const dt = Math.min(0.05, (now - lastFrame) / 1000);
-    lastFrame = now;
-
     // Background
     ctx.fillStyle = C.bg;
     ctx.fillRect(0, 0, W, H);
+
+    if (awaitingStart) {
+      // Instructions scene — no playfield, no HUD, just the rules + START.
+      drawInstructions();
+      drawBannerAd();
+      requestAnimationFrame(loop);
+      return;
+    }
 
     drawHUD();
     drawPlayfield();
     drawPlacedTiles();
     drawClearFlashes(now);
 
-    // Advance active tile
-    if (active && !gameOver) {
-      active.y += active.vy * dt;
-      // Auto-snap when reached landing row
+    // Advance active tile — one row per step interval, with fast-drop override.
+    if (active && !gameOver && now >= active.nextStepAt) {
       const landRow = lowestEmpty(active.col);
-      const landY = landRow === -1 ? GRID_Y + GRID_H : GRID_Y + landRow * CELL;
-      if (active.y >= landY) {
-        active.y = landY;
+      if (landRow === -1 || active.row >= landRow) {
         lockTile();
+      } else {
+        active.row++;
+        const interval = fastDropActive ? FAST_DROP_MS : currentStepInterval();
+        active.nextStepAt = now + interval;
       }
     }
     drawActiveTile();
     drawHintRow();
+    drawBannerAd();
 
     if (gameOver) drawGameOver();
 
@@ -564,13 +778,16 @@
   }
 
   // ---------- START ----------
-  // Wait for the splash overlay to finish before starting the game, so the
-  // first tile doesn't drop while the splash is still visible. The splash
-  // dispatches `splash-done` when it removes itself (see index.html). If no
-  // splash is on the page, start immediately.
+  // After splash: show the instructions overlay and start the render loop.
+  // initGame() is gated on the player tapping START (handled in the pointer
+  // listener above). Restarts after game-over skip the instructions screen.
+  function bootToInstructions() {
+    awaitingStart = true;
+    requestAnimationFrame(loop);
+  }
   if (document.getElementById('splash')) {
-    window.addEventListener('splash-done', initGame, { once: true });
+    window.addEventListener('splash-done', bootToInstructions, { once: true });
   } else {
-    initGame();
+    bootToInstructions();
   }
 })();
