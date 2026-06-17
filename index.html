@@ -154,14 +154,29 @@
       color: var(--text-mute);
     }
 
-    /* Chrome.css hides .site-header below 1099px so game pages can auto-focus.
-       The lobby is not a game — keep the header visible at every viewport. */
+    /* Chrome.css collapses .site-header below 1099px so game pages can auto-focus.
+       The lobby is not a game — undo that collapse and use a more compact mobile
+       header (64px tall, 28px logo). The body.lobby-page selector keeps this
+       opt-out scoped to just the lobby. */
     @media (max-width: 1099px) {
-      .site-header { display: flex; }
+      body.lobby-page .site-header {
+        position: sticky;
+        top: 0;
+        height: 64px;
+        padding: 0 16px;
+        background: var(--bg);
+        border-bottom: 1px solid var(--line);
+        overflow: visible;
+        pointer-events: auto;
+        display: flex;
+        align-items: center;
+      }
+      body.lobby-page .site-header .brand { display: flex; }
+      body.lobby-page .brand-logo { height: 28px; }
     }
   </style>
 </head>
-<body>
+<body class="lobby-page">
   <header class="site-header">
     <div class="brand">
       <img class="brand-logo" src="./images/zamborin-logo.svg" alt="Zamborin" />
