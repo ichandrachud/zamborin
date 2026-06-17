@@ -276,6 +276,7 @@
     osc.start(t0); osc.stop(t0 + dur + 0.02);
   }
   function sfxTile()  { tone(380, 0.08, 0.05,  'sine'); }
+  function sfxTick()  { tone(1600, 0.02, 0.025, 'square'); }
   function sfxStart() { tone(523, 0.10, 0.05,  'triangle'); setTimeout(() => tone(784, 0.12, 0.05, 'triangle'), 80); }
   function sfxWord(len) {
     // 3-letter word → C5, each extra letter adds a semitone-ish brightness.
@@ -466,8 +467,14 @@
       return;
     }
     if (!active) return;
-    if (e.key === 'ArrowLeft')  { if (active.col > 0) active.col--; keys.ArrowLeft = true; e.preventDefault(); }
-    else if (e.key === 'ArrowRight') { if (active.col < COLS - 1) active.col++; keys.ArrowRight = true; e.preventDefault(); }
+    if (e.key === 'ArrowLeft')  {
+      if (active.col > 0) { active.col--; sfxTick(); }
+      keys.ArrowLeft = true; e.preventDefault();
+    }
+    else if (e.key === 'ArrowRight') {
+      if (active.col < COLS - 1) { active.col++; sfxTick(); }
+      keys.ArrowRight = true; e.preventDefault();
+    }
     else if (e.key === 'ArrowDown' || e.key === ' ') {
       // Fast-drop: shorten the next step to FAST_DROP_MS so the tile rains
       // down quickly. The flag persists until keyup so it keeps applying as
@@ -516,9 +523,13 @@
     if (!active) return;
     if (ly > GRID_Y - CELL && ly < GRID_Y + GRID_H + 40) {
       const col = Math.max(0, Math.min(COLS - 1, Math.floor((lx - GRID_X) / CELL)));
-      active.col = col;
-      fastDropActive = true;
-      active.nextStepAt = performance.now() + FAST_DROP_MS;
+      // Move the active tile to the tapped column, but DO NOT trigger fast-drop.
+      // The tile keeps falling at its normal cadence so the player can change
+      // their mind, recover from an accidental tap, or hover-pick.
+      if (col !== active.col) {
+        active.col = col;
+        sfxTick();
+      }
     }
   });
 
@@ -720,8 +731,8 @@
     // (mobile) or the canvas bottom (desktop). actualBoundingBox* gives the
     // tight glyph rectangle so caps don't drift above true visual centre.
     const text = MODE === 'mobile'
-      ? 'TAP A COLUMN TO DROP'
-      : '← →  MOVE   ·   ↓ / SPACE  FAST DROP   ·   CLICK A COLUMN TO DROP';
+      ? 'TAP A COLUMN TO MOVE THE TILE'
+      : '← →  MOVE   ·   ↓ / SPACE  FAST DROP   ·   CLICK A COLUMN TO MOVE';
     const stripTop    = GRID_Y + GRID_H;
     const stripBot    = BANNER_H > 0 ? BANNER_Y : H;
     const stripHeight = stripBot - stripTop;
@@ -784,7 +795,7 @@
 
     // RULES — three short lines
     const rules = [
-      'Tiles fall into the column you tap.',
+      'Tap a column to slide the falling tile there.',
       'Form English words across or down — 3 letters or more.',
       'Longer words score exponentially more.',
       'Beat the stack. Game gets faster as you play.',
@@ -814,8 +825,8 @@
     ctx.font = '500 10px Inter, sans-serif';
     ctx.fillStyle = C.textMute;
     const ctrlHint = MODE === 'mobile'
-      ? 'TAP A COLUMN TO DROP A TILE'
-      : '← →  MOVE   ·   ↓ / SPACE  FAST DROP   ·   CLICK A COLUMN TO DROP';
+      ? 'TAP A COLUMN TO MOVE THE TILE'
+      : '← →  MOVE   ·   ↓ / SPACE  FAST DROP   ·   CLICK A COLUMN TO MOVE';
     ctx.fillText(ctrlHint, midX, btnY + btnH + 26);
   }
 
