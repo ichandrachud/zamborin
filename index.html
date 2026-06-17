@@ -2,96 +2,125 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-  <title>TESSERA Words — Endless word puzzle</title>
-  <meta name="description" content="Stack falling letter tiles into words. The longer the word, the more the points. The game gets faster the longer you survive. Free." />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Zamborin Games</title>
+  <meta name="description" content="A small studio making daily puzzle games. Free. No login. Same puzzle for everyone today." />
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./play.css?v=1" />
+  <link rel="stylesheet" href="./shared/tokens.css" />
+
+  <style>
+    body {
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+    }
+    .lobby {
+      flex: 1;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 80px 24px 40px;
+      display: flex;
+      flex-direction: column;
+      gap: 56px;
+      width: 100%;
+    }
+    .lobby-head { text-align: center; }
+    .lobby-mark {
+      font-size: 56px;
+      font-weight: 800;
+      letter-spacing: 5px;
+      color: var(--brand);
+      line-height: 1;
+      margin: 0 0 14px;
+    }
+    .lobby-tag {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 2.4px;
+      color: var(--text-mute);
+      text-transform: uppercase;
+    }
+    .games-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+    }
+    .game-card {
+      background:
+        radial-gradient(at 30% 0%, #1B2A47 0%, #131F36 60%, #0E1726 100%);
+      border-radius: 18px;
+      padding: 32px;
+      text-decoration: none;
+      color: inherit;
+      box-shadow:
+        inset 0 0 0 1px rgba(255,255,255,0.06),
+        0 18px 36px -16px rgba(0,0,0,0.55);
+      transition: transform .18s ease, box-shadow .18s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      min-height: 240px;
+    }
+    .game-card:hover {
+      transform: translateY(-3px);
+      box-shadow:
+        inset 0 0 0 1px rgba(255,255,255,0.10),
+        0 24px 48px -16px rgba(0,0,0,0.65),
+        0 0 0 1px rgba(216, 82, 63, 0.25);
+    }
+    .game-card-name {
+      font-size: 36px;
+      font-weight: 800;
+      letter-spacing: -0.4px;
+      color: var(--text);
+    }
+    .game-card-desc {
+      font-size: 14px;
+      font-weight: 500;
+      line-height: 1.5;
+      color: var(--text-dim);
+      flex: 1;
+    }
+    .game-card-cta {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: var(--accent);
+      align-self: flex-start;
+    }
+    .lobby-foot {
+      text-align: center;
+      padding: 24px 16px 32px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.4px;
+      color: var(--text-mute);
+    }
+  </style>
 </head>
 <body>
-  <button id="focus-toggle" class="focus-btn" type="button" aria-label="Toggle phone-view focus mode" aria-pressed="false">
-    <!-- enter-focus icon: landscape phone outline -->
-    <svg class="icon-enter" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <rect x="2" y="6" width="20" height="12" rx="2.5"/>
-      <circle cx="19" cy="12" r="0.9" fill="currentColor" stroke="none"/>
-    </svg>
-    <!-- exit-focus icon: close (×) -->
-    <svg class="icon-exit" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <path d="M6 6l12 12M18 6L6 18"/>
-    </svg>
-  </button>
+  <main class="lobby">
+    <header class="lobby-head">
+      <h1 class="lobby-mark">ZAMBORIN</h1>
+      <p class="lobby-tag">Daily Puzzle Games</p>
+    </header>
 
-  <header class="site-header">
-    <div class="brand">
-      <span class="brand-mark">TESSERA</span>
-    </div>
-  </header>
-
-  <main class="page">
-    <!-- Top leaderboard ad: 728×90 -->
-    <div class="ad-slot ad-leaderboard" aria-label="Advertisement">
-      <span class="ad-label">AD · 728 × 90</span>
-    </div>
-
-    <!-- Main play area: 760×570 game left, two 300×250 stacked right -->
-    <section class="play-row">
-      <div class="game-wrap">
-        <canvas id="game" aria-label="Word puzzle"></canvas>
-        <!-- Splash sits ABOVE the canvas, INSIDE the game card. Visible for 2 s
-             on load, then fades and removes itself. -->
-        <div id="splash" class="splash" aria-hidden="true"></div>
-      </div>
-      <aside class="sidebar">
-        <div class="ad-slot ad-medrec" aria-label="Advertisement">
-          <span class="ad-label">AD · 300 × 250</span>
-        </div>
-        <div class="ad-slot ad-medrec" aria-label="Advertisement">
-          <span class="ad-label">AD · 300 × 250</span>
-        </div>
-      </aside>
-    </section>
-
-    <!-- Bottom leaderboard ad: 728×90 -->
-    <div class="ad-slot ad-leaderboard" aria-label="Advertisement">
-      <span class="ad-label">AD · 728 × 90</span>
+    <div class="games-row">
+      <a class="game-card" href="./tessera/">
+        <div class="game-card-name">Tessera</div>
+        <div class="game-card-desc">Drop letter tiles. Form English words across or down. Longer words score more. The game gets faster the longer you survive.</div>
+        <div class="game-card-cta">PLAY →</div>
+      </a>
+      <a class="game-card" href="./untangle/">
+        <div class="game-card-name">Untangle</div>
+        <div class="game-card-desc">Drag the dots so no two edges cross. Same graph for everyone today — fewer moves than par for bragging rights.</div>
+        <div class="game-card-cta">PLAY →</div>
+      </a>
     </div>
   </main>
-
-  <footer class="site-footer">
-    <span>A Zamborin Game</span>
-  </footer>
-
-  <script src="./play.js?v=1"></script>
-  <script>
-    // Focus / phone-view toggle: hides chrome, scales canvas to fit viewport.
-    // Always-on automatically below 1100 px (handled in CSS), button stays as the
-    // explicit on-desktop "preview as phone" affordance.
-    (() => {
-      const btn = document.getElementById('focus-toggle');
-      btn.addEventListener('click', () => {
-        const on = document.body.classList.toggle('focus-mode');
-        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
-        btn.setAttribute('aria-label', on ? 'Exit phone-view focus mode' : 'Enter phone-view focus mode');
-        // Canvas reads its own CSS dimensions on resize; trigger one so the backing store updates.
-        setTimeout(() => window.dispatchEvent(new Event('resize')), 60);
-      });
-    })();
-
-    // Splash: visible 2 s, fades over 600 ms, then removed so it never
-    // blocks pointer events on the game canvas underneath. Once it's gone,
-    // fires a `splash-done` event so play.js can spawn the first tile.
-    (() => {
-      const splash = document.getElementById('splash');
-      if (!splash) return;
-      setTimeout(() => splash.classList.add('fading'), 2000);
-      setTimeout(() => {
-        splash.remove();
-        window.dispatchEvent(new CustomEvent('splash-done'));
-      }, 2700);
-    })();
-  </script>
+  <footer class="lobby-foot">A Zamborin Games site · Free · No login</footer>
 </body>
 </html>

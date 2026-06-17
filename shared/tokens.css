@@ -1,0 +1,48 @@
+/* ============================================================
+   Zamborin · shared design tokens
+   Imported by every game's play.css and the lobby. Edit once,
+   ripple everywhere.
+   ============================================================ */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  /* Dark Portal palette — locked across all Zamborin Games */
+  --bg:        #0E1726;
+  --bg-card:   #131F36;
+  --bg-panel:  #1A2A45;
+  --line:      #1F2D4A;
+  --line-soft: rgba(255, 255, 255, 0.10);
+
+  --text:      #FFFFFF;
+  --text-dim:  #C5CFE0;
+  --text-mute: #8E9CB5;
+
+  --accent:    #D8523F;          /* coral, 4.55:1 white-on-fill */
+  --accent-2:  #FFD23F;          /* sunshine highlight */
+  --green:     #5DD39E;
+
+  /* Brand wordmark colour — used by every game's header */
+  --brand:     #B0E0E6;          /* powder blue */
+}
+
+html, body {
+  width: 100%;
+  background: var(--bg);
+  font-family: 'Inter', system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-weight: 500;
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overscroll-behavior: none;
+}
+
+/* Reduced motion respected globally. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

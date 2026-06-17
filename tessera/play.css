@@ -1,0 +1,9 @@
+/* ============================================================
+   Tessera · game-specific styles only.
+   Page chrome, palette tokens, splash mechanics, focus mode and
+   mobile auto-focus all come from /shared/tokens.css + chrome.css.
+   ============================================================ */
+
+/* Splash images live inside this game's folder. */
+body.mode-desktop .splash { background-image: url('./splash-desktop.jpg'); }
+body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg'); }

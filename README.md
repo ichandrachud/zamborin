@@ -1,13 +1,29 @@
-# TESSERA Words
+# Zamborin
 
-A free, endless word puzzle for desktop. Drop falling letter tiles into a 12 × 8
-grid and form English words (3-7 letters) horizontally or vertically — the
-longer the word, the more the points. The game gets faster the longer you
-survive; stack a column to the top and it's over.
+A small studio building daily browser puzzle games. Free. No login.
+Same puzzle for everyone today.
 
-- Pure static site — HTML, CSS, vanilla JS, no build step.
-- 51 852-word TWL06 Scrabble dictionary bundled (`words.txt`).
-- Sharp canvas rendering on every DPR.
+## Games
+
+- **[Tessera](./tessera/)** — Drop letter tiles, form English words across or down.
+- **[Untangle](./untangle/)** — Drag dots so no two edges cross.
+
+## Project layout
+
+```
+.
+├── index.html         ← lobby (lists the games)
+├── shared/
+│   ├── tokens.css     ← Dark Portal palette + base typography
+│   └── chrome.css     ← header, footer, splash, focus-button, layout
+├── tessera/           ← word game
+└── untangle/          ← graph game
+```
+
+The `shared/` folder holds everything that is identical across games —
+palette, headers, splash mechanics, focus mode, mobile auto-fit. Each
+game's `play.css` carries only its own overrides (mostly the splash
+image URLs). Each game's `play.js` is independent and game-specific.
 
 ## Run locally
 
@@ -19,6 +35,4 @@ Then open <http://localhost:8000>.
 
 ## Deploy
 
-Static site — drop the repo on Vercel / Netlify / Cloudflare Pages and it
-works. No environment variables, no build command, no output directory
-override needed.
+Static site, no build step. Drop on Vercel / Netlify / Cloudflare Pages.

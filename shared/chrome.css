@@ -1,40 +1,14 @@
 /* ============================================================
-   TESSERA Words · Desktop · Dark Portal palette
-   Page chrome only — the canvas paints its own world (see play.js).
+   Zamborin · shared page chrome
+   Header, footer, splash, focus button, canvas layout, mobile
+   auto-focus. Game-specific styles live in each game's play.css.
+   Imports tokens.css for design variables.
    ============================================================ */
-* { margin: 0; padding: 0; box-sizing: border-box; }
-
-:root {
-  --bg:        #0E1726;     /* deep navy page */
-  --bg-card:   #131F36;     /* slightly lighter — ad & game card backgrounds */
-  --bg-panel:  #1A2A45;     /* lighter panel inside cards */
-  --line:      #1F2D4A;     /* dividers */
-  --line-soft: rgba(255, 255, 255, 0.10);
-
-  --text:      #FFFFFF;
-  --text-dim:  #C5CFE0;     /* secondary, AA-safe vs --bg */
-  --text-mute: #8E9CB5;     /* tertiary; passes 4.5:1 vs --bg */
-
-  --accent:    #D8523F;     /* coral, darkened to 4.55:1 with white text */
-  --accent-2:  #FFD23F;     /* sunshine highlight */
-  --green:     #5DD39E;
-}
-
-html, body {
-  width: 100%;
-  background: var(--bg);
-  font-family: 'Inter', system-ui, -apple-system, "Segoe UI", sans-serif;
-  font-weight: 500;
-  color: var(--text);
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
-  overscroll-behavior: none;
-}
 
 /* ---------- HEADER ---------- */
 .site-header {
   width: 100%;
-  height: 100px;            /* fixed visual height incl. border (box-sizing: border-box) */
+  height: 100px;
   background: var(--bg);
   border-bottom: 1px solid var(--line);
   padding: 0 32px;
@@ -42,16 +16,12 @@ html, body {
   align-items: center;
   justify-content: space-between;
 }
-.brand {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-}
+.brand { display: flex; align-items: baseline; gap: 10px; }
 .brand-mark {
   font-size: 40px;
   font-weight: 800;
   letter-spacing: 4px;
-  color: #B0E0E6;          /* powder blue, holds ~8.4:1 contrast on the navy bg */
+  color: var(--brand);
   line-height: 1;
 }
 .brand-sub {
@@ -71,10 +41,7 @@ html, body {
   gap: 20px;
 }
 
-/* ---------- AD SLOTS ----------
-   Hidden in V1 — launching the game ad-free. To re-enable: remove `display: none`
-   below and the slot styling underneath returns automatically.
-*/
+/* ---------- AD SLOTS — hidden V1 ---------- */
 .ad-slot {
   display: none;
   background: var(--bg-card);
@@ -86,17 +53,10 @@ html, body {
   font-size: 11px;
   border-radius: 10px;
 }
-.ad-leaderboard {
-  width: 728px;
-  height: 90px;
-  margin: 0 auto;
-}
-.ad-medrec {
-  width: 300px;
-  height: 250px;
-}
+.ad-leaderboard { width: 728px; height: 90px; margin: 0 auto; }
+.ad-medrec      { width: 300px; height: 250px; }
 
-/* ---------- PLAY ROW ---------- */
+/* ---------- PLAY ROW + GAME CARD ---------- */
 .play-row {
   display: flex;
   gap: 20px;
@@ -118,7 +78,6 @@ html, body {
   overflow: hidden;
   position: relative;
 }
-/* Mode-driven canvas size — read by .game-wrap and #game. */
 body.mode-desktop { --canvas-w: 760px; --canvas-h: 570px; }
 body.mode-mobile  { --canvas-w: 393px; --canvas-h: 852px; }
 #game {
@@ -126,16 +85,12 @@ body.mode-mobile  { --canvas-w: 393px; --canvas-h: 852px; }
   width:  var(--canvas-w);
   height: var(--canvas-h);
   cursor: pointer;
-  touch-action: none;                  /* prevents the browser from interpreting taps as scrolls */
+  touch-action: none;
   -webkit-user-select: none;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
 }
-.sidebar {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
+.sidebar { display: flex; flex-direction: column; gap: 20px; }
 
 /* ---------- FOOTER ---------- */
 .site-footer {
@@ -148,9 +103,8 @@ body.mode-mobile  { --canvas-w: 393px; --canvas-h: 852px; }
 }
 
 /* ---------- SPLASH ----------
-   Sits INSIDE .game-wrap (which is position: relative, overflow: hidden)
-   so it covers only the game card. The image is mode-aware so portrait
-   phones get a 9:20 composition and desktop gets the 4:3 hero shot. */
+   Splash images are declared by each game's own play.css —
+   .splash structure / fade / scope live here. */
 .splash {
   position: absolute;
   inset: 0;
@@ -162,12 +116,7 @@ body.mode-mobile  { --canvas-w: 393px; --canvas-h: 852px; }
   transition: opacity 0.6s ease-out;
   pointer-events: auto;
 }
-body.mode-desktop .splash { background-image: url('./splash-desktop.jpg'); }
-body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg'); }
-.splash.fading {
-  opacity: 0;
-  pointer-events: none;
-}
+.splash.fading { opacity: 0; pointer-events: none; }
 
 /* ---------- FOCUS / PHONE-VIEW BUTTON ---------- */
 .focus-btn {
@@ -195,10 +144,9 @@ body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg'); }
   outline-offset: 3px;
   color: var(--text);
 }
-/* default: show enter icon, hide exit icon */
 .focus-btn .icon-exit { display: none; }
 body.focus-mode .focus-btn .icon-enter { display: none; }
-body.focus-mode .focus-btn .icon-exit { display: block; }
+body.focus-mode .focus-btn .icon-exit  { display: block; }
 body.focus-mode .focus-btn {
   background: rgba(14, 23, 38, 0.55);
   backdrop-filter: blur(10px);
@@ -209,76 +157,38 @@ body.focus-mode .focus-btn {
 /* ---------- FOCUS-MODE LAYOUT (manual toggle, desktop) ---------- */
 body.focus-mode .site-header,
 body.focus-mode .site-footer,
-body.focus-mode .ad-slot {
-  display: none;
-}
+body.focus-mode .ad-slot { display: none; }
 body.focus-mode .page {
-  margin: 0;
-  padding: 0;
-  gap: 0;
-  max-width: none;
+  margin: 0; padding: 0; gap: 0; max-width: none;
 }
 body.focus-mode .play-row {
-  width: 100vw;
-  height: 100dvh;
-  align-items: center;
-  justify-content: center;
-  gap: 0;
+  width: 100vw; height: 100dvh;
+  align-items: center; justify-content: center; gap: 0;
 }
 body.focus-mode .game-wrap {
-  /* Scale to fit the viewport while preserving the 760 : 570 (4:3) aspect ratio */
   width:  min(100vw, calc(100dvh * var(--canvas-w) / var(--canvas-h)));
   height: min(100dvh, calc(100vw * var(--canvas-h) / var(--canvas-w)));
   border-radius: 0;
   box-shadow: none;
 }
-body.focus-mode #game {
-  width: 100%;
-  height: 100%;
-}
+body.focus-mode #game { width: 100%; height: 100%; }
 
-/* ---------- MOBILE: auto-apply focus-mode layout below 1100 px ---------- */
+/* ---------- MOBILE: auto-focus layout below 1100 px ---------- */
 @media (max-width: 1099px) {
   .site-header,
   .site-footer,
-  .ad-slot {
-    display: none;
-  }
-  .page {
-    margin: 0;
-    padding: 0;
-    gap: 0;
-    max-width: none;
-  }
+  .ad-slot { display: none; }
+  .page { margin: 0; padding: 0; gap: 0; max-width: none; }
   .play-row {
-    width: 100vw;
-    height: 100dvh;
-    align-items: center;
-    justify-content: center;
-    gap: 0;
+    width: 100vw; height: 100dvh;
+    align-items: center; justify-content: center; gap: 0;
   }
   .game-wrap {
-    /* Use the same --canvas-w / --canvas-h vars; aspect-fit to viewport */
     width:  min(100vw, calc(100dvh * var(--canvas-w) / var(--canvas-h)));
     height: min(100dvh, calc(100vw * var(--canvas-h) / var(--canvas-w)));
     border-radius: 0;
     box-shadow: none;
   }
-  #game {
-    width: 100%;
-    height: 100%;
-  }
-  /* Already focus-style; the button is redundant on phones — hide it. */
+  #game { width: 100%; height: 100%; }
   .focus-btn { display: none; }
-}
-
-/* ---------- REDUCED MOTION ---------- */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    transition-duration: 0.01ms !important;
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-  }
 }
