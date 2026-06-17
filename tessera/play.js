@@ -73,11 +73,19 @@
   canvas.setAttribute('height', String(H));
   function resizeCanvas() {
     const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
-    const backingW = Math.round(W * dpr);
-    const backingH = Math.round(H * dpr);
+    // Size the backing buffer to the canvas's CURRENT CSS-displayed size × DPR
+    // so focus-mode CSS scaling renders at native pixel resolution (no blur).
+    const rect = canvas.getBoundingClientRect();
+    const displayW = rect.width  || W;
+    const displayH = rect.height || H;
+    const backingW = Math.round(displayW * dpr);
+    const backingH = Math.round(displayH * dpr);
     if (canvas.width !== backingW)  canvas.width  = backingW;
     if (canvas.height !== backingH) canvas.height = backingH;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // Transform so drawing code keeps using W×H logical coords;
+    // aspect is preserved by chrome.css so scaleX ≈ scaleY (take min for safety).
+    const scale = Math.min(backingW / W, backingH / H);
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
   }
   resizeCanvas();
   window.addEventListener('resize', resizeCanvas);
@@ -241,6 +249,47 @@
   }
   let fastDropActive = false;
 
+  // ---------- AUDIO ----------
+  // Lazy-init Web Audio on first user gesture (browser autoplay policy).
+  let audioCtx = null;
+  let soundOn = localStorage.getItem('zamborin-tessera.sound') !== '0';
+  function ensureAudio() {
+    if (audioCtx) return;
+    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch (_) { audioCtx = null; }
+  }
+  function setSound(on) {
+    soundOn = on;
+    try { localStorage.setItem('zamborin-tessera.sound', on ? '1' : '0'); } catch (_) {}
+  }
+  function tone(freq, dur, gain, type) {
+    if (!soundOn || !audioCtx) return;
+    const t0 = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.setValueAtTime(freq, t0);
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(gain, t0 + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    osc.connect(g); g.connect(audioCtx.destination);
+    osc.start(t0); osc.stop(t0 + dur + 0.02);
+  }
+  function sfxTile()  { tone(380, 0.08, 0.05,  'sine'); }
+  function sfxStart() { tone(523, 0.10, 0.05,  'triangle'); setTimeout(() => tone(784, 0.12, 0.05, 'triangle'), 80); }
+  function sfxWord(len) {
+    // 3-letter word → C5, each extra letter adds a semitone-ish brightness.
+    const baseHz = 523 * Math.pow(1.12, Math.max(0, len - 3));
+    tone(baseHz,        0.12, 0.06, 'triangle');
+    setTimeout(() => tone(baseHz * 1.25, 0.14, 0.06, 'triangle'),  80);
+    setTimeout(() => tone(baseHz * 1.5,  0.18, 0.07, 'triangle'), 160);
+  }
+  function sfxGameOver() {
+    tone(330, 0.18, 0.06, 'triangle');
+    setTimeout(() => tone(247, 0.18, 0.06, 'triangle'), 140);
+    setTimeout(() => tone(196, 0.28, 0.06, 'triangle'), 280);
+  }
+
   // ---------- GAME STATE ----------
   let score = 0;
   let wordsFound = 0;
@@ -250,6 +299,7 @@
   // Hit-test rect for the START button drawn during the instructions scene.
   // Filled by drawInstructions() each frame; consumed by the pointer handler.
   const START_BTN = { x: 0, y: 0, w: 0, h: 0 };
+  const SOUND_BTN = { x: 0, y: 0, w: 0, h: 0 };
   let clearFlashes = [];    // { cells: [{r,c}], startAt }
 
   // ---------- INIT ----------
@@ -299,6 +349,7 @@
     if (row === -1) {
       // Column overflow — game over.
       gameOver = true;
+      sfxGameOver();
       active = null;
       return;
     }
@@ -307,6 +358,7 @@
     lettersDropped++;
     if (lettersDropped % 10 === 0) levelIdx++;
     active = null;
+    sfxTile();
     detectAndClearWords();
     if (!gameOver) spawnTile();
   }
@@ -315,6 +367,7 @@
   // Greedy left-to-right / top-to-bottom; longest match at each starting cell.
   function detectAndClearWords() {
     const toClear = new Set();
+    let longestThisPass = 0;
     // horizontals
     for (let r = 0; r < ROWS; r++) {
       for (let c = 0; c < COLS; c++) {
@@ -332,6 +385,7 @@
             for (let k = 0; k < len; k++) toClear.add(r + ',' + (c + k));
             score += len * len * 10;       // longer = exponentially better
             wordsFound++;
+            if (len > longestThisPass) longestThisPass = len;
             break; // longest match at this start, move on
           }
         }
@@ -354,12 +408,14 @@
             for (let k = 0; k < len; k++) toClear.add((r + k) + ',' + c);
             score += len * len * 10;
             wordsFound++;
+            if (len > longestThisPass) longestThisPass = len;
             break;
           }
         }
       }
     }
     if (toClear.size === 0) return;
+    if (longestThisPass >= 3) sfxWord(longestThisPass);
     const cells = [];
     for (const key of toClear) {
       const [r, c] = key.split(',').map(Number);
@@ -389,14 +445,23 @@
   const HORIZ_REPEAT_MS = 110;
 
   window.addEventListener('keydown', (e) => {
+    if (e.key === 'm' || e.key === 'M') {
+      ensureAudio();
+      setSound(!soundOn);
+      if (soundOn) tone(660, 0.06, 0.04, 'sine');
+      return;
+    }
     if (awaitingStart && (e.key === 'Enter' || e.key === ' ')) {
       e.preventDefault();
+      ensureAudio();
       awaitingStart = false;
+      sfxStart();
       initGame();
       return;
     }
     if (gameOver && (e.key === 'Enter' || e.key === ' ')) {
       e.preventDefault();
+      sfxStart();
       initGame();
       return;
     }
@@ -426,19 +491,28 @@
   }
   canvas.addEventListener('pointerdown', (e) => {
     e.preventDefault();
+    ensureAudio();
     const rect = canvas.getBoundingClientRect();
     const lx = ((e.clientX - rect.left) / rect.width) * W;
     const ly = ((e.clientY - rect.top)  / rect.height) * H;
+
+    // Sound toggle is live in every scene.
+    if (inRect(SOUND_BTN, lx, ly)) {
+      setSound(!soundOn);
+      if (soundOn) tone(660, 0.06, 0.04, 'sine');
+      return;
+    }
 
     // Instructions scene: only the START pill is interactive.
     if (awaitingStart) {
       if (inRect(START_BTN, lx, ly)) {
         awaitingStart = false;
+        sfxStart();
         initGame();
       }
       return;
     }
-    if (gameOver) { initGame(); return; }
+    if (gameOver) { sfxStart(); initGame(); return; }
     if (!active) return;
     if (ly > GRID_Y - CELL && ly < GRID_Y + GRID_H + 40) {
       const col = Math.max(0, Math.min(COLS - 1, Math.floor((lx - GRID_X) / CELL)));
@@ -457,6 +531,46 @@
     ctx.arcTo(x,     y + h, x,     y,     r);
     ctx.arcTo(x,     y,     x + w, y,     r);
     ctx.closePath();
+  }
+
+  function drawSoundButton() {
+    const size = 24;
+    const padding = 8;
+    const bx = padding;
+    const by = padding;
+    SOUND_BTN.x = bx; SOUND_BTN.y = by; SOUND_BTN.w = size; SOUND_BTN.h = size;
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
+    roundRect(bx, by, size, size, 5);
+    ctx.fill();
+    const cx = bx + size / 2;
+    const cy = by + size / 2;
+    ctx.fillStyle = soundOn ? C.text : C.textMute;
+    ctx.strokeStyle = soundOn ? C.text : C.textMute;
+    ctx.lineWidth = 1.4;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(cx - 6, cy - 3);
+    ctx.lineTo(cx - 3, cy - 3);
+    ctx.lineTo(cx + 1, cy - 5);
+    ctx.lineTo(cx + 1, cy + 5);
+    ctx.lineTo(cx - 3, cy + 3);
+    ctx.lineTo(cx - 6, cy + 3);
+    ctx.closePath();
+    ctx.fill();
+    if (soundOn) {
+      ctx.beginPath(); ctx.arc(cx + 3, cy, 2.5, -Math.PI / 3, Math.PI / 3); ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx + 3, cy, 5,   -Math.PI / 3, Math.PI / 3); ctx.stroke();
+    } else {
+      ctx.strokeStyle = C.accent;
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.moveTo(bx + 4, by + size - 4);
+      ctx.lineTo(bx + size - 4, by + 4);
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
   function drawHUD() {
@@ -752,12 +866,14 @@
     if (awaitingStart) {
       // Instructions scene — no playfield, no HUD, just the rules + START.
       drawInstructions();
+      drawSoundButton();
       drawBannerAd();
       requestAnimationFrame(loop);
       return;
     }
 
     drawHUD();
+    drawSoundButton();
     drawPlayfield();
     drawPlacedTiles();
     drawClearFlashes(now);

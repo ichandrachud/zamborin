@@ -36,10 +36,13 @@
   canvas.setAttribute('height', String(S));
   function resizeCanvas() {
     const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
-    const backing = Math.round(S * dpr);
+    const rect = canvas.getBoundingClientRect();
+    const display = rect.width || S;
+    const backing = Math.round(display * dpr);
     if (canvas.width  !== backing) canvas.width  = backing;
     if (canvas.height !== backing) canvas.height = backing;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const scale = backing / S;
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
   }
   resizeCanvas();
   window.addEventListener('resize', resizeCanvas);

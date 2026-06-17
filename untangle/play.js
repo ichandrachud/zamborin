@@ -73,11 +73,15 @@
   canvas.setAttribute('height', String(H));
   function resizeCanvas() {
     const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
-    const backingW = Math.round(W * dpr);
-    const backingH = Math.round(H * dpr);
+    const rect = canvas.getBoundingClientRect();
+    const displayW = rect.width  || W;
+    const displayH = rect.height || H;
+    const backingW = Math.round(displayW * dpr);
+    const backingH = Math.round(displayH * dpr);
     if (canvas.width !== backingW)  canvas.width  = backingW;
     if (canvas.height !== backingH) canvas.height = backingH;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const scale = Math.min(backingW / W, backingH / H);
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
   }
   resizeCanvas();
   window.addEventListener('resize', resizeCanvas);
@@ -481,7 +485,9 @@
   function drawSoundButton() {
     const btnSize = 28;
     const padding = 12;
-    const bx = W - padding - btnSize;
+    // Top-LEFT corner so it doesn't collide with the focus-mode close (×) button
+    // which floats at top-right when the canvas fills the viewport.
+    const bx = padding;
     const by = padding;
     SOUND_BTN.x = bx; SOUND_BTN.y = by; SOUND_BTN.w = btnSize; SOUND_BTN.h = btnSize;
 
