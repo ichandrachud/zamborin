@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Zamborin Games</title>
-  <meta name="description" content="A small studio making daily puzzle games. Free. No login. Same puzzle for everyone today." />
+  <meta name="description" content="A small studio making daily puzzle games. Free. No login." />
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -19,13 +19,14 @@
     }
     .lobby {
       flex: 1;
-      max-width: 1100px;
+      max-width: 1000px;
       margin: 0 auto;
       padding: 80px 24px 40px;
       display: flex;
       flex-direction: column;
       gap: 56px;
       width: 100%;
+      box-sizing: border-box;
     }
     .lobby-head { text-align: center; }
     .lobby-mark {
@@ -42,55 +43,91 @@
       letter-spacing: 2.4px;
       color: var(--text-mute);
       text-transform: uppercase;
+      margin: 0;
     }
     .games-row {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
     }
     .game-card {
-      background:
-        radial-gradient(at 30% 0%, #1B2A47 0%, #131F36 60%, #0E1726 100%);
-      border-radius: 18px;
-      padding: 32px;
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      background: #14213D;
+      border-radius: 22px;
+      overflow: hidden;
       text-decoration: none;
       color: inherit;
       box-shadow:
         inset 0 0 0 1px rgba(255,255,255,0.06),
         0 18px 36px -16px rgba(0,0,0,0.55);
       transition: transform .18s ease, box-shadow .18s ease;
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-      min-height: 240px;
     }
     .game-card:hover {
       transform: translateY(-3px);
       box-shadow:
         inset 0 0 0 1px rgba(255,255,255,0.10),
-        0 24px 48px -16px rgba(0,0,0,0.65),
-        0 0 0 1px rgba(216, 82, 63, 0.25);
+        0 28px 48px -16px rgba(0,0,0,0.65),
+        0 0 0 1px rgba(216, 82, 63, 0.30);
+    }
+    .game-card-image {
+      aspect-ratio: 1 / 1;
+      background-size: cover;
+      background-position: center;
+      background-color: #0E1726;
+    }
+    .game-card-body {
+      padding: 40px 44px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 16px;
+      min-height: 320px;
+      box-sizing: border-box;
     }
     .game-card-name {
-      font-size: 36px;
+      font-size: 40px;
       font-weight: 800;
-      letter-spacing: -0.4px;
+      letter-spacing: -0.6px;
       color: var(--text);
+      line-height: 1.05;
     }
     .game-card-desc {
-      font-size: 14px;
+      font-size: 16px;
       font-weight: 500;
-      line-height: 1.5;
+      line-height: 1.6;
       color: var(--text-dim);
-      flex: 1;
+      max-width: 480px;
     }
     .game-card-cta {
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 2px;
-      color: var(--accent);
+      margin-top: 12px;
       align-self: flex-start;
+      background: var(--accent);
+      color: #FFFFFF;
+      padding: 12px 24px;
+      border-radius: 999px;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      transition: background .15s ease, transform .15s ease;
     }
+    .game-card:hover .game-card-cta {
+      background: #FF6B5C;
+      transform: translateY(-1px);
+    }
+
+    @media (max-width: 720px) {
+      .lobby { padding: 48px 16px 24px; gap: 36px; }
+      .lobby-mark { font-size: 40px; letter-spacing: 3px; }
+      .lobby-tag { font-size: 12px; letter-spacing: 2px; }
+      .games-row { gap: 20px; }
+      .game-card { grid-template-columns: 1fr; }
+      .game-card-image { aspect-ratio: 16 / 10; }
+      .game-card-body { padding: 26px 22px 30px; min-height: 0; gap: 14px; }
+      .game-card-name { font-size: 30px; }
+      .game-card-desc { font-size: 16px; }
+    }
+
     .lobby-foot {
       text-align: center;
       padding: 24px 16px 32px;
@@ -110,19 +147,28 @@
 
     <div class="games-row">
       <a class="game-card" href="./tessera/">
-        <div class="game-card-name">Tessera</div>
-        <div class="game-card-desc">Drop letter tiles. Form English words across or down. Longer words score more. The game gets faster the longer you survive.</div>
-        <div class="game-card-cta">PLAY →</div>
+        <div class="game-card-image" style="background-image: url('./images/tessera-teaser.jpg')"></div>
+        <div class="game-card-body">
+          <div class="game-card-name">Tessera</div>
+          <div class="game-card-desc">Drop letter tiles. Form English words across or down. Longer words score more. The game gets faster the longer you survive.</div>
+          <div class="game-card-cta">Play now</div>
+        </div>
       </a>
       <a class="game-card" href="./untangle/">
-        <div class="game-card-name">Untangle</div>
-        <div class="game-card-desc">Drag the dots so no two edges cross. Same graph for everyone today — fewer moves than par for bragging rights.</div>
-        <div class="game-card-cta">PLAY →</div>
+        <div class="game-card-image" style="background-image: url('./images/untangled-teaser.jpg')"></div>
+        <div class="game-card-body">
+          <div class="game-card-name">Untangle</div>
+          <div class="game-card-desc">Drag the dots so no two edges cross. Endless levels that grow in complexity, from Tutorial through Master.</div>
+          <div class="game-card-cta">Play now</div>
+        </div>
       </a>
       <a class="game-card" href="./carrom/">
-        <div class="game-card-name">Carrom</div>
-        <div class="game-card-desc">A digital take on the South-Asian classic. Flick the striker, pocket your discs, beat the par.</div>
-        <div class="game-card-cta">PREVIEW →</div>
+        <div class="game-card-image" style="background-image: url('./images/carrom-teaser.jpg')"></div>
+        <div class="game-card-body">
+          <div class="game-card-name">Carrom</div>
+          <div class="game-card-desc">A digital take on the South-Asian tabletop classic. Flick the striker, pocket your discs, beat the computer at three difficulty levels.</div>
+          <div class="game-card-cta">Play now</div>
+        </div>
       </a>
     </div>
   </main>
