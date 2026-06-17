@@ -564,5 +564,13 @@
   }
 
   // ---------- START ----------
-  initGame();
+  // Wait for the splash overlay to finish before starting the game, so the
+  // first tile doesn't drop while the splash is still visible. The splash
+  // dispatches `splash-done` when it removes itself (see index.html). If no
+  // splash is on the page, start immediately.
+  if (document.getElementById('splash')) {
+    window.addEventListener('splash-done', initGame, { once: true });
+  } else {
+    initGame();
+  }
 })();
