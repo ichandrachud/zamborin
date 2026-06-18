@@ -5,4 +5,5 @@
    its --canvas-w / --canvas-h are set unconditionally by play.js.
    ============================================================ */
 
-.splash { background-image: url('./ludo-splash.jpg'); }
+body.mode-desktop .splash { background-image: url('./ludo-splash-desktop.jpg'); }
+body.mode-mobile  .splash { background-image: url('./ludo-splash-mobile.jpg'); }
