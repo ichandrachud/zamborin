@@ -9,30 +9,38 @@
     ? 'mobile' : 'desktop';
   document.body.classList.add('mode-' + MODE);
 
-  function computeSize() {
+  // Canvas dimensions vary by mode. Desktop is square 760×760; mobile is
+  // rectangular = viewport size, so we can use the tall portrait area below
+  // the (square) board for a roomy stacked HUD instead of a cramped strip.
+  let W, H;
+  function computeCanvasDims() {
     if (MODE === 'mobile') {
-      const reserved = 30;
-      return Math.min(window.innerHeight - reserved, window.innerWidth - reserved);
+      W = window.innerWidth;
+      H = window.innerHeight;
+    } else {
+      W = 760;
+      H = 760;
     }
-    return 760;
   }
-  const S = computeSize();
-  document.body.style.setProperty('--canvas-w', S + 'px');
-  document.body.style.setProperty('--canvas-h', S + 'px');
+  computeCanvasDims();
+  document.body.style.setProperty('--canvas-w', W + 'px');
+  document.body.style.setProperty('--canvas-h', H + 'px');
 
   // ---------- CANVAS ----------
   const canvas = document.getElementById('game');
   const ctx    = canvas.getContext('2d');
-  canvas.setAttribute('width',  String(S));
-  canvas.setAttribute('height', String(S));
+  canvas.setAttribute('width',  String(W));
+  canvas.setAttribute('height', String(H));
   function resizeCanvas() {
     const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
     const rect = canvas.getBoundingClientRect();
-    const display = rect.width || S;
-    const backing = Math.round(display * dpr);
-    if (canvas.width  !== backing) canvas.width  = backing;
-    if (canvas.height !== backing) canvas.height = backing;
-    const scale = backing / S;
+    const displayW = rect.width  || W;
+    const displayH = rect.height || H;
+    const backingW = Math.round(displayW * dpr);
+    const backingH = Math.round(displayH * dpr);
+    if (canvas.width  !== backingW) canvas.width  = backingW;
+    if (canvas.height !== backingH) canvas.height = backingH;
+    const scale = Math.min(backingW / W, backingH / H);
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
   }
   resizeCanvas();
@@ -45,13 +53,34 @@
   boardImg.src = './ludo-board.svg';
 
   // ---------- LAYOUT ----------
-  const BOARD_FRAC = 0.86;
-  const BOARD_DRAW_W = Math.floor(S * BOARD_FRAC);
-  const BOARD_DRAW_H = BOARD_DRAW_W;
-  const BOARD_X = (S - BOARD_DRAW_W) / 2;
-  const BOARD_Y = 16;
-  const HUD_Y = BOARD_Y + BOARD_DRAW_H + 12;
-  const HUD_H = S - HUD_Y - 8;
+  // Desktop: board ~86% of canvas, thin HUD strip below.
+  // Mobile : board sized to leave generous vertical room for a stacked HUD
+  // (turn pill / dice+roll / status, each on its own row).
+  let BOARD_DRAW_W, BOARD_DRAW_H, BOARD_X, BOARD_Y, HUD_Y, HUD_H;
+  function computeLayout() {
+    if (MODE === 'mobile') {
+      const sidePad = 12;
+      const topPad = 16;
+      // Cap board at 55% of the viewport height so we always have ~45% left
+      // for a comfortable HUD column.
+      const edge = Math.min(W - sidePad * 2, Math.floor(H * 0.55));
+      BOARD_DRAW_W = edge;
+      BOARD_DRAW_H = edge;
+      BOARD_X = (W - edge) / 2;
+      BOARD_Y = topPad;
+      HUD_Y = BOARD_Y + edge + 24;
+      HUD_H = H - HUD_Y - 18;
+    } else {
+      const FRAC = 0.86;
+      BOARD_DRAW_W = Math.floor(W * FRAC);
+      BOARD_DRAW_H = BOARD_DRAW_W;
+      BOARD_X = (W - BOARD_DRAW_W) / 2;
+      BOARD_Y = 16;
+      HUD_Y = BOARD_Y + BOARD_DRAW_H + 12;
+      HUD_H = H - HUD_Y - 8;
+    }
+  }
+  computeLayout();
 
   const SVG_VB = 970;
   function svg(x, y) {
@@ -195,18 +224,18 @@
   function sfxDiceShake() {
     // Five wooden clacks at slightly random pitches across the 720ms tumble.
     // Lower frequencies + sine body = hollow "rolling in a box" character.
-    // Gains bumped ~55% from the previous pass — still hollow, but present.
-    woodClack(220, 0.10, 0.11);
-    setTimeout(() => woodClack(180, 0.10, 0.085), 100);
-    setTimeout(() => woodClack(240, 0.10, 0.09),  220);
-    setTimeout(() => woodClack(195, 0.10, 0.08),  340);
-    setTimeout(() => woodClack(215, 0.10, 0.07),  470);
+    // Gains bumped again ~40% — clearly audible without overpowering the room.
+    woodClack(220, 0.10, 0.16);
+    setTimeout(() => woodClack(180, 0.10, 0.13), 100);
+    setTimeout(() => woodClack(240, 0.10, 0.14), 220);
+    setTimeout(() => woodClack(195, 0.10, 0.12), 340);
+    setTimeout(() => woodClack(215, 0.10, 0.10), 470);
   }
   function sfxDiceLand() {
     // Two solid wooden thunks for the final settle — like the cubes coming
     // to rest against each other and then the box floor.
-    woodClack(150, 0.22, 0.17);
-    setTimeout(() => woodClack(115, 0.28, 0.12), 60);
+    woodClack(150, 0.22, 0.24);
+    setTimeout(() => woodClack(115, 0.28, 0.18), 60);
   }
   // Soft flat per-square move sound — barely-there low sine pulse, very short,
   // so a six-step move sounds like a soft "tk · tk · tk · tk · tk · tk".
@@ -285,8 +314,12 @@
   function previewMove(token, dieValue) {
     if (token.status === 'finished') return null;
     if (token.status === 'base') {
-      if (dieValue === 6) return { kind: 'board', idx: START_INDEX[token.player] };
-      return null;
+      // House rule: a piece only leaves base when BOTH dice are 6. The
+      // unlocking consumes one die-of-6; the other 6 is then free to either
+      // unlock a second piece or advance one already on the board.
+      if (dieValue !== 6) return null;
+      if (dice[0] !== 6 || dice[1] !== 6) return null;
+      return { kind: 'board', idx: START_INDEX[token.player] };
     }
     if (token.status === 'board') {
       const startIdx = START_INDEX[token.player];
@@ -389,7 +422,7 @@
       token,
       waypoints,
       startTime: performance.now(),
-      stepDuration: 130,  // ms per square — fast enough to feel snappy
+      stepDuration: 220,  // slower so each square is clearly visible
       lastStepPlayed: 0,
       onComplete,
     };
@@ -417,12 +450,21 @@
     const elapsed = performance.now() - animation.startTime;
     const stepDur = animation.stepDuration;
     const totalSteps = animation.waypoints.length - 1;
-    const fractional = Math.min(totalSteps, elapsed / stepDur);
-    const idx = Math.min(totalSteps - 1, Math.floor(fractional));
-    const frac = Math.max(0, Math.min(1, fractional - idx));
+    const fractional = elapsed / stepDur;
+    if (fractional >= totalSteps) {
+      const wp = animation.waypoints[totalSteps];
+      return { x: wp.x, y: wp.y, frac: 1 };
+    }
+    const idx = Math.floor(fractional);
+    const raw = fractional - idx;
+    // Snap-step: spend the first 40% of each cell-step moving (with smooth-
+    // step ease), then settle on the cell for the remaining 60%. Reads as a
+    // distinct "land on each square" rather than a continuous slide.
+    const moveT = Math.min(1, raw / 0.40);
+    const t = moveT * moveT * (3 - 2 * moveT);
     const from = animation.waypoints[idx];
     const to   = animation.waypoints[Math.min(totalSteps, idx + 1)];
-    return { x: from.x + (to.x - from.x) * frac, y: from.y + (to.y - from.y) * frac, frac };
+    return { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t, frac: t };
   }
 
   // finalizeMove applies the actual game-state mutations (status change,
@@ -580,8 +622,8 @@
   function logical(clientX, clientY) {
     const rect = canvas.getBoundingClientRect();
     return {
-      lx: ((clientX - rect.left) / rect.width)  * S,
-      ly: ((clientY - rect.top)  / rect.height) * S,
+      lx: ((clientX - rect.left) / rect.width)  * W,
+      ly: ((clientY - rect.top)  / rect.height) * H,
     };
   }
   function inRect(r, lx, ly) { return r.w > 0 && lx >= r.x && lx <= r.x + r.w && ly >= r.y && ly <= r.y + r.h; }
@@ -780,7 +822,9 @@
     if (animatingToken) {
       const ap = animationPos();
       const canvasPos = svg(ap.x, ap.y);
-      const lift = Math.sin(ap.frac * Math.PI) * tokenR() * 0.45;
+      // Tiny lift during the move portion of each step — subtle, so the
+      // settle-on-cell beat dominates rather than a big jumping arc.
+      const lift = Math.sin(ap.frac * Math.PI) * tokenR() * 0.18;
       drawTokenAt(canvasPos.x, canvasPos.y - lift, animatingToken.player, 0);
     }
   }
@@ -898,11 +942,25 @@
     }
   }
 
+  // HUD layout — on mobile we stack vertically inside the tall HUD area
+  // (turn pill / dice+roll / status). On desktop everything fits a single row.
+  function hudRows() {
+    if (MODE === 'mobile') {
+      const turnY = HUD_Y + 24;
+      const diceY = HUD_Y + 90;
+      const statusY = HUD_Y + 174;
+      return { turnY, diceY, statusY };
+    }
+    const midY = HUD_Y + HUD_H / 2;
+    return { turnY: midY, diceY: midY, statusY: midY };
+  }
+
   function drawRollButton(active) {
-    const w = Math.min(220, S * 0.32);
-    const h = Math.min(56, HUD_H * 0.62);
-    const x = S / 2 - w / 2;
-    const y = HUD_Y + (HUD_H - h) / 2;
+    const w = MODE === 'mobile' ? Math.min(260, W * 0.55) : Math.min(220, W * 0.32);
+    const h = MODE === 'mobile' ? 56 : Math.min(56, HUD_H * 0.62);
+    const rows = hudRows();
+    const x = W / 2 - w / 2;
+    const y = MODE === 'mobile' ? (rows.diceY - h / 2) : (HUD_Y + (HUD_H - h) / 2);
     ROLL_BTN.x = x; ROLL_BTN.y = y; ROLL_BTN.w = w; ROLL_BTN.h = h;
     ctx.save();
     ctx.fillStyle = active ? C.accent : '#5a5a66';
@@ -919,11 +977,12 @@
   }
 
   function drawDiceHUD(now) {
-    const dieSize = Math.min(56, HUD_H * 0.62);
-    const gap = 14;
+    const rows = hudRows();
+    const dieSize = MODE === 'mobile' ? 60 : Math.min(56, HUD_H * 0.62);
+    const gap = MODE === 'mobile' ? 22 : 14;
     const totalW = dieSize * 2 + gap;
-    const baseX = S / 2 - totalW / 2;
-    const baseY = HUD_Y + (HUD_H - dieSize) / 2;
+    const baseX = W / 2 - totalW / 2;
+    const baseY = MODE === 'mobile' ? (rows.diceY - dieSize / 2) : (HUD_Y + (HUD_H - dieSize) / 2);
 
     let v1 = dice[0];
     let v2 = dice[1];
@@ -960,16 +1019,17 @@
   function drawTurnIndicator() {
     const player = activePlayer();
     const color = PLAYERS[player].fill;
-    ctx.font = '800 14px Inter, sans-serif';
+    const rows = hudRows();
+    ctx.font = MODE === 'mobile' ? '900 18px Inter, sans-serif' : '800 14px Inter, sans-serif';
     ctx.textBaseline = 'middle';
-    ctx.textAlign = 'left';
+    ctx.textAlign = MODE === 'mobile' ? 'center' : 'left';
     const aiTag = isAI[player] ? ' (AI)' : '';
     const label = winner ? PLAYERS[winner].name.toUpperCase() + ' WINS' : PLAYERS[player].name.toUpperCase() + aiTag + ' TO MOVE';
-    const padX = 14;
+    const padX = MODE === 'mobile' ? 22 : 14;
     const w = ctx.measureText(label).width + padX * 2;
-    const h = 32;
-    const x = 16;
-    const y = HUD_Y + (HUD_H - h) / 2;
+    const h = MODE === 'mobile' ? 44 : 32;
+    const x = MODE === 'mobile' ? (W / 2 - w / 2) : 16;
+    const y = MODE === 'mobile' ? (rows.turnY - h / 2) : (HUD_Y + (HUD_H - h) / 2);
     ctx.save();
     ctx.fillStyle = winner ? PLAYERS[winner].fill : color;
     roundRect(x, y, w, h, h / 2);
@@ -977,16 +1037,20 @@
     ctx.restore();
     const labelPlayer = winner ? winner : player;
     ctx.fillStyle = labelPlayer === 'yellow' ? '#1a1a1a' : '#FFFFFF';
-    ctx.fillText(label, x + padX, y + h / 2 + 1);
+    const textX = MODE === 'mobile' ? (W / 2) : (x + padX);
+    ctx.fillText(label, textX, y + h / 2 + 1);
   }
 
   function drawStatusLine() {
     if (!lastMoveMsg) return;
-    ctx.font = '500 12px Inter, sans-serif';
+    const rows = hudRows();
+    ctx.font = MODE === 'mobile' ? '600 13px Inter, sans-serif' : '500 12px Inter, sans-serif';
     ctx.fillStyle = C.textDim;
-    ctx.textAlign = 'right';
+    ctx.textAlign = MODE === 'mobile' ? 'center' : 'right';
     ctx.textBaseline = 'middle';
-    ctx.fillText(lastMoveMsg, S - 16, HUD_Y + HUD_H / 2);
+    const tx = MODE === 'mobile' ? (W / 2) : (W - 16);
+    const ty = MODE === 'mobile' ? rows.statusY : (HUD_Y + HUD_H / 2);
+    ctx.fillText(lastMoveMsg, tx, ty);
   }
 
   function drawSoundButton() {
@@ -1050,7 +1114,7 @@
   function drawMenu(now) {
     // Dim the canvas slightly so the menu pops.
     ctx.fillStyle = C.bg;
-    ctx.fillRect(0, 0, S, S);
+    ctx.fillRect(0, 0, W, H);
     if (boardReady) {
       ctx.save();
       ctx.globalAlpha = 0.18;
@@ -1058,8 +1122,8 @@
       ctx.restore();
     }
     // Title
-    const cx = S / 2;
-    const yTitle = S * 0.30;
+    const cx = W / 2;
+    const yTitle = H * 0.30;
     ctx.fillStyle = '#FFFFFF';
     ctx.font = '900 36px Inter, sans-serif';
     ctx.textAlign = 'center';
@@ -1070,11 +1134,11 @@
     ctx.fillText('You play Red. Choose how many players today.', cx, yTitle + 18);
 
     // Three big square buttons in a row.
-    const btnSize = Math.min(140, S * 0.20);
+    const btnSize = Math.min(140, Math.min(W, H) * 0.20);
     const btnGap = 22;
     const totalW = btnSize * 3 + btnGap * 2;
     const startX = cx - totalW / 2;
-    const btnY = S * 0.46;
+    const btnY = H * 0.46;
     const pulse = 0.85 + 0.15 * Math.sin(now / 380);
     for (let i = 0; i < 3; i++) {
       const n = 2 + i;
@@ -1109,7 +1173,7 @@
   // ---------- LOOP ----------
   function loop(now) {
     ctx.fillStyle = C.bg;
-    ctx.fillRect(0, 0, S, S);
+    ctx.fillRect(0, 0, W, H);
 
     if (scene === 'menu') {
       drawMenu(now);
