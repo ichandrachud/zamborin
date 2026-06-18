@@ -361,9 +361,12 @@
     }
 
     // Enemies — spawn timer + per-enemy motion + occasional shots.
-    if (now >= nextEnemyAt) {
+    // Cap simultaneous enemies AND lengthen the cadence so each one feels
+    // like a real engagement rather than a swarm.
+    const MAX_ENEMIES = 2;
+    if (now >= nextEnemyAt && enemies.length < MAX_ENEMIES) {
       spawnEnemy(now);
-      nextEnemyAt = now + 1800 + Math.random() * 1400;  // every 1.8..3.2s
+      nextEnemyAt = now + 4200 + Math.random() * 2400;  // every 4.2..6.6s
     }
     for (let i = enemies.length - 1; i >= 0; i--) {
       const en = enemies[i];
@@ -516,9 +519,13 @@
     for (const b of bullets) {
       ctx.save();
       if (b.owner === 'player') {
-        // Cyan tracer with white core.
-        ctx.fillStyle = 'rgba(120, 220, 255, 0.85)';
-        ctx.fillRect(b.x - 6, b.y - 1.5, 12, 3);
+        // Light-yellow tracer with a hot white core — reads instantly
+        // against the deep-blue background.
+        ctx.shadowColor = 'rgba(255, 220, 90, 0.9)';
+        ctx.shadowBlur = 8;
+        ctx.fillStyle = 'rgba(255, 235, 130, 0.95)';
+        ctx.fillRect(b.x - 7, b.y - 2, 14, 4);
+        ctx.shadowBlur = 0;
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(b.x - 3, b.y - 0.75, 6, 1.5);
       } else {
@@ -535,8 +542,9 @@
   function drawEnemies() {
     if (!assets.phoenix) return;
     const img = assets.phoenix;
-    // Render slightly smaller than the player so enemies feel quicker.
-    const targetH = 50;
+    // Match the player's render height so enemies read as the same class
+    // of ship rather than tiny darts.
+    const targetH = 60;
     const targetW = targetH * (img.width / img.height);
     for (const en of enemies) {
       ctx.save();
