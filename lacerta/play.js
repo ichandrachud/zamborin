@@ -244,8 +244,8 @@
   function drawPlayer() {
     if (!assets.tsunami) return;
     const img = assets.tsunami;
-    // Render the ship at a sensible nominal size on the canvas (~90 tall).
-    const targetH = 90;
+    // Render the ship at ~55 tall on the 720 canvas (~7.6% of canvas height).
+    const targetH = 55;
     const targetW = targetH * (img.width / img.height);
     ctx.save();
     ctx.translate(player.screenX, player.y);
@@ -262,22 +262,23 @@
   // Subtle exhaust trail — two short fading streaks behind the engine. Pure
   // canvas, no asset; gives the ship a sense of forward motion at standstill.
   function drawExhaustTrail(now) {
-    const len = 32 + 18 * player.throttle;
-    const px = player.screenX - 56;
-    const py = player.y + player.pitch * 6;
+    // Offsets scaled for the 55-tall ship; long/short streaks both fade in.
+    const len = 18 + 12 * player.throttle;
+    const px = player.screenX - 30;
+    const py = player.y + player.pitch * 4;
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     const g = ctx.createLinearGradient(px - len, py, px, py);
     g.addColorStop(0, 'rgba(216, 82, 63, 0)');
     g.addColorStop(1, 'rgba(255, 200, 120, 0.85)');
     ctx.strokeStyle = g;
-    ctx.lineWidth = 5;
+    ctx.lineWidth = 3;
     ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.moveTo(px - len, py - 2);
-    ctx.lineTo(px, py - 2);
-    ctx.moveTo(px - len * 0.85, py + 6);
-    ctx.lineTo(px, py + 6);
+    ctx.moveTo(px - len, py - 1);
+    ctx.lineTo(px, py - 1);
+    ctx.moveTo(px - len * 0.85, py + 3);
+    ctx.lineTo(px, py + 3);
     ctx.stroke();
     ctx.restore();
   }
