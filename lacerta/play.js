@@ -249,8 +249,8 @@
   const HEAT_PER_SHOT = 0.07;
   const HEAT_COOL_PER_MS = 0.0006;
   const MAX_BULLET_X = W + 100;
-  const PLAYER_HIT_R = 22;            // collision radius approximations
-  const ENEMY_HIT_R  = 28;
+  const PLAYER_HIT_R = 25;            // collision radius approximations
+  const ENEMY_HIT_R  = 42;            // larger now that enemies match player length
 
   let playerHP = 100;
   let playerInvulnUntil = 0;
@@ -582,12 +582,15 @@
   }
 
   function drawEnemies() {
-    if (!assets.phoenix) return;
+    if (!assets.phoenix || !assets.tsunami) return;
     const img = assets.phoenix;
-    // Match the player's render height so enemies read as the same class
-    // of ship rather than tiny darts.
-    const targetH = 60;
-    const targetW = targetH * (img.width / img.height);
+    // Match the PLAYER'S LENGTH — same horizontal extent so the hero and her
+    // adversaries read as the same class of fighter. Phoenix has a different
+    // aspect ratio from Tsunami (more compact silhouette), so matching width
+    // gives enemies a slightly taller height. Same length, distinct shape.
+    const playerW = 55 * (assets.tsunami.width / assets.tsunami.height);
+    const targetW = playerW;
+    const targetH = targetW * (img.height / img.width);
     for (const en of enemies) {
       ctx.save();
       ctx.translate(en.x, en.y);
