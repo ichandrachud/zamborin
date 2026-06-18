@@ -205,7 +205,12 @@
     const targetW = targetH * (img.width / img.height);
     ctx.save();
     ctx.translate(player.screenX, player.y);
-    ctx.rotate(player.pitch * BANK_FACTOR);
+    // Tsunami's SVG points LEFT in its viewBox. The side-scroller has the
+    // player flying right with enemies entering from the right, so we mirror
+    // her horizontally. The bank-on-pitch rotation has its sign inverted
+    // post-mirror so an ascending input still tips the nose UP.
+    ctx.scale(-1, 1);
+    ctx.rotate(-player.pitch * BANK_FACTOR);
     ctx.drawImage(img, -targetW / 2, -targetH / 2, targetW, targetH);
     ctx.restore();
   }
