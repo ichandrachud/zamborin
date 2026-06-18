@@ -146,10 +146,13 @@
       spawnedWorldX: player.worldX,
     });
   }
+  const MAX_PLANETS = 2;
   function updatePlanets(now) {
-    if (now >= nextPlanetAt) {
+    // Spawn less often AND cap how many can be on screen at once, so planets
+    // feel like the occasional sighting rather than a parade.
+    if (now >= nextPlanetAt && planets.length < MAX_PLANETS) {
       spawnPlanet(now);
-      nextPlanetAt = now + (3500 + Math.random() * 3500);  // every 3.5..7s
+      nextPlanetAt = now + (9000 + Math.random() * 7000);  // every 9..16s
     }
     for (let i = planets.length - 1; i >= 0; i--) {
       const p = planets[i];
