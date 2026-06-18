@@ -76,7 +76,7 @@
       img.src = src;
     });
   }
-  const assets = { sky: null, farStars: null, closerStars: null, tsunami: null };
+  const assets = { sky: null, farStars: null, closerStars: null, tsunami: null, planets: [] };
   Promise.all([
     loadImage('./assets/skybackground.svg'),
     loadImage('./assets/far-stars.svg'),
@@ -88,6 +88,10 @@
     assets.closerStars = closerStars;
     assets.tsunami = tsunami;
   });
+  // Planet pool — a subset of the 11 available. We don't need all of them in
+  // memory at once; this picks a varied 5 to drift through the background.
+  Promise.all([1, 3, 5, 7, 9].map(id => loadImage(`./assets/planets/planet-${id}.svg`)))
+    .then(imgs => { assets.planets = imgs.filter(Boolean); });
 
   // ---------- PALETTE ----------
   const C = {
@@ -121,6 +125,45 @@
 
   // Parallax speed multipliers — sky barely moves, far-stars slow, close-stars fast.
   const PARALLAX = { sky: 0.04, far: 0.18, close: 0.55 };
+
+  // ---------- AMBIENT PLANET DRIFT ----------
+  // Mid-distance planets cross the screen between the two star layers. Each
+  // spawns off-screen right, drifts left at its own depth-relative speed,
+  // despawns once it leaves the canvas on the left. Adds life to the
+  // background without any gameplay consequence (collisions land in Phase 4).
+  const planets = [];          // active drifters
+  let nextPlanetAt = 0;
+  function spawnPlanet(now) {
+    if (!assets.planets.length) return;
+    const img = assets.planets[Math.floor(Math.random() * assets.planets.length)];
+    const yMin = 80, yMax = H - 80;
+    planets.push({
+      img,
+      x: W + 200,
+      y: yMin + Math.random() * (yMax - yMin),
+      targetH: 100 + Math.random() * 180,           // 100..280 tall
+      depthSpeed: 0.30 + Math.random() * 0.35,      // 0.30..0.65x world rate
+      spawnedWorldX: player.worldX,
+    });
+  }
+  function updatePlanets(now) {
+    if (now >= nextPlanetAt) {
+      spawnPlanet(now);
+      nextPlanetAt = now + (3500 + Math.random() * 3500);  // every 3.5..7s
+    }
+    for (let i = planets.length - 1; i >= 0; i--) {
+      const p = planets[i];
+      p.x = (W + 200) - (player.worldX - p.spawnedWorldX) * p.depthSpeed;
+      if (p.x < -300) planets.splice(i, 1);
+    }
+  }
+  function drawPlanets() {
+    for (const p of planets) {
+      const aspect = p.img.width / p.img.height;
+      const w = p.targetH * aspect;
+      ctx.drawImage(p.img, p.x - w / 2, p.y - p.targetH / 2, w, p.targetH);
+    }
+  }
 
   // ---------- INPUT ----------
   // Desktop: arrow keys for pitch + throttle.
@@ -165,6 +208,7 @@
 
     // World scroll — accumulator drives the parallax + (later) wave spawns.
     player.worldX += BASE_SPEED * player.throttle * dt;
+    updatePlanets(performance.now());
   }
 
   // ---------- RENDER ----------
@@ -200,8 +244,8 @@
   function drawPlayer() {
     if (!assets.tsunami) return;
     const img = assets.tsunami;
-    // Render the ship at a sensible nominal size on the canvas (~110 tall).
-    const targetH = 110;
+    // Render the ship at a sensible nominal size on the canvas (~90 tall).
+    const targetH = 90;
     const targetW = targetH * (img.width / img.height);
     ctx.save();
     ctx.translate(player.screenX, player.y);
@@ -242,6 +286,7 @@
     clearBg();
     drawParallaxLayer(assets.sky,         PARALLAX.sky);
     drawParallaxLayer(assets.farStars,    PARALLAX.far,   'screen');
+    drawPlanets();
     drawParallaxLayer(assets.closerStars, PARALLAX.close, 'screen');
     drawExhaustTrail(now);
     drawPlayer();
