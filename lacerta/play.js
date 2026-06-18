@@ -126,7 +126,188 @@
   const THROTTLE_MAX = 1.75;
 
   // Parallax speed multipliers — sky barely moves, far-stars slow, close-stars fast.
-  const PARALLAX = { sky: 0.04, far: 0.18, close: 0.55 };
+  const PARALLAX = { sky: 0.04, far: 0.18, close: 0.55, ground: 0.85 };
+
+  // ---------- TERRAIN + GROUND STATIONS ----------
+  // The alien surface sits along the bottom of the canvas as a procedural
+  // silhouette. Ridges are a layered sine + light noise driven by worldX so
+  // the terrain is deterministic — same scroll position always shows the
+  // same hills. Ground stations are anchored to fixed worldX positions and
+  // rendered at the terrain height at their X.
+  const TERRAIN_BASE_Y = H - 90;     // average terrain top (relative to canvas)
+  const TERRAIN_FILL   = '#7d2f1a';  // dusty mars red for v1 — tint shifts per battleground in Phase 4
+  const TERRAIN_EDGE   = '#c95b2a';
+  function terrainHeightAt(worldX) {
+    // Layered sines = organic horizon without external noise lib.
+    const a = Math.sin(worldX * 0.0060) * 26;
+    const b = Math.sin(worldX * 0.0185 + 1.7) * 12;
+    const c = Math.sin(worldX * 0.0420 + 4.3) * 6;
+    return TERRAIN_BASE_Y - (a + b + c);
+  }
+  function drawTerrain() {
+    ctx.save();
+    ctx.fillStyle = TERRAIN_FILL;
+    ctx.beginPath();
+    ctx.moveTo(0, H + 4);
+    // Sample every 6 logical pixels — smooth ridge, low cost.
+    for (let x = 0; x <= W; x += 6) {
+      const worldX = player.worldX * PARALLAX.ground + x;
+      ctx.lineTo(x, terrainHeightAt(worldX));
+    }
+    ctx.lineTo(W, H + 4);
+    ctx.closePath();
+    ctx.fill();
+    // Brighter rim along the ridge — small accent.
+    ctx.strokeStyle = TERRAIN_EDGE;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    let started = false;
+    for (let x = 0; x <= W; x += 6) {
+      const worldX = player.worldX * PARALLAX.ground + x;
+      const y = terrainHeightAt(worldX);
+      if (!started) { ctx.moveTo(x, y); started = true; }
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Ground stations live in WORLD-X space; they slide left as the world
+  // scrolls past at the same rate as the terrain (PARALLAX.ground).
+  // A new station spawns off-screen-right periodically; passes off-screen
+  // left if you don't bomb it in time. MG cannot damage them — bombs only.
+  const stations = [];  // { worldX, hp, alive }
+  let nextStationAt = 0;
+  function spawnStation(now) {
+    const worldX = player.worldX * PARALLAX.ground + W + 80;
+    stations.push({ worldX, hp: 1, alive: true });
+  }
+  function updateStations(now, dt) {
+    if (now >= nextStationAt) {
+      spawnStation(now);
+      nextStationAt = now + 2800 + Math.random() * 1600;  // every 2.8..4.4s
+    }
+    for (let i = stations.length - 1; i >= 0; i--) {
+      const s = stations[i];
+      // Despawn off-screen left or when destroyed long enough.
+      const screenX = s.worldX - player.worldX * PARALLAX.ground;
+      if (screenX < -80) stations.splice(i, 1);
+    }
+  }
+  function stationScreenX(s) {
+    return s.worldX - player.worldX * PARALLAX.ground;
+  }
+  function drawStations() {
+    for (const s of stations) {
+      if (!s.alive) continue;
+      const sx = stationScreenX(s);
+      if (sx < -60 || sx > W + 60) continue;
+      const groundY = terrainHeightAt(s.worldX);
+      // Turret silhouette: 32-wide trapezoid base + dome + cannon angled up.
+      ctx.save();
+      ctx.translate(sx, groundY);
+      // Base
+      ctx.fillStyle = '#3b2440';
+      ctx.beginPath();
+      ctx.moveTo(-18,  0);
+      ctx.lineTo( 18,  0);
+      ctx.lineTo( 14, -18);
+      ctx.lineTo(-14, -18);
+      ctx.closePath();
+      ctx.fill();
+      // Dome
+      ctx.fillStyle = '#5b3a66';
+      ctx.beginPath();
+      ctx.arc(0, -18, 9, Math.PI, 0);
+      ctx.fill();
+      // Cannon
+      ctx.strokeStyle = '#231526';
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(0, -22);
+      ctx.lineTo(8, -34);
+      ctx.stroke();
+      // Indicator light — red while alive.
+      ctx.fillStyle = '#ff3322';
+      ctx.beginPath(); ctx.arc(0, -28, 1.8, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  // ---------- BOMBS ----------
+  const bombs = [];         // { x, y, vx, vy }
+  const BOMB_GRAVITY = 0.026;   // px / ms² applied to vy
+  let bombCount = 12;       // initial supply for the battleground
+  let lastBombAt = 0;
+  const BOMB_INTERVAL = 280;    // ms between bomb drops
+  function dropBomb(now) {
+    if (bombCount <= 0) return;
+    if (now - lastBombAt < BOMB_INTERVAL) return;
+    bombs.push({
+      x: player.screenX, y: player.y + 6,
+      // Bombs carry a small forward velocity from the ship.
+      vx: 2.0, vy: 0,
+    });
+    bombCount--;
+    lastBombAt = now;
+  }
+  function updateBombs(dt) {
+    for (let i = bombs.length - 1; i >= 0; i--) {
+      const b = bombs[i];
+      b.vy += BOMB_GRAVITY * dt;
+      b.x  += b.vx * (dt / 16);
+      b.y  += b.vy * (dt / 16);
+      // World scroll pushes the bomb leftward too — same parallax as ground.
+      b.x  -= BASE_SPEED * player.throttle * dt * PARALLAX.ground / 16;
+
+      // Terrain impact
+      const worldX = (b.x + player.worldX * PARALLAX.ground);
+      const groundY = terrainHeightAt(worldX);
+      if (b.y >= groundY) {
+        bombExplode(b.x, groundY);
+        bombs.splice(i, 1);
+        continue;
+      }
+      // Off-screen despawn
+      if (b.x < -30 || b.x > W + 80 || b.y > H + 60) {
+        bombs.splice(i, 1);
+      }
+    }
+  }
+  function bombExplode(x, y) {
+    spawnExplosion(x, y, true);   // big drama
+    // Kill any station within ~50px of the impact point.
+    for (let i = stations.length - 1; i >= 0; i--) {
+      const s = stations[i];
+      if (!s.alive) continue;
+      const sx = stationScreenX(s);
+      const sy = terrainHeightAt(s.worldX) - 12;
+      const dx = sx - x, dy = sy - y;
+      if (dx * dx + dy * dy < 50 * 50) {
+        s.alive = false;
+        stations.splice(i, 1);
+        spawnExplosion(sx, sy, true);
+      }
+    }
+  }
+  function drawBombs() {
+    for (const b of bombs) {
+      // Spinning bomb: stretched ellipse, dark with a yellow tail.
+      ctx.save();
+      ctx.translate(b.x, b.y);
+      ctx.rotate(Math.atan2(b.vy, b.vx) + Math.PI / 2);
+      ctx.fillStyle = '#222';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 4, 8, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffd278';
+      ctx.beginPath();
+      ctx.ellipse(0, -8, 1.5, 4, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
 
   // ---------- AMBIENT PLANET DRIFT ----------
   // Mid-distance planets cross the screen between the two star layers. Each
@@ -222,12 +403,11 @@
   window.addEventListener('keydown', (e) => {
     if (['ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
     keys[e.key] = true;
-    // Space can fire too — convenient for keyboard-only players / accessibility.
-    if (e.key === ' ') isFiring = true;
+    // Space drops bombs — the ground-attack weapon.
+    if (e.key === ' ') dropBomb(performance.now());
   });
   window.addEventListener('keyup', (e) => {
     keys[e.key] = false;
-    if (e.key === ' ') isFiring = false;
   });
 
   function readThrottle() {
@@ -483,6 +663,10 @@
     // Camera shake decay — exponential drop, ~85% retained per 16ms.
     cameraShake *= Math.pow(0.85, dt / 16);
     if (cameraShake < 0.05) cameraShake = 0;
+
+    // Ground systems
+    updateStations(now, dt);
+    updateBombs(dt);
   }
 
   // ---------- RENDER ----------
@@ -672,6 +856,31 @@
     ctx.fillText(overheated ? 'COOLING' : 'HEAT', x + 210, htY + 3);
 
     ctx.restore();
+
+    // Right-side counters: bombs remaining + ground stations remaining.
+    ctx.save();
+    ctx.font = '800 14px Inter, sans-serif';
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'right';
+    const rx = W - 24;
+
+    // Bomb icon — small black ellipse + yellow flicker
+    ctx.fillStyle = '#222';
+    ctx.beginPath(); ctx.ellipse(rx - 36, 22, 5, 8, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#ffd278';
+    ctx.beginPath(); ctx.ellipse(rx - 36, 14, 2, 3.5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = bombCount > 0 ? '#FFFFFF' : '#FF6B5C';
+    ctx.fillText('× ' + bombCount, rx, 22);
+
+    // Ground station counter
+    const stationsAlive = stations.filter(s => s.alive).length;
+    ctx.fillStyle = stationsAlive > 0 ? '#FF6B5C' : '#5DD39E';
+    ctx.beginPath(); ctx.rect(rx - 58, 38, 16, 10); ctx.fill();
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = '700 12px Inter, sans-serif';
+    ctx.fillText('GROUND  ' + stationsAlive, rx, 44);
+
+    ctx.restore();
   }
 
   function render(now) {
@@ -691,6 +900,8 @@
     drawParallaxLayer(assets.farStars,    PARALLAX.far,   'screen');
     drawPlanets();
     drawParallaxLayer(assets.closerStars, PARALLAX.close, 'screen');
+    drawTerrain();
+    drawStations();
     drawExhaustTrail(now);
     // Player render — blink during invuln frames so hits are felt.
     if (now <= playerInvulnUntil && Math.floor(now / 60) % 2 === 0) {
@@ -700,6 +911,7 @@
     }
     drawEnemies();
     drawBullets();
+    drawBombs();
     drawParticles();
 
     ctx.restore();
