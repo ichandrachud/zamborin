@@ -260,10 +260,17 @@
   // Per-board counters
   let userPocketed = 0;          // count of WHITE pieces user has pocketed
   let aiPocketed   = 0;          // count of BLACK pieces AI has pocketed
-  let queenClaimedBy = null;     // 'user' | 'ai' | null
+  let queenClaimedBy = null;     // 'user' | 'ai' | null (permanent: claimed via cover)
+  // Queen "cover" state — true once someone pockets the queen but hasn't yet
+  // pocketed an own piece to cover it. Cleared when the cover lands or the
+  // queen is returned to the centre.
+  let queenPocketedBy = null;    // 'user' | 'ai' — pending-cover queen pocket
+  let queenCoverRequired = false;
   let shots = 0;                 // for the current board (HUD)
   let pocketsThisShot = [];      // every piece kind pocketed during the active shot
   let strikerFouledThisShot = false;
+  // Transient floating status text (e.g. "Queen returned to centre")
+  let toast = null;              // { text, t0 }
   let aiThinkAt = 0;             // timestamp when AI fires
   const AI_THINK_MS = 1000;
   function strikerRestY() { return currentPlayer === 'user' ? USER_STRIKER_Y : AI_STRIKER_Y; }
@@ -318,6 +325,23 @@
   function makePiece(x, y, kind) {
     return { x, y, vx: 0, vy: 0, r: PIECE_R, kind, active: true };
   }
+  // Return the inactive queen piece (or push a fresh one) to the centre of
+  // the board. Used when the queen-cover rule fails.
+  function returnQueenToCentre() {
+    const cx = S / 2, cy = S / 2;
+    for (const p of pieces) {
+      if (p.kind === 'queen' && !p.active) {
+        p.active = true;
+        p.x = cx; p.y = cy;
+        p.vx = 0; p.vy = 0;
+        return;
+      }
+    }
+    pieces.push(makePiece(cx, cy, 'queen'));
+  }
+  function setToast(text) {
+    toast = { text, t0: performance.now() };
+  }
 
   // ---------- INPUT ----------
   function logical(clientX, clientY) {
@@ -346,6 +370,35 @@
   }
   function clampSlide(x) {
     return Math.max(STRIKER_SLIDE_MIN_X, Math.min(STRIKER_SLIDE_MAX_X, x));
+  }
+  // findClearStrikerX — clamps `x` to the strike line AND nudges sideways to
+  // avoid overlapping any active piece sitting on or near the base. Rule #1
+  // from the user: "you can't place the striker over a piece if it's on your
+  // strike base." A small safety epsilon keeps the striker visibly clear.
+  function findClearStrikerX(x) {
+    const baseY = strikerRestY();
+    const minDist = striker.r + PIECE_R + 0.5;
+    let candidateX = clampSlide(x);
+    for (let iter = 0; iter < 6; iter++) {
+      let collided = null;
+      for (const p of pieces) {
+        if (!p.active) continue;
+        const dy = p.y - baseY;
+        if (Math.abs(dy) > minDist) continue;
+        const dx = candidateX - p.x;
+        if (dx * dx + dy * dy < minDist * minDist) { collided = p; break; }
+      }
+      if (!collided) break;
+      const dy = collided.y - baseY;
+      const horizGap = Math.sqrt(Math.max(0, minDist * minDist - dy * dy));
+      const leftX  = clampSlide(collided.x - horizGap);
+      const rightX = clampSlide(collided.x + horizGap);
+      // Prefer the side closer to the requested x, but if both candidates are
+      // clamped to the same edge value, accept whatever we have to avoid an
+      // infinite ping-pong.
+      candidateX = (Math.abs(leftX - x) < Math.abs(rightX - x)) ? leftX : rightX;
+    }
+    return candidateX;
   }
 
   // Two pointer zones:
@@ -385,7 +438,7 @@
     } else if (inSlideZone(lx, ly)) {
       aim.dragging = true;
       aim.mode = 'slide';
-      striker.x = clampSlide(lx);
+      striker.x = findClearStrikerX(lx);
     } else {
       return;
     }
@@ -398,7 +451,7 @@
     if (aim.mode === 'flick') {
       aim.curX = lx; aim.curY = ly;
     } else if (aim.mode === 'slide') {
-      striker.x = clampSlide(lx);
+      striker.x = findClearStrikerX(lx);
     }
   });
   canvas.addEventListener('pointercancel', () => { aim.dragging = false; aim.mode = null; });
@@ -471,14 +524,51 @@
     const oppPocketed = pocketsThisShot.filter(k => k === colorFor(opponentOf(currentPlayer))).length;
     const queenInShot = pocketsThisShot.includes('queen');
 
-    // Update per-board counters (counts who pocketed which colour piece)
+    // Snapshot of own-pieces-pocketed BEFORE this shot — needed for the
+    // "must have pocketed an own piece earlier" precondition.
+    const ownBefore = currentPlayer === 'user' ? userPocketed : aiPocketed;
+
+    // Count this shot's own + opponent piece pockets (excluding queen).
+    let ownThisShot = 0, oppThisShot = 0;
     for (const k of pocketsThisShot) {
-      if (k === 'queen') {
-        if (queenClaimedBy === null) queenClaimedBy = currentPlayer;
-      } else if (k === 'white') {
-        userPocketed++;
-      } else if (k === 'black') {
-        aiPocketed++;
+      if (k === 'queen') continue;
+      if (k === colorFor(currentPlayer)) ownThisShot++;
+      else oppThisShot++;
+      if (k === 'white') userPocketed++;
+      else if (k === 'black') aiPocketed++;
+    }
+
+    // QUEEN RULES
+    //  • Can only be POCKETED after the player has pocketed at least one own
+    //    piece earlier in the game. If they haven't, queen returns to centre.
+    //  • If the queen is pocketed AND an own piece is pocketed in the SAME
+    //    shot, it's covered immediately — claimed.
+    //  • Else queen is "pending" — must be covered on the player's very next
+    //    shot. If the turn ends without a cover, queen returns to centre.
+    if (queenInShot) {
+      if (ownBefore < 1) {
+        // Precondition not met — return queen straight back.
+        returnQueenToCentre();
+        setToast("Pocket an own piece first — Queen returned to centre.");
+      } else if (ownThisShot >= 1) {
+        // Same-shot cover.
+        queenClaimedBy = currentPlayer;
+        queenPocketedBy = null;
+        queenCoverRequired = false;
+        setToast((currentPlayer === 'user' ? 'You' : 'AI') + ' claimed the Queen.');
+      } else {
+        // Pending cover — same player needs an own piece on the next shot.
+        queenPocketedBy = currentPlayer;
+        queenCoverRequired = true;
+        setToast('Queen pocketed — cover it with an own piece next shot.');
+      }
+    } else if (queenCoverRequired) {
+      // No queen pocketed this shot, but a previous shot left a cover pending.
+      if (queenPocketedBy === currentPlayer && ownThisShot >= 1) {
+        queenClaimedBy = currentPlayer;
+        queenPocketedBy = null;
+        queenCoverRequired = false;
+        setToast((currentPlayer === 'user' ? 'You' : 'AI') + ' covered the Queen — claimed.');
       }
     }
 
@@ -497,7 +587,17 @@
 
     // Standard rule simplification: own-colour pocket = continue. Anything else
     // (miss, opponent piece, foul) = turn switches.
-    const continueTurn = !strikerFouledThisShot && ownPocketed > 0 && oppPocketed === 0;
+    const continueTurn = !strikerFouledThisShot && ownThisShot > 0 && oppThisShot === 0;
+
+    // Cover-miss handling: if the queen is pending cover and the turn is about
+    // to pass to the other player without it being covered, return queen.
+    if (queenCoverRequired && queenPocketedBy === currentPlayer && !continueTurn) {
+      returnQueenToCentre();
+      queenPocketedBy = null;
+      queenCoverRequired = false;
+      setToast('Cover missed — Queen returned to centre.');
+    }
+
     pocketsThisShot.length = 0;
     strikerFouledThisShot = false;
 
@@ -505,8 +605,10 @@
 
     striker.active = true;
     striker.vx = 0; striker.vy = 0;
-    striker.x = STRIKER_REST_X;
     striker.y = strikerRestY();
+    // Place at the centre rest position by default, but nudge sideways if a
+    // piece is sitting under it on the strike line.
+    striker.x = findClearStrikerX(STRIKER_REST_X);
     scene = 'aiming';
     if (currentPlayer === 'ai') beginAITurn();
   }
@@ -519,6 +621,9 @@
     setupPieces();
     userPocketed = 0; aiPocketed = 0;
     queenClaimedBy = null;
+    queenPocketedBy = null;
+    queenCoverRequired = false;
+    toast = null;
     pocketsThisShot.length = 0;
     strikerFouledThisShot = false;
     flashes.length = 0;
@@ -865,6 +970,37 @@
     ctx.fillText(difficulty.toUpperCase(), S * 0.82, yBot);
   }
 
+  // Transient floating status text (rule reminders, queen events). Lives ~3.4 s,
+  // fades the last 0.6 s. Drawn just above the bottom HUD so it can't overlap
+  // the strike line or the player's hands on mobile.
+  function drawToast(now) {
+    if (!toast) return;
+    const age = now - toast.t0;
+    const lifetime = 3400, fade = 600;
+    if (age > lifetime) { toast = null; return; }
+    const alpha = age < lifetime - fade ? 1 : Math.max(0, (lifetime - age) / fade);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.font = '700 13px Inter, sans-serif';
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'center';
+    const padX = 14, padY = 8;
+    const tw = ctx.measureText(toast.text).width;
+    const w = tw + padX * 2;
+    const h = 28;
+    const x = S / 2 - w / 2;
+    const y = S * 0.78;
+    ctx.fillStyle = 'rgba(7, 10, 22, 0.85)';
+    roundRect(x, y, w, h, h / 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.20)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillText(toast.text, S / 2, y + h / 2 + 1);
+    ctx.restore();
+  }
+
   // ---------- MENU + RESULT SCREENS ----------
   function drawDim(alpha) {
     ctx.fillStyle = 'rgba(7, 10, 22, ' + alpha + ')';
@@ -1003,6 +1139,7 @@
       drawFlashes(t);
       drawHUD();
       drawTurnBanner(t);
+      drawToast(t);
     }
     if (scene === 'menu')              drawMenu();
     else if (scene === 'board-over')   drawBoardOver();
