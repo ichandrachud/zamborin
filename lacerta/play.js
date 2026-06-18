@@ -76,17 +76,19 @@
       img.src = src;
     });
   }
-  const assets = { sky: null, farStars: null, closerStars: null, tsunami: null, planets: [] };
+  const assets = { sky: null, farStars: null, closerStars: null, tsunami: null, phoenix: null, planets: [] };
   Promise.all([
     loadImage('./assets/skybackground.svg'),
     loadImage('./assets/far-stars.svg'),
     loadImage('./assets/closer-stars.svg'),
     loadImage('./assets/tsunami.svg'),
-  ]).then(([sky, farStars, closerStars, tsunami]) => {
+    loadImage('./assets/phoenix.svg'),
+  ]).then(([sky, farStars, closerStars, tsunami, phoenix]) => {
     assets.sky = sky;
     assets.farStars = farStars;
     assets.closerStars = closerStars;
     assets.tsunami = tsunami;
+    assets.phoenix = phoenix;
   });
   // Planet pool — a subset of the 11 available. We don't need all of them in
   // memory at once; this picks a varied 5 to drift through the background.
@@ -172,50 +174,270 @@
     }
   }
 
-  // ---------- INPUT ----------
-  // Desktop: arrow keys for pitch + throttle.
-  // Mobile (later, Phase 5): touch zones / drag.
+  // ---------- INPUT (hybrid scheme: mouse for altitude, keys for throttle) ----------
+  // Mouse Y over the canvas → ship target altitude (smooth follow with lag).
+  // Left-click / touch → primary fire (forward gun, heat-managed).
+  // → ← arrow keys → throttle (faster / slower world scroll).
+  // Touch on mobile mirrors mouse for both follow + fire.
+  let mouseY = H / 2;
+  let mouseActive = false;          // true once the user moves the mouse over the canvas
+  let isFiring = false;
   const keys = Object.create(null);
-  window.addEventListener('keydown', (e) => {
-    if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
-    keys[e.key] = true;
+
+  function canvasYFromClient(clientY) {
+    const rect = canvas.getBoundingClientRect();
+    return (clientY - rect.top) / rect.height * H;
+  }
+
+  canvas.addEventListener('mousemove', (e) => {
+    mouseY = canvasYFromClient(e.clientY);
+    mouseActive = true;
   });
-  window.addEventListener('keyup', (e) => { keys[e.key] = false; });
+  canvas.addEventListener('mouseenter', () => { mouseActive = true; });
+  canvas.addEventListener('mouseleave', () => { mouseActive = false; isFiring = false; });
+  canvas.addEventListener('mousedown', (e) => {
+    if (e.button === 0) { isFiring = true; e.preventDefault(); }
+  });
+  canvas.addEventListener('mouseup', (e) => {
+    if (e.button === 0) isFiring = false;
+  });
+  // Touch support — single finger drives both Y and fire.
+  canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    const t = e.touches[0]; if (!t) return;
+    mouseY = canvasYFromClient(t.clientY);
+    mouseActive = true;
+    isFiring = true;
+  }, { passive: false });
+  canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    const t = e.touches[0]; if (!t) return;
+    mouseY = canvasYFromClient(t.clientY);
+  }, { passive: false });
+  canvas.addEventListener('touchend',    () => { isFiring = false; });
+  canvas.addEventListener('touchcancel', () => { isFiring = false; });
+  window.addEventListener('blur',        () => { isFiring = false; });
 
-  function readInput() {
-    let p = 0;
-    if (keys.ArrowUp)   p -= 1;
-    if (keys.ArrowDown) p += 1;
-    player.pitchInput = p;
+  // Throttle keys still work.
+  window.addEventListener('keydown', (e) => {
+    if (['ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
+    keys[e.key] = true;
+    // Space can fire too — convenient for keyboard-only players / accessibility.
+    if (e.key === ' ') isFiring = true;
+  });
+  window.addEventListener('keyup', (e) => {
+    keys[e.key] = false;
+    if (e.key === ' ') isFiring = false;
+  });
 
+  function readThrottle() {
     if (keys.ArrowRight) player.throttle = Math.min(THROTTLE_MAX, player.throttle + 0.012);
     if (keys.ArrowLeft)  player.throttle = Math.max(THROTTLE_MIN, player.throttle - 0.012);
   }
 
+  // ---------- COMBAT STATE ----------
+  // Bullets, enemies, explosion particles. Bullets are owned by either the
+  // player or an enemy; collision rules differ.
+  const bullets = [];     // { x, y, vx, vy, owner: 'player'|'enemy' }
+  const enemies = [];     // { x, y, vx, vy, hp, fireAt, kind, hueShift }
+  const particles = [];   // { x, y, vx, vy, life, life0, color }
+  let lastShotAt = 0;
+  let heat = 0;                       // 0..1 — overheats at 1, forced cool to 0.3
+  let overheated = false;
+  let nextEnemyAt = 0;
+  const FIRE_INTERVAL = 140;          // ms between player shots
+  const HEAT_PER_SHOT = 0.07;
+  const HEAT_COOL_PER_MS = 0.0006;
+  const MAX_BULLET_X = W + 100;
+  const PLAYER_HIT_R = 22;            // collision radius approximations
+  const ENEMY_HIT_R  = 28;
+
+  let playerHP = 100;
+  let playerInvulnUntil = 0;
+
+  function spawnPlayerBullet() {
+    bullets.push({
+      x: player.screenX + 30, y: player.y,
+      vx: 12, vy: 0,
+      owner: 'player',
+    });
+  }
+  function spawnEnemyBullet(en) {
+    // Aim from enemy toward the player's current position (lead = none for now).
+    const dx = player.screenX - en.x;
+    const dy = player.y       - en.y;
+    const d  = Math.max(1, Math.hypot(dx, dy));
+    const speed = 6.5;
+    bullets.push({
+      x: en.x - 26, y: en.y,
+      vx: dx / d * speed, vy: dy / d * speed,
+      owner: 'enemy',
+    });
+  }
+  function spawnEnemy(now) {
+    enemies.push({
+      kind:  'phoenix',
+      hueShift: 60,                    // +60deg → reddish/orange
+      x: W + 80,
+      y: 90 + Math.random() * (H - 180),
+      vx: -1.6 - Math.random() * 0.6,
+      vy: (Math.random() - 0.5) * 0.4,
+      hp: 3,
+      fireAt: now + 700 + Math.random() * 800,
+    });
+  }
+  function spawnExplosion(x, y, color) {
+    const N = 14;
+    for (let i = 0; i < N; i++) {
+      const ang = Math.random() * Math.PI * 2;
+      const sp  = 1.2 + Math.random() * 2.6;
+      particles.push({
+        x, y,
+        vx: Math.cos(ang) * sp,
+        vy: Math.sin(ang) * sp,
+        life0: 520 + Math.random() * 220,
+        life:  520 + Math.random() * 220,
+        color,
+      });
+    }
+  }
+
   // ---------- UPDATE ----------
-  function update(dt) {
+  function update(dt, now) {
     if (landscapeLocked) return;            // paused while user re-orients device
 
-    readInput();
+    readThrottle();
 
-    // Vertical motion — pitch input nudges vy with momentum, springs back
-    // toward 0 when released. Position clamped within a safe band.
-    player.vy += player.pitchInput * PITCH_ACCEL * dt;
-    player.vy = Math.max(-VY_MAX, Math.min(VY_MAX, player.vy));
-    if (player.pitchInput === 0) player.vy *= Math.pow(PITCH_DAMP, dt / 16);
-    player.y += player.vy * dt;
-    const yMin = 90;
-    const yMax = H - 90;
+    // Vertical motion — mouse Y as soft target with momentum-style follow.
+    // Keyboard ↑/↓ also nudges player.y for keyboard-only / accessibility play.
+    const yMin = 60, yMax = H - 60;
+    if (mouseActive) {
+      const target = Math.max(yMin, Math.min(yMax, mouseY));
+      const followLerp = 0.18;             // higher = snappier
+      const prevY = player.y;
+      player.y += (target - player.y) * followLerp * (dt / 16);
+      // Derive a frame-rate-normalised vy from the actual y delta so the bank
+      // animation still tracks how fast the ship is climbing/diving.
+      player.vy = (player.y - prevY) / Math.max(1, dt / 16);
+    } else {
+      // Keyboard fallback.
+      let p = 0;
+      if (keys.ArrowUp)   p -= 1;
+      if (keys.ArrowDown) p += 1;
+      player.vy += p * PITCH_ACCEL * dt;
+      player.vy = Math.max(-VY_MAX, Math.min(VY_MAX, player.vy));
+      if (p === 0) player.vy *= Math.pow(PITCH_DAMP, dt / 16);
+      player.y += player.vy * dt;
+    }
     if (player.y < yMin) { player.y = yMin; player.vy = 0; }
     if (player.y > yMax) { player.y = yMax; player.vy = 0; }
 
-    // Visual bank tracks vy direction so the ship leans into its motion.
-    const targetPitch = Math.max(-1, Math.min(1, player.vy / VY_MAX));
-    player.pitch += (targetPitch - player.pitch) * 0.10;
+    // Bank tracks vy direction (subtle).
+    const targetPitch = Math.max(-1, Math.min(1, player.vy / 8));
+    player.pitch += (targetPitch - player.pitch) * 0.12;
 
-    // World scroll — accumulator drives the parallax + (later) wave spawns.
+    // World scroll + ambient planets.
     player.worldX += BASE_SPEED * player.throttle * dt;
-    updatePlanets(performance.now());
+    updatePlanets(now);
+
+    // Fire — heat-managed.
+    heat = Math.max(0, heat - HEAT_COOL_PER_MS * dt);
+    if (overheated && heat < 0.30) overheated = false;
+    if (isFiring && !overheated && (now - lastShotAt) >= FIRE_INTERVAL) {
+      spawnPlayerBullet();
+      lastShotAt = now;
+      heat += HEAT_PER_SHOT;
+      if (heat >= 1) { heat = 1; overheated = true; }
+    }
+
+    // Bullets — move and despawn off-screen.
+    for (let i = bullets.length - 1; i >= 0; i--) {
+      const b = bullets[i];
+      b.x += b.vx * (dt / 16);
+      b.y += b.vy * (dt / 16);
+      if (b.x < -40 || b.x > MAX_BULLET_X || b.y < -40 || b.y > H + 40) {
+        bullets.splice(i, 1);
+      }
+    }
+
+    // Enemies — spawn timer + per-enemy motion + occasional shots.
+    if (now >= nextEnemyAt) {
+      spawnEnemy(now);
+      nextEnemyAt = now + 1800 + Math.random() * 1400;  // every 1.8..3.2s
+    }
+    for (let i = enemies.length - 1; i >= 0; i--) {
+      const en = enemies[i];
+      en.x += en.vx * (dt / 16);
+      en.y += en.vy * (dt / 16);
+      // Gentle sinusoidal weave so they don't fly arrow-straight.
+      en.vy += (Math.random() - 0.5) * 0.04;
+      en.vy = Math.max(-0.9, Math.min(0.9, en.vy));
+      if (en.y < 70)     { en.y = 70;     en.vy = Math.abs(en.vy); }
+      if (en.y > H - 70) { en.y = H - 70; en.vy = -Math.abs(en.vy); }
+
+      if (now >= en.fireAt && en.x < W - 30) {
+        spawnEnemyBullet(en);
+        en.fireAt = now + 1100 + Math.random() * 900;
+      }
+      if (en.x < -100) enemies.splice(i, 1);
+    }
+
+    // Collisions: player bullets vs enemies.
+    for (let i = bullets.length - 1; i >= 0; i--) {
+      const b = bullets[i];
+      if (b.owner !== 'player') continue;
+      for (let j = enemies.length - 1; j >= 0; j--) {
+        const en = enemies[j];
+        const dx = b.x - en.x, dy = b.y - en.y;
+        if (dx * dx + dy * dy < ENEMY_HIT_R * ENEMY_HIT_R) {
+          bullets.splice(i, 1);
+          en.hp -= 1;
+          if (en.hp <= 0) {
+            spawnExplosion(en.x, en.y, '#ff8c33');
+            enemies.splice(j, 1);
+          } else {
+            spawnExplosion(b.x, b.y, '#ffd278');  // tiny spark on hit
+          }
+          break;
+        }
+      }
+    }
+
+    // Collisions: enemy bullets vs player + enemy ship body vs player.
+    if (now > playerInvulnUntil) {
+      for (let i = bullets.length - 1; i >= 0; i--) {
+        const b = bullets[i];
+        if (b.owner !== 'enemy') continue;
+        const dx = b.x - player.screenX, dy = b.y - player.y;
+        if (dx * dx + dy * dy < PLAYER_HIT_R * PLAYER_HIT_R) {
+          bullets.splice(i, 1);
+          playerHP = Math.max(0, playerHP - 8);
+          spawnExplosion(b.x, b.y, '#ff5555');
+          playerInvulnUntil = now + 320;       // brief i-frames
+          break;
+        }
+      }
+      for (let i = enemies.length - 1; i >= 0; i--) {
+        const en = enemies[i];
+        const dx = en.x - player.screenX, dy = en.y - player.y;
+        if (dx * dx + dy * dy < (PLAYER_HIT_R + ENEMY_HIT_R) * (PLAYER_HIT_R + ENEMY_HIT_R) * 0.55) {
+          spawnExplosion(en.x, en.y, '#ff8c33');
+          enemies.splice(i, 1);
+          playerHP = Math.max(0, playerHP - 18);
+          playerInvulnUntil = now + 500;
+        }
+      }
+    }
+
+    // Particles — drift, decay.
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.x += p.vx * (dt / 16);
+      p.y += p.vy * (dt / 16);
+      p.vx *= 0.96; p.vy *= 0.96;
+      p.life -= dt;
+      if (p.life <= 0) particles.splice(i, 1);
+    }
   }
 
   // ---------- RENDER ----------
@@ -290,6 +512,85 @@
     ctx.restore();
   }
 
+  function drawBullets() {
+    for (const b of bullets) {
+      ctx.save();
+      if (b.owner === 'player') {
+        // Cyan tracer with white core.
+        ctx.fillStyle = 'rgba(120, 220, 255, 0.85)';
+        ctx.fillRect(b.x - 6, b.y - 1.5, 12, 3);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(b.x - 3, b.y - 0.75, 6, 1.5);
+      } else {
+        // Red enemy bolt — short blob with a slight glow.
+        ctx.shadowColor = '#ff5555';
+        ctx.shadowBlur = 6;
+        ctx.fillStyle = '#ff8888';
+        ctx.fillRect(b.x - 5, b.y - 2, 10, 4);
+      }
+      ctx.restore();
+    }
+  }
+
+  function drawEnemies() {
+    if (!assets.phoenix) return;
+    const img = assets.phoenix;
+    // Render slightly smaller than the player so enemies feel quicker.
+    const targetH = 50;
+    const targetW = targetH * (img.width / img.height);
+    for (const en of enemies) {
+      ctx.save();
+      ctx.translate(en.x, en.y);
+      // Bank into vertical motion.
+      ctx.rotate(Math.max(-0.4, Math.min(0.4, en.vy * 0.4)));
+      ctx.filter = `hue-rotate(${en.hueShift}deg) saturate(1.05)`;
+      // Phoenix.svg points LEFT (same convention as Tsunami); enemies face LEFT
+      // toward the player, so no horizontal flip needed.
+      ctx.drawImage(img, -targetW / 2, -targetH / 2, targetW, targetH);
+      ctx.restore();
+    }
+    ctx.filter = 'none';
+  }
+
+  function drawParticles() {
+    for (const p of particles) {
+      const t = p.life / p.life0;
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, t);
+      ctx.fillStyle = p.color;
+      const r = 3 * t + 1;
+      ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  function drawHUD() {
+    // HP bar — top-left, 200×10. Heat bar — directly below, 200×6.
+    ctx.save();
+    ctx.font = '700 11px Inter, sans-serif';
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+
+    const x = 24, hpY = 22, htY = 42;
+    // HP background + fill
+    ctx.fillStyle = 'rgba(255,255,255,0.10)';
+    ctx.fillRect(x, hpY, 200, 10);
+    ctx.fillStyle = playerHP > 50 ? '#5DD39E' : playerHP > 25 ? '#FFD23F' : '#FF6B5C';
+    ctx.fillRect(x, hpY, 200 * (playerHP / 100), 10);
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.fillText('HP', x + 210, hpY + 5);
+
+    // Heat background + fill
+    ctx.fillStyle = 'rgba(255,255,255,0.10)';
+    ctx.fillRect(x, htY, 200, 6);
+    ctx.fillStyle = overheated ? '#FF6B5C' : '#FFB347';
+    ctx.fillRect(x, htY, 200 * heat, 6);
+    ctx.fillStyle = 'rgba(255,255,255,0.65)';
+    ctx.fillText(overheated ? 'COOLING' : 'HEAT', x + 210, htY + 3);
+
+    ctx.restore();
+  }
+
   function render(now) {
     clearBg();
     drawParallaxLayer(assets.sky,         PARALLAX.sky);
@@ -297,7 +598,16 @@
     drawPlanets();
     drawParallaxLayer(assets.closerStars, PARALLAX.close, 'screen');
     drawExhaustTrail(now);
-    drawPlayer();
+    // Player render — blink during invuln frames so hits are felt.
+    if (now <= playerInvulnUntil && Math.floor(now / 60) % 2 === 0) {
+      // skip drawing this frame
+    } else {
+      drawPlayer();
+    }
+    drawEnemies();
+    drawBullets();
+    drawParticles();
+    drawHUD();
   }
 
   // ---------- LOOP ----------
@@ -305,7 +615,7 @@
   function loop(now) {
     const dt = Math.min(40, now - lastTime);   // cap to avoid huge jumps on tab-resume
     lastTime = now;
-    update(dt);
+    update(dt, now);
     render(now);
     requestAnimationFrame(loop);
   }
