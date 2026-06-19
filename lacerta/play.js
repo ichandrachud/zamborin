@@ -927,21 +927,13 @@
     ctx.restore();
   }
 
-  // drawSky — paints the JPG sky across the canvas with a very slow horizontal
-  // parallax so the sky drifts subtly as the player flies forward. Stretched
-  // vertically to cover everything down to the canvas bottom (terrain sits
-  // on top of it anyway).
+  // drawSky — single full-canvas stretch of sky.jpg. We deliberately do NOT
+  // tile horizontally because the source image's left/right edges don't
+  // match (a visible seam ran down the middle of the canvas). The clouds
+  // provide the parallax sense of motion; the sky itself can be static.
   function drawSky() {
     if (!assets.sky) return;
-    const img = assets.sky;
-    const scale = H / img.height;
-    const layerW = img.width * scale;
-    const offset = (player.worldX * PARALLAX.sky) % layerW;
-    let x = -offset;
-    while (x < W) {
-      ctx.drawImage(img, x, 0, layerW, H);
-      x += layerW;
-    }
+    ctx.drawImage(assets.sky, 0, 0, W, H);
   }
 
   function render(now) {
