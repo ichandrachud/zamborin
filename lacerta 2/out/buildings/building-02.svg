@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 600" width="320" height="600">
+<defs>
+<linearGradient id="o" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#9c4a14"/><stop offset="0.5" stop-color="#d87a28"/><stop offset="1" stop-color="#9c4a14"/></linearGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#828891"/><stop offset="0.5" stop-color="#c9ced3"/><stop offset="1" stop-color="#828891"/></linearGradient>
+<linearGradient id="white" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#aeb1ad"/><stop offset="0.5" stop-color="#dcdcd7"/><stop offset="1" stop-color="#aeb1ad"/></linearGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4d2da"/><stop offset="1" stop-color="#7c8b96"/></linearGradient>
+<linearGradient id="cop" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8a5e34"/><stop offset="0.5" stop-color="#cda978"/><stop offset="1" stop-color="#8a5e34"/></linearGradient>
+</defs>
+
+<line x1="0" y1="560" x2="320" y2="560" stroke="#b4b6b3" stroke-width="2"/>
+
+<!-- white lower cylinder + flared base -->
+<path d="M 56 560 C 62 502 74 460 84 436 L 82 320 Q 160 312 238 320 L 236 436 C 246 460 258 502 264 560 Z" fill="url(#white)" stroke="#5f625e" stroke-width="1.5"/>
+<line x1="80" y1="470" x2="240" y2="470" stroke="#7d807c" stroke-width="1"/>
+
+<!-- side pipes (attached) -->
+<path d="M 244 350 L 244 332 Q 244 326 238 326" fill="none" stroke="#6a7079" stroke-width="6"/>
+<path d="M 244 350 L 246 520" fill="none" stroke="url(#steel)" stroke-width="6"/>
+<rect x="241" y="430" width="10" height="6" fill="#5a6066"/>
+<path d="M 76 360 L 76 340 Q 76 334 82 334" fill="none" stroke="#6a7079" stroke-width="5"/>
+<path d="M 76 360 L 74 520" fill="none" stroke="url(#steel)" stroke-width="5"/>
+<rect x="69" y="440" width="10" height="6" fill="#5a6066"/>
+
+<!-- orange bulging upper drum (overhangs white) -->
+<path d="M 80 104 C 70 132 68 190 70 240 C 72 290 78 322 94 338 L 226 338 C 242 322 248 290 250 240 C 252 190 250 132 240 104 Z" fill="url(#o)" stroke="#5e2c0a" stroke-width="2"/>
+<line x1="74" y1="200" x2="246" y2="200" stroke="#5e2c0a" stroke-width="1.2" opacity="0.45"/>
+
+<!-- big arched multi-pane bay window -->
+<g>
+<path d="M 100 300 L 100 196 A 36 36 0 0 1 172 196 L 172 300 Z" fill="#e9e8e1" stroke="#7e817c" stroke-width="2"/>
+<path d="M 106 297 L 106 197 A 30 30 0 0 1 166 197 L 166 297 Z" fill="url(#glass)"/>
+<g stroke="#e9e8e1" stroke-width="2.6">
+<line x1="124" y1="170" x2="124" y2="297"/><line x1="148" y1="166" x2="148" y2="297"/>
+<line x1="106" y1="232" x2="166" y2="232"/><line x1="106" y1="262" x2="166" y2="262"/><line x1="108" y1="200" x2="164" y2="200"/></g>
+<path d="M 106 197 A 30 30 0 0 1 166 197" fill="none" stroke="#e9e8e1" stroke-width="2.6"/>
+<rect x="94" y="300" width="84" height="8" rx="2" fill="url(#steel)" stroke="#5f625e" stroke-width="1.2"/>
+<path d="M 98 308 L 174 308 L 166 320 L 106 320 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1"/>
+</g>
+<!-- porthole upper-right -->
+<circle cx="214" cy="196" r="11" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/><circle cx="214" cy="196" r="5" fill="#2b2e31"/>
+
+<!-- top steel rim of orange drum -->
+<ellipse cx="160" cy="104" rx="92" ry="12" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+
+<!-- reclining roof boiler tank + finial -->
+<g>
+<rect x="96" y="70" width="118" height="28" rx="14" fill="url(#cop)" stroke="#5a3a1c" stroke-width="1.5"/>
+<ellipse cx="96" cy="84" rx="8" ry="14" fill="#9a6e3e" stroke="#5a3a1c" stroke-width="1.2"/>
+<ellipse cx="214" cy="84" rx="8" ry="14" fill="#caa46e" stroke="#5a3a1c" stroke-width="1.2"/>
+<line x1="140" y1="70" x2="140" y2="48" stroke="#6a7079" stroke-width="2.5"/><circle cx="140" cy="47" r="2.6" fill="#787e86"/>
+<rect x="182" y="58" width="14" height="13" rx="2" fill="url(#steel)" stroke="#5f625e" stroke-width="1"/>
+</g>
+
+<!-- base window -->
+<g><rect x="130" y="488" width="56" height="44" rx="2" fill="#e9e8e1" stroke="#7e817c" stroke-width="1.5"/><rect x="135" y="492" width="46" height="36" fill="url(#glass)"/><g stroke="#e9e8e1" stroke-width="2.4"><line x1="150" y1="492" x2="150" y2="528"/><line x1="166" y1="492" x2="166" y2="528"/><line x1="135" y1="510" x2="181" y2="510"/></g></g>
+
+<!-- flared scalloped foot -->
+<path d="M 48 560 L 58 540 Q 92 546 122 542 Q 160 536 198 542 Q 230 547 262 540 L 272 560 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+</svg>

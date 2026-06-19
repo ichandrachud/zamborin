@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 600" width="220" height="600">
+<defs>
+<linearGradient id="red" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#b04020"/><stop offset="0.5" stop-color="#db6238"/><stop offset="1" stop-color="#b04020"/></linearGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#828891"/><stop offset="0.5" stop-color="#c9ced3"/><stop offset="1" stop-color="#828891"/></linearGradient>
+<linearGradient id="dome" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#717b8a"/><stop offset="0.5" stop-color="#aab3c0"/><stop offset="1" stop-color="#6a7482"/></linearGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4d2da"/><stop offset="1" stop-color="#7c8b96"/></linearGradient>
+</defs>
+<line x1="0" y1="560" x2="220" y2="560" stroke="#b4b6b3" stroke-width="2"/>
+<path d="M 162 290 L 162 210 Q 162 204 156 204" fill="none" stroke="#6a7079" stroke-width="5"/><path d="M 162 290 L 164 522" fill="none" stroke="url(#steel)" stroke-width="5"/><rect x="157" y="410" width="10" height="6" fill="#5a6066"/>
+<!-- orange-red tower -->
+<path d="M 46 560 C 52 502 64 320 68 250 L 70 158 Q 110 151 150 158 L 152 250 C 156 320 168 502 174 560 Z" fill="url(#red)" stroke="#6a2614" stroke-width="1.5"/>
+<line x1="68" y1="370" x2="152" y2="370" stroke="#8a3018" stroke-width="1"/>
+<!-- dome + deck -->
+<rect x="62" y="144" width="96" height="12" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<path d="M 66 146 Q 66 116 110 110 Q 154 116 154 146 Z" fill="url(#dome)" stroke="#444b57" stroke-width="1.5"/>
+<!-- gun -->
+<g>
+<rect x="98" y="92" width="28" height="13" rx="3" fill="#3a3f44" stroke="#23262a" stroke-width="1"/>
+<g stroke="#3a3f44" stroke-width="4.6" stroke-linecap="round"><line x1="100" y1="98" x2="42" y2="62"/><line x1="104" y1="105" x2="46" y2="69"/></g>
+<path d="M 44 68 L 58 52 L 52 47 L 38 63 Z" fill="#4a5057" stroke="#23262a" stroke-width="1"/>
+<ellipse cx="120" cy="98" rx="8" ry="6" fill="#3a3f44" stroke="#23262a" stroke-width="1"/>
+</g>
+<g><rect x="78" y="200" width="38" height="54" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="82" y="204" width="30" height="46" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="97" y1="204" x2="97" y2="250"/><line x1="82" y1="227" x2="112" y2="227"/></g></g>
+<g><rect x="78" y="300" width="38" height="54" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="82" y="304" width="30" height="46" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="97" y1="304" x2="97" y2="350"/><line x1="82" y1="327" x2="112" y2="327"/></g></g>
+<g><rect x="84" y="486" width="44" height="74" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/><rect x="90" y="492" width="32" height="68" fill="#6f9152"/><line x1="106" y1="492" x2="106" y2="560" stroke="#42592f" stroke-width="1.2"/></g>
+<path d="M 42 560 L 52 542 Q 90 548 110 544 Q 150 548 178 542 L 178 560 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+</svg>

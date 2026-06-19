@@ -129,47 +129,95 @@
   const PARALLAX = { sky: 0.04, far: 0.18, close: 0.55, ground: 0.85 };
 
   // ---------- TERRAIN + GROUND STATIONS ----------
-  // The alien surface sits along the bottom of the canvas as a procedural
-  // silhouette. Ridges are a layered sine + light noise driven by worldX so
-  // the terrain is deterministic — same scroll position always shows the
-  // same hills. Ground stations are anchored to fixed worldX positions and
-  // rendered at the terrain height at their X.
-  const TERRAIN_BASE_Y = H - 90;     // average terrain top (relative to canvas)
-  const TERRAIN_FILL   = '#7d2f1a';  // dusty mars red for v1 — tint shifts per battleground in Phase 4
-  const TERRAIN_EDGE   = '#c95b2a';
-  function terrainHeightAt(worldX) {
-    // Layered sines = organic horizon without external noise lib.
-    const a = Math.sin(worldX * 0.0060) * 26;
-    const b = Math.sin(worldX * 0.0185 + 1.7) * 12;
-    const c = Math.sin(worldX * 0.0420 + 4.3) * 6;
-    return TERRAIN_BASE_Y - (a + b + c);
-  }
+  // Flat slate/cream surface in the same palette as the building art —
+  // procedurally drawn, no asset. Has a soft vertical gradient (warmer cream
+  // at the top edge → cooler slate at the bottom), a thin definition line
+  // at the horizon, and tile-based procedural specks that scroll with the
+  // world to break up the otherwise-flat plane.
+  const TERRAIN_BASE_Y = H - 110;      // top edge of the ground band
+
+  // Per-tile detail pattern. One tile is 800 logical px wide; we generate a
+  // fixed deterministic set of specks within it, then repeat tiles across
+  // the canvas as the world scrolls. Same texture every time the player
+  // revisits a stretch — looks consistent.
+  const DETAIL_TILE_W = 800;
+  const detailTile = [];
+  (function buildDetailTile() {
+    // Cheap LCG so the pattern is deterministic between sessions.
+    let seed = 0xC0FFEE;
+    const rnd = () => {
+      seed = (seed * 1664525 + 1013904223) >>> 0;
+      return seed / 0xFFFFFFFF;
+    };
+    for (let i = 0; i < 70; i++) {
+      detailTile.push({
+        x: rnd() * DETAIL_TILE_W,
+        yOff: 12 + rnd() * (H - TERRAIN_BASE_Y - 24),
+        r: 0.7 + rnd() * 1.6,
+        color: rnd() < 0.5 ? '#7a6c5c' : '#a99c87',
+        alpha: 0.25 + rnd() * 0.45,
+      });
+    }
+    // A few faint horizontal scuff marks — long thin streaks read as pavement.
+    for (let i = 0; i < 12; i++) {
+      detailTile.push({
+        x: rnd() * DETAIL_TILE_W,
+        yOff: 18 + rnd() * (H - TERRAIN_BASE_Y - 30),
+        kind: 'streak',
+        len: 14 + rnd() * 32,
+        color: '#766a58',
+        alpha: 0.18 + rnd() * 0.18,
+      });
+    }
+  })();
+
+  // Now that the ground is flat, terrainHeightAt is constant — keeps the
+  // bomb / station code unchanged.
+  function terrainHeightAt(_worldX) { return TERRAIN_BASE_Y; }
+
   function drawTerrain() {
-    ctx.save();
-    ctx.fillStyle = TERRAIN_FILL;
+    // Soft vertical gradient base.
+    const grad = ctx.createLinearGradient(0, TERRAIN_BASE_Y, 0, H);
+    grad.addColorStop(0,    '#c8b89a');   // warm cream at the horizon
+    grad.addColorStop(0.55, '#9e8e76');
+    grad.addColorStop(1,    '#7a6c5c');   // cooler slate at the bottom
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, TERRAIN_BASE_Y, W, H - TERRAIN_BASE_Y);
+
+    // Definition line along the top edge.
+    ctx.strokeStyle = '#5e5448';
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.moveTo(0, H + 4);
-    // Sample every 6 logical pixels — smooth ridge, low cost.
-    for (let x = 0; x <= W; x += 6) {
-      const worldX = player.worldX * PARALLAX.ground + x;
-      ctx.lineTo(x, terrainHeightAt(worldX));
-    }
-    ctx.lineTo(W, H + 4);
-    ctx.closePath();
-    ctx.fill();
-    // Brighter rim along the ridge — small accent.
-    ctx.strokeStyle = TERRAIN_EDGE;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    let started = false;
-    for (let x = 0; x <= W; x += 6) {
-      const worldX = player.worldX * PARALLAX.ground + x;
-      const y = terrainHeightAt(worldX);
-      if (!started) { ctx.moveTo(x, y); started = true; }
-      else ctx.lineTo(x, y);
-    }
+    ctx.moveTo(0, TERRAIN_BASE_Y);
+    ctx.lineTo(W, TERRAIN_BASE_Y);
     ctx.stroke();
-    ctx.restore();
+
+    // Detail specks + streaks, tiled. Scroll offset matches the ground
+    // parallax so specks slide past at the same pace as ground stations.
+    const offsetX = (player.worldX * PARALLAX.ground) % DETAIL_TILE_W;
+    for (let tileX = -offsetX; tileX < W; tileX += DETAIL_TILE_W) {
+      for (const d of detailTile) {
+        const x = tileX + d.x;
+        if (x < -50 || x > W + 50) continue;
+        const y = TERRAIN_BASE_Y + d.yOff;
+        ctx.save();
+        ctx.globalAlpha = d.alpha;
+        if (d.kind === 'streak') {
+          ctx.strokeStyle = d.color;
+          ctx.lineWidth = 0.8;
+          ctx.beginPath();
+          ctx.moveTo(x, y);
+          ctx.lineTo(x + d.len, y);
+          ctx.stroke();
+        } else {
+          ctx.fillStyle = d.color;
+          ctx.beginPath();
+          ctx.arc(x, y, d.r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+    }
   }
 
   // Ground stations live in WORLD-X space; they slide left as the world

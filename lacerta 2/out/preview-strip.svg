@@ -1,0 +1,1125 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 9300 600" width="9300" height="600"><rect x="0" y="0" width="9300" height="600" fill="#eef0f2"/><line x1="0" y1="560" x2="9300" y2="560" stroke="#9aa0a8" stroke-width="2"/><g transform="translate(30,0)">
+<defs>
+<linearGradient id="red" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#9a2c1c"/><stop offset="0.5" stop-color="#d24a32"/><stop offset="1" stop-color="#9a2c1c"/></linearGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#828891"/><stop offset="0.5" stop-color="#c9ced3"/><stop offset="1" stop-color="#828891"/></linearGradient>
+<linearGradient id="white" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#aeb1ad"/><stop offset="0.5" stop-color="#dcdcd7"/><stop offset="1" stop-color="#aeb1ad"/></linearGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4d2da"/><stop offset="1" stop-color="#7c8b96"/></linearGradient>
+</defs>
+
+<!-- ground line -->
+<line x1="0" y1="560" x2="320" y2="560" stroke="#b4b6b3" stroke-width="2"/>
+
+<!-- flared white base -->
+<path d="M 56 560 C 62 500 76 452 88 432 Q 160 424 232 432 C 244 452 258 500 264 560 Z" fill="url(#white)" stroke="#5f625e" stroke-width="1.5"/>
+<line x1="84" y1="500" x2="236" y2="500" stroke="#7d807c" stroke-width="1"/>
+
+<!-- side pipes (attached: elbow into body near top, run to base) -->
+<path d="M 250 200 L 250 175 Q 250 168 243 168" fill="none" stroke="#6a7079" stroke-width="6"/>
+<path d="M 250 200 L 252 520" fill="none" stroke="url(#steel)" stroke-width="7"/>
+<rect x="247" y="300" width="11" height="6" fill="#5a6066"/><rect x="248" y="410" width="11" height="6" fill="#5a6066"/>
+<path d="M 70 215 L 70 185 Q 70 178 77 178" fill="none" stroke="#6a7079" stroke-width="5"/>
+<path d="M 70 215 L 68 520" fill="none" stroke="url(#steel)" stroke-width="6"/>
+<rect x="62" y="330" width="11" height="6" fill="#5a6066"/>
+
+<!-- red cylinder body -->
+<path d="M 88 150 L 80 405 C 80 420 86 428 96 434 L 224 434 C 234 428 240 420 240 405 L 232 150 Z" fill="url(#red)" stroke="#5e1c12" stroke-width="2"/>
+<!-- floor division lines (architectural) -->
+<line x1="82" y1="245" x2="238" y2="245" stroke="#5e1c12" stroke-width="1.2" opacity="0.5"/>
+<line x1="81" y1="335" x2="239" y2="335" stroke="#5e1c12" stroke-width="1.2" opacity="0.5"/>
+
+<!-- windows: 2x3, 2x2, 2x3 -->
+<g><rect x="170" y="178" width="48" height="62" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="174" y="182" width="40" height="54" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.6"><line x1="194" y1="182" x2="194" y2="236"/><line x1="174" y1="200" x2="214" y2="200"/><line x1="174" y1="218" x2="214" y2="218"/></g></g>
+<g><rect x="98" y="262" width="44" height="50" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="102" y="266" width="36" height="42" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.6"><line x1="120" y1="266" x2="120" y2="308"/><line x1="102" y1="287" x2="138" y2="287"/></g></g>
+<g><rect x="172" y="352" width="48" height="64" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="176" y="356" width="40" height="56" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.6"><line x1="196" y1="356" x2="196" y2="412"/><line x1="176" y1="375" x2="216" y2="375"/><line x1="176" y1="393" x2="216" y2="393"/></g></g>
+<!-- porthole -->
+<circle cx="118" cy="210" r="10" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/><circle cx="118" cy="210" r="4.5" fill="#2b2e31"/>
+
+<!-- eaves flange + brass ring -->
+<path d="M 86 132 L 234 132 L 246 150 L 74 150 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<rect x="82" y="144" width="156" height="6" fill="#b89a62"/>
+
+<!-- stepped steel dome -->
+<path d="M 86 133 Q 86 104 122 96 L 198 96 Q 234 104 234 133 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<ellipse cx="160" cy="98" rx="42" ry="8" fill="url(#steel)" stroke="#5f625e" stroke-width="1.2"/>
+
+<!-- multi-barrel autocannon -->
+<g>
+<rect x="146" y="84" width="30" height="14" rx="3" fill="#3a3f44" stroke="#23262a" stroke-width="1"/>
+<path d="M 150 90 L 180 80 L 188 60 L 158 70 Z" fill="#4a5057" stroke="#23262a" stroke-width="1.2"/>
+<ellipse cx="182" cy="74" rx="9" ry="7" fill="#3a3f44" stroke="#23262a" stroke-width="1"/>
+<g stroke="#3a3f44" stroke-width="5" stroke-linecap="round"><line x1="168" y1="70" x2="104" y2="34"/><line x1="164" y1="77" x2="100" y2="41"/><line x1="172" y1="64" x2="108" y2="28"/></g>
+<path d="M 98 42 L 114 26 L 108 22 L 92 38 Z" fill="#4a5057" stroke="#23262a" stroke-width="1"/>
+<path d="M 184 80 C 200 78 202 64 190 60" fill="none" stroke="#6a7079" stroke-width="3.5"/>
+</g>
+
+<!-- door + base window -->
+<g><rect x="96" y="470" width="48" height="86" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/><rect x="102" y="476" width="36" height="80" fill="#b1402a"/><line x1="102" y1="516" x2="138" y2="516" stroke="#7a1f16" stroke-width="1.2"/><circle cx="133" cy="520" r="2.4" fill="#2b2e31"/></g>
+<g><rect x="176" y="478" width="48" height="40" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="180" y="482" width="40" height="32" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.4"><line x1="193" y1="482" x2="193" y2="514"/><line x1="207" y1="482" x2="207" y2="514"/><line x1="180" y1="498" x2="220" y2="498"/></g></g>
+
+<!-- flared scalloped foot -->
+<path d="M 48 560 L 58 540 Q 92 546 120 542 Q 160 536 200 542 Q 230 547 262 540 L 272 560 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+</g><g transform="translate(380,0)">
+<defs>
+<linearGradient id="o" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#9c4a14"/><stop offset="0.5" stop-color="#d87a28"/><stop offset="1" stop-color="#9c4a14"/></linearGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#828891"/><stop offset="0.5" stop-color="#c9ced3"/><stop offset="1" stop-color="#828891"/></linearGradient>
+<linearGradient id="white" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#aeb1ad"/><stop offset="0.5" stop-color="#dcdcd7"/><stop offset="1" stop-color="#aeb1ad"/></linearGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4d2da"/><stop offset="1" stop-color="#7c8b96"/></linearGradient>
+<linearGradient id="cop" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8a5e34"/><stop offset="0.5" stop-color="#cda978"/><stop offset="1" stop-color="#8a5e34"/></linearGradient>
+</defs>
+
+<line x1="0" y1="560" x2="320" y2="560" stroke="#b4b6b3" stroke-width="2"/>
+
+<!-- white lower cylinder + flared base -->
+<path d="M 56 560 C 62 502 74 460 84 436 L 82 320 Q 160 312 238 320 L 236 436 C 246 460 258 502 264 560 Z" fill="url(#white)" stroke="#5f625e" stroke-width="1.5"/>
+<line x1="80" y1="470" x2="240" y2="470" stroke="#7d807c" stroke-width="1"/>
+
+<!-- side pipes (attached) -->
+<path d="M 244 350 L 244 332 Q 244 326 238 326" fill="none" stroke="#6a7079" stroke-width="6"/>
+<path d="M 244 350 L 246 520" fill="none" stroke="url(#steel)" stroke-width="6"/>
+<rect x="241" y="430" width="10" height="6" fill="#5a6066"/>
+<path d="M 76 360 L 76 340 Q 76 334 82 334" fill="none" stroke="#6a7079" stroke-width="5"/>
+<path d="M 76 360 L 74 520" fill="none" stroke="url(#steel)" stroke-width="5"/>
+<rect x="69" y="440" width="10" height="6" fill="#5a6066"/>
+
+<!-- orange bulging upper drum (overhangs white) -->
+<path d="M 80 104 C 70 132 68 190 70 240 C 72 290 78 322 94 338 L 226 338 C 242 322 248 290 250 240 C 252 190 250 132 240 104 Z" fill="url(#o)" stroke="#5e2c0a" stroke-width="2"/>
+<line x1="74" y1="200" x2="246" y2="200" stroke="#5e2c0a" stroke-width="1.2" opacity="0.45"/>
+
+<!-- big arched multi-pane bay window -->
+<g>
+<path d="M 100 300 L 100 196 A 36 36 0 0 1 172 196 L 172 300 Z" fill="#e9e8e1" stroke="#7e817c" stroke-width="2"/>
+<path d="M 106 297 L 106 197 A 30 30 0 0 1 166 197 L 166 297 Z" fill="url(#glass)"/>
+<g stroke="#e9e8e1" stroke-width="2.6">
+<line x1="124" y1="170" x2="124" y2="297"/><line x1="148" y1="166" x2="148" y2="297"/>
+<line x1="106" y1="232" x2="166" y2="232"/><line x1="106" y1="262" x2="166" y2="262"/><line x1="108" y1="200" x2="164" y2="200"/></g>
+<path d="M 106 197 A 30 30 0 0 1 166 197" fill="none" stroke="#e9e8e1" stroke-width="2.6"/>
+<rect x="94" y="300" width="84" height="8" rx="2" fill="url(#steel)" stroke="#5f625e" stroke-width="1.2"/>
+<path d="M 98 308 L 174 308 L 166 320 L 106 320 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1"/>
+</g>
+<!-- porthole upper-right -->
+<circle cx="214" cy="196" r="11" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/><circle cx="214" cy="196" r="5" fill="#2b2e31"/>
+
+<!-- top steel rim of orange drum -->
+<ellipse cx="160" cy="104" rx="92" ry="12" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+
+<!-- reclining roof boiler tank + finial -->
+<g>
+<rect x="96" y="70" width="118" height="28" rx="14" fill="url(#cop)" stroke="#5a3a1c" stroke-width="1.5"/>
+<ellipse cx="96" cy="84" rx="8" ry="14" fill="#9a6e3e" stroke="#5a3a1c" stroke-width="1.2"/>
+<ellipse cx="214" cy="84" rx="8" ry="14" fill="#caa46e" stroke="#5a3a1c" stroke-width="1.2"/>
+<line x1="140" y1="70" x2="140" y2="48" stroke="#6a7079" stroke-width="2.5"/><circle cx="140" cy="47" r="2.6" fill="#787e86"/>
+<rect x="182" y="58" width="14" height="13" rx="2" fill="url(#steel)" stroke="#5f625e" stroke-width="1"/>
+</g>
+
+<!-- base window -->
+<g><rect x="130" y="488" width="56" height="44" rx="2" fill="#e9e8e1" stroke="#7e817c" stroke-width="1.5"/><rect x="135" y="492" width="46" height="36" fill="url(#glass)"/><g stroke="#e9e8e1" stroke-width="2.4"><line x1="150" y1="492" x2="150" y2="528"/><line x1="166" y1="492" x2="166" y2="528"/><line x1="135" y1="510" x2="181" y2="510"/></g></g>
+
+<!-- flared scalloped foot -->
+<path d="M 48 560 L 58 540 Q 92 546 122 542 Q 160 536 198 542 Q 230 547 262 540 L 272 560 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+</g><g transform="translate(730,0)">
+<defs>
+<linearGradient id="o" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#a85316"/><stop offset="0.5" stop-color="#df8a2e"/><stop offset="1" stop-color="#a85316"/></linearGradient>
+<linearGradient id="white" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#aeb1ad"/><stop offset="0.5" stop-color="#dcdcd7"/><stop offset="1" stop-color="#aeb1ad"/></linearGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#828891"/><stop offset="0.5" stop-color="#c9ced3"/><stop offset="1" stop-color="#828891"/></linearGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4d2da"/><stop offset="1" stop-color="#7c8b96"/></linearGradient>
+</defs>
+
+<line x1="0" y1="560" x2="240" y2="560" stroke="#b4b6b3" stroke-width="2"/>
+
+<!-- white slender shaft + flared base -->
+<path d="M 50 560 C 56 508 68 478 72 468 L 68 226 Q 120 220 172 226 L 168 468 C 172 478 184 508 190 560 Z" fill="url(#white)" stroke="#5f625e" stroke-width="1.5"/>
+<line x1="70" y1="360" x2="170" y2="360" stroke="#7d807c" stroke-width="1"/>
+
+<!-- side pipe (attached) -->
+<path d="M 176 300 L 176 240 Q 176 234 170 234" fill="none" stroke="#6a7079" stroke-width="5"/>
+<path d="M 176 300 L 178 520" fill="none" stroke="url(#steel)" stroke-width="5"/>
+<rect x="171" y="420" width="10" height="6" fill="#5a6066"/>
+
+<!-- orange watch-drum (overhangs shaft) -->
+<path d="M 52 112 C 46 142 46 198 58 224 L 182 224 C 194 198 194 142 188 112 Z" fill="url(#o)" stroke="#5e2c0a" stroke-width="2"/>
+
+<!-- row of tall narrow green-framed windows -->
+<g>
+<rect x="64" y="132" width="26" height="64" rx="2" fill="#5f7a4e" stroke="#3f5234" stroke-width="1.5"/><rect x="68" y="136" width="18" height="56" fill="url(#glass)"/><line x1="68" y1="164" x2="86" y2="164" stroke="#5f7a4e" stroke-width="2.2"/>
+<rect x="98" y="128" width="26" height="68" rx="2" fill="#5f7a4e" stroke="#3f5234" stroke-width="1.5"/><rect x="102" y="132" width="18" height="60" fill="url(#glass)"/><line x1="102" y1="162" x2="120" y2="162" stroke="#5f7a4e" stroke-width="2.2"/>
+<rect x="132" y="128" width="26" height="68" rx="2" fill="#5f7a4e" stroke="#3f5234" stroke-width="1.5"/><rect x="136" y="132" width="18" height="60" fill="url(#glass)"/><line x1="136" y1="162" x2="154" y2="162" stroke="#5f7a4e" stroke-width="2.2"/>
+<rect x="166" y="132" width="22" height="64" rx="2" fill="#5f7a4e" stroke="#3f5234" stroke-width="1.5"/><rect x="170" y="136" width="14" height="56" fill="url(#glass)"/><line x1="170" y1="164" x2="184" y2="164" stroke="#5f7a4e" stroke-width="2.2"/>
+</g>
+
+<!-- steel deck rim -->
+<rect x="46" y="104" width="148" height="14" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<ellipse cx="120" cy="106" rx="74" ry="7" fill="url(#steel)" stroke="#5f625e" stroke-width="1.2"/>
+
+<!-- antenna mast + side dish -->
+<line x1="108" y1="104" x2="108" y2="40" stroke="#6a7079" stroke-width="2.5"/>
+<g stroke="#6a7079" stroke-width="2"><line x1="98" y1="56" x2="118" y2="56"/><line x1="100" y1="66" x2="116" y2="66"/><line x1="102" y1="76" x2="114" y2="76"/></g>
+<circle cx="108" cy="40" r="3" fill="#787e86"/>
+<circle cx="160" cy="84" r="11" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/><circle cx="160" cy="84" r="4.5" fill="#2b2e31"/>
+
+<!-- shaft windows -->
+<g><rect x="100" y="300" width="40" height="50" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="104" y="304" width="32" height="42" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.4"><line x1="120" y1="304" x2="120" y2="346"/><line x1="104" y1="325" x2="136" y2="325"/></g></g>
+
+<!-- green door + red awning -->
+<g>
+<rect x="96" y="486" width="48" height="74" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<rect x="102" y="492" width="36" height="68" fill="#5f8a4a"/><line x1="120" y1="492" x2="120" y2="560" stroke="#3f5234" stroke-width="1.2"/><circle cx="132" cy="528" r="2.4" fill="#23321c"/>
+<path d="M 90 486 L 150 486 L 144 470 L 96 470 Z" fill="#bb3a24" stroke="#7a1f16" stroke-width="1.2"/>
+</g>
+
+<!-- flared foot -->
+<path d="M 44 560 L 54 542 Q 92 548 120 544 Q 150 548 186 542 L 196 560 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+</g><g transform="translate(1000,0)">
+<defs>
+<linearGradient id="slate" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#6c7686"/><stop offset="0.5" stop-color="#9aa4b2"/><stop offset="1" stop-color="#6c7686"/></linearGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#828891"/><stop offset="0.5" stop-color="#c9ced3"/><stop offset="1" stop-color="#828891"/></linearGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4d2da"/><stop offset="1" stop-color="#7c8b96"/></linearGradient>
+</defs>
+
+<line x1="0" y1="560" x2="300" y2="560" stroke="#b4b6b3" stroke-width="2"/>
+
+<!-- thick pipes left (attached) -->
+<path d="M 62 230 L 62 165 Q 62 158 70 158" fill="none" stroke="#5e6573" stroke-width="9"/>
+<path d="M 62 230 L 60 522" fill="none" stroke="url(#steel)" stroke-width="9"/>
+<rect x="55" y="320" width="14" height="7" fill="#525a66"/><rect x="55" y="430" width="14" height="7" fill="#525a66"/>
+<path d="M 78 250 L 76 522" fill="none" stroke="url(#steel)" stroke-width="6"/>
+
+<!-- main slate body + flared base -->
+<path d="M 70 560 C 74 500 84 452 96 432 Q 160 424 224 432 C 236 452 246 500 250 560 Z" fill="url(#slate)" stroke="#444b57" stroke-width="1.5"/>
+<path d="M 92 150 L 84 415 C 84 425 90 430 100 434 L 220 434 C 230 430 236 425 236 415 L 228 150 Z" fill="url(#slate)" stroke="#444b57" stroke-width="2"/>
+<line x1="86" y1="250" x2="234" y2="250" stroke="#444b57" stroke-width="1.2" opacity="0.5"/>
+<line x1="85" y1="340" x2="235" y2="340" stroke="#444b57" stroke-width="1.2" opacity="0.5"/>
+
+<!-- left square windows -->
+<g><rect x="104" y="190" width="42" height="48" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="108" y="194" width="34" height="40" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.4"><line x1="125" y1="194" x2="125" y2="234"/><line x1="108" y1="214" x2="142" y2="214"/></g></g>
+<g><rect x="104" y="300" width="42" height="48" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="108" y="304" width="34" height="40" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.4"><line x1="125" y1="304" x2="125" y2="344"/><line x1="108" y1="324" x2="142" y2="324"/></g></g>
+
+<!-- right round turret-bay (corbelled bartizan) with tall window + small dome -->
+<g>
+<path d="M 224 210 L 234 360 C 240 372 256 372 262 360 L 272 210 Z" fill="url(#slate)" stroke="#444b57" stroke-width="1.8"/>
+<path d="M 222 212 Q 248 196 274 212 Z" fill="url(#slate)" stroke="#444b57" stroke-width="1.5"/>
+<path d="M 222 212 Q 248 184 274 212 Z" fill="url(#steel)" stroke="#444b57" stroke-width="1.5"/>
+<rect x="236" y="232" width="26" height="92" rx="3" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/>
+<rect x="240" y="236" width="18" height="84" fill="url(#glass)"/>
+<g stroke="#e8e8e2" stroke-width="2.2"><line x1="240" y1="264" x2="258" y2="264"/><line x1="240" y1="292" x2="258" y2="292"/></g>
+</g>
+
+<!-- rooftop autocannon on deck -->
+<rect x="96" y="138" width="116" height="16" rx="4" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<ellipse cx="154" cy="140" rx="56" ry="8" fill="url(#steel)" stroke="#5f625e" stroke-width="1.2"/>
+<g>
+<rect x="140" y="120" width="32" height="16" rx="3" fill="#3a3f44" stroke="#23262a" stroke-width="1"/>
+<path d="M 144 126 L 176 114 L 186 92 L 154 104 Z" fill="#4a5057" stroke="#23262a" stroke-width="1.2"/>
+<ellipse cx="180" cy="106" rx="10" ry="8" fill="#3a3f44" stroke="#23262a" stroke-width="1"/>
+<g stroke="#3a3f44" stroke-width="5.5" stroke-linecap="round"><line x1="164" y1="102" x2="96" y2="62"/><line x1="160" y1="110" x2="92" y2="70"/><line x1="168" y1="95" x2="100" y2="55"/></g>
+<path d="M 90 70 L 106 54 L 100 49 L 84 65 Z" fill="#4a5057" stroke="#23262a" stroke-width="1"/>
+<path d="M 184 114 C 200 112 202 98 190 94" fill="none" stroke="#6a7079" stroke-width="3.5"/>
+</g>
+
+<!-- door + orange crate at foot -->
+<g><rect x="124" y="476" width="48" height="84" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/><rect x="130" y="482" width="36" height="78" fill="#465062"/><line x1="148" y1="482" x2="148" y2="560" stroke="#2e3540" stroke-width="1.2"/><circle cx="160" cy="522" r="2.4" fill="#20252e"/></g>
+<g><rect x="196" y="534" width="40" height="26" rx="2" fill="#df8a2e" stroke="#8a5316" stroke-width="1.2"/><line x1="216" y1="534" x2="216" y2="560" stroke="#8a5316" stroke-width="1"/><line x1="196" y1="547" x2="236" y2="547" stroke="#8a5316" stroke-width="1"/></g>
+
+<!-- flared foot -->
+<path d="M 62 560 L 72 540 Q 110 546 150 542 Q 192 547 230 540 L 240 560 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+</g><g transform="translate(1330,0)">
+<defs>
+<linearGradient id="o" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#9c4a14"/><stop offset="0.5" stop-color="#d87a28"/><stop offset="1" stop-color="#9c4a14"/></linearGradient>
+<linearGradient id="white" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#aeb1ad"/><stop offset="0.5" stop-color="#dcdcd7"/><stop offset="1" stop-color="#aeb1ad"/></linearGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#828891"/><stop offset="0.5" stop-color="#c9ced3"/><stop offset="1" stop-color="#828891"/></linearGradient>
+<linearGradient id="slate" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#6c7686"/><stop offset="0.5" stop-color="#9aa4b2"/><stop offset="1" stop-color="#6c7686"/></linearGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4d2da"/><stop offset="1" stop-color="#7c8b96"/></linearGradient>
+<linearGradient id="cop" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8a5e34"/><stop offset="0.5" stop-color="#cda978"/><stop offset="1" stop-color="#8a5e34"/></linearGradient>
+</defs>
+
+<line x1="0" y1="560" x2="260" y2="560" stroke="#b4b6b3" stroke-width="2"/>
+
+<!-- side pipe (attached) -->
+<path d="M 188 320 L 188 240 Q 188 234 182 234" fill="none" stroke="#6a7079" stroke-width="6"/>
+<path d="M 188 320 L 190 522" fill="none" stroke="url(#steel)" stroke-width="6"/>
+<rect x="184" y="430" width="10" height="6" fill="#5a6066"/>
+
+<!-- white tapering tower + flared base -->
+<path d="M 52 560 C 58 500 72 330 76 286 L 78 178 Q 130 171 182 178 L 184 286 C 188 330 202 500 208 560 Z" fill="url(#white)" stroke="#5f625e" stroke-width="1.5"/>
+<line x1="74" y1="400" x2="186" y2="400" stroke="#7d807c" stroke-width="1"/>
+
+<!-- shaft window -->
+<g><rect x="150" y="330" width="38" height="48" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="154" y="334" width="30" height="40" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.4"><line x1="169" y1="334" x2="169" y2="374"/><line x1="154" y1="354" x2="184" y2="354"/></g></g>
+
+<!-- slate dome cap + deck -->
+<rect x="80" y="146" width="100" height="12" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<path d="M 84 148 Q 84 116 120 110 L 144 110 Q 176 116 176 148 Z" fill="url(#slate)" stroke="#444b57" stroke-width="1.5"/>
+<ellipse cx="106" cy="124" rx="20" ry="7" fill="#ffffff" opacity="0.18"/>
+
+<!-- roof boiler drum peeking behind, right + finial -->
+<g>
+<rect x="148" y="104" width="64" height="22" rx="11" fill="url(#cop)" stroke="#5a3a1c" stroke-width="1.2"/>
+<ellipse cx="212" cy="115" rx="7" ry="11" fill="#caa46e" stroke="#5a3a1c" stroke-width="1"/>
+<line x1="120" y1="110" x2="120" y2="84" stroke="#6a7079" stroke-width="2.2"/><circle cx="120" cy="83" r="2.4" fill="#787e86"/>
+</g>
+
+<!-- orange corbelled bay (projects left) with arched window -->
+<g>
+<path d="M 60 176 C 46 202 44 252 56 280 L 146 280 C 152 252 152 202 146 176 Z" fill="url(#o)" stroke="#5e2c0a" stroke-width="2"/>
+<path d="M 56 280 L 146 280 L 124 314 L 86 314 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.2"/>
+<path d="M 72 256 L 72 200 A 27 27 0 0 1 126 200 L 126 256 Z" fill="#e9e8e1" stroke="#7e817c" stroke-width="1.8"/>
+<path d="M 78 253 L 78 201 A 21 21 0 0 1 120 201 L 120 253 Z" fill="url(#glass)"/>
+<g stroke="#e9e8e1" stroke-width="2.4"><line x1="92" y1="180" x2="92" y2="253"/><line x1="106" y1="178" x2="106" y2="253"/><line x1="78" y1="226" x2="120" y2="226"/></g>
+<path d="M 78 201 A 21 21 0 0 1 120 201" fill="none" stroke="#e9e8e1" stroke-width="2.4"/>
+</g>
+
+<!-- door + red crate at foot -->
+<g><rect x="84" y="488" width="44" height="72" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/><rect x="90" y="494" width="32" height="66" fill="#b1402a"/><line x1="106" y1="494" x2="106" y2="560" stroke="#7a1f16" stroke-width="1.2"/></g>
+<g><rect x="138" y="534" width="38" height="24" rx="2" fill="#c0392b" stroke="#7a1f16" stroke-width="1.2"/><line x1="157" y1="534" x2="157" y2="558" stroke="#7a1f16" stroke-width="1"/><line x1="138" y1="546" x2="176" y2="546" stroke="#7a1f16" stroke-width="1"/></g>
+
+<!-- flared foot -->
+<path d="M 46 560 L 56 542 Q 94 548 130 544 Q 170 548 204 542 L 214 560 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+</g><g transform="translate(1620,0)">
+<defs>
+<linearGradient id="white" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#a9aca8"/><stop offset="0.5" stop-color="#d9d9d3"/><stop offset="1" stop-color="#a9aca8"/></linearGradient>
+<linearGradient id="white2" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#9ea19d"/><stop offset="0.5" stop-color="#cccdc7"/><stop offset="1" stop-color="#9ea19d"/></linearGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#828891"/><stop offset="0.5" stop-color="#c9ced3"/><stop offset="1" stop-color="#828891"/></linearGradient>
+<linearGradient id="slate" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#6c7686"/><stop offset="0.5" stop-color="#9aa4b2"/><stop offset="1" stop-color="#6c7686"/></linearGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4d2da"/><stop offset="1" stop-color="#7c8b96"/></linearGradient>
+</defs>
+
+<line x1="0" y1="560" x2="300" y2="560" stroke="#b4b6b3" stroke-width="2"/>
+
+<!-- pipes between/down (attached) -->
+<path d="M 150 240 L 150 200 Q 150 194 156 194" fill="none" stroke="#6a7079" stroke-width="6"/>
+<path d="M 150 240 L 150 520" fill="none" stroke="url(#steel)" stroke-width="6"/>
+<rect x="145" y="340" width="11" height="6" fill="#5a6066"/><rect x="145" y="440" width="11" height="6" fill="#5a6066"/>
+<path d="M 60 250 L 58 522" fill="none" stroke="url(#steel)" stroke-width="6"/>
+<rect x="53" y="380" width="11" height="6" fill="#5a6066"/>
+
+<!-- back-left tall cylinder (carries gun) -->
+<path d="M 70 445 L 66 165 Q 114 158 162 165 L 158 445 Z" fill="url(#white2)" stroke="#5f625e" stroke-width="2"/>
+<line x1="68" y1="280" x2="160" y2="280" stroke="#7d807c" stroke-width="1"/>
+<g><rect x="92" y="200" width="32" height="60" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="96" y="204" width="24" height="52" fill="url(#glass)"/><line x1="96" y1="230" x2="120" y2="230" stroke="#e8e8e2" stroke-width="2.2"/></g>
+<g><rect x="92" y="320" width="32" height="56" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="96" y="324" width="24" height="48" fill="url(#glass)"/><line x1="96" y1="348" x2="120" y2="348" stroke="#e8e8e2" stroke-width="2.2"/></g>
+
+<!-- front-right cylinder (small dome) -->
+<path d="M 156 445 L 152 200 Q 198 194 244 200 L 240 445 Z" fill="url(#white)" stroke="#5f625e" stroke-width="2"/>
+<line x1="154" y1="320" x2="242" y2="320" stroke="#7d807c" stroke-width="1"/>
+<path d="M 152 200 Q 198 168 244 200 Z" fill="url(#slate)" stroke="#444b57" stroke-width="1.5"/>
+<g><rect x="180" y="236" width="34" height="60" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="184" y="240" width="26" height="52" fill="url(#glass)"/><line x1="197" y1="240" x2="197" y2="292" stroke="#e8e8e2" stroke-width="2.2"/><line x1="184" y1="266" x2="210" y2="266" stroke="#e8e8e2" stroke-width="2.2"/></g>
+<!-- orange-framed window low-right -->
+<g><rect x="182" y="368" width="40" height="46" rx="2" fill="#c87a2c" stroke="#8a5316" stroke-width="1.8"/><rect x="186" y="372" width="32" height="38" fill="url(#glass)"/><g stroke="#c87a2c" stroke-width="2.4"><line x1="202" y1="372" x2="202" y2="410"/><line x1="186" y1="391" x2="218" y2="391"/></g></g>
+
+<!-- gun deck + autocannon on left cyl -->
+<rect x="60" y="150" width="108" height="15" rx="4" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<ellipse cx="114" cy="152" rx="52" ry="7" fill="url(#steel)" stroke="#5f625e" stroke-width="1.2"/>
+<g>
+<rect x="100" y="132" width="30" height="15" rx="3" fill="#3a3f44" stroke="#23262a" stroke-width="1"/>
+<path d="M 104 138 L 134 127 L 142 106 L 112 117 Z" fill="#4a5057" stroke="#23262a" stroke-width="1.2"/>
+<ellipse cx="138" cy="118" rx="9" ry="7" fill="#3a3f44" stroke="#23262a" stroke-width="1"/>
+<g stroke="#3a3f44" stroke-width="5" stroke-linecap="round"><line x1="122" y1="114" x2="58" y2="76"/><line x1="118" y1="121" x2="54" y2="83"/><line x1="126" y1="107" x2="62" y2="69"/></g>
+<path d="M 52 84 L 68 68 L 62 63 L 46 79 Z" fill="#4a5057" stroke="#23262a" stroke-width="1"/>
+<path d="M 142 127 C 158 125 160 111 148 107" fill="none" stroke="#6a7079" stroke-width="3.5"/>
+</g>
+
+<!-- flared base over both + door -->
+<path d="M 60 560 C 66 502 78 460 88 442 Q 156 434 224 442 C 236 460 248 502 254 560 Z" fill="url(#white)" stroke="#5f625e" stroke-width="1.5"/>
+<g><rect x="132" y="480" width="46" height="80" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/><rect x="138" y="486" width="34" height="74" fill="#8a8d88"/><line x1="155" y1="486" x2="155" y2="560" stroke="#5f625e" stroke-width="1.2"/></g>
+
+<!-- flared foot -->
+<path d="M 52 560 L 62 540 Q 102 546 152 542 Q 196 547 232 540 L 242 560 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+</g><g transform="translate(1950,0)">
+<defs>
+<linearGradient id="white" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#aeb1ad"/><stop offset="0.5" stop-color="#dcdcd7"/><stop offset="1" stop-color="#aeb1ad"/></linearGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#828891"/><stop offset="0.5" stop-color="#c9ced3"/><stop offset="1" stop-color="#828891"/></linearGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4d2da"/><stop offset="1" stop-color="#7c8b96"/></linearGradient>
+</defs>
+<line x1="0" y1="560" x2="260" y2="560" stroke="#b4b6b3" stroke-width="2"/>
+<!-- pipe -->
+<path d="M 188 300 L 188 230 Q 188 224 182 224" fill="none" stroke="#6a7079" stroke-width="5"/><path d="M 188 300 L 190 522" fill="none" stroke="url(#steel)" stroke-width="5"/><rect x="183" y="420" width="10" height="6" fill="#5a6066"/>
+<!-- white tower -->
+<path d="M 50 560 C 56 500 70 300 74 252 L 76 176 Q 130 169 184 176 L 186 252 C 190 300 204 500 210 560 Z" fill="url(#white)" stroke="#5f625e" stroke-width="1.5"/>
+<line x1="74" y1="380" x2="186" y2="380" stroke="#7d807c" stroke-width="1"/>
+<!-- shallow steel dome + deck -->
+<rect x="68" y="150" width="124" height="12" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<path d="M 70 152 Q 130 112 190 152 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<ellipse cx="108" cy="134" rx="26" ry="7" fill="#ffffff" opacity="0.2"/>
+<line x1="130" y1="118" x2="130" y2="92" stroke="#6a7079" stroke-width="2.2"/><circle cx="130" cy="91" r="2.4" fill="#787e86"/>
+<!-- bay window upper-left (boxy, projecting) -->
+<g>
+<rect x="44" y="184" width="62" height="74" rx="2" fill="url(#white)" stroke="#5f625e" stroke-width="1.5"/>
+<rect x="50" y="192" width="50" height="50" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="54" y="196" width="42" height="42" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.4"><line x1="75" y1="196" x2="75" y2="238"/><line x1="54" y1="217" x2="96" y2="217"/></g>
+<line x1="44" y1="250" x2="106" y2="250" stroke="#6a7079" stroke-width="2"/><g stroke="#6a7079" stroke-width="1.4"><line x1="50" y1="250" x2="50" y2="258"/><line x1="75" y1="250" x2="75" y2="258"/><line x1="100" y1="250" x2="100" y2="258"/></g>
+</g>
+<!-- salmon-framed window right -->
+<g><rect x="146" y="200" width="44" height="54" rx="2" fill="#cf7e6a" stroke="#8a4636" stroke-width="1.8"/><rect x="150" y="204" width="36" height="46" fill="url(#glass)"/><g stroke="#cf7e6a" stroke-width="2.4"><line x1="168" y1="204" x2="168" y2="250"/><line x1="150" y1="227" x2="186" y2="227"/></g></g>
+<!-- green door + red panel -->
+<g><rect x="74" y="484" width="46" height="76" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/><rect x="80" y="490" width="34" height="70" fill="#6f9152"/><line x1="97" y1="490" x2="97" y2="560" stroke="#42592f" stroke-width="1.2"/></g>
+<g><rect x="146" y="470" width="48" height="90" rx="3" fill="#b25744" stroke="#7a3527" stroke-width="1.5"/><rect x="152" y="478" width="36" height="40" fill="url(#glass)"/><g stroke="#8a4636" stroke-width="2"><line x1="170" y1="478" x2="170" y2="518"/></g><line x1="152" y1="528" x2="188" y2="528" stroke="#7a3527" stroke-width="1.2"/></g>
+<!-- foot -->
+<path d="M 46 560 L 56 542 Q 94 548 130 544 Q 170 548 204 542 L 214 560 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+</g><g transform="translate(2240,0)">
+<defs>
+<linearGradient id="white" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#aeb1ad"/><stop offset="0.5" stop-color="#dcdcd7"/><stop offset="1" stop-color="#aeb1ad"/></linearGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#828891"/><stop offset="0.5" stop-color="#c9ced3"/><stop offset="1" stop-color="#828891"/></linearGradient>
+<linearGradient id="red" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#9a2c1c"/><stop offset="0.5" stop-color="#cc4a36"/><stop offset="1" stop-color="#9a2c1c"/></linearGradient>
+<radialGradient id="rdome" cx="0.36" cy="0.3" r="0.9"><stop offset="0" stop-color="#cc4a36"/><stop offset="1" stop-color="#7e2316"/></radialGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4d2da"/><stop offset="1" stop-color="#7c8b96"/></linearGradient>
+</defs>
+<line x1="0" y1="560" x2="250" y2="560" stroke="#b4b6b3" stroke-width="2"/>
+<!-- back red tower peeking right -->
+<path d="M 150 560 L 150 168 Q 188 162 222 168 L 222 560 Z" fill="url(#red)" stroke="#5e1c12" stroke-width="1.5"/>
+<path d="M 150 170 Q 186 142 222 170 Z" fill="url(#rdome)" stroke="#5e1c12" stroke-width="1.5"/>
+<g><rect x="170" y="220" width="34" height="56" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="174" y="224" width="26" height="48" fill="url(#glass)"/><line x1="174" y1="248" x2="200" y2="248" stroke="#e8e8e2" stroke-width="2.2"/></g>
+<!-- main white tower -->
+<path d="M 46 560 C 52 502 64 320 68 270 L 70 152 Q 116 145 162 152 L 164 270 C 168 320 178 502 184 560 Z" fill="url(#white)" stroke="#5f625e" stroke-width="1.5"/>
+<line x1="66" y1="370" x2="166" y2="370" stroke="#7d807c" stroke-width="1"/>
+<!-- red dome on white tower + deck -->
+<rect x="62" y="128" width="108" height="12" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<path d="M 66 130 Q 66 98 116 92 Q 166 98 166 130 Z" fill="url(#rdome)" stroke="#5e1c12" stroke-width="1.5"/>
+<ellipse cx="96" cy="110" rx="20" ry="7" fill="#ffffff" opacity="0.18"/>
+<!-- tall window -->
+<g><rect x="92" y="180" width="40" height="72" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="96" y="184" width="32" height="64" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.4"><line x1="112" y1="184" x2="112" y2="248"/><line x1="96" y1="206" x2="128" y2="206"/><line x1="96" y1="228" x2="128" y2="228"/></g></g>
+<!-- ornate red door -->
+<g><rect x="84" y="470" width="52" height="90" rx="4" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/><path d="M 90 560 L 90 500 A 20 20 0 0 1 130 500 L 130 560 Z" fill="#b25744" stroke="#7a3527" stroke-width="1.5"/><ellipse cx="110" cy="508" rx="9" ry="7" fill="url(#glass)" stroke="#7a3527" stroke-width="1.4"/><line x1="110" y1="520" x2="110" y2="560" stroke="#7a3527" stroke-width="1.2"/></g>
+<!-- foot -->
+<path d="M 42 560 L 52 542 Q 90 548 120 544 Q 160 548 188 542 L 198 560 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+</g><g transform="translate(2520,0)">
+<defs>
+<linearGradient id="red" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#a8341f"/><stop offset="0.5" stop-color="#d65a3e"/><stop offset="1" stop-color="#a8341f"/></linearGradient>
+<radialGradient id="rdome" cx="0.36" cy="0.3" r="0.9"><stop offset="0" stop-color="#d65a3e"/><stop offset="1" stop-color="#85291a"/></radialGradient>
+<linearGradient id="yellow" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#c88a1e"/><stop offset="0.5" stop-color="#edb33a"/><stop offset="1" stop-color="#c88a1e"/></linearGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#828891"/><stop offset="0.5" stop-color="#c9ced3"/><stop offset="1" stop-color="#828891"/></linearGradient>
+<linearGradient id="white" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#aeb1ad"/><stop offset="0.5" stop-color="#dcdcd7"/><stop offset="1" stop-color="#aeb1ad"/></linearGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4d2da"/><stop offset="1" stop-color="#7c8b96"/></linearGradient>
+</defs>
+<line x1="0" y1="560" x2="300" y2="560" stroke="#b4b6b3" stroke-width="2"/>
+<!-- yellow house wing (right) -->
+<path d="M 178 560 L 178 244 Q 230 238 284 244 L 284 560 Z" fill="url(#yellow)" stroke="#7a560f" stroke-width="1.5"/>
+<g fill="url(#glass)">
+<g><rect x="196" y="266" width="34" height="44" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="200" y="270" width="26" height="36" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="213" y1="270" x2="213" y2="306"/><line x1="200" y1="288" x2="226" y2="288"/></g></g>
+<g><rect x="240" y="266" width="34" height="44" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="244" y="270" width="26" height="36" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="257" y1="270" x2="257" y2="306"/><line x1="244" y1="288" x2="270" y2="288"/></g></g>
+<g><rect x="196" y="338" width="34" height="44" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="200" y="342" width="26" height="36" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="213" y1="342" x2="213" y2="378"/><line x1="200" y1="360" x2="226" y2="360"/></g></g>
+<g><rect x="240" y="338" width="34" height="44" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="244" y="342" width="26" height="36" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="257" y1="342" x2="257" y2="378"/><line x1="244" y1="360" x2="270" y2="360"/></g></g>
+</g>
+<!-- red rounded tower (front-left) -->
+<path d="M 48 560 C 52 500 60 460 72 442 L 70 172 Q 118 165 168 172 L 166 442 C 178 460 186 500 190 560 Z" fill="url(#red)" stroke="#5e1c12" stroke-width="2"/>
+<!-- red dome + deck -->
+<rect x="64" y="148" width="110" height="13" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<path d="M 68 150 Q 68 118 119 110 Q 170 118 170 150 Z" fill="url(#rdome)" stroke="#5e1c12" stroke-width="1.5"/>
+<ellipse cx="98" cy="130" rx="20" ry="7" fill="#ffffff" opacity="0.16"/>
+<!-- gun on dome -->
+<g>
+<rect x="104" y="96" width="30" height="15" rx="3" fill="#3a3f44" stroke="#23262a" stroke-width="1"/>
+<path d="M 108 102 L 138 91 L 146 70 L 116 81 Z" fill="#4a5057" stroke="#23262a" stroke-width="1.2"/>
+<ellipse cx="142" cy="82" rx="9" ry="7" fill="#3a3f44" stroke="#23262a" stroke-width="1"/>
+<g stroke="#3a3f44" stroke-width="5" stroke-linecap="round"><line x1="126" y1="78" x2="62" y2="40"/><line x1="122" y1="85" x2="58" y2="47"/><line x1="130" y1="71" x2="66" y2="33"/></g>
+<path d="M 56 48 L 72 32 L 66 27 L 50 43 Z" fill="#4a5057" stroke="#23262a" stroke-width="1"/>
+<path d="M 146 91 C 162 89 164 75 152 71" fill="none" stroke="#6a7079" stroke-width="3.5"/>
+</g>
+<!-- red tower windows -->
+<g><rect x="84" y="200" width="38" height="56" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="88" y="204" width="30" height="48" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.4"><line x1="103" y1="204" x2="103" y2="252"/><line x1="88" y1="228" x2="118" y2="228"/></g></g>
+<g><rect x="84" y="300" width="38" height="56" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="88" y="304" width="30" height="48" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.4"><line x1="103" y1="304" x2="103" y2="352"/><line x1="88" y1="328" x2="118" y2="328"/></g></g>
+<!-- green door + grey porch dome -->
+<g>
+<path d="M 78 470 Q 110 452 142 470 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.2"/>
+<rect x="86" y="476" width="46" height="84" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<rect x="92" y="482" width="34" height="78" fill="#6f9152"/><line x1="109" y1="482" x2="109" y2="560" stroke="#42592f" stroke-width="1.2"/>
+</g>
+<!-- foot -->
+<path d="M 44 560 L 54 542 Q 110 548 160 544 Q 220 548 252 542 L 262 560 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+</g><g transform="translate(2850,0)">
+<defs>
+<linearGradient id="slate" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#6c7686"/><stop offset="0.5" stop-color="#9aa4b2"/><stop offset="1" stop-color="#6c7686"/></linearGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#828891"/><stop offset="0.5" stop-color="#c9ced3"/><stop offset="1" stop-color="#828891"/></linearGradient>
+<radialGradient id="rdome" cx="0.36" cy="0.3" r="0.9"><stop offset="0" stop-color="#cc4a36"/><stop offset="1" stop-color="#7e2316"/></radialGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4d2da"/><stop offset="1" stop-color="#7c8b96"/></linearGradient>
+</defs>
+<line x1="0" y1="560" x2="240" y2="560" stroke="#b4b6b3" stroke-width="2"/>
+<!-- slate tower -->
+<path d="M 50 560 C 56 502 68 320 72 270 L 74 158 Q 120 151 166 158 L 168 270 C 172 320 184 502 190 560 Z" fill="url(#slate)" stroke="#444b57" stroke-width="1.5"/>
+<line x1="72" y1="380" x2="168" y2="380" stroke="#586273" stroke-width="1"/>
+<!-- red dome + deck -->
+<rect x="66" y="134" width="108" height="12" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<path d="M 70 136 Q 70 102 120 96 Q 170 102 170 136 Z" fill="url(#rdome)" stroke="#5e1c12" stroke-width="1.5"/>
+<ellipse cx="100" cy="116" rx="20" ry="7" fill="#ffffff" opacity="0.16"/>
+<!-- prominent front pipes (attached) -->
+<path d="M 100 240 L 100 175 Q 100 168 108 168" fill="none" stroke="#5e6573" stroke-width="6"/><path d="M 100 240 L 100 520" fill="none" stroke="url(#steel)" stroke-width="6"/><rect x="95" y="330" width="11" height="6" fill="#525a66"/><rect x="95" y="440" width="11" height="6" fill="#525a66"/>
+<path d="M 116 250 L 116 520" fill="none" stroke="url(#steel)" stroke-width="5"/>
+<!-- slate bay window (projecting box, left) -->
+<g>
+<rect x="46" y="250" width="58" height="66" rx="3" fill="url(#slate)" stroke="#444b57" stroke-width="1.5"/>
+<rect x="52" y="258" width="46" height="44" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="56" y="262" width="38" height="36" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.4"><line x1="75" y1="262" x2="75" y2="298"/><line x1="56" y1="280" x2="94" y2="280"/></g>
+<line x1="46" y1="308" x2="104" y2="308" stroke="#586273" stroke-width="2"/>
+</g>
+<!-- upper window -->
+<g><rect x="96" y="180" width="38" height="50" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="100" y="184" width="30" height="42" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="115" y1="184" x2="115" y2="226"/><line x1="100" y1="205" x2="130" y2="205"/></g></g>
+<!-- arched door base-right + orange trim -->
+<g><rect x="120" y="474" width="48" height="86" rx="4" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/><path d="M 126 560 L 126 504 A 18 18 0 0 1 162 504 L 162 560 Z" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><path d="M 130 506 A 14 14 0 0 1 158 506 L 158 556 L 130 556 Z" fill="url(#glass)"/></g>
+<rect x="66" y="528" width="40" height="14" rx="2" fill="#d07a2c" stroke="#8a5316" stroke-width="1.2"/>
+<!-- foot -->
+<path d="M 46 560 L 56 542 Q 94 548 130 544 Q 170 548 200 542 L 200 560 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+</g><g transform="translate(3120,0)">
+<defs>
+<linearGradient id="slate" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#6c7686"/><stop offset="0.5" stop-color="#9aa4b2"/><stop offset="1" stop-color="#6c7686"/></linearGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#828891"/><stop offset="0.5" stop-color="#c9ced3"/><stop offset="1" stop-color="#828891"/></linearGradient>
+<radialGradient id="rdome" cx="0.36" cy="0.3" r="0.9"><stop offset="0" stop-color="#cc4a36"/><stop offset="1" stop-color="#7e2316"/></radialGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4d2da"/><stop offset="1" stop-color="#7c8b96"/></linearGradient>
+</defs>
+<line x1="0" y1="560" x2="200" y2="560" stroke="#b4b6b3" stroke-width="2"/>
+<!-- pipe -->
+<path d="M 150 280 L 150 200 Q 150 194 144 194" fill="none" stroke="#5e6573" stroke-width="5"/><path d="M 150 280 L 152 522" fill="none" stroke="url(#steel)" stroke-width="5"/><rect x="145" y="400" width="10" height="6" fill="#525a66"/>
+<!-- slate tower -->
+<path d="M 42 560 C 48 502 58 320 62 268 L 64 158 Q 100 151 138 158 L 140 268 C 144 320 154 502 160 560 Z" fill="url(#slate)" stroke="#444b57" stroke-width="1.5"/>
+<line x1="62" y1="380" x2="140" y2="380" stroke="#586273" stroke-width="1"/>
+<!-- red dome + deck -->
+<rect x="58" y="134" width="88" height="12" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<path d="M 62 136 Q 62 104 102 98 Q 142 104 142 136 Z" fill="url(#rdome)" stroke="#5e1c12" stroke-width="1.5"/>
+<ellipse cx="86" cy="116" rx="16" ry="6" fill="#ffffff" opacity="0.16"/>
+<!-- orange louvered window -->
+<g><rect x="72" y="186" width="44" height="40" rx="2" fill="#d07a2c" stroke="#8a5316" stroke-width="1.8"/><g stroke="#8a5316" stroke-width="2.2"><line x1="76" y1="194" x2="112" y2="194"/><line x1="76" y1="202" x2="112" y2="202"/><line x1="76" y1="210" x2="112" y2="210"/><line x1="76" y1="218" x2="112" y2="218"/></g></g>
+<!-- window -->
+<g><rect x="76" y="300" width="38" height="50" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="80" y="304" width="30" height="42" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="95" y1="304" x2="95" y2="346"/><line x1="80" y1="325" x2="110" y2="325"/></g></g>
+<!-- door -->
+<g><rect x="78" y="484" width="44" height="76" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/><rect x="84" y="490" width="32" height="70" fill="#465062"/><line x1="100" y1="490" x2="100" y2="560" stroke="#2e3540" stroke-width="1.2"/></g>
+<!-- foot -->
+<path d="M 38 560 L 48 542 Q 86 548 122 544 Q 160 548 162 542 L 168 560 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+</g><g transform="translate(3350,0)">
+<defs>
+<linearGradient id="slate" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#6c7686"/><stop offset="0.5" stop-color="#9aa4b2"/><stop offset="1" stop-color="#6c7686"/></linearGradient>
+<linearGradient id="slate2" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#626c7c"/><stop offset="0.5" stop-color="#8e98a6"/><stop offset="1" stop-color="#626c7c"/></linearGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#828891"/><stop offset="0.5" stop-color="#c9ced3"/><stop offset="1" stop-color="#828891"/></linearGradient>
+<linearGradient id="dome" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#717b8a"/><stop offset="0.5" stop-color="#aab3c0"/><stop offset="1" stop-color="#6a7482"/></linearGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4d2da"/><stop offset="1" stop-color="#7c8b96"/></linearGradient>
+</defs>
+<line x1="0" y1="560" x2="300" y2="560" stroke="#b4b6b3" stroke-width="2"/>
+<!-- left smaller slate tower (red dome) -->
+<path d="M 30 560 L 28 230 Q 64 224 100 230 L 98 560 Z" fill="url(#slate2)" stroke="#444b57" stroke-width="1.5"/>
+<path d="M 28 232 Q 64 204 100 232 Z" fill="#b8442f" stroke="#5e1c12" stroke-width="1.5"/>
+<g><rect x="44" y="270" width="38" height="34" rx="2" fill="#d07a2c" stroke="#8a5316" stroke-width="1.6"/><g stroke="#8a5316" stroke-width="2"><line x1="48" y1="278" x2="78" y2="278"/><line x1="48" y1="286" x2="78" y2="286"/><line x1="48" y1="294" x2="78" y2="294"/></g></g>
+<!-- main slate house complex (right) -->
+<path d="M 96 560 C 100 500 110 360 114 300 L 116 232 Q 196 222 276 232 L 278 300 C 282 360 288 500 292 560 Z" fill="url(#slate)" stroke="#444b57" stroke-width="1.5"/>
+<!-- big shallow dome on top -->
+<path d="M 112 234 Q 196 178 280 234 Z" fill="url(#dome)" stroke="#444b57" stroke-width="1.5"/>
+<ellipse cx="160" cy="212" rx="34" ry="9" fill="#ffffff" opacity="0.16"/>
+<!-- rooftop machinery (vents + small dome) -->
+<rect x="150" y="188" width="20" height="16" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1"/>
+<ellipse cx="212" cy="196" rx="14" ry="9" fill="url(#dome)" stroke="#444b57" stroke-width="1"/>
+<line x1="196" y1="180" x2="196" y2="160" stroke="#6a7079" stroke-width="2.2"/><circle cx="196" cy="159" r="2.2" fill="#787e86"/>
+<!-- arched/oval windows -->
+<g><path d="M 130 320 L 130 270 A 22 22 0 0 1 174 270 L 174 320 Z" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><path d="M 135 272 A 17 17 0 0 1 169 272 L 169 316 L 135 316 Z" fill="url(#glass)"/><line x1="152" y1="255" x2="152" y2="316" stroke="#e8e8e2" stroke-width="2.2"/></g>
+<g><path d="M 198 320 L 198 270 A 22 22 0 0 1 242 270 L 242 320 Z" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><path d="M 203 272 A 17 17 0 0 1 237 272 L 237 316 L 203 316 Z" fill="url(#glass)"/><line x1="220" y1="255" x2="220" y2="316" stroke="#e8e8e2" stroke-width="2.2"/></g>
+<g><ellipse cx="164" cy="400" rx="24" ry="18" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><ellipse cx="164" cy="400" rx="19" ry="13" fill="url(#glass)"/><line x1="164" y1="383" x2="164" y2="417" stroke="#e8e8e2" stroke-width="2"/><line x1="145" y1="400" x2="183" y2="400" stroke="#e8e8e2" stroke-width="2"/></g>
+<!-- pipe -->
+<path d="M 256 320 L 256 250 Q 256 244 250 244" fill="none" stroke="#5e6573" stroke-width="5"/><path d="M 256 320 L 258 522" fill="none" stroke="url(#steel)" stroke-width="5"/>
+<!-- door -->
+<g><rect x="196" y="476" width="48" height="84" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/><rect x="202" y="482" width="36" height="78" fill="#465062"/><line x1="220" y1="482" x2="220" y2="560" stroke="#2e3540" stroke-width="1.2"/></g>
+<!-- foot -->
+<path d="M 26 560 L 36 542 Q 70 547 100 544 L 98 560 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.2"/>
+<path d="M 92 560 L 102 542 Q 160 548 200 544 Q 250 548 286 542 L 296 560 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+</g><g transform="translate(3680,0)">
+<defs>
+<linearGradient id="white" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#aeb1ad"/><stop offset="0.5" stop-color="#dcdcd7"/><stop offset="1" stop-color="#aeb1ad"/></linearGradient>
+<linearGradient id="red" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#a8341f"/><stop offset="0.5" stop-color="#d65a3e"/><stop offset="1" stop-color="#a8341f"/></linearGradient>
+<radialGradient id="rdome" cx="0.36" cy="0.3" r="0.9"><stop offset="0" stop-color="#d65a3e"/><stop offset="1" stop-color="#85291a"/></radialGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#828891"/><stop offset="0.5" stop-color="#c9ced3"/><stop offset="1" stop-color="#828891"/></linearGradient>
+<linearGradient id="slate" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#7e8794"/><stop offset="0.5" stop-color="#aab3bf"/><stop offset="1" stop-color="#7e8794"/></linearGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4d2da"/><stop offset="1" stop-color="#7c8b96"/></linearGradient>
+</defs>
+<line x1="0" y1="560" x2="240" y2="560" stroke="#b4b6b3" stroke-width="2"/>
+<!-- white lower tower -->
+<path d="M 48 560 C 54 502 66 360 70 320 L 72 300 Q 120 294 168 300 L 170 320 C 174 360 186 502 192 560 Z" fill="url(#white)" stroke="#5f625e" stroke-width="1.5"/>
+<line x1="70" y1="430" x2="170" y2="430" stroke="#7d807c" stroke-width="1"/>
+<!-- red upper rounded body -->
+<path d="M 60 168 C 52 200 52 290 64 312 L 176 312 C 188 290 188 200 180 168 Z" fill="url(#red)" stroke="#5e1c12" stroke-width="2"/>
+<!-- red dome + deck -->
+<rect x="64" y="150" width="112" height="12" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<path d="M 70 152 Q 70 122 120 116 Q 170 122 170 152 Z" fill="url(#rdome)" stroke="#5e1c12" stroke-width="1.5"/>
+<ellipse cx="98" cy="132" rx="18" ry="6" fill="#ffffff" opacity="0.16"/>
+<!-- small rooftop gun + vent -->
+<g>
+<rect x="108" y="100" width="22" height="12" rx="3" fill="#3a3f44" stroke="#23262a" stroke-width="0.8"/>
+<g stroke="#3a3f44" stroke-width="3.6" stroke-linecap="round"><line x1="124" y1="104" x2="160" y2="84"/><line x1="121" y1="110" x2="157" y2="90"/></g>
+<rect x="86" y="96" width="14" height="14" rx="2" fill="url(#steel)" stroke="#23262a" stroke-width="0.8"/>
+</g>
+<!-- grey projecting bay window (left) -->
+<g>
+<rect x="40" y="186" width="54" height="64" rx="3" fill="url(#slate)" stroke="#444b57" stroke-width="1.5"/>
+<rect x="46" y="194" width="42" height="42" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="50" y="198" width="34" height="34" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="67" y1="198" x2="67" y2="232"/><line x1="50" y1="215" x2="84" y2="215"/></g>
+<line x1="40" y1="244" x2="94" y2="244" stroke="#586273" stroke-width="2"/>
+</g>
+<!-- red body window -->
+<g><rect x="124" y="196" width="38" height="50" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="128" y="200" width="30" height="42" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="143" y1="200" x2="143" y2="242"/><line x1="128" y1="221" x2="158" y2="221"/></g></g>
+<!-- door -->
+<g><rect x="96" y="486" width="46" height="74" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/><rect x="102" y="492" width="34" height="68" fill="#8a8d88"/><line x1="119" y1="492" x2="119" y2="560" stroke="#5f625e" stroke-width="1.2"/></g>
+<!-- foot -->
+<path d="M 44 560 L 54 542 Q 92 548 122 544 Q 162 548 196 542 L 196 560 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+</g><g transform="translate(3950,0)">
+<defs>
+<linearGradient id="o" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#b85e16"/><stop offset="0.5" stop-color="#e88f2c"/><stop offset="1" stop-color="#b85e16"/></linearGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#828891"/><stop offset="0.5" stop-color="#c9ced3"/><stop offset="1" stop-color="#828891"/></linearGradient>
+<linearGradient id="dome" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#717b8a"/><stop offset="0.5" stop-color="#aab3c0"/><stop offset="1" stop-color="#6a7482"/></linearGradient>
+<linearGradient id="white" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#aeb1ad"/><stop offset="0.5" stop-color="#dcdcd7"/><stop offset="1" stop-color="#aeb1ad"/></linearGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4d2da"/><stop offset="1" stop-color="#7c8b96"/></linearGradient>
+</defs>
+<line x1="0" y1="560" x2="200" y2="560" stroke="#b4b6b3" stroke-width="2"/>
+<!-- pipe -->
+<path d="M 150 280 L 150 200 Q 150 194 144 194" fill="none" stroke="#6a7079" stroke-width="5"/><path d="M 150 280 L 152 522" fill="none" stroke="url(#steel)" stroke-width="5"/><rect x="145" y="400" width="10" height="6" fill="#5a6066"/>
+<!-- orange cylinder + flared base -->
+<path d="M 44 560 C 50 502 58 320 60 250 L 62 158 Q 100 151 138 158 L 140 250 C 142 320 150 502 156 560 Z" fill="url(#o)" stroke="#6a3a0d" stroke-width="1.5"/>
+<line x1="60" y1="360" x2="140" y2="360" stroke="#8a5316" stroke-width="1"/>
+<!-- slate dome + deck -->
+<rect x="56" y="134" width="88" height="12" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<path d="M 60 136 Q 60 102 100 96 Q 140 102 140 136 Z" fill="url(#dome)" stroke="#444b57" stroke-width="1.5"/>
+<ellipse cx="84" cy="116" rx="16" ry="6" fill="#ffffff" opacity="0.18"/>
+<line x1="100" y1="98" x2="100" y2="74" stroke="#6a7079" stroke-width="2"/><circle cx="100" cy="73" r="2.2" fill="#787e86"/>
+<!-- windows -->
+<g><rect x="80" y="186" width="38" height="56" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="84" y="190" width="30" height="48" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="99" y1="190" x2="99" y2="238"/><line x1="84" y1="214" x2="114" y2="214"/></g></g>
+<g><rect x="80" y="290" width="38" height="56" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="84" y="294" width="30" height="48" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="99" y1="294" x2="99" y2="342"/><line x1="84" y1="318" x2="114" y2="318"/></g></g>
+<!-- door -->
+<g><rect x="78" y="486" width="44" height="74" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/><rect x="84" y="492" width="32" height="68" fill="#b1402a"/><line x1="100" y1="492" x2="100" y2="560" stroke="#7a1f16" stroke-width="1.2"/></g>
+<!-- foot -->
+<path d="M 40 560 L 50 542 Q 86 548 122 544 Q 158 548 160 542 L 166 560 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+</g><g transform="translate(4180,0)">
+<defs>
+<linearGradient id="red" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#a8341f"/><stop offset="0.5" stop-color="#d6543c"/><stop offset="1" stop-color="#a8341f"/></linearGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#828891"/><stop offset="0.5" stop-color="#c9ced3"/><stop offset="1" stop-color="#828891"/></linearGradient>
+<linearGradient id="dome" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#717b8a"/><stop offset="0.5" stop-color="#aab3c0"/><stop offset="1" stop-color="#6a7482"/></linearGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4d2da"/><stop offset="1" stop-color="#7c8b96"/></linearGradient>
+</defs>
+<line x1="0" y1="560" x2="200" y2="560" stroke="#b4b6b3" stroke-width="2"/>
+<path d="M 150 280 L 150 200 Q 150 194 144 194" fill="none" stroke="#6a7079" stroke-width="5"/><path d="M 150 280 L 152 522" fill="none" stroke="url(#steel)" stroke-width="5"/><rect x="145" y="400" width="10" height="6" fill="#5a6066"/>
+<!-- red cylinder + flared base -->
+<path d="M 44 560 C 50 502 58 320 60 250 L 62 158 Q 100 151 138 158 L 140 250 C 142 320 150 502 156 560 Z" fill="url(#red)" stroke="#5e1c12" stroke-width="1.5"/>
+<line x1="60" y1="360" x2="140" y2="360" stroke="#7a2418" stroke-width="1"/>
+<!-- slate dome + deck -->
+<rect x="56" y="134" width="88" height="12" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<path d="M 60 136 Q 60 102 100 96 Q 140 102 140 136 Z" fill="url(#dome)" stroke="#444b57" stroke-width="1.5"/>
+<ellipse cx="84" cy="116" rx="16" ry="6" fill="#ffffff" opacity="0.18"/>
+<line x1="100" y1="98" x2="100" y2="74" stroke="#6a7079" stroke-width="2"/><circle cx="100" cy="73" r="2.2" fill="#787e86"/>
+<g><rect x="80" y="186" width="38" height="56" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="84" y="190" width="30" height="48" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="99" y1="190" x2="99" y2="238"/><line x1="84" y1="214" x2="114" y2="214"/></g></g>
+<g><rect x="80" y="290" width="38" height="56" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="84" y="294" width="30" height="48" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="99" y1="294" x2="99" y2="342"/><line x1="84" y1="318" x2="114" y2="318"/></g></g>
+<g><rect x="78" y="486" width="44" height="74" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/><rect x="84" y="492" width="32" height="68" fill="#6f9152"/><line x1="100" y1="492" x2="100" y2="560" stroke="#42592f" stroke-width="1.2"/></g>
+<path d="M 40 560 L 50 542 Q 86 548 122 544 Q 158 548 160 542 L 166 560 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+</g><g transform="translate(4410,0)">
+<defs>
+<linearGradient id="white" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#a9aca8"/><stop offset="0.5" stop-color="#dadbd5"/><stop offset="1" stop-color="#a9aca8"/></linearGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#828891"/><stop offset="0.5" stop-color="#c9ced3"/><stop offset="1" stop-color="#828891"/></linearGradient>
+<linearGradient id="dome" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#717b8a"/><stop offset="0.5" stop-color="#aab3c0"/><stop offset="1" stop-color="#6a7482"/></linearGradient>
+<linearGradient id="slate" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#7e8794"/><stop offset="0.5" stop-color="#aab3bf"/><stop offset="1" stop-color="#7e8794"/></linearGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4d2da"/><stop offset="1" stop-color="#7c8b96"/></linearGradient>
+</defs>
+<line x1="0" y1="560" x2="240" y2="560" stroke="#b4b6b3" stroke-width="2"/>
+<!-- pipe -->
+<path d="M 172 300 L 172 220 Q 172 214 166 214" fill="none" stroke="#6a7079" stroke-width="5"/><path d="M 172 300 L 174 522" fill="none" stroke="url(#steel)" stroke-width="5"/><rect x="167" y="420" width="10" height="6" fill="#5a6066"/>
+<!-- white tower -->
+<path d="M 50 560 C 56 502 68 320 72 250 L 74 160 Q 122 153 170 160 L 172 250 C 176 320 188 502 194 560 Z" fill="url(#white)" stroke="#5f625e" stroke-width="1.5"/>
+<line x1="72" y1="370" x2="172" y2="370" stroke="#7d807c" stroke-width="1"/>
+<!-- slate dome + deck -->
+<rect x="66" y="136" width="112" height="13" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<path d="M 70 138 Q 70 104 122 98 Q 174 104 174 138 Z" fill="url(#dome)" stroke="#444b57" stroke-width="1.5"/>
+<ellipse cx="100" cy="118" rx="20" ry="7" fill="#ffffff" opacity="0.18"/>
+<!-- autocannon -->
+<g>
+<rect x="106" y="84" width="30" height="14" rx="3" fill="#3a3f44" stroke="#23262a" stroke-width="1"/>
+<path d="M 110 90 L 140 79 L 130 58 L 100 69 Z" fill="#4a5057" stroke="#23262a" stroke-width="1.2"/>
+<ellipse cx="106" cy="70" rx="9" ry="7" fill="#3a3f44" stroke="#23262a" stroke-width="1"/>
+<g stroke="#3a3f44" stroke-width="5" stroke-linecap="round"><line x1="120" y1="74" x2="184" y2="36"/><line x1="124" y1="81" x2="188" y2="43"/><line x1="116" y1="67" x2="180" y2="29"/></g>
+<path d="M 178 44 L 194 28 L 188 23 L 172 39 Z" fill="#4a5057" stroke="#23262a" stroke-width="1"/>
+<path d="M 100 79 C 84 77 82 63 94 59" fill="none" stroke="#6a7079" stroke-width="3.5"/>
+</g>
+<!-- projecting bay window (upper-left) -->
+<g>
+<rect x="44" y="184" width="56" height="68" rx="3" fill="url(#slate)" stroke="#444b57" stroke-width="1.5"/>
+<rect x="50" y="192" width="44" height="46" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="54" y="196" width="36" height="38" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.4"><line x1="72" y1="196" x2="72" y2="234"/><line x1="54" y1="215" x2="90" y2="215"/></g>
+<line x1="44" y1="246" x2="100" y2="246" stroke="#586273" stroke-width="2"/>
+</g>
+<!-- window -->
+<g><rect x="120" y="200" width="40" height="54" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="124" y="204" width="32" height="46" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="140" y1="204" x2="140" y2="250"/><line x1="124" y1="227" x2="156" y2="227"/></g></g>
+<!-- door -->
+<g><rect x="98" y="474" width="48" height="86" rx="4" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/><path d="M 104 560 L 104 504 A 18 18 0 0 1 140 504 L 140 560 Z" fill="#9a93a8" stroke="#5f5a6a" stroke-width="1.2"/><line x1="122" y1="510" x2="122" y2="560" stroke="#5f5a6a" stroke-width="1.2"/></g>
+<!-- foot -->
+<path d="M 46 560 L 56 542 Q 94 548 130 544 Q 170 548 198 542 L 198 560 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+</g><g transform="translate(4680,0)">
+<defs>
+<linearGradient id="cream" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#c2bfb2"/><stop offset="0.5" stop-color="#e6e3d6"/><stop offset="1" stop-color="#c2bfb2"/></linearGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#828891"/><stop offset="0.5" stop-color="#c9ced3"/><stop offset="1" stop-color="#828891"/></linearGradient>
+<linearGradient id="dome" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8b94a0"/><stop offset="0.5" stop-color="#c2cad4"/><stop offset="1" stop-color="#828b98"/></linearGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4d2da"/><stop offset="1" stop-color="#7c8b96"/></linearGradient>
+</defs>
+<line x1="0" y1="560" x2="290" y2="560" stroke="#b4b6b3" stroke-width="2"/>
+<!-- pipe -->
+<path d="M 226 320 L 226 230 Q 226 224 220 224" fill="none" stroke="#6a7079" stroke-width="6"/><path d="M 226 320 L 228 522" fill="none" stroke="url(#steel)" stroke-width="6"/><rect x="221" y="430" width="11" height="6" fill="#5a6066"/>
+<!-- cream tower -->
+<path d="M 56 560 C 62 502 76 330 80 268 L 82 200 Q 152 190 222 200 L 224 268 C 228 330 242 502 248 560 Z" fill="url(#cream)" stroke="#6a685c" stroke-width="1.5"/>
+<line x1="80" y1="380" x2="224" y2="380" stroke="#8a887c" stroke-width="1"/>
+<!-- big shallow dome + deck -->
+<rect x="74" y="176" width="156" height="14" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<path d="M 78 178 Q 152 130 226 178 Z" fill="url(#dome)" stroke="#444b57" stroke-width="1.5"/>
+<ellipse cx="118" cy="158" rx="30" ry="9" fill="#ffffff" opacity="0.18"/>
+<!-- big autocannon -->
+<g>
+<rect x="124" y="138" width="38" height="17" rx="4" fill="#3a3f44" stroke="#23262a" stroke-width="1"/>
+<path d="M 128 146 L 166 134 L 156 110 L 118 122 Z" fill="#4a5057" stroke="#23262a" stroke-width="1.2"/>
+<ellipse cx="120" cy="123" rx="11" ry="8" fill="#3a3f44" stroke="#23262a" stroke-width="1"/>
+<g stroke="#3a3f44" stroke-width="6" stroke-linecap="round"><line x1="142" y1="128" x2="214" y2="84"/><line x1="146" y1="136" x2="218" y2="92"/><line x1="138" y1="120" x2="210" y2="76"/></g>
+<path d="M 208 92 L 226 74 L 219 68 L 201 86 Z" fill="#4a5057" stroke="#23262a" stroke-width="1"/>
+<path d="M 116 134 C 100 132 98 116 110 112" fill="none" stroke="#6a7079" stroke-width="4"/>
+</g>
+<!-- round projecting bay window (cylinder, left) -->
+<g>
+<path d="M 44 260 L 42 380 C 46 392 78 392 82 380 L 80 260 Z" fill="url(#cream)" stroke="#6a685c" stroke-width="1.5"/>
+<path d="M 42 262 Q 62 240 82 262 Z" fill="url(#dome)" stroke="#444b57" stroke-width="1.2"/>
+<rect x="50" y="280" width="26" height="60" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="54" y="284" width="18" height="52" fill="url(#glass)"/><line x1="54" y1="310" x2="72" y2="310" stroke="#e8e8e2" stroke-width="2.2"/></g>
+<!-- windows -->
+<g><rect x="120" y="220" width="40" height="56" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="124" y="224" width="32" height="48" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="140" y1="224" x2="140" y2="272"/><line x1="124" y1="248" x2="156" y2="248"/></g></g>
+<g><rect x="120" y="320" width="40" height="56" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="124" y="324" width="32" height="48" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="140" y1="324" x2="140" y2="372"/><line x1="124" y1="348" x2="156" y2="348"/></g></g>
+<!-- door -->
+<g><rect x="124" y="476" width="48" height="84" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/><rect x="130" y="482" width="36" height="78" fill="#8a8d88"/><line x1="148" y1="482" x2="148" y2="560" stroke="#5f625e" stroke-width="1.2"/></g>
+<!-- foot -->
+<path d="M 52 560 L 62 542 Q 100 548 150 544 Q 200 548 242 542 L 252 560 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+</g><g transform="translate(5000,0)">
+<defs>
+<linearGradient id="slate" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#6c7686"/><stop offset="0.5" stop-color="#9aa4b2"/><stop offset="1" stop-color="#6c7686"/></linearGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#828891"/><stop offset="0.5" stop-color="#c9ced3"/><stop offset="1" stop-color="#828891"/></linearGradient>
+<linearGradient id="o" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#b85e16"/><stop offset="0.5" stop-color="#e88f2c"/><stop offset="1" stop-color="#b85e16"/></linearGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4d2da"/><stop offset="1" stop-color="#7c8b96"/></linearGradient>
+</defs>
+<line x1="0" y1="560" x2="240" y2="560" stroke="#b4b6b3" stroke-width="2"/>
+<!-- pipes -->
+<path d="M 170 280 L 170 200 Q 170 194 164 194" fill="none" stroke="#5e6573" stroke-width="6"/><path d="M 170 280 L 172 522" fill="none" stroke="url(#steel)" stroke-width="6"/><rect x="165" y="400" width="11" height="6" fill="#525a66"/>
+<path d="M 186 300 L 188 522" fill="none" stroke="url(#steel)" stroke-width="5"/>
+<!-- slate tower -->
+<path d="M 50 560 C 56 502 68 320 72 250 L 74 152 Q 120 145 166 152 L 168 250 C 172 320 184 502 190 560 Z" fill="url(#slate)" stroke="#444b57" stroke-width="1.5"/>
+<line x1="72" y1="370" x2="168" y2="370" stroke="#586273" stroke-width="1"/>
+<!-- deck + gun -->
+<rect x="66" y="142" width="112" height="13" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<ellipse cx="122" cy="144" rx="54" ry="7" fill="url(#steel)" stroke="#5f625e" stroke-width="1.2"/>
+<g>
+<rect x="110" y="124" width="30" height="14" rx="3" fill="#3a3f44" stroke="#23262a" stroke-width="1"/>
+<path d="M 114 130 L 144 119 L 134 98 L 104 109 Z" fill="#4a5057" stroke="#23262a" stroke-width="1.2"/>
+<ellipse cx="110" cy="110" rx="9" ry="7" fill="#3a3f44" stroke="#23262a" stroke-width="1"/>
+<g stroke="#3a3f44" stroke-width="5" stroke-linecap="round"><line x1="124" y1="114" x2="186" y2="78"/><line x1="128" y1="121" x2="190" y2="85"/><line x1="120" y1="107" x2="182" y2="71"/></g>
+<path d="M 182 84 L 198 68 L 192 63 L 176 79 Z" fill="#4a5057" stroke="#23262a" stroke-width="1"/>
+</g>
+<!-- corbel turret bay (left) w/ salmon window -->
+<g>
+<path d="M 40 200 L 38 268 C 42 280 74 280 78 268 L 76 200 Z" fill="url(#slate)" stroke="#444b57" stroke-width="1.5"/>
+<path d="M 38 202 Q 58 184 78 202 Z" fill="url(#steel)" stroke="#444b57" stroke-width="1.2"/>
+<rect x="46" y="216" width="26" height="44" rx="2" fill="#cf7e6a" stroke="#8a4636" stroke-width="1.6"/><rect x="50" y="220" width="18" height="36" fill="url(#glass)"/><line x1="50" y1="238" x2="68" y2="238" stroke="#cf7e6a" stroke-width="2.2"/>
+</g>
+<!-- window -->
+<g><rect x="96" y="200" width="40" height="52" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="100" y="204" width="32" height="44" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="116" y1="204" x2="116" y2="248"/><line x1="100" y1="226" x2="132" y2="226"/></g></g>
+<!-- orange base box + door -->
+<rect x="52" y="470" width="44" height="90" rx="2" fill="url(#o)" stroke="#7a3d0d" stroke-width="1.5"/><line x1="52" y1="510" x2="96" y2="510" stroke="#7a3d0d" stroke-width="1"/>
+<g><rect x="110" y="486" width="46" height="74" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/><rect x="116" y="492" width="34" height="68" fill="#465062"/><line x1="133" y1="492" x2="133" y2="560" stroke="#2e3540" stroke-width="1.2"/></g>
+<!-- foot -->
+<path d="M 46 560 L 56 542 Q 94 548 130 544 Q 170 548 200 542 L 196 560 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+</g><g transform="translate(5270,0)">
+<defs>
+<linearGradient id="red" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#a8341f"/><stop offset="0.5" stop-color="#d6543c"/><stop offset="1" stop-color="#a8341f"/></linearGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#828891"/><stop offset="0.5" stop-color="#c9ced3"/><stop offset="1" stop-color="#828891"/></linearGradient>
+<linearGradient id="dome" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#717b8a"/><stop offset="0.5" stop-color="#aab3c0"/><stop offset="1" stop-color="#6a7482"/></linearGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4d2da"/><stop offset="1" stop-color="#7c8b96"/></linearGradient>
+</defs>
+<line x1="0" y1="560" x2="220" y2="560" stroke="#b4b6b3" stroke-width="2"/>
+<!-- red tower -->
+<path d="M 46 560 C 52 502 64 320 68 250 L 70 160 Q 110 153 150 160 L 152 250 C 156 320 168 502 174 560 Z" fill="url(#red)" stroke="#5e1c12" stroke-width="1.5"/>
+<line x1="68" y1="370" x2="152" y2="370" stroke="#7a2418" stroke-width="1"/>
+<!-- steel deck + main dome -->
+<rect x="62" y="146" width="96" height="12" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<path d="M 66 148 Q 66 120 110 114 Q 154 120 154 148 Z" fill="url(#dome)" stroke="#444b57" stroke-width="1.5"/>
+<!-- small domed cupola turret on top-left -->
+<rect x="74" y="100" width="24" height="16" rx="2" fill="url(#steel)" stroke="#5f625e" stroke-width="1.2"/>
+<path d="M 74 102 Q 86 86 98 102 Z" fill="url(#dome)" stroke="#444b57" stroke-width="1.2"/>
+<line x1="86" y1="90" x2="86" y2="74" stroke="#6a7079" stroke-width="2"/><circle cx="86" cy="73" r="2" fill="#787e86"/>
+<!-- arched windows -->
+<g><path d="M 78 250 L 78 208 A 18 18 0 0 1 114 208 L 114 250 Z" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><path d="M 82 210 A 14 14 0 0 1 110 210 L 110 246 L 82 246 Z" fill="url(#glass)"/><line x1="96" y1="194" x2="96" y2="246" stroke="#e8e8e2" stroke-width="2.2"/></g>
+<g><rect x="80" y="300" width="36" height="50" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="84" y="304" width="28" height="42" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="98" y1="304" x2="98" y2="346"/><line x1="84" y1="325" x2="112" y2="325"/></g></g>
+<!-- door -->
+<g><rect x="88" y="486" width="44" height="74" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/><rect x="94" y="492" width="32" height="68" fill="#6f9152"/><line x1="110" y1="492" x2="110" y2="560" stroke="#42592f" stroke-width="1.2"/></g>
+<!-- foot -->
+<path d="M 42 560 L 52 542 Q 90 548 110 544 Q 150 548 178 542 L 178 560 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+</g><g transform="translate(5520,0)">
+<defs>
+<linearGradient id="white" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#aeb1ad"/><stop offset="0.5" stop-color="#dcdcd7"/><stop offset="1" stop-color="#aeb1ad"/></linearGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#828891"/><stop offset="0.5" stop-color="#c9ced3"/><stop offset="1" stop-color="#828891"/></linearGradient>
+<linearGradient id="dome" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#717b8a"/><stop offset="0.5" stop-color="#aab3c0"/><stop offset="1" stop-color="#6a7482"/></linearGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4d2da"/><stop offset="1" stop-color="#7c8b96"/></linearGradient>
+</defs>
+<line x1="0" y1="560" x2="230" y2="560" stroke="#b4b6b3" stroke-width="2"/>
+<!-- white tower -->
+<path d="M 48 560 C 54 502 64 320 68 250 L 70 158 Q 112 151 154 158 L 156 250 C 160 320 170 502 176 560 Z" fill="url(#white)" stroke="#5f625e" stroke-width="1.5"/>
+<line x1="68" y1="370" x2="156" y2="370" stroke="#7d807c" stroke-width="1"/>
+<!-- deck + dome -->
+<rect x="62" y="144" width="100" height="12" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<path d="M 66 146 Q 66 116 112 110 Q 158 116 158 146 Z" fill="url(#dome)" stroke="#444b57" stroke-width="1.5"/>
+<!-- gun -->
+<g>
+<rect x="98" y="92" width="28" height="13" rx="3" fill="#3a3f44" stroke="#23262a" stroke-width="1"/>
+<path d="M 102 98 L 130 88 L 121 68 L 93 78 Z" fill="#4a5057" stroke="#23262a" stroke-width="1.2"/>
+<ellipse cx="98" cy="79" rx="8" ry="6" fill="#3a3f44" stroke="#23262a" stroke-width="1"/>
+<g stroke="#3a3f44" stroke-width="4.6" stroke-linecap="round"><line x1="112" y1="82" x2="172" y2="46"/><line x1="116" y1="89" x2="176" y2="53"/></g>
+<path d="M 168 52 L 184 36 L 178 31 L 162 47 Z" fill="#4a5057" stroke="#23262a" stroke-width="1"/>
+</g>
+<!-- corbel turret right w/ window -->
+<g>
+<path d="M 150 210 L 148 280 C 152 292 184 292 188 280 L 186 210 Z" fill="url(#white)" stroke="#5f625e" stroke-width="1.5"/>
+<path d="M 148 212 Q 168 194 188 212 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.2"/>
+<rect x="156" y="226" width="24" height="44" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.4"/><rect x="160" y="230" width="16" height="36" fill="url(#glass)"/><line x1="160" y1="248" x2="176" y2="248" stroke="#e8e8e2" stroke-width="2"/>
+</g>
+<!-- window -->
+<g><rect x="80" y="200" width="40" height="54" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="84" y="204" width="32" height="46" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="100" y1="204" x2="100" y2="250"/><line x1="84" y1="227" x2="116" y2="227"/></g></g>
+<!-- door -->
+<g><rect x="86" y="486" width="44" height="74" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/><rect x="92" y="492" width="32" height="68" fill="#8a8d88"/><line x1="108" y1="492" x2="108" y2="560" stroke="#5f625e" stroke-width="1.2"/></g>
+<!-- foot -->
+<path d="M 44 560 L 54 542 Q 92 548 112 544 Q 152 548 180 542 L 182 560 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+</g><g transform="translate(5780,0)">
+<defs>
+<linearGradient id="olive" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#6f7560"/><stop offset="0.5" stop-color="#9ca08a"/><stop offset="1" stop-color="#6f7560"/></linearGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#828891"/><stop offset="0.5" stop-color="#c9ced3"/><stop offset="1" stop-color="#828891"/></linearGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4d2da"/><stop offset="1" stop-color="#7c8b96"/></linearGradient>
+</defs>
+<line x1="0" y1="560" x2="250" y2="560" stroke="#b4b6b3" stroke-width="2"/>
+<!-- pipes -->
+<path d="M 182 300 L 182 200 Q 182 194 176 194" fill="none" stroke="#5e6573" stroke-width="6"/><path d="M 182 300 L 184 522" fill="none" stroke="url(#steel)" stroke-width="6"/><rect x="177" y="410" width="11" height="6" fill="#525a66"/>
+<!-- olive tower -->
+<path d="M 52 560 C 58 502 70 320 74 250 L 76 158 Q 124 151 172 158 L 174 250 C 178 320 190 502 196 560 Z" fill="url(#olive)" stroke="#4c5142" stroke-width="1.5"/>
+<line x1="74" y1="380" x2="174" y2="380" stroke="#5c6150" stroke-width="1"/>
+<!-- deck + two guns -->
+<rect x="66" y="148" width="116" height="13" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<ellipse cx="124" cy="150" rx="56" ry="7" fill="url(#steel)" stroke="#5f625e" stroke-width="1.2"/>
+<g>
+<ellipse cx="102" cy="118" rx="9" ry="7" fill="#3a3f44" stroke="#23262a" stroke-width="1"/>
+<g stroke="#3a3f44" stroke-width="4.6" stroke-linecap="round"><line x1="102" y1="118" x2="44" y2="84"/><line x1="106" y1="124" x2="48" y2="90"/></g>
+<path d="M 44 90 L 58 74 L 52 70 L 38 86 Z" fill="#4a5057" stroke="#23262a" stroke-width="1"/>
+<ellipse cx="146" cy="120" rx="9" ry="7" fill="#3a3f44" stroke="#23262a" stroke-width="1"/>
+<g stroke="#3a3f44" stroke-width="4.6" stroke-linecap="round"><line x1="146" y1="120" x2="170" y2="74"/><line x1="151" y1="124" x2="175" y2="78"/></g>
+<path d="M 166 80 L 178 60 L 172 57 L 160 77 Z" fill="#4a5057" stroke="#23262a" stroke-width="1"/>
+</g>
+<!-- big angular bay window (projecting left) -->
+<g>
+<path d="M 38 196 L 36 286 L 50 296 L 92 296 L 92 196 Z" fill="url(#olive)" stroke="#4c5142" stroke-width="1.5"/>
+<rect x="44" y="206" width="40" height="60" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="48" y="210" width="32" height="52" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.4"><line x1="64" y1="210" x2="64" y2="262"/><line x1="48" y1="228" x2="80" y2="228"/><line x1="48" y1="246" x2="80" y2="246"/></g>
+<line x1="36" y1="288" x2="92" y2="288" stroke="#5c6150" stroke-width="2"/>
+</g>
+<!-- salmon panel right -->
+<rect x="150" y="210" width="22" height="70" rx="2" fill="#cf7e6a" stroke="#8a4636" stroke-width="1.4"/>
+<!-- window -->
+<g><rect x="104" y="210" width="38" height="52" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="108" y="214" width="30" height="44" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="123" y1="214" x2="123" y2="258"/><line x1="108" y1="236" x2="138" y2="236"/></g></g>
+<!-- door -->
+<g><rect x="100" y="486" width="46" height="74" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/><rect x="106" y="492" width="34" height="68" fill="#4c5142"/><line x1="123" y1="492" x2="123" y2="560" stroke="#33372c" stroke-width="1.2"/></g>
+<!-- foot -->
+<path d="M 48 560 L 58 542 Q 96 548 124 544 Q 164 548 196 542 L 200 560 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+</g><g transform="translate(6060,0)">
+<defs>
+<linearGradient id="o" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#b04a18"/><stop offset="0.5" stop-color="#dd6a26"/><stop offset="1" stop-color="#b04a18"/></linearGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#828891"/><stop offset="0.5" stop-color="#c9ced3"/><stop offset="1" stop-color="#828891"/></linearGradient>
+<linearGradient id="dome" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#717b8a"/><stop offset="0.5" stop-color="#aab3c0"/><stop offset="1" stop-color="#6a7482"/></linearGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4d2da"/><stop offset="1" stop-color="#7c8b96"/></linearGradient>
+</defs>
+<line x1="0" y1="560" x2="210" y2="560" stroke="#b4b6b3" stroke-width="2"/>
+<path d="M 158 290 L 158 210 Q 158 204 152 204" fill="none" stroke="#6a7079" stroke-width="5"/><path d="M 158 290 L 160 522" fill="none" stroke="url(#steel)" stroke-width="5"/><rect x="153" y="410" width="10" height="6" fill="#5a6066"/>
+<!-- orange tower -->
+<path d="M 46 560 C 52 502 62 320 66 250 L 68 158 Q 105 151 142 158 L 144 250 C 148 320 158 502 164 560 Z" fill="url(#o)" stroke="#6a3a0d" stroke-width="1.5"/>
+<line x1="66" y1="370" x2="144" y2="370" stroke="#8a4d12" stroke-width="1"/>
+<!-- dome + deck -->
+<rect x="60" y="144" width="92" height="12" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<path d="M 64 146 Q 64 116 106 110 Q 148 116 148 146 Z" fill="url(#dome)" stroke="#444b57" stroke-width="1.5"/>
+<!-- gun -->
+<g>
+<rect x="94" y="92" width="26" height="13" rx="3" fill="#3a3f44" stroke="#23262a" stroke-width="1"/>
+<g stroke="#3a3f44" stroke-width="4.4" stroke-linecap="round"><line x1="108" y1="96" x2="166" y2="60"/><line x1="112" y1="102" x2="170" y2="66"/></g>
+<path d="M 162 66 L 178 50 L 172 45 L 156 61 Z" fill="#4a5057" stroke="#23262a" stroke-width="1"/>
+<ellipse cx="98" cy="98" rx="8" ry="6" fill="#3a3f44" stroke="#23262a" stroke-width="1"/>
+</g>
+<g><rect x="78" y="200" width="38" height="54" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="82" y="204" width="30" height="46" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="97" y1="204" x2="97" y2="250"/><line x1="82" y1="227" x2="112" y2="227"/></g></g>
+<g><rect x="78" y="300" width="38" height="54" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="82" y="304" width="30" height="46" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="97" y1="304" x2="97" y2="350"/><line x1="82" y1="327" x2="112" y2="327"/></g></g>
+<g><rect x="82" y="486" width="44" height="74" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/><rect x="88" y="492" width="32" height="68" fill="#b1402a"/><line x1="104" y1="492" x2="104" y2="560" stroke="#7a1f16" stroke-width="1.2"/></g>
+<path d="M 42 560 L 52 542 Q 90 548 105 544 Q 145 548 168 542 L 168 560 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+</g><g transform="translate(6300,0)">
+<defs>
+<linearGradient id="slate" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#6c7686"/><stop offset="0.5" stop-color="#9aa4b2"/><stop offset="1" stop-color="#6c7686"/></linearGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#828891"/><stop offset="0.5" stop-color="#c9ced3"/><stop offset="1" stop-color="#828891"/></linearGradient>
+<linearGradient id="dome" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8b94a0"/><stop offset="0.5" stop-color="#c2cad4"/><stop offset="1" stop-color="#828b98"/></linearGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4d2da"/><stop offset="1" stop-color="#7c8b96"/></linearGradient>
+</defs>
+<line x1="0" y1="560" x2="210" y2="560" stroke="#b4b6b3" stroke-width="2"/>
+<path d="M 158 290 L 158 210 Q 158 204 152 204" fill="none" stroke="#5e6573" stroke-width="5"/><path d="M 158 290 L 160 522" fill="none" stroke="url(#steel)" stroke-width="5"/><rect x="153" y="410" width="10" height="6" fill="#525a66"/>
+<!-- slate tower -->
+<path d="M 46 560 C 52 502 62 320 66 250 L 68 158 Q 105 151 142 158 L 144 250 C 148 320 158 502 164 560 Z" fill="url(#slate)" stroke="#444b57" stroke-width="1.5"/>
+<line x1="66" y1="370" x2="144" y2="370" stroke="#586273" stroke-width="1"/>
+<!-- steel dome + deck -->
+<rect x="60" y="142" width="92" height="12" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<path d="M 64 144 Q 64 112 106 106 Q 148 112 148 144 Z" fill="url(#dome)" stroke="#444b57" stroke-width="1.5"/>
+<ellipse cx="86" cy="124" rx="16" ry="6" fill="#ffffff" opacity="0.18"/>
+<line x1="106" y1="108" x2="106" y2="84" stroke="#6a7079" stroke-width="2"/><circle cx="106" cy="83" r="2.2" fill="#787e86"/>
+<g><rect x="78" y="200" width="38" height="54" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="82" y="204" width="30" height="46" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="97" y1="204" x2="97" y2="250"/><line x1="82" y1="227" x2="112" y2="227"/></g></g>
+<g><rect x="78" y="300" width="38" height="54" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="82" y="304" width="30" height="46" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="97" y1="304" x2="97" y2="350"/><line x1="82" y1="327" x2="112" y2="327"/></g></g>
+<g><rect x="82" y="486" width="44" height="74" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/><rect x="88" y="492" width="32" height="68" fill="#465062"/><line x1="104" y1="492" x2="104" y2="560" stroke="#2e3540" stroke-width="1.2"/></g>
+<path d="M 42 560 L 52 542 Q 90 548 105 544 Q 145 548 168 542 L 168 560 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+</g><g transform="translate(6540,0)">
+<defs>
+<linearGradient id="white" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#a9aca8"/><stop offset="0.5" stop-color="#d9dad4"/><stop offset="1" stop-color="#a9aca8"/></linearGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#828891"/><stop offset="0.5" stop-color="#c9ced3"/><stop offset="1" stop-color="#828891"/></linearGradient>
+<linearGradient id="cone" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#4c535e"/><stop offset="0.5" stop-color="#79828f"/><stop offset="1" stop-color="#454c56"/></linearGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4d2da"/><stop offset="1" stop-color="#7c8b96"/></linearGradient>
+</defs>
+<line x1="0" y1="560" x2="190" y2="560" stroke="#b4b6b3" stroke-width="2"/>
+<path d="M 142 290 L 142 200 Q 142 194 136 194" fill="none" stroke="#6a7079" stroke-width="5"/><path d="M 142 290 L 144 522" fill="none" stroke="url(#steel)" stroke-width="5"/><rect x="137" y="410" width="10" height="6" fill="#5a6066"/>
+<!-- grey cylinder -->
+<path d="M 42 560 C 48 502 58 320 62 250 L 64 150 Q 95 144 126 150 L 128 250 C 132 320 142 502 148 560 Z" fill="url(#white)" stroke="#5f625e" stroke-width="1.5"/>
+<line x1="62" y1="370" x2="128" y2="370" stroke="#7d807c" stroke-width="1"/>
+<!-- dark conical cap + deck -->
+<rect x="56" y="140" width="80" height="11" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<path d="M 60 140 L 96 86 L 132 140 Z" fill="url(#cone)" stroke="#3a414b" stroke-width="1.5"/>
+<circle cx="96" cy="86" r="3" fill="#787e86"/>
+<g><rect x="74" y="200" width="38" height="54" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="78" y="204" width="30" height="46" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="93" y1="204" x2="93" y2="250"/><line x1="78" y1="227" x2="108" y2="227"/></g></g>
+<g><rect x="74" y="300" width="38" height="54" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="78" y="304" width="30" height="46" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="93" y1="304" x2="93" y2="350"/><line x1="78" y1="327" x2="108" y2="327"/></g></g>
+<g><rect x="78" y="486" width="40" height="74" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/><rect x="84" y="492" width="28" height="68" fill="#465062"/><line x1="98" y1="492" x2="98" y2="560" stroke="#2e3540" stroke-width="1.2"/></g>
+<path d="M 38 560 L 48 542 Q 86 548 96 544 Q 136 548 152 542 L 152 560 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+</g><g transform="translate(6760,0)">
+<defs>
+<linearGradient id="red" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#b04020"/><stop offset="0.5" stop-color="#db6238"/><stop offset="1" stop-color="#b04020"/></linearGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#828891"/><stop offset="0.5" stop-color="#c9ced3"/><stop offset="1" stop-color="#828891"/></linearGradient>
+<linearGradient id="dome" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#717b8a"/><stop offset="0.5" stop-color="#aab3c0"/><stop offset="1" stop-color="#6a7482"/></linearGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4d2da"/><stop offset="1" stop-color="#7c8b96"/></linearGradient>
+</defs>
+<line x1="0" y1="560" x2="220" y2="560" stroke="#b4b6b3" stroke-width="2"/>
+<path d="M 162 290 L 162 210 Q 162 204 156 204" fill="none" stroke="#6a7079" stroke-width="5"/><path d="M 162 290 L 164 522" fill="none" stroke="url(#steel)" stroke-width="5"/><rect x="157" y="410" width="10" height="6" fill="#5a6066"/>
+<!-- orange-red tower -->
+<path d="M 46 560 C 52 502 64 320 68 250 L 70 158 Q 110 151 150 158 L 152 250 C 156 320 168 502 174 560 Z" fill="url(#red)" stroke="#6a2614" stroke-width="1.5"/>
+<line x1="68" y1="370" x2="152" y2="370" stroke="#8a3018" stroke-width="1"/>
+<!-- dome + deck -->
+<rect x="62" y="144" width="96" height="12" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<path d="M 66 146 Q 66 116 110 110 Q 154 116 154 146 Z" fill="url(#dome)" stroke="#444b57" stroke-width="1.5"/>
+<!-- gun -->
+<g>
+<rect x="98" y="92" width="28" height="13" rx="3" fill="#3a3f44" stroke="#23262a" stroke-width="1"/>
+<g stroke="#3a3f44" stroke-width="4.6" stroke-linecap="round"><line x1="100" y1="98" x2="42" y2="62"/><line x1="104" y1="105" x2="46" y2="69"/></g>
+<path d="M 44 68 L 58 52 L 52 47 L 38 63 Z" fill="#4a5057" stroke="#23262a" stroke-width="1"/>
+<ellipse cx="120" cy="98" rx="8" ry="6" fill="#3a3f44" stroke="#23262a" stroke-width="1"/>
+</g>
+<g><rect x="78" y="200" width="38" height="54" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="82" y="204" width="30" height="46" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="97" y1="204" x2="97" y2="250"/><line x1="82" y1="227" x2="112" y2="227"/></g></g>
+<g><rect x="78" y="300" width="38" height="54" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="82" y="304" width="30" height="46" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="97" y1="304" x2="97" y2="350"/><line x1="82" y1="327" x2="112" y2="327"/></g></g>
+<g><rect x="84" y="486" width="44" height="74" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/><rect x="90" y="492" width="32" height="68" fill="#6f9152"/><line x1="106" y1="492" x2="106" y2="560" stroke="#42592f" stroke-width="1.2"/></g>
+<path d="M 42 560 L 52 542 Q 90 548 110 544 Q 150 548 178 542 L 178 560 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+</g><g transform="translate(7010,0)">
+<defs>
+<linearGradient id="yellow" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#c79434"/><stop offset="0.5" stop-color="#e7bd54"/><stop offset="1" stop-color="#c79434"/></linearGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#828891"/><stop offset="0.5" stop-color="#c9ced3"/><stop offset="1" stop-color="#828891"/></linearGradient>
+<linearGradient id="dome" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8b94a0"/><stop offset="0.5" stop-color="#c2cad4"/><stop offset="1" stop-color="#828b98"/></linearGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4d2da"/><stop offset="1" stop-color="#7c8b96"/></linearGradient>
+</defs>
+<line x1="0" y1="560" x2="220" y2="560" stroke="#b4b6b3" stroke-width="2"/>
+<!-- cream/yellow tower -->
+<path d="M 46 560 C 52 502 64 330 68 268 L 70 168 Q 110 161 150 168 L 152 268 C 156 330 168 502 174 560 Z" fill="url(#yellow)" stroke="#7a5a16" stroke-width="1.5"/>
+<line x1="68" y1="380" x2="152" y2="380" stroke="#9a7420" stroke-width="1"/>
+<!-- shallow dome + deck -->
+<rect x="62" y="154" width="96" height="12" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<path d="M 66 156 Q 110 122 154 156 Z" fill="url(#dome)" stroke="#444b57" stroke-width="1.5"/>
+<line x1="110" y1="128" x2="110" y2="104" stroke="#6a7079" stroke-width="2"/><circle cx="110" cy="103" r="2.2" fill="#787e86"/>
+<g><rect x="78" y="200" width="38" height="50" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="82" y="204" width="30" height="42" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="97" y1="204" x2="97" y2="246"/><line x1="82" y1="225" x2="112" y2="225"/></g></g>
+<g><rect x="78" y="296" width="38" height="50" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="82" y="300" width="30" height="42" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="97" y1="300" x2="97" y2="342"/><line x1="82" y1="321" x2="112" y2="321"/></g></g>
+<g><rect x="84" y="486" width="44" height="74" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/><rect x="90" y="492" width="32" height="68" fill="#b1402a"/><line x1="106" y1="492" x2="106" y2="560" stroke="#7a1f16" stroke-width="1.2"/></g>
+<path d="M 42 560 L 52 542 Q 90 548 110 544 Q 150 548 178 542 L 178 560 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+</g><g transform="translate(7260,0)">
+<defs>
+<linearGradient id="white" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#a9aca8"/><stop offset="0.5" stop-color="#d9dad4"/><stop offset="1" stop-color="#a9aca8"/></linearGradient>
+<linearGradient id="red" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#b04020"/><stop offset="0.5" stop-color="#db6238"/><stop offset="1" stop-color="#b04020"/></linearGradient>
+<radialGradient id="rdome" cx="0.36" cy="0.3" r="0.9"><stop offset="0" stop-color="#db6238"/><stop offset="1" stop-color="#882c18"/></radialGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#828891"/><stop offset="0.5" stop-color="#c9ced3"/><stop offset="1" stop-color="#828891"/></linearGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4d2da"/><stop offset="1" stop-color="#7c8b96"/></linearGradient>
+</defs>
+<line x1="0" y1="560" x2="230" y2="560" stroke="#b4b6b3" stroke-width="2"/>
+<!-- pipes -->
+<path d="M 168 320 L 168 240 Q 168 234 162 234" fill="none" stroke="#6a7079" stroke-width="5"/><path d="M 168 320 L 170 522" fill="none" stroke="url(#steel)" stroke-width="5"/><rect x="163" y="430" width="10" height="6" fill="#5a6066"/>
+<path d="M 58 330 L 56 522" fill="none" stroke="url(#steel)" stroke-width="5"/>
+<!-- white tower -->
+<path d="M 48 560 C 54 502 66 340 70 280 L 72 200 Q 116 192 160 200 L 162 280 C 166 340 178 502 184 560 Z" fill="url(#white)" stroke="#5f625e" stroke-width="1.5"/>
+<line x1="70" y1="400" x2="162" y2="400" stroke="#7d807c" stroke-width="1"/>
+<!-- steel cap deck on white -->
+<rect x="68" y="190" width="96" height="12" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<!-- big red corbelled bay (rounded box) with windows + red cap -->
+<g>
+<path d="M 64 250 L 60 150 Q 116 138 172 150 L 168 250 C 150 268 82 268 64 250 Z" fill="url(#red)" stroke="#6a2614" stroke-width="1.8"/>
+<path d="M 60 152 Q 116 120 172 152 Z" fill="url(#rdome)" stroke="#6a2614" stroke-width="1.5"/>
+<rect x="74" y="168" width="36" height="56" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="78" y="172" width="28" height="48" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="92" y1="172" x2="92" y2="220"/><line x1="78" y1="196" x2="106" y2="196"/></g>
+<rect x="122" y="168" width="36" height="56" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="126" y="172" width="28" height="48" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="140" y1="172" x2="140" y2="220"/><line x1="126" y1="196" x2="154" y2="196"/></g>
+</g>
+<!-- lower window -->
+<g><rect x="96" y="330" width="40" height="50" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="100" y="334" width="32" height="42" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="116" y1="334" x2="116" y2="376"/><line x1="100" y1="355" x2="132" y2="355"/></g></g>
+<!-- red arched door -->
+<g><rect x="92" y="470" width="48" height="90" rx="4" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/><path d="M 98 560 L 98 500 A 20 20 0 0 1 134 500 L 134 560 Z" fill="#b1402a" stroke="#7a1f16" stroke-width="1.5"/><ellipse cx="116" cy="508" rx="8" ry="6" fill="url(#glass)" stroke="#7a1f16" stroke-width="1.2"/><line x1="116" y1="518" x2="116" y2="560" stroke="#7a1f16" stroke-width="1.2"/></g>
+<path d="M 44 560 L 54 542 Q 92 548 116 544 Q 156 548 184 542 L 188 560 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+</g><g transform="translate(7520,0)">
+<defs>
+<linearGradient id="white" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#a9aca8"/><stop offset="0.5" stop-color="#d9dad4"/><stop offset="1" stop-color="#a9aca8"/></linearGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#828891"/><stop offset="0.5" stop-color="#c9ced3"/><stop offset="1" stop-color="#828891"/></linearGradient>
+<linearGradient id="dome" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8b94a0"/><stop offset="0.5" stop-color="#c2cad4"/><stop offset="1" stop-color="#828b98"/></linearGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4d2da"/><stop offset="1" stop-color="#7c8b96"/></linearGradient>
+</defs>
+<line x1="0" y1="560" x2="200" y2="560" stroke="#b4b6b3" stroke-width="2"/>
+<path d="M 150 290 L 150 210 Q 150 204 144 204" fill="none" stroke="#6a7079" stroke-width="5"/><path d="M 150 290 L 152 522" fill="none" stroke="url(#steel)" stroke-width="5"/><rect x="145" y="410" width="10" height="6" fill="#5a6066"/>
+<!-- grey tower -->
+<path d="M 42 560 C 48 502 58 320 62 250 L 64 156 Q 100 149 136 156 L 138 250 C 142 320 152 502 158 560 Z" fill="url(#white)" stroke="#5f625e" stroke-width="1.5"/>
+<line x1="62" y1="370" x2="138" y2="370" stroke="#7d807c" stroke-width="1"/>
+<!-- steel dome + deck -->
+<rect x="56" y="142" width="84" height="12" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<path d="M 60 144 Q 60 112 98 106 Q 136 112 136 144 Z" fill="url(#dome)" stroke="#444b57" stroke-width="1.5"/>
+<ellipse cx="80" cy="124" rx="15" ry="6" fill="#ffffff" opacity="0.18"/>
+<!-- projecting bay window -->
+<g>
+<path d="M 36 240 L 34 304 C 38 316 70 316 74 304 L 72 240 Z" fill="url(#white)" stroke="#5f625e" stroke-width="1.5"/>
+<path d="M 34 242 Q 54 224 74 242 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.2"/>
+<rect x="42" y="256" width="26" height="42" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.4"/><rect x="46" y="260" width="18" height="34" fill="url(#glass)"/><line x1="46" y1="277" x2="64" y2="277" stroke="#e8e8e2" stroke-width="2"/>
+</g>
+<g><rect x="94" y="200" width="36" height="52" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="98" y="204" width="28" height="44" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="112" y1="204" x2="112" y2="248"/><line x1="98" y1="226" x2="126" y2="226"/></g></g>
+<g><rect x="80" y="486" width="42" height="74" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/><rect x="86" y="492" width="30" height="68" fill="#465062"/><line x1="101" y1="492" x2="101" y2="560" stroke="#2e3540" stroke-width="1.2"/></g>
+<path d="M 38 560 L 48 542 Q 86 548 100 544 Q 140 548 156 542 L 158 560 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+</g><g transform="translate(7750,0)">
+<defs>
+<linearGradient id="red" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#a8341f"/><stop offset="0.5" stop-color="#d6543c"/><stop offset="1" stop-color="#a8341f"/></linearGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#828891"/><stop offset="0.5" stop-color="#c9ced3"/><stop offset="1" stop-color="#828891"/></linearGradient>
+<radialGradient id="rdome" cx="0.36" cy="0.3" r="0.9"><stop offset="0" stop-color="#d6543c"/><stop offset="1" stop-color="#85291a"/></radialGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4d2da"/><stop offset="1" stop-color="#7c8b96"/></linearGradient>
+</defs>
+<line x1="0" y1="560" x2="190" y2="560" stroke="#b4b6b3" stroke-width="2"/>
+<path d="M 142 290 L 142 210 Q 142 204 136 204" fill="none" stroke="#6a7079" stroke-width="5"/><path d="M 142 290 L 144 522" fill="none" stroke="url(#steel)" stroke-width="5"/><rect x="137" y="410" width="10" height="6" fill="#5a6066"/>
+<path d="M 42 560 C 48 502 58 320 62 250 L 64 150 Q 95 143 126 150 L 128 250 C 132 320 142 502 148 560 Z" fill="url(#red)" stroke="#5e1c12" stroke-width="1.5"/>
+<line x1="62" y1="370" x2="128" y2="370" stroke="#7a2418" stroke-width="1"/>
+<rect x="56" y="138" width="80" height="11" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<path d="M 60 140 Q 60 108 96 102 Q 132 108 132 140 Z" fill="url(#rdome)" stroke="#5e1c12" stroke-width="1.5"/>
+<ellipse cx="80" cy="120" rx="14" ry="5" fill="#ffffff" opacity="0.16"/>
+<g><rect x="74" y="196" width="38" height="54" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="78" y="200" width="30" height="46" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="93" y1="200" x2="93" y2="246"/><line x1="78" y1="223" x2="108" y2="223"/></g></g>
+<g><rect x="74" y="296" width="38" height="54" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="78" y="300" width="30" height="46" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="93" y1="300" x2="93" y2="346"/><line x1="78" y1="323" x2="108" y2="323"/></g></g>
+<g><rect x="78" y="486" width="40" height="74" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/><rect x="84" y="492" width="28" height="68" fill="#b1402a"/><line x1="98" y1="492" x2="98" y2="560" stroke="#7a1f16" stroke-width="1.2"/></g>
+<path d="M 38 560 L 48 542 Q 86 548 96 544 Q 136 548 152 542 L 152 560 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+</g><g transform="translate(7970,0)">
+<defs>
+<linearGradient id="slate" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#6c7686"/><stop offset="0.5" stop-color="#9aa4b2"/><stop offset="1" stop-color="#6c7686"/></linearGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#828891"/><stop offset="0.5" stop-color="#c9ced3"/><stop offset="1" stop-color="#828891"/></linearGradient>
+<radialGradient id="rdome" cx="0.36" cy="0.3" r="0.9"><stop offset="0" stop-color="#d6543c"/><stop offset="1" stop-color="#85291a"/></radialGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4d2da"/><stop offset="1" stop-color="#7c8b96"/></linearGradient>
+</defs>
+<line x1="0" y1="560" x2="240" y2="560" stroke="#b4b6b3" stroke-width="2"/>
+<path d="M 64 330 L 62 522" fill="none" stroke="url(#steel)" stroke-width="5"/>
+<!-- stout slate tower -->
+<path d="M 44 560 C 50 502 60 360 64 300 L 66 168 Q 120 160 174 168 L 176 300 C 180 360 190 502 196 560 Z" fill="url(#slate)" stroke="#444b57" stroke-width="1.5"/>
+<line x1="66" y1="400" x2="174" y2="400" stroke="#586273" stroke-width="1"/>
+<rect x="60" y="154" width="120" height="13" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<path d="M 64 156 Q 64 122 120 114 Q 176 122 176 156 Z" fill="url(#rdome)" stroke="#5e1c12" stroke-width="1.5"/>
+<ellipse cx="96" cy="134" rx="22" ry="7" fill="#ffffff" opacity="0.16"/>
+<!-- projecting bay right -->
+<g>
+<path d="M 150 230 L 148 300 C 152 312 188 312 192 300 L 190 230 Z" fill="url(#slate)" stroke="#444b57" stroke-width="1.5"/>
+<path d="M 148 232 Q 170 214 192 232 Z" fill="url(#steel)" stroke="#444b57" stroke-width="1.2"/>
+<rect x="156" y="246" width="28" height="46" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.4"/><rect x="160" y="250" width="20" height="38" fill="url(#glass)"/><line x1="160" y1="269" x2="180" y2="269" stroke="#e8e8e2" stroke-width="2"/></g>
+<g><rect x="80" y="206" width="40" height="56" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="84" y="210" width="32" height="48" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="100" y1="210" x2="100" y2="258"/><line x1="84" y1="234" x2="116" y2="234"/></g></g>
+<g><rect x="80" y="320" width="40" height="56" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="84" y="324" width="32" height="48" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="100" y1="324" x2="100" y2="372"/><line x1="84" y1="348" x2="116" y2="348"/></g></g>
+<g><rect x="96" y="474" width="48" height="86" rx="4" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/><path d="M 102 560 L 102 504 A 18 18 0 0 1 138 504 L 138 560 Z" fill="#b1402a" stroke="#7a1f16" stroke-width="1.5"/><line x1="120" y1="510" x2="120" y2="560" stroke="#7a1f16" stroke-width="1.2"/></g>
+<path d="M 40 560 L 50 542 Q 90 548 120 544 Q 160 548 200 542 L 200 560 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+</g><g transform="translate(8240,0)">
+<defs>
+<linearGradient id="red" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#a8341f"/><stop offset="0.5" stop-color="#d6543c"/><stop offset="1" stop-color="#a8341f"/></linearGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#828891"/><stop offset="0.5" stop-color="#c9ced3"/><stop offset="1" stop-color="#828891"/></linearGradient>
+<linearGradient id="dome" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8b94a0"/><stop offset="0.5" stop-color="#c2cad4"/><stop offset="1" stop-color="#828b98"/></linearGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4d2da"/><stop offset="1" stop-color="#7c8b96"/></linearGradient>
+</defs>
+<line x1="0" y1="560" x2="230" y2="560" stroke="#b4b6b3" stroke-width="2"/>
+<path d="M 162 330 L 160 522" fill="none" stroke="url(#steel)" stroke-width="5"/>
+<!-- stout red tower -->
+<path d="M 46 560 C 52 502 62 360 66 300 L 68 166 Q 116 158 164 166 L 166 300 C 170 360 180 502 186 560 Z" fill="url(#red)" stroke="#5e1c12" stroke-width="1.5"/>
+<line x1="68" y1="400" x2="164" y2="400" stroke="#7a2418" stroke-width="1"/>
+<rect x="62" y="152" width="108" height="13" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<path d="M 66 154 Q 66 120 116 112 Q 166 120 166 154 Z" fill="url(#dome)" stroke="#444b57" stroke-width="1.5"/>
+<ellipse cx="96" cy="132" rx="20" ry="7" fill="#ffffff" opacity="0.18"/>
+<line x1="116" y1="114" x2="116" y2="88" stroke="#6a7079" stroke-width="2.2"/><circle cx="116" cy="87" r="2.4" fill="#787e86"/>
+<!-- bay left -->
+<g>
+<path d="M 40 234 L 38 304 C 42 316 78 316 82 304 L 80 234 Z" fill="url(#red)" stroke="#5e1c12" stroke-width="1.5"/>
+<path d="M 38 236 Q 60 218 82 236 Z" fill="url(#steel)" stroke="#5e1c12" stroke-width="1.2"/>
+<rect x="46" y="250" width="28" height="46" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.4"/><rect x="50" y="254" width="20" height="38" fill="url(#glass)"/><line x1="50" y1="273" x2="70" y2="273" stroke="#e8e8e2" stroke-width="2"/></g>
+<g><rect x="104" y="206" width="40" height="56" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="108" y="210" width="32" height="48" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="124" y1="210" x2="124" y2="258"/><line x1="108" y1="234" x2="140" y2="234"/></g></g>
+<g><rect x="100" y="320" width="40" height="56" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="104" y="324" width="32" height="48" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="120" y1="324" x2="120" y2="372"/><line x1="104" y1="348" x2="136" y2="348"/></g></g>
+<g><rect x="92" y="486" width="46" height="74" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/><rect x="98" y="492" width="34" height="68" fill="#6f9152"/><line x1="115" y1="492" x2="115" y2="560" stroke="#42592f" stroke-width="1.2"/></g>
+<path d="M 42 560 L 52 542 Q 92 548 116 544 Q 156 548 188 542 L 188 560 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+</g><g transform="translate(8500,0)">
+<defs>
+<linearGradient id="white" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#a9aca8"/><stop offset="0.5" stop-color="#d9dad4"/><stop offset="1" stop-color="#a9aca8"/></linearGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#828891"/><stop offset="0.5" stop-color="#c9ced3"/><stop offset="1" stop-color="#828891"/></linearGradient>
+<linearGradient id="dome" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8b94a0"/><stop offset="0.5" stop-color="#c2cad4"/><stop offset="1" stop-color="#828b98"/></linearGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4d2da"/><stop offset="1" stop-color="#7c8b96"/></linearGradient>
+</defs>
+<line x1="0" y1="560" x2="230" y2="560" stroke="#b4b6b3" stroke-width="2"/>
+<path d="M 164 320 L 162 522" fill="none" stroke="url(#steel)" stroke-width="5"/>
+<path d="M 60 330 L 58 522" fill="none" stroke="url(#steel)" stroke-width="5"/>
+<!-- stout white tower -->
+<path d="M 44 560 C 50 502 62 360 66 300 L 68 168 Q 116 160 164 168 L 166 300 C 170 360 182 502 188 560 Z" fill="url(#white)" stroke="#5f625e" stroke-width="1.5"/>
+<line x1="68" y1="400" x2="164" y2="400" stroke="#7d807c" stroke-width="1"/>
+<rect x="62" y="158" width="108" height="13" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<path d="M 66 160 Q 116 124 166 160 Z" fill="url(#dome)" stroke="#444b57" stroke-width="1.5"/>
+<!-- gun -->
+<g>
+<rect x="102" y="104" width="28" height="13" rx="3" fill="#3a3f44" stroke="#23262a" stroke-width="1"/>
+<g stroke="#3a3f44" stroke-width="4.6" stroke-linecap="round"><line x1="116" y1="110" x2="176" y2="74"/><line x1="120" y1="117" x2="180" y2="81"/></g>
+<path d="M 172 80 L 188 64 L 182 59 L 166 75 Z" fill="#4a5057" stroke="#23262a" stroke-width="1"/>
+<ellipse cx="106" cy="110" rx="8" ry="6" fill="#3a3f44" stroke="#23262a" stroke-width="1"/>
+</g>
+<!-- bay left -->
+<g>
+<path d="M 40 240 L 38 308 C 42 320 76 320 80 308 L 78 240 Z" fill="url(#white)" stroke="#5f625e" stroke-width="1.5"/>
+<path d="M 38 242 Q 58 224 80 242 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.2"/>
+<rect x="46" y="256" width="26" height="44" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.4"/><rect x="50" y="260" width="18" height="36" fill="url(#glass)"/><line x1="50" y1="277" x2="68" y2="277" stroke="#e8e8e2" stroke-width="2"/></g>
+<g><rect x="104" y="206" width="40" height="56" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="108" y="210" width="32" height="48" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="124" y1="210" x2="124" y2="258"/><line x1="108" y1="234" x2="140" y2="234"/></g></g>
+<g><rect x="98" y="320" width="40" height="56" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="102" y="324" width="32" height="48" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="118" y1="324" x2="118" y2="372"/><line x1="102" y1="348" x2="134" y2="348"/></g></g>
+<g><rect x="92" y="486" width="46" height="74" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/><rect x="98" y="492" width="34" height="68" fill="#465062"/><line x1="115" y1="492" x2="115" y2="560" stroke="#2e3540" stroke-width="1.2"/></g>
+<path d="M 40 560 L 50 542 Q 90 548 116 544 Q 156 548 188 542 L 190 560 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+</g><g transform="translate(8760,0)">
+<defs>
+<linearGradient id="o" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#b85e16"/><stop offset="0.5" stop-color="#e88f2c"/><stop offset="1" stop-color="#b85e16"/></linearGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#828891"/><stop offset="0.5" stop-color="#c9ced3"/><stop offset="1" stop-color="#828891"/></linearGradient>
+<linearGradient id="dome" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#717b8a"/><stop offset="0.5" stop-color="#aab3c0"/><stop offset="1" stop-color="#6a7482"/></linearGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4d2da"/><stop offset="1" stop-color="#7c8b96"/></linearGradient>
+</defs>
+<line x1="0" y1="560" x2="230" y2="560" stroke="#b4b6b3" stroke-width="2"/>
+<path d="M 164 330 L 162 522" fill="none" stroke="url(#steel)" stroke-width="5"/>
+<path d="M 66 168 L 64 522" fill="none" stroke="url(#steel)" stroke-width="5"/>
+<!-- stout orange tower -->
+<path d="M 46 560 C 52 502 62 360 66 300 L 68 166 Q 116 158 164 166 L 166 300 C 170 360 180 502 186 560 Z" fill="url(#o)" stroke="#6a3a0d" stroke-width="1.5"/>
+<line x1="68" y1="400" x2="164" y2="400" stroke="#8a4d12" stroke-width="1"/>
+<rect x="62" y="152" width="108" height="13" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<path d="M 66 154 Q 66 120 116 112 Q 166 120 166 154 Z" fill="url(#dome)" stroke="#444b57" stroke-width="1.5"/>
+<ellipse cx="96" cy="132" rx="20" ry="7" fill="#ffffff" opacity="0.18"/>
+<!-- bay right -->
+<g>
+<path d="M 148 234 L 146 304 C 150 316 186 316 190 304 L 188 234 Z" fill="url(#o)" stroke="#6a3a0d" stroke-width="1.5"/>
+<path d="M 146 236 Q 168 218 190 236 Z" fill="url(#steel)" stroke="#6a3a0d" stroke-width="1.2"/>
+<rect x="154" y="250" width="28" height="46" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.4"/><rect x="158" y="254" width="20" height="38" fill="url(#glass)"/><line x1="158" y1="273" x2="178" y2="273" stroke="#e8e8e2" stroke-width="2"/></g>
+<g><rect x="84" y="206" width="40" height="56" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="88" y="210" width="32" height="48" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="104" y1="210" x2="104" y2="258"/><line x1="88" y1="234" x2="120" y2="234"/></g></g>
+<g><rect x="84" y="320" width="40" height="56" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="88" y="324" width="32" height="48" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="104" y1="324" x2="104" y2="372"/><line x1="88" y1="348" x2="120" y2="348"/></g></g>
+<g><rect x="92" y="486" width="46" height="74" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/><rect x="98" y="492" width="34" height="68" fill="#b1402a"/><line x1="115" y1="492" x2="115" y2="560" stroke="#7a1f16" stroke-width="1.2"/></g>
+<path d="M 42 560 L 52 542 Q 92 548 116 544 Q 156 548 188 542 L 188 560 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+</g><g transform="translate(9020,0)">
+<defs>
+<linearGradient id="white" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#a9aca8"/><stop offset="0.5" stop-color="#d9dad4"/><stop offset="1" stop-color="#a9aca8"/></linearGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#828891"/><stop offset="0.5" stop-color="#c9ced3"/><stop offset="1" stop-color="#828891"/></linearGradient>
+<linearGradient id="dome" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8b94a0"/><stop offset="0.5" stop-color="#c2cad4"/><stop offset="1" stop-color="#828b98"/></linearGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4d2da"/><stop offset="1" stop-color="#7c8b96"/></linearGradient>
+</defs>
+<line x1="0" y1="560" x2="250" y2="560" stroke="#b4b6b3" stroke-width="2"/>
+<!-- stout grey tower -->
+<path d="M 56 560 C 62 502 74 360 78 300 L 80 172 Q 128 164 176 172 L 178 300 C 182 360 194 502 200 560 Z" fill="url(#white)" stroke="#5f625e" stroke-width="1.5"/>
+<line x1="80" y1="400" x2="176" y2="400" stroke="#7d807c" stroke-width="1"/>
+<rect x="74" y="158" width="108" height="13" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<path d="M 78 160 Q 128 124 178 160 Z" fill="url(#dome)" stroke="#444b57" stroke-width="1.5"/>
+<ellipse cx="106" cy="142" rx="22" ry="7" fill="#ffffff" opacity="0.18"/>
+<line x1="128" y1="128" x2="128" y2="104" stroke="#6a7079" stroke-width="2.2"/><circle cx="128" cy="103" r="2.4" fill="#787e86"/>
+<!-- two projecting bays -->
+<g>
+<path d="M 48 234 L 46 300 C 50 312 84 312 88 300 L 86 234 Z" fill="url(#white)" stroke="#5f625e" stroke-width="1.5"/>
+<path d="M 46 236 Q 66 218 88 236 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.2"/>
+<rect x="54" y="250" width="26" height="44" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.4"/><rect x="58" y="254" width="18" height="36" fill="url(#glass)"/><line x1="58" y1="271" x2="76" y2="271" stroke="#e8e8e2" stroke-width="2"/></g>
+<g>
+<path d="M 162 234 L 160 300 C 164 312 198 312 202 300 L 200 234 Z" fill="url(#white)" stroke="#5f625e" stroke-width="1.5"/>
+<path d="M 160 236 Q 180 218 202 236 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.2"/>
+<rect x="168" y="250" width="26" height="44" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.4"/><rect x="172" y="254" width="18" height="36" fill="url(#glass)"/><line x1="172" y1="271" x2="190" y2="271" stroke="#e8e8e2" stroke-width="2"/></g>
+<g><rect x="108" y="206" width="40" height="56" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="112" y="210" width="32" height="48" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="128" y1="210" x2="128" y2="258"/><line x1="112" y1="234" x2="144" y2="234"/></g></g>
+<g><rect x="104" y="486" width="48" height="74" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/><rect x="110" y="492" width="36" height="68" fill="#465062"/><line x1="128" y1="492" x2="128" y2="560" stroke="#2e3540" stroke-width="1.2"/></g>
+<path d="M 52 560 L 62 542 Q 100 548 128 544 Q 168 548 200 542 L 204 560 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+</g></svg>

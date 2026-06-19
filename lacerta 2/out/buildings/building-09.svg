@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 600" width="300" height="600">
+<defs>
+<linearGradient id="red" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#a8341f"/><stop offset="0.5" stop-color="#d65a3e"/><stop offset="1" stop-color="#a8341f"/></linearGradient>
+<radialGradient id="rdome" cx="0.36" cy="0.3" r="0.9"><stop offset="0" stop-color="#d65a3e"/><stop offset="1" stop-color="#85291a"/></radialGradient>
+<linearGradient id="yellow" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#c88a1e"/><stop offset="0.5" stop-color="#edb33a"/><stop offset="1" stop-color="#c88a1e"/></linearGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#828891"/><stop offset="0.5" stop-color="#c9ced3"/><stop offset="1" stop-color="#828891"/></linearGradient>
+<linearGradient id="white" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#aeb1ad"/><stop offset="0.5" stop-color="#dcdcd7"/><stop offset="1" stop-color="#aeb1ad"/></linearGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4d2da"/><stop offset="1" stop-color="#7c8b96"/></linearGradient>
+</defs>
+<line x1="0" y1="560" x2="300" y2="560" stroke="#b4b6b3" stroke-width="2"/>
+<!-- yellow house wing (right) -->
+<path d="M 178 560 L 178 244 Q 230 238 284 244 L 284 560 Z" fill="url(#yellow)" stroke="#7a560f" stroke-width="1.5"/>
+<g fill="url(#glass)">
+<g><rect x="196" y="266" width="34" height="44" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="200" y="270" width="26" height="36" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="213" y1="270" x2="213" y2="306"/><line x1="200" y1="288" x2="226" y2="288"/></g></g>
+<g><rect x="240" y="266" width="34" height="44" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="244" y="270" width="26" height="36" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="257" y1="270" x2="257" y2="306"/><line x1="244" y1="288" x2="270" y2="288"/></g></g>
+<g><rect x="196" y="338" width="34" height="44" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="200" y="342" width="26" height="36" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="213" y1="342" x2="213" y2="378"/><line x1="200" y1="360" x2="226" y2="360"/></g></g>
+<g><rect x="240" y="338" width="34" height="44" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="244" y="342" width="26" height="36" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="257" y1="342" x2="257" y2="378"/><line x1="244" y1="360" x2="270" y2="360"/></g></g>
+</g>
+<!-- red rounded tower (front-left) -->
+<path d="M 48 560 C 52 500 60 460 72 442 L 70 172 Q 118 165 168 172 L 166 442 C 178 460 186 500 190 560 Z" fill="url(#red)" stroke="#5e1c12" stroke-width="2"/>
+<!-- red dome + deck -->
+<rect x="64" y="148" width="110" height="13" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<path d="M 68 150 Q 68 118 119 110 Q 170 118 170 150 Z" fill="url(#rdome)" stroke="#5e1c12" stroke-width="1.5"/>
+<ellipse cx="98" cy="130" rx="20" ry="7" fill="#ffffff" opacity="0.16"/>
+<!-- gun on dome -->
+<g>
+<rect x="104" y="96" width="30" height="15" rx="3" fill="#3a3f44" stroke="#23262a" stroke-width="1"/>
+<path d="M 108 102 L 138 91 L 146 70 L 116 81 Z" fill="#4a5057" stroke="#23262a" stroke-width="1.2"/>
+<ellipse cx="142" cy="82" rx="9" ry="7" fill="#3a3f44" stroke="#23262a" stroke-width="1"/>
+<g stroke="#3a3f44" stroke-width="5" stroke-linecap="round"><line x1="126" y1="78" x2="62" y2="40"/><line x1="122" y1="85" x2="58" y2="47"/><line x1="130" y1="71" x2="66" y2="33"/></g>
+<path d="M 56 48 L 72 32 L 66 27 L 50 43 Z" fill="#4a5057" stroke="#23262a" stroke-width="1"/>
+<path d="M 146 91 C 162 89 164 75 152 71" fill="none" stroke="#6a7079" stroke-width="3.5"/>
+</g>
+<!-- red tower windows -->
+<g><rect x="84" y="200" width="38" height="56" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="88" y="204" width="30" height="48" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.4"><line x1="103" y1="204" x2="103" y2="252"/><line x1="88" y1="228" x2="118" y2="228"/></g></g>
+<g><rect x="84" y="300" width="38" height="56" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="88" y="304" width="30" height="48" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.4"><line x1="103" y1="304" x2="103" y2="352"/><line x1="88" y1="328" x2="118" y2="328"/></g></g>
+<!-- green door + grey porch dome -->
+<g>
+<path d="M 78 470 Q 110 452 142 470 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.2"/>
+<rect x="86" y="476" width="46" height="84" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<rect x="92" y="482" width="34" height="78" fill="#6f9152"/><line x1="109" y1="482" x2="109" y2="560" stroke="#42592f" stroke-width="1.2"/>
+</g>
+<!-- foot -->
+<path d="M 44 560 L 54 542 Q 110 548 160 544 Q 220 548 252 542 L 262 560 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+</svg>

@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 230 600" width="230" height="600">
+<defs>
+<linearGradient id="white" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#aeb1ad"/><stop offset="0.5" stop-color="#dcdcd7"/><stop offset="1" stop-color="#aeb1ad"/></linearGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#828891"/><stop offset="0.5" stop-color="#c9ced3"/><stop offset="1" stop-color="#828891"/></linearGradient>
+<linearGradient id="dome" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#717b8a"/><stop offset="0.5" stop-color="#aab3c0"/><stop offset="1" stop-color="#6a7482"/></linearGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4d2da"/><stop offset="1" stop-color="#7c8b96"/></linearGradient>
+</defs>
+<line x1="0" y1="560" x2="230" y2="560" stroke="#b4b6b3" stroke-width="2"/>
+<!-- white tower -->
+<path d="M 48 560 C 54 502 64 320 68 250 L 70 158 Q 112 151 154 158 L 156 250 C 160 320 170 502 176 560 Z" fill="url(#white)" stroke="#5f625e" stroke-width="1.5"/>
+<line x1="68" y1="370" x2="156" y2="370" stroke="#7d807c" stroke-width="1"/>
+<!-- deck + dome -->
+<rect x="62" y="144" width="100" height="12" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<path d="M 66 146 Q 66 116 112 110 Q 158 116 158 146 Z" fill="url(#dome)" stroke="#444b57" stroke-width="1.5"/>
+<!-- gun -->
+<g>
+<rect x="98" y="92" width="28" height="13" rx="3" fill="#3a3f44" stroke="#23262a" stroke-width="1"/>
+<path d="M 102 98 L 130 88 L 121 68 L 93 78 Z" fill="#4a5057" stroke="#23262a" stroke-width="1.2"/>
+<ellipse cx="98" cy="79" rx="8" ry="6" fill="#3a3f44" stroke="#23262a" stroke-width="1"/>
+<g stroke="#3a3f44" stroke-width="4.6" stroke-linecap="round"><line x1="112" y1="82" x2="172" y2="46"/><line x1="116" y1="89" x2="176" y2="53"/></g>
+<path d="M 168 52 L 184 36 L 178 31 L 162 47 Z" fill="#4a5057" stroke="#23262a" stroke-width="1"/>
+</g>
+<!-- corbel turret right w/ window -->
+<g>
+<path d="M 150 210 L 148 280 C 152 292 184 292 188 280 L 186 210 Z" fill="url(#white)" stroke="#5f625e" stroke-width="1.5"/>
+<path d="M 148 212 Q 168 194 188 212 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.2"/>
+<rect x="156" y="226" width="24" height="44" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.4"/><rect x="160" y="230" width="16" height="36" fill="url(#glass)"/><line x1="160" y1="248" x2="176" y2="248" stroke="#e8e8e2" stroke-width="2"/>
+</g>
+<!-- window -->
+<g><rect x="80" y="200" width="40" height="54" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="84" y="204" width="32" height="46" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="100" y1="204" x2="100" y2="250"/><line x1="84" y1="227" x2="116" y2="227"/></g></g>
+<!-- door -->
+<g><rect x="86" y="486" width="44" height="74" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/><rect x="92" y="492" width="32" height="68" fill="#8a8d88"/><line x1="108" y1="492" x2="108" y2="560" stroke="#5f625e" stroke-width="1.2"/></g>
+<!-- foot -->
+<path d="M 44 560 L 54 542 Q 92 548 112 544 Q 152 548 180 542 L 182 560 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+</svg>

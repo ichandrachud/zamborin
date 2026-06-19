@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 600" width="320" height="600">
+<defs>
+<linearGradient id="red" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#9a2c1c"/><stop offset="0.5" stop-color="#d24a32"/><stop offset="1" stop-color="#9a2c1c"/></linearGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#828891"/><stop offset="0.5" stop-color="#c9ced3"/><stop offset="1" stop-color="#828891"/></linearGradient>
+<linearGradient id="white" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#aeb1ad"/><stop offset="0.5" stop-color="#dcdcd7"/><stop offset="1" stop-color="#aeb1ad"/></linearGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4d2da"/><stop offset="1" stop-color="#7c8b96"/></linearGradient>
+</defs>
+
+<!-- ground line -->
+<line x1="0" y1="560" x2="320" y2="560" stroke="#b4b6b3" stroke-width="2"/>
+
+<!-- flared white base -->
+<path d="M 56 560 C 62 500 76 452 88 432 Q 160 424 232 432 C 244 452 258 500 264 560 Z" fill="url(#white)" stroke="#5f625e" stroke-width="1.5"/>
+<line x1="84" y1="500" x2="236" y2="500" stroke="#7d807c" stroke-width="1"/>
+
+<!-- side pipes (attached: elbow into body near top, run to base) -->
+<path d="M 250 200 L 250 175 Q 250 168 243 168" fill="none" stroke="#6a7079" stroke-width="6"/>
+<path d="M 250 200 L 252 520" fill="none" stroke="url(#steel)" stroke-width="7"/>
+<rect x="247" y="300" width="11" height="6" fill="#5a6066"/><rect x="248" y="410" width="11" height="6" fill="#5a6066"/>
+<path d="M 70 215 L 70 185 Q 70 178 77 178" fill="none" stroke="#6a7079" stroke-width="5"/>
+<path d="M 70 215 L 68 520" fill="none" stroke="url(#steel)" stroke-width="6"/>
+<rect x="62" y="330" width="11" height="6" fill="#5a6066"/>
+
+<!-- red cylinder body -->
+<path d="M 88 150 L 80 405 C 80 420 86 428 96 434 L 224 434 C 234 428 240 420 240 405 L 232 150 Z" fill="url(#red)" stroke="#5e1c12" stroke-width="2"/>
+<!-- floor division lines (architectural) -->
+<line x1="82" y1="245" x2="238" y2="245" stroke="#5e1c12" stroke-width="1.2" opacity="0.5"/>
+<line x1="81" y1="335" x2="239" y2="335" stroke="#5e1c12" stroke-width="1.2" opacity="0.5"/>
+
+<!-- windows: 2x3, 2x2, 2x3 -->
+<g><rect x="170" y="178" width="48" height="62" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="174" y="182" width="40" height="54" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.6"><line x1="194" y1="182" x2="194" y2="236"/><line x1="174" y1="200" x2="214" y2="200"/><line x1="174" y1="218" x2="214" y2="218"/></g></g>
+<g><rect x="98" y="262" width="44" height="50" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="102" y="266" width="36" height="42" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.6"><line x1="120" y1="266" x2="120" y2="308"/><line x1="102" y1="287" x2="138" y2="287"/></g></g>
+<g><rect x="172" y="352" width="48" height="64" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="176" y="356" width="40" height="56" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.6"><line x1="196" y1="356" x2="196" y2="412"/><line x1="176" y1="375" x2="216" y2="375"/><line x1="176" y1="393" x2="216" y2="393"/></g></g>
+<!-- porthole -->
+<circle cx="118" cy="210" r="10" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/><circle cx="118" cy="210" r="4.5" fill="#2b2e31"/>
+
+<!-- eaves flange + brass ring -->
+<path d="M 86 132 L 234 132 L 246 150 L 74 150 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<rect x="82" y="144" width="156" height="6" fill="#b89a62"/>
+
+<!-- stepped steel dome -->
+<path d="M 86 133 Q 86 104 122 96 L 198 96 Q 234 104 234 133 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<ellipse cx="160" cy="98" rx="42" ry="8" fill="url(#steel)" stroke="#5f625e" stroke-width="1.2"/>
+
+<!-- multi-barrel autocannon -->
+<g>
+<rect x="146" y="84" width="30" height="14" rx="3" fill="#3a3f44" stroke="#23262a" stroke-width="1"/>
+<path d="M 150 90 L 180 80 L 188 60 L 158 70 Z" fill="#4a5057" stroke="#23262a" stroke-width="1.2"/>
+<ellipse cx="182" cy="74" rx="9" ry="7" fill="#3a3f44" stroke="#23262a" stroke-width="1"/>
+<g stroke="#3a3f44" stroke-width="5" stroke-linecap="round"><line x1="168" y1="70" x2="104" y2="34"/><line x1="164" y1="77" x2="100" y2="41"/><line x1="172" y1="64" x2="108" y2="28"/></g>
+<path d="M 98 42 L 114 26 L 108 22 L 92 38 Z" fill="#4a5057" stroke="#23262a" stroke-width="1"/>
+<path d="M 184 80 C 200 78 202 64 190 60" fill="none" stroke="#6a7079" stroke-width="3.5"/>
+</g>
+
+<!-- door + base window -->
+<g><rect x="96" y="470" width="48" height="86" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/><rect x="102" y="476" width="36" height="80" fill="#b1402a"/><line x1="102" y1="516" x2="138" y2="516" stroke="#7a1f16" stroke-width="1.2"/><circle cx="133" cy="520" r="2.4" fill="#2b2e31"/></g>
+<g><rect x="176" y="478" width="48" height="40" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="180" y="482" width="40" height="32" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.4"><line x1="193" y1="482" x2="193" y2="514"/><line x1="207" y1="482" x2="207" y2="514"/><line x1="180" y1="498" x2="220" y2="498"/></g></g>
+
+<!-- flared scalloped foot -->
+<path d="M 48 560 L 58 540 Q 92 546 120 542 Q 160 536 200 542 Q 230 547 262 540 L 272 560 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+</svg>

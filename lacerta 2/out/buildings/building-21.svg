@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 250 600" width="250" height="600">
+<defs>
+<linearGradient id="olive" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#6f7560"/><stop offset="0.5" stop-color="#9ca08a"/><stop offset="1" stop-color="#6f7560"/></linearGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#828891"/><stop offset="0.5" stop-color="#c9ced3"/><stop offset="1" stop-color="#828891"/></linearGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4d2da"/><stop offset="1" stop-color="#7c8b96"/></linearGradient>
+</defs>
+<line x1="0" y1="560" x2="250" y2="560" stroke="#b4b6b3" stroke-width="2"/>
+<!-- pipes -->
+<path d="M 182 300 L 182 200 Q 182 194 176 194" fill="none" stroke="#5e6573" stroke-width="6"/><path d="M 182 300 L 184 522" fill="none" stroke="url(#steel)" stroke-width="6"/><rect x="177" y="410" width="11" height="6" fill="#525a66"/>
+<!-- olive tower -->
+<path d="M 52 560 C 58 502 70 320 74 250 L 76 158 Q 124 151 172 158 L 174 250 C 178 320 190 502 196 560 Z" fill="url(#olive)" stroke="#4c5142" stroke-width="1.5"/>
+<line x1="74" y1="380" x2="174" y2="380" stroke="#5c6150" stroke-width="1"/>
+<!-- deck + two guns -->
+<rect x="66" y="148" width="116" height="13" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<ellipse cx="124" cy="150" rx="56" ry="7" fill="url(#steel)" stroke="#5f625e" stroke-width="1.2"/>
+<g>
+<ellipse cx="102" cy="118" rx="9" ry="7" fill="#3a3f44" stroke="#23262a" stroke-width="1"/>
+<g stroke="#3a3f44" stroke-width="4.6" stroke-linecap="round"><line x1="102" y1="118" x2="44" y2="84"/><line x1="106" y1="124" x2="48" y2="90"/></g>
+<path d="M 44 90 L 58 74 L 52 70 L 38 86 Z" fill="#4a5057" stroke="#23262a" stroke-width="1"/>
+<ellipse cx="146" cy="120" rx="9" ry="7" fill="#3a3f44" stroke="#23262a" stroke-width="1"/>
+<g stroke="#3a3f44" stroke-width="4.6" stroke-linecap="round"><line x1="146" y1="120" x2="170" y2="74"/><line x1="151" y1="124" x2="175" y2="78"/></g>
+<path d="M 166 80 L 178 60 L 172 57 L 160 77 Z" fill="#4a5057" stroke="#23262a" stroke-width="1"/>
+</g>
+<!-- big angular bay window (projecting left) -->
+<g>
+<path d="M 38 196 L 36 286 L 50 296 L 92 296 L 92 196 Z" fill="url(#olive)" stroke="#4c5142" stroke-width="1.5"/>
+<rect x="44" y="206" width="40" height="60" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="48" y="210" width="32" height="52" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.4"><line x1="64" y1="210" x2="64" y2="262"/><line x1="48" y1="228" x2="80" y2="228"/><line x1="48" y1="246" x2="80" y2="246"/></g>
+<line x1="36" y1="288" x2="92" y2="288" stroke="#5c6150" stroke-width="2"/>
+</g>
+<!-- salmon panel right -->
+<rect x="150" y="210" width="22" height="70" rx="2" fill="#cf7e6a" stroke="#8a4636" stroke-width="1.4"/>
+<!-- window -->
+<g><rect x="104" y="210" width="38" height="52" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="108" y="214" width="30" height="44" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="123" y1="214" x2="123" y2="258"/><line x1="108" y1="236" x2="138" y2="236"/></g></g>
+<!-- door -->
+<g><rect x="100" y="486" width="46" height="74" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/><rect x="106" y="492" width="34" height="68" fill="#4c5142"/><line x1="123" y1="492" x2="123" y2="560" stroke="#33372c" stroke-width="1.2"/></g>
+<!-- foot -->
+<path d="M 48 560 L 58 542 Q 96 548 124 544 Q 164 548 196 542 L 200 560 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+</svg>

@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 230 600" width="230" height="600">
+<defs>
+<linearGradient id="o" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#b85e16"/><stop offset="0.5" stop-color="#e88f2c"/><stop offset="1" stop-color="#b85e16"/></linearGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#828891"/><stop offset="0.5" stop-color="#c9ced3"/><stop offset="1" stop-color="#828891"/></linearGradient>
+<linearGradient id="dome" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#717b8a"/><stop offset="0.5" stop-color="#aab3c0"/><stop offset="1" stop-color="#6a7482"/></linearGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4d2da"/><stop offset="1" stop-color="#7c8b96"/></linearGradient>
+</defs>
+<line x1="0" y1="560" x2="230" y2="560" stroke="#b4b6b3" stroke-width="2"/>
+<path d="M 164 330 L 162 522" fill="none" stroke="url(#steel)" stroke-width="5"/>
+<path d="M 66 168 L 64 522" fill="none" stroke="url(#steel)" stroke-width="5"/>
+<!-- stout orange tower -->
+<path d="M 46 560 C 52 502 62 360 66 300 L 68 166 Q 116 158 164 166 L 166 300 C 170 360 180 502 186 560 Z" fill="url(#o)" stroke="#6a3a0d" stroke-width="1.5"/>
+<line x1="68" y1="400" x2="164" y2="400" stroke="#8a4d12" stroke-width="1"/>
+<rect x="62" y="152" width="108" height="13" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<path d="M 66 154 Q 66 120 116 112 Q 166 120 166 154 Z" fill="url(#dome)" stroke="#444b57" stroke-width="1.5"/>
+<ellipse cx="96" cy="132" rx="20" ry="7" fill="#ffffff" opacity="0.18"/>
+<!-- bay right -->
+<g>
+<path d="M 148 234 L 146 304 C 150 316 186 316 190 304 L 188 234 Z" fill="url(#o)" stroke="#6a3a0d" stroke-width="1.5"/>
+<path d="M 146 236 Q 168 218 190 236 Z" fill="url(#steel)" stroke="#6a3a0d" stroke-width="1.2"/>
+<rect x="154" y="250" width="28" height="46" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.4"/><rect x="158" y="254" width="20" height="38" fill="url(#glass)"/><line x1="158" y1="273" x2="178" y2="273" stroke="#e8e8e2" stroke-width="2"/></g>
+<g><rect x="84" y="206" width="40" height="56" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="88" y="210" width="32" height="48" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="104" y1="210" x2="104" y2="258"/><line x1="88" y1="234" x2="120" y2="234"/></g></g>
+<g><rect x="84" y="320" width="40" height="56" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="88" y="324" width="32" height="48" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="104" y1="324" x2="104" y2="372"/><line x1="88" y1="348" x2="120" y2="348"/></g></g>
+<g><rect x="92" y="486" width="46" height="74" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/><rect x="98" y="492" width="34" height="68" fill="#b1402a"/><line x1="115" y1="492" x2="115" y2="560" stroke="#7a1f16" stroke-width="1.2"/></g>
+<path d="M 42 560 L 52 542 Q 92 548 116 544 Q 156 548 188 542 L 188 560 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+</svg>

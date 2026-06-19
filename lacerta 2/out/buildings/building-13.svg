@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 600" width="240" height="600">
+<defs>
+<linearGradient id="white" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#aeb1ad"/><stop offset="0.5" stop-color="#dcdcd7"/><stop offset="1" stop-color="#aeb1ad"/></linearGradient>
+<linearGradient id="red" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#a8341f"/><stop offset="0.5" stop-color="#d65a3e"/><stop offset="1" stop-color="#a8341f"/></linearGradient>
+<radialGradient id="rdome" cx="0.36" cy="0.3" r="0.9"><stop offset="0" stop-color="#d65a3e"/><stop offset="1" stop-color="#85291a"/></radialGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#828891"/><stop offset="0.5" stop-color="#c9ced3"/><stop offset="1" stop-color="#828891"/></linearGradient>
+<linearGradient id="slate" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#7e8794"/><stop offset="0.5" stop-color="#aab3bf"/><stop offset="1" stop-color="#7e8794"/></linearGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4d2da"/><stop offset="1" stop-color="#7c8b96"/></linearGradient>
+</defs>
+<line x1="0" y1="560" x2="240" y2="560" stroke="#b4b6b3" stroke-width="2"/>
+<!-- white lower tower -->
+<path d="M 48 560 C 54 502 66 360 70 320 L 72 300 Q 120 294 168 300 L 170 320 C 174 360 186 502 192 560 Z" fill="url(#white)" stroke="#5f625e" stroke-width="1.5"/>
+<line x1="70" y1="430" x2="170" y2="430" stroke="#7d807c" stroke-width="1"/>
+<!-- red upper rounded body -->
+<path d="M 60 168 C 52 200 52 290 64 312 L 176 312 C 188 290 188 200 180 168 Z" fill="url(#red)" stroke="#5e1c12" stroke-width="2"/>
+<!-- red dome + deck -->
+<rect x="64" y="150" width="112" height="12" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+<path d="M 70 152 Q 70 122 120 116 Q 170 122 170 152 Z" fill="url(#rdome)" stroke="#5e1c12" stroke-width="1.5"/>
+<ellipse cx="98" cy="132" rx="18" ry="6" fill="#ffffff" opacity="0.16"/>
+<!-- small rooftop gun + vent -->
+<g>
+<rect x="108" y="100" width="22" height="12" rx="3" fill="#3a3f44" stroke="#23262a" stroke-width="0.8"/>
+<g stroke="#3a3f44" stroke-width="3.6" stroke-linecap="round"><line x1="124" y1="104" x2="160" y2="84"/><line x1="121" y1="110" x2="157" y2="90"/></g>
+<rect x="86" y="96" width="14" height="14" rx="2" fill="url(#steel)" stroke="#23262a" stroke-width="0.8"/>
+</g>
+<!-- grey projecting bay window (left) -->
+<g>
+<rect x="40" y="186" width="54" height="64" rx="3" fill="url(#slate)" stroke="#444b57" stroke-width="1.5"/>
+<rect x="46" y="194" width="42" height="42" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="50" y="198" width="34" height="34" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="67" y1="198" x2="67" y2="232"/><line x1="50" y1="215" x2="84" y2="215"/></g>
+<line x1="40" y1="244" x2="94" y2="244" stroke="#586273" stroke-width="2"/>
+</g>
+<!-- red body window -->
+<g><rect x="124" y="196" width="38" height="50" rx="2" fill="#e8e8e2" stroke="#7e817c" stroke-width="1.5"/><rect x="128" y="200" width="30" height="42" fill="url(#glass)"/><g stroke="#e8e8e2" stroke-width="2.2"><line x1="143" y1="200" x2="143" y2="242"/><line x1="128" y1="221" x2="158" y2="221"/></g></g>
+<!-- door -->
+<g><rect x="96" y="486" width="46" height="74" rx="3" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/><rect x="102" y="492" width="34" height="68" fill="#8a8d88"/><line x1="119" y1="492" x2="119" y2="560" stroke="#5f625e" stroke-width="1.2"/></g>
+<!-- foot -->
+<path d="M 44 560 L 54 542 Q 92 548 122 544 Q 162 548 196 542 L 196 560 Z" fill="url(#steel)" stroke="#5f625e" stroke-width="1.5"/>
+</svg>
