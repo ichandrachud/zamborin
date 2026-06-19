@@ -76,24 +76,20 @@
       img.src = src;
     });
   }
-  const assets = { sky: null, farStars: null, closerStars: null, tsunami: null, phoenix: null, planets: [] };
+  const assets = { sky: null, tsunami: null, phoenix: null, clouds: [] };
   Promise.all([
-    loadImage('./assets/skybackground.svg'),
-    loadImage('./assets/far-stars.svg'),
-    loadImage('./assets/closer-stars.svg'),
+    loadImage('./assets/sky/sky.jpg'),
     loadImage('./assets/tsunami.svg'),
     loadImage('./assets/phoenix.svg'),
-  ]).then(([sky, farStars, closerStars, tsunami, phoenix]) => {
+  ]).then(([sky, tsunami, phoenix]) => {
     assets.sky = sky;
-    assets.farStars = farStars;
-    assets.closerStars = closerStars;
     assets.tsunami = tsunami;
     assets.phoenix = phoenix;
   });
-  // Planet pool — a subset of the 11 available. We don't need all of them in
-  // memory at once; this picks a varied 5 to drift through the background.
-  Promise.all([1, 3, 5, 7, 9].map(id => loadImage(`./assets/planets/planet-${id}.svg`)))
-    .then(imgs => { assets.planets = imgs.filter(Boolean); });
+  // Cloud pool — 6 transparent-background PNGs that drift across the sky at
+  // varied depths. Pulled from /assets/clouds/.
+  Promise.all([1, 3, 4, 5, 6, 12].map(id => loadImage(`./assets/clouds/cloud-${id}.png`)))
+    .then(imgs => { assets.clouds = imgs.filter(Boolean); });
 
   // ---------- PALETTE ----------
   const C = {
@@ -357,48 +353,48 @@
     }
   }
 
-  // ---------- AMBIENT PLANET DRIFT ----------
-  // Mid-distance planets cross the screen between the two star layers. Each
-  // spawns off-screen right, drifts left at its own depth-relative speed,
-  // despawns once it leaves the canvas on the left. Adds life to the
-  // background without any gameplay consequence (collisions land in Phase 4).
-  const planets = [];          // active drifters
-  let nextPlanetAt = 0;
-  function spawnPlanet(now) {
-    if (!assets.planets.length) return;
-    const img = assets.planets[Math.floor(Math.random() * assets.planets.length)];
-    const yMin = 80, yMax = H - 80;
-    planets.push({
+  // ---------- AMBIENT CLOUD DRIFT ----------
+  // Clouds drift slowly across the upper half of the canvas at varied
+  // depth-speeds. Smaller/slower clouds read as far away; larger/faster
+  // ones feel close. Replaces the old planet drift now that we've moved
+  // from deep space to a daytime alien sky.
+  const clouds = [];           // active drifters
+  let nextCloudAt = 0;
+  function spawnCloud(now) {
+    if (!assets.clouds.length) return;
+    const img = assets.clouds[Math.floor(Math.random() * assets.clouds.length)];
+    // Keep clouds in the sky band — never below the terrain horizon and
+    // never crowding the player's flight envelope.
+    const yMin = 30, yMax = Math.max(yMin + 1, TERRAIN_BASE_Y - 60);
+    clouds.push({
       img,
-      x: W + 200,
+      x: W + 300,
       y: yMin + Math.random() * (yMax - yMin),
-      targetH: 70 + Math.random() * 110,            // 70..180 tall (smaller = deeper)
-      depthSpeed: 0.18 + Math.random() * 0.22,      // 0.18..0.40x world rate (slower)
-      alpha: 0.45 + Math.random() * 0.20,           // 0.45..0.65 (atmospheric fade)
+      targetH: 80 + Math.random() * 140,            // 80..220 tall — varied scale
+      depthSpeed: 0.18 + Math.random() * 0.35,      // 0.18..0.53x world rate
+      alpha: 0.55 + Math.random() * 0.35,           // 0.55..0.90 fade
       spawnedWorldX: player.worldX,
     });
   }
-  const MAX_PLANETS = 2;
-  function updatePlanets(now) {
-    // Spawn less often AND cap how many can be on screen at once, so planets
-    // feel like the occasional sighting rather than a parade.
-    if (now >= nextPlanetAt && planets.length < MAX_PLANETS) {
-      spawnPlanet(now);
-      nextPlanetAt = now + (9000 + Math.random() * 7000);  // every 9..16s
+  const MAX_CLOUDS = 4;
+  function updateClouds(now) {
+    if (now >= nextCloudAt && clouds.length < MAX_CLOUDS) {
+      spawnCloud(now);
+      nextCloudAt = now + (3500 + Math.random() * 4500);  // every 3.5..8s
     }
-    for (let i = planets.length - 1; i >= 0; i--) {
-      const p = planets[i];
-      p.x = (W + 200) - (player.worldX - p.spawnedWorldX) * p.depthSpeed;
-      if (p.x < -300) planets.splice(i, 1);
+    for (let i = clouds.length - 1; i >= 0; i--) {
+      const c = clouds[i];
+      c.x = (W + 300) - (player.worldX - c.spawnedWorldX) * c.depthSpeed;
+      if (c.x < -400) clouds.splice(i, 1);
     }
   }
-  function drawPlanets() {
-    for (const p of planets) {
-      const aspect = p.img.width / p.img.height;
-      const w = p.targetH * aspect;
+  function drawClouds() {
+    for (const c of clouds) {
+      const aspect = c.img.width / c.img.height;
+      const w = c.targetH * aspect;
       ctx.save();
-      ctx.globalAlpha = p.alpha;
-      ctx.drawImage(p.img, p.x - w / 2, p.y - p.targetH / 2, w, p.targetH);
+      ctx.globalAlpha = c.alpha;
+      ctx.drawImage(c.img, c.x - w / 2, c.y - c.targetH / 2, w, c.targetH);
       ctx.restore();
     }
   }
@@ -601,9 +597,9 @@
     const targetPitch = Math.max(-1, Math.min(1, player.vy / 8));
     player.pitch += (targetPitch - player.pitch) * 0.12;
 
-    // World scroll + ambient planets.
+    // World scroll + ambient clouds.
     player.worldX += BASE_SPEED * player.throttle * dt;
-    updatePlanets(now);
+    updateClouds(now);
 
     // Fire — heat-managed.
     heat = Math.max(0, heat - HEAT_COOL_PER_MS * dt);
@@ -931,6 +927,23 @@
     ctx.restore();
   }
 
+  // drawSky — paints the JPG sky across the canvas with a very slow horizontal
+  // parallax so the sky drifts subtly as the player flies forward. Stretched
+  // vertically to cover everything down to the canvas bottom (terrain sits
+  // on top of it anyway).
+  function drawSky() {
+    if (!assets.sky) return;
+    const img = assets.sky;
+    const scale = H / img.height;
+    const layerW = img.width * scale;
+    const offset = (player.worldX * PARALLAX.sky) % layerW;
+    let x = -offset;
+    while (x < W) {
+      ctx.drawImage(img, x, 0, layerW, H);
+      x += layerW;
+    }
+  }
+
   function render(now) {
     clearBg();
     // Apply camera shake — small random offset for a few frames after a big
@@ -944,10 +957,8 @@
       ctx.translate(sx, sy);
     }
 
-    drawParallaxLayer(assets.sky,         PARALLAX.sky);
-    drawParallaxLayer(assets.farStars,    PARALLAX.far,   'screen');
-    drawPlanets();
-    drawParallaxLayer(assets.closerStars, PARALLAX.close, 'screen');
+    drawSky();
+    drawClouds();
     drawTerrain();
     drawStations();
     drawExhaustTrail(now);
