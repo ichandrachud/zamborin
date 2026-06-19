@@ -549,12 +549,14 @@
   }
   function endTurn() {
     if (winner) return;
-    const wasDouble = dice[0] != null && dice[0] === dice[1];
-    const rolledSix = dice[0] === 6 || dice[1] === 6;
-    const extraRoll = capturedThisRoll || wasDouble || rolledSix;
-    if (extraRoll) {
-      if (wasDouble) consecutiveDoubles++; else consecutiveDoubles = 0;
+    // House rule: turns rotate one-per-player clockwise. The ONLY way to
+    // earn another roll is a double-six (which also unlocks a base piece).
+    // Captures and other doubles do NOT grant a bonus roll.
+    const doubleSix = dice[0] === 6 && dice[1] === 6;
+    if (doubleSix) {
+      consecutiveDoubles++;
       if (consecutiveDoubles >= 3) {
+        // Three double-sixes in a row forfeits the bonus and passes the turn.
         consecutiveDoubles = 0;
         advancePlayer();
         return;
