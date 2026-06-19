@@ -76,18 +76,22 @@
       img.src = src;
     });
   }
-  const assets = { sky: null, tsunami: null, phoenix: null, clouds: [] };
-  Promise.all([
-    loadImage('./assets/sky/sky.jpg'),
-    loadImage('./assets/tsunami.svg'),
-    loadImage('./assets/phoenix.svg'),
-  ]).then(([sky, tsunami, phoenix]) => {
-    assets.sky = sky;
-    assets.tsunami = tsunami;
-    assets.phoenix = phoenix;
-  });
-  // Cloud pool — 6 transparent-background PNGs that drift across the sky at
-  // varied depths. Pulled from /assets/clouds/.
+  const assets = { sky: null, player: null, enemies: [], houses: [], clouds: [] };
+  // Sky + player + enemy pool.
+  loadImage('./assets/sky/sky.jpg').then(img => { assets.sky = img; });
+  // Player aircraft — plane2 is a sensible default; easy to swap to another.
+  loadImage('./assets/planes/plane2.png').then(img => { assets.player = img; });
+  // Enemy pool — the remaining planes. We'll randomly pick one on each spawn,
+  // and hue-rotate them later for class variety.
+  Promise.all([3, 4, 5, 6, 7, 8, 9].map(n => loadImage(`./assets/planes/plane${n}.png`)))
+    .then(imgs => { assets.enemies = imgs.filter(Boolean); });
+  // House pool — drawn-in-Midjourney scenery. For now treated as gun towers
+  // (active targets); a future categorisation can split into towers + pure
+  // scenery once you tag which is which.
+  Promise.all([1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21].map(n =>
+    loadImage(`./assets/houses/house-${n}.png`)
+  )).then(imgs => { assets.houses = imgs.filter(Boolean); });
+  // Cloud pool — 6 transparent-background PNGs that drift across the sky.
   Promise.all([1, 3, 4, 5, 6, 12].map(id => loadImage(`./assets/clouds/cloud-${id}.png`)))
     .then(imgs => { assets.clouds = imgs.filter(Boolean); });
 
@@ -224,7 +228,11 @@
   let nextStationAt = 0;
   function spawnStation(now) {
     const worldX = player.worldX * PARALLAX.ground + W + 80;
-    stations.push({ worldX, hp: 1, alive: true });
+    // Pick a house PNG from the pool — varies the skyline. Each station
+    // keeps the same image for its whole life so it doesn't morph on scroll.
+    const pool = assets.houses;
+    const img = pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+    stations.push({ worldX, hp: 1, alive: true, img });
   }
   function updateStations(now, dt) {
     if (now >= nextStationAt) {
@@ -243,39 +251,22 @@
   }
   function drawStations() {
     for (const s of stations) {
-      if (!s.alive) continue;
+      if (!s.alive || !s.img) continue;
       const sx = stationScreenX(s);
-      if (sx < -60 || sx > W + 60) continue;
+      if (sx < -200 || sx > W + 200) continue;
       const groundY = terrainHeightAt(s.worldX);
-      // Turret silhouette: 32-wide trapezoid base + dome + cannon angled up.
-      ctx.save();
-      ctx.translate(sx, groundY);
-      // Base
-      ctx.fillStyle = '#3b2440';
-      ctx.beginPath();
-      ctx.moveTo(-18,  0);
-      ctx.lineTo( 18,  0);
-      ctx.lineTo( 14, -18);
-      ctx.lineTo(-14, -18);
-      ctx.closePath();
-      ctx.fill();
-      // Dome
-      ctx.fillStyle = '#5b3a66';
-      ctx.beginPath();
-      ctx.arc(0, -18, 9, Math.PI, 0);
-      ctx.fill();
-      // Cannon
-      ctx.strokeStyle = '#231526';
-      ctx.lineWidth = 3;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(0, -22);
-      ctx.lineTo(8, -34);
-      ctx.stroke();
-      // Indicator light — red while alive.
-      ctx.fillStyle = '#ff3322';
-      ctx.beginPath(); ctx.arc(0, -28, 1.8, 0, Math.PI * 2); ctx.fill();
-      ctx.restore();
+      // Render the house PNG anchored at its bottom-centre, sitting ON the
+      // terrain horizon. Height tuned so most houses span ~200 px tall
+      // (their natural aspect varies; width follows from that).
+      const targetH = 200;
+      const targetW = targetH * (s.img.width / s.img.height);
+      ctx.drawImage(
+        s.img,
+        sx - targetW / 2,
+        groundY - targetH,
+        targetW,
+        targetH
+      );
     }
   }
 
@@ -499,11 +490,15 @@
     });
   }
   function spawnEnemy(now) {
+    // Pool of enemy plane PNGs — each spawn picks one at random so the
+    // sky reads as a varied squadron rather than identical units.
+    const pool = assets.enemies;
+    const img = pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
     enemies.push({
-      kind:  'phoenix',
-      hueShift: 60,                    // +60deg → reddish/orange
+      kind: 'plane',
+      img,
       x: W + 80,
-      y: 90 + Math.random() * (H - 180),
+      y: 90 + Math.random() * (H - 220),
       vx: -1.6 - Math.random() * 0.6,
       vy: (Math.random() - 0.5) * 0.4,
       hp: 3,
@@ -744,17 +739,18 @@
   }
 
   function drawPlayer() {
-    if (!assets.tsunami) return;
-    const img = assets.tsunami;
-    // Render the ship at ~55 tall on the 720 canvas (~7.6% of canvas height).
-    const targetH = 55;
+    if (!assets.player) return;
+    const img = assets.player;
+    // Render the player aircraft at ~75 tall. The new PNG planes have more
+    // visible detail (rivets, panels, propellers) than the old vector ships,
+    // so a slightly larger render reads well without dominating the screen.
+    const targetH = 75;
     const targetW = targetH * (img.width / img.height);
     ctx.save();
     ctx.translate(player.screenX, player.y);
-    // Tsunami's SVG points LEFT in its viewBox. The side-scroller has the
-    // player flying right with enemies entering from the right, so we mirror
-    // her horizontally. The bank-on-pitch rotation has its sign inverted
-    // post-mirror so an ascending input still tips the nose UP.
+    // The Midjourney plane PNGs all point LEFT — mirror horizontally so the
+    // player faces right (toward incoming enemies). Rotation sign flipped
+    // post-mirror so ascending input still tips the nose UP.
     ctx.scale(-1, 1);
     ctx.rotate(-player.pitch * BANK_FACTOR);
     ctx.drawImage(img, -targetW / 2, -targetH / 2, targetW, targetH);
@@ -810,27 +806,22 @@
   }
 
   function drawEnemies() {
-    if (!assets.phoenix || !assets.tsunami) return;
-    const img = assets.phoenix;
-    // Match the PLAYER'S LENGTH — same horizontal extent so the hero and her
-    // adversaries read as the same class of fighter. Phoenix has a different
-    // aspect ratio from Tsunami (more compact silhouette), so matching width
-    // gives enemies a slightly taller height. Same length, distinct shape.
-    const playerW = 55 * (assets.tsunami.width / assets.tsunami.height);
-    const targetW = playerW;
-    const targetH = targetW * (img.height / img.width);
     for (const en of enemies) {
+      if (!en.img) continue;
+      // Render enemies at the same nominal height as the player (75 tall).
+      // Each enemy carries its own PNG (chosen at spawn), so the pool gives
+      // visual variety without per-frame hue-rotate.
+      const targetH = 75;
+      const targetW = targetH * (en.img.width / en.img.height);
       ctx.save();
       ctx.translate(en.x, en.y);
       // Bank into vertical motion.
       ctx.rotate(Math.max(-0.4, Math.min(0.4, en.vy * 0.4)));
-      ctx.filter = `hue-rotate(${en.hueShift}deg) saturate(1.05)`;
-      // Phoenix.svg points LEFT (same convention as Tsunami); enemies face LEFT
-      // toward the player, so no horizontal flip needed.
-      ctx.drawImage(img, -targetW / 2, -targetH / 2, targetW, targetH);
+      // PNG planes point LEFT in their source — enemies face LEFT toward the
+      // player, so no horizontal flip needed (player is the one mirrored).
+      ctx.drawImage(en.img, -targetW / 2, -targetH / 2, targetW, targetH);
       ctx.restore();
     }
-    ctx.filter = 'none';
   }
 
   function drawParticles() {
