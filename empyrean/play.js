@@ -1872,15 +1872,24 @@
     const keyFont  = '800 22px Inter, sans-serif';
     const textFont = '600 19px Inter, sans-serif';
 
-    // Centre the WHOLE unit vertically in the sky band (top of canvas to
-    // apartment roof-line). The unit is three rows tall: ↑ row, mid row,
-    // ↓ row. Mid-row y = sky centre.
+    // Centre the WHOLE unit (↑ row → press-space prompt) on the vertical
+    // midpoint of the sky band — the centre of empty blue between the
+    // canvas top and the apartment roof-line.
     const SKY_TOP    = 20;
-    const SKY_BOTTOM = STREET_TOP_Y - APARTMENT_RENDER_H - 20;   // just above roofs
-    const midY      = (SKY_TOP + SKY_BOTTOM) / 2;
-    const arrowRowGap = 60;                  // distance between ↑/↓ and the mid row
-    const upY       = midY - arrowRowGap;
-    const downY     = midY + arrowRowGap;
+    const SKY_BOTTOM = STREET_TOP_Y - APARTMENT_RENDER_H - 20;
+    const skyCenterY = (SKY_TOP + SKY_BOTTOM) / 2;
+    const arrowRowGap = 60;                       // ↑/↓ to mid-row distance
+    const actionRowGap = 64;                      // mid-row → action row
+    const startPromptGap = 130;                   // mid-row → press-space prompt
+    // Composition spans from (↑ top edge) to (press-space text baseline):
+    //   topY    = midY − arrowRowGap − KEY_H/2
+    //   bottomY = midY + startPromptGap + text height/2 (≈ 12)
+    // Centring the midpoint of [topY, bottomY] on skyCenterY:
+    const compTopOffset    = arrowRowGap + KEY_H / 2;
+    const compBottomOffset = startPromptGap + 12;
+    const midY  = skyCenterY - (compBottomOffset - compTopOffset) / 2;
+    const upY   = midY - arrowRowGap;
+    const downY = midY + arrowRowGap;
 
     // Helper: lay out a row of segments (mix of keys, text labels, gaps)
     // CENTRED horizontally on the canvas. Returns useful X anchors for
@@ -1908,23 +1917,23 @@
       return anchors;
     }
 
-    // Row 1 — movement: label + ← + → laid out as ONE centred row, per the
-    // reference. ↑ and ↓ then stack above / below the midpoint of ← and →,
-    // forming a proper 3 × 3 d-pad cross with the centre cell empty.
-    // The gap between ← and → must be ≥ the arrow-key width so ↑ / ↓ can
-    // sit at the midpoint between them without overlapping. KEY_H = 48 →
-    // arrow caps are 48 wide → gap needs at least 56 px (48 + 8 breathing).
-    const moveAnchors = layoutCenteredRow([
-      { kind: 'text', value: 'Use keys to move' },
-      { kind: 'gap',  value: 22 },
-      { kind: 'key',  value: '←' },
-      { kind: 'gap',  value: 60 },
-      { kind: 'key',  value: '→' },
-    ], midY);
-    const dpadCenterX = (moveAnchors['←'] + moveAnchors['→']) / 2;
+    // Row 1 — movement: anchor the d-pad cross at the canvas centre cx so
+    // the 3 × 3 grid reads as visually centred. The 'Use keys to move'
+    // label hangs off the left of ←. Gap between ← and → must be ≥ the
+    // arrow-key width so ↑ / ↓ fit between them without overlapping.
     const arrowW = measureKey('↑', keyFont);
-    drawKey('↑', dpadCenterX - arrowW / 2, upY,   keyFont);
-    drawKey('↓', dpadCenterX - arrowW / 2, downY, keyFont);
+    const ARROW_GAP = Math.max(arrowW + 12, 60);
+    const leftX   = Math.round(cx - ARROW_GAP / 2 - arrowW);
+    const rightX  = Math.round(cx + ARROW_GAP / 2);
+    drawKey('←', leftX,  midY, keyFont);
+    drawKey('→', rightX, midY, keyFont);
+    drawKey('↑', cx - arrowW / 2, upY,   keyFont);
+    drawKey('↓', cx - arrowW / 2, downY, keyFont);
+    // Label sits to the left of ← with a 22 px gap.
+    ctx.font = textFont;
+    const labelText = 'Use keys to move';
+    const labelW = ctx.measureText(labelText).width;
+    drawText(labelText, leftX - 22 - labelW, midY + 1, textFont, LABEL_COLOR);
 
     // Row 2 — actions: Space / B / M each followed by their label, centred.
     layoutCenteredRow([
