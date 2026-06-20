@@ -75,6 +75,8 @@
     apartments: [], clouds: [],
     tankBodies: [], tankTurrets: [],   // index-aligned: tankBodies[i] pairs with tankTurrets[i]
     trucks: [],
+    militaryBodies: [], militaryBodiesBurnt: [],   // index-aligned: alive/burnt pairs
+    militaryTurret: null, militaryTurretBurnt: null,
   };
   loadImage('./assets/sky/sky.jpg').then(img => { assets.sky = img; });
   loadImage('./assets/street/street2.jpg').then(img => { assets.street = img; });
@@ -102,6 +104,29 @@
   // Trucks (3 variants) — ground targets that drive but don't shoot.
   Promise.all([1, 3, 5].map(n => loadImage(`./assets/trucks/truck${n}.png`)))
     .then(imgs => { assets.trucks = imgs.filter(Boolean); buildStageIfReady(); });
+  // Military buildings — five variants of fortified houses, each with an
+  // alive / burnt pair. A shared turret model sits on top and tracks the
+  // hero. Bomb or sustained gunfire knocks the building over: alive→burnt,
+  // and from then on it emits smoke + embers.
+  const MILITARY_IDS = [8, 13, 18, 20, 24];
+  Promise.all(MILITARY_IDS.flatMap(n => [
+    loadImage(`./assets/military/house-${n}.png`),
+    loadImage(`./assets/military/house-${n}-burnt.png`),
+  ])).then(imgs => {
+    for (let i = 0; i < MILITARY_IDS.length; i++) {
+      const a = imgs[i * 2], b = imgs[i * 2 + 1];
+      if (a && b) { assets.militaryBodies.push(a); assets.militaryBodiesBurnt.push(b); }
+    }
+    buildStageIfReady();
+  });
+  Promise.all([
+    loadImage('./assets/military/apartment-turret.png'),
+    loadImage('./assets/military/apartment-turret-burnt.png'),
+  ]).then(([a, b]) => {
+    assets.militaryTurret = a;
+    assets.militaryTurretBurnt = b;
+    buildStageIfReady();
+  });
 
   // ---------- PALETTE ----------
   const C = { bg: '#020611', text: '#FFFFFF', accent: '#D8523F' };
@@ -120,6 +145,10 @@
   const TANK_BODY_H     = 60;        // ~8 % of canvas — matches reference vehicle scale
   const TANK_TURRET_H   = 20;
   const TRUCK_H         = 54;        // ~7.5 % of canvas
+  // Military buildings render at the same height as regular apartments so
+  // they blend into the skyline silhouette, with a turret stack on top.
+  const MILITARY_BODY_H   = 150;
+  const MILITARY_TURRET_H = 64;
   const STAGE_TOP_Y     = -3 * H;        // ceiling sits 3 screens above the canvas
   const STAGE_BOTTOM_Y  = H;             // bottom of the visible canvas
 
@@ -194,11 +223,21 @@
   const enemies    = [];   // { x, y, heading, throttle, hp, alive, img, fireAt, awake }
   const tanks      = [];   // { x, w, h, turretAngle, fireAt, hp, alive, spec, bodyImg, turretImg }
   const trucks     = [];   // { x, w, h, vx, hp, alive, img }
+  const militaryBuildings = []; // { x, w, h, alive, hp, bodyImg, burntImg, turretAngle, fireAt, lastSmokeAt }
+  // The apartment-turret source PNG points UP by default. Pivot at the
+  // BREECH (bottom of source) and add π/2 to the aim angle so atan2 = 0
+  // (right) rotates the upright turret 90° CW.
+  const MILITARY_TURRET_SPEC = {
+    bodyPivotFracX: 0.50, bodyPivotFracY: 0.06,    // turret sits centred on top of the building
+    turretPivotFracX: 0.50, turretPivotFracY: 0.94, // breech end of the turret source
+    barrelAngleOffset: Math.PI / 2,                 // source muzzle points up
+  };
   let stageBuilt = false;
   function buildStageIfReady() {
     if (stageBuilt) return;
     if (!assets.apartments.length || !assets.enemies.length) return;
     if (!assets.tankBodies.length || !assets.trucks.length) return;
+    if (!assets.militaryBodies.length || !assets.militaryTurret) return;
     stageBuilt = true;
 
     // --- Apartments (background scenery) — packed edge-to-edge across the
@@ -310,6 +349,31 @@
         hp: 2,
         alive: true,
         turnPhase: 0,            // 1 → 0 over ~0.6 s after a direction change
+      });
+    }
+
+    // --- Military buildings — 5 fortified houses spread across the stage,
+    // each with a turret on top that tracks the hero. Built strong: bombs
+    // kill instantly, hero bullets chip 1 hp each (hp = 6 → ~6 hits or one
+    // bomb). When killed, body + turret swap to burnt sprites and the
+    // building emits smoke + embers for the rest of the stage.
+    const N_MILITARY = 5;
+    const pickMilBody = deckPicker(assets.militaryBodies.map((_, i) => i));
+    for (let i = 0; i < N_MILITARY; i++) {
+      const variant = pickMilBody();
+      const bodyImg = assets.militaryBodies[variant];
+      const burntImg = assets.militaryBodiesBurnt[variant];
+      const h = MILITARY_BODY_H;
+      const w = h * (bodyImg.width / bodyImg.height);
+      const x = 700 + (i + 0.5) * (STAGE_W - 1100) / N_MILITARY + (Math.random() - 0.5) * 280;
+      militaryBuildings.push({
+        x, w, h,
+        bodyImg, burntImg,
+        alive: true,
+        hp: 6,
+        turretAngle: -Math.PI / 2,    // start aimed straight up (default source orientation)
+        fireAt: 0,
+        lastSmokeAt: 0,
       });
     }
   }
@@ -570,6 +634,7 @@
     for (const e of enemies) if (e.alive) n++;
     for (const t of tanks)   if (t.alive) n++;
     for (const k of trucks)  if (k.alive) n++;
+    for (const mb of militaryBuildings) if (mb.alive) n++;
     return n;
   }
 
@@ -645,6 +710,18 @@
           if (b.x >= k.x - k.w / 2 && b.x <= k.x + k.w / 2 && b.y >= top) {
             k.alive = false;
             spawnExplosion(b.x, top + k.h * 0.4, true);
+            hit = true; break;
+          }
+        }
+      }
+      // Military building hit? Bombs are the intended counter — instant kill.
+      if (!hit) {
+        for (const mb of militaryBuildings) {
+          if (!mb.alive) continue;
+          const top = STREET_TOP_Y - mb.h;
+          if (b.x >= mb.x - mb.w / 2 && b.x <= mb.x + mb.w / 2 && b.y >= top) {
+            mb.alive = false;
+            spawnExplosion(b.x, top + mb.h * 0.3, true);
             hit = true; break;
           }
         }
@@ -758,6 +835,64 @@
       }
     }
 
+    // ----- Military buildings (alive: track + fire ; burnt: emit smoke + embers) -----
+    const MIL_TURRET_TURN_RATE = 1.1;       // rad / sec — slower than tanks (taller mount)
+    const MIL_FIRE_RANGE_X = 1.3 * W;
+    const MIL_ALIGN_RAD = 0.10;
+    for (const mb of militaryBuildings) {
+      const pivotX = mb.x;                                                // turret centred on building
+      const pivotY = STREET_TOP_Y - mb.h + MILITARY_TURRET_SPEC.bodyPivotFracY * mb.h;
+      if (mb.alive) {
+        const desired = Math.atan2(player.y - pivotY, player.x - pivotX);
+        const diff = normalizeAngle(desired - mb.turretAngle);
+        const maxTurn = MIL_TURRET_TURN_RATE * (dt / 1000);
+        mb.turretAngle += Math.max(-maxTurn, Math.min(maxTurn, diff));
+        if (Math.abs(diff) < MIL_ALIGN_RAD &&
+            Math.abs(player.x - pivotX) < MIL_FIRE_RANGE_X &&
+            now >= mb.fireAt) {
+          const barrelLen = MILITARY_TURRET_H * 0.65;
+          const mx = pivotX + Math.cos(mb.turretAngle) * barrelLen;
+          const my = pivotY + Math.sin(mb.turretAngle) * barrelLen;
+          bullets.push({
+            x: mx, y: my,
+            vx: Math.cos(mb.turretAngle) * BULLET_SPEED * 0.85,
+            vy: Math.sin(mb.turretAngle) * BULLET_SPEED * 0.85,
+            owner: 'enemy',
+            life: BULLET_LIFE_MS,
+          });
+          mb.fireAt = now + 1700 + Math.random() * 1100;
+        }
+      } else {
+        // Burnt — continuous smoke from the roof + occasional bright embers.
+        if (now - mb.lastSmokeAt > 140) {
+          mb.lastSmokeAt = now;
+          const px = mb.x + (Math.random() - 0.5) * mb.w * 0.5;
+          const py = STREET_TOP_Y - mb.h + 6 + Math.random() * 10;
+          particles.push({
+            kind: 'smoke', x: px, y: py,
+            vx: (Math.random() - 0.5) * 0.35,
+            vy: -0.35 - Math.random() * 0.35,
+            life0: 1800 + Math.random() * 800,
+            life:  1800 + Math.random() * 800,
+            r0: 6 + Math.random() * 7,
+            color: 'rgba(50, 45, 42, 0.55)',
+          });
+          // Roughly 1-in-3 puffs also spawns a bright ember spark.
+          if (Math.random() < 0.35) {
+            particles.push({
+              kind: 'spark', x: px, y: py,
+              vx: (Math.random() - 0.5) * 0.8,
+              vy: -0.5 - Math.random() * 0.6,
+              life0: 600 + Math.random() * 400,
+              life:  600 + Math.random() * 400,
+              r0: 1.2 + Math.random() * 1.6,
+              color: Math.random() < 0.5 ? '#FFB347' : '#FF6B2C',
+            });
+          }
+        }
+      }
+    }
+
     // ----- Trucks (drive along the street, no shooting) -----
     // Every truck also rolls a random "U-turn" chance, so the player sees
     // direction changes in the middle of the road rather than only at the
@@ -854,6 +989,26 @@
           k.hp -= 1;
           if (k.hp <= 0) { k.alive = false; spawnExplosion(b.x, top + k.h * 0.4, true); }
           else           { spawnExplosion(b.x, b.y, false); }
+          consumed = true;
+          break;
+        }
+      }
+      if (consumed) { bullets.splice(i, 1); continue; }
+
+      // Military buildings — only the ALIVE ones take damage. Burnt ones
+      // are just smouldering scenery; bullets pass through them.
+      for (let j = militaryBuildings.length - 1; j >= 0; j--) {
+        const mb = militaryBuildings[j];
+        if (!mb.alive) continue;
+        const top = STREET_TOP_Y - mb.h;
+        if (b.x >= mb.x - mb.w / 2 && b.x <= mb.x + mb.w / 2 && b.y >= top && b.y <= STREET_TOP_Y) {
+          mb.hp -= 1;
+          if (mb.hp <= 0) {
+            mb.alive = false;
+            spawnExplosion(b.x, top + mb.h * 0.3, true);
+          } else {
+            spawnExplosion(b.x, b.y, false);
+          }
           consumed = true;
           break;
         }
@@ -994,6 +1149,45 @@
       const top = worldToScreenY(STREET_TOP_Y - a.h);
       if (top > H + 10) continue;
       ctx.drawImage(a.img, sx - a.w / 2, top, a.w, a.h);
+    }
+  }
+
+  // Military buildings render in two passes like tanks: turret (behind) +
+  // body (in front), so only the barrel sticks above the building. When
+  // burnt, swap to the burnt body sprite and skip the turret entirely
+  // (smoke + embers come from the update loop's particle emission).
+  function drawMilitaryTurrets() {
+    if (!assets.militaryTurret) return;
+    for (const mb of militaryBuildings) {
+      if (!mb.alive) continue;
+      const sx = worldToScreenX(mb.x);
+      if (sx + mb.w / 2 < -40 || sx - mb.w / 2 > W + 40) continue;
+      const bodyTop = worldToScreenY(STREET_TOP_Y - mb.h);
+      if (bodyTop > H + 40) continue;
+      const spec = MILITARY_TURRET_SPEC;
+      const pivotSX = sx + (spec.bodyPivotFracX - 0.5) * mb.w;
+      const pivotSY = bodyTop + spec.bodyPivotFracY * mb.h;
+      const img = assets.militaryTurret;
+      const trH = MILITARY_TURRET_H;
+      const trW = trH * (img.width / img.height);
+      ctx.save();
+      ctx.translate(pivotSX, pivotSY);
+      ctx.rotate(mb.turretAngle + spec.barrelAngleOffset);
+      const offX = -spec.turretPivotFracX * trW;
+      const offY = -spec.turretPivotFracY * trH;
+      ctx.drawImage(img, offX, offY, trW, trH);
+      ctx.restore();
+    }
+  }
+  function drawMilitaryBodies() {
+    for (const mb of militaryBuildings) {
+      const sx = worldToScreenX(mb.x);
+      if (sx + mb.w / 2 < -40 || sx - mb.w / 2 > W + 40) continue;
+      const top = worldToScreenY(STREET_TOP_Y - mb.h);
+      if (top > H + 40) continue;
+      const img = mb.alive ? mb.bodyImg : mb.burntImg;
+      if (!img) continue;
+      ctx.drawImage(img, sx - mb.w / 2, top, mb.w, mb.h);
     }
   }
 
@@ -1365,6 +1559,8 @@
     drawClouds();
     drawStreet();
     drawApartments();
+    drawMilitaryTurrets();  // military turret behind the building silhouette
+    drawMilitaryBodies();   // military building (alive or burnt) on top
     drawTankTurrets();      // turret barrel renders behind the body
     drawTrucks();
     drawTankBodies();       // body silhouette covers the turret breech
