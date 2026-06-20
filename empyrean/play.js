@@ -1199,7 +1199,13 @@
       b.x += b.vx * dt;
       b.y += b.vy * dt;
       b.life -= dt;
-      if (b.life <= 0 || b.x < -50 || b.x > STAGE_W + 50 || b.y < -50 || b.y > H + 50) {
+      // Despawn against the full STAGE bounds, not the canvas. The stage
+      // extends up to STAGE_TOP_Y = −2160 (3 screens above the canvas),
+      // so the old `b.y < -50` check was killing any bullet fired above
+      // the apartment line — i.e. almost every bullet the hero ever fires.
+      if (b.life <= 0
+          || b.x < -50 || b.x > STAGE_W + 50
+          || b.y < STAGE_TOP_Y - 50 || b.y > STAGE_BOTTOM_Y + 50) {
         bullets.splice(i, 1);
       }
     }
