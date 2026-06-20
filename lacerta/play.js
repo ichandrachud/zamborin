@@ -157,7 +157,7 @@
   // its heading direction. Arrow keys rotate / adjust throttle.
   const player = {
     x: 220,
-    y: H * 0.45,
+    y: H * 0.52,            // mid-height — keeps cameraY at 0 so the full road shows on spawn
     heading: 0,                 // facing right
     throttle: 0.65,
     hp: 100,
@@ -216,12 +216,29 @@
       cursor += w;
     }
 
+    // Shuffled-deck picker: returns a variant from `pool`, cycling through
+    // every entry before repeating, so spawns spread evenly across the
+    // available art instead of clustering on one or two random favourites.
+    function deckPicker(pool) {
+      let deck = [];
+      return () => {
+        if (deck.length === 0) {
+          deck = pool.slice();
+          for (let k = deck.length - 1; k > 0; k--) {
+            const j = Math.floor(Math.random() * (k + 1));
+            [deck[k], deck[j]] = [deck[j], deck[k]];
+          }
+        }
+        return deck.pop();
+      };
+    }
+
     // --- Enemy roster — 8 planes spread across the stage in BOTH axes so
     // the hero meets them at varied altitudes instead of always head-on.
     const N_ENEMIES = 8;
+    const pickEnemyImg = deckPicker(assets.enemies);
     for (let i = 0; i < N_ENEMIES; i++) {
-      const pool = assets.enemies;
-      const img = pool[Math.floor(Math.random() * pool.length)];
+      const img = pickEnemyImg();
       const startX = 1200 + (i + 0.5) * (STAGE_W - 1400) / N_ENEMIES;
       // Bias toward the upper sky so the hero (which spawns mid-height) has
       // to climb to engage — gives the player time to settle into the
@@ -246,8 +263,11 @@
 
     // --- Ground tanks — 4 stationary turrets spread across the stage.
     const N_TANKS = 4;
+    // Deck of variant indices, shuffled, so every spawn cycles through all
+    // available tank types before any repeat.
+    const tankVariantPicker = deckPicker(assets.tankBodies.map((_, idx) => idx));
     for (let i = 0; i < N_TANKS; i++) {
-      const variant = i % assets.tankBodies.length;
+      const variant = tankVariantPicker();
       const bodyImg = assets.tankBodies[variant];
       const turretImg = assets.tankTurrets[variant];
       const spec = TANK_SPECS[variant] || TANK_SPECS[0];
@@ -266,8 +286,9 @@
 
     // --- Trucks — 5 driving ground targets that don't shoot.
     const N_TRUCKS = 5;
+    const pickTruckImg = deckPicker(assets.trucks);
     for (let i = 0; i < N_TRUCKS; i++) {
-      const img = assets.trucks[Math.floor(Math.random() * assets.trucks.length)];
+      const img = pickTruckImg();
       const h = TRUCK_H;
       const w = h * (img.width / img.height);
       const x = 1100 + (i + 0.5) * (STAGE_W - 1500) / N_TRUCKS + (Math.random() - 0.5) * 240;
@@ -277,6 +298,7 @@
         vx: (Math.random() < 0.5 ? -1 : 1) * (0.04 + Math.random() * 0.04),  // px / ms
         hp: 2,
         alive: true,
+        turnPhase: 0,            // 1 → 0 over ~0.6 s after a direction change
       });
     }
   }
@@ -382,8 +404,8 @@
     if (!assets.clouds.length) return;
     const img = assets.clouds[Math.floor(Math.random() * assets.clouds.length)];
     const depth = Math.random();                                   // 0 = near, 1 = far
-    const targetH  = 130 - depth * 95;                              // 130 near → 35 far
-    const alpha    = 0.80 - depth * 0.55;                           // 0.80 near → 0.25 far
+    const targetH  = 150 - depth * 80;                              // 150 near → 70 far (larger overall)
+    const alpha    = 0.92 - depth * 0.30;                           // 0.92 near → 0.62 far (always clearly visible)
     // Parallax: near clouds get a SLIGHT shift with camera (0.18), far ones
     // are practically screen-locked (0.02). Far clouds = "infinitely distant".
     const parallax = 0.18 * (1 - depth) + 0.02;
@@ -583,11 +605,40 @@
     }
 
     // ----- Trucks (drive along the street, no shooting) -----
+    // Every truck also rolls a random "U-turn" chance, so the player sees
+    // direction changes in the middle of the road rather than only at the
+    // stage edges. Each direction change kicks off a brief dust-puff and
+    // a body-tilt effect (turnPhase animates from 1 → 0).
     for (const k of trucks) {
       if (!k.alive) continue;
       k.x += k.vx * dt;
-      if (k.x < 50)            { k.x = 50;            k.vx = Math.abs(k.vx); }
-      if (k.x > STAGE_W - 50)  { k.x = STAGE_W - 50;  k.vx = -Math.abs(k.vx); }
+      if (k.turnPhase > 0) k.turnPhase = Math.max(0, k.turnPhase - dt / 600);
+      // Random U-turn — average once every ~6 s while driving.
+      if (k.nextTurnAt === undefined) k.nextTurnAt = now + 4000 + Math.random() * 4000;
+      let turned = false;
+      if (now >= k.nextTurnAt && k.turnPhase <= 0) {
+        k.vx = -k.vx;
+        k.nextTurnAt = now + 4500 + Math.random() * 4500;
+        turned = true;
+      }
+      if (k.x < 50)            { k.x = 50;            k.vx = Math.abs(k.vx);  turned = true; }
+      if (k.x > STAGE_W - 50)  { k.x = STAGE_W - 50;  k.vx = -Math.abs(k.vx); turned = true; }
+      if (turned) {
+        k.turnPhase = 1;
+        // Dust puffs at the wheels.
+        for (let p = 0; p < 6; p++) {
+          const off = (Math.random() - 0.5) * k.w * 0.7;
+          particles.push({
+            kind: 'smoke',
+            x: k.x + off, y: ROAD_BOTTOM_Y - 6,
+            vx: (Math.random() - 0.5) * 0.6 - k.vx * 6,
+            vy: -0.2 - Math.random() * 0.4,
+            life0: 700, life: 700,
+            r0: 4 + Math.random() * 4,
+            color: 'rgba(140, 130, 120, 0.55)',
+          });
+        }
+      }
     }
 
     // ----- Bullets -----
@@ -764,6 +815,20 @@
     }
   }
 
+  // Soft elliptical shadow under a ground vehicle — sits on the road surface
+  // and shrinks slightly during a turn (the body lifts ever so slightly).
+  function drawGroundShadow(centerX, w, scale = 1) {
+    const shadowY = worldToScreenY(ROAD_BOTTOM_Y) - 2;
+    if (shadowY < -20 || shadowY > H + 20) return;
+    ctx.save();
+    ctx.globalAlpha = 0.40;
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.ellipse(centerX, shadowY, (w / 2) * 0.95 * scale, 6 * scale, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
   function drawTrucks() {
     for (const k of trucks) {
       if (!k.alive || !k.img) continue;
@@ -774,15 +839,19 @@
       const bottom = worldToScreenY(ROAD_BOTTOM_Y);
       const top = bottom - k.h;
       if (top > H + 10) continue;
+      // Shadow first — wider than the body, slightly soft.
+      drawGroundShadow(sx, k.w, 1 - k.turnPhase * 0.10);
+      // Turning effect — tilt the body forward into the new direction and
+      // lift the rear wheel slightly. turnPhase goes 1 → 0 over ~0.6 s.
+      const tiltSign = (k.vx > 0 ? 1 : -1);
+      const tilt = k.turnPhase * 0.12 * tiltSign;
+      const lift = k.turnPhase * 4;
       ctx.save();
+      ctx.translate(sx, top + k.h / 2 - lift);
+      ctx.rotate(tilt);
       // Source PNGs face LEFT; mirror when driving right so the cab leads.
-      if (k.vx > 0) {
-        ctx.translate(sx, top + k.h / 2);
-        ctx.scale(-1, 1);
-        ctx.drawImage(k.img, -k.w / 2, -k.h / 2, k.w, k.h);
-      } else {
-        ctx.drawImage(k.img, sx - k.w / 2, top, k.w, k.h);
-      }
+      if (k.vx > 0) ctx.scale(-1, 1);
+      ctx.drawImage(k.img, -k.w / 2, -k.h / 2, k.w, k.h);
       ctx.restore();
     }
   }
@@ -824,6 +893,7 @@
       const { sx, top } = tankBodyRect(t);
       if (sx + t.w / 2 < -40 || sx - t.w / 2 > W + 40) continue;
       if (top > H + 40) continue;
+      drawGroundShadow(sx, t.w);
       ctx.drawImage(t.bodyImg, sx - t.w / 2, top, t.w, t.h);
     }
   }
