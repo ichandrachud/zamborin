@@ -76,21 +76,28 @@
       img.src = src;
     });
   }
-  const assets = { sky: null, player: null, enemies: [], houses: [], clouds: [] };
-  // Sky + player + enemy pool.
+  const assets = {
+    sky: null, street: null,
+    player: null, enemies: [],
+    apartments: [], clouds: [],
+  };
+  // Sky band stretched across the canvas.
   loadImage('./assets/sky/sky.jpg').then(img => { assets.sky = img; });
-  // Player aircraft — plane2 is a sensible default; easy to swap to another.
-  loadImage('./assets/planes/plane2.png').then(img => { assets.player = img; });
-  // Enemy pool — the remaining planes. We'll randomly pick one on each spawn,
-  // and hue-rotate them later for class variety.
-  Promise.all([3, 4, 5, 6, 7, 8, 9].map(n => loadImage(`./assets/planes/plane${n}.png`)))
-    .then(imgs => { assets.enemies = imgs.filter(Boolean); });
-  // House pool — drawn-in-Midjourney scenery. For now treated as gun towers
-  // (active targets); a future categorisation can split into towers + pure
-  // scenery once you tag which is which.
-  Promise.all([1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21].map(n =>
-    loadImage(`./assets/houses/house-${n}.png`)
-  )).then(imgs => { assets.houses = imgs.filter(Boolean); });
+  // Street strip — pinned to the bottom of the canvas, scrolls with the world
+  // at the ground parallax rate.
+  loadImage('./assets/street/street.png').then(img => { assets.street = img; });
+  // Hero aircraft — HeroAircraft1 is the default. New PNG art points RIGHT
+  // by default (left = rear / right = front), so the player needs no flip.
+  loadImage('./assets/planes-v2/HeroAircraft1.png').then(img => { assets.player = img; });
+  // Enemy pool — same new pack, faces RIGHT in source. We mirror at draw
+  // time so they fly LEFT toward the player from the right edge.
+  Promise.all([1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(n =>
+    loadImage(`./assets/planes-v2/enemy-aircraft${n}.png`)
+  )).then(imgs => { assets.enemies = imgs.filter(Boolean); });
+  // Apartment pool — flat-bottomed buildings that slide along the street.
+  Promise.all([1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23].map(n =>
+    loadImage(`./assets/apartments/apartment${n}.png`)
+  )).then(imgs => { assets.apartments = imgs.filter(Boolean); });
   // Cloud pool — 6 transparent-background PNGs that drift across the sky.
   Promise.all([1, 3, 4, 5, 6, 12].map(id => loadImage(`./assets/clouds/cloud-${id}.png`)))
     .then(imgs => { assets.clouds = imgs.filter(Boolean); });
@@ -128,106 +135,81 @@
   // Parallax speed multipliers — sky barely moves, far-stars slow, close-stars fast.
   const PARALLAX = { sky: 0.04, far: 0.18, close: 0.55, ground: 0.85 };
 
-  // ---------- TERRAIN + GROUND STATIONS ----------
-  // Flat slate/cream surface in the same palette as the building art —
-  // procedurally drawn, no asset. Has a soft vertical gradient (warmer cream
-  // at the top edge → cooler slate at the bottom), a thin definition line
-  // at the horizon, and tile-based procedural specks that scroll with the
-  // world to break up the otherwise-flat plane.
-  // Ground is now hidden — houses line the bottom of the canvas as a
-  // continuous skyline, each with 5 % of its height extending below the
-  // canvas edge so they read as continuing off-screen.
-  const TERRAIN_BASE_Y = H;            // bombs treat the canvas bottom as ground
-  const HOUSE_UNDERLAP = 0.05;         // fraction of house height that sits below the canvas
-  const HOUSE_RENDER_H = 220;
+  // ---------- STREET + APARTMENTS ----------
+  // Bottom strip is now an asset-based street pinned to the canvas bottom.
+  // Apartments slide along the top edge of the street — their flat bottoms
+  // sit flush on the kerb, so as the world scrolls they read as buildings
+  // gliding past on a fixed road.
+  const STREET_H        = 72;          // street strip height in logical px
+  const STREET_TOP_Y    = H - STREET_H;
+  const TERRAIN_BASE_Y  = STREET_TOP_Y; // bombs treat the street top as ground
+  const APARTMENT_RENDER_H = 240;
 
-  // Per-tile detail pattern. One tile is 800 logical px wide; we generate a
-  // fixed deterministic set of specks within it, then repeat tiles across
-  // the canvas as the world scrolls. Same texture every time the player
-  // revisits a stretch — looks consistent.
-  const DETAIL_TILE_W = 800;
-  const detailTile = [];
-  (function buildDetailTile() {
-    // Cheap LCG so the pattern is deterministic between sessions.
-    let seed = 0xC0FFEE;
-    const rnd = () => {
-      seed = (seed * 1664525 + 1013904223) >>> 0;
-      return seed / 0xFFFFFFFF;
-    };
-    for (let i = 0; i < 70; i++) {
-      detailTile.push({
-        x: rnd() * DETAIL_TILE_W,
-        yOff: 12 + rnd() * (H - TERRAIN_BASE_Y - 24),
-        r: 0.7 + rnd() * 1.6,
-        color: rnd() < 0.5 ? '#7a6c5c' : '#a99c87',
-        alpha: 0.25 + rnd() * 0.45,
-      });
-    }
-    // A few faint horizontal scuff marks — long thin streaks read as pavement.
-    for (let i = 0; i < 12; i++) {
-      detailTile.push({
-        x: rnd() * DETAIL_TILE_W,
-        yOff: 18 + rnd() * (H - TERRAIN_BASE_Y - 30),
-        kind: 'streak',
-        len: 14 + rnd() * 32,
-        color: '#766a58',
-        alpha: 0.18 + rnd() * 0.18,
-      });
-    }
-  })();
-
-  // Now that the ground is flat, terrainHeightAt is constant — keeps the
-  // bomb / station code unchanged.
+  // Constant ground height — bombs and station-impact effects still query
+  // this so they share one source of truth.
   function terrainHeightAt(_worldX) { return TERRAIN_BASE_Y; }
 
-  function drawTerrain() {
-    // Terrain band hidden — houses now line the canvas bottom as the skyline.
-    // detailTile is kept loaded in case we want to revive it later.
+  // Street tile — the source PNG is one long strip. We tile it horizontally
+  // using the canvas pattern API so the kerb texture is continuous and the
+  // pattern offset advances with the world scroll.
+  function drawStreet() {
+    if (!assets.street) {
+      // Fallback while loading: solid dark band so the apartments still have
+      // a horizon to sit on.
+      ctx.fillStyle = '#252028';
+      ctx.fillRect(0, STREET_TOP_Y, W, STREET_H);
+      return;
+    }
+    const img = assets.street;
+    const tileH = STREET_H;
+    const tileW = tileH * (img.width / img.height);
+    const offset = -((player.worldX * PARALLAX.ground) % tileW);
+    for (let x = offset; x < W; x += tileW) {
+      ctx.drawImage(img, x, STREET_TOP_Y, tileW + 1, tileH);   // +1 to hide seams
+    }
   }
 
-  // Ground stations live in WORLD-X space; they slide left as the world
-  // scrolls past at the same rate as the terrain (PARALLAX.ground).
-  // A new station spawns off-screen-right periodically; passes off-screen
-  // left if you don't bomb it in time. MG cannot damage them — bombs only.
-  const stations = [];  // { worldX, hp, alive }
+  // Apartments live in WORLD-X space; they slide left as the world scrolls
+  // past at the same rate as the street (PARALLAX.ground). A new apartment
+  // spawns off-screen-right periodically; passes off-screen left if you
+  // don't bomb it in time. MG cannot damage them — bombs only.
+  const stations = [];  // { worldX, hp, alive, img }
   let nextStationAt = 0;
   function spawnStation(now) {
     const worldX = player.worldX * PARALLAX.ground + W + 80;
-    // Pick a house PNG from the pool — varies the skyline. Each station
-    // keeps the same image for its whole life so it doesn't morph on scroll.
-    const pool = assets.houses;
+    const pool = assets.apartments;
     const img = pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
     stations.push({ worldX, hp: 1, alive: true, img });
   }
   function updateStations(now, dt) {
-    // Spawn cadence accelerated so the bottom of the canvas reads as a
-    // continuous skyline rather than discrete buildings dotted along it.
+    // Spawn cadence keeps the street populated without buildings overlapping.
     if (now >= nextStationAt) {
       spawnStation(now);
-      nextStationAt = now + 380 + Math.random() * 320;     // every 0.38..0.70s (packed skyline)
+      nextStationAt = now + 520 + Math.random() * 420;     // every 0.52..0.94s
     }
     for (let i = stations.length - 1; i >= 0; i--) {
       const s = stations[i];
       const screenX = s.worldX - player.worldX * PARALLAX.ground;
-      if (screenX < -260) stations.splice(i, 1);
+      if (screenX < -360) stations.splice(i, 1);
     }
   }
   function stationScreenX(s) {
     return s.worldX - player.worldX * PARALLAX.ground;
   }
+  function stationRect(s) {
+    const targetH = APARTMENT_RENDER_H;
+    const targetW = targetH * (s.img.width / s.img.height);
+    const bottom  = STREET_TOP_Y;                   // flat bottom flush with kerb
+    const top     = bottom - targetH;
+    const sx      = stationScreenX(s);
+    return { left: sx - targetW / 2, right: sx + targetW / 2, top, bottom, w: targetW, h: targetH };
+  }
   function drawStations() {
     for (const s of stations) {
       if (!s.alive || !s.img) continue;
-      const sx = stationScreenX(s);
-      if (sx < -200 || sx > W + 200) continue;
-      // Anchor each house so 5 % of its height extends BELOW the canvas
-      // bottom — the buildings read as continuing off-screen, a city
-      // viewed from above.
-      const targetH = HOUSE_RENDER_H;
-      const targetW = targetH * (s.img.width / s.img.height);
-      const bottom = H + targetH * HOUSE_UNDERLAP;        // 5 % below the canvas
-      const top    = bottom - targetH;
-      ctx.drawImage(s.img, sx - targetW / 2, top, targetW, targetH);
+      const r = stationRect(s);
+      if (r.right < -10 || r.left > W + 10) continue;
+      ctx.drawImage(s.img, r.left, r.top, r.w, r.h);
     }
   }
 
@@ -257,19 +239,13 @@
       // World scroll pushes the bomb leftward too — same parallax as ground.
       b.x  -= BASE_SPEED * player.throttle * dt * PARALLAX.ground / 16;
 
-      // House collision — bombs now detonate ON contact with a building
-      // instead of falling all the way to the canvas bottom.
+      // Apartment collision — bombs detonate ON contact with a building.
       let exploded = false;
       for (const s of stations) {
         if (!s.alive || !s.img) continue;
-        const sx = stationScreenX(s);
-        const targetH = HOUSE_RENDER_H;
-        const targetW = targetH * (s.img.width / s.img.height);
-        const top = H + targetH * HOUSE_UNDERLAP - targetH;
-        const left = sx - targetW / 2;
-        const right = sx + targetW / 2;
-        if (b.x >= left && b.x <= right && b.y >= top) {
-          bombExplode(b.x, Math.max(b.y, top + 24));
+        const r = stationRect(s);
+        if (b.x >= r.left && b.x <= r.right && b.y >= r.top) {
+          bombExplode(b.x, Math.max(b.y, r.top + 24));
           bombs.splice(i, 1);
           exploded = true;
           break;
@@ -277,9 +253,9 @@
       }
       if (exploded) continue;
 
-      // Fallback: bomb hit the canvas bottom (between buildings).
-      if (b.y >= H) {
-        bombExplode(b.x, H);
+      // Fallback: bomb reached the street between buildings.
+      if (b.y >= STREET_TOP_Y) {
+        bombExplode(b.x, STREET_TOP_Y);
         bombs.splice(i, 1);
         continue;
       }
@@ -331,24 +307,28 @@
   function spawnCloud(now) {
     if (!assets.clouds.length) return;
     const img = assets.clouds[Math.floor(Math.random() * assets.clouds.length)];
-    // Keep clouds in the sky band — never below the terrain horizon and
-    // never crowding the player's flight envelope.
-    const yMin = 30, yMax = Math.max(yMin + 1, TERRAIN_BASE_Y - 60);
+    // Perspective layout: top of the sky = nearest (large, solid, fast);
+    // closer to the horizon = farthest (small, faded, slow). Cloud Y is the
+    // master parameter — size / alpha / speed all derive from it.
+    const skyTop    = 24;
+    const skyBottom = Math.max(skyTop + 1, TERRAIN_BASE_Y - 140);    // never within the apartment band
+    const y         = skyTop + Math.random() * (skyBottom - skyTop);
+    const depth     = (y - skyTop) / (skyBottom - skyTop);            // 0 (near) .. 1 (far)
+    const targetH   = 130 - depth * 95;                               // ~130 near → 35 far
+    const alpha     = 0.85 - depth * 0.65;                            // 0.85 near → 0.20 far
+    const depthSpeed = 0.32 - depth * 0.26;                           // 0.32 near → 0.06 far
     clouds.push({
       img,
       x: W + 300,
-      y: yMin + Math.random() * (yMax - yMin),
-      targetH: 45 + Math.random() * 55,             // 45..100 tall (smaller = farther)
-      depthSpeed: 0.05 + Math.random() * 0.10,      // 0.05..0.15x world rate (very slow)
-      alpha: 0.35 + Math.random() * 0.20,           // 0.35..0.55 (atmospheric fade)
+      y, targetH, alpha, depthSpeed,
       spawnedWorldX: player.worldX,
     });
   }
-  const MAX_CLOUDS = 4;
+  const MAX_CLOUDS = 6;
   function updateClouds(now) {
     if (now >= nextCloudAt && clouds.length < MAX_CLOUDS) {
       spawnCloud(now);
-      nextCloudAt = now + (3500 + Math.random() * 4500);  // every 3.5..8s
+      nextCloudAt = now + (2200 + Math.random() * 3000);              // every 2.2..5.2s
     }
     for (let i = clouds.length - 1; i >= 0; i--) {
       const c = clouds[i];
@@ -357,7 +337,10 @@
     }
   }
   function drawClouds() {
-    for (const c of clouds) {
+    // Sort by depth (far first) so nearer clouds overlap them — completes
+    // the depth illusion.
+    const sorted = clouds.slice().sort((a, b) => b.y - a.y === 0 ? 0 : a.y - b.y > 0 ? -1 : 1);
+    for (const c of sorted) {
       const aspect = c.img.width / c.img.height;
       const w = c.targetH * aspect;
       ctx.save();
@@ -715,22 +698,52 @@
     ctx.restore();
   }
 
+  // Propeller-spinning illusion. We draw a translucent disc at the plane's
+  // nose every frame, with width and alpha oscillating fast enough (~60 Hz
+  // sampled, varies per blade phase) that the eye interprets it as a
+  // motion-blurred prop. A thin white "blade flash" cuts through the disc
+  // a couple of times per rotation for extra sparkle.
+  function drawPropeller(now, faceRight, noseX, noseY, height) {
+    const phase = (now * 0.085) % (Math.PI * 2);          // ~28 Hz visual rotation
+    const blade = Math.abs(Math.sin(phase * 2));          // 0..1, twice per rotation
+    const discW = height * 0.10 + blade * height * 0.05;  // narrow → wider as blade aligns
+    const discH = height * 0.78;
+    const dir   = faceRight ? 1 : -1;
+    ctx.save();
+    ctx.translate(noseX, noseY);
+    // Soft disc — pure motion-blur read.
+    ctx.globalAlpha = 0.22 + blade * 0.18;
+    ctx.fillStyle = '#1a1a1a';
+    ctx.beginPath();
+    ctx.ellipse(dir * height * 0.02, 0, discW, discH / 2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Bright blade-flash sweep — short, very faint, only on the alignment beat.
+    if (blade > 0.85) {
+      ctx.globalAlpha = (blade - 0.85) * 1.2;
+      ctx.strokeStyle = 'rgba(255, 240, 210, 0.85)';
+      ctx.lineWidth = 1.3;
+      ctx.beginPath();
+      ctx.moveTo(0, -discH / 2 + 2);
+      ctx.lineTo(0,  discH / 2 - 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  let lastFrameNow = 0;
   function drawPlayer() {
     if (!assets.player) return;
     const img = assets.player;
-    // Render the player aircraft at ~75 tall. The new PNG planes have more
-    // visible detail (rivets, panels, propellers) than the old vector ships,
-    // so a slightly larger render reads well without dominating the screen.
-    const targetH = 52;
+    // The new HeroAircraft pack points RIGHT in the source PNG (left = rear,
+    // right = front), so the player needs no horizontal flip.
+    const targetH = 70;
     const targetW = targetH * (img.width / img.height);
     ctx.save();
     ctx.translate(player.screenX, player.y);
-    // The Midjourney plane PNGs all point LEFT — mirror horizontally so the
-    // player faces right (toward incoming enemies). Rotation sign flipped
-    // post-mirror so ascending input still tips the nose UP.
-    ctx.scale(-1, 1);
-    ctx.rotate(-player.pitch * BANK_FACTOR);
+    ctx.rotate(player.pitch * BANK_FACTOR);
     ctx.drawImage(img, -targetW / 2, -targetH / 2, targetW, targetH);
+    // Propeller is at the nose — right edge of the plane in plane-local space.
+    drawPropeller(lastFrameNow, true, targetW / 2 - 4, 0, targetH);
     ctx.restore();
   }
 
@@ -785,18 +798,20 @@
   function drawEnemies() {
     for (const en of enemies) {
       if (!en.img) continue;
-      // Render enemies at the same nominal height as the player (75 tall).
-      // Each enemy carries its own PNG (chosen at spawn), so the pool gives
-      // visual variety without per-frame hue-rotate.
-      const targetH = 52;
+      const targetH = 70;
       const targetW = targetH * (en.img.width / en.img.height);
       ctx.save();
       ctx.translate(en.x, en.y);
-      // Bank into vertical motion.
-      ctx.rotate(Math.max(-0.4, Math.min(0.4, en.vy * 0.4)));
-      // PNG planes point LEFT in their source — enemies face LEFT toward the
-      // player, so no horizontal flip needed (player is the one mirrored).
+      // The new enemy-aircraft pack points RIGHT in the source PNG; enemies
+      // are flying LEFT toward the player, so mirror horizontally. The bank
+      // sign is flipped post-mirror so a climbing enemy still tips its
+      // nose up on screen.
+      ctx.scale(-1, 1);
+      ctx.rotate(-Math.max(-0.4, Math.min(0.4, en.vy * 0.4)));
       ctx.drawImage(en.img, -targetW / 2, -targetH / 2, targetW, targetH);
+      // Propeller at the nose (right edge of plane-local space, which after
+      // the mirror becomes the LEFT edge on screen — exactly where we want it).
+      drawPropeller(lastFrameNow, true, targetW / 2 - 4, 0, targetH);
       ctx.restore();
     }
   }
@@ -905,6 +920,7 @@
   }
 
   function render(now) {
+    lastFrameNow = now;
     clearBg();
     // Apply camera shake — small random offset for a few frames after a big
     // explosion. Save/restore the whole scene block as a pair so the matrix
@@ -919,7 +935,7 @@
 
     drawSky();
     drawClouds();
-    drawTerrain();
+    drawStreet();
     drawStations();
     drawExhaustTrail(now);
     // Player render — blink during invuln frames so hits are felt.
