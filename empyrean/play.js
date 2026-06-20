@@ -1917,22 +1917,25 @@
       totalW += w;
     }
     let xCur = Math.round(cx - totalW / 2);
-    // Remember the centre X of the ← key so we can stack ↑ ↓ above / below it.
-    let leftArrowCenterX = cx;
+    // Track the centre of the ← and → keys so the up/down arrows can sit
+    // directly between them (a proper 3 × 3 d-pad grid).
+    let leftCx = cx, rightCx = cx;
     for (let i = 0; i < segments.length; i++) {
       const s = segments[i];
       const w = widths[i];
-      if (s.kind === 'key' && s.value === '←') leftArrowCenterX = xCur + w / 2;
+      if (s.kind === 'key' && s.value === '←') leftCx  = xCur + w / 2;
+      if (s.kind === 'key' && s.value === '→') rightCx = xCur + w / 2;
       if (s.kind === 'key')  drawKey(s.value, xCur, midY, keyFont);
       else if (s.kind === 'text') drawText(s.value, xCur, midY + 1, textFont, LABEL_COLOR);
       xCur += w;
     }
 
-    // ↑ and ↓ stacked above and below the ← key — completes the d-pad cross
-    // while keeping the rest of the controls inline.
+    // ↑ and ↓ sit at the horizontal midpoint of ← and → — completes the
+    // 3 × 3 d-pad grid with the centre cell empty.
+    const dpadCenterX = (leftCx + rightCx) / 2;
     const arrowW = measureKey('↑', keyFont);
-    drawKey('↑', leftArrowCenterX - arrowW / 2, upY,   keyFont);
-    drawKey('↓', leftArrowCenterX - arrowW / 2, downY, keyFont);
+    drawKey('↑', dpadCenterX - arrowW / 2, upY,   keyFont);
+    drawKey('↓', dpadCenterX - arrowW / 2, downY, keyFont);
 
     // ----- Start prompt (slow, gentle fade) -----
     // 6.3-second full cycle (sin period 2π / 0.001) → fade in / out lasts
