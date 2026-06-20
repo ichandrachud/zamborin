@@ -285,18 +285,28 @@
       });
     }
 
-    // --- Trucks — 5 driving ground targets that don't shoot.
+    // --- Trucks — 5 ground targets. Most are PARKED on the kerb; a couple
+    // patrol up and down the street. Which two move is randomised but the
+    // count is fixed so the stage doesn't read as either deserted or chaotic.
     const N_TRUCKS = 5;
+    const N_MOVING_TRUCKS = 2;
+    const movingIdxSet = new Set();
+    while (movingIdxSet.size < N_MOVING_TRUCKS) movingIdxSet.add(Math.floor(Math.random() * N_TRUCKS));
     const pickTruckImg = deckPicker(assets.trucks);
     for (let i = 0; i < N_TRUCKS; i++) {
       const img = pickTruckImg();
       const h = TRUCK_H;
       const w = h * (img.width / img.height);
       const x = 1100 + (i + 0.5) * (STAGE_W - 1500) / N_TRUCKS + (Math.random() - 0.5) * 240;
+      const moving = movingIdxSet.has(i);
+      const vx = moving
+        ? (Math.random() < 0.5 ? -1 : 1) * (0.04 + Math.random() * 0.04)
+        : 0;
       trucks.push({
         x, w, h,
         img,
-        vx: (Math.random() < 0.5 ? -1 : 1) * (0.04 + Math.random() * 0.04),  // px / ms
+        vx,
+        parked: !moving,
         hp: 2,
         alive: true,
         turnPhase: 0,            // 1 → 0 over ~0.6 s after a direction change
@@ -612,6 +622,7 @@
     // a body-tilt effect (turnPhase animates from 1 → 0).
     for (const k of trucks) {
       if (!k.alive) continue;
+      if (k.parked) continue;        // parked trucks don't drive or turn
       k.x += k.vx * dt;
       if (k.turnPhase > 0) k.turnPhase = Math.max(0, k.turnPhase - dt / 600);
       // Random U-turn — average once every ~6 s while driving.
