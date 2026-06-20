@@ -146,6 +146,11 @@
     masterGain = audioCtx.createGain();
     masterGain.gain.value = soundOn ? 0.45 : 0.0;
     masterGain.connect(audioCtx.destination);
+    // Engine + vehicle ambient hold off until the player actually starts the
+    // game (intro screen stays silent). startGameAudio() spins them up.
+  }
+  function startGameAudio() {
+    if (!audioCtx) return;
     startEngine();
     startVehicleAmbient();
   }
@@ -845,6 +850,10 @@
   }
 
   // ---------- WIN / LOSE ----------
+  // Scene state — 'intro' (mission briefing + controls), 'playing' (live
+  // game loop), or the gameOver flag below (set when the hero dies / clears
+  // the stage). The intro is dismissed by the first Space / Tap.
+  let scene = 'intro';
   let gameOver = false;
   let win = false;
   function targetsRemaining() {
@@ -867,7 +876,18 @@
 
   // ---------- UPDATE ----------
   function update(dt, now) {
-    if (landscapeLocked || gameOver) return;
+    if (landscapeLocked) return;
+    // Intro screen — wait for the first Space, B, or Tap. Then start the
+    // game-audio voices and hand control over to the normal loop.
+    if (scene === 'intro') {
+      if (keys[' '] || bombRequest || keys.Enter) {
+        scene = 'playing';
+        bombRequest = false;
+        startGameAudio();
+      }
+      return;
+    }
+    if (gameOver) return;
 
     // ----- Player flight -----
     if (keys.ArrowLeft)  player.heading -= TURN_RATE * (dt / 1000);
@@ -1777,9 +1797,118 @@
     ctx.restore();
   }
 
+  // Intro / mission briefing screen — uses the original Lacerta night-sky
+  // gradient (deep blue at the bottom → dark space at the top) as the
+  // backdrop. Title + mission + controls; dismissed by Space / Tap.
+  function drawIntro(now) {
+    // Night-sky gradient (skybackground.svg colours, planets-free).
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0.00, '#2e313a');
+    g.addColorStop(0.35, '#2e3192');
+    g.addColorStop(0.73, '#005b97');
+    g.addColorStop(1.00, '#0075be');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+
+    // Faint star dots so the dark band reads as space rather than flat fill.
+    // Deterministic positions so they don't twinkle randomly each frame.
+    ctx.save();
+    for (let i = 0; i < 60; i++) {
+      const sx = ((i * 73) % W);
+      const sy = ((i * 137) % (H * 0.45));
+      const r = (i % 5 === 0) ? 1.4 : 0.8;
+      const alpha = 0.25 + ((i * 37) % 70) / 200;
+      ctx.fillStyle = `rgba(255,255,255,${alpha.toFixed(2)})`;
+      ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+
+    const cx = W / 2;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // Title block
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = '900 86px Inter, sans-serif';
+    ctx.fillText('LACERTA', cx, 110);
+    ctx.font = '600 18px Inter, sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.72)';
+    ctx.fillText('A Zamborin Sortie', cx, 152);
+
+    // Mission card
+    ctx.fillStyle = 'rgba(0,0,0,0.30)';
+    roundRect(W / 2 - 380, 200, 760, 130, 10);
+    ctx.fill();
+    ctx.font = '800 22px Inter, sans-serif';
+    ctx.fillStyle = '#FFD23F';
+    ctx.fillText('MISSION', cx, 226);
+    ctx.font = '500 17px Inter, sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.94)';
+    ctx.fillText('Take down every enemy plane, tank, truck, and military', cx, 260);
+    ctx.fillText('building before they take you down. The arena is six', cx, 285);
+    ctx.fillText('screens wide and four screens tall — fly hard.', cx, 310);
+
+    // Controls card
+    ctx.fillStyle = 'rgba(0,0,0,0.30)';
+    roundRect(W / 2 - 380, 360, 760, 180, 10);
+    ctx.fill();
+    ctx.font = '800 22px Inter, sans-serif';
+    ctx.fillStyle = '#5DD39E';
+    ctx.fillText('CONTROLS', cx, 386);
+
+    const isMobile = MODE === 'mobile';
+    ctx.font = '600 17px Inter, sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.94)';
+    if (isMobile) {
+      ctx.fillText('Touch anywhere — drag to steer:', cx, 420);
+      ctx.font = '500 16px Inter, sans-serif';
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.fillText('left / right of touch origin → rotate the nose', cx, 446);
+      ctx.fillText('up / down of touch origin → throttle up / down', cx, 470);
+      ctx.fillText('Hold = fire   ·   Double-tap = drop a bomb', cx, 502);
+    } else {
+      // Two-row keyboard hint
+      ctx.font = '700 17px Inter, sans-serif';
+      const row1 = '← / →  rotate the nose       ↑ / ↓  throttle';
+      const row2 = 'Space  fire       B  drop a bomb       M  mute';
+      ctx.fillText(row1, cx, 422);
+      ctx.fillText(row2, cx, 460);
+      ctx.font = '500 16px Inter, sans-serif';
+      ctx.fillStyle = 'rgba(255,255,255,0.78)';
+      ctx.fillText('Tip: the plane can fly upside-down through a full loop.', cx, 502);
+    }
+
+    // Start prompt — pulsing.
+    const pulse = 0.55 + 0.45 * Math.sin(now * 0.0042);
+    ctx.font = '900 26px Inter, sans-serif';
+    ctx.fillStyle = `rgba(255, 220, 90, ${pulse.toFixed(2)})`;
+    ctx.fillText(isMobile ? 'TAP TO START' : 'PRESS SPACE TO START', cx, H - 70);
+  }
+
+  // Helper used by drawIntro for the rounded-rect cards.
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
   let lastShakeUpdate = 0;
   function render(now) {
     lastFrameNow = now;
+    // Intro / mission briefing — short-circuit before all the gameplay
+    // rendering. drawIntro paints its own background, so we skip clearBg too.
+    if (scene === 'intro') {
+      drawIntro(now);
+      return;
+    }
     // Decay the camera shake every frame, even when update() is paused on
     // gameOver — otherwise the SHOT DOWN screen vibrates forever because
     // the explosion-on-death set shake to 7 and it never drains.
