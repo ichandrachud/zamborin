@@ -1788,23 +1788,10 @@
     drawStreet();
     drawApartments();
     drawMilitaryBodies();
-    // Slight dark vignette so the title and cards read crisply on top.
-    ctx.save();
-    ctx.fillStyle = 'rgba(0, 8, 24, 0.32)';
-    ctx.fillRect(0, 0, W, H);
-    ctx.restore();
 
     const cx = W / 2;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-
-    // Title block
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = '900 86px Inter, sans-serif';
-    ctx.fillText('EMPYREAN', cx, 110);
-    ctx.font = '600 18px Inter, sans-serif';
-    ctx.fillStyle = 'rgba(255,255,255,0.72)';
-    ctx.fillText('A Zamborin Sortie', cx, 152);
 
     // ----- Controls row -----
     // Stripped-down layout per the spec — no mission card, no controls
