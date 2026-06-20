@@ -1880,7 +1880,7 @@
     const skyCenterY = (SKY_TOP + SKY_BOTTOM) / 2;
     const arrowRowGap = 60;                       // ↑/↓ to mid-row distance
     const actionRowGap = 64;                      // mid-row → action row
-    const startPromptGap = 130;                   // mid-row → press-space prompt
+    const startPromptGap = 150;                   // mid-row → press-space prompt
     // Composition spans from (↑ top edge) to (press-space text baseline):
     //   topY    = midY − arrowRowGap − KEY_H/2
     //   bottomY = midY + startPromptGap + text height/2 (≈ 12)
@@ -1917,25 +1917,27 @@
       return anchors;
     }
 
-    // Row 1 — movement: anchor the d-pad cross at the canvas centre cx so
-    // the 3 × 3 grid reads as visually centred. The 'Use keys to move'
-    // label hangs off the left of ←. Gap between ← and → must be ≥ the
-    // arrow-key width so ↑ / ↓ fit between them without overlapping.
+    // D-pad cross — every key anchored to canvas centre cx. ← / → flank
+    // cx by half the arrow-gap; ↑ / ↓ sit directly on cx above + below.
     const arrowW = measureKey('↑', keyFont);
     const ARROW_GAP = Math.max(arrowW + 12, 60);
-    const leftX   = Math.round(cx - ARROW_GAP / 2 - arrowW);
-    const rightX  = Math.round(cx + ARROW_GAP / 2);
+    const leftX  = Math.round(cx - ARROW_GAP / 2 - arrowW);
+    const rightX = Math.round(cx + ARROW_GAP / 2);
     drawKey('←', leftX,  midY, keyFont);
     drawKey('→', rightX, midY, keyFont);
     drawKey('↑', cx - arrowW / 2, upY,   keyFont);
     drawKey('↓', cx - arrowW / 2, downY, keyFont);
-    // Label sits to the left of ← with a 22 px gap.
+    // 'Use keys to move' caption directly UNDER the ↓ key, centred on cx —
+    // keeps the d-pad row visually symmetric instead of leaning left.
     ctx.font = textFont;
-    const labelText = 'Use keys to move';
-    const labelW = ctx.measureText(labelText).width;
-    drawText(labelText, leftX - 22 - labelW, midY + 1, textFont, LABEL_COLOR);
+    ctx.fillStyle = LABEL_COLOR;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Use keys to move', cx, downY + 36);
 
     // Row 2 — actions: Space / B / M each followed by their label, centred.
+    // Pushed a bit lower so the 'Use keys to move' caption (at downY + 36)
+    // has clear breathing space above the action row.
     layoutCenteredRow([
       { kind: 'key',  value: 'Space' },
       { kind: 'gap',  value: 10 },
@@ -1948,7 +1950,7 @@
       { kind: 'key',  value: 'M' },
       { kind: 'gap',  value: 10 },
       { kind: 'text', value: 'mute' },
-    ], downY + 64);
+    ], downY + 88);
 
     // ----- Start prompt (slow, gentle fade) -----
     // 6.3-second full cycle (sin period 2π / 0.001) → fade in / out lasts
@@ -1960,7 +1962,7 @@
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     const isMobileStart = MODE === 'mobile';
-    ctx.fillText(isMobileStart ? 'tap to start' : 'press space to start', cx, downY + 130);
+    ctx.fillText(isMobileStart ? 'tap to start' : 'press space to start', cx, downY + 150);
 
   }
 
