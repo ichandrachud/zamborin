@@ -166,38 +166,39 @@
     return src;
   }
 
-  // Plane engine — a TONAL drone with a slow tremolo to read as a propeller
-  // "chuff-chuff" whirr, not wind static. The voice is built from:
-  //   • a sawtooth oscillator at the engine fundamental (~70-150 Hz),
-  //   • another sawtooth one octave up at lower gain, for body,
-  //   • a low-pass filter to keep everything dull,
-  //   • a sine LFO modulating the master gain at ~12-20 Hz — that's the
-  //     propeller-blade interruption rate, which is what makes it sound
-  //     like an engine and not a synth pad.
+  // Plane engine — dull, low-pitched drone with audible piston "clicks" at
+  // the propeller-blade rate. Two voices:
+  //   • Tonal pad : sawtooth fundamental + soft octave harmonic through a
+  //     low low-pass filter. Provides the warm "wahhh" body.
+  //   • Click track : short low-frequency noise bursts scheduled at the
+  //     blade rate. Each click is a tiny lowpassed thump (~40 ms decay).
+  //     This is what reads as "engine" rather than "fan".
+  // Both voices scale with player.throttle.
+  let engineClickTimer = null;
   function startEngine() {
     if (engineNodes || !audioCtx) return;
     const t = audioCtx.currentTime;
     const fund = audioCtx.createOscillator();
     fund.type = 'sawtooth';
-    fund.frequency.value = 90;
+    fund.frequency.value = 80;
     const harm = audioCtx.createOscillator();
     harm.type = 'sawtooth';
-    harm.frequency.value = 180;
+    harm.frequency.value = 160;
     const harmGain = audioCtx.createGain();
-    harmGain.gain.value = 0.30;                      // octave up at 30 % gain → body
+    harmGain.gain.value = 0.14;                      // dialled back so the body is darker
     const lp = audioCtx.createBiquadFilter();
     lp.type = 'lowpass';
-    lp.frequency.value = 380;
-    lp.Q.value = 1.0;
-    // Master gain (modulated by tremolo)
+    lp.frequency.value = 240;                        // much duller than before (was 380)
+    lp.Q.value = 0.7;
     const gain = audioCtx.createGain();
     gain.gain.value = 0.04;
-    // Tremolo LFO — sine that goes into the gain node's .gain param
+    // Subtle continuous tremolo for warmth (the strong "chuff" now comes
+    // from the click track instead of the LFO).
     const lfo = audioCtx.createOscillator();
     lfo.type = 'sine';
-    lfo.frequency.value = 14;
+    lfo.frequency.value = 10;
     const lfoDepth = audioCtx.createGain();
-    lfoDepth.gain.value = 0.025;                     // ± modulation depth on the master gain
+    lfoDepth.gain.value = 0.012;
     lfo.connect(lfoDepth).connect(gain.gain);
     fund.connect(lp);
     harm.connect(harmGain).connect(lp);
@@ -206,21 +207,47 @@
     harm.start(t);
     lfo.start(t);
     engineNodes = { fund, harm, lp, gain, lfo };
+    // Kick off the click train.
+    scheduleEngineClick();
+  }
+  // One short piston-pop. Re-schedules itself based on current throttle so
+  // the click rate speeds up / slows down with RPM.
+  function scheduleEngineClick() {
+    if (!audioCtx) return;
+    const playClick = () => {
+      if (!audioCtx || !engineNodes) return;
+      const t = audioCtx.currentTime;
+      const noise = makeNoiseSource(0.06);
+      noise.loop = false;
+      const lp = audioCtx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = 160;
+      lp.Q.value = 1.2;
+      const g = audioCtx.createGain();
+      g.gain.setValueAtTime(0.028, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+      noise.connect(lp).connect(g).connect(masterGain);
+      noise.stop(t + 0.07);
+      // Next click — interval scales with throttle (idle = ~95 ms, full = ~38 ms)
+      const interval = 95 - player.throttle * 57;
+      engineClickTimer = setTimeout(playClick, interval);
+    };
+    if (!engineClickTimer) engineClickTimer = setTimeout(playClick, 60);
   }
   function updateEngine() {
     if (!engineNodes) return;
     const t = player.throttle;
     const ct = audioCtx.currentTime;
-    // Fundamental 70 → 150 Hz with throttle; harmonic tracks at 2× the fundamental.
-    const f0 = 70 + t * 80;
+    // Fundamental 60 → 130 Hz with throttle; harmonic tracks at 2× the fundamental.
+    const f0 = 60 + t * 70;
     engineNodes.fund.frequency.setTargetAtTime(f0, ct, 0.08);
     engineNodes.harm.frequency.setTargetAtTime(f0 * 2, ct, 0.08);
-    // LFO speed scales with throttle (propeller spins faster at high RPM).
-    engineNodes.lfo.frequency.setTargetAtTime(12 + t * 10, ct, 0.10);
-    // Slight filter open-up at full throttle so it brightens a touch.
-    engineNodes.lp.frequency.setTargetAtTime(340 + t * 220, ct, 0.10);
+    // LFO speed scales gently with throttle.
+    engineNodes.lfo.frequency.setTargetAtTime(8 + t * 6, ct, 0.10);
+    // Filter stays dull across the throttle range.
+    engineNodes.lp.frequency.setTargetAtTime(220 + t * 120, ct, 0.10);
     // Master gain — quiet at idle, fuller at full throttle.
-    engineNodes.gain.gain.setTargetAtTime(0.035 + t * 0.05, ct, 0.10);
+    engineNodes.gain.gain.setTargetAtTime(0.030 + t * 0.045, ct, 0.10);
   }
 
   // Proximity rumble for tanks + trucks — low band-pass noise whose gain
@@ -1525,10 +1552,9 @@
   }
 
   // Draw a plane in plane-local coords with proper rotation. The source PNG
-  // points RIGHT in its native orientation. When the heading would put the
-  // plane "upside down" (nose pointing left half), we mirror vertically so the
-  // canopy stays toward the sky. This matches the classic Sopwith feel where
-  // tracking left feels natural rather than inverted.
+  // points RIGHT in its native orientation. The plane is rotated by its
+  // heading directly — no auto-flip — so a full loop carries the plane
+  // through inverted flight (canopy down) just like a real aircraft.
   function drawAircraft(img, worldX, worldY, heading, targetH) {
     const sx = worldToScreenX(worldX);
     const sy = worldToScreenY(worldY);
@@ -1537,17 +1563,7 @@
     const targetW = targetH * aspect;
     ctx.save();
     ctx.translate(sx, sy);
-    // If heading is in the left half (nose pointing left), apply both a
-    // rotation and a vertical flip so the plane stays right-side-up while
-    // still pointing in its travel direction.
-    const facingLeft = Math.cos(heading) < 0;
-    if (facingLeft) {
-      // Equivalent transform: mirror around the heading line.
-      ctx.rotate(heading);
-      ctx.scale(1, -1);
-    } else {
-      ctx.rotate(heading);
-    }
+    ctx.rotate(heading);
     ctx.drawImage(img, -targetW / 2, -targetH / 2, targetW, targetH);
     drawPropeller(lastFrameNow, targetW / 2 - 4, 0, targetH);
     ctx.restore();
