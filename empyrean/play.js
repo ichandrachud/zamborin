@@ -1884,58 +1884,68 @@
     const upY       = midY - arrowRowGap;
     const downY     = midY + arrowRowGap;
 
-    // Build the middle row as a list of segments and measure first so the
-    // whole row can be centred. The ↑ ↓ caps will land directly above /
-    // below the ← key.
-    const segments = [
-      { kind: 'text', value: 'Use keys to move' },
-      { kind: 'gap',  value: 12 },
-      { kind: 'key',  value: '←' },
-      { kind: 'gap',  value: 8 },
-      { kind: 'key',  value: '→' },
-      { kind: 'gap',  value: 32 },
+    // Helper: lay out a row of segments (mix of keys, text labels, gaps)
+    // CENTRED horizontally on the canvas. Returns useful X anchors for
+    // anything that needs to land relative to a specific key.
+    function layoutCenteredRow(segments, y) {
+      const widths = [];
+      let totalW = 0;
+      for (const s of segments) {
+        let w = 0;
+        if (s.kind === 'key')  w = measureKey(s.value, keyFont);
+        else if (s.kind === 'text') { ctx.font = textFont; w = ctx.measureText(s.value).width; }
+        else                  w = s.value;
+        widths.push(w);
+        totalW += w;
+      }
+      let xCur = Math.round(cx - totalW / 2);
+      const anchors = {};
+      for (let i = 0; i < segments.length; i++) {
+        const s = segments[i];
+        const w = widths[i];
+        if (s.kind === 'key')  { drawKey(s.value, xCur, y, keyFont); anchors[s.value] = xCur + w / 2; }
+        else if (s.kind === 'text') drawText(s.value, xCur, y + 1, textFont, LABEL_COLOR);
+        xCur += w;
+      }
+      return anchors;
+    }
+
+    // Row 1 — movement: anchor the d-pad cross at the EXACT canvas centre,
+    // then hang the 'Use keys to move' label off the left of ←. Keeping the
+    // d-pad geometrically centred on screen (rather than centring the whole
+    // row) is what makes the 3 × 3 grid read as 'on centre'.
+    const arrowW = measureKey('↑', keyFont);
+    const ARROW_GAP = 8;
+    const leftX  = Math.round(cx - ARROW_GAP / 2 - arrowW);
+    const rightX = Math.round(cx + ARROW_GAP / 2);
+    drawKey('←', leftX,  midY, keyFont);
+    drawKey('→', rightX, midY, keyFont);
+    // Label sits to the left of ← with a 14 px gap.
+    ctx.font = textFont;
+    const labelText  = 'Use keys to move';
+    const labelW     = ctx.measureText(labelText).width;
+    const labelXEnd  = leftX - 14;
+    drawText(labelText, labelXEnd - labelW, midY + 1, textFont, LABEL_COLOR);
+
+    // ↑ and ↓ at canvas centre — completes the 3×3 d-pad grid.
+    const dpadCenterX = cx;
+    drawKey('↑', dpadCenterX - arrowW / 2, upY,   keyFont);
+    drawKey('↓', dpadCenterX - arrowW / 2, downY, keyFont);
+
+    // Row 2 — actions: Space / B / M each followed by their label, centred.
+    layoutCenteredRow([
       { kind: 'key',  value: 'Space' },
       { kind: 'gap',  value: 8 },
       { kind: 'text', value: 'to fire' },
-      { kind: 'gap',  value: 26 },
+      { kind: 'gap',  value: 28 },
       { kind: 'key',  value: 'B' },
       { kind: 'gap',  value: 8 },
       { kind: 'text', value: 'to drop a bomb' },
-      { kind: 'gap',  value: 26 },
+      { kind: 'gap',  value: 28 },
       { kind: 'key',  value: 'M' },
       { kind: 'gap',  value: 8 },
       { kind: 'text', value: 'mute' },
-    ];
-    let totalW = 0;
-    const widths = [];
-    for (const s of segments) {
-      let w = 0;
-      if (s.kind === 'key')  w = measureKey(s.value, keyFont);
-      else if (s.kind === 'text') { ctx.font = textFont; w = ctx.measureText(s.value).width; }
-      else                  w = s.value;
-      widths.push(w);
-      totalW += w;
-    }
-    let xCur = Math.round(cx - totalW / 2);
-    // Track the centre of the ← and → keys so the up/down arrows can sit
-    // directly between them (a proper 3 × 3 d-pad grid).
-    let leftCx = cx, rightCx = cx;
-    for (let i = 0; i < segments.length; i++) {
-      const s = segments[i];
-      const w = widths[i];
-      if (s.kind === 'key' && s.value === '←') leftCx  = xCur + w / 2;
-      if (s.kind === 'key' && s.value === '→') rightCx = xCur + w / 2;
-      if (s.kind === 'key')  drawKey(s.value, xCur, midY, keyFont);
-      else if (s.kind === 'text') drawText(s.value, xCur, midY + 1, textFont, LABEL_COLOR);
-      xCur += w;
-    }
-
-    // ↑ and ↓ sit at the horizontal midpoint of ← and → — completes the
-    // 3 × 3 d-pad grid with the centre cell empty.
-    const dpadCenterX = (leftCx + rightCx) / 2;
-    const arrowW = measureKey('↑', keyFont);
-    drawKey('↑', dpadCenterX - arrowW / 2, upY,   keyFont);
-    drawKey('↓', dpadCenterX - arrowW / 2, downY, keyFont);
+    ], downY + 60);
 
     // ----- Start prompt (slow, gentle fade) -----
     // 6.3-second full cycle (sin period 2π / 0.001) → fade in / out lasts
@@ -1946,7 +1956,7 @@
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     const isMobileStart = MODE === 'mobile';
-    ctx.fillText(isMobileStart ? 'tap to start' : 'press space to start', cx, downY + 50);
+    ctx.fillText(isMobileStart ? 'tap to start' : 'press space to start', cx, downY + 120);
 
   }
 
