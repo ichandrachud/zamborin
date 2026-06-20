@@ -113,28 +113,36 @@
   const STREET_H        = 72;
   const STREET_TOP_Y    = H - STREET_H;
   const APARTMENT_RENDER_H = 192;
-  const TANK_BODY_H     = 110;
-  const TANK_TURRET_H   = 36;
-  const TRUCK_H         = 100;
+  // Ground vehicles drive ON the cobblestone road (not on the kerb the
+  // apartments sit on). Their wheels sit just above the bottom edge of the
+  // canvas and they're rendered at 60 % of the previous size.
+  const ROAD_BOTTOM_Y   = H - 8;
+  const TANK_BODY_H     = 66;
+  const TANK_TURRET_H   = 22;
+  const TRUCK_H         = 60;
   const STAGE_TOP_Y     = -3 * H;        // ceiling sits 3 screens above the canvas
   const STAGE_BOTTOM_Y  = H;             // bottom of the visible canvas
 
   // Per-tank metadata. The two source turret PNGs face opposite directions
-  // (tank 1 muzzle on right, tank 2 muzzle on left), and the pivot — where
-  // the turret base sits on the body — is at the WIDE end of each source.
-  //   bodyPivotFracX / Y : pivot location on the body PNG (0..1 from top-left)
-  //   turretPivotFracX / Y : pivot location on the turret PNG (0..1)
-  //   barrelAngleOffset : added to the aim angle when rotating the turret,
-  //                       so the natural barrel direction lines up with +X
+  // (tank 1 muzzle on right, tank 2 muzzle on left). The pivot is the
+  // BREECH end of the source — where the turret enters the body mount —
+  // so when the barrel rotates up to track the hero, the pivot ends up at
+  // the BOTTOM of the visible turret. Render order is also reversed (turret
+  // drawn BEHIND the body) so the body silhouette covers the breech.
+  //   bodyPivotFracX/Y    : turret mount point on the body PNG (0..1)
+  //   turretPivotFracX/Y  : pivot location on the turret PNG (0..1) — the
+  //                         BREECH end, hidden behind the body
+  //   barrelAngleOffset   : added to aim angle so the natural barrel
+  //                         direction lines up with +X
   const TANK_SPECS = [
     {
-      bodyPivotFracX: 0.36, bodyPivotFracY: 0.28,
-      turretPivotFracX: 0.10, turretPivotFracY: 0.55,
+      bodyPivotFracX: 0.36, bodyPivotFracY: 0.30,
+      turretPivotFracX: 0.06, turretPivotFracY: 0.50,
       barrelAngleOffset: 0,                          // muzzle already points +X
     },
     {
-      bodyPivotFracX: 0.22, bodyPivotFracY: 0.30,
-      turretPivotFracX: 0.92, turretPivotFracY: 0.55,
+      bodyPivotFracX: 0.20, bodyPivotFracY: 0.32,
+      turretPivotFracX: 0.94, turretPivotFracY: 0.50,
       barrelAngleOffset: Math.PI,                    // muzzle points -X → rotate 180°
     },
   ];
@@ -362,35 +370,49 @@
   }
 
   // ---------- CLOUDS ----------
-  // Drift across the upper sky band; perspective scaling tied to Y (top of
-  // sky = nearest = largest / boldest, near horizon = farthest / faded).
-  // Position is in world coords so clouds drift over the stage with parallax.
+  // Clouds behave like an OBSERVER sees them — the near ones shift slightly
+  // with the camera, the far ones are nearly screen-locked. Each cloud is
+  // anchored in WORLD space; its rendered screen position is computed using
+  // a low parallax factor so even at full-throttle flight the cloud only
+  // barely drifts. A tiny constant leftward wind keeps the sky alive.
   const clouds = [];
   let nextCloudAt = 0;
-  const MAX_CLOUDS = 8;
-  function spawnCloud(now) {
+  const MAX_CLOUDS = 7;
+  function spawnCloud(now, opts = {}) {
     if (!assets.clouds.length) return;
     const img = assets.clouds[Math.floor(Math.random() * assets.clouds.length)];
-    // Place clouds anywhere in the now-tall stage Y range. Depth is rolled
-    // independently so size / alpha / parallax don't all snap to one band.
-    const yMin = STAGE_TOP_Y + 40;
-    const yMax = STREET_TOP_Y - 200;
-    const y = yMin + Math.random() * (yMax - yMin);
-    const depth = Math.random();                                  // 0 = near, 1 = far
-    const targetH  = 140 - depth * 100;                            // 140 near → 40 far
-    const alpha    = 0.85 - depth * 0.60;                          // 0.85 near → 0.25 far
-    const parallax = 0.32 - depth * 0.26;                          // 0.32 near → 0.06 far
-    const worldX = cameraX + W + 200 + Math.random() * 200;
-    clouds.push({ img, worldX, y, targetH, alpha, parallax, spawnedCamX: cameraX });
+    const depth = Math.random();                                   // 0 = near, 1 = far
+    const targetH  = 130 - depth * 95;                              // 130 near → 35 far
+    const alpha    = 0.80 - depth * 0.55;                           // 0.80 near → 0.25 far
+    // Parallax: near clouds get a SLIGHT shift with camera (0.18), far ones
+    // are practically screen-locked (0.02). Far clouds = "infinitely distant".
+    const parallax = 0.18 * (1 - depth) + 0.02;
+    // Constant wind drift — slow, leftward, near clouds drift faster.
+    const drift    = 0.003 + (1 - depth) * 0.006;                   // px / ms
+    // Spawn position: we want the cloud to appear in the upper sky band of
+    // the viewport. Solve worldX / worldY so that its initial SCREEN position
+    // lands at the desired offset.
+    const desiredScreenX = opts.fromLeft
+      ? -120 - Math.random() * 200                                  // off-screen left (initial fill)
+      : W + 80 + Math.random() * 300;                               // off-screen right (re-spawn)
+    const desiredScreenY = 30 + Math.random() * (H * 0.55);          // top half of viewport
+    const worldX = desiredScreenX + cameraX * parallax;
+    const worldY = desiredScreenY + cameraY * parallax;
+    clouds.push({ img, worldX, worldY, parallax, drift, targetH, alpha });
   }
-  function updateClouds(now) {
+  function updateClouds(now, dt) {
+    // Pre-seed the sky with a spread of clouds the first frame.
+    if (now < 200 && clouds.length < MAX_CLOUDS) {
+      for (let i = 0; i < MAX_CLOUDS; i++) spawnCloud(now, { fromLeft: Math.random() < 0.5 });
+    }
     if (now >= nextCloudAt && clouds.length < MAX_CLOUDS) {
       spawnCloud(now);
-      nextCloudAt = now + (1800 + Math.random() * 2400);
+      nextCloudAt = now + (3500 + Math.random() * 4000);
     }
     for (let i = clouds.length - 1; i >= 0; i--) {
       const c = clouds[i];
-      const sx = c.worldX - (cameraX - c.spawnedCamX) * c.parallax - c.spawnedCamX;
+      c.worldX -= c.drift * dt;                                     // gentle wind
+      const sx = c.worldX - cameraX * c.parallax;
       if (sx < -400) clouds.splice(i, 1);
     }
   }
@@ -512,7 +534,7 @@
     for (const t of tanks) {
       if (!t.alive) continue;
       const pivotX = t.x - t.w / 2 + t.spec.bodyPivotFracX * t.w;
-      const pivotY = STREET_TOP_Y - t.h + t.spec.bodyPivotFracY * t.h;
+      const pivotY = ROAD_BOTTOM_Y - t.h + t.spec.bodyPivotFracY * t.h;
       const desired = Math.atan2(player.y - pivotY, player.x - pivotX);
       const diff = normalizeAngle(desired - t.turretAngle);
       const maxTurn = TANK_TURRET_TURN_RATE * (dt / 1000);
@@ -593,8 +615,8 @@
       for (let j = tanks.length - 1; j >= 0; j--) {
         const t = tanks[j];
         if (!t.alive) continue;
-        const top = STREET_TOP_Y - t.h;
-        if (b.x >= t.x - t.w / 2 && b.x <= t.x + t.w / 2 && b.y >= top && b.y <= STREET_TOP_Y) {
+        const top = ROAD_BOTTOM_Y - t.h;
+        if (b.x >= t.x - t.w / 2 && b.x <= t.x + t.w / 2 && b.y >= top && b.y <= ROAD_BOTTOM_Y) {
           t.hp -= 1;
           if (t.hp <= 0) { t.alive = false; spawnExplosion(b.x, top + t.h * 0.4, true); }
           else           { spawnExplosion(b.x, b.y, false); }
@@ -608,8 +630,8 @@
       for (let j = trucks.length - 1; j >= 0; j--) {
         const k = trucks[j];
         if (!k.alive) continue;
-        const top = STREET_TOP_Y - k.h;
-        if (b.x >= k.x - k.w / 2 && b.x <= k.x + k.w / 2 && b.y >= top && b.y <= STREET_TOP_Y) {
+        const top = ROAD_BOTTOM_Y - k.h;
+        if (b.x >= k.x - k.w / 2 && b.x <= k.x + k.w / 2 && b.y >= top && b.y <= ROAD_BOTTOM_Y) {
           k.hp -= 1;
           if (k.hp <= 0) { k.alive = false; spawnExplosion(b.x, top + k.h * 0.4, true); }
           else           { spawnExplosion(b.x, b.y, false); }
@@ -658,8 +680,6 @@
       p.life -= dt;
       if (p.life <= 0) particles.splice(i, 1);
     }
-    cameraShake *= Math.pow(0.85, dt / 16);
-    if (cameraShake < 0.05) cameraShake = 0;
 
     // ----- Win check -----
     if (stageBuilt && targetsRemaining() === 0) { gameOver = true; win = true; }
@@ -736,7 +756,10 @@
       if (!k.alive || !k.img) continue;
       const sx = worldToScreenX(k.x);
       if (sx + k.w / 2 < -10 || sx - k.w / 2 > W + 10) continue;
-      const top = worldToScreenY(STREET_TOP_Y - k.h);
+      // Vehicles ride ON the cobblestone road — bottom flush with the road
+      // surface, not the kerb the apartments sit on.
+      const bottom = worldToScreenY(ROAD_BOTTOM_Y);
+      const top = bottom - k.h;
       if (top > H + 10) continue;
       ctx.save();
       // Source PNGs face LEFT; mirror when driving right so the cab leads.
@@ -751,36 +774,44 @@
     }
   }
 
-  function drawTanks() {
+  // Tank render is split into TWO passes: drawTankTurrets() runs BEFORE the
+  // body pass so the body silhouette covers the turret's breech end. Only
+  // the gun barrel reads above the body, which matches the reference sketch.
+  function tankBodyRect(t) {
+    const sx = worldToScreenX(t.x);
+    const bottom = worldToScreenY(ROAD_BOTTOM_Y);
+    const top = bottom - t.h;
+    return { sx, top, bottom };
+  }
+  function drawTankTurrets() {
     for (const t of tanks) {
       if (!t.alive) continue;
-      const sx = worldToScreenX(t.x);
+      const { sx, top } = tankBodyRect(t);
       if (sx + t.w / 2 < -40 || sx - t.w / 2 > W + 40) continue;
-      const bodyTop = worldToScreenY(STREET_TOP_Y - t.h);
-      if (bodyTop > H + 40) continue;
-
-      // Body
-      ctx.drawImage(t.bodyImg, sx - t.w / 2, bodyTop, t.w, t.h);
-
-      // Turret — rotate around its pivot, which sits on the body PNG at the
-      // spec-defined fractional offset. The turret render height is fixed
-      // (TANK_TURRET_H); the muzzle direction depends on the source PNG's
-      // native orientation (baked into spec.barrelAngleOffset).
+      if (top > H + 40) continue;
       const spec = t.spec;
+      // Pivot sits on the body PNG at the spec-defined mount point.
       const pivotSX = sx - t.w / 2 + spec.bodyPivotFracX * t.w;
-      const pivotSY = bodyTop + spec.bodyPivotFracY * t.h;
+      const pivotSY = top + spec.bodyPivotFracY * t.h;
       const turretAspect = t.turretImg.width / t.turretImg.height;
       const trH = TANK_TURRET_H;
       const trW = trH * turretAspect;
       ctx.save();
       ctx.translate(pivotSX, pivotSY);
       ctx.rotate(t.turretAngle + spec.barrelAngleOffset);
-      // The pivot point in the source PNG maps to (0, 0) in plane-local
-      // coords. Compute the top-left of the drawn turret accordingly.
       const offX = -spec.turretPivotFracX * trW;
       const offY = -spec.turretPivotFracY * trH;
       ctx.drawImage(t.turretImg, offX, offY, trW, trH);
       ctx.restore();
+    }
+  }
+  function drawTankBodies() {
+    for (const t of tanks) {
+      if (!t.alive) continue;
+      const { sx, top } = tankBodyRect(t);
+      if (sx + t.w / 2 < -40 || sx - t.w / 2 > W + 40) continue;
+      if (top > H + 40) continue;
+      ctx.drawImage(t.bodyImg, sx - t.w / 2, top, t.w, t.h);
     }
   }
 
@@ -1001,8 +1032,17 @@
     ctx.restore();
   }
 
+  let lastShakeUpdate = 0;
   function render(now) {
     lastFrameNow = now;
+    // Decay the camera shake every frame, even when update() is paused on
+    // gameOver — otherwise the SHOT DOWN screen vibrates forever because
+    // the explosion-on-death set shake to 7 and it never drains.
+    const shakeDt = lastShakeUpdate ? Math.min(40, now - lastShakeUpdate) : 16;
+    lastShakeUpdate = now;
+    cameraShake *= Math.pow(0.85, shakeDt / 16);
+    if (cameraShake < 0.05) cameraShake = 0;
+
     clearBg();
     const shaking = cameraShake > 0.05;
     ctx.save();
@@ -1015,8 +1055,9 @@
     drawClouds();
     drawStreet();
     drawApartments();
+    drawTankTurrets();      // turret barrel renders behind the body
     drawTrucks();
-    drawTanks();
+    drawTankBodies();       // body silhouette covers the turret breech
     drawEnemies();
     drawPlayer(now);
     drawBullets();
