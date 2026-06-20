@@ -1793,17 +1793,16 @@
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    // ----- Controls row -----
-    // Stripped-down layout per the spec — no mission card, no controls
-    // card, no background squares. Just:
-    //   [↑]
-    //   Controls using [←] [→]   Space to fire   B to drop a bomb   M mute
-    //   [↓]
-    // with the keyboard caps drawn as proper keycap-style squares.
-    const KEY_H    = 40;
-    const KEY_PAD  = 11;
-    const KEY_GAP  = 10;
-    const TEXT_GAP = 20;
+    // ----- Controls block -----
+    // Centred on the canvas; arrow keys form a proper d-pad cross so all
+    // four are visually aligned, and the action keys (Space / B / M) live on
+    // a single row directly below the cross. Keycap outlines are medium
+    // grey, instructional copy is dark grey.
+    const KEY_H    = 44;                  // all caps the same height
+    const KEY_PAD  = 12;
+    const KEY_STEP = KEY_H + 8;           // vertical spacing between cross rows
+    const KEY_STROKE = 'rgba(120, 120, 120, 0.85)';
+    const LABEL_COLOR = '#2c3140';        // dark grey instructional copy
     function measureKey(label, font) {
       ctx.font = font;
       const m = ctx.measureText(label);
@@ -1812,22 +1811,22 @@
     function drawKey(label, x, y, font) {
       const w = measureKey(label, font);
       // Keycap body
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.94)';
-      roundRect(x, y - KEY_H / 2, w, KEY_H, 7);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.96)';
+      roundRect(x, y - KEY_H / 2, w, KEY_H, 8);
       ctx.fill();
-      ctx.strokeStyle = 'rgba(0, 0, 0, 0.55)';
+      ctx.strokeStyle = KEY_STROKE;
       ctx.lineWidth = 1.5;
       ctx.stroke();
-      // Inner top-edge highlight
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+      // Faint inner top-edge highlight for the keycap dimension.
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.moveTo(x + 4, y - KEY_H / 2 + 2);
-      ctx.lineTo(x + w - 4, y - KEY_H / 2 + 2);
+      ctx.moveTo(x + 5, y - KEY_H / 2 + 2);
+      ctx.lineTo(x + w - 5, y - KEY_H / 2 + 2);
       ctx.stroke();
       // Label
       ctx.font = font;
-      ctx.fillStyle = '#0c1e3a';
+      ctx.fillStyle = '#1a2030';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(label, x + w / 2, y + 1);
@@ -1842,30 +1841,37 @@
       return ctx.measureText(text).width;
     }
 
-    const keyFont    = '800 20px Inter, sans-serif';
-    const textFont   = '600 18px Inter, sans-serif';
-    const textColor  = 'rgba(255, 255, 255, 0.96)';
+    const keyFont   = '800 22px Inter, sans-serif';
+    const textFont  = '600 18px Inter, sans-serif';
 
-    // Build the middle row as a list of segments; first pass measures, then
-    // we draw centered on the canvas.
-    const rowMidY = 340;
+    // Vertical centre of the controls composition. The d-pad takes 3 rows
+    // (≈ 3 × KEY_STEP) and the action row sits below with a gap.
+    const blockCenterY = H / 2;
+    const padY = blockCenterY - KEY_STEP - 18;   // ↑ row
+    const midY = blockCenterY - 18;              // ← → row (centre of cross)
+    const downY = blockCenterY + KEY_STEP - 18;  // ↓ row
+    const actionY = blockCenterY + KEY_STEP * 2 + 6;  // Space / B / M row
+
+    // D-pad cross — ↑ centred above, ← / → flanking the centre, ↓ centred below.
+    const arrowW = measureKey('↑', keyFont);
+    drawKey('↑', cx - arrowW / 2, padY,  keyFont);
+    drawKey('←', cx - arrowW * 1.5 - 10, midY, keyFont);
+    drawKey('→', cx + arrowW * 0.5 + 10, midY, keyFont);
+    drawKey('↓', cx - arrowW / 2, downY, keyFont);
+
+    // Action row: [Space] to fire   [B] to drop a bomb   [M] mute — all
+    // centred horizontally. Build segments, measure, draw.
     const segments = [
-      { kind: 'text', value: 'Controls using' },
-      { kind: 'gap',  value: 12 },
-      { kind: 'key',  value: '←' },
-      { kind: 'gap',  value: KEY_GAP },
-      { kind: 'key',  value: '→' },
-      { kind: 'gap',  value: TEXT_GAP + 18 },
       { kind: 'key',  value: 'Space' },
-      { kind: 'gap',  value: 8 },
+      { kind: 'gap',  value: 10 },
       { kind: 'text', value: 'to fire' },
-      { kind: 'gap',  value: TEXT_GAP },
+      { kind: 'gap',  value: 26 },
       { kind: 'key',  value: 'B' },
-      { kind: 'gap',  value: 8 },
+      { kind: 'gap',  value: 10 },
       { kind: 'text', value: 'to drop a bomb' },
-      { kind: 'gap',  value: TEXT_GAP },
+      { kind: 'gap',  value: 26 },
       { kind: 'key',  value: 'M' },
-      { kind: 'gap',  value: 8 },
+      { kind: 'gap',  value: 10 },
       { kind: 'text', value: 'mute' },
     ];
     let totalW = 0;
@@ -1876,16 +1882,10 @@
     }
     let xCur = Math.round(cx - totalW / 2);
     for (const s of segments) {
-      if (s.kind === 'key')  xCur += drawKey(s.value, xCur, rowMidY, keyFont);
-      else if (s.kind === 'text') xCur += drawText(s.value, xCur, rowMidY + 1, textFont, textColor);
+      if (s.kind === 'key')  xCur += drawKey(s.value, xCur, actionY, keyFont);
+      else if (s.kind === 'text') xCur += drawText(s.value, xCur, actionY + 1, textFont, LABEL_COLOR);
       else                  xCur += s.value;
     }
-
-    // ↑ above the row, ↓ below — both centered on the canvas.
-    const upW = measureKey('↑', keyFont);
-    drawKey('↑', cx - upW / 2, rowMidY - 60, keyFont);
-    const dnW = measureKey('↓', keyFont);
-    drawKey('↓', cx - dnW / 2, rowMidY + 60, keyFont);
 
     // Start prompt — pulsing.
     const isMobile = MODE === 'mobile';
