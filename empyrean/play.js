@@ -89,6 +89,24 @@
   loadImage('./assets/sky/sky.jpg').then(img => { assets.sky = img; });
   loadImage('./assets/street/street2.jpg').then(img => { assets.street = img; });
   loadImage('./assets/planes-v2/Tsunami.png').then(img => { assets.player = img; });
+
+  // ---------- MISSION 1 — AIRCRAFT LINEUP ----------
+  // Player choice: 4 planes + 1 chopper. Stats are gameplay values used by the
+  // aircraft-select screen (and, downstream, by the live game).
+  const MISSION_1_AIRCRAFT = [
+    { name: 'Tsunami', file: './assets/planes-v2/Tsunami.png', hp: 100, speed: 100, bombs: 4, kind: 'plane',   blurb: 'Balanced strike fighter.' },
+    { name: 'Cyclone', file: './assets/planes-v2/Cyclone.png', hp:  80, speed: 130, bombs: 3, kind: 'plane',   blurb: 'Fast attacker, light armour.' },
+    { name: 'Tempest', file: './assets/planes-v2/Tempest.png', hp: 150, speed:  80, bombs: 5, kind: 'plane',   blurb: 'Heavy bomber, slow but tough.' },
+    { name: 'Zephyr',  file: './assets/planes-v2/Zephyr.png',  hp:  70, speed: 140, bombs: 2, kind: 'plane',   blurb: 'Light & nimble, fragile.' },
+    { name: 'Hornet',  file: './assets/choppers/Hornet.png',   hp: 110, speed:  70, bombs: 4, kind: 'chopper', blurb: 'Hovers; close-range support.' },
+  ];
+  // Stat-bar normalisation maxes — keeps bar widths comparable across aircraft.
+  const STAT_MAX = { hp: 200, speed: 150, bombs: 6 };
+  // Load sprite for each entry. We mutate the manifest entry so render code
+  // can just read `aircraft.image`. Missing images render as a placeholder.
+  for (const a of MISSION_1_AIRCRAFT) {
+    loadImage(a.file).then(img => { a.image = img; });
+  }
   Promise.all([1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(n =>
     loadImage(`./assets/planes-v2/enemy-aircraft${n}.png`)
   )).then(imgs => { assets.enemies = imgs.filter(Boolean); buildStageIfReady(); });
@@ -421,7 +439,12 @@
     hp: 100,
     invulnUntil: 0,
     alive: true,
+    kind: 'plane',              // 'plane' or 'chopper' — set when an aircraft is chosen
+    facing: 1,                  // chopper-only: +1 = faces right, -1 = faces left (sprite flipped)
   };
+  // Chopper movement: always upright, fixed speed in 8 directions. Roughly
+  // matches a plane's cruise speed (no throttle band).
+  const CHOPPER_SPEED = 0.075;  // px / ms
   // Hero speed band — MIN_SPEED is the default cruise (throttle = 0).
   // Pressing → throttles up; full throttle is +30 % above default.
   const MIN_SPEED   = 0.082;    // px / ms — default cruise speed
@@ -624,7 +647,19 @@
     if (e.repeat) return;
     ensureAudio();                                 // wake the audio context on first key
     keys[e.key] = true;
-    if (e.key === ' ' || e.key === 'Enter') advanceRequested = true;
+    // Scene-specific keyboard shortcuts. Done here (not in update()) so each
+    // key press maps to exactly one action — no held-key auto-repeat.
+    if (scene === 'select') {
+      if (e.key === 'ArrowLeft') {
+        aircraftIndex = (aircraftIndex - 1 + MISSION_1_AIRCRAFT.length) % MISSION_1_AIRCRAFT.length;
+      } else if (e.key === 'ArrowRight') {
+        aircraftIndex = (aircraftIndex + 1) % MISSION_1_AIRCRAFT.length;
+      } else if (e.key === ' ' || e.key === 'Enter') {
+        aircraftChosen = MISSION_1_AIRCRAFT[aircraftIndex];
+      }
+    } else if (e.key === ' ' || e.key === 'Enter') {
+      advanceRequested = true;
+    }
     if (e.key === 'b' || e.key === 'B') bombRequest = true;
     if (e.key === 'm' || e.key === 'M') setSoundOn(!soundOn);
   });
@@ -676,6 +711,16 @@
       if (acceptButtonRect && inRect(acceptButtonRect, p.x, p.y)) advanceRequested = true;
       return;
     }
+    if (scene === 'select') {
+      if (selectPrevRect && inRect(selectPrevRect, p.x, p.y)) {
+        aircraftIndex = (aircraftIndex - 1 + MISSION_1_AIRCRAFT.length) % MISSION_1_AIRCRAFT.length;
+      } else if (selectNextRect && inRect(selectNextRect, p.x, p.y)) {
+        aircraftIndex = (aircraftIndex + 1) % MISSION_1_AIRCRAFT.length;
+      } else if (selectChooseRect && inRect(selectChooseRect, p.x, p.y)) {
+        aircraftChosen = MISSION_1_AIRCRAFT[aircraftIndex];
+      }
+      return;
+    }
     touchOrigin = p;
     keys[' '] = true;                                 // fire while held
   }, { passive: false });
@@ -711,6 +756,15 @@
   let startButtonHover = false;
   let acceptButtonRect = null;   // populated by drawBriefing each frame
   let acceptButtonHover = false;
+  // Aircraft-select carousel state — populated by drawSelect each frame.
+  let aircraftIndex = 0;                  // 0..MISSION_1_AIRCRAFT.length-1
+  let aircraftChosen = null;              // set by Choose button -> consumed in update()
+  let selectPrevRect = null;              // left arrow hit area
+  let selectNextRect = null;              // right arrow hit area
+  let selectChooseRect = null;            // Choose button hit area
+  let selectPrevHover = false;
+  let selectNextHover = false;
+  let selectChooseHover = false;
   function inRect(r, x, y) {
     return r && x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
   }
@@ -722,21 +776,33 @@
     }
     if (scene === 'briefing' && acceptButtonRect && inRect(acceptButtonRect, p.x, p.y)) {
       advanceRequested = true;
+      return;
+    }
+    if (scene === 'select') {
+      if (selectPrevRect && inRect(selectPrevRect, p.x, p.y)) {
+        aircraftIndex = (aircraftIndex - 1 + MISSION_1_AIRCRAFT.length) % MISSION_1_AIRCRAFT.length;
+      } else if (selectNextRect && inRect(selectNextRect, p.x, p.y)) {
+        aircraftIndex = (aircraftIndex + 1) % MISSION_1_AIRCRAFT.length;
+      } else if (selectChooseRect && inRect(selectChooseRect, p.x, p.y)) {
+        aircraftChosen = MISSION_1_AIRCRAFT[aircraftIndex];
+      }
     }
   });
   canvas.addEventListener('mousemove', (e) => {
     const p = canvasFromClient(e.clientX, e.clientY);
     let hovering = false;
+    startButtonHover = acceptButtonHover = selectPrevHover = selectNextHover = selectChooseHover = false;
     if (scene === 'intro') {
       startButtonHover = !!(startButtonRect && inRect(startButtonRect, p.x, p.y));
-      acceptButtonHover = false;
       hovering = startButtonHover;
     } else if (scene === 'briefing') {
       acceptButtonHover = !!(acceptButtonRect && inRect(acceptButtonRect, p.x, p.y));
-      startButtonHover = false;
       hovering = acceptButtonHover;
-    } else {
-      startButtonHover = acceptButtonHover = false;
+    } else if (scene === 'select') {
+      selectPrevHover   = !!(selectPrevRect   && inRect(selectPrevRect,   p.x, p.y));
+      selectNextHover   = !!(selectNextRect   && inRect(selectNextRect,   p.x, p.y));
+      selectChooseHover = !!(selectChooseRect && inRect(selectChooseRect, p.x, p.y));
+      hovering = selectPrevHover || selectNextHover || selectChooseHover;
     }
     canvas.style.cursor = hovering ? 'pointer' : '';
   });
@@ -942,47 +1008,82 @@
     }
     if (scene === 'briefing') {
       if (advanceRequested) {
-        scene = 'playing';
+        scene = 'select';
         advanceRequested = false;
+      }
+      return;
+    }
+    if (scene === 'select') {
+      // Carousel + Choose handled by their own click / key handlers below.
+      // Space alone here would be ambiguous (next slide? choose?), so we
+      // require the explicit Choose button.
+      if (aircraftChosen) {
+        // Wire the chosen sprite + kind into the live game and enter playing.
+        if (aircraftChosen.image) assets.player = aircraftChosen.image;
+        player.kind = aircraftChosen.kind;
+        player.heading = 0;
+        player.throttle = 0;
+        player.facing = 1;
+        scene = 'playing';
+        aircraftChosen = null;
         startGameAudio();
       }
       return;
     }
     if (gameOver) return;
 
-    // ----- Player flight -----
-    // ↑ / ↓ steer (rotate the nose) ; ← / → adjust speed (throttle)
-    if (keys.ArrowUp)    player.heading -= TURN_RATE * (dt / 1000);
-    if (keys.ArrowDown)  player.heading += TURN_RATE * (dt / 1000);
-    if (keys.ArrowRight) player.throttle = Math.min(1, player.throttle + THROTTLE_RATE * dt / 1000);
-    if (keys.ArrowLeft)  player.throttle = Math.max(0, player.throttle - THROTTLE_RATE * dt / 1000);
-    player.heading = normalizeAngle(player.heading);
+    if (player.kind === 'chopper') {
+      // ----- Chopper flight -----
+      // Always upright, fixed speed, 8-directional movement.
+      // ← / → translate horizontally; ↑ / ↓ translate vertically.
+      player.heading = 0;
+      player.throttle = 0;
+      let vx = 0, vy = 0;
+      if (keys.ArrowRight) vx += 1;
+      if (keys.ArrowLeft)  vx -= 1;
+      if (keys.ArrowUp)    vy -= 1;
+      if (keys.ArrowDown)  vy += 1;
+      // Horizontal input flips the chopper to face the direction of travel.
+      if (vx > 0) player.facing = 1;
+      else if (vx < 0) player.facing = -1;
+      if (vx !== 0 || vy !== 0) {
+        const inv = 1 / Math.hypot(vx, vy);
+        player.x += vx * inv * CHOPPER_SPEED * dt;
+        player.y += vy * inv * CHOPPER_SPEED * dt;
+      }
+      // Hard clamp inside the stage (no ricochet — choppers just stop).
+      if (player.x < 30)             player.x = 30;
+      if (player.x > STAGE_W - 30)   player.x = STAGE_W - 30;
+      if (player.y < FLIGHT_Y_MIN)   player.y = FLIGHT_Y_MIN;
+      if (player.y > FLIGHT_Y_MAX)   player.y = FLIGHT_Y_MAX;
+    } else {
+      // ----- Plane flight -----
+      // ↑ / ↓ steer (rotate the nose) ; ← / → adjust speed (throttle)
+      if (keys.ArrowUp)    player.heading -= TURN_RATE * (dt / 1000);
+      if (keys.ArrowDown)  player.heading += TURN_RATE * (dt / 1000);
+      if (keys.ArrowRight) player.throttle = Math.min(1, player.throttle + THROTTLE_RATE * dt / 1000);
+      if (keys.ArrowLeft)  player.throttle = Math.max(0, player.throttle - THROTTLE_RATE * dt / 1000);
+      player.heading = normalizeAngle(player.heading);
 
-    const sp = playerSpeed();
-    player.x += Math.cos(player.heading) * sp * dt;
-    player.y += Math.sin(player.heading) * sp * dt;
+      const sp = playerSpeed();
+      player.x += Math.cos(player.heading) * sp * dt;
+      player.y += Math.sin(player.heading) * sp * dt;
 
-    // Stage bounds — soft clamp + lose energy on hit (no instant death yet).
-    // Stage-edge reflection — instead of stalling the plane against the
-    // wall, bounce it off the same way a billiard ball would: flip the
-    // velocity component perpendicular to the wall, keep the parallel
-    // component. For a vertical wall (left / right) that's heading → π − h
-    // (negates cos). For a horizontal wall (top / bottom) it's heading → −h
-    // (negates sin). The plane continues moving forward in its NEW heading,
-    // so the trajectory reads as a clean ricochet.
-    if (player.x < 30) {
-      player.x = 30;
-      player.heading = normalizeAngle(Math.PI - player.heading);
-    } else if (player.x > STAGE_W - 30) {
-      player.x = STAGE_W - 30;
-      player.heading = normalizeAngle(Math.PI - player.heading);
-    }
-    if (player.y < FLIGHT_Y_MIN) {
-      player.y = FLIGHT_Y_MIN;
-      player.heading = normalizeAngle(-player.heading);
-    } else if (player.y > FLIGHT_Y_MAX) {
-      player.y = FLIGHT_Y_MAX;
-      player.heading = normalizeAngle(-player.heading);
+      // Stage-edge reflection — bounce instead of stalling against the wall.
+      if (player.x < 30) {
+        player.x = 30;
+        player.heading = normalizeAngle(Math.PI - player.heading);
+      } else if (player.x > STAGE_W - 30) {
+        player.x = STAGE_W - 30;
+        player.heading = normalizeAngle(Math.PI - player.heading);
+      }
+      if (player.y < FLIGHT_Y_MIN) {
+        player.y = FLIGHT_Y_MIN;
+        player.heading = normalizeAngle(-player.heading);
+      } else if (player.y > FLIGHT_Y_MAX) {
+        player.y = FLIGHT_Y_MAX;
+        player.heading = normalizeAngle(-player.heading);
+      }
     }
 
     updateCamera();
@@ -1154,8 +1255,12 @@
     }
 
     // ----- Military buildings (alive: track + fire ; burnt: emit smoke + embers) -----
+    // Building cannons have a hard circular firing radius — beyond it they
+    // still track but don't shoot.  Keeps the player safe at altitude /
+    // distance and gives each gun tower a defined threat bubble.
     const MIL_TURRET_TURN_RATE = 1.1;       // rad / sec — slower than tanks (taller mount)
-    const MIL_FIRE_RANGE_X = 1.3 * W;
+    const MIL_FIRE_RADIUS = 640;            // px — distance from pivot at which the gun can fire
+    const MIL_FIRE_RADIUS_SQ = MIL_FIRE_RADIUS * MIL_FIRE_RADIUS;
     const MIL_ALIGN_RAD = 0.10;
     for (const mb of militaryBuildings) {
       const pivotX = mb.x;                                                // turret centred on building
@@ -1165,8 +1270,11 @@
         const diff = normalizeAngle(desired - mb.turretAngle);
         const maxTurn = MIL_TURRET_TURN_RATE * (dt / 1000);
         mb.turretAngle += Math.max(-maxTurn, Math.min(maxTurn, diff));
+        const dxToPlayer = player.x - pivotX;
+        const dyToPlayer = player.y - pivotY;
+        const distSqToPlayer = dxToPlayer * dxToPlayer + dyToPlayer * dyToPlayer;
         if (Math.abs(diff) < MIL_ALIGN_RAD &&
-            Math.abs(player.x - pivotX) < MIL_FIRE_RANGE_X &&
+            distSqToPlayer < MIL_FIRE_RADIUS_SQ &&
             now >= mb.fireAt) {
           const barrelLen = MILITARY_TURRET_H * 0.65;
           const mx = pivotX + Math.cos(mb.turretAngle) * barrelLen;
@@ -1212,41 +1320,18 @@
     }
 
     // ----- Trucks (drive along the street, no shooting) -----
-    // Every truck also rolls a random "U-turn" chance, so the player sees
-    // direction changes in the middle of the road rather than only at the
-    // stage edges. Each direction change kicks off a brief dust-puff and
-    // a body-tilt effect (turnPhase animates from 1 → 0).
+    // Each truck holds its initial heading and never U-turns mid-road. When
+    // it reaches a stage edge it wraps around to the opposite side, still
+    // moving in the same direction — so the player only ever sees a truck
+    // travelling forward.
     for (const k of trucks) {
       if (!k.alive) continue;
       if (k.parked) continue;        // parked trucks don't drive or turn
       k.x += k.vx * dt;
-      if (k.turnPhase > 0) k.turnPhase = Math.max(0, k.turnPhase - dt / 600);
-      // Random U-turn — average once every ~6 s while driving.
-      if (k.nextTurnAt === undefined) k.nextTurnAt = now + 4000 + Math.random() * 4000;
-      let turned = false;
-      if (now >= k.nextTurnAt && k.turnPhase <= 0) {
-        k.vx = -k.vx;
-        k.nextTurnAt = now + 4500 + Math.random() * 4500;
-        turned = true;
-      }
-      if (k.x < 50)            { k.x = 50;            k.vx = Math.abs(k.vx);  turned = true; }
-      if (k.x > STAGE_W - 50)  { k.x = STAGE_W - 50;  k.vx = -Math.abs(k.vx); turned = true; }
-      if (turned) {
-        k.turnPhase = 1;
-        // Dust puffs at the wheels.
-        for (let p = 0; p < 6; p++) {
-          const off = (Math.random() - 0.5) * k.w * 0.7;
-          particles.push({
-            kind: 'smoke',
-            x: k.x + off, y: ROAD_BOTTOM_Y - 6,
-            vx: (Math.random() - 0.5) * 0.6 - k.vx * 6,
-            vy: -0.2 - Math.random() * 0.4,
-            life0: 700, life: 700,
-            r0: 4 + Math.random() * 4,
-            color: 'rgba(140, 130, 120, 0.55)',
-          });
-        }
-      }
+      // Wrap on the side the truck is heading off, so it re-enters from the
+      // opposite edge and keeps driving in the same direction.
+      if (k.vx > 0 && k.x > STAGE_W + k.w) k.x = -k.w;
+      else if (k.vx < 0 && k.x < -k.w)     k.x = STAGE_W + k.w;
     }
 
     // ----- Bullets -----
@@ -1652,11 +1737,26 @@
     ctx.restore();
   }
 
-  // Draw a plane in plane-local coords with proper rotation. The source PNG
-  // points RIGHT in its native orientation. The plane is rotated by its
-  // heading directly — no auto-flip — so a full loop carries the plane
-  // through inverted flight (canopy down) just like a real aircraft.
-  function drawAircraft(img, worldX, worldY, heading, targetH) {
+  // Rotor — long horizontal blur disc above the chopper, same alpha flicker
+  // as the propeller so the visual language matches.
+  function drawRotor(now, rotorCX, rotorCY, width) {
+    const flicker = 0.55 + 0.25 * Math.sin(now * 0.09);
+    const discW = width * 0.95;
+    const discH = width * 0.025;
+    ctx.save();
+    ctx.translate(rotorCX, rotorCY);
+    ctx.globalAlpha = flicker;
+    ctx.fillStyle = 'rgba(220, 220, 220, 0.9)';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, discW / 2, discH, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Draw a plane or chopper in world coords. Planes rotate with heading and
+  // get a nose propeller; choppers stay upright and get a horizontal rotor,
+  // optionally mirrored to face their direction of travel.
+  function drawAircraft(img, worldX, worldY, heading, targetH, kind, facing) {
     const sx = worldToScreenX(worldX);
     const sy = worldToScreenY(worldY);
     if (sx < -120 || sx > W + 120 || sy < -120 || sy > H + 120) return;
@@ -1664,9 +1764,15 @@
     const targetW = targetH * aspect;
     ctx.save();
     ctx.translate(sx, sy);
-    ctx.rotate(heading);
-    ctx.drawImage(img, -targetW / 2, -targetH / 2, targetW, targetH);
-    drawPropeller(lastFrameNow, targetW / 2 - 4, 0, targetH);
+    if (kind === 'chopper') {
+      if (facing === -1) ctx.scale(-1, 1);
+      ctx.drawImage(img, -targetW / 2, -targetH / 2, targetW, targetH);
+      drawRotor(lastFrameNow, 0, -targetH * 0.36, targetW);
+    } else {
+      ctx.rotate(heading);
+      ctx.drawImage(img, -targetW / 2, -targetH / 2, targetW, targetH);
+      drawPropeller(lastFrameNow, targetW / 2 - 4, 0, targetH);
+    }
     ctx.restore();
   }
 
@@ -1674,7 +1780,7 @@
     if (!assets.player) return;
     // Brief flicker while invulnerable.
     if (now <= player.invulnUntil && Math.floor(now / 60) % 2 === 0) return;
-    drawAircraft(assets.player, player.x, player.y, player.heading, 72);   // ~10 % of canvas — matches reference
+    drawAircraft(assets.player, player.x, player.y, player.heading, 72, player.kind, player.facing);
   }
 
   function drawEnemies() {
@@ -2240,6 +2346,225 @@
     ctx.fillText(isMobile ? 'tap the button to begin' : 'press space or click the button to begin', cx, btnY + btnH + hintGap + hintH / 2);
   }
 
+  // Aircraft-select carousel — one aircraft per slide, navigated with the
+  // arrow keys (or the on-screen ◀ / ▶ buttons / tap). Choose locks the
+  // selection in and advances to playing.
+  function drawSelect(now) {
+    // ----- Backdrop (same as the briefing scene) -----
+    clearBg();
+    drawSky();
+    drawStreet();
+    drawApartments();
+    drawMilitaryBodies();
+
+    const cx = W / 2;
+    const aircraft = MISSION_1_AIRCRAFT[aircraftIndex];
+
+    // ----- Card geometry -----
+    const cardW   = 760;
+    const cardPad = 36;
+    const headerH = 32;
+    const headerGap = 22;
+    const spriteSlotH = 132;            // height reserved for the sprite
+    const nameH   = 26;
+    const nameGap = 14;
+    const statRowH = 26;
+    const statRowGap = 10;
+    const statsBlockH = statRowH * 3 + statRowGap * 2;
+    const statsGap = 22;
+    const dotsH   = 14;
+    const dotsGap = 22;
+    const btnH    = 52;
+    const btnGap  = 18;
+    const contentH = headerH + headerGap + spriteSlotH + nameGap + nameH + statsGap + statsBlockH + dotsGap + dotsH + btnGap + btnH;
+    const cardH   = contentH + cardPad * 2;
+    const cardX   = Math.round(cx - cardW / 2);
+    const cardY   = Math.round((H - cardH) / 2);
+
+    // ----- Card surface -----
+    ctx.save();
+    ctx.shadowColor = 'rgba(2, 6, 17, 0.35)';
+    ctx.shadowBlur = 22;
+    ctx.shadowOffsetY = 6;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    roundRect(cardX, cardY, cardW, cardH, 14);
+    ctx.fill();
+    ctx.restore();
+    ctx.save();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(20, 26, 36, 0.12)';
+    roundRect(cardX, cardY, cardW, cardH, 14);
+    ctx.stroke();
+    ctx.restore();
+
+    // ----- Header -----
+    let y = cardY + cardPad + headerH / 2;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = '800 28px Inter, sans-serif';
+    ctx.fillStyle = '#0E1424';
+    ctx.fillText('Choose your aircraft', cx, y);
+    y += headerH / 2 + headerGap;
+
+    // ----- Carousel row: ◀ arrow | sprite | ▶ arrow -----
+    const arrowW = 56, arrowH = 56;
+    const spriteAreaTop = y;
+    const arrowCenterY = spriteAreaTop + spriteSlotH / 2;
+    const arrowMargin = cardPad + 8;
+    const prevX = cardX + arrowMargin;
+    const nextX = cardX + cardW - arrowMargin - arrowW;
+    selectPrevRect = { x: prevX, y: arrowCenterY - arrowH / 2, w: arrowW, h: arrowH };
+    selectNextRect = { x: nextX, y: arrowCenterY - arrowH / 2, w: arrowW, h: arrowH };
+
+    drawCarouselArrow(selectPrevRect, 'left',  selectPrevHover);
+    drawCarouselArrow(selectNextRect, 'right', selectNextHover);
+
+    // ----- Aircraft sprite (centred between the arrows) -----
+    if (aircraft.image) {
+      const img = aircraft.image;
+      const slotW = 240;
+      const slotH = spriteSlotH;
+      const scale = Math.min(slotW / img.width, slotH / img.height);
+      const drawW = img.width  * scale;
+      const drawH = img.height * scale;
+      ctx.drawImage(img, Math.round(cx - drawW / 2), Math.round(spriteAreaTop + (slotH - drawH) / 2), drawW, drawH);
+    } else {
+      // Placeholder while sprite is still loading.
+      ctx.fillStyle = 'rgba(20, 26, 36, 0.08)';
+      roundRect(Math.round(cx - 120), spriteAreaTop + 10, 240, spriteSlotH - 20, 10);
+      ctx.fill();
+    }
+    y = spriteAreaTop + spriteSlotH + nameGap;
+
+    // ----- Name + kind tag -----
+    ctx.font = '700 22px Inter, sans-serif';
+    ctx.fillStyle = '#0E1424';
+    ctx.fillText(aircraft.name, cx, y + nameH / 2);
+    y += nameH + statsGap;
+
+    // ----- Stat bars (HP / Speed / Bombs) -----
+    const statsBlockX = cardX + cardPad + 80;       // indent leaves room for label
+    const statsBlockW = cardW - (cardPad + 80) * 2;
+    const labelW = 64;
+    const valueW = 44;
+    const barX = statsBlockX + labelW;
+    const barW = statsBlockW - labelW - valueW - 12;
+    const STATS = [
+      { key: 'hp',    label: 'Health' },
+      { key: 'speed', label: 'Speed'  },
+      { key: 'bombs', label: 'Bombs'  },
+    ];
+    for (let i = 0; i < STATS.length; i++) {
+      const s = STATS[i];
+      const val = aircraft[s.key];
+      const max = STAT_MAX[s.key];
+      const pct = Math.max(0, Math.min(1, val / max));
+      const rowY = y + i * (statRowH + statRowGap) + statRowH / 2;
+      // Label (left-aligned)
+      ctx.font = '600 15px Inter, sans-serif';
+      ctx.fillStyle = '#1a2030';
+      ctx.textAlign = 'left';
+      ctx.fillText(s.label, statsBlockX, rowY);
+      // Track
+      const trackH = 10;
+      ctx.fillStyle = 'rgba(20, 26, 36, 0.10)';
+      roundRect(barX, rowY - trackH / 2, barW, trackH, 5);
+      ctx.fill();
+      // Fill
+      ctx.fillStyle = '#cc2200';
+      roundRect(barX, rowY - trackH / 2, Math.max(4, barW * pct), trackH, 5);
+      ctx.fill();
+      // Value (right-aligned)
+      ctx.font = '700 15px Inter, sans-serif';
+      ctx.fillStyle = '#0E1424';
+      ctx.textAlign = 'right';
+      ctx.fillText(String(val), statsBlockX + statsBlockW, rowY);
+    }
+    ctx.textAlign = 'center';
+    y += statsBlockH + dotsGap;
+
+    // ----- Dots indicator -----
+    const dotR = 5;
+    const dotGap = 14;
+    const totalDotsW = MISSION_1_AIRCRAFT.length * (dotR * 2) + (MISSION_1_AIRCRAFT.length - 1) * dotGap;
+    let dotX = Math.round(cx - totalDotsW / 2 + dotR);
+    const dotsCenterY = y + dotsH / 2;
+    for (let i = 0; i < MISSION_1_AIRCRAFT.length; i++) {
+      ctx.beginPath();
+      ctx.arc(dotX, dotsCenterY, dotR, 0, Math.PI * 2);
+      ctx.fillStyle = i === aircraftIndex ? '#cc2200' : 'rgba(20, 26, 36, 0.22)';
+      ctx.fill();
+      dotX += dotR * 2 + dotGap;
+    }
+    y += dotsH + btnGap;
+
+    // ----- Choose button -----
+    const btnW = 240;
+    const btnX = Math.round(cx - btnW / 2);
+    const btnY = y;
+    selectChooseRect = { x: btnX, y: btnY, w: btnW, h: btnH };
+
+    const pulse = 0.5 + 0.5 * Math.sin(now * 0.003);
+    ctx.save();
+    ctx.fillStyle = '#cc2200';
+    roundRect(btnX, btnY, btnW, btnH, 10);
+    ctx.fill();
+    ctx.lineWidth = 1.5;
+    const borderAlpha = selectChooseHover ? 0.95 : 0.45 + 0.25 * pulse;
+    ctx.strokeStyle = `rgba(120, 20, 0, ${borderAlpha.toFixed(2)})`;
+    roundRect(btnX, btnY, btnW, btnH, 10);
+    ctx.stroke();
+    if (selectChooseHover) {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.10)';
+      roundRect(btnX, btnY, btnW, btnH, 10);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = '700 18px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Choose', btnX + btnW / 2, btnY + btnH / 2 + 1);
+    ctx.restore();
+    // No hint line below the Choose button — the carousel arrows and the
+    // button itself are self-explanatory.
+  }
+
+  // Single rounded-square carousel arrow with a chevron glyph.
+  function drawCarouselArrow(rect, dir, hovering) {
+    ctx.save();
+    // Button surface — light fill, dark chevron. Same hero-red on hover.
+    if (hovering) {
+      ctx.fillStyle = '#cc2200';
+    } else {
+      ctx.fillStyle = 'rgba(20, 26, 36, 0.08)';
+    }
+    roundRect(rect.x, rect.y, rect.w, rect.h, 10);
+    ctx.fill();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = hovering ? 'rgba(120, 20, 0, 0.85)' : 'rgba(20, 26, 36, 0.18)';
+    roundRect(rect.x, rect.y, rect.w, rect.h, 10);
+    ctx.stroke();
+    // Chevron
+    const cx2 = rect.x + rect.w / 2;
+    const cy2 = rect.y + rect.h / 2;
+    ctx.strokeStyle = hovering ? '#FFFFFF' : '#1a2030';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    if (dir === 'left') {
+      ctx.moveTo(cx2 + 6, cy2 - 9);
+      ctx.lineTo(cx2 - 6, cy2);
+      ctx.lineTo(cx2 + 6, cy2 + 9);
+    } else {
+      ctx.moveTo(cx2 - 6, cy2 - 9);
+      ctx.lineTo(cx2 + 6, cy2);
+      ctx.lineTo(cx2 - 6, cy2 + 9);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
   // Helper used by drawIntro for the rounded-rect cards.
   function roundRect(x, y, w, h, r) {
     ctx.beginPath();
@@ -2266,6 +2591,10 @@
     }
     if (scene === 'briefing') {
       drawBriefing(now);
+      return;
+    }
+    if (scene === 'select') {
+      drawSelect(now);
       return;
     }
     // Decay the camera shake every frame, even when update() is paused on
