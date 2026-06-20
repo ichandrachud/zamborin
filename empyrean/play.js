@@ -1806,53 +1806,106 @@
     ctx.fillStyle = 'rgba(255,255,255,0.72)';
     ctx.fillText('A Zamborin Sortie', cx, 152);
 
-    // Mission card
-    ctx.fillStyle = 'rgba(0,0,0,0.30)';
-    roundRect(W / 2 - 380, 200, 760, 130, 10);
-    ctx.fill();
-    ctx.font = '800 22px Inter, sans-serif';
-    ctx.fillStyle = '#FFD23F';
-    ctx.fillText('MISSION', cx, 226);
-    ctx.font = '500 17px Inter, sans-serif';
-    ctx.fillStyle = 'rgba(255,255,255,0.94)';
-    ctx.fillText('Take down every enemy plane, tank, truck, and military', cx, 260);
-    ctx.fillText('building before they take you down. The arena is six', cx, 285);
-    ctx.fillText('screens wide and four screens tall — fly hard.', cx, 310);
-
-    // Controls card
-    ctx.fillStyle = 'rgba(0,0,0,0.30)';
-    roundRect(W / 2 - 380, 360, 760, 180, 10);
-    ctx.fill();
-    ctx.font = '800 22px Inter, sans-serif';
-    ctx.fillStyle = '#5DD39E';
-    ctx.fillText('CONTROLS', cx, 386);
-
-    const isMobile = MODE === 'mobile';
-    ctx.font = '600 17px Inter, sans-serif';
-    ctx.fillStyle = 'rgba(255,255,255,0.94)';
-    if (isMobile) {
-      ctx.fillText('Touch anywhere — drag to steer:', cx, 420);
-      ctx.font = '500 16px Inter, sans-serif';
-      ctx.fillStyle = 'rgba(255,255,255,0.85)';
-      ctx.fillText('left / right of touch origin → rotate the nose', cx, 446);
-      ctx.fillText('up / down of touch origin → throttle up / down', cx, 470);
-      ctx.fillText('Hold = fire   ·   Double-tap = drop a bomb', cx, 502);
-    } else {
-      // Two-row keyboard hint
-      ctx.font = '700 17px Inter, sans-serif';
-      const row1 = '← / →  rotate the nose       ↑ / ↓  throttle';
-      const row2 = 'Space  fire       B  drop a bomb       M  mute';
-      ctx.fillText(row1, cx, 422);
-      ctx.fillText(row2, cx, 460);
-      ctx.font = '500 16px Inter, sans-serif';
-      ctx.fillStyle = 'rgba(255,255,255,0.78)';
-      ctx.fillText('Tip: the plane can fly upside-down through a full loop.', cx, 502);
+    // ----- Controls row -----
+    // Stripped-down layout per the spec — no mission card, no controls
+    // card, no background squares. Just:
+    //   [↑]
+    //   Controls using [←] [→]   Space to fire   B to drop a bomb   M mute
+    //   [↓]
+    // with the keyboard caps drawn as proper keycap-style squares.
+    const KEY_H    = 40;
+    const KEY_PAD  = 11;
+    const KEY_GAP  = 10;
+    const TEXT_GAP = 20;
+    function measureKey(label, font) {
+      ctx.font = font;
+      const m = ctx.measureText(label);
+      return Math.max(KEY_H, Math.ceil(m.width) + KEY_PAD * 2);
+    }
+    function drawKey(label, x, y, font) {
+      const w = measureKey(label, font);
+      // Keycap body
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.94)';
+      roundRect(x, y - KEY_H / 2, w, KEY_H, 7);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.55)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      // Inner top-edge highlight
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x + 4, y - KEY_H / 2 + 2);
+      ctx.lineTo(x + w - 4, y - KEY_H / 2 + 2);
+      ctx.stroke();
+      // Label
+      ctx.font = font;
+      ctx.fillStyle = '#0c1e3a';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, x + w / 2, y + 1);
+      return w;
+    }
+    function drawText(text, x, y, font, color) {
+      ctx.font = font;
+      ctx.fillStyle = color;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, x, y);
+      return ctx.measureText(text).width;
     }
 
+    const keyFont    = '800 20px Inter, sans-serif';
+    const textFont   = '600 18px Inter, sans-serif';
+    const textColor  = 'rgba(255, 255, 255, 0.96)';
+
+    // Build the middle row as a list of segments; first pass measures, then
+    // we draw centered on the canvas.
+    const rowMidY = 340;
+    const segments = [
+      { kind: 'text', value: 'Controls using' },
+      { kind: 'gap',  value: 12 },
+      { kind: 'key',  value: '←' },
+      { kind: 'gap',  value: KEY_GAP },
+      { kind: 'key',  value: '→' },
+      { kind: 'gap',  value: TEXT_GAP + 18 },
+      { kind: 'key',  value: 'Space' },
+      { kind: 'gap',  value: 8 },
+      { kind: 'text', value: 'to fire' },
+      { kind: 'gap',  value: TEXT_GAP },
+      { kind: 'key',  value: 'B' },
+      { kind: 'gap',  value: 8 },
+      { kind: 'text', value: 'to drop a bomb' },
+      { kind: 'gap',  value: TEXT_GAP },
+      { kind: 'key',  value: 'M' },
+      { kind: 'gap',  value: 8 },
+      { kind: 'text', value: 'mute' },
+    ];
+    let totalW = 0;
+    for (const s of segments) {
+      if (s.kind === 'key')  totalW += measureKey(s.value, keyFont);
+      else if (s.kind === 'text') { ctx.font = textFont; totalW += ctx.measureText(s.value).width; }
+      else                  totalW += s.value;
+    }
+    let xCur = Math.round(cx - totalW / 2);
+    for (const s of segments) {
+      if (s.kind === 'key')  xCur += drawKey(s.value, xCur, rowMidY, keyFont);
+      else if (s.kind === 'text') xCur += drawText(s.value, xCur, rowMidY + 1, textFont, textColor);
+      else                  xCur += s.value;
+    }
+
+    // ↑ above the row, ↓ below — both centered on the canvas.
+    const upW = measureKey('↑', keyFont);
+    drawKey('↑', cx - upW / 2, rowMidY - 60, keyFont);
+    const dnW = measureKey('↓', keyFont);
+    drawKey('↓', cx - dnW / 2, rowMidY + 60, keyFont);
+
     // Start prompt — pulsing.
+    const isMobile = MODE === 'mobile';
     const pulse = 0.55 + 0.45 * Math.sin(now * 0.0042);
     ctx.font = '900 26px Inter, sans-serif';
     ctx.fillStyle = `rgba(255, 220, 90, ${pulse.toFixed(2)})`;
+    ctx.textAlign = 'center';
     ctx.fillText(isMobile ? 'TAP TO START' : 'PRESS SPACE TO START', cx, H - 70);
   }
 
