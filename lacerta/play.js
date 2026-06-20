@@ -112,14 +112,14 @@
   // ABOVE the canvas top so planes have room to climb, dive, and loop.
   const STREET_H        = 72;
   const STREET_TOP_Y    = H - STREET_H;
-  const APARTMENT_RENDER_H = 192;
+  const APARTMENT_RENDER_H = 150;       // ~21 % of 720 canvas — matches reference
   // Ground vehicles drive ON the cobblestone road (not on the kerb the
   // apartments sit on). Their wheels sit just above the bottom edge of the
   // canvas and they're rendered at 60 % of the previous size.
   const ROAD_BOTTOM_Y   = H - 8;
-  const TANK_BODY_H     = 76;        // 15 % larger than previous 66
-  const TANK_TURRET_H   = 25;        // 15 % larger than previous 22
-  const TRUCK_H         = 69;        // 15 % larger than previous 60
+  const TANK_BODY_H     = 60;        // ~8 % of canvas — matches reference vehicle scale
+  const TANK_TURRET_H   = 20;
+  const TRUCK_H         = 54;        // ~7.5 % of canvas
   const STAGE_TOP_Y     = -3 * H;        // ceiling sits 3 screens above the canvas
   const STAGE_BOTTOM_Y  = H;             // bottom of the visible canvas
 
@@ -506,9 +506,15 @@
   function spawnCloud(now, opts = {}) {
     if (!assets.clouds.length) return;
     const img = assets.clouds[Math.floor(Math.random() * assets.clouds.length)];
-    const depth = Math.random();                                   // 0 = near, 1 = far
-    const targetH  = 150 - depth * 80;                              // 150 near → 70 far (larger overall)
-    const alpha    = 0.92 - depth * 0.30;                           // 0.92 near → 0.62 far (always clearly visible)
+    // Reference image shows a few large near-clouds (~15 % canvas height) at
+    // the top of the sky and a scatter of small, faded distant clouds dotted
+    // through the lower sky. Use a SKEWED depth distribution so most clouds
+    // are far (small / faded), with the occasional near one to anchor the
+    // composition. Math.pow(rand, 0.5) biases away from 0 → far clouds are
+    // the common case.
+    const depth = Math.pow(Math.random(), 0.55);                    // 0 near, 1 far; biased toward far
+    const targetH  = 180 - depth * 145;                             // 180 near → 35 far
+    const alpha    = 0.95 - depth * 0.55;                           // 0.95 near → 0.40 far
     // Parallax: near clouds get a SLIGHT shift with camera (0.18), far ones
     // are practically screen-locked (0.02). Far clouds = "infinitely distant".
     const parallax = 0.18 * (1 - depth) + 0.02;
@@ -923,36 +929,60 @@
     }
   }
 
+  // Procedural road specks — a deterministic pool of small dots that repeat
+  // every ROAD_SPECK_TILE world-pixels. The base street texture is rendered
+  // STATIC (no tiling, so no seams), and the motion illusion comes from the
+  // specks scrolling left at world speed.
+  const ROAD_SPECK_TILE = 480;
+  const ROAD_SPECKS = (() => {
+    // Cheap LCG so the pattern is deterministic between sessions.
+    let seed = 0xA1B2C3;
+    const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 0xFFFFFFFF; };
+    const arr = [];
+    for (let i = 0; i < 18; i++) {
+      arr.push({
+        x: rnd() * ROAD_SPECK_TILE,
+        yOff: 8 + rnd() * (STREET_H - 16),
+        r: 0.6 + rnd() * 1.1,
+        alpha: 0.18 + rnd() * 0.22,
+        warm: rnd() < 0.4,                    // mix of pale + warm specks
+      });
+    }
+    return arr;
+  })();
+
   function drawStreet() {
-    // Street is anchored in WORLD coords at STREET_TOP_Y. With the camera
-    // following the hero vertically, the street drops out of view when the
-    // hero climbs into the upper sky band — which is what we want; the
-    // ground reads as a real floor that you fly above.
+    // Street is anchored at STREET_TOP_Y. With the camera following the hero
+    // vertically, the street drops out of view when the hero climbs into the
+    // upper sky band — the ground reads as a real floor that you fly above.
     const streetScreenY = worldToScreenY(STREET_TOP_Y);
-    if (streetScreenY > H) return;                  // ground is below the viewport
+    if (streetScreenY > H) return;
     if (!assets.street) {
       ctx.fillStyle = '#252028';
       ctx.fillRect(0, streetScreenY, W, STREET_H);
-      return;
+    } else {
+      // PIN one render that fills the canvas width exactly (no tiling = no
+      // seam line). The source PNG (8192 × 485) is wider than the canvas at
+      // STREET_H = 72, so the small horizontal stretch (~5 %) is invisible.
+      ctx.drawImage(assets.street, 0, streetScreenY, W, STREET_H);
     }
-    const img = assets.street;
-    const tileH = STREET_H;
-    const tileW = tileH * (img.width / img.height);
-    // Subtle ground-parallax: the street shifts a small fraction of the
-    // camera's X movement so the road reads as moving with the world without
-    // sliding fast enough to compete with the apartment strip behind it.
-    const STREET_PARALLAX = 0.15;
-    const PERSPECTIVE_FRAC = 0.62;
-    const baseStartX = W / 2 - PERSPECTIVE_FRAC * tileW;
-    // Mod by tileW so the scroll offset stays in [-tileW, 0].
-    const scroll = ((cameraX * STREET_PARALLAX) % tileW);
-    const startX = Math.round(baseStartX - scroll);
-    ctx.drawImage(img, startX, streetScreenY, tileW + 1, tileH);
-    for (let x = startX + tileW; x < W; x += tileW) {
-      ctx.drawImage(img, x, streetScreenY, tileW + 1, tileH);
-    }
-    for (let x = startX - tileW; x > -tileW * 2; x -= tileW) {
-      ctx.drawImage(img, x, streetScreenY, tileW + 1, tileH);
+    // Motion specks — scroll at world speed (parallax 1.0) so the road reads
+    // as moving with the buildings without re-tiling the texture itself.
+    const startTile = Math.floor(cameraX / ROAD_SPECK_TILE) - 1;
+    const endTile   = Math.floor((cameraX + W) / ROAD_SPECK_TILE) + 1;
+    for (let t = startTile; t <= endTile; t++) {
+      const tileX0 = t * ROAD_SPECK_TILE;
+      for (const s of ROAD_SPECKS) {
+        const sx = (tileX0 + s.x) - cameraX;
+        if (sx < -4 || sx > W + 4) continue;
+        ctx.save();
+        ctx.globalAlpha = s.alpha;
+        ctx.fillStyle = s.warm ? '#bba07c' : '#dadada';
+        ctx.beginPath();
+        ctx.arc(sx, streetScreenY + s.yOff, s.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
     }
   }
 
@@ -1099,13 +1129,13 @@
     if (!assets.player) return;
     // Brief flicker while invulnerable.
     if (now <= player.invulnUntil && Math.floor(now / 60) % 2 === 0) return;
-    drawAircraft(assets.player, player.x, player.y, player.heading, 60);
+    drawAircraft(assets.player, player.x, player.y, player.heading, 72);   // ~10 % of canvas — matches reference
   }
 
   function drawEnemies() {
     for (const en of enemies) {
       if (!en.alive || !en.img) continue;
-      drawAircraft(en.img, en.x, en.y, en.heading, 42);  // 30 % smaller than the hero (60)
+      drawAircraft(en.img, en.x, en.y, en.heading, 54);  // ~30 % smaller than the hero (72)
     }
   }
 
