@@ -131,6 +131,160 @@
   // ---------- PALETTE ----------
   const C = { bg: '#020611', text: '#FFFFFF', accent: '#D8523F' };
 
+  // ---------- AUDIO ----------
+  // Procedural Web Audio synth — no asset downloads. Initialised lazily on
+  // the first user input (browsers block AudioContext until a gesture).
+  let audioCtx = null, masterGain = null, soundOn = true;
+  let engineNodes = null, vehicleAmbient = null;
+  let lastGunSfxAt = 0, lastHitSfxAt = 0;
+
+  function ensureAudio() {
+    if (audioCtx) return;
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    audioCtx = new Ctx();
+    masterGain = audioCtx.createGain();
+    masterGain.gain.value = soundOn ? 0.45 : 0.0;
+    masterGain.connect(audioCtx.destination);
+    startEngine();
+    startVehicleAmbient();
+  }
+  function setSoundOn(v) {
+    soundOn = v;
+    if (masterGain) masterGain.gain.setTargetAtTime(v ? 0.45 : 0.0, audioCtx.currentTime, 0.05);
+  }
+
+  // White-noise buffer (looped) — reused for any noise-based voice.
+  function makeNoiseSource(durationSec = 2) {
+    const buf = audioCtx.createBuffer(1, Math.floor(audioCtx.sampleRate * durationSec), audioCtx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    const src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    src.loop = true;
+    src.start();
+    return src;
+  }
+
+  // Plane engine — continuous low-pass-filtered noise, opening up as throttle
+  // climbs. Gives the cockpit a constant "thrum" you can feel.
+  function startEngine() {
+    if (engineNodes || !audioCtx) return;
+    const src = makeNoiseSource();
+    const lp = audioCtx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 180;
+    lp.Q.value = 1.4;
+    const gain = audioCtx.createGain();
+    gain.gain.value = 0.04;
+    src.connect(lp).connect(gain).connect(masterGain);
+    engineNodes = { lp, gain };
+  }
+  function updateEngine() {
+    if (!engineNodes) return;
+    // Throttle 0→1 maps to filter 150 → 700 Hz and gain 0.035 → 0.10.
+    const t = player.throttle;
+    engineNodes.lp.frequency.setTargetAtTime(150 + t * 550, audioCtx.currentTime, 0.08);
+    engineNodes.gain.gain.setTargetAtTime(0.035 + t * 0.07, audioCtx.currentTime, 0.10);
+  }
+
+  // Proximity rumble for tanks + trucks — low band-pass noise whose gain
+  // ramps as the hero gets close to the nearest ground vehicle.
+  function startVehicleAmbient() {
+    if (vehicleAmbient || !audioCtx) return;
+    const src = makeNoiseSource();
+    const bp = audioCtx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 90;
+    bp.Q.value = 0.8;
+    const gain = audioCtx.createGain();
+    gain.gain.value = 0;
+    src.connect(bp).connect(gain).connect(masterGain);
+    vehicleAmbient = { bp, gain };
+  }
+  function updateVehicleAmbient() {
+    if (!vehicleAmbient) return;
+    let minDist = Infinity;
+    for (const k of trucks) {
+      if (!k.alive) continue;
+      const d = Math.hypot(player.x - k.x, player.y - (ROAD_BOTTOM_Y - k.h / 2));
+      if (d < minDist) minDist = d;
+    }
+    for (const t of tanks) {
+      if (!t.alive) continue;
+      const d = Math.hypot(player.x - t.x, player.y - (ROAD_BOTTOM_Y - t.h / 2));
+      if (d < minDist) minDist = d;
+    }
+    // Fade in inside 360 px, out beyond 700 px.
+    const proximity = Math.max(0, Math.min(1, 1 - (minDist - 360) / 340));
+    vehicleAmbient.gain.gain.setTargetAtTime(proximity * 0.08, audioCtx.currentTime, 0.18);
+  }
+
+  // ----- One-shot SFX -----
+  function sfxGun(now) {
+    if (!audioCtx) return;
+    // Throttle so a held trigger doesn't crackle (10 / sec firing rate).
+    if (now - lastGunSfxAt < 70) return;
+    lastGunSfxAt = now;
+    const t = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(720, t);
+    osc.frequency.exponentialRampToValueAtTime(180, t + 0.05);
+    const g = audioCtx.createGain();
+    g.gain.setValueAtTime(0.07, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
+    osc.connect(g).connect(masterGain);
+    osc.start(t);
+    osc.stop(t + 0.07);
+  }
+  function sfxHit(now) {
+    if (!audioCtx) return;
+    if (now - lastHitSfxAt < 40) return;          // pile-ups don't stack
+    lastHitSfxAt = now;
+    const t = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(1500, t);
+    osc.frequency.exponentialRampToValueAtTime(280, t + 0.05);
+    const g = audioCtx.createGain();
+    g.gain.setValueAtTime(0.06, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
+    osc.connect(g).connect(masterGain);
+    osc.start(t);
+    osc.stop(t + 0.08);
+  }
+  function sfxBoom(big) {
+    if (!audioCtx) return;
+    const t = audioCtx.currentTime;
+    // Filtered noise burst — body of the explosion.
+    const dur = big ? 0.7 : 0.28;
+    const noise = makeNoiseSource(dur);   // one-shot via loop:false-after-stop
+    noise.loop = false;
+    const lp = audioCtx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(big ? 1800 : 900, t);
+    lp.frequency.exponentialRampToValueAtTime(70, t + dur);
+    const g = audioCtx.createGain();
+    g.gain.setValueAtTime(big ? 0.35 : 0.14, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    noise.connect(lp).connect(g).connect(masterGain);
+    noise.stop(t + dur + 0.02);
+    // Low-end thump on big booms.
+    if (big) {
+      const sub = audioCtx.createOscillator();
+      sub.type = 'sine';
+      sub.frequency.setValueAtTime(95, t);
+      sub.frequency.exponentialRampToValueAtTime(28, t + 0.45);
+      const sg = audioCtx.createGain();
+      sg.gain.setValueAtTime(0.42, t);
+      sg.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
+      sub.connect(sg).connect(masterGain);
+      sub.start(t);
+      sub.stop(t + 0.6);
+    }
+  }
+
   // ---------- STAGE GEOMETRY ----------
   // The stage is 6 screens WIDE and 4 screens TALL — the ground band at the
   // bottom of the canvas stays put, and the sky extends 3 screen heights
@@ -387,8 +541,10 @@
   window.addEventListener('keydown', (e) => {
     if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',' '].includes(e.key)) e.preventDefault();
     if (e.repeat) return;
+    ensureAudio();                                 // wake the audio context on first key
     keys[e.key] = true;
     if (e.key === 'b' || e.key === 'B') bombRequest = true;
+    if (e.key === 'm' || e.key === 'M') setSoundOn(!soundOn);
   });
   window.addEventListener('keyup', (e) => { keys[e.key] = false; });
   window.addEventListener('blur', () => {
@@ -425,6 +581,7 @@
   }
   canvas.addEventListener('touchstart', (e) => {
     e.preventDefault();
+    ensureAudio();                                  // wake the audio context on first touch
     const t = e.changedTouches[0];
     if (!t) return;
     touchOrigin = canvasFromClient(t.clientX, t.clientY);
@@ -528,6 +685,7 @@
   // hits, plus flash + ring + smoke for full ship deaths.
   let cameraShake = 0;
   function spawnExplosion(x, y, big) {
+    sfxBoom(big);
     const sparkColors = ['#FFE38A', '#FF9F33', '#FF5C2C', '#FFD23F', '#FFFFFF'];
     const N = big ? 30 : 8;
     for (let i = 0; i < N; i++) {
@@ -668,12 +826,15 @@
 
     updateCamera();
     updateClouds(now, dt);
+    updateEngine();
+    updateVehicleAmbient();
 
     // ----- Fire (Space) -----
     heat = Math.max(0, heat - HEAT_COOL_PER_MS * dt);
     if (overheated && heat < 0.30) overheated = false;
     if (keys[' '] && !overheated && (now - lastShotAt) >= FIRE_INTERVAL) {
       spawnPlayerBullet();
+      sfxGun(now);
       lastShotAt = now;
       heat += HEAT_PER_SHOT;
       if (heat >= 1) { heat = 1; overheated = true; }
@@ -954,6 +1115,7 @@
         const dx = b.x - en.x, dy = b.y - en.y;
         if (dx * dx + dy * dy < ENEMY_HIT_R * ENEMY_HIT_R) {
           en.hp -= 1;
+          sfxHit(now);
           if (en.hp <= 0) { en.alive = false; spawnExplosion(en.x, en.y, true); }
           else            { spawnExplosion(b.x, b.y, false); }
           consumed = true;
@@ -972,6 +1134,7 @@
         const top = ROAD_BOTTOM_Y - t.h;
         if (b.x >= t.x - t.w / 2 && b.x <= t.x + t.w / 2 && b.y >= top && b.y <= ROAD_BOTTOM_Y) {
           t.hp -= 1;
+          sfxHit(now);
           if (t.hp <= 0) { t.alive = false; spawnExplosion(b.x, top + t.h * 0.4, true); }
           else           { spawnExplosion(b.x, b.y, false); }
           consumed = true;
@@ -987,6 +1150,7 @@
         const top = ROAD_BOTTOM_Y - k.h;
         if (b.x >= k.x - k.w / 2 && b.x <= k.x + k.w / 2 && b.y >= top && b.y <= ROAD_BOTTOM_Y) {
           k.hp -= 1;
+          sfxHit(now);
           if (k.hp <= 0) { k.alive = false; spawnExplosion(b.x, top + k.h * 0.4, true); }
           else           { spawnExplosion(b.x, b.y, false); }
           consumed = true;
@@ -1003,6 +1167,7 @@
         const top = STREET_TOP_Y - mb.h;
         if (b.x >= mb.x - mb.w / 2 && b.x <= mb.x + mb.w / 2 && b.y >= top && b.y <= STREET_TOP_Y) {
           mb.hp -= 1;
+          sfxHit(now);
           if (mb.hp <= 0) {
             mb.alive = false;
             spawnExplosion(b.x, top + mb.h * 0.3, true);
