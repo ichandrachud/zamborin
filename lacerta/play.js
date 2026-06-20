@@ -1011,6 +1011,39 @@
     ctx.restore();
   }
 
+  // Spinning-spoke overlay drawn on top of each wheel position. The truck
+  // PNGs all have a left wheel ~22 % from the cab side and a right wheel
+  // ~78 %, with the hub roughly 78 % of the body height down — those are
+  // the values we use to place the overlay. Two short white tick marks
+  // rotate at a rate proportional to the truck's velocity, reading as
+  // motion blur on a turning hub. Drawn in plane-LOCAL coords so the
+  // sprite-mirror flip above also flips the spokes correctly.
+  function drawWheelSpin(k, now) {
+    if (k.vx === 0) return;
+    const speed = Math.abs(k.vx);
+    // Rotation rate: 1 px/ms gives ~3 full turns / second.
+    const angle = (now * speed * 0.018 * Math.sign(k.vx)) % (Math.PI * 2);
+    const r = k.h * 0.13;
+    const wheelOffsetsX = [-k.w * 0.28, k.w * 0.28];
+    const wheelY = k.h * 0.32;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(245, 245, 245, 0.55)';
+    ctx.lineWidth = 1.1;
+    ctx.lineCap = 'round';
+    for (const wx of wheelOffsetsX) {
+      ctx.save();
+      ctx.translate(wx, wheelY);
+      ctx.rotate(angle);
+      // Two perpendicular spokes — quick wagon-wheel read.
+      ctx.beginPath();
+      ctx.moveTo(-r, 0); ctx.lineTo(r, 0);
+      ctx.moveTo(0, -r); ctx.lineTo(0, r);
+      ctx.stroke();
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
   function drawTrucks() {
     for (const k of trucks) {
       if (!k.alive || !k.img) continue;
@@ -1034,6 +1067,7 @@
       // Source PNGs face LEFT; mirror when driving right so the cab leads.
       if (k.vx > 0) ctx.scale(-1, 1);
       ctx.drawImage(k.img, -k.w / 2, -k.h / 2, k.w, k.h);
+      drawWheelSpin(k, lastFrameNow);
       ctx.restore();
     }
   }
