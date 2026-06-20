@@ -479,7 +479,7 @@
       // enemy is stationary in world space (drifts past with the ground);
       // 2.0 means it's flying toward the hero at the hero's own speed, so the
       // closing rate equals 2× world speed. Each enemy gets slight variation.
-      closingMul: 1.9 + Math.random() * 0.4,
+      closingMul: 1.33 + Math.random() * 0.28,    // 30 % slower than the previous 1.9..2.3
       vy: (Math.random() - 0.5) * 0.4,
       hp: 3,
       fireAt: now + 700 + Math.random() * 800,
