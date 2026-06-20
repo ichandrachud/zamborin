@@ -157,6 +157,18 @@
   for (const b of MISSION_1_BOMBS) {
     loadImage(b.file).then(img => { b.image = img; });
   }
+
+  // ---------- BONUS PICKUPS ----------
+  // Floating in-air pickups. medical-kit restores 20 % health; gasoline
+  // adds 15 % to the plane's speed multiplier (stacks). 2-3 of each per
+  // stage. Sprite height is capped at half the plane's height so they
+  // read as a collectible, not another aircraft.
+  loadImage('./assets/bonuses/medical-kit.png').then(img => { assets.medicalKit = img; });
+  loadImage('./assets/bonuses/gasoline.png').then(img => { assets.gasoline = img; });
+  const BONUS_H = 36;                 // pixel height in world space
+  const BONUS_PICKUP_R = 32;          // pickup radius (centre-to-centre)
+  const BONUS_HP_GAIN = 20;           // medical-kit restore amount
+  const BONUS_SPEED_GAIN = 0.15;      // gasoline speed multiplier add
   Promise.all([1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(n =>
     loadImage(`./assets/planes-v2/enemy-aircraft${n}.png`)
   )).then(imgs => { assets.enemies = imgs.filter(Boolean); buildStageIfReady(); });
@@ -498,10 +510,12 @@
     heading: 0,                 // facing right
     throttle: 0,                  // default = no throttle → cruise at MIN_SPEED; → adds up to +30 %
     hp: 100,
+    maxHp: 100,
     invulnUntil: 0,
     alive: true,
     kind: 'plane',              // 'plane' or 'chopper' — set when an aircraft is chosen
     facing: 1,                  // chopper-only: +1 = faces right, -1 = faces left (sprite flipped)
+    speedMult: 1,               // bonus stacking — +0.15 per gasoline pickup
   };
   // Chopper movement: always upright, fixed speed in 8 directions. Roughly
   // matches a plane's cruise speed (no throttle band).
@@ -517,7 +531,7 @@
   const THROTTLE_RATE = 0.55;   // throttle units per second of held key
 
   function playerSpeed() {
-    return MIN_SPEED + (MAX_SPEED - MIN_SPEED) * player.throttle;
+    return (MIN_SPEED + (MAX_SPEED - MIN_SPEED) * player.throttle) * player.speedMult;
   }
 
   // ---------- CAMERA ----------
@@ -542,6 +556,7 @@
   const tanks      = [];   // { x, w, h, turretAngle, fireAt, hp, alive, spec, bodyImg, turretImg }
   const trucks     = [];   // { x, w, h, vx, hp, alive, img }
   const militaryBuildings = []; // { x, w, h, alive, hp, bodyImg, burntImg, turretAngle, fireAt, lastSmokeAt }
+  const bonuses = [];           // { x, y, kind: 'medical'|'gasoline', img, alive, bobPhase }
   // The apartment-turret source PNG points UP by default. Pivot at the
   // BREECH (bottom of source) and add π/2 to the aim angle so atan2 = 0
   // (right) rotates the upright turret 90° CW.
@@ -705,6 +720,27 @@
         groundY: STREET_TOP_Y,
       });
     }
+    spawnBonuses();
+  }
+
+  // Spread 2-3 medical-kit and 2-3 gasoline pickups across the stage at
+  // random altitudes inside the flyable band.  Called by both the city and
+  // ocean stage builders.
+  function spawnBonuses() {
+    function addOne(kind) {
+      const x = 800 + Math.random() * (STAGE_W - 1600);
+      const y = FLIGHT_Y_MIN + 60 + Math.random() * (FLIGHT_Y_MAX - FLIGHT_Y_MIN - 120);
+      bonuses.push({
+        x, y, kind,
+        img: null,                       // resolved at draw time so we don't race the asset load
+        alive: true,
+        bobPhase: Math.random() * Math.PI * 2,
+      });
+    }
+    const nMed = 2 + Math.floor(Math.random() * 2);   // 2 or 3
+    const nGas = 2 + Math.floor(Math.random() * 2);   // 2 or 3
+    for (let i = 0; i < nMed; i++) addOne('medical');
+    for (let i = 0; i < nGas; i++) addOne('gasoline');
   }
 
   // Ocean stage — water + 5 stationary enemy ships acting as ground targets.
@@ -767,6 +803,7 @@
         groundY: OCEAN_WATERLINE_Y,
       });
     }
+    spawnBonuses();
   }
 
   // ---------- INPUT ----------
@@ -1164,6 +1201,11 @@
   const SPLASH_MIN_MS = 3000;          // hold the splash for at least this long
   loadImage('./splash.jpg').then(img => { assets.splash = img; });
   let gameOver = false;
+  // Lives system — player starts with this many (incl. the one currently in
+  // the air). Each death consumes one and respawns; game over fires only when
+  // all lives are gone.
+  const STARTING_LIVES = 4;
+  let livesRemaining = STARTING_LIVES;
   let win = false;
   function targetsRemaining() {
     // Apartments are background scenery — only planes, tanks, and trucks
@@ -1257,8 +1299,9 @@
       else if (vx < 0) player.facing = -1;
       if (vx !== 0 || vy !== 0) {
         const inv = 1 / Math.hypot(vx, vy);
-        player.x += vx * inv * CHOPPER_SPEED * dt;
-        player.y += vy * inv * CHOPPER_SPEED * dt;
+        const sp = CHOPPER_SPEED * player.speedMult;
+        player.x += vx * inv * sp * dt;
+        player.y += vy * inv * sp * dt;
       }
       // Hard clamp inside the stage (no ricochet — choppers just stop).
       if (player.x < 30)             player.x = 30;
@@ -1299,6 +1342,36 @@
     updateClouds(now, dt);
     updateEngine();
     updateVehicleAmbient();
+
+    // ----- Bonus pickups -----
+    // Each pickup hovers in place with a subtle vertical bob. Player overlap
+    // (pickup radius) consumes the pickup and applies its effect.
+    for (const bo of bonuses) {
+      if (!bo.alive) continue;
+      bo.bobPhase += dt * 0.003;
+      const yBob = Math.sin(bo.bobPhase) * 4;
+      const dx = player.x - bo.x;
+      const dy = player.y - (bo.y + yBob);
+      if (dx * dx + dy * dy <= BONUS_PICKUP_R * BONUS_PICKUP_R) {
+        bo.alive = false;
+        if (bo.kind === 'medical') {
+          player.hp = Math.min(player.maxHp, player.hp + BONUS_HP_GAIN);
+        } else if (bo.kind === 'gasoline') {
+          player.speedMult += BONUS_SPEED_GAIN;
+        }
+        // Little spark cluster for feedback.
+        for (let i = 0; i < 8; i++) {
+          const a = Math.random() * Math.PI * 2;
+          const s = 0.4 + Math.random() * 0.6;
+          particles.push({
+            kind: 'spark', x: bo.x, y: bo.y + yBob,
+            vx: Math.cos(a) * s, vy: Math.sin(a) * s,
+            life0: 500, life: 500, r0: 2 + Math.random() * 2,
+            color: bo.kind === 'medical' ? '#FFFFFF' : '#FFD23F',
+          });
+        }
+      }
+    }
 
     // ----- Fire (Space) -----
     if (keys[' '] && (now - lastShotAt) >= FIRE_INTERVAL) {
@@ -1695,7 +1768,22 @@
         }
       }
     }
-    if (player.hp <= 0) { gameOver = true; win = false; spawnExplosion(player.x, player.y, true); }
+    if (player.hp <= 0) {
+      spawnExplosion(player.x, player.y, true);
+      livesRemaining -= 1;
+      if (livesRemaining <= 0) {
+        gameOver = true; win = false;
+      } else {
+        // Respawn — full HP, brief invuln, back to a safe start position.
+        player.hp = player.maxHp;
+        player.invulnUntil = now + 1500;
+        player.x = 220;
+        player.y = H * 0.52;
+        player.heading = 0;
+        player.throttle = 0;
+        player.facing = 1;
+      }
+    }
 
     // ----- Particles -----
     for (let i = particles.length - 1; i >= 0; i--) {
@@ -2107,6 +2195,22 @@
     ctx.restore();
   }
 
+  function drawBonuses(now) {
+    for (const bo of bonuses) {
+      if (!bo.alive) continue;
+      const img = bo.kind === 'medical' ? assets.medicalKit : assets.gasoline;
+      if (!img) continue;
+      const aspect = img.width / img.height;
+      const targetH = BONUS_H;
+      const targetW = targetH * aspect;
+      const yBob = Math.sin(bo.bobPhase) * 4;
+      const sx = worldToScreenX(bo.x);
+      const sy = worldToScreenY(bo.y + yBob);
+      if (sx < -targetW || sx > W + targetW || sy < -targetH || sy > H + targetH) continue;
+      ctx.drawImage(img, sx - targetW / 2, sy - targetH / 2, targetW, targetH);
+    }
+  }
+
   function drawPlayer(now) {
     if (!assets.player) return;
     // Brief flicker while invulnerable.
@@ -2228,6 +2332,30 @@
     }
   }
 
+  // Cartoon heart — two semicircle bumps on top, V-point at the bottom.
+  // Filled lives = solid red with a dark outline; spent lives = thin white
+  // outline only.
+  function drawHeart(x, y, size, filled) {
+    const r = size * 0.28;
+    const topY = y + r;
+    ctx.beginPath();
+    ctx.arc(x + r, topY, r, Math.PI, 0, false);
+    ctx.arc(x + size - r, topY, r, Math.PI, 0, false);
+    ctx.lineTo(x + size / 2, y + size);
+    ctx.closePath();
+    if (filled) {
+      ctx.fillStyle = '#FF4D5A';
+      ctx.fill();
+      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = 'rgba(20, 26, 36, 0.75)';
+      ctx.stroke();
+    } else {
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+      ctx.stroke();
+    }
+  }
+
   function drawHUD() {
     ctx.save();
     ctx.font = '700 11px Inter, sans-serif';
@@ -2251,13 +2379,37 @@
     ctx.fillStyle = 'rgba(255,255,255,0.65)';
     ctx.fillText('THROTTLE', x + 210, htY + 3);
 
-    // Right-side: targets remaining + minimap.
+    // Right-side: targets + lives chip + minimap.
+    // Targets readout sits in a dark translucent pill so the text always
+    // passes AA contrast regardless of what the sky / scene behind looks
+    // like.
+    const rxEdge = W - 24;
     ctx.font = '800 14px Inter, sans-serif';
-    ctx.textAlign = 'right';
-    const rx = W - 24;
+    ctx.textBaseline = 'middle';
     const targets = targetsRemaining();
-    ctx.fillStyle = targets > 0 ? '#FF6B5C' : '#5DD39E';
-    ctx.fillText('TARGETS  ' + targets, rx, 22);
+    const tText = 'TARGETS  ' + targets;
+    const tW = ctx.measureText(tText).width;
+    const chipPadX = 12, chipH = 26;
+    const chipW = Math.ceil(tW + chipPadX * 2);
+    const chipX = rxEdge - chipW;
+    const chipY = 10;
+    ctx.fillStyle = 'rgba(20, 26, 36, 0.78)';
+    roundRect(chipX, chipY, chipW, chipH, 13);
+    ctx.fill();
+    ctx.textAlign = 'left';
+    ctx.fillStyle = targets > 0 ? '#FFFFFF' : '#A5F3C7';   // white on near-black > 16:1
+    ctx.fillText(tText, chipX + chipPadX, chipY + chipH / 2 + 1);
+
+    // Lives — a row of small hearts under the targets chip. Filled red for
+    // lives remaining; outlined for lives spent.
+    const heartSize = 18;
+    const heartGap = 5;
+    const heartsY = chipY + chipH + 8;
+    for (let i = 0; i < STARTING_LIVES; i++) {
+      // Right-align: index 0 sits closest to the right edge.
+      const hx = rxEdge - (i + 1) * heartSize - i * heartGap;
+      drawHeart(hx, heartsY, heartSize, i < livesRemaining);
+    }
 
     // Minimap — small rectangular plan of the whole stage. Width axis is X,
     // height axis is Y (sky at top, ground at bottom). Apartments hug the
@@ -3190,6 +3342,7 @@
     drawTankTurrets();      // turret barrel renders behind the body
     drawTrucks();
     drawTankBodies();       // body silhouette covers the turret breech
+    drawBonuses(now);
     drawEnemies();
     drawPlayer(now);
     drawBullets();
