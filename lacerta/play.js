@@ -73,6 +73,8 @@
     sky: null, street: null,
     player: null, enemies: [],
     apartments: [], clouds: [],
+    tankBodies: [], tankTurrets: [],   // index-aligned: tankBodies[i] pairs with tankTurrets[i]
+    trucks: [],
   };
   loadImage('./assets/sky/sky.jpg').then(img => { assets.sky = img; });
   loadImage('./assets/street/street.png').then(img => { assets.street = img; });
@@ -85,6 +87,21 @@
   )).then(imgs => { assets.apartments = imgs.filter(Boolean); buildStageIfReady(); });
   Promise.all([1, 3, 4, 5, 6, 12].map(id => loadImage(`./assets/clouds/cloud-${id}.png`)))
     .then(imgs => { assets.clouds = imgs.filter(Boolean); });
+  // Tanks: two variants, each is a (body, turret) pair. The barrel-direction
+  // of the source PNG differs between the two — captured in TANK_SPECS below.
+  Promise.all([
+    loadImage('./assets/tanks/tank1-body.png'),
+    loadImage('./assets/tanks/tank1-turret.png'),
+    loadImage('./assets/tanks/tank2-body.png'),
+    loadImage('./assets/tanks/tank2-turret.png'),
+  ]).then(imgs => {
+    if (imgs[0] && imgs[1]) { assets.tankBodies.push(imgs[0]); assets.tankTurrets.push(imgs[1]); }
+    if (imgs[2] && imgs[3]) { assets.tankBodies.push(imgs[2]); assets.tankTurrets.push(imgs[3]); }
+    buildStageIfReady();
+  });
+  // Trucks (3 variants) — ground targets that drive but don't shoot.
+  Promise.all([1, 3, 5].map(n => loadImage(`./assets/trucks/truck${n}.png`)))
+    .then(imgs => { assets.trucks = imgs.filter(Boolean); buildStageIfReady(); });
 
   // ---------- PALETTE ----------
   const C = { bg: '#020611', text: '#FFFFFF', accent: '#D8523F' };
@@ -96,8 +113,31 @@
   const STREET_H        = 72;
   const STREET_TOP_Y    = H - STREET_H;
   const APARTMENT_RENDER_H = 192;
+  const TANK_BODY_H     = 110;
+  const TANK_TURRET_H   = 36;
+  const TRUCK_H         = 100;
   const STAGE_TOP_Y     = -3 * H;        // ceiling sits 3 screens above the canvas
   const STAGE_BOTTOM_Y  = H;             // bottom of the visible canvas
+
+  // Per-tank metadata. The two source turret PNGs face opposite directions
+  // (tank 1 muzzle on right, tank 2 muzzle on left), and the pivot — where
+  // the turret base sits on the body — is at the WIDE end of each source.
+  //   bodyPivotFracX / Y : pivot location on the body PNG (0..1 from top-left)
+  //   turretPivotFracX / Y : pivot location on the turret PNG (0..1)
+  //   barrelAngleOffset : added to the aim angle when rotating the turret,
+  //                       so the natural barrel direction lines up with +X
+  const TANK_SPECS = [
+    {
+      bodyPivotFracX: 0.36, bodyPivotFracY: 0.28,
+      turretPivotFracX: 0.10, turretPivotFracY: 0.55,
+      barrelAngleOffset: 0,                          // muzzle already points +X
+    },
+    {
+      bodyPivotFracX: 0.22, bodyPivotFracY: 0.30,
+      turretPivotFracX: 0.92, turretPivotFracY: 0.55,
+      barrelAngleOffset: Math.PI,                    // muzzle points -X → rotate 180°
+    },
+  ];
   // Player + enemies are confined to this Y range — never below the apartment
   // tops (no clipping through buildings) and never above the stage ceiling.
   const FLIGHT_Y_MIN = STAGE_TOP_Y + 50;                          // ≈ −2110
@@ -144,10 +184,13 @@
   // positions until the hero comes within wake range.
   const apartments = [];   // { x (centre), w, h, alive, img }
   const enemies    = [];   // { x, y, heading, throttle, hp, alive, img, fireAt, awake }
+  const tanks      = [];   // { x, w, h, turretAngle, fireAt, hp, alive, spec, bodyImg, turretImg }
+  const trucks     = [];   // { x, w, h, vx, hp, alive, img }
   let stageBuilt = false;
   function buildStageIfReady() {
     if (stageBuilt) return;
     if (!assets.apartments.length || !assets.enemies.length) return;
+    if (!assets.tankBodies.length || !assets.trucks.length) return;
     stageBuilt = true;
 
     // --- Apartments (ground targets) — packed edge-to-edge across the stage.
@@ -186,6 +229,46 @@
         img,
         fireAt: 0,
         awake: false,
+        // Wander offset — refreshed periodically so chasing isn't a perfect
+        // pursuit curve. See updateEnemies.
+        wanderAngle: (Math.random() - 0.5) * 0.6,
+        wanderUntil: 0,
+      });
+    }
+
+    // --- Ground tanks — 4 stationary turrets spread across the stage.
+    const N_TANKS = 4;
+    for (let i = 0; i < N_TANKS; i++) {
+      const variant = i % assets.tankBodies.length;
+      const bodyImg = assets.tankBodies[variant];
+      const turretImg = assets.tankTurrets[variant];
+      const spec = TANK_SPECS[variant] || TANK_SPECS[0];
+      const h = TANK_BODY_H;
+      const w = h * (bodyImg.width / bodyImg.height);
+      const x = 1600 + (i + 0.5) * (STAGE_W - 2000) / N_TANKS + (Math.random() - 0.5) * 200;
+      tanks.push({
+        x, w, h,
+        bodyImg, turretImg, spec,
+        turretAngle: -Math.PI / 2,   // start aimed straight up
+        fireAt: 0,
+        hp: 4,
+        alive: true,
+      });
+    }
+
+    // --- Trucks — 5 driving ground targets that don't shoot.
+    const N_TRUCKS = 5;
+    for (let i = 0; i < N_TRUCKS; i++) {
+      const img = assets.trucks[Math.floor(Math.random() * assets.trucks.length)];
+      const h = TRUCK_H;
+      const w = h * (img.width / img.height);
+      const x = 1100 + (i + 0.5) * (STAGE_W - 1500) / N_TRUCKS + (Math.random() - 0.5) * 240;
+      trucks.push({
+        x, w, h,
+        img,
+        vx: (Math.random() < 0.5 ? -1 : 1) * (0.04 + Math.random() * 0.04),  // px / ms
+        hp: 2,
+        alive: true,
       });
     }
   }
@@ -319,6 +402,8 @@
     let n = 0;
     for (const a of apartments) if (a.alive) n++;
     for (const e of enemies)   if (e.alive) n++;
+    for (const t of tanks)     if (t.alive) n++;
+    for (const k of trucks)    if (k.alive) n++;
     return n;
   }
 
@@ -364,52 +449,99 @@
     }
 
     // ----- Enemies (chase + fire) -----
-    // Tuned so the hero (TURN_RATE 2.4) significantly out-turns the enemies
-    // and can get on their six. Enemies fire only on tight alignment from
-    // closer range — they were sitting on the hero's tail and never giving
-    // the player a clear shot back.
-    const WAKE_RANGE_X = 1.2 * W;          // wake at 1.2 screens (was 1.5)
-    const FIRE_RANGE   = 360;              // closer (was 520)
-    const ALIGN_RAD    = 0.10;             // ~5.7° (was ~10°)
-    const ENEMY_TURN_RATE = 0.9;           // rad / sec (was 1.6) — hero can out-turn easily
+    // Slower and less laser-focused than before. ~40 % cut on flight speed
+    // (cruise / dash throttles both lowered), and a 40 % wander mix in the
+    // chase heading so the squadron weaves through the sky instead of riding
+    // a perfect pursuit curve onto the hero. Each enemy refreshes its
+    // wander offset on its own clock so the swarm desynchronises.
+    const WAKE_RANGE_X = 1.2 * W;
+    const FIRE_RANGE   = 360;
+    const ALIGN_RAD    = 0.10;
+    const ENEMY_TURN_RATE = 0.9;
+    const ENEMY_WANDER_MIX = 0.40;          // fraction of heading set by wander vs pure chase
 
     for (let i = enemies.length - 1; i >= 0; i--) {
       const en = enemies[i];
       if (!en.alive) continue;
 
-      // Wake up when hero is in range, then chase indefinitely.
       const dx0 = player.x - en.x, dy0 = player.y - en.y;
       const dist = Math.hypot(dx0, dy0);
       if (!en.awake && Math.abs(dx0) < WAKE_RANGE_X) en.awake = true;
       if (!en.awake) continue;
 
-      // Steer toward the hero (limited turn rate).
-      const desired = Math.atan2(dy0, dx0);
+      // Refresh wander offset every 0.8-1.6 s — small ±0.6 rad bias added to
+      // the pure pursuit heading. ENEMY_WANDER_MIX controls how strongly it
+      // pulls the enemy off the hero's line.
+      if (now >= en.wanderUntil) {
+        en.wanderAngle = (Math.random() - 0.5) * 1.2;       // ±0.6 rad
+        en.wanderUntil = now + 800 + Math.random() * 800;
+      }
+      const pursuit = Math.atan2(dy0, dx0);
+      const desired = pursuit + en.wanderAngle * ENEMY_WANDER_MIX;
       const diff = normalizeAngle(desired - en.heading);
       const maxTurn = ENEMY_TURN_RATE * (dt / 1000);
       en.heading += Math.max(-maxTurn, Math.min(maxTurn, diff));
       en.heading = normalizeAngle(en.heading);
 
-      // Throttle: cruise speed; close in faster when far away.
-      const targetThrottle = dist > 600 ? 0.85 : 0.55;
+      // Throttle: cruise / dash both ~40 % lower than the previous values.
+      const targetThrottle = dist > 600 ? 0.50 : 0.32;
       en.throttle += (targetThrottle - en.throttle) * (dt / 600);
 
       const enSp = MIN_SPEED + (MAX_SPEED - MIN_SPEED) * en.throttle;
       en.x += Math.cos(en.heading) * enSp * dt;
       en.y += Math.sin(en.heading) * enSp * dt;
 
-      // Keep enemies inside the sky band too — they bounce off the apartment
-      // roofline and the top edge.
       if (en.y < FLIGHT_Y_MIN) { en.y = FLIGHT_Y_MIN; en.heading = -en.heading; }
       if (en.y > FLIGHT_Y_MAX) { en.y = FLIGHT_Y_MAX; en.heading = -en.heading; }
       if (en.x < 30)            { en.x = 30;            en.heading = 0; }
       if (en.x > STAGE_W - 30)  { en.x = STAGE_W - 30;  en.heading = Math.PI; }
 
-      // Fire when nose is on target and within range.
-      if (Math.abs(diff) < ALIGN_RAD && dist < FIRE_RANGE && now >= en.fireAt) {
+      // Fire when nose is on target (against the PURE pursuit heading, not
+      // the wander-biased one) and within range.
+      const aimDiff = normalizeAngle(pursuit - en.heading);
+      if (Math.abs(aimDiff) < ALIGN_RAD && dist < FIRE_RANGE && now >= en.fireAt) {
         spawnEnemyBullet(en);
         en.fireAt = now + 900 + Math.random() * 700;
       }
+    }
+
+    // ----- Tanks (turret tracks the hero, fires when aligned) -----
+    const TANK_TURRET_TURN_RATE = 1.4;       // rad / sec
+    const TANK_FIRE_RANGE_X = 1.0 * W;        // only fire if hero is within ~1 screen in X
+    const TANK_ALIGN_RAD = 0.12;
+    for (const t of tanks) {
+      if (!t.alive) continue;
+      const pivotX = t.x - t.w / 2 + t.spec.bodyPivotFracX * t.w;
+      const pivotY = STREET_TOP_Y - t.h + t.spec.bodyPivotFracY * t.h;
+      const desired = Math.atan2(player.y - pivotY, player.x - pivotX);
+      const diff = normalizeAngle(desired - t.turretAngle);
+      const maxTurn = TANK_TURRET_TURN_RATE * (dt / 1000);
+      t.turretAngle += Math.max(-maxTurn, Math.min(maxTurn, diff));
+
+      if (Math.abs(diff) < TANK_ALIGN_RAD &&
+          Math.abs(player.x - pivotX) < TANK_FIRE_RANGE_X &&
+          now >= t.fireAt) {
+        // Muzzle is at the end of the rotated barrel.
+        const barrelLen = t.w * 0.55;
+        const mx = pivotX + Math.cos(t.turretAngle) * barrelLen;
+        const my = pivotY + Math.sin(t.turretAngle) * barrelLen;
+        bullets.push({
+          x: mx, y: my,
+          vx: Math.cos(t.turretAngle) * BULLET_SPEED * 0.82,
+          vy: Math.sin(t.turretAngle) * BULLET_SPEED * 0.82,
+          owner: 'enemy',
+          life: BULLET_LIFE_MS,
+        });
+        t.fireAt = now + 1400 + Math.random() * 900;
+      }
+    }
+
+    // ----- Trucks (drive along the street, no shooting) -----
+    for (const k of trucks) {
+      if (!k.alive) continue;
+      k.x += k.vx * dt;
+      if (k.x < 50)            { k.x = 50;            k.vx = Math.abs(k.vx); }
+      if (k.x > STAGE_W - 50)  { k.x = STAGE_W - 50;  k.vx = -Math.abs(k.vx); }
     }
 
     // ----- Bullets -----
@@ -450,6 +582,36 @@
         if (b.x >= a.x - a.w / 2 && b.x <= a.x + a.w / 2 && b.y >= top && b.y <= STREET_TOP_Y) {
           a.hp -= 1;
           if (a.hp <= 0) { a.alive = false; spawnExplosion(b.x, top + a.h * 0.35, true); }
+          else           { spawnExplosion(b.x, b.y, false); }
+          consumed = true;
+          break;
+        }
+      }
+      if (consumed) { bullets.splice(i, 1); continue; }
+
+      // Tanks — body rectangle hit zone (turret rotates so we only check body).
+      for (let j = tanks.length - 1; j >= 0; j--) {
+        const t = tanks[j];
+        if (!t.alive) continue;
+        const top = STREET_TOP_Y - t.h;
+        if (b.x >= t.x - t.w / 2 && b.x <= t.x + t.w / 2 && b.y >= top && b.y <= STREET_TOP_Y) {
+          t.hp -= 1;
+          if (t.hp <= 0) { t.alive = false; spawnExplosion(b.x, top + t.h * 0.4, true); }
+          else           { spawnExplosion(b.x, b.y, false); }
+          consumed = true;
+          break;
+        }
+      }
+      if (consumed) { bullets.splice(i, 1); continue; }
+
+      // Trucks — body rectangle hit zone.
+      for (let j = trucks.length - 1; j >= 0; j--) {
+        const k = trucks[j];
+        if (!k.alive) continue;
+        const top = STREET_TOP_Y - k.h;
+        if (b.x >= k.x - k.w / 2 && b.x <= k.x + k.w / 2 && b.y >= top && b.y <= STREET_TOP_Y) {
+          k.hp -= 1;
+          if (k.hp <= 0) { k.alive = false; spawnExplosion(b.x, top + k.h * 0.4, true); }
           else           { spawnExplosion(b.x, b.y, false); }
           consumed = true;
           break;
@@ -566,6 +728,59 @@
       const top = worldToScreenY(STREET_TOP_Y - a.h);
       if (top > H + 10) continue;
       ctx.drawImage(a.img, sx - a.w / 2, top, a.w, a.h);
+    }
+  }
+
+  function drawTrucks() {
+    for (const k of trucks) {
+      if (!k.alive || !k.img) continue;
+      const sx = worldToScreenX(k.x);
+      if (sx + k.w / 2 < -10 || sx - k.w / 2 > W + 10) continue;
+      const top = worldToScreenY(STREET_TOP_Y - k.h);
+      if (top > H + 10) continue;
+      ctx.save();
+      // Source PNGs face LEFT; mirror when driving right so the cab leads.
+      if (k.vx > 0) {
+        ctx.translate(sx, top + k.h / 2);
+        ctx.scale(-1, 1);
+        ctx.drawImage(k.img, -k.w / 2, -k.h / 2, k.w, k.h);
+      } else {
+        ctx.drawImage(k.img, sx - k.w / 2, top, k.w, k.h);
+      }
+      ctx.restore();
+    }
+  }
+
+  function drawTanks() {
+    for (const t of tanks) {
+      if (!t.alive) continue;
+      const sx = worldToScreenX(t.x);
+      if (sx + t.w / 2 < -40 || sx - t.w / 2 > W + 40) continue;
+      const bodyTop = worldToScreenY(STREET_TOP_Y - t.h);
+      if (bodyTop > H + 40) continue;
+
+      // Body
+      ctx.drawImage(t.bodyImg, sx - t.w / 2, bodyTop, t.w, t.h);
+
+      // Turret — rotate around its pivot, which sits on the body PNG at the
+      // spec-defined fractional offset. The turret render height is fixed
+      // (TANK_TURRET_H); the muzzle direction depends on the source PNG's
+      // native orientation (baked into spec.barrelAngleOffset).
+      const spec = t.spec;
+      const pivotSX = sx - t.w / 2 + spec.bodyPivotFracX * t.w;
+      const pivotSY = bodyTop + spec.bodyPivotFracY * t.h;
+      const turretAspect = t.turretImg.width / t.turretImg.height;
+      const trH = TANK_TURRET_H;
+      const trW = trH * turretAspect;
+      ctx.save();
+      ctx.translate(pivotSX, pivotSY);
+      ctx.rotate(t.turretAngle + spec.barrelAngleOffset);
+      // The pivot point in the source PNG maps to (0, 0) in plane-local
+      // coords. Compute the top-left of the drawn turret accordingly.
+      const offX = -spec.turretPivotFracX * trW;
+      const offY = -spec.turretPivotFracY * trH;
+      ctx.drawImage(t.turretImg, offX, offY, trW, trH);
+      ctx.restore();
     }
   }
 
@@ -749,6 +964,16 @@
       ctx.fillStyle = '#FFB347';
       ctx.fillRect(mapWX(a.x) - 1, mapWY(STREET_TOP_Y) - 2, 2, 2);
     }
+    for (const k of trucks) {
+      if (!k.alive) continue;
+      ctx.fillStyle = '#FFD23F';
+      ctx.fillRect(mapWX(k.x) - 1.5, mapWY(STREET_TOP_Y) - 3, 3, 2);
+    }
+    for (const t of tanks) {
+      if (!t.alive) continue;
+      ctx.fillStyle = '#FF8A2C';
+      ctx.fillRect(mapWX(t.x) - 2, mapWY(STREET_TOP_Y) - 3, 4, 3);
+    }
     for (const en of enemies) {
       if (!en.alive) continue;
       ctx.fillStyle = '#FF6B5C';
@@ -790,6 +1015,8 @@
     drawClouds();
     drawStreet();
     drawApartments();
+    drawTrucks();
+    drawTanks();
     drawEnemies();
     drawPlayer(now);
     drawBullets();
