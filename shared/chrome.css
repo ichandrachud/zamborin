@@ -223,10 +223,25 @@ body.focus-mode .game-wrap {
 body.focus-mode #game { width: 100%; height: 100%; }
 
 /* ---------- MOBILE: auto-focus layout below 1100 px ---------- */
+/* Selectors are body-prefixed so per-game stylesheets that redefine
+   `.ad-slot` / `.site-header` / `.page` etc. don't override the mobile
+   auto-focus by simple source-order. */
 @media (max-width: 1099px) {
-  .site-footer,
-  .ad-slot { display: none; }
-  .site-header {
+  /* Pin html + body to the viewport so the page can never scroll while the
+     player is using the canvas. Without this, swipes still nudge the page
+     even though the canvas has touch-action: none. */
+  html, body {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    position: fixed;
+    top: 0; left: 0;
+    overscroll-behavior: contain;
+    touch-action: none;
+  }
+  body .site-footer,
+  body .ad-slot { display: none; }
+  body .site-header {
     position: fixed;
     top: 0; left: 0; right: 0;
     height: 0;
@@ -236,19 +251,19 @@ body.focus-mode #game { width: 100%; height: 100%; }
     overflow: visible;
     pointer-events: none;
   }
-  .site-header .brand,
-  .site-header .back-link { display: none; }
-  .site-header .focus-btn { display: none; }
-  .page { margin: 0; padding: 0; gap: 0; max-width: none; }
-  .play-row {
+  body .site-header .brand,
+  body .site-header .back-link { display: none; }
+  body .site-header .focus-btn { display: none; }
+  body .page { margin: 0; padding: 0; gap: 0; max-width: none; }
+  body .play-row {
     width: 100vw; height: 100dvh;
     align-items: center; justify-content: center; gap: 0;
   }
-  .game-wrap {
+  body .game-wrap {
     width:  min(100vw, calc(100dvh * var(--canvas-w) / var(--canvas-h)));
     height: min(100dvh, calc(100vw * var(--canvas-h) / var(--canvas-w)));
     border-radius: 0;
     box-shadow: none;
   }
-  #game { width: 100%; height: 100%; }
+  body #game { width: 100%; height: 100%; }
 }

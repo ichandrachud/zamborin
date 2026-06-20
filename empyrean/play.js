@@ -2682,7 +2682,7 @@
       ctx.fillStyle = LABEL_COLOR;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('Drag finger to fly', cx, midY);
+      ctx.fillText('Tap where you want to fly', cx, midY);
       ctx.fillText('Hold to fire    Double-tap to drop a bomb', cx, midY + 60);
     } else {
       // Row 1 — single line: 'Steer using [↑] [↓]   Adjust speed with [←] [→]'
