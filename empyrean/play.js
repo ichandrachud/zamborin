@@ -545,8 +545,16 @@
   const TURN_RATE   = 2.4;      // rad / sec — how fast the nose rotates
   const THROTTLE_RATE = 0.55;   // throttle units per second of held key
 
+  // Mobile has no acceleration ramp (touch = full throttle) and a smaller
+  // visible canvas, so motion reads slower. A flat 1.3x multiplier brings
+  // it back in line with the desktop feel.
+  const MOBILE_SPEED_BOOST = MODE === 'mobile' ? 1.3 : 1;
+  // Slower turn rate on mobile so the plane "leads" the touch target by a
+  // beat — gives bullets time to fire forward of the new direction instead
+  // of snapping to wherever the finger just landed.
+  const MOBILE_TURN_RATE = 1.4;          // rad / sec
   function playerSpeed() {
-    return (MIN_SPEED + (MAX_SPEED - MIN_SPEED) * player.throttle) * player.speedMult;
+    return (MIN_SPEED + (MAX_SPEED - MIN_SPEED) * player.throttle) * player.speedMult * MOBILE_SPEED_BOOST;
   }
 
   // ---------- CAMERA ----------
@@ -1310,7 +1318,7 @@
       const mag = Math.hypot(vx, vy);
       if (mag > 4) {
         const inv = 1 / mag;
-        const sp = CHOPPER_SPEED * player.speedMult;
+        const sp = CHOPPER_SPEED * player.speedMult * MOBILE_SPEED_BOOST;
         player.x += vx * inv * sp * dt;
         player.y += vy * inv * sp * dt;
       }
@@ -1322,13 +1330,15 @@
     } else {
       // ----- Plane flight -----
       if (MODE === 'mobile' && touchTarget) {
-        // Mobile: nose-tracks-finger. Heading turns toward the touch point;
-        // throttle pegs to full while a finger is down so the plane chases.
+        // Mobile: nose drifts toward the finger at a gentle rate (instead of
+        // snapping), so bullets keep flying forward of the plane's current
+        // heading rather than instantly diverting to the new touch point.
+        // Throttle pegs to full while a finger is down.
         const wx = touchTarget.x + cameraX;
         const wy = touchTarget.y + cameraY;
         const desired = Math.atan2(wy - player.y, wx - player.x);
         const diff = normalizeAngle(desired - player.heading);
-        const maxTurn = TURN_RATE * (dt / 1000);
+        const maxTurn = MOBILE_TURN_RATE * (dt / 1000);
         player.heading += Math.max(-maxTurn, Math.min(maxTurn, diff));
         player.throttle = 1;
       } else {
