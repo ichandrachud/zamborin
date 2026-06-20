@@ -618,11 +618,13 @@
   //           holding fires, double-tap drops a bomb).
   const keys = Object.create(null);
   let bombRequest = false;             // set by 'B' keydown or mobile double-tap
+  let advanceRequested = false;        // set by Space / Enter edge-press or button tap; used to step through pre-play scenes
   window.addEventListener('keydown', (e) => {
     if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',' '].includes(e.key)) e.preventDefault();
     if (e.repeat) return;
     ensureAudio();                                 // wake the audio context on first key
     keys[e.key] = true;
+    if (e.key === ' ' || e.key === 'Enter') advanceRequested = true;
     if (e.key === 'b' || e.key === 'B') bombRequest = true;
     if (e.key === 'm' || e.key === 'M') setSoundOn(!soundOn);
   });
@@ -664,7 +666,17 @@
     ensureAudio();                                  // wake the audio context on first touch
     const t = e.changedTouches[0];
     if (!t) return;
-    touchOrigin = canvasFromClient(t.clientX, t.clientY);
+    const p = canvasFromClient(t.clientX, t.clientY);
+    // Intro: any tap advances. Briefing: only a tap on the Accept Mission button advances.
+    if (scene === 'intro') {
+      advanceRequested = true;
+      return;
+    }
+    if (scene === 'briefing') {
+      if (acceptButtonRect && inRect(acceptButtonRect, p.x, p.y)) advanceRequested = true;
+      return;
+    }
+    touchOrigin = p;
     keys[' '] = true;                                 // fire while held
   }, { passive: false });
   canvas.addEventListener('touchmove', (e) => {
@@ -691,6 +703,42 @@
     touchOrigin = null;
     keys.ArrowLeft = keys.ArrowRight = keys.ArrowUp = keys.ArrowDown = false;
     keys[' '] = false;
+  });
+
+  // Desktop click — used for the intro [Start] button and the briefing
+  // [Accept Mission] button. Both share the same hit-test pattern.
+  let startButtonRect = null;    // populated by drawIntro each frame
+  let startButtonHover = false;
+  let acceptButtonRect = null;   // populated by drawBriefing each frame
+  let acceptButtonHover = false;
+  function inRect(r, x, y) {
+    return r && x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+  }
+  canvas.addEventListener('click', (e) => {
+    const p = canvasFromClient(e.clientX, e.clientY);
+    if (scene === 'intro' && startButtonRect && inRect(startButtonRect, p.x, p.y)) {
+      advanceRequested = true;
+      return;
+    }
+    if (scene === 'briefing' && acceptButtonRect && inRect(acceptButtonRect, p.x, p.y)) {
+      advanceRequested = true;
+    }
+  });
+  canvas.addEventListener('mousemove', (e) => {
+    const p = canvasFromClient(e.clientX, e.clientY);
+    let hovering = false;
+    if (scene === 'intro') {
+      startButtonHover = !!(startButtonRect && inRect(startButtonRect, p.x, p.y));
+      acceptButtonHover = false;
+      hovering = startButtonHover;
+    } else if (scene === 'briefing') {
+      acceptButtonHover = !!(acceptButtonRect && inRect(acceptButtonRect, p.x, p.y));
+      startButtonHover = false;
+      hovering = acceptButtonHover;
+    } else {
+      startButtonHover = acceptButtonHover = false;
+    }
+    canvas.style.cursor = hovering ? 'pointer' : '';
   });
 
   // ---------- COMBAT ----------
@@ -885,9 +933,17 @@
     // Intro screen — wait for the first Space, B, or Tap. Then start the
     // game-audio voices and hand control over to the normal loop.
     if (scene === 'intro') {
-      if (keys[' '] || bombRequest || keys.Enter) {
-        scene = 'playing';
+      if (advanceRequested) {
+        scene = 'briefing';
+        advanceRequested = false;
         bombRequest = false;
+      }
+      return;
+    }
+    if (scene === 'briefing') {
+      if (advanceRequested) {
+        scene = 'playing';
+        advanceRequested = false;
         startGameAudio();
       }
       return;
@@ -1904,9 +1960,45 @@
     //   midY + 80   — action row (Space / B / M)
     //   midY + 150  — press-space prompt
     // Top of composition: midY − KEY_H/2 ; bottom: midY + 150 + ~12 px text.
-    // Centre on skyCenterY:
-    const compHeight = (150 + 12) + KEY_H / 2;
+    // Composition now has four bands: two instruction rows, the [Start]
+    // button, and the hint line below it. The card wraps all four.
+    const startBtnW = 200;
+    const startBtnH = 52;
+    // compHeight = (row1 top) → (hint baseline)
+    //            = (KEY_H/2) + 150 + (startBtnH/2) + 26 + 8
+    const compHeight = (KEY_H / 2) + 150 + (startBtnH / 2) + 26 + 8;
     const midY = Math.round(skyCenterY - compHeight / 2 + KEY_H / 2);
+    const startBtnCenterY = midY + 150;
+    const startBtnY = Math.round(startBtnCenterY - startBtnH / 2);
+    const hintCenterY = startBtnCenterY + startBtnH / 2 + 26;
+
+    // ----- Instruction card — same surface treatment as the briefing card so
+    // the two screens read as part of the same chrome family. -----
+    {
+      const cardW = 720;
+      const cardPadTop = 32;
+      const cardPadBot = 28;
+      const compTop = midY - KEY_H / 2;
+      const compBottom = hintCenterY + 8;
+      const cardX = Math.round(cx - cardW / 2);
+      const cardY = compTop - cardPadTop;
+      const cardH = (compBottom - compTop) + cardPadTop + cardPadBot;
+
+      ctx.save();
+      ctx.shadowColor = 'rgba(2, 6, 17, 0.35)';
+      ctx.shadowBlur = 22;
+      ctx.shadowOffsetY = 6;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+      roundRect(cardX, cardY, cardW, cardH, 14);
+      ctx.fill();
+      ctx.restore();
+      ctx.save();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(20, 26, 36, 0.12)';
+      roundRect(cardX, cardY, cardW, cardH, 14);
+      ctx.stroke();
+      ctx.restore();
+    }
 
     // Helper: lay out a row of segments (mix of keys, text labels, gaps)
     // CENTRED horizontally on the canvas. Returns useful X anchors for
@@ -1934,50 +2026,218 @@
       return anchors;
     }
 
-    // Row 1 — single line: 'Steer using [↑] [↓]   Adjust speed with [←] [→]'
-    // All centred horizontally on the canvas. ↑ / ↓ steer (rotate the nose),
-    // ← / → adjust throttle.
-    layoutCenteredRow([
-      { kind: 'text', value: 'Steer using' },
-      { kind: 'gap',  value: 14 },
-      { kind: 'key',  value: '↑' },
-      { kind: 'gap',  value: 10 },
-      { kind: 'key',  value: '↓' },
-      { kind: 'gap',  value: 42 },
-      { kind: 'text', value: 'Adjust speed with' },
-      { kind: 'gap',  value: 14 },
-      { kind: 'key',  value: '←' },
-      { kind: 'gap',  value: 10 },
-      { kind: 'key',  value: '→' },
-    ], midY);
+    if (MODE === 'mobile') {
+      // Mobile has no keys, no separate throttle. Drag = fly, hold = fire,
+      // double-tap = bomb. Plain centred text reads cleaner than fake keycaps.
+      ctx.font = '600 20px Inter, sans-serif';
+      ctx.fillStyle = LABEL_COLOR;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('Drag finger to fly', cx, midY);
+      ctx.fillText('Hold to fire    Double-tap to drop a bomb', cx, midY + 60);
+    } else {
+      // Row 1 — single line: 'Steer using [↑] [↓]   Adjust speed with [←] [→]'
+      // ↑ / ↓ steer (rotate the nose), ← / → adjust throttle.
+      layoutCenteredRow([
+        { kind: 'text', value: 'Steer using' },
+        { kind: 'gap',  value: 14 },
+        { kind: 'key',  value: '↑' },
+        { kind: 'gap',  value: 10 },
+        { kind: 'key',  value: '↓' },
+        { kind: 'gap',  value: 42 },
+        { kind: 'text', value: 'Adjust speed with' },
+        { kind: 'gap',  value: 14 },
+        { kind: 'key',  value: '←' },
+        { kind: 'gap',  value: 10 },
+        { kind: 'key',  value: '→' },
+      ], midY);
 
-    // Row 2 — actions: Space / B / M each followed by their label, centred.
-    layoutCenteredRow([
-      { kind: 'key',  value: 'Space' },
-      { kind: 'gap',  value: 10 },
-      { kind: 'text', value: 'to fire' },
-      { kind: 'gap',  value: 30 },
-      { kind: 'key',  value: 'B' },
-      { kind: 'gap',  value: 10 },
-      { kind: 'text', value: 'to drop a bomb' },
-      { kind: 'gap',  value: 30 },
-      { kind: 'key',  value: 'M' },
-      { kind: 'gap',  value: 10 },
-      { kind: 'text', value: 'mute' },
-    ], midY + 80);
+      // Row 2 — actions: Space / B / M each followed by their label, centred.
+      layoutCenteredRow([
+        { kind: 'key',  value: 'Space' },
+        { kind: 'gap',  value: 10 },
+        { kind: 'text', value: 'to fire' },
+        { kind: 'gap',  value: 30 },
+        { kind: 'key',  value: 'B' },
+        { kind: 'gap',  value: 10 },
+        { kind: 'text', value: 'to drop a bomb' },
+        { kind: 'gap',  value: 30 },
+        { kind: 'key',  value: 'M' },
+        { kind: 'gap',  value: 10 },
+        { kind: 'text', value: 'mute' },
+      ], midY + 80);
+    }
 
-    // ----- Start prompt (slow, gentle fade) -----
-    // 6.3-second full cycle (sin period 2π / 0.001) → fade in / out lasts
-    // about 3 s each direction. Alpha ramps 0.45 → 1.0 → 0.45 so the prompt
-    // stays clearly readable through the entire fade.
-    const fade = 0.725 + 0.275 * Math.sin(now * 0.001);
+    // ----- Start button — matches the briefing's [Accept Mission] button -----
+    const startBtnX = Math.round(cx - startBtnW / 2);
+    startButtonRect = { x: startBtnX, y: startBtnY, w: startBtnW, h: startBtnH };
+
+    const startPulse = 0.5 + 0.5 * Math.sin(now * 0.003);
+    ctx.save();
+    ctx.fillStyle = '#cc2200';
+    roundRect(startBtnX, startBtnY, startBtnW, startBtnH, 10);
+    ctx.fill();
+    ctx.lineWidth = 1.5;
+    const startBorderAlpha = startButtonHover ? 0.95 : 0.45 + 0.25 * startPulse;
+    ctx.strokeStyle = `rgba(120, 20, 0, ${startBorderAlpha.toFixed(2)})`;
+    roundRect(startBtnX, startBtnY, startBtnW, startBtnH, 10);
+    ctx.stroke();
+    if (startButtonHover) {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.10)';
+      roundRect(startBtnX, startBtnY, startBtnW, startBtnH, 10);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#FFFFFF';
     ctx.font = '700 18px Inter, sans-serif';
-    ctx.fillStyle = `rgba(20, 26, 36, ${fade.toFixed(2)})`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Start', startBtnX + startBtnW / 2, startBtnY + startBtnH / 2 + 1);
+    ctx.restore();
+
+    // ----- Hint below button — muted dark grey on white, > 4.5:1 contrast -----
+    ctx.font = '500 14px Inter, sans-serif';
+    ctx.fillStyle = 'rgba(20, 26, 36, 0.72)';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     const isMobileStart = MODE === 'mobile';
-    ctx.fillText(isMobileStart ? 'tap to start' : 'press space to start', cx, midY + 150);
+    ctx.fillText(isMobileStart ? 'tap the button to start' : 'press the Start button or space to start', cx, hintCenterY);
 
+  }
+
+  // Mission 1 briefing — same day-scene backdrop, dimmed by a vignette, with
+  // the mission story stacked above an [Accept Mission] button. Story is a
+  // single prose paragraph; drawBriefing word-wraps it to the column width.
+  const MISSION_1_STORY = 'Empyrean has fallen under siege. Enemy planes claim the sky, tanks roll unchallenged through the streets, and gun towers crown half the rooftops. The city is shutting down — civilians shelter in basements, listening for engines that aren’t theirs. You are the last sortie in the air. Wheels up.';
+
+  // Word-wrap helper for the briefing paragraph: returns an array of lines,
+  // each no wider than `maxWidth` at the currently-set ctx.font.
+  function wrapParagraph(text, maxWidth) {
+    const words = text.split(/\s+/);
+    const lines = [];
+    let line = '';
+    for (let i = 0; i < words.length; i++) {
+      const next = line ? line + ' ' + words[i] : words[i];
+      if (ctx.measureText(next).width <= maxWidth) {
+        line = next;
+      } else {
+        if (line) lines.push(line);
+        line = words[i];
+      }
+    }
+    if (line) lines.push(line);
+    return lines;
+  }
+
+  function drawBriefing(now) {
+    // ----- Backdrop (same as intro, no planes / vehicles / clouds) -----
+    clearBg();
+    drawSky();
+    drawStreet();
+    drawApartments();
+    drawMilitaryBodies();
+
+    const cx = W / 2;
+
+    // Card geometry. The whole briefing UI sits inside an opaque white card
+    // so body text passes AA contrast (≥ 4.5:1) over the daylight backdrop.
+    const cardPad = 40;
+    const cardW = 720;
+    const colW = cardW - cardPad * 2;          // text column = card interior
+
+    // Pre-wrap the paragraph so we can size the card height to actual content.
+    ctx.font = '500 20px Inter, sans-serif';
+    const storyLines = wrapParagraph(MISSION_1_STORY, colW);
+
+    const headerH = 38;
+    const headerGap = 28;
+    const lineH = 30;
+    const storyH = storyLines.length * lineH;
+    const btnGap = 28;
+    const btnH = 56;
+    const hintGap = 22;
+    const hintH = 18;
+    const contentH = headerH + headerGap + storyH + btnGap + btnH + hintGap + hintH;
+    const cardH = contentH + cardPad * 2;
+    const cardX = Math.round(cx - cardW / 2);
+    const cardY = Math.round((H - cardH) / 2);
+
+    // ----- Card surface — opaque white with a soft outline so text on it
+    // sits in a controlled, AA-compliant context. -----
+    ctx.save();
+    // Subtle drop shadow under the card.
+    ctx.shadowColor = 'rgba(2, 6, 17, 0.35)';
+    ctx.shadowBlur = 22;
+    ctx.shadowOffsetY = 6;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    roundRect(cardX, cardY, cardW, cardH, 14);
+    ctx.fill();
+    ctx.restore();
+    // Hairline border, drawn without the shadow.
+    ctx.save();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(20, 26, 36, 0.12)';
+    roundRect(cardX, cardY, cardW, cardH, 14);
+    ctx.stroke();
+    ctx.restore();
+
+    // ----- Header -----
+    const headerBaselineY = cardY + cardPad + headerH / 2;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = '800 32px Inter, sans-serif';
+    ctx.fillStyle = '#0E1424';                 // contrast > 18:1 on white
+    ctx.fillText('Your Mission', cx, headerBaselineY);
+
+    // ----- Story body — single left-aligned paragraph -----
+    const colX = cardX + cardPad;
+    const storyTopY = cardY + cardPad + headerH + headerGap;
+    ctx.font = '500 20px Inter, sans-serif';
+    ctx.fillStyle = '#1a2030';                 // contrast ≈ 16:1 on white
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    for (let i = 0; i < storyLines.length; i++) {
+      ctx.fillText(storyLines[i], colX, storyTopY + i * lineH);
+    }
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // ----- Accept Mission button — dark surface, white label for clear CTA -----
+    const btnW = 240;
+    const btnX = Math.round(cx - btnW / 2);
+    const btnY = storyTopY + storyH + btnGap;
+    acceptButtonRect = { x: btnX, y: btnY, w: btnW, h: btnH };
+
+    const pulse = 0.5 + 0.5 * Math.sin(now * 0.003);
+    ctx.save();
+    // Body — hero-plane red. Solid #cc2200 keeps white label at ≈5.5:1 (AA).
+    ctx.fillStyle = '#cc2200';
+    roundRect(btnX, btnY, btnW, btnH, 10);
+    ctx.fill();
+    // Border darkens hero-red slightly for the rim, and brightens on hover.
+    ctx.lineWidth = 1.5;
+    const borderAlpha = acceptButtonHover ? 0.95 : 0.45 + 0.25 * pulse;
+    ctx.strokeStyle = `rgba(120, 20, 0, ${borderAlpha.toFixed(2)})`;
+    roundRect(btnX, btnY, btnW, btnH, 10);
+    ctx.stroke();
+    // Hover lift: a soft inner highlight on hover for affordance.
+    if (acceptButtonHover) {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.10)';
+      roundRect(btnX, btnY, btnW, btnH, 10);
+      ctx.fill();
+    }
+    // Label — white on hero red = contrast ≈ 5.5:1 (AA).
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = '700 18px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Accept Mission', btnX + btnW / 2, btnY + btnH / 2 + 1);
+    ctx.restore();
+
+    // ----- Hint below button — muted dark grey on white, still > 4.5:1 -----
+    ctx.font = '500 14px Inter, sans-serif';
+    ctx.fillStyle = 'rgba(20, 26, 36, 0.72)';  // contrast ≈ 9:1 on white
+    const isMobile = MODE === 'mobile';
+    ctx.fillText(isMobile ? 'tap the button to begin' : 'press space or click the button to begin', cx, btnY + btnH + hintGap + hintH / 2);
   }
 
   // Helper used by drawIntro for the rounded-rect cards.
@@ -2002,6 +2262,10 @@
     // rendering. drawIntro paints its own background, so we skip clearBg too.
     if (scene === 'intro') {
       drawIntro(now);
+      return;
+    }
+    if (scene === 'briefing') {
+      drawBriefing(now);
       return;
     }
     // Decay the camera shake every frame, even when update() is paused on
