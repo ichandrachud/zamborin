@@ -18,16 +18,31 @@
     ? 'mobile' : 'desktop';
   document.body.classList.add('mode-' + MODE);
 
-  // ---------- WORLD ----------
-  // The stage / scenery / ground-target pack to load. Default is the
-  // daytime city. URL options:
-  //   ?world=ocean         — open water + enemy ships
-  //   ?world=night-city    — same city, starry sky + dark overlay
-  //   ?world=night-ocean   — open water, starry sky + dark overlay
-  const WORLD = (() => {
-    const w = new URLSearchParams(window.location.search).get('world');
-    return ['ocean', 'night-city', 'night-ocean'].includes(w) ? w : 'city';
-  })();
+  // ---------- MISSIONS ----------
+  // Linear campaign — each mission picks a world and a briefing story.
+  // After STAGE CLEAR the page redirects to the next mission's URL so the
+  // briefing scene replays with the new story.
+  const MISSIONS = [
+    {
+      world: 'city',
+      story: 'Empyrean has fallen under siege. Enemy planes claim the sky, tanks roll unchallenged through the streets, and gun towers crown half the rooftops. The city is shutting down — civilians shelter in basements, listening for engines that aren’t theirs. You are the last sortie in the air. Wheels up.',
+    },
+    {
+      world: 'ocean',
+      story: 'The blockade has reached our coast. A flotilla of armed cutters slipped into our waters overnight, their deck guns tracking every fishing boat in the harbour. There is no fleet left to meet them. Your wingmen have orders to escort civilians to shore — you are flying alone, into open water. Sink them.',
+    },
+  ];
+  const URL_PARAMS = new URLSearchParams(window.location.search);
+  // 1-indexed in the URL for player-friendliness. mission=2 means MISSIONS[1].
+  const MISSION_INDEX = Math.max(0, Math.min(MISSIONS.length - 1,
+    (parseInt(URL_PARAMS.get('mission'), 10) || 1) - 1));
+  const CURRENT_MISSION = MISSIONS[MISSION_INDEX];
+  // Allow ?world= to override the mission's default world (useful for
+  // quick visual iteration without bumping the mission number).
+  const WORLD_OVERRIDE = URL_PARAMS.get('world');
+  const WORLD = ['ocean', 'night-city', 'night-ocean', 'city'].includes(WORLD_OVERRIDE)
+    ? WORLD_OVERRIDE
+    : CURRENT_MISSION.world;
   const IS_OCEAN = WORLD === 'ocean' || WORLD === 'night-ocean';
   const IS_NIGHT = WORLD === 'night-city' || WORLD === 'night-ocean';
   document.body.classList.add('world-' + WORLD);
@@ -2460,19 +2475,41 @@
     ctx.restore();
   }
 
+  // On STAGE CLEAR we auto-route to the next mission's briefing after a
+  // brief hold. On SHOT DOWN the player has to reload (no auto-restart).
+  const GAME_OVER_HOLD_MS = 2600;
+  let gameOverAt = 0;                       // performance.now() at the moment gameOver flipped on
+  let advanceQueued = false;
+
   function drawGameOverOverlay() {
     if (!gameOver) return;
+    if (!gameOverAt) gameOverAt = lastFrameNow;
+
+    // Auto-advance once the hold is up. On the last mission we loop back to
+    // mission 1 so the game stays playable.
+    if (win && !advanceQueued && (lastFrameNow - gameOverAt) > GAME_OVER_HOLD_MS) {
+      advanceQueued = true;
+      const nextMissionNumber = (MISSION_INDEX + 1) >= MISSIONS.length ? 1 : (MISSION_INDEX + 2);
+      const url = window.location.pathname + '?mission=' + nextMissionNumber;
+      setTimeout(() => { window.location.href = url; }, 60);
+    }
+
     ctx.save();
     ctx.fillStyle = 'rgba(2, 6, 17, 0.66)';
     ctx.fillRect(0, 0, W, H);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
+    const isLastMission = MISSION_INDEX + 1 >= MISSIONS.length;
+    const headline = !win ? 'SHOT DOWN'
+      : isLastMission ? 'CAMPAIGN COMPLETE' : 'MISSION COMPLETE';
     ctx.fillStyle = win ? '#5DD39E' : '#FF6B5C';
-    ctx.font = '900 64px Inter, sans-serif';
-    ctx.fillText(win ? 'STAGE CLEAR' : 'SHOT DOWN', W / 2, H / 2 - 18);
+    ctx.font = '900 56px Inter, sans-serif';
+    ctx.fillText(headline, W / 2, H / 2 - 18);
     ctx.fillStyle = 'rgba(255,255,255,0.85)';
     ctx.font = '600 18px Inter, sans-serif';
-    ctx.fillText('Reload to fly again', W / 2, H / 2 + 28);
+    const sub = !win ? 'Reload to fly again'
+      : isLastMission ? 'Looping back to Mission 1…' : 'Next mission incoming…';
+    ctx.fillText(sub, W / 2, H / 2 + 28);
     ctx.restore();
   }
 
@@ -2756,7 +2793,8 @@
   // Mission 1 briefing — same day-scene backdrop, dimmed by a vignette, with
   // the mission story stacked above an [Accept Mission] button. Story is a
   // single prose paragraph; drawBriefing word-wraps it to the column width.
-  const MISSION_1_STORY = 'Empyrean has fallen under siege. Enemy planes claim the sky, tanks roll unchallenged through the streets, and gun towers crown half the rooftops. The city is shutting down — civilians shelter in basements, listening for engines that aren’t theirs. You are the last sortie in the air. Wheels up.';
+  // Mission story is pulled from the active mission (see MISSIONS at top).
+  const MISSION_1_STORY = CURRENT_MISSION.story;
 
   // Word-wrap helper for the briefing paragraph: returns an array of lines,
   // each no wider than `maxWidth` at the currently-set ctx.font.
