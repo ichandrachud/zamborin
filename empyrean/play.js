@@ -859,26 +859,18 @@
   //     drives the same `keys.Arrow*` flags the keyboard sets, so the
   //     downstream update logic doesn't change.
   //   • Double-tap (two quick releases) drops a bomb.
-  let touchOrigin = null;              // { x, y } in canvas-logical coords
+  // Mobile uses an absolute touch-target model: wherever the finger is on
+  // the canvas, the plane / chopper steers toward that point. Far more
+  // forgiving than the old drag-vector stick, which required precise
+  // continuous input to hold a heading.
+  let touchTarget = null;              // { x, y } in canvas-logical coords; null when no finger down
   let lastTapAt = 0;
-  const TOUCH_DEAD_RADIUS = 18;        // px from origin before any input registers
   function canvasFromClient(clientX, clientY) {
     const rect = canvas.getBoundingClientRect();
     return {
       x: (clientX - rect.left) / rect.width  * W,
       y: (clientY - rect.top)  / rect.height * H,
     };
-  }
-  function applyTouchVector(curX, curY) {
-    if (!touchOrigin) return;
-    const dx = curX - touchOrigin.x;
-    const dy = curY - touchOrigin.y;
-    // Outside the dead zone, set the corresponding key flag. Beyond
-    // TOUCH_DEAD_RADIUS we treat it as a discrete direction press.
-    keys.ArrowLeft  = dx < -TOUCH_DEAD_RADIUS;
-    keys.ArrowRight = dx >  TOUCH_DEAD_RADIUS;
-    keys.ArrowUp    = dy < -TOUCH_DEAD_RADIUS;
-    keys.ArrowDown  = dy >  TOUCH_DEAD_RADIUS;
   }
   canvas.addEventListener('touchstart', (e) => {
     e.preventDefault();
@@ -916,20 +908,18 @@
       return;
     }
     if (paused) { paused = false; return; }           // tap during pause = resume; swallow this touch so it doesn't also fire
-    touchOrigin = p;
+    touchTarget = p;
     keys[' '] = true;                                 // fire while held
   }, { passive: false });
   canvas.addEventListener('touchmove', (e) => {
     e.preventDefault();
     const t = e.changedTouches[0];
-    if (!t || !touchOrigin) return;
-    const p = canvasFromClient(t.clientX, t.clientY);
-    applyTouchVector(p.x, p.y);
+    if (!t || !touchTarget) return;
+    touchTarget = canvasFromClient(t.clientX, t.clientY);
   }, { passive: false });
   canvas.addEventListener('touchend', (e) => {
     e.preventDefault();
-    touchOrigin = null;
-    keys.ArrowLeft = keys.ArrowRight = keys.ArrowUp = keys.ArrowDown = false;
+    touchTarget = null;
     keys[' '] = false;
     const now = performance.now();
     if (now - lastTapAt < 320) {
@@ -940,8 +930,7 @@
     }
   }, { passive: false });
   canvas.addEventListener('touchcancel', () => {
-    touchOrigin = null;
-    keys.ArrowLeft = keys.ArrowRight = keys.ArrowUp = keys.ArrowDown = false;
+    touchTarget = null;
     keys[' '] = false;
   });
 
@@ -1285,20 +1274,27 @@
 
     if (player.kind === 'chopper') {
       // ----- Chopper flight -----
-      // Always upright, fixed speed, 8-directional movement.
-      // ← / → translate horizontally; ↑ / ↓ translate vertically.
       player.heading = 0;
       player.throttle = 0;
       let vx = 0, vy = 0;
-      if (keys.ArrowRight) vx += 1;
-      if (keys.ArrowLeft)  vx -= 1;
-      if (keys.ArrowUp)    vy -= 1;
-      if (keys.ArrowDown)  vy += 1;
-      // Horizontal input flips the chopper to face the direction of travel.
+      if (MODE === 'mobile' && touchTarget) {
+        // Mobile: chase the finger's position in world coords.
+        const wx = touchTarget.x + cameraX;
+        const wy = touchTarget.y + cameraY;
+        vx = wx - player.x;
+        vy = wy - player.y;
+      } else {
+        // Desktop: ← / → translate horizontally; ↑ / ↓ vertical.
+        if (keys.ArrowRight) vx += 1;
+        if (keys.ArrowLeft)  vx -= 1;
+        if (keys.ArrowUp)    vy -= 1;
+        if (keys.ArrowDown)  vy += 1;
+      }
       if (vx > 0) player.facing = 1;
       else if (vx < 0) player.facing = -1;
-      if (vx !== 0 || vy !== 0) {
-        const inv = 1 / Math.hypot(vx, vy);
+      const mag = Math.hypot(vx, vy);
+      if (mag > 4) {
+        const inv = 1 / mag;
         const sp = CHOPPER_SPEED * player.speedMult;
         player.x += vx * inv * sp * dt;
         player.y += vy * inv * sp * dt;
@@ -1310,11 +1306,23 @@
       if (player.y > FLIGHT_Y_MAX)   player.y = FLIGHT_Y_MAX;
     } else {
       // ----- Plane flight -----
-      // ↑ / ↓ steer (rotate the nose) ; ← / → adjust speed (throttle)
-      if (keys.ArrowUp)    player.heading -= TURN_RATE * (dt / 1000);
-      if (keys.ArrowDown)  player.heading += TURN_RATE * (dt / 1000);
-      if (keys.ArrowRight) player.throttle = Math.min(1, player.throttle + THROTTLE_RATE * dt / 1000);
-      if (keys.ArrowLeft)  player.throttle = Math.max(0, player.throttle - THROTTLE_RATE * dt / 1000);
+      if (MODE === 'mobile' && touchTarget) {
+        // Mobile: nose-tracks-finger. Heading turns toward the touch point;
+        // throttle pegs to full while a finger is down so the plane chases.
+        const wx = touchTarget.x + cameraX;
+        const wy = touchTarget.y + cameraY;
+        const desired = Math.atan2(wy - player.y, wx - player.x);
+        const diff = normalizeAngle(desired - player.heading);
+        const maxTurn = TURN_RATE * (dt / 1000);
+        player.heading += Math.max(-maxTurn, Math.min(maxTurn, diff));
+        player.throttle = 1;
+      } else {
+        // Desktop: ↑ / ↓ steer ; ← / → adjust throttle.
+        if (keys.ArrowUp)    player.heading -= TURN_RATE * (dt / 1000);
+        if (keys.ArrowDown)  player.heading += TURN_RATE * (dt / 1000);
+        if (keys.ArrowRight) player.throttle = Math.min(1, player.throttle + THROTTLE_RATE * dt / 1000);
+        if (keys.ArrowLeft)  player.throttle = Math.max(0, player.throttle - THROTTLE_RATE * dt / 1000);
+      }
       player.heading = normalizeAngle(player.heading);
 
       const sp = playerSpeed();
@@ -2090,8 +2098,8 @@
       ctx.save();
       ctx.translate(sx, top + k.h / 2 - lift);
       ctx.rotate(tilt);
-      // Source PNGs face LEFT; mirror when driving right so the cab leads.
-      if (k.vx > 0) ctx.scale(-1, 1);
+      // Source PNGs face RIGHT; mirror when driving left so the cab leads.
+      if (k.vx < 0) ctx.scale(-1, 1);
       ctx.drawImage(k.img, -k.w / 2, -k.h / 2, k.w, k.h);
       drawWheelSpin(k, lastFrameNow);
       ctx.restore();
@@ -2188,7 +2196,14 @@
       ctx.drawImage(img, -targetW / 2, -targetH / 2, targetW, targetH);
       drawRotor(lastFrameNow, 0, -targetH * 0.36, targetW);
     } else {
-      ctx.rotate(heading);
+      // Plane stays canopy-up: when the heading crosses ±90° the sprite is
+      // mirrored horizontally rather than allowed to fly upside-down.
+      if (Math.cos(heading) < 0) {
+        ctx.scale(-1, 1);
+        ctx.rotate(heading - Math.PI);
+      } else {
+        ctx.rotate(heading);
+      }
       ctx.drawImage(img, -targetW / 2, -targetH / 2, targetW, targetH);
       drawPropeller(lastFrameNow, targetW / 2 - 4, 0, targetH);
     }
