@@ -1368,24 +1368,32 @@
   }
 
   function drawBullets() {
+    // Glowing circles — omnidirectional, so they read correctly regardless
+    // of the hero's heading (the old horizontal-rect tracers looked wrong
+    // when fired from a banking or inverted plane).
     for (const b of bullets) {
       const sx = worldToScreenX(b.x);
       const sy = worldToScreenY(b.y);
       if (sx < -20 || sx > W + 20 || sy < -20 || sy > H + 20) continue;
       ctx.save();
       if (b.owner === 'player') {
-        ctx.shadowColor = 'rgba(255, 220, 90, 0.9)';
-        ctx.shadowBlur = 8;
-        ctx.fillStyle = 'rgba(255, 235, 130, 0.95)';
-        ctx.fillRect(sx - 7, sy - 2, 14, 4);
+        // Halo
+        ctx.shadowColor = 'rgba(255, 220, 90, 0.95)';
+        ctx.shadowBlur = 12;
+        ctx.fillStyle = 'rgba(255, 230, 120, 0.95)';
+        ctx.beginPath(); ctx.arc(sx, sy, 3.6, 0, Math.PI * 2); ctx.fill();
+        // Hot white core
         ctx.shadowBlur = 0;
         ctx.fillStyle = '#ffffff';
-        ctx.fillRect(sx - 3, sy - 0.75, 6, 1.5);
+        ctx.beginPath(); ctx.arc(sx, sy, 1.6, 0, Math.PI * 2); ctx.fill();
       } else {
-        ctx.shadowColor = '#ff5555';
-        ctx.shadowBlur = 6;
+        ctx.shadowColor = 'rgba(255, 80, 80, 0.95)';
+        ctx.shadowBlur = 10;
         ctx.fillStyle = '#ff8888';
-        ctx.fillRect(sx - 5, sy - 2, 10, 4);
+        ctx.beginPath(); ctx.arc(sx, sy, 3.2, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#ffd0d0';
+        ctx.beginPath(); ctx.arc(sx, sy, 1.3, 0, Math.PI * 2); ctx.fill();
       }
       ctx.restore();
     }
