@@ -1794,13 +1794,12 @@
     ctx.textBaseline = 'middle';
 
     // ----- Controls block -----
-    // Centred on the canvas; arrow keys form a proper d-pad cross so all
-    // four are visually aligned, and the action keys (Space / B / M) live on
-    // a single row directly below the cross. Keycap outlines are medium
+    // Single inline row with the d-pad arrows fanning above + below the
+    // left-cluster, and the whole composition centred in the SKY band of
+    // the canvas (above the building skyline). Keycap outlines are medium
     // grey, instructional copy is dark grey.
     const KEY_H    = 44;                  // all caps the same height
     const KEY_PAD  = 12;
-    const KEY_STEP = KEY_H + 8;           // vertical spacing between cross rows
     const KEY_STROKE = 'rgba(120, 120, 120, 0.85)';
     const LABEL_COLOR = '#2c3140';        // dark grey instructional copy
     function measureKey(label, font) {
@@ -1808,28 +1807,59 @@
       const m = ctx.measureText(label);
       return Math.max(KEY_H, Math.ceil(m.width) + KEY_PAD * 2);
     }
+    // Custom arrow glyph — single shared path, just rotated per direction —
+    // so all four arrows ALWAYS render at the exact same weight.
+    function drawArrowGlyph(cx2, cy2, dir) {
+      ctx.save();
+      ctx.translate(cx2, cy2);
+      if (dir === 'right') ctx.rotate(Math.PI / 2);
+      if (dir === 'down')  ctx.rotate(Math.PI);
+      if (dir === 'left')  ctx.rotate(-Math.PI / 2);
+      // Default orientation = pointing UP.
+      ctx.strokeStyle = '#1a2030';
+      ctx.fillStyle   = '#1a2030';
+      ctx.lineWidth   = 2.2;
+      ctx.lineCap     = 'square';
+      // Shaft
+      ctx.beginPath();
+      ctx.moveTo(0, 9);
+      ctx.lineTo(0, -3);
+      ctx.stroke();
+      // Triangular head
+      ctx.beginPath();
+      ctx.moveTo(0, -11);
+      ctx.lineTo(-6.5, -1);
+      ctx.lineTo(6.5, -1);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+    const ARROW_DIR = { '↑': 'up', '↓': 'down', '←': 'left', '→': 'right' };
+
     function drawKey(label, x, y, font) {
       const w = measureKey(label, font);
-      // Keycap body
       ctx.fillStyle = 'rgba(255, 255, 255, 0.96)';
       roundRect(x, y - KEY_H / 2, w, KEY_H, 8);
       ctx.fill();
       ctx.strokeStyle = KEY_STROKE;
       ctx.lineWidth = 1.5;
       ctx.stroke();
-      // Faint inner top-edge highlight for the keycap dimension.
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(x + 5, y - KEY_H / 2 + 2);
       ctx.lineTo(x + w - 5, y - KEY_H / 2 + 2);
       ctx.stroke();
-      // Label
-      ctx.font = font;
-      ctx.fillStyle = '#1a2030';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(label, x + w / 2, y + 1);
+      const arrowDir = ARROW_DIR[label];
+      if (arrowDir) {
+        drawArrowGlyph(x + w / 2, y, arrowDir);
+      } else {
+        ctx.font = font;
+        ctx.fillStyle = '#1a2030';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label, x + w / 2, y + 1);
+      }
       return w;
     }
     function drawText(text, x, y, font, color) {
@@ -1841,59 +1871,80 @@
       return ctx.measureText(text).width;
     }
 
-    const keyFont   = '800 22px Inter, sans-serif';
-    const textFont  = '600 18px Inter, sans-serif';
+    const keyFont  = '800 22px Inter, sans-serif';
+    const textFont = '600 18px Inter, sans-serif';
 
-    // Vertical centre of the controls composition. The d-pad takes 3 rows
-    // (≈ 3 × KEY_STEP) and the action row sits below with a gap.
-    const blockCenterY = H / 2;
-    const padY = blockCenterY - KEY_STEP - 18;   // ↑ row
-    const midY = blockCenterY - 18;              // ← → row (centre of cross)
-    const downY = blockCenterY + KEY_STEP - 18;  // ↓ row
-    const actionY = blockCenterY + KEY_STEP * 2 + 6;  // Space / B / M row
+    // Centre the WHOLE unit vertically in the sky band (top of canvas to
+    // apartment roof-line). The unit is three rows tall: ↑ row, mid row,
+    // ↓ row. Mid-row y = sky centre.
+    const SKY_TOP    = 20;
+    const SKY_BOTTOM = STREET_TOP_Y - APARTMENT_RENDER_H - 20;   // just above roofs
+    const midY      = (SKY_TOP + SKY_BOTTOM) / 2;
+    const arrowRowGap = 60;                  // distance between ↑/↓ and the mid row
+    const upY       = midY - arrowRowGap;
+    const downY     = midY + arrowRowGap;
 
-    // D-pad cross — ↑ centred above, ← / → flanking the centre, ↓ centred below.
-    const arrowW = measureKey('↑', keyFont);
-    drawKey('↑', cx - arrowW / 2, padY,  keyFont);
-    drawKey('←', cx - arrowW * 1.5 - 10, midY, keyFont);
-    drawKey('→', cx + arrowW * 0.5 + 10, midY, keyFont);
-    drawKey('↓', cx - arrowW / 2, downY, keyFont);
-
-    // Action row: [Space] to fire   [B] to drop a bomb   [M] mute — all
-    // centred horizontally. Build segments, measure, draw.
+    // Build the middle row as a list of segments and measure first so the
+    // whole row can be centred. The ↑ ↓ caps will land directly above /
+    // below the ← key.
     const segments = [
+      { kind: 'text', value: 'Use keys to move' },
+      { kind: 'gap',  value: 12 },
+      { kind: 'key',  value: '←' },
+      { kind: 'gap',  value: 8 },
+      { kind: 'key',  value: '→' },
+      { kind: 'gap',  value: 32 },
       { kind: 'key',  value: 'Space' },
-      { kind: 'gap',  value: 10 },
+      { kind: 'gap',  value: 8 },
       { kind: 'text', value: 'to fire' },
       { kind: 'gap',  value: 26 },
       { kind: 'key',  value: 'B' },
-      { kind: 'gap',  value: 10 },
+      { kind: 'gap',  value: 8 },
       { kind: 'text', value: 'to drop a bomb' },
       { kind: 'gap',  value: 26 },
       { kind: 'key',  value: 'M' },
-      { kind: 'gap',  value: 10 },
+      { kind: 'gap',  value: 8 },
       { kind: 'text', value: 'mute' },
     ];
     let totalW = 0;
+    const widths = [];
     for (const s of segments) {
-      if (s.kind === 'key')  totalW += measureKey(s.value, keyFont);
-      else if (s.kind === 'text') { ctx.font = textFont; totalW += ctx.measureText(s.value).width; }
-      else                  totalW += s.value;
+      let w = 0;
+      if (s.kind === 'key')  w = measureKey(s.value, keyFont);
+      else if (s.kind === 'text') { ctx.font = textFont; w = ctx.measureText(s.value).width; }
+      else                  w = s.value;
+      widths.push(w);
+      totalW += w;
     }
     let xCur = Math.round(cx - totalW / 2);
-    for (const s of segments) {
-      if (s.kind === 'key')  xCur += drawKey(s.value, xCur, actionY, keyFont);
-      else if (s.kind === 'text') xCur += drawText(s.value, xCur, actionY + 1, textFont, LABEL_COLOR);
-      else                  xCur += s.value;
+    // Remember the centre X of the ← key so we can stack ↑ ↓ above / below it.
+    let leftArrowCenterX = cx;
+    for (let i = 0; i < segments.length; i++) {
+      const s = segments[i];
+      const w = widths[i];
+      if (s.kind === 'key' && s.value === '←') leftArrowCenterX = xCur + w / 2;
+      if (s.kind === 'key')  drawKey(s.value, xCur, midY, keyFont);
+      else if (s.kind === 'text') drawText(s.value, xCur, midY + 1, textFont, LABEL_COLOR);
+      xCur += w;
     }
 
-    // Start prompt — pulsing.
-    const isMobile = MODE === 'mobile';
-    const pulse = 0.55 + 0.45 * Math.sin(now * 0.0042);
-    ctx.font = '900 26px Inter, sans-serif';
-    ctx.fillStyle = `rgba(255, 220, 90, ${pulse.toFixed(2)})`;
+    // ↑ and ↓ stacked above and below the ← key — completes the d-pad cross
+    // while keeping the rest of the controls inline.
+    const arrowW = measureKey('↑', keyFont);
+    drawKey('↑', leftArrowCenterX - arrowW / 2, upY,   keyFont);
+    drawKey('↓', leftArrowCenterX - arrowW / 2, downY, keyFont);
+
+    // ----- Start prompt (slow, gentle fade) -----
+    // 6.3-second full cycle (sin period 2π / 0.001) → fade in / out lasts
+    // about 3 s each direction. Alpha ramps 0.20 → 0.95 → 0.20.
+    const fade = 0.575 + 0.375 * Math.sin(now * 0.001);
+    ctx.font = '700 18px Inter, sans-serif';
+    ctx.fillStyle = `rgba(40, 50, 70, ${fade.toFixed(2)})`;
     ctx.textAlign = 'center';
-    ctx.fillText(isMobile ? 'TAP TO START' : 'PRESS SPACE TO START', cx, H - 70);
+    ctx.textBaseline = 'middle';
+    const isMobileStart = MODE === 'mobile';
+    ctx.fillText(isMobileStart ? 'tap to start' : 'press space to start', cx, downY + 50);
+
   }
 
   // Helper used by drawIntro for the rounded-rect cards.
