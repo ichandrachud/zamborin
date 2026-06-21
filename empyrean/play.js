@@ -560,14 +560,6 @@
   const PLAYER_ANG_DAMP  = 4.5;          // how fast angVel decays to 0 when input released
   const PLAYER_ANG_MAX_DESKTOP = 1.9;    // max rate of turn (rad/sec)
   const PLAYER_ANG_MAX_MOBILE  = 1.5;
-  // Visual flip animation — when the plane settles into the left half of
-  // the compass (cos heading << 0) it barrel-rolls canopy-up, with a
-  // horizontal scale squash so the transition reads as a roll. 0 = right
-  // half (no flip), 1 = left half (mirrored). Eased with hysteresis so a
-  // vertical loop doesn't oscillate it.
-  player.visualFlip = 0;
-  const FLIP_EASE = 6;                   // 1 / s — approach rate for visualFlip
-  const FLIP_TRIGGER = 0.18;             // hysteresis band on cos(heading)
   // Chopper movement: always upright, fixed speed in 8 directions. Roughly
   // matches a plane's cruise speed (no throttle band).
   const CHOPPER_SPEED = 0.075;  // px / ms
@@ -957,6 +949,10 @@
     const t = e.changedTouches[0];
     if (!t) return;
     const p = canvasFromClient(t.clientX, t.clientY);
+    if (gameOver && playAgainRect && inRect(playAgainRect, p.x, p.y)) {
+      window.location.href = window.location.pathname + '?mission=1';
+      return;
+    }
     // Intro: any tap advances. Briefing: only a tap on the Accept Mission button advances.
     if (scene === 'intro') {
       advanceRequested = true;
@@ -1046,6 +1042,10 @@
   }
   canvas.addEventListener('click', (e) => {
     const p = canvasFromClient(e.clientX, e.clientY);
+    if (gameOver && playAgainRect && inRect(playAgainRect, p.x, p.y)) {
+      window.location.href = window.location.pathname + '?mission=1';
+      return;
+    }
     if (scene === 'intro' && startButtonRect && inRect(startButtonRect, p.x, p.y)) {
       advanceRequested = true;
       return;
@@ -1077,7 +1077,11 @@
     let hovering = false;
     startButtonHover = acceptButtonHover = selectPrevHover = selectNextHover = selectChooseHover = false;
     bombPrevHover = bombNextHover = bombEquipHover = false;
-    if (scene === 'intro') {
+    playAgainHover = false;
+    if (gameOver && playAgainRect) {
+      playAgainHover = inRect(playAgainRect, p.x, p.y);
+      hovering = playAgainHover;
+    } else if (scene === 'intro') {
       startButtonHover = !!(startButtonRect && inRect(startButtonRect, p.x, p.y));
       hovering = startButtonHover;
     } else if (scene === 'briefing') {
@@ -1471,16 +1475,6 @@
       if (player.angVel < -angMax) player.angVel = -angMax;
       player.heading += player.angVel * dts;
       player.heading = normalizeAngle(player.heading);
-      // Visual-flip target — hysteresis band on cos(heading) so a vertical
-      // loop doesn't toggle the flip mid-pass. Eases toward target over
-      // ~0.3 s, giving the barrel-roll feel rather than a snap.
-      {
-        const c = Math.cos(player.heading);
-        let targetFlip = player.visualFlip;
-        if (c >  FLIP_TRIGGER) targetFlip = 0;
-        else if (c < -FLIP_TRIGGER) targetFlip = 1;
-        player.visualFlip += (targetFlip - player.visualFlip) * Math.min(1, FLIP_EASE * dts);
-      }
 
       const sp = playerSpeed();
       player.x += Math.cos(player.heading) * sp * dt;
@@ -1766,16 +1760,6 @@
       if (en.angVel < -ENEMY_ANG_MAX) en.angVel = -ENEMY_ANG_MAX;
       en.heading += en.angVel * dts2;
       en.heading = normalizeAngle(en.heading);
-      // Same barrel-roll flip target as the player so enemies look natural
-      // when they settle into left-flying flight.
-      {
-        if (en.visualFlip === undefined) en.visualFlip = 0;
-        const c = Math.cos(en.heading);
-        let targetFlip = en.visualFlip;
-        if (c >  FLIP_TRIGGER) targetFlip = 0;
-        else if (c < -FLIP_TRIGGER) targetFlip = 1;
-        en.visualFlip += (targetFlip - en.visualFlip) * Math.min(1, FLIP_EASE * dts2);
-      }
 
       // Throttle: cruise / dash both ~40 % lower than the previous values.
       const targetThrottle = dist > 600 ? 0.50 : 0.32;
@@ -2566,16 +2550,10 @@
       drawHitFlash(img, -targetW / 2, -targetH / 2, targetW, targetH, flashAlpha);
       drawRotor(lastFrameNow, 0, -targetH * 0.36, targetW);
     } else {
-      // Barrel-roll flip: visualFlip eases between 0 (canopy-up, facing
-      // right) and 1 (canopy-up, facing left). During the transition the
-      // sprite horizontally squashes through scale.x = 0, then re-emerges
-      // mirrored — reads as a roll, not a snap. The base rotation swaps
-      // (heading vs heading-π) at the midpoint so the nose never reverses.
-      const flip = visualFlip || 0;
-      const flipScale = 1 - 2 * flip;
-      const flipRot = (flip < 0.5) ? heading : (heading - Math.PI);
-      ctx.scale(flipScale, 1);
-      ctx.rotate(flipRot);
+      // Continuous rotation — plane rotates by heading every frame, going
+      // canopy-down at the top of a loop like a real aircraft. No flip,
+      // no barrel-roll squash.
+      ctx.rotate(heading);
       ctx.drawImage(img, -targetW / 2, -targetH / 2, targetW, targetH);
       drawHitFlash(img, -targetW / 2, -targetH / 2, targetW, targetH, flashAlpha);
       drawPropeller(lastFrameNow, targetW / 2 - 4, 0, targetH);
@@ -2609,7 +2587,7 @@
     }
     if (alpha < 1) ctx.save();
     if (alpha < 1) ctx.globalAlpha = alpha;
-    drawAircraft(assets.player, player.x, player.y, player.heading, 72, player.kind, player.facing, 0, player.visualFlip);
+    drawAircraft(assets.player, player.x, player.y, player.heading, 72, player.kind, player.facing, 0);
     if (alpha < 1) ctx.restore();
   }
 
@@ -2619,7 +2597,7 @@
       const flash = (en.flashUntil && en.flashUntil > lastFrameNow)
         ? (en.flashUntil - lastFrameNow) / 60
         : 0;
-      drawAircraft(en.img, en.x, en.y, en.heading, 54, undefined, undefined, flash, en.visualFlip || 0);
+      drawAircraft(en.img, en.x, en.y, en.heading, 54, undefined, undefined, flash);
     }
   }
 
@@ -2844,10 +2822,12 @@
   }
 
   // On STAGE CLEAR we auto-route to the next mission's briefing after a
-  // brief hold. On SHOT DOWN the player has to reload (no auto-restart).
+  // brief hold. On GAME OVER we show a [Play again] button that reloads.
   const GAME_OVER_HOLD_MS = 2600;
   let gameOverAt = 0;                       // performance.now() at the moment gameOver flipped on
   let advanceQueued = false;
+  let playAgainRect = null;                 // hit area for the [Play again] button
+  let playAgainHover = false;
 
   function drawGameOverOverlay() {
     if (!gameOver) return;
@@ -2873,11 +2853,37 @@
     ctx.fillStyle = win ? '#5DD39E' : '#FF6B5C';
     ctx.font = '900 56px Inter, sans-serif';
     ctx.fillText(headline, W / 2, H / 2 - 18);
-    ctx.fillStyle = 'rgba(255,255,255,0.85)';
-    ctx.font = '600 18px Inter, sans-serif';
-    const sub = !win ? 'Reload to fly again'
-      : isLastMission ? 'Looping back to Mission 1…' : 'Next mission incoming…';
-    ctx.fillText(sub, W / 2, H / 2 + 28);
+
+    if (!win) {
+      // [Play again] button — restarts the campaign at mission 1.
+      const btnW = 220, btnH = 52;
+      const btnX = Math.round(W / 2 - btnW / 2);
+      const btnY = Math.round(H / 2 + 18);
+      playAgainRect = { x: btnX, y: btnY, w: btnW, h: btnH };
+      const pulse = 0.5 + 0.5 * Math.sin(lastFrameNow * 0.003);
+      ctx.fillStyle = '#cc2200';
+      roundRect(btnX, btnY, btnW, btnH, 10);
+      ctx.fill();
+      ctx.lineWidth = 1.5;
+      const borderAlpha = playAgainHover ? 0.95 : 0.45 + 0.25 * pulse;
+      ctx.strokeStyle = `rgba(120, 20, 0, ${borderAlpha.toFixed(2)})`;
+      roundRect(btnX, btnY, btnW, btnH, 10);
+      ctx.stroke();
+      if (playAgainHover) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.10)';
+        roundRect(btnX, btnY, btnW, btnH, 10);
+        ctx.fill();
+      }
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = '700 18px Inter, sans-serif';
+      ctx.fillText('Play again', btnX + btnW / 2, btnY + btnH / 2 + 1);
+    } else {
+      playAgainRect = null;
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.font = '600 18px Inter, sans-serif';
+      const sub = isLastMission ? 'Looping back to Mission 1…' : 'Next mission incoming…';
+      ctx.fillText(sub, W / 2, H / 2 + 28);
+    }
     ctx.restore();
   }
 
