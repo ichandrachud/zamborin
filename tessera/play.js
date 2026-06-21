@@ -254,51 +254,18 @@
   const DOUBLE_TAP_MS = 320;
 
   // ---------- AUDIO ----------
-  // Lazy-init Web Audio on first user gesture (browser autoplay policy).
-  let audioCtx = null;
-  let soundOn = localStorage.getItem('zamborin-tessera.sound') !== '0';
-  function ensureAudio() {
-    if (audioCtx) return;
-    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
-    catch (_) { audioCtx = null; }
-  }
-  function setSound(on) {
-    soundOn = on;
-    try { localStorage.setItem('zamborin-tessera.sound', on ? '1' : '0'); } catch (_) {}
-  }
-  function tone(freq, dur, gain, type) {
-    if (!soundOn || !audioCtx) return;
-    const t0 = audioCtx.currentTime;
-    const osc = audioCtx.createOscillator();
-    const g = audioCtx.createGain();
-    osc.type = type || 'sine';
-    osc.frequency.setValueAtTime(freq, t0);
-    g.gain.setValueAtTime(0, t0);
-    g.gain.linearRampToValueAtTime(gain, t0 + 0.005);
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-    osc.connect(g); g.connect(audioCtx.destination);
-    osc.start(t0); osc.stop(t0 + dur + 0.02);
-  }
-  function sfxTile()  {
-    // Final rest — a low double-thunk so 'landed' feels distinct from 'stepped'.
-    tone(220, 0.14, 0.13, 'sine');
-    setTimeout(() => tone(140, 0.18, 0.11, 'sine'), 50);
-  }
-  function sfxTick()  { tone(1600, 0.02, 0.025, 'square'); }
-  function sfxFall()  { tone(440, 0.06, 0.07, 'triangle'); }
-  function sfxStart() { tone(523, 0.10, 0.05,  'triangle'); setTimeout(() => tone(784, 0.12, 0.05, 'triangle'), 80); }
-  function sfxWord(len) {
-    // 3-letter word → C5, each extra letter adds a semitone-ish brightness.
-    const baseHz = 523 * Math.pow(1.12, Math.max(0, len - 3));
-    tone(baseHz,        0.12, 0.06, 'triangle');
-    setTimeout(() => tone(baseHz * 1.25, 0.14, 0.06, 'triangle'),  80);
-    setTimeout(() => tone(baseHz * 1.5,  0.18, 0.07, 'triangle'), 160);
-  }
-  function sfxGameOver() {
-    tone(330, 0.18, 0.06, 'triangle');
-    setTimeout(() => tone(247, 0.18, 0.06, 'triangle'), 140);
-    setTimeout(() => tone(196, 0.28, 0.06, 'triangle'), 280);
-  }
+  // All synthesis lives in shared/sfx.js. We keep thin per-game wrappers
+  // so existing call sites (sfxTick, sfxFall, etc.) don't need to change.
+  const sfx = window.ZSFX.create({ storageKey: 'zamborin-tessera.sound' });
+  function ensureAudio()  { sfx.ensureAudio(); }
+  function setSound(on)   { sfx.setOn(on); }
+  function tone(f,d,g,t)  { sfx.tone(f,d,g,t); }
+  function sfxTile()      { sfx.play('land'); }
+  function sfxTick()      { sfx.play('tick'); }
+  function sfxFall()      { sfx.play('drop'); }
+  function sfxStart()     { sfx.play('start'); }
+  function sfxWord(len)   { sfx.arpeggio(523, 0.06, len - 3); }
+  function sfxGameOver()  { sfx.play('fail'); }
 
   // ---------- GAME STATE ----------
   let score = 0;
@@ -457,8 +424,8 @@
   window.addEventListener('keydown', (e) => {
     if (e.key === 'm' || e.key === 'M') {
       ensureAudio();
-      setSound(!soundOn);
-      if (soundOn) tone(660, 0.06, 0.04, 'sine');
+      setSound(!sfx.isOn());
+      if (sfx.isOn()) tone(660, 0.06, 0.04, 'sine');
       return;
     }
     if (awaitingStart && (e.key === 'Enter' || e.key === ' ')) {
@@ -514,8 +481,8 @@
 
     // Sound toggle is live in every scene.
     if (inRect(SOUND_BTN, lx, ly)) {
-      setSound(!soundOn);
-      if (soundOn) tone(660, 0.06, 0.04, 'sine');
+      setSound(!sfx.isOn());
+      if (sfx.isOn()) tone(660, 0.06, 0.04, 'sine');
       return;
     }
 
@@ -574,8 +541,8 @@
     ctx.fill();
     const cx = bx + size / 2;
     const cy = by + size / 2;
-    ctx.fillStyle = soundOn ? C.text : C.textMute;
-    ctx.strokeStyle = soundOn ? C.text : C.textMute;
+    ctx.fillStyle = sfx.isOn() ? C.text : C.textMute;
+    ctx.strokeStyle = sfx.isOn() ? C.text : C.textMute;
     ctx.lineWidth = 1.4;
     ctx.lineCap = 'round';
     ctx.beginPath();
@@ -587,7 +554,7 @@
     ctx.lineTo(cx - 6, cy + 3);
     ctx.closePath();
     ctx.fill();
-    if (soundOn) {
+    if (sfx.isOn()) {
       ctx.beginPath(); ctx.arc(cx + 3, cy, 2.5, -Math.PI / 3, Math.PI / 3); ctx.stroke();
       ctx.beginPath(); ctx.arc(cx + 3, cy, 5,   -Math.PI / 3, Math.PI / 3); ctx.stroke();
     } else {

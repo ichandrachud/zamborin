@@ -141,117 +141,19 @@
   };
 
   // ---------- AUDIO ----------
-  // Lazy-init on first user gesture (browser autoplay policy).
-  let audioCtx = null;
-  let soundOn = localStorage.getItem('zamborin-ludo.sound') !== '0';
-  function ensureAudio() {
-    if (audioCtx) return;
-    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
-    catch (_) { audioCtx = null; }
-  }
-  function setSound(on) {
-    soundOn = on;
-    try { localStorage.setItem('zamborin-ludo.sound', on ? '1' : '0'); } catch (_) {}
-  }
-  function tone(freq, dur, gain, type) {
-    if (!soundOn || !audioCtx) return;
-    const t0 = audioCtx.currentTime;
-    const osc = audioCtx.createOscillator();
-    const g = audioCtx.createGain();
-    osc.type = type || 'sine';
-    osc.frequency.setValueAtTime(freq, t0);
-    g.gain.setValueAtTime(0, t0);
-    g.gain.linearRampToValueAtTime(gain, t0 + 0.005);
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-    osc.connect(g); g.connect(audioCtx.destination);
-    osc.start(t0); osc.stop(t0 + dur + 0.02);
-  }
-  function noiseBurst(dur, freq, q, gain) {
-    if (!soundOn || !audioCtx) return;
-    const t0 = audioCtx.currentTime;
-    const len = Math.max(1, Math.floor(audioCtx.sampleRate * dur));
-    const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
-    const data = buf.getChannelData(0);
-    for (let i = 0; i < data.length; i++) {
-      const env = 1 - (i / data.length);
-      data[i] = (Math.random() * 2 - 1) * env;
-    }
-    const src = audioCtx.createBufferSource();
-    src.buffer = buf;
-    const filter = audioCtx.createBiquadFilter();
-    filter.type = 'bandpass';
-    filter.frequency.value = freq;
-    filter.Q.value = q;
-    const g = audioCtx.createGain();
-    g.gain.value = gain;
-    src.connect(filter); filter.connect(g); g.connect(audioCtx.destination);
-    src.start(t0);
-  }
-  // Wooden clack — damped low-frequency sine + a 5ms low-passed noise attack.
-  // Combined, this reads as "wood on wood" rather than "ceramic on ceramic"
-  // because the body is a soft sine pulse rather than band-passed noise.
-  function woodClack(freq, dur, gain) {
-    if (!soundOn || !audioCtx) return;
-    const t0 = audioCtx.currentTime;
-    // Body: damped sine.
-    const osc = audioCtx.createOscillator();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(freq, t0);
-    const g = audioCtx.createGain();
-    g.gain.setValueAtTime(0, t0);
-    g.gain.linearRampToValueAtTime(gain, t0 + 0.003);
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-    osc.connect(g); g.connect(audioCtx.destination);
-    osc.start(t0); osc.stop(t0 + dur + 0.02);
-    // Tiny low-passed noise burst as the percussive attack — barely audible
-    // on its own, but adds a wooden "tk" to the front of the sine pulse.
-    const len = Math.max(1, Math.floor(audioCtx.sampleRate * 0.005));
-    const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
-    const data = buf.getChannelData(0);
-    for (let i = 0; i < data.length; i++) {
-      data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
-    }
-    const src = audioCtx.createBufferSource();
-    src.buffer = buf;
-    const filt = audioCtx.createBiquadFilter();
-    filt.type = 'lowpass';
-    filt.frequency.value = freq * 4;
-    const ng = audioCtx.createGain();
-    ng.gain.value = gain * 0.30;
-    src.connect(filt); filt.connect(ng); ng.connect(audioCtx.destination);
-    src.start(t0);
-  }
-  function sfxDiceShake() {
-    // Five wooden clacks at slightly random pitches across the 720ms tumble.
-    // Lower frequencies + sine body = hollow "rolling in a box" character.
-    // Gains bumped again ~40% — clearly audible without overpowering the room.
-    woodClack(220, 0.10, 0.16);
-    setTimeout(() => woodClack(180, 0.10, 0.13), 100);
-    setTimeout(() => woodClack(240, 0.10, 0.14), 220);
-    setTimeout(() => woodClack(195, 0.10, 0.12), 340);
-    setTimeout(() => woodClack(215, 0.10, 0.10), 470);
-  }
-  function sfxDiceLand() {
-    // Two solid wooden thunks for the final settle — like the cubes coming
-    // to rest against each other and then the box floor.
-    woodClack(150, 0.22, 0.24);
-    setTimeout(() => woodClack(115, 0.28, 0.18), 60);
-  }
-  // Soft flat per-square move sound — barely-there low sine pulse, very short,
-  // so a six-step move sounds like a soft "tk · tk · tk · tk · tk · tk".
-  function sfxStep()    { tone(280, 0.04, 0.025, 'sine'); }
-  function sfxUnlock()  { tone(660, 0.10, 0.06,  'triangle'); setTimeout(() => tone(880, 0.10, 0.06, 'triangle'), 70); }
-  function sfxFinish()  { tone(784, 0.12, 0.07, 'triangle'); setTimeout(() => tone(1047, 0.16, 0.07, 'triangle'), 90); }
-  function sfxCapture() {
-    noiseBurst(0.10, 240, 1.5, 0.3);
-    setTimeout(() => tone(180, 0.18, 0.10, 'square'), 30);
-  }
-  function sfxWin() {
-    tone(523, 0.13, 0.08, 'triangle');
-    setTimeout(() => tone(659, 0.13, 0.08, 'triangle'),  90);
-    setTimeout(() => tone(784, 0.13, 0.08, 'triangle'), 180);
-    setTimeout(() => tone(1047, 0.22, 0.10,'triangle'), 280);
-  }
+  // All synthesis lives in shared/sfx.js. Thin per-game wrappers preserved
+  // so existing call sites keep working without touching every site.
+  const sfx = window.ZSFX.create({ storageKey: 'zamborin-ludo.sound' });
+  function ensureAudio() { sfx.ensureAudio(); }
+  function setSound(on)  { sfx.setOn(on); }
+  function tone(f,d,g,t) { sfx.tone(f,d,g,t); }
+  function sfxDiceShake(){ sfx.play('dice-shake'); }
+  function sfxDiceLand() { sfx.play('dice-land'); }
+  function sfxStep()     { sfx.play('step'); }
+  function sfxUnlock()   { sfx.play('unlock'); }
+  function sfxFinish()   { sfx.play('finish'); }
+  function sfxCapture()  { sfx.play('capture'); }
+  function sfxWin()      { sfx.play('win'); }
 
   // ---------- GAME CONFIG ----------
   // The HUMAN always plays RED (bottom-left, closest to the player on a phone
@@ -647,8 +549,8 @@
 
     // Sound toggle is live in every scene — even mid-animation.
     if (inRect(SOUND_BTN, lx, ly)) {
-      setSound(!soundOn);
-      if (soundOn) tone(660, 0.06, 0.04, 'sine');
+      setSound(!sfx.isOn());
+      if (sfx.isOn()) tone(660, 0.06, 0.04, 'sine');
       return;
     }
 
@@ -1078,8 +980,8 @@
     ctx.fill();
     const cx = bx + size / 2;
     const cy = by + size / 2;
-    ctx.fillStyle = soundOn ? C.text : C.textMute;
-    ctx.strokeStyle = soundOn ? C.text : C.textMute;
+    ctx.fillStyle = sfx.isOn() ? C.text : C.textMute;
+    ctx.strokeStyle = sfx.isOn() ? C.text : C.textMute;
     ctx.lineWidth = 1.4;
     ctx.lineCap = 'round';
     ctx.beginPath();
@@ -1091,7 +993,7 @@
     ctx.lineTo(cx - 6, cy + 3);
     ctx.closePath();
     ctx.fill();
-    if (soundOn) {
+    if (sfx.isOn()) {
       ctx.beginPath(); ctx.arc(cx + 3, cy, 2.5, -Math.PI / 3, Math.PI / 3); ctx.stroke();
       ctx.beginPath(); ctx.arc(cx + 3, cy, 5,   -Math.PI / 3, Math.PI / 3); ctx.stroke();
     } else {
