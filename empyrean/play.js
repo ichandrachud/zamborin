@@ -682,8 +682,11 @@
     // Lead the camera in the direction the plane is heading so the player
     // sees on-coming targets a moment earlier. The lead component eases
     // toward the new direction so heading changes don't jerk the camera.
-    const desiredLeadX = Math.cos(player.heading) * CAMERA_LEAD_X;
-    const desiredLeadY = Math.sin(player.heading) * CAMERA_LEAD_Y;
+    // Lead direction matches the visual nose direction: X gets flipSign,
+    // Y stays positive sin(heading). Same rule as motion/bullets.
+    const leadFlip = player.mirror ? -1 : 1;
+    const desiredLeadX = leadFlip * Math.cos(player.heading) * CAMERA_LEAD_X;
+    const desiredLeadY =            Math.sin(player.heading) * CAMERA_LEAD_Y;
     cameraLeadX += (desiredLeadX - cameraLeadX) * CAMERA_LEAD_SMOOTH;
     cameraLeadY += (desiredLeadY - cameraLeadY) * CAMERA_LEAD_SMOOTH;
     cameraX = Math.max(0, Math.min(STAGE_W - W, player.x + cameraLeadX - W / 2));
@@ -1177,16 +1180,17 @@
       });
       return;
     }
-    // Plane: fire along the plane's actual heading at this instant —
-    // bullets exit the nose with zero lag (mirror inverts cos/sin).
+    // Plane: fire along the visual nose direction. Mirror only flips X
+    // (matching the scale(-1, 1) sprite mirror), Y stays as +sin(heading).
+    // Bullets exit the nose and travel exactly where the plane is pointing.
     const aim = player.heading;
     const fs = player.mirror ? -1 : 1;
     const mx = player.x + fs * Math.cos(aim) * muzzleDist;
-    const my = player.y + fs * Math.sin(aim) * muzzleDist;
+    const my = player.y +      Math.sin(aim) * muzzleDist;
     bullets.push({
       x: mx, y: my,
       vx: fs * Math.cos(aim) * BULLET_SPEED,
-      vy: fs * Math.sin(aim) * BULLET_SPEED,
+      vy:      Math.sin(aim) * BULLET_SPEED,
       owner: 'player',
       life: BULLET_LIFE_MS,
     });
@@ -1218,7 +1222,7 @@
       x: player.x,
       y: player.y + 14,
       vx: fs * Math.cos(player.heading) * sp * 0.6 * mult,
-      vy: fs * Math.sin(player.heading) * sp * 0.6 * mult + 0.05,
+      vy:      Math.sin(player.heading) * sp * 0.6 * mult + 0.05,
       type: equippedBomb,
     });
   }
@@ -1529,9 +1533,13 @@
         if (keys.ArrowRight) dx += 1;
         if (dx !== 0 || dy !== 0) desiredHeading = Math.atan2(dy, dx);
       }
-      // When mirrored, world bearing maps to internal heading via −π offset.
+      // When mirrored, the sprite renders with a horizontal scale(-1, 1) +
+      // rotate(heading). That means the visual nose direction is
+      // (-cos H, +sin H). Solving "visual nose = (cos worldDir, sin worldDir)"
+      // gives H = π − worldDir. So the desiredHeading (user's intent in
+      // world frame) maps to internal heading via π − desiredHeading.
       if (desiredHeading !== null && player.mirror) {
-        desiredHeading = normalizeAngle(desiredHeading - Math.PI);
+        desiredHeading = normalizeAngle(Math.PI - desiredHeading);
       }
       // Ease heading toward desiredHeading at a max rate of TURN_RATE.
       if (desiredHeading !== null) {
@@ -1562,12 +1570,15 @@
         }
       }
 
-      // Velocity uses world direction. effectiveHeading = heading + π when
-      // mirrored — simplifies to flipping sign on cos/sin.
+      // Velocity in world frame. The sprite is scale(-1, 1) + rotate(heading)
+      // when mirrored, so the visual nose direction is (-cos H, +sin H).
+      // Motion must match the visual nose direction, so X gets flipSign,
+      // Y does NOT. This is the fix for "bullets/motion go up when plane
+      // visually goes down" after a flip event.
       const sp = playerSpeed();
       const flipSign = player.mirror ? -1 : 1;
       player.x += flipSign * Math.cos(player.heading) * sp * dt;
-      player.y += flipSign * Math.sin(player.heading) * sp * dt;
+      player.y +=            Math.sin(player.heading) * sp * dt;
 
       // Stage-edge reflection — bounce instead of stalling against the wall.
       if (player.x < 30) {
@@ -1603,8 +1614,9 @@
         if (now - playerSmokeAt > interval) {
           playerSmokeAt = now;
           // Emit just behind the plane, opposite the heading.
-          const tailX = player.x - Math.cos(player.heading) * 26;
-          const tailY = player.y - Math.sin(player.heading) * 26;
+          const tailFlip = player.mirror ? -1 : 1;
+          const tailX = player.x - tailFlip * Math.cos(player.heading) * 26;
+          const tailY = player.y -            Math.sin(player.heading) * 26;
           particles.push({
             kind: 'smoke', x: tailX, y: tailY,
             vx: (Math.random() - 0.5) * 0.35,
@@ -1656,12 +1668,12 @@
       spawnPlayerBullet();
       sfxGun(now);
       lastShotAt = now;
-      // Recoil — push the plane back against the firing direction by a
-      // couple of pixels (in the world frame, so flip when mirrored).
+      // Recoil — push the plane back against the firing direction. Same
+      // rule as motion/bullets: X uses flipSign when mirrored, Y does not.
       {
         const fs = player.mirror ? -1 : 1;
         player.x -= fs * Math.cos(player.heading) * 2.4;
-        player.y -= fs * Math.sin(player.heading) * 2.4;
+        player.y -=      Math.sin(player.heading) * 2.4;
       }
       cameraShake = Math.max(cameraShake, 1.6);
     }
