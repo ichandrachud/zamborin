@@ -382,7 +382,7 @@
     lp.frequency.value = 480;
     lp.Q.value = 0.7;
     const gain = audioCtx.createGain();
-    gain.gain.value = 0.10;
+    gain.gain.value = 0.32;
     fund.connect(lp);
     harm.connect(harmGain).connect(lp);
     lp.connect(gain).connect(masterGain);
@@ -477,7 +477,7 @@
     }
     // Fade in inside 250 px, fully out beyond 800 px.
     const proximity = Math.max(0, Math.min(1, 1 - (minDist - 250) / 550));
-    enemyAmbient.gain.gain.setTargetAtTime(proximity * 0.10, audioCtx.currentTime, 0.20);
+    enemyAmbient.gain.gain.setTargetAtTime(proximity * 0.28, audioCtx.currentTime, 0.20);
     // Slight pitch shift inward — closer enemies sound a touch sharper.
     const pitch = 130 + proximity * 30;
     enemyAmbient.osc.frequency.setTargetAtTime(pitch, audioCtx.currentTime, 0.30);
@@ -1887,6 +1887,15 @@
       if (en.angVel < -ENEMY_ANG_MAX) en.angVel = -ENEMY_ANG_MAX;
       en.heading += en.angVel * dts2;
       en.heading = normalizeAngle(en.heading);
+      // Visual flip so enemies never appear upside-down. Hysteresis band on
+      // cos(heading) prevents oscillation at the threshold. Render only —
+      // physics and AI still use the world heading directly.
+      {
+        if (en.mirror === undefined) en.mirror = Math.cos(en.heading) < 0;
+        const c = Math.cos(en.heading);
+        if (en.mirror && c >  0.15) en.mirror = false;
+        else if (!en.mirror && c < -0.15) en.mirror = true;
+      }
 
       // Throttle: cruise / dash both ~40 % lower than the previous values.
       const targetThrottle = dist > 600 ? 0.50 : 0.32;
@@ -2672,7 +2681,7 @@
   // Draw a plane or chopper in world coords. Planes rotate with heading and
   // get a nose propeller; choppers stay upright and get a horizontal rotor,
   // optionally mirrored to face their direction of travel.
-  function drawAircraft(img, worldX, worldY, heading, targetH, kind, facing, flashAlpha, flipped) {
+  function drawAircraft(img, worldX, worldY, heading, targetH, kind, facing, flashAlpha, flipped, mirrorMode) {
     const sx = worldToScreenX(worldX);
     const sy = worldToScreenY(worldY);
     if (sx < -120 || sx > W + 120 || sy < -120 || sy > H + 120) return;
@@ -2686,11 +2695,20 @@
       drawHitFlash(img, -targetW / 2, -targetH / 2, targetW, targetH, flashAlpha);
       drawRotor(lastFrameNow, 0, -targetH * 0.36, targetW);
     } else {
-      // `flipped` here is the player's mirror state. Apply horizontal scale
-      // first so the rotation composes correctly — sprite faces left when
-      // mirrored, with the same rotation in its local frame.
-      if (flipped) ctx.scale(-1, 1);
-      ctx.rotate(heading);
+      // Two flip modes:
+      //   internal — player's mirror state: heading is in the mirrored
+      //              internal frame, so scale(-1, 1) + rotate(heading)
+      //              composes to the right world nose direction.
+      //   render-only — enemy's mirror state: heading is the true world
+      //                 direction, sprite is just mirrored visually.
+      //                 Needs rotate(heading + π) so the nose still
+      //                 points at the world heading after the mirror.
+      if (flipped) {
+        ctx.scale(-1, 1);
+        ctx.rotate(mirrorMode === 'render-only' ? (heading - Math.PI) : heading);
+      } else {
+        ctx.rotate(heading);
+      }
       ctx.drawImage(img, -targetW / 2, -targetH / 2, targetW, targetH);
       drawHitFlash(img, -targetW / 2, -targetH / 2, targetW, targetH, flashAlpha);
       drawPropeller(lastFrameNow, targetW / 2 - 4, 0, targetH);
@@ -2734,7 +2752,7 @@
       const flash = (en.flashUntil && en.flashUntil > lastFrameNow)
         ? (en.flashUntil - lastFrameNow) / 60
         : 0;
-      drawAircraft(en.img, en.x, en.y, en.heading, 54, undefined, undefined, flash, en.flipped);
+      drawAircraft(en.img, en.x, en.y, en.heading, 54, undefined, undefined, flash, en.mirror, 'render-only');
     }
   }
 
@@ -2876,21 +2894,30 @@
     ctx.textAlign = 'left';
 
     const x = 24, hpY = 22, htY = 42;
-    // HP
+    const barW = 200;
+    // HP bar — rounded pill track with a rounded-pill fill on top.
+    const hpH = 10;
     ctx.fillStyle = 'rgba(255,255,255,0.10)';
-    ctx.fillRect(x, hpY, 200, 10);
+    roundRect(x, hpY, barW, hpH, hpH / 2);
+    ctx.fill();
+    const hpFillW = Math.max(hpH, barW * Math.max(0, player.hp / 100));
     ctx.fillStyle = player.hp > 50 ? '#5DD39E' : player.hp > 25 ? '#FFD23F' : '#FF6B5C';
-    ctx.fillRect(x, hpY, 200 * (player.hp / 100), 10);
+    roundRect(x, hpY, hpFillW, hpH, hpH / 2);
+    ctx.fill();
     ctx.fillStyle = 'rgba(255,255,255,0.85)';
-    ctx.fillText('HP', x + 210, hpY + 5);
+    ctx.fillText('HP', x + barW + 10, hpY + 5);
 
-    // Throttle (replaces the old HEAT bar — heat / overheat removed)
+    // Throttle bar — same rounded-pill treatment, thinner.
+    const htH = 6;
     ctx.fillStyle = 'rgba(255,255,255,0.10)';
-    ctx.fillRect(x, htY, 200, 6);
+    roundRect(x, htY, barW, htH, htH / 2);
+    ctx.fill();
+    const htFillW = Math.max(htH, barW * Math.max(0, player.throttle));
     ctx.fillStyle = '#7DD8FF';
-    ctx.fillRect(x, htY, 200 * player.throttle, 6);
+    roundRect(x, htY, htFillW, htH, htH / 2);
+    ctx.fill();
     ctx.fillStyle = 'rgba(255,255,255,0.65)';
-    ctx.fillText('THROTTLE', x + 210, htY + 3);
+    ctx.fillText('THROTTLE', x + barW + 10, htY + 3);
 
     // Right-side: targets + lives chip + minimap.
     // Targets readout sits in a dark translucent pill so the text always
