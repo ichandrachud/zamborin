@@ -1436,12 +1436,14 @@
       player.heading = 0;
       player.throttle = 0;
       let vx = 0, vy = 0;
+      let usingTouch = false;
       if (MODE === 'mobile' && touchTarget) {
         // Mobile: chase the finger's position in world coords.
         const wx = touchTarget.x + cameraX;
         const wy = touchTarget.y + cameraY;
         vx = wx - player.x;
         vy = wy - player.y;
+        usingTouch = true;
       } else {
         // Desktop: ← / → translate horizontally; ↑ / ↓ vertical.
         if (keys.ArrowRight) vx += 1;
@@ -1449,10 +1451,20 @@
         if (keys.ArrowUp)    vy -= 1;
         if (keys.ArrowDown)  vy += 1;
       }
+      // Default forward motion — when no horizontal input, drift in the
+      // current facing direction at full speed. The chopper is never
+      // motionless. (Touch mode already supplies a direction, so skip
+      // the default there.)
+      if (!usingTouch && vx === 0) {
+        vx = player.facing || 1;
+      }
       if (vx > 0) player.facing = 1;
       else if (vx < 0) player.facing = -1;
       const mag = Math.hypot(vx, vy);
-      if (mag > 4) {
+      // Move threshold differs: desktop inputs are unit vectors (mag ≈ 1),
+      // mobile touch deltas are world-pixel offsets (mag can be 200+).
+      const moveThreshold = usingTouch ? 4 : 0.05;
+      if (mag > moveThreshold) {
         const inv = 1 / mag;
         const sp = CHOPPER_SPEED * player.speedMult * MOBILE_SPEED_BOOST;
         player.x += vx * inv * sp * dt;
@@ -2477,8 +2489,8 @@
       ctx.save();
       ctx.translate(sx, top + k.h / 2 - lift);
       ctx.rotate(tilt);
-      // Source PNGs face RIGHT; mirror when driving left so the cab leads.
-      if (k.vx < 0) ctx.scale(-1, 1);
+      // Mirror when moving left-to-right so the cab leads in that direction.
+      if (k.vx > 0) ctx.scale(-1, 1);
       ctx.drawImage(k.img, -k.w / 2, -k.h / 2, k.w, k.h);
       if (k.flashUntil && k.flashUntil > lastFrameNow) {
         drawHitFlash(k.img, -k.w / 2, -k.h / 2, k.w, k.h, (k.flashUntil - lastFrameNow) / 60);
