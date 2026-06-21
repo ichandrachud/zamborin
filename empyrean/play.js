@@ -295,13 +295,13 @@
     harm.type = 'triangle';
     harm.frequency.value = 160;
     const harmGain = audioCtx.createGain();
-    harmGain.gain.value = 0.12;
+    harmGain.gain.value = 0.16;
     const lp = audioCtx.createBiquadFilter();
     lp.type = 'lowpass';
-    lp.frequency.value = 200;
+    lp.frequency.value = 280;
     lp.Q.value = 0.7;
     const gain = audioCtx.createGain();
-    gain.gain.value = 0.032;
+    gain.gain.value = 0.075;
     // Subtle continuous tremolo for warmth (the strong "chuff" now comes
     // from the click track instead of the LFO).
     const lfo = audioCtx.createOscillator();
@@ -355,10 +355,10 @@
     engineNodes.harm.frequency.setTargetAtTime(f0 * 2, ct, 0.08);
     // LFO speed scales gently with throttle.
     engineNodes.lfo.frequency.setTargetAtTime(8 + t * 6, ct, 0.10);
-    // Filter stays very dull across the throttle range.
-    engineNodes.lp.frequency.setTargetAtTime(180 + t * 90, ct, 0.10);
-    // Master gain — 20 % softer overall.
-    engineNodes.gain.gain.setTargetAtTime(0.024 + t * 0.036, ct, 0.10);
+    // Filter stays dull but opens with throttle.
+    engineNodes.lp.frequency.setTargetAtTime(240 + t * 130, ct, 0.10);
+    // Master gain — clearly audible but soft, not a buzz.
+    engineNodes.gain.gain.setTargetAtTime(0.055 + t * 0.060, ct, 0.10);
   }
 
   // Chopper engine — a deep drone plus a repeating rotor "thwop" at ~6 Hz.
@@ -367,9 +367,8 @@
   function startChopperEngine() {
     if (engineNodes || !audioCtx) return;
     const t = audioCtx.currentTime;
-    // Two-oscillator drone, both triangle waves now so the body is hollow
-    // rather than buzzy. Lower low-pass at 260 Hz strips the high harmonics
-    // that read as 'blender'. Gain dialled back 20%.
+    // Two triangle oscillators for a hollow body; low-pass at 360 Hz lets
+    // enough harmonic in to read as a chopper without going blender-bright.
     const fund = audioCtx.createOscillator();
     fund.type = 'triangle';
     fund.frequency.value = 90;
@@ -377,13 +376,13 @@
     harm.type = 'triangle';
     harm.frequency.value = 180;
     const harmGain = audioCtx.createGain();
-    harmGain.gain.value = 0.18;
+    harmGain.gain.value = 0.22;
     const lp = audioCtx.createBiquadFilter();
     lp.type = 'lowpass';
-    lp.frequency.value = 260;
+    lp.frequency.value = 360;
     lp.Q.value = 0.7;
     const gain = audioCtx.createGain();
-    gain.gain.value = 0.26;
+    gain.gain.value = 0.40;
     fund.connect(lp);
     harm.connect(harmGain).connect(lp);
     lp.connect(gain).connect(masterGain);
@@ -454,14 +453,14 @@
   function startEnemyAmbient() {
     if (enemyAmbient || !audioCtx) return;
     const t = audioCtx.currentTime;
-    // Triangle wave through a narrow low-pass — hollow, dull drone instead
-    // of the blender-sharp sawtooth we had before.
+    // Triangle wave through a moderate low-pass — hollow drone, audible
+    // close in but not a blender.
     const osc = audioCtx.createOscillator();
     osc.type = 'triangle';
     osc.frequency.value = 140;
     const lp = audioCtx.createBiquadFilter();
     lp.type = 'lowpass';
-    lp.frequency.value = 320;
+    lp.frequency.value = 420;
     lp.Q.value = 0.8;
     const gain = audioCtx.createGain();
     gain.gain.value = 0;
@@ -479,7 +478,7 @@
     }
     // Fade in inside 250 px, fully out beyond 800 px.
     const proximity = Math.max(0, Math.min(1, 1 - (minDist - 250) / 550));
-    enemyAmbient.gain.gain.setTargetAtTime(proximity * 0.22, audioCtx.currentTime, 0.20);
+    enemyAmbient.gain.gain.setTargetAtTime(proximity * 0.30, audioCtx.currentTime, 0.20);
     // Slight pitch shift inward — closer enemies sound a touch sharper.
     const pitch = 130 + proximity * 30;
     enemyAmbient.osc.frequency.setTargetAtTime(pitch, audioCtx.currentTime, 0.30);
@@ -1889,14 +1888,17 @@
       if (en.angVel < -ENEMY_ANG_MAX) en.angVel = -ENEMY_ANG_MAX;
       en.heading += en.angVel * dts2;
       en.heading = normalizeAngle(en.heading);
-      // Visual flip so enemies never appear upside-down. Hysteresis band on
-      // cos(heading) prevents oscillation at the threshold. Render only —
-      // physics and AI still use the world heading directly.
+      // Visual flip so enemies never appear upside-down. Wide hysteresis on
+      // cos(heading) AND a steady-flight gate (only update mirror when the
+      // angular velocity is small) so a mid-turn enemy doesn't flip-flop.
       {
         if (en.mirror === undefined) en.mirror = Math.cos(en.heading) < 0;
         const c = Math.cos(en.heading);
-        if (en.mirror && c >  0.15) en.mirror = false;
-        else if (!en.mirror && c < -0.15) en.mirror = true;
+        const steady = Math.abs(en.angVel) < 0.35;
+        if (steady) {
+          if (en.mirror && c >  0.45) en.mirror = false;
+          else if (!en.mirror && c < -0.45) en.mirror = true;
+        }
       }
 
       // Throttle: cruise / dash both ~40 % lower than the previous values.
