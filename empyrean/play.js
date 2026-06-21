@@ -254,7 +254,8 @@
   }
   function startGameAudio() {
     if (!audioCtx) return;
-    startEngine();
+    if (player.kind === 'chopper') startChopperEngine();
+    else                            startEngine();
     startVehicleAmbient();
   }
   function setSoundOn(v) {
@@ -344,6 +345,7 @@
   }
   function updateEngine() {
     if (!engineNodes) return;
+    if (engineNodes.kind === 'chopper') return;     // chopper has its own loop
     const t = player.throttle;
     const ct = audioCtx.currentTime;
     // Fundamental 60 → 130 Hz with throttle; harmonic tracks at 2× the fundamental.
@@ -356,6 +358,51 @@
     engineNodes.lp.frequency.setTargetAtTime(220 + t * 120, ct, 0.10);
     // Master gain — quiet at idle, fuller at full throttle.
     engineNodes.gain.gain.setTargetAtTime(0.030 + t * 0.045, ct, 0.10);
+  }
+
+  // Chopper engine — steady turbine drone + repeated rotor "thump" at ~7 Hz,
+  // each thump a short low-frequency noise burst. The thumps make it read
+  // unmistakably as a helicopter rather than a propeller plane.
+  let chopperThumpTimer = null;
+  function startChopperEngine() {
+    if (engineNodes || !audioCtx) return;
+    const t = audioCtx.currentTime;
+    // Turbine drone — sine pad through a band-pass for that breathy hiss.
+    const drone = audioCtx.createOscillator();
+    drone.type = 'sawtooth';
+    drone.frequency.value = 110;
+    const bp = audioCtx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 260;
+    bp.Q.value = 1.6;
+    const gain = audioCtx.createGain();
+    gain.gain.value = 0.045;
+    drone.connect(bp).connect(gain).connect(masterGain);
+    drone.start(t);
+    engineNodes = { kind: 'chopper', drone, bp, gain };
+    scheduleChopperThump();
+  }
+  function scheduleChopperThump() {
+    if (!audioCtx) return;
+    const playThump = () => {
+      if (!audioCtx || !engineNodes || engineNodes.kind !== 'chopper') return;
+      const t = audioCtx.currentTime;
+      // Body of the thump — short low-pass'd noise pulse.
+      const noise = makeNoiseSource(0.10);
+      noise.loop = false;
+      const lp = audioCtx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = 220;
+      lp.Q.value = 0.9;
+      const g = audioCtx.createGain();
+      g.gain.setValueAtTime(0.18, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
+      noise.connect(lp).connect(g).connect(masterGain);
+      noise.stop(t + 0.11);
+      // ~7 Hz thump rate (140 ms between blade slaps).
+      chopperThumpTimer = setTimeout(playThump, 138);
+    };
+    if (!chopperThumpTimer) chopperThumpTimer = setTimeout(playThump, 60);
   }
 
   // Proximity rumble for tanks + trucks — low band-pass noise whose gain
@@ -735,33 +782,8 @@
       });
     }
 
-    // --- Trucks — 5 ground targets. Most are PARKED on the kerb; a couple
-    // patrol up and down the street. Which two move is randomised but the
-    // count is fixed so the stage doesn't read as either deserted or chaotic.
-    const N_TRUCKS = 5;
-    const N_MOVING_TRUCKS = 2;
-    const movingIdxSet = new Set();
-    while (movingIdxSet.size < N_MOVING_TRUCKS) movingIdxSet.add(Math.floor(Math.random() * N_TRUCKS));
-    const pickTruckImg = deckPicker(assets.trucks);
-    for (let i = 0; i < N_TRUCKS; i++) {
-      const img = pickTruckImg();
-      const h = TRUCK_H;
-      const w = h * (img.width / img.height);
-      const x = 1100 + (i + 0.5) * (STAGE_W - 1500) / N_TRUCKS + (Math.random() - 0.5) * 240;
-      const moving = movingIdxSet.has(i);
-      const vx = moving
-        ? (Math.random() < 0.5 ? -1 : 1) * (0.04 + Math.random() * 0.04)
-        : 0;
-      trucks.push({
-        x, w, h,
-        img,
-        vx,
-        parked: !moving,
-        hp: 2,
-        alive: true,
-        turnPhase: 0,            // 1 → 0 over ~0.6 s after a direction change
-      });
-    }
+    // Trucks removed — the sprite asset's wheels didn't read as motion
+    // with the spoke overlay, so vehicles on the road are tanks only now.
 
     // --- Military buildings — 5 fortified houses spread across the stage,
     // each with a turret on top that tracks the hero. Built strong: bombs
@@ -2553,29 +2575,6 @@
       if (t.flashUntil && t.flashUntil > lastFrameNow) {
         drawHitFlash(t.bodyImg, sx - t.w / 2, top, t.w, t.h, (t.flashUntil - lastFrameNow) / 60);
       }
-      // Track idle animation — tanks are stationary but tracks crawl as if
-      // the engine is running. Spokes rotate at a constant slow rate so
-      // every tank reads as 'alive' from a distance.
-      const angle = (lastFrameNow * 0.005) % (Math.PI * 2);
-      const r = t.h * 0.18;
-      const wheelOffsetsX = [-t.w * 0.32, 0, t.w * 0.32];
-      const wheelY = top + t.h * 0.78;
-      ctx.save();
-      ctx.translate(sx, 0);
-      ctx.strokeStyle = 'rgba(245, 245, 245, 0.75)';
-      ctx.lineWidth = 1.6;
-      ctx.lineCap = 'round';
-      for (const wx of wheelOffsetsX) {
-        ctx.save();
-        ctx.translate(wx, wheelY);
-        ctx.rotate(angle);
-        ctx.beginPath();
-        ctx.moveTo(-r, 0); ctx.lineTo(r, 0);
-        ctx.moveTo(0, -r); ctx.lineTo(0, r);
-        ctx.stroke();
-        ctx.restore();
-      }
-      ctx.restore();
     }
   }
 
