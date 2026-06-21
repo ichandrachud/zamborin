@@ -6,6 +6,15 @@
   <title>Empyrean — A Zamborin Game</title>
   <meta name="description" content="A free-flight dogfight over a hand-painted city. Strafe enemy planes, drop bombs on tanks and turrets, clear the stage. A Zamborin sortie." />
   <link rel="icon" type="image/svg+xml" href="/images/zamborin-favicon.svg" />
+  <!-- iPhone "Add to Home Screen" support — when launched from the home
+       screen the address bar is gone entirely. The runtime fullscreen API
+       isn't reliable on iPhone Safari, so this is the practical way to
+       claim the whole screen. -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Empyrean" />
+  <meta name="theme-color" content="#0E1424" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
