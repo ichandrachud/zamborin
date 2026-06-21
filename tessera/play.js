@@ -752,61 +752,65 @@
   // Instructions screen — shown once on first load (after splash) and dismissed
   // by the START button. Subsequent restarts (after game-over) skip straight to
   // gameplay since the player already knows the rules.
+  // Mobile: image stacked on top of text. Desktop: image left, text right.
   const HOW_TO_PLAY_CYAN = '#4DC3FF';   // brand cyan for the heading
-  const instrImg = new Image();
-  let instrReady = false;
-  instrImg.onload = () => { instrReady = true; };
-  instrImg.src = '/images/tesserainstructions.png';
+  const instrImgMobile  = new Image();
+  const instrImgDesktop = new Image();
+  let instrMobileReady  = false;
+  let instrDesktopReady = false;
+  instrImgMobile.onload  = () => { instrMobileReady  = true; };
+  instrImgDesktop.onload = () => { instrDesktopReady = true; };
+  instrImgMobile.src  = '/images/tesserainstructions.png';
+  instrImgDesktop.src = '/images/tesserainstructions-desktop.png';
+
+  const RULES_LINES = [
+    'Tap a column to slide the falling tile there.',
+    'Form English words across or down',
+    '3 letters minimum',
+    'Longer words score exponentially more.',
+    'Game gets faster as you play.',
+    'Double tap the square to land a tile faster',
+  ];
 
   function drawInstructions() {
     ctx.fillStyle = C.bg;
     ctx.fillRect(0, 0, W, BANNER_H > 0 ? BANNER_Y - 8 : H);
 
+    if (MODE === 'mobile') drawInstructionsMobile();
+    else                   drawInstructionsDesktop();
+  }
+
+  function drawInstructionsMobile() {
     const midX = W / 2;
     const playBot = BANNER_H > 0 ? BANNER_Y - 8 : H;
 
-    // ILLUSTRATION — top ~40% of the play area
-    if (instrReady) {
+    if (instrMobileReady) {
       const imgMaxH = Math.floor(playBot * 0.40);
       const imgMaxW = Math.floor(W * 0.86);
-      const aspect = instrImg.width / instrImg.height;
+      const aspect = instrImgMobile.width / instrImgMobile.height;
       let drawH = imgMaxH;
       let drawW = drawH * aspect;
       if (drawW > imgMaxW) { drawW = imgMaxW; drawH = drawW / aspect; }
-      const imgY = MODE === 'mobile' ? 20 : 16;
-      ctx.drawImage(instrImg, midX - drawW / 2, imgY, drawW, drawH);
+      ctx.drawImage(instrImgMobile, midX - drawW / 2, 20, drawW, drawH);
     }
 
-    // HOW TO PLAY heading — cyan, large
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     const headingY = Math.floor(playBot * 0.55);
-    ctx.font = '800 ' + (MODE === 'mobile' ? 28 : 32) + 'px Inter, sans-serif';
+    ctx.font = '800 28px Inter, sans-serif';
     ctx.fillStyle = HOW_TO_PLAY_CYAN;
     ctx.fillText('HOW TO PLAY', midX, headingY);
 
-    // RULES — 6 lines (line 2 split into "across or down" / "3 letters minimum"
-    // and the closing line split so the double-tap hint reads cleanly).
-    const rules = [
-      'Tap a column to slide the falling tile there.',
-      'Form English words across or down',
-      '3 letters minimum',
-      'Longer words score exponentially more.',
-      'Game gets faster as you play.',
-      'Double tap the square to land a tile faster',
-    ];
-    ctx.font = '500 ' + (MODE === 'mobile' ? 15 : 14) + 'px Inter, sans-serif';
+    ctx.font = '500 15px Inter, sans-serif';
     ctx.fillStyle = C.text;
-    const lineH = MODE === 'mobile' ? 22 : 24;
+    const lineH = 22;
     const rulesTop = headingY + 40;
-    for (let i = 0; i < rules.length; i++) {
-      ctx.fillText(rules[i], midX, rulesTop + i * lineH);
+    for (let i = 0; i < RULES_LINES.length; i++) {
+      ctx.fillText(RULES_LINES[i], midX, rulesTop + i * lineH);
     }
 
-    // START button — pill, accent fill, white text
-    const btnW = MODE === 'mobile' ? 240 : 280;
-    const btnH = MODE === 'mobile' ? 56 : 52;
-    const btnY = rulesTop + rules.length * lineH + 24;
+    const btnW = 240, btnH = 56;
+    const btnY = rulesTop + RULES_LINES.length * lineH + 24;
     const btnX = midX - btnW / 2;
     START_BTN.x = btnX; START_BTN.y = btnY; START_BTN.w = btnW; START_BTN.h = btnH;
     ctx.fillStyle = C.accent;
@@ -815,6 +819,64 @@
     ctx.fillStyle = '#FFFFFF';
     ctx.font = '700 14px Inter, sans-serif';
     ctx.fillText('START', midX, btnY + btnH / 2 + 1);
+  }
+
+  function drawInstructionsDesktop() {
+    // Two columns: portrait illustration on the left, text + button on the right.
+    // Canvas is 760×570 on desktop.
+    const leftColX = 20;
+    const leftColW = Math.floor(W * 0.46);          // ~350 px
+    const rightColX = leftColW + 40;                // ~390
+    const rightColMidX = rightColX + (W - rightColX) / 2;
+
+    if (instrDesktopReady) {
+      const imgMaxH = H - 40;                        // 16 px breathing room top + bottom
+      const aspect = instrImgDesktop.width / instrImgDesktop.height;
+      let drawH = imgMaxH;
+      let drawW = drawH * aspect;
+      if (drawW > leftColW) { drawW = leftColW; drawH = drawW / aspect; }
+      // Vertically centre within the left column.
+      const imgY = (H - drawH) / 2;
+      ctx.drawImage(instrImgDesktop, leftColX, imgY, drawW, drawH);
+    }
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // Compute heading + rules + button as a single vertical group, then centre
+    // the group on the right column.
+    const headingFont = '800 32px Inter, sans-serif';
+    const rulesFont   = '500 14px Inter, sans-serif';
+    const lineH = 24;
+    const headingToRulesGap = 36;
+    const rulesToBtnGap = 28;
+    const btnW = 240, btnH = 52;
+
+    const groupH = 36 /* heading */ + headingToRulesGap
+                 + RULES_LINES.length * lineH + rulesToBtnGap + btnH;
+    const groupTop = (H - groupH) / 2;
+
+    ctx.font = headingFont;
+    ctx.fillStyle = HOW_TO_PLAY_CYAN;
+    const headingY = groupTop + 18;
+    ctx.fillText('HOW TO PLAY', rightColMidX, headingY);
+
+    ctx.font = rulesFont;
+    ctx.fillStyle = C.text;
+    const rulesTop = headingY + headingToRulesGap;
+    for (let i = 0; i < RULES_LINES.length; i++) {
+      ctx.fillText(RULES_LINES[i], rightColMidX, rulesTop + i * lineH);
+    }
+
+    const btnY = rulesTop + RULES_LINES.length * lineH + rulesToBtnGap - 12;
+    const btnX = rightColMidX - btnW / 2;
+    START_BTN.x = btnX; START_BTN.y = btnY; START_BTN.w = btnW; START_BTN.h = btnH;
+    ctx.fillStyle = C.accent;
+    roundRect(btnX, btnY, btnW, btnH, btnH / 2);
+    ctx.fill();
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = '700 14px Inter, sans-serif';
+    ctx.fillText('START', rightColMidX, btnY + btnH / 2 + 1);
   }
 
   function drawGameOver() {
