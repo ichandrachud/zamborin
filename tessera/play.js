@@ -248,6 +248,10 @@
     return Math.max(STEP_MIN_MS, STEP_BASE_MS - lettersDropped * STEP_DELTA_MS);
   }
   let fastDropActive = false;
+  // Double-tap on a column slot the active tile there instantly.
+  let lastTapAt = 0;
+  let lastTapCol = -1;
+  const DOUBLE_TAP_MS = 320;
 
   // ---------- AUDIO ----------
   // Lazy-init Web Audio on first user gesture (browser autoplay policy).
@@ -528,13 +532,21 @@
     if (!active) return;
     if (ly > GRID_Y - CELL && ly < GRID_Y + GRID_H + 40) {
       const col = Math.max(0, Math.min(COLS - 1, Math.floor((lx - GRID_X) / CELL)));
-      // Move the active tile to the tapped column, but DO NOT trigger fast-drop.
-      // The tile keeps falling at its normal cadence so the player can change
-      // their mind, recover from an accidental tap, or hover-pick.
+      const tNow = performance.now();
+      // Double-tap on the same column slot the tile there instantly. Single
+      // taps still just move the tile to that column at the normal cadence.
+      if (col === lastTapCol && col === active.col && (tNow - lastTapAt) < DOUBLE_TAP_MS) {
+        lastTapAt = 0;
+        lastTapCol = -1;
+        lockTile();
+        return;
+      }
       if (col !== active.col) {
         active.col = col;
         sfxTick();
       }
+      lastTapAt = tNow;
+      lastTapCol = col;
     }
   });
 
