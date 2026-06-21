@@ -457,6 +457,22 @@
       sub.stop(t + 0.6);
     }
   }
+  // Soft two-note chime — paired audio for bonus pickups (medical / gas).
+  function sfxPickup(brightOrWarm) {
+    if (!audioCtx) return;
+    const t = audioCtx.currentTime;
+    const base = brightOrWarm === 'bright' ? 760 : 520;
+    const o1 = audioCtx.createOscillator();
+    o1.type = 'triangle';
+    o1.frequency.setValueAtTime(base, t);
+    o1.frequency.exponentialRampToValueAtTime(base * 1.5, t + 0.18);
+    const g = audioCtx.createGain();
+    g.gain.setValueAtTime(0.18, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+    o1.connect(g).connect(masterGain);
+    o1.start(t);
+    o1.stop(t + 0.25);
+  }
 
   // ---------- STAGE GEOMETRY ----------
   // The stage is 6 screens WIDE and 4 screens TALL — the ground band at the
@@ -526,6 +542,7 @@
     x: 220,
     y: H * 0.52,            // mid-height — keeps cameraY at 0 so the full road shows on spawn
     heading: 0,                 // facing right
+    aimHeading: 0,              // smoothed firing direction — lags `heading` on hard turns so bullets keep going forward instead of snapping to the touch point
     throttle: 0,                  // default = no throttle → cruise at MIN_SPEED; → adds up to +30 %
     hp: 100,
     maxHp: 100,
@@ -535,6 +552,11 @@
     facing: 1,                  // chopper-only: +1 = faces right, -1 = faces left (sprite flipped)
     speedMult: 1,               // bonus stacking — +0.15 per gasoline pickup
   };
+  // Ghost-trail ring buffer — recent (x, y, heading) samples used to paint
+  // fading copies of the plane during hard turns.
+  const ghostTrail = [];
+  let ghostSampleAt = 0;
+  const GHOST_MAX = 6;
   // Chopper movement: always upright, fixed speed in 8 directions. Roughly
   // matches a plane's cruise speed (no throttle band).
   const CHOPPER_SPEED = 0.075;  // px / ms
@@ -1085,12 +1107,16 @@
   function spawnPlayerBullet() {
     // Muzzle at the plane's nose — translate forward in heading direction.
     const muzzleDist = 26;
-    const mx = player.x + Math.cos(player.heading) * muzzleDist;
-    const my = player.y + Math.sin(player.heading) * muzzleDist;
+    // Fire along the smoothed aim heading, not the instantaneous nose. On
+    // mobile, aim trails the nose by ~150 ms so quick redirects of the
+    // touch don't fling every bullet at the new target.
+    const aim = player.aimHeading;
+    const mx = player.x + Math.cos(aim) * muzzleDist;
+    const my = player.y + Math.sin(aim) * muzzleDist;
     bullets.push({
       x: mx, y: my,
-      vx: Math.cos(player.heading) * BULLET_SPEED,
-      vy: Math.sin(player.heading) * BULLET_SPEED,
+      vx: Math.cos(aim) * BULLET_SPEED,
+      vy: Math.sin(aim) * BULLET_SPEED,
       owner: 'player',
       life: BULLET_LIFE_MS,
     });
@@ -1434,10 +1460,27 @@
       }
     }
 
+    // Aim heading lag — smooth `aimHeading` toward the current `heading` so
+    // bullets keep flying forward when the player snaps the touch target.
+    // Exponential approach; rate is gentler on mobile (where touch can flick).
+    {
+      const aimRate = (MODE === 'mobile') ? 0.07 : 0.20;
+      const diff = normalizeAngle(player.heading - player.aimHeading);
+      player.aimHeading = normalizeAngle(player.aimHeading + diff * aimRate);
+    }
+
     updateCamera();
     updateClouds(now, dt);
     updateEngine();
     updateVehicleAmbient();
+
+    // Ghost-trail sample — record (x, y, heading) every ~45 ms. drawPlayer
+    // paints these as fading copies when the player is in motion.
+    if (now - ghostSampleAt > 45) {
+      ghostSampleAt = now;
+      ghostTrail.push({ x: player.x, y: player.y, heading: player.heading, t: now });
+      while (ghostTrail.length > GHOST_MAX) ghostTrail.shift();
+    }
 
     // ----- Bonus pickups -----
     // Each pickup hovers in place with a subtle vertical bob. Player overlap
@@ -1452,8 +1495,10 @@
         bo.alive = false;
         if (bo.kind === 'medical') {
           player.hp = Math.min(player.maxHp, player.hp + BONUS_HP_GAIN);
+          sfxPickup('bright');
         } else if (bo.kind === 'gasoline') {
           player.speedMult += BONUS_SPEED_GAIN;
+          sfxPickup('warm');
         }
         // Little spark cluster for feedback.
         for (let i = 0; i < 8; i++) {
@@ -1810,6 +1855,21 @@
       if (b.life <= 0
           || b.x < -50 || b.x > STAGE_W + 50
           || b.y < STAGE_TOP_Y - 50 || b.y > STAGE_BOTTOM_Y + 50) {
+        // Bullets fizzle out instead of vanishing silently: 2 tiny sparks
+        // perpendicular to the travel direction.
+        if (b.life <= 0 && b.x > 0 && b.x < STAGE_W && b.y > STAGE_TOP_Y && b.y < STAGE_BOTTOM_Y) {
+          const sp = Math.hypot(b.vx, b.vy) || 1;
+          for (let s = 0; s < 2; s++) {
+            const j = (Math.random() - 0.5) * 0.6;
+            particles.push({
+              kind: 'spark', x: b.x, y: b.y,
+              vx: (-b.vx / sp) * 0.4 + j, vy: (-b.vy / sp) * 0.4 + j,
+              life0: 220, life: 220,
+              r0: 1.4 + Math.random() * 0.8,
+              color: b.owner === 'player' ? '#FFD23F' : '#FF9F33',
+            });
+          }
+        }
         bullets.splice(i, 1);
       }
     }
@@ -2452,6 +2512,19 @@
 
   function drawPlayer(now) {
     if (!assets.player) return;
+    // Ghost trail — only when the player is actually displacing (skip on
+    // chopper hover). Each sample fades the older it is.
+    if (player.kind !== 'chopper' && ghostTrail.length > 1) {
+      for (let i = 0; i < ghostTrail.length - 1; i++) {
+        const g = ghostTrail[i];
+        const age = (now - g.t) / 260;                // 0 fresh -> 1 old
+        if (age >= 1) continue;
+        ctx.save();
+        ctx.globalAlpha = (1 - age) * 0.22;
+        drawAircraft(assets.player, g.x, g.y, g.heading, 72, player.kind, player.facing);
+        ctx.restore();
+      }
+    }
     // Smooth ghosted invulnerability — alpha pulses between 0.25 and 0.85
     // during the invuln window. Reads less jarring than the old 8 Hz flicker.
     let alpha = 1;
@@ -2606,6 +2679,20 @@
   }
 
   function drawHUD() {
+    // Low-HP warning — soft red vignette around the canvas edge, pulsing at
+    // ~1 Hz. Fires below 25% HP, intensifies as HP approaches zero.
+    if (player.hp > 0 && player.hp < player.maxHp * 0.25) {
+      const intensity = 1 - (player.hp / (player.maxHp * 0.25));
+      const pulse = 0.55 + 0.45 * Math.sin(lastFrameNow * 0.005);
+      const a = intensity * pulse * 0.55;
+      const grad = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.32, W / 2, H / 2, Math.max(W, H) * 0.62);
+      grad.addColorStop(0, 'rgba(255, 60, 60, 0)');
+      grad.addColorStop(1, `rgba(255, 60, 60, ${a.toFixed(2)})`);
+      ctx.save();
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, W, H);
+      ctx.restore();
+    }
     ctx.save();
     ctx.font = '700 11px Inter, sans-serif';
     ctx.textBaseline = 'middle';
