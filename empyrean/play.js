@@ -257,6 +257,7 @@
     if (player.kind === 'chopper') startChopperEngine();
     else                            startEngine();
     startVehicleAmbient();
+    startEnemyAmbient();
   }
   function setSoundOn(v) {
     soundOn = v;
@@ -360,26 +361,34 @@
     engineNodes.gain.gain.setTargetAtTime(0.030 + t * 0.045, ct, 0.10);
   }
 
-  // Chopper engine — steady turbine drone + repeated rotor "thump" at ~7 Hz,
-  // each thump a short low-frequency noise burst. The thumps make it read
-  // unmistakably as a helicopter rather than a propeller plane.
+  // Chopper engine — a deep drone plus a repeating rotor "thwop" at ~6 Hz.
+  // The thwop is what reads as 'helicopter' rather than 'plane'.
   let chopperThumpTimer = null;
   function startChopperEngine() {
     if (engineNodes || !audioCtx) return;
     const t = audioCtx.currentTime;
-    // Turbine drone — sine pad through a band-pass for that breathy hiss.
-    const drone = audioCtx.createOscillator();
-    drone.type = 'sawtooth';
-    drone.frequency.value = 110;
-    const bp = audioCtx.createBiquadFilter();
-    bp.type = 'bandpass';
-    bp.frequency.value = 260;
-    bp.Q.value = 1.6;
+    // Two-oscillator drone (square fundamental + sawtooth harmonic) through
+    // a low-pass at 480 Hz. Gain at 0.10 so it's clearly present in the mix.
+    const fund = audioCtx.createOscillator();
+    fund.type = 'square';
+    fund.frequency.value = 90;
+    const harm = audioCtx.createOscillator();
+    harm.type = 'sawtooth';
+    harm.frequency.value = 180;
+    const harmGain = audioCtx.createGain();
+    harmGain.gain.value = 0.20;
+    const lp = audioCtx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 480;
+    lp.Q.value = 0.7;
     const gain = audioCtx.createGain();
-    gain.gain.value = 0.045;
-    drone.connect(bp).connect(gain).connect(masterGain);
-    drone.start(t);
-    engineNodes = { kind: 'chopper', drone, bp, gain };
+    gain.gain.value = 0.10;
+    fund.connect(lp);
+    harm.connect(harmGain).connect(lp);
+    lp.connect(gain).connect(masterGain);
+    fund.start(t);
+    harm.start(t);
+    engineNodes = { kind: 'chopper', fund, harm, lp, gain };
     scheduleChopperThump();
   }
   function scheduleChopperThump() {
@@ -387,22 +396,22 @@
     const playThump = () => {
       if (!audioCtx || !engineNodes || engineNodes.kind !== 'chopper') return;
       const t = audioCtx.currentTime;
-      // Body of the thump — short low-pass'd noise pulse.
-      const noise = makeNoiseSource(0.10);
+      // Thwop: low-pass'd noise burst, audible but not overpowering.
+      const noise = makeNoiseSource(0.14);
       noise.loop = false;
-      const lp = audioCtx.createBiquadFilter();
-      lp.type = 'lowpass';
-      lp.frequency.value = 220;
-      lp.Q.value = 0.9;
+      const lpf = audioCtx.createBiquadFilter();
+      lpf.type = 'lowpass';
+      lpf.frequency.value = 260;
+      lpf.Q.value = 1.1;
       const g = audioCtx.createGain();
-      g.gain.setValueAtTime(0.18, t);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
-      noise.connect(lp).connect(g).connect(masterGain);
-      noise.stop(t + 0.11);
-      // ~7 Hz thump rate (140 ms between blade slaps).
-      chopperThumpTimer = setTimeout(playThump, 138);
+      g.gain.setValueAtTime(0.32, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+      noise.connect(lpf).connect(g).connect(masterGain);
+      noise.stop(t + 0.15);
+      // ~6 Hz thwop rate (165 ms between blade slaps).
+      chopperThumpTimer = setTimeout(playThump, 165);
     };
-    if (!chopperThumpTimer) chopperThumpTimer = setTimeout(playThump, 60);
+    if (!chopperThumpTimer) chopperThumpTimer = setTimeout(playThump, 40);
   }
 
   // Proximity rumble for tanks + trucks — low band-pass noise whose gain
@@ -435,6 +444,43 @@
     // Fade in inside 360 px, out beyond 700 px.
     const proximity = Math.max(0, Math.min(1, 1 - (minDist - 360) / 340));
     vehicleAmbient.gain.gain.setTargetAtTime(proximity * 0.08, audioCtx.currentTime, 0.18);
+  }
+
+  // Enemy plane ambient — a continuous low drone whose volume tracks the
+  // distance to the closest alive enemy. Above 800 px it's silent; under
+  // 250 px it's prominent.
+  let enemyAmbient = null;
+  function startEnemyAmbient() {
+    if (enemyAmbient || !audioCtx) return;
+    const t = audioCtx.currentTime;
+    // Sawtooth at ~140 Hz through a low-pass for a drone with engine bite.
+    const osc = audioCtx.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.value = 140;
+    const lp = audioCtx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 600;
+    lp.Q.value = 0.8;
+    const gain = audioCtx.createGain();
+    gain.gain.value = 0;
+    osc.connect(lp).connect(gain).connect(masterGain);
+    osc.start(t);
+    enemyAmbient = { osc, lp, gain };
+  }
+  function updateEnemyAmbient() {
+    if (!enemyAmbient) return;
+    let minDist = Infinity;
+    for (const en of enemies) {
+      if (!en.alive) continue;
+      const d = Math.hypot(player.x - en.x, player.y - en.y);
+      if (d < minDist) minDist = d;
+    }
+    // Fade in inside 250 px, fully out beyond 800 px.
+    const proximity = Math.max(0, Math.min(1, 1 - (minDist - 250) / 550));
+    enemyAmbient.gain.gain.setTargetAtTime(proximity * 0.10, audioCtx.currentTime, 0.20);
+    // Slight pitch shift inward — closer enemies sound a touch sharper.
+    const pitch = 130 + proximity * 30;
+    enemyAmbient.osc.frequency.setTargetAtTime(pitch, audioCtx.currentTime, 0.30);
   }
 
   // ----- One-shot SFX -----
@@ -1587,6 +1633,7 @@
     updateClouds(now, dt);
     updateEngine();
     updateVehicleAmbient();
+    updateEnemyAmbient();
 
     // Damage smoke — starts at 60% HP, denser as HP approaches zero.
     // Spawn cadence interpolates from 220 ms (light wisp at 60% HP) to
