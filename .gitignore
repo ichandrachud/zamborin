@@ -15,3 +15,12 @@
 
 # system
 Thumbs.db
+
+# Source / working assets — live in iCloud, NOT git.
+# See iCloud/Flynge/Zamborin/source-assets/ for the canonical copies.
+# Production images live in /images/ and per-game /<game>/assets, and
+# THOSE are tracked. These two folders hold the multi-MB master files
+# (raw sprites, pre-conversion OG jpegs) that don't belong in a small
+# web repo.
+/lacerta 2/
+/og-images/
