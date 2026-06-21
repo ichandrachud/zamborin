@@ -2570,16 +2570,9 @@
       drawHitFlash(img, -targetW / 2, -targetH / 2, targetW, targetH, flashAlpha);
       drawRotor(lastFrameNow, 0, -targetH * 0.36, targetW);
     } else {
-      // Instant horizontal flip past ±90°: when the latched `flipped` state
-      // is on, the sprite mirrors and the rotation reverses by π so the nose
-      // still points along heading. The plane is briefly edge-on at the
-      // crossing so the snap is least visible there.
-      if (flipped) {
-        ctx.scale(-1, 1);
-        ctx.rotate(heading - Math.PI);
-      } else {
-        ctx.rotate(heading);
-      }
+      // Continuous rotation — plane rotates by heading every frame, going
+      // canopy-down at the top of a loop like a real aircraft.
+      ctx.rotate(heading);
       ctx.drawImage(img, -targetW / 2, -targetH / 2, targetW, targetH);
       drawHitFlash(img, -targetW / 2, -targetH / 2, targetW, targetH, flashAlpha);
       drawPropeller(lastFrameNow, targetW / 2 - 4, 0, targetH);
