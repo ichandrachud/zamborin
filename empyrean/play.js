@@ -635,9 +635,8 @@
   const player = {
     x: 220,
     y: H * 0.52,            // mid-height — keeps cameraY at 0 so the full road shows on spawn
-    heading: 0,                 // facing right
-    aimHeading: 0,              // smoothed firing direction — lags `heading` on hard turns so bullets keep going forward instead of snapping to the touch point
-    throttle: 0,                  // default = no throttle → cruise at MIN_SPEED; → adds up to +30 %
+    heading: 0,                 // facing right; plane always moves forward along this angle
+    throttle: 1,                  // legacy field — kept at constant 1 so engine audio reads as cruising. No input modifies it now.
     hp: 100,
     maxHp: 100,
     invulnUntil: 0,
@@ -647,13 +646,17 @@
     speedMult: 1,               // bonus stacking — +0.15 per gasoline pickup
   };
   // Flight inertia — angular velocity (rad/sec) carries between frames so
-  // turns ease in / out instead of starting and stopping abruptly. Same model
-  // is reused for enemy planes so the whole sky moves like aircraft.
-  player.angVel = 0;
-  const PLAYER_ANG_ACCEL = 7.0;          // how fast angVel ramps to desired
-  const PLAYER_ANG_DAMP  = 4.5;          // how fast angVel decays to 0 when input released
-  const PLAYER_ANG_MAX_DESKTOP = 1.9;    // max rate of turn (rad/sec)
-  const PLAYER_ANG_MAX_MOBILE  = 1.5;
+  // FLIGHT MODEL — heading-driven, constant speed.
+  // The plane ALWAYS moves forward along its current heading. Input does
+  // not modulate speed; it only steers. Heading eases toward a desired
+  // angle (touch position on mobile, arrow-key direction vector on desktop)
+  // at a single TURN_RATE — no angular-velocity integrator, no throttle.
+  const CRUISE_SPEED = 0.154;            // px / ms — flat, both modes. ≈ +50 % over the legacy MIN_SPEED.
+  const TURN_RATE    = 2.4;              // rad / sec — how fast the nose rotates toward a desired heading.
+  const ENEMY_MIN_SPEED = 0.0264;        // enemies retain their own speed band — they don't track the player.
+  const ENEMY_MAX_SPEED = 0.0792;
+  // Chopper: same +50 % boost, same constant-speed treatment.
+  const CHOPPER_SPEED = 0.1125;          // px / ms (was 0.075 × 1.5)
   // Mirror flip — when the plane reaches horizontal-canopy-down (heading
   // ≈ ±π and sin(heading) ≈ 0), it instantly rotates 180° around its
   // longitudinal axis so the canopy is back on top. The plane keeps
@@ -665,29 +668,8 @@
   const FLIP_TRIGGER_SIN_MAX = 0.12;      // |sin(heading)| must be under this
   const FLIP_RESET_COS = -0.80;           // must climb back above this to re-arm
   const FLIP_RESET_SIN = 0.25;            // or pitch past this from horizontal
-  // Chopper movement: always upright, fixed speed in 8 directions. Roughly
-  // matches a plane's cruise speed (no throttle band).
-  const CHOPPER_SPEED = 0.075;  // px / ms
-  // Hero speed band — MIN_SPEED is the default cruise (throttle = 0).
-  // Pressing → throttles up; full throttle is +30 % above default.
-  const MIN_SPEED   = 0.1025;   // px / ms — default cruise speed (was 0.082, +25 %)
-  const MAX_SPEED   = 0.1338;   // px / ms — full throttle (+30 % above MIN, was 0.107)
-  // Enemy planes use their own band — they don't track player throttle.
-  const ENEMY_MIN_SPEED = 0.0264;
-  const ENEMY_MAX_SPEED = 0.0792;
-  const TURN_RATE   = 2.4;      // rad / sec — how fast the nose rotates
-  const THROTTLE_RATE = 0.55;   // throttle units per second of held key
-
-  // Mobile has no acceleration ramp (touch = full throttle) and a smaller
-  // visible canvas, so motion reads slower. A flat 1.3x multiplier brings
-  // it back in line with the desktop feel.
-  const MOBILE_SPEED_BOOST = MODE === 'mobile' ? 1.3 : 1;
-  // Slower turn rate on mobile so the plane "leads" the touch target by a
-  // beat — gives bullets time to fire forward of the new direction instead
-  // of snapping to wherever the finger just landed.
-  const MOBILE_TURN_RATE = 1.4;          // rad / sec
   function playerSpeed() {
-    return (MIN_SPEED + (MAX_SPEED - MIN_SPEED) * player.throttle) * player.speedMult * MOBILE_SPEED_BOOST;
+    return CRUISE_SPEED * player.speedMult;
   }
 
   // ---------- CAMERA ----------
@@ -1214,9 +1196,9 @@
       });
       return;
     }
-    // Plane: fire along the smoothed aim heading, in world direction
-    // (mirror inverts cos/sin).
-    const aim = player.aimHeading;
+    // Plane: fire along the plane's actual heading at this instant —
+    // bullets exit the nose with zero lag (mirror inverts cos/sin).
+    const aim = player.heading;
     const fs = player.mirror ? -1 : 1;
     const mx = player.x + fs * Math.cos(aim) * muzzleDist;
     const my = player.y + fs * Math.sin(aim) * muzzleDist;
@@ -1535,7 +1517,7 @@
       const moveThreshold = usingTouch ? 4 : 0.05;
       if (mag > moveThreshold) {
         const inv = 1 / mag;
-        const sp = CHOPPER_SPEED * player.speedMult * MOBILE_SPEED_BOOST;
+        const sp = CHOPPER_SPEED * player.speedMult;
         player.x += vx * inv * sp * dt;
         player.y += vy * inv * sp * dt;
       }
@@ -1547,38 +1529,40 @@
     } else {
       // ----- Plane flight -----
       // Angular velocity model — every frame we pick a desired turn rate
-      // (from input) and ease the live angVel toward it. When no input is
-      // given, angVel decays gently to zero. Heading then integrates from
-      // angVel. The result is a plane that builds into a turn, holds it,
-      // and rolls out of it on a curve instead of snapping to angles.
+      // New flight model: compute a desired heading from input, ease the
+      // plane's heading toward it at TURN_RATE. No throttle, no angVel
+      // integrator. Mobile: touch position is the target. Desktop: arrow
+      // keys sum to a direction vector; that vector's angle is the target.
+      // No input → heading is frozen and the plane keeps flying straight.
       const dts = dt / 1000;
-      let desiredAng = 0;
-      const angMax = (MODE === 'mobile') ? PLAYER_ANG_MAX_MOBILE : PLAYER_ANG_MAX_DESKTOP;
-      // When the sprite is mirrored, the player's intuitive "up" maps to the
-      // opposite angular direction internally — invert the input sign.
-      const inputSign = player.mirror ? -1 : 1;
+      let desiredHeading = null;
       if (MODE === 'mobile' && touchTarget) {
         const wx = touchTarget.x + cameraX;
         const wy = touchTarget.y + cameraY;
-        // Touch target is in world coords. effectiveHeading = heading + π
-        // when mirrored, so convert the world bearing to internal heading.
-        const worldDir = Math.atan2(wy - player.y, wx - player.x);
-        const internalDesired = player.mirror ? normalizeAngle(worldDir - Math.PI) : worldDir;
-        const diff = normalizeAngle(internalDesired - player.heading);
-        desiredAng = Math.max(-angMax, Math.min(angMax, diff * 3.0));
-        player.throttle = 1;
-      } else {
-        if (keys.ArrowUp)    desiredAng -= angMax * inputSign;
-        if (keys.ArrowDown)  desiredAng += angMax * inputSign;
-        if (keys.ArrowRight) player.throttle = Math.min(1, player.throttle + THROTTLE_RATE * dt / 1000);
-        if (keys.ArrowLeft)  player.throttle = Math.max(0, player.throttle - THROTTLE_RATE * dt / 1000);
+        desiredHeading = Math.atan2(wy - player.y, wx - player.x);
+      } else if (MODE !== 'mobile') {
+        let dx = 0, dy = 0;
+        if (keys.ArrowUp)    dy -= 1;
+        if (keys.ArrowDown)  dy += 1;
+        if (keys.ArrowLeft)  dx -= 1;
+        if (keys.ArrowRight) dx += 1;
+        if (dx !== 0 || dy !== 0) desiredHeading = Math.atan2(dy, dx);
       }
-      const rate = (desiredAng === 0) ? PLAYER_ANG_DAMP : PLAYER_ANG_ACCEL;
-      player.angVel += (desiredAng - player.angVel) * Math.min(1, rate * dts);
-      if (player.angVel >  angMax) player.angVel =  angMax;
-      if (player.angVel < -angMax) player.angVel = -angMax;
-      player.heading += player.angVel * dts;
-      player.heading = normalizeAngle(player.heading);
+      // When mirrored, world bearing maps to internal heading via −π offset.
+      if (desiredHeading !== null && player.mirror) {
+        desiredHeading = normalizeAngle(desiredHeading - Math.PI);
+      }
+      // Ease heading toward desiredHeading at a max rate of TURN_RATE.
+      if (desiredHeading !== null) {
+        const diff = normalizeAngle(desiredHeading - player.heading);
+        const maxStep = TURN_RATE * dts;
+        const step = Math.max(-maxStep, Math.min(maxStep, diff));
+        player.heading = normalizeAngle(player.heading + step);
+      }
+      // No input → heading stays where it is (plane continues straight).
+      // Keep angVel = 0 so any consumer (sound, visuals) that still reads
+      // it sees "not turning right now".
+      player.angVel = 0;
 
       // Trigger: horizontal + canopy-down → instant mirror flip.
       // Latched so it fires once per crossing. Reset condition pulls heading
@@ -1619,15 +1603,6 @@
         player.y = FLIGHT_Y_MAX;
         player.heading = normalizeAngle(-player.heading);
       }
-    }
-
-    // Aim heading lag — smooth `aimHeading` toward the current `heading` so
-    // bullets keep flying forward when the player snaps the touch target.
-    // Exponential approach; rate is gentler on mobile (where touch can flick).
-    {
-      const aimRate = (MODE === 'mobile') ? 0.07 : 0.20;
-      const diff = normalizeAngle(player.heading - player.aimHeading);
-      player.aimHeading = normalizeAngle(player.aimHeading + diff * aimRate);
     }
 
     updateCamera();
@@ -2911,17 +2886,7 @@
     ctx.fillStyle = 'rgba(255,255,255,0.85)';
     ctx.fillText('HP', x + barW + 10, hpY + 5);
 
-    // Throttle bar — same rounded-pill treatment, thinner.
-    const htH = 6;
-    ctx.fillStyle = 'rgba(255,255,255,0.10)';
-    roundRect(x, htY, barW, htH, htH / 2);
-    ctx.fill();
-    const htFillW = Math.max(htH, barW * Math.max(0, player.throttle));
-    ctx.fillStyle = '#7DD8FF';
-    roundRect(x, htY, htFillW, htH, htH / 2);
-    ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,0.65)';
-    ctx.fillText('THROTTLE', x + barW + 10, htY + 3);
+    // Throttle bar removed — plane is fixed-speed; nothing to display.
 
     // Right-side: targets + lives chip + minimap.
     // Targets readout sits in a dark translucent pill so the text always
