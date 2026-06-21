@@ -788,31 +788,12 @@
       });
     }
 
-    // --- Ground tanks — 4 stationary turrets spread across the stage.
-    const N_TANKS = 4;
-    // Deck of variant indices, shuffled, so every spawn cycles through all
-    // available tank types before any repeat.
-    const tankVariantPicker = deckPicker(assets.tankBodies.map((_, idx) => idx));
-    for (let i = 0; i < N_TANKS; i++) {
-      const variant = tankVariantPicker();
-      const bodyImg = assets.tankBodies[variant];
-      const turretImg = assets.tankTurrets[variant];
-      const spec = TANK_SPECS[variant] || TANK_SPECS[0];
-      const h = TANK_BODY_H;
-      const w = h * (bodyImg.width / bodyImg.height);
-      const x = 1600 + (i + 0.5) * (STAGE_W - 2000) / N_TANKS + (Math.random() - 0.5) * 200;
-      tanks.push({
-        x, w, h,
-        bodyImg, turretImg, spec,
-        turretAngle: -Math.PI / 2,   // start aimed straight up
-        fireAt: 0,
-        hp: 4,
-        alive: true,
-      });
-    }
-
-    // Trucks removed — the sprite asset's wheels didn't read as motion
-    // with the spoke overlay, so vehicles on the road are tanks only now.
+    // --- Ground tanks: SPAWN DISABLED (2026-06-21).
+    // The road is intentionally empty right now — new immobile tank assets
+    // are coming, will plug into this same `tanks[]` array. All the
+    // downstream code (collision, render, audio, stage-clear count) tolerates
+    // an empty array, so re-enabling later only needs sprites + a push loop.
+    // Trucks were removed earlier and stay out — no road traffic at all.
 
     // --- Military buildings — 5 fortified houses spread across the stage,
     // each with a turret on top that tracks the hero. Built strong: bombs
