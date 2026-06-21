@@ -151,10 +151,7 @@
     { name: 'Cyclone',  file: './assets/planes-v2/Cyclone.png',  hp:  80, speed: 130, speedMult: 1.15, bombs: 3, kind: 'plane', blurb: 'Fast attacker, light armour.' },
     { name: 'Tempest',  file: './assets/planes-v2/Tempest.png',  hp: 150, speed:  80, speedMult: 0.80, bombs: 5, kind: 'plane', blurb: 'Heavy bomber, slow but tough.' },
     { name: 'Zephyr',   file: './assets/planes-v2/Zephyr.png',   hp:  70, speed: 140, speedMult: 1.25, bombs: 2, kind: 'plane', blurb: 'Light & nimble, fragile.' },
-    // Maverick reuses the Zephyr sprite as a stand-in until a dedicated
-    // sprite lands; stats are tuned so it still feels distinct (fastest
-    // plane in the sky, but the HP makes one mistake fatal).
-    { name: 'Maverick', file: './assets/planes-v2/Zephyr.png', hp:  60, speed: 160, speedMult: 1.45, bombs: 2, kind: 'plane', blurb: 'Glass cannon — fastest in the sky.' },
+    { name: 'Sirocco',  file: './assets/planes-v2/Sirocco.png',  hp:  60, speed: 160, speedMult: 1.45, bombs: 2, kind: 'plane', blurb: 'Glass cannon — fastest in the sky.' },
   ];
   // Stat-bar normalisation maxes — keeps bar widths comparable across aircraft.
   const STAT_MAX = { hp: 200, speed: 150, bombs: 6 };
