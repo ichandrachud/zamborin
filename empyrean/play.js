@@ -2502,12 +2502,11 @@
       drawHitFlash(img, -targetW / 2, -targetH / 2, targetW, targetH, flashAlpha);
       drawRotor(lastFrameNow, 0, -targetH * 0.36, targetW);
     } else {
-      if (Math.cos(heading) < 0) {
-        ctx.scale(-1, 1);
-        ctx.rotate(heading - Math.PI);
-      } else {
-        ctx.rotate(heading);
-      }
+      // Continuous rotation — the plane flies upside-down at the top of a
+      // loop (canopy down), like a real aircraft. Trying to keep the canopy
+      // up via a horizontal flip past ±90° introduces a discontinuity at
+      // the threshold which reads as a sudden 180° jump.
+      ctx.rotate(heading);
       ctx.drawImage(img, -targetW / 2, -targetH / 2, targetW, targetH);
       drawHitFlash(img, -targetW / 2, -targetH / 2, targetW, targetH, flashAlpha);
       drawPropeller(lastFrameNow, targetW / 2 - 4, 0, targetH);
