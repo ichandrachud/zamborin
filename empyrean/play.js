@@ -147,10 +147,13 @@
   // at 1.45 ≈ 81 % swing between slowest and fastest, plenty of feel. The
   // `speed` field stays for the in-UI numeric readout in the carousel.
   const MISSION_1_AIRCRAFT = [
+    { name: 'Tempest',  file: './assets/planes-v2/Tempest.png',  hp: 150, speed:  80, speedMult: 0.80, bombs: 5, kind: 'plane', blurb: 'Heavy bomber, slow but tough.' },
+    { name: 'Aurora',   file: './assets/planes-v2/Aurora.png',   hp: 130, speed:  90, speedMult: 0.90, bombs: 5, kind: 'plane', blurb: 'Heavy gunship — strong armour, modest pace.' },
+    { name: 'Mistral',  file: './assets/planes-v2/Mistral.png',  hp: 110, speed:  95, speedMult: 0.95, bombs: 4, kind: 'plane', blurb: 'Workhorse fighter — solid all around.' },
     { name: 'Tsunami',  file: './assets/planes-v2/Tsunami.png',  hp: 100, speed: 100, speedMult: 1.00, bombs: 4, kind: 'plane', blurb: 'Balanced strike fighter.' },
     { name: 'Cyclone',  file: './assets/planes-v2/Cyclone.png',  hp:  80, speed: 130, speedMult: 1.15, bombs: 3, kind: 'plane', blurb: 'Fast attacker, light armour.' },
-    { name: 'Tempest',  file: './assets/planes-v2/Tempest.png',  hp: 150, speed:  80, speedMult: 0.80, bombs: 5, kind: 'plane', blurb: 'Heavy bomber, slow but tough.' },
-    { name: 'Zephyr',   file: './assets/planes-v2/Zephyr.png',   hp:  70, speed: 140, speedMult: 1.25, bombs: 2, kind: 'plane', blurb: 'Light & nimble, fragile.' },
+    { name: 'Vesper',   file: './assets/planes-v2/Vesper.png',   hp:  75, speed: 135, speedMult: 1.22, bombs: 3, kind: 'plane', blurb: 'Aerobatic fighter — agile, lightly armed.' },
+    { name: 'Zephyr',   file: './assets/planes-v2/Zephyr.png',   hp:  70, speed: 140, speedMult: 1.30, bombs: 2, kind: 'plane', blurb: 'Light & nimble, fragile.' },
     { name: 'Sirocco',  file: './assets/planes-v2/Sirocco.png',  hp:  60, speed: 160, speedMult: 1.45, bombs: 2, kind: 'plane', blurb: 'Glass cannon — fastest in the sky.' },
   ];
   // Stat-bar normalisation maxes — keeps bar widths comparable across aircraft.
