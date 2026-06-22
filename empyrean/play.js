@@ -3169,7 +3169,7 @@
     const SKY_BOTTOM = STREET_TOP_Y - APARTMENT_RENDER_H - 20;
     const skyCenterY = (SKY_TOP + SKY_BOTTOM) / 2;
     // Composition is now three centred rows:
-    //   midY        — top row (Steer / Adjust speed inline)
+    //   midY        — top row (Steer with ↑ ↓ ← →)
     //   midY + 80   — action row (Space / B / M)
     //   midY + 150  — press-space prompt
     // Top of composition: midY − KEY_H/2 ; bottom: midY + 150 + ~12 px text.
@@ -3249,19 +3249,18 @@
       ctx.fillText('Tap where you want to fly', cx, midY);
       ctx.fillText('Hold to fire    Double-tap to drop a bomb', cx, midY + 60);
     } else {
-      // Row 1 — single line: 'Steer using [↑] [↓]   Adjust speed with [←] [→]'
-      // ↑ / ↓ steer (rotate the nose), ← / → adjust throttle.
+      // Row 1 — all four arrows steer direction. Plane cruises forward at a
+      // fixed speed along its nose; arrows just rotate the nose toward the
+      // pressed direction (combinations work — e.g. ↑+→ aims up-right).
       layoutCenteredRow([
-        { kind: 'text', value: 'Steer using' },
+        { kind: 'text', value: 'Steer with' },
         { kind: 'gap',  value: 14 },
         { kind: 'key',  value: '↑' },
-        { kind: 'gap',  value: 10 },
+        { kind: 'gap',  value: 8 },
         { kind: 'key',  value: '↓' },
-        { kind: 'gap',  value: 42 },
-        { kind: 'text', value: 'Adjust speed with' },
-        { kind: 'gap',  value: 14 },
+        { kind: 'gap',  value: 8 },
         { kind: 'key',  value: '←' },
-        { kind: 'gap',  value: 10 },
+        { kind: 'gap',  value: 8 },
         { kind: 'key',  value: '→' },
       ], midY);
 
