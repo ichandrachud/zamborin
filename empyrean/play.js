@@ -774,7 +774,10 @@
     const pickEnemyImg = deckPicker(assets.enemies);
     for (let i = 0; i < N_ENEMIES; i++) {
       const img = pickEnemyImg();
-      const startX = 1200 + (i + 0.5) * (STAGE_W - 1400) / N_ENEMIES;
+      // Pull the closest enemy into the player's WAKE_RANGE_X (= 1.2 * W ≈
+      // 1230 px) at spawn so air combat starts within the first second of
+      // flying — without this, the wide ocean read as "empty sky" for ~3 sec.
+      const startX = 600 + (i + 0.5) * (STAGE_W - 800) / N_ENEMIES;
       // Bias toward the upper sky so the hero (which spawns mid-height) has
       // to climb to engage — gives the player time to settle into the
       // controls before the first interception.
@@ -875,7 +878,10 @@
     const pickEnemyImg = deckPicker(assets.enemies);
     for (let i = 0; i < N_ENEMIES; i++) {
       const img = pickEnemyImg();
-      const startX = 1200 + (i + 0.5) * (STAGE_W - 1400) / N_ENEMIES;
+      // Pull the closest enemy into the player's WAKE_RANGE_X (= 1.2 * W ≈
+      // 1230 px) at spawn so air combat starts within the first second of
+      // flying — without this, the wide ocean read as "empty sky" for ~3 sec.
+      const startX = 600 + (i + 0.5) * (STAGE_W - 800) / N_ENEMIES;
       const yFrac = 0.1 + Math.random() * 0.75;
       const startY = FLIGHT_Y_MIN + yFrac * (FLIGHT_Y_MAX - FLIGHT_Y_MIN);
       enemies.push({
