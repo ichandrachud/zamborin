@@ -591,9 +591,9 @@
   // ships have plenty of empty sky above them and the sky band still feels
   // generous. The water surface visually extends down to ROAD_BOTTOM_Y.
   const OCEAN_WATERLINE_Y = STREET_TOP_Y - APARTMENT_RENDER_H;
-  const SHIP_BODY_H = 120;          // ~17 % of canvas — leaves the superstructure clearly visible
+  const SHIP_BODY_H = 240;          // doubled from 120 — ships now read as the heavy capital units they are
   const SHIP_TURRET_H = 28;         // a touch larger than the building turret
-  const SHIP_HP = 3;                // 3 bomb hits to sink — "more than 2 bombs to destroy completely"
+  const SHIP_HP = 12;               // ≥ 4× a plane (planes are 3 HP) — capital ships eat bullets, fall to heavy bombs
   // The ground-target's bottom-most y. City buildings rest on the street;
   // ocean ships rest on the waterline.
   const GROUND_TARGET_Y = IS_OCEAN ? OCEAN_WATERLINE_Y : STREET_TOP_Y;
@@ -1788,12 +1788,16 @@
               mb.hp -= dmg;
               mb.flashUntil = now + 60;
               if (mb.hp <= 0) {
-                // Ship is finished but lingers as a smouldering wreck —
-                // small impact flash, no big boom, no debris cloud.
+                // Capital-ship kill: HUGE explosion at the moment of death,
+                // then the hull lingers as a charred wreck (burnStartedAt
+                // drives the gradient overlay in drawMilitaryBodies).
                 mb.alive = false;
-                mb.burnStartedAt = now;     // drives the charring gradient overlay
-                spawnExplosion(b.x, b.y, false);
-                hitpause(now, 40);
+                mb.burnStartedAt = now;
+                spawnExplosion(b.x, top + mb.h * 0.45, true);
+                bombFlash(now, 16, 320);
+                spawnBombDebris(b.x, top + mb.h * 0.4, 24);
+                cameraShake = Math.max(cameraShake, 14);
+                hitpause(now, 140);
               } else {
                 spawnExplosion(b.x, b.y, true);
                 bombFlash(now, 9, 160);
@@ -2212,14 +2216,18 @@
           sfxHit(now);
           if (mb.hp <= 0) {
             mb.alive = false;
-            // Ships skip the big boom — they linger as smouldering wrecks.
-            // Buildings still get the dramatic kill effect.
             if (mb.kind !== 'ship') {
               spawnExplosion(b.x, top + mb.h * 0.3, true);
               hitpause(now, 80);
             } else {
+              // Capital-ship kill: huge explosion + flash + debris, then
+              // the hull lingers as a charred wreck via burnStartedAt.
               mb.burnStartedAt = now;
-              spawnExplosion(b.x, b.y, false);
+              spawnExplosion(mb.x, top + mb.h * 0.45, true);
+              bombFlash(now, 16, 320);
+              spawnBombDebris(mb.x, top + mb.h * 0.4, 24);
+              cameraShake = Math.max(cameraShake, 14);
+              hitpause(now, 140);
             }
           } else {
             spawnExplosion(b.x, b.y, false);
@@ -2457,19 +2465,74 @@
     if (waterTopScreenY > H) return;
     const waterH = H - waterTopScreenY;
     if (assets.water) {
-      const img = assets.water;
-      const renderH = waterH + 4;       // tiny overdraw so antialiasing doesn't leave a seam
-      const renderW = renderH * (img.width / img.height);
-      // Tile horizontally with a horizontal parallax of 1.0 (same as ground).
-      const offset = -((cameraX * 1.0) % renderW);
-      const startX = offset > 0 ? offset - renderW : offset;
-      for (let x = startX; x < W; x += renderW) {
-        ctx.drawImage(img, x, waterTopScreenY, renderW, renderH);
-      }
+      // Stretch the water texture to fill the screen width — no tiling, so
+      // there's no visible seam where tiles repeat. Water reads as a static
+      // plane the ships float on; motion sense comes from the camera tracking
+      // the player rather than from the water scrolling beneath.
+      ctx.drawImage(assets.water, 0, waterTopScreenY, W, waterH + 4);
     } else {
       // Fallback solid teal while the texture loads.
       ctx.fillStyle = '#1f8a8c';
       ctx.fillRect(0, waterTopScreenY, W, waterH);
+    }
+  }
+
+  // Ship reflections in the water. Each living/dead ship gets a vertically
+  // mirrored copy drawn just below the waterline, faded to transparent as
+  // it goes deeper. Wave displacement: render in 3 px horizontal strips,
+  // each shifted by sin((y + time) * k) so the reflection ripples.
+  function drawShipReflections() {
+    if (!IS_OCEAN) return;
+    const waterTop = worldToScreenY(OCEAN_WATERLINE_Y);
+    if (waterTop > H) return;
+    const t = lastFrameNow * 0.0028;
+    for (const mb of militaryBuildings) {
+      if (mb.kind !== 'ship') continue;
+      const img = mb.alive ? mb.bodyImg : mb.burntImg;
+      if (!img) continue;
+      const sx = worldToScreenX(mb.x);
+      if (sx + mb.w < -40 || sx - mb.w > W + 40) continue;
+      const drawX = sx - mb.w / 2;
+      const reflW = Math.max(1, Math.round(mb.w));
+      const reflH = Math.max(1, Math.round(mb.h));
+      // Cache an offscreen with the pre-baked vertical-flipped + alpha-faded
+      // reflection per ship. Rebuilt only when alive state changes (ships
+      // that switch from alive→dead get the charred body in the reflection).
+      const cacheKey = mb.alive ? 'alive' : 'dead';
+      if (!mb._reflCanvas || mb._reflCacheKey !== cacheKey ||
+          mb._reflCanvas.width !== reflW || mb._reflCanvas.height !== reflH) {
+        const oc = mb._reflCanvas = document.createElement('canvas');
+        oc.width = reflW; oc.height = reflH;
+        const oct = oc.getContext('2d');
+        oct.save();
+        oct.translate(0, reflH);
+        oct.scale(1, -1);
+        oct.drawImage(img, 0, 0, reflW, reflH);
+        oct.restore();
+        // Fade alpha: top of reflection (= bottom of ship, just under
+        // waterline) stays strong, bottom fades to transparent.
+        oct.globalCompositeOperation = 'destination-in';
+        const fade = oct.createLinearGradient(0, 0, 0, reflH);
+        fade.addColorStop(0,    'rgba(255,255,255,0.55)');
+        fade.addColorStop(0.55, 'rgba(255,255,255,0.18)');
+        fade.addColorStop(1,    'rgba(255,255,255,0)');
+        oct.fillStyle = fade;
+        oct.fillRect(0, 0, reflW, reflH);
+        mb._reflCacheKey = cacheKey;
+      }
+      const oc = mb._reflCanvas;
+      // Composite onto the main canvas in horizontal strips with a sin-wave
+      // x-offset so the reflection looks like it sits on rippling water.
+      const stripH = 3;
+      const amp = 2.4;
+      const freq = 0.22;
+      for (let y = 0; y < reflH; y += stripH) {
+        const sh = Math.min(stripH, reflH - y);
+        const wave = Math.sin((y * freq) + t) * amp;
+        const dy = waterTop + y;
+        if (dy >= H) break;
+        ctx.drawImage(oc, 0, y, reflW, sh, drawX + wave, dy, reflW, sh);
+      }
     }
   }
 
@@ -3161,6 +3224,7 @@
     clearBg();
     drawSky();
     drawStreet();
+    drawShipReflections();
     drawApartments();
     drawMilitaryBodies();
 
@@ -3432,6 +3496,7 @@
     clearBg();
     drawSky();
     drawStreet();
+    drawShipReflections();
     drawApartments();
     drawMilitaryBodies();
 
@@ -3547,6 +3612,7 @@
     clearBg();
     drawSky();
     drawStreet();
+    drawShipReflections();
     drawApartments();
     drawMilitaryBodies();
 
@@ -3731,6 +3797,7 @@
     drawSky();
     if (!IS_NIGHT) drawClouds();
     drawStreet();
+    drawShipReflections();
     drawApartments();
     drawMilitaryBodies();
 
@@ -4001,6 +4068,7 @@
     drawSky();
     if (!IS_NIGHT) drawClouds();   // night worlds keep the sky clear of clouds
     drawStreet();
+    drawShipReflections();
     drawApartments();
     drawMilitaryTurrets();  // military turret behind the building silhouette
     drawMilitaryBodies();   // military building (alive or burnt) on top
