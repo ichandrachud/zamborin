@@ -1728,22 +1728,12 @@
       }
       player.angVel = 0;
 
-      // Trigger: horizontal + canopy-down → instant mirror flip.
-      // Latched so it fires once per crossing. Reset condition pulls heading
-      // back out of the trigger zone before re-arming.
-      {
-        const cosH = Math.cos(player.heading);
-        const sinH = Math.sin(player.heading);
-        if (!player.flipLatch && cosH < FLIP_TRIGGER_COS_MAX && Math.abs(sinH) < FLIP_TRIGGER_SIN_MAX) {
-          player.mirror = !player.mirror;
-          player.heading = 0;                          // reset to forward in new mirror frame
-          player.angVel = -player.angVel;              // preserve world angular momentum
-          player.flipLatch = true;
-        }
-        if (cosH > FLIP_RESET_COS || Math.abs(sinH) > FLIP_RESET_SIN) {
-          player.flipLatch = false;
-        }
-      }
+      // No mirror flip on the player — heading rotates uninterrupted through
+      // a full 360°. If the plane is heading leftward it visually appears
+      // upside-down; the user has accepted that trade for continuous
+      // rotation. (Enemies still get their render-only mirror so they never
+      // appear upside-down — see updateEnemies.)
+      player.mirror = false;
 
       // Velocity in world frame. The sprite is scale(-1, 1) + rotate(heading)
       // when mirrored, so the visual nose direction is (-cos H, +sin H).
