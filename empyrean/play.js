@@ -1542,44 +1542,44 @@
       if (player.y > FLIGHT_Y_MAX)   player.y = FLIGHT_Y_MAX;
     } else {
       // ----- Plane flight -----
-      // Angular velocity model — every frame we pick a desired turn rate
-      // New flight model: compute a desired heading from input, ease the
-      // plane's heading toward it at TURN_RATE. No throttle, no angVel
-      // integrator. Mobile: touch position is the target. Desktop: arrow
-      // keys sum to a direction vector; that vector's angle is the target.
-      // No input → heading is frozen and the plane keeps flying straight.
+      // Two input models — both end with the plane heading at constant
+      // CRUISE_SPEED along its nose.
+      //   Mobile  : touch position is a desired world heading. The plane
+      //             eases toward it at TURN_RATE rad/sec. (Touchscreens
+      //             have no rotation buttons; "point where you want to go"
+      //             is the natural pattern.)
+      //   Desktop : Dogfight-style rotational input. ↑ rotates the nose
+      //             CCW (pitch up), ↓ rotates CW (pitch down). ←/→ are
+      //             ignored. No left-right keys — to turn, hold ↑ or ↓
+      //             until the nose points where you want, then release.
       const dts = dt / 1000;
-      let desiredHeading = null;
-      if (MODE === 'mobile' && touchTarget) {
-        const wx = touchTarget.x + cameraX;
-        const wy = touchTarget.y + cameraY;
-        desiredHeading = Math.atan2(wy - player.y, wx - player.x);
-      } else if (MODE !== 'mobile') {
-        let dx = 0, dy = 0;
-        if (keys.ArrowUp)    dy -= 1;
-        if (keys.ArrowDown)  dy += 1;
-        if (keys.ArrowLeft)  dx -= 1;
-        if (keys.ArrowRight) dx += 1;
-        if (dx !== 0 || dy !== 0) desiredHeading = Math.atan2(dy, dx);
+      if (MODE === 'mobile') {
+        if (touchTarget) {
+          const wx = touchTarget.x + cameraX;
+          const wy = touchTarget.y + cameraY;
+          let desiredHeading = Math.atan2(wy - player.y, wx - player.x);
+          // In mirrored state the sprite renders with scale(-1, 1) +
+          // rotate(H), so visual nose = (-cos H, +sin H). Solving
+          // "visual nose = (cos worldDir, sin worldDir)" → H = π − worldDir.
+          if (player.mirror) {
+            desiredHeading = normalizeAngle(Math.PI - desiredHeading);
+          }
+          const diff = normalizeAngle(desiredHeading - player.heading);
+          const maxStep = TURN_RATE * dts;
+          const step = Math.max(-maxStep, Math.min(maxStep, diff));
+          player.heading = normalizeAngle(player.heading + step);
+        }
+      } else {
+        // Desktop rotational. Up arrow decreases heading (CCW in canvas
+        // coords = nose pitches up); Down arrow increases heading (CW =
+        // nose pitches down). Holds are framerate-independent via dts.
+        // Mirror state needs no special handling: with the new mirror
+        // math (visual = (-cos H, +sin H)), the Y component reacts the
+        // same way to changes in H regardless of mirror, so Up/Down map
+        // to visual pitch consistently in both states.
+        if (keys.ArrowUp)   player.heading = normalizeAngle(player.heading - TURN_RATE * dts);
+        if (keys.ArrowDown) player.heading = normalizeAngle(player.heading + TURN_RATE * dts);
       }
-      // When mirrored, the sprite renders with a horizontal scale(-1, 1) +
-      // rotate(heading). That means the visual nose direction is
-      // (-cos H, +sin H). Solving "visual nose = (cos worldDir, sin worldDir)"
-      // gives H = π − worldDir. So the desiredHeading (user's intent in
-      // world frame) maps to internal heading via π − desiredHeading.
-      if (desiredHeading !== null && player.mirror) {
-        desiredHeading = normalizeAngle(Math.PI - desiredHeading);
-      }
-      // Ease heading toward desiredHeading at a max rate of TURN_RATE.
-      if (desiredHeading !== null) {
-        const diff = normalizeAngle(desiredHeading - player.heading);
-        const maxStep = TURN_RATE * dts;
-        const step = Math.max(-maxStep, Math.min(maxStep, diff));
-        player.heading = normalizeAngle(player.heading + step);
-      }
-      // No input → heading stays where it is (plane continues straight).
-      // Keep angVel = 0 so any consumer (sound, visuals) that still reads
-      // it sees "not turning right now".
       player.angVel = 0;
 
       // Trigger: horizontal + canopy-down → instant mirror flip.
@@ -3399,19 +3399,14 @@
       ctx.fillText('Tap where you want to fly', cx, midY);
       ctx.fillText('Hold to fire    Double-tap to drop a bomb', cx, midY + 60);
     } else {
-      // Row 1 — all four arrows steer direction. Plane cruises forward at a
-      // fixed speed along its nose; arrows just rotate the nose toward the
-      // pressed direction (combinations work — e.g. ↑+→ aims up-right).
+      // Row 1 — Dogfight-style rotational input: only ↑/↓ rotate the nose
+      // (plane cruises forward at constant speed along its nose). No ←/→.
       layoutCenteredRow([
-        { kind: 'text', value: 'Steer with' },
+        { kind: 'text', value: 'Rotate nose with' },
         { kind: 'gap',  value: 14 },
         { kind: 'key',  value: '↑' },
-        { kind: 'gap',  value: 8 },
+        { kind: 'gap',  value: 10 },
         { kind: 'key',  value: '↓' },
-        { kind: 'gap',  value: 8 },
-        { kind: 'key',  value: '←' },
-        { kind: 'gap',  value: 8 },
-        { kind: 'key',  value: '→' },
       ], midY);
 
       // Row 2 — actions: Space / B / M each followed by their label, centred.
