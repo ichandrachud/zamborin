@@ -2674,23 +2674,27 @@
       return;
     }
     const img = assets.desertBg;
-    // Render at native 1:1 pixel size, world-anchored. The image's width
-    // (7860 px) matches the stage width (STAGE_W = 7680), so panning the
-    // camera reveals different portions of the panorama as the player
-    // flies. Bottom of the image aligns with STREET_TOP_Y; image world
-    // x starts at 0.
-    const groundScreenY = worldToScreenY(STREET_TOP_Y);
+    // Native horizontal scale (camera pans across the panorama) with
+    // VERTICALLY-SCALED height to keep the image as a horizon strip rather
+    // than letting it fill the camera. Image BOTTOM anchors at the default
+    // canvas-bottom world Y so the image reaches the base of the canvas
+    // (no gap below). Buildings (anchored at STREET_TOP_Y = 648) still
+    // render on top of the image's lower portion, so the grass appears
+    // around their bases.
+    const DESERT_BG_DRAW_H = 360;     // world px tall (50% of canvas height)
+    const DESERT_BG_BOTTOM_Y = H;     // canvas-base anchor (= 720 = default camera bottom)
     const drawW = img.width;
-    const drawH = img.height;
-    const topWorldY = STREET_TOP_Y - drawH;
+    const drawH = DESERT_BG_DRAW_H;
+    const topWorldY = DESERT_BG_BOTTOM_Y - drawH;
     const topScreenY = worldToScreenY(topWorldY);
     const screenX = -cameraX;
     ctx.drawImage(img, screenX, topScreenY, drawW, drawH);
-    // Fill below the ground line with the bottom-row sand colour so the
-    // camera looking down doesn't show empty sky beneath the horizon.
-    if (groundScreenY < H) {
-      ctx.fillStyle = '#a07a4c';
-      ctx.fillRect(0, groundScreenY, W, H - groundScreenY);
+    // Below the image bottom: sample-green fallback so the area beneath
+    // the strip blends with the image's grass when the camera looks low.
+    const imgBottomScreenY = worldToScreenY(DESERT_BG_BOTTOM_Y);
+    if (imgBottomScreenY < H) {
+      ctx.fillStyle = '#9aab66';
+      ctx.fillRect(0, imgBottomScreenY, W, H - imgBottomScreenY);
     }
   }
 
