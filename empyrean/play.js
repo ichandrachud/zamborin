@@ -3608,7 +3608,7 @@
     const barX = statsBlockX + labelW;
     const barW = statsBlockW - labelW - valueW - 12;
     const STATS = [
-      { key: 'hp',    label: 'Health' },
+      { key: 'hp',    label: 'Shield' },
       { key: 'speed', label: 'Speed'  },
       { key: 'bombs', label: 'Bombs'  },
     ];
