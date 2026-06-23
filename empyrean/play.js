@@ -303,6 +303,27 @@
     startVehicleAmbient();
     startEnemyAmbient();
   }
+  // Cuts the engine on mission end — both win and lose, so the propeller drone
+  // stops the moment the result screen comes up instead of looping forever.
+  function stopGameAudio() {
+    if (!audioCtx) return;
+    const ct = audioCtx.currentTime;
+    if (engineNodes) {
+      if (engineNodes.gain) engineNodes.gain.gain.setTargetAtTime(0, ct, 0.20);
+      try { engineNodes.fund && engineNodes.fund.stop && engineNodes.fund.stop(ct + 0.4); } catch (_) {}
+      try { engineNodes.harm && engineNodes.harm.stop && engineNodes.harm.stop(ct + 0.4); } catch (_) {}
+      try { engineNodes.lfo  && engineNodes.lfo.stop  && engineNodes.lfo.stop(ct + 0.4); } catch (_) {}
+      setTimeout(() => { engineNodes = null; }, 500);
+    }
+    if (engineClickTimer)  { clearTimeout(engineClickTimer);  engineClickTimer = null; }
+    if (chopperThumpTimer) { clearTimeout(chopperThumpTimer); chopperThumpTimer = null; }
+    if (vehicleAmbient && vehicleAmbient.gain) {
+      vehicleAmbient.gain.gain.setTargetAtTime(0, ct, 0.15);
+    }
+    if (enemyAmbient && enemyAmbient.gain) {
+      enemyAmbient.gain.gain.setTargetAtTime(0, ct, 0.15);
+    }
+  }
   function setSoundOn(v) {
     soundOn = v;
     if (masterGain) masterGain.gain.setTargetAtTime(v ? 0.45 : 0.0, audioCtx.currentTime, 0.05);
@@ -1131,6 +1152,13 @@
         bombIndex = (bombIndex + 1) % MISSION_1_BOMBS.length;
       } else if (e.key === ' ' || e.key === 'Enter') {
         bombChosen = MISSION_1_BOMBS[bombIndex];
+        // Eagerly start audio inside this user-gesture handler. update()
+        // also calls startGameAudio() on the next frame, but Chrome/Safari
+        // can refuse to unlock the AudioContext from a rAF callback —
+        // it has to happen synchronously in the gesture for some browsers.
+        // startEngine() is guarded by `if (engineNodes ...) return`, so
+        // the double-call is idempotent.
+        startGameAudio();
       }
     } else if (e.key === ' ' || e.key === 'Enter') {
       advanceRequested = true;
@@ -1222,6 +1250,13 @@
         bombIndex = (bombIndex + 1) % MISSION_1_BOMBS.length;
       } else if (bombEquipRect && inRect(bombEquipRect, p.x, p.y)) {
         bombChosen = MISSION_1_BOMBS[bombIndex];
+        // Eagerly start audio inside this user-gesture handler. update()
+        // also calls startGameAudio() on the next frame, but Chrome/Safari
+        // can refuse to unlock the AudioContext from a rAF callback —
+        // it has to happen synchronously in the gesture for some browsers.
+        // startEngine() is guarded by `if (engineNodes ...) return`, so
+        // the double-call is idempotent.
+        startGameAudio();
       }
       return;
     }
@@ -1317,6 +1352,13 @@
         bombIndex = (bombIndex + 1) % MISSION_1_BOMBS.length;
       } else if (bombEquipRect && inRect(bombEquipRect, p.x, p.y)) {
         bombChosen = MISSION_1_BOMBS[bombIndex];
+        // Eagerly start audio inside this user-gesture handler. update()
+        // also calls startGameAudio() on the next frame, but Chrome/Safari
+        // can refuse to unlock the AudioContext from a rAF callback —
+        // it has to happen synchronously in the gesture for some browsers.
+        // startEngine() is guarded by `if (engineNodes ...) return`, so
+        // the double-call is idempotent.
+        startGameAudio();
       }
     }
   });
@@ -2549,6 +2591,7 @@
       livesRemaining -= 1;
       if (livesRemaining <= 0) {
         gameOver = true; win = false;
+        stopGameAudio();
       } else {
         // Enter the death-modal state. The actual respawn happens in the
         // playerDead branch of update() when the player taps to continue,
@@ -2571,7 +2614,7 @@
     }
 
     // ----- Win check -----
-    if (stageBuilt && targetsRemaining() === 0) { gameOver = true; win = true; }
+    if (stageBuilt && targetsRemaining() === 0) { gameOver = true; win = true; stopGameAudio(); }
   }
 
   // ---------- RENDER ----------
