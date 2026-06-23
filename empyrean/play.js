@@ -290,6 +290,14 @@
   }
   function startGameAudio() {
     if (!audioCtx) return;
+    // Belt-and-braces resume — the chooser-flow path lands here right after
+    // a touch event that called ensureAudio(), but resume() is async; if it
+    // hasn't completed by the time we connect oscillators, the engine starts
+    // silent and may stay that way on some browsers. Calling resume() again
+    // here is cheap and idempotent.
+    if (audioCtx.state === 'suspended' && audioCtx.resume) {
+      audioCtx.resume().catch(() => {});
+    }
     if (player.kind === 'chopper') startChopperEngine();
     else                            startEngine();
     startVehicleAmbient();
@@ -337,9 +345,9 @@
     lp.frequency.value = 280;
     lp.Q.value = 0.7;
     const gain = audioCtx.createGain();
-    // Mobile speakers are closer to the ear — desktop needed the ~3x boost,
-    // mobile only needs ~1.5x. Anything more reads as blasting.
-    gain.gain.value = MODE === 'mobile' ? 0.11 : 0.22;
+    // Mobile speakers are closer to the ear — desktop needed a ~2.5x boost
+    // from the original 0.075, mobile only needs ~1.5x.
+    gain.gain.value = MODE === 'mobile' ? 0.11 : 0.187;
     // Subtle continuous tremolo for warmth (the strong "chuff" now comes
     // from the click track instead of the LFO).
     const lfo = audioCtx.createOscillator();
@@ -372,8 +380,9 @@
       lp.frequency.value = 160;
       lp.Q.value = 1.2;
       const g = audioCtx.createGain();
-      // Mobile gets the original (subtle) click; desktop gets crisper pops.
-      g.gain.setValueAtTime(MODE === 'mobile' ? 0.028 : 0.055, t);
+      // Mobile gets the original (subtle) click; desktop gets crisper pops,
+      // dialled back 15% from the initial boost.
+      g.gain.setValueAtTime(MODE === 'mobile' ? 0.028 : 0.047, t);
       g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
       noise.connect(lp).connect(g).connect(masterGain);
       noise.stop(t + 0.07);
@@ -396,9 +405,10 @@
     engineNodes.lfo.frequency.setTargetAtTime(8 + t * 6, ct, 0.10);
     // Filter stays dull but opens with throttle.
     engineNodes.lp.frequency.setTargetAtTime(240 + t * 130, ct, 0.10);
-    // Per-platform runtime gain. Mobile keeps the legacy quieter band.
-    const baseGain = MODE === 'mobile' ? 0.080 : 0.16;
-    const swingGain = MODE === 'mobile' ? 0.075 : 0.15;
+    // Per-platform runtime gain. Mobile keeps the legacy quieter band;
+    // desktop dialled back 15% from the initial boost.
+    const baseGain = MODE === 'mobile' ? 0.080 : 0.136;
+    const swingGain = MODE === 'mobile' ? 0.075 : 0.128;
     engineNodes.gain.gain.setTargetAtTime(baseGain + t * swingGain, ct, 0.10);
   }
 
