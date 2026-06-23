@@ -134,7 +134,25 @@ body.mode-mobile  { --canvas-w: 393px; --canvas-h: 852px; }
   color: var(--text-mute);
   font-weight: 700;
   letter-spacing: 1.4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
 }
+.site-foot-nav {
+  display: flex;
+  gap: 18px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.0px;
+  text-transform: uppercase;
+}
+.site-foot-nav a {
+  color: var(--text-mute);
+  text-decoration: none;
+  transition: color .15s ease;
+}
+.site-foot-nav a:hover { color: var(--text-dim); }
 
 /* ---------- SPLASH ----------
    Splash images are declared by each game's own play.css —

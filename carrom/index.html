@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <title>Carrom — A Zamborin Game</title>
   <meta name="description" content="Flick the striker. Pocket your discs. A digital take on the South-Asian classic." />
+  <meta name="theme-color" content="#0E1726" />
+  <link rel="canonical" href="https://zamborin.com/carrom/" />
   <link rel="icon" type="image/svg+xml" href="/images/zamborin-favicon.svg" />
 
   <!-- Open Graph / Twitter -->
@@ -26,10 +28,28 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../shared/tokens.css" />
-  <link rel="stylesheet" href="../shared/chrome.css?v=7" />
+  <link rel="stylesheet" href="../shared/chrome.css?v=8" />
   <link rel="stylesheet" href="./play.css?v=1" />
   <!-- Google AdSense -->
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9207689324865969" crossorigin="anonymous"></script>
+  <!-- Structured data: VideoGame schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "VideoGame",
+    "name": "Carrom",
+    "description": "Digital take on the South-Asian tabletop classic. Flick the striker, pocket your discs.",
+    "url": "https://zamborin.com/carrom/",
+    "image": "https://zamborin.com/images/carrom-og.jpg",
+    "playMode": "SinglePlayer",
+    "gamePlatform": "Web Browser",
+    "applicationCategory": "Game",
+    "operatingSystem": "Web",
+    "genre": ["Board","Sports"],
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "publisher": { "@type": "Organization", "name": "Zamborin Games", "url": "https://zamborin.com/" }
+  }
+  </script>
 </head>
 <body>
   <header class="site-header">
@@ -63,7 +83,7 @@
   </main>
 
   <footer class="site-footer">
-    <span>A Zamborin Game</span>
+    <span>A Zamborin Game</span><nav class="site-foot-nav"><a href="/about/">About</a><a href="/privacy/">Privacy</a><a href="/contact/">Contact</a></nav>
   </footer>
 
   <script src="./play.js?v=1"></script>

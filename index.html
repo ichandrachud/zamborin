@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Zamborin Games — Fun, free games in your browser</title>
   <meta name="description" content="A small studio making fun games you can play in your browser. Free. Nothing to install. New games added frequently." />
+  <meta name="theme-color" content="#0E1726" />
+  <link rel="canonical" href="https://zamborin.com/" />
   <link rel="icon" type="image/svg+xml" href="/images/zamborin-favicon.svg" />
 
   <!-- Open Graph / Facebook / LinkedIn / iMessage -->
@@ -28,7 +30,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./shared/tokens.css" />
-  <link rel="stylesheet" href="./shared/chrome.css?v=7" />
+  <link rel="stylesheet" href="./shared/chrome.css?v=8" />
 
   <style>
     body {
@@ -175,6 +177,31 @@
       body.lobby-page .brand-logo { height: 28px; }
     }
   </style>
+  <!-- Structured data for search engines + LLMs -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": "https://zamborin.com/#org",
+        "name": "Zamborin Games",
+        "url": "https://zamborin.com/",
+        "logo": "https://zamborin.com/images/zamborin-logo.svg",
+        "email": "mailto:then_and_again@hotmail.com"
+      },
+      {
+        "@type": "WebSite",
+        "@id": "https://zamborin.com/#site",
+        "name": "Zamborin Games",
+        "url": "https://zamborin.com/",
+        "description": "A small studio making fun, free browser games. Nothing to install. New games added frequently.",
+        "publisher": { "@id": "https://zamborin.com/#org" }
+      }
+    ]
+  }
+  </script>
+
   <!-- Google AdSense -->
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9207689324865969" crossorigin="anonymous"></script>
 </head>
@@ -229,6 +256,6 @@
       </a>
     </div>
   </main>
-  <footer class="lobby-foot">A Zamborin Games site · Free · No login</footer>
+  <footer class="site-footer"><span>A Zamborin Games site · Free · No login</span><nav class="site-foot-nav"><a href="/about/">About</a><a href="/privacy/">Privacy</a><a href="/contact/">Contact</a></nav></footer>
 </body>
 </html>

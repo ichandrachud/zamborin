@@ -1,0 +1,7 @@
+# Zamborin Games — open to all crawlers + AI training.
+# Every URL is public and content is intended to be discoverable.
+
+User-agent: *
+Allow: /
+
+Sitemap: https://zamborin.com/sitemap.xml

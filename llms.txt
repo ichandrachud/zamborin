@@ -1,0 +1,23 @@
+# Zamborin Games
+
+> A small independent studio building free, instantly-playable games for the browser. Vanilla HTML/JavaScript/Canvas, no engines, no downloads, no logins. Hosted at zamborin.com.
+
+## Games
+
+- [Empyrean](https://zamborin.com/empyrean/): Free-flight WWII dogfight over hand-painted skies — city, ocean blockade, and desert raid missions. Pick from 8 aircraft (Tempest, Aurora, Mistral, Tsunami, Cyclone, Vesper, Zephyr, Sirocco) and 5 bombs (Lance, Anvil, Bellows, Pyre, Dart). Rotational controls on desktop (↑↓ rotate the nose); touch-to-aim on mobile.
+- [Tessera](https://zamborin.com/tessera/): Endless falling-letter word puzzle. Tap a column to slide the tile; double-tap to drop it instantly. Form English words across or down, 3 letters minimum. Longer words score exponentially more. The game gets faster the longer you survive.
+- [Untangle](https://zamborin.com/untangle/): Daily planar-graph puzzle. Drag the dots so no edges cross. Endless levels from Tutorial to Master; same puzzle for everyone today (daily seed).
+- [Carrom](https://zamborin.com/carrom/): Digital take on the South-Asian tabletop classic. Flick the striker, pocket your discs. Three difficulty levels against the computer.
+- [Ludo](https://zamborin.com/ludo/): 2, 3, or 4-player Ludo board game. Roll two dice, split the count, capture opponents off safe squares. Daily seed shared across all players.
+
+## Pages
+
+- [About](https://zamborin.com/about/): What Zamborin Games is and how the studio works.
+- [Privacy](https://zamborin.com/privacy/): What data the site collects (almost none) and how Google AdSense cookies are used.
+- [Contact](https://zamborin.com/contact/): Email then_and_again@hotmail.com for bug reports, feedback, partnerships.
+
+## Background
+
+The studio is run lean — small games shipped end-to-end by one or two people, no engine dependencies, no build pipeline. Every game is a folder of static HTML / JavaScript / CSS deployed via Vercel from a single git repository. Shared assets (audio engine, input helpers, design tokens) live in a `/shared/` toolkit.
+
+The site is free to play and supported by Google AdSense. EU/UK/Switzerland visitors see a consent banner; everyone else sees ads without the prompt.
