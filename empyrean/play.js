@@ -254,14 +254,27 @@
   let engineNodes = null, vehicleAmbient = null;
   let lastGunSfxAt = 0, lastHitSfxAt = 0;
 
+  let pendingGameAudioStart = false;       // set when skip-splash jumps to 'playing' before any user input
   function ensureAudio() {
-    if (audioCtx) return;
+    if (audioCtx) {
+      // Skip-splash path: startGameAudio() was queued before audioCtx
+      // existed (browser autoplay policy). Run it now that we have it.
+      if (pendingGameAudioStart && !engineNodes) {
+        pendingGameAudioStart = false;
+        startGameAudio();
+      }
+      return;
+    }
     const Ctx = window.AudioContext || window.webkitAudioContext;
     if (!Ctx) return;
     audioCtx = new Ctx();
     masterGain = audioCtx.createGain();
     masterGain.gain.value = soundOn ? 0.45 : 0.0;
     masterGain.connect(audioCtx.destination);
+    if (pendingGameAudioStart) {
+      pendingGameAudioStart = false;
+      startGameAudio();
+    }
     // Engine + vehicle ambient hold off until the player actually starts the
     // game (intro screen stays silent). startGameAudio() spins them up.
   }
@@ -1550,7 +1563,9 @@
       equippedBomb = saved.bomb;
       pendingLoadoutAircraft = saved.aircraft.name;
       scene = 'playing';
-      startGameAudio();
+      // audioCtx doesn't exist yet (no user gesture); ensureAudio()
+      // will fire startGameAudio() on the player's first key/tap.
+      pendingGameAudioStart = true;
     }
   }
 
