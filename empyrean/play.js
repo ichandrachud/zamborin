@@ -257,6 +257,13 @@
   let pendingGameAudioStart = false;       // set when skip-splash jumps to 'playing' before any user input
   function ensureAudio() {
     if (audioCtx) {
+      // Chrome/Safari can leave the context in 'suspended' state even after
+      // creation. Every user gesture is an opportunity to resume — cheap and
+      // idempotent. If we don't do this, audioCtx exists but all oscillators
+      // are silent.
+      if (audioCtx.state === 'suspended' && audioCtx.resume) {
+        audioCtx.resume().catch(() => {});
+      }
       // Skip-splash path: startGameAudio() was queued before audioCtx
       // existed (browser autoplay policy). Run it now that we have it.
       if (pendingGameAudioStart && !engineNodes) {
@@ -268,6 +275,9 @@
     const Ctx = window.AudioContext || window.webkitAudioContext;
     if (!Ctx) return;
     audioCtx = new Ctx();
+    if (audioCtx.state === 'suspended' && audioCtx.resume) {
+      audioCtx.resume().catch(() => {});
+    }
     masterGain = audioCtx.createGain();
     masterGain.gain.value = soundOn ? 0.45 : 0.0;
     masterGain.connect(audioCtx.destination);
