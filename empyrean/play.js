@@ -1965,6 +1965,11 @@
               }
             } else {
               mb.alive = false;
+              // Stamp the burn timestamp so desert bunkers (and city
+              // military buildings) char over time alongside the swap to
+              // burntImg. drawMilitaryBodies reads burnStartedAt to
+              // animate the black-bottom gradient overlay.
+              mb.burnStartedAt = now;
               spawnExplosion(b.x, top + mb.h * 0.3, true);
               bombFlash(now, 12, 220);
               spawnBombDebris(b.x, top + mb.h * 0.5, 12);
@@ -2396,18 +2401,19 @@
           sfxHit(now);
           if (mb.hp <= 0) {
             mb.alive = false;
-            if (mb.kind !== 'ship') {
-              spawnExplosion(b.x, top + mb.h * 0.3, true);
-              hitpause(now, 80);
-            } else {
-              // Capital-ship kill: huge explosion + flash + debris, then
-              // the hull lingers as a charred wreck via burnStartedAt.
-              mb.burnStartedAt = now;
+            // Desert buildings + ships both get the lingering-charred-wreck
+            // treatment: the hull stays drawn but is overlaid with a
+            // black-bottom gradient that grows over ~3 sec.
+            mb.burnStartedAt = now;
+            if (mb.kind === 'ship') {
               spawnExplosion(mb.x, top + mb.h * 0.45, true);
               bombFlash(now, 16, 320);
               spawnBombDebris(mb.x, top + mb.h * 0.4, 24);
               cameraShake = Math.max(cameraShake, 14);
               hitpause(now, 140);
+            } else {
+              spawnExplosion(b.x, top + mb.h * 0.3, true);
+              hitpause(now, 80);
             }
           } else {
             spawnExplosion(b.x, b.y, false);
@@ -2884,13 +2890,14 @@
       if (mb.flashUntil && mb.flashUntil > lastFrameNow) {
         drawHitFlash(img, drawX, top, mb.w, mb.h, (mb.flashUntil - lastFrameNow) / 60);
       }
-      // CHARRING OVERLAY — ships only, after death. Render the body + a
-      // vertical black gradient INTO an offscreen canvas using source-atop
-      // so the gradient is clipped to the ship's own non-transparent
-      // pixels (the water and sky behind stay untouched). Composite the
-      // result back. Ramps up over ~3 sec so the hit visibly chars the
-      // hull rather than turning it black on contact.
-      if (!mb.alive && mb.kind === 'ship' && mb.burnStartedAt) {
+      // CHARRING OVERLAY — applies to ships AND any dead militaryBuilding
+      // with a burnStartedAt timestamp (now includes desert bunkers + city
+      // turret-buildings). Renders the body + a vertical black gradient
+      // INTO an offscreen canvas using source-atop so the gradient is
+      // clipped to the silhouette (background pixels stay untouched).
+      // Ramps up over ~3 sec so the hit visibly chars rather than
+      // turning the structure black on contact.
+      if (!mb.alive && mb.burnStartedAt) {
         const burnAge = lastFrameNow - mb.burnStartedAt;
         const burn = Math.min(1, burnAge / 3000) * 0.85;
         if (burn > 0) {
