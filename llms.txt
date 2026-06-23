@@ -14,7 +14,7 @@
 
 - [About](https://zamborin.com/about/): What Zamborin Games is and how the studio works.
 - [Privacy](https://zamborin.com/privacy/): What data the site collects (almost none) and how Google AdSense cookies are used.
-- [Contact](https://zamborin.com/contact/): Email then_and_again@hotmail.com for bug reports, feedback, partnerships.
+- [Contact](https://zamborin.com/contact/): Contact form for bug reports, feedback, partnerships.
 
 ## Background
 
