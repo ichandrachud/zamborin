@@ -2062,17 +2062,17 @@
       if (en.angVel < -ENEMY_ANG_MAX) en.angVel = -ENEMY_ANG_MAX;
       en.heading += en.angVel * dts2;
       en.heading = normalizeAngle(en.heading);
-      // Visual flip so enemies never appear upside-down. Wide hysteresis on
-      // cos(heading) AND a steady-flight gate (only update mirror when the
-      // angular velocity is small) so a mid-turn enemy doesn't flip-flop.
+      // Visual flip so enemies never appear upside-down. The 0.45 cos
+      // hysteresis is wide enough on its own to prevent flip-flop — the
+      // sprite only flips once the nose clearly crosses past horizontal,
+      // not while passing through it. No steady-flight gate (the old
+      // gate stranded the mirror state when ENEMY_ANG_MAX was raised
+      // and enemies started turning faster than the gate threshold).
       {
         if (en.mirror === undefined) en.mirror = Math.cos(en.heading) < 0;
         const c = Math.cos(en.heading);
-        const steady = Math.abs(en.angVel) < 0.35;
-        if (steady) {
-          if (en.mirror && c >  0.45) en.mirror = false;
-          else if (!en.mirror && c < -0.45) en.mirror = true;
-        }
+        if (en.mirror && c >  0.45) en.mirror = false;
+        else if (!en.mirror && c < -0.45) en.mirror = true;
       }
 
       // Throttle: chase hard when far, ease off when close-quarters so
