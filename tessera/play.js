@@ -93,6 +93,32 @@
   resizeCanvas();
   window.addEventListener('resize', resizeCanvas);
 
+  // ---------- ROBUST FULL-SCREEN FIT (any browser / OS) ----------
+  // Desktop focus-mode sizing in shared chrome.css uses 100dvh / 100vw aspect
+  // math, which some browsers (notably Firefox) evaluate against the wrong
+  // viewport — over-scaling the canvas so the grid is clipped top and bottom.
+  // Override the game-wrap with a pixel size derived from JS-measured
+  // innerWidth/innerHeight (reliable everywhere): the largest W:H-aspect rect
+  // that fits the viewport, centred by the flex container. Mobile auto-focus
+  // is left to the CSS as-is (it already fills correctly).
+  const gameWrap = canvas.parentElement;
+  function fitFullscreen() {
+    const active = MODE === 'desktop' && document.body.classList.contains('focus-mode');
+    if (!active) {
+      gameWrap.style.width = '';
+      gameWrap.style.height = '';
+    } else {
+      const vw = window.innerWidth, vh = window.innerHeight, aspect = W / H;
+      let cw = vw, ch = Math.round(vw / aspect);
+      if (ch > vh) { ch = vh; cw = Math.round(vh * aspect); }
+      gameWrap.style.width  = cw + 'px';
+      gameWrap.style.height = ch + 'px';
+    }
+    resizeCanvas();
+  }
+  window.addEventListener('resize', fitFullscreen);
+  fitFullscreen();
+
   // ---------- GRID ----------
   // Geometry derives from the per-mode CFG so the same drawing/logic code
   // serves both desktop (12 × 8) and mobile (6 × 13) layouts.
