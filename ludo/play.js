@@ -46,6 +46,31 @@
   resizeCanvas();
   window.addEventListener('resize', resizeCanvas);
 
+  // ---------- ROBUST FULL-SCREEN FIT (any browser / OS) ----------
+  // Desktop focus-mode sizing in shared chrome.css uses 100dvh / 100vw aspect
+  // math, which some browsers (notably Firefox) evaluate against the wrong
+  // viewport — mis-scaling the square board. Override the game-wrap with a
+  // pixel size from JS-measured innerWidth/innerHeight (reliable everywhere):
+  // the largest W:H-aspect rect that fits the viewport, centred. Mobile
+  // auto-focus is left to the CSS as-is.
+  const gameWrap = canvas.parentElement;
+  function fitFullscreen() {
+    const active = MODE === 'desktop' && document.body.classList.contains('focus-mode');
+    if (!active) {
+      gameWrap.style.width = '';
+      gameWrap.style.height = '';
+    } else {
+      const vw = window.innerWidth, vh = window.innerHeight, aspect = W / H;
+      let cw = vw, ch = Math.round(vw / aspect);
+      if (ch > vh) { ch = vh; cw = Math.round(vh * aspect); }
+      gameWrap.style.width  = cw + 'px';
+      gameWrap.style.height = ch + 'px';
+    }
+    resizeCanvas();
+  }
+  window.addEventListener('resize', fitFullscreen);
+  fitFullscreen();
+
   // ---------- BOARD IMAGE ----------
   const boardImg = new Image();
   let boardReady = false;
