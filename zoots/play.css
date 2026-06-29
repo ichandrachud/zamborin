@@ -1,0 +1,24 @@
+/* Zoots — per-game styles. Inherits everything from ../shared/chrome.css
+   and ../shared/tokens.css. Only game-specific chrome lives here. */
+
+/* Splash — deep indigo to match the playfield, with the wordmark. */
+.splash {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(at 50% 35%, #3A33B0 0%, #28247A 55%, #1B1A55 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+  font: 800 56px Inter, system-ui, sans-serif;
+  letter-spacing: 0.06em;
+  transition: opacity 600ms ease-out;
+  pointer-events: none;
+  z-index: 10;
+}
+.splash::before {
+  content: 'ZOOTS';
+}
+.splash.fading {
+  opacity: 0;
+}

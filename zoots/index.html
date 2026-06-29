@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <title>Zoots — A Zamborin Game</title>
+  <meta name="description" content="Aim and fire Zoots at the cluster above. Match 3 or more of a kind to pop them, drop the danglers, and clear the whole board." />
+  <meta name="theme-color" content="#0E1726" />
+  <link rel="canonical" href="https://zamborin.com/zoots/" />
+  <link rel="icon" type="image/svg+xml" href="/images/zamborin-favicon.svg" />
+
+  <!-- Open Graph / Twitter -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Zamborin Games" />
+  <meta property="og:url" content="https://zamborin.com/zoots/" />
+  <meta property="og:title" content="Zoots — Match-3 bubble shooter" />
+  <meta property="og:description" content="Aim and fire Zoots. Match 3 or more to pop them, drop the danglers, clear the board." />
+  <meta property="og:image" content="https://zamborin.com/images/zoots-og.jpg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Zoots — a grid of colourful character tiles above an aiming launcher." />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Zoots — Match-3 bubble shooter" />
+  <meta name="twitter:description" content="Aim and fire Zoots. Match 3 or more to pop them and clear the board." />
+  <meta name="twitter:image" content="https://zamborin.com/images/zoots-og.jpg" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../shared/tokens.css" />
+  <link rel="stylesheet" href="../shared/chrome.css?v=8" />
+  <link rel="stylesheet" href="./play.css?v=1" />
+  <!-- Google AdSense -->
+  <meta name="google-adsense-account" content="ca-pub-9207689324865969">
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9207689324865969" crossorigin="anonymous"></script>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="Zamborin Games home">
+      <img class="brand-logo" src="/images/zamborin-logo.svg" alt="Zamborin" />
+    </a>
+    <div class="header-right">
+      <button id="focus-toggle" class="focus-btn" type="button" aria-label="Play fullscreen" aria-pressed="false">
+        <svg class="icon-enter" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="4 9 4 4 9 4"/>
+          <polyline points="20 9 20 4 15 4"/>
+          <polyline points="4 15 4 20 9 20"/>
+          <polyline points="20 15 20 20 15 20"/>
+        </svg>
+        <svg class="icon-exit" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M6 6l12 12M18 6L6 18"/>
+        </svg>
+      </button>
+      <a class="back-link" href="/">Back to all games</a>
+    </div>
+  </header>
+
+  <main class="page">
+    <section class="play-row">
+      <div class="game-wrap">
+        <canvas id="game" aria-label="Zoots"></canvas>
+        <!-- Splash: shows for 2 s at load, then fades to reveal the game. -->
+        <div id="splash" class="splash" aria-hidden="true"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <nav class="site-foot-nav">
+      <a href="/about/">About</a>
+      <a href="/privacy/">Privacy</a>
+      <a href="/contact/">Contact</a>
+    </nav>
+    <span>© 2026 Zamborin. Games created by Indrajeet Chandrachud.</span>
+  </footer>
+
+  <!-- Shared toolkit: audio + input. ALWAYS load before play.js. -->
+  <script src="../shared/sfx.js?v=1"></script>
+  <script src="../shared/input.js?v=1"></script>
+  <script src="./play.js?v=1"></script>
+  <script>
+    (() => {
+      const btn = document.getElementById('focus-toggle');
+      btn.addEventListener('click', () => {
+        const on = document.body.classList.toggle('focus-mode');
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        btn.setAttribute('aria-label', on ? 'Exit fullscreen' : 'Play fullscreen');
+        setTimeout(() => window.dispatchEvent(new Event('resize')), 60);
+      });
+    })();
+
+    // Splash: 2 s visible, 0.6 s fade, then remove. After it's gone, fire a
+    // `splash-done` event so play.js can start the game.
+    (() => {
+      const splash = document.getElementById('splash');
+      if (!splash) return;
+      setTimeout(() => splash.classList.add('fading'), 2000);
+      setTimeout(() => {
+        splash.remove();
+        window.dispatchEvent(new CustomEvent('splash-done'));
+      }, 2700);
+    })();
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
+</body>
+</html>
