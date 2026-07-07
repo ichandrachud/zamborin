@@ -176,6 +176,16 @@
       body.lobby-page .site-header .brand { display: flex; }
       body.lobby-page .brand-logo { height: 28px; }
     }
+
+    .lobby-intro { max-width: 720px; }
+    .lobby-intro h1 { font-size: 34px; font-weight: 800; color: var(--text); letter-spacing: -0.6px; line-height: 1.12; margin-bottom: 12px; }
+    .lobby-intro p { font-size: 17px; line-height: 1.6; color: var(--text-dim); margin: 10px 0; }
+    .lobby-about { max-width: 760px; color: var(--text-dim); line-height: 1.65; font-size: 16px; }
+    .lobby-about h2 { font-size: 24px; font-weight: 800; color: var(--text); letter-spacing: -0.3px; margin: 4px 0 10px; }
+    .lobby-about h3 { font-size: 18px; font-weight: 700; color: var(--text); margin: 22px 0 4px; }
+    .lobby-about p { margin: 10px 0; }
+    .lobby-about a { color: #4DC3FF; }
+    @media (max-width: 720px) { .lobby-intro h1 { font-size: 27px; } }
   </style>
   <!-- Structured data for search engines + LLMs -->
   <script type="application/ld+json">
@@ -214,7 +224,20 @@
   </header>
 
   <main class="lobby">
+    <section class="lobby-intro">
+      <h1>Free games you can play right now, in your browser</h1>
+      <p>Zamborin is a small independent studio making fast, friendly games that run instantly in your browser — on a phone, a tablet or a laptop. There's nothing to download, no sign-up, and no waiting: every game is free, loads in about a second, and is easy to share with a link. From quick word and logic puzzles to relaxed board games and open-sky action, here's everything we've built so far.</p>
+    </section>
+
     <div class="games-row">
+      <a class="game-card" href="./zood/">
+        <div class="game-card-image" style="background-image: url('./images/zood-teaser.jpg')"></div>
+        <div class="game-card-body">
+          <div class="game-card-name">Zood</div>
+          <div class="game-card-desc">Aim and fire quirky character tiles at the cluster above. Match three or more to pop them, drop the danglers, and clear the whole board — a fresh spin on the classic bubble shooter.</div>
+          <div class="game-card-cta">Play now</div>
+        </div>
+      </a>
       <a class="game-card" href="./empyrean/">
         <div class="game-card-image" style="background-image: url('./images/empyrean-teaser.jpg')"></div>
         <div class="game-card-body">
@@ -256,6 +279,31 @@
         </div>
       </a>
     </div>
+
+    <section class="lobby-about">
+      <h2>About our free browser games</h2>
+      <p>Every Zamborin game is hand-built as a small, self-contained web page — no game engine, no heavy downloads, no accounts to create. They're designed to be picked up in seconds and to feel good on both touchscreens and keyboards. We add new games regularly, keep the ones people enjoy, and quietly retire the ones that don't land. Here's a closer look at the current line-up:</p>
+
+      <h3><a href="/zood/">Zood</a> — bubble-shooter puzzle</h3>
+      <p>Fire quirky little character tiles up at a hanging cluster and match three or more of a kind to pop them; any Zoods left dangling drop too. Bank shots off the walls, keep the cluster from reaching the line, and clear every last Zood.</p>
+
+      <h3><a href="/empyrean/">Empyrean</a> — free-flight aerial action</h3>
+      <p>Fly a lone fighter over vivid, hand-painted worlds, steering your own heading as you dogfight enemy planes and bomb ground targets across city, ocean and desert missions. Choose your aircraft and bombs, then clear the skies.</p>
+
+      <h3><a href="/tessera/">Tessera</a> — endless word puzzle</h3>
+      <p>Part falling-block puzzle, part Scrabble. Guide letter tiles into a grid to spell words across and down; longer words score far more, and the tiles fall faster the longer you last. A quick, brainy high-score chase.</p>
+
+      <h3><a href="/untangle/">Untangle</a> — daily logic puzzle</h3>
+      <p>A tangle of dots and lines lands in front of you with every edge crossing another. Drag the dots until no lines cross. Every puzzle is solvable, and the difficulty climbs from a gentle tutorial to endless Master-level tangles.</p>
+
+      <h3><a href="/carrom/">Carrom</a> — flick-and-pocket board game</h3>
+      <p>A digital version of the South-Asian tabletop classic. Aim and flick the striker with a slingshot pull to pocket your discs before the computer clears theirs, across three difficulty levels. Bank shots and cut angles behave just like the real board.</p>
+
+      <h3><a href="/ludo/">Ludo</a> — the classic dice race</h3>
+      <p>Roll the die and race all four of your tokens home before your opponents. Land on a rival to send them back to the start, chain your sixes, and play safe or aggressive as the board demands — in 2-, 3- or 4-player games against the computer.</p>
+
+      <p>All of them are free, run in any modern browser, and work offline once loaded. Have a request or found a bug? Head to our <a href="/contact/">contact page</a> — we read everything.</p>
+    </section>
   </main>
   <footer class="site-footer">
     <nav class="site-foot-nav">

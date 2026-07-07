@@ -3,33 +3,33 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-  <title>Carrom — A Zamborin Game</title>
-  <meta name="description" content="Flick the striker. Pocket your discs. A digital take on the South-Asian classic." />
+  <title>Zood — A Zamborin Game</title>
+  <meta name="description" content="Aim and fire Zoods at the cluster above. Match 3 or more of a kind to pop them, drop the danglers, and clear the whole board." />
   <meta name="theme-color" content="#0E1726" />
-  <link rel="canonical" href="https://zamborin.com/carrom/" />
+  <link rel="canonical" href="https://zamborin.com/zood/" />
   <link rel="icon" type="image/svg+xml" href="/images/zamborin-favicon.svg" />
 
   <!-- Open Graph / Twitter -->
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Zamborin Games" />
-  <meta property="og:url" content="https://zamborin.com/carrom/" />
-  <meta property="og:title" content="Carrom — Flick the striker, pocket the discs" />
-  <meta property="og:description" content="A digital take on the South-Asian tabletop classic. Three difficulty levels against the computer." />
-  <meta property="og:image" content="https://zamborin.com/images/carrom-og.jpg" />
+  <meta property="og:url" content="https://zamborin.com/zood/" />
+  <meta property="og:title" content="Zood — Match-3 bubble shooter" />
+  <meta property="og:description" content="Aim and fire Zoods. Match 3 or more to pop them, drop the danglers, clear the board." />
+  <meta property="og:image" content="https://zamborin.com/images/zood-og.jpg" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
-  <meta property="og:image:alt" content="Carrom — a polished wooden board with carrom discs arranged at the centre." />
+  <meta property="og:image:alt" content="Zoods — a grid of colourful character tiles above an aiming launcher." />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Carrom — Flick the striker, pocket the discs" />
-  <meta name="twitter:description" content="A digital take on the South-Asian tabletop classic. Three difficulty levels against the computer." />
-  <meta name="twitter:image" content="https://zamborin.com/images/carrom-og.jpg" />
+  <meta name="twitter:title" content="Zood — Match-3 bubble shooter" />
+  <meta name="twitter:description" content="Aim and fire Zoods. Match 3 or more to pop them and clear the board." />
+  <meta name="twitter:image" content="https://zamborin.com/images/zood-og.jpg" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../shared/tokens.css" />
   <link rel="stylesheet" href="../shared/chrome.css?v=8" />
-  <link rel="stylesheet" href="./play.css?v=1" />
+  <link rel="stylesheet" href="./play.css?v=2" />
   <!-- Google AdSense -->
   <meta name="google-adsense-account" content="ca-pub-9207689324865969">
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9207689324865969" crossorigin="anonymous"></script>
@@ -38,15 +38,15 @@
   {
     "@context": "https://schema.org",
     "@type": "VideoGame",
-    "name": "Carrom",
-    "description": "Digital take on the South-Asian tabletop classic. Flick the striker, pocket your discs.",
-    "url": "https://zamborin.com/carrom/",
-    "image": "https://zamborin.com/images/carrom-og.jpg",
+    "name": "Zood",
+    "description": "A free browser bubble-shooter puzzle. Aim and fire Zoods, match three or more to pop them, and clear the board.",
+    "url": "https://zamborin.com/zood/",
+    "image": "https://zamborin.com/images/zood-og.jpg",
     "playMode": "SinglePlayer",
     "gamePlatform": "Web Browser",
     "applicationCategory": "Game",
     "operatingSystem": "Web",
-    "genre": ["Board","Sports"],
+    "genre": ["Puzzle","Arcade"],
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
     "publisher": { "@type": "Organization", "name": "Zamborin Games", "url": "https://zamborin.com/" }
   }
@@ -91,43 +91,44 @@
   <main class="page">
     <section class="play-row">
       <div class="game-wrap">
-        <canvas id="game" aria-label="Carrom board"></canvas>
-        <!-- Splash: shows for 2 s at load, then fades to reveal the menu. -->
+        <canvas id="game" aria-label="Zood"></canvas>
+        <!-- Splash: shows for 2 s at load, then fades to reveal the game. -->
         <div id="splash" class="splash" aria-hidden="true"></div>
       </div>
     </section>
 
     <section class="game-info">
-      <h1>Carrom: the classic flick-and-pocket board game, online and free</h1>
+      <h1>Zood: a free browser bubble-shooter puzzle</h1>
 
-      <p>Carrom is a digital take on the beloved South-Asian tabletop game — think of it as a cross between billiards and air hockey, played with flat wooden discs on a smooth square board. You flick a heavier disc called the <strong>striker</strong> to knock your own discs into the four corner pockets before your opponent clears theirs. It's easy to pick up in a minute and endlessly satisfying to master, with the same "just one more shot" pull as a good game of pool. No board, no powder, no setup — just open it and play against the computer.</p>
+      <p>Zoods is a colourful take on the classic bubble-shooter. A cluster of quirky little character tiles — the Zoods — hangs at the top of the board, and you fire more Zoods up at them from a cannon at the bottom. Land three or more of the same Zood together and they pop; any Zoods left dangling with nothing holding them up tumble away too, so a single well-aimed shot can clear a whole chunk of the board at once. Miss too often and the cluster creeps downward toward the line above your cannon. Clear every Zood to win — it's the kind of easy-to-learn, hard-to-put-down puzzle that's perfect for a quick break.</p>
 
       <h2>How to play</h2>
-      <p>Your striker sits on the base line at the bottom of the board. Aim and shoot with a single slingshot motion: pull back from the striker to set the direction and the power — the further you pull, the harder the flick — then release to fire. Sink your own colour of disc (light or dark) to keep shooting; miss, or pocket the wrong disc, and play passes to your opponent.</p>
+      <p>Aim the cannon and fire, building groups of three or more matching Zoods so they burst.</p>
       <ul>
-        <li><strong>Aim:</strong> drag from the striker in the direction you want it to travel.</li>
-        <li><strong>Power:</strong> the length of your drag sets the strength of the flick — short taps for delicate cuts, long pulls for break shots.</li>
-        <li><strong>Reposition:</strong> slide the striker left and right along the base line before you shoot to line up the perfect angle.</li>
+        <li><strong>Aim:</strong> move your mouse on desktop, or drag your finger on mobile — the cannon rotates to point where you're aiming.</li>
+        <li><strong>Fire:</strong> click or tap to launch the loaded Zood.</li>
+        <li><strong>Bank shots:</strong> Zoods bounce off the side walls, so you can curve a shot into a gap you can't hit head-on.</li>
+        <li><strong>Chain drops:</strong> pop the Zoods that hold up a cluster and everything below them falls away — worth big points.</li>
       </ul>
-      <p>The single red disc in the middle is the <strong>Queen</strong> — the most valuable piece on the board and worth chasing once you've cleared a few of your own.</p>
+      <p>The cannon loads a fresh Zood after every shot, and the tray at the bottom shows what's coming up next.</p>
 
-      <h2>Difficulty</h2>
-      <p>Play against a computer opponent at Easy, Medium or Hard. Easy is forgiving and great for learning the physics; Medium plays a steady positional game; Hard punishes loose shots and rarely wastes a turn. Bank shots off the cushions and gentle cut angles all behave the way they would on a real board, so skill you build here is skill you'd use at a family table.</p>
+      <h2>Keeping the board in check</h2>
+      <p>Every shot that doesn't clear anything leaves a Zood behind, so the board slowly grows. Miss several times and the whole cluster drops down a row while a new line appears at the top — so accuracy matters. If any Zood crosses the line just above the cannon, the game is over. Clear the entire board and you win.</p>
 
       <h2>Tips</h2>
       <ul>
-        <li>Softer is often smarter — a controlled tap that leaves the striker in a good spot beats a wild break.</li>
-        <li>Use the side cushions. Banking the striker off a wall opens up discs you can't hit straight on.</li>
-        <li>Clear discs that clog the pockets first, so later shots have a clean path.</li>
-        <li>Line up the angle by moving the striker along the base line before you even think about power.</li>
+        <li>Look for two matching Zoods already touching, then aim a third into them for an instant pop.</li>
+        <li>Use the walls — a bank shot can reach tucked-away Zoods and set up big drops.</li>
+        <li>Target the Zoods holding up a large hanging group; dropping them clears far more than a single match.</li>
+        <li>Don't waste shots when the board is getting tall — every miss brings the cluster closer to the line.</li>
       </ul>
 
       <h2>Frequently asked questions</h2>
-      <p><strong>Is Carrom free?</strong> Yes — free to play, with no account or download. It runs in any modern browser on phone, tablet or desktop.</p>
-      <p><strong>Can I play against a friend?</strong> The current version is single-player against a computer opponent at three difficulty levels.</p>
-      <p><strong>Do I need to know the real rules?</strong> No — the basics are on screen and you'll pick up the feel within a game or two.</p>
+      <p><strong>Is Zood free?</strong> Yes — free to play, with no account or download, in any modern browser on phone or desktop.</p>
+      <p><strong>How do I win?</strong> Clear every Zood from the board. You lose if the cluster reaches the line just above your cannon.</p>
+      <p><strong>What are Zoods?</strong> The little square characters you fire and match — each type has its own face and its own animated expressions.</p>
 
-      <p>Want a different kind of table game? Try <a href="/ludo/">Ludo</a>, or browse <a href="/">all Zamborin games</a>.</p>
+      <p>Like a good puzzle? Try <a href="/tessera/">Tessera</a> or <a href="/untangle/">Untangle</a>, or browse <a href="/">all Zamborin games</a>.</p>
     </section>
   </main>
 
@@ -140,7 +141,10 @@
     <span>© 2026 Zamborin. Games created by Indrajeet Chandrachud.</span>
   </footer>
 
-  <script src="./play.js?v=2"></script>
+  <!-- Shared toolkit: audio + input. ALWAYS load before play.js. -->
+  <script src="../shared/sfx.js?v=1"></script>
+  <script src="../shared/input.js?v=1"></script>
+  <script src="./play.js?v=21"></script>
   <script>
     (() => {
       const btn = document.getElementById('focus-toggle');
@@ -152,12 +156,16 @@
       });
     })();
 
-    // Splash: 2 s reveal, 0.6 s fade, remove from DOM at 2.7 s.
+    // Splash: 2 s visible, 0.6 s fade, then remove. After it's gone, fire a
+    // `splash-done` event so play.js can start the game.
     (() => {
       const splash = document.getElementById('splash');
       if (!splash) return;
       setTimeout(() => splash.classList.add('fading'), 2000);
-      setTimeout(() => splash.remove(), 2700);
+      setTimeout(() => {
+        splash.remove();
+        window.dispatchEvent(new CustomEvent('splash-done'));
+      }, 2700);
     })();
   </script>
   <script defer src="/_vercel/insights/script.js"></script>

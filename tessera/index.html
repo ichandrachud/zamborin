@@ -51,8 +51,27 @@
     "publisher": { "@type": "Organization", "name": "Zamborin Games", "url": "https://zamborin.com/" }
   }
   </script>
+  <style>
+    /* Readable content below the game — describes and explains Tessera. */
+    .game-info { max-width: 760px; margin: 0 auto; padding: 8px 24px 40px; color: var(--text-dim); line-height: 1.65; font-size: 16px; }
+    .game-info h1 { font-size: 28px; color: var(--text); font-weight: 800; margin: 20px 0 8px; letter-spacing: -0.3px; }
+    .game-info h2 { font-size: 20px; color: var(--text); font-weight: 700; margin: 30px 0 8px; }
+    .game-info p { margin: 12px 0; }
+    .game-info ul { margin: 12px 0; padding-left: 22px; }
+    .game-info li { margin: 7px 0; }
+    .game-info strong { color: var(--text); font-weight: 600; }
+    .game-info a { color: #4DC3FF; }
+    @media (max-width: 720px) { .game-info { padding: 8px 18px 40px; } .game-info h1 { font-size: 24px; } }
+    /* Let the game page scroll on mobile so the content below is reachable.
+       The game still fills the first screen; the canvas keeps its own
+       touch-action so play isn't affected — only off-canvas swipes scroll. */
+    @media (max-width: 1099px) {
+      body.game-content-page { position: static; overflow: visible; height: auto; width: auto; top: auto; left: auto; touch-action: auto; }
+      body.game-content-page .site-footer { display: flex; }
+    }
+  </style>
 </head>
-<body>
+<body class="game-content-page">
   <header class="site-header">
     <a class="brand" href="/" aria-label="Zamborin Games home">
       <img class="brand-logo" src="/images/zamborin-logo.svg" alt="Zamborin" />
@@ -103,6 +122,37 @@
     <div class="ad-slot ad-leaderboard" aria-label="Advertisement">
       <span class="ad-label">AD · 728 × 90</span>
     </div>
+
+    <section class="game-info">
+      <h1>Tessera Words: the endless falling-letter word puzzle</h1>
+
+      <p>Tessera Words is a free browser word game that blends the falling-tile pressure of a block puzzle with the vocabulary of Scrabble. Single letter tiles drop into a grid one at a time, and your job is to guide each one into place so that letters line up into real English words — reading across or down. Spell a valid word of three letters or more and it clears instantly, the tiles above tumbling down to fill the gap. Leave too many stray letters behind and the stack creeps toward the top. There is no timer and no final level to beat: Tessera is an endless survival puzzle, and the only thing between you and a high score is how fast you can spot words under pressure.</p>
+
+      <h2>How to play</h2>
+      <p>One letter tile falls from the top of the board at a time. Slide it left or right into the column you want, then let it settle or send it down quickly. Whenever three or more tiles spell a valid English word — horizontally or vertically — the word lights up, clears, and everything above it drops under gravity, often setting off satisfying chain reactions.</p>
+      <ul>
+        <li><strong>On desktop:</strong> use the ← and → arrow keys to move the falling tile, ↓ or Space to drop it fast, or simply click the column you want.</li>
+        <li><strong>On mobile:</strong> tap a column to slide the tile there, and double-tap to lock it into place instantly.</li>
+      </ul>
+      <p>The next tile is always shown in the corner, so you can plan a move ahead. The longer you survive, the faster the tiles fall — so an early sense of calm gives way to a late-game test of reflexes.</p>
+
+      <h2>Scoring and strategy</h2>
+      <p>Points scale with the <em>square</em> of a word's length, so one long word is worth far more than several short ones. A three-letter word earns a modest amount; a six- or seven-letter word can be worth many times as much. A few tips to push your score higher:</p>
+      <ul>
+        <li>Think in two directions at once — a single well-placed tile can finish a word going across <em>and</em> set up another going down.</li>
+        <li>Keep the stack low. Clearing words often is safer than hoarding letters for one big play that may never come.</li>
+        <li>Park common letters like R, S, T and the vowels in flexible spots where they can join many different words.</li>
+        <li>Use the slow early pace to your advantage — place those first tiles deliberately before the speed ramps up.</li>
+      </ul>
+
+      <h2>Frequently asked questions</h2>
+      <p><strong>Is Tessera Words free?</strong> Yes — completely free, with no account, login, or download required. Open the page and play.</p>
+      <p><strong>Does it work on my phone?</strong> Yes. Tessera runs in any modern mobile or desktop browser and reshapes its board to fit your screen.</p>
+      <p><strong>Which words count?</strong> Every play is checked against a bundled 51,852-word English dictionary based on the standard TWL06 Scrabble word list, so obscure-but-valid words score just like everyday ones.</p>
+      <p><strong>How does a game end?</strong> Play continues endlessly until a column of tiles stacks all the way to the top. Your final score is the total you banked along the way — then you can jump straight back in and try to beat it.</p>
+
+      <p>Ready for more? Try our other free browser puzzles — <a href="/untangle/">Untangle</a>, a daily planar-graph puzzle, or browse <a href="/">all Zamborin games</a>.</p>
+    </section>
   </main>
 
   <footer class="site-footer">

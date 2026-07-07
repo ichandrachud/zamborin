@@ -1,13 +1,13 @@
 /* ============================================================
-   Zoots · a Zamborin Game
+   Zood · a Zamborin Game
    A Snood-style bubble shooter with square character tiles.
-   Aim + fire Zoots (banking off the side walls); land 3+ of a
-   kind connected to pop them; any Zoots left dangling drop too.
-   Clear the board to win; lose if a Zoot crosses the danger line.
+   Aim + fire Zoods (banking off the side walls); land 3+ of a
+   kind connected to pop them; any Zoods left dangling drop too.
+   Clear the board to win; lose if a Zood crosses the danger line.
 
-   Cannon: the loaded Zoot is the centre of a 5-slot tray. After
-   each shot the next loaded Zoot is pulled alternately from the
-   left neighbour, then the right, with fresh Zoots entering at the
+   Cannon: the loaded Zood is the centre of a 5-slot tray. After
+   each shot the next loaded Zood is pulled alternately from the
+   left neighbour, then the right, with fresh Zoods entering at the
    outer ends.
    ============================================================ */
 (() => {
@@ -68,7 +68,7 @@
   fitFullscreen();
 
   // ---------- AUDIO ----------
-  const sfx = window.ZSFX.create({ storageKey: 'zamborin-zoots.sound' });
+  const sfx = window.ZSFX.create({ storageKey: 'zamborin-zood.sound' });
   function play(name) { try { sfx.play(name); } catch (e) {} }
 
   // ---------- PALETTE ----------
@@ -77,28 +77,74 @@
     text:    '#FFFFFF',
     textDim: '#C9CBF0',
     line:    'rgba(255,255,255,0.55)',
-    aim:     'rgba(255,255,255,0.45)',
     accent:  '#FF36C5',
   };
-  // Fallback colours per Zoot type (used until the sprite loads).
+  // Fallback colours per Zood type (used until the sprite loads).
   const TYPE_COLORS = ['#F2C218', '#ED3B34', '#E89A1C', '#8A8D93', '#EE6C1E', '#2BB3E8'];
   const N_TYPES = 6;
 
   // ---------- SPRITES ----------
-  const sprites = [];
-  let spritesLoaded = 0;
-  for (let i = 0; i < N_TYPES; i++) {
+  // Each source PNG is 500×500 but drawn tiny. We "bake" every image down to a
+  // small offscreen canvas once it loads, and draw THAT instead of the PNG.
+  // Canvas sources draw reliably on every browser and stay resident in memory,
+  // which fixes Safari/WebKit dropping large decoded PNGs mid-game (that left
+  // grey Zoods as blank coloured tiles). It's also cheaper to draw each frame.
+  const BAKE_PX = 256;
+  // Bake a source PNG down to a small canvas, VERIFYING it actually painted.
+  // Safari can silently draw nothing from a freshly-decoded large PNG; if the
+  // bake comes out blank we retry a few times until it takes.
+  function bake(img, store, key, tries) {
+    const c = document.createElement('canvas');
+    c.width = c.height = BAKE_PX;
+    const cx = c.getContext('2d');
+    cx.drawImage(img, 0, 0, BAKE_PX, BAKE_PX);
+    let blank = false;
+    try { blank = cx.getImageData(BAKE_PX >> 1, BAKE_PX >> 1, 1, 1).data[3] === 0; } catch (e) {}
+    if (blank && (tries || 0) < 8) { setTimeout(() => bake(img, store, key, (tries || 0) + 1), 120); return; }
+    store[key] = c;
+  }
+  function loadBaked(url, store, key) {
     const img = new Image();
-    img.onload = () => { spritesLoaded++; };
-    img.src = `./assets/${i + 1}.png`;
-    sprites.push(img);
+    const go = () => bake(img, store, key, 0);
+    img.onload = () => { if (img.decode) img.decode().then(go).catch(go); else go(); };
+    img.src = url;
+  }
+  const sprites = [];   // sprites[type] = baked single-frame canvas (or null)
+  for (let i = 0; i < N_TYPES; i++) { sprites[i] = null; loadBaked(`./assets/${i + 1}.png`, sprites, i); }
+
+  // ---------- ANIMATION FRAMES ----------
+  // Each Zood has an idle cycle of 3-4 frames in ./assets/anim/<type>/<n>.png.
+  // Frames advance every FRAME_MS; a per-tile phase offset keeps them from all
+  // blinking in unison. Falls back to the single sprite if a frame is missing.
+  // Animation frames are grouped by character in assets/anim/t<type>/.
+  // (The source Zood folders mixed characters, so frames were re-sorted per
+  // Zood: t0 yellow, t1 red, t2 amber, t3 grey, t4 orange, t5 blue.)
+  const TYPE_ANIM = [
+    { folder: 't0', count: 4 },   // yellow
+    { folder: 't1', count: 4 },   // red
+    { folder: 't2', count: 3 },   // amber
+    { folder: 't3', count: 3 },   // grey
+    { folder: 't4', count: 4 },   // orange
+    { folder: 't5', count: 4 },   // blue
+  ];
+  const FRAME_MS = 1500;
+  let nowMs = 0;
+  const frames = [];   // frames[type][n] = baked canvas (or null until loaded)
+  for (let t = 0; t < N_TYPES; t++) {
+    frames[t] = [];
+    for (let n = 0; n < TYPE_ANIM[t].count; n++) {
+      frames[t][n] = null;
+      loadBaked(`./assets/anim/${TYPE_ANIM[t].folder}/${n}.png?v=10`, frames[t], n);
+    }
   }
 
   // ---------- LAYOUT ----------
   const MARGIN = 6;
   const playW = W - MARGIN * 2;
-  const TILE_TARGET = MODE === 'mobile' ? 46 : 58;
-  const COLS = Math.max(6, Math.round(playW / TILE_TARGET - 0.5));
+  // Desktop uses a fixed 15-column board; mobile fits columns to the viewport.
+  const COLS = MODE === 'mobile'
+    ? Math.max(6, Math.round(playW / 46 - 0.5))
+    : 15;
   const TILE = playW / (COLS + 0.5);          // cell pitch; odd rows shift +TILE/2
   const ROW_H = TILE * 0.86;                   // offset-row vertical pitch
   const TOP = Math.round(TILE * 0.35) + 4;
@@ -107,10 +153,12 @@
   const LAUNCH_X = W / 2;
   const LAUNCH_Y = DANGER_Y;                    // projectile origin (on the line)
   const TRAY_Y = H - BOTTOM * 0.42;             // tray + HUD baseline
-  const MAX_ROWS = Math.max(6, Math.floor((DANGER_Y - TOP - TILE) / ROW_H));
+  const MAX_ROWS = Math.max(6, Math.floor((DANGER_Y - TOP) / ROW_H) + 1);
   const PROJ_R = TILE * 0.42;
   const SPEED = TILE * 0.55;
   const MAX_AIM = 1.35;                         // ~77° from vertical
+  const SPRITE = TILE * 0.72;                   // drawn Zood — 20% smaller than the cell, leaves a clear gap
+  const BARREL_LEN = TILE * 1.15;               // cannon barrel length
 
   function cellX(r, c) { return MARGIN + TILE / 2 + c * TILE + (r % 2) * (TILE / 2); }
   function cellY(r)    { return TOP + TILE / 2 + r * ROW_H; }
@@ -139,8 +187,10 @@
   function boardTypes() {
     const seen = new Set();
     for (let r = 0; r < MAX_ROWS; r++)
-      for (let c = 0; c < COLS; c++)
-        if (grid[r][c] !== null) seen.add(grid[r][c]);
+      for (let c = 0; c < COLS; c++) {
+        const v = grid[r][c];
+        if (v !== null && v !== undefined) seen.add(v);
+      }
     return [...seen];
   }
   function pickType() {
@@ -150,14 +200,22 @@
   }
 
   // ---------- CANNON / TRAY ----------
-  // tray = [L2, L1, LOADED, R1, R2]; loaded fires from the centre.
+  // `loaded` is the Zood at the cannon's mouth — the one that fires now.
+  // tray = [L2, L1, NEXT, R1, R2]; tray[2] (the circled centre) is the NEXT
+  // Zood, sitting in the belly ready to move up to the mouth after this shot.
+  // So the mouth and the belly always show two consecutive, distinct Zoods.
   let tray = [];
+  let loaded = 0;
   let nextFromLeft = true;
   function fillTray() {
     tray = [pickType(), pickType(), pickType(), pickType(), pickType()];
+    loaded = pickType();
     nextFromLeft = true;
   }
   function advanceTray() {
+    // The queued NEXT (tray[2]) moves up to the mouth; refill the queue from
+    // one side, alternating each shot.
+    loaded = tray[2];
     if (nextFromLeft) { tray[2] = tray[1]; tray[1] = tray[0]; tray[0] = pickType(); }
     else              { tray[2] = tray[3]; tray[3] = tray[4]; tray[4] = pickType(); }
     nextFromLeft = !nextFromLeft;
@@ -169,9 +227,10 @@
   let aim = 0;                    // radians, 0 = straight up, + = right
   let proj = null;               // { x, y, vx, vy, type }
   let flashes = [];              // {x,y,t} pop effects
-  const START_ROWS = 5;
+  let missCount = 0;             // shots since the last clear; 5 → the cluster descends
+  const START_ROWS = 3;
 
-  function zootsLeft() {
+  function zoodLeft() {
     let n = 0;
     for (let r = 0; r < MAX_ROWS; r++)
       for (let c = 0; c < COLS; c++)
@@ -188,6 +247,7 @@
     score = 0;
     proj = null;
     flashes = [];
+    missCount = 0;
     aim = 0;
   }
 
@@ -229,6 +289,17 @@
     return dropped;
   }
 
+  function descendRows() {
+    // Shift every row down one; a fresh full row of Zoods enters at the top.
+    for (let r = MAX_ROWS - 1; r >= 1; r--) grid[r] = grid[r - 1];
+    // Build the new top row fully BEFORE assigning it to grid[0]. If we filled
+    // grid[0] cell-by-cell, pickType()/boardTypes() would scan the half-filled
+    // row, read past its length (undefined), and poison the type pool.
+    const newRow = new Array(COLS);
+    for (let c = 0; c < COLS; c++) newRow[c] = pickType();
+    grid[0] = newRow;
+  }
+
   function resolveLanding(r, c) {
     const cluster = sameCluster(r, c);
     if (cluster.length >= 3) {
@@ -237,14 +308,20 @@
         grid[rr][cc] = null;
       }
       score += cluster.length * 10;
-      const dropped = dropFloaters();
-      if (dropped) score += dropped * 20;
       play('drop');
     } else {
+      // Missed shot — nothing cleared. Every 5th miss, the whole cluster
+      // descends one row and a new row appears at the top.
       play('land');
+      missCount++;
+      if (missCount >= 5) { missCount = 0; descendRows(); play('drop'); }
     }
-    if (zootsLeft() === 0) { phase = 'won'; play('win'); return; }
-    // Lose if any Zoot now sits on/over the danger line.
+    // Always sweep out any Zood no longer connected to the top row, so nothing
+    // is ever left floating — runs after every shot, not just after matches.
+    const dropped = dropFloaters();
+    if (dropped) score += dropped * 20;
+    if (zoodLeft() === 0) { phase = 'won'; play('win'); return; }
+    // Lose if any Zood now sits on/over the danger line.
     for (let rr = 0; rr < MAX_ROWS; rr++)
       for (let cc = 0; cc < COLS; cc++)
         if (grid[rr][cc] !== null && cellY(rr) + TILE / 2 >= DANGER_Y) { phase = 'lost'; play('fail'); return; }
@@ -270,10 +347,13 @@
 
   function fire() {
     if (proj) return;
+    // Launch from the cannon muzzle (tip of the barrel) in the aim direction.
+    const mx = LAUNCH_X + Math.sin(aim) * BARREL_LEN;
+    const my = LAUNCH_Y - Math.cos(aim) * BARREL_LEN;
     proj = {
-      x: LAUNCH_X, y: LAUNCH_Y,
+      x: mx, y: my,
       vx: Math.sin(aim) * SPEED, vy: -Math.cos(aim) * SPEED,
-      type: tray[2],
+      type: loaded,
     };
     play('click');
   }
@@ -289,7 +369,7 @@
       else if (proj.x > W - MARGIN - PROJ_R) { proj.x = W - MARGIN - PROJ_R; proj.vx = -proj.vx; }
       // Ceiling.
       if (proj.y - PROJ_R <= TOP) { land(); return; }
-      // Collision with an existing Zoot.
+      // Collision with an existing Zood.
       for (let r = 0; r < MAX_ROWS; r++) {
         for (let c = 0; c < COLS; c++) {
           if (grid[r][c] === null) continue;
@@ -320,46 +400,51 @@
     ctx.arcTo(x, y, x + w, y, rad);
     ctx.closePath();
   }
-  function drawZoot(cx, cy, type, size) {
-    const img = sprites[type];
-    if (img && img.complete && img.naturalWidth) {
-      ctx.drawImage(img, cx - size / 2, cy - size / 2, size, size);
-    } else {
-      ctx.fillStyle = TYPE_COLORS[type];
-      roundRect(cx - size / 2, cy - size / 2, size, size, size * 0.22);
-      ctx.fill();
+  function drawZood(cx, cy, type, size, phase) {
+    // Always lay down a solid rounded tile in the Zood's colour first. The
+    // opaque character art is drawn on top and covers it completely in the
+    // normal case, so this is invisible — but it guarantees a Zood can never
+    // render fully invisible even if a frame image fails to paint (a WebKit /
+    // Gecko drawImage edge case that doesn't show up in Chromium).
+    ctx.fillStyle = TYPE_COLORS[type] || '#888888';
+    roundRect(cx - size / 2, cy - size / 2, size, size, size * 0.24);
+    ctx.fill();
+    // Draw the baked frame canvas for this Zood (falls back to its single
+    // baked sprite, then to the colour tile above if nothing has loaded yet).
+    let src = null;
+    const fset = frames[type];
+    if (fset && fset.length) {
+      const idx = (Math.floor(nowMs / FRAME_MS) + (phase || 0)) % TYPE_ANIM[type].count;
+      if (fset[idx]) src = fset[idx];
     }
+    if (!src && sprites[type]) src = sprites[type];
+    if (src) ctx.drawImage(src, cx - size / 2, cy - size / 2, size, size);
   }
 
-  function drawAim() {
-    // Bouncing trajectory preview from the launcher.
-    let x = LAUNCH_X, y = LAUNCH_Y;
-    let vx = Math.sin(aim), vy = -Math.cos(aim);
+  function drawCannon() {
+    const barrelW = TILE * 0.66;
+    const mx = LAUNCH_X + Math.sin(aim) * BARREL_LEN;
+    const my = LAUNCH_Y - Math.cos(aim) * BARREL_LEN;
+    // Barrel — rotates toward the aim direction.
     ctx.save();
-    ctx.strokeStyle = C.aim;
-    ctx.lineWidth = 2;
-    ctx.setLineDash([6, 8]);
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    const STEP = TILE * 0.35;
-    for (let i = 0; i < 220; i++) {
-      x += vx * STEP; y += vy * STEP;
-      if (x < MARGIN + PROJ_R) { x = MARGIN + PROJ_R; vx = -vx; }
-      else if (x > W - MARGIN - PROJ_R) { x = W - MARGIN - PROJ_R; vx = -vx; }
-      ctx.lineTo(x, y);
-      if (y - PROJ_R <= TOP) break;
-      let hit = false;
-      for (let r = 0; r < MAX_ROWS && !hit; r++)
-        for (let c = 0; c < COLS; c++) {
-          if (grid[r][c] === null) continue;
-          const dx = x - cellX(r, c), dy = y - cellY(r);
-          if (dx * dx + dy * dy < (TILE * 0.82) * (TILE * 0.82)) { hit = true; break; }
-        }
-      if (hit) break;
-    }
-    ctx.stroke();
-    ctx.setLineDash([]);
+    ctx.translate(LAUNCH_X, LAUNCH_Y);
+    ctx.rotate(aim);
+    ctx.fillStyle = '#454A86';
+    roundRect(-barrelW / 2, -BARREL_LEN, barrelW, BARREL_LEN + barrelW * 0.4, barrelW * 0.32);
+    ctx.fill();
+    // Highlight strip down the barrel.
+    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    roundRect(-barrelW / 2 + 4, -BARREL_LEN + 5, barrelW * 0.26, BARREL_LEN - 10, barrelW * 0.13);
+    ctx.fill();
     ctx.restore();
+    // Base mount (dome + hub).
+    ctx.fillStyle = '#2C3163';
+    ctx.beginPath(); ctx.arc(LAUNCH_X, LAUNCH_Y, TILE * 0.62, Math.PI, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#3A4079';
+    ctx.beginPath(); ctx.arc(LAUNCH_X, LAUNCH_Y, TILE * 0.34, 0, Math.PI * 2); ctx.fill();
+    // The `loaded` Zood sits at the muzzle (drawn upright) — the one that
+    // fires now. The tray's circled centre shows the next Zood behind it.
+    drawZood(mx, my, loaded, SPRITE);
   }
 
   function drawTray() {
@@ -375,7 +460,7 @@
     ctx.stroke();
     for (let i = 0; i < 5; i++) {
       const cx = x + slot / 2 + i * (slot + gap);
-      drawZoot(cx, y, tray[i], slot * 0.92);
+      drawZood(cx, y, tray[i], slot * 0.92, i);
       if (i === 2) {
         ctx.strokeStyle = C.text;
         ctx.lineWidth = 2.5;
@@ -396,14 +481,14 @@
     ctx.font = '800 20px Inter, sans-serif';
     ctx.fillStyle = C.text;
     ctx.fillText(String(score), MARGIN + 8, TRAY_Y + 14);
-    // ZOOTS — bottom-right.
+    // ZOOD — bottom-right.
     ctx.textAlign = 'right';
     ctx.font = '700 11px Inter, sans-serif';
     ctx.fillStyle = C.textDim;
-    ctx.fillText('ZOOTS', W - MARGIN - 8, TRAY_Y - 8);
+    ctx.fillText('ZOOD', W - MARGIN - 8, TRAY_Y - 8);
     ctx.font = '800 20px Inter, sans-serif';
     ctx.fillStyle = C.text;
-    ctx.fillText(String(zootsLeft()), W - MARGIN - 8, TRAY_Y + 14);
+    ctx.fillText(String(zoodLeft()), W - MARGIN - 8, TRAY_Y + 14);
   }
 
   function drawFlashes(now) {
@@ -434,14 +519,14 @@
       ctx.fillText('HOW TO PLAY', midX, midY - 96);
       ctx.fillStyle = C.text;
       ctx.font = '800 44px Inter, sans-serif';
-      ctx.fillText('ZOOTS', midX, midY - 52);
+      ctx.fillText('ZOOD', midX, midY - 52);
       ctx.fillStyle = C.textDim;
       ctx.font = '500 15px Inter, sans-serif';
       const lines = [
-        'Aim and fire Zoots at the cluster above.',
+        'Aim and fire Zoods at the cluster above.',
         'Bank off the side walls to reach tricky spots.',
         'Match 3 or more of a kind to pop them.',
-        'Any Zoots left dangling drop too. Clear the board!',
+        'Any Zoods left dangling drop too. Clear the board!',
       ];
       lines.forEach((l, i) => ctx.fillText(l, midX, midY + i * 24));
       drawButton('START', midX, midY + lines.length * 24 + 30);
@@ -449,7 +534,7 @@
       const won = phase === 'won';
       ctx.fillStyle = won ? '#5DD39E' : C.accent;
       ctx.font = '700 13px Inter, sans-serif';
-      ctx.fillText(won ? 'BOARD CLEARED' : 'A ZOOT CROSSED THE LINE', midX, midY - 60);
+      ctx.fillText(won ? 'BOARD CLEARED' : 'A ZOOD CROSSED THE LINE', midX, midY - 60);
       ctx.fillStyle = C.text;
       ctx.font = '800 52px Inter, sans-serif';
       ctx.fillText(String(score), midX, midY - 12);
@@ -473,6 +558,7 @@
   }
 
   function loop(now) {
+    nowMs = now;
     // Background.
     const g = ctx.createLinearGradient(0, 0, 0, H);
     g.addColorStop(0, BG_TOP); g.addColorStop(1, BG_BOT);
@@ -482,7 +568,7 @@
     // Grid.
     for (let r = 0; r < MAX_ROWS; r++)
       for (let c = 0; c < COLS; c++)
-        if (grid[r][c] !== null) drawZoot(cellX(r, c), cellY(r), grid[r][c], TILE * 0.9);
+        if (grid[r][c] !== null) drawZood(cellX(r, c), cellY(r), grid[r][c], SPRITE, r * 3 + c);
 
     drawFlashes(now);
 
@@ -493,11 +579,9 @@
     ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(MARGIN, DANGER_Y); ctx.lineTo(W - MARGIN, DANGER_Y); ctx.stroke();
 
-    // Aim + projectile + launcher.
-    if (phase === 'playing' && !proj) drawAim();
-    if (proj) drawZoot(proj.x, proj.y, proj.type, TILE * 0.9);
-    // Launcher nub (loaded Zoot peeking above the tray).
-    drawZoot(LAUNCH_X, LAUNCH_Y - TILE * 0.1, tray[2], TILE * 0.62);
+    // Projectile + cannon.
+    if (proj) drawZood(proj.x, proj.y, proj.type, SPRITE);
+    drawCannon();
 
     drawTray();
     drawHUD();

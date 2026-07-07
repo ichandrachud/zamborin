@@ -1,0 +1,7 @@
+/* Zoods — per-game styles. Inherits everything from ../shared/chrome.css
+   and ../shared/tokens.css. Only game-specific chrome lives here. */
+
+/* Splash artwork per mode. The .splash frame, cover-sizing and fade all come
+   from ../shared/chrome.css — we only supply the background image here. */
+body.mode-desktop .splash { background-image: url('./splash-desktop.jpg'); }
+body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg'); }
