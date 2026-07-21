@@ -224,11 +224,18 @@
   let diceUsed = [false, false];
   let selectedDie = -1;
   let consecutiveDoubles = 0;
+  // Anti-stall pity: per player, while all four tokens are still in base,
+  // guarantee the double-six they need to get out within a window of that
+  // player's rolls — 10 at first, then every 20 thereafter. pityCount counts
+  // all-in-base rolls since the last double-six.
+  let pityCount = {};
+  let pityWindow = {};
   let rollAnim = null;
   let winner = null;
   let captureFlash = null;
   let lastMoveMsg = '';
   let capturedThisRoll = false;
+  let unlockedThisRoll = false;   // a base piece already left base on this roll
   // AI scheduling — milliseconds-of-time when the next AI action fires.
   let aiActionAt = 0;
   // Monotonically bumped each turn. setTimeout-deferred endTurn calls capture
@@ -246,11 +253,12 @@
   function previewMove(token, dieValue) {
     if (token.status === 'finished') return null;
     if (token.status === 'base') {
-      // House rule: a piece only leaves base when BOTH dice are 6. The
-      // unlocking consumes one die-of-6; the other 6 is then free to either
-      // unlock a second piece or advance one already on the board.
+      // House rule: a piece only leaves base when BOTH dice are 6, and only ONE
+      // piece may leave per double-six. The remaining six can then advance a
+      // piece already on the board (including the one just unlocked).
       if (dieValue !== 6) return null;
       if (dice[0] !== 6 || dice[1] !== 6) return null;
+      if (unlockedThisRoll) return null;
       return { kind: 'board', idx: START_INDEX[token.player] };
     }
     if (token.status === 'board') {
@@ -457,8 +465,16 @@
   function performRoll() {
     if (scene !== 'rolling' || winner) return;
     ensureAudio();
-    const v1 = 1 + Math.floor(Math.random() * 6);
-    const v2 = 1 + Math.floor(Math.random() * 6);
+    let v1 = 1 + Math.floor(Math.random() * 6);
+    let v2 = 1 + Math.floor(Math.random() * 6);
+    // Pity rule: if the active player still has every token in base, count this
+    // roll and force the double-six they need once they reach their window.
+    const p = activePlayer();
+    if (playerTokens(p).every(t => t.status === 'base')) {
+      pityCount[p]++;
+      if (pityCount[p] >= pityWindow[p]) { v1 = 6; v2 = 6; }
+      if (v1 === 6 && v2 === 6) { pityCount[p] = 0; pityWindow[p] = 20; }
+    }
     rollAnim = { t0: performance.now(), duration: 720, finalA: v1, finalB: v2 };
     capturedThisRoll = false;
     sfxDiceShake();
@@ -466,6 +482,7 @@
   function commitRoll() {
     dice = [rollAnim.finalA, rollAnim.finalB];
     diceUsed = [false, false];
+    unlockedThisRoll = false;
     selectedDie = -1;
     scene = 'choosing';
     rollAnim = null;
@@ -641,6 +658,7 @@
     const dieValue = dice[dieIdx];
     const dest = previewMove(token, dieValue);
     if (!dest) return;
+    if (token.status === 'base') unlockedThisRoll = true;
     diceUsed[dieIdx] = true;
     selectedDie = -1;
     startMoveAnimation(token, dest, dieValue, () => {
@@ -663,6 +681,7 @@
     activePlayerIdx = 0;
     winner = null;
     consecutiveDoubles = 0;
+    for (const p of turnOrder) { pityCount[p] = 0; pityWindow[p] = 10; }
     lastMoveMsg = '';
     captureFlash = null;
     aiActionAt = 0;

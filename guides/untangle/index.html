@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Untangle strategy: how to clear every crossing in fewer moves — Zamborin</title>
+  <meta name="description" content="A practical Untangle strategy guide: drag the dots so no lines cross, work the perimeter into a ring, isolate the busiest dots, untangle in clusters, and beat par." />
+  <meta name="theme-color" content="#0E1726" />
+  <link rel="canonical" href="https://zamborin.com/guides/untangle/" />
+  <link rel="icon" type="image/svg+xml" href="/images/zamborin-favicon.svg" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:site_name" content="Zamborin Games" />
+  <meta property="og:url" content="https://zamborin.com/guides/untangle/" />
+  <meta property="og:title" content="Untangle strategy: how to clear every crossing in fewer moves" />
+  <meta property="og:description" content="Work the perimeter into a ring, isolate the busiest dots, untangle in clusters, and beat par on every level." />
+  <meta property="og:image" content="https://zamborin.com/images/untangle-og.jpg" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Untangle strategy: how to clear every crossing in fewer moves" />
+  <meta name="twitter:description" content="A practical strategy guide to solving Untangle and beating par." />
+  <meta name="twitter:image" content="https://zamborin.com/images/untangle-og.jpg" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../shared/tokens.css" />
+  <link rel="stylesheet" href="../../shared/chrome.css?v=8" />
+  <style>
+    .guide { max-width: 760px; margin: 0 auto; padding: 40px 24px 80px; color: var(--text-dim); line-height: 1.7; font-size: 17px; }
+    .guide .crumbs { font-size: 14px; margin-bottom: 22px; color: var(--text-dim); }
+    .guide .crumbs a { color: #4DC3FF; text-decoration: none; }
+    .guide h1 { font-size: 38px; color: var(--text); font-weight: 800; margin: 0 0 6px; letter-spacing: -0.5px; line-height: 1.15; }
+    .guide .lede { font-size: 19px; color: var(--text); margin: 14px 0 8px; }
+    .guide h2 { font-size: 23px; color: var(--text); font-weight: 700; margin: 38px 0 10px; letter-spacing: -0.2px; }
+    .guide p { margin: 12px 0; }
+    .guide a { color: #4DC3FF; }
+    .guide strong { color: var(--text); font-weight: 600; }
+    .guide ul { margin: 12px 0; padding-left: 22px; }
+    .guide li { margin: 8px 0; }
+    .guide .cta { display: inline-block; margin-top: 8px; background: #4DC3FF; color: #06121e; font-weight: 700; text-decoration: none; padding: 13px 26px; border-radius: 10px; }
+    .guide .playbox { margin: 36px 0 8px; padding: 22px 24px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09); border-radius: 14px; }
+    .guide .playbox p { margin: 0 0 14px; color: var(--text); font-weight: 600; }
+    .guide .more { margin-top: 40px; padding-top: 22px; border-top: 1px solid rgba(255,255,255,0.09); font-size: 15px; }
+    @media (max-width: 720px) { .guide { padding: 28px 18px 56px; font-size: 16px; } .guide h1 { font-size: 30px; } }
+  </style>
+  <!-- Structured data: this page is an article/how-to about the game -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "Untangle strategy: how to clear every crossing in fewer moves",
+    "about": "Untangle planar-graph puzzle strategy",
+    "description": "A practical Untangle strategy guide covering the drag controls, working the perimeter into a ring, isolating the busiest dots, untangling in clusters, reading the red edges, and beating par.",
+    "author": { "@type": "Organization", "name": "Zamborin Games" },
+    "publisher": { "@type": "Organization", "name": "Zamborin Games", "url": "https://zamborin.com/" },
+    "mainEntityOfPage": "https://zamborin.com/guides/untangle/"
+  }
+  </script>
+  <meta name="google-adsense-account" content="ca-pub-9207689324865969">
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9207689324865969" crossorigin="anonymous"></script>
+</head>
+<body class="lobby-page">
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="Zamborin Games home">
+      <img class="brand-logo" src="/images/zamborin-logo.svg" alt="Zamborin" />
+    </a>
+  </header>
+
+  <main class="guide">
+    <nav class="crumbs"><a href="/">Home</a> › <a href="/guides/">Guides</a> › Untangle</nav>
+
+    <h1>Untangle strategy: how to clear every crossing in fewer moves</h1>
+    <p class="lede">Untangle drops a knot of dots and lines in front of you and asks one thing: drag the dots until no two lines cross. It always has a solution — so the real game is seeing the untangled shape quickly and getting there without shoving dots around at random. Here's the method that actually works, tuned to how Untangle plays on Zamborin.</p>
+
+    <h2>How it plays — the controls that matter</h2>
+    <p>You move one dot at a time. <strong>Click and drag</strong> a dot on desktop, or <strong>touch and drag</strong> it on mobile, and drop it wherever you like inside the playfield. Any line that currently crosses another line glows <strong>red and pulses</strong>, with a small marker sitting right on the crossing point, so you never have to hunt for the problem — the board tells you exactly what's still wrong. Clear every red line and the level is solved.</p>
+    <p>One thing to know before you start optimising: every drag that actually relocates a dot counts as <strong>one move</strong>, and each level has a <strong>par</strong> — the number of dots the puzzle scrambled out of place. Beating par is the scoring game, but nudging a dot a few pixels and dropping it back doesn't count, so you can reposition freely while you think.</p>
+
+    <h2>The shape you're solving toward is a ring</h2>
+    <p>This is the single most useful thing to know about Untangle. Every puzzle is built by placing the dots evenly around a <strong>circle</strong> and only ever connecting dots whose lines wouldn't cross on that circle — then scrambling some of them inward. That means the tidy, crossing-free answer is almost always the dots spread out around a rough <strong>loop</strong>, with the lines hugging the perimeter and reaching across the middle without tangling. So your default instinct should be: <em>push everything outward into a ring, not pile it into the centre.</em> When you feel stuck, spreading the dots apart is nearly always the right move.</p>
+
+    <h2>Work the outside in</h2>
+    <p>Start by dragging dots out to the edges of the playfield to give yourself room — a cramped tangle is impossible to read. Then build the perimeter: take the dots that clearly belong on the outer loop and space them around it. Once you have a rough ring, the lines start to sort themselves, and whatever's left tangled is usually just a couple of dots that got stranded in the middle. Pull those to the gap in the loop where their neighbours already sit. <strong>Following the lines</strong> from a settled dot tells you where its partner wants to go.</p>
+
+    <h2>Isolate the busiest dots first</h2>
+    <p>Not all dots are equal. A dot with <strong>five or six lines</strong> coming off it causes far more crossings than one with two, so it's worth finding the most-connected dots early and giving them clean space with room to fan their lines out. Drag a high-traffic dot to an open area and watch how many red lines go quiet at once — fixing one hub often clears a whole cluster of crossings in a single move, which is exactly how you come in under par.</p>
+
+    <h2>Untangle in clusters, not all at once</h2>
+    <p>On the harder tiers — nine, ten, twelve dots — don't try to hold the whole board in your head. Pick one knot of red lines and work only on it: separate that little group cleanly, then leave it alone and move to the next. When two lines cross, you rarely need to move both; dragging <strong>just one of the four endpoints</strong> out of the way is usually enough to split them. Solve the board as a series of small local fixes and the big tangle quietly disappears.</p>
+
+    <h2>Reading the red lines</h2>
+    <p>Treat the red glow as your to-do list and the crossing markers as a count of the work left. If a move turns several red lines calm, you're heading the right way; if it lights up more than it fixed, you've probably dragged a dot across lines it wasn't tangled with — back it out and try a shorter path. A dot pinned by lots of red almost always needs to travel <em>outward</em> to open space, not deeper into the crowd.</p>
+
+    <h2>Levels, par and beating your score</h2>
+    <p>Untangle starts with a gentle five-dot tutorial and ramps up through Basic, Easy, Medium, Hard and on to <strong>Master</strong>, adding dots and edges at every tier, then keeps generating fresh Master puzzles forever. A given level is the <strong>same puzzle for everyone</strong> and your highest level is saved on your device, so you always resume where you left off. Don't chase a low move count on your first attempt — <strong>solve it first</strong>, learn the untangled shape, then replay and beat your own par. Your best moves for each level are kept, and finishing under par earns the "brilliant" verdict.</p>
+
+    <h2>Quick checklist</h2>
+    <ul>
+      <li>Spread the dots out first — the answer is a ring, not a pile.</li>
+      <li>Build the outer loop, then pull stranded dots into the gaps.</li>
+      <li>Find the most-connected dots and give them open space early.</li>
+      <li>Fix one cluster of red lines at a time; move just one endpoint to split a pair.</li>
+      <li>Watch the red count — fewer after a move means you're on track.</li>
+      <li>Solve it once to learn the shape, then replay to beat par.</li>
+    </ul>
+
+    <div class="playbox">
+      <p>Ready to clear the board? Start at the tutorial and climb toward Master.</p>
+      <a class="cta" href="/untangle/">Play Untangle →</a>
+    </div>
+
+    <p class="more">More puzzles: <a href="/tessera/">Tessera</a> · <a href="/">all Zamborin games</a> · <a href="/guides/">all guides</a></p>
+  </main>
+
+  <footer class="site-footer">
+    <nav class="site-foot-nav">
+      <a href="/about/">About</a>
+      <a href="/guides/">Guides</a>
+      <a href="/privacy/">Privacy</a>
+      <a href="/contact/">Contact</a>
+    </nav>
+    <span>© 2026 Zamborin. Games created by Indrajeet Chandrachud.</span>
+  </footer>
+  <script defer src="/_vercel/insights/script.js"></script>
+</body>
+</html>

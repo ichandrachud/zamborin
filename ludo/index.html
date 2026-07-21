@@ -103,10 +103,10 @@
       <p>Ludo is the timeless board game of luck and nerve — a modern descendant of the ancient Indian game Pachisi, and a close cousin of Parcheesi and Trouble. Each player has four tokens that start locked in their home base, and the goal is simple: be the first to roll your way around the cross-shaped track and bring all four tokens safely home. Along the way you'll land on opponents and send them all the way back to the start, turn a hopeless-looking position around with one lucky six, and learn that in Ludo a comfortable lead is never quite as safe as it looks. Play a quick two-player game or a chaotic four-way race against up to three computer opponents.</p>
 
       <h2>How to play</h2>
-      <p>You play the red tokens; the other colours are controlled by the computer. On your turn, tap to roll the die and then choose which token to move by the number you rolled.</p>
+      <p>You play the red tokens; the other colours are controlled by the computer. On your turn, tap to roll the <strong>two dice</strong>, then move your tokens by the numbers rolled — you can move one token twice (once per die) or split the two dice across two different tokens.</p>
       <ul>
-        <li><strong>Getting out:</strong> a token can only leave its base when you roll a <strong>6</strong>. Until then it stays put.</li>
-        <li><strong>Rolling a six:</strong> a six also earns you another roll — so good sixes can chain into a big turn.</li>
+        <li><strong>Getting out:</strong> a token can only leave its base when you roll a <strong>double six</strong> — both dice showing 6 — and only <strong>one</strong> token comes out per double six. Until then it stays put.</li>
+        <li><strong>Rolling a double six:</strong> a double six also earns you another roll — so it frees a piece and keeps your turn going. (Roll three double sixes in a row and you forfeit the bonus.)</li>
         <li><strong>Capturing:</strong> land exactly on a square occupied by an opponent and their token is sent all the way back to base. Coloured star squares are safe havens where tokens can't be captured.</li>
         <li><strong>Winning:</strong> move all four of your tokens around the board and into the central finish to win the game.</li>
       </ul>
@@ -133,15 +133,20 @@
 
   <footer class="site-footer">
     <nav class="site-foot-nav">
+      <a href="/">Games</a>
+      <a href="/guides/">Guides</a>
       <a href="/about/">About</a>
+      <a href="/faq/">FAQ</a>
       <a href="/privacy/">Privacy</a>
+      <a href="/cookies/">Cookies</a>
+      <a href="/terms/">Terms</a>
       <a href="/contact/">Contact</a>
     </nav>
     <span>© 2026 Zamborin. Games created by Indrajeet Chandrachud.</span>
   </footer>
 
   <script src="../shared/sfx.js?v=1"></script>
-  <script src="./play.js?v=4"></script>
+  <script src="./play.js?v=6"></script>
   <script>
     (() => {
       const btn = document.getElementById('focus-toggle');
