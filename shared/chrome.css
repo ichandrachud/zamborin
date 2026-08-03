@@ -87,11 +87,21 @@ html.embed .ad-slot,
 html.embed .adsbygoogle {
   display: none !important;
 }
+/* Transparent background so the embed shows only the game itself; the host
+   page (e.g. the indrajeet.com case study) shows through any gap rather
+   than a dark field. The MOVES/LEVEL/PAR HUD is drawn on the canvas, so
+   nothing here relies on the dark body colour. overflow:hidden + no page
+   padding keep the game filling the frame with no scrollbars. */
+html.embed,
+html.embed body {
+  background: transparent !important;
+  overflow: hidden;
+}
 html.embed .page {
   max-width: none;
   min-height: 100vh;
   margin: 0;
-  padding: 12px;
+  padding: 0;
   justify-content: center;
 }
 
