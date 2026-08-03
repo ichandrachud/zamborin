@@ -3,6 +3,10 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <!-- Embed mode: ?embed hides all site chrome so the game sits center stage
+       inside an iframe (e.g. the indrajeet.com case study). Runs before paint
+       so there is no flash of chrome. Inert without the param. -->
+  <script>if(location.search.indexOf('embed')>-1)document.documentElement.classList.add('embed')</script>
   <title>Untangle — A Zamborin Game</title>
   <meta name="description" content="A free planar-graph puzzle with endless levels. Drag the dots so no two edges cross, from Tutorial to Master." />
   <meta name="theme-color" content="#0E1726" />
