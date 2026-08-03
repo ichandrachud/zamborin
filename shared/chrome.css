@@ -75,36 +75,6 @@ a.brand:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; b
   gap: 20px;
 }
 
-/* ---------- EMBED MODE (?embed) ----------
-   A <head> script adds .embed to <html> when the URL carries ?embed.
-   Hides all site chrome (header, footer, the descriptive game-info block)
-   so the game canvas alone sits center stage inside an iframe. Inert on
-   the normal site. */
-html.embed .site-header,
-html.embed .site-footer,
-html.embed .game-info,
-html.embed .ad-slot,
-html.embed .adsbygoogle {
-  display: none !important;
-}
-/* Transparent background so the embed shows only the game itself; the host
-   page (e.g. the indrajeet.com case study) shows through any gap rather
-   than a dark field. The MOVES/LEVEL/PAR HUD is drawn on the canvas, so
-   nothing here relies on the dark body colour. overflow:hidden + no page
-   padding keep the game filling the frame with no scrollbars. */
-html.embed,
-html.embed body {
-  background: transparent !important;
-  overflow: hidden;
-}
-html.embed .page {
-  max-width: none;
-  min-height: 100vh;
-  margin: 0;
-  padding: 0;
-  justify-content: center;
-}
-
 /* ---------- AD SLOTS — hidden V1 ---------- */
 .ad-slot {
   display: none;
