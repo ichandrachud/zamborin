@@ -82,7 +82,9 @@ a.brand:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; b
    the normal site. */
 html.embed .site-header,
 html.embed .site-footer,
-html.embed .game-info {
+html.embed .game-info,
+html.embed .ad-slot,
+html.embed .adsbygoogle {
   display: none !important;
 }
 html.embed .page {
