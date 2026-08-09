@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <title>Fold — A Zamborin Game</title>
+  <meta name="description" content="A calm origami-style puzzle. Fold the paper along its creases so every coloured dot lands on its matching ring. Free to play on phone and desktop." />
+  <meta name="theme-color" content="#0E1726" />
+  <link rel="canonical" href="https://zamborin.com/fold/" />
+  <link rel="icon" type="image/svg+xml" href="/images/zamborin-favicon.svg" />
+
+  <!-- Open Graph / Twitter -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Zamborin Games" />
+  <meta property="og:url" content="https://zamborin.com/fold/" />
+  <meta property="og:title" content="Fold — an origami-style folding puzzle" />
+  <meta property="og:description" content="Fold the paper along its creases so every dot lands on its matching ring. A calm, clever puzzle, free to play." />
+  <meta property="og:image" content="https://zamborin.com/images/fold-og.jpg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Fold — a sheet of paper on a grid with coloured dots and rings, mid-fold." />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Fold — an origami-style folding puzzle" />
+  <meta name="twitter:description" content="Fold the paper so every dot lands on its matching ring. A calm, clever puzzle, free to play." />
+  <meta name="twitter:image" content="https://zamborin.com/images/fold-og.jpg" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../shared/tokens.css" />
+  <link rel="stylesheet" href="../shared/chrome.css?v=8" />
+  <link rel="stylesheet" href="./play.css?v=1" />
+  <!-- Google AdSense -->
+  <meta name="google-adsense-account" content="ca-pub-9207689324865969">
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9207689324865969" crossorigin="anonymous"></script>
+  <!-- Structured data: VideoGame schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "VideoGame",
+    "name": "Fold",
+    "description": "A free origami-style folding puzzle. Fold the paper along its creases so every coloured dot lands on its matching ring.",
+    "url": "https://zamborin.com/fold/",
+    "image": "https://zamborin.com/images/fold-og.jpg",
+    "playMode": "SinglePlayer",
+    "gamePlatform": "Web Browser",
+    "applicationCategory": "Game",
+    "operatingSystem": "Web",
+    "genre": ["Puzzle","Logic"],
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "publisher": { "@type": "Organization", "name": "Zamborin Games", "url": "https://zamborin.com/" }
+  }
+  </script>
+  <style>
+    .game-info { max-width: 760px; margin: 0 auto; padding: 8px 24px 40px; color: var(--text-dim); line-height: 1.65; font-size: 16px; }
+    .game-info h1 { font-size: 28px; color: var(--text); font-weight: 800; margin: 20px 0 8px; letter-spacing: -0.3px; }
+    .game-info h2 { font-size: 20px; color: var(--text); font-weight: 700; margin: 30px 0 8px; }
+    .game-info p { margin: 12px 0; }
+    .game-info ul { margin: 12px 0; padding-left: 22px; }
+    .game-info li { margin: 7px 0; }
+    .game-info strong { color: var(--text); font-weight: 600; }
+    .game-info a { color: #4DC3FF; }
+    @media (max-width: 720px) { .game-info { padding: 8px 18px 40px; } .game-info h1 { font-size: 24px; } }
+    @media (max-width: 1099px) {
+      body.game-content-page { position: static; overflow: visible; height: auto; width: auto; top: auto; left: auto; touch-action: auto; }
+      body.game-content-page .site-footer { display: flex; }
+    }
+  </style>
+</head>
+<body class="game-content-page">
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="Zamborin Games home">
+      <img class="brand-logo" src="/images/zamborin-logo.svg" alt="Zamborin" />
+    </a>
+    <div class="header-right">
+      <button id="focus-toggle" class="focus-btn" type="button" aria-label="Play fullscreen" aria-pressed="false">
+        <svg class="icon-enter" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="4 9 4 4 9 4"/>
+          <polyline points="20 9 20 4 15 4"/>
+          <polyline points="4 15 4 20 9 20"/>
+          <polyline points="20 15 20 20 15 20"/>
+        </svg>
+        <svg class="icon-exit" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M6 6l12 12M18 6L6 18"/>
+        </svg>
+      </button>
+      <a class="back-link" href="/">Back to all games</a>
+    </div>
+  </header>
+
+  <main class="page">
+    <section class="play-row">
+      <div class="game-wrap">
+        <canvas id="game" aria-label="Fold puzzle"></canvas>
+        <!-- Splash: shows for 2 s at load, then fades to reveal the rules screen. -->
+        <div id="splash" class="splash" aria-hidden="true"></div>
+      </div>
+    </section>
+
+    <section class="game-info">
+      <h1>Fold: a calm origami-style folding puzzle</h1>
+
+      <p>Fold is a quiet little logic puzzle about paper. You are given a sheet marked with a grid of creases, and scattered across it are pairs of coloured marks: a solid <strong>dot</strong> and a matching hollow <strong>ring</strong>. Your job is to fold the paper along its creases until every dot comes to rest exactly on top of its own ring. It looks simple, and the first few levels are, but folding a dot toward one ring often carries three other marks somewhere you did not intend, and learning to read those knock-on effects is the whole game. It is the kind of puzzle you can dip into for one quick level or lose half an hour to, with a soft, papery feel and no timer rushing you.</p>
+
+      <h2>How to play</h2>
+      <p>Tap a crease line and the smaller side of the paper folds over onto the larger side, just like folding a real sheet. Everything on the flap you fold, paper and marks alike, flips over and stacks onto the layer beneath it. Keep folding until each dot sits on its ring.</p>
+      <ul>
+        <li><strong>Fold:</strong> tap or click on any crease line. The smaller flap always folds over the crease onto the rest of the sheet.</li>
+        <li><strong>Match:</strong> a pair is solved when its dot and ring end up in the same square. A white halo appears when they meet.</li>
+        <li><strong>Undo:</strong> made a fold you regret? Use the Undo button to step back one fold at a time.</li>
+        <li><strong>Restart:</strong> unfold the whole sheet and start the level fresh.</li>
+      </ul>
+      <p>Solve every pair and the level is complete. Your progress is saved automatically, so you always pick up where you left off.</p>
+
+      <h2>Why it gets clever</h2>
+      <p>Each fold reflects part of the paper, so the marks on the moving flap end up mirrored. A fold that lands one dot on its ring can pull another pair apart, and a stack of folds compounds those reflections. The best solutions are rarely the most obvious first move. As you climb the levels the sheet grows larger and the number of pairs increases, but the gentle curve means every step forward still feels fair.</p>
+
+      <h2>Tips</h2>
+      <ul>
+        <li>Look at where a dot and its ring sit relative to the crease between them. A single fold on that line often snaps them together.</li>
+        <li>Plan a couple of folds ahead. Track where a mark will travel, not just where it is now.</li>
+        <li>Do not be afraid to Undo. Fold is about experimenting, and stepping back costs you nothing.</li>
+        <li>If a level looks tangled, try to solve the pair that is furthest from centre first, then work inward.</li>
+      </ul>
+
+      <h2>Frequently asked questions</h2>
+      <p><strong>Is Fold free?</strong> Yes, completely free to play, with no account or download, in any modern browser on phone, tablet or desktop.</p>
+      <p><strong>Does it work on mobile?</strong> Yes. Fold is built for touch as well as mouse, so it plays the same way on a phone as it does on a desktop.</p>
+      <p><strong>How do I win?</strong> Fold the paper so that every coloured dot ends up sitting on its matching ring. That solves the level and moves you to the next one.</p>
+      <p><strong>Is every level solvable?</strong> Yes. Each level is generated by folding a real sheet, so there is always at least one sequence of folds that solves it.</p>
+
+      <p>Enjoy a good thinking puzzle? Try <a href="/tessera/">Tessera</a> or <a href="/untangle/">Untangle</a>, or browse <a href="/">all Zamborin games</a>.</p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <nav class="site-foot-nav">
+      <a href="/">Games</a>
+      <a href="/guides/">Guides</a>
+      <a href="/about/">About</a>
+      <a href="/faq/">FAQ</a>
+      <a href="/privacy/">Privacy</a>
+      <a href="/cookies/">Cookies</a>
+      <a href="/terms/">Terms</a>
+      <a href="/contact/">Contact</a>
+    </nav>
+    <span>© 2026 Zamborin. Games created by Indrajeet Chandrachud.</span>
+  </footer>
+
+  <script src="./play.js?v=7"></script>
+  <script>
+    (() => {
+      const btn = document.getElementById('focus-toggle');
+      btn.addEventListener('click', () => {
+        const on = document.body.classList.toggle('focus-mode');
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        btn.setAttribute('aria-label', on ? 'Exit fullscreen' : 'Play fullscreen');
+        setTimeout(() => window.dispatchEvent(new Event('resize')), 60);
+      });
+    })();
+
+    // Splash: 2 s reveal, 0.6 s fade, remove from DOM at 2.7 s, then tell play.js.
+    (() => {
+      const splash = document.getElementById('splash');
+      if (!splash) return;
+      setTimeout(() => splash.classList.add('fading'), 2000);
+      setTimeout(() => {
+        splash.remove();
+        window.dispatchEvent(new CustomEvent('splash-done'));
+      }, 2700);
+    })();
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
+</body>
+</html>

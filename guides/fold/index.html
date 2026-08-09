@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Fold strategy: how to read the reflection and solve every level — Zamborin</title>
+  <meta name="description" content="A practical Fold strategy guide: how folding reflects the paper, reading where a mark will travel, finding the crease between a dot and its ring, planning folds in order, and using undo to experiment." />
+  <meta name="theme-color" content="#0E1726" />
+  <link rel="canonical" href="https://zamborin.com/guides/fold/" />
+  <link rel="icon" type="image/svg+xml" href="/images/zamborin-favicon.svg" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:site_name" content="Zamborin Games" />
+  <meta property="og:url" content="https://zamborin.com/guides/fold/" />
+  <meta property="og:title" content="Fold strategy: how to read the reflection and solve every level" />
+  <meta property="og:description" content="How folding reflects the paper, reading where a mark will travel, finding the crease between a dot and its ring, and planning folds in order." />
+  <meta property="og:image" content="https://zamborin.com/images/fold-og.jpg" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Fold strategy: how to read the reflection and solve every level" />
+  <meta name="twitter:description" content="A practical strategy guide to solving Fold, the origami-style folding puzzle." />
+  <meta name="twitter:image" content="https://zamborin.com/images/fold-og.jpg" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../shared/tokens.css" />
+  <link rel="stylesheet" href="../../shared/chrome.css?v=8" />
+  <style>
+    .guide { max-width: 760px; margin: 0 auto; padding: 40px 24px 80px; color: var(--text-dim); line-height: 1.7; font-size: 17px; }
+    .guide .crumbs { font-size: 14px; margin-bottom: 22px; color: var(--text-dim); }
+    .guide .crumbs a { color: #4DC3FF; text-decoration: none; }
+    .guide h1 { font-size: 38px; color: var(--text); font-weight: 800; margin: 0 0 6px; letter-spacing: -0.5px; line-height: 1.15; }
+    .guide .lede { font-size: 19px; color: var(--text); margin: 14px 0 8px; }
+    .guide h2 { font-size: 23px; color: var(--text); font-weight: 700; margin: 38px 0 10px; letter-spacing: -0.2px; }
+    .guide p { margin: 12px 0; }
+    .guide a { color: #4DC3FF; }
+    .guide strong { color: var(--text); font-weight: 600; }
+    .guide ul { margin: 12px 0; padding-left: 22px; }
+    .guide li { margin: 8px 0; }
+    .guide .cta { display: inline-block; margin-top: 8px; background: #4DC3FF; color: #06121e; font-weight: 700; text-decoration: none; padding: 13px 26px; border-radius: 10px; }
+    .guide .playbox { margin: 36px 0 8px; padding: 22px 24px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09); border-radius: 14px; }
+    .guide .playbox p { margin: 0 0 14px; color: var(--text); font-weight: 600; }
+    .guide .more { margin-top: 40px; padding-top: 22px; border-top: 1px solid rgba(255,255,255,0.09); font-size: 15px; }
+    @media (max-width: 720px) { .guide { padding: 28px 18px 56px; font-size: 16px; } .guide h1 { font-size: 30px; } }
+  </style>
+  <!-- Structured data: this page is an article/how-to about the game -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "Fold strategy: how to read the reflection and solve every level",
+    "about": "Fold origami folding puzzle strategy",
+    "description": "A practical Fold strategy guide covering how folding reflects the paper, reading where a mark will travel, finding the crease between a dot and its ring, planning folds in order, and using undo to experiment.",
+    "author": { "@type": "Organization", "name": "Zamborin Games" },
+    "publisher": { "@type": "Organization", "name": "Zamborin Games", "url": "https://zamborin.com/" },
+    "mainEntityOfPage": "https://zamborin.com/guides/fold/"
+  }
+  </script>
+  <meta name="google-adsense-account" content="ca-pub-9207689324865969">
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9207689324865969" crossorigin="anonymous"></script>
+</head>
+<body class="lobby-page">
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="Zamborin Games home">
+      <img class="brand-logo" src="/images/zamborin-logo.svg" alt="Zamborin" />
+    </a>
+  </header>
+
+  <main class="guide">
+    <nav class="crumbs"><a href="/">Home</a> › <a href="/guides/">Guides</a> › Fold</nav>
+
+    <h1>Fold strategy: how to read the reflection and solve every level</h1>
+    <p class="lede">Fold looks like simple paper folding, and the first levels are. What separates a quick solve from a stuck one is learning to see where a mark will land before you fold, not after. Here is how the puzzle actually works, and how to think about it.</p>
+
+    <h2>What a fold really does</h2>
+    <p>Every crease splits the sheet into two sides. Tap a crease and the <strong>smaller side folds over onto the larger side</strong>, exactly like folding real paper. Anything sitting on that moving flap, paper and marks alike, comes along for the ride and ends up <strong>mirrored</strong> across the crease. A mark two squares to the right of the fold line lands two squares to the left of it. That mirror is the single most important idea in the game: a fold does not slide a mark straight across, it flips it.</p>
+
+    <h2>Read the reflection before you tap</h2>
+    <p>Because folding mirrors the flap, the mark that is furthest from a crease travels the furthest, and the one sitting right beside the crease barely moves. Before committing, pick the mark you care about and picture the crease as a mirror: wherever it is now, imagine its reflection on the other side. If that reflection lands on the square you want, fold. If it overshoots, you probably want a crease closer to the mark, not further away.</p>
+
+    <h2>Find the crease between a dot and its ring</h2>
+    <p>The cleanest solves come from folding on the line that sits exactly <strong>between a dot and its matching ring</strong>. If a dot and its ring are separated by an even gap, the crease straight down the middle folds one directly onto the other. Start every level by scanning for a pair that already has a clean midpoint crease between them. Solving the easy pair first often shrinks the sheet and lines up the harder pairs for free.</p>
+
+    <h2>Mind the other pairs</h2>
+    <p>The catch is that a fold moves <strong>everything</strong> on the flap, not just the pair you were aiming at. A fold that snaps one dot onto its ring can just as easily carry a second pair apart. This is why Fold is a puzzle and not a chore: you are looking for an <strong>order of folds</strong> where each one helps without wrecking what you already fixed. When two pairs fight each other, ask which one you should solve last, once the other is safely tucked under a fold.</p>
+
+    <h2>Think in layers</h2>
+    <p>As you fold, the paper stacks into layers, and later folds carry those whole stacks together. A mark that is already matched will stay matched as long as the folds that follow keep it paired with its partner in the same square. Often the winning plan is to <strong>match the outer pairs first and the central pair last</strong>, so the final fold closes the sheet without disturbing anything underneath.</p>
+
+    <h2>Undo is free, so experiment</h2>
+    <p>You are not punished for trying. The <strong>Undo</strong> button steps back one fold at a time, and <strong>Restart</strong> unfolds the whole sheet to the beginning. Fold rewards experimentation: make a fold, see how the marks move, and step back if it went the wrong way. Over a few levels you build an instinct for the mirror, and you will start seeing two and three folds ahead without needing to test them.</p>
+
+    <h2>The difficulty climbs gently</h2>
+    <p>Early levels use a small sheet and two pairs, so almost any sensible fold makes progress. As you climb, the paper grows and more pairs appear, which means more reflections to keep track of and more folds that interfere with each other. The curve is deliberately gentle: every level is built by folding a real sheet, so there is always a solution, and the new wrinkle each stage adds is small enough to reason through. Your progress saves automatically, so you can always pick up where you left off.</p>
+
+    <h2>Quick checklist</h2>
+    <ul>
+      <li>A fold mirrors the flap. The mark furthest from the crease moves furthest.</li>
+      <li>Picture the crease as a mirror before you tap, and check where your mark reflects to.</li>
+      <li>Look for a pair with a clean midpoint crease and solve it first.</li>
+      <li>Remember every fold moves all the marks on the flap, not just your target.</li>
+      <li>Match outer pairs first, the central pair last, so the final fold does not undo your work.</li>
+      <li>Use Undo freely. Experimenting costs you nothing.</li>
+    </ul>
+
+    <div class="playbox">
+      <p>Fold the paper and land every dot on its ring.</p>
+      <a class="cta" href="/fold/">Play Fold →</a>
+    </div>
+
+    <p class="more">More puzzles: <a href="/untangle/">Untangle</a> · <a href="/tessera/">Tessera</a> · <a href="/">all Zamborin games</a> · <a href="/guides/">all guides</a></p>
+  </main>
+
+  <footer class="site-footer">
+    <nav class="site-foot-nav">
+      <a href="/about/">About</a>
+      <a href="/guides/">Guides</a>
+      <a href="/privacy/">Privacy</a>
+      <a href="/contact/">Contact</a>
+    </nav>
+    <span>© 2026 Zamborin. Games created by Indrajeet Chandrachud.</span>
+  </footer>
+  <script defer src="/_vercel/insights/script.js"></script>
+</body>
+</html>

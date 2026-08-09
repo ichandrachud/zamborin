@@ -8,6 +8,7 @@
   <url><loc>https://zamborin.com/ludo/</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
   <url><loc>https://zamborin.com/carrom/</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
   <url><loc>https://zamborin.com/zood/</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://zamborin.com/fold/</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
 
   <url><loc>https://zamborin.com/guides/</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
   <url><loc>https://zamborin.com/guides/ludo/</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
@@ -15,6 +16,7 @@
   <url><loc>https://zamborin.com/guides/tessera/</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://zamborin.com/guides/untangle/</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://zamborin.com/guides/zood/</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://zamborin.com/guides/fold/</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
 
   <url><loc>https://zamborin.com/about/</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
   <url><loc>https://zamborin.com/faq/</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
