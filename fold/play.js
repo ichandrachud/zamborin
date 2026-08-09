@@ -60,7 +60,8 @@
   window.addEventListener('resize', onResize);
 
   // ---------- CONSTANTS ----------
-  const BG = '#141821', PAPER = '#F3EEE3', PAPER_EDGE = '#cdc4b0';
+  const BG_TOP = '#1B2A47', BG_MID = '#131F36', BG_BOT = '#0E1726';   // Zamborin dark-blue
+  const PAPER = '#F3EEE3', PAPER_EDGE = '#cdc4b0';
   const CREASE = 'rgba(60,66,80,0.28)', CREASE_HI = 'rgba(255,255,255,0.55)';
   const PANEL = '#1b2330', PANEL_LINE = 'rgba(255,255,255,0.12)', GO = '#3DDC84';
   const COLORS = ['#ED3B34', '#2BB3E8', '#F2B705', '#3DDC84', '#EE6C1E', '#B06CF0'];
@@ -316,7 +317,10 @@
   // ---------- RENDER ----------
   function render() {
     uiButtons = [];
-    ctx.clearRect(0, 0, CW, CH); ctx.fillStyle = BG; ctx.fillRect(0, 0, CW, CH);
+    ctx.clearRect(0, 0, CW, CH);
+    const bg = ctx.createRadialGradient(CW * 0.32, 0, 0, CW * 0.32, 0, Math.max(CW, CH) * 1.1);
+    bg.addColorStop(0, BG_TOP); bg.addColorStop(0.6, BG_MID); bg.addColorStop(1, BG_BOT);
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, CW, CH);
     if (anim) drawAnimating(anim.p != null ? anim.p : Math.min(1, (performance.now() - anim.t0) / FOLD_MS));
     else drawStatic();
     drawHUD();
