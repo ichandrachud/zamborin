@@ -1,0 +1,13 @@
+/* Orbit — per-game styles. Inherits everything from ../shared/chrome.css
+   and ../shared/tokens.css. Orbit's board is a circle inside a portrait card;
+   the mode-driven --canvas-w / --canvas-h (set by play.js) size the game-wrap. */
+
+/* Splash artwork per mode. The .splash frame, cover-sizing and fade all
+   come from ../shared/chrome.css — we only supply the background image.
+   Desktop art is 1120×1280, mobile 1200×1920, matching Fold and Bloom.
+
+   The ?v= is deliberate. Any browser that hit this page before the art was in
+   place cached a 404 against the bare filename and would keep showing a blank
+   panel; a versioned URL is a different cache entry. Bump it when art changes. */
+body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=1'); }
+body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=1'); }

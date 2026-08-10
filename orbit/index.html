@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <title>Orbit — A Zamborin Game</title>
+  <meta name="description" content="A calm ring-spinning puzzle. Turn the concentric rings so light travels from the centre out to every bulb and the paths settle into a symmetric mandala. Free to play on phone and desktop." />
+  <meta name="theme-color" content="#0E1726" />
+  <link rel="canonical" href="https://zamborin.com/orbit/" />
+  <link rel="icon" type="image/svg+xml" href="/images/zamborin-favicon.svg" />
+
+  <!-- Open Graph / Twitter -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Zamborin Games" />
+  <meta property="og:url" content="https://zamborin.com/orbit/" />
+  <meta property="og:title" content="Orbit — a ring-spinning light puzzle" />
+  <meta property="og:description" content="Spin the concentric rings so light runs from the centre out to every bulb, and the broken arcs resolve into a mandala. A calm, clever puzzle, free to play." />
+  <meta property="og:image" content="https://zamborin.com/images/orbit-og.jpg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Orbit — glowing concentric rings forming a mandala." />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Orbit — a ring-spinning light puzzle" />
+  <meta name="twitter:description" content="Spin the rings so light reaches every bulb. A calm, clever puzzle, free to play." />
+  <meta name="twitter:image" content="https://zamborin.com/images/orbit-og.jpg" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../shared/tokens.css" />
+  <link rel="stylesheet" href="../shared/chrome.css?v=8" />
+  <link rel="stylesheet" href="./play.css?v=2" />
+  <!-- Google AdSense -->
+  <meta name="google-adsense-account" content="ca-pub-9207689324865969">
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9207689324865969" crossorigin="anonymous"></script>
+  <!-- Structured data: VideoGame schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "VideoGame",
+    "name": "Orbit",
+    "description": "A free ring-spinning puzzle. Turn the concentric rings so light travels from the centre out to every bulb and the paths settle into a symmetric mandala.",
+    "url": "https://zamborin.com/orbit/",
+    "image": "https://zamborin.com/images/orbit-og.jpg",
+    "playMode": "SinglePlayer",
+    "gamePlatform": "Web Browser",
+    "applicationCategory": "Game",
+    "operatingSystem": "Web",
+    "genre": ["Puzzle","Logic"],
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "publisher": { "@type": "Organization", "name": "Zamborin Games", "url": "https://zamborin.com/" }
+  }
+  </script>
+  <style>
+    .game-info { max-width: 760px; margin: 0 auto; padding: 8px 24px 40px; color: var(--text-dim); line-height: 1.65; font-size: 16px; }
+    .game-info h1 { font-size: 28px; color: var(--text); font-weight: 800; margin: 20px 0 8px; letter-spacing: -0.3px; }
+    .game-info h2 { font-size: 20px; color: var(--text); font-weight: 700; margin: 30px 0 8px; }
+    .game-info p { margin: 12px 0; }
+    .game-info ul { margin: 12px 0; padding-left: 22px; }
+    .game-info li { margin: 7px 0; }
+    .game-info strong { color: var(--text); font-weight: 600; }
+    .game-info a { color: #4DC3FF; }
+    @media (max-width: 720px) { .game-info { padding: 8px 18px 40px; } .game-info h1 { font-size: 24px; } }
+    @media (max-width: 1099px) {
+      body.game-content-page { position: static; overflow: visible; height: auto; width: auto; top: auto; left: auto; touch-action: auto; }
+      body.game-content-page .site-footer { display: flex; }
+    }
+  </style>
+</head>
+<body class="game-content-page">
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="Zamborin Games home">
+      <img class="brand-logo" src="/images/zamborin-logo.svg" alt="Zamborin" />
+    </a>
+    <div class="header-right">
+      <button id="focus-toggle" class="focus-btn" type="button" aria-label="Play fullscreen" aria-pressed="false">
+        <svg class="icon-enter" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="4 9 4 4 9 4"/>
+          <polyline points="20 9 20 4 15 4"/>
+          <polyline points="4 15 4 20 9 20"/>
+          <polyline points="20 15 20 20 15 20"/>
+        </svg>
+        <svg class="icon-exit" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M6 6l12 12M18 6L6 18"/>
+        </svg>
+      </button>
+      <a class="back-link" href="/">Back to all games</a>
+    </div>
+  </header>
+
+  <main class="page">
+    <section class="play-row">
+      <div class="game-wrap">
+        <canvas id="game" aria-label="Orbit puzzle"></canvas>
+        <!-- Splash: shows for 2 s at load, then fades to reveal the rules screen. -->
+        <div id="splash" class="splash" aria-hidden="true"></div>
+      </div>
+    </section>
+
+    <section class="game-info">
+      <h1>Orbit: a calm ring-spinning light puzzle</h1>
+
+      <p>Orbit is a quiet puzzle made of concentric rings. A light sits at the hub in the middle, and around it sit rings of broken track: short arcs that curve with the ring, and little half-spokes that reach inward and outward. Every ring has been turned the wrong way, so the track is a scattered tangle and the light has nowhere to go. Your job is to spin the rings, one at a time, until the half-spokes meet up and the light threads its way out from the hub to every bulb on the rim. When the last one lights, the whole board settles into a symmetric mandala. It is gentle, tidy and quietly satisfying, the kind of puzzle you can sink into for one level or twenty.</p>
+
+      <h2>How to play</h2>
+      <p>Drag any ring to spin it, or tap it to nudge it one step clockwise. Light flows out from the hub through every piece of track that lines up, glowing gold as it goes. Keep turning rings until the light has a clear path to each bulb.</p>
+      <ul>
+        <li><strong>Spin:</strong> drag a ring round to turn it freely, or tap for a single step. The hub and the bulbs are fixed, so only the rings turn.</li>
+        <li><strong>Line it up exactly:</strong> a join only carries light when the ring is properly in true. Close is not enough, so a ring that looks slightly off really is off.</li>
+        <li><strong>Follow the light:</strong> live track glows gold and dark track stays grey, so you can always see how far the light has reached.</li>
+        <li><strong>Geared rings:</strong> from the third level on, some rings are linked by a dashed teal circle. Turn one and its partner turns the opposite way, so you cannot simply settle them one at a time.</li>
+        <li><strong>Undo or Restart:</strong> step back a turn, or reset the whole board, whenever you like.</li>
+      </ul>
+      <p>Your progress is saved automatically, so you always pick up on the level where you left off.</p>
+
+      <h2>Why it is clever</h2>
+      <p>There is no guessing and no luck. Every board is built as a working pattern first and then scrambled, so a solution always exists, and you can watch the light creep outward as you close in on it. The trick is reading the rings: which arc feeds which branch, and the order to turn things so that fixing one ring does not undo another. Later boards add more rings, more positions to search and geared pairs that move together, so the same simple rule keeps producing harder, more tangled puzzles to unpick.</p>
+
+      <h2>Tips</h2>
+      <ul>
+        <li>Start at the hub and work outward, one ring at a time, following the light.</li>
+        <li>Fix the innermost ring first. Everything further out depends on it.</li>
+        <li>Watch the half-spokes rather than the arcs. Two half-spokes meeting is the thing that carries light.</li>
+        <li>On a geared pair, look for the one position that satisfies both rings at once instead of settling for the better of the two.</li>
+        <li>If a branch stays dark, trace back to the last glowing piece and look at the join just past it.</li>
+      </ul>
+
+      <h2>Frequently asked questions</h2>
+      <p><strong>Is Orbit free?</strong> Yes, completely free to play, with no account or download, in any modern browser on phone, tablet or desktop.</p>
+      <p><strong>Does it work on mobile?</strong> Yes. Orbit is built for touch as well as mouse, so it plays the same on a phone as on a desktop.</p>
+      <p><strong>How do I win?</strong> Spin the rings so light runs from the hub to every bulb on the rim. Once they are all lit, the level is solved.</p>
+      <p><strong>Is every level solvable?</strong> Yes. Each board is generated as a working pattern and then scrambled by legal turns, so there is always a way back.</p>
+
+      <p>Enjoy a good thinking puzzle? Try <a href="/bloom/">Bloom</a>, <a href="/fold/">Fold</a> or <a href="/untangle/">Untangle</a>, or browse <a href="/">all Zamborin games</a>.</p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <nav class="site-foot-nav">
+      <a href="/">Games</a>
+      <a href="/guides/">Guides</a>
+      <a href="/about/">About</a>
+      <a href="/faq/">FAQ</a>
+      <a href="/privacy/">Privacy</a>
+      <a href="/cookies/">Cookies</a>
+      <a href="/terms/">Terms</a>
+      <a href="/contact/">Contact</a>
+    </nav>
+    <span>© 2026 Zamborin. Games created by Indrajeet Chandrachud.</span>
+  </footer>
+
+  <script src="./play.js?v=9"></script>
+  <script>
+    (() => {
+      const btn = document.getElementById('focus-toggle');
+      btn.addEventListener('click', () => {
+        const on = document.body.classList.toggle('focus-mode');
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        btn.setAttribute('aria-label', on ? 'Exit fullscreen' : 'Play fullscreen');
+        setTimeout(() => window.dispatchEvent(new Event('resize')), 60);
+      });
+    })();
+
+    // Splash: 2 s reveal, 0.6 s fade, remove from DOM at 2.7 s, then tell play.js.
+    (() => {
+      const splash = document.getElementById('splash');
+      if (!splash) return;
+      setTimeout(() => splash.classList.add('fading'), 2000);
+      setTimeout(() => {
+        splash.remove();
+        window.dispatchEvent(new CustomEvent('splash-done'));
+      }, 2700);
+    })();
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
+</body>
+</html>
