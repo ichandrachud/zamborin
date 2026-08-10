@@ -141,7 +141,16 @@ body.mode-mobile  { --canvas-w: 393px; --canvas-h: 852px; }
 }
 .site-foot-nav {
   display: flex;
+  /* MUST wrap. Eight links at 18px gaps measure 506px, so on a 375px phone the
+     row overflowed and dragged the whole document to 440px wide — every game
+     page slid horizontally under the player's finger while they were trying to
+     play. Wrapping is the fix; do not remove it. */
+  flex-wrap: wrap;
+  justify-content: center;
+  row-gap: 10px;
   gap: 18px;
+  max-width: 100%;
+  padding: 0 16px;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 1.0px;

@@ -35,8 +35,11 @@
     const gridMaxH = vh - HUD_H - GRID_TOP_GAP - HINT_AREA - BANNER_H - BOTTOM_PAD;
     const cellByH  = Math.floor(gridMaxH / 13);
     const cellByW  = Math.floor((vw - SIDE_PAD * 2) / 6);
-    // Cap at 70 so a tablet in mobile mode doesn't grow into giant tiles.
-    const CELL     = Math.min(70, cellByH, cellByW);
+    // Cap at 70 so a tablet in mobile mode doesn't grow into giant tiles, and
+    // floor at 8: below ~172px of viewport height gridMaxH goes negative, which
+    // drove CELL negative and threw on the tile corner radius. Same crash class
+    // as Bloom's layout(); a browser can report a 0-height viewport at boot.
+    const CELL     = Math.max(8, Math.min(70, cellByH, cellByW));
     // Inline-style CSS vars so .game-wrap renders at the same dimensions.
     document.body.style.setProperty('--canvas-w', vw + 'px');
     document.body.style.setProperty('--canvas-h', vh + 'px');
