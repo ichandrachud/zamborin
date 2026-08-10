@@ -109,12 +109,26 @@
 
   const idx = (r, c) => r * C + c;
   const rc = (i) => ({ r: (i / C) | 0, c: i % C });
+  const TOP_BAND = 100, BOT_BAND = 96, SIDE_PAD = 30;
+  // The grid shape differs by device: a tall portrait grid on mobile (5 wide,
+  // as many rows as fit the phone), a square-ish grid on desktop.
+  function gridDims(lvl) {
+    if (MODE === 'mobile') {
+      const cols = 5;
+      const cw = (LW - SIDE_PAD * 2) / cols;                 // width available per column
+      let rows = Math.floor((LH - TOP_BAND - BOT_BAND) / cw);
+      rows = Math.max(7, Math.min(rows, 10));
+      return [rows, cols];
+    }
+    const s = 5 + Math.min(Math.floor((lvl - 1) / 3), 3);    // 5 → 8, square
+    return [s, s];
+  }
   function layout() {
-    const top = 100, bot = 92;
-    const avail = Math.min(LW - 40, LH - top - bot);
-    cell = Math.floor(avail / Math.max(R, C));
+    const availW = LW - SIDE_PAD * 2;
+    const availH = LH - TOP_BAND - BOT_BAND;
+    cell = Math.floor(Math.min(availW / C, availH / R));      // square cells that fit both axes
     ox = Math.round((LW - C * cell) / 2);
-    oy = Math.round(top + ((LH - top - bot) - R * cell) / 2);
+    oy = Math.round(TOP_BAND + (availH - R * cell) / 2);
   }
   const ccx = (c) => ox + (c + 0.5) * cell;
   const ccy = (r) => oy + (r + 0.5) * cell;
@@ -143,8 +157,8 @@
   function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0;[a[i], a[j]] = [a[j], a[i]]; } }
   function genLevel(lvl, asMenu) {
     level = lvl; saveLevel();
-    const size = 4 + Math.min(Math.floor((lvl - 1) / 2), 4);   // 4 → 8
-    R = C = size;
+    const [gr, gc] = gridDims(lvl);
+    R = gr; C = gc;
     const n = R * C;
     // union-find
     const parent = Array.from({ length: n }, (_, i) => i);
