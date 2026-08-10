@@ -12,7 +12,7 @@
 (() => {
   'use strict';
 
-  const LW = 800, LH = 800;
+  let LW = 800, LH = 800;   // logical canvas size (px) — set per mode at load
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
 
@@ -49,31 +49,51 @@
     PALETTE.forEach((cs, ci) => { flowerImgs[ci] = []; texts.forEach((txt, si) => { const im = new Image(); im.onload = () => { flowersReady++; render(performance.now()); }; im.src = 'data:image/svg+xml,' + encodeURIComponent(recolor(txt, cs)); flowerImgs[ci][si] = im; }); });
   }).catch(() => {});
 
-  // ---------- MODE + CANVAS (Zamborin chrome; square board) ----------
+  // ---------- MODE + CANVAS (responsive, à la Tessera) ----------
+  // Mobile: the logical canvas IS the viewport (innerWidth × innerHeight); the
+  // square board is centred inside it with the HUD in the top/bottom margins.
+  // Desktop: a portrait card. layout() centres the board from LW/LH either way.
   const MODE = (matchMedia('(pointer: coarse)').matches || window.innerWidth < 768) ? 'mobile' : 'desktop';
   document.body.classList.add('mode-' + MODE);
   function setCanvasVars() {
-    const sq = MODE === 'mobile' ? 400 : 640;   // square; on mobile only the 1:1 aspect matters
-    document.body.style.setProperty('--canvas-w', sq + 'px');
-    document.body.style.setProperty('--canvas-h', sq + 'px');
+    if (MODE === 'mobile') { LW = window.innerWidth; LH = window.innerHeight; }
+    else { LW = 560; LH = 640; }
+    document.body.style.setProperty('--canvas-w', LW + 'px');
+    document.body.style.setProperty('--canvas-h', LH + 'px');
   }
   function resizeCanvas() {
     const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
     const rect = canvas.getBoundingClientRect();
-    const s = Math.min(rect.width || 640, rect.height || 640);
-    const b = Math.round(s * dpr);
-    if (canvas.width !== b) canvas.width = b;
-    if (canvas.height !== b) canvas.height = b;
-    ctx.setTransform(b / LW, 0, 0, b / LW, 0, 0);   // LW = LH = 800 logical
+    const dW = rect.width || LW, dH = rect.height || LH;
+    const bW = Math.round(dW * dpr), bH = Math.round(dH * dpr);
+    if (canvas.width !== bW) canvas.width = bW;
+    if (canvas.height !== bH) canvas.height = bH;
+    const scale = Math.min(bW / LW, bH / LH);
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
   }
   const gameWrap = canvas.parentElement;
   function fitFullscreen() {
-    const active = MODE === 'desktop' && document.body.classList.contains('focus-mode');
+    if (MODE === 'mobile') {
+      // measured px, not the flawed CSS min(100vw, calc(100dvh…))
+      gameWrap.style.width = window.innerWidth + 'px';
+      gameWrap.style.height = window.innerHeight + 'px';
+      return;
+    }
+    const active = document.body.classList.contains('focus-mode');
     if (!active) { gameWrap.style.width = ''; gameWrap.style.height = ''; }
-    else { const v = Math.min(window.innerWidth, window.innerHeight); gameWrap.style.width = v + 'px'; gameWrap.style.height = v + 'px'; }
+    else {
+      const vw = window.innerWidth, vh = window.innerHeight, aspect = LW / LH;
+      let cw = vw, ch = Math.round(vw / aspect);
+      if (ch > vh) { ch = vh; cw = Math.round(vh * aspect); }
+      gameWrap.style.width = cw + 'px'; gameWrap.style.height = ch + 'px';
+    }
   }
-  function onResize() { fitFullscreen(); resizeCanvas(); render(performance.now()); }
+  function onResize() {
+    if (MODE === 'mobile') setCanvasVars();
+    fitFullscreen(); resizeCanvas(); layout(); render(performance.now());
+  }
   window.addEventListener('resize', onResize);
+  window.addEventListener('orientationchange', () => setTimeout(onResize, 100));
   window.addEventListener('splash-done', () => render(performance.now()));
 
   // ---------- state ----------
@@ -294,13 +314,17 @@
 
   // ---------- HUD ----------
   function drawHUD(now) {
+    const hs = Math.max(0.66, Math.min(1, LW / 620));   // shrink HUD text on narrow screens
+    const P = Math.round(28 * hs);
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-    ctx.fillStyle = '#fff'; ctx.font = '800 30px Inter, sans-serif'; ctx.fillText('BLOOM', 28, 22);
+    ctx.fillStyle = '#fff'; ctx.font = '800 ' + Math.round(30 * hs) + 'px Inter, sans-serif'; ctx.fillText('BLOOM', P, Math.round(22 * hs));
     const [w, t] = flowersWatered();
-    ctx.fillStyle = 'rgba(255,255,255,0.72)'; ctx.font = '600 16px Inter, sans-serif';
-    ctx.fillText('Level ' + level + '   ·   ' + w + '/' + t + ' flowers watered   ·   ' + moves + (moves === 1 ? ' turn' : ' turns'), 28, 62);
-    ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.font = '500 15px Inter, sans-serif';
-    ctx.fillText('Tap a pipe to rotate it. Carry water from the tap to every flower.', LW / 2, LH - 38);
+    ctx.fillStyle = 'rgba(255,255,255,0.72)'; ctx.font = '600 ' + Math.round(16 * hs) + 'px Inter, sans-serif';
+    ctx.fillText('Level ' + level + '   ·   ' + w + '/' + t + ' watered   ·   ' + moves + (moves === 1 ? ' turn' : ' turns'), P, Math.round(56 * hs));
+    if (phase === 'play' && moves === 0) {
+      ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.font = '500 ' + Math.round(15 * hs) + 'px Inter, sans-serif';
+      ctx.fillText('Rotate the pipes to water every flower.', LW / 2, LH - 118);
+    }
   }
   function pill(label, cx, cy, dim) {
     ctx.font = '700 15px Inter, sans-serif';

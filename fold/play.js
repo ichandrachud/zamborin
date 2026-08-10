@@ -41,10 +41,18 @@
     const scale = Math.min(bW / CW, bH / CH);
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
   }
-  // desktop focus-mode: size the game-wrap from measured innerWidth/Height
+  // Size the game-wrap from measured pixels. On mobile we set it explicitly to
+  // innerWidth × innerHeight instead of trusting the shared CSS min(100vw,
+  // calc(100dvh…)) — iOS Safari (and some emulators) under-size that because
+  // 100dvh ≠ innerHeight, which was collapsing the canvas to a narrow strip.
   const gameWrap = canvas.parentElement;
   function fitFullscreen() {
-    const active = MODE === 'desktop' && document.body.classList.contains('focus-mode');
+    if (MODE === 'mobile') {
+      gameWrap.style.width = window.innerWidth + 'px';
+      gameWrap.style.height = window.innerHeight + 'px';
+      return;
+    }
+    const active = document.body.classList.contains('focus-mode');
     if (!active) { gameWrap.style.width = ''; gameWrap.style.height = ''; }
     else {
       const vw = window.innerWidth, vh = window.innerHeight, aspect = CW / CH;
@@ -58,6 +66,7 @@
     fitFullscreen(); resizeCanvas(); computeLayout(); render();
   }
   window.addEventListener('resize', onResize);
+  window.addEventListener('orientationchange', () => setTimeout(onResize, 100));
 
   // ---------- CONSTANTS ----------
   const BG_TOP = '#1B2A47', BG_MID = '#131F36', BG_BOT = '#0E1726';   // Zamborin dark-blue
