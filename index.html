@@ -128,6 +128,16 @@
       background: #FF6B5C;
     }
 
+    /* Arcade & board games — a smaller, secondary section under the puzzle line. */
+    .group-title { font-size: 14px; font-weight: 800; letter-spacing: 1.8px; text-transform: uppercase; color: var(--text-mute); margin: 12px 0 -10px; }
+    .arcade { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+    .mini-card { display: grid; grid-template-columns: 42% 1fr; background: #14213D; border-radius: 16px; overflow: hidden; text-decoration: none; color: inherit; min-height: 150px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06), 0 12px 24px -14px rgba(0,0,0,0.5); transition: box-shadow .18s ease; }
+    .mini-card:hover { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.10), 0 18px 34px -14px rgba(0,0,0,0.62); }
+    .mini-card-image { background-size: cover; background-position: center; background-color: #0E1726; }
+    .mini-card-body { padding: 18px 22px; display: flex; flex-direction: column; justify-content: center; gap: 6px; box-sizing: border-box; }
+    .mini-card-name { font-size: 23px; font-weight: 800; letter-spacing: -0.4px; color: var(--text); line-height: 1.05; }
+    .mini-card-desc { font-size: 13.5px; font-weight: 500; line-height: 1.5; color: var(--text-dim); }
+
     @media (max-width: 720px) {
       .lobby { padding: 32px 16px 24px; gap: 24px; }
       .games-row { gap: 20px; }
@@ -145,6 +155,9 @@
       }
       .game-card-name { font-size: 30px; }
       .game-card-desc { font-size: 16px; }
+      .arcade { grid-template-columns: 1fr; gap: 14px; }
+      .mini-card { grid-template-columns: 1fr; min-height: 0; }
+      .mini-card-image { aspect-ratio: 16 / 10; }
     }
 
     .lobby-foot {
@@ -246,19 +259,11 @@
           <div class="game-card-cta">Play now</div>
         </div>
       </a>
-      <a class="game-card" href="./zood/">
-        <div class="game-card-image" style="background-image: url('./images/zood-teaser.jpg')"></div>
+      <a class="game-card" href="./untangle/">
+        <div class="game-card-image" style="background-image: url('./images/untangled-teaser.jpg')"></div>
         <div class="game-card-body">
-          <div class="game-card-name">Zood</div>
-          <div class="game-card-desc">Aim and fire quirky character tiles at the cluster above. Match three or more to pop them, drop the danglers, and clear the whole board — a fresh spin on the classic bubble shooter.</div>
-          <div class="game-card-cta">Play now</div>
-        </div>
-      </a>
-      <a class="game-card" href="./empyrean/">
-        <div class="game-card-image" style="background-image: url('./images/empyrean-teaser.jpg')"></div>
-        <div class="game-card-body">
-          <div class="game-card-name">Empyrean</div>
-          <div class="game-card-desc">A free-flight dogfight in hand-painted skies. Pick a plane or chopper, equip your bombs, and clear the stage of enemy aircraft and ground threats.</div>
+          <div class="game-card-name">Untangle</div>
+          <div class="game-card-desc">Drag the dots so no two edges cross. Endless levels that grow in complexity, from Tutorial through Master.</div>
           <div class="game-card-cta">Play now</div>
         </div>
       </a>
@@ -270,28 +275,36 @@
           <div class="game-card-cta">Play now</div>
         </div>
       </a>
-      <a class="game-card" href="./untangle/">
-        <div class="game-card-image" style="background-image: url('./images/untangled-teaser.jpg')"></div>
-        <div class="game-card-body">
-          <div class="game-card-name">Untangle</div>
-          <div class="game-card-desc">Drag the dots so no two edges cross. Endless levels that grow in complexity, from Tutorial through Master.</div>
-          <div class="game-card-cta">Play now</div>
+    </div>
+
+    <h2 class="group-title">Arcade &amp; board games</h2>
+    <div class="arcade">
+      <a class="mini-card" href="./zood/">
+        <div class="mini-card-image" style="background-image: url('./images/zood-teaser.jpg')"></div>
+        <div class="mini-card-body">
+          <div class="mini-card-name">Zood</div>
+          <div class="mini-card-desc">A fresh spin on the bubble shooter. Match three or more to pop them and clear the board.</div>
         </div>
       </a>
-      <a class="game-card" href="./carrom/">
-        <div class="game-card-image" style="background-image: url('./images/carrom-teaser.jpg')"></div>
-        <div class="game-card-body">
-          <div class="game-card-name">Carrom</div>
-          <div class="game-card-desc">A digital take on the South-Asian tabletop classic. Flick the striker, pocket your discs, beat the computer at three difficulty levels.</div>
-          <div class="game-card-cta">Play now</div>
+      <a class="mini-card" href="./empyrean/">
+        <div class="mini-card-image" style="background-image: url('./images/empyrean-teaser.jpg')"></div>
+        <div class="mini-card-body">
+          <div class="mini-card-name">Empyrean</div>
+          <div class="mini-card-desc">A free-flight dogfight in hand-painted skies. Pick a plane, equip your bombs, clear the stage.</div>
         </div>
       </a>
-      <a class="game-card" href="./ludo/">
-        <div class="game-card-image" style="background-image: url('./images/ludo-teaser.jpg')"></div>
-        <div class="game-card-body">
-          <div class="game-card-name">Ludo</div>
-          <div class="game-card-desc">Race four pieces home before the AI does. Roll two dice, split the count, capture opponents off safe squares. 2, 3 or 4 player matches.</div>
-          <div class="game-card-cta">Play now</div>
+      <a class="mini-card" href="./carrom/">
+        <div class="mini-card-image" style="background-image: url('./images/carrom-teaser.jpg')"></div>
+        <div class="mini-card-body">
+          <div class="mini-card-name">Carrom</div>
+          <div class="mini-card-desc">The South-Asian tabletop classic. Flick the striker and pocket your discs, at three levels.</div>
+        </div>
+      </a>
+      <a class="mini-card" href="./ludo/">
+        <div class="mini-card-image" style="background-image: url('./images/ludo-teaser.jpg')"></div>
+        <div class="mini-card-body">
+          <div class="mini-card-name">Ludo</div>
+          <div class="mini-card-desc">Race four pieces home before the AI. Roll, split the dice, and capture rivals. 2 to 4 players.</div>
         </div>
       </a>
     </div>
@@ -306,17 +319,17 @@
       <h3><a href="/fold/">Fold</a> — origami folding puzzle</h3>
       <p>A quiet logic puzzle about paper. Each level is a creased sheet dotted with pairs of coloured marks: a solid dot and a matching ring. Tap a crease and the smaller flap folds over, carrying its marks with it, until every dot lands on its ring. Easy to start, satisfying to untangle, with your progress saved as you climb the levels.</p>
 
-      <h3><a href="/zood/">Zood</a> — bubble-shooter puzzle</h3>
-      <p>Fire quirky little character tiles up at a hanging cluster and match three or more of a kind to pop them; any Zoods left dangling drop too. Bank shots off the walls, keep the cluster from reaching the line, and clear every last Zood.</p>
-
-      <h3><a href="/empyrean/">Empyrean</a> — free-flight aerial action</h3>
-      <p>Fly a lone fighter over vivid, hand-painted worlds, steering your own heading as you dogfight enemy planes and bomb ground targets across city, ocean and desert missions. Choose your aircraft and bombs, then clear the skies.</p>
+      <h3><a href="/untangle/">Untangle</a> — planar graph puzzle</h3>
+      <p>A tangle of dots and lines lands in front of you with every edge crossing another. Drag the dots until no lines cross. Every puzzle is solvable, and the difficulty climbs from a gentle tutorial to endless Master-level tangles.</p>
 
       <h3><a href="/tessera/">Tessera</a> — endless word puzzle</h3>
       <p>Part falling-block puzzle, part Scrabble. Guide letter tiles into a grid to spell words across and down; longer words score far more, and the tiles fall faster the longer you last. A quick, brainy high-score chase.</p>
 
-      <h3><a href="/untangle/">Untangle</a> — daily logic puzzle</h3>
-      <p>A tangle of dots and lines lands in front of you with every edge crossing another. Drag the dots until no lines cross. Every puzzle is solvable, and the difficulty climbs from a gentle tutorial to endless Master-level tangles.</p>
+      <h3><a href="/zood/">Zood</a> — bubble-shooter arcade</h3>
+      <p>Fire quirky little character tiles up at a hanging cluster and match three or more of a kind to pop them; any Zoods left dangling drop too. Bank shots off the walls, keep the cluster from reaching the line, and clear every last Zood.</p>
+
+      <h3><a href="/empyrean/">Empyrean</a> — free-flight aerial action</h3>
+      <p>Fly a lone fighter over vivid, hand-painted worlds, steering your own heading as you dogfight enemy planes and bomb ground targets across city, ocean and desert missions. Choose your aircraft and bombs, then clear the skies.</p>
 
       <h3><a href="/carrom/">Carrom</a> — flick-and-pocket board game</h3>
       <p>A digital version of the South-Asian tabletop classic. Aim and flick the striker with a slingshot pull to pocket your discs before the computer clears theirs, across three difficulty levels. Bank shots and cut angles behave just like the real board.</p>
