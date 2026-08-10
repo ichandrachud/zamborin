@@ -44,8 +44,17 @@
   ];
   const flowerImgs = [];
   let flowersReady = 0, flowersTotal = PALETTE.length * 4;
-  function recolor(t, c) { return t.replace(/#e058a0/gi, c.dark).replace(/#e079b0/gi, c.mid).replace(/#e699c2/gi, c.light).replace(/#eac/gi, c.inner); }
-  Promise.all(STAGES.map(n => fetch('./flowers/' + n + '.svg').then(r => r.text()))).then(texts => {
+  function recolor(t, c) {
+    t = t.replace(/#e058a0/gi, c.dark).replace(/#e079b0/gi, c.mid).replace(/#e699c2/gi, c.light).replace(/#eac/gi, c.inner);
+    // Inject explicit width/height from the viewBox so the browser rasterises the
+    // SVG at its true aspect. Without this, Chrome gives some of these files a
+    // wrong intrinsic size, and drawImage then distorts them (01.svg was showing
+    // up open + squished instead of as a closed bud).
+    const m = t.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/);
+    if (m) t = t.replace('<svg ', '<svg width="' + m[1] + '" height="' + m[2] + '" ');
+    return t;
+  }
+  Promise.all(STAGES.map(n => fetch('./flowers/' + n + '.svg?v=2').then(r => r.text()))).then(texts => {
     PALETTE.forEach((cs, ci) => { flowerImgs[ci] = []; texts.forEach((txt, si) => { const im = new Image(); im.onload = () => { flowersReady++; render(performance.now()); }; im.src = 'data:image/svg+xml,' + encodeURIComponent(recolor(txt, cs)); flowerImgs[ci][si] = im; }); });
   }).catch(() => {});
 
