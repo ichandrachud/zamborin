@@ -765,8 +765,18 @@
     ctx.fillStyle = '#fff'; ctx.font = '800 ' + Math.round(30 * hs) + 'px Inter, sans-serif';
     ctx.fillText('ORBIT', PX, Math.round(topB * 0.22));
     const [w, t] = bulbCount();
-    ctx.fillStyle = 'rgba(255,255,255,0.72)'; ctx.font = '600 ' + Math.round(16 * hs) + 'px Inter, sans-serif';
-    ctx.fillText('Level ' + level + '   ·   ' + w + '/' + t + ' lit   ·   ' + moves + (moves === 1 ? ' turn' : ' turns'), PX, Math.round(topB * 0.56));
+    // Par is shown DURING play, not just on the scorecard. A target you only
+    // learn after the level is over cannot shape how you play it.
+    const y2 = Math.round(topB * 0.56);
+    ctx.font = '600 ' + Math.round(16 * hs) + 'px Inter, sans-serif';
+    const head = 'Level ' + level + '   ·   ' + w + '/' + t + ' lit   ·   ' + moves + (moves === 1 ? ' turn' : ' turns');
+    ctx.fillStyle = 'rgba(255,255,255,0.72)';
+    ctx.fillText(head, PX, y2);
+    if (par > 0) {
+      // Both states clear AA against the board. 0.4 white measured only 3.4:1.
+      ctx.fillStyle = moves <= par ? 'rgba(159,230,164,0.85)' : 'rgba(255,255,255,0.6)';
+      ctx.fillText('   ·   par ' + par, PX + ctx.measureText(head).width, y2);
+    }
     // Running total, opposite the title — the thing that carries across levels.
     ctx.textAlign = 'right';
     ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.font = '700 ' + Math.max(10, Math.round(12 * hs)) + 'px Inter, sans-serif';

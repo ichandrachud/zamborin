@@ -4,16 +4,21 @@
 
 ## Games
 
-- [Empyrean](https://zamborin.com/empyrean/): Free-flight WWII dogfight over hand-painted skies — city, ocean blockade, and desert raid missions. Pick from 8 aircraft (Tempest, Aurora, Mistral, Tsunami, Cyclone, Vesper, Zephyr, Sirocco) and 5 bombs (Lance, Anvil, Bellows, Pyre, Dart). Rotational controls on desktop (↑↓ rotate the nose); touch-to-aim on mobile.
-- [Tessera](https://zamborin.com/tessera/): Endless falling-letter word puzzle. Tap a column to slide the tile; double-tap to drop it instantly. Form English words across or down, 3 letters minimum. Longer words score exponentially more. The game gets faster the longer you survive.
 - [Orbit](https://zamborin.com/orbit/): Ring-spinning light puzzle. Concentric rings carry broken arc-track; spin each ring (drag, or tap to nudge one step) so light runs from the hub out to every bulb on the rim, resolving into a symmetric mandala. A join only carries light when the ring is exactly in true. Later levels gear pairs of rings so turning one turns its partner the opposite way. Scored on level depth and how close to par you finish.
+- [Bloom](https://zamborin.com/bloom/): Pipe-rotating irrigation puzzle. Water starts at a tap in the middle of the garden and the ground is tangled with pipes facing the wrong way. Tap a pipe to rotate it 90°; watered pipes turn blue, and a flower opens only once water reaches it. Every board is generated as a connected layout, so a solution always exists.
+- [Fold](https://zamborin.com/fold/): Origami folding puzzle. Each level is a creased sheet carrying pairs of coloured marks — a solid dot and a matching ring. Tap a crease and the smaller flap folds over onto the rest of the sheet, flipping its marks and stacking them on the layer beneath. Solve by landing every dot on its ring. Undo steps back one fold at a time.
 - [Untangle](https://zamborin.com/untangle/): Daily planar-graph puzzle. Drag the dots so no edges cross. Endless levels from Tutorial to Master; same puzzle for everyone today (daily seed).
+- [Tessera](https://zamborin.com/tessera/): Endless falling-letter word puzzle. Tap a column to slide the tile; double-tap to drop it instantly. Form English words across or down, 3 letters minimum. Longer words score exponentially more. The game gets faster the longer you survive.
+- [Zood](https://zamborin.com/zood/): Bubble-shooter arcade. Aim the cannon (mouse on desktop, drag on mobile) and fire character tiles at the cluster hanging above; match three or more of a kind to burst them, and any Zoods left dangling drop away too. Bank shots off the side walls to reach gaps you cannot hit head-on, and keep the cluster from reaching the line.
+- [Empyrean](https://zamborin.com/empyrean/): Free-flight WWII dogfight over hand-painted skies — city, ocean blockade, and desert raid missions. Pick from 8 aircraft (Tempest, Aurora, Mistral, Tsunami, Cyclone, Vesper, Zephyr, Sirocco) and 5 bombs (Lance, Anvil, Bellows, Pyre, Dart). Rotational controls on desktop (↑↓ rotate the nose); touch-to-aim on mobile.
 - [Carrom](https://zamborin.com/carrom/): Digital take on the South-Asian tabletop classic. Flick the striker, pocket your discs. Three difficulty levels against the computer.
 - [Ludo](https://zamborin.com/ludo/): 2, 3, or 4-player Ludo board game. Roll two dice, split the count, capture opponents off safe squares. Daily seed shared across all players.
 
 ## Pages
 
+- [Guides](https://zamborin.com/guides/): Strategy guides and how-to-play walkthroughs. One per game for Orbit, Bloom, Fold, Untangle, Tessera, Zood, Carrom and Ludo.
 - [About](https://zamborin.com/about/): What Zamborin Games is and how the studio works.
+- [FAQ](https://zamborin.com/faq/): Whether the games are free, whether an account is needed, mobile support, how the site makes money, and what data is collected.
 - [Privacy](https://zamborin.com/privacy/): What data the site collects (almost none) and how Google AdSense cookies are used.
 - [Contact](https://zamborin.com/contact/): Contact form for bug reports, feedback, partnerships.
 
