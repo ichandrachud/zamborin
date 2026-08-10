@@ -582,7 +582,10 @@
   }
   function onUp(e) {
     const { x, y } = toLogical(e);
-    if (pendingBtn) { const b = hitBtn(x, y); if (b === pendingBtn) b.act(); pendingBtn = null; return; }
+    // Match on id, NOT object identity. render() rebuilds uiButtons from scratch
+    // every frame, and the won screen animates continuously, so by the time a
+    // real click releases, the object captured on press no longer exists.
+    if (pendingBtn) { const b = hitBtn(x, y); if (b && b.id === pendingBtn.id) b.act(); pendingBtn = null; return; }
     if (drag) { finishDrag(true); return; }
     if (phase === 'menu') { phase = 'play'; render(performance.now()); return; }
     // Once won, only the scorecard's own button moves on — a stray tap should
@@ -593,14 +596,11 @@
   canvas.addEventListener('pointerup', onUp);
   canvas.addEventListener('pointercancel', () => { finishDrag(false); pendingBtn = null; });
   canvas.addEventListener('pointerleave', () => { if (hoverRing !== -1 && !drag) { hoverRing = -1; render(performance.now()); } });
-  canvas.addEventListener('wheel', (e) => {            // desktop: rings behave like dials
-    if (phase !== 'play') return;
-    const { x, y } = toLogical(e);
-    const k = ringAt(Math.hypot(x - CX, y - CY));
-    if (k < 0) return;
-    e.preventDefault();
-    applyDelta(k, e.deltaY > 0 ? 1 : -1, true);
-  }, { passive: false });
+  // NO wheel handler. Spinning rings on scroll meant that a desktop reader
+  // moving down to the article — with the cursor over the board, which is most
+  // of the page — had their scroll swallowed AND turns quietly spent against
+  // their par bonus. The page scrolls in focus mode too, so there is no state
+  // where claiming the wheel is safe. Drag, tap and the arrow keys cover it.
   window.addEventListener('keydown', (e) => {
     if (e.key === 'z' || e.key === 'Z') return undo();
     if (e.key === 'r' || e.key === 'R') return restart();
@@ -809,9 +809,9 @@
     ctx.font = '700 15px Inter, sans-serif';
     const wU = Math.round(ctx.measureText('Undo').width + 36), wR = Math.round(ctx.measureText('Restart').width + 36), wH = Math.round(ctx.measureText('Rules').width + 36);
     let x = Math.round(LW / 2 - (wU + wR + wH + gap * 2) / 2);
-    uiButtons.push({ ...pill('Undo', x + wU / 2, ctrlY, !history.length), act: undo }); x += wU + gap;
-    uiButtons.push({ ...pill('Restart', x + wR / 2, ctrlY, false), act: restart }); x += wR + gap;
-    uiButtons.push({ ...pill('Rules', x + wH / 2, ctrlY, false), act: () => { phase = 'menu'; render(performance.now()); } });
+    uiButtons.push({ ...pill('Undo', x + wU / 2, ctrlY, !history.length), id: 'undo', act: undo }); x += wU + gap;
+    uiButtons.push({ ...pill('Restart', x + wR / 2, ctrlY, false), id: 'restart', act: restart }); x += wR + gap;
+    uiButtons.push({ ...pill('Rules', x + wH / 2, ctrlY, false), id: 'rules', act: () => { phase = 'menu'; render(performance.now()); } });
   }
   // Scorecard modal. Held back until the mandala has finished lighting so the
   // reveal the player earned is never cut short, and the scrim is left partly
@@ -887,7 +887,7 @@
     ctx.globalAlpha = 1;
     // Registered only once the card is actually on screen, so the tap that
     // finished the board cannot fall straight through onto this button.
-    uiButtons.push({ x: bx, y: by, w: bw, h: bh, act: () => genLevel(level + 1) });
+    uiButtons.push({ x: bx, y: by, w: bw, h: bh, id: 'next', act: () => genLevel(level + 1) });
   }
   function wrapText(text, x, y, maxW, lh, align, measureOnly) {
     const words = text.split(' '); let line = '';
@@ -953,7 +953,7 @@
     const bw = Math.round(Math.max(200, ctx.measureText(label).width + 90)), bx = LW / 2 - bw / 2;
     ctx.fillStyle = '#3DDC84'; roundRect(bx, by, bw, bh, bh / 2); ctx.fill();
     ctx.fillStyle = '#0E1726'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(label, LW / 2, by + bh / 2 + 1);
-    uiButtons.push({ x: bx, y: by, w: bw, h: bh, act: () => { phase = 'play'; render(performance.now()); } });
+    uiButtons.push({ x: bx, y: by, w: bw, h: bh, id: 'play', act: () => { phase = 'play'; render(performance.now()); } });
   }
 
   // ---------- debug ----------
@@ -968,7 +968,7 @@
       };
     },
     get geom() { return { MODE, LW, LH, BOARD, CX, CY, ctrlY, hubR, bulbR, ringR: ringR.slice() }; },
-    get buttons() { return uiButtons.map(b => ({ x: b.x, y: b.y, w: b.w, h: b.h, cx: b.x + b.w / 2, cy: b.y + b.h / 2 })); },
+    get buttons() { return uiButtons.map(b => ({ id: b.id, x: b.x, y: b.y, w: b.w, h: b.h, cx: b.x + b.w / 2, cy: b.y + b.h / 2 })); },
     // Screen point (CSS px) on a given ring, for driving synthetic pointer events.
     at(k, frac) { const a = A0 + (frac || 0) * Math.PI * 2; return { x: CX + ringR[k] * Math.cos(a), y: CY + ringR[k] * Math.sin(a) }; },
     solve() {
