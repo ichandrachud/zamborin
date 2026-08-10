@@ -137,9 +137,12 @@
     return [s, s];
   }
   function layout() {
-    const availW = LW - SIDE_PAD * 2;
-    const availH = LH - TOP_BAND - BOT_BAND;
-    cell = Math.floor(Math.min(availW / C, availH / R));      // square cells that fit both axes
+    // The floors matter. A browser can report a 0×0 viewport for the first
+    // frame, and any height under the two bands (196px) drives cell negative —
+    // which then throws on the tile corner radius and leaves the board blank.
+    const availW = Math.max(60, LW - SIDE_PAD * 2);
+    const availH = Math.max(60, LH - TOP_BAND - BOT_BAND);
+    cell = Math.max(8, Math.floor(Math.min(availW / C, availH / R)));   // square cells that fit both axes
     ox = Math.round((LW - C * cell) / 2);
     oy = Math.round(TOP_BAND + (availH - R * cell) / 2);
   }
@@ -349,8 +352,11 @@
     ctx.fillStyle = 'rgba(255,255,255,0.72)'; ctx.font = '600 ' + Math.round(16 * hs) + 'px Inter, sans-serif';
     ctx.fillText('Level ' + level + '   ·   ' + w + '/' + t + ' watered   ·   ' + moves + (moves === 1 ? ' turn' : ' turns'), P, Math.round(56 * hs));
     if (phase === 'play' && moves === 0) {
-      ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.font = '500 ' + Math.round(15 * hs) + 'px Inter, sans-serif';
-      ctx.fillText('Rotate the pipes to water every flower.', LW / 2, LH - 118);
+      // BELOW the control row. At LH-118 this sat inside the board: the grid is
+      // centred in the space between the bands and fills it, so its bottom edge
+      // lands ~2px above the buttons and there is no gap above them to sit in.
+      ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(255,255,255,0.42)'; ctx.font = '500 ' + Math.round(15 * hs) + 'px Inter, sans-serif';
+      ctx.fillText('Rotate the pipes to water every flower.', LW / 2, LH - 46);
     }
   }
   function pill(label, cx, cy, dim) {
@@ -427,4 +433,12 @@
   fitFullscreen();
   resizeCanvas();
   genLevel(loadLevel(), true);
+  // Re-measure after boot. innerWidth/innerHeight can read 0, or a stale
+  // pre-layout value, while this script first runs. Timers rather than rAF —
+  // rAF is throttled to nothing in some embedded browsers, which is exactly
+  // where a stale size would otherwise stick.
+  setTimeout(onResize, 0);
+  setTimeout(onResize, 300);
+  window.addEventListener('load', onResize);
+  window.visualViewport?.addEventListener('resize', onResize);   // iOS URL-bar collapse
 })();
