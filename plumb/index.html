@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-  <title>Plumb — static preview</title>
+  <title>Plumb — prototype</title>
   <meta name="theme-color" content="#0A1A2F" />
   <meta name="robots" content="noindex" />
   <link rel="icon" type="image/svg+xml" href="/images/zamborin-favicon.svg" />
@@ -17,7 +17,11 @@
       font-family: Inter, system-ui, -apple-system, sans-serif; color: #fff;
       -webkit-font-smoothing: antialiased;
     }
-    .game-wrap { position: relative; line-height: 0; width: var(--canvas-w, 940px); height: var(--canvas-h, 660px); }
+    /* flex-shrink: 0 is load-bearing. A browser can report a 0-width viewport
+       (the preview pane does), and a flex child without it collapses to zero
+       however large --canvas-w says it is — the game then has no hit area at
+       all and nothing can be dragged. */
+    .game-wrap { position: relative; line-height: 0; flex-shrink: 0; width: var(--canvas-w, 940px); height: var(--canvas-h, 660px); }
     canvas {
       display: block; width: 100%; height: 100%;
       touch-action: none;
@@ -29,8 +33,11 @@
   <div class="game-wrap">
     <canvas id="game" aria-label="Plumb mobile preview"></canvas>
   </div>
-  <script src="./model.js?v=1"></script>
-  <script src="./levels.js?v=1"></script>
-  <script src="./play.js?v=2"></script>
+  <script src="./topology.js?v=1"></script>
+  <script src="./topologies.js?v=1"></script>
+  <script src="./compose.js?v=1"></script>
+  <script src="./levels-reference.js?v=1"></script>
+  <script src="./levels-deep.js?v=1"></script>
+  <script src="./play.js?v=7"></script>
 </body>
 </html>

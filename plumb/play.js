@@ -1,181 +1,226 @@
 /* ============================================================
-   PLUMB · static renderer (build order §9 step 3)
+   PLUMB · renderer and interaction (brief §9 steps 3-4)
 
-   One level looking right before anything becomes draggable. No interaction
-   here on purpose — if the aesthetic is not there, everything built on top of
-   it is wasted.
+   Drives ANY topology through the general system, so the portrait phone shape
+   and the desktop one share this file rather than needing a second renderer.
 
-   THE ARMS ARE ARCS, not straight rods. Straight wire reads as an engineering
-   drawing no matter how thin it is; the bow is most of what makes a Calder
-   look drawn rather than plotted. It costs the mechanic nothing because every
-   pivot sits at its arm's centre: a symmetric arc is a rigid body, so rotating
-   the arm by θ rotates the tip-to-tip chord by exactly θ, and the eye reads
-   level off that chord — which is where it is already looking, because that is
-   where the loads hang.
+   ARMS ARE ARCS. Straight wire reads as an engineering drawing however thin it
+   is. The bow costs the mechanic nothing because every pivot sits at its arm's
+   centre: a symmetric arc is a rigid body, so rotating the arm by θ rotates the
+   tip-to-tip chord by exactly θ, and the eye reads level off that chord.
 
-   COLOUR is measured against the house ground #0A1A2F. Calder's own palette
-   does not survive here: navy is 1.77:1 and black 1.04:1, so both vanish. The
-   neutral family below replaces them and keeps the brief's channel discipline
-   — colour means ROLE, size means WEIGHT, and neither does the other's job.
+   MOTION IN EXACTLY TWO PLACES (§6.5): the settle after a move, and the win.
+   No idle sway — a real mobile drifts, and drift would make "level" impossible
+   to judge, which is the one thing the player has to judge. And the resolve IS
+   the settle: a mobile reaching balance swings less and less until it hangs
+   still. Nothing is added on top of that. No flash, no particles, no sting.
    ============================================================ */
 (() => {
   'use strict';
 
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
+  const T = window.PLUMB_TOPO, C = window.PLUMB_COMPOSE, TOPOS = window.PLUMB_TOPOLOGIES;
   let CW = 940, CH = 660;
 
   const isMobile = () => matchMedia('(pointer: coarse)').matches ||
     (window.innerWidth > 0 && window.innerWidth < 768);
+  const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  // ---------- palette (all measured on #0A1A2F) ----------
+  // ---------- palette, every value measured on the house ground ----------
   const GROUND = '#0A1A2F';
-  const WIRE = '#A8813F';            // brass, 4.89:1 — separates by hue as well
-  const WIRE_FINE = '#8E6C34';       //           as by lightness, unlike a blue wire
+  const WIRE = '#A8813F';          // brass 4.89:1 — separates by hue as well as
+  const WIRE_FINE = '#8E6C34';     // lightness, which a blue wire cannot do here
   const CEIL = '#6F5A30';
-  // Tree weights: a neutral family, recessive, differentiated by silhouette.
-  const TREE = ['#EFE9DC', '#DCC9A4', '#B2A899', '#8B93A0'];   // 14.5 / 10.8 / 7.5 / 5.6 : 1
-  const BRIDGE_W = '#E85C3F';        // vermilion, 5.02:1 — the one saturated accent
+  const TREE = ['#EFE9DC', '#DCC9A4', '#B2A899', '#8B93A0'];  // 14.5 / 10.8 / 7.5 / 5.6
+  const BRIDGE_W = '#E85C3F';      // vermilion 5.02:1 — the one saturated accent
   const HAIRLINE = 'rgba(10,26,47,0.55)';
   const HOOK_FREE = '#EAF2FA', HOOK_RIVET = '#7FA3CC', NOTCH = '#5C7EA6';
+  const HOOK_HELD = '#FFFFFF';
 
-  const L = window.PLUMB_LEVELS || [];
-  let li = 0, lvl = null, cfg = null;
-  let NU = 26;                        // pixels per notch
-  let showNotches = false;
+  // ---------- state ----------
+  let topoName = 'reference', topo = null, pack = [];
+  let li = 0, lvl = null, cfg = null, params = null;
+  let NU = 26, boardTop = 0, boardCX = 0;
+  let moves = 0, phase = 'play', history = [];
+  let drag = null;                 // { id, arm, from, to }
+  let touchedArm = null;           // whose notches are showing
+  let anim = null, raf = 0;
+  let uiButtons = [];
 
-  // ---------- geometry in notch units ----------
-  const DROP_ROOT = 4.4;              // root arm down to the nearer sub-arm
-  const STAGGER = 2.6;                // the two sub-arms hang at different depths
-  const DROP_SUB = 5.6;               // lower sub-arm down to the bridge
-  const HANG = 2.0;                   // arm down to a weight's centre
-  const SAG = 0.55;                   // how far an arm's tips fall below its centre
-  const MAXTILT = 0.20;               // radians, about 11.5 degrees
+  const DROP = 3.0;                // vertical gap per row, in notches
+  const HANG = 2.0;                // arm down to a weight's centre
+  const SAG = 0.55;                // how far an arm's tips fall below its centre
+  const MAXTILT = 0.20;            // radians, about 11.5 degrees
+  const SETTLE_MS = 900;
 
-  const params = (l) => ({ ...l.weights, ...l.riveted });
-
-  // Shape radius from weight, expressed in notch units so the shapes scale with
-  // the sculpture rather than drifting small when the mobile gets wide. The
-  // brief's 5*w^0.75 in raw pixels bottoms out at 10px across, which reads as a
-  // bead threaded on a wire — and "do not let the wire compete with the shapes"
-  // is §8's dead end. Here the smallest is still 0.62 of a notch in radius.
   const radiusOf = (w) => NU * (0.40 + 0.22 * Math.pow(w, 0.75));
+  const val = (k) => (typeof k === 'string' ? (cfg[k] !== undefined ? cfg[k] : params[k]) : k);
 
-  // Tilt is proportional to how far an arm is from balance, capped so a wildly
-  // wrong board still looks like a mobile rather than a collapsed one.
-  function tilts(l, s) {
-    const p = params(l);
-    const r = window.PLUMB.residuals(p, s);
-    if (!r) return { root: 0, L: 0, B: 0, X: 0 };
-    const scale = (v, k) => Math.max(-MAXTILT, Math.min(MAXTILT, v / k));
-    return {
-      root: scale(r.e3, 90), L: scale(r.e1, 45), B: scale(r.e2, 45),
-      // The bridge hangs from two strings; when the span is wrong they splay
-      // rather than the bridge tilting, so E4 drives the strings, not the arm.
-      X: 0, splay: r.e4,
-    };
+  // ---------- what the mobile currently looks like ----------
+  // Tilt per arm from its own balance residual, and the bridge centre placed at
+  // the midpoint of its two constraints so a wrong span splays BOTH strings
+  // symmetrically rather than hanging one straight and bending the other.
+  function evalNow(c) {
+    const e = T.evaluate(topo, params, c || cfg);
+    if (!e) return null;
+    const tilt = {}, splay = {};
+    for (const d of e.residuals) {
+      if (d.kind === 'balance') {
+        const v = d.r.n / d.r.d;
+        const scale = 26 * Math.max(1, topo.arms[d.arm].H);
+        let a = Math.max(-MAXTILT, Math.min(MAXTILT, v / scale));
+        // The settle: swing from where the arm WAS toward where it now rests,
+        // ringing and damping. When the move solves the mobile every target is
+        // zero, so this damps to still — and that is the whole resolve.
+        if (anim && anim.prev && anim.prev[d.arm] !== undefined) {
+          const k = Math.min(1, (performance.now() - anim.t0) / SETTLE_MS);
+          const ring = Math.exp(-4.2 * k) * Math.cos(11 * k);
+          a = a + (anim.prev[d.arm] - a) * ring;
+        }
+        tilt[d.arm] = a;
+      } else splay[d.bridge] = d.r.n;
+    }
+    const bcentre = {};
+    for (const [name, B] of Object.entries(topo.bridges || {})) {
+      const a = e.anchors[name];
+      const c1 = a[0] - val(B.ties[0]), c2 = a[1] - val(B.ties[1]);
+      bcentre[name] = (c1 + c2) / 2;
+    }
+    return { ...e, tilt, splay, bcentre };
+  }
+  const solvedNow = () => T.isSolved(topo, params, cfg);
+
+  // ---------- layout ----------
+  function layout() {
+    const e = evalNow();
+    if (!e) return null;
+    const D = C.depths(topo);
+    const spans = [];
+    for (const [n, A] of Object.entries(topo.arms)) spans.push(e.x[n] - A.H, e.x[n] + A.H);
+    for (const [n, B] of Object.entries(topo.bridges || {})) spans.push(e.bcentre[n] - B.H, e.bcentre[n] + B.H);
+    const lo = Math.min(...spans), hi = Math.max(...spans);
+    const maxDepth = Math.max(...Object.values(D.arms), ...Object.values(D.bridges));
+
+    const spanN = Math.max(10, hi - lo + 3);
+    const depthN = maxDepth * DROP + HANG + 4.5;
+    const availW = CW - 36, availH = CH - (isMobile() ? 230 : 205);
+    NU = Math.max(7, Math.min(availW / spanN, availH / depthN));
+    boardCX = CW / 2 - ((lo + hi) / 2) * NU;
+    boardTop = (isMobile() ? 118 : 104) + Math.max(0, (availH - depthN * NU) / 2);
+    return { e, D, lo, hi };
+  }
+  const armY = (D, name) => boardTop + (D.arms[name] + 0.6) * DROP * NU;
+  const bridgeY = (D, name) => boardTop + (D.bridges[name] + 0.6) * DROP * NU;
+
+  // A point on an arm's arc. The arc is symmetric about the pivot, so it turns
+  // rigidly with the arm and the notch positions stay faithful.
+  function onArm(cx, cy, H, tilt, n) {
+    const u = n / H, lx = u * H * NU, ly = SAG * NU * (u * u);
+    return [cx + lx * Math.cos(tilt) - ly * Math.sin(tilt),
+            cy + lx * Math.sin(tilt) + ly * Math.cos(tilt)];
   }
 
-  // ---------- silhouettes ----------
-  // Leaf, crescent, kidney, disc — hand-cut shapes, never geometric primitives.
-  function shapePath(kind, x, y, r, rot) {
-    ctx.save();
-    ctx.translate(x, y); ctx.rotate(rot || 0);
-    ctx.beginPath();
-    if (kind === 0) {                                    // leaf
+  // ---------- drawing ----------
+  function shapePath(kind, x, y, r) {
+    ctx.save(); ctx.translate(x, y); ctx.beginPath();
+    if (kind === 0) {
       ctx.moveTo(0, -r * 1.25);
       ctx.bezierCurveTo(r * 0.95, -r * 0.35, r * 0.72, r * 0.85, 0, r * 1.12);
       ctx.bezierCurveTo(-r * 0.72, r * 0.85, -r * 0.95, -r * 0.35, 0, -r * 1.25);
-    } else if (kind === 1) {                             // crescent
+    } else if (kind === 1) {
       ctx.arc(0, 0, r, Math.PI * 0.78, Math.PI * 2.22, false);
-      ctx.bezierCurveTo(r * 0.30, r * 0.55, r * 0.30, -r * 0.55, Math.cos(Math.PI * 0.78) * r, Math.sin(Math.PI * 0.78) * r);
-    } else if (kind === 2) {                             // kidney
+      ctx.bezierCurveTo(r * 0.30, r * 0.55, r * 0.30, -r * 0.55,
+        Math.cos(Math.PI * 0.78) * r, Math.sin(Math.PI * 0.78) * r);
+    } else if (kind === 2) {
       ctx.moveTo(-r * 0.95, -r * 0.15);
       ctx.bezierCurveTo(-r * 1.05, -r * 1.05, r * 1.05, -r * 1.05, r * 0.95, -r * 0.10);
       ctx.bezierCurveTo(r * 0.88, r * 0.85, r * 0.15, r * 0.55, 0, r * 0.42);
       ctx.bezierCurveTo(-r * 0.15, r * 0.55, -r * 0.88, r * 0.85, -r * 0.95, -r * 0.15);
-    } else {                                             // disc
-      ctx.arc(0, 0, r, 0, Math.PI * 2);
-    }
-    ctx.closePath();
-    ctx.restore();
+    } else ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.closePath(); ctx.restore();
   }
-  function drawShape(kind, col, x, y, r, rot) {
-    shapePath(kind, x, y, r, rot);
+  function drawShape(kind, col, x, y, r) {
+    shapePath(kind, x, y, r);
     ctx.fillStyle = col; ctx.fill();
-    // A fine dark hairline. On this ground it keeps the pale neutrals from
-    // dissolving into each other where two shapes overlap.
     ctx.strokeStyle = HAIRLINE; ctx.lineWidth = Math.max(0.8, r * 0.045); ctx.stroke();
   }
-
-  // ---------- an arm, drawn as a symmetric arc ----------
-  // Returns the two tip points so whatever hangs off the arm can be placed on
-  // the curve rather than on an imaginary straight line.
-  function armPoints(cx, cy, halfSpan, tilt) {
-    const sag = SAG * NU;
-    const pts = [];
-    for (let i = 0; i <= 24; i++) {
-      const u = -1 + (2 * i) / 24;                       // -1 … +1 across the arm
-      const lx = u * halfSpan, ly = sag * (u * u);       // parabola: centre high, tips low
-      pts.push([cx + lx * Math.cos(tilt) - ly * Math.sin(tilt),
-                cy + lx * Math.sin(tilt) + ly * Math.cos(tilt)]);
-    }
-    return pts;
-  }
-  // Where on that arc does notch n sit?
-  function notchPoint(cx, cy, halfSpanNotches, tilt, n) {
-    const u = n / halfSpanNotches;
-    const lx = u * halfSpanNotches * NU, ly = SAG * NU * (u * u);
-    return [cx + lx * Math.cos(tilt) - ly * Math.sin(tilt),
-            cy + lx * Math.sin(tilt) + ly * Math.cos(tilt)];
-  }
-  function strokeArm(pts, w) {
+  function drawArm(cx, cy, H, tilt, w) {
     ctx.beginPath();
-    ctx.moveTo(pts[0][0], pts[0][1]);
-    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+    for (let i = 0; i <= 24; i++) {
+      const p = onArm(cx, cy, H, tilt, -H + (2 * H * i) / 24);
+      i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]);
+    }
     ctx.strokeStyle = WIRE; ctx.lineWidth = w; ctx.lineCap = 'round'; ctx.stroke();
   }
-  function drawString(x1, y1, x2, y2, doubled) {
+  function drawString(a, b, doubled) {
     ctx.strokeStyle = WIRE_FINE; ctx.lineWidth = 1.25; ctx.lineCap = 'round';
-    if (!doubled) {
-      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
-      return;
-    }
-    // The bridge announces itself with a doubled hairline pair — two thin
-    // parallel lines rather than one thick one. Stays wire-like while being
-    // unmistakably not an ordinary string.
-    const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy) || 1;
-    const nx = -dy / len * 1.6, ny = dx / len * 1.6;
+    if (!doubled) { ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); return; }
+    // A bridge's strings are a doubled hairline pair — wire-like, but
+    // unmistakably not an ordinary string. In an early prototype the bridge
+    // read as just another arm, which is fatal in a game where that piece is
+    // the entire reason there is a puzzle.
+    const dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy) || 1;
+    const nx = -dy / len * 1.7, ny = dx / len * 1.7;
     for (const s of [-1, 1]) {
       ctx.beginPath();
-      ctx.moveTo(x1 + nx * s, y1 + ny * s); ctx.lineTo(x2 + nx * s, y2 + ny * s);
+      ctx.moveTo(a[0] + nx * s, a[1] + ny * s); ctx.lineTo(b[0] + nx * s, b[1] + ny * s);
       ctx.stroke();
     }
   }
-  function drawHook(x, y, riveted) {
-    if (riveted) {
-      ctx.beginPath(); ctx.arc(x, y, 2.4 * (NU / 26), 0, Math.PI * 2);
-      ctx.fillStyle = HOOK_RIVET; ctx.fill();
-    } else {
-      ctx.beginPath(); ctx.arc(x, y, 3.4 * (NU / 26), 0, Math.PI * 2);
-      ctx.strokeStyle = HOOK_FREE; ctx.lineWidth = 1.6; ctx.stroke();
+  function drawNotches(cx, cy, H, tilt, alpha) {
+    if (alpha <= 0.01) return;
+    ctx.save(); ctx.globalAlpha = alpha;
+    ctx.strokeStyle = NOTCH; ctx.lineWidth = 1.4;
+    for (let n = -H; n <= H; n++) {
+      const p = onArm(cx, cy, H, tilt, n);
+      ctx.beginPath();
+      ctx.moveTo(p[0], p[1] - 2.5); ctx.lineTo(p[0], p[1] + 2.5);
+      ctx.stroke();
     }
+    ctx.restore();
+  }
+  function drawHook(x, y, kind) {
+    if (kind === 'rivet') {
+      ctx.beginPath(); ctx.arc(x, y, Math.max(2, NU * 0.09), 0, Math.PI * 2);
+      ctx.fillStyle = HOOK_RIVET; ctx.fill(); return;
+    }
+    ctx.beginPath(); ctx.arc(x, y, Math.max(3, NU * 0.13), 0, Math.PI * 2);
+    ctx.strokeStyle = kind === 'held' ? HOOK_HELD : HOOK_FREE;
+    ctx.lineWidth = kind === 'held' ? 2.4 : 1.6; ctx.stroke();
   }
 
-  // ---------- layout ----------
-  function layout() {
-    const p = params(lvl);
-    const g = window.PLUMB.geometry(p, cfg);
-    const spanN = Math.max(18, g.hi - g.lo + 4);
-    const depthN = DROP_ROOT + STAGGER + DROP_SUB + HANG + 6.5;
-    const availW = CW - 48, availH = CH - 150;
-    NU = Math.max(8, Math.min(availW / spanN, availH / depthN));
-    const cx = CW / 2 - ((g.lo + g.hi) / 2) * NU;
-    const topY = 96 + (availH - depthN * NU) / 2;
-    return { p, g, cx, topY };
+  // Where every hook sits on screen right now. One place computes this, so
+  // hit-testing and drawing can never disagree about where a hook is.
+  function hookPoints(lay) {
+    const { e, D } = lay, out = [];
+    for (const [name, A] of Object.entries(topo.arms)) {
+      const cx = boardCX + e.x[name] * NU, cy = armY(D, name), tl = e.tilt[name] || 0;
+      for (const h of A.hooks) {
+        const free = params[h.id] === undefined;
+        const p = onArm(cx, cy, A.H, tl, val(h.id));
+        out.push({ id: h.id, arm: name, H: A.H, cx, cy, tilt: tl, x: p[0], y: p[1], free, carries: h.carries });
+      }
+    }
+    for (const [name, B] of Object.entries(topo.bridges || {})) {
+      const cx = boardCX + e.bcentre[name] * NU, cy = bridgeY(D, name);
+      for (const t of B.ties) {
+        const free = params[t] === undefined;
+        const p = onArm(cx, cy, B.H, 0, val(t));
+        // A tie and a weight may legitimately share a notch. Lift the tie clear
+        // so they read as two marks rather than one — the generator no longer
+        // throws such levels away, because doing so cost 17x the yield.
+        const clash = B.weights.some(w => val(w.at) === val(t));
+        out.push({ id: t, arm: name, H: B.H, cx, cy, tilt: 0,
+                   x: p[0], y: p[1] - (clash ? Math.max(5, NU * 0.30) : 0),
+                   free, tie: true, bridge: name });
+      }
+    }
+    return out;
   }
 
   function render() {
+    uiButtons = [];
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
     const r = canvas.getBoundingClientRect();
@@ -184,99 +229,243 @@
     if (canvas.height !== bH) canvas.height = bH;
     const sc = Math.min(bW / CW, bH / CH);
     ctx.setTransform(sc, 0, 0, sc, 0, 0);
-
     ctx.fillStyle = GROUND; ctx.fillRect(0, 0, CW, CH);
     if (!lvl) return;
 
-    const { p, cx, topY } = layout();
-    const t = tilts(lvl, cfg);
-    const solved = window.PLUMB.isSolved(p, cfg);
+    const lay = layout();
+    if (!lay) return;
+    const { e, D } = lay;
+    const hooks = hookPoints(lay);
+    const solved = solvedNow();
 
-    const rootY = topY + 1.2 * NU;
-    // Ceiling bar. A functional horizontal, and the only true horizontal on
-    // screen — the eye needs something to judge the root arm's tilt against.
+    // Ceiling bar: a functional horizontal, and deliberately the only one on
+    // screen. The player judges the root arm's tilt against it, so a second
+    // strong horizontal would compete and §3.4's median-rank-4 result depends
+    // on that read staying easy.
+    const rootY = armY(D, topo.root), rootX = boardCX + e.x[topo.root] * NU;
     ctx.strokeStyle = CEIL; ctx.lineWidth = 2;
+    const bar = Math.max(6, topo.arms[topo.root].H * 1.5) * NU;
     ctx.beginPath();
-    ctx.moveTo(cx - 9.5 * NU, topY - 3.0 * NU); ctx.lineTo(cx + 9.5 * NU, topY - 3.0 * NU);
+    ctx.moveTo(rootX - bar / 2, boardTop - NU * 1.1); ctx.lineTo(rootX + bar / 2, boardTop - NU * 1.1);
     ctx.stroke();
-    drawString(cx, topY - 3.0 * NU, cx, rootY);
+    drawString([rootX, boardTop - NU * 1.1], [rootX, rootY]);
 
-    // --- root arm
-    const rootPts = armPoints(cx, rootY, lvl.notches.R * NU, t.root);
-    strokeArm(rootPts, 1.9 * (NU / 26) * 1.4);
-    const pR1 = notchPoint(cx, rootY, lvl.notches.R, t.root, cfg.r1);
-    const pR2 = notchPoint(cx, rootY, lvl.notches.R, t.root, cfg.r2);
+    // strings from each hook down to whatever hangs off it
+    for (const h of hooks) {
+      if (h.tie) continue;
+      if (h.carries.arm !== undefined) {
+        const ch = h.carries.arm;
+        drawString([h.x, h.y], [boardCX + e.x[ch] * NU, armY(D, ch)]);
+      } else if (h.carries.bridge !== undefined) {
+        const B = topo.bridges[h.carries.bridge];
+        const bx = boardCX + e.bcentre[h.carries.bridge] * NU;
+        const tp = onArm(bx, bridgeY(D, h.carries.bridge), B.H, 0, val(B.ties[h.carries.end]));
+        drawString([h.x, h.y], tp, true);
+      }
+    }
 
-    // --- sub-arms L and B
-    // The longer-reaching arm goes lower, so the two never fight for the same
-    // band of the composition.
-    const lDeeper = lvl.notches.L >= lvl.notches.B;
-    const subYL = rootY + (DROP_ROOT + (lDeeper ? STAGGER : 0)) * NU;
-    const subYB = rootY + (DROP_ROOT + (lDeeper ? 0 : STAGGER)) * NU;
-    const lx = cx + cfg.r1 * NU, bx = cx + cfg.r2 * NU;
-    drawString(pR1[0], pR1[1], lx, subYL);
-    drawString(pR2[0], pR2[1], bx, subYB);
-
-    const lPts = armPoints(lx, subYL, lvl.notches.L * NU, t.L);
-    const bPts = armPoints(bx, subYB, lvl.notches.B * NU, t.B);
-    strokeArm(lPts, 1.9 * (NU / 26) * 1.15);
-    strokeArm(bPts, 1.9 * (NU / 26) * 1.15);
-
-    const pL1 = notchPoint(lx, subYL, lvl.notches.L, t.L, cfg.l1);     // weight wL
-    const pL2 = notchPoint(lx, subYL, lvl.notches.L, t.L, cfg.l2);     // bridge anchor 1
-    const pB1 = notchPoint(bx, subYB, lvl.notches.B, t.B, p.b1);       // bridge anchor 2
-    const pB2 = notchPoint(bx, subYB, lvl.notches.B, t.B, cfg.b2);     // weight wB
-
-    // --- bridge, hanging from two strings, clear of BOTH sub-arms
-    const bridgeY = Math.max(subYL, subYB) + DROP_SUB * NU;
-    const bcx = cx + (cfg.r1 + cfg.l2 - cfg.t1) * NU;
-    const pX1 = notchPoint(bcx, bridgeY, lvl.notches.X, 0, cfg.t1);
-    const pX2 = notchPoint(bcx, bridgeY, lvl.notches.X, 0, cfg.t2);
-    drawString(pL2[0], pL2[1], pX1[0], pX1[1], true);
-    drawString(pB1[0], pB1[1], pX2[0], pX2[1], true);
-
-    const xPts = armPoints(bcx, bridgeY, lvl.notches.X * NU, 0);
-    strokeArm(xPts, 1.9 * (NU / 26) * 1.15);
-
-    // --- weights, each hanging below its arm on a short drop
-    const hang = (from, kind, col, w) => {
-      const r = radiusOf(w);
-      const y = from[1] + HANG * NU;
-      drawString(from[0], from[1], from[0], y - r * 0.72);
-      drawShape(kind, col, from[0], y + r * 0.18, r, 0);
+    // arms, then bridges
+    const notchAlpha = (name) => {
+      if (li < 2) return 0.55;                     // discoverable on the first two levels
+      return touchedArm === name ? 0.75 : 0;
     };
-    hang(pL1, 0, TREE[0], p.wL);
-    hang(pB2, 2, TREE[1], p.wB);
-    const pXw1 = notchPoint(bcx, bridgeY, lvl.notches.X, 0, p.p1);
-    const pXw2 = notchPoint(bcx, bridgeY, lvl.notches.X, 0, p.p2);
-    hang(pXw1, 0, BRIDGE_W, p.wx1);
-    hang(pXw2, 3, BRIDGE_W, p.wx2);
+    for (const [name, A] of Object.entries(topo.arms)) {
+      const cx = boardCX + e.x[name] * NU, cy = armY(D, name);
+      drawNotches(cx, cy, A.H, e.tilt[name] || 0, notchAlpha(name));
+      drawArm(cx, cy, A.H, e.tilt[name] || 0, Math.max(1.4, NU * 0.075));
+    }
+    for (const [name, B] of Object.entries(topo.bridges || {})) {
+      const cx = boardCX + e.bcentre[name] * NU, cy = bridgeY(D, name);
+      drawNotches(cx, cy, B.H, 0, notchAlpha(name));
+      drawArm(cx, cy, B.H, 0, Math.max(1.4, NU * 0.075));
+    }
 
-    // --- hooks last, so they sit on top of the wire
-    drawHook(pR1[0], pR1[1], false); drawHook(pR2[0], pR2[1], false);
-    drawHook(pL1[0], pL1[1], false); drawHook(pL2[0], pL2[1], false);
-    drawHook(pB1[0], pB1[1], true);  drawHook(pB2[0], pB2[1], false);
-    drawHook(pX1[0], pX1[1], false); drawHook(pX2[0], pX2[1], false);
+    // weights, each on a short drop below its arm
+    let treeIdx = 0;
+    const hang = (from, kind, col, w) => {
+      const rr = radiusOf(w), y = from[1] + HANG * NU;
+      drawString(from, [from[0], y - rr * 0.72]);
+      drawShape(kind, col, from[0], y + rr * 0.18, rr);
+    };
+    for (const h of hooks) {
+      if (h.tie || h.carries.weight === undefined) continue;
+      hang([h.x, h.y], treeIdx % 4, TREE[treeIdx % TREE.length], val(h.carries.weight));
+      treeIdx++;
+    }
+    for (const [name, B] of Object.entries(topo.bridges || {})) {
+      const cx = boardCX + e.bcentre[name] * NU, cy = bridgeY(D, name);
+      B.weights.forEach((w, i) => hang(onArm(cx, cy, B.H, 0, val(w.at)), i === 0 ? 0 : 3, BRIDGE_W, val(w.w)));
+    }
 
-    // --- HUD, kept clear of the sculpture
+    // hooks last, on top of the wire
+    for (const h of hooks)
+      drawHook(h.x, h.y, drag && drag.id === h.id ? 'held' : (h.free ? 'free' : 'rivet'));
+
+    drawHUD(solved);
+  }
+
+  function drawHUD(solved) {
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
     ctx.fillStyle = '#fff'; ctx.font = '800 26px Inter, sans-serif';
     ctx.fillText('PLUMB', 26, 22);
     ctx.font = '600 14px Inter, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.72)';
-    ctx.fillText('Level ' + (li + 1) + ' of ' + L.length + '   ·   ' +
-      lvl.solutions.length + (lvl.solutions.length === 1 ? ' solution' : ' solutions'), 26, 54);
-    ctx.textAlign = 'right';
-    ctx.fillStyle = solved ? '#8FE3AE' : 'rgba(255,255,255,0.55)';
-    ctx.font = '700 13px Inter, sans-serif';
-    ctx.fillText(solved ? 'LEVEL · PLUMB' : 'static preview', CW - 26, 26);
+    ctx.fillText('Level ' + (li + 1) + '   ·   ' + moves + (moves === 1 ? ' move' : ' moves'), 26, 54);
+    // The win reads in the HUD, never over the mobile. These compositions are
+    // quiet and a badge landing on a shape stops the thing looking like one.
+    if (solved) {
+      ctx.fillStyle = '#8FE3AE'; ctx.font = '800 14px Inter, sans-serif';
+      ctx.fillText('IN BALANCE', 26, 78);
+    }
+
+    // Controls sit outside the sculpture. These compositions are quiet; a badge
+    // floating over the mobile would stop it looking like one.
+    ctx.textAlign = 'center';
+    const cy = CH - 42, gap = 10;
+    const row = [['Undo', 'undo', !history.length, undo],
+                 ['Restart', 'restart', false, () => start(li)]];
+    if (phase === 'won') row.push(['Next mobile', 'next', false, () => start(li + 1)]);
+    ctx.font = '700 14px Inter, sans-serif';
+    let total = 0;
+    for (const [t] of row) total += Math.round(ctx.measureText(t).width + 34) + gap;
+    total -= gap;
+    let x = Math.round(CW / 2 - total / 2);
+    for (const [t, id, dim, act] of row) {
+      const w = Math.round(ctx.measureText(t).width + 34), h = 36;
+      const bx = x, by = Math.round(cy - h / 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.07)'; roundRect(bx, by, w, h, h / 2); ctx.fill();
+      ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(255,255,255,0.42)'; roundRect(bx, by, w, h, h / 2); ctx.stroke();
+      ctx.fillStyle = dim ? 'rgba(255,255,255,0.58)' : 'rgba(255,255,255,0.92)';
+      ctx.textBaseline = 'middle'; ctx.fillText(t, bx + w / 2, by + h / 2 + 1); ctx.textBaseline = 'top';
+      if (!dim) uiButtons.push({ x: bx, y: by, w, h, id, act });
+      x += w + gap;
+    }
+    // The win says nothing about HOW it was won. Level and plumb are both
+    // visual conditions and the brief is explicit that neither is ever stated.
     ctx.textAlign = 'left';
+  }
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath(); ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+  }
+
+  // ---------- the settle ----------
+  // A damped swing toward the new rest position. When the move solves the
+  // mobile the target tilts are all zero, so the settle simply damps to still —
+  // which IS the resolve. Nothing extra is layered on top of it.
+  function startSettle(prev) {
+    if (REDUCED) { render(); return; }
+    anim = { t0: performance.now(), prev: prev || null };
+    if (!raf) raf = requestAnimationFrame(tick);
+  }
+  // The tilts as they stand right now, before a move is committed.
+  function tiltsNow() {
+    const save = anim; anim = null;
+    const e = evalNow();
+    anim = save;
+    return e ? { ...e.tilt } : null;
+  }
+  function tick(now) {
+    raf = 0;
+    if (anim) {
+      const k = (now - anim.t0) / SETTLE_MS;
+      if (k >= 1) anim = null;
+    }
+    render();
+    if (anim) raf = requestAnimationFrame(tick);
+  }
+  // ---------- input ----------
+  function toLocal(ev) {
+    const r = canvas.getBoundingClientRect();
+    return { x: (ev.clientX - r.left) * (CW / r.width), y: (ev.clientY - r.top) * (CH / r.height) };
+  }
+  function pickHook(x, y) {
+    const lay = layout(); if (!lay) return null;
+    let best = null, bestD = Math.max(26, NU * 1.1);
+    for (const h of hookPoints(lay)) {
+      if (!h.free) continue;
+      const d = Math.hypot(h.x - x, h.y - y);
+      if (d < bestD) { bestD = d; best = h; }
+    }
+    return best;
+  }
+  // Project the pointer onto the arm's own axis to get a notch index.
+  function notchUnder(h, x, y) {
+    const dx = x - h.cx, dy = y - h.cy;
+    const along = dx * Math.cos(h.tilt) + dy * Math.sin(h.tilt);
+    return Math.max(-h.H, Math.min(h.H, Math.round(along / NU)));
+  }
+
+  canvas.addEventListener('pointerdown', (ev) => {
+    ev.preventDefault();
+    const { x, y } = toLocal(ev);
+    for (const b of uiButtons) if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) { b.act(); return; }
+    if (phase === 'won') return;
+    const h = pickHook(x, y);
+    if (!h) return;
+    drag = { id: h.id, arm: h.arm, from: val(h.id) };
+    touchedArm = h.arm;
+    canvas.setPointerCapture(ev.pointerId);
+    render();
+  });
+  canvas.addEventListener('pointermove', (ev) => {
+    if (!drag) return;
+    const { x, y } = toLocal(ev);
+    const lay = layout(); if (!lay) return;
+    const h = hookPoints(lay).find(z => z.id === drag.id);
+    if (!h) return;
+    const n = notchUnder(h, x, y);
+    if (n !== cfg[drag.id]) {
+      const prev = cfg[drag.id];
+      cfg[drag.id] = n;
+      // A move that makes the strings push is not physical; refuse it rather
+      // than drawing a mobile that cannot exist.
+      if (!T.evaluate(topo, params, cfg)) cfg[drag.id] = prev;
+      render();
+    }
+  });
+  function endDrag() {
+    if (!drag) return;
+    const moved = cfg[drag.id] !== drag.from;
+    const was = moved ? (cfg[drag.id] = cfg[drag.id], swingFrom(drag)) : null;
+    if (moved) {
+      history.push({ id: drag.id, from: drag.from });
+      moves++;
+      if (solvedNow() && phase === 'play') phase = 'won';
+    }
+    drag = null; touchedArm = null;
+    startSettle(was);
+  }
+  // The tilts the mobile held at the old hook position — the pose it swings FROM.
+  function swingFrom(d) {
+    const now = cfg[d.id];
+    cfg[d.id] = d.from;
+    const t = tiltsNow();
+    cfg[d.id] = now;
+    return t;
+  }
+  canvas.addEventListener('pointerup', endDrag);
+  canvas.addEventListener('pointercancel', () => {
+    if (drag) { cfg[drag.id] = drag.from; drag = null; touchedArm = null; render(); }
+  });
+
+  function undo() {
+    if (!history.length || phase === 'won') return;
+    const h = history.pop();
+    const was = tiltsNow();
+    cfg[h.id] = h.from; moves++;
+    startSettle(was);
   }
 
   // ---------- boot ----------
-  function setLevel(i, useSolution) {
-    li = ((i % L.length) + L.length) % L.length;
-    lvl = L[li];
-    cfg = useSolution ? { ...lvl.solutions[0] } : { ...lvl.start };
+  function start(n) {
+    pack = (window.PLUMB_PACKS || {})[topoName] || [];
+    if (!pack.length) return;
+    li = ((n % pack.length) + pack.length) % pack.length;
+    lvl = pack[li];
+    params = { ...lvl.params };
+    cfg = { ...lvl.start };
+    moves = 0; history = []; phase = 'play'; drag = null; touchedArm = null; anim = null;
     render();
   }
   function setCanvasVars() {
@@ -289,24 +478,26 @@
 
   window.__plumb = {
     get state() {
-      return {
-        level: li + 1, of: L.length, solutions: lvl && lvl.solutions.length,
-        solved: lvl ? window.PLUMB.isSolved(params(lvl), cfg) : null,
-        cfg, NU: +NU.toFixed(1),
-      };
+      return { topology: topoName, level: li + 1, of: pack.length, moves, phase,
+               solved: lvl ? solvedNow() : null, cfg: { ...cfg } };
     },
-    show: (i, solved) => { setLevel(i, solved !== false); return window.__plumb.state; },
-    solution: (i) => setLevel(i, true),
-    start: (i) => setLevel(i, false),
+    get hooks() { const l = layout(); return l ? hookPoints(l).map(h => ({ id: h.id, arm: h.arm, free: h.free, x: Math.round(h.x), y: Math.round(h.y), at: val(h.id) })) : []; },
+    get buttons() { render(); return uiButtons.map(b => ({ id: b.id, cx: b.x + b.w / 2, cy: b.y + b.h / 2 })); },
+    press(id) { render(); const b = uiButtons.find(z => z.id === id); if (!b) return 'no button ' + id; b.act(); return this.state; },
+    move(id, n) { cfg[id] = n; if (solvedNow() && phase === 'play') phase = 'won'; render(); return this.state; },
+    apply(s) { cfg = { ...s }; if (solvedNow() && phase === 'play') phase = 'won'; render(); return this.state; },
+    solve() { return this.apply(lvl.solutions[0]); },
+    goto(n) { start(n - 1); return this.state; },
+    use(name) { topoName = name; topo = TOPOS[name.toUpperCase()]; start(0); return this.state; },
     render,
   };
 
   setCanvasVars();
-  if (!L.length) {
+  topoName = isMobile() ? 'deep' : 'reference';
+  topo = TOPOS[topoName.toUpperCase()];
+  if (!((window.PLUMB_PACKS || {})[topoName] || []).length) {
     ctx.fillStyle = GROUND; ctx.fillRect(0, 0, CW, CH);
     ctx.fillStyle = '#fff'; ctx.font = '600 16px Inter, sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText('no baked levels — run node plumb/generate.js', CW / 2, CH / 2);
-  } else {
-    setLevel(0, true);
-  }
+    ctx.fillText('no baked levels — run node plumb/generate.js ' + topoName, CW / 2, CH / 2);
+  } else start(0);
 })();

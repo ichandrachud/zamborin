@@ -41,6 +41,11 @@
   // this is a puzzle — but it now hangs from arms at different depths.
   const DEEP = {
     name: 'deep',
+    // A phone caps how wide the mobile may get, and width sets the notch pitch,
+    // and the pitch sets how far apart two hooks are. Measured: at 375px an
+    // extent of 14 notches put two hooks 37px apart, under the 44px floor. 12
+    // notches keeps the tightest pair at 45px.
+    maxExtent: 12,
     root: 'R',
     arms: {
       R: { H: 3, hooks: [{ id: 'r1', lo: -3, hi: -1, carries: { arm: 'L' } },

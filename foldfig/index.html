@@ -17,7 +17,11 @@
       font-family: Inter, system-ui, -apple-system, sans-serif; color: #fff;
       -webkit-font-smoothing: antialiased;
     }
-    .game-wrap { position: relative; line-height: 0; width: var(--canvas-w, 560px); height: var(--canvas-h, 720px); }
+    /* flex-shrink: 0 is load-bearing. A browser can report a 0-width viewport
+       (the preview pane does), and a flex child without it collapses to zero
+       however large --canvas-w says it is — the game then has no hit area at
+       all and nothing can be dragged. */
+    .game-wrap { position: relative; line-height: 0; flex-shrink: 0; width: var(--canvas-w, 560px); height: var(--canvas-h, 720px); }
     canvas {
       display: block; width: 100%; height: 100%;
       touch-action: none;
