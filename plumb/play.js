@@ -37,6 +37,10 @@
   const HAIRLINE = 'rgba(10,26,47,0.55)';
   const HOOK_FREE = '#EAF2FA', HOOK_RIVET = '#7FA3CC', NOTCH = '#5C7EA6';
   const HOOK_HELD = '#FFFFFF';
+  // Gauge palette, measured on the ground: track 3.28:1 as a graphical object,
+  // amber 9.28:1, green 11.46:1, labels 12.84:1.
+  const TRACK = '#626C7A', OFF = '#E8B54D', MET = '#8FE3AE';
+  const LABEL = 'rgba(255,255,255,0.86)', TUTOR = '#C9D4E2';
 
   // ---------- state ----------
   let topoName = 'reference', topo = null, pack = [];
@@ -91,6 +95,28 @@
   }
   const solvedNow = () => T.isSolved(topo, params, cfg);
 
+  // How far off each of the two conditions is. Measured against the LEVEL'S OWN
+  // START, so the bar begins full and empties as you close in — an absolute
+  // scale would mean nothing to a player who cannot see the units.
+  function gauges() {
+    const sum = (e) => {
+      let lev = 0, plumb = 0;
+      if (!e) return { lev: Infinity, plumb: Infinity };
+      for (const d of e.residuals) {
+        const v = Math.abs(d.r.n / d.r.d);
+        if (d.kind === 'balance') lev += v; else plumb += v;
+      }
+      return { lev, plumb };
+    };
+    const now = sum(T.evaluate(topo, params, cfg));
+    const at0 = sum(T.evaluate(topo, params, lvl.start));
+    const frac = (n, s0) => (n === 0 ? 0 : (s0 > 0 ? Math.min(1, n / s0) : 1));
+    return [
+      { key: 'LEVEL', help: 'every arm hanging flat', v: now.lev, f: frac(now.lev, at0.lev) },
+      { key: 'PLUMB', help: 'every string hanging straight down', v: now.plumb, f: frac(now.plumb, at0.plumb) },
+    ];
+  }
+
   // ---------- layout ----------
   function layout() {
     const e = evalNow();
@@ -104,10 +130,10 @@
 
     const spanN = Math.max(10, hi - lo + 3);
     const depthN = maxDepth * DROP + HANG + 4.5;
-    const availW = CW - 36, availH = CH - (isMobile() ? 230 : 205);
+    const availW = CW - 36, availH = CH - (isMobile() ? 262 : 240);
     NU = Math.max(7, Math.min(availW / spanN, availH / depthN));
     boardCX = CW / 2 - ((lo + hi) / 2) * NU;
-    boardTop = (isMobile() ? 118 : 104) + Math.max(0, (availH - depthN * NU) / 2);
+    boardTop = (isMobile() ? 132 : 118) + Math.max(0, (availH - depthN * NU) / 2);
     return { e, D, lo, hi };
   }
   const armY = (D, name) => boardTop + (D.arms[name] + 0.6) * DROP * NU;
@@ -308,13 +334,51 @@
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
     ctx.fillStyle = '#fff'; ctx.font = '800 26px Inter, sans-serif';
     ctx.fillText('PLUMB', 26, 22);
+
+    // Two gauges: one per win condition. The brief asks for both to be read off
+    // the sculpture alone, and on first contact with a real player that failed —
+    // they could not tell whether a move helped. A bar that empties as you close
+    // in is the same fix that worked on PINS for the same complaint.
+    const gw = Math.min(250, CW * 0.42), gx = CW - 26 - gw;
+    let gy = 24;
+    for (const g of gauges()) {
+      const met = g.v === 0;
+      ctx.textAlign = 'left'; ctx.fillStyle = met ? MET : LABEL;
+      ctx.font = '800 11px Inter, sans-serif';
+      ctx.fillText(g.key, gx, gy);
+      ctx.textAlign = 'right'; ctx.fillStyle = met ? MET : 'rgba(255,255,255,0.55)';
+      ctx.font = '700 11px Inter, sans-serif';
+      ctx.fillText(met ? 'MET' : 'off', CW - 26, gy);
+      const by = gy + 15, bh = 7;
+      ctx.fillStyle = TRACK; roundRect(gx, by, gw, bh, bh / 2); ctx.fill();
+      if (!met) {
+        ctx.fillStyle = OFF;
+        roundRect(gx, by, Math.max(bh, gw * g.f), bh, bh / 2); ctx.fill();
+      }
+      gy += 36;
+    }
+    ctx.textAlign = 'left';
     ctx.font = '600 14px Inter, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.72)';
     ctx.fillText('Level ' + (li + 1) + '   ·   ' + moves + (moves === 1 ? ' move' : ' moves'), 26, 54);
     // The win reads in the HUD, never over the mobile. These compositions are
     // quiet and a badge landing on a shape stops the thing looking like one.
     if (solved) {
-      ctx.fillStyle = '#8FE3AE'; ctx.font = '800 14px Inter, sans-serif';
+      ctx.fillStyle = MET; ctx.font = '800 14px Inter, sans-serif';
       ctx.fillText('IN BALANCE', 26, 78);
+    }
+    // The brief wants both conditions learned wordlessly. On first contact a
+    // real player asked outright what the goal was, so the opening levels say
+    // it plainly and then stop.
+    const TUTORIAL = [
+      'Drag the pale rings along the arms. Get every arm hanging flat.',
+      'Both bars must empty: every arm flat, and every string straight down.',
+      'The red piece hangs from two branches — it decides what each side carries.',
+    ];
+    if (li < TUTORIAL.length && !solved) {
+      ctx.textAlign = 'center'; ctx.fillStyle = TUTOR;
+      ctx.font = '500 ' + (isMobile() ? 15 : 16) + 'px Inter, sans-serif';
+      ctx.fillText(TUTORIAL[li], CW / 2, CH - 86);
+      ctx.textAlign = 'left';
     }
 
     // Controls sit outside the sculpture. These compositions are quiet; a badge
