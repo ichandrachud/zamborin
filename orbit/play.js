@@ -118,6 +118,29 @@
   }
   const fmt = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
+  // ---------- sound ----------
+  // Synthesis lives in shared/sfx.js. Orbit's palette is glass and warm light:
+  // a soft detent as a ring turns, a clear chime as each bulb takes the light,
+  // rising in pitch with how many are lit, and a chord when the board settles.
+  // Everything is quiet and short — a ring can be nudged dozens of times.
+  const sfx = window.ZSFX ? window.ZSFX.create({ storageKey: 'zamborin-orbit.sound' }) : null;
+  const snd = {
+    on: () => !!(sfx && sfx.isOn()),
+    toggle() { if (!sfx) return; sfx.setOn(!sfx.isOn()); if (sfx.isOn()) sfx.tone(880, 0.05, 0.03, 'sine'); },
+    ready() { if (sfx) sfx.ensureAudio(); },
+    detent() { if (sfx) sfx.tone(760, 0.028, 0.017, 'sine'); },
+    settle() { if (sfx) sfx.tone(1180, 0.045, 0.020, 'sine'); },
+    // nth bulb of total — pitch climbs so the board audibly fills up
+    bulb(n, total) {
+      if (!sfx) return;
+      const step = Math.min(11, Math.max(0, n - 1));
+      sfx.tone(523.25 * Math.pow(2, step / 12), 0.16, 0.045, 'triangle');
+      sfx.tone(523.25 * Math.pow(2, step / 12) * 2, 0.09, 0.014, 'sine');
+    },
+    win() { if (sfx) sfx.arpeggio(659.25, 0.10, 2); },
+    undo() { if (sfx) sfx.tone(420, 0.05, 0.018, 'sine'); },
+  };
+
   // absolute ↔ ring-local sector index
   const abs = (k, s) => (s + off[k]) % S;
   const loc = (k, a) => ((a - off[k]) % S + S) % S;
@@ -223,6 +246,19 @@
     for (let a = 0; a < S; a++) { if (bulbLit[a] && !was[a]) bulbT[a] = t; else if (!bulbLit[a]) bulbT[a] = -1e9; }
   }
   function bulbCount() { let n = 0, t = 0; for (let a = 0; a < S; a++) if (bulbs[a]) { t++; if (bulbLit[a]) n++; } return [n, t]; }
+
+  // Sound is fired HERE, never inside computeLit — generation and the debug
+  // probes call computeLit thousands of times and must stay silent.
+  let lastLit = 0, lastOff = [];
+  function relight(now) {
+    const before = off.slice();
+    computeLit(now);
+    if (phase === 'menu') { lastLit = bulbCount()[0]; lastOff = off.slice(); return; }
+    for (let k = 0; k < K; k++) if (before[k] !== undefined && before[k] !== off[k]) { snd.detent(); break; }
+    const [lit, total] = bulbCount();
+    if (lit > lastLit) for (let i = lastLit + 1; i <= lit; i++) snd.bulb(i, total);
+    lastLit = lit; lastOff = off.slice();
+  }
 
   // ---------- generation ----------
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -415,12 +451,15 @@
     moves = 0; history = []; wonT = -1e9; drag = null; hoverRing = -1;
     phase = asMenu ? 'menu' : 'play';
     layout(); computeLit(); render(performance.now());
+    // Seed the counters from the new board, or the first relight would replay a
+    // chime for every bulb that happens to start lit.
+    lastLit = bulbCount()[0]; lastOff = off.slice();
   }
   function restart() {
     if (phase === 'won') return;          // the level is already scored — no replaying it
     off = initOff.slice(); visAng = off.map(o => o * STEP); targAng = visAng.slice();
     moves = 0; history = []; phase = 'play'; wonT = -1e9; bulbT = new Array(S).fill(-1e9);
-    computeLit(); ensureAnim();
+    computeLit(); lastLit = bulbCount()[0]; lastOff = off.slice(); ensureAnim();
   }
 
   // ---------- rotation ----------
@@ -457,6 +496,7 @@
     const [w, t] = bulbCount();
     if (w === t && t > 0) {
       phase = 'won'; wonT = performance.now();      // phase guard above means this banks exactly once
+      snd.win();
       award = scoreLevel();
       score.total += award.levelScore;
       score.cleared += 1;
@@ -474,6 +514,7 @@
     const p = linkOf[h.k];
     if (p >= 0) targAng[p] += h.d * STEP;
     moves += Math.abs(h.d);
+    snd.undo();
     ensureAnim();
   }
 
@@ -491,7 +532,9 @@
   function settle() {
     let moved = false;
     for (let k = 0; k < K; k++) if (visAng[k] !== targAng[k]) { visAng[k] = targAng[k]; moved = true; }
-    if (moved) { computeLit(); checkWin(); render(performance.now()); }
+    // relight, not computeLit — this is the path that completes a move when rAF
+    // is throttled, so it has to carry the sound too or that device plays silent
+    if (moved) { relight(performance.now()); checkWin(); render(performance.now()); }
   }
   function ensureAnim() {
     if (!raf) { lastT = performance.now(); raf = requestAnimationFrame(tick); }
@@ -507,7 +550,7 @@
     }
     // Recompute every frame: the light is a function of where the rings ACTUALLY
     // are, so it drops out mid-turn and returns only as a ring settles into true.
-    computeLit(t);
+    relight(t);
     checkWin();
     render(t);
     if (animating(t)) { raf = requestAnimationFrame(tick); fb = setTimeout(settle, 500); }
@@ -525,6 +568,7 @@
   let pendingBtn = null;
 
   function onDown(e) {
+    snd.ready();                      // browsers only allow audio after a gesture
     const { x, y } = toLogical(e);
     pendingBtn = hitBtn(x, y);
     if (pendingBtn || phase !== 'play') return;
@@ -554,7 +598,7 @@
     // tick() also does this, but recompute here so a drag still gives feedback
     // if rAF is being throttled (embedded webviews, background tabs).
     const now = performance.now();
-    computeLit(now); render(now);
+    relight(now); render(now);
   }
   // Ends a gesture. A ring is ALWAYS left on an exact sector — stranded between
   // two, nothing downstream can light and the board looks broken. `commit` is
@@ -804,11 +848,38 @@
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(label, cx, y + h / 2 + 1);
     return { x, y, w, h };
   }
+  // Flat outlined speaker, drawn on canvas — no emoji glyphs anywhere.
+  function speakerIcon(cx, cy, on) {
+    const s = 8;
+    ctx.strokeStyle = on ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.4)';
+    ctx.fillStyle = ctx.strokeStyle;
+    ctx.lineWidth = 1.6; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(cx - s * 0.8, cy - s * 0.3); ctx.lineTo(cx - s * 0.35, cy - s * 0.3);
+    ctx.lineTo(cx + s * 0.15, cy - s * 0.75); ctx.lineTo(cx + s * 0.15, cy + s * 0.75);
+    ctx.lineTo(cx - s * 0.35, cy + s * 0.3); ctx.lineTo(cx - s * 0.8, cy + s * 0.3);
+    ctx.closePath(); ctx.fill();
+    if (on) {
+      ctx.beginPath(); ctx.arc(cx + s * 0.35, cy, s * 0.42, -0.9, 0.9); ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx + s * 0.35, cy, s * 0.78, -0.85, 0.85); ctx.stroke();
+    } else {
+      ctx.beginPath(); ctx.moveTo(cx + s * 0.42, cy - s * 0.42); ctx.lineTo(cx + s * 1.0, cy + s * 0.42);
+      ctx.moveTo(cx + s * 1.0, cy - s * 0.42); ctx.lineTo(cx + s * 0.42, cy + s * 0.42); ctx.stroke();
+    }
+  }
+  function iconPill(cx, cy, on) {
+    const w = 44, h = 40, x = Math.round(cx - w / 2), y = Math.round(cy - h / 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.07)'; roundRect(x, y, w, h, h / 2); ctx.fill();
+    ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(255,255,255,0.24)'; roundRect(x, y, w, h, h / 2); ctx.stroke();
+    speakerIcon(cx, cy, on);
+    return { x, y, w, h };
+  }
   function drawControls() {
-    const gap = 12;
+    const gap = 12, wS = 44;
     ctx.font = '700 15px Inter, sans-serif';
     const wU = Math.round(ctx.measureText('Undo').width + 36), wR = Math.round(ctx.measureText('Restart').width + 36), wH = Math.round(ctx.measureText('Rules').width + 36);
-    let x = Math.round(LW / 2 - (wU + wR + wH + gap * 2) / 2);
+    let x = Math.round(LW / 2 - (wS + wU + wR + wH + gap * 3) / 2);
+    uiButtons.push({ ...iconPill(x + wS / 2, ctrlY, snd.on()), id: 'sound', act: () => { snd.ready(); snd.toggle(); render(performance.now()); } }); x += wS + gap;
     uiButtons.push({ ...pill('Undo', x + wU / 2, ctrlY, !history.length), id: 'undo', act: undo }); x += wU + gap;
     uiButtons.push({ ...pill('Restart', x + wR / 2, ctrlY, false), id: 'restart', act: restart }); x += wR + gap;
     uiButtons.push({ ...pill('Rules', x + wH / 2, ctrlY, false), id: 'rules', act: () => { phase = 'menu'; render(performance.now()); } });
