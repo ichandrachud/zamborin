@@ -158,17 +158,62 @@
   }
   const solved = () => placedCount() === tilesTotal;
 
+  // ---------- artwork ----------
+  // Real artwork, when there is any, beats the code-drawn figures. ART is
+  // whatever art/manifest.json lists; the vectors stay as the fallback so the
+  // game still runs with an empty folder.
+  let ART = [];                       // { name, src, img, ready, w, h }
+  const usingArt = () => ART.length > 0;
+  const figureCount = () => (usingArt() ? ART.length : FIGURES.length);
+  const figureName = (i) => (usingArt() ? ART[i].name : FIGURES[i].name);
+
+  async function loadArt() {
+    let list = [];
+    try {
+      const res = await fetch('./art/manifest.json?v=2', { cache: 'no-cache' });
+      if (res.ok) {
+        const j = await res.json();
+        list = Array.isArray(j.figures) ? j.figures : [];
+      }
+    } catch (_) { /* no manifest, no artwork, vectors it is */ }
+    const loaded = await Promise.all(list.map(entry => new Promise(resolve => {
+      const src = './art/' + entry.file;
+      const img = new Image();
+      img.onload = () => resolve({
+        name: entry.name || entry.file.replace(/\.[^.]+$/, ''),
+        src, img, ready: true, w: img.naturalWidth, h: img.naturalHeight,
+      });
+      // A missing or broken file must not take the whole game down with it.
+      img.onerror = () => resolve(null);
+      img.src = src;
+    })));
+    ART = loaded.filter(Boolean);
+    return ART.length;
+  }
+
+  // Artwork is centre-cropped to a square, because the tile grid is square and
+  // a non-square source would otherwise stretch the picture.
+  function artSquare(a) {
+    const s = Math.min(a.w, a.h);
+    return { sx: (a.w - s) / 2, sy: (a.h - s) / 2, s };
+  }
+
   // ---------- figure raster ----------
-  // Drawn once per level into an offscreen canvas. Tiles are then blitted from
-  // it, which keeps the per-frame cost to a handful of drawImage calls and lets
-  // us measure ink coverage by sampling instead of guessing.
+  // Built once per level into an offscreen canvas, and used ONLY to measure
+  // which tiles carry content. Painting comes from the vector paths or the
+  // source image directly, both of which beat a fixed-size raster.
   function rasterFigure(i, col) {
     const cv = document.createElement('canvas');
     cv.width = FIG_PX; cv.height = FIG_PX;
     const g = cv.getContext('2d');
-    g.save(); g.scale(FIG_PX, FIG_PX);
-    window.FOLD_DRAW_FIGURE(g, FIGURES[i], col, LINE);
-    g.restore();
+    if (usingArt()) {
+      const a = ART[i], q = artSquare(a);
+      g.drawImage(a.img, q.sx, q.sy, q.s, q.s, 0, 0, FIG_PX, FIG_PX);
+    } else {
+      g.save(); g.scale(FIG_PX, FIG_PX);
+      window.FOLD_DRAW_FIGURE(g, FIGURES[i], col, LINE);
+      g.restore();
+    }
     return cv;
   }
   // Which tiles actually carry ink? A blank slice of the picture is not worth
@@ -255,7 +300,7 @@
       if (bad || sw !== g || sh !== g) continue;
 
       // Pick the figure and find its inked tiles.
-      const fi = (Math.random() * FIGURES.length) | 0;
+      const fi = (Math.random() * figureCount()) | 0;
       // Ink is chosen from the level number, not at random, so restarting a
       // level gives you back the same picture you were working on.
       const col = INKS[(lvl - 1) % INKS.length];
@@ -346,8 +391,6 @@
   // a handful of fills per frame and is resolution-independent at any zoom,
   // canvas size or device pixel ratio.
   function drawTile(m, X, Y, size) {
-    const fig = FIGURES[figIdx];
-    if (!fig) return;
     ctx.save();
     ctx.beginPath(); ctx.rect(X, Y, size, size); ctx.clip();
     if (m.fx || m.fy) {
@@ -355,11 +398,19 @@
       ctx.scale(m.fx ? -1 : 1, m.fy ? -1 : 1);
       ctx.translate(-(X + size / 2), -(Y + size / 2));
     }
-    // Put the whole figure down at the size the tile grid implies, positioned
-    // so that this tile's slice of it lands inside the clip.
-    ctx.translate(X - m.tc * size, Y - m.tr * size);
-    ctx.scale(gw * size, gh * size);
-    window.FOLD_DRAW_FIGURE(ctx, fig, ink, LINE);
+    if (usingArt()) {
+      // Sliced straight out of the source image at its native resolution —
+      // no intermediate raster, so the artwork is only ever downscaled.
+      const a = ART[figIdx], q = artSquare(a);
+      const t = q.s / gw;
+      ctx.drawImage(a.img, q.sx + m.tc * t, q.sy + m.tr * t, t, t, X, Y, size, size);
+    } else {
+      // Live vector: lay the whole figure down at the size the tile grid
+      // implies, positioned so this tile's slice lands inside the clip.
+      ctx.translate(X - m.tc * size, Y - m.tr * size);
+      ctx.scale(gw * size, gh * size);
+      window.FOLD_DRAW_FIGURE(ctx, FIGURES[figIdx], ink, LINE);
+    }
     ctx.restore();
   }
 
@@ -407,7 +458,7 @@
   // same paper, at full strength. It was a 20% ghost before, which meant the
   // one reference the player needs was the faintest thing on screen.
   function drawTarget(cx, cy, box) {
-    if (!figCanvas) return;
+    if (!usingArt() && !FIGURES[figIdx]) return;
     const x = Math.round(cx - box / 2), y = Math.round(cy - box / 2);
     const pad = Math.max(4, Math.round(box * 0.06));
     ctx.fillStyle = 'rgba(0,0,0,0.28)';
@@ -417,8 +468,13 @@
     const inner = box - pad * 2;
     ctx.save();
     ctx.beginPath(); ctx.rect(x + pad, y + pad, inner, inner); ctx.clip();
-    ctx.translate(x + pad, y + pad); ctx.scale(inner, inner);
-    window.FOLD_DRAW_FIGURE(ctx, FIGURES[figIdx], ink, LINE);
+    if (usingArt()) {
+      const a = ART[figIdx], q = artSquare(a);
+      ctx.drawImage(a.img, q.sx, q.sy, q.s, q.s, x + pad, y + pad, inner, inner);
+    } else {
+      ctx.translate(x + pad, y + pad); ctx.scale(inner, inner);
+      window.FOLD_DRAW_FIGURE(ctx, FIGURES[figIdx], ink, LINE);
+    }
     ctx.restore();
     ctx.strokeStyle = PAPER_EDGE; ctx.lineWidth = 1.5;
     roundRect(x, y, box, box, fs(8)); ctx.stroke();
@@ -533,7 +589,7 @@
       const rowTop = cy - fs(19);
       ctx.fillStyle = GOOD; ctx.font = '800 ' + fs(26) + 'px Inter, sans-serif';
       ctx.textBaseline = 'middle';
-      ctx.fillText(FIGURES[figIdx].name.toUpperCase() + ' COMPLETE', CW / 2, boardBot + (rowTop - boardBot) / 2);
+      ctx.fillText(figureName(figIdx).toUpperCase() + ' COMPLETE', CW / 2, boardBot + (rowTop - boardBot) / 2);
       ctx.textBaseline = 'top';
       winOverlay(performance.now());
     }
@@ -566,7 +622,7 @@
     if (draw) {
       ctx.textAlign = 'center'; ctx.textBaseline = 'top';
       ctx.fillStyle = GOLD; ctx.font = '800 ' + Math.round(29 * ms) + 'px Inter, sans-serif';
-      ctx.fillText(FIGURES[figIdx].name.toUpperCase() + ' MADE', cx, y);
+      ctx.fillText(figureName(figIdx).toUpperCase() + ' MADE', cx, y);
     }
     y += Math.round(38 * ms);
     if (draw) {
@@ -670,7 +726,19 @@
     moves = 0; history = []; hintsUsed = 0; phase = 'play';
     award = null; wonT = -1e9; cardAt = Infinity; banked = false; clearTimeout(cardFB);
     saveLevel(level);
-    if (!genLevel(level)) { level = 1; genLevel(1); }
+    // If generation cannot find a board — most likely because every supplied
+    // image is too sparse to slice, e.g. a small figure on a transparent
+    // background — drop back to the built-in vectors rather than leaving the
+    // player with no board at all.
+    if (!genLevel(level)) {
+      if (usingArt()) {
+        const held = ART; ART = [];
+        const ok = genLevel(level) || genLevel(1);
+        if (!ok) { ART = held; genLevel(1); }
+      } else if (!genLevel(1)) {
+        level = 1; genLevel(1);
+      }
+    }
     computeLayout(); render();
   }
 
@@ -724,7 +792,7 @@
     get state() {
       return {
         level, moves, phase, sheet: origW + 'x' + origH, footprint: W + 'x' + H,
-        figure: FIGURES[figIdx] && FIGURES[figIdx].name, grid: gw + 'x' + gh,
+        figure: figureName(figIdx), art: usingArt(), grid: gw + 'x' + gh,
         tilesTotal, placed: placedCount(), solutionLen: solution.length, solved: solved(),
       };
     },
@@ -771,6 +839,11 @@
 
   // ---------- boot ----------
   setCanvasVars(); resizeCanvas();
+  // Artwork first: which library is in play decides what the generator picks
+  // from, so the level cannot be built until we know.
+  loadArt().then(n => {
+    if (n) { computeLayout(); startLevel(level); }
+  });
   if (!FIGURES.length) {
     ctx.fillStyle = BG; ctx.fillRect(0, 0, CW, CH);
     ctx.fillStyle = '#fff'; ctx.font = '600 16px Inter, sans-serif'; ctx.textAlign = 'center';

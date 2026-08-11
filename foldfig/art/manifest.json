@@ -1,0 +1,26 @@
+{
+  "_readme": [
+    "Drop artwork in this folder and list it here. Anything listed replaces the",
+    "code-drawn vector figures \u2014 the game prefers images whenever this file has",
+    "entries, and falls back to the vectors when it is empty.",
+    "",
+    "WHAT THE ART NEEDS:",
+    "  square         the tile grid is square, so a non-square image gets",
+    "                 centre-cropped to a square and you lose the edges",
+    "  >= 1200px      a 4x4 grid on a retina phone shows roughly 300 device px",
+    "                 per tile, so 1200 is the floor and 2048 is comfortable.",
+    "                 Midjourney's upscale output is fine.",
+    "  full bleed     a background that reaches every edge is BETTER than a cut",
+    "                 out silhouette: every tile then carries image, so no piece",
+    "                 is blank and the puzzle has no free squares",
+    "  bold + clear   the picture is cut into 9 or 16 pieces and some arrive",
+    "                 mirrored. Strong shapes and clear light direction make a",
+    "                 wrong piece obvious. Busy, low-contrast or symmetrical",
+    "                 images make it guesswork",
+    "  .png or .webp  webp is roughly a quarter the size for the same quality;",
+    "                 png is fine and lossless. Both are loaded the same way",
+    "",
+    "Files beginning with an underscore are the built-in test images."
+  ],
+  "figures": []
+}
