@@ -40,6 +40,10 @@
   // Gauge palette, measured on the ground: track 3.28:1 as a graphical object,
   // amber 9.28:1, green 11.46:1, labels 12.84:1.
   const TRACK = '#626C7A', OFF = '#E8B54D', MET = '#8FE3AE';
+  // Hint cyan 10.25:1 and assisted violet 7.95:1 on the ground. They sit close
+  // to amber and green in LIGHTNESS, so they are told apart by hue — which is
+  // safe here because a hint marker and a bubble are never adjacent.
+  const HINT = '#6FD3F5', ASSIST = '#B9A2F5';
   const LABEL = 'rgba(255,255,255,0.86)', TUTOR = '#C9D4E2';
 
   // ---------- state ----------
@@ -50,6 +54,7 @@
   let drag = null;                 // { id, arm, from, to }
   let touchedArm = null;           // whose notches are showing
   let anim = null, raf = 0;
+  let hintsShown = 0, assisted = false;
   let uiButtons = [];
 
   const DROP = 3.0;                // vertical gap per row, in notches
@@ -95,6 +100,36 @@
   }
   const solvedNow = () => T.isSolved(topo, params, cfg);
 
+  // Which stored solution to guide toward: the one the player already matches
+  // most, so a hint never contradicts a hook they have deliberately placed.
+  function bestSolution() {
+    let best = null, bestScore = -1;
+    for (const sol of lvl.solutions) {
+      let score = 0;
+      for (const k of Object.keys(sol)) if (cfg[k] === sol[k]) score++;
+      if (score > bestScore) { bestScore = score; best = sol; }
+    }
+    return best || lvl.solutions[0];
+  }
+
+  // Bridge ties FIRST, then arms bottom-up. That is not an arbitrary order —
+  // it is the structural insight the game exists to teach (§3.3): set the
+  // piece hanging from two branches and everything above it follows. A hint
+  // that revealed hooks in some other order would teach the wrong lesson.
+  function hintOrder() {
+    const ids = [];
+    for (const B of Object.values(topo.bridges || {}))
+      for (const t of B.ties) if (params[t] === undefined) ids.push(t);
+    const post = [];
+    (function walk(a) {
+      for (const h of topo.arms[a].hooks) if (h.carries.arm !== undefined) walk(h.carries.arm);
+      post.push(a);
+    })(topo.root);
+    for (const a of post)
+      for (const h of topo.arms[a].hooks) if (params[h.id] === undefined) ids.push(h.id);
+    return ids;
+  }
+
   // Which specific arms are level, and how far each bridge string is out of
   // plumb. Read off the residuals rather than the drawn tilt, because the tilt
   // rings during the settle and would make a solved arm look wrong mid-swing.
@@ -107,6 +142,36 @@
       else span[d.bridge] = d.r.n;
     }
     return { level, span };
+  }
+
+  // Which stored solution to guide toward: the one the player already matches
+  // most, so a hint never contradicts a hook they have deliberately placed.
+  function bestSolution() {
+    let best = null, bestScore = -1;
+    for (const sol of lvl.solutions) {
+      let score = 0;
+      for (const k of Object.keys(sol)) if (cfg[k] === sol[k]) score++;
+      if (score > bestScore) { bestScore = score; best = sol; }
+    }
+    return best || lvl.solutions[0];
+  }
+
+  // Bridge ties FIRST, then arms bottom-up. That is not an arbitrary order —
+  // it is the structural insight the game exists to teach (§3.3): set the
+  // piece hanging from two branches and everything above it follows. A hint
+  // that revealed hooks in some other order would teach the wrong lesson.
+  function hintOrder() {
+    const ids = [];
+    for (const B of Object.values(topo.bridges || {}))
+      for (const t of B.ties) if (params[t] === undefined) ids.push(t);
+    const post = [];
+    (function walk(a) {
+      for (const h of topo.arms[a].hooks) if (h.carries.arm !== undefined) walk(h.carries.arm);
+      post.push(a);
+    })(topo.root);
+    for (const a of post)
+      for (const h of topo.arms[a].hooks) if (params[h.id] === undefined) ids.push(h.id);
+    return ids;
   }
 
   // Which specific arms are level, and how far each bridge string is out of
@@ -410,6 +475,21 @@
       B.weights.forEach((w, i) => hang(onArm(cx, cy, B.H, 0, val(w.at)), i === 0 ? 0 : 3, BRIDGE_W, val(w.w)));
     }
 
+    // Hint markers sit under the hooks, so a hook is never hidden by its own
+    // target. Static rings — §6.5 allows motion only for the settle and the win.
+    if (hintsShown > 0) {
+      const sol = bestSolution(), order = hintOrder();
+      ctx.save(); ctx.setLineDash([4, 4]); ctx.lineWidth = 2; ctx.strokeStyle = HINT;
+      for (const id of order.slice(0, hintsShown)) {
+        if (sol[id] === undefined || cfg[id] === sol[id]) continue;   // already right
+        const h = hooks.find(z => z.id === id);
+        if (!h) continue;
+        const t = onArm(h.cx, h.cy, h.H, h.tilt, sol[id]);
+        ctx.beginPath(); ctx.arc(t[0], t[1], Math.max(6, NU * 0.26), 0, Math.PI * 2); ctx.stroke();
+      }
+      ctx.restore();
+    }
+
     // hooks last, on top of the wire
     for (const h of hooks)
       drawHook(h.x, h.y, drag && drag.id === h.id ? 'held' : (h.free ? 'free' : 'rivet'));
@@ -430,8 +510,12 @@
     // The win reads in the HUD, never over the mobile. These compositions are
     // quiet and a badge landing on a shape stops the thing looking like one.
     if (solved) {
-      ctx.fillStyle = MET; ctx.font = '800 14px Inter, sans-serif';
-      ctx.fillText('IN BALANCE', 26, 78);
+      ctx.fillStyle = assisted ? ASSIST : MET; ctx.font = '800 14px Inter, sans-serif';
+      ctx.fillText(assisted ? 'SOLVED FOR YOU' : 'IN BALANCE', 26, 78);
+      if (assisted) {
+        ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.font = '500 13px Inter, sans-serif';
+        ctx.fillText('not counted as your solve', 26, 98);
+      }
     }
     // The brief wants both conditions learned wordlessly. On first contact a
     // real player asked outright what the goal was, so the opening levels say
@@ -452,9 +536,18 @@
     // floating over the mobile would stop it looking like one.
     ctx.textAlign = 'center';
     const cy = CH - 42, gap = 10;
-    const row = [['Undo', 'undo', !history.length, undo],
-                 ['Restart', 'restart', false, () => start(li)]];
-    if (phase === 'won') row.push(['Next mobile', 'next', false, () => start(li + 1)]);
+    const won = phase === 'won';
+    const row = won
+      ? (assisted
+          // An assisted win must be undoable, or seeing the answer costs you the
+          // chance to work it out. A genuine win needs no such escape.
+          ? [['Try it myself', 'clear', false, clearAssist],
+             ['Next mobile', 'next', false, () => start(li + 1)]]
+          : [['Next mobile', 'next', false, () => start(li + 1)]])
+      : [['Undo', 'undo', !history.length, undo],
+         ['Restart', 'restart', false, () => start(li)],
+         ['Hint', 'hint', false, hint],
+         ['Solve', 'solve', false, solveForMe]];
     ctx.font = '700 14px Inter, sans-serif';
     let total = 0;
     for (const [t] of row) total += Math.round(ctx.measureText(t).width + 34) + gap;
@@ -580,6 +673,27 @@
     if (drag) { cfg[drag.id] = drag.from; drag = null; touchedArm = null; render(); }
   });
 
+  function hint() {
+    if (phase === 'won') return;
+    hintsShown = Math.min(hintOrder().length, hintsShown + 1);
+    render();
+  }
+  // Sets the board to a real solution and lets the ordinary win path notice, so
+  // the verdict is genuine — it just does not count as YOUR solve.
+  function solveForMe() {
+    const sol = bestSolution();
+    for (const k of Object.keys(sol)) cfg[k] = sol[k];
+    assisted = true; hintsShown = 0;
+    if (solvedNow()) phase = 'won';
+    startSettle(null);
+    render();
+  }
+  function clearAssist() {
+    cfg = { ...lvl.start };
+    moves = 0; history = []; phase = 'play'; assisted = false; hintsShown = 0;
+    startSettle(null); render();
+  }
+
   function undo() {
     if (!history.length || phase === 'won') return;
     const h = history.pop();
@@ -597,6 +711,7 @@
     params = { ...lvl.params };
     cfg = { ...lvl.start };
     moves = 0; history = []; phase = 'play'; drag = null; touchedArm = null; anim = null;
+    hintsShown = 0; assisted = false;
     render();
   }
   function setCanvasVars() {
@@ -614,6 +729,7 @@
     },
     get hooks() { const l = layout(); return l ? hookPoints(l).map(h => ({ id: h.id, arm: h.arm, free: h.free, x: Math.round(h.x), y: Math.round(h.y), at: val(h.id) })) : []; },
     get buttons() { render(); return uiButtons.map(b => ({ id: b.id, cx: b.x + b.w / 2, cy: b.y + b.h / 2 })); },
+    get hints() { return { shown: hintsShown, assisted, order: hintOrder() }; },
     press(id) { render(); const b = uiButtons.find(z => z.id === id); if (!b) return 'no button ' + id; b.act(); return this.state; },
     move(id, n) { cfg[id] = n; if (solvedNow() && phase === 'play') phase = 'won'; render(); return this.state; },
     apply(s) { cfg = { ...s }; if (solvedNow() && phase === 'play') phase = 'won'; render(); return this.state; },
