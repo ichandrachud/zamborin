@@ -227,6 +227,7 @@
     level = lvl; moves = 0; history = []; anim = null;
     genLevel(lvl);                 // note: genLevel runs a solvability replay that calls restore()
     phase = asMenu ? 'menu' : 'play';   // so the phase must be set AFTER generation
+    seedSound();                        // genLevel folds speculatively; start from the real board
     saveLevel(); computeLayout(); render();
   }
 
@@ -239,6 +240,7 @@
   }
   function onTap(e) {
     e.preventDefault();
+    snd.ready();                      // browsers only allow audio after a gesture
     const { x, y } = evtXY(e);
     for (const b of uiButtons) { if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) { b.act(); return; } }
     if (anim) return;
@@ -260,12 +262,43 @@
     if (e.key === 'Escape' && phase === 'menu') { phase = 'play'; render(); }
   });
 
+  // ---------- SOUND ----------
+  // Synthesis lives in shared/sfx.js. Fold's palette is paper: a filtered noise
+  // crease as the flap goes over, a soft ping per pair that lands on its ring,
+  // rising as the sheet resolves, and a chord when the last one matches.
+  const sfx = window.ZSFX ? window.ZSFX.create({ storageKey: 'zamborin-fold.sound' }) : null;
+  const snd = {
+    on: () => !!(sfx && sfx.isOn()),
+    ready() { if (sfx) sfx.ensureAudio(); },
+    toggle() { if (!sfx) return; sfx.setOn(!sfx.isOn()); if (sfx.isOn()) sfx.tone(880, 0.05, 0.03, 'sine'); },
+    crease() { if (sfx) { sfx.noise(0.13, 1100, 0.7, 0.045); sfx.tone(210, 0.07, 0.016, 'sine'); } },
+    match(n) {
+      if (!sfx) return;
+      const step = Math.min(11, Math.max(0, n - 1));
+      sfx.tone(659.25 * Math.pow(2, step / 12), 0.17, 0.040, 'triangle');
+      sfx.tone(659.25 * Math.pow(2, step / 12) * 2, 0.09, 0.012, 'sine');
+    },
+    win() { if (sfx) sfx.arpeggio(659.25, 0.10, 2); },
+    unfold() { if (sfx) sfx.noise(0.10, 700, 0.7, 0.030); },
+  };
+  // genLevel folds speculatively while searching for a solvable sheet, so the
+  // counter is seeded there and sound only fires from real player folds.
+  let lastMatched = 0;
+  function seedSound() { lastMatched = matchedCount(); }
+  function announceMatches() {
+    const m = matchedCount();
+    if (m > lastMatched) for (let i = lastMatched + 1; i <= m; i++) snd.match(i);
+    lastMatched = m;
+  }
+
   // ---------- FOLD + ANIMATION ----------
   function startFold(f) {
     const pre = snapshot();
     history.push(pre);
+    snd.crease();
     doFold(f); moves++;
-    if (matchedCount() === pairs) phase = 'won';
+    announceMatches();
+    if (matchedCount() === pairs) { phase = 'won'; snd.win(); }
     anim = { t0: performance.now(), f, pre };
     requestAnimationFrame(animLoop);
     setTimeout(() => { if (anim && anim.f === f) { anim = null; render(); } }, FOLD_MS + 80);
@@ -427,6 +460,29 @@
       ctx.fillText('Tap a crease line to fold the smaller flap over', CW / 2, boardOY + origH * CELL + fs(16));
     }
   }
+  // Flat outlined speaker drawn on canvas — no emoji glyphs anywhere.
+  function soundPill(cx, cy, w) {
+    const h = fs(38), x = Math.round(cx - w / 2), y = Math.round(cy - h / 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.08)'; roundRect(x, y, w, h, h / 2); ctx.fill();
+    ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(255,255,255,0.26)'; roundRect(x, y, w, h, h / 2); ctx.stroke();
+    const on = snd.on(), s = fs(8);
+    ctx.strokeStyle = on ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.4)';
+    ctx.fillStyle = ctx.strokeStyle;
+    ctx.lineWidth = 1.6; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(cx - s * 0.8, cy - s * 0.3); ctx.lineTo(cx - s * 0.35, cy - s * 0.3);
+    ctx.lineTo(cx + s * 0.15, cy - s * 0.75); ctx.lineTo(cx + s * 0.15, cy + s * 0.75);
+    ctx.lineTo(cx - s * 0.35, cy + s * 0.3); ctx.lineTo(cx - s * 0.8, cy + s * 0.3);
+    ctx.closePath(); ctx.fill();
+    if (on) {
+      ctx.beginPath(); ctx.arc(cx + s * 0.35, cy, s * 0.42, -0.9, 0.9); ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx + s * 0.35, cy, s * 0.78, -0.85, 0.85); ctx.stroke();
+    } else {
+      ctx.beginPath(); ctx.moveTo(cx + s * 0.42, cy - s * 0.42); ctx.lineTo(cx + s * 1.0, cy + s * 0.42);
+      ctx.moveTo(cx + s * 1.0, cy - s * 0.42); ctx.lineTo(cx + s * 0.42, cy + s * 0.42); ctx.stroke();
+    }
+    uiButtons.push({ x, y, w, h, act: () => { snd.ready(); snd.toggle(); render(); } });
+  }
   function pill(label, cx, cy, opts) {
     const font = opts.font || ('700 ' + fs(14) + 'px Inter, sans-serif');
     ctx.font = font;
@@ -449,10 +505,13 @@
     const wU = Math.round(ctx.measureText('Undo').width + fs(18) * 2);
     const wR = Math.round(ctx.measureText('Restart').width + fs(18) * 2);
     const wH = Math.round(ctx.measureText('Rules').width + fs(18) * 2);
-    const total = wU + wR + wH + gap * 2;
+    const wS = Math.round(fs(44));
+    const total = wS + wU + wR + wH + gap * 3;
     let x = Math.round(CW / 2 - total / 2);
+    soundPill(x + wS / 2, cy, wS);
+    x += wS + gap;
     const dim = !history.length || anim;
-    pill('Undo', x + wU / 2, cy, { w: wU, text: dim ? 'rgba(255,255,255,0.32)' : 'rgba(255,255,255,0.92)', act: () => { if (!anim && history.length && phase !== 'won') { restore(history.pop()); render(); } } });
+    pill('Undo', x + wU / 2, cy, { w: wU, text: dim ? 'rgba(255,255,255,0.32)' : 'rgba(255,255,255,0.92)', act: () => { if (!anim && history.length && phase !== 'won') { snd.unfold(); restore(history.pop()); seedSound(); render(); } } });
     x += wU + gap;
     pill('Restart', x + wR / 2, cy, { w: wR, act: () => { if (!anim) startLevel(level); } });
     x += wR + gap;

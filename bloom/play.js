@@ -168,6 +168,39 @@
     for (let i = 0; i < R * C; i++) if (type[i] === TYPE_FLOWER && watered[i] && !was[i]) bloomT[i] = now || performance.now();
   }
   function flowersWatered() { let n = 0, t = 0; for (let i = 0; i < R * C; i++) if (type[i] === TYPE_FLOWER) { t++; if (watered[i]) n++; } return [n, t]; }
+  function wateredPipes() { let n = 0; for (let i = 0; i < R * C; i++) if (watered[i]) n++; return n; }
+
+  // ---------- sound ----------
+  // Synthesis lives in shared/sfx.js. Bloom's palette is water and plumbing: a
+  // soft tok as a pipe turns, a low swell when the water actually gains ground,
+  // and a bell per flower rising in pitch as the garden fills.
+  const sfx = window.ZSFX ? window.ZSFX.create({ storageKey: 'zamborin-bloom.sound' }) : null;
+  const snd = {
+    on: () => !!(sfx && sfx.isOn()),
+    ready() { if (sfx) sfx.ensureAudio(); },
+    toggle() { if (!sfx) return; sfx.setOn(!sfx.isOn()); if (sfx.isOn()) sfx.tone(880, 0.05, 0.03, 'sine'); },
+    turn() { if (sfx) sfx.tone(430, 0.032, 0.020, 'sine'); },
+    flow() { if (sfx) { sfx.tone(190, 0.16, 0.030, 'sine'); sfx.noise(0.10, 620, 1.1, 0.030); } },
+    flower(n) {
+      if (!sfx) return;
+      const step = Math.min(11, Math.max(0, n - 1));
+      sfx.tone(587.33 * Math.pow(2, step / 12), 0.20, 0.042, 'triangle');
+      sfx.tone(587.33 * Math.pow(2, step / 12) * 2, 0.10, 0.013, 'sine');
+    },
+    win() { if (sfx) sfx.arpeggio(587.33, 0.10, 2); },
+    undo() { if (sfx) sfx.tone(330, 0.05, 0.018, 'sine'); },
+  };
+  // Fired only from player-facing paths. genLevel scrambles in a loop that calls
+  // computeWater up to 12 times, and must stay silent.
+  let lastFlowers = 0, lastPipes = 0;
+  function seedSound() { lastFlowers = flowersWatered()[0]; lastPipes = wateredPipes(); }
+  function announceWater() {
+    if (phase === 'menu') { seedSound(); return; }
+    const f = flowersWatered()[0], p = wateredPipes();
+    if (p > lastPipes) snd.flow();
+    if (f > lastFlowers) for (let i = lastFlowers + 1; i <= f; i++) snd.flower(i);
+    lastFlowers = f; lastPipes = p;
+  }
 
   // ---------- generation (random spanning tree) ----------
   function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0;[a[i], a[j]] = [a[j], a[i]]; } }
@@ -205,32 +238,36 @@
     initConn = conn.slice();
     watered = new Array(n).fill(false); spinT = new Array(n).fill(-1e9); bloomT = new Array(n).fill(-1e9);
     moves = 0; phase = asMenu ? 'menu' : 'play'; history = []; animEnd = 0; wonT = -1e9;
-    computeWater(); layout(); render(performance.now());
+    computeWater(); seedSound(); layout(); render(performance.now());
   }
-  function restart() { conn = initConn.slice(); moves = 0; phase = 'play'; history = []; spinT = spinT.map(() => -1e9); bloomT = bloomT.map(() => -1e9); computeWater(); render(performance.now()); }
+  function restart() { conn = initConn.slice(); moves = 0; phase = 'play'; history = []; spinT = spinT.map(() => -1e9); bloomT = bloomT.map(() => -1e9); computeWater(); seedSound(); render(performance.now()); }
 
   // ---------- input ----------
   function rotate(i, now) {
     if (type[i] !== TYPE_PIPE || phase !== 'play') return;
     history.push(i); if (history.length > 400) history.shift();
     conn[i] = rotCW(conn[i]); spinT[i] = now; moves++;
+    snd.turn();
     computeWater(now);
+    announceWater();
     const [w, t] = flowersWatered();
     animEnd = Math.max(now + ROT_MS + 40, now + BLOOM_DUR + 40);
-    if (w === t) { phase = 'won'; wonT = now; animEnd = Math.max(animEnd, now + BLOOM_DUR + 350 + 450 + 60); }
+    if (w === t) { phase = 'won'; wonT = now; snd.win(); animEnd = Math.max(animEnd, now + BLOOM_DUR + 350 + 450 + 60); }
     ensureAnim(now);
   }
   function undo() {
     if (!history.length || phase !== 'play') return;
     const i = history.pop();
     conn[i] = rotCW(rotCW(rotCW(conn[i]))); moves++; spinT[i] = performance.now();
-    computeWater(); render(performance.now());
+    snd.undo();
+    computeWater(); announceWater(); render(performance.now());
   }
   function ensureAnim(now) { render(now); if (!raf) { raf = 1; requestAnimationFrame(tick); } clearTimeout(fb); fb = setTimeout(() => { raf = 0; render(performance.now()); }, (animEnd - now) + 120); }
   function tick(t) { render(t); if (t < animEnd) requestAnimationFrame(tick); else raf = 0; }
 
   function onTap(e) {
     e.preventDefault();
+    snd.ready();                      // browsers only allow audio after a gesture
     const rect = canvas.getBoundingClientRect();
     const x = ((e.clientX ?? e.changedTouches?.[0]?.clientX) - rect.left) * (LW / rect.width);
     const y = ((e.clientY ?? e.changedTouches?.[0]?.clientY) - rect.top) * (LH / rect.height);
@@ -367,11 +404,38 @@
     ctx.fillStyle = dim ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.92)'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(label, cx, y + h / 2 + 1);
     return { x, y, w, h };
   }
+  // Flat outlined speaker drawn on canvas — no emoji glyphs anywhere.
+  function speakerIcon(cx, cy, on) {
+    const s = 8;
+    ctx.strokeStyle = on ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.4)';
+    ctx.fillStyle = ctx.strokeStyle;
+    ctx.lineWidth = 1.6; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(cx - s * 0.8, cy - s * 0.3); ctx.lineTo(cx - s * 0.35, cy - s * 0.3);
+    ctx.lineTo(cx + s * 0.15, cy - s * 0.75); ctx.lineTo(cx + s * 0.15, cy + s * 0.75);
+    ctx.lineTo(cx - s * 0.35, cy + s * 0.3); ctx.lineTo(cx - s * 0.8, cy + s * 0.3);
+    ctx.closePath(); ctx.fill();
+    if (on) {
+      ctx.beginPath(); ctx.arc(cx + s * 0.35, cy, s * 0.42, -0.9, 0.9); ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx + s * 0.35, cy, s * 0.78, -0.85, 0.85); ctx.stroke();
+    } else {
+      ctx.beginPath(); ctx.moveTo(cx + s * 0.42, cy - s * 0.42); ctx.lineTo(cx + s * 1.0, cy + s * 0.42);
+      ctx.moveTo(cx + s * 1.0, cy - s * 0.42); ctx.lineTo(cx + s * 0.42, cy + s * 0.42); ctx.stroke();
+    }
+  }
+  function iconPill(cx, cy, on) {
+    const w = 44, h = 40, x = Math.round(cx - w / 2), y = Math.round(cy - h / 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.07)'; roundRect(x, y, w, h, h / 2); ctx.fill();
+    ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(255,255,255,0.24)'; roundRect(x, y, w, h, h / 2); ctx.stroke();
+    speakerIcon(cx, cy, on);
+    return { x, y, w, h };
+  }
   function drawControls() {
-    const cy = LH - 74, gap = 12;
+    const cy = LH - 74, gap = 12, wS = 44;
     ctx.font = '700 15px Inter, sans-serif';
     const wU = Math.round(ctx.measureText('Undo').width + 36), wR = Math.round(ctx.measureText('Restart').width + 36), wH = Math.round(ctx.measureText('Rules').width + 36);
-    let x = Math.round(LW / 2 - (wU + wR + wH + gap * 2) / 2);
+    let x = Math.round(LW / 2 - (wS + wU + wR + wH + gap * 3) / 2);
+    uiButtons.push({ ...iconPill(x + wS / 2, cy, snd.on()), act: () => { snd.ready(); snd.toggle(); render(performance.now()); } }); x += wS + gap;
     uiButtons.push({ ...pill('Undo', x + wU / 2, cy, !history.length), act: undo }); x += wU + gap;
     uiButtons.push({ ...pill('Restart', x + wR / 2, cy, false), act: restart }); x += wR + gap;
     uiButtons.push({ ...pill('Rules', x + wH / 2, cy, false), act: () => { phase = 'menu'; render(performance.now()); } });
