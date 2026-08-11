@@ -35,8 +35,13 @@
   // ---------- palette ----------
   const BG = '#0E1726', PAPER = '#F3EEE3', PAPER_EDGE = '#cdc4b0';
   const CREASE = 'rgba(60,66,80,0.30)';
-  const INK = '#1F3A5F';                 // figure ink on paper
-  const GOOD = '#3DDC84', WARN = '#E8B54D';
+  const GOOD = '#3DDC84', WARN = '#E8B54D', GOLD = '#FFC65C';
+  // A different ink each level. Every one of these was measured against the
+  // paper (#F3EEE3) and clears 4.5:1 — the weakest is burnt orange at 5.86:1 —
+  // so the figure never gets harder to see just because the colour changed.
+  const INKS = ['#1F3A5F', '#7A2E2E', '#24543A', '#5B2E6E', '#8A4B12',
+    '#14555E', '#3B3A8C', '#4A5220', '#9B2242', '#3A5A2A'];
+  let ink = INKS[0];
 
   const FIGURES = window.FOLD_FIGURES || [];
   const FIG_PX = 600;                    // offscreen resolution for the figure
@@ -52,6 +57,42 @@
   let boardOX = 0, boardOY = 0, FSCALE = 1;
   let uiButtons = [];
   const fs = (px) => Math.round(px * FSCALE);
+
+  // ---------- scoring (same shape as Orbit) ----------
+  const SCORE_KEY = 'zamborin-foldfig.score', LEVEL_KEY = 'zamborin-foldfig.level';
+  let score = { total: 0, cleared: 0, best: 0 };
+  let award = null, wonT = -1e9, cardAt = Infinity, cardFB = 0, raf = 0;
+  // A level banks its score ONCE. Without this you can undo off the scorecard,
+  // re-solve the same board and be paid again, forever.
+  let banked = false;
+  let lastCard = null;              // measured card box, for the layout harness
+  // Hold the finished picture on screen before the scorecard arrives. Assembling
+  // it is the payoff; covering it up a beat later throws that away.
+  const WIN_DELAY = 2200, CARD_FADE = 520;
+
+  function loadScore() {
+    try {
+      const v = JSON.parse(localStorage.getItem(SCORE_KEY) || 'null');
+      if (v && typeof v.total === 'number') score = { total: v.total | 0, cleared: v.cleared | 0, best: v.best | 0 };
+    } catch (_) { }
+  }
+  function saveScore() { try { localStorage.setItem(SCORE_KEY, JSON.stringify(score)); } catch (_) { } }
+  function saveLevel(n) { try { localStorage.setItem(LEVEL_KEY, String(n)); } catch (_) { } }
+  function loadLevelNo() { try { const v = parseInt(localStorage.getItem(LEVEL_KEY), 10); return (v >= 1 && v <= 999) ? v : 1; } catch (_) { return 1; } }
+
+  function scoreLevel() {
+    const base = 120 + 30 * Math.min(level, 25);
+    const par = solution.length;
+    // Folds beyond par erode the bonus; a hint spends a fold, so hints cost you
+    // here rather than needing a rule of their own.
+    const eff = par > 0 ? Math.min(1, par / Math.max(moves, par)) : 1;
+    const parBonus = Math.round(base * 0.75 * eff);
+    // FLAT, not a percentage. Orbit's gear bonus was a percentage and that
+    // re-inverted the curve at high levels — an easier level outscoring a
+    // harder one. A flat figure bonus cannot do that.
+    const sizeBonus = gw >= 4 ? 40 : 0;
+    return { base, par, parBonus, sizeBonus, moves, levelScore: base + parBonus + sizeBonus };
+  }
 
   // ---------- fold maths (same rules as fold/play.js) ----------
   function applyFold(f, r, c) {
@@ -116,13 +157,13 @@
   // Drawn once per level into an offscreen canvas. Tiles are then blitted from
   // it, which keeps the per-frame cost to a handful of drawImage calls and lets
   // us measure ink coverage by sampling instead of guessing.
-  function rasterFigure(i) {
+  function rasterFigure(i, col) {
     const cv = document.createElement('canvas');
     cv.width = FIG_PX; cv.height = FIG_PX;
     const g = cv.getContext('2d');
     g.save(); g.scale(FIG_PX, FIG_PX);
     g.lineJoin = 'round';
-    FIGURES[i].draw(g, INK);
+    FIGURES[i].draw(g, col);
     g.restore();
     return cv;
   }
@@ -211,7 +252,10 @@
 
       // Pick the figure and find its inked tiles.
       const fi = (Math.random() * FIGURES.length) | 0;
-      const raster = rasterFigure(fi);
+      // Ink is chosen from the level number, not at random, so restarting a
+      // level gives you back the same picture you were working on.
+      const col = INKS[(lvl - 1) % INKS.length];
+      const raster = rasterFigure(fi, col);
       const tiles = inkedTiles(raster, g, g);
       if (tiles.length < Math.round(g * g * 0.45)) continue;   // too sparse to read
 
@@ -235,7 +279,7 @@
       if (placedAtHome === tiles.length) continue;             // nothing to do
 
       origW = w0; origH = h0; x0 = 0; y0 = 0; W = w0; H = h0;
-      gw = gh = g; figIdx = fi; figCanvas = raster; tilesTotal = tiles.length;
+      gw = gh = g; figIdx = fi; figCanvas = raster; tilesTotal = tiles.length; ink = col;
       grid = g2;
 
       // Prove it: replay the recorded sequence and require a genuine win.
@@ -280,8 +324,15 @@
     boardOY = Math.round(topBand + (availH - origH * CELL) / 2);
     FSCALE = Math.max(0.8, Math.min(1.6, Math.min(CW, CH) / 560));
   }
-  const cellX = (c) => boardOX + (x0 + c) * CELL;
-  const cellY = (r) => boardOY + (y0 + r) * CELL;
+  // While playing, the sheet stays put inside its original frame so folds read
+  // as folds. On a win the finished picture is presented instead: centred and
+  // pinned to the top of the board band, which both makes it the hero and
+  // guarantees the scorecard has somewhere to sit below it. Left where the
+  // folds happened to end, it could be low enough that the card had to cover it.
+  const originX = () => phase === 'won' ? Math.round((CW - W * CELL) / 2) - x0 * CELL : boardOX;
+  const originY = () => phase === 'won' ? boardOY - y0 * CELL : boardOY;
+  const cellX = (c) => originX() + (x0 + c) * CELL;
+  const cellY = (r) => originY() + (y0 + r) * CELL;
 
   // ---------- drawing ----------
   function drawTile(m, X, Y, size) {
@@ -333,14 +384,20 @@
     ctx.strokeRect(cellX(0), cellY(0), W * CELL, H * CELL);
   }
 
+  // The thing you are trying to make, shown properly — on its own scrap of the
+  // same paper, at full strength. It was a 20% ghost before, which meant the
+  // one reference the player needs was the faintest thing on screen.
   function drawTarget(cx, cy, box) {
     if (!figCanvas) return;
-    ctx.save();
-    ctx.globalAlpha = 0.20;
-    ctx.drawImage(figCanvas, 0, 0, FIG_PX, FIG_PX, cx - box / 2, cy - box / 2, box, box);
-    ctx.restore();
-    ctx.strokeStyle = 'rgba(255,255,255,0.28)'; ctx.lineWidth = 1;
-    ctx.strokeRect(cx - box / 2, cy - box / 2, box, box);
+    const x = Math.round(cx - box / 2), y = Math.round(cy - box / 2);
+    const pad = Math.max(4, Math.round(box * 0.06));
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+    roundRect(x + 2, y + 3, box, box, fs(8)); ctx.fill();
+    ctx.fillStyle = PAPER;
+    roundRect(x, y, box, box, fs(8)); ctx.fill();
+    ctx.drawImage(figCanvas, 0, 0, FIG_PX, FIG_PX, x + pad, y + pad, box - pad * 2, box - pad * 2);
+    ctx.strokeStyle = PAPER_EDGE; ctx.lineWidth = 1.5;
+    roundRect(x, y, box, box, fs(8)); ctx.stroke();
   }
 
   function pill(label, cx, cy, id, dim, act) {
@@ -371,23 +428,30 @@
     const placed = placedCount();
     const pct = tilesTotal ? Math.round(100 * placed / tilesTotal) : 0;
 
-    // HUD
+    // HUD — title and run state on the left, the reference card on the right.
+    const box = fs(96);
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
     ctx.fillStyle = '#fff'; ctx.font = '800 ' + fs(26) + 'px Inter, sans-serif';
     ctx.fillText('FOLD', fs(20), fs(16));
     ctx.font = '600 ' + fs(14) + 'px Inter, sans-serif';
     ctx.fillStyle = 'rgba(255,255,255,0.72)';
-    ctx.fillText('Level ' + level + '   ·   ' + moves + (moves === 1 ? ' fold' : ' folds'), fs(20), fs(16) + fs(30));
+    // Par is shown DURING play, not just on the scorecard — a target you only
+    // learn about after the fact cannot change how you play.
+    ctx.fillText('Level ' + level + '   ·   ' + moves + (moves === 1 ? ' fold' : ' folds') +
+      '   ·   par ' + solution.length, fs(20), fs(16) + fs(30));
+    ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.font = '700 ' + fs(11) + 'px Inter, sans-serif';
+    ctx.fillText('SCORE', fs(20), fs(16) + fs(56));
+    ctx.fillStyle = GOLD; ctx.font = '800 ' + fs(22) + 'px Inter, sans-serif';
+    ctx.fillText(fmt(score.total), fs(20), fs(16) + fs(70));
 
-    // target + progress
-    const box = fs(78);
+    // The card carries the "make this" message on its own, so there is no
+    // headline text competing with it for the narrow space beside it — which
+    // is what would break first on a phone.
     drawTarget(CW - fs(20) - box / 2, fs(16) + box / 2, box);
     ctx.textAlign = 'right';
-    ctx.fillStyle = 'rgba(255,255,255,0.86)'; ctx.font = '700 ' + fs(13) + 'px Inter, sans-serif';
-    ctx.fillText('MAKE THE ' + FIGURES[figIdx].name.toUpperCase(), CW - fs(20), fs(16) + box + fs(8));
-    ctx.fillStyle = pct === 100 ? GOOD : (pct > 0 ? WARN : 'rgba(255,255,255,0.6)');
-    ctx.font = '800 ' + fs(15) + 'px Inter, sans-serif';
-    ctx.fillText(placed + ' / ' + tilesTotal + ' pieces in place', CW - fs(20), fs(16) + box + fs(26));
+    ctx.fillStyle = pct === 100 ? GOOD : (pct > 0 ? WARN : 'rgba(255,255,255,0.62)');
+    ctx.font = '800 ' + fs(14) + 'px Inter, sans-serif';
+    ctx.fillText(placed + ' / ' + tilesTotal + ' pieces', CW - fs(20), fs(16) + box + fs(8));
 
     drawBoard();
 
@@ -395,9 +459,9 @@
     ctx.textAlign = 'center';
     const cy = CH - fs(70), gap = fs(9);
     const row = [
-      ['Undo', 'undo', !history.length, undo],
-      ['Restart', 'restart', false, () => startLevel(level)],
-      ['Hint', 'hint', false, hint],
+      ['Undo', 'undo', !history.length || phase === 'won', undo],
+      ['Restart', 'restart', phase === 'won', () => startLevel(level)],
+      ['Hint', 'hint', phase === 'won', hint],
       ['New', 'new', false, () => startLevel(level + 1)],
     ];
     ctx.font = '700 ' + fs(14) + 'px Inter, sans-serif';
@@ -447,8 +511,122 @@
       ctx.textBaseline = 'middle';
       ctx.fillText(FIGURES[figIdx].name.toUpperCase() + ' COMPLETE', CW / 2, boardBot + (rowTop - boardBot) / 2);
       ctx.textBaseline = 'top';
+      winOverlay(performance.now());
     }
     ctx.textAlign = 'left';
+  }
+
+  // ---------- scorecard ----------
+  const fmt = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  function scoreRow(label, note, value, px, pw, y, ms, strong, draw) {
+    if (draw) {
+      ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+      ctx.fillStyle = strong ? '#fff' : 'rgba(255,255,255,0.72)';
+      ctx.font = (strong ? '700 ' : '500 ') + Math.round((strong ? 17 : 16) * ms) + 'px Inter, sans-serif';
+      ctx.fillText(label, px + 26, y);
+      const lw = ctx.measureText(label).width;
+      if (note) {
+        ctx.fillStyle = 'rgba(255,255,255,0.48)'; ctx.font = '500 ' + Math.round(13 * ms) + 'px Inter, sans-serif';
+        ctx.fillText(note, px + 26 + lw + 10, y);
+      }
+      ctx.textAlign = 'right';
+      ctx.fillStyle = strong ? GOLD : 'rgba(255,255,255,0.92)';
+      ctx.font = '700 ' + Math.round((strong ? 19 : 16) * ms) + 'px Inter, sans-serif';
+      ctx.fillText(value, px + pw - 26, y);
+    }
+    return y + Math.round((strong ? 32 : 27) * ms);
+  }
+  function winBody(px, py, pw, ms, draw) {
+    const a = award || scoreLevel(), cx = CW / 2;
+    let y = py + Math.round(32 * ms);
+    if (draw) {
+      ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillStyle = GOLD; ctx.font = '800 ' + Math.round(29 * ms) + 'px Inter, sans-serif';
+      ctx.fillText(FIGURES[figIdx].name.toUpperCase() + ' MADE', cx, y);
+    }
+    y += Math.round(38 * ms);
+    if (draw) {
+      ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.font = '600 ' + Math.round(15 * ms) + 'px Inter, sans-serif';
+      ctx.fillText('Level ' + level + ' · every piece in place', cx, y);
+    }
+    y += Math.round(32 * ms);
+    y = scoreRow('Level clear', '', '+' + fmt(a.base), px, pw, y, ms, false, draw);
+    y = scoreRow('Par bonus', a.moves + ' folds · par ' + a.par, '+' + fmt(a.parBonus), px, pw, y, ms, false, draw);
+    if (a.sizeBonus) y = scoreRow('Large figure', gw + '×' + gh, '+' + fmt(a.sizeBonus), px, pw, y, ms, false, draw);
+    if (draw) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(px + 26, y - 12 * ms); ctx.lineTo(px + pw - 26, y - 12 * ms); ctx.stroke();
+    }
+    y += Math.round(6 * ms);
+    y = scoreRow('Level score', '', fmt(a.levelScore), px, pw, y, ms, true, draw);
+    y += Math.round(8 * ms);
+    y = scoreRow('Total score', score.cleared + (score.cleared === 1 ? ' figure' : ' figures') + ' made', fmt(score.total), px, pw, y, ms, true, draw);
+    return y + Math.round(14 * ms);
+  }
+  function winOverlay(now) {
+    const t = Math.max(0, Math.min(1, (now - cardAt) / CARD_FADE));
+    if (t <= 0) return;
+    ctx.save();
+    ctx.globalAlpha = t;
+    // Light scrim, not a blackout: the picture the player just assembled is the
+    // whole reward, so it stays readable behind the card.
+    ctx.fillStyle = 'rgba(10,16,28,0.58)'; ctx.fillRect(0, 0, CW, CH);
+    const figBottom = cellY(0) + H * CELL;
+    const room = CH - 10 - (figBottom + fs(14));
+    // Size the card to the gap it actually has. On a small sheet the cells are
+    // large, the assembled figure is tall, and a fixed-size card simply would
+    // not fit underneath — so it shrinks rather than climbing over the picture.
+    let ms = Math.max(0.78, Math.min(1, Math.min(CH / 760, CW / 430)));
+    const pw = Math.min(CW - 34, 420);
+    const measure = (m) => winBody(0, 0, pw, m, false) + Math.round(50 * m) + Math.round(24 * m);
+    let ph = measure(ms);
+    for (let i = 0; i < 8 && ph > room && ms > 0.62; i++) { ms = Math.max(0.62, ms - 0.05); ph = measure(ms); }
+    const bh = Math.round(50 * ms);
+    const px = (CW - pw) / 2;
+    // Below the assembled figure, so the card never lands on the thing you just
+    // made. Centring buried it.
+    const py = Math.max(10, Math.min(figBottom + fs(14), CH - ph - 10));
+    ctx.fillStyle = '#16233a'; roundRect(px, py, pw, ph, 22); ctx.fill();
+    ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(255,255,255,0.13)'; roundRect(px, py, pw, ph, 22); ctx.stroke();
+    const endY = winBody(px, py, pw, ms, true);
+    const bw = Math.round(pw * 0.62), bx = px + (pw - bw) / 2;
+    ctx.fillStyle = GOOD; roundRect(bx, endY, bw, bh, bh / 2); ctx.fill();
+    ctx.fillStyle = '#0B1520'; ctx.font = '800 ' + Math.round(15 * ms) + 'px Inter, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('NEXT FIGURE', bx + bw / 2, endY + bh / 2 + 1);
+    ctx.textBaseline = 'top';
+    ctx.restore();
+    uiButtons.push({ x: bx, y: endY, w: bw, h: bh, id: 'next', act: () => startLevel(level + 1) });
+    lastCard = { top: Math.round(py), bottom: Math.round(py + ph), figBottom: Math.round(figBottom) };
+  }
+
+  // The scorecard is drawn by an animation frame, so on a device that throttles
+  // rAF the player could win and then sit there with no way forward. Timer too.
+  function ensureWinAnim() {
+    if (raf) return;
+    const tick = () => {
+      raf = 0;
+      render();
+      if (phase === 'won' && performance.now() < cardAt + CARD_FADE + 60) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+  }
+  function checkWin() {
+    if (phase !== 'play' || !solved()) return;
+    phase = 'won';
+    if (banked) { wonT = performance.now(); cardAt = wonT + WIN_DELAY; ensureWinAnim(); return; }
+    banked = true;
+    wonT = performance.now();
+    cardAt = wonT + WIN_DELAY;
+    award = scoreLevel();
+    score.total += award.levelScore;
+    score.cleared += 1;
+    score.best = Math.max(score.best, award.levelScore);
+    saveScore();
+    saveLevel(level + 1);       // reloading on the scorecard carries on rather than replaying a scored level
+    clearTimeout(cardFB);
+    cardFB = setTimeout(() => render(), WIN_DELAY + CARD_FADE + 40);
+    ensureWinAnim();
   }
 
   // ---------- actions ----------
@@ -460,12 +638,14 @@
     const f = foldAt(solution[moves].axis, solution[moves].k, W, H);
     if (solution[moves].k >= (f.axis === 'V' ? W : H)) return;
     history.push(snapshot()); doFold(f); moves++; hintsUsed++;
-    if (solved()) phase = 'won';
+    checkWin();
     render();
   }
   function startLevel(lvl) {
     level = Math.max(1, lvl);
     moves = 0; history = []; hintsUsed = 0; phase = 'play';
+    award = null; wonT = -1e9; cardAt = Infinity; banked = false; clearTimeout(cardFB);
+    saveLevel(level);
     if (!genLevel(level)) { level = 1; genLevel(1); }
     computeLayout(); render();
   }
@@ -495,13 +675,19 @@
     e.preventDefault();
     const { x, y } = toLocal(e);
     for (const b of uiButtons) if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) { b.act(); return; }
-    if (phase === 'won') { startLevel(level + 1); return; }
+    if (phase === 'won') {
+      const now = performance.now();
+      // now - 1, not now: at exactly t = 0 the overlay draws nothing, so a
+      // tap would produce one empty frame and, on a stalled rAF, stay empty.
+      if (now < cardAt) { cardAt = now - 1; ensureWinAnim(); render(); }
+      return;
+    }
     const cr = creaseAt(x, y);
     if (!cr) return;
     history.push(snapshot());
     doFold(foldAt(cr.axis, cr.k, W, H));
     moves++;
-    if (solved()) phase = 'won';
+    checkWin();
     render();
   });
 
@@ -547,12 +733,14 @@
       }
       return { marks, mirrored, pct: marks ? Math.round(100 * mirrored / marks) : 0 };
     },
+    get score() { return { ...score, ink, award, wouldScore: scoreLevel() }; },
+    get geom() { return { CW, CH, boardOY, figBottom: Math.round(cellY(0) + H * CELL), card: lastCard }; },
     get buttons() { render(); return uiButtons.map(b => ({ id: b.id, cx: b.x + b.w / 2, cy: b.y + b.h / 2 })); },
     press(id) { render(); const b = uiButtons.find(z => z.id === id); if (!b) return 'no button ' + id; b.act(); return this.state; },
     goto(n) { startLevel(n); return this.state; },
     // Play the recorded solution straight through.
     solve() { let g = 0; while (moves < solution.length && g++ < 20) hint(); return this.state; },
-    fold(axis, k) { history.push(snapshot()); doFold(foldAt(axis, k, W, H)); moves++; if (solved()) phase = 'won'; render(); return this.state; },
+    fold(axis, k) { history.push(snapshot()); doFold(foldAt(axis, k, W, H)); moves++; checkWin(); render(); return this.state; },
     figures: FIGURES.map(f => f.name),
     render,
   };
@@ -564,6 +752,7 @@
     ctx.fillStyle = '#fff'; ctx.font = '600 16px Inter, sans-serif'; ctx.textAlign = 'center';
     ctx.fillText('figures.js did not load', CW / 2, CH / 2);
   } else {
-    startLevel(1);
+    loadScore();
+    startLevel(loadLevelNo());
   }
 })();
