@@ -36,11 +36,16 @@
   const BG = '#0E1726', PAPER = '#F3EEE3', PAPER_EDGE = '#cdc4b0';
   const CREASE = 'rgba(60,66,80,0.30)';
   const GOOD = '#3DDC84', WARN = '#E8B54D', GOLD = '#FFC65C';
-  // A different ink each level. Every one of these was measured against the
-  // paper (#F3EEE3) and clears 4.5:1 — the weakest is burnt orange at 5.86:1 —
-  // so the figure never gets harder to see just because the colour changed.
-  const INKS = ['#1F3A5F', '#7A2E2E', '#24543A', '#5B2E6E', '#8A4B12',
-    '#14555E', '#3B3A8C', '#4A5220', '#9B2242', '#3A5A2A'];
+  // Bright fills, and they are compliant because of the LINEWORK, not the fill.
+  // Measured on the cream paper: sky blue is 2.08:1 and sunflower 1.40:1, so
+  // none of these would pass on their own. Every shape is stroked in LINE,
+  // which is 14.11:1 against the paper, and that outline is what identifies the
+  // figure — the fill inside it is then free to be as loud as we like.
+  // All twelve also clear 3:1 against LINE (weakest: blue at 3.35:1), so
+  // internal detail drawn in the line colour stays visible on top of them.
+  const LINE = '#241F1A';
+  const INKS = ['#E5342B', '#F5811F', '#FFC21A', '#7DC242', '#2FA84F', '#00A99D',
+    '#35B5EC', '#2C6FD1', '#9A4FD6', '#D6249B', '#FF5B8D', '#4FD1A5'];
   let ink = INKS[0];
 
   const FIGURES = window.FOLD_FIGURES || [];
@@ -162,8 +167,7 @@
     cv.width = FIG_PX; cv.height = FIG_PX;
     const g = cv.getContext('2d');
     g.save(); g.scale(FIG_PX, FIG_PX);
-    g.lineJoin = 'round';
-    FIGURES[i].draw(g, col);
+    window.FOLD_DRAW_FIGURE(g, FIGURES[i], col, LINE);
     g.restore();
     return cv;
   }
@@ -335,9 +339,15 @@
   const cellY = (r) => originY() + (y0 + r) * CELL;
 
   // ---------- drawing ----------
+  // Tiles are drawn as LIVE VECTOR, not blitted from the raster. The raster is
+  // still built at generation time, but only to measure which tiles carry ink —
+  // using it to paint would cap the artwork at 600px, which on a 4x4 grid is
+  // 150px of source stretched across a retina tile. Re-running the paths costs
+  // a handful of fills per frame and is resolution-independent at any zoom,
+  // canvas size or device pixel ratio.
   function drawTile(m, X, Y, size) {
-    if (!figCanvas) return;
-    const sw = FIG_PX / gw, sh = FIG_PX / gh;
+    const fig = FIGURES[figIdx];
+    if (!fig) return;
     ctx.save();
     ctx.beginPath(); ctx.rect(X, Y, size, size); ctx.clip();
     if (m.fx || m.fy) {
@@ -345,14 +355,22 @@
       ctx.scale(m.fx ? -1 : 1, m.fy ? -1 : 1);
       ctx.translate(-(X + size / 2), -(Y + size / 2));
     }
-    ctx.drawImage(figCanvas, m.tc * sw, m.tr * sh, sw, sh, X, Y, size, size);
+    // Put the whole figure down at the size the tile grid implies, positioned
+    // so that this tile's slice of it lands inside the clip.
+    ctx.translate(X - m.tc * size, Y - m.tr * size);
+    ctx.scale(gw * size, gh * size);
+    window.FOLD_DRAW_FIGURE(ctx, fig, ink, LINE);
     ctx.restore();
   }
 
   function drawBoard() {
-    // sheet
+    // sheet — rounded corners, clipped so the creases and tiles stay inside it
+    const sx = cellX(0), sy = cellY(0), sw = W * CELL, sh = H * CELL;
+    const rad = Math.max(3, Math.min(CELL * 0.22, 18));
+    ctx.save();
     ctx.fillStyle = PAPER;
-    ctx.fillRect(cellX(0), cellY(0), W * CELL, H * CELL);
+    roundRect(sx, sy, sw, sh, rad); ctx.fill();
+    roundRect(sx, sy, sw, sh, rad); ctx.clip();
     // creases
     ctx.strokeStyle = CREASE; ctx.lineWidth = 1;
     for (let c = 1; c < W; c++) {
@@ -380,8 +398,9 @@
         }
       }
     }
+    ctx.restore();
     ctx.strokeStyle = PAPER_EDGE; ctx.lineWidth = 2;
-    ctx.strokeRect(cellX(0), cellY(0), W * CELL, H * CELL);
+    roundRect(sx, sy, sw, sh, rad); ctx.stroke();
   }
 
   // The thing you are trying to make, shown properly — on its own scrap of the
@@ -395,7 +414,12 @@
     roundRect(x + 2, y + 3, box, box, fs(8)); ctx.fill();
     ctx.fillStyle = PAPER;
     roundRect(x, y, box, box, fs(8)); ctx.fill();
-    ctx.drawImage(figCanvas, 0, 0, FIG_PX, FIG_PX, x + pad, y + pad, box - pad * 2, box - pad * 2);
+    const inner = box - pad * 2;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(x + pad, y + pad, inner, inner); ctx.clip();
+    ctx.translate(x + pad, y + pad); ctx.scale(inner, inner);
+    window.FOLD_DRAW_FIGURE(ctx, FIGURES[figIdx], ink, LINE);
+    ctx.restore();
     ctx.strokeStyle = PAPER_EDGE; ctx.lineWidth = 1.5;
     roundRect(x, y, box, box, fs(8)); ctx.stroke();
   }
