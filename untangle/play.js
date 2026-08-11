@@ -21,23 +21,31 @@
     const vw = window.innerWidth;
     const vh = window.innerHeight;
     const HUD_H        = 70;
-    const BANNER_H     = 50;
-    const BOTTOM_PAD   = 22;
-    const HINT_AREA    = 36;
     const GRID_TOP_GAP = 8;
     const SIDE_PAD     = 12;
+    // These reserves are fixed pixel bands. On a short viewport — a small phone
+    // held in landscape — they add up to more than the screen and PLAY_H came
+    // out NEGATIVE, which piled every dot on top of the HUD and made a negative
+    // radius on line ~329. Buy the playfield back out of the optional bands,
+    // banner first; every draw path already handles BANNER_H === 0, because
+    // that is how the desktop config runs.
+    const MIN_PLAY = 110;                 // measured: 114 still plays comfortably
+    let BANNER_H = 50, HINT_AREA = 36, BOTTOM_PAD = 22;
+    const playFor = () => vh - HUD_H - GRID_TOP_GAP - HINT_AREA - BANNER_H - BOTTOM_PAD;
+    if (playFor() < MIN_PLAY) BANNER_H = 0;
+    if (playFor() < MIN_PLAY) { HINT_AREA = 0; BOTTOM_PAD = 10; }
     document.body.style.setProperty('--canvas-w', vw + 'px');
     document.body.style.setProperty('--canvas-h', vh + 'px');
     return {
       W: vw, H: vh, HUD_H,
       PLAY_X: SIDE_PAD,
       PLAY_Y: HUD_H + GRID_TOP_GAP,
-      PLAY_W: vw - SIDE_PAD * 2,
-      PLAY_H: vh - HUD_H - GRID_TOP_GAP - HINT_AREA - BANNER_H - BOTTOM_PAD,
+      PLAY_W: Math.max(80, vw - SIDE_PAD * 2),
+      PLAY_H: Math.max(80, playFor()),
       VERTEX_R: 14,
       VERTEX_HIT: 28,
-      BANNER_W: 320, BANNER_H,
-      BANNER_Y: vh - BANNER_H - BOTTOM_PAD,
+      BANNER_W: BANNER_H > 0 ? 320 : 0, BANNER_H,
+      BANNER_Y: BANNER_H > 0 ? vh - BANNER_H - BOTTOM_PAD : vh,
     };
   }
   const CFG = MODE === 'mobile' ? buildMobileCFG() : (() => {
@@ -192,6 +200,16 @@
     return 'zamborin-untangle-level-' + level;
   }
 
+  // The TUTORIAL tier is 5 dots with only 2 of them moved, which frequently
+  // perturbs into a board that has ZERO crossings — a puzzle already solved.
+  // Counted across three play areas: old levels 1 and 2 each came out solved on
+  // at least one common screen size (and both did on a 320px phone), while
+  // every level from 3 upward has real crossings everywhere. So the curve now
+  // starts at what used to be level 3; the player still sees "Level 1".
+  // Declared here, above `runTier`, which reads it at load.
+  const LEVEL_OFFSET = 2;
+  const genLevelFor = (level) => level + LEVEL_OFFSET;
+
   // ---------- GRAPH GENERATION ----------
   function chordsCrossOnCircle(a, b, c, d) {
     if (a > b) { const t = a; a = b; b = t; }
@@ -295,7 +313,7 @@
 
   let runLevel = parseInt(localStorage.getItem('zamborin-untangle.level') || '1', 10);
   if (!Number.isFinite(runLevel) || runLevel < 1) runLevel = 1;
-  let runTier = tierForLevel(runLevel);
+  let runTier = tierForLevel(genLevelFor(runLevel));
 
   let highestLevel = parseInt(localStorage.getItem('zamborin-untangle.highest') || '1', 10);
   if (!Number.isFinite(highestLevel) || highestLevel < 1) highestLevel = 1;
@@ -321,8 +339,8 @@
   // ---------- INIT ----------
   function initLevel(level) {
     runLevel = level;
-    runTier  = tierForLevel(level);
-    rng = mulberry32(hashSeed(levelSeedString(level)));
+    runTier  = tierForLevel(genLevelFor(level));
+    rng = mulberry32(hashSeed(levelSeedString(genLevelFor(level))));
     N = runTier.N;
     edges = generateGraphTopology(N, runTier.edges);
 
@@ -717,7 +735,7 @@
     if (runLevel > 1) {
       ctx.fillText('RESUMING AT LEVEL ' + runLevel + ' · ' + runTier.name, midX, resumeY);
     } else {
-      ctx.fillText('STARTING AT LEVEL 1 · TUTORIAL', midX, resumeY);
+      ctx.fillText('STARTING AT LEVEL 1 · ' + tierForLevel(genLevelFor(1)).name, midX, resumeY);
     }
 
     const btnW = MODE === 'mobile' ? 240 : 280;

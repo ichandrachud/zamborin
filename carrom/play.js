@@ -23,7 +23,10 @@
   function squareSize() {
     if (MODE === 'desktop') return 600;
     const reserved = 30;
-    return Math.min(window.innerHeight - reserved, window.innerWidth - reserved);
+    // Floored: this runs ONCE at load, and a browser that reports a 0-sized
+    // viewport for the first frame would otherwise bake in a negative board
+    // for the whole session.
+    return Math.max(200, Math.min(window.innerHeight - reserved, window.innerWidth - reserved));
   }
   const S = squareSize();
   document.body.style.setProperty('--canvas-w', S + 'px');

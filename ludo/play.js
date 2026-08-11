@@ -224,12 +224,15 @@
   let diceUsed = [false, false];
   let selectedDie = -1;
   let consecutiveDoubles = 0;
-  // Anti-stall pity: per player, while all four tokens are still in base,
-  // guarantee the double-six they need to get out within a window of that
-  // player's rolls — 10 at first, then every 20 thereafter. pityCount counts
-  // all-in-base rolls since the last double-six.
+  // Double-six pacing, per player: a double-six is guaranteed at least once
+  // every 12 of that player's rolls for the first 4 of them, and at least once
+  // every 20 rolls after that. Counted over EVERY roll, not just rolls made
+  // while stuck in base. pityCount is rolls since this player's last double-six;
+  // pitySixes is how many they have had, natural or forced.
+  const PITY_EARLY_WINDOW = 12, PITY_LATE_WINDOW = 20, PITY_EARLY_COUNT = 4;
   let pityCount = {};
-  let pityWindow = {};
+  let pitySixes = {};
+  const pityWindowFor = (p) => (pitySixes[p] < PITY_EARLY_COUNT ? PITY_EARLY_WINDOW : PITY_LATE_WINDOW);
   let rollAnim = null;
   let winner = null;
   let captureFlash = null;
@@ -467,14 +470,12 @@
     ensureAudio();
     let v1 = 1 + Math.floor(Math.random() * 6);
     let v2 = 1 + Math.floor(Math.random() * 6);
-    // Pity rule: if the active player still has every token in base, count this
-    // roll and force the double-six they need once they reach their window.
+    // Force the double-six once this player reaches their window, so the gap
+    // between double-sixes can never exceed it.
     const p = activePlayer();
-    if (playerTokens(p).every(t => t.status === 'base')) {
-      pityCount[p]++;
-      if (pityCount[p] >= pityWindow[p]) { v1 = 6; v2 = 6; }
-      if (v1 === 6 && v2 === 6) { pityCount[p] = 0; pityWindow[p] = 20; }
-    }
+    pityCount[p]++;
+    if (pityCount[p] >= pityWindowFor(p)) { v1 = 6; v2 = 6; }
+    if (v1 === 6 && v2 === 6) { pityCount[p] = 0; pitySixes[p]++; }
     rollAnim = { t0: performance.now(), duration: 720, finalA: v1, finalB: v2 };
     capturedThisRoll = false;
     sfxDiceShake();
@@ -681,7 +682,7 @@
     activePlayerIdx = 0;
     winner = null;
     consecutiveDoubles = 0;
-    for (const p of turnOrder) { pityCount[p] = 0; pityWindow[p] = 10; }
+    for (const p of turnOrder) { pityCount[p] = 0; pitySixes[p] = 0; }
     lastMoveMsg = '';
     captureFlash = null;
     aiActionAt = 0;

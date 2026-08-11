@@ -3,7 +3,8 @@
   "configurations": [
     {
       "name": "zamborin",
-      "url": "http://localhost:5230",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "5230", "--directory", "/Users/indrajet/Projects/zamborin"],
       "port": 5230,
       "autoPort": false
     }

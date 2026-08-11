@@ -102,7 +102,7 @@
   let specOverride = null;              // debug: forces a board shape
   let level = 1, moves = 0, phase = 'menu';   // phase: menu | play | won
   let history = [], initOff = [], uiButtons = [], hoverRing = -1, drag = null;
-  let raf = 0, fb = 0, lastT = 0, wonT = -1e9;
+  let raf = 0, fb = 0, cardFB = 0, lastT = 0, wonT = -1e9, cardAt = Infinity;
   let par = 0, award = null;            // par turns for this board; last level's breakdown
   let score = { total: 0, cleared: 0, best: 0 };
   const LS = 'zamborin-orbit.level', LS_SCORE = 'zamborin-orbit.score';
@@ -448,7 +448,7 @@
     initOff = off.slice();
     visAng = off.map(o => o * STEP); targAng = visAng.slice();
     bulbT = new Array(S).fill(-1e9);
-    moves = 0; history = []; wonT = -1e9; drag = null; hoverRing = -1;
+    moves = 0; history = []; wonT = -1e9; cardAt = Infinity; clearTimeout(cardFB); drag = null; hoverRing = -1;
     phase = asMenu ? 'menu' : 'play';
     layout(); computeLit(); render(performance.now());
     // Seed the counters from the new board, or the first relight would replay a
@@ -458,7 +458,7 @@
   function restart() {
     if (phase === 'won') return;          // the level is already scored — no replaying it
     off = initOff.slice(); visAng = off.map(o => o * STEP); targAng = visAng.slice();
-    moves = 0; history = []; phase = 'play'; wonT = -1e9; bulbT = new Array(S).fill(-1e9);
+    moves = 0; history = []; phase = 'play'; wonT = -1e9; cardAt = Infinity; clearTimeout(cardFB); bulbT = new Array(S).fill(-1e9);
     computeLit(); lastLit = bulbCount()[0]; lastOff = off.slice(); ensureAnim();
   }
 
@@ -496,6 +496,12 @@
     const [w, t] = bulbCount();
     if (w === t && t > 0) {
       phase = 'won'; wonT = performance.now();      // phase guard above means this banks exactly once
+      cardAt = wonT + WIN_DELAY;                    // a tap during the hold can pull this forward
+      // The card is drawn by the animation loop, so on a device where rAF is
+      // throttled or paused the player would win and then sit on a lit board
+      // with no way forward. This timer draws it regardless.
+      clearTimeout(cardFB);
+      cardFB = setTimeout(() => render(performance.now()), WIN_DELAY + CARD_FADE + 40);
       snd.win();
       award = scoreLevel();
       score.total += award.levelScore;
@@ -632,8 +638,13 @@
     if (pendingBtn) { const b = hitBtn(x, y); if (b && b.id === pendingBtn.id) b.act(); pendingBtn = null; return; }
     if (drag) { finishDrag(true); return; }
     if (phase === 'menu') { phase = 'play'; render(performance.now()); return; }
-    // Once won, only the scorecard's own button moves on — a stray tap should
-    // not skip past the breakdown.
+    // During the hold that shows off the finished mandala, a tap says "I have
+    // seen it" and brings the scorecard forward. Once the card is actually up,
+    // only its own button moves on — a stray tap should not skip the breakdown.
+    if (phase === 'won') {
+      const now = performance.now();
+      if (now < cardAt) { cardAt = now; render(now); }
+    }
   }
   canvas.addEventListener('pointerdown', onDown);
   canvas.addEventListener('pointermove', onMove);
@@ -887,7 +898,11 @@
   // Scorecard modal. Held back until the mandala has finished lighting so the
   // reveal the player earned is never cut short, and the scrim is left partly
   // transparent so the board still shows behind it.
-  const WIN_DELAY = BULB_DUR + 620;
+  // The hold used to be 620ms past the last bulb, which put the card on screen
+  // about a second after the win — not long enough to actually look at the
+  // thing you just solved. It now holds ~2.6s and fades in more slowly. A tap
+  // during the hold summons the card early, so this never traps anyone.
+  const WIN_DELAY = BULB_DUR + 2200, CARD_FADE = 520;
   function scoreRow(label, note, value, px, pw, y, ms, strong, draw) {
     if (draw) {
       ctx.textBaseline = 'alphabetic';
@@ -935,7 +950,7 @@
     return y + Math.round(14 * ms);
   }
   function winOverlay(now) {
-    const t = Math.max(0, Math.min(1, (now - (wonT + WIN_DELAY)) / 420));
+    const t = Math.max(0, Math.min(1, (now - cardAt) / CARD_FADE));
     if (t <= 0) return;
     ctx.globalAlpha = t;
     ctx.fillStyle = 'rgba(10,16,28,0.74)'; ctx.fillRect(0, 0, LW, LH);
@@ -1044,7 +1059,9 @@
     at(k, frac) { const a = A0 + (frac || 0) * Math.PI * 2; return { x: CX + ringR[k] * Math.cos(a), y: CY + ringR[k] * Math.sin(a) }; },
     solve() {
       visAng = new Array(K).fill(0); targAng = visAng.slice();
-      computeLit(); if (phase === 'play') checkWin(); render(performance.now()); return this.state;
+      // ensureAnim, or the win is banked with no clock running and the scorecard
+      // never arrives — a real solve always comes through finishDrag, which does.
+      computeLit(); if (phase === 'play') checkWin(); ensureAnim(); render(performance.now()); return this.state;
     },
     // Applies the move AND settles it, so tests do not have to wait out the ease.
     spin(k, d) { applyDelta(k, d, true); visAng = targAng.slice(); computeLit(); checkWin(); render(performance.now()); return this.state; },

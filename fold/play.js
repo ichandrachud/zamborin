@@ -90,7 +90,10 @@
   // ---------- LAYOUT ----------
   function computeLayout() {
     const topBand = Math.round(88 * Math.min(1.15, Math.max(0.9, CH / 640)));
-    const botBand = Math.round(92 * Math.min(1.15, Math.max(0.9, CH / 640)));
+    // 92 left the bottom band big enough for the control row and nothing else, so
+    // on the fixed 560x640 desktop canvas the hint line landed on top of the
+    // pills. Mobile is width-bound, so this costs it no board size at all.
+    const botBand = Math.round(108 * Math.min(1.15, Math.max(0.9, CH / 640)));
     const availW = CW - 24;
     const availH = CH - topBand - botBand;
     const cells = Math.max(origW, origH, 1);
@@ -456,8 +459,17 @@
     ctx.font = '600 ' + fs(14) + 'px Inter, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.72)';
     ctx.fillText('Level ' + level + '   ·   ' + matchedCount() + ' / ' + pairs + ' matched   ·   ' + moves + (moves === 1 ? ' fold' : ' folds'), P, fs(16) + fs(30));
     if (phase === 'play' && moves === 0) {
-      ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.font = '500 ' + fs(14) + 'px Inter, sans-serif';
-      ctx.fillText('Tap a crease line to fold the smaller flap over', CW / 2, boardOY + origH * CELL + fs(16));
+      // Sit in the gap between the board and the control row rather than at a
+      // fixed offset below the board — a fixed offset has no idea the buttons
+      // are there, and on a short canvas it walks straight into them.
+      const boardBot = boardOY + origH * CELL;
+      const band = controlsTop() - boardBot;
+      if (band >= fs(15) + 6) {
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.font = '500 ' + fs(14) + 'px Inter, sans-serif';
+        ctx.fillText('Tap a crease line to fold the smaller flap over', CW / 2, boardBot + band / 2);
+        ctx.textBaseline = 'top';
+      }
     }
   }
   // Flat outlined speaker drawn on canvas — no emoji glyphs anywhere.
@@ -498,8 +510,12 @@
     if (opts.act) uiButtons.push({ x, y, w, h, act: opts.act });
     return w;
   }
+  // Single source of truth for where the control row starts, so anything drawn
+  // above it can stay clear of it.
+  function controlsCY() { return CH - Math.round(44 * FSCALE); }
+  function controlsTop() { return controlsCY() - fs(38) / 2; }
   function drawControls() {
-    const cy = CH - Math.round(44 * FSCALE);
+    const cy = controlsCY();
     const gap = fs(12);
     ctx.font = '700 ' + fs(14) + 'px Inter, sans-serif';
     const wU = Math.round(ctx.measureText('Undo').width + fs(18) * 2);
@@ -577,6 +593,19 @@
   // ---------- DEBUG ----------
   window.__fold = {
     get state() { return { level, x0, y0, W, H, pairs, moves, phase, matched: matchedCount(), anim: !!anim }; },
+    // Geometry of everything drawn below the board, so a harness can prove the
+    // hint line and the control row do not overlap instead of eyeballing it.
+    get boxes() {
+      const boardBot = boardOY + origH * CELL, band = controlsTop() - boardBot;
+      ctx.font = '500 ' + fs(14) + 'px Inter, sans-serif';
+      const shown = phase === 'play' && moves === 0 && band >= fs(15) + 6;
+      const w = ctx.measureText('Tap a crease line to fold the smaller flap over').width;
+      return {
+        CW, CH, FSCALE: +FSCALE.toFixed(3), CELL, boardBot, controlsTop: controlsTop(), band,
+        hint: shown ? { x: CW / 2 - w / 2, w, top: boardBot + band / 2 - fs(15) / 2, bot: boardBot + band / 2 + fs(15) / 2 } : null,
+        buttons: uiButtons.map(b => ({ x: b.x, y: b.y, w: b.w, h: b.h })),
+      };
+    },
     solve() { if (!hint) return 'no hint'; for (const f of hint) { history.push(snapshot()); doFold(f); moves++; } if (matchedCount() === pairs) phase = 'won'; anim = null; render(); return matchedCount() + '/' + pairs; },
     fold(axis, k) { startFold(foldAt(axis, k, W, H)); anim = null; render(); return matchedCount() + '/' + pairs; },
     next() { startLevel(level + 1); },
