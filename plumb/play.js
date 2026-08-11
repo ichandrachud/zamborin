@@ -95,6 +95,34 @@
   }
   const solvedNow = () => T.isSolved(topo, params, cfg);
 
+  // Which specific arms are level, and how far each bridge string is out of
+  // plumb. Read off the residuals rather than the drawn tilt, because the tilt
+  // rings during the settle and would make a solved arm look wrong mid-swing.
+  function verdicts() {
+    const e = T.evaluate(topo, params, cfg);
+    const level = {}, span = {};
+    if (!e) return { level, span };
+    for (const d of e.residuals) {
+      if (d.kind === 'balance') level[d.arm] = d.r.n === 0;
+      else span[d.bridge] = d.r.n;
+    }
+    return { level, span };
+  }
+
+  // Which specific arms are level, and how far each bridge string is out of
+  // plumb. Read off the residuals rather than the drawn tilt, because the tilt
+  // rings during the settle and would make a solved arm look wrong mid-swing.
+  function verdicts() {
+    const e = T.evaluate(topo, params, cfg);
+    const level = {}, span = {};
+    if (!e) return { level, span };
+    for (const d of e.residuals) {
+      if (d.kind === 'balance') level[d.arm] = d.r.n === 0;
+      else span[d.bridge] = d.r.n;
+    }
+    return { level, span };
+  }
+
   // How far off each of the two conditions is. Measured against the LEVEL'S OWN
   // START, so the bar begins full and empties as you close in — an absolute
   // scale would mean nothing to a player who cannot see the units.
@@ -206,14 +234,69 @@
     }
     ctx.restore();
   }
+  // A movable hook has to LOOK movable at a glance. The old pair — a thin open
+  // ring against a solid dot — differed too little, so the one thing you can
+  // interact with did not announce itself.
   function drawHook(x, y, kind) {
     if (kind === 'rivet') {
-      ctx.beginPath(); ctx.arc(x, y, Math.max(2, NU * 0.09), 0, Math.PI * 2);
-      ctx.fillStyle = HOOK_RIVET; ctx.fill(); return;
+      // Riveted: small, dim, deliberately recessive. Still 3:1 on the ground.
+      ctx.beginPath(); ctx.arc(x, y, Math.max(2, NU * 0.075), 0, Math.PI * 2);
+      ctx.fillStyle = HOOK_RIVET; ctx.fill();
+      return;
     }
-    ctx.beginPath(); ctx.arc(x, y, Math.max(3, NU * 0.13), 0, Math.PI * 2);
-    ctx.strokeStyle = kind === 'held' ? HOOK_HELD : HOOK_FREE;
-    ctx.lineWidth = kind === 'held' ? 2.4 : 1.6; ctx.stroke();
+    const r = Math.max(4.5, NU * 0.185);
+    const held = kind === 'held';
+    // a dark seat first, so the ring reads against wire and shapes alike
+    ctx.beginPath(); ctx.arc(x, y, r + 1.5, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(10,26,47,0.85)'; ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.strokeStyle = held ? HOOK_HELD : HOOK_FREE;
+    ctx.lineWidth = held ? 3 : 2.2; ctx.stroke();
+    ctx.beginPath(); ctx.arc(x, y, Math.max(1.4, r * 0.30), 0, Math.PI * 2);
+    ctx.fillStyle = held ? HOOK_HELD : HOOK_FREE; ctx.fill();
+  }
+
+  // A spirit level on each beam. The bubble rides to the HIGH side, as a real
+  // one does, so a tilted arm says which way it is tilted and by how much —
+  // which a single gauge for the whole mobile could never do.
+  function drawVial(cx, cy, tilt, level) {
+    const w = Math.max(18, NU * 1.25), h = Math.max(7, NU * 0.32);
+    const up = Math.max(9, NU * 0.62);
+    ctx.save();
+    ctx.translate(cx, cy); ctx.rotate(tilt); ctx.translate(0, -up);
+    ctx.fillStyle = 'rgba(10,26,47,0.9)';
+    roundRect(-w / 2, -h / 2, w, h, h / 2); ctx.fill();
+    ctx.strokeStyle = TRACK; ctx.lineWidth = 1.2;
+    roundRect(-w / 2, -h / 2, w, h, h / 2); ctx.stroke();
+    // the two centre marks a real vial has
+    ctx.strokeStyle = 'rgba(255,255,255,0.30)'; ctx.lineWidth = 1;
+    for (const sx of [-h * 0.55, h * 0.55]) {
+      ctx.beginPath(); ctx.moveTo(sx, -h / 2); ctx.lineTo(sx, h / 2); ctx.stroke();
+    }
+    const br = h * 0.34;
+    const range = w / 2 - br - 1.5;
+    const off = Math.max(-1, Math.min(1, -tilt / MAXTILT)) * range;
+    ctx.beginPath(); ctx.arc(off, 0, br, 0, Math.PI * 2);
+    ctx.fillStyle = level ? MET : OFF; ctx.fill();
+    ctx.restore();
+  }
+
+  // A plumb line beside each bridge string: a dotted TRUE vertical dropped from
+  // the anchor. The string is plumb when it lies along it, and the gap between
+  // them at the bottom is exactly the error.
+  function drawPlumbLine(ax, ay, by, off) {
+    ctx.save();
+    ctx.setLineDash([3, 4]);
+    ctx.strokeStyle = off === 0 ? 'rgba(143,227,174,0.55)' : OFF;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(ax, by); ctx.stroke();
+    ctx.setLineDash([]);
+    if (off !== 0) {
+      // a tick at the foot showing how far out of plumb it is
+      ctx.strokeStyle = OFF; ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.moveTo(ax, by); ctx.lineTo(ax + off, by); ctx.stroke();
+    }
+    ctx.restore();
   }
 
   // Where every hook sits on screen right now. One place computes this, so
@@ -286,6 +369,7 @@
         const B = topo.bridges[h.carries.bridge];
         const bx = boardCX + e.bcentre[h.carries.bridge] * NU;
         const tp = onArm(bx, bridgeY(D, h.carries.bridge), B.H, 0, val(B.ties[h.carries.end]));
+        drawPlumbLine(h.x, h.y, tp[1], Math.round(tp[0] - h.x));
         drawString([h.x, h.y], tp, true);
       }
     }
@@ -295,15 +379,18 @@
       if (li < 2) return 0.55;                     // discoverable on the first two levels
       return touchedArm === name ? 0.75 : 0;
     };
+    const V = verdicts();
     for (const [name, A] of Object.entries(topo.arms)) {
       const cx = boardCX + e.x[name] * NU, cy = armY(D, name);
       drawNotches(cx, cy, A.H, e.tilt[name] || 0, notchAlpha(name));
       drawArm(cx, cy, A.H, e.tilt[name] || 0, Math.max(1.4, NU * 0.075));
+      drawVial(cx, cy, e.tilt[name] || 0, !!V.level[name]);
     }
     for (const [name, B] of Object.entries(topo.bridges || {})) {
       const cx = boardCX + e.bcentre[name] * NU, cy = bridgeY(D, name);
       drawNotches(cx, cy, B.H, 0, notchAlpha(name));
       drawArm(cx, cy, B.H, 0, Math.max(1.4, NU * 0.075));
+      drawVial(cx, cy, 0, !!V.level[name]);
     }
 
     // weights, each on a short drop below its arm
@@ -335,29 +422,9 @@
     ctx.fillStyle = '#fff'; ctx.font = '800 26px Inter, sans-serif';
     ctx.fillText('PLUMB', 26, 22);
 
-    // Two gauges: one per win condition. The brief asks for both to be read off
-    // the sculpture alone, and on first contact with a real player that failed —
-    // they could not tell whether a move helped. A bar that empties as you close
-    // in is the same fix that worked on PINS for the same complaint.
-    const gw = Math.min(250, CW * 0.42), gx = CW - 26 - gw;
-    let gy = 24;
-    for (const g of gauges()) {
-      const met = g.v === 0;
-      ctx.textAlign = 'left'; ctx.fillStyle = met ? MET : LABEL;
-      ctx.font = '800 11px Inter, sans-serif';
-      ctx.fillText(g.key, gx, gy);
-      ctx.textAlign = 'right'; ctx.fillStyle = met ? MET : 'rgba(255,255,255,0.55)';
-      ctx.font = '700 11px Inter, sans-serif';
-      ctx.fillText(met ? 'MET' : 'off', CW - 26, gy);
-      const by = gy + 15, bh = 7;
-      ctx.fillStyle = TRACK; roundRect(gx, by, gw, bh, bh / 2); ctx.fill();
-      if (!met) {
-        ctx.fillStyle = OFF;
-        roundRect(gx, by, Math.max(bh, gw * g.f), bh, bh / 2); ctx.fill();
-      }
-      gy += 36;
-    }
-    ctx.textAlign = 'left';
+    // No aggregate gauge here any more. Every beam carries its own spirit
+    // level and every bridge string its own plumb line, which says WHICH one is
+    // off — a single bar for the whole mobile never could.
     ctx.font = '600 14px Inter, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.72)';
     ctx.fillText('Level ' + (li + 1) + '   ·   ' + moves + (moves === 1 ? ' move' : ' moves'), 26, 54);
     // The win reads in the HUD, never over the mobile. These compositions are
@@ -370,8 +437,8 @@
     // real player asked outright what the goal was, so the opening levels say
     // it plainly and then stop.
     const TUTORIAL = [
-      'Drag the pale rings along the arms. Get every arm hanging flat.',
-      'Both bars must empty: every arm flat, and every string straight down.',
+      'Drag the bright rings. Centre every bubble to get each arm hanging flat.',
+      'Also: every string must hang straight down. Watch the dotted plumb lines.',
       'The red piece hangs from two branches — it decides what each side carries.',
     ];
     if (li < TUTORIAL.length && !solved) {
