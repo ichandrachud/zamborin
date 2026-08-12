@@ -22,12 +22,23 @@
 
   const BG_TOP = '#1B2A47', BG_MID = '#131F36', BG_BOT = '#0E1726';
 
-  // §6.1 — three ramps indexed by height 0..6, plus a pond ramp by depth.
-  const PARCHED = ['#443f36', '#4e483c', '#585142', '#625a48', '#6c634e', '#766c54', '#80755a'];
-  const GREEN   = ['#23543a', '#2a6244', '#31704e', '#387e58', '#3f8c62', '#469a6c', '#4da876'];
-  const POND_DEEP = '#2170a8', POND_SHALLOW = '#2a80bc';
-  const CONTOUR = '#0E1726';
-  const SHOOT_STEM = '#17753d', SHOOT_LEAF = '#2fae5e', SHOOT_LIGHT = '#93dca8', SHOOT_HUSK = '#8a7a5c';
+  // Two ground colours, not two seven-step ramps. Height is carried by the
+  // extrusion now, so colour answers one question only: has water been here.
+  // Deliberately far apart in LUMINANCE, not just hue — the flat version put
+  // the game's only feedback channel on the red-green axis at 1.2:1, which is
+  // the classic colour-blind confusion pair.
+  const DRY = '#dcc59a', WET = '#2f7a45';
+  const WATER_TOP = '#5fbdec', WATER_L = '#2f7fbd', WATER_R = '#276da3';
+  const SHADE_L = 0.62, SHADE_R = 0.44;
+  const shade = (hex, f) => {
+    const n = parseInt(hex.slice(1), 16);
+    return 'rgb(' + Math.round(((n >> 16) & 255) * f) + ',' + Math.round(((n >> 8) & 255) * f) + ',' + Math.round((n & 255) * f) + ')';
+  };
+  const SHOOT_STEM = '#17753d', SHOOT_LEAF = '#2fae5e', SHOOT_LIGHT = '#93dca8';
+  // The dry husk sits on dry ground, so it cannot be a tan: #8a7a5c on #dcc59a
+  // was tan on tan and the targets vanished. Dark brown reads on both ground
+  // colours, and the player has to see the targets before they start shaping.
+  const SHOOT_HUSK = '#4a3a22', SHOOT_HUSK_LIT = '#7d6741';
   const METER_FILL = '#3a9bde';
 
   const HMAX = 6;
@@ -80,7 +91,16 @@
   window.addEventListener('splash-done', () => render(performance.now()));
 
   // ---------- state ----------
-  let R = 9, C = 8, cell = 60, ox = 0, oy = 0;
+  let R = 6, C = 6, cell = 60, ox = 0, oy = 0;
+  // Tile width, tile height (2:1 iso), height step and the skirt below height 0.
+  // The two _F values are the step and skirt as fractions of TW, so the whole
+  // board scales from one number.
+  // Height step as a fraction of TW. Tuned against reachability, not looks:
+  // extruding harder hides the columns behind, and at 0.155 three of eighty
+  // marked cells had no clickable pixel at all. 0.12 with see-through picking
+  // measured zero unreachable and a median target of 3384px2.
+  const HS_F = 0.12, BASE_F = 0.24;
+  let TW = 60, TH = 30, HS = 9, BASE = 15;
   let height = [], solvedH = [], editable = [], isShoot = [], growT = [];
   let filled = [], depth = [], wet = [], spent = 0;
   let spring = 0, BUDGET = 0, par = 0;
@@ -96,30 +116,86 @@
   const TOP_BAND = 100, BOT_BAND = 96;
   const sidePad = () => (LW < 520 ? 8 : 30);
 
-  // §8 — cells must be at least 44px on the smallest phone. Rather than assume
-  // 8 columns always clears that, derive the column count FROM the 44px floor:
-  // at 360px wide, 8 columns would be 43px, which breaks the promise.
+  // ---------- isometric projection ----------
+  // The game is about height, downhill and pooling, which are three vertical
+  // ideas, and top-down is the one projection that hides vertical. Measured on
+  // the flat version, adjacent height steps separated by 1.15:1 in luminance —
+  // invisible — so colour was carrying both height and water state and doing
+  // neither. Extruding the cells moves height into FORM and leaves colour one
+  // job: wet or dry. The lit top and two shaded sides also give every step
+  // luminance separation for free, which is what the flat ramps never had.
   function gridDims(lvl) {
-    if (MODE === 'mobile') {
-      const availW = Math.max(60, LW - sidePad() * 2);
-      const cols = Math.max(5, Math.min(8, Math.floor(availW / 44)));
-      const availH = Math.max(60, LH - TOP_BAND - BOT_BAND);
-      const rows = Math.max(7, Math.min(11, Math.floor(availH / (availW / cols))));
-      return [rows, cols];
-    }
-    const c = 6 + Math.min(Math.floor((lvl - 1) / 3), 6);      // 6 → 12 wide
-    const r = Math.max(5, Math.min(9, Math.round(c * 0.75)));  // → 9 tall
-    return [r, c];
+    // An iso board is always about twice as wide as tall, so a portrait grid
+    // fights the projection. Square, and small enough that a tile stays
+    // thumb-sized: at 390px wide, R+C = 12 gives a 62px tile.
+    if (MODE === 'mobile') return [6, 6];
+    const n = 6 + Math.min(Math.floor((lvl - 1) / 3), 3);        // 6 → 9, square
+    return [n, n];
   }
   function layout() {
     const availW = Math.max(60, LW - sidePad() * 2);
     const availH = Math.max(60, LH - TOP_BAND - BOT_BAND);
-    cell = Math.max(8, Math.floor(Math.min(availW / C, availH / R)));
-    ox = Math.round((LW - C * cell) / 2);
-    oy = Math.round(TOP_BAND + (availH - R * cell) / 2);
+    const span = R + C;
+    // board is span*TW/2 wide and span*TH/2 + HMAX*HS + BASE tall
+    const byW = 2 * availW / span;
+    const byH = availH / (span / 4 + HMAX * HS_F + BASE_F);
+    if (drawOrder.length !== R * C) buildOrders();
+    TW = Math.max(16, Math.min(byW, byH));
+    HS = TW * HS_F; BASE = TW * BASE_F;
+    // A square board is bound by WIDTH on a phone and then leaves most of the
+    // height empty — measured, 38% of the available height in use. Rather than
+    // waste it, un-squash the projection into whatever room is left: a taller
+    // diamond is a bigger touch target for free. Clamped so it still reads as
+    // isometric rather than sliding back towards a flat top-down view.
+    const room = (availH - HMAX * HS - BASE) * 2 / span;
+    TH = Math.max(TW * 0.5, Math.min(TW * 0.68, room));
+    const contentH = span * TH / 2 + HMAX * HS + BASE;
+    ox = Math.round(LW / 2 + (R - C) * TW / 4);
+    oy = Math.round(TOP_BAND + (availH - contentH) / 2 + HMAX * HS + TH / 2);
   }
-  const ccx = (c) => ox + (c + 0.5) * cell;
-  const ccy = (r) => oy + (r + 0.5) * cell;
+  const isoX = (r, c) => ox + (c - r) * TW / 2;
+  const isoY = (r, c, h) => oy + (c + r) * TH / 2 - h * HS;
+  // The whole silhouette of one column, top face plus both side faces. Used for
+  // drawing and, walked front to back, for picking.
+  function blockPath(r, c, h) {
+    const sx = isoX(r, c), sy = isoY(r, c, h), d = h * HS + BASE;
+    return [[sx, sy - TH / 2], [sx + TW / 2, sy], [sx + TW / 2, sy + d],
+            [sx, sy + TH / 2 + d], [sx - TW / 2, sy + d], [sx - TW / 2, sy]];
+  }
+  function inPoly(pts, x, y) {
+    let inside = false;
+    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      const [xi, yi] = pts[i], [xj, yj] = pts[j];
+      if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+    }
+    return inside;
+  }
+  // Draw order back to front, pick order front to back. Built once per level
+  // rather than per pointer event.
+  let drawOrder = [], pickOrder = [];
+  function buildOrders() {
+    drawOrder = [];
+    for (let r = 0; r < R; r++) for (let c = 0; c < C; c++) drawOrder.push([r, c]);
+    drawOrder.sort((a, b) => (a[0] + a[1]) - (b[0] + b[1]));
+    pickOrder = drawOrder.slice().reverse();
+  }
+  // Front to back, but SEE-THROUGH: a non-editable column is scenery, it can
+  // never be the thing the player meant, so picking continues past it to the
+  // editable column behind. Measured, this is the difference between three
+  // marked cells that cannot be clicked at all and none, and it triples the
+  // median target from 1620px2 to 3384px2. Falls back to the frontmost hit so
+  // a tap on plain scenery still reports as "on the board".
+  function cellAt(x, y) {
+    let first = -1;
+    for (const [r, c] of pickOrder) {
+      const i = idx(r, c);
+      const top = wet[i] && depth[i] > 0 ? height[i] + depth[i] : height[i];
+      if (!inPoly(blockPath(r, c, top), x, y)) continue;
+      if (first < 0) first = i;
+      if (editable[i]) return i;
+    }
+    return first;
+  }
 
   // ---------- §2 the water model ----------
   // A binary min-heap keyed on (value, cellIndex). The index tiebreak is not
@@ -253,6 +329,31 @@
     for (let i = 0; i < R * C; i++) if (isShoot[i] && !r.wet[i]) return false;
     return true;
   }
+  // Can this column actually be clicked, or is it entirely behind taller ones?
+  // Five samples across its top face, each asked whether picking would reach
+  // this cell. Purely geometric, so it costs nothing next to a pixel sweep, and
+  // it turns "no unreachable marked cells" from a tuning into a guarantee.
+  function topReachable(i, h, ed) {
+    const { r, c } = rc(i);
+    const sx = isoX(r, c), sy = isoY(r, c, h);
+    const pts = [[sx, sy], [sx - TW * 0.28, sy], [sx + TW * 0.28, sy], [sx, sy - TH * 0.28], [sx, sy + TH * 0.28]];
+    for (const [px, py] of pts) {
+      for (const [pr, pc] of pickOrder) {
+        const j = idx(pr, pc);
+        if (!inPoly(blockPath(pr, pc, hAt(j)), px, py)) continue;
+        if (j === i) return true;
+        if (ed[j]) break;                 // an editable column in front swallows this sample
+      }
+    }
+    return false;
+  }
+  let hAt = () => 0;                      // set per candidate board during generation
+  function allMarkedReachable(h, ed) {
+    hAt = (j) => h[j];
+    for (let i = 0; i < R * C; i++) if (ed[i] && !topReachable(i, h[i], ed)) return false;
+    return true;
+  }
+
   function wetCount(h, budget) {
     const r = routeWater(h, computeFilled(h), budget);
     let n = 0; for (let i = 0; i < R * C; i++) if (r.wet[i]) n++;
@@ -275,6 +376,9 @@
     const n = R * C;
     const K = Math.min(6, 4 + Math.floor((lvl - 1) / 5));        // shoots
     const N = Math.min(9, 3 + Math.floor((lvl - 1) * 0.7));      // scramble edits = par
+    // The projection depends only on R and C, both fixed for this level, so
+    // resolve it once up front and every candidate can be geometry-checked.
+    buildOrders(); layout();
 
     let built = null;
     for (let attempt = 0; attempt < 400 && !built; attempt++) {
@@ -395,6 +499,9 @@
       shuffle(decoyPool);
       for (let k = 0; k < Math.min(N, decoyPool.length); k++) ed[decoyPool[k]] = true;
 
+      // A marked column the player cannot click is a broken promise, and with
+      // extruded terrain some sit entirely behind their neighbours.
+      if (!allMarkedReachable(scrambled, ed)) continue;
       built = { h: scrambled, solved: h, editable: ed, par: edits.length };
     }
 
@@ -456,9 +563,8 @@
     for (const b of uiButtons) if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) { e.preventDefault(); b.act(); return; }
     if (phase === 'menu') { phase = 'play'; render(performance.now()); return; }
     if (phase === 'won') { genLevel(level + 1); return; }
-    const c = Math.floor((x - ox) / cell), r = Math.floor((y - oy) / cell);
-    if (r < 0 || r >= R || c < 0 || c >= C) return;
-    const i = idx(r, c);
+    const i = cellAt(x, y);
+    if (i < 0) return;
     if (!editable[i]) return;                                     // §5 — non-editable cells ignore the gesture entirely
     e.preventDefault();
     drag = { i, y0: y, from: height[i], base: height[i], id: e.pointerId };
@@ -494,10 +600,25 @@
   function ease(t) { return 1 - Math.pow(1 - t, 3); }
   function roundRect(x, y, w, h, r) { r = Math.min(r, w / 2, h / 2); ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
 
-  function cellFill(i) {
-    if (!wet[i]) return PARCHED[clampH(height[i])];
-    if (depth[i] > 0) return depth[i] >= 2 ? POND_DEEP : POND_SHALLOW;
-    return GREEN[clampH(height[i])];
+  function facePath(pts) {
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for (let k = 1; k < pts.length; k++) ctx.lineTo(pts[k][0], pts[k][1]);
+    ctx.closePath();
+  }
+  // One extruded column: shaded left and right sides, lit top.
+  function drawBlock(r, c, h, top, alpha) {
+    const sx = isoX(r, c), sy = isoY(r, c, h), d = h * HS + BASE;
+    if (alpha !== undefined) ctx.globalAlpha = alpha;
+    facePath([[sx - TW / 2, sy], [sx, sy + TH / 2], [sx, sy + TH / 2 + d], [sx - TW / 2, sy + d]]);
+    ctx.fillStyle = typeof top === 'string' ? shade(top, SHADE_L) : top.l; ctx.fill();
+    facePath([[sx, sy + TH / 2], [sx + TW / 2, sy], [sx + TW / 2, sy + d], [sx, sy + TH / 2 + d]]);
+    ctx.fillStyle = typeof top === 'string' ? shade(top, SHADE_R) : top.r; ctx.fill();
+    facePath([[sx, sy - TH / 2], [sx + TW / 2, sy], [sx, sy + TH / 2], [sx - TW / 2, sy]]);
+    ctx.fillStyle = typeof top === 'string' ? top : top.t; ctx.fill();
+    ctx.strokeStyle = 'rgba(14,23,38,0.45)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.globalAlpha = 1;
+    return [sx, sy];
   }
 
   function render(now) {
@@ -507,43 +628,35 @@
     ctx.fillStyle = bg; ctx.fillRect(0, 0, LW, LH);
     uiButtons = [];
 
-    // ground
-    for (let i = 0; i < R * C; i++) {
-      const { r, c } = rc(i);
-      ctx.fillStyle = cellFill(i);
-      ctx.fillRect(ox + c * cell, oy + r * cell, cell, cell);
-    }
+    // Painter's order: back to front is increasing r+c, so a column drawn later
+    // is nearer the viewer and correctly covers what it hides.
+    for (const [r, c] of drawOrder) {
+      const i = idx(r, c), h = height[i], dep = depth[i], isWet = wet[i];
+      const [sx, sy] = drawBlock(r, c, h, isWet && dep === 0 ? WET : DRY);
 
-    // §6.1 contour lines — a dark edge wherever two cells differ in height.
-    // This one detail is what makes flat colour read as terrain.
-    ctx.strokeStyle = CONTOUR; ctx.lineWidth = 1.6; ctx.lineCap = 'butt';
-    ctx.beginPath();
-    for (let r = 0; r < R; r++) for (let c = 0; c < C; c++) {
-      const i = idx(r, c), x = ox + c * cell, y = oy + r * cell;
-      if (c + 1 < C && height[idx(r, c + 1)] !== height[i]) { ctx.moveTo(x + cell, y); ctx.lineTo(x + cell, y + cell); }
-      if (r + 1 < R && height[idx(r + 1, c)] !== height[i]) { ctx.moveTo(x, y + cell); ctx.lineTo(x + cell, y + cell); }
-    }
-    ctx.stroke();
-    // board edge
-    ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 2;
-    ctx.strokeRect(ox, oy, C * cell, R * cell);
-
-    // §3a editable caps
-    for (let i = 0; i < R * C; i++) {
-      if (!editable[i]) continue;
-      const { r, c } = rc(i);
-      const s = Math.round(cell * 0.2), pad = Math.round(cell * 0.12);
-      const lift = (drag && drag.i === i) ? 2 : 0;
-      ctx.fillStyle = 'rgba(255,255,255,0.22)';
-      roundRect(ox + c * cell + pad, oy + r * cell + pad - lift, s, s, s * 0.3); ctx.fill();
-      if (drag && drag.i === i) {
-        ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 2;
-        ctx.strokeRect(ox + c * cell + 1, oy + r * cell + 1, cell - 2, cell - 2);
+      // Standing water: a slab filling the hollow to its spill level. Drawn
+      // translucent so the ground beneath still reads as ground.
+      if (isWet && dep > 0) {
+        drawBlock(r, c, h + dep, { t: WATER_TOP, l: WATER_L, r: WATER_R }, 0.86);
       }
-    }
 
-    drawSpring(now);
-    for (let i = 0; i < R * C; i++) if (isShoot[i]) drawShoot(i, now);
+      // Draggable columns wear grip ridges on the top face. A flat pale square
+      // says nothing; ridges say "hold here", which is the whole point of not
+      // needing a tutorial.
+      if (editable[i]) {
+        const ty = isoY(r, c, isWet && dep > 0 ? h + dep : h);
+        ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = Math.max(1.4, TW * 0.028); ctx.lineCap = 'round';
+        const w = TW * 0.22, gap = TH * 0.15;
+        for (const dy of [-gap, 0, gap]) { ctx.beginPath(); ctx.moveTo(sx - w, ty + dy); ctx.lineTo(sx + w, ty + dy); ctx.stroke(); }
+      }
+      if (drag && drag.i === i) {
+        const ty = isoY(r, c, isWet && dep > 0 ? h + dep : h);
+        facePath([[sx, ty - TH / 2], [sx + TW / 2, ty], [sx, ty + TH / 2], [sx - TW / 2, ty]]);
+        ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 2.5; ctx.stroke();
+      }
+      if (i === spring) drawSpring(r, c, h, now);
+      if (isShoot[i]) drawShoot(i, r, c, h, now);
+    }
 
     drawMeter();
     drawHUD(now);
@@ -552,50 +665,53 @@
     if (phase === 'menu') menuOverlay();
   }
 
-  function drawSpring(now) {
-    const { r, c } = rc(spring), cx = ccx(c), cy = ccy(r), s = cell * 0.5;
-    ctx.fillStyle = wet[spring] ? '#2f86c8' : '#33435c';
-    ctx.beginPath(); ctx.arc(cx, cy, s * 0.42, 0, 7); ctx.fill();
-    ctx.fillStyle = '#eaf6ff';
-    ctx.beginPath(); ctx.arc(cx, cy, s * 0.27, 0, 7); ctx.fill();
-    ctx.fillStyle = '#2f86c8';
-    const d = s * 0.17;
-    ctx.beginPath(); ctx.moveTo(cx, cy - d);
-    ctx.bezierCurveTo(cx + d * 0.9, cy - d * 0.05, cx + d * 0.7, cy + d, cx, cy + d);
-    ctx.bezierCurveTo(cx - d * 0.7, cy + d, cx - d * 0.9, cy - d * 0.05, cx, cy - d);
-    ctx.closePath(); ctx.fill();
+  // The spring pours. A droplet icon says "water lives here"; a falling stream
+  // says "water comes OUT of here and goes down", which is the rule of the game.
+  function drawSpring(r, c, h, now) {
+    const cx = isoX(r, c), cy = isoY(r, c, h), s = TW * 0.5;
+    ctx.fillStyle = '#dceeff';
+    ctx.beginPath(); ctx.arc(cx, cy - s * 0.26, s * 0.2, 0, 7); ctx.fill();
+    ctx.fillStyle = '#2f7fbd';
+    ctx.beginPath(); ctx.arc(cx, cy - s * 0.26, s * 0.12, 0, 7); ctx.fill();
+    ctx.strokeStyle = WATER_TOP; ctx.lineWidth = Math.max(2.5, s * 0.09); ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(cx, cy - s * 0.12); ctx.lineTo(cx, cy + s * 0.2); ctx.stroke();
   }
 
   // PLACEHOLDER. §6.2's five-stage shoot art is step 5 of the build order, held
-  // back until the verb is judged. This is enough to see targets and whether
-  // they are watered, and nothing more.
-  function drawShoot(i, now) {
-    const { r, c } = rc(i), cx = ccx(c), cy = ccy(r), s = cell * 0.5;
+  // back until the verb is judged. Enough to see a target, and whether it is
+  // watered, standing on top of its column.
+  function drawShoot(i, r, c, h, now) {
     const on = wet[i];
-    const prog = on ? Math.min(1, (now - growT[i]) / GROW_DUR) : 0;
-    const g = on ? ease(Math.max(0.001, prog)) : 0;
+    const top = on && depth[i] > 0 ? h + depth[i] : h;
+    const cx = isoX(r, c), cy = isoY(r, c, top), s = TW * 0.5;
     if (!on) {
-      ctx.strokeStyle = SHOOT_HUSK; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(cx, cy, s * 0.46, 0, 7); ctx.stroke();
+      // a scratched ring on the ground says "something is meant to grow here"
+      ctx.strokeStyle = 'rgba(74,58,34,0.5)'; ctx.lineWidth = Math.max(1.5, s * 0.05);
+      ctx.beginPath(); ctx.ellipse(cx, cy, s * 0.34, s * 0.17, 0, 0, 7); ctx.stroke();
+      ctx.strokeStyle = SHOOT_HUSK; ctx.lineWidth = Math.max(2.5, s * 0.09); ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx, cy - s * 0.3); ctx.stroke();
       ctx.fillStyle = SHOOT_HUSK;
-      ctx.beginPath(); ctx.ellipse(cx, cy, s * 0.2, s * 0.26, 0, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(cx, cy - s * 0.44, s * 0.14, s * 0.19, 0, 0, 7); ctx.fill();
+      ctx.fillStyle = SHOOT_HUSK_LIT;
+      ctx.beginPath(); ctx.ellipse(cx - s * 0.04, cy - s * 0.48, s * 0.07, s * 0.1, 0, 0, 7); ctx.fill();
       return;
     }
-    ctx.strokeStyle = SHOOT_STEM; ctx.lineWidth = Math.max(2, cell * 0.06); ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(cx, cy + s * 0.5); ctx.lineTo(cx, cy + s * 0.5 - s * 0.9 * g); ctx.stroke();
-    const ly = cy + s * 0.5 - s * 0.55 * g, lw = s * 0.42 * g;
+    const g = ease(Math.max(0.001, Math.min(1, (now - growT[i]) / GROW_DUR)));
+    ctx.strokeStyle = SHOOT_STEM; ctx.lineWidth = Math.max(2.5, s * 0.1); ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx, cy - s * 0.72 * g); ctx.stroke();
+    const ly = cy - s * 0.56 * g, lw = s * 0.34 * g;
     for (const dir of [-1, 1]) {
       ctx.fillStyle = SHOOT_LEAF;
-      ctx.beginPath(); ctx.ellipse(cx + dir * lw * 0.6, ly, lw, lw * 0.42, dir * 0.5, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(cx + dir * lw * 0.7, ly, lw, lw * 0.4, dir * 0.5, 0, 7); ctx.fill();
       ctx.fillStyle = SHOOT_LIGHT;
-      ctx.beginPath(); ctx.ellipse(cx + dir * lw * 0.6, ly - lw * 0.12, lw * 0.62, lw * 0.2, dir * 0.5, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(cx + dir * lw * 0.7, ly - lw * 0.14, lw * 0.6, lw * 0.18, dir * 0.5, 0, 7); ctx.fill();
     }
   }
 
   // §7 water meter — the bar is the reading, no numerals
   function drawMeter() {
-    const w = Math.min(180, C * cell * 0.5), h = 8;
-    const x = Math.round(ox + C * cell - w), y = Math.round(oy - 20);
+    const w = Math.min(180, (R + C) * TW * 0.22), h = 8;
+    const x = Math.round(LW / 2 - w / 2), y = Math.round(LH - BOT_BAND - 20);
     ctx.fillStyle = 'rgba(255,255,255,0.10)'; roundRect(x, y, w, h, h / 2); ctx.fill();
     const f = BUDGET > 0 ? Math.max(0, Math.min(1, spent / BUDGET)) : 0;
     ctx.fillStyle = METER_FILL; roundRect(x, y, Math.max(h, w * f), h, h / 2); ctx.fill();
@@ -741,7 +857,11 @@
     solve() { height = solvedH.slice(); computeWater(); const [g, t] = shootsGrown(); if (g === t) { phase = 'won'; wonT = performance.now() - GROW_DUR - 350; } render(performance.now()); return this.state; },
     set(i, v) { setHeight(i, v, performance.now()); render(performance.now()); return this.state; },
     next() { genLevel(level + 1); }, goto(n) { genLevel(n); },
-    get geom() { return { LW, LH, cell, ox, oy, R, C }; },
+    get geom() { return { LW, LH, TW, TH, HS, BASE, ox, oy, R, C }; },
+    // The projection and the picker, so hit-testing can be checked against what
+    // is actually drawn rather than against a second copy of the maths.
+    iso(r, c, h) { return [isoX(r, c), isoY(r, c, h === undefined ? height[idx(r, c)] : h)]; },
+    cellAt(x, y) { return cellAt(x, y); },
   };
 
   // ---------- boot ----------
