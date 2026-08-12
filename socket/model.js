@@ -26,16 +26,20 @@
 // within the body (0 .. span-1). Symmetric plugs have the pin centred.
 // flippable is true when pinAt is not the centre, since flipping then changes
 // which sockets get covered.
-function makePlug(id, span, pinAt, kind) {
-  return { id, span, pinAt, kind, flippable: pinAt * 2 !== span - 1 };
+function makePlug(id, span, pinAt, kind, pins) {
+  return { id, span, pinAt, kind, pins: pins || 2, flippable: pinAt * 2 !== span - 1 };
 }
 
+// Two-pin things are unearthed: lamps, chargers, a radio. Three-pin things are
+// earthed: anything with a metal case or a motor. Only some sockets on the bank
+// carry an earth, so the three-pin plugs compete for a scarce resource that the
+// two-pin ones are free to ignore.
 const CATALOGUE = {
-  slim:   (id) => makePlug(id, 1, 0, 'slim'),    // a bare two-pin
-  wide:   (id) => makePlug(id, 2, 0, 'wide'),    // body sits to one side of the pin
-  brick:  (id) => makePlug(id, 3, 1, 'brick'),   // wall wart, pin centred, eats both neighbours
-  angle:  (id) => makePlug(id, 2, 1, 'angle'),   // right-angle, body to the other side
-  bar:    (id) => makePlug(id, 3, 0, 'bar'),     // long adapter hanging off one side
+  slim:   (id) => makePlug(id, 1, 0, 'slim', 2),   // a bare two-pin
+  wide:   (id) => makePlug(id, 2, 0, 'wide', 3),   // body sits to one side of the pin
+  brick:  (id) => makePlug(id, 3, 1, 'brick', 2),  // wall wart, pin centred, eats both neighbours
+  angle:  (id) => makePlug(id, 2, 1, 'angle', 3),  // right-angle, body to the other side
+  bar:    (id) => makePlug(id, 3, 0, 'bar', 3),    // long adapter hanging off one side
 };
 
 // Every way this plug could sit: pin socket p, flipped or not.
@@ -109,6 +113,8 @@ function solve(board) {
 // Each makes POSITION matter in a different way. Which one to ship is decided
 // by measuring solution counts, not by argument.
 function legal(board, plug, pl) {
+  // D: earth — a three-pin plug needs a socket that has one.
+  if (plug.pins === 3 && board.earthed && !board.earthed.has(pl.pin)) return false;
   // A: dead sockets — the pin must land on a live one, but a body may bridge over it.
   if (board.dead && board.dead.has(pl.pin)) return false;
   // B: reach — the plug's device sits at a fixed place along the strip and the
@@ -160,11 +166,17 @@ function generate(level, rnd = Math.random) {
     if (!sol) continue;
     const reach = {};
     plugs.forEach((p, i) => { reach[p.id] = { at: sol[i].pin, slack }; });
-    const b = { N, plugs, reach };
+    // Earth whatever the solution needs, then add spares so the earthed sockets
+    // are not simply a map of the answer.
+    const earthed = new Set();
+    plugs.forEach((p, i) => { if (p.pins === 3) earthed.add(sol[i].pin); });
+    const spares = Math.max(1, Math.round(N * 0.3));
+    for (let k = 0; k < spares; k++) earthed.add((rnd() * N) | 0);
+    const b = { N, plugs, reach, earthed };
     const n = countSolutions(b, 400);
     // A single answer is the aim; a handful is fine and keeps generation cheap.
     if (n < 1 || n > 6) continue;
-    return { ...b, solution: sol, solutions: n, level, slack };
+    return { ...b, solution: sol, solutions: n, level, slack, earthedList: [...earthed].sort((a, b2) => a - b2) };
   }
   return null;
 }

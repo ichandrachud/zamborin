@@ -105,20 +105,22 @@
 
   // ---------- layout ----------
   const TOP_BAND = 92;
-  let stripX = 60, stripW = 82, stripY = 120, pitch = 54, devX = 300, trayY = 600, botBand = 168;
+  let stripX = 60, stripW = 82, stripY = 120, pitch = 54, devX = 300, looseX = 300, botBand = 96;
   function layout() {
     if (!board) return;
     const N = board.N;
-    botBand = 172;
+    botBand = 96;   // no tray any more — the loose plugs are the tray
     const availH = Math.max(120, LH - TOP_BAND - botBand);
-    pitch = Math.max(30, Math.min(58, Math.floor((availH - 24) / N)));
-    stripW = Math.round(Math.min(104, Math.max(66, pitch * 1.8)));
+    pitch = Math.max(32, Math.min(66, Math.floor((availH - 24) / N)));
+    stripW = Math.round(Math.min(112, Math.max(70, pitch * 1.7)));
     const stripH = pitch * N + 22;
     stripY = Math.round(TOP_BAND + (availH - stripH) / 2);
-    const pad = LW < 520 ? 12 : 26;
-    stripX = pad + 4;
-    devX = LW - pad - 50;
-    trayY = LH - botBand + 8;
+    // The bank bleeds off the left edge. A plate floating in the middle of the
+    // frame reads as an object sitting on a background; one that runs out of
+    // shot reads as fixed to a wall that carries on past it.
+    stripX = -Math.round(stripW * 0.12);
+    devX = LW - (LW < 520 ? 12 : 26) - 50;
+    looseX = Math.round(LW - (LW < 520 ? 118 : 150));
   }
   const sockCY = (i) => stripY + 11 + pitch * (i + 0.5);
   const sockCX = () => stripX + stripW * 0.62;
@@ -173,6 +175,8 @@
     }
     return true;
   }
+  // A three-pin plug needs a socket with an earth. Two-pin things do not care.
+  const earthOk = (i, pin) => board.plugs[i].pins !== 3 || board.earthed.has(pin);
   const reaches = (i, pin) => {
     const r = board.reach[board.plugs[i].id];
     return !r || Math.abs(pin - r.at) <= r.slack;
@@ -193,9 +197,9 @@
 
     drawReachBand();
     drawStrip();
-    drawWaitingCables();
+
     for (let i = 0; i < board.plugs.length; i++) if (place[i]) drawPlacedPlug(i, now);
-    drawTray();
+    drawLoosePlugs(now);
     drawHUD();
     if (phase === 'play') drawControls();
     if (phase === 'won') drawWin();
@@ -222,32 +226,37 @@
     const N = board.N, sH = pitch * N + 22;
     ctx.save(); ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.filter = 'blur(12px)';
     RR(stripX + 5, stripY + 10, stripW, sH, 16); ctx.fill(); ctx.filter = 'none'; ctx.restore();
+    // a faceplate bolted to the wall, not a loose extension box on the floor:
+    // nothing about this puzzle wants the strip to be able to move.
+    ctx.fillStyle = 'rgba(255,255,255,0.035)';
+    RR(stripX - 30, stripY - 9, stripW + 39, sH + 18, [0, 20, 20, 0]); ctx.fill();
     const sg = ctx.createLinearGradient(stripX, 0, stripX + stripW, 0);
     sg.addColorStop(0, CASE_HI); sg.addColorStop(0.22, CASE); sg.addColorStop(0.8, CASE_LO); sg.addColorStop(1, CASE_EDGE);
-    ctx.fillStyle = sg; RR(stripX, stripY, stripW, sH, 16); ctx.fill();
+    ctx.fillStyle = sg; RR(stripX - 20, stripY, stripW + 20, sH, [0, 16, 16, 0]); ctx.fill();
     ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 1.3;
-    ctx.beginPath(); ctx.moveTo(stripX + 12, stripY + 1); ctx.lineTo(stripX + stripW - 12, stripY + 1); ctx.stroke();
-    ctx.fillStyle = 'rgba(0,0,0,0.09)'; RR(stripX + 8, stripY + 10, stripW - 16, sH - 20, 11); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(stripX - 20, stripY + 1); ctx.lineTo(stripX + stripW - 12, stripY + 1); ctx.stroke();
+    // a soft cast shadow where the plate stands off the wall
+    ctx.save(); ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.filter = 'blur(10px)';
+    RR(stripX - 20, stripY + 8, stripW + 26, sH, [0, 16, 16, 0]); ctx.fill();
+    ctx.filter = 'none'; ctx.restore();
+    ctx.fillStyle = sg; RR(stripX - 20, stripY, stripW + 20, sH, [0, 16, 16, 0]); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,0.09)'; RR(stripX - 20, stripY + 10, stripW + 12, sH - 20, [0, 11, 11, 0]); ctx.fill();
     // screws
     const screw = (cx, cy) => {
       ctx.fillStyle = 'rgba(0,0,0,0.18)'; ctx.beginPath(); ctx.arc(cx, cy, 3.4, 0, 7); ctx.fill();
       ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 1.2;
       ctx.beginPath(); ctx.moveTo(cx - 2.2, cy); ctx.lineTo(cx + 2.2, cy); ctx.stroke();
     };
-    screw(stripX + 6, stripY + 11); screw(stripX + 6, stripY + sH - 11);
-    // mains lead
-    ctx.strokeStyle = CASE; ctx.lineWidth = 7; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(stripX + stripW / 2, stripY + sH);
-    ctx.bezierCurveTo(stripX + stripW / 2, stripY + sH + 18, stripX - 14, stripY + sH + 18, stripX - 18, stripY + sH + 34);
-    ctx.stroke();
+    screw(stripX + stripW / 2, stripY + 9); screw(stripX + stripW / 2, stripY + sH - 9);
 
     for (let i = 0; i < N; i++) drawSocket(i);
   }
 
   function drawSocket(i) {
     const cx = sockCX(), cy = sockCY(i), s = Math.min(40, pitch * 0.76);
-    const usable = held >= 0 ? fits(held, i, heldFlip()) : false;
+    const usable = held >= 0 ? (fits(held, i, heldFlip()) && earthOk(held, i)) : false;
     const inReach = held >= 0 ? reaches(held, i) : false;
+    const wantsEarth = held >= 0 && board.plugs[held].pins === 3 && !board.earthed.has(i);
 
     ctx.fillStyle = 'rgba(0,0,0,0.15)'; RR(cx - s / 2 - 2, cy - s / 2 - 2, s + 4, s + 4, 10); ctx.fill();
     const rg = ctx.createLinearGradient(0, cy - s / 2, 0, cy + s / 2);
@@ -255,7 +264,8 @@
     else if (held >= 0 && usable) { rg.addColorStop(0, '#f6e6c2'); rg.addColorStop(1, '#e5cf9c'); }
     else { rg.addColorStop(0, CASE); rg.addColorStop(1, CASE_LO); }
     ctx.fillStyle = rg; RR(cx - s / 2, cy - s / 2, s, s, 8); ctx.fill();
-    ctx.strokeStyle = 'rgba(0,0,0,0.22)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.strokeStyle = wantsEarth ? 'rgba(229,88,74,0.55)' : 'rgba(0,0,0,0.22)';
+    ctx.lineWidth = wantsEarth ? 2 : 1; ctx.stroke();
 
     // Blades side by side with the EARTH BELOW them. It was above, which is
     // upside down for a moulded strip and read as wrong even at a glance.
@@ -264,10 +274,13 @@
       ctx.strokeStyle = 'rgba(255,255,255,0.28)'; ctx.lineWidth = 0.9;
       ctx.beginPath(); ctx.moveTo(hx, hy + hh + 0.6); ctx.lineTo(hx + hw, hy + hh + 0.6); ctx.stroke();
     };
-    const u = s / 42;
-    hole(cx - 11 * u, cy - 15 * u, 5.5 * u, 15 * u, 2.2);
-    hole(cx + 5.5 * u, cy - 15 * u, 5.5 * u, 15 * u, 2.2);
-    hole(cx - 3.5 * u, cy + 5 * u, 7 * u, 10 * u, 3.5);
+    const u = s / 42, earthed = board.earthed.has(i);
+    // An unearthed socket is visibly a different socket, not a decorated one.
+    // The blades sit centred when there is no earth below to make room for.
+    const by = earthed ? cy - 15 * u : cy - 9 * u;
+    hole(cx - 11 * u, by, 5.5 * u, 15 * u, 2.2);
+    hole(cx + 5.5 * u, by, 5.5 * u, 15 * u, 2.2);
+    if (earthed) hole(cx - 3.5 * u, cy + 5 * u, 7 * u, 10 * u, 3.5);
     if (held >= 0 && usable) {
       uiButtons.push({ x: cx - pitch * 0.6, y: cy - pitch / 2, w: pitch * 1.2, h: pitch, act: () => putDown(i) });
     }
@@ -283,19 +296,45 @@
 
   // Waiting plugs still have cables draped across the desk. Drawn faint, they
   // say where each one will have to end up before you have even picked it up.
-  function drawWaitingCables() {
+  function looseY(i) { return anchorY(i); }
+  // Unplugged things are not in a tray, they are on the floor where you dropped
+  // them, still attached to whatever they belong to. Each waiting plug is drawn
+  // as itself, lying at the row its lead comes in on, so the picture already
+  // tells you roughly where it has to end up.
+  function drawLoosePlugs(now) {
     board.plugs.forEach((p, i) => {
       if (place[i]) return;
-      const col = PLUGS[i % PLUGS.length], ay = anchorY(i);
-      ctx.save(); ctx.globalAlpha = held === i ? 0.85 : 0.28;
-      ctx.lineCap = 'round';
-      ctx.strokeStyle = mix(col.c, '#000000', 0.2); ctx.lineWidth = 5;
-      ctx.beginPath(); ctx.moveTo(LW + 8, ay);
-      ctx.bezierCurveTo(LW - 70, ay, LW - 96, ay + 20, LW - 120, ay + 26); ctx.stroke();
-      // a loose coil where it is waiting
-      ctx.lineWidth = 4;
-      ctx.beginPath(); ctx.arc(LW - 128, ay + 30, 9, -0.4, 4.4); ctx.stroke();
+      const col = PLUGS[i % PLUGS.length];
+      const ay = looseY(i), lx = looseX + (i % 2 ? 16 : 0);
+      const h = Math.min(46, pitch * 0.82), w = h * (0.75 + p.span * 0.20);
+      const y = ay - h / 2;
+      // lead away off screen
+      ctx.save(); ctx.globalAlpha = held === i ? 1 : 0.9; ctx.lineCap = 'round';
+      ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 7;
+      ctx.beginPath(); ctx.moveTo(lx + w, ay + 2);
+      ctx.bezierCurveTo(lx + w + 40, ay + 12, LW - 40, ay - 8, anchorX(), ay - 4); ctx.stroke();
+      ctx.strokeStyle = mix(col.c, '#000000', 0.28); ctx.lineWidth = 5.5;
+      ctx.beginPath(); ctx.moveTo(lx + w, ay);
+      ctx.bezierCurveTo(lx + w + 40, ay + 10, LW - 40, ay - 10, anchorX(), ay - 6); ctx.stroke();
+      // it is lying on something, so it throws a shadow onto it
+      ctx.fillStyle = 'rgba(0,0,0,0.34)'; ctx.filter = 'blur(6px)';
+      ctx.beginPath(); ctx.ellipse(lx + w * 0.5, y + h + 4, w * 0.55, 6, 0, 0, 7); ctx.fill();
+      ctx.filter = 'none';
+      const g = ctx.createLinearGradient(lx, y, lx + w * 0.4, y + h);
+      g.addColorStop(0, mix(col.c, '#ffffff', 0.3)); g.addColorStop(0.45, col.c);
+      g.addColorStop(1, mix(col.c, col.d, 0.45));
+      plugPath(p.kind, lx, y, w, h, !!p._flip); ctx.fillStyle = g; ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.32)'; ctx.lineWidth = 1; ctx.stroke();
+      ctx.fillStyle = 'rgba(20,22,28,0.7)';
+      RR(lx + 4, ay - 9, 3, 8, 1.5); ctx.fill();
+      RR(lx + 4, ay + 1, 3, 8, 1.5); ctx.fill();
+      if (p.pins === 3) { RR(lx - 1, ay - 4, 3.5, 9, 1.8); ctx.fill(); }
+      if (held === i) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.92)'; ctx.lineWidth = 2.5;
+        plugPath(p.kind, lx - 3, y - 3, w + 6, h + 6, !!p._flip); ctx.stroke();
+      }
       ctx.restore();
+      uiButtons.push({ x: lx - 8, y: y - 8, w: w + 16, h: h + 16, act: () => tapTray(i) });
     });
   }
 
@@ -362,8 +401,11 @@
     const t = Math.min(1, (now - (seatT[i] || -1e9)) / SEAT_MS);
     const slide = (1 - (1 - Math.pow(1 - t, 3))) * 46;
 
-    const pw = (stripW - 10) * (DEPTH[p.kind] || 0.8);
-    const px = stripX + 5 + slide, h = bot - top;
+    // Anchored to the socket face, not the plate. When the plate started
+    // bleeding off the left edge, anything positioned from stripX went with it.
+    const sSize = Math.min(40, pitch * 0.76);
+    const pw = (stripW * 0.86) * (DEPTH[p.kind] || 0.8);
+    const px = sockCX() - sSize / 2 - 5 + slide, h = bot - top;
 
     ctx.save(); ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.filter = 'blur(6px)';
     plugPath(p.kind, px + 3, top + 7, pw, h, pl.flipped); ctx.fill(); ctx.filter = 'none'; ctx.restore();
@@ -389,6 +431,15 @@
     // the seam where it meets the socket face
     ctx.strokeStyle = 'rgba(0,0,0,0.26)'; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(px + 2, top + 3); ctx.lineTo(px + 2, bot - 3); ctx.stroke();
+
+    // the pins themselves, on the face that meets the strip
+    const pinFace = (fx, fy, n) => {
+      ctx.fillStyle = 'rgba(20,22,28,0.75)';
+      RR(fx, fy - 9, 3, 8, 1.5); ctx.fill();
+      RR(fx, fy + 1, 3, 8, 1.5); ctx.fill();
+      if (n === 3) { RR(fx - 5, fy - 4, 3.5, 9, 1.8); ctx.fill(); }
+    };
+    pinFace(px + 5, sockCY(pl.pin), p.pins);
 
     // collar on the live pin row, so you can see which socket it draws from
     const cy = sockCY(pl.pin);
@@ -430,35 +481,6 @@
       plugPath(p.kind, px - 2, top - 2, pw + 4, h + 4, pl.flipped); ctx.stroke();
     }
     uiButtons.push({ x: px, y: top, w: pw, h, act: () => pickUp(i) });
-  }
-
-  function drawTray() {
-    const h = 82;
-    ctx.fillStyle = 'rgba(255,255,255,0.045)'; RR(12, trayY, LW - 24, h, 14); ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.10)'; ctx.lineWidth = 1; ctx.stroke();
-    ctx.fillStyle = 'rgba(255,255,255,0.42)'; ctx.font = '700 10px Inter, sans-serif'; ctx.textAlign = 'left';
-    ctx.fillText(held >= 0 ? 'NOW TAP A SOCKET' : 'STILL TO PLUG IN', 26, trayY + 10);
-    let x = 26;
-    board.plugs.forEach((p, i) => {
-      if (place[i]) return;
-      const col = PLUGS[i % PLUGS.length];
-      const w = 24 + p.span * 12, hh = 44, y = trayY + 26;
-      ctx.save(); ctx.globalAlpha = held === i ? 1 : 0.92;
-      ctx.save(); ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.filter = 'blur(4px)';
-      plugPath(p.kind, x + 2, y + 5, w, hh, !!p._flip); ctx.fill(); ctx.filter = 'none'; ctx.restore();
-      const tg = ctx.createLinearGradient(x, y, x + w * 0.4, y + hh);
-      tg.addColorStop(0, mix(col.c, '#ffffff', 0.3)); tg.addColorStop(0.45, col.c);
-      tg.addColorStop(1, mix(col.c, col.d, 0.45));
-      plugPath(p.kind, x, y, w, hh, !!p._flip); ctx.fillStyle = tg; ctx.fill();
-      ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 1; ctx.stroke();
-      ctx.restore();
-      if (held === i) {
-        ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 2.5;
-        RR(x - 3, y - 3, w + 6, hh + 6, 11); ctx.stroke();
-      }
-      uiButtons.push({ x: x - 4, y: y - 6, w: w + 8, h: hh + 12, act: () => tapTray(i) });
-      x += w + 12;
-    });
   }
 
   function drawHUD() {
@@ -503,7 +525,10 @@
     x += 40 + gap;
     labels.forEach(([l, a]) => { const w = pill(l, x + Math.round(ctx.measureText(l).width + 28) / 2, cy, false, a); x += w + gap; });
     ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.font = '500 12px Inter, sans-serif';
-    ctx.fillText('A fat plug takes one socket and covers its neighbours.', LW / 2, LH - 28);
+    const msg = held >= 0 ? 'Now tap a socket, or tap it again to turn it round.'
+      : (place.every(Boolean) ? 'Something is not reaching. Move it nearer its lead.'
+                              : 'Tap a plug on the floor to pick it up.');
+    ctx.fillText(msg, LW / 2, LH - 28);
     ctx.textAlign = 'left';
   }
 
@@ -546,10 +571,11 @@
     const pw = Math.min(LW - 44, 400), px = (LW - pw) / 2;
     const rules = ['A plug uses one socket but its body covers the neighbours. A fat one costs you three.',
                    'Every cable comes in from off screen and only stretches so far. Pick a plug up and the strip shows where it can go.',
+                   'Three-pin plugs need a socket with an earth. Only some of them have one.',
                    'Some plugs turn round, which swaps the side their body covers.'];
     ctx.font = '500 14px Inter, sans-serif';
     let h = 34 + 46 + 16;
-    rules.forEach(() => { h += 3 * 20 + 14; });
+    rules.forEach(() => { h += 3 * 20 + 12; });
     h += 16 + 48 + 30;
     const py = Math.max(16, (LH - h) / 2);
     ctx.fillStyle = '#16233a'; RR(px, py, pw, h, 20); ctx.fill();
@@ -596,7 +622,7 @@
     if (held < 0) return;
     const p = board.plugs[held];
     const flipped = place[held] ? place[held].flipped : !!p._flip;
-    if (!fits(held, i, flipped)) return;
+    if (!fits(held, i, flipped) || !earthOk(held, i)) return;
     const wasLive = place[held] && reaches(held, place[held].pin);
     place[held] = { pin: i, flipped };
     seatT[held] = performance.now();
