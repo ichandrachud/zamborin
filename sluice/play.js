@@ -310,6 +310,11 @@
   // the number of lanes, so this is where the cost lives; 3 already covers the
   // neighbourhood a player explores around a near-solution.
   const UNIQ_DEPTH = 3;
+  // The fewest wet pipes a level may open with. The point is not the number,
+  // it is that the board is never blank: the spreading water is the only signal
+  // the player has for whether a slide helped, so a dry board is an unreadable one.
+  const MIN_START_WET = 3;
+  const wetCount = (cn) => floodFrom(cn).reduce((n, v) => n + (v ? 1 : 0), 0);
   // True when the ONLY arrangement within `depth` slides of `start` that waters
   // every flower is the intended one.
   function uniqueWithin(start, solKey, depth) {
@@ -418,8 +423,30 @@
       watered = floodFrom(conn);
       if (bloomState(conn, watered).every(Boolean)) continue;      // started solved
       if (conn.join(',') === solKey) continue;                     // scramble undid itself
+      // NEVER OPEN ON A DEAD BOARD. The tap feeds exactly one tile through one
+      // face, so if that tile has no connector pointing at it, not a single
+      // pipe anywhere lights up. Measured on shipped levels, 44% of scrambles
+      // came out completely dry — reported from real play as level 1 sitting at
+      // 0/4 after 51 moves, with nothing on screen responding to anything.
+      // A board with no water on it gives the player no gradient to read and no
+      // way to tell a good slide from a bad one.
+      if (wetCount(conn) < MIN_START_WET) continue;
       ok = uniqueWithin(conn, solKey, Math.min(scrambles, UNIQ_DEPTH));
-    } while (!ok && tries < 60);
+    } while (!ok && tries < 200);
+    // A generator must not silently ship the thing it exists to prevent. If the
+    // search never found a live scramble, fall back to a shallower one that is
+    // live rather than handing over a dead board.
+    if (!ok || wetCount(conn) < MIN_START_WET) {
+      for (let k = 0; k < 400; k++) {
+        const c2 = sol.slice();
+        const depth = 1 + (k % Math.max(1, scrambles));
+        for (let j = 0; j < depth; j++) { const L = lanesOf(); applyMove(c2, L[(Math.random() * L.length) | 0]); }
+        if (c2.join(',') === solKey) continue;
+        if (wetCount(c2) < MIN_START_WET) continue;
+        if (bloomState(c2, floodFrom(c2)).every(Boolean)) continue;
+        conn = c2; break;
+      }
+    }
     par = scrambles;
 
     initConn = conn.slice();
@@ -803,21 +830,29 @@
   // The border ring: the tap and the flowers, at fixed positions, with a short
   // stub of pipe reaching in to the grid edge.
   function drawBorderRing(now, cn, wet, open) {
-    const stub = (b, on) => {
+    // `frac` shortens the stub, so it can be drawn as water that arrives part
+    // of the way and stops.
+    const stub = (b, on, frac) => {
       const [bx, by] = borderXY(b);
       const f = feeder(b);
       const { r, c } = rc(f.i);
-      const gx = ccx(c), gy = ccy(r);
+      const t = frac || 1;
+      const gx = bx + (ccx(c) - bx) * t, gy = by + (ccy(r) - by) * t;
       ctx.lineCap = 'butt';
       for (const [wide, col] of [[true, on ? PIPE_WET_LINE : PIPE_DRY_LINE], [false, on ? PIPE_WET : PIPE_DRY]]) {
         ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(gx, gy);
         ctx.lineWidth = cell * 0.085 + (wide ? 5 : 0); ctx.strokeStyle = col; ctx.stroke();
       }
     };
-    // tap
+    // The tap. When the tile it touches has no connector facing it, nothing on
+    // the board is wet and the old drawing said so only by going grey, which
+    // reads as "this level has not started" rather than "the water is blocked
+    // HERE". Draw the water arriving and stopping at the tile edge instead, so
+    // the one tile that has to be fixed is the one the water is pressed against.
     const tf = feeder(tap);
     const tapOn = !!(cn[tf.i] & tf.d) && wet[tf.i];
     stub(tap, tapOn);
+    if (!tapOn) stub(tap, true, 0.42);
     const [tx, ty] = borderXY(tap);
     drawTap(tx, ty, tapOn);
     // flowers
