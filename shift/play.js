@@ -23,6 +23,9 @@
   const ctx = canvas.getContext('2d');
 
   const BG_TOP = '#1B2A47', BG_MID = '#131F36', BG_BOT = '#0E1726';
+  // Hint rings. Amber because nothing else on the board is warm — water is blue
+  // and the flowers are pink, so this cannot be mistaken for game state.
+  const RING = '#FFC94D';
   const PIPE_DRY = '#41516b', PIPE_DRY_LINE = '#2b384c';
   const PIPE_WET = '#3a9bde', PIPE_WET_LINE = '#2170a8';
   const TAP = '#eaf6ff';
@@ -137,7 +140,14 @@
 
   const idx = (r, c) => r * C + c;
   const rc = (i) => ({ r: (i / C) | 0, c: i % C });
-  const TOP_BAND = 100, BOT_BAND = 96, SIDE_PAD = 30;
+  const TOP_BAND = 100, BOT_BAND = 96;
+  // On a phone the board is WIDTH-bound and height is not close: measured on a
+  // 360x760 screen the board took 19% of the screen while 228px of height sat
+  // unused, because a 5x6 grid can never be tall enough to use a phone's
+  // height. So width is the only lever that grows the board, and 30px of side
+  // margin was 17% of the screen spent on nothing. Desktop keeps it, where the
+  // board is height-bound and the margin is what stops it touching the edge.
+  const sidePad = () => (LW < 520 ? 8 : 30);
   // The grid shape differs by device: a tall portrait grid on mobile (5 wide,
   // as many rows as fit the phone), a square-ish grid on desktop.
   // A slide disturbs every tile in its lane, so the board has to stay small
@@ -145,9 +155,20 @@
   // where a 44px touch target runs out: 7 columns on a 360px screen is 51px a
   // cell before the border ring, and the ring costs two more.
   function gridDims(lvl) {
-    if (MODE === 'mobile') return [6, 5];                    // 5 wide, 6 tall
-    const s = 5 + Math.min(Math.floor((lvl - 1) / 4), 2);    // 5 → 7, square
-    return [s, s];
+    if (MODE !== 'mobile') { const s = 5 + Math.min(Math.floor((lvl - 1) / 4), 2); return [s, s]; }  // 5 → 7, square
+    // A phone is about 2.1:1 and a 5-wide grid is bound entirely by width, so
+    // the tile size is settled before rows are counted and every extra row
+    // after that is FREE. Measured at 6 rows on a 360x760 screen: the board was
+    // 19% of the screen with 228px of height doing nothing.
+    //
+    // So take as many rows as fit at the already-fixed tile size, capped by the
+    // level curve. The `fits` cap is what stops a short phone from trading tile
+    // size for rows — there, more rows would make the board smaller, not bigger.
+    const cols = 5;
+    const cellW = Math.max(8, (LW - sidePad() * 2) / (cols + 2));
+    const fits = Math.floor(Math.max(60, LH - TOP_BAND - BOT_BAND) / cellW) - 2;
+    const wanted = 6 + Math.min(Math.floor((lvl - 1) / 4), 3);       // 6 → 9 with level
+    return [Math.max(5, Math.min(wanted, fits)), cols];
   }
   function layout() {
     // The floors matter. A browser can report a 0×0 viewport for the first
@@ -156,7 +177,7 @@
     //
     // The +2 is the border ring: one cell of margin on every side, where the
     // tap and the flowers live. They are outside the sliding grid on purpose.
-    const availW = Math.max(60, LW - SIDE_PAD * 2);
+    const availW = Math.max(60, LW - sidePad() * 2);
     const availH = Math.max(60, LH - TOP_BAND - BOT_BAND);
     cell = Math.max(8, Math.floor(Math.min(availW / (C + 2), availH / (R + 2))));
     ox = Math.round((LW - C * cell) / 2);
@@ -403,15 +424,19 @@
 
     initConn = conn.slice();
     moves = 0; phase = asMenu ? 'menu' : 'play'; history = []; animEnd = 0; wonT = -1e9;
-    drag = null; snapAnim = null; hoverRow = -1;
+    drag = null; snapAnim = null; hoverRow = -1; stopHint();
     computeWater(); seedSound(); layout(); render(performance.now());
   }
   function restart() {
+    if (demo) return;
     conn = initConn.slice(); moves = 0; phase = 'play'; history = [];
     flowers.forEach(f => { f.bloomT = -1e9; f.open = false; });
-    drag = null; snapAnim = null;
+    drag = null; snapAnim = null; stopHint();
     computeWater(); seedSound(); render(performance.now());
   }
+  // A hint in flight is mid-sequence: abandoning it there would leave the board
+  // half way through a 3-cycle, which is a state nothing else can explain.
+  function stopHint() { demo = null; hintRings = null; clearTimeout(demoTimer); }
 
   // ---------- input: drag a row ----------
   function commitSlide(axis, i, k, now, silent) {
@@ -426,12 +451,114 @@
     ensureAnim(now);
   }
   function undo() {
-    if (!history.length || phase !== 'play') return;
+    if (!history.length || phase !== 'play' || demo) return;
     const h = history.pop();
-    applyMove(conn, { axis: h.axis, i: h.i, k: -h.k }); moves++;
+    // A hint's 3-cycle is four slides but ONE thing the player asked for, so it
+    // undoes as one. Unwinding it a slide at a time would strand them in the
+    // middle of a sequence they never chose to be in.
+    const seq = h.seq || [h];
+    for (let i = seq.length - 1; i >= 0; i--) applyMove(conn, { axis: seq[i].axis, i: seq[i].i, k: -seq[i].k });
+    moves++;
     snd.undo();
     computeWater(); announceWater(); render(performance.now());
   }
+  // ---------- hint: the 3-cycle ----------
+  // A row and a column cross at exactly one cell, so sliding a row, sliding a
+  // column, then undoing each in turn leaves EXACTLY THREE tiles moved and
+  // every other tile where it was. Brute force over all 5,764,801 four-move
+  // sequences confirms 3 is the smallest disturbance this board allows; with
+  // rows alone it is 5, a whole row, because row slides commute with each other
+  // and so can never isolate anything.
+  //
+  // That 3-cycle is the technique the puzzle is built on, and it is also the
+  // thing nobody finds unaided — cubers do not derive commutators either, they
+  // are taught them. So the hint PERFORMS one instead of naming a move.
+  const DEMO_SLIDE = 300, DEMO_GAP = 130, RING_HOLD = 2600;
+  let demo = null, demoTimer = 0, hintRings = null;
+
+  // Shortest signed equivalent of a k-cell shift, so a demonstrated slide takes
+  // the near way round rather than flying the long way across the board.
+  const shortK = (k, n) => { k = ((k % n) + n) % n; return k > n / 2 ? k - n : k; };
+
+  function boardScore(cn) {
+    const wet = floodFrom(cn);
+    // Flowers first, wet pipes as tie-break: reaching a flower is the goal,
+    // spreading water is the evidence that you are getting closer to one.
+    return bloomState(cn, wet).filter(Boolean).length * 1000 + wet.filter(Boolean).length;
+  }
+  // The best thing available, counting 3-cycles as moves in their own right.
+  // Ties go to the SHORTER sequence: a single slide doing the same work is
+  // simply better play, so the cycle only surfaces when it genuinely wins.
+  function bestHint() {
+    const lanes = lanesOf();
+    let best = null;
+    const consider = (seq) => {
+      const o = conn.slice();
+      for (const m of seq) applyMove(o, m);
+      const sc = boardScore(o);
+      if (!best || sc > best.score || (sc === best.score && seq.length < best.seq.length)) best = { seq, score: sc };
+    };
+    for (const m of lanes) consider([m]);
+    for (const a of lanes) if (a.axis === 'row')
+      for (const b of lanes) if (b.axis === 'col')
+        consider([a, b, { ...a, k: -a.k }, { ...b, k: -b.k }]);
+    return best;
+  }
+  // Which cells a sequence displaces, found by permuting LABELS rather than
+  // diffing the board: two different tiles can carry the same pipe mask, so a
+  // diff would quietly under-count and ring the wrong thing.
+  function displacedBy(seq) {
+    const ids = Array.from({ length: R * C }, (_, i) => i);
+    for (const m of seq) applyMove(ids, m);
+    const out = [];
+    for (let i = 0; i < ids.length; i++) if (ids[i] !== i) out.push(i);
+    return out;
+  }
+
+  function runHint() {
+    if (phase !== 'play' || demo) return;
+    const best = bestHint();
+    if (!best) return;
+    demo = { seq: best.seq, cells: displacedBy(best.seq), cycle: best.seq.length > 1 };
+    let i = 0;
+    const step = () => {
+      if (!demo) return;
+      if (i >= demo.seq.length) { endHint(); return; }
+      const m = demo.seq[i++];
+      const now = performance.now();
+      commitSlide(m.axis, m.i, m.k, now, true);
+      moves++;
+      snapAnim = { axis: m.axis, i: m.i, dur: DEMO_SLIDE, t0: now, end: now + DEMO_SLIDE,
+                   from: -shortK(m.k, m.axis === 'row' ? C : R) * cell };
+      snd.slide();
+      animEnd = Math.max(animEnd, now + DEMO_SLIDE + 40);
+      ensureAnim(now);
+      // A sequence can solve the board part way through, which is a real win at
+      // fewer moves than the cycle would have cost. Stop rather than slide past it.
+      if (phase !== 'play') { hintRings = { cells: demo.cells, until: now + RING_HOLD, cycle: demo.cycle }; demo = null; return; }
+      // setTimeout rather than rAF: rAF is throttled to nothing in some embedded
+      // browsers, and a demonstration that silently halts half way through
+      // teaches the opposite of the lesson.
+      demoTimer = setTimeout(step, DEMO_SLIDE + DEMO_GAP);
+    };
+    step();
+  }
+  function endHint() {
+    if (!demo) return;
+    const now = performance.now();
+    // One history entry for the whole sequence: the player asked for one thing,
+    // so Undo gives back one thing rather than stranding them mid-cycle.
+    history.push({ seq: demo.seq });
+    // Hold the rings after the last slide lands, so the three tiles that moved
+    // can be read against the twenty-seven that did not. That contrast IS the
+    // lesson; without it the demo looks like four ordinary slides.
+    hintRings = { cells: demo.cells, until: now + RING_HOLD, cycle: demo.cycle };
+    demo = null;
+    clearTimeout(demoTimer);
+    animEnd = Math.max(animEnd, hintRings.until + 40);
+    ensureAnim(now);
+  }
+
   function ensureAnim(now) { render(now); if (!raf) { raf = 1; requestAnimationFrame(tick); } clearTimeout(fb); fb = setTimeout(() => { raf = 0; render(performance.now()); }, (animEnd - now) + 120); }
   function tick(t) {
     if (snapAnim && t >= snapAnim.end) snapAnim = null;
@@ -455,6 +582,10 @@
     for (const b of uiButtons) if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) { e.preventDefault(); b.act(); return; }
     if (phase === 'menu') { phase = 'play'; render(performance.now()); return; }
     if (phase === 'won') { genLevel(level + 1); return; }
+    // A hint is four slides that only mean anything as a set. Let the board be
+    // grabbed part way through and the player lands inside a sequence they did
+    // not make and cannot read.
+    if (demo) { e.preventDefault(); return; }
     // The snap is only the sub-cell remainder easing out — the move it belongs
     // to committed on release. Refusing a new drag while it runs swallowed any
     // second slide made within 150ms, which is well inside the speed someone
@@ -532,7 +663,7 @@
     if (snapAnim) {
       const hit = snapAnim.axis === 'row' ? snapAnim.i === r : snapAnim.i === c;
       if (hit) {
-        const t = Math.max(0, Math.min(1, (now - snapAnim.t0) / SNAP_MS));
+        const t = Math.max(0, Math.min(1, (now - snapAnim.t0) / (snapAnim.dur || SNAP_MS)));
         const v = t >= 1 ? 0 : snapAnim.from * (1 - ease(t));
         return snapAnim.axis === 'row' ? [v, 0] : [0, v];
       }
@@ -609,10 +740,34 @@
     ctx.restore();
 
     drawBorderRing(now, shownConn, shownWet, shownOpen);
+    drawHintMarks(now);
     drawHUD(now);
     if (phase === 'play') drawControls();
     if (phase === 'won') winOverlay(now);
     if (phase === 'menu') menuOverlay();
+  }
+
+  // The tiles a finished hint actually moved, ringed on the FIXED grid rather
+  // than on the tiles themselves: the claim being made is positional. Four
+  // lanes just swept across the board and only these squares are different.
+  function drawHintMarks(now) {
+    if (!hintRings) return;
+    if (now > hintRings.until) { hintRings = null; return; }
+    ctx.globalAlpha = Math.min(1, (hintRings.until - now) / 420);   // fade out at the end
+    ctx.lineWidth = 3; ctx.lineJoin = 'round'; ctx.strokeStyle = RING;
+    for (const i of hintRings.cells) {
+      const r = (i / C) | 0, c = i % C;
+      roundRect(ox + c * cell + 4, oy + r * cell + 4, cell - 8, cell - 8, cell * 0.16);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+  // What the hint is saying, in the one line of space under the board.
+  function hintCaption(now) {
+    const live = demo || (hintRings && now <= hintRings.until);
+    if (!live) return null;
+    if (!(demo ? demo.cycle : hintRings.cycle)) return 'One slide is enough here.';
+    return 'A row, a column, then both back. Only three tiles end up moved.';
   }
 
   // Chevrons outside each lane, saying which way the board moves. On desktop
@@ -740,17 +895,23 @@
     // took, so it was never a real number.
     ctx.fillText('Level ' + level + '   ·   ' + w + '/' + t + ' watered   ·   ' +
       moves + (moves === 1 ? ' move' : ' moves'), P, Math.round(56 * hs));
-    if (phase === 'play' && moves === 0) {
+    // One line of space under the control row, shared. The hint's explanation
+    // takes it while a hint is running, because that is the only moment the
+    // opening instruction is not the most useful thing to be saying.
+    const cap = hintCaption(now);
+    if (phase === 'play' && (cap || moves === 0)) {
       // BELOW the control row. At LH-118 this sat inside the board: the grid is
       // centred in the space between the bands and fills it, so its bottom edge
       // lands ~2px above the buttons and there is no gap above them to sit in.
-      ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(255,255,255,0.42)'; ctx.font = '500 ' + Math.round(15 * hs) + 'px Inter, sans-serif';
-      ctx.fillText('Drag any row or column to move the pipes.', LW / 2, LH - 46);
+      ctx.textAlign = 'center';
+      ctx.fillStyle = cap ? RING : 'rgba(255,255,255,0.42)';
+      ctx.font = (cap ? '600 ' : '500 ') + Math.round(15 * hs) + 'px Inter, sans-serif';
+      ctx.fillText(cap || 'Drag any row or column to move the pipes.', LW / 2, LH - 46);
     }
   }
-  function pill(label, cx, cy, dim) {
+  function pill(label, cx, cy, dim, pad) {
     ctx.font = '700 15px Inter, sans-serif';
-    const w = Math.round(ctx.measureText(label).width + 36), h = 40, x = Math.round(cx - w / 2), y = Math.round(cy - h / 2);
+    const w = Math.round(ctx.measureText(label).width + (pad || 36)), h = 40, x = Math.round(cx - w / 2), y = Math.round(cy - h / 2);
     ctx.fillStyle = 'rgba(255,255,255,0.07)'; roundRect(x, y, w, h, h / 2); ctx.fill();
     ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(255,255,255,0.24)'; roundRect(x, y, w, h, h / 2); ctx.stroke();
     ctx.fillStyle = dim ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.92)'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(label, cx, y + h / 2 + 1);
@@ -783,14 +944,23 @@
     return { x, y, w, h };
   }
   function drawControls() {
-    const cy = LH - 74, gap = 12, wS = 44;
+    const cy = LH - 74, wS = 44;
+    const labels = ['Undo', 'Restart', 'Hint', 'Rules'];
     ctx.font = '700 15px Inter, sans-serif';
-    const wU = Math.round(ctx.measureText('Undo').width + 36), wR = Math.round(ctx.measureText('Restart').width + 36), wH = Math.round(ctx.measureText('Rules').width + 36);
-    let x = Math.round(LW / 2 - (wS + wU + wR + wH + gap * 3) / 2);
+    const text = labels.map(l => ctx.measureText(l).width);
+    // Five controls have to fit a 360px phone. Rather than shrink the type or
+    // the 40px height — both of which cost a usable tap target — tighten the
+    // padding and the gaps, which costs only air. Measured: 36/12 needs 399px
+    // and overflows; 26/10 needs 351px and fits.
+    const wide = 44 + text.reduce((a, b) => a + Math.round(b + 36), 0) + 12 * 4 <= LW - 20;
+    const pad = wide ? 36 : 26, gap = wide ? 12 : 10;
+    const w = text.map(t => Math.round(t + pad));
+    let x = Math.round(LW / 2 - (wS + w.reduce((a, b) => a + b, 0) + gap * 4) / 2);
     uiButtons.push({ ...iconPill(x + wS / 2, cy, snd.on()), act: () => { snd.ready(); snd.toggle(); render(performance.now()); } }); x += wS + gap;
-    uiButtons.push({ ...pill('Undo', x + wU / 2, cy, !history.length), act: undo }); x += wU + gap;
-    uiButtons.push({ ...pill('Restart', x + wR / 2, cy, false), act: restart }); x += wR + gap;
-    uiButtons.push({ ...pill('Rules', x + wH / 2, cy, false), act: () => { phase = 'menu'; render(performance.now()); } });
+    uiButtons.push({ ...pill('Undo', x + w[0] / 2, cy, !history.length || !!demo, pad), act: undo }); x += w[0] + gap;
+    uiButtons.push({ ...pill('Restart', x + w[1] / 2, cy, !!demo, pad), act: restart }); x += w[1] + gap;
+    uiButtons.push({ ...pill('Hint', x + w[2] / 2, cy, !!demo, pad), act: runHint }); x += w[2] + gap;
+    uiButtons.push({ ...pill('Rules', x + w[3] / 2, cy, false, pad), act: () => { phase = 'menu'; render(performance.now()); } });
   }
   function winOverlay(now) {
     // let the final blossom finish + a beat, then fade the banner in gently
@@ -804,23 +974,37 @@
     ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.font = '500 20px Inter, sans-serif'; ctx.fillText('tap for the next garden', LW / 2, LH / 2 + 62);
     ctx.globalAlpha = 1;
   }
-  function wrapText(text, x, y, maxW, lh, align) {
+  function wrapText(text, x, y, maxW, lh, align, measureOnly) {
     const words = text.split(' '); let line = '';
     ctx.textAlign = align || 'center'; ctx.textBaseline = 'top';
-    for (const w of words) { const tt = line ? line + ' ' + w : w; if (ctx.measureText(tt).width > maxW && line) { ctx.fillText(line, x, y); y += lh; line = w; } else line = tt; }
-    if (line) { ctx.fillText(line, x, y); y += lh; } return y;
+    for (const w of words) { const tt = line ? line + ' ' + w : w; if (ctx.measureText(tt).width > maxW && line) { if (!measureOnly) ctx.fillText(line, x, y); y += lh; line = w; } else line = tt; }
+    if (line) { if (!measureOnly) ctx.fillText(line, x, y); y += lh; } return y;
   }
   function menuOverlay() {
     ctx.fillStyle = 'rgba(10,16,28,0.88)'; ctx.fillRect(0, 0, LW, LH);
-    const pw = Math.min(LW - 56, 470), ph = 372, px = (LW - pw) / 2, py = (LH - ph) / 2;
+    const pw = Math.min(LW - 56, 470);
+    const sub = 'Slide the pipes until water reaches every flower.';
+    const rules = ['Drag any row or column of pipes. They wrap around.',
+                   'Water flows from the tap through the pipes that line up.',
+                   'A flower blooms only when water reaches it. Open them all.',
+                   'Stuck? Hint shows a move that changes only three tiles.'];
+    // Measure the wrapped copy, then size the panel to it. A fixed height is a
+    // guess about how text wraps, and the guess was wrong: on a 360px screen
+    // the fourth rule took two lines and ran 5px into the PLAY button.
+    let ph = 34 + 54;
+    ctx.font = '600 17px Inter, sans-serif';
+    ph = wrapText(sub, 0, ph, pw - 70, 24, 'center', true) + 18;
+    ctx.font = '500 15px Inter, sans-serif';
+    for (const r of rules) ph = wrapText(r, 0, ph, pw - 100, 21, 'left', true) + 13;
+    ph += 14 + 50 + 32;                      // clearance, PLAY button, bottom pad
+    const px = (LW - pw) / 2, py = Math.max(10, (LH - ph) / 2);
     ctx.fillStyle = '#16233a'; roundRect(px, py, pw, ph, 22); ctx.fill();
     ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(255,255,255,0.12)'; roundRect(px, py, pw, ph, 22); ctx.stroke();
     const cx = LW / 2; let y = py + 34;
     ctx.fillStyle = '#fff'; ctx.font = '800 40px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
     ctx.fillText('SHIFT', cx, y); y += 54;
     ctx.fillStyle = 'rgba(255,255,255,0.82)'; ctx.font = '600 17px Inter, sans-serif';
-    y = wrapText('Slide the pipes until water reaches every flower.', cx, y, pw - 70, 24); y += 18;
-    const rules = ['Drag any row or column of pipes.', 'Water flows from the tap through the pipes that line up.', 'A flower blooms only when the water reaches it — open them all.'];
+    y = wrapText(sub, cx, y, pw - 70, 24); y += 18;
     const rx = px + 32;
     for (let i = 0; i < rules.length; i++) {
       ctx.fillStyle = '#3a9bde'; ctx.beginPath(); ctx.arc(rx + 11, y + 11, 12, 0, 7); ctx.fill();
@@ -839,6 +1023,7 @@
   // ---------- debug ----------
   window.__shift = {
     get state() { const [w, t] = flowersWatered(); return { level, R, C, moves, par, phase, watered: w, flowers: t, tap, dragging: !!drag }; },
+    get geom() { return { LW, LH, cell, ox, oy, sidePad: sidePad(), boardW: C * cell, boardH: R * cell }; },
     solve() { conn = sol.slice(); computeWater(); const [w, t] = flowersWatered(); if (w === t) { phase = 'won'; wonT = performance.now() - BLOOM_DUR - 350; } render(performance.now()); return this.state; },
     slide(axis, i, k) { commitSlide(axis, i, k, performance.now()); return this.state; },
     lanes() { return lanesOf(); },
@@ -851,6 +1036,13 @@
     openFor(cn) { const wet = floodFrom(cn); return bloomState(cn, wet); },
     wetFor(cn) { return floodFrom(cn).filter(Boolean).length; },
     next() { genLevel(level + 1); }, goto(n) { genLevel(n); },
+    // The hint, split so it can be checked without watching an animation:
+    // what it WOULD do, versus running it for real.
+    hintPlan() { const b = bestHint(); return b && { seq: b.seq, score: b.score, cells: displacedBy(b.seq), cycle: b.seq.length > 1 }; },
+    hint() { runHint(); return this.state; },
+    get demoing() { return !!demo; },
+    get rings() { return hintRings && hintRings.cells.slice(); },
+    score(cn) { return boardScore(cn || conn); },
     get buttons() { render(performance.now()); return uiButtons.map((b, i) => ({ i, x: b.x, y: b.y, w: b.w, h: b.h })); },
   };
 
