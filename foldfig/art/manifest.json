@@ -22,5 +22,66 @@
     "",
     "Files beginning with an underscore are the built-in test images."
   ],
-  "figures": []
+  "figures": [
+    {
+      "name": "Athlete",
+      "file": "athlete.webp"
+    },
+    {
+      "name": "Couple",
+      "file": "couple.webp"
+    },
+    {
+      "name": "Egg",
+      "file": "egg.webp"
+    },
+    {
+      "name": "Elephant",
+      "file": "elephant.webp"
+    },
+    {
+      "name": "Fish",
+      "file": "fish.webp"
+    },
+    {
+      "name": "Goat",
+      "file": "goat.webp"
+    },
+    {
+      "name": "Goldfish",
+      "file": "goldfish.webp"
+    },
+    {
+      "name": "House",
+      "file": "house.webp"
+    },
+    {
+      "name": "Lightbulb",
+      "file": "lightbulb.webp"
+    },
+    {
+      "name": "Lorry",
+      "file": "lorry.webp"
+    },
+    {
+      "name": "Motorcycle",
+      "file": "motorcycle.webp"
+    },
+    {
+      "name": "Parrot",
+      "file": "parrot.webp"
+    },
+    {
+      "name": "Pear",
+      "file": "pear.webp"
+    },
+    {
+      "name": "Sunflower",
+      "file": "sunflower.webp"
+    },
+    {
+      "name": "Tiger",
+      "file": "tiger.webp"
+    }
+  ]
 }

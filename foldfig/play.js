@@ -170,7 +170,7 @@
   async function loadArt() {
     let list = [];
     try {
-      const res = await fetch('./art/manifest.json?v=2', { cache: 'no-cache' });
+      const res = await fetch('./art/manifest.json?v=3', { cache: 'no-cache' });
       if (res.ok) {
         const j = await res.json();
         list = Array.isArray(j.figures) ? j.figures : [];
@@ -218,17 +218,73 @@
   }
   // Which tiles actually carry ink? A blank slice of the picture is not worth
   // scattering — there would be nothing to see and nothing to place.
+  // Which tiles actually carry picture? This decides what becomes a scattered
+  // piece, and getting it wrong is fatal rather than cosmetic: a blank tile
+  // that becomes a piece is interchangeable with every other blank, so two of
+  // them in each other's places look perfectly assembled while the game says
+  // unsolved. The player is right and the game is wrong.
+  //
+  // Alpha alone cannot do it. It works for the drawn figures, whose blank areas
+  // are transparent, but a photograph is opaque everywhere and its white
+  // surround reads exactly like content.
+  //
+  // Nor can variance alone: a tile in the middle of a solid-filled figure has
+  // almost no variation and is certainly content.
+  //
+  // So a tile is blank when it is EITHER mostly transparent, OR near-white and
+  // flat — which is what an empty corner of a cut-out photograph looks like,
+  // and what a solid ink fill never does.
+  const BLANK_LUM = 232, BLANK_VAR = 250;
   function inkedTiles(cv, cols, rows) {
     const g = cv.getContext('2d'), out = [];
     const tw = Math.floor(FIG_PX / cols), th = Math.floor(FIG_PX / rows);
     for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
       const d = g.getImageData(c * tw, r * th, tw, th).data;
-      let ink = 0;
-      for (let p = 3; p < d.length; p += 4 * 7) if (d[p] > 40) ink++;
-      const frac = ink / (d.length / (4 * 7));
-      if (frac > 0.06) out.push({ r, c, frac });      // 6% of the tile inked
+      let ink = 0, n = 0, sum = 0, sum2 = 0;
+      for (let p = 0; p < d.length; p += 4 * 7) {
+        n++;
+        const a = d[p + 3];
+        if (a > 40) ink++;
+        // transparent counts as paper, so a transparent tile reads as flat too
+        const v = a > 40 ? (0.299 * d[p] + 0.587 * d[p + 1] + 0.114 * d[p + 2]) : 250;
+        sum += v; sum2 += v * v;
+      }
+      const frac = ink / n, mean = sum / n;
+      const variance = Math.max(0, sum2 / n - mean * mean);
+      if (frac <= 0.06) continue;                               // nothing there
+      if (mean > BLANK_LUM && variance < BLANK_VAR) continue;   // blank paper
+      out.push({ r, c, frac, variance: Math.round(variance), sig: tileSig(cv, c * tw, r * th, tw, th) });
     }
     return out;
+  }
+
+  // A small greyscale thumbprint of a tile, for telling two pieces apart.
+  const SIG_N = 8;
+  function tileSig(cv, sx, sy, sw, sh) {
+    const o = document.createElement('canvas');
+    o.width = o.height = SIG_N;
+    const g = o.getContext('2d');
+    g.drawImage(cv, sx, sy, sw, sh, 0, 0, SIG_N, SIG_N);
+    const d = g.getImageData(0, 0, SIG_N, SIG_N).data, out = [];
+    for (let i = 0; i < d.length; i += 4)
+      out.push(0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]);
+    return out;
+  }
+  // Two pieces that LOOK the same can be swapped: the picture reads as finished
+  // while the game says unsolved. Threshold tuning cannot fix this, because the
+  // culprits are not blank tiles but genuinely similar CONTENT — several tiles
+  // of a uniform fish belly really are identical. So it is a validity check:
+  // a figure that cannot be cut into distinct pieces at this grid size is not
+  // used at this grid size.
+  const SIG_TOL = 9;
+  function tilesDistinct(tiles) {
+    for (let i = 0; i < tiles.length; i++)
+      for (let j = i + 1; j < tiles.length; j++) {
+        let diff = 0;
+        for (let k = 0; k < SIG_N * SIG_N; k++) diff += Math.abs(tiles[i].sig[k] - tiles[j].sig[k]);
+        if (diff / (SIG_N * SIG_N) < SIG_TOL) return false;
+      }
+    return true;
   }
 
   // ---------- generation ----------
@@ -306,7 +362,8 @@
       const col = INKS[(lvl - 1) % INKS.length];
       const raster = rasterFigure(fi, col);
       const tiles = inkedTiles(raster, g, g);
-      if (tiles.length < Math.round(g * g * 0.45)) continue;   // too sparse to read
+      if (tiles.length < Math.max(4, Math.round(g * g * 0.40))) continue;  // too sparse to read
+      if (!tilesDistinct(tiles)) continue;                     // ambiguous pieces
 
       const groups = {};
       for (const p of pos) (groups[p.r + ',' + p.c] ||= []).push(p);
