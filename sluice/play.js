@@ -1,8 +1,8 @@
 /* ============================================================
-   Shift · a Zamborin Game — a variant of Bloom, one verb changed.
+   Sluice · a Zamborin Game — a variant of Bloom, one verb changed.
 
    Bloom: tap a pipe to rotate it.
-   Shift: DRAG A WHOLE ROW sideways. A tile's connectors are fixed
+   Sluice: DRAG A WHOLE ROW OR COLUMN. A tile's connectors are fixed
    forever at generation and never turn.
 
    THE BOARD IS TWO PARTS AND THEY MUST STAY SEPARATE. The interior
@@ -134,7 +134,7 @@
   let raf = 0, fb = 0, animEnd = 0, wonT = -1e9, initConn = [], history = [], uiButtons = [];
   // live drag: which row, how far, and whether it has committed to an axis yet
   let drag = null, snapAnim = null, hoverRow = -1;
-  const LS = 'zamborin-shift.level';
+  const LS = 'zamborin-sluice.level';
   function saveLevel() { try { localStorage.setItem(LS, String(level)); } catch (e) {} }
   function loadLevel() { try { const v = parseInt(localStorage.getItem(LS), 10); return (v >= 1 && v <= 999) ? v : 1; } catch (e) { return 1; } }
 
@@ -204,7 +204,7 @@
 
   // ---------- water flood ----------
   // Bloom's flood, verbatim, with one change: the seed. Bloom starts at a fixed
-  // interior cell. Shift starts at whichever tile currently sits next to the
+  // interior cell. Sluice starts at whichever tile currently sits next to the
   // tap, and ONLY if that tile happens to have a connector facing it. If it
   // does not, nothing is watered at all — a legal and very legible state.
   function floodFrom(cn) {
@@ -246,7 +246,7 @@
   // Synthesis lives in shared/sfx.js. Bloom's palette is water and plumbing: a
   // soft tok as a pipe turns, a low swell when the water actually gains ground,
   // and a bell per flower rising in pitch as the garden fills.
-  const sfx = window.ZSFX ? window.ZSFX.create({ storageKey: 'zamborin-shift.sound' }) : null;
+  const sfx = window.ZSFX ? window.ZSFX.create({ storageKey: 'zamborin-sluice.sound' }) : null;
   const snd = {
     on: () => !!(sfx && sfx.isOn()),
     ready() { if (sfx) sfx.ensureAudio(); },
@@ -886,7 +886,7 @@
     const hs = Math.max(0.66, Math.min(1, LW / 620));   // shrink HUD text on narrow screens
     const P = Math.round(28 * hs);
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-    ctx.fillStyle = '#fff'; ctx.font = '800 ' + Math.round(30 * hs) + 'px Inter, sans-serif'; ctx.fillText('SHIFT', P, Math.round(22 * hs));
+    ctx.fillStyle = '#fff'; ctx.font = '800 ' + Math.round(30 * hs) + 'px Inter, sans-serif'; ctx.fillText('SLUICE', P, Math.round(22 * hs));
     const [w, t] = flowersWatered();
     ctx.fillStyle = 'rgba(255,255,255,0.72)'; ctx.font = '600 ' + Math.round(16 * hs) + 'px Inter, sans-serif';
     // No par. With two axes the puzzle is hard enough that solving it at all is
@@ -1002,7 +1002,7 @@
     ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(255,255,255,0.12)'; roundRect(px, py, pw, ph, 22); ctx.stroke();
     const cx = LW / 2; let y = py + 34;
     ctx.fillStyle = '#fff'; ctx.font = '800 40px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-    ctx.fillText('SHIFT', cx, y); y += 54;
+    ctx.fillText('SLUICE', cx, y); y += 54;
     ctx.fillStyle = 'rgba(255,255,255,0.82)'; ctx.font = '600 17px Inter, sans-serif';
     y = wrapText(sub, cx, y, pw - 70, 24); y += 18;
     const rx = px + 32;
@@ -1021,7 +1021,7 @@
   }
 
   // ---------- debug ----------
-  window.__shift = {
+  window.__sluice = {
     get state() { const [w, t] = flowersWatered(); return { level, R, C, moves, par, phase, watered: w, flowers: t, tap, dragging: !!drag }; },
     get geom() { return { LW, LH, cell, ox, oy, sidePad: sidePad(), boardW: C * cell, boardH: R * cell }; },
     solve() { conn = sol.slice(); computeWater(); const [w, t] = flowersWatered(); if (w === t) { phase = 'won'; wonT = performance.now() - BLOOM_DUR - 350; } render(performance.now()); return this.state; },

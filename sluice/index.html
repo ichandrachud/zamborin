@@ -3,27 +3,26 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-  <title>Shift — A Zamborin Game</title>
+  <title>Sluice — A Zamborin Game</title>
   <meta name="description" content="A sliding pipe puzzle. Drag whole rows and columns, wrapping around, until water runs from the tap to every flower. One solution per board. Free to play on phone and desktop." />
   <meta name="theme-color" content="#0E1726" />
-  <link rel="canonical" href="https://zamborin.com/shift/" />
-  <meta name="robots" content="noindex" />
+  <link rel="canonical" href="https://zamborin.com/sluice/" />
   <link rel="icon" type="image/svg+xml" href="/images/zamborin-favicon.svg" />
 
   <!-- Open Graph / Twitter -->
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Zamborin Games" />
-  <meta property="og:url" content="https://zamborin.com/shift/" />
-  <meta property="og:title" content="Shift — a sliding pipe puzzle" />
+  <meta property="og:url" content="https://zamborin.com/sluice/" />
+  <meta property="og:title" content="Sluice — a sliding pipe puzzle" />
   <meta property="og:description" content="Drag whole rows and columns of pipes, wrapping around the board, until water runs from the tap to every flower. One solution per puzzle, free to play." />
-  <meta property="og:image" content="https://zamborin.com/images/shift-og.jpg" />
+  <meta property="og:image" content="https://zamborin.com/images/sluice-og.jpg" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
-  <meta property="og:image:alt" content="Shift, a grid of pipes carrying water out to tulips around its edge." />
+  <meta property="og:image:alt" content="Sluice, a grid of pipes carrying water out to tulips around its edge." />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Shift — a sliding pipe puzzle" />
+  <meta name="twitter:title" content="Sluice — a sliding pipe puzzle" />
   <meta name="twitter:description" content="Slide rows and columns of pipes to bring water from the tap to every flower. One solution per puzzle, free to play." />
-  <meta name="twitter:image" content="https://zamborin.com/images/shift-og.jpg" />
+  <meta name="twitter:image" content="https://zamborin.com/images/sluice-og.jpg" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -39,10 +38,10 @@
   {
     "@context": "https://schema.org",
     "@type": "VideoGame",
-    "name": "Shift",
+    "name": "Sluice",
     "description": "A free sliding pipe puzzle. Drag whole rows and columns, wrapping around the board, until water runs from the tap to every flower.",
-    "url": "https://zamborin.com/shift/",
-    "image": "https://zamborin.com/images/shift-og.jpg",
+    "url": "https://zamborin.com/sluice/",
+    "image": "https://zamborin.com/images/sluice-og.jpg",
     "playMode": "SinglePlayer",
     "gamePlatform": "Web Browser",
     "applicationCategory": "Game",
@@ -92,16 +91,16 @@
   <main class="page">
     <section class="play-row">
       <div class="game-wrap">
-        <canvas id="game" aria-label="Shift puzzle"></canvas>
+        <canvas id="game" aria-label="Sluice puzzle"></canvas>
         <!-- Splash: shows for 2 s at load, then fades to reveal the rules screen. -->
         <div id="splash" class="splash" aria-hidden="true"></div>
       </div>
     </section>
 
     <section class="game-info">
-      <h1>Shift: a sliding pipe puzzle</h1>
+      <h1>Sluice: a sliding pipe puzzle</h1>
 
-      <p>Shift is a puzzle about moving whole lines at once. The board is a grid of pipes, and around its edge sit a <strong>tap</strong> and a handful of flowers. You never turn a pipe in Shift. Instead you drag an entire <strong>row or column</strong>, and it slides as one piece, wrapping around so that whatever falls off one edge reappears at the other. Water runs out from the tap through every pipe that happens to line up, and a flower stays a closed bud until the water actually reaches it. Open every flower and the level is done.</p>
+      <p>Sluice is a puzzle about moving whole lines at once. The board is a grid of pipes, and around its edge sit a <strong>tap</strong> and a handful of flowers. You never turn a pipe in Sluice. Instead you drag an entire <strong>row or column</strong>, and it slides as one piece, wrapping around so that whatever falls off one edge reappears at the other. Water runs out from the tap through every pipe that happens to line up, and a flower stays a closed bud until the water actually reaches it. Open every flower and the level is done.</p>
 
       <p>The catch, and the whole pleasure of it, is that rows and columns cross. Slide a row to fix one corner and you have just moved a tile out of five different columns. Nothing here can be solved a piece at a time.</p>
 
@@ -116,7 +115,7 @@
       <p>Your progress saves automatically, so you always return to the level you left off on. There is no move limit and no timer.</p>
 
       <h2>Why it is clever</h2>
-      <p>Two things make Shift different from an ordinary pipe puzzle.</p>
+      <p>Two things make Sluice different from an ordinary pipe puzzle.</p>
       <p>The first is that <strong>every board has exactly one solution</strong>. Each level is checked at generation by searching the whole neighbourhood around the scramble, and any board with a second arrangement that also waters every flower is thrown away and regenerated. So when you find the answer, it is the answer, and there was no luckier route you happened to miss.</p>
       <p>The second is the technique hiding inside the rules. Because a row and a column cross at exactly one square, you can slide a row, slide a column, then undo each in turn, and the board comes back almost unchanged: <strong>exactly three tiles have moved and everything else is untouched</strong>. That is what lets you repair one corner without wrecking the rest, and it is the same idea a Rubik's cube rests on. It is not obvious, so the Hint button demonstrates it rather than describing it. Watch it once and you have the tool for every level after.</p>
 
@@ -129,9 +128,9 @@
       </ul>
 
       <h2>Frequently asked questions</h2>
-      <p><strong>Is Shift free?</strong> Yes, completely free to play, with no account and no download, in any modern browser on phone, tablet or desktop.</p>
+      <p><strong>Is Sluice free?</strong> Yes, completely free to play, with no account and no download, in any modern browser on phone, tablet or desktop.</p>
       <p><strong>Does it work on mobile?</strong> Yes. Sliding a lane with your thumb is the natural way to play it, and the board grows to fill a phone screen.</p>
-      <p><strong>How is it different from Bloom?</strong> <a href="/bloom/">Bloom</a> has you rotate one pipe at a time. Shift never rotates anything. You move whole rows and columns, which makes it a very different and considerably harder puzzle.</p>
+      <p><strong>How is it different from Bloom?</strong> <a href="/bloom/">Bloom</a> has you rotate one pipe at a time. Sluice never rotates anything. You move whole rows and columns, which makes it a very different and considerably harder puzzle.</p>
       <p><strong>How do I win?</strong> Slide rows and columns until water runs from the tap to every flower on the edge of the board.</p>
       <p><strong>Is every level solvable?</strong> Yes. Every board is built from a working pipe network and then scrambled by sliding, and a slide is always undone by another slide, so the way back always exists.</p>
 
