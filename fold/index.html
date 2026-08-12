@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <title>Fold — A Zamborin Game</title>
-  <meta name="description" content="A calm origami-style puzzle. Fold the paper along its creases so every coloured dot lands on its matching ring. Free to play on phone and desktop." />
+  <meta name="description" content="A calm origami-style puzzle. A picture is cut up and scattered across a sheet of paper. Fold the paper along its creases to bring the pieces back together. Free to play on phone and desktop." />
   <meta name="theme-color" content="#0E1726" />
   <link rel="canonical" href="https://zamborin.com/fold/" />
   <link rel="icon" type="image/svg+xml" href="/images/zamborin-favicon.svg" />
@@ -14,14 +14,14 @@
   <meta property="og:site_name" content="Zamborin Games" />
   <meta property="og:url" content="https://zamborin.com/fold/" />
   <meta property="og:title" content="Fold — an origami-style folding puzzle" />
-  <meta property="og:description" content="Fold the paper along its creases so every dot lands on its matching ring. A calm, clever puzzle, free to play." />
+  <meta property="og:description" content="A picture is cut up and scattered across a sheet. Fold the paper to bring the pieces back together, the right way round. A calm, clever puzzle, free to play." />
   <meta property="og:image" content="https://zamborin.com/images/fold-og.jpg" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
-  <meta property="og:image:alt" content="Fold — a sheet of paper on a grid with coloured dots and rings, mid-fold." />
+  <meta property="og:image:alt" content="Fold, a sheet of creased paper with the pieces of a picture scattered across it." />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Fold — an origami-style folding puzzle" />
-  <meta name="twitter:description" content="Fold the paper so every dot lands on its matching ring. A calm, clever puzzle, free to play." />
+  <meta name="twitter:description" content="Fold the paper to reassemble a scattered picture. A calm, clever puzzle, free to play." />
   <meta name="twitter:image" content="https://zamborin.com/images/fold-og.jpg" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -39,7 +39,7 @@
     "@context": "https://schema.org",
     "@type": "VideoGame",
     "name": "Fold",
-    "description": "A free origami-style folding puzzle. Fold the paper along its creases so every coloured dot lands on its matching ring.",
+    "description": "A free origami-style folding puzzle. A picture is cut into pieces and scattered across a sheet of paper; fold the paper to bring them back together.",
     "url": "https://zamborin.com/fold/",
     "image": "https://zamborin.com/images/fold-og.jpg",
     "playMode": "SinglePlayer",
@@ -100,34 +100,39 @@
     <section class="game-info">
       <h1>Fold: a calm origami-style folding puzzle</h1>
 
-      <p>Fold is a quiet little logic puzzle about paper. You are given a sheet marked with a grid of creases, and scattered across it are pairs of coloured marks: a solid <strong>dot</strong> and a matching hollow <strong>ring</strong>. Your job is to fold the paper along its creases until every dot comes to rest exactly on top of its own ring. It looks simple, and the first few levels are, but folding a dot toward one ring often carries three other marks somewhere you did not intend, and learning to read those knock-on effects is the whole game. It is the kind of puzzle you can dip into for one quick level or lose half an hour to, with a soft, papery feel and no timer rushing you.</p>
+      <p>Fold is a quiet little logic puzzle about paper. A picture has been cut into pieces and scattered across a creased sheet, and your job is to fold the sheet until the picture is whole again. Tap a crease and the smaller flap folds over, carrying its pieces with it. Some arrive exactly where they belong. Some land on their neighbours. And some arrive <strong>back to front</strong>, because folding paper reflects it, which is the thing that makes this harder than it looks.</p>
+
+      <p>It is the kind of puzzle you can dip into for one quick level or lose half an hour to, with a soft, papery feel and no timer rushing you. There is a small picture of the finished figure in the corner, so you always know what you are building towards.</p>
 
       <h2>How to play</h2>
-      <p>Tap a crease line and the smaller side of the paper folds over onto the larger side, just like folding a real sheet. Everything on the flap you fold, paper and marks alike, flips over and stacks onto the layer beneath it. Keep folding until each dot sits on its ring.</p>
+      <p>Tap a crease line and the smaller side of the paper folds over onto the larger side, just like folding a real sheet. Everything on that flap, paper and picture alike, flips over and lands on the layer beneath. Keep folding until every piece is home and the right way round.</p>
       <ul>
-        <li><strong>Fold:</strong> tap or click on any crease line. The smaller flap always folds over the crease onto the rest of the sheet.</li>
-        <li><strong>Match:</strong> a pair is solved when its dot and ring end up in the same square. A white halo appears when they meet.</li>
-        <li><strong>Undo:</strong> made a fold you regret? Use the Undo button to step back one fold at a time.</li>
+        <li><strong>Fold:</strong> tap or click any crease line. The smaller flap always folds over onto the rest of the sheet.</li>
+        <li><strong>Home:</strong> a piece counts only when it is in the right square <em>and</em> the right way round. A mirrored piece is a wrong piece, and the board says so.</li>
+        <li><strong>Undo:</strong> made a fold you regret? Step back one fold at a time.</li>
         <li><strong>Restart:</strong> unfold the whole sheet and start the level fresh.</li>
+        <li><strong>Hint:</strong> stuck? It plays the next fold of a known solution for you.</li>
       </ul>
-      <p>Solve every pair and the level is complete. Your progress is saved automatically, so you always pick up where you left off.</p>
+      <p>Assemble the whole picture and the level is complete. Your progress and score are saved automatically, so you always pick up where you left off.</p>
 
       <h2>Why it gets clever</h2>
-      <p>Each fold reflects part of the paper, so the marks on the moving flap end up mirrored. A fold that lands one dot on its ring can pull another pair apart, and a stack of folds compounds those reflections. The best solutions are rarely the most obvious first move. As you climb the levels the sheet grows larger and the number of pairs increases, but the gentle curve means every step forward still feels fair.</p>
+      <p>Every fold reflects part of the paper, so a piece that has been folded an odd number of times arrives mirrored. The pieces are laid out already mirrored by exactly the amount their journey will undo, which is why the flat sheet looks scrambled on purpose: the correct sequence of folds cancels the reflections out, and a wrong one leaves a piece facing the wrong way.</p>
+      <p>That is also what gives Fold something to lose. You are never merely unfinished here. A bad fold stacks two pieces in one square or lands one back to front, and you can see at a glance that you have broken it. As you climb the levels the picture is cut into more pieces and the sheet takes more folds to resolve.</p>
 
       <h2>Tips</h2>
       <ul>
-        <li>Look at where a dot and its ring sit relative to the crease between them. A single fold on that line often snaps them together.</li>
-        <li>Plan a couple of folds ahead. Track where a mark will travel, not just where it is now.</li>
+        <li>Check the small picture in the corner first. Knowing the shape you are building tells you which piece belongs where.</li>
+        <li>A mirrored piece is not a near miss, it is wrong. If a piece lands back to front, the fix is usually earlier in the sequence, not later.</li>
+        <li>Plan a couple of folds ahead. Track where a piece will travel, not just where it is now.</li>
         <li>Do not be afraid to Undo. Fold is about experimenting, and stepping back costs you nothing.</li>
-        <li>If a level looks tangled, try to solve the pair that is furthest from centre first, then work inward.</li>
       </ul>
 
       <h2>Frequently asked questions</h2>
       <p><strong>Is Fold free?</strong> Yes, completely free to play, with no account or download, in any modern browser on phone, tablet or desktop.</p>
       <p><strong>Does it work on mobile?</strong> Yes. Fold is built for touch as well as mouse, so it plays the same way on a phone as it does on a desktop.</p>
-      <p><strong>How do I win?</strong> Fold the paper so that every coloured dot ends up sitting on its matching ring. That solves the level and moves you to the next one.</p>
-      <p><strong>Is every level solvable?</strong> Yes. Each level is generated by folding a real sheet, so there is always at least one sequence of folds that solves it.</p>
+      <p><strong>How do I win?</strong> Fold the paper until every piece of the picture is back in place and the right way round. That solves the level and moves you to the next one.</p>
+      <p><strong>Why do some pieces look mirrored?</strong> Because folding paper reflects it. That is the central trick of the puzzle, not a mistake: the right fold sequence turns those pieces back the correct way.</p>
+      <p><strong>Is every level solvable?</strong> Yes. Each level is generated by folding a real sheet and recording what happened, so a solution always exists.</p>
 
       <p>Enjoy a good thinking puzzle? Try <a href="/tessera/">Tessera</a> or <a href="/untangle/">Untangle</a>, or browse <a href="/">all Zamborin games</a>.</p>
     </section>
@@ -148,7 +153,8 @@
   </footer>
 
   <script src="../shared/sfx.js?v=1"></script>
-  <script src="./play.js?v=13"></script>
+  <script src="./figures.js?v=1"></script>
+  <script src="./play.js?v=15"></script>
   <script>
     (() => {
       const btn = document.getElementById('focus-toggle');
