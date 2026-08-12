@@ -168,27 +168,43 @@
   const figureName = (i) => (usingArt() ? ART[i].name : FIGURES[i].name);
 
   async function loadArt() {
-    let list = [];
+    let list = [], version = 1;
     try {
-      const res = await fetch('./art/manifest.json?v=3', { cache: 'no-cache' });
+      const res = await fetch('./art/manifest.json?v=4', { cache: 'no-cache' });
       if (res.ok) {
         const j = await res.json();
         list = Array.isArray(j.figures) ? j.figures : [];
+        version = j.version || 1;
       }
     } catch (_) { /* no manifest, no artwork, vectors it is */ }
-    const loaded = await Promise.all(list.map(entry => new Promise(resolve => {
-      const src = './art/' + entry.file;
-      const img = new Image();
-      img.onload = () => resolve({
-        name: entry.name || entry.file.replace(/\.[^.]+$/, ''),
-        src, img, ready: true, w: img.naturalWidth, h: img.naturalHeight,
-      });
-      // A missing or broken file must not take the whole game down with it.
-      img.onerror = () => resolve(null);
-      img.src = src;
-    })));
-    ART = loaded.filter(Boolean);
-    return ART.length;
+    // Photographs are heavy — the set is over a megabyte — so the game must not
+    // wait for all of it before the first board appears. Each image is added to
+    // ART the moment it decodes, and loadArt resolves as soon as ENOUGH are
+    // ready to generate from. The rest arrive behind the player's back and
+    // simply widen the pool.
+    const START_WITH = Math.min(4, list.length);
+    let ready = 0;
+    return await new Promise(resolve => {
+      let settled = false;
+      const done = () => { if (!settled) { settled = true; resolve(ART.length); } };
+      if (!list.length) return done();
+      for (const entry of list) {
+        // Versioned: the filenames are stable across art revisions, so without
+        // this a browser keeps showing the previous cut.
+        const src = './art/' + entry.file + '?v=' + version;
+        const img = new Image();
+        img.onload = () => {
+          ART.push({ name: entry.name || entry.file.replace(/\.[^.]+$/, ''),
+                     src, img, ready: true, w: img.naturalWidth, h: img.naturalHeight });
+          if (++ready >= START_WITH) done();
+        };
+        // A missing or broken file must not take the whole game down with it.
+        img.onerror = () => { if (++ready >= START_WITH) done(); };
+        img.src = src;
+      }
+      // If the network stalls, fall back to the drawn figures rather than hang.
+      setTimeout(done, 6000);
+    });
   }
 
   // Artwork is centre-cropped to a square, because the tile grid is square and
