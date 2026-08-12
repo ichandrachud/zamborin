@@ -267,6 +267,52 @@
     for (let c = 0; c < C; c++) row.push(cn[idx(r, c)]);
     for (let c = 0; c < C; c++) cn[idx(r, (c + k) % C)] = row[c];
   }
+  function slideCol(cn, c, k) {
+    k = ((k % R) + R) % R;
+    if (!k) return;
+    const col = [];
+    for (let r = 0; r < R; r++) col.push(cn[idx(r, c)]);
+    for (let r = 0; r < R; r++) cn[idx((r + k) % R, c)] = col[r];
+  }
+  // One move, either axis. Rows and columns together make this a torus puzzle
+  // rather than a set of independent lanes — the same reason a Rubik's cube is
+  // hard is that the two axes interfere.
+  const applyMove = (cn, m) => (m.axis === 'row' ? slideRow(cn, m.i, m.k) : slideCol(cn, m.i, m.k));
+  function lanesOf() {
+    const out = [];
+    for (let r = 0; r < R; r++) for (let k = 1; k < C; k++) out.push({ axis: 'row', i: r, k });
+    for (let c = 0; c < C; c++) for (let k = 1; k < R; k++) out.push({ axis: 'col', i: c, k });
+    return out;
+  }
+
+  // How far out to prove uniqueness. Each extra ply multiplies the frontier by
+  // the number of lanes, so this is where the cost lives; 3 already covers the
+  // neighbourhood a player explores around a near-solution.
+  const UNIQ_DEPTH = 3;
+  // True when the ONLY arrangement within `depth` slides of `start` that waters
+  // every flower is the intended one.
+  function uniqueWithin(start, solKey, depth) {
+    const lanes = lanesOf();
+    const seen = new Set([start.join(',')]);
+    let frontier = [start];
+    for (let d = 1; d <= depth; d++) {
+      const next = [];
+      for (const cur of frontier) {
+        for (const m of lanes) {
+          const cn = cur.slice(); applyMove(cn, m);
+          const key = cn.join(',');
+          if (seen.has(key)) continue;
+          seen.add(key);
+          const wet = floodFrom(cn);
+          if (bloomState(cn, wet).every(Boolean) && key !== solKey) return false;   // a second answer
+          next.push(cn);
+        }
+        if (seen.size > 60000) return true;    // gave up early; treat as good enough
+      }
+      frontier = next;
+    }
+    return true;
+  }
 
   function curve(lvl) {
     const scrambles = Math.min(12, 3 + Math.floor((lvl - 1) * 0.8));   // 3 → 12
@@ -326,20 +372,33 @@
     // each flower's feeder is part of it. Keep it as the answer.
     sol = tree.slice();
 
-    // SCRAMBLE by row slides only. The inverse of a row slide is a row slide,
-    // so the solved state stays reachable by the same verb the player has —
-    // which is the whole reason columns are out of v1.
-    let tries = 0;
+    // SCRAMBLE on both axes. The inverse of a slide is a slide on the same
+    // lane, so the answer stays reachable with exactly the verbs the player
+    // has — that argument does not care which axis, only that we never use a
+    // move the player cannot undo.
+    //
+    // UNIQUENESS. A puzzle with several answers is a cheaper thing to solve, so
+    // every level is checked: breadth-first from the scrambled board out to the
+    // scramble depth, rejecting the level if any arrangement OTHER than the
+    // intended one waters every flower. That is a bounded guarantee, not a
+    // global one — the reachable space on two axes is far too large to
+    // enumerate — but it is the radius a player actually searches.
+    const solKey = sol.join(',');
+    let tries = 0, ok = false;
     do {
       conn = sol.slice();
+      const moves = [];
       for (let k = 0; k < scrambles; k++) {
-        const r = (Math.random() * R) | 0;
-        let d = 1 + ((Math.random() * (C - 1)) | 0);         // never a no-op slide
-        slideRow(conn, r, d);
+        const lanes = lanesOf();
+        const m = lanes[(Math.random() * lanes.length) | 0];
+        applyMove(conn, m); moves.push(m);
       }
-      watered = floodFrom(conn);
       tries++;
-    } while (bloomState(conn, watered).every(Boolean) && tries < 12);   // don't start solved
+      watered = floodFrom(conn);
+      if (bloomState(conn, watered).every(Boolean)) continue;      // started solved
+      if (conn.join(',') === solKey) continue;                     // scramble undid itself
+      ok = uniqueWithin(conn, solKey, Math.min(scrambles, UNIQ_DEPTH));
+    } while (!ok && tries < 60);
     par = scrambles;
 
     initConn = conn.slice();
@@ -355,10 +414,10 @@
   }
 
   // ---------- input: drag a row ----------
-  function commitSlide(r, k, now, silent) {
+  function commitSlide(axis, i, k, now, silent) {
     if (!k) return;
-    slideRow(conn, r, k);
-    if (!silent) { history.push({ r, k }); if (history.length > 400) history.shift(); moves++; snd.slide(); }
+    applyMove(conn, { axis, i, k });
+    if (!silent) { history.push({ axis, i, k }); if (history.length > 400) history.shift(); moves++; snd.slide(); }
     computeWater(now);
     announceWater();
     const [w, t] = flowersWatered();
@@ -369,7 +428,7 @@
   function undo() {
     if (!history.length || phase !== 'play') return;
     const h = history.pop();
-    slideRow(conn, h.r, -h.k); moves++;
+    applyMove(conn, { axis: h.axis, i: h.i, k: -h.k }); moves++;
     snd.undo();
     computeWater(); announceWater(); render(performance.now());
   }
@@ -396,54 +455,54 @@
     for (const b of uiButtons) if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) { e.preventDefault(); b.act(); return; }
     if (phase === 'menu') { phase = 'play'; render(performance.now()); return; }
     if (phase === 'won') { genLevel(level + 1); return; }
-    if (snapAnim) return;
+    // The snap is only the sub-cell remainder easing out — the move it belongs
+    // to committed on release. Refusing a new drag while it runs swallowed any
+    // second slide made within 150ms, which is well inside the speed someone
+    // solving quickly actually moves at.
+    snapAnim = null;
     const r = rowAt(y), c = colAt(x);
     if (r < 0 || r >= R || c < 0 || c >= C) return;
     e.preventDefault();
-    drag = { r, x0: x, y0: y, dx: 0, axis: null, id: e.pointerId };
+    drag = { r, c, x0: x, y0: y, dx: 0, dy: 0, axis: null, id: e.pointerId };
     canvas.setPointerCapture?.(e.pointerId);
     ensureAnim(performance.now());
   }
   function onMove(e) {
-    if (!drag) {
-      // desktop hover: light the lane the cursor is over
-      const { x, y } = toLocal(e);
-      const r = (x >= ox && x <= ox + C * cell) ? rowAt(y) : -1;
-      const nr = (r >= 0 && r < R) ? r : -1;
-      if (nr !== hoverRow) { hoverRow = nr; render(performance.now()); }
-      return;
-    }
+    // No hover highlight now that a cell belongs to two lanes at once: showing
+    // both would say the wrong thing, and picking one would be a guess about
+    // which way the player intends to drag.
+    if (!drag) return;
     const { x, y } = toLocal(e);
     const dx = x - drag.x0, dy = y - drag.y0;
-    // v1 is rows only. Vertical movement never becomes a column drag; it just
-    // fails to commit, so a stray vertical swipe does nothing rather than
-    // doing something unexpected.
+    // Whichever axis moved further first wins, and then holds for the rest of
+    // the gesture. Re-deciding mid-drag makes a diagonal finger jitter between
+    // two lanes, which feels broken even though it is doing what it was told.
     if (!drag.axis) {
-      if (Math.abs(dx) > AXIS_LOCK) drag.axis = 'row';
-      else if (Math.abs(dy) > AXIS_LOCK) { drag.axis = 'none'; }
+      if (Math.abs(dx) > AXIS_LOCK && Math.abs(dx) >= Math.abs(dy)) drag.axis = 'row';
+      else if (Math.abs(dy) > AXIS_LOCK) drag.axis = 'col';
       else return;
     }
-    if (drag.axis !== 'row') return;
-    drag.dx = dx;
+    drag.dx = dx; drag.dy = dy;
     render(performance.now());
   }
   function endDrag(e, cancel) {
     if (!drag) return;
     const d = drag; drag = null;
     canvas.releasePointerCapture?.(d.id);
-    if (d.axis !== 'row' || cancel) { render(performance.now()); return; }
+    if (!d.axis || cancel) { render(performance.now()); return; }
     const now = performance.now();
-    const k = Math.round(d.dx / cell);
+    const travel = d.axis === 'row' ? d.dx : d.dy;
+    const k = Math.round(travel / cell);
     // COMMIT NOW, animate afterwards. The move must not depend on an animation
     // frame arriving: rAF is throttled to nothing in some embedded browsers,
     // and a version of this that committed inside tick() silently dropped every
     // slide there — the drag looked right and the board never changed.
-    commitSlide(d.r, k, now);
+    commitSlide(d.axis, d.axis === 'row' ? d.r : d.c, k, now);
     // What is left is the sub-cell remainder, easing back to zero. Purely
     // cosmetic; the board is already in its new state.
-    const rest = d.dx - k * cell;
+    const rest = travel - k * cell;
     if (Math.abs(rest) > 0.5) {
-      snapAnim = { r: d.r, from: rest, t0: now, end: now + SNAP_MS };
+      snapAnim = { axis: d.axis, i: d.axis === 'row' ? d.r : d.c, from: rest, t0: now, end: now + SNAP_MS };
       animEnd = Math.max(animEnd, snapAnim.end + 40);
     }
     ensureAnim(now);
@@ -465,26 +524,32 @@
 
   // How far is a given row currently displaced, in pixels? Non-zero only for
   // the lane being dragged, or the one easing into its snap.
-  function laneOffset(r, now) {
-    if (drag && drag.axis === 'row' && drag.r === r) return drag.dx;
-    if (snapAnim && snapAnim.r === r) {
-      const t = Math.max(0, Math.min(1, (now - snapAnim.t0) / SNAP_MS));
-      if (t >= 1) return 0;
-      return snapAnim.from * (1 - ease(t));
+  // Pixel displacement of the tile at (r,c), as [dx, dy]. Only the lane being
+  // dragged, or the one easing out its remainder, is ever non-zero.
+  function tileOffset(r, c, now) {
+    if (drag && drag.axis === 'row' && drag.r === r) return [drag.dx, 0];
+    if (drag && drag.axis === 'col' && drag.c === c) return [0, drag.dy];
+    if (snapAnim) {
+      const hit = snapAnim.axis === 'row' ? snapAnim.i === r : snapAnim.i === c;
+      if (hit) {
+        const t = Math.max(0, Math.min(1, (now - snapAnim.t0) / SNAP_MS));
+        const v = t >= 1 ? 0 : snapAnim.from * (1 - ease(t));
+        return snapAnim.axis === 'row' ? [v, 0] : [0, v];
+      }
     }
-    return 0;
+    return [0, 0];
   }
   // The board as it WOULD be if the live drag were committed right now. Used so
   // the water updates while the finger is still down — the player sees the
   // consequence of a slide before choosing it.
   function previewConn(now) {
-    if (!drag || drag.axis !== 'row') return null;
-    const off = drag.dx / cell;
+    if (!drag || !drag.axis) return null;
+    const off = (drag.axis === 'row' ? drag.dx : drag.dy) / cell;
     const k = Math.round(off);
     // only when the lane is genuinely near an aligned position
-    if (Math.abs(off - k) > ALIGN_TOL) return null;
-    if (!k) return null;
-    const cn = conn.slice(); slideRow(cn, drag.r, k);
+    if (Math.abs(off - k) > ALIGN_TOL || !k) return null;
+    const cn = conn.slice();
+    applyMove(cn, { axis: drag.axis, i: drag.axis === 'row' ? drag.r : drag.c, k });
     return cn;
   }
 
@@ -503,10 +568,11 @@
     const shownOpen = pv ? bloomState(pv, shownWet) : flowers.map(f => f.open);
 
     // active lane band, behind everything
-    const liveRow = drag && drag.axis === 'row' ? drag.r : -1;
-    if (liveRow >= 0) {
+    if (drag && drag.axis) {
       ctx.fillStyle = 'rgba(255,255,255,0.07)';
-      roundRect(ox - cell, oy + liveRow * cell + 2, C * cell + cell * 2, cell - 4, cell * 0.14); ctx.fill();
+      if (drag.axis === 'row') roundRect(ox - cell, oy + drag.r * cell + 2, C * cell + cell * 2, cell - 4, cell * 0.14);
+      else roundRect(ox + drag.c * cell + 2, oy - cell, cell - 4, R * cell + cell * 2, cell * 0.14);
+      ctx.fill();
     }
 
     // faint tile plots — these mark the fixed grid, not the tiles, so they do
@@ -521,20 +587,23 @@
     // pipes, row by row, clipped to the grid so a sliding lane cannot spill
     ctx.save();
     ctx.beginPath(); ctx.rect(ox, oy, C * cell, R * cell); ctx.clip();
-    for (let r = 0; r < R; r++) {
-      const off = laneOffset(r, now);
-      for (let c = 0; c < C; c++) {
-        const i = idx(r, c);
-        // Drawn twice, a full lane-width apart. That is what makes the wrap
-        // visible: the tile leaving the right edge is entering on the left at
-        // the same moment, instead of teleporting.
-        const baseX = ccx(c) + off;
-        for (const wrapX of [baseX, baseX - C * cell, baseX + C * cell]) {
-          if (wrapX < ox - cell || wrapX > ox + C * cell + cell) continue;
-          ctx.save(); ctx.translate(wrapX, ccy(r));
-          drawPipesLocal(shownConn[i], shownWet[i]);
-          ctx.restore();
-        }
+    for (let r = 0; r < R; r++) for (let c = 0; c < C; c++) {
+      const i = idx(r, c);
+      const [dx, dy] = tileOffset(r, c, now);
+      const bx = ccx(c) + dx, by = ccy(r) + dy;
+      // Drawn again a full lane-length away on the moving axis. That is what
+      // makes the wrap visible: the tile leaving one edge is entering at the
+      // other in the same instant, instead of teleporting.
+      const span = dx ? C * cell : R * cell;
+      const copies = (dx || dy)
+        ? [[bx, by], [bx - (dx ? span : 0), by - (dy ? span : 0)], [bx + (dx ? span : 0), by + (dy ? span : 0)]]
+        : [[bx, by]];
+      for (const [px, py] of copies) {
+        if (px < ox - cell || px > ox + C * cell + cell) continue;
+        if (py < oy - cell || py > oy + R * cell + cell) continue;
+        ctx.save(); ctx.translate(px, py);
+        drawPipesLocal(shownConn[i], shownWet[i]);
+        ctx.restore();
       }
     }
     ctx.restore();
@@ -549,22 +618,30 @@
   // Chevrons outside each lane, saying which way the board moves. On desktop
   // only the hovered lane shows them; on a phone there is no hover, so the
   // first two levels show them faintly on every lane and then stop.
+  // Chevrons outside every lane, on both axes, saying the board moves both
+  // ways. Faint until a lane is actually being dragged.
   function drawLaneChevrons() {
     if (phase !== 'play') return;
-    const live = drag && drag.axis === 'row' ? drag.r : -1;
-    for (let r = 0; r < R; r++) {
-      let a = 0;
-      if (r === live || r === hoverRow) a = 0.35;
-      else if (MODE === 'mobile' && level <= 2) a = 0.18;
-      if (!a) continue;
+    const liveRow = drag && drag.axis === 'row' ? drag.r : -1;
+    const liveCol = drag && drag.axis === 'col' ? drag.c : -1;
+    const mark = (x, y, dx, dy, a) => {
       ctx.strokeStyle = 'rgba(255,255,255,' + a + ')';
       ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-      const y = ccy(r), s = cell * 0.13;
-      for (const [x, dir] of [[ox - cell * 0.55, -1], [ox + C * cell + cell * 0.55, 1]]) {
-        ctx.beginPath();
-        ctx.moveTo(x - s * dir, y - s); ctx.lineTo(x + s * dir, y); ctx.lineTo(x - s * dir, y + s);
-        ctx.stroke();
-      }
+      const s2 = cell * 0.13;
+      ctx.beginPath();
+      if (dx) { ctx.moveTo(x - s2 * dx, y - s2); ctx.lineTo(x + s2 * dx, y); ctx.lineTo(x - s2 * dx, y + s2); }
+      else { ctx.moveTo(x - s2, y - s2 * dy); ctx.lineTo(x, y + s2 * dy); ctx.lineTo(x + s2, y - s2 * dy); }
+      ctx.stroke();
+    };
+    for (let r = 0; r < R; r++) {
+      const a = r === liveRow ? 0.35 : (level <= 2 ? 0.15 : 0.08);
+      mark(ox - cell * 0.55, ccy(r), -1, 0, a);
+      mark(ox + C * cell + cell * 0.55, ccy(r), 1, 0, a);
+    }
+    for (let c = 0; c < C; c++) {
+      const a = c === liveCol ? 0.35 : (level <= 2 ? 0.15 : 0.08);
+      mark(ccx(c), oy - cell * 0.55, 0, -1, a);
+      mark(ccx(c), oy + R * cell + cell * 0.55, 0, 1, a);
     }
   }
 
@@ -657,18 +734,18 @@
     ctx.fillStyle = '#fff'; ctx.font = '800 ' + Math.round(30 * hs) + 'px Inter, sans-serif'; ctx.fillText('SHIFT', P, Math.round(22 * hs));
     const [w, t] = flowersWatered();
     ctx.fillStyle = 'rgba(255,255,255,0.72)'; ctx.font = '600 ' + Math.round(16 * hs) + 'px Inter, sans-serif';
-    // Par is shown from level 5. Early boards are commonly finished well over
-    // it while the player is still learning what a slide does, and a number you
-    // are always failing reads as a scold rather than a target.
-    let line = 'Level ' + level + '   ·   ' + w + '/' + t + ' watered   ·   ' + moves + (moves === 1 ? ' move' : ' moves');
-    if (level >= 5) line += '   ·   par ' + par;
-    ctx.fillText(line, P, Math.round(56 * hs));
+    // No par. With two axes the puzzle is hard enough that solving it at all is
+    // the reward, and a move target measured from the scramble length was
+    // beaten trivially anyway — search finds shorter paths than the scrambler
+    // took, so it was never a real number.
+    ctx.fillText('Level ' + level + '   ·   ' + w + '/' + t + ' watered   ·   ' +
+      moves + (moves === 1 ? ' move' : ' moves'), P, Math.round(56 * hs));
     if (phase === 'play' && moves === 0) {
       // BELOW the control row. At LH-118 this sat inside the board: the grid is
       // centred in the space between the bands and fills it, so its bottom edge
       // lands ~2px above the buttons and there is no gap above them to sit in.
       ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(255,255,255,0.42)'; ctx.font = '500 ' + Math.round(15 * hs) + 'px Inter, sans-serif';
-      ctx.fillText('Drag a row to move the pipes.', LW / 2, LH - 46);
+      ctx.fillText('Drag any row or column to move the pipes.', LW / 2, LH - 46);
     }
   }
   function pill(label, cx, cy, dim) {
@@ -723,7 +800,7 @@
     ctx.fillStyle = 'rgba(10,16,28,0.82)'; ctx.fillRect(0, 0, LW, LH);
     ctx.textAlign = 'center';
     ctx.fillStyle = '#9fe6a4'; ctx.font = '800 56px Inter, sans-serif'; ctx.fillText('ALL IN LINE', LW / 2, LH / 2 - 30);
-    ctx.fillStyle = '#FFD166'; ctx.font = '600 24px Inter, sans-serif'; ctx.fillText('every flower watered in ' + moves + (moves === 1 ? ' move' : ' moves') + '   ·   par ' + par, LW / 2, LH / 2 + 22);
+    ctx.fillStyle = '#FFD166'; ctx.font = '600 24px Inter, sans-serif'; ctx.fillText('every flower watered in ' + moves + (moves === 1 ? ' move' : ' moves'), LW / 2, LH / 2 + 22);
     ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.font = '500 20px Inter, sans-serif'; ctx.fillText('tap for the next garden', LW / 2, LH / 2 + 62);
     ctx.globalAlpha = 1;
   }
@@ -743,7 +820,7 @@
     ctx.fillText('SHIFT', cx, y); y += 54;
     ctx.fillStyle = 'rgba(255,255,255,0.82)'; ctx.font = '600 17px Inter, sans-serif';
     y = wrapText('Slide the pipes until water reaches every flower.', cx, y, pw - 70, 24); y += 18;
-    const rules = ['Drag a row of pipes left or right.', 'Water flows from the tap through the pipes that line up.', 'A flower blooms only when the water reaches it — open them all.'];
+    const rules = ['Drag any row or column of pipes.', 'Water flows from the tap through the pipes that line up.', 'A flower blooms only when the water reaches it — open them all.'];
     const rx = px + 32;
     for (let i = 0; i < rules.length; i++) {
       ctx.fillStyle = '#3a9bde'; ctx.beginPath(); ctx.arc(rx + 11, y + 11, 12, 0, 7); ctx.fill();
@@ -763,7 +840,9 @@
   window.__shift = {
     get state() { const [w, t] = flowersWatered(); return { level, R, C, moves, par, phase, watered: w, flowers: t, tap, dragging: !!drag }; },
     solve() { conn = sol.slice(); computeWater(); const [w, t] = flowersWatered(); if (w === t) { phase = 'won'; wonT = performance.now() - BLOOM_DUR - 350; } render(performance.now()); return this.state; },
-    slide(r, k) { commitSlide(r, k, performance.now()); return this.state; },
+    slide(axis, i, k) { commitSlide(axis, i, k, performance.now()); return this.state; },
+    lanes() { return lanesOf(); },
+    apply(cn, m) { const o = cn.slice(); applyMove(o, m); return o; },
     scramble() { return { conn: conn.slice(), sol: sol.slice() }; },
     // Enough to reason about a hypothetical board without committing to it:
     // which flowers a given arrangement would open. Used to answer whether
