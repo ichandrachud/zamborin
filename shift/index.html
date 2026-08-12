@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <title>Shift — A Zamborin Game</title>
-  <meta name="description" content="A calm irrigation puzzle. Rotate the pipes so water flows from the tap to every flower and makes the whole garden bloom. Free to play on phone and desktop." />
+  <meta name="description" content="A sliding pipe puzzle. Drag whole rows and columns, wrapping around, until water runs from the tap to every flower. One solution per board. Free to play on phone and desktop." />
   <meta name="theme-color" content="#0E1726" />
   <link rel="canonical" href="https://zamborin.com/shift/" />
   <meta name="robots" content="noindex" />
@@ -14,16 +14,16 @@
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Zamborin Games" />
   <meta property="og:url" content="https://zamborin.com/shift/" />
-  <meta property="og:title" content="Shift — a pipe-rotating garden puzzle" />
-  <meta property="og:description" content="Rotate the pipes to carry water from the tap to every flower and make the whole garden bloom. A calm, clever puzzle, free to play." />
-  <meta property="og:image" content="https://zamborin.com/images/bloom-og.jpg" />
+  <meta property="og:title" content="Shift — a sliding pipe puzzle" />
+  <meta property="og:description" content="Drag whole rows and columns of pipes, wrapping around the board, until water runs from the tap to every flower. One solution per puzzle, free to play." />
+  <meta property="og:image" content="https://zamborin.com/images/shift-og.jpg" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
-  <meta property="og:image:alt" content="Shift — a bouquet of colourful tulips." />
+  <meta property="og:image:alt" content="Shift, a grid of pipes carrying water out to tulips around its edge." />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Shift — a pipe-rotating garden puzzle" />
-  <meta name="twitter:description" content="Rotate the pipes to bring water from the tap to every flower. A calm, clever puzzle, free to play." />
-  <meta name="twitter:image" content="https://zamborin.com/images/bloom-og.jpg" />
+  <meta name="twitter:title" content="Shift — a sliding pipe puzzle" />
+  <meta name="twitter:description" content="Slide rows and columns of pipes to bring water from the tap to every flower. One solution per puzzle, free to play." />
+  <meta name="twitter:image" content="https://zamborin.com/images/shift-og.jpg" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -39,10 +39,10 @@
   {
     "@context": "https://schema.org",
     "@type": "VideoGame",
-    "name": "Bloom",
-    "description": "A free irrigation puzzle. Rotate the pipes so water flows from the tap to every flower and makes the whole garden bloom.",
+    "name": "Shift",
+    "description": "A free sliding pipe puzzle. Drag whole rows and columns, wrapping around the board, until water runs from the tap to every flower.",
     "url": "https://zamborin.com/shift/",
-    "image": "https://zamborin.com/images/bloom-og.jpg",
+    "image": "https://zamborin.com/images/shift-og.jpg",
     "playMode": "SinglePlayer",
     "gamePlatform": "Web Browser",
     "applicationCategory": "Game",
@@ -92,45 +92,50 @@
   <main class="page">
     <section class="play-row">
       <div class="game-wrap">
-        <canvas id="game" aria-label="Bloom puzzle"></canvas>
+        <canvas id="game" aria-label="Shift puzzle"></canvas>
         <!-- Splash: shows for 2 s at load, then fades to reveal the rules screen. -->
         <div id="splash" class="splash" aria-hidden="true"></div>
       </div>
     </section>
 
     <section class="game-info">
-      <h1>Bloom: a calm pipe-rotating garden puzzle</h1>
+      <h1>Shift: a sliding pipe puzzle</h1>
 
-      <p>Bloom is a quiet little irrigation puzzle. Water waits at a <strong>tap</strong> in the middle of the garden, and the ground is criss-crossed with a tangle of pipes: straights, elbows and junctions, each one turned the wrong way. Scattered around the edges are flowers, and every flower stays a closed bud until water actually reaches it. Your job is to rotate the pipes, one tap at a time, until the water threads its way out from the tap and touches every flower, opening the whole garden into bloom. It is gentle, tidy and quietly satisfying, the kind of puzzle you can sink into for one level or twenty.</p>
+      <p>Shift is a puzzle about moving whole lines at once. The board is a grid of pipes, and around its edge sit a <strong>tap</strong> and a handful of flowers. You never turn a pipe in Shift. Instead you drag an entire <strong>row or column</strong>, and it slides as one piece, wrapping around so that whatever falls off one edge reappears at the other. Water runs out from the tap through every pipe that happens to line up, and a flower stays a closed bud until the water actually reaches it. Open every flower and the level is done.</p>
+
+      <p>The catch, and the whole pleasure of it, is that rows and columns cross. Slide a row to fix one corner and you have just moved a tile out of five different columns. Nothing here can be solved a piece at a time.</p>
 
       <h2>How to play</h2>
-      <p>Tap any pipe to rotate it a quarter turn. Water flows out from the tap through every pipe that lines up with it, lighting those pipes blue as it goes. Keep turning pipes until the water has a clear path to each flower.</p>
+      <p>Drag any row sideways or any column up and down. The lane moves as a unit and wraps around the board. Water spreads from the tap the instant the pipes line up, lighting them blue as it goes, so you can see how far you have got at every moment.</p>
       <ul>
-        <li><strong>Rotate:</strong> tap or click a pipe and it spins 90 degrees. The tap and the flowers are fixed, so only the pipes turn.</li>
-        <li><strong>Follow the water:</strong> pipes carrying water turn blue; dry pipes stay grey. You can always see how far the water has spread and which flowers are still closed.</li>
-        <li><strong>Bloom them all:</strong> a flower opens the moment water reaches it. Connect every flower to win.</li>
-        <li><strong>Undo or Restart:</strong> step back a turn, or reset the whole board, whenever you like.</li>
+        <li><strong>Slide:</strong> drag a row left or right, or a column up and down. Whatever leaves one edge comes back in at the opposite edge.</li>
+        <li><strong>Follow the water:</strong> pipes carrying water turn blue and dry pipes stay grey, so the blue is a live measure of progress.</li>
+        <li><strong>Open every flower:</strong> a flower blooms the moment water reaches it. Open them all to finish the level.</li>
+        <li><strong>Undo, Restart, Hint:</strong> step back, reset the board, or ask for a move. Hint does not just point at a lane, it plays a full sequence for you.</li>
       </ul>
-      <p>Your progress is saved automatically, so you always pick up on the level where you left off.</p>
+      <p>Your progress saves automatically, so you always return to the level you left off on. There is no move limit and no timer.</p>
 
       <h2>Why it is clever</h2>
-      <p>There is no guessing and no luck. Every board is built from a real, fully connected pipe network and then scrambled, so a solution always exists, and you can see your progress at all times as the water creeps outward. The trick is reading the tangle: which junction feeds which branch, and the order to turn things so one route does not steal the water from another. As you climb the levels the garden grows larger and the network more knotted, so the same simple rule keeps giving you harder, more tangled puzzles to unpick.</p>
+      <p>Two things make Shift different from an ordinary pipe puzzle.</p>
+      <p>The first is that <strong>every board has exactly one solution</strong>. Each level is checked at generation by searching the whole neighbourhood around the scramble, and any board with a second arrangement that also waters every flower is thrown away and regenerated. So when you find the answer, it is the answer, and there was no luckier route you happened to miss.</p>
+      <p>The second is the technique hiding inside the rules. Because a row and a column cross at exactly one square, you can slide a row, slide a column, then undo each in turn, and the board comes back almost unchanged: <strong>exactly three tiles have moved and everything else is untouched</strong>. That is what lets you repair one corner without wrecking the rest, and it is the same idea a Rubik's cube rests on. It is not obvious, so the Hint button demonstrates it rather than describing it. Watch it once and you have the tool for every level after.</p>
 
       <h2>Tips</h2>
       <ul>
-        <li>Start at the tap and work outward, following the water one pipe at a time.</li>
-        <li>Fix the pipes nearest the tap first. Everything downstream depends on them.</li>
-        <li>Watch the junctions. A tee or a cross can feed two flowers at once if you aim it well.</li>
-        <li>If a branch keeps coming up dry, trace back to the last blue pipe and turn the piece just beyond it.</li>
+        <li>Get the pipe next to the tap facing the tap first. Until it does, nothing on the board is wet and you are working blind.</li>
+        <li>Use the blue, not the flowers. Flowers only open at the very end of a chain, but the spread of blue tells you whether a slide helped.</li>
+        <li>When a slide fixes one thing and breaks another, that is the moment to reach for a three tile sequence instead.</li>
+        <li>Press Hint when you are stuck rather than when you are lost. Watching what it does with a board you already understand is how the technique sticks.</li>
       </ul>
 
       <h2>Frequently asked questions</h2>
-      <p><strong>Is Bloom free?</strong> Yes, completely free to play, with no account or download, in any modern browser on phone, tablet or desktop.</p>
-      <p><strong>Does it work on mobile?</strong> Yes. Bloom is built for touch as well as mouse, so it plays the same on a phone as on a desktop.</p>
-      <p><strong>How do I win?</strong> Rotate the pipes so water flows from the tap to every flower. Once they have all bloomed, the level is solved.</p>
-      <p><strong>Is every level solvable?</strong> Yes. Each board is generated from a working pipe layout and then scrambled, so there is always a way to connect every flower.</p>
+      <p><strong>Is Shift free?</strong> Yes, completely free to play, with no account and no download, in any modern browser on phone, tablet or desktop.</p>
+      <p><strong>Does it work on mobile?</strong> Yes. Sliding a lane with your thumb is the natural way to play it, and the board grows to fill a phone screen.</p>
+      <p><strong>How is it different from Bloom?</strong> <a href="/bloom/">Bloom</a> has you rotate one pipe at a time. Shift never rotates anything. You move whole rows and columns, which makes it a very different and considerably harder puzzle.</p>
+      <p><strong>How do I win?</strong> Slide rows and columns until water runs from the tap to every flower on the edge of the board.</p>
+      <p><strong>Is every level solvable?</strong> Yes. Every board is built from a working pipe network and then scrambled by sliding, and a slide is always undone by another slide, so the way back always exists.</p>
 
-      <p>Enjoy a good thinking puzzle? Try <a href="/fold/">Fold</a> or <a href="/untangle/">Untangle</a>, or browse <a href="/">all Zamborin games</a>.</p>
+      <p>Enjoy a good thinking puzzle? Try <a href="/bloom/">Bloom</a>, <a href="/fold/">Fold</a> or <a href="/untangle/">Untangle</a>, or browse <a href="/">all Zamborin games</a>.</p>
     </section>
   </main>
 
