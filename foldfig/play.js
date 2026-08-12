@@ -55,7 +55,7 @@
   let CELL = 70, origW = 6, origH = 6;
   let x0, y0, W, H, grid;
   let gw = 3, gh = 3;                    // figure tile grid (always square)
-  let figIdx = 0, figCanvas = null;
+  let figIdx = 0, figCanvas = null, lastFigureName = null;
   let tilesTotal = 0;
   let level = 1, moves = 0, phase = 'play';
   let history = [], solution = [], hintsUsed = 0;
@@ -307,8 +307,12 @@
   const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0;[a[i], a[j]] = [a[j], a[i]]; } };
 
   function curve(lvl) {
-    // Figure grid grows 3x3 -> 4x4; folds grow 2 -> 5.
-    const g = lvl <= 6 ? 3 : 4;
+    // 3x3 is the on-ramp and 4x4 is the game. It used to run to level 6, but
+    // far fewer figures survive being cut into nine pieces than sixteen — a
+    // 3x3 tile is a big slice, so more of them come out near-identical and get
+    // rejected. Six levels drawn from that small pool repeated visibly. Three
+    // levels is still a real introduction and reaches the full set sooner.
+    const g = lvl <= 3 ? 3 : 4;
     const folds = Math.min(5, 2 + Math.floor((lvl - 1) / 2));
     return { g, folds };
   }
@@ -372,7 +376,11 @@
       if (bad || sw !== g || sh !== g) continue;
 
       // Pick the figure and find its inked tiles.
-      const fi = (Math.random() * figureCount()) | 0;
+      // Not the figure the previous level used. With a small qualifying pool
+      // the same subject came up back to back, which reads as a bug even when
+      // the board is completely different.
+      let fi = (Math.random() * figureCount()) | 0;
+      if (figureCount() > 1 && figureName(fi) === lastFigureName) fi = (fi + 1) % figureCount();
       // Ink is chosen from the level number, not at random, so restarting a
       // level gives you back the same picture you were working on.
       const col = INKS[(lvl - 1) % INKS.length];
@@ -402,6 +410,7 @@
 
       origW = w0; origH = h0; x0 = 0; y0 = 0; W = w0; H = h0;
       gw = gh = g; figIdx = fi; figCanvas = raster; tilesTotal = tiles.length; ink = col;
+      lastFigureName = figureName(fi);
       grid = g2;
 
       // Prove it: replay the recorded sequence and require a genuine win.
