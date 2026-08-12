@@ -15,6 +15,11 @@
    apply three candidate constraints and count solutions under each, so the
    choice is made from numbers instead of taste.
 */
+(function (root, factory) {
+  const api = factory();
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  else root.SOCKET_MODEL = api;
+}(typeof self !== 'undefined' ? self : this, function () {
 'use strict';
 
 // A plug: span = how many sockets its body covers, pinAt = index of the pin
@@ -119,23 +124,35 @@ function legal(board, plug, pl) {
   return true;
 }
 
-module.exports = { CATALOGUE, makePlug, placements, countSolutions, solve, legal };
 
 // ---- generation ----
 // Bloom's shape: build a solved board, then describe it as a puzzle. Reach
 // centres come FROM the solution, so every level is solvable by construction
 // and the only question left is how tightly the reaches pin it down.
 function generate(level, rnd = Math.random) {
-  const N = Math.min(9, 6 + Math.floor((level - 1) / 4));
+  const N = Math.min(10, 6 + Math.floor((level - 1) / 3));
   const slack = level <= 3 ? 2 : (level <= 9 ? 2 - (level % 2) : 1);
   const kinds = ['slim', 'wide', 'brick', 'angle', 'bar'];
-  for (let attempt = 0; attempt < 600; attempt++) {
+  // Uniform choice over kinds favours the big bodies, because three fat plugs
+  // fill a strip that would take six slim ones. Measured, that pinned every
+  // late level at 4 plugs and made the top of the curve one repeated shape.
+  // Aim at a plug COUNT first and weight the draw toward whatever hits it.
+  const wantPlugs = Math.max(3, Math.min(N - 1, 3 + Math.floor((level - 1) / 3) + ((rnd() * 2) | 0)));
+  for (let attempt = 0; attempt < 800; attempt++) {
     const plugs = []; let total = 0, id = 0;
     while (total < N) {
       const room = N - total;
+      const left = wantPlugs - plugs.length;
+      // rough body size still to allocate per remaining plug
+      const target = left > 0 ? Math.max(1, Math.round(room / left)) : 1;
       const opts = kinds.filter(k => CATALOGUE[k](0).span <= room);
       if (!opts.length) break;
-      const p = CATALOGUE[opts[(rnd() * opts.length) | 0]](id++);
+      const weighted = opts.flatMap(k => {
+        const sp = CATALOGUE[k](0).span;
+        const w = sp === target ? 4 : (Math.abs(sp - target) === 1 ? 2 : 1);
+        return Array(w).fill(k);
+      });
+      const p = CATALOGUE[weighted[(rnd() * weighted.length) | 0]](id++);
       plugs.push(p); total += p.span;
     }
     if (total !== N || plugs.length < 3) continue;
@@ -152,4 +169,5 @@ function generate(level, rnd = Math.random) {
   return null;
 }
 
-module.exports.generate = generate;
+  return { CATALOGUE, makePlug, placements, countSolutions, solve, legal, generate };
+}));
