@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <title>Wire — A Zamborin Game</title>
+  <meta name="description" content="Birds arrive one at a time and the ones already on the wire budge along to make room. Some kinds will not perch beside each other. Land them all. Free to play." />
+  <meta name="theme-color" content="#7FB6E4" />
+  <link rel="canonical" href="https://zamborin.com/wire/" />
+  <link rel="icon" type="image/svg+xml" href="/images/zamborin-favicon.svg" />
+
+  <!-- Open Graph / Twitter -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Zamborin Games" />
+  <meta property="og:url" content="https://zamborin.com/wire/" />
+  <meta property="og:title" content="Wire — the birds on a wire puzzle" />
+  <meta property="og:description" content="Land every bird. The ones already perched budge along to make room, and some kinds refuse to sit next to each other." />
+  <meta property="og:image" content="https://zamborin.com/images/wire-og.jpg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Wire, a row of birds perched along a telephone wire against a blue sky." />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Wire — the birds on a wire puzzle" />
+  <meta name="twitter:description" content="Land every bird. Some kinds will not perch beside each other." />
+  <meta name="twitter:image" content="https://zamborin.com/images/wire-og.jpg" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../shared/tokens.css" />
+  <link rel="stylesheet" href="../shared/chrome.css?v=9" />
+  <link rel="stylesheet" href="./play.css?v=1" />
+  <!-- Google AdSense -->
+  <meta name="google-adsense-account" content="ca-pub-9207689324865969">
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9207689324865969" crossorigin="anonymous"></script>
+  <!-- Structured data: VideoGame schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "VideoGame",
+    "name": "Wire",
+    "description": "A free logic puzzle. Birds arrive one at a time and the ones already perched budge along to make room. Some kinds will not sit next to each other. Land every bird.",
+    "url": "https://zamborin.com/wire/",
+    "image": "https://zamborin.com/images/wire-og.jpg",
+    "playMode": "SinglePlayer",
+    "gamePlatform": "Web Browser",
+    "applicationCategory": "Game",
+    "operatingSystem": "Web",
+    "genre": ["Puzzle","Logic"],
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "publisher": { "@type": "Organization", "name": "Zamborin Games", "url": "https://zamborin.com/" }
+  }
+  </script>
+  <style>
+    .game-info { max-width: 760px; margin: 0 auto; padding: 8px 24px 40px; color: var(--text-dim); line-height: 1.65; font-size: 16px; }
+    .game-info h1 { font-size: 28px; color: var(--text); font-weight: 800; margin: 20px 0 8px; letter-spacing: -0.3px; }
+    .game-info h2 { font-size: 20px; color: var(--text); font-weight: 700; margin: 30px 0 8px; }
+    .game-info p { margin: 12px 0; }
+    .game-info ul { margin: 12px 0; padding-left: 22px; }
+    .game-info li { margin: 7px 0; }
+    .game-info strong { color: var(--text); font-weight: 600; }
+    .game-info a { color: #4DC3FF; }
+    @media (max-width: 720px) { .game-info { padding: 8px 18px 40px; } .game-info h1 { font-size: 24px; } }
+    @media (max-width: 1099px) {
+      body.game-content-page { position: static; overflow: visible; height: auto; width: auto; top: auto; left: auto; touch-action: auto; }
+      body.game-content-page .site-footer { display: flex; }
+    }
+  </style>
+</head>
+<body class="game-content-page">
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="Zamborin Games home">
+      <img class="brand-logo" src="/images/zamborin-logo.svg" alt="Zamborin" />
+    </a>
+    <div class="header-right">
+      <button id="focus-toggle" class="focus-btn" type="button" aria-label="Play fullscreen" aria-pressed="false">
+        <svg class="icon-enter" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="4 9 4 4 9 4"/>
+          <polyline points="20 9 20 4 15 4"/>
+          <polyline points="4 15 4 20 9 20"/>
+          <polyline points="20 15 20 20 15 20"/>
+        </svg>
+        <svg class="icon-exit" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M6 6l12 12M18 6L6 18"/>
+        </svg>
+      </button>
+      <a class="back-link" href="/">Back to all games</a>
+    </div>
+  </header>
+
+  <main class="page">
+    <section class="play-row">
+      <div class="game-wrap">
+        <canvas id="game" aria-label="Wire puzzle"></canvas>
+        <!-- Splash: shows for 2 s at load, then fades to reveal the rules screen. -->
+        <div id="splash" class="splash" aria-hidden="true"></div>
+      </div>
+    </section>
+
+    <section class="game-info">
+      <h1>Wire: the birds on a wire puzzle</h1>
+
+      <p>Birds do not land in a queue. One drops onto a telephone wire, the ones already sitting there shuffle along to make room, and the whole line resettles. Wire is that shuffle as a puzzle.</p>
+
+      <p>You are handed birds one at a time and you choose which wire each one lands on. There is only so much wire. And some kinds of bird will not perch beside each other, so it is not only about whether there is room, it is about who ends up next to whom. Land every bird and the line is complete.</p>
+
+      <h2>How to play</h2>
+      <p>The next bird is the one outlined at the top of the screen, and every bird still to come is shown beside it. Tap either end of a wire and the bird lands there. The birds already on that wire budge along to fit.</p>
+      <ul>
+        <li><strong>Land a bird:</strong> tap the left or right end of any wire. Wires that will take the current bird are marked, and wires that will not are simply not offered.</li>
+        <li><strong>Watch the feuds:</strong> the pairs that refuse to sit together are shown at the top. A bird can never land next to one of its own feuds.</li>
+        <li><strong>Read the room:</strong> under each wire is how much space is left on it. A full wire says so.</li>
+        <li><strong>Undo:</strong> takes back one bird at a time, as far back as you want to go.</li>
+      </ul>
+      <p>Your progress saves automatically. There is no timer.</p>
+
+      <h2>Why it is clever</h2>
+      <p>Fitting things into containers is an easy problem. Take the tightest space that works, every time, and you will win almost always. That version of this game was built first and measured, and one textbook rule with no thinking at all beat between 69 and 92 percent of the boards. Nothing you did early could hurt you.</p>
+      <p><strong>The feud is what makes it a puzzle.</strong> A bird that will not sit beside another one makes a place on the wire illegal for a reason that has nothing to do with space. Suddenly a half empty wire can be closed to you, the order the birds arrive in matters enormously, and a choice you make on the first bird can cost you the level ten birds later. With the feuds in, that same textbook rule wins six percent of the time.</p>
+      <p>Everything still to come is visible, so nothing is hidden and nothing is luck. The question is only whether you read it in time.</p>
+
+      <h2>Tips</h2>
+      <ul>
+        <li>Look at the whole queue before the first bird. The trouble is usually a kind that arrives late and has nowhere left to go.</li>
+        <li>Keep one wire clean. A wire with only one kind on it can still take more of that kind, and a wire with everything on it often cannot take anything.</li>
+        <li>The end of a wire is a resource. Whichever bird is on the end decides what can land there next.</li>
+        <li>Wide birds are not the problem. Feuding birds are.</li>
+      </ul>
+
+      <h2>Frequently asked questions</h2>
+      <p><strong>Is Wire free?</strong> Yes, completely free, with no account and no download, in any modern browser on phone, tablet or desktop.</p>
+      <p><strong>Does it work on mobile?</strong> Yes. The wires stack down the screen and each landing spot is half a wire wide, so every target is a comfortable thumb.</p>
+      <p><strong>How do I win?</strong> Every bird on a wire, with nobody sitting next to a bird they will not tolerate.</p>
+      <p><strong>Is every level solvable?</strong> Yes. Each board is built from a wire that already worked and then handed to you in a shuffled order, so an answer always exists.</p>
+      <p><strong>Can I get stuck?</strong> Yes, and that is the point. When a bird has nowhere to land the game says so, and undo takes you back as far as you need.</p>
+
+      <p>Enjoy a good thinking puzzle? Try <a href="/socket/">Socket</a>, <a href="/sluice/">Sluice</a> or <a href="/bloom/">Bloom</a>, or browse <a href="/">all Zamborin games</a>.</p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <nav class="site-foot-nav">
+      <a href="/">Games</a>
+      <a href="/guides/">Guides</a>
+      <a href="/about/">About</a>
+      <a href="/faq/">FAQ</a>
+      <a href="/privacy/">Privacy</a>
+      <a href="/cookies/">Cookies</a>
+      <a href="/terms/">Terms</a>
+      <a href="/contact/">Contact</a>
+    </nav>
+    <span>© 2026 Zamborin. Games created by Indrajeet Chandrachud.</span>
+  </footer>
+
+  <script src="../shared/sfx.js?v=1"></script>
+  <script src="./model2.js?v=1"></script>
+  <script src="./play.js?v=1"></script>
+  <script>
+    (() => {
+      const btn = document.getElementById('focus-toggle');
+      btn.addEventListener('click', () => {
+        const on = document.body.classList.toggle('focus-mode');
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        btn.setAttribute('aria-label', on ? 'Exit fullscreen' : 'Play fullscreen');
+        setTimeout(() => window.dispatchEvent(new Event('resize')), 60);
+      });
+    })();
+
+    // Splash: 2 s reveal, 0.6 s fade, remove from DOM at 2.7 s, then tell play.js.
+    (() => {
+      const splash = document.getElementById('splash');
+      if (!splash) return;
+      setTimeout(() => splash.classList.add('fading'), 2000);
+      setTimeout(() => {
+        splash.remove();
+        window.dispatchEvent(new CustomEvent('splash-done'));
+      }, 2700);
+    })();
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
+</body>
+</html>

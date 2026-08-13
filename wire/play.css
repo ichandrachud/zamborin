@@ -1,0 +1,9 @@
+/* Wire — per-game styles. Everything else comes from ../shared/chrome.css
+   and ../shared/tokens.css.
+
+   splash-desktop.jpg is 1120x1280, the ratio of the 470x760 desktop card once
+   the frame is accounted for, so cover-sizing crops very little. Measured
+   before installing: the wordmark spans 56% of the mobile art against a 61%
+   limit and 33% of the desktop art against 71%, so neither clips. */
+body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=1'); }
+body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=1'); }
