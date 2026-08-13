@@ -243,6 +243,13 @@
           if (n === 0) rc.moveTo(cellCX(c), cellCY(r)); else rc.lineTo(cellCX(c), cellCY(r));
         }
         if (upto === 1) { const { c, r } = cellOf(path[0]); rc.lineTo(cellCX(c) + 0.01, cellCY(r)); }
+        // Once the run reaches the last row it leaves the window. Without this
+        // the stroke stops half a cell short of the sill with a rounded cap,
+        // which reads as water that parked rather than water that ran off.
+        if (upto === path.length) {
+          const { c, r } = cellOf(path[path.length - 1]);
+          if (r === board.H - 1) rc.lineTo(cellCX(c), gridY + gridH + cell);
+        }
         rc.stroke();
       }
       // fill the stroke with the crisp view
