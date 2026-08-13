@@ -270,20 +270,9 @@
     ctx.strokeStyle = wantsEarth ? 'rgba(229,88,74,0.55)' : 'rgba(0,0,0,0.22)';
     ctx.lineWidth = wantsEarth ? 2 : 1; ctx.stroke();
 
-    // Blades side by side with the EARTH BELOW them. It was above, which is
-    // upside down for a moulded strip and read as wrong even at a glance.
-    const hole = (hx, hy, hw, hh, r) => {
-      ctx.fillStyle = '#0a0d14'; RR(hx, hy, hw, hh, r); ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,0.28)'; ctx.lineWidth = 0.9;
-      ctx.beginPath(); ctx.moveTo(hx, hy + hh + 0.6); ctx.lineTo(hx + hw, hy + hh + 0.6); ctx.stroke();
-    };
-    const u = s / 42, earthed = board.earthed.has(i);
-    // An unearthed socket is visibly a different socket, not a decorated one.
-    // The blades sit centred when there is no earth below to make room for.
-    const by = earthed ? cy - 15 * u : cy - 9 * u;
-    hole(cx - 11 * u, by, 5.5 * u, 15 * u, 2.2);
-    hole(cx + 5.5 * u, by, 5.5 * u, 15 * u, 2.2);
-    if (earthed) hole(cx - 3.5 * u, cy + 5 * u, 7 * u, 10 * u, 3.5);
+    // An unearthed socket is visibly a different socket, not a decorated one:
+    // no earth hole, and the blades sit centred with no earth to make room for.
+    contactFace(cx, cy, s / 42, board.earthed.has(i) ? 3 : 2, true);
     if (held >= 0 && usable) {
       uiButtons.push({ x: cx - pitch * 0.6, y: cy - pitch / 2, w: pitch * 1.2, h: pitch, act: () => putDown(i) });
     }
@@ -348,17 +337,14 @@
       g.addColorStop(1, mix(col.c, col.d, 0.45));
       plugPath(p.kind, lx, y, w, h, !!p._flip); ctx.fillStyle = g; ctx.fill();
       ctx.strokeStyle = 'rgba(0,0,0,0.32)'; ctx.lineWidth = 1; ctx.stroke();
-      // pins on the face that will meet the wall
+      // the same face it will present to the wall, centred so it telegraphs
       const pinY = y + h * (p.pinAt + 0.5) / p.span;
-      ctx.fillStyle = 'rgba(20,22,28,0.72)';
-      RR(lx + 4, pinY - 9, 3, 8, 1.5); ctx.fill();
-      RR(lx + 4, pinY + 1, 3, 8, 1.5); ctx.fill();
-      if (p.pins === 3) { RR(lx - 1, pinY - 4, 3.5, 9, 1.8); ctx.fill(); }
+      contactFace(lx + w * 0.42, pinY, Math.min(40, pitch * 0.76) / 42 * 0.9, p.pins, false);
       // how many sockets this will swallow, said out loud as well as shown
       if (p.span > 1) {
         ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.font = '700 10px Inter, sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText(p.span + ' WIDE', lx + w * 0.55, cy - 5);
+        ctx.fillText(p.span + ' WIDE', lx + w * 0.42, y + h - 12);
         ctx.textAlign = 'left';
       }
       if (held === i) {
@@ -368,6 +354,22 @@
       ctx.restore();
       uiButtons.push({ x: lx - 8, y: y - 8, w: w + 16, h: h + 16, act: () => tapTray(i) });
     }
+  }
+
+  // The pin face and the socket face are the SAME drawing at the same scale, so
+  // a three-pin plug and a three-hole socket visibly mate. Drawn centred on
+  // whichever thing it belongs to, because a marking tucked against an edge is
+  // a detail and a marking in the middle is a statement.
+  function contactFace(cx, cy, u, n, dark) {
+    const blade = (bx, by, w, h, r) => {
+      ctx.fillStyle = dark ? '#0a0d14' : 'rgba(22,25,32,0.82)';
+      RR(bx, by, w, h, r); ctx.fill();
+      if (!dark) { ctx.fillStyle = 'rgba(255,255,255,0.30)'; RR(bx, by + h - 1.2, w, 1.2, 0.6); ctx.fill(); }
+    };
+    const by = n === 3 ? cy - 15 * u : cy - 9 * u;
+    blade(cx - 11 * u, by, 5.5 * u, 15 * u, 2.2);
+    blade(cx + 5.5 * u, by, 5.5 * u, 15 * u, 2.2);
+    if (n === 3) blade(cx - 3.5 * u, cy + 5 * u, 7 * u, 10 * u, 3.5);
   }
 
   // How far each kind stands proud of the strip. A brick is bulky, a slim
@@ -464,14 +466,9 @@
     ctx.strokeStyle = 'rgba(0,0,0,0.26)'; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(px + 2, top + 3); ctx.lineTo(px + 2, bot - 3); ctx.stroke();
 
-    // the pins themselves, on the face that meets the strip
-    const pinFace = (fx, fy, n) => {
-      ctx.fillStyle = 'rgba(20,22,28,0.75)';
-      RR(fx, fy - 9, 3, 8, 1.5); ctx.fill();
-      RR(fx, fy + 1, 3, 8, 1.5); ctx.fill();
-      if (n === 3) { RR(fx - 5, fy - 4, 3.5, 9, 1.8); ctx.fill(); }
-    };
-    pinFace(px + 5, sockCY(pl.pin), p.pins);
+    // The pins, centred on the body at the row it draws from, at exactly the
+    // scale of a socket face. Two blades or three, matching what it needs.
+    contactFace(px + pw * 0.42, sockCY(pl.pin), Math.min(40, pitch * 0.76) / 42 * 0.9, p.pins, false);
 
     // collar on the live pin row, so you can see which socket it draws from
     const cy = sockCY(pl.pin);
