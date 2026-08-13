@@ -79,13 +79,51 @@ function region(b, from, solid) {
   return seen;
 }
 
+
+// ---- the hot path ----
+// region() below returns a Set, which is the pleasant interface and far too
+// slow to call inside generation: it is invoked once per candidate move of
+// every rejected board. These do the same flood fill over typed arrays and are
+// what generation and status actually use.
+let _solid = null, _seen = null, _stack = null, _cap = 0;
+function ensure(n) {
+  if (_cap >= n) return;
+  _cap = n; _solid = new Uint8Array(n); _seen = new Uint8Array(n); _stack = new Int32Array(n);
+}
+function solidMask(b) {
+  const n = b.W * b.H;
+  ensure(n);
+  _solid.fill(0, 0, n);
+  for (const c of b.fixed) _solid[c] = 1;
+  for (const k of b.bricks) for (const c of k.cells) _solid[c] = 1;
+  return _solid;
+}
+// Flood from `from`, marking _seen. Returns how many cells were reached.
+function fill(b, from, solid) {
+  const n = b.W * b.H, W = b.W;
+  _seen.fill(0, 0, n);
+  if (solid[from]) return 0;
+  let top = 0, count = 0;
+  _stack[top++] = from; _seen[from] = 1;
+  while (top) {
+    const i = _stack[--top]; count++;
+    const c = i % W, r = (i / W) | 0;
+    if (r > 0)        { const j = i - W; if (!solid[j] && !_seen[j]) { _seen[j] = 1; _stack[top++] = j; } }
+    if (r < b.H - 1)  { const j = i + W; if (!solid[j] && !_seen[j]) { _seen[j] = 1; _stack[top++] = j; } }
+    if (c > 0)        { const j = i - 1; if (!solid[j] && !_seen[j]) { _seen[j] = 1; _stack[top++] = j; } }
+    if (c < W - 1)    { const j = i + 1; if (!solid[j] && !_seen[j]) { _seen[j] = 1; _stack[top++] = j; } }
+  }
+  return count;
+}
+function statusFast(b) {
+  fill(b, b.rabbit, solidMask(b));
+  for (const f of b.foxes) if (_seen[f]) return 'dead';
+  return _seen[b.carrot] ? 'won' : 'open';
+}
+
 // Dead beats won: if opening the way to the carrot also lets a fox in, the
 // rabbit does not get to eat first.
-function status(b) {
-  const reach = region(b, b.rabbit);
-  for (const f of b.foxes) if (reach.has(f)) return 'dead';
-  return reach.has(b.carrot) ? 'won' : 'open';
-}
+const status = (b) => statusFast(b);
 
 // A brick may slide one cell if every cell it would newly cover is open and
 // nothing is standing there. Bricks do not crush anybody.
@@ -180,7 +218,11 @@ function generate(level, rnd = Math.random, opts = {}) {
   const holes = opts.holes || Math.max(5, Math.round(W * H * 0.22));
   const nFoxes = opts.foxes != null ? opts.foxes : Math.min(2, 1 + Math.floor((level - 1) / 25));
   const nFixed = opts.fixed != null ? opts.fixed : Math.min(4, 1 + Math.floor((level - 1) / 12));
-  const wantMin = opts.minMoves || Math.min(9, 2 + Math.floor((level - 1) / 5));
+  // Par is capped at 7, not 9. Measured, par 6 boards already defeat every
+  // unplanned player 92-100% of the time, so difficulty saturates well before
+  // the depth that starves the generator. Chasing par 9 cost most of the yield
+  // and bought nothing. Late difficulty comes from board size and a second fox.
+  const wantMin = opts.minMoves || Math.min(7, 2 + Math.floor((level - 1) / 7));
 
   for (let attempt = 0; attempt < 600; attempt++) {
     const owner = new Array(W * H).fill(-1);
@@ -213,9 +255,16 @@ function generate(level, rnd = Math.random, opts = {}) {
     }
 
     // punch holes by deleting whole bricks, which is what makes open space
+    // Prefer to remove SMALL bricks. Deleting big ones carves one wide-open
+    // blob and the board comes back as a single region, which was the other
+    // thing starving the generator; scattered single-cell holes fragment the
+    // board into the several regions this game is entirely about.
     const dropped = new Set();
     let open = 0;
-    const byId = bricks.slice().sort(() => rnd() - 0.5);
+    const byId = bricks.slice()
+      .map(k => ({ k, w: k.cells.length * 0.15 + rnd() * 1.6 }))
+      .sort((a, z) => a.w - z.w)
+      .map(x => x.k);
     for (const k of byId) {
       if (open >= holes) break;
       dropped.add(k.id); open += k.cells.length;
@@ -251,9 +300,51 @@ function generate(level, rnd = Math.random, opts = {}) {
     if (regions.length < 2 + nFoxes) continue;
     regions.sort((a, z) => z.length - a.length);
     const pickFrom = (reg) => reg[(rnd() * reg.length) | 0];
+
+    // The rabbit goes in the roomiest region.
     b.rabbit = pickFrom(regions[0]);
-    b.carrot = pickFrom(regions[1]);
-    for (let n = 0; n < nFoxes; n++) b.foxes.push(pickFrom(regions[2 + n]));
+
+    // Then the fox is PLACED where it is already dangerous, rather than dropped
+    // at random and the board thrown away when it turns out not to be. Work out
+    // which regions a single slide would join to the rabbit's, and put the fox
+    // in one of those: now a wrong first move kills, by construction.
+    //
+    // Searching for this instead of building it was costing most of the yield —
+    // late levels fell from 30 boards a band to 11.
+    const mine = region(b, b.rabbit, solid);
+    const oneSlideAway = new Set();
+    for (const m of moves(b)) {
+      const after = apply(b, m);
+      fill(after, b.rabbit, solidMask(after));
+      for (let ri = 0; ri < regions.length; ri++) {
+        if (oneSlideAway.has(ri) || mine.has(regions[ri][0])) continue;
+        for (const x of regions[ri]) if (_seen[x]) { oneSlideAway.add(ri); break; }
+      }
+    }
+    // One hot region is enough. Demanding a SEPARATE one per fox was rejecting
+    // 4,590 boards a run at level 60 and was the single biggest cause of the
+    // generator drying up — two foxes can share a region perfectly well, they
+    // are both still standing one slide from the rabbit.
+    if (!oneSlideAway.size) continue;
+
+    const hot = [...oneSlideAway];
+    const taken = new Set();
+    for (let n = 0; n < nFoxes; n++) {
+      const reg = regions[hot[(rnd() * hot.length) | 0]];
+      const free = reg.filter(x => !taken.has(x));
+      if (!free.length) break;
+      const cell = free[(rnd() * free.length) | 0];
+      taken.add(cell); b.foxes.push(cell);
+    }
+    if (!b.foxes.length) continue;
+
+    // The carrot goes somewhere that is NOT one slide away, or the level is over
+    // before it starts.
+    const cold = regions
+      .map((reg, ri) => ri)
+      .filter(ri => !oneSlideAway.has(ri) && !mine.has(regions[ri][0]));
+    if (!cold.length) continue;
+    b.carrot = pickFrom(regions[cold[(rnd() * cold.length) | 0]]);
 
     if (status(b) !== 'open') continue;
 
@@ -279,5 +370,5 @@ function generate(level, rnd = Math.random, opts = {}) {
   return null;
 }
 
-return { DIRS, SHAPES, clone, solidSet, region, status, canSlide, moves, apply, key, solve, fatalShare, generate };
+return { DIRS, SHAPES, clone, solidSet, solidMask, region, status, canSlide, moves, apply, key, solve, fatalShare, generate };
 }));
