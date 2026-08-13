@@ -361,6 +361,14 @@
   // whichever thing it belongs to, because a marking tucked against an edge is
   // a detail and a marking in the middle is a statement.
   function contactFace(cx, cy, u, n, dark) {
+    // Rotated a quarter turn anticlockwise. On a real socket the line through
+    // the two blades is perpendicular to the cable hanging out of the plug; our
+    // leads run sideways off the wall, so the blades have to stack rather than
+    // sit side by side, and the earth swings round with them.
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(-Math.PI / 2);
+    cx = 0; cy = 0;
     const blade = (bx, by, w, h, r) => {
       ctx.fillStyle = dark ? '#0a0d14' : 'rgba(22,25,32,0.82)';
       RR(bx, by, w, h, r); ctx.fill();
@@ -370,6 +378,7 @@
     blade(cx - 11 * u, by, 5.5 * u, 15 * u, 2.2);
     blade(cx + 5.5 * u, by, 5.5 * u, 15 * u, 2.2);
     if (n === 3) blade(cx - 3.5 * u, cy + 5 * u, 7 * u, 10 * u, 3.5);
+    ctx.restore();
   }
 
   // How far each kind stands proud of the strip. A brick is bulky, a slim
