@@ -1,0 +1,8 @@
+/* Pane — per-game styles. Everything else comes from ../shared/chrome.css
+   and ../shared/tokens.css.
+
+   Measured before installing: the wordmark spans 60% of the mobile art against
+   a 61% limit and 70% of the desktop art against 71%. Both clear it, but only
+   by 2px and 5px a side, so this art must not be re-cropped any wider. */
+body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=1'); }
+body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=1'); }

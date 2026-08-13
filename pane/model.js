@@ -97,7 +97,7 @@ function merge(b, i) {
 // read: the path is fixed by where the drops are, so you can see where a run
 // will go before you set it off.
 function run(b, start) {
-  const stack = [start], done = new Set(), track = new Set();
+  const stack = [start], done = new Set(), track = new Set(), paths = [];
   let runs = 0;
   while (stack.length) {
     const i = stack.pop();
@@ -141,6 +141,8 @@ function run(b, start) {
       }
     }
 
+    paths.push(path);   // ordered, so a run can be drawn as one stroke
+
     // drops alongside the track break loose at the lower threshold
     for (const j of path) {
       const jc = j % b.W, jr = (j / b.W) | 0;
@@ -152,7 +154,7 @@ function run(b, start) {
       }
     }
   }
-  return { runs, track };
+  return { runs, track, paths };
 }
 
 // One tap. Returns a NEW board, or null if the tap was not on a drop.
@@ -162,8 +164,9 @@ function tap(board, i) {
   b.mass[i] += CFG.SWELL;
   const swallowed = merge(b, i);
   let ran = 0, track = null;
-  if (b.mass[i] >= CFG.RUN) { const r = run(b, i); ran = r.runs; track = r.track; }
-  return { board: b, swallowed, ran, track };
+  let paths = null;
+  if (b.mass[i] >= CFG.RUN) { const r = run(b, i); ran = r.runs; track = r.track; paths = r.paths; }
+  return { board: b, swallowed, ran, track, paths };
 }
 
 // ---- solving ----
