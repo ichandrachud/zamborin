@@ -136,8 +136,17 @@ function legal(board, plug, pl) {
 // centres come FROM the solution, so every level is solvable by construction
 // and the only question left is how tightly the reaches pin it down.
 function generate(level, rnd = Math.random) {
-  const N = Math.min(10, 6 + Math.floor((level - 1) / 3));
-  const slack = level <= 3 ? 2 : (level <= 9 ? 2 - (level % 2) : 1);
+  // Search effort climbs to level 30 and then falls back, because the strip
+  // capped at 10 and the plug count stopped growing with it. The ceiling was
+  // the board, not the rules. 12 still leaves a 45px pitch on the desktop card
+  // and 52px on a phone, both comfortably above a thumb.
+  const N = Math.min(12, 6 + Math.floor((level - 1) / 3));
+  // Slack is per-plug, and NEVER zero. A pinned plug sounds harder and measures
+  // easier: it has one legal socket, so it solves itself and takes a decision
+  // out of the board. Tried it — greedy play went from failing on 60 of 60 late
+  // boards to walking 23 of them. Difficulty is not fewer options, it is options
+  // that collide. So the mix only ever shifts between 2 and 1.
+  const tight = Math.min(0.8, Math.max(0, (level - 6) * 0.055));
   const kinds = ['slim', 'wide', 'brick', 'angle', 'bar'];
   // Uniform choice over kinds favours the big bodies, because three fat plugs
   // fill a strip that would take six slim ones. Measured, that pinned every
@@ -165,18 +174,22 @@ function generate(level, rnd = Math.random) {
     const sol = solve({ N, plugs });
     if (!sol) continue;
     const reach = {};
-    plugs.forEach((p, i) => { reach[p.id] = { at: sol[i].pin, slack }; });
+    plugs.forEach((p, i) => {
+      const r = rnd();
+      const sl = level <= 3 ? 2 : (r < tight ? 1 : 2);
+      reach[p.id] = { at: sol[i].pin, slack: sl };
+    });
     // Earth whatever the solution needs, then add spares so the earthed sockets
     // are not simply a map of the answer.
     const earthed = new Set();
     plugs.forEach((p, i) => { if (p.pins === 3) earthed.add(sol[i].pin); });
-    const spares = Math.max(1, Math.round(N * 0.3));
+    const spares = Math.max(0, Math.round(N * Math.max(0.06, 0.34 - level * 0.012)));
     for (let k = 0; k < spares; k++) earthed.add((rnd() * N) | 0);
     const b = { N, plugs, reach, earthed };
     const n = countSolutions(b, 400);
     // A single answer is the aim; a handful is fine and keeps generation cheap.
     if (n < 1 || n > 6) continue;
-    return { ...b, solution: sol, solutions: n, level, slack, earthedList: [...earthed].sort((a, b2) => a - b2) };
+    return { ...b, solution: sol, solutions: n, level, slack: Math.min(...plugs.map(p => reach[p.id].slack)), earthedList: [...earthed].sort((a, b2) => a - b2) };
   }
   return null;
 }

@@ -111,7 +111,10 @@
     const N = board.N;
     botBand = 96;   // no tray any more — the loose plugs are the tray
     const availH = Math.max(120, LH - TOP_BAND - botBand);
-    pitch = Math.max(32, Math.min(66, Math.floor((availH - 24) / N)));
+    // Reserve real air, not a token 24px. At twelve sockets the old figure left
+    // three pixels between the bottom of the bank and the control row, which is
+    // the same near-miss that has bitten Fold and Sluice this week.
+    pitch = Math.max(32, Math.min(66, Math.floor((availH - 60) / N)));
     stripW = Math.round(Math.min(112, Math.max(70, pitch * 1.7)));
     const stripH = pitch * N + 22;
     stripY = Math.round(TOP_BAND + (availH - stripH) / 2);
