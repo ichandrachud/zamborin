@@ -112,6 +112,12 @@
   // below.
   const TOP_BAND = 92;
   let stripX = 0, plateW = 120, stripY = 120, pitch = 54, inset = 9, looseX = 300, botBand = 96;
+  // Horizontal spacing is three separate numbers, not one. The plate runs off
+  // the left edge of the screen on purpose, so an even margin inside the plate
+  // does NOT read as even to the eye: the bleed eats the left one. padL carries
+  // the bleed so that what is actually VISIBLE either side of the gangs matches,
+  // and the gap down the middle is the narrower of the two.
+  let padL = 12, padR = 12, gapX = 8, bleed = 12;
   function layout() {
     if (!board) return;
     const R = board.R;
@@ -119,16 +125,20 @@
     const availH = Math.max(120, LH - TOP_BAND - botBand);
     // the plate may take a little under half the width; the rest is floor
     const byH = Math.floor((availH - 60) / R);
-    const byW = Math.floor((LW * 0.46) / 2.5);
+    const byW = Math.floor((LW * 0.46) / 2.6);
     pitch = Math.max(30, Math.min(78, Math.min(byH, byW)));
-    inset = Math.round(pitch * 0.16);
-    plateW = COLS * pitch + (COLS + 1) * inset;
+    inset = Math.round(pitch * 0.16);             // top and bottom only
+    bleed = Math.round(pitch * 0.22);             // runs off the wall's edge
+    gapX = Math.round(pitch * 0.11);              // between the two gangs
+    padR = Math.round(pitch * 0.22);              // plate edge to gang, right
+    padL = padR + bleed;                          // ... and left, absorbing the bleed
+    plateW = padL + COLS * pitch + gapX + padR;
     const plateH = R * pitch + 2 * inset;
     stripY = Math.round(TOP_BAND + (availH - plateH) / 2);
-    stripX = -Math.round(plateW * 0.10);          // bleeds off the wall's edge
+    stripX = -bleed;
     looseX = Math.round(LW - (LW < 520 ? 112 : 146));
   }
-  const cellCX = (c) => stripX + inset + pitch * (c + 0.5) + inset * c;
+  const cellCX = (c) => stripX + padL + pitch * (c + 0.5) + gapX * c;
   const cellCY = (r) => stripY + inset + pitch * (r + 0.5);
   const cellRC = (i) => ({ r: (i / COLS) | 0, c: i % COLS });
   const plateRight = () => stripX + plateW;
@@ -251,8 +261,9 @@
       ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 1.2;
       ctx.beginPath(); ctx.moveTo(cx - 2.2, cy); ctx.lineTo(cx + 2.2, cy); ctx.stroke();
     };
-    screw(stripX + plateW / 2, stripY + inset * 0.55);
-    screw(stripX + plateW / 2, stripY + plateH - inset * 0.55);
+    const midX = (cellCX(0) + cellCX(COLS - 1)) / 2;   // down the gap, as on a real board
+    screw(midX, stripY + inset * 0.55);
+    screw(midX, stripY + plateH - inset * 0.55);
     for (let r = 0; r < R; r++) for (let c = 0; c < COLS; c++) drawSocket(r * COLS + c);
   }
 
@@ -281,9 +292,11 @@
   function bodyBox(p, pl, slide) {
     const rc0 = cellRC(pl.cells[0]);
     return {
-      x: cellCX(rc0.c) - pitch / 2 - inset * 0.35 + (slide || 0),
+      // the body overhangs its cell by 0.3 of the gap either side, so two plugs
+      // in neighbouring gangs still show daylight between them
+      x: cellCX(rc0.c) - pitch / 2 - gapX * 0.3 + (slide || 0),
       y: cellCY(rc0.r) - pitch / 2 - inset * 0.35,
-      w: p.w * pitch + (p.w - 1) * inset + inset * 0.7,
+      w: p.w * pitch + (p.w - 1) * gapX + gapX * 0.6,
       h: p.h * pitch + inset * 0.7,
     };
   }
@@ -691,7 +704,8 @@
     canPlace: (i, at, oi) => { const pl = placementAt(i, at, oi | 0); return !!pl && freeFor(i, pl) && earthOk(i, at); },
     reaches: (i, pin) => reaches(i, pin),
     get buttons() { render(); return uiButtons.map(b => ({ x: b.x, y: b.y, w: b.w, h: b.h })); },
-    get geom() { return { LW, LH, stripX, plateW, stripY, pitch, inset, looseX, R: board.R, COLS }; },
+    get geom() { return { LW, LH, stripX, plateW, stripY, pitch, inset, padL, padR, gapX, bleed, looseX, R: board.R, COLS }; },
+    socketBox(c) { const s = Math.min(46, pitch * 0.8); return { l: cellCX(c) - s / 2, r: cellCX(c) + s / 2 }; },
   };
 
   // ---------- boot ----------
