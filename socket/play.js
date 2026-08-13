@@ -296,46 +296,75 @@
 
   // Waiting plugs still have cables draped across the desk. Drawn faint, they
   // say where each one will have to end up before you have even picked it up.
-  function looseY(i) { return anchorY(i); }
-  // Unplugged things are not in a tray, they are on the floor where you dropped
-  // them, still attached to whatever they belong to. Each waiting plug is drawn
-  // as itself, lying at the row its lead comes in on, so the picture already
-  // tells you roughly where it has to end up.
+  // Where each waiting plug lies. It is drawn at its TRUE footprint — a plug
+  // that will cover three sockets is three sockets tall on the floor — because
+  // otherwise you cannot tell what a plug costs until you have already spent a
+  // turn finding out, and the opening of every level becomes trial and error.
+  // Laid out from the anchor rows, then pushed apart so nothing overlaps.
+  let looseLayout = [];
+  function computeLooseLayout() {
+    const waiting = [];
+    for (let i = 0; i < board.plugs.length; i++) if (!place[i]) waiting.push(i);
+    waiting.sort((a, b) => anchorY(a) - anchorY(b));
+    const gap = 10;
+    let prevBottom = -1e9;
+    looseLayout = [];
+    for (const i of waiting) {
+      const h = board.plugs[i].span * pitch - 8;
+      let y = anchorY(i) - h / 2;
+      if (y < prevBottom + gap) y = prevBottom + gap;
+      prevBottom = y + h;
+      looseLayout.push({ i, y, h });
+    }
+    // if the pile runs off the bottom, slide the whole thing up
+    const overflow = prevBottom - (LH - botBand - 8);
+    if (overflow > 0) looseLayout.forEach(o => { o.y -= overflow; });
+  }
+
   function drawLoosePlugs(now) {
-    board.plugs.forEach((p, i) => {
-      if (place[i]) return;
-      const col = PLUGS[i % PLUGS.length];
-      const ay = looseY(i), lx = looseX + (i % 2 ? 16 : 0);
-      const h = Math.min(46, pitch * 0.82), w = h * (0.75 + p.span * 0.20);
-      const y = ay - h / 2;
-      // lead away off screen
-      ctx.save(); ctx.globalAlpha = held === i ? 1 : 0.9; ctx.lineCap = 'round';
-      ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 7;
-      ctx.beginPath(); ctx.moveTo(lx + w, ay + 2);
-      ctx.bezierCurveTo(lx + w + 40, ay + 12, LW - 40, ay - 8, anchorX(), ay - 4); ctx.stroke();
+    computeLooseLayout();
+    for (const { i, y, h } of looseLayout) {
+      const p = board.plugs[i], col = PLUGS[i % PLUGS.length];
+      const w = (stripW * 0.86) * (DEPTH[p.kind] || 0.8);
+      const lx = looseX, cy = y + h / 2;
+      const ay = anchorY(i);
+      ctx.save(); ctx.globalAlpha = held === i ? 1 : 0.94; ctx.lineCap = 'round';
+      // its lead, from the plug out of the frame at the row it comes in on
+      ctx.strokeStyle = 'rgba(0,0,0,0.42)'; ctx.lineWidth = 7;
+      ctx.beginPath(); ctx.moveTo(lx + w, cy + 2);
+      ctx.bezierCurveTo(lx + w + 46, cy + 12, anchorX() - 80, ay + 8, anchorX(), ay + 2); ctx.stroke();
       ctx.strokeStyle = mix(col.c, '#000000', 0.28); ctx.lineWidth = 5.5;
-      ctx.beginPath(); ctx.moveTo(lx + w, ay);
-      ctx.bezierCurveTo(lx + w + 40, ay + 10, LW - 40, ay - 10, anchorX(), ay - 6); ctx.stroke();
-      // it is lying on something, so it throws a shadow onto it
-      ctx.fillStyle = 'rgba(0,0,0,0.34)'; ctx.filter = 'blur(6px)';
-      ctx.beginPath(); ctx.ellipse(lx + w * 0.5, y + h + 4, w * 0.55, 6, 0, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(lx + w, cy);
+      ctx.bezierCurveTo(lx + w + 46, cy + 10, anchorX() - 80, ay + 6, anchorX(), ay); ctx.stroke();
+      // lying on the floor, so it throws a shadow onto it
+      ctx.fillStyle = 'rgba(0,0,0,0.36)'; ctx.filter = 'blur(7px)';
+      ctx.beginPath(); ctx.ellipse(lx + w * 0.5, y + h + 5, w * 0.55, 7, 0, 0, 7); ctx.fill();
       ctx.filter = 'none';
       const g = ctx.createLinearGradient(lx, y, lx + w * 0.4, y + h);
       g.addColorStop(0, mix(col.c, '#ffffff', 0.3)); g.addColorStop(0.45, col.c);
       g.addColorStop(1, mix(col.c, col.d, 0.45));
       plugPath(p.kind, lx, y, w, h, !!p._flip); ctx.fillStyle = g; ctx.fill();
       ctx.strokeStyle = 'rgba(0,0,0,0.32)'; ctx.lineWidth = 1; ctx.stroke();
-      ctx.fillStyle = 'rgba(20,22,28,0.7)';
-      RR(lx + 4, ay - 9, 3, 8, 1.5); ctx.fill();
-      RR(lx + 4, ay + 1, 3, 8, 1.5); ctx.fill();
-      if (p.pins === 3) { RR(lx - 1, ay - 4, 3.5, 9, 1.8); ctx.fill(); }
+      // pins on the face that will meet the wall
+      const pinY = y + h * (p.pinAt + 0.5) / p.span;
+      ctx.fillStyle = 'rgba(20,22,28,0.72)';
+      RR(lx + 4, pinY - 9, 3, 8, 1.5); ctx.fill();
+      RR(lx + 4, pinY + 1, 3, 8, 1.5); ctx.fill();
+      if (p.pins === 3) { RR(lx - 1, pinY - 4, 3.5, 9, 1.8); ctx.fill(); }
+      // how many sockets this will swallow, said out loud as well as shown
+      if (p.span > 1) {
+        ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.font = '700 10px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(p.span + ' WIDE', lx + w * 0.55, cy - 5);
+        ctx.textAlign = 'left';
+      }
       if (held === i) {
         ctx.strokeStyle = 'rgba(255,255,255,0.92)'; ctx.lineWidth = 2.5;
         plugPath(p.kind, lx - 3, y - 3, w + 6, h + 6, !!p._flip); ctx.stroke();
       }
       ctx.restore();
       uiButtons.push({ x: lx - 8, y: y - 8, w: w + 16, h: h + 16, act: () => tapTray(i) });
-    });
+    }
   }
 
   // How far each kind stands proud of the strip. A brick is bulky, a slim
