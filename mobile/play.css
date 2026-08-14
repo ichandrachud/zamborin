@@ -1,0 +1,9 @@
+/* Mobile — per-game styles. Everything else comes from ../shared/chrome.css
+   and ../shared/tokens.css.
+
+   splash-desktop.jpg is 1120x1280, near the ratio of the desktop card, so
+   cover-sizing crops very little. Both are checked against the wordmark safe
+   zone before shipping: `cover` crops the SIDES of a portrait image, and the
+   worst real phone leaves only 0.38 / aspect of the width showing. */
+body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=1'); }
+body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=1'); }

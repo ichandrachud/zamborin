@@ -66,11 +66,13 @@
   document.body.classList.add('mode-' + MODE);
   function setCanvasVars() {
     if (MODE === 'mobile') { LW = window.innerWidth || 390; LH = window.innerHeight || 844; }
-    // A narrower card than the rest of the shelf uses, on purpose. These
-    // sculptures are taller than they are wide, so on the usual 470x760 they go
-    // height-bound and fill barely half the width, leaving the sides bare.
-    // 400x760 is close to a phone's proportions and they fill it.
-    else { LW = 400; LH = 760; }
+    // Narrower than the shelf standard of 470 on purpose: these sculptures are
+    // taller than they are wide, so on 470 they go height-bound and fill barely
+    // half the width. But 400 left the splash wordmark with one pixel of margin
+    // against the crop, because a narrower card crops a portrait image harder.
+    // 440 is the compromise: 35px of wordmark margin, and the sculptures still
+    // fill far more of the frame than they did at 470.
+    else { LW = 440; LH = 760; }
     document.body.style.setProperty('--canvas-w', LW + 'px');
     document.body.style.setProperty('--canvas-h', LH + 'px');
   }
