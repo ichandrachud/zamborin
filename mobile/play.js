@@ -60,7 +60,11 @@
   document.body.classList.add('mode-' + MODE);
   function setCanvasVars() {
     if (MODE === 'mobile') { LW = window.innerWidth || 390; LH = window.innerHeight || 844; }
-    else { LW = 470; LH = 760; }
+    // A narrower card than the rest of the shelf uses, on purpose. These
+    // sculptures are taller than they are wide, so on the usual 470x760 they go
+    // height-bound and fill barely half the width, leaving the sides bare.
+    // 400x760 is close to a phone's proportions and they fill it.
+    else { LW = 400; LH = 760; }
     document.body.style.setProperty('--canvas-w', LW + 'px');
     document.body.style.setProperty('--canvas-h', LH + 'px');
   }
