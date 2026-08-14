@@ -27,10 +27,14 @@
   const ctx = canvas.getContext('2d');
   let LW = 390, LH = 844;
 
-  const INK = '#1A1A1E', LINE = '#2A2A30';
-  // Calder's palette: primaries, black, white, and a few he reached for often.
-  const COLOURS = ['#D8332A', '#2E3C96', '#E8CF3A', '#1A1A1E', '#F2F0EA',
-                   '#8E2C6E', '#7FCBE8', '#4E7FC8', '#E0761F', '#3E8E5A'];
+  // Every value here is read off mobile/references/mobile.svg rather than
+  // chosen. The wires are a hairline grey, not black, and there is a hierarchy
+  // of joints: a big soft one where the whole thing hangs, a firm black one at
+  // each rod's pivot, and a small grey one at each rod end.
+  const INK = '#231F20';
+  const WIRE = '#939393', WIRE_W = 0.9;      // hairline, at any size
+  const PIVOT = '#231F20', JOINT = '#414042', TOP_PIVOT = '#565656';
+  const SHAPES = window.MOBILE_SHAPES || [];
 
   // ---------- sound ----------
   const sfx = window.ZSFX ? window.ZSFX.create({ storageKey: 'zamborin-mobile.sound' }) : null;
@@ -90,43 +94,52 @@
   const loadLevel = () => { try { const v = parseInt(localStorage.getItem(LS), 10); return (v >= 1 && v <= 999) ? v : 1; } catch (e) { return 1; } };
 
   // ---------- shapes ----------
-  // Irregular on purpose: the whole game rests on area being hard to read, and
-  // a circle would give it away. Each shape is a fixed wobble scaled so its
-  // AREA is its weight, which is the only thing that matters.
-  const blobs = new Map();
-  function blobOf(idx, area) {
-    const key = idx + ':' + area;
-    if (blobs.has(key)) return blobs.get(key);
-    let s = (idx * 2654435761) >>> 0;
-    const rnd = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
-    const harm = [
-      { n: 2, a: 0.10 + rnd() * 0.14, p: rnd() * 6.28 },
-      { n: 3, a: 0.06 + rnd() * 0.11, p: rnd() * 6.28 },
-      { n: 5, a: 0.02 + rnd() * 0.06, p: rnd() * 6.28 },
-    ];
-    const r = (t) => 1 + harm.reduce((v, h) => v + h.a * Math.cos(h.n * t + h.p), 0);
-    // area of the unit wobble, so it can be scaled to the weight exactly
-    let A = 0; const N = 240, dt = Math.PI * 2 / N;
-    for (let i = 0; i < N; i++) { const v = r(i * dt); A += 0.5 * v * v * dt; }
-    const out = { r, k: Math.sqrt(1 / A), colour: COLOURS[idx % COLOURS.length] };
-    blobs.set(key, out);
-    return out;
+  // Lifted from the Illustrator reference, normalised to unit area. Scaling by
+  // sqrt(weight) means the drawn area IS the weight, exactly, which is the only
+  // rule the game has. They are deliberate forms with flat tops and swelling
+  // bottoms, not noise: a wobble generated from harmonics looked hand-drawn in
+  // the wrong sense.
+  // The weights are arbitrary numbers — only their RATIOS mean anything — so
+  // the scale is set per level from the heaviest piece, and the shapes then
+  // sit at the same proportion to the sculpture whatever the numbers happen to
+  // be. Measured off the reference: the biggest shape is about a seventh of the
+  // top rod's span, which is much bolder than a fixed constant was giving.
+  let AREA_K = 0.085;
+  function setShapeScale() {
+    const heaviest = Math.max(...board.shapes);
+    AREA_K = (2.6 * 2.6) / Math.max(1, heaviest);
   }
-  // radius scale so that drawn area === weight * unit^2 * AREA_K
-  const AREA_K = 0.055;
-  function shapeR(idx, area) { return blobOf(idx, area).k * Math.sqrt(area * AREA_K) * unit; }
-  function shapePath(idx, area, cx, cy, rot) {
-    const b = blobOf(idx, area), R = shapeR(idx, area);
+  const shapeOf = (i) => SHAPES[i % Math.max(1, SHAPES.length)];
+  const shapeK = (i, w) => Math.sqrt(w * AREA_K) * unit;
+  // how far the centroid sits below the point the string meets
+  function shapeDrop(i, w) { const sh = shapeOf(i); return sh ? -sh.top * shapeK(i, w) : 0; }
+  function shapeR(i, w) { const sh = shapeOf(i); return sh ? Math.abs(sh.top) * shapeK(i, w) : shapeK(i, w); }
+
+  function shapePath(i, w, cx, cy) {
+    const sh = shapeOf(i);
+    if (!sh) return null;
+    const k = shapeK(i, w);
     ctx.beginPath();
-    const N = 72;
-    for (let i = 0; i <= N; i++) {
-      const t = i / N * Math.PI * 2;
-      const rr = b.r(t) * R;
-      const x = cx + Math.cos(t + (rot || 0)) * rr, y = cy + Math.sin(t + (rot || 0)) * rr;
-      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    for (let n = 0; n < sh.pts.length; n++) {
+      const x = cx + sh.pts[n][0] * k, y = cy + sh.pts[n][1] * k;
+      n ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
     }
     ctx.closePath();
-    return b;
+    return sh;
+  }
+  // Draw a shape hanging from (hx, hy): its topmost point meets the string, and
+  // the string carries on into it and stops, which is what the reference does.
+  function drawHanging(i, w, hx, hy, alpha) {
+    const sh = shapeOf(i);
+    if (!sh) return;
+    const cy = hy + shapeDrop(i, w);
+    ctx.save();
+    if (alpha != null) ctx.globalAlpha = alpha;
+    shapePath(i, w, hx, cy);
+    ctx.fillStyle = sh.colour; ctx.fill();
+    ctx.strokeStyle = WIRE; ctx.lineWidth = WIRE_W;
+    ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(hx, cy); ctx.stroke();
+    ctx.restore();
   }
 
   // ---------- geometry ----------
@@ -233,9 +246,7 @@
 
   function render(t) {
     uiButtons = [];
-    const g = ctx.createLinearGradient(0, 0, 0, LH);
-    g.addColorStop(0, '#FBFAF7'); g.addColorStop(1, '#EFEDE6');
-    ctx.fillStyle = g; ctx.fillRect(0, 0, LW, LH);
+    ctx.fillStyle = '#FCFCFB'; ctx.fillRect(0, 0, LW, LH);
 
     const s = scene();
     drawSculpture(s);
@@ -248,43 +259,53 @@
   }
 
   function drawSculpture(s) {
-    // the wire it all hangs from
-    ctx.strokeStyle = LINE; ctx.lineWidth = 1.2; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(anchorX, 8); ctx.lineTo(anchorX, anchorY); ctx.stroke();
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.strokeStyle = WIRE; ctx.lineWidth = WIRE_W;
 
+    // the wire it all hangs from
+    ctx.beginPath(); ctx.moveTo(anchorX, 6); ctx.lineTo(anchorX, anchorY); ctx.stroke();
+
+    const joint = Math.max(1.6, unit * 0.11);
     for (const r of s.rods) {
-      // Calder drew his rods as shallow arcs, not straight bars
+      // A rod is a long shallow arc, bowed upward. In the reference the bow is
+      // about a tenth of the span, which is what keeps it from reading as a
+      // bent stick.
+      const span = Math.hypot(r.rx - r.lx, r.ry - r.ly);
       const mx = (r.lx + r.rx) / 2, my = (r.ly + r.ry) / 2;
-      const sag = -Math.hypot(r.rx - r.lx, r.ry - r.ly) * 0.10;
-      ctx.strokeStyle = LINE; ctx.lineWidth = 1.3;
-      ctx.beginPath(); ctx.moveTo(r.lx, r.ly);
-      ctx.quadraticCurveTo(mx, my + sag, r.rx, r.ry);
+      ctx.strokeStyle = WIRE; ctx.lineWidth = WIRE_W;
+      ctx.beginPath();
+      ctx.moveTo(r.lx, r.ly);
+      ctx.quadraticCurveTo(mx, my - span * 0.11, r.rx, r.ry);
       ctx.stroke();
-      // strings down to whatever hangs from each end
+      // the strings down to whatever hangs from each end
       ctx.beginPath();
       ctx.moveTo(r.lx, r.ly); ctx.lineTo(r.lx, r.ly + r.node.dropL * unit);
       ctx.moveTo(r.rx, r.ry); ctx.lineTo(r.rx, r.ry + r.node.dropR * unit);
       ctx.stroke();
-      // pivot, and the small joints at each end
-      ctx.fillStyle = INK;
-      ctx.beginPath(); ctx.arc(r.x, r.y, Math.max(2.6, unit * 0.13), 0, 7); ctx.fill();
-      ctx.beginPath(); ctx.arc(r.lx, r.ly, Math.max(1.4, unit * 0.06), 0, 7); ctx.fill();
-      ctx.beginPath(); ctx.arc(r.rx, r.ry, Math.max(1.4, unit * 0.06), 0, 7); ctx.fill();
+      // small grey joints at the ends, a firm black pivot in the middle
+      ctx.fillStyle = JOINT;
+      ctx.beginPath(); ctx.arc(r.lx, r.ly, joint, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.arc(r.rx, r.ry, joint, 0, 7); ctx.fill();
+      ctx.fillStyle = PIVOT;
+      ctx.beginPath(); ctx.arc(r.x, r.y, joint * 2, 0, 7); ctx.fill();
+    }
+    // the one it all hangs from is bigger and softer
+    if (s.rods.length) {
+      ctx.fillStyle = TOP_PIVOT;
+      ctx.beginPath(); ctx.arc(s.rods[0].x, s.rods[0].y, joint * 2.9, 0, 7); ctx.fill();
     }
 
     for (const id of board.hooks) {
       const p = s.hooks[id];
       if (on[id] == null) {
-        // an empty string, with a small ring so it reads as a place to hang
-        ctx.strokeStyle = 'rgba(26,26,30,0.42)'; ctx.lineWidth = 1.4;
-        ctx.beginPath(); ctx.arc(p.x, p.y + unit * 0.5, Math.max(4, unit * 0.30), 0, 7); ctx.stroke();
-        uiButtons.push({ x: p.x - unit, y: p.y - unit * 0.2, w: unit * 2, h: unit * 2, hook: id });
+        ctx.strokeStyle = 'rgba(147,147,147,0.85)'; ctx.lineWidth = WIRE_W;
+        ctx.beginPath(); ctx.arc(p.x, p.y + unit * 0.42, Math.max(3.5, unit * 0.24), 0, 7); ctx.stroke();
+        uiButtons.push({ x: p.x - unit, y: p.y - unit * 0.3, w: unit * 2, h: unit * 2, hook: id });
       } else {
-        const i = on[id], w = board.shapes[i], R = shapeR(i, w);
-        const b = shapePath(i, w, p.x, p.y + R, 0);
-        ctx.fillStyle = b.colour; ctx.fill();
-        if (b.colour === '#F2F0EA') { ctx.strokeStyle = 'rgba(26,26,30,0.5)'; ctx.lineWidth = 1; ctx.stroke(); }
-        uiButtons.push({ x: p.x - R, y: p.y, w: R * 2, h: R * 2.2, hook: id, take: i });
+        const i = on[id], w = board.shapes[i];
+        drawHanging(i, w, p.x, p.y);
+        const rr = shapeR(i, w);
+        uiButtons.push({ x: p.x - rr, y: p.y, w: rr * 2, h: rr * 2.2, hook: id, take: i });
       }
     }
   }
@@ -299,19 +320,16 @@
       const w = board.shapes[i], R = shapeR(i, w);
       const cx = 22 + gapW * (k + 0.5), cy = trayY + 46;
       if (held && held.i === i) return;
-      const b = shapePath(i, w, cx, cy, 0);
-      ctx.fillStyle = b.colour; ctx.fill();
-      if (b.colour === '#F2F0EA') { ctx.strokeStyle = 'rgba(26,26,30,0.5)'; ctx.lineWidth = 1; ctx.stroke(); }
-      uiButtons.push({ x: cx - R, y: cy - R, w: R * 2, h: R * 2, tray: i });
+      const sh = shapePath(i, w, cx, cy);
+      if (sh) { ctx.fillStyle = sh.colour; ctx.fill(); }
+      uiButtons.push({ x: cx - R, y: cy - R, w: R * 2, h: R * 2.2, tray: i });
     });
   }
 
   function drawHeld() {
-    const i = held.i, w = board.shapes[i];
-    ctx.save(); ctx.globalAlpha = 0.9;
-    const b = shapePath(i, w, held.x, held.y, 0);
-    ctx.fillStyle = b.colour; ctx.fill();
-    ctx.restore();
+    const sh = shapePath(held.i, board.shapes[held.i], held.x, held.y);
+    if (!sh) return;
+    ctx.save(); ctx.globalAlpha = 0.92; ctx.fillStyle = sh.colour; ctx.fill(); ctx.restore();
   }
 
   function drawHUD() {
@@ -409,6 +427,7 @@
     level = Math.max(1, Math.min(PACK.length, n)); saveLevel();
     board = PACK[level - 1];
     on = {}; held = null; rods = {}; phase = 'play'; wasSettled = false;
+    setShapeScale();
     forEachRod(board.tree, (nd) => rods[nd.id] = { a: 0, w: 0 });
     layout();
   }
