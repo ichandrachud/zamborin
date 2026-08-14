@@ -137,17 +137,27 @@
     patrols = [{ path: patrolFrom(board.rabbit), kind: 'rabbit' }];
     for (const f of board.foxes) patrols.push({ path: patrolFrom(f), kind: TH.hunter });
   }
-  // Where a walker is right now: out along its path, then back, forever.
+  // Where a walker is right now: out along its path, then back, forever, with a
+  // pause at each end.
+  //
+  // This is deliberately slow. The pacing is not an idle animation, it is the
+  // board telling you what is joined to what, and at the first speed it was
+  // over before you had finished reading it. An animal that ambles and then
+  // stops to look around gives you time to take in how far it got, which is the
+  // entire point of it walking at all.
+  const STEP = 900, DWELL = 700;         // ms per cell, ms paused at each end
   function walkerAt(p, now) {
     const n = p.path.length;
     if (n < 2) return { i: p.path[0], t: 0, facing: 1 };
-    const STEP = 340;                       // ms per cell
-    const legs = (n - 1) * 2;
-    const u = (now / STEP) % legs;
-    const forward = u < n - 1;
-    const s = forward ? u : legs - u;
-    const a = Math.min(n - 1, Math.floor(s)), b = Math.min(n - 1, a + 1);
-    return { i: p.path[a], j: p.path[b], t: s - a, facing: forward ? 1 : -1 };
+    const span = n - 1, walk = span * STEP, cycle = 2 * walk + 2 * DWELL;
+    const u = now % cycle;
+    let s, facing;
+    if (u < walk) { s = u / STEP; facing = 1; }
+    else if (u < walk + DWELL) { s = span; facing = 1; }
+    else if (u < 2 * walk + DWELL) { s = span - (u - walk - DWELL) / STEP; facing = -1; }
+    else { s = 0; facing = -1; }
+    const a = Math.min(span, Math.floor(s)), b = Math.min(span, a + 1);
+    return { i: p.path[a], j: p.path[b], t: s - a, facing };
   }
 
   // ---------- render ----------
