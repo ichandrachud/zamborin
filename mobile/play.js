@@ -113,7 +113,10 @@
   let AREA_K = 0.085;
   function setShapeScale() {
     const heaviest = Math.max(...board.shapes);
-    AREA_K = (2.6 * 2.6) / Math.max(1, heaviest);
+    // In the mockups the biggest shape is about half the span of the rod it
+    // hangs from, never as wide as one. 2.6 was letting a heavy piece rival its
+    // own rod, which reads as clumsy.
+    AREA_K = (2.05 * 2.05) / Math.max(1, heaviest);
   }
   // Each piece on a board gets its own form and colour, fixed for that level, so
   // a sculpture never repeats a silhouette if it can help it.
@@ -208,7 +211,10 @@
     // Everything here is a fraction of the mockups, which are 393x852:
     // the tray is a white panel filling the bottom 156 of 852, and the
     // sculpture has the whole of the rest.
-    const TRAY_F = 156 / 852, TOP_F = 24 / 852;
+    // In the mockups the hanging wire runs from the top edge down to about 95
+    // of 852 before the first rod. Starting the sculpture at 24 put its top rod
+    // hard against the edge with no wire to hang from.
+    const TRAY_F = 156 / 852, TOP_F = 95 / 852;
     trayY = Math.round(LH * (1 - TRAY_F));
     const top = Math.round(LH * TOP_F);
     const availW = LW - 20;
@@ -221,7 +227,7 @@
     }
     const at = bounds(unit);
     anchorX = Math.round(LW / 2 - at.midx);
-    anchorY = Math.round(top + Math.max(4, (availH - at.h) * 0.42));
+    anchorY = Math.round(top + Math.max(0, (availH - at.h) * 0.34));
   }
 
   function forEachRod(node, fn) { if (node.hook) return; fn(node); forEachRod(node.left, fn); forEachRod(node.right, fn); }
@@ -287,7 +293,11 @@
     // the wire it all hangs from
     ctx.beginPath(); ctx.moveTo(anchorX, 6); ctx.lineTo(anchorX, anchorY); ctx.stroke();
 
-    const joint = Math.max(1.6, unit * 0.11);
+    // Measured off the mockups: the dots are 2, 3, 4, 5 and 6 pixels ACROSS on
+    // a 393-wide frame, and they do not grow with the sculpture. Scaling them by
+    // the unit made them twice the size and cost most of the delicacy.
+    const F = LW / 393;
+    const rEnd = 1.4 * F, rPivot = 2.2 * F, rTop = 3.0 * F;
     for (const r of s.rods) {
       // A rod is a long shallow arc, bowed upward. In the reference the bow is
       // about a tenth of the span, which is what keeps it from reading as a
@@ -306,22 +316,22 @@
       ctx.stroke();
       // small grey joints at the ends, a firm black pivot in the middle
       ctx.fillStyle = JOINT;
-      ctx.beginPath(); ctx.arc(r.lx, r.ly, joint, 0, 7); ctx.fill();
-      ctx.beginPath(); ctx.arc(r.rx, r.ry, joint, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.arc(r.lx, r.ly, rEnd, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.arc(r.rx, r.ry, rEnd, 0, 7); ctx.fill();
       ctx.fillStyle = PIVOT;
-      ctx.beginPath(); ctx.arc(r.x, r.y, joint * 2, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.arc(r.x, r.y, rPivot, 0, 7); ctx.fill();
     }
     // the one it all hangs from is bigger and softer
     if (s.rods.length) {
       ctx.fillStyle = TOP_PIVOT;
-      ctx.beginPath(); ctx.arc(s.rods[0].x, s.rods[0].y, joint * 2.9, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.arc(s.rods[0].x, s.rods[0].y, rTop, 0, 7); ctx.fill();
     }
 
     for (const id of board.hooks) {
       const p = s.hooks[id];
       if (on[id] == null) {
         ctx.strokeStyle = 'rgba(147,147,147,0.85)'; ctx.lineWidth = WIRE_W;
-        ctx.beginPath(); ctx.arc(p.x, p.y + unit * 0.42, Math.max(3.5, unit * 0.24), 0, 7); ctx.stroke();
+        ctx.beginPath(); ctx.arc(p.x, p.y + unit * 0.34, 4.2 * F, 0, 7); ctx.stroke();
         uiButtons.push({ x: p.x - unit, y: p.y - unit * 0.3, w: unit * 2, h: unit * 2, hook: id });
       } else {
         const i = on[id], w = board.shapes[i];
