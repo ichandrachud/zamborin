@@ -389,7 +389,7 @@
     ctx.textAlign = 'right';
     ctx.fillText('MOVES ' + moves, LW - 22, 20);
     ctx.textAlign = 'left';
-    ctx.fillStyle = 'rgba(24,24,32,0.75)'; ctx.font = '600 ' + Math.round(13 * hs) + 'px Inter, sans-serif';
+    ctx.fillStyle = 'rgba(20,20,28,0.92)'; ctx.font = '600 ' + Math.round(13 * hs) + 'px Inter, sans-serif';
     const sub = (board.name && board.name !== 'Level ' + level) ? board.name : (board.theme || '');
     ctx.fillText(sub, 22, 20 + Math.round(28 * hs));
   }
@@ -431,7 +431,7 @@
     uiButtons.push({ x, y: y - 17, w: 38, h: 34, act: () => { snd.ready(); snd.toggle(); render(); } });
     x += 38 + gap;
     items.forEach(([l, a, dim]) => { x += pill(l, x, y, dim, a) + gap; });
-    ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(24,24,32,0.72)'; ctx.font = '500 12px Inter, sans-serif';
+    ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(20,20,28,0.94)'; ctx.font = '600 12px Inter, sans-serif';
     ctx.fillText('Drag a brick to slide it.', LW / 2, LH - 26);
     ctx.textAlign = 'left';
   }
