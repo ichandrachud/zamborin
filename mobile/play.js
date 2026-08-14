@@ -56,7 +56,13 @@
   };
 
   // ---------- MODE + CANVAS ----------
-  const MODE = (matchMedia('(pointer: coarse)').matches || window.innerWidth < 768) ? 'mobile' : 'desktop';
+  // A touchscreen is not a phone. The old test was `coarse pointer OR narrow`,
+  // which sends every touch-capable laptop and every desktop monitor with a
+  // touchscreen into the full-bleed phone layout however wide the window is.
+  // Width decides; a coarse pointer only tips the balance for mid-size screens
+  // like a tablet in landscape.
+  const COARSE = matchMedia('(pointer: coarse)').matches;
+  const MODE = (window.innerWidth < 768 || (COARSE && window.innerWidth < 1024)) ? 'mobile' : 'desktop';
   document.body.classList.add('mode-' + MODE);
   function setCanvasVars() {
     if (MODE === 'mobile') { LW = window.innerWidth || 390; LH = window.innerHeight || 844; }
