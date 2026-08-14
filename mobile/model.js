@@ -193,10 +193,13 @@ function solutions(node, shapes, limit = 200) {
 let rodIds = 0;
 function buildTree(depth, rnd, ids = { n: 0 }) {
   if (depth <= 0 || (depth < 3 && rnd() < 0.28)) return { hook: true, id: 'h' + (ids.n++) };
-  // Measured off the reference: arms run about twice the drop, which is what
-  // gives a Calder its wide, shallow, unhurried spread.
-  const lens = [3, 4, 5, 6, 7];
-  const drops = [2, 3];
+  // Arms run about twice the drop in the reference, but that measurement was
+  // taken off the TOP rod, where the drop is longest. Rendered at those numbers
+  // the rods bunched and crossed near the top, because sibling rods ended up at
+  // nearly the same height. Deeper drops give each level of the tree its own
+  // band of air, which is what actually reads as a Calder.
+  const lens = [3, 4, 5, 6];
+  const drops = [3, 4, 5];
   return { id: 'r' + (rodIds++),
            L: lens[(rnd() * lens.length) | 0], R: lens[(rnd() * lens.length) | 0],
            dropL: drops[(rnd() * drops.length) | 0], dropR: drops[(rnd() * drops.length) | 0],

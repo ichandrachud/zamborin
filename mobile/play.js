@@ -35,6 +35,11 @@
   const WIRE = '#939393', WIRE_W = 0.9;      // hairline, at any size
   const PIVOT = '#231F20', JOINT = '#414042', TOP_PIVOT = '#565656';
   const SHAPES = window.MOBILE_SHAPES || [];
+  // The forms arrive as silhouettes, so colour is the game's to give. These are
+  // the fills from the reference file plus the orange and black Calder reached
+  // for constantly.
+  const PALETTE = ['#E4E41F', '#E62925', '#3A499E', '#8FD7F1', '#952478',
+                   '#4A7FC1', '#E8781F', '#231F20'];
 
   // ---------- sound ----------
   const sfx = window.ZSFX ? window.ZSFX.create({ storageKey: 'zamborin-mobile.sound' }) : null;
@@ -109,7 +114,21 @@
     const heaviest = Math.max(...board.shapes);
     AREA_K = (2.6 * 2.6) / Math.max(1, heaviest);
   }
-  const shapeOf = (i) => SHAPES[i % Math.max(1, SHAPES.length)];
+  // Each piece on a board gets its own form and colour, fixed for that level, so
+  // a sculpture never repeats a silhouette if it can help it.
+  let formOf = [], tintOf = [];
+  function dealLooks() {
+    const n = board.shapes.length;
+    let seed = (board.level * 2654435761) >>> 0;
+    const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+    const forms = SHAPES.map((_, i) => i), tints = PALETTE.map((_, i) => i);
+    for (const arr of [forms, tints])
+      for (let i = arr.length - 1; i > 0; i--) { const j = (rnd() * (i + 1)) | 0; [arr[i], arr[j]] = [arr[j], arr[i]]; }
+    formOf = []; tintOf = [];
+    for (let i = 0; i < n; i++) { formOf.push(forms[i % forms.length]); tintOf.push(tints[i % tints.length]); }
+  }
+  const shapeOf = (i) => SHAPES[formOf[i] != null ? formOf[i] : i % Math.max(1, SHAPES.length)];
+  const tint = (i) => PALETTE[tintOf[i] != null ? tintOf[i] : i % PALETTE.length];
   const shapeK = (i, w) => Math.sqrt(w * AREA_K) * unit;
   // how far the centroid sits below the point the string meets
   function shapeDrop(i, w) { const sh = shapeOf(i); return sh ? -sh.top * shapeK(i, w) : 0; }
@@ -136,7 +155,7 @@
     ctx.save();
     if (alpha != null) ctx.globalAlpha = alpha;
     shapePath(i, w, hx, cy);
-    ctx.fillStyle = sh.colour; ctx.fill();
+    ctx.fillStyle = tint(i); ctx.fill();
     ctx.strokeStyle = WIRE; ctx.lineWidth = WIRE_W;
     ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(hx, cy); ctx.stroke();
     ctx.restore();
@@ -194,8 +213,10 @@
     // Solve for the unit by trying them, because a shape's radius scales with
     // the unit too, so the bounds are not linear in it and dividing once gives
     // the wrong answer.
-    unit = 9;
-    for (let u = 34; u >= 9; u--) {
+    // The floor was 9, and one sculpture in forty is wide enough that even 9
+    // overflowed the frame. Better a small mobile than a clipped one.
+    unit = 6;
+    for (let u = 34; u >= 6; u--) {
       const b = bounds(u);
       if (b.w <= availW && b.h <= availH) { unit = u; break; }
     }
@@ -321,7 +342,7 @@
       const cx = 22 + gapW * (k + 0.5), cy = trayY + 46;
       if (held && held.i === i) return;
       const sh = shapePath(i, w, cx, cy);
-      if (sh) { ctx.fillStyle = sh.colour; ctx.fill(); }
+      if (sh) { ctx.fillStyle = tint(i); ctx.fill(); }
       uiButtons.push({ x: cx - R, y: cy - R, w: R * 2, h: R * 2.2, tray: i });
     });
   }
@@ -329,7 +350,7 @@
   function drawHeld() {
     const sh = shapePath(held.i, board.shapes[held.i], held.x, held.y);
     if (!sh) return;
-    ctx.save(); ctx.globalAlpha = 0.92; ctx.fillStyle = sh.colour; ctx.fill(); ctx.restore();
+    ctx.save(); ctx.globalAlpha = 0.92; ctx.fillStyle = tint(held.i); ctx.fill(); ctx.restore();
   }
 
   function drawHUD() {
@@ -427,7 +448,7 @@
     level = Math.max(1, Math.min(PACK.length, n)); saveLevel();
     board = PACK[level - 1];
     on = {}; held = null; rods = {}; phase = 'play'; wasSettled = false;
-    setShapeScale();
+    setShapeScale(); dealLooks();
     forEachRod(board.tree, (nd) => rods[nd.id] = { a: 0, w: 0 });
     layout();
   }
