@@ -437,7 +437,11 @@
   document.body.classList.add('mode-' + (isMobile() ? 'mobile' : 'desktop'));
   function setCanvasVars() {
     if (isMobile()) { CW = window.innerWidth || 390; CH = window.innerHeight || 740; }
-    else { CW = 560; CH = 720; }
+    // One desktop frame across the whole site: 760x600. Eight different sizes
+    // had grown up across thirteen games, which reads as carelessness. This is
+    // Untangle's, and it is sized so the game plus a 300px sidebar ad fits the
+    // page without either being squashed.
+    else { CW = 760; CH = 600; }
     document.body.style.setProperty('--canvas-w', CW + 'px');
     document.body.style.setProperty('--canvas-h', CH + 'px');
   }

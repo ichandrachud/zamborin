@@ -28,7 +28,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../shared/tokens.css" />
-  <link rel="stylesheet" href="../shared/chrome.css?v=9" />
+  <link rel="stylesheet" href="../shared/chrome.css?v=11" />
   <link rel="stylesheet" href="./play.css?v=2" />
   <!-- Google AdSense -->
   <meta name="google-adsense-account" content="ca-pub-9207689324865969">
@@ -65,7 +65,7 @@
     /* Let the game page scroll on mobile so the content below is reachable.
        The game still fills the first screen; the canvas keeps its own
        touch-action so play isn't affected — only off-canvas swipes scroll. */
-    @media (max-width: 1099px) {
+    @media (max-width: 1151px) {
       body.game-content-page { position: static; overflow: visible; height: auto; width: auto; top: auto; left: auto; touch-action: auto; }
       body.game-content-page .site-footer { display: flex; }
     }
@@ -100,7 +100,7 @@
       <span class="ad-label">AD · 728 × 90</span>
     </div>
 
-    <!-- Main play area: 760×570 game left, two 300×250 stacked right -->
+    <!-- Main play area: 760×600 game left, two 300×250 stacked right -->
     <section class="play-row">
       <div class="game-wrap">
         <canvas id="game" aria-label="Word puzzle"></canvas>
@@ -171,7 +171,7 @@
 
   <script src="../shared/sfx.js?v=1"></script>
   <script src="../shared/input.js?v=1"></script>
-  <script src="./play.js?v=13"></script>
+  <script src="./play.js?v=14"></script>
   <script>
     // Focus / phone-view toggle: hides chrome, scales canvas to fit viewport.
     // Always-on automatically below 1100 px (handled in CSS), button stays as the

@@ -30,7 +30,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./shared/tokens.css" />
-  <link rel="stylesheet" href="./shared/chrome.css?v=9" />
+  <link rel="stylesheet" href="./shared/chrome.css?v=11" />
 
   <style>
     body {
@@ -173,7 +173,7 @@
        The lobby is not a game — undo that collapse and use a more compact mobile
        header (64px tall, 28px logo). The body.lobby-page selector keeps this
        opt-out scoped to just the lobby. */
-    @media (max-width: 1099px) {
+    @media (max-width: 1151px) {
       body.lobby-page .site-header {
         position: sticky;
         top: 0;
@@ -251,35 +251,11 @@
           <div class="game-card-cta">Play now</div>
         </div>
       </a>
-      <a class="game-card" href="./socket/">
-        <div class="game-card-image" style="background-image: url('./images/socket-teaser.jpg')"></div>
-        <div class="game-card-body">
-          <div class="game-card-name">Socket</div>
-          <div class="game-card-desc">Everything wants to be on and the wall board is full of awkward plugs. A fat one takes a socket and covers its neighbours, and every lead only stretches so far. Get the lot plugged in at once.</div>
-          <div class="game-card-cta">Play now</div>
-        </div>
-      </a>
-      <a class="game-card" href="./sluice/">
-        <div class="game-card-image" style="background-image: url('./images/sluice-teaser.jpg')"></div>
-        <div class="game-card-body">
-          <div class="game-card-name">Sluice</div>
-          <div class="game-card-desc">Slide whole rows and columns of pipes, wrapping around the board, until water reaches every flower. One solution per puzzle, and no way to solve it a piece at a time.</div>
-          <div class="game-card-cta">Play now</div>
-        </div>
-      </a>
       <a class="game-card" href="./bloom/">
         <div class="game-card-image" style="background-image: url('./images/bloom-teaser.jpg')"></div>
         <div class="game-card-body">
           <div class="game-card-name">Bloom</div>
           <div class="game-card-desc">Rotate the pipes to carry water from the tap to every flower and open the whole garden. A calm, tidy irrigation puzzle that grows more tangled as you go.</div>
-          <div class="game-card-cta">Play now</div>
-        </div>
-      </a>
-      <a class="game-card" href="./fold/">
-        <div class="game-card-image" style="background-image: url('./images/fold-teaser.jpg?v=2')"></div>
-        <div class="game-card-body">
-          <div class="game-card-name">Fold</div>
-          <div class="game-card-desc">A picture is cut into pieces and scattered across a creased sheet. Fold the paper to bring them back together, the right way round. Folding mirrors the paper, so a wrong fold lands a piece back to front.</div>
           <div class="game-card-cta">Play now</div>
         </div>
       </a>
@@ -296,6 +272,38 @@
         <div class="game-card-body">
           <div class="game-card-name">Tessera</div>
           <div class="game-card-desc">Drop letter tiles. Form English words across or down. Longer words score more. The game gets faster the longer you survive.</div>
+          <div class="game-card-cta">Play now</div>
+        </div>
+      </a>
+      <a class="game-card" href="./socket/">
+        <div class="game-card-image" style="background-image: url('./images/socket-teaser.jpg')"></div>
+        <div class="game-card-body">
+          <div class="game-card-name">Socket</div>
+          <div class="game-card-desc">Everything wants to be on and the wall board is full of awkward plugs. A fat one takes a socket and covers its neighbours, and every lead only stretches so far. Get the lot plugged in at once.</div>
+          <div class="game-card-cta">Play now</div>
+        </div>
+      </a>
+      <a class="game-card" href="./sluice/">
+        <div class="game-card-image" style="background-image: url('./images/sluice-teaser.jpg')"></div>
+        <div class="game-card-body">
+          <div class="game-card-name">Sluice</div>
+          <div class="game-card-desc">Slide whole rows and columns of pipes, wrapping around the board, until water reaches every flower. One solution per puzzle, and no way to solve it a piece at a time.</div>
+          <div class="game-card-cta">Play now</div>
+        </div>
+      </a>
+      <a class="game-card" href="./fold/">
+        <div class="game-card-image" style="background-image: url('./images/fold-teaser.jpg?v=2')"></div>
+        <div class="game-card-body">
+          <div class="game-card-name">Fold</div>
+          <div class="game-card-desc">A picture is cut into pieces and scattered across a creased sheet. Fold the paper to bring them back together, the right way round. Folding mirrors the paper, so a wrong fold lands a piece back to front.</div>
+          <div class="game-card-cta">Play now</div>
+        </div>
+      </a>
+      <a class="game-card" href="./mobile/">
+        <div class="game-card-image" style="background-image: url('./images/mobile-teaser.jpg')"></div>
+        <div class="game-card-body">
+          <div class="game-card-name">Mobile</div>
+          <div class="game-card-desc">Hang the coloured shapes on a Calder-style mobile until every arm sits level. Weight is area, so a heavier piece is a bigger one, and the sculpture leans to tell you which way you are wrong.</div>
           <div class="game-card-cta">Play now</div>
         </div>
       </a>
@@ -332,24 +340,20 @@
 
       <h3><a href="/orbit/">Orbit</a> — ring-spinning light puzzle</h3>
       <p>A quiet puzzle built from concentric rings. A light sits at the hub in the middle, and the rings around it are strung with broken track turned the wrong way. Spin each ring until the pieces line up and the light threads its way out to every bulb on the rim, settling the whole board into a symmetric mandala. Later levels gear pairs of rings together, so turning one turns its partner the other way.</p>
-
-      <h3><a href="/socket/">Socket</a> — the power strip puzzle</h3>
-      <p>Everyone has had this fight. Six things need to be on, the board has eight sockets, and it still does not work, because the chunky one covers the sockets either side of it and the lamp's lead will not quite reach the far end. Socket is that fight as a puzzle. A plug uses one socket but its body covers however many its plastic is wide, and every lead comes in from off the wall with only so much give, which decides where each plug is even allowed to go. Pick one up and the board shows you what it knows.</p>
-
-      <h3><a href="/sluice/">Sluice</a> — sliding pipe puzzle</h3>
-      <p>A grid of pipes with a tap and a ring of flowers around its edge. You never turn a pipe in Sluice. You drag an entire row or column, and it slides as one piece, wrapping around so whatever leaves one edge returns at the other. Because rows and columns cross, nothing can be solved a piece at a time: fixing one corner moves a tile out of every column it touches. Every board is generated with exactly one solution, and the trick to it is a four slide sequence that changes only three tiles and leaves the rest of the board exactly where it was.</p>
-
       <h3><a href="/bloom/">Bloom</a> — pipe-rotating garden puzzle</h3>
       <p>A calm irrigation puzzle. Water sits at a tap in the middle of the garden, and the ground is tangled with pipes turned the wrong way. Rotate them, one tap at a time, until the water threads out to every flower and opens the whole garden into bloom. Every board is solvable, the water shows your progress as it spreads, and the layouts grow more knotted as you climb.</p>
-
-      <h3><a href="/fold/">Fold</a> — origami folding puzzle</h3>
-      <p>A quiet logic puzzle about paper. A picture has been cut into pieces and scattered across a creased sheet. Tap a crease and the smaller flap folds over, carrying its pieces with it, until the picture is whole again. Folding reflects the paper, so a piece folded the wrong number of times arrives back to front, which is what gives Fold something to get wrong.</p>
-
       <h3><a href="/untangle/">Untangle</a> — planar graph puzzle</h3>
       <p>A tangle of dots and lines lands in front of you with every edge crossing another. Drag the dots until no lines cross. Every puzzle is solvable, and the difficulty climbs from a gentle tutorial to endless Master-level tangles.</p>
-
       <h3><a href="/tessera/">Tessera</a> — endless word puzzle</h3>
       <p>Part falling-block puzzle, part Scrabble. Guide letter tiles into a grid to spell words across and down; longer words score far more, and the tiles fall faster the longer you last. A quick, brainy high-score chase.</p>
+      <h3><a href="/socket/">Socket</a> — the power strip puzzle</h3>
+      <p>Everyone has had this fight. Six things need to be on, the board has eight sockets, and it still does not work, because the chunky one covers the sockets either side of it and the lamp's lead will not quite reach the far end. Socket is that fight as a puzzle. A plug uses one socket but its body covers however many its plastic is wide, and every lead comes in from off the wall with only so much give, which decides where each plug is even allowed to go. Pick one up and the board shows you what it knows.</p>
+      <h3><a href="/sluice/">Sluice</a> — sliding pipe puzzle</h3>
+      <p>A grid of pipes with a tap and a ring of flowers around its edge. You never turn a pipe in Sluice. You drag an entire row or column, and it slides as one piece, wrapping around so whatever leaves one edge returns at the other. Because rows and columns cross, nothing can be solved a piece at a time: fixing one corner moves a tile out of every column it touches. Every board is generated with exactly one solution, and the trick to it is a four slide sequence that changes only three tiles and leaves the rest of the board exactly where it was.</p>
+      <h3><a href="/fold/">Fold</a> — origami folding puzzle</h3>
+      <p>A quiet logic puzzle about paper. A picture has been cut into pieces and scattered across a creased sheet. Tap a crease and the smaller flap folds over, carrying its pieces with it, until the picture is whole again. Folding reflects the paper, so a piece folded the wrong number of times arrives back to front, which is what gives Fold something to get wrong.</p>
+      <h3><a href="/mobile/">Mobile</a> — a balancing sculpture puzzle</h3>
+      <p>A hanging sculpture in the spirit of Alexander Calder. Rods hang from rods, and from the ends of them hang bright cut-paper shapes. A rod balances when the weight on each side matches the length of its arm, so a heavy piece close in settles the same rod as a light one hung far out. Weight is area, which means you judge it by eye rather than reading a number, and an arm that is wrong droops on its heavy side until you fix it. Nothing to race and nothing to lose, just a thing to get right.</p>
 
       <h3><a href="/zood/">Zood</a> — bubble-shooter arcade</h3>
       <p>Fire quirky little character tiles up at a hanging cluster and match three or more of a kind to pop them; any Zoods left dangling drop too. Bank shots off the walls, keep the cluster from reaching the line, and clear every last Zood.</p>

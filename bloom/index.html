@@ -28,7 +28,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../shared/tokens.css" />
-  <link rel="stylesheet" href="../shared/chrome.css?v=9" />
+  <link rel="stylesheet" href="../shared/chrome.css?v=11" />
   <link rel="stylesheet" href="./play.css?v=1" />
   <!-- Google AdSense -->
   <meta name="google-adsense-account" content="ca-pub-9207689324865969">
@@ -61,7 +61,7 @@
     .game-info strong { color: var(--text); font-weight: 600; }
     .game-info a { color: #4DC3FF; }
     @media (max-width: 720px) { .game-info { padding: 8px 18px 40px; } .game-info h1 { font-size: 24px; } }
-    @media (max-width: 1099px) {
+    @media (max-width: 1151px) {
       body.game-content-page { position: static; overflow: visible; height: auto; width: auto; top: auto; left: auto; touch-action: auto; }
       body.game-content-page .site-footer { display: flex; }
     }
@@ -89,13 +89,31 @@
   </header>
 
   <main class="page">
+    <!-- Leaderboard ad: 728×90 -->
+    <div class="ad-slot ad-leaderboard" aria-label="Advertisement">
+      <span class="ad-label">AD · 728 × 90</span>
+    </div>
+
     <section class="play-row">
       <div class="game-wrap">
         <canvas id="game" aria-label="Bloom puzzle"></canvas>
         <!-- Splash: shows for 2 s at load, then fades to reveal the rules screen. -->
         <div id="splash" class="splash" aria-hidden="true"></div>
       </div>
+      <aside class="sidebar">
+        <div class="ad-slot ad-medrec" aria-label="Advertisement">
+          <span class="ad-label">AD · 300 × 250</span>
+        </div>
+        <div class="ad-slot ad-medrec" aria-label="Advertisement">
+          <span class="ad-label">AD · 300 × 250</span>
+        </div>
+      </aside>
     </section>
+
+    <!-- Leaderboard ad: 728×90 -->
+    <div class="ad-slot ad-leaderboard" aria-label="Advertisement">
+      <span class="ad-label">AD · 728 × 90</span>
+    </div>
 
     <section class="game-info">
       <h1>Bloom: a calm pipe-rotating garden puzzle</h1>
@@ -148,7 +166,7 @@
   </footer>
 
   <script src="../shared/sfx.js?v=1"></script>
-  <script src="./play.js?v=23"></script>
+  <script src="./play.js?v=24"></script>
   <script>
     (() => {
       const btn = document.getElementById('focus-toggle');

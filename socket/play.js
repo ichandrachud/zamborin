@@ -64,7 +64,11 @@
   document.body.classList.add('mode-' + MODE);
   function setCanvasVars() {
     if (MODE === 'mobile') { LW = window.innerWidth || 390; LH = window.innerHeight || 844; }
-    else { LW = 470; LH = 760; }
+    // One desktop frame across the whole site: 760x600. Eight different sizes
+    // had grown up across thirteen games, which reads as carelessness. This is
+    // Untangle's, and it is sized so the game plus a 300px sidebar ad fits the
+    // page without either being squashed.
+    else { LW = 760; LH = 600; }
     document.body.style.setProperty('--canvas-w', LW + 'px');
     document.body.style.setProperty('--canvas-h', LH + 'px');
   }
@@ -110,7 +114,13 @@
   // triples and dead ends quadruple against the one-column version, because a
   // fat body can now steal the socket BESIDE it as well as the ones above and
   // below.
-  const TOP_BAND = 92;
+  // The bands are generous on a phone, where the frame is 800-odd tall and 92px
+  // of header costs a ninth of it. In the 760x600 desktop frame the same 92 + 96
+  // is nearly a THIRD of the height, and every pixel of it comes straight off
+  // the socket pitch. The title ends at y=58 and the buttons start at LH-77, so
+  // the desktop numbers below are what the content actually occupies.
+  const TOP_BAND = MODE === 'mobile' ? 92 : 76;
+  const BOT_BAND = MODE === 'mobile' ? 96 : 88;
   let stripX = 0, plateW = 120, stripY = 120, pitch = 54, inset = 9, looseX = 300, botBand = 96;
   // Horizontal spacing is three separate numbers, not one. The plate runs off
   // the left edge of the screen on purpose, so an even margin inside the plate
@@ -121,10 +131,14 @@
   function layout() {
     if (!board) return;
     const R = board.R;
-    botBand = 96;
+    botBand = BOT_BAND;
     const availH = Math.max(120, LH - TOP_BAND - botBand);
     // the plate may take a little under half the width; the rest is floor
-    const byH = Math.floor((availH - 60) / R);
+    // The plate is exactly pitch * (R + 0.32) tall, because inset is 0.16 of
+    // pitch at the top and again at the bottom. Solving for that directly costs
+    // nothing; the old flat -60 reserve was six pixels of pitch thrown away on
+    // a short frame, which is 12% of the socket size on desktop.
+    const byH = Math.floor((availH - 16) / (R + 0.32));
     const byW = Math.floor((LW * 0.46) / 2.6);
     pitch = Math.max(30, Math.min(78, Math.min(byH, byW)));
     inset = Math.round(pitch * 0.16);             // top and bottom only
@@ -372,18 +386,46 @@
     const waiting = [];
     for (let i = 0; i < board.plugs.length; i++) if (!place[i]) waiting.push(i);
     waiting.sort((a, b) => board.reach[board.plugs[a].id].at - board.reach[board.plugs[b].id].at);
-    let prevBottom = -1e9;
-    looseLayout = [];
-    for (const i of waiting) {
-      const p = board.plugs[i];
-      const h = p.h * pitch * 0.78, w = p.w * pitch * 0.78;
-      let y = cellCY(board.reach[p.id].at) - h / 2;
-      if (y < prevBottom + 10) y = prevBottom + 10;
-      prevBottom = y + h;
-      looseLayout.push({ i, y, h, w });
+    // Each waiting plug sits at the height of the row it reaches, so the lead
+    // runs straight across and you can read its target without moving it. It
+    // only slides down when the plug above is already there.
+    const top = TOP_BAND + 6, bottom = LH - botBand - 8;
+    const avail = Math.max(80, bottom - top);
+    const build = (k) => {
+      const out = [];
+      let prevBottom = -1e9;
+      for (const i of waiting) {
+        const p = board.plugs[i];
+        const h = p.h * pitch * 0.78 * k, w = p.w * pitch * 0.78 * k;
+        let y = cellCY(board.reach[p.id].at) - h / 2;
+        if (y < prevBottom + 10 * k) y = prevBottom + 10 * k;
+        prevBottom = y + h;
+        out.push({ i, y, h, w });
+      }
+      return out;
+    };
+    const spanOf = (a) => a.length ? a[a.length - 1].y + a[a.length - 1].h - a[0].y : 0;
+
+    let lay = build(1);
+    // Eight plugs at full size are taller than a 600px frame can hold. The old
+    // code slid the whole column up until the bottom fitted, which pushed the
+    // top plugs clean off the canvas — and since a plug's hit box comes from
+    // where it was drawn, those plugs could not be picked up at all. Shrink the
+    // tray to fit instead: every plug stays reachable, and because they all
+    // shrink together their relative footprints stay honest.
+    for (let n = 0, k = 1; n < 6; n++) {
+      const s = spanOf(lay);
+      if (s <= avail) break;
+      k = Math.max(0.4, k * (avail / s) * 0.98);
+      lay = build(k);
     }
-    const overflow = prevBottom - (LH - botBand - 8);
-    if (overflow > 0) looseLayout.forEach(o => { o.y -= overflow; });
+    if (lay.length) {
+      const over = lay[lay.length - 1].y + lay[lay.length - 1].h - bottom;
+      if (over > 0) lay.forEach(o => { o.y -= over; });
+      const under = top - lay[0].y;
+      if (under > 0) lay.forEach(o => { o.y += under; });
+    }
+    looseLayout = lay;
   }
 
   // A waiting plug is drawn at its TRUE footprint, so what it will cost is
@@ -704,7 +746,11 @@
     canPlace: (i, at, oi) => { const pl = placementAt(i, at, oi | 0); return !!pl && freeFor(i, pl) && earthOk(i, at); },
     reaches: (i, pin) => reaches(i, pin),
     get buttons() { render(); return uiButtons.map(b => ({ x: b.x, y: b.y, w: b.w, h: b.h })); },
-    get geom() { return { LW, LH, stripX, plateW, stripY, pitch, inset, padL, padR, gapX, bleed, looseX, R: board.R, COLS }; },
+    get geom() { return { LW, LH, stripX, plateW, stripY, pitch, inset, padL, padR, gapX, bleed, looseX, R: board.R, COLS, TOP_BAND, botBand }; },
+    // Where the waiting plugs actually ended up. Reading this beats measuring
+    // pixels: the leads cross the empty floor, so any reference column you pick
+    // for a background is itself painted on some frames.
+    get loose() { render(); return looseLayout.map(o => ({ i: o.i, y: Math.round(o.y), h: Math.round(o.h), w: Math.round(o.w), x: Math.round(looseX - o.w / 2) })); },
     socketBox(c) { const s = Math.min(46, pitch * 0.8); return { l: cellCX(c) - s / 2, r: cellCX(c) + s / 2 }; },
   };
 

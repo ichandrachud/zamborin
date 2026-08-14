@@ -67,7 +67,11 @@ a.brand:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; b
 
 /* ---------- PAGE ---------- */
 .page {
-  max-width: 1100px;
+  /* 1120, not 1100. The desktop frame is 760 wide and the sidebar is a 300px
+     medium rectangle with a 20px gap, which needs 1080 of content. At 1100 the
+     padding left only 1068 and flex quietly squashed the GAME by 12px the
+     moment the ad slots were switched on. */
+  max-width: 1120px;
   margin: 28px auto 0;
   padding: 0 16px;
   display: flex;
@@ -89,6 +93,16 @@ a.brand:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; b
 }
 .ad-leaderboard { width: 728px; height: 90px; margin: 0 auto; }
 .ad-medrec      { width: 300px; height: 250px; }
+
+/* The sidebar hides with the slots it holds, and for a reason worth writing
+   down: a sidebar that is present but empty is still a flex item, so .play-row
+   keeps handing it the 20px gap and the GAME ends up 10px left of centre. Every
+   page had this. One class turns the whole apparatus on when the network is
+   live — flipping .ad-slot alone would bring the ads back but leave the game
+   off centre until someone worked out why. */
+.sidebar { display: none; }
+body.ads-on .ad-slot { display: grid; }
+body.ads-on .sidebar { display: flex; }
 
 /* ---------- PLAY ROW + GAME CARD ---------- */
 .play-row {
@@ -112,7 +126,9 @@ a.brand:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; b
   overflow: hidden;
   position: relative;
 }
-body.mode-desktop { --canvas-w: 760px; --canvas-h: 570px; }
+/* The site-wide desktop frame. play.js sets these inline per game; this is the
+   fallback, and it was still Tessera's old 570 after every game moved to 600. */
+body.mode-desktop { --canvas-w: 760px; --canvas-h: 600px; }
 body.mode-mobile  { --canvas-w: 393px; --canvas-h: 852px; }
 #game {
   display: block;
@@ -124,7 +140,9 @@ body.mode-mobile  { --canvas-w: 393px; --canvas-h: 852px; }
   user-select: none;
   -webkit-tap-highlight-color: transparent;
 }
-.sidebar { display: flex; flex-direction: column; gap: 20px; }
+/* No `display` here on purpose — it is owned by the .ads-on switch above, and
+   restating it at this point in the file would quietly out-rank the default. */
+.sidebar { flex-direction: column; gap: 20px; }
 
 /* ---------- FOOTER ---------- */
 .site-footer {
@@ -218,7 +236,7 @@ body.focus-mode .focus-btn {
 
 /* ---------- FOCUS-MODE LAYOUT (manual toggle, desktop) ---------- */
 body.focus-mode .site-footer,
-body.focus-mode .ad-slot { display: none; }
+body.focus-mode .ad-slot, body.focus-mode .sidebar { display: none; }
 /* Header collapses to zero so the game can use the full viewport,
    but stays renderable so the position:fixed focus-btn inside still paints. */
 body.focus-mode .site-header {
@@ -249,11 +267,14 @@ body.focus-mode .game-wrap {
 }
 body.focus-mode #game { width: 100%; height: 100%; }
 
-/* ---------- MOBILE: auto-focus layout below 1100 px ---------- */
+/* ---------- MOBILE: auto-focus layout below 1152 px ---------- */
+/* 1152 = 1120 page + 32 breathing room. Below that there is not enough width
+   for the 760 frame AND its sidebar ad, so the game goes full-bleed instead of
+   being squashed. */
 /* Selectors are body-prefixed so per-game stylesheets that redefine
    `.ad-slot` / `.site-header` / `.page` etc. don't override the mobile
    auto-focus by simple source-order. */
-@media (max-width: 1099px) {
+@media (max-width: 1151px) {
   /* Pin body to the viewport on GAME pages so swipes don't nudge the page
      while the player is using the canvas. The lobby (body.lobby-page) opts
      out so the homepage list can scroll normally. html is left in the
@@ -271,7 +292,8 @@ body.focus-mode #game { width: 100%; height: 100%; }
     -webkit-overflow-scrolling: touch;
   }
   body:not(.lobby-page) .site-footer,
-  body:not(.lobby-page) .ad-slot { display: none; }
+  body:not(.lobby-page) .ad-slot,
+  body:not(.lobby-page) .sidebar { display: none; }
   body .site-header {
     position: fixed;
     top: 0; left: 0; right: 0;

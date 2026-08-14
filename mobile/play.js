@@ -66,13 +66,10 @@
   document.body.classList.add('mode-' + MODE);
   function setCanvasVars() {
     if (MODE === 'mobile') { LW = window.innerWidth || 390; LH = window.innerHeight || 844; }
-    // Narrower than the shelf standard of 470 on purpose: these sculptures are
-    // taller than they are wide, so on 470 they go height-bound and fill barely
-    // half the width. But 400 left the splash wordmark with one pixel of margin
-    // against the crop, because a narrower card crops a portrait image harder.
-    // 440 is the compromise: 35px of wordmark margin, and the sculptures still
-    // fill far more of the frame than they did at 470.
-    else { LW = 440; LH = 760; }
+    // The site-wide desktop frame, 760x600. These sculptures are portrait, so
+    // they do not fill a landscape frame — but one frame across every game
+    // matters more than one game filling its own.
+    else { LW = 760; LH = 600; }
     document.body.style.setProperty('--canvas-w', LW + 'px');
     document.body.style.setProperty('--canvas-h', LH + 'px');
   }

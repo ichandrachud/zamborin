@@ -47,7 +47,7 @@
   }
   const CFG = MODE === 'mobile' ? buildMobileCFG() : (() => {
     const desktopCFG = {
-      W: 760, H: 570,
+      W: 760, H: 600,   // the site-wide desktop frame
       COLS: 12, ROWS: 8, CELL: 56,
       HUD_H: 56,
       BANNER_W: 0, BANNER_H: 0,
