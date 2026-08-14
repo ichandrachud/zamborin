@@ -55,7 +55,19 @@ function errors(node, at, out = []) {
   errors(node.right, at, out);
   return out;
 }
-const totalError = (node, at) => errors(node, at).reduce((s, e) => s + Math.abs(e.err), 0);
+// If the player may nudge a pivot by up to SLACK units, a rod that is slightly
+// out can be corrected by sliding the pivot toward the heavy side. Moving it by
+// d lengthens one arm and shortens the other:
+//     W_L (L+d) = W_R (R-d)   =>   d = (W_R R - W_L L) / (W_L + W_R)
+// so the rod is fixable exactly when |err| <= SLACK * (W_L + W_R).
+const CFG = { SLACK: 0, COLLIDE: false };
+function configure(o) { Object.assign(CFG, o); return CFG; }
+const residual = (e) => {
+  if (!CFG.SLACK) return Math.abs(e.err);
+  const room = CFG.SLACK * (e.wl + e.wr);
+  return Math.max(0, Math.abs(e.err) - room);
+};
+const totalError = (node, at) => errors(node, at).reduce((s, e) => s + residual(e), 0);
 const balanced = (node, at) => hooks(node).every(h => at[h.id] != null) && totalError(node, at) === 0;
 
 // How far a rod visibly droops, which is the only feedback the player gets.
@@ -66,6 +78,50 @@ function tilts(node, at) {
     return { err: e.err, tilt: Math.max(-1, Math.min(1, e.err / scale)) };
   });
 }
+
+
+// ---- geometry, and the second constraint ----
+// Real mobiles must not foul themselves. Area is weight, so a heavy piece is a
+// BIG piece — and balance wants heavy pieces on the SHORT arm, close in, which
+// is exactly where there is least room. The two rules pull opposite ways on the
+// same decision, which is the property that makes a packing puzzle hard.
+const SIZE_K = 0.55;                       // radius = SIZE_K * sqrt(area)
+const radiusOf = (w) => SIZE_K * Math.sqrt(Math.max(0, w));
+
+// Where everything hangs. The pivot of a rod sits at (x,y); its ends are at
+// x-L and x+R, and each end drops by its own string length to whatever hangs
+// from it.
+function layout(node, x = 0, y = 0, out = { hooks: {}, rods: [] }, shift = {}) {
+  if (isHook(node)) { out.hooks[node.id] = { x, y }; return out; }
+  const d = shift[node.id] || 0;           // how far the player nudged this pivot
+  const L = node.L + d, R = node.R - d;
+  out.rods.push({ node, x, y, L, R });
+  layout(node.left, x - L, y + node.dropL, out, shift);
+  layout(node.right, x + R, y + node.dropR, out, shift);
+  return out;
+}
+
+// Pairs of hanging shapes that overlap. Centres sit one radius below the hook,
+// because a shape hangs from its top.
+function collisions(node, at, shift) {
+  const { hooks: pos } = layout(node, 0, 0, { hooks: {}, rods: [] }, shift || {});
+  const hung = Object.keys(pos)
+    .filter(id => at[id] > 0)
+    .map(id => ({ id, x: pos[id].x, y: pos[id].y + radiusOf(at[id]), r: radiusOf(at[id]) }));
+  let n = 0;
+  for (let i = 0; i < hung.length; i++)
+    for (let j = i + 1; j < hung.length; j++) {
+      const a = hung[i], b = hung[j];
+      const gap = Math.hypot(a.x - b.x, a.y - b.y) - (a.r + b.r);
+      if (gap < 0) n++;
+    }
+  return n;
+}
+
+const legal = (node, at, shift) =>
+  hooks(node).every(h => at[h.id] != null) &&
+  totalError(node, at) === 0 &&
+  (!CFG.COLLIDE || collisions(node, at, shift) === 0);
 
 // ---- what the sculpture demands ----
 // Bottom up: at each rod, the two sides must be in the inverse ratio of their
@@ -134,11 +190,15 @@ function solutions(node, shapes, limit = 200) {
 }
 
 // ---- generation ----
+let rodIds = 0;
 function buildTree(depth, rnd, ids = { n: 0 }) {
   if (depth <= 0 || (depth < 3 && rnd() < 0.28)) return { hook: true, id: 'h' + (ids.n++) };
-  const lens = [1, 2, 3, 4, 5];
-  let L = lens[(rnd() * lens.length) | 0], R = lens[(rnd() * lens.length) | 0];
-  return { L, R, left: buildTree(depth - 1, rnd, ids), right: buildTree(depth - 1, rnd, ids) };
+  const lens = [2, 3, 4, 5, 6];
+  const drops = [2, 3, 4];
+  return { id: 'r' + (rodIds++),
+           L: lens[(rnd() * lens.length) | 0], R: lens[(rnd() * lens.length) | 0],
+           dropL: drops[(rnd() * drops.length) | 0], dropR: drops[(rnd() * drops.length) | 0],
+           left: buildTree(depth - 1, rnd, ids), right: buildTree(depth - 1, rnd, ids) };
 }
 
 function generate(level, rnd = Math.random, opts = {}) {
@@ -172,6 +232,6 @@ function generate(level, rnd = Math.random, opts = {}) {
   return null;
 }
 
-return { isHook, hooks, weightOf, errors, totalError, balanced, tilts,
+return { CFG, configure, residual, SIZE_K, radiusOf, layout, collisions, legal, isHook, hooks, weightOf, errors, totalError, balanced, tilts,
          demand, solutions, solutionScales, buildTree, generate, gcd };
 }));

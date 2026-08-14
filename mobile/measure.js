@@ -163,6 +163,30 @@ function band(lo, hi, want) {
            hooks: med(hookCount), spare: med(spare), stuck: mean(stuck) };
 }
 
+// Does letting the player nudge the pivot help? It is the obvious extra lever,
+// so it is worth answering with a number rather than an opinion.
+if (process.argv[2] === 'slack') {
+  console.log('MOBILE — what a movable pivot does\n');
+  console.log('  slack | boards | beats every unplanned player | climb alone | gets stuck');
+  console.log('  ' + '-'.repeat(72));
+  for (const sl of [0, 0.15, 0.3, 0.5, 0.8]) {
+    M.configure({ SLACK: sl });
+    let n = 0, demanding = 0, climbWon = 0, stuck = 0;
+    for (const [lo, hi] of [[13, 28], [29, 44], [45, 60]]) {
+      const r = band(lo, hi, 14);
+      if (!r) continue;
+      n += r.n; demanding += r.demanding;
+      climbWon += Math.round(r.per.climb); stuck += r.stuck * r.n;
+    }
+    console.log('  ' + String(sl).padStart(5) + String(n).padStart(9)
+      + (pct(demanding, n)).padStart(29) + (pct(climbWon, n)).padStart(14)
+      + (pct(stuck, n)).padStart(13));
+  }
+  console.log('\n  more slack should make it EASIER: every rod becomes satisfiable');
+  console.log('  over a range instead of at a point.');
+  process.exit(0);
+}
+
 console.log('MOBILE — is it a puzzle, or does the tilt just solve it for you?\n');
 for (const [lo, hi] of [[1, 12], [13, 28], [29, 44], [45, 60]]) {
   const r = band(lo, hi, 20);
