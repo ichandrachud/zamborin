@@ -88,12 +88,28 @@
   const wrap = canvas.parentElement;
   function fitFullscreen() {
     if (MODE === 'mobile') { wrap.style.width = window.innerWidth + 'px'; wrap.style.height = window.innerHeight + 'px'; return; }
-    const on = document.body.classList.contains('focus-mode');
-    if (!on) { wrap.style.width = ''; wrap.style.height = ''; return; }
-    const vw = window.innerWidth, vh = window.innerHeight, a = LW / LH;
-    let cw = vw, ch = Math.round(vw / a);
-    if (ch > vh) { ch = vh; cw = Math.round(vh * a); }
-    wrap.style.width = cw + 'px'; wrap.style.height = ch + 'px';
+    const a = LW / LH;
+    if (document.body.classList.contains('focus-mode')) {
+      const vw = window.innerWidth, vh = window.innerHeight;
+      let cw = vw, ch = Math.round(vw / a);
+      if (ch > vh) { ch = vh; cw = Math.round(vh * a); }
+      wrap.style.width = cw + 'px'; wrap.style.height = ch + 'px';
+      return;
+    }
+    // The card is 760 tall and the wrap took that as a fixed height, so on any
+    // window with less than that below the header — a laptop with a bookmarks
+    // bar, which is most of them — the bottom of the card fell off the screen
+    // and took the tray with it. Shrink to whatever height there actually is,
+    // keeping the shape. Everything drawn is a fraction of the frame, so it
+    // scales without changing the composition.
+    const head = document.querySelector('.site-header');
+    const top = head ? head.getBoundingClientRect().bottom : 0;
+    // 28 either side: the page already puts a gap above the card, so taking
+    // only one margin off left it sitting flush against the bottom edge.
+    const avail = Math.max(360, window.innerHeight - top - 56);
+    const ch = Math.min(LH, avail), cw = Math.round(ch * a);
+    wrap.style.width = cw + 'px';
+    wrap.style.height = Math.round(ch) + 'px';
   }
   function onResize() { if (MODE === 'mobile') setCanvasVars(); fitFullscreen(); resizeCanvas(); layout(); }
   window.addEventListener('resize', onResize);
