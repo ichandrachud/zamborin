@@ -398,8 +398,19 @@
   }
 
   function drawTray() {
+    // The shelf is white on a near-white ground, so without a shadow its top
+    // edge simply disappears. It sits in FRONT of the sculpture, so the shadow
+    // falls upward onto the background behind it.
+    ctx.save();
+    ctx.shadowColor = 'rgba(35,31,32,0.30)';
+    ctx.shadowBlur = Math.max(10, LW * 0.045);
+    ctx.shadowOffsetY = -Math.max(2, LW * 0.006);
     ctx.fillStyle = TRAY_BG;
-    ctx.fillRect(0, trayY, LW, LH - trayY);
+    ctx.fillRect(0, trayY, LW, LH - trayY + 4);
+    ctx.restore();
+    // and a hairline along the lip, so the edge stays crisp where the blur is soft
+    ctx.strokeStyle = 'rgba(35,31,32,0.16)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, trayY + 0.5); ctx.lineTo(LW, trayY + 0.5); ctx.stroke();
     for (const key in trayAt) {
       const i = +key;
       if (held && held.i === i) continue;
