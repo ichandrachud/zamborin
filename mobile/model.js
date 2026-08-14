@@ -193,13 +193,12 @@ function solutions(node, shapes, limit = 200) {
 let rodIds = 0;
 function buildTree(depth, rnd, ids = { n: 0 }) {
   if (depth <= 0 || (depth < 3 && rnd() < 0.28)) return { hook: true, id: 'h' + (ids.n++) };
-  // Arms run about twice the drop in the reference, but that measurement was
-  // taken off the TOP rod, where the drop is longest. Rendered at those numbers
-  // the rods bunched and crossed near the top, because sibling rods ended up at
-  // nearly the same height. Deeper drops give each level of the tree its own
-  // band of air, which is what actually reads as a Calder.
-  const lens = [3, 4, 5, 6];
-  const drops = [3, 4, 5];
+  // Measured off the interface mockups, which is the shape that actually has to
+  // fit a phone: the sculpture there is TALLER than it is wide, about 376 across
+  // by 690 down. That means short arms and long drops, the opposite of what the
+  // single wide reference drawing suggested.
+  const lens = [2, 3, 4];
+  const drops = [4, 5, 6];
   return { id: 'r' + (rodIds++),
            L: lens[(rnd() * lens.length) | 0], R: lens[(rnd() * lens.length) | 0],
            dropL: drops[(rnd() * drops.length) | 0], dropR: drops[(rnd() * drops.length) | 0],
@@ -207,7 +206,7 @@ function buildTree(depth, rnd, ids = { n: 0 }) {
 }
 
 function generate(level, rnd = Math.random, opts = {}) {
-  const depth = opts.depth || Math.min(4, 2 + Math.floor((level - 1) / 12));
+  const depth = opts.depth || Math.min(5, 3 + Math.floor((level - 1) / 15));
   const spare = opts.spare != null ? opts.spare : Math.min(4, Math.floor((level - 1) / 6));
   for (let attempt = 0; attempt < 400; attempt++) {
     const tree = buildTree(depth, rnd);

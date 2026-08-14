@@ -38,8 +38,9 @@
   // The forms arrive as silhouettes, so colour is the game's to give. These are
   // the fills from the reference file plus the orange and black Calder reached
   // for constantly.
-  const PALETTE = ['#E4E41F', '#E62925', '#3A499E', '#8FD7F1', '#952478',
-                   '#4A7FC1', '#E8781F', '#231F20'];
+  const PALETTE = ['#E4E41F', '#E41F1F', '#546AE7', '#8FD7F1', '#952478',
+                   '#5DCF37', '#FFA200', '#F6134C', '#231F20', '#414042'];
+  const TRAY_BG = '#FFFFFF', NEXT_RED = '#FF0000';
 
   // ---------- sound ----------
   const sfx = window.ZSFX ? window.ZSFX.create({ storageKey: 'zamborin-mobile.sound' }) : null;
@@ -204,25 +205,23 @@
 
   function layout() {
     if (!board) return;
-    const CONTROLS = 58;                 // the pill row
-    const TRAY = 92;                     // the shelf of spare shapes
-    const TOP = 62;                      // under the title
-    trayY = LH - CONTROLS - TRAY;
-    const availW = LW - 34, availH = trayY - TOP - 18;
+    // Everything here is a fraction of the mockups, which are 393x852:
+    // the tray is a white panel filling the bottom 156 of 852, and the
+    // sculpture has the whole of the rest.
+    const TRAY_F = 156 / 852, TOP_F = 24 / 852;
+    trayY = Math.round(LH * (1 - TRAY_F));
+    const top = Math.round(LH * TOP_F);
+    const availW = LW - 20;
+    const availH = (phase === 'won' ? LH * 0.88 : trayY - 14) - top;
 
-    // Solve for the unit by trying them, because a shape's radius scales with
-    // the unit too, so the bounds are not linear in it and dividing once gives
-    // the wrong answer.
-    // The floor was 9, and one sculpture in forty is wide enough that even 9
-    // overflowed the frame. Better a small mobile than a clipped one.
     unit = 6;
-    for (let u = 34; u >= 6; u--) {
+    for (let u = 40; u >= 6; u--) {
       const b = bounds(u);
       if (b.w <= availW && b.h <= availH) { unit = u; break; }
     }
     const at = bounds(unit);
     anchorX = Math.round(LW / 2 - at.midx);
-    anchorY = Math.round(TOP + Math.max(6, (availH - at.h) / 2));
+    anchorY = Math.round(top + Math.max(4, (availH - at.h) * 0.42));
   }
 
   function forEachRod(node, fn) { if (node.hook) return; fn(node); forEachRod(node.left, fn); forEachRod(node.right, fn); }
@@ -259,7 +258,7 @@
     // the moment it stops swaying AND it is right
     const settled = !stillMoving();
     if (settled && !wasSettled && levelNow() && phase === 'play') {
-      phase = 'won'; settledAt = t; snd.win();
+      phase = 'won'; settledAt = t; snd.win(); layout();
     }
     wasSettled = settled;
     raf = requestAnimationFrame(frame);
@@ -267,16 +266,18 @@
 
   function render(t) {
     uiButtons = [];
-    ctx.fillStyle = '#FCFCFB'; ctx.fillRect(0, 0, LW, LH);
+    // The mockups carry no title, no counter and no buttons. The sculpture is
+    // the whole interface, and the only thing that ever appears is one red pill
+    // when the level is done.
+    const g2 = ctx.createLinearGradient(LW, 0, LW / 2, LH);
+    g2.addColorStop(0, '#EAEAEA'); g2.addColorStop(1, '#FFFFFF');
+    ctx.fillStyle = g2; ctx.fillRect(0, 0, LW, LH);
 
     const s = scene();
+    if (phase !== 'won') drawTray();
     drawSculpture(s);
-    drawTray();
     if (held) drawHeld();
-    drawHUD();
-    drawControls();
-    if (phase === 'menu') drawRules();
-    if (phase === 'won') drawWin();
+    if (phase === 'won') drawNext();
   }
 
   function drawSculpture(s) {
@@ -331,20 +332,69 @@
     }
   }
 
-  function drawTray() {
-    ctx.strokeStyle = 'rgba(26,26,30,0.14)'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(18, trayY); ctx.lineTo(LW - 18, trayY); ctx.stroke();
+  // A white shelf across the bottom, with the spare pieces tumbled onto it
+  // rather than lined up. Evenly spaced they looked like a specimen drawer;
+  // the mockups have them jostling, which is what a box of parts looks like.
+  let trayAt = {};
+  function packTray() {
+    trayAt = {};
     const spare = board.shapes.map((w, i) => i).filter(i => !Object.values(on).includes(i));
     if (!spare.length) return;
-    const gapW = (LW - 44) / spare.length;
-    spare.forEach((i, k) => {
-      const w = board.shapes[i], R = shapeR(i, w);
-      const cx = 22 + gapW * (k + 0.5), cy = trayY + 46;
-      if (held && held.i === i) return;
-      const sh = shapePath(i, w, cx, cy);
+    const pad = 10, top = trayY + 10, bot = LH - 12;
+    let seed = ((board.level + 1) * 40503) >>> 0;
+    const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+
+    // seed them across the shelf, biggest first
+    const order = spare.slice().sort((a, b) => board.shapes[b] - board.shapes[a]);
+    const items = order.map((i, k) => ({
+      i, r: shapeR(i, board.shapes[i]),
+      x: pad + ((k + 0.5) / order.length) * (LW - pad * 2) + (rnd() - 0.5) * 30,
+      y: top + (bot - top) * (0.28 + 0.44 * rnd()),
+    }));
+
+    // then push them apart. Random placement alone left the middle of the shelf
+    // in a heap while the ends sat empty; a few relaxation passes spread them
+    // out while keeping the jumbled look the mockups have.
+    for (let pass = 0; pass < 60; pass++) {
+      for (let a = 0; a < items.length; a++) {
+        for (let b = a + 1; b < items.length; b++) {
+          const p1 = items[a], p2 = items[b];
+          const need = (p1.r + p2.r) * 0.92;
+          let dx = p2.x - p1.x, dy = p2.y - p1.y;
+          let d = Math.hypot(dx, dy) || 0.01;
+          if (d >= need) continue;
+          const push = (need - d) / 2 / d;
+          dx *= push; dy *= push;
+          p1.x -= dx; p1.y -= dy; p2.x += dx; p2.y += dy;
+        }
+      }
+      for (const p of items) {
+        p.x = Math.max(pad + p.r, Math.min(LW - pad - p.r, p.x));
+        p.y = Math.max(top + p.r * 0.7, Math.min(bot - p.r * 0.7, p.y));
+      }
+    }
+    // Clamp once more at the end. The relaxation runs after the clamp inside the
+    // loop, so the last push could still nudge a piece over the edge of the
+    // shelf, and one in forty did.
+    for (const p of items) {
+      p.x = Math.max(p.r * 0.55, Math.min(LW - p.r * 0.55, p.x));
+      p.y = Math.max(trayY + p.r * 0.55, Math.min(LH - p.r * 0.55, p.y));
+      trayAt[p.i] = p;
+    }
+  }
+
+  function drawTray() {
+    ctx.fillStyle = TRAY_BG;
+    ctx.fillRect(0, trayY, LW, LH - trayY);
+    for (const key in trayAt) {
+      const i = +key;
+      if (held && held.i === i) continue;
+      if (on[board.hooks.find(h => on[h] === i)] != null) continue;
+      const p = trayAt[i];
+      const sh = shapePath(i, board.shapes[i], p.x, p.y);
       if (sh) { ctx.fillStyle = tint(i); ctx.fill(); }
-      uiButtons.push({ x: cx - R, y: cy - R, w: R * 2, h: R * 2.2, tray: i });
-    });
+      uiButtons.push({ x: p.x - p.r, y: p.y - p.r, w: p.r * 2, h: p.r * 2, tray: i });
+    }
   }
 
   function drawHeld() {
@@ -404,44 +454,24 @@
     items.forEach(([l, a, dim]) => { x += pill(l, x, y, dim, a) + gap; });
   }
 
-  function panel(title, sub, lines, btn, act) {
-    ctx.fillStyle = 'rgba(250,249,245,0.94)'; ctx.fillRect(0, 0, LW, LH);
-    const pw = Math.min(LW - 40, 380), px = (LW - pw) / 2;
-    let y = Math.max(40, LH * 0.22);
-    ctx.textAlign = 'center';
-    ctx.fillStyle = INK; ctx.font = '800 30px Inter, sans-serif';
-    ctx.fillText(title, LW / 2, y); y += 42;
-    ctx.fillStyle = 'rgba(26,26,30,0.72)'; ctx.font = '600 15px Inter, sans-serif';
-    ctx.fillText(sub, LW / 2, y); y += 32;
-    ctx.textAlign = 'left'; ctx.font = '500 14px Inter, sans-serif';
-    ctx.fillStyle = 'rgba(26,26,30,0.88)';
-    for (const line of lines) {
-      const words = line.split(' '); let ln = '';
-      for (const w of words) {
-        const tt = ln ? ln + ' ' + w : w;
-        if (ctx.measureText(tt).width > pw - 20 && ln) { ctx.fillText(ln, px + 10, y); y += 20; ln = w; }
-        else ln = tt;
-      }
-      if (ln) { ctx.fillText(ln, px + 10, y); y += 20; }
-      y += 10;
-    }
-    const bw = 170, bh = 44, bx = LW / 2 - bw / 2;
-    ctx.fillStyle = '#D8332A';
-    ctx.beginPath(); ctx.roundRect(bx, y + 6, bw, bh, bh / 2); ctx.fill();
-    ctx.fillStyle = '#fff'; ctx.font = '800 15px Inter, sans-serif';
+  // There was a rules panel here. The mockups have no text anywhere on the
+  // screen and the game does not need any: a tray of shapes, empty rings on
+  // strings, and something that tips when you get it wrong explains itself.
+  // The written instructions live on the page below the canvas.
+
+  // 89 x 30, radius 15, #FF0000, sitting at 788 of 852. No label above it: the
+  // sculpture hanging straight is the message.
+  function drawNext() {
+    const w = Math.round(LW * (89 / 393)), h = Math.round(LH * (30 / 852));
+    const x = Math.round((LW - w) / 2), y = Math.round(LH * (788 / 852));
+    ctx.fillStyle = NEXT_RED;
+    ctx.beginPath(); ctx.roundRect(x, y, w, h, h / 2); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.font = '700 ' + Math.round(h * 0.42) + 'px Inter, sans-serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(btn, LW / 2, y + 6 + bh / 2 + 1);
+    ctx.fillText('NEXT', x + w / 2, y + h / 2 + 0.5);
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-    uiButtons.push({ x: bx, y: y + 6, w: bw, h: bh, act });
+    uiButtons.push({ x: x - 12, y: y - 12, w: w + 24, h: h + 24, act: () => start(level + 1) });
   }
-  const drawRules = () => panel('MOBILE', 'Hang it so it sits level.', [
-    'Drag a shape from the tray onto any empty string. Drag it off again to put it back.',
-    'The bigger the shape, the heavier it is. There is no other clue, so trust your eye.',
-    'A rod leans toward whichever side is heavier. Watch it swing and settle before you decide.',
-    'It is level when nothing is leaning. There is exactly one right answer.',
-  ], 'BEGIN', () => { phase = 'play'; });
-  const drawWin = () => panel('LEVEL', 'It hangs true.',
-    ['Every rod balanced, and nothing left over.'], 'NEXT', () => start(level + 1));
 
   // ---------- interaction ----------
   function start(n) {
@@ -450,7 +480,7 @@
     on = {}; held = null; rods = {}; phase = 'play'; wasSettled = false;
     setShapeScale(); dealLooks();
     forEachRod(board.tree, (nd) => rods[nd.id] = { a: 0, w: 0 });
-    layout();
+    layout(); packTray();
   }
   function nudge() { for (const id in rods) rods[id].w += (Math.random() - 0.5) * 1.2; }
 
@@ -467,7 +497,7 @@
       if (b.act) { e.preventDefault(); b.act(); return; }
       if (phase !== 'play') return;
       if (b.tray != null) { held = { i: b.tray, x, y, from: null }; snd.lift(); e.preventDefault(); return; }
-      if (b.take != null) { held = { i: b.take, x, y, from: b.hook }; delete on[b.hook]; snd.lift(); nudge(); e.preventDefault(); return; }
+      if (b.take != null) { held = { i: b.take, x, y, from: b.hook }; delete on[b.hook]; snd.lift(); packTray(); nudge(); e.preventDefault(); return; }
     }
   });
   canvas.addEventListener('pointermove', (e) => {
@@ -485,9 +515,9 @@
       const d = Math.hypot(p.x - held.x, p.y + unit * 0.6 - held.y);
       if (d < bestD) { bestD = d; best = id; }
     }
-    if (best && bestD < unit * 2.2) { on[best] = held.i; snd.hang(); }
-    else if (held.from != null && bestD >= unit * 2.2) snd.drop();
-    held = null; nudge();
+    if (best && bestD < unit * 2.6) { on[best] = held.i; snd.hang(); }
+    else if (held.from != null) snd.drop();
+    held = null; packTray(); nudge();
   }
   canvas.addEventListener('pointerup', release);
   canvas.addEventListener('pointercancel', release);
@@ -519,6 +549,9 @@
       return __mobile.state;
     },
     settle(ms) { for (let t = 0; t < ms; t += 16) step(0.016); return __mobile.angles; },
+    // the win flips inside the animation loop, which a hidden tab throttles to
+    // nothing, so this is how the finished state gets looked at
+    forceWin() { for (let t = 0; t < 15000; t += 16) step(0.016); phase = 'won'; layout(); render(0); return phase; },
     goto: (n) => start(n), levels: PACK.length,
     get buttons() { render(0); return uiButtons.map(b => ({ x: b.x, y: b.y, w: b.w, h: b.h, hook: b.hook, tray: b.tray })); },
   };
@@ -526,7 +559,6 @@
   // ---------- boot ----------
   setCanvasVars(); resizeCanvas(); fitFullscreen(); resizeCanvas();
   start(loadLevel());
-  phase = 'menu';
   raf = requestAnimationFrame(frame);
   setTimeout(onResize, 0); setTimeout(onResize, 300);
   window.addEventListener('load', onResize);

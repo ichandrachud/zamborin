@@ -28,19 +28,24 @@ function pure(node) {
 
 const rnd = mulberry(1898);          // Calder's birth year, for luck
 const out = [];
+// The mockups show around nine or ten pieces hung, so the set climbs to that.
+// Depth has to be dialled per stage as well as hook count: a depth-5 tree
+// always comes out with eight to ten hooks, so the tutorial sizes simply could
+// not be generated from one setting.
 const plan = [
-  { count: 3,  hooks: [3, 4], spare: 0 },   // tutorial: no decoys
-  { count: 5,  hooks: [4, 5], spare: 1 },
-  { count: 8,  hooks: [5, 6], spare: 2 },
-  { count: 12, hooks: [6, 7], spare: 3 },
-  { count: 12, hooks: [7, 8], spare: 4 },
+  { count: 3,  hooks: [3, 4],  spare: 0, depth: 2 },   // tutorial: no decoys
+  { count: 5,  hooks: [4, 5],  spare: 1, depth: 3 },
+  { count: 8,  hooks: [5, 6],  spare: 2, depth: 3 },
+  { count: 10, hooks: [6, 7],  spare: 3, depth: 4 },
+  { count: 8,  hooks: [7, 8],  spare: 4, depth: 4 },
+  { count: 6,  hooks: [8, 10], spare: 4, depth: 5 },
 ];
 
 M.configure({ SLACK: 0, COLLIDE: false });
 for (const stage of plan) {
   let made = 0;
   for (let t = 0; t < 4000 && made < stage.count; t++) {
-    const b = M.generate(10 + out.length, rnd, { depth: 4, spare: stage.spare });
+    const b = M.generate(10 + out.length, rnd, { depth: stage.depth, spare: stage.spare });
     if (!b) continue;
     if (b.hooks.length < stage.hooks[0] || b.hooks.length > stage.hooks[1]) continue;
     const need = b.hooks.map(h => b.need[h]);
