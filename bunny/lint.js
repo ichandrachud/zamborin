@@ -94,7 +94,10 @@ function report(level) {
 
   const notes = [];
   if (!b.foxes.length) notes.push('no predator — fine for a teaching level, not for a real one');
-  else if (fatal === 0) notes.push('the fox cannot reach you from here, so it is scenery');
+  // A fox that cannot actually reach you still does work: the player does not
+  // know that without tracing the whole region, so it costs them a thought
+  // either way. This is an observation, not a failure.
+  else if (fatal === 0) notes.push('the fox cannot reach you here — a mental threat only, which is fine');
   else if (liveTurns < s.path.length * 0.4) notes.push('the fox stops mattering early');
   if (beaten.length) notes.push('a player who never plans wins this');
   if (s.moves < 2 && !level.teaching) notes.push('too shallow to be a level');
@@ -102,8 +105,8 @@ function report(level) {
   console.log('');
   // A teaching level is allowed to be one slide deep and allowed to be walked
   // by the one strategy it exists to teach.
-  if (level.teaching) return s.moves >= 1 && (b.foxes.length === 0 || fatal > 0);
-  return !beaten.length && (b.foxes.length === 0 || fatal > 0) && s.moves >= 2;
+  if (level.teaching) return s.moves >= 1;
+  return !beaten.length && s.moves >= 2;
 }
 
 console.log('BUNNY — level critic\n');

@@ -77,10 +77,26 @@ function parse(level) {
   return b;
 }
 
+// Returns { rows, bomb } — the bomb letter has to come back out or the level
+// cannot be reconstructed. Returning rows alone silently dropped it on 55
+// generated levels.
+// Every symbol that is not reserved for the plate, a fixed object, or one of
+// the cast. Wrapping at 26 letters gave two different bricks the same symbol on
+// any board with 27+ pieces, and parse then merged them into one L-shaped
+// "brick" and threw. A 7x8 board of single cells needs about fifty.
+const SYMBOLS = ('abcdefghijklmnopqrstuvwxyz' + '0123456789' +
+                 'ABDEGHIJKLMNOPQSTUVWXYZ').split('');   // no R, C or F
+
 function format(b) {
+  if (b.bricks.length > SYMBOLS.length) throw new Error('too many bricks to write down');
   const out = [];
   const letterOf = new Map();
-  b.bricks.forEach((k, n) => k.cells.forEach(c => letterOf.set(c, String.fromCharCode(97 + (n % 26)))));
+  let bomb = null;
+  b.bricks.forEach((k, n) => {
+    const ch = SYMBOLS[n];
+    if (k.bomb) bomb = ch;
+    k.cells.forEach(c => letterOf.set(c, ch));
+  });
   for (let r = 0; r < b.H; r++) {
     let line = '';
     for (let c = 0; c < b.W; c++) {
@@ -90,7 +106,7 @@ function format(b) {
     }
     out.push(line);
   }
-  return out;
+  return { rows: out, bomb };
 }
 
 // A starter set, authored by hand and then put through bunny/lint.js, which is
