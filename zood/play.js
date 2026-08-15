@@ -624,6 +624,10 @@
 
   // ---------- START ----------
   initBoard();
-  window.addEventListener('splash-done', () => requestAnimationFrame(loop), { once: true });
-  if (!document.getElementById('splash')) requestAnimationFrame(loop);
+  // Draw straight away, behind the splash — every other game does. Waiting for
+  // splash-done left the canvas BLANK for the whole 2.7s, so the splash faded
+  // out onto an empty card and the board only appeared after it had gone. Same
+  // timers as everywhere else, but it read as Zood holding its splash longer.
+  requestAnimationFrame(loop);
+  window.addEventListener('splash-done', () => { resizeCanvas(); fitFullscreen(); }, { once: true });
 })();

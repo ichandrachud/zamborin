@@ -1,7 +1,7 @@
 /* Socket — per-game styles. Everything else comes from ../shared/chrome.css
    and ../shared/tokens.css.
 
-   splash-desktop.jpg is 1120x1280, exactly the ratio of the 470x760 desktop
+   splash-desktop.jpg?v=2 is 1120x1280, exactly the ratio of the 470x760 desktop
    card once the frame is accounted for, so cover-sizing crops very little. */
 body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=2'); }
 body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=2'); }

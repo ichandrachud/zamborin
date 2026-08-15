@@ -119,8 +119,8 @@
   // is nearly a THIRD of the height, and every pixel of it comes straight off
   // the socket pitch. The title ends at y=58 and the buttons start at LH-77, so
   // the desktop numbers below are what the content actually occupies.
-  const TOP_BAND = MODE === 'mobile' ? 92 : 76;
-  const BOT_BAND = MODE === 'mobile' ? 96 : 88;
+  const TOP_BAND = MODE === 'mobile' ? 92 : 56;
+  const BOT_BAND = MODE === 'mobile' ? 96 : 24;
   let stripX = 0, plateW = 120, stripY = 120, pitch = 54, inset = 9, looseX = 300, botBand = 96;
   // Horizontal spacing is three separate numbers, not one. The plate runs off
   // the left edge of the screen on purpose, so an even margin inside the plate
@@ -550,10 +550,11 @@
   function drawHUD() {
     const hs = Math.max(0.7, Math.min(1, LW / 430));
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-    ctx.fillStyle = '#fff'; ctx.font = '800 ' + Math.round(26 * hs) + 'px Inter, sans-serif';
-    ctx.fillText('SOCKET', 22, 20);
     ctx.fillStyle = 'rgba(255,255,255,0.72)'; ctx.font = '600 ' + Math.round(14 * hs) + 'px Inter, sans-serif';
-    ctx.fillText('Level ' + level + '   ·   ' + reachingCount() + '/' + board.plugs.length + ' on   ·   ' + moves + (moves === 1 ? ' move' : ' moves'), 22, 50);
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ctx.fillText('Level ' + level + '   ·   ' + reachingCount() + '/' + board.plugs.length + ' on   ·   ' + moves + (moves === 1 ? ' move' : ' moves'),
+                 LW - 22, Math.round(TOP_BAND / 2));
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   }
 
   function pill(label, cx, cy, dim, act) {
@@ -569,11 +570,13 @@
     return w;
   }
   function drawControls() {
-    const cy = LH - 62, gap = 10;
+    // Top-left on desktop, in the row the title used to hold; bottom on a
+    // phone, where a thumb can reach them.
+    const cy = MODE === 'mobile' ? LH - 62 : Math.round(TOP_BAND / 2), gap = 10;
     ctx.font = '700 13px Inter, sans-serif';
     const labels = [['Unplug all', () => startLevel(level)], ['Rules', () => { phase = 'menu'; render(); }], ['Next', () => startLevel(level + 1)]];
     let tot = 40 + gap; labels.forEach(([l]) => tot += Math.round(ctx.measureText(l).width + 28) + gap); tot -= gap;
-    let x = Math.round(LW / 2 - tot / 2);
+    let x = MODE === 'mobile' ? Math.round(LW / 2 - tot / 2) : 22;
     // speaker
     const sx = x, sy = Math.round(cy - 18);
     ctx.fillStyle = 'rgba(255,255,255,0.07)'; RR(sx, sy, 40, 36, 18); ctx.fill();

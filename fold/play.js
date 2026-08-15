@@ -435,6 +435,7 @@
   // mobile full-screen rules on body.mode-*, so without the class the splash
   // renders as a blank panel. Set once — the mode cannot change mid-session.
   document.body.classList.add('mode-' + (isMobile() ? 'mobile' : 'desktop'));
+  const DESK = !isMobile();
   function setCanvasVars() {
     if (isMobile()) { CW = window.innerWidth || 390; CH = window.innerHeight || 740; }
     // One desktop frame across the whole site: 760x600. Eight different sizes
@@ -454,18 +455,28 @@
     const s = Math.min(bW / CW, bH / CH);
     ctx.setTransform(s, 0, 0, s, 0, 0);
   }
+  // Width the reference card and its piece count need down the right-hand side.
+  // The sheet is squarish and the frame is landscape, so that column costs the
+  // board nothing: height is what limits the cell either way.
+  const CARD_COL = () => (DESK ? 132 : 0);
   function computeLayout() {
-    const topBand = Math.round(150 * Math.min(1.15, Math.max(0.9, CH / 720)));
-    // Deep enough to hold the control row AND the win banner below the board.
-    // At 120 the banner had nowhere to go but on top of the HUD, where it ran
-    // straight through the target thumbnail.
-    const botBand = Math.round(168 * Math.min(1.15, Math.max(0.9, CH / 720)));
-    const availW = Math.max(60, CW - 28);
-    const availH = Math.max(60, CH - topBand - botBand);
-    const cells = Math.max(origW, origH, 1);
-    CELL = Math.max(12, Math.floor(Math.min(availW, availH) / cells));
-    boardOX = Math.round((CW - origW * CELL) / 2);
-    boardOY = Math.round(topBand + (availH - origH * CELL) / 2);
+    // The name is off the playing screen, so the top band is just the control
+    // row and the read-out. It was 135px of chrome in a 600px frame.
+    const topBand = DESK ? 56 : Math.round(150 * Math.min(1.15, Math.max(0.9, CH / 720)));
+    // Still deep enough to hold the win banner below the board — that card has
+    // to land somewhere, and at 120 it used to run through the HUD.
+    const botBand = DESK ? 96 : Math.round(168 * Math.min(1.15, Math.max(0.9, CH / 720)));
+    const PAD = DESK ? 18 : 14;                 // breathing room around the sheet
+    const availW = Math.max(60, CW - PAD * 2 - CARD_COL());
+    const availH = Math.max(60, CH - topBand - botBand - PAD);
+    // Fit each axis to its OWN extent. Dividing both by max(origW, origH) meant
+    // a 6-wide by 4-tall sheet was sized as though it were 6 tall, so it never
+    // used the height it had — and a small grid just sat in the middle of the
+    // frame looking lost.
+    CELL = Math.max(12, Math.floor(Math.min(availW / Math.max(1, origW),
+                                            availH / Math.max(1, origH))));
+    boardOX = Math.round(PAD + (availW - origW * CELL) / 2);
+    boardOY = Math.round(topBand + PAD / 2 + (availH - origH * CELL) / 2);
     FSCALE = Math.max(0.8, Math.min(1.6, Math.min(CW, CH) / 560));
   }
   // While playing, the sheet stays put inside its original frame so folds read
@@ -603,36 +614,64 @@
     const placed = placedCount();
     const pct = tilesTotal ? Math.round(100 * placed / tilesTotal) : 0;
 
-    // HUD — title and run state on the left, the reference card on the right.
+    // HUD. The name is gone; the read-out sits opposite the controls, and the
+    // reference card moves out of the top band into the margin beside the
+    // sheet — space a squarish board leaves empty in a landscape frame anyway.
     const box = fs(96);
-    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-    ctx.fillStyle = '#fff'; ctx.font = '800 ' + fs(26) + 'px Inter, sans-serif';
-    ctx.fillText('FOLD', fs(20), fs(16));
-    ctx.font = '600 ' + fs(14) + 'px Inter, sans-serif';
-    ctx.fillStyle = 'rgba(255,255,255,0.72)';
-    // Par is shown DURING play, not just on the scorecard — a target you only
-    // learn about after the fact cannot change how you play.
-    ctx.fillText('Level ' + level + '   ·   ' + moves + (moves === 1 ? ' fold' : ' folds') +
-      '   ·   par ' + solution.length, fs(20), fs(16) + fs(30));
-    ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.font = '700 ' + fs(11) + 'px Inter, sans-serif';
-    ctx.fillText('SCORE', fs(20), fs(16) + fs(56));
-    ctx.fillStyle = GOLD; ctx.font = '800 ' + fs(22) + 'px Inter, sans-serif';
-    ctx.fillText(fmt(score.total), fs(20), fs(16) + fs(70));
+    const stat = 'Level ' + level + '   ·   ' + moves + (moves === 1 ? ' fold' : ' folds') +
+                 '   ·   par ' + solution.length;
 
-    // The card carries the "make this" message on its own, so there is no
-    // headline text competing with it for the narrow space beside it — which
-    // is what would break first on a phone.
-    drawTarget(CW - fs(20) - box / 2, fs(16) + box / 2, box);
-    ctx.textAlign = 'right';
-    ctx.fillStyle = pct === 100 ? GOOD : (pct > 0 ? WARN : 'rgba(255,255,255,0.62)');
-    ctx.font = '800 ' + fs(14) + 'px Inter, sans-serif';
-    ctx.fillText(placed + ' / ' + tilesTotal + ' pieces', CW - fs(20), fs(16) + box + fs(8));
+    if (DESK) {
+      // Laid out from the right edge inwards so nothing can overlap.
+      const cy = 28;
+      ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+      let x = CW - 20;
+      ctx.font = '800 ' + fs(18) + 'px Inter, sans-serif';
+      ctx.fillStyle = GOLD;
+      ctx.fillText(fmt(score.total), x, cy);
+      x -= ctx.measureText(fmt(score.total)).width + 8;
+      ctx.font = '700 ' + fs(10) + 'px Inter, sans-serif';
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.fillText('SCORE', x, cy + 1);
+      x -= ctx.measureText('SCORE').width + 18;
+      ctx.font = '600 ' + fs(13) + 'px Inter, sans-serif';
+      ctx.fillStyle = 'rgba(255,255,255,0.72)';
+      ctx.fillText(stat, x, cy);
+      ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+
+      // the card, in the right-hand margin, level with the middle of the sheet
+      const colCX = CW - CARD_COL() / 2 - 6;
+      const midY = boardOY + (origH * CELL) / 2;
+      drawTarget(colCX, midY - fs(14), box);
+      ctx.textAlign = 'center';
+      ctx.fillStyle = pct === 100 ? GOOD : (pct > 0 ? WARN : 'rgba(255,255,255,0.62)');
+      ctx.font = '800 ' + fs(13) + 'px Inter, sans-serif';
+      ctx.fillText(placed + ' / ' + tilesTotal + ' pieces', colCX, midY + box / 2 - fs(4));
+      ctx.textAlign = 'left';
+    } else {
+      ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+      ctx.font = '600 ' + fs(14) + 'px Inter, sans-serif';
+      ctx.fillStyle = 'rgba(255,255,255,0.72)';
+      // Par is shown DURING play, not just on the scorecard — a target you only
+      // learn about after the fact cannot change how you play.
+      ctx.fillText(stat, fs(20), fs(16));
+      ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.font = '700 ' + fs(11) + 'px Inter, sans-serif';
+      ctx.fillText('SCORE', fs(20), fs(16) + fs(26));
+      ctx.fillStyle = GOLD; ctx.font = '800 ' + fs(22) + 'px Inter, sans-serif';
+      ctx.fillText(fmt(score.total), fs(20), fs(16) + fs(40));
+      drawTarget(CW - fs(20) - box / 2, fs(16) + box / 2, box);
+      ctx.textAlign = 'right';
+      ctx.fillStyle = pct === 100 ? GOOD : (pct > 0 ? WARN : 'rgba(255,255,255,0.62)');
+      ctx.font = '800 ' + fs(14) + 'px Inter, sans-serif';
+      ctx.fillText(placed + ' / ' + tilesTotal + ' pieces', CW - fs(20), fs(16) + box + fs(8));
+    }
 
     drawBoard();
 
     // controls
     ctx.textAlign = 'center';
-    const cy = CH - fs(70), gap = fs(9);
+    // Top-left on desktop, in the row the title used to hold.
+    const cy = DESK ? 28 : CH - fs(70), gap = fs(9);
     const row = [
       ['Undo', 'undo', !history.length || phase === 'won', undo],
       ['Restart', 'restart', phase === 'won', () => startLevel(level)],
@@ -643,7 +682,7 @@
     let total = 0;
     for (const [t] of row) total += Math.round(ctx.measureText(t).width + fs(34)) + gap;
     total -= gap;
-    let x = Math.round(CW / 2 - total / 2);
+    let x = DESK ? 20 : Math.round(CW / 2 - total / 2);
     for (const [t, id, dim, act] of row) {
       ctx.font = '700 ' + fs(14) + 'px Inter, sans-serif';
       const w = pill(t, x + Math.round(ctx.measureText(t).width + fs(34)) / 2, cy, id, dim, act);

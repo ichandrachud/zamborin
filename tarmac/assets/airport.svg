@@ -1,0 +1,1031 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" viewBox="0 0 1920 1080">
+  <!-- Generator: Adobe Illustrator 30.2.1, SVG Export Plug-In . SVG Version: 2.1.1 Build 1)  -->
+  <defs>
+    <style>
+      .st0, .st1 {
+        fill: none;
+      }
+
+      .st2 {
+        fill: #007bd4;
+      }
+
+      .st3 {
+        fill: #004f88;
+      }
+
+      .st4 {
+        fill: #129a48;
+      }
+
+      .st5 {
+        fill: #00477a;
+      }
+
+      .st6 {
+        fill: #003257;
+      }
+
+      .st7 {
+        fill: #c6dd00;
+      }
+
+      .st8 {
+        fill: #a4a5a2;
+      }
+
+      .st9 {
+        fill: #fff;
+      }
+
+      .st10 {
+        fill: #0065ad;
+      }
+
+      .st11 {
+        fill: #a3a3a3;
+      }
+
+      .st12 {
+        fill: #818951;
+      }
+
+      .st13 {
+        fill: #b3b3b3;
+      }
+
+      .st1 {
+        stroke: #0f4470;
+        stroke-miterlimit: 10;
+        stroke-width: 3px;
+      }
+
+      .st14 {
+        fill: #47aee3;
+      }
+
+      .st15 {
+        fill: #003d69;
+      }
+
+      .st16 {
+        clip-path: url(#clippath);
+      }
+    </style>
+    <clipPath id="clippath">
+      <rect class="st0" x="2184.31" y="3.21" width="26.14" height="1075.94"/>
+    </clipPath>
+  </defs>
+  <rect class="st4" x="-.91" y=".91" width="1921.82" height="1078.18"/>
+  <rect class="st13" x="685.37" y="435.69" width="258.98" height="36.88" rx="5.18" ry="5.18" transform="translate(1269 -360.73) rotate(90)"/>
+  <rect class="st13" x="796.66" y="546.32" width="338.81" height="36.88" rx="5.92" ry="5.92"/>
+  <rect class="st13" x="814.18" y="812.15" width="94.65" height="36.88" rx="3.13" ry="3.13"/>
+  <rect class="st13" x="796.66" y="478.54" width="338.81" height="36.88" rx="5.92" ry="5.92"/>
+  <rect class="st13" x="898.88" y="693.86" width="236.58" height="36.88" rx="4.95" ry="4.95"/>
+  <rect class="st13" x="898.88" y="626.07" width="236.58" height="36.88" rx="4.95" ry="4.95"/>
+  <rect class="st13" x="796.66" y="324.36" width="138.99" height="36.88" rx="3.79" ry="3.79"/>
+  <rect class="st13" x="619.74" y="607.32" width="594.93" height="36.88" rx="7.85" ry="7.85" transform="translate(1542.97 -291.44) rotate(90)"/>
+  <rect class="st13" x="551.93" y="900.74" width="383.81" height="36.88" rx="6.3" ry="6.3"/>
+  <rect class="st13" x="999.63" y="142.95" width="863.19" height="779.69" rx="23.02" ry="23.02" transform="translate(1964.03 -898.42) rotate(90)"/>
+  <polygon class="st3" points="1190.66 701.13 1190.56 701.22 1190.46 701.13 1190.66 701.13"/>
+  <g>
+    <rect class="st13" x="507.3" y="409.15" width="296.93" height="36.88" rx="7.7" ry="7.7"/>
+    <g>
+      <rect class="st7" x="754.01" y="409.26" width="15.56" height="37.33"/>
+      <polygon class="st7" points="768.55 409.26 754.01 416.1 754.01 412.29 760.45 409.26 768.55 409.26"/>
+      <polygon class="st15" points="760.45 409.26 754.01 412.29 754.01 409.26 760.45 409.26"/>
+      <polygon class="st15" points="769.57 409.26 769.57 412.59 754.01 419.91 754.01 416.09 768.55 409.26 769.57 409.26"/>
+      <polygon class="st7" points="769.57 412.59 769.57 416.42 754.01 423.73 754.01 419.91 769.57 412.59"/>
+      <polygon class="st15" points="769.57 416.42 769.57 420.25 754.01 427.56 754.01 423.73 769.57 416.42"/>
+      <polygon class="st7" points="769.57 420.23 769.57 424.05 754.01 431.36 754.01 427.54 769.57 420.23"/>
+      <polygon class="st15" points="769.57 424.05 769.57 427.87 754.01 435.18 754.01 431.36 769.57 424.05"/>
+      <polygon class="st7" points="769.57 427.76 769.57 431.58 754.01 438.9 754.01 435.08 769.57 427.76"/>
+      <polygon class="st15" points="769.57 431.57 769.57 435.38 754.01 442.7 754.01 438.89 769.57 431.57"/>
+      <polygon class="st7" points="769.57 435.38 769.57 439.2 754.01 446.52 754.01 442.7 769.57 435.38"/>
+      <polygon class="st15" points="769.57 439.1 769.57 442.91 761.76 446.59 754.01 446.59 754.01 446.42 769.57 439.1"/>
+      <polygon class="st7" points="769.57 442.9 769.57 446.59 761.73 446.59 769.57 442.9"/>
+    </g>
+  </g>
+  <g>
+    <rect class="st7" x="561.15" y="900.52" width="15.69" height="37.33"/>
+    <polygon class="st7" points="575.82 900.52 561.15 907.36 561.15 903.55 567.64 900.52 575.82 900.52"/>
+    <polygon class="st15" points="567.64 900.52 561.15 903.55 561.15 900.52 567.64 900.52"/>
+    <polygon class="st15" points="576.84 900.52 576.84 903.85 561.15 911.17 561.15 907.35 575.82 900.52 576.84 900.52"/>
+    <polygon class="st7" points="576.84 903.85 576.84 907.68 561.15 914.99 561.15 911.17 576.84 903.85"/>
+    <polygon class="st15" points="576.84 907.69 576.84 911.51 561.15 918.82 561.15 914.99 576.84 907.69"/>
+    <polygon class="st7" points="576.84 911.49 576.84 915.31 561.15 922.62 561.15 918.8 576.84 911.49"/>
+    <polygon class="st15" points="576.84 915.31 576.84 919.13 561.15 926.44 561.15 922.62 576.84 915.31"/>
+    <polygon class="st7" points="576.84 919.02 576.84 922.84 561.15 930.16 561.15 926.34 576.84 919.02"/>
+    <polygon class="st15" points="576.84 922.83 576.84 926.64 561.15 933.96 561.15 930.15 576.84 922.83"/>
+    <polygon class="st7" points="576.84 926.64 576.84 930.46 561.15 937.78 561.15 933.96 576.84 926.64"/>
+    <polygon class="st15" points="576.84 930.36 576.84 934.17 568.96 937.85 561.15 937.85 561.15 937.68 576.84 930.36"/>
+    <polygon class="st7" points="576.84 934.16 576.84 937.85 568.94 937.85 576.84 934.16"/>
+  </g>
+  <g>
+    <rect class="st8" x="1657.58" y="518.74" width="1077.92" height="41.99" transform="translate(2736.28 -1656.8) rotate(90)"/>
+    <g class="st16">
+      <g>
+        <g id="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="-2.2" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="4.37" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_1" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="5.43" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="12" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_2" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="13.05" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="19.62" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_3" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="20.68" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="27.25" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_4" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="28.3" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="34.87" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_5" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="35.93" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="42.5" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_6" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="43.55" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="50.12" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_7" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="51.18" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="57.75" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_8" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="58.8" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="65.37" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_9" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="66.43" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="73" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_10" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="74.05" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="80.62" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_11" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="81.68" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="88.25" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_12" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="89.3" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="95.87" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_13" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="96.93" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="103.5" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_14" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="104.55" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="111.12" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_15" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="112.18" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="118.75" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_16" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="119.8" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="126.37" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_17" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="127.43" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="134" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_18" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="135.05" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="141.62" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_19" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="142.68" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="149.25" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_20" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="150.3" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="156.87" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_21" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="157.93" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="164.5" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_22" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="165.55" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="172.12" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_23" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="173.18" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="179.75" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_24" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="180.8" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="187.37" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_25" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="188.43" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="195" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_26" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="196.05" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="202.62" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_27" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="203.68" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="210.25" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_28" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="211.3" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="217.87" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_29" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="218.93" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="225.5" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_30" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="226.55" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="233.12" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_31" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="234.18" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="240.75" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_32" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="241.8" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="248.37" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_33" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="249.43" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="256" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_34" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="257.05" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="263.62" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_35" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="264.68" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="271.25" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_36" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="272.3" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="278.87" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_37" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="279.93" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="286.5" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_38" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="287.55" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="294.12" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_39" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="295.18" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="301.75" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_40" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="302.8" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="309.37" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_41" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="310.43" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="317" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_42" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="318.05" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="324.63" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_43" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="325.68" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="332.25" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_44" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="333.3" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="339.88" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_45" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="340.93" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="347.5" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_46" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="348.55" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="355.13" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_47" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="356.18" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="362.75" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_48" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="363.8" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="370.38" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_49" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="371.43" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="378" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_50" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="379.05" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="385.63" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_51" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="386.68" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="393.25" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_52" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="394.3" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="400.88" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_53" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="401.93" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="408.5" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_54" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="409.55" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="416.13" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_55" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="417.18" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="423.75" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_56" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="424.8" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="431.38" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_57" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="432.43" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="439" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_58" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="440.05" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="446.63" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_59" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="447.68" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="454.25" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_60" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="455.3" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="461.88" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_61" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="462.93" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="469.5" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_62" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="470.55" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="477.13" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_63" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="478.18" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="484.75" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_64" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="485.8" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="492.38" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_65" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="493.43" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="500" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_66" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="501.05" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="507.63" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_67" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="508.68" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="515.25" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_68" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="516.3" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="522.88" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_69" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="523.93" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="530.5" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_70" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="531.55" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="538.13" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_71" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="539.18" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="545.75" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_72" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="546.8" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="553.38" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_73" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="554.43" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="561" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_74" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="562.05" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="568.63" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_75" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="569.68" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="576.25" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_76" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="577.3" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="583.88" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_77" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="584.93" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="591.5" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_78" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="592.55" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="599.13" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_79" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="600.18" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="606.75" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_80" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="607.8" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="614.38" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_81" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="615.43" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="622" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_82" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="623.05" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="629.63" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_83" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="630.68" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="637.25" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_84" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="638.3" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="644.88" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_85" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="645.93" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="652.5" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_86" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="653.55" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="660.13" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_87" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="661.18" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="667.75" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_88" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="668.8" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="675.38" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_89" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="676.43" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="683" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_90" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="684.05" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="690.63" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_91" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="691.68" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="698.25" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_92" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="699.3" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="705.88" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_93" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="706.93" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="713.5" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_94" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="714.55" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="721.13" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_95" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="722.18" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="728.75" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_96" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="729.8" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="736.38" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_97" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="737.43" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="744" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_98" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="745.06" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="751.63" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_99" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="752.68" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="759.25" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_100" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="760.31" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="766.88" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_101" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="767.93" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="774.5" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_102" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="775.56" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="782.13" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_103" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="783.18" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="789.75" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_104" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="790.81" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="797.38" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_105" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="798.43" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="805" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_106" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="806.06" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="812.63" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_107" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="813.68" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="820.25" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_108" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="821.31" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="827.88" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_109" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="828.93" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="835.5" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_110" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="836.56" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="843.13" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_111" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="844.18" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="850.75" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_112" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="851.81" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="858.38" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_113" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="859.43" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="866" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_114" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="867.06" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="873.63" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_115" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="874.68" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="881.25" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_116" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="882.31" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="888.88" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_117" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="889.93" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="896.5" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_118" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="897.56" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="904.13" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_119" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="905.18" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="911.75" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_120" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="912.81" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="919.38" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_121" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="920.43" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="927" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_122" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="928.06" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="934.63" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_123" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="935.68" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="942.25" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_124" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="943.31" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="949.88" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_125" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="950.93" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="957.5" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_126" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="958.56" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="965.13" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_127" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="966.18" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="972.75" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_128" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="973.81" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="980.38" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_129" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="981.43" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="988" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_130" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="989.06" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="995.63" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_131" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="996.68" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="1003.25" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_132" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="1004.31" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="1010.88" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_133" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="1011.93" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="1018.5" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_134" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="1019.56" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="1026.13" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_135" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="1027.18" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="1033.75" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_136" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="1034.81" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="1041.38" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_137" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="1042.43" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="1049" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_138" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="1050.06" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="1056.63" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_139" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="1057.68" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="1064.25" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_140" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="1065.31" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="1071.88" width="25.62" height="4.28"/>
+        </g>
+        <g id="_x3C_Grid_Repeat_x3E_141" data-name="_x3C_Grid_Repeat_x3E_">
+          <rect class="st12" x="2184.31" y="1072.93" width="25.62" height="4.28"/>
+          <rect class="st12" x="2184.31" y="1079.5" width="25.62" height="4.28"/>
+        </g>
+      </g>
+    </g>
+    <line class="st1" x1="2187.63" y1="-.55" x2="2187.63" y2="1080.03"/>
+    <line class="st1" x1="2206.24" y1="-.55" x2="2206.24" y2="1080.03"/>
+  </g>
+  <g>
+    <circle class="st13" cx="989.38" cy="344.34" r="25.84"/>
+    <path class="st9" d="M989.38,322.46c12.06,0,21.88,9.81,21.88,21.88s-9.81,21.88-21.88,21.88-21.88-9.81-21.88-21.88,9.81-21.88,21.88-21.88M989.38,321.74c-12.48,0-22.6,10.12-22.6,22.6s10.12,22.6,22.6,22.6,22.6-10.12,22.6-22.6-10.12-22.6-22.6-22.6h0Z"/>
+    <path class="st9" d="M988.48,336.57v5.64h2.45v-5.64h4v15.36h-4v-6.33h-2.45v6.33h-4v-15.36h4Z"/>
+  </g>
+  <g>
+    <circle class="st13" cx="989.38" cy="434.13" r="25.84"/>
+    <path class="st9" d="M989.38,412.25c12.06,0,21.88,9.81,21.88,21.88s-9.81,21.88-21.88,21.88-21.88-9.81-21.88-21.88,9.81-21.88,21.88-21.88M989.38,411.53c-12.48,0-22.6,10.12-22.6,22.6s10.12,22.6,22.6,22.6,22.6-10.12,22.6-22.6-10.12-22.6-22.6-22.6h0Z"/>
+    <path class="st9" d="M988.48,426.36v5.64h2.45v-5.64h4v15.36h-4v-6.33h-2.45v6.33h-4v-15.36h4Z"/>
+  </g>
+  <g>
+    <circle class="st13" cx="989.38" cy="777.04" r="25.84"/>
+    <path class="st9" d="M989.38,755.16c12.06,0,21.88,9.81,21.88,21.88s-9.81,21.88-21.88,21.88-21.88-9.81-21.88-21.88,9.81-21.88,21.88-21.88M989.38,754.44c-12.48,0-22.6,10.12-22.6,22.6s10.12,22.6,22.6,22.6,22.6-10.12,22.6-22.6-10.12-22.6-22.6-22.6h0Z"/>
+    <path class="st9" d="M988.48,769.27v5.64h2.45v-5.64h4v15.36h-4v-6.33h-2.45v6.33h-4v-15.36h4Z"/>
+  </g>
+  <g>
+    <circle class="st13" cx="989.38" cy="866.83" r="25.84"/>
+    <path class="st9" d="M989.38,844.96c12.06,0,21.88,9.81,21.88,21.88s-9.81,21.88-21.88,21.88-21.88-9.81-21.88-21.88,9.81-21.88,21.88-21.88M989.38,844.24c-12.48,0-22.6,10.12-22.6,22.6s10.12,22.6,22.6,22.6,22.6-10.12,22.6-22.6-10.12-22.6-22.6-22.6h0Z"/>
+    <path class="st9" d="M988.48,859.06v5.64h2.45v-5.64h4v15.36h-4v-6.33h-2.45v6.33h-4v-15.36h4Z"/>
+  </g>
+  <rect class="st13" x="455.46" y="811.84" width="383.81" height="36.88" rx="6.3" ry="6.3"/>
+  <g>
+    <rect class="st7" x="464.77" y="811.84" width="15.51" height="36.89"/>
+    <polygon class="st7" points="479.26 811.84 464.77 818.6 464.77 814.83 471.19 811.84 479.26 811.84"/>
+    <polygon class="st15" points="471.19 811.84 464.77 814.83 464.77 811.84 471.19 811.84"/>
+    <polygon class="st15" points="480.27 811.84 480.27 815.13 464.77 822.37 464.77 818.59 479.26 811.84 480.27 811.84"/>
+    <polygon class="st7" points="480.27 815.13 480.27 818.91 464.77 826.14 464.77 822.37 480.27 815.13"/>
+    <polygon class="st15" points="480.27 818.92 480.27 822.7 464.77 829.93 464.77 826.14 480.27 818.92"/>
+    <polygon class="st7" points="480.27 822.68 480.27 826.45 464.77 833.68 464.77 829.91 480.27 822.68"/>
+    <polygon class="st15" points="480.27 826.45 480.27 830.23 464.77 837.46 464.77 833.68 480.27 826.45"/>
+    <polygon class="st7" points="480.27 830.12 480.27 833.9 464.77 841.13 464.77 837.35 480.27 830.12"/>
+    <polygon class="st15" points="480.27 833.89 480.27 837.65 464.77 844.88 464.77 841.12 480.27 833.89"/>
+    <polygon class="st7" points="480.27 837.65 480.27 841.43 464.77 848.66 464.77 844.88 480.27 837.65"/>
+    <polygon class="st15" points="480.27 841.33 480.27 845.1 472.49 848.73 464.77 848.73 464.77 848.56 480.27 841.33"/>
+    <polygon class="st7" points="480.27 845.09 480.27 848.73 472.47 848.73 480.27 845.09"/>
+  </g>
+  <g>
+    <rect class="st13" x="390.21" y="324.04" width="414.02" height="36.88" rx="9.09" ry="9.09"/>
+    <g>
+      <rect class="st7" x="754.01" y="324.15" width="15.56" height="37.33"/>
+      <polygon class="st7" points="768.55 324.15 754.01 331 754.01 327.18 760.45 324.15 768.55 324.15"/>
+      <polygon class="st15" points="760.45 324.15 754.01 327.18 754.01 324.15 760.45 324.15"/>
+      <polygon class="st15" points="769.57 324.15 769.57 327.49 754.01 334.81 754.01 330.99 768.55 324.15 769.57 324.15"/>
+      <polygon class="st7" points="769.57 327.49 769.57 331.31 754.01 338.63 754.01 334.81 769.57 327.49"/>
+      <polygon class="st15" points="769.57 331.32 769.57 335.14 754.01 342.46 754.01 338.63 769.57 331.32"/>
+      <polygon class="st7" points="769.57 335.12 769.57 338.94 754.01 346.26 754.01 342.44 769.57 335.12"/>
+      <polygon class="st15" points="769.57 338.94 769.57 342.76 754.01 350.08 754.01 346.26 769.57 338.94"/>
+      <polygon class="st7" points="769.57 342.65 769.57 346.48 754.01 353.79 754.01 349.97 769.57 342.65"/>
+      <polygon class="st15" points="769.57 346.47 769.57 350.28 754.01 357.59 754.01 353.78 769.57 346.47"/>
+      <polygon class="st7" points="769.57 350.28 769.57 354.1 754.01 361.41 754.01 357.59 769.57 350.28"/>
+      <polygon class="st15" points="769.57 354 769.57 357.81 761.76 361.48 754.01 361.48 754.01 361.31 769.57 354"/>
+      <polygon class="st7" points="769.57 357.8 769.57 361.48 761.73 361.48 769.57 357.8"/>
+    </g>
+  </g>
+  <g>
+    <g>
+      <rect class="st9" x="1222.35" y="392.43" width=".64" height="41.65" rx=".32" ry=".32"/>
+      <rect class="st9" x="1222.35" y="428.47" width=".64" height="10.57" rx=".32" ry=".32" transform="translate(1656.43 -788.91) rotate(90)"/>
+    </g>
+    <g>
+      <rect class="st9" x="1293.83" y="392.43" width=".64" height="41.65" rx=".32" ry=".32"/>
+      <rect class="st9" x="1293.83" y="428.47" width=".64" height="10.57" rx=".32" ry=".32" transform="translate(1727.9 -860.39) rotate(90)"/>
+    </g>
+    <g>
+      <rect class="st9" x="1293.83" y="492.85" width=".64" height="41.65" rx=".32" ry=".32" transform="translate(2588.29 1027.35) rotate(180)"/>
+      <rect class="st9" x="1293.83" y="487.89" width=".64" height="10.57" rx=".32" ry=".32" transform="translate(800.98 1787.32) rotate(-90)"/>
+    </g>
+    <g>
+      <rect class="st9" x="1222.35" y="492.85" width=".64" height="41.65" rx=".32" ry=".32" transform="translate(2445.34 1027.35) rotate(-180)"/>
+      <rect class="st9" x="1222.35" y="487.89" width=".64" height="10.57" rx=".32" ry=".32" transform="translate(729.5 1715.84) rotate(-90)"/>
+    </g>
+  </g>
+  <g>
+    <rect class="st9" x="1222.35" y="718.95" width=".64" height="41.65" rx=".32" ry=".32"/>
+    <rect class="st9" x="1222.35" y="754.99" width=".64" height="10.57" rx=".32" ry=".32" transform="translate(1982.95 -462.39) rotate(90)"/>
+  </g>
+  <g>
+    <rect class="st9" x="1293.83" y="718.95" width=".64" height="41.65" rx=".32" ry=".32"/>
+    <rect class="st9" x="1293.83" y="754.99" width=".64" height="10.57" rx=".32" ry=".32" transform="translate(2054.42 -533.87) rotate(90)"/>
+  </g>
+  <g>
+    <rect class="st9" x="1581.21" y="718.95" width=".64" height="41.65" rx=".32" ry=".32"/>
+    <rect class="st9" x="1581.21" y="754.99" width=".64" height="10.57" rx=".32" ry=".32" transform="translate(2341.81 -821.26) rotate(90)"/>
+  </g>
+  <g>
+    <rect class="st9" x="1652.69" y="718.95" width=".64" height="41.65" rx=".32" ry=".32"/>
+    <rect class="st9" x="1652.69" y="754.99" width=".64" height="10.57" rx=".32" ry=".32" transform="translate(2413.29 -892.73) rotate(90)"/>
+  </g>
+  <g>
+    <rect class="st9" x="1293.83" y="322" width=".64" height="41.65" rx=".32" ry=".32" transform="translate(2588.29 685.65) rotate(-180)"/>
+    <rect class="st9" x="1293.83" y="317.04" width=".64" height="10.57" rx=".32" ry=".32" transform="translate(971.82 1616.47) rotate(-90)"/>
+  </g>
+  <g>
+    <rect class="st9" x="1222.35" y="322" width=".64" height="41.65" rx=".32" ry=".32" transform="translate(2445.34 685.65) rotate(180)"/>
+    <rect class="st9" x="1222.35" y="317.04" width=".64" height="10.57" rx=".32" ry=".32" transform="translate(900.35 1544.99) rotate(-90)"/>
+  </g>
+  <g>
+    <rect class="st9" x="1650.9" y="322" width=".64" height="41.65" rx=".32" ry=".32" transform="translate(3302.43 685.65) rotate(180)"/>
+    <rect class="st9" x="1650.9" y="317.04" width=".64" height="10.57" rx=".32" ry=".32" transform="translate(1328.89 1973.54) rotate(-90)"/>
+  </g>
+  <g>
+    <rect class="st9" x="1579.42" y="322" width=".64" height="41.65" rx=".32" ry=".32" transform="translate(3159.48 685.65) rotate(-180)"/>
+    <rect class="st9" x="1579.42" y="317.04" width=".64" height="10.57" rx=".32" ry=".32" transform="translate(1257.41 1902.06) rotate(-90)"/>
+  </g>
+  <g>
+    <g>
+      <rect class="st9" x="1581.21" y="392.43" width=".64" height="41.65" rx=".32" ry=".32"/>
+      <rect class="st9" x="1581.21" y="428.47" width=".64" height="10.57" rx=".32" ry=".32" transform="translate(2015.29 -1147.78) rotate(90)"/>
+    </g>
+    <g>
+      <rect class="st9" x="1652.69" y="392.43" width=".64" height="41.65" rx=".32" ry=".32"/>
+      <rect class="st9" x="1652.69" y="428.47" width=".64" height="10.57" rx=".32" ry=".32" transform="translate(2086.77 -1219.26) rotate(90)"/>
+    </g>
+    <g>
+      <rect class="st9" x="1652.69" y="492.85" width=".64" height="41.65" rx=".32" ry=".32" transform="translate(3306.02 1027.35) rotate(-180)"/>
+      <rect class="st9" x="1652.69" y="487.89" width=".64" height="10.57" rx=".32" ry=".32" transform="translate(1159.84 2146.18) rotate(-90)"/>
+    </g>
+    <g>
+      <rect class="st9" x="1581.21" y="492.85" width=".64" height="41.65" rx=".32" ry=".32" transform="translate(3163.07 1027.35) rotate(-180)"/>
+      <rect class="st9" x="1581.21" y="487.89" width=".64" height="10.57" rx=".32" ry=".32" transform="translate(1088.36 2074.71) rotate(-90)"/>
+    </g>
+  </g>
+  <g>
+    <g>
+      <rect class="st9" x="1222.35" y="550.25" width=".64" height="41.65" rx=".32" ry=".32"/>
+      <rect class="st9" x="1222.35" y="586.3" width=".64" height="10.57" rx=".32" ry=".32" transform="translate(1814.25 -631.09) rotate(90)"/>
+    </g>
+    <g>
+      <rect class="st9" x="1293.83" y="550.25" width=".64" height="41.65" rx=".32" ry=".32"/>
+      <rect class="st9" x="1293.83" y="586.3" width=".64" height="10.57" rx=".32" ry=".32" transform="translate(1885.73 -702.57) rotate(90)"/>
+    </g>
+    <g>
+      <rect class="st9" x="1293.83" y="650.68" width=".64" height="41.65" rx=".32" ry=".32" transform="translate(2588.29 1343) rotate(-180)"/>
+      <rect class="st9" x="1293.83" y="645.71" width=".64" height="10.57" rx=".32" ry=".32" transform="translate(643.15 1945.14) rotate(-90)"/>
+    </g>
+    <g>
+      <rect class="st9" x="1222.35" y="650.68" width=".64" height="41.65" rx=".32" ry=".32" transform="translate(2445.34 1343) rotate(180)"/>
+      <rect class="st9" x="1222.35" y="645.71" width=".64" height="10.57" rx=".32" ry=".32" transform="translate(571.67 1873.67) rotate(-90)"/>
+    </g>
+  </g>
+  <g>
+    <g>
+      <rect class="st9" x="1581.21" y="553.25" width=".64" height="41.65" rx=".32" ry=".32"/>
+      <rect class="st9" x="1581.21" y="589.3" width=".64" height="10.57" rx=".32" ry=".32" transform="translate(2176.11 -986.95) rotate(90)"/>
+    </g>
+    <g>
+      <rect class="st9" x="1652.69" y="553.25" width=".64" height="41.65" rx=".32" ry=".32"/>
+      <rect class="st9" x="1652.69" y="589.3" width=".64" height="10.57" rx=".32" ry=".32" transform="translate(2247.59 -1058.43) rotate(90)"/>
+    </g>
+    <g>
+      <rect class="st9" x="1652.69" y="653.68" width=".64" height="41.65" rx=".32" ry=".32" transform="translate(3306.02 1349) rotate(180)"/>
+      <rect class="st9" x="1652.69" y="648.71" width=".64" height="10.57" rx=".32" ry=".32" transform="translate(999.02 2307.01) rotate(-90)"/>
+    </g>
+    <g>
+      <rect class="st9" x="1581.21" y="653.68" width=".64" height="41.65" rx=".32" ry=".32" transform="translate(3163.07 1349) rotate(180)"/>
+      <rect class="st9" x="1581.21" y="648.71" width=".64" height="10.57" rx=".32" ry=".32" transform="translate(927.54 2235.53) rotate(-90)"/>
+    </g>
+  </g>
+  <rect class="st11" x="769.57" y="327.49" width="163.13" height="30.16" rx="1.67" ry="1.67"/>
+  <rect class="st11" x="799.68" y="549.62" width="283.62" height="30.16" rx="2.2" ry="2.2"/>
+  <rect class="st11" x="1077.91" y="530.12" width="55.53" height="30.16" rx=".97" ry=".97"/>
+  <rect class="st11" x="1077.91" y="373.95" width="55.53" height="30.16" rx=".97" ry=".97"/>
+  <rect class="st11" x="1077.91" y="684.89" width="55.53" height="30.16" rx=".97" ry=".97"/>
+  <rect class="st11" x="1729.78" y="530.12" width="55.53" height="30.16" rx=".97" ry=".97"/>
+  <rect class="st11" x="1729.78" y="373.95" width="55.53" height="30.16" rx=".97" ry=".97"/>
+  <rect class="st11" x="1729.78" y="684.89" width="55.53" height="30.16" rx=".97" ry=".97"/>
+  <rect class="st11" x="898.57" y="629.36" width="187.32" height="30.16" rx="1.79" ry="1.79"/>
+  <rect class="st11" x="1120.27" y="603.45" width="225.49" height="30.16" rx="1.96" ry="1.96"/>
+  <rect class="st11" x="1120.27" y="767.37" width="225.49" height="30.16" rx="1.96" ry="1.96"/>
+  <rect class="st11" x="1116.94" y="448.6" width="225.49" height="30.16" rx="1.96" ry="1.96"/>
+  <rect class="st11" x="1116.94" y="282.46" width="225.49" height="30.16" rx="1.96" ry="1.96"/>
+  <rect class="st11" x="1522.99" y="603.45" width="225.49" height="30.16" rx="1.96" ry="1.96"/>
+  <rect class="st11" x="1522.99" y="767.37" width="225.49" height="30.16" rx="1.96" ry="1.96"/>
+  <rect class="st11" x="1519.67" y="448.6" width="225.49" height="30.16" rx="1.96" ry="1.96"/>
+  <rect class="st11" x="1519.67" y="281.46" width="225.49" height="30.16" rx="1.96" ry="1.96"/>
+  <rect class="st11" x="898.57" y="696.71" width="187.32" height="30.16" rx="1.79" ry="1.79"/>
+  <rect class="st11" x="699.44" y="447.83" width="231.64" height="30.16" rx="1.99" ry="1.99" transform="translate(1278.17 -352.35) rotate(90)"/>
+  <rect class="st11" x="799.68" y="481.39" width="283.62" height="30.16" rx="2.2" ry="2.2"/>
+  <rect class="st11" x="617" y="618.28" width="601.19" height="30.16" rx="3.21" ry="3.21" transform="translate(1550.96 -284.23) rotate(90)"/>
+  <rect class="st11" x="679.64" y="526.74" width="784.26" height="30.16" rx="3.66" ry="3.66" transform="translate(1613.6 -529.95) rotate(90)"/>
+  <rect class="st11" x="772.26" y="517.15" width="705.36" height="30.16" rx="3.47" ry="3.47" transform="translate(1657.17 -592.71) rotate(90)"/>
+  <rect class="st11" x="1126.23" y="854.59" width="623.42" height="30.16" rx="3.27" ry="3.27" transform="translate(2875.88 1739.35) rotate(180)"/>
+  <rect class="st11" x="1074.6" y="903.77" width="723.99" height="30.16" rx="3.52" ry="3.52" transform="translate(2873.19 1837.7) rotate(180)"/>
+  <rect class="st11" x="1110.61" y="179.4" width="636.35" height="30.16" rx="3.3" ry="3.3"/>
+  <rect class="st11" x="1057.42" y="130.22" width="741.17" height="30.16" rx="3.56" ry="3.56"/>
+  <rect class="st11" x="1381.28" y="517.43" width="704.8" height="30.16" rx="3.47" ry="3.47" transform="translate(2266.19 -1201.17) rotate(90)"/>
+  <rect class="st11" x="1391.17" y="526.74" width="784.26" height="30.16" rx="3.66" ry="3.66" transform="translate(2325.12 -1241.48) rotate(90)"/>
+  <path class="st13" d="M927.55,914.61l-9.51-6.82c-.13-.09-.33-.09-.46,0l-9.53,6.82c-.21.15-.06.4.23.4h1.76v5.93c0,.48.39.86.86.86h13.8c.48,0,.86-.39.86-.86v-5.93h1.76c.29,0,.44-.25.23-.4Z"/>
+  <path class="st13" d="M927.55,790.65l-9.51-6.82c-.13-.09-.33-.09-.46,0l-9.53,6.82c-.21.15-.06.4.23.4h1.76v5.93c0,.48.39.86.86.86h13.8c.48,0,.86-.39.86-.86v-5.93h1.76c.29,0,.44-.25.23-.4Z"/>
+  <path class="st13" d="M927.55,674.27l-9.51-6.82c-.13-.09-.33-.09-.46,0l-9.53,6.82c-.21.15-.06.4.23.4h1.76v5.93c0,.48.39.86.86.86h13.8c.48,0,.86-.39.86-.86v-5.93h1.76c.29,0,.44-.25.23-.4Z"/>
+  <path class="st13" d="M927.55,532.23l-9.51-6.82c-.13-.09-.33-.09-.46,0l-9.53,6.82c-.21.15-.06.4.23.4h1.76v5.93c0,.48.39.86.86.86h13.8c.48,0,.86-.39.86-.86v-5.93h1.76c.29,0,.44-.25.23-.4Z"/>
+  <path class="st13" d="M927.55,431.64l-9.51-6.82c-.13-.09-.33-.09-.46,0l-9.53,6.82c-.21.15-.06.4.23.4h1.76v5.93c0,.48.39.86.86.86h13.8c.48,0,.86-.39.86-.86v-5.93h1.76c.29,0,.44-.25.23-.4Z"/>
+  <path class="st13" d="M826.06,532.23l-9.51-6.82c-.13-.09-.33-.09-.46,0l-9.53,6.82c-.21.15-.06.4.23.4h1.76v5.93c0,.48.39.86.86.86h13.8c.48,0,.86-.39.86-.86v-5.93h1.76c.29,0,.44-.25.23-.4Z"/>
+  <path class="st13" d="M826.06,383.94l-9.51-6.82c-.13-.09-.33-.09-.46,0l-9.53,6.82c-.21.15-.06.4.23.4h1.76v5.93c0,.48.39.86.86.86h13.8c.48,0,.86-.39.86-.86v-5.93h1.76c.29,0,.44-.25.23-.4Z"/>
+  <path class="st13" d="M927.55,343.32l-9.51-6.82c-.13-.09-.33-.09-.46,0l-9.53,6.82c-.21.15-.06.4.23.4h1.76v5.93c0,.48.39.86.86.86h13.8c.48,0,.86-.39.86-.86v-5.93h1.76c.29,0,.44-.25.23-.4Z"/>
+  <path class="st13" d="M1080.64,877.63l-9.51-6.82c-.13-.09-.33-.09-.46,0l-9.53,6.82c-.21.15-.06.4.23.4h1.76v5.93c0,.48.39.86.86.86h13.8c.48,0,.86-.39.86-.86v-5.93h1.76c.29,0,.44-.25.23-.4Z"/>
+  <path class="st13" d="M1080.64,763.37l-9.51-6.82c-.13-.09-.33-.09-.46,0l-9.53,6.82c-.21.15-.06.4.23.4h1.76v5.93c0,.48.39.86.86.86h13.8c.48,0,.86-.39.86-.86v-5.93h1.76c.29,0,.44-.25.23-.4Z"/>
+  <path class="st13" d="M1080.64,649.11l-9.51-6.82c-.13-.09-.33-.09-.46,0l-9.53,6.82c-.21.15-.06.4.23.4h1.76v5.93c0,.48.39.86.86.86h13.8c.48,0,.86-.39.86-.86v-5.93h1.76c.29,0,.44-.25.23-.4Z"/>
+  <path class="st13" d="M1080.64,534.85l-9.51-6.82c-.13-.09-.33-.09-.46,0l-9.53,6.82c-.21.15-.06.4.23.4h1.76v5.93c0,.48.39.86.86.86h13.8c.48,0,.86-.39.86-.86v-5.93h1.76c.29,0,.44-.25.23-.4Z"/>
+  <path class="st13" d="M1080.64,420.59l-9.51-6.82c-.13-.09-.33-.09-.46,0l-9.53,6.82c-.21.15-.06.4.23.4h1.76v5.93c0,.48.39.86.86.86h13.8c.48,0,.86-.39.86-.86v-5.93h1.76c.29,0,.44-.25.23-.4Z"/>
+  <path class="st13" d="M1080.64,306.33l-9.51-6.82c-.13-.09-.33-.09-.46,0l-9.53,6.82c-.21.15-.06.4.23.4h1.76v5.93c0,.48.39.86.86.86h13.8c.48,0,.86-.39.86-.86v-5.93h1.76c.29,0,.44-.25.23-.4Z"/>
+  <g>
+    <path class="st13" d="M1743.89,819.77l-9.51-6.82c-.13-.09-.33-.09-.46,0l-9.53,6.82c-.21.15-.06.4.23.4h1.76v5.93c0,.48.39.86.86.86h13.8c.48,0,.86-.39.86-.86v-5.93h1.76c.29,0,.44-.25.23-.4Z"/>
+    <path class="st13" d="M1743.89,705.51l-9.51-6.82c-.13-.09-.33-.09-.46,0l-9.53,6.82c-.21.15-.06.4.23.4h1.76v5.93c0,.48.39.86.86.86h13.8c.48,0,.86-.39.86-.86v-5.93h1.76c.29,0,.44-.25.23-.4Z"/>
+    <path class="st13" d="M1743.89,591.25l-9.51-6.82c-.13-.09-.33-.09-.46,0l-9.53,6.82c-.21.15-.06.4.23.4h1.76v5.93c0,.48.39.86.86.86h13.8c.48,0,.86-.39.86-.86v-5.93h1.76c.29,0,.44-.25.23-.4Z"/>
+    <path class="st13" d="M1743.89,477l-9.51-6.82c-.13-.09-.33-.09-.46,0l-9.53,6.82c-.21.15-.06.4.23.4h1.76v5.93c0,.48.39.86.86.86h13.8c.48,0,.86-.39.86-.86v-5.93h1.76c.29,0,.44-.25.23-.4Z"/>
+    <path class="st13" d="M1743.89,362.74l-9.51-6.82c-.13-.09-.33-.09-.46,0l-9.53,6.82c-.21.15-.06.4.23.4h1.76v5.93c0,.48.39.86.86.86h13.8c.48,0,.86-.39.86-.86v-5.93h1.76c.29,0,.44-.25.23-.4Z"/>
+    <path class="st13" d="M1743.89,248.48l-9.51-6.82c-.13-.09-.33-.09-.46,0l-9.53,6.82c-.21.15-.06.4.23.4h1.76v5.93c0,.48.39.86.86.86h13.8c.48,0,.86-.39.86-.86v-5.93h1.76c.29,0,.44-.25.23-.4Z"/>
+  </g>
+  <g>
+    <path class="st13" d="M1114.36,248.78l9.51,6.82c.13.09.33.09.46,0l9.53-6.82c.21-.15.06-.4-.23-.4h-1.76v-5.93c0-.48-.39-.86-.86-.86h-13.8c-.48,0-.86.39-.86.86v5.93h-1.76c-.29,0-.44.25-.23.4Z"/>
+    <path class="st13" d="M1114.36,363.04l9.51,6.82c.13.09.33.09.46,0l9.53-6.82c.21-.15.06-.4-.23-.4h-1.76v-5.93c0-.48-.39-.86-.86-.86h-13.8c-.48,0-.86.39-.86.86v5.93h-1.76c-.29,0-.44.25-.23.4Z"/>
+    <path class="st13" d="M1114.36,477.3l9.51,6.82c.13.09.33.09.46,0l9.53-6.82c.21-.15.06-.4-.23-.4h-1.76v-5.93c0-.48-.39-.86-.86-.86h-13.8c-.48,0-.86.39-.86.86v5.93h-1.76c-.29,0-.44.25-.23.4Z"/>
+    <path class="st13" d="M1114.36,591.56l9.51,6.82c.13.09.33.09.46,0l9.53-6.82c.21-.15.06-.4-.23-.4h-1.76v-5.93c0-.48-.39-.86-.86-.86h-13.8c-.48,0-.86.39-.86.86v5.93h-1.76c-.29,0-.44.25-.23.4Z"/>
+    <path class="st13" d="M1114.36,705.82l9.51,6.82c.13.09.33.09.46,0l9.53-6.82c.21-.15.06-.4-.23-.4h-1.76v-5.93c0-.48-.39-.86-.86-.86h-13.8c-.48,0-.86.39-.86.86v5.93h-1.76c-.29,0-.44.25-.23.4Z"/>
+    <path class="st13" d="M1114.36,820.08l9.51,6.82c.13.09.33.09.46,0l9.53-6.82c.21-.15.06-.4-.23-.4h-1.76v-5.93c0-.48-.39-.86-.86-.86h-13.8c-.48,0-.86.39-.86.86v5.93h-1.76c-.29,0-.44.25-.23.4Z"/>
+  </g>
+  <path class="st13" d="M1080.64,181.25l-9.51-6.82c-.13-.09-.33-.09-.46,0l-9.53,6.82c-.21.15-.06.4.23.4h1.76v5.93c0,.48.39.86.86.86h13.8c.48,0,.86-.39.86-.86v-5.93h1.76c.29,0,.44-.25.23-.4Z"/>
+  <path class="st13" d="M1770.89,181.55l9.51,6.82c.13.09.33.09.46,0l9.53-6.82c.21-.15.06-.4-.23-.4h-1.76v-5.93c0-.48-.39-.86-.86-.86h-13.8c-.48,0-.86.39-.86.86v5.93h-1.76c-.29,0-.44.25-.23.4Z"/>
+  <path class="st13" d="M1770.89,295.81l9.51,6.82c.13.09.33.09.46,0l9.53-6.82c.21-.15.06-.4-.23-.4h-1.76v-5.93c0-.48-.39-.86-.86-.86h-13.8c-.48,0-.86.39-.86.86v5.93h-1.76c-.29,0-.44.25-.23.4Z"/>
+  <path class="st13" d="M1770.89,410.07l9.51,6.82c.13.09.33.09.46,0l9.53-6.82c.21-.15.06-.4-.23-.4h-1.76v-5.93c0-.48-.39-.86-.86-.86h-13.8c-.48,0-.86.39-.86.86v5.93h-1.76c-.29,0-.44.25-.23.4Z"/>
+  <path class="st13" d="M1770.89,524.33l9.51,6.82c.13.09.33.09.46,0l9.53-6.82c.21-.15.06-.4-.23-.4h-1.76v-5.93c0-.48-.39-.86-.86-.86h-13.8c-.48,0-.86.39-.86.86v5.93h-1.76c-.29,0-.44.25-.23.4Z"/>
+  <path class="st13" d="M1770.89,638.59l9.51,6.82c.13.09.33.09.46,0l9.53-6.82c.21-.15.06-.4-.23-.4h-1.76v-5.93c0-.48-.39-.86-.86-.86h-13.8c-.48,0-.86.39-.86.86v5.93h-1.76c-.29,0-.44.25-.23.4Z"/>
+  <path class="st13" d="M1770.89,752.85l9.51,6.82c.13.09.33.09.46,0l9.53-6.82c.21-.15.06-.4-.23-.4h-1.76v-5.93c0-.48-.39-.86-.86-.86h-13.8c-.48,0-.86.39-.86.86v5.93h-1.76c-.29,0-.44.25-.23.4Z"/>
+  <path class="st13" d="M1770.89,877.93l9.51,6.82c.13.09.33.09.46,0l9.53-6.82c.21-.15.06-.4-.23-.4h-1.76v-5.93c0-.48-.39-.86-.86-.86h-13.8c-.48,0-.86.39-.86.86v5.93h-1.76c-.29,0-.44.25-.23.4Z"/>
+  <g>
+    <path class="st13" d="M1708.8,909.96l-6.82,9.51c-.09.13-.09.33,0,.46l6.82,9.53c.15.21.4.06.4-.23v-1.76h5.93c.48,0,.86-.39.86-.86v-13.8c0-.48-.39-.86-.86-.86h-5.93v-1.76c0-.29-.25-.44-.4-.23Z"/>
+    <path class="st13" d="M1594.54,909.96l-6.82,9.51c-.09.13-.09.33,0,.46l6.82,9.53c.15.21.4.06.4-.23v-1.76h5.93c.48,0,.86-.39.86-.86v-13.8c0-.48-.39-.86-.86-.86h-5.93v-1.76c0-.29-.25-.44-.4-.23Z"/>
+    <path class="st13" d="M1480.28,909.96l-6.82,9.51c-.09.13-.09.33,0,.46l6.82,9.53c.15.21.4.06.4-.23v-1.76h5.93c.48,0,.86-.39.86-.86v-13.8c0-.48-.39-.86-.86-.86h-5.93v-1.76c0-.29-.25-.44-.4-.23Z"/>
+    <path class="st13" d="M1366.02,909.96l-6.82,9.51c-.09.13-.09.33,0,.46l6.82,9.53c.15.21.4.06.4-.23v-1.76h5.93c.48,0,.86-.39.86-.86v-13.8c0-.48-.39-.86-.86-.86h-5.93v-1.76c0-.29-.25-.44-.4-.23Z"/>
+    <path class="st13" d="M1251.76,909.96l-6.82,9.51c-.09.13-.09.33,0,.46l6.82,9.53c.15.21.4.06.4-.23v-1.76h5.93c.48,0,.86-.39.86-.86v-13.8c0-.48-.39-.86-.86-.86h-5.93v-1.76c0-.29-.25-.44-.4-.23Z"/>
+    <path class="st13" d="M1137.5,909.96l-6.82,9.51c-.09.13-.09.33,0,.46l6.82,9.53c.15.21.4.06.4-.23v-1.76h5.93c.48,0,.86-.39.86-.86v-13.8c0-.48-.39-.86-.86-.86h-5.93v-1.76c0-.29-.25-.44-.4-.23Z"/>
+  </g>
+  <g>
+    <path class="st13" d="M1137.8,156.77l6.82-9.51c.09-.13.09-.33,0-.46l-6.82-9.53c-.15-.21-.4-.06-.4.23v1.76h-5.93c-.48,0-.86.39-.86.86v13.8c0,.48.39.86.86.86h5.93v1.76c0,.29.25.44.4.23Z"/>
+    <path class="st13" d="M1252.06,156.77l6.82-9.51c.09-.13.09-.33,0-.46l-6.82-9.53c-.15-.21-.4-.06-.4.23v1.76h-5.93c-.48,0-.86.39-.86.86v13.8c0,.48.39.86.86.86h5.93v1.76c0,.29.25.44.4.23Z"/>
+    <path class="st13" d="M1366.32,156.77l6.82-9.51c.09-.13.09-.33,0-.46l-6.82-9.53c-.15-.21-.4-.06-.4.23v1.76h-5.93c-.48,0-.86.39-.86.86v13.8c0,.48.39.86.86.86h5.93v1.76c0,.29.25.44.4.23Z"/>
+    <path class="st13" d="M1480.58,156.77l6.82-9.51c.09-.13.09-.33,0-.46l-6.82-9.53c-.15-.21-.4-.06-.4.23v1.76h-5.93c-.48,0-.86.39-.86.86v13.8c0,.48.39.86.86.86h5.93v1.76c0,.29.25.44.4.23Z"/>
+    <path class="st13" d="M1594.84,156.77l6.82-9.51c.09-.13.09-.33,0-.46l-6.82-9.53c-.15-.21-.4-.06-.4.23v1.76h-5.93c-.48,0-.86.39-.86.86v13.8c0,.48.39.86.86.86h5.93v1.76c0,.29.25.44.4.23Z"/>
+    <path class="st13" d="M1709.1,156.77l6.82-9.51c.09-.13.09-.33,0-.46l-6.82-9.53c-.15-.21-.4-.06-.4.23v1.76h-5.93c-.48,0-.86.39-.86.86v13.8c0,.48.39.86.86.86h5.93v1.76c0,.29.25.44.4.23Z"/>
+  </g>
+  <g>
+    <path class="st13" d="M1708.8,185.1l-6.82,9.51c-.09.13-.09.33,0,.46l6.82,9.53c.15.21.4.06.4-.23v-1.76h5.93c.48,0,.86-.39.86-.86v-13.8c0-.48-.39-.86-.86-.86h-5.93v-1.76c0-.29-.25-.44-.4-.23Z"/>
+    <path class="st13" d="M1594.54,185.1l-6.82,9.51c-.09.13-.09.33,0,.46l6.82,9.53c.15.21.4.06.4-.23v-1.76h5.93c.48,0,.86-.39.86-.86v-13.8c0-.48-.39-.86-.86-.86h-5.93v-1.76c0-.29-.25-.44-.4-.23Z"/>
+    <path class="st13" d="M1480.28,185.1l-6.82,9.51c-.09.13-.09.33,0,.46l6.82,9.53c.15.21.4.06.4-.23v-1.76h5.93c.48,0,.86-.39.86-.86v-13.8c0-.48-.39-.86-.86-.86h-5.93v-1.76c0-.29-.25-.44-.4-.23Z"/>
+    <path class="st13" d="M1366.02,185.1l-6.82,9.51c-.09.13-.09.33,0,.46l6.82,9.53c.15.21.4.06.4-.23v-1.76h5.93c.48,0,.86-.39.86-.86v-13.8c0-.48-.39-.86-.86-.86h-5.93v-1.76c0-.29-.25-.44-.4-.23Z"/>
+    <path class="st13" d="M1251.76,185.1l-6.82,9.51c-.09.13-.09.33,0,.46l6.82,9.53c.15.21.4.06.4-.23v-1.76h5.93c.48,0,.86-.39.86-.86v-13.8c0-.48-.39-.86-.86-.86h-5.93v-1.76c0-.29-.25-.44-.4-.23Z"/>
+    <path class="st13" d="M1137.5,185.1l-6.82,9.51c-.09.13-.09.33,0,.46l6.82,9.53c.15.21.4.06.4-.23v-1.76h5.93c.48,0,.86-.39.86-.86v-13.8c0-.48-.39-.86-.86-.86h-5.93v-1.76c0-.29-.25-.44-.4-.23Z"/>
+  </g>
+  <g>
+    <path class="st13" d="M1137.8,880.25l6.82-9.51c.09-.13.09-.33,0-.46l-6.82-9.53c-.15-.21-.4-.06-.4.23v1.76h-5.93c-.48,0-.86.39-.86.86v13.8c0,.48.39.86.86.86h5.93v1.76c0,.29.25.44.4.23Z"/>
+    <path class="st13" d="M1252.06,880.25l6.82-9.51c.09-.13.09-.33,0-.46l-6.82-9.53c-.15-.21-.4-.06-.4.23v1.76h-5.93c-.48,0-.86.39-.86.86v13.8c0,.48.39.86.86.86h5.93v1.76c0,.29.25.44.4.23Z"/>
+    <path class="st13" d="M1366.32,880.25l6.82-9.51c.09-.13.09-.33,0-.46l-6.82-9.53c-.15-.21-.4-.06-.4.23v1.76h-5.93c-.48,0-.86.39-.86.86v13.8c0,.48.39.86.86.86h5.93v1.76c0,.29.25.44.4.23Z"/>
+    <path class="st13" d="M1480.58,880.25l6.82-9.51c.09-.13.09-.33,0-.46l-6.82-9.53c-.15-.21-.4-.06-.4.23v1.76h-5.93c-.48,0-.86.39-.86.86v13.8c0,.48.39.86.86.86h5.93v1.76c0,.29.25.44.4.23Z"/>
+    <path class="st13" d="M1594.84,880.25l6.82-9.51c.09-.13.09-.33,0-.46l-6.82-9.53c-.15-.21-.4-.06-.4.23v1.76h-5.93c-.48,0-.86.39-.86.86v13.8c0,.48.39.86.86.86h5.93v1.76c0,.29.25.44.4.23Z"/>
+    <path class="st13" d="M1709.1,880.25l6.82-9.51c.09-.13.09-.33,0-.46l-6.82-9.53c-.15-.21-.4-.06-.4.23v1.76h-5.93c-.48,0-.86.39-.86.86v13.8c0,.48.39.86.86.86h5.93v1.76c0,.29.25.44.4.23Z"/>
+  </g>
+  <path class="st13" d="M964.62,723.08l6.82-9.51c.09-.13.09-.33,0-.46l-6.82-9.53c-.15-.21-.4-.06-.4.23v1.76h-5.93c-.48,0-.86.39-.86.86v13.8c0,.48.39.86.86.86h5.93v1.76c0,.29.25.44.4.23Z"/>
+  <path class="st13" d="M1044.37,723.08l6.82-9.51c.09-.13.09-.33,0-.46l-6.82-9.53c-.15-.21-.4-.06-.4.23v1.76h-5.93c-.48,0-.86.39-.86.86v13.8c0,.48.39.86.86.86h5.93v1.76c0,.29.25.44.4.23Z"/>
+  <path class="st13" d="M964.62,653.48l6.82-9.51c.09-.13.09-.33,0-.46l-6.82-9.53c-.15-.21-.4-.06-.4.23v1.76h-5.93c-.48,0-.86.39-.86.86v13.8c0,.48.39.86.86.86h5.93v1.76c0,.29.25.44.4.23Z"/>
+  <path class="st13" d="M1044.37,653.48l6.82-9.51c.09-.13.09-.33,0-.46l-6.82-9.53c-.15-.21-.4-.06-.4.23v1.76h-5.93c-.48,0-.86.39-.86.86v13.8c0,.48.39.86.86.86h5.93v1.76c0,.29.25.44.4.23Z"/>
+  <path class="st13" d="M1044.06,486.99l-6.82,9.51c-.09.13-.09.33,0,.46l6.82,9.53c.15.21.4.06.4-.23v-1.76h5.93c.48,0,.86-.39.86-.86v-13.8c0-.48-.39-.86-.86-.86h-5.93v-1.76c0-.29-.25-.44-.4-.23Z"/>
+  <path class="st13" d="M964.32,486.99l-6.82,9.51c-.09.13-.09.33,0,.46l6.82,9.53c.15.21.4.06.4-.23v-1.76h5.93c.48,0,.86-.39.86-.86v-13.8c0-.48-.39-.86-.86-.86h-5.93v-1.76c0-.29-.25-.44-.4-.23Z"/>
+  <path class="st13" d="M1044.06,556.99l-6.82,9.51c-.09.13-.09.33,0,.46l6.82,9.53c.15.21.4.06.4-.23v-1.76h5.93c.48,0,.86-.39.86-.86v-13.8c0-.48-.39-.86-.86-.86h-5.93v-1.76c0-.29-.25-.44-.4-.23Z"/>
+  <path class="st13" d="M964.32,556.99l-6.82,9.51c-.09.13-.09.33,0,.46l6.82,9.53c.15.21.4.06.4-.23v-1.76h5.93c.48,0,.86-.39.86-.86v-13.8c0-.48-.39-.86-.86-.86h-5.93v-1.76c0-.29-.25-.44-.4-.23Z"/>
+  <path class="st13" d="M868.29,486.99l-6.82,9.51c-.09.13-.09.33,0,.46l6.82,9.53c.15.21.4.06.4-.23v-1.76h5.93c.48,0,.86-.39.86-.86v-13.8c0-.48-.39-.86-.86-.86h-5.93v-1.76c0-.29-.25-.44-.4-.23Z"/>
+  <path class="st13" d="M868.29,334.17l-6.82,9.51c-.09.13-.09.33,0,.46l6.82,9.53c.15.21.4.06.4-.23v-1.76h5.93c.48,0,.86-.39.86-.86v-13.8c0-.48-.39-.86-.86-.86h-5.93v-1.76c0-.29-.25-.44-.4-.23Z"/>
+  <path class="st13" d="M868.29,556.99l-6.82,9.51c-.09.13-.09.33,0,.46l6.82,9.53c.15.21.4.06.4-.23v-1.76h5.93c.48,0,.86-.39.86-.86v-13.8c0-.48-.39-.86-.86-.86h-5.93v-1.76c0-.29-.25-.44-.4-.23Z"/>
+  <polyline class="st0" points="850.34 751.12 849.69 751.12 840.18 751.12 838.84 751.12"/>
+  <g>
+    <g>
+      <polygon class="st3" points="1383.49 750.04 1383.74 749.78 1383.49 749.53 1383.49 750.04"/>
+      <polygon class="st3" points="1383.49 332.47 1383.49 332.98 1383.74 332.73 1383.49 332.47"/>
+      <path class="st6" d="M1383.49,332.98v416.56l.25.25,50.47,50.47c1.5-1.62,2.42-3.77,2.42-6.13v-508.24c0-1.72-.5-3.33-1.34-4.7l-51.55,51.55-.25.25Z"/>
+      <path class="st5" d="M1383.74,332.73l51.55-51.55c-1.6-2.6-4.46-4.35-7.71-4.35h-88.17c-3.13,0-5.89,1.61-7.52,4.04l51.6,51.6.25.26Z"/>
+      <path class="st2" d="M1434.21,800.25l-50.47-50.47-.25.26-50.48,50.47c1.64,1.64,3.9,2.66,6.39,2.66h88.17c2.62,0,4.97-1.13,6.63-2.92Z"/>
+      <path class="st10" d="M1383.49,749.53v-417.06l-51.6-51.6c-.96,1.44-1.53,3.16-1.53,5.02v508.24c0,2.49,1.02,4.75,2.66,6.39l50.48-50.47v-.51Z"/>
+    </g>
+    <g>
+      <polygon class="st3" points="1489.82 750.04 1490.07 749.78 1489.82 749.53 1489.82 750.04"/>
+      <polygon class="st3" points="1489.82 332.47 1489.82 332.98 1490.07 332.73 1489.82 332.47"/>
+      <path class="st6" d="M1489.82,332.98v416.56l.25.25,50.47,50.47c1.5-1.62,2.42-3.77,2.42-6.13v-508.24c0-1.72-.5-3.33-1.34-4.7l-51.55,51.55-.25.25Z"/>
+      <path class="st5" d="M1490.07,332.73l51.55-51.55c-1.6-2.6-4.46-4.35-7.71-4.35h-88.17c-3.13,0-5.89,1.61-7.52,4.04l51.6,51.6.25.26Z"/>
+      <path class="st2" d="M1540.54,800.25l-50.47-50.47-.25.26-50.48,50.47c1.64,1.64,3.9,2.66,6.39,2.66h88.17c2.62,0,4.97-1.13,6.63-2.92Z"/>
+      <path class="st10" d="M1489.82,749.53v-417.06l-51.6-51.6c-.96,1.44-1.53,3.16-1.53,5.02v508.24c0,2.49,1.02,4.75,2.66,6.39l50.48-50.47v-.51Z"/>
+    </g>
+    <g>
+      <g>
+        <polygon class="st3" points="1206.68 697.28 1206.79 697.4 1206.91 697.28 1206.68 697.28"/>
+        <path class="st2" d="M1354.71,697.29l-.12.11-24.07,24.07h-143.9c-1.07,0-2.05-.42-2.79-1.1l22.97-22.98.12-.11h147.8Z"/>
+        <path class="st10" d="M1183.82,720.36l22.97-22.97-.12-.11-22.97-22.97c-.75.75-1.21,1.78-1.21,2.91v40.13c0,1.19.51,2.26,1.33,3.02Z"/>
+        <path class="st5" d="M1354.78,697.22l-.07.07h-148.04l-22.97-22.98c.74-.74,1.77-1.22,2.9-1.22h144.05l24.12,24.12Z"/>
+      </g>
+      <g>
+        <polygon class="st3" points="1206.68 540 1206.79 540.12 1206.91 540 1206.68 540"/>
+        <path class="st2" d="M1354.71,540.01l-.12.11-24.07,24.07h-143.9c-1.07,0-2.05-.42-2.79-1.1l22.97-22.98.12-.11h147.8Z"/>
+        <path class="st10" d="M1183.82,563.08l22.97-22.97-.12-.11-22.97-22.97c-.75.75-1.21,1.78-1.21,2.91v40.13c0,1.19.51,2.26,1.33,3.02Z"/>
+        <path class="st5" d="M1354.78,539.94l-.07.07h-148.04l-22.97-22.98c.74-.74,1.77-1.22,2.9-1.22h144.05l24.12,24.12Z"/>
+      </g>
+      <g>
+        <polygon class="st3" points="1206.68 382.72 1206.79 382.84 1206.91 382.72 1206.68 382.72"/>
+        <path class="st2" d="M1354.71,382.73l-.12.11-24.07,24.07h-143.9c-1.07,0-2.05-.42-2.79-1.1l22.97-22.98.12-.11h147.8Z"/>
+        <path class="st10" d="M1183.82,405.8l22.97-22.97-.12-.11-22.97-22.97c-.75.75-1.21,1.78-1.21,2.91v40.13c0,1.19.51,2.26,1.33,3.02Z"/>
+        <path class="st5" d="M1354.78,382.66l-.07.07h-148.04l-22.97-22.98c.74-.74,1.77-1.22,2.9-1.22h144.05l24.12,24.12Z"/>
+      </g>
+    </g>
+    <polygon class="st3" points="1625.73 360.13 1625.83 360.04 1625.93 360.13 1625.73 360.13"/>
+    <g>
+      <g>
+        <polygon class="st3" points="1666.87 382.72 1666.75 382.6 1666.64 382.72 1666.87 382.72"/>
+        <path class="st5" d="M1518.83,382.71l.12-.11,24.07-24.07h143.9c1.07,0,2.05.42,2.79,1.1l-22.97,22.98-.12.11h-147.8Z"/>
+        <path class="st6" d="M1689.72,359.64l-22.97,22.97.12.11,22.97,22.97c.75-.75,1.21-1.78,1.21-2.91v-40.13c0-1.19-.51-2.26-1.33-3.02Z"/>
+        <path class="st2" d="M1518.76,382.78l.07-.07h148.04l22.97,22.98c-.74.74-1.77,1.22-2.9,1.22h-144.05l-24.12-24.12Z"/>
+      </g>
+      <g>
+        <polygon class="st3" points="1666.87 540 1666.75 539.88 1666.64 540 1666.87 540"/>
+        <path class="st5" d="M1518.83,539.99l.12-.11,24.07-24.07h143.9c1.07,0,2.05.42,2.79,1.1l-22.97,22.98-.12.11h-147.8Z"/>
+        <path class="st6" d="M1689.72,516.92l-22.97,22.97.12.11,22.97,22.97c.75-.75,1.21-1.78,1.21-2.91v-40.13c0-1.19-.51-2.26-1.33-3.02Z"/>
+        <path class="st2" d="M1518.76,540.06l.07-.07h148.04l22.97,22.98c-.74.74-1.77,1.22-2.9,1.22h-144.05l-24.12-24.12Z"/>
+      </g>
+      <g>
+        <polygon class="st3" points="1666.87 697.28 1666.75 697.16 1666.64 697.28 1666.87 697.28"/>
+        <path class="st5" d="M1518.83,697.27l.12-.11,24.07-24.07h143.9c1.07,0,2.05.42,2.79,1.1l-22.97,22.98-.12.11h-147.8Z"/>
+        <path class="st6" d="M1689.72,674.2l-22.97,22.97.12.11,22.97,22.97c.75-.75,1.21-1.78,1.21-2.91v-40.13c0-1.19-.51-2.26-1.33-3.02Z"/>
+        <path class="st2" d="M1518.76,697.34l.07-.07h148.04l22.97,22.98c-.74.74-1.77,1.22-2.9,1.22h-144.05l-24.12-24.12Z"/>
+      </g>
+    </g>
+  </g>
+  <path class="st14" d="M1.18,3.69v1076.59h326.96s50.51-63.8,34.56-154.18-130.25-132.91-132.91-223.29,26.58-77.09,66.46-217.98-31.9-257.85-159.5-284.43S67.64,1.04,1.18,3.69Z"/>
+</svg>

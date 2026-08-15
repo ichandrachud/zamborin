@@ -127,28 +127,39 @@
   const idx = (r, c) => r * C + c;
   const rc = (i) => ({ r: (i / C) | 0, c: i % C });
   const TOP_BAND = 100, BOT_BAND = 96, SIDE_PAD = 30;
+  // The game's name is not on the playing screen. It is on the tab, the page
+  // heading and the card the player clicked to get here, and on canvas it was
+  // costing a 44px row across every game for something nobody needs mid-puzzle.
+  // The controls sit in that row now, with the level read-out opposite them,
+  // and everything that row used to waste goes to the board.
+  const topBand = () => MODE === 'mobile' ? 64 : 56;
+  const botBand = () => MODE === 'mobile' ? BOT_BAND : 20;
   // The grid shape differs by device: a tall portrait grid on mobile (5 wide,
   // as many rows as fit the phone), a square-ish grid on desktop.
   function gridDims(lvl) {
     if (MODE === 'mobile') {
       const cols = 5;
       const cw = (LW - SIDE_PAD * 2) / cols;                 // width available per column
-      let rows = Math.floor((LH - TOP_BAND - BOT_BAND) / cw);
+      let rows = Math.floor((LH - topBand() - botBand()) / cw);
       rows = Math.max(7, Math.min(rows, 10));
       return [rows, cols];
     }
-    const s = 5 + Math.min(Math.floor((lvl - 1) / 3), 3);    // 5 → 8, square
-    return [s, s];
+    // Square grids were the real reason the board looked lost in the frame: in
+    // 760x600 a square is bounded by the HEIGHT, so no amount of reclaimed
+    // chrome widens it — the extra space just becomes bigger margins. A grid
+    // two columns wider than it is tall fills the frame AND is more puzzle.
+    const rows = 5 + Math.min(Math.floor((lvl - 1) / 3), 3);   // 5 → 8
+    return [rows, rows + 2];                                    // 7 → 10 wide
   }
   function layout() {
     // The floors matter. A browser can report a 0×0 viewport for the first
     // frame, and any height under the two bands (196px) drives cell negative —
     // which then throws on the tile corner radius and leaves the board blank.
     const availW = Math.max(60, LW - SIDE_PAD * 2);
-    const availH = Math.max(60, LH - TOP_BAND - BOT_BAND);
+    const availH = Math.max(60, LH - topBand() - botBand());
     cell = Math.max(8, Math.floor(Math.min(availW / C, availH / R)));   // square cells that fit both axes
     ox = Math.round((LW - C * cell) / 2);
-    oy = Math.round(TOP_BAND + (availH - R * cell) / 2);
+    oy = Math.round(topBand() + (availH - R * cell) / 2);
   }
   const ccx = (c) => ox + (c + 0.5) * cell;
   const ccy = (r) => oy + (r + 0.5) * cell;
@@ -387,22 +398,16 @@
   function drawHUD(now) {
     const hs = Math.max(0.66, Math.min(1, LW / 620));   // shrink HUD text on narrow screens
     const P = Math.round(28 * hs);
-    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-    ctx.fillStyle = '#fff'; ctx.font = '800 ' + Math.round(30 * hs) + 'px Inter, sans-serif'; ctx.fillText('BLOOM', P, Math.round(22 * hs));
     const [w, t] = flowersWatered();
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
     ctx.fillStyle = 'rgba(255,255,255,0.72)'; ctx.font = '600 ' + Math.round(16 * hs) + 'px Inter, sans-serif';
-    ctx.fillText('Level ' + level + '   ·   ' + w + '/' + t + ' watered   ·   ' + moves + (moves === 1 ? ' turn' : ' turns'), P, Math.round(56 * hs));
-    if (phase === 'play' && moves === 0) {
-      // BELOW the control row. At LH-118 this sat inside the board: the grid is
-      // centred in the space between the bands and fills it, so its bottom edge
-      // lands ~2px above the buttons and there is no gap above them to sit in.
-      ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(255,255,255,0.42)'; ctx.font = '500 ' + Math.round(15 * hs) + 'px Inter, sans-serif';
-      ctx.fillText('Rotate the pipes to water every flower.', LW / 2, LH - 46);
-    }
+    ctx.fillText('Level ' + level + '   ·   ' + w + '/' + t + ' watered   ·   ' + moves + (moves === 1 ? ' turn' : ' turns'),
+                 LW - SIDE_PAD, Math.round(topBand() / 2));
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   }
-  function pill(label, cx, cy, dim) {
+  function pill(label, cx, cy, dim, fixedW) {
     ctx.font = '700 15px Inter, sans-serif';
-    const w = Math.round(ctx.measureText(label).width + 36), h = 40, x = Math.round(cx - w / 2), y = Math.round(cy - h / 2);
+    const w = fixedW || Math.round(ctx.measureText(label).width + 36), h = 40, x = Math.round(cx - w / 2), y = Math.round(cy - h / 2);
     ctx.fillStyle = 'rgba(255,255,255,0.07)'; roundRect(x, y, w, h, h / 2); ctx.fill();
     ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(255,255,255,0.24)'; roundRect(x, y, w, h, h / 2); ctx.stroke();
     ctx.fillStyle = dim ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.92)'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(label, cx, y + h / 2 + 1);
@@ -435,14 +440,23 @@
     return { x, y, w, h };
   }
   function drawControls() {
-    const cy = LH - 74, gap = 12, wS = 44;
+    const gap = 12, wS = 44;
     ctx.font = '700 15px Inter, sans-serif';
     const wU = Math.round(ctx.measureText('Undo').width + 36), wR = Math.round(ctx.measureText('Restart').width + 36), wH = Math.round(ctx.measureText('Rules').width + 36);
-    let x = Math.round(LW / 2 - (wS + wU + wR + wH + gap * 3) / 2);
-    uiButtons.push({ ...iconPill(x + wS / 2, cy, snd.on()), act: () => { snd.ready(); snd.toggle(); render(performance.now()); } }); x += wS + gap;
+    const sound = () => { snd.ready(); snd.toggle(); render(performance.now()); };
+    const rules = () => { phase = 'menu'; render(performance.now()); };
+
+    // The controls take the row the title used to have: left aligned, opposite
+    // the level read-out. On a phone they stay at the bottom, within reach of a
+    // thumb — the top of a tall screen is the one place a control should not be.
+    const cy = MODE === 'mobile' ? LH - 74 : Math.round(topBand() / 2);
+    let x = MODE === 'mobile'
+      ? Math.round(LW / 2 - (wS + wU + wR + wH + gap * 3) / 2)
+      : SIDE_PAD;
+    uiButtons.push({ ...iconPill(x + wS / 2, cy, snd.on()), act: sound }); x += wS + gap;
     uiButtons.push({ ...pill('Undo', x + wU / 2, cy, !history.length), act: undo }); x += wU + gap;
     uiButtons.push({ ...pill('Restart', x + wR / 2, cy, false), act: restart }); x += wR + gap;
-    uiButtons.push({ ...pill('Rules', x + wH / 2, cy, false), act: () => { phase = 'menu'; render(performance.now()); } });
+    uiButtons.push({ ...pill('Rules', x + wH / 2, cy, false), act: rules });
   }
   function winOverlay(now) {
     // let the final blossom finish + a beat, then fade the banner in gently

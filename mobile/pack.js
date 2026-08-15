@@ -86,6 +86,33 @@ function pure(node) {
            left: pure(node.left), right: pure(node.right) };
 }
 
+/* How often does a thoughtless arrangement already balance?
+
+   This is the question the old `solutions !== 1` check was meant to answer and
+   did not. `solutions` counts how many SCALAR MULTIPLES of the weight vector
+   the tray can supply — so a board whose hooks all want the same weight counts
+   as "unique" even though every arrangement of the pieces wins. That is exactly
+   how level 1 shipped as three identical shapes on three hooks: nothing to
+   decide, nothing to get wrong, and a first impression that the game is a
+   formality.
+
+   So ask it directly. Hang the pieces at random, many times, and measure how
+   often that is already correct. A board only earns its place if carelessness
+   usually fails. */
+const shuffleRnd = mulberry(4242);   // its own stream, so sampling cannot perturb generation
+function carelessWinRate(b, N = 4000) {
+  const hooks = b.hooks, tray = b.shapes, n = hooks.length;
+  const idx = tray.map((_, i) => i);
+  let ok = 0;
+  for (let t = 0; t < N; t++) {
+    for (let i = idx.length - 1; i > 0; i--) { const j = (shuffleRnd() * (i + 1)) | 0; [idx[i], idx[j]] = [idx[j], idx[i]]; }
+    const at = {};
+    for (let k = 0; k < n; k++) at[hooks[k]] = tray[idx[k]];
+    if (M.totalError(b.tree, at) === 0) ok++;
+  }
+  return ok / N;
+}
+
 const rnd = mulberry(1898);          // Calder's birth year, for luck
 const out = [];
 // The mockups show around nine or ten pieces hung, so the set climbs to that.
@@ -93,12 +120,16 @@ const out = [];
 // always comes out with eight to ten hooks, so the tutorial sizes simply could
 // not be generated from one setting.
 const plan = [
-  { count: 3,  hooks: [3, 4],  spare: 0, depth: 2 },   // tutorial: no decoys
-  { count: 5,  hooks: [4, 5],  spare: 1, depth: 3 },
-  { count: 8,  hooks: [5, 6],  spare: 2, depth: 3 },
-  { count: 10, hooks: [6, 7],  spare: 3, depth: 4 },
-  { count: 8,  hooks: [7, 8],  spare: 4, depth: 4 },
-  { count: 6,  hooks: [8, 10], spare: 4, depth: 5 },
+  // `careless` is the ceiling on how often a random arrangement already wins.
+  // Three hooks and three distinct shapes gives six arrangements, one correct,
+  // so 1/6 is the best a tutorial board can do — hence 0.20 there and tighter
+  // after. Without this a board of identical weights sails through.
+  { count: 3,  hooks: [3, 4],  spare: 0, depth: 2, careless: 0.20 },   // tutorial: no decoys
+  { count: 5,  hooks: [4, 5],  spare: 1, depth: 3, careless: 0.10 },
+  { count: 8,  hooks: [5, 6],  spare: 2, depth: 3, careless: 0.05 },
+  { count: 10, hooks: [6, 7],  spare: 3, depth: 4, careless: 0.02 },
+  { count: 8,  hooks: [7, 8],  spare: 4, depth: 4, careless: 0.02 },
+  { count: 6,  hooks: [8, 10], spare: 4, depth: 5, careless: 0.02 },
 ];
 
 M.configure({ SLACK: 0, COLLIDE: false });
@@ -113,6 +144,8 @@ for (const stage of plan) {
     // the answer must be unique, or "balanced" stops meaning "correct"
     if (b.solutions !== 1) continue;
     if (fouls(b)) continue;
+    // last, because it is the expensive one
+    if (carelessWinRate(b) > stage.careless) continue;
     out.push({ tree: pure(b.tree), hooks: b.hooks, shapes: b.shapes,
                need: b.hooks.map(h => b.need[h]), level: out.length + 1 });
     made++;

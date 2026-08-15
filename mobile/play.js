@@ -22,6 +22,7 @@
   'use strict';
 
   const M = window.MOBILE_MODEL;
+  const UI = window.ZAM_UI;          // the shared button system
   const PACK = window.MOBILE_PACK || [];
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
@@ -508,15 +509,14 @@
   // 89 x 30, radius 15, #FF0000, sitting at 788 of 852. No label above it: the
   // sculpture hanging straight is the message.
   function drawNext() {
-    const w = Math.round(LW * (89 / 393)), h = Math.round(LH * (30 / 852));
-    const x = Math.round((LW - w) / 2), y = Math.round(LH * (788 / 852));
-    ctx.fillStyle = NEXT_RED;
-    ctx.beginPath(); ctx.roundRect(x, y, w, h, h / 2); ctx.fill();
-    ctx.fillStyle = '#fff'; ctx.font = '700 ' + Math.round(h * 0.42) + 'px Inter, sans-serif';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('NEXT', x + w / 2, y + h / 2 + 0.5);
-    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-    uiButtons.push({ x: x - 12, y: y - 12, w: w + 24, h: h + 24, act: () => start(level + 1) });
+    // These used to be fractions of the 393x852 phone mockup — 89/393 wide by
+    // 30/852 tall. That is fine on a phone and absurd in the 760x600 desktop
+    // frame, where it worked out at 21px tall with a 9px label while every
+    // other game drew a 50px button. A button is chrome, not content: it takes
+    // its size from the system, not from the frame it happens to be in.
+    const cy = Math.round(LH - 44);
+    const b = UI.drawCTA(ctx, 'NEXT', LW / 2, cy, NEXT_RED);
+    uiButtons.push({ x: b.x - 12, y: b.y - 12, w: b.w + 24, h: b.h + 24, act: () => start(level + 1) });
   }
 
   // ---------- interaction ----------

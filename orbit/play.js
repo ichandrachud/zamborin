@@ -154,6 +154,10 @@
   let BOARD = 0, CX = 0, CY = 0, ctrlY = 0;
   let hubR = 0, bulbR = 0, track = 4;
   let ringR = [], jIn = [], jOut = [];  // jOut[k] === jIn[k+1]: where the two half-spokes meet
+  // The game's name is off the playing screen site-wide. It cost a row in
+  // every game for something the tab, the page heading and the card the
+  // player clicked already say. The controls take that row, the level
+  // read-out sits opposite them, and the board gets the difference.
   const TOP_BAND = 100, BOT_BAND = 96;
   const SIDE_PAD = () => (MODE === 'mobile' ? 16 : 30);
 
@@ -163,14 +167,20 @@
     // the board keeps what room there is. The floors matter: a browser can report
     // a 0×0 viewport for the first frame, which otherwise gives a negative radius.
     const bs = Math.max(0.5, Math.min(1, LH / 700));
-    topB = TOP_BAND * bs; botB = BOT_BAND * bs;
-    const ctrlH = 60 * bs;
+    topB = (MODE === 'mobile' ? TOP_BAND : 56) * bs;
+    botB = (MODE === 'mobile' ? BOT_BAND : 34) * bs;
+    // On desktop the controls are up in the top band with the read-out, so
+    // nothing is reserved under the board and the circle takes everything that
+    // is left, less a little breathing room.
+    const ctrlH = MODE === 'mobile' ? 60 * bs : 0;
     const availW = Math.max(140, LW - SIDE_PAD() * 2);
     const availH = Math.max(140, LH - topB - botB);
-    BOARD = Math.max(50, Math.floor(Math.min(availW, availH - ctrlH) / 2));
+    const PAD = MODE === 'mobile' ? 0 : 18;             // comfortable, not flush
+    BOARD = Math.max(50, Math.floor(Math.min(availW, availH - ctrlH - PAD) / 2));
     const compH = BOARD * 2 + ctrlH;                    // board + the control row beneath it
     const top = topB + Math.max(0, (availH - compH) / 2);
-    CX = LW / 2; CY = top + BOARD; ctrlY = top + BOARD * 2 + ctrlH * 0.63;
+    CX = LW / 2; CY = top + BOARD;
+    ctrlY = MODE === 'mobile' ? top + BOARD * 2 + ctrlH * 0.63 : Math.round(topB / 2);
 
     hubR = BOARD * 0.10; bulbR = BOARD * 0.96;
     const inner = BOARD * 0.30, outer = BOARD * 0.86;
@@ -783,35 +793,113 @@
   // cap. Only the LIGHT switches: the glass fills and a halo blooms outward.
   // (It used to open like a six-petal flower, which read as a bloom, not a lamp.)
   function drawBulbs(now) {
-    const r = BOARD * 0.043, capL = r * 1.0, lw = Math.max(1.8, track * 0.62);
+    const r = BOARD * 0.043;
+    const PI = Math.PI;
     for (let a = 0; a < S; a++) {
       if (!bulbs[a]) continue;
       const ang = angAbs(a), [x, y] = P2(bulbR, ang);
       const f = bulbLit[a] ? Math.min(1, Math.max(0.001, (now - bulbT[a]) / BULB_DUR)) : 0;
+      const e = f > 0 ? easeBack(f) : 0;
       ctx.save();
       ctx.translate(x, y); ctx.rotate(ang);          // +x now points outward, away from the hub
-      if (f > 0) {                                   // halo, added rather than blended
-        const e = easeBack(f), hr = r * (1.4 + 2.1 * e);
+
+      // ---- glow, added rather than blended so it reads as emitted light
+      if (f > 0) {
+        const hr = r * (1.5 + 2.4 * e);
         ctx.save(); ctx.globalCompositeOperation = 'lighter';
-        const g = ctx.createRadialGradient(0, 0, r * 0.5, 0, 0, hr);
-        g.addColorStop(0, 'rgba(255,209,130,' + (0.40 * e).toFixed(3) + ')');
+        const g = ctx.createRadialGradient(0, 0, r * 0.35, 0, 0, hr);
+        g.addColorStop(0, 'rgba(255,214,140,' + (0.46 * e).toFixed(3) + ')');
+        g.addColorStop(0.45, 'rgba(255,198,92,' + (0.16 * e).toFixed(3) + ')');
         g.addColorStop(1, 'rgba(255,198,92,0)');
         ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, hr, 0, 7); ctx.fill();
         ctx.restore();
       }
-      // screw cap, tucked against the inner side where the spoke arrives
-      ctx.fillStyle = f > 0 ? '#a9741d' : '#3d4c66';
-      roundRect(-r * 0.72 - capL, -r * 0.46, capL, r * 0.92, r * 0.2); ctx.fill();
-      // glass globe
-      ctx.beginPath(); ctx.arc(0, 0, r, 0, 7);
-      if (f > 0) {
-        ctx.fillStyle = LIT; ctx.fill();
-        ctx.lineWidth = lw; ctx.strokeStyle = LIT_LINE; ctx.stroke();
-        ctx.fillStyle = HUB_CORE;                    // white-hot filament core
-        ctx.beginPath(); ctx.arc(0, 0, r * 0.46, 0, 7); ctx.fill();
-      } else {
-        ctx.lineWidth = lw; ctx.strokeStyle = DIM; ctx.stroke();
+
+      // ---- screw base: a cap, then the threaded barrel, then the contact tip.
+      // It sits on the INNER side, where the spoke arrives, so the glass faces out.
+      const bx = -r * 1.16;                          // where the glass ends and metal starts
+      const bw = r * 0.62, bh = r * 0.66;
+      ctx.fillStyle = f > 0 ? '#b9853a' : '#465570';
+      roundRect(bx - bw, -bh / 2, bw, bh, r * 0.12); ctx.fill();
+      // thread ridges — two lines is enough to read as a screw at this size
+      ctx.strokeStyle = f > 0 ? 'rgba(58,38,8,0.55)' : 'rgba(20,28,44,0.55)';
+      ctx.lineWidth = Math.max(1, r * 0.09);
+      for (let i = 1; i <= 2; i++) {
+        const tx = bx - bw * (i / 3);
+        ctx.beginPath(); ctx.moveTo(tx, -bh * 0.44); ctx.lineTo(tx, bh * 0.44); ctx.stroke();
       }
+      // contact tip at the very end
+      ctx.fillStyle = f > 0 ? '#8a6220' : '#39465e';
+      roundRect(bx - bw - r * 0.16, -bh * 0.26, r * 0.16, bh * 0.52, r * 0.07); ctx.fill();
+
+      // ---- the glass: a globe that necks down into the base, not a plain disc
+      ctx.beginPath();
+      ctx.arc(0, 0, r, -0.74 * PI, 0.74 * PI);       // the outward-facing majority
+      ctx.quadraticCurveTo(-r * 0.92, r * 0.52, bx, r * 0.33);   // shoulder into the neck
+      ctx.lineTo(bx, -r * 0.33);
+      ctx.quadraticCurveTo(-r * 0.92, -r * 0.52, r * Math.cos(-0.74 * PI), r * Math.sin(-0.74 * PI));
+      ctx.closePath();
+
+      // The outline is a hairline in BOTH states, and scaled to the bulb rather
+      // than to the ring track. Taking `lw` from the track put a 4px border on a
+      // 22px bulb, which read as an icon of a bulb rather than glass; and the
+      // lit state used to stroke LIT_LINE over the top, drawing a dark ring
+      // around something that is supposed to be emitting light.
+      const glassW = Math.max(1, r * 0.085);
+      if (f > 0) {
+        // hot in the middle, warm at the rim — a filled disc read as flat plastic
+        const gg = ctx.createRadialGradient(r * 0.10, -r * 0.10, r * 0.06, 0, 0, r * 1.05);
+        gg.addColorStop(0, HUB_CORE);
+        gg.addColorStop(0.42, LIT);
+        gg.addColorStop(1, '#E8A93C');
+        ctx.fillStyle = gg; ctx.fill();
+        // no stroke: lit glass has no edge, it has a glow, and that is the halo
+      } else {
+        // cold glass — a touch of body so it is not a bare outline, and a rim
+        // that catches a little light on the side facing the hub
+        const cg = ctx.createRadialGradient(r * 0.18, -r * 0.22, r * 0.05, 0, 0, r * 1.1);
+        cg.addColorStop(0, 'rgba(168,186,214,0.20)');
+        cg.addColorStop(1, 'rgba(90,107,136,0.10)');
+        ctx.fillStyle = cg; ctx.fill();
+        ctx.lineWidth = glassW; ctx.strokeStyle = 'rgba(154,172,201,0.75)'; ctx.stroke();
+      }
+
+      // ---- filament: two leads out of the neck and a coil strung between them.
+      // Off, it is the dark wire you can see through cold glass; lit, it is the
+      // white-hot part your eye goes to first.
+      ctx.save();
+      ctx.beginPath(); ctx.arc(0, 0, r * 0.97, 0, 7); ctx.clip();   // never outside the glass
+      ctx.lineWidth = Math.max(1, r * 0.11);
+      ctx.strokeStyle = f > 0 ? 'rgba(255,247,225,0.95)' : 'rgba(150,166,193,0.5)';
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      const ly = r * 0.30, lx = bx + r * 0.10, tipX = -r * 0.06;
+      ctx.beginPath();
+      ctx.moveTo(lx, ly); ctx.lineTo(tipX, ly * 0.62);              // lower lead
+      ctx.moveTo(lx, -ly); ctx.lineTo(tipX, -ly * 0.62);            // upper lead
+      ctx.stroke();
+      ctx.beginPath();                                              // the coil
+      const n = 4, span = r * 0.46;
+      ctx.moveTo(tipX, -ly * 0.62);
+      for (let i = 0; i <= n; i++) {
+        const t = i / n;
+        ctx.lineTo(tipX + span * t, (i % 2 ? 1 : -1) * ly * 0.62);
+      }
+      ctx.lineTo(tipX + span, ly * 0.62);
+      ctx.stroke();
+      if (f > 0) {                                                  // the coil blooms
+        ctx.save(); ctx.globalCompositeOperation = 'lighter';
+        ctx.strokeStyle = 'rgba(255,236,190,' + (0.55 * e).toFixed(3) + ')';
+        ctx.lineWidth = Math.max(1.6, r * 0.26); ctx.stroke();
+        ctx.restore();
+      }
+      ctx.restore();
+
+      // ---- a single specular highlight, so the glass reads as glass
+      ctx.beginPath();
+      ctx.ellipse(r * 0.34, -r * 0.40, r * 0.20, r * 0.12, -0.5, 0, 7);
+      ctx.fillStyle = f > 0 ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.10)';
+      ctx.fill();
+
       ctx.restore();
     }
   }
@@ -821,36 +909,63 @@
     const hs = Math.max(0.66, Math.min(1, LW / 620));
     const PX = Math.round(28 * hs);
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-    ctx.fillStyle = '#fff'; ctx.font = '800 ' + Math.round(30 * hs) + 'px Inter, sans-serif';
-    ctx.fillText('ORBIT', PX, Math.round(topB * 0.22));
     const [w, t] = bulbCount();
     // Par is shown DURING play, not just on the scorecard. A target you only
     // learn after the level is over cannot shape how you play it.
-    const y2 = Math.round(topB * 0.56);
-    ctx.font = '600 ' + Math.round(16 * hs) + 'px Inter, sans-serif';
+    const right = MODE !== 'mobile';
+    const y2 = right ? Math.round(topB / 2) : Math.round(topB * 0.56);
     const head = 'Level ' + level + '   ·   ' + w + '/' + t + ' lit   ·   ' + moves + (moves === 1 ? ' turn' : ' turns');
-    ctx.fillStyle = 'rgba(255,255,255,0.72)';
-    ctx.fillText(head, PX, y2);
-    if (par > 0) {
-      // Both states clear AA against the board. 0.4 white measured only 3.4:1.
-      ctx.fillStyle = moves <= par ? 'rgba(159,230,164,0.85)' : 'rgba(255,255,255,0.6)';
-      ctx.fillText('   ·   par ' + par, PX + ctx.measureText(head).width, y2);
+
+    if (right) {
+      // One row, laid out from the right edge inwards, so nothing can land on
+      // top of anything else. The old code drew the read-out right-aligned but
+      // positioned `par` from the LEFT margin, which is why it ended up adrift
+      // in the middle of the band, and stacked SCORE in the same corner.
+      ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+      let x = LW - PX;
+      ctx.font = '800 ' + Math.round(20 * hs) + 'px Inter, sans-serif';
+      const scoreW = ctx.measureText(fmt(score.total)).width;
+      ctx.fillStyle = '#FFC65C';
+      ctx.fillText(fmt(score.total), x, y2);
+      x -= scoreW + Math.round(8 * hs);
+      ctx.font = '700 ' + Math.max(10, Math.round(11 * hs)) + 'px Inter, sans-serif';
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.fillText('SCORE', x, y2 + 1);
+      x -= ctx.measureText('SCORE').width + Math.round(20 * hs);
+      if (par > 0) {
+        ctx.font = '600 ' + Math.round(16 * hs) + 'px Inter, sans-serif';
+        ctx.fillStyle = moves <= par ? 'rgba(159,230,164,0.85)' : 'rgba(255,255,255,0.6)';
+        ctx.fillText('par ' + par, x, y2);
+        x -= ctx.measureText('par ' + par).width + Math.round(14 * hs);
+      }
+      ctx.font = '600 ' + Math.round(16 * hs) + 'px Inter, sans-serif';
+      ctx.fillStyle = 'rgba(255,255,255,0.72)';
+      ctx.fillText(head, x, y2);
+      ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    } else {
+      ctx.font = '600 ' + Math.round(16 * hs) + 'px Inter, sans-serif';
+      ctx.fillStyle = 'rgba(255,255,255,0.72)';
+      ctx.fillText(head, PX, y2);
+      if (par > 0) {
+        ctx.fillStyle = moves <= par ? 'rgba(159,230,164,0.85)' : 'rgba(255,255,255,0.6)';
+        ctx.fillText('   ·   par ' + par, PX + ctx.measureText(head).width, y2);
+      }
+      ctx.textAlign = 'right';
+      ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.font = '700 ' + Math.max(10, Math.round(12 * hs)) + 'px Inter, sans-serif';
+      ctx.fillText('SCORE', LW - PX, Math.round(topB * 0.24));
+      ctx.fillStyle = '#FFC65C'; ctx.font = '800 ' + Math.round(26 * hs) + 'px Inter, sans-serif';
+      ctx.fillText(fmt(score.total), LW - PX, Math.round(topB * 0.44));
+      ctx.textAlign = 'left';
     }
-    // Running total, opposite the title — the thing that carries across levels.
-    ctx.textAlign = 'right';
-    ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.font = '700 ' + Math.max(10, Math.round(12 * hs)) + 'px Inter, sans-serif';
-    ctx.fillText('SCORE', LW - PX, Math.round(topB * 0.24));
-    ctx.fillStyle = '#FFC65C'; ctx.font = '800 ' + Math.round(26 * hs) + 'px Inter, sans-serif';
-    ctx.fillText(fmt(score.total), LW - PX, Math.round(topB * 0.44));
-    ctx.textAlign = 'left';
     if (phase === 'play' && moves === 0) {   // below the control row — above it collides
       ctx.textAlign = 'center'; ctx.font = '500 ' + Math.round(15 * hs) + 'px Inter, sans-serif';
+      const hy = MODE === 'mobile' ? ctrlY + 34 : LH - Math.round(botB * 0.62);
       if (nLinks > 0) {
         ctx.fillStyle = 'rgba(95,211,192,0.85)';
-        ctx.fillText('Dashed rings are geared — they turn opposite ways.', LW / 2, ctrlY + 34);
+        ctx.fillText('Dashed rings are geared — they turn opposite ways.', LW / 2, hy);
       } else {
         ctx.fillStyle = 'rgba(255,255,255,0.42)';
-        ctx.fillText('Drag a ring to spin it. Tap to nudge it one step.', LW / 2, ctrlY + 34);
+        ctx.fillText('Drag a ring to spin it. Tap to nudge it one step.', LW / 2, hy);
       }
     }
   }
@@ -893,7 +1008,7 @@
     const gap = 12, wS = 44;
     ctx.font = '700 15px Inter, sans-serif';
     const wU = Math.round(ctx.measureText('Undo').width + 36), wR = Math.round(ctx.measureText('Restart').width + 36), wH = Math.round(ctx.measureText('Rules').width + 36);
-    let x = Math.round(LW / 2 - (wS + wU + wR + wH + gap * 3) / 2);
+    let x = MODE === 'mobile' ? Math.round(LW / 2 - (wS + wU + wR + wH + gap * 3) / 2) : 28;
     uiButtons.push({ ...iconPill(x + wS / 2, ctrlY, snd.on()), id: 'sound', act: () => { snd.ready(); snd.toggle(); render(performance.now()); } }); x += wS + gap;
     uiButtons.push({ ...pill('Undo', x + wU / 2, ctrlY, !history.length), id: 'undo', act: undo }); x += wU + gap;
     uiButtons.push({ ...pill('Restart', x + wR / 2, ctrlY, false), id: 'restart', act: restart }); x += wR + gap;

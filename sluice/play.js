@@ -145,6 +145,12 @@
   const idx = (r, c) => r * C + c;
   const rc = (i) => ({ r: (i / C) | 0, c: i % C });
   const TOP_BAND = 100, BOT_BAND = 96;
+  // The name is off the playing screen site-wide: it cost a row across every
+  // game for something the tab and the page heading already say. The controls
+  // take that row, the level read-out sits opposite, and the board gets the
+  // difference.
+  const topBand = () => MODE === 'mobile' ? 64 : 56;
+  const botBand = () => MODE === 'mobile' ? BOT_BAND : 20;
   // On a phone the board is WIDTH-bound and height is not close: measured on a
   // 360x760 screen the board took 19% of the screen while 228px of height sat
   // unused, because a 5x6 grid can never be tall enough to use a phone's
@@ -159,7 +165,10 @@
   // where a 44px touch target runs out: 7 columns on a 360px screen is 51px a
   // cell before the border ring, and the ring costs two more.
   function gridDims(lvl) {
-    if (MODE !== 'mobile') { const s = 5 + Math.min(Math.floor((lvl - 1) / 4), 2); return [s, s]; }  // 5 → 7, square
+    // Not square. A square board in a 760x600 frame is bounded by the height,
+    // so reclaimed chrome only ever became wider margins; two extra columns
+    // spend it on the puzzle instead.
+    if (MODE !== 'mobile') { const r = 5 + Math.min(Math.floor((lvl - 1) / 4), 2); return [r, r + 2]; }  // 5x7 → 7x9
     // A phone is about 2.1:1 and a 5-wide grid is bound entirely by width, so
     // the tile size is settled before rows are counted and every extra row
     // after that is FREE. Measured at 6 rows on a 360x760 screen: the board was
@@ -170,7 +179,7 @@
     // size for rows — there, more rows would make the board smaller, not bigger.
     const cols = 5;
     const cellW = Math.max(8, (LW - sidePad() * 2) / (cols + 2));
-    const fits = Math.floor(Math.max(60, LH - TOP_BAND - BOT_BAND) / cellW) - 2;
+    const fits = Math.floor(Math.max(60, LH - topBand() - botBand()) / cellW) - 2;
     const wanted = 6 + Math.min(Math.floor((lvl - 1) / 4), 3);       // 6 → 9 with level
     return [Math.max(5, Math.min(wanted, fits)), cols];
   }
@@ -182,10 +191,10 @@
     // The +2 is the border ring: one cell of margin on every side, where the
     // tap and the flowers live. They are outside the sliding grid on purpose.
     const availW = Math.max(60, LW - sidePad() * 2);
-    const availH = Math.max(60, LH - TOP_BAND - BOT_BAND);
+    const availH = Math.max(60, LH - topBand() - botBand());
     cell = Math.max(8, Math.floor(Math.min(availW / (C + 2), availH / (R + 2))));
     ox = Math.round((LW - C * cell) / 2);
-    oy = Math.round(TOP_BAND + (availH - (R + 2) * cell) / 2 + cell);
+    oy = Math.round(topBand() + (availH - (R + 2) * cell) / 2 + cell);
   }
   const ccx = (c) => ox + (c + 0.5) * cell;
   const ccy = (r) => oy + (r + 0.5) * cell;
@@ -924,16 +933,16 @@
   function drawHUD(now) {
     const hs = Math.max(0.66, Math.min(1, LW / 620));   // shrink HUD text on narrow screens
     const P = Math.round(28 * hs);
-    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-    ctx.fillStyle = '#fff'; ctx.font = '800 ' + Math.round(30 * hs) + 'px Inter, sans-serif'; ctx.fillText('SLUICE', P, Math.round(22 * hs));
     const [w, t] = flowersWatered();
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
     ctx.fillStyle = 'rgba(255,255,255,0.72)'; ctx.font = '600 ' + Math.round(16 * hs) + 'px Inter, sans-serif';
     // No par. With two axes the puzzle is hard enough that solving it at all is
     // the reward, and a move target measured from the scramble length was
     // beaten trivially anyway — search finds shorter paths than the scrambler
     // took, so it was never a real number.
     ctx.fillText('Level ' + level + '   ·   ' + w + '/' + t + ' watered   ·   ' +
-      moves + (moves === 1 ? ' move' : ' moves'), P, Math.round(56 * hs));
+      moves + (moves === 1 ? ' move' : ' moves'), LW - sidePad(), Math.round(topBand() / 2));
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
     // One line of space under the control row, shared. The hint's explanation
     // takes it while a hint is running, because that is the only moment the
     // opening instruction is not the most useful thing to be saying.
@@ -983,7 +992,9 @@
     return { x, y, w, h };
   }
   function drawControls() {
-    const cy = LH - 74, wS = 44;
+    // Top-left on desktop, where the title used to be; bottom on a phone, where
+    // a thumb can reach them.
+    const cy = MODE === 'mobile' ? LH - 74 : Math.round(topBand() / 2), wS = 44;
     const labels = ['Undo', 'Restart', 'Hint', 'Rules'];
     ctx.font = '700 15px Inter, sans-serif';
     const text = labels.map(l => ctx.measureText(l).width);
@@ -994,7 +1005,9 @@
     const wide = 44 + text.reduce((a, b) => a + Math.round(b + 36), 0) + 12 * 4 <= LW - 20;
     const pad = wide ? 36 : 26, gap = wide ? 12 : 10;
     const w = text.map(t => Math.round(t + pad));
-    let x = Math.round(LW / 2 - (wS + w.reduce((a, b) => a + b, 0) + gap * 4) / 2);
+    let x = MODE === 'mobile'
+      ? Math.round(LW / 2 - (wS + w.reduce((a, b) => a + b, 0) + gap * 4) / 2)
+      : sidePad();
     uiButtons.push({ ...iconPill(x + wS / 2, cy, snd.on()), act: () => { snd.ready(); snd.toggle(); render(performance.now()); } }); x += wS + gap;
     uiButtons.push({ ...pill('Undo', x + w[0] / 2, cy, !history.length || !!demo, pad), act: undo }); x += w[0] + gap;
     uiButtons.push({ ...pill('Restart', x + w[1] / 2, cy, !!demo, pad), act: restart }); x += w[1] + gap;
