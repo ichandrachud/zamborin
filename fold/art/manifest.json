@@ -1,7 +1,7 @@
 {
   "_readme": [
     "Drop artwork in this folder and list it here. Anything listed replaces the",
-    "code-drawn vector figures \u2014 the game prefers images whenever this file has",
+    "code-drawn vector figures — the game prefers images whenever this file has",
     "entries, and falls back to the vectors when it is empty.",
     "",
     "WHAT THE ART NEEDS:",
@@ -24,24 +24,208 @@
   ],
   "figures": [
     {
+      "name": "Accordion",
+      "file": "accordion.webp"
+    },
+    {
+      "name": "Angelfish",
+      "file": "angelfish.webp"
+    },
+    {
       "name": "Athlete",
       "file": "athlete.webp"
+    },
+    {
+      "name": "Bagel",
+      "file": "bagel.webp"
+    },
+    {
+      "name": "Balloon",
+      "file": "balloon.webp"
+    },
+    {
+      "name": "Banana split",
+      "file": "bananasplit.webp"
+    },
+    {
+      "name": "Beach hut",
+      "file": "beachhut.webp"
+    },
+    {
+      "name": "Beetle",
+      "file": "beetle.webp"
+    },
+    {
+      "name": "Bicycle",
+      "file": "bicycle.webp"
+    },
+    {
+      "name": "Bison",
+      "file": "bison.webp"
+    },
+    {
+      "name": "Blue whale",
+      "file": "bluewhale.webp"
+    },
+    {
+      "name": "Bonsai tree",
+      "file": "bonsaitree.webp"
+    },
+    {
+      "name": "Bread",
+      "file": "bread.webp"
+    },
+    {
+      "name": "Bulldozer",
+      "file": "bulldozer.webp"
+    },
+    {
+      "name": "Bullfrog",
+      "file": "bullfrog.webp"
+    },
+    {
+      "name": "Cactus",
+      "file": "cactus.webp"
+    },
+    {
+      "name": "Camel",
+      "file": "camel.webp"
+    },
+    {
+      "name": "Camera",
+      "file": "camera.webp"
+    },
+    {
+      "name": "Car",
+      "file": "car.webp"
+    },
+    {
+      "name": "Chameleon",
+      "file": "chameleon.webp"
+    },
+    {
+      "name": "Cheese",
+      "file": "cheese.webp"
+    },
+    {
+      "name": "Circus tents",
+      "file": "circustents.webp"
+    },
+    {
+      "name": "Club sandwich",
+      "file": "clubsandwich.webp"
+    },
+    {
+      "name": "Cockatoo",
+      "file": "cockatoo.webp"
+    },
+    {
+      "name": "Copper kettle",
+      "file": "copperkettle.webp"
+    },
+    {
+      "name": "Corn",
+      "file": "corn.webp"
     },
     {
       "name": "Couple",
       "file": "couple.webp"
     },
     {
+      "name": "Cow",
+      "file": "cow.webp"
+    },
+    {
+      "name": "Crab",
+      "file": "crab.webp"
+    },
+    {
+      "name": "Croissant",
+      "file": "croissant.webp"
+    },
+    {
+      "name": "Cruise ship",
+      "file": "cruiseship.webp"
+    },
+    {
+      "name": "Cupcake",
+      "file": "cupcake.webp"
+    },
+    {
+      "name": "Dodo",
+      "file": "dodo.webp"
+    },
+    {
+      "name": "Dolphin",
+      "file": "dolphin.webp"
+    },
+    {
+      "name": "Dragonfly",
+      "file": "dragonfly.webp"
+    },
+    {
+      "name": "Drum kit",
+      "file": "drumkit.webp"
+    },
+    {
+      "name": "Duck",
+      "file": "duck.webp"
+    },
+    {
+      "name": "Eagle",
+      "file": "eagle.webp"
+    },
+    {
+      "name": "Eagle in flight",
+      "file": "eagleinflight.webp"
+    },
+    {
+      "name": "Earthmover",
+      "file": "earthmover.webp"
+    },
+    {
       "name": "Egg",
       "file": "egg.webp"
+    },
+    {
+      "name": "Egg roll",
+      "file": "eggroll.webp"
     },
     {
       "name": "Elephant",
       "file": "elephant.webp"
     },
     {
+      "name": "Elk",
+      "file": "elk.webp"
+    },
+    {
+      "name": "Emu",
+      "file": "emu.webp"
+    },
+    {
+      "name": "Fawn",
+      "file": "fawn.webp"
+    },
+    {
+      "name": "Fire engine",
+      "file": "fireengine.webp"
+    },
+    {
       "name": "Fish",
       "file": "fish.webp"
+    },
+    {
+      "name": "Formula 1 car",
+      "file": "formula1car.webp"
+    },
+    {
+      "name": "Fox",
+      "file": "fox.webp"
+    },
+    {
+      "name": "Giraffe",
+      "file": "giraffe.webp"
     },
     {
       "name": "Goat",
@@ -52,37 +236,381 @@
       "file": "goldfish.webp"
     },
     {
+      "name": "Gramophone",
+      "file": "gramophone.webp"
+    },
+    {
+      "name": "Grasshopper",
+      "file": "grasshopper.webp"
+    },
+    {
+      "name": "Green grapes",
+      "file": "greengrapes.webp"
+    },
+    {
+      "name": "Hare",
+      "file": "hare.webp"
+    },
+    {
+      "name": "Hen",
+      "file": "hen.webp"
+    },
+    {
+      "name": "Heron",
+      "file": "heron.webp"
+    },
+    {
+      "name": "Highland cow",
+      "file": "highlandcow.webp"
+    },
+    {
+      "name": "Hippo",
+      "file": "hippo.webp"
+    },
+    {
       "name": "House",
       "file": "house.webp"
+    },
+    {
+      "name": "Hyena",
+      "file": "hyena.webp"
+    },
+    {
+      "name": "Iguana",
+      "file": "iguana.webp"
+    },
+    {
+      "name": "Kangaroo",
+      "file": "kangaroo.webp"
+    },
+    {
+      "name": "Koi carp",
+      "file": "koi.webp"
+    },
+    {
+      "name": "Komodo dragon",
+      "file": "komododragon.webp"
+    },
+    {
+      "name": "Ladybug",
+      "file": "ladybug.webp"
+    },
+    {
+      "name": "Leg of lamb",
+      "file": "legoflamb.webp"
+    },
+    {
+      "name": "Lemon",
+      "file": "lemon.webp"
+    },
+    {
+      "name": "Leopard",
+      "file": "leopard.webp"
+    },
+    {
+      "name": "Lifeguard station",
+      "file": "lifeguardstation.webp"
     },
     {
       "name": "Lightbulb",
       "file": "lightbulb.webp"
     },
     {
+      "name": "Lion",
+      "file": "lion.webp"
+    },
+    {
+      "name": "Lizard",
+      "file": "lizard.webp"
+    },
+    {
+      "name": "Lobster",
+      "file": "lobster.webp"
+    },
+    {
       "name": "Lorry",
       "file": "lorry.webp"
+    },
+    {
+      "name": "Mandarin",
+      "file": "mandarin.webp"
+    },
+    {
+      "name": "Marlin",
+      "file": "marlin.webp"
+    },
+    {
+      "name": "Minibus",
+      "file": "minibus.webp"
+    },
+    {
+      "name": "Minivan",
+      "file": "minivan.webp"
+    },
+    {
+      "name": "Modern tram",
+      "file": "moderntram.webp"
+    },
+    {
+      "name": "Moose",
+      "file": "moose.webp"
     },
     {
       "name": "Motorcycle",
       "file": "motorcycle.webp"
     },
     {
+      "name": "Octopus",
+      "file": "octopus.webp"
+    },
+    {
+      "name": "Orca",
+      "file": "orca.webp"
+    },
+    {
+      "name": "Ostrich",
+      "file": "ostrich.webp"
+    },
+    {
       "name": "Parrot",
       "file": "parrot.webp"
+    },
+    {
+      "name": "Parrot II",
+      "file": "parrot2.webp"
+    },
+    {
+      "name": "Peacock",
+      "file": "peacock.webp"
     },
     {
       "name": "Pear",
       "file": "pear.webp"
     },
     {
+      "name": "Penguins",
+      "file": "penguins.webp"
+    },
+    {
+      "name": "Piano",
+      "file": "piano.webp"
+    },
+    {
+      "name": "Pig",
+      "file": "pig.webp"
+    },
+    {
+      "name": "Pineapple",
+      "file": "pineapple.webp"
+    },
+    {
+      "name": "Pink flamingo",
+      "file": "pinkflamingo.webp"
+    },
+    {
+      "name": "Pizza",
+      "file": "pizza.webp"
+    },
+    {
+      "name": "Plant",
+      "file": "plant.webp"
+    },
+    {
+      "name": "Pomegranate",
+      "file": "pomegranate.webp"
+    },
+    {
+      "name": "Postal truck",
+      "file": "postaltruck.webp"
+    },
+    {
+      "name": "Praying mantis",
+      "file": "prayingmantis.webp"
+    },
+    {
+      "name": "Puffin",
+      "file": "puffin.webp"
+    },
+    {
+      "name": "Raccoon",
+      "file": "raccoon.webp"
+    },
+    {
+      "name": "Ramen",
+      "file": "ramen.webp"
+    },
+    {
+      "name": "Recliner",
+      "file": "recliner.webp"
+    },
+    {
+      "name": "Red grapes",
+      "file": "redgrapes.webp"
+    },
+    {
+      "name": "Rhino",
+      "file": "rhino.webp"
+    },
+    {
+      "name": "Roast chicken",
+      "file": "roastchicken.webp"
+    },
+    {
+      "name": "Rooster",
+      "file": "rooster.webp"
+    },
+    {
+      "name": "Sailboat",
+      "file": "sailboat.webp"
+    },
+    {
+      "name": "Salmon steak",
+      "file": "salmonsteak.webp"
+    },
+    {
+      "name": "Sewing machine",
+      "file": "sewingmachine.webp"
+    },
+    {
+      "name": "Sextant",
+      "file": "sextant.webp"
+    },
+    {
+      "name": "Shrimp",
+      "file": "shrimp.webp"
+    },
+    {
+      "name": "Snail",
+      "file": "snail.webp"
+    },
+    {
+      "name": "Snow crab",
+      "file": "snowcrab.webp"
+    },
+    {
+      "name": "Squid",
+      "file": "squid.webp"
+    },
+    {
+      "name": "Stag",
+      "file": "stag.webp"
+    },
+    {
+      "name": "Steam locomotive",
+      "file": "steamlocomotive.webp"
+    },
+    {
+      "name": "Sundae",
+      "file": "sundae.webp"
+    },
+    {
       "name": "Sunflower",
       "file": "sunflower.webp"
     },
     {
+      "name": "Sushi",
+      "file": "sushi.webp"
+    },
+    {
+      "name": "Sushi platter",
+      "file": "sushiplatter.webp"
+    },
+    {
+      "name": "T-bone steak",
+      "file": "tbone.webp"
+    },
+    {
+      "name": "Tea kettle",
+      "file": "teakettle.webp"
+    },
+    {
+      "name": "Teacup",
+      "file": "teacup.webp"
+    },
+    {
+      "name": "Telescope",
+      "file": "telescope.webp"
+    },
+    {
       "name": "Tiger",
       "file": "tiger.webp"
+    },
+    {
+      "name": "Tortoise",
+      "file": "tortoise.webp"
+    },
+    {
+      "name": "Toucan",
+      "file": "toucan.webp"
+    },
+    {
+      "name": "Toy plane",
+      "file": "toyplane.webp"
+    },
+    {
+      "name": "Tractor",
+      "file": "tractor.webp"
+    },
+    {
+      "name": "Tree frog",
+      "file": "treefrog.webp"
+    },
+    {
+      "name": "Tree frog II",
+      "file": "treefrog2.webp"
+    },
+    {
+      "name": "Trumpet",
+      "file": "trumpet.webp"
+    },
+    {
+      "name": "Tugboat",
+      "file": "tugboat.webp"
+    },
+    {
+      "name": "Typewriter",
+      "file": "typewriter.webp"
+    },
+    {
+      "name": "Vespa",
+      "file": "vespa.webp"
+    },
+    {
+      "name": "Vintage tram",
+      "file": "vintagetram.webp"
+    },
+    {
+      "name": "Violin",
+      "file": "violin.webp"
+    },
+    {
+      "name": "VW Beetle",
+      "file": "vwbeetle.webp"
+    },
+    {
+      "name": "VW van",
+      "file": "vwvan.webp"
+    },
+    {
+      "name": "Watermelon",
+      "file": "watermelon.webp"
+    },
+    {
+      "name": "Wolf",
+      "file": "wolf.webp"
+    },
+    {
+      "name": "WW1 plane",
+      "file": "ww1plane.webp"
+    },
+    {
+      "name": "Yellow taxi",
+      "file": "yellowtaxi.webp"
+    },
+    {
+      "name": "Zebra",
+      "file": "zebra.webp"
     }
   ],
-  "version": 2
+  "version": 3
 }

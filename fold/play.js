@@ -174,7 +174,7 @@
   async function loadArt() {
     let list = [], version = 1;
     try {
-      const res = await fetch('./art/manifest.json?v=4', { cache: 'no-cache' });
+      const res = await fetch('./art/manifest.json?v=5', { cache: 'no-cache' });
       if (res.ok) {
         const j = await res.json();
         list = Array.isArray(j.figures) ? j.figures : [];
@@ -186,6 +186,19 @@
     // ART the moment it decodes, and loadArt resolves as soon as ENOUGH are
     // ready to generate from. The rest arrive behind the player's back and
     // simply widen the pool.
+    // The library is 147 pictures and roughly 8.5MB. Pulling all of it on every
+    // visit would be indefensible on a phone, and pointless: a session plays a
+    // handful of boards. Take a random sample instead — the pool is different
+    // each time you come back, which is better variety than a fixed set, at a
+    // fraction of the bytes.
+    const POOL = 24;
+    if (list.length > POOL) {
+      for (let i = list.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [list[i], list[j]] = [list[j], list[i]];
+      }
+      list = list.slice(0, POOL);
+    }
     const START_WITH = Math.min(4, list.length);
     let ready = 0;
     return await new Promise(resolve => {
