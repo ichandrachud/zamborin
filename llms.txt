@@ -18,7 +18,7 @@
 
 ## Pages
 
-- [Guides](https://zamborin.com/guides/): Strategy guides and how-to-play walkthroughs. One per game for Orbit, Bloom, Sluice, Fold, Untangle, Tessera, Zood, Carrom and Ludo.
+- [Guides](https://zamborin.com/guides/): Strategy guides and how-to-play walkthroughs. One per game for Orbit, Bloom, Untangle, Tessera, Socket, Sluice, Fold, Mobile, Zood, Carrom and Ludo.
 - [About](https://zamborin.com/about/): What Zamborin Games is and how the studio works.
 - [FAQ](https://zamborin.com/faq/): Whether the games are free, whether an account is needed, mobile support, how the site makes money, and what data is collected.
 - [Privacy](https://zamborin.com/privacy/): What data the site collects (almost none) and how Google AdSense cookies are used.

@@ -27,3 +27,6 @@ Thumbs.db
 /orbit/splash-images/
 /splash-images updated/
 fold/Images/
+
+# In-progress prototype, not part of the site
+/tarmac/

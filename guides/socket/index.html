@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Socket strategy: the cable is the puzzle, not the sockets — Zamborin</title>
+  <meta name="description" content="A practical Socket strategy guide: why cable reach eliminates far more than plug shape does, why the widest plugs go in first, and what a taut red lead is telling you." />
+  <meta name="theme-color" content="#0E1726" />
+  <link rel="canonical" href="https://zamborin.com/guides/socket/" />
+  <link rel="icon" type="image/svg+xml" href="/images/zamborin-favicon.svg" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:site_name" content="Zamborin Games" />
+  <meta property="og:url" content="https://zamborin.com/guides/socket/" />
+  <meta property="og:title" content="Socket strategy: the cable is the puzzle, not the sockets" />
+  <meta property="og:description" content="Why reach matters more than shape, why the fattest plugs go first, and what a taut red cable actually means." />
+  <meta property="og:image" content="https://zamborin.com/images/socket-og.jpg" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Socket strategy: the cable is the puzzle, not the sockets" />
+  <meta name="twitter:description" content="A practical strategy guide to solving Socket, the power strip puzzle." />
+  <meta name="twitter:image" content="https://zamborin.com/images/socket-og.jpg" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../shared/tokens.css" />
+  <link rel="stylesheet" href="../../shared/chrome.css?v=11" />
+  <style>
+    .guide { max-width: 760px; margin: 0 auto; padding: 40px 24px 80px; color: var(--text-dim); line-height: 1.7; font-size: 17px; }
+    .guide .crumbs { font-size: 14px; margin-bottom: 22px; color: var(--text-dim); }
+    .guide .crumbs a { color: #4DC3FF; text-decoration: none; }
+    .guide h1 { font-size: 38px; color: var(--text); font-weight: 800; margin: 0 0 6px; letter-spacing: -0.5px; line-height: 1.15; }
+    .guide .lede { font-size: 19px; color: var(--text); margin: 14px 0 8px; }
+    .guide h2 { font-size: 23px; color: var(--text); font-weight: 700; margin: 38px 0 10px; letter-spacing: -0.2px; }
+    .guide p { margin: 12px 0; }
+    .guide a { color: #4DC3FF; }
+    .guide strong { color: var(--text); font-weight: 600; }
+    .guide ul, .guide ol { margin: 12px 0; padding-left: 22px; }
+    .guide li { margin: 8px 0; }
+    .guide .cta { display: inline-block; margin-top: 8px; background: #4DC3FF; color: #06121e; font-weight: 700; text-decoration: none; padding: 13px 26px; border-radius: 10px; }
+    .guide .playbox { margin: 36px 0 8px; padding: 22px 24px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09); border-radius: 14px; }
+    .guide .playbox p { margin: 0 0 14px; color: var(--text); font-weight: 600; }
+    .guide .more { margin-top: 40px; padding-top: 22px; border-top: 1px solid rgba(255,255,255,0.09); font-size: 15px; }
+    @media (max-width: 720px) { .guide { padding: 28px 18px 56px; font-size: 16px; } .guide h1 { font-size: 30px; } }
+  </style>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "Socket strategy: the cable is the puzzle, not the sockets",
+    "about": "Socket power strip puzzle strategy",
+    "description": "A practical Socket strategy guide covering cable reach, plug bodies that block sideways as well as vertically, and working outward from the most constrained plug.",
+    "author": { "@type": "Organization", "name": "Zamborin Games" },
+    "publisher": { "@type": "Organization", "name": "Zamborin Games", "url": "https://zamborin.com/" },
+    "mainEntityOfPage": "https://zamborin.com/guides/socket/"
+  }
+  </script>
+  <meta name="google-adsense-account" content="ca-pub-9207689324865969">
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9207689324865969" crossorigin="anonymous"></script>
+</head>
+<body class="lobby-page">
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="Zamborin Games home">
+      <img class="brand-logo" src="/images/zamborin-logo.svg" alt="Zamborin" />
+    </a>
+  </header>
+
+  <main class="guide">
+    <nav class="crumbs"><a href="/">Home</a> › <a href="/guides/">Guides</a> › Socket</nav>
+
+    <h1>Socket strategy: the cable is the puzzle, not the sockets</h1>
+    <p class="lede">Socket looks like a packing puzzle and it is not. Measured on plug shapes alone, a typical board has around 192 valid arrangements. Add the cables and that drops to about four. If you are shuffling plugs around looking for a fit, you are solving the wrong half of it.</p>
+
+    <h2>The cable decides everything, not the sockets</h2>
+    <p>It is tempting to treat Socket as a packing puzzle: fit the plugs into the holes, done. Packing is the easy half. A board judged on bodies alone has a median of <strong>192</strong> valid arrangements, because plugs that tile a column can be swapped around freely. Add the cables and that collapses to a median of <strong>four</strong>. The cable is the puzzle. The sockets are just where it ends.</p>
+    <p>So read the leads first. Every device sits somewhere along the wall with a fixed amount of slack, and that decides which rows its plug can even attempt before you have thought about bodies at all.</p>
+
+    <h2>Pick a plug up and the board tells you</h2>
+    <p>You do not have to guess at reach. Lift a plug and the strip shows you the sockets it can get to. Use that before you commit: the answer to "where can this go" is free, and the answer to "where must this go" usually follows from two or three plugs whose reach barely overlaps anything.</p>
+
+    <h2>A fat plug costs more than one socket</h2>
+    <p>A plug occupies one socket but its body covers however many its moulding is wide. A brick takes its own socket and denies the ones above and below, and because the strip is two gangs wide it can steal the socket <strong>beside</strong> it too. That second axis is what makes the two-column strip meaningfully harder than a single row rather than just twice as long.</p>
+    <p>Which gives you the ordering rule: <strong>place the widest plugs first</strong>. They have the fewest legal homes, and every narrow plug you seat early is one you will probably have to pull out again.</p>
+
+    <h2>Taut and red means wrong, not unfinished</h2>
+    <p>You cannot overlap two plugs, because that is physically impossible and the game will not pretend otherwise. You <em>can</em> plug something in too far from its device, and then the cable pulls tight and goes red. That is deliberate. Overlap is a move the board refuses; overstretch is a move it accepts and marks as wrong, so you can try a layout, see which single lead will not make it, and work backwards from there.</p>
+
+    <h2>Flip the ones that can flip</h2>
+    <p>Some plugs are not symmetrical. The wide ones are squared at the pin end and tapered at the other, so which way round they sit changes which neighbours they cover. If a plug fits everywhere except by one socket, try it the other way up before you rearrange the board around it.</p>
+
+    <h2>When you are stuck</h2>
+    <p>Find the plug with the shortest lead and the fattest body. It has the fewest places it can possibly go, often only one. Seat that, then look for the next most constrained. Socket rewards working from the tightest constraint outward, the same way you would actually do it behind a desk.</p>
+
+    <h2>Quick checklist</h2>
+    <ul>
+      <li>Read the cables before the sockets. Reach eliminates far more than shape does.</li>
+      <li>Lift a plug to see where it can reach. That information is free.</li>
+      <li>Seat the widest plugs first: they have the fewest legal homes.</li>
+      <li>Remember a fat body blocks sideways as well as up and down.</li>
+      <li>A red, taut cable is a wrong answer, not an unfinished one.</li>
+      <li>Try flipping an asymmetric plug before you rebuild the board around it.</li>
+      <li>Start from the most constrained plug and work outward.</li>
+    </ul>
+
+
+    <div class="playbox">
+      <p>Get everything plugged in at once.</p>
+      <a class="cta" href="/socket/">Play Socket →</a>
+    </div>
+
+    <p class="more">More puzzles: <a href="/sluice/">Sluice</a> · <a href="/bloom/">Bloom</a> · <a href="/fold/">Fold</a> · <a href="/">all Zamborin games</a> · <a href="/guides/">all guides</a></p>
+  </main>
+
+  <footer class="site-footer">
+    <nav class="site-foot-nav">
+      <a href="/about/">About</a>
+      <a href="/guides/">Guides</a>
+      <a href="/privacy/">Privacy</a>
+      <a href="/contact/">Contact</a>
+    </nav>
+    <span>© 2026 Zamborin. Games created by Indrajeet Chandrachud.</span>
+  </footer>
+  <script defer src="/_vercel/insights/script.js"></script>
+</body>
+</html>
