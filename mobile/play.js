@@ -244,7 +244,7 @@
     trayY = Math.round(LH * (1 - TRAY_F));
     const top = Math.round(LH * TOP_F);
     const availW = LW - 20;
-    const availH = (phase === 'won' ? LH * 0.88 : trayY - 14) - top;
+    const availH = (phase === 'play' ? trayY - 14 : LH * 0.88) - top;
 
     unit = 6;
     for (let u = 40; u >= 6; u--) {
@@ -276,6 +276,21 @@
     });
   }
   const stillMoving = () => Object.values(rods).some(r => Math.abs(r.w) > 0.0015);
+  /* Say something the moment the last piece is hung, rather than leaving the
+     player to work out from a motionless sculpture whether they have finished.
+     Balance is computed from the weights, not from the physics, so the answer
+     is known immediately — there is nothing to wait for. Taking a piece back
+     off returns to play and the verdict clears. */
+  const VERDICT_FADE = 420;
+  function verdict() {
+    if (phase === 'menu') return;
+    if (!allHung()) { if (phase !== 'play') { phase = 'play'; layout(); } return; }
+    if (phase === 'won' || phase === 'unbalanced') return;
+    settledAt = performance.now();
+    if (levelNow()) { phase = 'won'; snd.win(); }
+    else { phase = 'unbalanced'; snd.drop(); }
+    layout();
+  }
   const allHung = () => board.hooks.every(h => on[h] != null);
   function levelNow() {
     const at = {}; board.hooks.forEach(h => at[h] = weightAt(h));
@@ -287,12 +302,9 @@
     const dt = Math.min(0.05, (t - lastT) / 1000 || 0.016); lastT = t;
     if (board && phase !== 'menu') step(dt);
     render(t);
-    // the moment it stops swaying AND it is right
-    const settled = !stillMoving();
-    if (settled && !wasSettled && levelNow() && phase === 'play') {
-      phase = 'won'; settledAt = t; snd.win(); layout();
-    }
-    wasSettled = settled;
+    // The verdict is delivered on the last piece being hung, not on the
+    // sculpture coming to rest, so nothing is decided here any more.
+    wasSettled = !stillMoving();
     raf = requestAnimationFrame(frame);
   }
 
@@ -301,33 +313,53 @@
     // The mockups carry no title, no counter and no buttons. The sculpture is
     // the whole interface, and the only thing that ever appears is one red pill
     // when the level is done.
-    const g2 = ctx.createLinearGradient(LW, 0, LW / 2, LH);
+    // EAEAEA in the top-right corner easing to FFFFFF in the bottom-left.
+    // It used to end at the bottom CENTRE, so the left third never reached white.
+    const g2 = ctx.createLinearGradient(LW, 0, 0, LH);
     g2.addColorStop(0, '#EAEAEA'); g2.addColorStop(1, '#FFFFFF');
     ctx.fillStyle = g2; ctx.fillRect(0, 0, LW, LH);
 
     const s = scene();
-    if (phase !== 'won') drawTray();
+    if (phase === 'play') drawTray();
     drawSculpture(s);
     if (held) drawHeld();
     if (phase === 'won') drawNext();
+    if (phase === 'unbalanced') drawUnbalanced(t);
   }
 
   function drawSculpture(s) {
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     ctx.strokeStyle = WIRE; ctx.lineWidth = WIRE_W;
 
-    // the wire it all hangs from
-    ctx.beginPath(); ctx.moveTo(anchorX, 6); ctx.lineTo(anchorX, anchorY); ctx.stroke();
-
     // Measured off the mockups: the dots are 2, 3, 4, 5 and 6 pixels ACROSS on
     // a 393-wide frame, and they do not grow with the sculpture. Scaling them by
     // the unit made them twice the size and cost most of the delicacy.
     const F = LW / 393;
     const rEnd = 1.4 * F, rPivot = 2.2 * F, rTop = 3.0 * F;
+    /* The rod is an arc bowed up from the chord, but the pivot hangs at r.y,
+       which is ON the chord — so the dot sat BELOW the curve and the string
+       came down, crossed the rod and stopped in mid air underneath it. In the
+       reference the wire runs into the middle of the dot and the dot sits on
+       the rod. So: find where the arc actually is above the pivot, put the dot
+       there, and end the string that feeds it there too.
+
+       x is linear in t for this curve, because the control point is the chord
+       midpoint, so the parameter at the pivot is just how far along it sits. */
+    const liftOf = {};
     for (const r of s.rods) {
-      // A rod is a long shallow arc, bowed upward. In the reference the bow is
-      // about a tenth of the span, which is what keeps it from reading as a
-      // bent stick.
+      const span = Math.hypot(r.rx - r.lx, r.ry - r.ly);
+      const dx = r.rx - r.lx;
+      const t = Math.abs(dx) < 0.001 ? 0.5 : (r.x - r.lx) / dx;
+      liftOf[r.node.id] = 2 * (1 - t) * t * span * 0.11;
+    }
+    const kidLift = (node) => (node && !node.hook && liftOf[node.id]) || 0;
+
+    // the wire it all hangs from, stopping on the top rod's arc
+    ctx.beginPath(); ctx.moveTo(anchorX, 6);
+    ctx.lineTo(anchorX, anchorY - (s.rods.length ? liftOf[s.rods[0].node.id] : 0));
+    ctx.stroke();
+
+    for (const r of s.rods) {
       const span = Math.hypot(r.rx - r.lx, r.ry - r.ly);
       const mx = (r.lx + r.rx) / 2, my = (r.ly + r.ry) / 2;
       ctx.strokeStyle = WIRE; ctx.lineWidth = WIRE_W;
@@ -335,22 +367,24 @@
       ctx.moveTo(r.lx, r.ly);
       ctx.quadraticCurveTo(mx, my - span * 0.11, r.rx, r.ry);
       ctx.stroke();
-      // the strings down to whatever hangs from each end
+      // the strings down to whatever hangs from each end, stopping on the arc
+      // of the rod below rather than punching through it
       ctx.beginPath();
-      ctx.moveTo(r.lx, r.ly); ctx.lineTo(r.lx, r.ly + r.node.dropL * unit);
-      ctx.moveTo(r.rx, r.ry); ctx.lineTo(r.rx, r.ry + r.node.dropR * unit);
+      ctx.moveTo(r.lx, r.ly); ctx.lineTo(r.lx, r.ly + r.node.dropL * unit - kidLift(r.node.left));
+      ctx.moveTo(r.rx, r.ry); ctx.lineTo(r.rx, r.ry + r.node.dropR * unit - kidLift(r.node.right));
       ctx.stroke();
-      // small grey joints at the ends, a firm black pivot in the middle
+      // small grey joints at the ends, a firm black pivot on the arc
       ctx.fillStyle = JOINT;
       ctx.beginPath(); ctx.arc(r.lx, r.ly, rEnd, 0, 7); ctx.fill();
       ctx.beginPath(); ctx.arc(r.rx, r.ry, rEnd, 0, 7); ctx.fill();
       ctx.fillStyle = PIVOT;
-      ctx.beginPath(); ctx.arc(r.x, r.y, rPivot, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.arc(r.x, r.y - liftOf[r.node.id], rPivot, 0, 7); ctx.fill();
     }
     // the one it all hangs from is bigger and softer
     if (s.rods.length) {
+      const r0 = s.rods[0];
       ctx.fillStyle = TOP_PIVOT;
-      ctx.beginPath(); ctx.arc(s.rods[0].x, s.rods[0].y, rTop, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.arc(r0.x, r0.y - liftOf[r0.node.id], rTop, 0, 7); ctx.fill();
     }
 
     for (const id of board.hooks) {
@@ -508,6 +542,34 @@
 
   // 89 x 30, radius 15, #FF0000, sitting at 788 of 852. No label above it: the
   // sculpture hanging straight is the message.
+  // How far through the fade the verdict is. Nothing snaps in: the button and
+  // the message ease up so the moment reads as the sculpture answering you.
+  const verdictFade = (t) => Math.max(0, Math.min(1, (t - settledAt) / VERDICT_FADE));
+
+  function drawUnbalanced(t) {
+    const f = verdictFade(t);
+    ctx.save(); ctx.globalAlpha = f;
+    ctx.fillStyle = '#231F20';
+    ctx.font = '700 ' + Math.round(LH * 0.030) + 'px Inter, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText("Your sculpture isn't balanced. Keep trying.", LW / 2, Math.round(LH - 96));
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    const b = UI.drawCTA(ctx, 'SOLVE', LW / 2, Math.round(LH - 44), NEXT_RED);
+    ctx.restore();
+    uiButtons.push({ x: b.x - 12, y: b.y - 12, w: b.w + 24, h: b.h + 24, act: solveIt });
+  }
+
+  function solveIt() {
+    const pool = board.shapes.map((w, i) => ({ w, i }));
+    board.hooks.forEach((h, k) => {
+      const want = board.need[k];
+      const f = pool.findIndex(q => q.w === want);
+      if (f >= 0) { on[h] = pool[f].i; pool.splice(f, 1); }
+    });
+    packTray(); nudge();
+    phase = 'won'; settledAt = performance.now(); snd.win(); layout();
+  }
+
   function drawNext() {
     // These used to be fractions of the 393x852 phone mockup — 89/393 wide by
     // 30/852 tall. That is fine on a phone and absurd in the 760x600 desktop
@@ -515,7 +577,9 @@
     // other game drew a 50px button. A button is chrome, not content: it takes
     // its size from the system, not from the frame it happens to be in.
     const cy = Math.round(LH - 44);
+    ctx.save(); ctx.globalAlpha = verdictFade(lastT);
     const b = UI.drawCTA(ctx, 'NEXT', LW / 2, cy, NEXT_RED);
+    ctx.restore();
     uiButtons.push({ x: b.x - 12, y: b.y - 12, w: b.w + 24, h: b.h + 24, act: () => start(level + 1) });
   }
 
@@ -543,7 +607,7 @@
       if (b.act) { e.preventDefault(); b.act(); return; }
       if (phase !== 'play') return;
       if (b.tray != null) { held = { i: b.tray, x, y, from: null }; snd.lift(); e.preventDefault(); return; }
-      if (b.take != null) { held = { i: b.take, x, y, from: b.hook }; delete on[b.hook]; snd.lift(); packTray(); nudge(); e.preventDefault(); return; }
+      if (b.take != null) { held = { i: b.take, x, y, from: b.hook }; delete on[b.hook]; snd.lift(); packTray(); nudge(); verdict(); e.preventDefault(); return; }
     }
   });
   canvas.addEventListener('pointermove', (e) => {
@@ -563,7 +627,7 @@
     }
     if (best && bestD < unit * 2.6) { on[best] = held.i; snd.hang(); }
     else if (held.from != null) snd.drop();
-    held = null; packTray(); nudge();
+    held = null; packTray(); nudge(); verdict();
   }
   canvas.addEventListener('pointerup', release);
   canvas.addEventListener('pointercancel', release);
@@ -583,7 +647,7 @@
     },
     get geom() { return { LW, LH, unit, anchorX, anchorY, trayY, mode: MODE, bounds: bounds(unit) }; },
     get angles() { return Object.fromEntries(Object.entries(rods).map(([k, v]) => [k, +v.a.toFixed(3)])); },
-    hang(hookIdx, shapeIdx) { on[board.hooks[hookIdx]] = shapeIdx; nudge(); },
+    hang(hookIdx, shapeIdx) { on[board.hooks[hookIdx]] = shapeIdx; packTray(); nudge(); verdict(); },
     solveNow() {
       const pool = board.shapes.map((w, i) => ({ w, i }));
       board.hooks.forEach((h, k) => {
