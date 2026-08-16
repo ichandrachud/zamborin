@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <title>Weave — A Zamborin Game</title>
+  <meta name="description" content="A calm light-routing puzzle. Flip the mirrors to steer a beam through a weave and light every gem with its own colour. Free to play on phone and desktop." />
+  <meta name="theme-color" content="#0E1726" />
+  <link rel="canonical" href="https://zamborin.com/weave/" />
+  <link rel="icon" type="image/svg+xml" href="/images/zamborin-favicon.svg" />
+
+  <!-- Open Graph / Twitter -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Zamborin Games" />
+  <meta property="og:url" content="https://zamborin.com/weave/" />
+  <meta property="og:title" content="Weave — a light-routing colour puzzle" />
+  <meta property="og:description" content="Flip the mirrors to steer white light through a weave, split it into red, green and blue, and light every gem with the colour it asks for." />
+  <meta property="og:image" content="https://zamborin.com/images/weave-og.jpg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Weave — coloured beams of light crossing a dark grid." />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Weave — a light-routing colour puzzle" />
+  <meta name="twitter:description" content="Steer white light through a weave and light every gem with its own colour. A calm, clever puzzle, free to play." />
+  <meta name="twitter:image" content="https://zamborin.com/images/weave-og.jpg" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../shared/tokens.css" />
+  <link rel="stylesheet" href="../shared/chrome.css?v=11" />
+  <link rel="stylesheet" href="./play.css?v=3" />
+  <!-- Google AdSense -->
+  <meta name="google-adsense-account" content="ca-pub-9207689324865969">
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9207689324865969" crossorigin="anonymous"></script>
+  <!-- Structured data: VideoGame schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "VideoGame",
+    "name": "Weave",
+    "description": "A free light-routing puzzle. Flip the mirrors to steer a white beam through a weave, split it into red, green and blue, and light every gem with the colour it asks for.",
+    "url": "https://zamborin.com/weave/",
+    "image": "https://zamborin.com/images/weave-og.jpg",
+    "playMode": "SinglePlayer",
+    "gamePlatform": "Web Browser",
+    "applicationCategory": "Game",
+    "operatingSystem": "Web",
+    "genre": ["Puzzle","Logic"],
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "publisher": { "@type": "Organization", "name": "Zamborin Games", "url": "https://zamborin.com/" }
+  }
+  </script>
+  <style>
+    .game-info { max-width: 760px; margin: 0 auto; padding: 8px 24px 40px; color: var(--text-dim); line-height: 1.65; font-size: 16px; }
+    .game-info h1 { font-size: 28px; color: var(--text); font-weight: 800; margin: 20px 0 8px; letter-spacing: -0.3px; }
+    .game-info h2 { font-size: 20px; color: var(--text); font-weight: 700; margin: 30px 0 8px; }
+    .game-info p { margin: 12px 0; }
+    .game-info ul { margin: 12px 0; padding-left: 22px; }
+    .game-info li { margin: 7px 0; }
+    .game-info strong { color: var(--text); font-weight: 600; }
+    .game-info a { color: #4DC3FF; }
+    @media (max-width: 720px) { .game-info { padding: 8px 18px 40px; } .game-info h1 { font-size: 24px; } }
+    @media (max-width: 1151px) {
+      body.game-content-page { position: static; overflow: visible; height: auto; width: auto; top: auto; left: auto; touch-action: auto; }
+      body.game-content-page .site-footer { display: flex; }
+    }
+  </style>
+</head>
+<body class="game-content-page">
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="Zamborin Games home">
+      <img class="brand-logo" src="/images/zamborin-logo.svg" alt="Zamborin" />
+    </a>
+    <div class="header-right">
+      <button id="focus-toggle" class="focus-btn" type="button" aria-label="Play fullscreen" aria-pressed="false">
+        <svg class="icon-enter" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="4 9 4 4 9 4"/>
+          <polyline points="20 9 20 4 15 4"/>
+          <polyline points="4 15 4 20 9 20"/>
+          <polyline points="20 15 20 20 15 20"/>
+        </svg>
+        <svg class="icon-exit" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M6 6l12 12M18 6L6 18"/>
+        </svg>
+      </button>
+      <a class="back-link" href="/">Back to all games</a>
+    </div>
+  </header>
+
+  <main class="page">
+    <!-- Leaderboard ad: 728×90 -->
+    <div class="ad-slot ad-leaderboard" aria-label="Advertisement">
+      <span class="ad-label">AD · 728 × 90</span>
+    </div>
+
+    <section class="play-row">
+      <div class="game-wrap">
+        <canvas id="game" aria-label="Weave puzzle"></canvas>
+        <!-- Splash: shows for 2 s at load, then fades to reveal the rules screen. -->
+        <div id="splash" class="splash" aria-hidden="true"></div>
+      </div>
+      <aside class="sidebar">
+        <div class="ad-slot ad-medrec" aria-label="Advertisement">
+          <span class="ad-label">AD · 300 × 250</span>
+        </div>
+        <div class="ad-slot ad-medrec" aria-label="Advertisement">
+          <span class="ad-label">AD · 300 × 250</span>
+        </div>
+      </aside>
+    </section>
+
+    <!-- Leaderboard ad: 728×90 -->
+    <div class="ad-slot ad-leaderboard" aria-label="Advertisement">
+      <span class="ad-label">AD · 728 × 90</span>
+    </div>
+
+    <section class="game-info">
+      <h1>Weave: a light-routing colour puzzle</h1>
+
+      <p>Weave is a quiet puzzle about steering light. A single emitter fires one white beam across a dark grid, and somewhere along its path sits a piece of glass that changes everything: a <strong>weave</strong>, which takes white light apart into its three primaries. It has a front and a back, and it only does anything to light that meets its flat face square on: red then bends least and carries straight on past the apex, green peels away to the left and blue to the right, and from that moment you are not routing one beam but three. Around the board, gems wait in the dark. Each one wants a particular colour and will stay closed until it gets exactly that. The only pieces you can touch are the mirrors, each a small silver bar set at 45 degrees, and each with two ways to sit. Tap one and it flips, and every beam that meets it turns 90 degrees. The whole board relights the instant you do, so you are never guessing where the light went.</p>
+
+      <h2>How to play</h2>
+      <p>Tap or click any mirror to flip it between its two diagonals. The beams redraw immediately, so you can always see exactly where the light is going and which gems are still dark. Keep flipping until every gem has the colour it asked for.</p>
+      <ul>
+        <li><strong>Flip a mirror:</strong> tap it. A mirror sitting as <strong>/</strong> sends a beam travelling east up to the north, and one travelling west down to the south. Flipped to <strong>\</strong> it does the opposite.</li>
+        <li><strong>The weave has a front:</strong> it only works on light that arrives square on its flat face. Light striking one of its slanted sides is scattered and lost, so your first job on every board is steering the white beam round to the side that works.</li>
+        <li><strong>Through the glass:</strong> red bends least and carries straight on past the apex, green bends away to the left and blue to the right. A beam that is already coloured passes through untouched, because a weave has nothing left to take apart.</li>
+        <li><strong>Read the stones:</strong> every gem is cut from the colour it is waiting for, and sits dark until it gets it. A dark ruby wants red. A dark amber stone wants yellow, which means red and green arriving together.</li>
+        <li><strong>Colours add:</strong> two beams arriving at the same gem combine. Red and green make yellow, red and blue make magenta, green and blue make cyan, and all three make white.</li>
+        <li><strong>Undo or Restart:</strong> step back one flip, or put the whole board back the way you found it, at any time.</li>
+      </ul>
+      <p>Your progress saves automatically, so you always come back to the level where you left off.</p>
+
+      <h2>Why it is clever</h2>
+      <p>Nothing in Weave is hidden. The beams are always drawn, so the board is a live picture of your own reasoning: flip a mirror and you can watch a whole branch of light swing across the grid and either find its gem or sail past it. That makes it a puzzle you solve by reading rather than by guessing, because random flipping shows you immediately that it is getting you nowhere.</p>
+      <p>The depth arrives with the mixing. A gem that wants a single primary only needs one route to work out. A gem that wants yellow needs two separate beams to arrive at the same square, which means two routes that have to be solved against each other, and a mirror that fixes one of them will often be the very mirror that breaks the other. Every board is built from a working light path first and then scrambled, so a solution always exists, and it is checked by simulation before you ever see it.</p>
+
+      <h2>Tips</h2>
+      <ul>
+        <li>Start at the emitter and get the white beam into the weave. Nothing else can be right until it is.</li>
+        <li>Work outward from the weave, one colour at a time. Red carries straight on, so it is usually the easiest to read.</li>
+        <li>If a beam is sailing past a gem, look at the last mirror it touched rather than the one nearest the gem.</li>
+        <li>For a mixed gem, solve the harder of its two beams first, then bring the second in to meet it.</li>
+        <li>Not every mirror on the board is part of the answer. Some are only there to catch a beam that has gone astray.</li>
+      </ul>
+
+      <h2>Frequently asked questions</h2>
+      <p><strong>Is Weave free?</strong> Yes, completely free to play, with no account and no download, in any modern browser on phone, tablet or desktop.</p>
+      <p><strong>Does it work on mobile?</strong> Yes. Weave is built for touch as well as mouse, with a taller board on a phone and the controls kept within reach of a thumb.</p>
+      <p><strong>How do I win?</strong> Flip the mirrors until every gem on the board is receiving exactly the colour it is cut from.</p>
+      <p><strong>Is every level solvable?</strong> Yes. Each board is built as a working light path first, then scrambled, and the original answer is re-simulated and checked before the level is served.</p>
+      <p><strong>What happens when two beams cross?</strong> Beams that cross at right angles pass through each other unchanged. Beams only combine when they arrive at the same gem, or run along the same stretch of the board.</p>
+
+      <p>Enjoy a good thinking puzzle? Try <a href="/bloom/">Bloom</a> or <a href="/fold/">Fold</a>, or browse <a href="/">all Zamborin games</a>.</p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <nav class="site-foot-nav">
+      <a href="/">Games</a>
+      <a href="/guides/">Guides</a>
+      <a href="/about/">About</a>
+      <a href="/faq/">FAQ</a>
+      <a href="/privacy/">Privacy</a>
+      <a href="/cookies/">Cookies</a>
+      <a href="/terms/">Terms</a>
+      <a href="/contact/">Contact</a>
+    </nav>
+    <span>© 2026 Zamborin. Games created by Indrajeet Chandrachud.</span>
+  </footer>
+
+  <script src="../shared/sfx.js?v=1"></script>
+  <script src="../shared/ui.js?v=1"></script>
+  <script src="./play.js?v=21"></script>
+  <script>
+    (() => {
+      const btn = document.getElementById('focus-toggle');
+      btn.addEventListener('click', () => {
+        const on = document.body.classList.toggle('focus-mode');
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        btn.setAttribute('aria-label', on ? 'Exit fullscreen' : 'Play fullscreen');
+        setTimeout(() => window.dispatchEvent(new Event('resize')), 60);
+      });
+    })();
+
+    // Splash: 2 s reveal, 0.6 s fade, remove from DOM at 2.7 s, then tell play.js.
+    // Until the artwork lands, play.css leaves the background image off, and a
+    // blank blue hold for 2.7 s on every reload just reads as a broken page.
+    // So: no image, no hold.
+    (() => {
+      const splash = document.getElementById('splash');
+      if (!splash) return;
+      const hasArt = getComputedStyle(splash).backgroundImage !== 'none';
+      if (!hasArt) {
+        splash.remove();
+        window.dispatchEvent(new CustomEvent('splash-done'));
+        return;
+      }
+      setTimeout(() => splash.classList.add('fading'), 2000);
+      setTimeout(() => {
+        splash.remove();
+        window.dispatchEvent(new CustomEvent('splash-done'));
+      }, 2700);
+    })();
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
+</body>
+</html>

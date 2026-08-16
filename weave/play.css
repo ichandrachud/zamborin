@@ -1,0 +1,10 @@
+/* Weave — per-game styles. Everything else comes from ../shared/chrome.css
+   and ../shared/tokens.css.
+
+   Splash art per mode: desktop 1520x1200, mobile 1170x2532, which are the two
+   frames' own aspects so `cover` crops nothing. Commented out until the JPGs
+   land; while they are off the boot script in index.html sees no background
+   image and drops the splash instantly rather than holding a blank card. */
+
+body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=2'); }
+body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=2'); }
