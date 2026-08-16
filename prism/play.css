@@ -1,0 +1,17 @@
+/* Prism — per-game styles. Everything else comes from ../shared/chrome.css
+   and ../shared/tokens.css. */
+
+/* Splash artwork per mode. The .splash frame, cover sizing and fade all come
+   from ../shared/chrome.css; this file only supplies the image.
+
+   Desktop art is 1520 x 1200 and mobile art is 1170 x 2532, which are the two
+   frames' own aspects, so `cover` crops nothing. On mobile keep the key art
+   inside the central 90% width and 85% height.
+
+   Artwork landed 2026-08-16, so these are live and the normal 2 s reveal is
+   back. The boot script in index.html checks whether a background image is
+   actually set: with these commented out it drops the splash immediately rather
+   than holding a blank card for 2.7 seconds. */
+
+body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=1'); }
+body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=1'); }
