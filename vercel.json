@@ -3,7 +3,12 @@
   "redirects": [
     {
       "source": "/lacerta",
-      "destination": "/empyrean",
+      "destination": "/empyrean/",
+      "permanent": true
+    },
+    {
+      "source": "/lacerta/",
+      "destination": "/empyrean/",
       "permanent": true
     },
     {
