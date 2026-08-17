@@ -30,3 +30,9 @@ fold/Images/
 
 # In-progress prototype, not part of the site
 /tarmac/
+
+# Source / working assets — belong in iCloud, never in the repo.
+# tessera.psd was 18 MB and publicly downloadable at /Psd/tessera.psd.
+/Psd/
+**/references/
+*.psd
