@@ -329,3 +329,20 @@ body.focus-mode #game { width: 100%; height: 100%; }
   }
   body #game { width: 100%; height: 100%; }
 }
+
+/* The game -> guide link. For a long time every guide linked back to its game
+   and no game linked forward, so the strongest pages on the site passed the
+   long-tail search pages nothing. Reads as help, not as an advert, and lives in
+   the page body well below the canvas — nothing may cover gameplay. */
+.game-info .guide-cta { margin: 22px 0 12px; }
+.game-info .guide-cta a {
+  display: inline-block;
+  padding: 11px 18px;
+  border-radius: 10px;
+  background: rgba(77, 195, 255, 0.09);
+  box-shadow: inset 0 0 0 1px rgba(77, 195, 255, 0.22);
+  color: #7FD4FF;
+  font-weight: 600;
+  text-decoration: none;
+}
+.game-info .guide-cta a:hover { background: rgba(77, 195, 255, 0.15); color: #A6E2FF; }
