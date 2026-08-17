@@ -414,6 +414,13 @@
     return ringsWithArc >= Math.max(1, K - 1);
   }
 
+  // ---------- analytics ----------
+  // Fire and forget. T() returns a no-op stub when the shared module is absent
+  // or blocked, so tracking can never throw into the game loop.
+  const NOOP = { init(){}, gameStart(){}, levelStart(){}, levelComplete(){}, levelRestart(){}, hintUsed(){} };
+  const T = () => (window.ZAM_TRACK || NOOP);
+  T().init('orbit');
+
   function genLevel(lvl, asMenu) {
     level = clamp(lvl, 1, 999); saveLevel();
     const spec = specOverride || levelSpec(level);
@@ -468,8 +475,10 @@
     // Seed the counters from the new board, or the first relight would replay a
     // chime for every bulb that happens to start lit.
     lastLit = bulbCount()[0]; lastOff = off.slice();
+    T().levelStart(level);
   }
   function restart() {
+    T().levelRestart(level);
     if (phase === 'won') return;          // the level is already scored — no replaying it
     off = initOff.slice(); visAng = off.map(o => o * STEP); targAng = visAng.slice();
     moves = 0; history = []; phase = 'play'; wonT = -1e9; cardAt = Infinity; clearTimeout(cardFB); bulbT = new Array(S).fill(-1e9);
@@ -509,7 +518,7 @@
     if (phase !== 'play') return;
     const [w, t] = bulbCount();
     if (w === t && t > 0) {
-      phase = 'won'; wonT = performance.now();      // phase guard above means this banks exactly once
+      phase = 'won'; wonT = performance.now(); T().levelComplete(level, moves);      // phase guard above means this banks exactly once
       cardAt = wonT + WIN_DELAY;                    // a tap during the hold can pull this forward
       // The card is drawn by the animation loop, so on a device where rAF is
       // throttled or paused the player would win and then sit on a lit board
@@ -528,6 +537,7 @@
     }
   }
   function undo() {
+    T().hintUsed(level);
     if (!history.length || phase !== 'play') return;
     const h = history.pop();
     targAng[h.k] -= h.d * STEP;
@@ -1158,7 +1168,7 @@
     const bw = Math.round(Math.max(200, ctx.measureText(label).width + 90)), bx = LW / 2 - bw / 2;
     ctx.fillStyle = '#3DDC84'; roundRect(bx, by, bw, bh, bh / 2); ctx.fill();
     ctx.fillStyle = '#0E1726'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(label, LW / 2, by + bh / 2 + 1);
-    uiButtons.push({ x: bx, y: by, w: bw, h: bh, id: 'play', act: () => { phase = 'play'; render(performance.now()); } });
+    uiButtons.push({ x: bx, y: by, w: bw, h: bh, id: 'play', act: () => { phase = 'play'; T().gameStart(); render(performance.now()); } });
   }
 
   // ---------- debug ----------

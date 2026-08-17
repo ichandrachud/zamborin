@@ -446,6 +446,7 @@
     if (allFinished(token.player)) {
       winner = token.player;
       scene = 'gameOver';
+      T().levelComplete(1, 0);
       sfxWin();
     }
   }
@@ -676,7 +677,15 @@
   }
 
   // ---------- LIFECYCLE ----------
+  // ---------- analytics ----------
+  // Fire and forget. T() returns a no-op stub when the shared module is absent
+  // or blocked, so tracking can never throw into the game loop.
+  const NOOP = { init(){}, gameStart(){}, levelStart(){}, levelComplete(){}, levelRestart(){}, hintUsed(){} };
+  const T = () => (window.ZAM_TRACK || NOOP);
+  T().init('ludo');
+
   function startGame(n) {
+    T().gameStart(); T().levelStart(1);
     setPlayerCount(n);
     tokens = freshTokens();
     activePlayerIdx = 0;

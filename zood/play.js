@@ -238,6 +238,13 @@
     return n;
   }
 
+  // ---------- analytics ----------
+  // Fire and forget. T() returns a no-op stub when the shared module is absent
+  // or blocked, so tracking can never throw into the game loop.
+  const NOOP = { init(){}, gameStart(){}, levelStart(){}, levelComplete(){}, levelRestart(){}, hintUsed(){} };
+  const T = () => (window.ZAM_TRACK || NOOP);
+  T().init('zood');
+
   function initBoard() {
     newGrid();
     for (let r = 0; r < START_ROWS; r++)
@@ -320,7 +327,7 @@
     // is ever left floating — runs after every shot, not just after matches.
     const dropped = dropFloaters();
     if (dropped) score += dropped * 20;
-    if (zoodLeft() === 0) { phase = 'won'; play('win'); return; }
+    if (zoodLeft() === 0) { phase = 'won'; T().levelComplete(1, 0); play('win'); return; }
     // Lose if any Zood now sits on/over the danger line.
     for (let rr = 0; rr < MAX_ROWS; rr++)
       for (let cc = 0; cc < COLS; cc++)
@@ -613,8 +620,8 @@
   canvas.addEventListener('pointerup', (e) => {
     sfx.ensureAudio();
     const { x, y } = getXY(e);
-    if (phase === 'ready') { phase = 'playing'; play('start'); return; }
-    if (phase === 'won' || phase === 'lost') { phase = 'ready'; initBoard(); return; }
+    if (phase === 'ready') { phase = 'playing'; T().gameStart(); T().levelStart(1); play('start'); return; }
+    if (phase === 'won' || phase === 'lost') { if (phase === 'lost') T().levelRestart(1); phase = 'ready'; initBoard(); return; }
     if (phase === 'playing' && !proj) { setAim(x, y); fire(); }
   });
   // Desktop: M toggles sound.

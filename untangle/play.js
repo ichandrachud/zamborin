@@ -337,6 +337,13 @@
   function inRect(r, lx, ly) { return r.w > 0 && lx >= r.x && lx <= r.x + r.w && ly >= r.y && ly <= r.y + r.h; }
 
   // ---------- INIT ----------
+  // ---------- analytics ----------
+  // Fire and forget. T() returns a no-op stub when the shared module is absent
+  // or blocked, so tracking can never throw into the game loop.
+  const NOOP = { init(){}, gameStart(){}, levelStart(){}, levelComplete(){}, levelRestart(){}, hintUsed(){} };
+  const T = () => (window.ZAM_TRACK || NOOP);
+  T().init('untangle');
+
   function initLevel(level) {
     runLevel = level;
     runTier  = tierForLevel(genLevelFor(level));
@@ -369,9 +376,11 @@
     par = perturbCount;
     moves = 0;
     scene = 'playing';
+    T().gameStart();
     dragIdx = -1;
     bestThisLevel = getBest(runLevel);
     try { localStorage.setItem('zamborin-untangle.level', String(runLevel)); } catch (_) {}
+    T().levelStart(runLevel);
   }
 
   // ---------- CROSSING DETECTION ----------
@@ -503,6 +512,7 @@
 
   function onWin() {
     scene = 'won';
+    T().levelComplete(runLevel, moves);
     if (bestThisLevel == null || moves < bestThisLevel) {
       bestThisLevel = moves;
       try { localStorage.setItem(bestKey(runLevel), String(moves)); } catch (_) {}

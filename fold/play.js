@@ -687,8 +687,8 @@
     const cy = DESK ? 28 : CH - fs(70), gap = fs(9);
     const row = [
       ['Undo', 'undo', !history.length || phase === 'won', undo],
-      ['Restart', 'restart', phase === 'won', () => startLevel(level)],
-      ['Hint', 'hint', phase === 'won', hint],
+      ['Restart', 'restart', phase === 'won', () => { T().levelRestart(level); startLevel(level); }],
+      ['Hint', 'hint', phase === 'won', () => { T().hintUsed(level); hint(); }],
       ['New', 'new', false, () => startLevel(level + 1)],
     ];
     ctx.font = '700 ' + fs(14) + 'px Inter, sans-serif';
@@ -871,6 +871,7 @@
   function checkWin() {
     if (phase !== 'play' || !solved()) return;
     phase = 'won';
+    T().levelComplete(level, moves);
     snd.win();
     if (banked) { wonT = performance.now(); cardAt = wonT + WIN_DELAY; ensureWinAnim(); return; }
     banked = true;
@@ -888,7 +889,7 @@
   }
 
   // ---------- actions ----------
-  function undo() { if (history.length) { restore(history.pop()); snd.unfold(); seedSound(); render(); } }
+  function undo() { T().hintUsed(level); if (history.length) { restore(history.pop()); snd.unfold(); seedSound(); render(); } }
   function hint() {
     // Replays the recorded solution from the current position if the player is
     // still on it; otherwise says so rather than folding them somewhere wrong.
@@ -899,6 +900,13 @@
     checkWin();
     render();
   }
+  // ---------- analytics ----------
+  // Fire and forget. T() returns a no-op stub when the shared module is absent
+  // or blocked, so tracking can never throw into the game loop.
+  const NOOP = { init(){}, gameStart(){}, levelStart(){}, levelComplete(){}, levelRestart(){}, hintUsed(){} };
+  const T = () => (window.ZAM_TRACK || NOOP);
+  T().init('fold');
+
   function startLevel(lvl) {
     level = Math.max(1, lvl);
     moves = 0; history = []; hintsUsed = 0; phase = 'play';
@@ -918,6 +926,7 @@
       }
     }
     computeLayout(); render();
+    T().levelStart(level);
   }
 
   // ---------- input ----------

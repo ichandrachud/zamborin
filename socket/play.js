@@ -183,6 +183,13 @@
   }
 
   // ---------- level ----------
+  // ---------- analytics ----------
+  // Fire and forget. T() returns a no-op stub when the shared module is absent
+  // or blocked, so tracking can never throw into the game loop.
+  const NOOP = { init(){}, gameStart(){}, levelStart(){}, levelComplete(){}, levelRestart(){}, hintUsed(){} };
+  const T = () => (window.ZAM_TRACK || NOOP);
+  T().init('socket');
+
   function startLevel(n) {
     level = Math.max(1, n); saveLevel();
     board = M.generate(level) || M.generate(1);
@@ -190,6 +197,7 @@
     seatT = board.plugs.map(() => -1e9); litT = board.plugs.map(() => -1e9);
     held = -1; moves = 0; phase = 'play'; wonT = -1e9;
     layout(); render();
+    T().levelStart(level);
   }
   const heldOrient = () => (held < 0 ? 0 : (place[held] ? place[held].oi : (board.plugs[held]._oi | 0)));
   // Every way the held plug could sit, in the order the model lists them.
@@ -666,7 +674,7 @@
     ctx.fillStyle = '#0B1220'; ctx.font = '800 15px Inter, sans-serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('PLAY', LW / 2, y + bh / 2 + 1);
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-    uiButtons.push({ x: bx, y, w: bw, h: bh, act: () => { phase = 'play'; render(); } });
+    uiButtons.push({ x: bx, y, w: bw, h: bh, act: () => { phase = 'play'; T().gameStart(); render(); } });
   }
 
   // ---------- interaction ----------
@@ -714,7 +722,7 @@
     checkWin(); kick();
   }
   function checkWin() {
-    if (phase === 'play' && solved()) { phase = 'won'; wonT = performance.now(); snd.win(); kick(); }
+    if (phase === 'play' && solved()) { phase = 'won'; wonT = performance.now(); T().levelComplete(level, moves); snd.win(); kick(); }
   }
   function doSolve() {
     board.plugs.forEach((p, i) => { place[i] = board.solution[i]; seatT[i] = performance.now(); litT[i] = performance.now(); });

@@ -359,6 +359,13 @@
     return { scrambles, maxFlowers };
   }
 
+  // ---------- analytics ----------
+  // Fire and forget. T() returns a no-op stub when the shared module is absent
+  // or blocked, so tracking can never throw into the game loop.
+  const NOOP = { init(){}, gameStart(){}, levelStart(){}, levelComplete(){}, levelRestart(){}, hintUsed(){} };
+  const T = () => (window.ZAM_TRACK || NOOP);
+  T().init('sluice');
+
   function genLevel(lvl, asMenu) {
     level = lvl; saveLevel();
     const [gr, gc] = gridDims(lvl);
@@ -466,8 +473,10 @@
     moves = 0; phase = asMenu ? 'menu' : 'play'; history = []; animEnd = 0; wonT = -1e9;
     drag = null; snapAnim = null; hoverRow = -1; stopHint();
     computeWater(); seedSound(); layout(); render(performance.now());
+    T().levelStart(level);
   }
   function restart() {
+    T().levelRestart(level);
     if (demo) return;
     conn = initConn.slice(); moves = 0; phase = 'play'; history = [];
     flowers.forEach(f => { f.bloomT = -1e9; f.open = false; });
@@ -487,10 +496,11 @@
     announceWater();
     const [w, t] = flowersWatered();
     animEnd = Math.max(now + SNAP_MS + 40, now + BLOOM_DUR + 40);
-    if (w === t && phase === 'play') { phase = 'won'; wonT = now; snd.win(); animEnd = Math.max(animEnd, now + BLOOM_DUR + 350 + 450 + 60); }
+    if (w === t && phase === 'play') { phase = 'won'; wonT = now; T().levelComplete(level, moves); snd.win(); animEnd = Math.max(animEnd, now + BLOOM_DUR + 350 + 450 + 60); }
     ensureAnim(now);
   }
   function undo() {
+    T().hintUsed(level);
     if (!history.length || phase !== 'play' || demo) return;
     const h = history.pop();
     // A hint's 3-cycle is four slides but ONE thing the player asked for, so it
@@ -1069,7 +1079,7 @@
     const bw = Math.round(Math.max(210, ctx.measureText(label).width + 90)), bh = 50, bx = cx - bw / 2, by = py + ph - 32 - bh / 2;
     ctx.fillStyle = '#3DDC84'; roundRect(bx, by, bw, bh, bh / 2); ctx.fill();
     ctx.fillStyle = '#0E1726'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(label, cx, by + bh / 2 + 1);
-    uiButtons.push({ x: bx, y: by, w: bw, h: bh, act: () => { phase = 'play'; render(performance.now()); } });
+    uiButtons.push({ x: bx, y: by, w: bw, h: bh, act: () => { phase = 'play'; T().gameStart(); render(performance.now()); } });
   }
 
   // ---------- debug ----------

@@ -644,6 +644,13 @@
 
   // ---------- MATCH FLOW ----------
   function inRect(r, lx, ly) { return r.w > 0 && lx >= r.x && lx <= r.x + r.w && ly >= r.y && ly <= r.y + r.h; }
+  // ---------- analytics ----------
+  // Fire and forget. T() returns a no-op stub when the shared module is absent
+  // or blocked, so tracking can never throw into the game loop.
+  const NOOP = { init(){}, gameStart(){}, levelStart(){}, levelComplete(){}, levelRestart(){}, hintUsed(){} };
+  const T = () => (window.ZAM_TRACK || NOOP);
+  T().init('carrom');
+
   function newBoard() {
     setupPieces();
     userPocketed = 0; aiPocketed = 0;
@@ -662,6 +669,7 @@
     scene = 'aiming';
   }
   function startMatch() {
+    T().gameStart(); T().levelStart(1);
     userBoards = 0; aiBoards = 0;
     boardNum = 1;
     newBoard();
@@ -672,7 +680,7 @@
     return userBoards >= 2 || aiBoards >= 2 || (userBoards + aiBoards >= 3);
   }
   function advanceAfterBoard() {
-    if (tournamentComplete()) { scene = 'tournament-over'; return; }
+    if (tournamentComplete()) { scene = 'tournament-over'; T().levelComplete(1, userBoards); return; }
     boardNum++;
     newBoard();
   }

@@ -287,7 +287,7 @@
     if (!allHung()) { if (phase !== 'play') { phase = 'play'; layout(); } return; }
     if (phase === 'won' || phase === 'unbalanced') return;
     settledAt = performance.now();
-    if (levelNow()) { phase = 'won'; snd.win(); }
+    if (levelNow()) { phase = 'won'; T().levelComplete(level, 0); snd.win(); }
     else { phase = 'unbalanced'; snd.drop(); }
     layout();
   }
@@ -513,7 +513,7 @@
   function drawControls() {
     const y = LH - 29, gap = 8;
     ctx.font = '700 13px Inter, sans-serif';
-    const items = [['Clear', () => { on = {}; phase = 'play'; }, !Object.keys(on).length],
+    const items = [['Clear', () => { T().levelRestart(level); on = {}; phase = 'play'; }, !Object.keys(on).length],
                    ['Rules', () => { phase = 'menu'; }, false],
                    ['Next', () => start(level + 1), false]];
     let total = 36 + gap;
@@ -556,7 +556,7 @@
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
     const b = UI.drawCTA(ctx, 'SOLVE', LW / 2, Math.round(LH - 44), NEXT_RED);
     ctx.restore();
-    uiButtons.push({ x: b.x - 12, y: b.y - 12, w: b.w + 24, h: b.h + 24, act: solveIt });
+    uiButtons.push({ x: b.x - 12, y: b.y - 12, w: b.w + 24, h: b.h + 24, act: () => { T().hintUsed(level); solveIt(); } });
   }
 
   function solveIt() {
@@ -567,7 +567,7 @@
       if (f >= 0) { on[h] = pool[f].i; pool.splice(f, 1); }
     });
     packTray(); nudge();
-    phase = 'won'; settledAt = performance.now(); snd.win(); layout();
+    phase = 'won'; settledAt = performance.now(); T().levelComplete(level, 0); snd.win(); layout();
   }
 
   function drawNext() {
@@ -584,6 +584,13 @@
   }
 
   // ---------- interaction ----------
+  // ---------- analytics ----------
+  // Fire and forget. T() returns a no-op stub when the shared module is absent
+  // or blocked, so tracking can never throw into the game loop.
+  const NOOP = { init(){}, gameStart(){}, levelStart(){}, levelComplete(){}, levelRestart(){}, hintUsed(){} };
+  const T = () => (window.ZAM_TRACK || NOOP);
+  T().init('mobile');
+
   function start(n) {
     level = Math.max(1, Math.min(PACK.length, n)); saveLevel();
     board = PACK[level - 1];
@@ -591,6 +598,7 @@
     setShapeScale(); dealLooks();
     forEachRod(board.tree, (nd) => rods[nd.id] = { a: 0, w: 0 });
     layout(); packTray();
+    T().levelStart(level);
   }
   function nudge() { for (const id in rods) rods[id].w += (Math.random() - 0.5) * 1.2; }
 

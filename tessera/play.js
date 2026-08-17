@@ -316,6 +316,13 @@
   let clearFlashes = [];    // { cells: [{r,c}], startAt }
 
   // ---------- INIT ----------
+  // ---------- analytics ----------
+  // Fire and forget. T() returns a no-op stub when the shared module is absent
+  // or blocked, so tracking can never throw into the game loop.
+  const NOOP = { init(){}, gameStart(){}, levelStart(){}, levelComplete(){}, levelRestart(){}, hintUsed(){} };
+  const T = () => (window.ZAM_TRACK || NOOP);
+  T().init('tessera');
+
   function initGame() {
     grid = emptyGrid();
     refillBag();
@@ -330,6 +337,7 @@
     nextLetter = drawLetter();
     spawnTile();
     requestAnimationFrame(loop);
+    T().gameStart(); T().levelStart(1);
   }
 
   function spawnTile() {
@@ -343,6 +351,7 @@
     // If the spawn cell is already occupied, the stack is full → game over.
     if (grid[0][col] !== null) {
       gameOver = true;
+      T().levelComplete(1, score);
     }
   }
 
@@ -362,6 +371,7 @@
     if (row === -1) {
       // Column overflow — game over.
       gameOver = true;
+      T().levelComplete(1, score);
       sfxGameOver();
       active = null;
       return;

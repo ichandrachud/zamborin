@@ -219,6 +219,13 @@
 
   // ---------- generation (random spanning tree) ----------
   function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0;[a[i], a[j]] = [a[j], a[i]]; } }
+  // ---------- analytics ----------
+  // Fire and forget. T() returns a no-op stub when the shared module is absent
+  // or blocked, so tracking can never throw into the game loop.
+  const NOOP = { init(){}, gameStart(){}, levelStart(){}, levelComplete(){}, levelRestart(){}, hintUsed(){} };
+  const T = () => (window.ZAM_TRACK || NOOP);
+  T().init('bloom');
+
   function genLevel(lvl, asMenu) {
     level = lvl; saveLevel();
     const [gr, gc] = gridDims(lvl);
@@ -254,8 +261,9 @@
     watered = new Array(n).fill(false); spinT = new Array(n).fill(-1e9); bloomT = new Array(n).fill(-1e9);
     moves = 0; phase = asMenu ? 'menu' : 'play'; history = []; animEnd = 0; wonT = -1e9;
     computeWater(); seedSound(); layout(); render(performance.now());
+    T().levelStart(level);
   }
-  function restart() { conn = initConn.slice(); moves = 0; phase = 'play'; history = []; spinT = spinT.map(() => -1e9); bloomT = bloomT.map(() => -1e9); computeWater(); seedSound(); render(performance.now()); }
+  function restart() { T().levelRestart(level); conn = initConn.slice(); moves = 0; phase = 'play'; history = []; spinT = spinT.map(() => -1e9); bloomT = bloomT.map(() => -1e9); computeWater(); seedSound(); render(performance.now()); }
 
   // ---------- input ----------
   function rotate(i, now) {
@@ -267,10 +275,11 @@
     announceWater();
     const [w, t] = flowersWatered();
     animEnd = Math.max(now + ROT_MS + 40, now + BLOOM_DUR + 40);
-    if (w === t) { phase = 'won'; wonT = now; snd.win(); animEnd = Math.max(animEnd, now + BLOOM_DUR + 350 + 450 + 60); }
+    if (w === t) { phase = 'won'; wonT = now; T().levelComplete(level, moves); snd.win(); animEnd = Math.max(animEnd, now + BLOOM_DUR + 350 + 450 + 60); }
     ensureAnim(now);
   }
   function undo() {
+    T().hintUsed(level);
     if (!history.length || phase !== 'play') return;
     const i = history.pop();
     conn[i] = rotCW(rotCW(rotCW(conn[i]))); moves++; spinT[i] = performance.now();
@@ -499,7 +508,7 @@
     const bw = Math.round(Math.max(210, ctx.measureText(label).width + 90)), bh = 50, bx = cx - bw / 2, by = py + ph - 32 - bh / 2;
     ctx.fillStyle = '#3DDC84'; roundRect(bx, by, bw, bh, bh / 2); ctx.fill();
     ctx.fillStyle = '#0E1726'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(label, cx, by + bh / 2 + 1);
-    uiButtons.push({ x: bx, y: by, w: bw, h: bh, act: () => { phase = 'play'; render(performance.now()); } });
+    uiButtons.push({ x: bx, y: by, w: bw, h: bh, act: () => { phase = 'play'; T().gameStart(); render(performance.now()); } });
   }
 
   // ---------- debug ----------

@@ -149,8 +149,9 @@
 
   <!-- Shared toolkit: audio + input. ALWAYS load before play.js. -->
   <script src="../shared/sfx.js?v=1"></script>
+  <script src="../shared/analytics.js?v=1"></script>
   <script src="../shared/input.js?v=1"></script>
-  <script src="./play.js?v=22"></script>
+  <script src="./play.js?v=23"></script>
   <script>
     (() => {
       const btn = document.getElementById('focus-toggle');
@@ -175,5 +176,6 @@
     })();
   </script>
   <script defer src="/_vercel/insights/script.js"></script>
+  <script defer src="/_vercel/speed-insights/script.js"></script>
 </body>
 </html>

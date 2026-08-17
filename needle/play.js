@@ -545,6 +545,13 @@
   }
 
   let solution = [];
+  // ---------- analytics ----------
+  // Fire and forget. T() returns a no-op stub when the shared module is absent
+  // or blocked, so tracking can never throw into the game loop.
+  const NOOP = { init(){}, gameStart(){}, levelStart(){}, levelComplete(){}, levelRestart(){}, hintUsed(){} };
+  const T = () => (window.ZAM_TRACK || NOOP);
+  T().init('needle');
+
   function genLevel(lvl, asMenu) {
     level = Math.max(1, lvl); saveLevel();
     const [gr, gc] = gridDims(level);
@@ -575,8 +582,10 @@
     moves = 0; history = []; drag = null;
     phase = asMenu ? 'menu' : 'play'; animEnd = 0; wonT = -1e9;
     layout(); draw(performance.now());
+    T().levelStart(level);
   }
   function restart() {
+    T().levelRestart(level);
     for (const t of threads) t.path = null;
     moves = 0; history = []; drag = null; phase = 'play';
     computeWeave(); draw(performance.now());
@@ -717,7 +726,7 @@
     drag = null;
     const hadSnag = snagCount > 0;
     computeWeave();
-    if (isSolved()) { phase = 'won'; wonT = performance.now(); animEnd = wonT + 1600; return; }
+    if (isSolved()) { phase = 'won'; wonT = performance.now(); T().levelComplete(level, moves); animEnd = wonT + 1600; return; }
     // Teach the rule ONCE, the first time the cloth actually refuses, with the
     // real conflict named. After this the loop highlight and the line under the
     // board carry it, and tapping a snag brings the explanation back. A modal on
@@ -729,6 +738,7 @@
     }
   }
   function undo() {
+    T().hintUsed(level);
     if (!history.length || phase !== 'play') return;
     const snap = history.pop();
     threads.forEach((t, i) => { t.path = snap[i] ? snap[i].slice() : null; });
@@ -1261,7 +1271,7 @@
     // do nothing looks like it would do nothing.
     const nothingLeft = threads.every((t) => t.path && solution[t.id] &&
       t.path.length === solution[t.id].length && t.path.every((c, i) => c === solution[t.id][i]));
-    uiButtons.push({ ...UI.drawPill(ctx, 'Hint', x + wN / 2, cy, { w: wN, dim: nothingLeft }), act: hintThread }); x += wN + gap;
+    uiButtons.push({ ...UI.drawPill(ctx, 'Hint', x + wN / 2, cy, { w: wN, dim: nothingLeft }), act: () => { T().hintUsed(level); hintThread(); } }); x += wN + gap;
     uiButtons.push({ ...UI.drawPill(ctx, 'Restart', x + wR / 2, cy, { w: wR }), act: restart }); x += wR + gap;
     uiButtons.push({ ...UI.drawPill(ctx, 'Rules', x + wH / 2, cy, { w: wH }), act: () => { phase = 'menu'; } });
   }
@@ -1335,7 +1345,7 @@
       ctx.fillStyle = 'rgba(255,255,255,0.90)'; ctx.font = '500 16px Inter, sans-serif';
       y = wrapText(RULES[i], rx + 34, y, pw - 96, 22, 'left') + 12;
     }
-    uiButtons.push({ ...UI.drawCTA(ctx, moves > 0 ? 'RESUME' : 'PLAY', cx, py + ph - 34 - UI.CTA.h / 2, ACCENT), act: () => { phase = 'play'; } });
+    uiButtons.push({ ...UI.drawCTA(ctx, moves > 0 ? 'RESUME' : 'PLAY', cx, py + ph - 34 - UI.CTA.h / 2, ACCENT), act: () => { phase = 'play'; T().gameStart(); } });
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   }
   function winOverlay(now) {
