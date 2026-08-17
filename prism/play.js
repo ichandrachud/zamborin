@@ -214,6 +214,13 @@
     return r * C + c;
   }
 
+  // ---------- analytics ----------
+  // Fire and forget. T() resolves the shared module if it loaded and returns a
+  // no-op stub if it did not, so a blocked tracker cannot reach the game loop.
+  const NOOP = { init(){}, gameStart(){}, levelStart(){}, levelComplete(){}, levelRestart(){}, hintUsed(){} };
+  const T = () => (window.ZAM_TRACK || NOOP);
+  T().init('prism');
+
   // ---------- layout ----------
   // No game name on the canvas: the tab, the page heading and the card the
   // player tapped all say it, and on canvas it costs a whole row. The controls
@@ -1072,8 +1079,10 @@
     moves = 0; phase = asMenu ? 'menu' : 'play'; animEnd = 0; wonT = -1e9;
     hoverCell = -1; pressCell = -1;
     simulate(0); seedSound(); layout(); draw(performance.now());
+    T().levelStart(level);
   }
   function restart() {
+    T().levelRestart(level);
     mirror = new Array(R * C).fill(-1);
     moves = 0; phase = 'play'; history = [];
     flipT = flipT.map(() => -1e9); bloomT = bloomT.map(() => -1e9);
@@ -1142,11 +1151,12 @@
     snd.flip();
     simulate(now); announce();
     animEnd = Math.max(now + FLIP_MS, now + BLOOM_MS) + 60;
-    if (isSolved()) { phase = 'won'; wonT = now; snd.win(); animEnd = now + BLOOM_MS + 1400; }
+    if (isSolved()) { phase = 'won'; wonT = now; snd.win(); animEnd = now + BLOOM_MS + 1400; T().levelComplete(level, moves); }
     draw(now);
   }
   function undo() {
     if (!history.length || phase !== 'play') return;
+    T().hintUsed(level);
     mirror = history.pop(); moves++;
     snd.undo(); simulate(performance.now()); announce();
     animEnd = performance.now() + Math.max(FLIP_MS, BLOOM_MS) + 60;
@@ -2114,7 +2124,7 @@
       y = wrapText(rules[i], rx + 34, y, pw - 96, 22, 'left') + 12;
     }
     const label = moves > 0 ? 'RESUME' : 'PLAY';
-    uiButtons.push({ ...UI.drawCTA(ctx, label, cx, py + ph - 34 - UI.CTA.h / 2, ACCENT), act: () => { phase = 'play'; } });
+    uiButtons.push({ ...UI.drawCTA(ctx, label, cx, py + ph - 34 - UI.CTA.h / 2, ACCENT), act: () => { phase = 'play'; T().gameStart(); } });
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   }
 
