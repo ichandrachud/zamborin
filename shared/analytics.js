@@ -22,6 +22,24 @@
 (function () {
   'use strict';
 
+  /* ---------- VOLUME CONTROL ----------
+     Both dials live here and ONLY here, never per game, so tightening later is
+     a one-line change rather than thirteen edits. They are deliberately open
+     right now: traffic is low enough that full granularity is affordable, and
+     early data is worth more than the quota.
+
+     When the Analytics tab shows the monthly allowance being approached, set
+     EMIT_LEVEL_START to false and LEVEL_DETAIL_CAP to 10. That is roughly a
+     two-thirds cut and it leaves retention untouched, because session_end is
+     never gated by either dial.
+
+     LEVEL_DETAIL_CAP suppresses the PER-LEVEL detail above that level —
+     level_complete, level_restart and hint_used. The counters behind
+     session_end keep running either way, so maxLevel and levelsCompleted stay
+     honest no matter how far a player gets. */
+  var EMIT_LEVEL_START = true;
+  var LEVEL_DETAIL_CAP = Infinity;
+
   var game = null;
   var sessionT0 = now();
   var levelT0 = now();
@@ -51,6 +69,14 @@
       send(name, data);
     } catch (e) {}
   }
+
+  // Something happened worth ending a session over, whether or not an event was
+  // EMITTED for it. This has to be separate from track(), or a throttled build
+  // would go quiet: with EMIT_LEVEL_START off and LEVEL_DETAIL_CAP at 10, a
+  // player who only touches levels 11 and up would emit nothing at all, `dirty`
+  // would never be set, and session_end — the retention backbone — would never
+  // fire for exactly the players who got furthest.
+  function noteActivity() { dirty = true; }
 
   // session_end goes on visibilitychange -> hidden, NOT beforeunload, which is
   // unreliable on mobile Safari — a large share of this audience.
@@ -84,32 +110,52 @@
        this says whether the page convinced anyone to start at all. */
     gameStart: function () { track('game_start', null); },
 
-    /* A level began. Also starts the per-level clock used by the next two. */
+    /* A level began. The per-level clock and maxLevel are updated whether or
+       not the event is emitted: level_complete and level_restart both measure
+       from levelT0, and session_end reports maxLevel. Only the EMIT is gated. */
     levelStart: function (level) {
       try {
         level = level | 0;
         levelT0 = now();
         if (level > maxLevel) maxLevel = level;
+        noteActivity();
+        if (!EMIT_LEVEL_START) return;
         track('level_start', { level: level });
       } catch (e) {}
     },
 
-    /* Solved. `moves` is whatever that game counts as a move. */
+    /* Solved. `moves` is whatever that game counts as a move. The counter runs
+       past the cap so session_end's levelsCompleted stays honest. */
     levelComplete: function (level, moves) {
       try {
+        level = level | 0;
         levelsCompleted++;
-        track('level_complete', { level: level | 0, moves: moves | 0, seconds: secsSince(levelT0) });
+        noteActivity();
+        if (level > LEVEL_DETAIL_CAP) return;
+        track('level_complete', { level: level, moves: moves | 0, seconds: secsSince(levelT0) });
       } catch (e) {}
     },
 
     /* Restarted before solving. Against level_start this is how often players
        get stuck, which is what decides whether rewarded video is worth building. */
     levelRestart: function (level) {
-      try { track('level_restart', { level: level | 0, seconds: secsSince(levelT0) }); } catch (e) {}
+      try {
+        level = level | 0;
+        noteActivity();
+        if (level > LEVEL_DETAIL_CAP) return;
+        track('level_restart', { level: level, seconds: secsSince(levelT0) });
+      } catch (e) {}
     },
 
     /* Hint, undo or solve-for-me. Only where such a control exists. */
-    hintUsed: function (level) { try { track('hint_used', { level: level | 0 }); } catch (e) {} },
+    hintUsed: function (level) {
+      try {
+        level = level | 0;
+        noteActivity();
+        if (level > LEVEL_DETAIL_CAP) return;
+        track('hint_used', { level: level });
+      } catch (e) {}
+    },
 
     /* Escape hatch for anything not in the six. Use sparingly — every extra
        event costs quota and adds noise. */
