@@ -126,6 +126,15 @@ body.ads-on .sidebar { display: flex; }
   overflow: hidden;
   position: relative;
 }
+/* A LAST-RESORT SIZE, on plain body, so the canvas can never be left unsized.
+   Both mode classes and the inline properties are set by play.js, so if the
+   script fails to run at all — a bad parse on an old browser, a request that
+   never lands — every one of those is missing, var(--canvas-w) resolves to
+   nothing, and the canvas falls back to its intrinsic 300x150. That is a small
+   landscape box floating in the middle of a dark page, which is what a player
+   reported seeing and which gives no clue that anything failed. The class rules
+   below still win whenever the script does run. */
+body { --canvas-w: 760px; --canvas-h: 600px; }
 /* The site-wide desktop frame. play.js sets these inline per game; this is the
    fallback, and it was still Tessera's old 570 after every game moved to 600. */
 body.mode-desktop { --canvas-w: 760px; --canvas-h: 600px; }
