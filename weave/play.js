@@ -136,16 +136,22 @@
 
   function gridDims(lvl) {
     if (MODE === 'mobile') {
-      const cols = 6;
+      // SEVEN columns, not six. At six the level-1 answer already committed
+      // half the board, and a player who has not yet worked out that threads
+      // must cross has nowhere to reroute to. Room to be wrong is what an
+      // early level is for.
+      const cols = 7;
       const cw = (LW - SIDE_PAD * 2) / cols;
       let rows = Math.floor((LH - topBand() - botBand()) / cw);
-      return [Math.max(7, Math.min(rows, 10)), cols];
+      return [Math.max(7, Math.min(rows, 11)), cols];
     }
     // The play area is 700x504, a ratio of 1.39, so the grid keeps roughly that
     // ratio as it grows or the board stops filling the frame.
     // Grid grows to level 21 rather than stopping at 13. At 10x13 the cell is
     // 50px and the board still uses 85% of the frame width.
-    const rows = 5 + Math.min(Math.floor((lvl - 1) / 3), 5);      // 5 -> 10 by level 16
+    // Starts at 6x8, not 5x7. Desktop level 1 was TIGHTER than mobile's — 35
+    // cells against 60 — for the same three threads.
+    const rows = 6 + Math.min(Math.floor((lvl - 1) / 3), 4);      // 6 -> 10 by level 13
     return [rows, rows + (rows <= 6 ? 2 : 3)];
   }
   function layout() {
@@ -554,6 +560,79 @@
     computeWeave(); draw(performance.now());
   }
 
+  // HINT: lay ONE thread exactly where the answer puts it.
+  //
+  // A player who cannot see why a thread is loose has no way forward except
+  // dragging it about and hoping, and the measurements say a lazy routing
+  // satisfies the weave 0% of the time even at level one. So there has to be a
+  // way to be shown, once, what a woven thread actually looks like.
+  //
+  // It picks the thread that is most in the way: one not laid at all first,
+  // then a loose one, then anything sitting somewhere other than the answer.
+  // Threads already correct are never chosen, so repeated taps make progress
+  // instead of cycling.
+  let hintT = -1e9, hintTid = -1;
+  function hintThread() {
+    if (phase !== 'play') return;
+    const wrong = (t) => !t.path || !solution[t.id] ||
+      t.path.length !== solution[t.id].length ||
+      t.path.some((c, i) => c !== solution[t.id][i]);
+    const loose = new Set(looseThreads());
+    const pool = threads.filter(wrong);
+    if (!pool.length) return;                       // everything already right
+    const pick2 = pool.find((t) => !t.path) || pool.find((t) => loose.has(t.id)) || pool[0];
+    if (!solution[pick2.id]) return;
+
+    history.push(threads.map((x) => (x.path ? x.path.slice() : null)));
+    if (history.length > 60) history.shift();
+    pick2.path = solution[pick2.id].slice();
+
+    // The answer's route may run through cells another thread is using, and a
+    // half-overlapping pair reads as a bug. So drop any thread the hinted one
+    // now collides with, rather than leaving an impossible board.
+    //
+    // buildOccupancy cannot answer this: it OVERWRITES on conflict rather than
+    // reporting one, so a clash there looks like a clean board. Claims have to
+    // be compared directly, and the only pair that may share a cell is one
+    // horizontal pass with one vertical pass — that is what a crossing is.
+    //
+    // A thread ALREADY sitting on its answer is never cleared. The answer is
+    // internally consistent by construction, so two hinted threads cannot
+    // really conflict; a naive claim check says otherwise on some boards and
+    // that made repeated hints knock each other out and stall at three of four.
+    const onAnswer = (t) => t.path && solution[t.id] &&
+      t.path.length === solution[t.id].length && t.path.every((c, i) => c === solution[t.id][i]);
+    const claimsOf = (t) => {
+      const m = new Map();
+      if (!t.path || t.path.length < 2) return m;
+      const p = t.path;
+      m.set(p[0], 'solid'); m.set(p[p.length - 1], 'solid');
+      for (let k = 1; k < p.length - 1; k++) {
+        const prev = p[k - 1], cur = p[k], next = p[k + 1];
+        if (rowOf(prev) === rowOf(next)) m.set(cur, 'h');
+        else if (colOf(prev) === colOf(next)) m.set(cur, 'v');
+        else m.set(cur, 'solid');
+      }
+      return m;
+    };
+    const hintClaims = claimsOf(pick2);
+    for (const other of threads) {
+      if (other.id === pick2.id || !other.path || onAnswer(other)) continue;
+      let clash = false;
+      for (const [c, kind] of claimsOf(other)) {
+        const mine = hintClaims.get(c);
+        if (mine === undefined) continue;
+        if ((mine === 'h' && kind === 'v') || (mine === 'v' && kind === 'h')) continue;
+        clash = true; break;
+      }
+      if (clash) other.path = null;
+    }
+    hintT = performance.now(); hintTid = pick2.id;
+    moves++; computeWeave();
+    animEnd = Math.max(animEnd, hintT + 1400);
+    draw(hintT);
+  }
+
   // ---------- drawing threads ----------
   function threadAtEndpoint(c) {
     for (const t of threads) if (t.a === c || t.b === c) return t;
@@ -716,6 +795,28 @@
     const looseSet = new Set(looseThreads());
     for (const t of threads) if (t.path) strandPath(t, overAt, false, looseSet.has(t.id));
     if (drag && drag.path.length > 1) strandPath({ ...drag.t, path: drag.path }, overAt, true, false);
+
+    // A hinted thread is lit along its whole length for a moment. Laying a
+    // thread somewhere the player did not put it, with no cue, reads as the
+    // board rearranging itself; the flash says THIS is the one that moved.
+    const hp = (now - hintT) / 1400;
+    if (hp >= 0 && hp < 1 && hintTid >= 0) {
+      const t = threads[hintTid];
+      if (t && t.path && t.path.length > 1) {
+        const fade = Math.sin(Math.min(1, hp) * Math.PI);
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = 0.42 * fade;
+        ctx.strokeStyle = SILK[t.colour].c;
+        ctx.lineWidth = Math.max(6, cell * 0.42);
+        ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+        ctx.beginPath();
+        t.path.forEach((c, i) => { const X = ccx(colOf(c)), Y = ccy(rowOf(c));
+          i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); });
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
 
     // The whole arguing ring is lit, not just the crossing that happened to
     // close it. The one that closed it burns hottest so there is somewhere to
@@ -1128,11 +1229,17 @@
 
   function drawControls() {
     const gap = UI.PILL.gap;
-    const wU = UI.pillWidth(ctx, 'Undo'), wR = UI.pillWidth(ctx, 'Restart'), wH = UI.pillWidth(ctx, 'Rules');
-    const total = wU + wR + wH + gap * 2;
+    const wU = UI.pillWidth(ctx, 'Undo'), wR = UI.pillWidth(ctx, 'Restart'),
+          wN = UI.pillWidth(ctx, 'Hint'), wH = UI.pillWidth(ctx, 'Rules');
+    const total = wU + wR + wN + wH + gap * 3;
     const cy = MODE === 'mobile' ? LH - 74 : Math.round(topBand() / 2);
     let x = MODE === 'mobile' ? Math.round(LW / 2 - total / 2) : SIDE_PAD;
     uiButtons.push({ ...UI.drawPill(ctx, 'Undo', x + wU / 2, cy, { w: wU, dim: !history.length }), act: undo }); x += wU + gap;
+    // Dimmed once every thread already matches the answer, so a tap that would
+    // do nothing looks like it would do nothing.
+    const nothingLeft = threads.every((t) => t.path && solution[t.id] &&
+      t.path.length === solution[t.id].length && t.path.every((c, i) => c === solution[t.id][i]));
+    uiButtons.push({ ...UI.drawPill(ctx, 'Hint', x + wN / 2, cy, { w: wN, dim: nothingLeft }), act: hintThread }); x += wN + gap;
     uiButtons.push({ ...UI.drawPill(ctx, 'Restart', x + wR / 2, cy, { w: wR }), act: restart }); x += wR + gap;
     uiButtons.push({ ...UI.drawPill(ctx, 'Rules', x + wH / 2, cy, { w: wH }), act: () => { phase = 'menu'; } });
   }
