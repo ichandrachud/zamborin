@@ -44,30 +44,48 @@
   //   /  sends N<->E and S<->W, which is d ^ 1
   //   \  sends N<->W and S<->E, which is 3 - d
   const SLASH = 0, BACK = 1;
-  const reflect = (d, o) => (o === SLASH ? (d ^ 1) : (3 - d));
+  // A SPLITTER is a half silvered plate. It sits at the same two angles as a
+  // mirror, but instead of turning the whole beam it turns HALF and lets the
+  // other half carry straight on. Encoded in the same array as mirrors so every
+  // piece of geometry keeps working: 0 and 1 are mirrors, 2 and 3 are splitters
+  // at the same two angles.
+  const SP_SLASH = 2, SP_BACK = 3;
+  const isSplit = (v) => v >= SP_SLASH;
+  const angleOf = (v) => v & 1;                 // SLASH or BACK, whichever piece
+  const reflect = (d, o) => ((o & 1) === SLASH ? (d ^ 1) : (3 - d));
   const mirrorFor = (din, dout) => (((din ^ 1) === dout) ? SLASH : BACK);
+  const splitFor = (din, dout) => (mirrorFor(din, dout) === SLASH ? SP_SLASH : SP_BACK);
 
   // ---------- colour ----------
   // Colours are bit masks so beams sharing a segment can simply be OR'd, which
   // is what additive light actually does.
-  const R_ = 1, G_ = 2, B_ = 4, WHITE = 7;
+  const R_ = 1, Y_ = 2, B_ = 4, WHITE = 7;
+  // RYB, not RGB. Mixing is the heart of the game now, and every player arrives
+  // knowing yellow and blue make green. Fighting that costs the mechanic at
+  // level one; being right about optics buys nothing a player can use.
+  //
+  // The prism keeps its physics where it matters: red has the longest
+  // wavelength and deviates LEAST, so it carries straight on past the apex,
+  // and blue deviates most. Red, yellow and blue are all genuinely in a
+  // rainbow. The one bent rule is that two beams meeting mix like pigment
+  // rather than like light.
   const COL = {
-    1: '#FF4757', 2: '#39E77B', 4: '#4C8DFF',
-    3: '#FFD93D', 5: '#FF6BD6', 6: '#4EE8E0', 7: '#F2FAFF',
+    1: '#FF4757', 2: '#FFD93D', 4: '#4C8DFF',
+    3: '#FF9F43', 5: '#B06BFF', 6: '#39E77B', 7: '#F2FAFF',
   };
   // The bright inner core of a beam. These stay close to their own hue on
   // purpose: near-white highlights over an additive core made every beam read
   // white down the middle, and telling the colours apart IS the game.
   const COL_HI = {
-    1: '#FF8E97', 2: '#8CF5B6', 4: '#8FB8FF',
-    3: '#FFE98A', 5: '#FFA8E2', 6: '#9BF6F1', 7: '#FFFFFF',
+    1: '#FF8E97', 2: '#FFE98A', 4: '#8FB8FF',
+    3: '#FFC58A', 5: '#D3BEFF', 6: '#8CF5B6', 7: '#FFFFFF',
   };
-  const CNAME = { 0: 'nothing', 1: 'Red', 2: 'Green', 4: 'Blue', 3: 'Yellow', 5: 'Magenta', 6: 'Cyan', 7: 'White' };
+  const CNAME = { 0: 'nothing', 1: 'Red', 2: 'Yellow', 4: 'Blue', 3: 'Orange', 5: 'Purple', 6: 'Green', 7: 'White' };
   // Same colours as channels, so glows can be built as gradients that fall off
   // to fully transparent. A flat arc at low alpha leaves a visible hard disc.
   const RGB = {
-    1: [255, 71, 87], 2: [57, 231, 123], 4: [76, 141, 255],
-    3: [255, 217, 61], 5: [255, 107, 214], 6: [78, 232, 224], 7: [242, 250, 255],
+    1: [255, 71, 87], 2: [255, 217, 61], 4: [76, 141, 255],
+    3: [255, 159, 67], 5: [176, 107, 255], 6: [57, 231, 123], 7: [242, 250, 255],
   };
   const rgba = (m, a) => { const c = RGB[m] || [255, 255, 255]; return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + a + ')'; };
   const shade = (m, f) => {
@@ -95,10 +113,10 @@
     g.addColorStop(0, rgba(m, a)); g.addColorStop(0.45, rgba(m, a * 0.38)); g.addColorStop(1, rgba(m, 0));
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, r1, 0, 7); ctx.fill();
   }
-  const primsOf = (m) => [R_, G_, B_].filter((p) => m & p);
+  const primsOf = (m) => [R_, Y_, B_].filter((p) => m & p);
 
   // ---------- tiles ----------
-  const T_EMPTY = 0, T_SOURCE = 1, T_MIRROR = 2, T_PRISM = 3, T_GEM = 4;
+  const T_EMPTY = 0, T_SOURCE = 1, T_MIRROR = 2, T_PRISM = 3, T_GEM = 4, T_WALL = 5;
 
   // ---------- MODE + CANVAS ----------
   // ?mode=desktop / ?mode=mobile forces a layout. The in-app preview reports a
@@ -151,16 +169,40 @@
 
   // ---------- state ----------
   let R = 6, C = 8, cell = 80, ox = 0, oy = 0;
-  let tile = [], orient = [], solOrient = [], isDecoy = [];
+  // THE CHANGE THAT MAKES THIS A GAME. The board arrives with only its
+  // furniture: the lamp, the prism, the gems. Mirrors are NOT given and then
+  // corrected — the player is handed a budget of them and has to decide where
+  // the light needs to turn.
+  //
+  // Correcting eleven pre-placed mirrors is 2,048 configurations, which a person
+  // exhausts by poking in about fifteen taps. Placing four on an open board is
+  // ten million, which nobody pokes through. That is the whole difference
+  // between an exercise and a puzzle.
+  let tile = [], mirror = [], solMirror = [];   // -1 none, 0 '/', 1 '\\', 2 '/' split, 3 '\\' split
+  // TWO budgets, not one pool. This is not only a UI choice: it is what keeps
+  // the answer unique. Nearly every wrong route costs one extra piece of some
+  // type, so if each type is counted out exactly, the wrong route runs out
+  // before it finishes. Pooling them would hand back the slack and with it the
+  // second solutions.
+  let budget = 0, budgetSplit = 0;
+  // Which piece the next tap will lay. Chosen from the picker under the board,
+  // and choosing costs nothing: it is not a move and it does not touch the
+  // board. 0 = mirror, 1 = splitter.
+  let tool = 0;
   let gemNeed = [], gemGot = [], seg = [], segD = [], maxD = 1;
-  let blocked = [], axis = [];             // generator scratch
+  let blocked = [], axis = [], blockedByMirror = new Set();             // generator scratch
   let srcCell = 0, srcDir = E, prismCell = -1, prismDir = E;
-  let level = 1, moves = 0, par = 0, phase = 'menu';   // menu | play | won
-  let flipT = [], bloomT = [], startOrient = [], history = [];
-  let uiButtons = [], animEnd = 0, wonT = -1e9, hoverCell = -1, pressCell = -1;
+  let level = 1, moves = 0, phase = 'menu';   // menu | play | won
+  let flipT = [], bloomT = [], history = [];
+  let uiButtons = [], animEnd = 0, wonT = -1e9, hoverCell = -1, pressCell = -1, outOfMirrors = -1e9;
   let bgGrad = null;
 
-  const LS = 'zamborin-prism.level';
+  // Bumped when Prism became a PLACEMENT game. Keeping the old key would have
+  // dropped a returning player straight onto their old level — a board with six
+  // splitters, a piece they have never seen, and no ramp to it. Everyone starts
+  // at one. The old key is left alone rather than cleared, so nothing is lost
+  // if this ever has to be reversed.
+  const LS = 'zamborin-prism.level.v2';
   const saveLevel = () => { try { localStorage.setItem(LS, String(level)); } catch (e) {} };
   const loadLevel = () => { try { const v = parseInt(localStorage.getItem(LS), 10); return (v >= 1 && v <= 999) ? v : 1; } catch (e) { return 1; } };
 
@@ -178,9 +220,13 @@
   // take that row instead, with the level read-out opposite them.
   const SIDE_PAD = MODE === 'mobile' ? 18 : 30;
   const topBand = () => MODE === 'mobile' ? 64 : 56;
-  // Desktop keeps 40 below the board so the opening hint has a line of its own.
-  // At 26 the board bottom sat 9px above the text.
-  const botBand = () => MODE === 'mobile' ? 96 : 40;
+  // The bottom band holds the PICKER now, not a hint line. You choose which
+  // piece you are placing before you touch the board, so a misjudged tap costs
+  // one tap to undo rather than four to cycle back round.
+  // Mobile needs 164, not 140. The picker's hit target is 44 tall for a thumb,
+  // and at 140 the bottom of it ran into the top of the control pills, so a tap
+  // near the boundary could hit Restart instead of choosing a piece.
+  const botBand = () => MODE === 'mobile' ? 164 : 56;
 
   function gridDims(lvl) {
     if (MODE === 'mobile') {
@@ -196,7 +242,18 @@
     // 760x600 is landscape, so a SQUARE grid is bounded by the height and every
     // bit of chrome you reclaim just widens the margins. Two columns wider than
     // tall fills the frame, and is more board at the same cell size.
-    const rows = 6 + Math.min(Math.floor((lvl - 1) / 5), 3);   // 6 -> 9
+    // Held at 6x8 for a long while. Verifying that a board has exactly ONE
+    // answer costs real search, and on a 7x10 grid it only succeeded a third of
+    // the time inside the time budget, so every higher level was quietly
+    // falling back to a level-1 board. Difficulty scales on WALLS, BUDGET and
+    // MIXING instead, all of which are free to verify. Growing the grid needs a
+    // generator that constructs uniqueness rather than testing for it.
+    // Capped at 7x10. Making the solver work one colour at a time roughly
+    // halved its cost and bought exactly one board size: 7x10 now verifies as
+    // unique four times in five, where 8x11 still fails four times in five and
+    // pushes generation past half a second. Going bigger needs uniqueness to be
+    // CONSTRUCTED rather than tested, which this is not.
+    const rows = 6 + Math.min(Math.floor((lvl - 1) / 4), 3);   // 6 -> 9
     // The play area is 700 x 504, a ratio of 1.39, so the GRID has to be about
     // 1.4 times wider than tall to fill it. A flat "+2 columns" only holds at
     // six rows: by nine rows it had drifted to 1.22 and the board was using
@@ -261,11 +318,18 @@
       mark(i, OPP(d), m, k);               // the half segment the beam came in on
       const t = tile[i];
       if (t === T_GEM) { gemGot[i] |= m; continue; }
-      if (t === T_SOURCE) continue;
+      if (t === T_SOURCE || t === T_WALL) continue;   // a wall eats the beam
 
       let outs;
-      if (t === T_MIRROR) outs = [[reflect(d, orient[i]), m]];
-      else if (t === T_PRISM) {
+      // a player-placed piece takes precedence over empty ground. A mirror
+      // turns the beam; a splitter turns it AND passes it on, so one beam
+      // becomes two. Energy is deliberately not modelled: both halves come out
+      // at full strength, because a beam that dimmed at every tap would make
+      // the colour unreadable after two of them, and the colour IS the game.
+      if (mirror[i] >= 0) {
+        outs = [[reflect(d, mirror[i]), m]];
+        if (isSplit(mirror[i])) outs.push([d, m]);
+      } else if (t === T_PRISM) {
         // The prism is an ORIENTED piece. Its flat base faces one way and its
         // apex points the opposite way, and light only works on it if it
         // arrives square on that flat face, which is `prismDir`.
@@ -279,7 +343,7 @@
         // is the whole reason the prism is a piece rather than scenery: the
         // white beam has to be steered so it approaches from the right side.
         if (d !== prismDir) outs = [];
-        else if (m === WHITE) outs = [[d, R_], [LEFT(d), G_], [RIGHT(d), B_]];
+        else if (m === WHITE) outs = [[d, R_], [LEFT(d), Y_], [RIGHT(d), B_]];
         else outs = [[d, m]];           // already dispersed, nothing left to split
       } else outs = [[d, m]];
 
@@ -307,6 +371,7 @@
   // ---------- generation ----------
   const rnd = (n) => (Math.random() * n) | 0;
   const pick = (a) => a[rnd(a.length)];
+  const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = rnd(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; };
   const canPass = (i, d) => !blocked[i] && !(axis[i] & axisOf(d));
   const canHold = (i) => !blocked[i] && axis[i] === 0;
 
@@ -344,7 +409,7 @@
       });
       if (!cands.length) return null;
       const nd = pick(cands);
-      tile[land] = T_MIRROR; orient[land] = mirrorFor(d, nd);
+      solMirror[land] = mirrorFor(d, nd); blockedByMirror.add(land);
       cur = land; d = nd;
     }
     return null;
@@ -404,7 +469,7 @@
     for (let t = 0; t < chain.length - 1; t++) {
       const ci = chain[t] >> 2, di = chain[t] & 3, dn = chain[t + 1] & 3;
       if (dn === di) axis[ci] |= axisOf(di);
-      else { blocked[ci] = true; axis[ci] = 3; tile[ci] = T_MIRROR; orient[ci] = mirrorFor(di, dn); }
+      else { blocked[ci] = true; axis[ci] = 3; solMirror[ci] = mirrorFor(di, dn); blockedByMirror.add(ci); }
     }
     return true;
   }
@@ -418,8 +483,10 @@
     // plateaus again and it will want a new piece (walls, filters) rather than
     // more of the same.
     return {
-      mix: lvl >= 5 && (lvl % 4 !== 0),
-      whiteTurns: Math.min(1 + Math.floor((lvl - 1) / 6), 4),
+      // Mixing IS the game now. From level 3 nearly every board asks for a
+      // secondary, which is what makes two beams have to meet.
+      mix: lvl >= 3 && (lvl % 5 !== 0),
+      whiteTurns: Math.min(1 + Math.floor((lvl - 1) / 4), 4),
       armTurns: () => (lvl <= 2 ? 1
                      : lvl <= 8 ? pick([1, 1, 2])
                      : lvl <= 16 ? pick([1, 2, 2])
@@ -428,11 +495,397 @@
     };
   }
 
-  function tryBuild(lvl) {
+  // ============================================================
+  // THE SOLVER. Counts how many ways a board can be solved within its budget,
+  // which is what lets the generator promise exactly ONE.
+  //
+  // Naively this is billions of placements. But a mirror is only ever useful on
+  // a cell the light ACTUALLY reaches, and the beam is built up from the source
+  // outward, so at every step the only candidates are the cells the current
+  // beams run through. Walk the beam, and at each cell either carry on or turn:
+  // a tree of a few hundred branches instead of a few billion.
+  //
+  // Duplicate work is cut two ways: configurations already seen are skipped, and
+  // the search stops the moment a SECOND solution appears, because by then the
+  // board is already disqualified.
+  // ============================================================
+  // The frontier is the cells the light runs through — the only places a mirror
+  // can ever do anything. But taking ALL of them lets the search place a mirror
+  // on the red arm, then the blue, then red again, and arrive at the same board
+  // by dozens of different orders.
+  //
+  // So it works ONE COLOUR AT A TIME, in a fixed order, and will not touch the
+  // next colour until the current one has reached every gem that wants it.
+  // Three arms of two mirrors each drops from ninety orderings to one, and that
+  // saving is what pays for a bigger board.
+  function unsatisfiedColour() {
+    for (const c of [R_, Y_, B_]) {
+      for (let i = 0; i < R * C; i++) {
+        if (tile[i] !== T_GEM || !(gemNeed[i] & c)) continue;
+        if (!(gemGot[i] & c)) return c;
+      }
+    }
+    return 0;
+  }
+  // Strict mode drops the one colour at a time ordering. That ordering is a
+  // huge saving but it is a PRUNE, so it can miss a second solution and call a
+  // board unique when it is not. Generation keeps it; the audit turns it off,
+  // which is the only measurement that can actually contradict the claim.
+  let strictSearch = false;
+  function frontierCells() {
+    const want = strictSearch ? 0 : unsatisfiedColour();
+    const out = [];
+    for (let i = 0; i < R * C; i++) {
+      if (tile[i] !== T_EMPTY || mirror[i] >= 0) continue;
+      const s = seg[i * 4] | seg[i * 4 + 1] | seg[i * 4 + 2] | seg[i * 4 + 3];
+      if (!s) continue;
+      // white counts for every colour: before the prism it is all of them
+      if (want && !(s & want) && s !== WHITE) continue;
+      out.push(i);
+    }
+    return out;
+  }
+  function countSolutions(limit, nodeCap) {
+    const seen = new Set();
+    let found = 0, nodes = 0; const all = [];
+    // A rolling numeric hash. The string version rebuilt a key across every
+    // cell on EVERY node, which cost more than the simulation it was guarding.
+    const key = () => {
+      let h = 0x811c9dc5;
+      for (let i = 0; i < R * C; i++) {
+        if (mirror[i] < 0) continue;
+        h ^= (i * 2 + mirror[i]) + 1;
+        h = Math.imul(h, 0x01000193) >>> 0;
+      }
+      return h;
+    };
+    const rec = (usedM, usedS) => {
+      if (found >= limit || nodes > nodeCap) return;
+      nodes++;
+      simulate(0);
+      if (isSolved()) {
+        const k = key();
+        if (!seen.has(k)) { seen.add(k); found++; all.push(mirror.slice()); }
+        return;                               // no point extending a finished board
+      }
+      if (usedM >= budget && usedS >= budgetSplit) return;
+      const k = key();
+      if (seen.has(~k)) return;
+      seen.add(~k);
+      const opts = [];
+      if (usedM < budget) opts.push(SLASH, BACK);
+      if (usedS < budgetSplit) opts.push(SP_SLASH, SP_BACK);
+      for (const c of frontierCells()) {
+        for (const o of opts) {
+          mirror[c] = o;
+          rec(usedM + (isSplit(o) ? 0 : 1), usedS + (isSplit(o) ? 1 : 0));
+          mirror[c] = -1;
+          if (found >= limit || nodes > nodeCap) return;
+        }
+      }
+    };
+    const keep = mirror.slice();
+    mirror = new Array(R * C).fill(-1);
+    rec(0, 0);
+    mirror = keep; simulate(0);
+    return { count: found, exhausted: nodes <= nodeCap, nodes, all };
+  }
+
+  // ============================================================
+  // THE CONSTRUCTIVE GENERATOR
+  //
+  // The old generator carved a random answer and then SEARCHED to find out
+  // whether it was the only one, throwing away most boards. That search is what
+  // capped the board size, which capped the budget, which kept the puzzle small
+  // enough to poke through.
+  //
+  // This builds boards that can only have one answer, and the reason is a small
+  // piece of geometry:
+  //
+  //   A beam leaves the prism travelling in a FIXED direction, so it must run
+  //   along that ray until something turns it. To reach a gem with ONE mirror,
+  //   it has to turn at the single cell where the ray crosses the gem's row or
+  //   column. One cell, one orientation. There is no second answer to find.
+  //
+  // So a board where every beam reaches its gem in one turn is unique BY
+  // CONSTRUCTION. No search, no rejection, and the cost is the same whatever
+  // size the board is.
+  // ============================================================
+  const U_FREE = 0, U_H = 1, U_V = 2, U_SOLID = 4;
+  function rayCells(from, d, cap) {
+    const out = []; let c = from;
+    for (let k = 0; k < cap; k++) { c = stepCell(c, d); if (c < 0) break; out.push(c); }
+    return out;
+  }
+  function tryBuildConstructive(lvl, tapCap) {
     const n = R * C;
     tile = new Array(n).fill(T_EMPTY);
-    orient = new Array(n).fill(SLASH);
-    isDecoy = new Array(n).fill(false);
+    mirror = new Array(n).fill(-1);
+    solMirror = new Array(n).fill(-1);
+    gemNeed = new Array(n).fill(0);
+    const use = new Array(n).fill(U_FREE);
+    const axisOfDir = (d) => (d & 1) ? U_H : U_V;
+    const claimRun = (from, d, count) => {          // returns cells, or null
+      const cells = []; let c = from;
+      for (let k = 0; k < count; k++) {
+        c = stepCell(c, d); if (c < 0) return null;
+        if (use[c] & U_SOLID) return null;
+        if (use[c] & axisOfDir(d)) return null;
+        cells.push(c);
+      }
+      return cells;
+    };
+    const markRun = (cells, d) => { for (let k = 0; k < cells.length - 1; k++) use[cells[k]] |= axisOfDir(d); };
+
+    // --- lamp on an edge, pointing in ---
+    const side = rnd(4);
+    let r0, c0, sd;
+    if (side === 0) { c0 = 0; r0 = 1 + rnd(Math.max(1, R - 2)); sd = E; }
+    else if (side === 1) { c0 = C - 1; r0 = 1 + rnd(Math.max(1, R - 2)); sd = W; }
+    else if (side === 2) { r0 = 0; c0 = 1 + rnd(Math.max(1, C - 2)); sd = S; }
+    else { r0 = R - 1; c0 = 1 + rnd(Math.max(1, C - 2)); sd = N; }
+    srcCell = idx(r0, c0); srcDir = sd;
+    tile[srcCell] = T_SOURCE; use[srcCell] = U_SOLID;
+
+    // --- white to the prism: straight, or one turn ---
+    const wantTurn = lvl > 2 && Math.random() < 0.75;
+    let pCell, pDir;
+    if (!wantTurn) {
+      const ray = claimRun(srcCell, sd, 2 + rnd(3));
+      if (!ray) return false;
+      pCell = ray[ray.length - 1]; pDir = sd;
+      markRun(ray, sd);
+    } else {
+      const leg1 = claimRun(srcCell, sd, 1 + rnd(3));
+      if (!leg1) return false;
+      const X = leg1[leg1.length - 1];
+      const td = Math.random() < 0.5 ? LEFT(sd) : RIGHT(sd);
+      const leg2 = claimRun(X, td, 2 + rnd(3));
+      if (!leg2) return false;
+      markRun(leg1, sd);
+      solMirror[X] = mirrorFor(sd, td); use[X] = U_SOLID;
+      pCell = leg2[leg2.length - 1]; pDir = td;
+      markRun(leg2, td);
+    }
+    if (use[pCell] & U_SOLID) return false;
+    prismCell = pCell; prismDir = pDir;
+    tile[prismCell] = T_PRISM; use[prismCell] = U_SOLID;
+
+    // --- one turn per colour: the part that guarantees uniqueness ---
+    //
+    // For a MIXED gem the second beam cannot wander to a random spot and hope
+    // to land on the first beam's gem. Its turn cell is forced: the ray it
+    // leaves on is a line, so it must turn exactly where that line crosses the
+    // gem's row or column. Compute it rather than guess it, which is why the
+    // mixed branch used to fail every time and quietly fall back to a level-1
+    // board with three plain gems.
+    const oneTurnTo = (from, outDir, G) => {
+      const fr = rowOf(from), fc = colOf(from), gr = rowOf(G), gc = colOf(G);
+      let legLen, td, dist;
+      if (outDir === N || outDir === S) {
+        legLen = (outDir === N) ? fr - gr : gr - fr;
+        dist = Math.abs(gc - fc); td = gc > fc ? E : W;
+      } else {
+        legLen = (outDir === E) ? gc - fc : fc - gc;
+        dist = Math.abs(gr - fr); td = gr > fr ? S : N;
+      }
+      if (legLen < 1 || dist < 1) return null;
+      const leg1 = claimRun(from, outDir, legLen);
+      if (!leg1) return null;
+      const X = leg1[leg1.length - 1];
+      const leg2 = claimRun(X, td, dist - 1);   // stop short: G itself is the gem
+      if (!leg2 && dist > 1) return null;
+      const last = (leg2 && leg2.length) ? leg2[leg2.length - 1] : X;
+      if (stepCell(last, td) !== G) return null;
+      return { X, td, leg1, leg2: leg2 || [] };
+    };
+
+    // --- the arms: a chain of TAPS, then one turn to a last gem ---
+    //
+    // This is where the budget comes from, and the reason it can grow without
+    // losing uniqueness.
+    //
+    // Adding TURNS does not work. A second turn on a beam is a free choice, so
+    // it always admits a shorter route to the same gem and the board stops
+    // having one answer. That was measured: forcing longer routes with walls
+    // moved the average budget from 3.38 to 3.35, which is to say not at all.
+    //
+    // Adding BEAMS does work. A splitter placed where the arm's ray crosses a
+    // gem's line reflects straight into that gem with nothing after it, and
+    // that cell is the ONLY cell on the ray sitting on the gem's line, so its
+    // position is forced exactly as a one turn mirror's is. The difference is
+    // that the beam carries on, so one arm serves gem after gem and every one
+    // of them costs a piece. Three arms with two taps each is six splitters and
+    // three mirrors: nine forced pieces, still one answer.
+    const arms = [[R_, pDir], [Y_, LEFT(pDir)], [B_, RIGHT(pDir)]];
+
+    // Where a ray out of `from` crosses G's line, and how far G is from there.
+    const tapTo = (from, outDir, G) => {
+      const fr = rowOf(from), fc = colOf(from), gr = rowOf(G), gc = colOf(G);
+      let along, sd, dd;
+      if (outDir === N || outDir === S) {
+        along = (outDir === N) ? fr - gr : gr - fr;
+        dd = Math.abs(gc - fc); sd = gc > fc ? E : W;
+      } else {
+        along = (outDir === E) ? gc - fc : fc - gc;
+        dd = Math.abs(gr - fr); sd = gr > fr ? S : N;
+      }
+      if (along < 1 || dd < 1) return null;
+      return { along, sd, dd };
+    };
+
+    // One piece on the ray, feeding one fresh gem beside it. `split` decides
+    // whether the beam carries on past it.
+    // Retried rather than abandoned on the first collision. A single roll gave
+    // up so often on a busy board that levels past 16 fell through to the
+    // fallback and came back SMALLER than level 12.
+    const layTap = (cur, outDir, colour, split) => {
+      let run = null, Z = -1, sd = 0, side = null;
+      for (let t = 0; t < 10; t++) {
+        run = claimRun(cur, outDir, 1 + rnd(3));
+        if (!run) continue;
+        Z = run[run.length - 1];
+        sd = Math.random() < 0.5 ? LEFT(outDir) : RIGHT(outDir);
+        side = claimRun(Z, sd, 2 + rnd(3));
+        if (side) break;
+        side = null;
+      }
+      if (!run || !side) return null;
+      const G = side[side.length - 1];
+      markRun(run, outDir);
+      use[Z] = U_SOLID;
+      solMirror[Z] = split ? splitFor(outDir, sd) : mirrorFor(outDir, sd);
+      for (let k = 0; k < side.length - 1; k++) use[side[k]] |= (sd & 1) ? U_H : U_V;
+      tile[G] = T_GEM; gemNeed[G] = colour; use[G] = U_SOLID;
+      return { Z, G };
+    };
+
+    // The same, but aimed at a gem that already exists, which is what turns it
+    // into a secondary. THIS is the piece that stops the board being solved one
+    // tap at a time: a gem wanting orange stays dark until the red tap AND the
+    // yellow tap are both right, so neither of them looks correct on its own.
+    const layTapAt = (cur, outDir, colour, G, split) => {
+      const t = tapTo(cur, outDir, G);
+      if (!t) return null;
+      const run = claimRun(cur, outDir, t.along);
+      if (!run) return null;
+      const Z = run[run.length - 1];
+      const mid = claimRun(Z, t.sd, t.dd - 1);
+      if (!mid && t.dd > 1) return null;
+      const last = (mid && mid.length) ? mid[mid.length - 1] : Z;
+      if (stepCell(last, t.sd) !== G) return null;
+      markRun(run, outDir);
+      use[Z] = U_SOLID;
+      solMirror[Z] = split === false ? mirrorFor(outDir, t.sd) : splitFor(outDir, t.sd);
+      for (const c of (mid || [])) use[c] |= (t.sd & 1) ? U_H : U_V;
+      gemNeed[G] |= colour;
+      return { Z, G };
+    };
+
+    // Taps are the difficulty dial. Levels 1 and 2 have none, so the tutorial
+    // boards stay three mirrors and one turn each.
+    // Capped by the BOARD, not only by the level. A phone plays a 10x6 portrait
+    // grid, and six taps will not fit on it: the arms running across a six wide
+    // board have no room for a gap plus a side run, so every attempt failed and
+    // the level fell back to a three mirror board. Levels 16 and 20 on a phone
+    // were EASIER than level 12.
+    const roomCap = Math.min(6, Math.floor((R * C) / 14));
+    const totalTaps = lvl <= 2 ? 0
+      : Math.min(6, Math.floor((lvl - 1) / 2), roomCap, tapCap === undefined ? 99 : tapCap);
+    const tapsPer = [0, 0, 0];
+    for (let k = 0; k < totalTaps; k++) {
+      const cand = shuffle([0, 1, 2]).sort((a, b) => tapsPer[a] - tapsPer[b])[0];
+      if (tapsPer[cand] < 2) tapsPer[cand]++;
+    }
+
+    const order = shuffle([0, 1, 2]);
+    const laid = [];                        // gems available to mix into
+    // Mixing is tried at EVERY tap, not once per arm. One attempt per arm
+    // capped a board at two mixed gems however big it got, so the proportion
+    // fell away as levels grew: 21 boards in 24 at level 5, 5 in 24 by level
+    // 20. That is backwards. A mixed gem is the only thing on the board that
+    // cannot be checked one piece at a time, so it has to grow WITH the level.
+    const tryMix = (cur, outDir, colour, split) => {
+      if (lvl < 3 || !laid.length) return null;
+      for (const G of shuffle(laid.slice())) {
+        if (gemNeed[G] & colour) continue;                 // this arm already feeds it
+        if (primsOf(gemNeed[G]).length > 1) continue;      // already a secondary
+        const got = layTapAt(cur, outDir, colour, G, split);
+        if (got) return got;
+      }
+      return null;
+    };
+    for (let a = 0; a < 3; a++) {
+      const [colour, outDir] = arms[order[a]];
+      let cur = prismCell;
+      for (let t = 0; t < tapsPer[a]; t++) {
+        const mix = Math.random() < 0.80 ? tryMix(cur, outDir, colour) : null;
+        if (mix) { cur = mix.Z; continue; }
+        const got = layTap(cur, outDir, colour, true);
+        if (!got) return false;
+        cur = got.Z; laid.push(got.G);
+      }
+      // The arm ends on an ordinary mirror: nothing carries on past it. That
+      // last piece can feed a shared gem too, and letting it is free difficulty
+      // — a secondary is the only gem on the board that stays dark until two
+      // separate pieces are BOTH right, so it cannot be checked one at a time.
+      const endMix = lvl >= 4 && Math.random() < 0.65 ? tryMix(cur, outDir, colour, false) : null;
+      if (!endMix) {
+        const end = layTap(cur, outDir, colour, false);
+        if (!end) return false;
+        laid.push(end.G);
+      }
+    }
+
+    // --- verify, then take the mirrors away ---
+    mirror = solMirror.slice();
+    gemGot = new Array(n).fill(0);
+    simulate(0);
+    if (!isSolved()) return false;
+    budget = 0; budgetSplit = 0;
+    for (let i = 0; i < n; i++) {
+      if (solMirror[i] < 0) continue;
+      if (isSplit(solMirror[i])) budgetSplit++; else budget++;
+    }
+    if (budget + budgetSplit < 3) return false;
+    mirror = new Array(n).fill(-1);
+
+    // --- walls, purely off the answer's route: they cannot remove the intended
+    //     solution, and every one of them removes some other route ---
+    mirror = solMirror.slice(); simulate(0);
+    const lit = new Set();
+    for (let i = 0; i < n; i++) {
+      if (seg[i * 4] || seg[i * 4 + 1] || seg[i * 4 + 2] || seg[i * 4 + 3]) lit.add(i);
+      if (solMirror[i] >= 0) lit.add(i);
+    }
+    mirror = new Array(n).fill(-1);
+    const spare = [];
+    for (let i = 0; i < n; i++) if (tile[i] === T_EMPTY && !lit.has(i)) spare.push(i);
+    shuffle(spare);
+    const wantWalls = Math.round(spare.length * (0.16 + Math.min(lvl, 14) * 0.020));
+    for (let k = 0; k < wantWalls; k++) tile[spare[k]] = T_WALL;
+    gemGot = new Array(n).fill(0);
+    simulate(0);
+
+    // Uniqueness is now an argument, not a search: every piece sits on the one
+    // cell where its beam's ray crosses its gem's line, and each type is
+    // counted out exactly, so nothing else fits. The search is kept as a CHECK
+    // and only run while it is still cheap; past that it costs more than
+    // generating the board. `uniq()` in the debug handle runs it properly,
+    // strict and unpruned, and that is the number that can prove me wrong.
+    if (budget + budgetSplit <= 4) {
+      const res = countSolutions(2, 20000);
+      if (!res.exhausted || res.count !== 1) return false;
+    }
+    return true;
+  }
+
+  function tryBuildOld(lvl) {
+    const n = R * C;
+    tile = new Array(n).fill(T_EMPTY);
+    mirror = new Array(n).fill(-1);
+    solMirror = new Array(n).fill(-1);
+    blockedByMirror = new Set();
     gemNeed = new Array(n).fill(0);
     blocked = new Array(n).fill(false);
     axis = new Array(n).fill(0);
@@ -461,7 +914,7 @@
     prismDir = dIn;
 
     // Red straight on, green off the left, blue off the right.
-    const arms = [[R_, dIn], [G_, LEFT(dIn)], [B_, RIGHT(dIn)]];
+    const arms = [[R_, dIn], [Y_, LEFT(dIn)], [B_, RIGHT(dIn)]];
 
     if (!plan.mix) {
       for (const [colour, outDir] of arms) {
@@ -486,40 +939,66 @@
       tile[cc.end] = T_GEM; gemNeed[cc.end] = arms[pc][0];
     }
 
-    // Decoys: mirrors on cells no solution beam ever touches, so they cannot
-    // break the answer, but a wrong route may well run into one.
-    const free = [];
-    for (let i = 0; i < n; i++) if (canHold(i)) free.push(i);
-    for (let i = free.length - 1; i > 0; i--) { const j = rnd(i + 1); [free[i], free[j]] = [free[j], free[i]]; }
-    for (let k = 0; k < Math.min(plan.decoys, free.length); k++) {
-      const i = free[k];
-      tile[i] = T_MIRROR; orient[i] = rnd(2); isDecoy[i] = true;
-      blocked[i] = true; axis[i] = 3;
-    }
 
-    // Everything above says it works. Prove it before serving it.
-    solOrient = orient.slice();
+    // Prove the recorded answer works, then TAKE THE MIRRORS AWAY. The player
+    // gets the count, not the placement.
+    mirror = solMirror.slice();
     gemGot = new Array(n).fill(0);
     simulate(0);
-    return isSolved();
+    if (!isSolved()) return false;
+    budget = 0;
+    for (let i = 0; i < n; i++) if (solMirror[i] >= 0) budget++;
+    if (budget < 2) return false;
+    mirror = new Array(n).fill(-1);
+    gemGot = new Array(n).fill(0);
+    simulate(0);
+
+    // WALLS. Placed only where the recorded answer never goes, so they can
+    // never break it, and they are what makes a route forced rather than
+    // merely possible: every wall kills an alternative.
+    const solLit = new Set();
+    mirror = solMirror.slice(); simulate(0);
+    for (let i = 0; i < n; i++) {
+      if (seg[i * 4] || seg[i * 4 + 1] || seg[i * 4 + 2] || seg[i * 4 + 3]) solLit.add(i);
+      if (solMirror[i] >= 0) solLit.add(i);
+    }
+    mirror = new Array(n).fill(-1);
+    const spare = [];
+    for (let i = 0; i < n; i++) if (tile[i] === T_EMPTY && !solLit.has(i)) spare.push(i);
+    shuffle(spare);
+    // a light scatter first, purely for the look of the board
+    const seedWalls = Math.round(spare.length * (0.18 + Math.min(lvl, 14) * 0.022));
+    for (let k = 0; k < seedWalls; k++) tile[spare[k]] = T_WALL;
+    simulate(0);
+
+    // ONE WAY TO SOLVE IT. Scattering walls at random and hoping the board comes
+    // out unique rejects almost everything, so instead each wall is placed to
+    // KILL A SPECIFIC ALTERNATIVE: find another solution, find a cell it uses
+    // that the intended answer does not, and block it. Repeat until the only
+    // answer left is the one we meant.
+    for (let iter = 0; iter < 10; iter++) {
+      const res = countSolutions(3, 18000);
+      if (!res.exhausted) return false;
+      if (res.count === 0) return false;                  // walls broke our own answer
+      if (res.count === 1) return true;                   // done
+      let killed = false;
+      for (const alt of res.all) {
+        let same = true;
+        for (let i = 0; i < n; i++) if ((alt[i] >= 0) !== (solMirror[i] >= 0) || (alt[i] >= 0 && alt[i] !== solMirror[i])) { same = false; break; }
+        if (same) continue;
+        for (let i = 0; i < n; i++) {
+          if (alt[i] >= 0 && solMirror[i] < 0 && !solLit.has(i) && tile[i] === T_EMPTY) {
+            tile[i] = T_WALL; killed = true; break;
+          }
+        }
+        if (killed) break;
+      }
+      if (!killed) return false;              // every alternative hides inside our own route
+      simulate(0);
+    }
+    return false;
   }
 
-  function scramble() {
-    const mirrors = [];
-    for (let i = 0; i < R * C; i++) if (tile[i] === T_MIRROR && !isDecoy[i]) mirrors.push(i);
-    if (!mirrors.length) { par = 0; return; }
-    for (let attempt = 0; attempt < 40; attempt++) {
-      const half = Math.floor(mirrors.length / 2);
-      const k = Math.max(1, Math.min(mirrors.length, half + rnd(mirrors.length - half + 1)));
-      const bag = mirrors.slice();
-      for (let i = bag.length - 1; i > 0; i--) { const j = rnd(i + 1); [bag[i], bag[j]] = [bag[j], bag[i]]; }
-      for (const i of mirrors) orient[i] = solOrient[i];
-      for (let i = 0; i < k; i++) orient[bag[i]] ^= 1;
-      simulate(0);
-      if (!isSolved()) break;                 // a scramble that solves itself is no puzzle
-    }
-    par = mirrors.reduce((s, i) => s + (orient[i] !== solOrient[i] ? 1 : 0), 0);
-  }
 
   // How much of the board the finished light actually occupies. A board where
   // every beam huddles in one corner is a worse puzzle AND a worse picture, and
@@ -538,12 +1017,12 @@
     return cells + spread * R * C * 0.6;
   }
   function snapshot() {
-    return { tile: tile.slice(), orient: orient.slice(), solOrient: solOrient.slice(),
-             gemNeed: gemNeed.slice(), isDecoy: isDecoy.slice(), srcCell, srcDir, prismCell, prismDir };
+    return { tile: tile.slice(), mirror: mirror.slice(), solMirror: solMirror.slice(),
+             gemNeed: gemNeed.slice(), budget, budgetSplit, srcCell, srcDir, prismCell, prismDir };
   }
   function restore(s) {
-    tile = s.tile.slice(); orient = s.orient.slice(); solOrient = s.solOrient.slice();
-    gemNeed = s.gemNeed.slice(); isDecoy = s.isDecoy.slice();
+    tile = s.tile.slice(); mirror = s.mirror.slice(); solMirror = s.solMirror.slice();
+    gemNeed = s.gemNeed.slice(); budget = s.budget; budgetSplit = s.budgetSplit || 0;
     srcCell = s.srcCell; srcDir = s.srcDir; prismCell = s.prismCell; prismDir = s.prismDir;
   }
 
@@ -554,27 +1033,49 @@
     // Build a batch and keep the best-composed one, rather than the first that
     // happens to work.
     let best = null, bestScore = -1;
-    for (let a = 0; a < 70; a++) {
-      if (!tryBuild(level)) continue;
+    // A wall-clock budget. Verifying uniqueness costs real time, and without a
+    // ceiling a stubborn level froze the change for over a second.
+    const genT0 = performance.now(), GEN_BUDGET = 260;
+    for (let a = 0; a < 70 && performance.now() - genT0 < GEN_BUDGET; a++) {
+      if (!tryBuildConstructive(level)) continue;
       const sc = coverage();
       if (sc > bestScore) { bestScore = sc; best = snapshot(); }
     }
-    if (!best) {                               // never leave the player a blank board
-      const dims = gridDims(1); R = dims[0]; C = dims[1];
-      for (let a = 0; a < 400 && !best; a++) if (tryBuild(1)) best = snapshot();
+    if (!best) {
+      // Retry at the level's OWN size before giving any ground. Dropping to
+      // level-1 parameters while keeping the level label is how a player on
+      // level 16 gets handed a tutorial board.
+      // Every rung of this ladder is bounded by the same wall clock. Without
+      // that it ran hundreds of uniqueness searches and hung the tab.
+      const spent = () => performance.now() - genT0 > GEN_BUDGET * 2.2;
+      for (let a = 0; a < 200 && !best && !spent(); a++) if (tryBuildConstructive(level)) best = snapshot();
+      // Give ground on TAPS one at a time before giving ground on anything
+      // else. A board with five taps instead of six is barely different; a
+      // board built at four levels lower is a different game, and that is what
+      // used to happen — silently, under the higher level's label.
+      for (let cap = 5; cap >= 1 && !best && !spent(); cap--)
+        for (let a = 0; a < 80 && !best && !spent(); a++)
+          if (tryBuildConstructive(level, cap)) best = snapshot();
+      for (let a = 0; a < 150 && !best && !spent(); a++) if (tryBuildConstructive(Math.max(1, level - 4))) best = snapshot();
+      if (!best) { const dims = gridDims(1); R = dims[0]; C = dims[1];
+        for (let a = 0; a < 200 && !best; a++) if (tryBuildConstructive(1)) best = snapshot(); }
     }
     if (best) { restore(best); gemGot = new Array(R * C).fill(0); simulate(0); }
-    scramble();
+    // Every board starts on the mirror, and a board with no splitters can only
+    // ever be on the mirror. Carrying the last board's choice over would mean
+    // the first tap of a new level lays something you did not ask for.
+    tool = 0;
     const n = R * C;
     flipT = new Array(n).fill(-1e9); bloomT = new Array(n).fill(-1e9);
     gemGot = new Array(n).fill(0);
-    startOrient = orient.slice(); history = [];
+    history = [];
     moves = 0; phase = asMenu ? 'menu' : 'play'; animEnd = 0; wonT = -1e9;
     hoverCell = -1; pressCell = -1;
     simulate(0); seedSound(); layout(); draw(performance.now());
   }
   function restart() {
-    orient = startOrient.slice(); moves = 0; phase = 'play'; history = [];
+    mirror = new Array(R * C).fill(-1);
+    moves = 0; phase = 'play'; history = [];
     flipT = flipT.map(() => -1e9); bloomT = bloomT.map(() => -1e9);
     gemGot = new Array(R * C).fill(0);
     simulate(0); seedSound(); draw(performance.now());
@@ -606,21 +1107,50 @@
   }
 
   // ---------- input ----------
-  function flip(i, now) {
-    if (tile[i] !== T_MIRROR || phase !== 'play') return;
-    history.push(i); if (history.length > 500) history.shift();
-    orient[i] ^= 1; flipT[i] = now; moves++;
+  const placedCount = () => { let n = 0; for (let i = 0; i < R * C; i++) if (mirror[i] >= 0 && !isSplit(mirror[i])) n++; return n; };
+  const placedSplit = () => { let n = 0; for (let i = 0; i < R * C; i++) if (mirror[i] >= SP_SLASH) n++; return n; };
+  const piecesLeft = (v) => (isSplit(v) ? budgetSplit - placedSplit() : budget - placedCount());
+
+  // THE TAP ACTS ON THE PIECE YOU PICKED. Three states per cell, exactly as it
+  // was before splitters existed: place, turn, lift.
+  //
+  // The five state cycle this replaced made a wrong tap expensive — you could
+  // not get back to empty without going through every other piece, so a moment
+  // of not thinking cost four turns. Choosing the piece first moves that
+  // decision OFF the board, where it is free.
+  const CYCLE = [SLASH, BACK, SP_SLASH, SP_BACK];
+  const toolPiece = (t, angle) => (t === 1 ? (angle ? SP_BACK : SP_SLASH) : (angle ? BACK : SLASH));
+  function cycleCell(i, now) {
+    if (phase !== 'play') return;
+    if (tile[i] !== T_EMPTY) return;              // cannot build on the furniture
+    const was = mirror[i];
+    const A = toolPiece(tool, 0), B = toolPiece(tool, 1);
+    let next;
+    if (was === A) next = B;                      // turn it
+    else if (was === B) next = -1;                // lift it
+    else next = A;                                // empty, or the other kind: take the cell
+    if (next >= 0) {
+      // swapping a piece for the same KIND of piece is free; anything else
+      // has to come out of that kind's own count
+      const sameKind = was >= 0 && isSplit(was) === isSplit(next);
+      if (!sameKind && piecesLeft(next) <= 0) { outOfMirrors = performance.now(); draw(outOfMirrors); return; }
+    }
+    history.push(mirror.slice());
+    if (history.length > 200) history.shift();
+    mirror[i] = next;
+    flipT[i] = now; moves++;
     snd.flip();
     simulate(now); announce();
     animEnd = Math.max(now + FLIP_MS, now + BLOOM_MS) + 60;
     if (isSolved()) { phase = 'won'; wonT = now; snd.win(); animEnd = now + BLOOM_MS + 1400; }
+    draw(now);
   }
   function undo() {
     if (!history.length || phase !== 'play') return;
-    const i = history.pop(), now = performance.now();
-    orient[i] ^= 1; flipT[i] = now; moves++;
-    snd.undo(); simulate(now); announce();
-    animEnd = now + Math.max(FLIP_MS, BLOOM_MS) + 60;
+    mirror = history.pop(); moves++;
+    snd.undo(); simulate(performance.now()); announce();
+    animEnd = performance.now() + Math.max(FLIP_MS, BLOOM_MS) + 60;
+    draw(performance.now());
   }
 
   function canvasXY(e) {
@@ -645,21 +1175,31 @@
     if (phase === 'menu') { phase = 'play'; return; }
     if (phase === 'won') { genLevel(level + 1); return; }
     const i = cellAt(x, y);
-    if (i >= 0) flip(i, performance.now());
+    if (i >= 0) cycleCell(i, performance.now());
   }
-  canvas.addEventListener('pointerup', onTap);
+  canvas.addEventListener('pointerup', (e) => {
+    if (downId === null || e.pointerId !== downId) { downId = null; return; }
+    downId = null;
+    onTap(e);
+  });
+  // A tap is a press AND a release, both on the board. Acting on the release
+  // alone means pressing outside the grid and letting go over it counts as a
+  // tap, which silently places mirrors the player never asked for.
+  let downId = null;
   canvas.addEventListener('pointerdown', (e) => {
+    downId = e.pointerId;
     const [x, y] = canvasXY(e);
     const i = cellAt(x, y);
-    pressCell = (phase === 'play' && i >= 0 && tile[i] === T_MIRROR) ? i : -1;
+    pressCell = (phase === 'play' && i >= 0 && tile[i] === T_EMPTY) ? i : -1;
   });
-  canvas.addEventListener('pointercancel', () => { pressCell = -1; });
+  canvas.addEventListener('pointercancel', () => { pressCell = -1; downId = null; });
   canvas.addEventListener('pointerleave', () => { hoverCell = -1; pressCell = -1; });
+  window.addEventListener('blur', () => { downId = null; pressCell = -1; });
   if (MODE === 'desktop') {
     canvas.addEventListener('pointermove', (e) => {
       const [x, y] = canvasXY(e);
       const i = cellAt(x, y);
-      hoverCell = (phase === 'play' && i >= 0 && tile[i] === T_MIRROR) ? i : -1;
+      hoverCell = (phase === 'play' && i >= 0 && tile[i] === T_EMPTY) ? i : -1;
       canvas.style.cursor = hoverCell >= 0 ? 'pointer' : 'default';
     });
   }
@@ -700,7 +1240,7 @@
     drawBeams(now);
     for (let i = 0; i < R * C; i++) drawPiece(i, now);
     drawHUD();
-    if (phase === 'play') drawControls();
+    if (phase === 'play') { drawControls(); drawRack(); }
     if (phase === 'won') winOverlay(now);
     if (phase === 'menu') menuOverlay();
   }
@@ -811,13 +1351,15 @@
   }
 
   function drawPiece(i, now) {
+    if (mirror[i] >= 0) { drawMirror(i, ccx(colOf(i)), ccy(rowOf(i)), now); return; }
     const t = tile[i];
     if (t === T_EMPTY) return;
     const cx = ccx(colOf(i)), cy = ccy(rowOf(i));
     if (t === T_SOURCE) drawSource(cx, cy, now);
-    else if (t === T_MIRROR) drawMirror(i, cx, cy, now);
+
     else if (t === T_PRISM) drawPrism(cx, cy);
     else if (t === T_GEM) drawGem(i, cx, cy, now);
+    else if (t === T_WALL) drawWall(cx, cy);
   }
 
   // A directional lamp, not a glowing dot: a body with a flared reflector head
@@ -878,14 +1420,21 @@
   }
 
   function drawMirror(i, cx, cy, now) {
-    const target = orient[i] === SLASH ? -Math.PI / 4 : Math.PI / 4;
-    const sign = orient[i] === SLASH ? 1 : -1;
+    const sp = isSplit(mirror[i]);
+    const target = angleOf(mirror[i]) === SLASH ? -Math.PI / 4 : Math.PI / 4;
+    const sign = angleOf(mirror[i]) === SLASH ? 1 : -1;
     const p = (now - flipT[i]) / FLIP_MS;
     const spinning = p >= 0 && p < 1;
     const a = spinning ? target + sign * (Math.PI / 2) * (1 - ease(p)) : target;
 
     const lift = (hoverCell === i ? 1 : 0) + (pressCell === i ? -0.5 : 0);
-    const len = cell * (0.74 + lift * 0.03), th = Math.max(4, cell * 0.155);
+    // A splitter is a SHORTER, THINNER plate. Thinness alone did not carry it:
+    // measured side by side at full size the two pieces were nearly the same
+    // object, and on a phone nobody would tell them apart. Length is the cue
+    // that reads instantly, at any size, without a single stroke — the mirror
+    // is the big heavy piece, the splitter is the small light one.
+    const len = cell * ((sp ? 0.58 : 0.74) + lift * 0.03);
+    const th = Math.max(4, cell * (sp ? 0.108 : 0.155));
     const surf = 0;                       // the reflective line, down the middle
 
     // Which FACE the light is on. A mirror only carries light on one side at a
@@ -932,7 +1481,10 @@
     // its GLASS face to whichever side the light is actually on. A mirror
     // carries N-W light on one face and E-S light on the other, never both at
     // once, so there is always a right way round.
-    const flipY = backMask && !glassMask ? -1 : 1;
+    // A splitter never turns round: it works on both faces at once, which is
+    // the whole point of it, so light on the back is not a sign it is the wrong
+    // way about.
+    const flipY = (!sp && backMask && !glassMask) ? -1 : 1;
 
     // NO OUTLINES anywhere on this piece. Every edge is where one gradient stops
     // and the board begins. A stroked border round a small bar is what was
@@ -946,40 +1498,69 @@
     ctx.fillStyle = pv;
     ctx.beginPath(); ctx.arc(0, th / 2 + pr * 0.35, pr, 0, 7); ctx.fill();
 
-    // a soft seat under the bar, so it lifts off the board without an outline
-    ctx.globalAlpha = 0.34;
+    // a soft seat under the bar, so it lifts off the board without an outline.
+    // A thin sheet of glass sits lighter than a backed mirror and casts less.
+    ctx.globalAlpha = sp ? 0.20 : 0.34;
     ctx.fillStyle = 'rgba(2,5,11,0.9)';
     roundRect(-len / 2, -th / 2 + th * 0.30, len, th, th / 2); ctx.fill();
     ctx.globalAlpha = 1;
 
     ctx.save();
     roundRect(-len / 2, -th / 2, len, th, th / 2); ctx.clip();
-    // Front: glass. Clear enough to see the board through, but not so clear the
-    // piece stops reading. It is the only thing on the board the player can
-    // touch, so it has to hold its own against the light around it.
-    const gl = ctx.createLinearGradient(0, -th / 2, 0, surf);
-    gl.addColorStop(0, 'rgba(242,249,255,0.80)');
-    gl.addColorStop(0.16, 'rgba(196,216,240,0.40)');
-    gl.addColorStop(0.62, 'rgba(172,196,224,0.30)');
-    gl.addColorStop(1, 'rgba(226,240,255,0.55)');
-    ctx.fillStyle = gl; ctx.fillRect(-len / 2, -th / 2, len, surf + th / 2);
-    // Back: the silvered backing. Brightest just under the surface, rolling
-    // through mid grey to a lit lower lip, all gradient, no edges.
-    const mt = ctx.createLinearGradient(0, surf, 0, th / 2);
-    mt.addColorStop(0, '#FBFDFF'); mt.addColorStop(0.16, '#D8E1ED');
-    mt.addColorStop(0.52, '#9DA9BB'); mt.addColorStop(0.84, '#C6D0DC');
-    mt.addColorStop(1, '#94A0B1');
-    ctx.fillStyle = mt; ctx.fillRect(-len / 2, surf, len, th / 2 - surf);
+    if (sp) {
+      // ONE piece of glass the whole way through, not a front and a back. The
+      // mirror's hard split into a clear half and a metal half is exactly what
+      // a splitter must NOT have: light works on both of its faces at once, so
+      // a piece that looked one way round would be lying about what it does.
+      const body = ctx.createLinearGradient(0, -th / 2, 0, th / 2);
+      body.addColorStop(0, 'rgba(238,247,255,0.62)');    // top edge catching light
+      body.addColorStop(0.30, 'rgba(186,208,236,0.24)');
+      body.addColorStop(0.62, 'rgba(166,190,220,0.20)');
+      body.addColorStop(1, 'rgba(214,232,252,0.46)');    // and the bottom edge
+      ctx.fillStyle = body; ctx.fillRect(-len / 2, -th / 2, len, th);
+      // The coating: a VEIL, densest at the surface and gone before the back
+      // edge. A hard boundary anywhere in here would read as a second material
+      // rather than as a few atoms of silver lying on glass.
+      const veil = ctx.createLinearGradient(0, surf - th * 0.10, 0, th / 2);
+      veil.addColorStop(0, 'rgba(232,243,255,0.50)');
+      veil.addColorStop(0.42, 'rgba(196,215,240,0.20)');
+      veil.addColorStop(1, 'rgba(168,190,218,0.03)');
+      ctx.fillStyle = veil; ctx.fillRect(-len / 2, surf - th * 0.10, len, th / 2 - surf + th * 0.10);
+    } else {
+      // Front: glass. Clear enough to see the board through, but not so clear
+      // the piece stops reading. It is the only thing on the board the player
+      // can touch, so it has to hold its own against the light around it.
+      const gl = ctx.createLinearGradient(0, -th / 2, 0, surf);
+      gl.addColorStop(0, 'rgba(242,249,255,0.80)');
+      gl.addColorStop(0.16, 'rgba(196,216,240,0.40)');
+      gl.addColorStop(0.62, 'rgba(172,196,224,0.30)');
+      gl.addColorStop(1, 'rgba(226,240,255,0.55)');
+      ctx.fillStyle = gl; ctx.fillRect(-len / 2, -th / 2, len, surf + th / 2);
+      // Back: the silvered backing. Brightest just under the surface, rolling
+      // through mid grey to a lit lower lip, all gradient, no edges.
+      const mt = ctx.createLinearGradient(0, surf, 0, th / 2);
+      mt.addColorStop(0, '#FBFDFF'); mt.addColorStop(0.16, '#D8E1ED');
+      mt.addColorStop(0.52, '#9DA9BB'); mt.addColorStop(0.84, '#C6D0DC');
+      mt.addColorStop(1, '#94A0B1');
+      ctx.fillStyle = mt; ctx.fillRect(-len / 2, surf, len, th / 2 - surf);
+    }
     ctx.restore();
 
-    // the mirrored surface: one crisp bright line, the brightest thing here
+    // The reflecting surface: one crisp bright line, the brightest thing here.
+    //
+    // A splitter's is DIMMER AND SOFTER, never dashed. A broken line is a
+    // diagram convention and it made the piece read as a symbol for a splitter
+    // rather than as a splitter; every other edge on this board is made of
+    // value. Partial silvering reflects partially, so a weaker highlight is
+    // both what the material does and what tells the two pieces apart.
     ctx.lineCap = 'butt';
     ctx.globalCompositeOperation = 'lighter';
-    ctx.globalAlpha = 0.30; ctx.strokeStyle = '#CFE8FF';
-    ctx.lineWidth = Math.max(2, th * 0.34);
+    ctx.globalAlpha = sp ? 0.17 : 0.30; ctx.strokeStyle = '#CFE8FF';
+    ctx.lineWidth = Math.max(2, th * (sp ? 0.62 : 0.34));
     ctx.beginPath(); ctx.moveTo(-len / 2 + th * 0.24, surf); ctx.lineTo(len / 2 - th * 0.24, surf); ctx.stroke();
     ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
-    ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = Math.max(1.2, th * 0.10);
+    ctx.strokeStyle = sp ? 'rgba(255,255,255,0.58)' : '#FFFFFF';
+    ctx.lineWidth = Math.max(sp ? 0.9 : 1.2, th * (sp ? 0.085 : 0.10));
     ctx.beginPath(); ctx.moveTo(-len / 2 + th * 0.20, surf); ctx.lineTo(len / 2 - th * 0.20, surf); ctx.stroke();
     ctx.lineCap = 'round';
     ctx.restore();
@@ -1123,6 +1704,29 @@
   // primary's own colour. A yellow gem is therefore visibly half red and half
   // green: it states the recipe, teaches the mixing, and stays readable without
   // relying on colour vision alone.
+  // An opaque block. No outline: it is a slab of the board's own colour lifted
+  // toward the light, so it reads as something standing proud of the surface
+  // rather than a hole cut in it.
+  function drawWall(cx, cy) {
+    const s = cell * 0.86, r = cell * 0.14;
+    ctx.fillStyle = 'rgba(3,7,14,0.55)';
+    roundRect(cx - s / 2, cy - s / 2 + cell * 0.045, s, s, r); ctx.fill();
+    // Diagonal, not vertical. A top-to-bottom ramp on a square reads as a
+    // cylinder: the eye takes the even horizontal banding as curvature. Running
+    // it corner to corner, along the same light the rest of the board uses,
+    // reads as a flat slab catching light on one edge.
+    const g = ctx.createLinearGradient(cx - s / 2, cy - s / 2, cx + s / 2, cy + s / 2);
+    g.addColorStop(0, '#41506B'); g.addColorStop(0.45, '#2C374C'); g.addColorStop(1, '#1A2231');
+    ctx.fillStyle = g; roundRect(cx - s / 2, cy - s / 2, s, s, r); ctx.fill();
+    ctx.globalAlpha = 0.5;
+    ctx.strokeStyle = '#6C7C99'; ctx.lineWidth = Math.max(1, cell * 0.018);
+    ctx.beginPath();
+    ctx.moveTo(cx - s / 2 + r, cy - s / 2 + ctx.lineWidth * 0.5);
+    ctx.lineTo(cx + s / 2 - r, cy - s / 2 + ctx.lineWidth * 0.5);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
   function drawGem(i, cx, cy, now) {
     const need = gemNeed[i], ok = gemGot[i] === need;
     const got = gemGot[i];
@@ -1201,6 +1805,136 @@
   }
 
   // ---------- HUD ----------
+  // THE RACK. The budget as objects rather than a fraction to read: a row of
+  // mirrors, one per mirror you were given. Spend one and its place stays as a
+  // ghost, so the count is legible at a glance and what you have LEFT is the
+  // solid ones.
+  // The rack used to be three or four glyphs. At ten it is a different object,
+  // and at full spacing it ran through the read-out and into the buttons. So it
+  // takes a fixed share of the band and the glyphs close up to fit it.
+  const rackGap = () => {
+    const n = budget + budgetSplit;
+    const base = Math.min(cell * 0.42, 26);
+    return n ? Math.min(base, (LW * 0.27) / n) : base;
+  };
+  // How far left the top band is already spoken for on desktop, so the read-out
+  // can be shortened rather than drawn over the controls.
+  const controlsRight = () => (MODE === 'mobile' ? 0
+    : SIDE_PAD + UI.PILL.iconW + UI.pillWidth(ctx, 'Undo') + UI.pillWidth(ctx, 'Restart')
+      + UI.pillWidth(ctx, 'Rules') + UI.PILL.gap * 3);
+  const rackW = () => {
+    const g = rackGap();
+    return (budget ? budget * g : 0) + (budgetSplit ? budgetSplit * g + g * 0.8 : 0);
+  };
+  // THE PICKER. The rack is no longer only a read-out of what is left, it is
+  // the control that says what the next tap will lay. It sits under the board
+  // where the hint line used to be, and the group you have chosen is lifted on
+  // a plate so the choice is visible without reading anything.
+  const PICK_LABEL = 'Pick a mirror to place on the board';
+  function pickerRows() {
+    const gapX = rackGap();
+    const w = Math.min(cell * 0.30, 19);
+    const rows = [];
+    if (budget) rows.push({ t: 0, n: budget, used: placedCount(), sp: false });
+    if (budgetSplit) rows.push({ t: 1, n: budgetSplit, used: placedSplit(), sp: true });
+    // Right aligned as one run, mirrors first, with a clear break between them.
+    // The break has to clear the PLATES, not just the glyphs: each plate reaches
+    // half a glyph plus its padding beyond the run, so a gap measured in glyph
+    // spacing alone let the two hit targets overlap and a tap on the edge of one
+    // group selected the other.
+    const padX = gapX * 0.55, edge = w / 2 + padX;
+    const between = w + gapX * 1.4;
+    let total = 0;
+    rows.forEach((r, k) => { total += (r.n - 1) * gapX + w + (k ? between : 0); });
+    let x = LW - SIDE_PAD - edge - total;
+    rows.forEach((r, k) => {
+      if (k) x += between;
+      r.left = x; r.right = x + (r.n - 1) * gapX + w;
+      x = r.right;
+    });
+    return { rows, gapX, w, padX };
+  }
+  function drawRack() {
+    if (!budget && !budgetSplit) return;
+    const { rows, gapX, w, padX } = pickerRows();
+    const y = MODE === 'mobile' ? LH - 116 : LH - Math.round(botBand() / 2);
+
+    // The instruction sits on the left on desktop, and on its own line above
+    // the pieces on a phone, where there is no room beside them.
+    // Out of pieces: say so, rather than letting the tap do nothing, because a
+    // silent refusal reads as the game being broken. It takes over the label's
+    // slot for a couple of seconds, which is the one place it cannot collide
+    // with anything and is exactly where the player is already looking.
+    const oom = 1 - Math.min(1, (performance.now() - outOfMirrors) / 2200);
+    const warning = oom > 0;
+    const msg = warning
+      ? (budgetSplit ? 'That is all your pieces. Lift one to move it, or Restart.'
+                     : 'That is all your mirrors. Lift one to move it, or Restart.')
+      : PICK_LABEL;
+    ctx.font = warning ? '600 16px Inter, sans-serif' : '500 16px Inter, sans-serif';
+    ctx.fillStyle = warning ? 'rgba(255,206,120,0.95)' : 'rgba(255,255,255,0.62)';
+    ctx.globalAlpha = warning ? Math.min(1, oom * 2.2) : 1;
+    ctx.textBaseline = 'middle';
+    if (MODE === 'mobile') { ctx.textAlign = 'center'; ctx.fillText(msg, LW / 2, LH - 146); }
+    else { ctx.textAlign = 'left'; ctx.fillText(msg, SIDE_PAD, y); }
+    ctx.globalAlpha = 1;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+
+    for (const r of rows) {
+      const h = Math.max(34, w + 20);
+      const bx = r.left - w / 2 - padX, bw = (r.right - r.left) + w + padX * 2;
+      if (r.t === tool) {
+        // A filled plate, not a stroked box. Every edge on this board is where
+        // one value stops, and an outline here would read as a different
+        // family of object from everything else on the screen.
+        ctx.fillStyle = 'rgba(255,255,255,0.10)';
+        roundRect(bx, y - h / 2, bw, h, h / 2); ctx.fill();
+      }
+      drawRackRow(r.n, r.used, r.sp, r.right, y, gapX);
+      // Hit target is the plate, widened to stay comfortable on a phone.
+      const th = Math.max(44, h);
+      uiButtons.push({ x: bx, y: y - th / 2, w: bw, h: th, act: () => { tool = r.t; } });
+    }
+  }
+  function drawRackRow(total, used, sp, right, y, gapX) {
+    const w = Math.min(cell * 0.30, 19);
+    const startX = right - (total - 1) * gapX - w / 2;
+    for (let k = 0; k < total; k++) {
+      const x = startX + k * gapX, spent = k < used;
+      ctx.save(); ctx.translate(x, y); ctx.rotate(-Math.PI / 4);
+      // shorter and thinner here too, or the picker shows a different object
+      // from the one the board draws
+      const w2 = w * (sp ? 0.78 : 1);
+      const th = Math.max(3, w * (sp ? 0.24 : 0.34));
+      if (spent) {
+        // a ghost: the slot it came from, still visible so the total never moves
+        ctx.globalAlpha = 0.30;
+        ctx.strokeStyle = 'rgba(190,208,236,0.55)';
+        ctx.lineWidth = Math.max(1, th * 0.30);
+        ctx.setLineDash([Math.max(1.5, th * 0.5), Math.max(1.5, th * 0.5)]);
+        roundRect(-w2 / 2, -th / 2, w2, th, th / 2); ctx.stroke();
+        ctx.setLineDash([]); ctx.globalAlpha = 1;
+      } else {
+        ctx.fillStyle = 'rgba(3,7,14,0.45)';
+        roundRect(-w2 / 2, -th / 2 + th * 0.35, w2, th, th / 2); ctx.fill();
+        // The glyph has to be the same object the board draws, only small:
+        // thinner, glassier, and with a softer highlight. If the rack showed a
+        // different-looking thing from the one that lands on the board, the
+        // picker would be teaching the wrong shape.
+        const g2 = ctx.createLinearGradient(0, -th / 2, 0, th / 2);
+        if (sp) { g2.addColorStop(0, 'rgba(238,247,255,0.60)'); g2.addColorStop(0.45, 'rgba(180,200,228,0.28)'); g2.addColorStop(1, 'rgba(206,226,248,0.44)'); }
+        else { g2.addColorStop(0, '#F2F8FF'); g2.addColorStop(0.5, '#B9C8DE'); g2.addColorStop(1, '#6B7A94'); }
+        ctx.fillStyle = g2; roundRect(-w2 / 2, -th / 2, w2, th, th / 2); ctx.fill();
+        if (sp) {
+          ctx.strokeStyle = 'rgba(255,255,255,0.52)'; ctx.lineWidth = Math.max(0.9, th * 0.20); ctx.lineCap = 'butt';
+          ctx.beginPath(); ctx.moveTo(-w2 / 2 + th * 0.3, 0); ctx.lineTo(w2 / 2 - th * 0.3, 0); ctx.stroke();
+          ctx.lineCap = 'round';
+        }
+      }
+      ctx.restore();
+    }
+  }
+
   function drawHUD() {
     // 16px flat, not scaled down on narrow screens. The shared shrink factor
     // used elsewhere bottoms out at 0.66, which put this read-out at 11px and
@@ -1218,8 +1952,9 @@
     // read-out plus par measures 313px against 284px of room, and being right
     // aligned it would have run off the LEFT edge. Take the first form that
     // fits; the type stays at 16px in every one of them.
-    const parW = par > 0 ? ctx.measureText('par ' + par).width + 16 : 0;
-    const avail = LW - PX * 2 - parW;
+    // The rack moved under the board, so the top band is the read-out's again.
+    const parW = 0;
+    const avail = LW - PX - Math.max(PX, controlsRight() + 14);
     const heads = [
       'Level ' + level + '   ·   ' + lit + '/' + total + ' lit   ·   ' + turns,
       'Level ' + level + ' · ' + lit + '/' + total + ' lit · ' + turns,
@@ -1228,30 +1963,17 @@
     ];
     const head = heads.find((h) => ctx.measureText(h).width <= avail) || heads[heads.length - 1];
 
-    let x = LW - PX;
-    if (par > 0) {
-      ctx.fillStyle = moves <= par ? 'rgba(168,235,173,0.95)' : 'rgba(255,255,255,0.68)';
-      const t = 'par ' + par;
-      ctx.fillText(t, x, y);
-      x -= ctx.measureText(t).width + 16;
-    }
+    // Stand clear of the WHOLE rack, splitters included. Counting only the
+    // mirrors here is what dropped nine glyphs straight through the read-out.
+    const x = LW - PX - parW;
     ctx.fillStyle = 'rgba(255,255,255,0.82)';
     ctx.fillText(head, x, y);
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
 
-    if (phase === 'play' && moves === 0) {
-      ctx.textAlign = 'center';
-      ctx.font = '500 16px Inter, sans-serif';
-      ctx.fillStyle = 'rgba(255,255,255,0.62)';
-      const msg = level >= 5 ? 'Two beams arriving together add up.' : 'Tap a mirror to flip it.';
-      // Sits just under the board. If a screen is short enough that it would
-      // reach the control row or the bottom edge, it is dropped rather than
-      // drawn on top of something.
-      const hy = oy + R * cell + 12;
-      const limit = (MODE === 'mobile' ? LH - 94 - 6 : LH - 8) - 15;
-      if (hy <= limit) ctx.fillText(msg, LW / 2, hy);
-      ctx.textAlign = 'left';
-    }
+    // The opening hint that used to sit here is gone, and so has the out of
+    // pieces warning: both now live in the picker's own label slot under the
+    // board. Drawn here they landed on top of it, because the strip the hint
+    // used to have to itself is the strip the picker now occupies.
   }
 
   function speakerIcon(cx, cy, on) {
@@ -1328,18 +2050,31 @@
     ctx.globalCompositeOperation = 'source-over';
 
     ctx.fillStyle = 'rgba(255,255,255,0.86)'; ctx.font = '600 20px Inter, sans-serif';
-    ctx.fillText('every gem lit in ' + moves + (moves === 1 ? ' turn' : ' turns') + (par ? ', par ' + par : ''), cx, cy + 22);
+    const pieceWord = budgetSplit
+      ? budget + (budget === 1 ? ' mirror' : ' mirrors') + ' and ' + budgetSplit + (budgetSplit === 1 ? ' splitter' : ' splitters')
+      : budget + (budget === 1 ? ' mirror' : ' mirrors');
+    ctx.fillText('every gem lit with ' + pieceWord, cx, cy + 22);
     ctx.textBaseline = 'top';
     uiButtons.push({ ...UI.drawCTA(ctx, 'NEXT LEVEL', cx, cy + 76, ACCENT), act: () => genLevel(level + 1) });
     ctx.textAlign = 'left'; ctx.globalAlpha = 1;
   }
 
   const MENU_SUB = 'Route the light so every gem gets its colour.';
+  // These are PIGMENT colours, not light colours. The game mixes the way paint
+  // does — red and yellow make orange — because that is what a player grew up
+  // with. Rules 4 and 5 described light mixing (red and green make yellow) long
+  // after the game stopped working that way.
+  // SIX rules is the ceiling on a 600px frame, and only at TWO LINES EACH. The
+  // card measures its own contents but its height is clamped to the viewport,
+  // so anything longer is not cut off, it is quietly drawn UNDER the PLAY
+  // button. Measure before adding a rule or lengthening one.
   const MENU_RULES = [
-    'Tap a mirror to flip it. It turns any beam that hits it by 90 degrees.',
-    'The prism only works on light that arrives square on its flat face. Light striking a slanted side is scattered and lost.',
-    'Through it, red carries straight on past the apex, green bends away to the left and blue to the right.',
-    'Every gem is cut from the colour it wants, and sits dark until it gets it. Two beams arriving together add up: red and green make a yellow gem light.',
+    'Pick a mirror below the board, then tap a square to place it. Tap again to turn it, or lift it.',
+    'You get a limited number of mirrors, use them wisely.',
+    'The prism only works when light hits its flat side head on. Other light scatters and is lost.',
+    'White light splits into three. Red goes straight on, yellow bends left, blue bends right.',
+    'A gem stays dark until it gets its colour. Red and yellow arriving together make orange.',
+    'A splitter turns half a beam and lets the rest carry on, so one beam becomes two.',
   ];
 
   function menuOverlay() {
@@ -1396,17 +2131,20 @@
   // ---------- debug handle ----------
   // Screenshots lie about scale and the in-app preview pauses rAF, so every
   // check on this site is made through numbers. This is that handle.
-  const GLYPH = { 1: 'r', 2: 'g', 4: 'b', 3: 'y', 5: 'm', 6: 'c', 7: 'w' };
+  const GLYPH = { 1: 'r', 2: 'y', 4: 'b', 3: 'o', 5: 'p', 6: 'g', 7: 'w' };
   const api = {
     get state() {
       const [lit, total] = gemCount();
-      let mirrors = 0, decoys = 0, off = 0;
-      for (let i = 0; i < R * C; i++) if (tile[i] === T_MIRROR) {
-        mirrors++; if (isDecoy[i]) decoys++; else if (orient[i] !== solOrient[i]) off++;
-      }
+      const used = placedCount();
       const DN = ['N', 'E', 'S', 'W'];
-      return { level, R, C, mode: MODE, phase, moves, par, gemsLit: lit, gems: total, mirrors, decoys, offSolution: off,
-               solved: isSolved(), srcDir: DN[srcDir], prismDir: DN[prismDir],
+      return { level, R, C, mode: MODE, phase, moves, gemsLit: lit, gems: total,
+               solved: isSolved(), budget, budgetSplit, pieces: budget + budgetSplit,
+               placed: used, placedSplit: placedSplit(),
+               // how much of the out-of-pieces warning is still showing. It
+               // fades in 2.2s, which is quicker than a screenshot round trip,
+               // so by eye it always looks as though it never fired.
+               warningLeft: +Math.max(0, 1 - (performance.now() - outOfMirrors) / 2200).toFixed(2),
+               srcDir: DN[srcDir], prismDir: DN[prismDir],
                prism: { r: rowOf(prismCell), c: colOf(prismCell) } };
     },
     get geom() {
@@ -1424,7 +2162,11 @@
         for (let c = 0; c < C; c++) {
           const i = idx(r, c);
           if (tile[i] === T_SOURCE) s += 'S';
-          else if (tile[i] === T_MIRROR) s += (orient[i] === SLASH ? '/' : '\\');
+          // mirrors keep their angle; splitters are % and $ at the same two
+          // angles, so a chain of taps down one ray is readable at a glance
+          else if (mirror[i] >= 0) s += (isSplit(mirror[i]) ? (angleOf(mirror[i]) === SLASH ? '%' : '$')
+                                                           : (angleOf(mirror[i]) === SLASH ? '/' : '\\'));
+          else if (tile[i] === T_WALL) s += '#';
           else if (tile[i] === T_PRISM) s += 'P';
           else if (tile[i] === T_GEM) { const g = GLYPH[gemNeed[i]] || '?'; s += (gemGot[i] === gemNeed[i]) ? g.toUpperCase() : g; }
           else s += (seg[i * 4] || seg[i * 4 + 1] || seg[i * 4 + 2] || seg[i * 4 + 3]) ? '+' : '.';
@@ -1435,9 +2177,9 @@
       return out.join('\n');
     },
     solutionBoard() {
-      const keep = orient.slice(); orient = solOrient.slice(); simulate(0);
+      const keep = mirror.slice(); mirror = solMirror.slice(); simulate(0);
       const s = this.board() + '\nsolved: ' + isSolved();
-      orient = keep; simulate(0);
+      mirror = keep; simulate(0);
       return s;
     },
     gems() {
@@ -1447,7 +2189,17 @@
       }
       return out;
     },
-    solve() { orient = solOrient.slice(); simulate(0); if (isSolved()) { phase = 'won'; wonT = performance.now() - BLOOM_MS - 260; animEnd = performance.now() + 900; } return this.state; },
+    solve() { mirror = solMirror.slice(); simulate(0); if (isSolved()) { phase = 'won'; wonT = performance.now() - BLOOM_MS - 260; animEnd = performance.now() + 900; } return this.state; },
+    // Lay the answer but stay in PLAY, so the board can actually be looked at.
+    // `solve()` raises the win card, which dims everything behind it and makes
+    // it useless for judging how the pieces read.
+    showSolution(hold) {
+      mirror = solMirror.slice();
+      // optionally leave one cell empty, so the board is busy but not finished
+      if (hold) for (let i = R * C - 1; i >= 0; i--) if (mirror[i] >= 0) { mirror[i] = -1; break; }
+      simulate(0); draw(performance.now());
+      return this.state;
+    },
     flip(r, c) { flip(idx(r, c), performance.now()); return this.state; },
     goto(n) { genLevel(n); return this.state; },
     next() { genLevel(level + 1); return this.state; },
@@ -1475,16 +2227,14 @@
       tile = keepTile; srcCell = keepSrc; srcDir = keepDir; simulate(0);
       return { prismFaces: DN[prismDir], tests: out };
     },
-    // THE GATE. A light puzzle draws every beam, so the risk is not that it is
-    // unreadable, it is that it plays itself: if flipping whatever looks most
-    // promising keeps working, there is no puzzle here, only fiddling.
+    // THE PERSISTENCE GATE, the same one that exposed the old Prism.
+    // Improve when you can, poke at random when you cannot, never give up.
+    // Old Prism scored 100% solved within 60 pokes at every level, which is why
+    // it was an exercise. A placement board has millions of configurations
+    // rather than a few hundred, so this should not be able to stumble into one.
     //
-    // `greedy` is a fair, strong hill climber. It tries every mirror, scores the
-    // board by how close the gems are to their colour, and takes the best flip,
-    // breaking ties at random. It stops when nothing improves. `random` just
-    // flips blindly. Both get three times par to work with.
-    // A LOW greedy number is the good result.
-    gate(levels, per) {
+    // A HIGH number here means it is still an exercise.
+    persist(levels, per, budgets) {
       const bits = (m) => (m & 1) + ((m >> 1) & 1) + ((m >> 2) & 1);
       const heur = () => {
         let s = 0;
@@ -1496,64 +2246,157 @@
         }
         return s;
       };
+      const marks = budgets || [30, 60, 150, 400, 1000];
+      const cap = marks[marks.length - 1];
       const keep = level, rows = [];
       for (let L = 1; L <= (levels || 12); L++) {
-        let g = 0, rr = 0, n = per || 40;
+        const hit = new Array(marks.length).fill(0);
+        let n = per || 15, moveSum = 0, solvedAny = 0;
         for (let k = 0; k < n; k++) {
           genLevel(L, true);
-          const start = orient.slice(), budget = Math.max(6, par * 3);
-          const mirrors = [];
-          for (let i = 0; i < R * C; i++) if (tile[i] === T_MIRROR) mirrors.push(i);
-
-          for (let m = 0; m < budget && !isSolved(); m++) {
+          const free = [];
+          for (let i = 0; i < R * C; i++) if (tile[i] === T_EMPTY) free.push(i);
+          let done = -1;
+          for (let m = 0; m < cap; m++) {
+            if (isSolved()) { done = m; break; }
             simulate(0);
             const cur = heur();
             let bestS = -Infinity, ties = [];
-            for (const i of mirrors) {
-              orient[i] ^= 1; simulate(0);
-              const s = heur();
-              orient[i] ^= 1;
-              if (s > bestS) { bestS = s; ties = [i]; } else if (s === bestS) ties.push(i);
+            // The bot gets the SAME action set the player has, splitters
+            // included. Withholding them would flatter the board.
+            const usedM = placedCount(), usedS = placedSplit();
+            const canM = usedM < budget, canS = usedS < budgetSplit;
+            const fresh = [].concat(canM ? [SLASH, BACK] : [], canS ? [SP_SLASH, SP_BACK] : []);
+            for (const i of free) {
+              const was = mirror[i];
+              const opts = was < 0 ? fresh
+                : CYCLE.filter((v) => v !== was && (isSplit(v) === isSplit(was) || (isSplit(v) ? canS : canM))).concat([-1]);
+              for (const o of opts) {
+                mirror[i] = o; simulate(0);
+                const s = heur();
+                if (s > bestS) { bestS = s; ties = [[i, o]]; } else if (s === bestS) ties.push([i, o]);
+              }
+              mirror[i] = was;
             }
             simulate(0);
-            if (bestS <= cur) break;                 // plateau, the climber is stuck
-            orient[pick(ties)] ^= 1; simulate(0);
+            let mv;
+            if (bestS > cur && ties.length) mv = pick(ties);
+            else {
+              // stuck: poke. place somewhere random, or clear something random
+              const placedCells = free.filter((i) => mirror[i] >= 0);
+              const empties = free.filter((i) => mirror[i] < 0);
+              if (!fresh.length || !empties.length || (placedCells.length && Math.random() < 0.35)) {
+                mv = placedCells.length ? [pick(placedCells), -1] : null;
+              } else mv = [pick(empties), pick(fresh)];
+            }
+            if (!mv || mv[0] === undefined) break;
+            mirror[mv[0]] = mv[1]; simulate(0);
           }
-          if (isSolved()) g++;
-
-          orient = start.slice(); simulate(0);
-          for (let m = 0; m < budget && mirrors.length && !isSolved(); m++) {
-            orient[pick(mirrors)] ^= 1; simulate(0);
-          }
-          if (isSolved()) rr++;
-          orient = start.slice(); simulate(0);
+          if (isSolved() && done < 0) done = cap;
+          if (done >= 0) { solvedAny++; moveSum += done; marks.forEach((b, bi) => { if (done <= b) hit[bi]++; }); }
         }
-        rows.push({ level: L, greedyPct: Math.round(g / n * 100), randomPct: Math.round(rr / n * 100) });
+        const row = { level: L };
+        marks.forEach((b, bi) => { row['by' + b] = Math.round(hit[bi] / n * 100); });
+        row.everSolvedPct = Math.round(solvedAny / n * 100);
+        row.avgPokes = solvedAny ? +(moveSum / solvedAny).toFixed(1) : null;
+        rows.push(row);
       }
       genLevel(keep, true);
       return rows;
     },
-    // Generator health check. Builds many boards and reports anything that is
-    // not solvable from its own recorded answer, or that arrives already solved.
+    // Generator health check: every board must be solvable by its own recorded
+    // answer, and must arrive with an EMPTY board and a sane budget.
     audit(levels, per) {
       const keep = level, bad = [];
-      let mirrors = 0, pars = 0, gems = 0, count = 0, mixed = 0;
+      let budgets = 0, splits = 0, cnt = 0, gems = 0;
       for (let L = 1; L <= (levels || 14); L++) for (let k = 0; k < (per || 25); k++) {
         genLevel(L, true);
-        const st = this.state;
-        if (!st.gems) bad.push({ level: L, why: 'no gems' });
-        if (st.solved) bad.push({ level: L, why: 'starts solved' });
-        if (!st.offSolution) bad.push({ level: L, why: 'nothing to fix' });
-        const o = orient.slice(); orient = solOrient.slice(); simulate(0);
-        if (!isSolved()) bad.push({ level: L, why: 'recorded answer does not light every gem' });
-        orient = o; simulate(0);
-        for (let i = 0; i < R * C; i++) if (tile[i] === T_GEM && primsOf(gemNeed[i]).length > 1) { mixed++; break; }
-        mirrors += st.mirrors; pars += st.par; gems += st.gems; count++;
+        const s0 = this.state;
+        if (!s0.gems) bad.push({ level: L, why: 'no gems' });
+        if (s0.placed !== 0) bad.push({ level: L, why: 'served with mirrors already placed' });
+        if (s0.solved) bad.push({ level: L, why: 'starts solved' });
+        if (s0.pieces < 2) bad.push({ level: L, why: 'budget under two' });
+        if (s0.placedSplit !== 0) bad.push({ level: L, why: 'served with splitters already placed' });
+        this.solve();
+        if (!this.state.solved) bad.push({ level: L, why: 'the recorded answer does not solve' });
+        budgets += s0.pieces; splits += s0.budgetSplit; gems += s0.gems; cnt++;
       }
       genLevel(keep, true);
-      return { boards: count, failures: bad.length, examples: bad.slice(0, 6),
-               avgMirrors: +(mirrors / count).toFixed(2), avgPar: +(pars / count).toFixed(2),
-               avgGems: +(gems / count).toFixed(2), boardsWithAMixedGem: mixed };
+      return { boards: cnt, failures: bad.length, examples: bad.slice(0, 6),
+               avgPieces: +(budgets / cnt).toFixed(2), avgSplitters: +(splits / cnt).toFixed(2),
+               avgGems: +(gems / cnt).toFixed(2) };
+    },
+    // Does the rules card actually fit? Its height is clamped to the viewport,
+    // and when the contents are taller the overflow is drawn UNDER the PLAY
+    // button rather than being cut off, which is invisible in code review and
+    // obvious only in a screenshot. Check this after touching MENU_RULES.
+    rulesFit() {
+      const pw = Math.max(260, Math.min(LW - 44, 486));
+      const nLines = (s, w, font) => {
+        ctx.font = font;
+        let n = 1, cur = '';
+        for (const wd of s.split(' ')) {
+          const t = cur ? cur + ' ' + wd : wd;
+          if (ctx.measureText(t).width > w && cur) { n++; cur = wd; } else cur = t;
+        }
+        return n;
+      };
+      let mh = 32 + 50;
+      mh += nLines(MENU_SUB, pw - 70, '600 17px Inter, sans-serif') * 24 + 16;
+      const per = MENU_RULES.map((r) => nLines(r, pw - 96, '500 16px Inter, sans-serif'));
+      mh += per.reduce((a, b) => a + b, 0) * 22 + MENU_RULES.length * 12;
+      const wanted = mh + 22 + UI.CTA.h + 34, max = LH - 28;
+      return { mode: MODE, LW, LH, linesPerRule: per, wanted, max,
+               overflowPx: Math.max(0, wanted - max), fits: wanted <= max };
+    },
+    // Print the intended answer beside every OTHER answer the board admits.
+    // Counting second solutions says the construction argument is wrong;
+    // looking at one says where.
+    alts(lvl, nodeCap) {
+      genLevel(lvl, true);
+      strictSearch = true;
+      let res;
+      try { res = countSolutions(4, nodeCap || 600000); } finally { strictSearch = false; }
+      const show = (m) => { const keep = mirror.slice(); mirror = m.slice(); simulate(0);
+                            const s = this.board(); mirror = keep; simulate(0); return s; };
+      const out = ['INTENDED (' + budget + ' mirrors, ' + budgetSplit + ' splitters)', show(solMirror)];
+      const same = (m) => m.every((v, i) => v === solMirror[i]);
+      let k = 0;
+      for (const m of res.all) {
+        if (same(m)) continue;
+        let nm = 0, ns = 0;
+        for (const v of m) { if (v < 0) continue; if (isSplit(v)) ns++; else nm++; }
+        out.push('ALTERNATIVE ' + (++k) + ' (' + nm + ' mirrors, ' + ns + ' splitters)', show(m));
+      }
+      out.push('found ' + res.count + ', exhausted ' + res.exhausted + ', nodes ' + res.nodes);
+      return out.join('\n');
+    },
+    // THE UNIQUENESS CHECK, run STRICT: the one colour at a time ordering that
+    // makes generation affordable is switched off, because that ordering is a
+    // prune and a prune can hide a second answer. If this ever reports more
+    // than one solution, the construction argument is wrong and the boards are
+    // not the puzzles they claim to be.
+    uniq(levels, per, nodeCap) {
+      const keep = level, rows = [];
+      strictSearch = true;
+      try {
+        for (let L = 1; L <= (levels || 10); L++) {
+          let one = 0, many = 0, ranOut = 0, n = per || 6, nodeSum = 0, worst = 0;
+          for (let k = 0; k < n; k++) {
+            genLevel(L, true);
+            const t0 = performance.now();
+            const res = countSolutions(3, nodeCap || 400000);
+            worst = Math.max(worst, performance.now() - t0);
+            nodeSum += res.nodes;
+            if (!res.exhausted) ranOut++;
+            else if (res.count === 1) one++;
+            else many++;
+          }
+          rows.push({ level: L, unique: one, multiple: many, tooBig: ranOut,
+                      avgNodes: Math.round(nodeSum / n), slowestMs: +worst.toFixed(0) });
+        }
+      } finally { strictSearch = false; genLevel(keep, true); }
+      return rows;
     },
   };
   window.__prism = api;

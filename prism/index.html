@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <title>Prism — A Zamborin Game</title>
-  <meta name="description" content="A calm light-routing puzzle. Flip the mirrors to steer a beam through a prism and light every gem with its own colour. Free to play on phone and desktop." />
+  <meta name="description" content="A calm light-routing puzzle. Place mirrors and splitters to steer a beam through a prism and light every gem with its own colour. Free to play on phone and desktop." />
   <meta name="theme-color" content="#0E1726" />
   <link rel="canonical" href="https://zamborin.com/prism/" />
   <link rel="icon" type="image/svg+xml" href="/images/zamborin-favicon.svg" />
@@ -14,7 +14,7 @@
   <meta property="og:site_name" content="Zamborin Games" />
   <meta property="og:url" content="https://zamborin.com/prism/" />
   <meta property="og:title" content="Prism — a light-routing colour puzzle" />
-  <meta property="og:description" content="Flip the mirrors to steer white light through a prism, split it into red, green and blue, and light every gem with the colour it asks for." />
+  <meta property="og:description" content="Place mirrors and splitters to steer white light through a prism, split it into red, yellow and blue, and light every gem with the colour it asks for." />
   <meta property="og:image" content="https://zamborin.com/images/prism-og.jpg" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
@@ -39,7 +39,7 @@
     "@context": "https://schema.org",
     "@type": "VideoGame",
     "name": "Prism",
-    "description": "A free light-routing puzzle. Flip the mirrors to steer a white beam through a prism, split it into red, green and blue, and light every gem with the colour it asks for.",
+    "description": "A free light-routing puzzle. Place mirrors and splitters to steer a white beam through a prism, split it into red, yellow and blue, and light every gem with the colour it asks for.",
     "url": "https://zamborin.com/prism/",
     "image": "https://zamborin.com/images/prism-og.jpg",
     "playMode": "SinglePlayer",
@@ -118,38 +118,40 @@
     <section class="game-info">
       <h1>Prism: a light-routing colour puzzle</h1>
 
-      <p>Prism is a quiet puzzle about steering light. A single emitter fires one white beam across a dark grid, and somewhere along its path sits a piece of glass that changes everything: a <strong>prism</strong>, which takes white light apart into its three primaries. It has a front and a back, and it only does anything to light that meets its flat face square on: red then bends least and carries straight on past the apex, green peels away to the left and blue to the right, and from that moment you are not routing one beam but three. Around the board, gems wait in the dark. Each one wants a particular colour and will stay closed until it gets exactly that. The only pieces you can touch are the mirrors, each a small silver bar set at 45 degrees, and each with two ways to sit. Tap one and it flips, and every beam that meets it turns 90 degrees. The whole board relights the instant you do, so you are never guessing where the light went.</p>
+      <p>Prism is a quiet puzzle about steering light. A lamp fires one white beam across a dark grid, and somewhere along its path sits a piece of glass that changes everything: a <strong>prism</strong>, which takes white light apart into three colours. It has a front and a back, and it only works on light that meets its flat face head on. Red then carries straight on, yellow bends away to the left and blue to the right, and from that moment you are not routing one beam but three. Around the board, gems wait in the dark. Each one wants a particular colour and stays closed until it gets exactly that. The board arrives empty, and you are handed a small number of pieces to put on it. Where the light turns is entirely your decision.</p>
 
       <h2>How to play</h2>
-      <p>Tap or click any mirror to flip it between its two diagonals. The beams redraw immediately, so you can always see exactly where the light is going and which gems are still dark. Keep flipping until every gem has the colour it asked for.</p>
+      <p>Tap any empty square to lay a piece there. Keep tapping the same square to turn the piece, change it, and finally take it away again. The beams redraw the instant you do, so you can always see where the light is going and which gems are still dark.</p>
       <ul>
-        <li><strong>Flip a mirror:</strong> tap it. A mirror sitting as <strong>/</strong> sends a beam travelling east up to the north, and one travelling west down to the south. Flipped to <strong>\</strong> it does the opposite.</li>
-        <li><strong>The prism has a front:</strong> it only works on light that arrives square on its flat face. Light striking one of its slanted sides is scattered and lost, so your first job on every board is steering the white beam round to the side that works.</li>
-        <li><strong>Through the glass:</strong> red bends least and carries straight on past the apex, green bends away to the left and blue to the right. A beam that is already coloured passes through untouched, because a prism has nothing left to take apart.</li>
-        <li><strong>Read the stones:</strong> every gem is cut from the colour it is waiting for, and sits dark until it gets it. A dark ruby wants red. A dark amber stone wants yellow, which means red and green arriving together.</li>
-        <li><strong>Colours add:</strong> two beams arriving at the same gem combine. Red and green make yellow, red and blue make magenta, green and blue make cyan, and all three make white.</li>
-        <li><strong>Undo or Restart:</strong> step back one flip, or put the whole board back the way you found it, at any time.</li>
+        <li><strong>Mirrors turn light:</strong> a mirror sitting as <strong>/</strong> sends a beam travelling east up to the north, and one travelling west down to the south. Turned to <strong>\</strong> it does the opposite.</li>
+        <li><strong>Splitters do both:</strong> a splitter turns half of a beam and lets the rest carry straight on, so one beam becomes two. That is how a single colour reaches more than one gem.</li>
+        <li><strong>You have only so many:</strong> mirrors and splitters are counted out separately and shown at the top of the board, and a piece you have spent leaves its empty slot behind. Run out and you have to lift something before you can lay it somewhere better.</li>
+        <li><strong>The prism has a front:</strong> it only works on light that hits its flat side head on. Light striking a slanted side just scatters and is lost, so your first job on every board is getting the white beam round to the side that works.</li>
+        <li><strong>Colours mix like paint, not like light:</strong> red and yellow make orange, red and blue make purple, and yellow and blue make green. Two beams have to arrive at the same gem together.</li>
+        <li><strong>Read the stones:</strong> every gem is the colour it is waiting for, and sits dark until it gets it. A dark ruby wants red. A dark orange stone wants red and yellow arriving together.</li>
+        <li><strong>Blocks eat light:</strong> the solid squares are opaque. Any beam that reaches one stops there.</li>
+        <li><strong>Undo or Restart:</strong> step back one move, or put the whole board back the way you found it, at any time.</li>
       </ul>
       <p>Your progress saves automatically, so you always come back to the level where you left off.</p>
 
       <h2>Why it is clever</h2>
-      <p>Nothing in Prism is hidden. The beams are always drawn, so the board is a live picture of your own reasoning: flip a mirror and you can watch a whole branch of light swing across the grid and either find its gem or sail past it. That makes it a puzzle you solve by reading rather than by guessing, because random flipping shows you immediately that it is getting you nowhere.</p>
-      <p>The depth arrives with the mixing. A gem that wants a single primary only needs one route to work out. A gem that wants yellow needs two separate beams to arrive at the same square, which means two routes that have to be solved against each other, and a mirror that fixes one of them will often be the very mirror that breaks the other. Every board is built from a working light path first and then scrambled, so a solution always exists, and it is checked by simulation before you ever see it.</p>
+      <p>Nothing in Prism is hidden. The beams are always drawn, so the board is a live picture of your own reasoning: lay a piece and you can watch a whole branch of light swing across the grid and either find its gem or sail past it. What makes it hard is not that anything is concealed, it is that an empty board offers far more places to put a piece than you have pieces.</p>
+      <p>The depth arrives with the mixing. A gem that wants a single colour only needs one route to work out. A gem that wants orange needs two separate beams to arrive at the same square, and until both are right it shows you nothing but a faint wash of the colour it is already getting. That is the part you cannot solve one piece at a time.</p>
 
       <h2>Tips</h2>
       <ul>
-        <li>Start at the emitter and get the white beam into the prism. Nothing else can be right until it is.</li>
+        <li>Start at the lamp and get the white beam into the prism. Nothing else can be right until it is.</li>
         <li>Work outward from the prism, one colour at a time. Red carries straight on, so it is usually the easiest to read.</li>
-        <li>If a beam is sailing past a gem, look at the last mirror it touched rather than the one nearest the gem.</li>
+        <li>Count your pieces before you start placing. If a gem needs two colours, that is at least two pieces committed.</li>
+        <li>Use a splitter where one colour has to reach two gems, and save your mirrors for the last stop on each branch.</li>
         <li>For a mixed gem, solve the harder of its two beams first, then bring the second in to meet it.</li>
-        <li>Not every mirror on the board is part of the answer. Some are only there to catch a beam that has gone astray.</li>
       </ul>
 
       <h2>Frequently asked questions</h2>
       <p><strong>Is Prism free?</strong> Yes, completely free to play, with no account and no download, in any modern browser on phone, tablet or desktop.</p>
       <p><strong>Does it work on mobile?</strong> Yes. Prism is built for touch as well as mouse, with a taller board on a phone and the controls kept within reach of a thumb.</p>
-      <p><strong>How do I win?</strong> Flip the mirrors until every gem on the board is receiving exactly the colour it is cut from.</p>
-      <p><strong>Is every level solvable?</strong> Yes. Each board is built as a working light path first, then scrambled, and the original answer is re-simulated and checked before the level is served.</p>
+      <p><strong>How do I win?</strong> Place your pieces so every gem on the board is receiving exactly the colour it wants, and nothing else. A gem getting the wrong colour as well stays dark.</p>
+      <p><strong>Is every level solvable?</strong> Yes. Each board is built around a working light path first, and that answer is re-simulated and checked before the level is ever served to you.</p>
       <p><strong>What happens when two beams cross?</strong> Beams that cross at right angles pass through each other unchanged. Beams only combine when they arrive at the same gem, or run along the same stretch of the board.</p>
 
       <p>Enjoy a good thinking puzzle? Try <a href="/bloom/">Bloom</a> or <a href="/fold/">Fold</a>, or browse <a href="/">all Zamborin games</a>.</p>
@@ -172,7 +174,7 @@
 
   <script src="../shared/sfx.js?v=1"></script>
   <script src="../shared/ui.js?v=1"></script>
-  <script src="./play.js?v=32"></script>
+  <script src="./play.js?v=41"></script>
   <script>
     (() => {
       const btn = document.getElementById('focus-toggle');
