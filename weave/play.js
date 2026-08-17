@@ -333,7 +333,18 @@
   // generator cannot build cloth that dense, so level 20 took 1.4 SECONDS and
   // still came out with half the threads dropped. It needs a better generator
   // before it can be a difficulty dial. Two it is.
-  const minCross = () => 2;
+  // A RAMP, and the only one this game has. Measured, a naive routing satisfied
+  // the weave 0% of the time at level ONE — identical to level six — so the
+  // first board asked exactly as much as the tenth. Worse, three threads is the
+  // rule's tightest case: each needs two crossings and there are only three
+  // pairs, so effectively every pair has to cross.
+  //
+  // Levels 1 and 2 ask for ONE crossing instead. That is deliberately a WEAKER
+  // rule, not just an easier board: a thread that crosses one other is over it
+  // or under it, never both, so it is not truly sewn in. It teaches the verb —
+  // threads have to meet — and the real rule arrives at level 3. The rules card
+  // says which one is in force rather than pretending they are the same.
+  const minCross = () => (level <= 2 ? 1 : 2);
   function crossingsOf(tid) {
     let n = 0;
     for (const x of crossings) if (x.tA === tid || x.tB === tid) n++;
@@ -1266,13 +1277,23 @@
   // measures its contents but its height is clamped to the viewport, so a rule
   // that runs long is not clipped, it is drawn UNDER the PLAY button. Measure
   // before adding one.
-  const MENU_RULES = [
+  // Reads the rule ACTUALLY in force, because levels 1 and 2 ask for one
+  // crossing and everything after asks for two. Telling a beginner the harder
+  // rule while the game enforces the easier one is how the old over-and-under
+  // wording went wrong: the card has to match what the board will accept.
+  const menuRules = () => (minCross() < 2 ? [
+    'Drag from a pin to lay its thread across to its twin. Drag again to lay it differently.',
+    'Threads are allowed to cross. Other puzzles forbid it, this one needs it.',
+    'Every thread must cross at least ONE other. A thread that meets nothing lies loose.',
+    'From level 3 each must cross TWO, ending up over one and under the other.',
+    'Each thread must also pass through its own button.',
+  ] : [
     'Drag from a pin to lay its thread across to its twin. Drag again to lay it differently.',
     'Threads are allowed to cross. Other puzzles forbid it, this one needs it.',
     'Every thread must cross at least TWO others. Take the long way round if you have to.',
     'Cross two and it ends up over one and under the other, and that is what sews it in.',
     'Each thread must also pass through its own button.',
-  ];
+  ]);
   function menuOverlay() {
     ctx.fillStyle = 'rgba(9,15,26,0.92)'; ctx.fillRect(0, 0, LW, LH);
     const pw = Math.max(260, Math.min(LW - 44, 486));
@@ -1280,7 +1301,8 @@
     ctx.font = '600 17px Inter, sans-serif';
     mh = wrapText(MENU_SUB, 0, mh, pw - 70, 24, 'center', true) + 16;
     ctx.font = '500 16px Inter, sans-serif';
-    for (const r of MENU_RULES) mh = wrapText(r, 0, mh, pw - 96, 22, 'left', true) + 12;
+    const RULES = menuRules();
+    for (const r of RULES) mh = wrapText(r, 0, mh, pw - 96, 22, 'left', true) + 12;
     const ph = Math.min(LH - 28, mh + 22 + UI.CTA.h + 34);
     const px = Math.round((LW - pw) / 2), py = Math.round((LH - ph) / 2);
     ctx.fillStyle = '#16233A'; roundRect(px, py, pw, ph, 24); ctx.fill();
@@ -1295,12 +1317,12 @@
     ctx.fillStyle = 'rgba(255,255,255,0.82)'; ctx.font = '600 17px Inter, sans-serif';
     y = wrapText(MENU_SUB, cx, y, pw - 70, 24); y += 16;
     const rx = px + 30;
-    for (let i = 0; i < MENU_RULES.length; i++) {
+    for (let i = 0; i < RULES.length; i++) {
       ctx.fillStyle = ACCENT; ctx.beginPath(); ctx.arc(rx + 11, y + 11, 12, 0, 7); ctx.fill();
       ctx.fillStyle = '#FFFFFF'; ctx.font = '800 14px Inter, sans-serif';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(i + 1), rx + 11, y + 12);
       ctx.fillStyle = 'rgba(255,255,255,0.90)'; ctx.font = '500 16px Inter, sans-serif';
-      y = wrapText(MENU_RULES[i], rx + 34, y, pw - 96, 22, 'left') + 12;
+      y = wrapText(RULES[i], rx + 34, y, pw - 96, 22, 'left') + 12;
     }
     uiButtons.push({ ...UI.drawCTA(ctx, moves > 0 ? 'RESUME' : 'PLAY', cx, py + ph - 34 - UI.CTA.h / 2, ACCENT), act: () => { phase = 'play'; } });
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
