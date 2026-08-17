@@ -3,26 +3,26 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-  <title>Weave — A Zamborin Game</title>
-  <meta name="description" content="A calm light-routing puzzle. Flip the mirrors to steer a beam through a weave and light every gem with its own colour. Free to play on phone and desktop." />
+  <title>Needle — A Zamborin Game</title>
+  <meta name="description" content="A calm sewing puzzle. Join every pair of pins, thread each one through its button, and cross the others enough to sew it into the cloth. Free to play on phone and desktop." />
   <meta name="theme-color" content="#0E1726" />
-  <link rel="canonical" href="https://zamborin.com/weave/" />
+  <link rel="canonical" href="https://zamborin.com/needle/" />
   <link rel="icon" type="image/svg+xml" href="/images/zamborin-favicon.svg" />
 
   <!-- Open Graph / Twitter -->
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Zamborin Games" />
-  <meta property="og:url" content="https://zamborin.com/weave/" />
-  <meta property="og:title" content="Weave — a light-routing colour puzzle" />
-  <meta property="og:description" content="Flip the mirrors to steer white light through a weave, split it into red, green and blue, and light every gem with the colour it asks for." />
-  <meta property="og:image" content="https://zamborin.com/images/weave-og.jpg" />
+  <meta property="og:url" content="https://zamborin.com/needle/" />
+  <meta property="og:title" content="Needle — a threading and crossing puzzle" />
+  <meta property="og:description" content="Join every pair of pins with a thread. Other puzzles forbid crossings; this one needs them, because a thread that meets nothing is not sewn in." />
+  <meta property="og:image" content="https://zamborin.com/images/needle-og.jpg" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
-  <meta property="og:image:alt" content="Weave — coloured beams of light crossing a dark grid." />
+  <meta property="og:image:alt" content="Needle — coloured threads crossing a dark cloth between pins and buttons." />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Weave — a light-routing colour puzzle" />
-  <meta name="twitter:description" content="Steer white light through a weave and light every gem with its own colour. A calm, clever puzzle, free to play." />
-  <meta name="twitter:image" content="https://zamborin.com/images/weave-og.jpg" />
+  <meta name="twitter:title" content="Needle — a threading and crossing puzzle" />
+  <meta name="twitter:description" content="Join every pair of pins and sew each thread into the cloth. A calm, clever puzzle, free to play." />
+  <meta name="twitter:image" content="https://zamborin.com/images/needle-og.jpg" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -38,10 +38,10 @@
   {
     "@context": "https://schema.org",
     "@type": "VideoGame",
-    "name": "Weave",
-    "description": "A free light-routing puzzle. Flip the mirrors to steer a white beam through a weave, split it into red, green and blue, and light every gem with the colour it asks for.",
-    "url": "https://zamborin.com/weave/",
-    "image": "https://zamborin.com/images/weave-og.jpg",
+    "name": "Needle",
+    "description": "A free sewing puzzle. Join every pair of pins with a thread, pass each thread through its own button, and cross enough of the others to sew it into the cloth.",
+    "url": "https://zamborin.com/needle/",
+    "image": "https://zamborin.com/images/needle-og.jpg",
     "playMode": "SinglePlayer",
     "gamePlatform": "Web Browser",
     "applicationCategory": "Game",
@@ -96,7 +96,7 @@
 
     <section class="play-row">
       <div class="game-wrap">
-        <canvas id="game" aria-label="Weave puzzle"></canvas>
+        <canvas id="game" aria-label="Needle puzzle"></canvas>
         <!-- Splash: shows for 2 s at load, then fades to reveal the rules screen. -->
         <div id="splash" class="splash" aria-hidden="true"></div>
       </div>
@@ -116,41 +116,40 @@
     </div>
 
     <section class="game-info">
-      <h1>Weave: a light-routing colour puzzle</h1>
+      <h1>Needle: a threading and crossing puzzle</h1>
 
-      <p>Weave is a quiet puzzle about steering light. A single emitter fires one white beam across a dark grid, and somewhere along its path sits a piece of glass that changes everything: a <strong>weave</strong>, which takes white light apart into its three primaries. It has a front and a back, and it only does anything to light that meets its flat face square on: red then bends least and carries straight on past the apex, green peels away to the left and blue to the right, and from that moment you are not routing one beam but three. Around the board, gems wait in the dark. Each one wants a particular colour and will stay closed until it gets exactly that. The only pieces you can touch are the mirrors, each a small silver bar set at 45 degrees, and each with two ways to sit. Tap one and it flips, and every beam that meets it turns 90 degrees. The whole board relights the instant you do, so you are never guessing where the light went.</p>
+      <p>Needle is a quiet puzzle about sewing. Pairs of coloured pins sit on a dark cloth, and your job is to join each pair with its thread. That much is familiar. What is not is the second rule: <strong>threads are meant to cross</strong>. Most puzzles of this shape forbid it and ask you to keep every line apart. Needle asks the opposite. A thread that runs from its pin to its twin without meeting anything is lying loose on the surface, and you can see it float: the colour drains out of it and its shadow falls further away. To be sewn in, a thread has to pass across the others. There is a button for each colour too, and its thread has to run through it. So a route is rarely the short way round.</p>
 
       <h2>How to play</h2>
-      <p>Tap or click any mirror to flip it between its two diagonals. The beams redraw immediately, so you can always see exactly where the light is going and which gems are still dark. Keep flipping until every gem has the colour it asked for.</p>
+      <p>Drag from any pin to lay its thread across to its twin. Drag from it again to lay the same thread somewhere else. The cloth redraws as you go, so you always see which threads are sewn in and which are still floating.</p>
       <ul>
-        <li><strong>Flip a mirror:</strong> tap it. A mirror sitting as <strong>/</strong> sends a beam travelling east up to the north, and one travelling west down to the south. Flipped to <strong>\</strong> it does the opposite.</li>
-        <li><strong>The weave has a front:</strong> it only works on light that arrives square on its flat face. Light striking one of its slanted sides is scattered and lost, so your first job on every board is steering the white beam round to the side that works.</li>
-        <li><strong>Through the glass:</strong> red bends least and carries straight on past the apex, green bends away to the left and blue to the right. A beam that is already coloured passes through untouched, because a weave has nothing left to take apart.</li>
-        <li><strong>Read the stones:</strong> every gem is cut from the colour it is waiting for, and sits dark until it gets it. A dark ruby wants red. A dark amber stone wants yellow, which means red and green arriving together.</li>
-        <li><strong>Colours add:</strong> two beams arriving at the same gem combine. Red and green make yellow, red and blue make magenta, green and blue make cyan, and all three make white.</li>
-        <li><strong>Undo or Restart:</strong> step back one flip, or put the whole board back the way you found it, at any time.</li>
+        <li><strong>Join the pairs:</strong> every colour has two pins. Drag from one to the other, along whatever route you like.</li>
+        <li><strong>Cross the others:</strong> each thread must cross at least two of the rest. On the first two levels one is enough, which is there to teach the idea before it starts to bite.</li>
+        <li><strong>Sew through the button:</strong> each colour has one button, and its own thread has to pass through it. This is what stops the direct route being the answer.</li>
+        <li><strong>Crossings are free, corners are not:</strong> a cell can carry one thread going across and one going down, which is exactly what a crossing is. A thread that turns in a cell takes the whole cell, so you cannot weave through a corner.</li>
+        <li><strong>Stuck?</strong> Hint lays one thread exactly where it belongs, choosing whichever is most in the way. Undo steps back one move, and Restart clears the cloth.</li>
       </ul>
       <p>Your progress saves automatically, so you always come back to the level where you left off.</p>
 
       <h2>Why it is clever</h2>
-      <p>Nothing in Weave is hidden. The beams are always drawn, so the board is a live picture of your own reasoning: flip a mirror and you can watch a whole branch of light swing across the grid and either find its gem or sail past it. That makes it a puzzle you solve by reading rather than by guessing, because random flipping shows you immediately that it is getting you nowhere.</p>
-      <p>The depth arrives with the mixing. A gem that wants a single primary only needs one route to work out. A gem that wants yellow needs two separate beams to arrive at the same square, which means two routes that have to be solved against each other, and a mirror that fixes one of them will often be the very mirror that breaks the other. Every board is built from a working light path first and then scrambled, so a solution always exists, and it is checked by simulation before you ever see it.</p>
+      <p>Almost every puzzle built on connecting pairs is really a puzzle about avoidance: keep the lines apart, do not touch, do not cross. Needle inverts that in one move, and the whole feel of it changes. Space stops being something to protect and becomes something to spend. A route that looks wasteful — the long way round, doubling back through the middle of the board — is often the only one that works, because it is the only one that meets enough of the others.</p>
+      <p>What makes it hold together is that the two rules pull in opposite directions. The button drags a thread toward one particular square. The crossing rule drags it out into the traffic. Satisfying either alone is easy; the puzzle is the route that does both without stranding some other colour on its own.</p>
 
       <h2>Tips</h2>
       <ul>
-        <li>Start at the emitter and get the white beam into the weave. Nothing else can be right until it is.</li>
-        <li>Work outward from the weave, one colour at a time. Red carries straight on, so it is usually the easiest to read.</li>
-        <li>If a beam is sailing past a gem, look at the last mirror it touched rather than the one nearest the gem.</li>
-        <li>For a mixed gem, solve the harder of its two beams first, then bring the second in to meet it.</li>
-        <li>Not every mirror on the board is part of the answer. Some are only there to catch a beam that has gone astray.</li>
+        <li>Lay the awkward threads first. The ones whose pins sit close together are the hardest to cross anything, so give them the open cloth while it is still open.</li>
+        <li>If a thread is floating, it does not need to be prettier, it needs to go somewhere busier. Take it through the middle rather than round the edge.</li>
+        <li>A thread that has to reach its button has already committed to a detour. Look at what it passes on the way and let it earn a crossing while it is there.</li>
+        <li>Two threads running side by side are wasted. Parallel lines never cross, so one of them should turn.</li>
+        <li>When the cloth is nearly full, the last thread has the fewest routes. Leave it the colour with the most room, not the least.</li>
       </ul>
 
       <h2>Frequently asked questions</h2>
-      <p><strong>Is Weave free?</strong> Yes, completely free to play, with no account and no download, in any modern browser on phone, tablet or desktop.</p>
-      <p><strong>Does it work on mobile?</strong> Yes. Weave is built for touch as well as mouse, with a taller board on a phone and the controls kept within reach of a thumb.</p>
-      <p><strong>How do I win?</strong> Flip the mirrors until every gem on the board is receiving exactly the colour it is cut from.</p>
-      <p><strong>Is every level solvable?</strong> Yes. Each board is built as a working light path first, then scrambled, and the original answer is re-simulated and checked before the level is served.</p>
-      <p><strong>What happens when two beams cross?</strong> Beams that cross at right angles pass through each other unchanged. Beams only combine when they arrive at the same gem, or run along the same stretch of the board.</p>
+      <p><strong>Is Needle free?</strong> Yes, completely free to play, with no account and no download, in any modern browser on phone, tablet or desktop.</p>
+      <p><strong>Does it work on mobile?</strong> Yes. Needle is built for touch as well as mouse, with a taller cloth on a phone and the controls kept within reach of a thumb.</p>
+      <p><strong>How do I win?</strong> Every pair joined, every thread through its own button, and every thread crossing enough of the others to be sewn in.</p>
+      <p><strong>Why does it say a thread is loose when I have joined it?</strong> Joining is only half of it. A thread that crosses nothing is lying on top of the cloth rather than sewn into it. The line under the board names the thread and says how many more crossings it needs.</p>
+      <p><strong>Is every level solvable?</strong> Yes. Each cloth is built around a working answer, and that answer is re-checked before the level is served to you. Hint will lay it one thread at a time if you want to see it.</p>
 
       <p>Enjoy a good thinking puzzle? Try <a href="/bloom/">Bloom</a> or <a href="/fold/">Fold</a>, or browse <a href="/">all Zamborin games</a>.</p>
     </section>
@@ -172,7 +171,7 @@
 
   <script src="../shared/sfx.js?v=1"></script>
   <script src="../shared/ui.js?v=1"></script>
-  <script src="./play.js?v=30"></script>
+  <script src="./play.js?v=31"></script>
   <script>
     (() => {
       const btn = document.getElementById('focus-toggle');

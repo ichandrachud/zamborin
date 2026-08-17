@@ -1,9 +1,9 @@
 /* ============================================================
-   Weave · a Zamborin Game (engine pass)
+   Needle · a Zamborin Game (engine pass)
 
    Coloured endpoints come in pairs. Drag from one to lay a thread of
    silk to its twin. Threads MAY cross each other, which is the whole
-   point: Flow forbids crossings, Untangle forbids crossings, and Weave
+   point: Flow forbids crossings, Untangle forbids crossings, and Needle
    invites them and then constrains them.
 
    THE RULE: cloth only holds together if every thread alternates over,
@@ -110,12 +110,23 @@
                                // taking a route away the way a wall would.
   let uiButtons = [], snagButtons = [], animEnd = 0, wonT = -1e9, bgGrad = null;
   let history = [];
-  const LS_TAUGHT = 'zamborin-weave.snag-taught';
+  const LS_TAUGHT = 'zamborin-needle.snag-taught';
   let snagTaught = (() => { try { return localStorage.getItem(LS_TAUGHT) === '1'; } catch (e) { return false; } })();
 
-  const LS = 'zamborin-weave.level';
+  // Renamed from Weave 2026-08-17. The old key is still read once, so a player
+  // mid-way through does not get dropped back to level 1 by a rename that
+  // changed nothing about the game.
+  const LS = 'zamborin-needle.level';
+  const LS_OLD = 'zamborin-weave.level';
   const saveLevel = () => { try { localStorage.setItem(LS, String(level)); } catch (e) {} };
-  const loadLevel = () => { try { const v = parseInt(localStorage.getItem(LS), 10); return (v >= 1 && v <= 999) ? v : 1; } catch (e) { return 1; } };
+  const loadLevel = () => {
+    try {
+      const v = parseInt(localStorage.getItem(LS), 10);
+      if (v >= 1 && v <= 999) return v;
+      const old = parseInt(localStorage.getItem(LS_OLD), 10);   // progress from when this was Weave
+      return (old >= 1 && old <= 999) ? old : 1;
+    } catch (e) { return 1; }
+  };
 
   const idx = (r, c) => r * C + c;
   const rowOf = (i) => (i / C) | 0, colOf = (i) => i % C;
@@ -1313,7 +1324,7 @@
     const cx = LW / 2; let y = py + 32;
     ctx.fillStyle = '#fff'; ctx.font = '800 38px Inter, sans-serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-    ctx.fillText('WEAVE', cx, y); y += 50;
+    ctx.fillText('NEEDLE', cx, y); y += 50;
     ctx.fillStyle = 'rgba(255,255,255,0.82)'; ctx.font = '600 17px Inter, sans-serif';
     y = wrapText(MENU_SUB, cx, y, pw - 70, 24); y += 16;
     const rx = px + 30;
@@ -1350,7 +1361,10 @@
   }
 
   // ---------- debug handle ----------
-  window.__weave = {
+  // Renamed with the game. `computeWeave`, `weaveOK` and `allWovenIn` keep
+  // their names on purpose: they describe the MECHANIC, which is still
+  // weaving, and only the game's title changed.
+  window.__needle = {
     get state() {
       return { level, R, C, mode: MODE, phase, moves, threads: threads.length,
                connected: connected(), crossings: crossings.length, snags: snagCount,

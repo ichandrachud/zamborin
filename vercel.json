@@ -2,6 +2,21 @@
   "trailingSlash": true,
   "redirects": [
     {
+      "source": "/weave",
+      "destination": "/needle/",
+      "permanent": true
+    },
+    {
+      "source": "/weave/",
+      "destination": "/needle/",
+      "permanent": true
+    },
+    {
+      "source": "/weave/:path*",
+      "destination": "/needle/:path*",
+      "permanent": true
+    },
+    {
       "source": "/lacerta",
       "destination": "/empyrean/",
       "permanent": true
