@@ -333,6 +333,41 @@
     for (const x of crossings) if (x.tA === tid || x.tB === tid) n++;
     return n;
   }
+  // The one place the "what do I do next" line is written. The HUD draws it and
+  // the debug handle reads it, so a test can never check a stale copy of it.
+  //
+  // NAME THE ACTION, NOT THE SYMPTOM. This used to read "lying on top, not
+  // woven in. Each thread needs to pass over one thread and under another."
+  // Every word of that is true and none of it is useful, because OVER AND UNDER
+  // IS NOT THE PLAYER'S TO SET — the game works the alternation out itself.
+  // Being told to make a thread pass under something, with no control over
+  // which thread is under, is being told to fix the one thing you cannot touch.
+  // What the player actually does is REROUTE, so say that, and say how far off
+  // the thread is.
+  function hintText(loose, mctx, maxW) {
+    let msg;
+    if (loose && loose.length) {
+      // Kept short enough to survive at 760 wide. The long version overflowed
+      // and fell back to a terse form that dropped the instruction, which is
+      // the one part that has to be there. The HUD already counts how many are
+      // loose, so this line does not repeat it.
+      const worst = loose.map((i) => ({ i, n: crossingsOf(i) })).sort((a, b) => a.n - b.n)[0];
+      const name = SILK[threads[worst.i].colour].name;
+      const short = minCross() - worst.n;
+      msg = worst.n === 0
+        ? name + ' crosses nothing. Route it over another thread.'
+        : name + ' crosses only one. Route it over ' + (short === 1 ? 'one' : short) + ' more.';
+    } else {
+      msg = 'A button is still unsewn. Each thread must pass through its own.';
+    }
+    if (mctx && maxW && mctx.measureText(msg).width > maxW) {
+      if (!loose || !loose.length) return 'A button is still unsewn.';
+      const worst = loose.map((i) => ({ i, n: crossingsOf(i) })).sort((a, b) => a.n - b.n)[0];
+      return SILK[threads[worst.i].colour].name + ' needs to cross ' + (minCross() - worst.n) + ' more';
+    }
+    return msg;
+  }
+
   function looseThreads() {
     const out = [];
     for (const t of threads) {
@@ -1038,16 +1073,7 @@
       ctx.textAlign = 'center'; ctx.textBaseline = 'top';
       ctx.font = '500 16px Inter, sans-serif';
       ctx.fillStyle = 'rgba(255,206,120,0.92)';
-      let msg;
-      if (loose.length) {
-        const names = loose.map((i) => SILK[threads[i].colour].name);
-        msg = (names.length === 1 ? names[0] + ' is' : names.slice(0, 2).join(' and ') + ' are') +
-              ' lying on top, not woven in. Each thread needs to pass over one thread and under another.';
-      } else {
-        msg = 'A button is still unsewn. Each thread must pass through its own.';
-      }
-      if (ctx.measureText(msg).width > LW - SIDE_PAD * 2) msg = loose.length
-        ? 'A thread is lying on top, not woven in.' : 'A button is still unsewn.';
+      let msg = hintText(loose, ctx, LW - SIDE_PAD * 2);
       ctx.fillText(msg, LW / 2, y2);
       ctx.textAlign = 'left';
       return;
@@ -1122,10 +1148,22 @@
     return y;
   }
   const MENU_SUB = 'Join every pair, and sew every thread into the cloth.';
+  // STATE THE RULE THE PLAYER CAN ACT ON.
+  //
+  // Rule 3 used to be "it has to pass over another thread somewhere, and under
+  // another somewhere". True, but the player does not choose over and under —
+  // the game works that out. What they choose is the ROUTE, so the rule has to
+  // be given in terms of routing: cross two other threads. The over and under
+  // then follows on its own, which is what rule 3 now says.
+  // FIVE rules, TWO LINES EACH, is the ceiling on a 600px frame. The card
+  // measures its contents but its height is clamped to the viewport, so a rule
+  // that runs long is not clipped, it is drawn UNDER the PLAY button. Measure
+  // before adding one.
   const MENU_RULES = [
     'Drag from a pin to lay its thread across to its twin. Drag again to lay it differently.',
-    'Threads are allowed to cross. That is the point of it: other puzzles forbid crossings, this one needs them.',
-    'Every thread must be WOVEN IN. It has to pass over another thread somewhere, and under another somewhere. A thread that lies on top of everything is not sewn into the cloth, and you can see it floating above.',
+    'Threads are allowed to cross. Other puzzles forbid it, this one needs it.',
+    'Every thread must cross at least TWO others. Take the long way round if you have to.',
+    'Cross two and it ends up over one and under the other, and that is what sews it in.',
     'Each thread must also pass through its own button.',
   ];
   function menuOverlay() {
@@ -1239,6 +1277,15 @@
       threads.forEach((t, i) => { t.path = solution[i] ? solution[i].slice() : null; });
       computeWeave(); phase = 'play'; draw(performance.now());
       return this.state;
+    },
+    // The exact line the player is shown under the board. Feedback is the thing
+    // that failed here, so it has to be checkable rather than eyeballed.
+    hint() {
+      const loose = looseThreads();
+      return { loose: loose.map((i) => SILK[threads[i].colour].name),
+               crossingsPerThread: threads.map((t, i) => t.path && t.path.length >= 2 ? crossingsOf(i) : null),
+               need: minCross(),
+               text: hintText(loose, null, 0) };
     },
     goto(n) { genLevel(n); return this.state; },
     next() { genLevel(level + 1); return this.state; },
