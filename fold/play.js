@@ -449,8 +449,25 @@
   // renders as a blank panel. Set once — the mode cannot change mid-session.
   document.body.classList.add('mode-' + (isMobile() ? 'mobile' : 'desktop'));
   const DESK = !isMobile();
+
+  // A viewport reading cannot be taken on trust. innerWidth/innerHeight can be
+  // 0 or a stale pre-layout value while this script first runs, and some
+  // in-app browsers report a layout height far taller than the screen. That
+  // matters because chrome.css derives the wrap's WIDTH from
+  // --canvas-w / --canvas-h: feed it a height twice the screen and it returns a
+  // wrap a fraction of the screen wide, and the game is drawn into a narrow
+  // strip. Cross-check against the visual viewport and the document element and
+  // take the smallest sane value. (Tailwind, 2026-08-19.)
+  function safeViewport() {
+    const vv = window.visualViewport;
+    const w = [window.innerWidth, vv && vv.width, document.documentElement.clientWidth]
+      .filter((v) => typeof v === 'number' && v > 120);
+    const h = [window.innerHeight, vv && vv.height, document.documentElement.clientHeight]
+      .filter((v) => typeof v === 'number' && v > 120);
+    return { w: Math.round(Math.min(...w)), h: Math.round(Math.min(...h)) };
+  }
   function setCanvasVars() {
-    if (isMobile()) { CW = window.innerWidth || 390; CH = window.innerHeight || 740; }
+    if (isMobile()) { const vp = safeViewport(); CW = vp.w || 390; CH = vp.h || 740; }
     // One desktop frame across the whole site: 760x600. Eight different sizes
     // had grown up across thirteen games, which reads as carelessness. This is
     // Untangle's, and it is sized so the game plus a 300px sidebar ad fits the
@@ -976,6 +993,20 @@
   function onResize() { setCanvasVars(); resizeCanvas(); computeLayout(); render(); }
   window.addEventListener('resize', onResize);
   window.addEventListener('splash-done', onResize);
+  // Re-fit on everything a handset actually changes size on. Dispatching the
+  // existing resize event reuses every handler already registered above rather
+  // than restating their order here. Timers, not rAF: rAF is throttled to
+  // nothing in some embedded browsers.
+  (() => {
+    const refit = () => window.dispatchEvent(new Event('resize'));
+    setTimeout(refit, 0);
+    setTimeout(refit, 300);
+    window.addEventListener('load', refit);
+    window.addEventListener('splash-done', refit);
+    window.addEventListener('orientationchange', () => setTimeout(refit, 100));
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', refit);
+  })();
+
 
   // ---------- debug surface ----------
   window.__foldfig = {

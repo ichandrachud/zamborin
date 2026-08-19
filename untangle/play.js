@@ -17,9 +17,27 @@
     ? 'mobile' : 'desktop';
   document.body.classList.add('mode-' + MODE);
 
+
+  // A viewport reading cannot be taken on trust. innerWidth/innerHeight can be
+  // 0 or a stale pre-layout value while this script first runs, and some
+  // in-app browsers report a layout height far taller than the screen. That
+  // matters because chrome.css derives the wrap's WIDTH from
+  // --canvas-w / --canvas-h: feed it a height twice the screen and it returns a
+  // wrap a fraction of the screen wide, and the game is drawn into a narrow
+  // strip. Cross-check against the visual viewport and the document element and
+  // take the smallest sane value. (Tailwind, 2026-08-19.)
+  function safeViewport() {
+    const vv = window.visualViewport;
+    const w = [window.innerWidth, vv && vv.width, document.documentElement.clientWidth]
+      .filter((v) => typeof v === 'number' && v > 120);
+    const h = [window.innerHeight, vv && vv.height, document.documentElement.clientHeight]
+      .filter((v) => typeof v === 'number' && v > 120);
+    return { w: Math.round(Math.min(...w)), h: Math.round(Math.min(...h)) };
+  }
   function buildMobileCFG() {
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
+    const _vp = safeViewport();
+    const vw = _vp.w;
+    const vh = _vp.h;
     const HUD_H        = 70;
     const GRID_TOP_GAP = 8;
     const SIDE_PAD     = 12;
@@ -103,6 +121,14 @@
   // the viewport, centred. Mobile auto-focus is left to the CSS as-is.
   const gameWrap = canvas.parentElement;
   function fitFullscreen() {
+    // Re-publish the vars the CSS sizes the wrap from. CFG's logical W/H are
+    // baked at load, so if that first reading was wrong these stayed wrong and
+    // the CSS kept computing a strip from them for the whole session.
+    if (MODE === 'mobile') {
+      const vp = safeViewport();
+      document.body.style.setProperty('--canvas-w', vp.w + 'px');
+      document.body.style.setProperty('--canvas-h', vp.h + 'px');
+    }
     const active = MODE === 'desktop' && document.body.classList.contains('focus-mode');
     if (!active) {
       gameWrap.style.width = '';
@@ -117,6 +143,20 @@
     resizeCanvas();
   }
   window.addEventListener('resize', fitFullscreen);
+  // Re-fit on everything a handset actually changes size on. Dispatching the
+  // existing resize event reuses every handler already registered above rather
+  // than restating their order here. Timers, not rAF: rAF is throttled to
+  // nothing in some embedded browsers.
+  (() => {
+    const refit = () => window.dispatchEvent(new Event('resize'));
+    setTimeout(refit, 0);
+    setTimeout(refit, 300);
+    window.addEventListener('load', refit);
+    window.addEventListener('splash-done', refit);
+    window.addEventListener('orientationchange', () => setTimeout(refit, 100));
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', refit);
+  })();
+
   fitFullscreen();
 
   // ---------- GEOMETRY ----------
