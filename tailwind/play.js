@@ -230,10 +230,23 @@ fetch('./assets/catapult.svg')
   })
   .catch(() => {});   // the inlined fallback above already draws
 
+// LOADING ORDER IS PART OF THE DESIGN, NOT AN AFTERTHOUGHT.
+// The picker is the first thing on screen and it needs six sprites; the
+// backdrop is not needed until a plane has been chosen and it weighs more than
+// all six together. Requesting them in one undifferentiated burst — which is
+// what this did — puts a megabyte nobody is looking at yet in front of the six
+// images the player is staring at, and on a slow connection the cards sit empty
+// while it arrives. The sprites are marked high priority and go out first; the
+// full backdrop is held back until they are in (or 4 s have passed, so a single
+// stalled sprite cannot strand the scenery for ever).
 const ART = {};
+let artLeft = FLEET.length;
 for (const f of FLEET) {
   const im = new Image();
-  im.onload = () => { ART[f.key].ok = true; };
+  im.fetchPriority = 'high';
+  const done = () => { if (--artLeft === 0) loadBackdrop(); };
+  im.onload = () => { ART[f.key].ok = true; done(); };
+  im.onerror = done;
   im.src = './assets/' + f.file;
   ART[f.key] = { img: im, ok: false };
 }
@@ -248,9 +261,28 @@ const BG_HORIZON = 0.54;
 const skyImg = new Image(); let skyOK = false;
 skyImg.onload = () => { skyOK = true; };
 skyImg.src = './assets/sky.jpg';
+
+// The backdrop arrives in two passes. background-lq.webp is the same picture at
+// a fifth of the width and 22 KB, so it lands almost at once even on a bad line
+// and the scene is a landscape from the first frame — soft, but the right
+// mountains in the right places. The full strip replaces it when it gets here,
+// and because both are the same image at the same aspect nothing moves when it
+// does. Before this the wait was a flat green rectangle, which does not read as
+// loading, it reads as broken.
+const bgLoImg = new Image(); let bgLoOK = false;
+bgLoImg.onload = () => { bgLoOK = true; };
+bgLoImg.src = './assets/background-lq.webp';
+
 const bgImg = new Image(); let bgOK = false;
 bgImg.onload = () => { bgOK = true; };
-bgImg.src = './assets/background.webp';
+bgImg.fetchPriority = 'low';
+let backdropAsked = false;
+function loadBackdrop() {
+  if (backdropAsked) return;
+  backdropAsked = true;
+  bgImg.src = './assets/background.webp';
+}
+setTimeout(loadBackdrop, 4000);
 
 let W = FRAME_W, H = FRAME_H, groundY = 0, wide = true;
 
@@ -473,21 +505,25 @@ function sky() {
     g.addColorStop(0, '#3E9BFB'); g.addColorStop(1, '#CDE6FA');
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
   }
-  if (!bgOK) {
+  // Whichever backdrop has arrived. Same picture, same aspect, so every
+  // measurement below is taken from the one being drawn and the swap is
+  // invisible.
+  const bg = bgOK ? bgImg : (bgLoOK ? bgLoImg : null);
+  if (!bg) {
     ctx.fillStyle = '#8A9E7A'; ctx.fillRect(0, sy(0), W, H - sy(0));
     return;
   }
 
   const bh = H * BG_FILL * S.bgZoom;
-  const bw = bh * (bgImg.naturalWidth / bgImg.naturalHeight);
+  const bw = bh * (bg.naturalWidth / bg.naturalHeight);
   const hz = sy(0);                                  // the world's ground line
   let x = -((S.camX * S.ppm + 0.70 * W) * BG_PARALLAX);
   x = Math.max(-(bw - W), Math.min(0, x));
 
-  const iw = bgImg.naturalWidth, ih = bgImg.naturalHeight;
+  const iw = bg.naturalWidth, ih = bg.naturalHeight;
   // Ridge and treeline at their own scale, above the ground line. These are
   // miles off, so they drift slowly — that part was right.
-  ctx.drawImage(bgImg, 0, 0, iw, ih * BG_HORIZON,
+  ctx.drawImage(bg, 0, 0, iw, ih * BG_HORIZON,
                 x, hz - BG_HORIZON * bh, bw, BG_HORIZON * bh);
   // THE FIELD RUNS AT FULL WORLD SPEED. It was drifting at the ridge's 0.13,
   // which meant an aeroplane covering 600 m slid over ground that had moved
@@ -521,7 +557,7 @@ function sky() {
       const sHi = flip ? 1 - (xa - gx) / gw : (xb - gx) / gw;
       ctx.save();
       if (flip) { ctx.translate(xb, 0); ctx.scale(-1, 1); }
-      ctx.drawImage(bgImg,
+      ctx.drawImage(bg,
         sLo * iw, ih * BG_HORIZON, (sHi - sLo) * iw, ih * (1 - BG_HORIZON),
         flip ? 0 : xa, hz, xb - xa, grassH);
       ctx.restore();
@@ -893,6 +929,13 @@ function drawPick() {
       const r = Math.min(box.w / a.img.naturalWidth, box.h / a.img.naturalHeight);
       const dw = a.img.naturalWidth * r, dh = a.img.naturalHeight * r;
       ctx.drawImage(a.img, c.x + (c.w - dw) / 2, c.y + 12 + (box.h - dh) / 2, dw, dh);
+    } else {
+      // Sprite still on the wire. An empty top third of the card reads as a
+      // broken card; a slow pulse reads as one that is still arriving.
+      const pulse = 0.05 + 0.035 * (0.5 + 0.5 * Math.sin(performance.now() / 480));
+      ctx.fillStyle = `rgba(255,255,255,${pulse.toFixed(3)})`;
+      ZAM.roundRectPath(ctx, c.x + 12, c.y + 12, box.w, box.h, 8);
+      ctx.fill();
     }
 
     let yy = c.y + 16 + box.h;
