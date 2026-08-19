@@ -354,22 +354,55 @@ const MODE = (matchMedia('(pointer: coarse)').matches || window.innerWidth < 768
 document.body.classList.add('mode-' + MODE);
 let SCALE = 1;
 
+// A phone reported the game drawn into a tall narrow strip down the left of the
+// screen, correctly proportioned but occupying about a fifth of the width. That
+// shape is what you get when the CSS box and the W x H this file draws in
+// disagree about ASPECT: a single uniform scale cannot satisfy both, so the
+// drawing is fitted inside the mismatched box and the rest of the canvas is
+// left bare.
+//
+// The disagreement is available in two ways, and this sizes defensively against
+// both rather than picking one, because the failure only shows on real handsets:
+//
+//   1. chrome.css derives the wrap's box from --canvas-w / --canvas-h in
+//      100dvh units. Feed it a bad --canvas-h and it computes a bad WIDTH from
+//      the ratio: with 393 x 1672 declared and 745 of real dvh, that formula
+//      gives a wrap 175 px wide, which is the reported strip almost exactly.
+//   2. window.innerHeight is not dependable on every mobile browser. Some
+//      in-app browsers report a layout height far taller than the screen.
+//
+// So: cross-check the viewport instead of trusting innerHeight alone, pin the
+// canvas as well as the wrap so no CSS ratio gets a vote, and refuse to fit
+// into a box whose aspect does not match — draw at our own size instead of
+// silently letterboxing.
+function viewport() {
+  const vv = window.visualViewport;
+  const w = [window.innerWidth, vv && vv.width, document.documentElement.clientWidth]
+    .filter((v) => typeof v === 'number' && v > 120);
+  const h = [window.innerHeight, vv && vv.height, document.documentElement.clientHeight]
+    .filter((v) => typeof v === 'number' && v > 120);
+  return { w: Math.round(Math.min(...w)), h: Math.round(Math.min(...h)) };
+}
+
 function resizeCanvas() {
   const d = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+  if (!wide) { canvas.style.width = W + 'px'; canvas.style.height = H + 'px'; }
+  else { canvas.style.width = ''; canvas.style.height = ''; }
   const r = canvas.getBoundingClientRect();
-  const bw = Math.round((r.width || W) * d), bh = Math.round((r.height || H) * d);
+  let cw = r.width > 8 ? r.width : W, ch = r.height > 8 ? r.height : H;
+  // If the box we were given is not the shape we draw, our own numbers win.
+  if (Math.abs((cw / ch) / (W / H) - 1) > 0.02) { cw = W; ch = H; }
+  const bw = Math.round(cw * d), bh = Math.round(ch * d);
   if (canvas.width !== bw) canvas.width = bw;
   if (canvas.height !== bh) canvas.height = bh;
-  SCALE = Math.min(bw / W, bh / H);
+  SCALE = bw / W;
 }
 
 function fit() {
   wide = MODE === 'desktop';
-  // Mobile measures in JS pixels on purpose: chrome.css works in 100dvh, and on
-  // iOS Safari with viewport-fit=cover that is not innerHeight, which collapses
-  // the canvas to a strip.
-  W = wide ? FRAME_W : window.innerWidth;
-  H = wide ? FRAME_H : window.innerHeight;
+  const vp = viewport();
+  W = wide ? FRAME_W : vp.w;
+  H = wide ? FRAME_H : vp.h;
   document.body.style.setProperty('--canvas-w', W + 'px');
   document.body.style.setProperty('--canvas-h', H + 'px');
   if (!wide) {
@@ -380,7 +413,14 @@ function fit() {
   groundY = Math.round(H * (1 - GROUND_FRAC));
   if (S.phase === 'aim' || S.phase === 'pick') { S.ppm = S.ppmTarget = restPPM(); }
 }
+// The first measurement on a handset is taken while the splash is up and the
+// address bar is still settling, and this file had no way to correct it — every
+// other game in the fleet re-fits on these three and this one did not.
 window.addEventListener('resize', fit);
+window.addEventListener('orientationchange', () => setTimeout(fit, 100));
+window.addEventListener('splash-done', fit);
+window.addEventListener('load', fit);
+if (window.visualViewport) window.visualViewport.addEventListener('resize', fit);
 
 const sx = (wx) => (wx - S.camX) * S.ppm;
 const sy = (wy) => groundY - (wy - S.camY) * S.ppm;
