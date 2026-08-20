@@ -1,0 +1,18 @@
+/* Stained — per-game styles only. Everything else comes from
+   ../shared/tokens.css and ../shared/chrome.css. */
+
+/* The window is the one warm thing on the page, so the card it sits in stays
+   the house card and nothing here overrides it. */
+
+/* Splash artwork per mode. The .splash frame, cover sizing and fade all come
+   from ../shared/chrome.css; this file only supplies the image.
+
+   Desktop art is 1520 x 1200 and mobile art is 1170 x 2532, which are the two
+   frames' own aspects, so on a phone matching that aspect `cover` crops
+   nothing. The worst realistic portrait case is an iPhone SE at 375 x 667,
+   where cover scales to width and takes 8.9% off the top and bottom; the
+   wordmark sits between 26% and 68% of the height, so it survives. Checked
+   against the house guideline of keeping key art inside the central 90% width
+   and 85% height. Fix the art if that is ever breached, never the CSS. */
+body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=1'); }
+body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=1'); }

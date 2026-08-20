@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Stained strategy: how to read the goal &mdash; Zamborin</title>
+  <meta name="description" content="A practical Stained strategy guide: why the goal is a list of constraints rather than a picture, how to read a board back from its rarest colour, what brown tells you, and why secondary panes make the late boards hard." />
+  <meta name="theme-color" content="#0E1726" />
+  <link rel="canonical" href="https://zamborin.com/guides/stained/" />
+  <link rel="icon" type="image/svg+xml" href="/images/zamborin-favicon.svg" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:site_name" content="Zamborin Games" />
+  <meta property="og:url" content="https://zamborin.com/guides/stained/" />
+  <meta property="og:title" content="Stained strategy: how to read the goal" />
+  <meta property="og:description" content="The goal shows you the overlaps and nothing else. Here is how to work backwards from that to the panes." />
+  <meta property="og:image" content="https://zamborin.com/images/stained-og.jpg" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Stained strategy: how to read the goal" />
+  <meta name="twitter:description" content="A practical strategy guide to Stained, the colour-mixing glass puzzle." />
+  <meta name="twitter:image" content="https://zamborin.com/images/stained-og.jpg" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../shared/tokens.css" />
+  <link rel="stylesheet" href="../../shared/chrome.css?v=13" />
+  <style>
+    .guide { max-width: 760px; margin: 0 auto; padding: 40px 24px 80px; color: var(--text-dim); line-height: 1.7; font-size: 17px; }
+    .guide .crumbs { font-size: 14px; margin-bottom: 22px; color: var(--text-dim); }
+    .guide .crumbs a { color: #4DC3FF; text-decoration: none; }
+    .guide h1 { font-size: 38px; color: var(--text); font-weight: 800; margin: 0 0 6px; letter-spacing: -0.5px; line-height: 1.15; }
+    .guide .lede { font-size: 19px; color: var(--text); margin: 14px 0 8px; }
+    .guide h2 { font-size: 23px; color: var(--text); font-weight: 700; margin: 38px 0 10px; letter-spacing: -0.2px; }
+    .guide p { margin: 12px 0; }
+    .guide a { color: #4DC3FF; }
+    .guide strong { color: var(--text); font-weight: 600; }
+    .guide ul { margin: 12px 0; padding-left: 22px; }
+    .guide li { margin: 8px 0; }
+    .guide .cta { display: inline-block; margin-top: 8px; background: #4DC3FF; color: #06121e; font-weight: 700; text-decoration: none; padding: 13px 26px; border-radius: 10px; }
+    .guide .playbox { margin: 36px 0 8px; padding: 22px 24px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09); border-radius: 14px; }
+    .guide .playbox p { margin: 0 0 14px; color: var(--text); font-weight: 600; }
+    .guide .more { margin-top: 40px; padding-top: 22px; border-top: 1px solid rgba(255,255,255,0.09); font-size: 15px; }
+    .guide table { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 16px; }
+    .guide th, .guide td { text-align: left; padding: 9px 12px; border-bottom: 1px solid rgba(255,255,255,0.09); }
+    .guide th { color: var(--text); font-weight: 700; }
+    @media (max-width: 720px) { .guide { padding: 28px 18px 56px; font-size: 16px; } .guide h1 { font-size: 30px; } }
+  </style>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "Stained strategy: how to read the goal",
+    "about": "Stained colour-mixing glass puzzle strategy",
+    "description": "A practical Stained strategy guide covering why the goal shows only the overlaps, how to work backwards from the rarest colour on the board, what a brown square proves, and how secondary panes constrain two things at once.",
+    "author": { "@type": "Organization", "name": "Zamborin Games" },
+    "publisher": { "@type": "Organization", "name": "Zamborin Games", "url": "https://zamborin.com/" },
+    "mainEntityOfPage": "https://zamborin.com/guides/stained/"
+  }
+  </script>
+  <meta name="google-adsense-account" content="ca-pub-9207689324865969">
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9207689324865969" crossorigin="anonymous"></script>
+</head>
+<body class="lobby-page">
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="Zamborin Games home">
+      <img class="brand-logo" src="/images/zamborin-logo.svg" alt="Zamborin" />
+    </a>
+  </header>
+
+  <main class="guide">
+    <nav class="crumbs"><a href="/">Home</a> &rsaquo; <a href="/guides/">Guides</a> &rsaquo; Stained</nav>
+
+    <h1>Stained strategy: how to read the goal</h1>
+    <p class="lede">Most people lose their first few boards of Stained the same way: they treat the goal as a picture and try to reproduce it. It is not a picture. It is a list of conditions, most of the window is deliberately missing from it, and once you see it that way the game changes completely.</p>
+
+    <h2>The goal is a list of conditions</h2>
+    <p>The panel beside the window shows you <strong>only the overlaps</strong>. Every coloured square on it means the same thing: two or more panes must cross here, and this is what they must make when they do. Everything else on the goal is blank, and blank does not mean empty. It means <em>unspecified</em>.</p>
+    <p>So an orange square is not telling you to put orange there. It is telling you that something carrying red and something carrying yellow have to meet on that square. Which panes, and in which rotation, is yours to work out, and it is the entire puzzle.</p>
+    <p>The corollary is the part people miss for longest: <strong>the rest of the window is yours.</strong> You do not have to fill it, tidy it, or make it pretty. It has exactly one requirement, which is that you must not create an overlap somewhere the goal did not ask for one. Plain single-colour glass can go anywhere.</p>
+
+    <h2>Work backwards from the rarest colour</h2>
+    <p>Some clues are worth far more than others, and the cheapest way to find them is to count.</p>
+    <p>If a board has one brown square, that square needs all three primaries crossing on it at once. Very few arrangements of your panes can do that, so finding it usually pins three pieces in one move. A colour that appears once is a near-certainty; a colour smeared across a dozen squares tells you much less, because many combinations produce it.</p>
+    <table>
+      <tr><th>What you see on the goal</th><th>What it proves</th></tr>
+      <tr><td>Brown</td><td>Red, yellow and blue all cross here. The strongest clue on any board.</td></tr>
+      <tr><td>A single isolated square of one colour</td><td>Two panes clip each other on exactly one cell, so both are nearly located.</td></tr>
+      <tr><td>A long run of one colour</td><td>Two panes lie along each other. Their shapes have to agree over that whole length.</td></tr>
+      <tr><td>A large blank region</td><td>Nothing is required there, but nothing may overlap there either.</td></tr>
+    </table>
+
+    <h2>Brown is where to start</h2>
+    <p>Brown is worth calling out on its own because it is the only colour that names all three primaries at once. On a board that has any, begin there. Place whatever combination can produce the brown, and a large part of the rest of the board is decided by what is left over.</p>
+    <p>It is also the tell for a board that is going to be awkward. Boards heavy in brown have panes stacked three deep in places, which means several pieces are locked to each other and cannot be adjusted one at a time.</p>
+
+    <h2>Secondary panes are the difficulty</h2>
+    <p>Not every pane is a primary. Some arrive already orange, purple or green, and those carry <strong>two primaries at once</strong>.</p>
+    <p>That is what makes the later boards resist. A red pane only affects the red condition. An orange pane affects red and yellow together, wherever you put it, so you cannot move it to satisfy one requirement without disturbing another. When a board feels like it is fighting back rather than merely being large, count the secondaries: they are usually the reason.</p>
+    <p>Practical consequence: <strong>place your secondary panes early.</strong> They have the fewest positions that work. Primaries are far more forgiving and are better used to fill in around a secondary that is already committed.</p>
+
+    <h2>Overlaps you did not ask for</h2>
+    <p>The most common late-board mistake is not a missing colour, it is a spare one. You have every required overlap correct, the window still will not accept it, and the reason is a pane parked casually somewhere that is clipping a neighbour.</p>
+    <p>Two panes touching where the goal shows nothing is a mistake, exactly as much as a wrong colour is. When you are stuck with everything apparently right, stop looking at the coloured squares and start looking at the blank ones.</p>
+
+    <h2>Use the switch on purpose</h2>
+    <p>The switch under the window lights it, and lets go a second after you do. That is deliberate. You build in the dark, where you can see the panes as objects, and you light it to see what those objects have actually made.</p>
+    <p>Light it when you are <em>stuck</em>, not when you think you are finished. Checking halfway through a board tells you which of your assumptions is already wrong, which is much more useful than confirming a finished answer.</p>
+
+    <h2>Rotation before relocation</h2>
+    <p>Tapping a placed pane turns it a quarter turn. A surprising number of wrong boards are the right pane in the right place at the wrong angle, and turning is a much cheaper experiment than picking a piece up and hunting for a new home for it.</p>
+    <p>If a pane is nearly producing the overlap you want but is a square out, try the three rotations before you move it.</p>
+
+    <h2>The short version</h2>
+    <ul>
+      <li>The goal shows only overlaps. Blank means unspecified, not empty.</li>
+      <li>Start with the rarest colour on the board. Brown first, if there is any.</li>
+      <li>Place secondary panes early: they carry two primaries and have the fewest workable positions.</li>
+      <li>An overlap you were not asked for fails the board just as surely as a wrong colour.</li>
+      <li>Turn a pane before you move it.</li>
+      <li>Light the window when you are stuck, not when you are done.</li>
+    </ul>
+
+    <div class="playbox">
+      <p>Lay the glass, cross the colours, and light it.</p>
+      <a class="cta" href="/stained/">Play Stained &rarr;</a>
+    </div>
+
+    <p class="more">More games: <a href="/prism/">Prism</a> &middot; <a href="/sluice/">Sluice</a> &middot; <a href="/">all Zamborin games</a> &middot; <a href="/guides/">all guides</a></p>
+  </main>
+
+  <footer class="site-footer">
+    <nav class="site-foot-nav">
+      <a href="/about/">About</a>
+      <a href="/guides/">Guides</a>
+      <a href="/privacy/">Privacy</a>
+      <a href="/contact/">Contact</a>
+    </nav>
+    <span>&copy; 2026 Zamborin. Games created by Indrajeet Chandrachud.</span>
+  </footer>
+  <script defer src="/_vercel/insights/script.js"></script>
+  <script defer src="/_vercel/speed-insights/script.js"></script>
+</body>
+</html>

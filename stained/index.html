@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <title>Stained — free colour-mixing glass puzzle | Zamborin Games</title>
+  <meta name="theme-color" content="#0E1726" />
+  <link rel="canonical" href="https://zamborin.com/stained/" />
+  <meta name="description" content="Lay panes of coloured glass over each other so the overlaps make the colours the goal asks for, then flick the switch and light the window." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://zamborin.com/stained/" />
+  <meta property="og:title" content="Stained — a colour-mixing glass puzzle" />
+  <meta property="og:description" content="Lay panes of coloured glass over each other so the overlaps make the colours the goal asks for, then flick the switch and light the window." />
+  <meta property="og:image" content="https://zamborin.com/images/stained-og.jpg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Stained — sunlight through a coloured glass window." />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Stained — a colour-mixing glass puzzle" />
+  <meta name="twitter:description" content="Lay panes of coloured glass over each other so the overlaps make the colours the goal asks for." />
+  <meta name="twitter:image" content="https://zamborin.com/images/stained-og.jpg" />
+  <link rel="icon" type="image/svg+xml" href="/images/zamborin-favicon.svg" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../shared/tokens.css" />
+  <link rel="stylesheet" href="../shared/chrome.css?v=13" />
+  <link rel="stylesheet" href="./play.css?v=2" />
+  <meta name="google-adsense-account" content="ca-pub-9207689324865969">
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9207689324865969" crossorigin="anonymous"></script>
+</head>
+<body class="game-content-page">
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="Zamborin Games home">
+      <img class="brand-logo" src="/images/zamborin-logo.svg" alt="Zamborin" />
+    </a>
+    <div class="header-right">
+      <button id="focus-toggle" class="focus-btn" type="button" aria-label="Play fullscreen" aria-pressed="false">
+        <svg class="icon-enter" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="4 9 4 4 9 4"/><polyline points="20 9 20 4 15 4"/>
+          <polyline points="4 15 4 20 9 20"/><polyline points="20 15 20 20 15 20"/>
+        </svg>
+        <svg class="icon-exit" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M6 6l12 12M18 6L6 18"/>
+        </svg>
+      </button>
+      <a class="back-link" href="/">Back to all games</a>
+    </div>
+  </header>
+
+  <main class="page">
+    <div class="ad-slot ad-leaderboard" aria-label="Advertisement"><span class="ad-label">AD · 728 × 90</span></div>
+    <section class="play-row">
+      <div class="game-wrap">
+        <canvas id="game" aria-label="Stained puzzle"></canvas>
+        <div id="splash" class="splash" aria-hidden="true"></div>
+      </div>
+      <aside class="sidebar">
+        <div class="ad-slot ad-medrec" aria-label="Advertisement"><span class="ad-label">AD · 300 × 250</span></div>
+        <div class="ad-slot ad-medrec" aria-label="Advertisement"><span class="ad-label">AD · 300 × 250</span></div>
+      </aside>
+    </section>
+    <div class="ad-slot ad-leaderboard" aria-label="Advertisement"><span class="ad-label">AD · 728 × 90</span></div>
+
+    <section class="game-info">
+      <h1>Stained: a colour-mixing glass puzzle</h1>
+
+      <p>A dark window, a bench of coloured glass, and a switch. Lay the panes over the window so that where they overlap the colours mix into exactly what the goal asks for, then flick the switch and find out whether the light agrees with you.</p>
+
+      <p>The panes are see-through, so laying one over another is not covering it up. It is making a third colour.</p>
+
+      <h2>How to play</h2>
+      <ul>
+        <li><strong>Drag glass onto the window.</strong> Tap a pane you have already placed to turn it a quarter turn, or drag it somewhere better.</li>
+        <li><strong>Overlaps mix like paint, not like light.</strong> Red and yellow make orange, yellow and blue make green, blue and red make purple, and all three together make brown.</li>
+        <li><strong>Flick the switch to light the window.</strong> It shows you what you have actually built. The light falls again a second after you let go, so looking is a decision rather than a permanent state.</li>
+        <li><strong>Match every overlap the goal shows.</strong> The rest of the window is yours to do as you like with, provided you do not make an overlap where none was asked for.</li>
+      </ul>
+
+      <h2>Why the goal is not a picture to copy</h2>
+      <p><strong>The goal shows you the overlaps and nothing else.</strong> It tells you where two colours must meet and what they must make when they do. It does not tell you where the individual panes go, and it does not show you the plain single-colour glass at all.</p>
+
+      <p>That one decision is the whole puzzle. A goal that showed the finished window would let you read each square off the picture and place to it, which is copying rather than solving. Showing only the overlaps means an orange square is not an instruction, it is a clue: something red and something yellow have to cross there, and working out which panes can do it, in which rotation, without accidentally crossing somewhere they were not asked to, is the work.</p>
+
+      <p><strong>Some panes are already two colours.</strong> An orange pane carries red and yellow at once, so it writes into two of the constraints wherever you put it. Those are the panes that make later boards hard, because they cannot be moved for one reason without disturbing another.</p>
+
+      <p class="guide-cta"><a href="/guides/stained/">Stuck? Read the Stained strategy guide <span aria-hidden="true">&rarr;</span></a></p>
+
+      <h2>Tips</h2>
+      <ul>
+        <li>Start with the rarest colour on the goal. If there is only one brown square, only one arrangement of three panes can be responsible for it, and that pins several pieces at once.</li>
+        <li>Brown means all three primaries cross there. It is the strongest clue on any board.</li>
+        <li>Empty space is not free. A pane parked out of the way still makes an overlap if it touches another, and an overlap the goal did not ask for is a mistake.</li>
+        <li>Turning a pane is often better than moving it. Most wrong answers are the right pane in the wrong rotation.</li>
+        <li>Light the window when you are stuck rather than when you are finished. It is the only way to see what you have actually made.</li>
+      </ul>
+
+      <h2>Frequently asked questions</h2>
+      <p><strong>Is Stained free?</strong> Yes, completely free, with no account and no download, in any modern browser on phone, tablet or desktop.</p>
+      <p><strong>Does it work on mobile?</strong> Yes. You drag the panes with a finger, and the controls sit along the bottom of the screen where your hand already is.</p>
+      <p><strong>How many levels are there?</strong> A hundred, in fourteen tiers. They run from a six by six window with two panes up to an eight by eight with fifteen, and each tier asks for a little more than the one before it.</p>
+      <p><strong>Is my progress saved?</strong> Yes. The level you are on is kept in your browser, so you can close the tab and pick up where you left off. It is stored on your device only and is not sent anywhere.</p>
+      <p><strong>Do I have to fill the whole window?</strong> No. Only the overlaps the goal shows have to be right. Everywhere else simply has to be free of overlaps you were not asked for.</p>
+      <p><strong>Why does the light go out on its own?</strong> Because a window you can see through at all times is a window you never have to think about. Building in the dark and checking on purpose is the game.</p>
+
+      <p>Like puzzles about colour and light? Try <a href="/prism/">Prism</a>, <a href="/sluice/">Sluice</a> or <a href="/fold/">Fold</a>, or browse <a href="/">all Zamborin games</a>.</p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <nav class="site-foot-nav">
+      <a href="/">Games</a>
+      <a href="/guides/">Guides</a>
+      <a href="/about/">About</a>
+      <a href="/faq/">FAQ</a>
+      <a href="/privacy/">Privacy</a>
+      <a href="/cookies/">Cookies</a>
+      <a href="/terms/">Terms</a>
+      <a href="/contact/">Contact</a>
+    </nav>
+    <span>&copy; 2026 Zamborin. Games created by Indrajeet Chandrachud.</span>
+  </footer>
+
+
+  <script src="../shared/ui.js?v=1"></script>
+  <script src="./model.js?v=1"></script>
+  <script src="./render.js?v=15"></script>
+  <script src="./levels.js?v=3"></script>
+  <script src="./play.js?v=44"></script>
+
+  <script>
+    /* The fullscreen button was in the header from the first commit with no
+       handler behind it, so it did nothing at all. Same wiring as every other
+       game: toggle the class, keep aria in step, then let the game re-measure. */
+    (() => {
+      const btn = document.getElementById('focus-toggle');
+      if (!btn) return;
+      btn.addEventListener('click', () => {
+        const on = document.body.classList.toggle('focus-mode');
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        btn.setAttribute('aria-label', on ? 'Exit fullscreen' : 'Play fullscreen');
+        setTimeout(() => window.dispatchEvent(new Event('resize')), 60);
+      });
+    })();
+
+    /* The house splash: 2 s hold, 0.7 s fade, then `splash-done`. The art check
+       matters - with no background image set this drops the splash at once
+       rather than holding a blank card for 2.7 seconds. */
+    (function () {
+      const splash = document.getElementById('splash');
+      if (!splash) return;
+      const hasArt = getComputedStyle(splash).backgroundImage !== 'none';
+      if (!hasArt) {
+        splash.remove();
+        window.dispatchEvent(new CustomEvent('splash-done'));
+        return;
+      }
+      setTimeout(() => splash.classList.add('fading'), 2000);
+      setTimeout(() => {
+        splash.remove();
+        window.dispatchEvent(new CustomEvent('splash-done'));
+      }, 2700);
+    })();
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
+  <script defer src="/_vercel/speed-insights/script.js"></script>
+</body>
+</html>
