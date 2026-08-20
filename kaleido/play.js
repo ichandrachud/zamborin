@@ -265,18 +265,17 @@
   // came around every pane is what identifies it as its own object. That is the
   // linework trick, and also just how leaded glass is built.
   //
-  // A white came squeezes these from both sides, and the band is narrow:
-  //   vs the CAME     >= 3:1  puts a ceiling on luminance at 0.30
-  //   vs an empty SOCKET >= 3:1  puts a floor on it at 0.117
-  // Miss the ceiling and the white line vanishes along that pane's edge and
-  // stops separating anything (the old bright set measured 1.44:1 for yellow).
-  // Miss the floor and a pane is indistinguishable from a hole, which is how
-  // the first deep set failed: sapphire against a socket was 2.64:1.
-  // All four are parked in the middle of that band at luminance 0.21, so they
-  // clear white at ~4:1 and an empty socket at ~4.8:1. Equal luminance means
-  // they separate by HUE alone, which is exactly what shape-only mode is for.
+  // Pure and bright, because a pane never touches the white line. Between them
+  // is the LEAD BODY, a near-black gap, and that is what each pane has to clear
+  // 3:1 against, which every bright colour does easily. The white is a highlight
+  // running down the middle of the lead, not the thing doing the separating.
+  //
+  // Getting this wrong cost two rounds. With panes sitting directly against
+  // white, each one had to clear 3:1 against the white AND against an empty
+  // socket, which pinned every hue to luminance 0.21. A yellow at 0.21 is brown.
+  // The lead body removes the ceiling entirely and the colours come back.
   // Mirrors --kal-pane1..4 in shared/tokens.css.
-  const PANE_COL = ['#E04A3D', '#AA741A', '#1F9061', '#2F80D5'];   // ruby amber emerald sapphire
+  const PANE_COL = ['#E4634F', '#FFD23F', '#5DD39E', '#63C4E8'];   // coral sun green sky
 
   // The cycling lever. A rotation by k also advances the token by k, over the
   // 3-cycle petal -> diamond -> trefoil. Dot is the fixed point. 3 divides the
@@ -496,7 +495,7 @@
     placeT = new Array(NDOM).fill(-1e9);
     history = []; phase = asMenu ? 'menu' : 'play'; wonT = -1e9; animEnd = 0;
     refuseCell = -1; hintCell = -1;
-    save(); layoutRings(); ensureAnim(performance.now());
+    save(); layoutRings(); animEnd = performance.now() + 400; ensureAnim(performance.now());
     T().levelStart(level);
   }
 
@@ -739,7 +738,8 @@
 
   // The repulsion pulses, so while any rule is broken the loop has to keep
   // running rather than settling after the placement animation.
-  const needsAnim = (t) => t < animEnd || (seamBad.length > 0 && !REDUCED) || phase === 'menu';
+  const needsAnim = (t) => t < animEnd || phase === 'menu' ||
+    (!REDUCED && (seamBad.length > 0 || (phase === 'play' && placed() < blanks())));
   function ensureAnim(now) {
     render(now);
     if (!raf) { raf = 1; requestAnimationFrame(tick); }
@@ -844,10 +844,13 @@
   function lighten(c, f) { const [r, g, b] = hex(c); return hx(r + (255 - r) * f, g + (255 - g) * f, b + (255 - b) * f); }
 
   // ---------- RENDER ----------
-  // 30% of what it was, at the user's ask. LEAD is the TOTAL gap between two
-  // panes, split half either side.
-  const LEAD = 1.5;
+  // LEAD is the total gap between two panes, split half either side, and it is
+  // the LEAD BODY: near-black, the physical came. CAME_W is the white highlight
+  // stroked down the middle of it, and that is the line you actually see, at
+  // 30% of the old separator's width.
+  const LEAD = 3.6, CAME_W = 1.4;   // 1.1px of lead showing either side of the highlight
   const CAME = '#FFFFFF';
+  const LEAD_BODY = '#0B1120';
   function cellPath(r, s, grow) {
     const r0 = ringR[r] + LEAD * 0.5, r1 = ringR[r + 1] - LEAD * 0.5;
     if (r1 <= r0) return false;
@@ -924,8 +927,8 @@
   // shows through the gaps and IS the leading: one continuous net rather than a
   // set of strokes that have to meet each other correctly at the joins.
   function drawStone() {
-    ctx.fillStyle = CAME;
-    ctx.beginPath(); ctx.arc(bcx, bcy, ringR[RINGS] + LEAD, 0, TAU); ctx.fill();
+    ctx.fillStyle = LEAD_BODY;
+    ctx.beginPath(); ctx.arc(bcx, bcy, ringR[RINGS] + LEAD * 0.5, 0, TAU); ctx.fill();
   }
 
   // Which seams are broken right now, and which way each offending piece is
@@ -972,13 +975,11 @@
     ctx.lineCap = 'round';
     ctx.shadowColor = 'rgba(216,82,63,0.9)';
     for (const e of seamBad) {
-      // Black, not red. The came it replaces is white, and the two panes either
-      // side are the SAME colour by definition, so a red line would have to be
-      // legible on ruby, which it is not. Black clears 3:1 on every pane and on
-      // the white net alike.
-      ctx.shadowBlur = 7;
+      // The came goes dark and hot: the light stops coming through where the
+      // rule is broken, which is a reading a backlit window can carry.
+      ctx.shadowBlur = 10;
       ctx.strokeStyle = '#08101F';
-      ctx.lineWidth = LEAD * 2.2;
+      ctx.lineWidth = CAME_W * 2.4;
       ctx.beginPath();
       if (e.kind === 'ang') {
         const pad = LEAD;
@@ -1011,10 +1012,20 @@
         // happens to be dull, so it goes DARKER than the stone, and the ones in
         // the wedge take a faint lift to say they are yours to fill.
         if (t < 0) {
-          // Dark, now that the came is white: a socket has to be the opposite of
-          // the leading around it or the gap stops reading as a gap. The ones in
-          // the lit wedge are a touch lighter to say they are yours to fill.
-          ctx.fillStyle = inWedge ? '#182034' : '#0A0E18';
+          // A socket is dark, so it reads as a hole rather than as dull glass.
+          //
+          // The ones in the LIT WEDGE breathe. Marking the wedge with a heavier
+          // came was what made the line weights look wrong, and marking it with
+          // a stronger glow alone turned out to be invisible at real size. Light
+          // that MOVES is unmissable, costs no contrast, and is the honest cue
+          // here: those are the sockets waiting for glass. Reduced motion gets
+          // the bright end of the same range, held still.
+          if (inWedge) {
+            const b = REDUCED ? 1 : 0.5 + 0.5 * Math.sin(now / 620);
+            ctx.fillStyle = lighten('#232E48', 0.10 + 0.16 * b);
+          } else {
+            ctx.fillStyle = '#161D2E';
+          }
           ctx.fill();
           continue;
         }
@@ -1061,32 +1072,63 @@
         }
       }
     }
-    // No stroked ring boundaries any more. They used to add a dark hairline down
-    // the middle of each gap, which now would be a dark line drawn along the
-    // centre of a white came. The gaps already are the net.
-    drawWedgeMark();
+    drawCameNet(now);
     drawSeamBreaks();
   }
 
-  // The wedge has to be unmistakable, and it cannot be done with a brighter
-  // bed: AA caps that at roughly 0.155 white before the coral glyph fails.
-  // Light IN the leading is the way. Two radial cames and a capping arc read
-  // as a slice marked out on the window, which is exactly what it is.
+  // Every white line in the figure, stroked at ONE width. Relying on the gaps
+  // between panes to be the net meant the apparent thickness moved around: the
+  // outer rim came out half again as wide as a ring boundary, and the wedge was
+  // marked by a line 2.6x the others, which reads as a mistake rather than as
+  // intent. Strokes at a fixed width cannot drift.
+  //
+  // The glow is the backlight. The lead is a dark body and the light leaks along
+  // it, so the highlight sits in the middle of the came with a soft bloom either
+  // side. The lit wedge is picked out by a STRONGER GLOW at the same width,
+  // never by a thicker line.
+  function drawCameNet(now) {
+    const glow = (blur, alpha, width) => {
+      ctx.shadowColor = 'rgba(198,228,255,' + alpha + ')';
+      ctx.shadowBlur = blur;
+      ctx.strokeStyle = CAME;
+      ctx.lineWidth = width;
+      ctx.lineCap = 'butt';
+    };
+    ctx.save();
+    glow(7, 0.55, CAME_W);
+    // ring boundaries, inner edge and outer rim
+    for (let i = 0; i <= RINGS; i++) { ctx.beginPath(); ctx.arc(bcx, bcy, ringR[i], 0, TAU); ctx.stroke(); }
+    // every radial divider
+    for (let r = 0; r < RINGS; r++) {
+      const w = TAU / SEC(r);
+      for (let sc = 0; sc < SEC(r); sc++) {
+        const a = A0 + sc * w;
+        ctx.beginPath();
+        ctx.moveTo(bcx + ringR[r] * Math.cos(a), bcy + ringR[r] * Math.sin(a));
+        ctx.lineTo(bcx + ringR[r + 1] * Math.cos(a), bcy + ringR[r + 1] * Math.sin(a));
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+    drawWedgeMark();
+  }
   function drawWedgeMark() {
     const r0 = ringR[0], r1 = ringR[RINGS];
     const w = TAU / N_FOLD;                    // one fold, whatever the fold is
-    // A heavier came, not a brighter one: the net is already white, so the wedge
-    // can only be marked out by WIDTH.
+    // Same width as every other came. What marks it out is a harder backlight.
+    ctx.save();
+    ctx.shadowColor = 'rgba(214,238,255,0.95)';
+    ctx.shadowBlur = 14;
     ctx.strokeStyle = CAME;
-    ctx.lineWidth = LEAD * 2.6; ctx.lineCap = 'round';
+    ctx.lineWidth = CAME_W; ctx.lineCap = 'butt';
     for (const a of [A0, A0 + w]) {
       ctx.beginPath();
       ctx.moveTo(bcx + r0 * Math.cos(a), bcy + r0 * Math.sin(a));
       ctx.lineTo(bcx + r1 * Math.cos(a), bcy + r1 * Math.sin(a));
       ctx.stroke();
     }
-    ctx.lineWidth = LEAD * 1.8;
     ctx.beginPath(); ctx.arc(bcx, bcy, r1, A0, A0 + w); ctx.stroke();
+    ctx.restore();
   }
 
   // Flat, like everything else in the figure. It was the one shaded object left
@@ -1095,10 +1137,14 @@
   function drawBoss(now) {
     const w = phase === 'won' ? Math.min(1, (now - wonT) / 900) : 0;
     const R = ringR[0] - LEAD * 0.5;
-    // Dark, because a pale boss inside a white net simply merges with it. This
-    // reads as the oculus at the centre rather than as another pane.
-    ctx.fillStyle = w > 0 ? lighten('#0A0E18', w * 0.55) : '#0A0E18';
+    // The light behind the window, so it is the one thing brighter than the
+    // came. Solid rather than a gradient, in keeping with the flat panes.
+    ctx.save();
+    ctx.shadowColor = 'rgba(198,228,255,0.9)';
+    ctx.shadowBlur = 16 + w * 26;
+    ctx.fillStyle = CAME;
     ctx.beginPath(); ctx.arc(bcx, bcy, R, 0, TAU); ctx.fill();
+    ctx.restore();
   }
 
   function drawHUD() {
@@ -1136,11 +1182,11 @@
       ZUI.roundRectPath(ctx, bx, by, sz, sz, 15); ctx.fill();
       if (on) { ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,255,255,0.62)'; ZUI.roundRectPath(ctx, bx, by, sz, sz, 15); ctx.stroke(); }
       if (!shapeOnly) {
-        // A pane swatch shows the colour it will actually lay down.
-        ctx.globalAlpha = on ? 1 : 0.6;
+        // Full strength, always. Fading the unselected ones to 60% over a dark
+        // card turned three of the four muddy, so the palette advertised colours
+        // the board does not actually use. Selection is the surrounding pill.
         ctx.fillStyle = PANE_COL[t % PANE_COL.length];
         ZUI.roundRectPath(ctx, bx + 11, by + 11, sz - 22, sz - 22, 7); ctx.fill();
-        ctx.globalAlpha = 1;
       } else {
         // Neutral on purpose. Hue belongs to the wedge, so a coloured swatch
         // would promise a colour the piece will not have once it lands.
@@ -1286,7 +1332,7 @@
     const fold = 6, secOf = (i) => 6 * (i + 1);
 
     // the stone, so the demo reads as the same object as the board
-    ctx.fillStyle = CAME;
+    ctx.fillStyle = LEAD_BODY;
     ctx.beginPath(); ctx.arc(cx, cy, rr[DEMO_RINGS] + 2, 0, TAU); ctx.fill();
 
     for (let r = 0; r < DEMO_RINGS; r++) {
@@ -1304,7 +1350,7 @@
           ctx.closePath();
         };
         path();
-        ctx.fillStyle = inWedge ? '#182034' : '#0A0E18';
+        ctx.fillStyle = inWedge ? '#2E3A57' : '#161D2E';
         ctx.fill();
 
         // the wedge fills in sequence; each copy follows one rotation behind
@@ -1325,17 +1371,19 @@
         ctx.globalAlpha = 1;
       }
     }
-    ctx.fillStyle = '#0A0E18';
+    ctx.fillStyle = CAME;
     ctx.beginPath(); ctx.arc(cx, cy, rr[0] - 1, 0, TAU); ctx.fill();
     // the lit wedge, same mark the board uses
     const w6 = TAU / fold;
-    ctx.strokeStyle = CAME; ctx.lineWidth = 2.4; ctx.lineCap = 'round';
+    ctx.save(); ctx.shadowColor = 'rgba(214,238,255,0.9)'; ctx.shadowBlur = 8;
+    ctx.strokeStyle = CAME; ctx.lineWidth = CAME_W; ctx.lineCap = 'butt';
     for (const a of [A0, A0 + w6]) {
       ctx.beginPath();
       ctx.moveTo(cx + rr[0] * Math.cos(a), cy + rr[0] * Math.sin(a));
       ctx.lineTo(cx + rr[DEMO_RINGS] * Math.cos(a), cy + rr[DEMO_RINGS] * Math.sin(a));
       ctx.stroke();
     }
+    ctx.restore();
     // the tapping finger, an outline ring rather than any glyph
     // The guard is on t, not on the derived index. Deriving the index with a
     // Math.max clamp let the first 300ms of every loop through with a NEGATIVE

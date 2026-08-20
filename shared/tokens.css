@@ -25,18 +25,21 @@
   --brand:     #B0E0E6;          /* powder blue */
 
   /* Kaleido glass. A pane is filled edge to edge and its colour IS the piece.
-     The came is WHITE, which squeezes these from both sides: each pane must
-     clear 3:1 against the came, or the line vanishes along its edge and stops
-     separating anything, AND 3:1 against an empty socket, or a pane cannot be
-     told from a hole. That leaves a luminance band of 0.117 to 0.30. All four
-     sit in the middle of it at 0.21, clearing white at ~4:1 and a socket at
-     ~4.8:1. They separate by hue alone, which is what shape-only mode is for. */
-  --kal-pane1:   #E04A3D;        /* ruby */
-  --kal-pane2:   #AA741A;        /* amber */
-  --kal-pane3:   #1F9061;        /* emerald */
-  --kal-pane4:   #2F80D5;        /* sapphire */
-  --kal-came:    #FFFFFF;        /* the leading between panes */
-  --kal-socket:  #0A0E18;        /* an empty socket waiting for glass */
+     A pane never touches the white line: between any two panes is the LEAD BODY,
+     a near-black gap, and that is what each pane clears 3:1 against, which every
+     bright colour does easily. The white came is a highlight stroked down the
+     middle of the lead, and its glow is the backlight coming through.
+
+     Do not let a pane sit directly against the white. Tried that, and it forces
+     every hue down to luminance 0.21 to stay legible against it, which makes a
+     yellow brown. The lead body is what buys the colours back. */
+  --kal-pane1:   #E4634F;        /* coral */
+  --kal-pane2:   #FFD23F;        /* sun, = --accent-2 */
+  --kal-pane3:   #5DD39E;        /* green, = --green */
+  --kal-pane4:   #63C4E8;        /* sky */
+  --kal-came:    #FFFFFF;        /* the lit highlight along the lead */
+  --kal-lead:    #0B1120;        /* the lead body the came runs through */
+  --kal-socket:  #1E2740;        /* an empty socket waiting for glass */
   --kal-plain:   #C9D6EA;        /* shape-only mode: one glass, shape cut into it */
 }
 
