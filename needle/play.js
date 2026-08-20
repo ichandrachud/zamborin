@@ -1229,33 +1229,52 @@
     ctx.textAlign = 'left';
   }
 
+  let snagFitState = null, menuFitState = null;   // last card fits, read by the debug handle
   function snagOverlay() {
     ctx.fillStyle = 'rgba(9,15,26,0.92)'; ctx.fillRect(0, 0, LW, LH);
     const pw = Math.max(260, Math.min(LW - 44, 500));
     const body = snagSentence();
-    let mh = 30 + 42;
-    ctx.font = '600 17px Inter, sans-serif';
-    mh = wrapText('The cloth will not hold here.', 0, mh, pw - 70, 24, 'center', true) + 12;
-    ctx.font = '500 16px Inter, sans-serif';
-    mh = wrapText(body, 0, mh, pw - 68, 23, 'left', true) + 14;
-    mh = wrapText('A thread has to go over, under, over, under. Where the loop is lit in red, that order breaks.', 0, mh, pw - 68, 23, 'left', true);
-    const ph = Math.min(LH - 28, mh + 24 + UI.CTA.h + 32);
+    const TAIL = 'A thread has to go over, under, over, under. Where the loop is lit in red, that order breaks.';
+    /* Clamped and then drawn at full length, which is how the copy ended up
+       under the GOT IT button. Measured at a type scale now and shrunk until
+       it fits, the same as the rules card below. */
+    const measure = (ts) => {
+      let h = 30 * ts + 42 * ts;
+      ctx.font = '600 ' + (17 * ts).toFixed(2) + 'px Inter, sans-serif';
+      h = wrapText('The cloth will not hold here.', 0, h, pw - 70, 24 * ts, 'center', true) + 12 * ts;
+      ctx.font = '500 ' + (16 * ts).toFixed(2) + 'px Inter, sans-serif';
+      h = wrapText(body, 0, h, pw - 68, 23 * ts, 'left', true) + 14 * ts;
+      h = wrapText(TAIL, 0, h, pw - 68, 23 * ts, 'left', true);
+      return h + 24 * ts + UI.CTA.h + 32 * ts;
+    };
+    const maxH = LH - 28;
+    let ts = 1, want = measure(1);
+    while (ts > 0.72 && want > maxH) { ts = Math.max(0.72, ts - 0.04); want = measure(ts); }
+    const ph = Math.min(maxH, want);
     const px = Math.round((LW - pw) / 2), py = Math.round((LH - ph) / 2);
     ctx.fillStyle = '#16233A'; roundRect(px, py, pw, ph, 24); ctx.fill();
     const g = ctx.createLinearGradient(px + 40, 0, px + pw - 40, 0);
     g.addColorStop(0, 'rgba(255,71,87,0)'); g.addColorStop(0.5, '#FF4757'); g.addColorStop(1, 'rgba(255,71,87,0)');
     ctx.fillStyle = g; ctx.fillRect(px + 40, py + 1, pw - 80, 2);
-    const cx = LW / 2; let y = py + 30;
-    ctx.fillStyle = '#fff'; ctx.font = '800 30px Inter, sans-serif';
+    const cx = LW / 2; let y = py + 30 * ts;
+    ctx.fillStyle = '#fff';
+    ctx.font = '800 ' + (30 * ts).toFixed(2) + 'px Inter, sans-serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-    ctx.fillText('SNAGGED', cx, y); y += 42;
-    ctx.fillStyle = 'rgba(255,255,255,0.82)'; ctx.font = '600 17px Inter, sans-serif';
-    y = wrapText('The cloth will not hold here.', cx, y, pw - 70, 24) + 12;
-    ctx.fillStyle = 'rgba(255,190,195,0.95)'; ctx.font = '500 16px Inter, sans-serif';
-    y = wrapText(body, px + 34, y, pw - 68, 23, 'left') + 14;
+    ctx.fillText('SNAGGED', cx, y); y += 42 * ts;
+    ctx.fillStyle = 'rgba(255,255,255,0.82)';
+    ctx.font = '600 ' + (17 * ts).toFixed(2) + 'px Inter, sans-serif';
+    y = wrapText('The cloth will not hold here.', cx, y, pw - 70, 24 * ts) + 12 * ts;
+    ctx.fillStyle = 'rgba(255,190,195,0.95)';
+    ctx.font = '500 ' + (16 * ts).toFixed(2) + 'px Inter, sans-serif';
+    y = wrapText(body, px + 34, y, pw - 68, 23 * ts, 'left') + 14 * ts;
     ctx.fillStyle = 'rgba(255,255,255,0.72)';
-    y = wrapText('A thread has to go over, under, over, under. Where the loop is lit in red, that order breaks.', px + 34, y, pw - 68, 23, 'left');
-    uiButtons.push({ ...UI.drawCTA(ctx, 'GOT IT', cx, py + ph - 32 - UI.CTA.h / 2, ACCENT), act: () => { phase = 'play'; } });
+    y = wrapText(TAIL, px + 34, y, pw - 68, 23 * ts, 'left');
+    const sBtnTop = py + ph - 32 * ts - UI.CTA.h;
+    snagFitState = { ts: +ts.toFixed(2), cardH: Math.round(ph), frameH: LH,
+                     contentBottom: Math.round(y), buttonTop: Math.round(sBtnTop),
+                     clamped: want > maxH, overlapPx: Math.max(0, Math.round(y - sBtnTop)),
+                     fits: y <= sBtnTop };
+    uiButtons.push({ ...UI.drawCTA(ctx, 'GOT IT', cx, py + ph - 32 * ts - UI.CTA.h / 2, ACCENT), act: () => { phase = 'play'; } });
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   }
 
@@ -1318,34 +1337,57 @@
   function menuOverlay() {
     ctx.fillStyle = 'rgba(9,15,26,0.92)'; ctx.fillRect(0, 0, LW, LH);
     const pw = Math.max(260, Math.min(LW - 44, 486));
-    let mh = 32 + 50;
-    ctx.font = '600 17px Inter, sans-serif';
-    mh = wrapText(MENU_SUB, 0, mh, pw - 70, 24, 'center', true) + 16;
-    ctx.font = '500 16px Inter, sans-serif';
     const RULES = menuRules();
-    for (const r of RULES) mh = wrapText(r, 0, mh, pw - 96, 22, 'left', true) + 12;
-    const ph = Math.min(LH - 28, mh + 22 + UI.CTA.h + 34);
+    /* Clamped, then the copy drew on past it and PLAY came up to meet it: at
+       480x360 the button sat across rule 3 and rule 4 was cut mid-sentence.
+       Measured at a type scale now and shrunk until it fits, floor 0.72, the
+       same shape as kaleido, stained, prism, sluice and bloom. Horizontal
+       geometry is untouched so a smaller face wraps to FEWER lines, and
+       UI.CTA.h is not scaled, being a house size and a touch target. */
+    const measure = (ts) => {
+      let h = 32 * ts + 50 * ts;
+      ctx.font = '600 ' + (17 * ts).toFixed(2) + 'px Inter, sans-serif';
+      h = wrapText(MENU_SUB, 0, h, pw - 70, 24 * ts, 'center', true) + 16 * ts;
+      ctx.font = '500 ' + (16 * ts).toFixed(2) + 'px Inter, sans-serif';
+      for (const r of RULES) h = wrapText(r, 0, h, pw - 96, 22 * ts, 'left', true) + 12 * ts;
+      return h + 22 * ts + UI.CTA.h + 34 * ts;
+    };
+    const maxH = LH - 28;
+    let ts = 1, want = measure(1);
+    while (ts > 0.72 && want > maxH) { ts = Math.max(0.72, ts - 0.04); want = measure(ts); }
+    const ph = Math.min(maxH, want);
     const px = Math.round((LW - pw) / 2), py = Math.round((LH - ph) / 2);
     ctx.fillStyle = '#16233A'; roundRect(px, py, pw, ph, 24); ctx.fill();
     const g = ctx.createLinearGradient(px + 40, 0, px + pw - 40, 0);
     g.addColorStop(0, 'rgba(255,71,87,0)'); g.addColorStop(0.25, '#FF4757');
     g.addColorStop(0.5, '#FFD93D'); g.addColorStop(0.75, '#4C8DFF'); g.addColorStop(1, 'rgba(76,141,255,0)');
     ctx.fillStyle = g; ctx.fillRect(px + 40, py + 1, pw - 80, 2);
-    const cx = LW / 2; let y = py + 32;
-    ctx.fillStyle = '#fff'; ctx.font = '800 38px Inter, sans-serif';
+    const cx = LW / 2; let y = py + 32 * ts;
+    ctx.fillStyle = '#fff';
+    ctx.font = '800 ' + (38 * ts).toFixed(2) + 'px Inter, sans-serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-    ctx.fillText('NEEDLE', cx, y); y += 50;
-    ctx.fillStyle = 'rgba(255,255,255,0.82)'; ctx.font = '600 17px Inter, sans-serif';
-    y = wrapText(MENU_SUB, cx, y, pw - 70, 24); y += 16;
-    const rx = px + 30;
+    ctx.fillText('NEEDLE', cx, y); y += 50 * ts;
+    ctx.fillStyle = 'rgba(255,255,255,0.82)';
+    ctx.font = '600 ' + (17 * ts).toFixed(2) + 'px Inter, sans-serif';
+    y = wrapText(MENU_SUB, cx, y, pw - 70, 24 * ts); y += 16 * ts;
+    const rx = px + 30, dotR = 12 * ts;
     for (let i = 0; i < RULES.length; i++) {
-      ctx.fillStyle = ACCENT; ctx.beginPath(); ctx.arc(rx + 11, y + 11, 12, 0, 7); ctx.fill();
-      ctx.fillStyle = '#FFFFFF'; ctx.font = '800 14px Inter, sans-serif';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(i + 1), rx + 11, y + 12);
-      ctx.fillStyle = 'rgba(255,255,255,0.90)'; ctx.font = '500 16px Inter, sans-serif';
-      y = wrapText(RULES[i], rx + 34, y, pw - 96, 22, 'left') + 12;
+      ctx.fillStyle = ACCENT; ctx.beginPath(); ctx.arc(rx + 11, y + dotR, dotR, 0, 7); ctx.fill();
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = '800 ' + (14 * ts).toFixed(2) + 'px Inter, sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(String(i + 1), rx + 11, y + dotR + 1);
+      ctx.fillStyle = 'rgba(255,255,255,0.90)';
+      ctx.font = '500 ' + (16 * ts).toFixed(2) + 'px Inter, sans-serif';
+      y = wrapText(RULES[i], rx + 34, y, pw - 96, 22 * ts, 'left') + 12 * ts;
     }
-    uiButtons.push({ ...UI.drawCTA(ctx, moves > 0 ? 'RESUME' : 'PLAY', cx, py + ph - 34 - UI.CTA.h / 2, ACCENT), act: () => { phase = 'play'; T().gameStart(); } });
+    const mBtnTop = py + ph - 34 * ts - UI.CTA.h;
+    menuFitState = { ts: +ts.toFixed(2), cardH: Math.round(ph), frameH: LH,
+                     rules: RULES.length, contentBottom: Math.round(y),
+                     buttonTop: Math.round(mBtnTop), clamped: want > maxH,
+                     overlapPx: Math.max(0, Math.round(y - mBtnTop)),
+                     fits: y <= mBtnTop };
+    uiButtons.push({ ...UI.drawCTA(ctx, moves > 0 ? 'RESUME' : 'PLAY', cx, py + ph - 34 * ts - UI.CTA.h / 2, ACCENT), act: () => { phase = 'play'; T().gameStart(); } });
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   }
   function winOverlay(now) {
@@ -1375,6 +1417,11 @@
   // their names on purpose: they describe the MECHANIC, which is still
   // weaving, and only the game's title changed.
   window.__needle = {
+    /* Draws each card and reports whether it actually fitted, so a copy edit
+       that outgrows the frame shows up as a number rather than as a screenshot
+       nobody takes. Both cards, because both had the same fault. */
+    menuFit() { const was = phase; phase = 'menu'; draw(performance.now()); phase = was; return menuFitState; },
+    snagFit() { const was = phase; phase = 'snag'; draw(performance.now()); phase = was; return snagFitState; },
     get state() {
       return { level, R, C, mode: MODE, phase, moves, threads: threads.length,
                connected: connected(), crossings: crossings.length, snags: snagCount,

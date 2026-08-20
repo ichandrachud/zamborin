@@ -1042,6 +1042,7 @@
     for (const w of words) { const tt = line ? line + ' ' + w : w; if (ctx.measureText(tt).width > maxW && line) { if (!measureOnly) ctx.fillText(line, x, y); y += lh; line = w; } else line = tt; }
     if (line) { if (!measureOnly) ctx.fillText(line, x, y); y += lh; } return y;
   }
+  let menuFitState = null;              // last card fit, read by the debug handle
   function menuOverlay() {
     ctx.fillStyle = 'rgba(10,16,28,0.88)'; ctx.fillRect(0, 0, LW, LH);
     const pw = Math.min(LW - 56, 470);
@@ -1053,30 +1054,57 @@
     // Measure the wrapped copy, then size the panel to it. A fixed height is a
     // guess about how text wraps, and the guess was wrong: on a 360px screen
     // the fourth rule took two lines and ran 5px into the PLAY button.
-    let ph = 34 + 54;
-    ctx.font = '600 17px Inter, sans-serif';
-    ph = wrapText(sub, 0, ph, pw - 70, 24, 'center', true) + 18;
-    ctx.font = '500 15px Inter, sans-serif';
-    for (const r of rules) ph = wrapText(r, 0, ph, pw - 100, 21, 'left', true) + 13;
-    ph += 14 + 50 + 32;                      // clearance, PLAY button, bottom pad
+    //
+    // MEASURING IS NOT ENOUGH ON ITS OWN — 2026-08-20. The panel was sized to
+    // the copy and then never checked against the SCREEN, so in a short frame
+    // it simply ran off the bottom: at 480x360 the fourth rule was cut in half
+    // and the PLAY button was off-screen entirely. (Any tap starts the game
+    // here, so nobody was stranded, but the rules are the only place this game
+    // is explained.) So measure at a type scale and shrink until it fits.
+    // Horizontal geometry is untouched, so a smaller face wraps to FEWER
+    // lines. The button is not scaled: house size, and a touch target.
+    const measure = (ts) => {
+      let h = 34 * ts + 54 * ts;
+      ctx.font = '600 ' + (17 * ts).toFixed(2) + 'px Inter, sans-serif';
+      h = wrapText(sub, 0, h, pw - 70, 24 * ts, 'center', true) + 18 * ts;
+      ctx.font = '500 ' + (15 * ts).toFixed(2) + 'px Inter, sans-serif';
+      for (const r of rules) h = wrapText(r, 0, h, pw - 100, 21 * ts, 'left', true) + 13 * ts;
+      return h + 14 * ts + 50 + 32 * ts;     // clearance, PLAY button, bottom pad
+    };
+    const maxH = LH - 20;
+    let ts = 1, ph = measure(1);
+    while (ts > 0.72 && ph > maxH) { ts = Math.max(0.72, ts - 0.04); ph = measure(ts); }
     const px = (LW - pw) / 2, py = Math.max(10, (LH - ph) / 2);
     ctx.fillStyle = '#16233a'; roundRect(px, py, pw, ph, 22); ctx.fill();
     ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(255,255,255,0.12)'; roundRect(px, py, pw, ph, 22); ctx.stroke();
-    const cx = LW / 2; let y = py + 34;
-    ctx.fillStyle = '#fff'; ctx.font = '800 40px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-    ctx.fillText('SLUICE', cx, y); y += 54;
-    ctx.fillStyle = 'rgba(255,255,255,0.82)'; ctx.font = '600 17px Inter, sans-serif';
-    y = wrapText(sub, cx, y, pw - 70, 24); y += 18;
-    const rx = px + 32;
+    const cx = LW / 2; let y = py + 34 * ts;
+    ctx.fillStyle = '#fff';
+    ctx.font = '800 ' + (40 * ts).toFixed(2) + 'px Inter, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('SLUICE', cx, y); y += 54 * ts;
+    ctx.fillStyle = 'rgba(255,255,255,0.82)';
+    ctx.font = '600 ' + (17 * ts).toFixed(2) + 'px Inter, sans-serif';
+    y = wrapText(sub, cx, y, pw - 70, 24 * ts); y += 18 * ts;
+    const rx = px + 32, dotR = 12 * ts;
     for (let i = 0; i < rules.length; i++) {
-      ctx.fillStyle = '#3a9bde'; ctx.beginPath(); ctx.arc(rx + 11, y + 11, 12, 0, 7); ctx.fill();
-      ctx.fillStyle = '#0E1726'; ctx.font = '800 14px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(i + 1), rx + 11, y + 12);
-      ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.font = '500 15px Inter, sans-serif';
-      y = wrapText(rules[i], rx + 34, y, pw - 100, 21, 'left') + 13;
+      ctx.fillStyle = '#3a9bde'; ctx.beginPath(); ctx.arc(rx + 11, y + dotR, dotR, 0, 7); ctx.fill();
+      ctx.fillStyle = '#0E1726';
+      ctx.font = '800 ' + (14 * ts).toFixed(2) + 'px Inter, sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(String(i + 1), rx + 11, y + dotR + 1);
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.font = '500 ' + (15 * ts).toFixed(2) + 'px Inter, sans-serif';
+      y = wrapText(rules[i], rx + 34, y, pw - 100, 21 * ts, 'left') + 13 * ts;
     }
+    const btnTop = py + ph - 32 * ts - 50;
+    menuFitState = { ts: +ts.toFixed(2), cardH: Math.round(ph), frameH: LH,
+                     contentBottom: Math.round(y), buttonTop: Math.round(btnTop),
+                     cardOffScreenPx: Math.max(0, Math.round(py + ph - LH)),
+                     overlapPx: Math.max(0, Math.round(y - btnTop)),
+                     fits: y <= btnTop && py + ph <= LH };
     const label = moves > 0 ? 'RESUME' : 'PLAY';
     ctx.font = '800 17px Inter, sans-serif';
-    const bw = Math.round(Math.max(210, ctx.measureText(label).width + 90)), bh = 50, bx = cx - bw / 2, by = py + ph - 32 - bh / 2;
+    const bw = Math.round(Math.max(210, ctx.measureText(label).width + 90)), bh = 50, bx = cx - bw / 2, by = py + ph - 32 * ts - bh / 2;
     ctx.fillStyle = '#3DDC84'; roundRect(bx, by, bw, bh, bh / 2); ctx.fill();
     ctx.fillStyle = '#0E1726'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(label, cx, by + bh / 2 + 1);
     uiButtons.push({ x: bx, y: by, w: bw, h: bh, act: () => { phase = 'play'; T().gameStart(); render(performance.now()); } });
@@ -1084,6 +1112,10 @@
 
   // ---------- debug ----------
   window.__sluice = {
+    /* Draws the card and reports whether it actually fitted, so a copy edit
+       that outgrows the frame shows up as a number instead of as a screenshot
+       nobody takes. */
+    menuFit() { const was = phase; phase = 'menu'; render(performance.now()); phase = was; return menuFitState; },
     get state() { const [w, t] = flowersWatered(); return { level, R, C, moves, par, phase, watered: w, flowers: t, tap, dragging: !!drag }; },
     get geom() { return { LW, LH, cell, ox, oy, sidePad: sidePad(), boardW: C * cell, boardH: R * cell }; },
     solve() { conn = sol.slice(); computeWater(); const [w, t] = flowersWatered(); if (w === t) { phase = 'won'; wonT = performance.now() - BLOOM_DUR - 350; } render(performance.now()); return this.state; },
