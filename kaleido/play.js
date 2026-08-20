@@ -252,30 +252,35 @@
   // in the palette.
   let NSHAPE = 4;
   const TOK_NAME = ['Petal', 'Diamond', 'Trefoil', 'Dot'];
-  const PLAIN = '#C9D6EA';                  // --kal-plain
 
 
-  // Colour carries the PIECE. It used to carry the wedge, which made a rotating
-  // rainbow and put the six-fold structure right in your face, but a filled
-  // pane can only tell you something if its colour is about the piece, so the
-  // rainbow went when the panes came in. User's call, 2026-08-20, after seeing
-  // both. The symmetry now reads from the pattern rather than from the colour.
-  //
-  // These four are nowhere near 3:1 from one another and do not need to be: the
-  // came around every pane is what identifies it as its own object. That is the
-  // linework trick, and also just how leaded glass is built.
-  //
-  // Pure and bright, because a pane never touches the white line. Between them
-  // is the LEAD BODY, a near-black gap, and that is what each pane has to clear
-  // 3:1 against, which every bright colour does easily. The white is a highlight
-  // running down the middle of the lead, not the thing doing the separating.
-  //
-  // Getting this wrong cost two rounds. With panes sitting directly against
-  // white, each one had to clear 3:1 against the white AND against an empty
-  // socket, which pinned every hue to luminance 0.21. A yellow at 0.21 is brown.
-  // The lead body removes the ceiling entirely and the colours come back.
-  // Mirrors --kal-pane1..4 in shared/tokens.css.
-  const PANE_COL = ['#E4634F', '#FFD23F', '#5DD39E', '#63C4E8'];   // coral sun green sky
+  // Colour carries the PIECE, not the wedge. User's call 2026-08-20 after seeing
+  // both: a filled pane can only tell you something if its colour is about the
+  // piece, so the rotating rainbow went when the panes came in.
+  // ---------- THE ZAMBORIN PALETTE ----------
+  // Canvas cannot read CSS variables, so shared/tokens.css is mirrored here and
+  // NOTHING in this file invents a colour. Every value below is a token, and the
+  // token name is the comment. If a colour is wanted that is not here, it goes
+  // into tokens.css first.
+  const Z = {
+    bg:       '#0E1726',   // --bg
+    bgCard:   '#131F36',   // --bg-card
+    bgPanel:  '#1A2A45',   // --bg-panel
+    line:     '#1F2D4A',   // --line
+    text:     '#FFFFFF',   // --text
+    textDim:  '#C5CFE0',   // --text-dim
+    textMute: '#8E9CB5',   // --text-mute
+    accent:   '#D8523F',   // --accent    coral
+    accent2:  '#FFD23F',   // --accent-2  sunshine
+    green:    '#5DD39E',   // --green
+    brand:    '#B0E0E6',   // --brand     powder blue
+  };
+
+  // The glass is the four Zamborin accents, nothing invented. The sky blue that
+  // was here before was not in the system; --brand takes its place.
+  const PANE_COL = [Z.accent, Z.accent2, Z.green, Z.brand];
+
+  const PLAIN = Z.textDim;                  // shape-only mode: one glass for all
 
   // The cycling lever. A rotation by k also advances the token by k, over the
   // 3-cycle petal -> diamond -> trefoil. Dot is the fixed point. 3 divides the
@@ -844,13 +849,21 @@
   function lighten(c, f) { const [r, g, b] = hex(c); return hx(r + (255 - r) * f, g + (255 - g) * f, b + (255 - b) * f); }
 
   // ---------- RENDER ----------
-  // LEAD is the total gap between two panes, split half either side, and it is
-  // the LEAD BODY: near-black, the physical came. CAME_W is the white highlight
-  // stroked down the middle of it, and that is the line you actually see, at
-  // 30% of the old separator's width.
-  const LEAD = 3.6, CAME_W = 1.4;   // 1.1px of lead showing either side of the highlight
-  const CAME = '#FFFFFF';
-  const LEAD_BODY = '#0B1120';
+  // The came is the ONLY thing between two panes. The gap and the stroke are the
+  // same width on purpose, so the white covers the gap edge to edge and no dark
+  // shows either side of it. The backing is white too, so nothing dark can leak
+  // through where the two disagree by a fraction of a pixel.
+  //
+  // The cost, stated plainly because it is real: a pane now touches the white
+  // directly, and a pale pane cannot clear 3:1 against white. Sunshine measures
+  // 1.44:1 and powder blue 1.43:1, so along those panes the came reads as a soft
+  // seam rather than a hard line. What carries the boundary instead is the rule
+  // itself: no two panes of the same colour may ever touch, so every edge on a
+  // correct board is a change of hue. For a player who cannot see hue, shape-only
+  // mode is the answer, and it is not a lesser board: same panes, same layout,
+  // colour swapped for a shape cut into the glass.
+  const LEAD = 1.6, CAME_W = 1.6;
+  const CAME = Z.text;
   function cellPath(r, s, grow) {
     const r0 = ringR[r] + LEAD * 0.5, r1 = ringR[r + 1] - LEAD * 0.5;
     if (r1 <= r0) return false;
@@ -890,7 +903,7 @@
 
     // ground
     const bg = ctx.createRadialGradient(LW * 0.5, bcy, 0, LW * 0.5, bcy, Math.max(LW, LH) * 0.85);
-    bg.addColorStop(0, '#16233C'); bg.addColorStop(0.55, '#131F36'); bg.addColorStop(1, '#0E1726');
+    bg.addColorStop(0, Z.bgPanel); bg.addColorStop(0.55, Z.bgCard); bg.addColorStop(1, Z.bg);
     ctx.fillStyle = bg; ctx.fillRect(0, 0, LW, LH);
 
     drawBacklight(now);
@@ -927,7 +940,7 @@
   // shows through the gaps and IS the leading: one continuous net rather than a
   // set of strokes that have to meet each other correctly at the joins.
   function drawStone() {
-    ctx.fillStyle = LEAD_BODY;
+    ctx.fillStyle = CAME;
     ctx.beginPath(); ctx.arc(bcx, bcy, ringR[RINGS] + LEAD * 0.5, 0, TAU); ctx.fill();
   }
 
@@ -973,12 +986,12 @@
     if (!seamBad.length) return;
     ctx.save();
     ctx.lineCap = 'round';
-    ctx.shadowColor = 'rgba(216,82,63,0.9)';
+    ctx.shadowColor = 'rgba(216, 82, 63, 0.9)';   // --accent
     for (const e of seamBad) {
       // The came goes dark and hot: the light stops coming through where the
       // rule is broken, which is a reading a backlit window can carry.
       ctx.shadowBlur = 10;
-      ctx.strokeStyle = '#08101F';
+      ctx.strokeStyle = Z.bg;
       ctx.lineWidth = CAME_W * 2.4;
       ctx.beginPath();
       if (e.kind === 'ang') {
@@ -1022,9 +1035,9 @@
           // the bright end of the same range, held still.
           if (inWedge) {
             const b = REDUCED ? 1 : 0.5 + 0.5 * Math.sin(now / 620);
-            ctx.fillStyle = lighten('#232E48', 0.10 + 0.16 * b);
+            ctx.fillStyle = lighten(Z.bgPanel, 0.02 + 0.14 * b);   // --bg-panel, breathing
           } else {
-            ctx.fillStyle = '#161D2E';
+            ctx.fillStyle = Z.bg;                                   // --bg, a hole through
           }
           ctx.fill();
           continue;
@@ -1053,7 +1066,7 @@
         // colourblind player is playing the same game rather than a port of it.
         if (shapeOnly) {
           const cc = cellCentre(r, s);
-          drawGlyph(t, cc.x, cc.y, cellSize(r) * 0.62, cc.a + Math.PI / 2, al * 0.92, '#0A1120');
+          drawGlyph(t, cc.x, cc.y, cellSize(r) * 0.62, cc.a + Math.PI / 2, al * 0.92, Z.bg);
         }
         ctx.globalAlpha = 1;
 
@@ -1064,7 +1077,7 @@
             const cc = cellCentre(r, s);
             ctx.save();
             ctx.globalAlpha = (1 - hp) * 0.9;
-            ctx.strokeStyle = '#FFF3D6'; ctx.lineWidth = 2;
+            ctx.strokeStyle = Z.accent2; ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.arc(cc.x, cc.y, cellSize(r) * (1 + 1.8 * (1 - ease(hp))), 0, TAU);
             ctx.stroke(); ctx.restore();
@@ -1151,7 +1164,7 @@
     if (phase === 'won') return;
     const hs = Math.max(0.7, Math.min(1, LW / 620));
     ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = 'rgba(255,255,255,0.72)';
+    ctx.fillStyle = Z.textDim;
     ctx.font = '600 ' + Math.round(16 * hs) + 'px Inter, sans-serif';
     // "2 clashes" told the player a number and not a problem. Name the thing
     // that is wrong, in the same words the rules card used.
@@ -1262,16 +1275,16 @@
     // a single ring travelling outward through the leading, then it settles
     const rr = boardR * (0.2 + 1.05 * ease(t));
     ctx.globalAlpha = (1 - t) * 0.5;
-    ctx.strokeStyle = '#DFF3FF'; ctx.lineWidth = 3 * (1 - t) + 1;
+    ctx.strokeStyle = Z.brand; ctx.lineWidth = 3 * (1 - t) + 1;
     ctx.beginPath(); ctx.arc(bcx, bcy, rr, 0, TAU); ctx.stroke();
     ctx.globalAlpha = 1;
     const a = Math.min(1, Math.max(0, (now - wonT - 700) / 500));
     if (a <= 0) return;
     ctx.globalAlpha = a;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#5DD39E'; ctx.font = '800 ' + (MODE === 'mobile' ? 28 : 32) + 'px Inter, sans-serif';
+    ctx.fillStyle = Z.green; ctx.font = '800 ' + (MODE === 'mobile' ? 28 : 32) + 'px Inter, sans-serif';
     ctx.fillText('IN SYMMETRY', LW / 2, Math.round(topBand() * 0.42));
-    ctx.fillStyle = 'rgba(255,255,255,0.82)'; ctx.font = '500 15px Inter, sans-serif';
+    ctx.fillStyle = Z.textDim; ctx.font = '500 15px Inter, sans-serif';
     ctx.fillText('tap for the next figure', LW / 2, Math.round(topBand() * 0.42) + 24);
     ctx.globalAlpha = 1;
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
@@ -1332,7 +1345,7 @@
     const fold = 6, secOf = (i) => 6 * (i + 1);
 
     // the stone, so the demo reads as the same object as the board
-    ctx.fillStyle = LEAD_BODY;
+    ctx.fillStyle = CAME;
     ctx.beginPath(); ctx.arc(cx, cy, rr[DEMO_RINGS] + 2, 0, TAU); ctx.fill();
 
     for (let r = 0; r < DEMO_RINGS; r++) {
@@ -1350,7 +1363,7 @@
           ctx.closePath();
         };
         path();
-        ctx.fillStyle = inWedge ? '#2E3A57' : '#161D2E';
+        ctx.fillStyle = inWedge ? Z.bgPanel : Z.bg;
         ctx.fill();
 
         // the wedge fills in sequence; each copy follows one rotation behind
@@ -1366,7 +1379,7 @@
         if (shapeOnly) {
           const am = a0 + w / 2;
           drawGlyph(tok, cx + rm * Math.cos(am), cy + rm * Math.sin(am),
-                    Math.min(r1 - r0, TAU * rm / S) * 0.28, am + Math.PI / 2, 0.92, '#0A1120');
+                    Math.min(r1 - r0, TAU * rm / S) * 0.28, am + Math.PI / 2, 0.92, Z.bg);
         }
         ctx.globalAlpha = 1;
       }
@@ -1406,7 +1419,7 @@
   }
 
   function menuOverlay(now) {
-    ctx.fillStyle = 'rgba(10,16,28,0.88)'; ctx.fillRect(0, 0, LW, LH);
+    ctx.fillStyle = 'rgba(14, 23, 38, 0.88)'; ctx.fillRect(0, 0, LW, LH);   // --bg
     const rules = rulesFor();
     const cx = LW / 2;
     const pw = Math.min(LW - 48, 470);
@@ -1421,12 +1434,12 @@
     const demoH = demoR * 2 + 18;
     const ph = Math.min(LH - 30, 30 + 40 + leadH + 12 + demoH + bodyH + 26 + ZUI.CTA.h + 26);
     const px = (LW - pw) / 2, py = (LH - ph) / 2;
-    ctx.fillStyle = '#16233a'; ZUI.roundRectPath(ctx, px, py, pw, ph, 22); ctx.fill();
+    ctx.fillStyle = Z.bgCard; ZUI.roundRectPath(ctx, px, py, pw, ph, 22); ctx.fill();
     ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ZUI.roundRectPath(ctx, px, py, pw, ph, 22); ctx.stroke();
     let y = py + 30;
-    ctx.fillStyle = '#fff'; ctx.font = '800 34px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillStyle = Z.text; ctx.font = '800 34px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
     ctx.fillText('KALEIDO', cx, y); y += 40;
-    ctx.fillStyle = 'rgba(255,255,255,0.82)'; ctx.font = '600 16px Inter, sans-serif';
+    ctx.fillStyle = Z.textDim; ctx.font = '600 16px Inter, sans-serif';
     y = wrapText('Complete the figure so it holds under every turn of the wheel.', cx, y, pw - 70, 23); y += 12;
     drawDemo(cx, y + demoR, demoR, now); y += demoH;
     const rx = px + 30;
@@ -1434,13 +1447,13 @@
     for (let i = 0; i < rules.length; i++) {
       ctx.fillStyle = PANE_COL[(i * step) % PANE_COL.length];
       ctx.beginPath(); ctx.arc(rx + 11, y + 11, 11, 0, TAU); ctx.fill();
-      ctx.fillStyle = '#0E1726'; ctx.font = '800 13px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = Z.bg; ctx.font = '800 13px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(String(i + 1), rx + 11, y + 12);
-      ctx.fillStyle = 'rgba(255,255,255,0.90)'; ctx.font = '500 15px Inter, sans-serif';
+      ctx.fillStyle = Z.textDim; ctx.font = '500 15px Inter, sans-serif';
       y = wrapText(rules[i], rx + 32, y, pw - 96, 20, 'left') + 12;
     }
     const label = placed() > 0 ? 'RESUME' : 'PLAY';
-    const b = ZUI.drawCTA(ctx, label, cx, py + ph - 26 - ZUI.CTA.h / 2, '#5DD39E');
+    const b = ZUI.drawCTA(ctx, label, cx, py + ph - 26 - ZUI.CTA.h / 2, Z.green);
     uiButtons.push({ ...b, act: () => { phase = 'play'; T().gameStart(); render(performance.now()); } });
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   }
