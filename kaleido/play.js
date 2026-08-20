@@ -101,11 +101,20 @@
   // The cycle length has to DIVIDE the fold, or a full turn would not return a
   // shape to itself. Three folds cleanly at 6 and 3; at 2 and 4 the only usable
   // cycle is 2, and at any fold with no usable divisor cycling is simply off.
-  let CYC = 3;
-  function setFold(n) {
-    N_FOLD = n;
-    CYC = (n % 3 === 0) ? 3 : (n % 2 === 0) ? 2 : 1;
-  }
+  function setFold(n) { N_FOLD = n; }
+
+  // Whether EVERY colour can be moved by one turn of the wheel. The permutation
+  // has to satisfy p^fold = identity, and there are two ways to get that with no
+  // colour left behind: a single cycle through all of them when the count
+  // divides the fold, or a set of straight swaps when both are even.
+  //
+  // If neither fits, cycling is OFF for that level. It used to fall back to
+  // whatever partial permutation was available, which is the bug: at two-fold
+  // it swapped red and yellow and left green and pale blue untouched, so two
+  // colours transformed and two did not with nothing on the board to say why.
+  // A rule that applies to some of the pieces and not others cannot be learned.
+  const cycleFits = (fold, shapes) =>
+    (fold % shapes === 0) || (shapes % 2 === 0 && fold % 2 === 0);
 
   // Rings and their sector counts. 6*(r+1) keeps every ring a multiple of the
   // fold (so no cell is ever fixed by a non-identity rotation, which would
@@ -294,13 +303,28 @@
 
   const PLAIN = Z.textDim;                  // shape-only mode: one glass for all
 
-  // The cycling lever. A rotation by k also advances the piece by k, around a
-  // cycle of length CYC. Colours past CYC are fixed points. CYC divides the fold
-  // by construction, so a full turn returns every pane to itself, which is the
-  // consistency condition the group demands.
+  // The cycling lever, as a lookup table: PERMK[k][t] is what colour t becomes k
+  // turns round the wheel. Precomputed because permT is the innermost call in
+  // propagation and walking the permutation k times per call was measurable.
+  let PERMK = null;
+  function buildPerm() {
+    PERMK = null;
+    if (!cycleOn || !cycleFits(N_FOLD, NSHAPE)) { cycleOn = false; return; }
+    const step = [];
+    if (N_FOLD % NSHAPE === 0) {
+      for (let t = 0; t < NSHAPE; t++) step[t] = (t + 1) % NSHAPE;   // one long cycle
+    } else {
+      for (let t = 0; t < NSHAPE; t += 2) { step[t] = t + 1; step[t + 1] = t; }   // swaps
+    }
+    PERMK = [];
+    for (let k = 0; k < N_FOLD; k++) {
+      PERMK[k] = [];
+      for (let t = 0; t < NSHAPE; t++) PERMK[k][t] = k === 0 ? t : step[PERMK[k - 1][t]];
+    }
+  }
   function permT(t, k) {
-    if (t < 0 || !cycleOn || CYC < 2 || t >= CYC) return t;
-    return (t + (k % CYC) + CYC) % CYC;
+    if (t < 0 || !PERMK) return t;
+    return PERMK[((k % N_FOLD) + N_FOLD) % N_FOLD][t];
   }
 
   // ---------- THE RAMP ----------
@@ -342,19 +366,32 @@
   function stageList() {
     const cap = Math.min(5, budgetRings());
     const seen = new Set(), out = [];
+    // Chosen so that wherever cycling is asked for, it FITS: every colour moves.
+    // Only four pairings can do that, since the permutation must satisfy
+    // p^fold = identity with no colour left behind:
+    //
+    //   six-fold + 3 colours    one cycle of three
+    //   six-fold + 4 colours    two straight swaps
+    //   three-fold + 3 colours  one cycle of three
+    //   two-fold + 4 colours    two straight swaps
+    //
+    // Asking for cycling anywhere else silently turned it off, which took the
+    // twist out of most of the ramp. The stages now use the pairings that work.
     const combos = [
-      [3, 6, 3, false], [4, 6, 3, false], [5, 6, 4, false], [5, 6, 4, true],
-      [3, 3, 4, true], [4, 3, 4, true], [3, 2, 3, true], [5, 3, 4, true],
-      [4, 2, 4, true], [5, 3, 3, true], [4, 2, 3, true], [5, 2, 4, true],
-      [5, 2, 3, true],
+      [3, 6, 3, false], [4, 6, 3, false], [5, 6, 4, false],
+      [3, 3, 3, true],  [5, 6, 4, true],  [4, 3, 3, true],
+      [4, 3, 4, false], [4, 2, 4, true],  [5, 3, 4, false],
+      [5, 3, 3, true],  [5, 2, 4, true],
     ];
     for (const [r0, fold, shapes, cycle] of combos) {
       const rings = Math.min(r0, cap);
-      const key = rings + ':' + fold + ':' + shapes + ':' + cycle;
+      const key = rings + ':' + fold + ':' + shapes + ':' + (cycle && cycleFits(fold, shapes));
       if (seen.has(key)) continue;                 // the cap collapsed it onto another
       seen.add(key);
       const wedge = (6 / fold) * rings * (rings + 1) / 2;
-      out.push({ rings, fold, shapes, cycle, max: Math.round(wedge * (shapes === 3 ? 1.2 : 1.05)) });
+      // Only ask for cycling where every colour can move under it.
+      const cyc = cycle && cycleFits(fold, shapes);
+      out.push({ rings, fold, shapes, cycle: cyc, max: Math.round(wedge * (shapes === 3 ? 1.2 : 1.05)) });
     }
     out.sort((x, y) => x.max - y.max);
     return out;
@@ -510,7 +547,7 @@
     // The wedge is SEC/fold, so the board must be rebuilt when EITHER moves.
     const foldChanged = fold !== N_FOLD;
     setFold(fold);
-    cycleOn = !!cfg.cycle && CYC > 1;
+    cycleOn = !!cfg.cycle;
     if (rings !== RINGS || foldChanged) buildBoard(rings);
 
     // Scramble-from-solved, with a quality gate and a fallback under it.
@@ -526,7 +563,9 @@
     const search = (want) => {
       let bst = null, bstScore = -Infinity, bstM = null;
       for (const shapes of [want.shapes, NTOK]) {
-        NSHAPE = Math.max(cycleOn ? CYC : 2, Math.min(NTOK, shapes));
+        NSHAPE = Math.max(2, Math.min(NTOK, shapes));
+        cycleOn = !!want.cycle;
+        buildPerm();
         seamMode = 'full';
         applySeamMode();
         for (let attempt = 0; attempt < 12; attempt++) {
@@ -561,7 +600,7 @@
       const wf = want.fold || 6, wr = Math.max(2, Math.min(want.rings || rings, budgetRings()));
       if (wf !== N_FOLD || wr !== RINGS) {
         setFold(wf);
-        cycleOn = !!want.cycle && CYC > 1;
+        cycleOn = !!want.cycle;
         buildBoard(wr);
       }
       const got = search(want);
@@ -1488,7 +1527,7 @@
       'Every gap has exactly one right answer. You never have to guess.',
     ];
     if (cycleOn) {
-      out.push('One twist from here on: each turn of the wheel also advances the glass, so a copy is not always the same pane.');
+      out.push('One twist from here on: every turn of the wheel changes the glass, so a copy is never the same colour as the pane you placed.');
     }
     return out;
   }
@@ -1671,6 +1710,8 @@
       return { rings, fold, shapes, wedge: NDOM, cycle: cycleOn, top: last };
     },
     ringBudget() { measureBoard(); return { boardR, MIN_RING, thinnest: [3,4,5,6].map((n) => Math.round(thinnestRing(n) * 10) / 10), allows: budgetRings() }; },
+    perm() { return { cycling: cycleOn, shapes: NSHAPE, fold: N_FOLD,
+      oneTurn: PERMK ? PERMK[1 % N_FOLD].slice(0, NSHAPE) : null }; },
     geometry() { return { bcx, bcy, boardR, buttons: uiButtons.map((b) => ({ x: b.x, y: b.y, w: b.w, h: b.h })) }; },
     measure() { return measureLevel(); },
     posed() { return lastMeasure; },
@@ -1719,7 +1760,15 @@
   measureBoard();
   const saved = load();
   if (saved) shapeOnly = !!saved.shapeOnly;   // cycling is the ramp's call now, not a saved one
-  genLevel(saved ? saved.level : 1, true);
+  // ?level=N jumps straight to a level. For testing a hundred-level ramp without
+  // playing ninety-nine of them. The page is noindex; decide whether this stays
+  // before launch.
+  let startLevel = saved ? saved.level : 1;
+  try {
+    const q = parseInt(new URLSearchParams(location.search).get('level'), 10);
+    if (q >= 1 && q <= 999) startLevel = q;
+  } catch (e) {}
+  genLevel(startLevel, true);
   if (saved && Array.isArray(saved.dom) && saved.dom.length === NDOM) { dom = saved.dom.slice(); render(performance.now()); }
   setTimeout(onResize, 0);
   setTimeout(onResize, 300);
