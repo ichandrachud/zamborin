@@ -91,6 +91,17 @@ const STATS = [
 const ZAM = window.ZAM_UI;          // shared button system, shared/ui.js
 const SFX = window.ZSFX.create({ storageKey: 'zamborin.tailwind.sound' });
 
+// ANALYTICS. Same shape as the rest of the fleet: a NOOP stand-in so a blocked
+// or absent tracker can never throw into the frame loop. Tailwind has no
+// levels, so it reports the two events that mean something here — the session
+// started, and someone actually chose a plane and began — and lets the module
+// count the seconds. levelStart/levelComplete are deliberately NOT faked from
+// launches, or maxLevel and levelsCompleted would stop meaning the same thing
+// fleet-wide, which is the one rule shared/analytics.js asks callers to keep.
+const T_NOOP = { init() {}, gameStart() {}, levelStart() {}, levelComplete() {},
+                 levelRestart() {}, hintUsed() {} };
+const TRACK = () => (window.ZAM_TRACK || T_NOOP);
+
 // SOUND. The one-shots come from shared/sfx.js. What that library cannot give
 // is a note that is HELD — and this game is mostly holding: a band under
 // tension that creaks higher as you draw it, and an aeroplane whose rush rises
@@ -363,23 +374,13 @@ function zoomForAlt(alt) {
   return LAND_ZOOM + (FLY_ZOOM - LAND_ZOOM) * t;
 }
 
-// HEIGHT ALONE IS NOT ENOUGH TO CALL THE APPROACH. A good launch comes down on
-// a long shallow glide, so it spends the whole last stretch of the run under
-// the height that would pull the camera in, and arrives having barely dollied —
-// worst on a phone, where the frame is narrow and 62% of the rest shot leaves
-// the aeroplane small at the moment you most want to see it. So the run itself
-// also drives the camera: once the aeroplane is into the last stretch of the
-// distance it is going to cover, the camera comes in regardless of height.
-// Whichever of the two asks for the closer shot wins.
-const LAND_IN = 0.80;                            // where it ends up, vs the rest shot
-const LAND_FROM = () => (wide ? 0.90 : 0.85);    // last tenth on a desktop, last 15% on a phone
-function zoomForRun(p) {
-  const s = LAND_FROM();
-  if (p <= s) return 0;                          // 0 loses the max() below
-  const t = Math.min(1, (p - s) / (1 - s));
-  const e = t * t * (3 - 2 * t);                 // eased, so it draws in rather than snaps
-  return FLY_ZOOM + (LAND_IN - FLY_ZOOM) * e;
-}
+// THE CLOSING ZOOM WAITS FOR THE AEROPLANE TO STOP. Driving it off the run as
+// well as the height was tried, so that the camera drew in over the last tenth
+// of the distance: it read as wrong on a desktop, because the camera is pulling
+// in while the aeroplane is still travelling and the two motions fight. Height
+// alone during the flight, and the whole closing move happens in one piece once
+// it is at rest — see the 'rest' branch, which targets LAND_IN and eases there.
+const LAND_IN = 0.80;                            // the resting shot, vs the rest-of-game shot
 const bgForZoom = (z) => DEPTH / (DEPTH + (1 / z - 1));
 const BG_ZOOM = DEPTH / (DEPTH + (1 / FLY_ZOOM - 1));   // works out at 0.77
 // How much of the frame the backdrop stands in, and how fast it drifts. The two
@@ -519,7 +520,7 @@ function onDown(e) {
   if (S.phase === 'pick') {
     for (const c of S.cards) {
       if (p.x >= c.x && p.x <= c.x + c.w && p.y >= c.y && p.y <= c.y + c.h) {
-        S.plane = c.f.key; SFX.play('pop'); resetToAim();
+        S.plane = c.f.key; SFX.play('pop'); TRACK().gameStart(); resetToAim();
         return;
       }
     }
@@ -1029,7 +1030,10 @@ function drawPick() {
     if (rec) {
       ctx.textAlign = 'right';
       ctx.font = '600 12px Inter, system-ui, sans-serif';
-      ctx.fillStyle = 'rgba(255,255,255,0.45)';
+      // 0.45 measured 4.37:1 on the card, under the 4.5:1 AA bar for text this
+      // size. 0.55 is what the stat labels beside it already use, and measures
+      // 5.83:1 on the same background.
+      ctx.fillStyle = 'rgba(255,255,255,0.55)';
       ctx.fillText(Math.round(rec) + ' m', c.x + c.w - 12, yy + 6);
       ctx.textAlign = 'left';
     }
@@ -1125,9 +1129,7 @@ function frame(now) {
     if (!S.touched && q.y <= M.build(S.plane).gearH + 0.4) {
       S.touched = true; touchSound(spd);
     }
-    const gearH = M.build(S.plane).gearH || 0;
-    const run = S.flight.dist > 0 ? q.x / S.flight.dist : 0;
-    const z = Math.max(zoomForAlt(q.y - gearH), zoomForRun(run));
+    const z = zoomForAlt(q.y - (M.build(S.plane).gearH || 0));
     S.ppmTarget = z * restPPM();
     S.bgZoomTarget = bgForZoom(z);
     chase(q.x, q.y, 0.14, dt);
@@ -1142,7 +1144,11 @@ function frame(now) {
     pp = { x: sx(q.x), y: sy(q.y) }; pw = q;
   } else if (S.phase === 'rest' && S.flight) {
     const e = S.flight.trace[S.flight.trace.length - 1];
-    S.ppmTarget = LAND_IN * restPPM();          // hold where the approach left it
+    // The closing move, and the only place it happens. The flight ends around
+    // 0.62 of the rest shot on height alone; stopping is what asks the camera to
+    // come the rest of the way in, so it reads as settling on the result rather
+    // than as a dolly fighting an aeroplane that is still moving.
+    S.ppmTarget = LAND_IN * restPPM();
     S.bgZoomTarget = bgForZoom(LAND_IN);
     chase(e.x, 0, 0.10, dt);
     pp = { x: sx(e.x), y: sy(e.y) }; pth = e.th; pw = e;
@@ -1205,6 +1211,7 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
+TRACK().init('tailwind');
 fit();
 S.ppm = S.ppmTarget = restPPM();
 S.camX = -(W * 0.34) / S.ppm;
