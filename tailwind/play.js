@@ -845,20 +845,14 @@ function hud() {
   // --- what you are doing right now, next to the aeroplane -----------------
   // Angle and draw are live feedback, not standing statistics, so they belong
   // where the hand is rather than in the band with the things that persist.
-  // THE ANGLE IS NOT SHOWN, DELIBERATELY, and for the same reason there is no
-  // trajectory preview: a number on screen is a number to memorise, and once
-  // you know the day's best aim reads 64° you stop judging and start dialling.
-  // The band's own stretch and the aeroplane's attitude say where it is
-  // pointing, which is a thing you read rather than copy. The draw keeps its
-  // bar because that is a strength you are holding, not an answer.
-  if (S.phase === 'aim' || S.phase === 'drag') {
-    const o = nest();
-    const bw = 96;
-    const px = Math.max(PX, Math.min(W - bw - PX, o.x - 132)), py = o.y - 36;
-    ctx.fillStyle = 'rgba(14,23,38,0.40)'; ctx.fillRect(px, py, bw, 7);
-    ctx.fillStyle = ACCENT;
-    ctx.fillRect(px, py, bw * Math.max(0, Math.min(1, S.pull)), 7);
-  }
+  // NEITHER THE ANGLE NOR THE DRAW IS SHOWN, DELIBERATELY, and for the same
+  // reason there is no trajectory preview: a number or a meter on screen is a
+  // thing to memorise, and once you know the day's best aim reads 64 degrees at
+  // three quarters of a bar you stop judging and start dialling. The band's own
+  // stretch and the aeroplane's attitude say both of them, which you read rather
+  // than copy. The draw carried a bar until 2026-08-20 on the argument that it
+  // was a strength being held rather than an answer; it is both, and the band
+  // was already saying it.
 
   // --- control row along the foot ------------------------------------------
   // Nothing to press while it is in the air, so nothing is drawn: the bar and
@@ -1109,6 +1103,13 @@ function frame(now) {
     // At rest the aeroplane sits centred on the pivot, as drawn in the reference;
     // drawing back slides it away along the reverse of the aim.
     const r = Math.max(0, Math.min(1, S.pull)) * maxDrag();
+    // AND AT REST IT SITS LEVEL. Pitching it to the aim angle with no draw on
+    // the band read as an aeroplane already climbing, parked in mid-air, and it
+    // left the band crossing the fuselage at an angle nothing was holding. With
+    // nothing stretched there is no launch direction yet; the sling only points
+    // somewhere once it is taking up, so the aeroplane swings into line over the
+    // first fraction of the draw and holds the aim from there.
+    const align = Math.min(1, Math.max(0, S.pull) / 0.18);
     // At a near-vertical aim the draw runs straight down out of the fork, which
     // on a phone would bury the aeroplane in the field. The PULL is still the
     // full length of the drag — only where it is drawn gets held above ground.
@@ -1117,7 +1118,7 @@ function frame(now) {
       (ar && ar.ok ? ar.img.naturalHeight / ar.img.naturalWidth : 0.5) / 2;
     pp = { x: o.x - Math.cos(a) * r,
            y: Math.min(sy(0) - halfH * 0.55, o.y + Math.sin(a) * r) };
-    pth = a;
+    pth = a * align;
   }
 
   const aiming = S.phase === 'aim' || S.phase === 'drag';
