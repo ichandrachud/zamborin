@@ -362,6 +362,24 @@ function zoomForAlt(alt) {
   const t = Math.max(0, Math.min(1, alt / ZOOM_ALT));
   return LAND_ZOOM + (FLY_ZOOM - LAND_ZOOM) * t;
 }
+
+// HEIGHT ALONE IS NOT ENOUGH TO CALL THE APPROACH. A good launch comes down on
+// a long shallow glide, so it spends the whole last stretch of the run under
+// the height that would pull the camera in, and arrives having barely dollied —
+// worst on a phone, where the frame is narrow and 62% of the rest shot leaves
+// the aeroplane small at the moment you most want to see it. So the run itself
+// also drives the camera: once the aeroplane is into the last stretch of the
+// distance it is going to cover, the camera comes in regardless of height.
+// Whichever of the two asks for the closer shot wins.
+const LAND_IN = 0.80;                            // where it ends up, vs the rest shot
+const LAND_FROM = () => (wide ? 0.90 : 0.85);    // last tenth on a desktop, last 15% on a phone
+function zoomForRun(p) {
+  const s = LAND_FROM();
+  if (p <= s) return 0;                          // 0 loses the max() below
+  const t = Math.min(1, (p - s) / (1 - s));
+  const e = t * t * (3 - 2 * t);                 // eased, so it draws in rather than snaps
+  return FLY_ZOOM + (LAND_IN - FLY_ZOOM) * e;
+}
 const bgForZoom = (z) => DEPTH / (DEPTH + (1 / z - 1));
 const BG_ZOOM = DEPTH / (DEPTH + (1 / FLY_ZOOM - 1));   // works out at 0.77
 // How much of the frame the backdrop stands in, and how fast it drifts. The two
@@ -1107,7 +1125,9 @@ function frame(now) {
     if (!S.touched && q.y <= M.build(S.plane).gearH + 0.4) {
       S.touched = true; touchSound(spd);
     }
-    const z = zoomForAlt(q.y - (M.build(S.plane).gearH || 0));
+    const gearH = M.build(S.plane).gearH || 0;
+    const run = S.flight.dist > 0 ? q.x / S.flight.dist : 0;
+    const z = Math.max(zoomForAlt(q.y - gearH), zoomForRun(run));
     S.ppmTarget = z * restPPM();
     S.bgZoomTarget = bgForZoom(z);
     chase(q.x, q.y, 0.14, dt);
@@ -1122,8 +1142,8 @@ function frame(now) {
     pp = { x: sx(q.x), y: sy(q.y) }; pw = q;
   } else if (S.phase === 'rest' && S.flight) {
     const e = S.flight.trace[S.flight.trace.length - 1];
-    S.ppmTarget = LAND_ZOOM * restPPM();
-    S.bgZoomTarget = bgForZoom(LAND_ZOOM);
+    S.ppmTarget = LAND_IN * restPPM();          // hold where the approach left it
+    S.bgZoomTarget = bgForZoom(LAND_IN);
     chase(e.x, 0, 0.10, dt);
     pp = { x: sx(e.x), y: sy(e.y) }; pth = e.th; pw = e;
   } else {
