@@ -31,8 +31,8 @@ const M = window.TAILWIND_MODEL;
 // is the launch that gets it there (best draw runs 0.51 to 0.80). Flying one on
 // another's launch costs up to half the distance.
 const FLEET = [
-  { key: 'Lacerta', file: 'lacerta.webp', blurb: 'Long wing, light bones. Glides for ever — if you draw it gently.' },
-  { key: 'Vesper',  file: 'vesper.webp',  blurb: 'No weakness to work around. A good one to learn the catapult on.' },
+  { key: 'Lacerta', file: 'lacerta.webp', blurb: 'Long wing, light bones. The most forgiving to aim — but it will not take a hard draw.' },
+  { key: 'Vesper',  file: 'vesper.webp',  blurb: 'No weakness to work around, and no special talent either.' },
   { key: 'Tsunami', file: 'tsunami.webp', blurb: 'All lift and no manners. Floats, once you stop over-winding it.' },
   { key: 'Sirocco', file: 'sirocco.webp', blurb: 'Short wing, big engine. Wants speed rather than height.' },
   { key: 'Zephyr',  file: 'zephyr.webp',  blurb: 'Heavy and blunt, and strong enough to take almost any launch.' },
@@ -196,7 +196,6 @@ function loadBests() {
 function saveBests(b) { try { localStorage.setItem(KEY, JSON.stringify(b)); } catch (e) {} }
 
 const FRAME_W = 760, FRAME_H = 600;   // the site-wide desktop frame
-const DESKTOP_MIN = 1151;
 // The catapult artwork is tailwind/assets/catapult.svg. It is READ at runtime
 // rather than copied in, so editing the asset changes the game; the values
 // below are only a fallback for when the fetch fails. Its pivot circle is the
@@ -212,7 +211,9 @@ const SVG = { w: 111, h: 177, px: 94.342, py: 37, pivotH: 140 };
 // pivot heights and the asset draws it at 1.264.
 const PLANE_OF_PIVOT = 0.715;   // plane length; was 0.975, a third too big
 const NEST_DX = -0.207;         // its centre, left of the fork
-const NEST_DY = +0.044;         // and a little above it; sets model LAUNCH_H
+// (the sling used to sit a little above the pivot too, at +0.044 of pivot
+//  height — that is where model CFG.LAUNCH_H comes from. Nothing reads it now
+//  that the assembly hangs off the screw itself.)
 const BAND_T0 = 2.8, BAND_T1 = 5.4;    // band HALF-width at fork / far end, SVG units
 const PLANE_LEN_M = PLANE_OF_PIVOT * 8.0;   // PIVOT_H, in world metres
 // Chosen so the whole rig fits: the fork stands 1.264 pivot heights tall, which
@@ -229,7 +230,6 @@ const GROUND_FRAC = 0.17;             // apron below the horizon
 // itself does not, so accent is used for marks and ink for type.
 const ACCENT = '#D8523F';
 const INK = 'rgba(14,23,38,0.92)';        // --bg at full strength
-const INK_SOFT = 'rgba(14,23,38,0.62)';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');

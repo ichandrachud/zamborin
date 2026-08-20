@@ -488,14 +488,23 @@ function fly(plane, angleDeg, pull, opts = {}) {
         cl = Math.min(cl, 0.35 * clMax);             // barely any lift
         sep = Math.max(sep, 0.35);                   // and a lot of drag
       }
+      // IN-FLIGHT FLEX IS CURRENTLY UNREACHABLE, and that is not a bug. Launch
+      // strain caps the draw before any flyable launch can pull more than nMax
+      // in the air: swept over 20,664 launches — six planes, every angle, every
+      // draw, four winds — this branch fired exactly zero times. It is kept as
+      // a guard, because raising E_MAX or STROKE would make it live again, and
+      // FLEX_CD is applied here so that the guard is whole rather than half a
+      // model. Wiring it in changed nothing measurable, which is the point.
+      let flexCd = 0;
       const n = Math.abs(qbar * cl) / (p.m * g);
       if (n > p.nMax) {                              // and the tips twist under load
         const f = Math.min(1.5, (n - p.nMax) / p.nMax);
         flex = Math.max(flex, f);
         cl /= 1 + CFG.FLEX_CL * f;
+        flexCd = CFG.FLEX_CD * f * f;
       }
 
-      const cd = cd0 + p.kInd * cl * cl + 1.10 * sep * sep;
+      const cd = cd0 + p.kInd * cl * cl + 1.10 * sep * sep + flexCd;
       const L = qbar * cl, D = qbar * cd;
 
       const dv = (-D / p.m - g * Math.sin(gam)) * dt;
