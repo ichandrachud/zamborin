@@ -261,12 +261,22 @@
   // rainbow went when the panes came in. User's call, 2026-08-20, after seeing
   // both. The symmetry now reads from the pattern rather than from the colour.
   //
-  // These four are nowhere near 3:1 from one another and do not need to be:
-  // the dark came around every pane is what identifies it as its own object.
-  // That is the linework trick from the studio's contrast notes, and also just
-  // how leaded glass is built. Every hue is far past 3:1 against the came.
+  // These four are nowhere near 3:1 from one another and do not need to be: the
+  // came around every pane is what identifies it as its own object. That is the
+  // linework trick, and also just how leaded glass is built.
+  //
+  // A white came squeezes these from both sides, and the band is narrow:
+  //   vs the CAME     >= 3:1  puts a ceiling on luminance at 0.30
+  //   vs an empty SOCKET >= 3:1  puts a floor on it at 0.117
+  // Miss the ceiling and the white line vanishes along that pane's edge and
+  // stops separating anything (the old bright set measured 1.44:1 for yellow).
+  // Miss the floor and a pane is indistinguishable from a hole, which is how
+  // the first deep set failed: sapphire against a socket was 2.64:1.
+  // All four are parked in the middle of that band at luminance 0.21, so they
+  // clear white at ~4:1 and an empty socket at ~4.8:1. Equal luminance means
+  // they separate by HUE alone, which is exactly what shape-only mode is for.
   // Mirrors --kal-pane1..4 in shared/tokens.css.
-  const PANE_COL = ['#E4634F', '#FFD23F', '#5DD39E', '#63C4E8'];
+  const PANE_COL = ['#E04A3D', '#AA741A', '#1F9061', '#2F80D5'];   // ruby amber emerald sapphire
 
   // The cycling lever. A rotation by k also advances the token by k, over the
   // 3-cycle petal -> diamond -> trefoil. Dot is the fixed point. 3 divides the
@@ -834,7 +844,10 @@
   function lighten(c, f) { const [r, g, b] = hex(c); return hx(r + (255 - r) * f, g + (255 - g) * f, b + (255 - b) * f); }
 
   // ---------- RENDER ----------
-  const LEAD = 5;                              // px of dark came between panes
+  // 30% of what it was, at the user's ask. LEAD is the TOTAL gap between two
+  // panes, split half either side.
+  const LEAD = 1.5;
+  const CAME = '#FFFFFF';
   function cellPath(r, s, grow) {
     const r0 = ringR[r] + LEAD * 0.5, r1 = ringR[r + 1] - LEAD * 0.5;
     if (r1 <= r0) return false;
@@ -907,8 +920,11 @@
   // The stone the glass is set into. Without it the cell beds were LIGHTER
   // than their surround, which inverts the read: glass has to sit in shadow to
   // look lit.
+  // The came layer. Every pane is inset by half of LEAD, so this disc is what
+  // shows through the gaps and IS the leading: one continuous net rather than a
+  // set of strokes that have to meet each other correctly at the joins.
   function drawStone() {
-    ctx.fillStyle = 'rgba(6,11,21,0.62)';
+    ctx.fillStyle = CAME;
     ctx.beginPath(); ctx.arc(bcx, bcy, ringR[RINGS] + LEAD, 0, TAU); ctx.fill();
   }
 
@@ -954,11 +970,15 @@
     if (!seamBad.length) return;
     ctx.save();
     ctx.lineCap = 'round';
-    ctx.shadowColor = 'rgba(216,82,63,0.95)';
+    ctx.shadowColor = 'rgba(216,82,63,0.9)';
     for (const e of seamBad) {
-      ctx.shadowBlur = 9;
-      ctx.strokeStyle = '#FFE3D6';
-      ctx.lineWidth = 2.6;
+      // Black, not red. The came it replaces is white, and the two panes either
+      // side are the SAME colour by definition, so a red line would have to be
+      // legible on ruby, which it is not. Black clears 3:1 on every pane and on
+      // the white net alike.
+      ctx.shadowBlur = 7;
+      ctx.strokeStyle = '#08101F';
+      ctx.lineWidth = LEAD * 2.2;
       ctx.beginPath();
       if (e.kind === 'ang') {
         const pad = LEAD;
@@ -991,11 +1011,10 @@
         // happens to be dull, so it goes DARKER than the stone, and the ones in
         // the wedge take a faint lift to say they are yours to fill.
         if (t < 0) {
-          // An empty socket has to be LIGHTER than the came, not darker. Darker
-          // made every gap merge with the leading around it into one black blob,
-          // so a window with seven holes read as a window with three big ones.
-          // Lighter reads as an empty frame with the stone showing through.
-          ctx.fillStyle = inWedge ? 'rgba(255,255,255,0.11)' : 'rgba(255,255,255,0.05)';
+          // Dark, now that the came is white: a socket has to be the opposite of
+          // the leading around it or the gap stops reading as a gap. The ones in
+          // the lit wedge are a touch lighter to say they are yours to fill.
+          ctx.fillStyle = inWedge ? '#182034' : '#0A0E18';
           ctx.fill();
           continue;
         }
@@ -1042,13 +1061,9 @@
         }
       }
     }
-    // the came network, drawn last so it sits over every edge as one continuous
-    // lead. This is also what makes the pane colours legal: the four hues are
-    // nowhere near 3:1 from each other and do not need to be, because the lead
-    // is what identifies each pane as its own object.
-    ctx.strokeStyle = 'rgba(8,14,26,0.75)';
-    ctx.lineWidth = 1.5;
-    for (let r = 1; r < RINGS; r++) { ctx.beginPath(); ctx.arc(bcx, bcy, ringR[r], 0, TAU); ctx.stroke(); }
+    // No stroked ring boundaries any more. They used to add a dark hairline down
+    // the middle of each gap, which now would be a dark line drawn along the
+    // centre of a white came. The gaps already are the net.
     drawWedgeMark();
     drawSeamBreaks();
   }
@@ -1060,15 +1075,17 @@
   function drawWedgeMark() {
     const r0 = ringR[0], r1 = ringR[RINGS];
     const w = TAU / N_FOLD;                    // one fold, whatever the fold is
-    ctx.strokeStyle = 'rgba(214,228,247,0.52)';
-    ctx.lineWidth = 1.6; ctx.lineCap = 'round';
+    // A heavier came, not a brighter one: the net is already white, so the wedge
+    // can only be marked out by WIDTH.
+    ctx.strokeStyle = CAME;
+    ctx.lineWidth = LEAD * 2.6; ctx.lineCap = 'round';
     for (const a of [A0, A0 + w]) {
       ctx.beginPath();
       ctx.moveTo(bcx + r0 * Math.cos(a), bcy + r0 * Math.sin(a));
       ctx.lineTo(bcx + r1 * Math.cos(a), bcy + r1 * Math.sin(a));
       ctx.stroke();
     }
-    ctx.strokeStyle = 'rgba(214,228,247,0.30)';
+    ctx.lineWidth = LEAD * 1.8;
     ctx.beginPath(); ctx.arc(bcx, bcy, r1, A0, A0 + w); ctx.stroke();
   }
 
@@ -1078,7 +1095,9 @@
   function drawBoss(now) {
     const w = phase === 'won' ? Math.min(1, (now - wonT) / 900) : 0;
     const R = ringR[0] - LEAD * 0.5;
-    ctx.fillStyle = w > 0 ? lighten(PLAIN, w * 0.7) : PLAIN;   // --kal-plain, so it sits in the palette rather than above it
+    // Dark, because a pale boss inside a white net simply merges with it. This
+    // reads as the oculus at the centre rather than as another pane.
+    ctx.fillStyle = w > 0 ? lighten('#0A0E18', w * 0.55) : '#0A0E18';
     ctx.beginPath(); ctx.arc(bcx, bcy, R, 0, TAU); ctx.fill();
   }
 
@@ -1267,7 +1286,7 @@
     const fold = 6, secOf = (i) => 6 * (i + 1);
 
     // the stone, so the demo reads as the same object as the board
-    ctx.fillStyle = 'rgba(6,11,21,0.55)';
+    ctx.fillStyle = CAME;
     ctx.beginPath(); ctx.arc(cx, cy, rr[DEMO_RINGS] + 2, 0, TAU); ctx.fill();
 
     for (let r = 0; r < DEMO_RINGS; r++) {
@@ -1285,7 +1304,7 @@
           ctx.closePath();
         };
         path();
-        ctx.fillStyle = inWedge ? 'rgba(255,255,255,0.11)' : 'rgba(255,255,255,0.05)';
+        ctx.fillStyle = inWedge ? '#182034' : '#0A0E18';
         ctx.fill();
 
         // the wedge fills in sequence; each copy follows one rotation behind
@@ -1306,11 +1325,11 @@
         ctx.globalAlpha = 1;
       }
     }
-    ctx.fillStyle = PLAIN;
+    ctx.fillStyle = '#0A0E18';
     ctx.beginPath(); ctx.arc(cx, cy, rr[0] - 1, 0, TAU); ctx.fill();
     // the lit wedge, same mark the board uses
     const w6 = TAU / fold;
-    ctx.strokeStyle = 'rgba(214,228,247,0.55)'; ctx.lineWidth = 1.3; ctx.lineCap = 'round';
+    ctx.strokeStyle = CAME; ctx.lineWidth = 2.4; ctx.lineCap = 'round';
     for (const a of [A0, A0 + w6]) {
       ctx.beginPath();
       ctx.moveTo(cx + rr[0] * Math.cos(a), cy + rr[0] * Math.sin(a));

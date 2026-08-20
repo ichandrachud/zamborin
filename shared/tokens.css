@@ -25,16 +25,19 @@
   --brand:     #B0E0E6;          /* powder blue */
 
   /* Kaleido glass. A pane is filled edge to edge and its colour IS the piece.
-     These four are nowhere near 3:1 from each other and do not need to be: the
-     dark came around every pane is what identifies it as its own object, which
-     is the linework trick, and also just how leaded glass is built. Every hue
-     clears 3:1 against the came by a wide margin. */
-  --kal-pane1:   #E4634F;        /* coral, a tint of --accent */
-  --kal-pane2:   #FFD23F;        /* = --accent-2 */
-  --kal-pane3:   #5DD39E;        /* = --green */
-  --kal-pane4:   #63C4E8;        /* sky */
+     The came is WHITE, which squeezes these from both sides: each pane must
+     clear 3:1 against the came, or the line vanishes along its edge and stops
+     separating anything, AND 3:1 against an empty socket, or a pane cannot be
+     told from a hole. That leaves a luminance band of 0.117 to 0.30. All four
+     sit in the middle of it at 0.21, clearing white at ~4:1 and a socket at
+     ~4.8:1. They separate by hue alone, which is what shape-only mode is for. */
+  --kal-pane1:   #E04A3D;        /* ruby */
+  --kal-pane2:   #AA741A;        /* amber */
+  --kal-pane3:   #1F9061;        /* emerald */
+  --kal-pane4:   #2F80D5;        /* sapphire */
+  --kal-came:    #FFFFFF;        /* the leading between panes */
+  --kal-socket:  #0A0E18;        /* an empty socket waiting for glass */
   --kal-plain:   #C9D6EA;        /* shape-only mode: one glass, shape cut into it */
-  --kal-leading: #0A1120;        /* the came between panes */
 }
 
 html, body {
