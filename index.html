@@ -130,11 +130,11 @@
 
     /* Arcade & board games — a smaller, secondary section under the puzzle line. */
     .group-title { font-size: 14px; font-weight: 800; letter-spacing: 1.8px; text-transform: uppercase; color: var(--text-mute); margin: 12px 0 -10px; }
-    .arcade { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
-    .mini-card { display: grid; grid-template-columns: 42% 1fr; background: #14213D; border-radius: 16px; overflow: hidden; text-decoration: none; color: inherit; min-height: 150px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06), 0 12px 24px -14px rgba(0,0,0,0.5); transition: box-shadow .18s ease; }
+    .arcade { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .mini-card { display: grid; grid-template-columns: 1fr; background: #14213D; border-radius: 16px; overflow: hidden; text-decoration: none; color: inherit; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06), 0 12px 24px -14px rgba(0,0,0,0.5); transition: box-shadow .18s ease; }
     .mini-card:hover { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.10), 0 18px 34px -14px rgba(0,0,0,0.62); }
-    .mini-card-image { background-size: cover; background-position: center; background-color: #0E1726; }
-    .mini-card-body { padding: 18px 22px; display: flex; flex-direction: column; justify-content: center; gap: 6px; box-sizing: border-box; }
+    .mini-card-image { aspect-ratio: 16 / 10; background-size: cover; background-position: center; background-color: #0E1726; }
+    .mini-card-body { padding: 18px 20px 22px; display: flex; flex-direction: column; gap: 7px; box-sizing: border-box; }
     .mini-card-name { font-size: 23px; font-weight: 800; letter-spacing: -0.4px; color: var(--text); line-height: 1.05; }
     .mini-card-desc { font-size: 13.5px; font-weight: 500; line-height: 1.5; color: var(--text-dim); }
 
@@ -156,8 +156,6 @@
       .game-card-name { font-size: 30px; }
       .game-card-desc { font-size: 16px; }
       .arcade { grid-template-columns: 1fr; gap: 14px; }
-      .mini-card { grid-template-columns: 1fr; min-height: 0; }
-      .mini-card-image { aspect-ratio: 16 / 10; }
     }
 
     .lobby-foot {
