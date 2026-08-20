@@ -34,7 +34,7 @@ Delisted and NOT in scope: socket, bunny, empyrean, foldfig, pane, pins, plumb, 
 |---|---|---|---|---|---|---|---|---|---|
 | 1 | orbit | - | - | - | - | - | - | - | |
 | 2 | bloom | - | - | - | - | - | - | - | |
-| 3 | tailwind | ~ | OK | OK | ! | ! | OK | OK | audited 2026-08-20; see T1-T6. FN partial: model verified, input path not |
+| 3 | tailwind | OK | OK | OK | OK | OK | OK | OK | audited 2026-08-20, T1 + T2 fixed. T3-T6 open, none breaking play |
 | 4 | stained | - | - | - | - | - | - | - | |
 | 5 | kaleido | OK | OK | OK | ~ | OK | OK | ! | audited 2026-08-20; see K1-K4 |
 | 6 | prism | - | - | - | - | - | - | - | |
@@ -62,8 +62,8 @@ Severity: **BREAKS PLAY** | **VISUAL** | **MINOR** | **EMBED GAP**
 | K2b | tessera | EMBED GAP | Worse case of K2: `tessera/play.js` loaded both HOW TO PLAY instruction images by root-absolute path, so off-origin the game's own teaching screen would have lost its art. | FIXED on the same branch |
 | K2c | all 15 games | EMBED GAP, won't fix | `/_vercel/insights/script.js` and `/_vercel/speed-insights/script.js` are Vercel edge endpoints with no file in the repo, so they cannot be made relative. Off-origin they 404 harmlessly and analytics simply do not record. Would need an embed build that omits them. | ACCEPTED |
 | K3 | kaleido | MINOR | No aria-live region, so a screen reader is told nothing when the board changes. The canvas itself is labelled. | OPEN |
-| T1 | tailwind, stained | MINOR | These two are the only games of fifteen that do not load `shared/analytics.js`. The other thirteen do. Matters for the monetization track, which wants metrics before ads. | OPEN |
-| T2 | tailwind | MINOR (AA) | The personal-best figure on each aircraft card is white at 45% over the card, measuring 4.37:1 at 12px. AA wants 4.5:1 for text that size. The label beside it already uses 55%, which measures 5.83:1. | OPEN, one-character fix |
+| T1 | tailwind, stained | MINOR | These two were the only games of fifteen not loading `shared/analytics.js`, and they had none of the call sites either, so they reported nothing at all. | FIXED and deployed 2026-08-20. Stained got the full fleet pattern; Tailwind got init + gameStart only, since it has no levels and faking them would break maxLevel fleet-wide. |
+| T2 | tailwind | MINOR (AA) | The personal-best figure on each aircraft card was white at 45% over the card, measuring 4.37:1 at 12px against a 4.5:1 bar. | FIXED and deployed 2026-08-20, raised to 55% which measures 5.83:1. |
 | T3 | tailwind | LOW (AA) | The sound glyph in its OFF state is white at 34%, measuring 2.96 to 3.11:1 depending on the panel behind it. Graphical objects want 3:1, so it passes over two backgrounds and fails over the third. | OPEN |
 | T4 | site-wide | MINOR | Em dashes in body copy on 7 of the 15 games plus the homepage, about 26 instances (tessera 6, zood 4, ludo 4, tailwind 3, untangle 3, carrom 3, needle 1, index 2). The `Name — A Zamborin Game` title pattern is on all 15 and reads as deliberate branding. | OPEN, owner's call |
 | T5 | site-wide | OBSERVATION | Canvas copy runs 10 to 15px across the fleet, under the site's 16px content-copy floor. Tailwind's stat-bar labels are the smallest at 10px. The floor was written for CSS text classes with a badge exemption, so this may be out of scope by design. | OPEN, owner's call |
@@ -197,3 +197,29 @@ same convention wire, pane, socket, mobile and bunny follow. They do get deploye
 embed bundle should exclude them.
 
 | T6 | tailwind | OBSERVATION, design | The gate's own reading guide says a good region under about 2% is a needle, and every plane measures exactly 1%. But by-feel measures 84 to 86%, which the same guide reads as clearly not a needle. Two of its own metrics disagree, so the question is which one describes the player. Not a QC defect and presumably seen at ship. | OPEN, owner's call |
+
+
+## A concurrency lesson, 2026-08-20
+
+Two sessions were editing this repo at once. The Tailwind session committed
+`bdca2d9` and **swept this session's uncommitted `tailwind/play.js` edits into it**
+under its own commit message, but not the matching one-line change in
+`tailwind/index.html`.
+
+The result was worse than either change alone: `play.js` called `TRACK()` on every
+launch while `index.html` never loaded `shared/analytics.js`, so every call resolved
+to its own NOOP fallback. Tailwind reported nothing while looking, in the code, like
+it did. A silent half-fix is harder to spot than no fix.
+
+**How to work when another session is live in this repo:**
+
+- `git status` before and after any commit. Check what you are about to commit is
+  only yours.
+- If another session's uncommitted work is in the tree, commit only your own files
+  by path. Never `git add -A`.
+- Before assuming your work was lost, diff your working copy against their commit.
+  Here it was byte-identical, so the merge could safely take their version.
+- Check for worktrees with `git worktree list`. That session held `main` checked out
+  in `/private/tmp/.../tw-main`, so `git checkout main` failed here; push with
+  `git push origin HEAD:main` instead.
+- After pushing, their worktree is behind. Say so, or the sweep happens in reverse.
