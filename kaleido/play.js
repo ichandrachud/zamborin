@@ -615,11 +615,16 @@
 
   // ---------- LAYOUT ----------
   let bcx = 0, bcy = 0, boardR = 200, ringR = [];
-  const topBand = () => MODE === 'mobile' ? 60 : 56;
-  // Palette row only. The prototype's dial row is gone now that cycling and the
-  // seam rule are driven by the ramp, which hands the board its radius back.
-  const botBand = () => MODE === 'mobile' ? 148 : 92;
-  const SIDE_PAD = MODE === 'mobile' ? 12 : 30;
+  // These are the site's numbers, not this game's. Bloom, Prism, Stained, Needle
+  // and Sluice all use 64 on a phone and 56 on desktop, and 18 / 30 of side
+  // padding. Kaleido had drifted to 60 and 12.
+  const topBand = () => MODE === 'mobile' ? 64 : 56;
+  // Room under the board for the palette. Prism puts its piece rack under the
+  // board too and centres it on LH - botBand()/2, which is the shape followed
+  // here; the band is deeper than Prism's only because a colour swatch is a far
+  // bigger target than one of its little glyphs.
+  const botBand = () => MODE === 'mobile' ? 176 : 84;
+  const SIDE_PAD = MODE === 'mobile' ? 18 : 30;
 
   // Three separate jobs, kept apart because they used to be one function that
   // could re-enter genLevel from inside itself.
@@ -1040,6 +1045,17 @@
             ctx.fillStyle = Z.bg;                                   // --bg, a hole through
           }
           ctx.fill();
+          // A dot, so a socket announces itself as a socket. Dark alone was not
+          // enough: an empty pane and the dark ground between the outer rim and
+          // the frame are the same value, so the gaps did not read as holes in
+          // the window so much as smudges on it. The dot is a positive mark and
+          // it cannot be mistaken for anything else on this board, since nothing
+          // else here is a small centred shape.
+          const cd = cellCentre(r, s);
+          ctx.fillStyle = inWedge ? Z.textDim : Z.textMute;
+          ctx.beginPath();
+          ctx.arc(cd.x, cd.y, Math.max(2, cellSize(r) * 0.22), 0, TAU);
+          ctx.fill();
           continue;
         }
 
@@ -1187,7 +1203,8 @@
     const n = NSHAPE, sz = MODE === 'mobile' ? 58 : 54, gap = MODE === 'mobile' ? 14 : 16;
     const totw = n * sz + (n - 1) * gap;
     let x = Math.round(LW / 2 - totw / 2);
-    const cy = MODE === 'mobile' ? LH - 62 : LH - 48;
+    // Under the board, centred in the bottom band, as Prism's rack is.
+    const cy = MODE === 'mobile' ? LH - 136 : LH - Math.round(botBand() / 2);
     for (let t = 0; t < n; t++) {
       const on = sel === t;
       const bx = x, by = Math.round(cy - sz / 2);
@@ -1254,6 +1271,9 @@
         x += ws[i] + gap;
       });
     };
+    // Desktop: the row the title used to have, left, opposite the read-out.
+    // Phone: the BOTTOM row, below the palette. That is the locked decision, and
+    // it is Prism's arrangement too, which puts its rack above its controls.
     if (MODE !== 'mobile') { row(game, Math.round(topBand() / 2), true, true); return; }
     // On a phone the controls stay at the bottom, in thumb reach, and PACK into
     // as many rows as they need. Five pills do not fit 375px on one line, and a
@@ -1266,7 +1286,7 @@
       if (used + w > avail && rows[rows.length - 1].length) { rows.push([]); used = 0; }
       rows[rows.length - 1].push(it); used += w;
     }
-    const base = LH - 118 - (rows.length - 1) * (P.h + 10);
+    const base = LH - 74 - (rows.length - 1) * (P.h + 10);
     rows.forEach((items, i) => row(items, base + i * (P.h + 10), false, i === 0));
   }
 
