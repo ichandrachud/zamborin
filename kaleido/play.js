@@ -1581,46 +1581,77 @@
     const rules = rulesFor();
     const cx = LW / 2;
     const pw = Math.min(LW - 48, 470);
+    const LEAD = 'Complete the figure so it holds under every turn of the wheel.';
     // Measure the copy before drawing the card, so the card fits the rules
     // rather than the rules being cropped by a hardcoded height.
-    ctx.font = '500 15px Inter, sans-serif';
-    let bodyH = 0;
-    for (const r of rules) bodyH += measureWrapped(r, pw - 96, 20) + 12;
-    ctx.font = '600 16px Inter, sans-serif';
-    const leadH = measureWrapped('Complete the figure so it holds under every turn of the wheel.', pw - 70, 23);
+    //
+    // Everything vertical is measured at a TYPE SCALE, so the same numbers can
+    // be asked "and how tall would you be a bit smaller?". Horizontal geometry
+    // is deliberately NOT scaled: the text column stays pw - 96 wide, so a
+    // smaller face simply wraps to fewer lines, which is the direction we want.
+    // The two BUTTON heights are not scaled either. They are the house sizes
+    // and they are touch targets; shrinking a tap target to win layout space is
+    // the wrong trade.
+    const metrics = (s) => {
+      const m = { s,
+        padTop: 26 * s, padBot: 22 * s, titleAdv: 38 * s,
+        titleF: 34 * s, leadF: 16 * s, leadStep: 23 * s,
+        bodyF: 15 * s, bodyStep: 20 * s, ruleGap: 12 * s,
+        dotR: 11 * s, dotF: 13 * s, afterLead: 10 * s, afterBody: 20 * s };
+      ctx.font = '500 ' + m.bodyF.toFixed(2) + 'px Inter, sans-serif';
+      m.bodyH = 0;
+      for (const r of rules) m.bodyH += measureWrapped(r, pw - 96, m.bodyStep) + m.ruleGap;
+      ctx.font = '600 ' + m.leadF.toFixed(2) + 'px Inter, sans-serif';
+      m.leadH = measureWrapped(LEAD, pw - 70, m.leadStep);
+      m.chrome = m.padTop + m.titleAdv + m.leadH + m.afterLead + m.bodyH + m.afterBody
+               + ZUI.PILL.h + 12 + ZUI.CTA.h + m.padBot;
+      return m;
+    };
     // Shrink the DEMO until the card fits, and drop it entirely rather than let
     // anything overlap. Clamping the card height while the content kept its full
     // length is what drove the button through the bottom rule.
     const maxH = LH - 20;
-    const chrome = 26 + 38 + leadH + 10 + bodyH + 20 + ZUI.PILL.h + 12 + ZUI.CTA.h + 22;
+    let M = metrics(1);
     // Shrink the demo to fit, and only drop it once it would be too small to
     // read. The floor was 44, which on a 600-tall desktop canvas meant that
     // adding the colourblind switch pushed the demo out of the card entirely.
     // A small demo still shows one tap becoming six panes; no demo shows
     // nothing, and that animation is the only thing that teaches the copying.
     let demoR = MODE === 'mobile' ? 74 : 66;
-    while (demoR > 0 && chrome + demoR * 2 + 14 > maxH) demoR = demoR > 30 ? demoR - 4 : 0;
+    while (demoR > 0 && M.chrome + demoR * 2 + 14 > maxH) demoR = demoR > 30 ? demoR - 4 : 0;
+    // THE CASE THE DEMO CANNOT COVER — 2026-08-20. Dropping the demo buys about
+    // 150px. In a short AND narrow container (a 480x360 embed, say) the copy
+    // alone is still taller than the viewport: the card clamped to maxH, the
+    // text kept flowing past it, and the two buttons, which hang off the card's
+    // BOTTOM edge, drew straight through rules 3 and 4. So once the demo is
+    // gone, shrink the copy until it fits. The floor is deliberate: below 0.72
+    // the rules stop being readable, and at that point a clipped rule is the
+    // better failure, so it stops trying.
+    let ts = 1;
+    while (ts > 0.72 && M.chrome > maxH) { ts = Math.max(0.72, ts - 0.04); M = metrics(ts); }
     const demoH = demoR > 0 ? demoR * 2 + 14 : 0;
-    const ph = Math.min(maxH, chrome + demoH);
+    const ph = Math.min(maxH, M.chrome + demoH);
     const px = (LW - pw) / 2, py = (LH - ph) / 2;
     ctx.fillStyle = Z.bgCard; ZUI.roundRectPath(ctx, px, py, pw, ph, 22); ctx.fill();
     ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ZUI.roundRectPath(ctx, px, py, pw, ph, 22); ctx.stroke();
-    let y = py + 26;
-    ctx.fillStyle = Z.text; ctx.font = '800 34px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-    ctx.fillText('KALEIDO', cx, y); y += 38;
-    ctx.fillStyle = Z.textDim; ctx.font = '600 16px Inter, sans-serif';
-    y = wrapText('Complete the figure so it holds under every turn of the wheel.', cx, y, pw - 70, 23); y += 10;
+    let y = py + M.padTop;
+    ctx.fillStyle = Z.text; ctx.font = '800 ' + M.titleF.toFixed(2) + 'px Inter, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('KALEIDO', cx, y); y += M.titleAdv;
+    ctx.fillStyle = Z.textDim; ctx.font = '600 ' + M.leadF.toFixed(2) + 'px Inter, sans-serif';
+    y = wrapText(LEAD, cx, y, pw - 70, M.leadStep); y += M.afterLead;
     if (demoR > 0) drawDemo(cx, y + demoR, demoR, now);
     y += demoH;
     const rx = px + 30;
     const step = Math.max(1, Math.floor(PANE_COL.length / Math.max(1, rules.length)));
     for (let i = 0; i < rules.length; i++) {
       ctx.fillStyle = PANE_COL[(i * step) % PANE_COL.length];
-      ctx.beginPath(); ctx.arc(rx + 11, y + 11, 11, 0, TAU); ctx.fill();
-      ctx.fillStyle = Z.bg; ctx.font = '800 13px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(String(i + 1), rx + 11, y + 12);
-      ctx.fillStyle = Z.textDim; ctx.font = '500 15px Inter, sans-serif';
-      y = wrapText(rules[i], rx + 32, y, pw - 96, 20, 'left') + 12;
+      ctx.beginPath(); ctx.arc(rx + 11, y + M.dotR, M.dotR, 0, TAU); ctx.fill();
+      ctx.fillStyle = Z.bg; ctx.font = '800 ' + M.dotF.toFixed(2) + 'px Inter, sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(String(i + 1), rx + 11, y + M.dotR + 1);
+      ctx.fillStyle = Z.textDim; ctx.font = '500 ' + M.bodyF.toFixed(2) + 'px Inter, sans-serif';
+      y = wrapText(rules[i], rx + 32, y, pw - 96, M.bodyStep, 'left') + M.ruleGap;
     }
     // The colourblind switch, and it needs to be HERE rather than nowhere. The
     // mode was built, the FAQ on the page promises it, and the only ways to
