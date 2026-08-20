@@ -5,10 +5,10 @@
    rotation at once. You edit one wedge; the rest of the mandala is its
    rotated copy and updates live.
 
-   Circle board under C6, all three depth levers wired and driven by the
-   ramp: the SEAM RULE (a piece may not touch its own kind), LOCKED
-   GIVENS across orbits, and SHAPE CYCLING (a rotation also advances the
-   shape, petal -> diamond -> trefoil).
+   Circle board, and the difficulty comes from two things driven by the
+   ramp: the SEAM RULE (no two panes of the same colour may touch) and how
+   much of the window is missing. The brief's third lever, colour cycling,
+   was built and then CUT: see setFold() for the measurement.
 
    The seam rule LEADS the ramp, and that order came from a measurement
    rather than a preference. Givens and cycling produce exactly zero
@@ -21,7 +21,7 @@
    The square D4 renderer is milestone 3, the monetized page is 4.
 
    Architecture note, because it is the whole point of the build: the
-   symmetry lives in orbitOf() / permT() and knows nothing about pixels.
+   symmetry lives in orbitOf() and knows nothing about pixels.
    The renderer knows nothing about the group. Swapping in D4 on a square
    grid replaces the geometry either side of that line and nothing in
    between.
@@ -103,18 +103,21 @@
   // cycle is 2, and at any fold with no usable divisor cycling is simply off.
   function setFold(n) { N_FOLD = n; }
 
-  // Whether EVERY colour can be moved by one turn of the wheel. The permutation
-  // has to satisfy p^fold = identity, and there are two ways to get that with no
-  // colour left behind: a single cycle through all of them when the count
-  // divides the fold, or a set of straight swaps when both are even.
+  // CUT 2026-08-20: the colour-cycling twist, where a copy came back a different
+  // colour as it went round the wheel. It was the brief's novelty hook and it is
+  // gone, on two findings that agree.
   //
-  // If neither fits, cycling is OFF for that level. It used to fall back to
-  // whatever partial permutation was available, which is the bug: at two-fold
-  // it swapped red and yellow and left green and pale blue untouched, so two
-  // colours transformed and two did not with nothing on the board to say why.
-  // A rule that applies to some of the pieces and not others cannot be learned.
-  const cycleFits = (fold, shapes) =>
-    (fold % shapes === 0) || (shapes % 2 === 0 && fold % 2 === 0);
+  // It needed explaining, and a player will not go looking for an explanation.
+  // The user hit it cold on level 75 and read it as a bug, which is the right
+  // reading of a rule you cannot see.
+  //
+  // And it bought NOTHING. Probed across every dial combination, the hardest
+  // board reachable with the twist measured 51 and without it 51. Several
+  // boards came out harder without it: five rings at three-fold with three
+  // colours went 45 with the twist to 51 without.
+  //
+  // A copy is now simply a copy. Do not reintroduce this without a measurement
+  // showing it pays for the explanation it costs.
 
   // Rings and their sector counts. 6*(r+1) keeps every ring a multiple of the
   // fold (so no cell is ever fixed by a non-identity rotation, which would
@@ -225,41 +228,42 @@
          : seamMode === 'radial' ? ADJ_RAD
          : ADJ_ANG.concat(ADJ_RAD);
     CONS_AT = Array.from({ length: NDOM }, () => []);
-    for (const c of CONS) { CONS_AT[c[0]].push(c); CONS_AT[c[2]].push(c); }
+    for (const c of CONS) { CONS_AT[c[0]].push(c); CONS_AT[c[1]].push(c); }
   }
   function reduceToWedge(pairs) {
     // Dedupe on the ROTATION DIFFERENCE, not on the two rotations. Rotating an
-    // adjacent pair gives another adjacent pair, and because permT only ever
-    // adds k, the resulting constraint is the same one written differently.
-    // Keying on both k values counted every constraint six times over, which
-    // is harmless for checking and a hairball to look at or to reason about.
+    // adjacent pair gives another adjacent pair, and the constraint it carries
+    // is the same one written differently.
     const seen = new Set(), out = [];
     for (const [a, b] of pairs) {
       const A = domainOf(a), B = domainOf(b);
       if (A.d === B.d) continue;
       const lo = A.d < B.d ? A : B, hi = A.d < B.d ? B : A;
-      const key = lo.d + ':' + hi.d + ':' + (((hi.k - lo.k) % N_FOLD) + N_FOLD) % N_FOLD;
+      // One constraint per PAIR of wedge cells. With no permutation in play the
+      // rotation a pair happens to touch at makes no difference to what the
+      // constraint says, so keying on it just stored the same rule many times.
+      const key = lo.d + ':' + hi.d;
       if (seen.has(key)) continue;
       seen.add(key);
-      out.push([lo.d, lo.k, hi.d, hi.k]);
+      out.push([lo.d, hi.d]);
     }
     return out;
   }
   // Does token t at wedge cell d sit well with everything already assigned?
   function seamOK(assign, d, t) {
-    for (const [a, ka, b, kb] of CONS_AT[d]) {
-      const other = a === d ? b : a, km = a === d ? ka : kb, ko = a === d ? kb : ka;
+    for (const [a, b] of CONS_AT[d]) {
+      const other = a === d ? b : a;
       if (assign[other] < 0) continue;
-      if (permT(t, km) === permT(assign[other], ko)) return false;
+      if (t === assign[other]) return false;
     }
     return true;
   }
   function seamBreaks() {
     if (seamMode === 'off') return 0;
     let n = 0;
-    for (const [a, ka, b, kb] of CONS) {
+    for (const [a, b] of CONS) {
       if (dom[a] < 0 || dom[b] < 0) continue;
-      if (permT(dom[a], ka) === permT(dom[b], kb)) n++;
+      if (dom[a] === dom[b]) n++;
     }
     return n;
   }
@@ -302,30 +306,6 @@
   const PANE_COL = [Z.accent, Z.accent2, Z.green, Z.brand];
 
   const PLAIN = Z.textDim;                  // shape-only mode: one glass for all
-
-  // The cycling lever, as a lookup table: PERMK[k][t] is what colour t becomes k
-  // turns round the wheel. Precomputed because permT is the innermost call in
-  // propagation and walking the permutation k times per call was measurable.
-  let PERMK = null;
-  function buildPerm() {
-    PERMK = null;
-    if (!cycleOn || !cycleFits(N_FOLD, NSHAPE)) { cycleOn = false; return; }
-    const step = [];
-    if (N_FOLD % NSHAPE === 0) {
-      for (let t = 0; t < NSHAPE; t++) step[t] = (t + 1) % NSHAPE;   // one long cycle
-    } else {
-      for (let t = 0; t < NSHAPE; t += 2) { step[t] = t + 1; step[t + 1] = t; }   // swaps
-    }
-    PERMK = [];
-    for (let k = 0; k < N_FOLD; k++) {
-      PERMK[k] = [];
-      for (let t = 0; t < NSHAPE; t++) PERMK[k][t] = k === 0 ? t : step[PERMK[k - 1][t]];
-    }
-  }
-  function permT(t, k) {
-    if (t < 0 || !PERMK) return t;
-    return PERMK[((k % N_FOLD) + N_FOLD) % N_FOLD][t];
-  }
 
   // ---------- THE RAMP ----------
   // A HUNDRED levels, and difficulty is a measured target rather than a table of
@@ -378,20 +358,16 @@
     // Asking for cycling anywhere else silently turned it off, which took the
     // twist out of most of the ramp. The stages now use the pairings that work.
     const combos = [
-      [3, 6, 3, false], [4, 6, 3, false], [5, 6, 4, false],
-      [3, 3, 3, true],  [5, 6, 4, true],  [4, 3, 3, true],
-      [4, 3, 4, false], [4, 2, 4, true],  [5, 3, 4, false],
-      [5, 3, 3, true],  [5, 2, 4, true],
+      [3, 6, 3], [4, 6, 3], [5, 6, 4], [3, 3, 3], [4, 3, 3],
+      [4, 3, 4], [5, 3, 3], [4, 2, 4], [5, 3, 4], [5, 2, 4], [5, 2, 3],
     ];
-    for (const [r0, fold, shapes, cycle] of combos) {
+    for (const [r0, fold, shapes] of combos) {
       const rings = Math.min(r0, cap);
-      const key = rings + ':' + fold + ':' + shapes + ':' + (cycle && cycleFits(fold, shapes));
+      const key = rings + ':' + fold + ':' + shapes;
       if (seen.has(key)) continue;                 // the cap collapsed it onto another
       seen.add(key);
       const wedge = (6 / fold) * rings * (rings + 1) / 2;
-      // Only ask for cycling where every colour can move under it.
-      const cyc = cycle && cycleFits(fold, shapes);
-      out.push({ rings, fold, shapes, cycle: cyc, max: Math.round(wedge * (shapes === 3 ? 1.2 : 1.05)) });
+      out.push({ rings, fold, shapes, max: Math.round(wedge * (shapes === 3 ? 1.2 : 1.05)) });
     }
     out.sort((x, y) => x.max - y.max);
     return out;
@@ -415,7 +391,7 @@
     const list = stages();
     const st = list.find((c) => c.max >= want) || list[list.length - 1];
     return { lvl, rings: st.rings, fold: st.fold, shapes: st.shapes,
-             cycle: st.cycle, seam: 'full', hardness: want };
+             seam: 'full', hardness: want };
   }
 
   // ---------- STATE ----------
@@ -426,7 +402,7 @@
   // copy it in. That is a different and much harder game than the one the board
   // appears to be, and it is what made the whole thing unreadable.
   let dom = [], solved = [], givenDom = new Set();
-  let level = 1, sel = T_PETAL, cycleOn = true, shapeOnly = false;
+  let level = 1, sel = T_PETAL, shapeOnly = false;
   let phase = 'menu', history = [], uiButtons = [], hitCells = [];
   let placeT = [], wonT = -1e9, animEnd = 0, raf = 0, fb = 0, lastMeasure = null;
   let refuseCell = -1, refuseT = -1e9, hintCell = -1, hintT = -1e9;
@@ -499,9 +475,9 @@
     let changed = true, rounds = 0;
     while (changed && rounds < 300) {
       changed = false;
-      for (const [a, ka, b, kb] of CONS) {
-        for (const [x, kx, y, ky] of [[a, ka, b, kb], [b, kb, a, ka]]) {
-          const keep = D[x].filter((t) => D[y].some((u) => permT(t, kx) !== permT(u, ky)));
+      for (const [a, b] of CONS) {
+        for (const [x, y] of [[a, b], [b, a]]) {
+          const keep = D[x].filter((t) => D[y].some((u) => t !== u));
           if (keep.length === D[x].length) continue;
           if (!keep.length) return -1;
           D[x] = keep; changed = true;
@@ -527,11 +503,11 @@
   }
   function measureLevel() {
     const m = analyse(solved, givenDom);
-    return m ? { level, seam: seamMode, cycling: cycleOn, contradiction: false,
+    return m ? { level, seam: seamMode, contradiction: false,
                  NDOM, given: m.given, blanks: m.blanks, deductions: m.deductions,
                  depth: m.depth, hardness: m.hardness,
                  undecided: m.undecided, determined: m.determined }
-             : { level, seam: seamMode, cycling: cycleOn, contradiction: true,
+             : { level, seam: seamMode, contradiction: true,
                  NDOM, given: 0, blanks: NDOM, deductions: 0, undecided: NDOM, determined: false };
   }
 
@@ -547,7 +523,6 @@
     // The wedge is SEC/fold, so the board must be rebuilt when EITHER moves.
     const foldChanged = fold !== N_FOLD;
     setFold(fold);
-    cycleOn = !!cfg.cycle;
     if (rings !== RINGS || foldChanged) buildBoard(rings);
 
     // Scramble-from-solved, with a quality gate and a fallback under it.
@@ -564,8 +539,6 @@
       let bst = null, bstScore = -Infinity, bstM = null;
       for (const shapes of [want.shapes, NTOK]) {
         NSHAPE = Math.max(2, Math.min(NTOK, shapes));
-        cycleOn = !!want.cycle;
-        buildPerm();
         seamMode = 'full';
         applySeamMode();
         for (let attempt = 0; attempt < 12; attempt++) {
@@ -593,14 +566,13 @@
     if (fold === 2) attempts.push({ ...cfg, fold: 3 });
     if (fold < 6) attempts.push({ ...cfg, fold: 6 });
     if (rings > 3) attempts.push({ ...cfg, fold: 6, rings: 3 });
-    attempts.push({ rings: 3, fold: 6, shapes: 3, cycle: false, seam: 'full', hardness: 4 });
+    attempts.push({ rings: 3, fold: 6, shapes: 3, seam: 'full', hardness: 4 });
 
     let best = null, bestM = null;
     for (const want of attempts) {
       const wf = want.fold || 6, wr = Math.max(2, Math.min(want.rings || rings, budgetRings()));
       if (wf !== N_FOLD || wr !== RINGS) {
         setFold(wf);
-        cycleOn = !!want.cycle;
         buildBoard(wr);
       }
       const got = search(want);
@@ -720,9 +692,8 @@
   // puzzle rather than producing a contradiction.
   const isGivenDom = (d) => givenDom.has(d);
   const tokAt = (i) => {
-    const { d, k } = domainOf(i);
-    const base = givenDom.has(d) ? solved[d] : dom[d];
-    return permT(base, k);
+    const d = domainOf(i).d;
+    return givenDom.has(d) ? solved[d] : dom[d];
   };
   const isLocked = (i) => givenDom.has(domainOf(i).d);
   // A given can never be wrong, so the only way to break anything now is to sit
@@ -856,7 +827,7 @@
     // is fixed.
     if (isLocked(i)) { refuseCell = i; refuseT = now; snd.blocked(); animEnd = Math.max(animEnd, now + 340); ensureAnim(now); return; }
     const { d, k } = domainOf(i);
-    const want = permT(sel, -k);
+    const want = sel;
     const prev = dom[d];
     const next = (prev === want) ? -1 : want;      // tap again to clear
     history.push([d, prev]); if (history.length > 400) history.shift();
@@ -896,10 +867,10 @@
       let left = 0;
       for (let t = 0; t < NSHAPE; t++) {
         let ok = true;
-        for (const [a, ka, b, kb] of CONS_AT[d]) {
-          const o = a === d ? b : a, km = a === d ? ka : kb, ko = a === d ? kb : ka;
+        for (const [a, b] of CONS_AT[d]) {
+          const o = a === d ? b : a;
           if (live[o] < 0) continue;
-          if (permT(t, km) === permT(live[o], ko)) { ok = false; break; }
+          if (t === live[o]) { ok = false; break; }
         }
         if (ok) left++;
       }
@@ -1526,9 +1497,6 @@
         + ' wedges at the same time, because they are copies of yours.',
       'Every gap has exactly one right answer. You never have to guess.',
     ];
-    if (cycleOn) {
-      out.push('One twist from here on: every turn of the wheel changes the glass, so a copy is never the same colour as the pane you placed.');
-    }
     return out;
   }
   // A LOOPING DEMO of the core loop, because "you edit one wedge and the rest
@@ -1536,7 +1504,17 @@
   // taught this studio that a rules card which only describes an unguessable
   // goal does not land. Six seconds, no controls: a piece lands in the lit
   // wedge, its copies bloom outward one by one, it holds, it clears, it repeats.
+  // The demo's own little figure. It has to OBEY the rule printed underneath it:
+  // the first version put red on the inner ring and alternated red and yellow on
+  // the outer one, so red touched red radially, directly under a line saying no
+  // two of the same colour may touch. A demo that breaks the rule it is
+  // illustrating teaches the wrong thing.
+  //
+  // Inner ring is one colour, outer alternates two others, so nothing touches
+  // its own kind. The inner ring's cells all match each other, which is the same
+  // exemption the real board makes: they are copies, not neighbours.
   const DEMO_RINGS = 2, DEMO_SEQ = [0, 2, 1];
+  const demoTok = (ring, sc) => (ring === 0 ? 2 : (sc % 2 === 0 ? 0 : 1));
   function drawDemo(cx, cy, R, now) {
     const t = REDUCED ? 2200 : (now % 4200);
     const rr = [];
@@ -1571,7 +1549,7 @@
         const p = Math.max(0, Math.min(1, (t - born) / 300));
         const gone = Math.max(0, Math.min(1, (t - 3500) / 400));
         if (p <= 0 || gone >= 1 || idx < 0) continue;
-        const tok = DEMO_SEQ[idx] % PANE_COL.length;
+        const tok = demoTok(r, sc) % PANE_COL.length;
         ctx.globalAlpha = ease(p) * (1 - gone);
         ctx.fillStyle = shapeOnly ? PLAIN : PANE_COL[tok];
         path(); ctx.fill();
@@ -1668,7 +1646,7 @@
 
   // ---------- DEBUG ----------
   window.__kaleido = {
-    get state() { return { level, RINGS, NCELL, NDOM, placed: placed(), clashes: conflicts(), phase, cycleOn, shapeOnly, seam: seamMode }; },
+    get state() { return { level, RINGS, NCELL, NDOM, placed: placed(), clashes: conflicts(), phase, shapeOnly, seam: seamMode }; },
     solve() { dom = solved.slice(); placeT = placeT.map(() => performance.now()); after(performance.now()); return this.state; },
     next() { genLevel(level + 1, false); }, goto(n) { genLevel(n, false); },
     // Same-shape touches side by side within a ring, as a share of all such
@@ -1699,19 +1677,15 @@
     seamBreaks() { return seamBad.length; },
     // What a given set of dials can actually reach. The ramp is designed from
     // this rather than from guesswork.
-    probe(rings, fold, shapes, cycle, maxGaps) {
-      let last = null;
-      for (let g = 2; g <= maxGaps; g++) {
-        genLevel(1, false, { rings, fold, shapes, cycle, seam: 'full', blanks: g });
-        const m = measureLevel();
-        last = { want: g, gaps: m.blanks, depth: m.depth, hardness: m.hardness, ok: m.determined };
-        if (m.blanks < g) break;                  // the board cannot hide any more
-      }
-      return { rings, fold, shapes, wedge: NDOM, cycle: cycleOn, top: last };
+    // Asks for an unreachable target so the poser strips as far as it can, and
+    // reports where it stopped. That IS the ceiling for those dials.
+    probe(rings, fold, shapes) {
+      genLevel(1, false, { rings, fold, shapes, seam: 'full', hardness: 9999 });
+      const m = measureLevel();
+      return { rings, fold, shapes, wedge: NDOM,
+               top: { gaps: m.blanks, depth: m.depth, hardness: m.hardness, ok: m.determined } };
     },
     ringBudget() { measureBoard(); return { boardR, MIN_RING, thinnest: [3,4,5,6].map((n) => Math.round(thinnestRing(n) * 10) / 10), allows: budgetRings() }; },
-    perm() { return { cycling: cycleOn, shapes: NSHAPE, fold: N_FOLD,
-      oneTurn: PERMK ? PERMK[1 % N_FOLD].slice(0, NSHAPE) : null }; },
     geometry() { return { bcx, bcy, boardR, buttons: uiButtons.map((b) => ({ x: b.x, y: b.y, w: b.w, h: b.h })) }; },
     measure() { return measureLevel(); },
     posed() { return lastMeasure; },
