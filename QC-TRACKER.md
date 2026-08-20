@@ -321,3 +321,38 @@ type shrink could not recover it at its 0.72 floor.
 Now two-stage, in Kaleido's order: shrink the DEMO first and drop it outright rather than
 keep it too small to read, and only then shrink the copy. Re-verified across eight frames
 from 480x360 to 1024x768: all fit, no overlap. All 100 levels still place and win.
+
+
+## The rules-card bug is a FLEET pattern, swept 2026-08-20
+
+Found in Kaleido, then Stained, then Prism. Rather than keep meeting it one game at a time,
+I swept all fifteen for the shape: a canvas rules card whose height is fixed or clamped
+against the viewport, with a button anchored to the card's BOTTOM edge. Nine games have no
+canvas rules card or no bottom-anchored button and are not at risk.
+
+**Six are, in three variants:**
+
+| Game | Variant | What a player sees at 480x360 | State |
+|---|---|---|---|
+| kaleido | clamp | button through the copy | FIXED |
+| stained | clamp | button through the copy | FIXED |
+| prism | clamp | button through the copy | FIXED, copy trimmed too |
+| **needle** | clamp, in TWO places | PLAY across rule 3, rule 4 cut mid-sentence | OPEN |
+| **bloom** | height HARD-CODED at 372px | no overlap today, but the card is 16px taller than the frame and one copy edit from breaking, with no detector | OPEN |
+| **sluice** | no clamp at all | rule 4 cut off and **PLAY entirely off-screen** | OPEN |
+
+Needle carries it twice: the rules card at `play.js:1327` and a second "GOT IT" card at
+`play.js:1242`.
+
+**A severity correction.** Five of the six let you start by tapping anywhere, not only on the
+button, so an off-screen or overlapped CTA does not strand the player. **Stained was the
+exception** and the only one where the card's buttons were the sole live target, which is
+why its overlap was the one that could genuinely trap someone. For the others the cost is
+unreadable rules, which still matters because the card is the only teaching surface, but it
+is comprehension rather than a lockout.
+
+**The shape of the fix, now proven three times:** measure the card at a type scale, shrink
+until it genuinely fits, floor 0.72, and leave horizontal geometry alone so a smaller face
+wraps to fewer lines. Never scale the button, which is a house size and a touch target.
+Where the copy is simply too long for the frame, as in Prism at six rules, the last of it is
+an editorial cut, not a mechanical one.
