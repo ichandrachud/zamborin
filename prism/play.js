@@ -2080,11 +2080,11 @@
   // button. Measure before adding a rule or lengthening one.
   const MENU_RULES = [
     'Pick a mirror below the board, then tap a square to place it. Tap again to turn it, or lift it.',
-    'You get a limited number of mirrors, use them wisely.',
-    'The prism only works when light hits its flat side head on. Other light scatters and is lost.',
-    'White light splits into three. Red goes straight on, yellow bends left, blue bends right.',
-    'A gem stays dark until it gets its colour. Red and yellow arriving together make orange.',
-    'A splitter turns half a beam and lets the rest carry on, so one beam becomes two.',
+    'You only get so many mirrors.',
+    'Light must hit the prism flat on, or it scatters and is lost.',
+    'White splits into three: red straight on, yellow left, blue right.',
+    'A gem is dark until it gets its colour. Red and yellow make orange.',
+    'A splitter turns half a beam and passes the rest, making two.',
   ];
 
   /* Measured at a TYPE SCALE, then shrunk until it fits, because clamping the
