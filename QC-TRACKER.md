@@ -337,9 +337,9 @@ canvas rules card or no bottom-anchored button and are not at risk.
 | kaleido | clamp | button through the copy | FIXED |
 | stained | clamp | button through the copy | FIXED |
 | prism | clamp | button through the copy | FIXED, copy trimmed too |
-| **needle** | clamp, in TWO places | PLAY across rule 3, rule 4 cut mid-sentence | OPEN |
-| **bloom** | height HARD-CODED at 372px | no overlap today, but the card is 16px taller than the frame and one copy edit from breaking, with no detector | OPEN |
-| **sluice** | no clamp at all | rule 4 cut off and **PLAY entirely off-screen** | OPEN |
+| needle | clamp, in TWO places | PLAY across rule 3, rule 4 cut mid-sentence | FIXED, cut to four rules and floor 0.66 |
+| bloom | height HARD-CODED at 372px | no overlap today, but the card is 16px taller than the frame and one copy edit from breaking, with no detector | FIXED |
+| sluice | no clamp at all | rule 4 cut off and **PLAY entirely off-screen** | FIXED |
 
 Needle carries it twice: the rules card at `play.js:1327` and a second "GOT IT" card at
 `play.js:1242`.
@@ -356,3 +356,29 @@ until it genuinely fits, floor 0.72, and leave horizontal geometry alone so a sm
 wraps to fewer lines. Never scale the button, which is a house size and a touch target.
 Where the copy is simply too long for the frame, as in Prism at six rules, the last of it is
 an editorial cut, not a mechanical one.
+
+
+## All six closed, 2026-08-21
+
+Sluice, Bloom and Needle shipped. Every game that had the rules-card bug is fixed.
+
+**Each of the six now carries a `menuFit()` or `rulesFit()` on its debug handle** reporting
+the real defect: the gap between the copy's last line and the button's top edge, not merely
+whether the card had to be clamped. Prism and Stained both shipped with detectors nothing was
+wired to, and the bug lived in them for months. These report a number a future session can
+assert on.
+
+### The lesson that cost the most
+
+**Eight sample frames is not a proof.** I checked Needle at eight sizes, reported it fixed
+bar one corner, and the owner sent a screenshot of it still broken. Sweeping 713 sizes showed
+the overlap ran across a whole BAND — any frame under about 460px tall at narrow widths, and
+under 370 at any width — and the samples had landed almost entirely outside it.
+
+A card's fit is a continuous two-dimensional space. Sample it and you learn about the samples.
+The grid sweep costs about the same and answers the question. Use `menuFit()` in a loop over
+widths 320-1200 and heights 300-900, then check the real device sizes by name.
+
+Needle's final state: ten of ten real sizes clean, iPhone SE through iPad, portrait and
+landscape, plus both embed sizes. What is left is under 300px tall, which is shorter than any
+screen and any embed anyone would build.
