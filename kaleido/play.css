@@ -1,18 +1,13 @@
 /* Kaleido — per-game styles. Everything else comes from
    ../shared/chrome.css and ../shared/tokens.css.
 
-   PROTOTYPE: the splash art is a placeholder gradient. The real
-   splash-desktop.jpg / splash-mobile.jpg land at milestone 4. */
+   The .splash frame, cover-sizing and fade all live in shared chrome.
+   Only the artwork is declared here.
 
-.splash {
-  background:
-    radial-gradient(circle at 50% 46%, #2A3D63 0%, #16233C 42%, #0E1726 100%);
-  display: grid;
-  place-items: center;
-}
-.splash::before {
-  content: 'KALEIDO';
-  color: #C9D6EA;
-  font: 800 44px Inter, system-ui, sans-serif;
-  letter-spacing: 0.16em;
-}
+   The desktop art is 1520x1200 against a 760x600 frame, the same 1.267
+   aspect, so nothing is cropped. The mobile art is 1170x2532 at 0.462,
+   which matches a modern phone almost exactly; the wordmark sits at 77%
+   of the width, inside the 82% that survives a cover-crop on the
+   narrowest viewport worth designing for. */
+body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=1'); }
+body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=1'); }

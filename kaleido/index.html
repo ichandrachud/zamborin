@@ -4,24 +4,24 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <title>Kaleido — A Zamborin Game</title>
-  <meta name="robots" content="noindex">
+  <meta name="description" content="A calm stained-glass puzzle. Panes are missing from a rose window and no two of the same colour may touch. Fill one wedge and the whole window follows. Free to play on phone and desktop." />
   <meta name="theme-color" content="#0E1726" />
-  <meta name="description" content="A calm symmetry puzzle. Complete one wedge and the whole mandala follows, until the figure holds true under every turn of the wheel." />
+  <link rel="canonical" href="https://zamborin.com/kaleido/" />
   <link rel="icon" type="image/svg+xml" href="/images/zamborin-favicon.svg" />
 
   <!-- Open Graph / Twitter -->
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Zamborin Games" />
   <meta property="og:url" content="https://zamborin.com/kaleido/" />
-  <meta property="og:title" content="Kaleido — a symmetry-completion puzzle" />
-  <meta property="og:description" content="A calm symmetry puzzle. Complete one wedge and the whole mandala follows, until the figure holds true under every turn of the wheel." />
+  <meta property="og:title" content="Kaleido — a stained-glass symmetry puzzle" />
+  <meta property="og:description" content="Panes are missing from a rose window and no two of the same colour may touch. Fill one wedge and the whole window follows. A calm, clever puzzle, free to play." />
   <meta property="og:image" content="https://zamborin.com/images/kaleido-og.jpg" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
-  <meta property="og:image:alt" content="Kaleido, a glowing rose-window mandala of glass shapes." />
+  <meta property="og:image:alt" content="Kaleido, a kaleidoscopic rose window in red, amber and blue glass." />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Kaleido — a symmetry-completion puzzle" />
-  <meta name="twitter:description" content="A calm symmetry puzzle. Complete one wedge and the whole mandala follows, until the figure holds true under every turn of the wheel." />
+  <meta name="twitter:title" content="Kaleido — a stained-glass symmetry puzzle" />
+  <meta name="twitter:description" content="Fill the missing panes in a rose window. No two of the same colour may touch, and one wedge paints the rest. Free to play." />
   <meta name="twitter:image" content="https://zamborin.com/images/kaleido-og.jpg" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -29,11 +29,45 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../shared/tokens.css" />
   <link rel="stylesheet" href="../shared/chrome.css?v=13" />
-  <link rel="stylesheet" href="./play.css?v=1" />
+  <link rel="stylesheet" href="./play.css?v=2" />
   <!-- Google AdSense -->
+  <meta name="google-adsense-account" content="ca-pub-9207689324865969">
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9207689324865969" crossorigin="anonymous"></script>
+  <!-- Structured data: VideoGame schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "VideoGame",
+    "name": "Kaleido",
+    "description": "A free stained-glass symmetry puzzle. Panes are missing from a rose window and no two of the same colour may touch. Fill the gaps in one wedge and the whole window follows.",
+    "url": "https://zamborin.com/kaleido/",
+    "image": "https://zamborin.com/images/kaleido-og.jpg",
+    "playMode": "SinglePlayer",
+    "gamePlatform": "Web Browser",
+    "applicationCategory": "Game",
+    "operatingSystem": "Web",
+    "genre": ["Puzzle","Logic"],
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "publisher": { "@type": "Organization", "name": "Zamborin Games", "url": "https://zamborin.com/" }
+  }
+  </script>
+  <style>
+    .game-info { max-width: 760px; margin: 0 auto; padding: 8px 24px 40px; color: var(--text-dim); line-height: 1.65; font-size: 16px; }
+    .game-info h1 { font-size: 28px; color: var(--text); font-weight: 800; margin: 20px 0 8px; letter-spacing: -0.3px; }
+    .game-info h2 { font-size: 20px; color: var(--text); font-weight: 700; margin: 30px 0 8px; }
+    .game-info p { margin: 12px 0; }
+    .game-info ul { margin: 12px 0; padding-left: 22px; }
+    .game-info li { margin: 7px 0; }
+    .game-info strong { color: var(--text); font-weight: 600; }
+    .game-info a { color: #4DC3FF; }
+    @media (max-width: 720px) { .game-info { padding: 8px 18px 40px; } .game-info h1 { font-size: 24px; } }
+    @media (max-width: 1151px) {
+      body.game-content-page { position: static; overflow: visible; height: auto; width: auto; top: auto; left: auto; touch-action: auto; }
+      body.game-content-page .site-footer { display: flex; }
+    }
+  </style>
 </head>
-<body>
+<body class="game-content-page">
   <header class="site-header">
     <a class="brand" href="/" aria-label="Zamborin Games home">
       <img class="brand-logo" src="/images/zamborin-logo.svg" alt="Zamborin" />
@@ -55,22 +89,88 @@
   </header>
 
   <main class="page">
+    <!-- Leaderboard ad: 728×90 -->
+    <div class="ad-slot ad-leaderboard" aria-label="Advertisement">
+      <span class="ad-label">AD · 728 × 90</span>
+    </div>
+
     <section class="play-row">
       <div class="game-wrap">
-        <canvas id="game" aria-label="Kaleido"></canvas>
-        <!-- Splash: shows for 2 s at load, then fades to reveal the game. -->
+        <canvas id="game" aria-label="Kaleido puzzle"></canvas>
+        <!-- Splash: shows for 2 s at load, then fades to reveal the rules screen. -->
         <div id="splash" class="splash" aria-hidden="true"></div>
       </div>
+      <aside class="sidebar">
+        <div class="ad-slot ad-medrec" aria-label="Advertisement">
+          <span class="ad-label">AD · 300 × 250</span>
+        </div>
+        <div class="ad-slot ad-medrec" aria-label="Advertisement">
+          <span class="ad-label">AD · 300 × 250</span>
+        </div>
+      </aside>
+    </section>
+
+    <!-- Leaderboard ad: 728×90 -->
+    <div class="ad-slot ad-leaderboard" aria-label="Advertisement">
+      <span class="ad-label">AD · 728 × 90</span>
+    </div>
+
+    <section class="game-info">
+      <h1>Kaleido: a calm stained-glass symmetry puzzle</h1>
+
+      <p>Kaleido is a quiet puzzle set in a rose window. The window is nearly finished, but a handful of glass panes are missing, and it is your job to work out what colour belongs in each gap. The one rule is that no two panes of the same colour may ever touch, and that rule is the whole puzzle: it is what tells you, gap by gap, which piece each empty socket wants. The lovely part is that you only ever work in one wedge. The rest of the window is a copy of it, so a single pane you place appears all the way round the wheel at once, and the figure resolves into full symmetry as you fill it in. It is gentle, unhurried and quietly satisfying, the kind of thing you can pick up for one window or twenty.</p>
+
+      <h2>How to play</h2>
+      <p>Pick a colour from the palette, then tap a gap. The pane appears in every wedge at the same time. Keep filling until the window is whole and no two touching panes share a colour.</p>
+      <ul>
+        <li><strong>Pick and place:</strong> choose a colour, tap an empty socket. Tap the same socket again with the same colour to clear it.</li>
+        <li><strong>Read the neighbours:</strong> a gap cannot take a colour that already touches it. Once three of the four colours are ruled out, the fourth is your answer.</li>
+        <li><strong>Watch for clashes:</strong> if two panes of the same colour end up touching, the lead between them goes dark and both panes pulse. Nothing is ever refused, so you can always try something and see.</li>
+        <li><strong>Hint, Undo and Restart:</strong> a hint fills the gap whose neighbours already rule out the most, so it shows you the move you were closest to making. Undo and Restart are always free.</li>
+      </ul>
+      <p>Your progress is saved automatically, so you always pick up on the window where you left off.</p>
+
+      <h2>Why it is clever</h2>
+      <p>There is no guessing and no luck in Kaleido. Every gap has exactly one right answer, and every answer can be reached by reasoning from the panes already set. Each window is built complete and then has pieces taken out one at a time, and a piece is only removed if the gap it leaves can still be worked out, so a solution always exists and you can always find it. The depth comes from the symmetry: because your wedge is copied all the way round, the pane you place has to sit well with its neighbours in several places at once, and the colour that looks obvious in front of you is often ruled out by what its copy would do on the far side of the wheel. As you climb the hundred levels the window grows, the symmetry loosens from six wedges to three and then to two, and more of the glass goes missing, so the same simple rule keeps giving you longer and longer chains to follow.</p>
+
+      <h2>Tips</h2>
+      <ul>
+        <li>Start with the most crowded gap. The more panes already touching it, the fewer colours it can be.</li>
+        <li>Work outward from a gap you have just filled. Placing one pane usually rules a colour out of its neighbours.</li>
+        <li>Remember the copies. A gap in your wedge is also a gap on the other side, and both sets of neighbours have to be happy.</li>
+        <li>If nothing is obvious, take a hint. It always picks a gap you could have worked out, so it teaches rather than skips.</li>
+      </ul>
+
+      <h2>Frequently asked questions</h2>
+      <p><strong>Is Kaleido free?</strong> Yes, completely free to play, with no account or download, in any modern browser on phone, tablet or desktop.</p>
+      <p><strong>Does it work on mobile?</strong> Yes. Kaleido is built for touch as well as mouse, and the window is sized to fill a phone screen.</p>
+      <p><strong>How do I win?</strong> Fill every gap so the window is complete and no two touching panes share a colour.</p>
+      <p><strong>Is every level solvable?</strong> Yes, and without guessing. Each window is generated complete and then thinned, keeping only gaps that can still be reasoned out, so every single one has exactly one right answer.</p>
+      <p><strong>Can I play if I am colourblind?</strong> Yes. There is a shape-only mode that takes the colour out and cuts a distinct shape into each pane instead. Same board, same puzzle.</p>
+      <p><strong>How many levels are there?</strong> A hundred, and they get steadily harder: bigger windows, looser symmetry and more missing glass.</p>
+
+      <p class="guide-cta"><a href="/guides/kaleido/">Stuck? Read the Kaleido strategy guide <span aria-hidden="true">&rarr;</span></a></p>
+      <p>Enjoy a good thinking puzzle? Try <a href="/stained/">Stained</a> or <a href="/bloom/">Bloom</a>, or browse <a href="/">all Zamborin games</a>.</p>
     </section>
   </main>
 
   <footer class="site-footer">
-    <span>A Zamborin Game</span>
+    <nav class="site-foot-nav">
+      <a href="/">Games</a>
+      <a href="/guides/">Guides</a>
+      <a href="/about/">About</a>
+      <a href="/faq/">FAQ</a>
+      <a href="/privacy/">Privacy</a>
+      <a href="/cookies/">Cookies</a>
+      <a href="/terms/">Terms</a>
+      <a href="/contact/">Contact</a>
+    </nav>
+    <span>© 2026 Zamborin. Games created by Indrajeet Chandrachud.</span>
   </footer>
 
-  <!-- Shared toolkit: audio + the button system. ALWAYS load before play.js. -->
   <script src="../shared/sfx.js?v=1"></script>
   <script src="../shared/ui.js?v=1"></script>
+  <script src="../shared/analytics.js?v=2"></script>
   <script src="./play.js?v=66"></script>
   <script>
     (() => {
@@ -83,8 +183,7 @@
       });
     })();
 
-    // Splash: 2 s visible, 0.6 s fade, then remove. After it's gone, fire
-    // a `splash-done` event so play.js can spawn the first thing.
+    // Splash: 2 s reveal, 0.6 s fade, remove from DOM at 2.7 s, then tell play.js.
     (() => {
       const splash = document.getElementById('splash');
       if (!splash) return;
@@ -95,5 +194,7 @@
       }, 2700);
     })();
   </script>
+  <script defer src="/_vercel/insights/script.js"></script>
+  <script defer src="/_vercel/speed-insights/script.js"></script>
 </body>
 </html>

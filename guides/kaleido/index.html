@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Kaleido strategy: how to read a gap and never guess — Zamborin</title>
+  <meta name="description" content="A practical Kaleido strategy guide: starting from the most crowded gap, why the copies on the far side of the wheel rule colours out, working a chain outward, and what changes as the symmetry loosens." />
+  <meta name="theme-color" content="#0E1726" />
+  <link rel="canonical" href="https://zamborin.com/guides/kaleido/" />
+  <link rel="icon" type="image/svg+xml" href="/images/zamborin-favicon.svg" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:site_name" content="Zamborin Games" />
+  <meta property="og:url" content="https://zamborin.com/guides/kaleido/" />
+  <meta property="og:title" content="Kaleido strategy: how to read a gap and never guess" />
+  <meta property="og:description" content="Starting from the most crowded gap, why the copies rule colours out, working a chain outward, and what changes as the symmetry loosens." />
+  <meta property="og:image" content="https://zamborin.com/images/kaleido-og.jpg" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Kaleido strategy: how to read a gap and never guess" />
+  <meta name="twitter:description" content="A practical strategy guide to solving Kaleido, the stained-glass symmetry puzzle." />
+  <meta name="twitter:image" content="https://zamborin.com/images/kaleido-og.jpg" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../shared/tokens.css" />
+  <link rel="stylesheet" href="../../shared/chrome.css?v=13" />
+  <style>
+    .guide { max-width: 760px; margin: 0 auto; padding: 40px 24px 80px; color: var(--text-dim); line-height: 1.7; font-size: 17px; }
+    .guide .crumbs { font-size: 14px; margin-bottom: 22px; color: var(--text-dim); }
+    .guide .crumbs a { color: #4DC3FF; text-decoration: none; }
+    .guide h1 { font-size: 38px; color: var(--text); font-weight: 800; margin: 0 0 6px; letter-spacing: -0.5px; line-height: 1.15; }
+    .guide .lede { font-size: 19px; color: var(--text); margin: 14px 0 8px; }
+    .guide h2 { font-size: 23px; color: var(--text); font-weight: 700; margin: 38px 0 10px; letter-spacing: -0.2px; }
+    .guide p { margin: 12px 0; }
+    .guide a { color: #4DC3FF; }
+    .guide strong { color: var(--text); font-weight: 600; }
+    .guide ul { margin: 12px 0; padding-left: 22px; }
+    .guide li { margin: 8px 0; }
+    .guide .cta { display: inline-block; margin-top: 8px; background: #4DC3FF; color: #06121e; font-weight: 700; text-decoration: none; padding: 13px 26px; border-radius: 10px; }
+    .guide .playbox { margin: 36px 0 8px; padding: 22px 24px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09); border-radius: 14px; }
+    .guide .playbox p { margin: 0 0 14px; color: var(--text); font-weight: 600; }
+    .guide .more { margin-top: 40px; padding-top: 22px; border-top: 1px solid rgba(255,255,255,0.09); font-size: 15px; }
+    @media (max-width: 720px) { .guide { padding: 28px 18px 56px; font-size: 16px; } .guide h1 { font-size: 30px; } }
+  </style>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "Bloom strategy: how to route the water and open every flower",
+    "about": "Bloom pipe-rotating garden puzzle strategy",
+    "description": "A practical Bloom strategy guide covering how water flows from the tap, working outward pipe by pipe, using junctions to feed two flowers, and untangling knotted boards.",
+    "author": { "@type": "Organization", "name": "Zamborin Games" },
+    "publisher": { "@type": "Organization", "name": "Zamborin Games", "url": "https://zamborin.com/" },
+    "mainEntityOfPage": "https://zamborin.com/guides/bloom/"
+  }
+  </script>
+  <meta name="google-adsense-account" content="ca-pub-9207689324865969">
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9207689324865969" crossorigin="anonymous"></script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "Kaleido strategy: how to read a gap and never guess",
+    "description": "A practical strategy guide to Kaleido, the stained-glass symmetry puzzle: starting from the most crowded gap, why the copies rule colours out, and what changes as the symmetry loosens.",
+    "image": "https://zamborin.com/images/kaleido-og.jpg",
+    "mainEntityOfPage": { "@type": "WebPage", "@id": "https://zamborin.com/guides/kaleido/" },
+    "author": { "@type": "Organization", "name": "Zamborin Games", "url": "https://zamborin.com/" },
+    "publisher": { "@type": "Organization", "name": "Zamborin Games", "url": "https://zamborin.com/" }
+  }
+  </script>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="Zamborin Games home">
+      <img class="brand-logo" src="/images/zamborin-logo.svg" alt="Zamborin" />
+    </a>
+    <div class="header-right">
+      <a class="back-link" href="/guides/">All guides</a>
+    </div>
+  </header>
+
+  <main class="guide">
+    <nav class="crumbs"><a href="/">Games</a> &rsaquo; <a href="/guides/">Guides</a> &rsaquo; Kaleido</nav>
+
+    <h1>Kaleido strategy: how to read a gap and never guess</h1>
+    <p class="lede">Kaleido looks like a colouring puzzle and is not one. Every gap in the window has exactly one right answer, and every answer can be reached by reasoning from the panes already in place. This guide is about how to find it.</p>
+
+    <h2>The only rule, and why it is enough</h2>
+    <p>No two panes of the same colour may touch. That is the whole rule, and it works as a tool rather than a restriction. Look at any empty socket and ask which colours are already touching it. Each one that is, is a colour that gap cannot take. When three of the four are ruled out, the fourth is the answer, and you have not guessed anything.</p>
+    <p>This is why Kaleido never needs a hint system that gives things away. A hint simply fills the gap whose neighbours already rule out the most, which is almost always a gap you were one glance from solving yourself.</p>
+
+    <h2>Start with the most crowded gap</h2>
+    <p>Not the first gap, not the one nearest the middle: the one with the most panes around it. A socket surrounded by four filled panes is often decided before you have thought about it at all, and filling it usually rules a colour out of two or three of its neighbours in turn. That is a chain, and chains are how a window comes apart.</p>
+    <p>The opposite is also worth knowing. A gap with only one neighbour filled has three colours available and will not resolve yet. Leave it. It will decide itself once the panes around it arrive.</p>
+
+    <h2>The copies are doing half the work</h2>
+    <p>You only ever place glass in the lit wedge, and every other wedge is a copy of it. So a pane you set has neighbours in several places at once, and it must sit well with all of them. This is the part that catches people out: the colour that obviously fits the gap in front of you can be ruled out entirely by what its copy would touch on the far side of the wheel.</p>
+    <p>When a gap seems to allow two colours, that is usually the reason. Follow the same gap round to one of its copies and look at the neighbours there instead. One of the two will clash, and the other is your answer.</p>
+
+    <h2>Reading a clash</h2>
+    <p>Nothing is ever refused. If you place a pane that ends up touching its own colour, the lead between the two goes dark and both panes pulse, so you can see exactly which pair is in trouble rather than being told a number. Trying something and reading the result is a legitimate way to play, and undo costs nothing.</p>
+    <p>One thing that is not a clash: the panes in the innermost ring all share a colour. They are copies of a single pane rather than neighbours of each other, so the rule does not apply between them. If the middle of the window looks like it is breaking the rule, that is why.</p>
+
+    <h2>What changes as you climb</h2>
+    <p>The first windows are six-fold, with a small wedge and only two or three gaps, and the answers come almost as fast as you can read them. Three things then loosen, in this order.</p>
+    <ul>
+      <li><strong>The window grows.</strong> More rings means more panes, more neighbours and longer chains.</li>
+      <li><strong>The symmetry loosens.</strong> Six wedges become three and then two. This is the big one: halving the number of wedges doubles the number of panes you actually have to decide, because fewer of them are copies of each other.</li>
+      <li><strong>More glass goes missing.</strong> By the late windows more than half the wedge is empty, so fewer of your neighbours are filled in when you start and you have to build the chain from a smaller foothold.</li>
+    </ul>
+    <p>None of this changes the method. Find the most constrained gap, fill it, and let it constrain the next one.</p>
+
+    <h2>If you get stuck</h2>
+    <p>Being stuck in Kaleido almost always means you are looking at a gap that is not ready yet rather than one that is impossible. Scan the whole wedge for a socket with more neighbours filled and start there instead. If nothing has three neighbours, take a hint: it will pick a gap you could have found, and the pane it places will usually unlock two more.</p>
+    <p>There is no timer, no score and no way to lose. Undo and Restart are always free, and the window is saved as you go.</p>
+
+    <div class="playbox">
+      <p>Ready to try it?</p>
+      <a class="cta" href="/kaleido/">Play Kaleido</a>
+    </div>
+
+    <div class="more">
+      <p>More guides: <a href="/guides/stained/">Stained</a>, <a href="/guides/bloom/">Bloom</a>, <a href="/guides/prism/">Prism</a>, or <a href="/guides/">browse them all</a>.</p>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <nav class="site-foot-nav">
+      <a href="/about/">About</a>
+      <a href="/guides/">Guides</a>
+      <a href="/privacy/">Privacy</a>
+      <a href="/contact/">Contact</a>
+    </nav>
+    <span>© 2026 Zamborin. Games created by Indrajeet Chandrachud.</span>
+  </footer>
+  <script defer src="/_vercel/insights/script.js"></script>
+  <script defer src="/_vercel/speed-insights/script.js"></script>
+</body>
+</html>
