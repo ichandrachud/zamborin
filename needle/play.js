@@ -1321,17 +1321,29 @@
   // crossing and everything after asks for two. Telling a beginner the harder
   // rule while the game enforces the easier one is how the old over-and-under
   // wording went wrong: the card has to match what the board will accept.
+  //
+  // FOUR RULES, NOT FIVE — 2026-08-20. Five would not fit a short frame: below
+  // about 460px of height the fifth ran under the PLAY button, and below 370
+  // it did so at any width. Shrinking the type could not close it at a size
+  // anyone could still read, so the card gave a rule back instead.
+  //
+  // The beginner set loses 'From level 3 each must cross TWO...', which was
+  // the only forward-looking line on the card. Nothing is lost by it: the
+  // second set states that rule properly at the moment the board starts
+  // enforcing it, which is the whole reason there are two sets.
+  //
+  // The advanced set folds its fourth rule into its third, keeping both facts
+  // and dropping 'Take the long way round if you have to', which was advice
+  // rather than a rule.
   const menuRules = () => (minCross() < 2 ? [
     'Drag from a pin to lay its thread across to its twin. Drag again to lay it differently.',
     'Threads are allowed to cross. Other puzzles forbid it, this one needs it.',
     'Every thread must cross at least ONE other. A thread that meets nothing lies loose.',
-    'From level 3 each must cross TWO, ending up over one and under the other.',
     'Each thread must also pass through its own button.',
   ] : [
     'Drag from a pin to lay its thread across to its twin. Drag again to lay it differently.',
     'Threads are allowed to cross. Other puzzles forbid it, this one needs it.',
-    'Every thread must cross at least TWO others. Take the long way round if you have to.',
-    'Cross two and it ends up over one and under the other, and that is what sews it in.',
+    'Every thread must cross at least TWO others, ending up over one and under the other.',
     'Each thread must also pass through its own button.',
   ]);
   function menuOverlay() {
@@ -1353,8 +1365,13 @@
       return h + 22 * ts + UI.CTA.h + 34 * ts;
     };
     const maxH = LH - 28;
+    /* FLOOR 0.66, not 0.72. Four rules clear the button on every phone but the
+       oldest small one turned sideways, where 0.72 left the last line grazing
+       it by 4px. Two thirds of 16px is 10.6, which is small, but it only ever
+       applies in a frame under about 330px tall where every other thing on
+       screen is small too, and the alternative there is copy under a button. */
     let ts = 1, want = measure(1);
-    while (ts > 0.72 && want > maxH) { ts = Math.max(0.72, ts - 0.04); want = measure(ts); }
+    while (ts > 0.66 && want > maxH) { ts = Math.max(0.66, ts - 0.02); want = measure(ts); }
     const ph = Math.min(maxH, want);
     const px = Math.round((LW - pw) / 2), py = Math.round((LH - ph) / 2);
     ctx.fillStyle = '#16233A'; roundRect(px, py, pw, ph, 24); ctx.fill();
