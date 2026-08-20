@@ -63,7 +63,7 @@ Severity: **BREAKS PLAY** | **VISUAL** | **MINOR** | **EMBED GAP**
 | K2c | all 15 games | EMBED GAP, won't fix | `/_vercel/insights/script.js` and `/_vercel/speed-insights/script.js` are Vercel edge endpoints with no file in the repo, so they cannot be made relative. Off-origin they 404 harmlessly and analytics simply do not record. Would need an embed build that omits them. | ACCEPTED |
 | K3 | kaleido | MINOR | No aria-live region, so a screen reader is told nothing when the board changes. The canvas itself is labelled. | OPEN |
 | S1 | stained | BREAKS PLAY (phone landscape) + EMBED GAP | The rules card clamped its height while the copy kept flowing, so the Resume button drew through the rules and the last two were unreadable. Measured overlap 170px at 480x360, 134px at 812x375 in mobile mode which is a phone turned sideways, 29px even at 640x480. Fine at 760x600 and 375x812. | FIXED on branch `fix-stained-rules-card`, not yet deployed |
-| S2 | stained | ACCESSIBILITY, moderate | No colourblind mode, and the mechanic is reading which primaries overlap. **Corrected 2026-08-20:** the first measurement used a colour-vision simulation with two wrong coefficients in its inverse matrix and overstated this badly. Redone with a matrix that maps neutrals to neutrals: under deuteranopia NO pair falls below dE 10, and under protanopia one does, red vs brown at 8.5, with blue vs purple at 10.8. Tight rather than collapsed. It still matters because red is R alone and brown is all three, the most expensive confusion on the board, and 55 of the 100 levels carry both. | PROTOTYPE BUILT on branch `fix-stained-rules-card`, decision open |
+| S2 | stained | ACCESSIBILITY, moderate | No colourblind mode, and the mechanic is reading which primaries overlap. **Corrected 2026-08-20:** the first measurement used a colour-vision simulation with two wrong coefficients in its inverse matrix and overstated this badly. Redone with a matrix that maps neutrals to neutrals: under deuteranopia NO pair falls below dE 10, and under protanopia one does, red vs brown at 8.5, with blue vs purple at 10.8. Tight rather than collapsed. It still matters because red is R alone and brown is all three, the most expensive confusion on the board, and 55 of the 100 levels carry both. | BUILT on branch `fix-stained-rules-card`, opt-in, not yet deployed |
 | S3 | stained | SEO | No `VideoGame` JSON-LD. The only game of fifteen with no structured data at all. | FIXED on the same branch |
 | S5 | stained | MINOR | On desktop `resizeCanvas` pins the canvas to exactly 760x600 CSS px and it never scales down, so in a short window the board runs below the fold. At a 1366x620 laptop it is 108px under and the page scrolls, so it is reachable; at extreme sizes the wrap clips it and the page does not grow. Kaleido handles the same case by letting CSS scale it to fit, so there is a known-good reference. The pinning was itself a fix for the narrow-strip bug, so do not simply revert it. | OPEN |
 | S4 | stained, untangle, carrom | MINOR, consistency | These three load no `shared/sfx.js` and have no sound or sound toggle. The other twelve do. | OPEN |
@@ -268,7 +268,7 @@ different scale than the page had laid out. Hit-testing the corners settled it. 
 [[feedback-preview-pane-hidden-blanks-canvas]] for the family this belongs to.
 
 
-## S2 prototype: primary pips, 2026-08-20
+## S2: primary pips, built 2026-08-20
 
 An opt-in mode that marks each lit cell with which primaries made it, so the recipe is
 readable without relying on hue.
@@ -290,3 +290,34 @@ Kaleido puts its switch, and persists to `zamborin-stained.pips.v1`.
 into bright green, and it produced confident, specific, wrong numbers that a whole
 recommendation was built on. Sanity-check any colour transform on neutrals first: white,
 mid grey and black must come back unchanged. See [[feedback-simulations-need-a-null-test]].
+
+
+### Where the marks go, and why not everywhere
+
+Three surfaces read colour: the **goal** (what to make), the **tray** (what you can pick
+up) and the **window** (what you have made). The marks go on the first two and deliberately
+not the third.
+
+- The goal and the tray are where a colour has to be DECODED. The window is where it is
+  looked at, and the goal already flags every cell that does not match yet, so nothing on
+  the window needs reading in order to play.
+- Measured on level 50, a median board: goal 23 marks, tray 11, window 28. Putting them on
+  the window nearly triples the count and puts all of it on the one surface the palette
+  and the came work were for.
+- **70 of 100 levels hold a confusable PANE pair in the tray at once** (blue+purple 44,
+  red+orange 41, yellow+orange 37), which is why a goal-only version would not have worked:
+  you could read what was wanted and still not know what you were holding.
+
+The rules-card demo carries the marks too, so the mode teaches its own legend: you watch one
+mark meet another and become two. Without that it is a cipher with no key, because working
+the legend out from the board requires already knowing what colour a cell is.
+
+### One regression this caused, and the fix
+
+Adding the switch to the rules card cost a pill's worth of height and put the shortest
+frames back over the line: 45px of overlap at 480x360 and 14px at 812x375. The single-stage
+type shrink could not recover it at its 0.72 floor.
+
+Now two-stage, in Kaleido's order: shrink the DEMO first and drop it outright rather than
+keep it too small to read, and only then shrink the copy. Re-verified across eight frames
+from 480x360 to 1024x768: all fit, no overlap. All 100 levels still place and win.

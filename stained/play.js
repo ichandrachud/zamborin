@@ -90,6 +90,18 @@
      not. One mark in the top-left is unambiguously red with no reference
      needed, and the bottom-right stays clear of the goal's unmatched dot. */
   var PIP_AT = [[0.19, 0.19], [0.81, 0.19], [0.19, 0.81]];   // R, Y, B
+
+  /* A pane is a single colour, so it carries ONE mark rather than one per cell,
+     on its top-left-most cell. Marking every cell of a six-cell pane says the
+     same thing six times and turns the tray into confetti. */
+  function pipChip(cells, x, y, cell, v) {
+    if (!pips || !v) return;
+    var br = cells[0][0], bc = cells[0][1];
+    for (var i = 1; i < cells.length; i++) {
+      if (cells[i][0] < br || (cells[i][0] === br && cells[i][1] < bc)) { br = cells[i][0]; bc = cells[i][1]; }
+    }
+    drawPips(x + bc * cell, y + br * cell, cell, v);
+  }
   function drawPips(x, y, size, v) {
     if (!pips || !v) return;
     if (size < 11) return;                      // below this nothing reads
@@ -471,15 +483,12 @@
                              view.bezel, view.sill, lit, knob);
 
     if (lit) {
+      /* NO PIPS ON THE WINDOW, deliberately. The goal and the tray are where a
+         colour has to be DECODED; the window is where it is looked at. The
+         goal already marks every cell that does not match yet, so nothing here
+         needs reading to play, and 28 marks on a median board is a lot to put
+         on the one surface the palette and the came were tuned for. */
       R.window(ctx, grid, level.size, view.gx, view.gy, view.cell, PALETTE, bloom);
-      if (pips) {
-        for (var pr = 0; pr < level.size; pr++) {
-          for (var pc = 0; pc < level.size; pc++) {
-            drawPips(view.gx + pc * view.cell, view.gy + pr * view.cell,
-                     view.cell, grid[pr * level.size + pc]);
-          }
-        }
-      }
     } else {
       R.unlit(ctx, level.size, view.gx, view.gy, view.cell,
               placed().concat(drag && drag.preview ? [drag.preview] : []),
@@ -493,6 +502,7 @@
       if (p.r !== null) return;
       if (drag && drag.pane === p) return;
       R.chip(ctx, S.rotate(p.shape, p.rot), p.tx, p.ty, view.trayCell, PALETTE[p.colour], 1, true);
+      pipChip(S.rotate(p.shape, p.rot), p.tx, p.ty, view.trayCell, p.colour);
     });
 
     if (phase === 'menu') { menuOverlay(); return; }
@@ -507,6 +517,10 @@
              drag.x - drag.offX, drag.y - drag.offY,
              drag.overGrid ? view.cell : tc,
              PALETTE[drag.pane.colour], drag.overGrid ? 0.42 : 0.9, true);
+      if (!drag.overGrid) {
+        pipChip(S.rotate(drag.pane.shape, drag.pane.rot),
+                drag.x - drag.offX, drag.y - drag.offY, tc, drag.pane.colour);
+      }
     }
   }
 
@@ -792,8 +806,8 @@
      Math.min below it never has anything left to truncate. Everything vertical
      in the card reads MS: the demo, the caption, the type and the steps. The
      CTA height is NOT scaled — house size, and a touch target. */
-  var MS = 1;
-  function demoCell() { return Math.round((MODE === 'mobile' ? 28 : 34) * MS); }
+  var MS = 1, DS = 1;    // MS scales the copy, DS scales the demo, 0 drops it
+  function demoCell() { return Math.round((MODE === 'mobile' ? 28 : 34) * MS * DS); }
   var CAP_LH = 21;
   function capLH() { return CAP_LH * MS; }
   /* The caption WRAPS, and the block is sized to the LONGEST caption of the
@@ -811,7 +825,10 @@
     ctx.restore();
     return most;
   }
-  function demoHeight(pw) { return demoCell() * 2 + 14 * MS + demoCapLines(pw) * capLH() + 18 * MS; }
+  function demoHeight(pw) {
+    if (DS === 0) return 0;
+    return demoCell() * 2 + 14 * MS + demoCapLines(pw) * capLH() + 18 * MS;
+  }
 
   function demoSay(ms) {
     var s = DEMO_STAGES[0];
@@ -859,6 +876,20 @@
     }
     ctx.restore();
 
+    /* The demo is where the mode teaches its own legend. With pips on you watch
+       one mark slide toward another and become two where they meet, which is
+       the whole notation in one loop. Coverage is judged at the cell CENTRE so
+       a mid-slide pane does not put a mark on a cell it barely touches. */
+    if (pips) {
+      for (var dc = 0; dc < cols; dc++) {
+        var mid = gx + (dc + 0.5) * cell;
+        var vv = (mid >= rx && mid < rx + paneW ? 1 : 0) | (mid >= yx && mid < yx + paneW ? 2 : 0);
+        if (!vv) continue;
+        if (goal && !isMix(vv)) continue;        // the goal shows overlaps only
+        for (var dr = 0; dr < rows; dr++) drawPips(gx + dc * cell, gy + dr * cell, cell, vv);
+      }
+    }
+
     ctx.strokeStyle = 'rgba(255,255,255,0.10)';
     ctx.lineWidth = 1;
     for (var k = 0; k <= cols; k++) {
@@ -877,8 +908,8 @@
     return demoHeight(cardW);
   }
 
-  function menuMetricsAt(ts) {
-    MS = ts;
+  function menuMetricsAt(ts, ds) {
+    MS = ts; DS = ds;
     var pw = Math.max(260, Math.min(LW - 44, 470));
     var demoH = demoHeight(pw);
     var h = 28 * ts + (MODE === 'mobile' ? 38 : 44) * ts;   // top pad + title
@@ -898,10 +929,20 @@
      so a smaller face wraps to FEWER lines, which is the direction that helps. */
   function menuMetrics() {
     var maxH = LH - 24;
-    var ts = 1, m = menuMetricsAt(1);
-    while (ts > 0.72 && m.ph > maxH) { ts = Math.max(0.72, ts - 0.04); m = menuMetricsAt(ts); }
+    /* The DEMO goes first, and only then the copy. Kaleido's order, and for
+       the same reason: a smaller demo still shows one pane meeting another,
+       while copy shrunk to nothing shows nothing. It is dropped outright
+       rather than kept at a size where it cannot be read. The colourblind
+       switch added a pill's worth of height here, which is what put the very
+       short frames back over the line and made this two-stage search
+       necessary rather than optional. */
+    var ds = 1, m = menuMetricsAt(1, 1);
+    while (ds > 0 && m.ph > maxH) { ds = ds > 0.55 ? ds - 0.08 : 0; m = menuMetricsAt(1, ds); }
+    var ts = 1;
+    while (ts > 0.72 && m.ph > maxH) { ts = Math.max(0.72, ts - 0.04); m = menuMetricsAt(ts, ds); }
     m.ph = Math.min(maxH, m.ph);
-    MS = m.ts;
+    MS = m.ts; DS = ds;
+    m.ds = ds;
     return m;
   }
 
@@ -937,8 +978,10 @@
     ctx.font = '600 ' + (16 * ts).toFixed(2) + 'px Inter, sans-serif';
     y = wrapText(MENU_SUB, cx, y, m.pw - 70, 22 * ts) + 14 * ts;
 
-    var ms = demoClock !== null ? demoClock : ((now() - menuT0) % DEMO_MS);
-    y += drawDemo(cx, y, ms, m.pw);
+    if (m.ds > 0) {
+      var ms = demoClock !== null ? demoClock : ((now() - menuT0) % DEMO_MS);
+      y += drawDemo(cx, y, ms, m.pw);
+    }
 
     var rx2 = px + 30, dotR = 11 * ts;
     for (var i = 0; i < MENU_RULES.length; i++) {
