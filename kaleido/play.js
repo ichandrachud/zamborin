@@ -254,6 +254,20 @@
   const TOK_NAME = ['Petal', 'Diamond', 'Trefoil', 'Dot'];
   const PLAIN = '#C9D6EA';                  // --kal-plain
 
+  // PANES mode: the cell itself is the glass, filled edge to edge, and colour
+  // carries the piece instead of shape doing it. Four hues, well spread round
+  // the wheel. They are not 3:1 from each other and do not need to be: the dark
+  // came between every pane is what identifies each one as a separate object,
+  // which is the linework trick from the studio's contrast notes and also just
+  // how leaded glass is built. Every hue is far past 3:1 against the came.
+  const PANE_COL = ['#E4634F', '#FFD23F', '#5DD39E', '#63C4E8'];
+  let paneMode = false;
+  // Cut the shape out of the pane, in the colour of the came. Colour and shape
+  // then say the same thing twice, which is exactly what a colourblind player
+  // needs, and it is what painted glass actually looks like. Costs no contrast:
+  // the cut is the same dark as the lead that already surrounds the pane.
+  let paneGlyph = false;
+
   // LOCKED 2026-08-19, by the user, after seeing it both ways.
   //
   // Hue belongs to the WEDGE, one per sixth of a turn, and never to the token.
@@ -799,6 +813,8 @@
     if (k === 'z') undo();
     if (k === 'r') restart();
     if (k === 'h') hint();
+    if (k === 'p') { paneMode = !paneMode; render(performance.now()); }
+    if (k === 'o') { paneGlyph = !paneGlyph; render(performance.now()); }
     if (k >= '1' && k <= '4') { sel = +k - 1; render(performance.now()); }
   });
 
@@ -853,7 +869,8 @@
   function lighten(c, f) { const [r, g, b] = hex(c); return hx(r + (255 - r) * f, g + (255 - g) * f, b + (255 - b) * f); }
 
   // ---------- RENDER ----------
-  const LEAD = 3;                              // px of dark came between cells
+  let LEAD = 3;                                // px of dark came between cells
+  const setLead = () => { LEAD = paneMode ? 5 : 3; };
   function cellPath(r, s, grow) {
     const r0 = ringR[r] + LEAD * 0.5, r1 = ringR[r + 1] - LEAD * 0.5;
     if (r1 <= r0) return false;
@@ -888,6 +905,7 @@
   function ease(t) { return 1 - Math.pow(1 - t, 3); }
 
   function render(now) {
+    setLead();
     ctx.clearRect(0, 0, LW, LH);
     uiButtons = [];
 
@@ -1005,6 +1023,30 @@
         const t = tokAt(i);
 
         if (!cellPath(r, s, 0)) continue;
+
+        if (paneMode) {
+          // Filled pane, or an empty socket waiting for one. A gap reads as a
+          // hole in the window, which is a much plainer thing to look at than a
+          // cell that merely lacks a small shape.
+          if (t >= 0) {
+            const { d } = domainOf(i);
+            const p = lock ? 1 : Math.min(1, Math.max(0, (now - placeT[d] - Math.floor(s / step) * 45) / 260));
+            ctx.fillStyle = shapeOnly ? PLAIN : PANE_COL[t % PANE_COL.length];
+            const al = bad ? 0.5 : (p <= 0 ? 0 : ease(p));
+            ctx.globalAlpha = al;
+            ctx.fill();
+            if (paneGlyph && al > 0) {
+              const cc2 = cellCentre(r, s);
+              drawGlyph(t, cc2.x, cc2.y, cellSize(r) * 0.62, cc2.a + Math.PI / 2, al * 0.9, '#0A1120');
+            }
+            ctx.globalAlpha = 1;
+          } else {
+            ctx.fillStyle = inWedge ? 'rgba(255,255,255,0.075)' : 'rgba(0,0,0,0.30)';
+            ctx.fill();
+          }
+          continue;
+        }
+
         // Beds carry state by VALUE alone: empty, wedge, locked, conflicting.
         // Three separated values, and the ceiling on the light ones is set by
         // AA, not by taste: a bed brighter than about 0.155 white drops the
@@ -1126,9 +1168,17 @@
       ctx.fillStyle = on ? 'rgba(255,255,255,0.155)' : 'rgba(255,255,255,0.055)';
       ZUI.roundRectPath(ctx, bx, by, sz, sz, 15); ctx.fill();
       if (on) { ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,255,255,0.62)'; ZUI.roundRectPath(ctx, bx, by, sz, sz, 15); ctx.stroke(); }
-      // Neutral on purpose. Hue belongs to the wedge, so a coloured swatch would
-      // promise a colour the piece will not have once it lands.
-      drawGlyph(t, bx + sz / 2, by + sz / 2, sz * 0.30, 0, on ? 1 : 0.62, PLAIN);
+      if (paneMode && !shapeOnly) {
+        // A pane swatch shows the colour it will actually lay down.
+        ctx.globalAlpha = on ? 1 : 0.6;
+        ctx.fillStyle = PANE_COL[t % PANE_COL.length];
+        ZUI.roundRectPath(ctx, bx + 11, by + 11, sz - 22, sz - 22, 7); ctx.fill();
+        ctx.globalAlpha = 1;
+      } else {
+        // Neutral on purpose. Hue belongs to the wedge, so a coloured swatch
+        // would promise a colour the piece will not have once it lands.
+        drawGlyph(t, bx + sz / 2, by + sz / 2, sz * 0.30, 0, on ? 1 : 0.62, PLAIN);
+      }
       uiButtons.push({ x: bx, y: by, w: sz, h: sz, act: ((k) => () => { sel = k; snd.place(); render(performance.now()); })(t) });
       x += sz + gap;
     }
@@ -1405,6 +1455,7 @@
     // set a wedge cell directly, for testing states that are fiddly to tap into
     set(d, t) { dom[d] = t; placeT[d] = performance.now(); after(performance.now()); return this.state; },
     seamBreaks() { return seamBad.length; },
+    panes(v, cut) { paneMode = v !== false; paneGlyph = !!cut; render(performance.now()); return { paneMode, paneGlyph }; },
     measure() { return measureLevel(); },
     posed() { return lastMeasure; },
     seam(m) { seamMode = (m === 'radial' || m === 'full') ? m : 'off'; applySeamMode(); genLevel(level, false); return this.measure(); },
