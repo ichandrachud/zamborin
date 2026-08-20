@@ -825,36 +825,32 @@
     }
     ctx.closePath();
   }
-  function drawGlyph(t, x, y, sx, sy, angle, alpha, col) {
-    col = col || PLAIN;
-    const mean = (sx + sy) / 2;
+  // FLAT. One solid colour per piece: no gradient, no glow, no specular lens.
+  // The edge is defined by the piece against its bed, which is what the studio
+  // rule about using value rather than outlines asks for, and it is what keeps
+  // the AA sweep honest, since a gradient darkens the rim below the colour that
+  // was actually measured.
+  //
+  // The scale is UNIFORM. It used to be independent in x and y so a piece would
+  // fill its cell in both directions, which stretched a circle into an ellipse
+  // and squashed the trefoil differently in every ring. A shape has to be the
+  // same shape everywhere or it stops being a shape.
+  function drawGlyph(t, x, y, s, angle, alpha, col) {
     ctx.save();
-    ctx.translate(x, y); ctx.rotate(angle); ctx.scale(sx, sy);
+    ctx.translate(x, y); ctx.rotate(angle); ctx.scale(s, s);
     ctx.globalAlpha = alpha;
-    // Thin bright core with a tight feather. Never a wide wash.
-    ctx.shadowColor = col; ctx.shadowBlur = 6 / mean;
-    const g = ctx.createRadialGradient(-0.22, -0.30, 0.05, 0, 0, 1.25);
-    g.addColorStop(0, lighten(col, 0.42));
-    g.addColorStop(0.45, col);
-    g.addColorStop(1, darken(col, 0.30));
-    ctx.fillStyle = g;
+    ctx.fillStyle = col || PLAIN;
     glyphPath(t); ctx.fill();
-    ctx.shadowBlur = 0;
-    // Glass: one soft highlight lens, no outline.
-    ctx.globalAlpha = alpha * 0.30;
-    ctx.fillStyle = '#FFFFFF';
-    ctx.beginPath(); ctx.ellipse(-0.20, -0.34, 0.26, 0.15, -0.5, 0, TAU); ctx.fill();
     ctx.restore();
     ctx.globalAlpha = 1;
   }
-  // These return HEX, not rgb(), because their own output is fed back in:
-  // glyphColour() tints a wedge hue, then drawGlyph() lightens and darkens that
-  // result again for the glass gradient. Returning rgb() made the second pass
-  // parse NaN out of the string and take down the whole render.
+  // Returns HEX, not rgb(), because its own output is fed back in: glyphColour()
+  // tints a wedge hue and the result is used as a colour again. Returning rgb()
+  // once made a second pass parse NaN out of the string and take down the whole
+  // render.
   function hex(c) { return [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)]; }
   const hx = (r, g, b) => '#' + [r, g, b].map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
   function lighten(c, f) { const [r, g, b] = hex(c); return hx(r + (255 - r) * f, g + (255 - g) * f, b + (255 - b) * f); }
-  function darken(c, f) { const [r, g, b] = hex(c); return hx(r * (1 - f), g * (1 - f), b * (1 - f)); }
 
   // ---------- RENDER ----------
   const LEAD = 3;                              // px of dark came between cells
@@ -878,19 +874,16 @@
     const am = A0 + (s + 0.5) * (TAU / SEC(r));
     return { x: bcx + rm * Math.cos(am), y: bcy + rm * Math.sin(am), a: am, rm };
   }
-  // Glass is cut to fit the stone, so a piece fills its cell in BOTH directions
-  // rather than being inscribed in the smaller one. Sizing by min() was what
-  // made the figure read as confetti scattered on a board. The aspect is capped
-  // so an outer cell stretches a petal without flattening it.
-  const FILL = 0.50, MAX_ASPECT = 1.55;
+  // Inscribed in the SMALLER of the two cell dimensions, so the piece is the
+  // same shape in every ring and at every radius. Filling both dimensions made
+  // the figure denser but distorted every glyph differently depending on where
+  // it sat, which is a worse trade than a little air around each piece.
+  const FILL = 0.52;
   function cellSize(r) {
     const th = Math.max(6, ringR[r + 1] - ringR[r] - LEAD);
     const rm = (ringR[r] + ringR[r + 1]) / 2;
     const arc = Math.max(6, TAU * rm / SEC(r) - LEAD);
-    let sy = th * FILL, sx = arc * FILL;
-    if (sx > sy * MAX_ASPECT) sx = sy * MAX_ASPECT;
-    if (sy > sx * MAX_ASPECT) sy = sx * MAX_ASPECT;
-    return { sx, sy };
+    return Math.min(th, arc) * FILL;
   }
   function ease(t) { return 1 - Math.pow(1 - t, 3); }
 
@@ -1033,13 +1026,12 @@
           if (domainOf(i).d === hintCell) {
             const hp = (now - hintT) / 900;
             if (hp >= 0 && hp < 1) {
-              const sz0 = cellSize(r);
               ctx.save();
               ctx.globalAlpha = (1 - hp) * 0.85;
               ctx.strokeStyle = '#FFF3D6';
               ctx.lineWidth = 2;
               ctx.beginPath();
-              ctx.arc(cc.x, cc.y, Math.max(sz0.sx, sz0.sy) * (1 + 1.6 * (1 - ease(hp))), 0, TAU);
+              ctx.arc(cc.x, cc.y, cellSize(r) * (1 + 1.6 * (1 - ease(hp))), 0, TAU);
               ctx.stroke();
               ctx.restore();
             }
@@ -1057,9 +1049,8 @@
           const p = lock ? 1 : Math.min(1, Math.max(0, (now - placeT[d] - delay) / 260));
           if (p <= 0) continue;
           const grow = (0.72 + 0.28 * ease(p)) * (1 + w * 0.05);
-          const sz = cellSize(r);
           const nu = nudge[i] || [0, 0];
-          drawGlyph(t, x + nu[0], y + nu[1], sz.sx * grow, sz.sy * grow, a + Math.PI / 2,
+          drawGlyph(t, x + nu[0], y + nu[1], cellSize(r) * grow, a + Math.PI / 2,
                     bad ? 0.45 : ease(p), glyphColour(domainOf(i).k, r));
         }
       }
@@ -1091,14 +1082,13 @@
     ctx.beginPath(); ctx.arc(bcx, bcy, r1, A0, A0 + w); ctx.stroke();
   }
 
+  // Flat, like everything else in the figure. It was the one shaded object left
+  // once the pieces went flat, and an off-centre highlight made it read as a
+  // ball bearing sitting on the window rather than as the boss at its centre.
   function drawBoss(now) {
     const w = phase === 'won' ? Math.min(1, (now - wonT) / 900) : 0;
     const R = ringR[0] - LEAD * 0.5;
-    const g = ctx.createRadialGradient(bcx, bcy - R * 0.25, R * 0.1, bcx, bcy, R);
-    g.addColorStop(0, 'rgba(240,250,255,' + (0.90 + w * 0.10).toFixed(2) + ')');
-    g.addColorStop(0.5, 'rgba(176,224,230,0.55)');
-    g.addColorStop(1, 'rgba(120,170,205,0.16)');
-    ctx.fillStyle = g;
+    ctx.fillStyle = w > 0 ? lighten(PLAIN, w * 0.7) : PLAIN;   // --kal-plain, so it sits in the palette rather than above it
     ctx.beginPath(); ctx.arc(bcx, bcy, R, 0, TAU); ctx.fill();
   }
 
@@ -1138,7 +1128,7 @@
       if (on) { ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,255,255,0.62)'; ZUI.roundRectPath(ctx, bx, by, sz, sz, 15); ctx.stroke(); }
       // Neutral on purpose. Hue belongs to the wedge, so a coloured swatch would
       // promise a colour the piece will not have once it lands.
-      drawGlyph(t, bx + sz / 2, by + sz / 2, sz * 0.32, sz * 0.32, 0, on ? 1 : 0.62, PLAIN);
+      drawGlyph(t, bx + sz / 2, by + sz / 2, sz * 0.30, 0, on ? 1 : 0.62, PLAIN);
       uiButtons.push({ x: bx, y: by, w: sz, h: sz, act: ((k) => () => { sel = k; snd.place(); render(performance.now()); })(t) });
       x += sz + gap;
     }
@@ -1285,9 +1275,7 @@
       const S = secOf(r), w = TAU / S, step = S / fold;
       const r0 = rr[r] + 1, r1 = rr[r + 1] - 1;
       const th = r1 - r0, rm = (r0 + r1) / 2;
-      let sy = th * 0.42, sx = (TAU * rm / S) * 0.42;
-      if (sx > sy * 1.5) sx = sy * 1.5;
-      if (sy > sx * 1.5) sy = sx * 1.5;
+      const gs = Math.min(th, TAU * rm / S) * 0.44;
       for (let sc = 0; sc < S; sc++) {
         const a0 = A0 + sc * w, k = Math.floor(sc / step);
         const inWedge = sc < step;
@@ -1309,10 +1297,11 @@
         const am = a0 + w / 2;
         const hue = WEDGE_COL[Math.round(k * WEDGE_COL.length / fold) % WEDGE_COL.length];
         drawGlyph(tok, cx + rm * Math.cos(am), cy + rm * Math.sin(am),
-                  sx * (0.7 + 0.3 * ease(p)), sy * (0.7 + 0.3 * ease(p)),
-                  am + Math.PI / 2, ease(p) * (1 - gone), hue);
+                  gs * (0.7 + 0.3 * ease(p)), am + Math.PI / 2, ease(p) * (1 - gone), hue);
       }
     }
+    ctx.fillStyle = PLAIN;
+    ctx.beginPath(); ctx.arc(cx, cy, rr[0] - 1, 0, TAU); ctx.fill();
     // the lit wedge, same mark the board uses
     const w6 = TAU / fold;
     ctx.strokeStyle = 'rgba(214,228,247,0.55)'; ctx.lineWidth = 1.3; ctx.lineCap = 'round';
