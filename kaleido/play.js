@@ -254,52 +254,19 @@
   const TOK_NAME = ['Petal', 'Diamond', 'Trefoil', 'Dot'];
   const PLAIN = '#C9D6EA';                  // --kal-plain
 
-  // PANES mode: the cell itself is the glass, filled edge to edge, and colour
-  // carries the piece instead of shape doing it. Four hues, well spread round
-  // the wheel. They are not 3:1 from each other and do not need to be: the dark
-  // came between every pane is what identifies each one as a separate object,
-  // which is the linework trick from the studio's contrast notes and also just
+
+  // Colour carries the PIECE. It used to carry the wedge, which made a rotating
+  // rainbow and put the six-fold structure right in your face, but a filled
+  // pane can only tell you something if its colour is about the piece, so the
+  // rainbow went when the panes came in. User's call, 2026-08-20, after seeing
+  // both. The symmetry now reads from the pattern rather than from the colour.
+  //
+  // These four are nowhere near 3:1 from one another and do not need to be:
+  // the dark came around every pane is what identifies it as its own object.
+  // That is the linework trick from the studio's contrast notes, and also just
   // how leaded glass is built. Every hue is far past 3:1 against the came.
+  // Mirrors --kal-pane1..4 in shared/tokens.css.
   const PANE_COL = ['#E4634F', '#FFD23F', '#5DD39E', '#63C4E8'];
-  let paneMode = false;
-  // Cut the shape out of the pane, in the colour of the came. Colour and shape
-  // then say the same thing twice, which is exactly what a colourblind player
-  // needs, and it is what painted glass actually looks like. Costs no contrast:
-  // the cut is the same dark as the lead that already surrounds the pane.
-  let paneGlyph = false;
-
-  // LOCKED 2026-08-19, by the user, after seeing it both ways.
-  //
-  // Hue belongs to the WEDGE, one per sixth of a turn, and never to the token.
-  // Bound to the token it looked fine right up until cycling was switched on,
-  // at which point the colours scrambled and the six-fold symmetry stopped
-  // being visible at all, putting the novelty hook and the whole look in direct
-  // opposition. Bound to the wedge, the colour repeats every sixth of a turn
-  // whatever the tokens are doing: the structure stays legible, the cycling
-  // still bites, and SHAPE remains the only carrier of identity, which is what
-  // makes the shape-only mode cost a colourblind player nothing.
-  //
-  // Mirrors --kal-w1..w6 in shared/tokens.css. Canvas cannot read CSS
-  // variables, so the values are restated here.
-  const WEDGE_COL = ['#E4634F', '#F2A03C', '#FFD23F', '#5DD39E', '#63C4E8', '#B79CE8'];
-
-  // Tried and rejected: tinting each token to a different tone of the wedge
-  // hue. It reads as leaded glass in theory and as washed-out pastel in fact,
-  // and it costs the saturation that makes the figure sing. Shape already
-  // carries the token, so the tone was buying nothing.
-  //
-  // Kept instead: a gentle lift toward the centre, because the light is behind
-  // the middle of the window. Lighten only, never darken. Swept 2026-08-19 over
-  // all three beds: every hue clears 3:1, floor is coral on the wedge bed at
-  // 3.97:1. That is the headroom, and darkening any hue spends it.
-  function glyphColour(k, r) {
-    if (shapeOnly) return PLAIN;
-    const lift = RINGS > 1 ? 0.13 * (1 - r / (RINGS - 1)) : 0;
-    // Spread across the wheel rather than taking the first n. At three-fold,
-    // WEDGE_COL[k] alone would give three warm hues and no cool ones.
-    const hue = WEDGE_COL[Math.round(k * WEDGE_COL.length / N_FOLD) % WEDGE_COL.length];
-    return lighten(hue, lift);
-  }
 
   // The cycling lever. A rotation by k also advances the token by k, over the
   // 3-cycle petal -> diamond -> trefoil. Dot is the fixed point. 3 divides the
@@ -813,8 +780,7 @@
     if (k === 'z') undo();
     if (k === 'r') restart();
     if (k === 'h') hint();
-    if (k === 'p') { paneMode = !paneMode; render(performance.now()); }
-    if (k === 'o') { paneGlyph = !paneGlyph; render(performance.now()); }
+    if (k === 's') { shapeOnly = !shapeOnly; save(); render(performance.now()); }
     if (k >= '1' && k <= '4') { sel = +k - 1; render(performance.now()); }
   });
 
@@ -860,17 +826,15 @@
     ctx.restore();
     ctx.globalAlpha = 1;
   }
-  // Returns HEX, not rgb(), because its own output is fed back in: glyphColour()
-  // tints a wedge hue and the result is used as a colour again. Returning rgb()
-  // once made a second pass parse NaN out of the string and take down the whole
-  // render.
+  // Returns HEX, not rgb(), because its output is fed back in as a colour.
+  // Returning rgb() once made a second pass parse NaN out of the string and
+  // take down the whole render.
   function hex(c) { return [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)]; }
   const hx = (r, g, b) => '#' + [r, g, b].map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
   function lighten(c, f) { const [r, g, b] = hex(c); return hx(r + (255 - r) * f, g + (255 - g) * f, b + (255 - b) * f); }
 
   // ---------- RENDER ----------
-  let LEAD = 3;                                // px of dark came between cells
-  const setLead = () => { LEAD = paneMode ? 5 : 3; };
+  const LEAD = 5;                              // px of dark came between panes
   function cellPath(r, s, grow) {
     const r0 = ringR[r] + LEAD * 0.5, r1 = ringR[r + 1] - LEAD * 0.5;
     if (r1 <= r0) return false;
@@ -905,7 +869,6 @@
   function ease(t) { return 1 - Math.pow(1 - t, 3); }
 
   function render(now) {
-    setLead();
     ctx.clearRect(0, 0, LW, LH);
     uiButtons = [];
 
@@ -1019,87 +982,72 @@
       for (let s = 0; s < SEC(r); s++) {
         const i = OFF[r] + s;
         const inWedge = s < step;
-        const lock = isLocked(i), bad = false;
+        const lock = isLocked(i);
         const t = tokAt(i);
-
         if (!cellPath(r, s, 0)) continue;
 
-        if (paneMode) {
-          // Filled pane, or an empty socket waiting for one. A gap reads as a
-          // hole in the window, which is a much plainer thing to look at than a
-          // cell that merely lacks a small shape.
-          if (t >= 0) {
-            const { d } = domainOf(i);
-            const p = lock ? 1 : Math.min(1, Math.max(0, (now - placeT[d] - Math.floor(s / step) * 45) / 260));
-            ctx.fillStyle = shapeOnly ? PLAIN : PANE_COL[t % PANE_COL.length];
-            const al = bad ? 0.5 : (p <= 0 ? 0 : ease(p));
-            ctx.globalAlpha = al;
-            ctx.fill();
-            if (paneGlyph && al > 0) {
-              const cc2 = cellCentre(r, s);
-              drawGlyph(t, cc2.x, cc2.y, cellSize(r) * 0.62, cc2.a + Math.PI / 2, al * 0.9, '#0A1120');
-            }
-            ctx.globalAlpha = 1;
-          } else {
-            ctx.fillStyle = inWedge ? 'rgba(255,255,255,0.075)' : 'rgba(0,0,0,0.30)';
-            ctx.fill();
-          }
+        // ---- an empty socket ----
+        // A gap has to read as a hole in the window rather than as a pane that
+        // happens to be dull, so it goes DARKER than the stone, and the ones in
+        // the wedge take a faint lift to say they are yours to fill.
+        if (t < 0) {
+          // An empty socket has to be LIGHTER than the came, not darker. Darker
+          // made every gap merge with the leading around it into one black blob,
+          // so a window with seven holes read as a window with three big ones.
+          // Lighter reads as an empty frame with the stone showing through.
+          ctx.fillStyle = inWedge ? 'rgba(255,255,255,0.11)' : 'rgba(255,255,255,0.05)';
+          ctx.fill();
           continue;
         }
 
-        // Beds carry state by VALUE alone: empty, wedge, locked, conflicting.
-        // Three separated values, and the ceiling on the light ones is set by
-        // AA, not by taste: a bed brighter than about 0.155 white drops the
-        // coral glyph under 3:1. So "already set" goes DARKER instead of
-        // brighter, which reads as recessed into the stone and raises the
-        // glyph contrast rather than eating it.
-        let bed = 'rgba(255,255,255,0.045)';           // empty stone
-        if (inWedge) bed = 'rgba(255,255,255,0.120)';  // the wedge you edit
-        if (lock) bed = 'rgba(0,0,0,0.34)';            // already set, cannot move
-        if (bad) bed = 'rgba(216,82,63,0.34)';         // your wedge disagrees
-        ctx.fillStyle = bed; ctx.fill();
+        const { d } = domainOf(i);
+        // the placement ripples outward from the wedge into its copies
+        const delay = lock ? 0 : (Math.floor(s / step) * 45);
+        const p = lock ? 1 : Math.min(1, Math.max(0, (now - placeT[d] - delay) / 260));
+        if (p <= 0) continue;
+        let al = ease(p);
 
-        if (t >= 0) {
+        // A pane in a broken pair pulses, since a pane cannot lean away from
+        // its neighbour the way a small shape could. The hot came between them
+        // says where; this says which two.
+        if (nudge[i]) al *= REDUCED ? 0.62 : 0.55 + 0.25 * (0.5 + 0.5 * Math.sin(now / 190));
+        // the refusal: a fixed pane flashes back when you try to change it
+        const rf = (now - refuseT) / 340;
+        if (i === refuseCell && rf >= 0 && rf < 1) al *= 1 - 0.45 * Math.abs(Math.sin(rf * Math.PI * 2.5)) * (1 - rf);
+
+        ctx.globalAlpha = al;
+        ctx.fillStyle = shapeOnly ? PLAIN : PANE_COL[t % PANE_COL.length];
+        ctx.fill();
+        // Shape-only mode keeps the panes and takes the colour out, cutting the
+        // shape into the glass instead. Same board, same everything, so a
+        // colourblind player is playing the same game rather than a port of it.
+        if (shapeOnly) {
           const cc = cellCentre(r, s);
-          let { x, y } = cc; const a = cc.a;
-          // the hint: a ring of light closes onto the cell it just filled, so
-          // the player sees WHERE the answer came from rather than noticing a
-          // shape appeared somewhere
-          if (domainOf(i).d === hintCell) {
-            const hp = (now - hintT) / 900;
-            if (hp >= 0 && hp < 1) {
-              ctx.save();
-              ctx.globalAlpha = (1 - hp) * 0.85;
-              ctx.strokeStyle = '#FFF3D6';
-              ctx.lineWidth = 2;
-              ctx.beginPath();
-              ctx.arc(cc.x, cc.y, cellSize(r) * (1 + 1.6 * (1 - ease(hp))), 0, TAU);
-              ctx.stroke();
-              ctx.restore();
-            }
+          drawGlyph(t, cc.x, cc.y, cellSize(r) * 0.62, cc.a + Math.PI / 2, al * 0.92, '#0A1120');
+        }
+        ctx.globalAlpha = 1;
+
+        // the hint: a ring of light closes onto the pane it just filled
+        if (d === hintCell) {
+          const hp = (now - hintT) / 900;
+          if (hp >= 0 && hp < 1) {
+            const cc = cellCentre(r, s);
+            ctx.save();
+            ctx.globalAlpha = (1 - hp) * 0.9;
+            ctx.strokeStyle = '#FFF3D6'; ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(cc.x, cc.y, cellSize(r) * (1 + 1.8 * (1 - ease(hp))), 0, TAU);
+            ctx.stroke(); ctx.restore();
           }
-          // the refusal: a short shake along the ring, then it settles
-          const rf = (now - refuseT) / 340;
-          if (i === refuseCell && rf >= 0 && rf < 1) {
-            const k = Math.sin(rf * Math.PI * 5) * (1 - rf) * 5;
-            x += Math.cos(a + Math.PI / 2) * k;
-            y += Math.sin(a + Math.PI / 2) * k;
-          }
-          const { d } = domainOf(i);
-          // the placement ripples outward from the wedge into its copies
-          const delay = lock ? 0 : (Math.floor(s / step) * 45);
-          const p = lock ? 1 : Math.min(1, Math.max(0, (now - placeT[d] - delay) / 260));
-          if (p <= 0) continue;
-          const grow = (0.72 + 0.28 * ease(p)) * (1 + w * 0.05);
-          const nu = nudge[i] || [0, 0];
-          drawGlyph(t, x + nu[0], y + nu[1], cellSize(r) * grow, a + Math.PI / 2,
-                    bad ? 0.45 : ease(p), glyphColour(domainOf(i).k, r));
         }
       }
     }
-    // the leading, drawn last so it sits over every edge as one continuous net
-    ctx.strokeStyle = 'rgba(10,17,32,0.55)';
-    ctx.lineWidth = 1;
+    // the came network, drawn last so it sits over every edge as one continuous
+    // lead. This is also what makes the pane colours legal: the four hues are
+    // nowhere near 3:1 from each other and do not need to be, because the lead
+    // is what identifies each pane as its own object.
+    ctx.strokeStyle = 'rgba(8,14,26,0.75)';
+    ctx.lineWidth = 1.5;
     for (let r = 1; r < RINGS; r++) { ctx.beginPath(); ctx.arc(bcx, bcy, ringR[r], 0, TAU); ctx.stroke(); }
     drawWedgeMark();
     drawSeamBreaks();
@@ -1149,7 +1097,7 @@
     // One phrase, not both. Two of them ran the read-out left across the control
     // row, and the board is already saying WHERE every one of them is, so the
     // words only need to name the kind of problem the player is looking at.
-    const state = seamBreaks() ? 'shapes touching'
+    const state = seamBreaks() ? (shapeOnly ? 'shapes touching' : 'colours touching')
                 : placed() + '/' + blanks() + ' gaps filled';
     ctx.fillText('Level ' + level + '   ·   ' + state, LW - SIDE_PAD, Math.round(topBand() / 2));
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
@@ -1168,7 +1116,7 @@
       ctx.fillStyle = on ? 'rgba(255,255,255,0.155)' : 'rgba(255,255,255,0.055)';
       ZUI.roundRectPath(ctx, bx, by, sz, sz, 15); ctx.fill();
       if (on) { ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,255,255,0.62)'; ZUI.roundRectPath(ctx, bx, by, sz, sz, 15); ctx.stroke(); }
-      if (paneMode && !shapeOnly) {
+      if (!shapeOnly) {
         // A pane swatch shows the colour it will actually lay down.
         ctx.globalAlpha = on ? 1 : 0.6;
         ctx.fillStyle = PANE_COL[t % PANE_COL.length];
@@ -1292,16 +1240,17 @@
   // touching rule that is not switched on yet, teaches the wrong game.
   function rulesFor() {
     const copies = N_FOLD - 1;
+    const thing = shapeOnly ? 'shape' : 'colour';
     const out = [
-      'The window is nearly finished. A few pieces are missing, and every gap is inside the lit wedge.',
-      // The rule, stated as the thing you use rather than as a restriction.
-      'No two of the same shape may touch. That is what tells you which piece each gap wants.',
-      'Pick a shape and tap a gap. It fills the other ' + (copies === 2 ? 'two' : 'five')
+      'Panes are missing from the window, and every gap is inside the lit wedge.',
+      // The rule, stated as the thing you USE rather than as a restriction.
+      'No two panes of the same ' + thing + ' may touch. That is what tells you which glass each gap wants.',
+      'Pick a ' + thing + ' and tap a gap. It fills the other ' + (copies === 2 ? 'two' : 'five')
         + ' wedges at the same time, because they are copies of yours.',
       'Every gap has exactly one right answer. You never have to guess.',
     ];
     if (cycleOn) {
-      out.push('One twist from here on: each turn of the wheel also advances the shape, so a copy is not always the same piece.');
+      out.push('One twist from here on: each turn of the wheel also advances the glass, so a copy is not always the same pane.');
     }
     return out;
   }
@@ -1324,30 +1273,37 @@
     for (let r = 0; r < DEMO_RINGS; r++) {
       const S = secOf(r), w = TAU / S, step = S / fold;
       const r0 = rr[r] + 1, r1 = rr[r + 1] - 1;
-      const th = r1 - r0, rm = (r0 + r1) / 2;
-      const gs = Math.min(th, TAU * rm / S) * 0.44;
+      const rm = (r0 + r1) / 2;
       for (let sc = 0; sc < S; sc++) {
         const a0 = A0 + sc * w, k = Math.floor(sc / step);
         const inWedge = sc < step;
         const d0 = 1 / Math.max(1, r0), d1 = 1 / Math.max(1, r1);
-        ctx.beginPath();
-        ctx.arc(cx, cy, r0, a0 + d0, a0 + w - d0, false);
-        ctx.arc(cx, cy, r1, a0 + w - d1, a0 + d1, true);
-        ctx.closePath();
-        ctx.fillStyle = inWedge ? 'rgba(255,255,255,0.13)' : 'rgba(255,255,255,0.05)';
+        const path = () => {
+          ctx.beginPath();
+          ctx.arc(cx, cy, r0, a0 + d0, a0 + w - d0, false);
+          ctx.arc(cx, cy, r1, a0 + w - d1, a0 + d1, true);
+          ctx.closePath();
+        };
+        path();
+        ctx.fillStyle = inWedge ? 'rgba(255,255,255,0.11)' : 'rgba(255,255,255,0.05)';
         ctx.fill();
 
-        // the wedge fills in sequence; each copy follows its own rotation
+        // the wedge fills in sequence; each copy follows one rotation behind
         const idx = DEMO_SEQ.indexOf(sc % step);
         const born = 420 + idx * 520 + (inWedge ? 0 : 210 + k * 120);
         const p = Math.max(0, Math.min(1, (t - born) / 300));
         const gone = Math.max(0, Math.min(1, (t - 3500) / 400));
         if (p <= 0 || gone >= 1 || idx < 0) continue;
-        const tok = DEMO_SEQ[idx] % 3;
-        const am = a0 + w / 2;
-        const hue = WEDGE_COL[Math.round(k * WEDGE_COL.length / fold) % WEDGE_COL.length];
-        drawGlyph(tok, cx + rm * Math.cos(am), cy + rm * Math.sin(am),
-                  gs * (0.7 + 0.3 * ease(p)), am + Math.PI / 2, ease(p) * (1 - gone), hue);
+        const tok = DEMO_SEQ[idx] % PANE_COL.length;
+        ctx.globalAlpha = ease(p) * (1 - gone);
+        ctx.fillStyle = shapeOnly ? PLAIN : PANE_COL[tok];
+        path(); ctx.fill();
+        if (shapeOnly) {
+          const am = a0 + w / 2;
+          drawGlyph(tok, cx + rm * Math.cos(am), cy + rm * Math.sin(am),
+                    Math.min(r1 - r0, TAU * rm / S) * 0.28, am + Math.PI / 2, 0.92, '#0A1120');
+        }
+        ctx.globalAlpha = 1;
       }
     }
     ctx.fillStyle = PLAIN;
@@ -1407,9 +1363,9 @@
     y = wrapText('Complete the figure so it holds under every turn of the wheel.', cx, y, pw - 70, 23); y += 12;
     drawDemo(cx, y + demoR, demoR, now); y += demoH;
     const rx = px + 30;
-    const step = Math.max(1, Math.floor(WEDGE_COL.length / Math.max(1, rules.length)));
+    const step = Math.max(1, Math.floor(PANE_COL.length / Math.max(1, rules.length)));
     for (let i = 0; i < rules.length; i++) {
-      ctx.fillStyle = WEDGE_COL[(i * step) % WEDGE_COL.length];
+      ctx.fillStyle = PANE_COL[(i * step) % PANE_COL.length];
       ctx.beginPath(); ctx.arc(rx + 11, y + 11, 11, 0, TAU); ctx.fill();
       ctx.fillStyle = '#0E1726'; ctx.font = '800 13px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(String(i + 1), rx + 11, y + 12);
@@ -1455,7 +1411,6 @@
     // set a wedge cell directly, for testing states that are fiddly to tap into
     set(d, t) { dom[d] = t; placeT[d] = performance.now(); after(performance.now()); return this.state; },
     seamBreaks() { return seamBad.length; },
-    panes(v, cut) { paneMode = v !== false; paneGlyph = !!cut; render(performance.now()); return { paneMode, paneGlyph }; },
     measure() { return measureLevel(); },
     posed() { return lastMeasure; },
     seam(m) { seamMode = (m === 'radial' || m === 'full') ? m : 'off'; applySeamMode(); genLevel(level, false); return this.measure(); },

@@ -24,20 +24,17 @@
   /* Brand wordmark colour — used by every game's header */
   --brand:     #B0E0E6;          /* powder blue */
 
-  /* Kaleido glass. Hue belongs to the WEDGE, one per sixth of a turn, so the
-     figure reads as a rotating rainbow and the six-fold structure stays visible
-     whatever the tokens are doing. Tokens are identified by SHAPE alone, which
-     is what makes the shape-only mode free. Swept over all three cell beds:
-     every hue clears 3:1, and the floor is coral on the wedge bed at 3.97:1.
-     Treat that as the budget and do not darken any of them. */
-  --kal-w1:      #E4634F;        /* coral, a tint of --accent */
-  --kal-w2:      #F2A03C;        /* amber */
-  --kal-w3:      #FFD23F;        /* = --accent-2 */
-  --kal-w4:      #5DD39E;        /* = --green */
-  --kal-w5:      #63C4E8;        /* sky */
-  --kal-w6:      #B79CE8;        /* violet */
-  --kal-plain:   #C9D6EA;        /* shape-only mode: one colour for every shape */
-  --kal-leading: #0A1120;        /* the dark cames between cells */
+  /* Kaleido glass. A pane is filled edge to edge and its colour IS the piece.
+     These four are nowhere near 3:1 from each other and do not need to be: the
+     dark came around every pane is what identifies it as its own object, which
+     is the linework trick, and also just how leaded glass is built. Every hue
+     clears 3:1 against the came by a wide margin. */
+  --kal-pane1:   #E4634F;        /* coral, a tint of --accent */
+  --kal-pane2:   #FFD23F;        /* = --accent-2 */
+  --kal-pane3:   #5DD39E;        /* = --green */
+  --kal-pane4:   #63C4E8;        /* sky */
+  --kal-plain:   #C9D6EA;        /* shape-only mode: one glass, shape cut into it */
+  --kal-leading: #0A1120;        /* the came between panes */
 }
 
 html, body {
