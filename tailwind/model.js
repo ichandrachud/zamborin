@@ -362,8 +362,13 @@ function fly(plane, angleDeg, pull, opts = {}) {
   const bend = Math.max(0, Math.min(1, opts.bend || 0));
   const E = CFG.E_MIN + (CFG.E_MAX - CFG.E_MIN) * Math.max(0, Math.min(1, pull))
             + CFG.E_BEND * bend;
-  const v0 = Math.sqrt(2 * E / p.m);
-  const stroke = CFG.STROKE * (1 + CFG.BEND_STROKE * bend);
+  // opts.v0 / opts.stroke let an experiment drive the launch directly instead of
+  // through pull and bend — whip.js needs that, because a timed release sets the
+  // speed and the arc length from the swing rather than from a drawn band. Both
+  // default to the normal derivation, so nothing changes unless they are passed.
+  const v0 = opts.v0 != null ? opts.v0 : Math.sqrt(2 * E / p.m);
+  const stroke = opts.stroke != null ? opts.stroke
+               : CFG.STROKE * (1 + CFG.BEND_STROKE * bend);
   const a0 = (angleDeg + CFG.BEND_TILT * bend) * D2R;
   // what the wing actually feels leaving the arm, which is not what the
   // catapult imparted once there is air moving
