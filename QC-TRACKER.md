@@ -35,7 +35,7 @@ Delisted and NOT in scope: socket, bunny, empyrean, foldfig, pane, pins, plumb, 
 | 1 | orbit | - | - | - | - | - | - | - | |
 | 2 | bloom | - | - | - | - | - | - | - | |
 | 3 | tailwind | OK | OK | OK | OK | OK | OK | OK | audited 2026-08-20, T1 + T2 fixed. T3-T6 open, none breaking play |
-| 4 | stained | - | - | - | - | - | - | - | |
+| 4 | stained | OK | ! | OK | ! | ~ | ! | ! | audited 2026-08-20; see S1-S4 |
 | 5 | kaleido | OK | OK | OK | ~ | OK | OK | ! | audited 2026-08-20; see K1-K4 |
 | 6 | prism | - | - | - | - | - | - | - | |
 | 7 | needle | - | - | - | - | - | - | - | |
@@ -62,6 +62,10 @@ Severity: **BREAKS PLAY** | **VISUAL** | **MINOR** | **EMBED GAP**
 | K2b | tessera | EMBED GAP | Worse case of K2: `tessera/play.js` loaded both HOW TO PLAY instruction images by root-absolute path, so off-origin the game's own teaching screen would have lost its art. | FIXED on the same branch |
 | K2c | all 15 games | EMBED GAP, won't fix | `/_vercel/insights/script.js` and `/_vercel/speed-insights/script.js` are Vercel edge endpoints with no file in the repo, so they cannot be made relative. Off-origin they 404 harmlessly and analytics simply do not record. Would need an embed build that omits them. | ACCEPTED |
 | K3 | kaleido | MINOR | No aria-live region, so a screen reader is told nothing when the board changes. The canvas itself is labelled. | OPEN |
+| S1 | stained | BREAKS PLAY (phone landscape) + EMBED GAP | The rules card clamps its height while the copy keeps flowing, so the Resume button draws through the rules and the last two are clipped. Same mechanism as K1 but worse: measured overlap 134px at 812x375, which is a phone held sideways, and 29px even at 640x480. Fine at 760x600 and 375x812. | OPEN, K1's fix applies |
+| S2 | stained | ACCESSIBILITY, significant | No colourblind mode, and the whole mechanic is reading mixed colours. Sampled the lit palette off the canvas and simulated dichromacy: under deuteranopia 7 of 21 pairs fall below 10 dE2000, under protanopia 8 of 21, with red vs brown at 0.8, effectively identical. Normal vision is fine, worst pair 22.3. Kaleido solved this with a shape-only mode; Stained has no equivalent. | OPEN |
+| S3 | stained | SEO | No `VideoGame` JSON-LD. The only game of fifteen with no structured data at all. Every other tag is present and correct. | OPEN, one block to add |
+| S4 | stained, untangle, carrom | MINOR, consistency | These three load no `shared/sfx.js` and have no sound or sound toggle. The other twelve do. | OPEN |
 | T1 | tailwind, stained | MINOR | These two were the only games of fifteen not loading `shared/analytics.js`, and they had none of the call sites either, so they reported nothing at all. | FIXED and deployed 2026-08-20. Stained got the full fleet pattern; Tailwind got init + gameStart only, since it has no levels and faking them would break maxLevel fleet-wide. |
 | T2 | tailwind | MINOR (AA) | The personal-best figure on each aircraft card was white at 45% over the card, measuring 4.37:1 at 12px against a 4.5:1 bar. | FIXED and deployed 2026-08-20, raised to 55% which measures 5.83:1. |
 | T3 | tailwind | LOW (AA) | The sound glyph in its OFF state is white at 34%, measuring 2.96 to 3.11:1 depending on the panel behind it. Graphical objects want 3:1, so it passes over two backgrounds and fails over the third. | OPEN |
@@ -223,3 +227,41 @@ it did. A silent half-fix is harder to spot than no fix.
   in `/private/tmp/.../tw-main`, so `git checkout main` failed here; push with
   `git push origin HEAD:main` instead.
 - After pushing, their worktree is behind. Say so, or the sweep happens in reverse.
+
+
+## Stained audit, 2026-08-20
+
+**Functionality: pass, and verified two ways.** Every level ships a `witness`, the exact
+placement that produces its target, because the generator scrambles from a solved state.
+
+1. Headlessly in Node against `model.js`: all **100** levels, every witness reproduces its
+   target exactly, no pane falls off the board.
+2. Then through the running game via `window.__stained`: 100 levels, 878 placements, zero
+   refusals from `place()`, and all 100 registered as won by the game's own `checkWin`.
+
+Ramp: 2 to 15 panes, 6x6 boards up to level ~60 then 8x8. Undo verified with a real tap on
+the pill (placed count 2 to 1), Restart clears the board and resets `won`, and the level is
+saved to `zamborin-stained.level.v1` and restored on reload with the card reading Resume.
+
+**Mobile portrait: pass.** 375x812 fills exactly, aspects match to three decimals, no
+horizontal overflow, canvas occupies the full viewport confirmed by hit-testing all four
+corners. Landscape is S1.
+
+**Performance: pass.** No `setInterval`. The menu runs its own rAF loop only while the card
+is open and stops when it closes.
+
+**SEO: everything present except structured data.** See S3.
+
+**Embed: mechanically fine, blocked by S1.** No frame-busting, no runtime fetches, all
+asset paths relative, and it runs and resizes in a 480x360 iframe. It is the rules card that
+breaks, not the plumbing.
+
+**A note on the numbers.** Stained ships 100 levels, not the 9 it launched with. It also
+carries its own fit assertion, `__stained.menuFit()`, which returns `textUnderButton`
+directly. Someone anticipated S1 exactly and built the detector; it was never wired to
+anything that prevents it.
+
+**Two things I nearly logged and did not.** A dark band down the right and bottom of the
+mobile screenshot looked like a sizing bug and was the preview pipeline capturing at a
+different scale than the page had laid out. Hit-testing the corners settled it. See
+[[feedback-preview-pane-hidden-blanks-canvas]] for the family this belongs to.
