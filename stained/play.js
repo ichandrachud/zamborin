@@ -196,6 +196,13 @@
   var offTimer = null, knob = 0, knobTo = 0, knobAnim = false;
   var view = { cell: 40, gx: 0, gy: 0, trayY: 0, trayCell: 26, cw: 0, ch: 0 };
 
+  // ---------- analytics ----------
+  // Same shape as the other thirteen games: a NOOP stand-in so a blocked or
+  // absent tracker can never throw into the draw loop.
+  var NOOP = { init: function () {}, gameStart: function () {}, levelStart: function () {},
+               levelComplete: function () {}, levelRestart: function () {}, hintUsed: function () {} };
+  function T() { return window.ZAM_TRACK || NOOP; }
+
   // ---------- level ----------
   function load(i) {
     level = LEVELS[i];
@@ -209,6 +216,7 @@
     lit = false; knob = 0; knobTo = 0;
     if (offTimer) { clearTimeout(offTimer); offTimer = null; }
     saveLevel(i);
+    T().levelStart(i + 1);          // 1-based, so it reads like the level pill
     layout(); draw(); chrome();
   }
 
@@ -262,7 +270,7 @@
     }
     // solving is a fact about the arrangement, but you only LEARN it by
     // lighting the window, so the bloom waits for the light
-    if (won && !before && lit) startBloom();
+    if (won && !before && lit) { startBloom(); T().levelComplete(idx + 1, history.length); }
     if (won && lit && idx === LEVELS.length - 1) finished = true;
     if (!won) { bloom = 0; }
     return won;
@@ -668,7 +676,7 @@
     x += wU + gap;
     uiButtons.push(Object.assign(
       UI.drawPill(ctx, 'Restart', x + wR / 2, cy, { w: wR }),
-      { act: function () { load(idx); } }));
+      { act: function () { T().levelRestart(idx + 1); load(idx); } }));
     x += wR + gap;
     uiButtons.push(Object.assign(
       UI.drawPill(ctx, 'Rules', x + wH / 2, cy, { w: wH }),
@@ -888,7 +896,7 @@
     }
     draw();
   }
-  function closeMenu() { phase = 'play'; draw(); }
+  function closeMenu() { phase = 'play'; T().gameStart(); draw(); }
 
   /* ---------- the end screen ----------
      The scrim has the finished window punched out of it, so everything else
@@ -1005,6 +1013,7 @@
   setCanvasVars(); resizeCanvas(); fitFullscreen(); resizeCanvas();
   /* ?level=N (1-based) opens that level directly. Out-of-range falls back to
      the first rather than to a blank screen. */
+  T().init('stained');
   var want = parseInt((location.search.match(/[?&]level=(\d+)/) || [])[1], 10);
   load(isFinite(want) && want >= 1 && want <= LEVELS.length ? want - 1 : loadLevel());
   openMenu();
