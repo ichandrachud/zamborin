@@ -45,6 +45,37 @@ const FLEET = [
 // Lacerta and 28° on Tempest at 8 m/s — and it differs per aeroplane. It also
 // moves who is fastest: Lacerta owns calm air, Tempest a stiff breeze, Zephyr
 // a gale. Rolled once per attempt and shown before you touch the band.
+// THE GOLF METER. The shipped control was a drag, and a drag has no time
+// pressure: you could take five seconds lining it up and let go exactly on the
+// number you learned last go, so once you knew the answer there was no
+// execution left and nothing survived into the hundredth attempt. Both numbers
+// are now set by a tap against a sweep you cannot sit on.
+//
+// Nothing else changes. The physics is untouched, so the wind still decides
+// which angle you are aiming AT, launch strain still puts the best draw in the
+// interior rather than at the stop, and the six planes still differ in which
+// mistake costs them — over-draw ruins Lacerta, under-draw wastes Tempest.
+//
+// The two speeds are the whole difficulty dial (see meter.js). The 90%-of-best
+// band is 9-13° of aim but only ~5% of the draw, so the draw sweep runs slower
+// to give the same forgiveness in milliseconds.
+//
+// DOUBLED on 2026-08-20 at the user's call, from 0.80 / 1.90. Measured across
+// the fleet against a 40 ms release error, the windows halve from 84-128 ms to
+// 42-64, the mean launch drops from 88% of a perfect one to 82%, and goes
+// landing inside 95% of perfect fall from one in four to one in twelve. A
+// near-perfect launch stays around one in a hundred. That is the intent — it is
+// meant to want a sharp hand — but it is the difficulty knob, and turning it
+// back is a one-number change with nothing else to undo.
+//
+// Note the aim is now the tighter of the two on five of the six planes, which
+// it was not before: their 90% aim band is only 9° against Lacerta's 13.
+const ANG_SWEEP  = 0.40;   // seconds to run the aim across its whole range
+const PULL_SWEEP = 0.95;   // seconds to draw the band from slack to full
+// Both ping-pong rather than stopping at the end, so missing your moment costs
+// you the wait for it to come round instead of the attempt.
+const tri = (t, period) => { const u = (t % (2 * period)) / period; return u <= 1 ? u : 2 - u; };
+
 const WIND_MIN = -15, WIND_MAX = 3;
 function rollWind() {
   const t = Math.random();
@@ -292,7 +323,7 @@ const S = {
   bests: loadBests(),
   wind: 0,
   cards: [],
-  angle: 22, pull: 0,
+  angle: 22, pull: 0, meterT: 0,
   dragging: false,
   flight: null, flightStart: 0,
   dist: 0,
@@ -411,7 +442,7 @@ function fit() {
   }
   resizeCanvas();
   groundY = Math.round(H * (1 - GROUND_FRAC));
-  if (S.phase === 'aim' || S.phase === 'pick') { S.ppm = S.ppmTarget = restPPM(); }
+  if (S.phase !== 'fly' && S.phase !== 'rest') { S.ppm = S.ppmTarget = restPPM(); }
 }
 // The first measurement on a handset is taken while the splash is up and the
 // address bar is still settling, and this file had no way to correct it — every
@@ -427,8 +458,10 @@ const sy = (wy) => groundY - (wy - S.camY) * S.ppm;
 // The aeroplane launches from x = 0; the fork stands a little to its right, so
 // the first thing a launch does is pass behind the trunk.
 const TREE_X = -NEST_DX * M.CFG.PIVOT_H;
-const pad  = () => ({ x: sx(TREE_X), y: sy(M.CFG.PIVOT_H) });   // the fork
-const nest = () => ({ x: sx(0), y: sy(M.CFG.LAUNCH_H) });       // where it rests
+const pad  = () => ({ x: sx(TREE_X), y: sy(M.CFG.PIVOT_H) });   // the screw
+// There is no second anchor any more. The aeroplane hangs off the screw at the
+// end of the band, so where it rests falls out of the draw length and the aim
+// rather than being a point of its own.
 
 // ---- input ---------------------------------------------------------------
 function pointer(e) {
@@ -453,7 +486,14 @@ function hitBtn(p) {
   const b = S.btn;
   return !!b && p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h;
 }
+// A touch that is not swallowed also fires a compatibility mousedown, and this
+// game now counts taps for everything: one stray duplicate would skip a whole
+// stage of the launch. preventDefault below suppresses it in every browser that
+// honours it, and this guard covers the ones that do not.
+let lastTouchAt = 0;
 function onDown(e) {
+  if (e.type === 'touchstart') lastTouchAt = performance.now();
+  else if (performance.now() - lastTouchAt < 600) return;   // ghost mouse event
   if (S.phase === 'fly') return;
   e.preventDefault();
   SFX.ensureAudio(); VOICE.init();     // browsers only allow this on a gesture
@@ -473,33 +513,21 @@ function onDown(e) {
     if (hitBtn(p)) { SFX.play('click'); resetToAim(); }
     return;
   }
-  S.phase = 'drag'; S.dragging = true;
-  onMove(e);
+  // tap 1 starts the aim sweeping, tap 2 locks it and starts the band drawing,
+  // tap 3 lets go
+  if (S.phase === 'aim')     { S.phase = 'setPull'; S.meterT = 0; S.pull = 0; SFX.play('click'); return; }
+  if (S.phase === 'setPull') { S.phase = 'setAng';  S.meterT = 0; SFX.play('click'); return; }
+  if (S.phase === 'setAng')  { VOICE.stretch(0); snapSound(S.pull); launch(); return; }
 }
-function onMove(e) {
-  if (!S.dragging) return;
-  e.preventDefault();
-  const p = pointer(e), o = nest();
-  const dx = Math.max(0, o.x - p.x), dy = Math.max(0, p.y - o.y);
-  const len = Math.hypot(dx, dy);
-  S.pull = Math.max(0, Math.min(1, len / maxDrag()));
-  VOICE.stretch(S.pull);
-  if (len > 8) {
-    const deg = Math.atan2(dy, dx) * 180 / Math.PI;
-    S.angle = Math.max(M.CFG.ANG_MIN, Math.min(M.CFG.ANG_MAX, deg));
-  }
-}
-function onUp(e) {
-  if (!S.dragging) return;
-  e.preventDefault();
-  S.dragging = false;
-  VOICE.stretch(0);
-  if (S.pull < 0.04) { S.phase = 'aim'; return; }
-  snapSound(S.pull);
-  launch();
-}
+// Nothing is dragged any more, but the move and up listeners stay registered
+// and inert: a touchstart that called preventDefault suppresses the synthetic
+// mouse pair, and swallowing the rest here keeps a stray gesture from reaching
+// the page underneath.
+function onMove(e) { if (S.phase === 'setAng' || S.phase === 'setPull') e.preventDefault(); }
+function onUp(e)   { if (S.phase === 'setAng' || S.phase === 'setPull') e.preventDefault(); }
 function resetToAim() {
   S.phase = 'aim'; S.flight = null;
+  S.meterT = 0; S.angle = M.CFG.ANG_MIN; S.pull = 0;   // slack, and lying level
   VOICE.hush();
   S.wind = rollWind();                  // fresh conditions every attempt
   S.dist = 0; S.beatBest = false;
@@ -889,12 +917,14 @@ function hud() {
     speakerGlyph(x + wSnd / 2, rowY, SFX.isOn());
     x += wSnd + ZAM.PILL.gap;
     S.chg = ZAM.drawPill(ctx, 'CHANGE AIRCRAFT', x + wPill / 2, rowY);
-    if (S.phase === 'aim') {
+    if (S.phase === 'aim' || S.phase === 'setAng' || S.phase === 'setPull') {
       ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
       // sits on lit grass, not on the bar, so it takes dark ink and a light
       // backing rather than the band's white
       ctx.font = '600 14px Inter, system-ui, sans-serif';
-      const msg = 'pull the band back, then let go';
+      const msg = S.phase === 'aim'     ? 'tap to draw the band'
+                : S.phase === 'setPull' ? 'tap to set the force'
+                :                         'tap to launch';
       ctx.fillStyle = 'rgba(255,255,255,0.65)';
       ctx.fillText(msg, W / 2, H - BAR_H - 13);
       ctx.fillStyle = INK;
@@ -1097,34 +1127,58 @@ function frame(now) {
     chase(e.x, 0, 0.10, dt);
     pp = { x: sx(e.x), y: sy(e.y) }; pth = e.th; pw = e;
   } else {
+    // The catapult IS the meter. The aeroplane's own attitude shows the aim
+    // running up and down its range, and the band's own stretch shows the draw
+    // filling — the same two things you already read off the artwork, now
+    // moving on their own schedule. No bar is drawn for either, for the reason
+    // the angle read-out was dropped: a meter with a mark on it is a mark to
+    // memorise, and you would dial it rather than judge it.
+    if (S.phase === 'setPull') {
+      // The band stretches and the aeroplane rides out along it, because it is
+      // held IN the sling — the draw is a thing you watch happen, not a bar.
+      S.meterT += dt;
+      S.pull = tri(S.meterT, PULL_SWEEP);
+      VOICE.stretch(S.pull);
+    } else if (S.phase === 'setAng') {
+      // Then band and aeroplane swing about the screw TOGETHER, as one rigid
+      // piece. Nothing slides along anything; the whole assembly rotates.
+      S.meterT += dt;
+      S.angle = M.CFG.ANG_MIN + (M.CFG.ANG_MAX - M.CFG.ANG_MIN) * tri(S.meterT, ANG_SWEEP);
+    }
     follow(0, M.CFG.LAUNCH_H, 0.16, 0.70, dt);
-    const o = nest();
+    // ONE RIGID ASSEMBLY, HUNG OFF THE SCREW. The band runs from the screw out
+    // to the aeroplane and the aeroplane lies ALONG it, nose pointing back up
+    // the band — which is the way it will travel when the sling lets go. Draw
+    // changes the length; aim rotates the whole thing about the screw. Nothing
+    // is positioned independently of anything else, which is what was wrong
+    // before: the aeroplane was anchored at its own point, clamped upward out
+    // of the field on steep aims, and rotated on a separate rule, so the band
+    // crossed the fuselage at an angle nothing was holding it at.
+    const o = pad();                       // the screw, not a second anchor
     const a = S.angle * Math.PI / 180;
-    // At rest the aeroplane sits centred on the pivot, as drawn in the reference;
-    // drawing back slides it away along the reverse of the aim.
-    const r = Math.max(0, Math.min(1, S.pull)) * maxDrag();
-    // AND AT REST IT SITS LEVEL. Pitching it to the aim angle with no draw on
-    // the band read as an aeroplane already climbing, parked in mid-air, and it
-    // left the band crossing the fuselage at an angle nothing was holding. With
-    // nothing stretched there is no launch direction yet; the sling only points
-    // somewhere once it is taking up, so the aeroplane swings into line over the
-    // first fraction of the draw and holds the aim from there.
-    const align = Math.min(1, Math.max(0, S.pull) / 0.18);
-    // At a near-vertical aim the draw runs straight down out of the fork, which
-    // on a phone would bury the aeroplane in the field. The PULL is still the
-    // full length of the drag — only where it is drawn gets held above ground.
     const ar = art();
     const halfH = (PLANE_LEN_M * S.ppm) *
       (ar && ar.ok ? ar.img.naturalHeight / ar.img.naturalWidth : 0.5) / 2;
-    pp = { x: o.x - Math.cos(a) * r,
-           y: Math.min(sy(0) - halfH * 0.55, o.y + Math.sin(a) * r) };
-    pth = a * align;
+    // slack length, so it sits just off the screw with nothing drawn
+    let r = PLANE_LEN_M * S.ppm * 0.30 + Math.max(0, Math.min(1, S.pull)) * maxDrag();
+    // A steep aim swings the aeroplane down towards the field. Shortening the
+    // draw is what the ground would really do, and it keeps the assembly rigid;
+    // clamping the aeroplane upward instead is what bent it before.
+    const floor = sy(0) - halfH * 0.5;
+    if (Math.sin(a) > 0.001) r = Math.min(r, Math.max(0, (floor - o.y) / Math.sin(a)));
+    pp = { x: o.x - Math.cos(a) * r, y: o.y + Math.sin(a) * r };
+    pth = a;
   }
 
-  const aiming = S.phase === 'aim' || S.phase === 'drag';
+  const aiming = S.phase === 'aim' || S.phase === 'setAng' || S.phase === 'setPull';
   sky(); bestLine();
   if (pw) shadow(pw.x, pw.y);
-  if (pp) plane(pp.x, pp.y, pth);   // behind the trunk, so a launch passes under it
+  // Always behind the trunk, which is what sells the trunk as standing in the
+  // field rather than being painted on the sky. A steep aim swings the
+  // aeroplane across it and it is partly hidden while you choose; the user
+  // called that fine on 2026-08-20, so the earlier in-front-while-aiming
+  // exception is gone. The band stays over the top, as in the reference.
+  if (pp) plane(pp.x, pp.y, pth);
   trunk();
   band(aiming, pp);
   hud();
