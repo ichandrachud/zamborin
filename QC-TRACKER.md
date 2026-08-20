@@ -34,7 +34,7 @@ Delisted and NOT in scope: socket, bunny, empyrean, foldfig, pane, pins, plumb, 
 |---|---|---|---|---|---|---|---|---|---|
 | 1 | orbit | - | - | - | - | - | - | - | |
 | 2 | bloom | - | - | - | - | - | - | - | |
-| 3 | tailwind | - | - | - | - | - | - | - | |
+| 3 | tailwind | ~ | OK | OK | ! | ! | OK | OK | audited 2026-08-20; see T1-T6. FN partial: model verified, input path not |
 | 4 | stained | - | - | - | - | - | - | - | |
 | 5 | kaleido | OK | OK | OK | ~ | OK | OK | ! | audited 2026-08-20; see K1-K4 |
 | 6 | prism | - | - | - | - | - | - | - | |
@@ -62,6 +62,11 @@ Severity: **BREAKS PLAY** | **VISUAL** | **MINOR** | **EMBED GAP**
 | K2b | tessera | EMBED GAP | Worse case of K2: `tessera/play.js` loaded both HOW TO PLAY instruction images by root-absolute path, so off-origin the game's own teaching screen would have lost its art. | FIXED on the same branch |
 | K2c | all 15 games | EMBED GAP, won't fix | `/_vercel/insights/script.js` and `/_vercel/speed-insights/script.js` are Vercel edge endpoints with no file in the repo, so they cannot be made relative. Off-origin they 404 harmlessly and analytics simply do not record. Would need an embed build that omits them. | ACCEPTED |
 | K3 | kaleido | MINOR | No aria-live region, so a screen reader is told nothing when the board changes. The canvas itself is labelled. | OPEN |
+| T1 | tailwind, stained | MINOR | These two are the only games of fifteen that do not load `shared/analytics.js`. The other thirteen do. Matters for the monetization track, which wants metrics before ads. | OPEN |
+| T2 | tailwind | MINOR (AA) | The personal-best figure on each aircraft card is white at 45% over the card, measuring 4.37:1 at 12px. AA wants 4.5:1 for text that size. The label beside it already uses 55%, which measures 5.83:1. | OPEN, one-character fix |
+| T3 | tailwind | LOW (AA) | The sound glyph in its OFF state is white at 34%, measuring 2.96 to 3.11:1 depending on the panel behind it. Graphical objects want 3:1, so it passes over two backgrounds and fails over the third. | OPEN |
+| T4 | site-wide | MINOR | Em dashes in body copy on 7 of the 15 games plus the homepage, about 26 instances (tessera 6, zood 4, ludo 4, tailwind 3, untangle 3, carrom 3, needle 1, index 2). The `Name — A Zamborin Game` title pattern is on all 15 and reads as deliberate branding. | OPEN, owner's call |
+| T5 | site-wide | OBSERVATION | Canvas copy runs 10 to 15px across the fleet, under the site's 16px content-copy floor. Tailwind's stat-bar labels are the smallest at 10px. The floor was written for CSS text classes with a badge exemption, so this may be out of scope by design. | OPEN, owner's call |
 | K4 | kaleido | MINOR | By default colour is the only thing separating three of the four glasses (all within 1.3:1 of each other in lightness). Mitigated by a built-in colourblind mode that swaps colour for shape, offered on the rules card, but it is off by default. | OPEN, by design |
 
 ## Pre-scan findings (static file reading only, nothing verified in a browser yet)
@@ -140,3 +145,55 @@ live site sends no `X-Frame-Options` or CSP `frame-ancestors`, so it can be embe
 cross-origin today. Runs in a 480x360 iframe, fits the container exactly, no overflow.
 No runtime `fetch` or `XMLHttpRequest`, so it works offline once loaded. localStorage is
 namespaced to `zamborin-kaleido.*`. Blocked only by K1 and K2.
+
+
+## Tailwind audit, 2026-08-20
+
+**Functionality: partial, and the part I could measure is strong.** The game has no
+browser debug handle, but it ships a Node gate harness (`tailwind/measure.js`), so I ran
+that instead of clicking. Against the game's own stated thresholds, printed at the bottom
+of its own output:
+
+| Its threshold | Measured | |
+|---|---|---|
+| random near 85% of informed means no skill | 43 to 50% | pass |
+| by feel well under informed means a needle | 84 to 86% | pass |
+| adjacent-cell jump p99 over 15% means cliffs | 5 to 13% | pass |
+| bounce share over 25% means luck decides | 0% | pass |
+| a bimodal spread means one lucky outcome dominates | unimodal, peak 253m | pass |
+| good region under 2% means a needle | **1% on all six planes** | **at the line** |
+
+Optima are interior (62.5 to 67.7 degrees, pull 0.51 to 0.85) and the wind matrix shows a
+wind-blind player losing 17% on the worst day, so the dial is worth reading. See T6.
+
+**Not checked: the input path end to end.** Pick a plane, three timed taps, a launch, and a
+best written to storage. The whole game is driven by `requestAnimationFrame`, and the
+preview pane in this environment stays hidden, where rAF fires zero frames, so a launch
+never advances. Synthetic taps dispatched correctly and no best was recorded, which is the
+expected result of a frozen loop rather than evidence of a bug. Needs a visible pane.
+
+**Mobile: pass, and it is the best sizing implementation in the fleet.** 375x812 fills
+exactly, aspects match, painted across 99% of width, no horizontal overflow. It carries all
+five re-fit listeners plus a `viewport()` that takes the smallest of `innerWidth`,
+`visualViewport` and `clientWidth`, pins the canvas as well as the wrap, and refuses to fit
+a box whose aspect does not match. Touch mapping scales X by width and Y by height.
+
+**Performance: pass.** No `setInterval`. rAF only.
+
+**SEO: pass.** Every tag present including image dimensions and alt, VideoGame JSON-LD, in
+the sitemap.
+
+**Consistency: header, footer, favicon, focus button and canvas label all correct.** T1 and
+T4 are the gaps.
+
+**Embed: good.** No frame-busting, no runtime fetches other than one for its own
+`./assets/catapult.svg` at load, all asset paths relative, and the 806 KB background already
+has a 22 KB low-quality placeholder so it degrades on a slow line. One caveat: that `fetch`
+means the folder needs a server and will not run from `file://`.
+
+**The extra JS files are not dead weight.** `balance.js`, `bend.js`, `measure.js`,
+`meter.js`, `sweep.js`, `whip.js` and `whip2.js` are Node gate and measurement scripts, the
+same convention wire, pane, socket, mobile and bunny follow. They do get deployed, so an
+embed bundle should exclude them.
+
+| T6 | tailwind | OBSERVATION, design | The gate's own reading guide says a good region under about 2% is a needle, and every plane measures exactly 1%. But by-feel measures 84 to 86%, which the same guide reads as clearly not a needle. Two of its own metrics disagree, so the question is which one describes the player. Not a QC defect and presumably seen at ship. | OPEN, owner's call |
