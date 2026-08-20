@@ -125,6 +125,36 @@
    governs the launch as well as the landing. Drag is the balancing screw and is
    solved rather than chosen; see the fleet table.
 
+   TREE BEND — A SECOND LAUNCH VARIABLE — WAS MEASURED AND REJECTED, 2026-08-20.
+   The proposal: bend the trunk back with one tap, draw the band with a second.
+   It is in the model behind opts.bend, which defaults to 0 and reproduces this
+   game exactly; bend.js is the harness. The result:
+
+     BEST BEND SAT AT THE MAXIMUM FOR ALL SIX PLANES, AND FOR ALL 72 SETTINGS
+     OF THE FOUR CONSTANTS SWEPT. Not one gave an interior optimum.
+
+   So it is not a decision, it is a tax: you would wind it to the stop every
+   launch and get on with the real input. Exactly what the launch angle was
+   before wind, and the reason to reject it is the same.
+
+   The interesting part is WHY, because the first guess was wrong. The guess was
+   that the whip's cost — it releases you rotated off your aim — would be
+   absorbed by the launch angle, the angle being free to re-aim. It is not:
+   pinning the aim at the no-bend optimum still gives best bend 1.00. The actual
+   reason is that a whip's benefit is not the energy it adds. Energy alone is a
+   LOSS of 156 m, because reaching a higher speed over the same four-metre
+   stroke raises the launch load and strains the wing. The whole win, +302 m, is
+   that the fork travels with the aeroplane and spreads that acceleration over a
+   longer stroke: LESS LOAD PER JOULE. That is unconditional. Against it the
+   tilt is worth -3 m and the lost release height -13 m, and no setting in the
+   sweep brought them within reach of each other.
+
+   Which leaves the mechanic bimodal rather than tunable: with the stroke
+   benefit bend is always maximum, without it bend is always zero, and there is
+   no interior anywhere between. Forcing one would mean inventing a
+   super-linear cost to bolt on, and a coupling that does not come from the
+   material is book-keeping rather than insight.
+
    Deterministic: same plane, same angle, same pull, same distance, forever. No
    Math.random anywhere below the generation of nothing at all.
 */
@@ -163,6 +193,12 @@ const CFG = {
   TAU_PATH: 0.85,     // seconds for the path to settle onto its target
   PUSH_G: 0.05,       // how hard it will push; a wing pulls, it does not shove
   STROKE: 4.0,        // metres of catapult stroke; sets the launch load
+  // Tree-bend, the candidate second variable. Swept by bend.js; all four are 0
+  // in effect until a launch passes a non-zero bend.
+  E_BEND: 1200,       // joules the trunk adds at full bend
+  BEND_STROKE: 0.60,  // how much longer the whip makes the stroke, fraction
+  BEND_TILT: 14,      // degrees steeper than aimed, at full bend
+  BEND_DROP: 2.4,     // metres of release height given up, at full bend
   WING_LOAD: 19,      // kg/m², fleet-wide. This is the "metal, not paper" dial.
   ROLL_MU: 0.62,      // wheel/grass rolling resistance during the run-out
 };
@@ -312,9 +348,23 @@ function fly(plane, angleDeg, pull, opts = {}) {
   // same drag force, so weight was a free win worth more than the entire drag
   // slider — measured, Zephyr topped out at 96 m with drag at zero while
   // Cyclone still made 220 m with drag at maximum.
-  const E = CFG.E_MIN + (CFG.E_MAX - CFG.E_MIN) * Math.max(0, Math.min(1, pull));
+  // SECOND LAUNCH VARIABLE, off by default (bend 0 reproduces the shipped game
+  // exactly). Bending the trunk back and letting it whip forward is a compound
+  // catapult: the fork travels through its own arc while the aeroplane is still
+  // in the sling, so it adds stored energy AND spreads the acceleration over a
+  // longer stroke, which is less load per joule. Both of those are pure gain,
+  // so on their own bend would simply be a tax you always pay in full.
+  // What makes it a choice is that the fork does not hold still: it is rotating
+  // through that arc at the moment the band lets go, so the launch leaves
+  // steeper than aimed by an amount set by the bend, and from lower down, the
+  // trunk having tipped forward out from under it. Deterministic, not a
+  // lottery — you can learn it — but it means a hard bend aims for you.
+  const bend = Math.max(0, Math.min(1, opts.bend || 0));
+  const E = CFG.E_MIN + (CFG.E_MAX - CFG.E_MIN) * Math.max(0, Math.min(1, pull))
+            + CFG.E_BEND * bend;
   const v0 = Math.sqrt(2 * E / p.m);
-  const a0 = angleDeg * D2R;
+  const stroke = CFG.STROKE * (1 + CFG.BEND_STROKE * bend);
+  const a0 = (angleDeg + CFG.BEND_TILT * bend) * D2R;
   // what the wing actually feels leaving the arm, which is not what the
   // catapult imparted once there is air moving
   const v0air = Math.hypot(v0 * Math.cos(a0) - (opts.wind || 0), v0 * Math.sin(a0));
@@ -328,7 +378,7 @@ function fly(plane, angleDeg, pull, opts = {}) {
   // slower from the same energy) and the limit rises with how it is built.
   // Without this every plane in the fleet wanted the identical launch, 43° and
   // pull 0.96, and picking one was picking a number rather than a way to fly.
-  const nLaunch = (v0 * v0) / (2 * CFG.STROKE * CFG.G);
+  const nLaunch = (v0 * v0) / (2 * stroke * CFG.G);
   const strain = Math.max(0, Math.min(1.2, (nLaunch - p.nLaunch) / p.nLaunch));
   const clA = p.clAlpha / (1 + 1.5 * strain);
   const cd0 = p.cd0 * (1 + 2.5 * strain);
@@ -337,7 +387,7 @@ function fly(plane, angleDeg, pull, opts = {}) {
   const glideAngle = -Math.atan(1 / LD);
   const vTrim = Math.sqrt(p.m * CFG.G / (0.5 * CFG.RHO * p.S * clTrim));
 
-  let x = 0, y = CFG.LAUNCH_H;
+  let x = 0, y = CFG.LAUNCH_H - CFG.BEND_DROP * bend;
   let vx = v0 * Math.cos(a0), vy = v0 * Math.sin(a0);
   let theta = a0;                              // nose still pointing where aimed
   let t = 0, grounded = false, bounces = 0, apex = y, stalled = false, flex = 0;
