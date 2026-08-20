@@ -2087,17 +2087,36 @@
     'A splitter turns half a beam and lets the rest carry on, so one beam becomes two.',
   ];
 
+  /* Measured at a TYPE SCALE, then shrunk until it fits, because clamping the
+     height while the copy keeps its full length is what draws the last rules
+     under the PLAY button. rulesFit() below has reported this all along and
+     nothing acted on it. Horizontal geometry is untouched, so a smaller face
+     wraps to FEWER lines; UI.CTA.h is not scaled, being a house size and a
+     touch target.
+
+     PRISM CANNOT ALWAYS WIN THIS. Six rules is half again what Kaleido carries
+     and twice Stained's, and in a short frame the arithmetic runs out: fitting
+     812x375, a phone on its side, needs a scale of 0.57, which is 9px body
+     copy. The floor holds at 0.72 and the residue is left visible rather than
+     papered over with type nobody can read. Shortening the card for short
+     frames is a copy decision and belongs to the owner. */
+  function menuMetrics(ts) {
+    const pw = Math.max(260, Math.min(LW - 44, 486));
+    let mh = 32 * ts + 50 * ts;
+    ctx.font = '600 ' + (17 * ts).toFixed(2) + 'px Inter, sans-serif';
+    mh = wrapText(MENU_SUB, 0, mh, pw - 70, 24 * ts, 'center', true) + 16 * ts;
+    ctx.font = '500 ' + (16 * ts).toFixed(2) + 'px Inter, sans-serif';
+    for (const r of MENU_RULES) mh = wrapText(r, 0, mh, pw - 96, 22 * ts, 'left', true) + 12 * ts;
+    return { pw, ph: mh + 22 * ts + UI.CTA.h + 34 * ts, ts };
+  }
+
   function menuOverlay() {
     ctx.fillStyle = 'rgba(9,15,26,0.92)'; ctx.fillRect(0, 0, LW, LH);
-    const pw = Math.max(260, Math.min(LW - 44, 486));
-
-    // Measure first, then size the card to what is actually in it.
-    let mh = 32 + 50;
-    ctx.font = '600 17px Inter, sans-serif';
-    mh = wrapText(MENU_SUB, 0, mh, pw - 70, 24, 'center', true) + 16;
-    ctx.font = '500 16px Inter, sans-serif';
-    for (const r of MENU_RULES) mh = wrapText(r, 0, mh, pw - 96, 22, 'left', true) + 12;
-    const ph = Math.min(LH - 28, mh + 22 + UI.CTA.h + 34);
+    const maxH = LH - 28;
+    let ts = 1, m = menuMetrics(1);
+    while (ts > 0.72 && m.ph > maxH) { ts = Math.max(0.72, ts - 0.04); m = menuMetrics(ts); }
+    const pw = m.pw;
+    const ph = Math.min(maxH, m.ph);
     const px = Math.round((LW - pw) / 2), py = Math.round((LH - ph) / 2);
     ctx.fillStyle = '#16233A'; roundRect(px, py, pw, ph, 24); ctx.fill();
     ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(255,255,255,0.12)'; roundRect(px, py, pw, ph, 24); ctx.stroke();
@@ -2107,24 +2126,29 @@
     g.addColorStop(0.5, '#39E77B'); g.addColorStop(0.78, '#4C8DFF'); g.addColorStop(1, 'rgba(76,141,255,0)');
     ctx.fillStyle = g; ctx.fillRect(px + 40, py + 1, pw - 80, 2);
 
-    const cx = LW / 2; let y = py + 32;
-    ctx.fillStyle = '#fff'; ctx.font = '800 38px Inter, sans-serif';
+    const cx = LW / 2; let y = py + 32 * ts;
+    ctx.fillStyle = '#fff';
+    ctx.font = '800 ' + (38 * ts).toFixed(2) + 'px Inter, sans-serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-    ctx.fillText('PRISM', cx, y); y += 50;
-    ctx.fillStyle = 'rgba(255,255,255,0.82)'; ctx.font = '600 17px Inter, sans-serif';
-    y = wrapText(MENU_SUB, cx, y, pw - 70, 24); y += 16;
+    ctx.fillText('PRISM', cx, y); y += 50 * ts;
+    ctx.fillStyle = 'rgba(255,255,255,0.82)';
+    ctx.font = '600 ' + (17 * ts).toFixed(2) + 'px Inter, sans-serif';
+    y = wrapText(MENU_SUB, cx, y, pw - 70, 24 * ts); y += 16 * ts;
 
     const rules = MENU_RULES;
-    const rx = px + 30;
+    const rx = px + 30, dotR = 12 * ts;
     for (let i = 0; i < rules.length; i++) {
-      ctx.fillStyle = ACCENT; ctx.beginPath(); ctx.arc(rx + 11, y + 11, 12, 0, 7); ctx.fill();
-      ctx.fillStyle = '#FFFFFF'; ctx.font = '800 14px Inter, sans-serif';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(i + 1), rx + 11, y + 12);
-      ctx.fillStyle = 'rgba(255,255,255,0.90)'; ctx.font = '500 16px Inter, sans-serif';
-      y = wrapText(rules[i], rx + 34, y, pw - 96, 22, 'left') + 12;
+      ctx.fillStyle = ACCENT; ctx.beginPath(); ctx.arc(rx + 11, y + dotR, dotR, 0, 7); ctx.fill();
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = '800 ' + (14 * ts).toFixed(2) + 'px Inter, sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(String(i + 1), rx + 11, y + dotR + 1);
+      ctx.fillStyle = 'rgba(255,255,255,0.90)';
+      ctx.font = '500 ' + (16 * ts).toFixed(2) + 'px Inter, sans-serif';
+      y = wrapText(rules[i], rx + 34, y, pw - 96, 22 * ts, 'left') + 12 * ts;
     }
     const label = moves > 0 ? 'RESUME' : 'PLAY';
-    uiButtons.push({ ...UI.drawCTA(ctx, label, cx, py + ph - 34 - UI.CTA.h / 2, ACCENT), act: () => { phase = 'play'; T().gameStart(); } });
+    uiButtons.push({ ...UI.drawCTA(ctx, label, cx, py + ph - 34 * ts - UI.CTA.h / 2, ACCENT), act: () => { phase = 'play'; T().gameStart(); } });
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   }
 
@@ -2341,23 +2365,19 @@
     // button rather than being cut off, which is invisible in code review and
     // obvious only in a screenshot. Check this after touching MENU_RULES.
     rulesFit() {
-      const pw = Math.max(260, Math.min(LW - 44, 486));
-      const nLines = (s, w, font) => {
-        ctx.font = font;
-        let n = 1, cur = '';
-        for (const wd of s.split(' ')) {
-          const t = cur ? cur + ' ' + wd : wd;
-          if (ctx.measureText(t).width > w && cur) { n++; cur = wd; } else cur = t;
-        }
-        return n;
-      };
-      let mh = 32 + 50;
-      mh += nLines(MENU_SUB, pw - 70, '600 17px Inter, sans-serif') * 24 + 16;
-      const per = MENU_RULES.map((r) => nLines(r, pw - 96, '500 16px Inter, sans-serif'));
-      mh += per.reduce((a, b) => a + b, 0) * 22 + MENU_RULES.length * 12;
-      const wanted = mh + 22 + UI.CTA.h + 34, max = LH - 28;
-      return { mode: MODE, LW, LH, linesPerRule: per, wanted, max,
-               overflowPx: Math.max(0, wanted - max), fits: wanted <= max };
+      /* Reports what the card ACTUALLY does now, running the same shrink search
+         menuOverlay runs rather than a second copy of the maths that can drift
+         from it. `scale` is where the search settled; at 1 it never had to
+         shrink, at the 0.72 floor it ran out of room and `overflowPx` is the
+         residue that copy would have to give back. */
+      const maxH = LH - 28;
+      let ts = 1, m = menuMetrics(1);
+      const unscaled = m.ph;
+      while (ts > 0.72 && m.ph > maxH) { ts = Math.max(0.72, ts - 0.04); m = menuMetrics(ts); }
+      return { mode: MODE, LW, LH, scale: +ts.toFixed(2),
+               bodyPx: +(16 * ts).toFixed(1),
+               unscaled: Math.round(unscaled), wanted: Math.round(m.ph), max: maxH,
+               overflowPx: Math.max(0, Math.round(m.ph - maxH)), fits: m.ph <= maxH };
     },
     // Print the intended answer beside every OTHER answer the board admits.
     // Counting second solutions says the construction argument is wrong;
