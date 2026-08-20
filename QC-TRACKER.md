@@ -63,7 +63,7 @@ Severity: **BREAKS PLAY** | **VISUAL** | **MINOR** | **EMBED GAP**
 | K2c | all 15 games | EMBED GAP, won't fix | `/_vercel/insights/script.js` and `/_vercel/speed-insights/script.js` are Vercel edge endpoints with no file in the repo, so they cannot be made relative. Off-origin they 404 harmlessly and analytics simply do not record. Would need an embed build that omits them. | ACCEPTED |
 | K3 | kaleido | MINOR | No aria-live region, so a screen reader is told nothing when the board changes. The canvas itself is labelled. | OPEN |
 | S1 | stained | BREAKS PLAY (phone landscape) + EMBED GAP | The rules card clamped its height while the copy kept flowing, so the Resume button drew through the rules and the last two were unreadable. Measured overlap 170px at 480x360, 134px at 812x375 in mobile mode which is a phone turned sideways, 29px even at 640x480. Fine at 760x600 and 375x812. | FIXED on branch `fix-stained-rules-card`, not yet deployed |
-| S2 | stained | ACCESSIBILITY, significant | No colourblind mode, and the whole mechanic is reading mixed colours. Sampled the lit palette off the canvas and simulated dichromacy: under deuteranopia 7 of 21 pairs fall below 10 dE2000, under protanopia 8 of 21, with red vs brown at 0.8, effectively identical. Normal vision is fine, worst pair 22.3. Kaleido solved this with a shape-only mode; Stained has no equivalent. | OPEN |
+| S2 | stained | ACCESSIBILITY, moderate | No colourblind mode, and the mechanic is reading which primaries overlap. **Corrected 2026-08-20:** the first measurement used a colour-vision simulation with two wrong coefficients in its inverse matrix and overstated this badly. Redone with a matrix that maps neutrals to neutrals: under deuteranopia NO pair falls below dE 10, and under protanopia one does, red vs brown at 8.5, with blue vs purple at 10.8. Tight rather than collapsed. It still matters because red is R alone and brown is all three, the most expensive confusion on the board, and 55 of the 100 levels carry both. | PROTOTYPE BUILT on branch `fix-stained-rules-card`, decision open |
 | S3 | stained | SEO | No `VideoGame` JSON-LD. The only game of fifteen with no structured data at all. | FIXED on the same branch |
 | S5 | stained | MINOR | On desktop `resizeCanvas` pins the canvas to exactly 760x600 CSS px and it never scales down, so in a short window the board runs below the fold. At a 1366x620 laptop it is 108px under and the page scrolls, so it is reachable; at extreme sizes the wrap clips it and the page does not grow. Kaleido handles the same case by letting CSS scale it to fit, so there is a known-good reference. The pinning was itself a fix for the narrow-strip bug, so do not simply revert it. | OPEN |
 | S4 | stained, untangle, carrom | MINOR, consistency | These three load no `shared/sfx.js` and have no sound or sound toggle. The other twelve do. | OPEN |
@@ -266,3 +266,27 @@ anything that prevents it.
 mobile screenshot looked like a sizing bug and was the preview pipeline capturing at a
 different scale than the page had laid out. Hit-testing the corners settled it. See
 [[feedback-preview-pane-hidden-blanks-canvas]] for the family this belongs to.
+
+
+## S2 prototype: primary pips, 2026-08-20
+
+An opt-in mode that marks each lit cell with which primaries made it, so the recipe is
+readable without relying on hue.
+
+**Corners, not a row.** A row of three slots was tried first and does not work: with one
+pip showing you cannot tell which slot it is in unless the empty slots are drawn too, and an
+empty slot faint enough to stay subordinate measures about 1.2:1, which is invisible. A
+corner locates itself. Red top-left, yellow top-right, blue bottom-left, each drawn only
+when present. Bottom-right stays clear of the goal's own unmatched dot.
+
+Ink is picked per glass rather than one colour over all of them. Measured against its own
+glass, worst 4.43:1 and best 12.4:1, and it holds under both deuteranopia and protanopia.
+
+Verified by reading canvas pixels: all seven colours draw exactly the pips their recipe
+calls for, and none they do not. Toggle sits on the rules card beside Play, the same place
+Kaleido puts its switch, and persists to `zamborin-stained.pips.v1`.
+
+**A lesson worth keeping.** Two typo'd coefficients made a simulation that turned mid grey
+into bright green, and it produced confident, specific, wrong numbers that a whole
+recommendation was built on. Sanity-check any colour transform on neutrals first: white,
+mid grey and black must come back unchanged. See [[feedback-simulations-need-a-null-test]].

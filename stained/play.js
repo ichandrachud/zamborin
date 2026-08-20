@@ -51,6 +51,62 @@
   ];
   var ACCENT = '#D8523F';          // house coral, from tokens.css
 
+  /* ---------- PRIMARY PIPS — prototype, 2026-08-20 ----------
+     Stained asks you to read a colour and work out which primaries overlap to
+     make it. Colour is therefore not decoration on this board, it IS the
+     puzzle, so a player who cannot separate two of the seven is not playing a
+     harder game, they are guessing.
+
+     Measured on the lit palette: under protanopia red and brown sit 2.5 apart,
+     and red is R alone where brown is all three. 55 of the 100 levels carry
+     both at once and 94 carry some confusable pair.
+
+     Kaleido's answer, a shape per piece, does not transplant: its four pieces
+     are ATOMIC, while orange here is not a third colour but red and yellow on
+     top of each other. So the mark has to compose the way the mechanic
+     composes. Three slots, one per primary, filled when that primary is
+     present: red is the first slot alone, orange the first two, brown all
+     three. It does not name the colour, it shows the recipe.
+
+     Ink is picked per glass for contrast, never a single colour over all of
+     them: measured 4.7:1 at worst and 16.7:1 at best. */
+  var PIP_DARK = '#16110C', PIP_LIGHT = '#FFF6E8';
+  //              clear      red        yellow     orange
+  var PIP_INK = [PIP_DARK, PIP_LIGHT, PIP_DARK, PIP_DARK,
+  //              blue       purple     green     brown
+                 PIP_LIGHT, PIP_LIGHT, PIP_DARK, PIP_LIGHT];
+  var PIP_LS = 'zamborin-stained.pips.v1';
+  var pips = (function () { try { return localStorage.getItem(PIP_LS) === '1'; } catch (e) { return false; } })();
+  function savePips() { try { localStorage.setItem(PIP_LS, pips ? '1' : '0'); } catch (e) {} }
+
+  /* CORNERS, NOT A ROW. A row of three slots was the first try and it does not
+     work: with only one pip showing you cannot tell which slot it is in unless
+     the empty slots are also drawn, and an empty slot faint enough to stay
+     subordinate measures about 1.2:1, which is to say invisible. Drawn loud
+     enough to read it competes with the real mark.
+
+     A corner locates itself. Red top-left, yellow top-right, blue bottom-left,
+     each drawn only when that primary is present, nothing drawn when it is
+     not. One mark in the top-left is unambiguously red with no reference
+     needed, and the bottom-right stays clear of the goal's unmatched dot. */
+  var PIP_AT = [[0.19, 0.19], [0.81, 0.19], [0.19, 0.81]];   // R, Y, B
+  function drawPips(x, y, size, v) {
+    if (!pips || !v) return;
+    if (size < 11) return;                      // below this nothing reads
+    var ink = PIP_INK[v] || PIP_DARK;
+    var rad = Math.max(1.3, size * 0.082);
+    ctx.save();
+    ctx.fillStyle = ink;
+    ctx.globalAlpha = 0.92;
+    for (var b = 0; b < 3; b++) {
+      if ((v & (1 << b)) === 0) continue;
+      ctx.beginPath();
+      ctx.arc(x + size * PIP_AT[b][0], y + size * PIP_AT[b][1], rad, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
   var UI = window.ZAM_UI;
   var canvas = document.getElementById('game');
   var ctx = canvas.getContext('2d');
@@ -416,6 +472,14 @@
 
     if (lit) {
       R.window(ctx, grid, level.size, view.gx, view.gy, view.cell, PALETTE, bloom);
+      if (pips) {
+        for (var pr = 0; pr < level.size; pr++) {
+          for (var pc = 0; pc < level.size; pc++) {
+            drawPips(view.gx + pc * view.cell, view.gy + pr * view.cell,
+                     view.cell, grid[pr * level.size + pc]);
+          }
+        }
+      }
     } else {
       R.unlit(ctx, level.size, view.gx, view.gy, view.cell,
               placed().concat(drag && drag.preview ? [drag.preview] : []),
@@ -460,6 +524,7 @@
         if (isMix(t)) {
           tctx.fillStyle = PALETTE[t];
           tctx.fillRect(x, y, tc, tc);
+          drawPips(x, y, tc, t);
           if (!cellOk(cur[i], t)) {
             tctx.fillStyle = 'rgba(18,14,10,0.34)';
             tctx.beginPath();
@@ -824,7 +889,7 @@
     for (var i = 0; i < MENU_RULES.length; i++) {
       h = wrapText(MENU_RULES[i], 0, h, pw - 96, 22 * ts, 'left', true) + 12 * ts;
     }
-    return { pw: pw, ph: h + 18 * ts + UI.CTA.h + 30 * ts, demoH: demoH, ts: ts };
+    return { pw: pw, ph: h + 18 * ts + UI.PILL.h + 12 * ts + UI.CTA.h + 30 * ts, demoH: demoH, ts: ts };
   }
 
   /* Shrink until it fits rather than clamp and overflow. The floor is
@@ -892,7 +957,27 @@
        its own measurement is not clipped, it draws the last rules underneath
        the button, which looks like a layout choice rather than a bug. */
     menuContentBottom = y;
-    menuCtaTop = py + m.ph - 30 * ts - UI.CTA.h;
+
+    /* The switch lives HERE, on the rules card, for the same reason Kaleido's
+       does: it is the surface a player opens to find out how the game works,
+       and the play controls have no room left on a narrow screen. A mode
+       reachable only from a console is not reachable. */
+    var swLabel = 'Colourblind mode';
+    var swW = UI.pillWidth(ctx, swLabel);
+    var sw = UI.drawPill(ctx, swLabel, cx,
+                         py + m.ph - 30 * ts - UI.CTA.h - 12 * ts - UI.PILL.h / 2,
+                         { w: swW, dim: !pips });
+    if (pips) {
+      ctx.save();
+      ctx.strokeStyle = ACCENT; ctx.lineWidth = 2;
+      R.roundRect(ctx, sw.x, sw.y, sw.w, sw.h, sw.h / 2); ctx.stroke();
+      ctx.restore();
+    }
+    uiButtons.push(Object.assign(sw, { act: function () {
+      pips = !pips; savePips(); draw();
+    } }));
+
+    menuCtaTop = sw.y;
     uiButtons.push(Object.assign(
       UI.drawCTA(ctx, (idx > 0 || history.length) ? 'Resume' : 'Play', cx,
                  py + m.ph - 30 * ts - UI.CTA.h / 2, ACCENT),
