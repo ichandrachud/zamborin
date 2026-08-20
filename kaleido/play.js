@@ -619,21 +619,67 @@
   // and Sluice all use 64 on a phone and 56 on desktop, and 18 / 30 of side
   // padding. Kaleido had drifted to 60 and 12.
   const topBand = () => MODE === 'mobile' ? 64 : 56;
-  // Room under the board for the palette. Prism puts its piece rack under the
-  // board too and centres it on LH - botBand()/2, which is the shape followed
-  // here; the band is deeper than Prism's only because a colour swatch is a far
-  // bigger target than one of its little glyphs.
-  const botBand = () => MODE === 'mobile' ? 176 : 84;
+  // Phones only. On desktop the wheel's box is stated directly in measureBoard,
+  // because the palette moved out of the bottom band and into a right column.
+  const botBand = () => MODE === 'mobile' ? 176 : 24;
   const SIDE_PAD = MODE === 'mobile' ? 18 : 30;
+  const SW = MODE === 'mobile' ? 58 : 54, SW_GAP = MODE === 'mobile' ? 14 : 16;
+  // Minimum air between the wheel and anything you can press. Without it the
+  // control row sat 8px off the rim and read as touching it.
+  const CLEAR = 15;
+  const CTRL_LABELS = ['Undo', 'Hint', 'Restart', 'Rules'];
+
+  // How many rows the control pills need, worked out ONCE and used by both the
+  // layout and the drawing. Two copies of this sum disagreeing is what put the
+  // palette straight through the pills on a phone: the layout assumed one row
+  // and the renderer wrapped to two.
+  function ctrlRows() {
+    if (MODE !== 'mobile') return 1;
+    const P = ZUI.PILL, avail = LW - SIDE_PAD * 2;
+    let used = P.iconW + P.gap, rows = 1;
+    for (const l of CTRL_LABELS) {
+      const w = ZUI.pillWidth(ctx, l) + P.gap;
+      if (used + w > avail) { rows++; used = 0; }
+      used += w;
+    }
+    return rows;
+  }
+  // The bottom stack on a phone, measured from the thumb upward: the last
+  // control row sits at LH-74, the rest stack above it, then the palette, then
+  // the wheel gets whatever is left.
+  function mobileStack() {
+    const P = ZUI.PILL, rows = ctrlRows();
+    const ctrlTop = LH - 74 - (rows - 1) * (P.h + 10) - P.h / 2;
+    const paletteCY = ctrlTop - 14 - SW / 2;
+    return { rows, ctrlTop, paletteCY, boardBottom: paletteCY - SW / 2 - CLEAR };
+  }
 
   // Three separate jobs, kept apart because they used to be one function that
   // could re-enter genLevel from inside itself.
+  // The wheel's box, stated as four edges rather than derived from bands, so the
+  // clearances are guaranteed instead of hoped for.
+  //
+  // DESKTOP puts the colours in a column down the right. The frame is 760x600,
+  // so the wheel is limited by HEIGHT and the bottom band was costing it radius
+  // for a row of swatches that fits perfectly well beside it. Out of the bottom
+  // band, the wheel goes from 226 to 256.
+  //
+  // PHONE keeps them in a row underneath, because there the wheel is limited by
+  // WIDTH and a column would take the one dimension it cannot spare.
   function measureBoard() {
-    const availW = Math.max(60, LW - SIDE_PAD * 2);
-    const availH = Math.max(60, LH - topBand() - botBand());
-    boardR = Math.max(40, Math.min(availW, availH) / 2);
-    bcx = Math.round(LW / 2);
-    bcy = Math.round(topBand() + availH / 2);
+    const controlsBottom = Math.round(topBand() / 2) + ZUI.PILL.h / 2;
+    let left = SIDE_PAD, right = LW - SIDE_PAD, top, bottom;
+    if (MODE === 'mobile') {
+      top = topBand();
+      bottom = mobileStack().boardBottom;             // clear of the whole bottom stack
+    } else {
+      top = controlsBottom + CLEAR;                   // clear of the control row
+      bottom = LH - 24;
+      right = LW - SIDE_PAD - SW - CLEAR;             // clear of the palette column
+    }
+    boardR = Math.max(40, Math.min((right - left) / 2, (bottom - top) / 2));
+    bcx = Math.round((left + right) / 2);
+    bcy = Math.round((top + bottom) / 2);
   }
   // The touch budget is a ceiling on the board, and it outranks the ramp. A
   // phone fits three rings; asking for five would put cells under 44px and no
@@ -1177,7 +1223,9 @@
   }
 
   function drawHUD() {
-    if (phase === 'won') return;
+    // Not behind the rules card. The overlay only dims it, so it read as a
+    // stray fragment poking out from under the panel.
+    if (phase === 'won' || phase === 'menu') return;
     const hs = Math.max(0.7, Math.min(1, LW / 620));
     ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
     ctx.fillStyle = Z.textDim;
@@ -1200,14 +1248,15 @@
   // The token palette. Four large targets, comfortably over the 56px the touch
   // budget asks for, sitting where a thumb already is on a phone.
   function drawPalette() {
-    const n = NSHAPE, sz = MODE === 'mobile' ? 58 : 54, gap = MODE === 'mobile' ? 14 : 16;
-    const totw = n * sz + (n - 1) * gap;
-    let x = Math.round(LW / 2 - totw / 2);
-    // Under the board, centred in the bottom band, as Prism's rack is.
-    const cy = MODE === 'mobile' ? LH - 136 : LH - Math.round(botBand() / 2);
+    const n = NSHAPE, sz = SW, gap = SW_GAP;
+    const total = n * sz + (n - 1) * gap;
+    const vertical = MODE !== 'mobile';
+    // Column down the right beside the wheel, or a row beneath it on a phone.
+    let x = vertical ? LW - SIDE_PAD - sz : Math.round(LW / 2 - total / 2);
+    let y = vertical ? Math.round(bcy - total / 2) : Math.round(mobileStack().paletteCY - sz / 2);
     for (let t = 0; t < n; t++) {
       const on = sel === t;
-      const bx = x, by = Math.round(cy - sz / 2);
+      const bx = Math.round(x), by = Math.round(y);
       ctx.fillStyle = on ? 'rgba(255,255,255,0.155)' : 'rgba(255,255,255,0.055)';
       ZUI.roundRectPath(ctx, bx, by, sz, sz, 15); ctx.fill();
       if (on) { ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,255,255,0.62)'; ZUI.roundRectPath(ctx, bx, by, sz, sz, 15); ctx.stroke(); }
@@ -1223,7 +1272,7 @@
         drawGlyph(t, bx + sz / 2, by + sz / 2, sz * 0.30, 0, on ? 1 : 0.62, PLAIN);
       }
       uiButtons.push({ x: bx, y: by, w: sz, h: sz, act: ((k) => () => { sel = k; snd.place(); render(performance.now()); })(t) });
-      x += sz + gap;
+      if (vertical) y += sz + gap; else x += sz + gap;
     }
   }
 
@@ -1248,12 +1297,9 @@
 
   function drawControls() {
     const P = ZUI.PILL, gap = P.gap;
-    const game = [
-      { label: 'Undo', act: undo },
-      { label: 'Hint', act: hint },
-      { label: 'Restart', act: restart },
-      { label: 'Rules', act: () => { phase = 'menu'; ensureAnim(performance.now()); } },
-    ];
+    const ACTS = { Undo: undo, Hint: hint, Restart: restart,
+                   Rules: () => { phase = 'menu'; ensureAnim(performance.now()); } };
+    const game = CTRL_LABELS.map((label) => ({ label, act: ACTS[label] }));
     const row = (items, cy, leftAlign, withSound) => {
       const ws = items.map((it) => ZUI.pillWidth(ctx, it.label));
       let totw = ws.reduce((a, b) => a + b, 0) + gap * (items.length - 1);
@@ -1286,6 +1332,7 @@
       if (used + w > avail && rows[rows.length - 1].length) { rows.push([]); used = 0; }
       rows[rows.length - 1].push(it); used += w;
     }
+    // Same arithmetic mobileStack() used to reserve the space.
     const base = LH - 74 - (rows.length - 1) * (P.h + 10);
     rows.forEach((items, i) => row(items, base + i * (P.h + 10), false, i === 0));
   }
@@ -1450,9 +1497,15 @@
     for (const r of rules) bodyH += measureWrapped(r, pw - 96, 20) + 12;
     ctx.font = '600 16px Inter, sans-serif';
     const leadH = measureWrapped('Complete the figure so it holds under every turn of the wheel.', pw - 70, 23);
-    const demoR = Math.min(74, Math.max(52, (LH - 380) / 2 + 52));
-    const demoH = demoR * 2 + 18;
-    const ph = Math.min(LH - 30, 30 + 40 + leadH + 12 + demoH + bodyH + 26 + ZUI.CTA.h + 26);
+    // Shrink the DEMO until the card fits, and drop it entirely rather than let
+    // anything overlap. Clamping the card height while the content kept its full
+    // length is what drove the button through the bottom rule.
+    const maxH = LH - 24;
+    const chrome = 30 + 40 + leadH + 12 + bodyH + 26 + ZUI.CTA.h + 26;
+    let demoR = MODE === 'mobile' ? 74 : 68;
+    while (demoR > 0 && chrome + demoR * 2 + 18 > maxH) demoR = demoR > 44 ? demoR - 6 : 0;
+    const demoH = demoR > 0 ? demoR * 2 + 18 : 0;
+    const ph = Math.min(maxH, chrome + demoH);
     const px = (LW - pw) / 2, py = (LH - ph) / 2;
     ctx.fillStyle = Z.bgCard; ZUI.roundRectPath(ctx, px, py, pw, ph, 22); ctx.fill();
     ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ZUI.roundRectPath(ctx, px, py, pw, ph, 22); ctx.stroke();
@@ -1461,7 +1514,8 @@
     ctx.fillText('KALEIDO', cx, y); y += 40;
     ctx.fillStyle = Z.textDim; ctx.font = '600 16px Inter, sans-serif';
     y = wrapText('Complete the figure so it holds under every turn of the wheel.', cx, y, pw - 70, 23); y += 12;
-    drawDemo(cx, y + demoR, demoR, now); y += demoH;
+    if (demoR > 0) drawDemo(cx, y + demoR, demoR, now);
+    y += demoH;
     const rx = px + 30;
     const step = Math.max(1, Math.floor(PANE_COL.length / Math.max(1, rules.length)));
     for (let i = 0; i < rules.length; i++) {
@@ -1511,6 +1565,7 @@
     // set a wedge cell directly, for testing states that are fiddly to tap into
     set(d, t) { dom[d] = t; placeT[d] = performance.now(); after(performance.now()); return this.state; },
     seamBreaks() { return seamBad.length; },
+    geometry() { return { bcx, bcy, boardR, buttons: uiButtons.map((b) => ({ x: b.x, y: b.y, w: b.w, h: b.h })) }; },
     measure() { return measureLevel(); },
     posed() { return lastMeasure; },
     seam(m) { seamMode = (m === 'radial' || m === 'full') ? m : 'off'; applySeamMode(); genLevel(level, false); return this.measure(); },
