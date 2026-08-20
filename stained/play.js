@@ -717,8 +717,20 @@
     { at: 3500, say: 'the goal shows you the overlap and nothing else' }
   ];
 
-  function demoCell() { return MODE === 'mobile' ? 28 : 34; }
+  /* THE CARD'S TYPE SCALE — 2026-08-20. The card measured its copy, then
+     clamped its own height with a Math.min and drew the copy anyway, so in any
+     short frame the Resume button, which hangs off the card's BOTTOM edge, came
+     up to meet text that was still flowing down. Measured 134px of overlap at
+     812x375, which is a phone turned sideways, and 29px at 640x480.
+
+     menuMetrics() now shrinks this until the content genuinely fits, so the
+     Math.min below it never has anything left to truncate. Everything vertical
+     in the card reads MS: the demo, the caption, the type and the steps. The
+     CTA height is NOT scaled — house size, and a touch target. */
+  var MS = 1;
+  function demoCell() { return Math.round((MODE === 'mobile' ? 28 : 34) * MS); }
   var CAP_LH = 21;
+  function capLH() { return CAP_LH * MS; }
   /* The caption WRAPS, and the block is sized to the LONGEST caption of the
      four stages, not the current one. Sized to the current caption the layout
      would jump every time the stage changed; unwrapped, the longest line ran
@@ -726,15 +738,15 @@
   function demoCapLines(pw) {
     var maxW = pw - 60, most = 1;
     ctx.save();
-    ctx.font = '700 16px Inter, sans-serif';
+    ctx.font = '700 ' + (16 * MS).toFixed(2) + 'px Inter, sans-serif';
     for (var i = 0; i < DEMO_STAGES.length; i++) {
-      var n = wrapText(DEMO_STAGES[i].say, 0, 0, maxW, CAP_LH, 'center', true) / CAP_LH;
+      var n = wrapText(DEMO_STAGES[i].say, 0, 0, maxW, capLH(), 'center', true) / capLH();
       if (n > most) most = n;
     }
     ctx.restore();
     return most;
   }
-  function demoHeight(pw) { return demoCell() * 2 + 14 + demoCapLines(pw) * CAP_LH + 18; }
+  function demoHeight(pw) { return demoCell() * 2 + 14 * MS + demoCapLines(pw) * capLH() + 18 * MS; }
 
   function demoSay(ms) {
     var s = DEMO_STAGES[0];
@@ -794,24 +806,38 @@
     ctx.strokeRect(gx + 0.5, gy + 0.5, gw - 1, gh - 1);
 
     ctx.fillStyle = goal ? '#FFFFFF' : 'rgba(255,255,255,0.78)';
-    ctx.font = (goal ? '700 ' : '500 ') + '16px Inter, sans-serif';
-    wrapText(demoSay(ms), cx, gy + gh + 14, cardW - 60, CAP_LH, 'center');
+    ctx.font = (goal ? '700 ' : '500 ') + (16 * MS).toFixed(2) + 'px Inter, sans-serif';
+    wrapText(demoSay(ms), cx, gy + gh + 14 * MS, cardW - 60, capLH(), 'center');
 
     return demoHeight(cardW);
   }
 
-  function menuMetrics() {
+  function menuMetricsAt(ts) {
+    MS = ts;
     var pw = Math.max(260, Math.min(LW - 44, 470));
     var demoH = demoHeight(pw);
-    var h = 28 + (MODE === 'mobile' ? 38 : 44);     // top pad + title
-    ctx.font = '600 16px Inter, sans-serif';
-    h = wrapText(MENU_SUB, 0, h, pw - 70, 22, 'center', true) + 14;
+    var h = 28 * ts + (MODE === 'mobile' ? 38 : 44) * ts;   // top pad + title
+    ctx.font = '600 ' + (16 * ts).toFixed(2) + 'px Inter, sans-serif';
+    h = wrapText(MENU_SUB, 0, h, pw - 70, 22 * ts, 'center', true) + 14 * ts;
     h += demoH;
-    ctx.font = '500 16px Inter, sans-serif';
+    ctx.font = '500 ' + (16 * ts).toFixed(2) + 'px Inter, sans-serif';
     for (var i = 0; i < MENU_RULES.length; i++) {
-      h = wrapText(MENU_RULES[i], 0, h, pw - 96, 22, 'left', true) + 12;
+      h = wrapText(MENU_RULES[i], 0, h, pw - 96, 22 * ts, 'left', true) + 12 * ts;
     }
-    return { pw: pw, ph: Math.min(LH - 24, h + 18 + UI.CTA.h + 30), demoH: demoH };
+    return { pw: pw, ph: h + 18 * ts + UI.CTA.h + 30 * ts, demoH: demoH, ts: ts };
+  }
+
+  /* Shrink until it fits rather than clamp and overflow. The floor is
+     deliberate: under 0.72 the rules stop being readable and a clipped rule is
+     the better failure, so it stops trying. Horizontal geometry is untouched,
+     so a smaller face wraps to FEWER lines, which is the direction that helps. */
+  function menuMetrics() {
+    var maxH = LH - 24;
+    var ts = 1, m = menuMetricsAt(1);
+    while (ts > 0.72 && m.ph > maxH) { ts = Math.max(0.72, ts - 0.04); m = menuMetricsAt(ts); }
+    m.ph = Math.min(maxH, m.ph);
+    MS = m.ts;
+    return m;
   }
 
   function menuOverlay() {
@@ -835,37 +861,41 @@
     g.addColorStop(1,    'rgba(142,62,174,0)');
     ctx.fillStyle = g; ctx.fillRect(px + 40, py + 1, m.pw - 80, 2);
 
-    var cx = LW / 2, y = py + 28;
+    var ts = m.ts;
+    var cx = LW / 2, y = py + 28 * ts;
     ctx.fillStyle = '#FFFFFF';
-    ctx.font = '800 ' + (MODE === 'mobile' ? 30 : 36) + 'px Inter, sans-serif';
+    ctx.font = '800 ' + ((MODE === 'mobile' ? 30 : 36) * ts).toFixed(2) + 'px Inter, sans-serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'top';
     ctx.fillText('STAINED', cx, y);
-    y += MODE === 'mobile' ? 38 : 44;
-    ctx.fillStyle = 'rgba(255,255,255,0.82)'; ctx.font = '600 16px Inter, sans-serif';
-    y = wrapText(MENU_SUB, cx, y, m.pw - 70, 22) + 14;
+    y += (MODE === 'mobile' ? 38 : 44) * ts;
+    ctx.fillStyle = 'rgba(255,255,255,0.82)';
+    ctx.font = '600 ' + (16 * ts).toFixed(2) + 'px Inter, sans-serif';
+    y = wrapText(MENU_SUB, cx, y, m.pw - 70, 22 * ts) + 14 * ts;
 
     var ms = demoClock !== null ? demoClock : ((now() - menuT0) % DEMO_MS);
     y += drawDemo(cx, y, ms, m.pw);
 
-    var rx2 = px + 30;
+    var rx2 = px + 30, dotR = 11 * ts;
     for (var i = 0; i < MENU_RULES.length; i++) {
       ctx.fillStyle = ACCENT;
-      ctx.beginPath(); ctx.arc(rx2 + 11, y + 11, 11, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#FFFFFF'; ctx.font = '800 13px Inter, sans-serif';
+      ctx.beginPath(); ctx.arc(rx2 + 11, y + dotR, dotR, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = '800 ' + (13 * ts).toFixed(2) + 'px Inter, sans-serif';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(String(i + 1), rx2 + 11, y + 12);
-      ctx.fillStyle = 'rgba(255,255,255,0.90)'; ctx.font = '500 16px Inter, sans-serif';
-      y = wrapText(MENU_RULES[i], rx2 + 34, y, m.pw - 96, 22, 'left') + 12;
+      ctx.fillText(String(i + 1), rx2 + 11, y + dotR + 1);
+      ctx.fillStyle = 'rgba(255,255,255,0.90)';
+      ctx.font = '500 ' + (16 * ts).toFixed(2) + 'px Inter, sans-serif';
+      y = wrapText(MENU_RULES[i], rx2 + 34, y, m.pw - 96, 22 * ts, 'left') + 12 * ts;
     }
 
     /* Recorded so the fit can be ASSERTED, not eyeballed. A card that outgrows
        its own measurement is not clipped, it draws the last rules underneath
        the button, which looks like a layout choice rather than a bug. */
     menuContentBottom = y;
-    menuCtaTop = py + m.ph - 30 - UI.CTA.h;
+    menuCtaTop = py + m.ph - 30 * ts - UI.CTA.h;
     uiButtons.push(Object.assign(
       UI.drawCTA(ctx, (idx > 0 || history.length) ? 'Resume' : 'Play', cx,
-                 py + m.ph - 30 - UI.CTA.h / 2, ACCENT),
+                 py + m.ph - 30 * ts - UI.CTA.h / 2, ACCENT),
       { act: closeMenu }));
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   }

@@ -24,6 +24,24 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Structured data: VideoGame schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "VideoGame",
+    "name": "Stained",
+    "description": "A free colour-mixing glass puzzle. Lay panes of coloured glass over a dark window so that where they overlap they make the colours the goal asks for, then light the window to check.",
+    "url": "https://zamborin.com/stained/",
+    "image": "https://zamborin.com/images/stained-og.jpg",
+    "playMode": "SinglePlayer",
+    "gamePlatform": "Web Browser",
+    "applicationCategory": "Game",
+    "operatingSystem": "Web",
+    "genre": ["Puzzle","Logic"],
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "publisher": { "@type": "Organization", "name": "Zamborin Games", "url": "https://zamborin.com/" }
+  }
+  </script>
   <link rel="stylesheet" href="../shared/tokens.css" />
   <link rel="stylesheet" href="../shared/chrome.css?v=13" />
   <link rel="stylesheet" href="./play.css?v=2" />
@@ -128,7 +146,7 @@
   <script src="./model.js?v=1"></script>
   <script src="./render.js?v=15"></script>
   <script src="./levels.js?v=3"></script>
-  <script src="./play.js?v=45"></script>
+  <script src="./play.js?v=46"></script>
 
   <script>
     /* The fullscreen button was in the header from the first commit with no
