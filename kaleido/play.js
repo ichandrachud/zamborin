@@ -93,7 +93,19 @@
   //
   // The cycle length must divide the fold or a full turn would not return a
   // shape to itself. 3 divides both 3 and 6, so the cycling lever is unaffected.
-  const N_FOLD = MODE === 'mobile' ? 3 : 6;
+  // The fold is a DIFFICULTY DIAL, not a constant. The wedge is SEC/n cells, so
+  // halving the fold doubles the number of independent cells on the same board
+  // at the same physical cell size. Six is the prettiest and the easiest; three
+  // and two are progressively more puzzle on identical geometry.
+  let N_FOLD = MODE === 'mobile' ? 3 : 6;
+  // The cycle length has to DIVIDE the fold, or a full turn would not return a
+  // shape to itself. Three folds cleanly at 6 and 3; at 2 and 4 the only usable
+  // cycle is 2, and at any fold with no usable divisor cycling is simply off.
+  let CYC = 3;
+  function setFold(n) {
+    N_FOLD = n;
+    CYC = (n % 3 === 0) ? 3 : (n % 2 === 0) ? 2 : 1;
+  }
 
   // Rings and their sector counts. 6*(r+1) keeps every ring a multiple of the
   // fold (so no cell is ever fixed by a non-identity rotation, which would
@@ -282,56 +294,91 @@
 
   const PLAIN = Z.textDim;                  // shape-only mode: one glass for all
 
-  // The cycling lever. A rotation by k also advances the token by k, over the
-  // 3-cycle petal -> diamond -> trefoil. Dot is the fixed point. 3 divides the
-  // fold 6, so six rotations return every token to itself, which is the
+  // The cycling lever. A rotation by k also advances the piece by k, around a
+  // cycle of length CYC. Colours past CYC are fixed points. CYC divides the fold
+  // by construction, so a full turn returns every pane to itself, which is the
   // consistency condition the group demands.
-  const CYC = 3;
   function permT(t, k) {
-    if (t < 0 || !cycleOn || t >= CYC) return t;
+    if (t < 0 || !cycleOn || CYC < 2 || t >= CYC) return t;
     return (t + (k % CYC) + CYC) % CYC;
   }
 
   // ---------- THE RAMP ----------
-  // Difficulty is the number of interacting constraints, never speed.
+  // A HUNDRED levels, and difficulty is a measured target rather than a table of
+  // gap counts. Two numbers describe a posed level:
   //
-  // The order was set by measurement, not by taste. Givens and cycling produce
-  // exactly zero deductions on their own at any level, because a given's
-  // constraint mentions one wedge cell and nothing else. The seam rule is the
-  // only member that couples cells, so it arrives at level 2 rather than late
-  // in the ramp. Everything after it is a dial on a puzzle that already works.
+  //   gaps   how much work it is
+  //   depth  how many rounds of propagation it takes, which is the length of the
+  //          longest chain of reasoning the player has to follow
   //
-  //   rings   board size, and the hard cap is the touch budget, not this table
-  //   shapes  how many of the four are in play
-  //   seam    'off' | 'radial' | 'full'
-  //   cycle   the rotation also advances the shape
-  //   blanks  how many gaps are left in the window. This IS the difficulty.
+  // and hardness = gaps + 3 * (depth - 1) combines them. The generator is handed
+  // a target and hides panes until it reaches it.
   //
-  // The seam rule is on from level 1, because it is the only thing that makes a
-  // gap deducible: with it off, nothing determines an empty cell and the player
-  // is asked to guess. Three shapes stops being satisfiable past three rings,
-  // measured, so the fourth shape arrives before the fourth ring does.
-  const RAMP = [
-    { lvl: 1, rings: 3, shapes: 3, seam: 'full', cycle: false, blanks: 2 },
-    { lvl: 2, rings: 3, shapes: 3, seam: 'full', cycle: false, blanks: 3 },
-    { lvl: 3, rings: 3, shapes: 4, seam: 'full', cycle: false, blanks: 4 },
-    { lvl: 4, rings: 4, shapes: 4, seam: 'full', cycle: false, blanks: 5 },
-    { lvl: 5, rings: 5, shapes: 4, seam: 'full', cycle: false, blanks: 6 },
-    { lvl: 6, rings: 5, shapes: 4, seam: 'full', cycle: true,  blanks: 6 },
-  ];
+  // The dials, in the order the ramp spends them:
+  //
+  //   RINGS  3 to 5, capped by the touch budget, never by this table
+  //   FOLD   6, then 3, then 2. This is the big one and it was sitting unused.
+  //          The wedge is SEC/fold, so halving the fold DOUBLES the number of
+  //          independent cells on exactly the same board at exactly the same
+  //          cell size: 15 cells at six-fold, 30 at three, 45 at two.
+  //   COLOURS 4 or 3. Fewer colours propagate harder, so more can be hidden;
+  //          more colours make longer chains. Both are useful and they are not
+  //          the same dial.
+  //   CYCLING off, then on.
+  //
+  // Every max below is MEASURED on a desktop board, not guessed. A phone caps at
+  // three rings, so it reaches a lower ceiling on the same ramp; that is the
+  // touch budget's doing and there is no way around it.
+  // The stage list is built at RUNTIME, because the ring cap is a property of the
+  // device and not of the design. A phone is held to three rings by the touch
+  // budget, so a stage written as "five rings, three-fold" silently becomes a
+  // three-ring board there. The first version of this table carried difficulty
+  // ceilings measured on a desktop, the ramp kept choosing stages the phone
+  // could not deliver, and the curve on a phone came out as noise.
+  //
+  // A stage's ceiling is estimated from the wedge it actually ends up with:
+  // roughly 1.2 gaps-worth per cell at three colours and 1.05 at four, which is
+  // what the probe measured across the whole space.
+  function stageList() {
+    const cap = Math.min(5, budgetRings());
+    const seen = new Set(), out = [];
+    const combos = [
+      [3, 6, 3, false], [4, 6, 3, false], [5, 6, 4, false], [5, 6, 4, true],
+      [3, 3, 4, true], [4, 3, 4, true], [3, 2, 3, true], [5, 3, 4, true],
+      [4, 2, 4, true], [5, 3, 3, true], [4, 2, 3, true], [5, 2, 4, true],
+      [5, 2, 3, true],
+    ];
+    for (const [r0, fold, shapes, cycle] of combos) {
+      const rings = Math.min(r0, cap);
+      const key = rings + ':' + fold + ':' + shapes + ':' + cycle;
+      if (seen.has(key)) continue;                 // the cap collapsed it onto another
+      seen.add(key);
+      const wedge = (6 / fold) * rings * (rings + 1) / 2;
+      out.push({ rings, fold, shapes, cycle, max: Math.round(wedge * (shapes === 3 ? 1.2 : 1.05)) });
+    }
+    out.sort((x, y) => x.max - y.max);
+    return out;
+  }
+  let STAGES = null;
+  const stages = () => (STAGES = STAGES || stageList());
+
+  // Gentle at the start, because the first dozen levels are where a player
+  // decides whether they understand the game, and topping out at whatever this
+  // device can actually reach rather than at a number from another machine.
+  function targetHardness(lvl) {
+    const top = stages()[stages().length - 1].max;
+    const t = Math.min(1, Math.max(0, (lvl - 1) / 99));
+    return Math.max(3, Math.round(4 + (top - 4) * Math.pow(t, 1.25)));
+  }
   function rampFor(lvl) {
-    if (lvl <= RAMP.length) return RAMP[lvl - 1];
-    // Past the table the board is already at the touch-budget ceiling, so the
-    // one thing that climbs is how much of the wedge has to be reasoned out.
-    //
-    // And it climbs to SEVEN, not higher. Measured over levels 5 to 60 on the
-    // fifteen-cell wedge: median 6, ninetieth percentile 7, never once above 7.
-    // A target above that is a target the generator cannot fill, so it would
-    // silently hand back the best it found and the ramp would read as a lie.
-    // Same shape as Stained: the board size is a real but COARSE dial, and it
-    // is capped by the touch budget rather than by ambition.
-    return { lvl, rings: 5, shapes: 4, seam: 'full', cycle: true,
-             blanks: 6 + Math.floor((lvl - RAMP.length + 1) / 2) };
+    const want = targetHardness(lvl);
+    // The SIMPLEST board that can carry the target. Holding the fold high and
+    // the ring count low for as long as they will stretch keeps the figure at
+    // its prettiest for as long as the difficulty allows.
+    const list = stages();
+    const st = list.find((c) => c.max >= want) || list[list.length - 1];
+    return { lvl, rings: st.rings, fold: st.fold, shapes: st.shapes,
+             cycle: st.cycle, seam: 'full', hardness: want };
   }
 
   // ---------- STATE ----------
@@ -406,93 +453,121 @@
   // Arc consistency over the seam rule. The rule is an inequality, so it prunes
   // exactly when a neighbour is already pinned, which is what makes the
   // inference one a player could actually make rather than solver cleverness.
+  // Returns the number of ROUNDS propagation needed, which is the length of the
+  // longest chain of reasoning the player has to follow. Gaps measure how much
+  // work a level is; rounds measure how deep it is, and the two together are
+  // what a difficulty curve has to climb. Zero means nothing propagated at all.
   function acPropagate(D) {
-    if (!CONS.length) return true;
-    let changed = true, guard = 0;
-    while (changed && guard++ < 300) {
+    if (!CONS.length) return 0;
+    let changed = true, rounds = 0;
+    while (changed && rounds < 300) {
       changed = false;
       for (const [a, ka, b, kb] of CONS) {
         for (const [x, kx, y, ky] of [[a, ka, b, kb], [b, kb, a, ka]]) {
           const keep = D[x].filter((t) => D[y].some((u) => permT(t, kx) !== permT(u, ky)));
           if (keep.length === D[x].length) continue;
-          if (!keep.length) return false;
+          if (!keep.length) return -1;
           D[x] = keep; changed = true;
         }
       }
+      if (changed) rounds++;
     }
-    return true;
+    return rounds;
   }
   function analyse(sol, given) {
     const D = unaryDomains(sol, given).map((o) => o.slice());
-    if (!acPropagate(D)) return null;
+    const rounds = acPropagate(D);
+    if (rounds < 0) return null;
     const settled = D.filter((o) => o.length === 1).length;
     // Every blank is now a real deduction: nothing is handed over by reading a
     // shape off somewhere else, so "lookups" no longer exists as a category.
-    return { NDOM, given: given.size, blanks: NDOM - given.size,
-             deductions: NDOM - given.size - (NDOM - settled),
-             undecided: NDOM - settled, determined: settled === NDOM, D };
+    const blanks = NDOM - given.size;
+    return { NDOM, given: given.size, blanks,
+             deductions: blanks - (NDOM - settled), depth: rounds,
+             undecided: NDOM - settled, determined: settled === NDOM, D,
+             // What the ramp climbs: how much work, weighted by how deep it goes.
+             hardness: blanks + 3 * Math.max(0, rounds - 1) };
   }
   function measureLevel() {
     const m = analyse(solved, givenDom);
     return m ? { level, seam: seamMode, cycling: cycleOn, contradiction: false,
                  NDOM, given: m.given, blanks: m.blanks, deductions: m.deductions,
+                 depth: m.depth, hardness: m.hardness,
                  undecided: m.undecided, determined: m.determined }
              : { level, seam: seamMode, cycling: cycleOn, contradiction: true,
                  NDOM, given: 0, blanks: NDOM, deductions: 0, undecided: NDOM, determined: false };
   }
 
-  function genLevel(lvl, asMenu) {
+  function genLevel(lvl, asMenu, override) {
     level = lvl;
-    const cfg = rampFor(lvl);
+    const cfg = override || rampFor(lvl);
 
     // The touch budget outranks the ramp. Board size is chosen here, once, so
     // nothing downstream can re-enter this function while it is running.
     measureBoard();
     const rings = Math.max(2, Math.min(cfg.rings, budgetRings()));
-    cycleOn = cfg.cycle;
-    if (rings !== RINGS) buildBoard(rings);
+    const fold = cfg.fold || 6;
+    // The wedge is SEC/fold, so the board must be rebuilt when EITHER moves.
+    const foldChanged = fold !== N_FOLD;
+    setFold(fold);
+    cycleOn = !!cfg.cycle && CYC > 1;
+    if (rings !== RINGS || foldChanged) buildBoard(rings);
 
-    // Scramble-from-solved, with a quality gate, and a relaxation ladder under
-    // it. Some combinations of shape count and rule simply admit no legal
-    // figure at all, and when that happened the generator used to return
-    // nothing and leave the PREVIOUS level's board in place: a board of the
-    // wrong size, showing givens that belonged to a different puzzle and could
-    // not be satisfied. A level must always end up with a figure of its own,
-    // so the ladder gives up shapes and then rule strength until one exists.
-    const ladder = [
-      { shapes: cfg.shapes, seam: cfg.seam },
-      { shapes: NTOK,       seam: cfg.seam },
-      { shapes: NTOK,       seam: 'radial' },
-      { shapes: NTOK,       seam: 'off' },
-    ];
-    let best = null, bestScore = -Infinity, bestM = null;
-    for (const step of ladder) {
-      NSHAPE = Math.max(cfg.cycle ? 3 : 2, Math.min(NTOK, step.shapes));
-      seamMode = step.seam;
-      applySeamMode();
-      let sawAny = false;
-      // Given COUNT is no longer a dial the generator picks from. It is derived:
-      // add until the puzzle is fully determined, then strip back to the level's
-      // deduction target. All that varies here is the seed.
-      for (let attempt = 0; attempt < 12; attempt++) {
-        const cand = poseLevel(lvl, attempt, cfg);
-        if (!cand) continue;
-        sawAny = true;
-        const m = scoreOf(cand);
-        if (!m) continue;
-        // Closest to the level's gap count. Overshooting is as wrong as falling
-        // short: one piece removed can unlock several more, so the ramp has to
-        // aim at the number rather than climb past it.
-        const score = -Math.abs(m.blanks - cfg.blanks) * 100;
-        if (score > bestScore) { bestScore = score; best = cand; bestM = m; }
+    // Scramble-from-solved, with a quality gate and a fallback under it.
+    //
+    // Some dial combinations admit no legal figure at all, and when generation
+    // came up empty the code used to leave the PREVIOUS level's board in place:
+    // wrong size, wrong givens, unsolvable. The fallback below always ends with
+    // a real figure, and it walks back through DIALS rather than through the
+    // seam rule, because turning the rule off cannot possibly help: with no rule
+    // nothing propagates, so no gap is ever deducible and every posing is
+    // rejected. A rung that can never succeed is not a fallback, and having one
+    // is exactly what made this throw on a phone at two-fold.
+    const search = (want) => {
+      let bst = null, bstScore = -Infinity, bstM = null;
+      for (const shapes of [want.shapes, NTOK]) {
+        NSHAPE = Math.max(cycleOn ? CYC : 2, Math.min(NTOK, shapes));
+        seamMode = 'full';
+        applySeamMode();
+        for (let attempt = 0; attempt < 12; attempt++) {
+          const cand = poseLevel(lvl, attempt, want);
+          if (!cand) continue;
+          const m = scoreOf(cand);
+          if (!m) continue;
+          // Closest to the target hardness. Overshooting is as wrong as falling
+          // short, because the curve has to climb rather than lurch.
+          const score = -Math.abs(m.hardness - want.hardness) * 100;
+          if (score > bstScore) { bstScore = score; bst = cand; bstM = m; }
+          // Close enough is done. Chasing a perfect hit across all twelve seeds
+          // cost 250ms on the biggest boards, a visible hitch on level change.
+          if (Math.abs(m.hardness - want.hardness) <= 1) break;
+        }
+        if (bst) break;
       }
-      if (sawAny && best) break;                // this rung works; keep its settings
+      return bst ? { best: bst, m: bstM } : null;
+    };
+
+    // Simpler and simpler until something works. Raising the fold shrinks the
+    // wedge, which is the surest way to make a board satisfiable again, and the
+    // last entry is level one's own dials, which are known to work.
+    const attempts = [cfg];
+    if (fold === 2) attempts.push({ ...cfg, fold: 3 });
+    if (fold < 6) attempts.push({ ...cfg, fold: 6 });
+    if (rings > 3) attempts.push({ ...cfg, fold: 6, rings: 3 });
+    attempts.push({ rings: 3, fold: 6, shapes: 3, cycle: false, seam: 'full', hardness: 4 });
+
+    let best = null, bestM = null;
+    for (const want of attempts) {
+      const wf = want.fold || 6, wr = Math.max(2, Math.min(want.rings || rings, budgetRings()));
+      if (wf !== N_FOLD || wr !== RINGS) {
+        setFold(wf);
+        cycleOn = !!want.cycle && CYC > 1;
+        buildBoard(wr);
+      }
+      const got = search(want);
+      if (got) { best = got.best; bestM = got.m; break; }
     }
     if (sel >= NSHAPE) sel = 0;
-    // The last rung has the seam rule off, where ADD pins every cell and a
-    // determined posing always exists, so best is never null in practice. The
-    // guard is here because a null would blank the board rather than fail loudly.
-    if (!best) { NSHAPE = NTOK; seamMode = 'full'; applySeamMode(); best = poseLevel(lvl, 99, cfg); bestM = best && scoreOf(best); }
     lastMeasure = bestM;
     solved = best.solved; givenDom = best.given;
 
@@ -538,11 +613,16 @@
     for (let d = 0; d < NDOM; d++) given.add(d);
     const order = Array.from({ length: NDOM }, (_, d) => d);
     for (let i = order.length - 1; i > 0; i--) { const j = (rng() * (i + 1)) | 0; const t = order[i]; order[i] = order[j]; order[j] = t; }
+    // Carry the current analysis forward instead of recomputing it at the top of
+    // every iteration. The loop was measuring the same posing twice per removal,
+    // which on a 45-cell wedge is most of the level's generation time.
+    let cur = analyse(sol, given);
     for (const d of order) {
-      if (NDOM - given.size >= cfg.blanks) break;
+      if (cur && cur.hardness >= cfg.hardness) break;
       given.delete(d);
       const m = analyse(sol, given);
       if (!m || !m.determined) given.add(d);      // that gap could not be worked out
+      else cur = m;
     }
     if (given.size === NDOM) return null;          // nothing to do is not a level
     return { solved: sol, given };
@@ -684,9 +764,22 @@
   // The touch budget is a ceiling on the board, and it outranks the ramp. A
   // phone fits three rings; asking for five would put cells under 44px and no
   // amount of level design rescues a target a thumb cannot hit.
+  // Measures the THINNEST ring, not the average one. Ring thickness is not
+  // uniform: the power curve in layoutRings() squeezes the outer rings, so the
+  // average was letting through a count whose outermost ring was under the touch
+  // minimum. At boardR 256 it said six rings were fine when the outer one comes
+  // out at 31.6px against a 32px floor.
+  // The outer rings are squeezed by a power curve because it looks like real
+  // tracery. That is a cosmetic choice, and on a phone it is one the touch
+  // budget cannot afford: at three rings it took the outer one to 42.3px against
+  // a 44px floor, which cost the phone a whole ring. Equal thickness there.
+  const RING_CURVE = MODE === 'mobile' ? 1 : 0.88;
+  function thinnestRing(rings) {
+    return boardR * (1 - HOLE) * (1 - Math.pow((rings - 1) / rings, RING_CURVE));
+  }
   function budgetRings() {
-    let rings = 5;
-    while (rings > 2 && (boardR * (1 - HOLE)) / rings < MIN_RING) rings--;
+    let rings = 6;
+    while (rings > 2 && thinnestRing(rings) < MIN_RING) rings--;
     return rings;
   }
   function layoutRings() {
@@ -694,7 +787,7 @@
     // A mild power curve thins the outer rings the way real tracery does, and
     // holds the cell aspect near 1.35 across every ring.
     for (let i = 0; i <= RINGS; i++) {
-      ringR[i] = boardR * (HOLE + (1 - HOLE) * Math.pow(i / RINGS, 0.88));
+      ringR[i] = boardR * (HOLE + (1 - HOLE) * Math.pow(i / RINGS, RING_CURVE));
     }
   }
   function layout() { measureBoard(); layoutRings(); }
@@ -1565,6 +1658,19 @@
     // set a wedge cell directly, for testing states that are fiddly to tap into
     set(d, t) { dom[d] = t; placeT[d] = performance.now(); after(performance.now()); return this.state; },
     seamBreaks() { return seamBad.length; },
+    // What a given set of dials can actually reach. The ramp is designed from
+    // this rather than from guesswork.
+    probe(rings, fold, shapes, cycle, maxGaps) {
+      let last = null;
+      for (let g = 2; g <= maxGaps; g++) {
+        genLevel(1, false, { rings, fold, shapes, cycle, seam: 'full', blanks: g });
+        const m = measureLevel();
+        last = { want: g, gaps: m.blanks, depth: m.depth, hardness: m.hardness, ok: m.determined };
+        if (m.blanks < g) break;                  // the board cannot hide any more
+      }
+      return { rings, fold, shapes, wedge: NDOM, cycle: cycleOn, top: last };
+    },
+    ringBudget() { measureBoard(); return { boardR, MIN_RING, thinnest: [3,4,5,6].map((n) => Math.round(thinnestRing(n) * 10) / 10), allows: budgetRings() }; },
     geometry() { return { bcx, bcy, boardR, buttons: uiButtons.map((b) => ({ x: b.x, y: b.y, w: b.w, h: b.h })) }; },
     measure() { return measureLevel(); },
     posed() { return lastMeasure; },
@@ -1595,6 +1701,7 @@
   function onResize() {
     if (MODE === 'mobile') setCanvasVars();
     fitFullscreen(); resizeCanvas(); measureBoard();
+    STAGES = null;                      // the ring cap can move with the viewport
     // A resize can change what the touch budget allows, and ring count is a
     // board change rather than a layout one, so the level has to be re-posed.
     const want = Math.max(2, Math.min(rampFor(level).rings, budgetRings()));
