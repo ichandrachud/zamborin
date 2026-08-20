@@ -90,17 +90,11 @@
   // size (SEC is unchanged) and doubles the wedge to twelve, because the wedge
   // is SEC/n. Same board, same targets, twice the puzzle. A three-fold mandala
   // is a trefoil rose rather than a six-petal one, which is no less pretty.
-  //
-  // The cycle length must divide the fold or a full turn would not return a
-  // shape to itself. 3 divides both 3 and 6, so the cycling lever is unaffected.
   // The fold is a DIFFICULTY DIAL, not a constant. The wedge is SEC/n cells, so
   // halving the fold doubles the number of independent cells on the same board
   // at the same physical cell size. Six is the prettiest and the easiest; three
   // and two are progressively more puzzle on identical geometry.
   let N_FOLD = MODE === 'mobile' ? 3 : 6;
-  // The cycle length has to DIVIDE the fold, or a full turn would not return a
-  // shape to itself. Three folds cleanly at 6 and 3; at 2 and 4 the only usable
-  // cycle is 2, and at any fold with no usable divisor cycling is simply off.
   function setFold(n) { N_FOLD = n; }
 
   // CUT 2026-08-20: the colour-cycling twist, where a copy came back a different
@@ -131,7 +125,7 @@
   // Ring count is decided by the TOUCH BUDGET, not by taste: a cell must stay
   // at least MIN_RING px thick in the radial direction, which is the tight
   // dimension. On a phone that permits 3 rings, on desktop 5. Depth on mobile
-  // comes from the givens and the cycling, never from more cells.
+  // comes from the rule and the number of gaps, never from more cells.
   const MIN_RING = MODE === 'mobile' ? 44 : 32;
   const HOLE = 0.17;                          // centre boss, as a fraction of boardR
 
@@ -176,7 +170,7 @@
   // variables. Same-orbit adjacencies are skipped: they are a property of the
   // geometry rather than a choice the player makes, and on the innermost ring
   // (six sectors, one wedge cell, every cell its own neighbour) they would make
-  // the ring unsatisfiable outright whenever cycling is off.
+  // the ring unsatisfiable outright.
   // The rule comes in two halves, and they do very different things.
   //   ANGULAR  side by side within a ring. Couples wedge cells to each other,
   //            and forbids a ring from favouring one shape, which is exactly
@@ -211,8 +205,8 @@
     CONS_ANG = reduceToWedge(ADJ_ANG.map((e) => [e.a, e.b]));
     CONS_RAD = reduceToWedge(ADJ_RAD.map((e) => [e.a, e.b]));
     // The renderer has to use EXACTLY the exclusion the rule uses. Two cells in
-    // the same orbit are copies of one another, so with cycling off they always
-    // hold the same shape: that is the geometry, not a mistake by the player.
+    // the same orbit are copies of one another, so they always hold the same
+    // colour: that is the geometry, not a mistake by the player.
     // The innermost ring is entirely one orbit, so leaving these in drew six
     // error marks around the middle of every correct solution.
     const sameOrbit = (e) => domainOf(e.a).d === domainOf(e.b).d;
@@ -268,15 +262,15 @@
     return n;
   }
 
-  // ---------- TOKENS ----------
-  // Identity is the SHAPE. Colour is redundant with shape, which is what makes
-  // the shape-only mode free and keeps a colourblind player fully in the game.
+  // ---------- THE FOUR GLASSES ----------
+  // A piece is identified by its COLOUR. Each also owns a shape, used only by
+  // the colourblind mode, which swaps the colour out and cuts that shape into
+  // the pane instead. Same board, same puzzle, no colour needed.
   const T_PETAL = 0, T_DIAMOND = 1, T_TREFOIL = 2, T_DOT = 3, NTOK = 4;
-  // How many of the four are in play this level. Cycling walks the first three,
-  // so it needs at least three or a rotation would land on a shape that is not
-  // in the palette.
+  // How many of the four are in play this level. The ramp moves it between 3
+  // and 4: fewer colours propagate harder so more can be hidden, more colours
+  // make longer chains, and the two are not the same dial.
   let NSHAPE = 4;
-  const TOK_NAME = ['Petal', 'Diamond', 'Trefoil', 'Dot'];
 
 
   // Colour carries the PIECE, not the wedge. User's call 2026-08-20 after seeing
@@ -328,7 +322,6 @@
   //   COLOURS 4 or 3. Fewer colours propagate harder, so more can be hidden;
   //          more colours make longer chains. Both are useful and they are not
   //          the same dial.
-  //   CYCLING off, then on.
   //
   // Every max below is MEASURED on a desktop board, not guessed. A phone caps at
   // three rings, so it reaches a lower ceiling on the same ramp; that is the
@@ -346,17 +339,9 @@
   function stageList() {
     const cap = Math.min(5, budgetRings());
     const seen = new Set(), out = [];
-    // Chosen so that wherever cycling is asked for, it FITS: every colour moves.
-    // Only four pairings can do that, since the permutation must satisfy
-    // p^fold = identity with no colour left behind:
-    //
-    //   six-fold + 3 colours    one cycle of three
-    //   six-fold + 4 colours    two straight swaps
-    //   three-fold + 3 colours  one cycle of three
-    //   two-fold + 4 colours    two straight swaps
-    //
-    // Asking for cycling anywhere else silently turned it off, which took the
-    // twist out of most of the ramp. The stages now use the pairings that work.
+    // Every rung the ramp can stand on, as (rings, fold, colours). Sorted by
+    // reachable hardness further down, so the ramp always picks the SIMPLEST
+    // board that can carry the level's target.
     const combos = [
       [3, 6, 3], [4, 6, 3], [5, 6, 4], [3, 3, 3], [4, 3, 3],
       [4, 3, 4], [5, 3, 3], [4, 2, 4], [5, 3, 4], [5, 2, 4], [5, 2, 3],
@@ -687,10 +672,9 @@
     return rec(0) ? assign : null;
   }
 
-  // Given TOKENS are derived from the solved figure under the CURRENT cycling
-  // setting, so flipping the toggle re-poses the same skeleton as a different
-  // puzzle rather than producing a contradiction.
-  const isGivenDom = (d) => givenDom.has(d);
+  // What is showing in a cell: the answer if that wedge cell was given, the
+  // player's own placement otherwise. A cell and all of its copies read the
+  // same, which is what makes the figure symmetric by construction.
   const tokAt = (i) => {
     const d = domainOf(i).d;
     return givenDom.has(d) ? solved[d] : dom[d];
@@ -709,9 +693,6 @@
   // and Sluice all use 64 on a phone and 56 on desktop, and 18 / 30 of side
   // padding. Kaleido had drifted to 60 and 12.
   const topBand = () => MODE === 'mobile' ? 64 : 56;
-  // Phones only. On desktop the wheel's box is stated directly in measureBoard,
-  // because the palette moved out of the bottom band and into a right column.
-  const botBand = () => MODE === 'mobile' ? 176 : 24;
   const SIDE_PAD = MODE === 'mobile' ? 18 : 30;
   const SW = MODE === 'mobile' ? 58 : 54, SW_GAP = MODE === 'mobile' ? 14 : 16;
   // Minimum air between the wheel and anything you can press. Without it the
@@ -1483,9 +1464,9 @@
     return y;
   }
   // The rules card is the game's only teaching surface, so it describes THIS
-  // level and not the game in the abstract. A card that mentions the shape
-  // cycling on level 2, five turns of the wheel on a phone that has two, or a
-  // touching rule that is not switched on yet, teaches the wrong game.
+  // level and not the game in the abstract. It said "five wedges" on a phone
+  // that has two, which teaches the wrong game. The wording also follows the
+  // colourblind switch, because in that mode the pieces really are shapes.
   function rulesFor() {
     const copies = N_FOLD - 1;
     const thing = shapeOnly ? 'shape' : 'colour';
@@ -1610,20 +1591,25 @@
     // Shrink the DEMO until the card fits, and drop it entirely rather than let
     // anything overlap. Clamping the card height while the content kept its full
     // length is what drove the button through the bottom rule.
-    const maxH = LH - 24;
-    const chrome = 30 + 40 + leadH + 12 + bodyH + 26 + ZUI.CTA.h + 26;
-    let demoR = MODE === 'mobile' ? 74 : 68;
-    while (demoR > 0 && chrome + demoR * 2 + 18 > maxH) demoR = demoR > 44 ? demoR - 6 : 0;
-    const demoH = demoR > 0 ? demoR * 2 + 18 : 0;
+    const maxH = LH - 20;
+    const chrome = 26 + 38 + leadH + 10 + bodyH + 20 + ZUI.PILL.h + 12 + ZUI.CTA.h + 22;
+    // Shrink the demo to fit, and only drop it once it would be too small to
+    // read. The floor was 44, which on a 600-tall desktop canvas meant that
+    // adding the colourblind switch pushed the demo out of the card entirely.
+    // A small demo still shows one tap becoming six panes; no demo shows
+    // nothing, and that animation is the only thing that teaches the copying.
+    let demoR = MODE === 'mobile' ? 74 : 66;
+    while (demoR > 0 && chrome + demoR * 2 + 14 > maxH) demoR = demoR > 30 ? demoR - 4 : 0;
+    const demoH = demoR > 0 ? demoR * 2 + 14 : 0;
     const ph = Math.min(maxH, chrome + demoH);
     const px = (LW - pw) / 2, py = (LH - ph) / 2;
     ctx.fillStyle = Z.bgCard; ZUI.roundRectPath(ctx, px, py, pw, ph, 22); ctx.fill();
     ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ZUI.roundRectPath(ctx, px, py, pw, ph, 22); ctx.stroke();
-    let y = py + 30;
+    let y = py + 26;
     ctx.fillStyle = Z.text; ctx.font = '800 34px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-    ctx.fillText('KALEIDO', cx, y); y += 40;
+    ctx.fillText('KALEIDO', cx, y); y += 38;
     ctx.fillStyle = Z.textDim; ctx.font = '600 16px Inter, sans-serif';
-    y = wrapText('Complete the figure so it holds under every turn of the wheel.', cx, y, pw - 70, 23); y += 12;
+    y = wrapText('Complete the figure so it holds under every turn of the wheel.', cx, y, pw - 70, 23); y += 10;
     if (demoR > 0) drawDemo(cx, y + demoR, demoR, now);
     y += demoH;
     const rx = px + 30;
@@ -1636,8 +1622,28 @@
       ctx.fillStyle = Z.textDim; ctx.font = '500 15px Inter, sans-serif';
       y = wrapText(rules[i], rx + 32, y, pw - 96, 20, 'left') + 12;
     }
+    // The colourblind switch, and it needs to be HERE rather than nowhere. The
+    // mode was built, the FAQ on the page promises it, and the only ways to
+    // reach it were a hidden keyboard shortcut and the console, which is to say
+    // no way at all on a phone. It lives on the rules card because that is the
+    // surface a player already opens to find out how the game works, and
+    // because the play controls have no room left on a narrow screen.
+    const swLabel = 'Colourblind mode';
+    const swW = ZUI.pillWidth(ctx, swLabel);
+    const sw = ZUI.drawPill(ctx, swLabel, cx, py + ph - 22 - ZUI.CTA.h - 12 - ZUI.PILL.h / 2,
+                            { w: swW, dim: !shapeOnly });
+    if (shapeOnly) {
+      ctx.save();
+      ctx.strokeStyle = Z.green; ctx.lineWidth = 2;
+      ZUI.roundRectPath(ctx, sw.x, sw.y, sw.w, sw.h, sw.h / 2); ctx.stroke();
+      ctx.restore();
+    }
+    uiButtons.push({ ...sw, act: () => {
+      shapeOnly = !shapeOnly; save(); ensureAnim(performance.now());
+    } });
+
     const label = placed() > 0 ? 'RESUME' : 'PLAY';
-    const b = ZUI.drawCTA(ctx, label, cx, py + ph - 26 - ZUI.CTA.h / 2, Z.green);
+    const b = ZUI.drawCTA(ctx, label, cx, py + ph - 22 - ZUI.CTA.h / 2, Z.green);
     uiButtons.push({ ...b, act: () => { phase = 'play'; T().gameStart(); render(performance.now()); } });
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   }
@@ -1645,71 +1651,43 @@
   const ZUI = window.ZAM_UI;
 
   // ---------- DEBUG ----------
+  // ---------- DEBUG ----------
+  // Kept deliberately small. Everything here earns its place by being something
+  // a future session will actually need: navigate the ramp, prove a level is
+  // solvable, read the difficulty measure, retune the ramp, and check nothing
+  // overlaps. The experiment scaffolding that grew alongside the design work
+  // (banding, palettePerRing, stats, posed, seam, seamBreaks, perm) is gone
+  // with the experiments.
   window.__kaleido = {
-    get state() { return { level, RINGS, NCELL, NDOM, placed: placed(), clashes: conflicts(), phase, shapeOnly, seam: seamMode }; },
+    get state() {
+      return { level, RINGS, NCELL, NDOM, wedgeFold: N_FOLD, shapes: NSHAPE,
+               placed: placed(), blanks: blanks(), clashes: conflicts(),
+               phase, shapeOnly };
+    },
+    goto(n) { genLevel(n, false); return this.state; },
+    next() { genLevel(level + 1, false); return this.state; },
+    // Fill the whole wedge with the answer. Proves a level is completable.
     solve() { dom = solved.slice(); placeT = placeT.map(() => performance.now()); after(performance.now()); return this.state; },
-    next() { genLevel(level + 1, false); }, goto(n) { genLevel(n, false); },
-    // Same-shape touches side by side within a ring, as a share of all such
-    // touches. This IS the banding, expressed as a number.
-    banding() {
-      let same = 0, tot = 0;
-      for (let r = 0; r < RINGS; r++) for (let s = 0; s < SEC(r); s++) {
-        const a = OFF[r] + s, b = OFF[r] + ((s + 1) % SEC(r));
-        const ta = tokAt(a), tb = tokAt(b);
-        if (ta < 0 || tb < 0) continue;
-        tot++; if (ta === tb) same++;
-      }
-      return { same, tot, pct: tot ? Math.round(100 * same / tot) : 0 };
-    },
-    // Distinct shapes used per ring, averaged. Low means the ring settles into
-    // a rhythm; four means it used everything and looks scattered.
-    palettePerRing() {
-      let tot = 0;
-      for (let r = 0; r < RINGS; r++) {
-        const u = new Set();
-        for (let s = 0; s < SEC(r); s++) { const t = tokAt(OFF[r] + s); if (t >= 0) u.add(t); }
-        tot += u.size;
-      }
-      return Math.round(100 * tot / RINGS) / 100;
-    },
-    // set a wedge cell directly, for testing states that are fiddly to tap into
+    // Set one wedge cell, for reproducing a board state by hand.
     set(d, t) { dom[d] = t; placeT[d] = performance.now(); after(performance.now()); return this.state; },
-    seamBreaks() { return seamBad.length; },
-    // What a given set of dials can actually reach. The ramp is designed from
-    // this rather than from guesswork.
-    // Asks for an unreachable target so the poser strips as far as it can, and
-    // reports where it stopped. That IS the ceiling for those dials.
+    // gaps, depth and hardness for the level on screen. The number the ramp aims at.
+    measure() { return measureLevel(); },
+    // What a given set of dials can reach. Asks for an unreachable target so the
+    // poser strips as far as it can; that is the ceiling for those dials.
     probe(rings, fold, shapes) {
       genLevel(1, false, { rings, fold, shapes, seam: 'full', hardness: 9999 });
       const m = measureLevel();
       return { rings, fold, shapes, wedge: NDOM,
                top: { gaps: m.blanks, depth: m.depth, hardness: m.hardness, ok: m.determined } };
     },
-    ringBudget() { measureBoard(); return { boardR, MIN_RING, thinnest: [3,4,5,6].map((n) => Math.round(thinnestRing(n) * 10) / 10), allows: budgetRings() }; },
-    geometry() { return { bcx, bcy, boardR, buttons: uiButtons.map((b) => ({ x: b.x, y: b.y, w: b.w, h: b.h })) }; },
-    measure() { return measureLevel(); },
-    posed() { return lastMeasure; },
-    seam(m) { seamMode = (m === 'radial' || m === 'full') ? m : 'off'; applySeamMode(); genLevel(level, false); return this.measure(); },
-    // How much of the wedge is actually DECIDED. A cell is pinned when at least
-    // one of the four tokens would clash with a given, free when all four are
-    // allowed. This is the measurement that answers "is it a puzzle or is it
-    // colouring", and it is the number the difficulty ramp has to move.
-    stats() {
-      const keep = dom.slice();
-      let pinned = 0, forced = 0;
-      for (let d = 0; d < NDOM; d++) {
-        let ok = 0;
-        for (let t = 0; t < NSHAPE; t++) { dom[d] = t; if (conflicts() === 0) ok++; }
-        dom[d] = keep[d];
-        if (ok < NSHAPE) pinned++;
-        if (ok === 1) forced++;
-      }
-      dom = keep;
-      return { level, NDOM, pinned, forced, free: NDOM - pinned,
-               solutions: Math.pow(NSHAPE, NDOM - pinned),
-               pinnedPct: Math.round(100 * pinned / NDOM) };
+    // The board's box and every hit target, for checking nothing collides and
+    // that the touch budget is being honoured.
+    geometry() {
+      return { bcx, bcy, boardR, minRing: MIN_RING,
+               ringThickness: [3, 4, 5, 6].map((n) => Math.round(thinnestRing(n) * 10) / 10),
+               ringsAllowed: budgetRings(),
+               buttons: uiButtons.map((b) => ({ x: b.x, y: b.y, w: b.w, h: b.h })) };
     },
-    shapes(v) { shapeOnly = v !== false; save(); render(performance.now()); return shapeOnly; },
   };
 
   // ---------- BOOT ----------
@@ -1733,7 +1711,7 @@
   buildBoard(3);
   measureBoard();
   const saved = load();
-  if (saved) shapeOnly = !!saved.shapeOnly;   // cycling is the ramp's call now, not a saved one
+  if (saved) shapeOnly = !!saved.shapeOnly;
   // No ?level= shortcut. It existed to test a hundred-level ramp without playing
   // ninety-nine of them, and it is gone for launch: a player should not be able
   // to skip, and a shared link landing someone on level 90 as their first

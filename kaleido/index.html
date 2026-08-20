@@ -124,7 +124,7 @@
       <p>Pick a colour from the palette, then tap a gap. The pane appears in every wedge at the same time. Keep filling until the window is whole and no two touching panes share a colour.</p>
       <ul>
         <li><strong>Pick and place:</strong> choose a colour, tap an empty socket. Tap the same socket again with the same colour to clear it.</li>
-        <li><strong>Read the neighbours:</strong> a gap cannot take a colour that already touches it. Once three of the four colours are ruled out, the fourth is your answer.</li>
+        <li><strong>Read the neighbours:</strong> a gap cannot take a colour that already touches it. Once every colour but one is ruled out, that one is your answer.</li>
         <li><strong>Watch for clashes:</strong> if two panes of the same colour end up touching, the lead between them goes dark and both panes pulse. Nothing is ever refused, so you can always try something and see.</li>
         <li><strong>Hint, Undo and Restart:</strong> a hint fills the gap whose neighbours already rule out the most, so it shows you the move you were closest to making. Undo and Restart are always free.</li>
       </ul>
@@ -146,7 +146,7 @@
       <p><strong>Does it work on mobile?</strong> Yes. Kaleido is built for touch as well as mouse, and the window is sized to fill a phone screen.</p>
       <p><strong>How do I win?</strong> Fill every gap so the window is complete and no two touching panes share a colour.</p>
       <p><strong>Is every level solvable?</strong> Yes, and without guessing. Each window is generated complete and then thinned, keeping only gaps that can still be reasoned out, so every single one has exactly one right answer.</p>
-      <p><strong>Can I play if I am colourblind?</strong> Yes. There is a shape-only mode that takes the colour out and cuts a distinct shape into each pane instead. Same board, same puzzle.</p>
+      <p><strong>Can I play if I am colourblind?</strong> Yes. Open Rules and turn on colourblind mode: it takes the colour out and cuts a distinct shape into each pane instead. Same board, same puzzle, and it is remembered.</p>
       <p><strong>How many levels are there?</strong> A hundred, and they get steadily harder: bigger windows, looser symmetry and more missing glass.</p>
 
       <p class="guide-cta"><a href="/guides/kaleido/">Stuck? Read the Kaleido strategy guide <span aria-hidden="true">&rarr;</span></a></p>
@@ -171,7 +171,7 @@
   <script src="../shared/sfx.js?v=1"></script>
   <script src="../shared/ui.js?v=1"></script>
   <script src="../shared/analytics.js?v=2"></script>
-  <script src="./play.js?v=67"></script>
+  <script src="./play.js?v=70"></script>
   <script>
     (() => {
       const btn = document.getElementById('focus-toggle');
