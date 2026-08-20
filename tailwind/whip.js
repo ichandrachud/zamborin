@@ -31,12 +31,22 @@
    they trade against each other across it. Wind still decides which trade you
    want that go, which keeps everything already built.
 
-   And this is what rescues BEND, which failed on its own (see model.js: best
-   bend hit the ceiling on 6/6 planes and 72/72 settings). A harder bend swings
-   the trunk FASTER, so the same human timing error costs more angle and more
-   speed. Bend buys distance and spends precision. That is the accelerating
-   cost the bend experiment could not find, and it cannot be tuned away because
-   it comes from the player rather than from a constant.
+   The hope was that this would also rescue BEND, which failed on its own (see
+   model.js: best bend hit the ceiling on 6/6 planes and 72/72 settings). A
+   harder bend swings the trunk faster, so the same timing error should cost
+   more, making bend buy distance and spend precision.
+
+   IT DID NOT. Read the output below rather than this paragraph: expected best
+   bend still pinned at 1.00 at every jitter down to 70 ms, and variant B in
+   whip2.js is worse again — best DRAW goes to 1.00 on all six planes too, and
+   every aeroplane converges on identical settings. The reason is the same one
+   the bend experiment found: a whip accelerates over the arc it has already
+   travelled, so it is less load per joule, and that dissolves the launch-strain
+   limit which is the thing making the draw a decision at all.
+
+   What the numbers DO support is that timing itself works — 30 ms early off the
+   peak costs 28%. That is what shipped, applied to the draw and the aim the
+   game already had rather than to a new mechanism. See meter.js.
 
    THE GATE IS DIFFERENT FROM EVERY GATE BEFORE IT. Best-case distance is the
    wrong number: of course releasing perfectly at full bend is best. What
@@ -44,6 +54,8 @@
    the expected best bend sits in the interior, the player is choosing how much
    risk to take for how much reward, calibrated to their own hands — which is
    exactly the Pingu loop.
+
+   KEPT AS A RECORD OF A REJECTED DESIGN. Nothing in the shipped game runs this.
 
    Run:  node tailwind/whip.js
 */
