@@ -1734,15 +1734,12 @@
   measureBoard();
   const saved = load();
   if (saved) shapeOnly = !!saved.shapeOnly;   // cycling is the ramp's call now, not a saved one
-  // ?level=N jumps straight to a level. For testing a hundred-level ramp without
-  // playing ninety-nine of them. The page is noindex; decide whether this stays
-  // before launch.
-  let startLevel = saved ? saved.level : 1;
-  try {
-    const q = parseInt(new URLSearchParams(location.search).get('level'), 10);
-    if (q >= 1 && q <= 999) startLevel = q;
-  } catch (e) {}
-  genLevel(startLevel, true);
+  // No ?level= shortcut. It existed to test a hundred-level ramp without playing
+  // ninety-nine of them, and it is gone for launch: a player should not be able
+  // to skip, and a shared link landing someone on level 90 as their first
+  // experience of the game is the worst introduction it could give.
+  // window.__kaleido.goto(n) still does the job from the console for testing.
+  genLevel(saved ? saved.level : 1, true);
   if (saved && Array.isArray(saved.dom) && saved.dom.length === NDOM) { dom = saved.dom.slice(); render(performance.now()); }
   setTimeout(onResize, 0);
   setTimeout(onResize, 300);
