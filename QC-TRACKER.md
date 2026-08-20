@@ -36,7 +36,7 @@ Delisted and NOT in scope: socket, bunny, empyrean, foldfig, pane, pins, plumb, 
 | 2 | bloom | - | - | - | - | - | - | - | |
 | 3 | tailwind | - | - | - | - | - | - | - | |
 | 4 | stained | - | - | - | - | - | - | - | |
-| 5 | kaleido | - | - | - | - | - | - | - | |
+| 5 | kaleido | OK | OK | OK | ~ | OK | OK | ! | audited 2026-08-20; see K1-K4 |
 | 6 | prism | - | - | - | - | - | - | - | |
 | 7 | needle | - | - | - | - | - | - | - | |
 | 8 | untangle | - | - | - | - | - | - | - | |
@@ -57,6 +57,12 @@ Severity: **BREAKS PLAY** | **VISUAL** | **MINOR** | **EMBED GAP**
 | ID | Game | Sev | Issue | State |
 |---|---|---|---|---|
 | E1 | empyrean | BREAKS PLAY (if committed) | Finder renames in the working tree would have 404'd the desert background and swapped the Zephyr sprite. Verified by hash, not just size. | FIXED 2026-08-20, files restored from git, nothing lost |
+| K1 | kaleido | EMBED GAP + VISUAL | Rules card overflows in a small container: the Colourblind and PLAY buttons draw on top of rules 3 and 4, and rule 4 is clipped. Reproduced at 480x360 and 480x430, in a plain window as well as an iframe. Fine at 640x480, 760x600, 375x812 and 812x375. | FIXED on branch `fix-kaleido-rules-card`, not yet deployed |
+| K2 | all 15 games | EMBED GAP | Favicon and logo loaded by root-absolute path in every game, so they 404 off-origin. Scanned all 15: exactly the same four root-absolute references in each. | FIXED on branch `fix-embed-absolute-paths`, not yet deployed |
+| K2b | tessera | EMBED GAP | Worse case of K2: `tessera/play.js` loaded both HOW TO PLAY instruction images by root-absolute path, so off-origin the game's own teaching screen would have lost its art. | FIXED on the same branch |
+| K2c | all 15 games | EMBED GAP, won't fix | `/_vercel/insights/script.js` and `/_vercel/speed-insights/script.js` are Vercel edge endpoints with no file in the repo, so they cannot be made relative. Off-origin they 404 harmlessly and analytics simply do not record. Would need an embed build that omits them. | ACCEPTED |
+| K3 | kaleido | MINOR | No aria-live region, so a screen reader is told nothing when the board changes. The canvas itself is labelled. | OPEN |
+| K4 | kaleido | MINOR | By default colour is the only thing separating three of the four glasses (all within 1.3:1 of each other in lightness). Mitigated by a built-in colourblind mode that swaps colour for shape, offered on the rules card, but it is off by default. | OPEN, by design |
 
 ## Pre-scan findings (static file reading only, nothing verified in a browser yet)
 
@@ -93,3 +99,44 @@ browser confirmation before it counts as a real finding.
   tessera and fold still lacked the re-fit listeners. Checked and they all carry the
   full set; they were patched on 2026-08-19. The summary line was out of date, the
   detailed note was correct. The real gap is zood, carrom and ludo (P6).
+
+
+## Kaleido audit, 2026-08-20
+
+Measured, not assumed. Local preview at 5230.
+
+**Functionality: pass.** Drove `window.__kaleido` across the whole ramp: all 100
+levels generated, all 100 solved cleanly (`placed == blanks`, `clashes == 0`), and
+all 100 reached the `won` phase, so win detection fires everywhere. Gaps ramp 2 to 10,
+symmetry loosens 6 folds to 3 to 2, palette moves between 3 and 4 colours. Hint places
+a correct pane and enables Undo; Undo reverts and the save follows it; the rules phase
+shows at boot and after a state restore rather than being clobbered.
+
+**Mobile: pass.** At 375x812 the wrap and canvas are both exactly 375x812, and the CSS
+aspect matches the backing-store aspect to three decimals, which is the narrow-strip
+test. No horizontal overflow. Controls sit at the bottom. Touch mapping scales X by
+`LW / rect.width` and Y by `LH / rect.height`, which is the correct form.
+
+**Performance: pass, with one gap.** `requestAnimationFrame` is the only driver; the
+single `setTimeout` is a one-shot re-arm, not a loop. Measured directly: with
+`document.visibilityState === 'hidden'`, rAF fired **zero** times in 3.6 seconds, so the
+loop stops when the tab is hidden without the game needing its own `visibilitychange`
+handler. Heap grew 2 KB over 3.6 s. **Not checked:** the visible frame rate, because the
+preview pane stays hidden in this environment.
+
+**Accessibility: partial.** All text passes comfortably (white 17.96:1, dim 11.44:1,
+mute 6.48:1 on the page background). Every glass passes against the page background
+(coral 4.45, green 9.64, sunshine 12.44, powder blue 12.53). The weak point is K4.
+
+**Consistency: pass.** Header, logo, footer with all eight links, favicon, focus button
+labelled "Play fullscreen", canvas labelled "Kaleido puzzle", no emoji. The only em dash
+is in the page title, which is the site-wide pattern on every game.
+
+**SEO: pass.** Title, description, canonical, Open Graph with image dimensions and alt
+text, Twitter card, VideoGame JSON-LD, and the page is in the sitemap.
+
+**Embed: mostly ready.** No frame-busting anywhere in the game or in `shared/`, and the
+live site sends no `X-Frame-Options` or CSP `frame-ancestors`, so it can be embedded
+cross-origin today. Runs in a 480x360 iframe, fits the container exactly, no overflow.
+No runtime `fetch` or `XMLHttpRequest`, so it works offline once loaded. localStorage is
+namespaced to `zamborin-kaleido.*`. Blocked only by K1 and K2.

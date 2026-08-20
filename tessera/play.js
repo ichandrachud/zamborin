@@ -842,8 +842,8 @@
   let instrDesktopReady = false;
   instrImgMobile.onload  = () => { instrMobileReady  = true; };
   instrImgDesktop.onload = () => { instrDesktopReady = true; };
-  instrImgMobile.src  = '/images/tesserainstructions.png';
-  instrImgDesktop.src = '/images/tesserainstructions-desktop.png';
+  instrImgMobile.src  = '../images/tesserainstructions.png';
+  instrImgDesktop.src = '../images/tesserainstructions-desktop.png';
 
   const RULES_LINES = [
     'Tap a column to slide the falling tile there.',
