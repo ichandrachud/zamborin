@@ -89,6 +89,7 @@ browser confirmation before it counts as a real finding.
   either. They also sit at non-standard frame sizes for historical reasons, so they
   are the most likely to show the narrow-strip bug and the most invasive to fix.
   Handle them as a separate mini-project, last.
-- **P7 (correction to an older note).** A previous session recorded that untangle,
-  tessera and fold still lacked the re-fit listeners. That is no longer true: all
-  three now carry the full set. The gap moved to zood, carrom and ludo (P6).
+- **P7 (resolved, not a finding).** A summary line in an older note said untangle,
+  tessera and fold still lacked the re-fit listeners. Checked and they all carry the
+  full set; they were patched on 2026-08-19. The summary line was out of date, the
+  detailed note was correct. The real gap is zood, carrom and ludo (P6).
