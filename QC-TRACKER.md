@@ -39,8 +39,8 @@ Delisted and NOT in scope: socket, bunny, empyrean, foldfig, pane, pins, plumb, 
 | 5 | kaleido | OK | OK | OK | ~ | OK | OK | ! | audited 2026-08-20; see K1-K4 |
 | 6 | prism | OK | OK | OK | ~ | OK | OK | OK | audited 2026-08-20; rules card fixed + copy trimmed. One tight colour pair, P1 |
 | 7 | needle | - | - | - | - | - | - | - | rules card fixed 2026-08-21, not yet audited |
-| 8 | untangle | - | - | - | - | - | - | - | |
-| 9 | tessera | - | - | - | - | - | - | - | |
+| 8 | untangle | OK | OK | OK | ~ | ~ | OK | OK | audited 2026-08-21. U1-U3 fixed, U4-U6 open |
+| 9 | tessera | - | - | - | - | - | - | ~ | not audited, but U1 and U3 were shared with Untangle and are fixed here too |
 | 10 | sluice | - | - | - | - | - | - | - | rules card fixed 2026-08-21, not yet audited |
 | 11 | fold | - | - | - | - | - | - | - | |
 | 12 | mobile | - | - | - | - | - | - | - | |
@@ -61,19 +61,34 @@ Severity: **BREAKS PLAY** | **VISUAL** | **MINOR** | **EMBED GAP**
 | K2 | all 15 games | EMBED GAP | Favicon and logo loaded by root-absolute path in every game, so they 404 off-origin. Scanned all 15: exactly the same four root-absolute references in each. | FIXED on branch `fix-embed-absolute-paths`, not yet deployed |
 | K2b | tessera | EMBED GAP | Worse case of K2: `tessera/play.js` loaded both HOW TO PLAY instruction images by root-absolute path, so off-origin the game's own teaching screen would have lost its art. | FIXED on the same branch |
 | K2c | all 15 games | EMBED GAP, RESOLVED 2026-08-21 by the iframe embed: the page is served from zamborin.com, so the Vercel scripts load normally. The problem only existed for a copied folder. | `/_vercel/insights/script.js` and `/_vercel/speed-insights/script.js` are Vercel edge endpoints with no file in the repo, so they cannot be made relative. Off-origin they 404 harmlessly and analytics simply do not record. Would need an embed build that omits them. | ACCEPTED |
-| O1 | orbit | MINOR, deploy weight | `orbit/splash-images/` is 3.8 MB of four source JPEGs, Frame 9 to 12, requested by nothing and unique to this game. Same class as `fold/Images`, which is 24 MB. Together about 28 MB of working art deployed and never served. | OPEN, owner's call to delete |
+| O1 | orbit, fold | **CORRECTED 2026-08-21, and it changes the decision** | The entry said about 28 MB of working art was "deployed and never served", and the same premise sits behind P4. **Neither folder is deployed.** `orbit/splash-images/` and `fold/Images/` are both named in `.gitignore` and `git ls-files` returns zero files for each, so they have never been in a commit and Vercel has never received them. The tracked repo is 142 MB. The cost of keeping them is local disk, not bandwidth or deploy weight, and git history is not holding them either. | The deletion question is now purely about tidiness. Owner's call, but with no cost to leaving them |
 | P1 | prism | ACCESSIBILITY, moderate | Blue vs purple measure 4.2 dE apart under deuteranopia, B alone versus R+B, which is tighter than Stained's worst pair. Everything else is comfortable and protanopia has nothing under 10. Stained's corner-pip mode would transplant almost unchanged. | OPEN |
 | K3 | kaleido | MINOR | No aria-live region, so a screen reader is told nothing when the board changes. The canvas itself is labelled. | OPEN |
 | S1 | stained | BREAKS PLAY (phone landscape) + EMBED GAP | The rules card clamped its height while the copy kept flowing, so the Resume button drew through the rules and the last two were unreadable. Measured overlap 170px at 480x360, 134px at 812x375 in mobile mode which is a phone turned sideways, 29px even at 640x480. Fine at 760x600 and 375x812. | FIXED on branch `fix-stained-rules-card`, not yet deployed |
 | S2 | stained | ACCESSIBILITY, moderate | No colourblind mode, and the mechanic is reading which primaries overlap. **Corrected 2026-08-20:** the first measurement used a colour-vision simulation with two wrong coefficients in its inverse matrix and overstated this badly. Redone with a matrix that maps neutrals to neutrals: under deuteranopia NO pair falls below dE 10, and under protanopia one does, red vs brown at 8.5, with blue vs purple at 10.8. Tight rather than collapsed. It still matters because red is R alone and brown is all three, the most expensive confusion on the board, and 55 of the 100 levels carry both. | BUILT on branch `fix-stained-rules-card`, opt-in, not yet deployed |
 | S3 | stained | SEO | No `VideoGame` JSON-LD. The only game of fifteen with no structured data at all. | FIXED on the same branch |
 | S5 | stained | MINOR | On desktop `resizeCanvas` pins the canvas to exactly 760x600 CSS px and it never scales down, so in a short window the board runs below the fold. At a 1366x620 laptop it is 108px under and the page scrolls, so it is reachable; at extreme sizes the wrap clips it and the page does not grow. Kaleido handles the same case by letting CSS scale it to fit, so there is a known-good reference. The pinning was itself a fix for the narrow-strip bug, so do not simply revert it. | OPEN |
-| S4 | stained, untangle, carrom | MINOR, consistency | These three load no `shared/sfx.js` and have no sound or sound toggle. The other twelve do. | OPEN |
+| S4 | stained | MINOR, consistency | **Corrected 2026-08-21.** The original entry named stained, untangle and carrom, on the evidence that they do not load `shared/sfx.js`. Two of the three do have sound, written inline rather than taken from the toolkit: Untangle carries its own `AudioContext`, five cues and a speaker toggle at the canvas top-left that persists to `zamborin-untangle.sound`, and Carrom has its own as well. **Stained is the only one of fifteen with no sound at all.** Not loading a shared file is not the same as not having the feature; the check has to be for the behaviour. | OPEN, and now one game not three |
 | T1 | tailwind, stained | MINOR | These two were the only games of fifteen not loading `shared/analytics.js`, and they had none of the call sites either, so they reported nothing at all. | FIXED and deployed 2026-08-20. Stained got the full fleet pattern; Tailwind got init + gameStart only, since it has no levels and faking them would break maxLevel fleet-wide. |
 | T2 | tailwind | MINOR (AA) | The personal-best figure on each aircraft card was white at 45% over the card, measuring 4.37:1 at 12px against a 4.5:1 bar. | FIXED and deployed 2026-08-20, raised to 55% which measures 5.83:1. |
 | T3 | tailwind | LOW (AA) | The sound glyph in its OFF state is white at 34%, measuring 2.96 to 3.11:1 depending on the panel behind it. Graphical objects want 3:1, so it passes over two backgrounds and fails over the third. | OPEN |
 | T4 | site-wide | MINOR | Em dashes in body copy on 7 of the 15 games plus the homepage, about 26 instances (tessera 6, zood 4, ludo 4, tailwind 3, untangle 3, carrom 3, needle 1, index 2). The `Name — A Zamborin Game` title pattern is on all 15 and reads as deliberate branding. | OPEN, owner's call |
 | T5 | site-wide | OBSERVATION | Canvas copy runs 10 to 15px across the fleet, under the site's 16px content-copy floor. Tailwind's stat-bar labels are the smallest at 10px. The floor was written for CSS text classes with a badge exemption, so this may be out of scope by design. | OPEN, owner's call |
+| U1 | untangle, tessera | BREAKS PLAY (embed) | A game loaded inside a HIDDEN iframe and revealed later renders nothing, permanently. `safeViewport()` filters every reading above 120px, a `display:none` frame reports 0 for all of them, the filter empties, and `Math.min()` of an empty list is **Infinity**. That became the logical canvas size and left the 2d transform at **scale 0**: a canvas of exactly the right pixel size that paints nothing, and goes on painting nothing after the frame is shown. Measured 2026-08-21, scale 0.000 in both games. A closed accordion, an inactive tab panel and an off-screen carousel slide are all ordinary ways for a partner to place an embed. Untangle and Tessera bake their layout at load; Fold recomputes on resize and escapes, Tailwind escapes by another route. | FIXED 2026-08-21 on branch `qc-obvious-fixes`, verified across 10 reveal cases |
+| U2 | untangle | VISUAL (short frames) | The instructions card is a stack of fixed offsets either side of the frame's centre, with no clamp and no scale, so on a short frame it runs off the TOP rather than overlapping itself. Swept 145 heights: the boundary is exactly **430px of viewport height**, and below it the overhang grows 5px at 420, 35px at 360, 65px at 300. That takes "HOW TO PLAY" and then the top of the title. Hits every phone held sideways and the 480x360 embed. Not a lockout, because the rules and the button stay on screen. | FIXED 2026-08-21, 188 probes, one 2px failure left at 300px tall |
+| U3 | untangle, tessera | VISUAL | Both draw a dashed **"AD · 320 × 50" placeholder** into the canvas on mobile, ungated. Every HTML ad slot on the same page is hidden behind `body.ads-on`, which nothing sets, so a phone player saw an empty box advertising an ad slot under the board. The only two games of fifteen that do this. | FIXED 2026-08-21, gated on `ads-on`; the band stays reserved so switching ads on is still a visual no-op |
+| U4 | untangle | MINOR, feature gap | **No undo and no restart**, and no way back to an earlier level. Of the nine levelled puzzles, the other eight all have both. It also makes two pieces of copy untrue: the game page says "solve it first, then learn the shape and beat your own score" and the guide says "replay and beat your own par", and there is no route to a replay. The per-level best IS stored, at `zamborin-untangle.best.L<n>`, and can never be improved. | OPEN, owner's call: add a Restart pill, or correct both sentences |
+| U5 | untangle | ACCESSIBILITY, moderate | White on the accent `#D8523F` measures **4.04:1** at 14px bold. 14px bold is not large text, so the bar is 4.5:1. This is the START / CONTINUE button and the NEXT LEVEL button, the primary action on both screens. The tier name in the HUD is the same accent on the page background at **4.07:1**. The house CTA in `shared/ui.js` is white at 17px on "the game's accent", so this is a palette question rather than an untangle bug, and Tailwind, Tessera, Kaleido and Ludo carry the same `#D8523F`. Null-tested: white/black 21.00, white/white 1.00, #767676/white 4.54. | OPEN, owner's call, it is a brand colour |
+| U6 | untangle | MINOR (AA) | Three of the twelve vertex colours fall under the 3:1 bar for graphical objects against the playfield: `#C2185B` at 2.45, `#7E57C2` at 2.76, `#3D5AFE` at 2.80. Mitigated in practice by each dot's own glow and a white highlight, and dot colour carries no meaning in this game, so it is legibility rather than information loss. | OPEN |
+| W1 | tarmac | NOT A FINDING, withdrawn | Logged as an SEO exposure because `tarmac/` is a bare prototype page carrying no `noindex` while the other eight shelved prototypes all carry one. **It is in `.gitignore`, so it is not in the repo and Vercel has never had it**; `zamborin.com/tarmac/` is a 404. It is the only page of the 49 on disk that is not deployed. A `noindex` was added to the local copy anyway, which is untracked and therefore not in this branch. | WITHDRAWN, no live exposure |
+| W2 | site-wide | MINOR, caching | All 16 guide pages asked for `shared/chrome.css?v=13` while the other 30 pages asked for `?v=14`. A returning visitor with v13 cached keeps getting the older stylesheet on guides only, so one site served two different chromes to the same person. | FIXED 2026-08-21 |
+| W3 | llms.txt | FACTUAL | The file written specifically to tell AI crawlers what the site is described **Untangle as a "Daily planar-graph puzzle ... same puzzle for everyone today (daily seed)"** and **Ludo as having a "Daily seed shared across all players"**. Neither is true: Untangle seeds from the level number and nothing else, and Ludo has no date logic anywhere and rolls `Math.random()`. Tessera's cross-link also called Untangle daily. | FIXED 2026-08-21, all three corrected against the code |
+| W4 | embed/ | SEO | The Embed page's `og:image` pointed at `images/zamborin-og.jpg`, which does not exist. The one page most likely to be shared with a prospective partner had a broken share card. Found only after extending the link checker to `content=` attributes; it had been checking `href` and `src` only. | FIXED 2026-08-21, repointed at `zamborin-og-image.jpg` |
+| W5 | cookies/, terms/, faq/, embed/ | MINOR, SEO | Cookies and Terms had no Open Graph or Twitter tags at all; FAQ and Embed had Open Graph but no Twitter card. Every other page has the full set. | FIXED 2026-08-21, mirroring the existing title and description, no new copy |
+| W6 | shared/new-game-template | MINOR, would repeat | The scaffold was three fixes behind the fleet: `chrome.css?v=13`, `analytics.js?v=2`, **no `shared/embed.js` at all**, and the favicon and logo by root-absolute path, which is the K2 bug the fleet was swept for. The next game copied from it would have shipped with no embed support and a logo that 404s off-origin. | FIXED 2026-08-21, template and README |
+| W7 | vercel.json | OBSERVATION | The framing guard covers the ten content pages. The nine shelved prototypes (socket, bunny, empyrean, foldfig, pane, pins, plumb, tarmac, wire) carry no guard, so any site can iframe them and serve them off our bandwidth. Socket in particular is delisted but complete and playable. | OPEN, owner's call |
+| W8 | stained, mobile | MINOR | S5 is not stained alone. Loaded in a 1000x700 frame, thirteen games scale the 760x600 board down to fit; **stained and mobile both hold exactly 760x600**. Same cause, same fix, and the same caution applies: the pinning was itself the fix for the narrow-strip bug. | OPEN, extends S5 |
+| W9 | ludo | OBSERVATION | The computer opponents pick a random legal move, marked `AI (placeholder — random legal moves)` in the source. No page claims more than "computer opponents", so nothing is untrue, but the guide invites the reader to "put it into practice against three AI opponents". The homepage card also says "Roll the die" where the game rolls two. | OPEN, owner's call |
 | K4 | kaleido | MINOR | By default colour is the only thing separating three of the four glasses (all within 1.3:1 of each other in lightness). Mitigated by a built-in colourblind mode that swaps colour for shape, offered on the rules card, but it is off by default. | OPEN, by design |
 
 ## Pre-scan findings (static file reading only, nothing verified in a browser yet)
@@ -91,9 +106,10 @@ browser confirmation before it counts as a real finding.
 - **P3 (site-wide, likely PERF).** No game listens for `visibilitychange` or reads
   `document.hidden`, so the animation loop probably keeps running in a background
   tab. Needs per-game confirmation, since some may pause through another flag.
-- **P4 (fold, MINOR / deploy weight).** `fold/Images/` is 24 MB of 147 jpegs and is
+- **P4 (fold, WITHDRAWN 2026-08-21).** `fold/Images/` is 24 MB of 147 jpegs and is
   referenced nowhere in the repo. It looks like the pre-conversion source of the
-  148 webp files the game actually uses in `fold/art/`. Fold is 37 MB of a 634 MB repo.
+  148 webp files the game actually uses in `fold/art/`. **It is gitignored and has
+  never been committed**, so it is not deploy weight; see the corrected O1.
 - **P5 (repo hygiene).** The working tree has uncommitted changes under `empyrean/assets/`
   from an earlier session: one modified plane sprite, three deleted images, three new
   untracked ones. Empyrean is delisted so this does not affect the live site, but it
@@ -454,3 +470,131 @@ and it never has to be told apart from another hue.
 
 **SEO, consistency, embed: all pass.** Every tag present, VideoGame JSON-LD, in the sitemap,
 no frame-busting, no runtime fetches, sound present, no emoji, no em dashes in canvas copy.
+
+
+## Untangle audit, 2026-08-21
+
+**Functionality: pass, and verified as a witness rather than by clicking.** Untangle
+scrambles a crossing-free circular layout, so putting the dots back on that circle IS
+the proof a level is solvable. Added `__untangle.goto(n)` and `__untangle.solve()` and
+ran **120 levels across five different frames** (760x600 desktop, 375x812, 320x568,
+480x360, 640x480), 600 generations in all: every one solves to zero crossings, none
+throws, and **none arrives already solved**, which was the failure the `LEVEL_OFFSET = 2`
+comment was written for. Par ramps 3 to 10, starting crossings 2 to 60. Undo and restart
+are absent; see U4.
+
+**Mobile: pass.** 375x812 fills exactly, canvas CSS matches the frame and the backing
+store is 2x, no horizontal overflow at any of the three sizes swept. All five re-fit
+listeners present. Touch mapping scales X by width and Y by height, the correct form.
+One caveat worth knowing rather than fixing: rotating the phone mid-level calls
+`location.reload()`, and since only the level number is saved, the dots go back to the
+scramble. Deliberate, and it is how Tessera behaves too.
+
+**Performance: pass.** `requestAnimationFrame` only; the `setTimeout` calls are one-shot
+audio envelopes. The one `setInterval` in the file now is the blind-boot recovery, which
+is installed only on a boot that already failed and clears itself.
+
+**Accessibility: partial.** Canvas labelled "Untangle puzzle". Colour is never the only
+signal for the mechanic: a crossing edge is red AND pulses AND carries a yellow dot at
+the intersection point. Text is comfortable, the dim rules copy 10.47:1 and the muted
+labels 5.93:1. The two gaps are U5 and U6. No aria-live region, same as Kaleido's K3.
+
+**Consistency: near pass.** Header, logo, footer with all nine links, favicon, focus
+button, splash, VideoGame JSON-LD. The canvas hint row carries one em dash,
+"DRAG ANY DOT — REMOVE EVERY CROSSING", which is body copy rather than the title pattern.
+Sound is present, contradicting S4.
+
+**SEO: pass.** Every tag including og:image dimensions and alt, and in the sitemap.
+
+**Embed: pass, after U1.** No frame-busting, no runtime `fetch`, every asset path
+relative, localStorage namespaced to `zamborin-untangle.*`. Runs at both embed sizes.
+
+**Method note.** The preview pane in this environment is permanently `hidden`, so
+`innerWidth` is 0 and rAF never fires. Two things unblock that. `resize_window` with
+explicit dimensions gives the top-level page a real viewport even while hidden, and an
+**iframe harness** gives any size you like: an iframe styled 375x812 reports exactly that
+to its own `window`, regardless of the parent. Every number above came from a same-origin
+iframe. What it still cannot do is paint, so nothing here is a screenshot.
+
+
+## The rules-card sweep found a seventh game, 2026-08-21
+
+Untangle was cleared in the fleet sweep because its button is placed at the y the copy
+finished at, which is the Orbit pattern and is right. It has the OTHER failure mode:
+the whole card is a stack of fixed offsets either side of the frame's centre, with no
+clamp and no scale, so a short frame clips it at the top instead of overlapping it.
+
+Sweeping 145 heights at 375 wide put the boundary at exactly **430px**, and a width
+sweep at 23 widths from 320 to 1200 showed the overhang identical at every one of them,
+which reduces a 2D question to a 1D one and is worth knowing for the next game: in
+mobile mode this layout depends on height alone.
+
+The fix follows the two-stage pattern: shrink the copy, and once shrinking further would
+go under 0.85 scale, drop the decorative eyebrow outright rather than keep it too small
+to read. The button never scales. Re-swept 188 probes, 145 heights plus 23 widths plus
+20 named device and embed sizes: **one failure left, 2px of button below the panel on a
+300px-tall frame.** Above 435px the layout is byte-identical to what shipped, so nothing
+changes on any phone in portrait, any tablet, any desktop or the 640x480 embed.
+
+`__untangle.rulesFit()` reports `overTop`, `overBottom`, `scale` and whether the eyebrow
+survived, so this is assertable from now on.
+
+
+## The hidden-iframe bug, 2026-08-21
+
+The most serious thing found. `Math.min()` of an empty array is `Infinity`, and
+`safeViewport()` produces an empty array whenever no reading clears 120px, which is
+exactly what a `display:none` iframe reports. Infinity became the logical canvas size and
+`Math.min(backingW / Infinity, ...)` set the 2d transform to **scale 0**. The canvas is
+sized correctly and paints nothing, before and after the frame is shown.
+
+**Three things about this were only learnt by measuring, and two of them were wrong first.**
+
+1. The first test revealed the frame in PORTRAIT and the game recovered, which looked
+   like the bug was harmless. It recovered by accident: the orientation watcher saw
+   portrait flip from false to true and reloaded. Revealed in LANDSCAPE the flag does not
+   change, nothing reloads, and the transform stays at 0.
+2. The obvious fix, reload on the next `resize`, does not work. **An iframe going from
+   `display:none` at 0x0 to visible at 700x390 fires ZERO resize events on its own
+   window**, even though `innerWidth` goes 0 to 700. Measured directly with a counter.
+3. `ResizeObserver` on the document element, the usual answer, fired in **one of six**
+   trials. A `display:none` document has no layout box and no animation frames.
+
+So the recovery is a 250ms poll, installed only when the boot was already blind, cleared
+the moment it succeeds and abandoned after a minute. Verified across 10 cases, two games
+by five reveal sizes: every one now rebuilds against the real frame exactly, and the
+never-revealed case sits harmlessly on a 390x700 fallback instead of Infinity.
+
+Fold has the same `safeViewport` but recomputes on resize, so it self-heals; its
+`vp.w || 390` guard was hardened to `Number.isFinite` anyway, because Infinity is truthy
+and that guard never fired. Tailwind escapes by another route.
+
+
+## Site-wide sweep, 2026-08-21
+
+Run before the Untangle audit, as a pass over everything rather than one game.
+
+**What is clean.** Every `href` and `src` in all 53 HTML files resolves. Every CSS
+`url()` resolves. All 49 pages load with no failed request other than the two Vercel edge
+scripts, which have no local file and are expected. No `console.log`, no `debugger`, no
+TODO in any shipped game. No duplicate titles or descriptions anywhere. All 15 games are
+in the sitemap, all 15 have a guide, every guide links back to its game and every game
+links forward to its guide. Socket is unlinked from every live page.
+
+**A hole in my own tooling.** The link checker read `href` and `src` and not `content`,
+so every `og:image` on the site had gone unchecked. Extending it found W4 immediately.
+Check the attribute the value actually lives in, not the attribute links usually live in.
+
+**Long titles and descriptions, not logged as a defect.** Fourteen guide titles run past
+60 characters and 26 descriptions past 160, so Google will truncate them in results.
+There is no penalty for it and the copy is deliberate, so this is an editorial call
+rather than a finding.
+
+**Check what is DEPLOYED, not what is on disk.** Two entries in this tracker were built on
+the assumption that a folder on disk is a folder on the server. `git ls-files` settles it in
+one command, and it withdrew W1 and rewrote O1 and P4. Of the 49 pages on disk, 48 are in the
+repo; `tarmac/` is gitignored and has never been deployed. The 28 MB of unreferenced source
+art in `orbit/splash-images/` and `fold/Images/` is gitignored too and has never been in a
+commit, so it was never deploy weight and never in history. This belongs with
+[[feedback-unreferenced-assets-by-code-path]]: the question is always what the deployed
+artefact actually contains.

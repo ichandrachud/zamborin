@@ -467,7 +467,14 @@
     return { w: Math.round(Math.min(...w)), h: Math.round(Math.min(...h)) };
   }
   function setCanvasVars() {
-    if (isMobile()) { const vp = safeViewport(); CW = vp.w || 390; CH = vp.h || 740; }
+    // Number.isFinite, not `||`: Infinity is truthy, and Math.min() of an
+    // empty list is Infinity, which is exactly what an unreadable viewport
+    // produces (a hidden iframe reports 0 for every reading).
+    if (isMobile()) {
+      const vp = safeViewport();
+      CW = Number.isFinite(vp.w) ? vp.w : 390;
+      CH = Number.isFinite(vp.h) ? vp.h : 740;
+    }
     // One desktop frame across the whole site: 760x600. Eight different sizes
     // had grown up across thirteen games, which reads as carelessness. This is
     // Untangle's, and it is sized so the game plus a 300px sidebar ad fits the

@@ -26,12 +26,23 @@
   // wrap a fraction of the screen wide, and the game is drawn into a narrow
   // strip. Cross-check against the visual viewport and the document element and
   // take the smallest sane value. (Tailwind, 2026-08-19.)
+  // True when the reading below found NOTHING measurable, so the layout that
+  // follows was built on a guess. See the blind-boot recovery further down.
+  let viewportWasBlind = false;
   function safeViewport() {
     const vv = window.visualViewport;
     const w = [window.innerWidth, vv && vv.width, document.documentElement.clientWidth]
       .filter((v) => typeof v === 'number' && v > 120);
     const h = [window.innerHeight, vv && vv.height, document.documentElement.clientHeight]
       .filter((v) => typeof v === 'number' && v > 120);
+    // A frame that is display:none or zero-sized reports 0 for every one of
+    // those, the filter empties, and Math.min() of an EMPTY list is Infinity.
+    // That went into the logical canvas size and left the drawing transform at
+    // scale 0: a canvas of exactly the right size that paints nothing, and goes
+    // on painting nothing after the frame is shown. Measured on 2026-08-21 in a
+    // hidden iframe revealed at 700x390, which is an ordinary way for a partner
+    // site to place a game (a closed accordion, an inactive tab panel).
+    if (!w.length || !h.length) { viewportWasBlind = true; return { w: 390, h: 700 }; }
     return { w: Math.round(Math.min(...w)), h: Math.round(Math.min(...h)) };
   }
   function buildMobileCFG() {
@@ -89,6 +100,40 @@
       const nowPortrait = window.innerHeight > window.innerWidth;
       if (wasPortrait !== nowPortrait) { wasPortrait = nowPortrait; location.reload(); }
     });
+  }
+
+  // Recovery from a blind boot. The layout above was baked from a viewport that
+  // could not be read, and every size downstream of CFG is fixed at load, so a
+  // reload is the only way to correct it.
+  //
+  // Nothing event-driven can be trusted to tell us the frame became real.
+  // Measured on 2026-08-21: an iframe going from display:none at 0x0 to visible
+  // at 700x390 fires ZERO resize events on its own window even though
+  // innerWidth goes 0 -> 700, and a ResizeObserver on the document element
+  // fired in one of six trials. A display:none document has no layout box and
+  // no animation frames, so a short poll is the only reliable signal. It is
+  // installed ONLY on a boot that already failed, stops the moment it works,
+  // and gives up after a minute so nothing is left running.
+  if (viewportWasBlind) {
+    let recovered = false;
+    const stopAt = 240;                 // 240 x 250ms = 60s
+    let ticks = 0;
+    const recoverFromBlindBoot = () => {
+      if (recovered) return;
+      if (window.innerWidth <= 120 || window.innerHeight <= 120) {
+        if (++ticks < stopAt) return;
+        clearInterval(poll);
+        return;
+      }
+      recovered = true;
+      clearInterval(poll);
+      location.reload();
+    };
+    const poll = setInterval(recoverFromBlindBoot, 250);
+    window.addEventListener('resize', recoverFromBlindBoot);
+    if (window.ResizeObserver) {
+      new ResizeObserver(recoverFromBlindBoot).observe(document.documentElement);
+    }
   }
 
   // ---------- CANVAS + SHARP-DPR ----------
@@ -358,6 +403,7 @@
   let highestLevel = parseInt(localStorage.getItem('zamborin-untangle.highest') || '1', 10);
   if (!Number.isFinite(highestLevel) || highestLevel < 1) highestLevel = 1;
 
+  let truePositions = [];   // the planar layout every level is scrambled FROM
   let dragIdx   = -1;
   let dragOrigin = null;
   let dragMovedFar = false;
@@ -393,6 +439,7 @@
 
     const radius = Math.min(PLAY_W, PLAY_H) / 2 - MARGIN;
     const truePos = [];
+    truePositions = truePos;
     for (let i = 0; i < N; i++) {
       const a = (i / N) * 2 * Math.PI - Math.PI / 2;
       truePos.push({ x: PLAY_CX + Math.cos(a) * radius, y: PLAY_CY + Math.sin(a) * radius });
@@ -729,8 +776,15 @@
     ctx.fillText(text, W / 2, baselineY);
   }
 
+  // The dashed box is a PLACEHOLDER for an ad that is not running. The site's
+  // switch for that is `body.ads-on`, which every HTML ad slot already respects
+  // and which nothing currently sets; this canvas box was the one place that
+  // ignored it, so a phone player saw an empty "AD" rectangle under the board.
+  // The band stays reserved either way, so turning ads on is still a visual
+  // no-op rather than a re-layout.
   function drawBannerAd() {
     if (BANNER_H === 0) return;
+    if (!document.body.classList.contains('ads-on')) return;
     ctx.fillStyle = C.panel;
     roundRect(BANNER_X, BANNER_Y, BANNER_W, BANNER_H, 8);
     ctx.fill();
@@ -748,50 +802,112 @@
   }
 
   // ---------- INSTRUCTIONS ----------
-  function drawInstructions() {
-    ctx.fillStyle = C.bg;
-    ctx.fillRect(0, 0, W, BANNER_H > 0 ? BANNER_Y - 8 : H);
+  // Layout is computed in ONE place so the fit detector below reports the same
+  // numbers the draw code uses. Six other games shipped a card whose geometry
+  // lived only inside the draw call, and the overlap they all carried went
+  // unseen for months because nothing could measure it.
+  const RULES = [
+    'Drag any dot to move it.',
+    'Edges that cross another edge pulse red.',
+    'Goal: remove every crossing.',
+    'Each level adds more dots and edges.',
+  ];
+  // How far a string reaches ABOVE its own centre, at the size given. Ascent is
+  // linear in font size for one face, so measuring once at full size is enough
+  // to know the extent at any scale.
+  function ascentAbove(px, weight, str) {
+    const f = ctx.font, b = ctx.textBaseline;
+    ctx.font = weight + ' ' + px + 'px Inter, sans-serif';
+    ctx.textBaseline = 'middle';
+    const a = ctx.measureText(str).actualBoundingBoxAscent || px * 0.36;
+    ctx.font = f; ctx.textBaseline = b;
+    return a;
+  }
 
-    const midX = W / 2;
+  // The card is a stack of fixed offsets either side of the frame's centre, so
+  // on a SHORT frame it runs off the TOP rather than overlapping itself: at a
+  // 360px-tall frame, a phone held sideways or a 480x360 embed, the measured
+  // overhang was 35px, which takes the whole "HOW TO PLAY" line and the top of
+  // the title with it. Nothing here was clamped, so nothing detected it.
+  //
+  // Two stages, in the order Kaleido and Stained settled on: shrink the copy
+  // first, and once shrinking further would take it under the legibility floor,
+  // DROP the decorative eyebrow outright rather than keep it too small to read.
+  // The button never scales: it is a house size and a touch target.
+  const SHRINK_BEFORE_DROP = 0.85;   // below this, lose the eyebrow instead
+  const SCALE_FLOOR        = 0.72;   // never smaller, whatever the frame
+  function instructionsLayout() {
+    const midX    = W / 2;
     const playBot = BANNER_H > 0 ? BANNER_Y - 8 : H;
-    const midY = playBot / 2;
+    const midY    = playBot / 2;
+    const btnW = MODE === 'mobile' ? 240 : 280;
+    const btnH = MODE === 'mobile' ? 56 : 52;
+    const titleSize0 = MODE === 'mobile' ? 32 : 36;
+
+    // Natural extents at full size, as distances from the centre.
+    const topWithEyebrow = 170 + ascentAbove(11, '700', 'HOW TO PLAY');
+    const topTitleOnly   = 130 + ascentAbove(titleSize0, '800', 'Untangle');
+    // One pixel of real clearance, not a knife-edge: solving for exactly zero
+    // leaves the top on the frame edge, where floating point decides whether it
+    // is on or off and a half-pixel of antialiasing is clipped either way.
+    const PAD = 1;
+    const fitFor = (topNat) => Math.min(1, (midY - PAD) / topNat, (midY - btnH - PAD) / 78);
+
+    let showEyebrow = true;
+    let s = fitFor(topWithEyebrow);
+    if (s < SHRINK_BEFORE_DROP) { showEyebrow = false; s = fitFor(topTitleOnly); }
+    s = Math.max(SCALE_FLOOR, Math.min(1, s));
+
+    const lineH    = 26 * s;
+    const rulesTop = midY - 60 * s;
+    const resumeY  = rulesTop + RULES.length * lineH + 12 * s;
+    return {
+      midX, playBot, midY, lineH, rulesTop, resumeY,
+      scale: s,
+      showEyebrow,
+      eyebrowY: midY - 170 * s,
+      titleY:   midY - 130 * s,
+      titleSize: Math.round(titleSize0 * s),
+      ruleSize:  Math.round(16 * s),
+      labelSize: Math.max(9, Math.round(11 * s)),
+      btnW, btnH,
+      btnY: resumeY + 22 * s,
+      btnX: midX - btnW / 2,
+    };
+  }
+  function drawInstructions() {
+    const L = instructionsLayout();
+    ctx.fillStyle = C.bg;
+    ctx.fillRect(0, 0, W, L.playBot);
+
+    const midX = L.midX;
 
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.font = '700 11px Inter, sans-serif';
-    ctx.fillStyle = C.accent;
-    ctx.fillText('HOW TO PLAY', midX, midY - 170);
-
-    ctx.font = '800 ' + (MODE === 'mobile' ? 32 : 36) + 'px Inter, sans-serif';
-    ctx.fillStyle = C.text;
-    ctx.fillText('Untangle', midX, midY - 130);
-
-    const rules = [
-      'Drag any dot to move it.',
-      'Edges that cross another edge pulse red.',
-      'Goal: remove every crossing.',
-      'Each level adds more dots and edges.',
-    ];
-    ctx.font = '500 16px Inter, sans-serif';
-    ctx.fillStyle = C.textDim;
-    const lineH = 26;
-    const rulesTop = midY - 60;
-    for (let i = 0; i < rules.length; i++) ctx.fillText(rules[i], midX, rulesTop + i * lineH);
-
-    // Show resume / new label
-    ctx.font = '700 11px Inter, sans-serif';
-    ctx.fillStyle = C.textMute;
-    const resumeY = rulesTop + rules.length * lineH + 12;
-    if (runLevel > 1) {
-      ctx.fillText('RESUMING AT LEVEL ' + runLevel + ' · ' + runTier.name, midX, resumeY);
-    } else {
-      ctx.fillText('STARTING AT LEVEL 1 · ' + tierForLevel(genLevelFor(1)).name, midX, resumeY);
+    if (L.showEyebrow) {
+      ctx.font = '700 ' + L.labelSize + 'px Inter, sans-serif';
+      ctx.fillStyle = C.accent;
+      ctx.fillText('HOW TO PLAY', midX, L.eyebrowY);
     }
 
-    const btnW = MODE === 'mobile' ? 240 : 280;
-    const btnH = MODE === 'mobile' ? 56 : 52;
-    const btnY = resumeY + 22;
-    const btnX = midX - btnW / 2;
+    ctx.font = '800 ' + L.titleSize + 'px Inter, sans-serif';
+    ctx.fillStyle = C.text;
+    ctx.fillText('Untangle', midX, L.titleY);
+
+    ctx.font = '500 ' + L.ruleSize + 'px Inter, sans-serif';
+    ctx.fillStyle = C.textDim;
+    for (let i = 0; i < RULES.length; i++) ctx.fillText(RULES[i], midX, L.rulesTop + i * L.lineH);
+
+    // Show resume / new label
+    ctx.font = '700 ' + L.labelSize + 'px Inter, sans-serif';
+    ctx.fillStyle = C.textMute;
+    if (runLevel > 1) {
+      ctx.fillText('RESUMING AT LEVEL ' + runLevel + ' · ' + runTier.name, midX, L.resumeY);
+    } else {
+      ctx.fillText('STARTING AT LEVEL 1 · ' + tierForLevel(genLevelFor(1)).name, midX, L.resumeY);
+    }
+
+    const btnW = L.btnW, btnH = L.btnH, btnY = L.btnY, btnX = L.btnX;
     START_BTN.x = btnX; START_BTN.y = btnY; START_BTN.w = btnW; START_BTN.h = btnH;
     ctx.fillStyle = C.accent;
     roundRect(btnX, btnY, btnW, btnH, btnH / 2);
@@ -935,6 +1051,52 @@
 
     requestAnimationFrame(loop);
   }
+
+  // ---------- DEBUG HANDLE ----------
+  // Reporting for the QC pass, and the same shape the other games carry. The
+  // important one is rulesFit(): the instructions card is laid out as fixed
+  // offsets either side of the frame's centre, so on a short frame it runs off
+  // the top rather than overlapping itself, and nothing else can see that.
+  window.__untangle = {
+    get mode()  { return MODE; },
+    get level() { return runLevel; },
+    get par()   { return par; },
+    get moves() { return moves; },
+    get scene() { return awaitingStart ? 'instructions' : scene; },
+    frame() { return { W: W, H: H, playBot: instructionsLayout().playBot }; },
+    crossings() { return detectCrossings().crossings; },
+    rulesFit() {
+      const L = instructionsLayout();
+      const eyeTop = L.showEyebrow
+        ? L.eyebrowY - ascentAbove(L.labelSize, '700', 'HOW TO PLAY')
+        : Infinity;
+      const titleTop = L.titleY - ascentAbove(L.titleSize, '800', 'Untangle');
+      const top = Math.min(eyeTop, titleTop);
+      const bottom = L.btnY + L.btnH;
+      return {
+        W: W, H: H, mode: MODE, playBot: L.playBot,
+        scale: Math.round(L.scale * 1000) / 1000,
+        eyebrow: L.showEyebrow,
+        ruleSize: L.ruleSize,
+        top: Math.round(top), bottom: Math.round(bottom),
+        overTop:    Math.round(Math.max(0, -top)),
+        overBottom: Math.round(Math.max(0, bottom - L.playBot)),
+        fits: top >= 0 && bottom <= L.playBot,
+      };
+    },
+    goto(n) {
+      awaitingStart = false;
+      initLevel(n);
+      return { level: runLevel, par: par, crossings: detectCrossings().crossings };
+    },
+    // Every level is a scramble of a crossing-free circular layout, so putting
+    // the dots back on that circle is the witness that a solution exists.
+    solve() {
+      if (!truePositions.length) return null;
+      pos = truePositions.map(function (p) { return { x: p.x, y: p.y }; });
+      return detectCrossings().crossings;
+    },
+  };
 
   // ---------- START ----------
   function bootToInstructions() {

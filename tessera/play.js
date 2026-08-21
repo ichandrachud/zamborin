@@ -32,12 +32,23 @@
   // wrap a fraction of the screen wide, and the game is drawn into a narrow
   // strip. Cross-check against the visual viewport and the document element and
   // take the smallest sane value. (Tailwind, 2026-08-19.)
+  // True when the reading below found NOTHING measurable, so the layout that
+  // follows was built on a guess. See the blind-boot recovery further down.
+  let viewportWasBlind = false;
   function safeViewport() {
     const vv = window.visualViewport;
     const w = [window.innerWidth, vv && vv.width, document.documentElement.clientWidth]
       .filter((v) => typeof v === 'number' && v > 120);
     const h = [window.innerHeight, vv && vv.height, document.documentElement.clientHeight]
       .filter((v) => typeof v === 'number' && v > 120);
+    // A frame that is display:none or zero-sized reports 0 for every one of
+    // those, the filter empties, and Math.min() of an EMPTY list is Infinity.
+    // That went into the logical canvas size and left the drawing transform at
+    // scale 0: a canvas of exactly the right size that paints nothing, and goes
+    // on painting nothing after the frame is shown. Measured on 2026-08-21 in a
+    // hidden iframe revealed at 700x390, which is an ordinary way for a partner
+    // site to place a game (a closed accordion, an inactive tab panel).
+    if (!w.length || !h.length) { viewportWasBlind = true; return { w: 390, h: 700 }; }
     return { w: Math.round(Math.min(...w)), h: Math.round(Math.min(...h)) };
   }
   function buildMobileCFG() {
@@ -83,6 +94,40 @@
       const nowPortrait = window.innerHeight > window.innerWidth;
       if (wasPortrait !== nowPortrait) { wasPortrait = nowPortrait; location.reload(); }
     });
+  }
+
+  // Recovery from a blind boot. The layout above was baked from a viewport that
+  // could not be read, and every size downstream of CFG is fixed at load, so a
+  // reload is the only way to correct it.
+  //
+  // Nothing event-driven can be trusted to tell us the frame became real.
+  // Measured on 2026-08-21: an iframe going from display:none at 0x0 to visible
+  // at 700x390 fires ZERO resize events on its own window even though
+  // innerWidth goes 0 -> 700, and a ResizeObserver on the document element
+  // fired in one of six trials. A display:none document has no layout box and
+  // no animation frames, so a short poll is the only reliable signal. It is
+  // installed ONLY on a boot that already failed, stops the moment it works,
+  // and gives up after a minute so nothing is left running.
+  if (viewportWasBlind) {
+    let recovered = false;
+    const stopAt = 240;                 // 240 x 250ms = 60s
+    let ticks = 0;
+    const recoverFromBlindBoot = () => {
+      if (recovered) return;
+      if (window.innerWidth <= 120 || window.innerHeight <= 120) {
+        if (++ticks < stopAt) return;
+        clearInterval(poll);
+        return;
+      }
+      recovered = true;
+      clearInterval(poll);
+      location.reload();
+    };
+    const poll = setInterval(recoverFromBlindBoot, 250);
+    window.addEventListener('resize', recoverFromBlindBoot);
+    if (window.ResizeObserver) {
+      new ResizeObserver(recoverFromBlindBoot).observe(document.documentElement);
+    }
   }
 
   // ---------- CANVAS + SHARP-DPR ----------
@@ -810,11 +855,15 @@
     ctx.fillText(text, W / 2, baselineY);
   }
 
-  // Banner-ad placeholder — mobile-only. Dashed rectangle with "AD · 320 × 50",
-  // matches the desktop ad-slot style so wiring a real ad network later is a
-  // visual no-op. Disabled on desktop (BANNER_H === 0).
+  // Banner-ad placeholder, mobile-only. Dashed rectangle with "AD · 320 × 50",
+  // matching the desktop ad-slot style so wiring a real ad network later is a
+  // visual no-op. Disabled on desktop (BANNER_H === 0), and drawn only when the
+  // site's `body.ads-on` switch is set. Without that second guard a phone
+  // player saw an empty "AD" box under the board, while every HTML ad slot on
+  // the same page stayed hidden. The band stays reserved either way.
   function drawBannerAd() {
     if (BANNER_H === 0) return;
+    if (!document.body.classList.contains('ads-on')) return;
     ctx.fillStyle = C.panel;
     roundRect(BANNER_X, BANNER_Y, BANNER_W, BANNER_H, 8);
     ctx.fill();

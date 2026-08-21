@@ -41,6 +41,8 @@ and had it hand-built back on at launch:
 - **Analytics** via `shared/analytics.js`, with the NOOP stub so tracking can
   never throw into the game loop, plus both Vercel scripts.
 - **`shared/ui.js`** for buttons, at its sizes, never scaled per game.
+- **`shared/embed.js`** so `?embed=1` works from the first commit. Every
+  shipped game supports it and a partner's iframe will ask for it.
 - **The full canvas sizing pattern** in `play.js`, including every re-fit
   listener. Tailwind shipped without them and collapsed into a narrow column on
   a phone.
@@ -88,4 +90,5 @@ with zero console 404s.
 | `/shared/ui.js` | `ZAM_UI.drawPill / drawCTA`, the button system |
 | `/shared/sfx.js` | `ZSFX.create({ storageKey })` audio engine |
 | `/shared/analytics.js` | `window.ZAM_TRACK`, six events, fire-and-forget |
+| `/shared/embed.js` | `?embed=1` chrome-free mode for iframes on other sites |
 | `/shared/input.js` | `ZInput.onTap / onSwipe / onDrag` helpers |
