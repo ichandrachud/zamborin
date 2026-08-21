@@ -36,11 +36,11 @@ Delisted and NOT in scope: socket, bunny, empyrean, foldfig, pane, pins, plumb, 
 | 2 | bloom | - | - | - | - | - | - | - | rules card fixed 2026-08-21, not yet audited |
 | 3 | tailwind | OK | OK | OK | OK | OK | OK | OK | audited 2026-08-20, T1 + T2 fixed. T3-T6 open, none breaking play |
 | 4 | stained | OK | ! | OK | ! | ~ | ! | ! | audited 2026-08-20; see S1-S4 |
-| 5 | kaleido | OK | OK | OK | ~ | OK | OK | ! | audited 2026-08-20; see K1-K4 |
+| 5 | kaleido | OK | OK | OK | ~ | ~ | OK | ! | audited 2026-08-20; K1-K4, and K5 found 2026-08-21 night by the new detector |
 | 6 | prism | OK | OK | OK | ~ | OK | OK | OK | audited 2026-08-20; rules card fixed + copy trimmed. One tight colour pair, P1 |
 | 7 | needle | - | - | - | - | - | - | - | rules card fixed 2026-08-21, not yet audited |
 | 8 | untangle | OK | OK | OK | ~ | OK | OK | OK | audited 2026-08-21. U1-U4 fixed, U5-U8 open |
-| 9 | tessera | ~ | OK | OK | - | ~ | OK | OK | audited 2026-08-21 night. TE1 open. FN not driven; U1/U3 and the win card fixed earlier |
+| 9 | tessera | ~ | OK | OK | ~ | ~ | OK | OK | audited 2026-08-21 night. TE1 open, AX clean bar the shared accent. FN not driven, it is an endless arcade game |
 | 10 | sluice | OK | OK | OK | - | OK | OK | OK | audited 2026-08-21 night. 100/100 levels solve. Only AX left |
 | 11 | fold | OK | OK | OK | - | ~ | OK | OK | audited 2026-08-21 night. 60/60 levels solve. FO1-FO3 open |
 | 12 | mobile | OK | OK | OK | - | OK | OK | OK | audited 2026-08-21 night. 39/39 balance exactly. W8 fixed. Only AX left |
@@ -915,3 +915,27 @@ is believed, and it turns out to be wrong at a size nobody sampled. Untangle, Te
 now Kaleido. **The rule that would have caught all three: a card is not fixed until
 something can measure it, and the measurement is swept, not sampled.** All six of the
 rules-card games now have a detector. Fold and Mobile still do not (FO3).
+
+
+## Accessibility, as far as it sweeps, 2026-08-21 (night)
+
+All four canvases are properly labelled: "Word puzzle", "Sluice puzzle", "Fold puzzle",
+"Mobile balancing sculpture".
+
+**Tessera measured exactly**, because it keeps a named palette. Null-tested first.
+Everything passes except two entries, and both are the same colour: the accent `#D8523F`
+reads **4.07:1** as text on the page background, and white on it reads **4.04:1** as a
+button. Its own signal is safe: a letter on a white tile is 16.45:1, which is the thing
+the game is actually about.
+
+That is now the fourth and fifth place the same accent has failed, after Untangle's
+START and NEXT LEVEL and the three "Send a message" buttons on the content pages. **It is
+one decision, not five findings**, and the recommendation has not changed: `#C24A39` for
+a fill under white type (4.85), `#FF6B5C` for the accent used as text (5.88), because the
+two uses pull in opposite directions and one value cannot serve both.
+
+**Sluice, Fold and Mobile cannot be swept this way and should not be faked.** Their
+colours are game ART, not UI tokens: flowers, folded paper, Calder shapes. Running a
+contrast test over a pink flower produces a number with no meaning. What those three need
+is a person deciding which marks carry information and what sits behind them, which is a
+reading pass rather than a sweep. Their AX column stays open deliberately.
