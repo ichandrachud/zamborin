@@ -40,6 +40,29 @@
   var EMIT_LEVEL_START = true;
   var LEVEL_DETAIL_CAP = Infinity;
 
+  /* ---------- EMBEDDED OR NOT ----------
+     A play inside somebody else's page is not the same event as a play here,
+     and until this was stamped the two were indistinguishable: embed traffic
+     quietly inflated the site's own figures, and there was no way to show a
+     portal how a game performs in an embed, which is the evidence those
+     conversations run on.
+
+     The URL is the source of truth rather than a flag set by shared/embed.js,
+     so the two cannot drift apart. HOST is the referring site's hostname only,
+     never a path or a query: it answers "which partner" without following
+     anyone anywhere, and a hostname is not personal data. */
+  var EMBED = (function () {
+    try { return /[?&]embed=(?!0)/.test(window.location.search); } catch (e) { return false; }
+  })();
+  var HOST = (function () {
+    if (!EMBED) return null;
+    try {
+      var r = document.referrer;
+      if (!r) return 'unknown';
+      return new URL(r).hostname.slice(0, 64) || 'unknown';
+    } catch (e) { return 'unknown'; }
+  })();
+
   var game = null;
   var sessionT0 = now();
   var levelT0 = now();
@@ -61,12 +84,19 @@
     } catch (e) { /* never surfaces to the caller */ }
   }
 
+  /* Every event carries the same two extra fields when embedded, so an embed
+     play can be filtered in or out of any figure without a second event name. */
+  function stamp(data) {
+    if (EMBED) { data.embed = 1; data.host = HOST; }
+    return data;
+  }
+
   function track(name, props) {
     try {
       var data = { game: game || 'unknown' };
       if (props) for (var k in props) if (Object.prototype.hasOwnProperty.call(props, k)) data[k] = props[k];
       dirty = true;
-      send(name, data);
+      send(name, stamp(data));
     } catch (e) {}
   }
 
@@ -84,12 +114,12 @@
     try {
       if (!dirty) return;              // nothing has happened since the last one
       dirty = false;
-      send('session_end', {
+      send('session_end', stamp({
         game: game || 'unknown',
         maxLevel: maxLevel,
         levelsCompleted: levelsCompleted,
         seconds: secsSince(sessionT0)
-      });
+      }));
     } catch (e) {}
   }
 
