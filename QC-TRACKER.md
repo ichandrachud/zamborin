@@ -33,15 +33,15 @@ Delisted and NOT in scope: socket, bunny, empyrean, foldfig, pane, pins, plumb, 
 | # | Game | FN | MB | PF | AX | CN | SEO | EMB | Notes |
 |---|---|---|---|---|---|---|---|---|---|
 | 1 | orbit | - | - | - | - | - | - | - | |
-| 2 | bloom | - | - | - | - | - | - | - | |
+| 2 | bloom | - | - | - | - | - | - | - | rules card fixed 2026-08-21, not yet audited |
 | 3 | tailwind | OK | OK | OK | OK | OK | OK | OK | audited 2026-08-20, T1 + T2 fixed. T3-T6 open, none breaking play |
 | 4 | stained | OK | ! | OK | ! | ~ | ! | ! | audited 2026-08-20; see S1-S4 |
 | 5 | kaleido | OK | OK | OK | ~ | OK | OK | ! | audited 2026-08-20; see K1-K4 |
-| 6 | prism | - | - | - | - | - | - | - | |
-| 7 | needle | - | - | - | - | - | - | - | |
+| 6 | prism | OK | OK | OK | ~ | OK | OK | OK | audited 2026-08-20; rules card fixed + copy trimmed. One tight colour pair, P1 |
+| 7 | needle | - | - | - | - | - | - | - | rules card fixed 2026-08-21, not yet audited |
 | 8 | untangle | - | - | - | - | - | - | - | |
 | 9 | tessera | - | - | - | - | - | - | - | |
-| 10 | sluice | - | - | - | - | - | - | - | |
+| 10 | sluice | - | - | - | - | - | - | - | rules card fixed 2026-08-21, not yet audited |
 | 11 | fold | - | - | - | - | - | - | - | |
 | 12 | mobile | - | - | - | - | - | - | - | |
 | 13 | zood | - | - | - | - | - | - | - | |
@@ -61,6 +61,7 @@ Severity: **BREAKS PLAY** | **VISUAL** | **MINOR** | **EMBED GAP**
 | K2 | all 15 games | EMBED GAP | Favicon and logo loaded by root-absolute path in every game, so they 404 off-origin. Scanned all 15: exactly the same four root-absolute references in each. | FIXED on branch `fix-embed-absolute-paths`, not yet deployed |
 | K2b | tessera | EMBED GAP | Worse case of K2: `tessera/play.js` loaded both HOW TO PLAY instruction images by root-absolute path, so off-origin the game's own teaching screen would have lost its art. | FIXED on the same branch |
 | K2c | all 15 games | EMBED GAP, won't fix | `/_vercel/insights/script.js` and `/_vercel/speed-insights/script.js` are Vercel edge endpoints with no file in the repo, so they cannot be made relative. Off-origin they 404 harmlessly and analytics simply do not record. Would need an embed build that omits them. | ACCEPTED |
+| P1 | prism | ACCESSIBILITY, moderate | Blue vs purple measure 4.2 dE apart under deuteranopia, B alone versus R+B, which is tighter than Stained's worst pair. Everything else is comfortable and protanopia has nothing under 10. Stained's corner-pip mode would transplant almost unchanged. | OPEN |
 | K3 | kaleido | MINOR | No aria-live region, so a screen reader is told nothing when the board changes. The canvas itself is labelled. | OPEN |
 | S1 | stained | BREAKS PLAY (phone landscape) + EMBED GAP | The rules card clamped its height while the copy kept flowing, so the Resume button drew through the rules and the last two were unreadable. Measured overlap 170px at 480x360, 134px at 812x375 in mobile mode which is a phone turned sideways, 29px even at 640x480. Fine at 760x600 and 375x812. | FIXED on branch `fix-stained-rules-card`, not yet deployed |
 | S2 | stained | ACCESSIBILITY, moderate | No colourblind mode, and the mechanic is reading which primaries overlap. **Corrected 2026-08-20:** the first measurement used a colour-vision simulation with two wrong coefficients in its inverse matrix and overstated this badly. Redone with a matrix that maps neutrals to neutrals: under deuteranopia NO pair falls below dE 10, and under protanopia one does, red vs brown at 8.5, with blue vs purple at 10.8. Tight rather than collapsed. It still matters because red is R alone and brown is all three, the most expensive confusion on the board, and 55 of the 100 levels carry both. | BUILT on branch `fix-stained-rules-card`, opt-in, not yet deployed |
