@@ -15,21 +15,6 @@
       "source": "/weave/:path*",
       "destination": "/needle/:path*",
       "permanent": true
-    },
-    {
-      "source": "/lacerta",
-      "destination": "/empyrean/",
-      "permanent": true
-    },
-    {
-      "source": "/lacerta/",
-      "destination": "/empyrean/",
-      "permanent": true
-    },
-    {
-      "source": "/lacerta/:path*",
-      "destination": "/empyrean/:path*",
-      "permanent": true
     }
   ],
   "headers": [

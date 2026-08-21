@@ -39,7 +39,7 @@ Delisted and NOT in scope: socket, bunny, empyrean, foldfig, pane, pins, plumb, 
 | 5 | kaleido | OK | OK | OK | ~ | OK | OK | ! | audited 2026-08-20; see K1-K4 |
 | 6 | prism | OK | OK | OK | ~ | OK | OK | OK | audited 2026-08-20; rules card fixed + copy trimmed. One tight colour pair, P1 |
 | 7 | needle | - | - | - | - | - | - | - | rules card fixed 2026-08-21, not yet audited |
-| 8 | untangle | OK | OK | OK | ~ | ~ | OK | OK | audited 2026-08-21. U1-U3 fixed, U4-U6 open |
+| 8 | untangle | OK | OK | OK | ~ | OK | OK | OK | audited 2026-08-21. U1-U4 fixed, U5-U8 open |
 | 9 | tessera | - | - | - | - | - | - | ~ | not audited, but U1 and U3 were shared with Untangle and are fixed here too |
 | 10 | sluice | - | - | - | - | - | - | - | rules card fixed 2026-08-21, not yet audited |
 | 11 | fold | - | - | - | - | - | - | - | |
@@ -67,7 +67,7 @@ Severity: **BREAKS PLAY** | **VISUAL** | **MINOR** | **EMBED GAP**
 | S1 | stained | BREAKS PLAY (phone landscape) + EMBED GAP | The rules card clamped its height while the copy kept flowing, so the Resume button drew through the rules and the last two were unreadable. Measured overlap 170px at 480x360, 134px at 812x375 in mobile mode which is a phone turned sideways, 29px even at 640x480. Fine at 760x600 and 375x812. | FIXED on branch `fix-stained-rules-card`, not yet deployed |
 | S2 | stained | ACCESSIBILITY, moderate | No colourblind mode, and the mechanic is reading which primaries overlap. **Corrected 2026-08-20:** the first measurement used a colour-vision simulation with two wrong coefficients in its inverse matrix and overstated this badly. Redone with a matrix that maps neutrals to neutrals: under deuteranopia NO pair falls below dE 10, and under protanopia one does, red vs brown at 8.5, with blue vs purple at 10.8. Tight rather than collapsed. It still matters because red is R alone and brown is all three, the most expensive confusion on the board, and 55 of the 100 levels carry both. | BUILT on branch `fix-stained-rules-card`, opt-in, not yet deployed |
 | S3 | stained | SEO | No `VideoGame` JSON-LD. The only game of fifteen with no structured data at all. | FIXED on the same branch |
-| S5 | stained | MINOR | On desktop `resizeCanvas` pins the canvas to exactly 760x600 CSS px and it never scales down, so in a short window the board runs below the fold. At a 1366x620 laptop it is 108px under and the page scrolls, so it is reachable; at extreme sizes the wrap clips it and the page does not grow. Kaleido handles the same case by letting CSS scale it to fit, so there is a known-good reference. The pinning was itself a fix for the narrow-strip bug, so do not simply revert it. | OPEN |
+| S5 | stained | MINOR, premise questioned 2026-08-21 (see W8) | On desktop `resizeCanvas` pins the canvas to exactly 760x600 CSS px and it never scales down, so in a short window the board runs below the fold. At a 1366x620 laptop it is 108px under and the page scrolls, so it is reachable; at extreme sizes the wrap clips it and the page does not grow. Kaleido handles the same case by letting CSS scale it to fit, so there is a known-good reference. The pinning was itself a fix for the narrow-strip bug, so do not simply revert it. | OPEN |
 | S4 | stained | MINOR, consistency | **Corrected 2026-08-21.** The original entry named stained, untangle and carrom, on the evidence that they do not load `shared/sfx.js`. Two of the three do have sound, written inline rather than taken from the toolkit: Untangle carries its own `AudioContext`, five cues and a speaker toggle at the canvas top-left that persists to `zamborin-untangle.sound`, and Carrom has its own as well. **Stained is the only one of fifteen with no sound at all.** Not loading a shared file is not the same as not having the feature; the check has to be for the behaviour. | OPEN, and now one game not three |
 | T1 | tailwind, stained | MINOR | These two were the only games of fifteen not loading `shared/analytics.js`, and they had none of the call sites either, so they reported nothing at all. | FIXED and deployed 2026-08-20. Stained got the full fleet pattern; Tailwind got init + gameStart only, since it has no levels and faking them would break maxLevel fleet-wide. |
 | T2 | tailwind | MINOR (AA) | The personal-best figure on each aircraft card was white at 45% over the card, measuring 4.37:1 at 12px against a 4.5:1 bar. | FIXED and deployed 2026-08-20, raised to 55% which measures 5.83:1. |
@@ -86,8 +86,11 @@ Severity: **BREAKS PLAY** | **VISUAL** | **MINOR** | **EMBED GAP**
 | W4 | embed/ | SEO | The Embed page's `og:image` pointed at `images/zamborin-og.jpg`, which does not exist. The one page most likely to be shared with a prospective partner had a broken share card. Found only after extending the link checker to `content=` attributes; it had been checking `href` and `src` only. | FIXED 2026-08-21, repointed at `zamborin-og-image.jpg` |
 | W5 | cookies/, terms/, faq/, embed/ | MINOR, SEO | Cookies and Terms had no Open Graph or Twitter tags at all; FAQ and Embed had Open Graph but no Twitter card. Every other page has the full set. | FIXED 2026-08-21, mirroring the existing title and description, no new copy |
 | W6 | shared/new-game-template | MINOR, would repeat | The scaffold was three fixes behind the fleet: `chrome.css?v=13`, `analytics.js?v=2`, **no `shared/embed.js` at all**, and the favicon and logo by root-absolute path, which is the K2 bug the fleet was swept for. The next game copied from it would have shipped with no embed support and a logo that 404s off-origin. | FIXED 2026-08-21, template and README |
-| W7 | vercel.json | OBSERVATION | The framing guard covers the ten content pages. The nine shelved prototypes (socket, bunny, empyrean, foldfig, pane, pins, plumb, tarmac, wire) carry no guard, so any site can iframe them and serve them off our bandwidth. Socket in particular is delisted but complete and playable. | OPEN, owner's call |
-| W8 | stained, mobile | MINOR | S5 is not stained alone. Loaded in a 1000x700 frame, thirteen games scale the 760x600 board down to fit; **stained and mobile both hold exactly 760x600**. Same cause, same fix, and the same caution applies: the pinning was itself the fix for the narrow-strip bug. | OPEN, extends S5 |
+| W7 | vercel.json | RESOLVED 2026-08-21 | The framing guard covered the ten content pages and left the nine shelved prototypes open, so any site could iframe them off our bandwidth. **Closed by deleting them** rather than by adding headers: the only routes left are the fifteen games, which are meant to be framable, and the content pages, which are guarded. |
+| W8 | mobile | **CORRECTED 2026-08-21, and the real defect is a different one** | The entry claimed stained and mobile pin at 760x600 while thirteen games scale down. Re-measured at 1280 wide across six heights from 900 to 500: **stained, kaleido and orbit are all 760x600 at every one of them**, canvas bottom 728, page scrolling in all cases. That is the locked site-wide desktop frame behaving as designed, and the "kaleido handles it, stained does not" reading in S5 only holds in the 768 to 1151 band. What the re-measurement DID find: **at 1280x620 Mobile's canvas is 760x600 inside a 588x464 wrap with `overflow: hidden`, so 172px of width and 136px of height are cut off.** Its `fitFullscreen` shrinks the wrap to the window and `resizeCanvas` never shrinks the canvas to match. Clean at 1280x900 and 900x600. | OPEN, and it is a clipping bug rather than a scrolling one |
+| U4 | untangle | RESOLVED 2026-08-21 | Undo and Restart added, and the game moved onto `shared/ui.js`. The control row is a house icon pill plus Undo and Restart, 40px tall, the same physical size as Prism's. Undo restores the dot exactly and **costs a move**, which is the rule Prism, Sluice, Bloom and Orbit already share for a scored counter, and is what dragging the dot back by hand would cost anyway. Restart re-lays the level with the counter at zero and does not re-fire `gameStart`. Keyboard z and r. The "beat your own score" tip is gone from the game page, and the How-to-play paragraph now states the undo cost plainly. | DONE |
+| U7 | untangle | VISUAL, pre-existing | The WIN card overflows the frosted playfield panel on a short frame. It needs about 350px of panel and the panel is `PLAY_H + 12`, so it overflows below roughly 530px of viewport height, which is every phone in landscape. It stays legible, because it spills onto a background of nearly the same colour, but it collides with the HUD above and the control row below. Not caused by the control band, which cost it 20px of an already-failing budget. `__untangle.winFit()` reports it. Fixing it properly means letting the win card use the whole frame rather than the playfield panel when the panel is too short, which is a redesign rather than a scale. | OPEN, owner's call |
+| U8 | untangle, tessera | OBSERVATION | The mobile layout reserves 50px of banner plus 22px of pad for an ad that is not running, and the reserve is unconditional while the paint is now gated on `ads-on`. On a 320px-tall frame that is 72px, nearly a quarter of the screen, held for nothing. Making the reserve conditional too would hand it back today at the price of a re-layout on the day ads switch on. | OPEN, owner's call |
 | W9 | ludo | OBSERVATION | The computer opponents pick a random legal move, marked `AI (placeholder — random legal moves)` in the source. No page claims more than "computer opponents", so nothing is untrue, but the guide invites the reader to "put it into practice against three AI opponents". The homepage card also says "Roll the die" where the game rolls two. | OPEN, owner's call |
 | K4 | kaleido | MINOR | By default colour is the only thing separating three of the four glasses (all within 1.3:1 of each other in lightness). Mitigated by a built-in colourblind mode that swaps colour for shape, offered on the rules card, but it is off by default. | OPEN, by design |
 
@@ -598,3 +601,89 @@ art in `orbit/splash-images/` and `fold/Images/` is gitignored too and has never
 commit, so it was never deploy weight and never in history. This belongs with
 [[feedback-unreferenced-assets-by-code-path]]: the question is always what the deployed
 artefact actually contains.
+
+
+## The nine shelved prototypes deleted, 2026-08-21
+
+Owner's call, acted on the same day. `socket`, `bunny`, `empyrean`, `foldfig`, `pane`,
+`pins`, `plumb`, `tarmac` and `wire` are off the site and now live only at
+`iCloud/Claude Projects/Zamborin/shelved-prototypes-2026-08-21/`, alongside
+`_guides/socket`.
+
+**Copied first, verified, then removed.** Every folder was rsynced to iCloud and checked
+both ways, file count and kilobytes, before anything was deleted. 185 files, 94 MB, all
+matching. Git history holds them too, so there are two ways back.
+
+**What it moved.** 178 tracked files removed. The tracked repo goes **142 MB to 48 MB**,
+and Empyrean alone was 90 MB of that. The sitemap now lists 39 URLs and there are exactly
+39 pages on disk, one for one: fifteen games, fifteen guides, the guides index, embed,
+about, faq, contact, privacy, cookies, terms and the homepage.
+
+**Two pieces of fallout, both handled.**
+
+- `vercel.json` redirected `/lacerta`, `/lacerta/` and `/lacerta/:path*` to `/empyrean/`.
+  A permanent redirect to a page that no longer exists is worse than a plain 404, so the
+  three rules are gone. `/lacerta` and `/empyrean` now both 404 onto the custom page. The
+  `/weave` to `/needle` rules stay: Needle is live.
+- The only pages that still linked to any of the nine were `pane`, `wire` and `bunny`
+  linking to `/socket/`, and all four went together. Re-ran the link checker afterwards:
+  every `href`, `src`, `content` and CSS `url()` in the 42 remaining HTML files resolves,
+  and the 404 page links only to live routes.
+
+Socket and Empyrean were both publicly listed within the last month, so Google will hold
+index entries for a while and they will 404. That is the correct signal for removed
+content; a redirect to the homepage would read as a soft 404 anyway.
+
+
+## Untangle: Undo, Restart, and onto the button system, 2026-08-21
+
+Owner's call, all three parts.
+
+**Undo and Restart, as house pills.** The control row is `shared/ui.js`: a 44x40 icon
+pill for sound, then Undo and Restart at `PILL.h` 40 with 15px labels, the same physical
+size as Prism's. Undo dims when there is nothing to undo, Restart when no move has been
+made. Keyboard z and r. Verified by driving real pointer events through the canvas
+handlers rather than by poking state: two drags, moves 0 to 2 and history 0 to 2, both
+dots measurably moved; undo restores each dot to its exact pre-drag coordinates in
+reverse order; a third undo does nothing; Restart returns moves to 0, history to 0, the
+dots to the scramble and the crossings to 9, with the level unchanged.
+
+**An undo costs a move.** Prism, Sluice, Bloom and Orbit all charge one, and every one of
+them shows a scored counter, as Untangle does. It is also simply the true price: dragging
+the dot back by hand costs a move too, so Undo buys exactness rather than a discount, and
+Restart is what a clean run is for. The How-to-play copy says so plainly.
+
+**The rest of the game moved onto the system with it.** START, CONTINUE and NEXT LEVEL are
+now `UI.drawCTA`; SHARE RESULT is a control pill rather than a second loud button; and the
+bespoke 28px sound square at the top left is gone, replaced by the house icon pill in the
+row. Untangle had been loading `shared/ui.js` and drawing its own buttons anyway, which is
+how the drift the module was written to end starts again.
+
+**The band under the playfield is the control row now, not a line of hint text.** The strip
+used to hold "CLICK AND DRAG ANY DOT, REMOVE EVERY EDGE CROSSING", which repeats the rules
+card and was also this game's only em dash in body copy. 36px was shorter than a house pill
+in any case, so the band is 56.
+
+### Three fit measurements, because the layout moved
+
+Every number from `rulesFit()`, `winFit()` and `controls()` over 145 heights, 12 widths and
+20 named devices.
+
+- **Rules card: zero failures**, 300px to 1000px. Reserving the control band cost the card
+  56px and put frames 320 to 335 over the edge by up to 10px, so on the instructions
+  screen, where there is no playfield, the control row now drops to the BOTTOM of the frame
+  and hands the height back. That closed the band outright.
+- **Control row: correct everywhere.** One pill on the instructions screen, three in play,
+  every box on the canvas, no horizontal overflow at any width from 320 to 1200.
+- **Win card: the boundary moved from 590px to 430px.** It had never been measured. It
+  needed `PLAY_H >= 380`, so it spilled out of the frosted panel on anything under about
+  578px tall, which includes a small phone in PORTRAIT, and the control band would have
+  taken that to 590. It now scales on the same two-stage rule as the rules card, dropping
+  the SHARE pill below 490px rather than squeezing further. What is left is landscape
+  phones under 430px tall, where it still spills by up to 51px onto a background of nearly
+  the same colour. See U7.
+
+The lesson is the one from the rules-card sweep, arriving again: **the win card had a
+detector-shaped hole in it too.** Nothing in this game could report its own fit until this
+pass, and the moment one existed it turned up a failure on a real phone in portrait that
+predated any change made here.

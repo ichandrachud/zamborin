@@ -17,6 +17,17 @@
     ? 'mobile' : 'desktop';
   document.body.classList.add('mode-' + MODE);
 
+  // Buttons come from shared/ui.js at ITS sizes. A button is chrome, not
+  // content: the Undo pill here is the same physical size as the Undo pill in
+  // Prism. Untangle loaded the module and then drew its own, which is how the
+  // drift the module was written to end starts again.
+  const UI = window.ZAM_UI;
+
+  // The band under the playfield that holds the control row. It used to be a
+  // 36px strip of hint text, which is one line of instruction the rules card
+  // has already given, and 36 is shorter than a house pill anyway.
+  const CTRL_BAND = 56;
+
 
   // A viewport reading cannot be taken on trust. innerWidth/innerHeight can be
   // 0 or a stale pre-layout value while this script first runs, and some
@@ -59,7 +70,7 @@
     // banner first; every draw path already handles BANNER_H === 0, because
     // that is how the desktop config runs.
     const MIN_PLAY = 110;                 // measured: 114 still plays comfortably
-    let BANNER_H = 50, HINT_AREA = 36, BOTTOM_PAD = 22;
+    let BANNER_H = 50, HINT_AREA = CTRL_BAND, BOTTOM_PAD = 22;
     const playFor = () => vh - HUD_H - GRID_TOP_GAP - HINT_AREA - BANNER_H - BOTTOM_PAD;
     if (playFor() < MIN_PLAY) BANNER_H = 0;
     if (playFor() < MIN_PLAY) { HINT_AREA = 0; BOTTOM_PAD = 10; }
@@ -86,7 +97,7 @@
       PLAY_X: 44,
       PLAY_Y: HUD_H + 8,
       PLAY_W: W - 88,
-      PLAY_H: H - HUD_H - 8 - 36 - 8,
+      PLAY_H: H - HUD_H - 8 - CTRL_BAND - 8,
       VERTEX_R: 12,
       VERTEX_HIT: 22,
       BANNER_W: 0, BANNER_H: 0,
@@ -404,6 +415,8 @@
   if (!Number.isFinite(highestLevel) || highestLevel < 1) highestLevel = 1;
 
   let truePositions = [];   // the planar layout every level is scrambled FROM
+  let history   = [];       // one entry per counted drag: where that dot was
+  let uiButtons = [];       // rebuilt every frame by drawControls()
   let dragIdx   = -1;
   let dragOrigin = null;
   let dragMovedFar = false;
@@ -419,7 +432,6 @@
   const START_BTN = { x: 0, y: 0, w: 0, h: 0 };
   const SHARE_BTN = { x: 0, y: 0, w: 0, h: 0 };
   const NEXT_BTN  = { x: 0, y: 0, w: 0, h: 0 };
-  const SOUND_BTN = { x: 0, y: 0, w: 0, h: 0 };
   function inRect(r, lx, ly) { return r.w > 0 && lx >= r.x && lx <= r.x + r.w && ly >= r.y && ly <= r.y + r.h; }
 
   // ---------- INIT ----------
@@ -430,7 +442,7 @@
   const T = () => (window.ZAM_TRACK || NOOP);
   T().init('untangle');
 
-  function initLevel(level) {
+  function initLevel(level, isRestart) {
     runLevel = level;
     runTier  = tierForLevel(genLevelFor(level));
     rng = mulberry32(hashSeed(levelSeedString(genLevelFor(level))));
@@ -462,8 +474,9 @@
     }
     par = perturbCount;
     moves = 0;
+    history = [];
     scene = 'playing';
-    T().gameStart();
+    if (!isRestart) T().gameStart();
     dragIdx = -1;
     bestThisLevel = getBest(runLevel);
     try { localStorage.setItem('zamborin-untangle.level', String(runLevel)); } catch (_) {}
@@ -519,11 +532,10 @@
     ensureAudio();
     const { lx, ly } = logical(e.clientX, e.clientY);
 
-    // Sound toggle is always live (instructions screen + playing + won)
-    if (inRect(SOUND_BTN, lx, ly)) {
-      setSound(!soundOn);
-      if (soundOn) tone(660, 0.06, 0.04, 'sine');
-      return;
+    // The control row is live in every scene, so it is tested before anything
+    // else. Its hit boxes are whatever drawControls() last drew.
+    for (const b of uiButtons) {
+      if (inRect(b, lx, ly)) { b.act(); return; }
     }
 
     if (awaitingStart) {
@@ -536,7 +548,7 @@
     }
     if (scene === 'won') {
       if (inRect(NEXT_BTN, lx, ly))  { initLevel(runLevel + 1); return; }
-      if (inRect(SHARE_BTN, lx, ly)) { copyShareString(); return; }
+      if (SHARE_BTN.w > 0 && inRect(SHARE_BTN, lx, ly)) { copyShareString(); return; }
       return;
     }
     if (scene !== 'playing') return;
@@ -564,6 +576,7 @@
     if (dragIdx === -1) return;
     e.preventDefault();
     if (dragMovedFar) {
+      history.push({ i: dragIdx, x: dragOrigin.x, y: dragOrigin.y });
       moves++;
       const after = detectCrossings().crossings;
       if (after === 0) {
@@ -583,6 +596,8 @@
   });
 
   window.addEventListener('keydown', (e) => {
+    if (!awaitingStart && scene === 'playing' && (e.key === 'z' || e.key === 'Z')) { undo(); return; }
+    if (!awaitingStart && scene === 'playing' && (e.key === 'r' || e.key === 'R')) { restart(); return; }
     if (e.key === 'm' || e.key === 'M') {
       ensureAudio();
       setSound(!soundOn);
@@ -596,6 +611,24 @@
       e.preventDefault(); initLevel(runLevel + 1);
     }
   });
+
+  // An undo COSTS a move, which is the rule Prism, Sluice, Bloom and Orbit all
+  // settled on for a game with a scored counter. It is also the honest price:
+  // dragging the dot back by hand costs a move too, so undo buys exactness, not
+  // a discount. A clean run is what Restart is for.
+  function undo() {
+    if (scene !== 'playing' || !history.length) return;
+    const h = history.pop();
+    pos[h.i].x = h.x; pos[h.i].y = h.y;
+    moves++;
+    sfxDrop();
+  }
+  function restart() {
+    if (awaitingStart || scene === 'won') return;
+    T().levelRestart(runLevel);
+    initLevel(runLevel, true);
+    sfxStart();
+  }
 
   function onWin() {
     scene = 'won';
@@ -622,53 +655,69 @@
     ctx.closePath();
   }
 
-  function drawSoundButton() {
-    const btnSize = 28;
-    const padding = 12;
-    // Top-LEFT corner so it doesn't collide with the focus-mode close (×) button
-    // which floats at top-right when the canvas fills the viewport.
-    const bx = padding;
-    const by = padding;
-    SOUND_BTN.x = bx; SOUND_BTN.y = by; SOUND_BTN.w = btnSize; SOUND_BTN.h = btnSize;
-
+  // The house speaker glyph, drawn INTO a pill rather than into a box of its
+  // own. Identical to Prism's, deliberately.
+  function speakerIcon(cx, cy, on) {
+    const s = 8;
     ctx.save();
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
-    roundRect(bx, by, btnSize, btnSize, 6);
-    ctx.fill();
-
-    // speaker glyph
-    const cx = bx + btnSize / 2;
-    const cy = by + btnSize / 2;
-    ctx.fillStyle = soundOn ? C.text : C.textMute;
-    ctx.strokeStyle = soundOn ? C.text : C.textMute;
-    ctx.lineWidth = 1.6;
-    ctx.lineCap = 'round';
+    ctx.strokeStyle = on ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.40)';
+    ctx.fillStyle = ctx.strokeStyle;
+    ctx.lineWidth = 1.6; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.moveTo(cx - 7, cy - 3);
-    ctx.lineTo(cx - 3, cy - 3);
-    ctx.lineTo(cx + 1, cy - 6);
-    ctx.lineTo(cx + 1, cy + 6);
-    ctx.lineTo(cx - 3, cy + 3);
-    ctx.lineTo(cx - 7, cy + 3);
-    ctx.closePath();
-    ctx.fill();
-    if (soundOn) {
-      ctx.beginPath();
-      ctx.arc(cx + 3, cy, 3, -Math.PI / 3, Math.PI / 3);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(cx + 3, cy, 6, -Math.PI / 3, Math.PI / 3);
-      ctx.stroke();
+    ctx.moveTo(cx - s * 0.8, cy - s * 0.3); ctx.lineTo(cx - s * 0.35, cy - s * 0.3);
+    ctx.lineTo(cx + s * 0.15, cy - s * 0.75); ctx.lineTo(cx + s * 0.15, cy + s * 0.75);
+    ctx.lineTo(cx - s * 0.35, cy + s * 0.3); ctx.lineTo(cx - s * 0.8, cy + s * 0.3);
+    ctx.closePath(); ctx.fill();
+    if (on) {
+      ctx.beginPath(); ctx.arc(cx + s * 0.35, cy, s * 0.42, -0.9, 0.9); ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx + s * 0.35, cy, s * 0.78, -0.85, 0.85); ctx.stroke();
     } else {
-      // slash through icon when muted
-      ctx.strokeStyle = C.accent;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(bx + 4, by + btnSize - 4);
-      ctx.lineTo(bx + btnSize - 4, by + 4);
-      ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx + s * 0.42, cy - s * 0.42); ctx.lineTo(cx + s * 1.0, cy + s * 0.42);
+      ctx.moveTo(cx + s * 1.0, cy - s * 0.42); ctx.lineTo(cx + s * 0.42, cy + s * 0.42); ctx.stroke();
     }
     ctx.restore();
+  }
+
+  // The control band sits under the playfield during play, which on a phone is
+  // also where a thumb is; that is why Prism keeps its row at the bottom rather
+  // than in the top band.
+  //
+  // On the instructions screen there IS no playfield, so the row drops to the
+  // bottom of the frame and hands the whole height back to the card. Measured:
+  // on a 320px-tall frame, a small phone turned sideways, that is the
+  // difference between the card fitting and clipping by 10px.
+  function ctrlCY() {
+    if (awaitingStart) {
+      const adsOn = document.body.classList.contains('ads-on');
+      const bot = (BANNER_H > 0 && adsOn) ? BANNER_Y - 8 : H - 8;
+      return Math.round(bot - UI.PILL.h / 2);
+    }
+    return Math.round(PLAY_Y + PLAY_H + 8 + UI.PILL.h / 2);
+  }
+  function ctrlTop() { return ctrlCY() - UI.PILL.h / 2; }
+
+  // Sizes come from shared/ui.js. Rebuilt every frame, because the hit boxes
+  // ARE what was drawn: there is no second list to keep in step.
+  function drawControls() {
+    uiButtons = [];
+    const playing = !awaitingStart && scene === 'playing';
+    const gap = UI.PILL.gap, wS = UI.PILL.iconW;
+    const wU = UI.pillWidth(ctx, 'Undo'), wR = UI.pillWidth(ctx, 'Restart');
+    const total = playing ? wS + gap + wU + gap + wR : wS;
+    const cy = ctrlCY();
+    let x = Math.round(W / 2 - total / 2);
+
+    const s = UI.drawPill(ctx, '', x + wS / 2, cy, { w: wS });
+    speakerIcon(x + wS / 2, cy, soundOn);
+    uiButtons.push(Object.assign({}, s, { act: () => {
+      ensureAudio(); setSound(!soundOn);
+      if (soundOn) tone(660, 0.06, 0.04, 'sine');
+    } }));
+    if (!playing) return;
+    x += wS + gap;
+    uiButtons.push(Object.assign({}, UI.drawPill(ctx, 'Undo', x + wU / 2, cy, { w: wU, dim: !history.length }), { act: undo }));
+    x += wU + gap;
+    uiButtons.push(Object.assign({}, UI.drawPill(ctx, 'Restart', x + wR / 2, cy, { w: wR, dim: !moves }), { act: restart }));
   }
 
   function drawHUD() {
@@ -760,22 +809,6 @@
     }
   }
 
-  function drawHintRow() {
-    const text = MODE === 'mobile'
-      ? 'DRAG ANY DOT — REMOVE EVERY CROSSING'
-      : 'CLICK AND DRAG ANY DOT — REMOVE EVERY EDGE CROSSING';
-    const stripTop    = PLAY_Y + PLAY_H + 6;
-    const stripBot    = BANNER_H > 0 ? BANNER_Y : H;
-    const stripHeight = stripBot - stripTop;
-    ctx.font = '500 11px Inter, sans-serif';
-    ctx.fillStyle = C.textMute;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'alphabetic';
-    const m = ctx.measureText(text);
-    const baselineY = stripTop + (stripHeight - (m.actualBoundingBoxAscent + m.actualBoundingBoxDescent)) / 2 + m.actualBoundingBoxAscent;
-    ctx.fillText(text, W / 2, baselineY);
-  }
-
   // The dashed box is a PLACEHOLDER for an ad that is not running. The site's
   // switch for that is `body.ads-on`, which every HTML ad slot already respects
   // and which nothing currently sets; this canvas box was the one place that
@@ -836,12 +869,15 @@
   // The button never scales: it is a house size and a touch target.
   const SHRINK_BEFORE_DROP = 0.85;   // below this, lose the eyebrow instead
   const SCALE_FLOOR        = 0.72;   // never smaller, whatever the frame
+  function ctaLabel() { return runLevel > 1 ? 'CONTINUE' : 'START'; }
   function instructionsLayout() {
     const midX    = W / 2;
-    const playBot = BANNER_H > 0 ? BANNER_Y - 8 : H;
+    // The card owns the space ABOVE the control band, not the whole frame: the
+    // speaker pill is drawn in that band on this screen too.
+    const playBot = ctrlTop() - 8;
     const midY    = playBot / 2;
-    const btnW = MODE === 'mobile' ? 240 : 280;
-    const btnH = MODE === 'mobile' ? 56 : 52;
+    const btnW = UI.ctaWidth(ctx, ctaLabel());
+    const btnH = UI.CTA.h;
     const titleSize0 = MODE === 'mobile' ? 32 : 36;
 
     // Natural extents at full size, as distances from the centre.
@@ -907,85 +943,101 @@
       ctx.fillText('STARTING AT LEVEL 1 · ' + tierForLevel(genLevelFor(1)).name, midX, L.resumeY);
     }
 
-    const btnW = L.btnW, btnH = L.btnH, btnY = L.btnY, btnX = L.btnX;
-    START_BTN.x = btnX; START_BTN.y = btnY; START_BTN.w = btnW; START_BTN.h = btnH;
-    ctx.fillStyle = C.accent;
-    roundRect(btnX, btnY, btnW, btnH, btnH / 2);
-    ctx.fill();
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = '700 14px Inter, sans-serif';
-    ctx.fillText(runLevel > 1 ? 'CONTINUE' : 'START', midX, btnY + btnH / 2 + 1);
+    const box = UI.drawCTA(ctx, ctaLabel(), midX, L.btnY + L.btnH / 2, C.accent);
+    START_BTN.x = box.x; START_BTN.y = box.y; START_BTN.w = box.w; START_BTN.h = box.h;
   }
 
   // ---------- WIN ----------
+  function px(base, s) { return Math.max(8, Math.round(base * s)); }
+
+  // Same discipline as the rules card, for the same reason: this card is a
+  // stack of fixed offsets around the middle of the PLAYFIELD PANEL, and the
+  // panel is only PLAY_H tall. Measured before scaling, it needed PLAY_H >= 380
+  // and so spilled out of the frosted panel on any frame under about 578px
+  // tall, which is a small phone in portrait as well as every phone in
+  // landscape. It stayed readable, spilling onto a background of nearly the
+  // same colour, but it collided with the HUD above and the control row below.
+  //
+  // Buttons never scale. Where scaling alone cannot make room, the SHARE pill
+  // is dropped rather than the card being squeezed further.
+  const WIN_DROP_SHARE_BELOW = 0.80;
+  const WIN_SCALE_FLOOR      = 0.72;
+  function winLayout() {
+    const midY = PLAY_Y + PLAY_H / 2;
+    const half = PLAY_H / 2 + 6;          // panel edge, measured from midY
+    const topNat = 158;                   // eyebrow centre 150 up, plus its ascent
+    // Below the CTA: 64*s to the button, then fixed button heights, then the
+    // scaled gaps around them.
+    const fitWith    = Math.min(1, (half - 8) / topNat, (half - 8 - UI.CTA.h - UI.PILL.h) / (64 + 12 + 22));
+    const fitWithout = Math.min(1, (half - 8) / topNat, (half - 8 - UI.CTA.h) / (64 + 22));
+    let showShare = true;
+    let s = fitWith;
+    if (s < WIN_DROP_SHARE_BELOW) { showShare = false; s = fitWithout; }
+    s = Math.max(WIN_SCALE_FLOOR, Math.min(1, s));
+    const ctaY   = midY + 64 * s;
+    const shareY = ctaY + UI.CTA.h + 12 * s;
+    const hintY  = showShare ? shareY + UI.PILL.h + 22 * s : ctaY + UI.CTA.h + 22 * s;
+    return { midY, half, scale: s, showShare, ctaY, shareY, hintY };
+  }
+
   function drawWon(now) {
     ctx.fillStyle = C.overlay;
     roundRect(PLAY_X - 6, PLAY_Y - 6, PLAY_W + 12, PLAY_H + 12, 14);
     ctx.fill();
 
-    const midX = W / 2;
-    const midY = PLAY_Y + PLAY_H / 2;
+    const L = winLayout();
+    const midX = W / 2, midY = L.midY, s = L.scale;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    ctx.font = '700 14px Inter, sans-serif';
+    ctx.font = '700 ' + px(14, s) + 'px Inter, sans-serif';
     ctx.fillStyle = C.aligned;
-    ctx.fillText('LEVEL ' + runLevel + ' UNTANGLED', midX, midY - 150);
+    ctx.fillText('LEVEL ' + runLevel + ' UNTANGLED', midX, midY - 150 * s);
 
-    ctx.font = '800 56px Inter, sans-serif';
+    ctx.font = '800 ' + px(56, s) + 'px Inter, sans-serif';
     ctx.fillStyle = C.text;
-    ctx.fillText(String(moves), midX, midY - 88);
-    ctx.font = '500 11px Inter, sans-serif';
+    ctx.fillText(String(moves), midX, midY - 88 * s);
+    ctx.font = '500 ' + px(11, s) + 'px Inter, sans-serif';
     ctx.fillStyle = C.textDim;
-    ctx.fillText('YOUR MOVES', midX, midY - 52);
+    ctx.fillText('YOUR MOVES', midX, midY - 52 * s);
 
-    ctx.font = '500 24px Inter, sans-serif';
+    ctx.font = '500 ' + px(24, s) + 'px Inter, sans-serif';
     ctx.fillStyle = C.text;
-    ctx.fillText(String(par), midX, midY - 16);
-    ctx.font = '500 11px Inter, sans-serif';
+    ctx.fillText(String(par), midX, midY - 16 * s);
+    ctx.font = '500 ' + px(11, s) + 'px Inter, sans-serif';
     ctx.fillStyle = C.textDim;
-    ctx.fillText('PAR', midX, midY + 2);
+    ctx.fillText('PAR', midX, midY + 2 * s);
 
     let verdict, color;
     if (moves < par)        { verdict = 'UNDER PAR · BRILLIANT'; color = C.aligned; }
     else if (moves === par) { verdict = 'AT PAR'; color = C.aligned; }
     else if (moves <= par+2){ verdict = '+' + (moves - par) + ' OVER PAR · GREAT'; color = C.text; }
     else                    { verdict = '+' + (moves - par) + ' OVER PAR'; color = C.textDim; }
-    ctx.font = '700 13px Inter, sans-serif';
+    ctx.font = '700 ' + px(13, s) + 'px Inter, sans-serif';
     ctx.fillStyle = color;
-    ctx.fillText(verdict, midX, midY + 32);
+    ctx.fillText(verdict, midX, midY + 32 * s);
 
-    // PRIMARY: NEXT LEVEL
-    const btnW = MODE === 'mobile' ? 240 : 260;
-    const btnH = 48;
-    const btnX = midX - btnW / 2;
-    const nextY = midY + 64;
-    NEXT_BTN.x = btnX; NEXT_BTN.y = nextY; NEXT_BTN.w = btnW; NEXT_BTN.h = btnH;
-    ctx.fillStyle = C.accent;
-    roundRect(btnX, nextY, btnW, btnH, btnH / 2);
-    ctx.fill();
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = '700 14px Inter, sans-serif';
-    ctx.fillText('NEXT LEVEL  →', midX, nextY + btnH / 2 + 1);
+    // PRIMARY: NEXT LEVEL. Sizes from shared/ui.js, like every other primary
+    // action on the site, and NOT scaled: a button is a touch target. Restart
+    // is deliberately absent here, the level being finished.
+    const nb = UI.drawCTA(ctx, 'NEXT LEVEL', midX, L.ctaY + UI.CTA.h / 2, C.accent);
+    NEXT_BTN.x = nb.x; NEXT_BTN.y = nb.y; NEXT_BTN.w = nb.w; NEXT_BTN.h = nb.h;
 
-    // SECONDARY: SHARE (ghost button)
-    const shareY = nextY + btnH + 12;
-    SHARE_BTN.x = btnX; SHARE_BTN.y = shareY; SHARE_BTN.w = btnW; SHARE_BTN.h = 40;
-    ctx.save();
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.20)';
-    ctx.lineWidth = 1.5;
-    roundRect(btnX, shareY, btnW, 40, 20);
-    ctx.stroke();
-    ctx.restore();
-    ctx.fillStyle = C.textDim;
-    ctx.font = '700 12px Inter, sans-serif';
-    ctx.fillText('SHARE RESULT', midX, shareY + 40 / 2 + 1);
+    // SECONDARY: SHARE, as a control pill rather than a second loud button, and
+    // dropped outright on a frame too short to hold both.
+    if (L.showShare) {
+      const sb = UI.drawPill(ctx, 'SHARE RESULT', midX, L.shareY + UI.PILL.h / 2);
+      SHARE_BTN.x = sb.x; SHARE_BTN.y = sb.y; SHARE_BTN.w = sb.w; SHARE_BTN.h = sb.h;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    } else {
+      SHARE_BTN.w = 0;
+    }
 
     const pulse = 0.55 + 0.45 * Math.sin(now / 350);
     ctx.globalAlpha = pulse;
-    ctx.font = '700 11px Inter, sans-serif';
+    ctx.font = '700 ' + px(11, s) + 'px Inter, sans-serif';
     ctx.fillStyle = C.textMute;
-    ctx.fillText('PRESS ENTER FOR NEXT LEVEL', midX, shareY + 40 + 22);
+    ctx.fillText('PRESS ENTER FOR NEXT LEVEL', midX, L.hintY);
     ctx.globalAlpha = 1;
   }
 
@@ -1031,7 +1083,7 @@
 
     if (awaitingStart) {
       drawInstructions();
-      drawSoundButton();
+      drawControls();
       drawBannerAd();
       requestAnimationFrame(loop);
       return;
@@ -1043,8 +1095,7 @@
     drawEdges(now, crossInfo);
     drawCrossDots(crossInfo);
     drawVertices(now);
-    drawHintRow();
-    drawSoundButton();
+    drawControls();
     drawBannerAd();
 
     if (scene === 'won') drawWon(now);
@@ -1084,10 +1135,40 @@
         fits: top >= 0 && bottom <= L.playBot,
       };
     },
+    get moveHistory() { return history.length; },
     goto(n) {
       awaitingStart = false;
       initLevel(n);
       return { level: runLevel, par: par, crossings: detectCrossings().crossings };
+    },
+    undo() { const before = moves; undo(); return { moves: moves, changed: moves !== before, left: history.length }; },
+    restart() { restart(); return { moves: moves, crossings: detectCrossings().crossings, history: history.length }; },
+    // The dots, in logical canvas coordinates, so a test can drive a real drag
+    // through the pointer handlers rather than reaching into the state.
+    dots() { return pos.map(function (p) { return { x: p.x, y: p.y }; }); },
+    // The control row's real hit boxes, so a sweep can assert they are on the
+    // canvas and big enough to hit rather than merely that they were drawn.
+    // Runs the draw, because the boxes ARE what was drawn; in a hidden document
+    // the animation loop never fires and there would be nothing to report.
+    controls() {
+      drawControls();
+      return uiButtons.map(function (b) {
+        return { x: b.x, y: b.y, w: b.w, h: b.h,
+                 onCanvas: b.x >= 0 && b.y >= 0 && b.x + b.w <= W && b.y + b.h <= H };
+      });
+    },
+    // The win card's vertical extent against the playfield panel it is drawn
+    // inside, at whatever scale winLayout() settled on.
+    winFit() {
+      const L = winLayout();
+      const top = L.midY - 150 * L.scale - 8 * L.scale;
+      const bottom = L.hintY + 8 * L.scale;
+      const panelTop = PLAY_Y - 6, panelBot = PLAY_Y + PLAY_H + 6;
+      return { scale: Math.round(L.scale * 1000) / 1000, share: L.showShare,
+               top: Math.round(top), bottom: Math.round(bottom),
+               overTop: Math.round(Math.max(0, panelTop - top)),
+               overBottom: Math.round(Math.max(0, bottom - panelBot)),
+               fits: top >= panelTop && bottom <= panelBot };
     },
     // Every level is a scramble of a crossing-free circular layout, so putting
     // the dots back on that circle is the witness that a solution exists.
