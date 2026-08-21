@@ -32,7 +32,7 @@ Delisted and NOT in scope: socket, bunny, empyrean, foldfig, pane, pins, plumb, 
 
 | # | Game | FN | MB | PF | AX | CN | SEO | EMB | Notes |
 |---|---|---|---|---|---|---|---|---|---|
-| 1 | orbit | - | - | - | - | - | - | - | |
+| 1 | orbit | OK | OK | OK | OK | OK | OK | OK | audited 2026-08-21. Cleanest game audited so far. One item, O1 |
 | 2 | bloom | - | - | - | - | - | - | - | rules card fixed 2026-08-21, not yet audited |
 | 3 | tailwind | OK | OK | OK | OK | OK | OK | OK | audited 2026-08-20, T1 + T2 fixed. T3-T6 open, none breaking play |
 | 4 | stained | OK | ! | OK | ! | ~ | ! | ! | audited 2026-08-20; see S1-S4 |
@@ -61,6 +61,7 @@ Severity: **BREAKS PLAY** | **VISUAL** | **MINOR** | **EMBED GAP**
 | K2 | all 15 games | EMBED GAP | Favicon and logo loaded by root-absolute path in every game, so they 404 off-origin. Scanned all 15: exactly the same four root-absolute references in each. | FIXED on branch `fix-embed-absolute-paths`, not yet deployed |
 | K2b | tessera | EMBED GAP | Worse case of K2: `tessera/play.js` loaded both HOW TO PLAY instruction images by root-absolute path, so off-origin the game's own teaching screen would have lost its art. | FIXED on the same branch |
 | K2c | all 15 games | EMBED GAP, RESOLVED 2026-08-21 by the iframe embed: the page is served from zamborin.com, so the Vercel scripts load normally. The problem only existed for a copied folder. | `/_vercel/insights/script.js` and `/_vercel/speed-insights/script.js` are Vercel edge endpoints with no file in the repo, so they cannot be made relative. Off-origin they 404 harmlessly and analytics simply do not record. Would need an embed build that omits them. | ACCEPTED |
+| O1 | orbit | MINOR, deploy weight | `orbit/splash-images/` is 3.8 MB of four source JPEGs, Frame 9 to 12, requested by nothing and unique to this game. Same class as `fold/Images`, which is 24 MB. Together about 28 MB of working art deployed and never served. | OPEN, owner's call to delete |
 | P1 | prism | ACCESSIBILITY, moderate | Blue vs purple measure 4.2 dE apart under deuteranopia, B alone versus R+B, which is tighter than Stained's worst pair. Everything else is comfortable and protanopia has nothing under 10. Stained's corner-pip mode would transplant almost unchanged. | OPEN |
 | K3 | kaleido | MINOR | No aria-live region, so a screen reader is told nothing when the board changes. The canvas itself is labelled. | OPEN |
 | S1 | stained | BREAKS PLAY (phone landscape) + EMBED GAP | The rules card clamped its height while the copy kept flowing, so the Resume button drew through the rules and the last two were unreadable. Measured overlap 170px at 480x360, 134px at 812x375 in mobile mode which is a phone turned sideways, 29px even at 640x480. Fine at 760x600 and 375x812. | FIXED on branch `fix-stained-rules-card`, not yet deployed |
@@ -422,3 +423,34 @@ only the bare `/`. Use literal paths.
   same-origin so it passed, which says nothing about Safari's tracking prevention or Chrome's
   storage partitioning. Needs a genuine third-party test. If it fails, say so on /embed/
   rather than letting players lose their level.
+
+
+## Orbit audit, 2026-08-21
+
+**The cleanest game audited so far.** Nothing to fix in the game itself.
+
+**The rules card is right by construction.** Orbit places its button at the y the copy
+finished at, rather than anchoring it to the card's bottom edge, so the overlap that hit
+six other games cannot happen here. It also scales the card on short screens, floor 0.78.
+Swept 192 sizes from 320x300 to 1200x900: **one failure, at 320x300**, which is smaller
+than any real screen.
+
+This is worth reading against the six that failed. Same house pattern, same designer, and
+the difference is one line: `by` returned from the layout function versus
+`py + ph - pad - CTA.h`. Anchoring a button to a box rather than to the content is what
+created the whole class of bug.
+
+**Functionality: pass.** Drove all 60 levels through `goto` and `solve`: every one solves,
+nothing throws. Par ramps 3 to 16, rings 3 to 5.
+
+**Mobile: pass.** 375x812 and 812x375 both fill exactly with the CSS aspect matching the
+backing store to three decimals. All five re-fit listeners present. Canvas labelled
+"Orbit puzzle". No console errors, no horizontal overflow.
+
+**Colour: not a concern here**, unlike Stained, Prism and Kaleido. Orbit's signal is lit
+versus unlit rather than hue discrimination, and the palette is a single warm gold against
+dark. There is one teal used for geared-ring guides, which is the only hue carrying meaning
+and it never has to be told apart from another hue.
+
+**SEO, consistency, embed: all pass.** Every tag present, VideoGame JSON-LD, in the sitemap,
+no frame-busting, no runtime fetches, sound present, no emoji, no em dashes in canvas copy.
