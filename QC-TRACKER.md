@@ -40,10 +40,10 @@ Delisted and NOT in scope: socket, bunny, empyrean, foldfig, pane, pins, plumb, 
 | 6 | prism | OK | OK | OK | ~ | OK | OK | OK | audited 2026-08-20; rules card fixed + copy trimmed. One tight colour pair, P1 |
 | 7 | needle | - | - | - | - | - | - | - | rules card fixed 2026-08-21, not yet audited |
 | 8 | untangle | OK | OK | OK | ~ | OK | OK | OK | audited 2026-08-21. U1-U4 fixed, U5-U8 open |
-| 9 | tessera | - | - | - | - | - | - | ~ | not audited, but U1 and U3 were shared with Untangle and are fixed here too |
-| 10 | sluice | - | - | - | - | - | - | - | rules card fixed 2026-08-21, not yet audited |
-| 11 | fold | - | - | - | - | - | - | - | |
-| 12 | mobile | - | - | - | - | - | - | - | |
+| 9 | tessera | ~ | OK | OK | - | ~ | OK | OK | audited 2026-08-21 night. TE1 open. FN not driven; U1/U3 and the win card fixed earlier |
+| 10 | sluice | - | OK | OK | - | OK | OK | OK | structural pass 2026-08-21 night, clean. FN and AX still to drive |
+| 11 | fold | - | OK | OK | - | ~ | OK | OK | structural pass 2026-08-21 night. FO1, FO2 open |
+| 12 | mobile | - | OK | OK | - | OK | OK | OK | structural pass 2026-08-21 night, clean. W8 clipping fixed. FN and AX still to drive |
 | 13 | zood | - | - | - | - | - | - | - | |
 | 14 | carrom | - | - | - | - | - | - | - | |
 | 15 | ludo | - | - | - | - | - | - | - | |
@@ -99,6 +99,10 @@ Severity: **BREAKS PLAY** | **VISUAL** | **MINOR** | **EMBED GAP**
 | W16 | about, contact, privacy | ACCESSIBILITY | The "Send a message" button is white on `#D8523F` at 15px, measuring **4.04:1** against a 4.5 bar. Same accent problem as U5, so the fix is the same `#C24A39`, but worth recording separately because it lands on HTML buttons on content pages rather than canvas CTAs: the accent question is not confined to the games. | OPEN, folds into the U5 decision |
 | W17 | guides/ | MINOR, type scale | All 15 card descriptions on the guides index render at **15px**, one under the site's 16px content-copy floor. Real body copy, not a label or a timestamp, so the exemptions do not cover it. The only page on the site where content copy sits under the floor once eyebrows, breadcrumbs and timestamps are excluded. | OPEN, one CSS value |
 | W18 | shared footer, guide breadcrumbs | MINOR, target size | The footer nav's nine links measure about **13px tall** and the guide breadcrumbs about **17px**, against the 24px of WCAG 2.5.8 Target Size (Minimum, AA). Both are navigation rather than links inside a sentence, so the inline exemption does not apply to them. One finding about two shared components rather than forty page findings. Easy miss on a phone; nothing is unreachable. | OPEN |
+| TE1 | tessera | **SILENT TOTAL FAILURE** | Tessera fetches its 358KB, 51,852-word dictionary at load. If that request fails, `VALID_WORDS` stays empty, **no word the player ever forms will score**, and the only signal is a `console.error`. Tiles keep falling and the game looks alive. `dictLoaded` is set on success and then **never read by anything**, so the flag that exists to describe this state is dead code. The slow-load case is genuinely fine, as the comment says, because the first tile takes seconds; it is the FAILED case that has no handling. A line on the canvas when the catch fires would close it. | OPEN |
+| FO1 | fold | MINOR | Two em dashes in copy drawn to the player, not in comments: "Folded too far — the sheet is now smaller than the figure" and "two pieces stacked — undo and fold elsewhere". The only drawn em dashes left in the four games checked tonight; tessera, sluice and mobile have none. | OPEN, T4 class |
+| FO2 | fold | MINOR, confusing | The shipped game exposes its debug handle as **`window.__foldfig`**, which is the name of the foldfig PROTOTYPE deleted on 2026-08-21. Anyone reaching for `window.__fold` finds nothing. | OPEN, one rename |
+| FO3 | fold, mobile | MINOR | Neither carries a fit detector. Kaleido is the third. After tonight the pattern is clear enough to state as a rule: a card drawn to a canvas with no way to measure it is how every fit bug on this site has survived. | OPEN, with W10 |
 | W9 | ludo | OBSERVATION | The computer opponents pick a random legal move, marked `AI (placeholder — random legal moves)` in the source. No page claims more than "computer opponents", so nothing is untrue, but the guide invites the reader to "put it into practice against three AI opponents". The homepage card also says "Roll the die" where the game rolls two. | OPEN, owner's call |
 | K4 | kaleido | MINOR | By default colour is the only thing separating three of the four glasses (all within 1.3:1 of each other in lightness). Mitigated by a built-in colourblind mode that swaps colour for shape, offered on the rules card, but it is off by default. | OPEN, by design |
 
@@ -827,3 +831,31 @@ question, not a page bug.
 
 **Add these to every future per-game audit.** They are cheap, they run in one pass, and
 between them they would have caught W11, W14 and W15 on the day each shipped.
+
+
+## Tessera, Sluice, Fold, Mobile: the structural pass, 2026-08-21 (night)
+
+Run with the new `shared/qc/doc-audit.js` plus a static read of each `play.js`. This is
+the MB, PF, CN, SEO and EMB columns; FN and AX still need driving per game.
+
+**All four are structurally clean.** Sixteen measurements, four games at 375x812,
+1280x900, 812x375 and the 480x360 embed: the canvas fills its wrap exactly in every one,
+no clipping, no scale-zero, no horizontal overflow, no failed resources, nothing
+unreachable, no contrast failure in the document. All four carry the full five re-fit
+listeners, all four load `shared/sfx.js`, none busts out of a frame, none loads an asset
+by root-absolute path, and all four namespace their storage under `zamborin-<game>.`.
+
+**Two runtime fetches, and they are not equivalent.** Fold pulls `art/manifest.json` and
+handles the failure properly, falling back to vector figures with a comment explaining
+why, and it streams the 9.6MB of photographs progressively rather than blocking the first
+board. Tessera pulls `words.txt` and handles the failure by writing to the console. See
+TE1: that is the difference between degrading and dying quietly.
+
+**Three of the four do not use `shared/ui.js`.** Only Mobile draws from it. Tessera,
+Sluice and Fold each roll their own button sizes, which is the drift the module exists to
+end and which Untangle was brought out of earlier today. Not logged as a defect per game,
+because it is one decision about whether the remaining games get the same treatment.
+
+**On em dashes.** Counting them in `play.js` gives 8 to 30 per game and is almost entirely
+comments. Counting them in STRING LITERALS gives the real answer: tessera 0, sluice 0,
+mobile 0, fold 2. Worth remembering before anyone re-runs that sweep.
