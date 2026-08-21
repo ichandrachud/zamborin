@@ -1,12 +1,36 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg id="Layer_1" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 40.44 51.02">
-  <!-- Generator: Adobe Illustrator 30.5.1, SVG Export Plug-In . SVG Version: 2.1.4 Build 3)  -->
+<!--
+  Zamborin mark on its own, for the browser tab.
+  Source: zamborin_logos/zamborin-favicon copy.svg, 2026-08-21.
+
+  Cropped from the A4 page the export came on to the measured bounding box,
+  which is exactly square, 344.82 x 344.82. A favicon is drawn into a square
+  slot, so anything else would have been letterboxed. Gradient ids and class
+  names are namespaced so this can never collide with the wordmark.
+
+  Note the gradient here is the softer pair, #475aa8 to #9452a0, not the vivid
+  #3349e5 to #b734e2 the wordmark's mark uses. That is how the artwork arrived
+  and it is the right call for a tab strip: the soft pair measures 5.28 to 6.37
+  against white, where the vivid pair is much darker on a light chrome.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" viewBox="124.73 248.86 344.82 344.82">
   <defs>
     <style>
-      .st0 {
-        fill: #1bbced;
-      }
+      .zf-a { fill: url(#zf-grad-a); }
+      .zf-b { fill: url(#zf-grad-b); }
+      .zf-c { fill: url(#zf-grad-c); }
     </style>
+    <linearGradient id="zf-grad-c" x1="173.59" y1="536.06" x2="388.31" y2="321.35" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#475aa8"/>
+      <stop offset="1" stop-color="#9452a0"/>
+    </linearGradient>
+    <linearGradient id="zf-grad-b" x1="182.36" y1="544.82" x2="397.07" y2="330.11" xlink:href="#zf-grad-c"/>
+    <linearGradient id="zf-grad-a" x1="64.71" y1="421.28" x2="1179.12" y2="421.28" gradientUnits="userSpaceOnUse">
+      <stop offset=".09" stop-color="#fff"/>
+      <stop offset="1" stop-color="#231f20"/>
+    </linearGradient>
   </defs>
-  <path class="st0" d="M.45,3.83V0h39.99v8.85L12.6,41.79h27.24v9.23H0v-8.93L27.69,9.23H5.85C2.93,9.23.45,6.75.45,3.83Z"/>
+  <path class="zf-c" d="M274.63,488.86h181.16c8.85-20.76,13.76-43.6,13.76-67.59,0-95.22-77.19-172.41-172.41-172.41-52.15,0-98.85,23.18-130.46,59.76h243.11l-135.16,180.24Z"/>
+  <path class="zf-b" d="M319.64,353.7h-181.15c-8.85,20.75-13.76,43.59-13.76,67.57,0,95.22,77.19,172.41,172.41,172.41,52.14,0,98.83-23.18,130.45-59.75h-243.11l135.16-180.24Z"/>
+  <path class="zf-a" d="M274.63,488.86l135.16-180.24h-243.11c-11.58,13.39-21.15,28.56-28.2,45.08h181.15l-135.16,180.24h243.11c11.58-13.39,21.15-28.56,28.2-45.08h-181.16Z"/>
 </svg>

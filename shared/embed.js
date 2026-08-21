@@ -76,9 +76,11 @@
     a.setAttribute('aria-label', 'Play more games at Zamborin');
 
     var img = doc.createElement('img');
-    img.src = '../images/zamborin-logo.svg';
+    img.src = '../images/zamborin-logo.svg?v=2';
     img.alt = 'Zamborin';
-    img.width = 96; img.height = 17;
+    /* 94 x 14 keeps the wordmark's own 6.715:1. The old 96 x 17 matched the
+       previous logo at 5.6:1 and would squash this one by a fifth. */
+    img.width = 94; img.height = 14;
     a.appendChild(img);
 
     doc.body.appendChild(a);

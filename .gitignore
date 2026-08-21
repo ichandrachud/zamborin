@@ -36,3 +36,7 @@ fold/Images/
 /Psd/
 **/references/
 *.psd
+
+# Logo masters. The two SVGs the site actually serves are in /images/;
+# these are the Illustrator sources and belong in iCloud.
+/zamborin_logos/
