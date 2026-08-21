@@ -346,3 +346,56 @@ body.focus-mode #game { width: 100%; height: 100%; }
   text-decoration: none;
 }
 .game-info .guide-cta a:hover { background: rgba(77, 195, 255, 0.15); color: #A6E2FF; }
+
+/* ---------- EMBED MODE (?embed=1, see shared/embed.js) ----------
+   A cousin of focus-mode above, and deliberately written beside it. The
+   difference: focus-mode is a player choosing to fill their own screen and
+   keeping a way back out, so the header collapses but the exit button stays.
+   An embed is a game living inside someone else's page, so the chrome goes
+   entirely and the only thing left is the mark. */
+html.embed, html.embed body { background: var(--bg); }
+body.embed .site-header,
+body.embed .site-footer,
+body.embed .ad-slot,
+body.embed .sidebar,
+body.embed .game-info,
+body.embed .lobby-foot { display: none !important; }
+
+body.embed .page {
+  margin: 0; padding: 0; gap: 0; max-width: none;
+}
+body.embed .play-row {
+  width: 100vw; height: 100dvh;
+  align-items: center; justify-content: center; gap: 0;
+}
+body.embed .game-wrap {
+  width:  min(100vw, calc(100dvh * var(--canvas-w) / var(--canvas-h)));
+  height: min(100dvh, calc(100vw * var(--canvas-h) / var(--canvas-w)));
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* The mark. Bottom left, clear of every game's control row, which the house
+   pattern puts top-left on desktop and bottom-centre on a phone. Dim at rest
+   so it never competes with the game, full strength on hover. */
+.embed-mark {
+  position: fixed;
+  left: 12px; bottom: 10px;
+  z-index: 40;
+  display: block;
+  padding: 6px 8px;
+  border-radius: 8px;
+  opacity: 0.55;
+  transition: opacity .18s ease, background .18s ease;
+}
+.embed-mark img { display: block; height: 17px; width: auto; }
+.embed-mark:hover, .embed-mark:focus-visible {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.08);
+}
+.embed-mark:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+@media (max-width: 720px) {
+  .embed-mark { left: 8px; bottom: 6px; opacity: 0.45; }
+  .embed-mark img { height: 14px; }
+}

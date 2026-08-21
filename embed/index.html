@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Embed a Zamborin game — Zamborin Games</title>
+  <meta name="description" content="Put any Zamborin game on your own site with one line of HTML. Free for most sites, no account, no sign-up, and the game stays up to date on its own." />
+  <meta name="theme-color" content="#0E1726" />
+  <link rel="canonical" href="https://zamborin.com/embed/" />
+  <link rel="icon" type="image/svg+xml" href="../images/zamborin-favicon.svg" />
+  <meta name="robots" content="index, follow" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Zamborin Games" />
+  <meta property="og:url" content="https://zamborin.com/embed/" />
+  <meta property="og:title" content="Embed a Zamborin game" />
+  <meta property="og:description" content="One line of HTML puts any of our games on your site. Free for most sites, and the game stays up to date on its own." />
+  <meta property="og:image" content="https://zamborin.com/images/zamborin-og.jpg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../shared/tokens.css" />
+  <link rel="stylesheet" href="../shared/chrome.css?v=14" />
+  <style>
+    .legal-page { max-width: 760px; margin: 0 auto; padding: 64px 24px 80px; color: var(--text-dim); line-height: 1.65; font-size: 16px; }
+    .legal-page h1 { font-size: 36px; color: var(--text); font-weight: 800; margin-bottom: 8px; letter-spacing: -0.4px; }
+    .legal-page .updated { font-size: 14px; color: var(--text-dim); margin-bottom: 24px; }
+    .legal-page h2 { font-size: 20px; color: var(--text); font-weight: 700; margin: 32px 0 10px; }
+    .legal-page h3 { font-size: 17px; color: var(--text); font-weight: 700; margin: 22px 0 6px; }
+    .legal-page p { margin: 12px 0; }
+    .legal-page a { color: #4DC3FF; }
+    .legal-page ul { margin: 12px 0; padding-left: 22px; }
+    .legal-page li { margin: 6px 0; }
+    .legal-page code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 14px;
+      background: rgba(255,255,255,0.07); padding: 2px 6px; border-radius: 5px; color: var(--text); }
+    .snippet { background: #131F36; border: 1px solid rgba(255,255,255,0.12); border-radius: 12px;
+      padding: 16px 18px; margin: 16px 0; overflow-x: auto; }
+    .snippet code { background: none; padding: 0; display: block; white-space: pre; line-height: 1.7; font-size: 13.5px; }
+    .lede { font-size: 18px; color: var(--text); }
+    .game-urls { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 6px 18px; margin: 14px 0; }
+    .game-urls a { font-size: 15px; }
+    .note { border-left: 3px solid var(--brand); padding: 2px 0 2px 14px; margin: 18px 0; }
+    @media (max-width: 720px) { .legal-page { padding: 32px 18px 56px; } .legal-page h1 { font-size: 28px; } }
+  </style>
+  <meta name="google-adsense-account" content="ca-pub-9207689324865969">
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9207689324865969" crossorigin="anonymous"></script>
+</head>
+<body class="lobby-page">
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="Zamborin Games home">
+      <img class="brand-logo" src="../images/zamborin-logo.svg" alt="Zamborin" />
+    </a>
+  </header>
+  <main class="legal-page">
+    <h1>Put a game on your site</h1>
+    <p class="updated">Version 1, 21 August 2026</p>
+
+    <p class="lede">One line of HTML. No account, no sign-up, no files to download, and nothing to keep updated.</p>
+
+    <h2>The one line</h2>
+    <p>Add <code>?embed=1</code> to any game address and put it in an iframe:</p>
+    <div class="snippet"><code>&lt;iframe src="https://zamborin.com/kaleido/?embed=1"
+        width="760" height="600" frameborder="0"
+        title="Kaleido, a Zamborin game"&gt;&lt;/iframe&gt;</code></div>
+    <p>That is the whole thing. The site header, footer and everything else falls away, and the game fills the frame you give it.</p>
+
+    <h2>Sizing it</h2>
+    <p>Our games are built for a 760 by 600 frame on a computer, and they adapt down from there. Anything from about 480 by 360 upward works. Give it a tall narrow frame and the game lays itself out the way it does on a phone.</p>
+    <p>To make it stretch with your page, put the iframe in a container of your own and let it fill:</p>
+    <div class="snippet"><code>&lt;div style="position:relative;width:100%;aspect-ratio:760/600"&gt;
+  &lt;iframe src="https://zamborin.com/kaleido/?embed=1"
+          style="position:absolute;inset:0;width:100%;height:100%;border:0"
+          title="Kaleido, a Zamborin game"&gt;&lt;/iframe&gt;
+&lt;/div&gt;</code></div>
+
+    <h2>Every game</h2>
+    <p>Swap the name in the address for any of these:</p>
+    <div class="game-urls">
+      <a href="/orbit/?embed=1">orbit</a>
+      <a href="/bloom/?embed=1">bloom</a>
+      <a href="/tailwind/?embed=1">tailwind</a>
+      <a href="/stained/?embed=1">stained</a>
+      <a href="/kaleido/?embed=1">kaleido</a>
+      <a href="/prism/?embed=1">prism</a>
+      <a href="/needle/?embed=1">needle</a>
+      <a href="/untangle/?embed=1">untangle</a>
+      <a href="/tessera/?embed=1">tessera</a>
+      <a href="/sluice/?embed=1">sluice</a>
+      <a href="/fold/?embed=1">fold</a>
+      <a href="/mobile/?embed=1">mobile</a>
+      <a href="/zood/?embed=1">zood</a>
+      <a href="/carrom/?embed=1">carrom</a>
+      <a href="/ludo/?embed=1">ludo</a>
+    </div>
+    <p>We add games regularly and every new one works the same way on the day it goes up. There is no list to keep in step with.</p>
+
+    <h2>What you get</h2>
+    <ul>
+      <li>The game, at whatever size you give it, on a computer or a phone.</li>
+      <li>Improvements as we make them. You are pointing at the live game, so a fix reaches your visitors without you touching anything.</li>
+      <li>No advertising. Our ads do not run inside an embed, on your page or anyone else's.</li>
+      <li>A small Zamborin mark in the corner, linking back to the game here. That is what we ask in return.</li>
+    </ul>
+
+    <h2>The terms</h2>
+
+    <h3>What you may do</h3>
+    <p>Embed any of our games on any website, free of charge, as many games and on as many pages as you like. Personal sites, blogs, schools, newsletters, community sites, small game portals. You do not need to ask us first and you do not need to tell us.</p>
+
+    <h3>What we ask</h3>
+    <ul>
+      <li>Embed the game as it is. Do not modify it, and do not hide, cover or remove the Zamborin mark.</li>
+      <li>Do not charge people to play, put it behind a login or paywall, or present it as your own work.</li>
+      <li>Do not copy the game files to your own server. The embed points at ours on purpose, so the game stays current and keeps working.</li>
+      <li>Do not place it beside content that is illegal, hateful, or aimed at deceiving people.</li>
+    </ul>
+
+    <h3>What we keep</h3>
+    <p>We own the games and everything in them. This is permission to show a game, not a transfer of anything. The permission is not exclusive, so we may license the same game to anyone else, and it can be withdrawn: if we ask you to stop, please take the embed down within 30 days.</p>
+    <p>Games are provided as they are, with no promise that the service will be uninterrupted. We may change or retire a game at any time.</p>
+
+    <div class="note">
+      <p><strong>Larger or commercial use.</strong> If you are a game portal, a business embedding at scale, or you need the mark removed, a hosted copy, a branded version or any kind of exclusivity, those are all possible and they are separate arrangements. Write to us at <a href="/contact/">the contact page</a> and tell us what you have in mind.</p>
+    </div>
+
+    <h2>Questions we expect</h2>
+    <p><strong>Does it slow my page down?</strong> The iframe loads on its own, after your page, so your own content is not held up.</p>
+    <p><strong>Does it work on phones?</strong> Yes. Every game is built for touch first and lays itself out for the frame it is given.</p>
+    <p><strong>Do you track my visitors?</strong> We count plays and sessions so we know which games people enjoy. No names, no accounts, no profiles. See <a href="/privacy/">Privacy</a>.</p>
+    <p><strong>What if your site goes down?</strong> The iframe would be empty until it is back. If that is a risk you cannot take, talk to us about a hosted copy.</p>
+    <p><strong>Can I pick which game shows?</strong> Yes, one game per iframe. Use several iframes if you want a row of them.</p>
+  </main>
+  <footer class="site-footer">
+    <nav class="site-foot-nav">
+      <a href="/">Games</a>
+      <a href="/guides/">Guides</a>
+      <a href="/about/">About</a>
+      <a href="/faq/">FAQ</a>
+      <a href="/embed/">Embed</a>
+      <a href="/privacy/">Privacy</a>
+      <a href="/terms/">Terms</a>
+      <a href="/contact/">Contact</a>
+    </nav>
+    <span>© 2026 Zamborin. Games created by Indrajeet Chandrachud.</span>
+  </footer>
+  <script defer src="/_vercel/insights/script.js"></script>
+  <script defer src="/_vercel/speed-insights/script.js"></script>
+</body>
+</html>
