@@ -60,7 +60,7 @@ Severity: **BREAKS PLAY** | **VISUAL** | **MINOR** | **EMBED GAP**
 | K1 | kaleido | EMBED GAP + VISUAL | Rules card overflows in a small container: the Colourblind and PLAY buttons draw on top of rules 3 and 4, and rule 4 is clipped. Reproduced at 480x360 and 480x430, in a plain window as well as an iframe. Fine at 640x480, 760x600, 375x812 and 812x375. | FIXED on branch `fix-kaleido-rules-card`, not yet deployed |
 | K2 | all 15 games | EMBED GAP | Favicon and logo loaded by root-absolute path in every game, so they 404 off-origin. Scanned all 15: exactly the same four root-absolute references in each. | FIXED on branch `fix-embed-absolute-paths`, not yet deployed |
 | K2b | tessera | EMBED GAP | Worse case of K2: `tessera/play.js` loaded both HOW TO PLAY instruction images by root-absolute path, so off-origin the game's own teaching screen would have lost its art. | FIXED on the same branch |
-| K2c | all 15 games | EMBED GAP, won't fix | `/_vercel/insights/script.js` and `/_vercel/speed-insights/script.js` are Vercel edge endpoints with no file in the repo, so they cannot be made relative. Off-origin they 404 harmlessly and analytics simply do not record. Would need an embed build that omits them. | ACCEPTED |
+| K2c | all 15 games | EMBED GAP, RESOLVED 2026-08-21 by the iframe embed: the page is served from zamborin.com, so the Vercel scripts load normally. The problem only existed for a copied folder. | `/_vercel/insights/script.js` and `/_vercel/speed-insights/script.js` are Vercel edge endpoints with no file in the repo, so they cannot be made relative. Off-origin they 404 harmlessly and analytics simply do not record. Would need an embed build that omits them. | ACCEPTED |
 | P1 | prism | ACCESSIBILITY, moderate | Blue vs purple measure 4.2 dE apart under deuteranopia, B alone versus R+B, which is tighter than Stained's worst pair. Everything else is comfortable and protanopia has nothing under 10. Stained's corner-pip mode would transplant almost unchanged. | OPEN |
 | K3 | kaleido | MINOR | No aria-live region, so a screen reader is told nothing when the board changes. The canvas itself is labelled. | OPEN |
 | S1 | stained | BREAKS PLAY (phone landscape) + EMBED GAP | The rules card clamped its height while the copy kept flowing, so the Resume button drew through the rules and the last two were unreadable. Measured overlap 170px at 480x360, 134px at 812x375 in mobile mode which is a phone turned sideways, 29px even at 640x480. Fine at 760x600 and 375x812. | FIXED on branch `fix-stained-rules-card`, not yet deployed |
@@ -383,3 +383,42 @@ widths 320-1200 and heights 300-900, then check the real device sizes by name.
 Needle's final state: ten of ten real sizes clean, iPhone SE through iPad, portrait and
 landscape, plus both embed sizes. What is left is under 300px tall, which is shorter than any
 screen and any embed anyone would build.
+
+
+## Embed build shipped, 2026-08-21
+
+`?embed=1` on any game address. Chrome off, game fills the frame, small Zamborin mark
+linking back, `noindex, follow` so the variant does not compete with the canonical page.
+
+**The delivery choice did the work.** An iframe rather than a copied folder means the page
+is still served from zamborin.com, so every embed gap logged over three days, the favicon
+and logo 404ing, the Vercel scripts failing, Google Fonts, relative asset paths, simply
+does not arise. K2c is resolved by that alone. It also means a game improves after a
+partner has embedded it, which a copied folder can never do.
+
+Most of it already existed: `focus-mode` hid the footer, ads and sidebar and gave the game
+the viewport. Embed mode is its cousin, written beside it in `shared/chrome.css`.
+
+**Hardening, from asking how it could be misused rather than whether it worked:**
+
+- Embed plays now carry `embed:1` and the referring hostname. Without it, embed traffic
+  silently inflated the site's own figures AND there was no way to show a portal how a game
+  performs in an embed, which is the evidence a licensing conversation runs on.
+- The free tier no longer covers portals, ad-supported sites, use above roughly 50k plays a
+  month, or products with a game inside. It was giving away exactly what there is a budget
+  to charge for.
+- Framing is restricted to the fifteen games. There were no framing headers at all before,
+  so anyone could iframe the contact page or the terms.
+
+**A trap worth remembering:** `trailingSlash` is on, so canonical URLs end in a slash and a
+Vercel header `source` of `/about/:path*` does NOT match `/about/`. The first deploy guarded
+only the bare `/`. Use literal paths.
+
+**Still open, and neither can be answered from localhost:**
+
+- **Bandwidth is on our bill.** Every embed play is served from our hosting, with no cap and
+  no alert. Watch Vercel usage once anyone embeds; the 30-day revocation clause is the lever.
+- **Saved progress in a real cross-origin embed is unproven.** The local test frame was
+  same-origin so it passed, which says nothing about Safari's tracking prevention or Chrome's
+  storage partitioning. Needs a genuine third-party test. If it fails, say so on /embed/
+  rather than letting players lose their level.
