@@ -1576,22 +1576,16 @@
     }
   }
 
-  function menuOverlay(now) {
-    ctx.fillStyle = 'rgba(14, 23, 38, 0.88)'; ctx.fillRect(0, 0, LW, LH);   // --bg
+  const MENU_LEAD = 'Complete the figure so it holds under every turn of the wheel.';
+
+  /* The card's sizing, lifted out of the draw so something other than the draw
+     can ask about it. Kaleido was the FIRST game whose rules card was fixed, on
+     2026-08-20, and it is the only one of the six that never got a detector: the
+     write-up claimed all six had one and it was wrong. Everything below is a
+     verbatim move of what menuOverlay already computed. */
+  function menuLayout() {
     const rules = rulesFor();
-    const cx = LW / 2;
     const pw = Math.min(LW - 48, 470);
-    const LEAD = 'Complete the figure so it holds under every turn of the wheel.';
-    // Measure the copy before drawing the card, so the card fits the rules
-    // rather than the rules being cropped by a hardcoded height.
-    //
-    // Everything vertical is measured at a TYPE SCALE, so the same numbers can
-    // be asked "and how tall would you be a bit smaller?". Horizontal geometry
-    // is deliberately NOT scaled: the text column stays pw - 96 wide, so a
-    // smaller face simply wraps to fewer lines, which is the direction we want.
-    // The two BUTTON heights are not scaled either. They are the house sizes
-    // and they are touch targets; shrinking a tap target to win layout space is
-    // the wrong trade.
     const metrics = (s) => {
       const m = { s,
         padTop: 26 * s, padBot: 22 * s, titleAdv: 38 * s,
@@ -1602,36 +1596,41 @@
       m.bodyH = 0;
       for (const r of rules) m.bodyH += measureWrapped(r, pw - 96, m.bodyStep) + m.ruleGap;
       ctx.font = '600 ' + m.leadF.toFixed(2) + 'px Inter, sans-serif';
-      m.leadH = measureWrapped(LEAD, pw - 70, m.leadStep);
+      m.leadH = measureWrapped(MENU_LEAD, pw - 70, m.leadStep);
       m.chrome = m.padTop + m.titleAdv + m.leadH + m.afterLead + m.bodyH + m.afterBody
                + ZUI.PILL.h + 12 + ZUI.CTA.h + m.padBot;
       return m;
     };
-    // Shrink the DEMO until the card fits, and drop it entirely rather than let
-    // anything overlap. Clamping the card height while the content kept its full
-    // length is what drove the button through the bottom rule.
     const maxH = LH - 20;
     let M = metrics(1);
-    // Shrink the demo to fit, and only drop it once it would be too small to
-    // read. The floor was 44, which on a 600-tall desktop canvas meant that
-    // adding the colourblind switch pushed the demo out of the card entirely.
-    // A small demo still shows one tap becoming six panes; no demo shows
-    // nothing, and that animation is the only thing that teaches the copying.
     let demoR = MODE === 'mobile' ? 74 : 66;
     while (demoR > 0 && M.chrome + demoR * 2 + 14 > maxH) demoR = demoR > 30 ? demoR - 4 : 0;
-    // THE CASE THE DEMO CANNOT COVER — 2026-08-20. Dropping the demo buys about
-    // 150px. In a short AND narrow container (a 480x360 embed, say) the copy
-    // alone is still taller than the viewport: the card clamped to maxH, the
-    // text kept flowing past it, and the two buttons, which hang off the card's
-    // BOTTOM edge, drew straight through rules 3 and 4. So once the demo is
-    // gone, shrink the copy until it fits. The floor is deliberate: below 0.72
-    // the rules stop being readable, and at that point a clipped rule is the
-    // better failure, so it stops trying.
     let ts = 1;
     while (ts > 0.72 && M.chrome > maxH) { ts = Math.max(0.72, ts - 0.04); M = metrics(ts); }
     const demoH = demoR > 0 ? demoR * 2 + 14 : 0;
-    const ph = Math.min(maxH, M.chrome + demoH);
-    const px = (LW - pw) / 2, py = (LH - ph) / 2;
+    const needed = M.chrome + demoH;
+    const ph = Math.min(maxH, needed);
+    return { rules, pw, M, ts, demoR, demoH, needed, maxH, ph,
+             px: (LW - pw) / 2, py: (LH - ph) / 2 };
+  }
+
+  function menuOverlay(now) {
+    ctx.fillStyle = 'rgba(14, 23, 38, 0.88)'; ctx.fillRect(0, 0, LW, LH);   // --bg
+    const L = menuLayout();
+    const rules = L.rules;
+    const cx = LW / 2;
+    const pw = L.pw;
+    const LEAD = MENU_LEAD;
+    // The sizing itself now lives in menuLayout(), so rulesFit() can ask the
+    // same question the draw answers. The reasoning it encodes, unchanged:
+    // measure the copy first so the card fits the rules rather than the rules
+    // being cropped; scale only VERTICAL geometry, so a smaller face wraps to
+    // fewer lines; never scale the two buttons, which are house sizes and touch
+    // targets; shrink the demo before the copy and drop it rather than keep it
+    // too small to read; and once the demo is gone, shrink the copy to a 0.72
+    // floor, below which a clipped rule is the better failure.
+    const M = L.M, ts = L.ts, demoR = L.demoR, demoH = L.demoH;
+    const maxH = L.maxH, ph = L.ph, px = L.px, py = L.py;
     ctx.fillStyle = Z.bgCard; ZUI.roundRectPath(ctx, px, py, pw, ph, 22); ctx.fill();
     ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ZUI.roundRectPath(ctx, px, py, pw, ph, 22); ctx.stroke();
     let y = py + M.padTop;
@@ -1701,6 +1700,31 @@
     solve() { dom = solved.slice(); placeT = placeT.map(() => performance.now()); after(performance.now()); return this.state; },
     // Set one wedge cell, for reproducing a board state by hand.
     set(d, t) { dom[d] = t; placeT[d] = performance.now(); after(performance.now()); return this.state; },
+    // Does the rules card actually fit? Kaleido was the first game whose card
+    // was fixed and the only one of the six that never got a way to ask. The
+    // number that matters is not whether the card had to be clamped but the gap
+    // between where the copy ENDS and where the switch pill BEGINS: the two
+    // buttons hang off the card's bottom edge, so a negative gap is the button
+    // drawn through the last rule.
+    rulesFit() {
+      const L = menuLayout(), M = L.M;
+      const copyBottom = L.py + M.padTop + M.titleAdv + M.leadH + M.afterLead + L.demoH + M.bodyH;
+      const pillTop = L.py + L.ph - 22 - ZUI.CTA.h - 12 - ZUI.PILL.h;
+      const ctaBottom = L.py + L.ph - 22;
+      return {
+        LW: LW, LH: LH, mode: MODE,
+        scale: Math.round(L.ts * 100) / 100,
+        demoRadius: L.demoR,
+        cardHeight: Math.round(L.ph),
+        neededHeight: Math.round(L.needed),
+        clampedBy: Math.round(Math.max(0, L.needed - L.ph)),
+        gapCopyToButton: Math.round(pillTop - copyBottom),
+        cardTop: Math.round(L.py),
+        cardBottom: Math.round(L.py + L.ph),
+        ctaOnCanvas: ctaBottom <= LH && L.py >= 0,
+        fits: pillTop - copyBottom >= 0 && L.needed <= L.ph + 0.5 && L.py >= 0,
+      };
+    },
     // gaps, depth and hardness for the level on screen. The number the ramp aims at.
     measure() { return measureLevel(); },
     // What a given set of dials can reach. Asks for an unreachable target so the
