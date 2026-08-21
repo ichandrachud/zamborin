@@ -41,9 +41,9 @@ Delisted and NOT in scope: socket, bunny, empyrean, foldfig, pane, pins, plumb, 
 | 7 | needle | - | - | - | - | - | - | - | rules card fixed 2026-08-21, not yet audited |
 | 8 | untangle | OK | OK | OK | ~ | OK | OK | OK | audited 2026-08-21. U1-U4 fixed, U5-U8 open |
 | 9 | tessera | ~ | OK | OK | - | ~ | OK | OK | audited 2026-08-21 night. TE1 open. FN not driven; U1/U3 and the win card fixed earlier |
-| 10 | sluice | - | OK | OK | - | OK | OK | OK | structural pass 2026-08-21 night, clean. FN and AX still to drive |
-| 11 | fold | - | OK | OK | - | ~ | OK | OK | structural pass 2026-08-21 night. FO1, FO2 open |
-| 12 | mobile | - | OK | OK | - | OK | OK | OK | structural pass 2026-08-21 night, clean. W8 clipping fixed. FN and AX still to drive |
+| 10 | sluice | OK | OK | OK | - | OK | OK | OK | audited 2026-08-21 night. 100/100 levels solve. Only AX left |
+| 11 | fold | OK | OK | OK | - | ~ | OK | OK | audited 2026-08-21 night. 60/60 levels solve. FO1-FO3 open |
+| 12 | mobile | OK | OK | OK | - | OK | OK | OK | audited 2026-08-21 night. 39/39 balance exactly. W8 fixed. Only AX left |
 | 13 | zood | - | - | - | - | - | - | - | |
 | 14 | carrom | - | - | - | - | - | - | - | |
 | 15 | ludo | - | - | - | - | - | - | - | |
@@ -859,3 +859,38 @@ because it is one decision about whether the remaining games get the same treatm
 **On em dashes.** Counting them in `play.js` gives 8 to 30 per game and is almost entirely
 comments. Counting them in STRING LITERALS gives the real answer: tessera 0, sluice 0,
 mobile 0, fold 2. Worth remembering before anyone re-runs that sweep.
+
+
+## Functionality, driven: Sluice, Fold, Mobile, 2026-08-21 (night)
+
+Every level of all three, through each game's own debug handle, against each game's own
+definition of solved.
+
+| Game | Levels | Unsolved | Range |
+|---|---|---|---|
+| Sluice | **100** | **0** | par 3 to 12, grids 5x7 to 7x9, 4 to 6 flowers |
+| Fold | **60** | **0** | 4 to 13 tiles, solutions 2 to 5 folds, 22 distinct figures, all 60 have art |
+| Mobile | **39** | **0** | 3 to 10 hooks, 3 to 14 shapes, 2 to 9 rods |
+
+Mobile is the strictest of the three and worth stating precisely: after `solveNow()` and
+`settle()`, every hook is filled, the balance error is **exactly 0** on all 39, and every
+rod residual is **exactly 0**. The tray carries 0 to 4 more shapes than there are hooks,
+so the decoys are real and the solver still places the right ones.
+
+### Three wrong assertions before a right one, all mine
+
+Worth writing down because the pattern will repeat. Mobile "failed" twice before it
+passed, and the game was correct every time:
+
+1. I called `settle()` and treated its return as the state summary. It returns per-rod
+   residuals, `{r152: 0, r153: 0, ...}`. 39 of 39 "failed".
+2. I asserted `hung === shapes`. But the tray deliberately holds MORE shapes than there
+   are hooks, so the right test is `hung === hooks`. 36 of 39 "failed".
+3. Only the third version, `hung === hooks` and error and every rod residual at zero,
+   described the game. 0 of 39 failed.
+
+**A sweep that fails everywhere is a claim about the sweep.** Both times the giveaway was
+in the data already on screen: `error: 0` sat in every "failing" row. The rule to carry
+forward is to read one row in full and understand the shape of what a game returns
+BEFORE writing the assertion over all of them, and to treat a 100% failure rate as a bug
+report against the test.
