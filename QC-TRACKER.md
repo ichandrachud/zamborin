@@ -95,6 +95,8 @@ Severity: **BREAKS PLAY** | **VISUAL** | **MINOR** | **EMBED GAP**
 | W12 | about, faq, guides, terms, privacy, cookies, contact, embed | LAYOUT | **On any viewport at or below 1151px these eight pages have no header at all**: no logo, nothing to tap home from the top. The collapse rule inside the 1151 media query scopes the footer, ad slots and sidebar to `body:not(.lobby-page)` but leaves `body .site-header .brand` unscoped, so it hides the brand everywhere. The homepage escapes only because `index.html` carries its own override restoring a 64px header. Pre-existing, and it means the new logo does not appear on eight pages on a phone. The footer nav is still there, so it is not a dead end; it is a missing masthead. | OPEN, owner's call |
 | W13 | index | MINOR, follow-on from the logo | The homepage pins its own mobile logo height and was left at 28px when the desktop header went to 44, so the new wordmark's letters sat at 15.4px there. Raised to 34, giving 18.7px letters and a 228px logo with 130px of clearance on a 390px phone. | FIXED 2026-08-21 |
 | W14 | stained | **BREAKS THE PAGE on mobile** | Stained is the only game of fifteen with no inline `<style>` block, and the piece that mattered was not the typography: the block carries the `@media (max-width: 1151px)` override that releases `body:not(.lobby-page)` from `position: fixed; overflow: hidden`. Without it, **on a phone the page could not scroll at all**. Measured at 390x844: `scrollHeight` equalled the viewport at 844, the footer was hidden, and the entire `.game-info` article sat at y=844, off-screen and unreachable. Orbit and Kaleido scroll to 3745 and 4230 at the same size. The article is the whole SEO case for the page and no phone visitor could reach a word of it. The same missing block also left the desktop measure at 1088px instead of 760, the body copy pure white instead of the dim grey, the line-height at browser default, and four inline links at the unstyled `#0000EE`, which is **1.91:1** on the page background. | FIXED 2026-08-21. Stained now matches Orbit on every measure at both sizes, and the canvas is untouched |
+| W15 | guides/kaleido | **BREAKS THE PAGE on mobile** | Second instance of W14, different file, found the same evening. `guides/kaleido/index.html` opens `<body>` with no class where all fourteen sibling guides open `<body class="lobby-page">`, so `body:not(.lobby-page) { position: fixed; overflow: hidden }` applied at phone width. Measured at 390x844: the article is **4220px inside an 844px locked viewport**, `scrollY` never moves off 0, the footer is `display: none`. **The entire strategy guide was unreachable past the first screenful.** Orbit's guide at the same size scrolls to 3491 with everything reachable. One missing attribute. | FIXED 2026-08-21. Now scrolls to 3492, bottom reachable, identical to Orbit |
+| W16 | about, contact, privacy | ACCESSIBILITY | The "Send a message" button is white on `#D8523F` at 15px, measuring **4.04:1** against a 4.5 bar. Same accent problem as U5, so the fix is the same `#C24A39`, but worth recording separately because it lands on HTML buttons on content pages rather than canvas CTAs: the accent question is not confined to the games. | OPEN, folds into the U5 decision |
 | W9 | ludo | OBSERVATION | The computer opponents pick a random legal move, marked `AI (placeholder — random legal moves)` in the source. No page claims more than "computer opponents", so nothing is untrue, but the guide invites the reader to "put it into practice against three AI opponents". The homepage card also says "Roll the die" where the game rolls two. | OPEN, owner's call |
 | K4 | kaleido | MINOR | By default colour is the only thing separating three of the four glasses (all within 1.3:1 of each other in lightness). Mitigated by a built-in colourblind mode that swaps colour for shape, offered on the rules card, but it is off by default. | OPEN, by design |
 
@@ -788,3 +790,38 @@ size a person would hold and looking at it.
 Worth adding to the per-game audit: **does the page scroll on a phone, is the footer
 reachable, and does any link render in the browser default blue.** Three assertions,
 cheap to automate, and between them they would have caught all three of these.
+
+
+## The document sweep, 2026-08-21 (night)
+
+Built because the three worst findings of the day all came from rendering a page at phone
+size, and nothing in the existing tooling looks at documents. The sweeps measure canvases;
+the link checker reads hrefs; the contract check counts meta tags. A page can pass all
+three and be unusable.
+
+Forty pages at 390x844. Checks: can the page scroll and is its bottom reachable, is the
+footer shown, does any link render in the browser default blue, horizontal overflow, the
+contrast of every rendered text node against its effective background, images without
+alt, and heading order. Contrast maths null-tested in the browser first on six known
+values including two of this site's own pairs.
+
+**It immediately found W15**, the Kaleido guide locked on mobile. That is two
+unreachable-content bugs in one evening, in two different files, neither of which any
+previous check could see.
+
+**A hole in the detector, worth more than the finding.** The first version tested
+`documentElement.scrollHeight > innerHeight`. On a locked body that reports the VIEWPORT
+height, so **the lock hides its own symptom** and the page looks fine. Stained would have
+passed it too. `body.scrollHeight` still reports the real content height, 4220 against
+844, and the honest test is whether the last element on the page can be brought into view.
+Both are in the corrected version. The tell that caught it in the first place was not
+scrolling at all: it was the footer being absent on exactly one page of forty.
+
+**Everything else is clean.** After the two fixes: 40 of 40 pages scroll and reach their
+bottom, no default-blue links anywhere, no horizontal overflow at 390, every image has an
+alt, every page has exactly one h1 and no skipped heading levels, and the only contrast
+failures left are the three `Send a message` buttons in W16, which are the accent
+question, not a page bug.
+
+**Add these to every future per-game audit.** They are cheap, they run in one pass, and
+between them they would have caught W11, W14 and W15 on the day each shipped.
