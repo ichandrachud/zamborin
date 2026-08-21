@@ -84,14 +84,29 @@
     ctx.setTransform(s, 0, 0, s, 0, 0);
   }
   const wrap = canvas.parentElement;
+  // The wrap and the canvas ELEMENT have to be given the same box, always.
+  // chrome.css sizes #game from --canvas-w / --canvas-h, which are the LOGICAL
+  // frame, so any branch here that shrank the wrap without shrinking the canvas
+  // to match left a 760x600 canvas inside a smaller wrap under overflow:hidden,
+  // and the game was simply cut off. Measured on 2026-08-21 at a 1280x620
+  // window: wrap 588x464, canvas still 760x600, so 172px of width and 136px of
+  // height were never on screen. Setting both in one place is what makes that
+  // class of bug unrepresentable rather than merely fixed.
+  function setBox(w, h) {
+    w = Math.round(w); h = Math.round(h);
+    wrap.style.width = w + 'px';
+    wrap.style.height = h + 'px';
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+  }
   function fitFullscreen() {
-    if (MODE === 'mobile') { wrap.style.width = window.innerWidth + 'px'; wrap.style.height = window.innerHeight + 'px'; return; }
+    if (MODE === 'mobile') { setBox(window.innerWidth, window.innerHeight); return; }
     const a = LW / LH;
     if (document.body.classList.contains('focus-mode')) {
       const vw = window.innerWidth, vh = window.innerHeight;
       let cw = vw, ch = Math.round(vw / a);
       if (ch > vh) { ch = vh; cw = Math.round(vh * a); }
-      wrap.style.width = cw + 'px'; wrap.style.height = ch + 'px';
+      setBox(cw, ch);
       return;
     }
     // The card is 760 tall and the wrap took that as a fixed height, so on any
@@ -105,9 +120,8 @@
     // 28 either side: the page already puts a gap above the card, so taking
     // only one margin off left it sitting flush against the bottom edge.
     const avail = Math.max(360, window.innerHeight - top - 56);
-    const ch = Math.min(LH, avail), cw = Math.round(ch * a);
-    wrap.style.width = cw + 'px';
-    wrap.style.height = Math.round(ch) + 'px';
+    const ch = Math.min(LH, avail), cw = ch * a;
+    setBox(cw, ch);
   }
   function onResize() { if (MODE === 'mobile') setCanvasVars(); fitFullscreen(); resizeCanvas(); layout(); }
   window.addEventListener('resize', onResize);

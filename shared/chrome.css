@@ -59,8 +59,14 @@ a.brand:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; b
   color: var(--accent);
   text-transform: uppercase;
 }
+/* 44, not 36. The wordmark changed shape on 2026-08-21: it used to be lettering
+   alone, so the letters filled the box, and it is now a mark plus lettering with
+   the mark overshooting the type top and bottom. At 36 the letters measured
+   19.8px against the old 35px and the brand read undersized. 44 puts them back
+   to 24.2px. The logo is then 295px wide, which the 100px header carries
+   comfortably; below 1151px the brand is hidden on game pages anyway. */
 .brand-logo {
-  height: 36px;
+  height: 44px;
   width: auto;
   display: block;
 }

@@ -86,11 +86,15 @@ Severity: **BREAKS PLAY** | **VISUAL** | **MINOR** | **EMBED GAP**
 | W5 | cookies/, terms/, faq/, embed/ | MINOR, SEO | Cookies and Terms had no Open Graph or Twitter tags at all; FAQ and Embed had Open Graph but no Twitter card. Every other page has the full set. | FIXED and DEPLOYED 2026-08-21, mirroring the existing title and description, no new copy |
 | W6 | shared/new-game-template | MINOR, would repeat | The scaffold was three fixes behind the fleet: `chrome.css?v=13`, `analytics.js?v=2`, **no `shared/embed.js` at all**, and the favicon and logo by root-absolute path, which is the K2 bug the fleet was swept for. The next game copied from it would have shipped with no embed support and a logo that 404s off-origin. | FIXED and DEPLOYED 2026-08-21, template and README |
 | W7 | vercel.json | RESOLVED 2026-08-21 | The framing guard covered the ten content pages and left the nine shelved prototypes open, so any site could iframe them off our bandwidth. **Closed by deleting them** rather than by adding headers: the only routes left are the fifteen games, which are meant to be framable, and the content pages, which are guarded. |
-| W8 | mobile | **CORRECTED 2026-08-21, and the real defect is a different one** | The entry claimed stained and mobile pin at 760x600 while thirteen games scale down. Re-measured at 1280 wide across six heights from 900 to 500: **stained, kaleido and orbit are all 760x600 at every one of them**, canvas bottom 728, page scrolling in all cases. That is the locked site-wide desktop frame behaving as designed, and the "kaleido handles it, stained does not" reading in S5 only holds in the 768 to 1151 band. What the re-measurement DID find: **at 1280x620 Mobile's canvas is 760x600 inside a 588x464 wrap with `overflow: hidden`, so 172px of width and 136px of height are cut off.** Its `fitFullscreen` shrinks the wrap to the window and `resizeCanvas` never shrinks the canvas to match. Clean at 1280x900 and 900x600. | OPEN, and it is a clipping bug rather than a scrolling one |
+| W8 | mobile | RESOLVED 2026-08-21 | Mobile's `fitFullscreen` shrank the WRAP to the height available below the header and `resizeCanvas` never shrank the canvas element to match, so under `overflow: hidden` the game was cut off: measured at a 1280x620 window, wrap 588x464 against a 760x600 canvas, 172px of width and 136px of height never on screen. Fixed by giving both boxes in one `setBox()`, which makes the two unable to disagree rather than merely agreeing today. Re-measured at ten window sizes from 1280x900 down to 1280x500 and on two phones: **zero clipped pixels at every one**, with the transform scaling from 2.0 down to 1.2 so the whole sculpture stays on screen. | DONE |
 | U4 | untangle | RESOLVED and DEPLOYED 2026-08-21 | Undo and Restart added, and the game moved onto `shared/ui.js`. The control row is a house icon pill plus Undo and Restart, 40px tall, the same physical size as Prism's. Undo restores the dot exactly and **costs a move**, which is the rule Prism, Sluice, Bloom and Orbit already share for a scored counter, and is what dragging the dot back by hand would cost anyway. Restart re-lays the level with the counter at zero and does not re-fire `gameStart`. Keyboard z and r. The "beat your own score" tip is gone from the game page, and the How-to-play paragraph now states the undo cost plainly. | DONE |
 | U7 | untangle | VISUAL, pre-existing | The WIN card overflows the frosted playfield panel on a short frame. It needs about 350px of panel and the panel is `PLAY_H + 12`, so it overflows below roughly 530px of viewport height, which is every phone in landscape. It stays legible, because it spills onto a background of nearly the same colour, but it collides with the HUD above and the control row below. Not caused by the control band, which cost it 20px of an already-failing budget. `__untangle.winFit()` reports it. Fixing it properly means letting the win card use the whole frame rather than the playfield panel when the panel is too short, which is a redesign rather than a scale. | OPEN, owner's call |
 | U8 | untangle, tessera | OBSERVATION | The mobile layout reserves 50px of banner plus 22px of pad for an ad that is not running, and the reserve is unconditional while the paint is now gated on `ads-on`. On a 320px-tall frame that is 72px, nearly a quarter of the screen, held for nothing. Making the reserve conditional too would hand it back today at the price of a re-layout on the day ads switch on. | OPEN, owner's call |
-| W10 | kaleido, and probably more | MINOR, the gap that lets the bug return | The rules-card write-up says each of the six fixed games now carries a `menuFit()` or `rulesFit()`. **Kaleido does not.** It was the first one fixed and never got one; stained, prism, needle, bloom and sluice all have theirs. Separately, only Untangle has a `winFit()`, and the moment that existed it found the win card spilling out of its panel on a phone in PORTRAIT, unmeasured since launch. Five other games draw a result card that nothing can measure. | OPEN |
+| W10 | fleet | SWEPT 2026-08-21, one real defect found | Only Untangle had a `winFit()`, and the moment it existed it found its win card spilling out of its own panel on a phone in portrait. Swept all fifteen for the shape. **The distinction that decides it is what the card is centred on.** Untangle centred on the PLAYFIELD PANEL, which is only `PLAY_H` tall; bloom, sluice, prism, needle, zood and kaleido all centre on the full frame, which is always big enough, and stained's `endBlock()` already measures its own 178px need and falls back to covering the frame when there is no room. **Tessera was the one other game with Untangle's exact shape** and is fixed; see the write-up. Ludo also centres on a sub-panel but draws two short lines and no button, about 78px, inside a board that is most of the canvas. Kaleido still carries no fit detector of any kind, which is the original half of this entry and remains open. | Tessera FIXED; kaleido's missing detector OPEN |
+| W11 | index | **ACCESSIBILITY, and it was invisible** | The single link in the homepage's opening paragraph rendered in the browser's DEFAULT `#0000EE`, which measures **1.91:1** on the page background. Unreadable, on the most-read sentence on the site. The rule at the bottom of `index.html` styles `.lobby-about a` and was never extended to `.lobby-intro a`, so the intro's link had no colour of its own. `#4DC3FF` measures 9.04:1. Found by looking at a phone screenshot taken for something else entirely. | FIXED 2026-08-21 |
+| W12 | about, faq, guides, terms, privacy, cookies, contact, embed | LAYOUT | **On any viewport at or below 1151px these eight pages have no header at all**: no logo, nothing to tap home from the top. The collapse rule inside the 1151 media query scopes the footer, ad slots and sidebar to `body:not(.lobby-page)` but leaves `body .site-header .brand` unscoped, so it hides the brand everywhere. The homepage escapes only because `index.html` carries its own override restoring a 64px header. Pre-existing, and it means the new logo does not appear on eight pages on a phone. The footer nav is still there, so it is not a dead end; it is a missing masthead. | OPEN, owner's call |
+| W13 | index | MINOR, follow-on from the logo | The homepage pins its own mobile logo height and was left at 28px when the desktop header went to 44, so the new wordmark's letters sat at 15.4px there. Raised to 34, giving 18.7px letters and a 228px logo with 130px of clearance on a 390px phone. | FIXED 2026-08-21 |
+| W14 | stained | **BREAKS THE PAGE on mobile** | Stained is the only game of fifteen with no inline `<style>` block, and the piece that mattered was not the typography: the block carries the `@media (max-width: 1151px)` override that releases `body:not(.lobby-page)` from `position: fixed; overflow: hidden`. Without it, **on a phone the page could not scroll at all**. Measured at 390x844: `scrollHeight` equalled the viewport at 844, the footer was hidden, and the entire `.game-info` article sat at y=844, off-screen and unreachable. Orbit and Kaleido scroll to 3745 and 4230 at the same size. The article is the whole SEO case for the page and no phone visitor could reach a word of it. The same missing block also left the desktop measure at 1088px instead of 760, the body copy pure white instead of the dim grey, the line-height at browser default, and four inline links at the unstyled `#0000EE`, which is **1.91:1** on the page background. | FIXED 2026-08-21. Stained now matches Orbit on every measure at both sizes, and the canvas is untouched |
 | W9 | ludo | OBSERVATION | The computer opponents pick a random legal move, marked `AI (placeholder — random legal moves)` in the source. No page claims more than "computer opponents", so nothing is untrue, but the guide invites the reader to "put it into practice against three AI opponents". The homepage card also says "Roll the die" where the game rolls two. | OPEN, owner's call |
 | K4 | kaleido | MINOR | By default colour is the only thing separating three of the four glasses (all within 1.3:1 of each other in lightness). Mitigated by a built-in colourblind mode that swaps colour for shape, offered on the rules card, but it is off by default. | OPEN, by design |
 
@@ -711,3 +715,76 @@ in front of returning visitors. It is still worth having: those two were the onl
 assets on the site with no version at all, and W2 is what happens when versions drift.
 
 **Still held at 36px:** the header logo size. The specimens are with the owner.
+
+
+## The win-card sweep, 2026-08-21
+
+Prompted by Untangle: its win card had never been measured, and the first detector put
+on it found the card spilling out of its own panel on a phone in PORTRAIT. The obvious
+worry was that the rest of the fleet carried the same thing. Swept all fifteen.
+
+**One distinction decides the whole question: what the card is centred on.**
+
+| Centred on | Games | Verdict |
+|---|---|---|
+| The full frame | bloom, sluice (banner, no button, ~130px), prism, needle (banner + one CTA, ~196px), zood, kaleido | Safe. The frame is always larger than the card. |
+| Its own measured need | stained | Safe by construction. `endBlock()` declares `need = 178` and falls back to covering the whole frame when there is not room below the window. This is the pattern the others should copy. |
+| The frame's bottom edge | mobile | Safe. One CTA anchored to the frame, not to a panel. |
+| **A sub-panel** | **untangle, tessera** | **Both were broken.** Both fixed. |
+| A sub-panel, but tiny | ludo | Two short lines, no button, about 78px, inside a board that is most of the canvas. Low risk, unmeasured. |
+| No win card at all | orbit, tailwind, carrom, fold | n/a |
+
+So the fear was half right. It was not a fleet-wide pattern, but it was not Untangle
+alone either, and the one other game with the shape was broken in exactly the same way
+and by the same amount.
+
+### Tessera, measured
+
+Its game-over card centres on `GRID_Y + GRID_H / 2` with a bottom-anchored PLAY AGAIN
+button, unscaled and unclamped. It needs `GRID_H >= 204`. On a phone held sideways
+`GRID_H` comes out around 143, so the card ran out of the tinted panel at both ends with
+the button over the board.
+
+Swept about 100 sizes, and the before-and-after is from the same detector:
+
+- **Before: 12 failures, worst 44px.** Real devices affected: iPhone SE landscape 31px
+  over, Android landscape 11px, the **480x360 embed** 11px, iPhone 12 landscape 5px.
+- **After: zero failures, zero off-canvas, everything at full scale** bar one frame that
+  shrinks to 0.908.
+
+The scale alone could not do it. At a 300px-tall frame the grid is 117 and the BUTTON on
+its own is 52, so the panel can never hold the card at a legible size. It now falls back
+to the whole frame, which is Stained's answer to the identical problem. Below 360px tall
+it takes the frame; above that it stays in the panel at full size.
+
+`__tessera` did not exist before this, which is the whole reason the card was never
+measured. It now carries `overFit()` and `frame()`.
+
+**The lesson, and it is the rules-card lesson again in a different place:** the defect is
+never really "the card is too big". It is "the card is centred on a box that is not the
+one it needs to fit in, and nothing can say so".
+
+
+## Three findings that came out of looking at a screenshot, 2026-08-21
+
+The logo change needed checking on a phone. Nothing about that check was aimed at page
+layout, and it turned up the worst defect of the whole QC track.
+
+1. **Stained could not scroll on a phone.** W14. The article and the footer were
+   off-screen and unreachable, on the one game page whose long-form copy was written
+   most recently. One missing `<style>` block, present on the other fourteen.
+2. **The homepage's opening sentence had an unreadable link.** W11. Default browser
+   blue, `#0000EE`, at 1.91:1 on the page background. The rule styled `.lobby-about a`
+   and nobody extended it to `.lobby-intro a`.
+3. **Eight content pages have no header on a phone at all.** W12. Open; it is a
+   navigation decision rather than a defect, and the footer nav still covers the exits.
+
+**What to take from it.** Every one of these was invisible to the checks already being
+run. The link checker reads hrefs, not colours. The fit sweeps measure canvases, not
+documents. The contract check counts meta tags, not stylesheets. A page can pass all
+three and still be unusable, and the thing that caught it was rendering the page at the
+size a person would hold and looking at it.
+
+Worth adding to the per-game audit: **does the page scroll on a phone, is the footer
+reachable, and does any link render in the browser default blue.** Three assertions,
+cheap to automate, and between them they would have caught all three of these.

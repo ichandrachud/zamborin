@@ -1010,36 +1010,102 @@
     ctx.fillText('START', rightColMidX, btnY + btnH / 2 + 1);
   }
 
+  // How far a string reaches above its own centre, at the size given. Linear in
+  // font size for one face, so one measurement covers every scale.
+  function goAscent(px, weight, str) {
+    const f = ctx.font, b = ctx.textBaseline;
+    ctx.font = weight + ' ' + px + 'px Inter, sans-serif';
+    ctx.textBaseline = 'middle';
+    const a = ctx.measureText(str).actualBoundingBoxAscent || px * 0.36;
+    ctx.font = f; ctx.textBaseline = b;
+    return a;
+  }
+
+  // The game-over card is a stack of fixed offsets around the middle of the
+  // GRID, not of the frame, and the grid is only GRID_H tall. Unscaled it needs
+  // GRID_H >= 204, and on a phone held sideways GRID_H comes out around 143, so
+  // the card ran out of its own panel top and bottom with the PLAY AGAIN button
+  // over the board. Nothing could see it: this is the same shape as Untangle's
+  // win card, found in the same sweep on 2026-08-21.
+  //
+  // Same two-stage rule as the rules cards: shrink, and once shrinking further
+  // would go under the legibility floor, drop the decorative eyebrow rather
+  // than keep it too small to read. The button never scales.
+  const GO_DROP_EYEBROW_BELOW = 0.85;
+  const GO_SCALE_FLOOR        = 0.85;   // below this, take the whole frame instead
+  function gameOverLayout() {
+    const btnW = 280, btnH = 52;
+    const PAD  = 1;                       // real clearance, not a knife-edge
+    const topWithEyebrow = 80 + goAscent(12, '700', 'STACK FILLED');
+    const topScoreOnly   = 24 + goAscent(56, '800', '000');
+    const fitIn = (half, topNat) =>
+      Math.min(1, (half - PAD) / topNat, (half - PAD - btnH) / 60);
+
+    // Preferred: sit inside the grid panel, so the board stays visible around
+    // the card. Scaling alone cannot always get there, because on a short frame
+    // the BUTTON on its own is most of the panel's half-height: at a 300px-tall
+    // frame the grid is 117 and the button is 52. So when the panel cannot hold
+    // it at a legible scale, the card takes the whole frame instead and scrims
+    // the lot. Stained settles the same problem the same way, in endBlock().
+    const panelHalf = GRID_H / 2 + 10;
+    let s = fitIn(panelHalf, topWithEyebrow);
+    let showEyebrow = true;
+    if (s < GO_DROP_EYEBROW_BELOW) { showEyebrow = false; s = fitIn(panelHalf, topScoreOnly); }
+
+    if (s >= GO_SCALE_FLOOR) {
+      return { midY: GRID_Y + GRID_H / 2, half: panelHalf, scale: Math.min(1, s),
+               showEyebrow, fullFrame: false, btnW, btnH,
+               btnY: GRID_Y + GRID_H / 2 + 60 * Math.min(1, s) };
+    }
+
+    const frameHalf = H / 2;
+    let fs = fitIn(frameHalf, topWithEyebrow);
+    let frameEyebrow = true;
+    if (fs < GO_DROP_EYEBROW_BELOW) { frameEyebrow = false; fs = fitIn(frameHalf, topScoreOnly); }
+    fs = Math.max(0.72, Math.min(1, fs));
+    return { midY: H / 2, half: frameHalf, scale: fs, showEyebrow: frameEyebrow,
+             fullFrame: true, btnW, btnH, btnY: H / 2 + 60 * fs };
+  }
+
   function drawGameOver() {
+    const L = gameOverLayout(), s = L.scale;
     // Dark-tinted overlay so verdict text reads cleanly over any board state.
     ctx.fillStyle = 'rgba(14, 23, 38, 0.92)';
-    roundRect(GRID_X - 10, GRID_Y - 10, GRID_W + 20, GRID_H + 20, 14);
-    ctx.fill();
+    if (L.fullFrame) {
+      ctx.fillRect(0, 0, W, H);
+    } else {
+      roundRect(GRID_X - 10, GRID_Y - 10, GRID_W + 20, GRID_H + 20, 14);
+      ctx.fill();
+    }
 
     const midX = W / 2;
-    const midY = GRID_Y + GRID_H / 2;
+    const midY = L.midY;
+    const px = (base) => Math.max(8, Math.round(base * s));
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    ctx.font = '700 12px Inter, sans-serif';
-    ctx.fillStyle = C.accent;
-    ctx.fillText('STACK FILLED', midX, midY - 80);
+    if (L.showEyebrow) {
+      ctx.font = '700 ' + px(12) + 'px Inter, sans-serif';
+      ctx.fillStyle = C.accent;
+      ctx.fillText('STACK FILLED', midX, midY - 80 * s);
+    }
 
-    ctx.font = '800 56px Inter, sans-serif';
+    ctx.font = '800 ' + px(56) + 'px Inter, sans-serif';
     ctx.fillStyle = C.text;
-    ctx.fillText(String(score), midX, midY - 24);
-    ctx.font = '500 12px Inter, sans-serif';
+    ctx.fillText(String(score), midX, midY - 24 * s);
+    ctx.font = '500 ' + px(12) + 'px Inter, sans-serif';
     ctx.fillStyle = C.textDim;
-    ctx.fillText('FINAL SCORE', midX, midY + 8);
+    ctx.fillText('FINAL SCORE', midX, midY + 8 * s);
 
-    ctx.font = '700 14px Inter, sans-serif';
+    ctx.font = '700 ' + px(14) + 'px Inter, sans-serif';
     ctx.fillStyle = C.text;
-    ctx.fillText(wordsFound + ' WORDS · ' + lettersDropped + ' LETTERS', midX, midY + 36);
+    ctx.fillText(wordsFound + ' WORDS · ' + lettersDropped + ' LETTERS', midX, midY + 36 * s);
 
-    // Pill button — generous internal padding (≥36 px each side, 14 px top/bottom)
-    const btnW = 280, btnH = 52;
+    // Pill button — generous internal padding (≥36 px each side, 14 px top/bottom).
+    // Not scaled: it is a house size and a touch target.
+    const btnW = L.btnW, btnH = L.btnH;
     const bx = midX - btnW / 2;
-    const by = midY + 60;
+    const by = L.btnY;
     ctx.fillStyle = C.accent;
     roundRect(bx, by, btnW, btnH, btnH / 2);
     ctx.fill();
@@ -1047,6 +1113,33 @@
     ctx.font = '700 13px Inter, sans-serif';
     ctx.fillText('PLAY AGAIN  ·  PRESS ENTER', midX, by + btnH / 2 + 1);
   }
+
+  // ---------- DEBUG HANDLE ----------
+  // Tessera had none, which is why nothing ever measured the game-over card.
+  window.__tessera = {
+    get mode() { return MODE; },
+    get score() { return score; },
+    frame() { return { W: W, H: H, GRID_Y: GRID_Y, GRID_H: GRID_H, CELL: CELL }; },
+    // The game-over card's real extent against the tinted panel it sits in.
+    overFit() {
+      const L = gameOverLayout(), s = L.scale;
+      const top = L.showEyebrow
+        ? L.midY - 80 * s - goAscent(Math.max(8, Math.round(12 * s)), '700', 'STACK FILLED')
+        : L.midY - 24 * s - goAscent(Math.max(8, Math.round(56 * s)), '800', String(score || 0));
+      const bottom = L.btnY + L.btnH;
+      const panelTop = L.fullFrame ? 0 : GRID_Y - 10;
+      const panelBot = L.fullFrame ? H : GRID_Y + GRID_H + 10;
+      return {
+        W: W, H: H, mode: MODE, gridH: GRID_H, fullFrame: L.fullFrame,
+        scale: Math.round(s * 1000) / 1000, eyebrow: L.showEyebrow,
+        top: Math.round(top), bottom: Math.round(bottom),
+        overTop: Math.round(Math.max(0, panelTop - top)),
+        overBottom: Math.round(Math.max(0, bottom - panelBot)),
+        onCanvas: top >= 0 && bottom <= H,
+        fits: top >= panelTop && bottom <= panelBot,
+      };
+    },
+  };
 
   // ---------- LOOP ----------
   function loop(now) {

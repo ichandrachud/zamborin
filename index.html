@@ -30,7 +30,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./shared/tokens.css" />
-  <link rel="stylesheet" href="./shared/chrome.css?v=14" />
+  <link rel="stylesheet" href="./shared/chrome.css?v=15" />
 
   <style>
     body {
@@ -185,7 +185,12 @@
         align-items: center;
       }
       body.lobby-page .site-header .brand { display: flex; }
-      body.lobby-page .brand-logo { height: 28px; }
+      /* 34, not 28, for the same reason .brand-logo is 44 and not 36 on the
+         desktop header: the wordmark changed shape on 2026-08-21 and the
+         letters now sit at 55% of the box rather than filling it. 28 left
+         them at 15.4px. 34 puts them at 18.7px and the logo at 228px wide,
+         which clears a 320px phone with its 16px padding. */
+      body.lobby-page .brand-logo { height: 34px; }
     }
 
     .lobby-intro { max-width: 720px; }
@@ -195,7 +200,12 @@
     .lobby-about h2 { font-size: 24px; font-weight: 800; color: var(--text); letter-spacing: -0.3px; margin: 4px 0 10px; }
     .lobby-about h3 { font-size: 18px; font-weight: 700; color: var(--text); margin: 22px 0 4px; }
     .lobby-about p { margin: 10px 0; }
-    .lobby-about a { color: #4DC3FF; }
+    /* .lobby-intro was missing from this rule, so the one link in the
+       homepage's opening paragraph fell back to the browser default
+       #0000EE and measured 1.91:1 on the page background. Unreadable, on
+       the most-read sentence on the site. #4DC3FF measures 9.04:1. */
+    .lobby-about a,
+    .lobby-intro a { color: #4DC3FF; }
     @media (max-width: 720px) { .lobby-intro h1 { font-size: 27px; } }
   </style>
   <!-- Structured data for search engines + LLMs -->
