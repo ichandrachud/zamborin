@@ -120,7 +120,10 @@
     text:      '#FFFFFF',
     textDim:   '#C5CFE0',
     textMute:  '#8E9CB5',
-    accent:    '#D8523F',
+    // accent is a FILL under white type (4.85:1); accentHi is coral used as a
+    // mark on a dark surface (5.88:1). The #FF6B5C glows below are the same hi.
+    accent:    '#C24A39',
+    accentHi:  '#FF6B5C',
     dieFace:   '#FFFFFF',
     dieFace2:  '#F1F3F8',
     dieDot:    '#1a1f2e',
@@ -1051,7 +1054,7 @@
       ctx.beginPath(); ctx.arc(cx + 3, cy, 2.5, -Math.PI / 3, Math.PI / 3); ctx.stroke();
       ctx.beginPath(); ctx.arc(cx + 3, cy, 5,   -Math.PI / 3, Math.PI / 3); ctx.stroke();
     } else {
-      ctx.strokeStyle = C.accent;
+      ctx.strokeStyle = C.accentHi;
       ctx.lineWidth = 1.8;
       ctx.beginPath();
       ctx.moveTo(bx + 4, by + size - 4);

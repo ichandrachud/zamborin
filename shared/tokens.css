@@ -17,7 +17,16 @@
   --text-dim:  #C5CFE0;
   --text-mute: #8E9CB5;
 
-  --accent:    #D8523F;          /* coral, 4.55:1 white-on-fill */
+  /* Three coral tokens, because one value cannot serve every use. A fill under
+     white type has to be DARK enough; the same coral as TEXT on the dark page
+     has to be LIGHT enough. They pull in opposite directions.
+       --accent        fill under white type      white on it     4.85:1
+       --accent-hover  the hover state of a fill  white on it     6.15:1
+       --accent-text   coral used AS text/marks   on --bg         6.42:1
+     Never put white type on --accent-text: it measures 2.80:1. */
+  --accent:       #C24A39;
+  --accent-hover: #A93E2F;
+  --accent-text:  #FF6B5C;
   --accent-2:  #FFD23F;          /* sunshine highlight */
   --green:     #5DD39E;
 

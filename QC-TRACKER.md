@@ -77,7 +77,7 @@ Severity: **BREAKS PLAY** | **VISUAL** | **MINOR** | **EMBED GAP**
 | U1 | untangle, tessera | BREAKS PLAY (embed) | A game loaded inside a HIDDEN iframe and revealed later renders nothing, permanently. `safeViewport()` filters every reading above 120px, a `display:none` frame reports 0 for all of them, the filter empties, and `Math.min()` of an empty list is **Infinity**. That became the logical canvas size and left the 2d transform at **scale 0**: a canvas of exactly the right pixel size that paints nothing, and goes on painting nothing after the frame is shown. Measured 2026-08-21, scale 0.000 in both games. A closed accordion, an inactive tab panel and an off-screen carousel slide are all ordinary ways for a partner to place an embed. Untangle and Tessera bake their layout at load; Fold recomputes on resize and escapes, Tailwind escapes by another route. | FIXED and DEPLOYED 2026-08-21, verified across 10 reveal cases and confirmed live |
 | U2 | untangle | VISUAL (short frames) | The instructions card is a stack of fixed offsets either side of the frame's centre, with no clamp and no scale, so on a short frame it runs off the TOP rather than overlapping itself. Swept 145 heights: the boundary is exactly **430px of viewport height**, and below it the overhang grows 5px at 420, 35px at 360, 65px at 300. That takes "HOW TO PLAY" and then the top of the title. Hits every phone held sideways and the 480x360 embed. Not a lockout, because the rules and the button stay on screen. | FIXED and DEPLOYED 2026-08-21. Re-swept after the control row landed: zero failures, 300 to 1000px |
 | U3 | untangle, tessera | VISUAL | Both draw a dashed **"AD · 320 × 50" placeholder** into the canvas on mobile, ungated. Every HTML ad slot on the same page is hidden behind `body.ads-on`, which nothing sets, so a phone player saw an empty box advertising an ad slot under the board. The only two games of fifteen that do this. | FIXED and DEPLOYED 2026-08-21, gated on `ads-on`; the band stays reserved so switching ads on is still a visual no-op |
-| U5 | untangle | ACCESSIBILITY, moderate | White on the accent `#D8523F` measures **4.04:1** at 14px bold. 14px bold is not large text, so the bar is 4.5:1. This is the START / CONTINUE button and the NEXT LEVEL button, the primary action on both screens. The tier name in the HUD is the same accent on the page background at **4.07:1**. The house CTA in `shared/ui.js` is white at 17px on "the game's accent", so this is a palette question rather than an untangle bug, and Tailwind, Tessera, Kaleido and Ludo carry the same `#D8523F`. Null-tested: white/black 21.00, white/white 1.00, #767676/white 4.54. | OPEN, owner's call, it is a brand colour |
+| U5 | untangle, tessera, stained, ludo, tailwind, and 3 content pages | ACCESSIBILITY, moderate | White on the accent `#D8523F` measured **4.04:1** as a button fill, and the accent AS TEXT measured **4.07:1** on a card. One colour was doing two jobs that pull in opposite directions. | **RESOLVED 2026-08-22** by the token split. See the write-up below |
 | U6 | untangle | MINOR (AA) | Three of the twelve vertex colours fall under the 3:1 bar for graphical objects against the playfield: `#C2185B` at 2.45, `#7E57C2` at 2.76, `#3D5AFE` at 2.80. Mitigated in practice by each dot's own glow and a white highlight, and dot colour carries no meaning in this game, so it is legibility rather than information loss. | OPEN |
 | W1 | tarmac | NOT A FINDING, withdrawn | Logged as an SEO exposure because `tarmac/` is a bare prototype page carrying no `noindex` while the other eight shelved prototypes all carry one. **It is in `.gitignore`, so it is not in the repo and Vercel has never had it**; `zamborin.com/tarmac/` is a 404. It is the only page of the 49 on disk that is not deployed. A `noindex` was added to the local copy anyway, which is untracked and therefore not in this branch. | WITHDRAWN, no live exposure |
 | W2 | site-wide | MINOR, caching, DEPLOYED | All 16 guide pages asked for `shared/chrome.css?v=13` while the other 30 pages asked for `?v=14`. A returning visitor with v13 cached keeps getting the older stylesheet on guides only, so one site served two different chromes to the same person. | FIXED and DEPLOYED 2026-08-21 |
@@ -96,7 +96,7 @@ Severity: **BREAKS PLAY** | **VISUAL** | **MINOR** | **EMBED GAP**
 | W13 | index | MINOR, follow-on from the logo | The homepage pins its own mobile logo height and was left at 28px when the desktop header went to 44, so the new wordmark's letters sat at 15.4px there. Raised to 34, giving 18.7px letters and a 228px logo with 130px of clearance on a 390px phone. | FIXED 2026-08-21 |
 | W14 | stained | **BREAKS THE PAGE on mobile** | Stained is the only game of fifteen with no inline `<style>` block, and the piece that mattered was not the typography: the block carries the `@media (max-width: 1151px)` override that releases `body:not(.lobby-page)` from `position: fixed; overflow: hidden`. Without it, **on a phone the page could not scroll at all**. Measured at 390x844: `scrollHeight` equalled the viewport at 844, the footer was hidden, and the entire `.game-info` article sat at y=844, off-screen and unreachable. Orbit and Kaleido scroll to 3745 and 4230 at the same size. The article is the whole SEO case for the page and no phone visitor could reach a word of it. The same missing block also left the desktop measure at 1088px instead of 760, the body copy pure white instead of the dim grey, the line-height at browser default, and four inline links at the unstyled `#0000EE`, which is **1.91:1** on the page background. | FIXED 2026-08-21. Stained now matches Orbit on every measure at both sizes, and the canvas is untouched |
 | W15 | guides/kaleido | **BREAKS THE PAGE on mobile** | Second instance of W14, different file, found the same evening. `guides/kaleido/index.html` opens `<body>` with no class where all fourteen sibling guides open `<body class="lobby-page">`, so `body:not(.lobby-page) { position: fixed; overflow: hidden }` applied at phone width. Measured at 390x844: the article is **4220px inside an 844px locked viewport**, `scrollY` never moves off 0, the footer is `display: none`. **The entire strategy guide was unreachable past the first screenful.** Orbit's guide at the same size scrolls to 3491 with everything reachable. One missing attribute. | FIXED 2026-08-21. Now scrolls to 3492, bottom reachable, identical to Orbit |
-| W16 | about, contact, privacy | ACCESSIBILITY | The "Send a message" button is white on `#D8523F` at 15px, measuring **4.04:1** against a 4.5 bar. Same accent problem as U5, so the fix is the same `#C24A39`, but worth recording separately because it lands on HTML buttons on content pages rather than canvas CTAs: the accent question is not confined to the games. | OPEN, folds into the U5 decision |
+| W16 | about, contact, privacy | ACCESSIBILITY | The "Send a message" button was white on `#D8523F` at 15px, **4.04:1**. | **RESOLVED 2026-08-22** with U5. The document audit now reports **zero** contrast failures across all 40 pages, where these three were its only remaining ones |
 | W17 | guides/ | MINOR, type scale | All 15 card descriptions on the guides index render at **15px**, one under the site's 16px content-copy floor. Real body copy, not a label or a timestamp, so the exemptions do not cover it. The only page on the site where content copy sits under the floor once eyebrows, breadcrumbs and timestamps are excluded. | FIXED 2026-08-22, 15px to 16px. The audit now reports 0 items under the floor on that page, from 15 |
 | W18 | shared footer, guide breadcrumbs | MINOR, target size | The footer nav's nine links measure about **13px tall** and the guide breadcrumbs about **17px**, against the 24px of WCAG 2.5.8 Target Size (Minimum, AA). Both are navigation rather than links inside a sentence, so the inline exemption does not apply to them. One finding about two shared components rather than forty page findings. Easy miss on a phone; nothing is unreachable. | OPEN |
 | TE1 | tessera | **SILENT TOTAL FAILURE** | Tessera fetches its 358KB, 51,852-word dictionary at load. If that request fails, `VALID_WORDS` stays empty, **no word the player ever forms will score**, and the only signal is a `console.error`. Tiles keep falling and the game looks alive. `dictLoaded` is set on success and then **never read by anything**, so the flag that exists to describe this state is dead code. The slow-load case is genuinely fine, as the comment says, because the first tile takes seconds; it is the FAILED case that has no handling. A line on the canvas when the catch fires would close it. | **FIXED 2026-08-22**, and the failure path was tested rather than argued about: the fetch was pointed at a missing file, `dictFailed` came back true with 0 words, and the message rendered on the canvas in accent red where the controls hint sits. Restored and re-verified at 51,852 words. `dictLoaded` is gone; the flag that replaced it is read |
@@ -108,6 +108,11 @@ Severity: **BREAKS PLAY** | **VISUAL** | **MINOR** | **EMBED GAP**
 | FO4 | fold | **VISUAL, found by its own new detector** | Fold's win card is deliberately placed BELOW the assembled figure, and its comment says why: "the card never lands on the thing you just made. Centring buried it." On a short frame there is not room for that. The card is already at its 0.62 floor and still 219px tall against 139 to 179px of space, so it clamps upward and **lands on the picture the player just finished**. Measured: **35px of overlap at 480x360, the documented embed size**, 24 to 41px there across levels 1 to 60, 69px at iPhone SE landscape, 34px at iPhone 12 landscape. Nothing goes off-canvas and NEXT FIGURE stays reachable, so this is the reward being covered rather than a lockout. **The fix is a genuine design choice and not mechanical**: the picture and the scorecard both want the same space, so either the figure shrinks to make room, or the card accepts the overlap and earns it with more transparency. Held for the owner. | OPEN, needs a decision |
 | W9 | ludo | OBSERVATION | The computer opponents pick a random legal move, marked `AI (placeholder — random legal moves)` in the source. No page claims more than "computer opponents", so nothing is untrue, but the guide invites the reader to "put it into practice against three AI opponents". The homepage card also says "Roll the die" where the game rolls two. | OPEN, owner's call |
 | K4 | kaleido | MINOR | By default colour is the only thing separating three of the four glasses (all within 1.3:1 of each other in lightness). Mitigated by a built-in colourblind mode that swaps colour for shape, offered on the rules card, but it is off by default. | OPEN, by design |
+
+| W19 | index, contact, shared/contact-modal | **ACCESSIBILITY, and worse than the row it was found under** | Four button HOVER states put white type on a LIGHTER coral, which is the exact inverse of the U5 fix. The homepage's **Play now** and the Contact **email pill** hovered to `#FF6B5C` at **2.80:1**; the contact modal's trigger and primary button hovered to `#E66752` at **3.27:1**. Hovering a game card made its button less readable than leaving it alone, on the most-visited page on the site. Confirmed from the live page's computed styles, not from reading CSS. There is almost no headroom to go lighter and stay legible: the lightest coral holding 4.5:1 is `#CB4D3C`, exactly on the bar. | **FIXED 2026-08-22.** All four now deepen to `--accent-hover` `#A93E2F`, **6.15:1** |
+| W20 | guides/<game> x15 | MINOR, type scale | The `p.more` "More puzzles:" cross-link paragraph renders at **15px** on each of the 15 individual guide pages, one under the 16px content-copy floor. Same rule as W17, which fixed the guides INDEX; this is the sibling element on the guide pages themselves and the earlier fix did not reach it. Found by the document audit, which reports exactly one type-floor item on each of those 15 pages and none anywhere else. | OPEN, owner's call, same decision as W17 |
+| W21 | tailwind | OBSERVATION | `tailwind/play.js` carries a comment saying the two INK values are dark enough to hold AA against sky and grass "which the accent itself does not, so accent is used for marks and ink for type". But the BEST line's label at `play.js:670` is drawn in the accent as **12px/700 type** over the sky, which is the thing the comment says not to do. Not measurable by sweep, because the background is a photograph. Belongs with the sluice/fold/mobile reading pass. | OPEN |
+| K7 | kaleido | NOT A FINDING, scope note | Kaleido was the one game of six carrying `#D8523F` that was deliberately **left alone** by the accent split. Its `Z.accent` is not a UI token: it is one of the four glass colours in `PANE_COL`, plus its own glow at `play.js:1124`. Darkening it would move the very separations K4 and the colourblind mode were tuned against. Same reasoning the tracker already applies to sluice, fold and mobile. | NO CHANGE, deliberate |
 
 ## Pre-scan findings (static file reading only, nothing verified in a browser yet)
 
@@ -1001,6 +1006,77 @@ The tally on detectors is now: kaleido, stained, prism, needle, bloom, sluice, u
 fleet.
 
 
+## The accent split, 2026-08-22
+
+`#D8523F` was doing two jobs that pull in opposite directions. As a **fill** under white
+type it has to be dark enough; as **text** on the dark page it has to be light enough. One
+value served neither: 4.04:1 as a fill, 4.07:1 as text, against a 4.5 bar in both cases.
+
+Three tokens now, in `shared/tokens.css`:
+
+| Token | Value | Use | Measured |
+|---|---|---|---|
+| `--accent` | `#C24A39` | fill under white type | **4.85:1** |
+| `--accent-hover` | `#A93E2F` | the hover state of a fill | **6.15:1** |
+| `--accent-text` | `#FF6B5C` | coral as text or as a mark | **6.42:1** on `--bg` |
+
+`#FF6B5C` is not new; it was already `accentHi` in several palettes. The rule that keeps
+them straight is one line: **never put white type on `--accent-text`.** It measures 2.80:1,
+which is what W19 was.
+
+### What the split actually found
+
+The task was four tracker rows. The measurement turned up a fifth thing that was worse than
+any of them: **the hover states were failing harder than the rest states they replaced**, and
+one of them was on the homepage. Nothing had ever measured a hover, because every check runs
+against a page at rest.
+
+### Where it was applied, and where it was refused
+
+**Applied.** Untangle (2 fills, 3 text), Tessera (3 fills, 4 marks), Stained (4 fills, 1
+mark), Ludo (2 fills, 1 mark), Tailwind (**the button only**), plus the shared layer:
+`tokens.css`, `chrome.css` focus rings and `.brand-sub`, the homepage card CTA, the contact
+email pill, and both contact-modal buttons.
+
+**Refused, and this is the more useful half.** Two games were left carrying `#D8523F`:
+
+- **Kaleido**, because its accent is a **glass colour**, not a button. See K7.
+- **Tailwind's marks**, because they sit over a **photographic sky**, not the dark page, so a
+  LIGHTER coral makes them worse rather than better. Tailwind's own source comment already
+  says its accent does not hold AA against sky and grass. Only its CTA moved; the marks are
+  now `ACCENT_MARK`, unchanged, and named so the next sweep does not take them by accident.
+
+The rule this is an instance of is already in the tracker for sluice, fold and mobile:
+**a colour that is game art is not a token, and a contrast sweep over it returns a number
+with no meaning.** The split is mechanical only where the colour is chrome.
+
+### Verified, not assumed
+
+- Contrast maths **null-tested first**, in Node and again in the page's own JavaScript:
+  white/black 21.00, white/white 1.00, `#767676`/white 4.54. Per
+  [[feedback-simulations-need-a-null-test]].
+- Untangle measured by **canvas pixel readback** before and after, on the same screen at the
+  same level: fill `#D8523F` to `#C24A39`, three text sites `#D8523F` to `#FF6B5C`.
+- Stained, Tessera and Ludo each confirmed by readback of the real button interior:
+  `#C24A39` with a white label in all three. Stained's `menuFit()` still passes.
+- Homepage confirmed from computed style: rest 4.85, hover 6.15.
+- **Document audit, 40 pages at 390x844: zero contrast failures.** The three `Send a message`
+  buttons were its only remaining ones and they are gone. No scroll lock, no default-blue
+  link, no horizontal overflow, no failed resource.
+- Every 404 in the console is `/_vercel/*`, which has no file locally. Nothing else fails.
+
+**Not checked:** Tailwind's TRY AGAIN button in situ, because reaching it needs a completed
+launch and the CTA colour was verified in source only. Ludo's board was not re-audited; it
+remains in the zood/carrom/ludo mini-project.
+
+### One piece of hygiene that came with it
+
+`shared/tokens.css` — the file holding the entire palette — carried **no cache version on any
+of the 41 pages**, which is precisely the drift W2 was about. It is now `?v=1` on all 41,
+`chrome.css` went 15 to 16 on all 41, and `contact-modal.js` is `?v=1` on its 3. Verified: 41,
+41 and 3, with no page left behind. Also, `tokens.css` described the accent as
+"4.55:1 white-on-fill". It was 4.04. A wrong comment is a plausible reason this shipped at all.
+
 ## START HERE — session handoff, 2026-08-22
 
 Everything below the audit write-ups is history. This is the live state.
@@ -1010,18 +1086,14 @@ Everything described in this file is DEPLOYED unless a row says otherwise.**
 
 ### The order to work in
 
-1. **The accent decision unlocks four rows at once** (U5, W16, and the Tessera and content-page
-   instances). `#D8523F` is used two ways that pull opposite: as a button fill under white type
-   it needs to get darker, as text on the dark page it needs to get lighter. One value cannot
-   serve both, so it is two tokens: **`#C24A39`** for the fill, taking white from 4.04 to 4.85,
-   and **`#FF6B5C`** for the accent as text, taking it from 4.07 to 5.88. `#FF6B5C` is not a new
-   colour; it is already `accentHi` in several palettes. Scope is five games plus three content
-   pages. Mechanical once decided. Show one game before touching the rest.
+1. ~~The accent decision~~ **DONE 2026-08-22.** U5 and W16 closed, W19 found and fixed. On
+   branch `accent-split`, **not yet pushed.**
 2. **FO4**, fold's win card covering the assembled figure. Needs a taste call, not a technique.
-3. **The three copy and policy rows**: K6, W12, U8.
-4. **The per-game audits still to run**: zood, carrom and ludo, held back all along as their own
-   mini-project because they sit at non-standard frame sizes and share the least chrome. Sluice,
-   Fold and Mobile still have an open AX column, and that one is a reading pass, not a sweep.
+3. **The copy and policy rows**: K6, W12, U8, and now **W20** (the 15px `p.more` on 15 guide
+   pages, the same decision as W17).
+4. **The per-game audits still to run**: bloom and needle have never been driven; zood, carrom
+   and ludo are held back as their own mini-project. Sluice, Fold and Mobile still have an open
+   AX column, and that one is a reading pass, not a sweep. **W21 joins that pass.**
 
 ### The two tools, and how to run them
 

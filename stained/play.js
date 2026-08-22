@@ -49,7 +49,11 @@
     '#2F9150', // 6 green    = yellow + blue
     '#5A3E2E'  // 7 brown    = all three
   ];
-  var ACCENT = '#D8523F';          // house coral, from tokens.css
+  // Two corals, from tokens.css. ACCENT is a FILL under white type and has to
+  // be dark enough (4.85:1). ACCENT_MARK is coral used as a mark or outline on
+  // the dark card and has to be light enough (5.88:1).
+  var ACCENT = '#C24A39';
+  var ACCENT_MARK = '#FF6B5C';
 
   /* ---------- PRIMARY PIPS — prototype, 2026-08-20 ----------
      Stained asks you to read a colour and work out which primaries overlap to
@@ -1012,7 +1016,7 @@
                          { w: swW, dim: !pips });
     if (pips) {
       ctx.save();
-      ctx.strokeStyle = ACCENT; ctx.lineWidth = 2;
+      ctx.strokeStyle = ACCENT_MARK; ctx.lineWidth = 2;
       R.roundRect(ctx, sw.x, sw.y, sw.w, sw.h, sw.h / 2); ctx.stroke();
       ctx.restore();
     }

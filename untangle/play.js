@@ -238,7 +238,11 @@
     text:       '#FFFFFF',
     textDim:    '#C5CFE0',
     textMute:   '#8E9CB5',
-    accent:     '#D8523F',
+    // Two accents, because one value cannot serve both uses. accent is a FILL
+    // under white type, so it has to be dark enough (white on it, 4.85:1).
+    // accentHi is the accent AS TEXT on the dark page, so it has to be light
+    // enough (5.88:1 on bg). Swapping them fails both.
+    accent:     '#C24A39',
     accentHi:   '#FF6B5C',
     aligned:    '#5DD39E',
     panel:      '#1A2A45',
@@ -745,7 +749,7 @@
     ctx.fillStyle = C.text;
     ctx.fillText(String(runLevel), W / 2, 42);
     ctx.font = '700 11px Inter, sans-serif';
-    ctx.fillStyle = C.accent;
+    ctx.fillStyle = C.accentHi;
     ctx.fillText(runTier.name, W / 2, 60);
 
     // RIGHT: PAR
@@ -754,7 +758,7 @@
     ctx.textAlign = 'right';
     ctx.fillText('PAR', PLAY_X + PLAY_W, 18);
     ctx.font = '800 24px Inter, sans-serif';
-    ctx.fillStyle = moves > par ? C.accent : C.text;
+    ctx.fillStyle = moves > par ? C.accentHi : C.text;
     ctx.fillText(String(par), PLAY_X + PLAY_W, 42);
   }
 
@@ -927,7 +931,7 @@
     ctx.textBaseline = 'middle';
     if (L.showEyebrow) {
       ctx.font = '700 ' + L.labelSize + 'px Inter, sans-serif';
-      ctx.fillStyle = C.accent;
+      ctx.fillStyle = C.accentHi;
       ctx.fillText('HOW TO PLAY', midX, L.eyebrowY);
     }
 

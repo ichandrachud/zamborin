@@ -236,10 +236,17 @@ const FLY_PLANE_FRAC = 0.12;          // and in the wide shot
 const maxDrag = () => Math.min(260, W * 0.34);
 const GROUND_FRAC = 0.17;             // apron below the horizon
 
-// Palette from shared/tokens.css. ACCENT is the locked Zamborin coral; the two
-// INK values are dark enough to hold AA against sky and grass, which the accent
-// itself does not, so accent is used for marks and ink for type.
-const ACCENT = '#D8523F';
+// Palette from shared/tokens.css. ACCENT_MARK is the locked Zamborin coral; the
+// two INK values are dark enough to hold AA against sky and grass, which the
+// accent itself does not, so accent is used for marks and ink for type.
+//
+// ACCENT is the BUTTON fill only, and is darker so white type on it measures
+// 4.85:1 rather than 4.04:1. ACCENT_MARK is deliberately UNCHANGED: every other
+// use here sits over the sky photograph, not the dark page, so a lighter coral
+// would make those WORSE. Those marks need a reading pass against the art, not
+// a contrast sweep against a flat colour.
+const ACCENT = '#C24A39';
+const ACCENT_MARK = '#D8523F';
 const INK = 'rgba(14,23,38,0.92)';        // --bg at full strength
 
 const canvas = document.getElementById('game');
@@ -656,11 +663,11 @@ function bestLine() {
   if (S.best <= 0) return;
   const x = sx(S.best);
   if (x < -80 || x > W + 80) return;
-  ctx.strokeStyle = ACCENT;
+  ctx.strokeStyle = ACCENT_MARK;
   ctx.lineWidth = 2; ctx.setLineDash([7, 6]);
   ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, groundY); ctx.stroke();
   ctx.setLineDash([]);
-  ctx.fillStyle = ACCENT;
+  ctx.fillStyle = ACCENT_MARK;
   ctx.font = '700 12px Inter, system-ui, sans-serif';
   const near = x > W - 130;
   ctx.textAlign = near ? 'right' : 'left';
@@ -839,7 +846,7 @@ function hudSlot(x, align, label, value, sub, valueCol, subCol) {
 // The wind's needle, drawn small enough to sit inside the band beside its figure.
 function windNeedle(cx, cy, r) {
   const aw = Math.abs(S.wind), head = S.wind < 0;
-  const col = aw < 0.6 ? 'rgba(255,255,255,0.55)' : (head ? ACCENT : '#5DD39E');
+  const col = aw < 0.6 ? 'rgba(255,255,255,0.55)' : (head ? ACCENT_MARK : '#5DD39E');
   ctx.strokeStyle = 'rgba(255,255,255,0.28)';
   ctx.lineWidth = 1.5;
   ctx.beginPath(); ctx.arc(cx, cy, r, 0, 6.283); ctx.stroke();
@@ -977,7 +984,7 @@ function statBar(x, y, w, label, v, warm) {
   const bw = w, by = y + 4;
   ctx.fillStyle = 'rgba(255,255,255,0.13)';
   ctx.fillRect(x, by, bw, 5);
-  ctx.fillStyle = warm ? ACCENT : '#B0E0E6';        // --brand for the good stats
+  ctx.fillStyle = warm ? ACCENT_MARK : '#B0E0E6';        // --brand for the good stats
   ctx.fillRect(x, by, Math.max(2, bw * v), 5);
 }
 
@@ -1002,7 +1009,7 @@ function drawPick() {
     const sel = c.f.key === S.plane;
     ctx.fillStyle = sel ? '#1A2A45' : '#131F36';
     ZAM.roundRectPath(ctx, c.x, c.y, c.w, c.h, 12); ctx.fill();
-    ctx.strokeStyle = sel ? ACCENT : 'rgba(255,255,255,0.10)';
+    ctx.strokeStyle = sel ? ACCENT_MARK : 'rgba(255,255,255,0.10)';
     ctx.lineWidth = sel ? 2 : 1;
     ZAM.roundRectPath(ctx, c.x, c.y, c.w, c.h, 12); ctx.stroke();
 

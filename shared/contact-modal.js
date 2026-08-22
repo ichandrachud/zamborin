@@ -8,7 +8,7 @@
     .zb-contact-trigger {
       display: inline-block;
       padding: 14px 22px;
-      background: var(--accent, #D8523F);
+      background: var(--accent, #C24A39);
       color: #fff;
       border: 0;
       border-radius: 999px;
@@ -19,7 +19,7 @@
       cursor: pointer;
       transition: background 0.15s, transform 0.15s;
     }
-    .zb-contact-trigger:hover { background: #E66752; }
+    .zb-contact-trigger:hover { background: var(--accent-hover, #A93E2F); }
     .zb-contact-trigger:active { transform: scale(0.97); }
 
     .zb-modal-backdrop {
@@ -146,10 +146,10 @@
     }
     .zb-btn-ghost:hover { color: var(--text, #fff); }
     .zb-btn-primary {
-      background: var(--accent, #D8523F);
+      background: var(--accent, #C24A39);
       color: #fff;
     }
-    .zb-btn-primary:hover { background: #E66752; }
+    .zb-btn-primary:hover { background: var(--accent-hover, #A93E2F); }
     .zb-btn-primary:disabled { opacity: 0.55; cursor: wait; }
 
     .zb-modal-msg {

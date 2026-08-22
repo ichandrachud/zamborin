@@ -340,7 +340,9 @@
     cellEmpty2: '#22355A',          // alt checker cell (subtle)
     cellLine:   'rgba(255, 255, 255, 0.06)',
     tileFace:   '#FFFFFF',          // letter glyphs sit on dark tile bodies
-    accent:     '#D8523F',          // coral, darkened to 4.55:1 with white text
+    // accent is a FILL under white type (4.85:1). accentHi is coral used as
+    // TEXT or as a mark on the dark board (5.88:1). One value cannot do both.
+    accent:     '#C24A39',
     accentHi:   '#FF6B5C',
     text:       '#FFFFFF',
     textDim:    '#C5CFE0',
@@ -691,7 +693,7 @@
       ctx.beginPath(); ctx.arc(cx + 3, cy, 2.5, -Math.PI / 3, Math.PI / 3); ctx.stroke();
       ctx.beginPath(); ctx.arc(cx + 3, cy, 5,   -Math.PI / 3, Math.PI / 3); ctx.stroke();
     } else {
-      ctx.strokeStyle = C.accent;
+      ctx.strokeStyle = C.accentHi;
       ctx.lineWidth = 1.8;
       ctx.beginPath();
       ctx.moveTo(cx - 8, cy + 8);
@@ -746,7 +748,7 @@
     // Column hover guide (under active tile)
     if (active && !gameOver) {
       const gx = GRID_X + active.col * CELL;
-      ctx.fillStyle = C.accent;
+      ctx.fillStyle = C.accentHi;
       ctx.globalAlpha = 0.08;
       ctx.fillRect(gx, GRID_Y, CELL, GRID_H);
       ctx.globalAlpha = 1;
@@ -812,7 +814,7 @@
     const landRow = lowestEmpty(active.col);
     if (landRow !== -1 && landRow !== active.row) {
       const ly = GRID_Y + landRow * CELL + 2;
-      ctx.fillStyle = C.accent;
+      ctx.fillStyle = C.accentHi;
       ctx.globalAlpha = 0.2;
       roundRect(x, ly, CELL - 4, CELL - 4, 6);
       ctx.fill();
@@ -1098,7 +1100,7 @@
 
     if (L.showEyebrow) {
       ctx.font = '700 ' + px(12) + 'px Inter, sans-serif';
-      ctx.fillStyle = C.accent;
+      ctx.fillStyle = C.accentHi;
       ctx.fillText('STACK FILLED', midX, midY - 80 * s);
     }
 
