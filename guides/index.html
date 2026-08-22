@@ -33,7 +33,9 @@
     .hub .gcard { display: block; padding: 20px 22px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09); border-radius: 14px; text-decoration: none; transition: border-color .15s, background .15s; }
     .hub .gcard:hover { background: rgba(255,255,255,0.07); border-color: rgba(77,195,255,0.5); }
     .hub .gcard h2 { font-size: 20px; color: var(--text); font-weight: 700; margin: 0 0 5px; }
-    .hub .gcard p { margin: 0; color: var(--text-dim); font-size: 15px; }
+    .hub .gcard p { margin: 0; color: var(--text-dim); font-size: 16px; }  /* 16, not 15: these fifteen card descriptions were the only content copy
+     on the site sitting under the 16px floor once labels, breadcrumbs and
+     timestamps are excluded. */
     .hub .gcard .arrow { color: #4DC3FF; font-weight: 600; }
     @media (max-width: 720px) { .hub { padding: 30px 18px 56px; } .hub h1 { font-size: 30px; } }
   </style>

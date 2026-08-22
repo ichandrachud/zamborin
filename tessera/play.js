@@ -309,7 +309,13 @@
   // Loaded asynchronously at startup; no words match until it arrives, which
   // is harmless because the first tile takes seconds to fall.
   const VALID_WORDS = new Set();
-  let dictLoaded = false;
+  /* If this request fails the set stays empty, and an empty set means NO WORD
+     THE PLAYER FORMS WILL EVER SCORE. Tiles keep falling and the game looks
+     perfectly alive, so without something on screen the only signal is a
+     console error nobody will read. The flag here used to be `dictLoaded`, set
+     on success and then read by nothing at all: the state was described and
+     never acted on. This one is read, by drawHintRow. */
+  let dictFailed = false;
   fetch('./words.txt')
     .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
     .then(text => {
@@ -317,9 +323,11 @@
         const w = line.trim();
         if (w) VALID_WORDS.add(w);
       }
-      dictLoaded = true;
     })
-    .catch(err => console.error('TESSERA Words: dictionary load failed', err));
+    .catch(err => {
+      dictFailed = true;
+      console.error('TESSERA Words: dictionary load failed', err);
+    });
 
 
   // ---------- PALETTE — DARK PORTAL ----------
@@ -837,14 +845,18 @@
     // Optically centred between the grid bottom and either the banner top
     // (mobile) or the canvas bottom (desktop). actualBoundingBox* gives the
     // tight glyph rectangle so caps don't drift above true visual centre.
-    const text = MODE === 'mobile'
-      ? 'TAP A COLUMN TO MOVE THE TILE'
-      : '← →  MOVE   ·   ↓ / SPACE  FAST DROP   ·   CLICK A COLUMN TO MOVE';
+    /* The word list is what the whole game runs on, so its failure is the one
+       thing this row should say instead of the controls. */
+    const text = dictFailed
+      ? 'WORD LIST DID NOT LOAD. REFRESH THE PAGE TO PLAY.'
+      : (MODE === 'mobile'
+        ? 'TAP A COLUMN TO MOVE THE TILE'
+        : '← →  MOVE   ·   ↓ / SPACE  FAST DROP   ·   CLICK A COLUMN TO MOVE');
     const stripTop    = GRID_Y + GRID_H;
     const stripBot    = BANNER_H > 0 ? BANNER_Y : H;
     const stripHeight = stripBot - stripTop;
-    ctx.font = '500 11px Inter, sans-serif';
-    ctx.fillStyle = C.textMute;
+    ctx.font = (dictFailed ? '700 11px' : '500 11px') + ' Inter, sans-serif';
+    ctx.fillStyle = dictFailed ? C.accentHi : C.textMute;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
     const m = ctx.measureText(text);
@@ -1119,6 +1131,9 @@
   window.__tessera = {
     get mode() { return MODE; },
     get score() { return score; },
+    // Assertable, so the silent-failure path can be tested rather than argued about.
+    get dictFailed() { return dictFailed; },
+    get dictWords() { return VALID_WORDS.size; },
     frame() { return { W: W, H: H, GRID_Y: GRID_Y, GRID_H: GRID_H, CELL: CELL }; },
     // The game-over card's real extent against the tinted panel it sits in.
     overFit() {

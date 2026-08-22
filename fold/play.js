@@ -739,10 +739,10 @@
         for (const m of st) if (m.tr === r && m.tc === c && (m.fx || m.fy)) flipped++;
       }
       if (W < gw || H < gh) {
-        status = 'Folded too far — the sheet is now smaller than the figure. Undo, or restart.';
+        status = 'Folded too far: the sheet is now smaller than the figure. Undo, or restart.';
         tone = '#F08A7E';
       } else if (stacked) {
-        status = stacked + (stacked === 1 ? ' cell has' : ' cells have') + ' two pieces stacked — undo and fold elsewhere.';
+        status = stacked + (stacked === 1 ? ' cell has' : ' cells have') + ' two pieces stacked. Undo and fold elsewhere.';
         tone = '#F08A7E';
       } else if (flipped) {
         status = flipped + (flipped === 1 ? ' piece is' : ' pieces are') + ' in the right cell but mirrored.';
@@ -1016,7 +1016,11 @@
 
 
   // ---------- debug surface ----------
-  window.__foldfig = {
+  /* Named __foldfig until 2026-08-22, after the foldfig PROTOTYPE that was
+   deleted on the 21st. Anyone reaching for __fold on the shipped game found
+   nothing. The old name is kept as an alias so a bookmarked console snippet
+   does not break. */
+  window.__fold = {
     get state() {
       return {
         level, moves, phase, sheet: origW + 'x' + origH, footprint: W + 'x' + H,
@@ -1064,6 +1068,7 @@
     figures: FIGURES.map(f => f.name),
     render,
   };
+  window.__foldfig = window.__fold;   // the old name, so nothing that used it breaks
 
   // ---------- boot ----------
   setCanvasVars(); resizeCanvas();
