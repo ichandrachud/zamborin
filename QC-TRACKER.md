@@ -103,7 +103,8 @@ Severity: **BREAKS PLAY** | **VISUAL** | **MINOR** | **EMBED GAP**
 | FO1 | fold | MINOR | Two em dashes in copy drawn to the player, not in comments: "Folded too far — the sheet is now smaller than the figure" and "two pieces stacked — undo and fold elsewhere". The only drawn em dashes left in the four games checked tonight; tessera, sluice and mobile have none. | OPEN, T4 class |
 | FO2 | fold | MINOR, confusing | The shipped game exposes its debug handle as **`window.__foldfig`**, which is the name of the foldfig PROTOTYPE deleted on 2026-08-21. Anyone reaching for `window.__fold` finds nothing. | OPEN, one rename |
 | FO3 | fold, mobile | MINOR | Neither carries a fit detector. Kaleido is the third. After tonight the pattern is clear enough to state as a rule: a card drawn to a canvas with no way to measure it is how every fit bug on this site has survived. | OPEN, with W10 |
-| K5 | kaleido | **VISUAL, and K1 did not fully hold** | Kaleido's rules card was the FIRST fixed, on 2026-08-20, and the only one of the six that never got a detector. Built one tonight and it failed on the first run. **8 of 63 sizes still overlap**, all short frames, and one of them is **480x360, a documented embed size, by 4px**. iPhone SE in landscape (568x320) overlaps by **29px**; the worst is 109px at 375x300. In every failing case the two-stage has already exhausted itself: the demo is dropped and the type is at its 0.72 floor, so the card is clamped by 12 to 117px and the two buttons, which hang off its bottom edge, draw through the last rule. The CTA never leaves the canvas, so this is unreadable rules rather than a lockout. **The fix is the one Tessera got tonight**: when the card cannot hold the content at a legible scale, stop drawing a card and use the whole frame, which is what Stained's `endBlock()` has always done. Held for the owner because it changes the look at those sizes and 480x360 is a supported embed. | OPEN, recommendation ready |
+| K5 | kaleido | RESOLVED 2026-08-22 | The card could not hold its content at the 0.72 floor with the demo already dropped, so it clamped while the copy kept flowing and the two buttons hanging off its bottom edge drew through the last rule. 8 of 63 sizes, including **480x360, a size printed on the embed page**, and iPhone SE landscape by 29px. Fixed with the full-frame fallback: when the card cannot hold the copy, stop drawing a card. That returns the 20px outer margin, the card's internal padding and a tighter text inset, about 55px of height plus a wider column that wraps to fewer lines. **All 17 named devices now pass**, 480x360 at scale 0.80 rather than clamped, iPhone SE landscape clean. Card mode is byte-identical above the threshold, verified by screenshot at 1280x900, and all 100 levels still solve. | DONE, see K6 for what is left |
+| K6 | kaleido, and the embed page | MINOR, bounded | After K5, 12 of 147 sizes still overlap and every one is **both narrow and short**: width at or under about 440 AND height at or under about 360. The smallest thing that passes is 480x360, which is the documented embed size, and 568x320, a phone turned sideways. So the residual is containers smaller in BOTH axes than anything the site currently suggests. **The real gap is that /embed/ states no minimum**: its snippet says width 760 height 600 and nothing stops a partner choosing 360x320. A stated minimum of 480x360 would turn an unbounded promise into a bounded one, which is worth doing for the embed product regardless of this card. | OPEN, one line of copy on /embed/, owner's call |
 | W9 | ludo | OBSERVATION | The computer opponents pick a random legal move, marked `AI (placeholder — random legal moves)` in the source. No page claims more than "computer opponents", so nothing is untrue, but the guide invites the reader to "put it into practice against three AI opponents". The homepage card also says "Roll the die" where the game rolls two. | OPEN, owner's call |
 | K4 | kaleido | MINOR | By default colour is the only thing separating three of the four glasses (all within 1.3:1 of each other in lightness). Mitigated by a built-in colourblind mode that swaps colour for shape, offered on the rules card, but it is off by default. | OPEN, by design |
 
@@ -939,3 +940,33 @@ colours are game ART, not UI tokens: flowers, folded paper, Calder shapes. Runni
 contrast test over a pink flower produces a number with no meaning. What those three need
 is a person deciding which marks carry information and what sits behind them, which is a
 reading pass rather than a sweep. Their AX column stays open deliberately.
+
+
+## Kaleido's card: the full-frame fallback, 2026-08-22
+
+The third game to get this and the third time the same reasoning has applied, so it is
+worth stating as a pattern rather than a fix.
+
+**A card is a container that can be too small.** Stained's `endBlock()` has always known
+this: it declares `need = 178` and, when there is no room below the window, covers the
+whole frame instead. Tessera got the same treatment on 2026-08-21. Kaleido now has it too.
+
+What the fallback buys, measured: the card's 20px outer margin, its internal padding of
+26 + 22 at scale, and a tighter text inset once there is no card edge to respect. About
+55px of height, plus a wider column that wraps to fewer lines, which on a narrow frame is
+worth more than the padding.
+
+| | Before | After |
+|---|---|---|
+| 480x360, the documented embed | overlap 4px, clamped 12px, scale 0.72 | **fits**, gap 4px, scale **0.80** |
+| iPhone SE landscape 568x320 | overlap 29px | **fits** |
+| Named devices passing | 15 of 17 | **17 of 17** |
+| Sizes swept | 63 | 147 |
+
+Card mode is untouched above the threshold. The parameterisation was checked to produce
+exactly the old numbers, `pw - 96` for the rules and `pw - 70` for the lead at an inset of
+30 and a gutter of 36, and confirmed by screenshot at 1280x900 against the shot taken
+before the change. All 100 levels still solve.
+
+The scrim goes from 0.88 to 0.96 in frame mode, because without a card panel the copy sits
+straight on the game and the scrim has to carry the legibility the panel used to.

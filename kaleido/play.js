@@ -1583,40 +1583,76 @@
      2026-08-20, and it is the only one of the six that never got a detector: the
      write-up claimed all six had one and it was wrong. Everything below is a
      verbatim move of what menuOverlay already computed. */
+  const MENU_FLOOR = 0.72;
   function menuLayout() {
     const rules = rulesFor();
-    const pw = Math.min(LW - 48, 470);
-    const metrics = (s) => {
+    /* padTop and padBot are the CARD's internal padding, so they go to almost
+       nothing once there is no card. */
+    const metricsFor = (pw, padT, padB, bodyW, leadW) => (s) => {
       const m = { s,
-        padTop: 26 * s, padBot: 22 * s, titleAdv: 38 * s,
+        padTop: padT * s, padBot: padB * s, titleAdv: 38 * s,
         titleF: 34 * s, leadF: 16 * s, leadStep: 23 * s,
         bodyF: 15 * s, bodyStep: 20 * s, ruleGap: 12 * s,
         dotR: 11 * s, dotF: 13 * s, afterLead: 10 * s, afterBody: 20 * s };
       ctx.font = '500 ' + m.bodyF.toFixed(2) + 'px Inter, sans-serif';
       m.bodyH = 0;
-      for (const r of rules) m.bodyH += measureWrapped(r, pw - 96, m.bodyStep) + m.ruleGap;
+      for (const r of rules) m.bodyH += measureWrapped(r, bodyW, m.bodyStep) + m.ruleGap;
       ctx.font = '600 ' + m.leadF.toFixed(2) + 'px Inter, sans-serif';
-      m.leadH = measureWrapped(MENU_LEAD, pw - 70, m.leadStep);
+      m.leadH = measureWrapped(MENU_LEAD, leadW, m.leadStep);
       m.chrome = m.padTop + m.titleAdv + m.leadH + m.afterLead + m.bodyH + m.afterBody
                + ZUI.PILL.h + 12 + ZUI.CTA.h + m.padBot;
       return m;
     };
-    const maxH = LH - 20;
-    let M = metrics(1);
-    let demoR = MODE === 'mobile' ? 74 : 66;
-    while (demoR > 0 && M.chrome + demoR * 2 + 14 > maxH) demoR = demoR > 30 ? demoR - 4 : 0;
-    let ts = 1;
-    while (ts > 0.72 && M.chrome > maxH) { ts = Math.max(0.72, ts - 0.04); M = metrics(ts); }
-    const demoH = demoR > 0 ? demoR * 2 + 14 : 0;
-    const needed = M.chrome + demoH;
-    const ph = Math.min(maxH, needed);
-    return { rules, pw, M, ts, demoR, demoH, needed, maxH, ph,
-             px: (LW - pw) / 2, py: (LH - ph) / 2 };
+    /* Shrink the demo, then the copy, exactly as before. Returned so the same
+       ladder can be walked twice, once per container. */
+    const settle = (pw, maxH, padT, padB, wantDemo, inset, dotGutter) => {
+      const bodyW = pw - inset * 2 - dotGutter, leadW = pw - inset * 2 - 10;
+      const metrics = metricsFor(pw, padT, padB, bodyW, leadW);
+      let M = metrics(1);
+      let demoR = wantDemo ? (MODE === 'mobile' ? 74 : 66) : 0;
+      while (demoR > 0 && M.chrome + demoR * 2 + 14 > maxH) demoR = demoR > 30 ? demoR - 4 : 0;
+      let ts = 1;
+      while (ts > MENU_FLOOR && M.chrome > maxH) { ts = Math.max(MENU_FLOOR, ts - 0.04); M = metrics(ts); }
+      const demoH = demoR > 0 ? demoR * 2 + 14 : 0;
+      return { M, ts, demoR, demoH, needed: M.chrome + demoH, maxH, pw, bodyW, leadW, inset, dotGutter };
+    };
+
+    // Preferred: a card, centred, with the window visible around it.
+    const cardPw = Math.min(LW - 48, 470);
+    const card = settle(cardPw, LH - 20, 26, 22, true, 30, 36);
+
+    /* THE CASE THE CARD CANNOT COVER — 2026-08-21. With the demo gone and the
+       type at its floor the copy is STILL taller than the card is allowed to be
+       on a short frame, and the card clamps while the text keeps flowing, so the
+       two buttons hanging off its bottom edge draw through the last rule.
+       Measured: 12px short at the 480x360 embed, 37px on a phone held sideways.
+       Nothing could see it for two days because Kaleido had no detector.
+       So: stop drawing a card. The frame itself has the room, and dropping the
+       card returns its 20px margin AND its internal padding, about 55px, plus a
+       wider text column that wraps to fewer lines. Stained's endBlock() has
+       always done this and Tessera got it the same night. */
+    if (card.needed <= card.maxH + 0.5) {
+      const ph = Math.min(card.maxH, card.needed);
+      return { rules, fullFrame: false, pw: cardPw, M: card.M, ts: card.ts,
+               demoR: card.demoR, demoH: card.demoH, needed: card.needed,
+               maxH: card.maxH, ph, px: (LW - cardPw) / 2, py: (LH - ph) / 2,
+               bodyW: card.bodyW, leadW: card.leadW, inset: card.inset, dotGutter: card.dotGutter };
+    }
+    const framePw = Math.min(LW - 16, 560);
+    const frame = settle(framePw, LH - 8, 10, 12, false, 14, 30);
+    const ph = Math.min(LH - 8, frame.needed);
+    return { rules, fullFrame: true, pw: framePw, M: frame.M, ts: frame.ts,
+             demoR: 0, demoH: 0, needed: frame.needed, maxH: LH - 8, ph,
+             px: (LW - framePw) / 2, py: Math.max(4, (LH - ph) / 2),
+             bodyW: frame.bodyW, leadW: frame.leadW, inset: frame.inset, dotGutter: frame.dotGutter };
   }
 
   function menuOverlay(now) {
-    ctx.fillStyle = 'rgba(14, 23, 38, 0.88)'; ctx.fillRect(0, 0, LW, LH);   // --bg
     const L = menuLayout();
+    // Without a card behind it the copy sits straight on the game, so the scrim
+    // has to carry the legibility the card panel used to.
+    ctx.fillStyle = L.fullFrame ? 'rgba(14, 23, 38, 0.96)' : 'rgba(14, 23, 38, 0.88)';
+    ctx.fillRect(0, 0, LW, LH);   // --bg
     const rules = L.rules;
     const cx = LW / 2;
     const pw = L.pw;
@@ -1631,17 +1667,19 @@
     // floor, below which a clipped rule is the better failure.
     const M = L.M, ts = L.ts, demoR = L.demoR, demoH = L.demoH;
     const maxH = L.maxH, ph = L.ph, px = L.px, py = L.py;
-    ctx.fillStyle = Z.bgCard; ZUI.roundRectPath(ctx, px, py, pw, ph, 22); ctx.fill();
-    ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ZUI.roundRectPath(ctx, px, py, pw, ph, 22); ctx.stroke();
+    if (!L.fullFrame) {
+      ctx.fillStyle = Z.bgCard; ZUI.roundRectPath(ctx, px, py, pw, ph, 22); ctx.fill();
+      ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ZUI.roundRectPath(ctx, px, py, pw, ph, 22); ctx.stroke();
+    }
     let y = py + M.padTop;
     ctx.fillStyle = Z.text; ctx.font = '800 ' + M.titleF.toFixed(2) + 'px Inter, sans-serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'top';
     ctx.fillText('KALEIDO', cx, y); y += M.titleAdv;
     ctx.fillStyle = Z.textDim; ctx.font = '600 ' + M.leadF.toFixed(2) + 'px Inter, sans-serif';
-    y = wrapText(LEAD, cx, y, pw - 70, M.leadStep); y += M.afterLead;
+    y = wrapText(LEAD, cx, y, L.leadW, M.leadStep); y += M.afterLead;
     if (demoR > 0) drawDemo(cx, y + demoR, demoR, now);
     y += demoH;
-    const rx = px + 30;
+    const rx = px + L.inset;
     const step = Math.max(1, Math.floor(PANE_COL.length / Math.max(1, rules.length)));
     for (let i = 0; i < rules.length; i++) {
       ctx.fillStyle = PANE_COL[(i * step) % PANE_COL.length];
@@ -1650,7 +1688,7 @@
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(String(i + 1), rx + 11, y + M.dotR + 1);
       ctx.fillStyle = Z.textDim; ctx.font = '500 ' + M.bodyF.toFixed(2) + 'px Inter, sans-serif';
-      y = wrapText(rules[i], rx + 32, y, pw - 96, M.bodyStep, 'left') + M.ruleGap;
+      y = wrapText(rules[i], rx + L.dotGutter - 4, y, L.bodyW, M.bodyStep, 'left') + M.ruleGap;
     }
     // The colourblind switch, and it needs to be HERE rather than nowhere. The
     // mode was built, the FAQ on the page promises it, and the only ways to
@@ -1713,6 +1751,7 @@
       const ctaBottom = L.py + L.ph - 22;
       return {
         LW: LW, LH: LH, mode: MODE,
+        fullFrame: L.fullFrame,
         scale: Math.round(L.ts * 100) / 100,
         demoRadius: L.demoR,
         cardHeight: Math.round(L.ph),
