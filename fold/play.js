@@ -822,21 +822,9 @@
     // Light scrim, not a blackout: the picture the player just assembled is the
     // whole reward, so it stays readable behind the card.
     ctx.fillStyle = 'rgba(10,16,28,0.58)'; ctx.fillRect(0, 0, CW, CH);
-    const figBottom = cellY(0) + H * CELL;
-    const room = CH - 10 - (figBottom + fs(14));
-    // Size the card to the gap it actually has. On a small sheet the cells are
-    // large, the assembled figure is tall, and a fixed-size card simply would
-    // not fit underneath — so it shrinks rather than climbing over the picture.
-    let ms = Math.max(0.78, Math.min(1, Math.min(CH / 760, CW / 430)));
-    const pw = Math.min(CW - 34, 420);
-    const measure = (m) => winBody(0, 0, pw, m, false) + Math.round(50 * m) + Math.round(24 * m);
-    let ph = measure(ms);
-    for (let i = 0; i < 8 && ph > room && ms > 0.62; i++) { ms = Math.max(0.62, ms - 0.05); ph = measure(ms); }
-    const bh = Math.round(50 * ms);
-    const px = (CW - pw) / 2;
-    // Below the assembled figure, so the card never lands on the thing you just
-    // made. Centring buried it.
-    const py = Math.max(10, Math.min(figBottom + fs(14), CH - ph - 10));
+    const L = winCardLayout();
+    const figBottom = L.figBottom, room = L.room, ms = L.ms, pw = L.pw;
+    const ph = L.ph, bh = L.bh, px = L.px, py = L.py;
     ctx.fillStyle = '#16233a'; roundRect(px, py, pw, ph, 22); ctx.fill();
     ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(255,255,255,0.13)'; roundRect(px, py, pw, ph, 22); ctx.stroke();
     const endY = winBody(px, py, pw, ms, true);
@@ -849,6 +837,29 @@
     ctx.restore();
     uiButtons.push({ x: bx, y: endY, w: bw, h: bh, id: 'next', act: () => startLevel(level + 1) });
     lastCard = { top: Math.round(py), bottom: Math.round(py + ph), figBottom: Math.round(figBottom) };
+  }
+
+  /* The card's sizing, lifted out of the draw so winFit() can ask the same
+     question without one. Fold already recorded `lastCard` after drawing, which
+     is useless in a headless sweep: rAF never fires, so nothing is ever drawn
+     and there is nothing to read. Everything here is a verbatim move. */
+  function winCardLayout() {
+    const figBottom = cellY(0) + H * CELL;
+    const room = CH - 10 - (figBottom + fs(14));
+    // Size the card to the gap it actually has. On a small sheet the cells are
+    // large, the assembled figure is tall, and a fixed-size card simply would
+    // not fit underneath, so it shrinks rather than climbing over the picture.
+    let ms = Math.max(0.78, Math.min(1, Math.min(CH / 760, CW / 430)));
+    const pw = Math.min(CW - 34, 420);
+    const measure = (m) => winBody(0, 0, pw, m, false) + Math.round(50 * m) + Math.round(24 * m);
+    let ph = measure(ms);
+    for (let i = 0; i < 8 && ph > room && ms > 0.62; i++) { ms = Math.max(0.62, ms - 0.05); ph = measure(ms); }
+    const bh = Math.round(50 * ms);
+    const px = (CW - pw) / 2;
+    // Below the assembled figure, so the card never lands on the thing you just
+    // made. Centring buried it.
+    const py = Math.max(10, Math.min(figBottom + fs(14), CH - ph - 10));
+    return { figBottom, room, ms, pw, ph, bh, px, py };
   }
 
   // The scorecard is drawn by an animation frame, so on a device that throttles
@@ -1059,6 +1070,22 @@
     },
     get score() { return { ...score, ink, award, wouldScore: scoreLevel() }; },
     get geom() { return { CW, CH, boardOY, figBottom: Math.round(cellY(0) + H * CELL), card: lastCard }; },
+    /* Does the win card fit, and does it stay clear of the figure the player
+       just assembled? Both matter: the card is placed BELOW the picture on
+       purpose, and if there is not room it clamps to the top and lands on it. */
+    winFit() {
+      const L = winCardLayout();
+      return {
+        CW, CH, scale: Math.round(L.ms * 100) / 100,
+        cardTop: Math.round(L.py), cardBottom: Math.round(L.py + L.ph),
+        cardHeight: Math.round(L.ph), roomBelowFigure: Math.round(L.room),
+        figureBottom: Math.round(L.figBottom),
+        overlapsFigure: Math.round(Math.max(0, L.figBottom - L.py)),
+        overBottom: Math.round(Math.max(0, (L.py + L.ph) - CH)),
+        onCanvas: L.py >= 0 && L.py + L.ph <= CH,
+        fits: L.py >= L.figBottom - 0.5 && L.py + L.ph <= CH + 0.5,
+      };
+    },
     get buttons() { render(); return uiButtons.map(b => ({ id: b.id, cx: b.x + b.w / 2, cy: b.y + b.h / 2 })); },
     press(id) { render(); const b = uiButtons.find(z => z.id === id); if (!b) return 'no button ' + id; b.act(); return this.state; },
     goto(n) { startLevel(n); return this.state; },

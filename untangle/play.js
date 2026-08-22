@@ -686,15 +686,20 @@
   // bottom of the frame and hands the whole height back to the card. Measured:
   // on a 320px-tall frame, a small phone turned sideways, that is the
   // difference between the card fitting and clipping by 10px.
-  function ctrlCY() {
-    if (awaitingStart) {
+  function ctrlCY(forMenu) {
+    /* `forMenu` exists because rulesFit() has to answer "what would the card
+       look like when it is shown", and the card is only ever shown while
+       awaitingStart. Reading it after goto() otherwise measures a control row
+       in its PLAY position against a card that is not on screen, which reports
+       failures that cannot happen. Found doing exactly that on 2026-08-22. */
+    if (forMenu || awaitingStart) {
       const adsOn = document.body.classList.contains('ads-on');
       const bot = (BANNER_H > 0 && adsOn) ? BANNER_Y - 8 : H - 8;
       return Math.round(bot - UI.PILL.h / 2);
     }
     return Math.round(PLAY_Y + PLAY_H + 8 + UI.PILL.h / 2);
   }
-  function ctrlTop() { return ctrlCY() - UI.PILL.h / 2; }
+  function ctrlTop(forMenu) { return ctrlCY(forMenu) - UI.PILL.h / 2; }
 
   // Sizes come from shared/ui.js. Rebuilt every frame, because the hit boxes
   // ARE what was drawn: there is no second list to keep in step.
@@ -874,7 +879,7 @@
     const midX    = W / 2;
     // The card owns the space ABOVE the control band, not the whole frame: the
     // speaker pill is drawn in that band on this screen too.
-    const playBot = ctrlTop() - 8;
+    const playBot = ctrlTop(true) - 8;
     const midY    = playBot / 2;
     const btnW = UI.ctaWidth(ctx, ctaLabel());
     const btnH = UI.CTA.h;
@@ -963,29 +968,58 @@
   const WIN_DROP_SHARE_BELOW = 0.80;
   const WIN_SCALE_FLOOR      = 0.72;
   function winLayout() {
-    const midY = PLAY_Y + PLAY_H / 2;
-    const half = PLAY_H / 2 + 6;          // panel edge, measured from midY
     const topNat = 158;                   // eyebrow centre 150 up, plus its ascent
     // Below the CTA: 64*s to the button, then fixed button heights, then the
     // scaled gaps around them.
-    const fitWith    = Math.min(1, (half - 8) / topNat, (half - 8 - UI.CTA.h - UI.PILL.h) / (64 + 12 + 22));
-    const fitWithout = Math.min(1, (half - 8) / topNat, (half - 8 - UI.CTA.h) / (64 + 22));
-    let showShare = true;
-    let s = fitWith;
-    if (s < WIN_DROP_SHARE_BELOW) { showShare = false; s = fitWithout; }
-    s = Math.max(WIN_SCALE_FLOOR, Math.min(1, s));
-    const ctaY   = midY + 64 * s;
-    const shareY = ctaY + UI.CTA.h + 12 * s;
-    const hintY  = showShare ? shareY + UI.PILL.h + 22 * s : ctaY + UI.CTA.h + 22 * s;
-    return { midY, half, scale: s, showShare, ctaY, shareY, hintY };
+    const solveIn = (half) => {
+      const fitWith    = Math.min(1, (half - 8) / topNat, (half - 8 - UI.CTA.h - UI.PILL.h) / (64 + 12 + 22));
+      const fitWithout = Math.min(1, (half - 8) / topNat, (half - 8 - UI.CTA.h) / (64 + 22));
+      let showShare = true;
+      let s = fitWith;
+      if (s < WIN_DROP_SHARE_BELOW) { showShare = false; s = fitWithout; }
+      return { s, showShare, fits: s >= WIN_SCALE_FLOOR };
+    };
+
+    // Preferred: inside the frosted playfield panel, so the untangled board is
+    // still visible around the result.
+    const panelHalf = PLAY_H / 2 + 6;
+    const inPanel = solveIn(panelHalf);
+    if (inPanel.fits) return build(PLAY_Y + PLAY_H / 2, panelHalf, inPanel, false);
+
+    // THE CASE THE PANEL CANNOT COVER. On a phone held sideways the playfield is
+    // a couple of hundred pixels tall and the two BUTTONS alone are 90 of it, so
+    // no scale saves this: the card ran out of the panel at both ends and the
+    // text landed on the HUD above and the control row below. Take the whole
+    // frame instead, which is what Stained, Tessera and Kaleido all do when
+    // their container is too small. Measured before this: overflowing on every
+    // frame under 430px tall, by up to 51px.
+    const frameHalf = H / 2 - 4;
+    const inFrame = solveIn(frameHalf);
+    return build(H / 2, frameHalf, inFrame, true);
+
+    function build(midY, half, r, fullFrame) {
+      const s = Math.max(WIN_SCALE_FLOOR, Math.min(1, r.s));
+      const ctaY   = midY + 64 * s;
+      const shareY = ctaY + UI.CTA.h + 12 * s;
+      const hintY  = r.showShare ? shareY + UI.PILL.h + 22 * s : ctaY + UI.CTA.h + 22 * s;
+      return { midY, half, scale: s, showShare: r.showShare, ctaY, shareY, hintY, fullFrame };
+    }
   }
 
   function drawWon(now) {
+    const LW_ = winLayout();
     ctx.fillStyle = C.overlay;
-    roundRect(PLAY_X - 6, PLAY_Y - 6, PLAY_W + 12, PLAY_H + 12, 14);
-    ctx.fill();
+    if (LW_.fullFrame) {
+      // No panel to sit in, so the scrim takes the frame and has to be opaque
+      // enough to carry the copy on its own.
+      ctx.fillStyle = 'rgba(14, 23, 38, 0.96)';
+      ctx.fillRect(0, 0, W, H);
+    } else {
+      roundRect(PLAY_X - 6, PLAY_Y - 6, PLAY_W + 12, PLAY_H + 12, 14);
+      ctx.fill();
+    }
 
-    const L = winLayout();
+    const L = LW_;
     const midX = W / 2, midY = L.midY, s = L.scale;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -1163,8 +1197,10 @@
       const L = winLayout();
       const top = L.midY - 150 * L.scale - 8 * L.scale;
       const bottom = L.hintY + 8 * L.scale;
-      const panelTop = PLAY_Y - 6, panelBot = PLAY_Y + PLAY_H + 6;
+      const panelTop = L.fullFrame ? 0 : PLAY_Y - 6;
+      const panelBot = L.fullFrame ? H : PLAY_Y + PLAY_H + 6;
       return { scale: Math.round(L.scale * 1000) / 1000, share: L.showShare,
+               fullFrame: L.fullFrame,
                top: Math.round(top), bottom: Math.round(bottom),
                overTop: Math.round(Math.max(0, panelTop - top)),
                overBottom: Math.round(Math.max(0, bottom - panelBot)),
