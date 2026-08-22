@@ -999,3 +999,45 @@ every case the thing that settled it was a measurement nobody had been able to t
 The tally on detectors is now: kaleido, stained, prism, needle, bloom, sluice, untangle
 (two) and tessera all have one; fold has one; mobile does not need one. That is the whole
 fleet.
+
+
+## START HERE — session handoff, 2026-08-22
+
+Everything below the audit write-ups is history. This is the live state.
+
+**The repo is clean, on `main`, level with GitHub at `63815a6`, one branch, one worktree.
+Everything described in this file is DEPLOYED unless a row says otherwise.**
+
+### The order to work in
+
+1. **The accent decision unlocks four rows at once** (U5, W16, and the Tessera and content-page
+   instances). `#D8523F` is used two ways that pull opposite: as a button fill under white type
+   it needs to get darker, as text on the dark page it needs to get lighter. One value cannot
+   serve both, so it is two tokens: **`#C24A39`** for the fill, taking white from 4.04 to 4.85,
+   and **`#FF6B5C`** for the accent as text, taking it from 4.07 to 5.88. `#FF6B5C` is not a new
+   colour; it is already `accentHi` in several palettes. Scope is five games plus three content
+   pages. Mechanical once decided. Show one game before touching the rest.
+2. **FO4**, fold's win card covering the assembled figure. Needs a taste call, not a technique.
+3. **The three copy and policy rows**: K6, W12, U8.
+4. **The per-game audits still to run**: zood, carrom and ludo, held back all along as their own
+   mini-project because they sit at non-standard frame sizes and share the least chrome. Sluice,
+   Fold and Mobile still have an open AX column, and that one is a reading pass, not a sweep.
+
+### The two tools, and how to run them
+
+- `shared/qc/doc-audit.js` is committed and live. From any page on the origin:
+  `await fetch('/shared/qc/doc-audit.js').then(r=>r.text()).then(eval)` then
+  `ZQC.summary(await ZQC.run(ZQC.ALL_PAGES, {w:390, h:844}))`. Silence means clean.
+- Every game with a card carries a fit detector on its debug handle: `rulesFit`, `menuFit`,
+  `winFit` or `overFit`. Mobile has none ON PURPOSE, having no card.
+
+### The three things that cost the most to learn
+
+- **A card is not fixed until something can measure it, and the measurement is swept, not
+  sampled.** Three cards in three days were believed fixed and were not. Kaleido, Fold and
+  Untangle's win card were each caught by a detector on its FIRST run.
+- **A check that fires on every page is a claim about the check.** The document audit's first
+  run reported findings on all forty pages and every one was a false positive.
+- **The preview pane is unreliable for pictures and fine for numbers.** Measure geometry
+  through a same-origin iframe harness; use `resize_window` with explicit width and height.
+  Screenshots work sometimes and cannot be depended on unattended.
