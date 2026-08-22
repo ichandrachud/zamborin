@@ -1077,6 +1077,29 @@ of the 41 pages**, which is precisely the drift W2 was about. It is now `?v=1` o
 41 and 3, with no page left behind. Also, `tokens.css` described the accent as
 "4.55:1 white-on-fill". It was 4.04. A wrong comment is a plausible reason this shipped at all.
 
+## Deployed, 2026-08-22
+
+`1783cb8..d2d73b9` merged to main and pushed, live within about 15 seconds. Verified
+against the live site rather than assumed. The Browser pane is blocked from the live
+domain by policy, so this was read off the server with `curl`.
+
+- `shared/tokens.css?v=1` serves all three coral tokens with their measured ratios.
+- The five changed games serve the new value and, bar one, no longer serve the old:
+  untangle v19, tessera v26, stained v51, ludo v9 each carry `#C24A39` and zero
+  `#D8523F`. **Tailwind v77 carries both**, which is correct: `ACCENT` and
+  `ACCENT_MARK`. **Kaleido v74 still carries `#D8523F` and nothing else**, which is
+  also correct, and is the check that proves the refusal actually held.
+- All four hover rules live: the homepage CTA and the Contact pill on
+  `var(--accent-hover)`, and both contact-modal buttons on
+  `var(--accent-hover, #A93E2F)`.
+- `#FF6B5C` no longer appears anywhere in `index.html`.
+- **All 39 sitemap routes return 200**, and every one asks for `tokens.css?v=1` and
+  `chrome.css?v=16`. Zero stale, zero non-200.
+
+The 40-page document audit was run against the LOCAL tree before the push, not against
+production, because the pane cannot reach the live domain. The files served are
+byte-identical to what was audited, but that is an inference, not a live measurement.
+
 ## START HERE — session handoff, 2026-08-22
 
 Everything below the audit write-ups is history. This is the live state.
@@ -1086,8 +1109,8 @@ Everything described in this file is DEPLOYED unless a row says otherwise.**
 
 ### The order to work in
 
-1. ~~The accent decision~~ **DONE 2026-08-22.** U5 and W16 closed, W19 found and fixed. On
-   branch `accent-split`, **not yet pushed.**
+1. ~~The accent decision~~ **DONE and DEPLOYED 2026-08-22**, `d2d73b9`. U5 and W16 closed,
+   W19 found and fixed, W20/W21/K7 logged. Branch merged and deleted.
 2. **FO4**, fold's win card covering the assembled figure. Needs a taste call, not a technique.
 3. **The copy and policy rows**: K6, W12, U8, and now **W20** (the 15px `p.more` on 15 guide
    pages, the same decision as W17).
