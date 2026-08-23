@@ -44,9 +44,9 @@ Delisted and NOT in scope: socket, bunny, empyrean, foldfig, pane, pins, plumb, 
 | 10 | sluice | OK | OK | OK | - | OK | OK | OK | audited 2026-08-21 night. 100/100 levels solve. Only AX left |
 | 11 | fold | OK | OK | OK | - | ~ | OK | OK | audited 2026-08-21 night. 60/60 levels solve. FO1-FO3 open |
 | 12 | mobile | OK | OK | OK | ~ | OK | OK | OK | audited 2026-08-21 night, 39/39 balance exactly. **M4 was a dead end and is fixed.** M1-M3 open |
-| 13 | zood | - | - | - | - | - | - | - | |
-| 14 | carrom | - | - | - | - | - | - | - | |
-| 15 | ludo | - | - | - | - | - | - | - | |
+| 13 | zood | - | ! | - | - | ~ | - | - | audited 2026-08-22 (partial). **Z1 breaks on rotation.** No debug handle, so FN not driven |
+| 14 | carrom | - | OK | - | - | ~ | - | - | audited 2026-08-22 (partial). Survives rotation. No debug handle, so FN not driven |
+| 15 | ludo | - | ! | - | - | ~ | - | - | audited 2026-08-22 (partial). **Z1 breaks on rotation.** No debug handle, so FN not driven |
 
 Row order matches the homepage card order.
 
@@ -1252,6 +1252,35 @@ on `/guides/bloom/` and `/guides/needle/`, the two files edited earlier the same
 Measured directly and again with a cache-busting query, both are 0: `ZQC.run` fetches
 pages without `no-store`, so a page edited during a session can be read stale. Add a
 cache-buster when auditing something just changed.
+
+| Z1 | zood, ludo | **BREAKS USABILITY on a phone, and no event can recover it** | Both bake their logical size at load: `let W, H; if (MODE === 'mobile') { W = innerWidth; H = innerHeight; }`, which then drives the `--canvas-w` / `--canvas-h` CSS variables. `resizeCanvas()` re-reads the rect and fixes the backing store and the transform, so the ASPECT always agrees and the classic narrow-strip test passes, but **W and H themselves never change and neither do the CSS variables**. Measured at 812x375: loaded fresh the canvas is 500x375 in Zood and 375x375 in Ludo; **rotated into that size from portrait both collapse to 173x375, 21.3% of the width**, and dispatching `resize` AND `orientationchange` by hand recovers neither. This is P6 confirmed. **Carrom is unaffected**, because a square board sized to the smaller axis cannot get its aspect wrong. | OPEN, and see Z2 for why it is not a one-line fix |
+| Z2 | zood | SCOPE NOTE on Z1 | Zood cannot simply recompute W and H on rotation. `COLS`, `TILE` and `MAX_ROWS` are `const`, derived from W and H at module load, and they define the bubble grid itself. Changing the logical size mid-game means rebuilding the grid and re-mapping every bubble on it, which is a redesign rather than a patch. **Ludo is more tractable**: it already has a `computeLayout()` that could be re-run. So Z1 is one finding with two different sized fixes, and the cheap options are worth weighing first: lock the orientation, or show a rotate-back hint, or accept and document. | OPEN, owner's call |
+| Z3 | carrom | MINOR | The only game of fifteen with **no `localStorage` key at all**. It has its own inline `AudioContext` (see S4), but nothing persists, so the sound setting does not survive a reload. Every other game namespaces something under `zamborin-<game>.` | OPEN |
+| Z4 | carrom, ludo | MINOR | Em dashes in strings drawn to the player, not comments: carrom 3 ("Queen pocketed — cover it with an own piece next shot.", " covered the Queen — claimed.", "Cover missed — Queen returned to centre.") and ludo 2 ("No legal moves — ", "No move with remaining die — turn ends."). Same family as FO1 and B2, both of which were recast. | OPEN |
+| Z5 | zood, carrom, ludo | MINOR, and it is why FN is still blank | **None of the three exposes a debug handle**, so unlike the other twelve there is no way to drive levels, assert on state, or measure a card. They are the only games on the site that cannot be measured, which is precisely the condition that hid every card bug found this week. Giving each a small handle is the enabling work for their FN, AX and card columns. | OPEN |
+
+## Zood, Carrom and Ludo: the sizing pass, 2026-08-22
+
+Held back all along as their own mini-project, and the reason was right: they share the
+least chrome and sit at non-standard frame sizes. The structural pre-scan and the
+sizing tests are done; **functionality is not, and cannot be until Z5 is fixed.**
+
+**P6 is confirmed, and sharper than it was written.** The prediction was that these three
+would show the narrow-strip bug. Two of them do, and not in the way the existing test
+looks for. The aspect always agrees, so the narrow-strip assertion PASSES; what breaks is
+that the logical size is captured once at load, so after a rotation the canvas is the
+right shape and a third of the right size.
+
+**The test that finds it is not the test we had.** Every previous sizing check either
+loaded a page at a size or compared CSS aspect to backing-store aspect. Neither catches
+this. What catches it is loading at one orientation and then changing to the other, and
+comparing against a FRESH load at the destination size. Zood: 500x375 fresh, 173x375
+rotated. Ludo: 375x375 fresh, 173x375 rotated.
+
+**And dispatching the events by hand is what proved it is real.** Bloom looked identical
+earlier the same day and was a harness artefact: firing `resize` re-fitted it instantly.
+Here `resize` and `orientationchange` both change nothing, because nothing recomputes W
+and H. The same two-step told the truth in both directions.
 
 ## START HERE — session handoff, 2026-08-22
 
