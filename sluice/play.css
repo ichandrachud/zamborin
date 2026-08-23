@@ -4,7 +4,7 @@
 
 /* Splash artwork per mode. The .splash frame, cover-sizing and fade all come
    from ../shared/chrome.css — we only supply the background image.
-   splash-desktop.jpg?v=2 is 1120x1280, exactly the 560x640 desktop canvas ratio,
+   splash-desktop.jpg is 1120x1280, exactly the 560x640 desktop canvas ratio,
    so cover-sizing crops nothing at all. */
-body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=2'); }
-body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=2'); }
+body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=4'); }
+body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=4'); }

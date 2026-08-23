@@ -6,5 +6,5 @@
    land; while they are off the boot script in index.html sees no background
    image and drops the splash instantly rather than holding a blank card. */
 
-body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=3'); }
-body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=3'); }
+body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=4'); }
+body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=4'); }

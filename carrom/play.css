@@ -7,4 +7,4 @@
 
 /* Splash image — single 2048×2048 JPG used for both desktop and mobile,
    since Carrom's canvas is square in either mode. */
-.splash { background-image: url('./carrom-splash.jpg'); }
+.splash { background-image: url('./carrom-splash.jpg?v=4'); }

@@ -1497,6 +1497,41 @@ sets. Measured on all four plus orbit as a control, at 1280x900 and 390x844:
 | P2 | prism | **BREAKS THE EMBED PROMISE. FIXED 2026-08-24** | Prism's rules card overflowed at **4 of 18 sizes**, all short frames, including **480x360, which `/embed/` now names as the smallest supported frame**, by 25px, and 568x320 (iPhone SE landscape) by 49px. The card was already at its 0.72 type floor with nowhere left to shrink. The source note said Prism cannot always win this and that shortening the copy belongs to the owner, which is still true of the COPY, **but the full-frame fallback had never been tried here** and that is a container change, not a copy one. It buys the 22px outer margin each side, the card's internal insets, and a wider column that wraps to fewer lines. Now **19 of 20 sizes pass**: 480x360 fits at scale **0.80**, which is BETTER type than the 0.72 it used to clamp to, 568x320 and 600x340 both fit, and **16 sizes stayed a card untouched**. The one residue is 400x300, still 76px over, down from 132, and it is below the stated minimum. Verified by screenshot in both modes | DONE |
 | Q1 | fleet | **NOT A FINDING, my check was wrong. Recorded so it is not re-raised** | A fleet sweep asserting `fits === true` on every detector reported 8 failures. Every one was the check. **Stained's `menuFit()` has no `fits` key at all**, returning `textUnderButton: false` instead, so `!!undefined` read as a failure while the card was fine. **Fold's `winFit()` is meaningless outside the won phase**, and driven to a real win it returns `fits: true, overlap 0`. Only Prism's was real, and that became P2. **The detectors have inconsistent return shapes**, which is worth knowing before the next sweep: 9 of 10 expose `fits`, Stained does not | OPEN, minor: give Stained's detector a `fits` key |
 
+## Page weight, 2026-08-24 (overnight) — 28.7 MB of JPEG down to 13.7 MB
+
+Audited because ad viewability depends on the page actually rendering, and because the
+About page claims every game "loads in about a second".
+
+**The dimensions were never the problem.** Every splash is already a sensible retina size,
+1520x1200 desktop and 1170x2532 mobile, and they are all the SAME size. What varied was
+the compression, by a factor of nine: **sluice's mobile splash was 2,975 KB while
+tessera's was 180 KB at the same dimensions.** That is an encoder problem, not an art
+problem, which is what made it safe to fix without touching a single composition.
+
+**Sluice's mobile splash was nearly 3 MB, served to phones on mobile data.**
+
+**Tooling matters more than the setting.** `sips` at q=80 only reached 1,209 KB. `mozjpeg`
+via `cjpeg -quality 86 -optimize -progressive` reached **670 KB**, and matched what WebP
+achieved at the same quality — so the JPEG path was taken, because it needs no CSS or
+markup change and therefore carries no risk of a missed reference.
+
+**Quality was measured, not assumed.** The recompressed splash was diffed against the
+original in the browser: mean absolute difference 2.57/255 and **PSNR 36.9 dB**, which is
+"not perceptible in normal viewing", and that is measured against an original which was
+itself already lossy. q=90 and q=92 were tested and rejected as diminishing returns.
+
+**33 files rewritten, 8 correctly skipped** because they were already efficient (kaleido,
+needle, stained and tailwind's mobile splash all came out LARGER at q=86, which is the
+check doing its job). Best results: mobile desktop -87%, orbit desktop -86%, prism -85%,
+untangle-og -84%, sluice mobile -78% and still the largest on the site at 670 KB.
+
+**Every reference normalised to `?v=4`.** The versions had drifted again into a mix of
+`?v=1`, `?v=2`, `?v=3` and unversioned, which is W2 repeating, so all splash and teaser
+references are now on one version and every `play.css` was bumped.
+
+**Verified**: 13 of 13 recompressed images load with dimensions preserved exactly, OG
+images still 1200x630, and the games render.
+
 ## START HERE — session handoff, 2026-08-22
 
 Everything below the audit write-ups is history. This is the live state.

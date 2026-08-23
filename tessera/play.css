@@ -5,5 +5,5 @@
    ============================================================ */
 
 /* Splash images live inside this game's folder. */
-body.mode-desktop .splash { background-image: url('./splash-desktop.jpg'); }
-body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg'); }
+body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=4'); }
+body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=4'); }

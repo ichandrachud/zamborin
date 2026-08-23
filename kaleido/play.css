@@ -9,5 +9,5 @@
    which matches a modern phone almost exactly; the wordmark sits at 77%
    of the width, inside the 82% that survives a cover-crop on the
    narrowest viewport worth designing for. */
-body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=1'); }
-body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=1'); }
+body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=4'); }
+body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=4'); }

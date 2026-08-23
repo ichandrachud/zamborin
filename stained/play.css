@@ -14,5 +14,5 @@
    wordmark sits between 26% and 68% of the height, so it survives. Checked
    against the house guideline of keeping key art inside the central 90% width
    and 85% height. Fix the art if that is ever breached, never the CSS. */
-body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=1'); }
-body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=1'); }
+body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=4'); }
+body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=4'); }

@@ -5,4 +5,4 @@
    ============================================================ */
 
 body.mode-desktop .splash { background-image: url('./untangle-desktop.jpg'); }
-body.mode-mobile  .splash { background-image: url('./untangle-mobile.jpg'); }
+body.mode-mobile  .splash { background-image: url('./untangle-mobile.jpg?v=4'); }

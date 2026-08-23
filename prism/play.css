@@ -13,7 +13,7 @@
    actually set: with these commented out it drops the splash immediately rather
    than holding a blank card for 2.7 seconds. */
 
-body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=1'); }
+body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=4'); }
 
 
-body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=1'); }
+body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=4'); }

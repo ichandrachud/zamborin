@@ -1262,7 +1262,13 @@
       return { cardH: m.ph, frameH: LH, clamped: m.ph >= LH - 24,
                contentBottom: Math.round(menuContentBottom),
                ctaTop: Math.round(menuCtaTop),
-               textUnderButton: menuContentBottom > menuCtaTop };
+               textUnderButton: menuContentBottom > menuCtaTop,
+               // Q1. Every other fit detector on the site exposes `fits`, and this
+               // one did not, so a fleet sweep asserting on it read `undefined` as
+               // a failure and reported this card broken at all four sizes when it
+               // was fine. The number that matters here is textUnderButton; `fits`
+               // is its inverse, added so one assertion works across all ten.
+               fits: !(menuContentBottom > menuCtaTop) };
     }
   };
 })();

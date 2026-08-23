@@ -9,5 +9,5 @@
    The ?v= is deliberate. Any browser that hit this page before the art was in
    place cached a 404 against the bare filename and would keep showing a blank
    panel; a versioned URL is a different cache entry. Bump it when art changes. */
-body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=2'); }
-body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=2'); }
+body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=4'); }
+body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=4'); }
