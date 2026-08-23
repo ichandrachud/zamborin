@@ -488,7 +488,7 @@
   const MENU_SUB = 'Bring water from the tap to every flower.';
   const MENU_RULES = ['Tap a pipe to rotate it.',
                       'Water flows from the tap through the pipes that line up.',
-                      'A flower blooms only when the water reaches it — open them all.'];
+                      'A flower blooms only when the water reaches it. Open them all.'];
   let menuFitState = null;              // last card fit, read by the debug handle
 
   function menuOverlay() {
