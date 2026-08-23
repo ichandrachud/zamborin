@@ -1421,6 +1421,68 @@ would have been a reason to think harder, not a reason to keep the risk.
 **Not legal advice.** Anything material here wants a professional, and the removal is a
 cheap way to stop needing one.
 
+## ADS READINESS, audited 2026-08-24 (overnight)
+
+The goal is switching ads on at the earliest. Audited end to end. **Three blockers, and
+two of them are dashboard tasks that only the account owner can do.**
+
+### A1. There is no consent banner, and five pages say there is
+
+`about`, `cookies`, `faq`, `privacy` and `llms.txt` all state that EEA, UK and Swiss
+visitors are shown a consent banner. Measured: **`__tcfapi` is undefined, `googlefc` is
+undefined, there is no banner markup and no CMP anywhere in the repo.** The claim is
+false on all five surfaces, and `privacy` is the one that matters because it is the
+document a regulator or a user reads.
+
+**And it is live, not hypothetical.** The AdSense tag `adsbygoogle.js` loads on **all 40
+pages today**, with the `adsbygoogle` global present, even though no ad is rendered. The
+tag is what sets and reads advertising identifiers, so the gap exists now rather than
+starting on the day the ads appear.
+
+**Google requires a certified CMP for EEA/UK traffic** before it will serve personalised
+ads there. Google publishes its own, free, and it needs **no code** because the AdSense
+tag is already on every page.
+
+**Owner task, in the AdSense dashboard:**
+1. Sign in at adsense.google.com
+2. Left menu, **Privacy & messaging**
+3. **European regulations**, then **Create message**
+4. Pick the site, accept the defaults, **Publish**
+
+That single change makes the existing copy true and unblocks EEA/UK serving. Nothing in
+the repo needs editing IF this is done. If the decision is instead to NOT run ads in
+those regions, the five copy claims must be corrected rather than left standing.
+
+### A2. Every ad slot is a placeholder, not an ad unit
+
+`body.ads-on` is described everywhere as the switch, and it is not sufficient. The slots
+are `<div class="ad-slot">` holding a `<span>AD · 728 × 90</span>` label. Measured across
+the repo: **zero `<ins class="adsbygoogle">`, zero `data-ad-slot`, zero `adsbygoogle.push()`.**
+Turning `ads-on` on today would show empty dashed boxes captioned "AD · 728 × 90".
+
+Each real unit needs a slot ID that only exists once the unit is created in AdSense, so
+this cannot be finished from the repo alone.
+
+**Owner task:** AdSense, **Ads**, **By ad unit**, create one **Display** unit per size
+(728x90 leaderboard and 300x250 rectangle is enough to start) and send me the
+`data-ad-slot` numbers. The swap is then mechanical across all 12 game pages.
+
+### A3. Four games have no ad inventory at all
+
+`tailwind`, `zood`, `carrom` and `ludo` carry **0 slots and no sidebar**, where the other
+eleven carry four slots each. That is roughly a quarter of the games with no revenue
+surface. Their layouts differ from the standard game page, so this needs measuring rather
+than pasting.
+
+### What is already correct
+
+- **`ads.txt` is right**: `google.com, pub-9207689324865969, DIRECT, f08c47fec0942fa0`,
+  serving 200 as `text/plain`, and the publisher ID **matches** the `ca-pub-` in the pages.
+- The AdSense script is present site-wide with the correct client ID.
+- Ad slots are already hidden behind `body.ads-on`, and both games that PAINT an ad band
+  to canvas respect the same switch, so nothing shows a fake ad today.
+- Privacy, Cookies and Terms pages exist and describe advertising.
+
 ## START HERE — session handoff, 2026-08-22
 
 Everything below the audit write-ups is history. This is the live state.
