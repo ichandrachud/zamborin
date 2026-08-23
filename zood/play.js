@@ -637,4 +637,33 @@
   // timers as everywhere else, but it read as Zood holding its splash longer.
   requestAnimationFrame(loop);
   window.addEventListener('splash-done', () => { resizeCanvas(); fitFullscreen(); }, { once: true });
+
+  /* Z5. Read-only. Zood, Carrom and Ludo were the only three games with no way to
+     ask them anything, which is why their FN column stayed blank while the other
+     twelve were driven. Note `geom.rotationSafe`: it reports whether the logical
+     size still matches the viewport, which is the Z1 defect, and it is FALSE
+     after a rotation on purpose. Zood cannot recompute W and H the way Ludo now
+     does, because COLS, TILE and MAX_ROWS are const and index the bubble grid. */
+  window.__zood = {
+    get state() {
+      let bubbles = 0, lowest = -1;
+      for (let r = 0; r < MAX_ROWS; r++)
+        for (let c = 0; c < COLS; c++)
+          if (grid[r] && grid[r][c]) { bubbles++; if (r > lowest) lowest = r; }
+      return { phase, score, bubbles, lowestRow: lowest, rows: MAX_ROWS, cols: COLS,
+               tray: tray.slice(), missCount, hasProjectile: !!proj };
+    },
+    get geom() {
+      const r = canvas.getBoundingClientRect();
+      return { MODE, W, H,
+               css: Math.round(r.width) + 'x' + Math.round(r.height),
+               buffer: canvas.width + 'x' + canvas.height,
+               viewport: window.innerWidth + 'x' + window.innerHeight,
+               fillsWidth: +(r.width / window.innerWidth * 100).toFixed(1),
+               aspectAgrees: Math.abs(r.width / r.height - canvas.width / canvas.height) < 0.005,
+               tile: +TILE.toFixed(2),
+               rotationSafe: MODE !== 'mobile' ||
+                 (W === window.innerWidth && H === window.innerHeight) };
+    },
+  };
 })();

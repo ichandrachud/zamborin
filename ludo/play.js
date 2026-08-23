@@ -44,7 +44,13 @@
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
   }
   resizeCanvas();
-  window.addEventListener('resize', resizeCanvas);
+  // The full set, not just 'resize': a phone rotating fires orientationchange,
+  // an iOS URL bar sliding away moves visualViewport without firing resize at
+  // all, and 'load' catches the first frame where the wrap has real dimensions.
+  window.addEventListener('resize', applyCanvasDims);
+  window.addEventListener('orientationchange', applyCanvasDims);
+  window.addEventListener('load', applyCanvasDims);
+  window.visualViewport && window.visualViewport.addEventListener('resize', applyCanvasDims);
 
   // ---------- ROBUST FULL-SCREEN FIT (any browser / OS) ----------
   // Desktop focus-mode sizing in shared chrome.css uses 100dvh / 100vw aspect
@@ -106,6 +112,26 @@
     }
   }
   computeLayout();
+
+  /* Z1. W and H were computed once at load, and on mobile they ARE the viewport,
+     so after a rotation the canvas kept its old portrait shape and letterboxed
+     into the new window: measured 173x375 in an 812x375 viewport, 21.3% of the
+     width, where a fresh load at that size gives 375x375. resizeCanvas() could
+     not save it because it only ever fits the canvas to the shape W and H had
+     already decided, which is why dispatching resize and orientationchange by
+     hand both changed nothing.
+     Safe to redo here in a way it is NOT in Zood: everything downstream is
+     drawing geometry, and the game state is in BOARD coordinates, so nothing a
+     player has done depends on these numbers. */
+  function applyCanvasDims() {
+    computeCanvasDims();
+    document.body.style.setProperty('--canvas-w', W + 'px');
+    document.body.style.setProperty('--canvas-h', H + 'px');
+    canvas.setAttribute('width', String(W));
+    canvas.setAttribute('height', String(H));
+    computeLayout();
+    resizeCanvas();
+  }
 
   const SVG_VB = 970;
   function svg(x, y) {
@@ -494,7 +520,7 @@
     sfxDiceLand();
     autoSelectIfForced();
     if (!diesUsableMap()[0] && !diesUsableMap()[1]) {
-      lastMoveMsg = 'No legal moves — ' + PLAYERS[activePlayer()].name + ' passes.';
+      lastMoveMsg = 'No legal moves. ' + PLAYERS[activePlayer()].name + ' passes.';
       scheduleEndTurn(900);
     } else {
       lastMoveMsg = '';
@@ -673,7 +699,7 @@
       autoSelectIfForced();
       const usable = diesUsableMap();
       if (!usable[0] && !usable[1]) {
-        lastMoveMsg = 'No move with remaining die — turn ends.';
+        lastMoveMsg = 'No move with remaining die. Turn ends.';
         scheduleEndTurn(700);
       }
     });
@@ -1171,4 +1197,37 @@
     requestAnimationFrame(loop);
   }
   requestAnimationFrame(loop);
+
+  /* Z5. Ludo, Zood and Carrom were the only three games on the site with no way
+     to ask them anything, which is why their FN column stayed blank while the
+     other twelve were driven level by level. Read-only apart from start() and
+     refit(); it reports, it does not simulate. */
+  window.__ludo = {
+    get state() {
+      return { scene, players: playerCount, active: turnOrder[activePlayerIdx],
+               dice: dice.slice(), diceUsed: diceUsed.slice(), winner,
+               tokens: tokens.map(t => ({ p: t.player, status: t.status })),
+               // allFinished() is `every`, and `every` on an empty array is TRUE, so
+               // before a game starts this reported all four players finished. A
+               // vacuous truth in a debug handle is how a sweep gets a confident
+               // wrong answer, so it is gated on there being tokens at all.
+               finished: tokens.length ? turnOrder.filter(p => allFinished(p)) : [] };
+    },
+    get geom() {
+      const r = canvas.getBoundingClientRect();
+      return { MODE, W, H,
+               css: Math.round(r.width) + 'x' + Math.round(r.height),
+               buffer: canvas.width + 'x' + canvas.height,
+               viewport: window.innerWidth + 'x' + window.innerHeight,
+               fillsWidth: +(r.width / window.innerWidth * 100).toFixed(1),
+               aspectAgrees: Math.abs(r.width / r.height - canvas.width / canvas.height) < 0.005,
+               board: { w: BOARD_DRAW_W, h: BOARD_DRAW_H, x: Math.round(BOARD_X), y: Math.round(BOARD_Y) },
+               hud: { y: Math.round(HUD_Y), h: Math.round(HUD_H) },
+               hudFits: HUD_H > 0 && HUD_Y + HUD_H <= H + 0.5,
+               boardOnCanvas: BOARD_X >= 0 && BOARD_Y >= 0 &&
+                              BOARD_X + BOARD_DRAW_W <= W + 0.5 && BOARD_Y + BOARD_DRAW_H <= H + 0.5 };
+    },
+    start(n) { startGame(n || 4); return this.state; },
+    refit() { applyCanvasDims(); return this.geom; },
+  };
 })();

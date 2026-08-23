@@ -587,7 +587,7 @@
         // Pending cover — same player needs an own piece on the next shot.
         queenPocketedBy = currentPlayer;
         queenCoverRequired = true;
-        setToast('Queen pocketed — cover it with an own piece next shot.');
+        setToast('Queen pocketed. Cover it with an own piece next shot.');
       }
     } else if (queenCoverRequired) {
       // No queen pocketed this shot, but a previous shot left a cover pending.
@@ -595,7 +595,7 @@
         queenClaimedBy = currentPlayer;
         queenPocketedBy = null;
         queenCoverRequired = false;
-        setToast((currentPlayer === 'user' ? 'You' : 'AI') + ' covered the Queen — claimed.');
+        setToast((currentPlayer === 'user' ? 'You' : 'AI') + ' covered the Queen. Claimed.');
       }
     }
 
@@ -622,7 +622,7 @@
       returnQueenToCentre();
       queenPocketedBy = null;
       queenCoverRequired = false;
-      setToast('Cover missed — Queen returned to centre.');
+      setToast('Cover missed. Queen returned to centre.');
     }
 
     pocketsThisShot.length = 0;
@@ -1185,4 +1185,25 @@
   // ---------- BOOT ----------
   setupPieces();      // initial render so menu sits over the board layout
   requestAnimationFrame(loop);
+
+  /* Z5. Read-only. The board is square and sized to the smaller axis, so unlike
+     Zood and Ludo it cannot get its aspect wrong on a rotation; `geom` records
+     that rather than assuming it. */
+  window.__carrom = {
+    get state() {
+      return { scene, mode, difficulty, currentPlayer, boardNum,
+               userBoards, aiBoards, userPocketed, aiPocketed,
+               queenClaimedBy, queenPocketedBy, lastBoardWinner };
+    },
+    get geom() {
+      const r = canvas.getBoundingClientRect();
+      return { css: Math.round(r.width) + 'x' + Math.round(r.height),
+               buffer: canvas.width + 'x' + canvas.height,
+               viewport: window.innerWidth + 'x' + window.innerHeight,
+               fillsWidth: +(r.width / window.innerWidth * 100).toFixed(1),
+               square: Math.abs(r.width - r.height) < 1.5,
+               aspectAgrees: Math.abs(r.width / r.height - canvas.width / canvas.height) < 0.005,
+               withinViewport: r.width <= window.innerWidth + 0.5 && r.height <= window.innerHeight + 0.5 };
+    },
+  };
 })();

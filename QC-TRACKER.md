@@ -44,9 +44,9 @@ Delisted and NOT in scope: socket, bunny, empyrean, foldfig, pane, pins, plumb, 
 | 10 | sluice | OK | OK | OK | - | OK | OK | OK | audited 2026-08-21 night. 100/100 levels solve. Only AX left |
 | 11 | fold | OK | OK | OK | - | ~ | OK | OK | audited 2026-08-21 night. 60/60 levels solve. FO1-FO3 open |
 | 12 | mobile | OK | OK | OK | ~ | OK | OK | OK | audited 2026-08-21 night, 39/39 balance exactly. **M4 was a dead end and is fixed.** M1-M3 open |
-| 13 | zood | - | ! | - | - | ~ | - | - | audited 2026-08-22 (partial). **Z1 breaks on rotation.** No debug handle, so FN not driven |
-| 14 | carrom | - | OK | - | - | ~ | - | - | audited 2026-08-22 (partial). Survives rotation. No debug handle, so FN not driven |
-| 15 | ludo | - | ! | - | - | ~ | - | - | audited 2026-08-22 (partial). **Z1 breaks on rotation.** No debug handle, so FN not driven |
+| 13 | zood | ~ | ! | OK | - | OK | - | OK | 2026-08-22: handle added, 9 sizes clean on load. **Z1 rotation OPEN, and `rotationSafe` now reports it** |
+| 14 | carrom | ~ | OK | OK | - | ~ | - | OK | 2026-08-22: handle added, 9 sizes clean, survives rotation. Z3 open |
+| 15 | ludo | ~ | OK | OK | - | OK | - | OK | 2026-08-22: handle added, **Z1 FIXED**, 9 sizes clean, state survives 9 rotations |
 
 Row order matches the homepage card order.
 
@@ -1253,11 +1253,11 @@ Measured directly and again with a cache-busting query, both are 0: `ZQC.run` fe
 pages without `no-store`, so a page edited during a session can be read stale. Add a
 cache-buster when auditing something just changed.
 
-| Z1 | zood, ludo | **BREAKS USABILITY on a phone, and no event can recover it** | Both bake their logical size at load: `let W, H; if (MODE === 'mobile') { W = innerWidth; H = innerHeight; }`, which then drives the `--canvas-w` / `--canvas-h` CSS variables. `resizeCanvas()` re-reads the rect and fixes the backing store and the transform, so the ASPECT always agrees and the classic narrow-strip test passes, but **W and H themselves never change and neither do the CSS variables**. Measured at 812x375: loaded fresh the canvas is 500x375 in Zood and 375x375 in Ludo; **rotated into that size from portrait both collapse to 173x375, 21.3% of the width**, and dispatching `resize` AND `orientationchange` by hand recovers neither. This is P6 confirmed. **Carrom is unaffected**, because a square board sized to the smaller axis cannot get its aspect wrong. | OPEN, and see Z2 for why it is not a one-line fix |
-| Z2 | zood | SCOPE NOTE on Z1 | Zood cannot simply recompute W and H on rotation. `COLS`, `TILE` and `MAX_ROWS` are `const`, derived from W and H at module load, and they define the bubble grid itself. Changing the logical size mid-game means rebuilding the grid and re-mapping every bubble on it, which is a redesign rather than a patch. **Ludo is more tractable**: it already has a `computeLayout()` that could be re-run. So Z1 is one finding with two different sized fixes, and the cheap options are worth weighing first: lock the orientation, or show a rotate-back hint, or accept and document. | OPEN, owner's call |
-| Z3 | carrom | MINOR | The only game of fifteen with **no `localStorage` key at all**. It has its own inline `AudioContext` (see S4), but nothing persists, so the sound setting does not survive a reload. Every other game namespaces something under `zamborin-<game>.` | OPEN |
-| Z4 | carrom, ludo | MINOR | Em dashes in strings drawn to the player, not comments: carrom 3 ("Queen pocketed — cover it with an own piece next shot.", " covered the Queen — claimed.", "Cover missed — Queen returned to centre.") and ludo 2 ("No legal moves — ", "No move with remaining die — turn ends."). Same family as FO1 and B2, both of which were recast. | OPEN |
-| Z5 | zood, carrom, ludo | MINOR, and it is why FN is still blank | **None of the three exposes a debug handle**, so unlike the other twelve there is no way to drive levels, assert on state, or measure a card. They are the only games on the site that cannot be measured, which is precisely the condition that hid every card bug found this week. Giving each a small handle is the enabling work for their FN, AX and card columns. | OPEN |
+| Z1 | zood, ludo | **BREAKS USABILITY on a phone, and no event can recover it** | Both bake their logical size at load: `let W, H; if (MODE === 'mobile') { W = innerWidth; H = innerHeight; }`, which then drives the `--canvas-w` / `--canvas-h` CSS variables. `resizeCanvas()` re-reads the rect and fixes the backing store and the transform, so the ASPECT always agrees and the classic narrow-strip test passes, but **W and H themselves never change and neither do the CSS variables**. Measured at 812x375: loaded fresh the canvas is 500x375 in Zood and 375x375 in Ludo; **rotated into that size from portrait both collapse to 173x375, 21.3% of the width**, and dispatching `resize` AND `orientationchange` by hand recovers neither. This is P6 confirmed. **Carrom is unaffected**, because a square board sized to the smaller axis cannot get its aspect wrong. | **HALF FIXED 2026-08-22.** **Ludo is done**: `computeCanvasDims()` and `computeLayout()` were already separate pure functions and Ludo's game state lives in BOARD coordinates, not pixels, so re-running both on resize cannot corrupt a game. Measured: 21.3% to **100%** of the width after a real resize event, board rescaling 351 to 206, and **16 tokens plus the active player unchanged across 9 rotations**. It now listens on `resize`, `orientationchange`, `load` and `visualViewport`, the full set. **Zood is not fixed and see Z2.** Its `geom.rotationSafe` now reports the defect: after a real rotation it returns `false` while `aspectAgrees` returns `true`, which is exactly the pair that made this invisible to every previous check |
+| Z2 | zood | SCOPE NOTE on Z1 | Zood cannot simply recompute W and H on rotation. `COLS`, `TILE` and `MAX_ROWS` are `const`, derived from W and H at module load, and they define the bubble grid itself. Changing the logical size mid-game means rebuilding the grid and re-mapping every bubble on it, which is a redesign rather than a patch. **Ludo is more tractable**: it already has a `computeLayout()` that could be re-run. So Z1 is one finding with two different sized fixes, and the cheap options are worth weighing first: lock the orientation, or show a rotate-back hint, or accept and document. | OPEN, owner's call, and the cost is smaller than it looks: a player who rotates gets a correctly-shaped but smaller game, recoverable by rotating back or reloading. Nothing is unreachable and no state is lost |
+| Z3 | carrom | MINOR | The only game of fifteen with **no `localStorage` key at all**. It has its own inline `AudioContext` (see S4), but nothing persists, so the sound setting does not survive a reload. Every other game namespaces something under `zamborin-<game>.` | **CORRECTED 2026-08-22, and it is worse than logged.** The original entry said Carrom's sound setting does not survive a reload. There IS no setting: Carrom has procedural Web Audio with **no toggle, no mute and no storage**, and it does not load `shared/sfx.js`. It is the only game of fifteen that plays sound with no way to turn it off, which sits badly against a site whose positioning is games to help you unwind. The fix is the shared `ZSFX` toggle plus a speaker glyph, which is a small feature rather than a one-liner |
+| Z4 | carrom, ludo | MINOR | Em dashes in strings drawn to the player, not comments: carrom 3 ("Queen pocketed — cover it with an own piece next shot.", " covered the Queen — claimed.", "Cover missed — Queen returned to centre.") and ludo 2 ("No legal moves — ", "No move with remaining die — turn ends."). Same family as FO1 and B2, both of which were recast. | **FIXED 2026-08-22.** All five recast with a full stop. String-literal count is now 0 in all three, matching FO1 and B2 |
+| Z5 | zood, carrom, ludo | MINOR, and it is why FN is still blank | **None of the three exposes a debug handle**, so unlike the other twelve there is no way to drive levels, assert on state, or measure a card. They are the only games on the site that cannot be measured, which is precisely the condition that hid every card bug found this week. Giving each a small handle is the enabling work for their FN, AX and card columns. | **FIXED 2026-08-22.** `window.__zood`, `window.__carrom` and `window.__ludo` all exist, read-only apart from Ludo's `start()` and `refit()`. All fifteen games can now be measured. Swept 3 games x 9 sizes on load: **0 aspect failures, 0 layout failures**, worst fill 46.2% which is the correct letterbox of a square board in a landscape window. **One bug in my own handle, caught immediately:** Ludo reported all four players `finished` before a game started, because `allFinished()` is `every()` and `every` on an empty array is TRUE. Gated on there being tokens. A vacuous truth in a debug handle is how a future sweep gets a confident wrong answer |
 
 ## Zood, Carrom and Ludo: the sizing pass, 2026-08-22
 
@@ -1281,6 +1281,34 @@ rotated. Ludo: 375x375 fresh, 173x375 rotated.
 earlier the same day and was a harness artefact: firing `resize` re-fitted it instantly.
 Here `resize` and `orientationchange` both change nothing, because nothing recomputes W
 and H. The same two-step told the truth in both directions.
+
+## The last three get handles, and Ludo gets its rotation back, 2026-08-22
+
+**All fifteen games can now be measured.** Zood, Carrom and Ludo were the only three
+without a debug handle, which is why their FN column stayed blank while the other twelve
+were driven level by level.
+
+**The two games with the same symptom needed opposite treatment**, and that was the whole
+call. Ludo's `computeCanvasDims()` and `computeLayout()` were already separate pure
+functions, and its game state is in BOARD coordinates rather than pixels, so re-running
+them on resize cannot corrupt a game in progress: 16 tokens and the active player came
+through 9 rotations unchanged. Zood's `COLS`, `TILE` and `MAX_ROWS` are `const`, derived
+from W and H at load, and they index the bubble grid, so the same change there means
+rebuilding a live board. Same symptom, opposite risk. Fixing them together because they
+present identically was the trap.
+
+**The detector is the durable part.** `__zood.geom.rotationSafe` returns **false** after a
+rotation while `aspectAgrees` returns **true**. That pair is the entire reason this
+survived every previous sweep: the narrow-strip test asks whether the CSS box and the
+backing store agree about shape, and they always did. The canvas was the right shape and
+a third of the right size.
+
+**And one bug in my own handle, worth more than the handle.** Ludo's first version
+reported all four players `finished` before a game had started, because `allFinished()`
+is `every()` and `every` on an empty array is true. It looked like a real result. A
+vacuous truth inside a debug handle is how a future sweep gets a confident wrong answer,
+which is the same family as the Mobile assertion that failed 39 of 39 and the contrast
+check that measured ink against ink.
 
 ## START HERE — session handoff, 2026-08-22
 
