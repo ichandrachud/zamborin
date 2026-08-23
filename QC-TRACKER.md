@@ -1467,12 +1467,23 @@ this cannot be finished from the repo alone.
 (728x90 leaderboard and 300x250 rectangle is enough to start) and send me the
 `data-ad-slot` numbers. The swap is then mechanical across all 12 game pages.
 
-### A3. Four games have no ad inventory at all
+### A3. Four games had no ad inventory at all — FIXED 2026-08-24
 
-`tailwind`, `zood`, `carrom` and `ludo` carry **0 slots and no sidebar**, where the other
-eleven carry four slots each. That is roughly a quarter of the games with no revenue
-surface. Their layouts differ from the standard game page, so this needs measuring rather
-than pasting.
+`tailwind`, `zood`, `carrom` and `ludo` carried **0 slots and no sidebar** where the other
+eleven carried four each: roughly a quarter of the games with no revenue surface. Their
+`<main>` structure turned out to be **identical** to a standard game page, `play-row` plus
+`game-wrap` plus `game-info`, so the markup transplanted directly.
+
+Safe to do unattended because it is provably inert: `.ad-slot` and `.sidebar` are both
+`display: none` in the base stylesheet and only shown by `body.ads-on`, which nothing
+sets. Measured on all four plus orbit as a control, at 1280x900 and 390x844:
+
+- **ads OFF: 4 slots in the DOM, 0 visible**, and every canvas the same size it was
+- **ads ON: 4 visible on all five**, the switch behaving on the new ones exactly as on orbit
+- no horizontal overflow at any size, on or off
+
+**All 15 games now carry 4 slots.** When the units exist, the swap is one shape repeated
+60 times rather than 48.
 
 ### What is already correct
 
