@@ -52,6 +52,23 @@
   // Two corals, from tokens.css. ACCENT is a FILL under white type and has to
   // be dark enough (4.85:1). ACCENT_MARK is coral used as a mark or outline on
   // the dark card and has to be light enough (5.88:1).
+  /* S4. Stained shipped with no sound at all, the only game of fifteen with
+     none until Needle turned out to be silent too. Glass wants brightness and a
+     short ring rather than the wooden knocks the board games use, so it draws on
+     `glass` and `turn` in shared/sfx.js. */
+  var sfx = window.ZSFX ? window.ZSFX.create({ storageKey: 'zamborin-stained.sound' }) : null;
+  var snd = {
+    on:     function () { return !!(sfx && sfx.isOn()); },
+    ready:  function () { if (sfx) sfx.ensureAudio(); },
+    toggle: function () { if (sfx) { sfx.setOn(!sfx.isOn()); if (sfx.isOn()) sfx.play('glass'); } },
+    place:  function () { if (sfx) sfx.play('glass'); },
+    turn:   function () { if (sfx) sfx.play('turn'); },
+    lift:   function () { if (sfx) sfx.play('pop'); },
+    light:  function () { if (sfx) sfx.play('click'); },
+    undo:   function () { if (sfx) sfx.play('pop'); },
+    win:    function () { if (sfx) sfx.play('win'); },
+  };
+
   var ACCENT = '#C24A39';
   var ACCENT_MARK = '#FF6B5C';
 
@@ -337,6 +354,7 @@
     var comp = composite(null), t = level.target;
     var before = won;
     won = true;
+    snd.win();
     for (var i = 0; i < t.length; i++) {
       if (!cellOk(comp[i], t[i])) { won = false; break; }
     }
@@ -608,6 +626,7 @@
     if (offTimer) { clearTimeout(offTimer); offTimer = null; }
     if (lit !== on) {
       lit = on;
+      snd.light();
       if (on) { checkWin(); if (won && !blooming) startBloom(); }
       animateKnob();
       chrome();
@@ -654,6 +673,7 @@
   }
 
   canvas.addEventListener('pointerdown', function (ev) {
+    snd.ready();                       // autoplay policy: first user gesture
     var pt = local(ev);
     for (var u = uiButtons.length - 1; u >= 0; u--) {
       var ub = uiButtons[u];
@@ -683,7 +703,7 @@
       moved: false, overGrid: false, preview: null,
       wasR: p.r, wasC: p.c
     };
-    if (!hit.fromTray) { pushHistory(); p.r = null; p.c = null; }
+    if (!hit.fromTray) { pushHistory(); p.r = null; p.c = null; snd.lift(); }
     update(pt);
     ev.preventDefault();
   });
@@ -724,13 +744,15 @@
       var next = (p.rot + 1) % 4;
       if (p.r !== null) {
         var ok = S.cover(p.shape, next, p.r, p.c, level.size);
-        if (ok) p.rot = next;
-      } else { p.rot = next; }
+        if (ok) { p.rot = next; snd.turn(); }
+      } else { p.rot = next; snd.turn(); }
     } else if (drag.overGrid) {
       if (drag.fromTray) pushHistory();
       p.r = drag.dropR; p.c = drag.dropC;
+      snd.place();
     } else {
       if (!drag.fromTray) { /* dragged off the window: it returns to the tray */ }
+      if (!drag.fromTray) snd.lift();
       p.r = null; p.c = null;
     }
     drag = null;
@@ -745,14 +767,42 @@
   /* shared/ui.js, not HTML buttons: PILL for the control row and one CTA for
      the single primary action, at the sizes the house sets and never scaled
      per game. On a phone the row stays at the BOTTOM. */
+  // Flat vector speaker, same shape the rest of the fleet draws.
+  function speakerGlyph(cx, cy, on) {
+    ctx.save();
+    ctx.fillStyle = on ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.45)';
+    ctx.strokeStyle = ctx.fillStyle;
+    ctx.lineWidth = 1.6; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(cx - 7, cy - 3); ctx.lineTo(cx - 3, cy - 3); ctx.lineTo(cx + 1, cy - 7);
+    ctx.lineTo(cx + 1, cy + 7); ctx.lineTo(cx - 3, cy + 3); ctx.lineTo(cx - 7, cy + 3);
+    ctx.closePath(); ctx.fill();
+    if (on) {
+      ctx.beginPath(); ctx.arc(cx + 2, cy, 4.5, -0.9, 0.9); ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx + 2, cy, 7.5, -0.9, 0.9); ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(cx + 4, cy - 4); ctx.lineTo(cx + 10, cy + 4);
+      ctx.moveTo(cx + 10, cy - 4); ctx.lineTo(cx + 4, cy + 4);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
   function drawControls() {
     var gap = UI.PILL.gap;
     var wU = UI.pillWidth(ctx, 'Undo'), wR = UI.pillWidth(ctx, 'Restart');
     var wH = UI.pillWidth(ctx, 'Rules');
-    var total = wU + wR + wH + gap * 2;
+    var wS = UI.PILL.iconW;
+    var total = wS + wU + wR + wH + gap * 3;
     var cy = MODE === 'mobile' ? LH - 40 : Math.round(topBand() / 2);
     var x = MODE === 'mobile' ? Math.round(LW / 2 - total / 2) : SIDE_PAD;
 
+    // Mute first, at PILL.iconW, the same place and size the rest of the fleet
+    // puts it, so silence is found in one habit rather than fifteen.
+    var sb = UI.drawPill(ctx, '', x + wS / 2, cy, { w: wS });
+    speakerGlyph(x + wS / 2, cy, snd.on());
+    uiButtons.push(Object.assign(sb, { act: function () { snd.ready(); snd.toggle(); } }));
+    x += wS + gap;
     uiButtons.push(Object.assign(
       UI.drawPill(ctx, 'Undo', x + wU / 2, cy, { w: wU, dim: !history.length }),
       { act: undo }));
@@ -1167,6 +1217,7 @@
     if (!history.length) return;
     var prev = history.pop();
     panes.forEach(function (p, i) { p.r = prev[i].r; p.c = prev[i].c; p.rot = prev[i].rot; });
+    snd.undo();
     layout(); checkWin(); draw();
   }
   function chrome() { /* everything is drawn into the canvas */ }

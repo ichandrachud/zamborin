@@ -124,6 +124,20 @@
   // Renamed from Weave 2026-08-17. The old key is still read once, so a player
   // mid-way through does not get dropped back to level 1 by a rename that
   // changed nothing about the game.
+  /* Needle loaded shared/sfx.js and never called it once, so it shipped silent.
+     Found 2026-08-23 while auditing sound across the fleet; S4 had recorded
+     Stained as the only silent game and that was wrong. */
+  const sfx = window.ZSFX ? window.ZSFX.create({ storageKey: 'zamborin-needle.sound' }) : null;
+  const snd = {
+    on: () => !!(sfx && sfx.isOn()),
+    ready() { if (sfx) sfx.ensureAudio(); },
+    toggle() { if (sfx) { sfx.setOn(!sfx.isOn()); if (sfx.isOn()) sfx.play('stitch'); } },
+    stitch() { if (sfx) sfx.play('stitch'); },
+    snag()   { if (sfx) sfx.play('snag'); },
+    undo()   { if (sfx) sfx.play('pop'); },
+    win()    { if (sfx) sfx.play('win'); },
+  };
+
   const LS = 'zamborin-needle.level';
   const LS_OLD = 'zamborin-weave.level';
   const saveLevel = () => { try { localStorage.setItem(LS, String(level)); } catch (e) {} };
@@ -729,16 +743,17 @@
     const t = drag.t, p = drag.path;
     const far = (p[0] === t.a) ? t.b : t.a;
     if (p.length >= 2 && p[p.length - 1] === far) {
-      t.path = p.slice(); moves++;
+      t.path = p.slice(); moves++; snd.stitch();
     }
     drag = null;
     const hadSnag = snagCount > 0;
     computeWeave();
-    if (isSolved()) { phase = 'won'; wonT = performance.now(); T().levelComplete(level, moves); animEnd = wonT + 1600; return; }
+    if (isSolved()) { phase = 'won'; wonT = performance.now(); T().levelComplete(level, moves); animEnd = wonT + 1600; snd.win(); return; }
     // Teach the rule ONCE, the first time the cloth actually refuses, with the
     // real conflict named. After this the loop highlight and the line under the
     // board carry it, and tapping a snag brings the explanation back. A modal on
     // every snag would interrupt the core loop, because snagging IS the puzzle.
+    if (snagCount > 0 && !hadSnag) snd.snag();
     if (snagCount > 0 && !hadSnag && !snagTaught) {
       snagTaught = true;
       try { localStorage.setItem(LS_TAUGHT, '1'); } catch (e) {}
@@ -748,6 +763,7 @@
   function undo() {
     T().hintUsed(level);
     if (!history.length || phase !== 'play') return;
+    snd.undo();
     const snap = history.pop();
     threads.forEach((t, i) => { t.path = snap[i] ? snap[i].slice() : null; });
     moves++; computeWeave(); draw(performance.now());
@@ -768,6 +784,7 @@
   }
   canvas.addEventListener('pointerdown', (e) => {
     e.preventDefault();
+    snd.ready();                       // autoplay policy: first user gesture
     const [x, y] = canvasXY(e);
     for (const b of uiButtons) if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) { b.act(); return; }
     if (phase === 'menu') { phase = 'play'; return; }
@@ -1286,13 +1303,41 @@
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   }
 
+  // Flat vector speaker, same shape the rest of the fleet draws.
+  function speakerGlyph(cx, cy, on) {
+    ctx.save();
+    ctx.fillStyle = on ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.45)';
+    ctx.strokeStyle = ctx.fillStyle;
+    ctx.lineWidth = 1.6; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(cx - 7, cy - 3); ctx.lineTo(cx - 3, cy - 3); ctx.lineTo(cx + 1, cy - 7);
+    ctx.lineTo(cx + 1, cy + 7); ctx.lineTo(cx - 3, cy + 3); ctx.lineTo(cx - 7, cy + 3);
+    ctx.closePath(); ctx.fill();
+    if (on) {
+      ctx.beginPath(); ctx.arc(cx + 2, cy, 4.5, -0.9, 0.9); ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx + 2, cy, 7.5, -0.9, 0.9); ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(cx + 4, cy - 4); ctx.lineTo(cx + 10, cy + 4);
+      ctx.moveTo(cx + 10, cy - 4); ctx.lineTo(cx + 4, cy + 4);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
   function drawControls() {
     const gap = UI.PILL.gap;
     const wU = UI.pillWidth(ctx, 'Undo'), wR = UI.pillWidth(ctx, 'Restart'),
           wN = UI.pillWidth(ctx, 'Hint'), wH = UI.pillWidth(ctx, 'Rules');
-    const total = wU + wR + wN + wH + gap * 3;
+    const wS = UI.PILL.iconW;
+    const total = wS + wU + wR + wN + wH + gap * 4;
     const cy = MODE === 'mobile' ? LH - 74 : Math.round(topBand() / 2);
     let x = MODE === 'mobile' ? Math.round(LW / 2 - total / 2) : SIDE_PAD;
+    // The mute goes first, at PILL.iconW, which shared/ui.js documents as the
+    // size for a pill holding an icon. Empty label plus a drawn glyph, because
+    // the house rule is flat vector, never an emoji and never ASCII.
+    const sb = UI.drawPill(ctx, '', x + wS / 2, cy, { w: wS });
+    speakerGlyph(x + wS / 2, cy, snd.on());
+    uiButtons.push({ ...sb, act: () => { snd.ready(); snd.toggle(); } }); x += wS + gap;
     uiButtons.push({ ...UI.drawPill(ctx, 'Undo', x + wU / 2, cy, { w: wU, dim: !history.length }), act: undo }); x += wU + gap;
     // Dimmed once every thread already matches the answer, so a tap that would
     // do nothing looks like it would do nothing.

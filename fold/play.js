@@ -924,7 +924,10 @@
     on: () => !!(sfx && sfx.isOn()),
     ready() { if (sfx) sfx.ensureAudio(); },
     toggle() { if (!sfx) return; sfx.setOn(!sfx.isOn()); if (sfx.isOn()) sfx.tone(880, 0.05, 0.03, 'sine'); },
-    crease() { if (sfx) { sfx.noise(0.13, 1100, 0.7, 0.045); sfx.tone(210, 0.07, 0.016, 'sine'); } },
+    // Was noise(0.13, 1100, ...) which is a LINEAR-decay band of noise, so a fold
+    // sounded like a soft shh rather than a crease. `crease` in shared/sfx.js is
+    // built on the new paper() primitive: cubic decay and a sparse fibre crackle.
+    crease() { if (sfx) sfx.play('crease'); },
     home(n) {
       if (!sfx) return;
       const step = Math.min(11, Math.max(0, n - 1));
@@ -932,7 +935,7 @@
       sfx.tone(659.25 * Math.pow(2, step / 12) * 2, 0.09, 0.012, 'sine');
     },
     win() { if (sfx) sfx.arpeggio(659.25, 0.10, 2); },
-    unfold() { if (sfx) sfx.noise(0.10, 700, 0.7, 0.030); },
+    unfold() { if (sfx) sfx.play('unfold'); },
   };
   // Rising-edge only, and seeded on every level change, so generation and undo
   // stay silent and a piece already home does not re-ring.

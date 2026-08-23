@@ -1310,6 +1310,41 @@ vacuous truth inside a debug handle is how a future sweep gets a confident wrong
 which is the same family as the Mobile assertion that failed 39 of 39 and the contrast
 check that measured ink against ink.
 
+| S6 | needle | **SILENT, and S4 was wrong about being the only one. FIXED 2026-08-23** | Needle loaded `shared/sfx.js` in its `index.html` and **never called it once**, so it shipped completely silent while looking wired up. S4 recorded Stained as "the only one of fifteen with no sound at all"; that was true of Stained and false of the fleet. Found by auditing sound across all fifteen rather than by trusting the module being loaded. Needle now has `stitch` on a completed thread, `snag` when the cloth refuses, `pop` on undo and `win` on solve, plus a mute pill at `PILL.iconW` first in its control row | DONE |
+| S7 | fold | **SOUND QUALITY, owner-reported. FIXED 2026-08-23** | The fold crease was `noise(0.13, 1100, 0.7, 0.045)`. `noise()` decays LINEARLY, so a crease came out as a soft even hiss rather than paper. Paper is a sharp attack with a fast tail whose character is a burst of fibre snaps. A new **`paper(dur, gain, bright)`** primitive in `shared/sfx.js` does that with a cubic decay plus a sparse random crackle riding on the body, and three named effects, `crease`, `unfold` and `paper-slide`, are built on it. Fold now asks for the sound by name rather than carrying numbers | DONE |
+| S8 | stained | **S4 CLOSED 2026-08-23.** Stained had no sound at all, the longest-standing gap on the roster | It now loads `shared/sfx.js` and uses two new glass effects, `glass` for a pane meeting the window and `turn` for one rotating in place, plus `pop` for lifting, `click` for the light switch and `win` on solve. Glass wants brightness and a short ring, which is why it does not reuse the wooden knocks the board games use. Mute pill added first in its control row | DONE |
+
+## Sound across the fleet, 2026-08-23
+
+Prompted by the owner asking that every game have proper sound. Auditing all fifteen
+rather than trusting the tracker turned up a game nobody knew was silent.
+
+**Needle loaded `shared/sfx.js` and never called it.** Zero references in `play.js`. It
+looked wired because the module was in the HTML, and S4's claim that Stained was "the
+only one of fifteen with no sound at all" had been carried forward unchallenged since.
+Loading a module is not using it, and the check that finds that is counting call sites,
+not script tags.
+
+**The fold sound was wrong for a reason worth naming.** `noise()` decays LINEARLY. That
+is fine for a wall bounce and wrong for paper, which is a sharp attack with a fast tail
+and a character made of fibre snaps rather than air. The new `paper()` primitive uses a
+cubic decay plus a sparse random crackle, and lives in `shared/sfx.js` rather than in
+Fold, so Stained and Needle could draw on the same vocabulary the same day.
+
+**Three of my checks in a row measured nothing, and the pattern is now familiar.** A
+sound probe returned 0 nodes for all four games because driving a debug handle bypasses
+`pointerdown`, which is what wakes audio under the autoplay policy. Rewriting it to fire
+a real gesture STILL returned 0, because `solve()` sets thread paths directly and never
+passes the commit path the sound hangs off. What finally proved it was tapping the new
+mute pill through the real UI: **0 nodes with sound off, 1 node with it on**, and the
+control row going from 4 buttons to 5. Measure the path the player takes, not the path
+the test finds convenient.
+
+**What cannot be verified here.** Whether the paper crease actually SOUNDS like paper is
+a judgement this environment cannot make. The envelope, the crackle density and the
+filter centres are designed choices; they are measurable as audio nodes and not as
+quality. That one needs the owner's ears.
+
 ## START HERE — session handoff, 2026-08-22
 
 Everything below the audit write-ups is history. This is the live state.

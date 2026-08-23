@@ -172,6 +172,17 @@
   // boot on first user gesture (modern-browser autoplay policy).
   let audioCtx = null;
   let soundsThisFrame = 0;
+  /* Z3. Carrom was the only game of fifteen that played sound with no way to
+     turn it off, on a site whose whole positioning is games to help you unwind.
+     The synthesis stays exactly as it was, because it is good and specific to
+     this game; it just gains an off switch and somewhere to remember it, which
+     is the same shape Untangle uses for its own hand-rolled audio. */
+  const SND_KEY = 'zamborin-carrom.sound';
+  let soundOn = (() => { try { return localStorage.getItem(SND_KEY) !== '0'; } catch (e) { return true; } })();
+  function setSound(on) {
+    soundOn = on;
+    try { localStorage.setItem(SND_KEY, on ? '1' : '0'); } catch (e) {}
+  }
   const MAX_SOUNDS_PER_FRAME = 5;
   function audio() {
     if (!audioCtx) {
@@ -205,6 +216,7 @@
   //   2) overlaid damped sine at the body's resonant frequency — the wood "ring"
   // Both with very fast attack and short decay so it doesn't ring like a chime.
   function playWood(centerFreq, decay, gain, options) {
+    if (!soundOn) return;
     if (soundsThisFrame >= MAX_SOUNDS_PER_FRAME) return;
     const ctx = audio();
     if (!ctx) return;
@@ -435,6 +447,10 @@
     audio();                                              // wake audio on user gesture
     e.preventDefault();
     const { lx, ly } = logical(e.clientX, e.clientY);
+    // The mute is tested before everything, including the gameplay gate, so it
+    // is reachable in every scene and while the AI is shooting, which is exactly
+    // when someone reaches for it.
+    if (inRect(SND_BTN, lx, ly)) { setSound(!soundOn); return; }
     // Menu / board-over / tournament-over hit-tests run BEFORE the gameplay
     // gate so the user can always click these UI surfaces.
     if (scene === 'menu') {
@@ -984,6 +1000,34 @@
     }
   }
 
+  // Flat vector speaker. House rule: flat glyphs, never an emoji.
+  const SND_BTN = { x: 0, y: 0, w: 0, h: 0 };
+  function drawSoundButton() {
+    const size = Math.max(26, S * 0.045);
+    const x = FRAME_INSET + POCKET_R * 0.2, y = S / 2 - size / 2;
+    SND_BTN.x = x; SND_BTN.y = y; SND_BTN.w = size; SND_BTN.h = size;
+    const cx = x + size / 2, cy = y + size / 2, u = size / 34;
+    ctx.save();
+    ctx.globalAlpha = soundOn ? 0.85 : 0.45;
+    ctx.fillStyle = C.hud; ctx.strokeStyle = C.hud;
+    ctx.lineWidth = Math.max(1.2, 1.6 * u); ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(cx - 7 * u, cy - 3 * u); ctx.lineTo(cx - 3 * u, cy - 3 * u);
+    ctx.lineTo(cx + 1 * u, cy - 7 * u); ctx.lineTo(cx + 1 * u, cy + 7 * u);
+    ctx.lineTo(cx - 3 * u, cy + 3 * u); ctx.lineTo(cx - 7 * u, cy + 3 * u);
+    ctx.closePath(); ctx.fill();
+    if (soundOn) {
+      ctx.beginPath(); ctx.arc(cx + 2 * u, cy, 4.5 * u, -0.9, 0.9); ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx + 2 * u, cy, 7.5 * u, -0.9, 0.9); ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(cx + 4 * u, cy - 4 * u); ctx.lineTo(cx + 10 * u, cy + 4 * u);
+      ctx.moveTo(cx + 10 * u, cy - 4 * u); ctx.lineTo(cx + 4 * u, cy + 4 * u);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   function drawHUD() {
     ctx.font = '700 12px Inter, sans-serif';
     ctx.fillStyle = C.hud;
@@ -1179,6 +1223,9 @@
     if (scene === 'menu')              drawMenu();
     else if (scene === 'board-over')   drawBoardOver();
     else if (scene === 'tournament-over') drawTournamentOver();
+    // Last, and outside the scene branches, so the mute is on screen in every
+    // scene and sits above the menu overlays rather than under them.
+    drawSoundButton();
     requestAnimationFrame(loop);
   }
 
@@ -1191,7 +1238,7 @@
      that rather than assuming it. */
   window.__carrom = {
     get state() {
-      return { scene, mode, difficulty, currentPlayer, boardNum,
+      return { scene, mode, difficulty, currentPlayer, boardNum, soundOn,
                userBoards, aiBoards, userPocketed, aiPocketed,
                queenClaimedBy, queenPocketedBy, lastBoardWinner };
     },

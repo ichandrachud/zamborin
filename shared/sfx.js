@@ -13,6 +13,7 @@
      // Or roll your own:
      sfx.tone(440, 0.1, 0.05, 'triangle');
      sfx.noise(0.1, 240, 1.5, 0.3);
+     sfx.paper(0.08, 0.07, 3000);   // sharp attack, fibre crackle
      // Mute toggle:
      sfx.setOn(false);
 */
@@ -44,6 +45,29 @@
     // --- Negative ---
     fail:     a => { a.tone(330, 0.18, 0.06, 'triangle'); setTimeout(() => a.tone(247, 0.18, 0.06, 'triangle'), 140); setTimeout(() => a.tone(196, 0.28, 0.06, 'triangle'), 280); },
     error:    a => a.tone(200, 0.15, 0.06, 'sawtooth'),
+
+    // --- Paper ---
+    // crease is the fold itself: a bright snap, then the sheet settling a beat
+    // later, then a faint low body so it lands rather than just hisses.
+    crease:   a => { a.paper(0.055, 0.075, 3400);
+                     setTimeout(() => a.paper(0.10, 0.055, 1900), 26);
+                     setTimeout(() => a.tone(150, 0.05, 0.012, 'sine'), 34); },
+    // unfold is the same material running backwards: softer, lower, no snap.
+    unfold:   a => { a.paper(0.13, 0.040, 1500); },
+    // a sheet sliding over another, for a piece being placed rather than folded
+    'paper-slide': a => a.paper(0.16, 0.030, 1200),
+
+    // --- Thread / cloth, for Needle ---
+    // a stitch is a short pull through cloth: soft, low, no bright snap
+    stitch:   a => { a.paper(0.09, 0.045, 900); setTimeout(() => a.tone(330, 0.05, 0.014, 'sine'), 18); },
+    // the cloth refusing: dull and low, deliberately not a buzzer
+    snag:     a => { a.tone(150, 0.13, 0.045, 'sine'); a.paper(0.07, 0.030, 500); },
+
+    // --- Glass, for Stained ---
+    // a pane meeting the window: bright and short, with a small ring above it
+    glass:    a => { a.tone(1320, 0.05, 0.030, 'sine'); setTimeout(() => a.tone(1980, 0.07, 0.016, 'sine'), 12); },
+    // a pane turning in place: the same material, lower and quieter
+    turn:     a => a.tone(880, 0.045, 0.022, 'sine'),
 
     // --- Hits / impacts ---
     capture:  a => { a.noise(0.10, 240, 1.5, 0.30); setTimeout(() => a.tone(180, 0.18, 0.10, 'square'), 30); },
@@ -154,6 +178,43 @@
       src.start(t0);
     }
 
+    /* Paper. Not a hiss, which is what plain `noise()` gives: its envelope is
+       LINEAR, so a crease came out as a soft "shh" that faded evenly. Paper is a
+       sharp attack with a fast tail, and its character is a burst of tiny fibre
+       snaps rather than a smooth band of noise. Two things do that here:
+         - a cubic decay, so the energy is nearly all in the first third
+         - a sparse crackle that fires at random and decays fast, riding on the
+           body, which is what makes it read as fibre rather than as air
+       `bright` sets the bandpass centre: ~3200 is a crisp new sheet, ~1600 is a
+       softer, thicker one. Nothing here is game-specific, so Stained and Needle
+       can build on the same vocabulary. */
+    function paper(dur, gain, bright) {
+      if (!on || !audioCtx) return;
+      const t0 = audioCtx.currentTime;
+      const sr = audioCtx.sampleRate;
+      const len = Math.max(1, Math.floor(sr * dur));
+      const buf = audioCtx.createBuffer(1, len, sr);
+      const d = buf.getChannelData(0);
+      let crack = 0;
+      for (let i = 0; i < len; i++) {
+        const t = i / len;
+        const env = (1 - t) * (1 - t) * (1 - t);
+        if (Math.random() < 0.0045) crack = 1;
+        crack *= 0.70;
+        d[i] = (Math.random() * 2 - 1) * env * (0.5 + crack * 1.7);
+      }
+      const src = audioCtx.createBufferSource();
+      src.buffer = buf;
+      const filt = audioCtx.createBiquadFilter();
+      filt.type = 'bandpass';
+      filt.frequency.value = bright || 3000;
+      filt.Q.value = 0.8;
+      const g = audioCtx.createGain();
+      g.gain.value = gain != null ? gain : 0.07;
+      src.connect(filt); filt.connect(g); g.connect(audioCtx.destination);
+      src.start(t0);
+    }
+
     // Convenience: a 3-note arpeggio that scales pitch with `extra`
     // (e.g. word length above a base). Used by Tessera for word-clear.
     function arpeggio(baseHz, gain, extra) {
@@ -166,7 +227,7 @@
 
     const api = {
       ensureAudio, setOn, isOn,
-      tone, noise, woodClack, arpeggio,
+      tone, noise, woodClack, arpeggio, paper,
       play(name, opts) {
         const recipe = LIB[name];
         if (!recipe) return;
