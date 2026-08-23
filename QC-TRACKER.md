@@ -1464,8 +1464,27 @@ Each real unit needs a slot ID that only exists once the unit is created in AdSe
 this cannot be finished from the repo alone.
 
 **Owner task:** AdSense, **Ads**, **By ad unit**, create one **Display** unit per size
-(728x90 leaderboard and 300x250 rectangle is enough to start) and send me the
-`data-ad-slot` numbers. The swap is then mechanical across all 12 game pages.
+(728x90 leaderboard and 300x250 rectangle is enough to start) and paste the two
+`data-ad-slot` numbers into `shared/ads.js`. **That is the entire change.**
+
+**`shared/ads.js`, added 2026-08-24, makes this a two-line edit.** Before it, switching
+ads on meant hand-editing sixty placeholder blocks across fifteen pages and getting every
+one right. Now the markup stays as it is and the file turns each placeholder into a real
+`<ins>` at run time. It is loaded by all 15 games and the new-game template.
+
+Both paths tested rather than assumed:
+
+- **Slots empty, which is how it ships:** the script loads and changes *nothing*. 0 units
+  created, 0 slots visible, `ads-on` not set, the placeholder labels untouched.
+- **Slots filled:** 4 placeholders become 4 `<ins class="adsbygoogle">` with the right
+  client, the leaderboard and rectangle ids mapped to the right sizes, `ads-on` set, and
+  **the "AD · 728 × 90" labels removed**, so a live unit can never render behind
+  placeholder text.
+
+One bug found by testing and worth recording: the first wiring inserted the tag after the
+opening `<script>` of `embed.js` instead of after its closing tag, **nesting one script
+inside another** so `ads.js` never loaded. It looked right in a diff and the page threw
+nothing. Only asking whether the tag was in the DOM caught it.
 
 ### A3. Four games had no ad inventory at all — FIXED 2026-08-24
 
