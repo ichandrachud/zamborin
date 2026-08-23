@@ -33,12 +33,12 @@ Delisted and NOT in scope: socket, bunny, empyrean, foldfig, pane, pins, plumb, 
 | # | Game | FN | MB | PF | AX | CN | SEO | EMB | Notes |
 |---|---|---|---|---|---|---|---|---|---|
 | 1 | orbit | OK | OK | OK | OK | OK | OK | OK | audited 2026-08-21. Cleanest game audited so far. One item, O1 |
-| 2 | bloom | - | - | - | - | - | - | - | rules card fixed 2026-08-21, not yet audited |
+| 2 | bloom | OK | OK | OK | OK | ~ | OK | OK | audited 2026-08-22. 150/150 solve on both modes. B1 is a copy claim, not a defect |
 | 3 | tailwind | OK | OK | OK | OK | OK | OK | OK | audited 2026-08-20, T1 + T2 fixed. T3-T6 open, none breaking play |
 | 4 | stained | OK | ! | OK | ! | ~ | ! | ! | audited 2026-08-20; see S1-S4 |
 | 5 | kaleido | OK | OK | OK | ~ | ~ | OK | ! | audited 2026-08-20; K1-K4, and K5 found 2026-08-21 night by the new detector |
 | 6 | prism | OK | OK | OK | ~ | OK | OK | OK | audited 2026-08-20; rules card fixed + copy trimmed. One tight colour pair, P1 |
-| 7 | needle | - | - | - | - | - | - | - | rules card fixed 2026-08-21, not yet audited |
+| 7 | needle | OK | OK | OK | ~ | OK | OK | OK | audited 2026-08-22. 120/120 plus its own 360-board audit, 0 failures. N1 open |
 | 8 | untangle | OK | OK | OK | ~ | OK | OK | OK | audited 2026-08-21. U1-U4 fixed, U5-U8 open |
 | 9 | tessera | ~ | OK | OK | ~ | ~ | OK | OK | audited 2026-08-21 night. TE1 open, AX clean bar the shared accent. FN not driven, it is an endless arcade game |
 | 10 | sluice | OK | OK | OK | - | OK | OK | OK | audited 2026-08-21 night. 100/100 levels solve. Only AX left |
@@ -113,6 +113,72 @@ Severity: **BREAKS PLAY** | **VISUAL** | **MINOR** | **EMBED GAP**
 | W20 | guides/<game> x15 | MINOR, type scale | The `p.more` "More puzzles:" cross-link paragraph renders at **15px** on each of the 15 individual guide pages, one under the 16px content-copy floor. Same rule as W17, which fixed the guides INDEX; this is the sibling element on the guide pages themselves and the earlier fix did not reach it. Found by the document audit, which reports exactly one type-floor item on each of those 15 pages and none anywhere else. | OPEN, owner's call, same decision as W17 |
 | W21 | tailwind | OBSERVATION | `tailwind/play.js` carries a comment saying the two INK values are dark enough to hold AA against sky and grass "which the accent itself does not, so accent is used for marks and ink for type". But the BEST line's label at `play.js:670` is drawn in the accent as **12px/700 type** over the sky, which is the thing the comment says not to do. Not measurable by sweep, because the background is a photograph. Belongs with the sluice/fold/mobile reading pass. | OPEN |
 | K7 | kaleido | NOT A FINDING, scope note | Kaleido was the one game of six carrying `#D8523F` that was deliberately **left alone** by the accent split. Its `Z.accent` is not a UI token: it is one of the four glass colours in `PANE_COL`, plus its own glow at `play.js:1124`. Darkening it would move the very separations K4 and the colourblind mode were tuned against. Same reasoning the tracker already applies to sluice, fold and mobile. | NO CHANGE, deliberate |
+
+| B1 | bloom, guides/bloom, index | **FACTUAL, and it is in three places** | Every surface says the game grows: the game page says "as you climb the levels the garden grows larger and the network more knotted", the guide says "as the garden grows", and the homepage card says "the layouts grow more knotted as you climb". **Measured, the ramp ends at level 10 and on mobile it does not exist.** `gridDims()` has two branches. On DESKTOP rows go `5 + min(floor((lvl-1)/3), 3)`, so 5x7 to 8x10 across levels 1 to 10 and then nothing: **141 of 150 levels are the same 8x10 board**, and over levels 10 to 310 there is exactly ONE grid size and flower count correlates with level at **r = 0.078**, which is no correlation. On MOBILE the branch ignores `lvl` entirely and sizes the grid from the viewport, so level 1 and level 300 are the same board. Same shape as W3: a claim the code does not support. Two ways out, and they are different sizes of job: extend the ramp so the copy becomes true, or correct the copy against the code as W3 did. | OPEN, owner's call |
+| B2 | bloom | MINOR | One em dash in a string drawn to the player: "A flower blooms only when the water reaches it — open them all." The only one in the file. Same family as FO1. | OPEN |
+| N1 | needle | ACCESSIBILITY, moderate | The eight silks are a discrete categorical palette, so unlike flower or paper colour they can be measured honestly. Null-tested first: white, mid grey and black all come back with **zero drift** under both simulations. Normal vision is comfortable, 28 of 28 pairs at dE 24.6 or better. Under **deuteranopia one pair falls under 10, fuchsia vs aqua at 9.2**; under **protanopia one pair sits exactly at 10.0, lapis vs iris**. Tight rather than collapsed, and better than Stained's worst pair at 8.5. It matters because thread count caps at 8 and there are exactly 8 silks, so both pairs are on the board in most levels. Mitigated by every thread running between two FIXED anchors, so position disambiguates even when hue does not. Stained's corner-pip mode has no obvious transplant here; a per-thread dash pattern would. | OPEN |
+| N2 | needle | NOT A FINDING, recorded so it is not re-raised | Needle's ramp completes at **level 16** (6x8 with 3 threads to 10x13 with 8) and from 16 to 400 it only ever oscillates between two configurations. That looks like B1, and it is not, because **the source already documents it**: it calls this "a RAMP, and the only one this game has", caps thread count at eight deliberately because "eight silks is already the limit of telling colours apart at a glance", and records that the intended deeper dial, asking three crossings per thread, was **tried and backed out** because the generator took 1.4 seconds at level 20 and still dropped half the threads. A known limit with the reasoning written down, and no page claims more. | CLOSED |
+
+## Bloom and Needle, 2026-08-22: the roster's last two puzzle games
+
+**Bloom, functionality: pass, both modes.** `solve()` writes each pipe's stored
+solution, so every level ships a witness. Drove **150 levels on desktop and 150 on
+mobile: 0 unsolved**, every one reaching `phase === 'won'` with `watered === flowers`.
+
+**Needle, functionality: pass, and twice over.** 120 levels driven through `solve()`
+against the game's own `isSolved()`, which is `allConnected && weaveOK && allWovenIn &&
+allSewn`: **0 failures**. Then its own `audit(30, 12)` on **360 freshly generated
+boards: 0 failures**, no board served with threads already drawn, none under three
+threads, average 8.64 crossings and 64.9% grid fill.
+
+**One wrong assertion before a right one, and it is the Mobile lesson again.** My first
+Needle sweep reported **120 of 120 failing** because I asserted `crossings === 0`.
+Needle is a WEAVING game: threads are supposed to cross. Every "failing" row already
+said `solved: true` and `phase: 'won'` in the data on screen. A sweep that fails
+everywhere is a claim about the sweep.
+
+**Cards: clean.** Bloom's `menuFit()` at 16 sizes and Needle's `menuFit()` AND
+`snagFit()` at 18 sizes x 7 levels: **252 card measurements, zero overlap, zero
+off-screen, no horizontal overflow.**
+
+**Mobile: pass.** At 375x812 Bloom's canvas is 375x812 CSS on a 750x1624 buffer, the
+aspects agree to three decimals and it fills 100% of the width, which is the
+narrow-strip test.
+
+**A false finding, worth more than the check that produced it.** Rotating the window to
+812x375 left Bloom's canvas at 375x812, filling 46% of the width, which looks exactly
+like the narrow-strip bug. It is not. `resize_window` changes the viewport WITHOUT
+dispatching a resize event to the page: firing one by hand re-fitted the canvas
+instantly and correctly. **The harness cannot test re-fitting on its own**, and any
+future orientation check has to dispatch the event or it is measuring nothing.
+
+**A second dead check in the same pass.** The card sweep ran in a hidden iframe, where
+the canvas reports 0x0. My aspect test compared `(0/0).toFixed(3)` against itself, and
+since that is the STRING "NaN" it compared equal and passed at every size. It was
+reporting a pass on garbage. Canvas geometry has to be measured in a real window; only
+the games' own fit detectors survive the iframe.
+
+**Accessibility.** Bloom is genuinely clean rather than merely unswept: its canvas UI
+measures 10.07 to 13.08:1, all null-tested, and its flower colours are assigned by
+`Math.random()` so **colour carries no information in that game at all**. Bloom's CTA is
+green `#3DDC84` with a dark label, which is why it never appeared in the accent sweep.
+Needle is N1.
+
+**Consistency, SEO, embed: pass for both.** Header, brand logo, focus button labelled
+"Play fullscreen", footer, favicon, labelled canvas, no emoji, all five re-fit
+listeners, `shared/sfx.js`, `ui.js`, `analytics.js` and `embed.js` all loaded, no
+frame-busting, no root-absolute asset paths, no runtime fetch, no `setInterval`, storage
+namespaced. The only root-absolute `src` in either is the accepted K2c Vercel pair.
+Needle also reads `zamborin-weave.level` once, which is a deliberate migration after the
+2026-08-17 rename and not a leak.
+
+**Document audit, both game pages and both guides at 390x844: clean.** No scroll lock,
+bottom reachable, footer shown, no default-blue links, no horizontal overflow, no
+contrast failures, one h1 each, no heading skips, no failed resources. The only items
+are the known W18 tap targets and the known 15px `p.more` on the two guide pages.
+
+**That is 12 of 15 games audited.** Only zood, carrom and ludo are left, and they were
+always their own mini-project.
 
 ## Pre-scan findings (static file reading only, nothing verified in a browser yet)
 
