@@ -43,15 +43,23 @@
   // ---------- silk palette ----------
   // Distinct in hue AND in luminance, so threads stay tellable apart when they
   // cross and when someone is colour blind.
+  // Retuned 2026-08-22 for N1. Fuchsia and iris were the two that collapsed:
+  // fuchsia sat dE 9.2 from aqua under deuteranopia, iris exactly 10.0 from lapis
+  // under protanopia, and with eight silks on the board from level 16 those pairs
+  // are almost always both present. Each was moved WITHIN its own hue family, so
+  // the palette still reads as the same eight silks. Measured across all 28 pairs
+  // in normal, deuteranope and protanope vision, with the simulation null-tested
+  // on neutrals first: the tightest pair anywhere went from dE 9.2 to 27.0, and
+  // normal vision improved too, 24.6 to 28.5.
   const SILK = [
     { c: '#FF4757', hi: '#FF8E97', name: 'crimson' },
     { c: '#39E77B', hi: '#8CF5B6', name: 'jade' },
     { c: '#4C8DFF', hi: '#8FB8FF', name: 'lapis' },
     { c: '#FFD93D', hi: '#FFE98A', name: 'saffron' },
-    { c: '#FF6BD6', hi: '#FFA8E2', name: 'fuchsia' },
+    { c: '#F41593', hi: '#F977C0', name: 'fuchsia' },
     { c: '#4EE8E0', hi: '#9BF6F1', name: 'aqua' },
     { c: '#FF9F43', hi: '#FFC58A', name: 'amber' },
-    { c: '#B08CFF', hi: '#D3BEFF', name: 'iris' },
+    { c: '#BA9FF4', hi: '#DED1FA', name: 'iris' },
   ];
 
   // ---------- MODE + CANVAS ----------
