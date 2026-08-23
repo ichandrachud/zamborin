@@ -1532,39 +1532,66 @@ references are now on one version and every `play.css` was bumped.
 **Verified**: 13 of 13 recompressed images load with dimensions preserved exactly, OG
 images still 1200x630, and the games render.
 
-## START HERE — session handoff, 2026-08-22
+## START HERE — session handoff, 2026-08-24 (after the overnight run)
 
-Everything below the audit write-ups is history. This is the live state.
+**Repo is clean, on `main`, level with GitHub, one branch, one worktree. Everything in
+this file is DEPLOYED and verified live unless a row says otherwise.**
 
-**The repo is clean, on `main`, level with GitHub at `63815a6`, one branch, one worktree.
-Everything described in this file is DEPLOYED unless a row says otherwise.**
+### The one thing that matters most: ads
 
-### The order to work in
+**Two dashboard tasks block ads, and only you can do them.** Both are written up in full
+in the ADS READINESS section below, with click-by-click steps.
 
-1. ~~The accent decision~~ **DONE and DEPLOYED 2026-08-22**, `d2d73b9`. U5 and W16 closed,
-   W19 found and fixed, W20/W21/K7 logged. Branch merged and deleted.
-2. ~~**FO4**~~ **DONE and DEPLOYED 2026-08-22.** Both proposed fixes were built, measured and killed; the answer was an editorial cut. FO5 and K6 closed with it by stating the embed minimum.
-3. **The copy and policy rows**: K6, W12, U8, and now **W20** (the 15px `p.more` on 15 guide
-   pages, the same decision as W17).
-4. **The per-game audits still to run**: bloom and needle have never been driven; zood, carrom
-   and ludo are held back as their own mini-project. Sluice, Fold and Mobile still have an open
-   AX column, and that one is a reading pass, not a sweep. **W21 joins that pass.**
+1. **Enable Google's consent message (CMP).** Five pages already tell visitors that
+   EEA/UK/Swiss users see a consent banner, and there is no CMP anywhere. The AdSense tag
+   loads on all 40 pages today, so this is live, not hypothetical. Google's own CMP is
+   free, certified, and needs **no code**: AdSense → Privacy & messaging → European
+   regulations → Create message → Publish.
+2. **Create the ad units.** Every slot on the site is a placeholder `<div>`, not an
+   `<ins class="adsbygoogle">`. Setting `body.ads-on` today would show empty dashed boxes
+   captioned "AD · 728 × 90". Create one Display unit per size in AdSense and send me the
+   `data-ad-slot` numbers; the swap across all 15 games is then mechanical.
+
+Everything else on the ads path is done: `ads.txt` is correct and serving, the publisher
+ID matches, all 15 games now carry 4 slots each, robots.txt allows every crawler, the
+sitemap is referenced, and no page carries a stray `noindex`.
+
+### State of the audit
+
+**All 15 games audited. 2 rows open, both recommended as leave-alone**, plus one minor:
+
+- **Z2** zood's rotation. Fixing it means rebuilding a live bubble grid; the cost today is
+  a smaller-but-playable board, recoverable by rotating back. Recommended: leave.
+- **S5** stained's canvas below the fold in a short window. Narrow, and the pinning was
+  itself the narrow-strip fix, so it cannot be casually reverted. Recommended: leave.
+- **Q1** now fixed; all ten fit detectors expose `fits`.
+
+**The whole-site document audit reports zero on every check**: 40 pages, 0 contrast
+failures, 0 small tap targets, 0 under the type floor, 0 failed resources, every page
+scrolls and reaches its footer.
 
 ### The two tools, and how to run them
 
-- `shared/qc/doc-audit.js` is committed and live. From any page on the origin:
+- `shared/qc/doc-audit.js`, from any page on the origin:
   `await fetch('/shared/qc/doc-audit.js').then(r=>r.text()).then(eval)` then
-  `ZQC.summary(await ZQC.run(ZQC.ALL_PAGES, {w:390, h:844}))`. Silence means clean.
-- Every game with a card carries a fit detector on its debug handle: `rulesFit`, `menuFit`,
-  `winFit` or `overFit`. Mobile has none ON PURPOSE, having no card.
+  `ZQC.summary(await ZQC.run(ZQC.ALL_PAGES, {w:390, h:844}))`. **Add a cache-buster to
+  any page you have just edited**: `ZQC.run` fetches without `no-store` and will read a
+  stale copy.
+- Every game exposes a debug handle, `window.__<game>`, and every card game a fit
+  detector. **All ten now return `fits`.** Mobile has one too, since it gained a card.
 
-### The three things that cost the most to learn
+### What the last two days cost the most to learn
 
 - **A card is not fixed until something can measure it, and the measurement is swept, not
-  sampled.** Three cards in three days were believed fixed and were not. Kaleido, Fold and
-  Untangle's win card were each caught by a detector on its FIRST run.
-- **A check that fires on every page is a claim about the check.** The document audit's first
-  run reported findings on all forty pages and every one was a false positive.
+  sampled.** Proven again on 2026-08-23: I built Mobile's new card with the button 21px
+  off its own bottom edge, in a file where this rule was already written down twice.
+- **A check that fails everywhere is a claim about the check.** It happened five separate
+  times this week: an assertion that failed 39 of 39 Mobile levels, a contrast test that
+  measured ink against ink, a sound probe that returned 0 for four games because driving a
+  debug handle bypasses the gesture that wakes audio, a debug handle reporting a vacuous
+  truth from `every()` on an empty array, and a fleet sweep reporting 8 detector failures
+  of which 7 were the sweep's own assumption about the return shape.
 - **The preview pane is unreliable for pictures and fine for numbers.** Measure geometry
   through a same-origin iframe harness; use `resize_window` with explicit width and height.
-  Screenshots work sometimes and cannot be depended on unattended.
+  **`resize_window` does not dispatch a `resize` event**, so a rotation test must fire one
+  by hand or it is measuring nothing.
