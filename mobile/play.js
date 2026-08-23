@@ -41,7 +41,9 @@
   // for constantly.
   const PALETTE = ['#E4E41F', '#E41F1F', '#546AE7', '#8FD7F1', '#952478',
                    '#5DCF37', '#FFA200', '#F6134C', '#231F20', '#414042'];
-  const TRAY_BG = '#FFFFFF', NEXT_RED = '#FF0000';
+  // NEXT_RED is a FILL under white type, so it has to hold 4.5:1. #FF0000 measured
+  // 4.00. #E4001B measures 4.87 and reads as the same red.
+  const TRAY_BG = '#FFFFFF', NEXT_RED = '#E4001B';
 
   // ---------- sound ----------
   const sfx = window.ZSFX ? window.ZSFX.create({ storageKey: 'zamborin-mobile.sound' }) : null;
@@ -510,53 +512,14 @@
     ctx.textAlign = 'left';
   }
 
-  function pill(label, px, py, dim, act) {
-    ctx.font = '700 13px Inter, sans-serif';
-    const w = Math.round(ctx.measureText(label).width + 26), h = 34;
-    const x = Math.round(px), y = Math.round(py - h / 2);
-    ctx.fillStyle = 'rgba(255,255,255,0.9)';
-    ctx.beginPath(); ctx.roundRect(x, y, w, h, h / 2); ctx.fill();
-    ctx.strokeStyle = 'rgba(26,26,30,0.3)'; ctx.lineWidth = 1.3; ctx.stroke();
-    ctx.fillStyle = dim ? 'rgba(26,26,30,0.34)' : INK;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(label, x + w / 2, y + h / 2 + 1);
-    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-    if (!dim) uiButtons.push({ x, y, w, h, act });
-    return w;
-  }
-  function drawControls() {
-    const y = LH - 29, gap = 8;
-    ctx.font = '700 13px Inter, sans-serif';
-    const items = [['Clear', () => { T().levelRestart(level); on = {}; phase = 'play'; }, !Object.keys(on).length],
-                   ['Rules', () => { phase = 'menu'; }, false],
-                   ['Next', () => start(level + 1), false]];
-    let total = 36 + gap;
-    items.forEach(([l]) => total += Math.round(ctx.measureText(l).width + 26) + gap);
-    total -= gap;
-    let x = Math.round(LW / 2 - total / 2);
-    ctx.fillStyle = 'rgba(255,255,255,0.9)';
-    ctx.beginPath(); ctx.roundRect(x, y - 17, 36, 34, 17); ctx.fill();
-    ctx.strokeStyle = 'rgba(26,26,30,0.3)'; ctx.lineWidth = 1.3; ctx.stroke();
-    const sOn = snd.on(), sx = x + 18;
-    ctx.fillStyle = sOn ? INK : 'rgba(26,26,30,0.34)';
-    ctx.beginPath(); ctx.moveTo(sx - 7, y - 3); ctx.lineTo(sx - 3, y - 3); ctx.lineTo(sx + 2, y - 8);
-    ctx.lineTo(sx + 2, y + 8); ctx.lineTo(sx - 3, y + 3); ctx.lineTo(sx - 7, y + 3); ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = ctx.fillStyle; ctx.lineWidth = 1.4;
-    if (sOn) { ctx.beginPath(); ctx.arc(sx + 4, y, 5, -0.9, 0.9); ctx.stroke(); }
-    else { ctx.beginPath(); ctx.moveTo(sx + 5, y - 4); ctx.lineTo(sx + 11, y + 4); ctx.moveTo(sx + 11, y - 4); ctx.lineTo(sx + 5, y + 4); ctx.stroke(); }
-    uiButtons.push({ x, y: y - 17, w: 36, h: 34, act: () => { snd.ready(); snd.toggle(); } });
-    x += 36 + gap;
-    items.forEach(([l, a, dim]) => { x += pill(l, x, y, dim, a) + gap; });
-  }
+  /* Deleted 2026-08-22: a `drawControls()` row of Clear / Rules / Next pills and
+     its `pill()` helper, about 40 lines that nothing ever called. render() draws
+     the tray, the sculpture and one CTA and never touched them. It mattered
+     because the dead code held a Rules button setting `phase = 'menu'`, a phase
+     nothing renders and `verdict()` returns early on, so wiring that row up would
+     have shipped an unrecoverable soft-lock on its first tap. The mockups carry
+     no buttons on purpose, and lifting a piece back off IS the undo here. */
 
-  // There was a rules panel here. The mockups have no text anywhere on the
-  // screen and the game does not need any: a tray of shapes, empty rings on
-  // strings, and something that tips when you get it wrong explains itself.
-  // The written instructions live on the page below the canvas.
-
-  // 89 x 30, radius 15, #FF0000, sitting at 788 of 852. No label above it: the
-  // sculpture hanging straight is the message.
-  // How far through the fade the verdict is. Nothing snaps in: the button and
   // the message ease up so the moment reads as the sculpture answering you.
   const verdictFade = (t) => Math.max(0, Math.min(1, (t - settledAt) / VERDICT_FADE));
 

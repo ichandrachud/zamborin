@@ -255,9 +255,16 @@
     overlay:    'rgba(14, 23, 38, 0.92)',
   };
 
+  // U6: three of these sat under the 3:1 bar for a graphical object against the
+  // playfield, #C2185B at 2.45, #7E57C2 at 2.76 and #3D5AFE at 2.80. Dot colour
+  // carries no meaning in this game, so it was legibility rather than information
+  // loss, but a dot you cannot see is a dot you cannot grab. Each was lifted along
+  // its own hue to 3.30, matching the comfort of #00897B, which was already the
+  // lowest passing one. All twelve now clear the bar and the tightest pair among
+  // them is dE 14.9, so nothing became confusable in the process.
   const VERTEX_PALETTE = [
-    '#E84855', '#3D5AFE', '#FFD23F', '#00897B',
-    '#D85B0E', '#7E57C2', '#5DD39E', '#C2185B',
+    '#E84855', '#506AFE', '#FFD23F', '#00897B',
+    '#D85B0E', '#8A67C8', '#5DD39E', '#CE477C',
     '#4ECDC4', '#F4A261', '#B084CC', '#FF6B9D',
   ];
 

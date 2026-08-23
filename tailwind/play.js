@@ -667,7 +667,11 @@ function bestLine() {
   ctx.lineWidth = 2; ctx.setLineDash([7, 6]);
   ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, groundY); ctx.stroke();
   ctx.setLineDash([]);
-  ctx.fillStyle = ACCENT_MARK;
+  // W21: this label is TYPE over the sky photograph, and this file's own palette
+  // note says the accent does not hold AA against sky and grass, which is why INK
+  // exists and why every other label uses it. The dashed line above stays coral,
+  // so the mark still reads as the personal best; only the words change.
+  ctx.fillStyle = INK;
   ctx.font = '700 12px Inter, system-ui, sans-serif';
   const near = x > W - 130;
   ctx.textAlign = near ? 'right' : 'left';
@@ -787,15 +791,20 @@ const SIDE_PAD = () => (wide ? 30 : 18);
 const BAR_H = 74;                      // the control row along the foot
 
 // Speaker drawn as paths. House rule: flat vector glyphs, never an emoji.
+// T3: the OFF state was white at 0.34, which measured 3.10 over the bar where the
+// grass is behind it but 2.90 over mid sky and 2.70 over bright sky, and the bar
+// is only 82% opaque so the photograph decides. 0.45 measures 4.43 / 3.96 / 3.57
+// across those three and is still half the lit state's 0.92, so off still reads
+// as off.
 function speakerGlyph(cx, cy, on) {
   ctx.save();
   ctx.translate(cx, cy);
-  ctx.fillStyle = on ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.34)';
+  ctx.fillStyle = on ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.45)';
   ctx.beginPath();
   ctx.moveTo(-7, -3); ctx.lineTo(-3, -3); ctx.lineTo(1, -7);
   ctx.lineTo(1, 7); ctx.lineTo(-3, 3); ctx.lineTo(-7, 3);
   ctx.closePath(); ctx.fill();
-  ctx.strokeStyle = on ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.34)';
+  ctx.strokeStyle = on ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.45)';
   ctx.lineWidth = 1.6; ctx.lineCap = 'round';
   if (on) {
     ctx.beginPath(); ctx.arc(2, 0, 4.5, -0.9, 0.9); ctx.stroke();

@@ -180,7 +180,11 @@ body.mode-mobile  { --canvas-w: 393px; --canvas-h: 852px; }
      play. Wrapping is the fix; do not remove it. */
   flex-wrap: wrap;
   justify-content: center;
-  row-gap: 10px;
+  /* row-gap is 0 because each link now carries 6px of vertical padding of its
+     own (see .site-foot-nav a). That padding is what lifts the tap target from
+     13px to 25px for WCAG 2.5.8, and it also supplies the space between wrapped
+     rows: 12px of padding where there used to be 10px of gap. */
+  row-gap: 0;
   gap: 18px;
   max-width: 100%;
   padding: 0 16px;
@@ -193,6 +197,12 @@ body.mode-mobile  { --canvas-w: 393px; --canvas-h: 852px; }
   color: var(--text-mute);
   text-decoration: none;
   transition: color .15s ease;
+  /* W18. Eleven-pixel type gives a 13px tall link, against the 24px of WCAG 2.5.8
+     Target Size (Minimum, AA). These are navigation rather than links inside a
+     sentence, so the inline exemption does not cover them. inline-block is what
+     makes the padding count toward height; the type and the row are unchanged. */
+  display: inline-block;
+  padding: 6px 0;
 }
 .site-foot-nav a:hover { color: var(--text-dim); }
 
@@ -404,4 +414,16 @@ body.embed .game-wrap {
 @media (max-width: 720px) {
   .embed-mark { left: 8px; bottom: 6px; opacity: 0.45; }
   .embed-mark img { height: 14px; }
+}
+
+/* Visually hidden but read aloud. For live regions that narrate a canvas game to
+   a screen reader, which the canvas itself cannot do: its aria-label names the
+   game once and then never changes. Kaleido is the first to use it. */
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  margin: -1px; padding: 0; border: 0;
+  clip-path: inset(50%);
+  overflow: hidden;
+  white-space: nowrap;
 }

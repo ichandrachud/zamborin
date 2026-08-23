@@ -496,6 +496,7 @@
                  NDOM, given: 0, blanks: NDOM, deductions: 0, undecided: NDOM, determined: false };
   }
 
+  let lastSaid = '';
   function genLevel(lvl, asMenu, override) {
     level = lvl;
     const cfg = override || rampFor(lvl);
@@ -573,6 +574,9 @@
     refuseCell = -1; hintCell = -1;
     save(); layoutRings(); animEnd = performance.now() + 400; ensureAnim(performance.now());
     T().levelStart(level);
+    // A new board is a state change too, and the one a screen reader most needs:
+    // without it the first thing ever announced is the result of a move.
+    lastSaid = ''; announce();
   }
 
   // Build one candidate: a full legal figure first, then pin some of it.
@@ -816,6 +820,21 @@
     next < 0 ? snd.clear() : snd.place();
     after(now);
   }
+  // K3. The canvas carries an aria-label, but a label names the game once and then
+  // never changes, so a screen reader was told nothing at all as the board filled.
+  // Every board change already funnels through after(), so one announcement here
+  // covers placing, clearing, undo and hint without narrating the animation.
+  function announce() {
+    const el = document.getElementById('live');
+    if (!el) return;
+    const p = placed(), b = blanks(), c = conflicts();
+    const msg = phase === 'won'
+      ? 'Window ' + level + ' complete.'
+      : p + ' of ' + b + ' panes placed' + (c ? ', ' + c + (c === 1 ? ' clash' : ' clashes') : '') + '.';
+    if (msg === lastSaid) return;       // repeating a string is not re-announced
+    lastSaid = msg;
+    el.textContent = msg;
+  }
   function after(now) {
     save();
     animEnd = now + 420;
@@ -824,6 +843,7 @@
       T().levelComplete(level, history.length); snd.win();
     }
     ensureAnim(now);
+    announce();
   }
   function undo() {
     if (phase !== 'play' || !history.length) return;

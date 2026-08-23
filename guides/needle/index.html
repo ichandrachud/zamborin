@@ -24,11 +24,13 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../../shared/tokens.css?v=1" />
-  <link rel="stylesheet" href="../../shared/chrome.css?v=16" />
+  <link rel="stylesheet" href="../../shared/chrome.css?v=18" />
   <style>
     .guide { max-width: 760px; margin: 0 auto; padding: 40px 24px 80px; color: var(--text-dim); line-height: 1.7; font-size: 17px; }
     .guide .crumbs { font-size: 14px; margin-bottom: 22px; color: var(--text-dim); }
-    .guide .crumbs a { color: #4DC3FF; text-decoration: none; }
+    .guide .crumbs a { color: #4DC3FF; text-decoration: none; display: inline-block; padding: 4px 0; }  /* W18: 14px type gives a 17px link, under the 24px of WCAG 2.5.8. These are
+       navigation, not links inside a sentence, so the inline exemption does not
+       apply. inline-block is what makes the padding count toward height. */
     .guide h1 { font-size: 38px; color: var(--text); font-weight: 800; margin: 0 0 6px; letter-spacing: -0.5px; line-height: 1.15; }
     .guide .lede { font-size: 19px; color: var(--text); margin: 14px 0 8px; }
     .guide h2 { font-size: 23px; color: var(--text); font-weight: 700; margin: 38px 0 10px; letter-spacing: -0.2px; }
@@ -41,6 +43,13 @@
     .guide .playbox { margin: 36px 0 8px; padding: 22px 24px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09); border-radius: 14px; }
     .guide .playbox p { margin: 0 0 14px; color: var(--text); font-weight: 600; }
     .guide .more { margin-top: 40px; padding-top: 22px; border-top: 1px solid rgba(255,255,255,0.09); font-size: 15px; }
+    /* W18: these are a row of navigation links formatted as a paragraph, not
+
+       links inside prose, so the inline exemption does not cover them. 15px type
+
+       gave an 18px target against the 24px of WCAG 2.5.8. */
+
+    .guide .more a { display: inline-block; padding: 4px 0; }
     .guide table { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 16px; }
     .guide th, .guide td { text-align: left; padding: 9px 12px; border-bottom: 1px solid rgba(255,255,255,0.09); }
     .guide th { color: var(--text); font-weight: 700; }
