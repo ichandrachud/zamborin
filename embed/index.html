@@ -68,7 +68,7 @@
     <p>That is the whole thing. The site header, footer and everything else falls away, and the game fills the frame you give it.</p>
 
     <h2>Sizing it</h2>
-    <p>Our games are built for a 760 by 600 frame on a computer, and they adapt down from there. Anything from about 480 by 360 upward works. Give it a tall narrow frame and the game lays itself out the way it does on a phone.</p>
+    <p>Our games are built for a 760 by 600 frame on a computer, and they adapt down from there. <strong>The smallest frame we support is 480 by 360.</strong> Every game is checked at that size, so anything at or above it is safe. Please do not go below it: on a shorter frame some games run out of room for their scorecards, and the card can end up covering the board. Give it a tall narrow frame and the game lays itself out the way it does on a phone.</p>
     <p>To make it stretch with your page, put the iframe in a container of your own and let it fill:</p>
     <div class="snippet"><code>&lt;div style="position:relative;width:100%;aspect-ratio:760/600"&gt;
   &lt;iframe src="https://zamborin.com/kaleido/?embed=1"
