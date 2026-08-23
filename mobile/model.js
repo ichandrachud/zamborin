@@ -1,4 +1,4 @@
-/* MOBILE — a Calder balancing puzzle, headless.
+/* MOBILE — a hanging-mobile balancing puzzle, headless.
 
    A tree of rods. Each rod hangs from a fixed pivot with a fixed length either
    side, and from each end hangs either another rod or an empty hook. You have a

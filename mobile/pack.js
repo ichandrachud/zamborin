@@ -113,7 +113,7 @@ function carelessWinRate(b, N = 4000) {
   return ok / N;
 }
 
-const rnd = mulberry(1898);          // Calder's birth year, for luck
+const rnd = mulberry(1898);          // fixed seed, so the pack is reproducible
 const out = [];
 // The mockups show around nine or ten pieces hung, so the set climbs to that.
 // Depth has to be dialled per stage as well as hook count: a depth-5 tree

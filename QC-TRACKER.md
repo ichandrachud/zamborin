@@ -1008,7 +1008,7 @@ a fill under white type (4.85), `#FF6B5C` for the accent used as text (5.88), be
 two uses pull in opposite directions and one value cannot serve both.
 
 **Sluice, Fold and Mobile cannot be swept this way and should not be faked.** Their
-colours are game ART, not UI tokens: flowers, folded paper, Calder shapes. Running a
+colours are game ART, not UI tokens: flowers, folded paper, hanging shapes. Running a
 contrast test over a pink flower produces a number with no meaning. What those three need
 is a person deciding which marks carry information and what sits behind them, which is a
 reading pass rather than a sweep. Their AX column stays open deliberately.
@@ -1189,7 +1189,7 @@ trusting the search that proposed it. A search reports what it optimised; only a
 re-measurement reports what shipped.
 
 | M4 | mobile | **BREAKS PLAY, and the copy made it worse. FIXED 2026-08-22** | Reported by the owner: at "your sculpture isn't balanced" the only option was **SOLVE**, which hands over the answer. There was no way to take a piece off and try again. Confirmed in the code and then reproduced with a real drag: `pointerdown` carries `if (phase !== 'play') return;` ABOVE the `b.take` branch, so lifting a hung piece was blocked in the `unbalanced` phase. Every hook is full by definition when the verdict fires, so the tray is empty too. The hook hit-boxes are still drawn and still registered, so a player taps a shape and **nothing happens at all**, which reads as broken rather than as refused. The only real escape was the undocumented desktop-only `r` key, which does not exist on a phone. **The source comment 300 lines above says "Taking a piece back off returns to play and the verdict clears", describing behaviour the guard forbids**, and the card said "Keep trying" while the game prevented exactly that. Fixed by allowing `unbalanced` to lift as well as `play`; `verdict()` already returns to `play` the moment a piece comes off. Copy now names the action. Verified with real drags on **8 levels: every one went unbalanced, lifted, returned to `play`, and then completed with error 0.** | DONE |
-| M1 | mobile | ACCESSIBILITY, moderate | Mobile is the site's only LIGHT game, a `#EAEAEA` to `#FFFFFF` ground with a white tray, and **4 of its 10 Calder colours fall below the 3:1 graphical bar**: yellow `#E4E41F` at 1.36 on the tray and 1.13 on the ground, sky `#8FD7F1` at 1.60/1.33, green `#5DCF37` at 2.01/1.67, orange `#FFA200` at 2.02/1.68. Null-tested. Not decorative: the game's one rule is that the AREA of a shape is its weight, so a shape's edge carries the only information there is. The house rule forbids outlines on game pieces, so the fix is either darkening those four or changing what sits behind them, and both are taste calls. | OPEN, owner's call |
+| M1 | mobile | ACCESSIBILITY, moderate | Mobile is the site's only LIGHT game, a `#EAEAEA` to `#FFFFFF` ground with a white tray, and **4 of its 10 shape colours fall below the 3:1 graphical bar**: yellow `#E4E41F` at 1.36 on the tray and 1.13 on the ground, sky `#8FD7F1` at 1.60/1.33, green `#5DCF37` at 2.01/1.67, orange `#FFA200` at 2.02/1.68. Null-tested. Not decorative: the game's one rule is that the AREA of a shape is its weight, so a shape's edge carries the only information there is. The house rule forbids outlines on game pieces, so the fix is either darkening those four or changing what sits behind them, and both are taste calls. | **FIXED 2026-08-23 with a switch, not a recolour.** The owner's call, and the better one: the colour IS the charm, so it stays the default and an accessible set sits behind a toggle, which is what Stained and Kaleido already do. The four failing colours are **darkened along their own hue** rather than replaced, so the second palette reads as a deeper version of the same set: yellow to `#878712`, sky to `#5C8A9A`, green to `#429427`, orange to `#B67400`. All ten now clear 3:1 against both the white tray and the `#EAEAEA` ground; the six that already passed are untouched. Persists to `zamborin-mobile.palette`, and pixel-verified: with the switch on, the tray paints `#5C8A9A` and no original-only colour appears |
 | M2 | mobile | MINOR now, a loaded gun later | `drawControls()` and its `pill()` helper are about 40 lines that are **never called**, confirmed by grep and by screenshot: the shipped game draws no control row. Inside the dead code is a **Rules** button setting `phase = 'menu'`. Nothing renders anything for that phase, and `verdict()` returns early on it, so nothing could leave it. Harmless only because it is unreachable. The moment anyone wires that row up, the first tap on Rules is an unrecoverable soft-lock. Delete it or wire it deliberately. | **FIXED 2026-08-22.** 47 lines deleted. **The first attempt deleted 87 and took `verdictFade`, `drawUnbalanced` and `solveIt` with them**, because they sit between `pill()` and `drawNext()` in the file; the game threw `drawUnbalanced is not defined` on the next run, which is the only reason it was caught. Redone with explicit assertions naming what must survive |
 | M3 | mobile | MINOR (AA) | The NEXT and SOLVE buttons are white on `NEXT_RED` `#FF0000`, measuring **4.00:1** against a 4.5 bar. Same family as the accent split shipped earlier today. `#E4001B` measures 4.87 and is visually the same red. | **FIXED 2026-08-22.** `NEXT_RED` `#FF0000` to `#E4001B`, 4.00:1 to 4.87:1 under white type, visually the same red |
 
@@ -1386,6 +1386,40 @@ the purple mark at #9E94C6 and the dark field at #0D1719.
 Post Inspector and Facebook Sharing Debugger both re-fetch on demand, and X refreshes on
 its own schedule. The `?v=2` guarantees a NEW share picks up the new art; it does not
 retroactively repair a post already published.
+
+| M5 | mobile | **Mobile had no rules screen at all. FIXED 2026-08-23** | The only game of fifteen that never explained itself, so a new player was never told the one rule it has: the AREA of a shape is its weight. A small card now opens on a first visit, persisted to `zamborin-mobile.seen`, and is reachable afterwards from a single quiet `?` mark bottom-left rather than a control row over a sculpture the mockups deliberately leave bare. It carries both switches, which is where Stained and Kaleido put theirs. It draws its own light-theme controls because `shared/ui.js` pills are white-on-transparent for a dark board and would be invisible on this one | DONE |
+| M6 | mobile | **I made the same card bug the site has found six times. FIXED before shipping** | The first version hard-coded the card at 300px and put PLAY at `y + ch - 4`, hanging the button **21px off the card's own bottom edge**. Caught by looking at it, then properly by giving the card a `menuFit()` and sweeping. The card is now measured from its content, the type scales with a 0.72 floor and **the button never scales**, and `menuFit()` reports the copy-to-button gap and whether the card is on the canvas. **18 sizes, zero failures**, scales 1.0 down to 0.75, worst gap 84px. The rule earned again: a card is not fixed until something can measure it | DONE |
+| L1 | site-wide | **NAMING RISK, owner-raised. FIXED 2026-08-23** | The site named a specific artist across 15 files: page titles, meta descriptions, JSON-LD, `og:image:alt`, the homepage card, `about`, `llms.txt`, source comments, an identifier, and **a palette button labelled with the name**, which is the strongest form because it is a product feature name rather than a description. Accurately: a name is not protected by copyright, so the exposure is **trademark and implied endorsement**, not copying. Nothing about the game needed it. Replaced throughout with plain description: "a hanging mobile", "a balancing mobile", "the mid-century mobile style". Zero occurrences remain in tracked files; `tessera/words.txt` keeps CALDERA, a volcanic crater, which is unrelated. **This is risk reduction, not legal advice** | DONE, and see the note on SEO |
+
+## Mobile's card, and a name removed, 2026-08-23
+
+**M1 went the owner's way and the owner was right.** My instinct had been to recolour;
+the answer was a switch. Recolouring would have destroyed the thing worth keeping, and
+the site already had the pattern twice over in Stained and Kaleido. The accessible set
+darkens each failing colour ALONG ITS OWN HUE, so it is a deeper version of the same
+palette rather than a different one.
+
+**Building the card, I made the exact bug this track has found six times.** PLAY hung
+21px off the card's bottom edge. It is worth being blunt about that: I had written the
+rule up twice in this same file, and still hard-coded a card height and placed a button
+against it. What caught it was looking at the screenshot; what FIXED it properly was
+giving the card a detector and sweeping 18 sizes rather than trusting the one I could
+see. The detector is the deliverable, not the fix.
+
+**On the name.** The owner raised it as a copyright question. The accurate framing is
+different and worth recording: a name is not copyrightable, so the risk was never
+copying. It was **trademark and implied endorsement**, and the site had drifted well past
+description into association: the artist's name sat in a page `<title>`, in JSON-LD
+`description`, and as the label on a palette BUTTON, which reads as a product feature
+rather than a comparison. Removing it cost nothing, because the mechanic describes itself
+perfectly well as a hanging balance sculpture.
+
+**One real cost, stated plainly.** The guide page title carried the name and presumably
+drew some search traffic on it. That is now gone by choice. If the traffic mattered it
+would have been a reason to think harder, not a reason to keep the risk.
+
+**Not legal advice.** Anything material here wants a professional, and the removal is a
+cheap way to stop needing one.
 
 ## START HERE — session handoff, 2026-08-22
 

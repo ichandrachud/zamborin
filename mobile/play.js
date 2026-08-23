@@ -1,7 +1,7 @@
 /* ============================================================
    MOBILE · a Zamborin Game
 
-   A Calder mobile, hanging from a hook. Rods pivot at fixed points, and from
+   A hanging mobile, suspended from a hook. Rods pivot at fixed points, and from
    each end hangs another rod or an empty string. Below is a tray of shapes.
    The area of a shape is its weight. Hang them so the whole thing sits level.
 
@@ -37,10 +37,34 @@
   const PIVOT = '#231F20', JOINT = '#414042', TOP_PIVOT = '#565656';
   const SHAPES = window.MOBILE_SHAPES || [];
   // The forms arrive as silhouettes, so colour is the game's to give. These are
-  // the fills from the reference file plus the orange and black Calder reached
+  // the fills from the reference file plus the orange and black the style reaches
   // for constantly.
-  const PALETTE = ['#E4E41F', '#E41F1F', '#546AE7', '#8FD7F1', '#952478',
-                   '#5DCF37', '#FFA200', '#F6134C', '#231F20', '#414042'];
+  /* M1. The original palette by default, because the colour IS the charm and
+     recolouring it permanently would be vandalism. But this is the only LIGHT
+     game on the site, a
+     #EAEAEA to #FFFFFF ground with a white tray, and four of these fall under
+     the 3:1 bar for a graphical object on it: yellow at 1.36, sky at 1.60,
+     green at 2.01, orange at 2.02. That is not decorative. The one rule this
+     game has is that the AREA of a shape is its weight, so a shape's edge
+     carries the only information there is, and a shape you cannot see is a
+     shape you cannot weigh.
+     So it is a switch, the way Stained and Kaleido offer theirs. The four that
+     fail are DARKENED ALONG THEIR OWN HUE rather than replaced, so the second
+     second palette reads as a deeper version of the same set rather than a
+     different one. All ten clear
+     3:1 against both the tray and the ground; the six that already passed are
+     untouched. */
+  const PALETTE_ORIGINAL = ['#E4E41F', '#E41F1F', '#546AE7', '#8FD7F1', '#952478',
+                          '#5DCF37', '#FFA200', '#F6134C', '#231F20', '#414042'];
+  const PALETTE_AA     = ['#878712', '#E41F1F', '#546AE7', '#5C8A9A', '#952478',
+                          '#429427', '#B67400', '#F6134C', '#231F20', '#414042'];
+  const PAL_KEY = 'zamborin-mobile.palette';
+  let useAA = (() => { try { return localStorage.getItem(PAL_KEY) === 'aa'; } catch (e) { return false; } })();
+  function setPalette(aa) {
+    useAA = aa;
+    try { localStorage.setItem(PAL_KEY, aa ? 'aa' : 'original'); } catch (e) {}
+  }
+  const PALETTE = PALETTE_ORIGINAL;   // length only; tint() picks the live one
   // NEXT_RED is a FILL under white type, so it has to hold 4.5:1. #FF0000 measured
   // 4.00. #E4001B measures 4.87 and reads as the same red.
   const TRAY_BG = '#FFFFFF', NEXT_RED = '#E4001B';
@@ -174,7 +198,10 @@
     for (let i = 0; i < n; i++) { formOf.push(forms[i % forms.length]); tintOf.push(tints[i % tints.length]); }
   }
   const shapeOf = (i) => SHAPES[formOf[i] != null ? formOf[i] : i % Math.max(1, SHAPES.length)];
-  const tint = (i) => PALETTE[tintOf[i] != null ? tintOf[i] : i % PALETTE.length];
+  const tint = (i) => {
+    const P = useAA ? PALETTE_AA : PALETTE_ORIGINAL;
+    return P[tintOf[i] != null ? tintOf[i] : i % P.length];
+  };
   const shapeK = (i, w) => Math.sqrt(w * AREA_K) * unit;
   // how far the centroid sits below the point the string meets
   function shapeDrop(i, w) { const sh = shapeOf(i); return sh ? -sh.top * shapeK(i, w) : 0; }
@@ -341,6 +368,7 @@
     if (held) drawHeld();
     if (phase === 'won') drawNext();
     if (phase === 'unbalanced') drawUnbalanced(t);
+    if (phase === 'menu') drawMenu(); else drawMenuHandle();
   }
 
   function drawSculpture(s) {
@@ -523,6 +551,117 @@
   // the message ease up so the moment reads as the sculpture answering you.
   const verdictFade = (t) => Math.max(0, Math.min(1, (t - settledAt) / VERDICT_FADE));
 
+  /* The rules card. Mobile was the only game of fifteen with no rules screen at
+     all, so a new player was never told the one rule it has: the AREA of a shape
+     is its weight. It carries the two switches as well, which is where Stained
+     and Kaleido put theirs.
+     It draws its own controls rather than using shared/ui.js, because those
+     pills are white-on-transparent for a dark board and this is the only LIGHT
+     game on the site: they would be invisible here. */
+  const MENU_KEY = 'zamborin-mobile.seen';
+  const MENU_BTN = { x: 0, y: 0, w: 0, h: 0 };
+  function lightPill(label, cx, cy, wantW, active) {
+    ctx.font = '700 13px Inter, sans-serif';
+    const w = wantW || Math.round(ctx.measureText(label).width + 30), h = 34;
+    const x = Math.round(cx - w / 2), y = Math.round(cy - h / 2);
+    ctx.beginPath(); ctx.roundRect(x, y, w, h, h / 2);
+    ctx.fillStyle = active ? 'rgba(35,31,32,0.90)' : 'rgba(35,31,32,0.05)'; ctx.fill();
+    ctx.strokeStyle = active ? 'rgba(35,31,32,0.90)' : 'rgba(35,31,32,0.30)';
+    ctx.lineWidth = 1.3; ctx.stroke();
+    ctx.fillStyle = active ? '#FFFFFF' : 'rgba(35,31,32,0.72)';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(label, x + w / 2, y + h / 2 + 1);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    return { x, y, w, h };
+  }
+  const MENU_LINES = ['Every rod balances: weight times arm length,',
+                     'the same on both sides, all the way down.',
+                     '',
+                     'The bigger a shape looks, the more it weighs.',
+                     'That is the only rule.'];
+  /* Sizing lifted out of the draw so menuFit() can ask exactly the same question
+     without one. The first version hard-coded ch = 300 and put PLAY at
+     y + ch - 4, which hung the button 21px off the card's own bottom edge: the
+     same defect found in six other games this week, made once more by hand. The
+     card is now measured from its content and the button is INSIDE it by
+     construction. */
+  function menuAt(ts) {
+    const cw = Math.min(LW - 40, Math.round(420 * Math.max(ts, 0.86)));
+    const titleY = 34 * ts, copyTop = 68 * ts, lineH = 18 * ts;
+    const copyH = MENU_LINES.length * lineH;
+    const labelY = copyTop + copyH + 14 * ts;
+    const rowY = labelY + 26 * ts;
+    const sndY = rowY + 42 * ts;
+    // The BUTTON never scales. It is a house size and a touch target, and every
+    // other card on this site holds that line; only the type above it gives.
+    const ctaY = sndY + 30 * ts + UI.CTA.h / 2;
+    const ch = Math.round(ctaY + UI.CTA.h / 2 + 22 * ts);
+    const cx = LW / 2, cy = LH / 2;
+    const x = Math.round(cx - cw / 2), y = Math.round(cy - ch / 2);
+    return { ts, cw, ch, cx, cy, x, y, titleY, copyTop, lineH, labelY, rowY, sndY, ctaY };
+  }
+  function menuLayout() {
+    // Shrink the type until the card is inside the frame, floor 0.72, which is
+    // the same floor the other six cards on the site use.
+    let ts = 1, L = menuAt(ts);
+    for (let i = 0; i < 8 && L.ch + 20 > LH && ts > 0.72; i++) {
+      ts = Math.max(0.72, ts - 0.05);
+      L = menuAt(ts);
+    }
+    return L;
+  }
+  function drawMenu() {
+    const L = menuLayout();
+    const cw = L.cw, ch = L.ch, cx = L.cx, x = L.x, y = L.y;
+    const lines = MENU_LINES;
+    ctx.save();
+    ctx.fillStyle = 'rgba(255,255,255,0.72)'; ctx.fillRect(0, 0, LW, LH);
+    ctx.shadowColor = 'rgba(35,31,32,0.18)'; ctx.shadowBlur = 26; ctx.shadowOffsetY = 6;
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath(); ctx.roundRect(x, y, cw, ch, 18); ctx.fill();
+    ctx.restore();
+    ctx.save();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#231F20'; ctx.font = '800 ' + Math.round(22 * L.ts) + 'px Inter, sans-serif';
+    ctx.fillText('Mobile', cx, y + L.titleY);
+    ctx.font = '500 ' + Math.round(13 * L.ts) + 'px Inter, sans-serif'; ctx.fillStyle = 'rgba(35,31,32,0.70)';
+    let ty = y + L.copyTop;
+    for (const l of lines) { if (l) ctx.fillText(l, cx, ty); ty += L.lineH; }
+    ctx.font = '700 ' + Math.round(10 * L.ts) + 'px Inter, sans-serif'; ctx.fillStyle = 'rgba(35,31,32,0.42)';
+    ctx.fillText('COLOUR', cx, y + L.labelY);
+    ctx.restore();
+    uiButtons.push(Object.assign(lightPill('Original', cx - 62, y + L.rowY, 112, !useAA),
+      { act: () => { setPalette(false); } }));
+    uiButtons.push(Object.assign(lightPill('Readable', cx + 62, y + L.rowY, 112, useAA),
+      { act: () => { setPalette(true); } }));
+    uiButtons.push(Object.assign(lightPill(snd.on() ? 'Sound on' : 'Sound off', cx, y + L.sndY, 150, snd.on()),
+      { act: () => { snd.ready(); snd.toggle(); } }));
+    ctx.save();
+    const b = UI.drawCTA(ctx, 'PLAY', cx, y + L.ctaY, NEXT_RED);
+    ctx.restore();
+    uiButtons.push(Object.assign(b, { act: () => {
+      phase = 'play';
+      try { localStorage.setItem(MENU_KEY, '1'); } catch (e) {}
+      layout();
+    } }));
+  }
+  // A single quiet mark, bottom left, so the card can be reached again without
+  // putting a control row over a sculpture the mockups deliberately leave bare.
+  function drawMenuHandle() {
+    const r = 13, cx = 20 + r, cy = LH - 20 - r;
+    MENU_BTN.x = cx - r - 6; MENU_BTN.y = cy - r - 6; MENU_BTN.w = (r + 6) * 2; MENU_BTN.h = (r + 6) * 2;
+    ctx.save();
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.82)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(35,31,32,0.28)'; ctx.lineWidth = 1.2; ctx.stroke();
+    ctx.fillStyle = 'rgba(35,31,32,0.72)'; ctx.font = '700 14px Inter, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('?', cx, cy + 1);
+    ctx.restore();
+    uiButtons.push(Object.assign({ x: MENU_BTN.x, y: MENU_BTN.y, w: MENU_BTN.w, h: MENU_BTN.h },
+      { act: () => { phase = 'menu'; } }));
+  }
+
   function drawUnbalanced(t) {
     const f = verdictFade(t);
     ctx.save(); ctx.globalAlpha = f;
@@ -663,6 +802,24 @@
       return __mobile.state;
     },
     settle(ms) { for (let t = 0; t < ms; t += 16) step(0.016); return __mobile.angles; },
+    /* FO3 said Mobile needed no fit detector because it had no card. It has one
+       now, so it needs one: every card on this site that could not be measured
+       turned out to be broken. Reports the real number, the gap between the last
+       line of copy and the top of the button, and whether the card is inside the
+       frame at all. */
+    menuFit() {
+      const L = menuLayout();
+      const copyBottom = L.y + L.copyTop + MENU_LINES.length * L.lineH;
+      const ctaTop = L.y + L.ctaY - UI.CTA.h / 2;
+      const cardBottom = L.y + L.ch;
+      return { LW, LH, scale: Math.round(L.ts * 100) / 100, cardW: L.cw, cardH: L.ch,
+               cardTop: L.y, cardBottom,
+               copyBottom: Math.round(copyBottom), ctaTop: Math.round(ctaTop),
+               gapCopyToButton: Math.round(ctaTop - copyBottom),
+               buttonInsideCard: ctaTop >= L.y && (L.y + L.ctaY + UI.CTA.h / 2) <= cardBottom + 0.5,
+               cardOnCanvas: L.y >= 0 && cardBottom <= LH + 0.5 && L.x >= 0 && L.x + L.cw <= LW + 0.5,
+               fits: ctaTop > copyBottom && L.y >= 0 && cardBottom <= LH + 0.5 };
+    },
     // the win flips inside the animation loop, which a hidden tab throttles to
     // nothing, so this is how the finished state gets looked at
     forceWin() { for (let t = 0; t < 15000; t += 16) step(0.016); phase = 'won'; layout(); render(0); return phase; },
@@ -673,6 +830,9 @@
   // ---------- boot ----------
   setCanvasVars(); resizeCanvas(); fitFullscreen(); resizeCanvas();
   start(loadLevel());
+  // First visit opens on the card, because the one rule is not guessable from a
+  // hanging sculpture. After that it stays out of the way behind the ? mark.
+  try { if (localStorage.getItem(MENU_KEY) !== '1') phase = 'menu'; } catch (e) {}
   raf = requestAnimationFrame(frame);
   setTimeout(onResize, 0); setTimeout(onResize, 300);
   window.addEventListener('load', onResize);
