@@ -2100,43 +2100,73 @@
      copy. The floor holds at 0.72 and the residue is left visible rather than
      papered over with type nobody can read. Shortening the card for short
      frames is a copy decision and belongs to the owner. */
-  function menuMetrics(ts) {
-    const pw = Math.max(260, Math.min(LW - 44, 486));
-    let mh = 32 * ts + 50 * ts;
+  /* The full-frame fallback, 2026-08-24. The note above says Prism cannot always
+     win this and that shortening the copy is the owner's call. That is still
+     true of the COPY. What had not been tried is the fallback Kaleido, Tessera,
+     Untangle, Stained and Fold all use: when the card cannot hold its contents
+     at the type floor, stop drawing a card. It is a container change, not a copy
+     change, and it buys three things at once — the 22px outer margin either
+     side, the card's internal insets, and a wider column that wraps to fewer
+     lines. Card mode below is parameterised to produce exactly the old numbers,
+     so nothing changes on a frame that was already fitting. */
+  function menuGeom(frame) {
+    return frame
+      ? { pw: Math.max(260, LW - 24), subInset: 40, ruleInset: 56,
+          rulePad: 12, padTop: 18, padBot: 20, maxH: LH - 8 }
+      : { pw: Math.max(260, Math.min(LW - 44, 486)), subInset: 70, ruleInset: 96,
+          rulePad: 30, padTop: 32, padBot: 34, maxH: LH - 28 };
+  }
+  function menuMetrics(ts, frame) {
+    const G = menuGeom(!!frame);
+    let mh = G.padTop * ts + 50 * ts;
     ctx.font = '600 ' + (17 * ts).toFixed(2) + 'px Inter, sans-serif';
-    mh = wrapText(MENU_SUB, 0, mh, pw - 70, 24 * ts, 'center', true) + 16 * ts;
+    mh = wrapText(MENU_SUB, 0, mh, G.pw - G.subInset, 24 * ts, 'center', true) + 16 * ts;
     ctx.font = '500 ' + (16 * ts).toFixed(2) + 'px Inter, sans-serif';
-    for (const r of MENU_RULES) mh = wrapText(r, 0, mh, pw - 96, 22 * ts, 'left', true) + 12 * ts;
-    return { pw, ph: mh + 22 * ts + UI.CTA.h + 34 * ts, ts };
+    for (const r of MENU_RULES) mh = wrapText(r, 0, mh, G.pw - G.ruleInset, 22 * ts, 'left', true) + 12 * ts;
+    return Object.assign({}, G, { ph: mh + 22 * ts + UI.CTA.h + G.padBot * ts, ts, frame: !!frame });
+  }
+  /* One search, run by BOTH the draw and rulesFit, so the two cannot drift.
+     Card first: a frame that fits in a card keeps its card. */
+  function menuLayout() {
+    let ts = 1, m = menuMetrics(1, false);
+    while (ts > 0.72 && m.ph > m.maxH) { ts = Math.max(0.72, ts - 0.04); m = menuMetrics(ts, false); }
+    if (m.ph <= m.maxH) return m;
+    let tf = 1, f = menuMetrics(1, true);
+    while (tf > 0.72 && f.ph > f.maxH) { tf = Math.max(0.72, tf - 0.04); f = menuMetrics(tf, true); }
+    return (f.ph - f.maxH) < (m.ph - m.maxH) ? f : m;
   }
 
   function menuOverlay() {
-    ctx.fillStyle = 'rgba(9,15,26,0.92)'; ctx.fillRect(0, 0, LW, LH);
-    const maxH = LH - 28;
-    let ts = 1, m = menuMetrics(1);
-    while (ts > 0.72 && m.ph > maxH) { ts = Math.max(0.72, ts - 0.04); m = menuMetrics(ts); }
+    const m = menuLayout();
+    const ts = m.ts, frame = m.frame;
+    // Without a panel behind it the copy sits straight on the board, so the
+    // scrim has to carry the legibility the panel used to.
+    ctx.fillStyle = frame ? 'rgba(9,15,26,0.97)' : 'rgba(9,15,26,0.92)';
+    ctx.fillRect(0, 0, LW, LH);
     const pw = m.pw;
-    const ph = Math.min(maxH, m.ph);
+    const ph = Math.min(m.maxH, m.ph);
     const px = Math.round((LW - pw) / 2), py = Math.round((LH - ph) / 2);
-    ctx.fillStyle = '#16233A'; roundRect(px, py, pw, ph, 24); ctx.fill();
-    ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(255,255,255,0.12)'; roundRect(px, py, pw, ph, 24); ctx.stroke();
-    // spectrum hairline across the top of the card
-    const g = ctx.createLinearGradient(px + 40, 0, px + pw - 40, 0);
-    g.addColorStop(0, 'rgba(255,71,87,0)'); g.addColorStop(0.22, '#FF4757');
-    g.addColorStop(0.5, '#39E77B'); g.addColorStop(0.78, '#4C8DFF'); g.addColorStop(1, 'rgba(76,141,255,0)');
-    ctx.fillStyle = g; ctx.fillRect(px + 40, py + 1, pw - 80, 2);
+    if (!frame) {
+      ctx.fillStyle = '#16233A'; roundRect(px, py, pw, ph, 24); ctx.fill();
+      ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(255,255,255,0.12)'; roundRect(px, py, pw, ph, 24); ctx.stroke();
+      // spectrum hairline across the top of the card
+      const g = ctx.createLinearGradient(px + 40, 0, px + pw - 40, 0);
+      g.addColorStop(0, 'rgba(255,71,87,0)'); g.addColorStop(0.22, '#FF4757');
+      g.addColorStop(0.5, '#39E77B'); g.addColorStop(0.78, '#4C8DFF'); g.addColorStop(1, 'rgba(76,141,255,0)');
+      ctx.fillStyle = g; ctx.fillRect(px + 40, py + 1, pw - 80, 2);
+    }
 
-    const cx = LW / 2; let y = py + 32 * ts;
+    const cx = LW / 2; let y = py + m.padTop * ts;
     ctx.fillStyle = '#fff';
     ctx.font = '800 ' + (38 * ts).toFixed(2) + 'px Inter, sans-serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'top';
     ctx.fillText('PRISM', cx, y); y += 50 * ts;
     ctx.fillStyle = 'rgba(255,255,255,0.82)';
     ctx.font = '600 ' + (17 * ts).toFixed(2) + 'px Inter, sans-serif';
-    y = wrapText(MENU_SUB, cx, y, pw - 70, 24 * ts); y += 16 * ts;
+    y = wrapText(MENU_SUB, cx, y, pw - m.subInset, 24 * ts); y += 16 * ts;
 
     const rules = MENU_RULES;
-    const rx = px + 30, dotR = 12 * ts;
+    const rx = px + m.rulePad, dotR = 12 * ts;
     for (let i = 0; i < rules.length; i++) {
       ctx.fillStyle = ACCENT; ctx.beginPath(); ctx.arc(rx + 11, y + dotR, dotR, 0, 7); ctx.fill();
       ctx.fillStyle = '#FFFFFF';
@@ -2145,10 +2175,10 @@
       ctx.fillText(String(i + 1), rx + 11, y + dotR + 1);
       ctx.fillStyle = 'rgba(255,255,255,0.90)';
       ctx.font = '500 ' + (16 * ts).toFixed(2) + 'px Inter, sans-serif';
-      y = wrapText(rules[i], rx + 34, y, pw - 96, 22 * ts, 'left') + 12 * ts;
+      y = wrapText(rules[i], rx + 34, y, pw - m.ruleInset, 22 * ts, 'left') + 12 * ts;
     }
     const label = moves > 0 ? 'RESUME' : 'PLAY';
-    uiButtons.push({ ...UI.drawCTA(ctx, label, cx, py + ph - 34 * ts - UI.CTA.h / 2, ACCENT), act: () => { phase = 'play'; T().gameStart(); } });
+    uiButtons.push({ ...UI.drawCTA(ctx, label, cx, py + ph - m.padBot * ts - UI.CTA.h / 2, ACCENT), act: () => { phase = 'play'; T().gameStart(); } });
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   }
 
@@ -2370,12 +2400,12 @@
          from it. `scale` is where the search settled; at 1 it never had to
          shrink, at the 0.72 floor it ran out of room and `overflowPx` is the
          residue that copy would have to give back. */
-      const maxH = LH - 28;
-      let ts = 1, m = menuMetrics(1);
-      const unscaled = m.ph;
-      while (ts > 0.72 && m.ph > maxH) { ts = Math.max(0.72, ts - 0.04); m = menuMetrics(ts); }
+      const unscaled = menuMetrics(1, false).ph;
+      const m = menuLayout();
+      const ts = m.ts, maxH = m.maxH;
       return { mode: MODE, LW, LH, scale: +ts.toFixed(2),
                bodyPx: +(16 * ts).toFixed(1),
+               fullFrame: m.frame,
                unscaled: Math.round(unscaled), wanted: Math.round(m.ph), max: maxH,
                overflowPx: Math.max(0, Math.round(m.ph - maxH)), fits: m.ph <= maxH };
     },
