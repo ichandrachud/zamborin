@@ -1340,8 +1340,28 @@ mute pill through the real UI: **0 nodes with sound off, 1 node with it on**, an
 control row going from 4 buttons to 5. Measure the path the player takes, not the path
 the test finds convenient.
 
-**What cannot be verified here.** Whether the paper crease actually SOUNDS like paper is
-a judgement this environment cannot make. The envelope, the crackle density and the
+**Corrected once on the owner's ear, and the diagnosis is worth keeping.** The first
+version was heard as **"a metal case shutting"**, which was three mistakes:
+
+- a **pure tone** was mixed underneath as a landing. Nothing about paper is pitched, and
+  a sine is the most metallic thing available.
+- the filter was a **bandpass**, which resonates. A resonance is a ring, and ringing is
+  what metal does. A highpass takes the boom out without putting a pitch in.
+- the body was mostly **smooth noise** with crackle on top, so there was a continuous
+  tail for the filter to ring through. The signal is now ONLY crackle, which is what
+  paper physically is: many tiny fibre releases rather than a tone.
+
+Also two hits 26ms apart read as click-then-clunk, a latch rather than a crease. One
+gesture now, and 70ms rather than 130. The same sine was pulled out of `stitch`, so
+Needle would have had the same metallic edge.
+
+**Verified objectively as well as by ear**, because "does it ring" is measurable: the
+shipped crease rendered offline gives a **peak autocorrelation of 0.049**, which is no
+periodicity at all, and a zero-crossing rate of 0.297, which is broadband. Accepted by
+the owner on the second version.
+
+**What still cannot be verified here.** Whether a sound is RIGHT is a judgement this
+environment cannot make. The envelope, the crackle density and the
 filter centres are designed choices; they are measurable as audio nodes and not as
 quality. That one needs the owner's ears.
 
