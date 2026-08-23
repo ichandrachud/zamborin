@@ -1365,6 +1365,28 @@ environment cannot make. The envelope, the crackle density and the
 filter centres are designed choices; they are measurable as audio nodes and not as
 quality. That one needs the owner's ears.
 
+## The site OG graphic, 2026-08-23
+
+Replaced `images/zamborin-og-image.jpg` with the owner's new art: the orange orbit rings
+and the wordmark. 1200x630, which matches the `og:image:width` and `og:image:height`
+already declared on all 17 pages, and **98KB against the old 496KB**.
+
+**The filename stayed and the URL changed.** Social platforms cache an OG image by its
+URL, so overwriting the file alone would have left LinkedIn and Facebook serving the old
+graphic indefinitely. All 18 tags, 9 `og:image` and 9 `twitter:image`, now carry `?v=2`,
+which is the same versioning the site uses for every other shared asset. Keeping the
+filename matters too: W4 was a broken share card caused by a page pointing at a
+DIFFERENT og filename, so there is only one canonical name here on purpose.
+
+Verified by fetching the served file and sampling it rather than trusting the copy: 200,
+`image/jpeg`, 1200x630, and three regions read as the new art, the bulb glow at #FEFFF9,
+the purple mark at #9E94C6 and the dark field at #0D1719.
+
+**A re-scrape is still worth doing by hand** for anything already shared: the LinkedIn
+Post Inspector and Facebook Sharing Debugger both re-fetch on demand, and X refreshes on
+its own schedule. The `?v=2` guarantees a NEW share picks up the new art; it does not
+retroactively repair a post already published.
+
 ## START HERE — session handoff, 2026-08-22
 
 Everything below the audit write-ups is history. This is the live state.
