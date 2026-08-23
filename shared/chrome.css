@@ -332,6 +332,34 @@ body.focus-mode #game { width: 100%; height: 100%; }
   body .site-header .brand,
   body .site-header .back-link { display: none; }
   body .site-header .focus-btn { display: none; }
+
+  /* W12. The three rules above collapse the header to nothing, which is right on
+     a GAME page: the canvas wants the whole screen. But they were never scoped,
+     so they also took the masthead off every lobby-class page, and that is 24 of
+     them: eight content pages, fifteen guides and the 404. A phone visitor had
+     no logo and nothing to tap home from the top. Only the homepage escaped,
+     because index.html carried this exact override inline, so the fix was
+     already written and simply in the wrong file.
+     Game pages are body.game-content-page and keep the collapse. */
+  body.lobby-page .site-header {
+    position: sticky;
+    top: 0;
+    height: 64px;
+    padding: 0 16px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--line);
+    overflow: visible;
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+  }
+  body.lobby-page .site-header .brand { display: flex; }
+  /* 34, not 28, for the same reason .brand-logo is 44 and not 36 on the desktop
+     header: the wordmark changed shape on 2026-08-21 and the letters now sit at
+     55% of the box rather than filling it. 28 left them at 15.4px. 34 puts them
+     at 18.7px and the logo at 228px wide, which clears a 320px phone with its
+     16px padding. */
+  body.lobby-page .brand-logo { height: 34px; }
   body .page { margin: 0; padding: 0; gap: 0; max-width: none; }
   body .play-row {
     width: 100vw; height: 100dvh;

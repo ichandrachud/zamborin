@@ -30,7 +30,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./shared/tokens.css?v=1" />
-  <link rel="stylesheet" href="./shared/chrome.css?v=18" />
+  <link rel="stylesheet" href="./shared/chrome.css?v=19" />
 
   <style>
     body {
@@ -171,27 +171,8 @@
        The lobby is not a game — undo that collapse and use a more compact mobile
        header (64px tall, 28px logo). The body.lobby-page selector keeps this
        opt-out scoped to just the lobby. */
-    @media (max-width: 1151px) {
-      body.lobby-page .site-header {
-        position: sticky;
-        top: 0;
-        height: 64px;
-        padding: 0 16px;
-        background: var(--bg);
-        border-bottom: 1px solid var(--line);
-        overflow: visible;
-        pointer-events: auto;
-        display: flex;
-        align-items: center;
-      }
-      body.lobby-page .site-header .brand { display: flex; }
-      /* 34, not 28, for the same reason .brand-logo is 44 and not 36 on the
-         desktop header: the wordmark changed shape on 2026-08-21 and the
-         letters now sit at 55% of the box rather than filling it. 28 left
-         them at 15.4px. 34 puts them at 18.7px and the logo at 228px wide,
-         which clears a 320px phone with its 16px padding. */
-      body.lobby-page .brand-logo { height: 34px; }
-    }
+    /* The mobile lobby header now lives in shared/chrome.css, so all 24
+       lobby-class pages get it and not just this one. See W12. */
 
     .lobby-intro { max-width: 720px; }
     .lobby-intro h1 { font-size: 34px; font-weight: 800; color: var(--text); letter-spacing: -0.6px; line-height: 1.12; margin-bottom: 12px; }
