@@ -521,6 +521,19 @@
   // pinned to the top of the board band, which both makes it the hero and
   // guarantees the scorecard has somewhere to sit below it. Left where the
   // folds happened to end, it could be low enough that the card had to cover it.
+  /* FO4. On a short frame the assembled picture and the scorecard want the same
+     space, and the card was winning: at 480x360 it clamped to its 0.62 floor and
+     still landed 29px over the figure.
+     Two answers were built and MEASURED before this one, and both failed:
+       shrink the figure  Dead. Below 430px tall the cell is already at its 12px
+         floor, so a 4x4 figure is 48px high. Shrinking it 30% cut the overlap
+         from 29px to 15px and never to zero, paying with the very picture the
+         fix exists to protect.
+       make the card sheer  Wrong. What reads through is not the figure, which
+         sits above the card, but the game's own win banner and button row. It
+         looks like a rendering fault.
+     Both fail for one reason: at 480x360 this is a SPACE problem, not a
+     placement one. So the card gives up content instead. See winBody. */
   const originX = () => phase === 'won' ? Math.round((CW - W * CELL) / 2) - x0 * CELL : boardOX;
   const originY = () => phase === 'won' ? boardOY - y0 * CELL : boardOY;
   const cellX = (c) => originX() + (x0 + c) * CELL;
@@ -787,7 +800,7 @@
     }
     return y + Math.round((strong ? 32 : 27) * ms);
   }
-  function winBody(px, py, pw, ms, draw) {
+  function winBody(px, py, pw, ms, draw, compact) {
     const a = award || scoreLevel(), cx = CW / 2;
     let y = py + Math.round(32 * ms);
     if (draw) {
@@ -798,17 +811,24 @@
     y += Math.round(38 * ms);
     if (draw) {
       ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.font = '600 ' + Math.round(15 * ms) + 'px Inter, sans-serif';
-      ctx.fillText('Level ' + level + ' · every piece in place', cx, y);
+      ctx.fillText(compact ? ('Level ' + level + ' · ' + a.moves + ' folds · par ' + a.par)
+                           : ('Level ' + level + ' · every piece in place'), cx, y);
     }
     y += Math.round(32 * ms);
-    y = scoreRow('Level clear', '', '+' + fmt(a.base), px, pw, y, ms, false, draw);
-    y = scoreRow('Par bonus', a.moves + ' folds · par ' + a.par, '+' + fmt(a.parBonus), px, pw, y, ms, false, draw);
-    if (a.sizeBonus) y = scoreRow('Large figure', gw + '×' + gh, '+' + fmt(a.sizeBonus), px, pw, y, ms, false, draw);
-    if (draw) {
-      ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(px + 26, y - 12 * ms); ctx.lineTo(px + pw - 26, y - 12 * ms); ctx.stroke();
+    // The breakdown is the ARITHMETIC behind a number the player still sees. On a
+    // frame too short to hold the whole card it is the first thing to go, ahead
+    // of the score itself, the figure's name or the button. The par line survives
+    // as a note on the subtitle so the one fact you might act on is not lost.
+    if (!compact) {
+      y = scoreRow('Level clear', '', '+' + fmt(a.base), px, pw, y, ms, false, draw);
+      y = scoreRow('Par bonus', a.moves + ' folds · par ' + a.par, '+' + fmt(a.parBonus), px, pw, y, ms, false, draw);
+      if (a.sizeBonus) y = scoreRow('Large figure', gw + '×' + gh, '+' + fmt(a.sizeBonus), px, pw, y, ms, false, draw);
+      if (draw) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(px + 26, y - 12 * ms); ctx.lineTo(px + pw - 26, y - 12 * ms); ctx.stroke();
+      }
+      y += Math.round(6 * ms);
     }
-    y += Math.round(6 * ms);
     y = scoreRow('Level score', '', fmt(a.levelScore), px, pw, y, ms, true, draw);
     y += Math.round(8 * ms);
     y = scoreRow('Total score', score.cleared + (score.cleared === 1 ? ' figure' : ' figures') + ' made', fmt(score.total), px, pw, y, ms, true, draw);
@@ -825,9 +845,10 @@
     const L = winCardLayout();
     const figBottom = L.figBottom, room = L.room, ms = L.ms, pw = L.pw;
     const ph = L.ph, bh = L.bh, px = L.px, py = L.py;
-    ctx.fillStyle = '#16233a'; roundRect(px, py, pw, ph, 22); ctx.fill();
+    ctx.fillStyle = '#16233a';
+    roundRect(px, py, pw, ph, 22); ctx.fill();
     ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(255,255,255,0.13)'; roundRect(px, py, pw, ph, 22); ctx.stroke();
-    const endY = winBody(px, py, pw, ms, true);
+    const endY = winBody(px, py, pw, ms, true, L.compact);
     const bw = Math.round(pw * 0.62), bx = px + (pw - bw) / 2;
     ctx.fillStyle = GOOD; roundRect(bx, endY, bw, bh, bh / 2); ctx.fill();
     ctx.fillStyle = '#0B1520'; ctx.font = '800 ' + Math.round(15 * ms) + 'px Inter, sans-serif';
@@ -849,17 +870,37 @@
     // Size the card to the gap it actually has. On a small sheet the cells are
     // large, the assembled figure is tall, and a fixed-size card simply would
     // not fit underneath, so it shrinks rather than climbing over the picture.
-    let ms = Math.max(0.78, Math.min(1, Math.min(CH / 760, CW / 430)));
+    const ms0 = Math.max(0.78, Math.min(1, Math.min(CH / 760, CW / 430)));
     const pw = Math.min(CW - 34, 420);
-    const measure = (m) => winBody(0, 0, pw, m, false) + Math.round(50 * m) + Math.round(24 * m);
-    let ph = measure(ms);
-    for (let i = 0; i < 8 && ph > room && ms > 0.62; i++) { ms = Math.max(0.62, ms - 0.05); ph = measure(ms); }
+    const measure = (m, c) => winBody(0, 0, pw, m, false, c) + Math.round(50 * m) + Math.round(24 * m);
+    // Shrink the TYPE first, exactly as before. Only if the floor still will not
+    // fit does the card drop its breakdown, and then the type is allowed back up:
+    // a smaller card at a readable size beats a full one that lands on the
+    // picture. Compact is never used on a frame where the full card fits.
+    const shrink = (c) => {
+      let m = ms0, h = measure(m, c);
+      for (let i = 0; i < 8 && h > room && m > 0.62; i++) { m = Math.max(0.62, m - 0.05); h = measure(m, c); }
+      return { m, h };
+    };
+    let r = shrink(false), compact = false;
+    if (r.h > room) {
+      // Cutting the breakdown is worth it if it lands the card CLOSER, not only
+      // if it lands it clear. Half an overlap is half a covered picture.
+      const rc = shrink(true);
+      if (rc.h < r.h) { r = rc; compact = true; }
+    }
+    let ms = r.m, ph = r.h;
     const bh = Math.round(50 * ms);
     const px = (CW - pw) / 2;
     // Below the assembled figure, so the card never lands on the thing you just
     // made. Centring buried it.
-    const py = Math.max(10, Math.min(figBottom + fs(14), CH - ph - 10));
-    return { figBottom, room, ms, pw, ph, bh, px, py };
+    // The bottom margin is the last thing to give, and it gives before the card
+    // is allowed to touch the picture: 10px of empty canvas is worth less than
+    // the last few pixels of the thing the player just made. Type is never
+    // traded here, only whitespace.
+    let py = Math.max(10, Math.min(figBottom + fs(14), CH - ph - 10));
+    if (py < figBottom) py = Math.max(10, Math.min(figBottom + fs(14), CH - ph - 4));
+    return { figBottom, room, ms, pw, ph, bh, px, py, compact };
   }
 
   // The scorecard is drawn by an animation frame, so on a device that throttles
@@ -1077,6 +1118,7 @@
       const L = winCardLayout();
       return {
         CW, CH, scale: Math.round(L.ms * 100) / 100,
+        compact: !!L.compact,
         cardTop: Math.round(L.py), cardBottom: Math.round(L.py + L.ph),
         cardHeight: Math.round(L.ph), roomBelowFigure: Math.round(L.room),
         figureBottom: Math.round(L.figBottom),
