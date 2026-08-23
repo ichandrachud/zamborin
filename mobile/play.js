@@ -563,10 +563,23 @@
   function drawUnbalanced(t) {
     const f = verdictFade(t);
     ctx.save(); ctx.globalAlpha = f;
-    ctx.fillStyle = '#231F20';
     ctx.font = '700 ' + Math.round(LH * 0.030) + 'px Inter, sans-serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText("Your sculpture isn't balanced. Keep trying.", LW / 2, Math.round(LH - 96));
+    // The message lands wherever the sculpture happens to be hanging, and a piece
+    // in the near-black or dark grey of the palette puts ink on ink. A white halo
+    // rather than a panel: the tray solves the same problem with a white ground,
+    // and this keeps the chrome-free look the mockups ask for. Painted twice so
+    // the halo is opaque enough to carry any shape behind it.
+    const msg = 'Not balanced yet. Lift a piece and hang it somewhere else.';
+    ctx.save();
+    ctx.shadowColor = 'rgba(255,255,255,0.98)';
+    ctx.shadowBlur = Math.max(6, Math.round(LH * 0.016));
+    ctx.fillStyle = '#231F20';
+    ctx.fillText(msg, LW / 2, Math.round(LH - 96));
+    ctx.fillText(msg, LW / 2, Math.round(LH - 96));
+    ctx.restore();
+    ctx.fillStyle = '#231F20';
+    ctx.fillText(msg, LW / 2, Math.round(LH - 96));
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
     const b = UI.drawCTA(ctx, 'SOLVE', LW / 2, Math.round(LH - 44), NEXT_RED);
     ctx.restore();
@@ -627,7 +640,13 @@
       const b = uiButtons[i];
       if (!(x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h)) continue;
       if (b.act) { e.preventDefault(); b.act(); return; }
-      if (phase !== 'play') return;
+      // 'unbalanced' has to allow lifting, not just 'play'. It did not, and that
+      // made the verdict a DEAD END: every hook is full by definition when the
+      // verdict fires, so the tray is empty, the hook hit-boxes are still drawn
+      // and registered, and tapping one did nothing at all. The card said "keep
+      // trying" while the only live control was SOLVE, which hands over the
+      // answer. verdict() already returns to 'play' the moment a piece comes off.
+      if (phase !== 'play' && phase !== 'unbalanced') return;
       if (b.tray != null) { held = { i: b.tray, x, y, from: null }; snd.lift(); e.preventDefault(); return; }
       if (b.take != null) { held = { i: b.take, x, y, from: b.hook }; delete on[b.hook]; snd.lift(); packTray(); nudge(); verdict(); e.preventDefault(); return; }
     }

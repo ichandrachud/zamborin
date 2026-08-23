@@ -43,7 +43,7 @@ Delisted and NOT in scope: socket, bunny, empyrean, foldfig, pane, pins, plumb, 
 | 9 | tessera | ~ | OK | OK | ~ | ~ | OK | OK | audited 2026-08-21 night. TE1 open, AX clean bar the shared accent. FN not driven, it is an endless arcade game |
 | 10 | sluice | OK | OK | OK | - | OK | OK | OK | audited 2026-08-21 night. 100/100 levels solve. Only AX left |
 | 11 | fold | OK | OK | OK | - | ~ | OK | OK | audited 2026-08-21 night. 60/60 levels solve. FO1-FO3 open |
-| 12 | mobile | OK | OK | OK | - | OK | OK | OK | audited 2026-08-21 night. 39/39 balance exactly. W8 fixed. Only AX left |
+| 12 | mobile | OK | OK | OK | ~ | OK | OK | OK | audited 2026-08-21 night, 39/39 balance exactly. **M4 was a dead end and is fixed.** M1-M3 open |
 | 13 | zood | - | - | - | - | - | - | - | |
 | 14 | carrom | - | - | - | - | - | - | - | |
 | 15 | ludo | - | - | - | - | - | - | - | |
@@ -1187,6 +1187,41 @@ colour to its own hue family cost 6 dE and kept the game legible.
 reading the palette back out of `needle/play.js` and re-running the whole matrix, not by
 trusting the search that proposed it. A search reports what it optimised; only a
 re-measurement reports what shipped.
+
+| M4 | mobile | **BREAKS PLAY, and the copy made it worse. FIXED 2026-08-22** | Reported by the owner: at "your sculpture isn't balanced" the only option was **SOLVE**, which hands over the answer. There was no way to take a piece off and try again. Confirmed in the code and then reproduced with a real drag: `pointerdown` carries `if (phase !== 'play') return;` ABOVE the `b.take` branch, so lifting a hung piece was blocked in the `unbalanced` phase. Every hook is full by definition when the verdict fires, so the tray is empty too. The hook hit-boxes are still drawn and still registered, so a player taps a shape and **nothing happens at all**, which reads as broken rather than as refused. The only real escape was the undocumented desktop-only `r` key, which does not exist on a phone. **The source comment 300 lines above says "Taking a piece back off returns to play and the verdict clears", describing behaviour the guard forbids**, and the card said "Keep trying" while the game prevented exactly that. Fixed by allowing `unbalanced` to lift as well as `play`; `verdict()` already returns to `play` the moment a piece comes off. Copy now names the action. Verified with real drags on **8 levels: every one went unbalanced, lifted, returned to `play`, and then completed with error 0.** | DONE |
+| M1 | mobile | ACCESSIBILITY, moderate | Mobile is the site's only LIGHT game, a `#EAEAEA` to `#FFFFFF` ground with a white tray, and **4 of its 10 Calder colours fall below the 3:1 graphical bar**: yellow `#E4E41F` at 1.36 on the tray and 1.13 on the ground, sky `#8FD7F1` at 1.60/1.33, green `#5DCF37` at 2.01/1.67, orange `#FFA200` at 2.02/1.68. Null-tested. Not decorative: the game's one rule is that the AREA of a shape is its weight, so a shape's edge carries the only information there is. The house rule forbids outlines on game pieces, so the fix is either darkening those four or changing what sits behind them, and both are taste calls. | OPEN, owner's call |
+| M2 | mobile | MINOR now, a loaded gun later | `drawControls()` and its `pill()` helper are about 40 lines that are **never called**, confirmed by grep and by screenshot: the shipped game draws no control row. Inside the dead code is a **Rules** button setting `phase = 'menu'`. Nothing renders anything for that phase, and `verdict()` returns early on it, so nothing could leave it. Harmless only because it is unreachable. The moment anyone wires that row up, the first tap on Rules is an unrecoverable soft-lock. Delete it or wire it deliberately. | OPEN |
+| M3 | mobile | MINOR (AA) | The NEXT and SOLVE buttons are white on `NEXT_RED` `#FF0000`, measuring **4.00:1** against a 4.5 bar. Same family as the accent split shipped earlier today. `#E4001B` measures 4.87 and is visually the same red. | OPEN |
+
+## The Mobile dead end, 2026-08-22
+
+Owner-reported, and the most serious functional finding of the whole track, because
+nothing automated was ever going to catch it. Every check this week asked "does the
+level solve" and Mobile answered **39 of 39, error exactly 0**. It does. What it would
+not do is let you FAIL and continue, and no gate had a question for that.
+
+**The shape of it.** One line, `if (phase !== 'play') return;`, sitting above the branch
+that lifts a hung piece. When the verdict fires every hook is full, so the tray is empty
+and the only remaining interaction is lifting, which that line forbade. The hit-boxes
+are still registered, so the tap is received and discarded: the game looks broken rather
+than restricted.
+
+**The copy is the part worth remembering.** The card read "Your sculpture isn't
+balanced. Keep trying." The code made trying impossible. A comment three hundred lines
+above described the correct behaviour as though it already existed. Neither the comment
+nor the copy is checkable by any tool here; both were confidently wrong, and the only
+thing that found it was somebody playing the game.
+
+**Add to every future per-game audit: can the player RECOVER from a wrong answer?**
+Solvability is not the same question. Sluice, Fold, Prism, Stained and Kaleido all have
+undo or restart; Mobile's equivalent is lifting a piece back off, and it was switched off
+in the one state where it is needed.
+
+**One of my own checks was wrong again, in a new way.** Measuring the contrast behind the
+verdict text returned an identical 15.3% at all eight levels with a worst of exactly 1.00,
+which is ink measured against ink: the sample included the drawn glyphs. The message now
+carries a white halo so it is legible over any shape, and that is verified by screenshot
+rather than by a number, because the obvious number is the one that just lied.
 
 ## START HERE — session handoff, 2026-08-22
 
