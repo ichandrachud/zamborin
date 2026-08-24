@@ -1597,6 +1597,27 @@ click resets to a fresh board (100 bubbles to 41, lowest row 10 to 2, score clea
 starts it, and a shot fires and lands. Zero errors. The `phase !== 'playing'` guard at
 line 616 is on `pointermove` (aiming), not `pointerup`, so the escape is live.
 
+**tessera — PASSES.** Driven to a real game over by filling one column: the card reads
+STACK FILLED, 0 WORDS 8 LETTERS, and PLAY AGAIN, PRESS ENTER. A real click returns a fresh
+empty board and two further tiles lock normally, so the run truly restarts. The restart at
+line 646, `if (gameOver) { sfxStart(); initGame(); return; }`, sits ABOVE `if (!active)
+return;`, so any tap anywhere restarts, and Enter or Space work too at line 580. The
+guard at line 809 is inside `drawActiveTile()`, a draw function, so it never gates input.
+**Four separate game-over-and-restart cycles fired unprompted while driving**, which is
+stronger evidence than one scripted attempt.
+
+**Note on `overFit()`, and it is the Q1 shape again.** It returns the same numbers whether
+or not the game is over, because it computes where the card WOULD sit rather than reading
+the phase. The values are correct and it reported `fits: true` when captured genuinely
+in-phase, but **a passing `overFit()` outside game over proves nothing**, exactly as fold's
+`winFit()` proves nothing outside the won phase.
+
+**mobile — PASSES, by reading only.** The M4 fix is in place and correct: line 751 reads
+`if (phase !== 'play' && phase !== 'unbalanced') return;`, so lifting is allowed in the
+verdict state, and line 330 returns to `play` the moment a piece comes off. The comment
+above it records the whole original defect. **Not driven this pass**, and mobile is the
+one game where reading has already been wrong once, so a driven confirmation is still owed.
+
 | ID | Game | Sev | Issue | State |
 |---|---|---|---|---|
 | Q2 | fleet | MINOR, live data | Five games called `T().hintUsed(level)` ABOVE undo's own guard, so an undo that was REFUSED still recorded an assist. It fires in ordinary play because a dimmed Undo is still clickable: `dim` in `shared/ui.js:86` only swaps the text colour, the button is still pushed with `act: undo`. **The naming was never the problem** — the API comment reads `/* Hint, undo or solve-for-me. */`, so folding undo in is deliberate; only the placement was wrong. Kaleido's call is inside a hint function and Mobile's is on solve-for-me, both correct. **Prism already had the right order and became the control.** Same gesture, same pixel: needle v38 sent 3 `hint_used` for 3 clicks on a dimmed Undo with 0 moves made, prism v45 sent 0, and a real undo on prism still sent exactly 1. Insights loads on all 40 pages, so this was skewing live data unevenly — prism was the only game counting honestly, which is exactly the comparison the assist metric exists to support | **FIXED and DEPLOYED 2026-08-24**, commit `98921d3`. orbit, bloom, needle, sluice and fold now match prism. Versions bumped orbit v28, bloom v32, needle v39, sluice v15, fold v33. Verified live by curl on all six, and all five changed files parse |
@@ -1657,8 +1678,9 @@ sitemap is referenced, and no page carries a stray `noindex`.
   longer records an assist.
 
 **A recovery audit is running** — "can the player get OUT", which is not the question any
-gate asked before the Mobile dead end. needle and zood both PASS; tessera and mobile are
-the games left with unusual phase machines. See the section above.
+gate asked before the Mobile dead end. needle, zood and tessera all PASS on a driven test;
+mobile passes on reading only and is still owed a driven confirmation. See the
+section above.
 
 **The whole-site document audit reports zero on every check**: 40 pages, 0 contrast
 failures, 0 small tap targets, 0 under the type floor, 0 failed resources, every page
