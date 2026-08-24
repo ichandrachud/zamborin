@@ -1204,18 +1204,23 @@
   // holding the duration constant made the late levels whip round; scaling it
   // linearly made them crawl. The square root splits the difference.
   //
-  // TEMPORARY: the mode is read off the URL so the four can be compared by
-  // clicking. This file deliberately dropped its ?level= shortcut before
-  // launch and the same reasoning applies here, so the parameter comes out
-  // before this reaches main and the chosen mode stays as the constant.
+  // LOCKED to 'both' by the owner on 2026-08-24 after comparing all four: the
+  // wheel lands its fold step, then drifts on from where it landed. The mode
+  // was briefly switchable from the URL so the four could be compared by
+  // clicking, and that parameter is gone. This file deliberately dropped its
+  // ?level= shortcut before launch and the same reasoning applies: a URL
+  // knob on a shipped game is a knob a player can find.
+  //
+  // The cost of 'both', stated plainly because it is real: a drift never ends,
+  // so needsAnim holds the loop open and the win screen redraws until the
+  // player taps. 'step' is the only mode that lets the frame go quiet. That
+  // was weighed and the landing plus the drift won.
   const WIN_SPIN_DELAY = 300;          // matches Orbit
   const WIN_DRIFT = 0.09;              // rad/s, matches Orbit exactly
   const WIN_STEP_BASE = 1400;          // ms for a six-fold step
+  // Still a `let` so __kaleido.spin() can drive it in testing. Nothing on the
+  // shipped path writes to it.
   let WIN_SPIN = 'both';               // 'off' | 'drift' | 'step' | 'both'
-  try {
-    const q = new URLSearchParams(location.search).get('spin');
-    if (q && ['off', 'drift', 'step', 'both'].includes(q)) WIN_SPIN = q;
-  } catch (e) {}
   const winStepMs = () => WIN_STEP_BASE * Math.sqrt((TAU / N_FOLD) / (TAU / 6));
   // Is the wheel still moving? needsAnim asks, because a drift never ends and
   // the loop has to be held open, while a step has to let it close again.
