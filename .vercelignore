@@ -1,0 +1,4 @@
+# Internal engineering docs — never part of the deployed site.
+# QC-TRACKER.md was publicly served at zamborin.com/QC-TRACKER.md until 2026-08-24.
+# Nothing at runtime fetches a .md; the only reference is a comment in shared/ads.js.
+*.md
