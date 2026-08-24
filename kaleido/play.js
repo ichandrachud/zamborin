@@ -43,6 +43,12 @@
   document.body.classList.add('mode-' + MODE);
 
   let LW = 760, LH = 600;
+  // Canvas device pixels per logical unit. The motif tiles are rasterised at
+  // this scale, so a change to it has to throw them away. Declared HERE rather
+  // than beside the motif code because resizeCanvas() touches both at boot and
+  // a `let` further down the file would still be in its temporal dead zone.
+  let PIXEL_SCALE = 1;
+  const motifTiles = new Map();
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
 
@@ -60,6 +66,7 @@
     if (canvas.width !== bW) canvas.width = bW;
     if (canvas.height !== bH) canvas.height = bH;
     const scale = Math.min(bW / LW, bH / LH);
+    if (Math.abs(scale - PIXEL_SCALE) > 0.001) { PIXEL_SCALE = scale; motifTiles.clear(); }
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
   }
   const gameWrap = canvas.parentElement;
@@ -1003,6 +1010,149 @@
   const hx = (r, g, b) => '#' + [r, g, b].map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
   function lighten(c, f) { const [r, g, b] = hex(c); return hx(r + (255 - r) * f, g + (255 - g) * f, b + (255 - b) * f); }
 
+  // ---------- THE MOTIF ----------
+  // The mechanic is that a pane placed in the wedge lands in every other wedge
+  // at once, and that is the best idea in the game. It was paying off in a
+  // block of flat colour. A motif cut into the glass makes the copy visible:
+  // place one pane and the same mark blooms all the way round the wheel.
+  //
+  // Per COLOUR, not per cell. Per cell would imply a rule that does not exist.
+  // Per colour gives a second channel carrying exactly what hue carries, which
+  // is the K4 finding: by default colour is the only thing separating three of
+  // the four glasses, and the mode that fixes that is off by default.
+  //
+  // Revealed only on PLACEMENT. An empty socket stays plain and dark, because
+  // the rule is that no two panes of the same colour may touch and colour
+  // adjacency is the whole puzzle: an unsolved board has to stay readable.
+  //
+  // HANDED, every one of them. The copies are ROTATIONS, not reflections:
+  // domainOf() maps sector s to s mod (SEC/fold) and there is no mirror
+  // anywhere in this file. A mark with a direction turns the wheel into a
+  // pinwheel; a symmetric one repeats flatly and shows nothing.
+  //
+  // NOT ON THE LETTER GRID. The first set drawn was a comb (a bar with teeth)
+  // and a hook (a thick L), and the finished wheel read as rows of the letters
+  // T and L. Latin letterforms are horizontal and vertical strokes meeting at
+  // right angles, so a mark built on that grid gets read as type. Triangles,
+  // diagonals and zigzags cannot be. Do not put a right-angled mark here.
+  //
+  // ONE INK. Measured on the four glasses, black is 5.20:1 on coral and 11.3 to
+  // 14.7 on the rest, and --bg is 4.45:1 on coral and 9.6 to 12.5 on the rest.
+  // Both clear the 3:1 that graphical objects have to hold, so coral needs no
+  // special case. White is 1.4 to 1.9 on three of the four and is not an option.
+  const INK = Z.bg;                          // --bg, the same ink the glyphs cut
+  const mDisc = (g, x, y, r) => { g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill(); };
+  const mPoly = (g, pts) => {
+    g.beginPath(); g.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length; i++) g.lineTo(pts[i][0], pts[i][1]);
+    g.closePath(); g.fill();
+  };
+  // Drawn in a unit box centred on the pane. +x runs tangentially counter
+  // clockwise and -y points OUTWARD, which is the frame drawGlyph already uses
+  // via `cc.a + PI/2`. Detail d is 1 or 2; 0 never reaches here.
+  const MOTIF = [
+    // coral: a triangle cluster, one large leaning with smaller followers
+    (g, d) => {
+      mPoly(g, [[-0.30, 0.24], [0.02, -0.30], [0.16, 0.10]]);
+      if (d > 1) {
+        mPoly(g, [[0.10, 0.30], [0.30, 0.02], [0.34, 0.26]]);
+        mPoly(g, [[-0.32, -0.16], [-0.14, -0.32], [-0.12, -0.10]]);
+      }
+    },
+    // sunshine: a zigzag band running one way across the pane
+    (g, d) => {
+      const n = d > 1 ? 3 : 2, w = 0.115;
+      for (let i = 0; i < n; i++) {
+        const y = -0.30 + i * (0.60 / n);
+        mPoly(g, [[-0.32, y + 0.60 / n], [-0.02, y], [0.32, y + 0.42 / n],
+                  [0.32, y + 0.42 / n + w], [-0.02, y + w], [-0.32, y + 0.60 / n + w]]);
+      }
+    },
+    // green: a row of beads stepping diagonally
+    (g, d) => {
+      const n = d > 1 ? 4 : 2, R = d > 1 ? 0.105 : 0.15;
+      for (let i = 0; i < n; i++) mDisc(g, -0.28 + i * 0.19, -0.24 + i * 0.16, R);
+    },
+    // powder blue: a half disc with a notch bitten out of one side.
+    // The notch is destination-out, which is why a motif may ONLY ever be drawn
+    // through a tile: straight onto the board it would punch a hole through the
+    // pane and show the came underneath.
+    (g, d) => {
+      g.beginPath(); g.arc(0.02, 0.06, 0.30, Math.PI * 1.05, Math.PI * 2.05);
+      g.closePath(); g.fill();
+      g.save(); g.globalCompositeOperation = 'destination-out';
+      mPoly(g, [[0.14, -0.30], [0.36, -0.30], [0.36, 0.04], [0.14, 0.04]]);
+      g.restore();
+      if (d > 1) mPoly(g, [[-0.30, 0.16], [0.26, 0.16], [0.30, 0.28], [-0.26, 0.28]]);
+    },
+  ];
+
+  // MEASURED pane sizes, taken off the running game rather than assumed:
+  //   desktop 760x600   boardR 256.5, panes 88x81 near the middle to 50x38 at the rim
+  //   phone   390x844   boardR 177, three rings always, panes about 55x49
+  //   embed   480x360   boardR 57.5, panes 23x24
+  // The embed is not slivers: the touch budget caps that frame at TWO rings, so
+  // its panes come out near square. 23px on the short side is the smallest the
+  // board is ever drawn anywhere on the site.
+  //
+  // Complexity steps down with the pane and then DROPS OUT, which is the ladder
+  // menuLayout() already walks for the rules-card demo: shrink it, then lose it
+  // rather than keep it too small to read. Two numbers, on purpose, so the
+  // threshold is one edit and can be swept.
+  const MOTIF_MIN = 26, MOTIF_FULL = 44;
+  function motifDetail(px) { return px >= MOTIF_FULL ? 2 : px >= MOTIF_MIN ? 1 : 0; }
+
+  // 0.86 of the pane's short side, and two things fix it. The motif's bounding
+  // box is about 0.76 wide, so 0.86 keeps its corners inside the circle
+  // inscribed in the pane and it cannot spill across the came, which means no
+  // per-pane clip and no clip cost. And it lands the ink at the same visual
+  // weight as the shape-only glyph, which occupies 0.64 of the short side.
+  const MOTIF_FILL = 0.86;
+
+  // Rasterised ONCE per colour, detail level and size, then blitted. The board
+  // redraws on rAF and carries up to 90 panes, so building a dozen paths per
+  // pane per frame is not an option. Rotation stays on the blit rather than in
+  // the key: baking it in would multiply the cache by the sector count for no
+  // gain, since a rotated drawImage costs the same either way.
+  function motifTile(tok, det, px) {
+    const key = tok + '|' + det + '|' + px;
+    let tile = motifTiles.get(key);
+    if (tile) return tile;
+    const dev = Math.max(4, Math.round(px * PIXEL_SCALE));
+    tile = document.createElement('canvas');
+    tile.width = dev; tile.height = dev;
+    const g = tile.getContext('2d');
+    g.setTransform(dev, 0, 0, dev, dev / 2, dev / 2);   // the unit box, centred
+    g.fillStyle = INK;
+    MOTIF[tok % MOTIF.length](g, det);
+    motifTiles.set(key, tile);
+    return tile;
+  }
+  // Is the board carrying motifs at all right now? At the 480x360 embed the
+  // panes come out 21 to 22px and every ring falls below the floor, so the
+  // whole board is flat colour. The palette has to follow: this file already
+  // says, in drawPalette, that the swatches must not advertise something the
+  // board does not actually use, and a mark on the palette that appears nowhere
+  // on the wheel is exactly that.
+  function boardHasMotif() {
+    for (let r = 0; r < RINGS; r++) if (motifDetail(cellShort(r)) > 0) return true;
+    return false;
+  }
+  // Fades in with the pane it belongs to, so the reveal IS the placement and
+  // the copies inherit the ripple that already carries a pane round the wheel.
+  function drawMotif(tok, r, s, alpha) {
+    const short = cellShort(r), det = motifDetail(short);
+    if (det === 0) return;
+    const px = Math.round(short * MOTIF_FILL);
+    const cc = cellCentre(r, s);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(cc.x, cc.y);
+    ctx.rotate(cc.a + Math.PI / 2);
+    ctx.drawImage(motifTile(tok, det, px), -px / 2, -px / 2, px, px);
+    ctx.restore();
+  }
+
   // ---------- RENDER ----------
   // The came is the ONLY thing between two panes. The gap and the stroke are the
   // same width on purpose, so the white covers the gap edge to edge and no dark
@@ -1044,12 +1194,17 @@
   // the figure denser but distorted every glyph differently depending on where
   // it sat, which is a worse trade than a little air around each piece.
   const FILL = 0.52;
-  function cellSize(r) {
+  // The pane's SHORT side in px, which is the number that decides whether
+  // anything drawn inside it can be read. cellSize() is this times FILL; the
+  // motif ladder needs the raw figure, and deriving one from the other keeps
+  // the two from drifting apart.
+  function cellShort(r) {
     const th = Math.max(6, ringR[r + 1] - ringR[r] - LEAD);
     const rm = (ringR[r] + ringR[r + 1]) / 2;
     const arc = Math.max(6, TAU * rm / SEC(r) - LEAD);
-    return Math.min(th, arc) * FILL;
+    return Math.min(th, arc);
   }
+  function cellSize(r) { return cellShort(r) * FILL; }
   function ease(t) { return 1 - Math.pow(1 - t, 3); }
 
   function render(now) {
@@ -1233,6 +1388,11 @@
         if (shapeOnly) {
           const cc = cellCentre(r, s);
           drawGlyph(t, cc.x, cc.y, cellSize(r) * 0.62, cc.a + Math.PI / 2, al * 0.92, Z.bg);
+        } else {
+          // Shape-only mode gets NO motif. The glyph is already the second
+          // channel there, so a mark as well would be two answers to one
+          // question, and it would sit on the same PLAIN grey for all four.
+          drawMotif(t, r, s, al);
         }
         ctx.globalAlpha = 1;
 
@@ -1370,6 +1530,17 @@
         // the board does not actually use. Selection is the surrounding pill.
         ctx.fillStyle = PANE_COL[t % PANE_COL.length];
         ZUI.roundRectPath(ctx, bx + 11, by + 11, sz - 22, sz - 22, 7); ctx.fill();
+        // The palette is where the motif becomes a LEGEND, and that is most of
+        // what it is worth: a player who cannot separate three of these by hue
+        // can match the mark instead. The swatch is 32px on a desktop and 36 on
+        // a phone, both clear of the 26px floor, so the swatch itself is never
+        // the binding constraint. The BOARD is: no marks on the wheel means no
+        // marks here either.
+        const psz = sz - 22, pdet = motifDetail(psz);
+        if (pdet > 0 && boardHasMotif()) {
+          const pp = Math.round(psz * MOTIF_FILL), po = (psz - pp) / 2;
+          ctx.drawImage(motifTile(t, pdet, pp), bx + 11 + po, by + 11 + po, pp, pp);
+        }
       } else {
         // Neutral on purpose. Hue belongs to the wedge, so a coloured swatch
         // would promise a colour the piece will not have once it lands.
@@ -1451,14 +1622,71 @@
     ctx.globalAlpha = 1;
     const a = Math.min(1, Math.max(0, (now - wonT - 700) / 500));
     if (a <= 0) return;
+    const L = winBannerLayout();
     ctx.globalAlpha = a;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = Z.green; ctx.font = '800 ' + (MODE === 'mobile' ? 28 : 32) + 'px Inter, sans-serif';
-    ctx.fillText('IN SYMMETRY', LW / 2, Math.round(topBand() * 0.42));
-    ctx.fillStyle = Z.textDim; ctx.font = '500 15px Inter, sans-serif';
-    ctx.fillText('tap for the next figure', LW / 2, Math.round(topBand() * 0.42) + 24);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    let x = L.x0;
+    ctx.font = L.titleFont;
+    ctx.fillStyle = Z.green;   ctx.fillText(WIN_TITLE, x, L.cy); x += L.wTitle;
+    ctx.font = L.subFont;
+    ctx.fillStyle = Z.textDim; ctx.fillText(WIN_SEP + WIN_SUB, x, L.cy);
     ctx.globalAlpha = 1;
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  }
+
+  // The win banner. ONE line, and placed in the gap between the top of the
+  // frame and the RIM OF THE WHEEL rather than inside the top band, because the
+  // gap the eye reads is the one to the glass and not the one to an invisible
+  // band boundary.
+  //
+  // It was two lines, 32px over 15px, both hung off topBand() * 0.42. That
+  // block is about 48px tall in a strip that is 63, so it had roughly seven
+  // pixels of air above it and eight between the second line and the mandala.
+  // One line at 20px is 20 tall in the same strip, which leaves real room on
+  // both sides.
+  //
+  // The top pad is CLAMPED rather than simply centred. Centring is right on a
+  // desktop, where the strip is barely taller than the line, but a phone gives
+  // a strip over twice as tall and the banner floated in the middle of it,
+  // detached from the chrome it replaces. Clamped, it sits near the top on a
+  // phone and centred on a desktop, and the clearance to the glass is never in
+  // question either way.
+  const WIN_TITLE = 'IN SYMMETRY';
+  const WIN_SUB = 'tap for the next figure';
+  const WIN_SEP = '   ·   ';
+  const WIN_TITLE_PX = 20, WIN_SUB_PX = 16;      // no copy on this site goes below 16
+  const WIN_PAD_MIN = 12, WIN_PAD_MAX = 30, WIN_FLOOR = 0.62;
+  function winBannerLayout() {
+    // SIDE_PAD alone is not enough room here. It is 18 on a phone, which let
+    // the line run 341px across a 390px frame and read as wall to wall even
+    // though it technically fitted. Cap the line at 84% of the frame as well,
+    // so the air at the sides is proportional to the frame rather than a
+    // constant borrowed from the board's own margin.
+    const avail = Math.min(LW - SIDE_PAD * 2, LW * 0.84);
+    const rim = bcy - boardR;                    // the top of the glass
+    let k = 1, m = winBannerWidths(k);
+    while (k > WIN_FLOOR && m.total > avail) { k = Math.max(WIN_FLOOR, k - 0.03); m = winBannerWidths(k); }
+    const lineH = WIN_TITLE_PX * k;
+    const half = lineH / 2;
+    // Split the strip EVENLY, capped at WIN_PAD_MAX. There is deliberately no
+    // lower clamp: forcing a minimum on the top pad is what pushed the bottom
+    // one negative, so on a strip too short for both the banner drew through
+    // the glass rather than sitting tight against it. Swept across 9150 frames
+    // the only failures were height 332 and below, all of them under the 480x360
+    // minimum /embed/ documents, and this makes even those symmetric.
+    const pad = Math.min(WIN_PAD_MAX, Math.max(0, (rim - lineH) / 2));
+    return { k, lineH, rim, avail, pad,
+             cy: pad + half, x0: (LW - m.total) / 2,
+             wTitle: m.wTitle, total: m.total,
+             titleFont: '800 ' + (WIN_TITLE_PX * k).toFixed(2) + 'px Inter, sans-serif',
+             subFont: '500 ' + (WIN_SUB_PX * k).toFixed(2) + 'px Inter, sans-serif' };
+  }
+  function winBannerWidths(k) {
+    ctx.font = '800 ' + (WIN_TITLE_PX * k).toFixed(2) + 'px Inter, sans-serif';
+    const wTitle = ctx.measureText(WIN_TITLE).width;
+    ctx.font = '500 ' + (WIN_SUB_PX * k).toFixed(2) + 'px Inter, sans-serif';
+    const wRest = ctx.measureText(WIN_SEP + WIN_SUB).width;
+    return { wTitle, wRest, total: wTitle + wRest };
   }
 
   // Height wrapText WOULD produce. Uses whatever font is currently set, so the
@@ -1756,8 +1984,28 @@
     next() { genLevel(level + 1, false); return this.state; },
     // Fill the whole wedge with the answer. Proves a level is completable.
     solve() { dom = solved.slice(); placeT = placeT.map(() => performance.now()); after(performance.now()); return this.state; },
-    // Set one wedge cell, for reproducing a board state by hand.
-    set(d, t) { dom[d] = t; placeT[d] = performance.now(); after(performance.now()); return this.state; },
+    // Set one wedge cell, for reproducing a board state by hand. REFUSES a
+    // given, exactly as place() does at the tap.
+    //
+    // It used to write straight into dom[]. A given's colour is read back from
+    // solved[] and not from dom[] (see tokAt), so a probe that set one produced
+    // a board whose DRAWN colours and whose CLASH COUNT disagreed: the wheel
+    // carried the dark clash arcs while the read-out said nothing was touching.
+    // That cost an afternoon on 2026-08-24 and the game was right the whole
+    // time. A debug handle that can reach a state the game cannot is a source
+    // of false findings, not a shortcut.
+    set(d, t) {
+      if (d < 0 || d >= NDOM) return { refused: true, reason: 'no wedge cell ' + d };
+      if (givenDom.has(d)) return { refused: true, reason: 'cell ' + d + ' is a given', ...this.state };
+      dom[d] = t; placeT[d] = performance.now(); after(performance.now()); return this.state;
+    },
+    // Which wedge cells are fixed clues and which are the player's to fill.
+    // Exposed because a probe that does not know cannot avoid the trap above.
+    givens() {
+      const given = [], open = [];
+      for (let d = 0; d < NDOM; d++) (givenDom.has(d) ? given : open).push(d);
+      return { NDOM, given, open, answer: open.map((d) => solved[d]) };
+    },
     // Does the rules card actually fit? Kaleido was the first game whose card
     // was fixed and the only one of the six that never got a way to ask. The
     // number that matters is not whether the card had to be clamped but the gap
@@ -1783,6 +2031,69 @@
         ctaOnCanvas: ctaBottom <= LH && L.py >= 0,
         fits: pillTop - copyBottom >= 0 && L.needed <= L.ph + 0.5 && L.py >= 0,
       };
+    },
+    // What the motif is doing right now, per ring. Nothing about the motif is
+    // fixed until something can ask it these questions: what size is the pane,
+    // which rung of the ladder is it on, and does the ink stay inside the pane.
+    // `escapes` is the one that matters: the motif is drawn WITHOUT a clip, on
+    // the argument that MOTIF_FILL keeps its corners inside the circle
+    // inscribed in the pane, and this is that argument stated as a number.
+    motif() {
+      const rings = [];
+      for (let r = 0; r < RINGS; r++) {
+        const short = cellShort(r), det = motifDetail(short);
+        const th = ringR[r + 1] - ringR[r], rm = (ringR[r] + ringR[r + 1]) / 2;
+        const w = TAU / SEC(r);
+        // the largest circle that fits in an annular sector, centred on the pane
+        const inscribed = Math.min(th / 2, rm * Math.sin(w / 2));
+        // the motif's own circumscribed radius: half-diagonal of its box
+        const reach = short * MOTIF_FILL * Math.hypot(0.38, 0.36);
+        rings.push({ ring: r, sectors: SEC(r),
+                     paneW: Math.round(TAU * rm / SEC(r) * 10) / 10,
+                     paneH: Math.round(th * 10) / 10,
+                     shortSide: Math.round(short * 10) / 10,
+                     detail: det,
+                     inscribed: Math.round(inscribed * 10) / 10,
+                     reach: Math.round(reach * 10) / 10,
+                     escapes: det > 0 && reach > inscribed });
+      }
+      return { LW, LH, mode: MODE, boardR, rings: RINGS, shapeOnly,
+               floor: MOTIF_MIN, full: MOTIF_FULL, fill: MOTIF_FILL,
+               shown: rings.filter((x) => x.detail > 0).length,
+               anyEscapes: rings.some((x) => x.escapes),
+               tilesCached: motifTiles.size, perRing: rings };
+    },
+    // Cost of one FULL render, averaged over n frames. The motif turned each
+    // pane from one fill into a fill plus a blit, and the whole argument for the
+    // tile cache is that a blit is cheaper than the dozen paths it replaces.
+    // This is how that gets checked rather than asserted. Drives render()
+    // directly with a synthetic clock so the number is draw cost and not vsync.
+    frameTime(n) {
+      n = n || 120;
+      const t0 = performance.now();
+      for (let i = 0; i < n; i++) render(t0 + i * 16.7);
+      const dt = (performance.now() - t0) / n;
+      return { frames: n, msPerFrame: Math.round(dt * 1000) / 1000,
+               level, rings: RINGS, cells: NCELL, phase };
+    },
+    // The win banner's clearances, because "decent padding" is a number or it
+    // is an opinion. topPad is frame edge to the top of the line, bottomGap is
+    // the bottom of the line to the rim of the wheel, and overflows says the
+    // line is wider than the frame allows even at the shrink floor.
+    winBanner() {
+      const L = winBannerLayout();
+      const top = L.cy - L.lineH / 2, bottom = L.cy + L.lineH / 2;
+      return { LW, LH, mode: MODE, scale: Math.round(L.k * 100) / 100,
+               lineHeight: Math.round(L.lineH * 10) / 10,
+               oneLine: true,
+               topPad: Math.round(top * 10) / 10,
+               bottomGap: Math.round((L.rim - bottom) * 10) / 10,
+               rim: Math.round(L.rim * 10) / 10,
+               lineWidth: Math.round(L.total), available: Math.round(L.avail),
+               leftMargin: Math.round(L.x0),
+               overflows: L.total > L.avail + 0.5,
+               clearsTop: top >= WIN_PAD_MIN - 0.5,
+               clearsGlass: L.rim - bottom >= WIN_PAD_MIN - 0.5 };
     },
     // gaps, depth and hardness for the level on screen. The number the ramp aims at.
     measure() { return measureLevel(); },
