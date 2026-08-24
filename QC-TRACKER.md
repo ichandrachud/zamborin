@@ -1575,6 +1575,50 @@ images still 1200x630, and the games render.
 
 | O3 | orbit | **LAYOUT, owner-reported. FIXED 2026-08-24** | The desktop bands were sized by a magic number that then got SCALED DOWN, rather than from what sits in them. `bs = LH/700` turned a 56px top band into **48px at a 600px frame, holding a fixed 40px pill row**: the buttons had **4px of air above them**, and the hint line, placed at a FRACTION of a 29px bottom band, had about **6px below it**. Both read as a mistake rather than as a tight layout. Fixed by sizing the desktop bands from their contents with a floor, 68 top and 44 bottom, and by centring the hint in its band instead of placing it at `botB * 0.62` so its clearance cannot shrink with the band. `PAD` between board and bands dropped 18 to 10, since the bands now carry the breathing room. Measured at 5 desktop sizes: **14px above and below the pills, 15px under the hint, at every one.** Board radius 252 to 239, a 5% trade for the padding | DONE |
 
+## Recovery audit, 2026-08-24 — can the player get OUT, not just IN
+
+Opened because the last three real defects were all found by the owner PLAYING, and
+because the Mobile dead end proved that "does the level solve" and "can the player
+recover from a wrong answer" are different questions. Working the games with a
+non-play, non-won phase first, since that is the shape Mobile's bug had.
+
+**needle — PASSES.** `snag` is escapable: the `pointerdown` handler is a flat sequence
+with no guard above `if (phase === 'snag') { phase = 'play'; return; }`, and `draw()`
+resets `uiButtons = []` every frame while calling `drawControls()` only in `play`, so no
+stale button can swallow the dismissing tap. It is also very hard to REACH: the game's own
+`perturbGate(6, 20)` returned 0 snags in 859 valid reroutings, reproducing the settled
+0.2% result from 2026-08-16. Snags essentially do not occur below level 8, so the state
+carries little risk either way. Verified by reading plus reachability, not by a driven
+snag, which is worth recording honestly.
+
+**zood — PASSES.** Driven to a real loss with gestures: 21 shots, board filled to row 10,
+`phase: 'lost'`. The card names the cause, shows the score and offers PLAY AGAIN; a real
+click resets to a fresh board (100 bubbles to 41, lowest row 10 to 2, score cleared), a tap
+starts it, and a shot fires and lands. Zero errors. The `phase !== 'playing'` guard at
+line 616 is on `pointermove` (aiming), not `pointerup`, so the escape is live.
+
+| ID | Game | Sev | Issue | State |
+|---|---|---|---|---|
+| Q2 | fleet | MINOR, live data | Five games called `T().hintUsed(level)` ABOVE undo's own guard, so an undo that was REFUSED still recorded an assist. It fires in ordinary play because a dimmed Undo is still clickable: `dim` in `shared/ui.js:86` only swaps the text colour, the button is still pushed with `act: undo`. **The naming was never the problem** — the API comment reads `/* Hint, undo or solve-for-me. */`, so folding undo in is deliberate; only the placement was wrong. Kaleido's call is inside a hint function and Mobile's is on solve-for-me, both correct. **Prism already had the right order and became the control.** Same gesture, same pixel: needle v38 sent 3 `hint_used` for 3 clicks on a dimmed Undo with 0 moves made, prism v45 sent 0, and a real undo on prism still sent exactly 1. Insights loads on all 40 pages, so this was skewing live data unevenly — prism was the only game counting honestly, which is exactly the comparison the assist metric exists to support | **FIXED and DEPLOYED 2026-08-24**, commit `98921d3`. orbit, bloom, needle, sluice and fold now match prism. Versions bumped orbit v28, bloom v32, needle v39, sluice v15, fold v33. Verified live by curl on all six, and all five changed files parse |
+| T7 | tailwind | OBSERVATION, design, owner's call | **A shot cannot be abandoned once launched.** `onDown` opens with `if (S.phase === 'fly') return;`, and tailwind has exactly two input listeners, `mousedown` and `touchstart`, both routing there, with no keyboard handler anywhere. So during flight nothing responds: not the sound toggle, not the plane-change button. Measured against the DEPLOYED `model.js` (sha256 hash-matched to the repo copy), 68,796 legitimate shots across all 6 planes, the full angle range, pull including exactly 0, and every legal wind: **84.7% fly longer than 10s, 23.4% longer than 20s**, longest 36.9s. Best-play shots run **24.7s to 35.2s, mean 29.7s**, and the optimum sits at 62-68 degrees, a high lofted angle, so **the better you play the longer you wait**. Playback is 1:1 real time: `sample()` is a plain interpolation over the trace's own timestamps with no scaling, and termination is `t >= tr[last].t` against wall-clock seconds. **May well be deliberate** — watching the flight is the payoff in a distance game, and it shipped after the owner played it. Recorded as a number, not called a defect. If it should be shorter the options are tap-to-skip during flight, time compression after apex, or a shorter trace cap, all of them feel decisions | OPEN, owner's call, nothing changed |
+
+**The safeguard is real, and worth knowing before anyone touches the flight code.**
+`CFG.MAX_T = 90` caps the trace, which is why `fly` can always terminate. The sweep found
+0 empty traces and 0 non-finite end times, and that detector was null-tested: fed a NaN
+angle or pull it correctly reports `dist = NaN` and a trace running to the 90s cap, so a
+genuine failure would have been seen. Without the cap, an empty trace would throw inside
+the frame loop and a NaN end time would strand the player in `fly` with every input dead.
+
+**Two of my own checks were wrong again, both caught by their shape.** `best()` takes
+`(plane, coarse)`, NOT a wind option, and returns `.angle` not `.ang`; passing an object
+where a number goes made all 30 rows read exactly 90s, and identical numbers across every
+row was the tell. And a zood "negative radius crash" that looked like a render-loop-killing
+freeze was my own synthetic frame clock lagging `performance.now()`: flashes stamp
+`t: performance.now()` and `drawFlashes(now)` gets the rAF timestamp, so a lagging clock
+makes elapsed negative. **Any harness that substitutes the frame clock must keep it
+monotonic and never behind real time.** Also re-confirmed: six 404s on a local game page
+are `/_vercel/insights` and `/_vercel/speed-insights`, which only exist in production.
+
 ## START HERE — session handoff, 2026-08-24 (after the overnight run)
 
 **Repo is clean, on `main`, level with GitHub, one branch, one worktree. Everything in
@@ -1601,13 +1645,20 @@ sitemap is referenced, and no page carries a stray `noindex`.
 
 ### State of the audit
 
-**All 15 games audited. 2 rows open, both recommended as leave-alone**, plus one minor:
+**All 15 games audited. 3 rows open**, two of them owner-decided leave-alones:
 
 - **Z2** zood's rotation. Fixing it means rebuilding a live bubble grid; the cost today is
   a smaller-but-playable board, recoverable by rotating back. Recommended: leave.
 - **S5** stained's canvas below the fold in a short window. Narrow, and the pinning was
   itself the narrow-strip fix, so it cannot be casually reverted. Recommended: leave.
-- **Q1** now fixed; all ten fit detectors expose `fits`.
+- **T7** tailwind cannot abandon a shot once launched, and a well-played one flies 25 to
+  35 seconds with every input dead. May be deliberate. Owner's call, nothing changed.
+- **Q1** and **Q2** now fixed; all ten fit detectors expose `fits`, and a refused undo no
+  longer records an assist.
+
+**A recovery audit is running** — "can the player get OUT", which is not the question any
+gate asked before the Mobile dead end. needle and zood both PASS; tessera and mobile are
+the games left with unusual phase machines. See the section above.
 
 **The whole-site document audit reports zero on every check**: 40 pages, 0 contrast
 failures, 0 small tap targets, 0 under the type floor, 0 failed resources, every page
