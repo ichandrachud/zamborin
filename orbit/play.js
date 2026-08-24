@@ -167,15 +167,22 @@
     // the board keeps what room there is. The floors matter: a browser can report
     // a 0×0 viewport for the first frame, which otherwise gives a negative radius.
     const bs = Math.max(0.5, Math.min(1, LH / 700));
-    topB = (MODE === 'mobile' ? TOP_BAND : 56) * bs;
-    botB = (MODE === 'mobile' ? BOT_BAND : 34) * bs;
+    /* Desktop bands are sized FROM what sits in them, with a floor, rather than
+       from a number that then gets scaled down. The old 56 became 48 at a 600px
+       frame, and the control row is a fixed 40px pill, so the buttons ended up
+       with FOUR pixels of air above them and the hint line with about six below.
+       Both read as a mistake rather than as a tight layout.
+       68 gives the pill row 14px top and bottom; 44 centres the hint with room
+       under it. The floors are what stop a short window squeezing them back. */
+    topB = MODE === 'mobile' ? TOP_BAND * bs : Math.max(68, 76 * bs);
+    botB = MODE === 'mobile' ? BOT_BAND * bs : Math.max(44, 48 * bs);
     // On desktop the controls are up in the top band with the read-out, so
     // nothing is reserved under the board and the circle takes everything that
     // is left, less a little breathing room.
     const ctrlH = MODE === 'mobile' ? 60 * bs : 0;
     const availW = Math.max(140, LW - SIDE_PAD() * 2);
     const availH = Math.max(140, LH - topB - botB);
-    const PAD = MODE === 'mobile' ? 0 : 18;             // comfortable, not flush
+    const PAD = MODE === 'mobile' ? 0 : 10;             // the bands now carry the breathing room
     BOARD = Math.max(50, Math.floor(Math.min(availW, availH - ctrlH - PAD) / 2));
     const compH = BOARD * 2 + ctrlH;                    // board + the control row beneath it
     const top = topB + Math.max(0, (availH - compH) / 2);
@@ -999,7 +1006,11 @@
     }
     if (phase === 'play' && moves === 0) {   // below the control row — above it collides
       ctx.textAlign = 'center'; ctx.font = '500 ' + Math.round(15 * hs) + 'px Inter, sans-serif';
-      const hy = MODE === 'mobile' ? ctrlY + 34 : LH - Math.round(botB * 0.62);
+      // Centred in the bottom band rather than placed at a fraction of it, so the
+      // clearance under the line does not shrink with the band.
+      const lineH = Math.round(15 * hs);
+      const hy = MODE === 'mobile' ? ctrlY + 34
+                                   : Math.round(LH - botB + (botB - lineH) / 2);
       if (nLinks > 0) {
         ctx.fillStyle = 'rgba(95,211,192,0.85)';
         ctx.fillText('Dashed rings are geared, so they turn opposite ways.', LW / 2, hy);
