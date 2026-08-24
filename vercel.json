@@ -15,6 +15,21 @@
       "source": "/weave/:path*",
       "destination": "/needle/:path*",
       "permanent": true
+    },
+    {
+      "source": "/tailwind-boost",
+      "destination": "/tailwind/",
+      "permanent": false
+    },
+    {
+      "source": "/tailwind-boost/",
+      "destination": "/tailwind/",
+      "permanent": false
+    },
+    {
+      "source": "/tailwind-boost/:path*",
+      "destination": "/tailwind/",
+      "permanent": false
     }
   ],
   "headers": [

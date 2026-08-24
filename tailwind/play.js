@@ -77,6 +77,16 @@ const PULL_SWEEP = 0.95;   // seconds to draw the band from slack to full
 const tri = (t, period) => { const u = (t % (2 * period)) / period; return u <= 1 ? u : 2 - u; };
 
 const WIND_MIN = -15, WIND_MAX = 3;
+
+// ONE TURBO BOOST PER FLIGHT, spent by tapping while airborne.
+// It is paid for in airframe load, the same currency the launch pays in, so a
+// boost taken at speed strains the wing and a boost taken slow costs almost
+// nothing. That is what stops "tap immediately, always" from being correct.
+// Tunable from the query string so a setting can be tried without a redeploy:
+//   ?dv=10&stroke=1.5      dv is the impulse in m/s, stroke is the burn length
+const QS_ = new URLSearchParams(location.search);
+const BOOST_DV     = Math.max(0, Number(QS_.get('dv')) || 80);
+const BOOST_STROKE = Math.max(0.1, Number(QS_.get('stroke')) || 16);
 function rollWind() {
   const t = Math.random();
   return Math.round((WIND_MIN + (WIND_MAX - WIND_MIN) * t) * 2) / 2;
@@ -355,7 +365,11 @@ Object.defineProperty(S, 'best', {
   set(v) { this.bests[this.plane] = v; saveBests(this.bests); },
 });
 
-function restPPM() { return (REST_PLANE_FRAC * W) / PLANE_LEN_M; }
+// The reference width the world is drawn against. On desktop it is the house
+// frame and NOT the live canvas width, so going full screen shows more sky and
+// more field at the same scale rather than magnifying what was already there.
+const scaleRefW = () => (wide ? FRAME_W : W);
+function restPPM() { return (REST_PLANE_FRAC * scaleRefW()) / PLANE_LEN_M; }
 
 // Releasing dollies the camera back a little, it does not cut to a wide shot.
 // Pulling back shrinks what is near far more than what is far away, so the
@@ -376,9 +390,18 @@ const FLY_ZOOM = FLY_PLANE_FRAC / REST_PLANE_FRAC;   // hold the wide shot at 12
 // without anything having to know which phase the flight is in.
 const LAND_ZOOM = 0.62;
 const ZOOM_ALT = 34;        // metres over which it opens out to the wide shot
+// WITHOUT A BOOST NOTHING CAN PASS 132.1 m, measured across the whole input
+// space, and the zoom saturated at 34 m, which was fine because chase() kept the
+// aeroplane framed. A boost roughly doubles that ceiling and the shot had
+// nowhere left to go. Above 135 m it keeps opening out, so the climb reads as
+// height rather than running off the top. Below that nothing has changed, so an
+// unboosted flight looks exactly as it always did.
+const HIGH_ALT = 135;
 function zoomForAlt(alt) {
   const t = Math.max(0, Math.min(1, alt / ZOOM_ALT));
-  return LAND_ZOOM + (FLY_ZOOM - LAND_ZOOM) * t;
+  let z = LAND_ZOOM + (FLY_ZOOM - LAND_ZOOM) * t;
+  if (alt > HIGH_ALT) z = Math.max(z * (HIGH_ALT / alt), FLY_ZOOM * 0.32);
+  return z;
 }
 
 // THE CLOSING ZOOM WAITS FOR THE AEROPLANE TO STOP. Driving it off the run as
@@ -457,14 +480,25 @@ function resizeCanvas() {
 
 function fit() {
   wide = MODE === 'desktop';
+  const focus = document.body.classList.contains('focus-mode');
   const vp = viewport();
-  W = wide ? FRAME_W : vp.w;
-  H = wide ? FRAME_H : vp.h;
+  // FULL SCREEN GIVES THE GAME MORE ROOM, IT DOES NOT ENLARGE IT. The shipped
+  // behaviour keeps the logical canvas at the 760x600 house frame and lets CSS
+  // stretch it, so the read-outs, the pills and the aeroplane all magnify
+  // together and the control row can be pushed past the foot of the screen.
+  // Taking the viewport's real pixels instead means the UI is drawn at its own
+  // size and the extra room becomes more sky and more field.
+  W = (wide && !focus) ? FRAME_W : vp.w;
+  H = (wide && !focus) ? FRAME_H : vp.h;
   document.body.style.setProperty('--canvas-w', W + 'px');
   document.body.style.setProperty('--canvas-h', H + 'px');
-  if (!wide) {
-    const wrap = canvas.parentElement;
-    if (wrap) { wrap.style.width = W + 'px'; wrap.style.height = H + 'px'; }
+  // Inline sizing from JS, never CSS dvh: chrome.css sizes the wrap from
+  // 100dvh, which does not always agree with the height actually on screen,
+  // and the disagreement lands as a letterbox or a control row below the fold.
+  const wrap = canvas.parentElement;
+  if (wrap) {
+    if (!wide || focus) { wrap.style.width = W + 'px'; wrap.style.height = H + 'px'; }
+    else { wrap.style.width = ''; wrap.style.height = ''; }
   }
   resizeCanvas();
   groundY = Math.round(H * (1 - GROUND_FRAC));
@@ -520,7 +554,21 @@ let lastTouchAt = 0;
 function onDown(e) {
   if (e.type === 'touchstart') lastTouchAt = performance.now();
   else if (performance.now() - lastTouchAt < 600) return;   // ghost mouse event
-  if (S.phase === 'fly') return;
+  if (S.phase === 'fly') {
+    if (S.boostLeft > 0 && S.flight) {
+      e.preventDefault();
+      const tNow = (performance.now() - S.flightStart) / 1000;
+      S.flight = M.fly(S.plane, S.angle, S.pull, {
+        trace: true, wind: S.wind,
+        boost: { t: tNow, dv: BOOST_DV }, boostStroke: BOOST_STROKE
+      });
+      S.boostLeft = 0;
+      S.boostAt = tNow;
+      S.boostFlash = performance.now();
+      SFX.play('click');
+    }
+    return;
+  }
   e.preventDefault();
   SFX.ensureAudio(); VOICE.init();     // browsers only allow this on a gesture
   const p = pointer(e);
@@ -553,6 +601,8 @@ function onMove(e) { if (S.phase === 'setAng' || S.phase === 'setPull') e.preven
 function onUp(e)   { if (S.phase === 'setAng' || S.phase === 'setPull') e.preventDefault(); }
 function resetToAim() {
   S.phase = 'aim'; S.flight = null;
+  S.boostLeft = 1; S.boostAt = null; S.boostFlash = 0; S.spd = 0;
+  S.alt = 0; S.screenY = 0; S.screenX = 0; S.minScreenY = null;
   S.meterT = 0; S.angle = M.CFG.ANG_MIN; S.pull = 0;   // slack, and lying level
   VOICE.hush();
   S.wind = rollWind();                  // fresh conditions every attempt
@@ -585,6 +635,94 @@ function sample(tr, t) {
   return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, th: a.th + (b.th - a.th) * k };
 }
 
+// ---- clouds --------------------------------------------------------------
+// The sky was a flat fill that never moved, so above the treeline the frame held
+// nothing at all: no height, no speed, nothing to pass. Clouds carry both, and
+// they are the only layer that can — they drift as you travel AND slide down the
+// frame as you climb, so the same object reports both axes.
+//
+// Baked to sprites once at boot rather than drawn as live gradients. Several
+// dozen radial fills a frame is real cost for a shape that never changes.
+//
+// No outlines anywhere, per the house rule: every edge is a gradient falling to
+// transparent, and the form is read from value alone.
+const CLOUD_PAR    = 0.22;   // parallax: the ridge runs 0.13, the field runs 1.0
+const CLOUD_COL_M  = 115;    // world metres between cloud slots, across
+const CLOUD_ROW_M  = 72;     // and up
+const CLOUD_BASE_M = 45;     // none below this, so they sit clear of the treeline
+const CLOUD_TOP_M  = 620;    // none above this
+const cloudSprites = [];
+
+const CLOUD_SPR_W = 360, CLOUD_SPR_H = 200, CLOUD_R_MAX = 58;
+function makeCloudSprite(seed) {
+  const cv = document.createElement('canvas');
+  cv.width = CLOUD_SPR_W; cv.height = CLOUD_SPR_H;
+  const g = cv.getContext('2d');
+  let st = seed >>> 0;
+  const rnd = () => (st = (st * 1103515245 + 12345) >>> 0) / 4294967296;
+  const lobes = 5 + Math.floor(rnd() * 4);
+  // EVERY LOBE STAYS A FULL RADIUS INSIDE THE SPRITE. The first version let
+  // them run to 153 px in a 128 px canvas, so the gradient was cut off square
+  // and the sprite's own bounds read as a straight edge along the bottom of
+  // every cloud. A soft edge has to have somewhere to fade OUT to.
+  for (let i = 0; i < lobes; i++) {
+    const r  = CLOUD_R_MAX * (0.55 + 0.45 * rnd());
+    const cx = r + (CLOUD_SPR_W - 2 * r) * rnd();
+    const cy = r + (CLOUD_SPR_H - 2 * r) * (0.28 + 0.44 * rnd());
+    const grd = g.createRadialGradient(cx, cy - r * 0.30, r * 0.10, cx, cy, r);
+    grd.addColorStop(0.00, 'rgba(255,255,255,0.90)');
+    grd.addColorStop(0.50, 'rgba(255,255,255,0.46)');
+    grd.addColorStop(1.00, 'rgba(255,255,255,0)');
+    g.fillStyle = grd;
+    g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.fill();
+  }
+  return cv;
+}
+for (let i = 0; i < 5; i++) cloudSprites.push(makeCloudSprite(0x9e37 + i * 2654435761));
+
+function cloudHash(a, b) {
+  let h = (Math.imul(a, 73856093) ^ Math.imul(b, 19349663)) >>> 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0;
+  return (h ^ (h >>> 16)) >>> 0;
+}
+
+function clouds() {
+  const s = S.ppm * CLOUD_PAR;                 // px per world metre in this layer
+  if (!(s > 0.01) || !cloudSprites.length) return;
+  const hz = sy(0);                            // the world's ground line
+  const M = 260;                               // draw margin, in px
+  const cx0 = Math.floor((S.camX - M / s) / CLOUD_COL_M);
+  const cx1 = Math.ceil((S.camX + (W + M) / s) / CLOUD_COL_M);
+  const ry0 = Math.floor((S.camY - M / s) / CLOUD_ROW_M);
+  const ry1 = Math.ceil((S.camY + (groundY + M) / s) / CLOUD_ROW_M);
+  ctx.save();
+  for (let ci = cx0; ci <= cx1; ci++) {
+    for (let ri = ry0; ri <= ry1; ri++) {
+      const wy = ri * CLOUD_ROW_M;
+      if (wy < CLOUD_BASE_M || wy > CLOUD_TOP_M) continue;
+      const h = cloudHash(ci, ri);
+      if ((h & 3) === 0) continue;             // gaps, so the field is not a grid
+      const jx = ((h >>> 4) & 255) / 255 - 0.5;
+      const jy = ((h >>> 12) & 255) / 255 - 0.5;
+      const wx = ci * CLOUD_COL_M + jx * CLOUD_COL_M * 0.8;
+      const px = (wx - S.camX) * s;
+      const py = groundY - (wy + jy * CLOUD_ROW_M * 0.7 - S.camY) * s;
+      const sprite = cloudSprites[(h >>> 20) % cloudSprites.length];
+      const scale = (0.50 + ((h >>> 24) & 255) / 255 * 1.05) * (s * 46) / CLOUD_SPR_H;
+      const dw = CLOUD_SPR_W * scale, dh = CLOUD_SPR_H * scale;
+      if (px + dw < -8 || px - dw > W + 8 || py + dh < -8 || py - dh > H + 8) continue;
+      // Fade out as they approach the horizon, so a landing is not flown through
+      // a bank of cloud sitting on the treeline.
+      const fade = Math.max(0, Math.min(1, (hz - (py + dh * 0.5)) / 120));
+      if (fade <= 0.01) continue;
+      ctx.globalAlpha = fade * (0.42 + ((h >>> 16) & 63) / 63 * 0.46);
+      ctx.drawImage(sprite, px - dw / 2, py - dh / 2, dw, dh);
+    }
+  }
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
 // ---- scenery -------------------------------------------------------------
 // One backdrop, drawn once. Its own horizon is pinned to the world's ground
 // line and its foot runs off the bottom of the frame, so the grass the plane
@@ -599,6 +737,8 @@ function sky() {
     g.addColorStop(0, '#3E9BFB'); g.addColorStop(1, '#CDE6FA');
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
   }
+  clouds();
+
   // Whichever backdrop has arrived. Same picture, same aspect, so every
   // measurement below is taken from the one being drawn and the swap is
   // invisible.
@@ -790,6 +930,53 @@ const HUD_H = () => (wide ? 46 : 78);
 const SIDE_PAD = () => (wide ? 30 : 18);
 const BAR_H = 74;                      // the control row along the foot
 
+// Airspeed is shown because the rule the boost turns on is "energy
+// added slowly is worth more than energy added fast", and without a number for
+// speed that rule is invisible — the player would be guessing at a hidden state
+// rather than reading a shown one.
+function drawBoostHud() {
+  const cx = W / 2, boxW = 168, boxH = S.boostLeft > 0 ? 54 : 40, y0 = H - boxH - 16;
+  // A backing, because this sits over sky, cliffs or grass depending on where
+  // the aeroplane is, and amber-on-grass was unreadable at exactly the moment
+  // the player needs to read it.
+  ctx.save();
+  ctx.fillStyle = 'rgba(10,16,28,0.62)';
+  ctx.beginPath();
+  const rr = 10, x0 = cx - boxW / 2;
+  ctx.moveTo(x0 + rr, y0);
+  ctx.arcTo(x0 + boxW, y0, x0 + boxW, y0 + boxH, rr);
+  ctx.arcTo(x0 + boxW, y0 + boxH, x0, y0 + boxH, rr);
+  ctx.arcTo(x0, y0 + boxH, x0, y0, rr);
+  ctx.arcTo(x0, y0, x0 + boxW, y0, rr);
+  ctx.closePath(); ctx.fill();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+
+  // Airspeed IS the mechanic made visible: energy added slowly buys far more
+  // than energy added fast, so without a number for speed the player is
+  // guessing at a hidden state instead of reading a shown one.
+  ctx.font = '700 17px Inter, system-ui, sans-serif';
+  ctx.fillStyle = 'rgba(255,255,255,0.92)';
+  ctx.fillText(Math.round(S.spd || 0) + ' m/s', cx, y0 + 18);
+
+  if (S.boostLeft > 0) {
+    const pulse = 0.68 + 0.32 * Math.sin(performance.now() / 240);
+    ctx.font = '800 13px Inter, system-ui, sans-serif';
+    ctx.fillStyle = 'rgba(255,201,84,' + pulse.toFixed(3) + ')';
+    ctx.fillText('TAP TO BOOST', cx, y0 + 39);
+  } else if (S.boostFlash && performance.now() - S.boostFlash < 1200) {
+    const k = 1 - (performance.now() - S.boostFlash) / 1200;
+    ctx.font = '800 15px Inter, system-ui, sans-serif';
+    ctx.fillStyle = 'rgba(255,176,54,' + k.toFixed(3) + ')';
+    ctx.fillText('BOOST', cx, y0 + 31);
+  } else if (S.boostAt != null) {
+    ctx.font = '600 11px Inter, system-ui, sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.34)';
+    ctx.fillText('boosted at ' + S.boostAt.toFixed(1) + 's', cx, y0 + 31);
+  }
+  ctx.restore();
+}
+
+
 // Speaker drawn as paths. House rule: flat vector glyphs, never an emoji.
 // T3: the OFF state was white at 0.34, which measured 3.10 over the bar where the
 // grass is behind it but 2.90 over mid sky and 2.70 over bright sky, and the bar
@@ -921,6 +1108,7 @@ function hud() {
   // Nothing to press while it is in the air, so nothing is drawn: the bar and
   // its buttons leave entirely and the flight has the frame to itself.
   if (S.phase === 'fly') { S.btn = null; S.chg = null; S.snd = null;
+    drawBoostHud();
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; return; }
 
   const rowY = H - BAR_H / 2;
@@ -1103,13 +1291,31 @@ const ease = (k, dt) => 1 - Math.pow(1 - k, dt * 60);
 function chase(wx, wy, k, dt) {
   const a = ease(k, dt);
   S.camX += ((wx - (W * 0.5) / S.ppm) - S.camX) * a;
-  // The aeroplane must never climb under the band. The ceiling used to be a
-  // flat 12% of the frame, which is above the band on a phone, so a steep
-  // launch flew up behind the read-outs and out of sight. It is now the band's
-  // own lower edge plus room for the aircraft itself, so it stays in the clear.
-  const clear = HUD_H() + PLANE_LEN_M * S.ppm * 0.34 + 14;
-  const lift = Math.max(0, wy - (groundY - clear) / S.ppm);
-  S.camY += (lift - S.camY) * a;
+  // THE AEROPLANE SITS IN THE MIDDLE OF THE FRAME WHILE IT IS UP THERE. Pinning
+  // it just under the read-out band was the first fix for a boosted climb
+  // outrunning the camera; it kept the aeroplane on screen and parked it on the
+  // top edge for the whole flight, which is not a shot, it is a near miss.
+  // The band's lower edge and the frame's foot give the two hard limits, and
+  // the shot aims at the midpoint between them.
+  const half = PLANE_LEN_M * S.ppm * 0.34;
+  const yTop = HUD_H() + half + 14;          // clear of the read-outs
+  const yBot = H - half - 14;                // clear of the foot
+  const yMid = (yTop + yBot) / 2;
+  // The camera height that puts the aeroplane on screen row y is
+  // wy - (groundY - y) / ppm. Floored at zero, so while it is on or near the
+  // ground the shot stays anchored to the ground line and take-off and landing
+  // look exactly as they always did — the centring only takes over once the
+  // aeroplane is high enough to have left that anchor behind.
+  const want = Math.max(0, wy - (groundY - yMid) / S.ppm);
+  S.camY += (want - S.camY) * a;
+  // Whatever the easing is doing, it may not let the aeroplane leave the frame.
+  // A boost adds vertical speed faster than the ease can follow, so these are
+  // the backstops: worst case it rides a limit for a moment and settles back to
+  // the middle, rather than flying off the top.
+  const loCam = Math.max(0, wy - (groundY - yTop) / S.ppm);
+  const hiCam = wy - (groundY - yBot) / S.ppm;
+  if (S.camY < loCam) S.camY = loCam;
+  if (hiCam > loCam && S.camY > hiCam) S.camY = hiCam;
 }
 
 function follow(wx, wy, k, leadFrac, dt) {
@@ -1142,6 +1348,7 @@ function frame(now) {
     const q2 = sample(tr, t + 0.06);
     const spd = Math.hypot(q2.x - q.x, q2.y - q.y) / 0.06;
     VOICE.flight(spd, q.y);
+    S.spd = spd; S.alt = q.y;
     if (!S.touched && q.y <= M.build(S.plane).gearH + 0.4) {
       S.touched = true; touchSound(spd);
     }
@@ -1158,6 +1365,11 @@ function frame(now) {
       SFX.play(S.beatBest ? 'success' : 'drop');
     }
     pp = { x: sx(q.x), y: sy(q.y) }; pw = q;
+    // measured HERE, after chase() has moved the camera, because this is the
+    // position the renderer actually uses. Reading it before chase() measures
+    // last frame's camera and reports a plane that left a frame it never left.
+    S.screenY = pp.y; S.screenX = pp.x;
+    if (S.minScreenY == null || pp.y < S.minScreenY) S.minScreenY = pp.y;
   } else if (S.phase === 'rest' && S.flight) {
     const e = S.flight.trace[S.flight.trace.length - 1];
     // The closing move, and the only place it happens. The flight ends around
@@ -1231,5 +1443,23 @@ TRACK().init('tailwind');
 fit();
 S.ppm = S.ppmTarget = restPPM();
 S.camX = -(W * 0.34) / S.ppm;
+// Debug handle, as every game on the site carries one.
+window.__tailwind = {
+  get state() {
+    return { phase: S.phase, dist: S.dist, best: S.best, spd: S.spd, alt: S.alt,
+             boostLeft: S.boostLeft, boostAt: S.boostAt,
+             screenX: S.screenX, screenY: S.screenY, minScreenY: S.minScreenY,
+             camY: S.camY, ppm: S.ppm, W, H, plane: S.plane, wind: S.wind };
+  },
+  get cfg() { return { dv: BOOST_DV, stroke: BOOST_STROKE }; },
+  // does the aeroplane stay inside the frame for the WHOLE flight?
+  framing() {
+    if (!S.flight || !S.flight.trace) return { ok: null, why: 'no flight' };
+    return { minScreenY: S.minScreenY, H,
+             leftTop: S.minScreenY != null && S.minScreenY < 0,
+             clearance: S.minScreenY == null ? null : Math.round(S.minScreenY) };
+  }
+};
+
 requestAnimationFrame(frame);
 })();

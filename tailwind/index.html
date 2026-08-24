@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <title>Tailwind — free catapult distance game | Zamborin Games</title>
-  <meta name="description" content="Fling an aeroplane from a rubber-band catapult and see how far it flies. Six aircraft, each wanting a different launch, and a wind that changes the best angle every go. Free, no download." />
+  <meta name="description" content="Fling an aeroplane from a rubber-band catapult, then spend one mid-air boost at the right moment. Six aircraft, a wind that moves the best angle, and three decisions per throw. Free, no download." />
   <meta name="theme-color" content="#0E1726" />
   <link rel="canonical" href="https://zamborin.com/tailwind/" />
   <link rel="icon" type="image/svg+xml" href="../images/zamborin-favicon.svg?v=2" />
@@ -120,7 +120,7 @@
 
       <p>A rubber band, a forked post, and an aeroplane sitting in the sling. Draw it back, let go, and watch. It climbs, runs out of the speed the catapult gave it, settles into a glide, and finally touches down and rolls to a stop in the grass. Then you read the number and go again.</p>
 
-      <p>That is the whole game. What makes it worth repeating is that the two things you control pull against each other, and the right answer moves.</p>
+      <p>That is the whole game. What makes it worth repeating is that the three things you control pull against each other, and the right answer moves.</p>
 
       <h2>How to play</h2>
       <ul>
@@ -128,10 +128,17 @@
         <li><strong>Read the wind.</strong> The dial at the top left shows which way the air is moving and how hard. It is rolled fresh for every attempt, and it decides how high you should aim.</li>
         <li><strong>Set the force.</strong> Tap once and the band starts drawing back with the aeroplane riding out along it. Tap again to fix how far.</li>
         <li><strong>Set the angle.</strong> The whole catapult then swings on its screw, band and aeroplane together. Tap a third time to let go.</li>
+        <li><strong>Spend the boost.</strong> Once it is in the air you have one burst of thrust, and tapping fires it. The read-out under the aeroplane shows its airspeed, which is the whole clue: the moment you pick is worth more than the boost itself.</li>
       </ul>
       <p>Both of those tap against something already moving, and neither waits for you. Knowing the launch you want is only half of it. The other half is catching it, and that is the half you keep coming back for.</p>
 
       <p>Your best is kept for each aircraft separately, so all six have their own record to chase. There is no timer, nothing to lose and nothing to unlock.</p>
+
+      <h2>The boost, and why the moment matters more than the button</h2>
+
+      <p><strong>Thrust costs the airframe, exactly as the catapult does.</strong> Adding speed in a hurry is an acceleration and an acceleration is a load, so a burst thrown in while the aeroplane is already fast strains the wing and spends the glide you were saving. The same burst at low speed costs almost nothing. That is why the boost is not a button you simply press as soon as it lights up.</p>
+
+      <p><strong>So it is a timing decision, not a free gift.</strong> The best moment is usually somewhere near the top of the climb, where the aeroplane is slowest, but it moves with the aircraft and with the wind. Get it right and the throw roughly doubles. Get it wrong and you land short, which costs you nothing but the throw, and you are back at the catapult in seconds.</p>
 
       <h2>Why it is not just pulling as hard as you can</h2>
       <p><strong>Every aircraft has a draw it cannot take.</strong> Reaching launch speed over a short stroke is an acceleration, and an acceleration is a load, tens of g at a full draw. Past what an airframe stands, the wing strains, loses lift and gains drag, and the glide you chose it for is spent. So the best draw runs from about half on the lightest aircraft to nearly full on the strongest, and finding it is most of what the pick screen is for.</p>
@@ -184,8 +191,8 @@
   <script src="../shared/analytics.js?v=3"></script>
   <script src="../shared/embed.js?v=1"></script>
   <script defer src="../shared/ads.js?v=2"></script>
-  <script src="./model.js?v=11"></script>
-  <script src="./play.js?v=78"></script>
+  <script src="./model.js?v=12"></script>
+  <script src="./play.js?v=79"></script>
   <script>
     (() => {
       const btn = document.getElementById('focus-toggle');

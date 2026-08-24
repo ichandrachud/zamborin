@@ -348,7 +348,7 @@ function fly(plane, angleDeg, pull, opts = {}) {
   // same drag force, so weight was a free win worth more than the entire drag
   // slider — measured, Zephyr topped out at 96 m with drag at zero while
   // Cyclone still made 220 m with drag at maximum.
-  // SECOND LAUNCH VARIABLE, off by default (bend 0 reproduces the shipped game
+  // SECOND LAUNCH VARIABLE, off by default (bend 0 reproduces the launch
   // exactly). Bending the trunk back and letting it whip forward is a compound
   // catapult: the fork travels through its own arc while the aeroplane is still
   // in the sling, so it adds stored energy AND spreads the acceleration over a
@@ -384,14 +384,24 @@ function fly(plane, angleDeg, pull, opts = {}) {
   // Without this every plane in the fleet wanted the identical launch, 43° and
   // pull 0.96, and picking one was picking a number rather than a way to fly.
   const nLaunch = (v0 * v0) / (2 * stroke * CFG.G);
-  const strain = Math.max(0, Math.min(1.2, (nLaunch - p.nLaunch) / p.nLaunch));
-  const clA = p.clAlpha / (1 + 1.5 * strain);
-  const cd0 = p.cd0 * (1 + 2.5 * strain);
-  const clTrim = clA * p.aTrim;
-  const LD = clTrim / (cd0 + p.kInd * clTrim * clTrim);
-  const glideAngle = -Math.atan(1 / LD);
-  const vTrim = Math.sqrt(p.m * CFG.G / (0.5 * CFG.RHO * p.S * clTrim));
+  let strain = Math.max(0, Math.min(1.2, (nLaunch - p.nLaunch) / p.nLaunch));
+  let clA, cd0, clTrim, LD, glideAngle, vTrim;
+  function deriveFromStrain() {
+    clA = p.clAlpha / (1 + 1.5 * strain);
+    cd0 = p.cd0 * (1 + 2.5 * strain);
+    clTrim = clA * p.aTrim;
+    LD = clTrim / (cd0 + p.kInd * clTrim * clTrim);
+    glideAngle = -Math.atan(1 / LD);
+    vTrim = Math.sqrt(p.m * CFG.G / (0.5 * CFG.RHO * p.S * clTrim));
+  }
+  deriveFromStrain();
 
+  // One thrust impulse, PAID FOR IN AIRFRAME LOAD,
+  // the same currency the launch pays in. Delivered over a short burn, so the
+  // load factor is ((v+dv)^2 - v^2)/(2*s*g): cheap when slow, brutal when fast.
+  const BOOST = opts.boost || null;
+  const S_BOOST = opts.boostStroke != null ? opts.boostStroke : 3.0;
+  let boostSpent = false, boostAtV = null, boostStrain = 0;
   let x = 0, y = CFG.LAUNCH_H - CFG.BEND_DROP * bend;
   let vx = v0 * Math.cos(a0), vy = v0 * Math.sin(a0);
   let theta = a0;                              // nose still pointing where aimed
@@ -514,6 +524,19 @@ function fly(plane, angleDeg, pull, opts = {}) {
       const ng = gam + dgam;
       vx = nv * Math.cos(ng) + wind;
       vy = nv * Math.sin(ng);
+      if (BOOST && !boostSpent && t >= BOOST.t) {
+        const gAir = Math.atan2(vy, vx - wind);
+        const vAir = Math.hypot(vx - wind, vy);
+        const vNew = vAir + BOOST.dv;
+        boostAtV = vAir;
+        const nB = (vNew * vNew - vAir * vAir) / (2 * S_BOOST * CFG.G);
+        boostStrain = Math.max(0, (nB - p.nLaunch) / p.nLaunch);
+        strain = Math.max(0, Math.min(1.2, strain + boostStrain));
+        deriveFromStrain();
+        vx = vNew * Math.cos(gAir) + wind;
+        vy = vNew * Math.sin(gAir);
+        boostSpent = true;
+      }
 
       // attitude is simply path plus incidence; the aeroplane points where it
       // is going, tilted by however much wing it is currently using
@@ -543,7 +566,19 @@ function fly(plane, angleDeg, pull, opts = {}) {
     if (y <= p.gearH) {
       y = p.gearH;
       if (!grounded && vy < -CFG.BOUNCE_MIN_VY) {
-        vy = -vy * p.rest;
+        // A HARD ARRIVAL IS A HEAVY LANDING, NOT A BOUNCY ONE. An UNBOOSTED
+        // flight never bounces more than once, measured: 390 flights, 221 with
+        // none and 169 with exactly one, and its hardest arrival anywhere in the
+        // whole input space is 21.9 m/s. A boosted aeroplane falls from twice the
+        // height and arrives far faster, and at the unmodified restitution that
+        // read as a ball bouncing down the field. Past what an unboosted flight
+        // can ever produce the impact goes plastic instead, so the aeroplane
+        // lands and rolls out. Below 22 m/s this is exactly 1.0, which is why
+        // 9,702 of 9,702 unboosted flights are unchanged to the last decimal.
+        const HARD_VY = 22, DEAD_VY = 45;
+        const soft = (-vy) <= HARD_VY ? 1
+                   : Math.max(0, (DEAD_VY - (-vy)) / (DEAD_VY - HARD_VY));
+        vy = -vy * p.rest * soft;
         vx *= 0.72 + 0.16 * p.stats.tough;      // a bounce costs you ground speed
         bounces++;
         if (vy < CFG.BOUNCE_MIN_VY) { vy = 0; grounded = true; }
@@ -563,7 +598,8 @@ function fly(plane, angleDeg, pull, opts = {}) {
   // climb followed by a long glide, which is the shape this game wants.
   return { dist: x, t, apex, apexX, bounces, stalled, flex, strain, depTime, trace,
            apexAt: x > 0 ? apexX / x : 0,
-           roll: touchdown ? (x - touchdown) / x : 0 };
+           roll: touchdown ? (x - touchdown) / x : 0,
+           boostSpent, boostAtV, boostStrain };
 }
 
 // ---- the input space ----------------------------------------------------
