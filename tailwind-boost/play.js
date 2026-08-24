@@ -1188,19 +1188,31 @@ const ease = (k, dt) => 1 - Math.pow(1 - k, dt * 60);
 function chase(wx, wy, k, dt) {
   const a = ease(k, dt);
   S.camX += ((wx - (W * 0.5) / S.ppm) - S.camX) * a;
-  // The aeroplane must never climb under the band. The ceiling used to be a
-  // flat 12% of the frame, which is above the band on a phone, so a steep
-  // launch flew up behind the read-outs and out of sight. It is now the band's
-  // own lower edge plus room for the aircraft itself, so it stays in the clear.
-  const clear = HUD_H() + PLANE_LEN_M * S.ppm * 0.34 + 14;
-  const lift = Math.max(0, wy - (groundY - clear) / S.ppm);
-  S.camY += (lift - S.camY) * a;
-  // `lift` is the MINIMUM camera height that still keeps the aeroplane under the
-  // band, so easing toward it is only safe while it is falling. A boost adds
-  // vertical speed faster than a 0.14 ease can follow, and the aeroplane simply
-  // left the top of the frame. Easing still governs the way back down; on the
-  // way up the camera is not allowed to be behind at all.
-  if (S.camY < lift) S.camY = lift;
+  // THE AEROPLANE SITS IN THE MIDDLE OF THE FRAME WHILE IT IS UP THERE. Pinning
+  // it just under the read-out band was the first fix for a boosted climb
+  // outrunning the camera; it kept the aeroplane on screen and parked it on the
+  // top edge for the whole flight, which is not a shot, it is a near miss.
+  // The band's lower edge and the frame's foot give the two hard limits, and
+  // the shot aims at the midpoint between them.
+  const half = PLANE_LEN_M * S.ppm * 0.34;
+  const yTop = HUD_H() + half + 14;          // clear of the read-outs
+  const yBot = H - half - 14;                // clear of the foot
+  const yMid = (yTop + yBot) / 2;
+  // The camera height that puts the aeroplane on screen row y is
+  // wy - (groundY - y) / ppm. Floored at zero, so while it is on or near the
+  // ground the shot stays anchored to the ground line and take-off and landing
+  // look exactly as they always did — the centring only takes over once the
+  // aeroplane is high enough to have left that anchor behind.
+  const want = Math.max(0, wy - (groundY - yMid) / S.ppm);
+  S.camY += (want - S.camY) * a;
+  // Whatever the easing is doing, it may not let the aeroplane leave the frame.
+  // A boost adds vertical speed faster than the ease can follow, so these are
+  // the backstops: worst case it rides a limit for a moment and settles back to
+  // the middle, rather than flying off the top.
+  const loCam = Math.max(0, wy - (groundY - yTop) / S.ppm);
+  const hiCam = wy - (groundY - yBot) / S.ppm;
+  if (S.camY < loCam) S.camY = loCam;
+  if (hiCam > loCam && S.camY > hiCam) S.camY = hiCam;
 }
 
 function follow(wx, wy, k, leadFrac, dt) {
