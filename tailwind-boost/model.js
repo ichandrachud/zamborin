@@ -566,7 +566,18 @@ function fly(plane, angleDeg, pull, opts = {}) {
     if (y <= p.gearH) {
       y = p.gearH;
       if (!grounded && vy < -CFG.BOUNCE_MIN_VY) {
-        vy = -vy * p.rest;
+        // A HARD ARRIVAL IS A HEAVY LANDING, NOT A BOUNCY ONE. The shipped game
+        // never bounces more than once, measured: 390 flights, 221 with none and
+        // 169 with exactly one, and its hardest arrival anywhere in the whole
+        // input space is 21.9 m/s. A boosted aeroplane falls from twice the
+        // height and arrives far faster, and at the shipped restitution that
+        // read as a ball bouncing down the field. Past what the shipped game can
+        // ever produce the impact goes plastic instead, so the aeroplane lands
+        // and rolls out. Below 22 m/s this is exactly 1.0 and nothing changes.
+        const HARD_VY = 22, DEAD_VY = 45;
+        const soft = (-vy) <= HARD_VY ? 1
+                   : Math.max(0, (DEAD_VY - (-vy)) / (DEAD_VY - HARD_VY));
+        vy = -vy * p.rest * soft;
         vx *= 0.72 + 0.16 * p.stats.tough;      // a bounce costs you ground speed
         bounces++;
         if (vy < CFG.BOUNCE_MIN_VY) { vy = 0; grounded = true; }

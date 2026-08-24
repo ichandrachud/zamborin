@@ -85,8 +85,8 @@ const WIND_MIN = -15, WIND_MAX = 3;
 // Tunable from the query string so a setting can be tried without a redeploy:
 //   ?dv=10&stroke=1.5      dv is the impulse in m/s, stroke is the burn length
 const QS_ = new URLSearchParams(location.search);
-const BOOST_DV     = Math.max(0, Number(QS_.get('dv')) || 40);
-const BOOST_STROKE = Math.max(0.1, Number(QS_.get('stroke')) || 6);
+const BOOST_DV     = Math.max(0, Number(QS_.get('dv')) || 80);
+const BOOST_STROKE = Math.max(0.1, Number(QS_.get('stroke')) || 16);
 function rollWind() {
   const t = Math.random();
   return Math.round((WIND_MIN + (WIND_MAX - WIND_MIN) * t) * 2) / 2;
@@ -388,9 +388,18 @@ const FLY_ZOOM = FLY_PLANE_FRAC / REST_PLANE_FRAC;   // hold the wide shot at 12
 // without anything having to know which phase the flight is in.
 const LAND_ZOOM = 0.62;
 const ZOOM_ALT = 34;        // metres over which it opens out to the wide shot
+// The shipped game's ceiling is 132.1 m, measured across its whole input space,
+// and the zoom saturated at 34 m, which was fine because chase() kept the
+// aeroplane framed. A boost doubles the ceiling and the shot had nowhere left to
+// go. Above the shipped ceiling it keeps opening out, so the climb reads as
+// height rather than running off the top. Below 135 m this is untouched, so no
+// unboosted flight can see any of it.
+const HIGH_ALT = 135;
 function zoomForAlt(alt) {
   const t = Math.max(0, Math.min(1, alt / ZOOM_ALT));
-  return LAND_ZOOM + (FLY_ZOOM - LAND_ZOOM) * t;
+  let z = LAND_ZOOM + (FLY_ZOOM - LAND_ZOOM) * t;
+  if (alt > HIGH_ALT) z = Math.max(z * (HIGH_ALT / alt), FLY_ZOOM * 0.32);
+  return z;
 }
 
 // THE CLOSING ZOOM WAITS FOR THE AEROPLANE TO STOP. Driving it off the run as
@@ -580,6 +589,7 @@ function onUp(e)   { if (S.phase === 'setAng' || S.phase === 'setPull') e.preven
 function resetToAim() {
   S.phase = 'aim'; S.flight = null;
   S.boostLeft = 1; S.boostAt = null; S.boostFlash = 0; S.spd = 0;
+  S.alt = 0; S.screenY = 0; S.screenX = 0; S.minScreenY = null;
   S.meterT = 0; S.angle = M.CFG.ANG_MIN; S.pull = 0;   // slack, and lying level
   VOICE.hush();
   S.wind = rollWind();                  // fresh conditions every attempt
@@ -1185,6 +1195,12 @@ function chase(wx, wy, k, dt) {
   const clear = HUD_H() + PLANE_LEN_M * S.ppm * 0.34 + 14;
   const lift = Math.max(0, wy - (groundY - clear) / S.ppm);
   S.camY += (lift - S.camY) * a;
+  // `lift` is the MINIMUM camera height that still keeps the aeroplane under the
+  // band, so easing toward it is only safe while it is falling. A boost adds
+  // vertical speed faster than a 0.14 ease can follow, and the aeroplane simply
+  // left the top of the frame. Easing still governs the way back down; on the
+  // way up the camera is not allowed to be behind at all.
+  if (S.camY < lift) S.camY = lift;
 }
 
 function follow(wx, wy, k, leadFrac, dt) {
@@ -1217,7 +1233,7 @@ function frame(now) {
     const q2 = sample(tr, t + 0.06);
     const spd = Math.hypot(q2.x - q.x, q2.y - q.y) / 0.06;
     VOICE.flight(spd, q.y);
-    S.spd = spd;
+    S.spd = spd; S.alt = q.y;
     if (!S.touched && q.y <= M.build(S.plane).gearH + 0.4) {
       S.touched = true; touchSound(spd);
     }
@@ -1234,6 +1250,11 @@ function frame(now) {
       SFX.play(S.beatBest ? 'success' : 'drop');
     }
     pp = { x: sx(q.x), y: sy(q.y) }; pw = q;
+    // measured HERE, after chase() has moved the camera, because this is the
+    // position the renderer actually uses. Reading it before chase() measures
+    // last frame's camera and reports a plane that left a frame it never left.
+    S.screenY = pp.y; S.screenX = pp.x;
+    if (S.minScreenY == null || pp.y < S.minScreenY) S.minScreenY = pp.y;
   } else if (S.phase === 'rest' && S.flight) {
     const e = S.flight.trace[S.flight.trace.length - 1];
     // The closing move, and the only place it happens. The flight ends around
@@ -1307,5 +1328,23 @@ TRACK().init('tailwind');
 fit();
 S.ppm = S.ppmTarget = restPPM();
 S.camX = -(W * 0.34) / S.ppm;
+// Debug handle, as every game on the site carries one. Prototype only.
+window.__tailwindBoost = {
+  get state() {
+    return { phase: S.phase, dist: S.dist, best: S.best, spd: S.spd, alt: S.alt,
+             boostLeft: S.boostLeft, boostAt: S.boostAt,
+             screenX: S.screenX, screenY: S.screenY, minScreenY: S.minScreenY,
+             camY: S.camY, ppm: S.ppm, W, H, plane: S.plane, wind: S.wind };
+  },
+  get cfg() { return { dv: BOOST_DV, stroke: BOOST_STROKE }; },
+  // does the aeroplane stay inside the frame for the WHOLE flight?
+  framing() {
+    if (!S.flight || !S.flight.trace) return { ok: null, why: 'no flight' };
+    return { minScreenY: S.minScreenY, H,
+             leftTop: S.minScreenY != null && S.minScreenY < 0,
+             clearance: S.minScreenY == null ? null : Math.round(S.minScreenY) };
+  }
+};
+
 requestAnimationFrame(frame);
 })();
