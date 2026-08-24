@@ -1621,7 +1621,7 @@ one game where reading has already been wrong once, so a driven confirmation is 
 | ID | Game | Sev | Issue | State |
 |---|---|---|---|---|
 | Q2 | fleet | MINOR, live data | Five games called `T().hintUsed(level)` ABOVE undo's own guard, so an undo that was REFUSED still recorded an assist. It fires in ordinary play because a dimmed Undo is still clickable: `dim` in `shared/ui.js:86` only swaps the text colour, the button is still pushed with `act: undo`. **The naming was never the problem** — the API comment reads `/* Hint, undo or solve-for-me. */`, so folding undo in is deliberate; only the placement was wrong. Kaleido's call is inside a hint function and Mobile's is on solve-for-me, both correct. **Prism already had the right order and became the control.** Same gesture, same pixel: needle v38 sent 3 `hint_used` for 3 clicks on a dimmed Undo with 0 moves made, prism v45 sent 0, and a real undo on prism still sent exactly 1. Insights loads on all 40 pages, so this was skewing live data unevenly — prism was the only game counting honestly, which is exactly the comparison the assist metric exists to support | **FIXED and DEPLOYED 2026-08-24**, commit `98921d3`. orbit, bloom, needle, sluice and fold now match prism. Versions bumped orbit v28, bloom v32, needle v39, sluice v15, fold v33. Verified live by curl on all six, and all five changed files parse |
-| T7 | tailwind | OBSERVATION, design, owner's call | **A shot cannot be abandoned once launched.** `onDown` opens with `if (S.phase === 'fly') return;`, and tailwind has exactly two input listeners, `mousedown` and `touchstart`, both routing there, with no keyboard handler anywhere. So during flight nothing responds: not the sound toggle, not the plane-change button. Measured against the DEPLOYED `model.js` (sha256 hash-matched to the repo copy), 68,796 legitimate shots across all 6 planes, the full angle range, pull including exactly 0, and every legal wind: **84.7% fly longer than 10s, 23.4% longer than 20s**, longest 36.9s. Best-play shots run **24.7s to 35.2s, mean 29.7s**, and the optimum sits at 62-68 degrees, a high lofted angle, so **the better you play the longer you wait**. Playback is 1:1 real time: `sample()` is a plain interpolation over the trace's own timestamps with no scaling, and termination is `t >= tr[last].t` against wall-clock seconds. **May well be deliberate** — watching the flight is the payoff in a distance game, and it shipped after the owner played it. Recorded as a number, not called a defect. If it should be shorter the options are tap-to-skip during flight, time compression after apex, or a shorter trace cap, all of them feel decisions | OPEN, owner's call, nothing changed |
+| T7 | tailwind | OBSERVATION, design, owner's call | **A shot cannot be abandoned once launched.** `onDown` opens with `if (S.phase === 'fly') return;`, and tailwind has exactly two input listeners, `mousedown` and `touchstart`, both routing there, with no keyboard handler anywhere. So during flight nothing responds: not the sound toggle, not the plane-change button. Measured against the DEPLOYED `model.js` (sha256 hash-matched to the repo copy), 68,796 legitimate shots across all 6 planes, the full angle range, pull including exactly 0, and every legal wind: **84.7% fly longer than 10s, 23.4% longer than 20s**, longest 36.9s. Best-play shots run **24.7s to 35.2s, mean 29.7s**, and the optimum sits at 62-68 degrees, a high lofted angle, so **the better you play the longer you wait**. Playback is 1:1 real time: `sample()` is a plain interpolation over the trace's own timestamps with no scaling, and termination is `t >= tr[last].t` against wall-clock seconds. **May well be deliberate** — watching the flight is the payoff in a distance game, and it shipped after the owner played it. Recorded as a number, not called a defect. If it should be shorter the options are tap-to-skip during flight, time compression after apex, or a shorter trace cap, all of them feel decisions | **MITIGATED 2026-08-24, not closed.** The BOOST prototype at `/tailwind-boost/` gives the player something to do in that stretch, which was T7's real complaint. You still cannot ABANDON a shot once launched. Owner's call whether that matters once boosting fills the time |
 
 **The safeguard is real, and worth knowing before anyone touches the flight code.**
 `CFG.MAX_T = 90` caps the trace, which is why `fly` can always terminate. The sweep found
@@ -1639,6 +1639,30 @@ freeze was my own synthetic frame clock lagging `performance.now()`: flashes sta
 makes elapsed negative. **Any harness that substitutes the frame clock must keep it
 monotonic and never behind real time.** Also re-confirmed: six 404s on a local game page
 are `/_vercel/insights` and `/_vercel/speed-insights`, which only exist in production.
+
+## Tailwind BOOST prototype, 2026-08-24 — owner-requested feature
+
+Live, unlisted and noindex at `/tailwind-boost/`. A COPY of `tailwind/`, not a branch:
+own `model.js`, own `play.js`, and **its own localStorage key**, because same origin
+means a shared key would let boosted distances overwrite the real game's records.
+`/tailwind/` carries zero boost code, verified live. Owner verdict: "working beautifully."
+
+Full design, gate numbers and the settings that were REFUSED are in project memory at
+`project_tailwind_boost`. The three things worth having here:
+
+- **The naive boost was refused because it dissolves the existing decision.** Raising
+  launch speed LOWERS distance, because the load factor strains the wing, and that
+  penalty is what makes the pull meter and the pick screen choices at all. A mid-air
+  boost bypasses it. It now costs airframe load in the same currency.
+- **The landing spec is `max 1 bounce`.** The shipped game never exceeds it anywhere in
+  its input space and its hardest arrival is 21.9 m/s. Boosting broke that (491 of 26,372
+  flights bounced twice) and it was found only by sweeping EVERY launch, not the optimum.
+  9,702/9,702 unboosted flights remain bit-identical to the shipped model.
+- **The shipped camera ceiling is 132.1 m**, measured. Any camera rule that engages above
+  ~135 m cannot affect an unboosted flight, which is what made the fix safe.
+
+**Open, cosmetic:** at altitude the frame is pure sky, with no ground or scenery, so there
+is no height or speed reference. Owner to judge in play.
 
 ## START HERE — session handoff, 2026-08-24 (after the overnight run)
 
