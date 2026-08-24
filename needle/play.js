@@ -761,8 +761,8 @@
     }
   }
   function undo() {
-    T().hintUsed(level);
     if (!history.length || phase !== 'play') return;
+    T().hintUsed(level);
     snd.undo();
     const snap = history.pop();
     threads.forEach((t, i) => { t.path = snap[i] ? snap[i].slice() : null; });

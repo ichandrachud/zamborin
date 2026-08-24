@@ -279,8 +279,8 @@
     ensureAnim(now);
   }
   function undo() {
-    T().hintUsed(level);
     if (!history.length || phase !== 'play') return;
+    T().hintUsed(level);
     const i = history.pop();
     conn[i] = rotCW(rotCW(rotCW(conn[i]))); moves++; spinT[i] = performance.now();
     snd.undo();

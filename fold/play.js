@@ -968,7 +968,7 @@
   }
 
   // ---------- actions ----------
-  function undo() { T().hintUsed(level); if (history.length) { restore(history.pop()); snd.unfold(); seedSound(); render(); } }
+  function undo() { if (history.length) { T().hintUsed(level); restore(history.pop()); snd.unfold(); seedSound(); render(); } }
   function hint() {
     // Replays the recorded solution from the current position if the player is
     // still on it; otherwise says so rather than folding them somewhere wrong.

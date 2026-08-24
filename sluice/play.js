@@ -500,8 +500,8 @@
     ensureAnim(now);
   }
   function undo() {
-    T().hintUsed(level);
     if (!history.length || phase !== 'play' || demo) return;
+    T().hintUsed(level);
     const h = history.pop();
     // A hint's 3-cycle is four slides but ONE thing the player asked for, so it
     // undoes as one. Unwinding it a slide at a time would strand them in the
