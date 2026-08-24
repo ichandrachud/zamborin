@@ -920,16 +920,53 @@
 
   // ---------- SOUND ----------
   const sfx = window.ZSFX ? window.ZSFX.create({ storageKey: 'zamborin-kaleido.sound' }) : null;
+  // LEVELS. The whole bed used to sit at roughly 43% of the shared library's
+  // own numbers: placing a pane was 0.030 against `drop`'s 0.070, which is the
+  // level sfx.js uses for `click` and `tick`, its UI chrome. The win was 0.045
+  // against 0.08 to 0.10, but it is a SUSTAINED chime at 900ms where a
+  // placement is a 60ms blip, so the win registered and nothing else did. The
+  // owner reported the game as having no sound but the level-complete one, and
+  // it had six. Everything below is lifted toward the house numbers without
+  // reaching them, because "games to help you unwind" is a real reason to sit
+  // under standard. 43% is not restraint though, it is inaudible.
+  //
+  // THE COPIES. Placing one pane lands it in N_FOLD wedges on a 45ms stagger,
+  // and that whole cascade made ONE blip. Each copy gets its own tick now, on
+  // the SAME constant the draw ripples with, so sight and sound cannot drift
+  // apart: six notes at six-fold, two at two-fold.
+  //
+  // Same PITCH for every copy, deliberately. They ARE copies. A rising figure
+  // would say they were different from one another, which is the opposite of
+  // what the game is about. Only the gain falls, like light going round.
+  const COPY_MS = 45;            // shared with drawFigure's ripple, moved together or not at all
+  const COPY_FALLOFF = 0.72;     // 0.62 buried the last two copies at six-fold
+  const PLACE_GAIN = 0.055;      // house `drop` is 0.070
   const snd = {
     on: () => !!(sfx && sfx.isOn()),
     ready() { if (sfx) sfx.ensureAudio(); },
-    toggle() { if (!sfx) return; sfx.setOn(!sfx.isOn()); if (sfx.isOn()) sfx.tone(880, 0.05, 0.03, 'sine'); },
-    place() { if (sfx) { sfx.tone(523.25, 0.06, 0.030, 'sine'); sfx.tone(1046.5, 0.05, 0.012, 'sine'); } },
-    clear() { if (sfx) sfx.tone(392, 0.05, 0.020, 'sine'); },
-    undo() { if (sfx) sfx.tone(330, 0.05, 0.018, 'sine'); },
-    blocked() { if (sfx) sfx.tone(196, 0.05, 0.012, 'sine'); },
+    toggle() { if (!sfx) return; sfx.setOn(!sfx.isOn()); if (sfx.isOn()) sfx.tone(880, 0.05, 0.05, 'sine'); },
+    // the pane you touched, then its copies going round the wheel. tone() bails
+    // on its own when muted, so a cascade cut off mid-flight needs no guard.
+    place() {
+      if (!sfx) return;
+      sfx.tone(523.25, 0.06, PLACE_GAIN, 'sine');
+      sfx.tone(1046.5, 0.05, PLACE_GAIN * 0.38, 'sine');
+      let g = PLACE_GAIN;
+      for (let k = 1; k < N_FOLD; k++) {
+        g *= COPY_FALLOFF;
+        const gain = g;
+        setTimeout(() => sfx.tone(523.25, 0.06, gain, 'sine'), k * COPY_MS);
+      }
+    },
+    // Choosing a colour is not placing one. The palette fired the IDENTICAL
+    // sound as a placement, which quietly taught that picking and placing were
+    // the same act. Higher, shorter, quieter: an intention, not an outcome.
+    pick() { if (sfx) sfx.tone(880, 0.035, 0.026, 'sine'); },
+    clear() { if (sfx) sfx.tone(392, 0.05, 0.036, 'sine'); },
+    undo() { if (sfx) sfx.tone(330, 0.05, 0.032, 'sine'); },
+    blocked() { if (sfx) sfx.tone(196, 0.05, 0.022, 'sine'); },
     // one soft chime, per the brief: the resolve is the reward
-    win() { if (sfx) { sfx.tone(659.25, 0.9, 0.045, 'sine'); sfx.tone(987.77, 0.9, 0.022, 'sine'); sfx.tone(1318.5, 1.1, 0.012, 'sine'); } },
+    win() { if (sfx) { sfx.tone(659.25, 0.9, 0.070, 'sine'); sfx.tone(987.77, 0.9, 0.034, 'sine'); sfx.tone(1318.5, 1.1, 0.018, 'sine'); } },
   };
 
   // ---------- ANALYTICS ----------
@@ -1414,7 +1451,7 @@
 
         const { d } = domainOf(i);
         // the placement ripples outward from the wedge into its copies
-        const delay = lock ? 0 : (Math.floor(s / step) * 45);
+        const delay = lock ? 0 : (Math.floor(s / step) * COPY_MS);
         const p = lock ? 1 : Math.min(1, Math.max(0, (now - placeT[d] - delay) / 260));
         if (p <= 0) continue;
         let al = ease(p);
@@ -1594,7 +1631,7 @@
         // would promise a colour the piece will not have once it lands.
         drawGlyph(t, bx + sz / 2, by + sz / 2, sz * 0.30, 0, on ? 1 : 0.62, PLAIN);
       }
-      uiButtons.push({ x: bx, y: by, w: sz, h: sz, act: ((k) => () => { sel = k; snd.place(); render(performance.now()); })(t) });
+      uiButtons.push({ x: bx, y: by, w: sz, h: sz, act: ((k) => () => { sel = k; snd.pick(); render(performance.now()); })(t) });
       if (vertical) y += sz + gap; else x += sz + gap;
     }
   }
