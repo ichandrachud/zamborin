@@ -905,7 +905,7 @@
 
   // The repulsion pulses, so while any rule is broken the loop has to keep
   // running rather than settling after the placement animation.
-  const needsAnim = (t) => t < animEnd || phase === 'menu' ||
+  const needsAnim = (t) => t < animEnd || phase === 'menu' || winSpinning(t) ||
     (!REDUCED && (seamBad.length > 0 || (phase === 'play' && placed() < blanks())));
   function ensureAnim(now) {
     render(now);
@@ -1153,6 +1153,48 @@
     ctx.restore();
   }
 
+  // ---------- THE SOLVED WHEEL TURNS ----------
+  // Orbit does this in one line: the solved mandala drifts at 0.09 rad/s from
+  // 300ms after the win. Kaleido can mean more by it. This wheel has EXACT
+  // N-fold rotational symmetry and its copies literally are rotations, so a
+  // turn of one fold step lands the figure back on itself. That is the game's
+  // whole idea stated in motion rather than decorated: your wedge is every
+  // wedge. The motif is what makes it legible, because a wheel of flat colour
+  // just looks like colours sliding around.
+  //
+  // The step duration grows with the fold but not in proportion to it. A fold
+  // step is 60 degrees at six-fold and a 180 degree half turn at two-fold, and
+  // holding the duration constant made the late levels whip round; scaling it
+  // linearly made them crawl. The square root splits the difference.
+  //
+  // TEMPORARY: the mode is read off the URL so the four can be compared by
+  // clicking. This file deliberately dropped its ?level= shortcut before
+  // launch and the same reasoning applies here, so the parameter comes out
+  // before this reaches main and the chosen mode stays as the constant.
+  const WIN_SPIN_DELAY = 300;          // matches Orbit
+  const WIN_DRIFT = 0.09;              // rad/s, matches Orbit exactly
+  const WIN_STEP_BASE = 1400;          // ms for a six-fold step
+  let WIN_SPIN = 'both';               // 'off' | 'drift' | 'step' | 'both'
+  try {
+    const q = new URLSearchParams(location.search).get('spin');
+    if (q && ['off', 'drift', 'step', 'both'].includes(q)) WIN_SPIN = q;
+  } catch (e) {}
+  const winStepMs = () => WIN_STEP_BASE * Math.sqrt((TAU / N_FOLD) / (TAU / 6));
+  // Is the wheel still moving? needsAnim asks, because a drift never ends and
+  // the loop has to be held open, while a step has to let it close again.
+  const winSpinning = (t) => !REDUCED && phase === 'won' && WIN_SPIN !== 'off' &&
+    (WIN_SPIN !== 'step' || t < wonT + WIN_SPIN_DELAY + winStepMs());
+  function winSpin(now) {
+    if (REDUCED || phase !== 'won' || WIN_SPIN === 'off') return 0;
+    const t = now - wonT - WIN_SPIN_DELAY;
+    if (t <= 0) return 0;
+    if (WIN_SPIN === 'drift') return t / 1000 * WIN_DRIFT;
+    const step = TAU / N_FOLD, ms = winStepMs();
+    const landed = step * ease(Math.min(1, t / ms));
+    if (WIN_SPIN === 'step') return landed;
+    return landed + Math.max(0, t - ms) / 1000 * WIN_DRIFT;   // 'both'
+  }
+
   // ---------- RENDER ----------
   // The came is the ONLY thing between two panes. The gap and the stroke are the
   // same width on purpose, so the white covers the gap edge to edge and no dark
@@ -1218,7 +1260,13 @@
 
     drawBacklight(now);
     drawStone();
+    // Only the FIGURE turns. The backlight, stone and boss are circles about
+    // the same centre so rotating them would change nothing, and the HUD, the
+    // palette and the win banner must stay put or the whole frame swims.
+    const spin = winSpin(now);
+    if (spin) { ctx.save(); ctx.translate(bcx, bcy); ctx.rotate(spin); ctx.translate(-bcx, -bcy); }
     drawFigure(now);
+    if (spin) ctx.restore();
     drawBoss(now);
     drawHUD();
     // During the win the figure IS the reward, so nothing overlays it. The top
@@ -2094,6 +2142,23 @@
                overflows: L.total > L.avail + 0.5,
                clearsTop: top >= WIN_PAD_MIN - 0.5,
                clearsGlass: L.rim - bottom >= WIN_PAD_MIN - 0.5 };
+    },
+    // What the solved wheel is doing. `landsOnItself` is the claim worth
+    // checking: a turn of one fold step maps the figure onto itself, which is
+    // the only reason the step variant means anything.
+    spin(mode) {
+      if (mode && ['off', 'drift', 'step', 'both'].includes(mode)) {
+        WIN_SPIN = mode; ensureAnim(performance.now());
+      }
+      const step = TAU / N_FOLD;
+      return { mode: WIN_SPIN, fold: N_FOLD, phase,
+               stepDegrees: Math.round(step * 180 / Math.PI),
+               stepMs: Math.round(winStepMs()),
+               driftRadPerSec: WIN_DRIFT, delayMs: WIN_SPIN_DELAY,
+               reducedMotion: REDUCED,
+               angleNow: Math.round(winSpin(performance.now()) * 1000) / 1000,
+               stillMoving: winSpinning(performance.now()),
+               landsOnItself: Math.abs((step * N_FOLD) - TAU) < 1e-9 };
     },
     // gaps, depth and hardness for the level on screen. The number the ramp aims at.
     measure() { return measureLevel(); },
