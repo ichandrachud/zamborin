@@ -1467,7 +1467,20 @@ this cannot be finished from the repo alone.
 (728x90 leaderboard and 300x250 rectangle is enough to start) and paste the two
 `data-ad-slot` numbers into `shared/ads.js`. **That is the entire change.**
 
-**`shared/ads.js`, added 2026-08-24, makes this a two-line edit.** Before it, switching
+**`shared/ads.js` is provider-neutral as of 2026-08-24.** Changing ad provider means
+setting `PROVIDER`, filling that provider's config, and writing one ~10-line `mount`
+function. **The fifteen game pages do not change**, because the markup holds sixty
+placeholder `<div>`s that name a SIZE and nothing else, so the only provider-specific
+knowledge on the site lives in this one file. Only `adsense` is implemented, deliberately:
+a half-remembered integration that looks finished is worse than none.
+
+What would and would not survive a provider change, since it was asked: the **unit ids are
+throwaway** (`data-ad-slot` means nothing outside AdSense); **Google's CMP goes with the
+AdSense tag** it is delivered through, though the consent REQUIREMENT is not an AdSense
+rule and any IAB TCF certified CMP satisfies it; **`ads.txt` needs one line changed**; and
+the placeholder markup is untouched either way.
+
+**It makes turning ads on a two-line edit.** Before it, switching
 ads on meant hand-editing sixty placeholder blocks across fifteen pages and getting every
 one right. Now the markup stays as it is and the file turns each placeholder into a real
 `<ins>` at run time. It is loaded by all 15 games and the new-game template.
