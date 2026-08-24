@@ -915,8 +915,38 @@
   }
 
   // ---------- HUD ----------
+  // How wide the right-hand read-out wants to be at a given scale.
+  function readoutWidth(hs) {
+    const [w, t] = bulbCount();
+    let n = 0;
+    ctx.font = '800 ' + Math.round(20 * hs) + 'px Inter, sans-serif';
+    n += ctx.measureText(fmt(score.total)).width + Math.round(8 * hs);
+    ctx.font = '700 ' + Math.max(10, Math.round(11 * hs)) + 'px Inter, sans-serif';
+    n += ctx.measureText('SCORE').width + Math.round(20 * hs);
+    if (par > 0) {
+      ctx.font = '600 ' + Math.round(16 * hs) + 'px Inter, sans-serif';
+      n += ctx.measureText('par ' + par).width + Math.round(14 * hs);
+    }
+    ctx.font = '600 ' + Math.round(16 * hs) + 'px Inter, sans-serif';
+    n += ctx.measureText('Level ' + level + '   ·   ' + w + '/' + t + ' lit   ·   ' +
+                         moves + (moves === 1 ? ' turn' : ' turns')).width;
+    return n;
+  }
+  /* The scale the read-out actually gets. On desktop the control row is fixed
+     width and sits on the same band, so the read-out is given what is left and
+     shrinks into it, floor 0.66. The pills are never scaled: they are a house
+     size and a touch target. */
+  function hudScale() {
+    let hs = Math.max(0.66, Math.min(1, LW / 620));
+    if (MODE === 'mobile') return hs;
+    const room = LW - 28 - controlsWidth().total - 28 - 16;   // margins + a gap
+    for (let i = 0; i < 10 && hs > 0.66 && readoutWidth(hs) > room; i++) {
+      hs = Math.max(0.66, hs - 0.03);
+    }
+    return hs;
+  }
   function drawHUD(now) {
-    const hs = Math.max(0.66, Math.min(1, LW / 620));
+    const hs = hudScale();
     const PX = Math.round(28 * hs);
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
     const [w, t] = bulbCount();
@@ -972,7 +1002,7 @@
       const hy = MODE === 'mobile' ? ctrlY + 34 : LH - Math.round(botB * 0.62);
       if (nLinks > 0) {
         ctx.fillStyle = 'rgba(95,211,192,0.85)';
-        ctx.fillText('Dashed rings are geared — they turn opposite ways.', LW / 2, hy);
+        ctx.fillText('Dashed rings are geared, so they turn opposite ways.', LW / 2, hy);
       } else {
         ctx.fillStyle = 'rgba(255,255,255,0.42)';
         ctx.fillText('Drag a ring to spin it. Tap to nudge it one step.', LW / 2, hy);
@@ -1013,6 +1043,20 @@
     ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(255,255,255,0.24)'; roundRect(x, y, w, h, h / 2); ctx.stroke();
     speakerIcon(cx, cy, on);
     return { x, y, w, h };
+  }
+  /* The control row's width, measured rather than assumed, so the read-out on
+     the other side of the band can be told how much room is left. Before this
+     the pills laid out left-to-right from x=28 and the read-out laid out
+     right-to-left from the right edge, and NOTHING checked whether they met.
+     They met as soon as the score grew: clean at 0, colliding by about 1,000,
+     and 97px over by a million. Every audit had run on a fresh save. */
+  function controlsWidth() {
+    const gap = 12, wS = 44;
+    ctx.font = '700 15px Inter, sans-serif';
+    const wU = Math.round(ctx.measureText('Undo').width + 36);
+    const wR = Math.round(ctx.measureText('Restart').width + 36);
+    const wH = Math.round(ctx.measureText('Rules').width + 36);
+    return { gap, wS, wU, wR, wH, total: wS + wU + wR + wH + gap * 3 };
   }
   function drawControls() {
     const gap = 12, wS = 44;
@@ -1181,6 +1225,28 @@
         litNodes: nodeLit.reduce((a, r) => a + r.reduce((x, v) => x + (v ? 1 : 0), 0), 0),
         hubSpokes: hubSpk.reduce((a, b) => a + b, 0), arcCount: arcs.map(r => r.reduce((a, b) => a + b, 0)),
       };
+    },
+    /* The band the HUD shares with the control row. Orbit had no detector for
+       it, which is why a collision that only appears once the SCORE grows past
+       about four digits survived every audit: they all ran on a fresh save with
+       a score of 0. `gap` is the clear space between the last pill and the
+       first character of the read-out; negative is an overlap. */
+    hudFit() {
+      // Mobile stacks the read-out on its own rows and does not share the band
+      // with the pills, so there is nothing to collide and this reports n/a
+      // rather than measuring a layout that is not on screen.
+      if (MODE === 'mobile') {
+        return { LW, mode: MODE, oneRow: false, fits: true, gap: null,
+                 note: 'mobile stacks the read-out; no shared band' };
+      }
+      const hs = hudScale();
+      const controlsRight = 28 + controlsWidth().total;
+      const readoutLeft = LW - Math.round(28 * hs) - readoutWidth(hs);
+      return { LW, mode: MODE, oneRow: true, scale: +hs.toFixed(2),
+               controlsEndAt: Math.round(controlsRight),
+               readoutStartsAt: Math.round(readoutLeft),
+               gap: Math.round(readoutLeft - controlsRight),
+               fits: readoutLeft >= controlsRight };
     },
     get geom() { return { MODE, LW, LH, BOARD, CX, CY, ctrlY, hubR, bulbR, ringR: ringR.slice() }; },
     get buttons() { return uiButtons.map(b => ({ id: b.id, x: b.x, y: b.y, w: b.w, h: b.h, cx: b.x + b.w / 2, cy: b.y + b.h / 2 })); },

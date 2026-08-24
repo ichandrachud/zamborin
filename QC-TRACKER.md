@@ -1564,6 +1564,8 @@ references are now on one version and every `play.css` was bumped.
 **Verified**: 13 of 13 recompressed images load with dimensions preserved exactly, OG
 images still 1200x630, and the games render.
 
+| O2 | orbit | **BREAKS THE HUD, owner-reported from a 14in MacBook. FIXED 2026-08-24** | The control pills lay out **left to right from x=28** and the read-out lays out **right to left from the right edge**, on the same band, and **nothing checked whether they met**. They met as soon as the SCORE grew: the "Rules" pill ran into "Level 6". Measured across 7 score sizes and 4 levels: clean at 0, **1,809 collides by 5px**, 12,500 by 18px, 1.2M by 53px, worst 97px. **This is why it survived every audit: they all ran on a fresh save with a score of 0.** Fixed by measuring the control row once, giving the read-out the room that is left, and shrinking its type into that with a 0.66 floor; the pills never scale, being a house size and a touch target. **28 probes at desktop, 0 collisions, worst clearance +17px**, scale stepping 1.0 down to 0.76 as the score grows. `hudFit()` added, and it reports n/a on mobile where the read-out is stacked and shares no band. Also removed the em dash from "Dashed rings are geared", the last one drawn to a player in this game. **Checked the fleet for the same shape: only Fold shares it, and Fold has +67px of clearance even at a 25 million score**, because its type is smaller and its string shorter | DONE |
+
 ## START HERE — session handoff, 2026-08-24 (after the overnight run)
 
 **Repo is clean, on `main`, level with GitHub, one branch, one worktree. Everything in
