@@ -622,6 +622,89 @@ function sample(tr, t) {
   return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, th: a.th + (b.th - a.th) * k };
 }
 
+// ---- clouds --------------------------------------------------------------
+// The sky was a flat fill that never moved, so above the treeline the frame held
+// nothing at all: no height, no speed, nothing to pass. Clouds carry both, and
+// they are the only layer that can — they drift as you travel AND slide down the
+// frame as you climb, so the same object reports both axes.
+//
+// Baked to sprites once at boot rather than drawn as live gradients. Several
+// dozen radial fills a frame is real cost for a shape that never changes.
+//
+// No outlines anywhere, per the house rule: every edge is a gradient falling to
+// transparent, and the form is read from value alone.
+const CLOUD_PAR    = 0.22;   // parallax: the ridge runs 0.13, the field runs 1.0
+const CLOUD_COL_M  = 115;    // world metres between cloud slots, across
+const CLOUD_ROW_M  = 72;     // and up
+const CLOUD_BASE_M = 45;     // none below this, so they sit clear of the treeline
+const CLOUD_TOP_M  = 620;    // none above this
+const cloudSprites = [];
+
+function makeCloudSprite(seed) {
+  const cv = document.createElement('canvas');
+  cv.width = 256; cv.height = 128;
+  const g = cv.getContext('2d');
+  let st = seed >>> 0;
+  const rnd = () => (st = (st * 1103515245 + 12345) >>> 0) / 4294967296;
+  const lobes = 5 + Math.floor(rnd() * 4);
+  for (let i = 0; i < lobes; i++) {
+    const cx = 256 * (0.16 + 0.68 * rnd());
+    const cy = 128 * (0.44 + 0.28 * rnd());
+    const r  = 128 * (0.20 + 0.28 * rnd());
+    const grd = g.createRadialGradient(cx, cy - r * 0.30, r * 0.10, cx, cy, r);
+    grd.addColorStop(0.00, 'rgba(255,255,255,0.90)');
+    grd.addColorStop(0.50, 'rgba(255,255,255,0.46)');
+    grd.addColorStop(1.00, 'rgba(255,255,255,0)');
+    g.fillStyle = grd;
+    g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.fill();
+  }
+  return cv;
+}
+for (let i = 0; i < 5; i++) cloudSprites.push(makeCloudSprite(0x9e37 + i * 2654435761));
+
+function cloudHash(a, b) {
+  let h = (Math.imul(a, 73856093) ^ Math.imul(b, 19349663)) >>> 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0;
+  return (h ^ (h >>> 16)) >>> 0;
+}
+
+function clouds() {
+  const s = S.ppm * CLOUD_PAR;                 // px per world metre in this layer
+  if (!(s > 0.01) || !cloudSprites.length) return;
+  const hz = sy(0);                            // the world's ground line
+  const M = 260;                               // draw margin, in px
+  const cx0 = Math.floor((S.camX - M / s) / CLOUD_COL_M);
+  const cx1 = Math.ceil((S.camX + (W + M) / s) / CLOUD_COL_M);
+  const ry0 = Math.floor((S.camY - M / s) / CLOUD_ROW_M);
+  const ry1 = Math.ceil((S.camY + (groundY + M) / s) / CLOUD_ROW_M);
+  ctx.save();
+  for (let ci = cx0; ci <= cx1; ci++) {
+    for (let ri = ry0; ri <= ry1; ri++) {
+      const wy = ri * CLOUD_ROW_M;
+      if (wy < CLOUD_BASE_M || wy > CLOUD_TOP_M) continue;
+      const h = cloudHash(ci, ri);
+      if ((h & 3) === 0) continue;             // gaps, so the field is not a grid
+      const jx = ((h >>> 4) & 255) / 255 - 0.5;
+      const jy = ((h >>> 12) & 255) / 255 - 0.5;
+      const wx = ci * CLOUD_COL_M + jx * CLOUD_COL_M * 0.8;
+      const px = (wx - S.camX) * s;
+      const py = groundY - (wy + jy * CLOUD_ROW_M * 0.7 - S.camY) * s;
+      const sprite = cloudSprites[(h >>> 20) % cloudSprites.length];
+      const scale = (0.50 + ((h >>> 24) & 255) / 255 * 1.05) * (s * 30) / 128;
+      const dw = 256 * scale, dh = 128 * scale;
+      if (px + dw < -8 || px - dw > W + 8 || py + dh < -8 || py - dh > H + 8) continue;
+      // Fade out as they approach the horizon, so a landing is not flown through
+      // a bank of cloud sitting on the treeline.
+      const fade = Math.max(0, Math.min(1, (hz - (py + dh * 0.5)) / 120));
+      if (fade <= 0.01) continue;
+      ctx.globalAlpha = fade * (0.42 + ((h >>> 16) & 63) / 63 * 0.46);
+      ctx.drawImage(sprite, px - dw / 2, py - dh / 2, dw, dh);
+    }
+  }
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
 // ---- scenery -------------------------------------------------------------
 // One backdrop, drawn once. Its own horizon is pinned to the world's ground
 // line and its foot runs off the bottom of the frame, so the grass the plane
@@ -636,6 +719,8 @@ function sky() {
     g.addColorStop(0, '#3E9BFB'); g.addColorStop(1, '#CDE6FA');
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
   }
+  clouds();
+
   // Whichever backdrop has arrived. Same picture, same aspect, so every
   // measurement below is taken from the one being drawn and the swap is
   // invisible.
