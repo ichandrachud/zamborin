@@ -367,7 +367,11 @@ Object.defineProperty(S, 'best', {
   set(v) { this.bests[this.plane] = v; saveBests(this.bests); },
 });
 
-function restPPM() { return (REST_PLANE_FRAC * W) / PLANE_LEN_M; }
+// The reference width the world is drawn against. On desktop it is the house
+// frame and NOT the live canvas width, so going full screen shows more sky and
+// more field at the same scale rather than magnifying what was already there.
+const scaleRefW = () => (wide ? FRAME_W : W);
+function restPPM() { return (REST_PLANE_FRAC * scaleRefW()) / PLANE_LEN_M; }
 
 // Releasing dollies the camera back a little, it does not cut to a wide shot.
 // Pulling back shrinks what is near far more than what is far away, so the
@@ -478,14 +482,25 @@ function resizeCanvas() {
 
 function fit() {
   wide = MODE === 'desktop';
+  const focus = document.body.classList.contains('focus-mode');
   const vp = viewport();
-  W = wide ? FRAME_W : vp.w;
-  H = wide ? FRAME_H : vp.h;
+  // FULL SCREEN GIVES THE GAME MORE ROOM, IT DOES NOT ENLARGE IT. The shipped
+  // behaviour keeps the logical canvas at the 760x600 house frame and lets CSS
+  // stretch it, so the read-outs, the pills and the aeroplane all magnify
+  // together and the control row can be pushed past the foot of the screen.
+  // Taking the viewport's real pixels instead means the UI is drawn at its own
+  // size and the extra room becomes more sky and more field.
+  W = (wide && !focus) ? FRAME_W : vp.w;
+  H = (wide && !focus) ? FRAME_H : vp.h;
   document.body.style.setProperty('--canvas-w', W + 'px');
   document.body.style.setProperty('--canvas-h', H + 'px');
-  if (!wide) {
-    const wrap = canvas.parentElement;
-    if (wrap) { wrap.style.width = W + 'px'; wrap.style.height = H + 'px'; }
+  // Inline sizing from JS, never CSS dvh: chrome.css sizes the wrap from
+  // 100dvh, which does not always agree with the height actually on screen,
+  // and the disagreement lands as a letterbox or a control row below the fold.
+  const wrap = canvas.parentElement;
+  if (wrap) {
+    if (!wide || focus) { wrap.style.width = W + 'px'; wrap.style.height = H + 'px'; }
+    else { wrap.style.width = ''; wrap.style.height = ''; }
   }
   resizeCanvas();
   groundY = Math.round(H * (1 - GROUND_FRAC));
@@ -640,17 +655,22 @@ const CLOUD_BASE_M = 45;     // none below this, so they sit clear of the treeli
 const CLOUD_TOP_M  = 620;    // none above this
 const cloudSprites = [];
 
+const CLOUD_SPR_W = 360, CLOUD_SPR_H = 200, CLOUD_R_MAX = 58;
 function makeCloudSprite(seed) {
   const cv = document.createElement('canvas');
-  cv.width = 256; cv.height = 128;
+  cv.width = CLOUD_SPR_W; cv.height = CLOUD_SPR_H;
   const g = cv.getContext('2d');
   let st = seed >>> 0;
   const rnd = () => (st = (st * 1103515245 + 12345) >>> 0) / 4294967296;
   const lobes = 5 + Math.floor(rnd() * 4);
+  // EVERY LOBE STAYS A FULL RADIUS INSIDE THE SPRITE. The first version let
+  // them run to 153 px in a 128 px canvas, so the gradient was cut off square
+  // and the sprite's own bounds read as a straight edge along the bottom of
+  // every cloud. A soft edge has to have somewhere to fade OUT to.
   for (let i = 0; i < lobes; i++) {
-    const cx = 256 * (0.16 + 0.68 * rnd());
-    const cy = 128 * (0.44 + 0.28 * rnd());
-    const r  = 128 * (0.20 + 0.28 * rnd());
+    const r  = CLOUD_R_MAX * (0.55 + 0.45 * rnd());
+    const cx = r + (CLOUD_SPR_W - 2 * r) * rnd();
+    const cy = r + (CLOUD_SPR_H - 2 * r) * (0.28 + 0.44 * rnd());
     const grd = g.createRadialGradient(cx, cy - r * 0.30, r * 0.10, cx, cy, r);
     grd.addColorStop(0.00, 'rgba(255,255,255,0.90)');
     grd.addColorStop(0.50, 'rgba(255,255,255,0.46)');
@@ -690,8 +710,8 @@ function clouds() {
       const px = (wx - S.camX) * s;
       const py = groundY - (wy + jy * CLOUD_ROW_M * 0.7 - S.camY) * s;
       const sprite = cloudSprites[(h >>> 20) % cloudSprites.length];
-      const scale = (0.50 + ((h >>> 24) & 255) / 255 * 1.05) * (s * 30) / 128;
-      const dw = 256 * scale, dh = 128 * scale;
+      const scale = (0.50 + ((h >>> 24) & 255) / 255 * 1.05) * (s * 46) / CLOUD_SPR_H;
+      const dw = CLOUD_SPR_W * scale, dh = CLOUD_SPR_H * scale;
       if (px + dw < -8 || px - dw > W + 8 || py + dh < -8 || py - dh > H + 8) continue;
       // Fade out as they approach the horizon, so a landing is not flown through
       // a bank of cloud sitting on the treeline.
