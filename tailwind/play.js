@@ -204,8 +204,13 @@ const VOICE = {
     if (!this.ready) return;
     const on = SFX.isOn();
     const s = Math.max(0, Math.min(1, speed / 60));
-    this.set(this.rushGain.gain, on ? 0.020 + 0.085 * s * s : 0, 0.10);
-    this.set(this.rushFilter.frequency, 420 + 1100 * s, 0.10);
+    // Cut back after the master gain went to 2.4: at the old coefficients the
+    // rush peaked at 0.25 into the limiter and was the loudest sustained thing
+    // in the game by a distance, which is what made it harsh rather than fast.
+    // The filter ceiling comes down with it — a 0.7-Q bandpass centred at 1520
+    // is a bright hiss, and the speed reads just as well at 1140.
+    this.set(this.rushGain.gain, on ? 0.014 + 0.048 * s * s : 0, 0.10);
+    this.set(this.rushFilter.frequency, 380 + 760 * s, 0.10);
     this.set(this.bodyGain.gain, on ? 0.014 * s : 0, 0.10);
     this.set(this.bodyOsc.frequency, 62 + 70 * s, 0.10);
   },
@@ -598,6 +603,14 @@ function fit() {
     if (!wide || focus) { wrap.style.width = W + 'px'; wrap.style.height = H + 'px'; }
     else { wrap.style.width = ''; wrap.style.height = ''; }
   }
+  // ...AND ITS CONTAINER. Sizing the wrap correctly is only half of it: the row
+  // it sits in is still `height: 100dvh` and centres its child, and on iOS
+  // Safari dvh resolves to the URL-bar-hidden height even while the bar is
+  // showing. The row is then taller than the screen, the correctly-sized wrap
+  // is centred inside it, and the top of the game — the splash wordmark — is
+  // pushed up behind the browser chrome. Same measured H, same reasoning.
+  const row = document.querySelector('.play-row');
+  if (row) row.style.height = (!wide || focus) ? H + 'px' : '';
   resizeCanvas();
   groundY = Math.round(H * (1 - GROUND_FRAC));
   if (S.phase !== 'fly' && S.phase !== 'rest') { S.ppm = S.ppmTarget = restPPM(); }
