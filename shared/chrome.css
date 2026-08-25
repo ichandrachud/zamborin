@@ -419,6 +419,63 @@ body.embed .game-wrap {
   box-shadow: none;
 }
 
+/* The wrap above is CONTAIN-FITTED, and a fitted wrap is only half the job:
+   without this the canvas keeps the 760x600 it gets from --canvas-w/h and
+   either spills out of a short wrap or floats inside a large one. Both other
+   places that fit the wrap pair it with exactly this rule — focus-mode above,
+   and the mobile media query below — and embed mode was the one that did not.
+
+   The damage was invisible under 1152px, because the mobile block sets the
+   same rule on plain `body` and rescued it by accident. Above the breakpoint
+   nothing did: a 1216x684 frame drew the game at 760x600 in the corner, and
+   fullscreen at 1920x1080 gave it about half the height it was handed. */
+body.embed #game { width: 100%; height: 100%; }
+
+/* ---------- PORTRAIT-ONLY GAMES ----------
+   Opt in with `portrait-only` on <body>. A game whose mobile art and layout
+   are built tall has nothing sensible to show on a landscape phone: Tailwind's
+   splash is 1170x2532, and `cover` into an 852x393 box renders it at 852x1843
+   and crops away 79% of its height, so the player's first frame is a strip cut
+   out of the middle of a portrait picture.
+
+   The gate is deliberately not `orientation: landscape` alone. A tablet in
+   landscape is 1024x768, an aspect of 1.33 against the 1.27 the games are
+   drawn at, which fits fine and must not be interrupted. Height is what
+   separates the two: a landscape phone is 360-430 tall, a landscape tablet
+   768. 500 sits in the gap with room either side.
+
+   No orientation LOCK, deliberately. screen.orientation.lock() needs
+   fullscreen and iOS Safari does not implement it at all, so a lock would do
+   nothing on half the handsets this is for. */
+.rotate-note { display: none; }
+
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 500px) {
+  body.portrait-only .rotate-note {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 24px;
+    text-align: center;
+    background: var(--bg);
+    color: var(--text);
+  }
+  body.portrait-only .rotate-note p {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 600;
+    max-width: 22ch;
+  }
+  body.portrait-only .rotate-note svg { width: 44px; height: 44px; }
+  /* The game keeps running underneath — it is only hidden. Nothing is torn
+     down, so turning the handset back reveals the same session. */
+  body.portrait-only .play-row { visibility: hidden; }
+}
+
 /* The mark. Bottom left, clear of every game's control row, which the house
    pattern puts top-left on desktop and bottom-centre on a phone. Dim at rest
    so it never competes with the game, full strength on hover. */

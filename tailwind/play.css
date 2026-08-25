@@ -9,5 +9,15 @@
 body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=4'); }
 body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=4'); }
 
+/* MODE is decided on WIDTH alone (play.js: innerWidth < 768), but which splash
+   fits depends on the box's SHAPE. The two disagree for a narrow landscape box
+   — a part-width desktop window, or a publisher's 720px iframe — which lands in
+   mobile mode while still being wider than it is tall. The portrait art then
+   cover-crops to 39% of its height and takes the wordmark with it.
+   Shape picks the art; mode still picks the layout. */
+@media (orientation: landscape) {
+  body.mode-mobile .splash { background-image: url('./splash-desktop.jpg?v=4'); }
+}
+
 #game { display: block; touch-action: none; cursor: grab; }
 #game:active { cursor: grabbing; }

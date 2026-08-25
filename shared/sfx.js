@@ -91,18 +91,47 @@
   function create(opts) {
     opts = opts || {};
     const storageKey = opts.storageKey || 'zamborin.sound';
+    const masterGain = opts.gain != null ? opts.gain : 1;
     let audioCtx = null;
+    let master = null;
     let on = (() => {
       try { return localStorage.getItem(storageKey) !== '0'; }
       catch (_) { return true; }
     })();
 
+    /* OUTPUT STAGE. Everything used to connect straight to ctx.destination at
+       the gain each recipe named, and those gains are small: the loudest thing
+       in the fleet is a 0.26 noise burst, which is -11.7 dBFS, and the UI click
+       is -30.5. Playable only with the system volume near maximum, which is
+       also what makes any harsh voice unbearable — you have turned everything
+       up to hear the quiet things.
+
+       So: one master gain per game, and a limiter behind it. `gain` defaults to
+       1, so every game that does not ask for it sounds exactly as before. The
+       limiter sits below the threshold at those levels and does nothing until a
+       boosted game stacks several sounds at once, which is precisely when it
+       should. */
     function ensureAudio() {
       if (audioCtx) return audioCtx;
       try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
       catch (_) { audioCtx = null; }
+      if (audioCtx) {
+        master = audioCtx.createGain();
+        master.gain.value = masterGain;
+        const lim = audioCtx.createDynamicsCompressor();
+        lim.threshold.value = -3;   lim.knee.value = 0;
+        lim.ratio.value     = 20;   lim.attack.value = 0.003;
+        lim.release.value   = 0.10;
+        // NOT out() — that returns master, and master -> lim -> master is a
+        // delay-free cycle, which Web Audio mutes entirely. The limiter is the
+        // last node before the speakers by definition.
+        master.connect(lim); lim.connect(audioCtx.destination);
+      }
       return audioCtx;
     }
+    // Where every voice should connect — including the sustained ones a game
+    // builds itself on this context, so they ride the same master.
+    function out() { return master || (audioCtx ? audioCtx.destination : null); }
 
     function setOn(v) {
       on = !!v;
@@ -120,7 +149,7 @@
       g.gain.setValueAtTime(0, t0);
       g.gain.linearRampToValueAtTime(gain, t0 + 0.005);
       g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-      osc.connect(g); g.connect(audioCtx.destination);
+      osc.connect(g); g.connect(out());
       osc.start(t0); osc.stop(t0 + dur + 0.02);
     }
 
@@ -142,7 +171,7 @@
       filter.Q.value = q;
       const g = audioCtx.createGain();
       g.gain.value = gain;
-      src.connect(filter); filter.connect(g); g.connect(audioCtx.destination);
+      src.connect(filter); filter.connect(g); g.connect(out());
       src.start(t0);
     }
 
@@ -159,7 +188,7 @@
       g.gain.setValueAtTime(0, t0);
       g.gain.linearRampToValueAtTime(gain, t0 + 0.003);
       g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-      osc.connect(g); g.connect(audioCtx.destination);
+      osc.connect(g); g.connect(out());
       osc.start(t0); osc.stop(t0 + dur + 0.02);
       const len = Math.max(1, Math.floor(audioCtx.sampleRate * 0.005));
       const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
@@ -174,7 +203,7 @@
       filt.frequency.value = freq * 4;
       const ng = audioCtx.createGain();
       ng.gain.value = gain * 0.30;
-      src.connect(filt); filt.connect(ng); ng.connect(audioCtx.destination);
+      src.connect(filt); filt.connect(ng); ng.connect(out());
       src.start(t0);
     }
 
@@ -217,7 +246,7 @@
       filt.Q.value = 0.4;
       const g = audioCtx.createGain();
       g.gain.value = gain != null ? gain : 0.09;
-      src.connect(filt); filt.connect(g); g.connect(audioCtx.destination);
+      src.connect(filt); filt.connect(g); g.connect(out());
       src.start(t0);
     }
 
@@ -232,7 +261,7 @@
     }
 
     const api = {
-      ensureAudio, setOn, isOn,
+      ensureAudio, setOn, isOn, out,
       tone, noise, woodClack, arpeggio, paper,
       play(name, opts) {
         const recipe = LIB[name];

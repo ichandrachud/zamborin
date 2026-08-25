@@ -99,7 +99,10 @@ const STATS = [
   ['STRENGTH', (t) => t.tough],
 ];
 const ZAM = window.ZAM_UI;          // shared button system, shared/ui.js
-const SFX = window.ZSFX.create({ storageKey: 'zamborin.tailwind.sound' });
+// gain 2.4 lifts the loudest transient from -11.7 dBFS to about -4, which is
+// a normal listening level instead of one that needs the system volume at max.
+// The limiter in shared/sfx.js catches the overlaps.
+const SFX = window.ZSFX.create({ storageKey: 'zamborin.tailwind.sound', gain: 2.4 });
 
 // ANALYTICS. Same shape as the rest of the fleet: a NOOP stand-in so a blocked
 // or absent tracker can never throw into the frame loop. Tailwind has no
@@ -122,7 +125,8 @@ const TRACK = () => (window.ZAM_TRACK || T_NOOP);
 const VOICE = {
   ctx: null, ready: false,
   rushGain: null, rushFilter: null, bodyOsc: null, bodyGain: null,
-  stretchOsc: null, stretchGain: null,
+  stretchOsc: null, stretchGain: null, stretchFilt: null,
+  bedGain: null, bedLevel: 0, bedNext: 0, bedTarget: -1, adSilent: false,
 
   init() {
     if (this.ready) return;
@@ -140,7 +144,7 @@ const VOICE = {
     const filt = ctx.createBiquadFilter();
     filt.type = 'bandpass'; filt.frequency.value = 700; filt.Q.value = 0.7;
     const g = ctx.createGain(); g.gain.value = 0;
-    src.connect(filt); filt.connect(g); g.connect(ctx.destination);
+    src.connect(filt); filt.connect(g); g.connect(SFX.out() || ctx.destination);
     src.start(0);
     this.rushFilter = filt; this.rushGain = g;
 
@@ -148,17 +152,41 @@ const VOICE = {
     const osc = ctx.createOscillator();
     osc.type = 'triangle'; osc.frequency.value = 90;
     const og = ctx.createGain(); og.gain.value = 0;
-    osc.connect(og); og.connect(ctx.destination); osc.start(0);
+    osc.connect(og); og.connect(SFX.out() || ctx.destination); osc.start(0);
     this.bodyOsc = osc; this.bodyGain = og;
 
     // the band, creaking upward as it is drawn
+    // TRIANGLE, not sawtooth. A sawtooth carries every harmonic at 1/n and at
+    // 130-180 Hz that is a buzz you cannot listen to for long. You only have to
+    // listen to it for long on two of the six planes — Lacerta wants the
+    // fleet's lowest draw at 0.51 and Tempest its highest at 0.85, and hunting
+    // an extreme means riding the sweep round again when you overshoot. Both
+    // were reported as unpleasant and the middle four were not, which is the
+    // exposure time talking, not the pitch. A triangle has odd harmonics only,
+    // falling at 1/n^2: the same note, a quarter of the rasp.
     const so = ctx.createOscillator();
-    so.type = 'sawtooth'; so.frequency.value = 60;
+    so.type = 'triangle'; so.frequency.value = 60;
     const sg = ctx.createGain(); sg.gain.value = 0;
     const sf = ctx.createBiquadFilter();
     sf.type = 'lowpass'; sf.frequency.value = 900;
-    so.connect(sf); sf.connect(sg); sg.connect(ctx.destination); so.start(0);
+    so.connect(sf); sf.connect(sg); sg.connect(SFX.out() || ctx.destination); so.start(0);
+    this.stretchFilt = sf;
     this.stretchOsc = so; this.stretchGain = sg;
+
+    // THE BED. A game with no continuous voice sounds switched off between
+    // launches, and this one spends most of its time between launches. The
+    // same noise buffer as the rush, but taken low and wide rather than
+    // band-limited: the rush lives at 420-1520 Hz and sweeps, so the bed is
+    // put under it at 260 with a gentle lowpass and never competes for the
+    // same air. A BufferSource cannot be started twice, hence a second one.
+    const bsrc = ctx.createBufferSource();
+    bsrc.buffer = buf; bsrc.loop = true;
+    const bfilt = ctx.createBiquadFilter();
+    bfilt.type = 'lowpass'; bfilt.frequency.value = 260; bfilt.Q.value = 0.4;
+    const bg2 = ctx.createGain(); bg2.gain.value = 0;
+    bsrc.connect(bfilt); bfilt.connect(bg2); bg2.connect(SFX.out() || ctx.destination);
+    bsrc.start(0);
+    this.bedGain = bg2;
 
     this.ready = true;
   },
@@ -181,11 +209,19 @@ const VOICE = {
     this.set(this.bodyGain.gain, on ? 0.014 * s : 0, 0.10);
     this.set(this.bodyOsc.frequency, 62 + 70 * s, 0.10);
   },
-  stretch(pull) {
+  // `held` is the band drawn and LOCKED, which is what setAng is: the assembly
+  // swings about the screw but nothing is stretching any more. Without it the
+  // voice simply froze at its last setPull value and droned on unchanged for as
+  // long as the player took to choose an angle — a sawtooth describing a motion
+  // that had stopped. Held, it drops to a quarter and the filter closes down,
+  // so the band still reads as loaded without sitting on the ear.
+  stretch(pull, held) {
     if (!this.ready) return;
     const on = SFX.isOn() && pull > 0.02;
-    this.set(this.stretchGain.gain, on ? 0.006 + 0.020 * pull : 0, 0.05);
+    const g  = held ? 0.25 : 1;
+    this.set(this.stretchGain.gain, on ? (0.005 + 0.013 * pull) * g : 0, held ? 0.30 : 0.05);
     this.set(this.stretchOsc.frequency, 55 + 145 * pull, 0.05);
+    if (this.stretchFilt) this.set(this.stretchFilt.frequency, held ? 420 : 900, 0.30);
   },
   hush() {
     if (!this.ready) return;
@@ -193,7 +229,69 @@ const VOICE = {
     this.set(this.bodyGain.gain, 0, 0.25);
     this.set(this.stretchGain.gain, 0, 0.08);
   },
+
+  // Called every frame. A bed held at one level reads as hiss rather than
+  // weather, so it is re-aimed every 2.5-4 s and walked there over more than
+  // a second — slow enough that you notice it has moved, never that it moved.
+  // Ducked to 40% in flight so the rush stays the loudest thing in the air.
+  bed(flying) {
+    if (!this.ready) return;
+    const now = this.ctx.currentTime;
+    if (now >= this.bedNext) {
+      this.bedLevel = 0.008 + Math.random() * 0.006;
+      this.bedNext  = now + 2.5 + Math.random() * 1.5;
+    }
+    const want = (SFX.isOn() && !this.adSilent)
+      ? this.bedLevel * (flying ? 0.40 : 1) : 0;
+    // only ramp when the target actually moves: re-issuing the same ramp on
+    // every frame restarts it 60 times a second and it never arrives.
+    if (Math.abs(want - this.bedTarget) > 0.0004) {
+      this.bedTarget = want;
+      this.set(this.bedGain.gain, want, 1.2);
+    }
+  },
+
+  // An advertisement is not the end of a flight, so this is not hush(). It
+  // silences everything including the bed, and deliberately does NOT touch
+  // SFX.setOn: that is the player's saved preference in localStorage, and an
+  // ad has no business overwriting it.
+  adMute() {
+    if (!this.ready) return;
+    this.adSilent = true;
+    this.hush();
+    this.set(this.bedGain.gain, 0, 0.15);
+    this.bedTarget = 0;
+  },
+  adResume() {
+    this.adSilent = false;
+    this.bedTarget = -1;          // force the next bed() to walk it back in
+  },
 };
+
+// ADS. GameDistribution hosts its own copy of this game and requires a preroll
+// and a midroll; nothing here fires anywhere else, because `gdsdk` only exists
+// on a page that loaded their SDK. That is the point: this file is byte-for-byte
+// the same on zamborin.com and in the portal package, which is both less to
+// maintain and what GD's own agreement asks for (2.6.4, the copy they serve must
+// match the version published elsewhere).
+//
+// Both calls sit inside pointer handlers, which GD requires, and both sit in
+// phases where the simulation is idle — 'pick' and 'rest' — so an advertisement
+// can never interrupt a flight in progress.
+let lastAdAt = -Infinity;
+const GD = {
+  show() {
+    if (!window.gdsdk || typeof window.gdsdk.showAd !== 'function') return;
+    lastAdAt = performance.now();
+    try { window.gdsdk.showAd(); } catch (e) { /* never throw into a handler */ }
+  },
+  // GD's guidelines bless a timer for games that have no levels to break on,
+  // and this one has none. They throttle server-side as well, so this is the
+  // polite floor rather than the only guard.
+  due() { return performance.now() - lastAdAt > 120000; },
+};
+window.addEventListener('gd-pause',  () => VOICE.adMute());
+window.addEventListener('gd-resume', () => VOICE.adResume());
 
 // The snap: the band letting go, then the airframe leaving the arm. Two events
 // a few milliseconds apart, because a single burst reads as a click, not a snap.
@@ -575,7 +673,9 @@ function onDown(e) {
   if (S.phase === 'pick') {
     for (const c of S.cards) {
       if (p.x >= c.x && p.x <= c.x + c.w && p.y >= c.y && p.y <= c.y + c.h) {
-        S.plane = c.f.key; SFX.play('pop'); TRACK().gameStart(); resetToAim();
+        S.plane = c.f.key; SFX.play('pop'); TRACK().gameStart();
+        GD.show();                      // preroll: this is the Play button
+        resetToAim();
         return;
       }
     }
@@ -584,7 +684,11 @@ function onDown(e) {
   if (hitSound(p)) { SFX.setOn(!SFX.isOn()); if (SFX.isOn()) SFX.play('click'); return; }
   if (hitChange(p)) { SFX.play('click'); S.phase = 'pick'; S.flight = null; VOICE.hush(); return; }
   if (S.phase === 'rest') {           // nothing but the button is live here
-    if (hitBtn(p)) { SFX.play('click'); resetToAim(); }
+    if (hitBtn(p)) {
+      SFX.play('click');
+      if (GD.due()) GD.show();          // midroll: between launches, never during
+      resetToAim();
+    }
     return;
   }
   // tap 1 starts the aim sweeping, tap 2 locks it and starts the band drawing,
@@ -1335,6 +1439,10 @@ function frame(now) {
   S.ppm += (S.ppmTarget - S.ppm) * ease(0.09, dt);
   S.bgZoom += (S.bgZoomTarget - S.bgZoom) * ease(0.09, dt);
 
+  // Above the pick-screen early return: the bed plays on that screen too, and
+  // it is where a player spends the seconds before their first launch.
+  VOICE.bed(S.phase === 'fly');
+
   if (S.phase === 'pick') { drawPick(); requestAnimationFrame(frame); return; }
 
   let pp = null, pth = 0, pw = null;   // screen pos, pitch, world pos
@@ -1398,6 +1506,7 @@ function frame(now) {
       // piece. Nothing slides along anything; the whole assembly rotates.
       S.meterT += dt;
       S.angle = M.CFG.ANG_MIN + (M.CFG.ANG_MAX - M.CFG.ANG_MIN) * tri(S.meterT, ANG_SWEEP);
+      VOICE.stretch(S.pull, true);      // loaded and locked, no longer drawing
     }
     follow(0, M.CFG.LAUNCH_H, 0.16, 0.70, dt);
     // ONE RIGID ASSEMBLY, HUNG OFF THE SCREW. The band runs from the screw out

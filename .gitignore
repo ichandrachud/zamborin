@@ -40,3 +40,14 @@ fold/Images/
 # Logo masters. The two SVGs the site actually serves are in /images/;
 # these are the Illustrator sources and belong in iCloud.
 /zamborin_logos/
+
+# Portal packages — built by tools/portal-build.mjs, uploaded to the portal,
+# never deployed. Regenerate rather than commit.
+/dist/
+
+# Portal thumbnail masters. Every game needs a GameDistribution set (512x512,
+# 512x384, 200x120) and the master they are cut from runs to several MB. It
+# belongs in iCloud beside the other source art — dropped in a game folder it
+# would deploy and be fetchable at zamborin.com/<game>/gd-thumbnail.jpg, which
+# is the tessera.psd mistake with a different extension.
+*/gd-thumbnail.*
