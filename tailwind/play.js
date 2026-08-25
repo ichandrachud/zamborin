@@ -141,8 +141,16 @@ const VOICE = {
     for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
     const src = ctx.createBufferSource();
     src.buffer = buf; src.loop = true;
+    // LOWPASS, not bandpass. A band centred at 700 keeps the noise energy in
+    // the 400-1500 Hz region, which is where a phone speaker is most efficient
+    // and where the ear tires fastest — so on a handset a thirty-second flight
+    // was thirty seconds of hiss, and the honest report was that a player would
+    // mute the game within two goes. A lowpass keeps only the bottom of the
+    // noise: air moving past, felt rather than heard, and largely below what a
+    // phone speaker even reproduces. Turning hiss down only makes quieter hiss;
+    // this removes the band it lived in.
     const filt = ctx.createBiquadFilter();
-    filt.type = 'bandpass'; filt.frequency.value = 700; filt.Q.value = 0.7;
+    filt.type = 'lowpass'; filt.frequency.value = 400; filt.Q.value = 0.4;
     const g = ctx.createGain(); g.gain.value = 0;
     src.connect(filt); filt.connect(g); g.connect(SFX.out() || ctx.destination);
     src.start(0);
@@ -209,9 +217,14 @@ const VOICE = {
     // in the game by a distance, which is what made it harsh rather than fast.
     // The filter ceiling comes down with it — a 0.7-Q bandpass centred at 1520
     // is a bright hiss, and the speed reads just as well at 1140.
-    this.set(this.rushGain.gain, on ? 0.014 + 0.048 * s * s : 0, 0.10);
-    this.set(this.rushFilter.frequency, 380 + 760 * s, 0.10);
-    this.set(this.bodyGain.gain, on ? 0.014 * s : 0, 0.10);
+    this.set(this.rushGain.gain, on ? 0.010 + 0.030 * s * s : 0, 0.10);
+    // 260-680 Hz. The corner opens with speed, so the rush still brightens as
+    // it accelerates, but it never climbs into the band that was the problem.
+    this.set(this.rushFilter.frequency, 260 + 420 * s, 0.10);
+    // The airframe's low note carries a touch more of the load now that the
+    // noise above it carries less: it is the part that reads as an aeroplane
+    // rather than as static.
+    this.set(this.bodyGain.gain, on ? 0.019 * s : 0, 0.10);
     this.set(this.bodyOsc.frequency, 62 + 70 * s, 0.10);
   },
   // `held` is the band drawn and LOCKED, which is what setAng is: the assembly
