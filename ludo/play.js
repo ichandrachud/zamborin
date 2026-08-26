@@ -200,14 +200,39 @@
   const sfx = window.ZSFX.create({ storageKey: 'zamborin-ludo.sound' });
   function ensureAudio() { sfx.ensureAudio(); }
   function setSound(on)  { sfx.setOn(on); }
-  function tone(f,d,g,t) { sfx.tone(f,d,g,t); }
-  function sfxDiceShake(){ sfx.play('dice-shake'); }
-  function sfxDiceLand() { sfx.play('dice-land'); }
-  function sfxStep()     { sfx.play('step'); }
-  function sfxUnlock()   { sfx.play('unlock'); }
-  function sfxFinish()   { sfx.play('finish'); }
-  function sfxCapture()  { sfx.play('capture'); }
-  function sfxWin()      { sfx.play('win'); }
+  function tone(f,d,g,t) { if (!adSilent) sfx.tone(f,d,g,t); }
+  function sfxDiceShake(){ if (!adSilent) sfx.play('dice-shake'); }
+  function sfxDiceLand() { if (!adSilent) sfx.play('dice-land'); }
+  function sfxStep()     { if (!adSilent) sfx.play('step'); }
+  function sfxUnlock()   { if (!adSilent) sfx.play('unlock'); }
+  function sfxFinish()   { if (!adSilent) sfx.play('finish'); }
+  function sfxCapture()  { if (!adSilent) sfx.play('capture'); }
+  function sfxWin()      { if (!adSilent) sfx.play('win'); }
+
+  // ADS. GameDistribution hosts its own copy and requires a preroll and a
+  // midroll. Nothing here fires anywhere else, because `gdsdk` only exists on a
+  // page that loaded their SDK — so this file is byte-identical on zamborin.com
+  // and in the portal package, which is what their 2.6.4 asks for.
+  //
+  // Both calls sit where the game is IDLE: the menu, before startGame, and the
+  // game-over screen. Ludo's opponents move on timers, so an ad fired mid-turn
+  // would leave the computer playing on behind it. At these two points nothing
+  // is animating and no turn is pending — the first turn after startGame is the
+  // human's, which waits for input.
+  let lastAdAt = -Infinity, adSilent = false;
+  const GD = {
+    show() {
+      if (!window.gdsdk || typeof window.gdsdk.showAd !== 'function') return;
+      lastAdAt = performance.now();
+      try { window.gdsdk.showAd(); } catch (e) { /* never throw into a handler */ }
+    },
+    // GD blesses a timer for a game with no levels to break on.
+    due() { return performance.now() - lastAdAt > 120000; },
+  };
+  // Muted while an advertisement runs. NOT sfx.setOn(false), which writes to
+  // localStorage and would overwrite the player's own saved preference.
+  window.addEventListener('gd-pause',  () => { adSilent = true; });
+  window.addEventListener('gd-resume', () => { adSilent = false; });
 
   // ---------- GAME CONFIG ----------
   // The HUMAN always plays RED (bottom-left, closest to the player on a phone
@@ -221,8 +246,11 @@
     3: ['red', 'green', 'yellow'],
     4: ['red', 'green', 'yellow', 'blue'],
   };
-  let playerCount = 4;
-  let turnOrder = TURN_ORDER_BY_COUNT[4];
+  // Two, not four. A four-player game leaves you waiting four times longer
+  // between your own turns, and the page copy already calls the two-player
+  // game "quick and tactical". Three and four remain a deliberate choice.
+  let playerCount = 2;
+  let turnOrder = TURN_ORDER_BY_COUNT[2];
   let isAI = {};
 
   function setPlayerCount(n) {
@@ -249,19 +277,31 @@
   // ---------- GAME STATE ----------
   let scene = 'menu';                   // 'menu' | 'rolling' | 'choosing' | 'gameOver'
   let activePlayerIdx = 0;
-  let dice = [null, null];
-  let diceUsed = [false, false];
+  // ONE DIE, as the game is actually played. Two dice were measured against
+  // one: with a double six needed to leave base, only 3% of turns contained a
+  // decision — you had nothing out, or one token out and both dice went to it.
+  // Two dice move you twice as fast while making release 1-in-36 instead of
+  // 1-in-6, so the supply of tokens never caught up with the speed. One die
+  // restores the balance a century of play settled on: 62% of turns carry a
+  // real choice. `dice` stays an array so the usable/used bookkeeping below is
+  // unchanged; it simply holds one entry.
+  let dice = [null];
+  let diceUsed = [false];
   let selectedDie = -1;
-  let consecutiveDoubles = 0;
-  // Double-six pacing, per player: a double-six is guaranteed at least once
-  // every 12 of that player's rolls for the first 4 of them, and at least once
-  // every 20 rolls after that. Counted over EVERY roll, not just rolls made
-  // while stuck in base. pityCount is rolls since this player's last double-six;
-  // pitySixes is how many they have had, natural or forced.
-  const PITY_EARLY_WINDOW = 12, PITY_LATE_WINDOW = 20, PITY_EARLY_COUNT = 4;
-  let pityCount = {};
-  let pitySixes = {};
-  const pityWindowFor = (p) => (pitySixes[p] < PITY_EARLY_COUNT ? PITY_EARLY_WINDOW : PITY_LATE_WINDOW);
+  let consecutiveSixes = 0;
+  // NO PITY, AND THAT IS THE POINT. Every version of this fought the two-dice
+  // game's 1-in-36 release: forced double sixes, per-player windows, a
+  // guaranteed opening. With one die a six is 1-in-6 and none of it is needed.
+  // The last survivor — a guaranteed six on your first roll — overrode the
+  // dice in 100% of games, and a rule that fires every single time stops
+  // reading as luck and starts reading as a script.
+  //
+  // The cost is real and accepted: about 5 rolls before your first token is
+  // out, roughly turn 11 of a two-player game. That is the game as it has
+  // always been played, and the two-player default is what keeps it short.
+  // If it ever needs a net, the honest one fires only when every token is in
+  // base and only after N barren rolls, so it reads as a bad run ending
+  // rather than as the dice being handled.
   let rollAnim = null;
   let winner = null;
   let captureFlash = null;
@@ -285,11 +325,9 @@
   function previewMove(token, dieValue) {
     if (token.status === 'finished') return null;
     if (token.status === 'base') {
-      // House rule: a piece only leaves base when BOTH dice are 6, and only ONE
-      // piece may leave per double-six. The remaining six can then advance a
-      // piece already on the board (including the one just unlocked).
+      // A piece leaves base on a six, and only one piece per six. The six that
+      // frees it also earns another roll, so the turn continues.
       if (dieValue !== 6) return null;
-      if (dice[0] !== 6 || dice[1] !== 6) return null;
       if (unlockedThisRoll) return null;
       return { kind: 'board', idx: START_INDEX[token.player] };
     }
@@ -317,11 +355,7 @@
     return false;
   }
   function diesUsableMap() {
-    const out = [false, false];
-    for (let i = 0; i < 2; i++) {
-      if (!diceUsed[i] && dice[i] != null && hasAnyLegalMove(dice[i])) out[i] = true;
-    }
-    return out;
+    return [!diceUsed[0] && dice[0] != null && hasAnyLegalMove(dice[0])];
   }
 
   // ---------- MOVE EXECUTION ----------
@@ -394,7 +428,11 @@
       token,
       waypoints,
       startTime: performance.now(),
-      stepDuration: 220,  // slower so each square is clearly visible
+      // 220 so each square is clearly visible — which is the right call for
+      // the token YOU are moving and much weaker for the third computer
+      // player's fourth token. The asymmetry is the point: you study your own
+      // move, you only monitor theirs.
+      stepDuration: isAI[activePlayer()] ? 130 : 220,
       lastStepPlayed: 0,
       onComplete,
     };
@@ -483,8 +521,8 @@
   // ---------- TURN FLOW ----------
   function startTurn() {
     scene = 'rolling';
-    dice = [null, null];
-    diceUsed = [false, false];
+    dice = [null];
+    diceUsed = [false];
     selectedDie = -1;
     rollAnim = null;
     capturedThisRoll = false;
@@ -499,62 +537,52 @@
     if (scene !== 'rolling' || winner) return;
     ensureAudio();
     let v1 = 1 + Math.floor(Math.random() * 6);
-    let v2 = 1 + Math.floor(Math.random() * 6);
-    // Force the double-six once this player reaches their window, so the gap
-    // between double-sixes can never exceed it.
-    const p = activePlayer();
-    pityCount[p]++;
-    if (pityCount[p] >= pityWindowFor(p)) { v1 = 6; v2 = 6; }
-    if (v1 === 6 && v2 === 6) { pityCount[p] = 0; pitySixes[p]++; }
-    rollAnim = { t0: performance.now(), duration: 720, finalA: v1, finalB: v2 };
+    // Opponents roll quicker than you do. You are reading your own dice;
+    // theirs you are only monitoring.
+    const rollMs = isAI[activePlayer()] ? 520 : 720;
+    rollAnim = { t0: performance.now(), duration: rollMs, finalA: v1 };
     capturedThisRoll = false;
     sfxDiceShake();
   }
   function commitRoll() {
-    dice = [rollAnim.finalA, rollAnim.finalB];
-    diceUsed = [false, false];
+    dice = [rollAnim.finalA];
+    diceUsed = [false];
     unlockedThisRoll = false;
     selectedDie = -1;
     scene = 'choosing';
     rollAnim = null;
     sfxDiceLand();
     autoSelectIfForced();
-    if (!diesUsableMap()[0] && !diesUsableMap()[1]) {
+    if (!diesUsableMap()[0]) {
       lastMoveMsg = 'No legal moves. ' + PLAYERS[activePlayer()].name + ' passes.';
-      scheduleEndTurn(900);
+      scheduleEndTurn(isAI[activePlayer()] ? 600 : 900);
     } else {
       lastMoveMsg = '';
     }
   }
   function autoSelectIfForced() {
-    const usable = diesUsableMap();
-    if (usable[0] && !usable[1]) selectedDie = 0;
-    else if (!usable[0] && usable[1]) selectedDie = 1;
-    else selectedDie = -1;
+    selectedDie = diesUsableMap()[0] ? 0 : -1;
   }
   function endTurn() {
     if (winner) return;
-    // House rule: turns rotate one-per-player clockwise. The ONLY way to
-    // earn another roll is a double-six (which also unlocks a base piece).
-    // Captures and other doubles do NOT grant a bonus roll.
-    const doubleSix = dice[0] === 6 && dice[1] === 6;
-    if (doubleSix) {
-      consecutiveDoubles++;
-      if (consecutiveDoubles >= 3) {
-        // Three double-sixes in a row forfeits the bonus and passes the turn.
-        consecutiveDoubles = 0;
+    // Turns rotate one per player. A six earns another roll — the same six
+    // that can free a piece from base — and three in a row forfeits it.
+    if (dice[0] === 6) {
+      consecutiveSixes++;
+      if (consecutiveSixes >= 3) {
+        consecutiveSixes = 0;
         advancePlayer();
         return;
       }
       scene = 'rolling';
-      dice = [null, null];
-      diceUsed = [false, false];
+      dice = [null];
+      diceUsed = [false];
       selectedDie = -1;
       capturedThisRoll = false;
       aiActionAt = 0;
       return;
     }
-    consecutiveDoubles = 0;
+    consecutiveSixes = 0;
     advancePlayer();
   }
   function advancePlayer() {
@@ -570,7 +598,11 @@
     if (!isAI[activePlayer()]) return;
 
     if (scene === 'rolling' && !rollAnim) {
-      if (aiActionAt === 0) aiActionAt = now + 650;
+      // 650 before, but nothing moves on screen during it. Measured, the
+      // think delays were half of a 4.8s opponent turn and 14.1s of waiting
+      // between your goes in a four-player game. Dead air is the first thing
+      // to cut, because it is the only part that tells the player nothing.
+      if (aiActionAt === 0) aiActionAt = now + 260;
       else if (now >= aiActionAt) {
         aiActionAt = 0;
         performRoll();
@@ -578,7 +610,7 @@
       return;
     }
     if (scene === 'choosing') {
-      if (aiActionAt === 0) aiActionAt = now + 600;
+      if (aiActionAt === 0) aiActionAt = now + 220;   // was 600, see above
       else if (now >= aiActionAt) {
         aiActionAt = 0;
         aiMakeOneMove();
@@ -587,11 +619,9 @@
   }
   function aiMakeOneMove() {
     const moves = [];
-    for (let i = 0; i < 2; i++) {
-      if (diceUsed[i]) continue;
+    if (!diceUsed[0]) {
       for (const t of playerTokens(activePlayer())) {
-        const dest = previewMove(t, dice[i]);
-        if (dest) moves.push({ token: t, dieIdx: i });
+        if (previewMove(t, dice[0])) moves.push({ token: t, dieIdx: 0 });
       }
     }
     if (moves.length === 0) { endTurn(); return; }
@@ -602,7 +632,7 @@
 
   // ---------- INPUT ----------
   const ROLL_BTN  = { x: 0, y: 0, w: 0, h: 0 };
-  const DIE_RECTS = [{ x: 0, y: 0, w: 0, h: 0 }, { x: 0, y: 0, w: 0, h: 0 }];
+  const DIE_RECTS = [{ x: 0, y: 0, w: 0, h: 0 }];
   const MENU_BTNS = [{ x: 0, y: 0, w: 0, h: 0, n: 2 }, { x: 0, y: 0, w: 0, h: 0, n: 3 }, { x: 0, y: 0, w: 0, h: 0, n: 4 }];
   const SOUND_BTN = { x: 0, y: 0, w: 0, h: 0 };
 
@@ -629,11 +659,16 @@
 
     if (scene === 'menu') {
       for (const b of MENU_BTNS) {
-        if (inRect(b, lx, ly)) { startGame(b.n); return; }
+        if (inRect(b, lx, ly)) {
+          GD.show();                    // preroll: this is the Play button
+          startGame(b.n);
+          return;
+        }
       }
       return;
     }
     if (scene === 'gameOver') {
+      if (GD.due()) GD.show();          // midroll: between games, never during
       scene = 'menu';
       return;
     }
@@ -647,13 +682,9 @@
         return;
       }
       if (scene === 'choosing') {
-        const usable = diesUsableMap();
-        for (let i = 0; i < 2; i++) {
-          if (inRect(DIE_RECTS[i], lx, ly) && usable[i]) {
-            selectedDie = i;
-            return;
-          }
-        }
+        // Nothing to select with one die — tapping it is a no-op rather than
+        // a mis-tap that eats the turn.
+        if (inRect(DIE_RECTS[0], lx, ly)) return;
         const hitToken = findTokenAt(lx, ly);
         if (!hitToken || hitToken.player !== activePlayer()) return;
         handleTokenPick(hitToken);
@@ -673,19 +704,10 @@
   }
 
   function handleTokenPick(token) {
-    let dieIdx = selectedDie;
-    if (dieIdx === -1) {
-      const legal = [];
-      for (let i = 0; i < 2; i++) {
-        if (!diceUsed[i] && previewMove(token, dice[i])) legal.push(i);
-      }
-      if (legal.length === 0) return;
-      if (legal.length === 1) dieIdx = legal[0];
-      else dieIdx = dice[legal[0]] >= dice[legal[1]] ? legal[0] : legal[1];
-    } else {
-      if (diceUsed[dieIdx]) return;
-      if (!previewMove(token, dice[dieIdx])) return;
-    }
+    // One die, so there is nothing to choose between: the only question is
+    // whether this token can use it.
+    const dieIdx = 0;
+    if (diceUsed[0] || !previewMove(token, dice[0])) return;
     const dieValue = dice[dieIdx];
     const dest = previewMove(token, dieValue);
     if (!dest) return;
@@ -695,13 +717,7 @@
     startMoveAnimation(token, dest, dieValue, () => {
       finalizeMove(token, dest);
       if (winner) return;
-      if (diceUsed[0] && diceUsed[1]) { endTurn(); return; }
-      autoSelectIfForced();
-      const usable = diesUsableMap();
-      if (!usable[0] && !usable[1]) {
-        lastMoveMsg = 'No move with remaining die. Turn ends.';
-        scheduleEndTurn(700);
-      }
+      endTurn();
     });
   }
 
@@ -719,8 +735,7 @@
     tokens = freshTokens();
     activePlayerIdx = 0;
     winner = null;
-    consecutiveDoubles = 0;
-    for (const p of turnOrder) { pityCount[p] = 0; pitySixes[p] = 0; }
+    consecutiveSixes = 0;
     lastMoveMsg = '';
     captureFlash = null;
     aiActionAt = 0;
@@ -783,9 +798,7 @@
     const movableSet = new Set();
     if (scene === 'choosing' && !winner && !isAI[activePlayer()] && !animation) {
       for (const t of playerTokens(activePlayer())) {
-        for (let i = 0; i < 2; i++) {
-          if (!diceUsed[i] && previewMove(t, dice[i])) { movableSet.add(t); break; }
-        }
+        if (!diceUsed[0] && previewMove(t, dice[0])) movableSet.add(t);
       }
     }
     const pulse = 0.6 + 0.4 * Math.sin(now / 320);
@@ -970,24 +983,20 @@
     ctx.font = '800 18px Inter, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(rollAnim ? 'ROLLING…' : 'ROLL DICE', x + w / 2, y + h / 2 + 1);
+    ctx.fillText(rollAnim ? 'ROLLING…' : 'ROLL DIE', x + w / 2, y + h / 2 + 1);
   }
 
   function drawDiceHUD(now) {
     const rows = hudRows();
     const dieSize = MODE === 'mobile' ? 60 : Math.min(56, HUD_H * 0.62);
-    const gap = MODE === 'mobile' ? 22 : 14;
-    const totalW = dieSize * 2 + gap;
-    const baseX = W / 2 - totalW / 2;
+    const baseX = W / 2 - dieSize / 2;          // one die, centred
     const baseY = MODE === 'mobile' ? (rows.diceY - dieSize / 2) : (HUD_Y + (HUD_H - dieSize) / 2);
 
     let v1 = dice[0];
-    let v2 = dice[1];
     if (rollAnim) {
       const dt = now - rollAnim.t0;
       const settled = dt >= rollAnim.duration;
       v1 = settled ? rollAnim.finalA : 1 + Math.floor(((now / 55) | 0) % 6);
-      v2 = settled ? rollAnim.finalB : 1 + Math.floor(((now / 65 + 3) | 0) % 6);
       if (settled) commitRoll();
     }
 
@@ -999,18 +1008,14 @@
       return;
     }
 
-    for (let i = 0; i < 2; i++) {
-      const x = baseX + i * (dieSize + gap);
-      const y = baseY;
-      DIE_RECTS[i].x = x; DIE_RECTS[i].y = y; DIE_RECTS[i].w = dieSize; DIE_RECTS[i].h = dieSize;
-      const val = i === 0 ? v1 : v2;
-      const isUsed = diceUsed[i];
-      drawDie(x, y, dieSize, val || 1, {
-        dim: isUsed,
-        selected: humanTurn && !isUsed && selectedDie === i,
-        usable: humanTurn && !isUsed && usable[i],
-      });
-    }
+    DIE_RECTS[0].x = baseX; DIE_RECTS[0].y = baseY;
+    DIE_RECTS[0].w = dieSize; DIE_RECTS[0].h = dieSize;
+    drawDie(baseX, baseY, dieSize, v1 || 1, {
+      dim: diceUsed[0],
+      // Nothing to select with one die, so it is never drawn selected.
+      selected: false,
+      usable: humanTurn && !diceUsed[0] && usable[0],
+    });
   }
 
   function drawTurnIndicator() {

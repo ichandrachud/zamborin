@@ -51,3 +51,4 @@ fold/Images/
 # would deploy and be fetchable at zamborin.com/<game>/gd-thumbnail.jpg, which
 # is the tessera.psd mistake with a different extension.
 */gd-thumbnail.*
+*/gd-*thumbnail.*

@@ -27,9 +27,20 @@ import { execSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const ROOT    = join(dirname(fileURLToPath(import.meta.url)), '..');
-const GAME    = 'tailwind';
-const GAME_ID = '1a95f9ebc00d4da9a26e431242260751';
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+
+/* One line per game. The ID comes from the GD control panel, EDIT tab, after
+   the entry is saved. */
+const GAMES = {
+  tailwind: '1a95f9ebc00d4da9a26e431242260751',
+  ludo:     '6eedf3fa8030453ab29c7cdaea3599ab',
+};
+
+const GAME = process.argv.slice(2).find(a => !a.startsWith('--')) || 'tailwind';
+if (!GAMES[GAME]) {
+  throw new Error(`no GD game id for "${GAME}" — add it to GAMES at the top of this file`);
+}
+const GAME_ID = GAMES[GAME];
 /* --no-sdk builds the identical package minus GameDistribution's SDK. The SDK
    cannot serve ads from localhost and puts up its anti-adblock wall instead,
    which sits on top of the game and makes local play-testing impossible. The
@@ -39,16 +50,37 @@ const GAME_ID = '1a95f9ebc00d4da9a26e431242260751';
 const NO_SDK  = process.argv.includes('--no-sdk');
 const OUT     = join(ROOT, 'dist', NO_SDK ? `${GAME}-local` : `${GAME}-gd`);
 
-/* Files the game actually requests. Deliberately NOT the whole directory:
-   balance/bend/measure/meter/sweep/whip/whip2.js are tuning harnesses that
-   index.html never loads, and shipping them would put the workings of the
-   difficulty curve in a stranger's zip. */
-const GAME_FILES = ['play.js', 'play.css', 'model.js',
-                    'splash-desktop.jpg', 'splash-mobile.jpg'];
-const SHARED     = ['tokens.css', 'chrome.css', 'ui.js', 'sfx.js'];
+/* THE MANIFEST IS DERIVED, NOT LISTED. Hardcoding it worked for one game and
+   would have shipped the wrong files for the next: Tailwind has model.js and
+   splash-desktop.jpg, Ludo has ludo-board.svg and ludo-splash-desktop.jpg, and
+   Tailwind's directory also holds seven tuning harnesses index.html never
+   loads. Find what the code REQUESTS — index.html's own tags, plus the
+   relative assets play.js and play.css fetch at runtime — and copy that.
+   Anything not requested is not shipped, which is the correct default. */
+const NEVER_SHIP = new Set(['analytics.js', 'ads.js', 'embed.js']);
 /* analytics.js  — GD §7 names third-party analytics as prohibited
    ads.js        — contract 2.6.8, no third-party advertising
    embed.js      — it appends a link home, and 2.6.7 forbids outbound links */
+
+function manifest(html) {
+  const game = new Set(), shared = new Set();
+  for (const m of html.matchAll(/(?:src|href)="(?!https?:|\/)([^"?]+)/g)) {
+    const ref = m[1];
+    if (ref.startsWith('../images/')) continue;            // nothing links home
+    const base = ref.split('/').pop();
+    if (NEVER_SHIP.has(base)) continue;
+    if (ref.startsWith('../shared/')) shared.add(base);
+    else if (ref.startsWith('./'))    game.add(base);
+  }
+  // assets requested at runtime rather than declared in the markup
+  for (const f of [...game].filter(f => /\.(js|css)$/.test(f))) {
+    const src = readFileSync(join(ROOT, GAME, f), 'utf8');
+    for (const m of src.matchAll(/['"(]\.\/([^'")]+\.(?:webp|jpg|jpeg|png|svg|json))/g)) {
+      game.add(m[1].split('?')[0]);
+    }
+  }
+  return { game: [...game], shared: [...shared] };
+}
 
 let cuts = 0;
 function cut(html, re, what) {
@@ -59,14 +91,21 @@ function cut(html, re, what) {
 }
 
 // ---- 1. lay the files out flat ------------------------------------------
+let h = readFileSync(join(ROOT, GAME, 'index.html'), 'utf8');
+const MAN = manifest(h);
 rmSync(OUT, { recursive: true, force: true });
 mkdirSync(join(OUT, 'shared'), { recursive: true });
-for (const f of GAME_FILES) cpSync(join(ROOT, GAME, f), join(OUT, f));
-for (const f of SHARED)     cpSync(join(ROOT, 'shared', f), join(OUT, 'shared', f));
-cpSync(join(ROOT, GAME, 'assets'), join(OUT, 'assets'), { recursive: true });
+for (const f of MAN.game) {
+  mkdirSync(dirname(join(OUT, f)), { recursive: true });
+  cpSync(join(ROOT, GAME, f), join(OUT, f));
+}
+for (const f of MAN.shared) cpSync(join(ROOT, 'shared', f), join(OUT, 'shared', f));
+if (existsSync(join(ROOT, GAME, 'assets'))) {
+  cpSync(join(ROOT, GAME, 'assets'), join(OUT, 'assets'), { recursive: true });
+}
+console.log(`\n  ${GAME}: ${MAN.game.length} game files, ${MAN.shared.length} shared`);
 
 // ---- 2. transform index.html --------------------------------------------
-let h = readFileSync(join(ROOT, GAME, 'index.html'), 'utf8');
 
 // Trackers and third-party advertising. Both are contractual, not stylistic.
 h = cut(h, /\s*<!-- Google AdSense -->/g, 'adsense comment');
@@ -94,12 +133,6 @@ h = cut(h, /\s*<link href="https:\/\/fonts\.googleapis\.com[^>]*>/g, 'google fon
 h = cut(h, /\s*<aside class="sidebar">[\s\S]*?<\/aside>/g, 'sidebar');
 h = cut(h, /\s*<!-- [^>]*ad: [^>]*-->\s*<div class="ad-slot[\s\S]*?<\/div>/g, 'ad slots');
 h = cut(h, /\s*<section class="game-info">[\s\S]*?<\/section>/g, 'game-info');
-/* The inline <style> exists only for .game-info, plus a <1151px override that
-   unlocks body scrolling so a phone can reach the footer. Both are gone, and
-   the override is actively wrong here: with no page content below the canvas
-   there is nothing to scroll to, and undoing chrome.css's lock would let a
-   full-frame game drag around under a player's thumb. */
-h = cut(h, /\s*<style>[\s\S]*?<\/style>/g, 'inline game-info styles');
 h = cut(h, /\s*<header class="site-header">[\s\S]*?<\/header>/g, 'site header');
 h = cut(h, /\s*<footer class="site-footer">[\s\S]*?<\/footer>/g, 'site footer');
 
@@ -110,6 +143,7 @@ h = cut(h, /\s*<footer class="site-footer">[\s\S]*?<\/footer>/g, 'site footer');
    looks perfect and cannot be played. */
 h = cut(h, /\s*\(\(\) => \{\s*const btn = document\.getElementById\('focus-toggle'\);[\s\S]*?\}\)\(\);/g,
         'focus-toggle IIFE');
+h = cut(h, /\s*<style>[\s\S]*?<\/style>/g, 'inline game-info styles');
 
 // Flatten the shared paths now that shared/ sits beside index.html.
 if (!h.includes('../shared/')) throw new Error('expected ../shared/ paths to rewrite');
@@ -118,8 +152,7 @@ h = h.replace(/\.\.\/shared\//g, './shared/');
 // Embed layout without embed.js: set the classes it would have set. On <html>
 // too, so the chrome never flashes before <body> exists.
 h = h.replace('<html lang="en">', '<html lang="en" class="embed">');
-h = h.replace('<body class="game-content-page portrait-only">',
-              '<body class="game-content-page portrait-only embed">');
+h = h.replace(/<body class="([^"]*)">/, '<body class="$1 embed">');
 
 // The SDK. GD_OPTIONS must exist before main.min.js loads.
 const sdk = `
@@ -168,7 +201,14 @@ if (failures.length) {
   for (const [needle, why] of failures) console.error(`  STILL PRESENT: ${needle} — ${why}`);
   throw new Error('package failed its own checks; nothing was zipped');
 }
-const REQUIRED = ['splash-done', './shared/chrome.css', 'id="game"']
+/* `splash-done` was the wrong invariant — it is Tailwind's event and Ludo has
+   no listener for it. What actually matters is that the splash still LIFTS:
+   both games put the focus-toggle handler and the splash timer in one <script>
+   element, so removing the header kills the first, the throw abandons the
+   block, and the splash sits over an unplayable game forever. Assert the
+   removal itself, and only for a game that has a splash to remove. */
+const REQUIRED = ['./shared/chrome.css', 'id="game"']
+  .concat(h.includes('id="splash"') ? ['splash.remove()'] : [])
   .concat(NO_SDK ? [] : ['GD_OPTIONS']);
 for (const must of REQUIRED) {
   if (!h.includes(must)) throw new Error(`package is missing ${must}`);
