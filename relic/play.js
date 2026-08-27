@@ -1227,6 +1227,12 @@
       return r;
     },
     hudFit() {
+      /* Draw first. The control row and the read-out are measured DURING a
+         draw, and a hidden preview pane throttles rAF to nothing, so calling
+         this on a freshly loaded page reported rowWidth undefined and
+         "rowFitsFrame: false" about a row it had never laid out. A detector
+         that answers outside the phase it describes is worth nothing. */
+      render(performance.now());
       return {
         mode: MODE, LW, LH,
         rowWidth: L.rowWidth, rung: L.rowRung, controlsRight: L.controlsRight,
