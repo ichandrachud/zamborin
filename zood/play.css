@@ -5,3 +5,34 @@
    from ../shared/chrome.css — we only supply the background image here. */
 body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=4'); }
 body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=4'); }
+
+/* MODE is decided on WIDTH alone (play.js: innerWidth < 768), but which splash
+   fits depends on the box's SHAPE. The two disagree for a narrow landscape box
+   — a part-width desktop window, or a publisher's 720px iframe — which lands in
+   mobile mode while still being wider than it is tall. The portrait art then
+   cover-crops to a strip and takes the wordmark with it.
+   Shape picks the art; mode still picks the layout. */
+@media (orientation: landscape) {
+  body.mode-mobile .splash { background-image: url('./splash-desktop.jpg?v=4'); }
+}
+
+
+/* MAGNIFICATION CAP.
+   Zood keeps a fixed 760x570 logical canvas and lets CSS stretch it, so a big
+   frame does not show more of the board — it just draws the same board bigger.
+   Measured: GD's recommended 800x600 iframe is a harmless 1.05x, but a full
+   browser window is 1.96x and fullscreen 1.89x, at which the game reads as
+   blown up rather than as a game.
+
+   Tailwind solves this by taking the viewport's real pixels in fullscreen. Zood
+   cannot: COLS, TILE and MAX_ROWS are const, derived from W and H at load, and
+   they define the bubble grid — changing the logical size means rebuilding the
+   grid and re-mapping every Zood on it. The same constraint that rules out
+   re-fitting on rotation (see the portrait gate in index.html).
+
+   So instead of growing without limit, the wrap stops at 1.4x and letterboxes.
+   Both caps carry the canvas aspect, so capping cannot distort it. */
+body.embed .game-wrap {
+  max-width:  calc(var(--canvas-w) * 1.4);
+  max-height: calc(var(--canvas-h) * 1.4);
+}

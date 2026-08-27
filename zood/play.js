@@ -69,7 +69,30 @@
 
   // ---------- AUDIO ----------
   const sfx = window.ZSFX.create({ storageKey: 'zamborin-zood.sound' });
-  function play(name) { try { sfx.play(name); } catch (e) {} }
+  function play(name) { if (adSilent) return; try { sfx.play(name); } catch (e) {} }
+
+  // ADS. GameDistribution hosts its own copy and requires a preroll and a
+  // midroll. Nothing here fires anywhere else, because `gdsdk` only exists on a
+  // page that loaded their SDK — so this file is byte-identical on zamborin.com
+  // and in the portal package, which is what their 2.6.4 asks for.
+  //
+  // Both calls sit where the game is idle: the tap that starts a round, and the
+  // tap that clears the won/lost screen. Nothing is in flight at either, so an
+  // advertisement can never interrupt a shot mid-air.
+  let lastAdAt = -Infinity, adSilent = false;
+  const GD = {
+    show() {
+      if (!window.gdsdk || typeof window.gdsdk.showAd !== 'function') return;
+      lastAdAt = performance.now();
+      try { window.gdsdk.showAd(); } catch (e) { /* never throw into a handler */ }
+    },
+    // GD blesses a timer for a game with no levels to break on.
+    due() { return performance.now() - lastAdAt > 120000; },
+  };
+  // Silenced while an advertisement runs. NOT sfx.setOn(false), which writes to
+  // localStorage and would overwrite the player's own saved preference.
+  window.addEventListener('gd-pause',  () => { adSilent = true; });
+  window.addEventListener('gd-resume', () => { adSilent = false; });
 
   // ---------- PALETTE ----------
   const BG_TOP = '#322CA0', BG_BOT = '#1C1A57';
@@ -381,7 +404,14 @@
         for (let c = 0; c < COLS; c++) {
           if (grid[r][c] === null) continue;
           const dx = proj.x - cellX(r, c), dy = proj.y - cellY(r);
-          if (dx * dx + dy * dy < (TILE * 0.82) * (TILE * 0.82)) { land(); return; }
+          // COLLIDE AT WHAT IS DRAWN. A Zood is SPRITE across and so is the
+          // shot, so two of them meet face-on when their centres are SPRITE
+          // apart — no sooner. The old constant was TILE * 0.82, which stuck a
+          // shot while it was still a tenth of a tile clear of anything the
+          // player could see, and that is what closed the gaps: threading a
+          // one-cell hole left only +/-0.18 TILE of aim, against the +/-0.28
+          // the picture was promising. Matching the art restores it.
+          if (dx * dx + dy * dy < SPRITE * SPRITE) { land(); return; }
         }
       }
     }
@@ -488,14 +518,38 @@
     ctx.font = '800 20px Inter, sans-serif';
     ctx.fillStyle = C.text;
     ctx.fillText(String(score), MARGIN + 8, TRAY_Y + 14);
-    // ZOOD — bottom-right.
-    ctx.textAlign = 'right';
-    ctx.font = '700 11px Inter, sans-serif';
-    ctx.fillStyle = C.textDim;
-    ctx.fillText('ZOOD', W - MARGIN - 8, TRAY_Y - 8);
-    ctx.font = '800 20px Inter, sans-serif';
-    ctx.fillStyle = C.text;
-    ctx.fillText(String(zoodLeft()), W - MARGIN - 8, TRAY_Y + 14);
+    // The Zoods-remaining count used to sit bottom-right. It restated what the
+    // board already shows — you can see how many are left — so the space goes
+    // to the sound toggle instead, which had no on-screen control at all and
+    // was therefore unreachable for every player on a phone.
+  }
+
+  // The house speaker, same geometry as the rest of the fleet. Drawn AFTER the
+  // overlay, because the start screen is exactly when someone reaches for mute.
+  const SOUND_BTN = { x: 0, y: 0, w: 52, h: 52 };
+  function drawSoundBtn() {
+    SOUND_BTN.x = W - MARGIN - 8 - SOUND_BTN.w;
+    SOUND_BTN.y = TRAY_Y - SOUND_BTN.h / 2 + 3;
+    const cx = SOUND_BTN.x + SOUND_BTN.w / 2, cy = SOUND_BTN.y + SOUND_BTN.h / 2;
+    const on = sfx.isOn();
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(1.25, 1.25);                       // a touch larger than 44px of glyph
+    ctx.fillStyle = on ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.45)';
+    ctx.beginPath();
+    ctx.moveTo(-7, -3); ctx.lineTo(-3, -3); ctx.lineTo(1, -7);
+    ctx.lineTo(1, 7); ctx.lineTo(-3, 3); ctx.lineTo(-7, 3);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = on ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.45)';
+    ctx.lineWidth = 1.6; ctx.lineCap = 'round';
+    if (on) {
+      ctx.beginPath(); ctx.arc(2, 0, 4.5, -0.9, 0.9); ctx.stroke();
+      ctx.beginPath(); ctx.arc(2, 0, 7.5, -0.9, 0.9); ctx.stroke();
+    } else {
+      ctx.beginPath(); ctx.moveTo(4, -4); ctx.lineTo(9, 4);
+      ctx.moveTo(9, -4); ctx.lineTo(4, 4); ctx.stroke();
+    }
+    ctx.restore();
   }
 
   function drawFlashes(now) {
@@ -594,6 +648,7 @@
     drawHUD();
 
     if (phase !== 'playing') drawOverlay();
+    drawSoundBtn();                              // above the overlay, always live
 
     requestAnimationFrame(loop);
   }
@@ -620,8 +675,25 @@
   canvas.addEventListener('pointerup', (e) => {
     sfx.ensureAudio();
     const { x, y } = getXY(e);
-    if (phase === 'ready') { phase = 'playing'; T().gameStart(); T().levelStart(1); play('start'); return; }
-    if (phase === 'won' || phase === 'lost') { if (phase === 'lost') T().levelRestart(1); phase = 'ready'; initBoard(); return; }
+    // Tested first, so tapping the speaker can never also loose a shot.
+    if (x >= SOUND_BTN.x && x <= SOUND_BTN.x + SOUND_BTN.w &&
+        y >= SOUND_BTN.y && y <= SOUND_BTN.y + SOUND_BTN.h) {
+      sfx.setOn(!sfx.isOn());
+      if (sfx.isOn()) play('start');
+      return;
+    }
+    if (phase === 'ready') {
+      T().gameStart(); T().levelStart(1);
+      GD.show();                          // preroll: the tap that starts a round
+      phase = 'playing'; play('start');
+      return;
+    }
+    if (phase === 'won' || phase === 'lost') {
+      if (phase === 'lost') T().levelRestart(1);
+      if (GD.due()) GD.show();            // midroll: between rounds, never during
+      phase = 'ready'; initBoard();
+      return;
+    }
     if (phase === 'playing' && !proj) { setAim(x, y); fire(); }
   });
   // Desktop: M toggles sound.

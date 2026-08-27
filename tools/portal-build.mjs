@@ -34,20 +34,23 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const GAMES = {
   tailwind: '1a95f9ebc00d4da9a26e431242260751',
   ludo:     '6eedf3fa8030453ab29c7cdaea3599ab',
+  zood:     'a916b78506ab4816a24526a4b28a84cf',
 };
 
 const GAME = process.argv.slice(2).find(a => !a.startsWith('--')) || 'tailwind';
-if (!GAMES[GAME]) {
+const NO_SDK = process.argv.includes('--no-sdk');
+// A local play-test build carries no SDK, so it needs no game id. Only the
+// uploadable package does, which is also the only one that can be got wrong.
+if (!NO_SDK && !GAMES[GAME]) {
   throw new Error(`no GD game id for "${GAME}" — add it to GAMES at the top of this file`);
 }
-const GAME_ID = GAMES[GAME];
+const GAME_ID = GAMES[GAME] || '__NOT_SET__';
 /* --no-sdk builds the identical package minus GameDistribution's SDK. The SDK
    cannot serve ads from localhost and puts up its anti-adblock wall instead,
    which sits on top of the game and makes local play-testing impossible. The
    uploadable package is ALWAYS the one WITH the SDK; this exists only so the
    game can be judged without it. Separate output directory and separate zip
    name, so the two can never be confused at upload time. */
-const NO_SDK  = process.argv.includes('--no-sdk');
 const OUT     = join(ROOT, 'dist', NO_SDK ? `${GAME}-local` : `${GAME}-gd`);
 
 /* THE MANIFEST IS DERIVED, NOT LISTED. Hardcoding it worked for one game and
