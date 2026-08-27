@@ -1,5 +1,10 @@
 # New-game scaffold
 
+> **STOP. Read `DESIGN-SYSTEM.md` at the repo root before you start.** It is the
+> authority on layout, colour, buttons, the rules modal and the splash, and it
+> overrides anything below that contradicts it. Four games were built without it
+> because it used to live outside the repo.
+
 Copy this folder, rename it to the game's URL slug, find-and-replace the
 placeholders, and you have a page that is already at the standard every
 shipped Zamborin game is held to.

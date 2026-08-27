@@ -3,6 +3,12 @@
 Rules a future session must follow. These exist because each one was broken at
 least once and cost a cleanup.
 
+> **Designing, laying out or colouring anything? Read `DESIGN-SYSTEM.md` first,
+> in full.** It is the authority on the two layouts, the colour ladder, the
+> button sizes, the rules modal and the splash. It overrides every build brief.
+> This file covers repository structure and shipping; that one covers how the
+> game looks.
+
 ## Repository layout
 
 **One directory per game, at `/<game>/`.** It contains exactly:
