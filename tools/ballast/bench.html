@@ -1,0 +1,81 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Ballast solver bench</title>
+<style>body{background:#0E1726;color:#fff;font:14px/1.6 ui-monospace,monospace;margin:16px}
+canvas{border:1px solid #1F2D4A}#out{white-space:pre;margin-top:12px}</style></head><body>
+<canvas id="c" width="390" height="844"></canvas><div id="out">running…</div>
+<script src="../../ballast/phys.js"></script>
+<script>
+(() => {
+const { World, makeBody, makeRng, resetIds, TIER_R } = window.BallastPhys;
+const c = document.getElementById('c'), ctx = c.getContext('2d');
+const FRAME = 1/60;
+resetIds();
+const w = new World({ pivotX:195, pivotY:172, interiorW:300, interiorH:410, rimY:158 });
+const rng = makeRng(4);
+
+// Fill to the body cap, so the bench measures the worst case the
+// cap allows rather than a typical pile.
+let t=0, d=0, nd=0;
+while (d < 55 && t < 40) {
+  if (t >= nd) { const tier=[0,1,2,3][Math.floor(rng()*4)];
+    const lx=(rng()*2-1)*(w.halfW-TIER_R[tier]-2), p={};
+    w.toWorld(lx, w.rimY-30, p); if (w.add(makeBody(p.x,p.y,tier))) d++; nd=t+0.12; }
+  w.step(FRAME); t+=FRAME;
+}
+
+// Art-direction colours: game art, its own palette, deep red to white-hot.
+const TIER_COL = [['#8E1F14','#4A0E08'],['#B8391C','#5E1608'],['#D4611F','#71260A'],
+                  ['#E8892B','#8A3A0C'],['#F0B03C','#9C5410'],['#F7D77A','#A87A20'],
+                  ['#FFF3D6','#C9A24E']];
+function drawPiece(b, lx, ly) {
+  const [hi, lo] = TIER_COL[b.tier];
+  const g = ctx.createRadialGradient(lx-b.r*0.35, ly-b.r*0.4, b.r*0.05, lx, ly, b.r);
+  g.addColorStop(0, hi); g.addColorStop(1, lo);
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(lx, ly, b.r, 0, 6.2832); ctx.fill();
+  const s = ctx.createRadialGradient(lx-b.r*0.38, ly-b.r*0.44, 0, lx-b.r*0.38, ly-b.r*0.44, b.r*0.55);
+  s.addColorStop(0,'rgba(255,255,255,0.55)'); s.addColorStop(1,'rgba(255,255,255,0)');
+  ctx.fillStyle = s; ctx.beginPath(); ctx.arc(lx, ly, b.r, 0, 6.2832); ctx.fill();
+}
+function render() {
+  ctx.clearRect(0,0,390,844);
+  const bg = ctx.createRadialGradient(195,500,0,195,500,520);
+  bg.addColorStop(0,'#1E140D'); bg.addColorStop(1,'#0A0605');
+  ctx.fillStyle = bg; ctx.fillRect(0,0,390,844);
+  ctx.save(); ctx.translate(w.pivotX, w.pivotY); ctx.rotate(w.theta);
+  ctx.strokeStyle = '#3A2A1E'; ctx.lineWidth = 14; ctx.lineJoin='round';
+  ctx.beginPath(); ctx.moveTo(-w.halfW, w.rimY); ctx.lineTo(-w.halfW, w.floorY);
+  ctx.lineTo(w.halfW, w.floorY); ctx.lineTo(w.halfW, w.rimY); ctx.stroke();
+  ctx.restore();
+  const o = {};
+  for (const b of w.bodies) { o.x=b.x; o.y=b.y; drawPiece(b, b.x, b.y); }
+}
+
+const N = 900, solve = [], draw = [], total = [];
+let n = 0;
+function tick() {
+  w.wakeAll();                       // worst case: never let it sleep
+  const t0 = performance.now(); w.step(FRAME);
+  const t1 = performance.now(); render();
+  const t2 = performance.now();
+  if (n > 120) { solve.push(t1-t0); draw.push(t2-t1); total.push(t2-t0); }
+  if (++n < N) requestAnimationFrame(tick); else report();
+}
+function q(a, f) { const s=[...a].sort((x,y)=>x-y); return s[Math.floor((s.length-1)*f)]; }
+function report() {
+  const L = [];
+  L.push(`browser: ${navigator.userAgent.split(') ').pop()}`);
+  L.push(`bodies ${w.bodies.length}   contacts ${w.stats.contacts}   samples ${total.length}   pile forced AWAKE every frame`);
+  L.push('');
+  L.push('                p50      p99      max');
+  for (const [name, a] of [['solver', solve], ['render', draw], ['total ', total]])
+    L.push(`  ${name}   ${q(a,.5).toFixed(3).padStart(7)}  ${q(a,.99).toFixed(3).padStart(7)}  ${q(a,1).toFixed(3).padStart(7)}  ms`);
+  L.push('');
+  const p99 = q(total,.99);
+  L.push(`  60fps budget 16.67ms.  p99 total ${p99.toFixed(2)}ms = ${(p99/16.67*100).toFixed(1)}% of one frame.`);
+  L.push(`  headroom before a frame is missed: ${(16.67/p99).toFixed(1)}x slower CPU`);
+  L.push(`  at the brief's 4x throttle: ${(p99*4).toFixed(2)}ms -> ${p99*4 < 16.67 ? 'PASS' : 'FAIL'}`);
+  document.getElementById('out').textContent = L.join('\n');
+  document.title = 'DONE';
+}
+requestAnimationFrame(tick);
+})();
+</script></body></html>

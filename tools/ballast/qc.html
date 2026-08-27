@@ -1,0 +1,161 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Ballast QC sweep</title>
+<style>body{background:#0E1726;color:#fff;font:12px/1.5 ui-monospace,monospace;margin:12px}
+#out{white-space:pre}iframe{position:absolute;left:-9999px;top:0;border:0}</style></head><body>
+<div id="out">running…</div>
+<script>
+/* Ballast · layout sweep.
+
+   Canvas card fit is a continuous 2D space, so eight sample frames is not
+   a proof. This walks a grid, runs the GAME'S OWN geometry at each size,
+   and reports the boundary at which an assertion first fails.
+
+   Same-origin iframes, because the preview pane reports a zero viewport
+   when hidden and rAF never fires there. Geometry only: nothing here
+   looks at paint. */
+const QUICK = new URLSearchParams(location.search).get('quick') === '1';
+const SIZES = [];
+const STEP_W = QUICK ? 60 : 20, STEP_H = QUICK ? 120 : 40;
+for (let w = 320; w <= 520; w += STEP_W) for (let h = 480; h <= 960; h += STEP_H) SIZES.push([w, h]);   // phones
+for (const s of [[360,640],[375,667],[390,844],[393,852],[414,896],[430,932],[412,915],[344,882]]) SIZES.push(s); // real devices
+for (const s of [[900,700],[1024,768],[1280,800],[1440,900],[1920,1080]]) SIZES.push(s);        // desktop
+SIZES.push([480,360]);   // the card's required size
+
+const BUILD = String(Date.now());
+const out = document.getElementById('out');
+const rows = [];
+
+function assess(win) {
+  const C = win.__ballast;
+  if (!C) return { ok: false, why: 'no game' };
+  const w = C.world, L = C.L, P = w.P;
+  const LW = win.innerWidth, LH = win.innerHeight;
+  const mode = C.mode;
+  const canvasW = mode === 'mobile' ? LW : 760;
+  const canvasH = mode === 'mobile' ? LH : 600;
+
+  /* Where the vessel actually reaches. TWO angles, and they are not the
+     same question:
+       LAYOUT_THETA  is what the frame is SIZED for. Overflow here is a bug.
+       TOPPLE_ANGLE  is as far as it can ever go. Overflow here is expected
+                     and reported, because the run is ending as it happens.
+     This used to sweep P.THETA_MAX, a constant belonging to the abandoned
+     hanging model, and it rotated about the local origin instead of asking
+     the solver for its transform. It was asserting the wrong thing. */
+  const extent = (tm) => {
+    let mnX = 1e9, mxX = -1e9, mnY = 1e9, mxY = -1e9;
+    const pts = [[-w.halfW, w.rimY], [w.halfW, w.rimY], [-w.halfW, w.floorY], [w.halfW, w.floorY]];
+    for (const t of [-tm, 0, tm]) {
+      const c = Math.cos(t), s = Math.sin(t), ao = {};
+      const save = w.theta; w.theta = t; w.anchorOffset(c, s, ao); w.theta = save;
+      for (const p of pts) {
+        const X = L.OX + (p[0] * c - p[1] * s + ao.x) * L.S;
+        const Y = L.OY + (p[0] * s + p[1] * c + ao.y) * L.S;
+        mnX = Math.min(mnX, X); mxX = Math.max(mxX, X);
+        mnY = Math.min(mnY, Y); mxY = Math.max(mxY, Y);
+      }
+    }
+    return { minX: mnX, maxX: mxX, minY: mnY, maxY: mxY };
+  };
+  const e = extent(P.LAYOUT_THETA);
+  const worst = extent(P.TOPPLE_ANGLE);
+  const minX = e.minX, maxX = e.maxX, minY = e.minY, maxY = e.maxY;
+  /* These read the layout's own field names. They used to say L.leftW,
+     L.hudH and L.barH, which were renamed: two of the four comparisons were
+     against undefined, and NaN comparisons are false, so those checks were
+     silently passing on every size. */
+  const bandL = mode === 'mobile' ? 0 : (L.rightW ? 0 : 0);
+  const bandR = canvasW - (L.rightW || 0);
+  const topLimit = L.topH;
+  const botLimit = canvasH - L.botH;
+
+  const fails = [];
+  if (L.S <= 0 || !isFinite(L.S)) fails.push('S=' + L.S);
+  if (minX < bandL) fails.push('swings past left by ' + Math.round(bandL - minX));
+  if (maxX > bandR) fails.push('swings past right by ' + Math.round(maxX - bandR));
+  if (maxY > botLimit) fails.push('below the bar by ' + Math.round(maxY - botLimit));
+  if (minY < topLimit) fails.push('above the HUD by ' + Math.round(topLimit - minY));
+
+  // Cards: draw each and read the measured copy-end to button-start gap.
+  const cards = {};
+  for (const ph of ['intro', 'over']) {
+    C.phase = ph; C.tick(0.0001, 1000);
+    cards[ph] = C.cardMetrics.gap;
+    if (!C.cardMetrics.fits) fails.push(ph + ' card overlaps by ' + (-C.cardMetrics.gap));
+  }
+  C.phase = 'playing';
+  const overflowAtTopple = Math.round(Math.max(0, bandL - worst.minX, worst.maxX - bandR));
+  return { ok: !fails.length, why: fails.join('; '), mode, S: +L.S.toFixed(3),
+           introGap: cards.intro, overGap: cards.over, overflowAtTopple,
+           interiorPct: Math.round(100 * 300 * L.S / canvasW) };
+}
+
+function one(w, h) {
+  return new Promise(res => {
+    const f = document.createElement('iframe');
+    f.width = w; f.height = h;
+    // Cache-bust every frame. The HTML caches, so without this the sweep can
+    // measure a build several versions behind the one on disk, and report
+    // failures that do not exist or miss ones that do.
+    f.src = '/ballast/?qc=' + BUILD + '_' + w + 'x' + h;
+    f.onload = () => {
+      // A revealed frame fires no resize event and ResizeObserver is
+      // unreliable here, so poll briefly until the game has measured itself.
+      let n = 0;
+      const t = setInterval(() => {
+        const C = f.contentWindow && f.contentWindow.__ballast;
+        if ((C && C.L && C.L.S > 0) || ++n > 40) {
+          clearInterval(t);
+          let r; try { r = assess(f.contentWindow); } catch (e) { r = { ok: false, why: 'threw: ' + e.message }; }
+          r.w = w; r.h = h; f.remove(); res(r);
+        }
+      }, 25);
+    };
+    document.body.appendChild(f);
+  });
+}
+
+(async () => {
+  for (let i = 0; i < SIZES.length; i++) {
+    rows.push(await one(SIZES[i][0], SIZES[i][1]));
+    if (i % 10 === 0) out.textContent = `sweeping ${i}/${SIZES.length}…`;
+  }
+  const bad = rows.filter(r => !r.ok);
+  const L = [];
+  L.push(`swept ${rows.length} viewport sizes; ${bad.length} failed`);
+  L.push('');
+  if (bad.length) {
+    // Report the BOUNDARY, not a sample: the smallest failing size per reason.
+    const byWhy = {};
+    for (const r of bad) { (byWhy[r.why] = byWhy[r.why] || []).push(r); }
+    for (const why in byWhy) {
+      const g = byWhy[why].sort((a, b) => (a.w * a.h) - (b.w * b.h));
+      L.push(`FAIL (${g.length}x) ${why}`);
+      L.push(`   smallest ${g[0].w}x${g[0].h}   largest ${g[g.length-1].w}x${g[g.length-1].h}`);
+      const ws = g.map(r => r.w), hs = g.map(r => r.h);
+      L.push(`   width range ${Math.min(...ws)}..${Math.max(...ws)}   height range ${Math.min(...hs)}..${Math.max(...hs)}`);
+    }
+  } else L.push('every size passed: vessel inside its band across LAYOUT_THETA, both cards clear their buttons.');
+  L.push('');
+  const gaps = rows.filter(r => r.introGap != null);
+  const minIntro = gaps.reduce((a, r) => r.introGap < a.introGap ? r : a, gaps[0]);
+  const minOver  = gaps.reduce((a, r) => r.overGap  < a.overGap  ? r : a, gaps[0]);
+  const ovf = rows.map(r => r.overflowAtTopple || 0);
+  const pct = rows.map(r => r.interiorPct || 0);
+  L.push(`vessel width: ${Math.min(...pct)}% to ${Math.max(...pct)}% of the frame`);
+  L.push(`overflow at the TOPPLE angle (expected, the run is ending): worst ${Math.max(...ovf)}px, median ${ovf.sort((a,b)=>a-b)[Math.floor(ovf.length/2)]}px`);
+  L.push('');
+  L.push(`tightest intro card: ${minIntro.introGap}px copy-end to button-start at ${minIntro.w}x${minIntro.h}`);
+  L.push(`tightest over card:  ${minOver.overGap}px at ${minOver.w}x${minOver.h}`);
+  const req = rows.find(r => r.w === 480 && r.h === 360);
+  L.push(`required 480x360: ${req ? (req.ok ? 'PASS' : 'FAIL ' + req.why) : 'not run'}` +
+         (req ? `  intro gap ${req.introGap}px, over gap ${req.overGap}px, mode ${req.mode}` : ''));
+  L.push('');
+  L.push('real devices:');
+  for (const [w, h] of [[360,640],[375,667],[390,844],[393,852],[414,896],[430,932],[412,915],[344,882]]) {
+    const r = rows.find(x => x.w === w && x.h === h);
+    L.push(`  ${String(w+'x'+h).padEnd(10)} ${r.ok ? 'ok  ' : 'FAIL'}  S ${r.S}  ${r.why}`);
+  }
+  out.textContent = L.join('\n');
+  document.title = 'QCDONE';
+})();
+</script></body></html>

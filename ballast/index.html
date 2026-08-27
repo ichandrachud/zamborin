@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <title>Ballast — A Zamborin Game</title>
+  <meta name="description" content="Drop orbs into a bowl that stands on a rounded base. Matching sizes merge into the next size up, and the bowl rocks under the weight you put in it, so every drop is two decisions at once." />
+  <meta name="theme-color" content="#0E1726" />
+  <link rel="canonical" href="https://zamborin.com/ballast/" />
+  <link rel="icon" type="image/svg+xml" href="../images/zamborin-favicon.svg?v=2" />
+
+  <!-- Open Graph / Twitter -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Zamborin Games" />
+  <meta property="og:url" content="https://zamborin.com/ballast/" />
+  <meta property="og:title" content="Ballast — Merge the orbs, mind the balance" />
+  <meta property="og:description" content="Drop orbs into a bowl that stands on a rounded base. Matching sizes merge into the next size up, and the bowl rocks under the weight you put in it, so every drop is two decisions at once." />
+  <meta property="og:image" content="https://zamborin.com/images/ballast-og.jpg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="A dark metal bowl on a rounded base, filled with glowing orbs in red, amber and gold, rocking to one side" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Ballast — Merge the orbs, mind the balance" />
+  <meta name="twitter:description" content="Drop orbs into a bowl that stands on a rounded base. Matching sizes merge into the next size up, and the bowl rocks under the weight you put in it, so every drop is two decisions at once." />
+  <meta name="twitter:image" content="https://zamborin.com/images/ballast-og.jpg" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../shared/tokens.css?v=1" />
+  <link rel="stylesheet" href="../shared/chrome.css?v=20" />
+  <link rel="stylesheet" href="./play.css?v=2" />
+  <!-- Google AdSense. The site earns from these pages; keep both lines. -->
+  <meta name="google-adsense-account" content="ca-pub-9207689324865969">
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9207689324865969" crossorigin="anonymous"></script>
+  <!-- Structured data: VideoGame schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "VideoGame",
+    "name": "Ballast",
+    "description": "Drop orbs into a bowl that stands on a rounded base. Matching sizes merge into the next size up, and the bowl rocks under the weight you put in it, so every drop is two decisions at once.",
+    "url": "https://zamborin.com/ballast/",
+    "image": "https://zamborin.com/images/ballast-og.jpg",
+    "playMode": "SinglePlayer",
+    "gamePlatform": "Web Browser",
+    "applicationCategory": "Game",
+    "operatingSystem": "Web",
+    "genre": ["Arcade","Puzzle"],
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "publisher": { "@type": "Organization", "name": "Zamborin Games", "url": "https://zamborin.com/" }
+  }
+  </script>
+  <style>
+    .game-info { max-width: 760px; margin: 0 auto; padding: 8px 24px 40px; color: var(--text-dim); line-height: 1.65; font-size: 16px; }
+    .game-info h1 { font-size: 28px; color: var(--text); font-weight: 800; margin: 20px 0 8px; letter-spacing: -0.3px; }
+    .game-info h2 { font-size: 20px; color: var(--text); font-weight: 700; margin: 30px 0 8px; }
+    .game-info p { margin: 12px 0; }
+    .game-info ul { margin: 12px 0; padding-left: 22px; }
+    .game-info li { margin: 7px 0; }
+    .game-info strong { color: var(--text); font-weight: 600; }
+    .game-info a { color: #4DC3FF; }
+    @media (max-width: 720px) { .game-info { padding: 8px 18px 40px; } .game-info h1 { font-size: 24px; } }
+    /* Game pages pin the body so swipes do not drag the document under a
+       finger. A page WITH body copy has to opt back out below the breakpoint,
+       or the whole article is unreachable on a phone. */
+    @media (max-width: 1151px) {
+      body.game-content-page { position: static; overflow: visible; height: auto; width: auto; top: auto; left: auto; touch-action: auto; }
+      body.game-content-page .site-footer { display: flex; }
+    }
+  </style>
+</head>
+<body class="game-content-page">
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="Zamborin Games home">
+      <img class="brand-logo" src="../images/zamborin-logo.svg?v=2" alt="Zamborin" />
+    </a>
+    <div class="header-right">
+      <button id="focus-toggle" class="focus-btn" type="button" aria-label="Play fullscreen" aria-pressed="false">
+        <svg class="icon-enter" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="4 9 4 4 9 4"/>
+          <polyline points="20 9 20 4 15 4"/>
+          <polyline points="4 15 4 20 9 20"/>
+          <polyline points="20 15 20 20 15 20"/>
+        </svg>
+        <svg class="icon-exit" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M6 6l12 12M18 6L6 18"/>
+        </svg>
+      </button>
+      <a class="back-link" href="/">Back to all games</a>
+    </div>
+  </header>
+
+  <main class="page">
+    <!-- Leaderboard ad: 728×90. All four slots are hidden behind the ads-on
+         class that nothing sets. Leave them in place and leave them off:
+         nothing may ever cover gameplay. See CONTRIBUTING, "Analytics". -->
+    <div class="ad-slot ad-leaderboard" aria-label="Advertisement">
+      <span class="ad-label">AD · 728 × 90</span>
+    </div>
+
+    <section class="play-row">
+      <div class="game-wrap">
+        <canvas id="game" aria-label="Ballast"></canvas>
+        <!-- Splash: shows for 2 s at load, then fades to reveal the game. -->
+        <div id="splash" class="splash" aria-hidden="true"></div>
+      </div>
+      <aside class="sidebar">
+        <div class="ad-slot ad-medrec" aria-label="Advertisement">
+          <span class="ad-label">AD · 300 × 250</span>
+        </div>
+        <div class="ad-slot ad-medrec" aria-label="Advertisement">
+          <span class="ad-label">AD · 300 × 250</span>
+        </div>
+      </aside>
+    </section>
+
+    <!-- Leaderboard ad: 728×90 -->
+    <div class="ad-slot ad-leaderboard" aria-label="Advertisement">
+      <span class="ad-label">AD · 728 × 90</span>
+    </div>
+
+    <!-- REAL COPY GOES HERE, and it is not optional. This is what makes the
+         page a page rather than a bare canvas, for search and for AdSense
+         policy alike. Write it in the calm voice, no em dashes. Look at
+         bloom/ or kaleido/ for the shape and the length. -->
+    <section class="game-info">
+      <h1>Ballast: merge the orbs, mind the balance</h1>
+      <p>Drop orbs into a bowl that stands on a rounded base. Two orbs of the
+      same size that come to rest touching fuse into one orb of the next size up,
+      and a good drop can set off a chain of them. The bowl rocks. A low, even
+      pile rights itself; a high or lopsided one carries its weight past the
+      point the base can hold, and the whole thing rolls over.</p>
+
+      <h2>How to play</h2>
+      <p>There is one action, and it asks two questions at once.</p>
+      <ul>
+        <li><strong>Drag to aim, release to drop.</strong> The aim point belongs
+        to the vessel, not the screen, so the marker swings as the vessel leans.
+        The dashed line shows the path the orb will actually fall.</li>
+        <li><strong>Match to merge.</strong> Two of a size that settle against
+        each other become the next size up, worth more, and able to merge again.</li>
+        <li><strong>Watch the lean.</strong> The gauge does not read the angle,
+        it reads the lean your current load is heading for, so it warns you
+        before the bowl has got there. It is not a control. The only thing that
+        moves the bowl is where you put the weight, and how high the pile is.</li>
+        <li><strong>The two largest cancel.</strong> Bring two of the biggest
+        size together and both vanish for a large bonus, which is the release
+        valve that stops a strong run from filling up with orbs that have
+        nowhere left to go.</li>
+      </ul>
+
+      <h2>Why it is clever</h2>
+      <p>Merging alone is the most copied loop on the internet, and on its own
+      it is a game about pattern more than choice. The rocking base adds a second
+      decision that is genuinely independent of the first: the best merge is very
+      often on the side you should not be loading. You cannot satisfy both every
+      time, so you are always trading a little score for a little balance.</p>
+      <p>The base also ties the two together in a way a fixed bowl cannot. What
+      makes the bowl tip is not only which side you loaded but how HIGH the pile
+      has grown, because a high pile puts its weight further above the base.
+      Merging lowers the pile. So merging is not just points, it is the thing
+      that keeps you upright, and a run you never tidy is a run you lose.</p>
+
+      <h2>Tips</h2>
+      <ul>
+        <li>Keep the pile low. Height is what makes the bowl tippy, so clearing
+        a layer of small orbs buys more safety than it looks like it should.</li>
+        <li>A merge moves mass toward the point where the two orbs met. That is
+        a way of shifting the balance without dropping anything.</li>
+        <li>Small orbs are worth almost nothing on their own. Their value is
+        that they fill gaps and let larger pairs find each other.</li>
+        <li>When the gauge is deep in the red, stop chasing the merge. One or
+        two drops spent purely on balance will usually save the run.</li>
+      </ul>
+
+      <h2>Frequently asked questions</h2>
+      <p><strong>Is Ballast free?</strong> Yes, completely free to play, with no
+      account or download, in any modern browser on phone, tablet or desktop.</p>
+      <p><strong>Does it work on mobile?</strong> Yes. Ballast is built for
+      touch as well as mouse, and the controls sit at the bottom of the screen
+      within thumb reach.</p>
+      <p><strong>How do I win?</strong> There is no winning state. It is a score
+      chase: the run ends when the bowl rolls over or an orb leaves it, and the
+      aim is to beat your own best.</p>
+      <p><strong>Is the rocking random?</strong> No. It is computed from where
+      the weight actually sits and how high it sits, every frame. Nothing about
+      it is chance, and the same seed plays out the same way twice.</p>
+
+      <p class="guide-cta"><a href="/guides/ballast/">Stuck? Read the Ballast strategy guide <span aria-hidden="true">&rarr;</span></a></p>
+      <p>Enjoy a good thinking puzzle? Try <a href="/bloom/">Bloom</a> or <a href="/kaleido/">Kaleido</a>, or browse <a href="/">all Zamborin games</a>.</p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <nav class="site-foot-nav">
+      <a href="/">Games</a>
+      <a href="/guides/">Guides</a>
+      <a href="/about/">About</a>
+      <a href="/faq/">FAQ</a>
+      <a href="/privacy/">Privacy</a>
+      <a href="/cookies/">Cookies</a>
+      <a href="/terms/">Terms</a>
+      <a href="/contact/">Contact</a>
+    </nav>
+    <span>© 2026 Zamborin. Games created by Indrajeet Chandrachud.</span>
+  </footer>
+
+  <!-- Shared toolkit. ALWAYS load before play.js. -->
+  <script src="../shared/sfx.js?v=5"></script>
+  <script src="../shared/ui.js?v=1"></script>
+  <script src="../shared/analytics.js?v=3"></script>
+  <script src="../shared/embed.js?v=1"></script>
+  <script defer src="../shared/ads.js?v=2"></script>
+  <script src="./phys.js?v=10"></script>
+  <script src="./rules.js?v=3"></script>
+  <script src="./play.js?v=32"></script>
+  <script>
+    (() => {
+      const btn = document.getElementById('focus-toggle');
+      btn.addEventListener('click', () => {
+        const on = document.body.classList.toggle('focus-mode');
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        btn.setAttribute('aria-label', on ? 'Exit fullscreen' : 'Play fullscreen');
+        setTimeout(() => window.dispatchEvent(new Event('resize')), 60);
+      });
+    })();
+
+    // Splash: 2 s reveal, 0.6 s fade, remove from DOM at 2.7 s, then tell play.js.
+    (() => {
+      const splash = document.getElementById('splash');
+      if (!splash) return;
+      setTimeout(() => splash.classList.add('fading'), 2000);
+      setTimeout(() => {
+        splash.remove();
+        window.dispatchEvent(new CustomEvent('splash-done'));
+      }, 2700);
+    })();
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
+  <script defer src="/_vercel/speed-insights/script.js"></script>
+</body>
+</html>

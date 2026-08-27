@@ -2,3 +2,11 @@
 # QC-TRACKER.md was publicly served at zamborin.com/QC-TRACKER.md until 2026-08-24.
 # Nothing at runtime fetches a .md; the only reference is a comment in shared/ads.js.
 *.md
+
+# Measuring harnesses — instruments, not the site. Kept in git because several
+# of them found bugs nothing else could and they are how a change gets
+# re-verified, but they are dev pages and have no business being served:
+# tools/portal-build.mjs was already reachable at zamborin.com/tools/, the same
+# way QC-TRACKER.md was. They run against the local dev server.
+/tools/
+

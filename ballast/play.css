@@ -1,0 +1,25 @@
+/* Ballast — per-game styles. Inherits everything from
+   ../shared/chrome.css and ../shared/tokens.css. Add only what's
+   specific to this game (custom splash, HUD chrome, etc.). */
+
+/* Splash artwork per mode. The .splash frame, cover sizing and fade all come
+   from ../shared/chrome.css; this file only supplies the image.
+
+   Desktop art is 1520 x 1200 and mobile art is 1170 x 2532, which are the two
+   frames' own aspects, so on a phone matching that aspect `cover` crops
+   nothing. Measured worst realistic cases: an iPhone SE at 375 x 667 scales to
+   width and takes 8.9% off the top and bottom; a tall 344 x 882 scales to
+   height and takes 7.8% off each side. The wordmark sits well inside both.
+   Fix the art if that is ever breached, never the CSS. */
+body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=1'); }
+body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=1'); }
+.splash {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  transition: opacity 600ms ease-out;
+  pointer-events: none;
+  z-index: 10;
+}
+.splash.fading { opacity: 0; }
