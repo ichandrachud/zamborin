@@ -34,7 +34,14 @@ const PILL = {
   gap: 10,               // between pills in a row
   iconW: 44,             // square-ish pills that hold an icon, e.g. the speaker
   fill: 'rgba(255,255,255,0.07)',
-  border: 'rgba(255,255,255,0.24)',
+  /* 0.40, raised from 0.24 on 2026-08-27. At 0.24 the border measured 2.16 to
+     2.19:1 against the Portal wash and 2.12 behind Tailwind's control band,
+     against a 3:1 bar for graphical objects, in all seventeen games at once
+     because this is one shared value. The binding ground is Tailwind's band
+     over a pale sky, where the true minimum is 0.37 at 3.02:1 — too close to
+     the bar to hold if the art ever gets lighter. 0.40 gives 3.27 there and
+     3.27 to 4.09 everywhere else, and still reads as a hairline. */
+  border: 'rgba(255,255,255,0.40)',
   borderW: 1.5,
   text: 'rgba(255,255,255,0.92)',
   textDim: 'rgba(255,255,255,0.30)',   // AA-safe against the card only as a

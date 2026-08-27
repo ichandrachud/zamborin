@@ -641,7 +641,7 @@
     const w = Math.round(ctx.measureText(label).width + fs(34)), h = fs(38);
     const x = Math.round(cx - w / 2), y = Math.round(cy - h / 2);
     ctx.fillStyle = 'rgba(255,255,255,0.07)'; roundRect(x, y, w, h, h / 2); ctx.fill();
-    ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(255,255,255,0.42)'; roundRect(x, y, w, h, h / 2); ctx.stroke();
+    ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(255,255,255,0.40)'; roundRect(x, y, w, h, h / 2); ctx.stroke();
     ctx.fillStyle = dim ? 'rgba(255,255,255,0.58)' : 'rgba(255,255,255,0.92)';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(label, cx, y + h / 2 + 1);

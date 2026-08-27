@@ -74,7 +74,7 @@ interpolate a new one.
 | **Tint 07** | `rgba(255,255,255,0.07)` | Control fill (`ZAM_UI.PILL.fill`). |
 | **Tint 10** | `rgba(255,255,255,0.10)` | Hairline (`--line-soft`). |
 | **Tint 12** | `rgba(255,255,255,0.12)` | Card and modal border. |
-| **Tint 24** | `rgba(255,255,255,0.24)` | Control border (`ZAM_UI.PILL.border`). |
+| **Tint 40** | `rgba(255,255,255,0.40)` | Control border (`ZAM_UI.PILL.border`). Raised from 0.24 on 2026-08-27: the old value measured 2.12 to 2.19:1 against a 3:1 bar in all seventeen games at once. |
 | **Tint 30** | `rgba(255,255,255,0.30)` | **Disabled control label only.** Never copy. |
 | **Ink 72** | `rgba(255,255,255,0.72)` | HUD read-outs. |
 | **Ink 82** | `rgba(255,255,255,0.82)` | Modal subtitle. |
@@ -219,7 +219,7 @@ example. Measured across all 15 games: nothing clips in full screen.
 
 ```
 PILL  h 40   font 15/700   padX 36   gap 10   iconW 44   radius h/2
-      fill Tint 07   border Tint 24 at 1.5   label Ink 92   disabled Tint 30
+      fill Tint 07   border Tint 40 at 1.5   label Ink 92   disabled Tint 30
 CTA   h 50   font 17/700   minW 210   padX 90   label #FFFFFF   radius h/2
 ```
 
@@ -335,8 +335,11 @@ demo**. Stained's does.
 - Every piece of type and every graphical object: **4.5:1 normal, 3:1 large and
   graphical.** Sweep before finalising.
 - **Hover, focus and active states are never measured by a check that runs on a
-  page at rest.** Check them explicitly. The shared PILL border measures 2.17:1
-  on every ground, fleet-wide, and is a known open item.
+  page at rest.** Check them explicitly.
+- **Measure against the ground a thing is ACTUALLY drawn on.** The PILL border
+  fix nearly shipped at 0.34 because the note recorded only the Portal wash. The
+  binding ground turned out to be Tailwind's control band over a pale sky, where
+  0.34 gives 2.77:1 and the true minimum is 0.37.
 - **Null-test any colour transform on white, grey and black first.** Two typo'd
   matrix coefficients once produced alarming, specific and entirely wrong
   findings.
