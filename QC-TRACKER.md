@@ -44,8 +44,8 @@ Delisted and NOT in scope: socket, bunny, empyrean, foldfig, pane, pins, plumb, 
 | 10 | sluice | OK | OK | OK | - | OK | OK | OK | audited 2026-08-21 night. 100/100 levels solve. Only AX left |
 | 11 | fold | OK | OK | OK | - | ~ | OK | OK | audited 2026-08-21 night. 60/60 levels solve. FO1-FO3 open |
 | 12 | mobile | OK | OK | OK | ~ | OK | OK | OK | audited 2026-08-21 night, 39/39 balance exactly. **M4 was a dead end and is fixed.** M1-M3 open |
-| 13 | zood | ~ | ! | OK | - | OK | - | OK | 2026-08-22: handle added, 9 sizes clean on load. **Z1 rotation OPEN, and `rotationSafe` now reports it** |
-| 14 | carrom | ~ | OK | OK | - | ~ | - | OK | 2026-08-22: handle added, 9 sizes clean, survives rotation. Z3 open |
+| 13 | zood | ~ | OK | OK | - | OK | - | OK | 2026-08-22: handle added, 9 sizes clean on load. **Z1 rotation CLOSED 2026-08-27** — measured on a real iPhone: the portrait gate holds and rotating back resumes the same session. `rotationSafe` still reports the latent defect, correctly |
+| 14 | carrom | ~ | OK | OK | - | OK | - | OK | 2026-08-22: handle added, 9 sizes clean, survives rotation. **Z3 closed**; portal-ready 2026-08-27 (ad hooks + mute measured, package builds and plays standalone) |
 | 15 | ludo | ~ | OK | OK | - | OK | - | OK | 2026-08-22: handle added, **Z1 FIXED**, 9 sizes clean, state survives 9 rotations |
 
 Row order matches the homepage card order.
@@ -1260,9 +1260,9 @@ Measured directly and again with a cache-busting query, both are 0: `ZQC.run` fe
 pages without `no-store`, so a page edited during a session can be read stale. Add a
 cache-buster when auditing something just changed.
 
-| Z1 | zood, ludo | **BREAKS USABILITY on a phone, and no event can recover it** | Both bake their logical size at load: `let W, H; if (MODE === 'mobile') { W = innerWidth; H = innerHeight; }`, which then drives the `--canvas-w` / `--canvas-h` CSS variables. `resizeCanvas()` re-reads the rect and fixes the backing store and the transform, so the ASPECT always agrees and the classic narrow-strip test passes, but **W and H themselves never change and neither do the CSS variables**. Measured at 812x375: loaded fresh the canvas is 500x375 in Zood and 375x375 in Ludo; **rotated into that size from portrait both collapse to 173x375, 21.3% of the width**, and dispatching `resize` AND `orientationchange` by hand recovers neither. This is P6 confirmed. **Carrom is unaffected**, because a square board sized to the smaller axis cannot get its aspect wrong. | **HALF FIXED 2026-08-22.** **Ludo is done**: `computeCanvasDims()` and `computeLayout()` were already separate pure functions and Ludo's game state lives in BOARD coordinates, not pixels, so re-running both on resize cannot corrupt a game. Measured: 21.3% to **100%** of the width after a real resize event, board rescaling 351 to 206, and **16 tokens plus the active player unchanged across 9 rotations**. It now listens on `resize`, `orientationchange`, `load` and `visualViewport`, the full set. **Zood is not fixed and see Z2.** Its `geom.rotationSafe` now reports the defect: after a real rotation it returns `false` while `aspectAgrees` returns `true`, which is exactly the pair that made this invisible to every previous check |
-| Z2 | zood | SCOPE NOTE on Z1 | Zood cannot simply recompute W and H on rotation. `COLS`, `TILE` and `MAX_ROWS` are `const`, derived from W and H at module load, and they define the bubble grid itself. Changing the logical size mid-game means rebuilding the grid and re-mapping every bubble on it, which is a redesign rather than a patch. **Ludo is more tractable**: it already has a `computeLayout()` that could be re-run. So Z1 is one finding with two different sized fixes, and the cheap options are worth weighing first: lock the orientation, or show a rotate-back hint, or accept and document. | OPEN, owner's call, and the cost is smaller than it looks: a player who rotates gets a correctly-shaped but smaller game, recoverable by rotating back or reloading. Nothing is unreachable and no state is lost |
-| Z3 | carrom | MINOR | The only game of fifteen with **no `localStorage` key at all**. It has its own inline `AudioContext` (see S4), but nothing persists, so the sound setting does not survive a reload. Every other game namespaces something under `zamborin-<game>.` | **CORRECTED 2026-08-22, and it is worse than logged.** The original entry said Carrom's sound setting does not survive a reload. There IS no setting: Carrom has procedural Web Audio with **no toggle, no mute and no storage**, and it does not load `shared/sfx.js`. It is the only game of fifteen that plays sound with no way to turn it off, which sits badly against a site whose positioning is games to help you unwind. The fix is the shared `ZSFX` toggle plus a speaker glyph, which is a small feature rather than a one-liner |
+| Z1 | zood, ludo | **BREAKS USABILITY on a phone, and no event can recover it** | Both bake their logical size at load: `let W, H; if (MODE === 'mobile') { W = innerWidth; H = innerHeight; }`, which then drives the `--canvas-w` / `--canvas-h` CSS variables. `resizeCanvas()` re-reads the rect and fixes the backing store and the transform, so the ASPECT always agrees and the classic narrow-strip test passes, but **W and H themselves never change and neither do the CSS variables**. Measured at 812x375: loaded fresh the canvas is 500x375 in Zood and 375x375 in Ludo; **rotated into that size from portrait both collapse to 173x375, 21.3% of the width**, and dispatching `resize` AND `orientationchange` by hand recovers neither. This is P6 confirmed. **Carrom is unaffected**, because a square board sized to the smaller axis cannot get its aspect wrong. | **HALF FIXED 2026-08-22.** **Ludo is done**: `computeCanvasDims()` and `computeLayout()` were already separate pure functions and Ludo's game state lives in BOARD coordinates, not pixels, so re-running both on resize cannot corrupt a game. Measured: 21.3% to **100%** of the width after a real resize event, board rescaling 351 to 206, and **16 tokens plus the active player unchanged across 9 rotations**. It now listens on `resize`, `orientationchange`, `load` and `visualViewport`, the full set. **Zood is not fixed and see Z2.** Its `geom.rotationSafe` now reports the defect: after a real rotation it returns `false` while `aspectAgrees` returns `true`, which is exactly the pair that made this invisible to every previous check. **MITIGATED FOR ZOOD 2026-08-27, measured on a real iPhone at zamborin.com/zood/**: rotating to landscape raises the portrait gate, and turning the handset back upright restores the game *at the exact same point*. The gate works precisely BECAUSE the collapsed box is only ever on screen while `.play-row` is hidden — `visibility: hidden` keeps the layout, so the wrap does still shrink to 21.3% behind the note, and rotating back recomputes it against the portrait viewport with the baked grid untouched. Nothing is torn down, so no state is lost. This is the first DEVICE measurement of Z1; every previous one was a by-hand resize with the game visible, which is what made it look unrecoverable |
+| Z2 | zood | SCOPE NOTE on Z1 | Zood cannot simply recompute W and H on rotation. `COLS`, `TILE` and `MAX_ROWS` are `const`, derived from W and H at module load, and they define the bubble grid itself. Changing the logical size mid-game means rebuilding the grid and re-mapping every bubble on it, which is a redesign rather than a patch. **Ludo is more tractable**: it already has a `computeLayout()` that could be re-run. So Z1 is one finding with two different sized fixes, and the cheap options are worth weighing first: lock the orientation, or show a rotate-back hint, or accept and document. | **CLOSED 2026-08-27 — the Z2 redesign is NOT needed.** The owner's call was the cheap option, the portrait gate, and the phone test above confirms it: a rotating player never sees the collapsed board, and turning back resumes the same session. Rebuilding the grid on rotation would buy nothing a hidden `.play-row` does not already buy. **One residual, and it is REASONING, not a measurement:** the gate is scoped `(pointer: coarse) and (orientation: landscape) and (max-height: 500px)`, which deliberately lets landscape TABLETS through. A tablet that rotates portrait to landscape should still hit the baked-grid collapse, because `pointer: coarse` puts it in mobile mode and W/H bake at load. Not reproducible in the preview pane, which cannot emulate a coarse pointer at tablet width — so it stands as an untested inference and NOT as a finding |
+| Z3 | carrom | MINOR | The only game of fifteen with **no `localStorage` key at all**. It has its own inline `AudioContext` (see S4), but nothing persists, so the sound setting does not survive a reload. Every other game namespaces something under `zamborin-<game>.` | **CORRECTED 2026-08-22, and it is worse than logged.** The original entry said Carrom's sound setting does not survive a reload. There IS no setting: Carrom has procedural Web Audio with **no toggle, no mute and no storage**, and it does not load `shared/sfx.js`. It is the only game of fifteen that plays sound with no way to turn it off, which sits badly against a site whose positioning is games to help you unwind. The fix is the shared `ZSFX` toggle plus a speaker glyph, which is a small feature rather than a one-liner. **FIXED in `9bdb802`, and re-measured 2026-08-27**: Carrom keeps its own bespoke synthesis (it is good, and specific to this game) and gained the off switch around it — `zamborin-carrom.sound`, a flat vector speaker drawn last in `loop()` so it sits above every overlay in every scene, and a hit test that runs before the gameplay gate so it is reachable while the AI is shooting. Measured through the iframe harness: a tap flips `soundOn` true to false to true and writes '0' then '1'. Z3 asked for the shared `ZSFX` toggle; what shipped is the same behaviour over the game's own audio, which is the better trade |
 | Z4 | carrom, ludo | MINOR | Em dashes in strings drawn to the player, not comments: carrom 3 ("Queen pocketed — cover it with an own piece next shot.", " covered the Queen — claimed.", "Cover missed — Queen returned to centre.") and ludo 2 ("No legal moves — ", "No move with remaining die — turn ends."). Same family as FO1 and B2, both of which were recast. | **FIXED 2026-08-22.** All five recast with a full stop. String-literal count is now 0 in all three, matching FO1 and B2 |
 | Z5 | zood, carrom, ludo | MINOR, and it is why FN is still blank | **None of the three exposes a debug handle**, so unlike the other twelve there is no way to drive levels, assert on state, or measure a card. They are the only games on the site that cannot be measured, which is precisely the condition that hid every card bug found this week. Giving each a small handle is the enabling work for their FN, AX and card columns. | **FIXED 2026-08-22.** `window.__zood`, `window.__carrom` and `window.__ludo` all exist, read-only apart from Ludo's `start()` and `refit()`. All fifteen games can now be measured. Swept 3 games x 9 sizes on load: **0 aspect failures, 0 layout failures**, worst fill 46.2% which is the correct letterbox of a square board in a landscape window. **One bug in my own handle, caught immediately:** Ludo reported all four players `finished` before a game started, because `allFinished()` is `every()` and `every` on an empty array is TRUE. Gated on there being tokens. A vacuous truth in a debug handle is how a future sweep gets a confident wrong answer |
 
@@ -1737,3 +1737,69 @@ scrolls and reaches its footer.
   through a same-origin iframe harness; use `resize_window` with explicit width and height.
   **`resize_window` does not dispatch a `resize` event**, so a rotation test must fire one
   by hand or it is measuring nothing.
+
+---
+
+## Carrom: portal readiness, 2026-08-27
+
+The fourth game prepared for GameDistribution, after Tailwind, Ludo and Zood. Recorded
+here rather than in the issue table because none of it is a defect — it is the packaging
+work every game needs before a portal will host it.
+
+**Z3 was already done.** The brief for this session said Carrom had "no toggle, no
+storage"; `9bdb802` had in fact given it both. Worth stating plainly, because the cost of
+believing a stale note is a day spent rebuilding something that works. The re-measurement
+is in the Z3 row.
+
+**Splash needs no box-shape fix, and this is the one place a square board pays off.**
+Tailwind and Zood both needed `@media (orientation: landscape)` art swaps, because MODE
+goes mobile below 768px on WIDTH while the splash crops on SHAPE, and a publisher's narrow
+landscape iframe lands in the gap. Carrom cannot reach that gap: `--canvas-w` and
+`--canvas-h` are both `S`, so the contain-fitted `.game-wrap` is square at every viewport,
+and a square 2048x2048 splash `cover`-fits a square box with zero crop. Measured, not
+assumed — 390x844, 800x600, 720x405 and 1280x800 all return a square wrap:
+
+| viewport | mode | wrap | square |
+|---|---|---|---|
+| 390x844   | mobile  | 390x390 | yes |
+| 800x600   | desktop | 600x600 | yes |
+| 720x405   | mobile  | 405x405 | yes |
+| 1280x800  | desktop | 600x600 | yes |
+
+**Ad hooks.** `GD.show()` / `GD.due()` on the house pattern, at the two idle points:
+`startMatch()` and `advanceAfterBoard()`. Both are idle by construction — `newBoard()`
+leaves the scene in `aiming` with the user to play and the AI never opens a board, so no
+striker is in flight and no think timer is pending. Carrom guards BOTH sites with `due()`
+where Zood leaves its preroll unconditional: `lastAdAt` starts at `-Infinity` so the first
+Start of a session always shows the preroll, and what the guard removes is the player who
+starts, backs out and starts again being sold two ads in ten seconds.
+
+**Measured, through a same-origin iframe harness with `requestAnimationFrame` replaced by
+a manual pump.** The pane never paints, so the usual harness gives geometry and nothing
+else; but `loop()` is entirely frame-driven and steps a fixed `SUBSTEPS` per call, so
+driving the callback by hand advances the physics deterministically and fast. That is what
+made the ad path testable at all:
+
+| check | result |
+|---|---|
+| speaker tap flips sound and persists | true to false to true, storage '0' then '1' |
+| identical break shot, sound on | **32 oscillators** over 240 frames |
+| identical break shot, `gd-pause` raised | **0 oscillators** over 240 frames |
+| player's own preference after the ad mute | `soundOn` true, stored '1' — untouched |
+| preroll on Start, with a stubbed `gdsdk` | `showAd()` called once, `due` flips true to false |
+| same file with NO `gdsdk` (i.e. zamborin.com) | 0 ads, game starts, zero errors |
+
+The 32-versus-0 pair is the point. A mute test that only reports 0 is worthless — it reads
+the same whether the mute works or the shot never touched a piece — so the unmuted arm was
+run FIRST, on the identical shot, to prove the counter can rise.
+
+**Package builds and plays.** `node tools/portal-build.mjs carrom --no-sdk` produced 7
+files at 472K first try; the manifest derivation needed nothing new, because Carrom holds
+one splash and no `model.js`. Loaded straight from `dist/carrom-local/index.html` with its
+real relative paths: `play.js` runs, `chrome.css` resolves, the canvas fills the frame,
+and **the splash is present at load and gone by 4.2s** — the two-IIFE trap is removed
+cleanly, which is the failure that ships a package that looks perfect and cannot be played.
+
+**Still to do, and both are dashboard clicks rather than code:** the GD entry itself (which
+is what mints the Game ID that `GAMES` in `tools/portal-build.mjs` needs before an
+uploadable package can be built) and the three JPG thumbnails.

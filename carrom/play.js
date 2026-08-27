@@ -183,6 +183,39 @@
     soundOn = on;
     try { localStorage.setItem(SND_KEY, on ? '1' : '0'); } catch (e) {}
   }
+
+  /* ADS. GameDistribution hosts its own copy and requires a preroll and a
+     midroll. Nothing here fires anywhere else, because `gdsdk` only exists on a
+     page that loaded their SDK — so this file is byte-identical on zamborin.com
+     and in the portal package, which is what their 2.6.4 asks for.
+
+     Both call sites are IDLE by construction: the tap that starts a match, and
+     the tap that moves on from a finished board. `newBoard()` leaves the scene
+     in 'aiming' with the user to play — the AI never opens a board — so no shot
+     is in flight and no think timer is pending at either. An advertisement can
+     therefore never interrupt a striker mid-air or make the AI fire the instant
+     it returns. */
+  let lastAdAt = -Infinity, adSilent = false, adsShown = 0;
+  const GD = {
+    show() {
+      if (!window.gdsdk || typeof window.gdsdk.showAd !== 'function') return;
+      lastAdAt = performance.now();
+      adsShown++;
+      try { window.gdsdk.showAd(); } catch (e) { /* never throw into a handler */ }
+    },
+    due() { return performance.now() - lastAdAt > 120000; },
+  };
+  /* `due()` guards BOTH sites, where Zood leaves its preroll unconditional.
+     `lastAdAt` starts at -Infinity, so the first Start of a session always shows
+     the preroll; what the guard removes is the player who starts a match, backs
+     out to the menu and starts again, who would otherwise be sold two ads in ten
+     seconds. A Carrom board runs minutes, so nothing legitimate is lost. */
+
+  // Silenced while an advertisement runs. NOT setSound(false), which writes to
+  // localStorage and would overwrite the player's own saved preference.
+  window.addEventListener('gd-pause',  () => { adSilent = true; });
+  window.addEventListener('gd-resume', () => { adSilent = false; });
+
   const MAX_SOUNDS_PER_FRAME = 5;
   function audio() {
     if (!audioCtx) {
@@ -216,7 +249,7 @@
   //   2) overlaid damped sine at the body's resonant frequency — the wood "ring"
   // Both with very fast attack and short decay so it doesn't ring like a chime.
   function playWood(centerFreq, decay, gain, options) {
-    if (!soundOn) return;
+    if (!soundOn || adSilent) return;
     if (soundsThisFrame >= MAX_SOUNDS_PER_FRAME) return;
     const ctx = audio();
     if (!ctx) return;
@@ -686,6 +719,7 @@
   }
   function startMatch() {
     T().gameStart(); T().levelStart(1);
+    if (GD.due()) GD.show();            // preroll: the tap that starts a match
     userBoards = 0; aiBoards = 0;
     boardNum = 1;
     newBoard();
@@ -698,6 +732,7 @@
   function advanceAfterBoard() {
     if (tournamentComplete()) { scene = 'tournament-over'; T().levelComplete(1, userBoards); return; }
     boardNum++;
+    if (GD.due()) GD.show();            // midroll: between boards, never during
     newBoard();
   }
 
@@ -1238,10 +1273,13 @@
      that rather than assuming it. */
   window.__carrom = {
     get state() {
-      return { scene, mode, difficulty, currentPlayer, boardNum, soundOn,
+      return { scene, mode, difficulty, currentPlayer, boardNum, soundOn, adSilent,
                userBoards, aiBoards, userPocketed, aiPocketed,
                queenClaimedBy, queenPocketedBy, lastBoardWinner };
     },
+    // The ad path, so a portal build can be asserted rather than eyeballed:
+    // that the preroll fires on Start, and that the 2-minute guard then arms.
+    get ads() { return { shown: adsShown, due: GD.due(), silent: adSilent }; },
     get geom() {
       const r = canvas.getBoundingClientRect();
       return { css: Math.round(r.width) + 'x' + Math.round(r.height),
