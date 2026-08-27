@@ -44,7 +44,7 @@ That must return nothing.
 
 ## Shipping a game
 
-A game is not shipped until all six are done. Doing the first and stopping is
+A game is not shipped until all seven are done. Doing the first and stopping is
 how a finished game ends up live, indexable and linked from nowhere.
 
 1. Card added to the homepage grid in `index.html`, using `images/<game>-teaser.jpg`
@@ -54,6 +54,8 @@ how a finished game ends up live, indexable and linked from nowhere.
 4. `/guides/<game>/` added to `sitemap.xml` and to the `/guides/` hub page
 5. A link from the game page **to its own guide** (see below)
 6. An entry in `llms.txt`
+7. **Sitemap resubmitted in Search Console** once the deploy is live:
+   Indexing → Sitemaps → type `sitemap.xml` → SUBMIT
 
 Every game page links to its guide, and every guide links back. The guides are
 the long-tail search asset; for a long time all twelve linked back to their game
@@ -77,6 +79,14 @@ Every entry carries `<lastmod>`. Google largely ignores `changefreq` and
 without updating it means the change is invisible for weeks.
 
 **Updating `lastmod` is part of shipping, not a follow-up.**
+
+**So is resubmitting it.** A `lastmod` only does anything once Google re-reads
+the file, and it will not come back on its own for a site this young. On
+2026-08-25 Search Console showed the sitemap last read on 22 July, when it held
+19 URLs. It held 39 by then — so Prism, Needle, Kaleido, Stained, Tailwind and
+all five of their guides had never been declared to Google at all. Half the
+catalogue was invisible with nothing broken and no error anywhere. Resubmitting
+the same sitemap re-queues it, is safe to repeat, and takes five seconds.
 
 ## Cache busting
 
