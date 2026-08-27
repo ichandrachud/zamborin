@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Ricochet strategy: how to break the wall down — Zamborin</title>
+  <meta name="description" content="A practical Ricochet strategy guide: why a shallow angle beats a straight shot, how to read a mirror before you fire, when a mirror is worth breaking, why the first ball to land decides your next turn, and what actually ends a run." />
+  <meta name="theme-color" content="#0E1726" />
+  <link rel="canonical" href="https://zamborin.com/guides/ricochet/" />
+  <link rel="icon" type="image/svg+xml" href="/images/zamborin-favicon.svg?v=2" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:site_name" content="Zamborin Games" />
+  <meta property="og:url" content="https://zamborin.com/guides/ricochet/" />
+  <meta property="og:title" content="Ricochet strategy: how to break the wall down" />
+  <meta property="og:description" content="Why a shallow angle collects five times what a straight shot does, how to read a mirror before you fire, and what actually ends a run." />
+  <meta property="og:image" content="https://zamborin.com/images/ricochet-og.jpg" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Ricochet strategy: how to break the wall down" />
+  <meta name="twitter:description" content="A practical strategy guide to Ricochet, the ball-bouncing brick game." />
+  <meta name="twitter:image" content="https://zamborin.com/images/ricochet-og.jpg" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../shared/tokens.css?v=1" />
+  <link rel="stylesheet" href="../../shared/chrome.css?v=20" />
+  <style>
+    .guide { max-width: 760px; margin: 0 auto; padding: 40px 24px 80px; color: var(--text-dim); line-height: 1.7; font-size: 17px; }
+    .guide .crumbs { font-size: 14px; margin-bottom: 22px; color: var(--text-dim); }
+    .guide .crumbs a { color: #4DC3FF; text-decoration: none; display: inline-block; padding: 4px 0; }  /* W18: 14px type gives a 17px link, under the 24px of WCAG 2.5.8. These are
+       navigation, not links inside a sentence, so the inline exemption does not
+       apply. inline-block is what makes the padding count toward height. */
+    .guide h1 { font-size: 38px; color: var(--text); font-weight: 800; margin: 0 0 6px; letter-spacing: -0.5px; line-height: 1.15; }
+    .guide .lede { font-size: 19px; color: var(--text); margin: 14px 0 8px; }
+    .guide h2 { font-size: 23px; color: var(--text); font-weight: 700; margin: 38px 0 10px; letter-spacing: -0.2px; }
+    .guide p { margin: 12px 0; }
+    .guide a { color: #4DC3FF; }
+    .guide strong { color: var(--text); font-weight: 600; }
+    .guide ul { margin: 12px 0; padding-left: 22px; }
+    .guide li { margin: 8px 0; }
+    .guide .cta { display: inline-block; margin-top: 8px; background: #4DC3FF; color: #06121e; font-weight: 700; text-decoration: none; padding: 13px 26px; border-radius: 10px; }
+    .guide .playbox { margin: 36px 0 8px; padding: 22px 24px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09); border-radius: 14px; }
+    .guide .playbox p { margin: 0 0 14px; color: var(--text); font-weight: 600; }
+    .guide .more { margin-top: 40px; padding-top: 22px; border-top: 1px solid rgba(255,255,255,0.09); font-size: 16px; }
+    /* W18: these are a row of navigation links formatted as a paragraph, not
+
+       links inside prose, so the inline exemption does not cover them. 15px type
+
+       gave an 18px target against the 24px of WCAG 2.5.8. */
+
+    .guide .more a { display: inline-block; padding: 4px 0; }
+    .guide table { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 16px; }
+    .guide th, .guide td { text-align: left; padding: 9px 12px; border-bottom: 1px solid rgba(255,255,255,0.09); }
+    .guide th { color: var(--text); font-weight: 700; }
+    @media (max-width: 720px) { .guide { padding: 28px 18px 56px; font-size: 16px; } .guide h1 { font-size: 30px; } }
+  </style>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "Ricochet strategy: how to break the wall down",
+    "about": "Ricochet ball-bouncing brick game strategy",
+    "description": "A practical Ricochet strategy guide: why a shallow angle beats a straight shot, how to read a mirror before you fire, when a mirror is worth breaking, why the first ball to land decides your next turn, and what actually ends a run.",
+    "author": { "@type": "Organization", "name": "Zamborin Games" },
+    "publisher": { "@type": "Organization", "name": "Zamborin Games", "url": "https://zamborin.com/" },
+    "mainEntityOfPage": "https://zamborin.com/guides/ricochet/"
+  }
+  </script>
+  <meta name="google-adsense-account" content="ca-pub-9207689324865969">
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9207689324865969" crossorigin="anonymous"></script>
+</head>
+<body class="lobby-page">
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="Zamborin Games home">
+      <img class="brand-logo" src="/images/zamborin-logo.svg?v=2" alt="Zamborin" />
+    </a>
+  </header>
+
+  <main class="guide">
+    <nav class="crumbs"><a href="/">Home</a> &rsaquo; <a href="/guides/">Guides</a> &rsaquo; Ricochet</nav>
+
+    <h1>Ricochet strategy: how to break the wall down</h1>
+    <p class="lede">Nearly everyone plays Ricochet the same way at first: point roughly at the biggest pile of blocks, fire, watch. That works for a while and then stops, and it stops for a reason worth understanding. The gap between a careless shot and a considered one is about five times the damage, and it is visible before you release.</p>
+
+    <h2>Shallow beats steep, every time</h2>
+    <p>A ball fired straight up goes up, hits something, and comes almost straight back down. It touches a handful of blocks on the way. A ball fired shallow, close to the twelve degree minimum, travels sideways under a whole row, clips the underside of everything in it, comes off a wall and rakes back along the row above.</p>
+    <p>That is the single biggest improvement available to a new player. If you take nothing else from this guide: <strong>aim flatter than feels natural.</strong> The dotted line shows you the first bounce and one more after it, and that is deliberately all it shows. The rest is the read you are being asked to make.</p>
+
+    <h2>The first ball to land is next turn's launcher</h2>
+    <p>Your stream fires from wherever the first ball came to rest, not from where you fired last time. That is easy to miss for a dozen turns and then obvious forever.</p>
+    <p>It means a turn has two outcomes, not one: the damage you did, and the position you inherit. A shot that clears four blocks but parks you in a corner under a mirror can be worse than a shot that clears two and leaves you under an open lane. Watch where the first ball settles, not where the last one does.</p>
+
+    <h2>Reading a mirror before you fire</h2>
+    <p>Mirrors turn a ball ninety degrees. A ball going straight up leaves a mirror going sideways. That is the whole rule, and it is easier to use than it sounds once you stop thinking of them as obstacles.</p>
+    <p>A mirror above a crowded pocket is a gift: thread a ball into it and the deflection rakes along a row you could not have reached directly. A mirror low on the board, over open space, mostly costs you a shot. The difference is worth a second of looking before you release.</p>
+
+    <h2>When to break a mirror</h2>
+    <p>Mirrors can be broken, but they cost several times what a block costs. Most of the time that is a bad trade and you should route around them.</p>
+    <p>There is one moment when it is the right call. A mirror never clears itself, so a mirror descending toward the red line is a problem that only gets more expensive to solve. If one is two or three rows off the line and your stream is large, spending a turn on it is cheaper than losing the run. <strong>Mirrors are the thing that actually ends most runs</strong>, and the players who last longest are the ones who deal with them early rather than hoping.</p>
+
+    <h2>Rocks are not the enemy</h2>
+    <p>Pale stone never breaks, and it never ends your run. It rides down the board, shapes where your shots can go, and slides away at the line. Treat a rock as terrain rather than as a threat: plan around it, and if it is sitting somewhere awkward, remember it will be gone in a few turns.</p>
+
+    <h2>Take the pickups early</h2>
+    <p>Every gold token adds a ball to your stream for the rest of the run. That makes an early pickup worth far more than a late one, because every turn afterwards is larger.</p>
+    <p>On the first few levels it is usually right to spend a whole turn collecting a token you could have ignored in favour of a couple of blocks. The blocks will still be there. The compounding will not.</p>
+
+    <h2>Read the turn counter</h2>
+    <p>The read-out tells you how many turns before the lowest piece crosses the line, if you clear nothing. When it reaches three it turns amber, and at one it turns red. That number is your budget: it tells you whether this is a turn for damage anywhere on the board, or a turn that has to be spent on the bottom row.</p>
+
+    <h2>Small things worth knowing</h2>
+    <ul>
+      <li>The number on a block is how many more hits it needs, not how many it has taken.</li>
+      <li>Colour is a band, not an exact value. It tells you roughly how expensive a region is at a glance.</li>
+      <li>A ball can hit the same block many times in one turn. That is the point of a good angle.</li>
+      <li>A row only leaves the board when it is completely empty, so one stubborn block holds a whole row down.</li>
+      <li>Arrow keys nudge the aim by a fraction of a degree if you want a precise angle, and space fires.</li>
+    </ul>
+
+    <h2>The short version</h2>
+    <ul>
+      <li>Aim flatter than feels natural.</li>
+      <li>Watch where the <em>first</em> ball lands, because that is where you fire from next.</li>
+      <li>Use mirrors to reach pockets you cannot hit directly.</li>
+      <li>Break a mirror only when it is close to the line, and do it before it gets there.</li>
+      <li>Take pickups early. A ball gained on level five plays for the whole run.</li>
+    </ul>
+
+    <div class="playbox">
+      <p>Ready to put it to work?</p>
+      <a class="cta" href="/ricochet/">Play Ricochet &rarr;</a>
+    </div>
+
+    <p class="more">More games: <a href="/tailwind/">Tailwind</a> &middot; <a href="/zood/">Zood</a> &middot; <a href="/">all Zamborin games</a> &middot; <a href="/guides/">all guides</a></p>
+  </main>
+
+  <footer class="site-footer">
+    <nav class="site-foot-nav">
+      <a href="/about/">About</a>
+      <a href="/guides/">Guides</a>
+      <a href="/privacy/">Privacy</a>
+      <a href="/contact/">Contact</a>
+    </nav>
+    <span>© 2026 Zamborin. Games created by Indrajeet Chandrachud.</span>
+  </footer>
+  <script defer src="/_vercel/insights/script.js"></script>
+  <script defer src="/_vercel/speed-insights/script.js"></script>
+</body>
+</html>

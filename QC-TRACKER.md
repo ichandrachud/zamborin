@@ -4,7 +4,7 @@ Living record. One row per live game. Started 2026-08-20.
 
 Status key: `-` not yet checked | `OK` passed | `!` issue logged | `~` partial / needs re-check | `n/a` not applicable
 
-## Roster (15 live games)
+## Roster (16 live games)
 
 Confirmed against `index.html` (card grid) and `sitemap.xml` on 2026-08-20. Both
 lists agree exactly, and every game has a `/guides/<game>/` page.
@@ -15,6 +15,13 @@ from the homepage, 404 page, sitemap, llms.txt, about, guides index and two cros
 The folder stays in the repo. See branch `delist-socket`.
 
 Delisted and NOT in scope: socket, bunny, empyrean, foldfig, pane, pins, plumb, tarmac, wire.
+
+**SHIPPED 2026-08-27: ricochet.** Roster is now 16. All seven CONTRIBUTING
+steps done, `noindex` removed, homepage card live in the `.arcade` group (never
+`.games-row` — the H1 there promises nothing to lose, and Ricochet is a score
+chase you can lose). Splash, OG and teaser art all in place and the mobile
+wordmark measured at 74.2% of width against an 82.2% limit for that aspect.
+Step 7, resubmitting the sitemap in Search Console, is the owner's.
 
 ## Checklist columns
 

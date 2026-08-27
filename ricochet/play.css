@@ -1,0 +1,22 @@
+/* Ricochet — per-game styles. Everything else comes from ../shared/chrome.css
+   and ../shared/tokens.css. */
+
+/* The board is driven by drags. Without this a swipe scrolls the document out
+   from under the finger and the aim never registers. */
+#game { touch-action: none; }
+
+/* Splash artwork per mode. The .splash frame, cover sizing and the fade all
+   come from ../shared/chrome.css; this file only supplies the image.
+
+   Desktop art is 1520 x 1200 and mobile art is 1170 x 2532, the two frames'
+   own aspects, so on a 390 x 844 phone cover crops nothing at all.
+
+   WORDMARK SAFE ZONE, MEASURED off the pixels rather than the eye: the
+   wordmark occupies x 164 to 1032 of 1170, which is 868px or 74.2% of the
+   width. The house limit for this aspect is 0.38 / (1170/2532) = 82.2%, so it
+   clears by 8 points. Worst realistic handset is 360 x 800, where cover takes
+   15px off each side and leaves 149px of clearance.
+
+   FIX THE ART, NEVER THE CSS, if a crop ever eats the wordmark. */
+body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=1'); }
+body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=1'); }

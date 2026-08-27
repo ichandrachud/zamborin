@@ -24,6 +24,11 @@ Thumbs.db
 # web repo.
 /lacerta 2/
 /og-images/
+# ANY game's splash-images folder, not just orbit's. These hold the working
+# exports a production splash was cut from, nothing references them, and every
+# one of them was being served publicly. Ricochet arrived with one on
+# 2026-08-27 and the orbit-only rule did not catch it.
+*/splash-images/
 /orbit/splash-images/
 /splash-images updated/
 fold/Images/
