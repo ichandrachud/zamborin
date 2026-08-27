@@ -49,114 +49,36 @@
       width: 100%;
       box-sizing: border-box;
     }
-    .games-row {
-      display: flex;
-      flex-direction: column;
-      gap: 28px;
-    }
+    /* ONE grid, one card, all seventeen games. The alternating full-width
+       card system was replaced on 2026-08-25: at 12 games it was already
+       4,500px of page before the arcade group even started.
+       Three columns, degrading to two and then one. */
+    .game-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
     .game-card {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      background: #14213D;
-      border-radius: 22px;
-      overflow: hidden;
-      text-decoration: none;
-      color: inherit;
-      box-shadow:
-        inset 0 0 0 1px rgba(255,255,255,0.06),
-        0 18px 36px -16px rgba(0,0,0,0.55);
+      display: grid; grid-template-columns: 1fr;
+      background: #14213D; border-radius: 16px; overflow: hidden;
+      text-decoration: none; color: inherit;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06), 0 12px 24px -14px rgba(0,0,0,0.5);
       transition: box-shadow .18s ease;
-      min-height: 380px;
     }
     .game-card:hover {
-      box-shadow:
-        inset 0 0 0 1px rgba(255,255,255,0.10),
-        0 28px 48px -16px rgba(0,0,0,0.65),
-        0 0 0 1px rgba(216, 82, 63, 0.30);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.10), 0 18px 34px -14px rgba(0,0,0,0.62),
+                  0 0 0 1px rgba(216, 82, 63, 0.30);
     }
-    .game-card-image {
-      background-size: cover;
-      background-position: center;
-      background-color: #0E1726;
-      grid-column: 1;
-      grid-row: 1;
-    }
-    .game-card-body {
-      padding: 48px 52px;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      gap: 16px;
-      box-sizing: border-box;
-      grid-column: 2;
-      grid-row: 1;
-    }
-    /* Alternate: even cards put the image on the right. */
-    .game-card:nth-child(even) .game-card-image {
-      grid-column: 2;
-    }
-    .game-card:nth-child(even) .game-card-body {
-      grid-column: 1;
-    }
-    .game-card-name {
-      font-size: 40px;
-      font-weight: 800;
-      letter-spacing: -0.6px;
-      color: var(--text);
-      line-height: 1.05;
-    }
-    .game-card-desc {
-      font-size: 16px;
-      font-weight: 500;
-      line-height: 1.6;
-      color: var(--text-dim);
-      max-width: 480px;
-    }
-    .game-card-cta {
-      margin-top: 12px;
-      align-self: flex-start;
-      background: var(--accent);
-      color: #FFFFFF;
-      padding: 12px 24px;
-      border-radius: 999px;
-      font-size: 14px;
-      font-weight: 700;
-      letter-spacing: 0.4px;
-      transition: background .15s ease;
-    }
-    .game-card:hover .game-card-cta {
-      background: var(--accent-hover);
-    }
+    .game-card:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 3px; }
+    .game-card-image { aspect-ratio: 16 / 10; background-size: cover; background-position: center; background-color: #0E1726; }
+    .game-card-body { padding: 18px 20px 22px; display: flex; flex-direction: column; gap: 8px; box-sizing: border-box; }
+    .game-card-name { font-size: 23px; font-weight: 800; letter-spacing: -0.4px; color: var(--text); line-height: 1.05; }
+    /* 16px, not the 13.5 the old mini-card used: a card description is content
+       copy, and the site-wide floor is 16. See DESIGN-SYSTEM.md section 8. */
+    .game-card-desc { font-size: 16px; font-weight: 500; line-height: 1.55; color: var(--text-dim); }
 
-    /* Arcade & board games — a smaller, secondary section under the puzzle line. */
-    .group-title { font-size: 14px; font-weight: 800; letter-spacing: 1.8px; text-transform: uppercase; color: var(--text-mute); margin: 12px 0 -10px; }
-    .arcade { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-    .mini-card { display: grid; grid-template-columns: 1fr; background: #14213D; border-radius: 16px; overflow: hidden; text-decoration: none; color: inherit; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06), 0 12px 24px -14px rgba(0,0,0,0.5); transition: box-shadow .18s ease; }
-    .mini-card:hover { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.10), 0 18px 34px -14px rgba(0,0,0,0.62); }
-    .mini-card-image { aspect-ratio: 16 / 10; background-size: cover; background-position: center; background-color: #0E1726; }
-    .mini-card-body { padding: 18px 20px 22px; display: flex; flex-direction: column; gap: 7px; box-sizing: border-box; }
-    .mini-card-name { font-size: 23px; font-weight: 800; letter-spacing: -0.4px; color: var(--text); line-height: 1.05; }
-    .mini-card-desc { font-size: 13.5px; font-weight: 500; line-height: 1.5; color: var(--text-dim); }
+    @media (max-width: 980px) { .game-grid { grid-template-columns: repeat(2, 1fr); } }
 
     @media (max-width: 720px) {
       .lobby { padding: 32px 16px 24px; gap: 24px; }
-      .games-row { gap: 20px; }
-      .game-card { grid-template-columns: 1fr; min-height: 0; }
-      .game-card-image,
-      .game-card:nth-child(even) .game-card-image {
-        aspect-ratio: 16 / 10;
-        grid-column: 1; grid-row: 1;
-      }
-      .game-card-body,
-      .game-card:nth-child(even) .game-card-body {
-        padding: 26px 22px 30px;
-        gap: 14px;
-        grid-column: 1; grid-row: 2;
-      }
-      .game-card-name { font-size: 30px; }
-      .game-card-desc { font-size: 16px; }
-      .arcade { grid-template-columns: 1fr; gap: 14px; }
     }
+    @media (max-width: 620px) { .game-grid { grid-template-columns: 1fr; gap: 14px; } }
 
     .lobby-foot {
       text-align: center;
@@ -228,16 +150,15 @@
   <main class="lobby">
     <section class="lobby-intro">
       <h1>Games to help you unwind</h1>
-      <p>Something to open on the way home instead of the feed. Every game here is calm on purpose: no timers, no streaks, nothing to lose, and always a way through.</p>
+      <p>Something to open on the way home instead of the feed. Clever rather than mindless, unhurried by design, and never a dead end.</p>
     </section>
 
-    <div class="games-row">
+    <div class="game-grid">
       <a class="game-card" href="./orbit/">
         <div class="game-card-image" style="background-image: url('./images/orbit-teaser.jpg?v=4')"></div>
         <div class="game-card-body">
           <div class="game-card-name">Orbit</div>
           <div class="game-card-desc">Spin the concentric rings so light runs from the centre out to every bulb. A calm, clever puzzle that resolves into a symmetric mandala.</div>
-          <div class="game-card-cta">Play now</div>
         </div>
       </a>
       <a class="game-card" href="./bloom/">
@@ -245,7 +166,6 @@
         <div class="game-card-body">
           <div class="game-card-name">Bloom</div>
           <div class="game-card-desc">Rotate the pipes to carry water from the tap to every flower. A calm, tidy irrigation puzzle that grows more tangled as the garden opens.</div>
-          <div class="game-card-cta">Play now</div>
         </div>
       </a>
       <a class="game-card" href="./tailwind/">
@@ -253,7 +173,6 @@
         <div class="game-card-body">
           <div class="game-card-name">Tailwind</div>
           <div class="game-card-desc">A rubber-band catapult flings an aeroplane and you see how far it goes. Six aircraft, and a fresh wind each attempt that decides your angle.</div>
-          <div class="game-card-cta">Play now</div>
         </div>
       </a>
       <a class="game-card" href="./stained/">
@@ -261,7 +180,6 @@
         <div class="game-card-body">
           <div class="game-card-name">Stained</div>
           <div class="game-card-desc">Lay panes of coloured glass over a dark window so the overlaps make the colours the goal asks for. Light it to see how close you came.</div>
-          <div class="game-card-cta">Play now</div>
         </div>
       </a>
       <a class="game-card" href="./kaleido/">
@@ -269,7 +187,6 @@
         <div class="game-card-body">
           <div class="game-card-name">Kaleido</div>
           <div class="game-card-desc">A rose window with panes missing, and no two of the same colour may touch. Fill one wedge and it appears right round the wheel at once.</div>
-          <div class="game-card-cta">Play now</div>
         </div>
       </a>
       <a class="game-card" href="./prism/">
@@ -277,7 +194,6 @@
         <div class="game-card-body">
           <div class="game-card-name">Prism</div>
           <div class="game-card-desc">Split white light through a prism into red, yellow and blue, then light every gem in the colour it wants. Mix two beams for orange and green.</div>
-          <div class="game-card-cta">Play now</div>
         </div>
       </a>
       <a class="game-card" href="./needle/">
@@ -285,7 +201,6 @@
         <div class="game-card-body">
           <div class="game-card-name">Needle</div>
           <div class="game-card-desc">Join every pair of pins with a thread. Most puzzles ask you to keep the lines apart; this one needs them to cross to be sewn in at all.</div>
-          <div class="game-card-cta">Play now</div>
         </div>
       </a>
       <a class="game-card" href="./untangle/">
@@ -293,7 +208,6 @@
         <div class="game-card-body">
           <div class="game-card-name">Untangle</div>
           <div class="game-card-desc">Drag the dots until no two edges cross. Endless levels that grow from a gentle tutorial into Master tangles that take real patience.</div>
-          <div class="game-card-cta">Play now</div>
         </div>
       </a>
       <a class="game-card" href="./tessera/">
@@ -301,7 +215,6 @@
         <div class="game-card-body">
           <div class="game-card-name">Tessera</div>
           <div class="game-card-desc">Drop letter tiles and form English words across or down. Longer words score far more, and the tiles fall faster the longer you last.</div>
-          <div class="game-card-cta">Play now</div>
         </div>
       </a>
       <a class="game-card" href="./sluice/">
@@ -309,7 +222,6 @@
         <div class="game-card-body">
           <div class="game-card-name">Sluice</div>
           <div class="game-card-desc">Slide whole rows and columns of pipe, wrapping around the board, until water reaches every flower. One solution, and no way to rush it.</div>
-          <div class="game-card-cta">Play now</div>
         </div>
       </a>
       <a class="game-card" href="./fold/">
@@ -317,7 +229,6 @@
         <div class="game-card-body">
           <div class="game-card-name">Fold</div>
           <div class="game-card-desc">A picture cut into pieces and scattered across a creased sheet. Fold the paper to bring them back together, and the right way round.</div>
-          <div class="game-card-cta">Play now</div>
         </div>
       </a>
       <a class="game-card" href="./mobile/">
@@ -325,49 +236,41 @@
         <div class="game-card-body">
           <div class="game-card-name">Mobile</div>
           <div class="game-card-desc">Hang coloured shapes on a balancing mobile until every arm sits level. Weight is area, and the sculpture leans to show you the error.</div>
-          <div class="game-card-cta">Play now</div>
         </div>
       </a>
-    </div>
-
-    <h2 class="group-title">Arcade &amp; board games</h2>
-    <div class="arcade">
-      <!-- Ricochet and Ballast sit in this group and NOT in .games-row above,
-           on purpose: the H1 there promises no timers, no streaks and nothing
-           to lose, and both are score chases you can lose. -->
-      <a class="mini-card" href="./ballast/">
-        <div class="mini-card-image" style="background-image: url('./images/ballast-teaser.jpg?v=1')"></div>
-        <div class="mini-card-body">
-          <div class="mini-card-name">Ballast</div>
-          <div class="mini-card-desc">Drop orbs into a bowl that rocks on a rounded base. Matching sizes merge, and merging is what keeps the pile low enough to stay upright.</div>
+      <a class="game-card" href="./ballast/">
+        <div class="game-card-image" style="background-image: url('./images/ballast-teaser.jpg?v=1')"></div>
+        <div class="game-card-body">
+          <div class="game-card-name">Ballast</div>
+          <div class="game-card-desc">Drop orbs into a bowl that rocks on a rounded base. Matching sizes merge, and merging is what keeps the pile low enough to stay upright.</div>
         </div>
       </a>
-      <a class="mini-card" href="./ricochet/">
-        <div class="mini-card-image" style="background-image: url('./images/ricochet-teaser.jpg?v=1')"></div>
-        <div class="mini-card-body">
-          <div class="mini-card-name">Ricochet</div>
-          <div class="mini-card-desc">Aim a stream of balls up the board and bounce them off walls and mirrors to break the wall down before it reaches the line.</div>
+      <a class="game-card" href="./ricochet/">
+        <div class="game-card-image" style="background-image: url('./images/ricochet-teaser.jpg?v=1')"></div>
+        <div class="game-card-body">
+          <div class="game-card-name">Ricochet</div>
+          <div class="game-card-desc">Aim a stream of balls up the board and bounce them off walls and mirrors to break the wall down before it reaches the line.</div>
         </div>
       </a>
-      <a class="mini-card" href="./zood/">
-        <div class="mini-card-image" style="background-image: url('./images/zood-teaser.jpg?v=4')"></div>
-        <div class="mini-card-body">
-          <div class="mini-card-name">Zood</div>
-          <div class="mini-card-desc">A fresh spin on the bubble shooter. Match three or more to pop them and clear the board.</div>
+      <a class="game-card" href="./zood/">
+        <div class="game-card-image" style="background-image: url('./images/zood-teaser.jpg?v=4')"></div>
+        <div class="game-card-body">
+          <div class="game-card-name">Zood</div>
+          <div class="game-card-desc">A fresh spin on the bubble shooter. Match three or more to pop them and clear the board.</div>
         </div>
       </a>
-      <a class="mini-card" href="./carrom/">
-        <div class="mini-card-image" style="background-image: url('./images/carrom-teaser.jpg?v=4')"></div>
-        <div class="mini-card-body">
-          <div class="mini-card-name">Carrom</div>
-          <div class="mini-card-desc">The South-Asian tabletop classic. Flick the striker and pocket your discs, at three levels.</div>
+      <a class="game-card" href="./carrom/">
+        <div class="game-card-image" style="background-image: url('./images/carrom-teaser.jpg?v=4')"></div>
+        <div class="game-card-body">
+          <div class="game-card-name">Carrom</div>
+          <div class="game-card-desc">The South-Asian tabletop classic. Flick the striker and pocket your discs, at three levels.</div>
         </div>
       </a>
-      <a class="mini-card" href="./ludo/">
-        <div class="mini-card-image" style="background-image: url('./images/ludo-teaser.jpg?v=5')"></div>
-        <div class="mini-card-body">
-          <div class="mini-card-name">Ludo</div>
-          <div class="mini-card-desc">Race four pieces home before the computer. Roll a six to break out, then capture rivals off the safe squares. 2 to 4 players.</div>
+      <a class="game-card" href="./ludo/">
+        <div class="game-card-image" style="background-image: url('./images/ludo-teaser.jpg?v=5')"></div>
+        <div class="game-card-body">
+          <div class="game-card-name">Ludo</div>
+          <div class="game-card-desc">Race four pieces home before the computer. Roll a six to break out, then capture rivals off the safe squares. 2 to 4 players.</div>
         </div>
       </a>
     </div>
