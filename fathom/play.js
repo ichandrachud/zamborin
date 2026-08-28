@@ -107,30 +107,19 @@
   function layout() {
     L.top = topBand(); L.bot = botBand();
     if (MODE === 'desktop') {
-      L.colW = 196;
-      L.ocean = { x: SIDE_PAD, y: L.top,
-                  w: LW - SIDE_PAD * 2 - L.colW - 18, h: LH - L.top - L.bot };
+      /* The ocean takes the whole frame below the top band; the instruments
+         float on the water (owner round 5 — no side section, no gauge). */
+      L.bot = 0;
+      L.ocean = { x: 0, y: L.top, w: LW, h: LH - L.top };
       // ppm anchored to the 760 frame so full screen widens the view, not the art
-      L.ppm = (FRAME_W - SIDE_PAD * 2 - L.colW - 18) / TUNE.VIEW_W;
-      L.col = { x: L.ocean.x + L.ocean.w + 18, y: L.top, w: L.colW, h: LH - L.top - L.bot };
-      const g = L.col;
-      /* Column, top to bottom: money 0-46, bars 66-198, gauge 206-376 with
-         its state label, manifest 400-505, JETTISON pill centred 540. The
-         pill bottom (560) clears the frame bottom band (580); the manifest's
-         worst case (4 rows + the overflow line) ends at 505. Measured, so
-         the collision cannot come back. */
-      L.gauge = { x: g.x + 58, y: g.y + 168, w: 44, h: 144 };
-      L.manifestY = g.y + 344;
-      L.manifestRows = 4;
-      L.jettison = { cx: g.x + g.w / 2, cy: LH - L.bot - 40 };
+      L.ppm = FRAME_W / TUNE.VIEW_W;
+      L.jettison = { cx: LW / 2, cy: LH - 40 };
     } else {
       L.ocean = { x: 0, y: L.top, w: LW, h: LH - L.top - L.bot };
       L.ppm = LW / TUNE.VIEW_W;
-      const gh = Math.min(280, L.ocean.h * 0.52);
-      L.gauge = { x: LW - SIDE_PAD - 34, y: L.top + 40, w: 34, h: gh };
       L.rowCy = LH - 74;                 // the band system's mobile control row
       L.jettison = { cx: LW / 2, cy: L.rowCy };
-      // Scheme A: FLOOD and BLOW thumb-stacked bottom-right, above the row
+      // Scheme A: UP and DOWN thumb-stacked bottom-right, above the row
       L.blowBtn  = { cx: LW - SIDE_PAD - 22, cy: LH - L.bot - 118 };
       L.floodBtn = { cx: LW - SIDE_PAD - 22, cy: LH - L.bot - 62 };
     }
@@ -161,8 +150,8 @@
   // ---------- INPUT ----------
   const keys = {};
   const held = { floodBtn: null, blowBtn: null, thrustL: null, thrustR: null, joy: null };
-  let joyVec = 0;                // -1..1 from the scheme-B vector drag
-  let burstFlood = 0, burstBlow = 0, wantJettison = false;
+  let joyVec = 0, joyVert = 0;   // the scheme-B drag: sideways thrust, up/down dive
+  let wantJettison = false;
 
   function markStarted() {
     if (!started) { started = true; T().gameStart(); }
@@ -192,7 +181,6 @@
 
   // Hit boxes the renderer fills in each frame.
   const hit = { pills: [], cta: null, schemeToggle: null, newOcean: null, rulesBody: null };
-  const swipes = new Map();      // pointerId -> {x, y, t, onSub}
   let rulesDrag = null;
 
   canvas.addEventListener('pointerdown', (e) => {
@@ -227,8 +215,7 @@
     }
     if (MODE === 'mobile' && scheme === 'B') {
       const d = Math.hypot(p.x - sx(run.x), p.y - sy(run.y));
-      if (d < 70) { held.joy = e.pointerId; joyVec = 0; markStarted(); }
-      else swipes.set(e.pointerId, { x: p.x, y: p.y, t: performance.now() });
+      if (d < 95) { held.joy = e.pointerId; joyVec = 0; joyVert = 0; markStarted(); }
       return;
     }
   });
@@ -239,8 +226,9 @@
       return;
     }
     if (held.joy === e.pointerId) {
-      const dx = p.x - sx(run.x);
+      const dx = p.x - sx(run.x), dy = p.y - sy(run.y);
       joyVec = Math.abs(dx) < 12 ? 0 : Math.max(-1, Math.min(1, dx / 90));
+      joyVert = dy > 26 ? 1 : dy < -26 ? -1 : 0;   // below the sub dives, above rises
     }
   });
   function endPointer(e) {
@@ -256,23 +244,8 @@
     if (held.blowBtn === e.pointerId)  held.blowBtn = null;
     if (held.thrustL === e.pointerId)  held.thrustL = null;
     if (held.thrustR === e.pointerId)  held.thrustR = null;
-    if (held.joy === e.pointerId)      { held.joy = null; joyVec = 0; }
-    const sw = swipes.get(e.pointerId);
-    if (sw) {
-      swipes.delete(e.pointerId);
-      const dt = performance.now() - sw.t;
-      const dy = p.y - sw.y, dx = p.x - sw.x;
-      if (dt < 350 && Math.abs(dy) > 48 && Math.abs(dy) > Math.abs(dx)) {
-        if (dy > 0) { burstFlood += 40; floatText('FLOOD +40 kg', run.x, run.y - 8, INK92); }
-        else {
-          const can = Math.min(40, run.ballast, run.air / TUNE.airPerKg);
-          burstBlow += 40;
-          floatText(can > 1 ? 'BLOW ' + Math.round(can) + ' kg' : 'NO BALLAST', run.x, run.y - 8,
-                    can > 1 ? INK92 : C_ACCENT_TEXT);
-        }
-        markStarted();
-      }
-    }
+    if (held.joy === e.pointerId)      { held.joy = null; joyVec = 0; joyVert = 0; }
+    void p;
   }
   canvas.addEventListener('pointerup', endPointer);
   canvas.addEventListener('pointercancel', endPointer);
@@ -385,12 +358,11 @@
       const ax = Math.max(-1, Math.min(1, axKeys + axTouch + joyVec));
       const inp = {
         ax,
-        flood: !!(keys['s'] || keys['arrowdown'] || held.floodBtn != null),
-        blow:  !!(keys['w'] || keys['arrowup'] || held.blowBtn != null),
-        floodKg: burstFlood, blowKg: burstBlow,
+        down: !!(keys['s'] || keys['arrowdown'] || held.floodBtn != null || joyVert > 0),
+        up:   !!(keys['w'] || keys['arrowup'] || held.blowBtn != null || joyVert < 0),
         jettison: wantJettison,
       };
-      burstFlood = 0; burstBlow = 0; wantJettison = false;
+      wantJettison = false;
       const events = run.step(inp, dt);
       for (const ev of events) handleEvent(ev);
       /* Blowing is the most-held verb in the game; its sound must be a calm
@@ -989,59 +961,26 @@
   }
   const fmtMoney = (n) => '$ ' + String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 
-  function drawGauge() {
-    const g = L.gauge;
-    const RANGE = 260;                       // kg full-scale, both ways
-    const net = run.net();
-    const k = run.world.ceiling(run.y);      // the layer overhead, -1 in the shallows
-    // Track.
+  /* A floating instrument: a small scrim block with labelled bars, drawn
+     ON the water. rows: [label, frac, color, valueText]. */
+  function drawIndicators(x, y, w, rows) {
+    const h = rows.length * 26 + 10;
     ctx.fillStyle = SCRIM(0.55);
-    ctx.beginPath(); UI.roundRectPath(ctx, g.x, g.y, g.w, g.h, g.w / 2); ctx.fill();
-    ctx.strokeStyle = TINT(0.10); ctx.lineWidth = 1;
-    ctx.beginPath(); UI.roundRectPath(ctx, g.x, g.y, g.w, g.h, g.w / 2); ctx.stroke();
-    const yFor = (kg) => g.y + g.h / 2 - (Math.max(-RANGE, Math.min(RANGE, kg)) / RANGE) * (g.h / 2 - 10);
-    // The green zone: lift enough to clear the ceiling overhead.
-    if (k >= 0) {
-      const yA = yFor(RANGE), yB = yFor(TUNE.T[k]);
-      ctx.fillStyle = 'rgba(93,211,158,0.16)';                 // --green
-      ctx.beginPath(); UI.roundRectPath(ctx, g.x + 4, yA, g.w - 8, Math.max(4, yB - yA), 4); ctx.fill();
-      ctx.strokeStyle = 'rgba(93,211,158,0.55)';
-      ctx.setLineDash([4, 3]);
-      ctx.beginPath(); ctx.moveTo(g.x + 3, yB); ctx.lineTo(g.x + g.w - 3, yB); ctx.stroke();
-      ctx.setLineDash([]);
+    ctx.beginPath(); UI.roundRectPath(ctx, x, y, w, h, 12); ctx.fill();
+    ctx.textBaseline = 'middle';
+    for (let i = 0; i < rows.length; i++) {
+      const ry = y + 18 + i * 26;
+      ctx.fillStyle = INK72; ctx.font = '700 10px Inter, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText(rows[i][0], x + 12, ry);
+      drawBar(x + 58, ry - 3.5, w - 58 - 58, 7, rows[i][1], rows[i][2]);
+      ctx.fillStyle = INK90; ctx.font = '600 11px Inter, sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText(rows[i][3], x + w - 12, ry);
+      ctx.textAlign = 'left';
     }
-    // Ticks at each discovered threshold.
-    ctx.font = '700 10px Inter, sans-serif'; ctx.textBaseline = 'middle';
-    for (let i = 0; i < 4; i++) {
-      if (!run.discovered[i]) continue;
-      const yy = yFor(TUNE.T[i]);
-      ctx.strokeStyle = TINT(0.40); ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.moveTo(g.x + 5, yy); ctx.lineTo(g.x + g.w - 5, yy); ctx.stroke();
-      ctx.fillStyle = INK72;
-      // Labels sit outboard of the track: right of it on desktop, left of it
-      // on mobile, where the track is pinned to the frame edge.
-      if (MODE === 'desktop') { ctx.textAlign = 'left';  ctx.fillText('L' + (i + 1), g.x + g.w + 5, yy); }
-      else                    { ctx.textAlign = 'right'; ctx.fillText('L' + (i + 1), g.x - 5, yy); }
-    }
-    // Centre line.
-    ctx.strokeStyle = TINT(0.22); ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(g.x + 6, yFor(0)); ctx.lineTo(g.x + g.w - 6, yFor(0)); ctx.stroke();
-    // The marker.
-    const my = yFor(net);
-    const mcol = (k >= 0 && net >= TUNE.T[k]) ? C_GREEN : net > 4 ? '#9BD4E8' : net < -4 ? C_ACCENT_TEXT : '#FFFFFF';
-    ctx.shadowColor = mcol; ctx.shadowBlur = 8;
-    ctx.fillStyle = mcol;
-    ctx.beginPath(); UI.roundRectPath(ctx, g.x + 3, my - 4, g.w - 6, 8, 4); ctx.fill();
-    ctx.shadowBlur = 0;
-    // Labels.
-    ctx.textAlign = 'center';
-    ctx.fillStyle = INK72; ctx.font = '700 10px Inter, sans-serif';
-    ctx.fillText('LIFT', g.x + g.w / 2, g.y - 12);
-    const state = net < -4 ? 'HEAVY' : net > 4 ? 'LIFT' : 'HOVER';
-    ctx.fillStyle = state === 'HEAVY' ? C_ACCENT_TEXT : state === 'LIFT' ? C_GREEN : '#FFFFFF';
-    ctx.font = '800 11px Inter, sans-serif';
-    ctx.fillText(state, g.x + g.w / 2, g.y + g.h + 13);
-    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.textBaseline = 'top';
+    return h;
   }
 
   function drawSealedBanner(now) {
@@ -1052,7 +991,9 @@
     ctx.font = '700 15px Inter, sans-serif';
     const tw = ctx.measureText(msg).width;
     const w = tw + 74, h = 40;
-    const x = o.x + o.w / 2 - w / 2, y = o.y + 26;
+    // Desktop's floating indicators own the top corners, so the banner
+    // drops below them there; mobile's top band is chrome, 26 clears it.
+    const x = o.x + o.w / 2 - w / 2, y = o.y + (MODE === 'desktop' ? 84 : 26);
     const pulse = 0.75 + 0.25 * Math.sin(now / 300);
     ctx.fillStyle = SCRIM(0.85);
     ctx.beginPath(); UI.roundRectPath(ctx, x, y, w, h, h / 2); ctx.fill();
@@ -1083,7 +1024,8 @@
     const msg = 'AIR LOW';
     ctx.font = '800 15px Inter, sans-serif';
     const tw = ctx.measureText(msg).width;
-    const x = o.x + 14, y = o.y + (run.sealedNeed() > 0 ? 78 : 18);
+    const x = o.x + 14;
+    const y = MODE === 'desktop' ? o.y + 84 : o.y + (run.sealedNeed() > 0 ? 78 : 18);
     const pulse = 0.55 + 0.45 * Math.sin(now / 220);
     ctx.fillStyle = SCRIM(0.8);
     ctx.beginPath(); UI.roundRectPath(ctx, x, y, tw + 26, 32, 16); ctx.fill();
@@ -1152,15 +1094,19 @@
   }
 
   function drawChromeMobile(now) {
-    // Top band: solid Ground, $ and depth left; cargo, air, batt right.
+    // Top band: solid Ground; banked money and depth in one line left,
+    // cargo, air and batt right.
     ctx.fillStyle = C_BG;
     ctx.fillRect(0, 0, LW, L.top);
+    ctx.textBaseline = 'middle';
+    ctx.font = '800 18px Inter, sans-serif';
+    const mStr = fmtMoney(run.money);
+    const mw = ctx.measureText(mStr).width;
     ctx.fillStyle = '#FFFFFF';
-    ctx.font = '800 22px Inter, sans-serif';
-    ctx.textBaseline = 'alphabetic';
-    ctx.fillText(fmtMoney(run.money), SIDE_PAD, 34);
-    ctx.fillStyle = INK72; ctx.font = '600 13px Inter, sans-serif';
-    ctx.fillText('DEPTH ' + Math.round(run.y) + ' m', SIDE_PAD, 58);
+    ctx.fillText(mStr, SIDE_PAD, L.top / 2);
+    ctx.fillStyle = INK72; ctx.font = '600 14px Inter, sans-serif';
+    ctx.fillText('·  ' + Math.round(run.y) + ' m', SIDE_PAD + mw + 10, L.top / 2 + 1);
+    ctx.textBaseline = 'top';
     const zx = LW - SIDE_PAD - 170;
     const rows = [
       ['CARGO', run.cargoKg / run.cargoMax(), C_ACCENT_TEXT, Math.round(run.cargoKg) + '/' + run.cargoMax()],
@@ -1181,27 +1127,16 @@
     }
     ctx.textBaseline = 'top';
 
-    drawGauge();
     drawSealedBanner(now);
 
-    // Bottom row on the band system's centre line. The row lays out from
-    // both ends of the same band, so the collisions are measured, not hoped
-    // away: JETTISON shifts right off the pills, and BEST yields if beaten.
+    // Bottom row on the band system's centre line: sound, rules, the verb.
     const cy = L.rowCy;
-    const p1 = iconPill('sound', SIDE_PAD + 22, cy, (cx, cyy) => speakerIcon(cx, cyy, sfx ? sfx.isOn() : true));
     const p2 = iconPill('rules', SIDE_PAD + 22 + UI.PILL.iconW + UI.PILL.gap, cy, questionIcon);
+    iconPill('sound', SIDE_PAD + 22, cy, (cx, cyy) => speakerIcon(cx, cyy, sfx ? sfx.isOn() : true));
     ctx.font = '700 ' + UI.PILL.font + 'px Inter, sans-serif';
-    const jw = Math.round(ctx.measureText('DROP CARGO').width + UI.PILL.padX + 18);
-    let jcx = Math.max(LW / 2, p2.x + p2.w + UI.PILL.gap + jw / 2);
-    const jbox = jettisonPill(jcx, cy);
-    ctx.font = '600 13px Inter, sans-serif';
-    const bestStr = 'BEST ' + Math.round(Math.max(bestEver, run.bestDepth)) + ' m';
-    if (LW - SIDE_PAD - ctx.measureText(bestStr).width > jbox.x + jbox.w + 12) {
-      ctx.fillStyle = INK72;
-      ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-      ctx.fillText(bestStr, LW - SIDE_PAD, cy);
-      ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-    }
+    const jw = Math.round(ctx.measureText('DROP CARGO').width + UI.PILL.padX + 10);
+    const jcx = Math.max(LW / 2, p2.x + p2.w + UI.PILL.gap + jw / 2);
+    jettisonPill(jcx, cy);
 
     // Scheme A: FLOOD and BLOW, thumb-stacked. Chrome-sized, bigger hit slop.
     if (scheme === 'A') {
@@ -1226,8 +1161,8 @@
         ctx.fillText(label, b.cx, b.cy + 24);
         ctx.textAlign = 'left';
       };
-      btn(L.blowBtn, 'BLOW', true, held.blowBtn);
-      btn(L.floodBtn, 'FLOOD', false, held.floodBtn);
+      btn(L.blowBtn, 'UP', true, held.blowBtn);
+      btn(L.floodBtn, 'DOWN', false, held.floodBtn);
     }
   }
 
@@ -1242,8 +1177,8 @@
     x = b2.x + b2.w + UI.PILL.gap;
     const b3 = pill('rules', 'Rules', x + UI.pillWidth(ctx, 'Rules') / 2, cy);
     L.rowRight = b3.x + b3.w;
-    // Read-out: one right-aligned line, measured against the row.
-    const ro = 'DEPTH ' + Math.round(run.y) + ' m   ·   BEST ' + Math.round(Math.max(bestEver, run.bestDepth)) + ' m';
+    // Read-out: depth and the bank in one right-aligned line.
+    const ro = 'DEPTH ' + Math.round(run.y) + ' m   ·   ' + fmtMoney(run.money);
     ctx.font = '600 16px Inter, sans-serif';
     let roW = ctx.measureText(ro).width;
     const roomFor = LW - SIDE_PAD - (L.rowRight + 16);
@@ -1257,68 +1192,18 @@
     ctx.restore();
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
 
-    // Instrument column.
-    const g = L.col;
-    ctx.fillStyle = '#FFFFFF'; ctx.font = '800 22px Inter, sans-serif';
-    ctx.textBaseline = 'alphabetic';
-    ctx.fillText(fmtMoney(run.money), g.x, g.y + 26);
-    ctx.fillStyle = INK72; ctx.font = '700 10px Inter, sans-serif';
-    ctx.fillText('BANKED', g.x, g.y + 42);
-    const bars = [
+    // Floating instruments on the water: air and battery top-left, cargo
+    // top-right, where the sky is. The rest of the frame is ocean.
+    const o = L.ocean;
+    drawIndicators(o.x + 14, o.y + 14, 216, [
       ['AIR', run.air / run.airMax(), run.air / run.airMax() < 0.25 ? C_ACCENT_TEXT : C_GREEN,
-       Math.round(run.air) + ' / ' + run.airMax()],
-      ['BATT', run.batt / run.battMax(), C_SUN, Math.round(run.batt) + ' / ' + run.battMax()],
-      ['CARGO', run.cargoKg / run.cargoMax(), C_ACCENT_TEXT, Math.round(run.cargoKg) + ' / ' + run.cargoMax() + ' kg'],
-    ];
-    ctx.textBaseline = 'middle';
-    for (let i = 0; i < 3; i++) {
-      const ry = g.y + 66 + i * 34;
-      ctx.fillStyle = INK72; ctx.font = '700 11px Inter, sans-serif';
-      ctx.fillText(bars[i][0], g.x, ry);
-      ctx.fillStyle = INK90; ctx.font = '600 12px Inter, sans-serif';
-      ctx.textAlign = 'right';
-      ctx.fillText(bars[i][3], g.x + g.w, ry);
-      ctx.textAlign = 'left';
-      drawBar(g.x, ry + 8, g.w, 8, bars[i][1], bars[i][2]);
-    }
-    ctx.textBaseline = 'top';
-
-    drawGauge();
-
-    // The cargo manifest: what JETTISON will drop next, highlighted.
-    const my = L.manifestY;
-    ctx.fillStyle = INK72; ctx.font = '700 10px Inter, sans-serif';
-    ctx.fillText('MANIFEST', g.x, my);
-    const nextDrop = run.jettisonNext();
-    ctx.font = '600 13px Inter, sans-serif'; ctx.textBaseline = 'middle';
-    if (!run.cargo.length) {
-      ctx.fillStyle = INK72;
-      ctx.fillText('Hold empty', g.x, my + 22);
-    } else {
-      const maxRows = L.manifestRows;
-      for (let i = 0; i < Math.min(run.cargo.length, maxRows); i++) {
-        const item = run.cargo[i];
-        const ry = my + 20 + i * 17;
-        const hot = i === nextDrop;
-        ctx.fillStyle = hot ? C_ACCENT_TEXT : INK72;
-        if (hot) {   // the next-to-drop marker, drawn, not a glyph
-          ctx.beginPath();
-          ctx.moveTo(g.x + 1, ry - 3); ctx.lineTo(g.x + 9, ry - 3); ctx.lineTo(g.x + 5, ry + 3);
-          ctx.closePath(); ctx.fill();
-        }
-        const name = item.type === 'nodule' ? 'Nodule' : item.type === 'sulphide' ? 'Sulphide' : 'Crystal';
-        ctx.fillText(name, g.x + 14, ry);
-        ctx.textAlign = 'right';
-        ctx.fillText(item.kg + ' kg', g.x + g.w - 44, ry);
-        ctx.fillText('$' + item.val, g.x + g.w, ry);
-        ctx.textAlign = 'left';
-      }
-      if (run.cargo.length > maxRows) {
-        ctx.fillStyle = INK72;
-        ctx.fillText('+ ' + (run.cargo.length - maxRows) + ' more', g.x, my + 20 + maxRows * 17);
-      }
-    }
-    ctx.textBaseline = 'top';
+       Math.round(run.air) + ''],
+      ['BATT', run.batt / run.battMax(), C_SUN, Math.round(run.batt) + ''],
+    ]);
+    drawIndicators(o.x + o.w - 14 - 216, o.y + 14, 216, [
+      ['CARGO', run.cargoKg / run.cargoMax(), C_ACCENT_TEXT,
+       Math.round(run.cargoKg) + ' / ' + run.cargoMax() + ' kg'],
+    ]);
     jettisonPill(L.jettison.cx, L.jettison.cy);
     drawSealedBanner(now);
   }
@@ -1337,26 +1222,26 @@
 
   function rulesCopy() {
     if (MODE === 'desktop') return [
-      'Heavy sinks, light rises, and ore is weight. Every grab makes the sub heavier.',
-      'S floods ballast to sink. W blows ballast to rise, and blowing spends the same air you breathe.',
-      'The glowing bands are density layers: floors in the water. Sink through with enough weight, rise through with enough lift, or rest on one for free.',
+      'Ore is weight. Every grab makes the sub heavier, and only light things may rise.',
+      'Hold S to dive and W to rise. Let go and the sub holds its depth. Rising spends the same air you breathe.',
+      'The glowing bands are density layers: floors in the water. You need enough weight to sink through one, and enough lift to rise back.',
       'A and D thrust against the current. Touch a deposit and the claw takes it.',
       'J drops your heaviest cargo, instantly. If the banner says SEALED, drop weight until it does not.',
       'Surface to bank the haul. If the air runs out down there, the haul is lost and the bank is kept.',
     ];
     if (scheme === 'A') return [
-      'Heavy sinks, light rises, and ore is weight. Every grab makes the sub heavier.',
-      'Hold FLOOD to take on water and sink. Hold BLOW to rise. Blowing spends the same air you breathe.',
-      'The glowing bands are density layers: floors in the water. Sink through with enough weight, rise through with enough lift, or rest on one for free.',
+      'Ore is weight. Every grab makes the sub heavier, and only light things may rise.',
+      'Hold DOWN to dive and UP to rise. Let go and the sub holds its depth. Rising spends the same air you breathe.',
+      'The glowing bands are density layers: floors in the water. You need enough weight to sink through one, and enough lift to rise back.',
       'Hold the left or right half of the water to thrust. Touch a deposit and the claw takes it.',
       'DROP CARGO sheds your heaviest item, instantly. If the banner says SEALED, drop weight until it does not.',
       'Surface to bank the haul. If the air runs out down there, the haul is lost and the bank is kept.',
     ];
     return [
-      'Heavy sinks, light rises, and ore is weight. Every grab makes the sub heavier.',
-      'Swipe down anywhere to flood and sink. Swipe up to blow ballast and rise. Blowing spends the same air you breathe.',
-      'The glowing bands are density layers: floors in the water. Sink through with enough weight, rise through with enough lift, or rest on one for free.',
-      'Touch the sub and drag left or right to thrust. Touch a deposit and the claw takes it.',
+      'Ore is weight. Every grab makes the sub heavier, and only light things may rise.',
+      'Touch the sub and drag: sideways to thrust, down to dive, up to rise. Let go and it holds its depth. Rising spends the same air you breathe.',
+      'The glowing bands are density layers: floors in the water. You need enough weight to sink through one, and enough lift to rise back.',
+      'Touch a deposit and the claw takes it.',
       'DROP CARGO sheds your heaviest item, instantly. If the banner says SEALED, drop weight until it does not.',
       'Surface to bank the haul. If the air runs out down there, the haul is lost and the bank is kept.',
     ];
@@ -1520,13 +1405,11 @@
     else if (card === 'banked' && cardData) {
       drawEndCard('HAUL BANKED', fmtMoney(cardData.val) + ' banked · ' + cardData.kg + ' kg',
         [['Deepest point', cardData.depth + ' m'],
-         ['Session best', Math.round(bestEver) + ' m'],
          ['Bank total', fmtMoney(run.money)]]);
     } else if (card === 'blackout' && cardData) {
       drawEndCard('BLACKOUT', 'The tank ran dry at ' + cardData.depth + ' m',
         [['Haul lost', fmtMoney(cardData.lostVal) + ' · ' + cardData.lostKg + ' kg'],
-         ['Banked money', fmtMoney(run.money) + ' · safe'],
-         ['Session best', Math.round(bestEver) + ' m']]);
+         ['Banked money', fmtMoney(run.money) + ' · safe']]);
     }
   }
 
@@ -1547,10 +1430,9 @@
     const roRoom = MODE === 'desktop' ? (LW - SIDE_PAD - ((L.rowRight || 0) + 16)) : null;
     return {
       mode: MODE, LW, LH, ppm: L.ppm,
-      ocean: L.ocean, gauge: L.gauge,
+      ocean: L.ocean,
       viewWm: L.viewWm, viewHm: L.viewHm,
       rowReadoutRoom: roRoom,
-      gaugeInsideOcean: L.gauge.y >= L.ocean.y && L.gauge.y + L.gauge.h <= L.ocean.y + L.ocean.h,
     };
   }
 
@@ -1581,16 +1463,15 @@
         const n = Math.round(seconds * 60);
         for (let i = 0; i < n; i++) {
           const base = inp || {};
-          // Merge the queued pointer state exactly the way tick() does, so
-          // swipes, bursts and the joystick reach the sim in this pane too.
+          // Merge the pointer state exactly the way tick() does, so the
+          // joystick and taps reach the sim in this pane too.
           const events = run.step({
             ax: Math.max(-1, Math.min(1, (base.ax || 0) + joyVec)),
-            flood: !!base.flood, blow: !!base.blow,
-            floodKg: (base.floodKg || 0) + burstFlood,
-            blowKg: (base.blowKg || 0) + burstBlow,
+            down: !!(base.down || base.flood || joyVert > 0),
+            up: !!(base.up || base.blow || joyVert < 0),
             jettison: !!(base.jettison || wantJettison),
           }, 1 / 60);
-          burstFlood = 0; burstBlow = 0; wantJettison = false;
+          wantJettison = false;
           for (const ev of events) handleEvent(ev);
           updateCam(1 / 60);
           stepParticles(1 / 60);

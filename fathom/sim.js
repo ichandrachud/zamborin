@@ -38,13 +38,16 @@ const TUNE = {
      just above neutral (startBallast) so the first press bites within half
      a second. airPerKg is unchanged — the economy is priced per kilogram
      blown, not per second held. */
-  /* airPerKg 0.35 -> 0.12 and lifeSupport 0.5 -> 0.35, owner round 3: a new
-     player holds BLOW (the most natural button in the game) and the old rate
-     emptied the whole tank in 3.5 seconds — dead before understanding, every
-     time. Motherload's fuel is a minutes-long clock with a loud FUEL LOW
-     warning; ours now is too (the AIR LOW banner lives in play.js). The M2
-     gate re-tunes the deep-climb economy on these numbers. */
-  floodRate: 110, startBallast: 272, airPerKg: 0.12, lifeSupport: 0.35,
+  /* Owner round 5 control model: DOWN dives, UP rises, release HOVERS —
+     the sub auto-trims its tanks to neutral when no button is held
+     (trimRate, free: it is only moving water). Weight still rules the
+     layers and rising still spends air, but the tank empties once per
+     climb and then the ascent is free lift, so a climb costs at most
+     (300 - cargo) * airPerKg. airPerKg is soft (0.04) so a fumbling
+     beginner survives minutes, not seconds — the M2 gate re-prices the
+     deep economy on top of this model. */
+  floodRate: 260, trimRate: 260,
+  airPerKg: 0.04, lifeSupport: 0.35,
   LAYER_DEPTH: [120, 260, 420, 600],
   T: [60, 110, 170, 240],
   crushDepth: [180, 280, 400, 540, 700],
@@ -72,7 +75,7 @@ const TUNE = {
 
   // -- Milestone-1 additions, same starting-guess status as the rest --
   buoyK: 0.32,          // m/s of vertical speed per kg of net buoyancy
-  blowRate: 90,         // kg/s expelled while BLOW is held (feel-lock: fast)
+  blowRate: 260,        // kg/s expelled while UP is held
   thrustBattery: 3.0,   // battery per second of full thrust
   drag: 0.9,            // 1/s, water pulls vx toward the local current
   hMax: 52,             // m/s cap on speed relative to the current
@@ -306,7 +309,7 @@ function Run(seed, tuneOverride) {
   this.y = 1.5;
   this.vx = 0; this.vy = 0;
   this.facing = 1;
-  this.ballast = t.startBallast;
+  this.ballast = t.DISPLACEMENT - t.HULL_DRY;   // neutral trim, hovering
   this.cargo = [];          // { type, kg, val }
   this.cargoKg = 0;
   this.air = t.airMax[0];
@@ -371,8 +374,10 @@ Run.prototype._tick = function (inp) {
   this.time += H;
   const surfaced = this.y <= t.surfaceY;
 
-  // --- ballast ---
-  let flood = (inp.flood ? t.floodRate * H : 0);
+  // --- ballast: DOWN floods, UP blows, neither means trim to hover ---
+  const down = !!(inp.down || inp.flood);
+  const up = !down && !!(inp.up || inp.blow);
+  let flood = (down ? t.floodRate * H : 0);
   if (this._floodPool > 0) {
     const d = Math.min(this._floodPool, t.floodRate * 3 * H);
     flood += d; this._floodPool -= d;
@@ -383,7 +388,7 @@ Run.prototype._tick = function (inp) {
   }
   if (this._flooding > 0) this._flooding--;
 
-  let blow = (inp.blow ? t.blowRate * H : 0);
+  let blow = (up ? t.blowRate * H : 0);
   if (this._blowPool > 0) {
     const d = Math.min(this._blowPool, t.blowRate * 3 * H);
     blow += d; this._blowPool -= d;
@@ -398,6 +403,15 @@ Run.prototype._tick = function (inp) {
   }
   if (this._blowing > 0) this._blowing--;
 
+  /* Release means hover: the trim tanks pump toward neutral, free — it is
+     only moving water. Ascent can never be had from trim (it stops at
+     neutral), so UP remains the only verb that spends air. */
+  if (!down && !up) {
+    const target = clamp(t.DISPLACEMENT - t.HULL_DRY - this.cargoKg, 0, t.ballastMax);
+    const d = clamp(target - this.ballast, -t.trimRate * H, t.trimRate * H);
+    this.ballast += d;
+  }
+
   // --- air: one tank, two jobs ---
   if (surfaced) {
     this.air = Math.min(this.airMax(), this.air + t.surfaceRegen * H);
@@ -410,7 +424,7 @@ Run.prototype._tick = function (inp) {
   // --- vertical: speed proportional to net buoyancy ---
   const net = this.net();
   const vyT = clamp(-net * t.buoyK, -t.vMax, t.vMax);
-  this.vy += (vyT - this.vy) * Math.min(1, 6 * H);   // feel-lock: answer fast
+  this.vy += (vyT - this.vy) * Math.min(1, 14 * H);  // instant: up is up, down is down
 
   // --- horizontal: thrust against the current ---
   const ax = clamp(inp.ax || 0, -1, 1);
@@ -584,7 +598,7 @@ Run.prototype.revive = function () {
   this.mode = 'dive';
   this.x = this.world.trenchX; this.y = 1.5;
   this.vx = 0; this.vy = 0;
-  this.ballast = t.startBallast;
+  this.ballast = t.DISPLACEMENT - t.HULL_DRY;   // neutral trim, hovering
   this.cargo = []; this.cargoKg = 0;
   this.air = this.airMax(); this.batt = this.battMax();
   this.restingOn = -1; this.pressedUnder = -1;
