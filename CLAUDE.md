@@ -46,11 +46,63 @@ summary of the design system and they do not replace reading it.
 - This is a **live site**. `git push origin main` deploys in about 15 seconds.
   Say what you are changing and why before a sweeping change, work on a branch
   for anything non-trivial, and only push when the owner says so.
-- Another session may be in this repo at the same time. Commit your own files
-  **by path**; never `git add -A`. Run `git worktree list` before checking out
-  `main`.
 - Local preview: the `zamborin` config in `.claude/launch.json`, port 5230.
 - **A failing check is usually the check.** It has been, six times in one week.
   The tells: it fails everywhere, the numbers are identical across cases, the
   rate is exactly 100%, or a failing row contains a value that passes. Verify a
   detector on a case you know is good before reporting what it found.
+
+## Sharing this repo with other sessions — the rules, not the guidance
+
+**Several sessions work in this one directory at the same time.** On 2026-08-28
+three of them had work stranded here at once: a tracker edit uncommitted for
+eight hours with no copy anywhere, a whole game committed but never pushed, and
+one session's edits swept into another's commit. Every rule below is one of
+those.
+
+**Start.** Know where you are before you write anything:
+
+```bash
+git worktree list && git branch --show-current && git status --short
+```
+
+If the branch is not what you expected, **do not check out `main`** — another
+session is likely mid-work on it. Use a worktree instead:
+`git worktree add ../zamborin-<task> -b <task> main`.
+
+**While you work.**
+
+- **Never `git add -A`, `git add .`, or `git commit -a`.** Stage by explicit
+  path, always.
+- **Staging by path is NOT enough on a file more than one session touches** —
+  `QC-TRACKER.md`, `index.html`, `sitemap.xml`, `llms.txt`, `shared/*`.
+  **Diff the path before you stage it**, and only stage it if every line in the
+  diff is yours:
+
+  ```bash
+  git diff -- <path>          # read it. Is all of this yours?
+  ```
+
+- **If a shared file holds someone else's uncommitted work**, check how old it
+  is (`date -r <path>`). Minutes old means they are still working: leave it,
+  and put your change elsewhere or wait. Hours old means that session has ended:
+  commit it **unedited**, and say in your message which lines are not yours and
+  why you took them. Never edit their lines to make yours fit.
+
+**Finish with a PUSH, not a commit.** Committed-but-unpushed is invisible to
+every other session and to the owner. Before you end a turn that changed
+anything:
+
+```bash
+git status --short                     # nothing of yours left unstaged
+git log --oneline origin/main..HEAD    # nothing left unpushed
+```
+
+If the owner has not authorised a push yet, **say so explicitly in your final
+message** and name the commits that are waiting. Silence is how work gets lost.
+
+**Pushing carries everything ahead of `origin/main`, including other people's
+commits.** Check `git log --oneline origin/main..HEAD` before you push and say
+what is in it. If it includes a new game directory, verify it carries
+`<meta name="robots" content="noindex">` and is linked from nowhere before it
+goes live.
