@@ -38,7 +38,13 @@ const TUNE = {
      just above neutral (startBallast) so the first press bites within half
      a second. airPerKg is unchanged — the economy is priced per kilogram
      blown, not per second held. */
-  floodRate: 110, startBallast: 272, airPerKg: 0.35, lifeSupport: 0.5,
+  /* airPerKg 0.35 -> 0.12 and lifeSupport 0.5 -> 0.35, owner round 3: a new
+     player holds BLOW (the most natural button in the game) and the old rate
+     emptied the whole tank in 3.5 seconds — dead before understanding, every
+     time. Motherload's fuel is a minutes-long clock with a loud FUEL LOW
+     warning; ours now is too (the AIR LOW banner lives in play.js). The M2
+     gate re-tunes the deep-climb economy on these numbers. */
+  floodRate: 110, startBallast: 272, airPerKg: 0.12, lifeSupport: 0.35,
   LAYER_DEPTH: [120, 260, 420, 600],
   T: [60, 110, 170, 240],
   crushDepth: [180, 280, 400, 540, 700],
@@ -71,7 +77,10 @@ const TUNE = {
   drag: 0.9,            // 1/s, water pulls vx toward the local current
   hMax: 52,             // m/s cap on speed relative to the current
   current: [7, 5.5, 4, 2.5, 1.2],   // base drift by band (shallows, z1..z4)
-  VIEW_W: 120,          // metres of world width the camera shows, both modes
+  /* 120 -> 85, owner round 3: "too zoomed out — you see everything and
+     nothing at all." Motherload shows ~10 chunky tiles across; at 85 the sub
+     is a sixth of the screen and one ledge is an event, not a texture. */
+  VIEW_W: 85,           // metres of world width the camera shows, both modes
   subR: 4.5,            // collision radius of the hull
   bottom: 700,          // the world ends here (crush depth arrives with hull)
   surfaceY: 3,          // above this the sub is "at the surface"

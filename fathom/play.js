@@ -317,10 +317,12 @@
     floats.push({ text, x: wx, y: wy, life: 1.4, color });
   }
   for (let i = 0; i < 9; i++) farBlobs.push({ x: vr() * 520 - 60, y: 90 + vr() * 760, rx: 50 + vr() * 90, ry: 20 + vr() * 34 });
+  // Ambient counts kept low on purpose: the scene must stay calm enough
+  // that ore, layers and the sub are the only things asking for the eye.
   const snow = [];
-  for (let i = 0; i < 70; i++) snow.push({ x: vr() * 400, y: vr() * 800, r: 0.6 + vr() * 1.1, a: 0.10 + vr() * 0.16, s: 0.5 + vr() });
+  for (let i = 0; i < 40; i++) snow.push({ x: vr() * 400, y: vr() * 800, r: 0.6 + vr() * 1.1, a: 0.06 + vr() * 0.10, s: 0.5 + vr() });
   const specks = [];
-  for (let i = 0; i < 26; i++) specks.push({ x: vr() * TUNE.worldW, y: 280 + vr() * (TUNE.bottom - 290), r: 1 + vr() * 1.2, ph: vr() * 6.28 });
+  for (let i = 0; i < 18; i++) specks.push({ x: vr() * TUNE.worldW, y: 280 + vr() * (TUNE.bottom - 290), r: 1 + vr() * 1.2, ph: vr() * 6.28 });
   const fishes = [];
   for (let i = 0; i < 4; i++) fishes.push({ x: vr() * TUNE.worldW, y: 18 + vr() * 60, dir: vr() < 0.5 ? -1 : 1, s: 3 + vr() * 4, ph: vr() * 6.28 });
 
@@ -372,6 +374,8 @@
   // ---------- SIM DRIVE ----------
   let lastNow = performance.now();
   let holdFullWas = false;
+  let lastBlub = 0;
+  let airLowWas = false;
   function tick(now) {
     const dt = Math.min(0.05, (now - lastNow) / 1000);
     lastNow = now;
@@ -389,7 +393,12 @@
       burstFlood = 0; burstBlow = 0; wantJettison = false;
       const events = run.step(inp, dt);
       for (const ev of events) handleEvent(ev);
-      if (run._blowing && sfx && sfx.isOn()) { if (vr() < 0.3) sfx.noise(0.12, 500, 0.7, 0.03); }
+      /* Blowing is the most-held verb in the game; its sound must be a calm
+         low bubbling, never a crackle. One soft blub every quarter second. */
+      if (run._blowing && sfx && now - lastBlub > 240) {
+        lastBlub = now;
+        sfx.tone(230 + vr() * 90, 0.09, 0.022, 'sine');
+      }
       if (run._blowing) spawnBubbles(2, run.x, run.y - 3, 6, 8, 16);
       if (run._flooding && vr() < 0.35 && rings.length < 12) {
         rings.push({ x: run.x + (vr() - 0.5) * 4, y: run.y + 2.4, r: 1.2, life: 0.6 });
@@ -398,6 +407,13 @@
       // A soft dull knock, not a buzzer: the hold refusing is not a crash.
       if (run.holdFull && !holdFullWas && sfx) sfx.tone(170, 0.12, 0.03, 'sine');
       holdFullWas = run.holdFull;
+      // The Motherload lesson: warn loudly, long before the clock kills.
+      const airLow = run.air < run.airMax() * 0.33 && run.y > TUNE.surfaceY;
+      if (airLow && !airLowWas && sfx) {
+        sfx.tone(660, 0.14, 0.035, 'sine');
+        setTimeout(() => { if (sfx) sfx.tone(660, 0.14, 0.035, 'sine'); }, 220);
+      }
+      airLowWas = airLow;
       updateCam(dt);
       stepParticles(dt);
     }
@@ -418,7 +434,11 @@
       bestEver = Math.max(bestEver, run.bestDepth);
       cardData = ev;
       card = 'blackout';
-      if (sfx) sfx.play('fail');
+      // A soft descending hum. The run ends gently; so does its sound.
+      if (sfx) {
+        sfx.tone(220, 0.5, 0.04, 'sine');
+        setTimeout(() => { if (sfx) sfx.tone(150, 0.8, 0.035, 'sine'); }, 380);
+      }
     } else if (ev.t === 'jettison') {
       jetsam.push({ x: ev.x, y: ev.y + 4, type: ev.type, vy: 10, life: 6 });
       if (sfx) sfx.play('drop');
@@ -631,7 +651,7 @@
       if (yBot < cam.y || yTop > cam.y + L.viewHm) continue;
       const cur = w.current[band];
       // Streaks, drifting with the water. Always visible, never a surprise.
-      for (let i = 0; i < 12; i++) {
+      for (let i = 0; i < 8; i++) {
         const ph = ((i * 47.3) % 1) * 500;
         const ym = yTop + ((i * 89.7) % (yBot - yTop));
         if (ym < cam.y || ym > cam.y + L.viewHm) continue;
@@ -639,7 +659,7 @@
         if (xm < 0) xm += L.viewWm + 40;
         xm += cam.x - 20;
         const len = (10 + (i % 4) * 3) * Math.min(1, Math.abs(cur) / 3);
-        ctx.strokeStyle = TINT(0.07); ctx.lineWidth = 1;
+        ctx.strokeStyle = TINT(0.05); ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(sx(xm), sy(ym)); ctx.lineTo(sx(xm) + len, sy(ym)); ctx.stroke();
       }
       // Sparse chevrons pointing the way.
@@ -723,7 +743,7 @@
       if (d.x < cam.x - 10 || d.x > cam.x + L.viewWm + 10) continue;
       const px = sx(d.x), py = sy(d.y);
       if (d.type === 'nodule') {
-        const r = 2.6 * ppm;
+        const r = 3.4 * ppm;
         for (const [ox, oy, rr] of [[-0.8, 0.3, 0.8], [0.8, 0.25, 0.75], [0, -0.35, 0.9]]) {
           const gg = ctx.createRadialGradient(px + ox * r - r * 0.25, py + oy * r - r * 0.3, r * 0.1,
                                               px + ox * r, py + oy * r, r * rr);
@@ -732,7 +752,7 @@
           ctx.beginPath(); ctx.arc(px + ox * r, py + oy * r, r * rr, 0, Math.PI * 2); ctx.fill();
         }
       } else if (d.type === 'sulphide') {
-        const s = 2.2 * ppm;
+        const s = 3.0 * ppm;
         const gg = ctx.createLinearGradient(px - s, py - s, px + s, py + s);
         gg.addColorStop(0, '#D19A45'); gg.addColorStop(1, '#6E4C1E');
         ctx.fillStyle = gg;
@@ -745,7 +765,7 @@
         ctx.moveTo(px - s * 0.1, py - s * 0.9); ctx.lineTo(px + s * 1.2, py - s * 0.2);
         ctx.lineTo(px + s * 0.6, py - s * 0.05); ctx.closePath(); ctx.fill();
       } else {
-        const s = 2.5 * ppm;
+        const s = 3.2 * ppm;
         const tw = 0.22 + 0.14 * Math.sin(t * 2.5 + i);   // crystals breathe
         const gl = ctx.createRadialGradient(px, py, 0, px, py, s * 1.8);
         gl.addColorStop(0, 'rgba(140,225,255,' + tw.toFixed(2) + ')'); gl.addColorStop(1, 'rgba(140,225,255,0)');
@@ -764,7 +784,7 @@
         const a = 0.35 + 0.35 * Math.sin(t * 3 + i);
         ctx.strokeStyle = 'rgba(220,245,255,' + a.toFixed(2) + ')';
         ctx.lineWidth = 1.5;
-        const gr = 6 + Math.sin(t * 3 + i) * 1.5;
+        const gr = 8 + Math.sin(t * 3 + i) * 2;
         ctx.beginPath();
         ctx.moveTo(px - gr, py); ctx.lineTo(px + gr, py);
         ctx.moveTo(px, py - gr); ctx.lineTo(px, py + gr);
@@ -1048,6 +1068,28 @@
     ctx.fillStyle = INK92;
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
     ctx.fillText(msg, x + 44, y + h / 2 + 1);
+    ctx.textBaseline = 'top';
+  }
+
+  /* Motherload's FUEL LOW, translated: a loud, unmissable warning long
+     before the clock can kill. Sits top-left of the water; drops below the
+     SEALED banner when both are up. */
+  function drawAirLow(now) {
+    if (card) return;
+    if (!(run.air < run.airMax() * 0.33 && run.y > TUNE.surfaceY)) return;
+    const o = L.ocean;
+    const msg = 'AIR LOW';
+    ctx.font = '800 15px Inter, sans-serif';
+    const tw = ctx.measureText(msg).width;
+    const x = o.x + 14, y = o.y + (run.sealedNeed() > 0 ? 78 : 18);
+    const pulse = 0.55 + 0.45 * Math.sin(now / 220);
+    ctx.fillStyle = SCRIM(0.8);
+    ctx.beginPath(); UI.roundRectPath(ctx, x, y, tw + 26, 32, 16); ctx.fill();
+    ctx.globalAlpha = 0.55 + pulse * 0.45;
+    ctx.fillStyle = C_ACCENT_TEXT;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText(msg, x + 13, y + 17);
+    ctx.globalAlpha = 1;
     ctx.textBaseline = 'top';
   }
 
@@ -1460,6 +1502,7 @@
 
     drawScene(now);
     if (MODE === 'mobile') drawChromeMobile(now); else drawChromeDesktop(now);
+    drawAirLow(now);
 
     // Low-air vignette: the warning is ambient before it is terminal.
     if (!card && run.air < 25 && run.y > TUNE.surfaceY) {
