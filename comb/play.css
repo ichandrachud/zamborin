@@ -1,0 +1,17 @@
+/* Comb — per-game styles. Everything else comes from
+   ../shared/chrome.css and ../shared/tokens.css.
+
+   The .splash frame, cover-sizing, fade and timing all live in shared chrome.
+   Only the artwork is declared here.
+
+   The desktop art is 1520x1200 against a 760x600 frame, the same 1.267
+   aspect, so `cover` crops nothing and the wordmark's 66% of the width is
+   never at risk. The 0.38/aspect safe-zone figure does not apply to it: that
+   constant is the narrowest viewport worth designing for, which is a question
+   about phones and not about a frame the design system fixes.
+
+   The mobile art is 1170x2532 at 0.462, which is a modern phone almost
+   exactly. Its wordmark sits at 70.9% of the width, inside the 82.2% that
+   survives a cover-crop on the narrowest viewport worth designing for. */
+body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=1'); }
+body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=1'); }

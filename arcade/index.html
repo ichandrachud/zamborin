@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Zamborin Arcade — games with a run to chase</title>
+  <meta name="description" content="The other half of Zamborin. Puzzle games with levels to work through, stars to earn and a daily to come back for. Free, in your browser, on phone or desktop." />
+  <meta name="theme-color" content="#0E1726" />
+  <link rel="canonical" href="https://zamborin.com/arcade/" />
+  <link rel="icon" type="image/svg+xml" href="/images/zamborin-favicon.svg?v=2" />
+
+  <!-- Open Graph / Facebook / LinkedIn / iMessage -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Zamborin Games" />
+  <meta property="og:url" content="https://zamborin.com/arcade/" />
+  <meta property="og:title" content="Zamborin Arcade — games with a run to chase" />
+  <meta property="og:description" content="The other half of Zamborin. Puzzle games with levels to work through, stars to earn and a daily to come back for. Free, in your browser, on phone or desktop." />
+  <meta property="og:image" content="https://zamborin.com/images/comb-og.jpg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="A honeycomb board part filled with coloured clusters of hexagons." />
+
+  <!-- Twitter card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Zamborin Arcade — games with a run to chase" />
+  <meta name="twitter:description" content="The other half of Zamborin. Puzzle games with levels to work through, stars to earn and a daily to come back for. Free, in your browser, on phone or desktop." />
+  <meta name="twitter:image" content="https://zamborin.com/images/comb-og.jpg" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../shared/tokens.css?v=1" />
+  <link rel="stylesheet" href="../shared/chrome.css?v=20" />
+
+  <style>
+    body {
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+    }
+    .lobby {
+      flex: 1;
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 48px 24px 40px;
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    /* ONE grid, one card, all seventeen games. The alternating full-width
+       card system was replaced on 2026-08-25: at 12 games it was already
+       4,500px of page before the arcade group even started.
+       Three columns, degrading to two and then one. */
+    .game-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+    .game-card {
+      display: grid; grid-template-columns: 1fr;
+      background: #14213D; border-radius: 16px; overflow: hidden;
+      text-decoration: none; color: inherit;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06), 0 12px 24px -14px rgba(0,0,0,0.5);
+      transition: box-shadow .18s ease;
+    }
+    .game-card:hover {
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.10), 0 18px 34px -14px rgba(0,0,0,0.62),
+                  0 0 0 1px rgba(216, 82, 63, 0.30);
+    }
+    .game-card:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 3px; }
+    .game-card-image { aspect-ratio: 16 / 10; background-size: cover; background-position: center; background-color: #0E1726; }
+    .game-card-body { padding: 18px 20px 22px; display: flex; flex-direction: column; gap: 8px; box-sizing: border-box; }
+    .game-card-name { font-size: 23px; font-weight: 800; letter-spacing: -0.4px; color: var(--text); line-height: 1.05; }
+    /* 16px, not the 13.5 the old mini-card used: a card description is content
+       copy, and the site-wide floor is 16. See DESIGN-SYSTEM.md section 8. */
+    .game-card-desc { font-size: 16px; font-weight: 500; line-height: 1.55; color: var(--text-dim); }
+
+    @media (max-width: 980px) { .game-grid { grid-template-columns: repeat(2, 1fr); } }
+
+    @media (max-width: 720px) {
+      .lobby { padding: 32px 16px 24px; gap: 24px; }
+    }
+    @media (max-width: 620px) { .game-grid { grid-template-columns: 1fr; gap: 14px; } }
+
+    .lobby-foot {
+      text-align: center;
+      padding: 24px 16px 32px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.4px;
+      color: var(--text-mute);
+    }
+
+    /* Chrome.css collapses .site-header below 1099px so game pages can auto-focus.
+       The lobby is not a game — undo that collapse and use a more compact mobile
+       header (64px tall, 28px logo). The body.lobby-page selector keeps this
+       opt-out scoped to just the lobby. */
+    /* The mobile lobby header now lives in shared/chrome.css, so all 24
+       lobby-class pages get it and not just this one. See W12. */
+
+    .lobby-intro { max-width: 720px; }
+    .lobby-intro h1 { font-size: 34px; font-weight: 800; color: var(--text); letter-spacing: -0.6px; line-height: 1.12; margin-bottom: 12px; }
+    .lobby-intro p { font-size: 17px; line-height: 1.6; color: var(--text-dim); margin: 10px 0; }
+    .lobby-about { max-width: 760px; color: var(--text-dim); line-height: 1.65; font-size: 16px; }
+    .lobby-about h2 { font-size: 24px; font-weight: 800; color: var(--text); letter-spacing: -0.3px; margin: 4px 0 10px; }
+    .lobby-about h3 { font-size: 18px; font-weight: 700; color: var(--text); margin: 22px 0 4px; }
+    .lobby-about p { margin: 10px 0; }
+    /* .lobby-intro was missing from this rule, so the one link in the
+       homepage's opening paragraph fell back to the browser default
+       #0000EE and measured 1.91:1 on the page background. Unreadable, on
+       the most-read sentence on the site. #4DC3FF measures 9.04:1. */
+    .lobby-about a,
+    .lobby-intro a { color: #4DC3FF; }
+    @media (max-width: 720px) { .lobby-intro h1 { font-size: 27px; } }
+  </style>
+  <!-- Structured data for search engines + LLMs -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": "https://zamborin.com/#org",
+        "name": "Zamborin Games",
+        "url": "https://zamborin.com/",
+        "logo": "https://zamborin.com/images/zamborin-logo.svg",
+        "email": "mailto:then_and_again@hotmail.com"
+      },
+      {
+        "@type": "WebSite",
+        "@id": "https://zamborin.com/#site",
+        "name": "Zamborin Games",
+        "url": "https://zamborin.com/",
+        "description": "A small studio making fun, free browser games. Nothing to install. New games added frequently.",
+        "publisher": { "@id": "https://zamborin.com/#org" }
+      }
+    ]
+  }
+  </script>
+
+  <!-- Google AdSense -->
+  <meta name="google-adsense-account" content="ca-pub-9207689324865969">
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9207689324865969" crossorigin="anonymous"></script>
+</head>
+<body class="lobby-page">
+  <header class="site-header">
+    <div class="brand">
+      <img class="brand-logo" src="../images/zamborin-logo.svg?v=2" alt="Zamborin" />
+    </div>
+  </header>
+
+  <main class="lobby">
+    <section class="lobby-intro">
+      <h1>Games with a run to chase</h1>
+      <p>The other half of Zamborin. These ones keep score: levels to work through, stars to
+         earn back, and a puzzle that changes every day. Still free, still no account, still
+         nothing you can break by putting it down for a month.</p>
+    </section>
+
+    <div class="game-grid">
+      <a class="game-card" href="../comb/">
+        <div class="game-card-image" style="background-image: url('../images/comb-teaser.jpg?v=1')"></div>
+        <div class="game-card-body">
+          <div class="game-card-name">Comb</div>
+          <div class="game-card-desc">Fit clusters of hexagons into a honeycomb until every cell is
+            filled. A hundred levels, three stars each, and one puzzle a day that everybody gets.</div>
+        </div>
+      </a>
+    </div>
+
+    <section class="lobby-about">
+      <h2>What is different about these</h2>
+      <p>The games on the <a href="/">main page</a> promise no timers, no streaks and nothing to
+         lose, and they keep that promise. The ones here do not make it. They have a level map,
+         they remember how well you did, and they count the days you come back. That is a
+         different kind of pleasure and it deserved its own shelf rather than being mixed in
+         with the calm ones.</p>
+      <p>What has not changed is the rest of it. Nothing is timed against a clock you cannot
+         see, nothing is sold to you mid-puzzle, and no level is put in front of you that
+         cannot be solved. Every board is built by taking a finished one apart, so a solution
+         always exists, and the difficulty of each tier was measured rather than guessed.</p>
+      <p>Your progress lives in your own browser. There is no account and nothing is uploaded,
+         which also means clearing your site data clears your stars.</p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <nav class="site-foot-nav">
+      <a href="/">Games</a>
+      <a href="/arcade/">Arcade</a>
+      <a href="/guides/">Guides</a>
+      <a href="/about/">About</a>
+      <a href="/faq/">FAQ</a>
+      <a href="/embed/">Embed</a>
+      <a href="/privacy/">Privacy</a>
+      <a href="/cookies/">Cookies</a>
+      <a href="/terms/">Terms</a>
+      <a href="/contact/">Contact</a>
+    </nav>
+    <span>© 2026 Zamborin. Games created by Indrajeet Chandrachud.</span>
+  </footer>
+  <script defer src="/_vercel/insights/script.js"></script>
+  <script defer src="/_vercel/speed-insights/script.js"></script>
+</body>
+</html>
+

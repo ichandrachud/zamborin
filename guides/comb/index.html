@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Comb strategy: fill the tightest gap first — Zamborin</title>
+  <meta name="description" content="A practical Comb strategy guide: why the tightest gap is always the one to fill next, why packing from the top left stalls, never leaving a hole smaller than three cells, and how to earn three stars when an undo costs you a move." />
+  <meta name="theme-color" content="#0E1726" />
+  <link rel="canonical" href="https://zamborin.com/guides/comb/" />
+  <link rel="icon" type="image/svg+xml" href="/images/zamborin-favicon.svg?v=2" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:site_name" content="Zamborin Games" />
+  <meta property="og:url" content="https://zamborin.com/guides/comb/" />
+  <meta property="og:title" content="Comb strategy: fill the tightest gap first" />
+  <meta property="og:description" content="Why the tightest gap is the one to fill, why packing from the corner stalls, and how to earn three stars." />
+  <meta property="og:image" content="https://zamborin.com/images/comb-og.jpg" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Comb strategy: fill the tightest gap first" />
+  <meta name="twitter:description" content="A practical strategy guide to Comb, the honeycomb fitting puzzle." />
+  <meta name="twitter:image" content="https://zamborin.com/images/comb-og.jpg" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../shared/tokens.css?v=1" />
+  <link rel="stylesheet" href="../../shared/chrome.css?v=20" />
+  <style>
+    .guide { max-width: 760px; margin: 0 auto; padding: 40px 24px 80px; color: var(--text-dim); line-height: 1.7; font-size: 17px; }
+    .guide .crumbs { font-size: 14px; margin-bottom: 22px; color: var(--text-dim); }
+    .guide .crumbs a { color: #4DC3FF; text-decoration: none; display: inline-block; padding: 4px 0; }  /* W18: 14px type gives a 17px link, under the 24px of WCAG 2.5.8. These are
+       navigation, not links inside a sentence, so the inline exemption does not
+       apply. inline-block is what makes the padding count toward height. */
+    .guide h1 { font-size: 38px; color: var(--text); font-weight: 800; margin: 0 0 6px; letter-spacing: -0.5px; line-height: 1.15; }
+    .guide .lede { font-size: 19px; color: var(--text); margin: 14px 0 8px; }
+    .guide h2 { font-size: 23px; color: var(--text); font-weight: 700; margin: 38px 0 10px; letter-spacing: -0.2px; }
+    .guide p { margin: 12px 0; }
+    .guide a { color: #4DC3FF; }
+    .guide strong { color: var(--text); font-weight: 600; }
+    .guide ul { margin: 12px 0; padding-left: 22px; }
+    .guide li { margin: 8px 0; }
+    .guide .cta { display: inline-block; margin-top: 8px; background: #4DC3FF; color: #06121e; font-weight: 700; text-decoration: none; padding: 13px 26px; border-radius: 10px; }
+    .guide .playbox { margin: 36px 0 8px; padding: 22px 24px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09); border-radius: 14px; }
+    .guide .playbox p { margin: 0 0 14px; color: var(--text); font-weight: 600; }
+    .guide .more { margin-top: 40px; padding-top: 22px; border-top: 1px solid rgba(255,255,255,0.09); font-size: 16px; }
+    /* W18: these are a row of navigation links formatted as a paragraph, not
+
+       links inside prose, so the inline exemption does not cover them. 15px type
+
+       gave an 18px target against the 24px of WCAG 2.5.8. */
+
+    .guide .more a { display: inline-block; padding: 4px 0; }
+    .guide table { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 16px; }
+    .guide th, .guide td { text-align: left; padding: 9px 12px; border-bottom: 1px solid rgba(255,255,255,0.09); }
+    .guide th { color: var(--text); font-weight: 700; }
+    @media (max-width: 720px) { .guide { padding: 28px 18px 56px; font-size: 16px; } .guide h1 { font-size: 30px; } }
+  </style>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "Comb strategy: fill the tightest gap first",
+    "about": "Comb honeycomb fitting puzzle strategy",
+    "description": "A practical Comb strategy guide: why the tightest gap is always the one to fill next, why packing from the top left stalls, never leaving a hole smaller than three cells, and how to earn three stars when an undo costs you a move.",
+    "author": { "@type": "Organization", "name": "Zamborin Games" },
+    "publisher": { "@type": "Organization", "name": "Zamborin Games", "url": "https://zamborin.com/" },
+    "mainEntityOfPage": "https://zamborin.com/guides/comb/"
+  }
+  </script>
+  <meta name="google-adsense-account" content="ca-pub-9207689324865969">
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9207689324865969" crossorigin="anonymous"></script>
+</head>
+<body class="lobby-page">
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="Zamborin Games home">
+      <img class="brand-logo" src="/images/zamborin-logo.svg?v=2" alt="Zamborin" />
+    </a>
+    <a class="back-link" href="/">Back to all games</a>
+  </header>
+
+  <main class="guide">
+    <nav class="crumbs"><a href="/">Home</a> &rsaquo; <a href="/guides/">Guides</a> &rsaquo; Comb</nav>
+
+    <h1>Comb strategy: fill the tightest gap first</h1>
+    <p class="lede">Most people play Comb by starting at the top of the board and packing downwards, the way you would load a shelf. That works for the first few levels and then stops working rather suddenly. The board is not a shelf to fill, it is a set of holes to close, and the order you close them in is the whole game.</p>
+
+    <h2>Fill the tightest gap, not the nearest one</h2>
+    <p>At any moment, look for the empty cell that the fewest pieces can cover. Usually it is a notch on the edge of the outline or a cell hemmed in by pieces you have already placed. <strong>Fill that one.</strong></p>
+    <p>This is not a preference, it is the whole method. Play that way and roughly three placements in five are <strong>forced</strong>: exactly one piece in the tray, in exactly one position, fits the tightest hole. You are not choosing, you are reading. The remaining two are the real decisions, and they are much easier to make once the forced ones are out of the way.</p>
+    <p>Play the other way, filling whatever gap is nearest the top left, and the boards from the fourth tier on defeat you more often than not. The same levels are easy or hard depending only on the order you take them in.</p>
+
+    <h2>Never leave a hole smaller than three cells</h2>
+    <p>The smallest cluster is three hexagons. A single stranded cell, or a pair, can never be filled by anything, so the level is over as a clean run the moment you make one, even though nothing tells you and the board still looks fine.</p>
+    <p>Before you let go of a piece, look at the space it leaves behind rather than the space it fills. If it cuts a corner off into a pocket of one or two cells, put it somewhere else. This one habit is worth more than any amount of clever planning.</p>
+
+    <h2>The board is a shape, so use its corners</h2>
+    <p>Every outline is irregular by design and the awkward parts are the informative ones. A cell with only two open neighbours is nearly always the next thing to solve, because almost nothing reaches it. Work from the ragged edge inwards and the middle takes care of itself; work from the middle outwards and you will strand the edge.</p>
+
+    <h2>Stars, and why an undo costs you one move</h2>
+    <p>Par is simply the number of pieces the level was built from, so a level with four pieces has a par of four. Three stars means finishing in par: every piece placed once, in the right spot, first time. Two stars allows two spare moves and one star is anything beyond that.</p>
+    <p>Picking a piece back up and putting it elsewhere costs a move, and so does Undo. That is deliberate. If rethinking were free the move count would measure nothing, and the three-star run would be the same as the sixty-move run. It also means <strong>the cheapest place to think is before you drag</strong>, not after.</p>
+    <p>A refusal is free, though. If a piece will not sit where you tried to put it, nothing is spent. You can test a fit as often as you like; you only pay when a piece actually seats.</p>
+
+    <h2>You cannot lose, so getting stuck is information</h2>
+    <p>There is no timer and no fail state. If the board reaches a state nothing fits, pick pieces back up until it does. It costs moves and therefore stars, but the level is never lost and Restart is always there.</p>
+    <p>Treat a dead end as a message. The piece that stranded you is almost always the one you placed two or three moves earlier, in a comfortable-looking spot in open space, when a tighter gap was already waiting.</p>
+
+    <h2>The tray shows everything you have left</h2>
+    <p>Every remaining piece is in the tray, not just the next few, and it scrolls. Look at the whole set before the first placement. A large six-cell cluster with only one home on the board should be placed early, while that home still exists; a small three-cell piece is flexible and can wait. Spending your flexible pieces first and leaving the awkward one until last is the most common way a level goes wrong.</p>
+
+    <h2>What makes the later tiers harder</h2>
+    <p>Boards grow only a little, from nine cells to about seventeen. What actually changes is <strong>how interchangeable the pieces are</strong>. Early levels hand you several copies of the same shape, so a wrong choice is forgiving because another identical piece will do the job. Later ones give every piece a different shape, and then each has essentially one place it belongs.</p>
+    <p>So if a level feels harder than the last, count the distinct shapes in the tray rather than the cells on the board. That is the dial that moved.</p>
+
+    <h2>The daily and the streak</h2>
+    <p>One extra puzzle is generated from the date, so everybody in the world gets the same one on the same day and it does not touch your progress through the hundred. The streak counts days on which you finished at least one level, on UTC days rather than your local ones, so it turns over at the same moment for everyone. Missing a day resets it to one; it cannot be bought back.</p>
+
+    <h2>The short version</h2>
+    <ul>
+      <li>Fill the tightest gap, never the nearest.</li>
+      <li>Look at the hole a piece leaves, not the one it fills.</li>
+      <li>Never strand one or two cells. Nothing is that small.</li>
+      <li>Work inwards from the ragged edge.</li>
+      <li>Place the awkward big piece while it still has a home.</li>
+      <li>Testing a fit is free. Seating one is not.</li>
+      <li>Stuck is not lost. Pick pieces back up.</li>
+    </ul>
+
+    <div class="playbox">
+      <p>Ready to put it to work?</p>
+      <a class="cta" href="/comb/">Play Comb &rarr;</a>
+    </div>
+
+    <p class="more">More games: <a href="/arcade/">the arcade</a> &middot; <a href="/ballast/">Ballast</a> &middot; <a href="/">all Zamborin games</a> &middot; <a href="/guides/">all guides</a></p>
+  </main>
+
+  <footer class="site-footer">
+    <nav class="site-foot-nav">
+      <a href="/arcade/">Arcade</a>
+      <a href="/about/">About</a>
+      <a href="/guides/">Guides</a>
+      <a href="/privacy/">Privacy</a>
+      <a href="/contact/">Contact</a>
+    </nav>
+    <span>&copy; 2026 Zamborin. Games created by Indrajeet Chandrachud.</span>
+  </footer>
+  <script defer src="/_vercel/insights/script.js"></script>
+  <script defer src="/_vercel/speed-insights/script.js"></script>
+</body>
+</html>
