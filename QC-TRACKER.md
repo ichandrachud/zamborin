@@ -17,11 +17,38 @@ The folder stays in the repo. See branch `delist-socket`.
 Delisted and NOT in scope: socket, bunny, empyrean, foldfig, pane, pins, plumb, tarmac, wire.
 
 **SHIPPED 2026-08-27: ricochet.** Roster is now 16. All seven CONTRIBUTING
-steps done, `noindex` removed, homepage card live in the `.arcade` group (never
-`.games-row` — the H1 there promises nothing to lose, and Ricochet is a score
+steps done, `noindex` removed, homepage card live in the single `.game-grid` (the two-group
+split was retired 2026-08-25 when all 17 games moved to one 3-column grid; the H1
+standfirst no longer promises nothing to lose, because Ricochet is a score
 chase you can lose). Splash, OG and teaser art all in place and the mobile
 wordmark measured at 74.2% of width against an 82.2% limit for that aspect.
 Step 7, resubmitting the sitemap in Search Console, is the owner's.
+
+**SHIPPED 2026-08-27: ballast.** Roster is now 17. Formerly Crucible; renamed
+before launch. Steps 1 to 6 of CONTRIBUTING done, `noindex` removed, homepage card
+live, guide at `/guides/ballast/`, in `sitemap.xml`, `llms.txt`, the guides index
+and the 404 page. Not yet in the status table below, because it has not had a full
+QC audit pass; that audit is itself an open item.
+
+## Open items
+
+The things that are known, deliberate and not yet done. Anything here has been
+measured or decided, not guessed. Ordered by who owns it.
+
+### Owner's, not mine
+
+| # | Item | Detail |
+|---|---|---|
+| 1 | **Resubmit the sitemap in Google Search Console** | Step 7 of CONTRIBUTING, and it is outstanding for **two** games now, ricochet and ballast. One resubmit covers both: they are both already in `sitemap.xml`, so the file Search Console re-reads is the same file. Property is `zamborin.com`, and the sitemap URL is `https://zamborin.com/sitemap.xml`. Nothing code-side is blocking it |
+| 2 | **GameDistribution submission for ballast** | The distribution track, not the flagship track. Needs a Game ID from the GD dashboard before the SDK hooks can be filled in, same shape as carrom. **Activation is permanent**, so the listed name has to be right on the first submission. Ballast is a flagship-line game, so this is a decision to take rather than a task to run: it may simply not belong on GD |
+
+### Mine, when you want them
+
+| # | Item | Detail |
+|---|---|---|
+| 3 | **Ballast Milestone 2: the real gate** | Every difficulty figure quoted for Ballast so far comes from 10 to 40 seeds and the variance is wide, IQR around 0.4 to 1.0 on the numbers that decide the tuning. That is enough to reject an idea and not enough to accept one. The gate wants 300 seeds, a sweep of `K_TILT` rather than a single setting, and a check that the sweep has an **interior optimum**, because a constant that is better the further you push it is not a decision the player is making. `ballast/rules.js` is shared by the game and the harness, so the gate cannot measure a different game from the one that ships. Harness is `ballast/tune-play.mjs` |
+| 4 | **The shared pill border fails AA on every ground** | `shared/ui.js:37` sets the pill border to `rgba(255,255,255,0.24)`, which measures **2.16 to 2.19:1** depending on the card behind it, against a 3:1 bar for graphical objects. It is the same value in all 17 games because it is one shared token. Raising it to about **0.34** clears 3:1 on every ground measured. This is **one deliberate change in `shared/ui.js`**, never a per-game fix, and it needs every game's `?v=` cache-buster bumped in the same commit or the fleet ends up half-old |
+| 5 | **Ballast has not had a QC audit** | No row in the status table yet. FN, MB, PF, AX, CN, SEO, EMB have not been driven the way the other fifteen were. `tools/ballast/` already holds the viewport sweep, the contrast run and the safe-zone detector, so the instruments exist |
 
 ## Checklist columns
 
@@ -54,8 +81,65 @@ Step 7, resubmitting the sitemap in Search Console, is the owner's.
 | 13 | zood | ~ | OK | OK | - | OK | - | OK | 2026-08-22: handle added, 9 sizes clean on load. **Z1 rotation CLOSED 2026-08-27** — measured on a real iPhone: the portrait gate holds and rotating back resumes the same session. `rotationSafe` still reports the latent defect, correctly |
 | 14 | carrom | ~ | OK | OK | - | OK | - | OK | 2026-08-22: handle added, 9 sizes clean, survives rotation. **Z3 closed**; portal-ready 2026-08-27 (ad hooks + mute measured, package builds and plays standalone) |
 | 15 | ludo | ~ | OK | OK | - | OK | - | OK | 2026-08-22: handle added, **Z1 FIXED**, 9 sizes clean, state survives 9 rotations |
+| 16 | ricochet | - | - | - | - | - | - | - | shipped 2026-08-27, not yet audited |
+| 17 | ballast | OK | OK | OK | OK | ~ | OK | OK | audited 2026-08-28. Cleanest first audit on the track. One item, BA1, and it is cosmetic |
 
-Row order matches the homepage card order.
+Row order matches the homepage card order. Ricochet has a card but no audit yet.
+
+## Ballast audit, 2026-08-28
+
+Audited in full: FN, MB, PF, AX, CN, SEO, EMB, plus the recovery question and the
+late-game state. **One finding, cosmetic.** Ballast is the cleanest game to come
+through a first audit on this track.
+
+**FN.** A full run driven end to end: 15 drops, 3 merges, game over by spill,
+1,320 frames ticked, zero errors. **Recovery verified THROUGH THE INPUT PATH** — a
+real pointerdown/up dispatched on the PLAY AGAIN button's own rect, not a call to
+`startRun()` — returns phase `playing`, score 0, and the next drop registers.
+Enter and Space also restart from `over`. This is the check that Crucible's dead
+buttons survived, so it is the one worth doing properly.
+
+**MB.** Cards swept across a 9 x 8 grid of frame sizes, both the intro and the
+over card: **72 sizes, 0 failures.** The detector was null-tested by shrinking
+until it complained — it reports `fits: false` with a gap of -69 at 320x240 — so
+the zero is a real zero and not a vacuous one. Four rotations between 390x844 and
+844x390 with a real resize event dispatched: aspect agrees every time, no strip,
+and the run state survived intact at 6 drops and 80 points. That is the Z1/Z2
+class of bug, and Ballast passes where Zood does not.
+
+**PF.** No `setInterval` anywhere, rAF only, and all four re-fit listeners
+present: `resize`, `orientationchange`, `splash-done`, `visualViewport`.
+
+**AX.** `doc-audit` on `/ballast/` and `/guides/ballast/` at 390x844 and
+1280x900: 0 below the type floor, 0 contrast failures, 0 small tap targets, no
+overflow, footer reachable, one h1, no heading skip, 0 failed resources. Canvas
+type is invisible to that tool, so it was measured separately: all 12
+text-token-on-ground pairs pass 4.5:1, worst 5.11:1, with the ratio function
+null-tested first.
+
+**SEO.** Title, description, canonical, OG, Twitter, VideoGame JSON-LD all
+present, `noindex` removed, in `sitemap.xml` and `llms.txt`, guide exists and is
+linked both ways, homepage card live.
+
+**EMB.** Loads in a 480x360 iframe with `?embed=1`, chrome hidden, card fits,
+playable, own localStorage keys (`zam.ballast.*`), no frame-busting, no failed
+resources.
+
+**THREE THINGS I NEARLY REPORTED AND SHOULD NOT HAVE.** Worth recording, because
+each was my check rather than the game. Em dashes in the page: they are in the
+`<title>` and OG tags, which is the site-wide convention on every game, and the
+body copy has zero. An `arcTo` negative-radius crash in Bloom: it came from the
+hidden preview pane's zero viewport, and Bloom loads clean at 1280x900, 760x600,
+480x360 and 390x844 with 0 errors. And a HUD collision at high scores, the Orbit
+O2 shape: **I measured the read-out against the wrong button.** `L.buttons` holds
+the centred CTA while on the intro or over card, so `max(x + w)` returned 485
+instead of the control row's 264. Measured against the actual top-band row,
+clearance is +291 at score 0 and **still +131 at 99,999,999**. A screenshot
+caught it; the arithmetic did not.
+
+| ID | Game | Sev | Issue | State |
+|---|---|---|---|---|
+| BA1 | ballast | MINOR, cosmetic | `BG_TOP = '#1B2A47'` with the comment `--bg-panel`, but that token is `#1A2A45`. Two units per channel apart and invisible on screen. It is the fleet-wide drift documented in `DESIGN-SYSTEM.md` section 1.2, shared with bloom, needle, orbit, prism, sluice and `shared/chrome.css`, against the token used by kaleido, tailwind, tessera, untangle, ricochet and the template. Ballast was built the day before the design system moved into the repo, so nothing pointed at the right value | OPEN, fix on sight |
 
 ## Issue log
 
