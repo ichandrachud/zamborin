@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <title>Fathom — A Zamborin Game</title>
+  <meta name="description" content="Pilot a submarine into a trench where the ocean itself has floors. Everything you mine makes you heavier, and only light things are allowed back up." />
+  <meta name="theme-color" content="#0E1726" />
+  <link rel="canonical" href="https://zamborin.com/fathom/" />
+  <link rel="icon" type="image/svg+xml" href="../images/zamborin-favicon.svg?v=2" />
+  <!-- REMOVE THIS LINE ONLY WHEN THE GAME SHIPS. A prototype that is live but
+       unlinked is NOT hidden: Google finds it through any external link and
+       indexes an unfinished thing. See CONTRIBUTING, "Prototypes". -->
+  <meta name="robots" content="noindex">
+
+  <!-- Open Graph / Twitter -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Zamborin Games" />
+  <meta property="og:url" content="https://zamborin.com/fathom/" />
+  <meta property="og:title" content="Fathom — Only light things may rise" />
+  <meta property="og:description" content="Pilot a submarine into a trench where the ocean itself has floors. Everything you mine makes you heavier, and only light things are allowed back up." />
+  <meta property="og:image" content="https://zamborin.com/images/fathom-og.jpg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="A small yellow submarine descending past a glowing density layer into a dark trench" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Fathom — Only light things may rise" />
+  <meta name="twitter:description" content="Pilot a submarine into a trench where the ocean itself has floors. Everything you mine makes you heavier, and only light things are allowed back up." />
+  <meta name="twitter:image" content="https://zamborin.com/images/fathom-og.jpg" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../shared/tokens.css?v=1" />
+  <link rel="stylesheet" href="../shared/chrome.css?v=20" />
+  <link rel="stylesheet" href="./play.css?v=1" />
+  <!-- Google AdSense. The site earns from these pages; keep both lines. -->
+  <meta name="google-adsense-account" content="ca-pub-9207689324865969">
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9207689324865969" crossorigin="anonymous"></script>
+  <!-- Structured data: VideoGame schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "VideoGame",
+    "name": "Fathom",
+    "description": "Pilot a submarine into a trench where the ocean itself has floors. Everything you mine makes you heavier, and only light things are allowed back up.",
+    "url": "https://zamborin.com/fathom/",
+    "image": "https://zamborin.com/images/fathom-og.jpg",
+    "playMode": "SinglePlayer",
+    "gamePlatform": "Web Browser",
+    "applicationCategory": "Game",
+    "operatingSystem": "Web",
+    "genre": ["Action","Arcade"],
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "publisher": { "@type": "Organization", "name": "Zamborin Games", "url": "https://zamborin.com/" }
+  }
+  </script>
+  <style>
+    .game-info { max-width: 760px; margin: 0 auto; padding: 8px 24px 40px; color: var(--text-dim); line-height: 1.65; font-size: 16px; }
+    .game-info h1 { font-size: 28px; color: var(--text); font-weight: 800; margin: 20px 0 8px; letter-spacing: -0.3px; }
+    .game-info h2 { font-size: 20px; color: var(--text); font-weight: 700; margin: 30px 0 8px; }
+    .game-info p { margin: 12px 0; }
+    .game-info ul { margin: 12px 0; padding-left: 22px; }
+    .game-info li { margin: 7px 0; }
+    .game-info strong { color: var(--text); font-weight: 600; }
+    .game-info a { color: #4DC3FF; }
+    @media (max-width: 720px) { .game-info { padding: 8px 18px 40px; } .game-info h1 { font-size: 24px; } }
+    /* Game pages pin the body so swipes do not drag the document under a
+       finger. A page WITH body copy has to opt back out below the breakpoint,
+       or the whole article is unreachable on a phone. */
+    @media (max-width: 1151px) {
+      body.game-content-page { position: static; overflow: visible; height: auto; width: auto; top: auto; left: auto; touch-action: auto; }
+      body.game-content-page .site-footer { display: flex; }
+    }
+  </style>
+</head>
+<body class="game-content-page">
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="Zamborin Games home">
+      <img class="brand-logo" src="../images/zamborin-logo.svg?v=2" alt="Zamborin" />
+    </a>
+    <div class="header-right">
+      <button id="focus-toggle" class="focus-btn" type="button" aria-label="Play fullscreen" aria-pressed="false">
+        <svg class="icon-enter" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="4 9 4 4 9 4"/>
+          <polyline points="20 9 20 4 15 4"/>
+          <polyline points="4 15 4 20 9 20"/>
+          <polyline points="20 15 20 20 15 20"/>
+        </svg>
+        <svg class="icon-exit" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M6 6l12 12M18 6L6 18"/>
+        </svg>
+      </button>
+      <a class="back-link" href="/">Back to all games</a>
+    </div>
+  </header>
+
+  <main class="page">
+    <!-- Leaderboard ad: 728×90. All four slots are hidden behind the ads-on
+         class that nothing sets. Leave them in place and leave them off:
+         nothing may ever cover gameplay. See CONTRIBUTING, "Analytics". -->
+    <div class="ad-slot ad-leaderboard" aria-label="Advertisement">
+      <span class="ad-label">AD · 728 × 90</span>
+    </div>
+
+    <section class="play-row">
+      <div class="game-wrap">
+        <canvas id="game" aria-label="Fathom"></canvas>
+        <!-- Splash: shows for 2 s at load, then fades to reveal the game. -->
+        <div id="splash" class="splash" aria-hidden="true"></div>
+      </div>
+      <aside class="sidebar">
+        <div class="ad-slot ad-medrec" aria-label="Advertisement">
+          <span class="ad-label">AD · 300 × 250</span>
+        </div>
+        <div class="ad-slot ad-medrec" aria-label="Advertisement">
+          <span class="ad-label">AD · 300 × 250</span>
+        </div>
+      </aside>
+    </section>
+
+    <!-- Leaderboard ad: 728×90 -->
+    <div class="ad-slot ad-leaderboard" aria-label="Advertisement">
+      <span class="ad-label">AD · 728 × 90</span>
+    </div>
+
+    <!-- REAL COPY GOES HERE, and it is not optional. This is what makes the
+         page a page rather than a bare canvas, for search and for AdSense
+         policy alike. Write it in the calm voice, no em dashes. Look at
+         bloom/ or kaleido/ for the shape and the length. -->
+    <section class="game-info">
+      <h1>Fathom: Only light things may rise</h1>
+      <p>Pilot a submarine into a trench where the ocean itself has floors. Everything you mine makes you heavier, and only light things are allowed back up.</p>
+
+      <h2>How to play</h2>
+      <p>Your submarine obeys one law: heavy things sink and light things rise. Flood the ballast tanks to go down, blow them to come up, and remember that blowing ballast spends the same air you breathe.</p>
+      <ul>
+        <li><strong>The verb:</strong> flood to sink, blow to rise, thrust left and right against the current. Hold steady beside a deposit for two seconds and the claw takes it.</li>
+        <li><strong>The feedback:</strong> the LIFT gauge shows your net buoyancy and the weight each density layer demands. The cargo bar counts kilograms, because every kilogram is a promise you will keep on the way up.</li>
+        <li><strong>The goal:</strong> reach the surface with the richest haul you can still lift. Banked money is safe forever.</li>
+        <li><strong>JETTISON:</strong> drops your heaviest item instantly. It always works.</li>
+      </ul>
+
+      <h2>Why it is clever</h2>
+      <p>The ocean in Fathom has floors. Density layers only let heavy things sink through them and light things rise through them, and ore is weight. So every grab is a bargain with the trip home: nodules are heavy and cheap, crystals are light and precious, and a hold full of the wrong rock is an anchor. The layer that seals you in is drawn on screen the whole time, with the exact weight you would need to drop.</p>
+
+      <h2>Tips</h2>
+      <ul>
+        <li>Read the dollars-per-kilogram, not the dollars. Grabbing everything is the losing strategy by design.</li>
+        <li>Resting on a layer costs nothing. Use the floors as base camps and plan the climb before you are heavy.</li>
+      </ul>
+
+      <h2>Frequently asked questions</h2>
+      <p><strong>Is Fathom free?</strong> Yes, completely free to play, with no account or download, in any modern browser on phone, tablet or desktop.</p>
+      <p><strong>Does it work on mobile?</strong> Yes. Fathom is built for touch as well as mouse, with two control schemes to choose from.</p>
+      <p><strong>How do I win?</strong> Surface with your haul: everything you carry up is banked, and only what you bank is safe.</p>
+      <p><strong>Can I get stuck under a layer?</strong> No. Jettisoning cargo always sheds enough weight to rise, and the banner tells you exactly how many kilograms to drop.</p>
+
+      <!-- The game must link FORWARD to its guide. For a long time all twelve
+           guides linked back to their game and not one game linked forward, so
+           the strongest pages on the site passed them nothing. -->
+      <p class="guide-cta"><a href="/guides/fathom/">Stuck? Read the Fathom strategy guide <span aria-hidden="true">&rarr;</span></a></p>
+      <p>Enjoy a good thinking puzzle? Try <a href="/bloom/">Bloom</a> or <a href="/kaleido/">Kaleido</a>, or browse <a href="/">all Zamborin games</a>.</p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <nav class="site-foot-nav">
+      <a href="/">Games</a>
+      <a href="/guides/">Guides</a>
+      <a href="/about/">About</a>
+      <a href="/faq/">FAQ</a>
+      <a href="/privacy/">Privacy</a>
+      <a href="/cookies/">Cookies</a>
+      <a href="/terms/">Terms</a>
+      <a href="/contact/">Contact</a>
+    </nav>
+    <span>© 2026 Zamborin. Games created by Indrajeet Chandrachud.</span>
+  </footer>
+
+  <!-- Shared toolkit. ALWAYS load before play.js. -->
+  <script src="../shared/sfx.js?v=5"></script>
+  <script src="../shared/ui.js?v=2"></script>
+  <script src="../shared/analytics.js?v=3"></script>
+  <script src="../shared/embed.js?v=1"></script>
+  <script defer src="../shared/ads.js?v=2"></script>
+  <script src="./sim.js?v=1"></script>
+  <script src="./play.js?v=1"></script>
+  <script>
+    (() => {
+      const btn = document.getElementById('focus-toggle');
+      btn.addEventListener('click', () => {
+        const on = document.body.classList.toggle('focus-mode');
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        btn.setAttribute('aria-label', on ? 'Exit fullscreen' : 'Play fullscreen');
+        setTimeout(() => window.dispatchEvent(new Event('resize')), 60);
+      });
+    })();
+
+    // Splash: 2 s reveal, 0.6 s fade, remove from DOM at 2.7 s, then tell play.js.
+    (() => {
+      const splash = document.getElementById('splash');
+      if (!splash) return;
+      setTimeout(() => splash.classList.add('fading'), 2000);
+      setTimeout(() => {
+        splash.remove();
+        window.dispatchEvent(new CustomEvent('splash-done'));
+      }, 2700);
+    })();
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
+  <script defer src="/_vercel/speed-insights/script.js"></script>
+</body>
+</html>

@@ -1,0 +1,26 @@
+/* Fathom — per-game styles. Inherits everything from
+   ../shared/chrome.css and ../shared/tokens.css.
+   The splash is a placeholder gradient until the real art exists;
+   splash-desktop.jpg / splash-mobile.jpg replace it at ship. */
+
+.splash {
+  position: absolute;
+  inset: 0;
+  /* The water column itself: #1A5E86 dying to #01060B — game art, not chrome. */
+  background: linear-gradient(180deg, #1A5E86 0%, #0F3D5F 30%, #082A44 55%, #04182B 78%, #01060B 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+  font: 800 48px Inter, system-ui, sans-serif;
+  letter-spacing: 0.14em;
+  transition: opacity 600ms ease-out;
+  pointer-events: none;
+  z-index: 10;
+}
+.splash::before {
+  content: 'FATHOM';
+}
+.splash.fading {
+  opacity: 0;
+}
