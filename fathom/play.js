@@ -1130,7 +1130,8 @@
   }
   function jettisonPill(cx, cy) {
     ctx.font = '700 ' + UI.PILL.font + 'px Inter, sans-serif';
-    const label = 'JETTISON';
+    // "Jettison" is the brief's word; the button says what it does instead.
+    const label = 'DROP CARGO';
     const w = Math.round(ctx.measureText(label).width + UI.PILL.padX + 10);
     const box = pill('jettison', '', cx, cy, { w });
     const has = run.cargo.length > 0;
@@ -1188,7 +1189,7 @@
     const p1 = iconPill('sound', SIDE_PAD + 22, cy, (cx, cyy) => speakerIcon(cx, cyy, sfx ? sfx.isOn() : true));
     const p2 = iconPill('rules', SIDE_PAD + 22 + UI.PILL.iconW + UI.PILL.gap, cy, questionIcon);
     ctx.font = '700 ' + UI.PILL.font + 'px Inter, sans-serif';
-    const jw = Math.round(ctx.measureText('JETTISON').width + UI.PILL.padX + 18);
+    const jw = Math.round(ctx.measureText('DROP CARGO').width + UI.PILL.padX + 18);
     let jcx = Math.max(LW / 2, p2.x + p2.w + UI.PILL.gap + jw / 2);
     const jbox = jettisonPill(jcx, cy);
     ctx.font = '600 13px Inter, sans-serif';
@@ -1338,7 +1339,7 @@
       'S floods ballast to sink. W blows ballast to rise, and blowing spends the same air you breathe.',
       'The glowing bands are density layers: floors in the water. Sink through with enough weight, rise through with enough lift, or rest on one for free.',
       'A and D thrust against the current. Touch a deposit and the claw takes it.',
-      'J jettisons the heaviest item, instantly. If the banner says SEALED, drop weight until it does not.',
+      'J drops your heaviest cargo, instantly. If the banner says SEALED, drop weight until it does not.',
       'Surface to bank the haul. If the air runs out down there, the haul is lost and the bank is kept.',
     ];
     if (scheme === 'A') return [
@@ -1346,7 +1347,7 @@
       'Hold FLOOD to take on water and sink. Hold BLOW to rise. Blowing spends the same air you breathe.',
       'The glowing bands are density layers: floors in the water. Sink through with enough weight, rise through with enough lift, or rest on one for free.',
       'Hold the left or right half of the water to thrust. Touch a deposit and the claw takes it.',
-      'JETTISON drops the heaviest item, instantly. If the banner says SEALED, drop weight until it does not.',
+      'DROP CARGO sheds your heaviest item, instantly. If the banner says SEALED, drop weight until it does not.',
       'Surface to bank the haul. If the air runs out down there, the haul is lost and the bank is kept.',
     ];
     return [
@@ -1354,7 +1355,7 @@
       'Swipe down anywhere to flood and sink. Swipe up to blow ballast and rise. Blowing spends the same air you breathe.',
       'The glowing bands are density layers: floors in the water. Sink through with enough weight, rise through with enough lift, or rest on one for free.',
       'Touch the sub and drag left or right to thrust. Touch a deposit and the claw takes it.',
-      'JETTISON drops the heaviest item, instantly. If the banner says SEALED, drop weight until it does not.',
+      'DROP CARGO sheds your heaviest item, instantly. If the banner says SEALED, drop weight until it does not.',
       'Surface to bank the haul. If the air runs out down there, the haul is lost and the bank is kept.',
     ];
   }
