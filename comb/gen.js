@@ -485,48 +485,45 @@ function drawPool(rng, catalogue, allowed, poolSize, tune) {
    12 to 26 cells, so that is where all fourteen rungs sit. A wider board is
    not a harder level, it is a longer search. */
 const TIERS = [
-  /* IRREGULARITY IS WHAT MAKES THE OPENING TIERS DIFFERENT FROM EACH OTHER,
-     and it was 0.10 on all three, which is a nearly-round blob every time.
-     The owner played levels 1 to 9 and said they were the same level. He was
-     right, and the numbers were worse than "similar": tier 1 had FOUR distinct
-     outlines and ONE piece set across its ten levels, so every one of them was
-     three copies of the same bar on one of four nearly identical nine-cell
-     blobs.
+  /* THE OPENING IS NOT A TUTORIAL ANY MORE. The brief asked for greedy above
+     85% at tier 1 on the grounds that "the opening must be gentle", and that
+     is what produced nine near-identical levels nobody had to think about.
+     The owner played it and called it a wasted turn, which is the right call
+     for a game whose whole job is to hook someone in the first thirty seconds.
 
-     The gate could not see it. It asked whether tier 1 was GENTLE, and
-     gentleness had been bought with sameness: a single-shape pool and the
-     roundest possible outline are exactly what makes greedy succeed. There is
-     a variety row in the gate now.
+     The new shape of level 1, and of every level: greedy near 50%, so a
+     player who does not look fails about half the time, and Bot C at ~100% on
+     half a pick-up, so a player who DOES look wins first go. Two thirds of
+     placements are forced. That is the "oh, I see it" the game is for.
 
-     Pool 1 to 2 on tier 1 costs six points of greedy and takes the piece sets
-     from one to six, which is the part a player actually feels. */
-  { cells:  9, pool:  2, sizes: [3, 6], varietyBias: -0.80, irregularity: 0.70 },
-  { cells:  9, pool:  4, sizes: [3, 5], varietyBias:  0.06, irregularity: 0.70 },
-  { cells:  9, pool:  9, sizes: [3, 5], varietyBias:  0.51, irregularity: 0.85 },
-  { cells: 16, pool:  3, sizes: [3, 4], varietyBias: -0.80, irregularity: 0.30 },
-  { cells: 16, pool:  4, sizes: [3, 4], varietyBias:  0.06, irregularity: 0.30 },
-  { cells: 16, pool:  1, sizes: [3, 5], varietyBias: -0.80, irregularity: 0.30 },
-  { cells: 16, pool:  4, sizes: [3, 5], varietyBias:  0.06, irregularity: 0.30 },
-  /* Tiers 8 and 9 once carried the SAME dials, on the argument that the tier
-     index feeds the seed so they still produce different levels. They did, and
-     they measured 24% and 19% — but that gap was seed luck, not a setting, and
-     the monotonicity criterion duly flipped when the sample size changed. A
-     rung whose position depends on how many seeds you ran is not a rung.
-     Tier 9 now drops the size-6 pieces, which separates it at both 110 and 310
-     seeds (20.0% and 17.4%) and keeps it derivable: 81% solved, 64% forced,
-     1.9 pick-ups. */
-  { cells: 17, pool:  6, sizes: [3, 6], varietyBias:  0.24, irregularity: 0.35 },
-  { cells: 17, pool:  6, sizes: [3, 5], varietyBias:  0.24, irregularity: 0.35 },
-  { cells: 17, pool:  9, sizes: [3, 6], varietyBias:  0.51, irregularity: 0.35 },
-  /* Rungs 11-14 are NOT used by levels 1-100: ten tiers, ten levels each. They
-     exist only to answer the gate's question about whether a sub-15% tier is
-     reachable within fourteen, and they are past the point where a level stays
-     derivable. Bot C falls off a cliff here, which is the finding, not a dial
-     to keep turning. */
-  { cells: 18, pool: 14, sizes: [3, 6], varietyBias:  0.96, irregularity: 0.40 },
-  { cells: 20, pool:  9, sizes: [3, 6], varietyBias:  0.51, irregularity: 0.50 },
-  { cells: 22, pool: 14, sizes: [3, 6], varietyBias:  0.96, irregularity: 0.60 },
-  { cells: 26, pool: 20, sizes: [3, 6], varietyBias:  1.00, irregularity: 0.80 },
+     Every rung was selected on four numbers at once — greedy, Bot C, pick-ups
+     and how many of its ten levels differ — rather than on difficulty alone,
+     which is how the first ladder ended up shipping one level ten times. Every
+     tier here makes ten distinct levels out of ten.
+
+     The order is the GATE's measurement, not the selection grid's prediction.
+     Two rungs came out the wrong way round when measured on the gate's own
+     seeds and were swapped; a ladder ordered by what a different sample said
+     is not ordered. */
+  { cells: 12, spread: 0, pool:  6, sizes: [3, 6], varietyBias:  0.24, irregularity: 0.75 },
+  { cells: 12, spread: 2, pool:  3, sizes: [3, 6], varietyBias: -0.30, irregularity: 0.75 },
+  { cells: 13, spread: 1, pool:  3, sizes: [3, 6], varietyBias: -0.30, irregularity: 0.75 },
+  { cells: 14, spread: 0, pool:  9, sizes: [3, 6], varietyBias:  0.51, irregularity: 0.75 },
+  { cells: 13, spread: 0, pool:  6, sizes: [3, 6], varietyBias:  0.24, irregularity: 0.55 },
+  { cells: 15, spread: 0, pool:  6, sizes: [3, 6], varietyBias:  0.24, irregularity: 0.35 },
+  { cells: 15, spread: 2, pool:  6, sizes: [3, 6], varietyBias:  0.24, irregularity: 0.35 },
+  { cells: 16, spread: 1, pool:  6, sizes: [3, 6], varietyBias:  0.24, irregularity: 0.75 },
+  /* The last two are where the derivable band runs out: below about 22% greedy
+     nothing keeps Bot C above 90% on under 1.6 pick-ups, so these two ask for
+     a little grinding. They are the rungs that reach the brief's sub-15%. */
+  { cells: 17, spread: 0, pool:  6, sizes: [3, 5], varietyBias:  0.24, irregularity: 0.35 },
+  { cells: 17, spread: 0, pool:  9, sizes: [3, 6], varietyBias:  0.51, irregularity: 0.35 },
+  /* Rungs 11-14 are NOT used by levels 1-100 and exist only to answer the
+     gate's question about reaching sub-15% within fourteen. */
+  { cells: 18, spread: 0, pool: 14, sizes: [3, 6], varietyBias:  0.96, irregularity: 0.40 },
+  { cells: 20, spread: 0, pool:  9, sizes: [3, 6], varietyBias:  0.51, irregularity: 0.50 },
+  { cells: 22, spread: 0, pool: 14, sizes: [3, 6], varietyBias:  0.96, irregularity: 0.60 },
+  { cells: 26, spread: 0, pool: 20, sizes: [3, 6], varietyBias:  1.00, irregularity: 0.80 },
 ];
 // Levels 1-100 across the first ten rungs, ten levels each.
 const tierOf = level => Math.min(TIERS.length - 1, Math.floor((level - 1) / 10));
@@ -540,10 +537,26 @@ function makeLevel(seed, tierIdx, opts) {
   const cat = o.catalogue || CATALOGUE;
   const tier = (o.tiers || TIERS)[Math.max(0, Math.min((o.tiers || TIERS).length - 1, tierIdx))];
   const rng = makeRng((seed * 2654435761) ^ (tierIdx * 40503) ^ 0x5bf03635);
+
+  /* SPREAD: the cell count varies level to level inside a tier, taken off the
+     seed so consecutive levels get different sizes and the whole thing stays a
+     pure function of (seed, tier).
+
+     It was built, measured, removed and brought back, and the reason is worth
+     keeping. While the brief's "the opening must be gentle" stood, spread cost
+     more gentleness than it bought variety: a bigger board is a harder board,
+     and every setting dropped tier 1 under the 85% bar. The owner then decided
+     an opening nobody has to think about is a wasted turn, which is a
+     different goal, and under THAT goal a varying board size is the most
+     visible difference between two levels and the cheapest thing on the menu. */
+  const spread = tier.spread || 0;
+  const cells = spread
+    ? tier.cells + (((seed % (spread * 2 + 1)) + spread * 2 + 1) % (spread * 2 + 1)) - spread
+    : tier.cells;
   const allowed = cat.filter(s => s.size >= tier.sizes[0] && s.size <= tier.sizes[1]).map(s => s.id);
 
   for (let attempt = 0; attempt < t.blobTries; attempt++) {
-    const blob = growBlob(rng, tier.cells, tier.irregularity, t);
+    const blob = growBlob(rng, cells, tier.irregularity, t);
     if (!blob) continue;
     const board = sortedBoard(blob);
     // A two-shape pool cannot tile about half of all outlines, so a tier that

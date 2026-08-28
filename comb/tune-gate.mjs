@@ -261,7 +261,22 @@ const row = (label, got, pass, note) =>
 row('Bot G on tiers 3-10, target < 45%', pc(gT3), gT3 < 0.45, gT3 > 0.60 ? 'above 60%: levels are too loose' : '');
 row('Bot P solves, target 100%', pc(pAll), pAll >= 0.9999, 'generator check');
 row('constructive replay, target 100%', pc(cAll), cAll >= 0.9999, 'the real solvability proof');
-row('Bot G at tier 1, target > 85%', pc(gT1), gT1 > 0.85, 'the tutorial must be gentle');
+/* THE BRIEF ASKED FOR >85% HERE, on the grounds that the opening must be
+   gentle, and the owner overrode it on 2026-08-28 after playing it: a level
+   nobody has to think about is a wasted turn, and the first turn is the one
+   that decides whether anybody plays a second.
+
+   It is replaced rather than deleted, because "as hard as you like" is not a
+   criterion either. The opening has to need a look AND yield to one, so it is
+   a band, paired with the row below that says looking works. */
+const t1 = tiers[0];
+const bcT1 = t1.c / (t1.made || 1);
+const pkT1 = mean(t1.pickups);
+row('Bot G at tier 1, target 40-70%', pc(gT1), gT1 >= 0.40 && gT1 <= 0.70,
+    gT1 > 0.70 ? 'too easy to be worth a turn' : gT1 < 0.40 ? 'a wall, not an opening' : 'must need a look');
+row('Bot C at tier 1, target >= 96% on <= 0.7 pick-ups',
+    pc(bcT1) + ' / ' + pkT1.toFixed(2), bcT1 >= 0.96 && pkT1 <= 0.7,
+    'and looking must WORK, or it is just hard');
 row('Bot G falls monotonically, tiers 1-10', mono ? 'yes' : 'no', mono,
   breaks.length ? 'rises at ' + breaks.join(', ') + ', beyond noise'
                 : (noisy.length ? 'rises at ' + noisy.join(', ') + ' are inside the noise' : ''));
