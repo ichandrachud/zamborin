@@ -106,6 +106,22 @@
   const sfx = window.ZSFX ? window.ZSFX.create({ storageKey: 'zam.comb.sfx', gain: 2.4 }) : null;
   const play = (n) => { try { if (sfx) sfx.play(n); } catch (_) { /* audio never breaks play */ } };
 
+  /* ---------- PORTAL ----------
+     Harmless when there is no portal, which is every visit to zamborin.com.
+     The mute hooks matter: CrazyGames requires the game silenced for the whole
+     ad, and restoring means restoring the PLAYER's setting rather than
+     unmuting someone who had chosen silence. */
+  const portal = window.ZAM_PORTAL;
+  let adPaused = false;
+  if (portal) {
+    portal.init({
+      onPause: () => { adPaused = true; },
+      onResume: () => { adPaused = false; draw(); },
+      isMuted: () => (sfx ? !sfx.isOn() : false),
+      setMuted: (m) => { if (sfx) sfx.setOn(!m); },
+    });
+  }
+
   // ---------- ANALYTICS ----------
   const NOOP = { init(){}, gameStart(){}, levelStart(){}, levelComplete(){},
                  levelRestart(){}, hintUsed(){}, track(){} };
@@ -156,8 +172,12 @@
   const totalStars = () => Object.keys(save.stars).reduce((a, k) => a + (save.stars[k] | 0), 0);
   const unlocked = (n) => n <= save.max;
 
-  function recordWin(n, isDaily, moves, par) {
-    const st = starsFor(moves, par);
+  function recordWin(n, isDaily, moves, par, forced) {
+    /* A skip awards ONE star and never more, however few moves are on the
+       counter. That is the anti-trap in the brief: a player may buy past a
+       wall they are stuck on, but cannot buy a perfect record, so the map goes
+       on telling the truth. */
+    const st = forced || starsFor(moves, par);
     if (isDaily) {
       save.daily = { date: utcDay(), stars: Math.max(st, save.daily.date === utcDay() ? save.daily.stars | 0 : 0) };
       T().track('daily_played', { stars: st });
@@ -183,7 +203,14 @@
   // ---------- BANDS ----------
   const SIDE_PAD = 30;
   const topBand = () => (MODE === 'mobile' ? 64 : 56);
-  const botBand = () => (MODE === 'mobile' ? 96 : 20);
+  /* 150 rather than 96 on a phone, because the play screen now carries TWO
+     rows: the controls at thumb height and HINT/SKIP above them, which is
+     where the brief puts them rather than squeezing a fifth pill into a row
+     already measured at 315 of 330. It costs the board no size at all: the
+     board is width-bound in portrait, capped by PORTRAIT_COLS, so the height
+     given up was slack. The map has one row and takes 96 directly. */
+  const botBand = () => (MODE === 'mobile' ? 150 : 80);
+  const mapBotBand = () => (MODE === 'mobile' ? 96 : 20);
   const TRAY_H = 118;          // the tray as a strip, under a portrait board
   const trayW = () => Math.round(Math.min(170, LW * 0.30));   // as a column
 
@@ -238,8 +265,13 @@
   let phase = 'rules';      // 'rules' | 'map' | 'play' | 'win'
   let isDaily = false;      // the date-seeded puzzle, outside the 100
   let lastStars = 0;        // what the level just finished was worth
+  let skipped = false;      // this level was bought past, not solved
   let mapScroll = 0;
   const DAILY_TIER = 5;     // tier 6: past the tutorial, inside the derivable band
+  let hintsUsed = 0;        // per level, capped
+  let completions = 0;      // this session, for the interstitial cadence
+  let lastInterstitial = 0;
+  const HINT_CAP = 2;
   let drag = null;          // {qi, shape, x, y, grabDX, grabDY, ghost}
   let cardScroll = 0;
   let trayScroll = 0;
@@ -265,6 +297,8 @@
     placedAt = new Array(level.queue.length).fill(null);
     history = []; moves = 0; drag = null; seatT = new Map(); trayScroll = 0;
     lastStars = 0;
+    hintsUsed = 0;
+    skipped = false;
     layout();
     T().levelStart(levelNo);
   }
@@ -297,10 +331,13 @@
     moves++;
     play('drop');
     if (won()) {
-      phase = 'win'; cardScroll = 0;
       lastStars = recordWin(levelNo, isDaily, moves, level.par);
       play('success');
       T().levelComplete(levelNo, moves);
+      // The ad, if one is due, goes BEFORE the card rather than over it, so
+      // the player is never reading a result through an overlay.
+      if (portal) portal.gameplayStop();
+      maybeInterstitial(() => { phase = 'win'; cardScroll = 0; draw(); });
     }
     return true;
   }
@@ -335,6 +372,96 @@
     draw();
   }
 
+  /* ---------- HINT AND SKIP ----------
+     Rewarded on a portal, free here. The owner's call, and it costs nothing:
+     zamborin.com was never the revenue channel for this line, and one code
+     path is worth more than a few pennies. The button simply carries no ad
+     badge where there is no ad to play.
+
+     A hint places the next unplaced piece where the level's own solution puts
+     it. If the player has put something else in that space, the hint lifts
+     exactly the pieces in the way and returns them to the tray first, which is
+     always possible because the solution is what the level was built from. The
+     whole thing costs ONE move, not one per lift. */
+  function hintPlacement() {
+    for (let qi = 0; qi < level.queue.length; qi++) {
+      if (placedMask[qi]) continue;
+      const p = level.queue[qi];
+      const blockers = new Set();
+      for (const i of p.idx) if (occ[i] && owner[i] !== qi) blockers.add(owner[i]);
+      return { qi, t: p.t, blockers: Array.from(blockers) };
+    }
+    return null;
+  }
+
+  function applyHint() {
+    if (phase !== 'play' || hintsUsed >= HINT_CAP) return false;
+    const h = hintPlacement();
+    if (!h) return false;
+    for (const b of h.blockers) lift(b);
+    const now = performance.now();
+    if (!seat(h.qi, h.t[0], h.t[1], now)) return false;
+    hintsUsed++;
+    T().hintUsed(isDaily ? 0 : levelNo);
+    return true;
+  }
+
+  function applySkip() {
+    if (phase !== 'play') return false;
+    // Lay the level's own solution out, then score it as one star whatever the
+    // move counter says.
+    occ.fill(0); owner.fill(-1); placedMask.fill(0); placedAt.fill(null);
+    history = []; seatT.clear(); drag = null;
+    const now = performance.now();
+    for (let qi = 0; qi < level.queue.length; qi++) {
+      const p = level.queue[qi];
+      for (const i of p.idx) { occ[i] = 1; owner[i] = qi; }
+      placedMask[qi] = 1; placedAt[qi] = { idx: p.idx, t: p.t };
+      history.push(qi); seatT.set(qi, now);
+    }
+    layoutTray();
+    phase = 'win'; cardScroll = 0;
+    lastStars = recordWin(levelNo, isDaily, moves, level.par, 1);
+    skipped = true;
+    play('success');
+    T().track('skip_used', { level: isDaily ? 0 : levelNo });
+    T().levelComplete(levelNo, moves);
+    return true;
+  }
+
+  /* Ask the portal, then act on the answer. On zamborin.com `canReward` is
+     false and the action simply runs, which is the owner's decision recorded
+     as one branch rather than two builds. */
+  function withReward(kind, act) {
+    const P = window.ZAM_PORTAL;
+    if (!P || !P.canReward()) { act(); draw(); return; }
+    T().track('rewarded_offered', { kind: kind, level: isDaily ? 0 : levelNo });
+    P.rewarded(function () {
+      T().track('rewarded_watched', { kind: kind, level: isDaily ? 0 : levelNo });
+      act(); draw();
+    }, function () {
+      /* No fill, or the player closed it early. The brief's caps are about
+         what the game gives away, not about punishing a failed ad request, and
+         an ad that would not load is not the player's fault. They get it. */
+      act(); draw();
+    });
+  }
+
+  /* Interstitials: every third completion, at least two minutes apart, and
+     never before level 4. CrazyGames enforces its own cooldown on top of this
+     and answers `adCooldown` when it disagrees, which portal.js swallows. */
+  function maybeInterstitial(then) {
+    completions++;
+    const P = window.ZAM_PORTAL;
+    const now = Date.now();
+    const eligible = P && P.name && !isDaily && levelNo >= 4 &&
+                     completions % 3 === 0 && (now - lastInterstitial) > 120000;
+    if (!eligible) { then(); return; }
+    lastInterstitial = now;
+    T().track('interstitial_shown', { level: levelNo });
+    P.interstitial(then);
+  }
+
   // ---------- LAYOUT ----------
   function layout() {
     L.hit = {};
@@ -351,8 +478,11 @@
       bh = LH - botBand() - by;
       // The BAND the tray may occupy, not the panel. The panel is sized to
       // what it holds, in layoutTray().
-      const th = Math.min(LH - botBand() - topBand() - 34, 150 * 3 + 20);
-      L.trayBand = { x: LW - SIDE_PAD - TW, y: topBand() + (LH - botBand() - topBand() - 22 - th) / 2,
+      // The bottom reserve already holds HINT and SKIP, so the column simply
+      // fills what is left.
+      const room = LH - botBand() - topBand() - 12;
+      const th = Math.min(room, 150 * 3 + 20);
+      L.trayBand = { x: LW - SIDE_PAD - TW, y: topBand() + 6 + (room - th) / 2,
                      w: TW, h: th, vertical: true };
     } else {
       bx = SIDE_PAD; by = topBand();
@@ -405,7 +535,12 @@
     const PORTRAIT_COLS = 8;
     const capCols = landscape() ? 44
       : bw / ((PORTRAIT_COLS + 0.5) * SQ3 + PAD * 2);
-    L.R = Math.max(10, Math.min(44, capCols, fitR));
+    /* The floor is 8, not 10, and it only ever binds BELOW the smallest frame
+       the embed documents. A landscape phone at 568x320 gives the board 106px
+       of height, and a six-row outline needs a radius under 10 to fit it: at a
+       floor of 10 three levels in a hundred overflowed by 8px. Small and
+       legible is the right way to fail there; clipped is not. */
+    L.R = Math.max(8, Math.min(44, capCols, fitR));
 
     L.ox = bx + (bw - unitW * L.R) / 2 - rx0 * L.R + L.R * SQ3 / 2;
     L.oy = by + (bh - unitH * L.R) / 2 - ry0 * L.R + L.R;
@@ -488,7 +623,14 @@
     const needAcross = vert ? (maxW + 0.5) * SQ3 : (maxH * 1.5 + 0.5);
     const needAlong = vert ? (maxH * 1.5 + 0.5) : (maxW + 0.5) * SQ3;
     const forThree = (along / 3 - GAPT) / needAlong;
-    L.trayR = Math.max(6, Math.min(L.R, across / needAcross, Math.max(forThree, TRAY_RMIN)));
+    /* TRAY_RMIN stops a piece being illegibly small in a band that has room.
+       It must never make one TALLER THAN THE BAND: at 568x320 the tray column
+       is 94px and the floor produced a 97px piece, so a level's pieces could
+       not all be scrolled into view. The floor is a preference; fitting the
+       window is not. */
+    const fitsWindow = along / needAlong;
+    L.trayR = Math.max(6, Math.min(L.R, across / needAcross, fitsWindow,
+                                   Math.max(forThree, TRAY_RMIN)));
 
     /* A SHORT TRAY GETS MORE AIR BETWEEN ITS PIECES. Owner's call 2026-08-28:
        under four pieces, the base gap packs them tighter than the space
@@ -659,6 +801,7 @@
     drawBoard(now);
     drawTray(now);
     drawHUD();
+    drawExtras();
     if (drag) drawDrag(now);
     if (phase === 'rules') drawCard('rules', now);
     else if (phase === 'win') drawCard('win', now);
@@ -835,6 +978,43 @@
     L.rowRight = rowRight;
   }
 
+  /* HINT and SKIP, with their rewarded badge where an ad can actually back
+     them. On zamborin.com there is no portal, so there is no badge and the
+     buttons simply work. */
+  function drawExtras() {
+    if (phase !== 'play') { L.hit.hint = L.hit.skip = null; return; }
+    const P = window.ZAM_PORTAL;
+    const badged = !!(P && P.canReward());
+    const cy = MODE === 'mobile' ? LH - 128 : LH - 44;
+    const pad = badged ? 40 : 0;
+    const hw = UI.pillWidth(ctx, 'Hint') + pad;
+    const sw = UI.pillWidth(ctx, 'Skip') + pad;
+    const gap = 12;
+    let x;
+    if (MODE === 'mobile') x = (LW - (hw + sw + gap)) / 2;
+    else x = L.trayBand.x + (L.trayBand.w - (hw + sw + gap)) / 2;
+
+    const out = hintsUsed >= HINT_CAP;
+    L.hit.hint = UI.drawPill(ctx, 'Hint', x + hw / 2, cy, { w: hw, dim: out });
+    if (badged) drawAdBadge(x + hw - 30, cy, out);
+    x += hw + gap;
+    L.hit.skip = UI.drawPill(ctx, 'Skip', x + sw / 2, cy, { w: sw });
+    if (badged) drawAdBadge(x + sw - 30, cy, false);
+  }
+
+  // A badge, not a button. Chrome, so tokens only, and badges are exempt from
+  // the 16px copy floor because nobody reads a badge as prose.
+  function drawAdBadge(cx, cy, dim) {
+    const w = 30, h = 18;
+    UI.roundRectPath(ctx, cx - w / 2, cy - h / 2, w, h, 5);
+    ctx.fillStyle = TOK.tint12; ctx.fill();
+    ctx.fillStyle = dim ? TOK.tint30 : TOK.ink72;
+    ctx.font = '700 10px Inter, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('AD', cx, cy + 1);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  }
+
   // Four little cells: the level map, and a way back to it.
   function drawMapGlyph(cx, cy) {
     ctx.save();
@@ -881,7 +1061,7 @@
   function mapLayout() {
     const pad = SIDE_PAD;
     const viewTop = topBand() + 6;
-    const viewH = Math.max(80, LH - botBand() - viewTop);
+    const viewH = Math.max(80, LH - mapBotBand() - viewTop);
     const availW = LW - pad * 2;
     /* 68 rather than 74: on a 390 phone that is five columns of 66 rather
        than four of 82, which halves the scroll without taking the cell below
@@ -1291,6 +1471,7 @@
     genLevel(n, opts);
     phase = 'play';
     markStarted();
+    if (portal) portal.gameplayStart();
     draw();
   }
 
@@ -1336,6 +1517,14 @@
     if (inBox(p, L.hit.map)) { phase = 'map'; draw(); return; }
     if (inBox(p, L.hit.undo)) { undo(); return; }
     if (inBox(p, L.hit.restart)) { restart(); return; }
+    // A dimmed pill is still clickable, so the guard lives in the handler and
+    // the analytics call sits BELOW it.
+    if (inBox(p, L.hit.hint)) {
+      if (hintsUsed >= HINT_CAP) { play('error'); return; }
+      withReward('hint', applyHint);
+      return;
+    }
+    if (inBox(p, L.hit.skip)) { withReward('skip', applySkip); return; }
   });
 
   // The card body scrolls: wheel, drag and touch. No scrollbar, no arrows.

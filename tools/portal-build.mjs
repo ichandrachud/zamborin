@@ -39,9 +39,22 @@ const GAMES = {
 
 const GAME = process.argv.slice(2).find(a => !a.startsWith('--')) || 'tailwind';
 const NO_SDK = process.argv.includes('--no-sdk');
+
+/* WHICH PORTAL. The package is identical either way apart from the SDK in the
+   head, because shared/portal.js is what the game talks to and it works out
+   for itself which SDK is present. Adding a third portal is a case here and a
+   branch in portal.js, and no change to any game.
+
+     node tools/portal-build.mjs comb                     GameDistribution
+     node tools/portal-build.mjs comb --portal=crazygames CrazyGames
+     node tools/portal-build.mjs comb --no-sdk            local play-test */
+const PORTAL = (process.argv.find(a => a.startsWith('--portal=')) || '--portal=gd').split('=')[1];
+if (!['gd', 'crazygames'].includes(PORTAL)) throw new Error(`unknown portal "${PORTAL}"`);
 // A local play-test build carries no SDK, so it needs no game id. Only the
 // uploadable package does, which is also the only one that can be got wrong.
-if (!NO_SDK && !GAMES[GAME]) {
+// Only GameDistribution needs an id, and only for an uploadable package.
+// CrazyGames identifies the game by the listing it is uploaded to.
+if (!NO_SDK && PORTAL === 'gd' && !GAMES[GAME]) {
   throw new Error(`no GD game id for "${GAME}" — add it to GAMES at the top of this file`);
 }
 const GAME_ID = GAMES[GAME] || '__NOT_SET__';
@@ -111,7 +124,11 @@ console.log(`\n  ${GAME}: ${MAN.game.length} game files, ${MAN.shared.length} sh
 // ---- 2. transform index.html --------------------------------------------
 
 // Trackers and third-party advertising. Both are contractual, not stylistic.
-h = cut(h, /\s*<!-- Google AdSense -->/g, 'adsense comment');
+/* The template's comment grew a sentence ("The site earns from these pages;
+   keep both lines"), and an exact-string regex meant every game built from the
+   current template failed here instead of building. Match the opening of the
+   comment and let it run to its close. */
+h = cut(h, /\s*<!-- Google AdSense[^>]*>/g, 'adsense comment');
 h = cut(h, /\s*<meta name="google-adsense-account"[^>]*>/g, 'adsense meta');
 h = cut(h, /\s*<script async src="https:\/\/pagead2\.googlesyndication\.com[^<]*<\/script>/g, 'adsense script');
 h = cut(h, /\s*<script defer src="\/_vercel\/[^"]*"><\/script>/g, 'vercel analytics');
@@ -158,7 +175,7 @@ h = h.replace('<html lang="en">', '<html lang="en" class="embed">');
 h = h.replace(/<body class="([^"]*)">/, '<body class="$1 embed">');
 
 // The SDK. GD_OPTIONS must exist before main.min.js loads.
-const sdk = `
+const gdSdk = `
   <script>
     window.GD_OPTIONS = {
       gameId: '${GAME_ID}',
@@ -168,6 +185,13 @@ const sdk = `
             window.dispatchEvent(new Event('gd-resume')); break;
           case 'SDK_GAME_PAUSE':
             window.dispatchEvent(new Event('gd-pause')); break;
+          /* THE ONLY THING THAT MEANS A REWARD WAS EARNED. showAd('rewarded')
+             resolves whether or not the player watched it, so a game that
+             pays out on the promise pays out on a skip. shared/portal.js
+             waits for this event and treats the promise settling without it
+             as a decline. */
+          case 'SDK_REWARDED_WATCH_COMPLETE':
+            window.dispatchEvent(new Event('gd-rewarded')); break;
         }
       }
     };
@@ -180,6 +204,15 @@ const sdk = `
     }(document, 'script', 'gamedistribution-jssdk'));
   </script>
 </head>`;
+
+/* CrazyGames v3 must be loaded in the head and initialised before use, which
+   shared/portal.js does on its own init. Verified against their docs on
+   2026-08-28; v2 initialised itself and v3 does not. */
+const cgSdk = `
+  <script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>
+</head>`;
+
+const sdk = PORTAL === 'crazygames' ? cgSdk : gdSdk;
 h = h.replace('</head>', NO_SDK ? '</head>' : sdk);
 
 writeFileSync(join(OUT, 'index.html'), h);
@@ -212,21 +245,31 @@ if (failures.length) {
    removal itself, and only for a game that has a splash to remove. */
 const REQUIRED = ['./shared/chrome.css', 'id="game"']
   .concat(h.includes('id="splash"') ? ['splash.remove()'] : [])
-  .concat(NO_SDK ? [] : ['GD_OPTIONS']);
+  .concat(NO_SDK ? [] : (PORTAL === 'crazygames' ? ['crazygames-sdk-v3.js'] : ['GD_OPTIONS', 'SDK_REWARDED_WATCH_COMPLETE']))
+  /* The portal contract must survive into the package, or every ad call in
+     the game silently becomes a no-op and the package still looks finished.
+
+     Asked of the MANIFEST and not of the html, because the html is the wrong
+     place to ask: the SDK block injected above CONTAINS THE WORDS
+     "shared/portal.js" in a comment explaining what it is for, so
+     `h.includes('portal.js')` matched the explanation rather than a script
+     tag and demanded the file of every game that does not use it. The
+     manifest lists what index.html actually loaded. */
+  .concat(MAN.shared.includes('portal.js') ? ['./shared/portal.js'] : []);
 for (const must of REQUIRED) {
   if (!h.includes(must)) throw new Error(`package is missing ${must}`);
 }
 
 // ---- 4. zip it ----------------------------------------------------------
-const zip = join(ROOT, 'dist', NO_SDK ? `${GAME}-local.zip` : `${GAME}-gd.zip`);
+const zip = join(ROOT, 'dist', NO_SDK ? `${GAME}-local.zip` : `${GAME}-${PORTAL}.zip`);
 rmSync(zip, { force: true });
 execSync(`cd "${OUT}" && zip -qr "${zip}" . -x '.*' -x '__MACOSX/*'`);
 
 const size = execSync(`du -h "${zip}" | cut -f1`).toString().trim();
 const count = execSync(`unzip -l "${zip}" | tail -1`).toString().trim();
 console.log(NO_SDK
-  ? '\n  LOCAL BUILD, no GD SDK. For play-testing only — never upload this one.'
-  : `\n  ${cuts} removals, all matched.`);
+  ? '\n  LOCAL BUILD, no SDK. For play-testing only — never upload this one.'
+  : `\n  ${cuts} removals, all matched. Portal: ${PORTAL}.`);
 console.log(`  index.html at the zip root, no outbound references.`);
 console.log(`\n  ${zip}  (${size})`);
 console.log(`  ${count}\n`);
