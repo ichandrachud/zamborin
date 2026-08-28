@@ -833,83 +833,75 @@
     }
   }
 
+  /* The sub is the owner's model (assets/sub-1.png, master in iCloud
+     source-assets). It faces right natively; the canvas flips it. More
+     models are coming as purchasable subs, so everything model-specific
+     lives in SUB_SPRITE. The vector fallback below covers the frames
+     before the image loads, and failure. */
+  const SUB_SPRITE = { src: './assets/sub-1.png?v=1', lenM: 13.5, aspect: 397 / 800,
+                       noseX: 0.44, noseY: -0.06, propX: -0.485 };
+  const subImg = new Image();
+  let subImgOk = false;
+  subImg.onload = () => { subImgOk = true; };
+  subImg.src = SUB_SPRITE.src;
+
   function drawSub(t) {
     const ppm = L.ppm;
     const px = sx(run.x), py = sy(run.y);
-    const len = 6.4 * ppm, hgt = 3.5 * ppm, f = run.facing;
+    const f = run.facing;
+    const W = SUB_SPRITE.lenM * ppm, Hh = W * SUB_SPRITE.aspect;
+    const len = W / 2, hgt = Hh / 2;
     /* The sub pitches with its vertical motion — the single clearest tell
        that flooding is working, before any depth number changes. */
-    const tilt = Math.max(-0.16, Math.min(0.16, run.vy * 0.006)) * f;
+    const tilt = Math.max(-0.16, Math.min(0.16, run.vy * 0.006));
     ctx.save();
     ctx.translate(px, py);
+    ctx.scale(f, 1);          // local space faces right from here on
     ctx.rotate(tilt);
-    // Lamp: a bright core cone inside a soft wide one, plus a glow at the lens.
-    const nose = f * len * 0.92;
+    // Lamp: a bright core cone inside a soft wide one, from the dome.
+    const nose = W * SUB_SPRITE.noseX;
+    const noseY = Hh * SUB_SPRITE.noseY;
     const coneLen = 55 * ppm;
     for (const [spread, a] of [[0.30, 0.06], [0.16, 0.10]]) {
-      const cg = ctx.createLinearGradient(nose, 0, nose + f * coneLen, 0);
+      const cg = ctx.createLinearGradient(nose, noseY, nose + coneLen, noseY);
       cg.addColorStop(0, 'rgba(190,230,245,' + a + ')'); cg.addColorStop(1, 'rgba(190,230,245,0)');
       ctx.fillStyle = cg;
       ctx.beginPath();
-      ctx.moveTo(nose, -hgt * 0.22);
-      ctx.lineTo(nose + f * coneLen, -coneLen * spread);
-      ctx.lineTo(nose + f * coneLen, coneLen * spread);
-      ctx.lineTo(nose, hgt * 0.22);
+      ctx.moveTo(nose, noseY - hgt * 0.20);
+      ctx.lineTo(nose + coneLen, noseY - coneLen * spread);
+      ctx.lineTo(nose + coneLen, noseY + coneLen * spread);
+      ctx.lineTo(nose, noseY + hgt * 0.20);
       ctx.closePath(); ctx.fill();
     }
-    const lg = ctx.createRadialGradient(nose, 0, 0, nose, 0, hgt * 0.9);
+    const lg = ctx.createRadialGradient(nose, noseY, 0, nose, noseY, hgt * 0.9);
     lg.addColorStop(0, 'rgba(220,245,255,0.35)'); lg.addColorStop(1, 'rgba(220,245,255,0)');
     ctx.fillStyle = lg;
-    ctx.beginPath(); ctx.arc(nose, 0, hgt * 0.9, 0, Math.PI * 2); ctx.fill();
-    // Hull: value edges, no outlines. Light from up and slightly left.
-    const bg = ctx.createLinearGradient(0, -hgt, 0, hgt);
-    bg.addColorStop(0, '#FFDA78'); bg.addColorStop(0.35, '#F0C255');
-    bg.addColorStop(0.7, '#C8992F'); bg.addColorStop(1, '#6E4E12');
-    ctx.fillStyle = bg;
-    ctx.beginPath(); ctx.ellipse(0, 0, len, hgt, 0, 0, Math.PI * 2); ctx.fill();
-    // Specular: a soft top-left sheen.
-    ctx.fillStyle = 'rgba(255,255,240,0.30)';
-    ctx.beginPath(); ctx.ellipse(-f * len * 0.15, -hgt * 0.5, len * 0.5, hgt * 0.26, tilt * 0.2 - f * 0.08, 0, Math.PI * 2); ctx.fill();
-    // Plating seam: a value line, part of the form.
-    ctx.strokeStyle = 'rgba(90,62,10,0.35)'; ctx.lineWidth = Math.max(1, ppm * 0.22);
-    ctx.beginPath(); ctx.ellipse(0, 0, len * 0.62, hgt * 0.94, 0, -Math.PI * 0.42, Math.PI * 0.42); ctx.stroke();
-    // Belly shadow.
-    ctx.fillStyle = 'rgba(40,26,4,0.38)';
-    ctx.beginPath(); ctx.ellipse(0, hgt * 0.48, len * 0.82, hgt * 0.38, 0, 0, Math.PI); ctx.fill();
-    // Conning tower with its own light.
-    const tg = ctx.createLinearGradient(0, -hgt * 1.5, 0, -hgt * 0.4);
-    tg.addColorStop(0, '#E8B851'); tg.addColorStop(1, '#A87F26');
-    ctx.fillStyle = tg;
-    ctx.beginPath(); ctx.ellipse(-f * len * 0.16, -hgt * 0.92, len * 0.26, hgt * 0.46, 0, Math.PI, 0); ctx.fill();
-    // The dome: glass with depth and a specular point.
-    const domeX = f * len * 0.42;
-    const dg = ctx.createRadialGradient(domeX - hgt * 0.16, -hgt * 0.3, hgt * 0.06, domeX, -hgt * 0.08, hgt * 0.5);
-    dg.addColorStop(0, '#F2FBFF'); dg.addColorStop(0.5, '#BFE7F2'); dg.addColorStop(1, '#5E93A8');
-    ctx.fillStyle = dg;
-    ctx.beginPath(); ctx.arc(domeX, -hgt * 0.08, hgt * 0.46, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = TINT(0.85);
-    ctx.beginPath(); ctx.arc(domeX - hgt * 0.15, -hgt * 0.26, hgt * 0.10, 0, Math.PI * 2); ctx.fill();
-    // Tail fin and prop.
-    const fg = ctx.createLinearGradient(0, -hgt * 0.5, 0, hgt * 0.5);
-    fg.addColorStop(0, '#D0A53C'); fg.addColorStop(1, '#8A6318');
-    ctx.fillStyle = fg;
-    ctx.beginPath();
-    ctx.moveTo(-f * len * 0.82, 0);
-    ctx.lineTo(-f * len * 1.18, -hgt * 0.52);
-    ctx.lineTo(-f * len * 1.18, hgt * 0.52);
-    ctx.closePath(); ctx.fill();
-    const spin = run._thrusting ? t * 26 : t * 4;
-    const bx = -f * len * 1.24;
-    ctx.strokeStyle = 'rgba(215,195,145,0.85)'; ctx.lineWidth = Math.max(1.5, ppm * 0.4);
-    ctx.beginPath();
-    ctx.moveTo(bx, -Math.abs(Math.sin(spin)) * hgt * 0.58);
-    ctx.lineTo(bx, Math.abs(Math.sin(spin)) * hgt * 0.58);
-    ctx.stroke();
-    if (run._thrusting) {   // wash glow behind the prop
-      const wg = ctx.createRadialGradient(bx - f * hgt * 0.4, 0, 0, bx - f * hgt * 0.4, 0, hgt * 1.1);
+    ctx.beginPath(); ctx.arc(nose, noseY, hgt * 0.9, 0, Math.PI * 2); ctx.fill();
+    if (subImgOk) {
+      ctx.drawImage(subImg, -W / 2, -Hh / 2, W, Hh);
+    } else {
+      // Vector stand-in: the pre-model hull, simplified.
+      const bg = ctx.createLinearGradient(0, -hgt, 0, hgt);
+      bg.addColorStop(0, '#FFDA78'); bg.addColorStop(0.35, '#F0C255');
+      bg.addColorStop(0.7, '#C8992F'); bg.addColorStop(1, '#6E4E12');
+      ctx.fillStyle = bg;
+      ctx.beginPath(); ctx.ellipse(0, 0, len * 0.94, hgt * 0.8, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#CFEFF8';
+      ctx.beginPath(); ctx.arc(len * 0.42, -hgt * 0.08, hgt * 0.34, 0, Math.PI * 2); ctx.fill();
+    }
+    // The prop answering the thrusters: a spinning blur at the sprite's tail.
+    const bx = W * SUB_SPRITE.propX;
+    if (run._thrusting) {
+      const spin = t * 26;
+      ctx.strokeStyle = 'rgba(230,240,245,0.55)'; ctx.lineWidth = Math.max(1.5, ppm * 0.35);
+      ctx.beginPath();
+      ctx.moveTo(bx, -Math.abs(Math.sin(spin)) * hgt * 0.42);
+      ctx.lineTo(bx, Math.abs(Math.sin(spin)) * hgt * 0.42);
+      ctx.stroke();
+      const wg = ctx.createRadialGradient(bx - hgt * 0.4, 0, 0, bx - hgt * 0.4, 0, hgt * 1.0);
       wg.addColorStop(0, 'rgba(200,235,245,0.20)'); wg.addColorStop(1, 'rgba(200,235,245,0)');
       ctx.fillStyle = wg;
-      ctx.beginPath(); ctx.arc(bx - f * hgt * 0.4, 0, hgt * 1.1, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(bx - hgt * 0.4, 0, hgt * 1.0, 0, Math.PI * 2); ctx.fill();
     }
     ctx.restore();
     // HOLD FULL tag.
