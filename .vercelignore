@@ -10,9 +10,17 @@
 # way QC-TRACKER.md was. They run against the local dev server.
 /tools/
 
-# Per-game measuring harnesses, for the same reason as /tools/. They are kept
-# in git because they are how a change gets re-verified, but they are
-# instruments and not part of the site. ballast/tune-m0.mjs and
-# ballast/tune-play.mjs were being served before this line was added.
+# Per-game measuring harnesses, for the same reason as /tools/.
+#
+# BELT AND BRACES, not a live leak. Checked against production first, and the
+# claim that prompted this was wrong: .mjs is not served by this deployment at
+# all, so ballast/tune-m0.mjs, ballast/tune-play.mjs and ricochet/tune-gate.mjs
+# already 404 while ballast/play.js beside them returns 200. This rule exists
+# so that a harness written as .js one day does not quietly become a public
+# page the way QC-TRACKER.md did.
+#
+# NOT shared/qc/doc-audit.js. That one is a harness too, and it is served on
+# purpose: the documented way to run it is to fetch it FROM THE ORIGIN against
+# the live site, so excluding it would break the audit rather than tidy it.
 tune-*.mjs
 tune-*.js
