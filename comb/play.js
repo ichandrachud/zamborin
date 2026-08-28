@@ -285,10 +285,13 @@
     levelNo = isDaily ? 0 : Math.max(1, Math.min(LEVELS, n));
     const tier = isDaily ? DAILY_TIER : G.tierOf(levelNo);
     const seed = isDaily ? dailySeed() : levelNo;
-    level = G.makeLevel(seed, tier);
-    // makeLevel returns null only if sixty outlines in a row refused to tile.
-    // Nudging the seed is honest here: the level number still names one fixed
-    // level, it is just not the very first outline that seed produced.
+    /* The hundred come off the LADDER, not straight from the generator: it is
+       built forward so that no level is the one before it repeated, which the
+       generator on its own cannot know. The daily has no neighbour and is
+       generated directly. */
+    level = isDaily ? G.makeLevel(seed, tier) : G.shippedLevel(levelNo);
+    // The ladder handles its own retries; only the daily can still come back
+    // empty, and it gets the same nudge.
     let bump = 0;
     while (!level && bump < 24) level = G.makeLevel(seed + (++bump) * 7919, tier);
     occ = new Uint8Array(level.n);

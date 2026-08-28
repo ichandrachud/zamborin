@@ -148,7 +148,10 @@ function runTier(tierIdx, seeds) {
   };
   for (const seed of seeds) {
     const t0 = process.hrtime.bigint();
-    const lv = G.makeLevel(seed, tierIdx);
+    // A shipped seed IS a level number, and shipped levels come off the ladder
+    // so the gate measures what the player is handed.
+    const lv = (seed <= 100 && G.tierOf(seed) === tierIdx)
+      ? G.shippedLevel(seed) : G.makeLevel(seed, tierIdx);
     const t1 = process.hrtime.bigint();
     if (!lv) { r.failedGen++; continue; }
     r.made++;
@@ -281,6 +284,45 @@ console.log(`\n  Bot C over tiers 1-10: solves ${pc(cRate)}, ${pc(fShare)} of it
 console.log('  This is the row that says whether Comb is a puzzle. Greedy has to fail and');
 console.log('  reasoning has to win. If Bot C also collapses, the level is not hard, it is');
 console.log('  a search, and no amount of tiering fixes that.');
+
+/* ---------- VARIETY, and why it is a pass criterion now ----------
+   The owner played levels 1 to 9 and said they were the same level. They very
+   nearly were: tier 1 had four distinct outlines and ONE piece set across its
+   ten levels. Everything above passed while that was true, because every row
+   asks how HARD a level is and none asked whether two levels differ.
+
+   A tier ships ten levels. If it cannot produce ten different ones, it is one
+   level shown ten times, and no difficulty curve saves that. */
+console.log('\n\nVARIETY — can a tier produce ten different levels?');
+console.log('-'.repeat(96));
+console.log('  tier   outlines   piece sets   distinct levels   worst repeat');
+let varietyFails = [], worstRun = 1, ladderDupes = 0;
+{
+  let prevSig = null;
+  for (let t = 0; t < Math.min(10, NTIERS); t++) {
+    const o = new Set(), sh = new Set(), c = new Set();
+    let run = 1, best = 1;
+    for (let n = t * 10 + 1; n <= t * 10 + 10; n++) {
+      const lv = G.shippedLevel(n);
+      if (!lv) { varietyFails.push(`level ${n} does not generate`); prevSig = null; continue; }
+      const sig = G.levelSig(lv);
+      const half = sig.split('#');
+      o.add(half[0]); sh.add(half[1]); c.add(sig);
+      if (sig === prevSig) { ladderDupes++; run++; if (run > best) best = run; } else run = 1;
+      prevSig = sig;
+    }
+    if (best > worstRun) worstRun = best;
+    const bad = c.size < 7;
+    if (bad) varietyFails.push(`tier ${t + 1} makes only ${c.size} different levels out of 10`);
+    console.log('  ' + pad(t + 1, 4) + pad(o.size + '/10', 11) + pad(sh.size + '/10', 13) +
+                pad(c.size + '/10', 18) + pad(best > 1 ? best + ' in a row' : 'none', 15) +
+                (bad ? '   <- too few' : ''));
+  }
+}
+row('every tier makes 7+ different levels of 10', varietyFails.length ? varietyFails.length + ' short' : 'yes',
+    varietyFails.length === 0, varietyFails[0] || '');
+row('no level repeats the one before it', ladderDupes === 0 ? 'none' : ladderDupes + ' pairs',
+    ladderDupes === 0, 'the ladder de-duplicates consecutive levels');
 
 if (args.show !== undefined) {
   const t = parseInt(args.show, 10) || 0;

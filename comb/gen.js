@@ -485,9 +485,24 @@ function drawPool(rng, catalogue, allowed, poolSize, tune) {
    12 to 26 cells, so that is where all fourteen rungs sit. A wider board is
    not a harder level, it is a longer search. */
 const TIERS = [
-  { cells:  9, pool:  1, sizes: [3, 6], varietyBias: -0.80, irregularity: 0.10 },
-  { cells:  9, pool:  4, sizes: [3, 5], varietyBias:  0.06, irregularity: 0.10 },
-  { cells:  9, pool:  9, sizes: [3, 5], varietyBias:  0.51, irregularity: 0.10 },
+  /* IRREGULARITY IS WHAT MAKES THE OPENING TIERS DIFFERENT FROM EACH OTHER,
+     and it was 0.10 on all three, which is a nearly-round blob every time.
+     The owner played levels 1 to 9 and said they were the same level. He was
+     right, and the numbers were worse than "similar": tier 1 had FOUR distinct
+     outlines and ONE piece set across its ten levels, so every one of them was
+     three copies of the same bar on one of four nearly identical nine-cell
+     blobs.
+
+     The gate could not see it. It asked whether tier 1 was GENTLE, and
+     gentleness had been bought with sameness: a single-shape pool and the
+     roundest possible outline are exactly what makes greedy succeed. There is
+     a variety row in the gate now.
+
+     Pool 1 to 2 on tier 1 costs six points of greedy and takes the piece sets
+     from one to six, which is the part a player actually feels. */
+  { cells:  9, pool:  2, sizes: [3, 6], varietyBias: -0.80, irregularity: 0.70 },
+  { cells:  9, pool:  4, sizes: [3, 5], varietyBias:  0.06, irregularity: 0.70 },
+  { cells:  9, pool:  9, sizes: [3, 5], varietyBias:  0.51, irregularity: 0.85 },
   { cells: 16, pool:  3, sizes: [3, 4], varietyBias: -0.80, irregularity: 0.30 },
   { cells: 16, pool:  4, sizes: [3, 4], varietyBias:  0.06, irregularity: 0.30 },
   { cells: 16, pool:  1, sizes: [3, 5], varietyBias: -0.80, irregularity: 0.30 },
@@ -548,6 +563,15 @@ function makeLevel(seed, tierIdx, opts) {
     const order = rng.shuffle(tiled.pieces.map((_, i) => i));
     const queue = order.map(i => tiled.pieces[i]);
 
+    /* Asked to avoid a signature, try another outline rather than hand back a
+       level the player has just finished. On the last attempt take it anyway:
+       a repeated level is a blemish, a missing one is a hole in the ladder. */
+    if (o.avoid && o.avoid.length && attempt < t.blobTries - 1) {
+      const outline = shapeKey(canon(board.map(k => [keyQ(k), keyR(k)])));
+      const sig = outline + '#' + queue.map(p => p.shape).sort((a, b) => a - b).join(',');
+      if (o.avoid.indexOf(sig) >= 0) continue;
+    }
+
     return {
       seed, tier: tierIdx, attempt, pool,
       board,                       // cell keys, scan order
@@ -564,6 +588,49 @@ function makeLevel(seed, tierIdx, opts) {
     };
   }
   return null;
+}
+
+/* What makes one level look like another to a PLAYER: the shape of the board
+   and which pieces it hands you. Not where it sits in the region, so the
+   outline is canonicalised, and not the order of the tray, so the pieces are
+   sorted. */
+function levelSig(lv) {
+  // '#' separates the two halves because shapeKey already uses ':' and '|',
+  // so splitting a signature on '|' returns one CELL of the outline rather
+  // than the outline. The gate's variety row did exactly that and reported
+  // one distinct outline per tier while also reporting ten distinct levels.
+  const outline = shapeKey(canon(lv.board.map(k => [keyQ(k), keyR(k)])));
+  return outline + '#' + lv.shapes.slice().sort((a, b) => a - b).join(',');
+}
+
+/* The hundred as a player meets them, which is the only sequence that matters.
+
+   A level is regenerated if it comes out identical to THE ONE BEFORE IT AS THE
+   PLAYER ACTUALLY GETS IT. The first attempt at this compared each level to
+   the raw generator's answer for n-1 rather than to the corrected level, so
+   fixing the clash between 11 and 12 simply moved it to 12 and 13. A chain has
+   to be built as a chain.
+
+   Built forward and cached, so playing in order costs one generation a level
+   and jumping to level 95 from the map costs ninety-five once. */
+const _ladder = [null];
+let _built = 0;
+function shippedLevel(n) {
+  n = Math.max(1, n | 0);
+  while (_built < n) {
+    const k = _built + 1;
+    const prev = _ladder[k - 1] ? levelSig(_ladder[k - 1]) : null;
+    const opt = prev ? { avoid: [prev] } : undefined;
+    let lv = makeLevel(k, tierOf(k), opt);
+    /* Sixty outlines in a row can refuse to tile, which happens to about one
+       level in a hundred. Nudging the seed still names one fixed level for
+       that number, it is just not the first outline the seed produced. The
+       ladder must never have a hole in it. */
+    for (let bump = 1; !lv && bump <= 24; bump++) lv = makeLevel(k + bump * 7919, tierOf(k), opt);
+    _ladder[k] = lv;
+    _built = k;
+  }
+  return _ladder[n];
 }
 
 /* ---------- the tray ----------
@@ -940,7 +1007,7 @@ return {
   enumeratePolyhexes, canon, shapeKey, shapeStats, buildCatalogue,
   rotate60, orientationsOf,
   regionKeys, growBlob, drawPool, sortedBoard, buildPlacements, makeAdjacency, smallestIsland,
-  tileBoard, tierOf, makeLevel,
+  tileBoard, tierOf, makeLevel, levelSig, shippedLevel,
   visibleSlots, legalPlacements,
   botGreedy, botLookahead, botRewind, botConstrained, botPlanner, verifyConstructive,
   asciiBoard, asciiShape, fillsOf,
