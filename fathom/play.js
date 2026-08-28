@@ -784,7 +784,7 @@
         const a = 0.35 + 0.35 * Math.sin(t * 3 + i);
         ctx.strokeStyle = 'rgba(220,245,255,' + a.toFixed(2) + ')';
         ctx.lineWidth = 1.5;
-        const gr = 8 + Math.sin(t * 3 + i) * 2;
+        const gr = (1.8 + Math.sin(t * 3 + i) * 0.45) * ppm;
         ctx.beginPath();
         ctx.moveTo(px - gr, py); ctx.lineTo(px + gr, py);
         ctx.moveTo(px, py - gr); ctx.lineTo(px, py + gr);
@@ -799,11 +799,12 @@
       ctx.setLineDash([4, 4]);
       ctx.beginPath(); ctx.moveTo(sx(run.x), sy(run.y) + 6); ctx.lineTo(px, py); ctx.stroke();
       ctx.setLineDash([]);
+      const gr2 = 3.6 * ppm;   // the ring scales with the world, like the ore
       ctx.strokeStyle = TINT(0.18); ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.arc(px, py, 15, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(px, py, gr2, 0, Math.PI * 2); ctx.stroke();
       ctx.strokeStyle = TINT(0.9);
       ctx.beginPath();
-      ctx.arc(px, py, 15, -Math.PI / 2, -Math.PI / 2 + (run.grabProgress / TUNE.grabTime) * Math.PI * 2);
+      ctx.arc(px, py, gr2, -Math.PI / 2, -Math.PI / 2 + (run.grabProgress / TUNE.grabTime) * Math.PI * 2);
       ctx.stroke();
     }
   }
@@ -845,10 +846,11 @@
       const ym = f.y + Math.sin(t * 0.9 + f.ph) * 3;
       if (ym < cam.y - 5 || ym > cam.y + L.viewHm + 5) continue;
       const px = sx(f.x), py = sy(ym);
+      const fs = L.ppm * 0.35;   // fish scale with the world too
       ctx.beginPath();
-      ctx.ellipse(px, py, 5, 1.8, 0, 0, Math.PI * 2);
-      ctx.moveTo(px - f.dir * 5, py);
-      ctx.lineTo(px - f.dir * 8, py - 2.2); ctx.lineTo(px - f.dir * 8, py + 2.2);
+      ctx.ellipse(px, py, 5 * fs, 1.8 * fs, 0, 0, Math.PI * 2);
+      ctx.moveTo(px - f.dir * 5 * fs, py);
+      ctx.lineTo(px - f.dir * 8 * fs, py - 2.2 * fs); ctx.lineTo(px - f.dir * 8 * fs, py + 2.2 * fs);
       ctx.closePath(); ctx.fill();
     }
   }

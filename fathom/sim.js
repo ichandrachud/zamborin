@@ -77,10 +77,12 @@ const TUNE = {
   drag: 0.9,            // 1/s, water pulls vx toward the local current
   hMax: 52,             // m/s cap on speed relative to the current
   current: [7, 5.5, 4, 2.5, 1.2],   // base drift by band (shallows, z1..z4)
-  /* 120 -> 85, owner round 3: "too zoomed out — you see everything and
-     nothing at all." Motherload shows ~10 chunky tiles across; at 85 the sub
-     is a sixth of the screen and one ledge is an event, not a texture. */
-  VIEW_W: 85,           // metres of world width the camera shows, both modes
+  /* 120 -> 85 -> 55, owner rounds 3 and 4: "too zoomed out — you see
+     everything and nothing", then "zoom in at least 30-40% more", with
+     Shark Attack (iPhone) as the reference ratio: the hero fills about a
+     fifth of the screen. At 55 the sub is a quarter of the view's width
+     and one ledge fills the frame. */
+  VIEW_W: 55,           // metres of world width the camera shows, both modes
   subR: 4.5,            // collision radius of the hull
   bottom: 700,          // the world ends here (crush depth arrives with hull)
   surfaceY: 3,          // above this the sub is "at the surface"
