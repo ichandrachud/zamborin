@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Games to help you unwind — clever, calm, unhurried</title>
-  <meta name="description" content="Something to reach for instead of your social feed. Games that make you think without making you rush: no timers, no streaks, nothing to lose." />
+  <meta name="description" content="Something to reach for instead of your social feed. Games that make you think without making you rush: no timers, no pressure, nothing to lose." />
   <meta name="theme-color" content="#0E1726" />
   <link rel="canonical" href="https://zamborin.com/" />
   <link rel="icon" type="image/svg+xml" href="/images/zamborin-favicon.svg?v=2" />
@@ -14,7 +14,7 @@
   <meta property="og:site_name" content="Zamborin Games" />
   <meta property="og:url" content="https://zamborin.com/" />
   <meta property="og:title" content="Games to help you unwind — clever, calm, unhurried" />
-  <meta property="og:description" content="Something to reach for instead of your social feed. Games that make you think without making you rush: no timers, no streaks, nothing to lose." />
+  <meta property="og:description" content="Something to reach for instead of your social feed. Games that make you think without making you rush: no timers, no pressure, nothing to lose." />
   <meta property="og:image" content="https://zamborin.com/images/zamborin-og-image.jpg?v=2" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
@@ -23,7 +23,7 @@
   <!-- Twitter card -->
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Games to help you unwind — clever, calm, unhurried" />
-  <meta name="twitter:description" content="Something to reach for instead of your social feed. Games that make you think without making you rush: no timers, no streaks, nothing to lose." />
+  <meta name="twitter:description" content="Something to reach for instead of your social feed. Games that make you think without making you rush: no timers, no pressure, nothing to lose." />
   <meta name="twitter:image" content="https://zamborin.com/images/zamborin-og-image.jpg?v=2" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -96,6 +96,12 @@
     /* The mobile lobby header now lives in shared/chrome.css, so all 24
        lobby-class pages get it and not just this one. See W12. */
 
+    /* The second shelf. Same type as the intro one step down, because it is a
+       section of the page and not a second page. */
+    .shelf-intro { max-width: 720px; margin-top: 8px; }
+    .shelf-intro h2 { font-size: 26px; font-weight: 800; color: var(--text); letter-spacing: -0.4px; line-height: 1.15; margin-bottom: 10px; }
+    .shelf-intro p { font-size: 17px; line-height: 1.6; color: var(--text-dim); margin: 10px 0; }
+    .shelf-more { font-size: 16px; color: var(--text-dim); margin-top: 4px; }
     .lobby-intro { max-width: 720px; }
     .lobby-intro h1 { font-size: 34px; font-weight: 800; color: var(--text); letter-spacing: -0.6px; line-height: 1.12; margin-bottom: 12px; }
     .lobby-intro p { font-size: 17px; line-height: 1.6; color: var(--text-dim); margin: 10px 0; }
@@ -106,8 +112,17 @@
     /* .lobby-intro was missing from this rule, so the one link in the
        homepage's opening paragraph fell back to the browser default
        #0000EE and measured 1.91:1 on the page background. Unreadable, on
-       the most-read sentence on the site. #4DC3FF measures 9.04:1. */
+       the most-read sentence on the site. #4DC3FF measures 9.04:1.
+
+       IT HAPPENED AGAIN on 2026-08-28 with .shelf-more, because this rule
+       names its classes one by one and a new section does not join it by
+       itself. The enumeration is deliberate — the game cards are links too
+       and must not turn blue — so the cost of adding a section is
+       remembering this line. The doc audit catches it either way, which is
+       how both were found. */
     .lobby-about a,
+    .shelf-intro a,
+    .shelf-more a,
     .lobby-intro a { color: #4DC3FF; }
     @media (max-width: 720px) { .lobby-intro h1 { font-size: 27px; } }
   </style>
@@ -274,6 +289,31 @@
         </div>
       </a>
     </div>
+
+    <!-- THE SECOND SHELF, and it is separate on purpose. The description on
+         this page promises games with no timers and nothing to lose. Comb
+         keeps a streak and scores you out of three stars, so it cannot sit in
+         the grid above without making that sentence false. It gets its own
+         heading, its own sentence, and a way through to the rest of the
+         arcade. -->
+    <section class="shelf-intro">
+      <h2>And one that keeps score</h2>
+      <p>The same care, a different appetite. This one remembers how you did, counts the days
+         you come back, and gives you a fresh puzzle every morning. Still free, still no
+         account, and still nothing you can break by putting it down for a month.</p>
+    </section>
+
+    <div class="game-grid">
+      <a class="game-card" href="./comb/">
+        <div class="game-card-image" style="background-image: url('./images/comb-teaser.jpg?v=1')"></div>
+        <div class="game-card-body">
+          <div class="game-card-name">Comb</div>
+          <div class="game-card-desc">Fit clusters of hexagons into a honeycomb until every cell is filled. A hundred levels, three stars each, and one puzzle a day that everybody gets.</div>
+        </div>
+      </a>
+    </div>
+
+    <p class="shelf-more"><a href="/arcade/">More games with a run to chase &rarr;</a></p>
 
     <section class="lobby-about">
       <h2>About our free browser games</h2>
