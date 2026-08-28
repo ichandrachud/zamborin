@@ -24,7 +24,7 @@
    current, VIEW_W, subR, bottom, surfaceY) are gathered here too, so the
    gate can sweep them from one place. */
 const TUNE = {
-  worldW: 330, vMax: 90, thrustAccel: 60,
+  worldW: 330, vMax: 90, thrustAccel: 90,
   /* ballastMax was 300 in the brief, which is exactly DISPLACEMENT minus
      HULL_DRY: a full flood reached net zero, so an empty sub could hover
      but never sink, and the game could not start. 400 is the minimal
@@ -32,14 +32,25 @@ const TUNE = {
      empty, while layers 2+ need cargo as diving weight. Flagged for the
      owner and for the Milestone-2 gate to sweep properly. */
   DISPLACEMENT: 1000, HULL_DRY: 700, ballastMax: 400,
-  floodRate: 40, airPerKg: 0.35, lifeSupport: 0.5,
+  /* Owner feel-lock, 2026-08-28, from playing Milestone 1: the sub must
+     answer the button NOW. floodRate 40 meant seven silent seconds before
+     anything sank and read as "nothing is happening". The dive also starts
+     just above neutral (startBallast) so the first press bites within half
+     a second. airPerKg is unchanged — the economy is priced per kilogram
+     blown, not per second held. */
+  floodRate: 110, startBallast: 272, airPerKg: 0.35, lifeSupport: 0.5,
   LAYER_DEPTH: [120, 260, 420, 600],
   T: [60, 110, 170, 240],
   crushDepth: [180, 280, 400, 540, 700],
   ore: { nodule:   { kg: 20, val: 26 },
          sulphide: { kg: 12, val: 48 },
          crystal:  { kg: 5,  val: 95 } },
-  seamLen: [4, 12], grabRadius: 26, grabTime: 2.0, scrapeSpeed: 55,
+  /* Owner feel-lock, 2026-08-28: cargo is captured on TOUCH, not held for.
+     The brief's 2.0 s station-keeping hold read as dead waiting in play.
+     grabRadius is now a contact distance; grabTime is only the claw's
+     animation beat. This retires station-keeping as a skill — the M2 gate
+     judges care through routes and the climb economy instead. */
+  seamLen: [4, 12], grabRadius: 10, grabTime: 0.15, scrapeSpeed: 55,
   noise: { drift: 0, grab: 1, thrust: 2, ping: 4, blow: 5 },
   hearThreshold: 3, hearRadius: 190, calmSeconds: 4.0, ramPips: 2,
   ventCycle: [22, 3, 8],
@@ -55,10 +66,10 @@ const TUNE = {
 
   // -- Milestone-1 additions, same starting-guess status as the rest --
   buoyK: 0.32,          // m/s of vertical speed per kg of net buoyancy
-  blowRate: 40,         // kg/s expelled while BLOW is held
+  blowRate: 90,         // kg/s expelled while BLOW is held (feel-lock: fast)
   thrustBattery: 3.0,   // battery per second of full thrust
   drag: 0.9,            // 1/s, water pulls vx toward the local current
-  hMax: 46,             // m/s cap on speed relative to the current
+  hMax: 52,             // m/s cap on speed relative to the current
   current: [7, 5.5, 4, 2.5, 1.2],   // base drift by band (shallows, z1..z4)
   VIEW_W: 120,          // metres of world width the camera shows, both modes
   subR: 4.5,            // collision radius of the hull
@@ -284,7 +295,7 @@ function Run(seed, tuneOverride) {
   this.y = 1.5;
   this.vx = 0; this.vy = 0;
   this.facing = 1;
-  this.ballast = 0;
+  this.ballast = t.startBallast;
   this.cargo = [];          // { type, kg, val }
   this.cargoKg = 0;
   this.air = t.airMax[0];
@@ -355,7 +366,11 @@ Run.prototype._tick = function (inp) {
     const d = Math.min(this._floodPool, t.floodRate * 3 * H);
     flood += d; this._floodPool -= d;
   }
-  if (flood > 0) this.ballast = Math.min(t.ballastMax, this.ballast + flood);
+  if (flood > 0) {
+    this.ballast = Math.min(t.ballastMax, this.ballast + flood);
+    this._flooding = 2;           // frames of intake feedback for the renderer
+  }
+  if (this._flooding > 0) this._flooding--;
 
   let blow = (inp.blow ? t.blowRate * H : 0);
   if (this._blowPool > 0) {
@@ -384,7 +399,7 @@ Run.prototype._tick = function (inp) {
   // --- vertical: speed proportional to net buoyancy ---
   const net = this.net();
   const vyT = clamp(-net * t.buoyK, -t.vMax, t.vMax);
-  this.vy += (vyT - this.vy) * Math.min(1, 3.2 * H);
+  this.vy += (vyT - this.vy) * Math.min(1, 6 * H);   // feel-lock: answer fast
 
   // --- horizontal: thrust against the current ---
   const ax = clamp(inp.ax || 0, -1, 1);
@@ -558,7 +573,7 @@ Run.prototype.revive = function () {
   this.mode = 'dive';
   this.x = this.world.trenchX; this.y = 1.5;
   this.vx = 0; this.vy = 0;
-  this.ballast = 0;
+  this.ballast = t.startBallast;
   this.cargo = []; this.cargoKg = 0;
   this.air = this.airMax(); this.batt = this.battMax();
   this.restingOn = -1; this.pressedUnder = -1;

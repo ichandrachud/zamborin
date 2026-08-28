@@ -60,7 +60,8 @@
 
   // ---------- AUDIO ----------
   // The fleet peaks ~4x too quiet; the master gain is the fix, not louder recipes.
-  const sfx = window.ZSFX ? window.ZSFX.create({ storageKey: 'zam.fathom.sfx', gain: 3.2 }) : null;
+  // 2.2 after the owner heard 3.2: the percussive sounds read as crashes.
+  const sfx = window.ZSFX ? window.ZSFX.create({ storageKey: 'zam.fathom.sfx', gain: 2.2 }) : null;
 
   // ---------- BUTTONS / ANALYTICS ----------
   const UI = window.ZAM_UI;
@@ -291,7 +292,7 @@
   }
   function newOcean() {
     run = new SIM.Run((Math.random() * 1e9) >>> 0);
-    particles.length = 0; floats.length = 0; jetsam.length = 0;
+    particles.length = 0; floats.length = 0; jetsam.length = 0; rings.length = 0;
     card = null; cam.y = -20; cam.x = run.x - L.viewWm / 2;
     if (sfx) sfx.play('start');
   }
@@ -309,9 +310,13 @@
   const particles = [];   // bubbles: {x,y,vy,r,life,pooled}
   const floats = [];      // {text,x,y,life,color}
   const jetsam = [];      // {x,y,type,vy,life}
+  const rings = [];       // intake ripples while flooding: {x,y,r,life}
+  // Distant massifs at 0.55 parallax: depth for the price of nine ellipses.
+  const farBlobs = [];
   function floatText(text, wx, wy, color) {
     floats.push({ text, x: wx, y: wy, life: 1.4, color });
   }
+  for (let i = 0; i < 9; i++) farBlobs.push({ x: vr() * 520 - 60, y: 90 + vr() * 760, rx: 50 + vr() * 90, ry: 20 + vr() * 34 });
   const snow = [];
   for (let i = 0; i < 70; i++) snow.push({ x: vr() * 400, y: vr() * 800, r: 0.6 + vr() * 1.1, a: 0.10 + vr() * 0.16, s: 0.5 + vr() });
   const specks = [];
@@ -357,6 +362,11 @@
       j.y += j.vy * dt; j.life -= dt;
       if (j.life <= 0 || run.world.solid(j.x, j.y)) jetsam.splice(i, 1);
     }
+    for (let i = rings.length - 1; i >= 0; i--) {
+      const g = rings[i];
+      g.r += 7 * dt; g.life -= dt;
+      if (g.life <= 0) rings.splice(i, 1);
+    }
   }
 
   // ---------- SIM DRIVE ----------
@@ -379,10 +389,14 @@
       burstFlood = 0; burstBlow = 0; wantJettison = false;
       const events = run.step(inp, dt);
       for (const ev of events) handleEvent(ev);
-      if (run._blowing && sfx && sfx.isOn()) { if (vr() < 0.3) sfx.noise(0.1, 700, 0.8, 0.05); }
+      if (run._blowing && sfx && sfx.isOn()) { if (vr() < 0.3) sfx.noise(0.12, 500, 0.7, 0.03); }
       if (run._blowing) spawnBubbles(2, run.x, run.y - 3, 6, 8, 16);
+      if (run._flooding && vr() < 0.35 && rings.length < 12) {
+        rings.push({ x: run.x + (vr() - 0.5) * 4, y: run.y + 2.4, r: 1.2, life: 0.6 });
+      }
       if (run._thrusting) spawnBubbles(1, run.x - run.facing * 6, run.y + 1, 2, 2, 5);
-      if (run.holdFull && !holdFullWas && sfx) sfx.play('error');
+      // A soft dull knock, not a buzzer: the hold refusing is not a crash.
+      if (run.holdFull && !holdFullWas && sfx) sfx.tone(170, 0.12, 0.03, 'sine');
       holdFullWas = run.holdFull;
       updateCam(dt);
       stepParticles(dt);
@@ -410,7 +424,7 @@
       if (sfx) sfx.play('drop');
       floatText('-' + ev.kg + ' kg', ev.x, ev.y - 8, C_ACCENT_TEXT);
     } else if (ev.t === 'sink-through') {
-      if (sfx) sfx.noise(0.3, 260, 1, 0.10);
+      if (sfx) sfx.noise(0.3, 220, 0.8, 0.05);
     } else if (ev.t === 'rise-through') {
       if (sfx) sfx.tone(560, 0.14, 0.05, 'sine');
       spawnBubbles(6, run.x, run.y + 2, 8, 6, 14);
@@ -483,16 +497,35 @@
       }
     }
 
+    drawFarMassifs();
     drawCurrents(t);
     drawTerrain();
     drawDeposits(t);
     drawLayers(t);
     drawJetsam();
     drawSnowAndLife(t);
+    drawRings();
     drawSub(t);
     drawBubbles();
     drawFloats();
     ctx.restore();
+  }
+
+  function drawFarMassifs() {
+    const o = L.ocean, par = 0.55, pz = 0.85;
+    for (const b of farBlobs) {
+      const px = o.x + (b.x - cam.x * par) * L.ppm * pz;
+      const py = o.y + (b.y - cam.y * par) * L.ppm * pz;
+      const rx = b.rx * L.ppm * pz, ry = b.ry * L.ppm * pz;
+      if (py + ry < o.y - 20 || py - ry > o.y + o.h + 20) continue;
+      if (px + rx < o.x - 20 || px - rx > o.x + o.w + 20) continue;
+      const g = ctx.createRadialGradient(px, py, 0, px, py, rx);
+      g.addColorStop(0, 'rgba(4,12,20,0.42)');
+      g.addColorStop(0.7, 'rgba(4,12,20,0.28)');
+      g.addColorStop(1, 'rgba(4,12,20,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.ellipse(px, py, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
+    }
   }
 
   // Terrain into an offscreen so the channel can be carved with
@@ -534,6 +567,12 @@
     // Masses: seamounts and ledges inside the channel.
     for (const m of w.masses) {
       if (m.y + m.ry < cam.y - 8 || m.y - m.ry > cam.y + L.viewHm + 8) continue;
+      // Grounding shadow first, so the mass sits in the water, not on it.
+      const shy = wy(m.y + m.ry * 0.8);
+      const sg2 = tc.createRadialGradient(wx(m.x), shy, 0, wx(m.x), shy, m.rx * L.ppm);
+      sg2.addColorStop(0, 'rgba(1,4,9,0.38)'); sg2.addColorStop(1, 'rgba(1,4,9,0)');
+      tc.fillStyle = sg2;
+      tc.beginPath(); tc.ellipse(wx(m.x), shy, m.rx * L.ppm, m.ry * L.ppm * 0.55, 0, 0, Math.PI * 2); tc.fill();
       const mg = tc.createLinearGradient(0, wy(m.y - m.ry), 0, wy(m.y + m.ry));
       mg.addColorStop(0, '#10202F'); mg.addColorStop(1, '#040C15');
       tc.fillStyle = mg;
@@ -631,13 +670,13 @@
       const yMid = sy(Ld);
       const gl = ctx.createLinearGradient(0, yMid - 22, 0, yMid + 22);
       gl.addColorStop(0, 'rgba(150,215,235,0)');
-      gl.addColorStop(0.5, 'rgba(150,215,235,0.07)');
+      gl.addColorStop(0.5, 'rgba(150,215,235,0.10)');
       gl.addColorStop(1, 'rgba(150,215,235,0)');
       ctx.fillStyle = gl; ctx.fillRect(o.x, yMid - 22, o.w, 44);
       // The wavy double band.
       const wave = (px, off) => sy(Ld) + off * L.ppm +
         (Math.sin(px * 0.045 + t * 0.7 + k * 2.1) * 1.6 + Math.sin(px * 0.013 - t * 0.3 + k) * 1.1) * L.ppm * 0.5;
-      ctx.fillStyle = 'rgba(150,215,235,0.10)';
+      ctx.fillStyle = 'rgba(150,215,235,0.15)';
       ctx.beginPath();
       for (let px = 0; px <= o.w; px += 10) {
         const yy = wave(px, -1.4);
@@ -645,7 +684,7 @@
       }
       for (let px = o.w; px >= 0; px -= 10) ctx.lineTo(o.x + px, wave(px, 1.4));
       ctx.closePath(); ctx.fill();
-      ctx.strokeStyle = 'rgba(168,226,240,0.30)'; ctx.lineWidth = 1.5;
+      ctx.strokeStyle = 'rgba(168,226,240,0.45)'; ctx.lineWidth = 1.5;
       for (const off of [-1.4, 1.4]) {
         ctx.beginPath();
         for (let px = 0; px <= o.w; px += 10) {
@@ -662,6 +701,16 @@
         const px = sx(bx), py = wave((bx - cam.x) * L.ppm, 1.4) + 3 + ((i * 7) % 5);
         ctx.beginPath(); ctx.arc(px, py, br, 0, Math.PI * 2); ctx.fill();
       }
+      // Luminous motes drifting inside the band.
+      for (let i = 0; i < 6; i++) {
+        let mx = (i * 47 + t * 3.5 + k * 13) % L.viewWm;
+        if (mx < 0) mx += L.viewWm;
+        const mpx = sx(cam.x + mx), mpy = sy(Ld) + Math.sin(t * 1.3 + i * 2.1) * 3;
+        ctx.globalAlpha = 0.25 + 0.25 * (0.5 + 0.5 * Math.sin(t * 2 + i * 1.7));
+        ctx.fillStyle = '#BFEFF8';
+        ctx.beginPath(); ctx.arc(mpx, mpy, 1.2, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
     }
   }
 
@@ -697,8 +746,9 @@
         ctx.lineTo(px + s * 0.6, py - s * 0.05); ctx.closePath(); ctx.fill();
       } else {
         const s = 2.5 * ppm;
+        const tw = 0.22 + 0.14 * Math.sin(t * 2.5 + i);   // crystals breathe
         const gl = ctx.createRadialGradient(px, py, 0, px, py, s * 1.8);
-        gl.addColorStop(0, 'rgba(140,225,255,0.30)'); gl.addColorStop(1, 'rgba(140,225,255,0)');
+        gl.addColorStop(0, 'rgba(140,225,255,' + tw.toFixed(2) + ')'); gl.addColorStop(1, 'rgba(140,225,255,0)');
         ctx.fillStyle = gl;
         ctx.beginPath(); ctx.arc(px, py, s * 1.8, 0, Math.PI * 2); ctx.fill();
         const gg = ctx.createLinearGradient(px, py - s, px, py + s);
@@ -786,49 +836,82 @@
   function drawSub(t) {
     const ppm = L.ppm;
     const px = sx(run.x), py = sy(run.y);
-    const len = 5.5 * ppm, hgt = 3.1 * ppm, f = run.facing;
-    // Lamp cone from the nose. Light has a core and a tight feather.
-    const nose = px + f * len * 0.9;
+    const len = 6.4 * ppm, hgt = 3.5 * ppm, f = run.facing;
+    /* The sub pitches with its vertical motion — the single clearest tell
+       that flooding is working, before any depth number changes. */
+    const tilt = Math.max(-0.16, Math.min(0.16, run.vy * 0.006)) * f;
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.rotate(tilt);
+    // Lamp: a bright core cone inside a soft wide one, plus a glow at the lens.
+    const nose = f * len * 0.92;
     const coneLen = 55 * ppm;
-    const cg = ctx.createLinearGradient(nose, py, nose + f * coneLen, py);
-    cg.addColorStop(0, 'rgba(190,230,245,0.13)'); cg.addColorStop(1, 'rgba(190,230,245,0)');
-    ctx.fillStyle = cg;
-    ctx.beginPath();
-    ctx.moveTo(nose, py - hgt * 0.25);
-    ctx.lineTo(nose + f * coneLen, py - coneLen * 0.22);
-    ctx.lineTo(nose + f * coneLen, py + coneLen * 0.22);
-    ctx.lineTo(nose, py + hgt * 0.25);
-    ctx.closePath(); ctx.fill();
-    // Hull: value edges, no outlines.
-    const bg = ctx.createLinearGradient(px, py - hgt, px, py + hgt);
-    bg.addColorStop(0, '#F2C75B'); bg.addColorStop(0.55, '#D8A63A'); bg.addColorStop(1, '#7C5A16');
+    for (const [spread, a] of [[0.30, 0.06], [0.16, 0.10]]) {
+      const cg = ctx.createLinearGradient(nose, 0, nose + f * coneLen, 0);
+      cg.addColorStop(0, 'rgba(190,230,245,' + a + ')'); cg.addColorStop(1, 'rgba(190,230,245,0)');
+      ctx.fillStyle = cg;
+      ctx.beginPath();
+      ctx.moveTo(nose, -hgt * 0.22);
+      ctx.lineTo(nose + f * coneLen, -coneLen * spread);
+      ctx.lineTo(nose + f * coneLen, coneLen * spread);
+      ctx.lineTo(nose, hgt * 0.22);
+      ctx.closePath(); ctx.fill();
+    }
+    const lg = ctx.createRadialGradient(nose, 0, 0, nose, 0, hgt * 0.9);
+    lg.addColorStop(0, 'rgba(220,245,255,0.35)'); lg.addColorStop(1, 'rgba(220,245,255,0)');
+    ctx.fillStyle = lg;
+    ctx.beginPath(); ctx.arc(nose, 0, hgt * 0.9, 0, Math.PI * 2); ctx.fill();
+    // Hull: value edges, no outlines. Light from up and slightly left.
+    const bg = ctx.createLinearGradient(0, -hgt, 0, hgt);
+    bg.addColorStop(0, '#FFDA78'); bg.addColorStop(0.35, '#F0C255');
+    bg.addColorStop(0.7, '#C8992F'); bg.addColorStop(1, '#6E4E12');
     ctx.fillStyle = bg;
-    ctx.beginPath(); ctx.ellipse(px, py, len, hgt, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(0, 0, len, hgt, 0, 0, Math.PI * 2); ctx.fill();
+    // Specular: a soft top-left sheen.
+    ctx.fillStyle = 'rgba(255,255,240,0.30)';
+    ctx.beginPath(); ctx.ellipse(-f * len * 0.15, -hgt * 0.5, len * 0.5, hgt * 0.26, tilt * 0.2 - f * 0.08, 0, Math.PI * 2); ctx.fill();
+    // Plating seam: a value line, part of the form.
+    ctx.strokeStyle = 'rgba(90,62,10,0.35)'; ctx.lineWidth = Math.max(1, ppm * 0.22);
+    ctx.beginPath(); ctx.ellipse(0, 0, len * 0.62, hgt * 0.94, 0, -Math.PI * 0.42, Math.PI * 0.42); ctx.stroke();
     // Belly shadow.
-    ctx.fillStyle = 'rgba(40,26,4,0.35)';
-    ctx.beginPath(); ctx.ellipse(px, py + hgt * 0.45, len * 0.85, hgt * 0.4, 0, 0, Math.PI); ctx.fill();
-    // Conning tower.
-    ctx.fillStyle = '#C99C33';
-    ctx.beginPath(); ctx.ellipse(px - f * len * 0.15, py - hgt * 0.9, len * 0.28, hgt * 0.42, 0, Math.PI, 0); ctx.fill();
-    // Viewport.
-    ctx.fillStyle = '#CFEFF8';
-    ctx.beginPath(); ctx.arc(px + f * len * 0.45, py - hgt * 0.1, hgt * 0.42, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = TINT(0.7);
-    ctx.beginPath(); ctx.arc(px + f * len * 0.45 - hgt * 0.12, py - hgt * 0.24, hgt * 0.12, 0, Math.PI * 2); ctx.fill();
-    // Tail and prop.
-    ctx.fillStyle = '#B78C2B';
+    ctx.fillStyle = 'rgba(40,26,4,0.38)';
+    ctx.beginPath(); ctx.ellipse(0, hgt * 0.48, len * 0.82, hgt * 0.38, 0, 0, Math.PI); ctx.fill();
+    // Conning tower with its own light.
+    const tg = ctx.createLinearGradient(0, -hgt * 1.5, 0, -hgt * 0.4);
+    tg.addColorStop(0, '#E8B851'); tg.addColorStop(1, '#A87F26');
+    ctx.fillStyle = tg;
+    ctx.beginPath(); ctx.ellipse(-f * len * 0.16, -hgt * 0.92, len * 0.26, hgt * 0.46, 0, Math.PI, 0); ctx.fill();
+    // The dome: glass with depth and a specular point.
+    const domeX = f * len * 0.42;
+    const dg = ctx.createRadialGradient(domeX - hgt * 0.16, -hgt * 0.3, hgt * 0.06, domeX, -hgt * 0.08, hgt * 0.5);
+    dg.addColorStop(0, '#F2FBFF'); dg.addColorStop(0.5, '#BFE7F2'); dg.addColorStop(1, '#5E93A8');
+    ctx.fillStyle = dg;
+    ctx.beginPath(); ctx.arc(domeX, -hgt * 0.08, hgt * 0.46, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = TINT(0.85);
+    ctx.beginPath(); ctx.arc(domeX - hgt * 0.15, -hgt * 0.26, hgt * 0.10, 0, Math.PI * 2); ctx.fill();
+    // Tail fin and prop.
+    const fg = ctx.createLinearGradient(0, -hgt * 0.5, 0, hgt * 0.5);
+    fg.addColorStop(0, '#D0A53C'); fg.addColorStop(1, '#8A6318');
+    ctx.fillStyle = fg;
     ctx.beginPath();
-    ctx.moveTo(px - f * len * 0.85, py);
-    ctx.lineTo(px - f * len * 1.18, py - hgt * 0.5);
-    ctx.lineTo(px - f * len * 1.18, py + hgt * 0.5);
+    ctx.moveTo(-f * len * 0.82, 0);
+    ctx.lineTo(-f * len * 1.18, -hgt * 0.52);
+    ctx.lineTo(-f * len * 1.18, hgt * 0.52);
     ctx.closePath(); ctx.fill();
     const spin = run._thrusting ? t * 26 : t * 4;
-    ctx.strokeStyle = 'rgba(210,190,140,0.8)'; ctx.lineWidth = 2;
-    const bx = px - f * len * 1.22;
+    const bx = -f * len * 1.24;
+    ctx.strokeStyle = 'rgba(215,195,145,0.85)'; ctx.lineWidth = Math.max(1.5, ppm * 0.4);
     ctx.beginPath();
-    ctx.moveTo(bx, py - Math.abs(Math.sin(spin)) * hgt * 0.55);
-    ctx.lineTo(bx, py + Math.abs(Math.sin(spin)) * hgt * 0.55);
+    ctx.moveTo(bx, -Math.abs(Math.sin(spin)) * hgt * 0.58);
+    ctx.lineTo(bx, Math.abs(Math.sin(spin)) * hgt * 0.58);
     ctx.stroke();
+    if (run._thrusting) {   // wash glow behind the prop
+      const wg = ctx.createRadialGradient(bx - f * hgt * 0.4, 0, 0, bx - f * hgt * 0.4, 0, hgt * 1.1);
+      wg.addColorStop(0, 'rgba(200,235,245,0.20)'); wg.addColorStop(1, 'rgba(200,235,245,0)');
+      ctx.fillStyle = wg;
+      ctx.beginPath(); ctx.arc(bx - f * hgt * 0.4, 0, hgt * 1.1, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
     // HOLD FULL tag.
     if (run.holdFull) {
       ctx.font = '700 11px Inter, sans-serif';
@@ -841,6 +924,16 @@
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText('HOLD FULL', px, py - hgt - 19);
       ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    }
+  }
+
+  function drawRings() {
+    // Intake ripples: the visible answer to holding FLOOD.
+    for (const g of rings) {
+      const a = Math.max(0, g.life / 0.6) * 0.30;
+      ctx.strokeStyle = 'rgba(180,225,240,' + a.toFixed(2) + ')';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(sx(g.x), sy(g.y), g.r * L.ppm, 0, Math.PI * 2); ctx.stroke();
     }
   }
 
@@ -1210,7 +1303,7 @@
       'Heavy sinks, light rises, and ore is weight. Every grab makes the sub heavier.',
       'S floods ballast to sink. W blows ballast to rise, and blowing spends the same air you breathe.',
       'The glowing bands are density layers: floors in the water. Sink through with enough weight, rise through with enough lift, or rest on one for free.',
-      'A and D thrust against the current. Hold beside a deposit for two seconds and the claw takes it.',
+      'A and D thrust against the current. Touch a deposit and the claw takes it.',
       'J jettisons the heaviest item, instantly. If the banner says SEALED, drop weight until it does not.',
       'Surface to bank the haul. If the air runs out down there, the haul is lost and the bank is kept.',
     ];
@@ -1218,7 +1311,7 @@
       'Heavy sinks, light rises, and ore is weight. Every grab makes the sub heavier.',
       'Hold FLOOD to take on water and sink. Hold BLOW to rise. Blowing spends the same air you breathe.',
       'The glowing bands are density layers: floors in the water. Sink through with enough weight, rise through with enough lift, or rest on one for free.',
-      'Hold the left or right half of the water to thrust. Hold beside a deposit for two seconds and the claw takes it.',
+      'Hold the left or right half of the water to thrust. Touch a deposit and the claw takes it.',
       'JETTISON drops the heaviest item, instantly. If the banner says SEALED, drop weight until it does not.',
       'Surface to bank the haul. If the air runs out down there, the haul is lost and the bank is kept.',
     ];
@@ -1226,7 +1319,7 @@
       'Heavy sinks, light rises, and ore is weight. Every grab makes the sub heavier.',
       'Swipe down anywhere to flood and sink. Swipe up to blow ballast and rise. Blowing spends the same air you breathe.',
       'The glowing bands are density layers: floors in the water. Sink through with enough weight, rise through with enough lift, or rest on one for free.',
-      'Touch the sub and drag left or right to thrust. Hold beside a deposit for two seconds and the claw takes it.',
+      'Touch the sub and drag left or right to thrust. Touch a deposit and the claw takes it.',
       'JETTISON drops the heaviest item, instantly. If the banner says SEALED, drop weight until it does not.',
       'Surface to bank the haul. If the air runs out down there, the haul is lost and the bank is kept.',
     ];
