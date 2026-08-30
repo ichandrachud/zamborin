@@ -99,6 +99,27 @@
   try { scheme = localStorage.getItem('zam.fathom.controls') === 'B' ? 'B' : 'A'; } catch (_) {}
   let bestEver = 0;              // session best depth
 
+  // ---------- SPRITES ----------
+  /* The owner's clay models, one family per key, numbered from 1. Every
+     draw falls back to the old vector art until its image has loaded, so
+     a slow connection sees the game, not holes. */
+  const SPRITE_SETS = { nodule: 4, sulphide: 4, crystal: 4, rock: 4, plant: 5, fish: 5 };
+  const IMG = {};
+  for (const key of Object.keys(SPRITE_SETS)) {
+    IMG[key] = [];
+    for (let i = 1; i <= SPRITE_SETS[key]; i++) {
+      const im = new Image();
+      im.onload = () => { im._ok = true; };
+      im.src = './assets/' + key + '-' + i + '.png?v=1';
+      IMG[key].push(im);
+    }
+  }
+  function pickSprite(key, salt) {
+    const arr = IMG[key];
+    const im = arr[((salt % arr.length) + arr.length) % arr.length];
+    return im && im._ok ? im : null;
+  }
+
   // ---------- LAYOUT ----------
   const SIDE_PAD = 30;
   const topBand = () => (MODE === 'mobile' ? 84 : 56);
@@ -297,7 +318,7 @@
   const specks = [];
   for (let i = 0; i < 18; i++) specks.push({ x: vr() * TUNE.worldW, y: 280 + vr() * (TUNE.bottom - 290), r: 1 + vr() * 1.2, ph: vr() * 6.28 });
   const fishes = [];
-  for (let i = 0; i < 4; i++) fishes.push({ x: vr() * TUNE.worldW, y: 18 + vr() * 60, dir: vr() < 0.5 ? -1 : 1, s: 3 + vr() * 4, ph: vr() * 6.28 });
+  for (let i = 0; i < 4; i++) fishes.push({ x: vr() * TUNE.worldW, y: 18 + vr() * 60, dir: vr() < 0.5 ? -1 : 1, s: 3 + vr() * 4, ph: vr() * 6.28, len: 3.2 + vr() * 1.6 });
 
   function spawnBubbles(n, wx, wy, spread, vyMin, vyMax) {
     if (particles.length > 260) return;
@@ -492,6 +513,7 @@
     drawFarMassifs();
     drawCurrents(t);
     drawTerrain();
+    drawDecor(t);
     drawDeposits(t);
     drawLayers(t);
     drawJetsam();
@@ -714,42 +736,58 @@
       if (d.y < cam.y - 10 || d.y > cam.y + L.viewHm + 10) continue;
       if (d.x < cam.x - 10 || d.x > cam.x + L.viewWm + 10) continue;
       const px = sx(d.x), py = sy(d.y);
+      const salt = d.seam * 5 + d.idx * 3 + i;
       if (d.type === 'nodule') {
-        const r = 3.4 * ppm;
-        for (const [ox, oy, rr] of [[-0.8, 0.3, 0.8], [0.8, 0.25, 0.75], [0, -0.35, 0.9]]) {
-          const gg = ctx.createRadialGradient(px + ox * r - r * 0.25, py + oy * r - r * 0.3, r * 0.1,
-                                              px + ox * r, py + oy * r, r * rr);
-          gg.addColorStop(0, '#7A6552'); gg.addColorStop(1, '#38302A');
-          ctx.fillStyle = gg;
-          ctx.beginPath(); ctx.arc(px + ox * r, py + oy * r, r * rr, 0, Math.PI * 2); ctx.fill();
+        const im = pickSprite('nodule', salt);
+        if (im) {
+          const wpx = 7 * ppm, hpx = wpx * (im.height / im.width);
+          ctx.drawImage(im, px - wpx / 2, py + 2 * ppm - hpx, wpx, hpx);
+        } else {
+          const r = 3.4 * ppm;
+          for (const [ox, oy, rr] of [[-0.8, 0.3, 0.8], [0.8, 0.25, 0.75], [0, -0.35, 0.9]]) {
+            const gg = ctx.createRadialGradient(px + ox * r - r * 0.25, py + oy * r - r * 0.3, r * 0.1,
+                                                px + ox * r, py + oy * r, r * rr);
+            gg.addColorStop(0, '#7A6552'); gg.addColorStop(1, '#38302A');
+            ctx.fillStyle = gg;
+            ctx.beginPath(); ctx.arc(px + ox * r, py + oy * r, r * rr, 0, Math.PI * 2); ctx.fill();
+          }
         }
       } else if (d.type === 'sulphide') {
-        const s = 3.0 * ppm;
-        const gg = ctx.createLinearGradient(px - s, py - s, px + s, py + s);
-        gg.addColorStop(0, '#D19A45'); gg.addColorStop(1, '#6E4C1E');
-        ctx.fillStyle = gg;
-        ctx.beginPath();
-        ctx.moveTo(px - s * 1.1, py + s * 0.7); ctx.lineTo(px - s * 0.1, py - s * 0.9);
-        ctx.lineTo(px + s * 1.2, py - s * 0.2); ctx.lineTo(px + s * 0.5, py + s * 0.8);
-        ctx.closePath(); ctx.fill();
-        ctx.fillStyle = 'rgba(255,235,190,0.25)';
-        ctx.beginPath();
-        ctx.moveTo(px - s * 0.1, py - s * 0.9); ctx.lineTo(px + s * 1.2, py - s * 0.2);
-        ctx.lineTo(px + s * 0.6, py - s * 0.05); ctx.closePath(); ctx.fill();
+        const im = pickSprite('sulphide', salt);
+        if (im) {
+          const wpx = 6 * ppm, hpx = wpx * (im.height / im.width);
+          ctx.drawImage(im, px - wpx / 2, py + 2 * ppm - hpx, wpx, hpx);
+        } else {
+          const s = 3.0 * ppm;
+          const gg = ctx.createLinearGradient(px - s, py - s, px + s, py + s);
+          gg.addColorStop(0, '#D19A45'); gg.addColorStop(1, '#6E4C1E');
+          ctx.fillStyle = gg;
+          ctx.beginPath();
+          ctx.moveTo(px - s * 1.1, py + s * 0.7); ctx.lineTo(px - s * 0.1, py - s * 0.9);
+          ctx.lineTo(px + s * 1.2, py - s * 0.2); ctx.lineTo(px + s * 0.5, py + s * 0.8);
+          ctx.closePath(); ctx.fill();
+        }
       } else {
+        // The breathing glow stays procedural behind the clay spike.
         const s = 3.2 * ppm;
-        const tw = 0.22 + 0.14 * Math.sin(t * 2.5 + i);   // crystals breathe
+        const tw = 0.22 + 0.14 * Math.sin(t * 2.5 + i);
         const gl = ctx.createRadialGradient(px, py, 0, px, py, s * 1.8);
         gl.addColorStop(0, 'rgba(140,225,255,' + tw.toFixed(2) + ')'); gl.addColorStop(1, 'rgba(140,225,255,0)');
         ctx.fillStyle = gl;
         ctx.beginPath(); ctx.arc(px, py, s * 1.8, 0, Math.PI * 2); ctx.fill();
-        const gg = ctx.createLinearGradient(px, py - s, px, py + s);
-        gg.addColorStop(0, '#EAF9FF'); gg.addColorStop(1, '#9FD8EF');
-        ctx.fillStyle = gg;
-        ctx.beginPath();
-        ctx.moveTo(px, py - s * 1.2); ctx.lineTo(px + s * 0.4, py);
-        ctx.lineTo(px, py + s * 0.9); ctx.lineTo(px - s * 0.4, py);
-        ctx.closePath(); ctx.fill();
+        const im = pickSprite('crystal', salt);
+        if (im) {
+          const hpx = 7 * ppm, wpx = hpx * (im.width / im.height);
+          ctx.drawImage(im, px - wpx / 2, py + 2 * ppm - hpx, wpx, hpx);
+        } else {
+          const gg = ctx.createLinearGradient(px, py - s, px, py + s);
+          gg.addColorStop(0, '#EAF9FF'); gg.addColorStop(1, '#9FD8EF');
+          ctx.fillStyle = gg;
+          ctx.beginPath();
+          ctx.moveTo(px, py - s * 1.2); ctx.lineTo(px + s * 0.4, py);
+          ctx.lineTo(px, py + s * 0.9); ctx.lineTo(px - s * 0.4, py);
+          ctx.closePath(); ctx.fill();
+        }
       }
       // Seam glint: the direction of the next deposit, never its value.
       if (d.glint) {
@@ -781,6 +819,61 @@
     }
   }
 
+  /* Terrain dressing: the owner's rocks and plants, seeded from the world
+     so every visit to an ocean grows the same garden. Plants keep to the
+     sunlit depths; rocks go anywhere. Pure decoration — never over ore. */
+  let decor = [], decorSeed = -1;
+  function buildDecor() {
+    if (decorSeed === run.world.seed) return;
+    decorSeed = run.world.seed;
+    decor = [];
+    const w = run.world;
+    const rng = SIM.mulberry32((w.seed ^ 0xD9C0FA) >>> 0);
+    // The sunlit seabed, skipping the trench mouth.
+    for (let i = 0; i < 34; i++) {
+      const x = rng() * TUNE.worldW;
+      const fy = w.floorY(x);
+      if (!w.solid(x, fy + 2) || w.solid(x, fy - 2)) continue;
+      decor.push({ kind: rng() < 0.5 ? 'rock' : 'plant', v: (rng() * 97) | 0,
+                   x, y: fy + 1, s: 4 + rng() * 4.5, ph: rng() * 6.28 });
+    }
+    // Ledges below, from the world's own surface anchors, thinned out.
+    const anchors = w._anchors();
+    for (let i = 0; i < anchors.length; i += 6) {
+      const a = anchors[i];
+      if (rng() < 0.45) continue;
+      let nearOre = false;
+      for (const d of w.deposits) {
+        if (Math.abs(d.x - a.x) < 7 && Math.abs(d.y - a.y) < 7) { nearOre = true; break; }
+      }
+      if (nearOre) continue;
+      const kind = (a.y < 320 && rng() < 0.4) ? 'plant' : 'rock';
+      decor.push({ kind, v: (rng() * 97) | 0, x: a.x, y: a.y + 1.5,
+                   s: 3.5 + rng() * 4, ph: rng() * 6.28 });
+    }
+  }
+  function drawDecor(t) {
+    buildDecor();
+    for (const de of decor) {
+      if (de.y < cam.y - 14 || de.y > cam.y + L.viewHm + 14) continue;
+      if (de.x < cam.x - 12 || de.x > cam.x + L.viewWm + 12) continue;
+      const im = pickSprite(de.kind, de.v);
+      if (!im) continue;
+      const px = sx(de.x), py = sy(de.y);
+      if (de.kind === 'rock') {
+        const wpx = de.s * L.ppm, hpx = wpx * (im.height / im.width);
+        ctx.drawImage(im, px - wpx / 2, py - hpx, wpx, hpx);
+      } else {
+        const hpx = de.s * L.ppm, wpx = hpx * (im.width / im.height);
+        ctx.save();
+        ctx.translate(px, py);
+        ctx.rotate(Math.sin(t * 0.8 + de.ph) * 0.045);   // gentle sway about the base
+        ctx.drawImage(im, -wpx / 2, -hpx, wpx, hpx);
+        ctx.restore();
+      }
+    }
+  }
+
   function drawJetsam() {
     for (const j of jetsam) {
       const px = sx(j.x), py = sy(j.y);
@@ -809,21 +902,34 @@
       ctx.fillStyle = 'rgba(90,224,195,' + a.toFixed(2) + ')';
       ctx.beginPath(); ctx.arc(sx(sp.x), sy(sp.y), sp.r, 0, Math.PI * 2); ctx.fill();
     }
-    // Ambient fish in the sunlit water.
-    ctx.fillStyle = '#0A1824';
-    for (const f of fishes) {
+    // Ambient fish in the sunlit water — the owner's clay fish, one model
+    // per individual, swimming their own way.
+    for (let fi = 0; fi < fishes.length; fi++) {
+      const f = fishes[fi];
       f.x += f.dir * f.s * 0.016;
       if (f.x < -10) { f.x = TUNE.worldW + 8; }
       if (f.x > TUNE.worldW + 10) { f.x = -8; }
       const ym = f.y + Math.sin(t * 0.9 + f.ph) * 3;
       if (ym < cam.y - 5 || ym > cam.y + L.viewHm + 5) continue;
       const px = sx(f.x), py = sy(ym);
-      const fs = L.ppm * 0.35;   // fish scale with the world too
-      ctx.beginPath();
-      ctx.ellipse(px, py, 5 * fs, 1.8 * fs, 0, 0, Math.PI * 2);
-      ctx.moveTo(px - f.dir * 5 * fs, py);
-      ctx.lineTo(px - f.dir * 8 * fs, py - 2.2 * fs); ctx.lineTo(px - f.dir * 8 * fs, py + 2.2 * fs);
-      ctx.closePath(); ctx.fill();
+      const im = pickSprite('fish', fi);
+      if (im) {
+        const wpx = f.len * L.ppm, hpx = wpx * (im.height / im.width);
+        ctx.save();
+        ctx.translate(px, py);
+        ctx.scale(f.dir, 1);                        // sprites face right
+        ctx.rotate(Math.sin(t * 2 + f.ph) * 0.05);  // a lazy swim wobble
+        ctx.drawImage(im, -wpx / 2, -hpx / 2, wpx, hpx);
+        ctx.restore();
+      } else {
+        const fs = L.ppm * 0.35;
+        ctx.fillStyle = '#0A1824';
+        ctx.beginPath();
+        ctx.ellipse(px, py, 5 * fs, 1.8 * fs, 0, 0, Math.PI * 2);
+        ctx.moveTo(px - f.dir * 5 * fs, py);
+        ctx.lineTo(px - f.dir * 8 * fs, py - 2.2 * fs); ctx.lineTo(px - f.dir * 8 * fs, py + 2.2 * fs);
+        ctx.closePath(); ctx.fill();
+      }
     }
   }
 
