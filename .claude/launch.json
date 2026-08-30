@@ -7,6 +7,13 @@
       "runtimeArgs": ["-c", "exec python3 -m http.server ${PORT:-5230} --directory /Users/indrajet/Projects/zamborin"],
       "port": 5230,
       "autoPort": true
+    },
+    {
+      "name": "fathom-worktree",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": ["-c", "exec python3 -m http.server ${PORT:-5231} --directory /Users/indrajet/Projects/zamborin-fathom"],
+      "port": 5231,
+      "autoPort": true
     }
   ]
 }
