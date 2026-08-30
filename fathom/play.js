@@ -1874,19 +1874,28 @@
       render: () => render(performance.now()),
       /* The preview pane reports visibilityState 'hidden' and never services
          requestAnimationFrame, so the harness drives frames itself: sim,
-         camera and particles at 60 Hz, then one render. */
+         camera and particles at 60 Hz, then one render.
+
+         It builds its input with inputNow(), the same function tick() uses,
+         and merges the caller's overrides on top. It used to re-implement
+         that merge and quietly omitted the held FLOOD, BLOW and thrust
+         buttons, so scheme A measured as a dead control while a real player
+         could use it perfectly well. A harness that drives a different input
+         path from the player is measuring a different game. */
       drive: (seconds, inp) => {
         const n = Math.round(seconds * 60);
         for (let i = 0; i < n; i++) {
           const base = inp || {};
+          const live = inputNow();
           const events = run.step({
-            ax: Math.max(-1, Math.min(1, (base.ax || 0) + joyVec)),
-            down: !!(base.down || joyVert > 0),
-            up: !!(base.up || joyVert < 0),
-            jettison: !!(base.jettison || wantJettison),
+            ax: Math.max(-1, Math.min(1, live.ax + (base.ax || 0))),
+            down: !!(live.down || base.down),
+            up: !!(live.up || base.up),
+            jettison: !!(live.jettison || base.jettison),
           }, 1 / 60);
           wantJettison = false;
           for (const ev of events) handleEvent(ev);
+          audioFeedback(performance.now());
           updateCam(1 / 60);
           stepParticles(1 / 60);
         }
