@@ -1171,10 +1171,17 @@
   }
 
   // ---------- CARDS ----------
+  /* RULE 1 IS ONE SENTENCE BECAUSE IT IS THE ONE THAT HAS TO BE READ. It used
+     to carry the reassurance as well — "...Nothing is timed and there is no way
+     to lose." — which made it 123px of the 168px body on a 360-wide phone, so
+     the still above it had to be dropped for the rule to be readable at all.
+     The reassurance is not a rule and it is not urgent; it sits with the other
+     no-penalty line in rule 3, where its length costs nothing because rule 3 is
+     below the fold either way. */
   const RULES = [
-    'Every cell of the honeycomb has to end up filled. Nothing is timed and there is no way to lose.',
+    'Every cell of the honeycomb has to end up filled.',
     'Drag a cluster out of the tray and onto the board. It seats only where all of its cells land on empty ones.',
-    'A cluster that will not fit goes back to the tray and costs you nothing.',
+    'A cluster that will not fit simply goes back to the tray. Nothing is timed and there is no way to lose.',
     'Pick a seated cluster back up whenever you like. Look for the tightest gap first: usually only one cluster closes it.',
   ];
 
@@ -1203,7 +1210,31 @@
     const viewH = Math.max(40, ph - HEADER - FOOTER);
     const items = [];
     if (kind === 'rules') {
-      items.push({ t: 'art', h: 104 });
+      /* THE ART IS SUPPORTING, AND IT WAS EATING THE ZONE IT SUPPORTS. At a
+         fixed 104 it took 62% of the 168px body, so a player opening the card
+         saw the still and one and a half lines of rule 1 — three of the four
+         rules were below the fold on every frame. The fade was drawing
+         correctly; there was simply nothing left to read.
+
+         The scroll itself is right and stays: DESIGN-SYSTEM 5.3 says content
+         taller than the viewport scrolls and a 20px fade marks the edge, and
+         5.4 says the card at 480x360 WILL scroll and that is the point. What
+         is out of spec is the art, which is not in the 5.2 zone table at all
+         — that zone is "the numbered rules". So the art gives up height, not
+         the type (which never shrinks) and not the CTA (which never moves).
+
+         It yields exactly as much as the first rule needs rather than taking a
+         fixed number, because the card is 470 wide on a desktop frame and 334
+         on a phone, so the same sentence is three lines in one and four in the
+         other. A single height that clears the fold on one clips the other.
+         56 is the smallest it stays legible at, and BELOW that it is dropped
+         rather than shrunk: a 9px illustration is not a smaller picture, it is
+         clutter sitting where a sentence should be. So on the short landscape
+         frames and on 360-wide-and-under phones — where rule 1 alone wraps to
+         123 of the 168 body — the rules get the whole zone. */
+      const rule1 = wrapText(RULES[0], pw - 100, 16).length * 22 + 13;
+      const room = viewH - rule1;
+      if (room >= 56) items.push({ t: 'art', h: Math.min(84, room) });
       for (const r of RULES) {
         const lines = wrapText(r, pw - 100, 16);
         items.push({ t: 'rule', lines, h: lines.length * 22 + 13 });
@@ -1608,7 +1639,23 @@
     rulesFit() {
       const c = cardLayout(phase === 'win' ? 'win' : 'rules');
       const sum = c.HEADER + c.viewH + c.FOOTER;
+      /* The card is allowed to scroll — that is the design — but the FIRST
+         rule reading complete on open is the thing the art height is derived
+         to guarantee, and nothing else here could see it. Without this the
+         art could drift back to a fixed number and the only symptom would be
+         a sentence cut mid-word, which no `fits` flag reports. */
+      const artItem = c.items.find(i => i.t === 'art');
+      const art = artItem ? artItem.h : 0;
+      const first = c.items.find(i => i.t === 'rule');
+      const firstH = first ? first.lines.length * 22 + 13 : 0;
       return {
+        artH: art, firstRuleH: firstH,
+        // Two separate facts, not one verdict with an escape hatch in it. On a
+        // 320-tall landscape frame the body is 48 and the first rule is 101,
+        // so no art height can clear it; that is `firstRulePossible` false,
+        // and it must not be reported as the art having done its job.
+        firstRuleVisible: art + firstH <= c.viewH,
+        firstRulePossible: firstH <= c.viewH,
         LW, LH, mode: MODE, kind: c.kind,
         cardH: Math.round(c.ph), frameH: LH,
         headerH: c.HEADER, viewportH: Math.round(c.viewH), footerH: c.FOOTER,
