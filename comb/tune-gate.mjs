@@ -137,14 +137,45 @@ function showCatalogue() {
   }
 }
 
+/* ---------- Bot R — random legal play ----------  NOT IN THE BRIEF.
+
+   The row that was missing, and the omission shipped a bad ladder. Bot G is
+   deterministic, so on a single level it is a coin already flipped: a level
+   that happens to defeat it scores as respectable however slight it is. The
+   first ladder passed every criterion here while levels 1-30 were two-, three-
+   and four-piece puzzles and levels 6, 24 and 30 were finished by 100% of
+   random play. Nothing in this file could see that.
+
+   Bot R plays a uniformly random legal move until stuck or done, many times,
+   so it is continuous on one level and it answers the only question that
+   matters about an opening: can a player who is not thinking win anyway. */
+function botRandom(level, rng) {
+  const t = G.TUNE;
+  const occ = new Uint8Array(level.n);
+  const pm = new Uint8Array(level.queue.length);
+  let placed = 0;
+  for (;;) {
+    const all = [];
+    for (const qi of G.visibleSlots(level, pm, t.traySize)) {
+      for (const p of G.legalPlacements(level, level.queue[qi].shape, occ)) all.push({ qi, p });
+    }
+    if (!all.length) return placed === level.queue.length;
+    const c = all[Math.floor(rng.float() * all.length)];
+    for (const i of c.p.idx) occ[i] = 1;
+    pm[c.qi] = 1; placed++;
+    if (placed === level.queue.length) return true;
+  }
+}
+const RANDOM_RUNS = 60;
+
 /* ============================================================
    One tier's worth of levels
    ============================================================ */
 function runTier(tierIdx, seeds) {
   const r = {
     tier: tierIdx, made: 0, failedGen: 0,
-    g: 0, l: 0, p: 0, c: 0, constructive: 0, budgetHit: 0,
-    par: [], cells: [], distinct: [], genMs: [], forced: [], pickups: [],
+    g: 0, l: 0, p: 0, c: 0, constructive: 0, budgetHit: 0, ft: 0,
+    par: [], cells: [], distinct: [], genMs: [], forced: [], pickups: [], rand: [],
   };
   for (const seed of seeds) {
     const t0 = process.hrtime.bigint();
@@ -163,6 +194,14 @@ function runTier(tierIdx, seeds) {
     if (G.verifyConstructive(lv).ok) r.constructive++;
     if (G.botGreedy(lv).solved) r.g++;
     if (G.botLookahead(lv).solved) r.l++;
+    // Bot R, and first try = tightest-hole reasoning on a pick-up budget of
+    // ZERO: can a thinking player walk straight through without lifting
+    // anything back out. That is the legibility number.
+    const rng = G.makeRng(seed * 7 + 5);
+    let ok = 0;
+    for (let i = 0; i < RANDOM_RUNS; i++) if (botRandom(lv, rng)) ok++;
+    r.rand.push(ok / RANDOM_RUNS);
+    if (G.botConstrained(lv, { cap: 0 }).solved) r.ft++;
     const c = G.botConstrained(lv, { cap: 600 });
     if (c.solved) { r.c++; r.pickups.push(c.pickups); if (isFinite(c.forcedShare)) r.forced.push(c.forcedShare); }
     const p = G.botPlanner(lv);
@@ -210,24 +249,27 @@ for (let t = 0; t < NTIERS; t++) {
 
 console.log(`\nTIER CURVE      ${EXTRA} extra seeds per tier, plus the 100 shipped levels on tiers 1-10`);
 console.log('-'.repeat(96));
-console.log('  tier  cells   par   genFail   Bot G     Bot L*    Bot C*   forced*  pickups*   Bot P  constructive   gen ms');
+console.log('  tier  cells  pieces  Bot R*   Bot G    Bot L*   first*   Bot C*  forced*  pickups*  Bot P  constr   gen ms');
 for (const r of tiers) {
   const n = r.made || 1;
   console.log(
     '  ' + pad(r.tier + 1, 4) +
     pad(Math.round(mean(r.cells)), 7) +
-    pad(mean(r.par).toFixed(1), 6) +
-    pad(r.failedGen, 10) +
-    pad(pc(r.g / n), 8) +
-    pad(pc(r.l / n), 10) +
+    pad(mean(r.par).toFixed(1), 8) +
+    pad(pc(mean(r.rand)), 9) +
+    pad(pc(r.g / n), 9) +
+    pad(pc(r.l / n), 9) +
+    pad(pc(r.ft / n), 9) +
     pad(pc(r.c / n), 9) +
     pad(pc(mean(r.forced)), 9) +
     pad(mean(r.pickups).toFixed(1), 10) +
-    pad(pc(r.p / n), 8) +
-    pad(pc(r.constructive / n), 14) +
+    pad(pc(r.p / n), 7) +
+    pad(pc(r.constructive / n), 9) +
     pad(mean(r.genMs).toFixed(1) + '/' + maxOf(r.genMs).toFixed(0), 11));
 }
-console.log('  * Bot L is not in the brief. See the header.');
+console.log('  * Bot R, Bot L, Bot C and first try are not in the brief. See the header.');
+console.log('    genFail was 0 on every tier of every run and is now only printed when it is not: '
+  + (tiers.some(r => r.failedGen) ? tiers.map(r => r.tier + 1 + ':' + r.failedGen).filter(x => !x.endsWith(':0')).join(' ') : 'none'));
 
 /* ---------- pass criteria ---------- */
 console.log('\nPASS CRITERIA');
@@ -284,6 +326,36 @@ console.log(`        this run resolves a gap of ${(worstResolve * 100).toFixed(1
 console.log(`        the tightest real gap in the ladder is about 6. Raise --extra if that is not comfortable.`);
 row('a tier with Bot G < 15%, within 14', ceilIdx < 0 ? 'none' : 'tier ' + (ceilIdx + 1), ceilIdx >= 0 && ceilIdx < 14,
   ceilIdx < 0 ? 'the dials top out; rotation is the fourth dial' : '');
+
+
+/* THE THREE CRITERIA THAT WOULD HAVE CAUGHT THE FIRST LADDER.
+
+   It passed everything above while levels 1-30 were two-, three- and four-
+   piece puzzles and three of the first thirty were finished by 100% of random
+   play. The owner reported it twice — "essentially identical", then "annoyingly
+   simple" — before anything here could show it, because a gate built only on
+   "does mindless play win" cannot see a level that is over in three moves. */
+const minPieces = Math.min(...tiers.map(r => mean(r.par)));
+row('every tier averages 4+ pieces', minPieces.toFixed(1), minPieces >= 4,
+    'a three-move level is over before the player has an opinion');
+
+// Per SHIPPED level, not per tier: the unloseable ones were individual levels
+// sitting inside a tier whose average looked fine.
+let worstRand = 0, worstLvl = 0;
+for (let n = 1; n <= 100; n++) {
+  const lv = G.shippedLevel(n);
+  const rng = G.makeRng(n * 31 + 7);
+  let ok = 0;
+  for (let i = 0; i < 200; i++) if (botRandom(lv, rng)) ok++;
+  if (ok / 200 > worstRand) { worstRand = ok / 200; worstLvl = n; }
+}
+row('no shipped level is won by 60%+ of random play',
+    pc(worstRand) + ' (level ' + worstLvl + ')', worstRand < 0.60,
+    'levels 6, 24 and 30 of the first ladder read 100%');
+
+const ftT1 = tiers[0].ft / (tiers[0].made || 1);
+row('first try at tier 1, target 100%', pc(ftT1), ftT1 >= 0.99,
+    'careless play must lose, but LOOKING must always win at the start');
 
 console.log('\nNOT A PASS CRITERION, BUT THE ONE THAT DECIDES WHETHER THIS IS A GAME');
 const lT3 = t3plus.reduce((a, r) => a + r.l, 0) / Math.max(1, t3plus.reduce((a, r) => a + r.made, 0));

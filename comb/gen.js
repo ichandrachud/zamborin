@@ -41,7 +41,25 @@
 const TUNE = {
   R: 25, cols: 7, rows: 13,
   pieceMin: 3, pieceMax: 6,
-  traySize: 3,
+
+  /* THE TRAY HAS NO WINDOW. The shipped tray is one scrollable panel holding
+     every piece still to be placed and any of them can be picked up (owner's
+     call, 2026-08-28, play.js layoutTray). This stayed at 3 afterwards, so
+     every bot and the whole gate went on measuring a three-slot queue the
+     game does not have.
+
+     It mattered more than it looks. Under the fake window Bot C collapsed
+     above 20 cells, that collapse was read as the edge of the "derivable
+     band", and the band was used to cap boards at 12-17 cells — which is 2-4
+     pieces, which is why the opening had no puzzle in it. Measured against the
+     real tray, Bot C solves 100% of every band of the ladder. The band was an
+     artifact of a window nobody plays with.
+
+     Bot G is genuinely indifferent to it (50/50, 20/20, 5/5, 0/0 by band),
+     which is why the original "tray size is not a difficulty dial" note was
+     right about greedy and wrong to generalise. 99 = no window, i.e. the
+     shipped game. */
+  traySize: 99,
   starPar: 0, starPlus: 2,
 
   /* How many shapes of each size the catalogue keeps. 20 total, per brief
@@ -485,48 +503,82 @@ function drawPool(rng, catalogue, allowed, poolSize, tune) {
    12 to 26 cells, so that is where all fourteen rungs sit. A wider board is
    not a harder level, it is a longer search. */
 const TIERS = [
-  /* THE OPENING IS NOT A TUTORIAL ANY MORE. The brief asked for greedy above
-     85% at tier 1 on the grounds that "the opening must be gentle", and that
-     is what produced nine near-identical levels nobody had to think about.
-     The owner played it and called it a wasted turn, which is the right call
-     for a game whose whole job is to hook someone in the first thirty seconds.
+  /* THE DIAL IS THE NUMBER OF DECISIONS, not the greedy rate.
 
-     The new shape of level 1, and of every level: greedy near 50%, so a
-     player who does not look fails about half the time, and Bot C at ~100% on
-     half a pick-up, so a player who DOES look wins first go. Two thirds of
-     placements are forced. That is the "oh, I see it" the game is for.
+     The first ladder was built on "does mindless play win", and it passed:
+     greedy near 50% at rung 1, falling to 15%. The owner played it and said
+     the first fifteen to twenty levels were annoyingly simple anyway, which
+     sounded like a contradiction and was not. Measuring the levels a player
+     actually receives, rather than tiers on the gate's own seeds, showed why:
 
-     Every rung was selected on four numbers at once — greedy, Bot C, pick-ups
-     and how many of its ten levels differ — rather than on difficulty alone,
-     which is how the first ladder ended up shipping one level ten times. Every
-     tier here makes ten distinct levels out of ten.
+         levels 1-30 were 2, 3 and 4 piece puzzles.
+         levels 6, 24 and 30 were finished by 100% of RANDOM play.
 
-     The order is the GATE's measurement, not the selection grid's prediction.
-     Two rungs came out the wrong way round when measured on the gate's own
-     seeds and were swapped; a ladder ordered by what a different sample said
-     is not ordered. */
-  { cells: 12, spread: 0, pool:  6, sizes: [3, 6], varietyBias:  0.24, irregularity: 0.75 },
-  { cells: 12, spread: 2, pool:  3, sizes: [3, 6], varietyBias: -0.30, irregularity: 0.75 },
-  { cells: 13, spread: 1, pool:  3, sizes: [3, 6], varietyBias: -0.30, irregularity: 0.75 },
-  { cells: 14, spread: 0, pool:  9, sizes: [3, 6], varietyBias:  0.51, irregularity: 0.75 },
-  { cells: 13, spread: 0, pool:  6, sizes: [3, 6], varietyBias:  0.24, irregularity: 0.55 },
-  { cells: 15, spread: 0, pool:  6, sizes: [3, 6], varietyBias:  0.24, irregularity: 0.35 },
-  { cells: 15, spread: 2, pool:  6, sizes: [3, 6], varietyBias:  0.24, irregularity: 0.35 },
-  { cells: 16, spread: 1, pool:  6, sizes: [3, 6], varietyBias:  0.24, irregularity: 0.75 },
-  /* The last two are where the derivable band runs out: below about 22% greedy
-     nothing keeps Bot C above 90% on under 1.6 pick-ups, so these two ask for
-     a little grinding. They are the rungs that reach the brief's sub-15%. */
-  { cells: 17, spread: 0, pool:  6, sizes: [3, 5], varietyBias:  0.24, irregularity: 0.35 },
-  { cells: 17, spread: 0, pool:  9, sizes: [3, 6], varietyBias:  0.51, irregularity: 0.35 },
-  /* Rungs 11-14 are NOT used by levels 1-100 and exist only to answer the
-     gate's question about reaching sub-15% within fourteen. */
-  { cells: 18, spread: 0, pool: 14, sizes: [3, 6], varietyBias:  0.96, irregularity: 0.40 },
-  { cells: 20, spread: 0, pool:  9, sizes: [3, 6], varietyBias:  0.51, irregularity: 0.50 },
-  { cells: 22, spread: 0, pool: 14, sizes: [3, 6], varietyBias:  0.96, irregularity: 0.60 },
-  { cells: 26, spread: 0, pool: 20, sizes: [3, 6], varietyBias:  1.00, irregularity: 0.80 },
+     Bot G cannot see this. It is deterministic, so on one level it is a coin
+     already flipped, and a two-move level that happens to defeat it scores as
+     respectable. A puzzle with three decisions in it is over before the player
+     has formed an opinion, at any greedy rate.
+
+     What held the piece count down was sizes [3,6] on a 12-17 cell board:
+     ~4.5 cells a piece is under 4 pieces. The board could not grow because the
+     "derivable band is 12-26 cells" finding capped it — and that finding was
+     an artifact. It came from Bot C collapsing above 20 cells, and Bot C
+     restricts every branch to placements covering the tightest cell, which is
+     sound in exact cover but NOT under a sliding tray window: sometimes you
+     must place elsewhere first to advance the queue. Measured: 48 of 48 levels
+     Bot C "failed" are solved by placing the queue in plain order. Bot C
+     measures a STRATEGY failing, never an unfair level.
+
+     So: pieces of 3-4 cells on boards of 16-32, which is 4.2 pieces at rung 1
+     rising to 8.7 at rung 14, and every rung selected on four numbers —
+
+       Bot R      random legal play. Whether a careless player can win. This is
+                  the row the old ladder had no equivalent of and it is the one
+                  that exposed the unloseable levels.
+       Bot G      the brief's mindless-but-ordered play.
+       first try  tightest-hole reasoning on a pick-up budget of ZERO: does a
+                  thinking player win without lifting anything back out. This
+                  is the legibility number, and it is the one that must not
+                  fall too fast.
+       pieces     how many decisions the level actually contains.
+
+     POOL is the legibility dial and runs the expected way: pool 4 keeps first
+     try highest at every board size, pool 9 collapses it. Past about 22 cells
+     first try and Bot C plateau around 10-35% and the settings stop being
+     distinguishable at any sample this runs at; from there the rungs are
+     separated by piece count alone, which is honest about what is still
+     rising and what is not. */
+  { cells: 16, spread: 0, pool:  4, firstTry: true, sizes: [3, 4], varietyBias: 0.24, irregularity: 0.35 },
+  { cells: 16, spread: 2, pool:  6, firstTry: true, sizes: [3, 4], varietyBias: 0.24, irregularity: 0.55 },
+  { cells: 17, spread: 1, pool:  4, firstTry: true, sizes: [3, 4], varietyBias: 0.24, irregularity: 0.35 },
+  { cells: 20, spread: 1, pool:  4, sizes: [3, 4], varietyBias: 0.24, irregularity: 0.55 },
+  { cells: 18, spread: 1, pool:  4, sizes: [3, 4], varietyBias: 0.24, irregularity: 0.35 },
+  { cells: 20, spread: 2, pool:  6, sizes: [3, 4], varietyBias: 0.24, irregularity: 0.35 },
+  { cells: 24, spread: 0, pool:  6, sizes: [3, 4], varietyBias: 0.24, irregularity: 0.35 },
+  { cells: 24, spread: 2, pool:  4, sizes: [3, 4], varietyBias: 0.24, irregularity: 0.55 },
+  { cells: 22, spread: 1, pool:  6, sizes: [3, 4], varietyBias: 0.24, irregularity: 0.35 },
+  { cells: 28, spread: 0, pool:  6, sizes: [3, 4], varietyBias: 0.24, irregularity: 0.55 },
+  { cells: 26, spread: 1, pool:  6, sizes: [3, 4], varietyBias: 0.24, irregularity: 0.55 },
+  { cells: 30, spread: 1, pool:  4, sizes: [3, 4], varietyBias: 0.24, irregularity: 0.55 },
+  { cells: 28, spread: 2, pool:  6, sizes: [3, 4], varietyBias: 0.24, irregularity: 0.35 },
+  { cells: 32, spread: 2, pool:  4, sizes: [3, 4], varietyBias: 0.24, irregularity: 0.55 },
 ];
-// Levels 1-100 across the first ten rungs, ten levels each.
-const tierOf = level => Math.min(TIERS.length - 1, Math.floor((level - 1) / 10));
+
+/* PACE. The old rule was floor((level-1)/10): ten levels a rung, which put
+   levels 1-20 on the two easiest rungs of fourteen and never reached the third
+   before level 21. A player who has understood the idea by level 3 then spends
+   seventeen more on it. Rungs are short where the ladder is steep and long
+   where it has plateaued, which is also where a player is invested enough to
+   sit on one. Fourteen rungs, 3+3+4+4+5+5+6+7+8+9+10+11+12+13 = 100 levels,
+   so level 20 now sits on rung 6 rather than rung 2. Past 100 the last rung
+   continues. */
+const RUNG_LEN = [3, 3, 4, 4, 5, 5, 6, 7, 8, 9, 10, 11, 12, 13];
+const RUNG_END = RUNG_LEN.reduce((a, n) => (a.push((a[a.length - 1] || 0) + n), a), []);
+const tierOf = level => {
+  const n = Math.max(1, level | 0);
+  for (let i = 0; i < RUNG_END.length; i++) if (n <= RUNG_END[i]) return i;
+  return TIERS.length - 1;
+};
 
 /* ---------- a level ----------
    Deconstruction, never construction: tile first, then take the tiling apart.
@@ -575,6 +627,25 @@ function makeLevel(seed, tierIdx, opts) {
     // rather than a recital of the solution.
     const order = rng.shuffle(tiled.pieces.map((_, i) => i));
     const queue = order.map(i => tiled.pieces[i]);
+
+    /* FIRST TRY, on the opening rungs only. A level that defeats tightest-hole
+       reasoning outright is legitimate — every level here is solvable by
+       placing the queue in order — but meeting one as level 2 is a wall
+       rather than an opening. On rungs that ask for it, keep only levels a
+       player wins without lifting a piece back out.
+
+       This is a fairness filter, NOT a difficulty cap, and the distinction is
+       the one the first ladder got wrong: it does not touch the outline, the
+       piece set or the board size, so the rung keeps its variety. Careless
+       play still loses these levels; it is looking that is guaranteed to work.
+       Relaxed on the last attempts so a rung can never develop a hole. */
+    if (tier.firstTry && attempt < t.blobTries - 6) {
+      const probe = {
+        n: board.length, board, queue, solution: tiled.pieces,
+        placements: tiled.placements, adjacency: tiled.adjacency, tune: t,
+      };
+      if (!botConstrained(probe, { cap: 0, tune: t }).solved) continue;
+    }
 
     /* Asked to avoid a signature, try another outline rather than hand back a
        level the player has just finished. On the last attempt take it anyway:
@@ -674,7 +745,11 @@ function legalPlacements(level, shapeId, occ) {
    cannot fail any other way: the queue's sizes sum to the board, so placing
    every piece necessarily fills it. */
 function botGreedy(level, tune) {
-  const t = tune || level.tune || TUNE;
+  /* Accepts either a tune object or an { tune } options bag. botConstrained
+     takes the wrapped form and this one took the bare form; passing the wrong
+     one leaves traySize undefined, which reads as 0% solved on every row
+     rather than as an error. That cost a sweep. */
+  const t = (tune && tune.tune) || tune || level.tune || TUNE;
   const occ = new Uint8Array(level.n);
   const placedMask = new Uint8Array(level.queue.length);
   let placed = 0;
@@ -827,7 +902,10 @@ function botRewind(level, opts) {
 function botConstrained(level, opts) {
   const o = opts || {};
   const t = o.tune || level.tune || TUNE;
-  const cap = o.cap || 4000;
+  // cap is a PICK-UP budget, and 0 is a meaningful budget: play forward and
+  // never lift a piece back. `o.cap || 4000` silently turned that into 4000,
+  // so a zero-budget run read identically to an unlimited one on every row.
+  const cap = o.cap == null ? 4000 : o.cap;
   const occ = new Uint8Array(level.n);
   const placedMask = new Uint8Array(level.queue.length);
   let pickups = 0, placed = 0, forced = 0, guessed = 0;
