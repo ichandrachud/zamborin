@@ -99,6 +99,73 @@
   try { scheme = localStorage.getItem('zam.fathom.controls') === 'B' ? 'B' : 'A'; } catch (_) {}
   let bestEver = 0;              // session best depth
 
+  // ---------- THE FLEET ----------
+  /* Nine submarines, graded 1 to 9, all the owner's models. The five stat
+     pips map straight onto the five TUNE tiers (pip - 1); SPEED becomes a
+     thrust multiplier and LAMP stretches the light cone. Prices are
+     starting guesses for the Milestone-4 gate to re-price. */
+  const FLEET = [
+    { name: 'Minnow',     file: 'sub-1.png', lenM: 13.5, price: 0,
+      st: { AIR: 1, CARGO: 1, BATT: 1, SPEED: 2, LAMP: 1 },
+      blurb: 'Small, brave, and full of hope.' },
+    { name: 'Lagoon',     file: 'sub-2.png', lenM: 14, price: 250,
+      st: { AIR: 3, CARGO: 1, BATT: 2, SPEED: 1, LAMP: 2 },
+      blurb: 'Twin tanks and no hurry. Breathes like a whale.' },
+    { name: 'Bluefin',    file: 'sub-3.png', lenM: 14, price: 600,
+      st: { AIR: 2, CARGO: 2, BATT: 2, SPEED: 3, LAMP: 1 },
+      blurb: 'A porthole for every thought, and quick through a current.' },
+    { name: 'Sunfish',    file: 'sub-4.png', lenM: 14.5, price: 1100,
+      st: { AIR: 2, CARGO: 3, BATT: 2, SPEED: 2, LAMP: 2 },
+      blurb: 'The friendly workhorse. Room for a little of everything.' },
+    { name: 'Dredger',    file: 'sub-5.png', lenM: 15, price: 1800,
+      st: { AIR: 2, CARGO: 5, BATT: 2, SPEED: 1, LAMP: 2 },
+      blurb: 'A hold like a warehouse. Turns like one too.' },
+    { name: 'Ember',      file: 'sub-6.png', lenM: 15, price: 2800,
+      st: { AIR: 3, CARGO: 2, BATT: 5, SPEED: 3, LAMP: 1 },
+      blurb: 'Runs hot. The thrusters never ask for a rest.' },
+    { name: 'Sailfin',    file: 'sub-7.png', lenM: 15.5, price: 4200,
+      st: { AIR: 3, CARGO: 3, BATT: 3, SPEED: 5, LAMP: 2 },
+      blurb: 'Built to outrun its own bubbles.' },
+    { name: 'Ghostlight', file: 'sub-8.png', lenM: 16, price: 6500,
+      st: { AIR: 4, CARGO: 3, BATT: 4, SPEED: 3, LAMP: 5 },
+      blurb: 'Sees everything. The deep has no secrets left.' },
+    { name: 'Poseidon',   file: 'sub-9.png', lenM: 16.5, price: 10000,
+      st: { AIR: 5, CARGO: 5, BATT: 5, SPEED: 4, LAMP: 4 },
+      blurb: 'The one the trench tells stories about.' },
+  ];
+  const SUBIMGS = FLEET.map(f => {
+    const im = new Image();
+    im.onload = () => { im._ok = true; };
+    im.src = './assets/' + f.file + '?v=1';
+    return im;
+  });
+  let owned = [0], curSub = 0, fleetView = 0;
+  let bootBank = 0;
+  /* The bank, the fleet and the chosen boat survive a closed tab — written
+     on every bank and every purchase, never on unload (the brief's rule). */
+  try {
+    const s = JSON.parse(localStorage.getItem('zam.fathom.save') || 'null');
+    if (s) {
+      owned = Array.isArray(s.owned) && s.owned.length ? s.owned.filter(n => n >= 0 && n < FLEET.length) : [0];
+      if (!owned.includes(0)) owned.unshift(0);
+      curSub = owned.includes(s.cur | 0) ? s.cur | 0 : 0;
+      bootBank = Math.max(0, s.m | 0);
+    }
+  } catch (_) {}
+  function saveMeta() {
+    try { localStorage.setItem('zam.fathom.save', JSON.stringify({ m: run.money, owned, cur: curSub })); } catch (_) {}
+  }
+  function loadoutOf(i) {
+    const st = FLEET[i].st;
+    return { air: st.AIR - 1, cargo: st.CARGO - 1, batt: st.BATT - 1,
+             thrustMul: 0.85 + st.SPEED * 0.13 };
+  }
+  function applyFleet() { run.applyLoadout(loadoutOf(curSub)); }
+  run.money = bootBank;
+  run.air = run.tune.airMax[loadoutOf(curSub).air];
+  run.batt = run.tune.battMax[loadoutOf(curSub).batt];
+  applyFleet();
+
   // ---------- SPRITES ----------
   /* The owner's clay models, one family per key, numbered from 1. Every
      draw falls back to the old vector art until its image has loaded, so
@@ -183,6 +250,11 @@
     if (['arrowleft', 'arrowright', 'arrowup', 'arrowdown', ' '].includes(k)) e.preventDefault();
     if (sfx) sfx.ensureAudio();
     if (card) {
+      if (e.key === 'Escape') { card = null; return; }
+      if (card === 'fleet') {
+        if (k === 'arrowleft') { fleetView = Math.max(0, fleetView - 1); return; }
+        if (k === 'arrowright') { fleetView = Math.min(FLEET.length - 1, fleetView + 1); return; }
+      }
       if (e.key === 'Enter' || e.key === ' ') { cardCTA(); e.preventDefault(); }
       return;
     }
@@ -209,6 +281,11 @@
     if (sfx) sfx.ensureAudio();
     const p = ptXY(e);
     if (card) {
+      if (card === 'fleet') {
+        if (hit.fleetPrev && inRect(p, hit.fleetPrev)) { fleetView = Math.max(0, fleetView - 1); if (sfx) sfx.play('tick'); return; }
+        if (hit.fleetNext && inRect(p, hit.fleetNext)) { fleetView = Math.min(FLEET.length - 1, fleetView + 1); if (sfx) sfx.play('tick'); return; }
+        if (hit.fleetClose && inRect(p, hit.fleetClose)) { card = null; return; }
+      }
       if (hit.cta && inRect(p, hit.cta)) { cardCTA(); return; }
       if (hit.schemeToggle && inRect(p, hit.schemeToggle)) { toggleScheme(); return; }
       if (hit.newOcean && inRect(p, hit.newOcean)) { newOcean(); return; }
@@ -278,6 +355,7 @@
     if (id === 'sound') { if (sfx) { sfx.setOn(!sfx.isOn()); sfx.play('click'); } }
     else if (id === 'restart') { newOcean(); }
     else if (id === 'rules') { card = 'rules'; rulesScroll = 0; }
+    else if (id === 'fleet') { fleetView = curSub; card = 'fleet'; }
   }
   function toggleScheme() {
     scheme = scheme === 'A' ? 'B' : 'A';
@@ -285,7 +363,11 @@
     if (sfx) sfx.play('click');
   }
   function newOcean() {
+    const bank = run.money;                  // the bank is meta, not per-ocean
     run = new SIM.Run((Math.random() * 1e9) >>> 0);
+    run.money = bank;
+    applyFleet();
+    run.air = run.airMax(); run.batt = run.battMax();
     particles.length = 0; floats.length = 0; jetsam.length = 0; rings.length = 0;
     card = null; cam.y = -20; cam.x = run.x - L.viewWm / 2;
     if (sfx) sfx.play('start');
@@ -295,6 +377,18 @@
     else if (card === 'banked' || card === 'blackout') {
       if (run.mode === 'blackout') run.revive();
       card = null;
+    } else if (card === 'fleet') {
+      const i = fleetView, f = FLEET[i];
+      if (owned.includes(i)) {
+        curSub = i; applyFleet(); saveMeta(); card = null;
+      } else if (run.money >= f.price) {
+        run.money -= f.price;
+        owned.push(i); curSub = i; applyFleet(); saveMeta(); card = null;
+        if (sfx) sfx.play('unlock');
+      } else {
+        if (sfx) sfx.tone(170, 0.12, 0.03, 'sine');   // not yet affordable
+        return;
+      }
     }
     if (sfx) sfx.play('click');
   }
@@ -422,6 +516,7 @@
       bestEver = Math.max(bestEver, run.bestDepth);
       cardData = { val: ev.val, kg: ev.kg, depth: Math.round(run.bestDepth) };
       card = 'banked';
+      saveMeta();
       if (sfx) sfx.play('success');
     } else if (ev.t === 'blackout') {
       bestEver = Math.max(bestEver, run.bestDepth);
@@ -557,9 +652,10 @@
     const wx = (x) => (x - cam.x) * ppm;
     const wy = (y) => (y - cam.y) * ppm;
 
-    // Rock body: everything below the seabed.
+    // Rock body: everything below the seabed. Warmed toward the sage of the
+    // owner's clay rocks so drawn stone and modelled stone read as one family.
     const rock = tc.createLinearGradient(0, 0, 0, terrCan.height);
-    rock.addColorStop(0, '#0B1B2C'); rock.addColorStop(1, '#02080F');
+    rock.addColorStop(0, '#16303B'); rock.addColorStop(1, '#040C14');
     tc.fillStyle = rock;
     tc.beginPath();
     const x0m = cam.x - 6, x1m = cam.x + L.viewWm + 6;
@@ -588,7 +684,7 @@
       tc.fillStyle = sg2;
       tc.beginPath(); tc.ellipse(wx(m.x), shy, m.rx * L.ppm, m.ry * L.ppm * 0.55, 0, 0, Math.PI * 2); tc.fill();
       const mg = tc.createLinearGradient(0, wy(m.y - m.ry), 0, wy(m.y + m.ry));
-      mg.addColorStop(0, '#10202F'); mg.addColorStop(1, '#040C15');
+      mg.addColorStop(0, '#1D3B3A'); mg.addColorStop(1, '#071119');
       tc.fillStyle = mg;
       tc.beginPath();
       for (let a = 0; a <= 26; a++) {
@@ -599,8 +695,8 @@
         a === 0 ? tc.moveTo(px, py) : tc.lineTo(px, py);
       }
       tc.closePath(); tc.fill();
-      // Rim light on the top edge: value, not an outline.
-      tc.strokeStyle = 'rgba(110,180,210,0.30)'; tc.lineWidth = 2;
+      // Rim light on the top edge: value, not an outline. Sage, like the clay.
+      tc.strokeStyle = 'rgba(150,210,180,0.42)'; tc.lineWidth = 2.5;
       tc.beginPath();
       for (let a = 0; a <= 13; a++) {
         const th = Math.PI + (a / 13) * Math.PI;
@@ -612,26 +708,49 @@
       tc.stroke();
     }
 
-    // Rim light along the seabed and the channel edges.
-    tc.strokeStyle = 'rgba(120,190,220,0.35)'; tc.lineWidth = 2.5;
-    tc.beginPath();
-    let pen = false;
-    for (let xm = x0m; xm <= x1m; xm += 5) {
-      const fy = w.floorY(xm);
-      const inGap = Math.abs(xm - w.centerX(Math.max(95, fy))) < w.halfW(Math.max(95, fy));
-      if (inGap) { pen = false; continue; }
-      const px = wx(xm), py = wy(fy);
-      if (!pen) { tc.moveTo(px, py); pen = true; } else tc.lineTo(px, py);
+    // Rim light along the seabed, with a soft lit clay band beneath it.
+    for (const [width, color, dy] of [[9, 'rgba(140,195,170,0.10)', 5], [3.5, 'rgba(160,215,185,0.5)', 0]]) {
+      tc.strokeStyle = color; tc.lineWidth = width;
+      tc.beginPath();
+      let pen = false;
+      for (let xm = x0m; xm <= x1m; xm += 5) {
+        const fy = w.floorY(xm);
+        const inGap = Math.abs(xm - w.centerX(Math.max(95, fy))) < w.halfW(Math.max(95, fy));
+        if (inGap) { pen = false; continue; }
+        const px = wx(xm), py = wy(fy) + dy;
+        if (!pen) { tc.moveTo(px, py); pen = true; } else tc.lineTo(px, py);
+      }
+      tc.stroke();
     }
-    tc.stroke();
-    tc.strokeStyle = 'rgba(96,170,205,0.22)'; tc.lineWidth = 2;
+    tc.strokeStyle = 'rgba(130,185,165,0.28)'; tc.lineWidth = 2;
     for (const side of [-1, 1]) {
-      tc.beginPath(); pen = false;
+      tc.beginPath(); let pen = false;
       for (let ym = Math.max(95, y0m); ym <= y1m; ym += 5) {
         const px = wx(w.centerX(ym) + side * w.halfW(ym)), py = wy(ym);
         if (!pen) { tc.moveTo(px, py); pen = true; } else tc.lineTo(px, py);
       }
       tc.stroke();
+    }
+    /* Clay grain: still speckles stamped in world space, the same crumb the
+       modelled rocks carry. Deterministic per cell, so it never shimmers. */
+    const hsh = (a, b) => {
+      let h = Math.imul(a, 374761393) + Math.imul(b, 668265263);
+      h = Math.imul(h ^ (h >>> 13), 1274126177);
+      return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+    };
+    const dotR = Math.max(1, L.ppm * 0.11);
+    for (let gx = Math.floor((cam.x - 6) / 5); gx <= (cam.x + L.viewWm + 6) / 5; gx++) {
+      for (let gy = Math.floor((cam.y - 6) / 5); gy <= (cam.y + L.viewHm + 6) / 5; gy++) {
+        const r = hsh(gx, gy);
+        if (r < 0.45) continue;
+        const wxp = gx * 5 + (hsh(gx + 7, gy) - 0.5) * 4.5;
+        const wyp = gy * 5 + (hsh(gx, gy + 11) - 0.5) * 4.5;
+        if (!w.solid(wxp, wyp)) continue;
+        tc.fillStyle = r < 0.72 ? 'rgba(0,0,0,0.16)' : 'rgba(215,240,225,0.05)';
+        tc.beginPath();
+        tc.arc(wx(wxp), wy(wyp), dotR * (0.7 + r * 0.9), 0, Math.PI * 2);
+        tc.fill();
+      }
     }
     ctx.drawImage(terrCan, L.ocean.x, L.ocean.y);
   }
@@ -740,7 +859,9 @@
       if (d.type === 'nodule') {
         const im = pickSprite('nodule', salt);
         if (im) {
-          const wpx = 7 * ppm, hpx = wpx * (im.height / im.width);
+          // Owner scale round: ore shrunk ~35% so a chunk reads as a find,
+          // not a boulder the size of the boat.
+          const wpx = 4.6 * ppm, hpx = wpx * (im.height / im.width);
           ctx.drawImage(im, px - wpx / 2, py + 2 * ppm - hpx, wpx, hpx);
         } else {
           const r = 3.4 * ppm;
@@ -755,7 +876,7 @@
       } else if (d.type === 'sulphide') {
         const im = pickSprite('sulphide', salt);
         if (im) {
-          const wpx = 6 * ppm, hpx = wpx * (im.height / im.width);
+          const wpx = 4.0 * ppm, hpx = wpx * (im.height / im.width);
           ctx.drawImage(im, px - wpx / 2, py + 2 * ppm - hpx, wpx, hpx);
         } else {
           const s = 3.0 * ppm;
@@ -777,7 +898,7 @@
         ctx.beginPath(); ctx.arc(px, py, s * 1.8, 0, Math.PI * 2); ctx.fill();
         const im = pickSprite('crystal', salt);
         if (im) {
-          const hpx = 7 * ppm, wpx = hpx * (im.width / im.height);
+          const hpx = 5.0 * ppm, wpx = hpx * (im.width / im.height);
           ctx.drawImage(im, px - wpx / 2, py + 2 * ppm - hpx, wpx, hpx);
         } else {
           const gg = ctx.createLinearGradient(px, py - s, px, py + s);
@@ -933,24 +1054,21 @@
     }
   }
 
-  /* The sub is the owner's model (assets/sub-1.png, master in iCloud
-     source-assets). It faces right natively; the canvas flips it. More
-     models are coming as purchasable subs, so everything model-specific
-     lives in SUB_SPRITE. The vector fallback below covers the frames
-     before the image loads, and failure. */
-  const SUB_SPRITE = { src: './assets/sub-1.png?v=1', lenM: 13.5, aspect: 397 / 800,
-                       noseX: 0.44, noseY: -0.06, propX: -0.485 };
-  const subImg = new Image();
-  let subImgOk = false;
-  subImg.onload = () => { subImgOk = true; };
-  subImg.src = SUB_SPRITE.src;
-
+  /* The boat on screen is whichever fleet member is chosen. All the models
+     face right natively; the canvas flips them. Nose and prop sit at the
+     same fractions on every hull — close enough that the lamp and the wash
+     read right across the fleet. */
   function drawSub(t) {
     const ppm = L.ppm;
     const px = sx(run.x), py = sy(run.y);
     const f = run.facing;
-    const W = SUB_SPRITE.lenM * ppm, Hh = W * SUB_SPRITE.aspect;
+    const fs = FLEET[curSub];
+    const subImg = SUBIMGS[curSub];
+    const subImgOk = !!subImg._ok;
+    const aspect = subImgOk ? subImg.height / subImg.width : 397 / 800;
+    const W = fs.lenM * ppm, Hh = W * aspect;
     const len = W / 2, hgt = Hh / 2;
+    const SUB_SPRITE = { noseX: 0.44, noseY: -0.06, propX: -0.485 };
     /* The sub pitches with its vertical motion — the single clearest tell
        that flooding is working, before any depth number changes. */
     const tilt = Math.max(-0.16, Math.min(0.16, run.vy * 0.006));
@@ -961,7 +1079,7 @@
     // Lamp: a bright core cone inside a soft wide one, from the dome.
     const nose = W * SUB_SPRITE.noseX;
     const noseY = Hh * SUB_SPRITE.noseY;
-    const coneLen = 55 * ppm;
+    const coneLen = (40 + fs.st.LAMP * 12) * ppm;   // the LAMP pip is real light
     for (const [spread, a] of [[0.30, 0.06], [0.16, 0.10]]) {
       const cg = ctx.createLinearGradient(nose, noseY, nose + coneLen, noseY);
       cg.addColorStop(0, 'rgba(190,230,245,' + a + ')'); cg.addColorStop(1, 'rgba(190,230,245,0)');
@@ -1178,6 +1296,16 @@
     ctx.fillText('?', cx, cy + 1);
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   }
+  function subGlyph(cx, cy) {
+    ctx.fillStyle = INK92;
+    ctx.beginPath(); ctx.ellipse(cx + 1, cy + 1, 8.5, 4.4, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(cx, cy - 4.5, 3, 2.4, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(cx - 8, cy + 1); ctx.lineTo(cx - 12.5, cy - 3); ctx.lineTo(cx - 12.5, cy + 5);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = C_BG;
+    ctx.beginPath(); ctx.arc(cx + 4.5, cy + 0.6, 1.6, 0, Math.PI * 2); ctx.fill();
+  }
   function jettisonPill(cx, cy) {
     ctx.font = '700 ' + UI.PILL.font + 'px Inter, sans-serif';
     // "Jettison" is the brief's word; the button says what it does instead.
@@ -1235,13 +1363,14 @@
 
     drawSealedBanner(now);
 
-    // Bottom row on the band system's centre line: sound, rules, the verb.
+    // Bottom row on the band system's centre line: sound, rules, fleet, the verb.
     const cy = L.rowCy;
-    const p2 = iconPill('rules', SIDE_PAD + 22 + UI.PILL.iconW + UI.PILL.gap, cy, questionIcon);
     iconPill('sound', SIDE_PAD + 22, cy, (cx, cyy) => speakerIcon(cx, cyy, sfx ? sfx.isOn() : true));
+    iconPill('rules', SIDE_PAD + 22 + (UI.PILL.iconW + UI.PILL.gap), cy, questionIcon);
+    const p3 = iconPill('fleet', SIDE_PAD + 22 + (UI.PILL.iconW + UI.PILL.gap) * 2, cy, subGlyph);
     ctx.font = '700 ' + UI.PILL.font + 'px Inter, sans-serif';
     const jw = Math.round(ctx.measureText('DROP CARGO').width + UI.PILL.padX + 10);
-    const jcx = Math.max(LW / 2, p2.x + p2.w + UI.PILL.gap + jw / 2);
+    const jcx = Math.max(LW / 2, p3.x + p3.w + UI.PILL.gap + jw / 2);
     jettisonPill(jcx, cy);
 
     // Scheme A: FLOOD and BLOW, thumb-stacked. Chrome-sized, bigger hit slop.
@@ -1281,8 +1410,10 @@
     x = b1.x + b1.w + UI.PILL.gap;
     const b2 = pill('restart', 'Restart', x + UI.pillWidth(ctx, 'Restart') / 2, cy);
     x = b2.x + b2.w + UI.PILL.gap;
-    const b3 = pill('rules', 'Rules', x + UI.pillWidth(ctx, 'Rules') / 2, cy);
-    L.rowRight = b3.x + b3.w;
+    const b3 = pill('fleet', 'Fleet', x + UI.pillWidth(ctx, 'Fleet') / 2, cy);
+    x = b3.x + b3.w + UI.PILL.gap;
+    const b4 = pill('rules', 'Rules', x + UI.pillWidth(ctx, 'Rules') / 2, cy);
+    L.rowRight = b4.x + b4.w;
     // Read-out: depth and the bank in one right-aligned line.
     const ro = 'DEPTH ' + Math.round(run.y) + ' m   ·   ' + fmtMoney(run.money);
     ctx.font = '600 16px Inter, sans-serif';
@@ -1469,6 +1600,108 @@
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   }
 
+  /* The fleet card: one boat at a time, Tailwind's stat-bar language, the
+     model big enough to admire. CTA is contextual: DIVE for the boat you
+     are in, SELECT for one you own, BUY for one you can afford. */
+  function drawFleetCard() {
+    const { pw, ph, px, py } = cardBox();
+    ctx.fillStyle = SCRIM(0.88); ctx.fillRect(0, 0, LW, LH);
+    ctx.fillStyle = C_SURFACE;
+    ctx.beginPath(); UI.roundRectPath(ctx, px, py, pw, ph, 22); ctx.fill();
+    ctx.strokeStyle = TINT(0.12); ctx.lineWidth = 1;
+    ctx.beginPath(); UI.roundRectPath(ctx, px, py, pw, ph, 22); ctx.stroke();
+    const f = FLEET[fleetView];
+    const cx = px + pw / 2;
+    const compact = ph < 400;
+    // Close.
+    hit.fleetClose = { x: px + pw - 48, y: py + 8, w: 40, h: 40 };
+    ctx.strokeStyle = INK72; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(px + pw - 34, py + 22); ctx.lineTo(px + pw - 22, py + 34);
+    ctx.moveTo(px + pw - 22, py + 22); ctx.lineTo(px + pw - 34, py + 34);
+    ctx.stroke();
+    // Name and standing.
+    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = '#FFFFFF'; ctx.font = '800 26px Inter, sans-serif';
+    ctx.fillText(f.name.toUpperCase(), cx, py + 44);
+    ctx.font = '600 13px Inter, sans-serif';
+    const isCur = fleetView === curSub, isOwned = owned.includes(fleetView);
+    if (isCur) { ctx.fillStyle = C_GREEN; ctx.fillText('ABOARD', cx, py + 66); }
+    else if (isOwned) { ctx.fillStyle = INK72; ctx.fillText('IN YOUR DOCK', cx, py + 66); }
+    else {
+      ctx.fillStyle = run.money >= f.price ? C_SUN : C_ACCENT_TEXT;
+      ctx.fillText(fmtMoney(f.price), cx, py + 66);
+    }
+    // The model.
+    let yTop = py + 78;
+    if (!compact) {
+      const im = SUBIMGS[fleetView];
+      if (im && im._ok) {
+        const maxW = pw - 130, maxH = 104;
+        const s = Math.min(maxW / im.width, maxH / im.height);
+        const iw = im.width * s, ih = im.height * s;
+        if (!isOwned) ctx.globalAlpha = 0.55;   // not yours yet: behind glass
+        ctx.drawImage(im, cx - iw / 2, yTop + (maxH - ih) / 2, iw, ih);
+        ctx.globalAlpha = 1;
+      }
+      // Pager arrows flanking the model.
+      hit.fleetPrev = { x: px + 6, y: yTop, w: 48, h: 104 };
+      hit.fleetNext = { x: px + pw - 54, y: yTop, w: 48, h: 104 };
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = fleetView > 0 ? INK92 : UI.PILL.textDim;
+      ctx.beginPath();
+      ctx.moveTo(px + 36, yTop + 38); ctx.lineTo(px + 24, yTop + 52); ctx.lineTo(px + 36, yTop + 66);
+      ctx.stroke();
+      ctx.strokeStyle = fleetView < FLEET.length - 1 ? INK92 : UI.PILL.textDim;
+      ctx.beginPath();
+      ctx.moveTo(px + pw - 36, yTop + 38); ctx.lineTo(px + pw - 24, yTop + 52); ctx.lineTo(px + pw - 36, yTop + 66);
+      ctx.stroke();
+      yTop += 112;
+      // Pager dots: green for boats you own.
+      for (let i = 0; i < FLEET.length; i++) {
+        const dx = cx + (i - (FLEET.length - 1) / 2) * 16;
+        ctx.fillStyle = i === fleetView ? '#FFFFFF' : owned.includes(i) ? C_GREEN : TINT(0.25);
+        ctx.beginPath(); ctx.arc(dx, yTop, i === fleetView ? 3.5 : 2.5, 0, Math.PI * 2); ctx.fill();
+      }
+      yTop += 14;
+    } else {
+      hit.fleetPrev = { x: px + 6, y: py + 20, w: 48, h: 60 };
+      hit.fleetNext = { x: px + pw - 54, y: py + 20, w: 48, h: 60 };
+      ctx.lineWidth = 2.5; ctx.strokeStyle = INK92;
+      ctx.beginPath(); ctx.moveTo(px + 34, py + 36); ctx.lineTo(px + 24, py + 48); ctx.lineTo(px + 34, py + 60); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(px + pw - 34, py + 36); ctx.lineTo(px + pw - 24, py + 48); ctx.lineTo(px + pw - 34, py + 60); ctx.stroke();
+    }
+    // The chart: five stats, two to a row, the Tailwind way.
+    const entries = [['AIR', f.st.AIR], ['CARGO', f.st.CARGO], ['BATT', f.st.BATT],
+                     ['SPEED', f.st.SPEED], ['LAMP', f.st.LAMP]];
+    const colW = (pw - 96 - 14) / 2;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    entries.forEach(([label, v], i) => {
+      const bx = px + 48 + (i % 2) * (colW + 14);
+      const by = yTop + 12 + Math.floor(i / 2) * 26;
+      ctx.font = '700 10px Inter, sans-serif';
+      ctx.fillStyle = INK72;
+      ctx.fillText(label, bx, by);
+      ctx.fillStyle = TINT(0.13);
+      ctx.fillRect(bx, by + 4, colW, 5);
+      ctx.fillStyle = '#B0E0E6';                       // --brand, as in Tailwind
+      ctx.fillRect(bx, by + 4, Math.max(3, colW * (v / 5)), 5);
+    });
+    yTop += 12 + 3 * 26;
+    // The blurb.
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '500 13px Inter, sans-serif';
+    ctx.fillStyle = INK72;
+    ctx.fillText(f.blurb, cx, yTop + 8);
+    // The one CTA.
+    const label = isCur ? 'DIVE' : isOwned ? 'SELECT'
+      : run.money >= f.price ? 'BUY · ' + fmtMoney(f.price)
+      : 'NEED ' + fmtMoney(f.price - run.money) + ' MORE';
+    hit.cta = UI.drawCTA(ctx, label, cx, py + ph - FOOT_H + 16 + 25, C_ACCENT);
+    hit.schemeToggle = null; hit.newOcean = null;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  }
+
   const wrapCache = new Map();
   function wrapText(text, width) {
     const key = text + '|' + width;
@@ -1508,6 +1741,7 @@
 
     hit.cta = null;
     if (card === 'rules') drawRulesCard();
+    else if (card === 'fleet') drawFleetCard();
     else if (card === 'banked' && cardData) {
       drawEndCard('HAUL BANKED', fmtMoney(cardData.val) + ' banked · ' + cardData.kg + ' kg',
         [['Deepest point', cardData.depth + ' m'],
@@ -1560,6 +1794,9 @@
       closeCard: () => { card = null; },
       setScheme: (s) => { scheme = s; },
       get cam() { return cam; },
+      fleet: { FLEET, get owned() { return owned; }, get cur() { return curSub; },
+               setSub: (i) => { curSub = i; if (!owned.includes(i)) owned.push(i); applyFleet(); },
+               setMoney: (m) => { run.money = m; } },
       rulesFit, fit,
       render: () => render(performance.now()),
       /* The preview pane reports visibilityState 'hidden' and never services

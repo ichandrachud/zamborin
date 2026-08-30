@@ -332,6 +332,16 @@ function Run(seed, tuneOverride) {
   this.events = [];
 }
 
+/* A submarine is a bundle of tiers plus a thrust multiplier — the fleet in
+   play.js maps each model's five stat pips straight onto the five TUNE tiers.
+   Applying a loadout never refills anything: a mid-dive swap cannot mint air. */
+Run.prototype.applyLoadout = function (lo) {
+  this.tier = { air: lo.air | 0, cargo: lo.cargo | 0, batt: lo.batt | 0 };
+  this.thrustMul = lo.thrustMul || 1;
+  this.air = Math.min(this.air, this.airMax());
+  this.batt = Math.min(this.batt, this.battMax());
+};
+
 Run.prototype.airMax  = function () { return this.tune.airMax[this.tier.air]; };
 Run.prototype.cargoMax= function () { return this.tune.cargoMax[this.tier.cargo]; };
 Run.prototype.battMax = function () { return this.tune.battMax[this.tier.batt]; };
@@ -428,8 +438,9 @@ Run.prototype._tick = function (inp) {
 
   // --- horizontal: thrust against the current ---
   const ax = clamp(inp.ax || 0, -1, 1);
+  const tm = this.thrustMul || 1;
   if (ax !== 0 && this.batt > 0) {
-    this.vx += ax * t.thrustAccel * H;
+    this.vx += ax * t.thrustAccel * tm * H;
     this.batt = Math.max(0, this.batt - t.thrustBattery * Math.abs(ax) * H);
     this.facing = ax > 0 ? 1 : -1;
     this._thrusting = 2;
@@ -438,7 +449,8 @@ Run.prototype._tick = function (inp) {
   const cur = w.currentAt(this.y);
   this.vx += (cur - this.vx) * Math.min(1, t.drag * H);
   const rel = this.vx - cur;
-  if (Math.abs(rel) > t.hMax) this.vx = cur + Math.sign(rel) * t.hMax;
+  const cap = t.hMax * tm;
+  if (Math.abs(rel) > cap) this.vx = cur + Math.sign(rel) * cap;
 
   // --- integrate ---
   const py = this.y;
