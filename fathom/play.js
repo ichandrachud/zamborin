@@ -847,6 +847,10 @@
     }
   }
 
+  /* Ore sizes in metres of HEIGHT. The one dial per type; the sub's hull
+     stands about 6 m, so these read as finds, not furniture. */
+  const ORE_H = { nodule: 2.8, sulphide: 2.6, crystal: 3.4 };
+
   function drawDeposits(t) {
     const w = run.world, ppm = L.ppm;
     for (let i = 0; i < w.deposits.length; i++) {
@@ -859,9 +863,11 @@
       if (d.type === 'nodule') {
         const im = pickSprite('nodule', salt);
         if (im) {
-          // Owner scale round: ore shrunk ~35% so a chunk reads as a find,
-          // not a boulder the size of the boat.
-          const wpx = 4.6 * ppm, hpx = wpx * (im.height / im.width);
+          /* Ore is sized by HEIGHT, not width — the eye compares a chunk
+             against the hull's height (~6 m), and the first "35% smaller"
+             pass shrank widths while the tall cluster sprites stayed
+             hull-high. A find comes up to the sub's chin: ~2.8 m. */
+          const hpx = ORE_H.nodule * ppm, wpx = hpx * (im.width / im.height);
           ctx.drawImage(im, px - wpx / 2, py + 2 * ppm - hpx, wpx, hpx);
         } else {
           const r = 3.4 * ppm;
@@ -876,7 +882,7 @@
       } else if (d.type === 'sulphide') {
         const im = pickSprite('sulphide', salt);
         if (im) {
-          const wpx = 4.0 * ppm, hpx = wpx * (im.height / im.width);
+          const hpx = ORE_H.sulphide * ppm, wpx = hpx * (im.width / im.height);
           ctx.drawImage(im, px - wpx / 2, py + 2 * ppm - hpx, wpx, hpx);
         } else {
           const s = 3.0 * ppm;
@@ -898,7 +904,7 @@
         ctx.beginPath(); ctx.arc(px, py, s * 1.8, 0, Math.PI * 2); ctx.fill();
         const im = pickSprite('crystal', salt);
         if (im) {
-          const hpx = 5.0 * ppm, wpx = hpx * (im.width / im.height);
+          const hpx = ORE_H.crystal * ppm, wpx = hpx * (im.width / im.height);
           ctx.drawImage(im, px - wpx / 2, py + 2 * ppm - hpx, wpx, hpx);
         } else {
           const gg = ctx.createLinearGradient(px, py - s, px, py + s);
@@ -915,7 +921,7 @@
         const a = 0.35 + 0.35 * Math.sin(t * 3 + i);
         ctx.strokeStyle = 'rgba(220,245,255,' + a.toFixed(2) + ')';
         ctx.lineWidth = 1.5;
-        const gr = (1.8 + Math.sin(t * 3 + i) * 0.45) * ppm;
+        const gr = (1.2 + Math.sin(t * 3 + i) * 0.3) * ppm;
         ctx.beginPath();
         ctx.moveTo(px - gr, py); ctx.lineTo(px + gr, py);
         ctx.moveTo(px, py - gr); ctx.lineTo(px, py + gr);
@@ -930,7 +936,7 @@
       ctx.setLineDash([4, 4]);
       ctx.beginPath(); ctx.moveTo(sx(run.x), sy(run.y) + 6); ctx.lineTo(px, py); ctx.stroke();
       ctx.setLineDash([]);
-      const gr2 = 3.6 * ppm;   // the ring scales with the world, like the ore
+      const gr2 = 2.3 * ppm;   // the ring scales with the world, like the ore
       ctx.strokeStyle = TINT(0.18); ctx.lineWidth = 3;
       ctx.beginPath(); ctx.arc(px, py, gr2, 0, Math.PI * 2); ctx.stroke();
       ctx.strokeStyle = TINT(0.9);
