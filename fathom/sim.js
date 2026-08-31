@@ -92,7 +92,11 @@ const TUNE = {
 
   // ---- hull & magma ----
   hullPips: 5, magmaPipsPer2s: 1, scrapeSpeed: 55, magmaMeltS: 20,
-  magmaDensity: 0.055,          // of Foundry cells, before veining
+  /* 0.055 put 27 magma cells in an entire 880 m ocean, 3.5% of the Foundry,
+     none of it shallower than 712 m. The region's whole identity is heat and
+     the player could finish a session without meeting any. 0.16 gives roughly
+     10%: met often, still routable around. */
+  magmaDensity: 0.16,           // of Foundry cells, before veining
 
   // ---- noise & the Tenant (M5) ----
   noise: { hover: 0, thrust: 2, dig: 3, relicLand: 4, blow: 5, gasBurst: 5 },

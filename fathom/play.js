@@ -213,7 +213,7 @@
   /* Only what is drawn. plant-1..5 stayed in this list after the pivot and
      were fetched on every load without ever reaching the canvas: 284 KB of
      download for nothing. They come back when the reef needs them at M5. */
-  const SPRITE_SETS = { nodule: 4, sulphide: 4, crystal: 4, fish: 5 };
+  const SPRITE_SETS = { nodule: 4, sulphide: 4, crystal: 4, fish: 5, reef: 4 };
   const IMG = {};
   for (const key of Object.keys(SPRITE_SETS)) {
     IMG[key] = [];
@@ -590,6 +590,53 @@
       if (run.world.solidAt(f.x, f.y)) f.y = Math.max(6, f.y - 6 * dt);
     }
   }
+
+  /* ---------- FLORA ----------
+     Life on the seabed and the lip of the Shelf, where the light still
+     reaches. It grows on the top face of any solid cell that has water above
+     it, placed from that cell's own hash so a given rock always wears the
+     same plant. Nothing to store and nothing to step.
+
+     This is not the M5 reef. That one follows the water into the tunnels you
+     dug and ages with your history. This is the ocean simply being alive in
+     the part of it you can see, which the player meets on every single dive. */
+  const FLORA_TO = TUNE.SEA_ROWS + 6;      // last row that still gets planted
+  function drawFlora(t) {
+    const W = run.world, ppm = L.ppm, s = TILE * ppm;
+    const r0 = Math.max(0, Math.floor(cam.y / TILE) - 1);
+    if (r0 > FLORA_TO) return;
+    const r1 = Math.min(FLORA_TO, Math.ceil((cam.y + L.viewHm) / TILE) + 1);
+    const c0 = Math.max(0, Math.floor(cam.x / TILE) - 1);
+    const c1 = Math.min(TUNE.COLS - 1, Math.ceil((cam.x + L.viewWm) / TILE) + 1);
+    for (let rr = r0; rr <= r1; rr++) {
+      for (let cc = c0; cc <= c1; cc++) {
+        if (!SIM.isSolidType(W.at(cc, rr))) continue;
+        if (SIM.isSolidType(W.at(cc, rr - 1))) continue;      // needs open water above
+        const h = hsh(cc * 5 + 3, rr * 11 + 7);
+        if (h > 0.46) continue;                                // roughly half the ledges
+        const im = pickSprite('reef', (cc * 3 + rr * 7));
+        const h2 = hsh(cc + 41, rr + 17);
+        const ht = (2.2 + h2 * 2.0) * ppm;                     // 2.2 to 4.2 m tall
+        const wd = im ? ht * (im.width / im.height) : ht * 0.6;
+        // rooted on the tile's top face, leaning a little with the water
+        const bx = sx(cc * TILE + TILE * (0.2 + h * 1.2));
+        const by = sy(rr * TILE) + s * 0.06;
+        const sway = Math.sin(t * 0.6 + h2 * 6.28) * 0.035;
+        ctx.save();
+        ctx.translate(bx, by);
+        ctx.rotate(sway);
+        ctx.globalAlpha = 0.92;
+        if (im) ctx.drawImage(im, -wd / 2, -ht, wd, ht);
+        else {
+          ctx.fillStyle = '#3E7F72';
+          ctx.beginPath(); ctx.ellipse(0, -ht * 0.5, wd * 0.3, ht * 0.5, 0, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        ctx.restore();
+      }
+    }
+  }
+
   function drawFish(t) {
     const ppm = L.ppm;
     // Nothing to draw once the whole view is below the seabed.
@@ -985,6 +1032,7 @@
     inWater(() => drawMottle(t));
     drawFish(t);
     drawTiles(t);
+    drawFlora(t);
     drawIntakes(t);
     drawRelics(t);
     drawPush(t);
@@ -1095,7 +1143,14 @@
              so a seamless tile is still seamless against a flipped neighbour. */
           const fx = hsh(cc, rr + 13) > 0.5 ? -1 : 1;
           const fy = hsh(cc + 7, rr) > 0.5 ? -1 : 1;
-          if (REGION_TINT) {
+          /* Magma is exempt, always. The region tint keeps a texture's
+             lightness and replaces its hue, which is right for rock that
+             should wear the region's colour and catastrophic for the one
+             material whose HUE IS THE INFORMATION. The art is cool teal
+             plates with hot orange seams between them; tinted, both collapse
+             to the same orange and molten rock reads as dried mud. It is
+             also the Foundry's light source, and you cannot tint a light. */
+          if (REGION_TINT && ty !== TT.MAGMA) {
             /* Region-led: lay the region's colour down first and take only
                the texture's LIGHTNESS on top. The art keeps all of its relief
                and grain and gives up its hue, which is what makes six very
