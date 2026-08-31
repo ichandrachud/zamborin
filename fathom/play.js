@@ -613,6 +613,8 @@
      the floor and fills in a root, and the buried depth varies per plant so
      the line itself disappears. */
   const FLORA_TO = TUNE.SEA_ROWS + 6;      // last row that still gets planted
+  const FLORA_H = [2.2, 4.2];              // metres, before scale
+  const FLORA_SCALE = 1.2;                 // owner call, 2026-08-31: 20% bigger
   function drawFlora(t) {
     const W = run.world, ppm = L.ppm, s = TILE * ppm;
     const r0 = Math.max(0, Math.floor(cam.y / TILE) - 1);
@@ -628,13 +630,18 @@
         if (h > 0.46) continue;                                // roughly half the ledges
         const im = pickSprite('reef', (cc * 3 + rr * 7));
         const h2 = hsh(cc + 41, rr + 17);
-        const ht = (2.2 + h2 * 2.0) * ppm;                     // 2.2 to 4.2 m tall
+        const ht = (FLORA_H[0] + h2 * (FLORA_H[1] - FLORA_H[0])) * FLORA_SCALE * ppm;
         const wd = im ? ht * (im.width / im.height) : ht * 0.6;
         // rooted on the tile's top face, leaning a little with the water
         const bx = sx(cc * TILE + TILE * (0.2 + h * 1.2));
         /* Sunk into the tile by a share of its own height, varied per plant,
-           so no two meet the rock at the same depth and the ruled line goes. */
-        const bury = ht * (0.16 + hsh(cc + 9, rr + 23) * 0.26);
+           so no two meet the rock at the same depth and the ruled line goes.
+
+           16 to 42 percent hid too much: on the shorter plants only the tops
+           cleared the rock. 6 to 26 raises them about 13 points on average,
+           which is enough to read the whole plant while the base stays out of
+           sight, which is the entire point of drawing them behind. */
+        const bury = ht * (0.06 + hsh(cc + 9, rr + 23) * 0.20);
         const by = sy(rr * TILE) + bury;
         const sway = Math.sin(t * 0.6 + h2 * 6.28) * 0.035;
         ctx.save();
