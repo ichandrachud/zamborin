@@ -1216,52 +1216,162 @@
     const ppm = L.ppm, s = TILE * ppm;
     for (const ik of run.world.intakes) {
       const cx = sx(ik.c * TILE + TILE / 2), cy = sy(ik.r * TILE + TILE / 2);
-      if (cx < -160 || cx > LW + 160 || cy < -120 || cy > LH + 120) continue;
+      if (cx < -170 || cx > LW + 170 || cy < -130 || cy > LH + 130) continue;
+      const dir = ik.dir, half = s / 2;
+      const salt = ik.c * 31 + ik.r * 17;
+
       ctx.save();
       ctx.translate(cx, cy);
-      ctx.scale(ik.dir, 1);                    // one drawing, mirrored by facing
+      ctx.scale(dir, 1);
+      /* The mirror flips the x axis, so a gradient written in local space
+         would light the pipe from the right when the mouth faces left. These
+         two keep the key light on the screen's left in both facings, which is
+         where every other light in this game comes from. */
+      const gA = dir > 0 ? -half : half;      // the lit end
+      const gB = dir > 0 ? half : -half;      // the shaded end
 
-      const half = s / 2;
-      const ox = half, oy = -half;             // the bend's centre: the top-out corner
+      const ox = half, oy = -half;            // the bend's centre of curvature
       const rOut = s * 0.95, rIn = s * 0.44;
+      const bandPath = () => {
+        ctx.beginPath();
+        ctx.arc(ox, oy, rOut, Math.PI * 0.5, Math.PI, false);
+        ctx.arc(ox, oy, rIn, Math.PI, Math.PI * 0.5, true);
+        ctx.closePath();
+      };
+      const fy0 = oy + rIn, fy1 = oy + rOut, fw = s * 0.17;
 
-      // The elbow: a band of pipe turning out of the rock.
-      const pg = ctx.createLinearGradient(-half, -half, half, half);
-      pg.addColorStop(0, '#C9C9E6'); pg.addColorStop(0.55, '#A9A9CE'); pg.addColorStop(1, '#7C7CA0');
+      // Contact shadow: the stone is darker where the pipe pushes out of it.
+      const oc = ctx.createRadialGradient(0, 0, s * 0.2, 0, 0, s * 0.95);
+      oc.addColorStop(0, 'rgba(0,0,0,0.42)');
+      oc.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = oc;
+      ctx.fillRect(-half - s * 0.4, -half - s * 0.4, s * 1.8, s * 1.8);
+
+      // ---- the barrel ----
+      const pg = ctx.createLinearGradient(gA, -half, gB, half);
+      pg.addColorStop(0, '#D3D3EC');
+      pg.addColorStop(0.34, '#A9A9CE');
+      pg.addColorStop(0.72, '#6E6E93');
+      pg.addColorStop(1, '#43435E');
       ctx.fillStyle = pg;
+      bandPath(); ctx.fill();
+
+      /* Corrosion, clipped to the barrel: oxide blooms and pitting, seeded off
+         the cell so a given pipe always weathers the same way. Painted, not
+         outlined, so the metal still reads as a curved surface underneath. */
+      ctx.save();
+      bandPath(); ctx.clip();
+      for (let i = 0; i < 16; i++) {
+        const h1 = hsh(salt + i * 7, 3), h2 = hsh(salt + i * 13, 11), h3 = hsh(salt + i, 29);
+        const ang = Math.PI * (0.5 + h1 * 0.5);
+        const rad = rIn + (rOut - rIn) * h2;
+        const bx = ox + Math.cos(ang) * rad, by = oy + Math.sin(ang) * rad;
+        const rr = s * (0.06 + h3 * 0.14);
+        const warm = h3 > 0.42;
+        const cg = ctx.createRadialGradient(bx, by, 0, bx, by, rr);
+        cg.addColorStop(0, warm ? 'rgba(150,74,38,0.55)' : 'rgba(38,30,54,0.5)');
+        cg.addColorStop(0.6, warm ? 'rgba(122,62,34,0.26)' : 'rgba(30,24,44,0.22)');
+        cg.addColorStop(1, 'rgba(120,60,34,0)');
+        ctx.fillStyle = cg;
+        ctx.beginPath(); ctx.arc(bx, by, rr, 0, Math.PI * 2); ctx.fill();
+      }
+      // Pitting: small dark bites out of the surface.
+      for (let i = 0; i < 22; i++) {
+        const h1 = hsh(salt + i * 5 + 91, 7), h2 = hsh(salt + i * 3 + 41, 19);
+        const ang = Math.PI * (0.5 + h1 * 0.5);
+        const rad = rIn + (rOut - rIn) * h2;
+        ctx.fillStyle = 'rgba(24,20,38,' + (0.2 + h2 * 0.3).toFixed(2) + ')';
+        ctx.beginPath();
+        ctx.arc(ox + Math.cos(ang) * rad, oy + Math.sin(ang) * rad, s * (0.012 + h1 * 0.022), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // The turn of the barrel: a light band along the outer curve, a shadow
+      // along the inner one. Value, not an outline.
+      ctx.strokeStyle = 'rgba(238,238,255,0.42)';
+      ctx.lineWidth = s * 0.07;
+      ctx.beginPath(); ctx.arc(ox, oy, rOut - s * 0.045, Math.PI * 0.52, Math.PI * 0.98); ctx.stroke();
+      ctx.strokeStyle = 'rgba(16,14,30,0.4)';
+      ctx.lineWidth = s * 0.09;
+      ctx.beginPath(); ctx.arc(ox, oy, rIn + s * 0.05, Math.PI * 0.52, Math.PI * 0.98); ctx.stroke();
+      ctx.restore();
+
+      // ---- the bore: you can see into the pipe, and it is dark in there ----
+      const bore = ctx.createLinearGradient(half - fw * 0.2, 0, half + fw * 0.6, 0);
+      bore.addColorStop(0, '#0A0A16');
+      bore.addColorStop(1, '#1D1D33');
+      ctx.fillStyle = bore;
       ctx.beginPath();
-      ctx.arc(ox, oy, rOut, Math.PI * 0.5, Math.PI, false);
-      ctx.arc(ox, oy, rIn, Math.PI, Math.PI * 0.5, true);
-      ctx.closePath();
+      UI.roundRectPath(ctx, half - fw * 0.3, fy0 + s * 0.045, fw * 0.9, (fy1 - fy0) - s * 0.09, s * 0.05);
       ctx.fill();
 
-      // The flange, bolted, standing proud of the mouth.
-      const fy0 = oy + rIn, fy1 = oy + rOut, fw = s * 0.16;
-      const fg = ctx.createLinearGradient(half - fw, 0, half + fw * 0.4, 0);
-      fg.addColorStop(0, '#B6B6D2'); fg.addColorStop(1, '#8E8EB4');
+      // ---- the flange ----
+      const fg = ctx.createLinearGradient(gA, 0, gB, 0);
+      fg.addColorStop(0, '#C4C4DE');
+      fg.addColorStop(0.5, '#9494B8');
+      fg.addColorStop(1, '#5A5A79');
       ctx.fillStyle = fg;
       ctx.fillRect(half - fw * 0.5, fy0, fw, fy1 - fy0);
-      ctx.fillStyle = 'rgba(64,74,140,0.85)';
+      // Its own cast shadow, thrown down and away from the key light.
+      ctx.fillStyle = 'rgba(8,8,20,0.35)';
+      ctx.fillRect(half - fw * 0.5 + s * 0.03 * dir, fy1, fw, s * 0.05);
+      // Bolts, each with a highlight above and a rust weep below.
       const bolts = 6;
       for (let i = 0; i < bolts; i++) {
         const by = fy0 + (fy1 - fy0) * ((i + 0.5) / bolts);
-        ctx.beginPath(); ctx.arc(half, by, Math.max(1.1, s * 0.028), 0, Math.PI * 2); ctx.fill();
+        const br = Math.max(1.2, s * 0.03);
+        ctx.fillStyle = 'rgba(146,84,44,' + (0.2 + hsh(salt + i, 51) * 0.4).toFixed(2) + ')';
+        ctx.fillRect(half - br * 0.5, by, br, s * (0.05 + hsh(salt + i, 61) * 0.1));
+        ctx.fillStyle = '#3B3B5C';
+        ctx.beginPath(); ctx.arc(half, by, br, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(230,230,250,0.5)';
+        ctx.beginPath(); ctx.arc(half - br * 0.28 * dir, by - br * 0.28, br * 0.42, 0, Math.PI * 2); ctx.fill();
       }
 
-      /* The draw: a cone over the single cell it takes from, so what the pipe
-         will accept is never a guess. It widens because suction does. */
-      const pulse = 0.62 + 0.38 * Math.sin(t * 1.7);
-      const cg = ctx.createLinearGradient(half, 0, half + s, 0);
-      cg.addColorStop(0, 'rgba(150,206,246,' + (0.34 * pulse).toFixed(3) + ')');
-      cg.addColorStop(1, 'rgba(150,206,246,0.03)');
-      ctx.fillStyle = cg;
+      /* A hint of the draw, and only a hint. The pull is shown by the water
+         actually moving into it, below; a bright drawn cone would be another
+         shape laid over the ocean, which is the thing the sunrays got removed
+         for. */
+      const cg2 = ctx.createLinearGradient(half, 0, half + s, 0);
+      cg2.addColorStop(0, 'rgba(150,206,246,0.1)');
+      cg2.addColorStop(1, 'rgba(150,206,246,0.012)');
+      ctx.fillStyle = cg2;
       ctx.beginPath();
       ctx.moveTo(half, fy0);
       ctx.lineTo(half + s, -half - s * 0.06);
       ctx.lineTo(half + s, half + s * 0.06);
       ctx.lineTo(half, fy1);
-      ctx.closePath();
-      ctx.fill();
+      ctx.closePath(); ctx.fill();
+
+      /* ---- THE DRAW ----
+         Water going in. Each streak starts at the far edge of the cell the
+         pipe takes from, converges on the bore, and accelerates as it gets
+         close, because suction does. Stateless: position comes from time and
+         index, so there is nothing to keep and nothing to reset. */
+      const N = 18;
+      for (let i = 0; i < N; i++) {
+        const h1 = hsh(salt + i * 23, 71), h2 = hsh(salt + i * 37, 83);
+        const ph = ((t * (0.42 + h1 * 0.34) + h2) % 1);
+        const e = Math.pow(ph, 1.85);                    // accelerating inward
+        const x0 = half + s * 1.02, x1 = half + fw * 0.35;
+        const yStart = (h1 - 0.5) * s * 1.15;
+        const yEnd = (h1 - 0.5) * (fy1 - fy0) * 0.82 + (fy0 + fy1) / 2;
+        const px = x0 + (x1 - x0) * e;
+        const py = yStart + (yEnd - yStart) * e;
+        // the tail lags behind along the same path
+        const eT = Math.max(0, e - 0.085);
+        const tx = x0 + (x1 - x0) * eT, ty = yStart + (yEnd - yStart) * eT;
+        const a = Math.min(1, ph * 5) * Math.min(1, (1 - ph) * 4.5) * (0.3 + 0.55 * e);
+        ctx.strokeStyle = 'rgba(198,232,250,' + a.toFixed(3) + ')';
+        ctx.lineWidth = Math.max(0.8, s * (0.012 + 0.016 * e));
+        ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(px, py); ctx.stroke();
+        // a few of them are bubbles rather than streaks
+        if (h2 > 0.72) {
+          ctx.fillStyle = 'rgba(214,240,252,' + (a * 0.75).toFixed(3) + ')';
+          ctx.beginPath(); ctx.arc(px, py, Math.max(0.7, s * 0.018), 0, Math.PI * 2); ctx.fill();
+        }
+      }
+      ctx.lineCap = 'butt';
       ctx.restore();
     }
   }
