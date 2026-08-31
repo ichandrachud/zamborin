@@ -454,6 +454,7 @@
     run.money = money;
     applyFleet();
     particles.length = 0; floats.length = 0; jetsam.length = 0; rings.length = 0;
+    buildFish();
     card = null; cam.y = -20; cam.x = run.x - L.viewWm / 2;
     saveMeta();
     if (sfx) sfx.play('start');
@@ -490,6 +491,93 @@
   const rings = [];       // {x,y,r,life}
   const silt = [];        // {x,y,r,life} — the cloud a broken tile leaves
   let shake = 0;
+
+  /* ---------- FISH ----------
+     The open sea is where life is. Below the seabed the deep is empty on
+     purpose, so that when the reef arrives at M5 and life follows the water
+     you let into your own tunnels, it means something.
+
+     Render-only, so the visual RNG is the right one to use here: the brief
+     bars Math.random() from game logic, not from decoration. */
+  const fish = [];
+  function buildFish() {
+    fish.length = 0;
+    const seabed = TUNE.SEA_ROWS * TILE;
+    const add = (x, y, len, spd, dir) => fish.push({
+      x, y, len, spd, dir,
+      sprite: Math.floor(vr() * 5),
+      phase: vr() * 6.283,
+      bob: 0.4 + vr() * 1.0,
+      shy: 0,
+    });
+    /* Schools, not a uniform scatter. Twenty fish spread evenly over a 320 m
+       ocean means you almost never meet one, and the ones you do meet read
+       as debris. A shoal that arrives together reads as life. */
+    for (let s = 0; s < 7; s++) {
+      const cx = 14 + vr() * (WORLD_W - 28);
+      const cy = 13 + vr() * (seabed - 24);
+      const dir = vr() < 0.5 ? -1 : 1;
+      const spd = 2.4 + vr() * 2.6;
+      const n = 3 + Math.floor(vr() * 4);
+      for (let i = 0; i < n; i++) {
+        add(cx + (vr() - 0.5) * 22, cy + (vr() - 0.5) * 13,
+            2.0 + vr() * 1.3, spd * (0.9 + vr() * 0.25), dir);
+      }
+    }
+    // And the loners: bigger, slower, worth looking at on the way down.
+    for (let i = 0; i < 9; i++) {
+      add(vr() * WORLD_W, 11 + vr() * (seabed - 20),
+          3.2 + vr() * 1.6, 1.7 + vr() * 1.8, vr() < 0.5 ? -1 : 1);
+    }
+  }
+  function stepFish(dt) {
+    const seabed = TUNE.SEA_ROWS * TILE;
+    for (const f of fish) {
+      f.phase += dt * (1.1 + f.spd * 0.14);
+      /* They scatter from the sub. It is a loud machine and they are the
+         first thing in this world that reacts to you at all. */
+      const dx = f.x - run.x, dy = f.y - run.y;
+      const d = Math.hypot(dx, dy);
+      if (d < 17 && run.y < seabed + 10) {
+        f.dir = dx >= 0 ? 1 : -1;
+        f.shy = Math.min(1, f.shy + dt * 3);
+      } else {
+        f.shy = Math.max(0, f.shy - dt * 0.7);
+      }
+      f.x += f.dir * f.spd * (1 + f.shy * 1.6) * dt;
+      f.y += Math.sin(f.phase) * f.bob * dt;
+      // Turn at the walls, and at any rock they would swim into.
+      const nose = f.x + f.dir * f.len * 0.6;
+      if (nose < 2 || nose > WORLD_W - 2 || run.world.solidAt(nose, f.y)) f.dir *= -1;
+      f.y = Math.max(6, Math.min(seabed - 3, f.y));
+      if (run.world.solidAt(f.x, f.y)) f.y = Math.max(6, f.y - 6 * dt);
+    }
+  }
+  function drawFish(t) {
+    const ppm = L.ppm;
+    // Nothing to draw once the whole view is below the seabed.
+    if (cam.y > TUNE.SEA_ROWS * TILE + 4) return;
+    for (const f of fish) {
+      const px = sx(f.x), py = sy(f.y);
+      if (px < -80 || px > LW + 80 || py < L.ocean.y - 60 || py > L.ocean.y + L.ocean.h + 60) continue;
+      const im = pickSprite('fish', f.sprite);
+      const w = f.len * ppm;
+      const h = im ? w * (im.height / im.width) : w * 0.45;
+      ctx.save();
+      ctx.translate(px, py);
+      ctx.scale(f.dir, 1);
+      ctx.rotate(Math.sin(f.phase) * 0.09);
+      // Depth haze: the further down, the more the water takes them.
+      ctx.globalAlpha = Math.max(0.25, 1 - f.y / 150);
+      if (im) ctx.drawImage(im, -w / 2, -h / 2, w, h);
+      else {
+        ctx.fillStyle = '#7FB4C4';
+        ctx.beginPath(); ctx.ellipse(0, 0, w * 0.4, h * 0.34, 0, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      ctx.restore();
+    }
+  }
 
   function floatText(text, wx, wy, color) {
     floats.push({ text, x: wx, y: wy, life: 1.6, color: color || INK92 });
@@ -535,6 +623,7 @@
       if (s.life <= 0) silt.splice(i, 1);
     }
     if (shake > 0) shake = Math.max(0, shake - dt);
+    stepFish(dt);
   }
 
   // ---------- SIM DRIVE ----------
@@ -707,6 +796,125 @@
 
   let fogCan = null, fogCtx = null;
 
+  /* ---------- THE WATER'S BODY ----------
+     One vertical gradient reads as a printed graphic, not as water. Three
+     layers give it depth, and all three are anchored to WORLD coordinates
+     rather than the screen, so they parallax with the camera instead of
+     sliding across it like a decal on the glass.
+
+     Mottling is the slow volume of the water, caustics are the sun landing
+     on it, and the motes are what is actually suspended in it. */
+  /* Everything the water is made of is clipped to the water. Above y = 0 is
+     sky, and mottling drifting through it read as dirty weather. */
+  function inWater(draw) {
+    const o = L.ocean;
+    const top = Math.max(o.y, sy(0));
+    if (top >= o.y + o.h) return;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(o.x, top, o.w, o.y + o.h - top);
+    ctx.clip();
+    draw();
+    ctx.restore();
+  }
+
+  const MOTT_CELL = 30;                 // metres per mottling blob
+  function drawMottle(t) {
+    const ppm = L.ppm;
+    // Below the seabed this is tunnels, not open water, and the fog covers it.
+    const floor = TUNE.SEA_ROWS * TILE;
+    if (cam.y > floor) return;
+    const c0 = Math.floor(cam.x / MOTT_CELL) - 1, c1 = Math.ceil((cam.x + L.viewWm) / MOTT_CELL) + 1;
+    const r0 = Math.floor(cam.y / MOTT_CELL) - 1, r1 = Math.ceil((cam.y + L.viewHm) / MOTT_CELL) + 1;
+    for (let rr = r0; rr <= r1; rr++) {
+      for (let cc = c0; cc <= c1; cc++) {
+        const h1 = hsh(cc * 17 + 5, rr * 23 + 9), h2 = hsh(cc * 31, rr * 11 + 3);
+        const wx = (cc + h1) * MOTT_CELL + Math.sin(t * 0.06 + h2 * 6.28) * 7;
+        const wy = (rr + h2) * MOTT_CELL + Math.cos(t * 0.05 + h1 * 6.28) * 5;
+        const rad = (14 + h1 * 17) * ppm;
+        const px = sx(wx), py = sy(wy);
+        if (px < -rad || px > LW + rad || py < -rad || py > LH + rad) continue;
+        const light = h2 > 0.5;
+        const g = ctx.createRadialGradient(px, py, 0, px, py, rad);
+        /* Deep enough to see. Two passes of near-invisible blobs left the
+           column looking printed; the light ones are the sun still reaching
+           down and the dark ones are the water's own body. */
+        g.addColorStop(0, light ? 'rgba(158,214,236,0.14)' : 'rgba(0,9,20,0.17)');
+        g.addColorStop(0.55, light ? 'rgba(158,214,236,0.05)' : 'rgba(0,9,20,0.06)');
+        g.addColorStop(1, light ? 'rgba(158,214,236,0)' : 'rgba(0,9,20,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(px - rad, py - rad, rad * 2, rad * 2);
+      }
+    }
+  }
+
+  /* Sunlight dapples the top of the water column and dies with depth. Soft
+     elongated streaks, drifting: a net pattern would read as a texture map,
+     and the point is that the light is moving. */
+  function drawCaustics(t) {
+    const ppm = L.ppm, o = L.ocean;
+    const DEPTH = 150;
+    if (cam.y > DEPTH) return;
+    for (let i = 0; i < 30; i++) {
+      const h1 = hsh(i * 13 + 1, 7), h2 = hsh(i * 29, 3);
+      const wy = h1 * DEPTH;
+      const fade = 1 - wy / DEPTH;
+      const wx = ((h2 * WORLD_W) + Math.sin(t * 0.28 + h1 * 6.28) * 26 + t * 1.6) % WORLD_W;
+      const px = sx(wx), py = sy(wy);
+      if (py < o.y - 30 || py > o.y + o.h + 30) continue;
+      const w = (11 + h2 * 22) * ppm, h = (0.7 + h1 * 1.9) * ppm;
+      const a = 0.3 * fade * fade * (0.5 + 0.5 * Math.sin(t * 0.9 + i));
+      const g = ctx.createLinearGradient(px - w / 2, 0, px + w / 2, 0);
+      g.addColorStop(0, 'rgba(196,238,252,0)');
+      g.addColorStop(0.5, 'rgba(196,238,252,' + a.toFixed(3) + ')');
+      g.addColorStop(1, 'rgba(196,238,252,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(px - w / 2, py - h / 2, w, h);
+    }
+  }
+
+  /* Marine snow: what is actually floating in the water. Two parallax
+     depths, on a world lattice so the count per frame is bounded by the
+     view, not by the size of the ocean. Each mote fades in and out inside
+     its own cell so the wrap never pops. */
+  const MOTE_CELL = 6.5;
+  function drawMotes(t) {
+    const ppm = L.ppm;
+    /* Under the seabed the fog is 0.9 opaque, so a mote outside the lamp is
+       work spent on a pixel nobody sees. Clamp the lattice to the lamp down
+       there and leave it full width in the open sea. */
+    const floor = TUNE.SEA_ROWS * TILE, lr = run.lampR() * 1.05;
+    const deep = cam.y > floor - L.viewHm * 0.5;
+    const xLo = deep ? Math.max(cam.x, run.x - lr) : cam.x;
+    const xHi = deep ? Math.min(cam.x + L.viewWm, run.x + lr) : cam.x + L.viewWm;
+    const yLo = deep ? Math.max(cam.y, Math.min(floor, run.y - lr)) : cam.y;
+    const yHi = deep ? Math.min(cam.y + L.viewHm, run.y + lr) : cam.y + L.viewHm;
+    if (xHi < xLo || yHi < yLo) return;
+    const c0 = Math.floor(xLo / MOTE_CELL) - 1, c1 = Math.ceil(xHi / MOTE_CELL) + 1;
+    const r0 = Math.floor(yLo / MOTE_CELL) - 1, r1 = Math.ceil(yHi / MOTE_CELL) + 1;
+    for (let rr = r0; rr <= r1; rr++) {
+      for (let cc = c0; cc <= c1; cc++) {
+        for (let k = 0; k < 2; k++) {
+          const h1 = hsh(cc * 7 + k * 101, rr * 13 + k * 57);
+          const h2 = hsh(cc * 3 + k * 211, rr * 5 + k * 19);
+          const near = h1 > 0.66;
+          const cy = (h2 + t * (near ? 0.028 : 0.012)) % 1;      // drifts, wraps
+          const wx = (cc + h1) * MOTE_CELL + Math.sin(t * 0.4 + h2 * 6.28) * 1.3;
+          const wy = (rr + cy) * MOTE_CELL;
+          const px = sx(wx), py = sy(wy);
+          if (px < -6 || px > LW + 6 || py < -6 || py > LH + 6) continue;
+          // Fade at the cell's edges so the wrap is invisible.
+          const edge = Math.min(1, Math.min(cy, 1 - cy) * 7);
+          const a = (near ? 0.34 : 0.16) * edge;
+          ctx.fillStyle = 'rgba(214,238,248,' + a.toFixed(3) + ')';
+          ctx.beginPath();
+          ctx.arc(px, py, (near ? 0.17 : 0.1) * ppm, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+  }
+
   function drawWorld(now) {
     const t = now / 1000;
     const o = L.ocean, ppm = L.ppm, W = run.world;
@@ -737,21 +945,33 @@
       }
       ctx.stroke();
     }
-    // Sun shafts in the open sea.
-    if (cam.y < 90) {
-      for (let i = 0; i < 5; i++) {
-        const wx0 = 14 + i * 66 + Math.sin(t * 0.1 + i * 2) * 10;
-        const sg2 = ctx.createLinearGradient(0, sy(0), 0, sy(76));
-        sg2.addColorStop(0, 'rgba(170,220,235,0.11)'); sg2.addColorStop(1, 'rgba(170,220,235,0)');
-        ctx.fillStyle = sg2;
-        ctx.beginPath();
-        ctx.moveTo(sx(wx0), sy(0)); ctx.lineTo(sx(wx0 + 18), sy(0));
-        ctx.lineTo(sx(wx0 + 40), sy(76)); ctx.lineTo(sx(wx0 + 20), sy(76));
-        ctx.closePath(); ctx.fill();
+    /* Sun shafts. Each one is a wide faint pass with a narrow bright core
+       inside it: a single quad has razor-cut edges and reads as a printed
+       triangle rather than as light in water. */
+    if (cam.y < 96) {
+      for (let i = 0; i < 6; i++) {
+        const wx0 = 6 + i * 56 + Math.sin(t * 0.1 + i * 2) * 11;
+        for (const [wide, alpha] of [[1.9, 0.05], [1, 0.085]]) {
+          const sg2 = ctx.createLinearGradient(0, sy(0), 0, sy(84));
+          sg2.addColorStop(0, 'rgba(176,224,240,' + alpha + ')');
+          sg2.addColorStop(0.55, 'rgba(176,224,240,' + (alpha * 0.45).toFixed(3) + ')');
+          sg2.addColorStop(1, 'rgba(176,224,240,0)');
+          ctx.fillStyle = sg2;
+          const w0 = 16 * wide, spread = 22 * wide;
+          ctx.beginPath();
+          ctx.moveTo(sx(wx0 - (w0 - 16) / 2), sy(0));
+          ctx.lineTo(sx(wx0 + w0 - (w0 - 16) / 2), sy(0));
+          ctx.lineTo(sx(wx0 + w0 + spread - (w0 - 16) / 2), sy(84));
+          ctx.lineTo(sx(wx0 + spread - (w0 - 16) / 2), sy(84));
+          ctx.closePath(); ctx.fill();
+        }
       }
     }
 
+    inWater(() => { drawMottle(t); drawCaustics(t); });
+    drawFish(t);
     drawTiles(t);
+    inWater(() => drawMotes(t));
     drawSub(t);
     drawBubbles();
     drawJetsam();
@@ -1910,6 +2130,7 @@
   fitFullscreen();
   resizeCanvas();
   layout();
+  buildFish();
   cam.x = run.x - (L.viewWm || 100) / 2;
   window.addEventListener('resize', onResize);
   window.addEventListener('orientationchange', () => setTimeout(onResize, 100));
