@@ -210,7 +210,10 @@
   /* The owner's clay models, one family per key, numbered from 1. Every
      draw falls back to painted clay until its image has loaded, so a slow
      connection sees the world, not holes. */
-  const SPRITE_SETS = { nodule: 4, sulphide: 4, crystal: 4, plant: 5, fish: 5 };
+  /* Only what is drawn. plant-1..5 stayed in this list after the pivot and
+     were fetched on every load without ever reaching the canvas: 284 KB of
+     download for nothing. They come back when the reef needs them at M5. */
+  const SPRITE_SETS = { nodule: 4, sulphide: 4, crystal: 4, fish: 5 };
   const IMG = {};
   for (const key of Object.keys(SPRITE_SETS)) {
     IMG[key] = [];
