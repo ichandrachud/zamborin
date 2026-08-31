@@ -84,8 +84,10 @@ const TUNE = {
   relicFall: 30, relicNoise: 4,
   /* [0,1,2,2] put no bell in the starting region, which hid the signature
      mechanic until 270 m. The Shelf gets one so the first session contains it. */
-  bellsPerRegion: [1, 1, 2, 2],
+  intakesPerRegion: [1, 1, 2, 2],
   relicSlideS: 0.26,            // seconds to topple one cell sideways
+  relicPushS: 0.95,             // seconds of shoving to move it one cell
+  pushBatt: 3.4,                // battery per second while shoving
   relicKg: 900,                 // far above max lift, and that is the point
 
   // ---- hull & magma ----
@@ -145,6 +147,10 @@ const isFixedType = (t) => t === T_BED || t === T_MAGMA;
      n  nodule      s  sulphide    c  crystal
      g  gas pocket  M  magma       B  bedrock
 
+     R  a relic anchor
+     >  a salvage intake, suction pointing right
+     <  a salvage intake, suction pointing left
+
    No stamp uses bedrock for a wall a player could end up behind:
    hard rock is the heaviest thing a structure is allowed to be,
    so a sub that can reach a place can always dig out of it.
@@ -154,7 +160,7 @@ const STAMP_CHARS = { '~': T_WATER, 'S': T_SILT, '#': T_ROCK, 'H': T_HARD,
                       'M': T_MAGMA, 'B': T_BED };
 /* R and L are not materials. They are a relic anchor and a salvage bell, and
    the stamper records them as entities and leaves open water in the cell. */
-const STAMP_ENTS = { 'R': 'relic', 'L': 'bell' };
+const STAMP_ENTS = { 'R': 'relic', '>': 'intake+1', '<': 'intake-1' };
 
 const LANDMARKS = [
   /* The Cradle. The one authored encounter that teaches fall-routing without
@@ -175,7 +181,7 @@ const LANDMARKS = [
     '#~~~~~~~~~~~~~#',
     '#~~~~~~~~~~~~~#',
     '#~~~~~~~#######',
-    '#~~~~~~L~~~~~~#',
+    '#~~~~~~~~<~~~~#',
     '###############',
   ] },
   { region: 0, key: 'nursery', name: 'The Nursery', rows: [
@@ -257,7 +263,7 @@ function World(seed, tuneOverride) {
   this.grid = new Uint8Array(t.COLS * t.ROWS);      // 0 = WATER
   this.landmarks = [];                              // {key, name, c, r, w, h}
   this.relics = [];                                 // treasures too heavy to lift
-  this.bells = [];                                  // where they are delivered
+  this.intakes = [];                                // where they are delivered
   this.startX = Math.round(t.COLS / 2) * t.TILE;    // the dive starts mid-map
   this._generate();
   /* The pristine grid, kept so a save can be replayed as
@@ -269,7 +275,14 @@ function World(seed, tuneOverride) {
    deep is worth the trouble; the Shelf's is the cheap one you learn on. */
 World.prototype._place = function (kind, c, r, lm) {
   const t = this.tune, TILE = t.TILE;
-  if (kind === 'bell') { this.bells.push({ c, r, region: lm ? lm.region : 0 }); return; }
+  if (kind.indexOf('intake') === 0) {
+    const dir = kind.slice(6) === '-1' ? -1 : 1;
+    /* The mouth sits in the rock face; what it draws in is the cell the cone
+       points at. Nothing is winched up a shaft, because there is no shaft:
+       the pipe runs behind the stone and only its mouth is ever seen. */
+    this.intakes.push({ c, r, dir, takeC: c + dir, takeR: r, region: lm ? lm.region : 0 });
+    return;
+  }
   const byRegion = ['idol', 'strongbox', 'megacrystal', 'heart'];
   const type = byRegion[Math.min(3, lm ? lm.region : 0)];
   this.relics.push({
@@ -590,6 +603,7 @@ Run.prototype._reset = function () {
   this.gasBoost = 0;
   this.noise = 0;
   this.digTarget = null; this.digFrac = 0;
+  this.pushTarget = null;
   this.holdFull = false; this.tooHard = false;
   this.onFloor = false; this.onCeil = false;
   this._blowing = false; this._flooding = false; this._thrusting = false;
@@ -707,12 +721,21 @@ Run.prototype._fixed = function (inp, h) {
      damage for brushing a floor it was barely descending onto. */
   const r = t.colR, TILE = t.TILE;
   let impact = 0;
+  /* A resting relic stops the hull sideways. Without this the sub swims
+     through 900 kg of stone idol, and pushing reads as a UI event rather
+     than as shoving something heavy. Horizontal only: nothing about a
+     relic should ever hold the sub up. */
+  const relicBlocks = (x) => {
+    const rr = Math.floor(this.y / TILE);
+    const rl = this._relicAt(Math.floor(x / TILE), rr);
+    return !!(rl && rl.state !== 'fall');
+  };
   this.x += this.vx * h;
-  if (W.solidAt(this.x + r, this.y)) {
+  if (W.solidAt(this.x + r, this.y) || relicBlocks(this.x + r)) {
     this.x = Math.floor((this.x + r) / TILE) * TILE - r - 0.01;
     if (this.vx > 0) { impact = Math.max(impact, this.vx); this.vx = 0; }
   }
-  if (W.solidAt(this.x - r, this.y)) {
+  if (W.solidAt(this.x - r, this.y) || relicBlocks(this.x - r)) {
     this.x = Math.ceil((this.x - r) / TILE) * TILE + r + 0.01;
     if (this.vx < 0) { impact = Math.max(impact, -this.vx); this.vx = 0; }
   }
@@ -785,6 +808,40 @@ Run.prototype._fixed = function (inp, h) {
     }
   }
 
+
+  /* ---------- PUSHING ----------
+     Gravity aims a relic down; the sub aims it sideways. Shoving is slow and
+     costs battery, and it is strictly horizontal: a relic can be walked to
+     the lip of a chute you cut, but never lifted, so the law is untouched.
+
+     Between them the two verbs also close the stranding hole. A relic that
+     settles with rock to both sides used to be lost for good; now you dig one
+     of those cells out and shove it in. */
+  this.pushTarget = null;
+  if (ax !== 0 && this.mode === 'dive') {
+    const pc = Math.floor((this.x + ax * (r + t.digReach)) / TILE);
+    const pr = Math.floor(this.y / TILE);
+    const rl = this._relicAt(pc, pr);
+    if (rl && rl.state === 'rest') {
+      const dc = rl.c + ax;
+      const blocked = isSolidType(W.at(dc, rl.r)) || !!this._relicAt(dc, rl.r);
+      this.pushTarget = { c: rl.c, r: rl.r, blocked, frac: 0 };
+      if (!blocked && this.batt > 0) {
+        rl._push = (rl._push || 0) + h / t.relicPushS;
+        this.batt = Math.max(0, this.batt - t.pushBatt * h);
+        this.pushTarget.frac = Math.min(1, rl._push);
+        this.noise = Math.max(this.noise, t.noise.dig);
+        if (rl._push >= 1) {
+          rl._push = 0;
+          rl.dir = ax; rl.settled = false;
+          rl.state = 'slide'; rl.slideT = 0; rl.fromX = rl.x; rl.toC = dc;
+          this.events.push({ t: 'relic-push', x: rl.x, y: rl.y });
+        }
+      }
+    }
+  }
+  if (!this.pushTarget) for (const rl of W.relics) rl._push = 0;
+
   this._stepRelics(h);
 
   // ---------- DROP CARGO ----------
@@ -853,7 +910,7 @@ Run.prototype._stepRelics = function (h) {
     }
 
     // rest: decide what this cell allows.
-    if (this._bellAt(rl.c, rl.r)) { this._capture(rl); continue; }
+    if (this._intakeTaking(rl.c, rl.r)) { this._capture(rl); continue; }
     if (open(rl.c, rl.r + 1)) { rl.state = 'fall'; continue; }
     /* Both edges open is a real tie. It resolves to the way the relic was
        already going, so a chute reads as one continuous movement rather than
@@ -869,15 +926,19 @@ Run.prototype._stepRelics = function (h) {
   }
 };
 
-Run.prototype._bellAt = function (c, r) {
-  for (const b of this.world.bells) if (b.c === c && b.r === r) return b;
+Run.prototype._intakeTaking = function (c, r) {
+  for (const b of this.world.intakes) if (b.takeC === c && b.takeR === r) return b;
+  return null;
+};
+Run.prototype._relicAt = function (c, r) {
+  for (const rl of this.world.relics) if (!rl.captured && rl.c === c && rl.r === r) return rl;
   return null;
 };
 
 /* Delivered. Nothing travels upward: the bell holds it, and the claim is
    filed the next time you surface. */
 Run.prototype._capture = function (rl) {
-  rl.captured = true; rl.settled = true;
+  rl.captured = true; rl.settled = true; rl._push = 0;
   this.pendingRelic += rl.val;
   this.events.push({ t: 'relic-captured', type: rl.type, val: rl.val, x: rl.x, y: rl.y });
 };

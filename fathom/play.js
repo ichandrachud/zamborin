@@ -679,6 +679,11 @@
       const base = t === TT.SILT ? 96 : t === TT.HARD ? 158 : 124;
       sfx.tone(base + vr() * 34, 0.055, 0.026, 'square');
     }
+    /* Shoving 900 kg is a lower, slower noise than cutting rock. */
+    if (run.pushTarget && !run.pushTarget.blocked && sfx && now - lastGrind > 130) {
+      lastGrind = now;
+      sfx.tone(58 + vr() * 16, 0.11, 0.03, 'sine');
+    }
     if (run.holdFull && !holdFullWas && sfx) sfx.tone(170, 0.12, 0.03, 'sine');
     holdFullWas = run.holdFull;
     if (run.tooHard && !tooHardWas) {
@@ -711,6 +716,9 @@
       floatText('GAS POCKET', ev.x, ev.y - 6, C_SUN);
       if (sfx) sfx.noise(0.4, 300, 0.8, 0.12);
       T().track('gas_burst', { depth: Math.round(run.y) });
+    } else if (ev.t === 'relic-push') {
+      if (sfx) sfx.noise(0.18, 90, 0.5, 0.045);
+      spawnSilt(ev.x, ev.y + TILE * 0.35);
     } else if (ev.t === 'relic-land') {
       /* One deep thud. It is noise 4 in the sim, the loudest thing short of a
          gas burst, and at M5 it is what the deep hears. */
@@ -940,8 +948,9 @@
     inWater(() => drawMottle(t));
     drawFish(t);
     drawTiles(t);
-    drawBells(t);
+    drawIntakes(t);
     drawRelics(t);
+    drawPush(t);
     inWater(() => drawMotes(t));
     drawSub(t);
     drawBubbles();
@@ -1196,48 +1205,98 @@
     }
   }
 
-  function drawBells(t) {
-    const ppm = L.ppm, TILEp = TILE * ppm;
-    for (const b of run.world.bells) {
-      const wx = b.c * TILE + TILE / 2, wy = b.r * TILE + TILE / 2;
-      const px = sx(wx), py = sy(wy);
-      if (px < -80 || px > LW + 80 || py < -90 || py > LH + 90) continue;
-      const w = TILEp * 0.72, h = TILEp * 0.66;
-      /* The cable, rising out of the top and into the dark. It explains the
-         whole payout without a word: things put here go up. */
-      ctx.strokeStyle = 'rgba(196,224,236,0.34)';
-      ctx.lineWidth = Math.max(1.2, ppm * 0.16);
+  /* The salvage intake. The owner's note killed the bucket, and the objection
+     was right: a bucket winched to the surface implies a clear shaft above it,
+     and this world is solid stone. A pipe needs no shaft. It runs behind the
+     rock and only its mouth is ever seen, so it can sit anywhere.
+
+     Drawn from the owner's sketch: an elbow turning out of the stone, a bolted
+     flange, and a cone of suction over the one cell it will take from. */
+  function drawIntakes(t) {
+    const ppm = L.ppm, s = TILE * ppm;
+    for (const ik of run.world.intakes) {
+      const cx = sx(ik.c * TILE + TILE / 2), cy = sy(ik.r * TILE + TILE / 2);
+      if (cx < -160 || cx > LW + 160 || cy < -120 || cy > LH + 120) continue;
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.scale(ik.dir, 1);                    // one drawing, mirrored by facing
+
+      const half = s / 2;
+      const ox = half, oy = -half;             // the bend's centre: the top-out corner
+      const rOut = s * 0.95, rIn = s * 0.44;
+
+      // The elbow: a band of pipe turning out of the rock.
+      const pg = ctx.createLinearGradient(-half, -half, half, half);
+      pg.addColorStop(0, '#C9C9E6'); pg.addColorStop(0.55, '#A9A9CE'); pg.addColorStop(1, '#7C7CA0');
+      ctx.fillStyle = pg;
       ctx.beginPath();
-      ctx.moveTo(px, py - h * 0.52);
-      ctx.lineTo(px + Math.sin(t * 0.5) * ppm * 0.3, py - TILEp * 3.2);
-      ctx.stroke();
-      // The mouth: a funnel, wide side up, waiting.
-      const g = ctx.createLinearGradient(0, py - h * 0.5, 0, py + h * 0.5);
-      g.addColorStop(0, '#9FC4D4'); g.addColorStop(0.5, '#4E7A8E'); g.addColorStop(1, '#223D4C');
-      ctx.fillStyle = g;
+      ctx.arc(ox, oy, rOut, Math.PI * 0.5, Math.PI, false);
+      ctx.arc(ox, oy, rIn, Math.PI, Math.PI * 0.5, true);
+      ctx.closePath();
+      ctx.fill();
+
+      // The flange, bolted, standing proud of the mouth.
+      const fy0 = oy + rIn, fy1 = oy + rOut, fw = s * 0.16;
+      const fg = ctx.createLinearGradient(half - fw, 0, half + fw * 0.4, 0);
+      fg.addColorStop(0, '#B6B6D2'); fg.addColorStop(1, '#8E8EB4');
+      ctx.fillStyle = fg;
+      ctx.fillRect(half - fw * 0.5, fy0, fw, fy1 - fy0);
+      ctx.fillStyle = 'rgba(64,74,140,0.85)';
+      const bolts = 6;
+      for (let i = 0; i < bolts; i++) {
+        const by = fy0 + (fy1 - fy0) * ((i + 0.5) / bolts);
+        ctx.beginPath(); ctx.arc(half, by, Math.max(1.1, s * 0.028), 0, Math.PI * 2); ctx.fill();
+      }
+
+      /* The draw: a cone over the single cell it takes from, so what the pipe
+         will accept is never a guess. It widens because suction does. */
+      const pulse = 0.62 + 0.38 * Math.sin(t * 1.7);
+      const cg = ctx.createLinearGradient(half, 0, half + s, 0);
+      cg.addColorStop(0, 'rgba(150,206,246,' + (0.34 * pulse).toFixed(3) + ')');
+      cg.addColorStop(1, 'rgba(150,206,246,0.03)');
+      ctx.fillStyle = cg;
       ctx.beginPath();
-      ctx.moveTo(px - w * 0.5, py - h * 0.42);
-      ctx.lineTo(px + w * 0.5, py - h * 0.42);
-      ctx.lineTo(px + w * 0.28, py + h * 0.5);
-      ctx.lineTo(px - w * 0.28, py + h * 0.5);
-      ctx.closePath(); ctx.fill();
-      // A lit rim, so the mouth reads as open.
-      ctx.strokeStyle = 'rgba(206,238,250,0.55)';
-      ctx.lineWidth = Math.max(1.5, ppm * 0.2);
-      ctx.beginPath();
-      ctx.moveTo(px - w * 0.5, py - h * 0.42);
-      ctx.lineTo(px + w * 0.5, py - h * 0.42);
-      ctx.stroke();
-      // The beacon: a thin bright core with a tight feather, never a wash.
-      const pulse = 0.5 + 0.5 * Math.sin(t * 2.1);
-      const br = ppm * (0.55 + pulse * 0.3);
-      const bg = ctx.createRadialGradient(px, py - h * 0.62, 0, px, py - h * 0.62, br * 3.4);
-      bg.addColorStop(0, 'rgba(150,232,255,' + (0.6 + pulse * 0.35).toFixed(2) + ')');
-      bg.addColorStop(0.3, 'rgba(120,210,245,0.22)');
-      bg.addColorStop(1, 'rgba(120,210,245,0)');
-      ctx.fillStyle = bg;
-      ctx.beginPath(); ctx.arc(px, py - h * 0.62, br * 3.4, 0, Math.PI * 2); ctx.fill();
+      ctx.moveTo(half, fy0);
+      ctx.lineTo(half + s, -half - s * 0.06);
+      ctx.lineTo(half + s, half + s * 0.06);
+      ctx.lineTo(half, fy1);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
     }
+  }
+
+  /* What the shove is doing, on the relic itself. Held effort with no visible
+     progress reads as a dead control, which is how a working button gets
+     reported as broken. */
+  function drawPush(t) {
+    const p = run.pushTarget;
+    if (!p) return;
+    const ppm = L.ppm, s = TILE * ppm;
+    const dir = Math.sign(run.facing) || 1;
+    const cx = sx(p.c * TILE + TILE / 2), cy = sy(p.r * TILE + TILE / 2);
+    const ex = cx + dir * s * 0.42;
+    ctx.save();
+    ctx.strokeStyle = p.blocked ? C_ACCENT_TEXT : 'rgba(240,214,160,0.9)';
+    ctx.lineWidth = Math.max(2, s * 0.05);
+    ctx.lineCap = 'round';
+    if (p.blocked) {
+      ctx.beginPath();
+      ctx.moveTo(ex, cy - s * 0.22); ctx.lineTo(ex, cy + s * 0.22);
+      ctx.stroke();
+    } else {
+      const h = s * 0.36 * Math.max(0.12, p.frac);
+      ctx.beginPath();
+      ctx.moveTo(ex, cy - h); ctx.lineTo(ex, cy + h);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(240,214,160,' + (0.35 + 0.5 * p.frac).toFixed(2) + ')';
+      ctx.beginPath();
+      ctx.moveTo(ex + dir * s * 0.1, cy);
+      ctx.lineTo(ex - dir * s * 0.03, cy - s * 0.1);
+      ctx.lineTo(ex - dir * s * 0.03, cy + s * 0.1);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
   }
 
   function drawSub(t) {
@@ -1331,10 +1390,10 @@
         fogCtx.beginPath(); fogCtx.arc(mx, my, mr, 0, Math.PI * 2); fogCtx.fill();
       }
     }
-    /* Bells read beyond the lamp. Finding a relic stays exploration; knowing
+    /* Intakes read beyond the lamp. Finding a relic stays exploration; knowing
        where to take one should never be. */
-    for (const b of W.bells) {
-      const bx = sx(b.c * TILE + TILE / 2), by = sy(b.r * TILE + TILE / 2);
+    for (const b of W.intakes) {
+      const bx = sx((b.c + b.dir * 0.5) * TILE + TILE / 2), by = sy(b.r * TILE + TILE / 2);
       if (bx < -140 || bx > LW + 140 || by < -140 || by > LH + 140) continue;
       const brr = TILE * ppm * 1.5;
       const bgr = fogCtx.createRadialGradient(bx, by, 0, bx, by, brr);
@@ -2096,7 +2155,7 @@
                            : fmtMoney(cardData.val) + ' banked · ' + cardData.kg + ' kg',
         cardData.relic > 0
           ? [['Ore', fmtMoney(cardData.val) + ' · ' + cardData.kg + ' kg'],
-             ['Salvage from the bells', fmtMoney(cardData.relic)],
+             ['Salvage sent up the pipe', fmtMoney(cardData.relic)],
              ['Bank total', fmtMoney(run.money)]]
           : [['Deepest point', cardData.depth + ' m'],
              ['Tiles cut', String(run.digTiles)],
@@ -2164,7 +2223,8 @@
       relics: () => run.world.relics.map(r => ({ type: r.type, c: r.c, r: r.r,
                      x: +r.x.toFixed(1), y: +r.y.toFixed(1), state: r.state,
                      settled: r.settled, captured: r.captured, val: r.val })),
-      bells: () => run.world.bells.map(b => ({ c: b.c, r: b.r })),
+      intakes: () => run.world.intakes.map(b => ({ c: b.c, r: b.r, dir: b.dir, takeC: b.takeC, takeR: b.takeR })),
+      pushTarget: () => run.pushTarget,
       dig: (c, r) => { run.world.set(c, r, 0); run._wakeRelics(); },
       pendingRelic: () => run.pendingRelic,
       openCard: (c) => { card = c; },
