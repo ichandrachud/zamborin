@@ -157,12 +157,29 @@
       st: { AIR: 5, CARGO: 5, BATT: 5, SPEED: 4, LAMP: 4, DRILL: 5 },
       blurb: 'The one the trench tells stories about.' },
   ];
-  const SUBIMGS = FLEET.map(f => {
+  /* The submersible fits exactly one 8 m block: its longer side is a tile,
+     so it fills the shaft it digs instead of overhanging it. Every boat is
+     the same size on purpose — a hull that does not fit the tunnel is not a
+     mining machine, and the fleet already differentiates by its six stats.
+
+     SUB_FILE stands in for all nine until the rest of the new submersible
+     set exists; FLEET keeps each boat's own `file` for when it does. */
+  const SUB_FILE = 'submersible-01.png';
+  const SUB_BLOCKS = 1;
+  const SUBIMGS = FLEET.map(() => {
     const im = new Image();
     im.onload = () => { im._ok = true; };
-    im.src = './assets/' + f.file + '?v=1';
+    im.src = './assets/' + SUB_FILE + '?v=1';
     return im;
   });
+  // Metres, from the sprite's own proportions. The art is cropped tight, so
+  // the longer side IS the block and nothing is lost to transparent padding.
+  function subSizeM(im) {
+    const w = (im && im._ok && im.width) ? im.width : 800;
+    const h = (im && im._ok && im.height) ? im.height : 649;
+    const k = (TILE * SUB_BLOCKS) / Math.max(w, h);
+    return { w: w * k, h: h * k };
+  }
   let owned = [0], curSub = 0, fleetView = 0;
   if (saved) {
     owned = Array.isArray(saved.owned) && saved.owned.length
@@ -204,6 +221,11 @@
       IMG[key].push(im);
     }
   }
+  /* Owner-locked, 2026-08-30: ore is sized by HEIGHT in metres, because the
+     eye compares a chunk to the hull. Do not restate these as a fraction of
+     a tile — the tile is not what the player is measuring against. */
+  const ORE_H = { nodule: 2.8, sulphide: 2.6, crystal: 3.4 };
+
   function pickSprite(key, salt) {
     const arr = IMG[key];
     if (!arr) return null;
@@ -731,7 +753,6 @@
 
     drawTiles(t);
     drawSub(t);
-    drawTilesOverSub(t);
     drawBubbles();
     drawJetsam();
     drawRings();
@@ -781,30 +802,6 @@
       ctx.fillStyle = 'rgba(150,178,168,' + a.toFixed(3) + ')';
       ctx.beginPath(); ctx.arc(sx(sp.x), sy(sp.y), sp.r * L.ppm, 0, Math.PI * 2); ctx.fill();
     }
-  }
-
-  /* The submarine is 13.5 to 16.5 m long and a tile is 8 m, so in the shaft
-     it digs the hull overhangs into the walls on both sides. Drawing the
-     rock back over that overhang is what makes it read as a machine buried
-     in the seam it is cutting, rather than a sprite lying on top of stone.
-
-     Not at full strength, though: at 1.0 the boat becomes a sliver in a
-     slot, and nine hand-made submarines deserve to be seen. At 0.72 the
-     clay closes over the nose and the hull still reads through it, lit from
-     inside the seam. This is the one place the tile grid and the locked
-     camera ratio disagree, and it is a compromise, not a solution. */
-  const SUB_OCCLUDE = 0.72;
-  function drawTilesOverSub(t) {
-    const W = run.world, r = FLEET[curSub].lenM * 0.5;
-    const c0 = Math.max(0, Math.floor((run.x - r) / TILE));
-    const c1 = Math.min(TUNE.COLS - 1, Math.floor((run.x + r) / TILE));
-    const r0 = Math.max(0, Math.floor((run.y - r * 0.5) / TILE));
-    const r1 = Math.min(TUNE.ROWS - 1, Math.floor((run.y + r * 0.5) / TILE));
-    ctx.globalAlpha = SUB_OCCLUDE;
-    for (let rr = r0; rr <= r1; rr++)
-      for (let cc = c0; cc <= c1; cc++)
-        if (SIM.isSolidType(W.at(cc, rr))) drawTileAt(cc, rr, t);
-    ctx.globalAlpha = 1;
   }
 
   function drawTileAt(cc, rr, t) {
@@ -896,17 +893,21 @@
           ctx.ellipse(px + s * 0.5, py + s * (0.42 + 0.1 * pulse), s * 0.26, s * 0.17, 0, 0, Math.PI * 2);
           ctx.fill();
         }
-        // Ore, drawn on its tile, sized so the eye reads the shape.
+        /* Ore is sized by HEIGHT in metres, not as a fraction of its tile:
+           the eye measures a chunk against the hull, and the hull is one
+           block. Sized by tile it came out at 5.3 m, nearly as big as the
+           submersible, and stopped reading as something you could carry. */
         const oreKey = SIM.ORE_OF[ty];
         if (oreKey) {
           const im = pickSprite(oreKey, cc * 3 + rr);
+          const oh = ORE_H[oreKey] * L.ppm;
           if (im) {
-            const oh = s * 0.66, ow = oh * (im.width / im.height);
-            ctx.drawImage(im, px + (s - ow) / 2, py + s - oh - s * 0.1, ow, oh);
+            const ow = oh * (im.width / im.height);
+            ctx.drawImage(im, px + (s - ow) / 2, py + s - oh - s * 0.14, ow, oh);
           } else {
             ctx.fillStyle = oreKey === 'crystal' ? '#9FD8E8' : oreKey === 'sulphide' ? '#E0B24E' : '#C98A5A';
             ctx.beginPath();
-            ctx.ellipse(px + s * 0.5, py + s * 0.55, s * 0.2, s * 0.16, 0, 0, Math.PI * 2);
+            ctx.ellipse(px + s * 0.5, py + s - oh * 0.5 - s * 0.14, oh * 0.55, oh * 0.42, 0, 0, Math.PI * 2);
             ctx.fill();
           }
         }
@@ -962,10 +963,9 @@
   function drawSub(t) {
     const ppm = L.ppm;
     const px = sx(run.x), py = sy(run.y);
-    const f = FLEET[curSub], im = SUBIMGS[curSub];
-    const Wp = f.lenM * ppm;
-    const aspect = (im && im._ok) ? im.height / im.width : 0.5;
-    const Hp = Wp * aspect;
+    const im = SUBIMGS[curSub];
+    const sz = subSizeM(im);
+    const Wp = sz.w * ppm, Hp = sz.h * ppm;
     const tilt = Math.max(-0.17, Math.min(0.17, run.vy * 0.005));
 
     ctx.save();
@@ -979,12 +979,12 @@
        exactly the place you are drilling. The fog is what lights the world;
        this is only the bulb. */
     const lr = run.lampR() * ppm * 0.24;
-    const lg = ctx.createRadialGradient(Wp * 0.4, 0, 0, Wp * 0.4, 0, lr);
+    const lg = ctx.createRadialGradient(Wp * 0.26, 0, 0, Wp * 0.26, 0, lr);
     lg.addColorStop(0, 'rgba(224,246,255,0.3)');
     lg.addColorStop(0.34, 'rgba(224,246,255,0.07)');
     lg.addColorStop(1, 'rgba(224,246,255,0)');
     ctx.fillStyle = lg;
-    ctx.beginPath(); ctx.arc(Wp * 0.4, 0, lr, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(Wp * 0.26, 0, lr, 0, Math.PI * 2); ctx.fill();
     if (im && im._ok) ctx.drawImage(im, -Wp / 2, -Hp / 2, Wp, Hp);
     else {
       ctx.fillStyle = '#F0C255';
@@ -995,7 +995,7 @@
       ctx.fillStyle = 'rgba(255,220,140,' + (0.45 + vr() * 0.35).toFixed(2) + ')';
       for (let i = 0; i < 3; i++) {
         ctx.beginPath();
-        ctx.arc(Wp * 0.48 + vr() * 6, (vr() - 0.5) * Hp * 0.5, 1.5, 0, Math.PI * 2);
+        ctx.arc(Wp * 0.46 + vr() * 5, (vr() - 0.5) * Hp * 0.55, 1.5, 0, Math.PI * 2);
         ctx.fill();
       }
     }
@@ -1494,8 +1494,8 @@
     }
 
     const im = SUBIMGS[curSub];
-    const Wp = s * 1.5;
-    const Hp = Wp * ((im && im._ok) ? im.height / im.width : 0.5);
+    const Wp = s;                                   // one block, as in the game
+    const Hp = Wp * ((im && im._ok) ? im.height / im.width : 0.811);
     if (im && im._ok) ctx.drawImage(im, sxp - Wp / 2, syp - Hp / 2, Wp, Hp);
     else { ctx.fillStyle = '#F0C255'; ctx.beginPath(); ctx.ellipse(sxp, syp, Wp * 0.45, Hp * 0.4, 0, 0, Math.PI * 2); ctx.fill(); }
 
