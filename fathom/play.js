@@ -224,6 +224,40 @@
       IMG[key].push(im);
     }
   }
+  /* The owner's tile textures, one per material. JPEG because they are
+     full-bleed with no alpha. Each is drawn clipped to the cell's carved
+     shape, so the merged-mass silhouette survives the art. */
+  /* Two ways to use the owner's tiles, switchable while we decide which the
+     world should be. false: the art's own colour, so materials differ hard.
+     true: the region's palette wearing the art's relief, so the rock reads as
+     one body and the four regions differ instead. */
+  let REGION_TINT = true;
+  const TILE_ART = {};
+  for (const k of ['silt', 'rock', 'hard', 'bedrock', 'magma', 'gas']) {
+    const im = new Image();
+    im.onload = () => { im._ok = true; };
+    im.src = './assets/tile-' + k + '.jpg?v=1';
+    TILE_ART[k] = im;
+  }
+  const TILE_ART_OF = {};
+  TILE_ART_OF[TT.SILT] = 'silt'; TILE_ART_OF[TT.ROCK] = 'rock';
+  TILE_ART_OF[TT.HARD] = 'hard'; TILE_ART_OF[TT.BED] = 'bedrock';
+  TILE_ART_OF[TT.MAGMA] = 'magma'; TILE_ART_OF[TT.GAS] = 'gas';
+  TILE_ART_OF[TT.NOD] = 'rock'; TILE_ART_OF[TT.SUL] = 'rock'; TILE_ART_OF[TT.CRY] = 'rock';
+
+  /* Relic art, by type. idol has not been made yet and falls through to the
+     painted version, which is why that fallback exists. */
+  const RELIC_ART = {};
+  for (const k of ['strongbox', 'megacrystal', 'heart']) {
+    const im = new Image();
+    im.onload = () => { im._ok = true; };
+    im.src = './assets/relic-' + k + '.png?v=1';
+    RELIC_ART[k] = im;
+  }
+  const INTAKE_ART = new Image();
+  INTAKE_ART.onload = () => { INTAKE_ART._ok = true; };
+  INTAKE_ART.src = './assets/intake-mouth.png?v=1';
+
   /* Owner-locked, 2026-08-30: ore is sized by HEIGHT in metres, because the
      eye compares a chunk to the hull. Do not restate these as a fraction of
      a tile — the tile is not what the player is measuring against. */
@@ -1033,33 +1067,101 @@
         else if (ty === TT.SILT || ty === TT.GAS) stops = pal.silt;
         else stops = pal.rock;
 
-        /* The fill says how deep in the mass this cell sits. A ceiling gets
-           the lit band falling into mid; a cell merely beside a tunnel gets
-           mid; buried clay gets deep. Nothing is outlined. */
-        if (openU) {
-          const gg = ctx.createLinearGradient(0, py, 0, py + s * 0.85);
-          gg.addColorStop(0, stops[0]); gg.addColorStop(0.34, stops[1]); gg.addColorStop(1, stops[2]);
-          ctx.fillStyle = gg;
-        } else if (exposed) {
-          const gg = ctx.createLinearGradient(0, py, 0, py + s);
-          gg.addColorStop(0, stops[1]); gg.addColorStop(1, stops[2]);
-          ctx.fillStyle = gg;
-        } else {
-          ctx.fillStyle = stops[2];
-        }
         /* Only a corner with water on BOTH of its faces rounds. Everything
            else squares up against its neighbour, so the clay is one carved
            body and a lone tile is a boulder. */
         const rad = s * (0.2 + h1 * 0.12);
-        ctx.beginPath();
-        clayPath(px - 0.4, py - 0.4, s + 0.8, s + 0.8,
-                 (openU && openL) ? rad : 0, (openU && openR) ? rad : 0,
-                 (openD && openR) ? rad : 0, (openD && openL) ? rad : 0);
-        ctx.fill();
+        const shape = () => {
+          ctx.beginPath();
+          clayPath(px - 0.4, py - 0.4, s + 0.8, s + 0.8,
+                   (openU && openL) ? rad : 0, (openU && openR) ? rad : 0,
+                   (openD && openR) ? rad : 0, (openD && openL) ? rad : 0);
+        };
+
+        const art = TILE_ART[TILE_ART_OF[ty]];
+        if (art && art._ok) {
+          /* The owner's texture, clipped to the carved shape. The three
+             values that say how deep in the mass a cell sits are kept as a
+             wash ON TOP, because they are what makes the rock read as one
+             body with tunnels cut through it rather than as a wall of
+             stamped squares. The art supplies material; the shading
+             supplies structure. */
+          ctx.save();
+          shape(); ctx.clip();
+          /* Mirror the texture per cell, from the cell's own hash. One
+             texture stamped the same way into every cell reads as a grid of
+             identical bricks, which is the graph paper the brief warns about.
+             Mirroring is the one transform that stays continuous at a seam,
+             so a seamless tile is still seamless against a flipped neighbour. */
+          const fx = hsh(cc, rr + 13) > 0.5 ? -1 : 1;
+          const fy = hsh(cc + 7, rr) > 0.5 ? -1 : 1;
+          if (REGION_TINT) {
+            /* Region-led: lay the region's colour down first and take only
+               the texture's LIGHTNESS on top. The art keeps all of its relief
+               and grain and gives up its hue, which is what makes six very
+               differently coloured tiles read as one body of rock, and what
+               lets the four regions actually differ. */
+            ctx.fillStyle = stops[1];
+            ctx.fillRect(px - 0.4, py - 0.4, s + 0.8, s + 0.8);
+            ctx.save();
+            ctx.globalCompositeOperation = 'luminosity';
+            ctx.translate(px + s / 2, py + s / 2);
+            ctx.scale(fx, fy);
+            ctx.drawImage(art, -(s + 0.8) / 2, -(s + 0.8) / 2, s + 0.8, s + 0.8);
+            ctx.restore();
+          } else {
+            ctx.save();
+            ctx.translate(px + s / 2, py + s / 2);
+            ctx.scale(fx, fy);
+            ctx.drawImage(art, -(s + 0.8) / 2, -(s + 0.8) / 2, s + 0.8, s + 0.8);
+            ctx.restore();
+          }
+          /* Then the structure, hard. Over a flat gradient a gentle wash was
+             enough; over a busy texture it vanished and the rock stopped
+             reading as one carved body. Buried clay goes properly dark so
+             that only the faces the water touches are lit. */
+          if (!exposed) {
+            ctx.fillStyle = 'rgba(3,7,15,0.74)';
+            ctx.fillRect(px - 0.4, py - 0.4, s + 0.8, s + 0.8);
+          } else if (!openU) {
+            ctx.fillStyle = 'rgba(3,7,15,0.46)';
+            ctx.fillRect(px - 0.4, py - 0.4, s + 0.8, s + 0.8);
+          } else {
+            const gg = ctx.createLinearGradient(0, py, 0, py + s);
+            gg.addColorStop(0, 'rgba(3,7,15,0)');
+            gg.addColorStop(0.5, 'rgba(3,7,15,0.26)');
+            gg.addColorStop(1, 'rgba(3,7,15,0.52)');
+            ctx.fillStyle = gg;
+            ctx.fillRect(px - 0.4, py - 0.4, s + 0.8, s + 0.8);
+            // The lamp catching the lip of the tunnel ceiling, as a band of
+            // light rather than a drawn line, so it survives the texture.
+            const lg = ctx.createLinearGradient(0, py, 0, py + s * 0.3);
+            lg.addColorStop(0, pal.lit);
+            lg.addColorStop(1, 'rgba(255,255,255,0)');
+            ctx.fillStyle = lg;
+            ctx.fillRect(px - 0.4, py - 0.4, s + 0.8, s * 0.3);
+          }
+          ctx.restore();
+        } else {
+          if (openU) {
+            const gg = ctx.createLinearGradient(0, py, 0, py + s * 0.85);
+            gg.addColorStop(0, stops[0]); gg.addColorStop(0.34, stops[1]); gg.addColorStop(1, stops[2]);
+            ctx.fillStyle = gg;
+          } else if (exposed) {
+            const gg = ctx.createLinearGradient(0, py, 0, py + s);
+            gg.addColorStop(0, stops[1]); gg.addColorStop(1, stops[2]);
+            ctx.fillStyle = gg;
+          } else {
+            ctx.fillStyle = stops[2];
+          }
+          shape();
+          ctx.fill();
+        }
 
         /* The light band along a face the water touches. Value, not an
            outline: it sits inside the clay and stops at the rounded ends. */
-        if (openU) {
+        const textured = !!(TILE_ART[TILE_ART_OF[ty]] || {})._ok;
+        if (openU && !textured) {
           ctx.strokeStyle = ty === TT.MAGMA ? 'rgba(255,226,180,0.6)' : pal.lit;
           ctx.lineWidth = Math.max(1.6, s * 0.05);
           const inset = ctx.lineWidth * 0.55;
@@ -1080,16 +1182,16 @@
           ctx.stroke();
           ctx.globalAlpha = 1;
         }
-        // The clay's grain: one speckle, deterministic per cell.
-        if (h1 > 0.32 && ty !== TT.MAGMA) {
+        // The clay's grain: only where there is no texture to supply it.
+        if (h1 > 0.32 && ty !== TT.MAGMA && !(TILE_ART[TILE_ART_OF[ty]] || {})._ok) {
           ctx.fillStyle = h1 > 0.72 ? 'rgba(220,244,232,0.07)' : 'rgba(0,0,0,0.2)';
           ctx.beginPath();
           ctx.arc(px + s * (0.24 + hsh(cc + 3, rr) * 0.52),
                   py + s * (0.3 + hsh(cc, rr + 5) * 0.42), s * 0.062, 0, Math.PI * 2);
           ctx.fill();
         }
-        // Magma churn: a slow bright core, never a wide wash.
-        if (ty === TT.MAGMA) {
+        // Magma churn: only over the painted fallback; the texture has its own.
+        if (ty === TT.MAGMA && !(TILE_ART.magma || {})._ok) {
           const pulse = 0.55 + 0.45 * Math.sin(t * 1.6 + cc * 1.7 + rr);
           ctx.fillStyle = 'rgba(255,226,170,' + (0.16 + 0.2 * pulse).toFixed(3) + ')';
           ctx.beginPath();
@@ -1178,6 +1280,7 @@
       if (rl.captured) continue;
       const px = sx(rl.x), py = sy(rl.y);
       if (px < -60 || px > LW + 60 || py < -60 || py > LH + 60) continue;
+      const art = RELIC_ART[rl.type];
       const w = 5.0 * ppm, h = 4.4 * ppm;
       // A held-in glow, tight, so it reads as precious rather than lit.
       const gl = ctx.createRadialGradient(px, py, 0, px, py, w * 0.95);
@@ -1186,6 +1289,13 @@
       gl.addColorStop(1, 'rgba(255,190,110,0)');
       ctx.fillStyle = gl;
       ctx.beginPath(); ctx.arc(px, py, w * 0.95, 0, Math.PI * 2); ctx.fill();
+      if (art && art._ok) {
+        // Sized by its longer side, like everything else in this world.
+        const k = (5.0 * ppm) / Math.max(art.width, art.height);
+        const aw = art.width * k, ah = art.height * k;
+        ctx.drawImage(art, px - aw / 2, py - ah / 2, aw, ah);
+        continue;
+      }
       // The body: light from up and slightly left, as everywhere else.
       const g = ctx.createLinearGradient(px - w * 0.4, py - h * 0.5, px + w * 0.35, py + h * 0.5);
       g.addColorStop(0, '#F6D089'); g.addColorStop(0.45, '#C98F3C'); g.addColorStop(1, '#6E4718');
@@ -1215,6 +1325,36 @@
 
      Drawn from the owner's sketch: an elbow turning out of the stone, a bolted
      flange, and a cone of suction over the one cell it will take from. */
+  /* ---- THE DRAW ----
+     Water going in. Each streak starts at the far edge of the cell the pipe
+     takes from, converges on the mouth, and accelerates as it gets close,
+     because suction does. Stateless: position comes from time and index, so
+     there is nothing to keep and nothing to reset. Called in the mouth's own
+     mirrored space by both the painted pipe and the owner's art. */
+  function drawDraw(t, s, half, my0, my1, salt) {
+    for (let i = 0; i < 18; i++) {
+      const h1 = hsh(salt + i * 23, 71), h2 = hsh(salt + i * 37, 83);
+      const ph = ((t * (0.42 + h1 * 0.34) + h2) % 1);
+      const e = Math.pow(ph, 1.85);
+      const x0 = half + s * 1.02, x1 = half + s * 0.06;
+      const yStart = (h1 - 0.5) * s * 1.15;
+      const yEnd = (h1 - 0.5) * (my1 - my0) * 0.82 + (my0 + my1) / 2;
+      const ex = x0 + (x1 - x0) * e, ey = yStart + (yEnd - yStart) * e;
+      const eT = Math.max(0, e - 0.085);
+      const tx = x0 + (x1 - x0) * eT, ty = yStart + (yEnd - yStart) * eT;
+      const a = Math.min(1, ph * 5) * Math.min(1, (1 - ph) * 4.5) * (0.3 + 0.55 * e);
+      ctx.strokeStyle = 'rgba(198,232,250,' + a.toFixed(3) + ')';
+      ctx.lineWidth = Math.max(0.8, s * (0.012 + 0.016 * e));
+      ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(ex, ey); ctx.stroke();
+      if (h2 > 0.72) {
+        ctx.fillStyle = 'rgba(214,240,252,' + (a * 0.75).toFixed(3) + ')';
+        ctx.beginPath(); ctx.arc(ex, ey, Math.max(0.7, s * 0.018), 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    ctx.lineCap = 'butt';
+  }
+
   function drawIntakes(t) {
     const ppm = L.ppm, s = TILE * ppm;
     for (const ik of run.world.intakes) {
@@ -1226,6 +1366,23 @@
       ctx.save();
       ctx.translate(cx, cy);
       ctx.scale(dir, 1);
+
+      if (INTAKE_ART._ok) {
+        /* The owner's pipe stands ON the floor and turns out of it, so its
+           mouth sits high in the art rather than centred. These three
+           fractions are measured off the art's own alpha, not eyeballed: the
+           flange reaches x 0.996, its centre sits at y 0.28, and it spans
+           23.7% of the height. Anchor the MOUTH to the cell's facing edge at
+           the cell's centre line, and let the column run down past the cell
+           into the floor it is bedded in. */
+        const MX = 0.996, MY = 0.28, MH = 0.237;
+        const ih = s * 1.45, iw = ih * (INTAKE_ART.width / INTAKE_ART.height);
+        ctx.drawImage(INTAKE_ART, half - iw * MX, -ih * MY, iw, ih);
+        const mh = ih * MH * 0.5;
+        drawDraw(t, s, half, -mh, mh, salt);
+        ctx.restore();
+        continue;
+      }
       /* The mirror flips the x axis, so a gradient written in local space
          would light the pipe from the right when the mouth faces left. These
          two keep the key light on the screen's left in both facings, which is
@@ -1345,35 +1502,7 @@
       ctx.lineTo(half, fy1);
       ctx.closePath(); ctx.fill();
 
-      /* ---- THE DRAW ----
-         Water going in. Each streak starts at the far edge of the cell the
-         pipe takes from, converges on the bore, and accelerates as it gets
-         close, because suction does. Stateless: position comes from time and
-         index, so there is nothing to keep and nothing to reset. */
-      const N = 18;
-      for (let i = 0; i < N; i++) {
-        const h1 = hsh(salt + i * 23, 71), h2 = hsh(salt + i * 37, 83);
-        const ph = ((t * (0.42 + h1 * 0.34) + h2) % 1);
-        const e = Math.pow(ph, 1.85);                    // accelerating inward
-        const x0 = half + s * 1.02, x1 = half + fw * 0.35;
-        const yStart = (h1 - 0.5) * s * 1.15;
-        const yEnd = (h1 - 0.5) * (fy1 - fy0) * 0.82 + (fy0 + fy1) / 2;
-        const px = x0 + (x1 - x0) * e;
-        const py = yStart + (yEnd - yStart) * e;
-        // the tail lags behind along the same path
-        const eT = Math.max(0, e - 0.085);
-        const tx = x0 + (x1 - x0) * eT, ty = yStart + (yEnd - yStart) * eT;
-        const a = Math.min(1, ph * 5) * Math.min(1, (1 - ph) * 4.5) * (0.3 + 0.55 * e);
-        ctx.strokeStyle = 'rgba(198,232,250,' + a.toFixed(3) + ')';
-        ctx.lineWidth = Math.max(0.8, s * (0.012 + 0.016 * e));
-        ctx.lineCap = 'round';
-        ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(px, py); ctx.stroke();
-        // a few of them are bubbles rather than streaks
-        if (h2 > 0.72) {
-          ctx.fillStyle = 'rgba(214,240,252,' + (a * 0.75).toFixed(3) + ')';
-          ctx.beginPath(); ctx.arc(px, py, Math.max(0.7, s * 0.018), 0, Math.PI * 2); ctx.fill();
-        }
-      }
+      drawDraw(t, s, half, fy0, fy1, salt);
       ctx.lineCap = 'butt';
       ctx.restore();
     }
@@ -2344,6 +2473,8 @@
       closeCard: () => { card = null; },
       setScheme: (s) => { scheme = s; },
       setScroll: (v) => { rulesScroll = v; },
+      setTint: (v) => { REGION_TINT = !!v; },
+      getTint: () => REGION_TINT,
       get cam() { return cam; },
       fleet: { FLEET, get owned() { return owned; }, get cur() { return curSub; },
                setSub: (i) => { curSub = i; if (!owned.includes(i)) owned.push(i); applyFleet(); },
