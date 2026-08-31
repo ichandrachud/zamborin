@@ -797,13 +797,17 @@
   let fogCan = null, fogCtx = null;
 
   /* ---------- THE WATER'S BODY ----------
-     One vertical gradient reads as a printed graphic, not as water. Three
-     layers give it depth, and all three are anchored to WORLD coordinates
-     rather than the screen, so they parallax with the camera instead of
-     sliding across it like a decal on the glass.
+     One vertical gradient reads as a printed graphic, not as water. Two
+     layers give it depth, and both are anchored to WORLD coordinates rather
+     than the screen, so they parallax with the camera instead of sliding
+     across it like a decal on the glass.
 
-     Mottling is the slow volume of the water, caustics are the sun landing
-     on it, and the motes are what is actually suspended in it. */
+     Mottling is the slow volume of the water; the motes are what is
+     actually suspended in it. There is no third layer of drawn light:
+     sun shafts and drifting caustic streaks were both here and both went,
+     because a beam or a streak is a SHAPE, and a shape in the water reads
+     as a graphic laid over it however softly it is drawn. What is left is
+     only depth and matter, which is what the water is. */
   /* Everything the water is made of is clipped to the water. Above y = 0 is
      sky, and mottling drifting through it read as dirty weather. */
   function inWater(draw) {
@@ -845,31 +849,6 @@
         ctx.fillStyle = g;
         ctx.fillRect(px - rad, py - rad, rad * 2, rad * 2);
       }
-    }
-  }
-
-  /* Sunlight dapples the top of the water column and dies with depth. Soft
-     elongated streaks, drifting: a net pattern would read as a texture map,
-     and the point is that the light is moving. */
-  function drawCaustics(t) {
-    const ppm = L.ppm, o = L.ocean;
-    const DEPTH = 150;
-    if (cam.y > DEPTH) return;
-    for (let i = 0; i < 30; i++) {
-      const h1 = hsh(i * 13 + 1, 7), h2 = hsh(i * 29, 3);
-      const wy = h1 * DEPTH;
-      const fade = 1 - wy / DEPTH;
-      const wx = ((h2 * WORLD_W) + Math.sin(t * 0.28 + h1 * 6.28) * 26 + t * 1.6) % WORLD_W;
-      const px = sx(wx), py = sy(wy);
-      if (py < o.y - 30 || py > o.y + o.h + 30) continue;
-      const w = (11 + h2 * 22) * ppm, h = (0.7 + h1 * 1.9) * ppm;
-      const a = 0.3 * fade * fade * (0.5 + 0.5 * Math.sin(t * 0.9 + i));
-      const g = ctx.createLinearGradient(px - w / 2, 0, px + w / 2, 0);
-      g.addColorStop(0, 'rgba(196,238,252,0)');
-      g.addColorStop(0.5, 'rgba(196,238,252,' + a.toFixed(3) + ')');
-      g.addColorStop(1, 'rgba(196,238,252,0)');
-      ctx.fillStyle = g;
-      ctx.fillRect(px - w / 2, py - h / 2, w, h);
     }
   }
 
@@ -945,30 +924,7 @@
       }
       ctx.stroke();
     }
-    /* Sun shafts. Each one is a wide faint pass with a narrow bright core
-       inside it: a single quad has razor-cut edges and reads as a printed
-       triangle rather than as light in water. */
-    if (cam.y < 96) {
-      for (let i = 0; i < 6; i++) {
-        const wx0 = 6 + i * 56 + Math.sin(t * 0.1 + i * 2) * 11;
-        for (const [wide, alpha] of [[1.9, 0.05], [1, 0.085]]) {
-          const sg2 = ctx.createLinearGradient(0, sy(0), 0, sy(84));
-          sg2.addColorStop(0, 'rgba(176,224,240,' + alpha + ')');
-          sg2.addColorStop(0.55, 'rgba(176,224,240,' + (alpha * 0.45).toFixed(3) + ')');
-          sg2.addColorStop(1, 'rgba(176,224,240,0)');
-          ctx.fillStyle = sg2;
-          const w0 = 16 * wide, spread = 22 * wide;
-          ctx.beginPath();
-          ctx.moveTo(sx(wx0 - (w0 - 16) / 2), sy(0));
-          ctx.lineTo(sx(wx0 + w0 - (w0 - 16) / 2), sy(0));
-          ctx.lineTo(sx(wx0 + w0 + spread - (w0 - 16) / 2), sy(84));
-          ctx.lineTo(sx(wx0 + spread - (w0 - 16) / 2), sy(84));
-          ctx.closePath(); ctx.fill();
-        }
-      }
-    }
-
-    inWater(() => { drawMottle(t); drawCaustics(t); });
+    inWater(() => drawMottle(t));
     drawFish(t);
     drawTiles(t);
     inWater(() => drawMotes(t));
