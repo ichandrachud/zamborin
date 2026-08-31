@@ -129,19 +129,19 @@
      hard rock at 3. The fleet ladder is the region progression. Prices are
      starting guesses for the Milestone-6 gate to re-price. */
   const FLEET = [
-    { name: 'Minnow',     file: 'sub-1.png', lenM: 13.5, price: 0,
+    { name: 'Minnow', hull: 'minnow',     file: 'sub-1.png', lenM: 13.5, price: 0,
       st: { AIR: 1, CARGO: 1, BATT: 1, SPEED: 2, LAMP: 1, DRILL: 1 },
       blurb: 'Small, brave, and full of hope.' },
-    { name: 'Lagoon',     file: 'sub-2.png', lenM: 14, price: 250,
+    { name: 'Lagoon', hull: 'lagoon',     file: 'sub-2.png', lenM: 14, price: 250,
       st: { AIR: 3, CARGO: 1, BATT: 2, SPEED: 1, LAMP: 2, DRILL: 1 },
       blurb: 'Twin tanks and no hurry. Breathes like a whale.' },
-    { name: 'Bluefin',    file: 'sub-3.png', lenM: 14, price: 600,
+    { name: 'Bluefin', hull: 'bluefin',    file: 'sub-3.png', lenM: 14, price: 600,
       st: { AIR: 2, CARGO: 2, BATT: 2, SPEED: 3, LAMP: 1, DRILL: 2 },
       blurb: 'A porthole for every thought, and quick through a gallery.' },
-    { name: 'Sunfish',    file: 'sub-4.png', lenM: 14.5, price: 1100,
+    { name: 'Sunfish', hull: 'sunfish',    file: 'sub-4.png', lenM: 14.5, price: 1100,
       st: { AIR: 2, CARGO: 3, BATT: 2, SPEED: 2, LAMP: 2, DRILL: 2 },
       blurb: 'The friendly workhorse. Room for a little of everything.' },
-    { name: 'Dredger',    file: 'sub-5.png', lenM: 15, price: 1800,
+    { name: 'Dredger', hull: 'dredger',    file: 'sub-5.png', lenM: 15, price: 1800,
       st: { AIR: 2, CARGO: 5, BATT: 2, SPEED: 1, LAMP: 2, DRILL: 3 },
       blurb: 'A hold like a warehouse. Turns like one too.' },
     { name: 'Ember',      file: 'sub-6.png', lenM: 15, price: 2800,
@@ -164,12 +164,14 @@
 
      SUB_FILE stands in for all nine until the rest of the new submersible
      set exists; FLEET keeps each boat's own `file` for when it does. */
-  const SUB_FILE = 'submersible-01.png';
   const SUB_BLOCKS = 1;
-  const SUBIMGS = FLEET.map(() => {
+  /* Each boat draws its own hull once the art exists; the rest borrow the
+     Minnow's until theirs is made, which is why `hull` is optional. Four are
+     in as of 2026-08-31: Minnow, Lagoon, Bluefin, Sunfish, Dredger. */
+  const SUBIMGS = FLEET.map(f => {
     const im = new Image();
     im.onload = () => { im._ok = true; };
-    im.src = './assets/' + SUB_FILE + '?v=1';
+    im.src = './assets/hull-' + (f.hull || 'minnow') + '.png?v=1';
     return im;
   });
   // Metres, from the sprite's own proportions. The art is cropped tight, so
