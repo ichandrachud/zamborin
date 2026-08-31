@@ -1674,14 +1674,23 @@
     }
     fogCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
     fogCtx.clearRect(0, 0, LW, LH);
+    /* The dark begins at the seabed, and it has to ARRIVE rather than switch
+       on. The solid fill used to start at fogTop and the softening gradient
+       was then painted over the top of it, so the two overlapped: one pixel
+       above the line carried 0.40 of fog and one pixel below carried 0.94.
+       That step was a hard horizontal rule across the whole ocean.
+
+       They no longer overlap. The gradient owns the band and the solid fill
+       starts where the gradient has already reached full. */
     const fogTop = sy(seabedY);
+    const bandTop = fogTop - 40, bandBot = fogTop + 110;
     fogCtx.fillStyle = 'rgba(2,7,12,0.9)';
-    fogCtx.fillRect(0, Math.max(o.y, fogTop), LW, LH);
-    // Soften where the dark begins, so the seabed is a threshold, not a lid.
-    const fg = fogCtx.createLinearGradient(0, fogTop - 34, 0, fogTop + 42);
-    fg.addColorStop(0, 'rgba(2,7,12,0)'); fg.addColorStop(1, 'rgba(2,7,12,0.9)');
+    fogCtx.fillRect(0, Math.max(o.y, bandBot), LW, LH);
+    const fg = fogCtx.createLinearGradient(0, bandTop, 0, bandBot);
+    fg.addColorStop(0, 'rgba(2,7,12,0)');
+    fg.addColorStop(1, 'rgba(2,7,12,0.9)');
     fogCtx.fillStyle = fg;
-    fogCtx.fillRect(0, fogTop - 34, LW, 76);
+    fogCtx.fillRect(0, bandTop, LW, bandBot - bandTop);
 
     fogCtx.globalCompositeOperation = 'destination-out';
     const px = sx(run.x), py = sy(run.y), lr = run.lampR() * ppm;
