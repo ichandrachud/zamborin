@@ -262,6 +262,11 @@
      eye compares a chunk to the hull. Do not restate these as a fraction of
      a tile — the tile is not what the player is measuring against. */
   const ORE_H = { nodule: 2.8, sulphide: 2.6, crystal: 3.4 };
+  /* Owner call, 2026-08-31: 20% bigger, and centred in the cell rather than
+     resting on its floor. The locked heights above stay as written so the
+     ratio between the three ores is untouched and one number carries the
+     change. Effective: 3.36 / 3.12 / 4.08 m. */
+  const ORE_SCALE = 1.2;
 
   function pickSprite(key, salt) {
     const arr = IMG[key];
@@ -599,7 +604,14 @@
 
      This is not the M5 reef. That one follows the water into the tunnels you
      dug and ages with your history. This is the ocean simply being alive in
-     the part of it you can see, which the player meets on every single dive. */
+     the part of it you can see, which the player meets on every single dive.
+
+     Drawn BEHIND the rock, on the owner's call. Sitting on top, every stem
+     met the ground on the same ruled horizontal line and read as placed
+     rather than grown, which the irregular carved top edge made worse. With
+     the base hidden behind the tile the eye never sees where the plant meets
+     the floor and fills in a root, and the buried depth varies per plant so
+     the line itself disappears. */
   const FLORA_TO = TUNE.SEA_ROWS + 6;      // last row that still gets planted
   function drawFlora(t) {
     const W = run.world, ppm = L.ppm, s = TILE * ppm;
@@ -620,7 +632,10 @@
         const wd = im ? ht * (im.width / im.height) : ht * 0.6;
         // rooted on the tile's top face, leaning a little with the water
         const bx = sx(cc * TILE + TILE * (0.2 + h * 1.2));
-        const by = sy(rr * TILE) + s * 0.06;
+        /* Sunk into the tile by a share of its own height, varied per plant,
+           so no two meet the rock at the same depth and the ruled line goes. */
+        const bury = ht * (0.16 + hsh(cc + 9, rr + 23) * 0.26);
+        const by = sy(rr * TILE) + bury;
         const sway = Math.sin(t * 0.6 + h2 * 6.28) * 0.035;
         ctx.save();
         ctx.translate(bx, by);
@@ -1031,8 +1046,8 @@
     }
     inWater(() => drawMottle(t));
     drawFish(t);
-    drawTiles(t);
     drawFlora(t);
+    drawTiles(t);
     drawIntakes(t);
     drawRelics(t);
     drawPush(t);
@@ -1260,14 +1275,14 @@
         const oreKey = SIM.ORE_OF[ty];
         if (oreKey) {
           const im = pickSprite(oreKey, cc * 3 + rr);
-          const oh = ORE_H[oreKey] * L.ppm;
+          const oh = ORE_H[oreKey] * L.ppm * ORE_SCALE;
           if (im) {
             const ow = oh * (im.width / im.height);
-            ctx.drawImage(im, px + (s - ow) / 2, py + s - oh - s * 0.14, ow, oh);
+            ctx.drawImage(im, px + (s - ow) / 2, py + (s - oh) / 2, ow, oh);
           } else {
             ctx.fillStyle = oreKey === 'crystal' ? '#9FD8E8' : oreKey === 'sulphide' ? '#E0B24E' : '#C98A5A';
             ctx.beginPath();
-            ctx.ellipse(px + s * 0.5, py + s - oh * 0.5 - s * 0.14, oh * 0.55, oh * 0.42, 0, 0, Math.PI * 2);
+            ctx.ellipse(px + s * 0.5, py + s * 0.5, oh * 0.55, oh * 0.42, 0, 0, Math.PI * 2);
             ctx.fill();
           }
         }
