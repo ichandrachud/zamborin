@@ -711,6 +711,19 @@
       floatText('GAS POCKET', ev.x, ev.y - 6, C_SUN);
       if (sfx) sfx.noise(0.4, 300, 0.8, 0.12);
       T().track('gas_burst', { depth: Math.round(run.y) });
+    } else if (ev.t === 'relic-land') {
+      /* One deep thud. It is noise 4 in the sim, the loudest thing short of a
+         gas burst, and at M5 it is what the deep hears. */
+      shake = Math.max(shake, 0.34);
+      if (sfx) { sfx.tone(74, 0.42, 0.06, 'sine'); sfx.noise(0.2, 130, 0.6, 0.05); }
+      spawnSilt(ev.x, ev.y + TILE * 0.4);
+    } else if (ev.t === 'relic-captured') {
+      if (sfx) {
+        sfx.play('success');
+        setTimeout(() => { if (sfx) sfx.tone(520, 0.3, 0.05, 'triangle'); }, 140);
+      }
+      floatText(ev.type.toUpperCase() + ' SECURED  ·  $' + ev.val, ev.x, ev.y - 9, C_SUN);
+      T().track('relic_recovered', { type: ev.type, val: ev.val, region: Math.max(0, run.regionAt(ev.y)) });
     } else if (ev.t === 'region') {
       floatText(ev.name.toUpperCase(), run.x, run.y - 11, C_BRAND);
       if (sfx) sfx.play('ping');
@@ -927,6 +940,8 @@
     inWater(() => drawMottle(t));
     drawFish(t);
     drawTiles(t);
+    drawBells(t);
+    drawRelics(t);
     inWater(() => drawMotes(t));
     drawSub(t);
     drawBubbles();
@@ -1136,6 +1151,95 @@
     }
   }
 
+
+  /* ---------- RELICS AND BELLS ----------
+     No art for these yet, so they are painted: a warm faceted block for the
+     treasure, a cold funnel for the bell. Both follow the house rule that an
+     edge is made of value and never of an outline.
+
+     The asymmetry is deliberate. A relic does NOT pierce the fog, so finding
+     one is still exploring. A bell does, so once you are holding a problem
+     you can always see where the answer is. */
+  function drawRelics(t) {
+    const ppm = L.ppm;
+    for (const rl of run.world.relics) {
+      if (rl.captured) continue;
+      const px = sx(rl.x), py = sy(rl.y);
+      if (px < -60 || px > LW + 60 || py < -60 || py > LH + 60) continue;
+      const w = 5.0 * ppm, h = 4.4 * ppm;
+      // A held-in glow, tight, so it reads as precious rather than lit.
+      const gl = ctx.createRadialGradient(px, py, 0, px, py, w * 0.95);
+      gl.addColorStop(0, 'rgba(255,206,130,0.30)');
+      gl.addColorStop(0.45, 'rgba(255,190,110,0.09)');
+      gl.addColorStop(1, 'rgba(255,190,110,0)');
+      ctx.fillStyle = gl;
+      ctx.beginPath(); ctx.arc(px, py, w * 0.95, 0, Math.PI * 2); ctx.fill();
+      // The body: light from up and slightly left, as everywhere else.
+      const g = ctx.createLinearGradient(px - w * 0.4, py - h * 0.5, px + w * 0.35, py + h * 0.5);
+      g.addColorStop(0, '#F6D089'); g.addColorStop(0.45, '#C98F3C'); g.addColorStop(1, '#6E4718');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.moveTo(px - w * 0.32, py - h * 0.46);
+      ctx.lineTo(px + w * 0.32, py - h * 0.46);
+      ctx.lineTo(px + w * 0.44, py + h * 0.2);
+      ctx.lineTo(px + w * 0.2,  py + h * 0.48);
+      ctx.lineTo(px - w * 0.2,  py + h * 0.48);
+      ctx.lineTo(px - w * 0.44, py + h * 0.2);
+      ctx.closePath(); ctx.fill();
+      // One facet catching the lamp.
+      ctx.fillStyle = 'rgba(255,240,205,0.28)';
+      ctx.beginPath();
+      ctx.moveTo(px - w * 0.26, py - h * 0.38);
+      ctx.lineTo(px + w * 0.06, py - h * 0.38);
+      ctx.lineTo(px - w * 0.1,  py + h * 0.04);
+      ctx.closePath(); ctx.fill();
+    }
+  }
+
+  function drawBells(t) {
+    const ppm = L.ppm, TILEp = TILE * ppm;
+    for (const b of run.world.bells) {
+      const wx = b.c * TILE + TILE / 2, wy = b.r * TILE + TILE / 2;
+      const px = sx(wx), py = sy(wy);
+      if (px < -80 || px > LW + 80 || py < -90 || py > LH + 90) continue;
+      const w = TILEp * 0.72, h = TILEp * 0.66;
+      /* The cable, rising out of the top and into the dark. It explains the
+         whole payout without a word: things put here go up. */
+      ctx.strokeStyle = 'rgba(196,224,236,0.34)';
+      ctx.lineWidth = Math.max(1.2, ppm * 0.16);
+      ctx.beginPath();
+      ctx.moveTo(px, py - h * 0.52);
+      ctx.lineTo(px + Math.sin(t * 0.5) * ppm * 0.3, py - TILEp * 3.2);
+      ctx.stroke();
+      // The mouth: a funnel, wide side up, waiting.
+      const g = ctx.createLinearGradient(0, py - h * 0.5, 0, py + h * 0.5);
+      g.addColorStop(0, '#9FC4D4'); g.addColorStop(0.5, '#4E7A8E'); g.addColorStop(1, '#223D4C');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.moveTo(px - w * 0.5, py - h * 0.42);
+      ctx.lineTo(px + w * 0.5, py - h * 0.42);
+      ctx.lineTo(px + w * 0.28, py + h * 0.5);
+      ctx.lineTo(px - w * 0.28, py + h * 0.5);
+      ctx.closePath(); ctx.fill();
+      // A lit rim, so the mouth reads as open.
+      ctx.strokeStyle = 'rgba(206,238,250,0.55)';
+      ctx.lineWidth = Math.max(1.5, ppm * 0.2);
+      ctx.beginPath();
+      ctx.moveTo(px - w * 0.5, py - h * 0.42);
+      ctx.lineTo(px + w * 0.5, py - h * 0.42);
+      ctx.stroke();
+      // The beacon: a thin bright core with a tight feather, never a wash.
+      const pulse = 0.5 + 0.5 * Math.sin(t * 2.1);
+      const br = ppm * (0.55 + pulse * 0.3);
+      const bg = ctx.createRadialGradient(px, py - h * 0.62, 0, px, py - h * 0.62, br * 3.4);
+      bg.addColorStop(0, 'rgba(150,232,255,' + (0.6 + pulse * 0.35).toFixed(2) + ')');
+      bg.addColorStop(0.3, 'rgba(120,210,245,0.22)');
+      bg.addColorStop(1, 'rgba(120,210,245,0)');
+      ctx.fillStyle = bg;
+      ctx.beginPath(); ctx.arc(px, py - h * 0.62, br * 3.4, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
   function drawSub(t) {
     const ppm = L.ppm;
     const px = sx(run.x), py = sy(run.y);
@@ -1226,6 +1330,19 @@
         fogCtx.fillStyle = mg;
         fogCtx.beginPath(); fogCtx.arc(mx, my, mr, 0, Math.PI * 2); fogCtx.fill();
       }
+    }
+    /* Bells read beyond the lamp. Finding a relic stays exploration; knowing
+       where to take one should never be. */
+    for (const b of W.bells) {
+      const bx = sx(b.c * TILE + TILE / 2), by = sy(b.r * TILE + TILE / 2);
+      if (bx < -140 || bx > LW + 140 || by < -140 || by > LH + 140) continue;
+      const brr = TILE * ppm * 1.5;
+      const bgr = fogCtx.createRadialGradient(bx, by, 0, bx, by, brr);
+      bgr.addColorStop(0, 'rgba(0,0,0,0.9)');
+      bgr.addColorStop(0.5, 'rgba(0,0,0,0.45)');
+      bgr.addColorStop(1, 'rgba(0,0,0,0)');
+      fogCtx.fillStyle = bgr;
+      fogCtx.beginPath(); fogCtx.arc(bx, by, brr, 0, Math.PI * 2); fogCtx.fill();
     }
     fogCtx.globalCompositeOperation = 'source-over';
     ctx.drawImage(fogCan, 0, 0, LW, LH);
@@ -1974,10 +2091,16 @@
     if (card === 'rules') drawRulesCard(now);
     else if (card === 'fleet') drawFleetCard();
     else if (card === 'banked' && cardData) {
-      drawEndCard('HAUL BANKED', fmtMoney(cardData.val) + ' banked · ' + cardData.kg + ' kg',
-        [['Deepest point', cardData.depth + ' m'],
-         ['Tiles cut', String(run.digTiles)],
-         ['Bank total', fmtMoney(run.money)]]);
+      drawEndCard('HAUL BANKED',
+        cardData.relic > 0 ? fmtMoney(cardData.val + cardData.relic) + ' banked · salvage claimed'
+                           : fmtMoney(cardData.val) + ' banked · ' + cardData.kg + ' kg',
+        cardData.relic > 0
+          ? [['Ore', fmtMoney(cardData.val) + ' · ' + cardData.kg + ' kg'],
+             ['Salvage from the bells', fmtMoney(cardData.relic)],
+             ['Bank total', fmtMoney(run.money)]]
+          : [['Deepest point', cardData.depth + ' m'],
+             ['Tiles cut', String(run.digTiles)],
+             ['Bank total', fmtMoney(run.money)]]);
     } else if (card === 'blackout' && cardData) {
       drawEndCard('BLACKOUT', 'The tank ran dry at ' + cardData.depth + ' m',
         [['Haul lost', fmtMoney(cardData.lostVal) + ' · ' + cardData.lostKg + ' kg'],
@@ -2038,6 +2161,12 @@
       setCargo: (kg) => { run.cargo = [{ type: 'nodule', kg, val: 0 }]; run.cargoKg = kg; },
       newRun: (s) => { run = new SIM.Run(s >>> 0); applyFleet(); },
       tileAt: (c, r) => run.world.at(c, r),
+      relics: () => run.world.relics.map(r => ({ type: r.type, c: r.c, r: r.r,
+                     x: +r.x.toFixed(1), y: +r.y.toFixed(1), state: r.state,
+                     settled: r.settled, captured: r.captured, val: r.val })),
+      bells: () => run.world.bells.map(b => ({ c: b.c, r: b.r })),
+      dig: (c, r) => { run.world.set(c, r, 0); run._wakeRelics(); },
+      pendingRelic: () => run.pendingRelic,
       openCard: (c) => { card = c; },
       closeCard: () => { card = null; },
       setScheme: (s) => { scheme = s; },

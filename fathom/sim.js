@@ -81,7 +81,12 @@ const TUNE = {
 
   // ---- relics (M3) ----
   relicVals: { idol: 400, strongbox: 700, megacrystal: 1200, heart: 2000 },
-  relicFall: 30, relicNoise: 4, bellsPerRegion: [0, 1, 2, 2],
+  relicFall: 30, relicNoise: 4,
+  /* [0,1,2,2] put no bell in the starting region, which hid the signature
+     mechanic until 270 m. The Shelf gets one so the first session contains it. */
+  bellsPerRegion: [1, 1, 2, 2],
+  relicSlideS: 0.26,            // seconds to topple one cell sideways
+  relicKg: 900,                 // far above max lift, and that is the point
 
   // ---- hull & magma ----
   hullPips: 5, magmaPipsPer2s: 1, scrapeSpeed: 55, magmaMeltS: 20,
@@ -147,8 +152,32 @@ const isFixedType = (t) => t === T_BED || t === T_MAGMA;
 const STAMP_CHARS = { '~': T_WATER, 'S': T_SILT, '#': T_ROCK, 'H': T_HARD,
                       'n': T_NOD, 's': T_SUL, 'c': T_CRY, 'g': T_GAS,
                       'M': T_MAGMA, 'B': T_BED };
+/* R and L are not materials. They are a relic anchor and a salvage bell, and
+   the stamper records them as entities and leaves open water in the cell. */
+const STAMP_ENTS = { 'R': 'relic', 'L': 'bell' };
 
 const LANDMARKS = [
+  /* The Cradle. The one authored encounter that teaches fall-routing without
+     a word: the relic sits on a ledge, the bell stands at the foot of a
+     stepped floor, and both are inside one chamber so you can see the prize
+     and its destination at the same time. Cut the ledge and the ocean does
+     the rest. Verified by simulation, not by eye. */
+  { region: 0, key: 'cradle', name: 'The Cradle', always: true, rows: [
+    '###############',
+    '#~~~~~~~~~~~~~#',
+    '#~~~~~~~~~R~~~#',
+    '#~~~~~~~~###~~#',
+    '#~~~~~~~~~~~~~#',
+    '#~~~~~~~~~#####',
+    '#~~~~~~~~~~~~~#',
+    '#~~~~~~~~~~~~~#',
+    '#~~~~~~~~######',
+    '#~~~~~~~~~~~~~#',
+    '#~~~~~~~~~~~~~#',
+    '#~~~~~~~#######',
+    '#~~~~~~L~~~~~~#',
+    '###############',
+  ] },
   { region: 0, key: 'nursery', name: 'The Nursery', rows: [
     '..############..',
     '.##~~~~~~~~~~##.',
@@ -227,12 +256,29 @@ function World(seed, tuneOverride) {
   this.depthM = t.ROWS * t.TILE;
   this.grid = new Uint8Array(t.COLS * t.ROWS);      // 0 = WATER
   this.landmarks = [];                              // {key, name, c, r, w, h}
+  this.relics = [];                                 // treasures too heavy to lift
+  this.bells = [];                                  // where they are delivered
   this.startX = Math.round(t.COLS / 2) * t.TILE;    // the dive starts mid-map
   this._generate();
   /* The pristine grid, kept so a save can be replayed as
      "the world, then everything you dug out of it". */
   this.pristine = this.grid.slice();
 }
+
+/* A relic or a bell found in a stamp. Relics carry a value by region so the
+   deep is worth the trouble; the Shelf's is the cheap one you learn on. */
+World.prototype._place = function (kind, c, r, lm) {
+  const t = this.tune, TILE = t.TILE;
+  if (kind === 'bell') { this.bells.push({ c, r, region: lm ? lm.region : 0 }); return; }
+  const byRegion = ['idol', 'strongbox', 'megacrystal', 'heart'];
+  const type = byRegion[Math.min(3, lm ? lm.region : 0)];
+  this.relics.push({
+    type, val: t.relicVals[type], kg: t.relicKg,
+    c, r, x: c * TILE + TILE / 2, y: r * TILE + TILE / 2,
+    state: 'rest', settled: false, dir: -1,
+    slideT: 0, fromX: 0, toC: c, captured: false,
+  });
+};
 
 World.prototype.regionOf = function (r) {
   const rr = this.tune.regionRows;
@@ -413,15 +459,25 @@ World.prototype._generate = function () {
     const top = rr[lm.region] + 2;
     const bot = (lm.region + 1 < rr.length ? rr[lm.region + 1] : lastRock) - h - 1;
     if (bot <= top) continue;
-    let c0 = 1 + Math.floor(rng() * Math.max(1, COLS - w - 2));
-    const mid = Math.round(COLS / 2);
-    if (c0 < mid && c0 + w > mid) c0 = (c0 + w / 2 < mid) ? Math.max(1, mid - w - 1) : Math.min(COLS - w - 1, mid + 2);
-    const r0 = top + Math.floor(rng() * (bot - top));
+    let c0, r0;
+    if (lm.always) {
+      /* The teaching stamp is not left to the seed. It sits just under the
+         dive column, near enough that the first session finds it. */
+      c0 = Math.max(1, Math.min(COLS - w - 1, Math.round(COLS / 2) - Math.round(w / 2)));
+      r0 = top + 2;
+    } else {
+      c0 = 1 + Math.floor(rng() * Math.max(1, COLS - w - 2));
+      const mid = Math.round(COLS / 2);
+      if (c0 < mid && c0 + w > mid) c0 = (c0 + w / 2 < mid) ? Math.max(1, mid - w - 1) : Math.min(COLS - w - 1, mid + 2);
+      r0 = top + Math.floor(rng() * (bot - top));
+    }
     for (let rr2 = 0; rr2 < h; rr2++) {
       const line = lm.rows[rr2];
       for (let cc = 0; cc < w; cc++) {
         const ch = line[cc];
         if (ch === '.' || ch === undefined) continue;
+        const ent = STAMP_ENTS[ch];
+        if (ent) { this.set(c0 + cc, r0 + rr2, T_WATER); this._place(ent, c0 + cc, r0 + rr2, lm); continue; }
         const v = STAMP_CHARS[ch];
         if (v === undefined) continue;
         this.set(c0 + cc, r0 + rr2, v);
@@ -511,6 +567,7 @@ function Run(seed, tuneOverride) {
   this.dives = 0;
   this.bestDepth = 0;
   this.digTiles = 0;                     // per run, for analytics
+  this.pendingRelic = 0;                 // in a bell, paid on the next surfacing
   this.mode = 'dive';                    // 'dive' | 'blackout' | 'breach'
   this.events = [];
   this._acc = 0;
@@ -614,12 +671,13 @@ Run.prototype._fixed = function (inp, h) {
     this.air = Math.min(this.airMax(), this.air + t.surfaceRegen * h);
     this.batt = Math.min(this.battMax(), this.batt + t.surfaceRegen * h);
     if (this.hull < t.hullPips) this.hull = t.hullPips;    // repairs are free up here
-    if (this.cargo.length) {
+    if (this.cargo.length || this.pendingRelic > 0) {
       let val = 0, kg = 0;
       for (const c of this.cargo) { val += c.val; kg += c.kg; }
-      this.money += val;
-      this.cargo = []; this.cargoKg = 0;
-      this.events.push({ t: 'banked', val, kg, depth: Math.round(this.bestDepth) });
+      const relic = this.pendingRelic;
+      this.money += val + relic;
+      this.cargo = []; this.cargoKg = 0; this.pendingRelic = 0;
+      this.events.push({ t: 'banked', val, kg, relic, depth: Math.round(this.bestDepth) });
     }
   } else {
     this.air -= t.lifeSupport * h;
@@ -718,6 +776,7 @@ Run.prototype._fixed = function (inp, h) {
           this.progress.delete(key);
           W.set(dc, dr, T_WATER);
           this.digTiles++;
+          this._wakeRelics();
           this._broke(type, dc, dr);
         } else {
           this.progress.set(key, p);
@@ -725,6 +784,8 @@ Run.prototype._fixed = function (inp, h) {
       }
     }
   }
+
+  this._stepRelics(h);
 
   // ---------- DROP CARGO ----------
   if (inp.jettison && this.cargo.length) {
@@ -750,6 +811,82 @@ Run.prototype._fixed = function (inp, h) {
              : this._thrusting ? N.thrust : N.hover;
 
   this.holdFull = false;
+};
+
+
+/* ---------- FALL-ROUTING ----------
+   A relic is far above max lift, so it never enters the hold and never rises.
+   It obeys three rules and there is no fourth: water below, it falls; rock
+   below but an open edge beside it, it topples in; rock below and to both
+   sides, it settles. That is the whole mechanic, and it means you do not dig
+   a hole under a relic — you carve a chute, and the ocean does the carrying.
+
+   Settled relics stop being evaluated until something is dug, so a hundred
+   of them cost nothing per frame. */
+Run.prototype._stepRelics = function (h) {
+  const t = this.tune, TILE = t.TILE, W = this.world;
+  const open = (c, r) => !isSolidType(W.at(c, r));
+  for (const rl of W.relics) {
+    if (rl.captured || rl.settled) continue;
+
+    if (rl.state === 'slide') {
+      rl.slideT += h / t.relicSlideS;
+      const to = rl.toC * TILE + TILE / 2;
+      if (rl.slideT >= 1) { rl.c = rl.toC; rl.x = to; rl.state = 'rest'; }
+      else rl.x = rl.fromX + (to - rl.fromX) * rl.slideT;
+      continue;
+    }
+
+    if (rl.state === 'fall') {
+      rl.y += t.relicFall * h;
+      const br = Math.floor((rl.y + TILE / 2) / TILE);
+      if (isSolidType(W.at(rl.c, br))) {
+        rl.r = br - 1;
+        rl.y = rl.r * TILE + TILE / 2;
+        rl.state = 'rest';
+        this.noise = Math.max(this.noise, t.noise.relicLand);
+        this.events.push({ t: 'relic-land', type: rl.type, x: rl.x, y: rl.y });
+      } else {
+        rl.r = Math.floor(rl.y / TILE);
+      }
+      continue;
+    }
+
+    // rest: decide what this cell allows.
+    if (this._bellAt(rl.c, rl.r)) { this._capture(rl); continue; }
+    if (open(rl.c, rl.r + 1)) { rl.state = 'fall'; continue; }
+    /* Both edges open is a real tie. It resolves to the way the relic was
+       already going, so a chute reads as one continuous movement rather than
+       the object dithering at every step. */
+    const canL = open(rl.c - 1, rl.r + 1), canR = open(rl.c + 1, rl.r + 1);
+    let dir = 0;
+    if (canL && canR) dir = rl.dir;
+    else if (canL) dir = -1;
+    else if (canR) dir = 1;
+    if (dir === 0) { rl.settled = true; continue; }
+    rl.dir = dir;
+    rl.state = 'slide'; rl.slideT = 0; rl.fromX = rl.x; rl.toC = rl.c + dir;
+  }
+};
+
+Run.prototype._bellAt = function (c, r) {
+  for (const b of this.world.bells) if (b.c === c && b.r === r) return b;
+  return null;
+};
+
+/* Delivered. Nothing travels upward: the bell holds it, and the claim is
+   filed the next time you surface. */
+Run.prototype._capture = function (rl) {
+  rl.captured = true; rl.settled = true;
+  this.pendingRelic += rl.val;
+  this.events.push({ t: 'relic-captured', type: rl.type, val: rl.val, x: rl.x, y: rl.y });
+};
+
+/* Digging anywhere wakes every settled relic: the floor it was resting on
+   may be the one that just went. Cheap, and it means a relic can always be
+   re-routed by digging further beneath it. */
+Run.prototype._wakeRelics = function () {
+  for (const rl of this.world.relics) if (!rl.captured) rl.settled = false;
 };
 
 Run.prototype._broke = function (type, c, r) {
@@ -813,6 +950,12 @@ Run.prototype.saveState = function () {
     dug: this.world.diff(),
     best: Math.round(this.bestDepth),
     seen: this.regionsSeen.map(b => b ? 1 : 0),
+    /* Where every relic came to rest, and which ones are already in a bell.
+       Without this a relic you spent a dive routing would be back on its
+       anchor next session, and a delivered one would come back to be sold
+       twice. Order matches generation, which is seeded, so it is stable. */
+    rel: this.world.relics.map(r => [r.c, r.r, r.captured ? 1 : 0]),
+    pend: Math.round(this.pendingRelic),
   };
 };
 Run.prototype.loadWorldState = function (s) {
@@ -820,6 +963,18 @@ Run.prototype.loadWorldState = function (s) {
   const n = this.world.applyDiff(s.dug);
   this.bestDepth = Math.max(0, s.best | 0);
   if (Array.isArray(s.seen)) this.regionsSeen = s.seen.map(v => !!v);
+  if (Array.isArray(s.rel)) {
+    const TILE = this.tune.TILE;
+    for (let i = 0; i < this.world.relics.length && i < s.rel.length; i++) {
+      const rl = this.world.relics[i], v = s.rel[i];
+      if (!Array.isArray(v)) continue;
+      rl.c = v[0] | 0; rl.r = v[1] | 0;
+      rl.x = rl.c * TILE + TILE / 2; rl.y = rl.r * TILE + TILE / 2;
+      rl.captured = !!v[2];
+      rl.state = 'rest'; rl.settled = rl.captured;
+    }
+  }
+  this.pendingRelic = Math.max(0, s.pend | 0);
   return n >= 0;
 };
 
