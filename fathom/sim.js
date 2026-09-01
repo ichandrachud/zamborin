@@ -60,7 +60,8 @@ const TUNE = {
 
   // ---- digging ----
   hardness: { silt: 0.7, rock: 1.7, hard: 3.2, nodule: 1.0, sulphide: 1.3,
-              crystal: 1.5, gas: 0.5 },
+              crystal: 1.5, gas: 0.5,
+              amber: 0.9, emerald: 1.4, ruby: 1.8, diamond: 2.4 },
   drillMul: [0.8, 1.0, 1.25, 1.55, 1.9], hardNeedsDrill: 3,
   digBatt: 2.2,
   digReach: 0.6,                // metres past the hull a held direction reaches
@@ -69,6 +70,19 @@ const TUNE = {
   ore: { nodule:   { kg: 20, val: 26 },
          sulphide: { kg: 12, val: 48 },
          crystal:  { kg: 5,  val: 95 } },
+  /* GEMS — a third category, not more ore. PROVISIONAL: these are the drafted
+     ladder numbers and the M2 gate has not run on them.
+
+     They are tiny and weightless, which would be fatal for anything you could
+     farm: priced as ore a hold of diamonds pays $144,000, more than the whole
+     ocean. Rarity is what makes it safe. Twenty one stones in an entire ocean,
+     so "best per kilogram" is a fact about something you cannot seek. Ore
+     fights the lift limit, relics are defeated by it, and gems ignore it. */
+  gem: { amber:   { kg: 1.5, val: 80,   h: 1.8 },
+         emerald: { kg: 2.0, val: 260,  h: 2.0 },
+         ruby:    { kg: 2.5, val: 1200, h: 2.3 },
+         diamond: { kg: 3.0, val: 6000, h: 2.8 } },
+  gemDensity: [0.0080, 0.0060, 0.0040, 0.0025],   // per band, rarer as it deepens
   veinLen: [3, 7],
   oreDensity: { shelf: 0.055, ribs: 0.038, blackreach: 0.028, foundry: 0.02 },
   veinShare: 0.55,              // of that density, the part that arrives in veins
@@ -124,17 +138,23 @@ const REGIONS = [
 // ---------- CELL STATES ----------
 const T_WATER = 0, T_SILT = 1, T_ROCK = 2, T_HARD = 3,
       T_NOD = 4, T_SUL = 5, T_CRY = 6,
-      T_GAS = 7, T_MAGMA = 8, T_BED = 9, T_AIR = 10;
+      T_GAS = 7, T_MAGMA = 8, T_BED = 9, T_AIR = 10,
+      T_AMBER = 11, T_EMERALD = 12, T_RUBY = 13, T_DIAMOND = 14;
 const T = { WATER: T_WATER, SILT: T_SILT, ROCK: T_ROCK, HARD: T_HARD,
             NOD: T_NOD, SUL: T_SUL, CRY: T_CRY, GAS: T_GAS,
-            MAGMA: T_MAGMA, BED: T_BED, AIR: T_AIR };
+            MAGMA: T_MAGMA, BED: T_BED, AIR: T_AIR,
+            AMBER: T_AMBER, EMERALD: T_EMERALD, RUBY: T_RUBY, DIAMOND: T_DIAMOND };
 
 const ORE_OF = {};
 ORE_OF[T_NOD] = 'nodule'; ORE_OF[T_SUL] = 'sulphide'; ORE_OF[T_CRY] = 'crystal';
+ORE_OF[T_AMBER] = 'amber'; ORE_OF[T_EMERALD] = 'emerald';
+ORE_OF[T_RUBY] = 'ruby'; ORE_OF[T_DIAMOND] = 'diamond';
 const HARD_KEY = {};
 HARD_KEY[T_SILT] = 'silt'; HARD_KEY[T_ROCK] = 'rock'; HARD_KEY[T_HARD] = 'hard';
 HARD_KEY[T_NOD] = 'nodule'; HARD_KEY[T_SUL] = 'sulphide';
 HARD_KEY[T_CRY] = 'crystal'; HARD_KEY[T_GAS] = 'gas';
+HARD_KEY[T_AMBER] = 'amber'; HARD_KEY[T_EMERALD] = 'emerald';
+HARD_KEY[T_RUBY] = 'ruby'; HARD_KEY[T_DIAMOND] = 'diamond';
 
 // A cell you can stand on / dig into. AIR (M4) is passable like water.
 const isSolidType = (t) => t !== T_WATER && t !== T_AIR;
@@ -456,6 +476,25 @@ World.prototype._generate = function () {
         if (d < 0.34) c += 1; else if (d < 0.68) c -= 1;
         r += rng() < 0.62 ? 1 : (rng() < 0.5 ? -1 : 0);
         c = clamp(c, 0, COLS - 1); r = clamp(r, top, bot);
+      }
+    }
+  }
+
+  /* 6. Gems. Scattered singly and never in veins, because a vein of diamonds
+        is a farm and the whole point is that you cannot seek them. Rarer with
+        depth and worth far more, so a shallow stone is a nice morning and a
+        deep one is an event. */
+  {
+    const GEM_T = [T_AMBER, T_EMERALD, T_RUBY, T_DIAMOND];
+    for (let reg = 0; reg < 4; reg++) {
+      const rr = t.regionRows;
+      const top = rr[reg];
+      const bot = (reg + 1 < rr.length ? rr[reg + 1] : lastRock + 1) - 1;
+      const n = Math.round((bot - top + 1) * COLS * t.gemDensity[reg]);
+      for (let i = 0; i < n; i++) {
+        const c = Math.floor(rng() * COLS), r = top + Math.floor(rng() * (bot - top + 1));
+        const v = g[r * COLS + c];
+        if (v === T_SILT || v === T_ROCK || v === T_HARD) g[r * COLS + c] = GEM_T[reg];
       }
     }
   }
@@ -959,7 +998,7 @@ Run.prototype._broke = function (type, c, r) {
   const wx = c * TILE + TILE / 2, wy = r * TILE + TILE / 2;
   const oreKey = ORE_OF[type];
   if (oreKey) {
-    const o = t.ore[oreKey];
+    const o = t.ore[oreKey] || t.gem[oreKey];
     if (this.cargoKg + o.kg <= this.cargoMax()) {
       this.cargo.push({ type: oreKey, kg: o.kg, val: o.val });
       this.cargoKg += o.kg;

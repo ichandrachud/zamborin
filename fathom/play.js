@@ -256,6 +256,16 @@
     im.src = './assets/relic-' + k + '.png?v=1';
     RELIC_ART[k] = im;
   }
+  /* Gem art, one file each rather than a family: there are only ever a handful
+     in an ocean, so variants would be seen once. */
+  const GEM_ART = {};
+  for (const k of ['amber', 'emerald', 'ruby', 'diamond']) {
+    const im = new Image();
+    im.onload = () => { im._ok = true; };
+    im.src = './assets/gem-' + k + '.png?v=1';
+    GEM_ART[k] = im;
+  }
+
   const INTAKE_ART = new Image();
   INTAKE_ART.onload = () => { INTAKE_ART._ok = true; };
   INTAKE_ART.src = './assets/intake-mouth.png?v=1';
@@ -810,10 +820,23 @@
 
   function handleEvent(ev) {
     if (ev.t === 'ore') {
-      const vpk = ev.val / ev.kg;
-      if (sfx) sfx.tone(480 + 58 * vpk, 0.1, 0.06, 'triangle');
-      floatText('+' + ev.kg + ' kg · $' + ev.val, ev.x, ev.y - 4, INK92);
-      spawnSilt(ev.x, ev.y);
+      const gem = TUNE.gem[ev.type];
+      if (gem) {
+        /* A stone is rare enough to be an event. It gets its name, its own
+           bright chime, and a scatter of bubbles rather than a silt cloud. */
+        if (sfx) {
+          sfx.tone(880, 0.16, 0.05, 'triangle');
+          setTimeout(() => { if (sfx) sfx.tone(1320, 0.22, 0.045, 'triangle'); }, 90);
+        }
+        floatText(ev.type.toUpperCase() + '  ·  $' + ev.val, ev.x, ev.y - 5, C_SUN);
+        spawnBubbles(10, ev.x, ev.y, TILE * 0.5, 6, 16);
+        T().track('gem_found', { type: ev.type, val: ev.val, depth: Math.round(run.y) });
+      } else {
+        const vpk = ev.val / ev.kg;
+        if (sfx) sfx.tone(480 + 58 * vpk, 0.1, 0.06, 'triangle');
+        floatText('+' + ev.kg + ' kg · $' + ev.val, ev.x, ev.y - 4, INK92);
+        spawnSilt(ev.x, ev.y);
+      }
     } else if (ev.t === 'dug') {
       spawnSilt(ev.x, ev.y);
     } else if (ev.t === 'hold-full') {
@@ -1283,8 +1306,13 @@
            submersible, and stopped reading as something you could carry. */
         const oreKey = SIM.ORE_OF[ty];
         if (oreKey) {
-          const im = pickSprite(oreKey, cc * 3 + rr);
-          const oh = ORE_H[oreKey] * L.ppm * ORE_SCALE;
+          const gem = TUNE.gem[oreKey];
+          const im = gem ? ((GEM_ART[oreKey] || {})._ok ? GEM_ART[oreKey] : null)
+                         : pickSprite(oreKey, cc * 3 + rr);
+          /* Gems carry their own height and skip ORE_SCALE. They are graded by
+             size on purpose: amber 1.8 m up to diamond 2.8 m, a 55% spread, so
+             the four are told apart by more than colour alone. */
+          const oh = (gem ? gem.h : ORE_H[oreKey] * ORE_SCALE) * L.ppm;
           if (im) {
             const ow = oh * (im.width / im.height);
             ctx.drawImage(im, px + (s - ow) / 2, py + (s - oh) / 2, ow, oh);
