@@ -79,8 +79,21 @@
     nByTier:  [8, 10, 12, 14, 16, 18, 20, 23, 26],
     sep: 46, coh: 0.55, align: 0.3, wander: 0.35, flyMax: 62,
     touchRadius: 120, pushMax: 95,
-    panicSpeed: 78, spookSecs: 1.6, spookRadius: 46,
-    jarPull: 40, mouthByTier: [120, 110, 100, 88, 80, 74, 66, 80, 64],
+    /* spookRadius 34, down from the brief's 46, swept against the careful and
+       careless bots together. The finding is the brief's own claim, measured:
+       turn contagion OFF and CARELESS play wins more levels than careful play
+       does, 5 of 9 against 4 of 9, because with nothing spreading there is
+       nothing a bad push costs you. Turn it on and care wins two to three
+       times as often. Splitting is not a hazard in this game, it is the entire
+       reason care is worth anything. 34 keeps that gap at its widest while
+       letting more levels actually finish. */
+    panicSpeed: 78, spookSecs: 1.6, spookRadius: 34,
+    /* jarShy REPLACES the brief's `jarPull: 40`. The sign is the whole point:
+       see the note in step(). How hard a fly steers AWAY from the jar, against
+       wander at 0.35 and cohesion at 0.55. */
+    jarShy: 1.6, jarShyR: 150,
+    jarCall: 2.6, jarCallR: 200,      // only ever felt inside your warmth
+    mouthByTier: [120, 110, 100, 88, 80, 74, 66, 80, 64],
     breeze: 22,
     // ---- spike constants, not in the brief ----
     /* HOW FAST THE WARMTH STOPS PUSHING once it is gone. 1.0 is a one-second
@@ -96,6 +109,32 @@
                          // cascade decays instead of locking the swarm open
     edgeMargin: 64, edgeForce: 210,
     thornR: 30, thornKick: 150,
+    /* THE WEB, and the reason there is a game here at all.
+       A web is visible to the PLAYER and invisible to the FLIES. That
+       asymmetry is the whole design: you are the only one in the garden who
+       can see what is coming, which is what makes walking a swarm home a
+       thing worth doing rather than a thing that happens. */
+    /* A WEB IS AN EVENT, NOT WEATHER. At radius 46 with four or five of them,
+       measured, a tier-9 level took 105 sticks in 240 seconds - one every 2.3
+       seconds - and a bot that rescued perfectly spent 158 of those seconds
+       doing nothing else. That is not a hazard you steer around, it is a
+       treadmill, and it left no time to play the game underneath. Smaller,
+       fewer, and with the silk needing a moment to be rebuilt after it lets
+       something go. */
+    webR: 30,
+    webCool: 4.5,        // seconds before torn silk can hold anything again
+    /* 12, not 7. At 7 the measured window from a fly sticking to the spider
+       reaching it was shorter than the time it takes to notice, cross the
+       garden and hold a push, so the loss was an ambush rather than a decision.
+       Twelve is long enough to be a choice and short enough to be a real one,
+       and it makes the spider's walk a slow dreadful thing you watch rather
+       than a snap you miss. */
+    spiderSecs: 12.0,    // from the first fly stuck to the spider reaching it
+    /* freePush is DERIVED, not set: see freeReach(). Kept here only so the
+       slider panel can show it. */
+    freePush: 0,
+    freeSecs: 1.4,       // held for this long, and it comes loose
+    webImmune: 3.0,      // grace after a rescue, so it cannot re-stick at once
     touchLift: MODE === 'mobile' ? 34 : 0,   // SCREEN px: lift the warmth clear
                                              // of the fingertip so the panic
                                              // ring is visible while herding
@@ -139,6 +178,15 @@
     if (f >= 1) return 0;                            // a full push cannot
     return TUNE.touchRadius * Math.sqrt(Math.max(0, 1 - Math.sqrt(f)));
   }
+  /* ONE RING, TWO MEANINGS, BOTH TRUE. The push needed to work a fly out of
+     silk is exactly the push that panics a free one, so the middle circle is
+     the answer to both questions the player ever asks of it: come no closer
+     than this to a swarm, and get this close to anything caught. Measured, the
+     two were already within ten units of each other by accident; deriving one
+     from the other makes it a rule instead of a coincidence, and keeps it true
+     after the skittishness dial moves. */
+  function freeReach() { return pushFalloff(panicRadius()); }
+
   // The push a fly feels at world distance d. Smooth at both ends: zero slope
   // at the centre and zero slope at the rim, so there is no edge to feel.
   function pushFalloff(d) {
@@ -231,17 +279,20 @@
   const LEVELS = 54;
   const tierOf = (lvl) => Math.min(8, Math.floor((lvl - 1) / 6));
 
-  function thornCountFor(tier) {
-    if (tier <= 0) return 0;
-    if (tier === 1) return 1;
-    if (tier === 2) return 1;
-    if (tier === 3) return 2;
-    if (tier === 4) return 4;      // the corridor
-    if (tier === 5) return 5;      // two islands
-    if (tier === 6) return 3;
-    if (tier === 7) return 3;
-    return 6;
-  }
+  // Thorns scatter, webs hold. Both are in play from T5 on, and a scattered
+  // fly bolting in a straight line near a web is the moment the two furniture
+  // types stop being two obstacles and start being one situation.
+  const THORNS = [0, 0, 1, 1, 4, 3, 2, 2, 3];
+  const WEBS   = [0, 1, 1, 1, 2, 2, 2, 3, 3];
+  /* HOW MANY THE JAR HOLDS, against how many are in the garden. The slack is
+     what a mistake spends. Losing one fly early costs you a spare; losing your
+     last spare costs you the level, and RESTART is always right there. This is
+     what lets loss be permanent without every slip meaning start again. */
+  /* The slack rises with the WEB COUNT rather than falling with the tier,
+     because the worst case a tier can throw at you is every web full at once,
+     and a tier with five webs and two spares is decided by one bad drift.
+     Difficulty still climbs: more flies, a narrower mouth, more thorns, wind. */
+  const SLACK  = [4, 4, 3, 3, 3, 3, 3, 3, 4];
   const breezeOn = (tier) => (tier === 2 || tier === 5 || tier === 8);
 
   function buildScene(lvl) {
@@ -287,7 +338,10 @@
         x: startX + Math.cos(a) * r,
         y: startY + Math.sin(a) * r,
         vx: (rnd() - 0.5) * 30, vy: (rnd() - 0.5) * 30,
-        sx: 0, sy: 0,                     // the shove the world has given it
+        sx: 0, sy: 0,                     // the shove a hand or a thorn gave it
+        wx: 0, wy: 0,                     // and the air it happens to be in
+        web: -1, hold: 1, immune: 0, freedAt: null,   // in silk, working loose
+        lost: false,
         cs: 0.62 + rnd() * 0.38,          // its own comfortable share of flyMax
         wa: rnd() * Math.PI * 2,          // wander heading
         ws: (rnd() - 0.5) * 1.4,          // wander turn rate
@@ -301,7 +355,7 @@
     // Thorns, kept off the jar and off the swarm's starting patch. Tier 5 is
     // the corridor: a line of bushes the swarm has to be walked around.
     const thorns = [];
-    const nThorn = thornCountFor(tier);
+    const nThorn = THORNS[tier];
     if (tier === 4) {
       const cy = A * (0.48 + rnd() * 0.08);
       for (let i = 0; i < nThorn; i++) {
@@ -321,6 +375,26 @@
       }
     }
 
+    /* Webs. Kept off the jar, off the swarm's starting patch, and off each
+       other and the thorns, so a level never opens with one already unwinnable
+       and never hides a web inside a thorn bush. */
+    const webs = [];
+    let wguard = 0;
+    while (webs.length < WEBS[tier] && wguard++ < 500) {
+      const x = A * (0.14 + rnd() * 0.72), y = A * (0.16 + rnd() * 0.62);
+      if (Math.hypot(x - jar.mx, y - jar.my) < mouthW * 2.1) continue;
+      // Well clear of where the swarm wakes up. A web inside the opening
+      // spread is not a hazard, it is an ambush.
+      if (Math.hypot(x - startX, y - startY) < 235) continue;
+      let ok = true;
+      for (const w2 of webs) if (Math.hypot(x - w2.x, y - w2.y) < 150) ok = false;
+      for (const t2 of thorns) if (Math.hypot(x - t2.x, y - t2.y) < 105) ok = false;
+      if (!ok) continue;
+      webs.push({ x, y, r: TUNE.webR, seed: rnd() * 1000,
+                  anchor: rnd() * Math.PI * 2,      // where the spider waits
+                  holding: false, cool: 0, spiderT: 0, seat: 0, tx: x, ty: y });
+    }
+
     // A breeze is one lateral band and it is ALWAYS visible. Never a surprise.
     let breeze = null;
     if (breezeOn(tier)) {
@@ -335,7 +409,10 @@
       breeze = { y0, y1: y0 + h, dir, motes };
     }
 
-    return { lvl, tier, n, jar, flies, thorns, breeze, caught: 0,
+    const need = Math.max(2, n - SLACK[tier]);
+    return { lvl, tier, n, need, jar, flies, thorns, webs, breeze,
+             caught: 0, lost: 0, stuckNow: 0,
+             sticks: 0, resticks: 0, rescues: 0,
              spookEvents: 0, splits: 0, seconds: 0 };
   }
 
@@ -489,8 +566,10 @@
     clock += dt;
     const F = S.flies, A = TUNE.arena, jar = S.jar;
     const shoveK = Math.exp(-TUNE.shoveDamp * dt);
+    // A fly in silk is not part of the swarm: it cannot fly, it cannot be
+    // herded, and the others hold no formation with it.
     const loose = [];
-    for (const f of F) if (!f.caught) loose.push(f);
+    for (const f of F) if (!f.caught && !f.lost && f.web < 0) loose.push(f);
 
     // ---- contagion, resolved against last frame's state so a cascade cannot
     // ---- race through the whole swarm inside one step ----
@@ -558,26 +637,78 @@
       if (f.y < em)     by += (1 - f.y / em) * 3.4 * eg;
       if (f.y > A - em) by -= (1 - (A - f.y) / em) * 3.4 * eg;
 
-      /* THE LANTERN REACHES FURTHER AS IT FILLS, and this is not a difficulty
-         concession, it is the thing the brief already says out loud: the level
-         literally illuminates as you succeed. Fireflies come to light.
+      /* FIREFLIES ARE SHY OF THE JAR, and this single sign change is the
+         difference between a game and a screensaver.
 
-         It exists because the bot measured the endgame and the endgame was a
-         different, worse game. Herding the swarm works; herding the LAST TWO
-         does not, because two flies have almost no cohesion holding them
-         together, so there is nothing to push as a body and the warmth just
-         scatters them. Six of fourteen sampled levels stalled at 10-of-16,
-         13-of-14, 20-of-26. The craft is in walking the swarm across the
-         garden. Mopping up is not craft, it is book-keeping.
+         The jar used to PULL. It was in the brief, it is pretty, and it meant
+         the level finished itself: the owner parked the cursor and walked away,
+         and with nobody touching anything at all four of six sampled levels
+         reached the full count, the first free capture landing at 66 seconds.
+         Flies wander, the jar attracted, capture was permanent and nothing ever
+         came back out, so with no clock anywhere the goal was simply an
+         absorbing state that diffusion reached on its own. The hand had plenty
+         of authority - a held push moved the swarm 378 units against 173 of
+         aimless drift - it just had no CONSEQUENCE, which is why it felt inert.
 
-         At an empty jar this is exactly what it always was. */
-      const glow = S.caught / Math.max(1, S.n);
-      const mdx = jar.mx - f.x, mdy = jar.my - f.y;
-      const md = Math.hypot(mdx, mdy);
-      const pullR = jar.mouthW * (1.1 + 1.3 * glow);
-      if (md < pullR && md > 1e-4 && f.spook <= 0) {
-        const k = (1 - md / pullR) * (TUNE.jarPull / 40) * (0.7 + 0.7 * glow);
-        bx += (mdx / md) * k; by += (mdy / md) * k;
+         I made this worse before it was found, by widening the pull as the jar
+         filled so a bot would finish more levels. Optimising for a bot
+         completing levels was the wrong objective, and it bought a game that
+         needed no player at all.
+
+         So the jar repels. A firefly does not want to be in a glass jar, which
+         is also the only sensible reading of the fiction. Every capture is now
+         caused by a push and by nothing else, and `assertNoFreeCaptures()`
+         holds that line permanently. */
+      /* SHY OF THE MOUTH, at a FIXED radius. Two corrections in one.
+
+         The radius used to scale with the jar, and the jar scales with its
+         mouth, so tier 1's wide mouth carried a repulsion field almost twice
+         the width of tier 9's: measured, a clean capture was possible at tier 9
+         and impossible at tier 1. The difficulty dial was running backwards,
+         which is the one failure this house has learned to look for first.
+
+         And the shyness belongs to the MOUTH, not to the glass. The glass
+         already turns flies away by being solid; the mouth is the only place
+         in the garden where anything can happen, so it is the only place that
+         needs a fly to have an opinion. With the field centred there and its
+         size held constant, mouth width is once again the only thing a tier
+         changes, which is what the brief wanted it to be. */
+      /* YOUR WARMTH IS WHAT CALLS THEM HOME. This is the shape the game
+         needed and it took three wrong answers to find.
+
+         A firefly that nobody is touching is SHY of the jar, so a garden left
+         alone never fills one: that is what killed the first version, where
+         parking the cursor and walking away won four levels in six.
+
+         A firefly inside your warmth is WOKEN, and a woken firefly goes for the
+         brightest thing it can see, which is the lantern. Phototaxis is what
+         fireflies actually do, and it is the only honest way to get precision
+         back. Because a radial push cannot thread one insect through a
+         hundred-unit gap: measured, the herding was fine - flies were near the
+         mouth for 755 frames out of a 120-second run - and the capture rate was
+         three. The jar has to do the fine work, and the whole failure of the
+         first build was that it did the fine work for FREE.
+
+         Now it does it for you, and only for you. Hands off is not a slow way
+         to win, it is not a way to win: no warmth, no call, no capture, ever,
+         and that holds by construction rather than by a tuned constant.
+
+         Spooked flies are not called. Fear beats light, which is also why a
+         careless push costs you the very thing it was trying to achieve. */
+      const jdx = f.x - jar.mx, jdy = f.y - jar.my;
+      const jd = Math.hypot(jdx, jdy);
+      let woken = 0;
+      if (touch) {
+        const wdx = f.x - touch.x, wdy = f.y - touch.y;
+        woken = pushFalloff(Math.hypot(wdx, wdy));
+      }
+      if (woken > 0.02 && f.spook <= 0 && jd < TUNE.jarCallR && jd > 1e-4) {
+        const k = (1 - jd / TUNE.jarCallR) * TUNE.jarCall * Math.min(1, woken * 2.4);
+        bx -= (jdx / jd) * k; by -= (jdy / jd) * k;      // toward the mouth
+      } else if (jd < TUNE.jarShyR && jd > 1e-4) {
+        // Untouched, and so still shy of the glass.
+        const k = (1 - jd / TUNE.jarShyR) * TUNE.jarShy;
+        bx += (jdx / jd) * k; by += (jdy / jd) * k;
       }
 
       /* --- ITS OWN FLIGHT. Steered responsively toward the boid heading, at
@@ -604,10 +735,23 @@
         touchForce(f.x, f.y, touch.x, touch.y, TF);
         f.sx += TF.x * dt; f.sy += TF.y * dt;
       }
+      /* WIND IS NOT A FRIGHT. It rides in its own velocity, apart from the
+          shove, because panic is measured on the two that are done TO a fly by
+          a hand or a thorn, and a fly carried along by steady air is not
+          alarmed by it - it is just somewhere else.
+
+          Held in the shove, a breeze of 22 settled at 22, which on top of a
+          fly's own 62 clears a panic threshold of 78 all by itself. So every
+          windy tier - three, six and nine, which is exactly where the failures
+          were - spooked itself continuously from the weather. The brief's own
+          line is that panic must always be traceable to the player's push or a
+          thorn and never to RNG, and a wind the player did not summon is RNG
+          with a nice name. */
       if (S.breeze && f.y > S.breeze.y0 && f.y < S.breeze.y1) {
-        f.sx += S.breeze.dir * TUNE.breeze * dt;
+        f.wx += S.breeze.dir * TUNE.breeze * dt;
       }
-      // Thorns scatter, and that is all they do. Nothing dies here.
+      f.wx *= shoveK; f.wy *= shoveK;
+      // Thorns scatter. It is the silk that keeps what it catches.
       for (const th of S.thorns) {
         const tdx = f.x - th.x, tdy = f.y - th.y, td = Math.hypot(tdx, tdy);
         if (td < th.r && td > 1e-4) {
@@ -623,7 +767,7 @@
 
       // --- move ---
       const px = f.x, py = f.y;
-      f.x += (f.vx + f.sx) * dt; f.y += (f.vy + f.sy) * dt;
+      f.x += (f.vx + f.sx + f.wx) * dt; f.y += (f.vy + f.sy + f.wy) * dt;
 
       /* --- PANIC, on the two velocities together, and always traceable to the
          --- player's own push or a thorn. Never RNG, and never while already
@@ -632,6 +776,34 @@
           Math.hypot(f.vx + f.sx, f.vy + f.sy) > TUNE.panicSpeed) {
         f.spook = TUNE.spookSecs; newlySpooked++;
       }
+
+      /* --- SILK. The flies cannot see it. You can. That asymmetry is what the
+         --- game is built on: leaving the swarm to drift is not neutral, it is
+         --- a decision to let the garden have a turn. */
+      if (f.immune > 0) f.immune = Math.max(0, f.immune - dt);
+      else {
+        for (let wi = 0; wi < S.webs.length; wi++) {
+          const w = S.webs[wi];
+          /* A WEB HOLDS ONE. A swarm travels as a body, so a web that could
+             take any number took NINE at once on tier 6, against two spares:
+             one drifting mistake and the level was over before it had a
+             decision in it. One apiece caps the worst case at the number of
+             webs, gives each its own clock, and lets a rescue be a rescue
+             rather than triage. */
+          if (w.holding || w.cool > 0) continue;
+          if (Math.hypot(f.x - w.x, f.y - w.y) < w.r) {
+            w.holding = true;
+            S.sticks++;
+            if (f.freedAt != null && S.seconds - f.freedAt < 3.5) S.resticks++;
+            f.web = wi; f.hold = 1;
+            f.vx = f.vy = f.sx = f.sy = f.wx = f.wy = 0;
+            f.trail.length = 0;
+            if (sfx) sfx.play('snag');
+            break;
+          }
+        }
+      }
+      if (f.web >= 0) continue;
 
       // --- the jar: capture through the mouth, glass everywhere else ---
       capture(f, px, py);
@@ -651,6 +823,62 @@
       }
 
       f.ph += dt;
+    }
+
+    /* ---- SILK, AND WHAT COMES FOR IT ----
+       A stuck fly can be worked loose by a sustained push. The push has to be
+       a real one, near enough to matter, and that is the same nearness that
+       panics everything else in reach: a rescue is bought with the swarm's
+       composure. That is the decision the whole game turns on. */
+    S.stuckNow = 0;
+    for (const f of S.flies) {
+      if (f.caught || f.lost || f.web < 0) continue;
+      S.stuckNow++;
+      const w = S.webs[f.web];
+      let pushing = 0;
+      if (touch) {
+        touchForce(f.x, f.y, touch.x, touch.y, TF);
+        pushing = Math.hypot(TF.x, TF.y) / TUNE.pushMax;
+      }
+      if (pushing >= freeReach()) f.hold -= dt / TUNE.freeSecs;
+      else f.hold = Math.min(1, f.hold + dt / (TUNE.freeSecs * 2.2));
+      if (f.hold <= 0) {
+        // free, and thrown clear of the silk so it cannot fall straight back in
+        const ax2 = f.x - w.x, ay2 = f.y - w.y, am = Math.hypot(ax2, ay2) || 1;
+        w.holding = false; w.cool = TUNE.webCool;
+        S.rescues++; f.freedAt = S.seconds;
+        f.web = -1; f.hold = 1; f.immune = TUNE.webImmune;
+        f.sx = ax2 / am * 120; f.sy = ay2 / am * 120;
+        f.spook = TUNE.spookSecs * 0.5;
+        if (sfx) sfx.play('unfold');
+      }
+    }
+
+    /* The spider is the clock, and it is a clock made of garden rather than of
+       numbers. It sits in its web until something lands in it, then it walks
+       out. Nothing chases the swarm and nothing hunts: it comes to collect what
+       the web already caught, and it goes back when the web is empty. */
+    for (let wi = 0; wi < S.webs.length; wi++) {
+      const w = S.webs[wi];
+      let held = null, worst = -1;
+      for (const f of S.flies) {
+        if (f.web === wi && !f.lost && f.hold > worst) { worst = f.hold; held = f; }
+      }
+      if (held) {
+        w.spiderT += dt;
+        w.tx = held.x; w.ty = held.y;      // it is coming for THAT one
+        if (w.spiderT >= TUNE.spiderSecs) {
+          held.lost = true; held.web = -1;
+          w.holding = false;
+          S.lost++;
+          w.spiderT = 0;
+          if (sfx) { sfx.tone(196, 0.26, 0.06, 'triangle'); sfx.play('thump'); }
+        }
+      } else {
+        w.spiderT = Math.max(0, w.spiderT - dt * 1.6);   // it goes home
+      }
+      if (w.cool > 0) w.cool = Math.max(0, w.cool - dt);
+      w.seat = Math.min(1, w.spiderT / TUNE.spiderSecs);
     }
 
     // ---- spread, off last frame's spooked set ----
@@ -684,12 +912,20 @@
     }
 
     S.seconds += dt;
-    if (phase === 'play' && S.caught >= S.n) {
+    if (phase !== 'play') return;
+    if (S.caught >= S.need) {
       phase = 'win'; winT = 0;
       touch = null;
       T().levelComplete(S.lvl, S.spookEvents);
       if (sfx) sfx.play('finish');
+      return;
     }
+    /* Out of spares. Not a defeat screen and not a penalty: the jar simply
+       cannot be filled from what is left in the garden, and RESTART has been
+       sitting there the whole time costing nothing. */
+    let gettable = 0;
+    for (const f of S.flies) if (!f.lost && !f.caught) gettable++;
+    if (S.caught + gettable < S.need) { phase = 'short'; winT = 0; touch = null; }
   }
 
   /* Capture, and the proof that the touch can never do it.
@@ -722,7 +958,7 @@
       f.trail.length = 0;
       if (sfx) {
         // pitched up the fuller the jar, so the ear hears progress too
-        const k = S.caught / Math.max(1, S.n);
+        const k = S.caught / Math.max(1, S.need);
         sfx.tone(760 + k * 620, 0.10, 0.05, 'sine');
       }
       return;
@@ -802,11 +1038,14 @@
     lights.length = 0;
     const s = L.scale;
     for (const f of S.flies) {
-      if (f.caught) continue;
-      lights.push({ x: wx2s(f.x), y: wy2s(f.y), r: 92 * s, i: 0.34 + flashOf(f) * 0.5 });
+      if (f.caught || f.lost) continue;
+      // a fly held in silk burns brighter, and lights the trap that holds it
+      const held = f.web >= 0;
+      lights.push({ x: wx2s(f.x), y: wy2s(f.y), r: (held ? 104 : 92) * s,
+                    i: held ? 0.85 : 0.34 + flashOf(f) * 0.5 });
     }
     const jar = S.jar;
-    const fill = S.caught / Math.max(1, S.n);
+    const fill = S.caught / Math.max(1, S.need);
     if (S.caught > 0 || phase === 'win') {
       lights.push({ x: wx2s(jar.x), y: wy2s(jar.y), r: (150 + 190 * fill) * s,
                     i: 0.30 + 0.85 * fill });
@@ -877,6 +1116,7 @@
 
     if (SOLO) {
       if (SOLO === 'thorns') for (const th of S.thorns) drawThorn(th);
+      if (SOLO === 'webs') for (const w of S.webs) drawWeb(w);
       if (SOLO === 'breeze') drawBreeze();
       if (SOLO === 'jar') drawJar();
       ctx.restore();
@@ -888,10 +1128,11 @@
     // --- ground pools: what each light throws down onto the earth ---
     ctx.globalCompositeOperation = 'lighter';
     for (const f of S.flies) {
-      if (f.caught) continue;
-      blit(SPR.pool, wx2s(f.x), wy2s(f.y) + 10 * s, 78 * s, 0.55 + flashOf(f) * 0.45);
+      if (f.caught || f.lost) continue;
+      blit(SPR.pool, wx2s(f.x), wy2s(f.y) + 10 * s, 78 * s,
+           f.web >= 0 ? 1 : 0.55 + flashOf(f) * 0.45);
     }
-    const fill = S.caught / Math.max(1, S.n);
+    const fill = S.caught / Math.max(1, S.need);
     if (S.caught > 0) {
       blit(SPR.warm, wx2s(S.jar.x), wy2s(S.jar.y) + S.jar.h * 0.34 * s,
            (108 + 150 * fill) * s, 0.10 + 0.30 * fill);
@@ -901,10 +1142,11 @@
 
     drawBreeze();
     drawGrass(true);
+    for (const w of S.webs) drawWeb(w);
     for (const th of S.thorns) drawThorn(th);
     drawJar();
     if (touch) drawTouch(); else if (hover && MODE === 'desktop') drawAim();
-    if (!SOLO) for (const f of S.flies) if (!f.caught) drawFly(f);
+    if (!SOLO) for (const f of S.flies) if (!f.caught && !f.lost) drawFly(f);
     drawGrass(false);
     drawWinWash();
 
@@ -1007,6 +1249,110 @@
     }
   }
 
+  /* THE WEB. It has to be plainly visible, and that is not a compromise of the
+     register, it is the contract: the flies cannot see silk and you can, so
+     every fly lost to a web is lost to something you were shown. A web you had
+     to squint for would make the whole thing a lottery.
+
+     Silk is drawn the way silk is lit - it is not a light, it catches one - so
+     the spokes are dim and the spiral is the part that glints, and both brighten
+     when a firefly is near. When one is CAUGHT the web lights up around it,
+     which is the trap being lit by the thing it caught. */
+  function drawWeb(w) {
+    const s = L.scale;
+    const x = wx2s(w.x), y = wy2s(w.y), r = w.r * s;
+    const rnd = mulberry32(w.seed | 0);
+    const SPOKES = 9;
+    const ang = [], reach = [];
+    for (let i = 0; i < SPOKES; i++) {
+      ang.push((i / SPOKES) * Math.PI * 2 + (rnd() - 0.5) * 0.22);
+      reach.push(r * (0.86 + rnd() * 0.28));
+    }
+    const lit = Math.min(1, lightAt(x, y) * 1.15);
+    const heat = w.seat;                     // 0 calm, 1 the spider has arrived
+    // Silk that has just let something go is torn, and shows it: a rule the
+    // player can act on has to be a rule the player can see.
+    const torn = w.cool > 0 ? Math.min(1, w.cool / TUNE.webCool) : 0;
+
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    // the anchor lines: dim, structural
+    ctx.strokeStyle = 'rgba(150,176,196,' + (0.13 + lit * 0.20).toFixed(3) + ')';
+    ctx.lineWidth = Math.max(0.8, 1.0 * s);
+    ctx.beginPath();
+    for (let i = 0; i < SPOKES; i++) {
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + Math.cos(ang[i]) * reach[i], y + Math.sin(ang[i]) * reach[i]);
+    }
+    ctx.stroke();
+
+    // the spiral: the part that catches the light, and the part you read
+    ctx.strokeStyle = 'rgba(206,226,240,' + ((0.34 + lit * 0.34) * (1 - torn * 0.72)).toFixed(3) + ')';
+    ctx.lineWidth = Math.max(1.1, 1.3 * s);
+    for (let ring = 1; ring <= 4; ring++) {
+      if (torn > 0.35 && ring % 2 === 0) continue;   // strands missing
+      const t = ring / 4.6;
+      ctx.beginPath();
+      for (let i = 0; i <= SPOKES; i++) {
+        const k = i % SPOKES;
+        const rr = reach[k] * t * (0.92 + ((k * 7 + ring * 3) % 5) * 0.032);
+        const px = x + Math.cos(ang[k]) * rr, py = y + Math.sin(ang[k]) * rr;
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+    }
+
+    // the hub, and the spider walking out of it once something is held
+    /* The spider walks from its corner of the web to the fly it is coming for,
+       and its POSITION is the clock: no bar, no number, just how much web is
+       left between them. */
+    if (heat > 0.001) {
+      const ax2 = x + Math.cos(w.anchor) * r * 0.94;
+      const ay2 = y + Math.sin(w.anchor) * r * 0.94;
+      const tx = wx2s(w.tx), ty = wy2s(w.ty);
+      const hx = ax2 + (tx - ax2) * heat, hy = ay2 + (ty - ay2) * heat;
+      drawSpider(hx, hy, Math.max(3.6, 10 * s), Math.atan2(ty - ay2, tx - ax2), heat);
+    }
+  }
+
+  /* No emoji, no sprite, and no gore: a dark body, a smaller head and eight
+     thin legs, drawn small. It is meant to be read at a glance and not looked
+     at closely. Its POSITION is the clock - the closer it is to the middle of
+     its web, the less time the fly it is coming for has left. */
+  function drawSpider(x, y, r, face, heat) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(face);
+    ctx.strokeStyle = 'rgba(28,22,20,0.95)';
+    ctx.lineWidth = Math.max(1.1, r * 0.15);
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 4; i++) {
+      const a = 0.42 + i * 0.42, l = r * (1.35 - i * 0.10);
+      const kx = Math.cos(a) * l * 0.62, ky = Math.sin(a) * l * 0.62;
+      for (const sgn of [1, -1]) {
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.quadraticCurveTo(kx, sgn * (ky - r * 0.45), Math.cos(a) * l, sgn * l * 0.72);
+        ctx.stroke();
+      }
+    }
+    const g = ctx.createRadialGradient(-r * 0.2, -r * 0.25, 0, 0, 0, r);
+    g.addColorStop(0, 'rgba(74,58,52,0.98)');
+    g.addColorStop(1, 'rgba(18,14,13,0.98)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.ellipse(r * 0.14, 0, r * 0.78, r * 0.62, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(-r * 0.62, 0, r * 0.38, r * 0.32, 0, 0, Math.PI * 2); ctx.fill();
+    // two small cold catchlights, only once it is properly out
+    if (heat > 0.35) {
+      ctx.fillStyle = 'rgba(232,240,246,' + (0.30 + heat * 0.34).toFixed(3) + ')';
+      for (const sgn of [1, -1]) {
+        ctx.beginPath();
+        ctx.arc(-r * 0.80, sgn * r * 0.16, Math.max(0.7, r * 0.11), 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
   /* Thorns. The shape says danger, not the colour. Barbs alone came out as a
      red scribble that read as an insect, which in a game about insects is the
      worst possible reading: they need STEMS, because a thorn is a thing that
@@ -1107,7 +1453,7 @@
     const jar = S.jar;
     const s = (atScale != null ? atScale : L.scale);
     const w = jar.w * s, h = jar.h * s, mouthW = jar.mouthW * s;
-    const fill = S.caught / Math.max(1, S.n);
+    const fill = S.caught / Math.max(1, S.need);
     const inScene = atX == null;
     const lamp = phase === 'win' ? 1 : 0.12 + 0.88 * fill;
     const flare = phase === 'win' ? winFlash() : 0;
@@ -1253,6 +1599,29 @@
     const spooked = f.spook > 0;
     const x = wx2s(f.x), y = wy2s(f.y);
 
+    /* HELD. A fly in silk does not blink on its own rhythm any more: it
+       struggles, fast and bright, and `hold` shows how far you have worked it
+       loose. Fear reads as speed here too, just with nowhere to go. */
+    if (f.web >= 0) {
+      const shake = REDUCED ? 0 : Math.sin(clock * 26 + f.ph * 9) * (2.2 * s) * f.hold;
+      const bx2 = x + shake, by2 = y + Math.cos(clock * 21 + f.ph * 7) * (1.6 * s) * f.hold;
+      ctx.globalCompositeOperation = 'lighter';
+      blit(SPR.fly, bx2, by2, Math.max(8, 30 * s) * (0.9 + (1 - f.hold) * 0.5), 0.92);
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = ART.flyCore;
+      ctx.beginPath(); ctx.arc(bx2, by2, Math.max(1.5, 2.6 * s), 0, Math.PI * 2); ctx.fill();
+      // how far loose it is, as a shrinking bright arc rather than a bar
+      if (f.hold < 0.985) {
+        ctx.strokeStyle = 'rgba(239,255,194,0.85)';
+        ctx.lineWidth = Math.max(1.6, 2.2 * s);
+        ctx.beginPath();
+        ctx.arc(bx2, by2, Math.max(7, 13 * s), -Math.PI / 2,
+                -Math.PI / 2 + Math.PI * 2 * (1 - f.hold));
+        ctx.stroke();
+      }
+      return;
+    }
+
     // The trail: fear reads as speed, never as a new colour. A frightened fly
     // simply leaves more of itself behind.
     /* Four strokes, not twenty-eight. A per-sample taper meant 26 flies at a
@@ -1311,6 +1680,19 @@
     const u = (winT / 1.2) % 1, d = u - 0.16;
     return Math.exp(-(d * d) / 0.0052);
   }
+  /* Running short is stated in a line of type over the bottom band, not in a
+     modal. Nothing covers the garden, nothing announces a defeat, and RESTART
+     was always free. */
+  function drawShortLine() {
+    if (phase !== 'short') return;
+    const y = MODE === 'mobile' ? L.ctrlCy - 44 : L.playY + L.playH + 2;
+    ctx.fillStyle = TOK.ink72;
+    ctx.font = '600 16px Inter, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('Not enough left in the garden to fill the jar.', LW / 2, y);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  }
+
   function drawWinWash() {
     if (phase !== 'win') return;
     const f = winFlash();
@@ -1353,11 +1735,13 @@
   function drawHUD() {
     const cy = L.ctrlCy;
     const won = phase === 'win' && winT > 3.2;
+    const short = phase === 'short';
     hit.mute = hit.restart = hit.next = null;
 
     // --- measure the row, then lay it out from its own end ---
     const items = [{ k: 'mute', w: UI.PILL.iconW }];
     if (won) items.push({ k: 'next', w: UI.ctaWidth(ctx, 'NEXT'), cta: true });
+    else if (short) items.push({ k: 'next', w: UI.ctaWidth(ctx, 'TRY AGAIN'), cta: true, label: 'TRY AGAIN' });
     else items.push({ k: 'restart', w: UI.pillWidth(ctx, 'RESTART') });
     let total = 0;
     for (const it of items) total += it.w;
@@ -1369,7 +1753,7 @@
     let x = rowLeft;
     for (const it of items) {
       const c = x + it.w / 2;
-      if (it.cta) hit[it.k] = UI.drawCTA(ctx, 'NEXT', c, cy, TOK.accent);
+      if (it.cta) hit[it.k] = UI.drawCTA(ctx, it.label || 'NEXT', c, cy, TOK.accent);
       else if (it.k === 'mute') {
         hit.mute = UI.drawPill(ctx, '', c, cy, { w: UI.PILL.iconW });
         speakerGlyph(c, cy, sfx ? sfx.isOn() : true);
@@ -1385,9 +1769,16 @@
     const bandCy = topBand() / 2;
     const rowRight = MODE === 'mobile' ? 0 : rowLeft + total;
     const avail = LW - SIDE_PAD - rowRight - 16;
-    const txt = MODE === 'mobile'
-      ? 'IN THE JAR ' + S.caught + ' / ' + S.n + '   ·   LEVEL ' + S.lvl
-      : 'IN THE JAR ' + S.caught + ' / ' + S.n;
+    /* The count is against what the JAR HOLDS, not against how many are in the
+       garden, because the garden always has more. The spare column is the
+       margin a mistake spends, and it is only shown once one has actually been
+       spent: a running tally of what you have lost, printed from the first
+       second, would turn a garden into a scoreboard. */
+    const spare = S.n - S.lost - S.need;
+    const bits = ['IN THE JAR ' + S.caught + ' / ' + S.need];
+    if (S.lost > 0) bits.push(spare > 0 ? spare + ' SPARE' : 'NO SPARES');
+    if (MODE === 'mobile') bits.push('LEVEL ' + S.lvl);
+    const txt = bits.join('   ·   ');
     let hs = Math.max(0.66, Math.min(1, LW / 620));
     ctx.font = '600 ' + (16 * hs).toFixed(1) + 'px Inter, sans-serif';
     while (ctx.measureText(txt).width > avail && hs > 0.66) {
@@ -1401,6 +1792,7 @@
     L.readoutLeft = LW - SIDE_PAD - ctx.measureText(txt).width;
     L.rowRight = rowRight;
 
+    drawShortLine();
     if (MODE === 'desktop') drawColumn();
   }
 
@@ -1484,7 +1876,7 @@
   window.addEventListener('keydown', (e) => {
     if (e.key === 'r' || e.key === 'R') restart();
     else if (e.key === 'm' || e.key === 'M') { if (sfx) sfx.setOn(!sfx.isOn()); }
-    else if ((e.key === 'Enter' || e.key === ' ') && phase === 'win') nextLevel();
+    else if ((e.key === 'Enter' || e.key === ' ') && phase !== 'play') nextLevel();
     else if (e.key === '[') gotoLevel(S.lvl - 1);
     else if (e.key === ']') gotoLevel(S.lvl + 1);
     else return;
@@ -1496,7 +1888,13 @@
     gotoLevel(S.lvl);
     if (sfx) sfx.play('tick');
   }
-  function nextLevel() { gotoLevel(Math.min(LEVELS, S.lvl + 1)); }
+  // The same button in both places, because it is the same gesture: get on
+  // with it. After a win that is the next garden; after running short it is
+  // this one again, which was always free.
+  function nextLevel() {
+    if (phase === 'short') { T().levelRestart(S.lvl); gotoLevel(S.lvl); return; }
+    gotoLevel(Math.min(LEVELS, S.lvl + 1));
+  }
   function gotoLevel(n) {
     n = Math.min(LEVELS, Math.max(1, n));
     S = buildScene(n);
@@ -1535,7 +1933,11 @@
     ['shoveDamp', 0.4, 3, 0.05], ['coh', 0, 1.6, 0.05],
     ['sep', 10, 60, 1], ['align', 0, 1.2, 0.05],
     ['wander', 0, 1.2, 0.05], ['spookSecs', 0.4, 4, 0.1],
-    ['spookRadius', 16, 110, 1], ['jarPull', 0, 120, 1],
+    ['spookRadius', 16, 110, 1], ['jarShy', 0, 5, 0.1],
+    ['jarShyR', 60, 300, 5],
+    ['jarCall', 0, 6, 0.1], ['jarCallR', 80, 380, 10],
+    ['spiderSecs', 4, 24, 0.5], ['freeSecs', 0.4, 4, 0.1],
+    ['webR', 20, 90, 1],
     ['touchLift', 0, 90, 1],
   ];
   function buildTunePanel() {
@@ -1625,7 +2027,10 @@
 
   window.__lantern = {
     state: () => ({
-      lvl: S.lvl, tier: S.tier + 1, n: S.n, caught: S.caught,
+      lvl: S.lvl, tier: S.tier + 1, n: S.n, need: S.need, caught: S.caught,
+      lost: S.lost, stuck: S.stuckNow, spare: S.n - S.lost - S.need,
+      sticks: S.sticks, resticks: S.resticks, rescues: S.rescues,
+      webs: S.webs.length, thorns: S.thorns.length,
       spookEvents: S.spookEvents, splits: S.splits,
       seconds: +S.seconds.toFixed(2), phase, mode: MODE,
       panicRadius: +panicRadius().toFixed(2), touchRadius: TUNE.touchRadius,
@@ -1780,13 +2185,14 @@
     // picture says they are.
     flies: () => S.flies.map((f) => ({
       x: +f.x.toFixed(1), y: +f.y.toFixed(1),
+      web: f.web, hold: +f.hold.toFixed(2), lost: f.lost,
       own: +Math.hypot(f.vx, f.vy).toFixed(1),
       shove: +Math.hypot(f.sx, f.sy).toFixed(1),
       total: +Math.hypot(f.vx + f.sx, f.vy + f.sy).toFixed(1),
       spook: +f.spook.toFixed(2), caught: f.caught,
     })),
     swarm: () => {
-      const l = S.flies.filter((f) => !f.caught);
+      const l = S.flies.filter((f) => !f.caught && !f.lost && f.web < 0);
       if (!l.length) return { loose: 0 };
       const cx = l.reduce((a, f) => a + f.x, 0) / l.length;
       const cy = l.reduce((a, f) => a + f.y, 0) / l.length;
@@ -1795,7 +2201,8 @@
       const sh = l.reduce((a, f) => a + Math.hypot(f.sx, f.sy), 0) / l.length;
       const tot = l.reduce((a, f) => a + Math.hypot(f.vx + f.sx, f.vy + f.sy), 0) / l.length;
       const sk = l.filter((f) => f.spook > 0).length;
-      return { loose: l.length, cx: +cx.toFixed(1), cy: +cy.toFixed(1),
+      return { loose: l.length, stuck: S.stuckNow, lost: S.lost,
+               cx: +cx.toFixed(1), cy: +cy.toFixed(1),
                spread: +spread.toFixed(1), meanOwn: +own.toFixed(1),
                meanShove: +sh.toFixed(1), meanTotal: +tot.toFixed(1),
                spookedNow: sk, panicAt: TUNE.panicSpeed, arena: TUNE.arena };
@@ -1833,7 +2240,7 @@
       for (const f of S.flies) {
         const a = (k / S.flies.length) * Math.PI * 2, r = k === 0 ? 0 : 18;
         f.x = cx + Math.cos(a) * r; f.y = cy + Math.sin(a) * r;
-        f.vx = f.vy = f.sx = f.sy = 0; f.spook = 0; f.trail.length = 0;
+        f.vx = f.vy = f.sx = f.sy = f.wx = f.wy = 0; f.spook = 0; f.trail.length = 0;
         k++;
       }
       S.jar.mx = -9999; S.jar.my = -9999; S.jar.x = -9999; S.jar.y = -9999;
@@ -1907,7 +2314,7 @@
         f.y = jar.my + Math.sin(ang) * start;
         const dx = jar.mx - f.x, dy = jar.my - f.y, d = Math.hypot(dx, dy) || 1;
         f.vx = dx / d * TUNE.flyMax; f.vy = dy / d * TUNE.flyMax;
-        f.sx = f.sy = 0; f.spook = 0; f.cs = 1;
+        f.sx = f.sy = f.wx = f.wy = 0; f.spook = 0; f.cs = 1;
         /* Point its WANDER at the mouth and stop it turning. Setting the
            velocity alone is not enough: with one fly there is no separation or
            cohesion, so wander is the whole boid heading, and the steering turns
@@ -2023,10 +2430,10 @@
         return { cx, cy,
                  sp: l.reduce((a, f) => a + Math.hypot(f.x - cx, f.y - cy), 0) / l.length };
       };
-      const base = spreadOf(S.flies.filter((f) => !f.caught)).sp;
-      let t = 0, worstSpread = 0, paused = false, pausedFor = 0;
-      while (t < limit && S.caught < S.n) {
-        const loose = S.flies.filter((f) => !f.caught);
+      const base = spreadOf(S.flies.filter((f) => !f.caught && !f.lost && f.web < 0)).sp;
+      let t = 0, worstSpread = 0, paused = false, pausedFor = 0, rescued = 0;
+      while (t < limit && phase === 'play') {
+        const loose = S.flies.filter((f) => !f.caught && !f.lost && f.web < 0);
         if (!loose.length) break;
         const g = spreadOf(loose);
         if (g.sp > worstSpread) worstSpread = g.sp;
@@ -2040,21 +2447,89 @@
         if (!paused && g.sp > base * 1.9) paused = true;
         if (paused && g.sp < base * 1.30) paused = false;
 
-        if (paused) { touch = null; pausedFor += reaim; }
+        /* RESCUE FIRST. A fly in silk is on a clock and the swarm is not, so
+           the swarm can wait. The warmth goes onto the trapped one, which is
+           the same gesture as pushing and at the same distance, because the
+           rescue reach and the panic ring are the same circle. */
+        let rescuing = null, worstT = -1;
+        for (const f of S.flies) {
+          if (f.caught || f.lost || f.web < 0) continue;
+          const w = S.webs[f.web];
+          if (w.spiderT > worstT) { worstT = w.spiderT; rescuing = f; }
+        }
+
+        if (rescuing) {
+          paused = false;
+          /* NOT dead centre on the fly. The rescue reach is the panic ring, so
+             standing ON the trapped one is a full-strength push into every
+             neighbour for no extra benefit at all. Stand at the ring: the same
+             rescue, a fraction of the panic. */
+          const ang2 = Math.atan2(rescuing.y - g.cy, rescuing.x - g.cx);
+          const rr = panicRadius() * 0.92;
+          touch = { x: rescuing.x + Math.cos(ang2) * rr,
+                    y: rescuing.y + Math.sin(ang2) * rr };
+          rescued += reaim;
+        } else if (paused) { touch = null; pausedFor += reaim; }
         else {
-          const dx = g.cx - jar.mx, dy = g.cy - jar.my, d = Math.hypot(dx, dy) || 1;
-          const off = panicRadius() * standOff;
+          /* ROUTE ROUND THE SILK. The direct line to the jar is only the right
+             line when nothing is on it. A careless hand pushes straight; a
+             careful one aims at a waypoint to the side of the web in the way,
+             and that difference is the whole of "does care beat carelessness"
+             on this board. */
+          let tx = jar.mx, ty = jar.my;
+          if (!o.careless) {
+            /* Round EVERYTHING in the way, not just the silk. Thorns were
+               left out of this and it cost more than the webs did: one thorn
+               on tier 3 produced 592 spook events, because a swarm is wider
+               than a bush and the contagion does the rest, so the bot drove
+               its own swarm through the same shrub over and over. Half a
+               careful policy is not care. */
+            const vx = jar.mx - g.cx, vy = jar.my - g.cy, vl = Math.hypot(vx, vy) || 1;
+            let bestAlong = Infinity;
+            for (const ob of S.webs.concat(S.thorns)) {
+              const rx = ob.x - g.cx, ry = ob.y - g.cy;
+              const along = (rx * vx + ry * vy) / vl;
+              if (along < 0 || along > vl) continue;              // not ahead of us
+              const side = (rx * -vy + ry * vx) / vl;             // signed clearance
+              const clear = ob.r + 86;
+              if (Math.abs(side) > clear) continue;               // already clear
+              if (along >= bestAlong) continue;                   // a nearer one wins
+              bestAlong = along;
+              const push = (side >= 0 ? -1 : 1) * (clear + 26);
+              tx = ob.x + (-vy / vl) * push; ty = ob.y + (vx / vl) * push;
+            }
+          }
+          /* TWO PHASES, and this is the skill the game turned out to have.
+             Crossing the garden wants a WIDE hand: hang back and the swarm
+             drifts as a body, held together, unspooked. Putting one in the jar
+             wants a CLOSE one: the mouth only yields to a committed push, and
+             a committed push is a shove of 56, which is a stand-off of about a
+             single panic ring.
+
+             The first bot to play this version stood off two rings the whole
+             way, which is what worked when the jar still pulled. Two rings is
+             112 units, where the push delivers a shove of 1.6, and it managed
+             one capture in two hundred seconds. It was not that the game could
+             not be won; it was that it was being played at arm's length
+             throughout. */
+          const dx = g.cx - tx, dy = g.cy - ty, d = Math.hypot(dx, dy) || 1;
+          const toMouth = Math.hypot(g.cx - jar.mx, g.cy - jar.my);
+          const near = Math.max(0, Math.min(1, (260 - toMouth) / 190));
+          const closeTo = o.closeTo != null ? o.closeTo : standOff;
+          const off = panicRadius() * (standOff - (standOff - closeTo) * near);
           touch = { x: g.cx + dx / d * off, y: g.cy + dy / d * off };
         }
         this.advance(reaim); t += reaim;
       }
       touch = null;
-      return { level: S.lvl, tier: S.tier + 1, flies: S.n,
-               finished: S.caught >= S.n, caught: S.caught,
+      return { level: S.lvl, tier: S.tier + 1, flies: S.n, need: S.need,
+               finished: S.caught >= S.need, caught: S.caught, lost: S.lost,
                secs: +t.toFixed(1), spooks: S.spookEvents, splits: S.splits,
                worstSpread: +worstSpread.toFixed(0),
                baseSpread: +base.toFixed(0), pausedSecs: +pausedFor.toFixed(1),
-               standOff };
+               sticks: S.sticks, resticks: S.resticks, rescues: S.rescues,
+               secsRescuing: +rescued.toFixed(1),
+               careless: !!o.careless, standOff };
     },
 
     /* Determinism, asserted. Two identical scripted runs from the same level
@@ -2079,6 +2554,160 @@
 
     setReducedMotion(v) { REDUCED = !!v; return REDUCED; },
     reducedMotion: () => REDUCED,
+
+    /* THE CHECK THAT SHOULD HAVE EXISTED FROM THE FIRST COMMIT. Nobody plays,
+       nothing is touched, and the count must stay at zero on every level. The
+       craft gate asks whether care beats carelessness; it is meaningless until
+       ABSENCE loses, and absence used to win. */
+    assertNoFreeCaptures(opts) {
+      const o = opts || {};
+      const secs = o.secs || 300;
+      const step2 = o.step || 1;
+      const keepLvl = S.lvl;
+      const bad = [];
+      let worst = 0;
+      for (let lv = 1; lv <= LEVELS; lv += step2) {
+        gotoLevel(lv); touch = null;
+        this.advance(secs);
+        if (S.caught > 0) bad.push('L' + lv + ' ' + S.caught + '/' + S.n);
+        if (S.caught > worst) worst = S.caught;
+      }
+      gotoLevel(keepLvl);
+      return { levelsTested: Math.ceil(LEVELS / step2), secondsEach: secs,
+               levelsThatPlayedThemselves: bad, worstFreeCaptures: worst,
+               pass: bad.length === 0 };
+    },
+
+    /* CAN A FLY ACTUALLY BE SAVED? Sticks one in a web on purpose, parks the
+       warmth at a given distance, and reports whether it comes loose and how
+       long it took, against the spider's own clock. A threat you cannot answer
+       is not a decision, it is a tax. */
+    probeRescue(dist) {
+      const keep = S, keepPhase = phase, keepTouch = touch, keepClock = clock;
+      clock = 0; S = buildScene(S.lvl);
+      if (!S.webs.length) { S = keep; phase = keepPhase; touch = keepTouch; clock = keepClock;
+        return { level: keep.lvl, webs: 0, note: 'no webs on this level' }; }
+      phase = 'play';
+      const w = S.webs[0], f = S.flies[0];
+      f.x = w.x; f.y = w.y; f.vx = f.vy = f.sx = f.sy = 0; f.immune = 0;
+      step(DT);
+      const stuck = f.web >= 0;
+      const d = dist != null ? dist : 60;
+      touch = { x: w.x - d, y: w.y };
+      let t = 0, freed = false;
+      while (t < TUNE.spiderSecs * 1.5 && !freed && !f.lost) {
+        step(DT); t += DT; freed = f.web < 0 && !f.lost;
+      }
+      const out = { level: S.lvl, warmthAt: d, panicRing: +panicRadius().toFixed(0),
+                    itStuck: stuck, freed, secsToFree: freed ? +t.toFixed(2) : null,
+                    eatenAt: f.lost ? +t.toFixed(2) : null,
+                    spiderSecs: TUNE.spiderSecs };
+      S = keep; phase = keepPhase; touch = keepTouch; clock = keepClock;
+      return out;
+    },
+
+    /* THE CENTRAL INTERACTION, measured. A fly is parked outside the mouth and
+       the warmth is parked behind it, pushing it in. Sweeps the stand-off,
+       because that is the one thing the player's hand controls. If no distance
+       works, the jar is shy enough to be uncapturable and the game is
+       unwinnable; if every distance works, the shyness is doing nothing and
+       the jar is a funnel again. There has to be a band, and the band is the
+       skill. */
+    probePush(opts) {
+      const o = opts || {};
+      const keep = S, keepPhase = phase, keepTouch = touch, keepClock = clock;
+      const rows = [];
+      for (const off of (o.offsets || [30, 45, 60, 75, 90, 110, 130, 160])) {
+        clock = 0; S = buildScene(keep.lvl);
+        S.thorns = []; S.breeze = null; S.webs = [];
+        S.flies = S.flies.slice(0, 1); S.n = 1; S.need = 1;
+        phase = 'play';
+        const jar = S.jar, f = S.flies[0];
+        /* A FIXED start, not one that scales with the mouth. Scaling it meant
+           tier 9's fly began 70 units out and tier 1's began 132, so the wide
+           easy mouth was being measured over nearly twice the distance and came
+           out harder. The tiers differ by mouth width or the comparison says
+           nothing. */
+        const start = o.start != null ? o.start : 130;
+        // squarely outside the mouth, on the jar's own axis
+        f.x = jar.mx - jar.inX * start; f.y = jar.my - jar.inY * start;
+        f.vx = f.vy = f.sx = f.sy = 0; f.spook = 0; f.cs = 1;
+        f.wa = Math.atan2(jar.inY, jar.inX); f.ws = 0;
+        /* THE HAND FOLLOWS. Held still, the warmth is 130-odd units behind the
+           fly by the time the fly reaches the mouth, which is past a reach of
+           120, so the push had faded to nothing and the probe was measuring an
+           abandoned fly rather than a herded one. A player walks their hand
+           along behind the swarm, so the probe does too, and `off` becomes what
+           it was meant to be: how far back the player stays. */
+        let t = 0, spooked = false;
+        while (t < 12 && !f.caught) {
+          touch = { x: f.x - jar.inX * off, y: f.y - jar.inY * off };
+          step(DT); t += DT;
+          if (f.spook > 0) spooked = true;
+        }
+        rows.push({ standOff: off, inRing: off <= panicRadius(),
+                    captured: f.caught, secs: f.caught ? +t.toFixed(2) : null,
+                    spookedIt: spooked });
+      }
+      S = keep; phase = keepPhase; touch = keepTouch; clock = keepClock;
+      const won = rows.filter((r) => r.captured);
+      return {
+        level: keep.lvl, panicRing: +panicRadius().toFixed(0), jarShy: TUNE.jarShy,
+        capturedAt: won.map((r) => r.standOff),
+        anyWork: won.length > 0, allWork: won.length === rows.length,
+        cleanCaptures: won.filter((r) => !r.spookedIt).map((r) => r.standOff),
+        rows,
+      };
+    },
+
+    /* WHERE THE CAPTURE ATTEMPT ACTUALLY FAILS. Three candidate answers and
+       they need different fixes, so guessing between them is worthless:
+         they never get near the mouth        -> the herding is too weak
+         they get near but are never committed -> the shove at the mouth is
+                                                 too small to beat the shyness
+         they are committed but miss the gap  -> the mouth is too small a
+                                                 target for a radial push
+       Runs the bot and watches the fly that gets closest each moment. */
+    diagnoseCapture(opts) {
+      const o = opts || {};
+      if (o.level != null) gotoLevel(o.level);
+      const jar = S.jar;
+      let bestD = 1e9, shoveAtBest = 0, alignAtBest = 0;
+      let framesNearMouth = 0, framesCommittedNear = 0, framesInAperture = 0;
+      const near = jar.mouthW * 1.2;
+      const orig = this.herdBot;
+      // step the bot by hand so we can watch between its re-aims
+      const limit = o.limit || 150;
+      let t = 0;
+      const startCaught = S.caught;
+      while (t < limit && phase === 'play') {
+        orig.call(this, { level: null, limit: 0.15, standOff: o.standOff || 2.0 });
+        t += 0.15;
+        for (const f of S.flies) {
+          if (f.caught || f.lost || f.web >= 0) continue;
+          const rx = f.x - jar.mx, ry = f.y - jar.my;
+          const u = rx * jar.tanX + ry * jar.tanY;
+          const v = rx * jar.inX + ry * jar.inY;
+          const d = Math.hypot(rx, ry);
+          const sh = Math.hypot(f.sx, f.sy);
+          if (d < near) {
+            framesNearMouth++;
+            if (sh >= TUNE.shyYield) framesCommittedNear++;
+            if (Math.abs(u) < jar.mouthW / 2 && v < 0) framesInAperture++;
+          }
+          if (d < bestD) { bestD = d; shoveAtBest = sh; alignAtBest = Math.abs(u); }
+        }
+      }
+      return {
+        level: S.lvl, need: S.need, caughtInRun: S.caught - startCaught,
+        closestAnyFlyGotToTheMouth: +bestD.toFixed(0),
+        mouthHalfWidth: jar.mouthW / 2,
+        shoveAtThatMoment: +shoveAtBest.toFixed(0),
+        commitNeeded: TUNE.shyYield,
+        offAxisAtThatMoment: +alignAtBest.toFixed(0),
+        framesNearMouth, framesCommittedNear, framesInAperture,
+      };
+    },
 
     frameStats() { return { fps: +fps.toFixed(1), samples: fpsN }; },
   };
