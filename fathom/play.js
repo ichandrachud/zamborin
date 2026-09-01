@@ -342,8 +342,21 @@
          float on the water (owner round 5 — no side section, no gauge). */
       L.bot = 0;
       L.ocean = { x: 0, y: L.top, w: LW, h: LH - L.top };
-      // ppm anchored to the 760 frame so full screen widens the view, not the art
-      L.ppm = FRAME_W / TUNE.VIEW_W;
+      /* ppm was pinned to the 760 frame so that going full screen WIDENED the
+         view rather than scaling the art. That intent is defeated by the fog:
+         everything below the seabed is dark except the lamp, and the lamp
+         lights a fixed number of METRES. A taller window therefore bought no
+         extra sight, only extra fog — measured at 1440x1150, 60% of the frame
+         was fogged with one small lit circle in it, which is what "I am losing
+         half the screen" is.
+
+         Anchor ppm to the ocean HEIGHT instead. The vertical view stays exactly
+         what the 760x600 frame shows, the art scales up with the window, and
+         the lamp keeps lighting the same FRACTION of the frame it always did.
+         At 760x600 this is arithmetically the old value, so the windowed frame
+         is untouched. */
+      const FRAME_VIEW_H = (FRAME_H - 56) / (FRAME_W / TUNE.VIEW_W);
+      L.ppm = L.ocean.h / FRAME_VIEW_H;
       L.jettison = { cx: LW / 2, cy: LH - 40 };
     } else {
       L.ocean = { x: 0, y: 0, w: LW, h: LH };
@@ -2196,10 +2209,10 @@
 
   function rulesCopy() {
     const move = MODE === 'desktop'
-      ? 'S floods and sinks. W blows and lifts. Let go and the sub hovers where it is.'
+      ? 'Arrow keys steer: down floods and sinks, up blows and lifts, left and right thrust. Let go and the sub hovers where it is. WASD works too.'
       : 'Hold a thumb anywhere and drag: down floods and sinks, up blows and lifts, sideways thrusts. Let go and the sub hovers where it is.';
     const dig = MODE === 'desktop'
-      ? 'Lean into rock and the drill eats it: S for the floor, A or D for a wall, W for the ceiling.'
+      ? 'Lean into rock and the drill eats it: down for the floor, left or right for a wall, up for the ceiling.'
       : 'Drag into rock and the drill eats it: down for the floor, sideways for a wall.';
     return [
       move,
