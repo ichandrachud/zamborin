@@ -144,16 +144,16 @@
     { name: 'Dredger', hull: 'dredger',    file: 'sub-5.png', lenM: 15, price: 1800,
       st: { AIR: 2, CARGO: 5, BATT: 2, SPEED: 1, LAMP: 2, DRILL: 3 },
       blurb: 'A hold like a warehouse. Turns like one too.' },
-    { name: 'Ember',      file: 'sub-6.png', lenM: 15, price: 2800,
+    { name: 'Ember', hull: 'ember',      file: 'sub-6.png', lenM: 15, price: 2800,
       st: { AIR: 3, CARGO: 2, BATT: 5, SPEED: 3, LAMP: 1, DRILL: 3 },
       blurb: 'Runs hot. The drill never asks for a rest.' },
-    { name: 'Sailfin',    file: 'sub-7.png', lenM: 15.5, price: 4200,
+    { name: 'Sailfin', hull: 'sailfin',    file: 'sub-7.png', lenM: 15.5, price: 4200,
       st: { AIR: 3, CARGO: 3, BATT: 3, SPEED: 5, LAMP: 2, DRILL: 3 },
       blurb: 'Built to outrun its own bubbles.' },
-    { name: 'Ghostlight', file: 'sub-8.png', lenM: 16, price: 6500,
+    { name: 'Ghostlight', hull: 'ghostlight', file: 'sub-8.png', lenM: 16, price: 6500,
       st: { AIR: 4, CARGO: 3, BATT: 4, SPEED: 3, LAMP: 5, DRILL: 4 },
       blurb: 'Sees everything. The deep has no secrets left.' },
-    { name: 'Poseidon',   file: 'sub-9.png', lenM: 16.5, price: 10000,
+    { name: 'Poseidon', hull: 'poseidon',   file: 'sub-9.png', lenM: 16.5, price: 10000,
       st: { AIR: 5, CARGO: 5, BATT: 5, SPEED: 4, LAMP: 4, DRILL: 5 },
       blurb: 'The one the trench tells stories about.' },
   ];
@@ -165,9 +165,9 @@
      SUB_FILE stands in for all nine until the rest of the new submersible
      set exists; FLEET keeps each boat's own `file` for when it does. */
   const SUB_BLOCKS = 1;
-  /* Each boat draws its own hull once the art exists; the rest borrow the
-     Minnow's until theirs is made, which is why `hull` is optional. Four are
-     in as of 2026-08-31: Minnow, Lagoon, Bluefin, Sunfish, Dredger. */
+  /* Every boat has its own hull as of 2026-09-01. The fallback to the Minnow
+     stays, because a missing file should show the wrong boat rather than a
+     hole in the water. */
   const SUBIMGS = FLEET.map(f => {
     const im = new Image();
     im.onload = () => { im._ok = true; };
