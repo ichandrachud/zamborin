@@ -1,26 +1,39 @@
 /* Fathom — per-game styles. Inherits everything from
-   ../shared/chrome.css and ../shared/tokens.css.
-   The splash is a placeholder gradient until the real art exists;
-   splash-desktop.jpg / splash-mobile.jpg replace it at ship. */
+   ../shared/chrome.css and ../shared/tokens.css. Add only what's
+   specific to this game.
 
+   Splash artwork per mode. The .splash frame, cover sizing and fade all come
+   from ../shared/chrome.css; this file supplies the image, and the water that
+   shows underneath it while 400 KB of JPEG is still arriving. The gradient is
+   the low-quality placeholder, so it is layered UNDER the photo rather than
+   replaced by it.
+
+   Desktop art is 1520 x 1200 and mobile art is 1170 x 2532 — the two frames'
+   own aspects, so at the frame `cover` crops nothing. Measured worst realistic
+   cases, against where the wordmark actually sits:
+
+     desktop 760 x 600    no crop at all          wordmark x 19.3%..80.7%
+     iPhone SE 375 x 667  8.9% off top and bottom wordmark y 29.2%..34.4%
+     tall 344 x 882       7.8% off each side      wordmark x 16.8%..83.2%
+
+   The mobile wordmark clears the side crop by 9.0 points on each side and the
+   top crop by 20.3. Fix the art if that is ever breached, never the CSS. */
 .splash {
+  /* The water column itself: #1A5E86 dying to #01060B — game art, not chrome. */
+  --water: linear-gradient(180deg, #1A5E86 0%, #0F3D5F 30%, #082A44 55%, #04182B 78%, #01060B 100%);
   position: absolute;
   inset: 0;
-  /* The water column itself: #1A5E86 dying to #01060B — game art, not chrome. */
-  background: linear-gradient(180deg, #1A5E86 0%, #0F3D5F 30%, #082A44 55%, #04182B 78%, #01060B 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #FFFFFF;
-  font: 800 48px Inter, system-ui, sans-serif;
-  letter-spacing: 0.14em;
+  background-color: #04182B;
+  background-image: var(--water);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
   transition: opacity 600ms ease-out;
   pointer-events: none;
   z-index: 10;
 }
-.splash::before {
-  content: 'FATHOM';
-}
+body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=1'), var(--water); }
+body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=1'),  var(--water); }
 .splash.fading {
   opacity: 0;
 }
