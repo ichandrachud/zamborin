@@ -1,0 +1,30 @@
+/* Lantern — per-game styles. Inherits everything from ../shared/chrome.css
+   and ../shared/tokens.css. Add only what is specific to this game.
+
+   NO SPLASH ART YET. The two background-image rules go in at M4, at
+   1520x1200 and 1170x2532, with the wordmark inside the safe zone
+   (0.38 / image aspect). Until then the frame carries the game's own night
+   so the first thing a player sees is the register rather than the site's
+   navy: a warmth low and to the right, where the jar will be. */
+.splash {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(60% 42% at 68% 74%, rgba(255,214,138,0.16) 0%, rgba(255,214,138,0) 70%),
+    linear-gradient(180deg, #0A1418 0%, #05090C 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+  font: 700 48px Inter, system-ui, sans-serif;
+  letter-spacing: 0.04em;
+  transition: opacity 600ms ease-out;
+  pointer-events: none;
+  z-index: 10;
+}
+.splash::before {
+  content: 'Lantern';
+}
+.splash.fading {
+  opacity: 0;
+}
