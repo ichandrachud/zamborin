@@ -76,9 +76,19 @@
      swept in M2 and each is on a slider under ?tune=1. */
   const TUNE = {
     arena: 640,
-    nByTier:  [8, 10, 12, 14, 16, 18, 20, 23, 26],
-    sep: 46, coh: 0.55, align: 0.3, wander: 0.35, flyMax: 62,
-    touchRadius: 120, pushMax: 95,
+    /* A FEW FLIES, not a swarm. Twenty-six of anything is a cloud you shove;
+       four is a string you thread, and each one is worth going back for. */
+    nByTier:  [3, 3, 4, 4, 5, 5, 6, 7, 8],
+    sep: 40, wander: 0.35,
+    flyMax: 62,          // how fast one drifts with no light to follow
+    /* THE FLAME */
+    lure: 3.4,           // how hard it pulls, against wander at 0.35
+    lureR: 155,          // how far it reaches
+    lureHold: 34,        // inside this they gather round it instead of piling in
+    lureSpeed: 150,      // their ceiling while following: outrun this and they
+                         // are left behind, and this is the whole game
+    freeR: 62,           // hold the flame this close to work one out of silk
+    touchRadius: 155, pushMax: 95,
     /* spookRadius 34, down from the brief's 46, swept against the careful and
        careless bots together. The finding is the brief's own claim, measured:
        turn contagion OFF and CARELESS play wins more levels than careful play
@@ -88,11 +98,6 @@
        reason care is worth anything. 34 keeps that gap at its widest while
        letting more levels actually finish. */
     panicSpeed: 78, spookSecs: 1.6, spookRadius: 34,
-    /* jarShy REPLACES the brief's `jarPull: 40`. The sign is the whole point:
-       see the note in step(). How hard a fly steers AWAY from the jar, against
-       wander at 0.35 and cohesion at 0.55. */
-    jarShy: 1.6, jarShyR: 150,
-    jarCall: 2.6, jarCallR: 200,      // only ever felt inside your warmth
     mouthByTier: [120, 110, 100, 88, 80, 74, 66, 80, 64],
     breeze: 22,
     // ---- spike constants, not in the brief ----
@@ -100,13 +105,8 @@
        coast: lift your hand and the swarm keeps drifting the way you sent it,
        which is most of what "moving warm air" feels like. It is also the
        constant that decides whether panicSpeed is a dial at all — see
-       panicRadius(). */
+       the flame. */
     shoveDamp: 1.0,
-    cohRadius: 132,      // where cohesion reaches
-    alignRadius: 92,
-    spookCruise: 1.5,    // cruise multiplier while spooked
-    spookSpread: 0.62,   // fraction of spookSecs a spook passes on, so a
-                         // cascade decays instead of locking the swarm open
     edgeMargin: 64, edgeForce: 210,
     thornR: 30, thornKick: 150,
     /* THE WEB, and the reason there is a game here at all.
@@ -141,51 +141,6 @@
   };
 
   const DT = 1 / 120;             // fixed timestep; the gate depends on it
-
-  /* WHERE THEY PANIC, solved rather than guessed, so the ring the player sees
-     is the ring the physics actually uses.
-
-     A fly carries TWO velocities. Its own flight, which it steers and which
-     never exceeds flyMax, and a SHOVE that the touch, the breeze and the thorns
-     build up and that decays on its own over about a second. It spooks on the
-     two together.
-
-     Both point the same way inside the warmth, because a fly in it is leaving
-     rather than fighting, so under a steady push at falloff f:
-
-         own    =  its comfortable speed, fleeing
-         shove  =  pushMax * f / shoveDamp
-         panic  =  own + shove  >=  panicSpeed
-
-     and f(t) = (1 - t^2)^2 says where in the field that lives. `PANIC_K` is the
-     one fitted number in it: the fly is not always flying straight down the
-     push, so the analytic radius sits a little outside the measured one.
-     `__lantern.calibratePanic()` measures the real radius by simulation and
-     prints both. Keep them within a few units of each other or the ring on
-     screen is a decoration rather than the rule. */
-  const MEAN_OWN = () => TUNE.flyMax * 0.81 * 0.86;   // see `cs` and `comfort`
-  /* Fitted 2026-09-01 against __lantern.calibratePanic(): the closed form read
-     68 where the simulation put the swarm's real panic radius at 56. A swarm
-     panics further out than a lone fly (44) because a spook spreads, which is
-     the whole point of the mechanic, so the SWARM number is the one the ring
-     has to match. Re-run the calibration after touching pushMax, shoveDamp or
-     the steering, and move this if the error grows past a few units. */
-  const PANIC_K = 0.46;
-  function panicRadius() {
-    const need = (TUNE.panicSpeed - MEAN_OWN() * PANIC_K);
-    if (need <= 0) return TUNE.touchRadius;          // they panic at cruise
-    const f = need * TUNE.shoveDamp / TUNE.pushMax;
-    if (f >= 1) return 0;                            // a full push cannot
-    return TUNE.touchRadius * Math.sqrt(Math.max(0, 1 - Math.sqrt(f)));
-  }
-  /* ONE RING, TWO MEANINGS, BOTH TRUE. The push needed to work a fly out of
-     silk is exactly the push that panics a free one, so the middle circle is
-     the answer to both questions the player ever asks of it: come no closer
-     than this to a swarm, and get this close to anything caught. Measured, the
-     two were already within ten units of each other by accident; deriving one
-     from the other makes it a rule instead of a coincidence, and keeps it true
-     after the skittishness dial moves. */
-  function freeReach() { return pushFalloff(panicRadius()); }
 
   // The push a fly feels at world distance d. Smooth at both ends: zero slope
   // at the centre and zero slope at the rim, so there is no edge to feel.
@@ -282,8 +237,12 @@
   // Thorns scatter, webs hold. Both are in play from T5 on, and a scattered
   // fly bolting in a straight line near a web is the moment the two furniture
   // types stop being two obstacles and start being one situation.
-  const THORNS = [0, 0, 1, 1, 4, 3, 2, 2, 3];
-  const WEBS   = [0, 1, 1, 1, 2, 2, 2, 3, 3];
+  /* Thorns are gone. They scattered a swarm, and there is no swarm to scatter:
+     the hazard is the silk, and one clear hazard reads better than two. */
+  const THORNS = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+  /* WEBS is gone: the corridor decides how many it takes to line itself, and
+     that is a better number than one I would have picked, because it follows
+     the shape of the level rather than being imposed on it. */
   /* HOW MANY THE JAR HOLDS, against how many are in the garden. The slack is
      what a mistake spends. Losing one fly early costs you a spare; losing your
      last spare costs you the level, and RESTART is always right there. This is
@@ -292,7 +251,10 @@
      because the worst case a tier can throw at you is every web full at once,
      and a tier with five webs and two spares is decided by one bad drift.
      Difficulty still climbs: more flies, a narrower mouth, more thorns, wind. */
-  const SLACK  = [4, 4, 3, 3, 3, 3, 3, 3, 4];
+  /* Every firefly counts. With three to eight of them a spare is most of the
+     level, so there are none until the boards get crowded enough that one
+     unlucky corner should not mean starting over. */
+  const SLACK  = [0, 0, 0, 0, 1, 1, 1, 1, 2];
   const breezeOn = (tier) => (tier === 2 || tier === 5 || tier === 8);
 
   function buildScene(lvl) {
@@ -341,6 +303,7 @@
         sx: 0, sy: 0,                     // the shove a hand or a thorn gave it
         wx: 0, wy: 0,                     // and the air it happens to be in
         web: -1, hold: 1, immune: 0, freedAt: null,   // in silk, working loose
+        led: false,                                   // can it see the flame
         lost: false,
         cs: 0.62 + rnd() * 0.38,          // its own comfortable share of flyMax
         wa: rnd() * Math.PI * 2,          // wander heading
@@ -375,24 +338,68 @@
       }
     }
 
-    /* Webs. Kept off the jar, off the swarm's starting patch, and off each
-       other and the thorns, so a level never opens with one already unwinnable
-       and never hides a web inside a thorn bush. */
+    /* THE WEBS ARE THE COURSE. Scattered at random with a minimum spacing they
+       measured as no hazard at all: the speed gate lost ZERO flies at every
+       hand speed from 40 to 360, because a random field almost always leaves a
+       straight lane, and a straight lane has no corners in it.
+
+       Corners are the entire mechanic. A fly steers at where the flame is NOW,
+       so a bend taken quickly is a bend the tail cuts the inside of, and what
+       is on the inside of the bend is silk. So the level is built as a winding
+       CORRIDOR from the flies to the jar, with the webs lining both walls: a
+       route always exists, it is always visible, and it always turns.
+
+       The corridor narrows with the tier. That is the only difficulty dial
+       here, and it acts on the one thing the player controls. */
     const webs = [];
-    let wguard = 0;
-    while (webs.length < WEBS[tier] && wguard++ < 500) {
-      const x = A * (0.14 + rnd() * 0.72), y = A * (0.16 + rnd() * 0.62);
-      if (Math.hypot(x - jar.mx, y - jar.my) < mouthW * 2.1) continue;
-      // Well clear of where the swarm wakes up. A web inside the opening
-      // spread is not a hazard, it is an ambush.
-      if (Math.hypot(x - startX, y - startY) < 235) continue;
-      let ok = true;
-      for (const w2 of webs) if (Math.hypot(x - w2.x, y - w2.y) < 150) ok = false;
-      for (const t2 of thorns) if (Math.hypot(x - t2.x, y - t2.y) < 105) ok = false;
-      if (!ok) continue;
-      webs.push({ x, y, r: TUNE.webR, seed: rnd() * 1000,
-                  anchor: rnd() * Math.PI * 2,      // where the spider waits
-                  holding: false, cool: 0, spiderT: 0, seat: 0, tx: x, ty: y });
+    const bends = 2 + Math.floor(tier / 3);          // 2 to 4 turns
+    const halfW = 152 - tier * 8;                    // 152 down to 88
+    const path = [{ x: startX, y: startY }];
+    {
+      const ex = jar.mx - jar.inX * 40, ey = jar.my - jar.inY * 40;
+      const vx = ex - startX, vy = ey - startY, vl = Math.hypot(vx, vy) || 1;
+      const nx = -vy / vl, ny = vx / vl;
+      let side = rnd() < 0.5 ? 1 : -1;
+      for (let i = 1; i <= bends; i++) {
+        const t = i / (bends + 1);
+        const swing = (0.55 + rnd() * 0.65) * halfW * 1.5 * side;
+        path.push({ x: startX + vx * t + nx * swing,
+                    y: startY + vy * t + ny * swing });
+        side = -side;
+      }
+      path.push({ x: ex, y: ey });
+    }
+    {
+      const spacing = TUNE.webR * 2.5;
+      for (let seg = 0; seg < path.length - 1; seg++) {
+        const a = path[seg], b = path[seg + 1];
+        const vx = b.x - a.x, vy = b.y - a.y, vl = Math.hypot(vx, vy) || 1;
+        const nx = -vy / vl, ny = vx / vl;
+        const steps = Math.max(1, Math.round(vl / spacing));
+        for (let k = 0; k <= steps; k++) {
+          const t = k / steps;
+          const px = a.x + vx * t, py = a.y + vy * t;
+          for (const sgn of [1, -1]) {
+            const wx0 = px + nx * halfW * sgn, wy0 = py + ny * halfW * sgn;
+            if (wx0 < 40 || wx0 > A - 40 || wy0 < 40 || wy0 > A - 40) continue;
+            if (Math.hypot(wx0 - startX, wy0 - startY) < 120) continue;
+            if (Math.hypot(wx0 - jar.mx, wy0 - jar.my) < mouthW * 1.15) continue;
+            let ok = true;
+            for (const w2 of webs) {
+              if (Math.hypot(wx0 - w2.x, wy0 - w2.y) < TUNE.webR * 1.7) ok = false;
+            }
+            // never block the corridor itself
+            for (const q of path) {
+              if (Math.hypot(wx0 - q.x, wy0 - q.y) < TUNE.webR + 30) ok = false;
+            }
+            if (!ok) continue;
+            webs.push({ x: wx0, y: wy0, r: TUNE.webR, seed: rnd() * 1000,
+                        anchor: rnd() * Math.PI * 2,
+                        holding: false, cool: 0, spiderT: 0, seat: 0,
+                        tx: wx0, ty: wy0 });
+          }
+        }
+      }
     }
 
     // A breeze is one lateral band and it is ALWAYS visible. Never a surprise.
@@ -413,7 +420,7 @@
     return { lvl, tier, n, need, jar, flies, thorns, webs, breeze,
              caught: 0, lost: 0, stuckNow: 0,
              sticks: 0, resticks: 0, rescues: 0,
-             spookEvents: 0, splits: 0, seconds: 0 };
+             seconds: 0 };
   }
 
   // ---------- STATE ----------
@@ -435,6 +442,8 @@
   let winT = 0;                // seconds since the last fly settled
   let clock = 0;               // scene seconds, advanced by the fixed step only
   let touch = null;            // { x, y } in WORLD units, or null when hands off
+  let lureVX = 0, lureVY = 0;  // how fast the flame is travelling, world units/s
+  const lureTrail = [];        // where it has been, for the ribbon
   let hover = null;            // desktop aiming ring, screen coords, or null
   const L = {};                // layout, filled by layout()
   const hit = {};              // control hit boxes, filled by render
@@ -562,8 +571,30 @@
     if (m > max && m > 1e-6) { o.x = o.x / m * max; o.y = o.y / m * max; }
   }
 
+  let lastTouchX = null, lastTouchY = null;
   function step(dt) {
     clock += dt;
+
+    /* HOW FAST THE HAND IS MOVING. Not decoration: it leans the flame, it
+       feeds the ribbon, and it is the number `probeSpeed()` sweeps, because
+       the speed of your hand is the only difficulty setting this game has. */
+    if (touch) {
+      if (lastTouchX != null) {
+        const inv = 1 / dt;
+        lureVX = (touch.x - lastTouchX) * inv;
+        lureVY = (touch.y - lastTouchY) * inv;
+      }
+      lastTouchX = touch.x; lastTouchY = touch.y;
+      if (lureTrail.length < 2 ||
+          Math.hypot(touch.x - lureTrail[lureTrail.length - 2],
+                     touch.y - lureTrail[lureTrail.length - 1]) > 5) {
+        lureTrail.push(touch.x, touch.y);
+        while (lureTrail.length > 44) lureTrail.splice(0, 2);
+      }
+    } else {
+      lastTouchX = lastTouchY = null; lureVX = lureVY = 0;
+      if (lureTrail.length) lureTrail.length = 0;
+    }
     const F = S.flies, A = TUNE.arena, jar = S.jar;
     const shoveK = Math.exp(-TUNE.shoveDamp * dt);
     // A fly in silk is not part of the swarm: it cannot fly, it cannot be
@@ -571,152 +602,78 @@
     const loose = [];
     for (const f of F) if (!f.caught && !f.lost && f.web < 0) loose.push(f);
 
-    // ---- contagion, resolved against last frame's state so a cascade cannot
-    // ---- race through the whole swarm inside one step ----
-    const wasSpooked = [];
-    for (const f of loose) wasSpooked.push(f.spook > 0);
-    let newlySpooked = 0;
 
     for (let i = 0; i < loose.length; i++) {
       const f = loose[i];
 
-      // --- boids ---
-      let sx = 0, sy = 0, cx = 0, cy = 0, cn = 0, alx = 0, aly = 0, an = 0;
+      /* --- SEPARATION AND WANDER, and nothing else. Cohesion and alignment
+         --- went with the swarm: three to eight fireflies following a flame
+         --- are a string, not a flock, and a flock is exactly what stopped the
+         --- old build being able to put one fly anywhere in particular. */
+      let sx = 0, sy = 0;
       for (let j = 0; j < loose.length; j++) {
         if (j === i) continue;
         const g = loose[j];
         const dx = f.x - g.x, dy = f.y - g.y;
         const d2 = dx * dx + dy * dy;
-        if (d2 < 1e-6) continue;
-        const d = Math.sqrt(d2);
-        if (d < TUNE.sep) { const k = (TUNE.sep - d) / TUNE.sep; sx += dx / d * k; sy += dy / d * k; }
-        if (d < TUNE.cohRadius) { cx += g.x; cy += g.y; cn++; }
-        if (d < TUNE.alignRadius) { alx += g.vx; aly += g.vy; an++; }
+        if (d2 < 1e-6 || d2 > TUNE.sep * TUNE.sep) continue;
+        const d = Math.sqrt(d2), k = (TUNE.sep - d) / TUNE.sep;
+        sx += dx / d * k; sy += dy / d * k;
       }
       let bx = sx * 2.6, by = sy * 2.6;
-      // A spooked fly stops belonging to the swarm. That IS the split.
-      if (cn > 0 && f.spook <= 0) {
-        const tx = cx / cn - f.x, ty = cy / cn - f.y, m = Math.hypot(tx, ty);
-        if (m > 1e-6) { bx += tx / m * TUNE.coh; by += ty / m * TUNE.coh; }
-      }
-      if (an > 0 && f.spook <= 0) {
-        const m = Math.hypot(alx, aly);
-        if (m > 1e-6) { bx += alx / m * TUNE.align; by += aly / m * TUNE.align; }
-      }
-      // Seeded wander, never Math.random. Slower under reduced motion.
+
       f.wa += f.ws * dt * (REDUCED ? 0.4 : 1);
-      const wanW = TUNE.wander * (REDUCED ? 0.4 : 1) * (f.spook > 0 ? 2.1 : 1);
+      const wanW = TUNE.wander * (REDUCED ? 0.4 : 1) * (f.spook > 0 ? 2.4 : 1);
       bx += Math.cos(f.wa) * wanW; by += Math.sin(f.wa) * wanW;
 
-      /* THE WARMTH IS A HEADING AS WELL AS A SHOVE, and this is the line the
-         first build got wrong. With the touch as a shove only, the fly's own
-         steering kept aiming back at the swarm it was being blown out of, and
-         its own flight cancelled the shove almost exactly: own 52, shove 49,
-         net 5. Nothing moved and nothing ever panicked.
+      /* THE FLAME. The verb is LEADING now, not pushing, and every hard thing
+         about the old build dissolves in that one change.
 
-         The brief says the fireflies DRIFT AWAY from the warmth. They are not
-         fighting it. So the touch gives the fly a heading away as well, and the
-         two then add: at arm's length that is a gentle 50-a-second drift, and
-         up close it is own speed plus a shove of ninety, which is what
-         panicSpeed is measured against. */
+         A radial push cannot thread an insect through a gap - measured, herding
+         put flies at the jar's mouth for 755 frames of a two-minute run and
+         captured three - because the only thing it can ever say to a fly is
+         "away from me, in a straight line". A lure can put a fly anywhere you
+         can put your finger. Precision comes free, and with it the whole
+         obstacle course: you are not shoving a cloud across a garden, you are
+         drawing a thread of light between spiders.
+
+         What makes it a skill is that they LAG. A fly steers at where the flame
+         is NOW, at a speed of its own, so a corner taken quickly is a corner
+         the tail cuts across - and the silk is in the corners. Slow, and the
+         string tracks your path. Fast, and it swings wide. Outrun them
+         altogether and they lose the light and begin to wander, which is how
+         you leave one behind without noticing. */
+      f.led = false;
       if (touch) {
-        const dx = f.x - touch.x, dy = f.y - touch.y, m = Math.hypot(dx, dy);
-        if (m > 1e-6) {
-          const w = 2.4 * pushFalloff(m) + (f.spook > 0 ? 1.5 : 0);
-          if (w > 0) { bx += dx / m * w; by += dy / m * w; }
+        const dx = touch.x - f.x, dy = touch.y - f.y, m = Math.hypot(dx, dy);
+        if (m < TUNE.lureR && m > 1e-4 && f.spook <= 0) {
+          f.led = true;
+          // ease off right at the flame so they gather ROUND it rather than
+          // collapsing onto a point and jostling each other into the dark
+          const w = TUNE.lure * Math.min(1, m / TUNE.lureHold);
+          bx += dx / m * w; by += dy / m * w;
         }
       }
 
-      /* --- what the fly CHOOSES: turning back from the edge of the garden,
-         --- and drifting toward the lit mouth of the jar. Both are headings it
-         --- steers to, not forces done to it, so they join the boid vector.
-         --- Nothing is ever bounced: the garden just leans back. */
+      /* --- the soft edge of the garden. Nothing is ever bounced: a fly that
+         --- reaches the far side simply turns back. */
       const em = TUNE.edgeMargin, eg = TUNE.edgeForce / 210;
       if (f.x < em)     bx += (1 - f.x / em) * 3.4 * eg;
       if (f.x > A - em) bx -= (1 - (A - f.x) / em) * 3.4 * eg;
       if (f.y < em)     by += (1 - f.y / em) * 3.4 * eg;
       if (f.y > A - em) by -= (1 - (A - f.y) / em) * 3.4 * eg;
-
-      /* FIREFLIES ARE SHY OF THE JAR, and this single sign change is the
-         difference between a game and a screensaver.
-
-         The jar used to PULL. It was in the brief, it is pretty, and it meant
-         the level finished itself: the owner parked the cursor and walked away,
-         and with nobody touching anything at all four of six sampled levels
-         reached the full count, the first free capture landing at 66 seconds.
-         Flies wander, the jar attracted, capture was permanent and nothing ever
-         came back out, so with no clock anywhere the goal was simply an
-         absorbing state that diffusion reached on its own. The hand had plenty
-         of authority - a held push moved the swarm 378 units against 173 of
-         aimless drift - it just had no CONSEQUENCE, which is why it felt inert.
-
-         I made this worse before it was found, by widening the pull as the jar
-         filled so a bot would finish more levels. Optimising for a bot
-         completing levels was the wrong objective, and it bought a game that
-         needed no player at all.
-
-         So the jar repels. A firefly does not want to be in a glass jar, which
-         is also the only sensible reading of the fiction. Every capture is now
-         caused by a push and by nothing else, and `assertNoFreeCaptures()`
-         holds that line permanently. */
-      /* SHY OF THE MOUTH, at a FIXED radius. Two corrections in one.
-
-         The radius used to scale with the jar, and the jar scales with its
-         mouth, so tier 1's wide mouth carried a repulsion field almost twice
-         the width of tier 9's: measured, a clean capture was possible at tier 9
-         and impossible at tier 1. The difficulty dial was running backwards,
-         which is the one failure this house has learned to look for first.
-
-         And the shyness belongs to the MOUTH, not to the glass. The glass
-         already turns flies away by being solid; the mouth is the only place
-         in the garden where anything can happen, so it is the only place that
-         needs a fly to have an opinion. With the field centred there and its
-         size held constant, mouth width is once again the only thing a tier
-         changes, which is what the brief wanted it to be. */
-      /* YOUR WARMTH IS WHAT CALLS THEM HOME. This is the shape the game
-         needed and it took three wrong answers to find.
-
-         A firefly that nobody is touching is SHY of the jar, so a garden left
-         alone never fills one: that is what killed the first version, where
-         parking the cursor and walking away won four levels in six.
-
-         A firefly inside your warmth is WOKEN, and a woken firefly goes for the
-         brightest thing it can see, which is the lantern. Phototaxis is what
-         fireflies actually do, and it is the only honest way to get precision
-         back. Because a radial push cannot thread one insect through a
-         hundred-unit gap: measured, the herding was fine - flies were near the
-         mouth for 755 frames out of a 120-second run - and the capture rate was
-         three. The jar has to do the fine work, and the whole failure of the
-         first build was that it did the fine work for FREE.
-
-         Now it does it for you, and only for you. Hands off is not a slow way
-         to win, it is not a way to win: no warmth, no call, no capture, ever,
-         and that holds by construction rather than by a tuned constant.
-
-         Spooked flies are not called. Fear beats light, which is also why a
-         careless push costs you the very thing it was trying to achieve. */
-      const jdx = f.x - jar.mx, jdy = f.y - jar.my;
-      const jd = Math.hypot(jdx, jdy);
-      let woken = 0;
-      if (touch) {
-        const wdx = f.x - touch.x, wdy = f.y - touch.y;
-        woken = pushFalloff(Math.hypot(wdx, wdy));
-      }
-      if (woken > 0.02 && f.spook <= 0 && jd < TUNE.jarCallR && jd > 1e-4) {
-        const k = (1 - jd / TUNE.jarCallR) * TUNE.jarCall * Math.min(1, woken * 2.4);
-        bx -= (jdx / jd) * k; by -= (jdy / jd) * k;      // toward the mouth
-      } else if (jd < TUNE.jarShyR && jd > 1e-4) {
-        // Untouched, and so still shy of the glass.
-        const k = (1 - jd / TUNE.jarShyR) * TUNE.jarShy;
-        bx += (jdx / jd) * k; by += (jdy / jd) * k;
-      }
+      void jar;
 
       /* --- ITS OWN FLIGHT. Steered responsively toward the boid heading, at
          --- its own comfortable speed, and hard-capped at flyMax. That cap is
          --- what keeps panic traceable: a fly can never reach panicSpeed by
          --- flying, only by being moved. */
       const comfort = REDUCED ? 0.86 : 0.86 + 0.14 * Math.sin(clock * 0.7 + f.ph * 4.1);
-      const cruise = TUNE.flyMax * (f.spook > 0 ? TUNE.spookCruise : f.cs * comfort);
+      /* A LED FLY FLIES HARDER. `lureSpeed` is the ceiling on how fast one can
+         chase a light, and therefore the exact speed above which your hand
+         leaves them behind. It is the single number this game is about. */
+      const cruise = f.led ? TUNE.lureSpeed * comfort
+                           : TUNE.flyMax * f.cs * comfort;
       const bm = Math.hypot(bx, by);
       if (bm > 1e-6) {
         const st = { x: (bx / bm * cruise - f.vx) * 3.2,
@@ -724,17 +681,13 @@
         clampVec(st, 340);
         f.vx += st.x * dt; f.vy += st.y * dt;
       }
-      const ownCap = TUNE.flyMax * (f.spook > 0 ? TUNE.spookCruise : 1);
+      const ownCap = f.led ? TUNE.lureSpeed : TUNE.flyMax;
       const os = Math.hypot(f.vx, f.vy);
       if (os > ownCap) { f.vx = f.vx / os * ownCap; f.vy = f.vy / os * ownCap; }
 
       /* --- WHAT IS DONE TO IT. The touch, the breeze, a thorn. These do not
          --- steer the fly, they move it, and they let go on their own over
          --- about a second, which is most of what pushing warm air feels like. */
-      if (touch) {
-        touchForce(f.x, f.y, touch.x, touch.y, TF);
-        f.sx += TF.x * dt; f.sy += TF.y * dt;
-      }
       /* WIND IS NOT A FRIGHT. It rides in its own velocity, apart from the
           shove, because panic is measured on the two that are done TO a fly by
           a hand or a thorn, and a fly carried along by steady air is not
@@ -755,7 +708,7 @@
       for (const th of S.thorns) {
         const tdx = f.x - th.x, tdy = f.y - th.y, td = Math.hypot(tdx, tdy);
         if (td < th.r && td > 1e-4) {
-          if (f.spook <= 0) { f.spook = TUNE.spookSecs; newlySpooked++; }
+          if (f.spook <= 0) f.spook = TUNE.spookSecs;
           f.sx += tdx / td * TUNE.thornKick * dt * 6;
           f.sy += tdy / td * TUNE.thornKick * dt * 6;
         }
@@ -769,13 +722,12 @@
       const px = f.x, py = f.y;
       f.x += (f.vx + f.sx + f.wx) * dt; f.y += (f.vy + f.sy + f.wy) * dt;
 
-      /* --- PANIC, on the two velocities together, and always traceable to the
-         --- player's own push or a thorn. Never RNG, and never while already
-         --- spooked: the timer runs on, it does not re-arm. */
-      if (f.spook <= 0 &&
-          Math.hypot(f.vx + f.sx, f.vy + f.sy) > TUNE.panicSpeed) {
-        f.spook = TUNE.spookSecs; newlySpooked++;
-      }
+      /* NO PANIC, AND NO CONTAGION. Both belonged to a verb that shoved: a
+         swarm you push can be pushed too hard, and that was the old cost of
+         carelessness. A string you LEAD has a truer one - go too fast and it
+         swings wide into the silk - so `spook` survives only as the shake a fly
+         carries for a moment after being pulled out of a web, during which it
+         will not follow the light. */
 
       /* --- SILK. The flies cannot see it. You can. That asymmetry is what the
          --- game is built on: leaving the swarm to drift is not neutral, it is
@@ -835,12 +787,11 @@
       if (f.caught || f.lost || f.web < 0) continue;
       S.stuckNow++;
       const w = S.webs[f.web];
-      let pushing = 0;
-      if (touch) {
-        touchForce(f.x, f.y, touch.x, touch.y, TF);
-        pushing = Math.hypot(TF.x, TF.y) / TUNE.pushMax;
-      }
-      if (pushing >= freeReach()) f.hold -= dt / TUNE.freeSecs;
+      // Hold the flame close and it strains toward the light hard enough to
+      // tear itself out. Which means standing over the trapped one, and not
+      // over the others.
+      const near = touch ? Math.hypot(f.x - touch.x, f.y - touch.y) : 1e9;
+      if (near <= TUNE.freeR) f.hold -= dt / TUNE.freeSecs;
       else f.hold = Math.min(1, f.hold + dt / (TUNE.freeSecs * 2.2));
       if (f.hold <= 0) {
         // free, and thrown clear of the silk so it cannot fall straight back in
@@ -881,26 +832,59 @@
       w.seat = Math.min(1, w.spiderT / TUNE.spiderSecs);
     }
 
-    // ---- spread, off last frame's spooked set ----
-    for (let i = 0; i < loose.length; i++) {
-      if (!wasSpooked[i]) continue;
-      const a = loose[i];
-      for (let j = 0; j < loose.length; j++) {
-        if (i === j || wasSpooked[j]) continue;
-        const b = loose[j];
-        if (Math.hypot(a.x - b.x, a.y - b.y) < TUNE.spookRadius) {
-          const pass = TUNE.spookSecs * TUNE.spookSpread;
-          if (b.spook < pass) { if (b.spook <= 0) newlySpooked++; b.spook = pass; }
-        }
+    /* ---- SILK, AND WHAT COMES FOR IT ----
+       A stuck fly can be worked loose by a sustained push. The push has to be
+       a real one, near enough to matter, and that is the same nearness that
+       panics everything else in reach: a rescue is bought with the swarm's
+       composure. That is the decision the whole game turns on. */
+    S.stuckNow = 0;
+    for (const f of S.flies) {
+      if (f.caught || f.lost || f.web < 0) continue;
+      S.stuckNow++;
+      const w = S.webs[f.web];
+      // Hold the flame close and it strains toward the light hard enough to
+      // tear itself out. Which means standing over the trapped one, and not
+      // over the others.
+      const near = touch ? Math.hypot(f.x - touch.x, f.y - touch.y) : 1e9;
+      if (near <= TUNE.freeR) f.hold -= dt / TUNE.freeSecs;
+      else f.hold = Math.min(1, f.hold + dt / (TUNE.freeSecs * 2.2));
+      if (f.hold <= 0) {
+        // free, and thrown clear of the silk so it cannot fall straight back in
+        const ax2 = f.x - w.x, ay2 = f.y - w.y, am = Math.hypot(ax2, ay2) || 1;
+        w.holding = false; w.cool = TUNE.webCool;
+        S.rescues++; f.freedAt = S.seconds;
+        f.web = -1; f.hold = 1; f.immune = TUNE.webImmune;
+        f.sx = ax2 / am * 120; f.sy = ay2 / am * 120;
+        f.spook = TUNE.spookSecs * 0.5;
+        if (sfx) sfx.play('unfold');
       }
     }
-    if (newlySpooked > 0) {
-      S.spookEvents += newlySpooked;
-      // A split is a burst, not a single startled fly.
-      if (newlySpooked >= 3) {
-        S.splits++;
-        if (sfx) sfx.play('thump');
+
+    /* The spider is the clock, and it is a clock made of garden rather than of
+       numbers. It sits in its web until something lands in it, then it walks
+       out. Nothing chases the swarm and nothing hunts: it comes to collect what
+       the web already caught, and it goes back when the web is empty. */
+    for (let wi = 0; wi < S.webs.length; wi++) {
+      const w = S.webs[wi];
+      let held = null, worst = -1;
+      for (const f of S.flies) {
+        if (f.web === wi && !f.lost && f.hold > worst) { worst = f.hold; held = f; }
       }
+      if (held) {
+        w.spiderT += dt;
+        w.tx = held.x; w.ty = held.y;      // it is coming for THAT one
+        if (w.spiderT >= TUNE.spiderSecs) {
+          held.lost = true; held.web = -1;
+          w.holding = false;
+          S.lost++;
+          w.spiderT = 0;
+          if (sfx) { sfx.tone(196, 0.26, 0.06, 'triangle'); sfx.play('thump'); }
+        }
+      } else {
+        w.spiderT = Math.max(0, w.spiderT - dt * 1.6);   // it goes home
+      }
+      if (w.cool > 0) w.cool = Math.max(0, w.cool - dt);
+      w.seat = Math.min(1, w.spiderT / TUNE.spiderSecs);
     }
 
     // ---- flies already in the glass mill about ----
@@ -916,7 +900,7 @@
     if (S.caught >= S.need) {
       phase = 'win'; winT = 0;
       touch = null;
-      T().levelComplete(S.lvl, S.spookEvents);
+      T().levelComplete(S.lvl, S.sticks);
       if (sfx) sfx.play('finish');
       return;
     }
@@ -1051,8 +1035,10 @@
                     i: 0.30 + 0.85 * fill });
     }
     if (touch) {
+      // The brightest thing in the garden, and the reason anything near it is
+      // visible at all.
       lights.push({ x: wx2s(touch.x), y: wy2s(touch.y),
-                    r: TUNE.touchRadius * s * 1.15, i: 0.42 });
+                    r: TUNE.lureR * s * 1.1, i: 1.0 });
     }
     for (const l of lights) l.r2 = l.r * l.r;
   }
@@ -1137,7 +1123,7 @@
       blit(SPR.warm, wx2s(S.jar.x), wy2s(S.jar.y) + S.jar.h * 0.34 * s,
            (108 + 150 * fill) * s, 0.10 + 0.30 * fill);
     }
-    if (touch) blit(SPR.haze, wx2s(touch.x), wy2s(touch.y), TUNE.touchRadius * s * 1.05, 0.85);
+    if (touch) blit(SPR.haze, wx2s(touch.x), wy2s(touch.y), TUNE.lureR * s * 1.0, 1);
     ctx.globalCompositeOperation = 'source-over';
 
     drawBreeze();
@@ -1145,7 +1131,8 @@
     for (const w of S.webs) drawWeb(w);
     for (const th of S.thorns) drawThorn(th);
     drawJar();
-    if (touch) drawTouch(); else if (hover && MODE === 'desktop') drawAim();
+    if (touch) { drawFlameTrail(); drawFlame(); }
+    else if (hover && MODE === 'desktop') drawAim();
     if (!SOLO) for (const f of S.flies) if (!f.caught && !f.lost) drawFly(f);
     drawGrass(false);
     drawWinWash();
@@ -1568,28 +1555,71 @@
     ctx.restore();
   }
 
-  /* THE TOUCH. A warmth, and only ever a warmth. Three rings breathe at 2s and
-     the middle one is not decoration: it is the radius solved in panicRadius(),
-     so the line the player can see is the line the physics uses. The haze is
-     proportional to the push actually being applied, so the hand shows its own
-     strength. */
-  function drawTouch() {
+  /* THE FLAME. It is the brightest thing in the garden and it is the only
+     thing in it the player controls, so it gets the strongest light in the
+     scene and the softest edge. No rings: rings said "keep out", and this is
+     the opposite instruction. A ribbon of light showing where it has just been
+     is the one piece of information the hand needs, because the whole skill is
+     how fast you moved it. */
+  function drawFlame() {
     const s = L.scale;
     const x = wx2s(touch.x), y = wy2s(touch.y);
-    const breathe = REDUCED ? 1 : 1 + Math.sin(clock * Math.PI) * 0.03;
-    const R = TUNE.touchRadius * s * breathe;
-    const P = panicRadius() * s * breathe;
+    const flick = REDUCED ? 1 : 1 + Math.sin(clock * 11.3) * 0.06
+                              + Math.sin(clock * 7.1 + 1.3) * 0.04;
 
     ctx.globalCompositeOperation = 'lighter';
-    ctx.lineWidth = Math.max(1, 1.4 * s);
-    ctx.strokeStyle = 'rgba(255,232,170,0.20)';
-    ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); ctx.stroke();
+    // the reach, as a wide soft bloom rather than a drawn edge: a fly inside
+    // this is a fly that can see you
+    blit(SPR.haze, x, y, TUNE.lureR * s * 0.92, 0.50);
+    blit(SPR.haze, x, y, 46 * s * flick, 0.95);
 
-    ctx.lineWidth = Math.max(1.2, 2.0 * s);
-    ctx.strokeStyle = 'rgba(255,232,170,0.42)';
-    ctx.beginPath(); ctx.arc(x, y, P, 0, Math.PI * 2); ctx.stroke();
+    // the body of the flame: a teardrop, leaning the way it is travelling
+    const vx = lureVX, vy = lureVY, vm = Math.hypot(vx, vy);
+    const lean = vm > 4 ? Math.atan2(vy, vx) : -Math.PI / 2;
+    const stretch = Math.min(2.1, 1 + vm / 260);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(lean);
+    const r = Math.max(4.5, 11 * s) * flick;
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, r * 2.4);
+    g.addColorStop(0, 'rgba(255,246,214,1)');
+    g.addColorStop(0.26, 'rgba(255,214,138,0.92)');
+    g.addColorStop(0.62, 'rgba(232,150,70,0.34)');
+    g.addColorStop(1, 'rgba(232,150,70,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.ellipse(-r * 0.30 * (stretch - 1), 0, r * 2.4 * stretch, r * 2.0, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,252,238,0.98)';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, r * 0.62, r * 0.52, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    ctx.globalCompositeOperation = 'source-over';
+  }
 
-    blit(SPR.haze, x, y, Math.max(8, 30 * s), 0.95);
+  /* WHERE THE FLAME HAS BEEN, for as long as it takes a fly to get there. The
+     lag is the mechanic, so the lag is drawn: this ribbon is literally the path
+     the string is still catching up with, and a corner you cut shows up here as
+     a corner before it shows up as a fly in a web. */
+  function drawFlameTrail() {
+    if (lureTrail.length < 4) return;
+    const n = lureTrail.length / 2;
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    for (let c = 0; c < 3; c++) {
+      const i0b = Math.floor((c / 3) * n), i1b = Math.min(n - 1, Math.floor(((c + 1) / 3) * n));
+      if (i1b <= i0b) continue;
+      const k = (c + 1) / 3;
+      ctx.strokeStyle = 'rgba(255,206,132,' + (k * 0.20).toFixed(3) + ')';
+      ctx.lineWidth = Math.max(1, k * 5 * L.scale);
+      ctx.beginPath();
+      ctx.moveTo(wx2s(lureTrail[i0b * 2]), wy2s(lureTrail[i0b * 2 + 1]));
+      for (let i = i0b + 1; i <= i1b; i++) {
+        ctx.lineTo(wx2s(lureTrail[i * 2]), wy2s(lureTrail[i * 2 + 1]));
+      }
+      ctx.stroke();
+    }
     ctx.globalCompositeOperation = 'source-over';
   }
 
@@ -1904,40 +1934,19 @@
     T().levelStart(n);
   }
 
-  /* THE TOUCH FORCE, in one place, so that the thing the simulation applies and
-     the thing the assertion checks cannot drift apart. It writes into `out` to
-     keep the inner loop free of allocation.
-
-     Every component of it points AWAY from the touch. There is no branch in
-     here that can produce an inward term, and `assertNoCapture()` proves that
-     over the whole field rather than taking this comment's word for it. */
-  function touchForce(fx, fy, tx, ty, out) {
-    const dx = fx - tx, dy = fy - ty;
-    const d = Math.hypot(dx, dy);
-    if (d >= TUNE.touchRadius) { out.x = 0; out.y = 0; out.d = d; return out; }
-    const p = TUNE.pushMax * pushFalloff(d);
-    if (d > 1e-4) { out.x = dx / d * p; out.y = dy / d * p; }
-    else { out.x = p; out.y = 0; }     // dead centre: pick an axis, never /0
-    out.d = d;
-    return out;
-  }
-
   // ---------- TUNING (?tune=1) ----------
   /* Dev only, and gated on the query string so it can never ship. The point of
      M0 is to hold the thing and say whether pushing feels like moving warm air;
      that conversation goes faster with the dial in the owner's hand than with a
      round trip through me for every value. */
   const SLIDERS = [
-    ['panicSpeed', 62, 130, 1], ['pushMax', 40, 180, 1],
-    ['touchRadius', 60, 220, 1], ['flyMax', 30, 110, 1],
-    ['shoveDamp', 0.4, 3, 0.05], ['coh', 0, 1.6, 0.05],
-    ['sep', 10, 60, 1], ['align', 0, 1.2, 0.05],
-    ['wander', 0, 1.2, 0.05], ['spookSecs', 0.4, 4, 0.1],
-    ['spookRadius', 16, 110, 1], ['jarShy', 0, 5, 0.1],
-    ['jarShyR', 60, 300, 5],
-    ['jarCall', 0, 6, 0.1], ['jarCallR', 80, 380, 10],
-    ['spiderSecs', 4, 24, 0.5], ['freeSecs', 0.4, 4, 0.1],
-    ['webR', 20, 90, 1],
+    ['lureSpeed', 60, 320, 5], ['lureR', 70, 280, 5],
+    ['lure', 0.5, 8, 0.1], ['lureHold', 8, 90, 2],
+    ['flyMax', 20, 110, 1], ['sep', 10, 90, 1],
+    ['wander', 0, 1.2, 0.05],
+    ['webR', 14, 70, 1], ['spiderSecs', 4, 24, 0.5],
+    ['freeR', 20, 140, 2], ['freeSecs', 0.4, 4, 0.1],
+    ['webCool', 0, 12, 0.5], ['breeze', 0, 70, 1],
     ['touchLift', 0, 90, 1],
   ];
   function buildTunePanel() {
@@ -1982,8 +1991,8 @@
   function drawTuneOverlay() {
     const lines = [
       'tier ' + (S.tier + 1) + '  ·  flies ' + S.n + '  ·  mouth ' + S.jar.mouthW,
-      'panic ring ' + panicRadius().toFixed(1) + ' of ' + TUNE.touchRadius,
-      'spooks ' + S.spookEvents + '  ·  splits ' + S.splits,
+      'hand ' + Math.hypot(lureVX, lureVY).toFixed(0) + ' of ' + TUNE.lureSpeed + ' they can follow',
+      'stuck ' + S.stuckNow + '  ·  lost ' + S.lost + '  ·  left behind ' + S.flies.filter((f) => !f.caught && !f.lost && f.web < 0 && !f.led).length,
       'seconds ' + S.seconds.toFixed(1) + '  ·  fps ' + fps.toFixed(0),
     ];
     ctx.font = '600 11px Inter, sans-serif';
@@ -2031,9 +2040,9 @@
       lost: S.lost, stuck: S.stuckNow, spare: S.n - S.lost - S.need,
       sticks: S.sticks, resticks: S.resticks, rescues: S.rescues,
       webs: S.webs.length, thorns: S.thorns.length,
-      spookEvents: S.spookEvents, splits: S.splits,
       seconds: +S.seconds.toFixed(2), phase, mode: MODE,
-      panicRadius: +panicRadius().toFixed(2), touchRadius: TUNE.touchRadius,
+      handSpeed: +Math.hypot(lureVX, lureVY).toFixed(0), canFollow: TUNE.lureSpeed,
+      led: S.flies.filter((f) => f.led).length,
       scale: +(L.scale || 0).toFixed(4), fps: +fps.toFixed(1),
     }),
     layout: () => ({
@@ -2049,56 +2058,6 @@
     setLevel: (n) => { gotoLevel(n); return S.lvl; },
     tune: (k, v) => { if (v != null) TUNE[k] = v; return TUNE[k]; },
     tuneAll: () => JSON.parse(JSON.stringify(TUNE)),
-
-    /* THE ONE RULE, asserted rather than asserted-in-a-comment. Sweeps the
-       whole field: every touch position against every fly position, through the
-       SAME function the simulation calls. A future edit that adds an inward
-       term to the touch fails here on the next run. */
-    assertNoCapture(grid) {
-      const g = grid || 41, A = TUNE.arena, out = { x: 0, y: 0, d: 0 };
-      let pairs = 0, overMax = 0, notRadial = 0, worstMag = 0, worstRadialErr = 0;
-      for (let ti = 0; ti < g; ti++) for (let tj = 0; tj < g; tj++) {
-        const tx = (ti / (g - 1)) * A, ty = (tj / (g - 1)) * A;
-        for (let fi = 0; fi < g; fi++) for (let fj = 0; fj < g; fj++) {
-          const fx = (fi / (g - 1)) * A, fy = (fj / (g - 1)) * A;
-          touchForce(fx, fy, tx, ty, out);
-          const mag = Math.hypot(out.x, out.y);
-          if (mag === 0) continue;
-          pairs++;
-          if (mag > worstMag) worstMag = mag;
-          if (mag > TUNE.pushMax + 1e-9) overMax++;
-          const dx = fx - tx, dy = fy - ty, d = Math.hypot(dx, dy);
-          if (d > 1e-6) {
-            // component along the OUTWARD unit vector. For a purely repulsive
-            // force this equals the magnitude exactly.
-            const radial = (out.x * dx + out.y * dy) / d;
-            const err = mag - radial;
-            if (err > worstRadialErr) worstRadialErr = err;
-            if (err > 1e-9) notRadial++;
-          }
-        }
-      }
-      return {
-        pairsTested: pairs,
-        pushMax: TUNE.pushMax,
-        worstMagnitude: +worstMag.toFixed(6),
-        forcesOverPushMax: overMax,
-        forcesWithInwardComponent: notRadial,
-        worstInwardComponent: +worstRadialErr.toExponential(2),
-        pass: overMax === 0 && notRadial === 0,
-        // controls: a force that IS inward must be caught, and a zero force
-        // must not be counted. If these two are wrong the sweep proves nothing.
-        control_inwardIsCaught: (() => {
-          const o = { x: -10, y: 0 }, dx = 5, dy = 0, d = 5;
-          const radial = (o.x * dx + o.y * dy) / d;
-          return Math.hypot(o.x, o.y) - radial > 1e-9;
-        })(),
-        control_outOfRangeIsZero: (() => {
-          touchForce(0, 0, TUNE.touchRadius + 1, 0, out);
-          return out.x === 0 && out.y === 0;
-        })(),
-      };
-    },
 
     /* Contrast on the PAINTED pixel, because source hexes and the screen are
        different numbers: alpha, compositing and 'lighter' all sit in between.
@@ -2185,7 +2144,7 @@
     // picture says they are.
     flies: () => S.flies.map((f) => ({
       x: +f.x.toFixed(1), y: +f.y.toFixed(1),
-      web: f.web, hold: +f.hold.toFixed(2), lost: f.lost,
+      web: f.web, hold: +f.hold.toFixed(2), lost: f.lost, led: f.led,
       own: +Math.hypot(f.vx, f.vy).toFixed(1),
       shove: +Math.hypot(f.sx, f.sy).toFixed(1),
       total: +Math.hypot(f.vx + f.sx, f.vy + f.sy).toFixed(1),
@@ -2201,7 +2160,8 @@
       const sh = l.reduce((a, f) => a + Math.hypot(f.sx, f.sy), 0) / l.length;
       const tot = l.reduce((a, f) => a + Math.hypot(f.vx + f.sx, f.vy + f.sy), 0) / l.length;
       const sk = l.filter((f) => f.spook > 0).length;
-      return { loose: l.length, stuck: S.stuckNow, lost: S.lost,
+      return { loose: l.length, led: l.filter((f) => f.led).length,
+               stuck: S.stuckNow, lost: S.lost,
                cx: +cx.toFixed(1), cy: +cy.toFixed(1),
                spread: +spread.toFixed(1), meanOwn: +own.toFixed(1),
                meanShove: +sh.toFixed(1), meanTotal: +tot.toFixed(1),
@@ -2213,83 +2173,6 @@
                   h: +S.jar.h.toFixed(1), mouthW: S.jar.mouthW }),
     // Put the warmth somewhere without a hand, for scripted runs and the gate.
     setTouch: (x, y) => { touch = (x == null) ? null : { x, y }; return touch; },
-
-    /* WHERE THEY ACTUALLY PANIC, by simulation rather than by algebra.
-       The ring drawn on screen comes from a closed form, and a closed form for
-       a swarm is always a fit. This runs the real step() at the real timestep
-       with the warmth parked at a known distance and reports the distance at
-       which spooking starts. If the two disagree by much, the ring is a
-       decoration and PANIC_K needs moving. */
-    probePanic(dist, opts) {
-      const o = opts || {};
-      const secs = o.secs != null ? o.secs : 2.6;
-      const keep = S, keepPhase = phase, keepTouch = touch, keepClock = clock;
-      // The `comfort` modulation reads the clock, so a probe run at a different
-      // moment gets a slightly different answer. Pinning it is the difference
-      // between a repeatable measurement and one that moves 4 units when you
-      // run it twice, which the gate in M2 cannot live with.
-      clock = 0;
-      S = buildScene(S.lvl);
-      S.thorns = []; S.breeze = null;
-      if (o.single) S.flies = S.flies.slice(0, 1);
-      S.n = S.flies.length;
-      const A = TUNE.arena, cx = A * 0.5, cy = A * 0.5;
-      // Park the swarm mid-field at rest, with the warmth `dist` to its left,
-      // and the jar moved far away so nothing gets captured mid-measurement.
-      let k = 0;
-      for (const f of S.flies) {
-        const a = (k / S.flies.length) * Math.PI * 2, r = k === 0 ? 0 : 18;
-        f.x = cx + Math.cos(a) * r; f.y = cy + Math.sin(a) * r;
-        f.vx = f.vy = f.sx = f.sy = f.wx = f.wy = 0; f.spook = 0; f.trail.length = 0;
-        k++;
-      }
-      S.jar.mx = -9999; S.jar.my = -9999; S.jar.x = -9999; S.jar.y = -9999;
-      phase = 'play';
-      touch = { x: cx - dist, y: cy };
-      let peak = 0;
-      const steps = Math.round(secs / DT);
-      for (let i = 0; i < steps; i++) {
-        step(DT);
-        for (const f of S.flies) {
-          const t2 = Math.hypot(f.vx + f.sx, f.vy + f.sy);
-          if (t2 > peak) peak = t2;
-        }
-      }
-      const out = { dist, spooks: S.spookEvents, splits: S.splits,
-                    peakSpeed: +peak.toFixed(1), panicSpeed: TUNE.panicSpeed,
-                    spooked: S.spookEvents > 0, flies: S.flies.length };
-      S = keep; phase = keepPhase; touch = keepTouch; clock = keepClock;
-      return out;
-    },
-    calibratePanic(opts) {
-      const o = opts || {};
-      const step2 = o.step || 4;
-      const rows = [];
-      for (let d = 4; d <= TUNE.touchRadius + 8; d += step2) {
-        rows.push(this.probePanic(d, o));
-      }
-      // the largest distance that still spooks them
-      let measured = 0;
-      for (const r of rows) if (r.spooked && r.dist > measured) measured = r.dist;
-      const drawn = panicRadius();
-      return {
-        measuredPanicRadius: measured,
-        drawnPanicRadius: +drawn.toFixed(1),
-        touchRadius: TUNE.touchRadius,
-        drawnAsShareOfReach: +(drawn / TUNE.touchRadius).toFixed(3),
-        errorPx: +(drawn - measured).toFixed(1),
-        panicSpeed: TUNE.panicSpeed, pushMax: TUNE.pushMax,
-        shoveDamp: TUNE.shoveDamp, PANIC_K,
-        // control: at zero distance the push is maximal, so it MUST spook.
-        // If this is false the probe is not applying a push at all.
-        control_pointBlankSpooks: rows[0] ? rows[0].spooked : null,
-        // control: well outside the reach nothing may spook. If this is true
-        // something other than the touch is panicking them, i.e. RNG.
-        control_outOfReachIsCalm:
-          !this.probePanic(TUNE.touchRadius + 40, o).spooked,
-        rows,
-      };
-    },
 
     /* Does the mouth actually take a fly? Walks one fly in from a ring of
        approach angles around the jar and reports which ones end up in the
@@ -2410,126 +2293,117 @@
       return this.state();
     },
 
-    /* A CAREFUL BOT. Stands on the far side of the swarm from the jar and
-       pushes from there, at a stand-off measured in panic rings rather than
-       pixels, so the policy still means the same thing after the dial moves.
-       This is Bot C from the brief's gate, minus the pauses; it is here now
-       because "M1, one scene end to end" is not shown by a screenshot, it is
-       shown by something finishing the level. */
-    herdBot(opts) {
+    /* A BOT THAT LEADS. It walks the flame from the flies to the jar's mouth
+       and then INTO it, at a chosen speed, going round the webs on the way and
+       stopping to hold the light over anything caught in silk.
+
+       `speed` is the whole experiment. There is exactly one difficulty setting
+       in this game and it is how fast you move your hand, so the gate is a
+       sweep of this one number: too slow and you are loitering next to spiders,
+       too fast and the string swings wide on the corners and the tail goes into
+       the silk. If there is no interior optimum, there is no game. */
+    leadBot(opts) {
       const o = opts || {};
-      const standOff = o.standOff != null ? o.standOff : 1.5;
-      const limit = o.limit != null ? o.limit : 90;
-      const reaim = 0.15;
+      const speed = o.speed != null ? o.speed : 110;
+      const limit = o.limit != null ? o.limit : 120;
+      const tick = 1 / 30;
       if (o.level != null) gotoLevel(o.level);
       const jar = S.jar;
-      const spreadOf = (l) => {
-        let cx = 0, cy = 0;
-        for (const f of l) { cx += f.x; cy += f.y; }
-        cx /= l.length; cy /= l.length;
-        return { cx, cy,
-                 sp: l.reduce((a, f) => a + Math.hypot(f.x - cx, f.y - cy), 0) / l.length };
-      };
-      const base = spreadOf(S.flies.filter((f) => !f.caught && !f.lost && f.web < 0)).sp;
-      let t = 0, worstSpread = 0, paused = false, pausedFor = 0, rescued = 0;
+      // start the flame on the flies so it has something to lead
+      let lx = 0, ly = 0, n0 = 0;
+      for (const f of S.flies) if (!f.caught && !f.lost) { lx += f.x; ly += f.y; n0++; }
+      if (n0) { lx /= n0; ly /= n0; }
+      touch = { x: lx, y: ly };
+
+      let t = 0, held = 0, insideJar = 0;
       while (t < limit && phase === 'play') {
-        const loose = S.flies.filter((f) => !f.caught && !f.lost && f.web < 0);
-        if (!loose.length) break;
-        const g = spreadOf(loose);
-        if (g.sp > worstSpread) worstSpread = g.sp;
-
-        /* TAKE THE HAND AWAY WHEN THE SWARM COMES APART. This is the whole of
-           Bot C's "pauses when spread grows", and it is not a bot nicety: a
-           scattered swarm cannot be herded, only re-gathered, and the only
-           thing that re-gathers it is cohesion with nothing pushing. Chasing a
-           split swarm with the warmth still on drives the halves further apart
-           every second. */
-        if (!paused && g.sp > base * 1.9) paused = true;
-        if (paused && g.sp < base * 1.30) paused = false;
-
-        /* RESCUE FIRST. A fly in silk is on a clock and the swarm is not, so
-           the swarm can wait. The warmth goes onto the trapped one, which is
-           the same gesture as pushing and at the same distance, because the
-           rescue reach and the panic ring are the same circle. */
-        let rescuing = null, worstT = -1;
-        for (const f of S.flies) {
+        // 1. anything in silk outranks everything: it is the only thing on a clock
+        let save = null, worst = -1;
+        if (!o.noRescue) for (const f of S.flies) {
           if (f.caught || f.lost || f.web < 0) continue;
           const w = S.webs[f.web];
-          if (w.spiderT > worstT) { worstT = w.spiderT; rescuing = f; }
+          if (w.spiderT > worst) { worst = w.spiderT; save = f; }
         }
-
-        if (rescuing) {
-          paused = false;
-          /* NOT dead centre on the fly. The rescue reach is the panic ring, so
-             standing ON the trapped one is a full-strength push into every
-             neighbour for no extra benefit at all. Stand at the ring: the same
-             rescue, a fraction of the panic. */
-          const ang2 = Math.atan2(rescuing.y - g.cy, rescuing.x - g.cx);
-          const rr = panicRadius() * 0.92;
-          touch = { x: rescuing.x + Math.cos(ang2) * rr,
-                    y: rescuing.y + Math.sin(ang2) * rr };
-          rescued += reaim;
-        } else if (paused) { touch = null; pausedFor += reaim; }
+        let tx, ty, cap = speed;
+        if (save) { tx = save.x; ty = save.y; held += tick; }
         else {
-          /* ROUTE ROUND THE SILK. The direct line to the jar is only the right
-             line when nothing is on it. A careless hand pushes straight; a
-             careful one aims at a waypoint to the side of the web in the way,
-             and that difference is the whole of "does care beat carelessness"
-             on this board. */
-          let tx = jar.mx, ty = jar.my;
+          // 2. otherwise gather the stragglers, then take everyone to the jar
+          let far = null, fd = -1;
+          for (const f of S.flies) {
+            if (f.caught || f.lost || f.web >= 0) continue;
+            const d = Math.hypot(f.x - lx, f.y - ly);
+            if (d > TUNE.lureR * 0.92 && d > fd) { fd = d; far = f; }
+          }
+          if (far) { tx = far.x; ty = far.y; }
+          else {
+            // into the mouth, and then a little way inside, so the string
+            // follows the light through rather than stopping at the doorway
+            tx = jar.mx + jar.inX * jar.h * 0.34;
+            ty = jar.my + jar.inY * jar.h * 0.34;
+            insideJar += tick;
+          }
           if (!o.careless) {
-            /* Round EVERYTHING in the way, not just the silk. Thorns were
-               left out of this and it cost more than the webs did: one thorn
-               on tier 3 produced 592 spook events, because a swarm is wider
-               than a bush and the contagion does the rest, so the bot drove
-               its own swarm through the same shrub over and over. Half a
-               careful policy is not care. */
-            const vx = jar.mx - g.cx, vy = jar.my - g.cy, vl = Math.hypot(vx, vy) || 1;
+            const vx = tx - lx, vy = ty - ly, vl = Math.hypot(vx, vy) || 1;
             let bestAlong = Infinity;
-            for (const ob of S.webs.concat(S.thorns)) {
-              const rx = ob.x - g.cx, ry = ob.y - g.cy;
+            for (const w of S.webs) {
+              const rx = w.x - lx, ry = w.y - ly;
               const along = (rx * vx + ry * vy) / vl;
-              if (along < 0 || along > vl) continue;              // not ahead of us
-              const side = (rx * -vy + ry * vx) / vl;             // signed clearance
-              const clear = ob.r + 86;
-              if (Math.abs(side) > clear) continue;               // already clear
-              if (along >= bestAlong) continue;                   // a nearer one wins
+              if (along < 0 || along > vl) continue;
+              const side = (rx * -vy + ry * vx) / vl;
+              const clear = w.r + TUNE.lureR * 0.42;
+              if (Math.abs(side) > clear || along >= bestAlong) continue;
               bestAlong = along;
-              const push = (side >= 0 ? -1 : 1) * (clear + 26);
-              tx = ob.x + (-vy / vl) * push; ty = ob.y + (vx / vl) * push;
+              const push = (side >= 0 ? -1 : 1) * (clear + 20);
+              tx = w.x + (-vy / vl) * push; ty = w.y + (vx / vl) * push;
             }
           }
-          /* TWO PHASES, and this is the skill the game turned out to have.
-             Crossing the garden wants a WIDE hand: hang back and the swarm
-             drifts as a body, held together, unspooked. Putting one in the jar
-             wants a CLOSE one: the mouth only yields to a committed push, and
-             a committed push is a shove of 56, which is a stand-off of about a
-             single panic ring.
-
-             The first bot to play this version stood off two rings the whole
-             way, which is what worked when the jar still pulled. Two rings is
-             112 units, where the push delivers a shove of 1.6, and it managed
-             one capture in two hundred seconds. It was not that the game could
-             not be won; it was that it was being played at arm's length
-             throughout. */
-          const dx = g.cx - tx, dy = g.cy - ty, d = Math.hypot(dx, dy) || 1;
-          const toMouth = Math.hypot(g.cx - jar.mx, g.cy - jar.my);
-          const near = Math.max(0, Math.min(1, (260 - toMouth) / 190));
-          const closeTo = o.closeTo != null ? o.closeTo : standOff;
-          const off = panicRadius() * (standOff - (standOff - closeTo) * near);
-          touch = { x: g.cx + dx / d * off, y: g.cy + dy / d * off };
         }
-        this.advance(reaim); t += reaim;
+        // 3. move the flame, at no more than the speed being tested
+        const dx = tx - lx, dy = ty - ly, d = Math.hypot(dx, dy);
+        const stepLen = Math.min(d, cap * tick);
+        if (d > 1e-6) { lx += dx / d * stepLen; ly += dy / d * stepLen; }
+        touch = { x: lx, y: ly };
+        this.advance(tick); t += tick;
       }
+      const out = { level: S.lvl, tier: S.tier + 1, flies: S.n, need: S.need,
+                    speed, careless: !!o.careless, noRescue: !!o.noRescue,
+                    finished: S.caught >= S.need, caught: S.caught,
+                    lost: S.lost, sticks: S.sticks, rescues: S.rescues,
+                    secs: +t.toFixed(1), secsRescuing: +held.toFixed(1),
+                    secsAtTheMouth: +insideJar.toFixed(1) };
       touch = null;
-      return { level: S.lvl, tier: S.tier + 1, flies: S.n, need: S.need,
-               finished: S.caught >= S.need, caught: S.caught, lost: S.lost,
-               secs: +t.toFixed(1), spooks: S.spookEvents, splits: S.splits,
-               worstSpread: +worstSpread.toFixed(0),
-               baseSpread: +base.toFixed(0), pausedSecs: +pausedFor.toFixed(1),
-               sticks: S.sticks, resticks: S.resticks, rescues: S.rescues,
-               secsRescuing: +rescued.toFixed(1),
-               careless: !!o.careless, standOff };
+      return out;
+    },
+
+    /* THE GATE. Sweeps the one dial the player has - hand speed - and reports
+       what it costs at each setting. A craft game has to have an interior
+       optimum or the right answer is "do the extreme thing", which is not a
+       decision. */
+    probeSpeed(opts) {
+      const o = opts || {};
+      const speeds = o.speeds || [40, 70, 100, 130, 170, 220, 280];
+      const levels = o.levels || [9, 21, 33, 45];
+      const rows = [];
+      for (const sp of speeds) {
+        let won = 0, lost = 0, sticks = 0, secs = 0, runs = 0;
+        for (const lv of levels) {
+          const r = this.leadBot({ level: lv, speed: sp, limit: o.limit || 150 });
+          runs++; if (r.finished) { won++; secs += r.secs; }
+          lost += r.lost; sticks += r.sticks;
+        }
+        rows.push({ handSpeed: sp, won: won + '/' + runs,
+                    meanSecsWhenWon: won ? +(secs / won).toFixed(1) : null,
+                    fliesLost: lost, sticks });
+      }
+      const best = rows.filter((r) => r.meanSecsWhenWon != null)
+                       .sort((a, b) => a.meanSecsWhenWon - b.meanSecsWhenWon)[0];
+      return {
+        theyCanFollow: TUNE.lureSpeed,
+        fastest: best ? best.handSpeed : null,
+        interiorOptimum: best ? (best.handSpeed !== speeds[0] &&
+                                 best.handSpeed !== speeds[speeds.length - 1]) : false,
+        rows,
+      };
     },
 
     /* Determinism, asserted. Two identical scripted runs from the same level
@@ -2578,152 +2452,187 @@
                pass: bad.length === 0 };
     },
 
-    /* CAN A FLY ACTUALLY BE SAVED? Sticks one in a web on purpose, parks the
-       warmth at a given distance, and reports whether it comes loose and how
-       long it took, against the spider's own clock. A threat you cannot answer
-       is not a decision, it is a tax. */
-    probeRescue(dist) {
-      const keep = S, keepPhase = phase, keepTouch = touch, keepClock = clock;
-      clock = 0; S = buildScene(S.lvl);
-      if (!S.webs.length) { S = keep; phase = keepPhase; touch = keepTouch; clock = keepClock;
-        return { level: keep.lvl, webs: 0, note: 'no webs on this level' }; }
-      phase = 'play';
-      const w = S.webs[0], f = S.flies[0];
-      f.x = w.x; f.y = w.y; f.vx = f.vy = f.sx = f.sy = 0; f.immune = 0;
-      step(DT);
-      const stuck = f.web >= 0;
-      const d = dist != null ? dist : 60;
-      touch = { x: w.x - d, y: w.y };
-      let t = 0, freed = false;
-      while (t < TUNE.spiderSecs * 1.5 && !freed && !f.lost) {
-        step(DT); t += DT; freed = f.web < 0 && !f.lost;
-      }
-      const out = { level: S.lvl, warmthAt: d, panicRing: +panicRadius().toFixed(0),
-                    itStuck: stuck, freed, secsToFree: freed ? +t.toFixed(2) : null,
-                    eatenAt: f.lost ? +t.toFixed(2) : null,
-                    spiderSecs: TUNE.spiderSecs };
-      S = keep; phase = keepPhase; touch = keepTouch; clock = keepClock;
-      return out;
+    /* WHAT A FRAME COSTS, in milliseconds of thread time. `fps` is worthless
+       inside a preview pane: the pane throttles frame delivery, so it reported
+       8 flies as SLOWER than 26, which is impossible and is the tell that the
+       check is measuring the harness. Thread time is not delivered by anyone.
+       The 60fps budget is 16.7ms for render plus sim together. */
+    renderCost(n) {
+      const N = n || 60, t = [];
+      for (let i = 0; i < N; i++) { const a = performance.now(); render(); t.push(performance.now() - a); }
+      t.sort((x, y) => x - y);
+      return { flies: S.n, mode: MODE, samples: N,
+               medianMs: +t[N >> 1].toFixed(2), p95Ms: +t[Math.floor(N * 0.95)].toFixed(2),
+               budgetMs: 16.7 };
+    },
+    simCost(n) {
+      const N = n || 240, t = [];
+      for (let i = 0; i < N; i++) { const a = performance.now(); step(DT); t.push(performance.now() - a); }
+      t.sort((x, y) => x - y);
+      // one displayed frame is DT-many sim steps at 60Hz, i.e. two
+      return { flies: S.n, samples: N, medianStepMs: +t[N >> 1].toFixed(3),
+               msPerDisplayedFrame: +(t[N >> 1] * 2).toFixed(2), budgetMs: 16.7 };
     },
 
-    /* THE CENTRAL INTERACTION, measured. A fly is parked outside the mouth and
-       the warmth is parked behind it, pushing it in. Sweeps the stand-off,
-       because that is the one thing the player's hand controls. If no distance
-       works, the jar is shy enough to be uncapturable and the game is
-       unwinnable; if every distance works, the shyness is doing nothing and
-       the jar is a funnel again. There has to be a band, and the band is the
-       skill. */
-    probePush(opts) {
-      const o = opts || {};
-      const keep = S, keepPhase = phase, keepTouch = touch, keepClock = clock;
-      const rows = [];
-      for (const off of (o.offsets || [30, 45, 60, 75, 90, 110, 130, 160])) {
-        clock = 0; S = buildScene(keep.lvl);
-        S.thorns = []; S.breeze = null; S.webs = [];
-        S.flies = S.flies.slice(0, 1); S.n = 1; S.need = 1;
-        phase = 'play';
-        const jar = S.jar, f = S.flies[0];
-        /* A FIXED start, not one that scales with the mouth. Scaling it meant
-           tier 9's fly began 70 units out and tier 1's began 132, so the wide
-           easy mouth was being measured over nearly twice the distance and came
-           out harder. The tiers differ by mouth width or the comparison says
-           nothing. */
-        const start = o.start != null ? o.start : 130;
-        // squarely outside the mouth, on the jar's own axis
-        f.x = jar.mx - jar.inX * start; f.y = jar.my - jar.inY * start;
-        f.vx = f.vy = f.sx = f.sy = 0; f.spook = 0; f.cs = 1;
-        f.wa = Math.atan2(jar.inY, jar.inX); f.ws = 0;
-        /* THE HAND FOLLOWS. Held still, the warmth is 130-odd units behind the
-           fly by the time the fly reaches the mouth, which is past a reach of
-           120, so the push had faded to nothing and the probe was measuring an
-           abandoned fly rather than a herded one. A player walks their hand
-           along behind the swarm, so the probe does too, and `off` becomes what
-           it was meant to be: how far back the player stays. */
-        let t = 0, spooked = false;
-        while (t < 12 && !f.caught) {
-          touch = { x: f.x - jar.inX * off, y: f.y - jar.inY * off };
-          step(DT); t += DT;
-          if (f.spook > 0) spooked = true;
-        }
-        rows.push({ standOff: off, inRing: off <= panicRadius(),
-                    captured: f.caught, secs: f.caught ? +t.toFixed(2) : null,
-                    spookedIt: spooked });
-      }
-      S = keep; phase = keepPhase; touch = keepTouch; clock = keepClock;
-      const won = rows.filter((r) => r.captured);
-      return {
-        level: keep.lvl, panicRing: +panicRadius().toFixed(0), jarShy: TUNE.jarShy,
-        capturedAt: won.map((r) => r.standOff),
-        anyWork: won.length > 0, allWork: won.length === rows.length,
-        cleanCaptures: won.filter((r) => !r.spookedIt).map((r) => r.standOff),
-        rows,
-      };
+    // Where the controls actually ARE, in logical canvas pixels, so a test can
+    // press them the way a thumb does instead of calling what they call.
+    controls: () => ({ mute: hit.mute, restart: hit.restart, next: hit.next,
+                       ctrlCy: L.ctrlCy, muted: sfx ? !sfx.isOn() : null }),
+
+    /* SCRIPTED TIME. Runs the real fixed-step loop synchronously, so a bot can
+       play a level without waiting for frames. The gate in M2 is built on this
+       and on nothing else: the sim takes no wall-clock input, uses no
+       Math.random, and the same script from the same seed gives the same
+       answer every time. `assertDeterminism()` below is the proof.  */
+    advance(secs) {
+      const n = Math.round(secs / DT);
+      for (let i = 0; i < n; i++) { if (phase === 'win') winT += DT; step(DT); }
+      return this.state();
     },
 
-    /* WHERE THE CAPTURE ATTEMPT ACTUALLY FAILS. Three candidate answers and
-       they need different fixes, so guessing between them is worthless:
-         they never get near the mouth        -> the herding is too weak
-         they get near but are never committed -> the shove at the mouth is
-                                                 too small to beat the shyness
-         they are committed but miss the gap  -> the mouth is too small a
-                                                 target for a radial push
-       Runs the bot and watches the fly that gets closest each moment. */
-    diagnoseCapture(opts) {
-      const o = opts || {};
-      if (o.level != null) gotoLevel(o.level);
-      const jar = S.jar;
-      let bestD = 1e9, shoveAtBest = 0, alignAtBest = 0;
-      let framesNearMouth = 0, framesCommittedNear = 0, framesInAperture = 0;
-      const near = jar.mouthW * 1.2;
-      const orig = this.herdBot;
-      // step the bot by hand so we can watch between its re-aims
-      const limit = o.limit || 150;
-      let t = 0;
-      const startCaught = S.caught;
-      while (t < limit && phase === 'play') {
-        orig.call(this, { level: null, limit: 0.15, standOff: o.standOff || 2.0 });
-        t += 0.15;
-        for (const f of S.flies) {
-          if (f.caught || f.lost || f.web >= 0) continue;
-          const rx = f.x - jar.mx, ry = f.y - jar.my;
-          const u = rx * jar.tanX + ry * jar.tanY;
-          const v = rx * jar.inX + ry * jar.inY;
-          const d = Math.hypot(rx, ry);
-          const sh = Math.hypot(f.sx, f.sy);
-          if (d < near) {
-            framesNearMouth++;
-            if (sh >= TUNE.shyYield) framesCommittedNear++;
-            if (Math.abs(u) < jar.mouthW / 2 && v < 0) framesInAperture++;
-          }
-          if (d < bestD) { bestD = d; shoveAtBest = sh; alignAtBest = Math.abs(u); }
+    /* Determinism, asserted. Two identical scripted runs from the same level
+       must land every fly on the same coordinate. If this ever fails, every
+       number the gate produces is noise. */
+    assertDeterminism(level) {
+      const lv = level || S.lvl;
+      const run = () => {
+        gotoLevel(lv);
+        for (let i = 0; i < 12; i++) {
+          touch = { x: 200 + i * 18, y: 300 - i * 9 };
+          this.advance(0.4);
         }
-      }
-      return {
-        level: S.lvl, need: S.need, caughtInRun: S.caught - startCaught,
-        closestAnyFlyGotToTheMouth: +bestD.toFixed(0),
-        mouthHalfWidth: jar.mouthW / 2,
-        shoveAtThatMoment: +shoveAtBest.toFixed(0),
-        commitNeeded: TUNE.shyYield,
-        offAxisAtThatMoment: +alignAtBest.toFixed(0),
-        framesNearMouth, framesCommittedNear, framesInAperture,
+        touch = null;
+        return S.flies.map((f) => f.x.toFixed(6) + ',' + f.y.toFixed(6)).join('|');
       };
+      const a = run(), b = run();
+      gotoLevel(lv);
+      return { level: lv, identical: a === b,
+               fingerprint: a.slice(0, 48) + '...', chars: a.length };
+    },
+
+    setReducedMotion(v) { REDUCED = !!v; return REDUCED; },
+    reducedMotion: () => REDUCED,
+
+    /* THE CHECK THAT SHOULD HAVE EXISTED FROM THE FIRST COMMIT. Nobody plays,
+       nothing is touched, and the count must stay at zero on every level. The
+       craft gate asks whether care beats carelessness; it is meaningless until
+       ABSENCE loses, and absence used to win. */
+    assertNoFreeCaptures(opts) {
+      const o = opts || {};
+      const secs = o.secs || 300;
+      const step2 = o.step || 1;
+      const keepLvl = S.lvl;
+      const bad = [];
+      let worst = 0;
+      for (let lv = 1; lv <= LEVELS; lv += step2) {
+        gotoLevel(lv); touch = null;
+        this.advance(secs);
+        if (S.caught > 0) bad.push('L' + lv + ' ' + S.caught + '/' + S.n);
+        if (S.caught > worst) worst = S.caught;
+      }
+      gotoLevel(keepLvl);
+      return { levelsTested: Math.ceil(LEVELS / step2), secondsEach: secs,
+               levelsThatPlayedThemselves: bad, worstFreeCaptures: worst,
+               pass: bad.length === 0 };
+    },
+
+    /* WHAT A FRAME COSTS, in milliseconds of thread time. `fps` is worthless
+       inside a preview pane: the pane throttles frame delivery, so it reported
+       8 flies as SLOWER than 26, which is impossible and is the tell that the
+       check is measuring the harness. Thread time is not delivered by anyone.
+       The 60fps budget is 16.7ms for render plus sim together. */
+    renderCost(n) {
+      const N = n || 60, t = [];
+      for (let i = 0; i < N; i++) { const a = performance.now(); render(); t.push(performance.now() - a); }
+      t.sort((x, y) => x - y);
+      return { flies: S.n, mode: MODE, samples: N,
+               medianMs: +t[N >> 1].toFixed(2), p95Ms: +t[Math.floor(N * 0.95)].toFixed(2),
+               budgetMs: 16.7 };
+    },
+    simCost(n) {
+      const N = n || 240, t = [];
+      for (let i = 0; i < N; i++) { const a = performance.now(); step(DT); t.push(performance.now() - a); }
+      t.sort((x, y) => x - y);
+      // one displayed frame is DT-many sim steps at 60Hz, i.e. two
+      return { flies: S.n, samples: N, medianStepMs: +t[N >> 1].toFixed(3),
+               msPerDisplayedFrame: +(t[N >> 1] * 2).toFixed(2), budgetMs: 16.7 };
+    },
+
+    // Where the controls actually ARE, in logical canvas pixels, so a test can
+    // press them the way a thumb does instead of calling what they call.
+    controls: () => ({ mute: hit.mute, restart: hit.restart, next: hit.next,
+                       ctrlCy: L.ctrlCy, muted: sfx ? !sfx.isOn() : null }),
+
+    /* SCRIPTED TIME. Runs the real fixed-step loop synchronously, so a bot can
+       play a level without waiting for frames. The gate in M2 is built on this
+       and on nothing else: the sim takes no wall-clock input, uses no
+       Math.random, and the same script from the same seed gives the same
+       answer every time. `assertDeterminism()` below is the proof.  */
+    advance(secs) {
+      const n = Math.round(secs / DT);
+      for (let i = 0; i < n; i++) { if (phase === 'win') winT += DT; step(DT); }
+      return this.state();
+    },
+
+    /* Determinism, asserted. Two identical scripted runs from the same level
+       must land every fly on the same coordinate. If this ever fails, every
+       number the gate produces is noise. */
+    assertDeterminism(level) {
+      const lv = level || S.lvl;
+      const run = () => {
+        gotoLevel(lv);
+        for (let i = 0; i < 12; i++) {
+          touch = { x: 200 + i * 18, y: 300 - i * 9 };
+          this.advance(0.4);
+        }
+        touch = null;
+        return S.flies.map((f) => f.x.toFixed(6) + ',' + f.y.toFixed(6)).join('|');
+      };
+      const a = run(), b = run();
+      gotoLevel(lv);
+      return { level: lv, identical: a === b,
+               fingerprint: a.slice(0, 48) + '...', chars: a.length };
+    },
+
+    setReducedMotion(v) { REDUCED = !!v; return REDUCED; },
+    reducedMotion: () => REDUCED,
+
+    /* THE CHECK THAT SHOULD HAVE EXISTED FROM THE FIRST COMMIT. Nobody plays,
+       nothing is touched, and the count must stay at zero on every level. The
+       craft gate asks whether care beats carelessness; it is meaningless until
+       ABSENCE loses, and absence used to win. */
+    assertNoFreeCaptures(opts) {
+      const o = opts || {};
+      const secs = o.secs || 300;
+      const step2 = o.step || 1;
+      const keepLvl = S.lvl;
+      const bad = [];
+      let worst = 0;
+      for (let lv = 1; lv <= LEVELS; lv += step2) {
+        gotoLevel(lv); touch = null;
+        this.advance(secs);
+        if (S.caught > 0) bad.push('L' + lv + ' ' + S.caught + '/' + S.n);
+        if (S.caught > worst) worst = S.caught;
+      }
+      gotoLevel(keepLvl);
+      return { levelsTested: Math.ceil(LEVELS / step2), secondsEach: secs,
+               levelsThatPlayedThemselves: bad, worstFreeCaptures: worst,
+               pass: bad.length === 0 };
     },
 
     frameStats() { return { fps: +fps.toFixed(1), samples: fpsN }; },
   };
 
-  /* The aiming ring. On a phone the finger arrives already committed, but a
-     cursor has to travel, and a warmth that switched on wherever the mouse
-     happened to be would scatter the swarm before the player had decided
-     anything. Cold, thin, and it applies no force at all. */
+  /* An unlit wick: where the flame WOULD be. A cursor has to travel, and a
+     flame that lit wherever the mouse happened to be would call the flies
+     somewhere nobody had decided on yet. It draws nothing to it. */
   function drawAim() {
-    const s = L.scale;
     const x = hover.x, y = hover.y - TUNE.touchLift;
-    ctx.strokeStyle = 'rgba(255,232,170,0.16)';
-    ctx.lineWidth = 1.2;
-    ctx.beginPath(); ctx.arc(x, y, TUNE.touchRadius * s, 0, Math.PI * 2); ctx.stroke();
-    ctx.strokeStyle = 'rgba(255,232,170,0.10)';
-    ctx.beginPath(); ctx.arc(x, y, panicRadius() * s, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,214,138,0.30)';
+    ctx.lineWidth = 1.4; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.arc(x, y, Math.max(4, 7 * L.scale), 0, Math.PI * 2);
+    ctx.stroke();
   }
 
   // ---------- BOOT ----------
