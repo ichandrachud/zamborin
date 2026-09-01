@@ -4,28 +4,23 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <title>Fathom — A Zamborin Game</title>
-  <meta name="description" content="Pilot a submarine into a trench where the ocean itself has floors. Everything you mine makes you heavier, and only light things are allowed back up." />
+  <meta name="description" content="Dig anywhere in a drowned world of clay, but only light things rise. The best finds are too heavy to lift, so you make the ocean drop them down a shaft instead." />
   <meta name="theme-color" content="#0E1726" />
   <link rel="canonical" href="https://zamborin.com/fathom/" />
   <link rel="icon" type="image/svg+xml" href="../images/zamborin-favicon.svg?v=2" />
-  <!-- REMOVE THIS LINE ONLY WHEN THE GAME SHIPS. A prototype that is live but
-       unlinked is NOT hidden: Google finds it through any external link and
-       indexes an unfinished thing. See CONTRIBUTING, "Prototypes". -->
-  <meta name="robots" content="noindex">
-
   <!-- Open Graph / Twitter -->
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Zamborin Games" />
   <meta property="og:url" content="https://zamborin.com/fathom/" />
   <meta property="og:title" content="Fathom — Only light things may rise" />
-  <meta property="og:description" content="Pilot a submarine into a trench where the ocean itself has floors. Everything you mine makes you heavier, and only light things are allowed back up." />
+  <meta property="og:description" content="Dig anywhere in a drowned world of clay, but only light things rise. The best finds are too heavy to lift, so you make the ocean drop them down a shaft instead." />
   <meta property="og:image" content="https://zamborin.com/images/fathom-og.jpg" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
-  <meta property="og:image:alt" content="A small yellow submarine descending past a glowing density layer into a dark trench" />
+  <meta property="og:image:alt" content="A green submarine hovering above the seabed among kelp, beneath the word FATHOM" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Fathom — Only light things may rise" />
-  <meta name="twitter:description" content="Pilot a submarine into a trench where the ocean itself has floors. Everything you mine makes you heavier, and only light things are allowed back up." />
+  <meta name="twitter:description" content="Dig anywhere in a drowned world of clay, but only light things rise. The best finds are too heavy to lift, so you make the ocean drop them down a shaft instead." />
   <meta name="twitter:image" content="https://zamborin.com/images/fathom-og.jpg" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -43,7 +38,7 @@
     "@context": "https://schema.org",
     "@type": "VideoGame",
     "name": "Fathom",
-    "description": "Pilot a submarine into a trench where the ocean itself has floors. Everything you mine makes you heavier, and only light things are allowed back up.",
+    "description": "Dig anywhere in a drowned world of clay, but only light things rise. The best finds are too heavy to lift, so you make the ocean drop them down a shaft instead.",
     "url": "https://zamborin.com/fathom/",
     "image": "https://zamborin.com/images/fathom-og.jpg",
     "playMode": "SinglePlayer",
@@ -130,31 +125,35 @@
          bloom/ or kaleido/ for the shape and the length. -->
     <section class="game-info">
       <h1>Fathom: Only light things may rise</h1>
-      <p>Pilot a submarine into a trench where the ocean itself has floors. Everything you mine makes you heavier, and only light things are allowed back up.</p>
+      <p>Dig anywhere in a drowned world of clay, but only light things rise. The best finds are too heavy to lift, so you make the ocean drop them down a shaft instead.</p>
 
       <h2>How to play</h2>
-      <p>Your submarine obeys one law: heavy things sink and light things rise. Hold down to dive and up to rise; let go and the sub holds its depth. Rising spends the same air you breathe.</p>
+      <p>Your submarine obeys one law: heavy things sink and light things rise. There is no engine that lifts you. Hold down to flood the tanks and sink, hold up to blow them and rise, and thrust left or right to steer. Hold a direction against rock and the drill cuts it away.</p>
       <ul>
-        <li><strong>The verb:</strong> down to dive, up to rise, thrust left and right against the current. Touch a deposit and the claw takes it.</li>
-        <li><strong>The feedback:</strong> the cargo bar counts kilograms, because every kilogram is a promise you will keep on the way up. If a layer will not let you through, the SEALED banner names the exact weight to drop.</li>
-        <li><strong>The goal:</strong> reach the surface with the richest haul you can still lift. Banked money is safe forever.</li>
-        <li><strong>DROP CARGO:</strong> sheds your heaviest item instantly. It always works.</li>
+        <li><strong>The verb:</strong> dig anywhere you can reach. Tunnels flood behind you and stay dug between sessions, so the shaft you cut today is the way down tomorrow.</li>
+        <li><strong>The feedback:</strong> the cargo bar counts kilograms, because every kilogram is subtracted from the lift that has to carry you home. Fill it and you stop rising altogether.</li>
+        <li><strong>The goal:</strong> surface with the richest haul you can still lift, then spend it on a better boat. Banked money is safe forever.</li>
+        <li><strong>DROP CARGO:</strong> sheds your heaviest item instantly. It always works, and it is a tool rather than a defeat.</li>
       </ul>
 
       <h2>Why it is clever</h2>
-      <p>The ocean in Fathom has floors. Density layers only let heavy things sink through them and light things rise through them, and ore is weight. So every grab is a bargain with the trip home: nodules are heavy and cheap, crystals are light and precious, and a hold full of the wrong rock is an anchor. The layer that seals you in is drawn on screen the whole time, with the exact weight you would need to drop.</p>
+      <p>The hull displaces 1000 kg of water and weighs 700 kg dry, so you have exactly 300 kg of lift and never any more. Cargo comes out of that same 300. At half a hold you climb at half speed; at a full hold you do not climb at all, and the shaft you dug greedily becomes the throat you cannot float back up.</p>
+      <p>That one rule turns every grab into a bargain with the trip home. Nodules are heavy and cheap, vent crystals are light and precious, and a hold full of the wrong rock is an anchor you dug for yourself. It also produces the game's strangest treasures: relics weigh 900 kg, three times your entire lift, so no boat will ever carry one. Instead you cut the floor out from under a relic and let it fall, topple and slide down shafts you prepared, until it lands beside a salvage intake that suctions it to the surface. Mining becomes routing.</p>
 
       <h2>Tips</h2>
       <ul>
-        <li>Read the dollars-per-kilogram, not the dollars. Grabbing everything is the losing strategy by design.</li>
-        <li>Resting on a layer costs nothing. Use the floors as base camps and plan the climb before you are heavy.</li>
+        <li>Read the dollars per kilogram, not the dollars. Filling the hold is the losing strategy by design.</li>
+        <li>Around 180 kg is the sweet spot, not 300 &mdash; and it stays 180 kg however deep you go.</li>
+        <li>Cheap heavy ore has a second use: carry nodules down as diving weight, then drop them before you climb.</li>
+        <li>Magma damages the hull, and the hull is the one meter that never refills. Go around.</li>
       </ul>
 
       <h2>Frequently asked questions</h2>
       <p><strong>Is Fathom free?</strong> Yes, completely free to play, with no account or download, in any modern browser on phone, tablet or desktop.</p>
       <p><strong>Does it work on mobile?</strong> Yes. Fathom is built for touch as well as mouse, with two control schemes to choose from.</p>
-      <p><strong>How do I win?</strong> Surface with your haul: everything you carry up is banked, and only what you bank is safe.</p>
-      <p><strong>Can I get stuck under a layer?</strong> No. Dropping cargo always sheds enough weight to rise, and the banner tells you exactly how many kilograms to drop.</p>
+      <p><strong>How do I win?</strong> Surface with your haul: everything you carry up is banked, and only what you bank is safe. Money buys better submarines, and a better drill is what opens ground you could not cut before.</p>
+      <p><strong>Can I get stuck at the bottom?</strong> No. Dropping cargo always sheds enough weight to rise, and the cargo bar shows you how close to the limit you are.</p>
+      <p><strong>Do my tunnels stay dug?</strong> Yes. The world remembers every cell you cut, so the deep gets easier to reach the more you work it.</p>
 
       <!-- The game must link FORWARD to its guide. For a long time all twelve
            guides linked back to their game and not one game linked forward, so
@@ -167,6 +166,7 @@
   <footer class="site-footer">
     <nav class="site-foot-nav">
       <a href="/">Games</a>
+      <a href="/arcade/">Arcade</a>
       <a href="/guides/">Guides</a>
       <a href="/about/">About</a>
       <a href="/faq/">FAQ</a>

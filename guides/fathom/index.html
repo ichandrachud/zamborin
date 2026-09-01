@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Fathom strategy: a full hold is the slowest way home — Zamborin</title>
+  <meta name="description" content="A practical Fathom strategy guide: why 180 kg is the load to aim for and not 300, how value per kilogram decides what is worth digging, how to route a relic you can never lift down into a salvage intake, and what actually runs out on a deep dive." />
+  <meta name="theme-color" content="#0E1726" />
+  <link rel="canonical" href="https://zamborin.com/guides/fathom/" />
+  <link rel="icon" type="image/svg+xml" href="/images/zamborin-favicon.svg?v=2" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:site_name" content="Zamborin Games" />
+  <meta property="og:url" content="https://zamborin.com/guides/fathom/" />
+  <meta property="og:title" content="Fathom strategy: a full hold is the slowest way home" />
+  <meta property="og:description" content="Why 180 kg beats a full hold, how to route a relic you cannot lift, and what really runs out." />
+  <meta property="og:image" content="https://zamborin.com/images/fathom-og.jpg" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Fathom strategy: a full hold is the slowest way home" />
+  <meta name="twitter:description" content="A practical strategy guide to Fathom, the deep-sea digging game." />
+  <meta name="twitter:image" content="https://zamborin.com/images/fathom-og.jpg" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../shared/tokens.css?v=1" />
+  <link rel="stylesheet" href="../../shared/chrome.css?v=20" />
+  <style>
+    .guide { max-width: 760px; margin: 0 auto; padding: 40px 24px 80px; color: var(--text-dim); line-height: 1.7; font-size: 17px; }
+    .guide .crumbs { font-size: 14px; margin-bottom: 22px; color: var(--text-dim); }
+    .guide .crumbs a { color: #4DC3FF; text-decoration: none; display: inline-block; padding: 4px 0; }  /* W18: 14px type gives a 17px link, under the 24px of WCAG 2.5.8. These are
+       navigation, not links inside a sentence, so the inline exemption does not
+       apply. inline-block is what makes the padding count toward height. */
+    .guide h1 { font-size: 38px; color: var(--text); font-weight: 800; margin: 0 0 6px; letter-spacing: -0.5px; line-height: 1.15; }
+    .guide .lede { font-size: 19px; color: var(--text); margin: 14px 0 8px; }
+    .guide h2 { font-size: 23px; color: var(--text); font-weight: 700; margin: 38px 0 10px; letter-spacing: -0.2px; }
+    .guide p { margin: 12px 0; }
+    .guide a { color: #4DC3FF; }
+    .guide strong { color: var(--text); font-weight: 600; }
+    .guide ul { margin: 12px 0; padding-left: 22px; }
+    .guide li { margin: 8px 0; }
+    .guide .cta { display: inline-block; margin-top: 8px; background: #4DC3FF; color: #06121e; font-weight: 700; text-decoration: none; padding: 13px 26px; border-radius: 10px; }
+    .guide .playbox { margin: 36px 0 8px; padding: 22px 24px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09); border-radius: 14px; }
+    .guide .playbox p { margin: 0 0 14px; color: var(--text); font-weight: 600; }
+    .guide .more { margin-top: 40px; padding-top: 22px; border-top: 1px solid rgba(255,255,255,0.09); font-size: 16px; }
+    /* W18: these are a row of navigation links formatted as a paragraph, not
+
+       links inside prose, so the inline exemption does not cover them. 15px type
+
+       gave an 18px target against the 24px of WCAG 2.5.8. */
+
+    .guide .more a { display: inline-block; padding: 4px 0; }
+    .guide table { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 16px; }
+    .guide th, .guide td { text-align: left; padding: 9px 12px; border-bottom: 1px solid rgba(255,255,255,0.09); }
+    .guide th { color: var(--text); font-weight: 700; }
+    @media (max-width: 720px) { .guide { padding: 28px 18px 56px; font-size: 16px; } .guide h1 { font-size: 30px; } }
+  </style>
+    <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "Fathom strategy: a full hold is the slowest way home",
+    "about": "Fathom deep-sea digging and buoyancy strategy",
+    "description": "A practical Fathom strategy guide: why 180 kg is the load to aim for and not 300, how value per kilogram decides what is worth digging, how to route a relic you can never lift down into a salvage intake, and what actually runs out on a deep dive.",
+    "author": { "@type": "Organization", "name": "Zamborin Games" },
+    "publisher": { "@type": "Organization", "name": "Zamborin Games", "url": "https://zamborin.com/" },
+    "mainEntityOfPage": "https://zamborin.com/guides/fathom/"
+  }
+  </script>
+  <meta name="google-adsense-account" content="ca-pub-9207689324865969">
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9207689324865969" crossorigin="anonymous"></script>
+</head>
+<body class="lobby-page">
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="Zamborin Games home">
+      <img class="brand-logo" src="/images/zamborin-logo.svg?v=2" alt="Zamborin" />
+    </a>
+    <a class="back-link" href="/">Back to all games</a>
+  </header>
+
+  <main class="guide">
+    <nav class="crumbs"><a href="/">Home</a> &rsaquo; <a href="/guides/">Guides</a> &rsaquo; Fathom</nav>
+
+    <h1>Fathom strategy: a full hold is the slowest way home</h1>
+    <p class="lede">Fathom has no engine that lifts you. The submarine floods to sink and blows its tanks to rise, and everything you put in the hold is weight the tanks have to beat. That single fact decides how much you should dig, what is worth digging, and why the best things down there cannot come up in your hold at all.</p>
+
+    <h2>You cannot fly. You can only float.</h2>
+    <p>The hull displaces 1000 kg of water and weighs 700 kg dry, so you have <strong>300 kg of lift</strong> and never any more. Ballast is how you spend it: flood the tanks and you sink, blow them and you rise. There is no thrust that pushes you upward.</p>
+    <p>Cargo eats that same 300 kg. At 150 kg in the hold you climb at half speed. At 300 kg you do not climb at all — you sit on the floor of the shaft you dug, blowing tanks that have nothing left to give. The game will not stop you loading yourself into that position, and the first time it happens is the moment Fathom makes sense.</p>
+
+    <h2>Load 180 kg, not 300</h2>
+    <p>The temptation is to fill the hold, because a full hold looks like a good dive. It is not. The climb slows as the hold fills, so the last kilograms are carried at the slowest speed of the whole trip — you pay the most time for the cargo that earns the least.</p>
+    <p>Work out the money per minute for every possible load and the answer is <strong>about 180 kg</strong>, well short of the ceiling. What is surprising is that the answer does not move: 180 kg is the best load at 200 m and still the best at 800 m, in every boat. The deep does not ask you to carry more, it asks you to make the same trip further.</p>
+    <p>Light, valuable cargo is the exception. A hold of vent crystals is worth stopping earlier still, nearer 100 kg, because with crystals the digging time is what costs you rather than the climb.</p>
+
+    <h2>Value per kilogram is the entire ore table</h2>
+    <p>Three ores, and the only number that matters is what a kilogram of each is worth, because kilograms are the thing you are actually rationing.</p>
+    <table>
+      <tr><th>Ore</th><th>Weight</th><th>Value</th><th>Per kg</th></tr>
+      <tr><td>Manganese nodules</td><td>20 kg</td><td>$26</td><td>$1.30</td></tr>
+      <tr><td>Sulphides</td><td>12 kg</td><td>$48</td><td>$4.00</td></tr>
+      <tr><td>Vent crystals</td><td>5 kg</td><td>$95</td><td>$19.00</td></tr>
+    </table>
+    <p>A crystal is worth fifteen times a nodule per kilogram and takes up a quarter of the room. Once you have seen this table, nodules stop looking like treasure and start looking like what they are: the thing that fills your hold before you reach anything good. Early on they are worth taking because they are what there is. Past the first region, dig past them.</p>
+    <p>There is one use for a heavy, cheap ore, and it is not money. Nodules are excellent <strong>diving weight</strong>. Take some on the way down to sink faster, then drop them before you climb.</p>
+
+    <h2>Drop cargo. It is a tool, not a defeat.</h2>
+    <p>The DROP CARGO button exists because the law is unforgiving and the game expects you to use it. If you are stuck at the bottom of a shaft, dropping the heaviest thing you are carrying is what gets you home. Dropped cargo is lost, but a dive that ends on the seabed loses the whole hold.</p>
+    <p>Get in the habit of dropping nodules the moment you find something better. Room in the hold is not the constraint — the 300 kg is — so trading 20 kg of nodule for 5 kg of crystal is almost always right.</p>
+
+    <h2>The best things down there cannot be lifted at all</h2>
+    <p>Relics weigh <strong>900 kg</strong>. That is three times your entire lift, and it is deliberate: no boat, no upgrade and no amount of skill will ever float one. An idol is worth $400 and a drowned heart $2000, and the only way to be paid is to make the ocean move it for you.</p>
+    <p>The rules are short. A relic with nothing under it <strong>falls</strong>. A relic on the edge of a ledge <strong>topples</strong> sideways and then falls again. A relic with solid ground under it <strong>sits there</strong>, and you can shove it one cell at a time with the nose of the sub.</p>
+    <p>So you do not carry a relic, you <em>route</em> it. Cut the floor out from under it and let it drop into a shaft you have already dug, steer it with ledges on the way down, and land it beside a <strong>salvage intake</strong> — the corroded pipe set into the rock that sucks anything within reach up to the surface. Landing it one cell short is normal; that is what shoving is for.</p>
+    <p>This is the part of Fathom that stops being a mining game and becomes a puzzle. You are not asking "can I lift this", you are asking "what does the floor need to look like for this to end up over there".</p>
+
+    <h2>Magma is the one thing that will not forgive you</h2>
+    <p>The orange seams in the deep are not ore. Breaking into magma damages the hull, and the hull is the one meter that does not refill on its own at the surface. Everything else is a running cost; hull is a budget for the whole boat.</p>
+    <p>Magma is easy to identify and easy to avoid, and it is placed where you would most like to dig. Take the long way round.</p>
+
+    <h2>What actually runs out</h2>
+    <p>Three meters run down and they do not fail in the way you expect. On an ordinary dive to the bottom and back through tunnels you have already cut, <strong>air and battery are barely touched</strong> — a deep run home uses only around a tenth of each. The thing that ends dives is the law and the hull.</p>
+    <p>Battery becomes real the moment you stop using existing tunnels and start cutting fresh rock, because digging is what drains it. Cutting a brand-new shaft to the deep in the starting boat runs the battery flat at a little over 200 m. That is not a bug, it is the reason to buy a bigger boat: you are buying the right to open new ground rather than re-use your own.</p>
+    <p>Air is a clock rather than a wall. It refills at the surface, so it punishes dithering, not depth.</p>
+
+    <h2>Four regions, and they are places</h2>
+    <p>The ocean is 880 m deep and divided into <strong>The Shelf</strong>, <strong>The Ribs</strong>, <strong>Blackreach</strong> and <strong>The Foundry</strong>. Ore gets rarer as you descend, not more common — the deep pays better per piece, not per minute — and the caverns, landmarks and intakes are placed rather than scattered, so the map is worth learning. Your tunnels persist between sessions, which means the shaft you cut today is the commute you get tomorrow.</p>
+
+    <h2>Precious stones ignore the law</h2>
+    <p>Amber, emeralds, rubies and diamonds are tiny, nearly weightless and worth a great deal. They are also genuinely rare — a couple of dozen stones in an entire ocean — so they are something you find rather than something you farm. They are the one cargo you never have to think about: a diamond costs you almost no lift at all.</p>
+    <p>If you see one, it is worth a detour. You will not see many.</p>
+
+    <h2>The fleet is the progression</h2>
+    <p>Nine boats, from the Minnow you start with up to hulls that cost thousands. They trade against each other rather than simply getting better: more air, more cargo, more battery, a stronger lamp, a faster drill. The drill matters more than it looks, because the hardest rock cannot be cut at all below a certain drill rating — some ground is closed to you until you own the boat that opens it.</p>
+    <p>Buy for the job. A bigger hold is worth very little while 300 kg of lift is what limits you; more battery and a better drill are what let you reach new ground.</p>
+
+    <h2>The short version</h2>
+    <ul>
+      <li>You have 300 kg of lift, forever. Cargo spends it.</li>
+      <li>Aim for 180 kg, not a full hold. A full hold does not rise.</li>
+      <li>Judge ore per kilogram: crystals $19, sulphides $4, nodules $1.30.</li>
+      <li>Carry nodules down as diving weight, then drop them.</li>
+      <li>Dropping cargo is a tool. Use it before you are stuck, not after.</li>
+      <li>Relics weigh 900 kg. Never lift them — fall them into an intake.</li>
+      <li>Magma damages the hull, and the hull does not come back.</li>
+      <li>Battery is what stops you cutting fresh rock. Buy the drill.</li>
+      <li>Your tunnels persist. Today's shaft is tomorrow's commute.</li>
+    </ul>
+
+    <div class="playbox">
+      <p>Ready to put it to work?</p>
+      <a class="cta" href="/fathom/">Play Fathom &rarr;</a>
+    </div>
+
+    <p class="more">More games: <a href="/arcade/">the arcade</a> &middot; <a href="/ballast/">Ballast</a> &middot; <a href="/">all Zamborin games</a> &middot; <a href="/guides/">all guides</a></p>
+  </main>
+
+  <footer class="site-footer">
+    <nav class="site-foot-nav">
+      <a href="/arcade/">Arcade</a>
+      <a href="/about/">About</a>
+      <a href="/guides/">Guides</a>
+      <a href="/privacy/">Privacy</a>
+      <a href="/contact/">Contact</a>
+    </nav>
+    <span>&copy; 2026 Zamborin. Games created by Indrajeet Chandrachud.</span>
+  </footer>
+  <script defer src="/_vercel/insights/script.js"></script>
+  <script defer src="/_vercel/speed-insights/script.js"></script>
+</body>
+</html>
