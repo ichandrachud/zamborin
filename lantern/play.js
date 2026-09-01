@@ -137,9 +137,15 @@
     freePush: 0,
     freeSecs: 1.4,       // held for this long, and it comes loose
     webImmune: 3.0,      // grace after a rescue, so it cannot re-stick at once
-    touchLift: MODE === 'mobile' ? 34 : 0,   // SCREEN px: lift the warmth clear
-                                             // of the fingertip so the panic
-                                             // ring is visible while herding
+    /* THE STICK, in SCREEN pixels, because a thumb is a thumb whatever the
+       field is scaled to. The flame burns at the far end and your hand holds
+       the near one, which is the whole reason this exists: on a phone the
+       brightest thing in the game was directly under the fingertip that was
+       steering it. There WAS an offset before - 34 pixels, invisible, so the
+       lure simply was not where you touched and nothing on screen said why.
+       Drawing the stick makes the offset a fact about the world instead of a
+       quirk of the controls, and it takes about one second to learn. */
+    stick: MODE === 'mobile' ? 92 : 68,
   };
 
   const DT = 1 / 120;             // fixed timestep; the gate depends on it
@@ -1209,6 +1215,7 @@
       if (SOLO === 'webs') { drawWebLinks(); for (const w of S.webs) drawWeb(w); }
       if (SOLO === 'breeze') drawBreeze();
       if (SOLO === 'jar') drawJar();
+      if (SOLO === 'stick' && touch) drawStick();
       ctx.restore();
       return;
     }
@@ -1237,7 +1244,7 @@
     for (const w of S.webs) drawWeb(w);
     for (const th of S.thorns) drawThorn(th);
     drawJar();
-    if (touch) { drawFlameTrail(); drawFlame(); }
+    if (touch) { drawFlameTrail(); drawStick(); drawFlame(); }
     else if (hover && MODE === 'desktop') drawAim();
     if (!SOLO) for (const f of S.flies) if (!f.caught && !f.lost) drawFly(f);
     drawFoliage(true);
@@ -1503,49 +1510,97 @@
       const ay2 = hy + Math.sin(ang[0]) * reach[0] * 1.05;
       const tx = wx2s(w.tx), ty = wy2s(w.ty);
       const sx2 = ax2 + (tx - ax2) * heat, sy2 = ay2 + (ty - ay2) * heat;
-      drawSpider(sx2, sy2, Math.max(5.2, 13.5 * s), Math.atan2(ty - ay2, tx - ax2), heat);
+      drawSpider(sx2, sy2, Math.max(5.6, 14 * s), Math.atan2(ty - ay2, tx - ax2),
+                 0.96, heat * 9);
     } else if (w.resident) {
-      const t = REDUCED ? w.seed : clock * 0.16 + w.seed;
-      const pace = Math.sin(t * 0.9) * 0.5 + Math.sin(t * 0.31 + 2.1) * 0.5;
-      // it stays inside its own wedge, because that is the whole of its world
-      const aa = mid + Math.sin(t * 0.6) * w.span * 0.38;
-      const rr = r * (0.34 + 0.36 * (0.5 + 0.5 * Math.sin(t * 0.47 + 1.3)));
-      const px2 = hx + Math.cos(aa) * rr, py2 = hy + Math.sin(aa) * rr;
-      drawSpider(px2, py2, Math.max(5.0, 13 * s), aa + Math.PI / 2 + pace * 0.3, 0.30);
+      const q = REDUCED
+        ? { x: hx + Math.cos(mid) * r * 0.5, y: hy + Math.sin(mid) * r * 0.5,
+            face: mid, gait: 0 }
+        : residentAt(w, hx, hy, r);
+      drawSpider(q.x, q.y, Math.max(5.6, 14 * s), q.face, 0.90, q.gait);
     }
   }
 
-  /* THE SPIDER, as a white silhouette. It belongs to the silk, not to the
-     ground: everything in the reference art is one cream ink on the dark, and a
-     brown body on a dark garden was a smudge whatever size it was drawn at.
-     White reads instantly at eight pixels and it says "this is part of the web"
-     rather than "this is a bug on the floor".
+  /* THE SPIDER. It looked like a tick, and a tick is exactly what you draw if
+     you give something a fat oval body and short legs: the proportions ARE the
+     animal. A spider is a small body carrying very long jointed legs - the legs
+     reach nearly twice the body's length, they bend hard at the knee, and they
+     splay forward and back rather than fanning out sideways. Get that right and
+     eight lines read as a spider at eight pixels.
 
-     No emoji and no sprite: a body, a smaller head, eight legs, drawn small and
-     meant to be read at a glance rather than looked at closely. */
-  function drawSpider(x, y, r, face, heat) {
-    const a = 0.62 + heat * 0.34;
+     `gait` runs the walk cycle. Diagonal legs swing together the way a real one
+     moves, and a swinging leg lifts off the silk, which is drawn as a higher
+     knee and a brighter line. It is driven by DISTANCE TRAVELLED, not by the
+     clock, so a spider standing still has still legs. */
+  function drawSpider(x, y, r, face, a, gait) {
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(face);
-    ctx.strokeStyle = 'rgba(238,244,248,' + (a * 0.92).toFixed(3) + ')';
-    ctx.lineWidth = Math.max(0.9, r * 0.13);
+    const white = (al) => 'rgba(240,246,250,' + Math.max(0, al).toFixed(3) + ')';
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.lineWidth = Math.max(0.65, r * 0.085);
+
+    // four pairs, from the front of the body, splayed forward through back
+    const BASE = [0.70, 1.31, 1.92, 2.53];
+    const ox = r * 0.10;
     for (let i = 0; i < 4; i++) {
-      const ang = 0.40 + i * 0.44, l = r * (1.45 - i * 0.10);
-      const kx = Math.cos(ang) * l * 0.58, ky = Math.sin(ang) * l * 0.58;
       for (const sgn of [1, -1]) {
-        // knee up, foot down: the crook is what makes eight lines a spider
+        // alternating tetrapod: diagonally opposite legs swing together
+        const ph = ((i + (sgn > 0 ? 0 : 1)) % 2) * 0.5;
+        const sw = Math.sin((gait + ph) * TAU);
+        const lift = Math.max(0, sw);
+        const ang = (BASE[i] + sw * 0.17) * sgn;
+        const femur = r * (0.92 + lift * 0.07);
+        const tibia = r * (1.32 + lift * 0.12);
+        const kx = ox + Math.cos(ang) * femur, ky = Math.sin(ang) * femur;
+        // the knee stands proud of the straight line, and higher mid-stride
+        const bend = (0.36 + lift * 0.32) * sgn;
+        const ex = kx + Math.cos(ang - bend) * tibia;
+        const ey = ky + Math.sin(ang - bend) * tibia;
+        ctx.strokeStyle = white(a * (0.70 + lift * 0.26));
         ctx.beginPath();
-        ctx.moveTo(0, 0);
-        ctx.quadraticCurveTo(kx, sgn * (ky - r * 0.55), Math.cos(ang) * l, sgn * l * 0.70);
+        ctx.moveTo(ox, 0); ctx.lineTo(kx, ky); ctx.lineTo(ex, ey);
         ctx.stroke();
       }
     }
-    ctx.fillStyle = 'rgba(244,249,252,' + a.toFixed(3) + ')';
-    ctx.beginPath(); ctx.ellipse(r * 0.16, 0, r * 0.72, r * 0.56, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(-r * 0.58, 0, r * 0.34, r * 0.29, 0, 0, Math.PI * 2); ctx.fill();
+
+    // a small cephalothorax in front, a rounder abdomen behind. Both together
+    // are shorter than one leg.
+    ctx.fillStyle = white(a);
+    ctx.beginPath(); ctx.ellipse(-r * 0.54, 0, r * 0.42, r * 0.33, 0, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(r * 0.12, 0, r * 0.25, r * 0.21, 0, 0, TAU); ctx.fill();
     ctx.restore();
+  }
+
+  /* WHERE A RESIDENT IS, at this moment. It walks out along a thread to the far
+     end of the web, waits there a while, walks back to the hub, waits, and then
+     picks a different thread. Fifteen seconds a circuit, so it is always moving
+     and never hurrying, and it covers most of its web rather than fidgeting on
+     the spot - a spider that shifts a few pixels reads as a smudge with a
+     twitch. It runs out past the rim onto the frame threads too, which is where
+     real ones sit. */
+  function residentAt(w, hx, hy, r) {
+    const PERIOD = 15;
+    const tt = clock * 0.62 + (w.seed | 0) % 97;
+    const cyc = Math.floor(tt / PERIOD);
+    const u = (tt % PERIOD) / PERIOD;
+    const rnd2 = mulberry32(((w.seed | 0) + cyc * 977) | 0);
+    const aim = w.a0 + w.span * (0.12 + rnd2() * 0.76);
+    const ease = (k) => k * k * (3 - 2 * k);
+    let frac, outward = true, moving = false;
+    if (u < 0.12) frac = 0;
+    else if (u < 0.44) { frac = ease((u - 0.12) / 0.32); moving = true; }
+    else if (u < 0.58) frac = 1;
+    else if (u < 0.90) { frac = 1 - ease((u - 0.58) / 0.32); moving = true; outward = false; }
+    else frac = 0;
+    const rr = r * (0.12 + 1.48 * frac);
+    return {
+      x: hx + Math.cos(aim) * rr, y: hy + Math.sin(aim) * rr,
+      face: outward ? aim : aim + Math.PI,
+      // the walk cycle advances with the journey, so standing still is still
+      gait: frac * 7,
+      moving,
+    };
   }
 
   /* Thorns. The shape says danger, not the colour. Barbs alone came out as a
@@ -1745,6 +1800,39 @@
      the opposite instruction. A ribbon of light showing where it has just been
      is the one piece of information the hand needs, because the whole skill is
      how fast you moved it. */
+  /* THE STICK ITSELF. A twig, held in the dark: it is lit at the tip by the
+     flame it carries and fades to nothing toward the hand, which is both how a
+     torch actually looks and the reason it never competes with the fireflies
+     for attention. Slightly bowed, because a straight one reads as a ruler. */
+  function drawStick() {
+    const tx = wx2s(touch.x), ty = wy2s(touch.y);
+    const gx = tx, gy = ty + TUNE.stick;
+    /* IT HAS TO BE VISIBLE. The first version faded to near-black at the hand,
+       which on a near-black garden is nothing at all - and the stick is the
+       player's own instrument, the thing that says where their hand is in
+       relation to the light it carries. A torch handle catches its own flame
+       anyway, so it stays warm and readable the whole way down and only loses
+       a little toward the grip. */
+    const g = ctx.createLinearGradient(tx, ty, gx, gy);
+    g.addColorStop(0, 'rgba(248,214,158,0.98)');
+    g.addColorStop(0.20, 'rgba(206,158,104,0.94)');
+    g.addColorStop(0.65, 'rgba(150,112,74,0.86)');
+    g.addColorStop(1, 'rgba(104,78,54,0.74)');
+    ctx.strokeStyle = g;
+    ctx.lineWidth = Math.max(2.8, 4.4 * L.scale);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(gx, gy);
+    ctx.quadraticCurveTo(tx + TUNE.stick * 0.10, (ty + gy) / 2, tx, ty);
+    ctx.stroke();
+    // the ferrule the flame sits in
+    ctx.fillStyle = 'rgba(214,176,124,0.55)';
+    ctx.beginPath();
+    ctx.ellipse(tx, ty + Math.max(2, 3 * L.scale), Math.max(1.8, 2.6 * L.scale),
+                Math.max(1.2, 1.8 * L.scale), 0, 0, TAU);
+    ctx.fill();
+  }
+
   function drawFlame() {
     const s = L.scale;
     const x = wx2s(touch.x), y = wy2s(touch.y);
@@ -2031,11 +2119,9 @@
     return { x: (e.clientX - r.left) * (LW / r.width),
              y: (e.clientY - r.top) * (LH / r.height) };
   }
-  // The warmth is lifted clear of the fingertip on a phone, because the ring
-  // that says where they panic is 40 screen pixels across and a fingertip is
-  // 45. The forces are identical; only where the hand puts the point moves.
+  // Your hand is at p. The flame is at the other end of the stick.
   function toWorld(p) {
-    return { x: s2wx(p.x), y: s2wy(p.y - TUNE.touchLift) };
+    return { x: s2wx(p.x), y: s2wy(p.y - TUNE.stick) };
   }
   function inPlay(p) {
     return p.x >= L.playX && p.x <= L.playX + L.playW &&
@@ -2117,7 +2203,7 @@
     ['webR', 14, 70, 1], ['spiderSecs', 4, 24, 0.5],
     ['freeR', 20, 140, 2], ['freeSecs', 0.4, 4, 0.1],
     ['webCool', 0, 12, 0.5], ['breeze', 0, 70, 1],
-    ['touchLift', 0, 90, 1],
+    ['stick', 0, 160, 2],
   ];
   function buildTunePanel() {
     const box = document.createElement('div');
@@ -2298,6 +2384,12 @@
           measure('web', wx2s(w.x) - w.r * L.scale * 1.5, wy2s(w.y) - w.r * L.scale * 1.5,
                   w.r * 3 * L.scale, w.r * 3 * L.scale, true);
         }
+      }
+      if (touch) {
+        SOLO = 'stick'; render();
+        const tx0 = wx2s(touch.x), ty0 = wy2s(touch.y);
+        measure('the stick', tx0 - 14, ty0 + TUNE.stick * 0.45,
+                28, TUNE.stick * 0.5, true);
       }
       SOLO = 'jar'; render();
       measure('jar (empty, its hardest case)', wx2s(S.jar.x) - S.jar.w * L.scale * 0.7,
@@ -2822,18 +2914,69 @@
                restoredTooOften: unders, pass: depth === 0 && unders === 0 };
     },
 
+    /* DOES A RESIDENT ACTUALLY GO ANYWHERE? "A few pixels here or there" was
+       the complaint about the last one, and a spider that fidgets on the spot
+       reads as a smudge with a twitch. Samples a full circuit and reports how
+       far it really travels, in the pixels the player sees. */
+    spiderPatrol(secs) {
+      const w = S.webs.find((q) => q.resident);
+      if (!w) return { note: 'no resident on this level' };
+      const keepClock = clock;
+      const s = L.scale, r = w.r * s;
+      const hx = wx2s(w.x), hy = wy2s(w.y);
+      const pts = [];
+      const span = secs || 30;
+      for (let i = 0; i <= 120; i++) {
+        clock = keepClock + (i / 120) * span;
+        const q = residentAt(w, hx, hy, r);
+        pts.push(q);
+      }
+      clock = keepClock;
+      let far = 0, path = 0, moving = 0, gaitRun = 0;
+      for (let i = 0; i < pts.length; i++) {
+        for (let j = i + 1; j < pts.length; j++) {
+          const d = Math.hypot(pts[i].x - pts[j].x, pts[i].y - pts[j].y);
+          if (d > far) far = d;
+        }
+        if (i) {
+          path += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+          // total steps taken, not end-minus-start: the gait resets each
+          // circuit, so a difference reads -1 when the answer is fourteen
+          gaitRun += Math.abs(pts[i].gait - pts[i - 1].gait);
+        }
+        if (pts[i].moving) moving++;
+      }
+      return {
+        overSeconds: span,
+        furthestApartPx: +far.toFixed(1),
+        pathLengthPx: +path.toFixed(1),
+        webRadiusPx: +r.toFixed(1),
+        fractionOfTimeWalking: +(moving / pts.length).toFixed(2),
+        legStridesTaken: +gaitRun.toFixed(1),
+      };
+    },
+
     frameStats() { return { fps: +fps.toFixed(1), samples: fpsN }; },
   };
 
-  /* An unlit wick: where the flame WOULD be. A cursor has to travel, and a
-     flame that lit wherever the mouse happened to be would call the flies
-     somewhere nobody had decided on yet. It draws nothing to it. */
+  /* THE UNLIT STICK, under the cursor before you press. A cursor has to
+     travel, and a flame that lit wherever the mouse happened to be would call
+     the flies somewhere nobody had decided on yet - so this shows you where the
+     tip will be, and draws nothing to it. */
   function drawAim() {
-    const x = hover.x, y = hover.y - TUNE.touchLift;
-    ctx.strokeStyle = 'rgba(255,214,138,0.30)';
-    ctx.lineWidth = 1.4; ctx.lineCap = 'round';
+    const gx = hover.x, gy = hover.y;
+    const tx = gx, ty = gy - TUNE.stick;
+    ctx.strokeStyle = 'rgba(150,120,88,0.62)';
+    ctx.lineWidth = Math.max(2.4, 3.8 * L.scale);
+    ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.arc(x, y, Math.max(4, 7 * L.scale), 0, Math.PI * 2);
+    ctx.moveTo(gx, gy);
+    ctx.quadraticCurveTo(tx + TUNE.stick * 0.10, (ty + gy) / 2, tx, ty);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,214,138,0.34)';
+    ctx.lineWidth = 1.3;
+    ctx.beginPath();
+    ctx.arc(tx, ty, Math.max(3.5, 6 * L.scale), 0, TAU);
     ctx.stroke();
   }
 
