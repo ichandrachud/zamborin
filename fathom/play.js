@@ -808,13 +808,38 @@
       rings.push({ x: run.x + (vr() - 0.5) * 4, y: run.y + 2.4, r: 1.2, life: 0.6 });
     }
     if (run._thrusting) spawnBubbles(1, run.x - run.facing * 6, run.y + 1, 2, 2, 5);
-    /* Digging is a low crumbly grind, pitched by the material — one grain
-       every 90 ms, not a per-frame noise burst. */
-    if (run._digging && sfx && now - lastGrind > 90) {
+    /* THE DRILL.
+       ---------------------------------------------------------------
+       This was one square-wave blip every 90 ms. A square is all odd
+       harmonics falling off slowly, so at 96-192 Hz repeated eleven times
+       a second it read as a buzzer rather than a tool — and lowering its
+       gain would only have made a quieter buzzer. The band is the fix.
+
+       A drill is two things at once: a MOTOR that whirrs, and a BIT that
+       abrades. So each grain is a triangle (odd harmonics, but rolling off
+       as 1/n^2 instead of 1/n — much softer) under a band of filtered
+       noise, which is the part the ear hears as cutting rather than
+       beeping.
+
+       Material sets the pitch and the grit. THE BOAT'S DRILL RATING SETS
+       HOW EASY IT SOUNDS: a better drill revs higher, bites more often
+       (so the grain blurs toward a continuous whirr rather than a chug),
+       grinds less, and works quieter. Rating 5 through silt is almost a
+       hum; rating 1 through hard rock is a labouring chew. */
+    const DR = Math.max(1, Math.min(5, run.drill || 1));
+    const ease = (DR - 1) / 4;                     // 0 at rating 1, 1 at rating 5
+    const grainMs = 106 - 44 * ease;               // 106 ms -> 62 ms: chug -> whirr
+    if (run._digging && sfx && now - lastGrind > grainMs) {
       lastGrind = now;
       const t = run.digTarget ? run.world.at(run.digTarget.c, run.digTarget.r) : TT.ROCK;
-      const base = t === TT.SILT ? 96 : t === TT.HARD ? 158 : 124;
-      sfx.tone(base + vr() * 34, 0.055, 0.026, 'square');
+      const soft = t === TT.SILT, hard = t === TT.HARD;
+      const motor = (soft ? 84 : hard ? 138 : 112) * (1 + 0.45 * ease);
+      const band  = (soft ? 700 : hard ? 1600 : 1100) * (1 + 0.55 * ease);
+      const q     = soft ? 0.8 : hard ? 1.6 : 1.1;
+      // the motor: soft, short, slightly wandering so it never sounds looped
+      sfx.tone(motor + vr() * 12, 0.07, 0.019 - 0.005 * ease, 'triangle');
+      // the bit in the stone: this is the half that reads as drilling
+      sfx.noise(0.05 + 0.02 * (1 - ease), band + vr() * 180, q, 0.030 - 0.016 * ease);
     }
     /* Shoving 900 kg is a lower, slower noise than cutting rock. */
     if (run.pushTarget && !run.pushTarget.blocked && sfx && now - lastGrind > 130) {
@@ -2307,11 +2332,24 @@
     ctx.beginPath(); UI.roundRectPath(ctx, px, py, pw, ph, 22); ctx.stroke();
     const cx = px + pw / 2;
     // Header.
-    ctx.fillStyle = '#FFFFFF'; ctx.font = '800 40px Inter, sans-serif';
+    /* Header, fitted. The lede overflowed the card by 16 px a side at 320 px
+       wide and 4 px at 344 — both real phones. HEAD_H is fixed, so wrapping
+       would push into the scrolling body; the lede shrinks instead. The body
+       below still never shrinks, which is the rule that matters. */
+    const headW = pw - 44;
     ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = '#FFFFFF';
+    let hts = 40;
+    do { ctx.font = '800 ' + hts + 'px Inter, sans-serif'; hts -= 2; }
+    while (ctx.measureText('FATHOM').width > headW && hts >= 26);
     ctx.fillText('FATHOM', cx, py + 34 + 32);
-    ctx.fillStyle = INK82; ctx.font = '600 17px Inter, sans-serif';
-    ctx.fillText('Dig anywhere. Only light things rise.', cx, py + 34 + 70);
+
+    ctx.fillStyle = INK82;
+    const lede = 'Dig anywhere. Only light things rise.';
+    let lts = 17;
+    do { ctx.font = '600 ' + lts + 'px Inter, sans-serif'; lts -= 1; }
+    while (ctx.measureText(lede).width > headW && lts >= 13);
+    ctx.fillText(lede, cx, py + 34 + 70);
     // Body: clipped viewport, scrolls.
     const bodyY = py + HEAD_H;
     const bodyH = ph - HEAD_H - FOOT_H;
@@ -2393,14 +2431,38 @@
     ctx.strokeStyle = TINT(0.12); ctx.lineWidth = 1;
     ctx.beginPath(); UI.roundRectPath(ctx, px, py, pw, ph, 22); ctx.stroke();
     const cx = px + pw / 2;
-    ctx.fillStyle = '#FFFFFF'; ctx.font = '800 40px Inter, sans-serif';
+    const innerW = pw - 48;
     ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+
+    /* Nothing here used to be measured: title and subtitle were plain
+       fillText calls at a fixed size, so a long one simply ran off both
+       edges of the card. Every string on this card is now fitted. */
+    ctx.fillStyle = '#FFFFFF';
+    let ts = 40;
+    do { ctx.font = '800 ' + ts + 'px Inter, sans-serif'; ts -= 2; }
+    while (ctx.measureText(title).width > innerW && ts >= 24);
     ctx.fillText(title, cx, py + 34 + 32);
-    ctx.fillStyle = INK82; ctx.font = '600 17px Inter, sans-serif';
-    ctx.fillText(subtitle, cx, py + 34 + 70);
-    ctx.font = '500 16px Inter, sans-serif'; ctx.textBaseline = 'middle';
-    let ry = py + HEAD_H + 18;
+
+    ctx.fillStyle = INK82;
+    let ss = 17, subLines;
+    for (;;) {
+      ctx.font = '600 ' + ss + 'px Inter, sans-serif';
+      subLines = wrapText(subtitle, innerW);
+      if (subLines.length <= 2 || ss <= 13) break;
+      ss -= 1;
+    }
+    subLines.forEach((ln, i) => ctx.fillText(ln, cx, py + 34 + 70 + i * (ss + 4)));
+
+    ctx.textBaseline = 'middle';
+    let ry = py + HEAD_H + 18 + (subLines.length > 1 ? (subLines.length - 1) * (ss + 4) : 0);
     for (const [k, v] of rows) {
+      // a long key and a long value must not meet in the middle
+      let rs = 16;
+      for (;;) {
+        ctx.font = '500 ' + rs + 'px Inter, sans-serif';
+        if (ctx.measureText(k).width + ctx.measureText(v).width + 24 <= pw - 112 || rs <= 12) break;
+        rs -= 1;
+      }
       ctx.fillStyle = INK72; ctx.textAlign = 'left';
       ctx.fillText(k, px + 56, ry);
       ctx.fillStyle = INK90; ctx.textAlign = 'right';
@@ -2613,19 +2675,19 @@
              ['Tiles cut', String(run.digTiles)],
              ['Bank total', fmtMoney(run.money)]]);
     } else if (card === 'blackout' && cardData) {
-      drawEndCard('BLACKOUT', 'The tank ran dry at ' + cardData.depth + ' m',
+      drawEndCard('BLACKOUT', 'The tank ran dry at ' + cardData.depth + '\u00A0m',
         [['Haul lost', fmtMoney(cardData.lostVal) + ' · ' + cardData.lostKg + ' kg'],
          ['Banked money', fmtMoney(run.money) + ' · safe'],
          ['Your mine', 'still there']]);
     } else if (card === 'breach' && cardData) {
-      drawEndCard('HULL BREACH', 'The pressure found a way in at ' + cardData.depth + ' m',
+      drawEndCard('HULL BREACH', 'The pressure found a way in at ' + cardData.depth + '\u00A0m',
         [['Haul lost', fmtMoney(cardData.lostVal) + ' · ' + cardData.lostKg + ' kg'],
          ['Banked money', fmtMoney(run.money) + ' · safe'],
          ['Your mine', 'still there']]);
     } else if (card === 'stranded' && cardData) {
       /* Named for the cause, not the symptom: the player needs to know it was
          the battery, and that the battery is what buys the way back. */
-      drawEndCard('BATTERY DEAD', 'No drill and no thrust at ' + cardData.depth + ' m, with rock overhead',
+      drawEndCard('BATTERY DEAD', 'Stranded under rock at ' + cardData.depth + '\u00A0m',
         [['Haul lost', fmtMoney(cardData.lostVal) + ' · ' + cardData.lostKg + ' kg'],
          ['Banked money', fmtMoney(run.money) + ' · safe'],
          ['Your mine', 'still there']]);
