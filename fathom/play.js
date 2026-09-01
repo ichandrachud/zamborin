@@ -536,7 +536,7 @@
   function cardCTA() {
     oceanArmed = false;
     if (card === 'rules') { card = null; }
-    else if (card === 'banked' || card === 'blackout' || card === 'breach') {
+    else if (card === 'banked' || card === 'blackout' || card === 'breach' || card === 'stranded') {
       if (run.mode !== 'dive') run.revive();
       diveT0 = performance.now();
       card = null;
@@ -902,7 +902,7 @@
                                    drill: FLEET[curSub].st.DRILL, money: Math.round(run.money) });
       endRun('banked');
       if (sfx) sfx.play('success');
-    } else if (ev.t === 'blackout' || ev.t === 'breach') {
+    } else if (ev.t === 'blackout' || ev.t === 'breach' || ev.t === 'stranded') {
       cardData = ev;
       card = ev.t;
       saveMeta();                      // the world you dug is kept; the haul is not
@@ -2619,6 +2619,13 @@
          ['Your mine', 'still there']]);
     } else if (card === 'breach' && cardData) {
       drawEndCard('HULL BREACH', 'The pressure found a way in at ' + cardData.depth + ' m',
+        [['Haul lost', fmtMoney(cardData.lostVal) + ' · ' + cardData.lostKg + ' kg'],
+         ['Banked money', fmtMoney(run.money) + ' · safe'],
+         ['Your mine', 'still there']]);
+    } else if (card === 'stranded' && cardData) {
+      /* Named for the cause, not the symptom: the player needs to know it was
+         the battery, and that the battery is what buys the way back. */
+      drawEndCard('BATTERY DEAD', 'No drill and no thrust at ' + cardData.depth + ' m, with rock overhead',
         [['Haul lost', fmtMoney(cardData.lostVal) + ' · ' + cardData.lostKg + ' kg'],
          ['Banked money', fmtMoney(run.money) + ' · safe'],
          ['Your mine', 'still there']]);

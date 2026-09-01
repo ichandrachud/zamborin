@@ -758,6 +758,10 @@ Run.prototype._fixed = function (inp, h) {
   const hCap = t.hMax * this.thrustMul;
   this.vx = clamp(this.vx, -hCap, hCap);
 
+  /* Dead battery under a ceiling is over. Checked only when the battery is
+     actually spent, so it costs nothing on a normal dive. */
+  if (this.batt <= 0 && this.isStranded()) { this._end('stranded'); return; }
+
   // ---------- INTEGRATE AND COLLIDE, ONE AXIS AT A TIME ----------
   /* The impact speed that counts is the one on the axis that hit. Measured
      as total speed, a sub travelling sideways at full thrust took hull
@@ -1035,6 +1039,39 @@ Run.prototype._end = function (mode) {
   this.events.push({ t: mode, depth: Math.round(this.y),
                      lostVal: this.cargo.reduce((s, c) => s + c.val, 0),
                      lostKg: Math.round(this.cargoKg) });
+};
+
+/* CAN THIS RUN STILL GET HOME?
+   ------------------------------------------------------------------
+   At zero battery the sub can neither dig (§ the dig block requires
+   batt > 0) nor thrust sideways (the horizontal block requires it too),
+   so the ONLY thing it can still do is float up and down the column it
+   is standing in. If anything solid is above it in that column, it can
+   never reach the surface again — no amount of dropping cargo or blowing
+   ballast changes it.
+
+   Before this existed the run did not end: the player sat watching air
+   drain at 0.35/s from ~110, which is over five minutes of a game that
+   has already been decided, with nothing to press. Air running out was
+   the only exit.
+
+   This is a Gate 3 case ("forced deaths: exactly 0"). Ending the dive
+   promptly is the humane half of the fix, not the whole of it — the real
+   answer is for the sub never to become immobile in the first place. */
+Run.prototype.canReachSurface = function () {
+  const t = this.tune, W = this.world, r = t.colR, TILE = t.TILE;
+  if (this.y <= t.surfaceY) return true;
+  // step up the column the hull actually occupies; nothing else is reachable
+  for (let yy = this.y - r - 0.1; yy > t.surfaceY; yy -= TILE * 0.5) {
+    if (W.solidAt(this.x, yy) ||
+        W.solidAt(this.x - r * 0.9, yy) ||
+        W.solidAt(this.x + r * 0.9, yy)) return false;
+  }
+  return true;
+};
+
+Run.prototype.isStranded = function () {
+  return this.mode === 'dive' && this.batt <= 0 && !this.canReachSurface();
 };
 
 Run.prototype.revive = function () {
