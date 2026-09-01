@@ -47,6 +47,13 @@
     tint10: 'rgba(255,255,255,0.10)', tint12: 'rgba(255,255,255,0.12)',
     tint40: 'rgba(255,255,255,0.40)',
     accent: '#C24A39', accentHover: '#A93E2F', accentText: '#FF6B5C',
+    /* THE CTA IS BLUE HERE. Coral is the site's accent and it is correct on a
+       navy page, but on a night garden lit by one warm flame a red button is
+       the loudest thing on screen and it belongs to nothing in the picture.
+       #2170A8 is already in the fleet, measures 5.32:1 under white type, and
+       3.51:1 against the night so the button reads as an object. The rule dots
+       take its lighter sibling, which is what Bloom does with its dots. */
+    cta: '#2170A8', dot: '#4E9BD6',
     accent2: '#FFD23F', green: '#5DD39E',
     scrim: 'rgba(10,16,28,0.88)', scrimWin: 'rgba(10,16,28,0.82)',
   };
@@ -1193,22 +1200,28 @@
     gatherLights();
     drawGarden();
     drawHUD();
+    if (rulesOpen) drawRules(performance.now());
     if (TUNE_UI) drawTuneOverlay();
   }
 
   function drawGarden() {
     const s = L.scale;
+    /* FULL BLEED, no panel. The garden used to be clipped into a rounded
+       rectangle inset from the frame, which made it read as a CARD floating on
+       the site's navy - and no other game does that. Bloom and Prism both run
+       one continuous ground from edge to edge with the HUD sitting on top of
+       it, and Tailwind runs its own sky the same way. The night is this game's
+       ground, so it covers the whole canvas and the bands sit on it. */
     ctx.save();
-    UI.roundRectPath(ctx, L.playX, L.playY, L.playW, L.playH, 14);
+    ctx.beginPath();
+    ctx.rect(0, 0, LW, LH);
     ctx.clip();
 
-    // --- the garden's own night. Colder than the site's navy: this game is its
-    // --- own night, and it is game art on a token ground.
-    const ng = ctx.createLinearGradient(0, L.playY, 0, L.playY + L.playH);
+    const ng = ctx.createLinearGradient(0, 0, 0, LH);
     ng.addColorStop(0, ART.nightTop);
     ng.addColorStop(1, ART.nightBot);
     ctx.fillStyle = ng;
-    ctx.fillRect(L.playX, L.playY, L.playW, L.playH);
+    ctx.fillRect(0, 0, LW, LH);
 
     if (SOLO) {
       if (SOLO === 'thorns') for (const th of S.thorns) drawThorn(th);
@@ -2005,13 +2018,13 @@
      between a rectangle of dark and a garden with a middle to it. It darkens
      the corners only, so nothing the player has to see is ever behind it. */
   function drawVignette() {
-    const cx = L.playX + L.playW / 2, cy = L.playY + L.playH / 2;
-    const r = Math.hypot(L.playW, L.playH) / 2;
+    const cx = LW / 2, cy = LH / 2;
+    const r = Math.hypot(LW, LH) / 2;
     const g = ctx.createRadialGradient(cx, cy, r * 0.52, cx, cy, r);
     g.addColorStop(0, 'rgba(2,5,7,0)');
     g.addColorStop(1, 'rgba(2,5,7,0.55)');
     ctx.fillStyle = g;
-    ctx.fillRect(L.playX, L.playY, L.playW, L.playH);
+    ctx.fillRect(0, 0, LW, LH);
   }
 
   function drawWinWash() {
@@ -2057,13 +2070,18 @@
     const cy = L.ctrlCy;
     const won = phase === 'win' && winT > 3.2;
     const short = phase === 'short';
-    hit.mute = hit.restart = hit.next = null;
+    hit.mute = hit.restart = hit.next = hit.rules = null;
 
     // --- measure the row, then lay it out from its own end ---
     const items = [{ k: 'mute', w: UI.PILL.iconW }];
-    if (won) items.push({ k: 'next', w: UI.ctaWidth(ctx, 'NEXT'), cta: true });
+    /* SENTENCE CASE ON PILLS, CAPS ON THE CTA, which is what every shipped game
+       does: Bloom and Prism both read [speaker] Undo Restart Rules, and their
+       one loud button says NEXT LEVEL or PLAY AGAIN. This said RESTART, which
+       shouts a quiet control. */
+    if (won) items.push({ k: 'next', w: UI.ctaWidth(ctx, 'NEXT LEVEL'), cta: true, label: 'NEXT LEVEL' });
     else if (short) items.push({ k: 'next', w: UI.ctaWidth(ctx, 'TRY AGAIN'), cta: true, label: 'TRY AGAIN' });
-    else items.push({ k: 'restart', w: UI.pillWidth(ctx, 'RESTART') });
+    else items.push({ k: 'restart', w: UI.pillWidth(ctx, 'Restart') });
+    items.push({ k: 'rules', w: UI.pillWidth(ctx, 'Rules') });
     let total = 0;
     for (const it of items) total += it.w;
     total += UI.PILL.gap * (items.length - 1);
@@ -2074,12 +2092,14 @@
     let x = rowLeft;
     for (const it of items) {
       const c = x + it.w / 2;
-      if (it.cta) hit[it.k] = UI.drawCTA(ctx, it.label || 'NEXT', c, cy, TOK.accent);
+      if (it.cta) hit[it.k] = UI.drawCTA(ctx, it.label, c, cy, TOK.cta);
       else if (it.k === 'mute') {
         hit.mute = UI.drawPill(ctx, '', c, cy, { w: UI.PILL.iconW });
         speakerGlyph(c, cy, sfx ? sfx.isOn() : true);
+      } else if (it.k === 'restart') {
+        hit.restart = UI.drawPill(ctx, 'Restart', c, cy);
       } else {
-        hit.restart = UI.drawPill(ctx, 'RESTART', c, cy);
+        hit.rules = UI.drawPill(ctx, 'Rules', c, cy);
       }
       x += it.w + UI.PILL.gap;
     }
@@ -2095,10 +2115,12 @@
        margin a mistake spends, and it is only shown once one has actually been
        spent: a running tally of what you have lost, printed from the first
        second, would turn a garden into a scoreboard. */
+    /* Level first, sentence case, figures in one line: "Level 1 · 3/10 watered
+       · 0 turns" is what Bloom says and "Level 1 · 0/3 lit · 0 turns" is what
+       Prism says. This was shouting IN THE JAR 0 / 6 · LEVEL 54. */
     const spare = S.n - S.lost - S.need;
-    const bits = ['IN THE JAR ' + S.caught + ' / ' + S.need];
-    if (S.lost > 0) bits.push(spare > 0 ? spare + ' SPARE' : 'NO SPARES');
-    bits.push('LEVEL ' + S.lvl);
+    const bits = ['Level ' + S.lvl, S.caught + '/' + S.need + ' in the jar'];
+    if (S.lost > 0) bits.push(spare > 0 ? spare + ' spare' : 'no spares');
     const txt = bits.join('   ·   ');
     let hs = Math.max(0.66, Math.min(1, LW / 620));
     ctx.font = '600 ' + (16 * hs).toFixed(1) + 'px Inter, sans-serif';
@@ -2114,6 +2136,221 @@
     L.rowRight = rowRight;
 
     drawShortLine();
+  }
+
+  /* ---------- THE RULES CARD ----------
+     Built to the standard box in the design system, not to a size that happened
+     to fit: 470 wide capped, 420 tall capped, a fixed 154 header, a fixed 98
+     footer, and a BODY THAT SCROLLS in between. The type never shrinks and the
+     CTA never moves, because shrinking type was the old workaround for
+     unbounded content and a bounded scroll region is the fix.
+
+     It carries a looping demo, and that is not decoration. "Move slowly and
+     they follow your path, move fast and the tail cuts the corner" cannot be
+     conveyed by a still picture of a garden, and the design system's rule is
+     that a game whose rule cannot be guessed from a still carries a demo.
+     Stained's does. */
+  const CARD = { header: 154, footer: 98, radius: 22, maxW: 470, maxH: 420 };
+  const RULES = [
+    'Hold anywhere. A flame lights on your stick and the fireflies come to it.',
+    'Go gently and they follow your path. Go fast and the back of the line cuts the corner.',
+    'They cannot see the webs. You can. Lead them to the jar and take your corners wide.',
+  ];
+  const DEMO_MS = 7200;
+  const DEMO_SAY = [
+    { at: 0,    say: 'Lead them with the flame' },
+    { at: 2600, say: 'Slowly, and the line follows you' },
+    { at: 4300, say: 'Too fast, and the last one clips the silk' },
+    { at: 6100, say: 'So take your corners wide' },
+  ];
+  let demoClock = null;          // test hook: freeze the loop at a given ms
+  let rulesOpen = false, rulesScroll = 0, rulesGeom = null;
+
+  function cardBox() {
+    const pw = Math.min(LW - 56, CARD.maxW);
+    const ph = Math.min(LH - 20, CARD.maxH);
+    const px = Math.round((LW - pw) / 2);
+    const py = Math.max(10, Math.round((LH - ph) / 2));
+    return { pw, ph, px, py, bodyH: ph - CARD.header - CARD.footer };
+  }
+
+  /* One loop of the demo. A flame walks a bent path; three fireflies trail it
+     with the same lag the game uses, so the corner-cutting the caption talks
+     about is the corner-cutting you can see. */
+  function drawDemo(x, y, w, h, ms) {
+    const u = (ms % DEMO_MS) / DEMO_MS;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+    const ng = ctx.createLinearGradient(0, y, 0, y + h);
+    ng.addColorStop(0, ART.nightTop); ng.addColorStop(1, ART.nightBot);
+    ctx.fillStyle = ng; ctx.fillRect(x, y, w, h);
+
+    // the path: in from the left, a hard corner, out to the right
+    const p0 = { x: x + w * 0.10, y: y + h * 0.30 };
+    const p1 = { x: x + w * 0.58, y: y + h * 0.30 };
+    const p2 = { x: x + w * 0.86, y: y + h * 0.80 };
+    const fast = u > 0.52 && u < 0.86;          // the second pass is hurried
+    const t = fast ? ((u - 0.52) / 0.34) : (u < 0.52 ? u / 0.52 : (u - 0.86) / 0.14);
+    const at = (k) => (k < 0.55
+      ? { x: p0.x + (p1.x - p0.x) * (k / 0.55), y: p0.y + (p1.y - p0.y) * (k / 0.55) }
+      : { x: p1.x + (p2.x - p1.x) * ((k - 0.55) / 0.45), y: p1.y + (p2.y - p1.y) * ((k - 0.55) / 0.45) });
+
+    // the web sits on the inside of the corner, which is what gets clipped
+    const web = { x: p1.x + w * 0.06, y: p1.y + h * 0.26, r: Math.min(w, h) * 0.11 };
+    ctx.strokeStyle = 'rgba(214,226,236,0.5)';
+    ctx.lineWidth = 1;
+    for (let k = 1; k <= 3; k++) {
+      ctx.beginPath();
+      ctx.arc(web.x, web.y, web.r * (k / 3), -0.4, 3.1);
+      ctx.stroke();
+    }
+    for (let k = 0; k < 5; k++) {
+      const a = -0.4 + (3.5 * k) / 4;
+      ctx.beginPath(); ctx.moveTo(web.x, web.y);
+      ctx.lineTo(web.x + Math.cos(a) * web.r, web.y + Math.sin(a) * web.r);
+      ctx.stroke();
+    }
+
+    const tip = at(Math.min(1, t));
+    // three fireflies, lagging further the faster the flame is going
+    const lag = fast ? 0.26 : 0.09;
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 3; i++) {
+      const k = Math.max(0, Math.min(1, t - lag * (i + 1)));
+      let f = at(k);
+      // hurrying cuts the corner: the tail crosses the inside of the bend
+      if (fast && k > 0.40 && k < 0.80) {
+        const c = 1 - Math.abs(k - 0.60) / 0.20;
+        f = { x: f.x + (web.x - f.x) * c * 0.75, y: f.y + (web.y - f.y) * c * 0.75 };
+      }
+      blit(SPR.fly, f.x, f.y, 9, 0.95);
+      ctx.fillStyle = ART.flyCore;
+      ctx.beginPath(); ctx.arc(f.x, f.y, 1.7, 0, TAU); ctx.fill();
+    }
+    blit(SPR.haze, tip.x, tip.y, 34, 0.9);
+    ctx.fillStyle = 'rgba(255,250,232,0.98)';
+    ctx.beginPath(); ctx.arc(tip.x, tip.y, 3.4, 0, TAU); ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+    // the stick, so the card teaches that too
+    ctx.strokeStyle = 'rgba(206,158,104,0.9)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(tip.x, tip.y); ctx.lineTo(tip.x, tip.y + 22); ctx.stroke();
+    ctx.restore();
+  }
+
+  function demoSay(ms) {
+    const u = ms % DEMO_MS;
+    let say = DEMO_SAY[0].say;
+    for (const st of DEMO_SAY) if (u >= st.at) say = st.say;
+    return say;
+  }
+
+  function drawRules(now) {
+    const b = cardBox();
+    ctx.fillStyle = TOK.scrim;
+    ctx.fillRect(0, 0, LW, LH);
+    ctx.fillStyle = TOK.bgCard;
+    UI.roundRectPath(ctx, b.px, b.py, b.pw, b.ph, CARD.radius);
+    ctx.fill();
+    ctx.strokeStyle = TOK.tint12; ctx.lineWidth = 1;
+    UI.roundRectPath(ctx, b.px, b.py, b.pw, b.ph, CARD.radius);
+    ctx.stroke();
+
+    // --- header: title, subtitle, and the demo underneath them
+    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = TOK.text;
+    ctx.font = '800 40px Inter, sans-serif';
+    ctx.fillText('LANTERN', b.px + b.pw / 2, b.py + 34 + 34);
+    ctx.fillStyle = TOK.ink82;
+    ctx.font = '600 17px Inter, sans-serif';
+    ctx.fillText('Lead the fireflies home.', b.px + b.pw / 2, b.py + 34 + 54 + 17);
+
+    /* THE BODY IS HEADER-TO-FOOTER, and the demo lives INSIDE it rather than
+       stealing from it. The first version hung the demo off the header by eight
+       pixels and let the scroll viewport take whatever was left, and the
+       detector reported the three zones missing the card height by 94: true,
+       useless, and exactly the kind of number that gets waved through. Demo,
+       caption and viewport now divide the body exactly, and rulesFit() checks
+       both sums. */
+    /* THE DEMO GIVES WAY BEFORE THE RULES DO. At 480x360, the smallest frame
+       /embed/ supports, the body is 88 pixels: demo plus caption took 68 of
+       them and left the rules TWENTY, which is one clipped line. The detector
+       said fits:true, because it was measuring arithmetic rather than whether
+       a person could read anything - a card that passes with a 20 pixel
+       viewport is exactly the kind of pass this house has learned to distrust.
+       Below 130 the demo is dropped and the rules take the whole body, which
+       is the 88 the design system says to expect there. */
+    const bodyTop = b.py + CARD.header;
+    const showDemo = b.bodyH >= 130;
+    const CAP_H = showDemo ? 24 : 0;
+    const demoH = showDemo ? Math.max(44, Math.min(84, Math.round(b.bodyH * 0.36))) : 0;
+    if (showDemo) {
+      drawDemo(b.px + 22, bodyTop, b.pw - 44, demoH, demoClock != null ? demoClock : now);
+      ctx.fillStyle = TOK.ink82;
+      ctx.font = '600 14px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(demoSay(demoClock != null ? demoClock : now),
+                   b.px + b.pw / 2, bodyTop + demoH + 16);
+    }
+
+    // --- the numbered rules, scrolling in what the demo leaves
+    const viewTop = bodyTop + demoH + CAP_H;
+    const viewH = Math.max(0, b.bodyH - demoH - CAP_H);
+    ctx.save();
+    ctx.beginPath(); ctx.rect(b.px, viewTop, b.pw, viewH); ctx.clip();
+    ctx.textAlign = 'left';
+    let ry = viewTop - rulesScroll;
+    const wrapW = b.pw - 100;
+    let contentH = 0;
+    for (let i = 0; i < RULES.length; i++) {
+      const lines = wrapLines(RULES[i], wrapW, '500 16px Inter, sans-serif');
+      ctx.fillStyle = TOK.dot;
+      ctx.beginPath(); ctx.arc(b.px + 43, ry + 11, 12, 0, TAU); ctx.fill();
+      ctx.fillStyle = TOK.bg;
+      ctx.font = '800 14px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(String(i + 1), b.px + 43, ry + 16);
+      ctx.textAlign = 'left';
+      ctx.fillStyle = TOK.ink90;
+      ctx.font = '500 16px Inter, sans-serif';
+      for (let k = 0; k < lines.length; k++) ctx.fillText(lines[k], b.px + 66, ry + 16 + k * 22);
+      const blockH = Math.max(24, lines.length * 22);
+      ry += blockH + 13; contentH += blockH + 13;
+    }
+    ctx.restore();
+    const scrollMax = Math.max(0, contentH - 13 - viewH);
+    if (rulesScroll > scrollMax) rulesScroll = scrollMax;
+    // a 20px fade marks an edge with more beyond it
+    if (rulesScroll > 1) fadeEdge(b.px, viewTop, b.pw, 20, true);
+    if (rulesScroll < scrollMax - 1) fadeEdge(b.px, viewTop + viewH - 20, b.pw, 20, false);
+
+    // --- footer: the one CTA, at its house size, never moved
+    const cy = b.py + b.ph - 32 - UI.CTA.h / 2;
+    hit.rulesPlay = UI.drawCTA(ctx, 'PLAY', b.px + b.pw / 2, cy, TOK.cta);
+    rulesGeom = { pw: b.pw, ph: b.ph, px: b.px, py: b.py, viewTop, viewH,
+                  bodyH: b.bodyH, demoH, capH: CAP_H, showDemo,
+                  contentH: contentH - 13, scrollMax };
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  }
+
+  function fadeEdge(x, y, w, h, top) {
+    const g = ctx.createLinearGradient(0, y, 0, y + h);
+    g.addColorStop(top ? 0 : 1, 'rgba(19,31,54,1)');
+    g.addColorStop(top ? 1 : 0, 'rgba(19,31,54,0)');
+    ctx.fillStyle = g; ctx.fillRect(x, y, w, h);
+  }
+
+  function wrapLines(text, maxW, font) {
+    ctx.font = font;
+    const words = text.split(' ');
+    const out = []; let line = '';
+    for (const wd of words) {
+      const test = line ? line + ' ' + wd : wd;
+      if (ctx.measureText(test).width > maxW && line) { out.push(line); line = wd; }
+      else line = test;
+    }
+    if (line) out.push(line);
+    return out;
   }
 
   // ---------- INPUT ----------
@@ -2139,6 +2376,14 @@
     e.preventDefault();
     if (sfx) sfx.ensureAudio();
     const p = toLogical(e);
+    /* The card takes every press while it is open, or a tap that dismisses it
+       also lights a flame underneath and the swarm moves before the player has
+       read anything. */
+    if (rulesOpen) {
+      if (inBox(hit.rulesPlay, p.x, p.y)) { rulesOpen = false; if (sfx) sfx.play('click'); }
+      return;
+    }
+    if (inBox(hit.rules, p.x, p.y)) { rulesOpen = true; rulesScroll = 0; return; }
     if (inBox(hit.mute, p.x, p.y)) {
       if (sfx) { sfx.setOn(!sfx.isOn()); if (sfx.isOn()) sfx.play('click'); }
       return;
@@ -2163,9 +2408,15 @@
   canvas.addEventListener('pointercancel', endTouch);
   canvas.addEventListener('pointerleave', (e) => { endTouch(e); hover = null; });
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+  canvas.addEventListener('wheel', (e) => {
+    if (!rulesOpen || !rulesGeom) return;
+    e.preventDefault();
+    rulesScroll = Math.max(0, Math.min(rulesGeom.scrollMax, rulesScroll + e.deltaY));
+  }, { passive: false });
 
   window.addEventListener('keydown', (e) => {
-    if (e.key === 'r' || e.key === 'R') restart();
+    if (e.key === 'Escape' && rulesOpen) rulesOpen = false;
+    else if (e.key === 'r' || e.key === 'R') restart();
     else if (e.key === 'm' || e.key === 'M') { if (sfx) sfx.setOn(!sfx.isOn()); }
     else if ((e.key === 'Enter' || e.key === ' ') && phase !== 'play') nextLevel();
     else if (e.key === '[') gotoLevel(S.lvl - 1);
@@ -2559,8 +2810,10 @@
 
     // Where the controls actually ARE, in logical canvas pixels, so a test can
     // press them the way a thumb does instead of calling what they call.
-    controls: () => ({ mute: hit.mute, restart: hit.restart, next: hit.next,
-                       ctrlCy: L.ctrlCy, muted: sfx ? !sfx.isOn() : null }),
+    controls: () => ({ mute: hit.mute, restart: hit.restart, rules: hit.rules,
+                       next: hit.next, rulesPlay: hit.rulesPlay,
+                       ctrlCy: L.ctrlCy, muted: sfx ? !sfx.isOn() : null,
+                       rulesOpen }),
 
     /* SCRIPTED TIME. Runs the real fixed-step loop synchronously, so a bot can
        play a level without waiting for frames. The gate in M2 is built on this
@@ -2732,174 +2985,6 @@
                pass: bad.length === 0 };
     },
 
-    /* WHAT A FRAME COSTS, in milliseconds of thread time. `fps` is worthless
-       inside a preview pane: the pane throttles frame delivery, so it reported
-       8 flies as SLOWER than 26, which is impossible and is the tell that the
-       check is measuring the harness. Thread time is not delivered by anyone.
-       The 60fps budget is 16.7ms for render plus sim together. */
-    renderCost(n) {
-      const N = n || 60, t = [];
-      for (let i = 0; i < N; i++) { const a = performance.now(); render(); t.push(performance.now() - a); }
-      t.sort((x, y) => x - y);
-      return { flies: S.n, mode: MODE, samples: N,
-               medianMs: +t[N >> 1].toFixed(2), p95Ms: +t[Math.floor(N * 0.95)].toFixed(2),
-               budgetMs: 16.7 };
-    },
-    simCost(n) {
-      const N = n || 240, t = [];
-      for (let i = 0; i < N; i++) { const a = performance.now(); step(DT); t.push(performance.now() - a); }
-      t.sort((x, y) => x - y);
-      // one displayed frame is DT-many sim steps at 60Hz, i.e. two
-      return { flies: S.n, samples: N, medianStepMs: +t[N >> 1].toFixed(3),
-               msPerDisplayedFrame: +(t[N >> 1] * 2).toFixed(2), budgetMs: 16.7 };
-    },
-
-    // Where the controls actually ARE, in logical canvas pixels, so a test can
-    // press them the way a thumb does instead of calling what they call.
-    controls: () => ({ mute: hit.mute, restart: hit.restart, next: hit.next,
-                       ctrlCy: L.ctrlCy, muted: sfx ? !sfx.isOn() : null }),
-
-    /* SCRIPTED TIME. Runs the real fixed-step loop synchronously, so a bot can
-       play a level without waiting for frames. The gate in M2 is built on this
-       and on nothing else: the sim takes no wall-clock input, uses no
-       Math.random, and the same script from the same seed gives the same
-       answer every time. `assertDeterminism()` below is the proof.  */
-    advance(secs) {
-      const n = Math.round(secs / DT);
-      for (let i = 0; i < n; i++) { if (phase === 'win') winT += DT; step(DT); }
-      return this.state();
-    },
-
-    /* Determinism, asserted. Two identical scripted runs from the same level
-       must land every fly on the same coordinate. If this ever fails, every
-       number the gate produces is noise. */
-    assertDeterminism(level) {
-      const lv = level || S.lvl;
-      const run = () => {
-        gotoLevel(lv);
-        for (let i = 0; i < 12; i++) {
-          touch = { x: 200 + i * 18, y: 300 - i * 9 };
-          this.advance(0.4);
-        }
-        touch = null;
-        return S.flies.map((f) => f.x.toFixed(6) + ',' + f.y.toFixed(6)).join('|');
-      };
-      const a = run(), b = run();
-      gotoLevel(lv);
-      return { level: lv, identical: a === b,
-               fingerprint: a.slice(0, 48) + '...', chars: a.length };
-    },
-
-    setReducedMotion(v) { REDUCED = !!v; return REDUCED; },
-    reducedMotion: () => REDUCED,
-
-    /* THE CHECK THAT SHOULD HAVE EXISTED FROM THE FIRST COMMIT. Nobody plays,
-       nothing is touched, and the count must stay at zero on every level. The
-       craft gate asks whether care beats carelessness; it is meaningless until
-       ABSENCE loses, and absence used to win. */
-    assertNoFreeCaptures(opts) {
-      const o = opts || {};
-      const secs = o.secs || 300;
-      const step2 = o.step || 1;
-      const keepLvl = S.lvl;
-      const bad = [];
-      let worst = 0;
-      for (let lv = 1; lv <= LEVELS; lv += step2) {
-        gotoLevel(lv); touch = null;
-        this.advance(secs);
-        if (S.caught > 0) bad.push('L' + lv + ' ' + S.caught + '/' + S.n);
-        if (S.caught > worst) worst = S.caught;
-      }
-      gotoLevel(keepLvl);
-      return { levelsTested: Math.ceil(LEVELS / step2), secondsEach: secs,
-               levelsThatPlayedThemselves: bad, worstFreeCaptures: worst,
-               pass: bad.length === 0 };
-    },
-
-    /* WHAT A FRAME COSTS, in milliseconds of thread time. `fps` is worthless
-       inside a preview pane: the pane throttles frame delivery, so it reported
-       8 flies as SLOWER than 26, which is impossible and is the tell that the
-       check is measuring the harness. Thread time is not delivered by anyone.
-       The 60fps budget is 16.7ms for render plus sim together. */
-    renderCost(n) {
-      const N = n || 60, t = [];
-      for (let i = 0; i < N; i++) { const a = performance.now(); render(); t.push(performance.now() - a); }
-      t.sort((x, y) => x - y);
-      return { flies: S.n, mode: MODE, samples: N,
-               medianMs: +t[N >> 1].toFixed(2), p95Ms: +t[Math.floor(N * 0.95)].toFixed(2),
-               budgetMs: 16.7 };
-    },
-    simCost(n) {
-      const N = n || 240, t = [];
-      for (let i = 0; i < N; i++) { const a = performance.now(); step(DT); t.push(performance.now() - a); }
-      t.sort((x, y) => x - y);
-      // one displayed frame is DT-many sim steps at 60Hz, i.e. two
-      return { flies: S.n, samples: N, medianStepMs: +t[N >> 1].toFixed(3),
-               msPerDisplayedFrame: +(t[N >> 1] * 2).toFixed(2), budgetMs: 16.7 };
-    },
-
-    // Where the controls actually ARE, in logical canvas pixels, so a test can
-    // press them the way a thumb does instead of calling what they call.
-    controls: () => ({ mute: hit.mute, restart: hit.restart, next: hit.next,
-                       ctrlCy: L.ctrlCy, muted: sfx ? !sfx.isOn() : null }),
-
-    /* SCRIPTED TIME. Runs the real fixed-step loop synchronously, so a bot can
-       play a level without waiting for frames. The gate in M2 is built on this
-       and on nothing else: the sim takes no wall-clock input, uses no
-       Math.random, and the same script from the same seed gives the same
-       answer every time. `assertDeterminism()` below is the proof.  */
-    advance(secs) {
-      const n = Math.round(secs / DT);
-      for (let i = 0; i < n; i++) { if (phase === 'win') winT += DT; step(DT); }
-      return this.state();
-    },
-
-    /* Determinism, asserted. Two identical scripted runs from the same level
-       must land every fly on the same coordinate. If this ever fails, every
-       number the gate produces is noise. */
-    assertDeterminism(level) {
-      const lv = level || S.lvl;
-      const run = () => {
-        gotoLevel(lv);
-        for (let i = 0; i < 12; i++) {
-          touch = { x: 200 + i * 18, y: 300 - i * 9 };
-          this.advance(0.4);
-        }
-        touch = null;
-        return S.flies.map((f) => f.x.toFixed(6) + ',' + f.y.toFixed(6)).join('|');
-      };
-      const a = run(), b = run();
-      gotoLevel(lv);
-      return { level: lv, identical: a === b,
-               fingerprint: a.slice(0, 48) + '...', chars: a.length };
-    },
-
-    setReducedMotion(v) { REDUCED = !!v; return REDUCED; },
-    reducedMotion: () => REDUCED,
-
-    /* THE CHECK THAT SHOULD HAVE EXISTED FROM THE FIRST COMMIT. Nobody plays,
-       nothing is touched, and the count must stay at zero on every level. The
-       craft gate asks whether care beats carelessness; it is meaningless until
-       ABSENCE loses, and absence used to win. */
-    assertNoFreeCaptures(opts) {
-      const o = opts || {};
-      const secs = o.secs || 300;
-      const step2 = o.step || 1;
-      const keepLvl = S.lvl;
-      const bad = [];
-      let worst = 0;
-      for (let lv = 1; lv <= LEVELS; lv += step2) {
-        gotoLevel(lv); touch = null;
-        this.advance(secs);
-        if (S.caught > 0) bad.push('L' + lv + ' ' + S.caught + '/' + S.n);
-        if (S.caught > worst) worst = S.caught;
-      }
-      gotoLevel(keepLvl);
-      return { levelsTested: Math.ceil(LEVELS / step2), secondsEach: secs,
-               levelsThatPlayedThemselves: bad, worstFreeCaptures: worst,
-               pass: bad.length === 0 };
-    },
-
     /* SAVE AND RESTORE MUST BALANCE, and nothing about a canvas tells you when
        they do not. Removing the jar's lid left one save() without its
        restore(), so every single thing drawn after the jar - the flame, the
@@ -2962,6 +3047,106 @@
       };
     },
 
+    /* rulesFit(). "A card is not fixed until something can measure it" - three
+       cards in three days were believed fixed and were not, and each was caught
+       by a detector on its first run. Reports the real geometry, and it only
+       reports it while the card is the thing on screen: a detector that answers
+       outside the phase it describes is worth nothing. */
+    rulesFit() {
+      const wasOpen = rulesOpen;
+      rulesOpen = true; render();
+      const g = rulesGeom;
+      rulesOpen = wasOpen; render();
+      if (!g) return { fits: false, note: 'card did not lay out' };
+      const zones = CARD.header + g.bodyH + CARD.footer;
+      const insideBody = g.demoH + g.capH + g.viewH;
+      const bottomOfBody = g.viewTop + g.viewH;
+      const topOfCta = g.py + g.ph - 32 - UI.CTA.h;
+      return {
+        fits: g.py >= 10 && g.py + g.ph <= LH && bottomOfBody <= topOfCta + 0.5 &&
+              Math.abs(zones - g.ph) < 0.5 && Math.abs(insideBody - g.bodyH) < 0.5 &&
+              // two lines of copy, or nobody can read it whatever the sums say
+              g.viewH >= 44,
+        frameW: LW, frameH: LH,
+        cardW: g.pw, cardH: g.ph,
+        headerH: CARD.header, footerH: CARD.footer,
+        viewportH: +g.viewH.toFixed(1), contentH: +g.contentH.toFixed(1),
+        scrollMax: +g.scrollMax.toFixed(1),
+        scrolls: g.scrollMax > 0.5,
+        // the one thing nothing else checks: does the body run under the CTA
+        overlapPx: +Math.max(0, bottomOfBody - topOfCta).toFixed(1),
+        demoH: g.demoH, captionH: g.capH, bodyH: g.bodyH, demoShown: g.showDemo,
+        // both sums, and both have to be zero
+        zonesMinusCard: +(zones - g.ph).toFixed(1),
+        bodyPartsMinusBody: +(insideBody - g.bodyH).toFixed(1),
+      };
+    },
+    openRules(v) { rulesOpen = v !== false; rulesScroll = 0; return rulesOpen; },
+    setDemoClock(ms) { demoClock = ms; return demoClock; },
+    scrollRules(px) {
+      if (!rulesGeom) return null;
+      rulesScroll = Math.max(0, Math.min(rulesGeom.scrollMax, rulesScroll + px));
+      return rulesScroll;
+    },
+
+    /* PADDING, MEASURED. "Nothing sticking to the edges or to each other" is
+       not something you can check by looking, because the thing that bites is
+       the frame you did not try: a control row that clears the read-out at 760
+       collides at 380, and a card that sits nicely at 420 tall touches the
+       frame at 360. So every gap the layout owns is reported as a number with
+       the floor it has to clear, and `tightest` names the one closest to
+       failing rather than making me hunt for it. */
+    paddingAudit() {
+      render();
+      const g = [];
+      const add = (name, px, floor) => g.push({ name, px: +px.toFixed(1), floor,
+                                                ok: px >= floor - 0.5 });
+      const b = hit;
+      if (b.mute) {
+        add('frame edge to first control', MODE === 'mobile'
+              ? b.mute.x : b.mute.x, MODE === 'mobile' ? 12 : SIDE_PAD);
+        add('control row to frame bottom', LH - (b.mute.y + b.mute.h),
+            MODE === 'mobile' ? 24 : 12);
+        add('control row to frame top', b.mute.y, MODE === 'mobile' ? 24 : 6);
+      }
+      const row = [b.mute, b.restart, b.rules, b.next].filter(Boolean)
+                   .sort((a, c) => a.x - c.x);
+      for (let i = 1; i < row.length; i++) {
+        add('gap between controls ' + i, row[i].x - (row[i - 1].x + row[i - 1].w),
+            UI.PILL.gap - 0.5);
+      }
+      if (row.length) {
+        const right = row[row.length - 1];
+        add('last control to frame right', LW - (right.x + right.w), 12);
+      }
+      if (L.readoutLeft != null) {
+        add('read-out to frame right', SIDE_PAD, SIDE_PAD);
+        add('read-out to nearest control', L.readoutLeft - (L.rowRight || 0), 16);
+      }
+      // the playfield's own breathing room
+      add('garden to frame side', L.ox, 0);
+      add('flies to the control row',
+          (MODE === 'mobile' ? L.ctrlCy - UI.PILL.h / 2 : LH) -
+          (L.oy + TUNE.arena * L.scale), MODE === 'mobile' ? 0 : -1e9);
+      // and the card, at whatever frame it is being asked to live in
+      const wasOpen = rulesOpen;
+      rulesOpen = true; render();
+      if (rulesGeom) {
+        add('card to frame top', rulesGeom.py, 10);
+        add('card to frame bottom', LH - (rulesGeom.py + rulesGeom.ph), 10);
+        add('card to frame side', rulesGeom.px, 28);
+        add('CTA to card bottom', 32, 32);
+        add('rules body to CTA',
+            (rulesGeom.py + rulesGeom.ph - 32 - UI.CTA.h) -
+            (rulesGeom.viewTop + rulesGeom.viewH), 16);
+      }
+      rulesOpen = wasOpen; render();
+      const bad = g.filter((r) => !r.ok);
+      const tight = g.slice().sort((a, c) => (a.px - a.floor) - (c.px - c.floor))[0];
+      return { frame: LW + 'x' + LH, mode: MODE, pass: bad.length === 0,
+               tooTight: bad, tightest: tight, all: g };
+    },
+
     frameStats() { return { fps: +fps.toFixed(1), samples: fpsN }; },
   };
 
@@ -2999,6 +3184,7 @@
     last = now;
     acc += dt;
     let steps = 0;
+    if (rulesOpen) acc = 0;
     while (acc >= DT && steps < 14) {
       if (phase === 'win') winT += DT;
       step(DT);
