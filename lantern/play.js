@@ -222,7 +222,6 @@
   const SIDE_PAD = 30;
   const topBand = () => (MODE === 'mobile' ? 64 : 56);
   const botBand = () => (MODE === 'mobile' ? 96 : 20);
-  const RIGHT_COL = 176;     // desktop only: the jar illustration column
 
   // ---------- SCENE ----------
   /* Tier furniture, from the brief:
@@ -468,7 +467,13 @@
       // band content above it, not the picture.
       availW = LW; boxX = 0;
     } else {
-      availW = LW - SIDE_PAD * 2 - RIGHT_COL - 16;
+      /* No side column. A second jar drawn beside the first told the player
+         nothing the scene was not already telling them, and the design system's
+         rule is that side space must carry something REAL - so the side space
+         is garden. The square field is centred in the full frame and the
+         leftover width either side is more night, more grass, more of the same
+         garden, exactly the way the leftover HEIGHT works on a phone. */
+      availW = LW - SIDE_PAD * 2;
       boxX = SIDE_PAD;
     }
     const side = Math.max(120, Math.min(availW, availH));
@@ -480,9 +485,8 @@
     // all of it; only the flies are confined to the square.
     L.playX = MODE === 'mobile' ? 0 : SIDE_PAD;
     L.playY = availTop;
-    L.playW = MODE === 'mobile' ? LW : LW - SIDE_PAD * 2 - RIGHT_COL - 16;
+    L.playW = MODE === 'mobile' ? LW : LW - SIDE_PAD * 2;
     L.playH = availH;
-    L.col = { x: LW - SIDE_PAD - RIGHT_COL, y: availTop, w: RIGHT_COL, h: availH };
   }
   const wx2s = (x) => L.ox + x * L.scale;
   const wy2s = (y) => L.oy + y * L.scale;
@@ -493,10 +497,22 @@
   /* Grass is seeded from the level, laid out across the PLAY AREA rather than
      the arena, so the bottom of the frame is garden rather than a cut edge. It
      is regenerated on resize because it is measured in screen pixels. */
-  let grass = [], foliage = [];
+  let grass = [], foliage = [], motes = [];
   function buildScenery() {
     const rnd = mulberry32(0x9E37 * S.lvl + 5);
     grass = [];
+
+    /* DUST IN THE AIR. Not a light and never a light: motes are invisible
+       until something bright passes near them, and then they are the thing
+       that makes the flame look like it is IN the garden rather than on top of
+       a picture of one. They also give the dark middle of the frame, which is
+       most of it, something to be. */
+    motes = [];
+    for (let i = 0; i < 90; i++) {
+      motes.push({ x: rnd() * TUNE.arena, y: rnd() * TUNE.arena,
+                   r: 0.5 + rnd() * 1.5, ph: rnd() * Math.PI * 2,
+                   sp: 0.15 + rnd() * 0.5, drift: (rnd() - 0.5) * 0.5 });
+    }
 
     /* FOLIAGE. Without it the top two thirds of the frame is a void, and a void
        is not the same thing as a dark garden. These are not lights and they add
@@ -513,14 +529,16 @@
       const cx = fx0 + a[0] * fw + (a[0] < 0.5 ? -1 : 1) * rnd() * fw * 0.10;
       const cy = L.playY + a[1] * L.playH + (rnd() - 0.5) * L.playH * 0.10;
       const lobes = [];
-      const nl = 4 + Math.floor(rnd() * 4);
-      const R = (0.11 + rnd() * 0.11) * Math.min(fw, L.playH);
+      const nl = 5 + Math.floor(rnd() * 5);
+      const R = (0.11 + rnd() * 0.13) * Math.min(fw, L.playH);
       for (let j = 0; j < nl; j++) {
-        lobes.push({ dx: (rnd() - 0.5) * R * 1.5, dy: (rnd() - 0.5) * R * 1.1,
-                     rx: R * (0.42 + rnd() * 0.5), ry: R * (0.30 + rnd() * 0.42),
+        // leaf-shaped rather than round: a long axis and a short one, turned
+        lobes.push({ dx: (rnd() - 0.5) * R * 1.6, dy: (rnd() - 0.5) * R * 1.2,
+                     rx: R * (0.40 + rnd() * 0.55), ry: R * (0.16 + rnd() * 0.26),
                      rot: rnd() * Math.PI });
       }
-      foliage.push({ cx, cy, lobes, R });
+      // near masses sit in front of everything and never light up
+      foliage.push({ cx, cy, lobes, R, near: i === 0 && rnd() < 0.5 });
     }
     const w = MODE === 'mobile' ? LW : L.playW + SIDE_PAD;
     const x0 = MODE === 'mobile' ? 0 : L.playX - 10;
@@ -1023,37 +1041,48 @@
     const s = L.scale;
     for (const f of S.flies) {
       if (f.caught || f.lost) continue;
-      // a fly held in silk burns brighter, and lights the trap that holds it
       const held = f.web >= 0;
       lights.push({ x: wx2s(f.x), y: wy2s(f.y), r: (held ? 104 : 92) * s,
-                    i: held ? 0.85 : 0.34 + flashOf(f) * 0.5 });
+                    i: held ? 0.85 : 0.34 + flashOf(f) * 0.5, c: LC.fly });
     }
     const jar = S.jar;
     const fill = S.caught / Math.max(1, S.need);
     if (S.caught > 0 || phase === 'win') {
       lights.push({ x: wx2s(jar.x), y: wy2s(jar.y), r: (150 + 190 * fill) * s,
-                    i: 0.30 + 0.85 * fill });
+                    i: 0.30 + 0.85 * fill, c: LC.jar });
     }
     if (touch) {
       // The brightest thing in the garden, and the reason anything near it is
       // visible at all.
       lights.push({ x: wx2s(touch.x), y: wy2s(touch.y),
-                    r: TUNE.lureR * s * 1.1, i: 1.0 });
+                    r: TUNE.lureR * s * 1.1, i: 1.0, c: LC.flame });
     }
     for (const l of lights) l.r2 = l.r * l.r;
   }
+
+  /* LIGHT HAS A COLOUR NOW. A blade of grass under the flame should be warm and
+     one under a firefly should be green-gold, and until this the light model
+     returned a single brightness so everything lit came out the same colour as
+     everything else. It is the difference between a lit garden and a garden
+     with a brightness slider. */
+  const LC = { fly: [196, 232, 150], flame: [255, 206, 132], jar: [255, 214, 158] };
+  const litAcc = { b: 0, r: 0, g: 0, bl: 0 };
   function lightAt(x, y) {
-    let b = 0;
+    let b = 0, r = 0, g = 0, bl = 0;
     for (let i = 0; i < lights.length; i++) {
       const l = lights[i];
       const dx = x - l.x, dy = y - l.y, d2 = dx * dx + dy * dy;
       if (d2 > l.r2) continue;
       const k = 1 - Math.sqrt(d2) / l.r;
-      b += k * k * l.i;
-      if (b >= 1) return 1;
+      const w = k * k * l.i;
+      b += w; r += l.c[0] * w; g += l.c[1] * w; bl += l.c[2] * w;
     }
-    return b;
+    if (b > 1e-4) { const inv = 1 / b; litAcc.r = r * inv; litAcc.g = g * inv; litAcc.bl = bl * inv; }
+    else { litAcc.r = LC.fly[0]; litAcc.g = LC.fly[1]; litAcc.bl = LC.fly[2]; }
+    litAcc.b = Math.min(1, b);
+    return litAcc;
   }
+  const litRGB = (a) => Math.round(a.r) + ',' + Math.round(a.g) + ',' + Math.round(a.bl);
 
   /* A loose fly blinks on its own 1.2s cycle, offset per fly. Jarred flies fall
      into one rhythm at the win, which is what real Photinus do and is the whole
@@ -1109,7 +1138,8 @@
       return;
     }
 
-    drawFoliage();
+    drawFoliage(false);
+    drawMotes();
 
     // --- ground pools: what each light throws down onto the earth ---
     ctx.globalCompositeOperation = 'lighter';
@@ -1134,7 +1164,9 @@
     if (touch) { drawFlameTrail(); drawFlame(); }
     else if (hover && MODE === 'desktop') drawAim();
     if (!SOLO) for (const f of S.flies) if (!f.caught && !f.lost) drawFly(f);
+    drawFoliage(true);
     drawGrass(false);
+    drawVignette();
     drawWinWash();
 
     ctx.restore();
@@ -1144,17 +1176,34 @@
      alpha where they overlap, and a mass made of six lobes at 0.55 came out
      effectively opaque: the near-black foliage read as a pale green cloud and
      lifted the whole garden off its register. A compound path fills once. */
-  function drawFoliage() {
+  function drawMotes() {
+    const s = L.scale, t = REDUCED ? 0 : clock;
+    ctx.globalCompositeOperation = 'lighter';
+    for (const m of motes) {
+      const x = wx2s(m.x + Math.sin(t * m.sp + m.ph) * 9);
+      const y = wy2s(m.y + Math.cos(t * m.sp * 0.7 + m.ph) * 7 - t * m.drift * 4);
+      const la = lightAt(x, y);
+      if (la.b < 0.06) continue;
+      ctx.fillStyle = 'rgba(' + litRGB(la) + ',' + Math.min(0.55, la.b * 0.6).toFixed(3) + ')';
+      ctx.beginPath();
+      ctx.arc(x, y, Math.max(0.6, m.r * s * (0.7 + la.b * 0.8)), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  function drawFoliage(near) {
     for (const b of foliage) {
+      if (!!b.near !== !!near) continue;
       ctx.beginPath();
       for (const l of b.lobes) {
         ctx.ellipse(b.cx + l.dx, b.cy + l.dy, l.rx, l.ry, l.rot, 0, Math.PI * 2);
       }
-      ctx.fillStyle = 'rgba(12,27,22,0.55)';
+      ctx.fillStyle = near ? 'rgba(5,12,10,0.88)' : 'rgba(12,27,22,0.55)';
       ctx.fill();
-      const lit = lightAt(b.cx, b.cy);
-      if (lit > 0.02) {
-        ctx.fillStyle = 'rgba(78,124,92,' + Math.min(0.16, lit * 0.18).toFixed(3) + ')';
+      const lit = near ? { b: 0 } : lightAt(b.cx, b.cy);
+      if (lit.b > 0.02) {
+        ctx.fillStyle = 'rgba(' + litRGB(lit) + ',' + Math.min(0.13, lit.b * 0.15).toFixed(3) + ')';
         ctx.fill();
       }
     }
@@ -1184,10 +1233,10 @@
 
       // The nearest band is a silhouette between the player and the garden.
       // Nothing lights it from in front, so it never brightens.
-      const lit = b.row === 2 ? 0 : lightAt(tipX, tipY);
-      if (lit > 0.02) {
+      const lit = b.row === 2 ? null : lightAt(tipX, tipY);
+      if (lit && lit.b > 0.02) {
         ctx.lineWidth = GRASS_W[b.row] - 0.2;
-        ctx.strokeStyle = 'rgba(196,232,150,' + Math.min(0.78, lit * 0.85).toFixed(3) + ')';
+        ctx.strokeStyle = 'rgba(' + litRGB(lit) + ',' + Math.min(0.80, lit.b * 0.88).toFixed(3) + ')';
         ctx.beginPath();
         ctx.moveTo(midX, midY);
         ctx.quadraticCurveTo((midX + tipX) / 2, (midY + tipY) / 2, tipX, tipY);
@@ -1236,68 +1285,146 @@
     }
   }
 
-  /* THE WEB. It has to be plainly visible, and that is not a compromise of the
-     register, it is the contract: the flies cannot see silk and you can, so
-     every fly lost to a web is lost to something you were shown. A web you had
-     to squint for would make the whole thing a lottery.
+  /* THE WEB, built the way an orb weaver builds one. The first version was a
+     stack of regular polygons, and regular polygons are the one thing a real
+     web never is. What actually makes silk read as silk:
 
-     Silk is drawn the way silk is lit - it is not a light, it catches one - so
-     the spokes are dim and the spiral is the part that glints, and both brighten
-     when a firefly is near. When one is CAUGHT the web lights up around it,
-     which is the trap being lit by the thing it caught. */
+       the capture spiral SAGS between the spokes. It is a thread under its own
+         weight strung between anchor points, so every span is a shallow curve,
+         and drawing them straight is what made it look like a dartboard.
+       the hub is a tight scribble, then a FREE ZONE with nothing in it, and
+         only then the capture spiral. That gap is the most recognisable thing
+         about an orb web and it costs one number.
+       the frame is anchored. Real webs hang off four or five long bridge
+         threads that run away out of the web entirely, and without them the
+         thing floats in the dark like a sticker.
+       nothing is centred and nothing is even. The hub sits off to one side,
+         the spokes are unevenly spaced and unevenly long, and the spiral
+         spacing widens as it goes out.
+       silk is not a light. It catches one, so it is nearly invisible until
+         something bright is near it, and it glints where threads cross.
+
+     It still has to be plainly visible, and that is not a compromise of the
+     register: the flies cannot see silk and you can, so every fly lost to a web
+     is lost to something you were shown. */
   function drawWeb(w) {
     const s = L.scale;
-    const x = wx2s(w.x), y = wy2s(w.y), r = w.r * s;
+    const cx = wx2s(w.x), cy = wy2s(w.y), r = w.r * s;
     const rnd = mulberry32(w.seed | 0);
-    const SPOKES = 9;
-    const ang = [], reach = [];
-    for (let i = 0; i < SPOKES; i++) {
-      ang.push((i / SPOKES) * Math.PI * 2 + (rnd() - 0.5) * 0.22);
-      reach.push(r * (0.86 + rnd() * 0.28));
-    }
-    const lit = Math.min(1, lightAt(x, y) * 1.15);
-    const heat = w.seat;                     // 0 calm, 1 the spider has arrived
-    // Silk that has just let something go is torn, and shows it: a rule the
-    // player can act on has to be a rule the player can see.
+    const la = lightAt(cx, cy);
+    const lit = Math.min(1, la.b * 1.2);
+    const heat = w.seat;
     const torn = w.cool > 0 ? Math.min(1, w.cool / TUNE.webCool) : 0;
+    /* Silk is GREY, and takes only a little of whatever colour is lighting it.
+       Taking the light's colour whole turned fifteen webs under the flame into
+       fifteen gold coins. */
+    const ink = Math.round(la.r * 0.34 + 214 * 0.66) + ',' +
+                Math.round(la.g * 0.34 + 226 * 0.66) + ',' +
+                Math.round(la.bl * 0.34 + 236 * 0.66);
+
+    // the hub sits off centre, the way a real one does
+    const hx = cx + Math.cos(w.anchor * 1.7) * r * 0.16;
+    const hy = cy + Math.sin(w.anchor * 1.7) * r * 0.16;
+
+    const N = 11;
+    const ang = [], reach = [];
+    let a = rnd() * Math.PI * 2;
+    for (let i = 0; i < N; i++) {
+      a += (Math.PI * 2 / N) * (0.68 + rnd() * 0.64);
+      ang.push(a);
+      reach.push(r * (0.80 + rnd() * 0.46));
+    }
+    const px = (i, t) => hx + Math.cos(ang[i % N]) * reach[i % N] * t;
+    const py = (i, t) => hy + Math.sin(ang[i % N]) * reach[i % N] * t;
 
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    // the anchor lines: dim, structural
-    ctx.strokeStyle = 'rgba(150,176,196,' + (0.13 + lit * 0.20).toFixed(3) + ')';
-    ctx.lineWidth = Math.max(0.8, 1.0 * s);
+
+    // --- bridge threads: what the whole thing hangs from ---
+    ctx.strokeStyle = 'rgba(' + ink + ',' + (0.03 + lit * 0.06).toFixed(3) + ')';
+    ctx.lineWidth = Math.max(0.5, 0.7 * s);
     ctx.beginPath();
-    for (let i = 0; i < SPOKES; i++) {
-      ctx.moveTo(x, y);
-      ctx.lineTo(x + Math.cos(ang[i]) * reach[i], y + Math.sin(ang[i]) * reach[i]);
+    for (let i = 0; i < N; i += 4) {
+      ctx.moveTo(px(i, 1), py(i, 1));
+      ctx.lineTo(hx + Math.cos(ang[i]) * reach[i] * (1.35 + rnd() * 0.7),
+                 hy + Math.sin(ang[i]) * reach[i] * (1.35 + rnd() * 0.7));
     }
     ctx.stroke();
 
-    // the spiral: the part that catches the light, and the part you read
-    ctx.strokeStyle = 'rgba(206,226,240,' + ((0.34 + lit * 0.34) * (1 - torn * 0.72)).toFixed(3) + ')';
-    ctx.lineWidth = Math.max(1.1, 1.3 * s);
-    for (let ring = 1; ring <= 4; ring++) {
-      if (torn > 0.35 && ring % 2 === 0) continue;   // strands missing
-      const t = ring / 4.6;
+    // --- radii ---
+    ctx.strokeStyle = 'rgba(' + ink + ',' + ((0.19 + lit * 0.16) * (1 - torn * 0.5)).toFixed(3) + ')';
+    ctx.lineWidth = Math.max(0.6, 0.8 * s);
+    ctx.beginPath();
+    for (let i = 0; i < N; i++) { ctx.moveTo(hx, hy); ctx.lineTo(px(i, 1), py(i, 1)); }
+    ctx.stroke();
+
+    // --- the hub: a tight scribble of a few close turns ---
+    ctx.strokeStyle = 'rgba(' + ink + ',' + (0.24 + lit * 0.20).toFixed(3) + ')';
+    ctx.lineWidth = Math.max(0.6, 0.8 * s);
+    for (let k = 0; k < 3; k++) {
+      const t = 0.05 + k * 0.035;
       ctx.beginPath();
-      for (let i = 0; i <= SPOKES; i++) {
-        const k = i % SPOKES;
-        const rr = reach[k] * t * (0.92 + ((k * 7 + ring * 3) % 5) * 0.032);
-        const px = x + Math.cos(ang[k]) * rr, py = y + Math.sin(ang[k]) * rr;
-        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      for (let i = 0; i <= N; i++) {
+        const x0 = px(i, t), y0 = py(i, t);
+        if (i === 0) ctx.moveTo(x0, y0); else ctx.lineTo(x0, y0);
+      }
+      ctx.closePath(); ctx.stroke();
+    }
+
+    /* --- the capture spiral. Each span between two radii SAGS, so it is drawn
+       --- as a quadratic bowing toward the hub. This one detail is most of the
+       --- difference between silk and a wire fence. The free zone is the empty
+       --- band between the hub above and the first turn here. */
+    /* THE UNLIT BASELINE IS A FAIRNESS FLOOR, not a taste decision. Silk in
+       the dark measured 1.98 to 2.94:1 against a 3:1 bar, and the contract this
+       game rests on is that the flies cannot see the webs and you can. It is
+       not enough to see the one you are standing next to: the whole skill is
+       choosing a line through the course, and you cannot choose a line through
+       something you have to arrive at to find. So the capture spiral reads at
+       arm's length in the dark, and brightens from there. */
+    ctx.strokeStyle = 'rgba(' + ink + ',' +
+      (Math.min(0.66, 0.40 + lit * 0.26) * (1 - torn * 0.78)).toFixed(3) + ')';
+    ctx.lineWidth = Math.max(0.8, 1.0 * s);
+    const turns = 6;
+    for (let k = 0; k < turns; k++) {
+      if (torn > 0.3 && k % 2 === 1) continue;              // strands missing
+      const t0 = 0.30 + (k / turns) * 0.68;
+      const t1 = 0.30 + ((k + 1) / turns) * 0.68;
+      ctx.beginPath();
+      for (let i = 0; i < N; i++) {
+        const ta = t0 + (t1 - t0) * (i / N);
+        const tb = t0 + (t1 - t0) * ((i + 1) / N);
+        const ax = px(i, ta), ay = py(i, ta);
+        const bx2 = px(i + 1, tb), by2 = py(i + 1, tb);
+        if (i === 0) ctx.moveTo(ax, ay);
+        // control point pulled toward the hub: that is the sag
+        const mx = (ax + bx2) / 2, my = (ay + by2) / 2;
+        ctx.quadraticCurveTo(mx + (hx - mx) * 0.16, my + (hy - my) * 0.16, bx2, by2);
       }
       ctx.stroke();
     }
 
-    // the hub, and the spider walking out of it once something is held
+    // --- glints where threads cross, which is what actually catches an eye ---
+    if (lit > 0.12 && !REDUCED) {
+      ctx.fillStyle = 'rgba(255,255,255,' + (lit * 0.34).toFixed(3) + ')';
+      for (let i = 0; i < N; i += 2) {
+        const t = 0.34 + ((i * 37) % 60) / 100;
+        const g = 0.5 + 0.5 * Math.sin(clock * 1.7 + i * 2.1 + w.seed);
+        if (g < 0.55) continue;
+        ctx.beginPath();
+        ctx.arc(px(i, t), py(i, t), Math.max(0.5, 0.9 * s * g), 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
     /* The spider walks from its corner of the web to the fly it is coming for,
-       and its POSITION is the clock: no bar, no number, just how much web is
+       and its POSITION is the clock: no bar, no number, just how much silk is
        left between them. */
     if (heat > 0.001) {
-      const ax2 = x + Math.cos(w.anchor) * r * 0.94;
-      const ay2 = y + Math.sin(w.anchor) * r * 0.94;
+      const ax2 = hx + Math.cos(w.anchor) * r * 1.0;
+      const ay2 = hy + Math.sin(w.anchor) * r * 1.0;
       const tx = wx2s(w.tx), ty = wy2s(w.ty);
-      const hx = ax2 + (tx - ax2) * heat, hy = ay2 + (ty - ay2) * heat;
-      drawSpider(hx, hy, Math.max(3.6, 10 * s), Math.atan2(ty - ay2, tx - ax2), heat);
+      const sx2 = ax2 + (tx - ax2) * heat, sy2 = ay2 + (ty - ay2) * heat;
+      drawSpider(sx2, sy2, Math.max(3.6, 10 * s), Math.atan2(ty - ay2, tx - ax2), heat);
     }
   }
 
@@ -1436,18 +1563,22 @@
     ctx.closePath();
   }
 
-  function drawJar(atX, atY, atScale, upright) {
+  function drawJar() {
     const jar = S.jar;
-    const s = (atScale != null ? atScale : L.scale);
+    const s = L.scale;
     const w = jar.w * s, h = jar.h * s, mouthW = jar.mouthW * s;
     const fill = S.caught / Math.max(1, S.need);
-    const inScene = atX == null;
     const lamp = phase === 'win' ? 1 : 0.12 + 0.88 * fill;
     const flare = phase === 'win' ? winFlash() : 0;
 
+    /* The glass catches whatever light is near it, so bringing the flame down
+       to the mouth makes the jar answer. Before this it only ever brightened
+       from the inside, and the last few feet of a level - the part that
+       matters - looked exactly like the first. */
+    const catchLit = Math.min(1, lightAt(wx2s(jar.x), wy2s(jar.y)).b);
     ctx.save();
-    ctx.translate(inScene ? wx2s(jar.mx) : atX, inScene ? wy2s(jar.my) : atY);
-    if (!upright) ctx.rotate(jar.ang);
+    ctx.translate(wx2s(jar.mx), wy2s(jar.my));
+    ctx.rotate(jar.ang);
 
     // --- what is BEHIND the glass, clipped by it: the warmth, and the flies
     // --- already in it. Nothing here is the glass; the glass is below.
@@ -1484,12 +1615,12 @@
     const bh = w / 2;
     // 1. the lit flank, up and slightly left, as in every Zamborin game
     const g1 = ctx.createLinearGradient(-bh, 0, -bh + w * 0.10, 0);
-    g1.addColorStop(0, 'rgba(255,255,255,' + (0.30 + fill * 0.16).toFixed(3) + ')');
+    g1.addColorStop(0, 'rgba(255,255,255,' + (0.30 + fill * 0.16 + catchLit * 0.30).toFixed(3) + ')');
     g1.addColorStop(1, 'rgba(255,255,255,0)');
     ctx.fillStyle = g1; ctx.fillRect(-bh, 0, w * 0.10, h);
     // 2. the cold rim down the shaded flank, thinner still
     const g2 = ctx.createLinearGradient(bh, 0, bh - w * 0.055, 0);
-    g2.addColorStop(0, 'rgba(206,232,246,' + (0.24 + fill * 0.12).toFixed(3) + ')');
+    g2.addColorStop(0, 'rgba(206,232,246,' + (0.24 + fill * 0.12 + catchLit * 0.26).toFixed(3) + ')');
     g2.addColorStop(1, 'rgba(206,232,246,0)');
     ctx.fillStyle = g2; ctx.fillRect(bh - w * 0.055, 0, w * 0.055, h);
     // 3. where the glass thickens at the base and pools the light
@@ -1512,7 +1643,7 @@
     const rimW = mouthW * 0.55;
     const rg = ctx.createLinearGradient(0, -h * 0.028, 0, h * 0.030);
     rg.addColorStop(0, 'rgba(255,255,255,0.05)');
-    rg.addColorStop(0.55, 'rgba(255,255,255,0.30)');
+    rg.addColorStop(0.55, 'rgba(255,255,255,' + (0.30 + catchLit * 0.38).toFixed(3) + ')');
     rg.addColorStop(1, 'rgba(255,255,255,0.03)');
     ctx.fillStyle = rg;
     ctx.beginPath();
@@ -1523,34 +1654,6 @@
     ctx.beginPath();
     ctx.ellipse(0, h * 0.006, rimW * 0.86, Math.max(1.4, h * 0.024), 0, 0, Math.PI * 2);
     ctx.fill();
-
-    // --- the lid, left leaning on the rim the way one is in a garden ---
-    ctx.save();
-    /* A disc seen almost edge-on reads as a blade, which is what the first two
-       versions of this lid looked like. A lid propped against a rim is seen
-       from ABOVE and to the side: wide, shallow, and thick enough to have an
-       edge of its own. */
-    ctx.translate(-w * 0.15, -h * 0.030);
-    ctx.rotate(-0.16);
-    const lidW = mouthW * 0.78, lidH = mouthW * 0.25;
-    const lip = Math.max(1.6, mouthW * 0.055);
-    ctx.fillStyle = 'rgba(72,84,92,0.34)';          // the edge, in shadow
-    ctx.beginPath();
-    ctx.ellipse(0, lip, lidW / 2, lidH / 2, 0, 0, Math.PI * 2);
-    ctx.fill();
-    const lg = ctx.createLinearGradient(-lidW / 2, -lidH / 2, lidW / 2, lidH / 2);
-    lg.addColorStop(0, 'rgba(206,220,228,0.40)');   // lit from up and left
-    lg.addColorStop(0.6, 'rgba(140,156,166,0.30)');
-    lg.addColorStop(1, 'rgba(94,108,118,0.26)');
-    ctx.fillStyle = lg;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, lidW / 2, lidH / 2, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = 'rgba(240,248,252,0.16)';       // the shallow dome on top
-    ctx.beginPath();
-    ctx.ellipse(-lidW * 0.09, -lidH * 0.14, lidW / 2 * 0.62, lidH / 2 * 0.52, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
 
     ctx.restore();
   }
@@ -1666,7 +1769,7 @@
         const i0 = Math.floor(c * per), i1 = Math.min(tn - 1, Math.floor((c + 1) * per));
         if (i1 <= i0) continue;
         const k = (c + 1) / CH;
-        ctx.strokeStyle = 'rgba(216,240,144,' + (k * (spooked ? 0.46 : 0.26)).toFixed(3) + ')';
+        ctx.strokeStyle = 'rgba(216,240,144,' + (k * (spooked ? 0.46 : 0.34)).toFixed(3) + ')';
         ctx.lineWidth = Math.max(0.7, k * 2.4 * s);
         ctx.beginPath();
         ctx.moveTo(wx2s(f.trail[i0 * 2]), wy2s(f.trail[i0 * 2 + 1]));
@@ -1686,8 +1789,8 @@
        per 1.2s it is 0.83Hz, comfortably under the 3Hz photosensitivity
        ceiling. Under reduced motion flashOf() returns a constant and this
        collapses to a steady lamp on its own. */
-    blit(SPR.fly, x, y, Math.max(7, 27 * s) * spread * (0.74 + br * 0.55),
-         (0.42 + br * 0.58) * (spooked ? 1.18 : 1));
+    blit(SPR.fly, x, y, Math.max(8, 31 * s) * spread * (0.74 + br * 0.55),
+         (0.48 + br * 0.52) * (spooked ? 1.18 : 1));
     ctx.globalCompositeOperation = 'source-over';
 
     ctx.fillStyle = ART.flyCore;
@@ -1721,6 +1824,19 @@
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText('Not enough left in the garden to fill the jar.', LW / 2, y);
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  }
+
+  /* A vignette, which is the cheapest thing in the world and the difference
+     between a rectangle of dark and a garden with a middle to it. It darkens
+     the corners only, so nothing the player has to see is ever behind it. */
+  function drawVignette() {
+    const cx = L.playX + L.playW / 2, cy = L.playY + L.playH / 2;
+    const r = Math.hypot(L.playW, L.playH) / 2;
+    const g = ctx.createRadialGradient(cx, cy, r * 0.52, cx, cy, r);
+    g.addColorStop(0, 'rgba(2,5,7,0)');
+    g.addColorStop(1, 'rgba(2,5,7,0.55)');
+    ctx.fillStyle = g;
+    ctx.fillRect(L.playX, L.playY, L.playW, L.playH);
   }
 
   function drawWinWash() {
@@ -1807,7 +1923,7 @@
     const spare = S.n - S.lost - S.need;
     const bits = ['IN THE JAR ' + S.caught + ' / ' + S.need];
     if (S.lost > 0) bits.push(spare > 0 ? spare + ' SPARE' : 'NO SPARES');
-    if (MODE === 'mobile') bits.push('LEVEL ' + S.lvl);
+    bits.push('LEVEL ' + S.lvl);
     const txt = bits.join('   ·   ');
     let hs = Math.max(0.66, Math.min(1, LW / 620));
     ctx.font = '600 ' + (16 * hs).toFixed(1) + 'px Inter, sans-serif';
@@ -1823,34 +1939,6 @@
     L.rowRight = rowRight;
 
     drawShortLine();
-    if (MODE === 'desktop') drawColumn();
-  }
-
-  /* The desktop side space carries something real: the same jar, upright and
-     drawn large, filling as the scene's jar fills. It mirrors in-scene truth
-     and holds no information the garden does not already show. */
-  function drawColumn() {
-    const c = L.col;
-    /* The panel carries the garden's own night. Drawn on the Portal wash the
-       jar came out as a grey canister: glass is defined by what is behind it,
-       and behind it there has to be a night. */
-    const pg = ctx.createLinearGradient(0, c.y, 0, c.y + c.h);
-    pg.addColorStop(0, ART.nightTop);
-    pg.addColorStop(1, ART.nightBot);
-    ctx.fillStyle = pg;
-    UI.roundRectPath(ctx, c.x, c.y, c.w, c.h, 14);
-    ctx.fill();
-
-    const s = Math.min((c.w - 44) / S.jar.w, (c.h * 0.54) / S.jar.h);
-    const cx = c.x + c.w / 2;
-    const top = c.y + (c.h - 40 - S.jar.h * s) / 2;
-    drawJar(cx, top, s, true);
-
-    ctx.fillStyle = TOK.ink72;
-    ctx.font = '600 16px Inter, sans-serif';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-    ctx.fillText('LEVEL ' + S.lvl, cx, c.y + c.h - 22);
-    ctx.textAlign = 'left';
   }
 
   // ---------- INPUT ----------
@@ -2116,6 +2204,18 @@
       for (const th of S.thorns) {
         measure('thorn', wx2s(th.x) - th.r * L.scale * 1.2, wy2s(th.y) - th.r * L.scale * 1.2,
                 th.r * 2.4 * L.scale, th.r * 2.4 * L.scale, true);
+      }
+      /* THE WEBS, which are now the single most important thing in the garden
+         to be able to see: everything lost is lost to one, and the contract is
+         that the flies cannot see silk and you can. Measured in the dark, with
+         nothing else drawn and no light on them, which is the hardest case and
+         the one that has to hold. */
+      if (S.webs.length) {
+        SOLO = 'webs'; render();
+        for (const w of S.webs.slice(0, 4)) {
+          measure('web', wx2s(w.x) - w.r * L.scale * 1.5, wy2s(w.y) - w.r * L.scale * 1.5,
+                  w.r * 3 * L.scale, w.r * 3 * L.scale, true);
+        }
       }
       SOLO = 'jar'; render();
       measure('jar (empty, its hardest case)', wx2s(S.jar.x) - S.jar.w * L.scale * 0.7,
@@ -2618,6 +2718,26 @@
       return { levelsTested: Math.ceil(LEVELS / step2), secondsEach: secs,
                levelsThatPlayedThemselves: bad, worstFreeCaptures: worst,
                pass: bad.length === 0 };
+    },
+
+    /* SAVE AND RESTORE MUST BALANCE, and nothing about a canvas tells you when
+       they do not. Removing the jar's lid left one save() without its
+       restore(), so every single thing drawn after the jar - the flame, the
+       flies, the near foliage, the front grass, the vignette - was quietly
+       drawn inside the jar's own rotated, translated frame. The picture still
+       rendered. It just rendered the second half of itself somewhere else, and
+       the only symptom was "the flame is not there".
+
+       This counts the stack depth across a whole frame and reports any drift.
+       Zero, or the frame is lying to you. */
+    assertTransformBalanced() {
+      const realSave = ctx.save.bind(ctx), realRestore = ctx.restore.bind(ctx);
+      let depth = 0, worst = 0, unders = 0;
+      ctx.save = () => { depth++; if (depth > worst) worst = depth; realSave(); };
+      ctx.restore = () => { depth--; if (depth < 0) unders++; realRestore(); };
+      try { render(); } finally { ctx.save = realSave; ctx.restore = realRestore; }
+      return { leftOpenAtEndOfFrame: depth, deepest: worst,
+               restoredTooOften: unders, pass: depth === 0 && unders === 0 };
     },
 
     frameStats() { return { fps: +fps.toFixed(1), samples: fpsN }; },
