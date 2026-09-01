@@ -143,6 +143,7 @@
   };
 
   const DT = 1 / 120;             // fixed timestep; the gate depends on it
+  const TAU = Math.PI * 2;
 
   // The push a fly feels at world distance d. Smooth at both ends: zero slope
   // at the centre and zero slope at the rim, so there is no edge to feel.
@@ -400,10 +401,25 @@
                catching radius and the drawing always covers it - the variety
                is in HOW it covers it, never in promising more danger than the
                rule has. */
-            webs.push({ x: wx0, y: wy0, r: TUNE.webR * (0.74 + rnd() * 0.62),
+            /* A WEDGE, NOT A DISC, and this is the thing two passes of
+               detail work could not fix. Almost nothing in the reference art
+               is a complete circle: a web is strung in the CROOK of two long
+               lines and fills the angle between them, which is why real ones
+               live in corners. Varying the spoke lengths of a full orb by ten
+               per cent does not change that it is an orb.
+
+               So a web is an apex, a span, and a radius - and the RULE is the
+               same wedge the drawing is, because a sector that caught a whole
+               circle would be the old lie in a new shape. It also makes better
+               levels: a wedge only guards the way it faces, so its open side
+               is a way through. */
+            const toPath = Math.atan2(py - wy0, px - wx0);
+            const span = Math.PI * (0.42 + rnd() * 0.50);   // 76 to 166 degrees
+            webs.push({ x: wx0, y: wy0,
+                        r: TUNE.webR * (1.08 + rnd() * 0.72),
+                        a0: toPath - span / 2,              // it faces the corridor
+                        span,
                         seed: rnd() * 1000,
-                        anchor: rnd() * Math.PI * 2,
-                        lean: rnd() * Math.PI * 2,       // which way it is slung
                         resident: false, link: -1,
                         holding: false, cool: 0, spiderT: 0, seat: 0,
                         tx: wx0, ty: wy0 });
@@ -814,7 +830,13 @@
              webs, gives each its own clock, and lets a rescue be a rescue
              rather than triage. */
           if (w.holding || w.cool > 0) continue;
-          if (Math.hypot(f.x - w.x, f.y - w.y) < w.r) {
+          const wdx = f.x - w.x, wdy = f.y - w.y;
+          if (wdx * wdx + wdy * wdy >= w.r * w.r) continue;
+          // inside the radius: now, is it inside the WEDGE the web actually is
+          let wda = Math.atan2(wdy, wdx) - w.a0;
+          wda = ((wda % TAU) + TAU) % TAU;
+          if (wda > w.span) continue;
+          {
             w.holding = true;
             S.sticks++;
             if (f.freedAt != null && S.seconds - f.freedAt < 3.5) S.resticks++;
@@ -1366,128 +1388,92 @@
     }
   }
 
-  /* THE WEB, drawn the way the reference draws one rather than the way geometry
-     would. The last version was honest about orb-weaver STRUCTURE - sagging
-     spiral, free zone, bridge threads - and still read as machined, because it
-     was too even. What the reference actually has:
+  /* THE WEB, as a wedge strung in the crook of two long lines.
 
-       a RAGGED silhouette. Spoke lengths vary by nearly three to one, so the
-         outline is torn rather than round, and some sectors reach much further
-         than others.
-       WOBBLE. Every line is hand-drawn, so no span is straight and no arc is a
-         true curve. Each segment gets a little perpendicular wander.
-       GAPS. Arcs stop and start. A real web is half-repaired and half-ruined,
-         and a complete one looks printed.
-       long ANCHORS shooting well past the web on a few spokes only.
+     Two passes of detail work - sagging spans, free zones, wobble, gaps - and
+     the owner still could not see a difference, because none of it touched the
+     SHAPE. Every web was a complete circle, and almost nothing in the reference
+     art is: a web is built in an angle, hanging off two long frame threads that
+     run well past it, and the silk fills the wedge between them. That is why
+     real ones live in corners.
 
-     The catching radius `r` is unchanged and the drawing still covers it. The
-     variety is all in how it covers it: a web is never allowed to look smaller
-     than the rule it enforces, only rougher. */
+     Which also fixes the density problem. A few long lines and five or six big
+     sagging arcs read as a web; eleven spokes and six concentric rings read as
+     a doily, and no amount of jitter rescues it. Fewer strands, longer spans,
+     deeper sag. The chords between neighbouring radii have to be LONG or the
+     sag has nothing to show. */
   function drawWeb(w) {
     const s = L.scale;
-    const cx = wx2s(w.x), cy = wy2s(w.y), r = w.r * s;
+    const hx = wx2s(w.x), hy = wy2s(w.y), r = w.r * s;
     const rnd = mulberry32(w.seed | 0);
-    const la = lightAt(cx, cy);
+    const la = lightAt(hx, hy);
     const lit = Math.min(1, la.b * 1.2);
     const torn = w.cool > 0 ? Math.min(1, w.cool / TUNE.webCool) : 0;
-    const ink = Math.round(la.r * 0.34 + 214 * 0.66) + ',' +
-                Math.round(la.g * 0.34 + 226 * 0.66) + ',' +
-                Math.round(la.bl * 0.34 + 236 * 0.66);
+    const ink = Math.round(la.r * 0.30 + 218 * 0.70) + ',' +
+                Math.round(la.g * 0.30 + 230 * 0.70) + ',' +
+                Math.round(la.bl * 0.30 + 240 * 0.70);
 
-    // the hub sits off centre, the way a real one does
-    const hx = cx + Math.cos(w.lean) * r * 0.10;
-    const hy = cy + Math.sin(w.lean) * r * 0.10;
-
-    const N = 10 + Math.floor(rnd() * 4);
+    // FEW radii, so every chord between them is long enough for the sag to read
+    const N = 4 + Math.floor(rnd() * 3);          // 4 to 6 gaps, 5 to 7 threads
     const ang = [], reach = [], wob = [];
-    let a = rnd() * Math.PI * 2;
-    for (let i = 0; i < N; i++) {
-      a += (Math.PI * 2 / N) * (0.58 + rnd() * 0.84);
-      ang.push(a);
-      /* JUST enough to cover the catching circle from the off-centre hub, and
-         no more. At 1.24 to 2.19 the drawing was over twice the width of the
-         rule it enforces: the webs merged into a wall of silk and the corridor
-         between them looked closed when it was open, which misleads about the
-         safe lane exactly as badly as drawing them too small would. The hub is
-         offset by 0.10r, so 1.10 is the shortest spoke that still reaches the
-         far edge. Raggedness comes from the wobble and the gaps, not from
-         claiming ground the web does not hold. */
-      reach.push(r * (1.10 + rnd() * 0.22));
-      wob.push([(rnd() - 0.5) * 0.30, (rnd() - 0.5) * 0.34, (rnd() - 0.5) * 0.26]);
+    for (let i = 0; i <= N; i++) {
+      const t = i / N;
+      ang.push(w.a0 + w.span * t + (i && i < N ? (rnd() - 0.5) * (w.span / N) * 0.45 : 0));
+      reach.push(r * (i === 0 || i === N ? 1.0 : 0.86 + rnd() * 0.18));
+      wob.push((rnd() - 0.5) * 0.34);
     }
-    // a point on spoke i at fraction t, with the hand-drawn wander
-    const jx = (i, t) => {
-      const k = i % N, w3 = wob[k];
-      const bend = (w3[0] * Math.sin(t * 3.1) + w3[1] * Math.sin(t * 1.7 + 1.2)) * r * 0.16;
-      return hx + Math.cos(ang[k]) * reach[k] * t - Math.sin(ang[k]) * bend;
-    };
-    const jy = (i, t) => {
-      const k = i % N, w3 = wob[k];
-      const bend = (w3[0] * Math.sin(t * 3.1) + w3[1] * Math.sin(t * 1.7 + 1.2)) * r * 0.16;
-      return hy + Math.sin(ang[k]) * reach[k] * t + Math.cos(ang[k]) * bend;
-    };
+    const jx = (i, t) => hx + Math.cos(ang[i] + wob[i] * Math.sin(t * 2.6) * 0.30) * reach[i] * t;
+    const jy = (i, t) => hy + Math.sin(ang[i] + wob[i] * Math.sin(t * 2.6) * 0.30) * reach[i] * t;
 
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
 
-    // --- anchors: a few spokes carry on well past the web ---
-    ctx.strokeStyle = 'rgba(' + ink + ',' + (0.05 + lit * 0.09).toFixed(3) + ')';
+    /* --- THE TWO LONG FRAME LINES. The dominant thing in the reference and
+       --- the thing that was missing: they run well past the silk, so the web
+       --- hangs in the garden instead of floating on it. */
+    ctx.strokeStyle = 'rgba(' + ink + ',' + (0.20 + lit * 0.26).toFixed(3) + ')';
+    ctx.lineWidth = Math.max(0.7, 1.0 * s);
+    ctx.beginPath();
+    for (const i of [0, N]) {
+      const far = 1.8 + ((w.seed | 0) % 5) * 0.22;
+      ctx.moveTo(hx, hy);
+      ctx.lineTo(hx + Math.cos(ang[i]) * reach[i] * far, hy + Math.sin(ang[i]) * reach[i] * far);
+    }
+    ctx.stroke();
+
+    // --- the radii between them, thinner ---
+    ctx.strokeStyle = 'rgba(' + ink + ',' + ((0.13 + lit * 0.15) * (1 - torn * 0.5)).toFixed(3) + ')';
     ctx.lineWidth = Math.max(0.5, 0.7 * s);
     ctx.beginPath();
-    for (let i = 0; i < N; i++) {
-      if (i % 3) continue;
-      ctx.moveTo(jx(i, 1), jy(i, 1));
-      ctx.lineTo(hx + Math.cos(ang[i]) * reach[i] * (2.0 + ((i * 7) % 5) * 0.5),
-                 hy + Math.sin(ang[i]) * reach[i] * (2.0 + ((i * 7) % 5) * 0.5));
-    }
-    ctx.stroke();
-
-    // --- spokes, wandering rather than ruled ---
-    ctx.strokeStyle = 'rgba(' + ink + ',' + ((0.19 + lit * 0.16) * (1 - torn * 0.5)).toFixed(3) + ')';
-    ctx.lineWidth = Math.max(0.6, 0.8 * s);
-    ctx.beginPath();
-    for (let i = 0; i < N; i++) {
+    for (let i = 1; i < N; i++) {
       ctx.moveTo(hx, hy);
-      for (let t = 0.2; t <= 1.0001; t += 0.2) ctx.lineTo(jx(i, t), jy(i, t));
+      for (let t = 0.25; t <= 1.0001; t += 0.25) ctx.lineTo(jx(i, t), jy(i, t));
     }
     ctx.stroke();
 
-    // --- the hub: a tight scribble, then the free zone ---
-    ctx.strokeStyle = 'rgba(' + ink + ',' + (0.24 + lit * 0.20).toFixed(3) + ')';
-    ctx.lineWidth = Math.max(0.6, 0.8 * s);
-    for (let k = 0; k < 3; k++) {
-      const t = 0.05 + k * 0.03;
-      ctx.beginPath();
-      for (let i = 0; i <= N; i++) {
-        const x0 = jx(i, t), y0 = jy(i, t);
-        if (i === 0) ctx.moveTo(x0, y0); else ctx.lineTo(x0, y0);
-      }
-      ctx.closePath(); ctx.stroke();
-    }
-
-    /* --- the capture spiral. Each span between two spokes SAGS toward the hub,
-       --- because it is a thread under its own weight, and it is drawn in
-       --- BROKEN runs so the web is half-ruined the way a real one is. */
+    /* --- THE ARCS, and this is the whole look. Each span between two radii is
+       --- a thread under its own weight: the control point is pulled a third of
+       --- the way back to the apex, which across a long chord is a deep,
+       --- obvious catenary rather than the faint bow it was before. Spacing
+       --- widens outward, the way a real capture spiral does. */
     ctx.strokeStyle = 'rgba(' + ink + ',' +
-      (Math.min(0.66, 0.40 + lit * 0.26) * (1 - torn * 0.78)).toFixed(3) + ')';
-    ctx.lineWidth = Math.max(0.8, 1.0 * s);
-    const turns = 6;
-    for (let k = 0; k < turns; k++) {
+      (Math.min(0.70, 0.42 + lit * 0.26) * (1 - torn * 0.8)).toFixed(3) + ')';
+    ctx.lineWidth = Math.max(0.8, 1.05 * s);
+    const rings = 5 + Math.floor(rnd() * 3);
+    for (let k = 0; k < rings; k++) {
       if (torn > 0.3 && k % 2 === 1) continue;
-      const t0 = 0.26 + (k / turns) * 0.72;
-      const t1 = 0.26 + ((k + 1) / turns) * 0.72;
+      const f0 = k / (rings - 1);
+      const t = 0.20 + 0.80 * (f0 * f0 * 0.55 + f0 * 0.45);   // widening outward
       let drawing = false;
       ctx.beginPath();
       for (let i = 0; i < N; i++) {
-        // a gap here and there, seeded so it is the same web every time
-        const gap = ((i * 5 + k * 3 + (w.seed | 0)) % 9) === 0;
-        const ta = t0 + (t1 - t0) * (i / N);
-        const tb = t0 + (t1 - t0) * ((i + 1) / N);
+        const jitter = 1 + (((i * 7 + k * 5 + (w.seed | 0)) % 7) - 3) * 0.020;
+        const ta = t * jitter, tb = t * (1 + (((i + k) % 5) - 2) * 0.018);
+        if (((i * 3 + k * 7 + (w.seed | 0)) % 11) === 0) { drawing = false; continue; }
         const ax = jx(i, ta), ay = jy(i, ta);
         const bx2 = jx(i + 1, tb), by2 = jy(i + 1, tb);
-        if (gap) { drawing = false; continue; }
         if (!drawing) { ctx.moveTo(ax, ay); drawing = true; }
         const mx = (ax + bx2) / 2, my = (ay + by2) / 2;
-        const sag = 0.14 + ((i + k) % 4) * 0.035;
+        const sag = 0.30 + ((i + k) % 3) * 0.06;
         ctx.quadraticCurveTo(mx + (hx - mx) * sag, my + (hy - my) * sag, bx2, by2);
       }
       ctx.stroke();
@@ -1496,76 +1482,69 @@
     // --- glints where threads cross ---
     if (lit > 0.12 && !REDUCED) {
       ctx.fillStyle = 'rgba(255,255,255,' + (lit * 0.34).toFixed(3) + ')';
-      for (let i = 0; i < N; i += 2) {
-        const t = 0.34 + ((i * 37) % 60) / 100;
+      for (let i = 1; i < N; i++) {
+        const t = 0.36 + ((i * 41) % 55) / 100;
         const g = 0.5 + 0.5 * Math.sin(clock * 1.7 + i * 2.1 + w.seed);
-        if (g < 0.55) continue;
+        if (g < 0.6) continue;
         ctx.beginPath();
         ctx.arc(jx(i, t), jy(i, t), Math.max(0.5, 0.9 * s * g), 0, Math.PI * 2);
         ctx.fill();
       }
     }
 
-    /* --- WHO LIVES HERE. A resident potters about its own web and never
-       --- leaves it, which is the whole point: it is not a threat that hunts,
-       --- it is a sign that says what this shape is. Once something is caught,
-       --- it stops pottering and comes, and its position is the clock. */
+    /* --- WHO LIVES HERE. A resident potters about its own web and never leaves
+       --- it: not a threat that hunts, a sign that says what this shape is.
+       --- Once something is caught it stops pottering and comes, and its
+       --- position is the only clock in the game. */
     const heat = w.seat;
+    const mid = w.a0 + w.span / 2;
     if (heat > 0.001) {
-      const ax2 = hx + Math.cos(w.anchor) * r * 1.0;
-      const ay2 = hy + Math.sin(w.anchor) * r * 1.0;
+      const ax2 = hx + Math.cos(ang[0]) * reach[0] * 1.05;
+      const ay2 = hy + Math.sin(ang[0]) * reach[0] * 1.05;
       const tx = wx2s(w.tx), ty = wy2s(w.ty);
       const sx2 = ax2 + (tx - ax2) * heat, sy2 = ay2 + (ty - ay2) * heat;
       drawSpider(sx2, sy2, Math.max(5.2, 13.5 * s), Math.atan2(ty - ay2, tx - ax2), heat);
     } else if (w.resident) {
       const t = REDUCED ? w.seed : clock * 0.16 + w.seed;
-      // slow, uneven, and it stops: a crawl, not an orbit
       const pace = Math.sin(t * 0.9) * 0.5 + Math.sin(t * 0.31 + 2.1) * 0.5;
-      const aa = w.lean + t * 0.7 + Math.sin(t * 0.6) * 1.6;
-      const rr = r * (0.30 + 0.34 * (0.5 + 0.5 * Math.sin(t * 0.47 + 1.3)));
+      // it stays inside its own wedge, because that is the whole of its world
+      const aa = mid + Math.sin(t * 0.6) * w.span * 0.38;
+      const rr = r * (0.34 + 0.36 * (0.5 + 0.5 * Math.sin(t * 0.47 + 1.3)));
       const px2 = hx + Math.cos(aa) * rr, py2 = hy + Math.sin(aa) * rr;
-      // Big enough to be read at a glance. Its whole job is to say what this
-      // shape is, and at five pixels it was saying nothing.
       drawSpider(px2, py2, Math.max(5.0, 13 * s), aa + Math.PI / 2 + pace * 0.3, 0.30);
     }
   }
 
-  /* No emoji, no sprite, and no gore: a dark body, a smaller head and eight
-     thin legs, drawn small. It is meant to be read at a glance and not looked
-     at closely. Its POSITION is the clock - the closer it is to the middle of
-     its web, the less time the fly it is coming for has left. */
+  /* THE SPIDER, as a white silhouette. It belongs to the silk, not to the
+     ground: everything in the reference art is one cream ink on the dark, and a
+     brown body on a dark garden was a smudge whatever size it was drawn at.
+     White reads instantly at eight pixels and it says "this is part of the web"
+     rather than "this is a bug on the floor".
+
+     No emoji and no sprite: a body, a smaller head, eight legs, drawn small and
+     meant to be read at a glance rather than looked at closely. */
   function drawSpider(x, y, r, face, heat) {
+    const a = 0.62 + heat * 0.34;
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(face);
-    ctx.strokeStyle = 'rgba(46,38,34,0.96)';
-    ctx.lineWidth = Math.max(1.1, r * 0.15);
-    ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(238,244,248,' + (a * 0.92).toFixed(3) + ')';
+    ctx.lineWidth = Math.max(0.9, r * 0.13);
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     for (let i = 0; i < 4; i++) {
-      const a = 0.42 + i * 0.42, l = r * (1.35 - i * 0.10);
-      const kx = Math.cos(a) * l * 0.62, ky = Math.sin(a) * l * 0.62;
+      const ang = 0.40 + i * 0.44, l = r * (1.45 - i * 0.10);
+      const kx = Math.cos(ang) * l * 0.58, ky = Math.sin(ang) * l * 0.58;
       for (const sgn of [1, -1]) {
+        // knee up, foot down: the crook is what makes eight lines a spider
         ctx.beginPath();
         ctx.moveTo(0, 0);
-        ctx.quadraticCurveTo(kx, sgn * (ky - r * 0.45), Math.cos(a) * l, sgn * l * 0.72);
+        ctx.quadraticCurveTo(kx, sgn * (ky - r * 0.55), Math.cos(ang) * l, sgn * l * 0.70);
         ctx.stroke();
       }
     }
-    const g = ctx.createRadialGradient(-r * 0.2, -r * 0.25, 0, 0, 0, r);
-    g.addColorStop(0, 'rgba(112,90,78,0.99)');
-    g.addColorStop(1, 'rgba(32,25,22,0.99)');
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.ellipse(r * 0.14, 0, r * 0.78, r * 0.62, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(-r * 0.62, 0, r * 0.38, r * 0.32, 0, 0, Math.PI * 2); ctx.fill();
-    // two small cold catchlights, only once it is properly out
-    if (heat > 0.35) {
-      ctx.fillStyle = 'rgba(232,240,246,' + (0.30 + heat * 0.34).toFixed(3) + ')';
-      for (const sgn of [1, -1]) {
-        ctx.beginPath();
-        ctx.arc(-r * 0.80, sgn * r * 0.16, Math.max(0.7, r * 0.11), 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
+    ctx.fillStyle = 'rgba(244,249,252,' + a.toFixed(3) + ')';
+    ctx.beginPath(); ctx.ellipse(r * 0.16, 0, r * 0.72, r * 0.56, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(-r * 0.58, 0, r * 0.34, r * 0.29, 0, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   }
 
