@@ -1540,8 +1540,11 @@
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     ctx.lineWidth = Math.max(0.65, r * 0.085);
 
-    // four pairs, from the front of the body, splayed forward through back
-    const BASE = [0.70, 1.31, 1.92, 2.53];
+    /* TWO PAIRS FORWARD, TWO BACK, AND A GAP AT THE SIDES. Fanning eight legs
+       evenly around the body draws an asterisk, not an animal - the empty
+       quarter at ninety degrees is most of what makes the silhouette read.
+       30, 53, 127 and 150 degrees, mirrored. */
+    const BASE = [0.52, 0.92, 2.22, 2.62];
     const ox = r * 0.10;
     for (let i = 0; i < 4; i++) {
       for (const sgn of [1, -1]) {
@@ -1550,11 +1553,14 @@
         const sw = Math.sin((gait + ph) * TAU);
         const lift = Math.max(0, sw);
         const ang = (BASE[i] + sw * 0.17) * sgn;
-        const femur = r * (0.92 + lift * 0.07);
-        const tibia = r * (1.32 + lift * 0.12);
+        const femur = r * (0.86 + lift * 0.07);
+        const tibia = r * (1.30 + lift * 0.12);
         const kx = ox + Math.cos(ang) * femur, ky = Math.sin(ang) * femur;
-        // the knee stands proud of the straight line, and higher mid-stride
-        const bend = (0.36 + lift * 0.32) * sgn;
+        /* A REAL KNEE. At 21 degrees the leg was near enough straight, which
+           is the other half of why it read as a starburst: a spider's leg
+           brackets sharply at the knee and the knee is the outermost point of
+           the whole animal. */
+        const bend = (0.86 + lift * 0.34) * sgn;
         const ex = kx + Math.cos(ang - bend) * tibia;
         const ey = ky + Math.sin(ang - bend) * tibia;
         ctx.strokeStyle = white(a * (0.70 + lift * 0.26));
