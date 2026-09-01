@@ -85,6 +85,15 @@
   const SCRIM = (a) => 'rgba(10,16,28,' + a + ')';
   const TINT = (a) => 'rgba(255,255,255,' + a + ')';
   const INK72 = TINT(0.72), INK82 = TINT(0.82), INK90 = TINT(0.90), INK92 = TINT(0.92);
+
+  /* When a meter starts flashing. AIR is deliberately NOT 0.20 like the other
+     two: it already warned at 0.33 and that is the earlier, safer number —
+     dropping it to 0.20 would make the game warn LATER than it does today,
+     and air is the one meter you cannot recover without a climb. The bar
+     turns coral at LOW_FRAC for all three; only the flashing banner uses
+     these. Set WARN.air to LOW_FRAC to align them. */
+  const LOW_FRAC = 0.20;
+  const WARN = { air: 0.33, batt: LOW_FRAC, hull: LOW_FRAC };
   const C_ACCENT = '#C24A39';                   // --accent (fill under white type)
   const C_ACCENT_TEXT = '#FF6B5C';              // --accent-text (coral AS type/marks)
   const C_GREEN = '#5DD39E';
@@ -118,8 +127,6 @@
   let cardData = null;
   let rulesScroll = 0;
   let started = false;           // first real input -> analytics game_start
-  let scheme = 'A';              // mobile control scheme, owner picks by playing
-  try { scheme = localStorage.getItem('zam.fathom.controls') === 'B' ? 'B' : 'A'; } catch (_) {}
   let diveT0 = performance.now();
 
   // ---------- THE FLEET ----------
@@ -131,31 +138,31 @@
   const FLEET = [
     { name: 'Minnow', hull: 'minnow',     file: 'sub-1.png', lenM: 13.5, price: 0,
       st: { AIR: 1, CARGO: 1, BATT: 1, SPEED: 2, LAMP: 1, DRILL: 1 },
-      blurb: 'Small, brave, and full of hope.' },
+      blurb: 'Free, and every meter at its minimum. Cheap mistakes and short trips while you learn the law.' },
     { name: 'Lagoon', hull: 'lagoon',     file: 'sub-2.png', lenM: 14, price: 250,
       st: { AIR: 3, CARGO: 1, BATT: 2, SPEED: 1, LAMP: 2, DRILL: 1 },
-      blurb: 'Twin tanks and no hurry. Breathes like a whale.' },
+      blurb: 'The longest breath at this end of the fleet, bought with the slowest hull in it.' },
     { name: 'Bluefin', hull: 'bluefin',    file: 'sub-3.png', lenM: 14, price: 600,
       st: { AIR: 2, CARGO: 2, BATT: 2, SPEED: 3, LAMP: 1, DRILL: 2 },
-      blurb: 'A porthole for every thought, and quick through a gallery.' },
+      blurb: 'Quick through a gallery, with enough drill for ordinary rock. No weakness and no speciality.' },
     { name: 'Sunfish', hull: 'sunfish',    file: 'sub-4.png', lenM: 14.5, price: 1100,
       st: { AIR: 2, CARGO: 3, BATT: 2, SPEED: 2, LAMP: 2, DRILL: 2 },
-      blurb: 'The friendly workhorse. Room for a little of everything.' },
+      blurb: 'The first hold big enough for a real haul, and steady on every other meter.' },
     { name: 'Dredger', hull: 'dredger',    file: 'sub-5.png', lenM: 15, price: 1800,
       st: { AIR: 2, CARGO: 5, BATT: 2, SPEED: 1, LAMP: 2, DRILL: 3 },
-      blurb: 'A hold like a warehouse. Turns like one too.' },
+      blurb: 'A hold like a warehouse, and the drill that opens hard rock. Turns like a warehouse too.' },
     { name: 'Ember', hull: 'ember',      file: 'sub-6.png', lenM: 15, price: 2800,
       st: { AIR: 3, CARGO: 2, BATT: 5, SPEED: 3, LAMP: 1, DRILL: 3 },
-      blurb: 'Runs hot. The drill never asks for a rest.' },
+      blurb: 'Battery for days, so it can cut fresh shafts all dive. Runs hot, and sees badly.' },
     { name: 'Sailfin', hull: 'sailfin',    file: 'sub-7.png', lenM: 15.5, price: 4200,
       st: { AIR: 3, CARGO: 3, BATT: 3, SPEED: 5, LAMP: 2, DRILL: 3 },
-      blurb: 'Built to outrun its own bubbles.' },
+      blurb: 'Built to outrun its own bubbles. Everything respectable, speed exceptional.' },
     { name: 'Ghostlight', hull: 'ghostlight', file: 'sub-8.png', lenM: 16, price: 6500,
       st: { AIR: 4, CARGO: 3, BATT: 4, SPEED: 3, LAMP: 5, DRILL: 4 },
-      blurb: 'Sees everything. The deep has no secrets left.' },
+      blurb: 'A lamp that empties the dark and a drill that argues with anything. Few secrets left.' },
     { name: 'Poseidon', hull: 'poseidon',   file: 'sub-9.png', lenM: 16.5, price: 10000,
       st: { AIR: 5, CARGO: 5, BATT: 5, SPEED: 4, LAMP: 4, DRILL: 5 },
-      blurb: 'The one the trench tells stories about.' },
+      blurb: 'Five where it counts and four where it does not. The one the trench tells stories about.' },
   ];
   /* The submersible fits exactly one 8 m block: its longer side is a tile,
      so it fills the shaft it digs instead of overhanging it. Every boat is
@@ -320,8 +327,13 @@
 
   // ---------- LAYOUT ----------
   const SIDE_PAD = 30;
-  const topBand = () => (MODE === 'mobile' ? 84 : 56);
-  const botBand = () => (MODE === 'mobile' ? 96 : 20);
+  /* Mobile has no bands. It used to spend 84 px at the top and 96 px at the
+     bottom on solid chrome — 180 px of a ~700 px phone, a quarter of the
+     screen, not showing the game. Desktop already floated its instruments on
+     the water; mobile now does the same, so the world is the whole viewport
+     and the chrome sits over it on a scrim. */
+  const topBand = () => (MODE === 'mobile' ? 0 : 56);
+  const botBand = () => (MODE === 'mobile' ? 0 : 20);
   const L = {};                  // everything measured, nothing implicit
   function layout() {
     L.top = topBand(); L.bot = botBand();
@@ -334,13 +346,16 @@
       L.ppm = FRAME_W / TUNE.VIEW_W;
       L.jettison = { cx: LW / 2, cy: LH - 40 };
     } else {
-      L.ocean = { x: 0, y: L.top, w: LW, h: LH - L.top - L.bot };
+      L.ocean = { x: 0, y: 0, w: LW, h: LH };
       L.ppm = LW / TUNE.VIEW_W;
-      L.rowCy = LH - 74;                 // the band system's mobile control row
+      /* The control row moved from the bottom edge to the top. At the bottom
+         it sat exactly where a thumb rests to drag, and DROP CARGO — which
+         throws away the cargo the whole dive was for — was the easiest thing
+         on the screen to hit by accident. */
+      L.rowCy = 30;
+      L.chromeTop = 54;                  // no drag may START above this
+      L.hudBot = 164;                    // where the overlaid chrome ends
       L.jettison = { cx: LW / 2, cy: L.rowCy };
-      // Scheme A: UP and DOWN thumb-stacked bottom-right, above the row
-      L.blowBtn  = { cx: LW - SIDE_PAD - 22, cy: LH - L.bot - 118 };
-      L.floodBtn = { cx: LW - SIDE_PAD - 22, cy: LH - L.bot - 62 };
     }
     L.viewWm = L.ocean.w / L.ppm;
     L.viewHm = L.ocean.h / L.ppm;
@@ -369,8 +384,24 @@
 
   // ---------- INPUT ----------
   const keys = {};
-  const held = { floodBtn: null, blowBtn: null, thrustL: null, thrustR: null, joy: null };
-  let joyVec = 0, joyVert = 0;   // the scheme-B drag: sideways thrust, up/down dive
+  const held = { joy: null };
+  let joyVec = 0, joyVert = 0;
+  /* ONE mobile control: put a thumb anywhere in the ocean and drag. The anchor
+     is where the thumb landed, not the sub — a sub-anchored stick slides out
+     from under the finger as the sub moves, and it cannot be reached one-handed
+     when the sub is at the top of the screen.
+
+     VERT_BIAS is the load-bearing constant. sim.js resolves the dig direction
+     with vertical BEFORE horizontal (`down && onFloor` wins over `ax`), so a
+     drag that is even slightly downward while running along a tunnel floor
+     would dig down instead of moving along. Vertical therefore only engages
+     when the drag is meaningfully more vertical than horizontal: at 0.6, a
+     drag has to fall more than ~31 degrees below horizontal before it dives.
+     Sideways stays analog because thrust is analog; up/down stays binary
+     because ballast is a rate, and there is no half-flood. */
+  const DRAG_RANGE = 64, DRAG_DEAD_H = 10, DRAG_DEAD_V = 22, VERT_BIAS = 0.6;
+  let dragAnchor = null;         // {x,y} where the thumb went down
+  let dragNow = null;            // {x,y} where it is, for the on-screen stick
   let wantJettison = false;
 
   function markStarted() {
@@ -402,10 +433,9 @@
              y: (e.clientY - rect.top) * (LH / rect.height) };
   }
   const inRect = (p, r) => p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h;
-  const nearBtn = (p, b, slop) => Math.abs(p.x - b.cx) <= 22 + slop && Math.abs(p.y - b.cy) <= 20 + slop;
 
   // Hit boxes the renderer fills in each frame.
-  const hit = { pills: [], cta: null, schemeToggle: null, newOcean: null, rulesBody: null };
+  const hit = { pills: [], cta: null, newOcean: null, rulesBody: null };
   let rulesDrag = null;
 
   canvas.addEventListener('pointerdown', (e) => {
@@ -419,7 +449,6 @@
         if (hit.fleetClose && inRect(p, hit.fleetClose)) { card = null; return; }
       }
       if (hit.cta && inRect(p, hit.cta)) { cardCTA(); return; }
-      if (hit.schemeToggle && inRect(p, hit.schemeToggle)) { toggleScheme(); return; }
       if (hit.newOcean && inRect(p, hit.newOcean)) { newOceanTapped(); return; }
       if (card === 'rules' && hit.rulesBody && inRect(p, hit.rulesBody)) {
         rulesDrag = { y: p.y, s: rulesScroll };
@@ -434,28 +463,26 @@
         return;
       }
     }
-    if (MODE === 'mobile' && scheme === 'A') {
-      if (nearBtn(p, L.blowBtn, 14))  { held.blowBtn = e.pointerId;  markStarted(); return; }
-      if (nearBtn(p, L.floodBtn, 14)) { held.floodBtn = e.pointerId; markStarted(); return; }
-      if (p.y > L.top && p.y < LH - L.bot) {
-        if (p.x < LW / 2) held.thrustL = e.pointerId; else held.thrustR = e.pointerId;
-        markStarted();
-      }
-      return;
-    }
-    if (MODE === 'mobile' && scheme === 'B') {
-      const d = Math.hypot(p.x - sx(run.x), p.y - sy(run.y));
-      if (d < 95) { held.joy = e.pointerId; joyVec = 0; joyVert = 0; markStarted(); }
+    if (MODE === 'mobile' && p.y > L.chromeTop) {
+      held.joy = e.pointerId;
+      dragAnchor = { x: p.x, y: p.y };
+      dragNow = { x: p.x, y: p.y };
+      joyVec = 0; joyVert = 0;
+      markStarted();
       return;
     }
   });
   canvas.addEventListener('pointermove', (e) => {
     const p = ptXY(e);
     if (rulesDrag) { rulesScroll = rulesDrag.s - (p.y - rulesDrag.y); return; }
-    if (held.joy === e.pointerId) {
-      const dx = p.x - sx(run.x), dy = p.y - sy(run.y);
-      joyVec = Math.abs(dx) < 12 ? 0 : Math.max(-1, Math.min(1, dx / 90));
-      joyVert = dy > 26 ? 1 : dy < -26 ? -1 : 0;   // below the sub dives, above rises
+    if (held.joy === e.pointerId && dragAnchor) {
+      dragNow = { x: p.x, y: p.y };
+      const dx = p.x - dragAnchor.x, dy = p.y - dragAnchor.y;
+      joyVec = Math.abs(dx) < DRAG_DEAD_H ? 0
+             : Math.max(-1, Math.min(1, dx / DRAG_RANGE));
+      const verticalEnough = Math.abs(dy) > DRAG_DEAD_V &&
+                             Math.abs(dy) > Math.abs(dx) * VERT_BIAS;
+      joyVert = !verticalEnough ? 0 : dy > 0 ? 1 : -1;
     }
   });
   function endPointer(e) {
@@ -467,11 +494,9 @@
         if (inRect(p, pill.box)) pillAction(pill.id);
       }
     }
-    if (held.floodBtn === e.pointerId) held.floodBtn = null;
-    if (held.blowBtn === e.pointerId)  held.blowBtn = null;
-    if (held.thrustL === e.pointerId)  held.thrustL = null;
-    if (held.thrustR === e.pointerId)  held.thrustR = null;
-    if (held.joy === e.pointerId)      { held.joy = null; joyVec = 0; joyVert = 0; }
+    if (held.joy === e.pointerId) {
+      held.joy = null; joyVec = 0; joyVert = 0; dragAnchor = null; dragNow = null;
+    }
   }
   canvas.addEventListener('pointerup', endPointer);
   canvas.addEventListener('pointercancel', endPointer);
@@ -483,11 +508,6 @@
     if (id === 'sound') { if (sfx) { sfx.setOn(!sfx.isOn()); sfx.play('click'); } }
     else if (id === 'rules') { card = 'rules'; rulesScroll = 0; }
     else if (id === 'fleet') { fleetView = curSub; card = 'fleet'; }
-  }
-  function toggleScheme() {
-    scheme = scheme === 'A' ? 'B' : 'A';
-    try { localStorage.setItem('zam.fathom.controls', scheme); } catch (_) {}
-    if (sfx) sfx.play('click');
   }
   /* One ocean per save, and the current ocean is the default forever. NEW
      OCEAN is a deliberate act: it discards the mine you dug and keeps the
@@ -748,15 +768,14 @@
   let lastNow = performance.now();
   let holdFullWas = false, tooHardWas = false;
   let lastBlub = 0, lastGrind = 0;
-  let airLowWas = false;
+  let airLowWas = '';
 
   function inputNow() {
     const axKeys = (keys['a'] || keys['arrowleft'] ? -1 : 0) + (keys['d'] || keys['arrowright'] ? 1 : 0);
-    const axTouch = (held.thrustL != null ? -1 : 0) + (held.thrustR != null ? 1 : 0);
     return {
-      ax: Math.max(-1, Math.min(1, axKeys + axTouch + joyVec)),
-      down: !!(keys['s'] || keys['arrowdown'] || held.floodBtn != null || joyVert > 0),
-      up:   !!(keys['w'] || keys['arrowup'] || held.blowBtn != null || joyVert < 0),
+      ax: Math.max(-1, Math.min(1, axKeys + joyVec)),
+      down: !!(keys['s'] || keys['arrowdown'] || joyVert > 0),
+      up:   !!(keys['w'] || keys['arrowup'] || joyVert < 0),
       jettison: wantJettison,
     };
   }
@@ -809,13 +828,15 @@
       floatText('NEEDS A BIGGER DRILL', run.x, run.y - 9, C_ACCENT_TEXT);
     }
     tooHardWas = run.tooHard;
-    // The Motherload lesson: warn loudly, long before the clock kills.
-    const airLow = run.air < run.airMax() * 0.33 && run.y > TUNE.surfaceY;
-    if (airLow && !airLowWas && sfx) {
+    /* The Motherload lesson: warn loudly, long before the clock kills. The
+       double beep fires on the EDGE, once per crossing, for whichever meter
+       crossed — not once per frame, and not once for the whole set. */
+    const nowWarn = activeWarnings().join('|');
+    if (nowWarn && nowWarn !== airLowWas && sfx) {
       sfx.tone(660, 0.14, 0.035, 'sine');
       setTimeout(() => { if (sfx) sfx.tone(660, 0.14, 0.035, 'sine'); }, 220);
     }
-    airLowWas = airLow;
+    airLowWas = nowWarn;
   }
 
   function handleEvent(ev) {
@@ -1867,7 +1888,7 @@
     ctx.font = '700 15px Inter, sans-serif';
     const tw = ctx.measureText(msg).width;
     const w = tw + 74, h = 40;
-    const x = o.x + o.w / 2 - w / 2, y = o.y + (MODE === 'desktop' ? 84 : 26);
+    const x = o.x + o.w / 2 - w / 2, y = o.y + (MODE === 'desktop' ? 84 : L.hudBot + 12);
     const pulse = 0.75 + 0.25 * Math.sin(now / 300);
     ctx.fillStyle = SCRIM(0.85);
     ctx.beginPath(); UI.roundRectPath(ctx, x, y, w, h, h / 2); ctx.fill();
@@ -1888,25 +1909,41 @@
     ctx.textBaseline = 'top';
   }
 
-  /* Motherload's FUEL LOW, translated: a loud, unmissable warning long
-     before the clock can kill. */
-  function drawAirLow(now) {
+  /* Motherload's FUEL LOW, translated and generalised: a loud, unmissable
+     warning long before the thing can kill you. Three meters can be in
+     trouble at once, so they stack rather than draw over each other, and
+     they sit under the HUD rather than in it — a number going red in a bar
+     is easy to miss while you are busy digging. */
+  function activeWarnings() {
+    const out = [];
+    if (run.air < run.airMax() * WARN.air && run.y > TUNE.surfaceY) out.push('AIR LOW');
+    if (run.batt < run.battMax() * WARN.batt) out.push('BATTERY LOW');
+    if (run.hull <= TUNE.hullPips * WARN.hull) out.push('HULL CRITICAL');
+    return out;
+  }
+  function drawWarnings(now) {
     if (card) return;
-    if (!(run.air < run.airMax() * 0.33 && run.y > TUNE.surfaceY)) return;
+    const list = activeWarnings();
+    if (!list.length) return;
     const o = L.ocean;
-    const msg = 'AIR LOW';
-    ctx.font = '800 15px Inter, sans-serif';
-    const tw = ctx.measureText(msg).width;
-    const x = o.x + 14;
-    const y = MODE === 'desktop' ? o.y + 108 : o.y + (run.tooHeavyNeed() > 0 ? 78 : 18);
+    // below TOO HEAVY when that is up, so the two never collide
+    let y = o.y + (MODE === 'desktop' ? 108 : L.hudBot + 12) +
+            (run.tooHeavyNeed() > 0 ? 52 : 0);
     const pulse = 0.55 + 0.45 * Math.sin(now / 220);
-    ctx.fillStyle = SCRIM(0.8);
-    ctx.beginPath(); UI.roundRectPath(ctx, x, y, tw + 26, 32, 16); ctx.fill();
-    ctx.globalAlpha = 0.55 + pulse * 0.45;
-    ctx.fillStyle = C_ACCENT_TEXT;
-    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    ctx.fillText(msg, x + 13, y + 17);
-    ctx.globalAlpha = 1;
+    ctx.font = '800 15px Inter, sans-serif';
+    ctx.textBaseline = 'middle';
+    for (const msg of list) {
+      const tw = ctx.measureText(msg).width;
+      const w = tw + 26, x = MODE === 'desktop' ? o.x + 14 : o.x + o.w / 2 - w / 2;
+      ctx.fillStyle = SCRIM(0.8);
+      ctx.beginPath(); UI.roundRectPath(ctx, x, y, w, 32, 16); ctx.fill();
+      ctx.globalAlpha = 0.55 + pulse * 0.45;
+      ctx.fillStyle = C_ACCENT_TEXT;
+      ctx.textAlign = 'left';
+      ctx.fillText(msg, x + 13, y + 17);
+      ctx.globalAlpha = 1;
+      y += 38;
+    }
     ctx.textBaseline = 'top';
   }
 
@@ -1977,80 +2014,101 @@
   }
 
   function drawChromeMobile(now) {
-    // Top band: solid Ground; bank, depth and hull left, the gauges right.
-    ctx.fillStyle = C_BG;
-    ctx.fillRect(0, 0, LW, L.top);
-    ctx.textBaseline = 'middle';
-    ctx.font = '800 18px Inter, sans-serif';
-    const mStr = fmtMoney(run.money);
-    const mw = ctx.measureText(mStr).width;
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillText(mStr, SIDE_PAD, 26);
-    ctx.fillStyle = INK72; ctx.font = '600 14px Inter, sans-serif';
-    ctx.fillText('·  ' + Math.round(run.y) + ' m', SIDE_PAD + mw + 10, 27);
-    ctx.font = '700 10px Inter, sans-serif';
-    ctx.fillText('HULL', SIDE_PAD, 54);
-    drawPips(SIDE_PAD + 34, 50, Math.ceil(run.hull), TUNE.hullPips,
-             run.hull <= 2 ? C_ACCENT_TEXT : C_BRAND);
-    ctx.textBaseline = 'top';
+    /* A scrim instead of a band: the world runs behind the chrome, so the
+       instruments need their own legibility rather than a wall of Ground. */
+    const g = ctx.createLinearGradient(0, 0, 0, L.hudBot + 30);
+    g.addColorStop(0, SCRIM(0.66));
+    g.addColorStop(0.60, SCRIM(0.28));
+    g.addColorStop(1, SCRIM(0));
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, LW, L.hudBot + 30);
 
-    const zx = LW - SIDE_PAD - 170;
-    const rows = [
-      ['CARGO', run.cargoKg / run.cargoMax(), C_ACCENT_TEXT, Math.round(run.cargoKg) + '/' + run.cargoMax()],
-      ['AIR', run.air / run.airMax(), run.air / run.airMax() < 0.25 ? C_ACCENT_TEXT : C_GREEN, Math.round(run.air) + ''],
-      ['BATT', run.batt / run.battMax(), C_SUN, Math.round(run.batt) + ''],
-    ];
-    ctx.textBaseline = 'middle';
-    for (let i = 0; i < 3; i++) {
-      const ry = 16 + i * 24;
-      ctx.fillStyle = INK72; ctx.font = '700 10px Inter, sans-serif';
-      ctx.textAlign = 'left';
-      ctx.fillText(rows[i][0], zx, ry);
-      drawBar(zx + 48, ry - 3, 84, 6, rows[i][1], rows[i][2]);
-      ctx.fillStyle = INK90; ctx.font = '600 11px Inter, sans-serif';
-      ctx.textAlign = 'right';
-      ctx.fillText(rows[i][3], LW - SIDE_PAD, ry);
-      ctx.textAlign = 'left';
-    }
-    ctx.textBaseline = 'top';
-
-    drawTooHeavy(now);
-
-    // Bottom row on the band system's centre line: sound, rules, fleet, the verb.
+    /* Row 1 is desktop's shape: control row left, read-out right-aligned.
+       DROP CARGO does NOT go here. Three icon pills plus a 130 px DROP CARGO
+       plus the read-out measures ~364 px against 362 px of usable width on a
+       390 px phone, so the read-out drew straight over the button. It gets
+       its own line under the instruments instead. */
     const cy = L.rowCy;
+    ctx.textBaseline = 'middle';
     iconPill('sound', SIDE_PAD + 22, cy, (cx, cyy) => speakerIcon(cx, cyy, sfx ? sfx.isOn() : true));
     iconPill('rules', SIDE_PAD + 22 + (UI.PILL.iconW + UI.PILL.gap), cy, questionIcon);
     const p3 = iconPill('fleet', SIDE_PAD + 22 + (UI.PILL.iconW + UI.PILL.gap) * 2, cy, subGlyph);
-    ctx.font = '700 ' + UI.PILL.font + 'px Inter, sans-serif';
-    const jw = Math.round(ctx.measureText('DROP CARGO').width + UI.PILL.padX + 10);
-    const jcx = Math.max(LW / 2, p3.x + p3.w + UI.PILL.gap + jw / 2);
-    jettisonPill(jcx, cy);
+    L.rowRight = p3.x + p3.w;
 
-    // Scheme A: UP and DOWN, thumb-stacked. Chrome-sized, bigger hit slop.
-    if (scheme === 'A') {
-      const btn = (b, label, up, activeId) => {
-        const active = activeId != null;
-        ctx.fillStyle = active ? TINT(0.14) : UI.PILL.fill;
-        ctx.beginPath(); UI.roundRectPath(ctx, b.cx - 22, b.cy - 20, 44, 40, 20); ctx.fill();
-        ctx.strokeStyle = active ? TINT(0.7) : UI.PILL.border; ctx.lineWidth = UI.PILL.borderW;
-        ctx.beginPath(); UI.roundRectPath(ctx, b.cx - 22, b.cy - 20, 44, 40, 20); ctx.stroke();
-        ctx.strokeStyle = INK92; ctx.lineWidth = 2.4;
+    const ro = fmtMoney(run.money) + '  ·  ' + Math.round(run.y) + ' m';
+    ctx.font = '700 15px Inter, sans-serif';
+    const roW = ctx.measureText(ro).width;
+    const roomFor = LW - SIDE_PAD - (L.rowRight + 12);
+    const hs = roW > roomFor ? Math.max(0.62, roomFor / roW) : 1;
+    L.roFits = roW * hs <= roomFor + 0.5;
+    ctx.save();
+    ctx.translate(LW - SIDE_PAD, cy);
+    ctx.scale(hs, hs);
+    ctx.fillStyle = '#FFFFFF'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ctx.fillText(ro, 0, 1);
+    ctx.restore();
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+
+    // Row 2: two columns of instruments, floating on the water.
+    const colW = Math.floor((LW - SIDE_PAD * 2 - 10) / 2);
+    const airF = run.air / run.airMax(), battF = run.batt / run.battMax();
+    const iy = 54;
+    drawIndicators(SIDE_PAD, iy, colW, [
+      ['AIR', airF, airF < LOW_FRAC ? C_ACCENT_TEXT : C_GREEN, Math.round(run.air) + ''],
+      ['BATT', battF, battF < LOW_FRAC ? C_ACCENT_TEXT : C_SUN, Math.round(run.batt) + ''],
+    ]);
+    drawIndicators(LW - SIDE_PAD - colW, iy, colW, [
+      ['CARGO', run.cargoKg / run.cargoMax(), C_ACCENT_TEXT,
+       Math.round(run.cargoKg) + '/' + run.cargoMax()],
+      ['HULL', 'pips', run.hull <= TUNE.hullPips * LOW_FRAC ? C_ACCENT_TEXT : C_BRAND,
+       Math.ceil(run.hull)],
+    ]);
+
+    // Row 3: the one destructive verb, on its own line and nowhere near the
+    // bottom edge where a thumb rests to drag.
+    ctx.font = '700 ' + UI.PILL.font + 'px Inter, sans-serif';
+    const jcy = iy + 62 + 26;
+    L.jettison = { cx: LW / 2, cy: jcy };
+    jettisonPill(LW / 2, jcy);
+
+    drawTooHeavy(now);
+
+    /* The stick. Removing the UP/DOWN buttons removed the only visible sign
+       that the ocean is a control surface, so the anchor and knob are drawn
+       while a thumb is down: a ring where the thumb landed, a knob where it
+       has dragged to, and a brighter arc on the axis that is actually engaged.
+       It exists only during the drag, so nothing sits over the world at rest. */
+    if (dragAnchor && dragNow) {
+      const dx = dragNow.x - dragAnchor.x, dy = dragNow.y - dragAnchor.y;
+      const R = DRAG_RANGE * 0.72;
+      const d = Math.hypot(dx, dy) || 1;
+      const k = Math.min(1, d / R);
+      const kx = dragAnchor.x + (dx / d) * R * k;
+      const ky = dragAnchor.y + (dy / d) * R * k;
+
+      ctx.save();
+      ctx.beginPath(); ctx.arc(dragAnchor.x, dragAnchor.y, R, 0, Math.PI * 2);
+      ctx.strokeStyle = TINT(0.22); ctx.lineWidth = 2; ctx.stroke();
+
+      // the engaged axis, so the player can see WHY the sub is doing that
+      if (joyVert !== 0) {
         ctx.beginPath();
-        if (up) {
-          ctx.moveTo(b.cx, b.cy + 6); ctx.lineTo(b.cx, b.cy - 6);
-          ctx.moveTo(b.cx - 6, b.cy); ctx.lineTo(b.cx, b.cy - 7); ctx.lineTo(b.cx + 6, b.cy);
-        } else {
-          ctx.moveTo(b.cx, b.cy - 6); ctx.lineTo(b.cx, b.cy + 6);
-          ctx.moveTo(b.cx - 6, b.cy); ctx.lineTo(b.cx, b.cy + 7); ctx.lineTo(b.cx + 6, b.cy);
-        }
-        ctx.stroke();
-        ctx.fillStyle = INK72; ctx.font = '700 9px Inter, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(label, b.cx, b.cy + 24);
-        ctx.textAlign = 'left';
-      };
-      btn(L.blowBtn, 'UP', true, held.blowBtn);
-      btn(L.floodBtn, 'DOWN', false, held.floodBtn);
+        ctx.arc(dragAnchor.x, dragAnchor.y, R,
+                joyVert > 0 ? Math.PI * 0.25 : Math.PI * 1.25,
+                joyVert > 0 ? Math.PI * 0.75 : Math.PI * 1.75);
+        ctx.strokeStyle = TINT(0.6); ctx.lineWidth = 3; ctx.stroke();
+      }
+      if (joyVec !== 0) {
+        const a = joyVec > 0 ? 0 : Math.PI;
+        ctx.beginPath();
+        ctx.arc(dragAnchor.x, dragAnchor.y, R, a - Math.PI * 0.22, a + Math.PI * 0.22);
+        ctx.strokeStyle = TINT(0.6); ctx.lineWidth = 3; ctx.stroke();
+      }
+
+      ctx.beginPath(); ctx.arc(kx, ky, 15, 0, Math.PI * 2);
+      ctx.fillStyle = TINT(0.16); ctx.fill();
+      ctx.strokeStyle = TINT(0.75); ctx.lineWidth = 2; ctx.stroke();
+      ctx.restore();
     }
   }
 
@@ -2102,9 +2160,9 @@
      The standard modal: 470 x 420 max, three zones, only the body
      scrolls, the type never shrinks and the CTA never moves.
      ============================================================ */
-  function cardBox() {
+  function cardBox(maxH) {
     const pw = Math.min(LW - 56, 470);
-    const ph = Math.min(LH - 20, 420);
+    const ph = Math.min(LH - 20, maxH || 420);
     const px = Math.round((LW - pw) / 2);
     const py = Math.max(10, Math.round((LH - ph) / 2));
     return { pw, ph, px, py };
@@ -2114,14 +2172,10 @@
   function rulesCopy() {
     const move = MODE === 'desktop'
       ? 'S floods and sinks. W blows and lifts. Let go and the sub hovers where it is.'
-      : scheme === 'A'
-        ? 'DOWN floods and sinks. UP blows and lifts. Let go and the sub hovers where it is.'
-        : 'Drag below the sub to sink, above it to rise. Let go and it hovers where it is.';
+      : 'Hold a thumb anywhere and drag: down floods and sinks, up blows and lifts, sideways thrusts. Let go and the sub hovers where it is.';
     const dig = MODE === 'desktop'
       ? 'Lean into rock and the drill eats it: S for the floor, A or D for a wall, W for the ceiling.'
-      : scheme === 'A'
-        ? 'Lean into rock and the drill eats it: DOWN for the floor, the left or right half for a wall.'
-        : 'Drag the sub into rock and the drill eats it: down for the floor, sideways for a wall.';
+      : 'Drag into rock and the drill eats it: down for the floor, sideways for a wall.';
     return [
       move,
       dig,
@@ -2314,24 +2368,19 @@
     // Footer.
     ctx.textAlign = 'center';
     hit.cta = UI.drawCTA(ctx, 'DIVE', cx, py + ph - FOOT_H + 16 + 25, C_ACCENT);
-    /* Under the card: the scheme toggle (mobile) and a fresh ocean. In a
-       short frame (the 480x360 embed minimum) there is no room below the
-       card and they would sit on the CTA, so they hide instead. */
+    /* Under the card: a fresh ocean. In a short frame (the 480x360 embed
+       minimum) there is no room below the card and it would sit on the CTA,
+       so it hides instead. The controls toggle used to live here too; there
+       is one mobile control now, so there is nothing to toggle. */
     ctx.textBaseline = 'middle';
     const underY = py + ph + 30;
     if (MODE === 'mobile' && LH - (py + ph) >= 58) {
-      const lab = scheme === 'A' ? 'CONTROLS: BUTTONS' : 'CONTROLS: GESTURES';
       const oc = oceanArmed ? 'LOSE THIS MINE?' : 'NEW OCEAN';
-      const w1 = UI.pillWidth(ctx, lab);
-      const w2 = UI.pillWidth(ctx, oc);
-      const total = w1 + UI.PILL.gap + w2;
-      hit.schemeToggle = UI.drawPill(ctx, lab, LW / 2 - total / 2 + w1 / 2, underY);
-      hit.newOcean = UI.drawPill(ctx, oc, LW / 2 + total / 2 - w2 / 2, underY);
+      hit.newOcean = UI.drawPill(ctx, oc, LW / 2, underY);
     } else if (MODE === 'desktop' && LH - (py + ph) >= 58) {
-      hit.schemeToggle = null;
       hit.newOcean = UI.drawPill(ctx, oceanArmed ? 'LOSE THIS MINE?' : 'NEW OCEAN', LW / 2, underY);
     } else {
-      hit.schemeToggle = null; hit.newOcean = null;
+      hit.newOcean = null;
     }
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   }
@@ -2366,7 +2415,7 @@
     }
     ctx.textAlign = 'center';
     hit.cta = UI.drawCTA(ctx, 'DIVE AGAIN', cx, py + ph - FOOT_H + 16 + 25, C_ACCENT);
-    hit.schemeToggle = null; hit.newOcean = null;
+    hit.newOcean = null;
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   }
 
@@ -2374,7 +2423,7 @@
      model big enough to admire. CTA is contextual: DIVE for the boat you
      are in, SELECT for one you own, BUY for one you can afford. */
   function drawFleetCard() {
-    const { pw, ph, px, py } = cardBox();
+    const { pw, ph, px, py } = cardBox(478);
     ctx.fillStyle = SCRIM(0.88); ctx.fillRect(0, 0, LW, LH);
     ctx.fillStyle = C_SURFACE;
     ctx.beginPath(); UI.roundRectPath(ctx, px, py, pw, ph, 22); ctx.fill();
@@ -2441,35 +2490,80 @@
        progression, so it gets the accent the others do not. */
     const entries = [['AIR', f.st.AIR], ['CARGO', f.st.CARGO], ['BATT', f.st.BATT],
                      ['SPEED', f.st.SPEED], ['LAMP', f.st.LAMP], ['DRILL', f.st.DRILL]];
-    const colW = (pw - 96 - 14) / 2;
+    const ROW_H = 27;                         // was 24 — the rows were touching
+    const colW = (pw - 96 - 18) / 2;
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
     entries.forEach(([label, v], i) => {
-      const bx = px + 48 + (i % 2) * (colW + 14);
-      const by = yTop + 12 + Math.floor(i / 2) * 24;
+      const bx = px + 48 + (i % 2) * (colW + 18);
+      const by = yTop + 14 + Math.floor(i / 2) * ROW_H;
       ctx.font = '700 10px Inter, sans-serif';
       ctx.fillStyle = INK72;
       ctx.fillText(label, bx, by);
       ctx.fillStyle = TINT(0.13);
-      ctx.fillRect(bx, by + 4, colW, 5);
+      ctx.fillRect(bx, by + 5, colW, 5);
       ctx.fillStyle = label === 'DRILL' ? C_SUN : C_BRAND;
-      ctx.fillRect(bx, by + 4, Math.max(3, colW * (v / 5)), 5);
+      ctx.fillRect(bx, by + 5, Math.max(3, colW * (v / 5)), 5);
     });
-    yTop += 12 + 3 * 24;
+    yTop += 14 + 3 * ROW_H;
+
+    /* The capability tag and the description are TWO different things. The tag
+       used to REPLACE the blurb whenever DRILL reached 3, which silently ate
+       the description on five of the nine boats — every boat worth buying said
+       only "Cuts hard rock". They stack now, and the blurb WRAPS: it was a
+       single fillText with no width, so the longer ones ran off the card.
+
+       The type shrinks to fit the space left above the CTA. The CTA does not
+       move, and it is never drawn through. */
+    const hasTag = f.st.DRILL >= TUNE.hardNeedsDrill;
+    const zoneTop = yTop + 4;
+    const zoneBot = py + ph - FOOT_H + 6;
+    const maxTextW = pw - 56;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.font = '500 13px Inter, sans-serif';
-    ctx.fillStyle = f.st.DRILL >= TUNE.hardNeedsDrill ? C_SUN : INK72;
-    ctx.fillText(f.st.DRILL >= TUNE.hardNeedsDrill ? 'Cuts hard rock' : f.blurb, cx, yTop + 6);
+
+    /* Fit in a fixed order, so the CTA is never drawn through on a short
+       frame: shrink the type first, and only then give up the tag — the
+       yellow DRILL bar above already says the same thing, so the tag is the
+       redundant half. The description is what the player cannot get anywhere
+       else, so it is the last thing to go, and it never does. */
+    let fs = 13, tag = hasTag, lines, blurbTop, bottom;
+    for (;;) {
+      ctx.font = '500 ' + fs + 'px Inter, sans-serif';
+      lines = wrapText(f.blurb, maxTextW);
+      blurbTop = zoneTop + (tag ? 24 : 6);
+      bottom = blurbTop + 8 + (lines.length - 1) * (fs + 4) + fs / 2;
+      if (bottom <= zoneBot) break;
+      if (fs > 11) { fs -= 1; continue; }
+      if (tag) { tag = false; continue; }
+      break;
+    }
+    if (tag) {
+      ctx.font = '700 12px Inter, sans-serif';
+      ctx.fillStyle = C_SUN;
+      ctx.fillText('Cuts hard rock', cx, zoneTop + 8);
+    }
+    ctx.font = '500 ' + fs + 'px Inter, sans-serif';
+    ctx.fillStyle = INK72;
+    lines.forEach((ln, i) => ctx.fillText(ln, cx, blurbTop + 8 + i * (fs + 4)));
+    L.fleetFit = {
+      tagWanted: hasTag, tagShown: tag, fontPx: fs, lines: lines.length,
+      textBottom: Math.round(bottom), ctaTop: Math.round(zoneBot),
+      widest: Math.round(Math.max(...lines.map(l => ctx.measureText(l).width))),
+      maxTextW: Math.round(maxTextW),
+    };
     const label = isCur ? 'DIVE' : isOwned ? 'SELECT'
       : run.money >= f.price ? 'BUY · ' + fmtMoney(f.price)
       : 'NEED ' + fmtMoney(f.price - run.money) + ' MORE';
     hit.cta = UI.drawCTA(ctx, label, cx, py + ph - FOOT_H + 16 + 25, C_ACCENT);
-    hit.schemeToggle = null; hit.newOcean = null;
+    hit.newOcean = null;
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   }
 
   const wrapCache = new Map();
   function wrapText(text, width) {
-    const key = text + '|' + width;
+    /* The font MUST be part of the key. It was not, so a caller that wrapped
+       the same string at two sizes — which the fleet card's shrink-to-fit now
+       does — got the first size's line breaks back for the second. */
+    const key = text + '|' + width + '|' + ctx.font;
     if (wrapCache.has(key)) return wrapCache.get(key);
     const words = text.split(' ');
     const lines = [];
@@ -2494,7 +2588,7 @@
 
     drawWorld(now);
     if (MODE === 'mobile') drawChromeMobile(now); else drawChromeDesktop(now);
-    drawAirLow(now);
+    drawWarnings(now);
 
     // Low-air vignette: the warning is ambient before it is terminal.
     if (!card && run.air < 25 && run.y > TUNE.surfaceY) {
@@ -2587,11 +2681,13 @@
       pendingRelic: () => run.pendingRelic,
       openCard: (c) => { card = c; },
       closeCard: () => { card = null; },
-      setScheme: (s) => { scheme = s; },
       setScroll: (v) => { rulesScroll = v; },
       setTint: (v) => { REGION_TINT = !!v; },
       getTint: () => REGION_TINT,
       get cam() { return cam; },
+      fleetFit: () => L.fleetFit || null,
+      warnings: () => activeWarnings(),
+      WARN,
       fleet: { FLEET, get owned() { return owned; }, get cur() { return curSub; },
                setSub: (i) => { curSub = i; if (!owned.includes(i)) owned.push(i); applyFleet(); },
                setMoney: (m) => { run.money = m; } },
@@ -2604,7 +2700,7 @@
          It builds its input with inputNow(), the same function tick() uses,
          and merges the caller's overrides on top. It used to re-implement
          that merge and quietly omitted the held FLOOD, BLOW and thrust
-         buttons, so scheme A measured as a dead control while a real player
+         buttons, so the held controls measured dead while a real player
          could use it perfectly well. A harness that drives a different input
          path from the player is measuring a different game. */
       drive: (seconds, inp) => {
