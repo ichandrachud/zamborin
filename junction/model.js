@@ -1,0 +1,463 @@
+/* ============================================================
+   Junction · the model. No DOM, no canvas, no timers, no Math.random.
+   ============================================================
+
+   This file is the rules. play.js is the renderer and the hands, and holds
+   none of them. The split is the Comb pattern and it exists for one reason:
+   the gate in the brief has to play thousands of levels headlessly, and it
+   cannot do that through a canvas.
+
+   THE ONE THING TO UNDERSTAND BEFORE CHANGING ANYTHING HERE
+
+   A three-way junction is a MERGE in one direction and a SPLIT in the other.
+   Sides {trunk, a, b}: a train arriving on the trunk leaves by whichever
+   branch the switch has selected; a train arriving on EITHER branch leaves by
+   the trunk, whatever the switch says, because that is a trailing move and the
+   wheels take it. Nothing is ever refused.
+
+   That asymmetry is the whole game, and it is not obvious. Switches never
+   change during a run, so the route out of a portal is a pure function of the
+   track: every train from one portal, with the same colour of luck, ends in
+   the same depot. Two trains can therefore only be separated if they reach a
+   junction from DIFFERENT sides, which in practice means they run through the
+   shared track in OPPOSITE directions, at different times. That is where the
+   sharing comes from, and it is why the meeting rule is a constraint rather
+   than a nuisance: two engines nose to nose in the same corridor is the price
+   of a corridor used twice.
+
+   A wrong route RUNS. Nothing here returns "illegal". A train that meets a
+   dead end stops at it; a train that reaches the wrong depot parks in it. The
+   only refusals in this file are in DRAWING (a four-way crossing is not a
+   piece the game owns) and they are refusals to lay track, never to run.
+*/
+(function (root, factory) {
+  const api = factory();
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  else root.JUNCTION_MODEL = api;
+}(typeof self !== 'undefined' ? self : this, function () {
+'use strict';
+
+// ---------- DIRECTIONS ----------
+const N = 0, E = 1, S = 2, W = 3;
+const DR = [-1, 0, 1, 0];
+const DC = [0, 1, 0, -1];
+const opp = (s) => (s + 2) & 3;
+
+// ---------- CELL KINDS ----------
+const EMPTY = 0, ROCK = 1, PORTAL = 2, DEPOT = 3;
+
+/* ---------- STARTING CONSTANTS ----------
+   From the brief, section 3. dt is fixed and the speed is in cells per second,
+   so a cell always takes 1/trainSpeed seconds whether it is a straight or a
+   curve. The curve is the shorter path, so an engine reads as slowing into a
+   bend, which is both free and correct. */
+const TUNE = {
+  cellPx: 44,
+  gridByTier: [7, 7, 8, 8, 9, 9, 10, 10, 11],
+  trainSpeed: 2.2,
+  spawnGapCells: 2,
+  trainsByTier: [1, 2, 2, 3, 3, 3, 4, 4, 5],
+  budgetSlack: [8, 6, 5, 4, 3, 3, 2, 2, 2],
+  colours: ['coral', 'amber', 'teal', 'violet'],
+  dt: 1 / 120,
+};
+
+// ---------- TRACK ----------
+/* A cell's track is a list of SEGMENTS, each an unordered pair of sides.
+   One segment is a straight or a curve. Two segments that share exactly one
+   side are a three-way junction, and `sw` says which of the two the trunk
+   currently feeds. Two segments that share nothing would be a four-way
+   crossing, which the brief excludes, so canAddSegment never allows it. */
+const newTrack = (size) => new Array(size).fill(null);
+const cloneTrack = (t) => t.map((c) => (c ? { segs: c.segs.map((s) => s.slice()), sw: c.sw } : null));
+
+function sleepers(track) {
+  let n = 0;
+  for (const c of track) if (c) n += c.segs.length;
+  return n;
+}
+function segIndex(c, a, b) {
+  if (!c) return -1;
+  const lo = Math.min(a, b), hi = Math.max(a, b);
+  for (let k = 0; k < c.segs.length; k++) if (c.segs[k][0] === lo && c.segs[k][1] === hi) return k;
+  return -1;
+}
+const isJunction = (c) => !!c && c.segs.length === 2;
+const hasSide = (c, s) => !!c && c.segs.some((g) => g[0] === s || g[1] === s);
+const otherEnd = (g, s) => (g[0] === s ? g[1] : g[1] === s ? g[0] : -1);
+
+// The side both segments of a junction share. -1 for anything that is not one.
+function trunkOf(c) {
+  if (!isJunction(c)) return -1;
+  const [p, q] = c.segs;
+  for (const s of p) if (q[0] === s || q[1] === s) return s;
+  return -1;
+}
+// The branch a junction currently feeds, and the one it does not.
+function activeBranch(c) {
+  const t = trunkOf(c);
+  return t < 0 ? -1 : otherEnd(c.segs[c.sw], t);
+}
+function idleBranch(c) {
+  const t = trunkOf(c);
+  return t < 0 ? -1 : otherEnd(c.segs[c.sw ^ 1], t);
+}
+
+/* Where a train leaves a cell it entered on side `inSide`. -1 means there is
+   no rail under it going that way: a dead end, which stops a train rather than
+   refusing it. */
+function exitSide(c, inSide) {
+  if (!c) return -1;
+  if (c.segs.length === 1) return otherEnd(c.segs[0], inSide);
+  const t = trunkOf(c);
+  if (t < 0) return -1;
+  if (inSide === t) return otherEnd(c.segs[c.sw], t);     // facing point: the switch decides
+  for (const g of c.segs) if (otherEnd(g, inSide) === t) return t;   // trailing point: always the trunk
+  return -1;
+}
+
+function canAddSegment(c, a, b) {
+  if (a < 0 || b < 0 || a === b) return false;
+  if (!c) return true;
+  if (segIndex(c, a, b) >= 0) return true;            // retracing is free and expected
+  if (c.segs.length >= 2) return false;               // one junction per cell, no more
+  const g = c.segs[0];
+  let shared = 0;
+  if (g[0] === a || g[1] === a) shared++;
+  if (g[0] === b || g[1] === b) shared++;
+  return shared === 1;                                 // exactly one shared side = three-way
+}
+
+/* Returns true if this actually added a sleeper. A new junction keeps sw at 0,
+   which means the segment that was ALREADY THERE stays live and the one just
+   drawn does not. That is deliberate: the switch has to be a decision the
+   player makes, and a junction that silently adopted the newest branch would
+   never ask for one. */
+function addSegment(track, i, a, b) {
+  const lo = Math.min(a, b), hi = Math.max(a, b);
+  const c = track[i];
+  if (!c) { track[i] = { segs: [[lo, hi]], sw: 0 }; return true; }
+  if (segIndex(c, a, b) >= 0) return false;
+  c.segs.push([lo, hi]);
+  return true;
+}
+const toggleSwitch = (track, i) => { if (isJunction(track[i])) track[i].sw ^= 1; };
+const eraseCell = (track, i) => { track[i] = null; };
+
+// ---------- LEVELS ----------
+function buildLevel(spec) {
+  const R = spec.R, C = spec.C, size = R * C;
+  const kind = new Array(size).fill(EMPTY);
+  const face = new Array(size).fill(-1);
+  const colour = new Array(size).fill(-1);
+  const at = (rc) => rc[0] * C + rc[1];
+  for (const rc of spec.rocks || []) kind[at(rc)] = ROCK;
+  const portals = (spec.portals || []).map((p) => {
+    const i = at(p.at); kind[i] = PORTAL; face[i] = p.face;
+    return { i, r: p.at[0], c: p.at[1], face: p.face, queue: p.queue.slice() };
+  });
+  const depots = (spec.depots || []).map((d) => {
+    const i = at(d.at); kind[i] = DEPOT; face[i] = d.face; colour[i] = d.colour;
+    return { i, r: d.at[0], c: d.at[1], face: d.face, colour: d.colour };
+  });
+  return {
+    n: spec.n, tier: spec.tier || 0, R, C, size, kind, face, colour,
+    portals, depots, budget: spec.budget, par: spec.par || 0,
+    solution: spec.solution || null,
+  };
+}
+
+/* Every level must satisfy these or it is not shippable. Run from the tests,
+   not from the page: a level that fails here is a level that was authored
+   wrong, and the right place to find that out is a red test. */
+function validate(level) {
+  const bad = [];
+  const onEdge = (r, c) => r === 0 || c === 0 || r === level.R - 1 || c === level.C - 1;
+  for (const p of level.portals) {
+    if (!onEdge(p.r, p.c)) bad.push('portal ' + p.i + ' is not on an edge');
+    const nr = p.r + DR[p.face], nc = p.c + DC[p.face];
+    if (nr < 0 || nc < 0 || nr >= level.R || nc >= level.C) bad.push('portal ' + p.i + ' faces off the board');
+    if (!p.queue.length) bad.push('portal ' + p.i + ' has no trains');
+  }
+  for (const d of level.depots) {
+    if (!onEdge(d.r, d.c)) bad.push('depot ' + d.i + ' is not on an edge');
+    const nr = d.r + DR[d.face], nc = d.c + DC[d.face];
+    if (nr < 0 || nc < 0 || nr >= level.R || nc >= level.C) bad.push('depot ' + d.i + ' faces off the board');
+  }
+  // Every colour that runs must have somewhere to run to, and every arch must
+  // have something to light it, or "all arches lit" is a promise the level
+  // cannot keep.
+  const running = new Set();
+  for (const p of level.portals) for (const col of p.queue) running.add(col);
+  const homes = new Set(level.depots.map((d) => d.colour));
+  for (const col of running) if (!homes.has(col)) bad.push('colour ' + col + ' has no depot');
+  for (const col of homes) if (!running.has(col)) bad.push('depot colour ' + col + ' has no train');
+  return bad;
+}
+
+/* ---------- LEVEL 1 ----------
+   Hand authored, and the shape is the argument the brief makes in section 0,
+   drawn out on a 7x7 so it can be checked by eye.
+
+     row 0    .   P1   .    .    .   Dt   .
+     row 1    .    .   .   J1    .    .   .
+     row 2    #    #   #   gap   #    #   #
+     row 3    .    .   .   J2    .    .   .
+     row 4    .    .   .    .    .    .   .
+     row 5    .    .   .    .    .    .   .
+     row 6    .   P2   .    .    .   Dc   .
+
+   A rock wall with one gap in it. Coral starts top left and finishes bottom
+   right; teal starts bottom left and finishes top right; both have to pass
+   through the same three cells, in OPPOSITE directions. Sharing is forced by
+   the wall rather than by the budget, which is the honest way to teach it.
+
+   Both junctions are real. At J1 the teal engine arrives on the trunk and
+   leaves by whichever branch is set, so the player has to flip it; the coral
+   engine arrives on a branch and is not affected either way, which is the
+   asymmetry the whole game rests on, shown once, on the first board. Draw the
+   routes in the other order and it is J2 that needs the flip instead. Either
+   way it is exactly one tap, and the tap is the lesson.
+
+   The timing is not decoration. Coral reaches the gap first and teal has to
+   idle one cell short of it for about half a second before following through.
+   The meeting rule therefore gets taught on level 1, by a wait that costs
+   nothing. */
+const LEVEL_SPECS = [{
+  n: 1, tier: 0, R: 7, C: 7,
+  rocks: [[2, 0], [2, 1], [2, 2], [2, 4], [2, 5], [2, 6]],
+  portals: [
+    { at: [0, 1], face: S, queue: [0] },   // coral, southbound out of the tunnel
+    { at: [6, 1], face: N, queue: [2] },   // teal, northbound
+  ],
+  depots: [
+    { at: [0, 5], face: S, colour: 2 },    // teal's shed, top right
+    { at: [6, 5], face: N, colour: 0 },    // coral's shed, bottom right
+  ],
+  budget: 25,
+  par: 17,
+  /* The reference solution, as [row, col, sideA, sideB] segments. It is here
+     so a test can prove the level is completable without a solver, and so the
+     debug handle can lay it out in one call. */
+  solution: [
+    [1, 1, N, E], [1, 2, W, E], [1, 3, W, S],          // coral, tunnel to the gap
+    [2, 3, N, S],                                       // the gap itself, shared
+    [3, 3, N, E], [3, 4, W, S], [4, 4, N, S], [5, 4, N, E], [5, 5, W, S],
+    [5, 1, S, E], [5, 2, W, E], [5, 3, W, N],          // teal, tunnel to the gap
+    [4, 3, S, N],
+    [3, 3, S, N],                                       // makes J2
+    [1, 3, S, E],                                       // makes J1
+    [1, 4, W, E], [1, 5, W, N],
+  ],
+}];
+
+const LEVELS = LEVEL_SPECS.map(buildLevel);
+const levelCount = () => LEVELS.length;
+const getLevel = (n) => LEVELS[Math.max(0, Math.min(LEVELS.length - 1, (n | 0) - 1))];
+
+// ---------- DRAWING ----------
+const rowOf = (level, i) => (i / level.C) | 0;
+const colOf = (level, i) => i % level.C;
+
+// The side of cell i that faces cell j, or -1 if they are not neighbours.
+function sideBetween(level, i, j) {
+  const r = rowOf(level, i), c = colOf(level, i);
+  const r2 = rowOf(level, j), c2 = colOf(level, j);
+  for (let s = 0; s < 4; s++) if (r + DR[s] === r2 && c + DC[s] === c2) return s;
+  return -1;
+}
+function neighbour(level, i, s) {
+  const r = rowOf(level, i) + DR[s], c = colOf(level, i) + DC[s];
+  if (r < 0 || c < 0 || r >= level.R || c >= level.C) return -1;
+  return r * level.C + c;
+}
+
+/* A stroke is the whole drag: a path of adjacent cells, optionally starting or
+   ending on a portal or a depot mouth. It is validated WHOLE and re-validated
+   from scratch every time the finger enters a new cell, because adding a cell
+   changes the piece in the cell before it — a straight becomes a curve — and
+   validating only the new end would miss a crossing the change just created.
+   The paths are a few dozen cells long, so the cost of being obviously right
+   here is nothing. */
+function validateStroke(level, track, path) {
+  const n = path.length;
+  const fail = (why) => ({ ok: false, why, adds: [], cost: 0, track: null });
+  if (n < 2) return fail('too short');
+  for (let k = 0; k < n; k++) {
+    const i = path[k];
+    if (i < 0 || i >= level.size) return fail('off board');
+    if (path.indexOf(i) !== k) return fail('crosses itself');
+    if (level.kind[i] === ROCK) return fail('rock');
+    if (level.kind[i] === PORTAL || level.kind[i] === DEPOT) {
+      if (k !== 0 && k !== n - 1) return fail('through a portal');
+      const nb = k === 0 ? path[1] : path[n - 2];
+      if (sideBetween(level, i, nb) !== level.face[i]) return fail('not the mouth');
+    }
+    if (k > 0 && sideBetween(level, path[k - 1], i) < 0) return fail('not adjacent');
+  }
+  const scratch = cloneTrack(track);
+  const adds = [];
+  let cost = 0;
+  for (let k = 0; k < n; k++) {
+    const i = path[k];
+    if (level.kind[i] !== EMPTY) continue;
+    let a = k > 0 ? sideBetween(level, i, path[k - 1]) : -1;
+    let b = k < n - 1 ? sideBetween(level, i, path[k + 1]) : -1;
+    // An end of the stroke carries straight on. Both ends unknown means a
+    // single cell, which is a tap, not a stroke.
+    if (a < 0 && b < 0) return fail('no direction');
+    if (a < 0) a = opp(b);
+    if (b < 0) b = opp(a);
+    /* The FIRST cell is an anchor, not a piece. Starting a drag on rail you
+       have already laid is the ordinary way to carry a line on, and demanding
+       that the anchor also accept a new piece refuses that drag before it has
+       moved: a cell holding a north-south straight cannot also hold the
+       east-west one that a rightward drag would put in it. So an anchor that
+       cannot take the piece simply does not take it, and the stroke starts in
+       the cell after. Every other cell in the stroke still stops it dead. */
+    if (!canAddSegment(scratch[i], a, b)) {
+      if (k === 0) continue;
+      return fail('would cross');
+    }
+    if (addSegment(scratch, i, a, b)) cost++;
+    adds.push({ i, a, b });
+  }
+  if (sleepers(track) + cost > level.budget) return fail('over budget');
+  return { ok: true, why: '', adds, cost, track: scratch };
+}
+
+// ---------- THE RUN ----------
+const RUN_DT = TUNE.dt;
+
+function createRun(level, track) {
+  const trains = [];
+  level.portals.forEach((p, pi) => p.queue.forEach((colour, slot) => {
+    trains.push({
+      id: trains.length, colour, portal: pi, slot,
+      // The first out of each tunnel is already rolling; the rest wait for the
+      // spacing. A train inside its portal starts at the CENTRE of that cell,
+      // so it has half a cell to travel before it is out in the yard.
+      state: slot === 0 ? 'moving' : 'queued',
+      cell: p.i, inSide: opp(p.face), outSide: p.face,
+      prog: slot === 0 ? 0.5 : 0,
+      cells: 0, parkedAt: -1, sinceState: 0,
+    });
+  }));
+  return { time: 0, steps: 0, trains, settled: false, won: false, meetings: 0 };
+}
+
+const blocks = (t) => t.state === 'moving' || t.state === 'waiting' || t.state === 'stopped';
+
+/* Move one train across the boundary it has reached. Every branch here is a
+   thing that HAPPENS, not a thing that is refused. */
+function advance(level, track, run, t) {
+  const out = t.outSide;
+  if (out < 0) return 'stopped';
+  const ni = neighbour(level, t.cell, out);
+  if (ni < 0) return 'stopped';
+  const kd = level.kind[ni];
+  if (kd === ROCK || kd === PORTAL) return 'stopped';
+  if (kd === DEPOT) {
+    if (level.face[ni] !== opp(out)) return 'stopped';   // arriving at the back of the shed
+    t.cell = ni; t.inSide = level.face[ni]; t.outSide = -1;
+    t.prog = Math.max(0, t.prog - 1); t.cells++; t.state = 'parking';
+    return 'parking';
+  }
+  const inSide = opp(out);
+  const ex = exitSide(track[ni], inSide);
+  if (ex < 0) return 'stopped';
+  for (const o of run.trains) {
+    if (o.id !== t.id && o.cell === ni && blocks(o)) return 'blocked';
+  }
+  t.cell = ni; t.inSide = inSide; t.outSide = ex; t.prog -= 1; t.cells++;
+  return 'moved';
+}
+
+function stepRun(level, track, run, dt) {
+  if (run.settled) return run;
+  const step = dt == null ? RUN_DT : dt;
+  run.time += step; run.steps++;
+  const v = TUNE.trainSpeed;
+
+  // Spacing. A queued engine leaves when the one in front of it is two cells
+  // out and the tunnel mouth itself is clear.
+  for (const t of run.trains) {
+    if (t.state !== 'queued') continue;
+    const p = level.portals[t.portal];
+    let prev = null;
+    for (const o of run.trains) if (o.portal === t.portal && o.slot === t.slot - 1) prev = o;
+    if (!prev || prev.cells < TUNE.spawnGapCells) continue;
+    let clear = true;
+    for (const o of run.trains) if (o.id !== t.id && o.cell === p.i && blocks(o)) clear = false;
+    if (clear) { t.state = 'moving'; t.prog = 0.5; }
+  }
+
+  for (const t of run.trains) {
+    if (t.state === 'parked' || t.state === 'stopped' || t.state === 'queued') continue;
+    if (t.state === 'parking') {
+      t.prog += v * step;
+      if (t.prog >= 0.5) { t.prog = 0.5; t.state = 'parked'; t.parkedAt = run.time; }
+      continue;
+    }
+    if (t.state === 'moving') t.prog += v * step;
+    // A waiting train sits at prog 1 with its nose on the boundary and tries
+    // again every step. The guard is a belt: at 2.2 cells/s and a 1/120 step
+    // no train can cross two boundaries in one step, so it should never spin.
+    let guard = 0;
+    while (t.prog >= 1 && guard++ < 4) {
+      const was = t.state;
+      const r = advance(level, track, run, t);
+      if (r === 'blocked') {
+        if (was === 'moving') run.meetings++;
+        t.state = 'waiting'; t.prog = 1; break;
+      }
+      if (r === 'stopped') { t.state = 'stopped'; t.prog = 1; break; }
+      if (r === 'parking') break;
+      t.state = 'moving';
+    }
+  }
+
+  /* Nothing moving and nothing parking means nothing will ever move again: the
+     only thing that can free a waiting train is a moving one leaving the cell
+     in front of it, and a queued train only leaves when the one ahead has
+     covered ground. So this is a settled yard, not a hopeful guess at one. */
+  let live = false;
+  for (const t of run.trains) if (t.state === 'moving' || t.state === 'parking') live = true;
+  run.settled = !live;
+  if (run.settled) run.won = isWon(level, run);
+  return run;
+}
+
+function isWon(level, run) {
+  for (const t of run.trains) {
+    if (t.state !== 'parked') return false;
+    if (level.colour[t.cell] !== t.colour) return false;
+  }
+  return true;
+}
+
+// Run to completion without a clock. The gate and the tests use this.
+function runToEnd(level, track, maxSteps) {
+  const run = createRun(level, track);
+  const cap = maxSteps || 20000;
+  while (!run.settled && run.steps < cap) stepRun(level, track, run, RUN_DT);
+  return run;
+}
+
+// Lay a solution literal out on a fresh track. Used by tests and by the
+// debug handle, so what they prove is what the level actually ships with.
+function layout(level, segs) {
+  const track = newTrack(level.size);
+  for (const [r, c, a, b] of segs) addSegment(track, r * level.C + c, a, b);
+  return track;
+}
+
+return {
+  N, E, S, W, DR, DC, opp, EMPTY, ROCK, PORTAL, DEPOT, TUNE, RUN_DT,
+  newTrack, cloneTrack, sleepers, segIndex, isJunction, hasSide, trunkOf,
+  activeBranch, idleBranch, exitSide, canAddSegment, addSegment, toggleSwitch,
+  eraseCell, buildLevel, validate, LEVELS, LEVEL_SPECS, levelCount, getLevel,
+  rowOf, colOf, sideBetween, neighbour, validateStroke,
+  createRun, stepRun, isWon, runToEnd, layout, advance,
+};
+}));

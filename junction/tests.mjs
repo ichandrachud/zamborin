@@ -1,0 +1,204 @@
+/* Junction — model tests. `node junction/tests.mjs` from the repo root.
+
+   These are the claims the brief makes that a person cannot check by looking:
+   that the level is completable, that a wrong route RUNS rather than being
+   refused, that a wrong-colour train parks, that the same track twice gives
+   the same run, and that the junction asymmetry the design rests on is really
+   in the code. Each one is checked against a case that is known to go the
+   OTHER way as well, because a test that only ever sees pass has not been
+   shown to be able to fail. */
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+const M = require('./model.js');
+
+const { N, E, S, W } = M;
+let pass = 0, fail = 0;
+const ok = (name, cond, detail) => {
+  if (cond) { pass++; console.log('  ok   ' + name); }
+  else { fail++; console.log('  FAIL ' + name + (detail ? '   ' + detail : '')); }
+};
+const head = (s) => console.log('\n' + s);
+
+// ---------- the level itself ----------
+head('level 1');
+const L = M.getLevel(1);
+const problems = M.validate(L);
+ok('validates', problems.length === 0, problems.join('; '));
+ok('is 7x7', L.R === 7 && L.C === 7);
+ok('two portals, two depots', L.portals.length === 2 && L.depots.length === 2);
+
+// ---------- the reference solution ----------
+head('the reference solution');
+const solved = M.layout(L, L.solution);
+ok('costs par', M.sleepers(solved) === L.par, 'sleepers ' + M.sleepers(solved) + ' par ' + L.par);
+ok('is inside the budget', M.sleepers(solved) <= L.budget,
+   M.sleepers(solved) + ' of ' + L.budget);
+
+const J1 = 1 * 7 + 3, J2 = 3 * 7 + 3;
+ok('builds a junction at J1', M.isJunction(solved[J1]));
+ok('builds a junction at J2', M.isJunction(solved[J2]));
+ok('builds only those two junctions',
+   solved.filter((c) => M.isJunction(c)).length === 2);
+
+/* The switch has to MATTER, and the only honest way to show that is to run the
+   same track both ways round and get different answers. If both settings won,
+   the junction would be decoration. */
+head('the switch is load bearing');
+const asDrawn = M.runToEnd(L, solved);
+ok('as drawn, the yard does not solve itself', !asDrawn.won);
+const flipped = M.cloneTrack(solved);
+M.toggleSwitch(flipped, J1);
+const afterFlip = M.runToEnd(L, flipped);
+ok('one flip at J1 wins it', afterFlip.won);
+ok('that flip is the only one needed',
+   M.isJunction(flipped[J2]) && flipped[J2].sw === solved[J2].sw);
+
+// ---------- the asymmetry the design rests on ----------
+head('a junction merges one way and splits the other');
+const j = { segs: [[N, E], [N, S]], sw: 0 };     // trunk N, branches E and S
+ok('trunk is the shared side', M.trunkOf(j) === N);
+ok('from the trunk, the switch decides (sw 0)', M.exitSide(j, N) === E);
+j.sw = 1;
+ok('from the trunk, the switch decides (sw 1)', M.exitSide(j, N) === S);
+ok('from a branch, always the trunk, whatever the switch', M.exitSide(j, E) === N);
+ok('from the other branch, the same', M.exitSide(j, S) === N);
+j.sw = 0;
+ok('from a branch, still the trunk with the switch back', M.exitSide(j, S) === N);
+
+// ---------- a wrong route runs ----------
+head('a wrong route RUNS');
+/* Coral is sent down teal's line instead of to its own shed. Nothing refuses
+   it. It should reach the end of the rail and stop there, with the run
+   completing rather than hanging. */
+const wrong = M.cloneTrack(solved);
+M.toggleSwitch(wrong, J2);
+const wrongRun = M.runToEnd(L, wrong);
+ok('the run completes', wrongRun.settled);
+ok('it does not win', !wrongRun.won);
+ok('nothing vanished', wrongRun.trains.length === 2);
+ok('no train is left mid-move',
+   wrongRun.trains.every((t) => t.state !== 'moving' && t.state !== 'parking'));
+
+/* THE ACCEPTANCE CRITERION, section 12: a wrong-colour train parks and the run
+   completes. Built as its own board so the claim is unambiguous — one engine,
+   two sheds, the switch pointed at the shed that is not its colour. */
+head('a wrong-colour train parks, and the run completes');
+const wrongDepot = M.buildLevel({
+  n: 99, R: 7, C: 7, rocks: [],
+  portals: [{ at: [3, 0], face: E, queue: [0] }],
+  depots: [{ at: [0, 3], face: S, colour: 0 }, { at: [6, 3], face: N, colour: 0 }],
+  budget: 40,
+});
+// A trunk east along row 3 to a junction at (3,3) that can feed north or south.
+const wdTrack = M.layout(wrongDepot, [
+  [3, 1, W, E], [3, 2, W, E],
+  [3, 3, W, N], [3, 3, W, S],          // junction: trunk W, branches N and S
+  [2, 3, S, N], [1, 3, S, N],           // up to the north shed
+  [4, 3, N, S], [5, 3, N, S],           // down to the south shed
+]);
+ok('the board builds a junction', M.isJunction(wdTrack[3 * 7 + 3]));
+const north = M.runToEnd(wrongDepot, wdTrack);
+ok('with the switch as drawn it parks north',
+   north.settled && north.trains[0].state === 'parked' && north.trains[0].cell === 0 * 7 + 3);
+const wdFlip = M.cloneTrack(wdTrack);
+M.toggleSwitch(wdFlip, 3 * 7 + 3);
+const south = M.runToEnd(wrongDepot, wdFlip);
+ok('flipped, it parks south instead',
+   south.settled && south.trains[0].state === 'parked' && south.trains[0].cell === 6 * 7 + 3);
+
+// Now make the SOUTH shed the wrong colour for this engine and prove it still
+// parks there, cheerfully, and that the run ends.
+const wrongColour = M.buildLevel({
+  n: 98, R: 7, C: 7, rocks: [],
+  portals: [{ at: [3, 0], face: E, queue: [0] }, { at: [3, 6], face: W, queue: [2] }],
+  depots: [{ at: [0, 3], face: S, colour: 0 }, { at: [6, 3], face: N, colour: 2 }],
+  budget: 40,
+});
+const wcTrack = M.layout(wrongColour, [
+  [3, 1, W, E], [3, 2, W, E], [3, 3, W, S], [3, 3, W, N],
+  [4, 3, N, S], [5, 3, N, S], [2, 3, S, N], [1, 3, S, N],
+]);
+const wc = M.runToEnd(wrongColour, wcTrack);
+const coral = wc.trains[0];
+ok('the coral engine parks', coral.state === 'parked');
+ok('it parks in the TEAL shed', wrongColour.colour[coral.cell] === 2 && coral.colour === 0);
+ok('and the run completes anyway', wc.settled);
+ok('and it is not a win', !wc.won);
+
+// ---------- the meeting rule ----------
+head('two trains meet and wait');
+ok('level 1 as solved makes them meet', afterFlip.meetings >= 1,
+   'meetings ' + afterFlip.meetings);
+ok('and they still both get home', afterFlip.won);
+/* Head on, with nowhere to go: the calm deadlock the brief asks for. A single
+   corridor, two engines entering it from opposite ends at the same moment. */
+const headOn = M.buildLevel({
+  n: 97, R: 7, C: 7, rocks: [],
+  portals: [{ at: [3, 0], face: E, queue: [0] }, { at: [3, 6], face: W, queue: [2] }],
+  depots: [{ at: [0, 3], face: S, colour: 0 }, { at: [6, 3], face: N, colour: 2 }],
+  budget: 40,
+});
+const hoTrack = M.layout(headOn, [
+  [3, 1, W, E], [3, 2, W, E], [3, 3, W, E], [3, 4, W, E], [3, 5, W, E],
+]);
+const ho = M.runToEnd(headOn, hoTrack);
+ok('the run settles rather than hanging', ho.settled);
+ok('both engines are still on the board',
+   ho.trains.every((t) => t.state === 'waiting' || t.state === 'stopped'));
+ok('nobody won', !ho.won);
+ok('nothing crashed, they are nose to nose',
+   Math.abs(ho.trains[0].cell - ho.trains[1].cell) === 1);
+
+// ---------- determinism ----------
+head('determinism');
+const a = M.runToEnd(L, M.cloneTrack(flipped));
+const b = M.runToEnd(L, M.cloneTrack(flipped));
+const shape = (r) => JSON.stringify({
+  steps: r.steps, won: r.won, meetings: r.meetings,
+  t: r.trains.map((x) => [x.cell, x.state, Math.round(x.prog * 1e6), Math.round(x.parkedAt * 1e6)]),
+});
+ok('same track, same run, exactly', shape(a) === shape(b));
+ok('and it is not a trivial match', a.steps > 100 && a.trains.length === 2);
+
+// ---------- drawing ----------
+head('drawing');
+const t0 = M.newTrack(L.size);
+const straight = M.validateStroke(L, t0, [0 * 7 + 1, 1 * 7 + 1, 1 * 7 + 2]);
+ok('a stroke out of the tunnel mouth is legal', straight.ok, straight.why);
+ok('and costs one sleeper per cell', straight.cost === 2, 'cost ' + straight.cost);
+const sideways = M.validateStroke(L, t0, [1 * 7 + 1, 1 * 7 + 2, 2 * 7 + 2]);
+ok('a stroke into a rock is refused', !sideways.ok && sideways.why === 'rock', sideways.why);
+const backwards = M.validateStroke(L, t0, [0 * 7 + 1, 0 * 7 + 2]);
+ok('a stroke out of a tunnel SIDE is refused', !backwards.ok, backwards.why);
+
+/* The four-way is excluded, and this is the check that keeps it excluded. Lay
+   a straight, then try to cross it at a right angle in the same cell. */
+const crossed = M.newTrack(L.size);
+M.addSegment(crossed, 4 * 7 + 3, N, S);
+const across = M.validateStroke(L, crossed, [4 * 7 + 2, 4 * 7 + 3, 4 * 7 + 4]);
+ok('a four-way crossing is refused', !across.ok && across.why === 'would cross', across.why);
+const into = M.validateStroke(L, crossed, [5 * 7 + 3, 4 * 7 + 3, 4 * 7 + 4]);
+ok('but a three-way junction over the same cell is fine', into.ok, into.why);
+const j2 = into.track[4 * 7 + 3];
+ok('and it really is a junction', M.isJunction(j2));
+ok('with the shared side as its trunk', M.trunkOf(j2) === N || M.trunkOf(j2) === S);
+
+const full = into.track;
+const third = M.validateStroke(L, full, [4 * 7 + 2, 4 * 7 + 3, 3 * 7 + 3]);
+ok('a third segment in one cell is refused', !third.ok, third.why);
+
+head('the budget');
+const tight = M.buildLevel({
+  n: 96, R: 7, C: 7, rocks: [],
+  portals: [{ at: [3, 0], face: E, queue: [0] }],
+  depots: [{ at: [3, 6], face: W, colour: 0 }],
+  budget: 3,
+});
+const t3 = M.newTrack(tight.size);
+const three = M.validateStroke(tight, t3, [3 * 7 + 0, 3 * 7 + 1, 3 * 7 + 2, 3 * 7 + 3]);
+ok('a stroke inside the budget is allowed', three.ok, three.why);
+const four = M.validateStroke(tight, t3, [3 * 7 + 0, 3 * 7 + 1, 3 * 7 + 2, 3 * 7 + 3, 3 * 7 + 4]);
+ok('a stroke past the budget is refused', !four.ok && four.why === 'over budget', four.why);
+
+console.log('\n' + pass + ' passed, ' + fail + ' failed\n');
+process.exit(fail ? 1 : 0);

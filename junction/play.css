@@ -1,0 +1,31 @@
+/* Junction — per-game styles. Everything else is inherited from
+   ../shared/tokens.css and ../shared/chrome.css. */
+
+/* The canvas owns every gesture on it. Without this a drag across the yard
+   scrolls the page under the finger on a phone and the stroke is lost. */
+#game { touch-action: none; }
+
+/* SPLASH — placeholder, and deliberately not an image reference.
+   splash-desktop.jpg (1520x1200) and splash-mobile.jpg (1170x2532) are
+   milestone 4 work; naming them here before they exist would ship two console
+   404s on every load, which is the one thing the shipping checklist will not
+   pass. Swap the gradient for the two background-image rules, per mode, when
+   the art lands, and check the wordmark safe zone before it does: the widest
+   the wordmark may be, as a share of image width, is 0.38 divided by the image
+   aspect. Fix the art, never the CSS. */
+.splash {
+  background: radial-gradient(at 32% 0%, #1A2A45 0%, #131F36 58%, #0E1726 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.splash::before {
+  content: 'JUNCTION';
+  color: #FFFFFF;
+  font: 800 44px Inter, system-ui, sans-serif;
+  letter-spacing: 0.16em;
+  opacity: 0.92;
+}
+@media (max-width: 480px) {
+  .splash::before { font-size: 34px; }
+}
