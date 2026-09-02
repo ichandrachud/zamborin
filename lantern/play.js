@@ -573,6 +573,7 @@
   let grass = [], foliage = [], motes = [];
   function buildScenery() {
     const rnd = mulberry32(0x9E37 * S.lvl + 5);
+    const jar = S.jar;
     grass = [];
 
     /* DUST IN THE AIR. Not a light and never a light: motes are invisible
@@ -610,8 +611,18 @@
                      rx: R * (0.40 + rnd() * 0.55), ry: R * (0.16 + rnd() * 0.26),
                      rot: rnd() * Math.PI });
       }
-      // near masses sit in front of everything and never light up
-      foliage.push({ cx, cy, lobes, R, near: i === 0 && rnd() < 0.5 });
+      /* A NEAR MASS NEVER COVERS THE JAR. It is drawn in front of everything
+         and it never lights up, so a leaf silhouette landing over the jar hides
+         the one thing in the garden the player is aiming at - and hides it in a
+         way that looks like a rendering fault rather than a plant. Foreground
+         depth is worth having; it is not worth the goal. */
+      let near = i === 0 && rnd() < 0.5;
+      if (near) {
+        const jx2 = wx2s(jar.x), jy2 = wy2s(jar.y);
+        const clear = R * 1.6 + Math.max(jar.w, jar.h) * L.scale * 0.75;
+        if (Math.hypot(cx - jx2, cy - jy2) < clear) near = false;
+      }
+      foliage.push({ cx, cy, lobes, R, near });
     }
     const w = MODE === 'mobile' ? LW : L.playW + SIDE_PAD;
     const x0 = MODE === 'mobile' ? 0 : L.playX - 10;
@@ -2433,7 +2444,7 @@
     ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
     ctx.fillStyle = TOK.text;
     ctx.font = '800 ' + (MODE === 'mobile' ? 38 : 46) + 'px Inter, sans-serif';
-    ctx.fillText(won ? 'HOME SAFE' : 'NOT THIS TIME', cx, cy - 30);
+    ctx.fillText(won ? 'HOME SAFE' : 'UH OH!', cx, cy - 30);
 
     /* IT WRAPS, and it is short. At 390 wide an eighteen-pixel sentence about
        the jar needing three ran off both edges of the phone it was written on.
@@ -2445,8 +2456,7 @@
     const line = won
       ? (lost === 0 ? 'every one home, and none touched the silk'
                     : n + ' in the jar, ' + lost + ' lost to the webs')
-      : (lost === 1 ? "Uh oh! One firefly couldn't make it safely."
-                    : "Uh oh! " + lost + " fireflies couldn't make it safely.");
+      : "All the fireflies couldn't make it to safety.";
     const lines = wrapLines(line, Math.min(LW - 56, 420), '600 17px Inter, sans-serif');
     for (let i = 0; i < lines.length; i++) ctx.fillText(lines[i], cx, cy + 12 + i * 24);
 
@@ -3298,6 +3308,95 @@
                              document.documentElement.clientWidth + 1,
         wrapCss: [+wr.width.toFixed(1), +wr.height.toFixed(1)],
         viewport: [document.documentElement.clientWidth, window.innerHeight],
+      };
+    },
+
+    /* THE WORDMARK SAFE ZONE, measured rather than eyeballed. `cover` crops
+       whichever axis has slack, so on any frame narrower in ASPECT than the
+       image, the sides go first and the wordmark is what you lose. The house
+       rule is a share of 0.38 / image aspect, and the honest way to apply it is
+       to find where the ink actually is: this scans the image for the wordmark's
+       bright pixels, returns its extent as a fraction of the width, and reports
+       the visible band at every frame aspect the game can be asked for.
+       Fix the art, never the CSS. */
+    async splashSafeZone(src, frameAspects) {
+      const img = await new Promise((res, rej) => {
+        const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src;
+      });
+      const W = img.naturalWidth, H = img.naturalHeight;
+      const off = document.createElement('canvas');
+      off.width = W; off.height = H;
+      const g = off.getContext('2d');
+      g.drawImage(img, 0, 0);
+      const d = g.getImageData(0, 0, W, H).data;
+      /* SEPARATING THE WORDMARK FROM THE FIREFLIES, which are the same yellow.
+         A plain bounding box of yellow ink returned 89% of the width on the
+         desktop art and 98% on the mobile art, because the art is FULL of
+         scattered yellow dots - the box was the fireflies, and the check would
+         have condemned a wordmark it never measured.
+
+         What tells them apart is density. The wordmark is a solid horizontal
+         run of ink on a few rows; a firefly is a dot with nothing either side.
+         So: find the row band that carries the most ink, then inside it take the
+         longest CONTIGUOUS run of columns, allowing gaps only as wide as letter
+         spacing. Anything isolated is a firefly and drops out. */
+      const isInk = (x, y) => {
+        const i = (y * W + x) * 4;
+        const r = d[i], gg = d[i + 1], b = d[i + 2];
+        return r > 190 && gg > 170 && b < 130 && r - b > 90;
+      };
+      const rowCount = new Array(H).fill(0);
+      for (let y = 0; y < H; y += 2) {
+        let n = 0;
+        for (let x = 0; x < W; x += 2) if (isInk(x, y)) n++;
+        rowCount[y] = n;
+      }
+      let peakY = 0;
+      for (let y = 0; y < H; y += 2) if (rowCount[y] > rowCount[peakY]) peakY = y;
+      if (rowCount[peakY] < 8) return { src, note: 'no wordmark ink found' };
+      const thresh = rowCount[peakY] * 0.22;
+      let y0 = peakY, y1 = peakY;
+      while (y0 - 2 >= 0 && rowCount[y0 - 2] >= thresh) y0 -= 2;
+      while (y1 + 2 < H && rowCount[y1 + 2] >= thresh) y1 += 2;
+
+      const colHas = new Array(W).fill(false);
+      for (let x = 0; x < W; x += 2) {
+        for (let y = y0; y <= y1; y += 2) if (isInk(x, y)) { colHas[x] = true; break; }
+      }
+      const gapAllowed = Math.round(W * 0.045);      // letter spacing, no more
+      let bestA = -1, bestB = -1, a = -1, lastInk = -1;
+      for (let x = 0; x <= W; x += 2) {
+        const ink = x < W && colHas[x];
+        if (ink) { if (a < 0) a = x; lastInk = x; }
+        else if (a >= 0 && (x - lastInk) > gapAllowed) {
+          if (lastInk - a > bestB - bestA) { bestA = a; bestB = lastInk; }
+          a = -1;
+        }
+      }
+      if (a >= 0 && lastInk - a > bestB - bestA) { bestA = a; bestB = lastInk; }
+      if (bestA < 0) return { src, note: 'no wordmark run found' };
+      const minX = bestA, maxX = bestB, minY = y0, maxY = y1;
+      const imgAspect = W / H;
+      const markShare = (maxX - minX) / W;
+      const rows = (frameAspects || []).map((A) => {
+        // cover: if the frame is narrower in aspect, the sides are cropped
+        const visible = A < imgAspect ? A / imgAspect : 1;
+        const half = visible / 2;
+        return { frameAspect: +A.toFixed(3), visibleWidthShare: +visible.toFixed(3),
+                 wordmarkFits: (minX / W) >= 0.5 - half - 1e-6 &&
+                               (maxX / W) <= 0.5 + half + 1e-6 };
+      });
+      return {
+        src, imagePx: [W, H], imageAspect: +imgAspect.toFixed(3),
+        wordmarkPx: [minX, minY, maxX - minX, maxY - minY],
+        // a control: how much of the image the naive box would have claimed,
+        // so a silently-wrong isolation shows up instead of passing
+        inkRowsInBand: y1 - y0, peakRowInkPx: rowCount[peakY] * 2,
+        wordmarkShareOfWidth: +markShare.toFixed(3),
+        houseLimit: +(0.38 / imgAspect).toFixed(3),
+        withinHouseLimit: markShare <= 0.38 / imgAspect,
+        atRealFrames: rows,
+        clippedAtAnyRealFrame: rows.some((r) => !r.wordmarkFits),
       };
     },
 
