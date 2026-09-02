@@ -40,6 +40,16 @@
       ],
       "port": 5251,
       "autoPort": true
+    },
+    {
+      "name": "junction-worktree",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "exec python3 -m http.server ${PORT:-5261} --directory /Users/indrajet/Projects/zamborin-junction"
+      ],
+      "port": 5261,
+      "autoPort": true
     }
   ]
 }
