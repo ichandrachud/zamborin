@@ -1237,7 +1237,17 @@
        to be clear OF: the controls floated on the same black as the webs. The
        bands take the Ground token and a hairline marks the edge, which is the
        same structure Bloom has and just made visible. */
-    ctx.fillStyle = TOK.bg;
+    /* SURFACE, NOT GROUND. The bands were filled with --bg, which is exactly
+       the colour of the page BEHIND the game card - so the band merged into the
+       page, the card's own edge vanished at the top, and the garden read as a
+       smaller panel floating inside a bigger one. That is the misalignment: not
+       a canvas that fails to fill its element (it fills it at every size I can
+       measure) but a band painted the colour of the thing outside it.
+
+       Surface sits one step ABOVE Ground on the ladder, so the band now reads
+       as a raised strip belonging to the game, the page reads as behind it, and
+       the garden reads as below it. Three surfaces in the right order. */
+    ctx.fillStyle = TOK.bgCard;
     ctx.fillRect(0, 0, LW, L.playY);
     if (botBand() > 4) ctx.fillRect(0, L.playY + L.playH, LW, LH - (L.playY + L.playH));
     ctx.fillStyle = TOK.tint10;
@@ -2423,7 +2433,7 @@
     ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
     ctx.fillStyle = TOK.text;
     ctx.font = '800 ' + (MODE === 'mobile' ? 38 : 46) + 'px Inter, sans-serif';
-    ctx.fillText(won ? 'HOME SAFE' : 'TOO FEW LEFT', cx, cy - 30);
+    ctx.fillText(won ? 'HOME SAFE' : 'NOT THIS TIME', cx, cy - 30);
 
     /* IT WRAPS, and it is short. At 390 wide an eighteen-pixel sentence about
        the jar needing three ran off both edges of the phone it was written on.
@@ -2435,7 +2445,8 @@
     const line = won
       ? (lost === 0 ? 'every one home, and none touched the silk'
                     : n + ' in the jar, ' + lost + ' lost to the webs')
-      : 'the jar needs ' + S.need + ', and ' + left + ' are left';
+      : (lost === 1 ? "Uh oh! One firefly couldn't make it safely."
+                    : "Uh oh! " + lost + " fireflies couldn't make it safely.");
     const lines = wrapLines(line, Math.min(LW - 56, 420), '600 17px Inter, sans-serif');
     for (let i = 0; i < lines.length; i++) ctx.fillText(lines[i], cx, cy + 12 + i * 24);
 
@@ -3237,6 +3248,57 @@
       const tight = g.slice().sort((a, c) => (a.px - a.floor) - (c.px - c.floor))[0];
       return { frame: LW + 'x' + LH, mode: MODE, pass: bad.length === 0,
                tooTight: bad, tightest: tight, all: g };
+    },
+
+    /* DOES THE PICTURE FILL ITS ELEMENT? The canvas transform is
+       min(bufferW/LW, bufferH/LH), so the moment the element's aspect stops
+       matching 760:600 the drawing letterboxes: one edge of the canvas is left
+       unpainted and the page shows through it, while everything drawn at
+       LW - SIDE_PAD sits at the edge of the PAINTED area rather than the edge
+       of the box the player sees. Reports the unpainted margin on all four
+       sides, in device pixels. Anything but zero is a misalignment. */
+    canvasFit() {
+      render();
+      const c = canvas, g = ctx;
+      const W = c.width, H = c.height;
+      const painted = (x, y) => {
+        const d = g.getImageData(x, y, 1, 1).data;
+        return d[3] > 8 && (d[0] + d[1] + d[2]) > 6;
+      };
+      const scan = (fx, fy, dx, dy, n) => {
+        let k = 0;
+        while (k < n && !painted(Math.max(0, Math.min(W - 1, fx + dx * k)),
+                                Math.max(0, Math.min(H - 1, fy + dy * k)))) k++;
+        return k;
+      };
+      const midY = Math.floor(H / 2), midX = Math.floor(W / 2);
+      const m = c.getContext('2d').getTransform();
+      const r = c.getBoundingClientRect();
+      const wr = c.parentElement.getBoundingClientRect();
+      return {
+        frame: LW + 'x' + LH, mode: MODE,
+        elementCss: [+c.getBoundingClientRect().width.toFixed(1),
+                     +c.getBoundingClientRect().height.toFixed(1)],
+        buffer: [W, H], scale: +m.a.toFixed(4),
+        paintedCoversBuffer: [+(LW * m.a).toFixed(0), +(LH * m.d).toFixed(0)],
+        unpaintedLeft: scan(0, midY, 1, 0, 40),
+        unpaintedRight: scan(W - 1, midY, -1, 0, 40),
+        unpaintedTop: scan(midX, 0, 0, 1, 40),
+        unpaintedBottom: scan(midX, H - 1, 0, -1, 40),
+        aligned: Math.abs(LW * m.a - W) < 2 && Math.abs(LH * m.d - H) < 2,
+        /* AND DOES THE ELEMENT FIT WHERE IT IS PUT? The transform can be
+           perfect and the picture still land half outside the window, because
+           chrome.css sizes the wrapper with 100dvh below 1151px wide and dvh is
+           not what the viewport actually shows. Overflow here means the player
+           sees a game cut off at the right and the bottom while every internal
+           number says it is fine. */
+        overflowRightPx: +Math.max(0, r.right - document.documentElement.clientWidth).toFixed(1),
+        overflowBottomPx: +Math.max(0, r.bottom - window.innerHeight).toFixed(1),
+        pageScrollsSideways: document.documentElement.scrollWidth >
+                             document.documentElement.clientWidth + 1,
+        wrapCss: [+wr.width.toFixed(1), +wr.height.toFixed(1)],
+        viewport: [document.documentElement.clientWidth, window.innerHeight],
+      };
     },
 
     frameStats() { return { fps: +fps.toFixed(1), samples: fpsN }; },
