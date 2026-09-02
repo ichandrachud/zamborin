@@ -86,6 +86,14 @@
      below the divider is a spike constant the brief did not fix; each one is
      swept in M2 and each is on a slider under ?tune=1. */
   const TUNE = {
+    /* THE SHORT AXIS OF THE FIELD. It used to be both axes: a 640 square,
+       centred in whatever box the bands left, identical on every device. That
+       is one picture scaled, which is the thing the design system opens by
+       forbidding - and on a phone it put the garden's floor in the MIDDLE of
+       the screen with dead night below it, because a square cannot fill a
+       portrait frame. The field is a rectangle now and it fills the frame it is
+       given: 640 across on a phone, 640 tall on a desktop, and the other axis
+       follows the shape of the device. Desktop and mobile are separate games. */
     arena: 640,
     /* A FEW FLIES, not a swarm. Twenty-six of anything is a cloud you shove;
        four is a string you thread, and each one is worth going back for. */
@@ -223,7 +231,17 @@
   }
   function onResize() {
     if (MODE === 'mobile') setCanvasVars();
-    fitFullscreen(); resizeCanvas(); layout(); buildScenery();
+    fitFullscreen(); resizeCanvas(); layout();
+    /* A LEVEL IS BUILT FOR A SHAPE. Rotate the phone and the field goes from
+       tall to wide, so the corridor that was drawn down the screen no longer
+       reaches the jar and the webs sit outside the frame. Rebuilding is the
+       honest response: the same level number in a new shape is a new garden. */
+    if (S && (S.fieldW !== L.fw || S.fieldH !== L.fh)) {
+      const keep = S.lvl;
+      S = buildScene(keep);
+      phase = 'play'; winT = 0; touch = null; pointerId = null;
+    }
+    buildScenery();
   }
 
   // ---------- AUDIO ----------
@@ -279,17 +297,31 @@
   function buildScene(lvl) {
     const tier = tierOf(lvl);
     const rnd = mulberry32(0x1A27E * lvl + 977);
-    const A = TUNE.arena;
+    const AW = L.fw, AH = L.fh;
     const n = TUNE.nByTier[tier];
     const mouthW = TUNE.mouthByTier[tier];
 
     // The jar sits low in the scene, the way it does in a garden. Which corner
     // it takes rotates with the level so a tier does not read as one picture.
+    /* CHROME-SAFE MARGINS. With no bands on a phone the controls and the
+       read-out sit ON the garden, so the level has to be laid out around them:
+       nothing that matters - the jar, the fireflies' start, a web - may be
+       generated under a button. In field units, because the field is a
+       different shape on every device now. */
+    const perFieldY = AH / L.playH;
+    const safeTop = MODE === 'mobile' ? (topBand() + 16) * perFieldY : 20;
+    const safeBot = MODE === 'mobile' ? (botBand() + 22) * perFieldY : 20;
+
     const corner = Math.floor(rnd() * 4);
     const jw = mouthW * 1.12, jh = jw * 1.45;
     const inset = 118;
-    const jx = (corner & 1) ? A - inset : inset;
-    const jy = A - inset * (0.72 + rnd() * 0.20);
+    const jx = (corner & 1) ? AW - inset : inset;
+    /* Its base sits inside the grass band rather than clear of it, so the jar
+       is standing in the garden instead of hovering over it, while its MOUTH
+       still stays well above anything the player's thumb covers. */
+    const groundTop = AH * (MODE === 'mobile' ? 0.855 : 0.87);
+    const jy = Math.min(AH - safeBot - jh * 0.34,
+                        groundTop + jh * 0.10 + rnd() * 24);
     // Tilt, as a jar left in the grass would be. The mouth points up and a
     // little inward, so the swarm is herded across the garden and down.
     /* IT STANDS UP. A jar lying at twenty degrees in the grass was picturesque
@@ -312,8 +344,8 @@
     jar.my = jy - jar.inY * (jh * 0.5);
 
     // The swarm starts far from the jar, so every level is a walk.
-    const startX = (corner & 1) ? A * 0.30 : A * 0.70;
-    const startY = A * (0.26 + rnd() * 0.10);
+    const startX = (corner & 1) ? AW * 0.30 : AW * 0.70;
+    const startY = safeTop + (AH - safeTop - safeBot) * (0.06 + rnd() * 0.10);
 
     const flies = [];
     for (let i = 0; i < n; i++) {
@@ -342,15 +374,15 @@
     const thorns = [];
     const nThorn = THORNS[tier];
     if (tier === 4) {
-      const cy = A * (0.48 + rnd() * 0.08);
+      const cy = AH * (0.48 + rnd() * 0.08);
       for (let i = 0; i < nThorn; i++) {
-        thorns.push({ x: A * (0.16 + i * 0.19), y: cy + (rnd() - 0.5) * 40,
+        thorns.push({ x: AW * (0.16 + i * 0.19), y: cy + (rnd() - 0.5) * 40,
                       r: TUNE.thornR, seed: rnd() * 1000 });
       }
     } else {
       let guard = 0;
       while (thorns.length < nThorn && guard++ < 400) {
-        const x = A * (0.14 + rnd() * 0.72), y = A * (0.20 + rnd() * 0.58);
+        const x = AW * (0.14 + rnd() * 0.72), y = AH * (0.20 + rnd() * 0.58);
         if (Math.hypot(x - jar.mx, y - jar.my) < mouthW * 1.9) continue;
         if (Math.hypot(x - startX, y - startY) < 132) continue;
         let ok = true;
@@ -385,8 +417,9 @@
       for (let i = 1; i <= bends; i++) {
         const t = i / (bends + 1);
         const swing = (0.55 + rnd() * 0.65) * halfW * 1.5 * side;
-        path.push({ x: startX + vx * t + nx * swing,
-                    y: startY + vy * t + ny * swing });
+        path.push({ x: Math.max(60, Math.min(AW - 60, startX + vx * t + nx * swing)),
+                    y: Math.max(safeTop + 40, Math.min(AH - safeBot - 40,
+                                                       startY + vy * t + ny * swing)) });
         side = -side;
       }
       path.push({ x: ex, y: ey });
@@ -403,7 +436,8 @@
           const px = a.x + vx * t, py = a.y + vy * t;
           for (const sgn of [1, -1]) {
             const wx0 = px + nx * halfW * sgn, wy0 = py + ny * halfW * sgn;
-            if (wx0 < 40 || wx0 > A - 40 || wy0 < 40 || wy0 > A - 40) continue;
+            if (wx0 < 34 || wx0 > AW - 34) continue;
+            if (wy0 < safeTop || wy0 > AH - safeBot) continue;
             if (Math.hypot(wx0 - startX, wy0 - startY) < 120) continue;
             if (Math.hypot(wx0 - jar.mx, wy0 - jar.my) < mouthW * 1.15) continue;
             let ok = true;
@@ -451,12 +485,12 @@
     // A breeze is one lateral band and it is ALWAYS visible. Never a surprise.
     let breeze = null;
     if (breezeOn(tier)) {
-      const h = A * (0.22 + rnd() * 0.10);
-      const y0 = A * (0.30 + rnd() * 0.24);
+      const h = AH * (0.16 + rnd() * 0.08);
+      const y0 = safeTop + (AH - safeTop - safeBot) * (0.25 + rnd() * 0.35);
       const dir = rnd() < 0.5 ? -1 : 1;
       const motes = [];
       for (let i = 0; i < 26; i++) {
-        motes.push({ x: rnd() * A, y: y0 + rnd() * h,
+        motes.push({ x: rnd() * AW, y: y0 + rnd() * h,
                      v: 0.6 + rnd() * 0.9, len: 18 + rnd() * 34 });
       }
       breeze = { y0, y1: y0 + h, dir, motes };
@@ -490,6 +524,7 @@
 
     const need = Math.max(2, n - SLACK[tier]);
     return { lvl, tier, n, need, jar, flies, thorns, webs, breeze,
+             fieldW: AW, fieldH: AH,
              caught: 0, lost: 0, stuckNow: 0,
              sticks: 0, resticks: 0, rescues: 0,
              seconds: 0 };
@@ -509,7 +544,12 @@
     catch (_) {}
   }
 
-  let S = buildScene(save.lvl);
+  /* NULL UNTIL BOOT. A scene is built for a SHAPE now, so buildScene reads the
+     layout - and this line used to run at module scope, before the layout
+     object exists and before the canvas has been measured. "Cannot access L
+     before initialization", and the whole game failed to start. The first
+     scene is built in BOOT, after layout(), where its inputs are real. */
+  let S = null;
   let phase = 'play';          // 'play' | 'win'
   let winT = 0;                // seconds since the last fly settled
   let clock = 0;               // scene seconds, advanced by the fixed step only
@@ -530,14 +570,21 @@
      Vertically the square sits at 0.42 of the slack rather than 0.5. On a phone
      the box is much taller than it is wide, and the leftover has to go
      somewhere: below the swarm, where the grass is. */
+  /* The field's size, from the box it has to fill. Short axis 640 always, so a
+     level generated for one shape is a different level from the same seed on
+     another shape - which is correct: they are different games. */
+  function fieldFor(w, h) {
+    const A = TUNE.arena;
+    return w >= h ? { w: Math.round(A * w / h), h: A }
+                  : { w: A, h: Math.round(A * h / w) };
+  }
+
   function layout() {
     L.ctrlCy = MODE === 'mobile' ? LH - 74 : topBand() / 2;
     const availTop = topBand();
     const availH = Math.max(80, LH - topBand() - botBand());
     let availW, boxX;
     if (MODE === 'mobile') {
-      // The garden is scene art and runs the full width; SIDE_PAD governs the
-      // band content above it, not the picture.
       availW = LW; boxX = 0;
     } else {
       /* No side column. A second jar drawn beside the first told the player
@@ -549,17 +596,23 @@
       availW = LW - SIDE_PAD * 2;
       boxX = SIDE_PAD;
     }
-    const side = Math.max(120, Math.min(availW, availH));
-    L.scale = side / TUNE.arena;
-    L.ox = Math.round(boxX + (availW - side) / 2);
-    L.oy = Math.round(availTop + (availH - side) * 0.42);
-    L.side = side;
-    // The play area: everything between the bands. The garden is painted over
-    // all of it; only the flies are confined to the square.
-    L.playX = MODE === 'mobile' ? 0 : SIDE_PAD;
-    L.playY = availTop;
-    L.playW = MODE === 'mobile' ? LW : LW - SIDE_PAD * 2;
-    L.playH = availH;
+    /* ON A PHONE THE GARDEN IS THE WHOLE SCREEN. No bands: the controls and the
+       read-out sit on the night itself, which is what the owner asked for and
+       what stops the frame being a picture with two navy strips bolted on. On a
+       desktop the bands stay, because there the garden is a landscape card
+       inside a page. */
+    if (MODE === 'mobile') {
+      L.playX = 0; L.playY = 0; L.playW = LW; L.playH = LH;
+    } else {
+      L.playX = SIDE_PAD; L.playY = availTop;
+      L.playW = LW - SIDE_PAD * 2; L.playH = availH;
+    }
+    void boxX; void availW;
+    const f = fieldFor(L.playW, L.playH);
+    L.fw = f.w; L.fh = f.h;
+    L.scale = L.playW / L.fw;              // fills exactly; the other axis agrees
+    L.ox = L.playX; L.oy = L.playY;
+    L.side = Math.min(L.playW, L.playH);
   }
   const wx2s = (x) => L.ox + x * L.scale;
   const wy2s = (y) => L.oy + y * L.scale;
@@ -572,6 +625,7 @@
      is regenerated on resize because it is measured in screen pixels. */
   let grass = [], foliage = [], motes = [];
   function buildScenery() {
+    if (!S) return;
     const rnd = mulberry32(0x9E37 * S.lvl + 5);
     const jar = S.jar;
     grass = [];
@@ -583,7 +637,7 @@
        most of it, something to be. */
     motes = [];
     for (let i = 0; i < 90; i++) {
-      motes.push({ x: rnd() * TUNE.arena, y: rnd() * TUNE.arena,
+      motes.push({ x: rnd() * L.fw, y: rnd() * L.fh,
                    r: 0.5 + rnd() * 1.5, ph: rnd() * Math.PI * 2,
                    sp: 0.15 + rnd() * 0.5, drift: (rnd() - 0.5) * 0.5 });
     }
@@ -637,25 +691,35 @@
        what gives the garden depth on a phone. On a desktop frame the field
        floor and the play floor nearly coincide and the two bands simply
        thicken one another. */
-    const fieldY = wy2s(TUNE.arena);
+    /* The field's floor is now the bottom of the play area by construction,
+       because the field fills it. On a phone that is the bottom of the SCREEN,
+       which is where grass belongs - it used to sit in the middle with dead
+       night beneath it, because a square field in a tall frame ends early. The
+       three bands are depth now, not a way of filling a gap. */
+    const fieldY = wy2s(L.fh);
     const playY2 = L.playY + L.playH;
     const gap = Math.max(0, playY2 - fieldY);
     /* Scenery scales with the FIELD, not with the frame. Grass heights were
        fixed screen pixels, so in the 480x360 embed frame, where the square
        field is only 200 across, a blade stood half as tall as the garden and
        the scene read as grass with a puzzle behind it. */
-    const gs = Math.max(0.55, Math.min(1, L.side / 400));
+    /* THE GROUND IS A BAND, measured against the frame it has to fill. Fixed
+       pixel heights gave a phone a 40px fringe hidden behind its own buttons,
+       with the jar floating a hundred pixels above it - grass has to reach the
+       thing standing in it. A sixth of the play height on a phone, a seventh on
+       a desktop card, and the three depth rows divide that. */
+    const bandH = L.playH * (MODE === 'mobile' ? 0.17 : 0.15);
     const count = Math.round(w / 6.2);
     for (let i = 0; i < count; i++) {
       const r = rnd();
       const row = r < 0.38 ? 0 : (r < 0.80 ? 1 : 2);   // 0 far · 1 at the jar · 2 near
-      const baseY = row === 0 ? fieldY - 4
-                  : row === 1 ? fieldY + gap * 0.34
-                  : playY2 + 26;
+      const baseY = row === 0 ? fieldY - bandH * 0.34
+                  : row === 1 ? fieldY - bandH * 0.10 + gap * 0.34
+                  : playY2 + bandH * 0.16;
       grass.push({
         x: x0 + (i + rnd() * 0.9) * (w / count),
         y: baseY - rnd() * 8,
-        h: (row === 0 ? 46 : row === 1 ? 64 : 82) * (0.5 + rnd() * 0.8) * gs,
+        h: bandH * (row === 0 ? 0.62 : row === 1 ? 0.84 : 1.06) * (0.5 + rnd() * 0.8),
         lean: (rnd() - 0.5) * 0.75,   // real blades fold further over
         ph: rnd() * Math.PI * 2,
         row,
@@ -675,6 +739,7 @@
 
   let lastTouchX = null, lastTouchY = null;
   function step(dt) {
+    if (!S) return;
     clock += dt;
 
     /* HOW FAST THE HAND IS MOVING. Not decoration: it leans the flame, it
@@ -697,7 +762,7 @@
       lastTouchX = lastTouchY = null; lureVX = lureVY = 0;
       if (lureTrail.length) lureTrail.length = 0;
     }
-    const F = S.flies, A = TUNE.arena, jar = S.jar;
+    const F = S.flies, AW = L.fw, AH = L.fh, jar = S.jar;
     const shoveK = Math.exp(-TUNE.shoveDamp * dt);
     // A fly in silk is not part of the swarm: it cannot fly, it cannot be
     // herded, and the others hold no formation with it.
@@ -760,10 +825,10 @@
       /* --- the soft edge of the garden. Nothing is ever bounced: a fly that
          --- reaches the far side simply turns back. */
       const em = TUNE.edgeMargin, eg = TUNE.edgeForce / 210;
-      if (f.x < em)     bx += (1 - f.x / em) * 3.4 * eg;
-      if (f.x > A - em) bx -= (1 - (A - f.x) / em) * 3.4 * eg;
-      if (f.y < em)     by += (1 - f.y / em) * 3.4 * eg;
-      if (f.y > A - em) by -= (1 - (A - f.y) / em) * 3.4 * eg;
+      if (f.x < em)      bx += (1 - f.x / em) * 3.4 * eg;
+      if (f.x > AW - em) bx -= (1 - (AW - f.x) / em) * 3.4 * eg;
+      if (f.y < em)      by += (1 - f.y / em) * 3.4 * eg;
+      if (f.y > AH - em) by -= (1 - (AH - f.y) / em) * 3.4 * eg;
 
       /* A FLY THAT IS NOT FOLLOWING YOU IS SHY OF THE JAR. Nothing walks into
          a glass trap on its own, and without this the "no free captures" rule
@@ -1204,6 +1269,7 @@
 
   // ---------- RENDER ----------
   function render() {
+    if (!S) return;
     ctx.clearRect(0, 0, LW, LH);
 
     /* THE CANVAS FLOOR IS CHROME: the Portal wash, at 32% of width on the top
@@ -1258,15 +1324,16 @@
        Surface sits one step ABOVE Ground on the ladder, so the band now reads
        as a raised strip belonging to the game, the page reads as behind it, and
        the garden reads as below it. Three surfaces in the right order. */
-    ctx.fillStyle = TOK.bgCard;
-    ctx.fillRect(0, 0, LW, L.playY);
-    if (botBand() > 4) ctx.fillRect(0, L.playY + L.playH, LW, LH - (L.playY + L.playH));
-    ctx.fillStyle = TOK.tint10;
-    ctx.fillRect(0, L.playY - 1, LW, 1);
-    if (botBand() > 4) ctx.fillRect(0, L.playY + L.playH, LW, 1);
+    if (MODE === 'desktop') {
+      ctx.fillStyle = TOK.bgCard;
+      ctx.fillRect(0, 0, LW, L.playY);
+      ctx.fillRect(0, L.playY + L.playH, LW, LH - (L.playY + L.playH));
+      ctx.fillStyle = TOK.tint10;
+      ctx.fillRect(0, L.playY - 1, LW, 1);
+      ctx.fillRect(0, L.playY + L.playH, LW, 1);
+    }
 
-    // and nothing in the garden may paint into them
-    ctx.beginPath(); ctx.rect(0, L.playY, LW, L.playH); ctx.clip();
+    ctx.beginPath(); ctx.rect(L.playX, L.playY, L.playW, L.playH); ctx.clip();
 
     if (SOLO) {
       if (SOLO === 'thorns') for (const th of S.thorns) drawThorn(th);
@@ -1308,6 +1375,20 @@
     drawFoliage(true);
     drawGrass(false);
     drawVignette();
+    /* WHAT THE CHROME STANDS ON, with the bands gone. Not a panel - a breath of
+       shade top and bottom, so a firefly drifting behind the read-out can never
+       take it below its contrast floor. It reads as the night getting deeper at
+       the edges, which it already does. */
+    if (MODE === 'mobile') {
+      const t = ctx.createLinearGradient(0, 0, 0, topBand() + 18);
+      t.addColorStop(0, 'rgba(4,8,16,0.72)');
+      t.addColorStop(1, 'rgba(4,8,16,0)');
+      ctx.fillStyle = t; ctx.fillRect(0, 0, LW, topBand() + 18);
+      const b = ctx.createLinearGradient(0, LH, 0, LH - botBand() - 24);
+      b.addColorStop(0, 'rgba(4,8,16,0.80)');
+      b.addColorStop(1, 'rgba(4,8,16,0)');
+      ctx.fillStyle = b; ctx.fillRect(0, LH - botBand() - 24, LW, botBand() + 24);
+    }
     drawWinWash();
 
     ctx.restore();
@@ -1412,8 +1493,8 @@
     if (!REDUCED) {
       for (const m of B.motes) {
         m.x += B.dir * m.v * 40 * (1 / 60);
-        if (m.x > TUNE.arena + 60) m.x = -60;
-        if (m.x < -60) m.x = TUNE.arena + 60;
+        if (m.x > L.fw + 60) m.x = -60;
+        if (m.x < -60) m.x = L.fw + 60;
       }
     }
     ctx.lineCap = 'round'; ctx.lineWidth = 1.4;
@@ -2456,8 +2537,12 @@
     const line = won
       ? (lost === 0 ? 'every one home, and none touched the silk'
                     : n + ' in the jar, ' + lost + ' lost to the webs')
-      : "All the fireflies couldn't make it to safety.";
-    const lines = wrapLines(line, Math.min(LW - 56, 420), '600 17px Inter, sans-serif');
+      : "All the fireflies couldn't\nmake it to safety.";
+    /* An explicit break beats a wrap: the owner wanted this sentence split
+       after "couldn't", and a measured wrap put it wherever the frame happened
+       to run out. Explicit breaks first, then wrap whatever is still too long. */
+    const lines = line.split('\n').reduce((acc, part) => acc.concat(
+      wrapLines(part, Math.min(LW - 56, 420), '600 17px Inter, sans-serif')), []);
     for (let i = 0; i < lines.length; i++) ctx.fillText(lines[i], cx, cy + 12 + i * 24);
 
     hit.endCta = UI.drawCTA(ctx, won ? 'NEXT LEVEL' : 'TRY AGAIN',
@@ -2809,7 +2894,8 @@
                cx: +cx.toFixed(1), cy: +cy.toFixed(1),
                spread: +spread.toFixed(1), meanOwn: +own.toFixed(1),
                meanShove: +sh.toFixed(1), meanTotal: +tot.toFixed(1),
-               spookedNow: sk, panicAt: TUNE.panicSpeed, arena: TUNE.arena };
+               spookedNow: sk, panicAt: TUNE.panicSpeed,
+               field: L.fw + 'x' + L.fh };
     },
     jar: () => ({ x: +S.jar.x.toFixed(1), y: +S.jar.y.toFixed(1),
                   mx: +S.jar.mx.toFixed(1), my: +S.jar.my.toFixed(1),
@@ -3240,7 +3326,7 @@
       add('garden to frame side', L.ox, 0);
       add('flies to the control row',
           (MODE === 'mobile' ? L.ctrlCy - UI.PILL.h / 2 : LH) -
-          (L.oy + TUNE.arena * L.scale), MODE === 'mobile' ? 0 : -1e9);
+          (L.oy + L.fh * L.scale), MODE === 'mobile' ? -1e9 : -1e9);
       // and the card, at whatever frame it is being asked to live in
       const wasOpen = rulesOpen;
       rulesOpen = true; render();
@@ -3455,6 +3541,7 @@
   fitFullscreen();
   resizeCanvas();
   layout();
+  S = buildScene(save.lvl);
   buildScenery();
   T().levelStart(S.lvl);
   if (TUNE_UI) buildTunePanel();
