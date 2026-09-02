@@ -67,7 +67,11 @@
      it, inside the arena, and the wash is what you see in the margin around the
      garden. That is how both things can be true at once. */
   const ART = {
-    nightTop: '#0A1418', nightBot: '#05090C',   // the garden's own night
+    /* BLUE, not black. The garden was teal-black and read as an absence rather
+       than a night, and it sat in a different hue family from every other page
+       on the site. These two sit just under the Ground token #0E1726, so the
+       garden is the same night the rest of Zamborin is, only deeper. */
+    nightTop: '#0D1729', nightBot: '#070D18',   // the garden's own night
     flyCore: '#EFFFC2',                          // green-gold, never pure yellow
     flyGlow: [216, 240, 144],
     touchGlow: [255, 232, 170],                  // ember-amber, warmer than a fly
@@ -288,8 +292,11 @@
     const jy = A - inset * (0.72 + rnd() * 0.20);
     // Tilt, as a jar left in the grass would be. The mouth points up and a
     // little inward, so the swarm is herded across the garden and down.
-    const lean = (corner & 1) ? -1 : 1;
-    const ang = lean * (0.20 + rnd() * 0.14);
+    /* IT STANDS UP. A jar lying at twenty degrees in the grass was picturesque
+       and it made the mouth a moving target you had to read before you could
+       aim at it, on top of everything else the level asks. Upright, with the
+       faintest settle. */
+    const ang = (rnd() - 0.5) * 0.05;
 
     const jar = { x: jx, y: jy, ang, w: jw, h: jh, mouthW };
     // Mouth centre and the two axes, in world space. `inX/inY` points INTO the
@@ -638,7 +645,7 @@
         x: x0 + (i + rnd() * 0.9) * (w / count),
         y: baseY - rnd() * 8,
         h: (row === 0 ? 46 : row === 1 ? 64 : 82) * (0.5 + rnd() * 0.8) * gs,
-        lean: (rnd() - 0.5) * 0.55,
+        lean: (rnd() - 0.5) * 0.75,   // real blades fold further over
         ph: rnd() * Math.PI * 2,
         row,
         back: row === 0,
@@ -1200,6 +1207,7 @@
     gatherLights();
     drawGarden();
     drawHUD();
+    endCard(performance.now());
     if (rulesOpen) drawRules(performance.now());
     if (TUNE_UI) drawTuneOverlay();
   }
@@ -1222,6 +1230,22 @@
     ng.addColorStop(1, ART.nightBot);
     ctx.fillStyle = ng;
     ctx.fillRect(0, 0, LW, LH);
+
+    /* A CLEAR SECTION FOR THE CHROME. Bloom's board starts below an empty band
+       and the separation is obvious because its tiles are lighter than the
+       ground. Lantern's garden is darker than anything, so the band had nothing
+       to be clear OF: the controls floated on the same black as the webs. The
+       bands take the Ground token and a hairline marks the edge, which is the
+       same structure Bloom has and just made visible. */
+    ctx.fillStyle = TOK.bg;
+    ctx.fillRect(0, 0, LW, L.playY);
+    if (botBand() > 4) ctx.fillRect(0, L.playY + L.playH, LW, LH - (L.playY + L.playH));
+    ctx.fillStyle = TOK.tint10;
+    ctx.fillRect(0, L.playY - 1, LW, 1);
+    if (botBand() > 4) ctx.fillRect(0, L.playY + L.playH, LW, 1);
+
+    // and nothing in the garden may paint into them
+    ctx.beginPath(); ctx.rect(0, L.playY, LW, L.playH); ctx.clip();
 
     if (SOLO) {
       if (SOLO === 'thorns') for (const th of S.thorns) drawThorn(th);
@@ -1311,32 +1335,41 @@
      sells the whole scene: a blade brightens at the tip when a fly goes over
      it. The garden is lit BY its own subjects or it is not lit at all. */
   const GRASS_INK = ['rgba(26,52,44,0.40)', 'rgba(30,60,50,0.62)', 'rgba(16,34,29,0.90)'];
-  const GRASS_W = [1.7, 2.4, 3.2];
+  const GRASS_W = [1.6, 2.2, 3.0];
   function drawGrass(behindTheFlies) {
     const t = REDUCED ? 0 : clock;
     ctx.lineCap = 'round';
     for (const b of grass) {
       if ((b.row < 2) !== behindTheFlies) continue;
+      /* A BLADE, not a wire. Grass drawn as a constant-width stroke reads as
+         pick-up-sticks: a real blade is broad at the root, tapers to nothing at
+         the tip, and folds over rather than leaning straight. Each one is a
+         filled shape between two curves, wide at the base and meeting at a
+         point, which costs the same as the stroke did. */
       const sway = Math.sin(t * 0.55 + b.ph) * (b.row === 0 ? 4 : b.row === 1 ? 7 : 10);
-      const tipX = b.x + b.lean * b.h + sway, tipY = b.y - b.h;
-      const midX = b.x + b.lean * b.h * 0.3 + sway * 0.35, midY = b.y - b.h * 0.55;
-      ctx.lineWidth = GRASS_W[b.row];
-      ctx.strokeStyle = GRASS_INK[b.row];
+      const fold = b.lean * b.h;
+      const tipX = b.x + fold + sway, tipY = b.y - b.h;
+      const midX = b.x + fold * 0.22 + sway * 0.28, midY = b.y - b.h * 0.62;
+      const wRoot = GRASS_W[b.row] * 1.5;
+      ctx.fillStyle = GRASS_INK[b.row];
       ctx.beginPath();
-      ctx.moveTo(b.x, b.y);
-      ctx.quadraticCurveTo(midX, midY, tipX, tipY);
-      ctx.stroke();
+      ctx.moveTo(b.x - wRoot / 2, b.y);
+      ctx.quadraticCurveTo(midX - wRoot * 0.30, midY, tipX, tipY);
+      ctx.quadraticCurveTo(midX + wRoot * 0.30, midY, b.x + wRoot / 2, b.y);
+      ctx.closePath();
+      ctx.fill();
 
       // The nearest band is a silhouette between the player and the garden.
       // Nothing lights it from in front, so it never brightens.
       const lit = b.row === 2 ? null : lightAt(tipX, tipY);
       if (lit && lit.b > 0.02) {
-        ctx.lineWidth = GRASS_W[b.row] - 0.2;
-        ctx.strokeStyle = 'rgba(' + litRGB(lit) + ',' + Math.min(0.80, lit.b * 0.88).toFixed(3) + ')';
+        // the lit half of the blade, tapering with it
+        ctx.fillStyle = 'rgba(' + litRGB(lit) + ',' + Math.min(0.80, lit.b * 0.88).toFixed(3) + ')';
         ctx.beginPath();
-        ctx.moveTo(midX, midY);
-        ctx.quadraticCurveTo((midX + tipX) / 2, (midY + tipY) / 2, tipX, tipY);
-        ctx.stroke();
+        ctx.moveTo(midX - wRoot * 0.26, midY);
+        ctx.quadraticCurveTo((midX + tipX) / 2 - wRoot * 0.16, (midY + tipY) / 2, tipX, tipY);
+        ctx.quadraticCurveTo((midX + tipX) / 2 + wRoot * 0.16, (midY + tipY) / 2, midX + wRoot * 0.26, midY);
+        ctx.closePath(); ctx.fill();
       }
     }
   }
@@ -1783,6 +1816,28 @@
     g3.addColorStop(0, 'rgba(255,236,198,' + (0.16 + lamp * 0.26).toFixed(3) + ')');
     g3.addColorStop(1, 'rgba(255,236,198,0)');
     ctx.fillStyle = g3; ctx.fillRect(-bh, h - h * 0.14, w, h * 0.14);
+
+    /* THE BACK WALL. This is what was missing and it is most of why the jar
+       read as a painted shape rather than glass: you see through a jar to its
+       FAR side, so the inside of the back wall catches light too and draws a
+       second, fainter edge inboard of the front one. One pair of lines is a
+       silhouette; two pairs is a vessel. */
+    const g5 = ctx.createLinearGradient(-bh + w * 0.13, 0, -bh + w * 0.20, 0);
+    g5.addColorStop(0, 'rgba(214,236,248,0)');
+    g5.addColorStop(1, 'rgba(214,236,248,' + (0.13 + fill * 0.07).toFixed(3) + ')');
+    ctx.fillStyle = g5; ctx.fillRect(-bh + w * 0.13, h * 0.10, w * 0.07, h * 0.82);
+    const g6 = ctx.createLinearGradient(bh - w * 0.16, 0, bh - w * 0.10, 0);
+    g6.addColorStop(0, 'rgba(214,236,248,' + (0.10 + fill * 0.05).toFixed(3) + ')');
+    g6.addColorStop(1, 'rgba(214,236,248,0)');
+    ctx.fillStyle = g6; ctx.fillRect(bh - w * 0.16, h * 0.10, w * 0.06, h * 0.82);
+    // and the base is a thick disc of glass, seen through the front wall
+    const g7 = ctx.createLinearGradient(0, h - h * 0.08, 0, h);
+    g7.addColorStop(0, 'rgba(226,242,252,0)');
+    g7.addColorStop(1, 'rgba(226,242,252,0.20)');
+    ctx.fillStyle = g7;
+    ctx.beginPath();
+    ctx.ellipse(0, h - h * 0.045, bh * 0.86, h * 0.055, 0, 0, TAU);
+    ctx.fill();
     // 4. the shoulder catch: a short, narrow vertical streak
     ctx.fillStyle = 'rgba(255,255,255,0.20)';
     UI.roundRectPath(ctx, -w * 0.26, h * 0.14, w * 0.035, h * 0.20, w * 0.02);
@@ -1795,6 +1850,7 @@
        of mouthW this was being used as though mouthW were a radius, so the
        ellipse came out wider than the jar's own half-width and stuck out of
        both flanks as a grey spike. */
+    // a rolled lip: the rim of a jar is a torus of glass, not an edge
     const rimW = mouthW * 0.55;
     const rg = ctx.createLinearGradient(0, -h * 0.028, 0, h * 0.030);
     rg.addColorStop(0, 'rgba(255,255,255,0.05)');
@@ -1809,6 +1865,12 @@
     ctx.beginPath();
     ctx.ellipse(0, h * 0.006, rimW * 0.86, Math.max(1.4, h * 0.024), 0, 0, Math.PI * 2);
     ctx.fill();
+    // the inner face of the far lip, which is the give-away that it is hollow
+    ctx.strokeStyle = 'rgba(232,246,252,0.30)';
+    ctx.lineWidth = Math.max(0.9, h * 0.008);
+    ctx.beginPath();
+    ctx.ellipse(0, h * 0.004, rimW * 0.86, Math.max(1.4, h * 0.024), 0, Math.PI * 1.06, Math.PI * 1.94);
+    ctx.stroke();
 
     ctx.restore();
   }
@@ -2001,30 +2063,17 @@
     const u = (winT / 1.2) % 1, d = u - 0.16;
     return Math.exp(-(d * d) / 0.0052);
   }
-  /* Running short is stated in a line of type over the bottom band, not in a
-     modal. Nothing covers the garden, nothing announces a defeat, and RESTART
-     was always free. */
-  function drawShortLine() {
-    if (phase !== 'short') return;
-    const y = MODE === 'mobile' ? L.ctrlCy - 44 : L.playY + L.playH + 2;
-    ctx.fillStyle = TOK.ink72;
-    ctx.font = '600 16px Inter, sans-serif';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('Not enough left in the garden to fill the jar.', LW / 2, y);
-    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-  }
-
   /* A vignette, which is the cheapest thing in the world and the difference
      between a rectangle of dark and a garden with a middle to it. It darkens
      the corners only, so nothing the player has to see is ever behind it. */
   function drawVignette() {
-    const cx = LW / 2, cy = LH / 2;
-    const r = Math.hypot(LW, LH) / 2;
+    const cx = L.playX + L.playW / 2, cy = L.playY + L.playH / 2;
+    const r = Math.hypot(L.playW, L.playH) / 2;
     const g = ctx.createRadialGradient(cx, cy, r * 0.52, cx, cy, r);
     g.addColorStop(0, 'rgba(2,5,7,0)');
     g.addColorStop(1, 'rgba(2,5,7,0.55)');
     ctx.fillStyle = g;
-    ctx.fillRect(0, 0, LW, LH);
+    ctx.fillRect(L.playX, L.playY, L.playW, L.playH);
   }
 
   function drawWinWash() {
@@ -2070,18 +2119,18 @@
     const cy = L.ctrlCy;
     const won = phase === 'win' && winT > 3.2;
     const short = phase === 'short';
-    hit.mute = hit.restart = hit.next = hit.rules = null;
+    hit.mute = hit.restart = hit.rules = null;
 
     // --- measure the row, then lay it out from its own end ---
     const items = [{ k: 'mute', w: UI.PILL.iconW }];
-    /* SENTENCE CASE ON PILLS, CAPS ON THE CTA, which is what every shipped game
-       does: Bloom and Prism both read [speaker] Undo Restart Rules, and their
-       one loud button says NEXT LEVEL or PLAY AGAIN. This said RESTART, which
-       shouts a quiet control. */
-    if (won) items.push({ k: 'next', w: UI.ctaWidth(ctx, 'NEXT LEVEL'), cta: true, label: 'NEXT LEVEL' });
-    else if (short) items.push({ k: 'next', w: UI.ctaWidth(ctx, 'TRY AGAIN'), cta: true, label: 'TRY AGAIN' });
-    else items.push({ k: 'restart', w: UI.pillWidth(ctx, 'Restart') });
+    /* THE CONTROL ROW NEVER CHANGES. Sentence case, three quiet pills, exactly
+       what Bloom and Prism carry. The end of a level belongs in a MODAL - which
+       is what every other game on the site does - and not as a 210px blue slab
+       dropped into the middle of the controls, where it shouted over the row it
+       had elbowed out of the way. */
+    items.push({ k: 'restart', w: UI.pillWidth(ctx, 'Restart') });
     items.push({ k: 'rules', w: UI.pillWidth(ctx, 'Rules') });
+    void won; void short;
     let total = 0;
     for (const it of items) total += it.w;
     total += UI.PILL.gap * (items.length - 1);
@@ -2092,8 +2141,7 @@
     let x = rowLeft;
     for (const it of items) {
       const c = x + it.w / 2;
-      if (it.cta) hit[it.k] = UI.drawCTA(ctx, it.label, c, cy, TOK.cta);
-      else if (it.k === 'mute') {
+      if (it.k === 'mute') {
         hit.mute = UI.drawPill(ctx, '', c, cy, { w: UI.PILL.iconW });
         speakerGlyph(c, cy, sfx ? sfx.isOn() : true);
       } else if (it.k === 'restart') {
@@ -2135,7 +2183,6 @@
     L.readoutLeft = LW - SIDE_PAD - ctx.measureText(txt).width;
     L.rowRight = rowRight;
 
-    drawShortLine();
   }
 
   /* ---------- THE RULES CARD ----------
@@ -2353,6 +2400,51 @@
     return out;
   }
 
+  /* ---------- THE END OF A LEVEL ----------
+     A scrim, a title, one line that says what happened, and one button. That is
+     what Prism does and what Bloom does, and it is what the owner expects
+     everywhere on the site: the level ends with a modal, not with a control row
+     quietly changing shape underneath you.
+
+     It waits for the garden to finish saying its piece first - the jar flashes
+     three times when you win, and covering that with a panel would be throwing
+     away the only celebration the game has. */
+  function endCard(now) {
+    if (phase === 'play') return;
+    const won = phase === 'win';
+    const wait = won ? 3.2 : 0.7;
+    const t = Math.max(0, Math.min(1, (winT - wait) / 0.42));
+    if (t <= 0) { hit.endCta = null; return; }
+    ctx.globalAlpha = t;
+    ctx.fillStyle = TOK.scrimWin;
+    ctx.fillRect(0, 0, LW, LH);
+
+    const cx = LW / 2, cy = LH / 2;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = TOK.text;
+    ctx.font = '800 ' + (MODE === 'mobile' ? 38 : 46) + 'px Inter, sans-serif';
+    ctx.fillText(won ? 'HOME SAFE' : 'TOO FEW LEFT', cx, cy - 30);
+
+    /* IT WRAPS, and it is short. At 390 wide an eighteen-pixel sentence about
+       the jar needing three ran off both edges of the phone it was written on.
+       17px Ink 82 is the house modal subtitle, and the wrap width is the card
+       width the design system uses, so a long line breaks instead of leaving. */
+    ctx.fillStyle = TOK.ink82;
+    ctx.font = '600 17px Inter, sans-serif';
+    const n = S.caught, lost = S.lost, left = S.n - lost;
+    const line = won
+      ? (lost === 0 ? 'every one home, and none touched the silk'
+                    : n + ' in the jar, ' + lost + ' lost to the webs')
+      : 'the jar needs ' + S.need + ', and ' + left + ' are left';
+    const lines = wrapLines(line, Math.min(LW - 56, 420), '600 17px Inter, sans-serif');
+    for (let i = 0; i < lines.length; i++) ctx.fillText(lines[i], cx, cy + 12 + i * 24);
+
+    hit.endCta = UI.drawCTA(ctx, won ? 'NEXT LEVEL' : 'TRY AGAIN',
+                            cx, cy + 52 + lines.length * 24, TOK.cta);
+    ctx.textAlign = 'left';
+    ctx.globalAlpha = 1;
+  }
+
   // ---------- INPUT ----------
   function inBox(b, x, y) {
     return b && x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h;
@@ -2389,7 +2481,7 @@
       return;
     }
     if (inBox(hit.restart, p.x, p.y)) { restart(); return; }
-    if (inBox(hit.next, p.x, p.y)) { nextLevel(); return; }
+    if (inBox(hit.endCta, p.x, p.y)) { nextLevel(); return; }
     if (phase !== 'play' || !inPlay(p)) return;
     pointerId = e.pointerId;
     try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
@@ -2811,7 +2903,7 @@
     // Where the controls actually ARE, in logical canvas pixels, so a test can
     // press them the way a thumb does instead of calling what they call.
     controls: () => ({ mute: hit.mute, restart: hit.restart, rules: hit.rules,
-                       next: hit.next, rulesPlay: hit.rulesPlay,
+                       next: hit.endCta, rulesPlay: hit.rulesPlay,
                        ctrlCy: L.ctrlCy, muted: sfx ? !sfx.isOn() : null,
                        rulesOpen }),
 
@@ -2822,7 +2914,7 @@
        answer every time. `assertDeterminism()` below is the proof.  */
     advance(secs) {
       const n = Math.round(secs / DT);
-      for (let i = 0; i < n; i++) { if (phase === 'win') winT += DT; step(DT); }
+      for (let i = 0; i < n; i++) { if (phase !== 'play') winT += DT; step(DT); }
       return this.state();
     },
 
@@ -3186,7 +3278,7 @@
     let steps = 0;
     if (rulesOpen) acc = 0;
     while (acc >= DT && steps < 14) {
-      if (phase === 'win') winT += DT;
+      if (phase !== 'play') winT += DT;
       step(DT);
       acc -= DT; steps++;
     }
