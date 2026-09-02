@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Lantern strategy: the speed of your hand is the whole game — Zamborin</title>
+  <meta name="description" content="A practical Lantern strategy guide: why the fireflies lag behind the flame, why the last one in the line is the one that clips a web, how to read the corridor before you move, and what to do in the twelve seconds after one gets caught." />
+  <meta name="theme-color" content="#0E1726" />
+  <link rel="canonical" href="https://zamborin.com/guides/lantern/" />
+  <link rel="icon" type="image/svg+xml" href="/images/zamborin-favicon.svg?v=2" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:site_name" content="Zamborin Games" />
+  <meta property="og:url" content="https://zamborin.com/guides/lantern/" />
+  <meta property="og:title" content="Lantern strategy: the speed of your hand is the whole game" />
+  <meta property="og:description" content="Why the tail of the line clips the web, how to read a corridor, and what to do when one gets caught." />
+  <meta property="og:image" content="https://zamborin.com/images/lantern-og.jpg" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Lantern strategy: the speed of your hand is the whole game" />
+  <meta name="twitter:description" content="A practical strategy guide to Lantern, the firefly-herding game." />
+  <meta name="twitter:image" content="https://zamborin.com/images/lantern-og.jpg" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../shared/tokens.css?v=1" />
+  <link rel="stylesheet" href="../../shared/chrome.css?v=20" />
+  <style>
+    .guide { max-width: 760px; margin: 0 auto; padding: 40px 24px 80px; color: var(--text-dim); line-height: 1.7; font-size: 17px; }
+    .guide .crumbs { font-size: 14px; margin-bottom: 22px; color: var(--text-dim); }
+    .guide .crumbs a { color: #4DC3FF; text-decoration: none; display: inline-block; padding: 4px 0; }  /* W18: 14px type gives a 17px link, under the 24px of WCAG 2.5.8. These are
+       navigation, not links inside a sentence, so the inline exemption does not
+       apply. inline-block is what makes the padding count toward height. */
+    .guide h1 { font-size: 38px; color: var(--text); font-weight: 800; margin: 0 0 6px; letter-spacing: -0.5px; line-height: 1.15; }
+    .guide .lede { font-size: 19px; color: var(--text); margin: 14px 0 8px; }
+    .guide h2 { font-size: 23px; color: var(--text); font-weight: 700; margin: 38px 0 10px; letter-spacing: -0.2px; }
+    .guide p { margin: 12px 0; }
+    .guide a { color: #4DC3FF; }
+    .guide strong { color: var(--text); font-weight: 600; }
+    .guide ul { margin: 12px 0; padding-left: 22px; }
+    .guide li { margin: 8px 0; }
+    .guide .cta { display: inline-block; margin-top: 8px; background: #4DC3FF; color: #06121e; font-weight: 700; text-decoration: none; padding: 13px 26px; border-radius: 10px; }
+    .guide .playbox { margin: 36px 0 8px; padding: 22px 24px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09); border-radius: 14px; }
+    .guide .playbox p { margin: 0 0 14px; color: var(--text); font-weight: 600; }
+    .guide .more { margin-top: 40px; padding-top: 22px; border-top: 1px solid rgba(255,255,255,0.09); font-size: 16px; }
+    /* W18: these are a row of navigation links formatted as a paragraph, not
+
+       links inside prose, so the inline exemption does not cover them. 15px type
+
+       gave an 18px target against the 24px of WCAG 2.5.8. */
+
+    .guide .more a { display: inline-block; padding: 4px 0; }
+    .guide table { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 16px; }
+    .guide th, .guide td { text-align: left; padding: 9px 12px; border-bottom: 1px solid rgba(255,255,255,0.09); }
+    .guide th { color: var(--text); font-weight: 700; }
+    @media (max-width: 720px) { .guide { padding: 28px 18px 56px; font-size: 16px; } .guide h1 { font-size: 30px; } }
+  </style>
+    <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "Lantern strategy: the speed of your hand is the whole game",
+    "about": "Lantern firefly herding and web avoidance strategy",
+    "description": "A practical Lantern strategy guide: why the fireflies lag behind the flame, why the last one in the line is the one that clips a web, how to read the corridor before you move, and what to do in the twelve seconds after one gets caught.",
+    "author": { "@type": "Organization", "name": "Zamborin Games" },
+    "publisher": { "@type": "Organization", "name": "Zamborin Games", "url": "https://zamborin.com/" },
+    "mainEntityOfPage": "https://zamborin.com/guides/lantern/"
+  }
+  </script>
+  <meta name="google-adsense-account" content="ca-pub-9207689324865969">
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9207689324865969" crossorigin="anonymous"></script>
+</head>
+<body class="lobby-page">
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="Zamborin Games home">
+      <img class="brand-logo" src="/images/zamborin-logo.svg?v=2" alt="Zamborin" />
+    </a>
+    <a class="back-link" href="/">Back to all games</a>
+  </header>
+
+  <main class="guide">
+    <nav class="crumbs"><a href="/">Home</a> &rsaquo; <a href="/guides/">Guides</a> &rsaquo; Lantern</nav>
+
+    <h1>Lantern strategy: the speed of your hand is the whole game</h1>
+    <p class="lede">Lantern gives you one thing to do and one number to control. You hold a flame, the fireflies come to it, and they follow you at a speed of their own. Everything the game asks of you comes out of the gap between how fast you move and how fast they can keep up.</p>
+
+    <h2>They follow the flame, they do not track your path</h2>
+    <p>A firefly steers toward where the flame <strong>is now</strong>, not toward where it has been. On a straight run that looks the same. On a corner it is not the same at all: the flies behind you cut across the inside of the bend, because the inside is the shortest way to where the light has moved to.</p>
+    <p>That single fact is the whole game, because the webs are on the insides of the corners. Take a bend slowly and the line folds around it behind you. Take it quickly and the tail of the line swings wide into the silk.</p>
+
+    <h2>The last one in the line is the one you lose</h2>
+    <p>The fly nearest the flame is barely lagging. The one at the back is lagging the most, so it cuts the most and it is the one that touches a web. When you are judging a corner, judge it for the <strong>last</strong> firefly, not the first.</p>
+    <p>The practical version: come out of a bend wider than feels necessary, and give the tail a moment to straighten before the next one.</p>
+
+    <h2>Read the corridor before you move</h2>
+    <p>Every level is a corridor. The webs line both of its walls and it always runs from where the fireflies wake up to the jar, so a clear route is guaranteed to exist. The route is not hidden, it is simply drawn in the gaps rather than in the ink.</p>
+    <p>Look at the whole board before you press. The corridor narrows and gains another turn as the tiers rise, and the difference between an easy level and a hard one is almost entirely how many corners it makes you take.</p>
+
+    <h2>You can see the silk. They cannot.</h2>
+    <p>This is the asymmetry the game is built on. A firefly has no idea a web is there. You are the only one in the garden who knows what is coming, which is why leaving the swarm to drift is never a neutral choice. Every firefly lost to a web is lost to something you were shown and did not act on.</p>
+
+    <h2>Go back for the one that gets caught</h2>
+    <p>A fly that touches silk is held, not lost. A spider starts walking out along its web toward it, and its <strong>position is the clock</strong>: there are no numbers, just how much web is left between them. You have roughly twelve seconds.</p>
+    <p>Bring the flame close and hold it there and the fly strains toward the light hard enough to tear itself out. It takes about a second and a half of holding still. The cost is not the rescue, it is the time you are not spending with the rest of the line.</p>
+
+    <h2>The jar holds fewer than the garden has</h2>
+    <p>From tier five on there are spare fireflies, so one or two can be lost without ending the level. That margin is what a mistake spends. When the read-out says <strong>no spares</strong>, the next web ends the run, and that is the moment to stop hurrying.</p>
+
+    <h2>Slow beats fast, and fast beats frantic</h2>
+    <p>Measured across the tiers, a slow deliberate hand finishes more levels than a quick one and far more than a hurried one. But slow is not free either: loitering beside a web is its own risk, because the line jitters around the flame while you sit there. There is a pace in between, and finding it is the game.</p>
+
+    <h2>The short version</h2>
+    <ul>
+      <li>Look at the whole corridor before you press.</li>
+      <li>Take corners wide, and judge them for the last firefly rather than the first.</li>
+      <li>Do not park next to silk. Moving slowly is not the same as standing still.</li>
+      <li>If one gets caught, go and get it. Twelve seconds is plenty if you start now.</li>
+      <li>When the spares are gone, slow down.</li>
+    </ul>
+
+    <div class="playbox">
+      <p>Ready to put it to work?</p>
+      <a class="cta" href="/lantern/">Play Lantern &rarr;</a>
+    </div>
+
+    <p class="more">More games: <a href="/bloom/">Bloom</a> &middot; <a href="/tailwind/">Tailwind</a> &middot; <a href="/">all Zamborin games</a> &middot; <a href="/guides/">all guides</a></p>
+  </main>
+
+  <footer class="site-footer">
+    <nav class="site-foot-nav">
+      <a href="/arcade/">Arcade</a>
+      <a href="/about/">About</a>
+      <a href="/guides/">Guides</a>
+      <a href="/privacy/">Privacy</a>
+      <a href="/contact/">Contact</a>
+    </nav>
+    <span>&copy; 2026 Zamborin. Games created by Indrajeet Chandrachud.</span>
+  </footer>
+  <script defer src="/_vercel/insights/script.js"></script>
+  <script defer src="/_vercel/speed-insights/script.js"></script>
+</body>
+</html>
