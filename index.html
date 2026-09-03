@@ -101,6 +101,9 @@
     .shelf-intro { max-width: 720px; margin-top: 8px; }
     .shelf-intro h2 { font-size: 26px; font-weight: 800; color: var(--text); letter-spacing: -0.4px; line-height: 1.15; margin-bottom: 10px; }
     .shelf-intro p { font-size: 17px; line-height: 1.6; color: var(--text-dim); margin: 10px 0; }
+    .about-jump { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 4px 0 22px; font-size: 16px; }
+    .about-jump a { text-decoration: none; }
+    .about-jump a:hover { text-decoration: underline; }
     .shelf-more { font-size: 16px; color: var(--text-dim); margin-top: 4px; }
     .lobby-intro { max-width: 720px; }
     .lobby-intro h1 { font-size: 34px; font-weight: 800; color: var(--text); letter-spacing: -0.6px; line-height: 1.12; margin-bottom: 12px; }
@@ -121,6 +124,7 @@
        remembering this line. The doc audit catches it either way, which is
        how both were found. */
     .lobby-about a,
+    .about-jump a,
     .shelf-intro a,
     .shelf-more a,
     .lobby-intro a { color: #4DC3FF; }
@@ -316,36 +320,88 @@
       <h2>About our free browser games</h2>
       <p>Every Zamborin game is hand-built as a small, self-contained web page, with no game engine, no heavy downloads, no accounts to create. They're designed to be picked up in seconds and to feel good on both touchscreens and keyboards. We add new games regularly, keep the ones people enjoy, and quietly retire the ones that don't land. Here's a closer look at the current line-up:</p>
 
-      <h3><a href="/orbit/">Orbit</a> — ring-spinning light puzzle</h3>
+      <nav class="about-jump" aria-label="Jump to a game">
+        <a href="#fathom">Fathom</a>
+        <a href="#ballast">Ballast</a>
+        <a href="#ricochet">Ricochet</a>
+        <a href="#lantern">Lantern</a>
+        <a href="#orbit">Orbit</a>
+        <a href="#bloom">Bloom</a>
+        <a href="#tessera">Tessera</a>
+        <a href="#untangle">Untangle</a>
+        <a href="#mobile">Mobile</a>
+        <a href="#tailwind">Tailwind</a>
+        <a href="#stained">Stained</a>
+        <a href="#kaleido">Kaleido</a>
+        <a href="#prism">Prism</a>
+        <a href="#needle">Needle</a>
+        <a href="#sluice">Sluice</a>
+        <a href="#fold">Fold</a>
+        <a href="#zood">Zood</a>
+        <a href="#carrom">Carrom</a>
+        <a href="#ludo">Ludo</a>
+        <a href="#comb">Comb</a>
+      </nav>
+
+      <h3 id="fathom"><a href="/fathom/">Fathom</a> — a sunken-salvage physics puzzle</h3>
+      <p>A drowned world of clay, and a submarine with no engine to lift it. One law governs everything: heavy things sink and light things rise. Flood the tanks to go down, blow them to come up, thrust sideways to steer, and hold a direction against rock to cut it away with the drill. The finds worth having are the ones too heavy to carry, so you cannot simply take them. You dig a shaft, work out where the weight will fall, and let the ocean do the lifting. Nine submarines and four regions, each wanting a different way down.</p>
+
+      <h3 id="ballast"><a href="/ballast/">Ballast</a> — a merging and balancing game</h3>
+      <p>Drop orbs into a bowl that stands on a rounded base. Two of the same size that come to rest touching fuse into one of the next size up, and a good drop can set off a chain of them. What makes it more than a merging game is the base, because the bowl rocks. A low, even pile rights itself; a high or lopsided one carries its weight past the point the curve can hold and the whole thing rolls over. Every drop asks two questions at once: where the orb should land, and what it will do to the balance.</p>
+
+      <h3 id="ricochet"><a href="/ricochet/">Ricochet</a> — a block-breaking aim game</h3>
+      <p>A wall of numbered blocks creeps down the board one row at a time, and you get one aim per turn. Fire a stream of balls up into it, let them bounce off the walls, the ceiling and the blocks themselves, and take the wall apart before it reaches the red line at the bottom. Everything after the aim plays itself out, which is most of the appeal: the whole turn is a single decision, and a good angle keeps a ball rattling around inside the wall long after you have stopped expecting anything from it.</p>
+
+      <h3 id="lantern"><a href="/lantern/">Lantern</a> — a firefly-herding puzzle</h3>
+      <p>A dark garden strung with spider webs. Press and hold anywhere and a flame lights at the end of your stick, and every firefly near it turns and comes to the light. Where you take the flame, they go. The difficulty is the silk, because a firefly that touches a web is lost, and they do not follow in a neat line. They drift, bunch and cut corners. Leading a swarm home to the jar is less about steering than about knowing how wide the swarm will swing when you turn.</p>
+
+      <h3 id="orbit"><a href="/orbit/">Orbit</a> — ring-spinning light puzzle</h3>
       <p>A quiet puzzle built from concentric rings. A light sits at the hub in the middle, and the rings around it are strung with broken track turned the wrong way. Spin each ring until the pieces line up and the light threads its way out to every bulb on the rim, settling the whole board into a symmetric mandala. Later levels gear pairs of rings together, so turning one turns its partner the other way.</p>
-      <h3><a href="/bloom/">Bloom</a> — pipe-rotating garden puzzle</h3>
+
+      <h3 id="bloom"><a href="/bloom/">Bloom</a> — pipe-rotating garden puzzle</h3>
       <p>A calm irrigation puzzle. Water sits at a tap in the middle of the garden, and the ground is tangled with pipes turned the wrong way. Rotate them, one tap at a time, until the water threads out to every flower and opens the whole garden into bloom. Every board is solvable, the water shows your progress as it spreads, and every level deals a fresh tangle.</p>
-      <h3><a href="/kaleido/">Kaleido</a> — a stained-glass symmetry puzzle</h3>
-      <p>A rose window stands nearly finished, with a handful of glass panes missing. One rule governs it: no two panes of the same colour may touch. That is enough to tell you, gap by gap, exactly which colour each empty socket wants, and there is never a guess to make. The part that makes it Kaleido is that you only ever work in a single wedge. Every other wedge is a copy of yours, so one pane placed lands all the way round the wheel at once, and the colour that looks obvious in front of you is often ruled out by what its copy would do on the far side. Across a hundred windows the glass grows, the symmetry loosens from six wedges to three and then to two, and more of it goes missing.</p>
-      <h3><a href="/prism/">Prism</a> — a light-routing colour puzzle</h3>
-      <p>A lamp fires one white beam across a dark grid, and somewhere on its path sits a wedge of glass. The prism has a front and a back, and it only works on light that meets its flat face head on: red then carries straight on, yellow bends away to the left and blue to the right, and from that point you are routing three beams instead of one. The board arrives empty. You are handed a counted-out set of mirrors, which turn a beam, and splitters, which turn half of it and let the rest carry on, and where the light bends is entirely your decision. Gems wait in the dark, each the colour it needs, and the ones wanting orange, purple or green need two beams brought to the same square at once.</p>
-      <h3><a href="/needle/">Needle</a> — a threading and crossing puzzle</h3>
-      <p>Pairs of coloured pins sit on a dark cloth and you join each pair with its thread. The twist is the second rule: threads are meant to cross. Almost every puzzle of this shape forbids it and asks you to keep the lines apart; Needle asks the opposite, because a thread that runs from pin to pin without meeting anything is lying on the surface rather than sewn into it, and you can see it float. There is a button for each colour to pass through as well, so the short way round is rarely the answer.</p>
-      <h3><a href="/untangle/">Untangle</a> — planar graph puzzle</h3>
-      <p>A tangle of dots and lines lands in front of you with every edge crossing another. Drag the dots until no lines cross. Every puzzle is solvable, and the difficulty climbs from a gentle tutorial to endless Master-level tangles.</p>
-      <h3><a href="/tessera/">Tessera</a> — endless word puzzle</h3>
+
+      <h3 id="tessera"><a href="/tessera/">Tessera</a> — endless word puzzle</h3>
       <p>Part falling-block puzzle, part Scrabble. Guide letter tiles into a grid to spell words across and down; longer words score far more, and the tiles fall faster the longer you last. A quick, brainy high-score chase.</p>
-      <h3><a href="/sluice/">Sluice</a> — sliding pipe puzzle</h3>
-      <p>A grid of pipes with a tap and a ring of flowers around its edge. You never turn a pipe in Sluice. You drag an entire row or column, and it slides as one piece, wrapping around so whatever leaves one edge returns at the other. Because rows and columns cross, nothing can be solved a piece at a time: fixing one corner moves a tile out of every column it touches. Every board is generated with exactly one solution, and the trick to it is a four slide sequence that changes only three tiles and leaves the rest of the board exactly where it was.</p>
-      <h3><a href="/fold/">Fold</a> — origami folding puzzle</h3>
-      <p>A quiet logic puzzle about paper. A picture has been cut into pieces and scattered across a creased sheet. Tap a crease and the smaller flap folds over, carrying its pieces with it, until the picture is whole again. Folding reflects the paper, so a piece folded the wrong number of times arrives back to front, which is what gives Fold something to get wrong.</p>
-      <h3><a href="/mobile/">Mobile</a> — a balancing sculpture puzzle</h3>
+
+      <h3 id="untangle"><a href="/untangle/">Untangle</a> — planar graph puzzle</h3>
+      <p>A tangle of dots and lines lands in front of you with every edge crossing another. Drag the dots until no lines cross. Every puzzle is solvable, and the difficulty climbs from a gentle tutorial to endless Master-level tangles.</p>
+
+      <h3 id="mobile"><a href="/mobile/">Mobile</a> — a balancing sculpture puzzle</h3>
       <p>A hanging sculpture in the mid-century style. Rods hang from rods, and from the ends of them hang bright cut-paper shapes. A rod balances when the weight on each side matches the length of its arm, so a heavy piece close in settles the same rod as a light one hung far out. Weight is area, which means you judge it by eye rather than reading a number, and an arm that is wrong droops on its heavy side until you fix it. Nothing to race and nothing to lose, just a thing to get right.</p>
 
+      <h3 id="tailwind"><a href="/tailwind/">Tailwind</a> — a catapult distance game</h3>
+      <p>A rubber band, a forked post, and an aeroplane sitting in the sling. Draw it back, let go, and watch it climb, run out of the speed the catapult gave it, settle into a glide, and roll to a stop in the grass. Three things pull against each other: how far you draw the band, the angle you release at, and one burst of mid-air thrust you spend whenever you choose. Thrust is charged to the airframe the same way the launch is, so spending it while the aeroplane is still fast strains the wing and costs you the glide. The wind is rolled fresh every attempt and moves the best angle with it.</p>
 
-      <h3><a href="/zood/">Zood</a> — bubble-shooter arcade</h3>
+      <h3 id="stained"><a href="/stained/">Stained</a> — a colour-mixing glass puzzle</h3>
+      <p>A dark window, a bench of coloured glass, and a switch. Lay the panes over the window so that where they overlap the colours mix into exactly what the goal asks for, then throw the switch and find out whether the light agrees with you. The panes are see-through, so laying one over another is not covering it up, it is making a third colour. The goal shows you only the overlaps and never the panes that made them, so the puzzle is worked backwards: from a colour, to the two or three sheets that could have produced it.</p>
+
+      <h3 id="kaleido"><a href="/kaleido/">Kaleido</a> — a stained-glass symmetry puzzle</h3>
+      <p>A rose window stands nearly finished, with a handful of glass panes missing. One rule governs it: no two panes of the same colour may touch. That is enough to tell you, gap by gap, exactly which colour each empty socket wants, and there is never a guess to make. The part that makes it Kaleido is that you only ever work in a single wedge. Every other wedge is a copy of yours, so one pane placed lands all the way round the wheel at once, and the colour that looks obvious in front of you is often ruled out by what its copy would do on the far side. Across a hundred windows the glass grows, the symmetry loosens from six wedges to three and then to two, and more of it goes missing.</p>
+
+      <h3 id="prism"><a href="/prism/">Prism</a> — a light-routing colour puzzle</h3>
+      <p>A lamp fires one white beam across a dark grid, and somewhere on its path sits a wedge of glass. The prism has a front and a back, and it only works on light that meets its flat face head on: red then carries straight on, yellow bends away to the left and blue to the right, and from that point you are routing three beams instead of one. The board arrives empty. You are handed a counted-out set of mirrors, which turn a beam, and splitters, which turn half of it and let the rest carry on, and where the light bends is entirely your decision. Gems wait in the dark, each the colour it needs, and the ones wanting orange, purple or green need two beams brought to the same square at once.</p>
+
+      <h3 id="needle"><a href="/needle/">Needle</a> — a threading and crossing puzzle</h3>
+      <p>Pairs of coloured pins sit on a dark cloth and you join each pair with its thread. The twist is the second rule: threads are meant to cross. Almost every puzzle of this shape forbids it and asks you to keep the lines apart; Needle asks the opposite, because a thread that runs from pin to pin without meeting anything is lying on the surface rather than sewn into it, and you can see it float. There is a button for each colour to pass through as well, so the short way round is rarely the answer.</p>
+
+      <h3 id="sluice"><a href="/sluice/">Sluice</a> — sliding pipe puzzle</h3>
+      <p>A grid of pipes with a tap and a ring of flowers around its edge. You never turn a pipe in Sluice. You drag an entire row or column, and it slides as one piece, wrapping around so whatever leaves one edge returns at the other. Because rows and columns cross, nothing can be solved a piece at a time: fixing one corner moves a tile out of every column it touches. Every board is generated with exactly one solution, and the trick to it is a four slide sequence that changes only three tiles and leaves the rest of the board exactly where it was.</p>
+
+      <h3 id="fold"><a href="/fold/">Fold</a> — origami folding puzzle</h3>
+      <p>A quiet logic puzzle about paper. A picture has been cut into pieces and scattered across a creased sheet. Tap a crease and the smaller flap folds over, carrying its pieces with it, until the picture is whole again. Folding reflects the paper, so a piece folded the wrong number of times arrives back to front, which is what gives Fold something to get wrong.</p>
+
+      <h3 id="zood"><a href="/zood/">Zood</a> — bubble-shooter arcade</h3>
       <p>Fire quirky little character tiles up at a hanging cluster and match three or more of a kind to pop them; any Zoods left dangling drop too. Bank shots off the walls, keep the cluster from reaching the line, and clear every last Zood.</p>
 
-      <h3><a href="/carrom/">Carrom</a> — flick-and-pocket board game</h3>
+      <h3 id="carrom"><a href="/carrom/">Carrom</a> — flick-and-pocket board game</h3>
       <p>A digital version of the South-Asian tabletop classic. Aim and flick the striker with a slingshot pull to pocket your discs before the computer clears theirs, across three difficulty levels. Bank shots and cut angles behave just like the real board.</p>
 
-      <h3><a href="/ludo/">Ludo</a> — the classic dice race</h3>
+      <h3 id="ludo"><a href="/ludo/">Ludo</a> — the classic dice race</h3>
       <p>Roll the die and race all four of your tokens home before your opponents. Land on a rival to send them back to the start, chain your sixes, and play safe or aggressive as the board demands, in 2-, 3- or 4-player games against the computer.</p>
+
+      <h3 id="comb"><a href="/comb/">Comb</a> — a honeycomb fitting puzzle</h3>
+      <p>An irregular honeycomb board, and a tray holding every cluster you will need. A cluster is three to six hexagons stuck together, and it seats only if every one of its cells lands on an empty one. Fill the board and the level is done. Because the tray holds exactly what fits and nothing spare, there is no piece to fall back on: an early cluster dropped somewhere comfortable can leave a hole later that nothing left will cover. A hundred levels, three stars each, and one shared puzzle a day.</p>
 
       <p>All of them are free, run in any modern browser, and work offline once loaded. Have a request or found a bug? Head to our <a href="/contact/">contact page</a>. We read everything.</p>
     </section>
