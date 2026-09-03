@@ -200,5 +200,55 @@ ok('a stroke inside the budget is allowed', three.ok, three.why);
 const four = M.validateStroke(tight, t3, [3 * 7 + 0, 3 * 7 + 1, 3 * 7 + 2, 3 * 7 + 3, 3 * 7 + 4]);
 ok('a stroke past the budget is refused', !four.ok && four.why === 'over budget', four.why);
 
+// ---------- the tier 5 board ----------
+head('level 33, the first board of tier 5');
+const L5 = M.getLevel(33);
+ok('addressed by number, not position', L5.n === 33);
+const p5 = M.validate(L5);
+ok('validates', p5.length === 0, p5.join('; '));
+ok('is 9x9, the tier 5 grid', L5.R === 9 && L5.C === 9 && M.TUNE.gridByTier[L5.tier] === 9);
+ok('carries three engines, the tier 5 count',
+   L5.portals.reduce((a, p) => a + p.queue.length, 0) === M.TUNE.trainsByTier[L5.tier]);
+ok('three colours, each with a shed', new Set(L5.depots.map((d) => d.colour)).size === 3);
+
+const s5 = M.layout(L5, L5.solution);
+ok('the solution costs par', M.sleepers(s5) === L5.par,
+   'sleepers ' + M.sleepers(s5) + ' par ' + L5.par);
+ok('it is inside the budget', M.sleepers(s5) <= L5.budget);
+ok('the slack matches the tier', L5.budget - L5.par === M.TUNE.budgetSlack[L5.tier],
+   'slack ' + (L5.budget - L5.par));
+const J5a = 2 * 9 + 4, J5b = 5 * 9 + 4;
+ok('two junctions, at the ends of the corridor',
+   s5.filter((c) => M.isJunction(c)).length === 2 && M.isJunction(s5[J5a]) && M.isJunction(s5[J5b]));
+
+/* One flip solves it, and the OTHER setting must not, or the junction is
+   decoration. Both arms are run rather than just the winning one. */
+const run5a = M.runToEnd(L5, s5);
+ok('as drawn it does not solve itself', !run5a.won);
+const s5b = M.cloneTrack(s5);
+M.toggleSwitch(s5b, J5a);
+const run5b = M.runToEnd(L5, s5b);
+ok('one flip at the north junction wins it', run5b.won);
+ok('all three engines are home',
+   run5b.trains.length === 3 && run5b.trains.every((t) => L5.colour[t.cell] === t.colour));
+ok('and somebody had to wait for the corridor', run5b.meetings >= 1,
+   'meetings ' + run5b.meetings);
+
+/* THE TIER: spacing. Teal takes the long way round the left edge, and the
+   three cells that costs are what let coral out of the corridor first. Take
+   the detour away for the direct run and the two of them lock nose to nose,
+   which is the lesson the board is built to teach. */
+const direct = M.layout(L5, L5.solution.filter(
+  ([r, c]) => !((r === 7 && c === 0) || (r === 6 && c === 0) || (r === 5 && c === 0) || (r === 7 && c === 1))
+).concat([[7, 1, S, N], [6, 1, S, N], [5, 1, S, E]]));
+M.toggleSwitch(direct, J5a);
+const runDirect = M.runToEnd(L5, direct);
+ok('the short way costs less track', M.sleepers(direct) < M.sleepers(s5b),
+   M.sleepers(direct) + ' vs ' + M.sleepers(s5b));
+ok('and it deadlocks instead of winning', !runDirect.won);
+ok('nose to nose rather than hanging',
+   runDirect.settled && runDirect.trains.filter((t) => t.state === 'waiting').length >= 1);
+
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed\n');
 process.exit(fail ? 1 : 0);

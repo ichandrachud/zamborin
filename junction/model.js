@@ -251,9 +251,82 @@ const LEVEL_SPECS = [{
   ],
 }];
 
+/* ---------- LEVEL 33, THE FIRST BOARD OF TIER 5 ----------
+   Numbered 33 rather than 5 because the 72 are nine tiers of eight, so level 5
+   is still tier 1: a 7x7 with one engine and no junction at all. This is what
+   a tier 5 board looks like — 9x9, three engines, three colours — and the tier
+   introduces crossing ORDERS, which is to say spacing.
+
+     row 0     .    Pc    .    .    .    .    .    Dt   .
+     row 1     .     .    .    .    .    .    .     .   .
+     row 2     .     .    .    .    .    .    .     .   .
+     row 3     #     #    #    #   gap   #    #     #   #
+     row 4     .     .    .    .    .    .    .     .   .
+     row 5     .     .    .    .    .    .    .     .   .
+     row 6     .     .    .    .    .    .    .     .   Dc
+     row 7     .     .    .    .    .    .    .     .   Da
+     row 8     .    Pt   Pa    .    .    .    .     .   .
+
+   One wall, one gap, and the same argument as level 1 carried further: coral
+   runs north to south through the gap and teal south to north, so the four
+   cells of the corridor are used in both directions and the two junctions at
+   its ends are the only places the routes can part company. Amber never
+   touches it. It does not have to: it competes for the sleeper budget and for
+   the south band, and a third colour that shares nothing is a fair thing for a
+   board to contain.
+
+   The timing is the tier. The straight run from the teal tunnel reaches the
+   corridor while coral is still inside it, and the two of them lock nose to
+   nose and stay there. The reference solution takes teal the long way round by
+   the left edge, which is three cells more track and buys the one thing that
+   cannot be bought any other way: coral gets out first. Teal still waits about
+   half a second at the last shared cell, which is the rule being taught rather
+   than a fault.
+*/
+LEVEL_SPECS.push({
+  n: 33, tier: 4, R: 9, C: 9,
+  rocks: [[3, 0], [3, 1], [3, 2], [3, 3], [3, 5], [3, 6], [3, 7], [3, 8]],
+  portals: [
+    { at: [0, 1], face: S, queue: [0] },   // coral, out of the north tunnel
+    { at: [8, 1], face: N, queue: [2] },   // teal, out of the south tunnel
+    { at: [8, 2], face: N, queue: [1] },   // amber, and it stays in the south
+  ],
+  depots: [
+    { at: [0, 7], face: S, colour: 2 },    // teal's shed, north east
+    { at: [6, 8], face: W, colour: 0 },    // coral's shed, east
+    { at: [7, 8], face: W, colour: 1 },    // amber's shed, east
+  ],
+  budget: 34,
+  par: 31,
+  solution: [
+    // coral: north tunnel, east along row 1, down the corridor, out east
+    [1, 1, N, E], [1, 2, W, E], [1, 3, W, E], [1, 4, W, S],
+    [2, 4, N, S], [3, 4, N, S], [4, 4, N, S], [5, 4, N, S],
+    [6, 4, N, E], [6, 5, W, E], [6, 6, W, E], [6, 7, W, E],
+    // teal: the long way round by the left edge, which is what lets coral out
+    [7, 1, S, W], [7, 0, E, N], [6, 0, S, N], [5, 0, S, E],
+    [5, 1, W, E], [5, 2, W, E], [5, 3, W, E],
+    [5, 4, W, N],                                  // junction, south end
+    [4, 4, S, N], [3, 4, S, N],                    // the corridor, retraced
+    [2, 4, S, E],                                  // junction, north end
+    [2, 5, W, E], [2, 6, W, E], [2, 7, W, N], [1, 7, S, N],
+    // amber: along the south, sharing nothing and paying for its own rails
+    [7, 2, S, E], [7, 3, W, E], [7, 4, W, E], [7, 5, W, E], [7, 6, W, E], [7, 7, W, E],
+  ],
+});
+
 const LEVELS = LEVEL_SPECS.map(buildLevel);
 const levelCount = () => LEVELS.length;
-const getLevel = (n) => LEVELS[Math.max(0, Math.min(LEVELS.length - 1, (n | 0) - 1))];
+// Levels are addressed by their NUMBER, not their position, because the hand
+// authored set is sparse: milestone 1 ships level 1 and one tier 5 board, and
+// the tier a level belongs to is a fact about its number.
+function getLevel(n) {
+  const want = n | 0;
+  for (const l of LEVELS) if (l.n === want) return l;
+  let best = LEVELS[0];
+  for (const l of LEVELS) if (l.n <= want && l.n > best.n) best = l;
+  return best;
+}
 
 // ---------- DRAWING ----------
 const rowOf = (level, i) => (i / level.C) | 0;

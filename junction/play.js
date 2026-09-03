@@ -890,60 +890,94 @@
       need: level.portals.reduce((a, p) => a + p.queue.filter((c) => c === d.colour).length, 0),
     }));
 
+    /* The panel has to hold whatever the LEVEL holds, and a tier 9 board holds
+       five engines and four sheds where level 1 holds two and two. Laid out
+       for two, the third shed drew straight through the floor of the panel and
+       the fifth engine would have run into the divider. So nothing here is
+       sized for a count: the queue takes its pitch from the room it has, and
+       `ink()` records what was actually painted so a test can see the day one
+       of them stops fitting. */
+    L.yardInk = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+    const ink = (x0, y0, x1, y1) => {
+      L.yardInk.x0 = Math.min(L.yardInk.x0, x0); L.yardInk.y0 = Math.min(L.yardInk.y0, y0);
+      L.yardInk.x1 = Math.max(L.yardInk.x1, x1); L.yardInk.y1 = Math.max(L.yardInk.y1, y1);
+    };
     if (y.vertical) {
       let yy = y.y + 22;
       label('IN THE TUNNEL', y.x + 16, yy); yy += 16;
-      if (!waiting.length) {
-        dim('none waiting', y.x + 16, yy + 8);
-      } else {
-        for (let k = 0; k < waiting.length; k++)
-          drawEngine(y.x + 24 + k * 30, yy + 12, 0, waiting[k], 26, {});
-      }
-      yy += 44;
-      ctx.strokeStyle = TOK.tint10; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(y.x + 14, yy); ctx.lineTo(y.x + y.w - 14, yy); ctx.stroke();
-      yy += 24;
-      label('SHEDS', y.x + 16, yy); yy += 22;
-      for (const s of sheds) {
-        shedRow(y.x + 22, yy, s);
-        yy += 30;
-      }
-      // Anchored to the foot of the column rather than stacked after the
-      // sheds, so it does not walk down the panel as a level gains colours.
+      if (!waiting.length) dim('none waiting', y.x + 16, yy + 8);
+      else queue(y.x + 24, yy + 12, y.w - 44);
+      yy += 46;
+      rule(y.x + 14, yy); yy += 24;
+      label('SHEDS', y.x + 16, yy); yy += 24;
       const ty = y.y + y.h - 20;
-      ctx.strokeStyle = TOK.tint10; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(y.x + 14, ty - 26); ctx.lineTo(y.x + y.w - 14, ty - 26); ctx.stroke();
-      tally(y.x + 16, ty);
+      packSheds(y.x + 24, yy, y.w - 40, (ty - 30) - yy);
+      rule(y.x + 14, ty - 26);
+      label('SLEEPERS', y.x + 16, ty - 13);
+      tallyValue(y.x + 16, ty + 6);
     } else {
-      const midX = y.x + y.w * 0.46;
-      label('IN THE TUNNEL', y.x + 16, y.y + 22);
-      if (!waiting.length) dim('none waiting', y.x + 16, y.y + 52);
-      else for (let k = 0; k < waiting.length; k++)
-        drawEngine(y.x + 26 + k * 30, y.y + 52, 0, waiting[k], 26, {});
-      tally(y.x + 16, y.y + y.h - 18);
-      ctx.strokeStyle = TOK.tint10; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(midX, y.y + 16); ctx.lineTo(midX, y.y + y.h - 16); ctx.stroke();
-      label('SHEDS', midX + 18, y.y + 22);
-      for (let k = 0; k < sheds.length; k++) shedRow(midX + 24, y.y + 50 + k * 28, sheds[k]);
+      /* Two ROWS, not two columns. The sheds used to sit beside the tunnel in
+         the right half of the strip, which is fine for the two colours level 1
+         has and runs out at three: on a 330 wide frame the count of one shed
+         printed straight through the chip of the next, and a tier 9 board has
+         four. So the sheds get the full width on a row of their own, and a
+         colour with one engine shows no fraction at all, because the chip
+         lighting up already says it. */
+      label('IN THE TUNNEL', y.x + 16, y.y + 18);
+      const tallyX = y.x + y.w * 0.62;
+      label('SLEEPERS', tallyX, y.y + 18);
+      if (!waiting.length) dim('none waiting', y.x + 16, y.y + 46);
+      else queue(y.x + 26, y.y + 46, tallyX - y.x - 44);
+      tallyValue(tallyX, y.y + 46);
+      rule(y.x + 14, y.y + 68);
+      label('SHEDS', y.x + 16, y.y + 92);
+      packSheds(y.x + 74, y.y + 92, y.w - 90, y.h - 76);
     }
     ctx.restore();
     void now;
 
+    /* Sheds go in a column while there is height for one and in a wrapping row
+       when there is not. Both layouts pack the same way for the same reason:
+       a fixed 28px pitch fitted three colours in a 600 tall frame and put the
+       third through the floor of a 320 tall one, which is a landscape phone.
+       Nothing here is sized for a count. */
+    function packSheds(x, yy, w, h) {
+      const stack = sheds.length * 28 <= h;
+      if (stack) { let cy = yy; for (const sh of sheds) { shedChip(x, cy, sh); cy += 28; } return; }
+      let cx = x, cy = yy;
+      for (const sh of sheds) {
+        const wide2 = sh.need > 1 ? 62 : 20;
+        if (cx > x && cx + wide2 > x + w) { cx = x; cy += 26; }
+        cx += shedChip(cx, cy, sh) + 16;
+      }
+    }
+    function rule(x0, yy) {
+      ctx.strokeStyle = TOK.tint10; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x0, yy); ctx.lineTo(y.x + y.w - 14, yy); ctx.stroke();
+    }
+    function queue(x, yy, room) {
+      const pitch = Math.min(30, room / Math.max(1, waiting.length));
+      const sz = Math.max(14, Math.min(26, pitch - 4));
+      for (let k = 0; k < waiting.length; k++) {
+        const ex = x + k * pitch;
+        drawEngine(ex, yy, 0, waiting[k], sz, {});
+        ink(ex - sz / 2, yy - sz * 0.32, ex + sz / 2, yy + sz * 0.32);
+      }
+    }
     /* The budget, and it is a puzzle constraint rather than a score: no timer,
        no par, nothing counting up. It turns amber as the last few go, which is
        information the board is already showing, just harder to count. */
-    function tally(x, yy) {
+    function tallyValue(x, yy) {
       const used = sleepersUsed(), left = level.budget - used;
       ctx.textBaseline = 'middle';
-      ctx.fillStyle = TOK.ink72;
-      ctx.font = '700 12px Inter, sans-serif';
-      ctx.fillText('SLEEPERS', x, yy - 13);
       ctx.fillStyle = left <= 2 ? TOK.accent2 : TOK.ink90;
       ctx.font = '700 16px Inter, sans-serif';
-      ctx.fillText(used + ' / ' + level.budget, x, yy + 6);
+      const t = used + ' / ' + level.budget;
+      ctx.fillText(t, x, yy);
+      ink(x, yy - 10, x + ctx.measureText(t).width, yy + 10);
     }
-
     function label(t, x, yy) {
+      ink(x, yy - 7, x + 90, yy + 7);
       ctx.fillStyle = TOK.ink72;
       ctx.font = '700 12px Inter, sans-serif';
       ctx.textBaseline = 'middle';
@@ -955,17 +989,30 @@
       ctx.textBaseline = 'middle';
       ctx.fillText(t, x, yy);
     }
-    function shedRow(x, yy, s) {
-      const col = ENGINE[s.colour].hi;
-      ctx.beginPath(); roundRect(x - 8, yy - 7, 18, 14, 4);
-      const gr = ctx.createLinearGradient(0, yy - 7, 0, yy + 7);
-      gr.addColorStop(0, shade(col, 0.18)); gr.addColorStop(1, shade(col, -0.2));
+    /* Returns the width it used, so a row can pack itself without knowing what
+       is in one. A colour with a single engine shows no fraction: the chip
+       lights when its engine is home, which is exactly what the arch on the
+       board does, and the same fact in two notations is one too many. */
+    function shedChip(x, yy, sh) {
+      const col = ENGINE[sh.colour].hi;
+      const lit = sh.home >= sh.need;
+      ctx.beginPath(); roundRect(x - 9, yy - 8, 20, 16, 5);
+      const gr = ctx.createLinearGradient(0, yy - 8, 0, yy + 8);
+      gr.addColorStop(0, shade(col, lit ? 0.30 : 0.00));
+      gr.addColorStop(1, shade(col, lit ? -0.08 : -0.44));
       ctx.fillStyle = gr; ctx.fill();
-      drawMark(x + 1, yy + 14.5, 6, col, S);
-      ctx.fillStyle = s.home >= s.need ? TOK.green : TOK.ink72;
-      ctx.font = '700 14px Inter, sans-serif';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(s.home + ' / ' + s.need, x + 20, yy);
+      drawMark(x + 1, yy + 15.5, 6, col, S);
+      let w = 20;
+      if (sh.need > 1) {
+        ctx.fillStyle = lit ? TOK.green : TOK.ink72;
+        ctx.font = '700 14px Inter, sans-serif';
+        ctx.textBaseline = 'middle';
+        const t = sh.home + ' / ' + sh.need;
+        ctx.fillText(t, x + 18, yy);
+        w = 18 + ctx.measureText(t).width;
+      }
+      ink(x - 9, yy - 9, x + w, yy + 9);
+      return w;
     }
   }
 
@@ -1308,6 +1355,26 @@
     return r * g.C + c;
   }
 
+  /* THE RING IS THE ONE THING YOU HAVE TO HIT, and the target for it is the
+     cell, which is exactly what a bigger board spends: 47px at 7x7 on a phone,
+     37 at 9x9, 30 at 11x11, against the 44 a thumb wants. So a tap that lands
+     on BARE GROUND next to a junction is given to the junction. It only ever
+     rescues a tap that would otherwise have done nothing at all — a tap on
+     track, on a rock, on an arch or on a second junction is left exactly where
+     it fell — so it cannot take a tap away from anything. */
+  function nearestRing(p, fallback) {
+    if (track[fallback] || level.kind[fallback] !== M.EMPTY) return fallback;
+    const reach = Math.max(22, L.g.cell * 0.75);
+    let best = fallback, bestD = reach;
+    for (let i = 0; i < level.size; i++) {
+      if (!M.isJunction(track[i])) continue;
+      const c = cellCentre(L.g, i);
+      const d = Math.hypot(p.x - c.x, p.y - c.y);
+      if (d < bestD) { bestD = d; best = i; }
+    }
+    return best;
+  }
+
   let down = null, lastTap = { i: -1, at: 0, wasToggle: false };
 
   canvas.addEventListener('pointerdown', (e) => {
@@ -1433,7 +1500,7 @@
       draw();
       return;
     }
-    if (!d.moved && d.cell >= 0 && !running()) tap(d.cell);
+    if (!d.moved && d.cell >= 0 && !running()) tap(nearestRing(p, d.cell));
     draw();
   });
 
@@ -1563,9 +1630,18 @@
         mode: MODE, LW, LH, wide: L.wide, phase, cell: L.g.cell,
         board: { x: L.g.ox, y: L.g.oy, w: L.g.C * L.g.cell, h: L.g.R * L.g.cell },
         yard: L.yard,
+        /* Does everything the panel draws still fit inside the panel? With
+           three sheds instead of two the third row drew through the floor of
+           it, and nothing could see that but an eye. */
+        yardInk: L.yardInk,
+        yardFits: !!L.yard && !!L.yardInk &&
+          L.yardInk.x0 >= L.yard.x - 0.5 && L.yardInk.x1 <= L.yard.x + L.yard.w + 0.5 &&
+          L.yardInk.y0 >= L.yard.y - 0.5 && L.yardInk.y1 <= L.yard.y + L.yard.h + 0.5,
         controls: { sound: L.hit.sound, undo: L.hit.undo, restart: L.hit.restart, rules: L.hit.rules },
         cta: L.hit.release || null,
         card: L.hit.cta || null,
+        cellTarget: L.g.cell,
+        ringTarget: Math.round(Math.max(22, L.g.cell * 0.75) * 2),
         rowRight: Math.round(L.rowRight || 0),
         readoutLeft: Math.round(L.readoutLeft || 0),
         /* Only meaningful when the row and the read-out share the band, which
@@ -1606,6 +1682,114 @@
         onCanvas: c.py >= 0 && c.py + c.ph <= LH,
         fits: Math.abs(sum - c.ph) < 0.5 && c.py >= 0 && c.py + c.ph <= LH,
       };
+    },
+    /* Every drawn size, in one place, derived from the cell rather than
+       restated. The question "what does shrinking the board cost" is a
+       question about these numbers, and answering it by reading the draw code
+       is how a number quietly stops being true. */
+    /* The worst board the tiers will ever ask for: 11x11, five engines, four
+       colours. It exists so the LAYOUT can be measured against tier 9 before
+       tier 9 is designed, because every count in the panel and every size in
+       the yard is a function of those two numbers, and finding out at level 65
+       that four sheds do not fit is finding out too late. It carries no
+       solution and is not a level. */
+    stress() {
+      level = M.buildLevel({
+        n: 99, tier: 8, R: 11, C: 11,
+        rocks: [[5, 0], [5, 1], [5, 2], [5, 3], [5, 5], [5, 6], [5, 7], [5, 8], [5, 10]],
+        portals: [
+          { at: [0, 1], face: M.S, queue: [0, 0] },
+          { at: [10, 1], face: M.N, queue: [2] },
+          { at: [10, 3], face: M.N, queue: [1] },
+          { at: [5, 9], face: M.N, queue: [3] },
+        ],
+        depots: [
+          { at: [0, 9], face: M.S, colour: 2 },
+          { at: [8, 10], face: M.W, colour: 0 },
+          { at: [9, 10], face: M.W, colour: 1 },
+          { at: [0, 5], face: M.S, colour: 3 },
+        ],
+        budget: 60, par: 0,
+      });
+      track = M.newTrack(level.size);
+      history = []; run = null; winAt = 0; phase = 'play';
+      layout(); draw();
+      return { ...this.state, art: this.art(), fit: this.hits().yardFits };
+    },
+    /* Colour is never the only channel: every shed and every engine carries an
+       engraved dot, bar, chevron or ring. That promise is a function of SIZE,
+       and it is the first thing a smaller board spends. This renders the four
+       marks at a given radius and reports how different the shapes actually
+       are, so "can you still tell them apart at 11x11" has an answer.
+
+       The metric is the Jaccard distance between the INK of two marks: the
+       pixels where exactly one of them is dark, over the pixels where either
+       is. A mean difference over the whole patch was the first attempt and it
+       was worthless twice over — dominated by the white space the two marks
+       share, and, at a large radius, quietly reading off the end of the canvas
+       and calling black-versus-white a difference of 70%. Both controls below
+       exist because of that. */
+    markLegibility(r) {
+      const R = r || L.g.cell * 0.16;
+      const pad = Math.ceil(R * 1.9) + 3, side = pad * 2, step = side + 6;
+      if (24 + step * 2 > Math.min(LW, LH)) {
+        return { error: 'patches would not fit on this canvas at r=' + R };
+      }
+      const dpr = canvas.width / LW;
+      const masks = [];
+      ctx.save();
+      for (let k = 0; k < 4; k++) {
+        const cx = 24 + (k % 2) * step + pad, cy = 24 + ((k / 2) | 0) * step + pad;
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(cx - pad, cy - pad, side, side);
+        drawMark(cx, cy + R * 2.1, R, ENGINE[k].hi, S);
+        const d = ctx.getImageData(Math.round((cx - pad) * dpr), Math.round((cy - pad) * dpr),
+                                   Math.round(side * dpr), Math.round(side * dpr)).data;
+        const m = [];
+        for (let i = 0; i < d.length; i += 4) m.push((d[i] + d[i + 1] + d[i + 2]) / 3 < 170 ? 1 : 0);
+        masks.push({ mark: ENGINE[k].mark, m, ink: m.reduce((a, v) => a + v, 0) });
+      }
+      ctx.restore();
+      const jaccard = (a, b) => {
+        let inter = 0, uni = 0;
+        for (let i = 0; i < a.m.length; i++) { if (a.m[i] & b.m[i]) inter++; if (a.m[i] | b.m[i]) uni++; }
+        return uni ? Math.round((1 - inter / uni) * 1000) / 10 : 0;
+      };
+      const pairs = [];
+      let worst = 101, worstPair = '';
+      for (let a = 0; a < 4; a++) for (let b = a + 1; b < 4; b++) {
+        const d = jaccard(masks[a], masks[b]);
+        pairs.push(masks[a].mark + ' vs ' + masks[b].mark + ': ' + d + '%');
+        if (d < worst) { worst = d; worstPair = masks[a].mark + '/' + masks[b].mark; }
+      }
+      draw();
+      return {
+        radius: Math.round(R * 10) / 10,
+        // A mark against ITSELF must be 0, or the metric cannot report "same".
+        selfControl: jaccard(masks[0], masks[0]),
+        inkPixels: masks.map((m) => m.ink),
+        pairs, worstPairPercent: worst, worstPair,
+      };
+    },
+    art(cell) {
+      const c = cell || L.g.cell;
+      const engine = c * 0.68;
+      return {
+        cell: c,
+        grid: level.C + 'x' + level.R,
+        engineLen: r1(engine), engineWid: r1(engine * 0.6),
+        engineWindow: r1(engine * 0.16) + ' x ' + r1(engine * 0.6 * 0.44),
+        engineMark: r1(engine * 0.13),
+        ringRadius: r1(c * 0.155),
+        bladeLen: r1(c * 0.40 - c * 0.155 * 0.7),
+        railGauge: r1(c * 0.23), railWidth: r1(Math.max(1.1, c * 0.05)),
+        tieLen: r1(c * 0.40), tieSpacing: r1(c / 5),
+        archW: r1(c * 0.58), archH: r1(c * 0.62),
+        shedMark: r1(c * 0.16),
+        tapTarget: c,
+        cells: level.R * level.C,
+      };
+      function r1(v) { return Math.round(v * 10) / 10; }
     },
     // Sample the PAINTED pixel, not the source hex. The screen is the only
     // ground that counts, and a gradient under a thing is not its source hex.
