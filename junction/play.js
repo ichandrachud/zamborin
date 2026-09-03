@@ -212,8 +212,12 @@
      and it must keep its controls at the bottom. */
   const STACK_MIN_H = 500;
   const wide = () => LW >= LH * 1.15 || LH < STACK_MIN_H;
-  const topBand = () => (wide() ? 56 : 64);
-  const QUEUE_H = 112;   // label, engines, and the sleeper tally under them
+  const topBand = () => 56;
+  const QUEUE_H = 112;   // the landscape column: label, engines, tally
+  /* The board's own margin in portrait, and it is NOT SIDE_PAD. Band content
+     still gets 30 because type needs a margin; a board does not, and on a
+     phone the board is bound by width, so this number IS the cell size. */
+  const BOARD_PAD = 10;
 
   function layout() {
     const R = level.R, C = level.C;
@@ -236,21 +240,43 @@
       L.ctaCx = ox + bw / 2;
       L.ctaCy = Math.round(LH - bot / 2);
     } else {
-      L.ctrlCy = LH - 74;
-      const ctaCy = Math.round(LH - 74 - UI.PILL.h / 2 - 16 - UI.CTA.h / 2);
-      const queueBot = Math.round(ctaCy - UI.CTA.h / 2 - 16);
-      const queueTop = queueBot - QUEUE_H;
-      const bot = LH - queueTop + 12;
-      const availW = Math.max(60, LW - SIDE_PAD * 2);
-      const availH = Math.max(60, LH - topBand() - bot);
+      /* PORTRAIT IS ITS OWN GAME, not the landscape one folded up. The chrome
+         was taking 364 of 852 pixels — a control row, a CTA and a whole yard
+         panel below the board, with the board itself squeezed to 39% of the
+         screen — so the phone was being asked to display a desktop.
+
+         The controls go to the TOP. That is a deliberate departure from a
+         locked rule: CONTRIBUTING and DESIGN-SYSTEM 2.1 both put them at the
+         bottom on phones, for thumb reach, and every other game on the site
+         does. The owner asked for it in order to give the board the screen.
+         The one thing kept at the bottom is the CTA, because RELEASE is the
+         button pressed over and over and it is the one a thumb has to reach.
+
+         The panel goes entirely. Everything it held is on the board already:
+         the engines waiting in a tunnel are drawn in its mouth, and an arch
+         lights when its own engine is home. The only figure that was not on
+         the board is the sleeper tally, which moves into the read-out.
+
+         And the board takes the width. It is the only lever that exists: a
+         square grid on a tall phone is bound by WIDTH, so every pixel of side
+         margin is a pixel off the cell, and no amount of moving furniture
+         around changes that. 10 rather than the site's 30, which is the second
+         departure and takes the 7x7 cell from 47 to 53. */
+      L.ctrlCy = 30;
+      const ctaCy = Math.round(LH - 20 - UI.CTA.h / 2);
+      const readoutY = Math.round(ctaCy - UI.CTA.h / 2 - 22);
+      const top = topBand() + 10;
+      const availW = Math.max(60, LW - BOARD_PAD * 2);
+      const availH = Math.max(60, (readoutY - 20) - top);
       const cell = Math.max(8, Math.floor(Math.min(availW / C, availH / R)));
       const bw = C * cell, bh = R * cell;
       L.g = {
         ox: Math.round((LW - bw) / 2),
-        oy: Math.round(topBand() + (availH - bh) / 2),
+        oy: Math.round(top + (availH - bh) / 2),
         cell, R, C,
       };
-      L.yard = { x: SIDE_PAD, y: queueTop, w: LW - SIDE_PAD * 2, h: QUEUE_H, vertical: false };
+      L.yard = null;              // the board is the legend
+      L.readoutY = readoutY;
       L.ctaCx = LW / 2;
       L.ctaCy = ctaCy;
     }
@@ -652,14 +678,22 @@
     const bw = g.C * g.cell, bh = g.R * g.cell;
     // The felt: Surface, lit from up and left toward Raised, which is the same
     // light the Portal wash behind it comes from.
+    /* In portrait the board is NOT a card. No plate, no border, no rounded
+       corners: the yard is the screen, and the ground under it is the Portal
+       wash that the whole page already stands on. In landscape it stays a
+       framed board on a table, which is what a 760x600 frame with a column
+       beside it wants to be. */
+    const plain = !!o.plain;
     ctx.save();
-    ctx.beginPath(); roundRect(g.ox, g.oy, bw, bh, Math.min(18, g.cell * 0.4));
-    ctx.clip();
-    const warm = o.warm || 0;
-    const pg = ctx.createLinearGradient(g.ox, g.oy, g.ox + bw * 0.5, g.oy + bh);
-    pg.addColorStop(0, shade(TOK.bgPanel, 0.02 + warm));
-    pg.addColorStop(1, shade(TOK.bgCard, -0.10 + warm * 0.6));
-    ctx.fillStyle = pg; ctx.fillRect(g.ox, g.oy, bw, bh);
+    if (!plain) {
+      ctx.beginPath(); roundRect(g.ox, g.oy, bw, bh, Math.min(18, g.cell * 0.4));
+      ctx.clip();
+      const warm = o.warm || 0;
+      const pg = ctx.createLinearGradient(g.ox, g.oy, g.ox + bw * 0.5, g.oy + bh);
+      pg.addColorStop(0, shade(TOK.bgPanel, 0.02 + warm));
+      pg.addColorStop(1, shade(TOK.bgCard, -0.10 + warm * 0.6));
+      ctx.fillStyle = pg; ctx.fillRect(g.ox, g.oy, bw, bh);
+    }
 
     // empty cell plots, Tint 03
     ctx.fillStyle = TOK.tint03;
@@ -710,11 +744,24 @@
       ctx.beginPath(); ctx.arc(p.x, p.y, g.cell * (0.30 + 0.14 * (1 - k)), 0, Math.PI * 2); ctx.stroke();
     }
 
-    for (const p of lvl.portals) {
-      const waiting = rn
-        ? rn.trains.filter((t) => t.portal === lvl.portals.indexOf(p) && t.state === 'queued').length
-        : p.queue.length;
-      drawArch(g, p.i, p.face, null, false, waiting);
+    /* The queue is ON THE BOARD, which is what lets the phone drop the panel
+       entirely: the next engine out of a tunnel sits in its mouth, in its own
+       colour, and a badge appears only when more than one is behind it. The
+       brief asked for the order to be shown at the tunnel mouth, and a shape
+       in the hole is a better answer than a legend somewhere else. */
+    for (let pi = 0; pi < lvl.portals.length; pi++) {
+      const p = lvl.portals[pi];
+      const q = rn
+        ? rn.trains.filter((t) => t.portal === pi && t.state === 'queued').map((t) => t.colour)
+        : p.queue.slice();
+      drawArch(g, p.i, p.face, null, false, q.length > 1 ? q.length : 0);
+      if (q.length) {
+        const c0 = cellCentre(g, p.i);
+        const back = g.cell * 0.10;
+        drawEngine(c0.x - Math.cos(sideAngle(p.face)) * back,
+                   c0.y - Math.sin(sideAngle(p.face)) * back,
+                   sideAngle(p.face), q[0], g.cell * 0.52, { dark: true });
+      }
     }
     for (const d of lvl.depots) {
       const home = rn ? rn.trains.filter((t) => t.state === 'parked' && t.cell === d.i && t.colour === d.colour) : [];
@@ -725,11 +772,13 @@
     if (rn) drawTrains(g, lvl, rn, now);
     ctx.restore();
 
-    // the frame edge, a hairline of value rather than a border
-    ctx.strokeStyle = TOK.tint10; ctx.lineWidth = 1;
-    ctx.beginPath();
-    roundRect(g.ox + 0.5, g.oy + 0.5, bw - 1, bh - 1, Math.min(18, g.cell * 0.4));
-    ctx.stroke();
+    if (!plain) {
+      // the frame edge, a hairline of value rather than a border
+      ctx.strokeStyle = TOK.tint10; ctx.lineWidth = 1;
+      ctx.beginPath();
+      roundRect(g.ox + 0.5, g.oy + 0.5, bw - 1, bh - 1, Math.min(18, g.cell * 0.4));
+      ctx.stroke();
+    }
   }
 
   function drawTrains(g, lvl, rn, now) {
@@ -790,16 +839,30 @@
     const wU = UI.pillWidth(ctx, 'Undo'), wR = UI.pillWidth(ctx, 'Restart');
     const rowFull = wS + wU + wR + UI.pillWidth(ctx, 'Rules') + gap * 3;
     const rowIcon = wS + wU + wR + UI.PILL.iconW + gap * 3;
-    const texts = ['LEVEL ' + level.n, 'L' + level.n];
+    /* Landscape keeps the tally in the panel beside the board, so the band
+       carries the level and nothing else. Portrait has no panel, so the tally
+       comes here — and it is at the BOTTOM of the frame, on its own line above
+       the CTA, where nothing can collide with it. */
+    const used = sleepersUsed();
+    const texts = L.wide
+      ? ['LEVEL ' + level.n, 'L' + level.n]
+      : ['LEVEL ' + level.n + '   ·   SLEEPERS ' + used + ' / ' + level.budget,
+         'LEVEL ' + level.n + '  ·  ' + used + ' / ' + level.budget,
+         'L' + level.n + '  ·  ' + used + '/' + level.budget];
     const hs0 = Math.max(0.66, Math.min(1, LW / 620));
     const width = (t, hs) => {
       ctx.font = '600 ' + Math.round(16 * hs) + 'px Inter, sans-serif';
       return ctx.measureText(t).width;
     };
     if (!L.wide) {
-      // Portrait keeps the controls at the bottom, so the band holds only the
-      // read-out and the only question is whether the ROW fits its own line.
-      return { iconRules: rowFull > LW - 20, text: texts[0], hs: hs0 };
+      // Portrait puts the row alone in the top band and the read-out alone on
+      // its own line at the foot, so neither can crowd the other: the only
+      // questions are whether each fits its own width.
+      const icon = rowFull > LW - 20;
+      let text = texts[0], hs = hs0, k = 0;
+      while (width(text, hs) > LW - 24 && k < texts.length - 1) text = texts[++k];
+      while (width(text, hs) > LW - 24 && hs > 0.655) hs -= 0.02;
+      return { iconRules: icon, text, hs };
     }
     for (const icon of [false, true]) {
       const row = icon ? rowIcon : rowFull;
@@ -820,7 +883,7 @@
     const wH = iconRules ? UI.PILL.iconW : UI.pillWidth(ctx, 'Rules');
     const total = wS + wU + wR + wH + gap * 3;
     const cy = L.ctrlCy;
-    let x = L.wide ? SIDE_PAD : Math.round(LW / 2 - total / 2);
+    let x = L.wide ? SIDE_PAD : Math.round(LW / 2 - total / 2);   // portrait: centred, in the TOP band
     L.rowLeft = x;
 
     const b = UI.drawPill(ctx, '', x + wS / 2, cy, { w: wS });
@@ -849,8 +912,18 @@
      this measures the room the row left and shrinks the type into it with a
      floor. */
   function drawReadout() {
-    const cy = Math.round(topBand() / 2);
     const plan = L.plan;
+    if (!L.wide) {
+      ctx.font = '600 ' + Math.round(16 * plan.hs) + 'px Inter, sans-serif';
+      ctx.fillStyle = TOK.ink72;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(plan.text, LW / 2, L.readoutY);
+      ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+      L.readoutW = ctx.measureText(plan.text).width;
+      L.readoutLeft = LW / 2 - L.readoutW / 2;
+      return;
+    }
+    const cy = Math.round(topBand() / 2);
     /* The sleeper tally sits in the yard panel, not here. It was in both, and
        in a landscape frame the two strings collided; the brief puts it with the
        tunnel queue in the first place, and one number in one place is also one
@@ -870,6 +943,7 @@
      already showing, so it is a read-out and not a solving aid. */
   function drawYard(now) {
     const y = L.yard;
+    if (!y) { L.yardInk = null; return; }   // portrait has no panel: the board is the legend
     ctx.save();
     ctx.beginPath(); roundRect(y.x, y.y, y.w, y.h, 14);
     ctx.fillStyle = TOK.tint03; ctx.fill();
@@ -1244,21 +1318,23 @@
   function render(now) {
     ctx.clearRect(0, 0, LW, LH);
     // The Portal wash. Same three stops, same centre, in every game.
+    // The lamp warms 8% for the first second of a finished yard. In portrait
+    // there is no plate to warm, so the WASH warms: the whole room, which is
+    // what a lamp coming up actually does.
+    const warm = winAt ? Math.min(1, (now - winAt) / 1000) * 0.08 : 0;
+    const w2 = L.wide ? 0 : warm;
     const bg = ctx.createRadialGradient(LW * 0.32, 0, 0, LW * 0.32, 0, LW * 1.1);
-    bg.addColorStop(0, TOK.bgPanel);
-    bg.addColorStop(0.6, TOK.bgCard);
-    bg.addColorStop(1, TOK.bg);
+    bg.addColorStop(0, shade(TOK.bgPanel, w2));
+    bg.addColorStop(0.6, shade(TOK.bgCard, w2));
+    bg.addColorStop(1, shade(TOK.bg, w2));
     ctx.fillStyle = bg; ctx.fillRect(0, 0, LW, LH);
     L.plan = bandPlan();
 
     // The lamp warms 8% for two seconds when the yard comes right.
-    // The lamp warms 8 per cent over the first second of a finished yard and
-    // stays there. It is the only light change in the game.
-    const warm = winAt ? Math.min(1, (now - winAt) / 1000) * 0.08 : 0;
-
     drawBoard(L.g, level, track, run, now, {
       ghost: stroke && stroke.ok ? stroke.adds : null,
-      warm,
+      warm: L.wide ? warm : 0,
+      plain: !L.wide,
       litAt: (t) => winAt + (reduced() ? 0 : 200 * arrivalRank(t)),
     });
     drawYard(now);
@@ -1630,11 +1706,12 @@
         mode: MODE, LW, LH, wide: L.wide, phase, cell: L.g.cell,
         board: { x: L.g.ox, y: L.g.oy, w: L.g.C * L.g.cell, h: L.g.R * L.g.cell },
         yard: L.yard,
+        hasPanel: !!L.yard,
         /* Does everything the panel draws still fit inside the panel? With
            three sheds instead of two the third row drew through the floor of
            it, and nothing could see that but an eye. */
         yardInk: L.yardInk,
-        yardFits: !!L.yard && !!L.yardInk &&
+        yardFits: !L.yard ? true : !!L.yardInk &&
           L.yardInk.x0 >= L.yard.x - 0.5 && L.yardInk.x1 <= L.yard.x + L.yard.w + 0.5 &&
           L.yardInk.y0 >= L.yard.y - 0.5 && L.yardInk.y1 <= L.yard.y + L.yard.h + 0.5,
         controls: { sound: L.hit.sound, undo: L.hit.undo, restart: L.hit.restart, rules: L.hit.rules },
