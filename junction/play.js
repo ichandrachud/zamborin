@@ -462,42 +462,240 @@
   const sideAngle = (s) => (s === N ? -Math.PI / 2 : s === E ? 0 : s === S ? Math.PI / 2 : Math.PI);
 
   // ---------- PAINTING THE YARD ----------
-  function drawRock(g, i) {
+  /* ---------- LINESIDE SCENERY ----------
+     An impassable cell is one thing to the model and several things on the
+     screen. Eight of them in a row used to be eight of the same blob, which
+     reads as a line of icons rather than as a piece of country, and a line of
+     icons is the one thing a model railway board never looks like.
+
+     Three ideas do the work:
+
+     RUNS ARE FENCED, AND THE FENCE IS CONTINUOUS. Where obstacles are next to
+     each other they carry a paling fence whose pickets are spaced from the
+     START of the run in world pixels, not from each cell. So the fence walks
+     across cell boundaries and the eye reads one boundary, not eight tiles.
+
+     THE SCATTER IS NOT THE SAME TWICE. Every cell draws nought to three of
+     tree, bush and stone, at its own offsets, sizes and silhouettes. A tree
+     is three or four overlapping lobes placed by hash, so no two have the same
+     outline; some fenced cells get nothing at all and let the fence show.
+
+     ALL OF IT DETERMINISTIC. Every number comes from a hash of the cell index,
+     never Math.random, so a board looks the same on every load and in every
+     session, and the gate can still run the model headlessly.
+
+     One light, up and left: bodies stay dark and the moonlit RIM carries the
+     contrast, which is the same trick the stones already used and the reason
+     an obstacle never out-shouts the rails. */
+  const SCEN = {
+    stone: ['#5F6675', '#343945'],
+    leaf:  ['#3E4E44', '#1E2721'],
+    leafBack: ['#26312B', '#151B18'],
+    wood:  ['#5E5446', '#332E27'],
+    rim:   '#8E97A6',
+    leafRim: '#8CA396',
+    woodRim: '#9AA0A8',
+  };
+  function h32(a, b) {
+    let x = (Math.imul(a | 0, 374761393) + Math.imul(b | 0, 668265263)) >>> 0;
+    x = (x ^ (x >>> 13)) >>> 0;
+    x = Math.imul(x, 1274126177) >>> 0;
+    return (x ^ (x >>> 16)) >>> 0;
+  }
+  const rnd = (i, k) => h32(i, k) / 4294967296;
+
+  const isRock = (lvl, j) => j >= 0 && lvl.kind[j] === M.ROCK;
+  // Which way this cell's run of obstacles lies, or null if it stands alone.
+  function runAxis(lvl, i) {
+    const h = (isRock(lvl, M.neighbour(lvl, i, W)) ? 1 : 0) + (isRock(lvl, M.neighbour(lvl, i, E)) ? 1 : 0);
+    const v = (isRock(lvl, M.neighbour(lvl, i, N)) ? 1 : 0) + (isRock(lvl, M.neighbour(lvl, i, S)) ? 1 : 0);
+    if (!h && !v) return null;
+    return h >= v ? 'h' : 'v';
+  }
+  function runStart(lvl, i, axis) {
+    const back = axis === 'h' ? W : N;
+    let j = i, guard = 0;
+    while (guard++ < 64) {
+      const k = M.neighbour(lvl, j, back);
+      if (!isRock(lvl, k)) break;
+      j = k;
+    }
+    return j;
+  }
+
+  function drawScenery(g, i, lvl) {
     const b = cellRect(g, i), cell = b.s;
-    const p = { x: b.x + cell / 2, y: b.y + cell / 2 };
-    const rr = cell * 0.34;
-    // Deterministic wobble from the cell index: no Math.random anywhere, so
-    // the same board draws the same rocks on every load.
-    const seed = (i * 2654435761) >>> 0;
+    const cx = b.x + cell / 2, cy = b.y + cell / 2;
+    const axis = runAxis(lvl, i);
+
+    /* Undergrowth: a soft dark patch the size of the cell, under everything
+       else. It exists because the hedge is a BAND about half a cell tall, so
+       the top and bottom of a blocked cell were bare ground and read as open —
+       a player would aim a stroke at them and be refused with no reason on
+       screen. A radial fade rather than a filled tile, so neighbouring cells
+       merge into one darker strip and nothing anywhere looks like a square. */
+    const ug = ctx.createRadialGradient(cx, cy, 0, cx, cy, cell * 0.74);
+    ug.addColorStop(0, 'rgba(9,14,24,0.46)');
+    ug.addColorStop(0.62, 'rgba(9,14,24,0.34)');
+    ug.addColorStop(1, 'rgba(9,14,24,0)');
+    ctx.fillStyle = ug;
+    ctx.fillRect(b.x - cell * 0.26, b.y - cell * 0.26, cell * 1.52, cell * 1.52);
+
+    // How far a thing may lean out of this cell: over a neighbour that is also
+    // impassable, freely; over open ground, hardly at all.
+    const room = (side) => (isRock(lvl, M.neighbour(lvl, i, side)) ? 0.34 : 0.12);
+
+    if (axis) {
+      drawHedge(g, i, lvl, axis, 0);
+      drawPosts(g, i, lvl, axis);     // between the layers, so they peek through
+      drawHedge(g, i, lvl, axis, 1);
+    }
+    const n = axis
+      ? (rnd(i, 1) < 0.34 ? 0 : 1)
+      : 1 + (rnd(i, 2) < 0.55 ? 1 : 0) + (rnd(i, 3) < 0.22 ? 1 : 0);
+    const spanX = [-room(W), room(E)], spanY = [-room(N), room(S)];
+    for (let k = 0; k < n; k++) {
+      const a = rnd(i, 10 + k * 5), b2 = rnd(i, 11 + k * 5);
+      const c2 = rnd(i, 12 + k * 5), d2 = rnd(i, 13 + k * 5);
+      const ox = (spanX[0] + (spanX[1] - spanX[0]) * a) * cell;
+      const oy = (spanY[0] + (spanY[1] - spanY[0]) * b2) * cell;
+      const s = cell * (0.62 + c2 * 0.34) * (n > 1 ? 0.74 : 1) * (axis ? 1.12 : 1);
+      const seed = i * 31 + k;
+      // In a run the thing standing in the cell is what breaks the line, so it
+      // is usually a tree, it is bigger than the band, and it sits above it.
+      if (d2 < (axis ? 0.62 : 0.42)) drawTree(cx + ox, cy + (axis ? oy * 0.4 - cell * 0.10 : oy), s, seed);
+      else if (d2 < 0.74) drawBush(cx + ox, cy + oy, s * 0.84, seed);
+      else drawStone(cx + ox, cy + oy, s * 0.72, seed);
+    }
+  }
+
+  /* THE HEDGE, and it is the reason a run of obstacles is a hedgerow rather
+     than eight of the same blob. Lobes are placed at world pixel positions
+     measured from the FIRST cell of the run, so they walk across the cell
+     boundaries and overlap into a continuous band; their radius and their
+     wander off the line both come from the hash of the position, so the band
+     has an irregular edge rather than a repeating one. Two layers: a dark
+     back, then a lit front, which is what gives a mass of foliage depth
+     without an outline anywhere in it. */
+  function drawHedge(g, i, lvl, axis, layer) {
+    const b = cellRect(g, i), cell = b.s;
+    const horiz = axis === 'h';
+    const sb = cellRect(g, runStart(lvl, i, axis));
+    const base = horiz ? sb.x : sb.y;
+    const a0 = horiz ? b.x : b.y;
+    const cross = (horiz ? b.y : b.x) + cell / 2;
+    // Do not spill onto open ground at the ends of the run.
+    const openBack = !isRock(lvl, M.neighbour(lvl, i, horiz ? W : N));
+    const openFwd = !isRock(lvl, M.neighbour(lvl, i, horiz ? E : S));
+    const lo = a0 + (openBack ? cell * 0.16 : -cell * 0.34);
+    const hi = a0 + cell - (openFwd ? cell * 0.16 : -cell * 0.34);
+    const pitch = cell * 0.30;
+    let k = Math.ceil((lo - base) / pitch);
+    for (; base + k * pitch <= hi; k++) {
+      const px = base + k * pitch;
+      if (layer === 0 && rnd(k, 200) < 0.35) continue;
+      /* Groups of three lobes share a size, so the band SWELLS and thins in
+         clumps instead of jittering lobe by lobe. Per lobe noise reads as an
+         even fuzzy edge from a step back; correlated noise reads as bushes. */
+      const swell = 0.66 + rnd((k / 3) | 0, 150 + layer) * 0.80;
+      const rr = cell * (layer ? 0.20 : 0.24) * swell * (0.86 + rnd(k, 100 + layer) * 0.34);
+      const wander = (rnd(k, 110 + layer) - 0.5) * cell * 0.34;
+      const lift = layer ? -cell * 0.06 : cell * 0.02;
+      const x = horiz ? px : cross + wander;
+      const y = horiz ? cross + wander : px;
+      leafLobe(x, y + lift, rr, k * 7 + layer, layer, layer === 1);
+    }
+  }
+
+  /* Posts, and deliberately NOT a paling fence. The first version drew two
+     horizontal rails with pickets between them at an even pitch, which on a
+     dark ground is a picture of a railway track lying flat — in a game whose
+     whole subject is track. Posts alone cannot be misread: they are short,
+     they are vertical whatever way the run lies, they appear in about a third
+     of cells rather than all of them, and they sit off the centre line so
+     nothing in them is parallel to anything. */
+  function drawPosts(g, i, lvl, axis) {
+    if (rnd(i, 300) > 0.38) return;
+    const b = cellRect(g, i), cell = b.s;
+    const horiz = axis === 'h';
+    const cross = (horiz ? b.y : b.x) + cell / 2 + (rnd(i, 301) - 0.5) * cell * 0.34;
+    const a0 = horiz ? b.x : b.y;
+    const count = 2 + (h32(i, 302) % 2);
+    for (let k = 0; k < count; k++) {
+      const along = a0 + cell * (0.18 + 0.28 * k + rnd(i, 310 + k) * 0.12);
+      const h = cell * (0.22 + rnd(i, 320 + k) * 0.12);
+      const w = Math.max(1.6, cell * 0.055);
+      ctx.fillStyle = SCEN.wood[1];
+      ctx.fillRect(along, cross - h * 0.7, w, h);
+      ctx.fillStyle = SCEN.woodRim;
+      ctx.fillRect(along, cross - h * 0.7, Math.max(0.9, w * 0.34), h);
+    }
+  }
+
+  // A lobe of foliage: dark body, one moonlit edge up and to the left. `lit`
+  // is the front layer, which gets the rim; the back layer stays a silhouette.
+  function leafLobe(x, y, rr, seed, k, lit) {
+    const gr = ctx.createLinearGradient(x - rr, y - rr, x + rr * 0.6, y + rr);
+    gr.addColorStop(0, lit ? SCEN.leaf[0] : SCEN.leafBack[0]);
+    gr.addColorStop(1, lit ? SCEN.leaf[1] : SCEN.leafBack[1]);
+    ctx.fillStyle = gr;
+    ctx.beginPath();
+    ctx.ellipse(x, y, rr, rr * (0.80 + rnd(seed, 60 + k) * 0.28), 0, 0, Math.PI * 2);
+    ctx.fill();
+    if (lit === false) return;
+    ctx.strokeStyle = SCEN.leafRim;
+    ctx.lineWidth = Math.max(1.1, rr * 0.15);
+    ctx.beginPath();
+    ctx.ellipse(x, y, rr * 0.90, rr * 0.76, 0, Math.PI * 0.88, Math.PI * 1.70);
+    ctx.stroke();
+  }
+  function drawTree(x, y, s, seed) {
+    ctx.save();
+    ctx.fillStyle = SCEN.wood[1];
+    ctx.fillRect(x - s * 0.045, y - s * 0.02, s * 0.09, s * 0.34);
+    const lobes = 3 + (h32(seed, 1) % 2);
+    for (let k = 0; k < lobes; k++) {
+      const a = (k / lobes) * Math.PI * 2 + rnd(seed, 20 + k) * 1.4;
+      const d = s * (0.07 + rnd(seed, 30 + k) * 0.15);
+      const rr = s * (0.24 + rnd(seed, 40 + k) * 0.14);
+      leafLobe(x + Math.cos(a) * d, y - s * 0.24 + Math.sin(a) * d * 0.7, rr, seed, k, true);
+    }
+    ctx.restore();
+  }
+  function drawBush(x, y, s, seed) {
+    ctx.save();
+    const lobes = 2 + (h32(seed, 5) % 2);
+    for (let k = 0; k < lobes; k++) {
+      const d = s * (0.09 + rnd(seed, 50 + k) * 0.22);
+      const a = Math.PI + (k / Math.max(1, lobes - 1)) * Math.PI;
+      leafLobe(x + Math.cos(a) * d, y - s * 0.04 - Math.abs(Math.sin(a)) * d * 0.35,
+               s * (0.26 + rnd(seed, 55 + k) * 0.13), seed, k + 3, true);
+    }
+    ctx.restore();
+  }
+  function drawStone(x, y, s, seed) {
+    const rr = s * 0.62;
     ctx.save();
     ctx.beginPath();
-    for (let k = 0; k < 9; k++) {
-      const a = (k / 9) * Math.PI * 2;
-      const wob = 0.82 + (((seed >> (k * 3)) & 7) / 7) * 0.30;
-      const x = p.x + Math.cos(a) * rr * wob, y = p.y + Math.sin(a) * rr * wob * 0.9;
-      if (k === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    const pts = 7 + (h32(seed, 2) % 3);
+    for (let k = 0; k < pts; k++) {
+      const a = (k / pts) * Math.PI * 2;
+      const wob = 0.80 + rnd(seed, 70 + k) * 0.34;
+      const px = x + Math.cos(a) * rr * wob, py = y + Math.sin(a) * rr * wob * 0.88;
+      if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
     }
     ctx.closePath();
-    const gr = ctx.createLinearGradient(p.x - rr, p.y - rr, p.x + rr * 0.6, p.y + rr);
-    gr.addColorStop(0, ART.rockHi); gr.addColorStop(1, ART.rockLo);
+    const gr = ctx.createLinearGradient(x - rr, y - rr, x + rr * 0.6, y + rr);
+    gr.addColorStop(0, SCEN.stone[0]); gr.addColorStop(1, SCEN.stone[1]);
     ctx.fillStyle = gr; ctx.fill();
-    /* The lit rim, up and left, and it is doing a job rather than decorating.
-       A dark stone on dark felt measured 2.15:1 against a 3:1 bar, and the
-       answer is NOT to lighten the whole rock: an obstacle that reads as
-       bright as the rails is an obstacle the eye goes to first. So the body
-       stays dark and the EDGE carries the contrast, which is what the design
-       system means by an edge made of value. */
     ctx.save();
     ctx.clip();
-    ctx.strokeStyle = ART.rockRim;
-    ctx.lineWidth = Math.max(1.6, cell * 0.055);
+    ctx.strokeStyle = SCEN.rim;
+    ctx.lineWidth = Math.max(1.4, rr * 0.17);
     ctx.beginPath();
-    ctx.arc(p.x, p.y, rr * 0.98, Math.PI * 0.78, Math.PI * 1.86);
+    ctx.arc(x, y, rr * 0.97, Math.PI * 0.78, Math.PI * 1.86);
     ctx.stroke();
     ctx.restore();
-    ctx.beginPath();
-    ctx.ellipse(p.x - rr * 0.30, p.y - rr * 0.34, rr * 0.26, rr * 0.15, -0.5, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255,255,255,0.10)'; ctx.fill();
     ctx.restore();
   }
 
@@ -716,7 +914,7 @@
     }
     ctx.restore();
 
-    for (let i = 0; i < lvl.size; i++) if (lvl.kind[i] === M.ROCK) drawRock(g, i);
+    for (let i = 0; i < lvl.size; i++) if (lvl.kind[i] === M.ROCK) drawScenery(g, i, lvl);
     for (let i = 0; i < lvl.size; i++) drawTrackCell(g, i, trk[i], now);
 
     // the stroke under the finger, as chalk

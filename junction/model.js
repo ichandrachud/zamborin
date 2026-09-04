@@ -225,7 +225,10 @@ function validate(level) {
    nothing. */
 const LEVEL_SPECS = [{
   n: 1, tier: 0, R: 7, C: 7,
-  rocks: [[2, 0], [2, 1], [2, 2], [2, 4], [2, 5], [2, 6]],
+  // The wall, plus two lineside clumps that no route wants: a board that is
+  // one straight line of obstacles reads as one straight line of obstacles
+  // however carefully it is drawn.
+  rocks: [[2, 0], [2, 1], [2, 2], [2, 4], [2, 5], [2, 6], [0, 0], [6, 3]],
   portals: [
     { at: [0, 1], face: S, queue: [0] },   // coral, southbound out of the tunnel
     { at: [6, 1], face: N, queue: [2] },   // teal, northbound
@@ -285,7 +288,11 @@ const LEVEL_SPECS = [{
 */
 LEVEL_SPECS.push({
   n: 33, tier: 4, R: 9, C: 9,
-  rocks: [[3, 0], [3, 1], [3, 2], [3, 3], [3, 5], [3, 6], [3, 7], [3, 8]],
+  rocks: [[3, 0], [3, 1], [3, 2], [3, 3], [3, 5], [3, 6], [3, 7], [3, 8],
+          // A spur off the wall, a thicket hanging from it, and two clumps
+          // standing on their own: three different shapes of obstacle, none of
+          // them on a route.
+          [2, 1], [4, 7], [5, 7], [1, 5], [6, 2]],
   portals: [
     { at: [0, 1], face: S, queue: [0] },   // coral, out of the north tunnel
     { at: [8, 1], face: N, queue: [2] },   // teal, out of the south tunnel
