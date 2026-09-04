@@ -103,7 +103,27 @@
     /* THE FLAME */
     lure: 3.4,           // how hard it pulls, against wander at 0.35
     lureR: 155,          // how far it reaches
-    lureHold: 34,        // inside this they gather round it instead of piling in
+    /* THEY ORBIT THE FLAME, THEY DO NOT LAND ON IT. The old rule eased the pull
+       off inside `lureHold` and left nothing to push them back out, so a steady
+       hand collected them into a tight clump on the tip and the game had no
+       failure mode: the string tracked the path exactly, so no corner could
+       ever throw anyone into a web.
+
+       Now each fly wants a RADIUS rather than a point - it is pushed out when
+       it is inside its own shell and pulled in when it is outside - and it
+       circles while it holds station. So the swarm is a cloud around the tip
+       with real width, it deforms when you turn, and the flies on the outside
+       of a bend swing wider than the tip ever goes. That is where the
+       difficulty comes from, and it comes from the material rather than from a
+       number being raised. */
+    /* 32, from a sweep of 12 to 44 against sticks and win rate. At 12 the cloud
+       is barely wider than the old clump and the game is the easy one the owner
+       found; at 44 it is wide enough that the corridor cannot hold it at the
+       top tiers. 32 roughly doubles the sticks a careless run takes without
+       making a tier-9 channel impassable. */
+    orbitR: 32,          // the shell they hold, varied per fly
+    orbitSpin: 1.5,      // how hard they circle it while they hold it
+    chaos: 2.2,          // how much more they wander while led than when adrift
     lureSpeed: 150,      // their ceiling while following: outrun this and they
                          // are left behind, and this is the whole game
     jarShy: 2.4,         // how hard an UNLED fly steers away from the mouth
@@ -360,6 +380,8 @@
         led: false,                                   // can it see the flame
         lost: false,
         cs: 0.62 + rnd() * 0.38,          // its own comfortable share of flyMax
+        orbit: 0.62 + rnd() * 0.76,       // the shell this one likes to hold
+        spin: (rnd() < 0.5 ? -1 : 1) * (0.55 + rnd() * 0.9),
         wa: rnd() * Math.PI * 2,          // wander heading
         ws: (rnd() - 0.5) * 1.4,          // wander turn rate
         ph: rnd() * 1.2,                  // flash phase, seeded per fly
@@ -790,7 +812,11 @@
       let bx = sx * 2.6, by = sy * 2.6;
 
       f.wa += f.ws * dt * (REDUCED ? 0.4 : 1);
-      const wanW = TUNE.wander * (REDUCED ? 0.4 : 1) * (f.spook > 0 ? 2.4 : 1);
+      /* MILD CHAOS. A led fly wanders MORE than a drifting one, because it is
+         excited rather than settled - and because a swarm that holds formation
+         perfectly is a swarm with no risk in it. */
+      const wanW = TUNE.wander * (REDUCED ? 0.4 : 1) *
+                   (f.spook > 0 ? 2.4 : (f.led ? TUNE.chaos : 1));
       bx += Math.cos(f.wa) * wanW; by += Math.sin(f.wa) * wanW;
 
       /* THE FLAME. The verb is LEADING now, not pushing, and every hard thing
@@ -815,10 +841,24 @@
         const dx = touch.x - f.x, dy = touch.y - f.y, m = Math.hypot(dx, dy);
         if (m < TUNE.lureR && m > 1e-4 && f.spook <= 0) {
           f.led = true;
-          // ease off right at the flame so they gather ROUND it rather than
-          // collapsing onto a point and jostling each other into the dark
-          const w = TUNE.lure * Math.min(1, m / TUNE.lureHold);
-          bx += dx / m * w; by += dy / m * w;
+          /* THE SHELL CLOSES AT THE JAR. A fly holding station 44 units off the
+             tip orbits AROUND a jar rather than into it - the glass pushes it
+             out on every pass and the mouth is narrower than the shell is wide.
+             So the ring tightens as the flame goes to the mouth: in a confined
+             space they crowd the light instead of circling it. The width stays
+             where it matters, which is out in the open among the webs. */
+          let want = TUNE.orbitR * f.orbit;
+          const near = jar.mouthW * 1.25;
+          const td = Math.hypot(touch.x - jar.mx, touch.y - jar.my);
+          if (td < near) want *= 0.28 + 0.72 * (td / near);
+          // + when it is outside its shell, - when it is inside: a station to
+          // hold rather than a point to reach
+          const radial = Math.max(-1, Math.min(1, (m - want) / want));
+          bx += (dx / m) * TUNE.lure * radial;
+          by += (dy / m) * TUNE.lure * radial;
+          // and it circles while it holds, each one its own way round
+          const spin = TUNE.orbitSpin * f.spin * (1 - Math.abs(radial) * 0.55);
+          bx += (-dy / m) * spin; by += (dx / m) * spin;
         }
       }
 
@@ -2917,11 +2957,23 @@
         clock = 0;
         S = buildScene(keep.lvl);
         S.thorns = []; S.breeze = null;
-        S.flies = S.flies.slice(0, 1); S.n = 1;
+        /* AND `need` COMES DOWN WITH IT. Cutting the swarm to one fly while
+           leaving need at three makes the level instantly unwinnable, so the
+           first step flips it to 'short', which DROPS THE FLAME - and an unled
+           fly is shy of the jar by design. Every "0 of 3" this probe has
+           reported since the end-of-level state existed was that, not a broken
+           capture. A probe that quietly puts the game into a losing state is
+           measuring the losing state. */
+        S.flies = S.flies.slice(0, 1); S.n = 1; S.need = 1;
         phase = 'play'; touch = null;
         const jar = S.jar, f = S.flies[0];
         const ang = (a / 12) * Math.PI * 2;
-        const start = (o.dist != null ? o.dist : jar.mouthW * 1.05);
+        /* Inside the flame's reach, or the probe proves nothing. At 1.05 mouth
+           widths the fly began 168 units from a flame that reaches 155, so it
+           was never LED - and an unled fly is shy of the jar on purpose. The
+           probe was measuring the rule that stops the garden filling itself,
+           and calling it a broken capture. */
+        const start = (o.dist != null ? o.dist : jar.mouthW * 0.65);
         // ring the MOUTH, not the jar's middle, and fly straight at it
         f.x = jar.mx + Math.cos(ang) * start;
         f.y = jar.my + Math.sin(ang) * start;
@@ -2935,11 +2987,21 @@
            measuring whether a wandering fly stumbles into the jar in four and a
            half seconds, which is not the question. */
         f.wa = Math.atan2(dy, dx); f.ws = 0;
+        /* AND A FLAME, WHERE A PLAYER WOULD PUT IT. Two corrections in one
+           probe. Without a flame at all the fly is not led, and an unled fly is
+           SHY of the jar by design - that is the rule that stops a garden
+           filling itself - so the probe was flying a fly at a mouth it was
+           steering away from. Then a flame placed thirty units ahead of it was
+           INSIDE its orbit shell, which pushes rather than pulls, so it drove
+           the fly backwards. The flame goes just inside the mouth and stays
+           there, which is the gesture the game is actually built around. */
         // +1 means the fly is squarely over the mouth heading in; -1 means it
         // is under the base heading up through solid glass.
         const inward = (dx * jar.inX + dy * jar.inY) / d;
         let caught = false, steps = 0, deepest = 0;
         const total = Math.round(6 / DT);
+        touch = { x: jar.mx + jar.inX * jar.h * 0.30,
+                  y: jar.my + jar.inY * jar.h * 0.30 };
         for (; steps < total && !caught; steps++) {
           step(DT); caught = f.caught;
           if (!caught) {
@@ -2954,10 +3016,20 @@
             }
           }
         }
+        /* WHY, not just whether. A row that only says "no" sends me guessing.
+           Guarded, because a SUCCESSFUL capture wins the level and the game
+           clears the flame on a win - so reading it here crashed on exactly the
+           outcome the probe is looking for. */
+        const fdx = touch ? touch.x - f.x : 0, fdy = touch ? touch.y - f.y : 0;
         rows.push({ approachDeg: Math.round(ang * 180 / Math.PI),
                     overTheMouth: +inward.toFixed(2), caught,
                     secs: +(steps * DT).toFixed(2),
-                    deepestIntoGlass: +deepest.toFixed(1) });
+                    deepestIntoGlass: +deepest.toFixed(1),
+                    ledAtEnd: f.led, flameStillLit: !!touch,
+                    distToFlameAtEnd: +Math.hypot(fdx, fdy).toFixed(0),
+                    movedPx: +Math.hypot(f.x - (jar.mx + Math.cos(ang) * start),
+                                         f.y - (jar.my + Math.sin(ang) * start)).toFixed(0),
+                    endDistToMouth: +Math.hypot(f.x - jar.mx, f.y - jar.my).toFixed(0) });
       }
       S = keep; phase = keepPhase; touch = keepTouch; clock = keepClock;
       const over = rows.filter((r) => r.overTheMouth > 0.55);
@@ -3082,7 +3154,13 @@
               const along = (rx * vx + ry * vy) / vl;
               if (along < 0 || along > vl) continue;
               const side = (rx * -vy + ry * vx) / vl;
-              const clear = w.r + TUNE.lureR * 0.42;
+              /* THE CLOUD HAS A WIDTH, so the clearance has to know it. The bot
+                 routed as though the swarm were a point at the tip, which was
+                 true when they landed ON the flame and is not true now they
+                 hold a shell around it. A player who can see the cloud gives a
+                 web the cloud's radius plus a margin; a bot that does not is
+                 modelling careless play, not careful. */
+              const clear = w.r + TUNE.orbitR * 1.5 + 34;
               if (Math.abs(side) > clear || along >= bestAlong) continue;
               bestAlong = along;
               const push = (side >= 0 ? -1 : 1) * (clear + 20);
