@@ -1653,10 +1653,29 @@
 
   function cardLayout(kind) {
     const pw = Math.min(LW - 56, 470);
-    const ph = Math.min(LH - 20, 420);
     const px = Math.round((LW - pw) / 2);
+    /* THE HEADER FOLLOWS THE COPY. It was a flat 154 with the standfirst
+       clipped to two lines by a .slice(0, 2), which on a 375px phone dropped
+       the third line and left the sentence hanging at "and send every" — copy
+       cut mid-thought, with nothing on screen to say so. The card gives up
+       BODY to a scroll, which is its design; it must never give up a sentence
+       silently. Two lines is the desktop case and costs nothing there. */
+    const subLines = wrapText(kind === 'rules'
+      ? 'Lay the track, set the switches, and send every engine to the shed of its own colour.'
+      : 'Every engine home, through rails they had to share.', pw - 68, 17).length;
+    const HEADER = 130 + subLines * 24, FOOTER = 98;
+    /* THE CARD IS AS TALL AS WHAT IT HOLDS, and the two kinds hold very
+       different amounts. 420 was a desktop number applied to a phone: on an
+       812-tall frame it left 792px of room, used 420, and once the standfirst
+       took a third line the body had 96px and dropped the demo — which is how
+       a junction explains itself without words — for want of space that was
+       sitting right there. The rules card takes what the frame gives it up to
+       a reading measure; the win card holds one tally and should not be a
+       560px slab with 300px of nothing under it. */
+    const ph = kind === 'win'
+      ? Math.min(LH - 40, HEADER + 116 + FOOTER)
+      : Math.min(LH - 40, 560);
     const py = Math.max(10, Math.round((LH - ph) / 2));
-    const HEADER = 154, FOOTER = 98;
     const viewTop = py + HEADER;
     const viewH = Math.max(40, ph - HEADER - FOOTER);
     const items = [];
@@ -1718,7 +1737,7 @@
     ctx.fillText(c.title, c.px + 34, c.py + 68);
     ctx.fillStyle = TOK.ink82;
     ctx.font = '600 17px Inter, sans-serif';
-    const sub = wrapText(c.subtitle, c.pw - 68, 17).slice(0, 2);
+    const sub = wrapText(c.subtitle, c.pw - 68, 17);
     ctx.font = '600 17px Inter, sans-serif';
     for (let i = 0; i < sub.length; i++) ctx.fillText(sub[i], c.px + 34, c.py + 105 + i * 24);
 
