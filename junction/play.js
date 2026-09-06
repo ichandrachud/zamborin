@@ -382,6 +382,7 @@
   function drawSegment(g, i, a, b, opts) {
     const o = opts || {};
     const d = pathOf(g, i, a, b), cell = g.cell;
+    drawBallast(d, cell);
     drawTies(d, cell, (o.dim ? 0.34 : 0.55) * (o.alpha == null ? 1 : o.alpha), o.hot);
     const gauge = cell * 0.115, w = Math.max(1.1, cell * 0.05);
     /* The branch the switch is NOT feeding is still real rail — a train that
@@ -488,12 +489,32 @@
      One light, up and left: bodies stay dark and the moonlit RIM carries the
      contrast, which is the same trick the stones already used and the reason
      an obstacle never out-shouts the rails. */
+  /* ---------- THE GROUND ----------
+     Grass and gravel rather than felt, and the green is not a taste. The rails
+     are light steel, so how green the field can get is bounded by keeping the
+     track legible on it: #1B3A22 holds the rails at 5.68:1 and even the
+     sleepers at 3.04, and a step lighter starts taking the ties under the bar.
+     It is bounded from the other side too, which is the less obvious half —
+     green trees standing on green grass — and that is what sets the tree
+     toning below, rather than the night. */
+  const GROUND = {
+    grass: '#1B3A22',
+    grassLit: '#254B2E',      // the lamp, up and left, falling on the field
+    grit: '#8E9A88',          // gravel catching the same light
+    gritDark: '#0F1E12',
+    /* The bed the track is laid on, and its crown is capped by the RAIL, not
+       by the grass. Ballast wants to be pale stone; the rails are pale steel;
+       and at #61615A the crown took the rails to 2.83:1 against the very thing
+       they are lying on, which was plainly visible as track disappearing into
+       its own bed. #565650 is the lightest crown that keeps them at 3.35. */
+    ballast: '#4A4A44',
+    ballastLit: '#565650',
+  };
+
   const SCEN = {
-    stone: ['#5F6675', '#343945'],
     leaf:  ['#3E4E44', '#1E2721'],
     leafBack: ['#26312B', '#151B18'],
     wood:  ['#5E5446', '#332E27'],
-    rim:   '#8E97A6',
     leafRim: '#8CA396',
     woodRim: '#9AA0A8',
   };
@@ -522,6 +543,79 @@
       j = k;
     }
     return j;
+  }
+
+  /* THE FIELD, painted once and kept. Gravel is a few thousand specks and not
+     one of them moves, so the whole ground is rendered to an offscreen canvas
+     at device resolution and blitted after that; drawing the grit every frame
+     would cost more than the rest of the board put together. The fade at top
+     and bottom is carved into the texture's own alpha rather than painted over
+     it afterwards, because the Portal wash underneath is a gradient and no
+     solid overlay can match a gradient.
+
+     A small map rather than one slot: the rules card draws its own little yard
+     with its own geometry in the same frame as the board, and a single-slot
+     cache would rebuild both textures twice a frame forever. */
+  const groundTex = new Map();
+  function groundTexture(w, h, cell, fade) {
+    const dpr = Math.max(1, canvas.width / Math.max(1, LW));
+    const key = Math.round(w) + 'x' + Math.round(h) + '@' + Math.round(cell) + ':' + Math.round(fade) + '#' + dpr.toFixed(2);
+    if (groundTex.has(key)) return groundTex.get(key);
+    const oc = document.createElement('canvas');
+    oc.width = Math.max(1, Math.ceil(w * dpr));
+    oc.height = Math.max(1, Math.ceil(h * dpr));
+    const x = oc.getContext('2d');
+    x.scale(dpr, dpr);
+    const gr = x.createLinearGradient(0, 0, w * 0.55, h);
+    gr.addColorStop(0, GROUND.grassLit);
+    gr.addColorStop(1, GROUND.grass);
+    x.fillStyle = gr; x.fillRect(0, 0, w, h);
+
+    // gravel, from a hash of its own position: the same field every load
+    const pitch = Math.max(5, cell * 0.19);
+    const cols = Math.ceil(w / pitch) + 1, rows = Math.ceil(h / pitch) + 1;
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+      const k = r * 977 + c;
+      const d = rnd(k, 403);
+      if (d > 0.62) continue;
+      const px = (c + rnd(k, 401)) * pitch, py = (r + rnd(k, 402)) * pitch;
+      const e = rnd(k, 404);
+      x.fillStyle = d < 0.24 ? hexA(GROUND.grit, 0.16 + e * 0.20)
+                             : hexA(GROUND.gritDark, 0.14 + e * 0.16);
+      x.beginPath(); x.arc(px, py, pitch * (0.05 + e * 0.12), 0, Math.PI * 2); x.fill();
+    }
+    if (fade > 0) {
+      x.globalCompositeOperation = 'destination-out';
+      for (const top of [true, false]) {
+        const y0 = top ? 0 : h - fade;
+        const fg = x.createLinearGradient(0, y0, 0, y0 + fade);
+        fg.addColorStop(top ? 0 : 1, 'rgba(0,0,0,1)');
+        fg.addColorStop(top ? 1 : 0, 'rgba(0,0,0,0)');
+        x.fillStyle = fg; x.fillRect(0, y0, w, fade);
+      }
+      x.globalCompositeOperation = 'source-over';
+    }
+    if (groundTex.size > 6) groundTex.delete(groundTex.keys().next().value);
+    groundTex.set(key, oc);
+    return oc;
+  }
+
+  /* The bed the track is laid on: under the sleepers, over the field. Two
+     passes, wide and dark then narrower and lighter, so it reads as a bank of
+     stone with a lit crown rather than as a road with rails painted on it —
+     which is what one flat 0.50-wide stroke gave. The shoulder is where the
+     ballast meets the grass and it is the only edge it has. */
+  function drawBallast(d, cell) {
+    ctx.lineCap = 'round';
+    const lay = (w, col) => {
+      ctx.strokeStyle = col; ctx.lineWidth = w;
+      ctx.beginPath();
+      if (d.kind === 'line') { ctx.moveTo(d.x0, d.y0); ctx.lineTo(d.x1, d.y1); }
+      else ctx.arc(d.cx, d.cy, d.r, d.a0, d.a1, d.a1 < d.a0);
+      ctx.stroke();
+    };
+    lay(cell * 0.46, GROUND.ballast);
+    lay(cell * 0.34, GROUND.ballastLit);
   }
 
   function drawScenery(g, i, lvl) {
@@ -564,9 +658,10 @@
       const seed = i * 31 + k;
       // In a run the thing standing in the cell is what breaks the line, so it
       // is usually a tree, it is bigger than the band, and it sits above it.
-      if (d2 < (axis ? 0.62 : 0.42)) drawTree(cx + ox, cy + (axis ? oy * 0.4 - cell * 0.10 : oy), s, seed);
-      else if (d2 < 0.74) drawBush(cx + ox, cy + oy, s * 0.84, seed);
-      else drawStone(cx + ox, cy + oy, s * 0.72, seed);
+      // Trees and the bushes beneath them, and nothing else. What blocks a
+      // train in this yard is something growing in it.
+      if (d2 < (axis ? 0.74 : 0.62)) drawTree(cx + ox, cy + (axis ? oy * 0.4 - cell * 0.10 : oy), s, seed);
+      else drawBush(cx + ox, cy + oy, s * 0.84, seed);
     }
   }
 
@@ -665,11 +760,13 @@
      toward the ground colour instead, which keeps the owner's hue and the
      relationship between the two layers while putting them in the same room as
      everything else. TREE_NIGHT is the one number that decides it, and it is
-     not a taste: 0.32 is the DARKEST toning at which all three crowns still
-     clear 3:1 against the ground. At 0.34 tree2's crown, the darkest of the
-     three at #11af4b, drops to 2.91 and the tree stops having a legible edge.
-     0 is the export exactly as drawn; 1 is invisible. */
-  const TREE_NIGHT = 0.32;
+     not a taste. It was 0.32 against a dark blue ground. The ground is grass
+     now and that inverts the problem: a tree no longer has to be darkened to
+     sit in the night, it has to stay LIGHT enough to separate from the field
+     it is standing on. 0.22 is the darkest toning at which all three crowns
+     still clear 3:1 against #1B3A22 — 3.76, 3.01 and 4.11 — and by 0.26 the
+     darkest of them is under. 0 is the export exactly as drawn. */
+  const TREE_NIGHT = 0.22;
   const TREE_ART = (ART_SRC ? ART_SRC.TREES : []).map((t) => ({
     x: t.x, y: t.y, w: t.w, h: t.h,
     paths: t.paths.map((p) => ({
@@ -737,32 +834,6 @@
     }
     ctx.restore();
   }
-  function drawStone(x, y, s, seed) {
-    const rr = s * 0.62;
-    ctx.save();
-    ctx.beginPath();
-    const pts = 7 + (h32(seed, 2) % 3);
-    for (let k = 0; k < pts; k++) {
-      const a = (k / pts) * Math.PI * 2;
-      const wob = 0.80 + rnd(seed, 70 + k) * 0.34;
-      const px = x + Math.cos(a) * rr * wob, py = y + Math.sin(a) * rr * wob * 0.88;
-      if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-    }
-    ctx.closePath();
-    const gr = ctx.createLinearGradient(x - rr, y - rr, x + rr * 0.6, y + rr);
-    gr.addColorStop(0, SCEN.stone[0]); gr.addColorStop(1, SCEN.stone[1]);
-    ctx.fillStyle = gr; ctx.fill();
-    ctx.save();
-    ctx.clip();
-    ctx.strokeStyle = SCEN.rim;
-    ctx.lineWidth = Math.max(1.4, rr * 0.17);
-    ctx.beginPath();
-    ctx.arc(x, y, rr * 0.97, Math.PI * 0.78, Math.PI * 1.86);
-    ctx.stroke();
-    ctx.restore();
-    ctx.restore();
-  }
-
   /* An arch: near-black opening, a band across its head, and for a shed a
      coloured interior glow. Drawn in a local frame with the mouth facing down
      and then turned to face the yard. */
@@ -999,14 +1070,24 @@
        beside it wants to be. */
     const plain = !!o.plain;
     ctx.save();
-    if (!plain) {
+    if (plain) {
+      /* Portrait: the field runs the full width and well past the board, top
+         and bottom, fading into the Portal wash at both ends. No border, no
+         corners, nothing that reads as a card — it is a piece of country that
+         the screen happens to end. */
+      const gd = o.ground || { top: g.oy, bottom: g.oy + bh };
+      const gh = Math.max(2, gd.bottom - gd.top);
+      ctx.drawImage(groundTexture(LW, gh, g.cell, Math.min(90, gh * 0.14)), 0, gd.top, LW, gh);
+    } else {
       ctx.beginPath(); roundRect(g.ox, g.oy, bw, bh, Math.min(18, g.cell * 0.4));
       ctx.clip();
-      const warm = o.warm || 0;
-      const pg = ctx.createLinearGradient(g.ox, g.oy, g.ox + bw * 0.5, g.oy + bh);
-      pg.addColorStop(0, shade(TOK.bgPanel, 0.02 + warm));
-      pg.addColorStop(1, shade(TOK.bgCard, -0.10 + warm * 0.6));
-      ctx.fillStyle = pg; ctx.fillRect(g.ox, g.oy, bw, bh);
+      ctx.drawImage(groundTexture(bw, bh, g.cell, 0), g.ox, g.oy, bw, bh);
+    }
+    // The lamp warming for a finished yard, over the field rather than in it,
+    // so the texture stays cached through the whole animation.
+    if (o.warm > 0) {
+      ctx.fillStyle = 'rgba(255,232,190,' + (o.warm * 1.6).toFixed(3) + ')';
+      ctx.fillRect(g.ox - g.cell, g.oy - g.cell, bw + g.cell * 2, bh + g.cell * 2);
     }
 
     // empty cell plots, Tint 03
@@ -1639,19 +1720,19 @@
     // there is no plate to warm, so the WASH warms: the whole room, which is
     // what a lamp coming up actually does.
     const warm = winAt ? Math.min(1, (now - winAt) / 1000) * 0.08 : 0;
-    const w2 = L.wide ? 0 : warm;
     const bg = ctx.createRadialGradient(LW * 0.32, 0, 0, LW * 0.32, 0, LW * 1.1);
-    bg.addColorStop(0, shade(TOK.bgPanel, w2));
-    bg.addColorStop(0.6, shade(TOK.bgCard, w2));
-    bg.addColorStop(1, shade(TOK.bg, w2));
+    bg.addColorStop(0, TOK.bgPanel);
+    bg.addColorStop(0.6, TOK.bgCard);
+    bg.addColorStop(1, TOK.bg);
     ctx.fillStyle = bg; ctx.fillRect(0, 0, LW, LH);
     L.plan = bandPlan();
 
     // The lamp warms 8% for two seconds when the yard comes right.
     drawBoard(L.g, level, track, run, now, {
       ghost: stroke && stroke.ok ? stroke.adds : null,
-      warm: L.wide ? warm : 0,
+      warm,
       plain: !L.wide,
+      ground: L.wide ? null : { top: topBand() + 4, bottom: L.readoutY - 26 },
       litAt: (t) => winAt + (reduced() ? 0 : 200 * arrivalRank(t)),
     });
     drawYard(now);
