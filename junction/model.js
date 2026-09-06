@@ -234,7 +234,7 @@ function padLevel(level, padT, padR, padB, padL) {
    and the geometry stretches to whatever board it is asked for. Par is counted
    from the reference solution rather than guessed, so it is right at every
    size. */
-function spec1(R, C, gapCol) {
+function spec1(R, C, gapCol, rake) {
   const east = C - 2;                                   // the sheds' column
   /* THE GAP IS THE THIRD COLUMN, and the number is measured rather than
      chosen. Swept against every shape the layout asks for: at g=2 the level
@@ -281,8 +281,8 @@ function spec1(R, C, gapCol) {
 
   return {
     n: 1, tier: 0, R, C, rocks,
-    portals: [{ at: [0, g], face: S, queue: [0] },          // coral, straight at the gap
-              { at: [R - 1, 1], face: N, queue: [2] }],     // teal, the long way round
+    portals: [{ at: [0, g], face: S, queue: [0], rake: [(rake && rake[0]) || 0] },
+              { at: [R - 1, 1], face: N, queue: [2], rake: [(rake && rake[1]) || 0] }],
     depots: [{ at: [0, east], face: S, colour: 2 },         // teal's shed
              { at: [R - 1, east], face: N, colour: 0 }],    // coral's shed
     budget: seg.length + Math.max(5, Math.round(seg.length * 0.30)),
@@ -290,7 +290,7 @@ function spec1(R, C, gapCol) {
     solution: seg,
   };
 }
-function level1(R, C, gapCol) { return buildLevel(spec1(R, C, gapCol)); }
+function level1(R, C, gapCol, rake) { return buildLevel(spec1(R, C, gapCol, rake)); }
 
 function buildLevel(spec) {
   const R = spec.R, C = spec.C, size = R * C;
@@ -301,7 +301,12 @@ function buildLevel(spec) {
   for (const rc of spec.rocks || []) kind[at(rc)] = ROCK;
   const portals = (spec.portals || []).map((p) => {
     const i = at(p.at); kind[i] = PORTAL; face[i] = p.face;
-    return { i, r: p.at[0], c: p.at[1], face: p.face, queue: p.queue.slice() };
+    /* HOW MANY CARRIAGES EACH ENGINE DRAGS, one per queued train, defaulting
+       to none. A rake is not decoration: a train is as many cells long as it
+       has vehicles, so a three-car train holds four cells of track and takes
+       four cells' worth of time to clear a corridor somebody else wants. */
+    return { i, r: p.at[0], c: p.at[1], face: p.face, queue: p.queue.slice(),
+             rake: (p.rake || []).slice() };
   });
   const depots = (spec.depots || []).map((d) => {
     const i = at(d.at); kind[i] = DEPOT; face[i] = d.face; colour[i] = d.colour;
@@ -617,12 +622,32 @@ function createRun(level, track) {
       cell: p.i, inSide: opp(p.face), outSide: p.face,
       prog: slot === 0 ? 0.5 : 0,
       cells: 0, parkedAt: -1, sinceState: 0,
+      /* THE RAKE, AND THE TRAIL IT NEEDS. A train with carriages is longer
+         than the cell its nose is in, so it has to remember the cells it came
+         through — both to be drawn along them and to go on BLOCKING them.
+         Only as many as the body can reach are kept. */
+      cars: (p.rake && p.rake[slot]) || 0,
+      trail: [{ cell: p.i, inSide: opp(p.face), outSide: p.face }],
     });
   }));
   return { time: 0, steps: 0, trains, settled: false, won: false, meetings: 0 };
 }
 
-const blocks = (t) => t.state === 'moving' || t.state === 'waiting' || t.state === 'stopped';
+const blocks = (t) => t.state === 'moving' || t.state === 'waiting' || t.state === 'stopped' ||
+                     t.state === 'parking' || t.state === 'parked';
+
+/* WHICH CELLS A TRAIN IS STANDING ON. With no carriages that is the one its
+   nose is in, which is what this game meant by "cell" everywhere before rakes
+   existed. With carriages it is the nose plus one cell per vehicle, taken from
+   the trail — so a long train really does hold the corridor behind it, and two
+   of them meeting is decided by their LENGTH rather than by their noses. */
+function occupies(t, i) {
+  if (t.cell === i) return true;
+  if (!t.cars) return false;
+  const n = t.trail.length;
+  for (let k = 1; k <= t.cars && k < n; k++) if (t.trail[n - 1 - k].cell === i) return true;
+  return false;
+}
 
 /* Move one train across the boundary it has reached. Every branch here is a
    thing that HAPPENS, not a thing that is refused. */
@@ -637,15 +662,19 @@ function advance(level, track, run, t) {
     if (level.face[ni] !== opp(out)) return 'stopped';   // arriving at the back of the shed
     t.cell = ni; t.inSide = level.face[ni]; t.outSide = -1;
     t.prog = Math.max(0, t.prog - 1); t.cells++; t.state = 'parking';
+    t.trail.push({ cell: ni, inSide: level.face[ni], outSide: -1 });
+    if (t.trail.length > t.cars + 3) t.trail.shift();
     return 'parking';
   }
   const inSide = opp(out);
   const ex = exitSide(track[ni], inSide);
   if (ex < 0) return 'stopped';
   for (const o of run.trains) {
-    if (o.id !== t.id && o.cell === ni && blocks(o)) return 'blocked';
+    if (o.id !== t.id && blocks(o) && occupies(o, ni)) return 'blocked';
   }
   t.cell = ni; t.inSide = inSide; t.outSide = ex; t.prog -= 1; t.cells++;
+  t.trail.push({ cell: ni, inSide, outSide: ex });
+  if (t.trail.length > t.cars + 3) t.trail.shift();
   return 'moved';
 }
 
@@ -664,7 +693,7 @@ function stepRun(level, track, run, dt) {
     for (const o of run.trains) if (o.portal === t.portal && o.slot === t.slot - 1) prev = o;
     if (!prev || prev.cells < TUNE.spawnGapCells) continue;
     let clear = true;
-    for (const o of run.trains) if (o.id !== t.id && o.cell === p.i && blocks(o)) clear = false;
+    for (const o of run.trains) if (o.id !== t.id && blocks(o) && occupies(o, p.i)) clear = false;
     if (clear) { t.state = 'moving'; t.prog = 0.5; }
   }
 

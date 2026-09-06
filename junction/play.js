@@ -1398,6 +1398,83 @@
 
   }
 
+  /* WHERE A POINT ON THE TRAIN'S BODY IS, d cells behind its nose. The nose
+     sits at prog along the path of the cell it is in; every cell before that,
+     from the trail, was entered at its far end, so walking back is: spend what
+     is left of this cell, then a whole one for each cell before it. Curves
+     come out right for free — the carriages follow the rails round a bend
+     because they are placed ON the path, not at an offset from the engine. */
+  function bodyPoint(g, t, d) {
+    const tr = t.trail || [{ cell: t.cell, inSide: t.inSide, outSide: t.outSide }];
+    let k = tr.length - 1, rem = d, prog = t.prog;
+    while (k >= 0) {
+      const e = tr[k];
+      const out = e.outSide >= 0 ? e.outSide : opp(e.inSide);
+      const dd = pathOf(g, e.cell, e.inSide, out);
+      if (rem <= prog || k === 0) {
+        const tt = prog - rem;
+        return { p: posOn(dd, tt), h: headingOn(dd, Math.max(0, Math.min(1, tt))) };
+      }
+      rem -= prog; k--; prog = 1;
+    }
+    return null;
+  }
+
+  /* A CARRIAGE, from the owner's drawing. The chassis greys are shared with
+     the engine so a rake reads as one train; a COACH takes the engine's
+     livery, and a flat wagon's load and a tanker's bands keep what they were
+     drawn in. Which vehicle a given car is comes from a hash of the train and
+     its position, so a rake is not three of the same thing in a row and is the
+     same three every time the level is loaded. */
+  const CAR_PATHS = new Map();
+  function carPath(d) {
+    if (!CAR_PATHS.has(d)) CAR_PATHS.set(d, new Path2D(d));
+    return CAR_PATHS.get(d);
+  }
+  const CAR_KINDS = ['coach', 'coach', 'carrier', 'oiltank'];
+  function drawCar(x, y, heading, colour, size, seed) {
+    const src = ART_SRC && ART_SRC.CARS;
+    if (!src || typeof Path2D !== 'function') return;
+    const kind = CAR_KINDS[h32(seed, 71) % CAR_KINDS.length];
+    const e = src[kind];
+    const c = ENGINE[colour] || ENGINE[0];
+    const k = size / e.h;
+    const warmed = (hex, t) => mix(hex, c.hi, t);
+    const role = {
+      body: c.hi, bodyLit: shade(c.hi, 0.30),
+      iron: warmed('#5C5C5C', 0.14),
+      grey: warmed('#8E8E8E', 0.10), greyLit: warmed('#BDBDBD', 0.08),
+      load: '#0E9A4E', loadMid: '#3DB54A', loadLit: '#8DC641',
+      tank: '#B4B4B4', band: '#F2E43A', bandLit: '#F0AE4B',
+    };
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(heading - Math.PI / 2);
+    ctx.scale(k, k);
+    ctx.translate(-(e.x + e.w / 2), -(e.y + e.h / 2));
+    for (const op of e.ops) {
+      if (op.t === 'line') {
+        ctx.strokeStyle = role[op.s] || '#555'; ctx.lineWidth = 1 / k;
+        ctx.beginPath(); ctx.moveTo(op.x1, op.y1); ctx.lineTo(op.x2, op.y2); ctx.stroke();
+        continue;
+      }
+      ctx.fillStyle = role[op.f] || '#888';
+      if (op.t === 'rect') ctx.fillRect(op.x, op.y, op.w, op.h);
+      else if (op.t === 'circle') { ctx.beginPath(); ctx.arc(op.cx, op.cy, op.r, 0, Math.PI * 2); ctx.fill(); }
+      else if (op.t === 'path') ctx.fill(carPath(op.d));
+    }
+    ctx.restore();
+    // the same screen-space lamp the engine takes, so a rake is lit as one body
+    const lg = ctx.createLinearGradient(0, y - size * 0.3, 0, y + size * 0.3);
+    lg.addColorStop(0, 'rgba(255,255,255,0.07)');
+    lg.addColorStop(0.55, 'rgba(255,255,255,0)');
+    lg.addColorStop(1, 'rgba(0,0,0,0.12)');
+    ctx.save(); ctx.translate(x, y); ctx.rotate(heading - Math.PI / 2); ctx.scale(k, k);
+    ctx.translate(-(e.x + e.w / 2), -(e.y + e.h / 2));
+    ctx.beginPath(); ctx.rect(e.x, e.y, e.w, e.h); ctx.restore();
+    ctx.fillStyle = lg; ctx.fill();
+  }
+
   function drawTrains(g, lvl, rn, now) {
     /* A locomotive with a cab, a cowcatcher and frames needs room to say all
        of that. 0.92 of a cell: it sits on the sleepers with its frames just
@@ -1415,6 +1492,18 @@
       // Steam BEFORE the engine, so the puffs come out from under it rather
       // than sitting on top of the boiler.
       if (t.state === 'moving') drawExhaust(d, t, size, now);
+      /* THE RAKE, drawn from the back forward so each vehicle overlaps the one
+         behind it rather than the other way round, and the engine lands last
+         and on top. One cell apart, which is what the model says a carriage
+         costs, so the small gap between them is a coupling rather than a lie
+         about how much track this train is holding. */
+      for (let k = t.cars || 0; k >= 1; k--) {
+        // measured back from the NOSE, and the engine's own centre is already
+        // `back` behind it — so the first carriage is back + 1, not 1 - back,
+        // which parked it a third of a cell ON TOP of the engine
+        const b = bodyPoint(g, t, back + k);
+        if (b) drawCar(b.p.x, b.p.y, b.h, t.colour, size * 0.84, t.id * 13 + k);
+      }
       drawEngine(p.x, p.y, heading, t.colour, size, { dark: t.state === 'parked' });
       if (t.state === 'waiting' || t.state === 'stopped') drawSteam(p.x, p.y - size * 0.1, size * 0.5, now);
     }
@@ -2428,6 +2517,19 @@
       history = []; run = null; winAt = 0; phase = 'play';
       layout(); draw();
       return { ...this.state, art: this.art(), fit: this.hits().yardFits };
+    },
+    /* COUPLE CARRIAGES ON. A train is as many cells long as it has vehicles,
+       so this is a difficulty dial and not a costume: measured on level 1, a
+       7x7 board takes three carriages and jams at four, 9x7 takes four, 11x7
+       takes five, and a 7x11 phone board takes six. Which means a rake has to
+       be checked against the SMALLEST board a level can be shown on, not the
+       one it was authored at. */
+    rake(a, b) {
+      core = level = M.level1(level.R, level.C, null, [a || 0, b == null ? a : b]);
+      track = M.newTrack(level.size);
+      history = []; run = null; winAt = 0; phase = 'play';
+      layout(); draw();
+      return { R: level.R, C: level.C, cars: [a, b == null ? a : b], par: level.par };
     },
     /* PUT A LEVEL ON THE BOARD. Only a session asking "what would this shape
        look like" needs it, and it is the honest way to answer: the real
