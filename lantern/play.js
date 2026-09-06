@@ -163,18 +163,28 @@
        fewer, and with the silk needing a moment to be rebuilt after it lets
        something go. */
     webR: 30,
-    webCool: 4.5,        // seconds before torn silk can hold anything again
-    /* 12, not 7. At 7 the measured window from a fly sticking to the spider
-       reaching it was shorter than the time it takes to notice, cross the
-       garden and hold a push, so the loss was an ambush rather than a decision.
-       Twelve is long enough to be a choice and short enough to be a real one,
-       and it makes the spider's walk a slow dreadful thing you watch rather
-       than a snap you miss. */
-    spiderSecs: 12.0,    // from the first fly stuck to the spider reaching it
+    /* THESE THREE WERE HALVED BY A BUG AND ARE NOW WRITTEN AS THEY RAN. The
+       whole silk-and-spider block appeared TWICE in step(), verbatim, so every
+       one of these clocks advanced twice per tick: `spiderSecs: 12` gave six
+       seconds, `webCool: 4.5` gave 2.25, `freeSecs: 1.4` gave 0.7. The
+       duplicate is gone and the numbers are re-stated at what they actually
+       were, so the game plays exactly as it shipped and the constants finally
+       mean what they say. Anything measured off the old values was measuring
+       double-rate silk. */
+    webCool: 2.25,       // seconds before torn silk can hold anything again
+    /* Six, and it was always six. At the notional 7 the measured window from a
+       fly sticking to the spider reaching it was shorter than the time it takes
+       to notice, cross the garden and hold a push, so the loss was an ambush
+       rather than a decision. Six is long enough to be a choice and short
+       enough to be a real one, and it makes the spider's walk a slow dreadful
+       thing you watch rather than a snap you miss. */
+    spiderSecs: 6.0,     // from the first fly stuck to the spider reaching it
+    spiderSee: 190,      // how far a resident notices a fly and turns to it
+    spiderWalk: 54,      // units/sec at full attention; a third of that idling
     /* freePush is DERIVED, not set: see freeReach(). Kept here only so the
        slider panel can show it. */
     freePush: 0,
-    freeSecs: 1.4,       // held for this long, and it comes loose
+    freeSecs: 0.7,       // held for this long, and it comes loose
     webImmune: 3.0,      // grace after a rescue, so it cannot re-stick at once
     /* THE STICK, in SCREEN pixels, because a thumb is a thumb whatever the
        field is scaled to. The flame burns at the far end and your hand holds
@@ -429,6 +439,13 @@
        here, and it acts on the one thing the player controls. */
     const webs = [];
     const bends = 2 + Math.floor(tier / 3);          // 2 to 4 turns
+    /* THE CORRIDOR WIDENED WITH THE WEBS. Silk that used to reach 30 units
+       from its apex now reaches up to 78, so the old 152-down-to-88 lane left
+       no room at all at the top tiers: the careful bot demanded a clearance the
+       level could not offer and walked in circles until the clock ran out, on
+       five of seven levels. What matters is not the lane's width but the CLEAR
+       CHANNEL left beside the silk, and that has to be at least the cloud the
+       swarm holds around the flame. */
     const halfW = 152 - tier * 8;                    // 152 down to 88
     const path = [{ x: startX, y: startY }];
     {
@@ -446,8 +463,43 @@
       }
       path.push({ x: ex, y: ey });
     }
+
+    /* ================= THE WEBS, AND THE LATTICE THEY HANG IN =================
+
+       The owner's sketch builds the picture in an order the game never did:
+       long taut lines cross the whole frame edge to edge, cutting it into big
+       irregular triangles, and the webs are spun into the CROOKS where two of
+       those lines meet. Everything hangs off the lattice; nothing floats.
+
+       Getting there cost three wrong attempts, and the third is the instructive
+       one. Building the lattice FIRST and putting a web at every crossing gave
+       a good picture and threw the level away: crossings land where two lines
+       happen to meet, which is mostly not where anybody flies, and the bot
+       walked all 54 levels in twelve seconds with nine sticks between them.
+       Widening and re-anchoring recovered half of it and no more. The corridor
+       had been walled at a measured offset, on both sides, at a measured
+       spacing, and every one of those numbers was load-bearing.
+
+       So the order is: WEBS BY THE CORRIDOR, exactly as before, and then a
+       lattice built out of the edges those webs already have - each edge run
+       out to the frame as a full line, kept only if it is not a near-repeat of
+       one already there, and preferred if it passes close to several apexes so
+       that one line serves several webs. Then every web SNAPS its own two edges
+       onto whichever surviving lines lie nearest them, so the wedge really is
+       the angle between two lines that carry on past it in both directions.
+
+       The picture comes from the lattice. The difficulty comes from the
+       corridor. Neither is allowed to set the other's numbers. */
+
     {
       const spacing = TUNE.webR * 3.2;
+      const segDist = (px2, py2, a, b) => {
+        const vx2 = b.x - a.x, vy2 = b.y - a.y;
+        const L2 = vx2 * vx2 + vy2 * vy2;
+        let t = L2 > 1e-9 ? ((px2 - a.x) * vx2 + (py2 - a.y) * vy2) / L2 : 0;
+        t = Math.max(0, Math.min(1, t));
+        return Math.hypot(px2 - (a.x + vx2 * t), py2 - (a.y + vy2 * t));
+      };
       for (let seg = 0; seg < path.length - 1; seg++) {
         const a = path[seg], b = path[seg + 1];
         const vx = b.x - a.x, vy = b.y - a.y, vl = Math.hypot(vx, vy) || 1;
@@ -458,49 +510,193 @@
           const px = a.x + vx * t, py = a.y + vy * t;
           for (const sgn of [1, -1]) {
             const wx0 = px + nx * halfW * sgn, wy0 = py + ny * halfW * sgn;
+            /* r is drawn BEFORE the clearance tests, not after, because a
+               54-unit web cleared by a constant 60 sits half in the corridor.
+               Rejected sites consume the draw too, which is what lets a tight
+               corridor quietly fill with the smaller webs rather than failing
+               to place anything at all. */
+            const span = Math.PI * (0.34 + rnd() * 0.58);   // 61 to 165 degrees
+            /* Back to a real spread of sizes. Uniform fans at one radius is the
+               wallpaper the owner was looking at; his sketch has a broad corner
+               and a long narrow slice in the same frame. The corridor rule
+               below rejects whatever will not fit, so a tight lane at tier nine
+               simply fills with the smaller draws instead. */
+            const rr = TUNE.webR * (1.08 + rnd() * 1.05);   // 32 to 64
             if (wx0 < 34 || wx0 > AW - 34) continue;
             if (wy0 < safeTop || wy0 > AH - safeBot) continue;
             if (Math.hypot(wx0 - startX, wy0 - startY) < 120) continue;
             if (Math.hypot(wx0 - jar.mx, wy0 - jar.my) < mouthW * 1.15) continue;
             let ok = true;
             for (const w2 of webs) {
-              if (Math.hypot(wx0 - w2.x, wy0 - w2.y) < TUNE.webR * 2.3) ok = false;
+              if (Math.hypot(wx0 - w2.x, wy0 - w2.y) < (rr + w2.r) * 0.86) ok = false;
             }
-            // never block the corridor itself
-            for (const q of path) {
-              if (Math.hypot(wx0 - q.x, wy0 - q.y) < TUNE.webR + 30) ok = false;
+            /* Never block the corridor - and against the whole polyline, not
+               its corners. The old test only checked the path's NODES, so a web
+               could sit dead on the middle of a long straight run between two
+               of them and pass every test there was. */
+            for (let q = 0; q < path.length - 1 && ok; q++) {
+              if (segDist(wx0, wy0, path[q], path[q + 1]) < rr + 22) ok = false;
             }
             if (!ok) continue;
-            /* Every web is its own web. Uniform circles at one radius read as
-               a pattern rather than as a garden, and the reference art is all
-               ragged silhouettes and long sweeping anchors. `r` is the honest
-               catching radius and the drawing always covers it - the variety
-               is in HOW it covers it, never in promising more danger than the
-               rule has. */
-            /* A WEDGE, NOT A DISC, and this is the thing two passes of
-               detail work could not fix. Almost nothing in the reference art
-               is a complete circle: a web is strung in the CROOK of two long
-               lines and fills the angle between them, which is why real ones
-               live in corners. Varying the spoke lengths of a full orb by ten
-               per cent does not change that it is an orb.
-
-               So a web is an apex, a span, and a radius - and the RULE is the
-               same wedge the drawing is, because a sector that caught a whole
-               circle would be the old lie in a new shape. It also makes better
-               levels: a wedge only guards the way it faces, so its open side
-               is a way through. */
+            /* A WEDGE, NOT A DISC. Almost nothing in the reference art is a
+               complete circle: a web is strung in the crook of two long lines
+               and fills the angle between them, which is why real ones live in
+               corners. The RULE is the same wedge the drawing is, because a
+               sector that caught a whole circle would be the old lie in a new
+               shape - and a wedge only guards the way it faces, so its open
+               side is a way through. */
             const toPath = Math.atan2(py - wy0, px - wx0);
-            const span = Math.PI * (0.42 + rnd() * 0.50);   // 76 to 166 degrees
-            webs.push({ x: wx0, y: wy0,
-                        r: TUNE.webR * (1.08 + rnd() * 0.72),
+            webs.push({ x: wx0, y: wy0, r: rr,
                         a0: toPath - span / 2,              // it faces the corridor
-                        span,
+                        span, toPath,
                         seed: rnd() * 1000,
-                        resident: false, link: -1,
+                        resident: false,
                         holding: false, cool: 0, spiderT: 0, seat: 0,
+                        sa: toPath, sr: 0.5, sgait: 0, sface: toPath,
                         tx: wx0, ty: wy0 });
           }
         }
+      }
+    }
+
+    /* ---- THE LATTICE, OUT OF THE EDGES THE WEBS ALREADY HAVE ---- */
+    const strands = [];
+    {
+      const toEdge = (x, y, ca, sa2) => {
+        let t = 1e9;
+        if (ca >  1e-6) t = Math.min(t, (AW - x) / ca);
+        if (ca < -1e-6) t = Math.min(t, (0 - x) / ca);
+        if (sa2 >  1e-6) t = Math.min(t, (AH - y) / sa2);
+        if (sa2 < -1e-6) t = Math.min(t, (0 - y) / sa2);
+        return Math.max(0, Math.min(t, AW + AH));
+      };
+      const through = (x, y, ang) => {
+        const ca = Math.cos(ang), sa2 = Math.sin(ang);
+        const f = toEdge(x, y, ca, sa2), b = toEdge(x, y, -ca, -sa2);
+        return { x0: x - ca * b, y0: y - sa2 * b, x1: x + ca * f, y1: y + sa2 * f,
+                 ang: Math.atan2(sa2, ca) };
+      };
+      const distTo = (c, x, y) => {
+        const ux = c.x1 - c.x0, uy = c.y1 - c.y0, ul = Math.hypot(ux, uy) || 1;
+        return Math.abs((x - c.x0) * (uy / ul) - (y - c.y0) * (ux / ul));
+      };
+      const already = (c) => {
+        for (const t2 of strands) {
+          const ux = c.x1 - c.x0, uy = c.y1 - c.y0, ul = Math.hypot(ux, uy) || 1;
+          const vx2 = t2.x1 - t2.x0, vy2 = t2.y1 - t2.y0, vl2 = Math.hypot(vx2, vy2) || 1;
+          if (Math.abs((ux * vy2 - uy * vx2) / (ul * vl2)) > 0.24) continue;   // >14 deg
+          if (distTo(t2, c.x0, c.y0) < 44) return true;
+        }
+        return false;
+      };
+
+      /* COVER, NOT RANK. Sorting the candidates by how many webs each one
+         passes and taking the top eleven leaves half the garden untouched,
+         because the best lines all run through the same crowded middle. Picked
+         greedily by how many webs are STILL WITHOUT a line, the same eleven
+         reach most of them - which matters because a web with no line through
+         it falls back to two stubs of its own and reads as a sticker again. */
+      const cand = [];
+      for (const w of webs) {
+        for (const e of [w.a0, w.a0 + w.span]) cand.push(through(w.x, w.y, e));
+      }
+      const CAP = 10 + Math.floor(rnd() * 3);     // the sketch has eight or nine
+      const served = new Set();
+      while (strands.length < CAP) {
+        let best = null, bestN = 0;
+        for (const c of cand) {
+          if (c.taken || already(c)) continue;
+          let n = 0;
+          for (let i = 0; i < webs.length; i++) {
+            if (!served.has(i) && distTo(c, webs[i].x, webs[i].y) < 32) n++;
+          }
+          if (n > bestN) { bestN = n; best = c; }
+        }
+        if (!best) break;
+        best.taken = true; best.seed = rnd() * 1000;
+        strands.push(best);
+        for (let i = 0; i < webs.length; i++) {
+          if (distTo(best, webs[i].x, webs[i].y) < 32) served.add(i);
+        }
+      }
+      /* And one or two that belong to nothing in particular, so the lattice
+         does not read as a diagram of the route. */
+      const spare = 1 + Math.floor(rnd() * 2);
+      for (let g = 0, made = 0; g < 40 && made < spare; g++) {
+        const c = through(40 + rnd() * (AW - 80),
+                          safeTop + rnd() * (AH - safeTop - safeBot),
+                          rnd() * Math.PI);
+        if (already(c)) continue;
+        c.seed = rnd() * 1000;
+        strands.push(c); made++;
+      }
+
+      /* ---- AND EVERY WEB SNAPS ITS EDGES ONTO THE LINES ----
+         This is what makes it a crook rather than a web with two stubs drawn
+         beside it. Each edge takes the bearing of whichever surviving line runs
+         nearest it, provided that line actually passes close to this apex - so
+         the wedge is bounded by lines that carry on to the edges of the field
+         in both directions, which is the whole look. Only the two angles that
+         draw and bound the wedge move, and only by a few degrees; where the web
+         SITS and how far it reaches are untouched, so the corridor keeps every
+         number the difficulty was measured on. */
+      const TWO_PI = Math.PI * 2;
+      for (const w of webs) {
+        const snap = (want) => {
+          let best = want, bd = 0.34;                 // within ~19 degrees
+          for (const c of strands) {
+            if (distTo(c, w.x, w.y) > 46) continue;
+            for (const a of [c.ang, c.ang + Math.PI]) {
+              const d = ((a - want + Math.PI * 3) % TWO_PI) - Math.PI;
+              if (Math.abs(d) < bd) { bd = Math.abs(d); best = want + d; }
+            }
+          }
+          return best;
+        };
+        const e0 = snap(w.a0), e1 = snap(w.a0 + w.span);
+        const sp = e1 - e0;
+        if (sp > 0.42 && sp < 2.62) { w.a0 = e0; w.span = sp; }
+        w.sa = w.a0 + w.span / 2; w.sface = w.sa;
+      }
+    }
+
+    /* ---- TWIGS, ON THE JUNCTIONS NOTHING WAS BUILT ON ----
+       The other thing in the sketch the game had none of: short heavy bristling
+       knots sitting exactly where lines are tied, drawn darker and thicker than
+       anything else. They are what a line is tied TO, and having them is the
+       difference between silk strung in a garden and silk strung in a vacuum.
+       Three or four in a frame - the sketch has three - because a junction
+       marked everywhere marks nothing. They are scenery; no rule touches them. */
+    const twigs = [];
+    {
+      const free = [];
+      for (let i = 0; i < strands.length; i++) {
+        for (let j = i + 1; j < strands.length; j++) {
+          const A2 = strands[i], B2 = strands[j];
+          const r1x = A2.x1 - A2.x0, r1y = A2.y1 - A2.y0;
+          const r2x = B2.x1 - B2.x0, r2y = B2.y1 - B2.y0;
+          const den = r1x * r2y - r1y * r2x;
+          if (Math.abs(den) < 1e-6) continue;
+          const t2 = ((B2.x0 - A2.x0) * r2y - (B2.y0 - A2.y0) * r2x) / den;
+          const u2 = ((B2.x0 - A2.x0) * r1y - (B2.y0 - A2.y0) * r1x) / den;
+          if (t2 < 0.04 || t2 > 0.96 || u2 < 0.04 || u2 > 0.96) continue;
+          const ix = A2.x0 + r1x * t2, iy = A2.y0 + r1y * t2;
+          if (ix < 62 || ix > AW - 62) continue;
+          if (iy < safeTop + 30 || iy > AH - safeBot - 30) continue;
+          if (Math.hypot(ix - jar.mx, iy - jar.my) < mouthW * 1.5) continue;
+          if (Math.hypot(ix - startX, iy - startY) < 100) continue;
+          free.push({ x: ix, y: iy, rot: A2.ang });
+        }
+      }
+      const want2 = 3 + Math.floor(rnd() * 2);
+      for (let g = 0; g < 80 && twigs.length < want2 && free.length; g++) {
+        const pick = free[Math.floor(rnd() * free.length)];
+        let ok = true;
+        for (const t2 of twigs) if (Math.hypot(pick.x - t2.x, pick.y - t2.y) < 96) ok = false;
+        for (const w of webs) if (Math.hypot(pick.x - w.x, pick.y - w.y) < w.r * 0.8) ok = false;
+        if (!ok) continue;
+        twigs.push({ x: pick.x, y: pick.y, rot: pick.rot, seed: rnd() * 1000,
+                     len: 24 + rnd() * 20 });
       }
     }
 
@@ -510,12 +706,12 @@
       const h = AH * (0.16 + rnd() * 0.08);
       const y0 = safeTop + (AH - safeTop - safeBot) * (0.25 + rnd() * 0.35);
       const dir = rnd() < 0.5 ? -1 : 1;
-      const motes = [];
+      const bmotes = [];
       for (let i = 0; i < 26; i++) {
-        motes.push({ x: rnd() * AW, y: y0 + rnd() * h,
-                     v: 0.6 + rnd() * 0.9, len: 18 + rnd() * 34 });
+        bmotes.push({ x: rnd() * AW, y: y0 + rnd() * h,
+                      v: 0.6 + rnd() * 0.9, len: 18 + rnd() * 34 });
       }
-      breeze = { y0, y1: y0 + h, dir, motes };
+      breeze = { y0, y1: y0 + h, dir, motes: bmotes };
     }
 
     /* A SPIDER OR TWO, AT HOME. An empty web is a shape; a web with something
@@ -523,29 +719,18 @@
        is enough - every web with a tenant would read as an infestation and
        nothing that is everywhere reads as anything. */
     if (webs.length) {
-      const first = Math.floor(rnd() * webs.length);
-      webs[first].resident = true;
-      if (webs.length > 5) {
-        let second = Math.floor(rnd() * webs.length);
-        for (let g = 0; g < 12 && second === first; g++) second = Math.floor(rnd() * webs.length);
-        webs[second].resident = true;
+      const want3 = webs.length > 6 ? 3 : 2;
+      for (let g = 0; g < 40; g++) {
+        let k = 0;
+        for (const w of webs) if (w.resident) k++;
+        if (k >= Math.min(want3, webs.length)) break;
+        webs[Math.floor(rnd() * webs.length)].resident = true;
       }
-    }
-    /* And they are strung TO each other. In the reference the long curves run
-       right across the picture and everything hangs off them, which is what
-       stops a web looking like a sticker placed on the dark. */
-    for (let i2 = 0; i2 < webs.length; i2++) {
-      let best = -1, bd = 1e9;
-      for (let j2 = 0; j2 < webs.length; j2++) {
-        if (j2 === i2) continue;
-        const d2 = Math.hypot(webs[i2].x - webs[j2].x, webs[i2].y - webs[j2].y);
-        if (d2 < bd) { bd = d2; best = j2; }
-      }
-      if (bd < 260) webs[i2].link = best;
     }
 
+
     const need = Math.max(2, n - SLACK[tier]);
-    return { lvl, tier, n, need, jar, flies, thorns, webs, breeze,
+    return { lvl, tier, n, need, jar, flies, thorns, webs, strands, twigs, breeze,
              fieldW: AW, fieldH: AH,
              caught: 0, lost: 0, stuckNow: 0,
              sticks: 0, resticks: 0, rescues: 0,
@@ -838,27 +1023,78 @@
          you leave one behind without noticing. */
       f.led = false;
       if (touch) {
-        const dx = touch.x - f.x, dy = touch.y - f.y, m = Math.hypot(dx, dy);
-        if (m < TUNE.lureR && m > 1e-4 && f.spook <= 0) {
+        /* THE DOOR IS THE ONLY WAY IN, AND THE SHELL DID NOT KNOW THAT.
+
+           A led fly steers at the flame. Put the flame inside the jar and the
+           flies that happen to be below the rim steer straight at it - into the
+           OUTSIDE of the glass, where they slide along the wall and hold there
+           for as long as you keep the light where it is. Measured: the bot
+           parked at the mouth for the full two minutes on four levels of
+           fourteen, three flies in the glass and three pressed against the
+           outside of it, none stuck, none lost, none able to get in.
+
+           It is the orbit shell that made this reachable - a fly that used to
+           land ON the tip went in with it, and one holding station 30 units off
+           can be held 30 units the wrong side of a wall. So a fly that is
+           outside the glass and level with or below the rim aims for the DOOR
+           first: a point just above the mouth. Once it is over the aperture it
+           goes back to following the light, and the light is already inside. */
+        let tgx = touch.x, tgy = touch.y, atDoor = false;
+        {
+          const rx = f.x - jar.mx, ry = f.y - jar.my;
+          const fv = rx * jar.inX + ry * jar.inY;
+          const fu = rx * jar.tanX + ry * jar.tanY;
+          const inGlass = fv > 0 && fv < jar.h && Math.abs(fu) < jar.w / 2;
+          const tv = (touch.x - jar.mx) * jar.inX + (touch.y - jar.my) * jar.inY;
+          /* THE TEST IS "CAN IT DROP STRAIGHT IN", NOT "HOW DEEP IS IT".
+             Two wrong cuts here. The first sent anything within ten units of
+             the rim to a point thirty above it, so a fly climbed to thirty,
+             left the rule, followed the light back down, re-entered at ten and
+             climbed again - hovering nine units over a wide open mouth for two
+             minutes. Adding hysteresis on DEPTH fixed that one and left seven
+             levels of 54 still hanging, every one of them a fly pinned at depth
+             two and sixty-two across: a hair outside the shoulder, level with
+             the rim, too shallow to trigger and too wide to fall in.
+
+             A fly can enter if it is above the rim AND over the aperture.
+             Anything else outside the glass has to go to the door first. The
+             door itself is above the rim and dead centre, so arriving there
+             releases the rule with room to spare. */
+          const canDrop = fv < 0 && Math.abs(fu) < jar.mouthW * 0.45;
+          if (!inGlass && !canDrop && tv > 0) {
+            tgx = jar.mx - jar.inX * 24; tgy = jar.my - jar.inY * 24;
+            atDoor = true;
+          }
+        }
+        const reach = Math.hypot(touch.x - f.x, touch.y - f.y);
+        const dx = tgx - f.x, dy = tgy - f.y, m = Math.hypot(dx, dy);
+        if (reach < TUNE.lureR && m > 1e-4 && f.spook <= 0) {
           f.led = true;
-          /* THE SHELL CLOSES AT THE JAR. A fly holding station 44 units off the
-             tip orbits AROUND a jar rather than into it - the glass pushes it
-             out on every pass and the mouth is narrower than the shell is wide.
-             So the ring tightens as the flame goes to the mouth: in a confined
-             space they crowd the light instead of circling it. The width stays
-             where it matters, which is out in the open among the webs. */
-          let want = TUNE.orbitR * f.orbit;
-          const near = jar.mouthW * 1.25;
-          const td = Math.hypot(touch.x - jar.mx, touch.y - jar.my);
-          if (td < near) want *= 0.28 + 0.72 * (td / near);
-          // + when it is outside its shell, - when it is inside: a station to
-          // hold rather than a point to reach
-          const radial = Math.max(-1, Math.min(1, (m - want) / want));
-          bx += (dx / m) * TUNE.lure * radial;
-          by += (dy / m) * TUNE.lure * radial;
-          // and it circles while it holds, each one its own way round
-          const spin = TUNE.orbitSpin * f.spin * (1 - Math.abs(radial) * 0.55);
-          bx += (-dy / m) * spin; by += (dx / m) * spin;
+          if (atDoor) {
+            // straight for the doorway: no station to hold, and no circling it
+            bx += (dx / m) * TUNE.lure;
+            by += (dy / m) * TUNE.lure;
+          } else {
+            /* THE SHELL CLOSES AT THE JAR. A fly holding station 44 units off
+               the tip orbits AROUND a jar rather than into it - the glass
+               pushes it out on every pass and the mouth is narrower than the
+               shell is wide. So the ring tightens as the flame goes to the
+               mouth: in a confined space they crowd the light instead of
+               circling it. The width stays where it matters, out among the
+               webs. */
+            let want = TUNE.orbitR * f.orbit;
+            const near = jar.mouthW * 1.25;
+            const td = Math.hypot(touch.x - jar.mx, touch.y - jar.my);
+            if (td < near) want *= 0.28 + 0.72 * (td / near);
+            // + when it is outside its shell, - when it is inside: a station to
+            // hold rather than a point to reach
+            const radial = Math.max(-1, Math.min(1, (m - want) / want));
+            bx += (dx / m) * TUNE.lure * radial;
+            by += (dy / m) * TUNE.lure * radial;
+            // and it circles while it holds, each one its own way round
+            const spin = TUNE.orbitSpin * f.spin * (1 - Math.abs(radial) * 0.55);
+            bx += (-dy / m) * spin; by += (dx / m) * spin;
+          }
         }
       }
 
@@ -1059,61 +1295,7 @@
       }
       if (w.cool > 0) w.cool = Math.max(0, w.cool - dt);
       w.seat = Math.min(1, w.spiderT / TUNE.spiderSecs);
-    }
-
-    /* ---- SILK, AND WHAT COMES FOR IT ----
-       A stuck fly can be worked loose by a sustained push. The push has to be
-       a real one, near enough to matter, and that is the same nearness that
-       panics everything else in reach: a rescue is bought with the swarm's
-       composure. That is the decision the whole game turns on. */
-    S.stuckNow = 0;
-    for (const f of S.flies) {
-      if (f.caught || f.lost || f.web < 0) continue;
-      S.stuckNow++;
-      const w = S.webs[f.web];
-      // Hold the flame close and it strains toward the light hard enough to
-      // tear itself out. Which means standing over the trapped one, and not
-      // over the others.
-      const near = touch ? Math.hypot(f.x - touch.x, f.y - touch.y) : 1e9;
-      if (near <= TUNE.freeR) f.hold -= dt / TUNE.freeSecs;
-      else f.hold = Math.min(1, f.hold + dt / (TUNE.freeSecs * 2.2));
-      if (f.hold <= 0) {
-        // free, and thrown clear of the silk so it cannot fall straight back in
-        const ax2 = f.x - w.x, ay2 = f.y - w.y, am = Math.hypot(ax2, ay2) || 1;
-        w.holding = false; w.cool = TUNE.webCool;
-        S.rescues++; f.freedAt = S.seconds;
-        f.web = -1; f.hold = 1; f.immune = TUNE.webImmune;
-        f.sx = ax2 / am * 120; f.sy = ay2 / am * 120;
-        f.spook = TUNE.spookSecs * 0.5;
-        if (sfx) sfx.play('unfold');
-      }
-    }
-
-    /* The spider is the clock, and it is a clock made of garden rather than of
-       numbers. It sits in its web until something lands in it, then it walks
-       out. Nothing chases the swarm and nothing hunts: it comes to collect what
-       the web already caught, and it goes back when the web is empty. */
-    for (let wi = 0; wi < S.webs.length; wi++) {
-      const w = S.webs[wi];
-      let held = null, worst = -1;
-      for (const f of S.flies) {
-        if (f.web === wi && !f.lost && f.hold > worst) { worst = f.hold; held = f; }
-      }
-      if (held) {
-        w.spiderT += dt;
-        w.tx = held.x; w.ty = held.y;      // it is coming for THAT one
-        if (w.spiderT >= TUNE.spiderSecs) {
-          held.lost = true; held.web = -1;
-          w.holding = false;
-          S.lost++;
-          w.spiderT = 0;
-          if (sfx) { sfx.tone(196, 0.26, 0.06, 'triangle'); sfx.play('thump'); }
-        }
-      } else {
-        w.spiderT = Math.max(0, w.spiderT - dt * 1.6);   // it goes home
-      }
-      if (w.cool > 0) w.cool = Math.max(0, w.cool - dt);
-      w.seat = Math.min(1, w.spiderT / TUNE.spiderSecs);
+      if (w.resident && w.seat <= 0.001) stepResident(w, dt);
     }
 
     // ---- flies already in the glass mill about ----
@@ -1377,7 +1559,8 @@
 
     if (SOLO) {
       if (SOLO === 'thorns') for (const th of S.thorns) drawThorn(th);
-      if (SOLO === 'webs') { drawWebLinks(); for (const w of S.webs) drawWeb(w); }
+      if (SOLO === 'webs') { drawStrands(); for (const w of S.webs) drawWeb(w); }
+      if (SOLO === 'twigs') for (const t of S.twigs) drawTwig(t);
       if (SOLO === 'breeze') drawBreeze();
       if (SOLO === 'jar') drawJar();
       if (SOLO === 'stick' && touch) drawStick();
@@ -1405,8 +1588,9 @@
 
     drawBreeze();
     drawGrass(true);
-    drawWebLinks();
+    drawStrands();
     for (const w of S.webs) drawWeb(w);
+    for (const t of S.twigs) drawTwig(t);
     for (const th of S.thorns) drawThorn(th);
     drawJar();
     if (touch) { drawFlameTrail(); drawStick(); drawFlame(); }
@@ -1556,31 +1740,146 @@
     }
   }
 
-  /* THE LONG LINES. In the reference art the eye is carried by great sweeping
-     curves that run right across the picture with the webs hanging off them,
-     and without those a web is a sticker placed on the dark. Drawn under
-     everything and very faint: they are structure, not silk you can be caught
-     in, and nothing in the rules touches them. */
-  function drawWebLinks() {
-    if (!S.webs.length) return;
+  /* ---- THE LATTICE ----
+     Long, straight, taut, and drawn at silk weight, because in the owner's
+     sketch these lines are the dominant graphic and everything else hangs off
+     them. What was here before was a faint sagging curve between neighbouring
+     web pairs, deliberately drawn as "structure, not silk" at seven per cent -
+     which is to say it was drawn as something you were not meant to see, and
+     duly nobody saw it.
+
+     Sampled in short runs, because a line that crosses the whole field crosses
+     several pools of light and one midpoint sample would hand the far end the
+     brightness of the near one.
+
+     Nothing in the rules touches these. A line is not a web and must never
+     catch anything - weaveInk() measures whether a player can tell. */
+  function drawStrands() {
+    if (!S.strands || !S.strands.length) return;
     ctx.lineCap = 'round';
-    for (let i = 0; i < S.webs.length; i++) {
-      const w = S.webs[i];
-      if (w.link < 0 || w.link < i) continue;          // draw each pair once
-      const v = S.webs[w.link];
-      const ax = wx2s(w.x), ay = wy2s(w.y), bx = wx2s(v.x), by = wy2s(v.y);
-      const la = lightAt((ax + bx) / 2, (ay + by) / 2);
-      const mx = (ax + bx) / 2, my = (ay + by) / 2;
-      const nx = -(by - ay), ny = bx - ax;
-      const nl = Math.hypot(nx, ny) || 1;
-      const sag = (0.10 + ((w.seed | 0) % 13) / 90) * nl;
-      ctx.strokeStyle = 'rgba(206,220,232,' + (0.07 + Math.min(1, la.b) * 0.14).toFixed(3) + ')';
-      ctx.lineWidth = Math.max(0.5, 0.8 * L.scale);
+    ctx.lineWidth = Math.max(0.6, 0.85 * L.scale);
+    const SEG = 7;
+    const dark = 'rgba(218,230,240,0.150)';
+    for (const t of S.strands) {
+      const ax = wx2s(t.x0), ay = wy2s(t.y0), bx = wx2s(t.x1), by = wy2s(t.y1);
+      /* MOST LINES, MOST OF THE TIME, ARE NOWHERE NEAR THE FLAME, and an
+         unlit line is one stroke rather than seven. Whether any light reaches
+         it at all is decided exactly - closest approach of each light to the
+         segment, against that light's own radius - rather than by sampling a
+         few points along it, because a lure pool is a fifth of the length of a
+         line that crosses the whole field and three samples would step over it.
+         Seven strokes a line for a dozen lines was a third of the frame. */
+      let touched = false;
+      const vx = bx - ax, vy = by - ay, L2 = vx * vx + vy * vy;
+      for (let i = 0; i < lights.length && !touched; i++) {
+        const l = lights[i];
+        let u = L2 > 1e-9 ? ((l.x - ax) * vx + (l.y - ay) * vy) / L2 : 0;
+        u = Math.max(0, Math.min(1, u));
+        if (Math.hypot(l.x - (ax + vx * u), l.y - (ay + vy * u)) < l.r) touched = true;
+      }
+      if (!touched) {
+        ctx.strokeStyle = dark;
+        ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+        continue;
+      }
+      for (let i = 0; i < SEG; i++) {
+        const x0 = ax + (bx - ax) * (i / SEG), y0 = ay + (by - ay) * (i / SEG);
+        const x1 = ax + (bx - ax) * ((i + 1) / SEG), y1 = ay + (by - ay) * ((i + 1) / SEG);
+        const la = lightAt((x0 + x1) / 2, (y0 + y1) / 2);
+        const lit = Math.min(1, la.b);
+        ctx.strokeStyle = 'rgba(' +
+          Math.round(la.r * 0.30 + 218 * 0.70) + ',' +
+          Math.round(la.g * 0.30 + 230 * 0.70) + ',' +
+          Math.round(la.bl * 0.30 + 240 * 0.70) + ',' +
+          (0.15 + lit * 0.34).toFixed(3) + ')';
+        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+      }
+    }
+  }
+
+  /* ---- A TWIG, WHERE THE LINES ARE TIED ----
+     Heavy, bristling, and the darkest thing in the frame - which is a problem,
+     because dark on a dark garden is nothing at all. So it is built the way
+     every other solid here is built: a woody core that takes light away, and an
+     edge that catches what the flame throws at it. No outline. The bristles are
+     what make it read as broken wood rather than as a blob, and they are what
+     the owner drew - short strokes crossing each other over and over. */
+  function drawTwig(t) {
+    const s = L.scale;
+    const x = wx2s(t.x), y = wy2s(t.y), len = t.len * s;
+    const la = lightAt(x, y);
+    const lit = Math.min(1, la.b);
+    const rnd = mulberry32(t.seed | 0);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(t.rot);
+    ctx.lineCap = 'round';
+
+    const woodLit = 'rgba(' +
+      Math.round(la.r * 0.5 + 152 * 0.5) + ',' +
+      Math.round(la.g * 0.5 + 147 * 0.5) + ',' +
+      Math.round(la.bl * 0.5 + 131 * 0.5) + ',' + (0.12 + lit * 0.44).toFixed(3) + ')';
+
+    /* ONE STICK, NOT A STARBURST. The first pass spread its limbs evenly round
+       the point and drew a dark asterisk - which is what you get any time you
+       fan things at equal angles, the same mistake the spider's legs made. A
+       twig is a LINE with things growing off it at shallow angles: one long
+       limb, a stub or two branching forward, and bristles that crowd the ends
+       where the wood is broken. */
+    const limbs = [{ a: (rnd() - 0.5) * 0.30, l0: len * (0.85 + rnd() * 0.4),
+                     l1: len * (0.95 + rnd() * 0.5) }];
+    const nb2 = 1 + Math.floor(rnd() * 2);
+    for (let i = 0; i < nb2; i++) {
+      limbs.push({ a: (rnd() < 0.5 ? -1 : 1) * (0.38 + rnd() * 0.62),
+                   l0: len * (0.10 + rnd() * 0.22), l1: len * (0.45 + rnd() * 0.5) });
+    }
+
+    for (const lb of limbs) {
+      const ca = Math.cos(lb.a), sa = Math.sin(lb.a);
+      const bend = (rnd() - 0.5) * 0.55;
+      const px = -ca * lb.l0, py = -sa * lb.l0;
+      const qx = ca * lb.l1, qy = sa * lb.l1;
+      const mx = Math.cos(lb.a + bend) * (lb.l1 - lb.l0) * 0.5;
+      const my = Math.sin(lb.a + bend) * (lb.l1 - lb.l0) * 0.5;
+
+      ctx.strokeStyle = 'rgba(9,13,11,0.96)';
+      ctx.lineWidth = Math.max(1.5, 3.0 * s);
+      ctx.beginPath(); ctx.moveTo(px, py); ctx.quadraticCurveTo(mx, my, qx, qy); ctx.stroke();
+
+      // the lit edge, a hair across the limb - value, never an outline
+      ctx.strokeStyle = woodLit;
+      ctx.lineWidth = Math.max(0.6, 1.0 * s);
+      const ox = -sa * 1.0 * s, oy = ca * 1.0 * s;
       ctx.beginPath();
-      ctx.moveTo(ax, ay);
-      ctx.quadraticCurveTo(mx + (nx / nl) * sag, my + (ny / nl) * sag, bx, by);
+      ctx.moveTo(px + ox, py + oy);
+      ctx.quadraticCurveTo(mx + ox, my + oy, qx + ox, qy + oy);
       ctx.stroke();
     }
+
+    /* Bristles, crowded at the broken ends. Shallow to the limb they grow off,
+       and drawn in both weights so they carry the same light the wood does. */
+    const main = limbs[0];
+    const ca0 = Math.cos(main.a), sa0 = Math.sin(main.a);
+    for (const pass of [0, 1]) {
+      ctx.strokeStyle = pass ? woodLit : 'rgba(12,17,14,0.92)';
+      ctx.lineWidth = pass ? Math.max(0.5, 0.8 * s) : Math.max(0.7, 1.5 * s);
+      ctx.beginPath();
+      const n = 9 + Math.floor(rnd() * 5);
+      for (let b = 0; b < n; b++) {
+        // biased to the ends: u near -1 or +1 far more often than near 0
+        let u = -1 + rnd() * 2;
+        u = Math.sign(u) * (0.30 + Math.abs(u) * 0.72);
+        const bx = ca0 * (u > 0 ? main.l1 : main.l0) * u;
+        const by = sa0 * (u > 0 ? main.l1 : main.l0) * u;
+        const shallow = (rnd() < 0.5 ? -1 : 1) * (0.35 + rnd() * 0.85);
+        const ba = main.a + (u > 0 ? 0 : Math.PI) + shallow;
+        const bl = len * (0.20 + rnd() * 0.34);
+        ctx.moveTo(bx, by);
+        ctx.lineTo(bx + Math.cos(ba) * bl, by + Math.sin(ba) * bl);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
   /* THE WEB, as a wedge strung in the crook of two long lines.
@@ -1608,13 +1907,19 @@
                 Math.round(la.g * 0.30 + 230 * 0.70) + ',' +
                 Math.round(la.bl * 0.30 + 240 * 0.70);
 
-    // FEW radii, so every chord between them is long enough for the sag to read
-    const N = 4 + Math.floor(rnd() * 3);          // 4 to 6 gaps, 5 to 7 threads
+    /* THREE OR FOUR RADII AND TEN ARCS - the ratio was upside down. The old
+       web drew 5 to 7 radii against 5 to 7 arcs, which is a doily: an even mesh
+       with no direction to it. Every web in the sketch is a couple of long
+       spokes carrying a dense stack of nested arcs, and the arcs are the whole
+       reading. Fewer spokes also make each chord much longer, which is what
+       lets the arc between them curve enough to be seen. */
+    const N = 2 + Math.floor(rnd() * 2);          // 2 or 3 gaps, 3 or 4 threads
     const ang = [], reach = [], wob = [];
     for (let i = 0; i <= N; i++) {
       const t = i / N;
       ang.push(w.a0 + w.span * t + (i && i < N ? (rnd() - 0.5) * (w.span / N) * 0.45 : 0));
-      reach.push(r * (i === 0 || i === N ? 1.0 : 0.86 + rnd() * 0.18));
+      // never past r: the drawing may not promise more danger than the rule has
+      reach.push(r * (i === 0 || i === N ? 1.0 : Math.min(1, 0.88 + rnd() * 0.14)));
       wob.push((rnd() - 0.5) * 0.34);
     }
     const jx = (i, t) => hx + Math.cos(ang[i] + wob[i] * Math.sin(t * 2.6) * 0.30) * reach[i] * t;
@@ -1622,22 +1927,25 @@
 
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
 
-    /* --- THE TWO LONG FRAME LINES. The dominant thing in the reference and
-       --- the thing that was missing: they run well past the silk, so the web
-       --- hangs in the garden instead of floating on it. */
-    ctx.strokeStyle = 'rgba(' + ink + ',' + (0.20 + lit * 0.26).toFixed(3) + ')';
+    /* --- THE TWO BOUNDING SPOKES. The long lines belong to the lattice now
+       --- and are drawn before any web, but a web still has to show its own two
+       --- EDGES or the wedge does not read - with the spokes gone entirely the
+       --- arcs floated as a little scallop shell pinned at a point. So: apex to
+       --- rim at full silk weight, carrying a third of their length past the
+       --- rim so the eye follows them out into the lattice. */
+    ctx.strokeStyle = 'rgba(' + ink + ',' + (0.26 + lit * 0.30).toFixed(3) + ')';
     ctx.lineWidth = Math.max(0.7, 1.0 * s);
     ctx.beginPath();
     for (const i of [0, N]) {
-      const far = 1.8 + ((w.seed | 0) % 5) * 0.22;
       ctx.moveTo(hx, hy);
-      ctx.lineTo(hx + Math.cos(ang[i]) * reach[i] * far, hy + Math.sin(ang[i]) * reach[i] * far);
+      ctx.lineTo(hx + Math.cos(ang[i]) * reach[i] * 1.34, hy + Math.sin(ang[i]) * reach[i] * 1.34);
     }
     ctx.stroke();
-
-    // --- the radii between them, thinner ---
-    ctx.strokeStyle = 'rgba(' + ink + ',' + ((0.13 + lit * 0.15) * (1 - torn * 0.5)).toFixed(3) + ')';
-    ctx.lineWidth = Math.max(0.5, 0.7 * s);
+    /* --- the radii between them. Nearly as strong as the arcs, not a third of
+       --- them: in the sketch the spokes cross every arc and that crossing is
+       --- what makes it read as a woven thing rather than as a contour map. */
+    ctx.strokeStyle = 'rgba(' + ink + ',' + ((0.24 + lit * 0.24) * (1 - torn * 0.5)).toFixed(3) + ')';
+    ctx.lineWidth = Math.max(0.5, 0.8 * s);
     ctx.beginPath();
     for (let i = 1; i < N; i++) {
       ctx.moveTo(hx, hy);
@@ -1645,31 +1953,48 @@
     }
     ctx.stroke();
 
-    /* --- THE ARCS, and this is the whole look. Each span between two radii is
-       --- a thread under its own weight: the control point is pulled a third of
-       --- the way back to the apex, which across a long chord is a deep,
-       --- obvious catenary rather than the faint bow it was before. Spacing
-       --- widens outward, the way a real capture spiral does. */
+    /* --- THE ARCS, and this is the whole look. They bow AWAY from the apex
+       --- now, not toward it: pulling the control point back toward the hub
+       --- made every span sag inward and the result read as a scallop shell or
+       --- a folded fan, which is exactly what the owner was looking at when he
+       --- called them poorly drawn. A web's capture spiral bulges outward.
+       ---
+       --- And the bow is not a constant. For a quadratic through two radii
+       --- half an angle THETA apart, tan(theta) squared is precisely the arc of
+       --- a circle - so it is computed from the actual chord width and the arcs
+       --- land ON the radius rather than inside or outside it. Which also keeps
+       --- the drawing honest: nothing paints past r. */
     ctx.strokeStyle = 'rgba(' + ink + ',' +
       (Math.min(0.70, 0.42 + lit * 0.26) * (1 - torn * 0.8)).toFixed(3) + ')';
     ctx.lineWidth = Math.max(0.8, 1.05 * s);
-    const rings = 5 + Math.floor(rnd() * 3);
+    const rings = 9 + Math.floor(rnd() * 4);
+    const half = (w.span / N) / 2;
+    const bow = Math.min(0.85, Math.tan(half) * Math.tan(half));
+    /* EVENLY SPACED RINGS READ AS A FINGERPRINT. A real capture spiral is laid
+       down in one pass by an animal walking it, so the gaps wander - and the
+       drawing has to wander with them or the whole web comes out as a contour
+       map. Widening outward, then knocked about per ring. */
+    const ringT = [];
+    for (let k = 0; k < rings; k++) {
+      const f0 = k / (rings - 1);
+      ringT.push(Math.min(1, (0.17 + 0.83 * (f0 * f0 * 0.5 + f0 * 0.5)) * (0.90 + rnd() * 0.19)));
+    }
     for (let k = 0; k < rings; k++) {
       if (torn > 0.3 && k % 2 === 1) continue;
-      const f0 = k / (rings - 1);
-      const t = 0.20 + 0.80 * (f0 * f0 * 0.55 + f0 * 0.45);   // widening outward
+      const t = ringT[k];
       let drawing = false;
       ctx.beginPath();
       for (let i = 0; i < N; i++) {
         const jitter = 1 + (((i * 7 + k * 5 + (w.seed | 0)) % 7) - 3) * 0.020;
-        const ta = t * jitter, tb = t * (1 + (((i + k) % 5) - 2) * 0.018);
-        if (((i * 3 + k * 7 + (w.seed | 0)) % 11) === 0) { drawing = false; continue; }
+        const ta = Math.min(1, t * jitter);
+        const tb = Math.min(1, t * (1 + (((i + k) % 5) - 2) * 0.018));
+        if (((i * 3 + k * 7 + (w.seed | 0)) % 7) === 0) { drawing = false; continue; }
         const ax = jx(i, ta), ay = jy(i, ta);
         const bx2 = jx(i + 1, tb), by2 = jy(i + 1, tb);
         if (!drawing) { ctx.moveTo(ax, ay); drawing = true; }
         const mx = (ax + bx2) / 2, my = (ay + by2) / 2;
-        const sag = 0.30 + ((i + k) % 3) * 0.06;
-        ctx.quadraticCurveTo(mx + (hx - mx) * sag, my + (hy - my) * sag, bx2, by2);
+        const sag = bow * (0.90 + ((i + k) % 3) * 0.10);
+        ctx.quadraticCurveTo(mx - (hx - mx) * sag, my - (hy - my) * sag, bx2, by2);
       }
       ctx.stroke();
     }
@@ -1701,11 +2026,10 @@
       drawSpider(sx2, sy2, Math.max(5.6, 14 * s), Math.atan2(ty - ay2, tx - ax2),
                  0.96, heat * 9);
     } else if (w.resident) {
-      const q = REDUCED
-        ? { x: hx + Math.cos(mid) * r * 0.5, y: hy + Math.sin(mid) * r * 0.5,
-            face: mid, gait: 0 }
-        : residentAt(w, hx, hy, r);
-      drawSpider(q.x, q.y, Math.max(5.6, 14 * s), q.face, 0.90, q.gait);
+      const rr2 = REDUCED ? 0.5 : w.sr, aa = REDUCED ? mid : w.sa;
+      drawSpider(hx + Math.cos(aa) * r * rr2, hy + Math.sin(aa) * r * rr2,
+                 Math.max(5.6, 14 * s), REDUCED ? mid : w.sface,
+                 0.90, REDUCED ? 0 : w.sgait);
     }
   }
 
@@ -1766,35 +2090,69 @@
     ctx.restore();
   }
 
-  /* WHERE A RESIDENT IS, at this moment. It walks out along a thread to the far
-     end of the web, waits there a while, walks back to the hub, waits, and then
-     picks a different thread. Fifteen seconds a circuit, so it is always moving
-     and never hurrying, and it covers most of its web rather than fidgeting on
-     the spot - a spider that shifts a few pixels reads as a smudge with a
-     twitch. It runs out past the rim onto the frame threads too, which is where
-     real ones sit. */
-  function residentAt(w, hx, hy, r) {
-    const PERIOD = 15;
-    const tt = clock * 0.62 + (w.seed | 0) % 97;
-    const cyc = Math.floor(tt / PERIOD);
-    const u = (tt % PERIOD) / PERIOD;
-    const rnd2 = mulberry32(((w.seed | 0) + cyc * 977) | 0);
-    const aim = w.a0 + w.span * (0.12 + rnd2() * 0.76);
-    const ease = (k) => k * k * (3 - 2 * k);
-    let frac, outward = true, moving = false;
-    if (u < 0.12) frac = 0;
-    else if (u < 0.44) { frac = ease((u - 0.12) / 0.32); moving = true; }
-    else if (u < 0.58) frac = 1;
-    else if (u < 0.90) { frac = 1 - ease((u - 0.58) / 0.32); moving = true; outward = false; }
-    else frac = 0;
-    const rr = r * (0.12 + 1.48 * frac);
-    return {
-      x: hx + Math.cos(aim) * rr, y: hy + Math.sin(aim) * rr,
-      face: outward ? aim : aim + Math.PI,
-      // the walk cycle advances with the journey, so standing still is still
-      gait: frac * 7,
-      moving,
+  /* WHERE A RESIDENT IS, AND IT IS WATCHING NOW.
+
+     It used to walk a fixed fifteen-second circuit on the clock: out along a
+     thread, wait, back to the hub, wait, pick another thread. Regular, and
+     completely indifferent - it made exactly the same journey whether the swarm
+     was on the far side of the garden or one body-length off the silk. Which is
+     why the owner asked for more movement: there was plenty of motion in it and
+     none of it was ABOUT anything.
+
+     It tracks the nearest fly now. Inside its awareness it turns to face the
+     thing, runs out along the thread nearest that bearing, and hurries in
+     proportion to how close the fly has come; outside it, it drifts back to a
+     slow idle wander. That makes the spider the one piece of the garden that
+     tells you it has noticed you, and it tells you BEFORE anything is at stake.
+
+     It still never leaves its own web and it still catches nothing. The silk is
+     the rule; the spider is the warning. Integrated in the fixed step and off
+     the scene clock, so it stays exactly as deterministic as everything else -
+     assertDeterminism() covers it. */
+  function stepResident(w, dt) {
+    const lo = w.a0 + w.span * 0.08, hi = w.a0 + w.span * 0.92;
+    const bring = (a) => {
+      while (a < w.a0 - Math.PI) a += TAU;
+      while (a > w.a0 + Math.PI) a -= TAU;
+      return a;
     };
+    let best = null, bd = 1e9;
+    for (const f of S.flies) {
+      if (f.caught || f.lost) continue;
+      const d = Math.hypot(f.x - w.x, f.y - w.y);
+      if (d < bd) { bd = d; best = f; }
+    }
+    let tgtA, tgtR, urge = 0;
+    if (best && bd < TUNE.spiderSee) {
+      urge = 1 - bd / TUNE.spiderSee;
+      tgtA = Math.max(lo, Math.min(hi, bring(Math.atan2(best.y - w.y, best.x - w.x))));
+      tgtR = Math.max(0.18, Math.min(1.42, bd / w.r));
+    } else {
+      /* Restless even with nothing to watch: a new thread every three and a
+         half seconds, chosen across the whole wedge. An idle spider that picks
+         one spot and holds it for seven seconds is a spider that looks dead. */
+      const cyc = Math.floor((clock * 0.5 + ((w.seed | 0) % 89)) / 3.5);
+      const r2 = mulberry32(((w.seed | 0) + cyc * 7919) | 0);
+      tgtA = lo + (hi - lo) * r2();
+      tgtR = 0.18 + r2() * 1.05;
+    }
+
+    /* Moved in FIELD UNITS at an honest walking pace, then put back into the
+       web's own polar frame - stepping `sa` and `sr` directly would have the
+       thing sprinting round the rim of a big web and creeping on a small one
+       for the same numbers. */
+    const cx = w.x + Math.cos(w.sa) * w.sr * w.r;
+    const cy = w.y + Math.sin(w.sa) * w.sr * w.r;
+    const tx = w.x + Math.cos(tgtA) * tgtR * w.r;
+    const ty = w.y + Math.sin(tgtA) * tgtR * w.r;
+    const dx = tx - cx, dy = ty - cy, m = Math.hypot(dx, dy);
+    if (m < 1e-4) return;
+    const step2 = Math.min(m, TUNE.spiderWalk * (0.46 + urge * 0.95) * dt);
+    const nx2 = cx + (dx / m) * step2, ny2 = cy + (dy / m) * step2;
+    w.sa = Math.max(lo, Math.min(hi, bring(Math.atan2(ny2 - w.y, nx2 - w.x))));
+    w.sr = Math.max(0.12, Math.min(1.45, Math.hypot(nx2 - w.x, ny2 - w.y) / w.r));
+    w.sgait += step2 / 9;           // legs run on distance covered, never on time
+    if (step2 > 0.01) w.sface = Math.atan2(ny2 - cy, nx2 - cx);
   }
 
   /* Thorns. The shape says danger, not the colour. Barbs alone came out as a
@@ -2696,6 +3054,7 @@
     ['wander', 0, 1.2, 0.05],
     ['jarShy', 0, 6, 0.1], ['jarShyR', 60, 260, 5],
     ['webR', 14, 70, 1], ['spiderSecs', 4, 24, 0.5],
+    ['spiderSee', 60, 320, 10], ['spiderWalk', 10, 140, 2],
     ['freeR', 20, 140, 2], ['freeSecs', 0.4, 4, 0.1],
     ['webCool', 0, 12, 0.5], ['breeze', 0, 70, 1],
     ['stick', 0, 160, 2],
@@ -2791,6 +3150,8 @@
       lost: S.lost, stuck: S.stuckNow, spare: S.n - S.lost - S.need,
       sticks: S.sticks, resticks: S.resticks, rescues: S.rescues,
       webs: S.webs.length, thorns: S.thorns.length,
+      strands: S.strands.length, twigs: S.twigs.length,
+      webR: S.webs.map((w) => Math.round(w.r)).join(','),
       seconds: +S.seconds.toFixed(2), phase, mode: MODE,
       handSpeed: +Math.hypot(lureVX, lureVY).toFixed(0), canFollow: TUNE.lureSpeed,
       led: S.flies.filter((f) => f.led).length,
@@ -3128,7 +3489,7 @@
           const w = S.webs[f.web];
           if (w.spiderT > worst) { worst = w.spiderT; save = f; }
         }
-        let tx, ty, cap = speed;
+        let tx, ty, cap = speed, toJar = false;
         if (save) { tx = save.x; ty = save.y; held += tick; }
         else {
           // 2. otherwise gather the stragglers, then take everyone to the jar
@@ -3145,8 +3506,15 @@
             tx = jar.mx + jar.inX * jar.h * 0.34;
             ty = jar.my + jar.inY * jar.h * 0.34;
             insideJar += tick;
+            toJar = true;
           }
-          if (!o.careless) {
+          /* IT COMMITS AT THE DOOR. Careful play routes around silk while it is
+             gathering and travelling; it does not swerve away from the jar with
+             the last fly in tow. The bot did, and the result read as a level
+             nobody can finish: two of three in the glass and a hundred and
+             twenty seconds hovering at the mouth, on two levels of seven. Any
+             web near the jar was steering the flame off the doorway forever. */
+          if (!o.careless && !(toJar && Math.hypot(jar.mx - lx, jar.my - ly) < 165)) {
             const vx = tx - lx, vy = ty - ly, vl = Math.hypot(vx, vy) || 1;
             let bestAlong = Infinity;
             for (const w of S.webs) {
@@ -3160,11 +3528,18 @@
                  hold a shell around it. A player who can see the cloud gives a
                  web the cloud's radius plus a margin; a bot that does not is
                  modelling careless play, not careful. */
-              const clear = w.r + TUNE.orbitR * 1.5 + 34;
+              const clear = w.r + TUNE.orbitR + 14;
               if (Math.abs(side) > clear || along >= bestAlong) continue;
               bestAlong = along;
-              const push = (side >= 0 ? -1 : 1) * (clear + 20);
-              tx = w.x + (-vy / vl) * push; ty = w.y + (vx / vl) * push;
+              /* BOUNDED, or "careful" becomes "stuck". Asking for more room
+                 than the field has left the bot shuttling between two
+                 impossible detours and timing out, which reads in the results
+                 as a level nobody can finish - a check failing, not a game. */
+              const push = (side >= 0 ? -1 : 1) * (clear + 16);
+              let nx2 = w.x + (-vy / vl) * push, ny2 = w.y + (vx / vl) * push;
+              nx2 = Math.max(36, Math.min(S.fieldW - 36, nx2));
+              ny2 = Math.max(36, Math.min(S.fieldH - 36, ny2));
+              tx = nx2; ty = ny2;
             }
           }
         }
@@ -3282,45 +3657,274 @@
                restoredTooOften: unders, pass: depth === 0 && unders === 0 };
     },
 
-    /* DOES A RESIDENT ACTUALLY GO ANYWHERE? "A few pixels here or there" was
-       the complaint about the last one, and a spider that fidgets on the spot
-       reads as a smudge with a twitch. Samples a full circuit and reports how
-       far it really travels, in the pixels the player sees. */
-    spiderPatrol(secs) {
-      const w = S.webs.find((q) => q.resident);
-      if (!w) return { note: 'no resident on this level' };
-      const keepClock = clock;
-      const s = L.scale, r = w.r * s;
-      const hx = wx2s(w.x), hy = wy2s(w.y);
+    /* Where the scenery actually lands, in the pixels the player sees. A twig
+       that measures fine in field units and draws off the edge of the frame is
+       a thing a screenshot finds and a number does not. */
+    scenery() {
+      const s = L.scale;
+      const inFrame = (x, y) => x > L.playX && x < L.playX + L.playW &&
+                                y > L.playY && y < L.playY + L.playH;
+      return {
+        playRect: [L.playX, L.playY, L.playW, L.playH].map((v) => +v.toFixed(0)),
+        twigs: S.twigs.map((t) => ({
+          x: +wx2s(t.x).toFixed(0), y: +wy2s(t.y).toFixed(0),
+          lenPx: +(t.len * s).toFixed(0), inFrame: inFrame(wx2s(t.x), wy2s(t.y)),
+        })),
+        twigsInFrame: S.twigs.filter((t) => inFrame(wx2s(t.x), wy2s(t.y))).length,
+        // a web with no long line through it falls back to its own two stubs
+        // and reads as a sticker again, which is the whole thing being fixed
+        websOnLattice: S.webs.filter((w) => S.strands.some((c) => {
+          const ux = c.x1 - c.x0, uy = c.y1 - c.y0, ul = Math.hypot(ux, uy) || 1;
+          return Math.abs((w.x - c.x0) * (uy / ul) - (w.y - c.y0) * (ux / ul)) < 34;
+        })).length,
+        webCount: S.webs.length,
+        webRadiiPx: S.webs.map((w) => Math.round(w.r * s)),
+        webSpansDeg: S.webs.map((w) => Math.round(w.span * 180 / Math.PI)),
+      };
+    },
+
+    /* CAN A PLAYER TELL A LINE FROM A WEB?
+
+       The owner chose to keep the lattice harmless - a clean line is visibly
+       not a web, so let the hatched mass be the danger - and I said I would
+       measure that rather than assert it, because the whole point of drawing
+       the lines at silk weight is that they now LOOK like silk. If a player
+       cannot separate them, the picture is promising a danger the rule does not
+       have, and the honest fix would be to make taut threads catch.
+
+       Ink is the fraction of pixels a window gains when the weave is drawn, so
+       it is measured on the PAINTED pixel and not on the source alpha. Two null
+       tests first: the same render read twice must diff to nothing, and a
+       window of empty night must gain nothing. Without those a confident number
+       here would mean only that the arithmetic ran.
+
+       The verdict is not the average. Averages cannot be confused with each
+       other; particular windows can. So it is the DENSEST line window against
+       the SPARSEST web window - the two a player is most likely to mix up. */
+    weaveInk(win) {
+      const W = win || 40, s = L.scale, keep = SOLO;
+      /* NOT UNDER THE CHROME. The first run of this failed its own null test:
+         two identical renders differed by 66 in a channel, at a sample sitting
+         squarely under the Restart button. SOLO returns early from drawGarden,
+         but render() carries on to draw the HUD, the controls and any card -
+         and those animate on performance.now(), not on the scene clock, so two
+         "identical" renders genuinely are not identical there. On mobile the
+         chrome sits ON the garden, so the garden's own rectangle is not enough:
+         the band and the control row have to come out by hand. */
+      const chromeTop = L.playY + (MODE === 'mobile' ? topBand() + 22 : 0);
+      const chromeBot = (MODE === 'mobile' ? (L.ctrlCy || L.playY + L.playH) - 42
+                                           : L.playY + L.playH);
+      const inside = (x, y) => x > L.playX + W && x < L.playX + L.playW - W &&
+                               y > chromeTop + W && y < chromeBot - W;
+      const segD = (x, y, ax, ay, bx, by) => {
+        const vx = bx - ax, vy = by - ay, L2 = vx * vx + vy * vy;
+        let t = L2 > 1e-9 ? ((x - ax) * vx + (y - ay) * vy) / L2 : 0;
+        t = Math.max(0, Math.min(1, t));
+        return Math.hypot(x - (ax + vx * t), y - (ay + vy * t));
+      };
       const pts = [];
-      const span = secs || 30;
-      for (let i = 0; i <= 120; i++) {
-        clock = keepClock + (i / 120) * span;
-        const q = residentAt(w, hx, hy, r);
-        pts.push(q);
+
+      // --- on a strand, well clear of any silk, any twig and any crossing ---
+      for (const t of S.strands) {
+        const ax = wx2s(t.x0), ay = wy2s(t.y0), bx = wx2s(t.x1), by = wy2s(t.y1);
+        for (let u = 0.06; u <= 0.94; u += 0.05) {
+          const x = ax + (bx - ax) * u, y = ay + (by - ay) * u;
+          if (!inside(x, y)) continue;
+          let ok = true;
+          for (const w of S.webs)
+            if (Math.hypot(x - wx2s(w.x), y - wy2s(w.y)) < w.r * s * 1.45 + W) ok = false;
+          for (const tw of S.twigs)
+            if (Math.hypot(x - wx2s(tw.x), y - wy2s(tw.y)) < tw.len * s * 2 + W) ok = false;
+          // a crossing is two lines: counting it would flatter the line case
+          for (const t2 of S.strands) {
+            if (t2 === t) continue;
+            if (segD(x, y, wx2s(t2.x0), wy2s(t2.y0), wx2s(t2.x1), wy2s(t2.y1)) < W) ok = false;
+          }
+          if (ok) pts.push({ kind: 'line', x, y });
+        }
       }
-      clock = keepClock;
-      let far = 0, path = 0, moving = 0, gaitRun = 0;
+      // --- and inside the silk, across the wedge and out along it ---
+      for (const w of S.webs) {
+        const hx = wx2s(w.x), hy = wy2s(w.y), r = w.r * s;
+        for (let ai = 1; ai <= 4; ai++) {
+          for (const rf of [0.38, 0.60, 0.82]) {
+            const a = w.a0 + w.span * (ai / 5);
+            const x = hx + Math.cos(a) * r * rf, y = hy + Math.sin(a) * r * rf;
+            if (inside(x, y)) pts.push({ kind: 'web', x, y });
+          }
+        }
+      }
+      // --- and some empty night, as the low control ---
+      for (let g = 0; g < 24; g++) {
+        const x = L.playX + L.playW * (0.06 + (g % 6) / 6.4);
+        const y = L.playY + L.playH * (0.08 + Math.floor(g / 6) / 4.8);
+        if (!inside(x, y)) continue;
+        let ok = true;
+        for (const w of S.webs)
+          if (Math.hypot(x - wx2s(w.x), y - wy2s(w.y)) < w.r * s * 1.5 + W) ok = false;
+        for (const tw of S.twigs)
+          if (Math.hypot(x - wx2s(tw.x), y - wy2s(tw.y)) < tw.len * s * 2 + W) ok = false;
+        for (const t2 of S.strands)
+          if (segD(x, y, wx2s(t2.x0), wy2s(t2.y0), wx2s(t2.x1), wy2s(t2.y1)) < W) ok = false;
+        if (ok) pts.push({ kind: 'empty', x, y });
+      }
+      if (!pts.length) return { note: 'nothing to sample on this level' };
+
+      const read = (mode) => {
+        SOLO = mode; render();
+        return pts.map((q) => devicePx(q.x - W / 2, q.y - W / 2, W, W).data);
+      };
+      const bareA = read('bare');
+      const bareB = read('bare');
+      const drawn = read('webs');
+      SOLO = keep; render();
+
+      const ink = (a, b) => {
+        let n = 0, tot = 0, peak = 0;
+        for (let i = 0; i < a.length; i += 4) {
+          const d = lum(b[i], b[i + 1], b[i + 2]) - lum(a[i], a[i + 1], a[i + 2]);
+          if (d > peak) peak = d;
+          if (d > 0.005) n++;
+          tot++;
+        }
+        return { frac: tot ? n / tot : 0, peak };
+      };
+
+      let nullMax = 0, nullLum = 0, nullChan = 0, nullAt = null;
       for (let i = 0; i < pts.length; i++) {
-        for (let j = i + 1; j < pts.length; j++) {
-          const d = Math.hypot(pts[i].x - pts[j].x, pts[i].y - pts[j].y);
-          if (d > far) far = d;
-        }
-        if (i) {
-          path += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
-          // total steps taken, not end-minus-start: the gait resets each
-          // circuit, so a difference reads -1 when the answer is fourteen
-          gaitRun += Math.abs(pts[i].gait - pts[i - 1].gait);
-        }
-        if (pts[i].moving) moving++;
+        const q = ink(bareA[i], bareB[i]);
+        if (q.frac > nullMax) { nullMax = q.frac; nullAt = pts[i]; }
+        nullLum = Math.max(nullLum, q.peak);
+        const a = bareA[i], b = bareB[i];
+        for (let j = 0; j < a.length; j++) nullChan = Math.max(nullChan, Math.abs(a[j] - b[j]));
       }
+      const by = { line: [], web: [], empty: [] };
+      for (let i = 0; i < pts.length; i++) by[pts[i].kind].push(ink(bareA[i], drawn[i]));
+      const mean = (a) => (a.length ? a.reduce((t, v) => t + v.frac, 0) / a.length : 0);
+      const emptyMax = by.empty.reduce((t, v) => Math.max(t, v.frac), 0);
+
+      if (nullMax > 0 || emptyMax > 0.02) {
+        return { verdict: 'CHECK IS BROKEN, findings withheld',
+                 sameRenderTwiceDiffered: +nullMax.toFixed(4),
+                 sameRenderTwicePeakLum: +nullLum.toFixed(5),
+                 sameRenderTwicePeakChannel: nullChan,
+                 worstNullWindow: nullAt && { kind: nullAt.kind,
+                   x: +nullAt.x.toFixed(0), y: +nullAt.y.toFixed(0) },
+                 emptyNightGainedInk: +emptyMax.toFixed(4) };
+      }
+      /* NOT THE ABSOLUTE WORST WINDOW. The first cut compared the densest line
+         patch with the sparsest web patch and duly failed everywhere, because a
+         small window can land in one of the gaps in a spiral and read zero ink
+         - and an empty hole inside a web is not something anyone confuses with
+         a line, since the rest of the web is right beside it. That is the check
+         being wrong, not the picture.
+
+         So: the tenth-percentile web window against the ninetieth-percentile
+         line window, at a window wide enough to hold a piece of an object
+         rather than a piece of a thread. Extremes are kept below, marked as
+         what they are. */
+      const pct = (a, q) => {
+        if (!a.length) return 0;
+        const v = a.map((z) => z.frac).sort((m, n) => m - n);
+        return v[Math.max(0, Math.min(v.length - 1, Math.round(q * (v.length - 1))))];
+      };
+      const p90Line = pct(by.line, 0.90), p10Web = pct(by.web, 0.10);
+      const densestLine = by.line.reduce((t, v) => Math.max(t, v.frac), 0);
+      const sparsestWeb = by.web.reduce((t, v) => Math.min(t, v.frac), 1);
+      const linePeak = by.line.reduce((t, v) => Math.max(t, v.peak), 0);
+      return {
+        windowPx: W,
+        samples: { line: by.line.length, web: by.web.length, empty: by.empty.length },
+        meanLineInk: +mean(by.line).toFixed(3),
+        meanWebInk: +mean(by.web).toFixed(3),
+        meanRatio: +(mean(by.web) / Math.max(1e-6, mean(by.line))).toFixed(2),
+        // the pair a player could actually confuse
+        p90LineInk: +p90Line.toFixed(3),
+        p10WebInk: +p10Web.toFixed(3),
+        confusableRatio: +(p10Web / Math.max(1e-6, p90Line)).toFixed(2),
+        separable: p10Web > p90Line * 1.6,
+        extremes: { densestLine: +densestLine.toFixed(3),
+                    sparsestWeb: +sparsestWeb.toFixed(3) },
+        // a line nobody can see is a different failure from a line that lies
+        lineVisible: linePeak > 0.006,
+        nulls: { sameRenderTwice: +nullMax.toFixed(4), emptyNight: +emptyMax.toFixed(4) },
+      };
+    },
+
+    /* DOES A RESIDENT ACTUALLY GO ANYWHERE - AND DOES IT GO WHERE THE FLIES
+       ARE? "A few pixels here or there" was the complaint about the old one,
+       and a spider that fidgets on the spot reads as a smudge with a twitch.
+       But distance alone is the wrong question now: a spider can cover plenty
+       of ground and still be indifferent, which is exactly what the old fixed
+       circuit did.
+
+       So this runs the same web twice under the real sim. Once undisturbed, and
+       once with a fly pinned just outside the silk on one named side. If
+       `towardFlyPx` is not clearly larger than `controlPx`, the spider is not
+       following anything and the feature is a story I told about the code. */
+    spiderPatrol(secs) {
+      const wi = S.webs.findIndex((q) => q.resident);
+      if (wi < 0) return { note: 'no resident on this level' };
+      const span = secs || 20;
+      const snap = JSON.stringify({ webs: S.webs, flies: S.flies });
+      const keepClock = clock, keepTouch = touch;
+      const s = L.scale;
+
+      const run = (pin) => {
+        const back = JSON.parse(snap);
+        S.webs = back.webs; S.flies = back.flies;
+        clock = keepClock; touch = null;
+        const w = S.webs[wi];
+        if (pin !== null) {
+          // one fly parked just off the rim, on the side we asked about
+          const a = w.a0 + w.span * pin;
+          S.flies[0].x = w.x + Math.cos(a) * w.r * 1.25;
+          S.flies[0].y = w.y + Math.sin(a) * w.r * 1.25;
+          S.flies[0].vx = S.flies[0].vy = 0;
+          S.flies[0].caught = false; S.flies[0].lost = false; S.flies[0].web = -1;
+        }
+        const pts = [];
+        for (let i = 0; i < Math.round(span / DT); i++) {
+          if (pin !== null) { S.flies[0].vx = 0; S.flies[0].vy = 0; }
+          step(DT);
+          if (i % 12 === 0) {
+            pts.push({ x: Math.cos(w.sa) * w.sr * w.r * s,
+                       y: Math.sin(w.sa) * w.sr * w.r * s, g: w.sgait });
+          }
+        }
+        let far = 0, path = 0, strides = 0;
+        for (let i = 0; i < pts.length; i++) {
+          for (let j = i + 1; j < pts.length; j++) {
+            const d = Math.hypot(pts[i].x - pts[j].x, pts[i].y - pts[j].y);
+            if (d > far) far = d;
+          }
+          if (i) {
+            path += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+            strides += Math.abs(pts[i].g - pts[i - 1].g);
+          }
+        }
+        return { far, path, strides, end: pts[pts.length - 1],
+                 endA: (w.sa - w.a0) / w.span };
+      };
+
+      // where the flies happen to be, then pinned near each end of the wedge
+      const ctl = run(null), lo = run(0.12), hi = run(0.88);
+      const back = JSON.parse(snap);
+      S.webs = back.webs; S.flies = back.flies;
+      clock = keepClock; touch = keepTouch;
+      const w = S.webs[wi];
+      const towardPx = Math.hypot(lo.end.x - hi.end.x, lo.end.y - hi.end.y);
       return {
         overSeconds: span,
-        furthestApartPx: +far.toFixed(1),
-        pathLengthPx: +path.toFixed(1),
-        webRadiusPx: +r.toFixed(1),
-        fractionOfTimeWalking: +(moving / pts.length).toFixed(2),
-        legStridesTaken: +gaitRun.toFixed(1),
+        webRadiusPx: +(w.r * s).toFixed(1),
+        controlPathPx: +ctl.path.toFixed(1),
+        controlFurthestPx: +ctl.far.toFixed(1),
+        legStridesTaken: +ctl.strides.toFixed(1),
+        // the two pinned runs should END in different places, at the named ends
+        towardFlyPx: +towardPx.toFixed(1),
+        settledAtSpanFraction: [+lo.endA.toFixed(2), +hi.endA.toFixed(2)],
+        follows: towardPx > w.r * s * 0.8 && lo.endA < 0.35 && hi.endA > 0.65,
+        staysOnItsWeb: w.sr <= 1.46 && w.sr >= 0.11,
       };
     },
 
