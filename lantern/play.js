@@ -789,32 +789,33 @@
   function layout() {
     L.ctrlCy = MODE === 'mobile' ? LH - 74 : topBand() / 2;
     const availTop = topBand();
-    const availH = Math.max(80, LH - topBand() - botBand());
-    let availW, boxX;
-    if (MODE === 'mobile') {
-      availW = LW; boxX = 0;
-    } else {
-      /* No side column. A second jar drawn beside the first told the player
-         nothing the scene was not already telling them, and the design system's
-         rule is that side space must carry something REAL - so the side space
-         is garden. The square field is centred in the full frame and the
-         leftover width either side is more night, more grass, more of the same
-         garden, exactly the way the leftover HEIGHT works on a phone. */
-      availW = LW - SIDE_PAD * 2;
-      boxX = SIDE_PAD;
-    }
-    /* ON A PHONE THE GARDEN IS THE WHOLE SCREEN. No bands: the controls and the
-       read-out sit on the night itself, which is what the owner asked for and
-       what stops the frame being a picture with two navy strips bolted on. On a
-       desktop the bands stay, because there the garden is a landscape card
-       inside a page. */
+    /* THE GARDEN REACHES THE FRAME ON EVERY SIDE IT CAN.
+
+       The owner drew a red line down the left edge, down the right edge and
+       along the bottom and asked why the canvas was not extending to the frame.
+       The canvas was: it filled its element exactly, and canvasFit() said so
+       and was right. It was the GARDEN inside the canvas that did not - inset
+       thirty units either side by SIDE_PAD and twenty short at the bottom by a
+       band that held nothing, with the chrome wash showing through the gap and
+       reading as the card behind it.
+
+       The comment that used to sit here said the side space was garden - "more
+       night, more grass, more of the same garden" - and the code two lines
+       below it padded the box in anyway, then computed `availW` and `boxX` and
+       threw them away with a void. The intention was written down and never
+       wired up, which is the only reason it survived a canvas check: nothing
+       measured the garden against the canvas, only the canvas against its
+       element. gardenFit() does now.
+
+       The TOP band stays. It carries the controls and the read-out, it is the
+       one band that holds anything, and the owner's marks went round the other
+       three sides and not that one. */
     if (MODE === 'mobile') {
       L.playX = 0; L.playY = 0; L.playW = LW; L.playH = LH;
     } else {
-      L.playX = SIDE_PAD; L.playY = availTop;
-      L.playW = LW - SIDE_PAD * 2; L.playH = availH;
+      L.playX = 0; L.playY = availTop;
+      L.playW = LW; L.playH = Math.max(80, LH - availTop);
     }
-    void boxX; void availW;
     const f = fieldFor(L.playW, L.playH);
     L.fw = f.w; L.fh = f.h;
     L.scale = L.playW / L.fw;              // fills exactly; the other axis agrees
@@ -885,8 +886,7 @@
       }
       foliage.push({ cx, cy, lobes, R, near });
     }
-    const w = MODE === 'mobile' ? LW : L.playW + SIDE_PAD;
-    const x0 = MODE === 'mobile' ? 0 : L.playX - 10;
+    const w = LW, x0 = 0;      // the play area is the full width on both layouts
 
     /* THE GROUND IS THE FIELD'S FLOOR, not the bottom of the frame. On a phone
        the square field is width-bound and the play area is much taller, so the
@@ -1549,10 +1549,9 @@
     if (MODE === 'desktop') {
       ctx.fillStyle = TOK.bgCard;
       ctx.fillRect(0, 0, LW, L.playY);
-      ctx.fillRect(0, L.playY + L.playH, LW, LH - (L.playY + L.playH));
       ctx.fillStyle = TOK.tint10;
       ctx.fillRect(0, L.playY - 1, LW, 1);
-      ctx.fillRect(0, L.playY + L.playH, LW, 1);
+      // no bottom band and no hairline under it: the garden runs to the frame
     }
 
     ctx.beginPath(); ctx.rect(L.playX, L.playY, L.playW, L.playH); ctx.clip();
@@ -3737,6 +3736,42 @@
       try { render(); } finally { ctx.save = realSave; ctx.restore = realRestore; }
       return { leftOpenAtEndOfFrame: depth, deepest: worst,
                restoredTooOften: unders, pass: depth === 0 && unders === 0 };
+    },
+
+    /* DOES THE GARDEN REACH THE FRAME?
+
+       canvasFit() asks whether the CANVAS fills its element, and it answered
+       true for months while the garden sat inset thirty units either side and
+       twenty short at the bottom - because that gap is inside the canvas, and
+       nothing was looking there. The owner found it by drawing on a screenshot.
+
+       This measures the play rectangle against the canvas and reports the dead
+       margin on each side. A margin is only allowed where a band actually
+       carries chrome: the top band holds the controls and the read-out, so it
+       is expected and named. Anything else is the frame showing through. */
+    gardenFit() {
+      const bands = { top: MODE === 'mobile' ? 0 : topBand() };
+      const gap = {
+        left: +L.playX.toFixed(1),
+        right: +(LW - (L.playX + L.playW)).toFixed(1),
+        top: +L.playY.toFixed(1),
+        bottom: +(LH - (L.playY + L.playH)).toFixed(1),
+      };
+      const dead = {
+        left: gap.left, right: gap.right, bottom: gap.bottom,
+        top: +Math.max(0, gap.top - bands.top).toFixed(1),
+      };
+      return {
+        mode: MODE,
+        frame: LW + 'x' + LH,
+        garden: [L.playX, L.playY, L.playW, L.playH].map((v) => +v.toFixed(1)),
+        chromeBands: bands,
+        gap,
+        deadMargin: dead,
+        // the top gap is the chrome band and is meant to be there
+        reachesFrame: dead.left === 0 && dead.right === 0 &&
+                      dead.bottom === 0 && dead.top === 0,
+      };
     },
 
     /* Where the scenery actually lands, in the pixels the player sees. A twig
