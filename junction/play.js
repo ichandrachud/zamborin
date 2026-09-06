@@ -244,7 +244,16 @@
      it asked for. */
   const STACK_MIN_H = 500;
   const wide = () => LW >= LH * 1.15 || LH < STACK_MIN_H;
-  const topBand = () => (wide() ? 64 : 76);
+  /* PORTRAIT'S BAND CARRIES TWO ROWS. The controls went up top long ago; the
+     numbers and the action button stayed at the foot, resting ON the grass,
+     and between them they held about 84px of field that no cell could ever
+     occupy — plus a 14px strip of bare page below it. That is the space the
+     owner ringed. Both rows are chrome now and both are in the band, so every
+     green pixel under it is board.
+
+     114 = 12 + 40 + 10 + 40 + 12, and it is CHEAPER than what it replaces: the
+     old arrangement spent 76 up top, ~84 on the foot row and 14 on the strip. */
+  const topBand = () => (wide() ? 64 : 114);
   /* The board's own margin in portrait, and it is NOT SIDE_PAD. Band content
      still gets 30 because type needs a margin; a board does not, and on a
      phone the board is bound by width, so this number IS the cell size. */
@@ -348,19 +357,42 @@
          The controls being at the top is a deliberate departure from a locked
          rule: CONTRIBUTING and DESIGN-SYSTEM 2.1 both put them at the bottom
          on phones, for thumb reach, and every other game on the site does. */
-      L.ctrlCy = 38;
-      L.field = { x: 0, y: topBand(), w: LW, h: LH - topBand() - 14, r: 0 };
-      const rowCy = Math.round(L.field.y + L.field.h - 12 - bh / 2);
-      const top = L.field.y + 8;
-      box = { x: BOARD_PAD, y: top, w: Math.max(60, LW - BOARD_PAD * 2),
-              h: Math.max(60, (rowCy - bh / 2 - 10) - top) };
-      L.footY = rowCy;
+      L.ctrlCy = 34;
+      L.rowTwoCy = 84;
+      /* AND THE FIELD RUNS TO THE BOTTOM OF THE FRAME. It used to stop 14px
+         short, which is the margin the LANDSCAPE field wants because there it
+         is a rounded board on a table. Portrait is not a card — the yard is
+         the screen — so the inset was just a strip of the page wash showing
+         under the grass, and that is the blue patch. */
+      L.field = { x: 0, y: topBand(), w: LW, h: LH - topBand(), r: 0 };
+      box = { x: BOARD_PAD, y: L.field.y + 8, w: Math.max(60, LW - BOARD_PAD * 2),
+              h: Math.max(60, L.field.h - 16) };
+      L.footY = L.rowTwoCy;
       L.actCx = Math.round(LW - 18 - bw / 2);
-      L.actCy = rowCy;
+      L.actCy = L.rowTwoCy;
     }
-    const cell = Math.max(8, Math.floor(Math.min(box.w / cC, box.h / cR)));
-    repad(Math.max(0, Math.floor(box.h / cell) - cR),
-          Math.max(0, Math.floor(box.w / cell) - cC));
+    /* THE CELL SIZE THAT COVERS THE MOST BOARD, which is not always the
+       biggest one. Taking the core's natural size and flooring the counts
+       leaves whatever does not divide evenly as dead margin: at 760x600 that
+       was 55px of it, a whole file short of another column. Giving up two
+       pixels of cell — 69 to 67 — buys that column and takes the desktop from
+       82% of the field to 86%.
+
+       The search never goes below the size the core alone would have had by
+       more than a tenth, so pieces stay the size they were authored for, and
+       it never returns fewer ranks or files than the core. Ties go to the
+       larger cell. */
+    const cell0 = Math.max(8, Math.floor(Math.min(box.w / cC, box.h / cR)));
+    let pick = { cell: cell0, C: Math.floor(box.w / cell0), R: Math.floor(box.h / cell0), cover: 0 };
+    pick.cover = pick.C * pick.R * cell0 * cell0;
+    for (let c = cell0 - 1; c >= Math.max(20, Math.round(cell0 * 0.90)); c--) {
+      const C2 = Math.floor(box.w / c), R2 = Math.floor(box.h / c);
+      if (C2 < cC || R2 < cR) continue;
+      const cover = C2 * R2 * c * c;
+      if (cover > pick.cover) pick = { cell: c, C: C2, R: R2, cover };
+    }
+    const cell = pick.cell;
+    repad(Math.max(0, pick.R - cR), Math.max(0, pick.C - cC));
     const R = level.R, C = level.C;
     L.g = {
       ox: Math.round(box.x + (box.w - C * cell) / 2),
@@ -1589,15 +1621,16 @@
     const plan = L.plan;
     ctx.font = '600 ' + Math.round(16 * plan.hs) + 'px Inter, sans-serif';
     const w = ctx.measureText(plan.text).width;
-    if (L.wide && plan.inBand) {
-      // right-aligned against the ACTION PILL, which is what shares the band
-      ctx.fillStyle = 'rgba(255,255,255,0.80)';
-      L.readoutLeft = Math.round(L.actCx - L.actW / 2 - 18 - w);
-    } else {
-      // on the grass, so it needs the weight the band gave it for free
-      ctx.fillStyle = 'rgba(255,255,255,0.88)';
-      L.readoutLeft = 18;
-    }
+    /* Three places, not two. Landscape shares one band with the control row
+       and the pill, so the line is right-aligned against the pill. Portrait
+       has its own second band row and reads left, under the controls. And if
+       a band cannot hold the line at all it falls onto the grass, where it
+       needs the weight the band was giving it for free. */
+    const onBand = L.wide ? plan.inBand : true;
+    ctx.fillStyle = onBand ? 'rgba(255,255,255,0.80)' : 'rgba(255,255,255,0.88)';
+    L.readoutLeft = (L.wide && plan.inBand)
+      ? Math.round(L.actCx - L.actW / 2 - 18 - w)
+      : 18;
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
     ctx.fillText(plan.text, L.readoutLeft, L.readoutY);
     ctx.textBaseline = 'alphabetic';
@@ -1871,12 +1904,14 @@
       ghost: stroke && stroke.ok ? stroke.adds : null,
       warm,
       field: L.field,
-      // scenery keeps off whatever the layout has put on the grass
+      /* Scenery keeps off whatever the layout has put ON THE GRASS — and
+         which of these is on the grass changes with the layout, so the list
+         asks rather than assumes. Both live in the band now on a phone. */
       avoid: [
         { x: L.actCx - L.actW / 2 - 14, y: L.actCy - L.actH / 2 - 12,
           w: L.actW + 28, h: L.actH + 24 },
-      ].concat(L.wide && L.plan.inBand
-                 ? [] : [{ x: 0, y: L.readoutY - 16, w: LW, h: 32 }]),
+        { x: 0, y: L.readoutY - 16, w: LW, h: 32 },
+      ].filter((r) => r.y + r.h > L.field.y && r.y < L.field.y + L.field.h),
       litAt: (t) => winAt + (reduced() ? 0 : 200 * arrivalRank(t)),
     });
     drawControls(now);
@@ -2298,10 +2333,13 @@
         actionInFrame: !!L.hit.release &&
           L.hit.release.x >= 0 && L.hit.release.x + L.hit.release.w <= LW + 0.5 &&
           L.hit.release.y >= 0 && L.hit.release.y + L.hit.release.h <= LH + 0.5,
-        actionWhereItBelongs: !L.hit.release ? true : (L.wide
-          ? L.hit.release.y + L.hit.release.h <= L.field.y + 0.5
-          : L.hit.release.y >= L.field.y - 0.5 &&
-            L.hit.release.y + L.hit.release.h <= L.field.y + L.field.h + 0.5),
+        /* THE BUTTON IS CHROME AND LIVES IN THE BAND, in both layouts now —
+           landscape beside the numbers, portrait on the band's second row. It
+           used to rest on the grass on a phone, and the strip it held there is
+           precisely the space the owner asked to get back. So the assertion is
+           the same for both: it must be clear of the field. */
+        actionWhereItBelongs: !L.hit.release ||
+          L.hit.release.y + L.hit.release.h <= L.field.y + 0.5,
         controls: { sound: L.hit.sound, undo: L.hit.undo, restart: L.hit.restart, rules: L.hit.rules },
         cta: L.hit.release || null,
         card: L.hit.cta || null,
