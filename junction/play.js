@@ -213,7 +213,7 @@
      and it must keep its controls at the bottom. */
   const STACK_MIN_H = 500;
   const wide = () => LW >= LH * 1.15 || LH < STACK_MIN_H;
-  const topBand = () => 56;
+  const topBand = () => (wide() ? 64 : 76);
   const QUEUE_H = 112;   // the landscape column: label, engines, tally
   /* The board's own margin in portrait, and it is NOT SIDE_PAD. Band content
      still gets 30 because type needs a margin; a board does not, and on a
@@ -226,49 +226,55 @@
     L.hit = {};
     L.plan = null;
     if (L.wide) {
-      const bot = 76;
+      /* THE FIELD IS THE FRAME, and the panel floats ON it. It used to sit
+         beside the board as a third column, which left the green as a strip in
+         the middle of a lot of navy. Now the green fills everything under the
+         control band and the paperwork is a dark panel resting on it, which is
+         what the owner sketched and what a board on a table actually looks
+         like.
+
+         It costs board size and the number is worth writing down: the panel
+         has to be 240 wide because ZAM_UI's CTA has a 210 minimum and a button
+         is chrome, never scaled per game, so the 7x7 cell goes from 66 to 58.
+         That is the price of the layout, paid knowingly. */
       L.ctrlCy = Math.round(topBand() / 2);
-      const colW = Math.round(Math.max(150, Math.min(214, LW * 0.28)));
-      const gap = 18;
-      const availW = Math.max(60, LW - SIDE_PAD * 2 - colW - gap);
-      const availH = Math.max(60, LH - topBand() - bot);
+      const m = 22;
+      L.field = { x: m, y: topBand() + 6, w: LW - m * 2, h: LH - topBand() - 6 - 18, r: 18 };
+      const pad = 20, panelW = 240;
+      L.yard = {
+        x: L.field.x + L.field.w - pad - panelW, y: L.field.y + pad,
+        w: panelW, h: L.field.h - pad * 2, vertical: true,
+      };
+      const availW = Math.max(60, (L.yard.x - pad) - (L.field.x + pad));
+      const availH = Math.max(60, L.field.h - pad * 2);
       const cell = Math.max(8, Math.floor(Math.min(availW / C, availH / R)));
       const bw = C * cell, bh = R * cell;
-      const ox = Math.round(SIDE_PAD + (availW - bw) / 2);
-      const oy = Math.round(topBand() + (availH - bh) / 2);
-      L.g = { ox, oy, cell, R, C };
-      L.yard = { x: SIDE_PAD + availW + gap, y: topBand() + 10, w: colW, h: availH - 20, vertical: true };
-      L.ctaCx = ox + bw / 2;
-      L.ctaCy = Math.round(LH - bot / 2);
+      L.g = {
+        ox: Math.round(L.field.x + pad + (availW - bw) / 2),
+        oy: Math.round(L.field.y + pad + (availH - bh) / 2),
+        cell, R, C,
+      };
+      L.ctaCx = L.yard.x + panelW / 2;
+      L.ctaCy = Math.round(L.yard.y + L.yard.h - 18 - UI.CTA.h / 2);
+      L.readoutY = 0;
     } else {
-      /* PORTRAIT IS ITS OWN GAME, not the landscape one folded up. The chrome
-         was taking 364 of 852 pixels — a control row, a CTA and a whole yard
-         panel below the board, with the board itself squeezed to 39% of the
-         screen — so the phone was being asked to display a desktop.
+      /* PORTRAIT IS ITS OWN GAME. The controls sit in a band at the top and
+         the field starts underneath them with a HARD edge — no fade. The old
+         version faded the green into the page wash at both ends, which on a
+         phone reads as a smear rather than as ground; a straight line between
+         the chrome and the yard is what the owner asked for and it is also
+         what tells you where the game is.
 
-         The controls go to the TOP. That is a deliberate departure from a
-         locked rule: CONTRIBUTING and DESIGN-SYSTEM 2.1 both put them at the
-         bottom on phones, for thumb reach, and every other game on the site
-         does. The owner asked for it in order to give the board the screen.
-         The one thing kept at the bottom is the CTA, because RELEASE is the
-         button pressed over and over and it is the one a thumb has to reach.
-
-         The panel goes entirely. Everything it held is on the board already:
-         the engines waiting in a tunnel are drawn in its mouth, and an arch
-         lights when its own engine is home. The only figure that was not on
-         the board is the sleeper tally, which moves into the read-out.
-
-         And the board takes the width. It is the only lever that exists: a
-         square grid on a tall phone is bound by WIDTH, so every pixel of side
-         margin is a pixel off the cell, and no amount of moving furniture
-         around changes that. 10 rather than the site's 30, which is the second
-         departure and takes the 7x7 cell from 47 to 53. */
-      L.ctrlCy = 30;
-      const ctaCy = Math.round(LH - 20 - UI.CTA.h / 2);
-      const readoutY = Math.round(ctaCy - UI.CTA.h / 2 - 22);
-      const top = topBand() + 10;
+         The controls being at the top is a deliberate departure from a locked
+         rule: CONTRIBUTING and DESIGN-SYSTEM 2.1 both put them at the bottom
+         on phones, for thumb reach, and every other game on the site does. */
+      L.ctrlCy = 38;
+      L.field = { x: 0, y: topBand(), w: LW, h: LH - topBand() - 14, r: 0 };
+      const ctaCy = Math.round(L.field.y + L.field.h - 22 - UI.CTA.h / 2);
+      const readoutY = Math.round(ctaCy - UI.CTA.h / 2 - 20);
+      const top = L.field.y + 10;
       const availW = Math.max(60, LW - BOARD_PAD * 2);
-      const availH = Math.max(60, (readoutY - 20) - top);
+      const availH = Math.max(60, (readoutY - 18) - top);
       const cell = Math.max(8, Math.floor(Math.min(availW / C, availH / R)));
       const bw = C * cell, bh = R * cell;
       L.g = {
@@ -535,6 +541,8 @@
      is two strokes, a darker body with a brighter crown offset toward the
      light, which is what makes a 3px line read as a rounded rail rather than
      as a drawn line. */
+  const PANEL = { bg: '#152A20' };
+
   const TRACK = {
     sleeper: '#33291F', sleeperLit: '#7A6650', sleeperHot: '#8A7250',
     railBase: '#77869B', railTop: '#C9D6EA', railHot: '#F0F6FF',
@@ -1059,25 +1067,20 @@
        beside it wants to be. */
     const plain = !!o.plain;
     ctx.save();
-    if (plain) {
-      /* Portrait: the field runs the full width and well past the board, top
-         and bottom, fading into the Portal wash at both ends. No border, no
-         corners, nothing that reads as a card — it is a piece of country that
-         the screen happens to end. */
-      const gd = o.ground || { top: g.oy, bottom: g.oy + bh };
-      const gh = Math.max(2, gd.bottom - gd.top);
-      ctx.drawImage(groundTexture(LW, gh, g.cell, Math.min(90, gh * 0.14)), 0, gd.top, LW, gh);
-    } else {
-      ctx.beginPath(); roundRect(g.ox, g.oy, bw, bh, Math.min(18, g.cell * 0.4));
-      ctx.clip();
-      ctx.drawImage(groundTexture(bw, bh, g.cell, 0), g.ox, g.oy, bw, bh);
-    }
-    // The lamp warming for a finished yard, over the field rather than in it,
-    // so the texture stays cached through the whole animation.
+    /* The field is a rect with a HARD edge, not a fade. On a phone it starts
+       flush under the control band; on a desktop it is the whole frame with a
+       radius on it. The demo in the rules card has no field of its own, so it
+       falls back to painting the ground over its own little board. */
+    const f = o.field || { x: g.ox, y: g.oy, w: bw, h: bh, r: Math.min(18, g.cell * 0.4) };
+    ctx.save();
+    ctx.beginPath(); roundRect(f.x, f.y, f.w, f.h, f.r);
+    ctx.clip();
+    ctx.drawImage(groundTexture(f.w, f.h, g.cell, 0), f.x, f.y, f.w, f.h);
     if (o.warm > 0) {
       ctx.fillStyle = 'rgba(255,232,190,' + (o.warm * 1.6).toFixed(3) + ')';
-      ctx.fillRect(g.ox - g.cell, g.oy - g.cell, bw + g.cell * 2, bh + g.cell * 2);
+      ctx.fillRect(f.x, f.y, f.w, f.h);
     }
+    ctx.restore();
 
     // empty cell plots, Tint 03
     ctx.fillStyle = TOK.tint03;
@@ -1170,20 +1173,13 @@
     for (const sh of shedState) drawShedRoof(g, sh.i, sh.face, sh.colour, sh.lit, sh.count);
     ctx.restore();
 
-    if (!plain) {
-      // the frame edge, a hairline of value rather than a border
-      ctx.strokeStyle = TOK.tint10; ctx.lineWidth = 1;
-      ctx.beginPath();
-      roundRect(g.ox + 0.5, g.oy + 0.5, bw - 1, bh - 1, Math.min(18, g.cell * 0.4));
-      ctx.stroke();
-    }
   }
 
   function drawTrains(g, lvl, rn, now) {
-    /* 0.76 rather than the 0.68 a plain block needed. The drawing carries a
-       cab, a cowcatcher and frames, and at cell 41 the old size gave the whole
-       locomotive 28px to say all of that in. */
-    const size = g.cell * 0.76;
+    /* A locomotive with a cab, a cowcatcher and frames needs room to say all
+       of that. 0.92 of a cell: it sits on the sleepers with its frames just
+       inside them, and the engine is the thing the eye should go to. */
+    const size = g.cell * 0.92;
     for (const t of rn.trains) {
       if (t.state === 'queued') continue;
       const d = pathFor(g, t);
@@ -1194,8 +1190,43 @@
       const p = posOn(d, at);
       const heading = headingOn(d, Math.max(0, Math.min(1, at)));
       if (t.state !== 'parked' && t.state !== 'parking') drawLamp(p.x, p.y, heading, size * 0.8);
+      // Steam BEFORE the engine, so the puffs come out from under it rather
+      // than sitting on top of the boiler.
+      if (t.state === 'moving') drawExhaust(d, t, size, now);
       drawEngine(p.x, p.y, heading, t.colour, size, { dark: t.state === 'parked' });
       if (t.state === 'waiting' || t.state === 'stopped') drawSteam(p.x, p.y - size * 0.1, size * 0.5, now);
+    }
+  }
+
+  /* STEAM FROM THE CHIMNEY, seen from above: puffs that leave the smokebox,
+     fall behind as the engine runs on, and spread and thin as they go. They
+     are laid along the track the engine has just covered rather than in a
+     straight line behind it, so a train coming out of a curve leaves a curved
+     trail — which is the whole reason to draw it from the path instead of
+     from the heading.
+
+     Deterministic: the phase comes from the RUN's own clock, not the wall
+     clock, so the same run makes the same smoke twice. */
+  function drawExhaust(d, t, size, now) {
+    const puffs = 5;
+    const phase = (t.cells + t.prog) * 1.7;
+    for (let k = 0; k < puffs; k++) {
+      const age = ((phase + k) % puffs) / puffs;          // 0 fresh, 1 gone
+      const back = 0.30 + age * 0.85;                     // how far behind, in cells
+      const at = t.prog - back;
+      const p = posOn(d, at);
+      const h = headingOn(d, Math.max(0, Math.min(1, at)));
+      // drift sideways, always the same way relative to travel, so it reads
+      // as one plume rather than as scattered dots
+      const drift = (age * age) * size * 0.22;
+      const a = 0.30 * (1 - age) * (1 - age * 0.4);
+      if (a <= 0.01) continue;
+      const r = size * (0.13 + age * 0.34);
+      ctx.fillStyle = 'rgba(226,236,246,' + a.toFixed(3) + ')';
+      ctx.beginPath();
+      ctx.arc(p.x + Math.cos(h + Math.PI / 2) * drift,
+              p.y + Math.sin(h + Math.PI / 2) * drift, r, 0, Math.PI * 2);
+      ctx.fill();
     }
   }
 
@@ -1239,7 +1270,6 @@
     ctx.font = '700 ' + UI.PILL.font + 'px Inter, sans-serif';
     const wU = UI.pillWidth(ctx, 'Undo'), wR = UI.pillWidth(ctx, 'Restart');
     const rowFull = wS + wU + wR + UI.pillWidth(ctx, 'Rules') + gap * 3;
-    const rowIcon = wS + wU + wR + UI.PILL.iconW + gap * 3;
     /* Landscape keeps the tally in the panel beside the board, so the band
        carries the level and nothing else. Portrait has no panel, so the tally
        comes here — and it is at the BOTTOM of the frame, on its own line above
@@ -1255,25 +1285,15 @@
       ctx.font = '600 ' + Math.round(16 * hs) + 'px Inter, sans-serif';
       return ctx.measureText(t).width;
     };
-    if (!L.wide) {
-      // Portrait puts the row alone in the top band and the read-out alone on
-      // its own line at the foot, so neither can crowd the other: the only
-      // questions are whether each fits its own width.
-      const icon = rowFull > LW - 20;
-      let text = texts[0], hs = hs0, k = 0;
-      while (width(text, hs) > LW - 24 && k < texts.length - 1) text = texts[++k];
-      while (width(text, hs) > LW - 24 && hs > 0.655) hs -= 0.02;
-      return { iconRules: icon, text, hs };
-    }
-    for (const icon of [false, true]) {
-      const row = icon ? rowIcon : rowFull;
-      for (const t of texts) {
-        for (let hs = hs0; hs >= 0.655; hs -= 0.02) {
-          if (SIDE_PAD + row + 24 + width(t, hs) <= LW - SIDE_PAD) return { iconRules: icon, text: t, hs };
-        }
-      }
-    }
-    return { iconRules: true, text: texts[1], hs: 0.66 };
+    /* Neither layout has the row and the read-out on one line any more: in
+       portrait the row is alone in the band and the line is at the foot of the
+       field, and in landscape the panel carries the numbers. So the only
+       question left is whether the row fits its own width. */
+    const icon = rowFull > LW - 24;
+    let text = texts[0], hs = hs0, k = 0;
+    while (width(text, hs) > LW - 24 && k < texts.length - 1) text = texts[++k];
+    while (width(text, hs) > LW - 24 && hs > 0.655) hs -= 0.02;
+    return { iconRules: icon, text, hs };
   }
 
   function drawControls(now) {
@@ -1312,44 +1332,40 @@
      the opposite end of it. Nothing else checks whether the two collide, so
      this measures the room the row left and shrinks the type into it with a
      floor. */
+  /* One line, and only in portrait. Landscape has a panel and the panel says
+     it better; two places saying the same number is one too many. */
   function drawReadout() {
+    if (L.wide) { L.readoutW = 0; L.readoutLeft = LW; return; }
     const plan = L.plan;
-    if (!L.wide) {
-      ctx.font = '600 ' + Math.round(16 * plan.hs) + 'px Inter, sans-serif';
-      ctx.fillStyle = TOK.ink72;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(plan.text, LW / 2, L.readoutY);
-      ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-      L.readoutW = ctx.measureText(plan.text).width;
-      L.readoutLeft = LW / 2 - L.readoutW / 2;
-      return;
-    }
-    const cy = Math.round(topBand() / 2);
-    /* The sleeper tally sits in the yard panel, not here. It was in both, and
-       in a landscape frame the two strings collided; the brief puts it with the
-       tunnel queue in the first place, and one number in one place is also one
-       fewer thing to keep in step. */
-    const txt = plan.text;
     ctx.font = '600 ' + Math.round(16 * plan.hs) + 'px Inter, sans-serif';
-    ctx.fillStyle = TOK.ink72;
-    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-    ctx.fillText(txt, LW - SIDE_PAD, cy);
+    ctx.fillStyle = 'rgba(255,255,255,0.80)';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(plan.text, LW / 2, L.readoutY);
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-    L.readoutW = ctx.measureText(txt).width;
-    L.readoutLeft = LW - SIDE_PAD - L.readoutW;
+    L.readoutW = ctx.measureText(plan.text).width;
+    L.readoutLeft = LW / 2 - L.readoutW / 2;
   }
 
-  /* The yard's paperwork: which engines are still in the tunnel and which
-     sheds have their own back. Every figure here is something the board is
-     already showing, so it is a read-out and not a solving aid. */
+  /* THE PANEL, floating on the field rather than beside it. Dark, so it reads
+     as a board resting on the grass; rounded, with no border, because a hard
+     line round it would make it a second card on a board that no longer has
+     any. Everything the yard knows and the board cannot say goes in here, and
+     so does the one button. */
   function drawYard(now) {
     const y = L.yard;
     if (!y) { L.yardInk = null; return; }   // portrait has no panel: the board is the legend
+    void now;
+    L.yardInk = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+    const ink = (x0, y0, x1, y1) => {
+      L.yardInk.x0 = Math.min(L.yardInk.x0, x0); L.yardInk.y0 = Math.min(L.yardInk.y0, y0);
+      L.yardInk.x1 = Math.max(L.yardInk.x1, x1); L.yardInk.y1 = Math.max(L.yardInk.y1, y1);
+    };
     ctx.save();
-    ctx.beginPath(); roundRect(y.x, y.y, y.w, y.h, 14);
-    ctx.fillStyle = TOK.tint03; ctx.fill();
-    ctx.strokeStyle = TOK.tint10; ctx.lineWidth = 1;
-    ctx.beginPath(); roundRect(y.x + 0.5, y.y + 0.5, y.w - 1, y.h - 1, 14); ctx.stroke();
+    // the shadow it rests on, down and right like everything else
+    ctx.beginPath(); roundRect(y.x + 5, y.y + 6, y.w, y.h, 16);
+    ctx.fillStyle = 'rgba(8,20,10,0.30)'; ctx.fill();
+    ctx.beginPath(); roundRect(y.x, y.y, y.w, y.h, 16);
+    ctx.fillStyle = PANEL.bg; ctx.fill();
 
     const waiting = [];
     for (const p of level.portals) {
@@ -1365,128 +1381,88 @@
       need: level.portals.reduce((a, p) => a + p.queue.filter((c) => c === d.colour).length, 0),
     }));
 
-    /* The panel has to hold whatever the LEVEL holds, and a tier 9 board holds
-       five engines and four sheds where level 1 holds two and two. Laid out
-       for two, the third shed drew straight through the floor of the panel and
-       the fifth engine would have run into the divider. So nothing here is
-       sized for a count: the queue takes its pitch from the room it has, and
-       `ink()` records what was actually painted so a test can see the day one
-       of them stops fitting. */
-    L.yardInk = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
-    const ink = (x0, y0, x1, y1) => {
-      L.yardInk.x0 = Math.min(L.yardInk.x0, x0); L.yardInk.y0 = Math.min(L.yardInk.y0, y0);
-      L.yardInk.x1 = Math.max(L.yardInk.x1, x1); L.yardInk.y1 = Math.max(L.yardInk.y1, y1);
-    };
-    if (y.vertical) {
-      let yy = y.y + 22;
-      label('IN THE TUNNEL', y.x + 16, yy); yy += 16;
-      if (!waiting.length) dim('none waiting', y.x + 16, yy + 8);
-      else queue(y.x + 24, yy + 12, y.w - 44);
-      yy += 46;
-      rule(y.x + 14, yy); yy += 24;
-      label('SHEDS', y.x + 16, yy); yy += 24;
-      const ty = y.y + y.h - 20;
-      packSheds(y.x + 24, yy, y.w - 40, (ty - 30) - yy);
-      rule(y.x + 14, ty - 26);
-      label('SLEEPERS', y.x + 16, ty - 13);
-      tallyValue(y.x + 16, ty + 6);
-    } else {
-      /* Two ROWS, not two columns. The sheds used to sit beside the tunnel in
-         the right half of the strip, which is fine for the two colours level 1
-         has and runs out at three: on a 330 wide frame the count of one shed
-         printed straight through the chip of the next, and a tier 9 board has
-         four. So the sheds get the full width on a row of their own, and a
-         colour with one engine shows no fraction at all, because the chip
-         lighting up already says it. */
-      label('IN THE TUNNEL', y.x + 16, y.y + 18);
-      const tallyX = y.x + y.w * 0.62;
-      label('SLEEPERS', tallyX, y.y + 18);
-      if (!waiting.length) dim('none waiting', y.x + 16, y.y + 46);
-      else queue(y.x + 26, y.y + 46, tallyX - y.x - 44);
-      tallyValue(tallyX, y.y + 46);
-      rule(y.x + 14, y.y + 68);
-      label('SHEDS', y.x + 16, y.y + 92);
-      packSheds(y.x + 74, y.y + 92, y.w - 90, y.h - 76);
-    }
-    ctx.restore();
-    void now;
+    const x0 = y.x + 20;
+    let yy = y.y + 30;
+    ctx.fillStyle = TOK.text;
+    ctx.font = '800 20px Inter, sans-serif';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('LEVEL ' + level.n, x0, yy);
+    ink(x0, yy - 12, x0 + 120, yy + 12);
+    yy += 26;
+    rule(yy); yy += 26;
 
-    /* Sheds go in a column while there is height for one and in a wrapping row
-       when there is not. Both layouts pack the same way for the same reason:
-       a fixed 28px pitch fitted three colours in a 600 tall frame and put the
-       third through the floor of a 320 tall one, which is a landscape phone.
-       Nothing here is sized for a count. */
-    function packSheds(x, yy, w, h) {
-      const stack = sheds.length * 28 <= h;
-      if (stack) { let cy = yy; for (const sh of sheds) { shedChip(x, cy, sh); cy += 28; } return; }
-      let cx = x, cy = yy;
-      for (const sh of sheds) {
-        const wide2 = sh.need > 1 ? 62 : 20;
-        if (cx > x && cx + wide2 > x + w) { cx = x; cy += 26; }
-        cx += shedChip(cx, cy, sh) + 16;
-      }
+    label('IN THE TUNNEL', x0, yy); yy += 26;
+    if (!waiting.length) dim('none waiting', x0, yy + 4);
+    else queue(x0 + 12, yy + 6, y.w - 44);
+    yy += 40;
+    rule(yy); yy += 26;
+
+    label('SHEDS', x0, yy); yy += 26;
+    let sx = x0 + 10;
+    for (const sh of sheds) sx += shedChip(sx, yy, sh) + 18;
+    yy += 30;
+
+    // the tally sits just above the button, which is the last thing read
+    const ty = L.ctaCy - UI.CTA.h / 2 - 30;
+    rule(ty - 26);
+    label('SLEEPERS', x0, ty - 8);
+    const used = sleepersUsed(), left = level.budget - used;
+    ctx.fillStyle = left <= 2 ? TOK.accent2 : TOK.text;
+    ctx.font = '800 22px Inter, sans-serif';
+    ctx.textBaseline = 'middle';
+    const tt = used + ' / ' + level.budget;
+    ctx.fillText(tt, x0, ty + 16);
+    ink(x0, ty - 18, x0 + ctx.measureText(tt).width, ty + 28);
+    ctx.restore();
+
+    function rule(yy2) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.10)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(y.x + 18, yy2); ctx.lineTo(y.x + y.w - 18, yy2); ctx.stroke();
     }
-    function rule(x0, yy) {
-      ctx.strokeStyle = TOK.tint10; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(x0, yy); ctx.lineTo(y.x + y.w - 14, yy); ctx.stroke();
-    }
-    function queue(x, yy, room) {
-      const pitch = Math.min(30, room / Math.max(1, waiting.length));
-      const sz = Math.max(14, Math.min(26, pitch - 4));
-      for (let k = 0; k < waiting.length; k++) {
-        const ex = x + k * pitch;
-        drawEngine(ex, yy, 0, waiting[k], sz, {});
-        ink(ex - sz / 2, yy - sz * 0.32, ex + sz / 2, yy + sz * 0.32);
-      }
-    }
-    /* The budget, and it is a puzzle constraint rather than a score: no timer,
-       no par, nothing counting up. It turns amber as the last few go, which is
-       information the board is already showing, just harder to count. */
-    function tallyValue(x, yy) {
-      const used = sleepersUsed(), left = level.budget - used;
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = left <= 2 ? TOK.accent2 : TOK.ink90;
-      ctx.font = '700 16px Inter, sans-serif';
-      const t = used + ' / ' + level.budget;
-      ctx.fillText(t, x, yy);
-      ink(x, yy - 10, x + ctx.measureText(t).width, yy + 10);
-    }
-    function label(t, x, yy) {
-      ink(x, yy - 7, x + 90, yy + 7);
+    function label(t, x, yy2) {
+      ink(x, yy2 - 8, x + 110, yy2 + 8);
       ctx.fillStyle = TOK.ink72;
       ctx.font = '700 12px Inter, sans-serif';
       ctx.textBaseline = 'middle';
-      ctx.fillText(t, x, yy);
+      ctx.fillText(t, x, yy2);
     }
-    function dim(t, x, yy) {
+    function dim(t, x, yy2) {
       ctx.fillStyle = 'rgba(255,255,255,0.42)';
       ctx.font = '600 14px Inter, sans-serif';
       ctx.textBaseline = 'middle';
-      ctx.fillText(t, x, yy);
+      ctx.fillText(t, x, yy2);
     }
-    /* Returns the width it used, so a row can pack itself without knowing what
-       is in one. A colour with a single engine shows no fraction: the chip
-       lights when its engine is home, which is exactly what the arch on the
-       board does, and the same fact in two notations is one too many. */
-    function shedChip(x, yy, sh) {
+    function queue(x, yy2, room) {
+      const pitch = Math.min(34, room / Math.max(1, waiting.length));
+      const sz = Math.max(16, Math.min(30, pitch - 4));
+      for (let k = 0; k < waiting.length; k++) {
+        const ex = x + k * pitch;
+        drawEngine(ex, yy2, 0, waiting[k], sz, {});
+        ink(ex - sz / 2, yy2 - sz * 0.32, ex + sz / 2, yy2 + sz * 0.32);
+      }
+    }
+    /* Returns the width it used, so a row can pack itself. A colour with a
+       single engine shows no fraction: the chip lights when its engine is
+       home, which is exactly what the shed on the board does. */
+    function shedChip(x, yy2, sh) {
       const col = ENGINE[sh.colour].hi;
       const lit = sh.home >= sh.need;
-      ctx.beginPath(); roundRect(x - 9, yy - 8, 20, 16, 5);
-      const gr = ctx.createLinearGradient(0, yy - 8, 0, yy + 8);
+      ctx.beginPath(); roundRect(x - 10, yy2 - 9, 22, 18, 5);
+      const gr = ctx.createLinearGradient(0, yy2 - 9, 0, yy2 + 9);
       gr.addColorStop(0, shade(col, lit ? 0.30 : 0.00));
       gr.addColorStop(1, shade(col, lit ? -0.08 : -0.44));
       ctx.fillStyle = gr; ctx.fill();
-      drawMark(x + 1, yy + 15.5, 6, col, S);
-      let w = 20;
+      drawMark(x + 1, yy2 + 17, 6, col, S);
+      let w = 22;
       if (sh.need > 1) {
         ctx.fillStyle = lit ? TOK.green : TOK.ink72;
         ctx.font = '700 14px Inter, sans-serif';
         ctx.textBaseline = 'middle';
         const t = sh.home + ' / ' + sh.need;
-        ctx.fillText(t, x + 18, yy);
-        w = 18 + ctx.measureText(t).width;
+        ctx.fillText(t, x + 20, yy2);
+        w = 20 + ctx.measureText(t).width;
       }
-      ink(x - 9, yy - 9, x + w, yy + 9);
+      ink(x - 10, yy2 - 10, x + w, yy2 + 10);
       return w;
     }
   }
@@ -1496,7 +1472,7 @@
     'Drag across the yard to lay track. Lifting a piece again is free, and expected.',
     'Where two lines meet, a junction forms. Tap its brass ring to set which way it points.',
     'An engine arriving on a branch always joins the main line. Only an engine arriving ON the main line follows the switch.',
-    'Press RELEASE. Every engine takes the rails exactly as set, and parks in whatever shed it reaches.',
+    'Press DISPATCH. Every engine takes the rails exactly as set, and parks in whatever shed it reaches.',
     'Two engines on one rail stop nose to nose and wait. Halt, change the yard, release again. Nothing is ever lost.',
   ];
 
@@ -1734,15 +1710,18 @@
     drawBoard(L.g, level, track, run, now, {
       ghost: stroke && stroke.ok ? stroke.adds : null,
       warm,
-      plain: !L.wide,
-      ground: L.wide ? null : { top: topBand() + 4, bottom: L.readoutY - 26 },
+      field: L.field,
       litAt: (t) => winAt + (reduced() ? 0 : 200 * arrivalRank(t)),
     });
     drawYard(now);
     drawControls(now);
     drawReadout();
 
-    const label = !run ? 'RELEASE' : (run.settled ? 'RESET' : 'HALT');
+    /* DISPATCH, not RELEASE. A dispatcher is the person whose job is sending
+       trains; hounds are what you release. It is also the transitive one — you
+       dispatch a train, where a train departs of its own accord — and it pairs
+       with HALT. */
+    const label = !run ? 'DISPATCH' : (run.settled ? 'RESET' : 'HALT');
     L.hit.release = UI.drawCTA(ctx, label, L.ctaCx, L.ctaCy, TOK.accent);
 
     /* The win IS the yard working, so the card waits for it. The arches light
