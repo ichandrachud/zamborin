@@ -359,6 +359,47 @@ function neighbour(level, i, s) {
    validating only the new end would miss a crossing the change just created.
    The paths are a few dozen cells long, so the cost of being obviously right
    here is nothing. */
+/* WHICH SIDE AN OPEN END OF A STROKE USES.
+
+   A stroke knows the side it leaves each cell by; at its two ends the other
+   side is a guess, and the guess used to be "carry straight on". That is right
+   in the middle of bare grass and wrong everywhere else, because the thing a
+   player draws out of — a shed doorway, the end of a rail they laid a minute
+   ago — is usually NOT in line with the direction they flick. Drawing east out
+   of the cell below a shed whose door faces south laid a west-east straight
+   with its back end dangling in the grass, a hand's width from the door and
+   joined to nothing: the owner's "by default it doesn't attach to the existing
+   rails".
+
+   So an open end attaches to whatever it is touching. It only ever overrides
+   the straight when the straight has NOTHING on its open side, so a line drawn
+   past a stub is left alone, and it never invents a piece the cell could not
+   hold — canAddSegment still has the last word. */
+function openSide(level, trk, i, b) {
+  const straight = opp(b);
+  const here = trk[i];
+  const touches = (s) => {
+    // Track already in this cell: sharing one of its sides IS the junction the
+    // player is asking for, and is the only legal piece anyway.
+    if (here) return here.segs.some((g) => g[0] === s || g[1] === s);
+    const nb = neighbour(level, i, s);
+    if (nb < 0) return false;
+    const k = level.kind[nb];
+    // A portal or a shed is only ever open at its mouth.
+    if (k === PORTAL || k === DEPOT) return level.face[nb] === opp(s);
+    const c = trk[nb];
+    // A neighbour touches this cell only where a rail actually ENDS on the
+    // shared edge. A line running past outside has no side facing in.
+    return !!c && c.segs.some((g) => g[0] === opp(s) || g[1] === opp(s));
+  };
+  if (touches(straight) && canAddSegment(here, straight, b)) return straight;
+  for (const s of [N, E, S, W]) {
+    if (s === b || s === straight) continue;
+    if (touches(s) && canAddSegment(here, s, b)) return s;
+  }
+  return straight;                     // nothing to attach to: as it always was
+}
+
 function validateStroke(level, track, path) {
   const n = path.length;
   const fail = (why) => ({ ok: false, why, adds: [], cost: 0, track: null });
@@ -383,11 +424,10 @@ function validateStroke(level, track, path) {
     if (level.kind[i] !== EMPTY) continue;
     let a = k > 0 ? sideBetween(level, i, path[k - 1]) : -1;
     let b = k < n - 1 ? sideBetween(level, i, path[k + 1]) : -1;
-    // An end of the stroke carries straight on. Both ends unknown means a
-    // single cell, which is a tap, not a stroke.
+    // Both ends unknown means a single cell, which is a tap, not a stroke.
     if (a < 0 && b < 0) return fail('no direction');
-    if (a < 0) a = opp(b);
-    if (b < 0) b = opp(a);
+    if (a < 0) a = openSide(level, scratch, i, b);
+    if (b < 0) b = openSide(level, scratch, i, a);
     /* The FIRST cell is an anchor, not a piece. Starting a drag on rail you
        have already laid is the ordinary way to carry a line on, and demanding
        that the anchor also accept a new piece refuses that drag before it has

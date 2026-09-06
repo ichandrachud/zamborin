@@ -8,11 +8,20 @@
 
    TWO LAYOUTS, NOT ONE SCALED. A square grid is the one board shape that fits
    both frames without reflowing, which is why the brief specifies one, so the
-   difference between the layouts is where the PAPERWORK goes. Portrait puts
-   the tunnel queue in a strip under the board and the controls at the bottom
-   where a thumb is. Landscape, which includes the 760x600 desktop frame and a
-   phone turned sideways, puts the queue in a column beside the board and the
-   control row in the top band. Same level, same budget, same square.
+   difference between the layouts is where the PAPERWORK goes. Portrait carries
+   no panel at all: the controls are a row in the top band, the yard is the
+   whole screen under it, and the queue is on the board itself — the next
+   engine out of each shed stands in its own doorway. Landscape, which includes
+   the 760x600 desktop frame and a phone turned sideways, floats a panel on the
+   field with the queue in it. Same level, same budget, same square.
+
+   AND A SQUARE BOARD CANNOT FILL A PHONE. At 393 wide the board is bound by
+   the WIDTH — cell 54, board 378 — while the field under it is 762 tall, so
+   the board covers 48% of the yard and no padding change moves that number by
+   more than a few per cent. What fills the rest is LINESIDE: trees standing
+   outside the grid, on no cell, blocking nothing. The alternative is a board
+   that is taller than it is wide, which costs the desktop frame about 100px
+   of gutter and is the owner's call, not the renderer's.
 
    COLOURS. Chrome takes tokens and nothing else. The yard itself is game art
    and carries the brief's palette, with one deliberate departure: the brief
@@ -70,6 +79,8 @@
     ghost: 'rgba(176,224,230,0.40)',
     brass: '#D8B36A',
     brassDeep: '#8C6C33',
+    // the point boss: warm iron, so it is a machine on the track, not a hole in it
+    iron: '#3B342B',
     /* The brief calls these "cool grey" and then gives #57534C / #3A3733,
        which are warm. Painted, they came out the brightest thing on the board
        and read as tan boulders in daylight against a blue field, pulling the
@@ -198,95 +209,140 @@
   }
 
   // ---------- BANDS ----------
-  /* One top band, not two edges: controls sit left in it and the read-out sits
-     right in it, on the same centre line. Portrait moves the controls to the
-     bottom because the top of a tall screen is the one place a control should
-     not be when a thumb has to reach it. */
+  /* One top band in BOTH layouts: the controls sit left in it and, in
+     landscape, the read-out sits right in it on the same centre line. Portrait
+     keeps them at the top too, which is a deliberate departure from the
+     thumb-reach rule and is written up at the portrait branch of layout(). */
   const SIDE_PAD = 30;
-  /* The stacked portrait layout carries about 300px of fixed furniture below
-     the board: the queue strip, the CTA and the control row, none of which may
-     be scaled. On an aspect test alone a 480x420 frame counts as portrait by a
-     hair and gets 56px left for a seven-row board, which collapses it to the
-     8px floor. So the layout is chosen by whether it FITS as well as by shape:
-     under STACK_MIN_H the landscape arrangement is used whatever the aspect.
-     500 and not higher, because 320x568 is the smallest phone still in service
-     and it must keep its controls at the bottom. */
+  /* WHICH LAYOUT, and it is chosen by whether it FITS as well as by shape. A
+     frame shorter than STACK_MIN_H has no room to stack a board over a line of
+     numbers, so it takes the landscape arrangement whatever its aspect — 500
+     and not higher, because 320x568 is the smallest phone still in service and
+     it must stay portrait.
+
+     THIS RULE ONCE NEEDED A WIDTH GUARD AS WELL, and the reason it no longer
+     does is worth keeping. While landscape floated a fixed 240-wide panel on
+     the field, a 340x480 frame passed the height test, went landscape, could
+     not seat the panel and collapsed the board to the 8px floor. With the
+     panel gone the only furniture left is the action pill, and layout() moves
+     it to the bottom margin — and, failing that, buys its room out of the
+     board's height — so landscape degrades instead of collapsing: that same
+     340x480 frame now lays a 36px cell. Measured, not assumed; the sweep in
+     _sweep.html walks 320..560 wide and asserts each frame really is the size
+     it asked for. */
   const STACK_MIN_H = 500;
   const wide = () => LW >= LH * 1.15 || LH < STACK_MIN_H;
   const topBand = () => (wide() ? 64 : 76);
-  const QUEUE_H = 112;   // the landscape column: label, engines, tally
   /* The board's own margin in portrait, and it is NOT SIDE_PAD. Band content
      still gets 30 because type needs a margin; a board does not, and on a
      phone the board is bound by width, so this number IS the cell size. */
-  const BOARD_PAD = 10;
+  const BOARD_PAD = 6;
+
+  /* The one button is a PILL, not a CTA, and that is a deliberate reading of
+     4.1 rather than a breach of it. The rule is that buttons come from ZAM_UI
+     at ZAM_UI sizes and are never scaled per game; a pill IS a ZAM_UI size, the
+     same 40px tall as Undo beside it and as every pill in the fleet. What it
+     borrows from the CTA is the accent fill, so it still reads as the one thing
+     to press. The owner asked for it "much smaller and on the green", and a
+     210x50 slab floating on grass is a poster, not a control.
+
+     It is measured on the WIDEST of its three labels, so pressing it does not
+     change its size under the finger that is on it. */
+  const ACTION_LABELS = ['DISPATCH', 'HALT', 'RESET'];
+  function actionW() {
+    let w = 0;
+    for (const t of ACTION_LABELS) w = Math.max(w, UI.pillWidth(ctx, t));
+    return w;
+  }
 
   function layout() {
     const R = level.R, C = level.C;
     L.wide = wide();
     L.hit = {};
     L.plan = null;
+    /* THE PANEL IS GONE. It held LEVEL, IN THE TUNNEL, SHEDS and SLEEPERS on a
+       dark plate resting on the field, and it cost the board a quarter of its
+       size to say four things, two of which the board already says: engines
+       waiting in a tunnel are drawn in the tunnel mouth, and a shed carries its
+       own colour, its own mark and its own count. What is left — the level and
+       the tally — is type, and type belongs in the band with the controls,
+       which is where the rest of the fleet keeps its numbers. */
+    L.yard = null;
+    const bw = actionW(), bh = UI.PILL.h;
+    L.actW = bw; L.actH = bh;
     if (L.wide) {
-      /* THE FIELD IS THE FRAME, and the panel floats ON it. It used to sit
-         beside the board as a third column, which left the green as a strip in
-         the middle of a lot of navy. Now the green fills everything under the
-         control band and the paperwork is a dark panel resting on it, which is
-         what the owner sketched and what a board on a table actually looks
-         like.
-
-         It costs board size and the number is worth writing down: the panel
-         has to be 240 wide because ZAM_UI's CTA has a 210 minimum and a button
-         is chrome, never scaled per game, so the 7x7 cell goes from 66 to 58.
-         That is the price of the layout, paid knowingly. */
       L.ctrlCy = Math.round(topBand() / 2);
       const m = 22;
       L.field = { x: m, y: topBand() + 6, w: LW - m * 2, h: LH - topBand() - 6 - 18, r: 18 };
-      const pad = 20, panelW = 240;
-      L.yard = {
-        x: L.field.x + L.field.w - pad - panelW, y: L.field.y + pad,
-        w: panelW, h: L.field.h - pad * 2, vertical: true,
-      };
-      const availW = Math.max(60, (L.yard.x - pad) - (L.field.x + pad));
-      const availH = Math.max(60, L.field.h - pad * 2);
-      const cell = Math.max(8, Math.floor(Math.min(availW / C, availH / R)));
-      const bw = C * cell, bh = R * cell;
-      L.g = {
-        ox: Math.round(L.field.x + pad + (availW - bw) / 2),
-        oy: Math.round(L.field.y + pad + (availH - bh) / 2),
-        cell, R, C,
-      };
-      L.ctaCx = L.yard.x + panelW / 2;
-      L.ctaCy = Math.round(L.yard.y + L.yard.h - 18 - UI.CTA.h / 2);
-      L.readoutY = 0;
+      const pad = 20, gap = 16;
+      const boxX = L.field.x + pad, boxY = L.field.y + pad;
+      const boxW = Math.max(60, L.field.w - pad * 2);
+      let boxH = Math.max(60, L.field.h - pad * 2);
+      let cell = Math.max(8, Math.floor(Math.min(boxW / C, boxH / R)));
+      /* The button lives in whichever margin the board is not using. A square
+         board in this frame is bound by HEIGHT — 472px against 676 — so the
+         right-hand margin is 200px of grass that costs nothing to spend, and
+         the button costs the board nothing at all. A board wide enough to need
+         that margin gets the bottom instead, and only if neither margin exists
+         does the board give up height for it. */
+      let place = 'right';
+      if (boxW - cell * C < bw + gap * 2) {
+        place = 'bottom';
+        if (boxH - cell * R < bh + gap * 2) {
+          boxH = Math.max(60, boxH - (bh + gap * 2));
+          cell = Math.max(8, Math.floor(Math.min(boxW / C, boxH / R)));
+        }
+      }
+      const areaW = place === 'right' ? boxW - (bw + gap * 2) : boxW;
+      const ox = Math.round(boxX + (areaW - C * cell) / 2);
+      const oy = Math.round(boxY + (boxH - R * cell) / 2);
+      L.g = { ox, oy, cell, R, C };
+      if (place === 'right') {
+        L.actCx = Math.round(boxX + areaW + gap + bw / 2);
+        L.actCy = Math.round(oy + R * cell - bh / 2);        // on the board's own foot
+      } else {
+        L.actCx = Math.round(boxX + boxW - bw / 2);
+        L.actCy = Math.round(Math.min(boxY + boxH + gap + bh / 2,
+                                      L.field.y + L.field.h - 12 - bh / 2));
+      }
+      L.footY = Math.round(L.field.y + L.field.h - 12 - bh / 2);
     } else {
-      /* PORTRAIT IS ITS OWN GAME. The controls sit in a band at the top and
-         the field starts underneath them with a HARD edge — no fade. The old
-         version faded the green into the page wash at both ends, which on a
-         phone reads as a smear rather than as ground; a straight line between
-         the chrome and the yard is what the owner asked for and it is also
-         what tells you where the game is.
+      /* PORTRAIT IS ITS OWN GAME. The controls sit in a band at the top and the
+         field starts underneath them with a HARD edge — no fade.
+
+         The furniture that used to sit BELOW the board in a reserved strip —
+         a read-out on its own line with a 50px CTA under it — is now one row
+         resting ON the grass at the foot of the field: numbers left, button
+         right. A phone board is bound by width either way, so this does not
+         make the cells bigger; what it does is stop 90px of the frame being a
+         corridor the game is not allowed into.
 
          The controls being at the top is a deliberate departure from a locked
-         rule: CONTRIBUTING and DESIGN-SYSTEM 2.1 both put them at the bottom
-         on phones, for thumb reach, and every other game on the site does. */
+         rule: CONTRIBUTING and DESIGN-SYSTEM 2.1 both put them at the bottom on
+         phones, for thumb reach, and every other game on the site does. */
       L.ctrlCy = 38;
       L.field = { x: 0, y: topBand(), w: LW, h: LH - topBand() - 14, r: 0 };
-      const ctaCy = Math.round(L.field.y + L.field.h - 22 - UI.CTA.h / 2);
-      const readoutY = Math.round(ctaCy - UI.CTA.h / 2 - 20);
-      const top = L.field.y + 10;
+      const rowCy = Math.round(L.field.y + L.field.h - 12 - bh / 2);
+      const top = L.field.y + 8;
       const availW = Math.max(60, LW - BOARD_PAD * 2);
-      const availH = Math.max(60, (readoutY - 18) - top);
+      const availH = Math.max(60, (rowCy - bh / 2 - 10) - top);
       const cell = Math.max(8, Math.floor(Math.min(availW / C, availH / R)));
-      const bw = C * cell, bh = R * cell;
       L.g = {
-        ox: Math.round((LW - bw) / 2),
-        oy: Math.round(top + (availH - bh) / 2),
+        ox: Math.round((LW - C * cell) / 2),
+        oy: Math.round(top + (availH - R * cell) / 2),
         cell, R, C,
       };
-      L.yard = null;              // the board is the legend
-      L.readoutY = readoutY;
-      L.ctaCx = LW / 2;
-      L.ctaCy = ctaCy;
+      L.footY = rowCy;
+      L.actCx = Math.round(LW - 18 - bw / 2);
+      L.actCy = rowCy;
     }
+    /* WHERE THE NUMBERS GO IS A LAYOUT DECISION, not a drawing one, because
+       the scenery has to know it too: a tree is only kept off the read-out if
+       the read-out's position is settled before the board paints. bandPlan
+       needs nothing but LW, L.wide and the canvas fonts, so it can answer
+       here. */
+    L.plan = bandPlan();
+    L.readoutY = (L.wide && L.plan.inBand) ? L.ctrlCy : L.footY;
   }
 
   // ---------- GEOMETRY ----------
@@ -370,6 +426,31 @@
     }
     ctx.stroke();
   }
+  /* THE BLADE RAIL. A road that is NOT set does not simply stop: its two rails
+     run in from the branch and close to a point against the stock rail of the
+     road that is. That taper is the single clearest thing about a real set of
+     points seen from above, and drawing it costs the switch its ambiguity —
+     the route that is open is the one made of continuous rail.
+
+     Sampled rather than stroked, because the offset has to shrink along the
+     path and neither lineTo nor arc can vary a normal. Twelve samples: at a
+     54px cell the taper is about 18px long, so a thirteenth point would move
+     nothing. Only the idle branch pays for this; ordinary track keeps the two
+     flat strokes it had. */
+  function railTaper(d, off, w, colour, t0, t1) {
+    ctx.strokeStyle = colour; ctx.lineWidth = w; ctx.lineCap = 'round';
+    ctx.beginPath();
+    const n = 12;
+    for (let k = 0; k <= n; k++) {
+      const t = t0 + (t1 - t0) * (k / n);
+      const p = pointOn(d, t), a = headingOn(d, t) + Math.PI / 2;
+      const s = off * (k / n);
+      const x = p.x + Math.cos(a) * s, y = p.y + Math.sin(a) * s;
+      if (k === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+
   /* SLEEPERS, and they are the reason a length of track reads as track. They
      used to be translucent bars at 0.55 over a wide grey bed, which from a
      step back is a grey road with a stripe down it. They are timber now:
@@ -377,7 +458,16 @@
      left, sitting on the ballast and carrying the rails. */
   function drawSleepers(d, cell, opts) {
     const o = opts || {};
-    const half = cell * 0.18, th = cell * 0.075, n = 6;
+    const half = cell * 0.18, th = cell * 0.075;
+    /* SPACING IS A DISTANCE, not a fraction of a piece. Six sleepers to a cell
+       put them 28% closer together on curves than on straights, because a
+       quarter arc is only 0.785 of a cell long — obvious the moment anyone
+       looks at a bend up close. The count follows the length instead. */
+    const t0 = o.from || 0;
+    const len = (d.kind === 'line'
+      ? Math.hypot(d.x1 - d.x0, d.y1 - d.y0)
+      : Math.abs(d.a1 - d.a0) * d.r) * (1 - t0);
+    const n = Math.max(2, Math.round(6 * len / cell));
     /* Two strokes with round caps rather than two rotated rounded rects with a
        save and a restore around each: same timber, a third of the cost, and
        the sleepers are drawn six times per segment on every piece of track on
@@ -386,7 +476,7 @@
     ctx.lineCap = 'round';
     ctx.globalAlpha = o.dim ? 0.55 : 1;
     for (let k = 0; k < n; k++) {
-      const t = (k + 0.5) / n;
+      const t = t0 + (1 - t0) * ((k + 0.5) / n);
       const p = pointOn(d, t), a = headingOn(d, t) + Math.PI / 2;
       const dx = Math.cos(a) * half, dy = Math.sin(a) * half;
       ctx.strokeStyle = TRACK.sleeperLit; ctx.lineWidth = th;
@@ -411,15 +501,21 @@
     drawSleepers(d, cell, o);
     /* The branch the switch is NOT feeding is still real rail — a train
        reaching it ALONG that branch takes it to the trunk whatever the switch
-       says — so it is dimmed, never removed, and the BLADE on the stand is
-       what actually carries the decision. */
+       says — so it is dimmed and closed to a point, never removed. Trailing
+       through a set of points against the blade is what a real train does
+       there, and this is what it looks like from above. */
     const gauge = cell * 0.105;
     const base = Math.max(1.2, cell * 0.055), core = Math.max(0.8, cell * 0.028);
     const dim = o.dim ? 0.58 : 1;
     for (const side of [-gauge, gauge]) {
       ctx.globalAlpha = dim;
-      railStroke(d, side, base, TRACK.railBase);
-      railStroke(d, side - base * 0.16, core, o.hot ? TRACK.railHot : TRACK.railTop);
+      if (o.from) {
+        railTaper(d, side, base, TRACK.railBase, o.from, 1);
+        railTaper(d, side - base * 0.16, core, TRACK.railTop, o.from, 1);
+      } else {
+        railStroke(d, side, base, TRACK.railBase);
+        railStroke(d, side - base * 0.16, core, o.hot ? TRACK.railHot : TRACK.railTop);
+      }
       ctx.globalAlpha = 1;
     }
   }
@@ -430,7 +526,11 @@
     const trunk = M.trunkOf(c);
     const live = M.activeBranch(c), idle = M.idleBranch(c);
     const hot = flash && flash.i === i && now - flash.at < 400;
-    drawSegment(g, i, trunk, idle, { dim: true });
+    /* 0.34 of the way in from the trunk is where the blade tips sit: far
+       enough from the frog at the centre that the point is a shape and not a
+       smudge, near enough that the closed road plainly belongs to this
+       junction and not to the cell beyond it. */
+    drawSegment(g, i, trunk, idle, { dim: true, from: 0.34 });
     drawSegment(g, i, trunk, live, { hot });
     drawSwitchStand(g, i, c, now);
   }
@@ -441,7 +541,7 @@
      a thin bright core with a tight feather, never a wash. */
   function drawSwitchStand(g, i, c, now) {
     const p = cellCentre(g, i), cell = g.cell;
-    const r = cell * 0.155;
+    const r = cell * 0.118;
     const live = M.activeBranch(c);
     let ang = sideAngle(live);
     if (flash && flash.i === i && !reduced()) {
@@ -471,20 +571,41 @@
     ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.moveTo(p.x + cos * r * 0.7, p.y + sin * r * 0.7);
-    ctx.lineTo(p.x + cos * cell * 0.40, p.y + sin * cell * 0.40);
-    ctx.strokeStyle = ART.brassDeep; ctx.lineWidth = Math.max(3, cell * 0.105);
+    ctx.lineTo(p.x + cos * cell * 0.34, p.y + sin * cell * 0.34);
+    ctx.strokeStyle = ART.brassDeep; ctx.lineWidth = Math.max(2.6, cell * 0.078);
     ctx.stroke();
     ctx.beginPath();
     ctx.moveTo(p.x + cos * r * 0.7, p.y + sin * r * 0.7);
-    ctx.lineTo(p.x + cos * cell * 0.38, p.y + sin * cell * 0.38);
-    ctx.strokeStyle = ART.brass; ctx.lineWidth = Math.max(1.6, cell * 0.055);
+    ctx.lineTo(p.x + cos * cell * 0.32, p.y + sin * cell * 0.32);
+    ctx.strokeStyle = ART.brass; ctx.lineWidth = Math.max(1.4, cell * 0.040);
     ctx.stroke();
 
+    /* THE STRETCHER BAR, across the trunk. On a real set of points one bar
+       links the two blades so they move together, and from above it is the
+       one part of the mechanism you can actually see. It is also what stops
+       the stand reading as a bolt dropped on the track. */
+    const t = sideAngle(M.trunkOf(c));
+    const tc = Math.cos(t + Math.PI / 2), ts = Math.sin(t + Math.PI / 2);
+    const arm = cell * 0.155;
+    ctx.strokeStyle = ART.brassDeep; ctx.lineWidth = Math.max(1.8, cell * 0.046);
+    ctx.beginPath();
+    ctx.moveTo(p.x + tc * arm, p.y + ts * arm);
+    ctx.lineTo(p.x - tc * arm, p.y - ts * arm);
+    ctx.stroke();
+
+    /* The boss is IRON, not a hole. It used to be a near-black blue disc wide
+       enough to swallow both rails, which at any size above a thumbnail reads
+       as a puncture in the track rather than as a machine standing on it. It
+       is smaller than the gauge now, so the rails run visibly past it, and it
+       is warm, so it belongs to the same metal as the fishplates. */
     ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(20,26,38,0.85)'; ctx.fill();
-    ctx.strokeStyle = ART.brassDeep; ctx.lineWidth = Math.max(2.4, cell * 0.08); ctx.stroke();
+    ctx.fillStyle = ART.iron; ctx.fill();
+    ctx.strokeStyle = ART.brassDeep; ctx.lineWidth = Math.max(2, cell * 0.062); ctx.stroke();
     ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
-    ctx.strokeStyle = ART.brass; ctx.lineWidth = Math.max(1, cell * 0.032); ctx.stroke();
+    ctx.strokeStyle = ART.brass; ctx.lineWidth = Math.max(1, cell * 0.028); ctx.stroke();
+    // the pivot the blade turns on
+    ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(1, r * 0.30), 0, Math.PI * 2);
+    ctx.fillStyle = ART.brass; ctx.fill();
     ctx.restore();
   }
   const sideAngle = (s) => (s === N ? -Math.PI / 2 : s === E ? 0 : s === S ? Math.PI / 2 : Math.PI);
@@ -741,6 +862,49 @@
     return out;
   }
 
+  /* LINESIDE BEYOND THE BOARD. A square grid on a tall phone is bound by the
+     WIDTH, so the field is always much taller than the board can be and the
+     grass around it was simply empty. These are decoration and nothing else:
+     they stand outside the grid, no cell is under them, none of them blocks
+     anything, and they keep a clear half-cell margin off the board so the edge
+     of the playable yard is still obvious.
+
+     It does not make the BOARD bigger — nothing can, while levels are square —
+     but it does mean the screen is a piece of country with a railway in it
+     rather than a small board on a large lawn. */
+  function marginItems(g, f, avoid) {
+    if (!f) return [];
+    const cell = g.cell;
+    const clear = [{
+      x: g.ox - cell * 0.6, y: g.oy - cell * 0.6,
+      w: g.C * cell + cell * 1.2, h: g.R * cell + cell * 1.2,
+    }];
+    /* Nothing grows over the writing. A tree behind LEVEL 1 · SLEEPERS 0 / 25
+       costs the read-out its contrast for pure decoration, which is the wrong
+       way round: the scenery is here to fill space the game cannot use, not to
+       take space the game is using. */
+    for (const a of (avoid || []))
+      if (a) clear.push({ x: a.x - 10, y: a.y - 10, w: a.w + 20, h: a.h + 20 });
+    const pitch = cell * 1.2;
+    const cols = Math.ceil(f.w / pitch), rows = Math.ceil(f.h / pitch);
+    const out = [];
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+      const k = r * 131 + c;
+      if (rnd(k, 501) > 0.52) continue;
+      const x = f.x + (c + 0.18 + rnd(k, 502) * 0.64) * pitch;
+      const y = f.y + (r + 0.18 + rnd(k, 503) * 0.64) * pitch;
+      const s = cell * (0.46 + rnd(k, 504) * 0.52);
+      if (x - s / 2 < f.x + 6 || x + s / 2 > f.x + f.w - 6) continue;
+      if (y - s / 2 < f.y + 6 || y + s / 2 > f.y + f.h - 6) continue;
+      let hit = false;
+      for (const q of clear)
+        if (x > q.x && x < q.x + q.w && y > q.y && y < q.y + q.h) { hit = true; break; }
+      if (hit) continue;
+      out.push({ x, y, s, seed: k * 17 + 5 });
+    }
+    return out;
+  }
+
   function drawSceneryShadow(g, i, lvl) {
     for (const it of sceneryItems(g, i, lvl))
       drawTree(it.x + it.s * LIGHT.dx, it.y + it.s * LIGHT.dy, it.s, it.seed, true);
@@ -787,7 +951,8 @@
      light stays up and to the left however the building is turned; the ridge
      runs along the track; and the whole thing throws a shadow down and right
      like everything else on the board. A depot's roof carries its own colour,
-     a tunnel's is slate, so which is which is legible before you read a
+     the running shed's is slate, so which is which is legible before you
+     read a
      single mark. */
   const SHED = {
     roof: '#463F37', roofLit: '#6B6155', ridge: '#8B7F6E',
@@ -961,22 +1126,38 @@
     const c = ENGINE[colour] || ENGINE[0];
     if (!e || typeof Path2D !== 'function') return drawEngineBlock(x, y, heading, colour, size, o);
     const k = size / e.h;
+    /* THE VALUE STRUCTURE IS THE DRAWING'S, not one invented here.
+
+       Engine.svg exports a MID-GREY cab (#676767) with a lighter band down its
+       lit side (#818181), a boiler in the livery, and a highlight that is a
+       light TINT OF THE LIVERY at 40% — #2baae2 over a #1172ba boiler — not
+       white. Reading the cab as "the livery, darkened" turned a third of every
+       engine nearly black and reading the highlight as white put a hard pale
+       stripe down it: the owner's very dark roof, cabin that feels off, and
+       highlight that is too strong, all three.
+
+       So the greys come back. Each is warmed a fifth of the way toward the
+       engine's own colour, which is the one thing the game is read by — a
+       neutral grey cab on a coral engine and on a violet one look like the
+       same engine at this size — and every one of them is lighter than the
+       part it replaces, because the engine has to hold its own against grass. */
+    const warmed = (hex, t) => mix(hex, c.hi, t);
     const role = {
       body: c.hi,
-      bodyLit: shade(c.hi, 0.50),
-      plough: shade(c.hi, -0.26),
-      ploughDark: shade(c.hi, -0.46),
-      chassis: '#4E4E4E', frame: '#818181', frameLit: '#ABABAB',
-      /* The cab is a third of the engine's length and full width, and drawn in
-         the grey it was exported in it took a third of the engine away from
-         the ONE signal this game reads by. It is the engine's own colour,
-         darkened, so the livery is unbroken and the value structure the
-         drawing has — dark cab, bright boiler — survives. */
-      cab: shade(c.lo, -0.30),
-      // the cab window, and it is the lamp the engine carries: the same warm
-      // white the glow ahead of it is made of, so the two read as one light.
-      cabLit: o.dark ? 'rgba(214,236,255,0.30)' : ART.win,
-      iron: '#3E3E3E', ironEdge: '#818181', shade: '#2E3690',
+      bodyLit: shade(c.hi, 0.30),
+      // the nose is the brightest thing on the engine, as it is in the drawing
+      plough: shade(c.hi, 0.12),
+      ploughDark: shade(c.hi, -0.14),
+      chassis: warmed('#5C5C5C', 0.14),
+      frame: warmed('#8E8E8E', 0.10),
+      frameLit: warmed('#BDBDBD', 0.08),
+      cab: warmed('#6E6E6E', 0.24),
+      // the lit SIDE of the cab roof, and the lamp it carries is the glow the
+      // engine throws forward, drawn separately and not on the roof itself
+      cabLit: o.dark ? warmed('#8A8A8A', 0.14) : warmed('#A2A2A2', 0.16),
+      iron: warmed('#4E4E4E', 0.10), ironEdge: warmed('#9E9E9E', 0.10),
+      // the boiler's own shadow: the source's indigo is a shade of ITS blue
+      shade: shade(c.lo, -0.22),
     };
     ctx.save();
     ctx.translate(x, y);
@@ -1006,10 +1187,14 @@
     ctx.beginPath();
     ctx.rect(e.x, 322.92, e.w, 195.46);
     ctx.restore();
+    /* Half the strength it had. The overlay is the LAMP, not the modelling —
+       the drawing does its own modelling with the lit band down each panel —
+       and at 0.13 over 0.20 it was adding a second, brighter highlight over
+       the top of the drawn one and taking the underside almost to black. */
     const lg = ctx.createLinearGradient(0, y - size * 0.34, 0, y + size * 0.34);
-    lg.addColorStop(0, 'rgba(255,255,255,0.13)');
+    lg.addColorStop(0, 'rgba(255,255,255,0.07)');
     lg.addColorStop(0.55, 'rgba(255,255,255,0)');
-    lg.addColorStop(1, 'rgba(0,0,0,0.20)');
+    lg.addColorStop(1, 'rgba(0,0,0,0.12)');
     ctx.fillStyle = lg; ctx.fill();
   }
 
@@ -1106,6 +1291,14 @@
     /* Order is the light. Every shadow is laid down first, so no shadow ever
        falls across the tree standing next to it; then the track; then the
        foliage over both, because a tree is the tallest thing in the yard. */
+    const margin = o.field ? marginItems(g, o.field, o.avoid) : [];
+    if (margin.length) {
+      ctx.save();
+      ctx.beginPath(); roundRect(f.x, f.y, f.w, f.h, f.r); ctx.clip();
+      for (const it of margin) drawTree(it.x + it.s * LIGHT.dx, it.y + it.s * LIGHT.dy, it.s, it.seed, true);
+      for (const it of margin) drawTree(it.x, it.y, it.s, it.seed, false);
+      ctx.restore();
+    }
     for (let i = 0; i < lvl.size; i++) if (lvl.kind[i] === M.ROCK) drawSceneryShadow(g, i, lvl);
     for (let i = 0; i < lvl.size; i++) drawTrackCell(g, i, trk[i], now);
     for (let i = 0; i < lvl.size; i++) if (lvl.kind[i] === M.ROCK) drawScenery(g, i, lvl);
@@ -1137,12 +1330,12 @@
 
     /* THREE PASSES AROUND THE TRAINS, and the order is the whole picture:
        floors and doorways go down, then every engine — the ones running, the
-       ones parked and the one waiting in each tunnel — and then the roofs over
+       ones parked and the one waiting in each shed — and then the roofs over
        the lot. An engine inside a shed is under its own roof and only the part
        of it through the door is in the yard.
 
        The queue is on the board rather than in a legend, which is what lets
-       the phone carry no panel at all: the next engine out of a tunnel stands
+       the phone carry no panel at all: the next engine out of a shed stands
        in its doorway in its own colour, and a badge appears only when there is
        another behind it. */
     const shedState = [];
@@ -1162,7 +1355,7 @@
     for (const sh of shedState) drawShedFloor(g, sh.i, sh.face, sh.colour, sh.lit);
 
     if (rn) drawTrains(g, lvl, rn, now);
-    // the engine standing in a tunnel doorway, nose out into the yard
+    // the engine standing in a shed doorway, nose out into the yard
     for (const sh of shedState) {
       if (sh.waiting == null) continue;
       const c0 = cellCentre(g, sh.i), ang = sideAngle(sh.face);
@@ -1270,30 +1463,56 @@
     ctx.font = '700 ' + UI.PILL.font + 'px Inter, sans-serif';
     const wU = UI.pillWidth(ctx, 'Undo'), wR = UI.pillWidth(ctx, 'Restart');
     const rowFull = wS + wU + wR + UI.pillWidth(ctx, 'Rules') + gap * 3;
-    /* Landscape keeps the tally in the panel beside the board, so the band
-       carries the level and nothing else. Portrait has no panel, so the tally
-       comes here — and it is at the BOTTOM of the frame, on its own line above
-       the CTA, where nothing can collide with it. */
+    /* One line of numbers, and where it goes is the only difference between
+       the two layouts. Landscape puts it in the band, right-aligned, opposite
+       the control row — the fleet's standard HUD, which Junction had drifted
+       out of while it had a panel. Portrait has no room beside four pills, so
+       the same line sits on the grass at the foot of the field, opposite the
+       button. */
     const used = sleepersUsed();
-    const texts = L.wide
-      ? ['LEVEL ' + level.n, 'L' + level.n]
-      : ['LEVEL ' + level.n + '   ·   SLEEPERS ' + used + ' / ' + level.budget,
-         'LEVEL ' + level.n + '  ·  ' + used + ' / ' + level.budget,
-         'L' + level.n + '  ·  ' + used + '/' + level.budget];
+    const texts = ['LEVEL ' + level.n + '   ·   SLEEPERS ' + used + ' / ' + level.budget,
+                   'LEVEL ' + level.n + '  ·  ' + used + ' / ' + level.budget,
+                   'L' + level.n + '  ·  ' + used + '/' + level.budget];
     const hs0 = Math.max(0.66, Math.min(1, LW / 620));
     const width = (t, hs) => {
       ctx.font = '600 ' + Math.round(16 * hs) + 'px Inter, sans-serif';
       return ctx.measureText(t).width;
     };
-    /* Neither layout has the row and the read-out on one line any more: in
-       portrait the row is alone in the band and the line is at the foot of the
-       field, and in landscape the panel carries the numbers. So the only
-       question left is whether the row fits its own width. */
-    const icon = rowFull > LW - 24;
+    /* In landscape the row and the read-out lay out from opposite ends of the
+       SAME band and nothing in the shared code checks whether they meet, so the
+       decision is made once, here, for both: measure the row, measure the line,
+       and step down through the fallbacks until there is real clearance. In
+       portrait the line is at the foot of the field, so the only question is
+       whether each fits its own width. */
+    const room = L.wide
+      ? LW - SIDE_PAD * 2 - (rowFull + 24)
+      : LW - 36 - (actionW() + 18);
+    const iconRoom = L.wide
+      ? LW - SIDE_PAD * 2 - (rowFull - UI.pillWidth(ctx, 'Rules') + UI.PILL.iconW + 24)
+      : room;
+    /* WHERE THE ROW FITS DEPENDS ON HOW IT IS ANCHORED, and a single magic
+       number cannot say it for both. Landscape lays the pills from SIDE_PAD
+       rightward, so it needs a SIDE_PAD margin at each end; portrait centres
+       them, so 12px each side is enough. `LW - 24` for both let a 315px row
+       start at 30 in a 340px frame and finish 5px past the edge. */
+    const rowRoom = L.wide ? LW - SIDE_PAD * 2 : LW - 24;
+    let icon = rowFull > rowRoom;
     let text = texts[0], hs = hs0, k = 0;
-    while (width(text, hs) > LW - 24 && k < texts.length - 1) text = texts[++k];
-    while (width(text, hs) > LW - 24 && hs > 0.655) hs -= 0.02;
-    return { iconRules: icon, text, hs };
+    const fits = (r) => width(text, hs) <= r;
+    while (!fits(room) && k < texts.length - 1) text = texts[++k];
+    while (!fits(room) && hs > 0.655) hs -= 0.02;
+    // last resort: give Rules its icon back and hand the room to the numbers
+    if (!fits(room) && fits(iconRoom)) icon = true;
+    /* AND IF THE BAND STILL WILL NOT HOLD BOTH, the numbers leave it. Below
+       about 420 wide the row and the line are laid out from opposite ends of
+       the same band and overlap — 71px at 320 — with every rung of the ladder
+       above already spent. The alternatives were shrinking the type past its
+       floor or dropping a control, and both are worse than moving one line of
+       chrome to the place PORTRAIT already keeps it: on the grass at the foot
+       of the field. So landscape borrows the portrait position rather than
+       inventing a third one. */
+    const inBand = fits(icon ? iconRoom : room);
+    return { iconRules: icon, text, hs, inBand };
   }
 
   function drawControls(now) {
@@ -1328,143 +1547,49 @@
     void now;
   }
 
-  /* One right-aligned line, in the same band as the control row, laid out from
-     the opposite end of it. Nothing else checks whether the two collide, so
-     this measures the room the row left and shrinks the type into it with a
-     floor. */
-  /* One line, and only in portrait. Landscape has a panel and the panel says
-     it better; two places saying the same number is one too many. */
+  /* THE NUMBERS. One line, laid out from the end of its band opposite whatever
+     shares that band: the control row in landscape, the button in portrait.
+     Nothing in the shared code checks whether the two meet, so bandPlan sizes
+     the type against the room the other one left and this only draws it. */
   function drawReadout() {
-    if (L.wide) { L.readoutW = 0; L.readoutLeft = LW; return; }
     const plan = L.plan;
     ctx.font = '600 ' + Math.round(16 * plan.hs) + 'px Inter, sans-serif';
-    ctx.fillStyle = 'rgba(255,255,255,0.80)';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(plan.text, LW / 2, L.readoutY);
-    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-    L.readoutW = ctx.measureText(plan.text).width;
-    L.readoutLeft = LW / 2 - L.readoutW / 2;
+    const w = ctx.measureText(plan.text).width;
+    if (L.wide && plan.inBand) {
+      ctx.fillStyle = 'rgba(255,255,255,0.80)';
+      L.readoutLeft = LW - SIDE_PAD - w;
+    } else {
+      // on the grass, so it needs the weight the band gave it for free
+      ctx.fillStyle = 'rgba(255,255,255,0.88)';
+      L.readoutLeft = 18;
+    }
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText(plan.text, L.readoutLeft, L.readoutY);
+    ctx.textBaseline = 'alphabetic';
+    L.readoutW = w;
   }
 
-  /* THE PANEL, floating on the field rather than beside it. Dark, so it reads
-     as a board resting on the grass; rounded, with no border, because a hard
-     line round it would make it a second card on a board that no longer has
-     any. Everything the yard knows and the board cannot say goes in here, and
-     so does the one button. */
-  function drawYard(now) {
-    const y = L.yard;
-    if (!y) { L.yardInk = null; return; }   // portrait has no panel: the board is the legend
-    void now;
-    L.yardInk = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
-    const ink = (x0, y0, x1, y1) => {
-      L.yardInk.x0 = Math.min(L.yardInk.x0, x0); L.yardInk.y0 = Math.min(L.yardInk.y0, y0);
-      L.yardInk.x1 = Math.max(L.yardInk.x1, x1); L.yardInk.y1 = Math.max(L.yardInk.y1, y1);
-    };
-    ctx.save();
-    // the shadow it rests on, down and right like everything else
-    ctx.beginPath(); roundRect(y.x + 5, y.y + 6, y.w, y.h, 16);
-    ctx.fillStyle = 'rgba(8,20,10,0.30)'; ctx.fill();
-    ctx.beginPath(); roundRect(y.x, y.y, y.w, y.h, 16);
-    ctx.fillStyle = PANEL.bg; ctx.fill();
-
-    const waiting = [];
-    for (const p of level.portals) {
-      const pi = level.portals.indexOf(p);
-      const qs = run
-        ? run.trains.filter((t) => t.portal === pi && t.state === 'queued')
-        : p.queue.map((c) => ({ colour: c }));
-      for (const t of qs) waiting.push(t.colour);
-    }
-    const sheds = level.depots.map((d) => ({
-      colour: d.colour,
-      home: run ? run.trains.filter((t) => t.state === 'parked' && t.cell === d.i && t.colour === d.colour).length : 0,
-      need: level.portals.reduce((a, p) => a + p.queue.filter((c) => c === d.colour).length, 0),
-    }));
-
-    const x0 = y.x + 20;
-    let yy = y.y + 30;
-    ctx.fillStyle = TOK.text;
-    ctx.font = '800 20px Inter, sans-serif';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('LEVEL ' + level.n, x0, yy);
-    ink(x0, yy - 12, x0 + 120, yy + 12);
-    yy += 26;
-    rule(yy); yy += 26;
-
-    label('IN THE TUNNEL', x0, yy); yy += 26;
-    if (!waiting.length) dim('none waiting', x0, yy + 4);
-    else queue(x0 + 12, yy + 6, y.w - 44);
-    yy += 40;
-    rule(yy); yy += 26;
-
-    label('SHEDS', x0, yy); yy += 26;
-    let sx = x0 + 10;
-    for (const sh of sheds) sx += shedChip(sx, yy, sh) + 18;
-    yy += 30;
-
-    // the tally sits just above the button, which is the last thing read
-    const ty = L.ctaCy - UI.CTA.h / 2 - 30;
-    rule(ty - 26);
-    label('SLEEPERS', x0, ty - 8);
-    const used = sleepersUsed(), left = level.budget - used;
-    ctx.fillStyle = left <= 2 ? TOK.accent2 : TOK.text;
-    ctx.font = '800 22px Inter, sans-serif';
-    ctx.textBaseline = 'middle';
-    const tt = used + ' / ' + level.budget;
-    ctx.fillText(tt, x0, ty + 16);
-    ink(x0, ty - 18, x0 + ctx.measureText(tt).width, ty + 28);
-    ctx.restore();
-
-    function rule(yy2) {
-      ctx.strokeStyle = 'rgba(255,255,255,0.10)'; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(y.x + 18, yy2); ctx.lineTo(y.x + y.w - 18, yy2); ctx.stroke();
-    }
-    function label(t, x, yy2) {
-      ink(x, yy2 - 8, x + 110, yy2 + 8);
-      ctx.fillStyle = TOK.ink72;
-      ctx.font = '700 12px Inter, sans-serif';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(t, x, yy2);
-    }
-    function dim(t, x, yy2) {
-      ctx.fillStyle = 'rgba(255,255,255,0.42)';
-      ctx.font = '600 14px Inter, sans-serif';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(t, x, yy2);
-    }
-    function queue(x, yy2, room) {
-      const pitch = Math.min(34, room / Math.max(1, waiting.length));
-      const sz = Math.max(16, Math.min(30, pitch - 4));
-      for (let k = 0; k < waiting.length; k++) {
-        const ex = x + k * pitch;
-        drawEngine(ex, yy2, 0, waiting[k], sz, {});
-        ink(ex - sz / 2, yy2 - sz * 0.32, ex + sz / 2, yy2 + sz * 0.32);
-      }
-    }
-    /* Returns the width it used, so a row can pack itself. A colour with a
-       single engine shows no fraction: the chip lights when its engine is
-       home, which is exactly what the shed on the board does. */
-    function shedChip(x, yy2, sh) {
-      const col = ENGINE[sh.colour].hi;
-      const lit = sh.home >= sh.need;
-      ctx.beginPath(); roundRect(x - 10, yy2 - 9, 22, 18, 5);
-      const gr = ctx.createLinearGradient(0, yy2 - 9, 0, yy2 + 9);
-      gr.addColorStop(0, shade(col, lit ? 0.30 : 0.00));
-      gr.addColorStop(1, shade(col, lit ? -0.08 : -0.44));
-      ctx.fillStyle = gr; ctx.fill();
-      drawMark(x + 1, yy2 + 17, 6, col, S);
-      let w = 22;
-      if (sh.need > 1) {
-        ctx.fillStyle = lit ? TOK.green : TOK.ink72;
-        ctx.font = '700 14px Inter, sans-serif';
-        ctx.textBaseline = 'middle';
-        const t = sh.home + ' / ' + sh.need;
-        ctx.fillText(t, x + 20, yy2);
-        w = 20 + ctx.measureText(t).width;
-      }
-      ink(x - 10, yy2 - 10, x + w, yy2 + 10);
-      return w;
-    }
+  /* THE ACTION. A pill in the accent, resting on the grass, and the only
+     coloured control in the game. It gets the standard pill border because the
+     accent alone does not carry against a dark field: #C24A39 on the grass
+     measures about 2.6:1 where a graphical object needs 3, and the Tint 40
+     hairline is the house answer to exactly that. */
+  function drawAction(label, cx, cy) {
+    const w = L.actW, h = L.actH, r = UI.radius(h);
+    const x = Math.round(cx - w / 2), y = Math.round(cy - h / 2);
+    // the same cast shadow every solid thing on this field has, down and right
+    ctx.fillStyle = 'rgba(8,20,10,0.30)';
+    UI.roundRectPath(ctx, x + 2, y + 3, w, h, r); ctx.fill();
+    ctx.fillStyle = TOK.accent;
+    UI.roundRectPath(ctx, x, y, w, h, r); ctx.fill();
+    ctx.lineWidth = UI.PILL.borderW; ctx.strokeStyle = UI.PILL.border;
+    UI.roundRectPath(ctx, x, y, w, h, r); ctx.stroke();
+    ctx.fillStyle = UI.CTA.text;
+    ctx.font = '700 ' + UI.PILL.font + 'px Inter, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(label, x + w / 2, y + h / 2 + 1);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    return { x, y, w, h };
   }
 
   // ---------- CARDS ----------
@@ -1711,9 +1836,14 @@
       ghost: stroke && stroke.ok ? stroke.adds : null,
       warm,
       field: L.field,
+      // scenery keeps off whatever the layout has put on the grass
+      avoid: [
+        { x: L.actCx - L.actW / 2 - 14, y: L.actCy - L.actH / 2 - 12,
+          w: L.actW + 28, h: L.actH + 24 },
+      ].concat(L.wide && L.plan.inBand
+                 ? [] : [{ x: 0, y: L.readoutY - 16, w: LW, h: 32 }]),
       litAt: (t) => winAt + (reduced() ? 0 : 200 * arrivalRank(t)),
     });
-    drawYard(now);
     drawControls(now);
     drawReadout();
 
@@ -1722,7 +1852,7 @@
        dispatch a train, where a train departs of its own accord — and it pairs
        with HALT. */
     const label = !run ? 'DISPATCH' : (run.settled ? 'RESET' : 'HALT');
-    L.hit.release = UI.drawCTA(ctx, label, L.ctaCx, L.ctaCy, TOK.accent);
+    L.hit.release = drawAction(label, L.actCx, L.actCy);
 
     /* The win IS the yard working, so the card waits for it. The arches light
        in arrival order 200ms apart and the lamp warms over two seconds, and a
@@ -1811,6 +1941,8 @@
     return { x: (cx - rect.left) * (LW / rect.width), y: (cy - rect.top) * (LH / rect.height) };
   }
   const inBox = (p, b) => !!b && p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h;
+  const rectsOverlap = (a, b) => !!a && !!b && a.x < b.x + b.w && b.x < a.x + a.w &&
+                                 a.y < b.y + b.h && b.y < a.y + a.h;
   function cellAt(p) {
     const g = L.g;
     const c = Math.floor((p.x - g.ox) / g.cell), r = Math.floor((p.y - g.oy) / g.cell);
@@ -1913,6 +2045,17 @@
   // The one or two orthogonal steps that get closer to the target, longer axis
   // first, so a diagonal drag turns into the L a player would have drawn.
   function stepOptions(from, to) {
+    /* A shed is open at ONE side, so a drag that starts on one
+       has exactly one legal first step whatever direction the finger flicks.
+       Offering it the two cells nearest the target instead meant a flick that
+       was even slightly off the doorway validated as nothing, and the stroke
+       died in the cell it started in: the owner's "drawing a line right out of
+       the parked position is very hard". */
+    const kd = level.kind[from];
+    if (kd === M.PORTAL || kd === M.DEPOT) {
+      const out = M.neighbour(level, from, level.face[from]);
+      return out >= 0 ? [out] : [];
+    }
     const r0 = M.rowOf(level, from), c0 = M.colOf(level, from);
     const dr = M.rowOf(level, to) - r0, dc = M.colOf(level, to) - c0;
     const vert = [r0 + Math.sign(dr), c0], horz = [r0, c0 + Math.sign(dc)];
@@ -2092,15 +2235,25 @@
       return {
         mode: MODE, LW, LH, wide: L.wide, phase, cell: L.g.cell,
         board: { x: L.g.ox, y: L.g.oy, w: L.g.C * L.g.cell, h: L.g.R * L.g.cell },
-        yard: L.yard,
-        hasPanel: !!L.yard,
-        /* Does everything the panel draws still fit inside the panel? With
-           three sheds instead of two the third row drew through the floor of
-           it, and nothing could see that but an eye. */
-        yardInk: L.yardInk,
-        yardFits: !L.yard ? true : !!L.yardInk &&
-          L.yardInk.x0 >= L.yard.x - 0.5 && L.yardInk.x1 <= L.yard.x + L.yard.w + 0.5 &&
-          L.yardInk.y0 >= L.yard.y - 0.5 && L.yardInk.y1 <= L.yard.y + L.yard.h + 0.5,
+        field: L.field,
+        /* How much of the field the board actually covers. The phone
+           complaint was this number, not a bug: a square board on a
+           tall field can never reach 1, so what has to fill the rest
+           is scenery, not stretched cells. */
+        boardShare: +((L.g.C * L.g.cell * L.g.R * L.g.cell) /
+                      Math.max(1, L.field.w * L.field.h)).toFixed(3),
+        yard: null,
+        hasPanel: false,
+        yardFits: true,
+        /* The button now rests on the field instead of on a panel, so the
+           thing to check is that it does not rest on the BOARD. */
+        actionOnBoard: !!L.hit.release && rectsOverlap(L.hit.release, {
+          x: L.g.ox, y: L.g.oy, w: L.g.C * L.g.cell, h: L.g.R * L.g.cell }),
+        actionInField: !!L.hit.release &&
+          L.hit.release.x >= L.field.x - 0.5 &&
+          L.hit.release.x + L.hit.release.w <= L.field.x + L.field.w + 0.5 &&
+          L.hit.release.y >= L.field.y - 0.5 &&
+          L.hit.release.y + L.hit.release.h <= L.field.y + L.field.h + 0.5,
         controls: { sound: L.hit.sound, undo: L.hit.undo, restart: L.hit.restart, rules: L.hit.rules },
         cta: L.hit.release || null,
         card: L.hit.cta || null,
@@ -2114,9 +2267,26 @@
            compares two different lines and reports a collision that is not
            there. It failed on all seven portrait sizes at once, which is the
            usual shape of a check being wrong rather than a layout being. */
-        sameBand: !!L.wide,
-        bandClear: L.wide ? (L.readoutLeft || 0) - (L.rowRight || 0) > 0 : true,
-        bandGap: L.wide ? Math.round((L.readoutLeft || 0) - (L.rowRight || 0)) : null,
+        /* In landscape the row and the numbers share the top band and are laid
+           out from opposite ends of it. In portrait they are on two different
+           lines — the row in the band, the numbers at the foot of the field —
+           so comparing their x positions compares two different rows and
+           reports a collision that is not there. It once failed on all seven
+           portrait sizes at once, which is the usual shape of a check being
+           wrong rather than a layout being. What portrait must clear instead is
+           the numbers against the BUTTON on their own line. */
+        /* Whatever the numbers share their line with. In the band that is the
+           control row; on the grass it is the action pill. Following L.wide
+           instead of where the read-out ACTUALLY went would compare two
+           different rows the moment the band gave up and handed the line to
+           the field. */
+        sameBand: !!(L.wide && L.plan && L.plan.inBand),
+        bandClear: (L.wide && L.plan && L.plan.inBand)
+          ? (L.readoutLeft || 0) - (L.rowRight || 0) > 0
+          : (L.actCx - L.actW / 2) - ((L.readoutLeft || 0) + (L.readoutW || 0)) > 0,
+        bandGap: (L.wide && L.plan && L.plan.inBand)
+          ? Math.round((L.readoutLeft || 0) - (L.rowRight || 0))
+          : Math.round((L.actCx - L.actW / 2) - ((L.readoutLeft || 0) + (L.readoutW || 0))),
         rowWithinFrame: (L.rowLeft || 0) >= 0 && (L.rowRight || 0) <= LW,
         rowLeft: Math.round(L.rowLeft || 0),
         cells,

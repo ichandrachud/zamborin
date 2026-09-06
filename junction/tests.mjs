@@ -187,6 +187,45 @@ const full = into.track;
 const third = M.validateStroke(L, full, [4 * 7 + 2, 4 * 7 + 3, 3 * 7 + 3]);
 ok('a third segment in one cell is refused', !third.ok, third.why);
 
+/* AN OPEN END ATTACHES TO WHAT IT IS TOUCHING. Both ends of a stroke used to
+   carry straight on, which laid a stub into the grass beside every shed door
+   and every rail end the player was drawing out of. Each case below is paired
+   with the control that must still go the other way, because the rule is only
+   worth anything if it leaves a line drawn past a doorway alone. */
+head('a stroke attaches to what it touches');
+const tA = M.newTrack(L.size);
+const outOfShed = M.validateStroke(L, tA, [1 * 7 + 1, 1 * 7 + 2]);
+const firstPiece = outOfShed.adds[0];
+ok('drawn away from a tunnel, the first cell still turns into its mouth',
+   outOfShed.ok && firstPiece.i === 1 * 7 + 1 && firstPiece.a === N && firstPiece.b === E,
+   JSON.stringify(firstPiece));
+const inTheOpen = M.validateStroke(L, tA, [4 * 7 + 1, 4 * 7 + 2]);
+ok('and in the open it is still a straight', inTheOpen.adds[0].a === W,
+   JSON.stringify(inTheOpen.adds[0]));
+
+const intoShed = M.validateStroke(L, tA, [1 * 7 + 3, 1 * 7 + 4, 1 * 7 + 5]);
+const lastPiece = intoShed.adds[intoShed.adds.length - 1];
+ok('a stroke that stops beside a shed door curves into it',
+   intoShed.ok && lastPiece.i === 1 * 7 + 5 && lastPiece.a === W && lastPiece.b === N,
+   JSON.stringify(lastPiece));
+const stopsShort = M.validateStroke(L, tA, [1 * 7 + 2, 1 * 7 + 3, 1 * 7 + 4]);
+const shortLast = stopsShort.adds[stopsShort.adds.length - 1];
+ok('one cell short of the door it carries straight on', shortLast.b === E,
+   JSON.stringify(shortLast));
+
+// starting ON a rail, at right angles to it: the anchor used to lay nothing at
+// all, so the new line began one cell away, joined to nothing.
+const tB = M.newTrack(L.size);
+M.addSegment(tB, 4 * 7 + 3, N, S);
+const offTheEnd = M.validateStroke(L, tB, [4 * 7 + 3, 4 * 7 + 4]);
+ok('a line drawn off an existing rail joins it', offTheEnd.ok &&
+   M.isJunction(offTheEnd.track[4 * 7 + 3]), offTheEnd.why);
+ok('and the join is a junction on the rail it left', offTheEnd.adds.some(
+   (d) => d.i === 4 * 7 + 3 && (d.a === N || d.a === S) && d.b === E),
+   JSON.stringify(offTheEnd.adds));
+ok('and it costs the sleeper it laid there', offTheEnd.cost === 2,
+   'cost ' + offTheEnd.cost);
+
 head('the budget');
 const tight = M.buildLevel({
   n: 96, R: 7, C: 7, rocks: [],
