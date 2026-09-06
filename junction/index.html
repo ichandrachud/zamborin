@@ -224,9 +224,15 @@
   <script src="../shared/analytics.js?v=3"></script>
   <script src="../shared/embed.js?v=1"></script>
   <script defer src="../shared/ads.js?v=2"></script>
-  <script src="./model.js?v=2"></script>
+  <!-- BUMP THE ?v WHEN THE FILE CHANGES, and model.js is the one that gets
+       forgotten because it is edited least often. It sat at v=2 through a
+       rewrite of how a stroke's open end picks its side, so a returning
+       browser ran the NEW play.js against the CACHED model: rails drawn beside
+       a shed came out perpendicular to its door and joined nothing, which
+       looks exactly like a drawing bug and is not one. -->
+  <script src="./model.js?v=4"></script>
   <script src="./art.js?v=1"></script>
-  <script src="./play.js?v=26"></script>
+  <script src="./play.js?v=33"></script>
   <script>
     (() => {
       const btn = document.getElementById('focus-toggle');

@@ -15,13 +15,19 @@
    the 760x600 desktop frame and a phone turned sideways, floats a panel on the
    field with the queue in it. Same level, same budget, same square.
 
-   AND A SQUARE BOARD CANNOT FILL A PHONE. At 393 wide the board is bound by
-   the WIDTH — cell 54, board 378 — while the field under it is 762 tall, so
-   the board covers 48% of the yard and no padding change moves that number by
-   more than a few per cent. What fills the rest is LINESIDE: trees standing
-   outside the grid, on no cell, blocking nothing. The alternative is a board
-   that is taller than it is wide, which costs the desktop frame about 100px
-   of gutter and is the owner's call, not the renderer's.
+   AND THE BOARD IS SIZED TO THE FIELD, not the field to the board. A fixed
+   7x7 covered 60% of the desktop field and 48% of a phone's, and measuring
+   twelve shapes showed the best any single one manages on BOTH is about 53%:
+   the two frames have opposite aspects, so filling one empties the other.
+   Scenery was tried in the gap first and the owner was right to reject it —
+   "I mean that it should be playable, not filled with decorative elements".
+
+   So the authored level is a CORE and the board is the core padded out with
+   real cells until the field is full: 9x7 on the desktop frame, 7x12 on a
+   phone, both about 82%, from one 7x7 puzzle. The cell size still comes from
+   the core, so the pieces never get smaller — there are simply more of them.
+   M.padLevel holds the rules that keep it the same puzzle, and the one that
+   matters is that a wall which reached the edge still reaches it.
 
    COLOURS. Chrome takes tokens and nothing else. The yard itself is game art
    and carries the brief's palette, with one deliberate departure: the brief
@@ -185,7 +191,13 @@
   const persist = () => { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (_) {} };
 
   // ---------- STATE ----------
-  let level = M.getLevel(1);
+  /* THE CORE IS THE PUZZLE; `level` IS THE BOARD IT IS SHOWN ON. They are the
+     same object until a frame turns out to have room for more cells, at which
+     point `level` becomes the core padded out to fill it. Everything that
+     plays the game reads `level`; only the code that CHOOSES a level, and
+     layout(), touch `core`. */
+  let core = M.getLevel(1);
+  let level = core;
   let track = M.newTrack(level.size);
   let run = null;
   let history = [];                 // undo: whole-track snapshots, small and safe
@@ -255,87 +267,106 @@
     return w;
   }
 
+  /* PAD THE CORE OUT TO THE BOARD. Called only by layout(), which has just
+     worked out how many whole cells the frame can hold; everything else in the
+     file sees a level and does not care that it grew.
+
+     Track is indexed by cell, so a reshape has to CARRY IT: the same piece of
+     rail must stay on the same square of the yard when a phone is turned, and
+     the only fixed reference both boards share is the core. Undo history and a
+     run in flight are dropped, because both are lists of indices into a board
+     that no longer exists and re-deriving them buys nothing a player would
+     notice at the moment the window changes size. */
+  function repad(extraRows, extraCols) {
+    const padT = Math.floor(extraRows / 2), padB = extraRows - padT;
+    const padL = Math.floor(extraCols / 2), padR = extraCols - padL;
+    const k = level.core;
+    if (level !== core && k.padT === padT && k.padL === padL &&
+        k.padB === padB && k.padR === padR) return;
+    const next = M.padLevel(core, padT, padR, padB, padL);
+    const old = track, ok = level.core;
+    track = M.newTrack(next.size);
+    if (old) for (let i = 0; i < old.length; i++) {
+      if (!old[i]) continue;
+      const r = Math.floor(i / level.C) - ok.padT + padT;
+      const c = (i % level.C) - ok.padL + padL;
+      if (r < 0 || c < 0 || r >= next.R || c >= next.C) continue;
+      if (next.kind[r * next.C + c] !== M.EMPTY) continue;
+      track[r * next.C + c] = old[i];
+    }
+    level = next;
+    history = []; run = null; winAt = 0;
+    if (phase === 'win') phase = 'play';
+  }
+
   function layout() {
-    const R = level.R, C = level.C;
     L.wide = wide();
     L.hit = {};
     L.plan = null;
-    /* THE PANEL IS GONE. It held LEVEL, IN THE TUNNEL, SHEDS and SLEEPERS on a
-       dark plate resting on the field, and it cost the board a quarter of its
-       size to say four things, two of which the board already says: engines
-       waiting in a tunnel are drawn in the tunnel mouth, and a shed carries its
-       own colour, its own mark and its own count. What is left — the level and
-       the tally — is type, and type belongs in the band with the controls,
-       which is where the rest of the fleet keeps its numbers. */
+    /* THE PANEL IS GONE, AND SO IS THE MARGIN IT LEFT BEHIND. The panel cost
+       the board a quarter of its size to say four things the board already
+       said; taking it away left the field green from edge to edge, which the
+       owner read — correctly — as a promise the game was not keeping: "when I
+       say make full use of the area, I mean that it should be playable, not
+       filled with decorative elements".
+
+       So the field is not sized to the board any more. The BOARD is sized to
+       the field, and the cells it gains are real ones. The cell size still
+       comes from the CORE, so a level never gets smaller pieces than it was
+       authored for; what changes is how many of them there are. */
     L.yard = null;
     const bw = actionW(), bh = UI.PILL.h;
     L.actW = bw; L.actH = bh;
+    const cR = core.R, cC = core.C;
+    let box;
     if (L.wide) {
+      /* LANDSCAPE PUTS THE BUTTON IN THE BAND, and that is what buys the
+         width. Held in the field's right margin it reserved about 160px of
+         grass that no cell could ever occupy — two and a half columns at this
+         cell size, and exactly the strip the owner ringed. The band already
+         carries four pills and the numbers at 760 wide with room to spare, so
+         the field comes free and the board takes all of it. */
       L.ctrlCy = Math.round(topBand() / 2);
-      const m = 22;
+      const m = 22;             // the field's inset from the frame
       L.field = { x: m, y: topBand() + 6, w: LW - m * 2, h: LH - topBand() - 6 - 18, r: 18 };
-      const pad = 20, gap = 16;
-      const boxX = L.field.x + pad, boxY = L.field.y + pad;
-      const boxW = Math.max(60, L.field.w - pad * 2);
-      let boxH = Math.max(60, L.field.h - pad * 2);
-      let cell = Math.max(8, Math.floor(Math.min(boxW / C, boxH / R)));
-      /* The button lives in whichever margin the board is not using. A square
-         board in this frame is bound by HEIGHT — 472px against 676 — so the
-         right-hand margin is 200px of grass that costs nothing to spend, and
-         the button costs the board nothing at all. A board wide enough to need
-         that margin gets the bottom instead, and only if neither margin exists
-         does the board give up height for it. */
-      let place = 'right';
-      if (boxW - cell * C < bw + gap * 2) {
-        place = 'bottom';
-        if (boxH - cell * R < bh + gap * 2) {
-          boxH = Math.max(60, boxH - (bh + gap * 2));
-          cell = Math.max(8, Math.floor(Math.min(boxW / C, boxH / R)));
-        }
-      }
-      const areaW = place === 'right' ? boxW - (bw + gap * 2) : boxW;
-      const ox = Math.round(boxX + (areaW - C * cell) / 2);
-      const oy = Math.round(boxY + (boxH - R * cell) / 2);
-      L.g = { ox, oy, cell, R, C };
-      if (place === 'right') {
-        L.actCx = Math.round(boxX + areaW + gap + bw / 2);
-        L.actCy = Math.round(oy + R * cell - bh / 2);        // on the board's own foot
-      } else {
-        L.actCx = Math.round(boxX + boxW - bw / 2);
-        L.actCy = Math.round(Math.min(boxY + boxH + gap + bh / 2,
-                                      L.field.y + L.field.h - 12 - bh / 2));
-      }
+      const pad = 14;
+      box = { x: L.field.x + pad, y: L.field.y + pad,
+              w: Math.max(60, L.field.w - pad * 2), h: Math.max(60, L.field.h - pad * 2) };
+      L.actCx = Math.round(LW - SIDE_PAD - bw / 2);
+      L.actCy = L.ctrlCy;
       L.footY = Math.round(L.field.y + L.field.h - 12 - bh / 2);
     } else {
-      /* PORTRAIT IS ITS OWN GAME. The controls sit in a band at the top and the
-         field starts underneath them with a HARD edge — no fade.
+      /* PORTRAIT IS ITS OWN GAME. The controls sit in a band at the top and
+         the field starts underneath them with a HARD edge — no fade.
 
-         The furniture that used to sit BELOW the board in a reserved strip —
-         a read-out on its own line with a 50px CTA under it — is now one row
-         resting ON the grass at the foot of the field: numbers left, button
-         right. A phone board is bound by width either way, so this does not
-         make the cells bigger; what it does is stop 90px of the frame being a
-         corridor the game is not allowed into.
+         The band cannot hold the action pill as well: four pills and DISPATCH
+         come to about 426px against a 393px phone, and a control is chrome and
+         never scaled. So the button keeps its line at the foot of the field
+         with the numbers, and everything ABOVE that line — which is where the
+         board used to float in the middle of a great deal of grass — is board.
 
          The controls being at the top is a deliberate departure from a locked
-         rule: CONTRIBUTING and DESIGN-SYSTEM 2.1 both put them at the bottom on
-         phones, for thumb reach, and every other game on the site does. */
+         rule: CONTRIBUTING and DESIGN-SYSTEM 2.1 both put them at the bottom
+         on phones, for thumb reach, and every other game on the site does. */
       L.ctrlCy = 38;
       L.field = { x: 0, y: topBand(), w: LW, h: LH - topBand() - 14, r: 0 };
       const rowCy = Math.round(L.field.y + L.field.h - 12 - bh / 2);
       const top = L.field.y + 8;
-      const availW = Math.max(60, LW - BOARD_PAD * 2);
-      const availH = Math.max(60, (rowCy - bh / 2 - 10) - top);
-      const cell = Math.max(8, Math.floor(Math.min(availW / C, availH / R)));
-      L.g = {
-        ox: Math.round((LW - C * cell) / 2),
-        oy: Math.round(top + (availH - R * cell) / 2),
-        cell, R, C,
-      };
+      box = { x: BOARD_PAD, y: top, w: Math.max(60, LW - BOARD_PAD * 2),
+              h: Math.max(60, (rowCy - bh / 2 - 10) - top) };
       L.footY = rowCy;
       L.actCx = Math.round(LW - 18 - bw / 2);
       L.actCy = rowCy;
     }
+    const cell = Math.max(8, Math.floor(Math.min(box.w / cC, box.h / cR)));
+    repad(Math.max(0, Math.floor(box.h / cell) - cR),
+          Math.max(0, Math.floor(box.w / cell) - cC));
+    const R = level.R, C = level.C;
+    L.g = {
+      ox: Math.round(box.x + (box.w - C * cell) / 2),
+      oy: Math.round(box.y + (box.h - R * cell) / 2),
+      cell, R, C,
+    };
     /* WHERE THE NUMBERS GO IS A LAYOUT DECISION, not a drawing one, because
        the scenery has to know it too: a tree is only kept off the read-out if
        the read-out's position is settled before the board paints. bandPlan
@@ -1484,11 +1515,18 @@
        and step down through the fallbacks until there is real clearance. In
        portrait the line is at the foot of the field, so the only question is
        whether each fits its own width. */
+    /* THE BAND HAS THREE OCCUPANTS IN LANDSCAPE NOW, not two: the control row
+       from the left, the action pill from the right, and the numbers in what
+       is left between them. Measuring against the frame edge instead of
+       against the pill is how DISPATCH came to be drawn straight through
+       "SLEEPERS 17 / 25". */
+    const rightEdge = L.wide ? L.actCx - L.actW / 2 - 18 : LW - 18;
+    const leftEdge = (extra) => (L.wide ? SIDE_PAD : 18) + (rowFull - extra) + 24;
     const room = L.wide
-      ? LW - SIDE_PAD * 2 - (rowFull + 24)
+      ? rightEdge - leftEdge(0)
       : LW - 36 - (actionW() + 18);
     const iconRoom = L.wide
-      ? LW - SIDE_PAD * 2 - (rowFull - UI.pillWidth(ctx, 'Rules') + UI.PILL.iconW + 24)
+      ? rightEdge - leftEdge(UI.pillWidth(ctx, 'Rules') - UI.PILL.iconW)
       : room;
     /* WHERE THE ROW FITS DEPENDS ON HOW IT IS ANCHORED, and a single magic
        number cannot say it for both. Landscape lays the pills from SIDE_PAD
@@ -1556,8 +1594,9 @@
     ctx.font = '600 ' + Math.round(16 * plan.hs) + 'px Inter, sans-serif';
     const w = ctx.measureText(plan.text).width;
     if (L.wide && plan.inBand) {
+      // right-aligned against the ACTION PILL, which is what shares the band
       ctx.fillStyle = 'rgba(255,255,255,0.80)';
-      L.readoutLeft = LW - SIDE_PAD - w;
+      L.readoutLeft = Math.round(L.actCx - L.actW / 2 - 18 - w);
     } else {
       // on the grass, so it needs the weight the band gave it for free
       ctx.fillStyle = 'rgba(255,255,255,0.88)';
@@ -2228,18 +2267,24 @@
       const cells = [];
       for (let i = 0; i < level.size; i++) {
         const p = cellCentre(L.g, i);
+        /* The PIECE, not just whether there is one. "Which way does the rail
+           in this cell run" is the question every drawing check actually asks,
+           and without it a test can only count sleepers and guess. */
+        const t = track[i];
         cells.push({ i, r: M.rowOf(level, i), c: M.colOf(level, i),
                      x: Math.round(p.x), y: Math.round(p.y),
-                     kind: level.kind[i], junction: M.isJunction(track[i]) });
+                     kind: level.kind[i], junction: M.isJunction(t),
+                     face: level.face ? level.face[i] : -1,
+                     segs: t ? t.segs.map((g) => g.slice()) : null });
       }
       return {
         mode: MODE, LW, LH, wide: L.wide, phase, cell: L.g.cell,
         board: { x: L.g.ox, y: L.g.oy, w: L.g.C * L.g.cell, h: L.g.R * L.g.cell },
         field: L.field,
-        /* How much of the field the board actually covers. The phone
-           complaint was this number, not a bug: a square board on a
-           tall field can never reach 1, so what has to fill the rest
-           is scenery, not stretched cells. */
+        /* How much of the field is BOARD. This is the number the owner was
+           pointing at, twice, on both frames, and the padding is what moves
+           it: a fixed 7x7 covered 60% of the desktop field and 48% of a
+           phone's, and no single shape does better than about 53% on both. */
         boardShare: +((L.g.C * L.g.cell * L.g.R * L.g.cell) /
                       Math.max(1, L.field.w * L.field.h)).toFixed(3),
         yard: null,
@@ -2249,11 +2294,18 @@
            thing to check is that it does not rest on the BOARD. */
         actionOnBoard: !!L.hit.release && rectsOverlap(L.hit.release, {
           x: L.g.ox, y: L.g.oy, w: L.g.C * L.g.cell, h: L.g.R * L.g.cell }),
-        actionInField: !!L.hit.release &&
-          L.hit.release.x >= L.field.x - 0.5 &&
-          L.hit.release.x + L.hit.release.w <= L.field.x + L.field.w + 0.5 &&
-          L.hit.release.y >= L.field.y - 0.5 &&
-          L.hit.release.y + L.hit.release.h <= L.field.y + L.field.h + 0.5,
+        /* WHERE THE BUTTON BELONGS DEPENDS ON THE LAYOUT. Landscape puts it in
+           the top band so the field can be all board, which makes "inside the
+           field" false by design there; portrait keeps it on the grass at the
+           foot. What holds in both is that it is inside the FRAME and clear of
+           the board, so that is what the containment test asks. */
+        actionInFrame: !!L.hit.release &&
+          L.hit.release.x >= 0 && L.hit.release.x + L.hit.release.w <= LW + 0.5 &&
+          L.hit.release.y >= 0 && L.hit.release.y + L.hit.release.h <= LH + 0.5,
+        actionWhereItBelongs: !L.hit.release ? true : (L.wide
+          ? L.hit.release.y + L.hit.release.h <= L.field.y + 0.5
+          : L.hit.release.y >= L.field.y - 0.5 &&
+            L.hit.release.y + L.hit.release.h <= L.field.y + L.field.h + 0.5),
         controls: { sound: L.hit.sound, undo: L.hit.undo, restart: L.hit.restart, rules: L.hit.rules },
         cta: L.hit.release || null,
         card: L.hit.cta || null,
@@ -2328,7 +2380,7 @@
        that four sheds do not fit is finding out too late. It carries no
        solution and is not a level. */
     stress() {
-      level = M.buildLevel({
+      core = level = M.buildLevel({
         n: 99, tier: 8, R: 11, C: 11,
         rocks: [[5, 0], [5, 1], [5, 2], [5, 3], [5, 5], [5, 6], [5, 7], [5, 8], [5, 10]],
         portals: [
@@ -2349,6 +2401,34 @@
       history = []; run = null; winAt = 0; phase = 'play';
       layout(); draw();
       return { ...this.state, art: this.art(), fit: this.hits().yardFits };
+    },
+    /* PUT A LEVEL ON THE BOARD. Only a session asking "what would this shape
+       look like" needs it, and it is the honest way to answer: the real
+       layout, the real renderer, a real level object — not a mock-up drawn
+       beside the game. */
+    install(lvl) {
+      core = level = lvl;
+      track = M.newTrack(level.size);
+      history = []; run = null; winAt = 0; phase = 'play';
+      layout(); draw();
+      const t = this.hits();
+      return { R: level.R, C: level.C, cell: t.cell, share: t.boardShare };
+    },
+    /* A BARE BOARD OF A GIVEN SHAPE, for answering "how much of the frame
+       would a 6x9 fill" with the real layout rather than with arithmetic
+       copied out of it. No puzzle, no solution: just the geometry. */
+    shape(M2, R, C) {
+      const Md = M2 || M;
+      core = level = Md.buildLevel({
+        n: 0, tier: 0, R, C, rocks: [],
+        portals: [{ at: [0, 0], face: Md.S, queue: [0] }],
+        depots: [{ at: [R - 1, C - 1], face: Md.N, colour: 0 }],
+        budget: 999, par: 0,
+      });
+      track = Md.newTrack(level.size);
+      history = []; run = null; winAt = 0; phase = 'play';
+      layout(); draw();
+      return { R, C, cell: L.g.cell };
     },
     /* Colour is never the only channel: every shed and every engine carries an
        engraved dot, bar, chevron or ring. That promise is a function of SIZE,
@@ -2447,7 +2527,7 @@
   resizeCanvas();
   const params = new URLSearchParams(location.search);
   const jump = parseInt(params.get('level'), 10);
-  if (jump) level = M.getLevel(jump);
+  if (jump) core = level = M.getLevel(jump);
   layout();
   if (save.seen && !params.get('rules')) phase = 'play';
   window.addEventListener('resize', onResize);

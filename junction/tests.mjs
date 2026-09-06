@@ -289,5 +289,71 @@ ok('nose to nose rather than hanging',
    runDirect.settled && runDirect.trains.filter((t) => t.state === 'waiting').length >= 1);
 
 
+/* ---------- PADDING A LEVEL OUT TO THE BOARD ----------
+   The core is the puzzle; the board is whatever the frame can hold. These
+   tests exist because the padding could quietly destroy the level in one
+   specific way — leave the wall where it was and both engines drive round the
+   end of it — so the wall extension has a control that proves it is doing the
+   work rather than just being present. */
+head('a padded level is the same puzzle');
+const wallRow = (lvl) => {
+  for (let r = 0; r < lvl.R; r++) {
+    let rocks = 0;
+    for (let c = 0; c < lvl.C; c++) if (lvl.kind[r * lvl.C + c] === M.ROCK) rocks++;
+    if (rocks >= lvl.C - 1) return r;
+  }
+  return -1;
+};
+const winsAtPar = (lvl) => {
+  const t = M.layout(lvl, lvl.solution);
+  M.toggleSwitch(t, (lvl.core.padT + 1) * lvl.C + (lvl.core.padL + 3));
+  return { won: M.runToEnd(lvl, t).won, sleepers: M.sleepers(t) };
+};
+const PADS = [[2, 3, 1, 2], [0, 4, 0, 0], [5, 0, 0, 0], [0, 0, 3, 3], [6, 6, 6, 6]];
+let padWins = true, padPar = true, padValid = true;
+for (const p of PADS) {
+  const P = M.padLevel(L, ...p);
+  const w = winsAtPar(P);
+  if (!w.won) padWins = false;
+  if (w.sleepers !== L.par) padPar = false;
+  if (M.validate(P).length) padValid = false;
+}
+ok('the reference solution still wins on every padding', padWins);
+ok('and still costs exactly par', padPar, 'par ' + L.par);
+ok('a padded level validates', padValid);
+ok('budget and par do not move', PADS.every((p) => {
+  const P = M.padLevel(L, ...p);
+  return P.budget === L.budget && P.par === L.par;
+}));
+
+const P1 = M.padLevel(L, 2, 3, 1, 2);
+const wr = wallRow(P1);
+let gaps = 0;
+for (let c = 0; c < P1.C; c++) if (P1.kind[wr * P1.C + c] !== M.ROCK) gaps++;
+ok('the wall still runs edge to edge, with one gap', gaps === 1, gaps + ' gaps');
+
+/* THE CONTROL. Without the extension the wall would stop where the core
+   stopped and the padding would open a way round its end — which is not a
+   subtle loss of difficulty, it is the whole level. */
+const unextended = M.buildLevel({
+  n: 1, tier: 0, R: P1.R, C: P1.C,
+  rocks: [[2, 0], [2, 1], [2, 2], [2, 4], [2, 5], [2, 6]].map(([r, c]) => [r + 2, c + 2]),
+  portals: P1.portals.map((p) => ({ at: [p.r, p.c], face: p.face, queue: p.queue })),
+  depots: P1.depots.map((d) => ({ at: [d.r, d.c], face: d.face, colour: d.colour })),
+  budget: L.budget, par: L.par,
+});
+let openEnds = 0;
+for (let c = 0; c < unextended.C; c++) if (unextended.kind[wr * unextended.C + c] !== M.ROCK) openEnds++;
+ok('and without it the row would have five ways through, not one',
+   openEnds === 6, openEnds + ' open cells');
+
+/* A clump is not a wall. Level 1 keeps a lineside clump in its top-left
+   corner; an earlier rule extended anything touching an edge and turned it
+   into a bracket of trees the author never drew. */
+const coreRocks = L.kind.filter((k) => k === M.ROCK).length;
+const padRocks = P1.kind.filter((k) => k === M.ROCK).length;
+ok('a corner clump is not extended into a wall', padRocks === coreRocks + 5,
+   coreRocks + ' -> ' + padRocks);
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed\n');
 process.exit(fail ? 1 : 0);

@@ -145,6 +145,74 @@ const toggleSwitch = (track, i) => { if (isJunction(track[i])) track[i].sw ^= 1;
 const eraseCell = (track, i) => { track[i] = null; };
 
 // ---------- LEVELS ----------
+/* ============================================================
+   PADDING A LEVEL OUT TO THE BOARD IT IS SHOWN ON
+   ============================================================
+
+   A level is authored as a square-ish CORE — the sheds, the walls, the budget
+   and the reference solution. A frame is not square: the 760x600 desktop field
+   is 1.40 wide, a phone's is 0.52, and no single grid fills both. A 7x7 core
+   covers 60% of the desktop field and 48% of the phone's, and the best any
+   fixed shape manages on BOTH is about 53%, measured. The rest was green with
+   nothing on it, and green with nothing on it reads as a promise the game does
+   not keep.
+
+   So the CORE is the puzzle and the BOARD is whatever the frame can hold. The
+   renderer asks for as many extra ranks and files as fit at the cell size the
+   core already chose, and every one of them is ordinary playable ground.
+
+   TWO THINGS MAKE THIS SAFE.
+
+   Nothing inside the core moves relative to anything else, so every route in
+   it keeps its length: the budget and par are the same numbers on a phone and
+   on a desktop, and the reference solution still solves it.
+
+   AND A WALL THAT REACHED THE EDGE STILL REACHES IT. This is the whole risk.
+   Level 1 is a wall across row 2 with one gap, and the difficulty IS that gap;
+   pad three columns onto the side and leave the wall where it was and both
+   engines simply drive around the end of it. So a rock standing on a core edge
+   is extended out to the new edge, in that direction, and the gap stays the
+   only way through.
+
+   What padding DOES change is elbow room: routes that may not cross have more
+   space to avoid each other in. That is a real difficulty effect and it is why
+   the generator's gate has to run on the most generous padding any supported
+   frame produces, never on the bare core.
+*/
+function padLevel(level, padT, padR, padB, padL) {
+  if (!(padT | padR | padB | padL)) return level;
+  const C2 = level.C + padL + padR;
+  const rocks = [], seen = new Set();
+  const put = (r, c) => { const k = r * C2 + c; if (!seen.has(k)) { seen.add(k); rocks.push([r, c]); } };
+  const rock = (r, c) => level.kind[r * level.C + c] === ROCK;
+  /* A WALL, not merely a rock that happens to sit on the edge. Level 1 has a
+     lineside clump in its top-left corner as well as a wall across row 2, and
+     extending both turned the clump into a bracket of trees the author never
+     drew. A row is a wall only if it is blocked at BOTH ends — which is
+     exactly the shape whose gap the puzzle is about. */
+  const rowWall = (r) => rock(r, 0) && rock(r, level.C - 1);
+  const colWall = (c) => rock(0, c) && rock(level.R - 1, c);
+  for (let r = 0; r < level.R; r++) for (let c = 0; c < level.C; c++) {
+    if (!rock(r, c)) continue;
+    put(r + padT, c + padL);
+    if (c === 0 && rowWall(r)) for (let k = 0; k < padL; k++) put(r + padT, k);
+    if (c === level.C - 1 && rowWall(r)) for (let k = 0; k < padR; k++) put(r + padT, C2 - 1 - k);
+    if (r === 0 && colWall(c)) for (let k = 0; k < padT; k++) put(k, c + padL);
+    if (r === level.R - 1 && colWall(c)) for (let k = 0; k < padB; k++) put(level.R + padT + k, c + padL);
+  }
+  const move = (o) => ({ ...o, at: [o.r + padT, o.c + padL] });
+  return buildLevel({
+    n: level.n, tier: level.tier, R: level.R + padT + padB, C: C2, rocks,
+    portals: level.portals.map((p) => ({ at: [p.r + padT, p.c + padL], face: p.face, queue: p.queue })),
+    depots: level.depots.map((d) => ({ at: [d.r + padT, d.c + padL], face: d.face, colour: d.colour })),
+    budget: level.budget, par: level.par,
+    solution: level.solution
+      ? level.solution.map((g) => [g[0] + padT, g[1] + padL, g[2], g[3]])
+      : null,
+    core: { R: level.R, C: level.C, padT, padR, padB, padL },
+  });
+}
+
 function buildLevel(spec) {
   const R = spec.R, C = spec.C, size = R * C;
   const kind = new Array(size).fill(EMPTY);
@@ -164,6 +232,8 @@ function buildLevel(spec) {
     n: spec.n, tier: spec.tier || 0, R, C, size, kind, face, colour,
     portals, depots, budget: spec.budget, par: spec.par || 0,
     solution: spec.solution || null,
+    // where the authored puzzle sits inside this board, when it was padded
+    core: spec.core || { R, C, padT: 0, padR: 0, padB: 0, padL: 0 },
   };
 }
 
@@ -172,7 +242,14 @@ function buildLevel(spec) {
    wrong, and the right place to find that out is a red test. */
 function validate(level) {
   const bad = [];
-  const onEdge = (r, c) => r === 0 || c === 0 || r === level.R - 1 || c === level.C - 1;
+  /* THE EDGE IS THE CORE'S EDGE, not the board's. A shed belongs at the rim of
+     the authored puzzle so its mouth opens into the yard; once the board is
+     padded out to fill a frame it stands inboard, with playable ground behind
+     it, and that is the padding working rather than a broken level. What still
+     has to hold either way is the line below: its door must face a real cell. */
+  const k = level.core || { R: level.R, C: level.C, padT: 0, padL: 0 };
+  const t = k.padT || 0, l = k.padL || 0;
+  const onEdge = (r, c) => r === t || c === l || r === t + k.R - 1 || c === l + k.C - 1;
   for (const p of level.portals) {
     if (!onEdge(p.r, p.c)) bad.push('portal ' + p.i + ' is not on an edge');
     const nr = p.r + DR[p.face], nc = p.c + DC[p.face];
@@ -576,7 +653,7 @@ return {
   N, E, S, W, DR, DC, opp, EMPTY, ROCK, PORTAL, DEPOT, TUNE, RUN_DT,
   newTrack, cloneTrack, sleepers, segIndex, isJunction, hasSide, trunkOf,
   activeBranch, idleBranch, exitSide, canAddSegment, addSegment, toggleSwitch,
-  eraseCell, buildLevel, validate, LEVELS, LEVEL_SPECS, levelCount, getLevel,
+  eraseCell, buildLevel, padLevel, validate, LEVELS, LEVEL_SPECS, levelCount, getLevel,
   rowOf, colOf, sideBetween, neighbour, validateStroke,
   createRun, stepRun, isWon, runToEnd, layout, advance,
 };
