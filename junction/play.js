@@ -244,16 +244,17 @@
      it asked for. */
   const STACK_MIN_H = 500;
   const wide = () => LW >= LH * 1.15 || LH < STACK_MIN_H;
-  /* PORTRAIT'S BAND CARRIES TWO ROWS. The controls went up top long ago; the
-     numbers and the action button stayed at the foot, resting ON the grass,
-     and between them they held about 84px of field that no cell could ever
-     occupy — plus a 14px strip of bare page below it. That is the space the
-     owner ringed. Both rows are chrome now and both are in the band, so every
-     green pixel under it is board.
+  /* ONE ROW OF CHROME AT EACH END, which is how the rest of the fleet is
+     built. Bloom, Sluice and Comb all carry a topBand and a botBand and put
+     the controls at thumb height on a phone; Junction had every button in a
+     two-row band at the top, which the owner called terrible and which is also
+     twice as much chrome as the fleet spends.
 
-     114 = 12 + 40 + 10 + 40 + 12, and it is CHEAPER than what it replaces: the
-     old arrangement spent 76 up top, ~84 on the foot row and 14 on the strip. */
-  const topBand = () => (wide() ? 64 : 114);
+     The controls stay at the TOP here — that was the owner's own instruction
+     and it is a deliberate departure from DESIGN-SYSTEM 2.1 — but the button
+     and the numbers go back to the foot, where the sketch put them. */
+  const topBand = () => 64;
+  const botBand = () => (wide() ? 0 : 76);
   /* The board's own margin in portrait, and it is NOT SIDE_PAD. Band content
      still gets 30 because type needs a margin; a board does not, and on a
      phone the board is bound by width, so this number IS the cell size. */
@@ -276,34 +277,47 @@
     return w;
   }
 
-  /* PAD THE CORE OUT TO THE BOARD. Called only by layout(), which has just
-     worked out how many whole cells the frame can hold; everything else in the
-     file sees a level and does not care that it grew.
+  /* THE GRID SHAPE COMES FROM THE BREAKPOINT. Every other game on the site
+     does this and says why in its own margin — Bloom: "a square is bounded by
+     the HEIGHT, so no amount of reclaimed chrome widens it; the extra space
+     just becomes bigger margins. A grid two columns wider than it is tall
+     fills the frame AND is more puzzle."
 
-     Track is indexed by cell, so a reshape has to CARRY IT: the same piece of
-     rail must stay on the same square of the yard when a phone is turned, and
-     the only fixed reference both boards share is the core. Undo history and a
-     run in flight are dropped, because both are lists of indices into a board
-     that no longer exists and re-deriving them buys nothing a player would
-     notice at the moment the window changes size. */
-  function repad(extraRows, extraCols) {
-    const padT = Math.floor(extraRows / 2), padB = extraRows - padT;
-    const padL = Math.floor(extraCols / 2), padR = extraCols - padL;
-    const k = level.core;
-    if (level !== core && k.padT === padT && k.padL === padL &&
-        k.padB === padB && k.padR === padR) return;
-    const next = M.padLevel(core, padT, padR, padB, padL);
-    const old = track, ok = level.core;
-    track = M.newTrack(next.size);
-    if (old) for (let i = 0; i < old.length; i++) {
-      if (!old[i]) continue;
-      const r = Math.floor(i / level.C) - ok.padT + padT;
-      const c = (i % level.C) - ok.padL + padL;
-      if (r < 0 || c < 0 || r >= next.R || c >= next.C) continue;
-      if (next.kind[r * next.C + c] !== M.EMPTY) continue;
-      track[r * next.C + c] = old[i];
+     Junction was padding one 7x7 core onto both frames, which fills the field
+     with cells but leaves the PUZZLE a small square in the middle of them. So
+     the level is built to the shape instead: seven columns and as many ranks
+     as a phone will hold, seven ranks and as many files as the desktop frame
+     will hold. Par follows the geometry — 15 sleepers at 7x7, 27 at 7x13, 21
+     at 7x10 — so a bigger board is more track to lay, not more lawn.
+
+     ROWS ARE ODD ON A PHONE, and that is load-bearing rather than tidy: the
+     wall sits at floor(R/2), and with an even count the two engines reach the
+     gap on the same tick from opposite ends and deadlock. */
+  function gridDims() {
+    if (!L.wide) {
+      const cols = 7;
+      const cw = Math.max(8, (LW - BOARD_PAD * 2) / cols);
+      let rows = Math.floor(Math.max(60, LH - topBand() - botBand() - 16) / cw);
+      rows = Math.max(5, Math.min(rows, 15));
+      if (rows % 2 === 0) rows -= 1;
+      return [rows, cols];
     }
-    level = next;
+    const rows = 7;
+    const ch = Math.max(8, (LH - topBand() - 6 - 18 - 28) / rows);
+    return [rows, Math.max(7, Math.min(Math.floor((LW - 44 - 28) / ch), 13))];
+  }
+
+  /* Build the board at that shape. A shape change is a genuinely different
+     board — not the same one padded — so the track goes with it, the way a
+     new level would. Turning a phone is the only thing that does this. */
+  function reshape(R, C) {
+    // Only the parametric level follows the frame. A hand-authored board — the
+    // tier-5 demo — keeps the shape it was written at, and asking to reshape it
+    // every frame would wipe the player's track every frame.
+    if (core.n !== 1) return;
+    if (level.R === R && level.C === C) return;
+    core = level = M.level1(R, C);
+    track = M.newTrack(level.size);
     history = []; run = null; winAt = 0;
     if (phase === 'win') phase = 'play';
   }
@@ -312,30 +326,15 @@
     L.wide = wide();
     L.hit = {};
     L.plan = null;
-    /* THE PANEL IS GONE, AND SO IS THE MARGIN IT LEFT BEHIND. The panel cost
-       the board a quarter of its size to say four things the board already
-       said; taking it away left the field green from edge to edge, which the
-       owner read — correctly — as a promise the game was not keeping: "when I
-       say make full use of the area, I mean that it should be playable, not
-       filled with decorative elements".
-
-       So the field is not sized to the board any more. The BOARD is sized to
-       the field, and the cells it gains are real ones. The cell size still
-       comes from the CORE, so a level never gets smaller pieces than it was
-       authored for; what changes is how many of them there are. */
     L.yard = null;
     const bw = actionW(), bh = UI.PILL.h;
     L.actW = bw; L.actH = bh;
-    const cR = core.R, cC = core.C;
+    L.ctrlCy = Math.round(topBand() / 2);
     let box;
     if (L.wide) {
-      /* LANDSCAPE PUTS THE BUTTON IN THE BAND, and that is what buys the
-         width. Held in the field's right margin it reserved about 160px of
-         grass that no cell could ever occupy — two and a half columns at this
-         cell size, and exactly the strip the owner ringed. The band already
-         carries four pills and the numbers at 760 wide with room to spare, so
-         the field comes free and the board takes all of it. */
-      L.ctrlCy = Math.round(topBand() / 2);
+      /* LANDSCAPE KEEPS ONE BAND and everything in it — controls left, numbers
+         and the button right — which is the fleet's HUD rule, and it leaves the
+         field entirely to the board. */
       const m = 22;             // the field's inset from the frame
       L.field = { x: m, y: topBand() + 6, w: LW - m * 2, h: LH - topBand() - 6 - 18, r: 18 };
       const pad = 14;
@@ -343,57 +342,28 @@
               w: Math.max(60, L.field.w - pad * 2), h: Math.max(60, L.field.h - pad * 2) };
       L.actCx = Math.round(LW - SIDE_PAD - bw / 2);
       L.actCy = L.ctrlCy;
-      L.footY = Math.round(L.field.y + L.field.h - 12 - bh / 2);
+      L.footY = L.ctrlCy;
     } else {
-      /* PORTRAIT IS ITS OWN GAME. The controls sit in a band at the top and
-         the field starts underneath them with a HARD edge — no fade.
-
-         The band cannot hold the action pill as well: four pills and DISPATCH
-         come to about 426px against a 393px phone, and a control is chrome and
-         never scaled. So the button keeps its line at the foot of the field
-         with the numbers, and everything ABOVE that line — which is where the
-         board used to float in the middle of a great deal of grass — is board.
-
-         The controls being at the top is a deliberate departure from a locked
-         rule: CONTRIBUTING and DESIGN-SYSTEM 2.1 both put them at the bottom
-         on phones, for thumb reach, and every other game on the site does. */
-      L.ctrlCy = 34;
-      L.rowTwoCy = 84;
-      /* AND THE FIELD RUNS TO THE BOTTOM OF THE FRAME. It used to stop 14px
-         short, which is the margin the LANDSCAPE field wants because there it
-         is a rounded board on a table. Portrait is not a card — the yard is
-         the screen — so the inset was just a strip of the page wash showing
-         under the grass, and that is the blue patch. */
-      L.field = { x: 0, y: topBand(), w: LW, h: LH - topBand(), r: 0 };
+      /* PORTRAIT HAS A BAND AT EACH END. The controls are at the top, which is
+         the owner's own departure from the thumb-reach rule; the numbers and
+         DISPATCH are at the foot, which is where the sketch put them and where
+         the primary action belongs on a phone. Neither sits on the grass, so
+         the field between them is all board. */
+      L.field = { x: 0, y: topBand(), w: LW, h: LH - topBand() - botBand(), r: 0 };
       box = { x: BOARD_PAD, y: L.field.y + 8, w: Math.max(60, LW - BOARD_PAD * 2),
               h: Math.max(60, L.field.h - 16) };
-      L.footY = L.rowTwoCy;
+      L.footY = Math.round(LH - botBand() / 2);
       L.actCx = Math.round(LW - 18 - bw / 2);
-      L.actCy = L.rowTwoCy;
+      L.actCy = L.footY;
     }
-    /* THE CELL SIZE THAT COVERS THE MOST BOARD, which is not always the
-       biggest one. Taking the core's natural size and flooring the counts
-       leaves whatever does not divide evenly as dead margin: at 760x600 that
-       was 55px of it, a whole file short of another column. Giving up two
-       pixels of cell — 69 to 67 — buys that column and takes the desktop from
-       82% of the field to 86%.
-
-       The search never goes below the size the core alone would have had by
-       more than a tenth, so pieces stay the size they were authored for, and
-       it never returns fewer ranks or files than the core. Ties go to the
-       larger cell. */
-    const cell0 = Math.max(8, Math.floor(Math.min(box.w / cC, box.h / cR)));
-    let pick = { cell: cell0, C: Math.floor(box.w / cell0), R: Math.floor(box.h / cell0), cover: 0 };
-    pick.cover = pick.C * pick.R * cell0 * cell0;
-    for (let c = cell0 - 1; c >= Math.max(20, Math.round(cell0 * 0.90)); c--) {
-      const C2 = Math.floor(box.w / c), R2 = Math.floor(box.h / c);
-      if (C2 < cC || R2 < cR) continue;
-      const cover = C2 * R2 * c * c;
-      if (cover > pick.cover) pick = { cell: c, C: C2, R: R2, cover };
-    }
-    const cell = pick.cell;
-    repad(Math.max(0, pick.R - cR), Math.max(0, pick.C - cC));
+    /* Build the board to the shape this frame wants, THEN size the cell to it.
+       The cell is the largest that seats the whole grid in the box; there is
+       no coverage search any more because there is nothing left to search —
+       the grid was chosen to fit the box in the first place. */
+    const dims = gridDims();
+    reshape(dims[0], dims[1]);
     const R = level.R, C = level.C;
+    const cell = Math.max(8, Math.floor(Math.min(box.w / C, box.h / R)));
     L.g = {
       ox: Math.round(box.x + (box.w - C * cell) / 2),
       oy: Math.round(box.y + (box.h - R * cell) / 2),
@@ -2338,8 +2308,12 @@
            used to rest on the grass on a phone, and the strip it held there is
            precisely the space the owner asked to get back. So the assertion is
            the same for both: it must be clear of the field. */
+        /* The button is chrome and belongs in a band — the top one in
+           landscape, the foot one on a phone — so what has to hold is that it
+           is CLEAR of the field, on either side of it. */
         actionWhereItBelongs: !L.hit.release ||
-          L.hit.release.y + L.hit.release.h <= L.field.y + 0.5,
+          L.hit.release.y + L.hit.release.h <= L.field.y + 0.5 ||
+          L.hit.release.y >= L.field.y + L.field.h - 0.5,
         controls: { sound: L.hit.sound, undo: L.hit.undo, restart: L.hit.restart, rules: L.hit.rules },
         cta: L.hit.release || null,
         card: L.hit.cta || null,

@@ -213,6 +213,85 @@ function padLevel(level, padT, padR, padB, padL) {
   });
 }
 
+/* ============================================================
+   LEVEL 1, BUILT TO THE SHAPE OF THE BOARD IT IS SHOWN ON
+   ============================================================
+
+   The fleet does not put one grid on both breakpoints. Bloom says why in its
+   own margin — "a square is bounded by the HEIGHT, so no amount of reclaimed
+   chrome widens it; the extra space just becomes bigger margins" — and it,
+   Sluice, Prism and Comb all pick their dimensions per device: a tall narrow
+   grid on a phone, a grid wider than it is tall on the 760x600 frame.
+
+   Junction was padding a 7x7 core instead, which fills the FIELD with cells
+   but leaves the PUZZLE a small square in the middle of them. The owner's word
+   for that was lazy and it is the right word: the space became playable
+   without becoming play.
+
+   So the level is a shape, not a fixture. The structure is fixed — two engines
+   that start on one side, two sheds on the other, and a wall across the middle
+   with a single gap both of them must pass through in opposite directions —
+   and the geometry stretches to whatever board it is asked for. Par is counted
+   from the reference solution rather than guessed, so it is right at every
+   size. */
+function spec1(R, C, gapCol) {
+  const east = C - 2;                                   // the sheds' column
+  /* THE GAP IS THE THIRD COLUMN, and the number is measured rather than
+     chosen. Swept against every shape the layout asks for: at g=2 the level
+     cannot be solved at all, at g>=4 coral is so far ahead that the two of
+     them never contend and the run finishes with nobody waiting. Only g=3
+     keeps what the authored 7x7 had — exactly one meeting, and exactly one of
+     the four switch settings that wins. */
+  const g = gapCol == null ? 3 : gapCol;
+  const w = Math.floor(R / 2);                          // the wall row
+  const rocks = [];
+  for (let c = 0; c < C; c++) if (c !== g) rocks.push([w, c]);
+  rocks.push([0, 0], [R - 1, g]);                       // lineside, off every route
+
+  /* THE TWO ENGINES MUST NOT REACH THE GAP ON THE SAME TICK. The first version
+     of this was mirror-symmetric — both sheds in column 1, both approaches the
+     same Manhattan distance — so the two of them arrived at the shared spine
+     together, from opposite ends, and deadlocked at every shape it was asked
+     for. The authored 7x7 works because coral gets there two cells ahead.
+
+     So coral's shed sits directly ABOVE the gap and takes the short way down,
+     while teal starts in the far corner and has to cross the board first. The
+     lead that buys is R - 2w + g - 2, which with an odd number of rows is
+     g - 1, and the spine is three cells — hence the gap column sits as far
+     east as it can, and gridDims only ever asks for an odd count of rows. */
+  const seg = [];
+  const runR = (r, c0, c1, a, b) => { for (let c = c0; c <= c1; c++) seg.push([r, c, a, b]); };
+  const runC = (c, r0, r1, a, b) => { for (let r = r0; r <= r1; r++) seg.push([r, c, a, b]); };
+  // coral: straight down onto the gap, out east below it, then down to its shed
+  runC(g, 1, w - 1, N, S);
+  seg.push([w, g, N, S]);
+  seg.push([w + 1, g, N, E]);
+  runR(w + 1, g + 1, east - 1, W, E);
+  seg.push([w + 1, east, W, S]);
+  runC(east, w + 2, R - 2, N, S);
+  // teal: up the far side, east under the wall, up through the gap, out east above it
+  runC(1, w + 2, R - 2, N, S);
+  seg.push([w + 1, 1, S, E]);
+  runR(w + 1, 2, g - 1, W, E);
+  seg.push([w + 1, g, W, N]);
+  seg.push([w - 1, g, S, E]);
+  runR(w - 1, g + 1, east - 1, W, E);
+  seg.push([w - 1, east, W, N]);
+  runC(east, 1, w - 2, N, S);
+
+  return {
+    n: 1, tier: 0, R, C, rocks,
+    portals: [{ at: [0, g], face: S, queue: [0] },          // coral, straight at the gap
+              { at: [R - 1, 1], face: N, queue: [2] }],     // teal, the long way round
+    depots: [{ at: [0, east], face: S, colour: 2 },         // teal's shed
+             { at: [R - 1, east], face: N, colour: 0 }],    // coral's shed
+    budget: seg.length + Math.max(5, Math.round(seg.length * 0.30)),
+    par: seg.length,
+    solution: seg,
+  };
+}
+function level1(R, C, gapCol) { return buildLevel(spec1(R, C, gapCol)); }
+
 function buildLevel(spec) {
   const R = spec.R, C = spec.C, size = R * C;
   const kind = new Array(size).fill(EMPTY);
@@ -653,7 +732,7 @@ return {
   N, E, S, W, DR, DC, opp, EMPTY, ROCK, PORTAL, DEPOT, TUNE, RUN_DT,
   newTrack, cloneTrack, sleepers, segIndex, isJunction, hasSide, trunkOf,
   activeBranch, idleBranch, exitSide, canAddSegment, addSegment, toggleSwitch,
-  eraseCell, buildLevel, padLevel, validate, LEVELS, LEVEL_SPECS, levelCount, getLevel,
+  eraseCell, buildLevel, padLevel, level1, validate, LEVELS, LEVEL_SPECS, levelCount, getLevel,
   rowOf, colOf, sideBetween, neighbour, validateStroke,
   createRun, stepRun, isWon, runToEnd, layout, advance,
 };

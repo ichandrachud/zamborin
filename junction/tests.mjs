@@ -355,5 +355,54 @@ const padRocks = P1.kind.filter((k) => k === M.ROCK).length;
 ok('a corner clump is not extended into a wall', padRocks === coreRocks + 5,
    coreRocks + ' -> ' + padRocks);
 
+/* ---------- LEVEL 1 AS A SHAPE ----------
+   The fleet gives every breakpoint its own grid; Junction now builds level 1
+   to whatever board the frame wants instead of padding one square onto both.
+   These check the puzzle survives the stretch, and the last pair are the
+   control for the rule that looks arbitrary and is not. */
+head('level 1 is built to the shape of the board');
+function shapeReport(R, C) {
+  const lv = M.level1(R, C);
+  const t = M.layout(lv, lv.solution);
+  const js = [];
+  for (let i = 0; i < lv.size; i++) if (M.isJunction(t[i])) js.push(i);
+  let wins = 0, meets = -1;
+  for (let m = 0; m < (1 << js.length); m++) {
+    const c = M.cloneTrack(t);
+    js.forEach((i, k) => { if (m & (1 << k)) M.toggleSwitch(c, i); });
+    const r = M.runToEnd(lv, c);
+    if (r.won) { wins++; if (meets < 0) meets = r.meetings; }
+  }
+  return { lv, bad: M.validate(lv), junctions: js.length, wins, meets,
+           sleepers: M.sleepers(t) };
+}
+const SHAPES = [[5, 7], [7, 7], [9, 7], [11, 7], [13, 7], [15, 7],
+                [7, 9], [7, 11], [7, 13], [9, 9], [9, 11], [11, 9]];
+const reps = SHAPES.map(([R, C]) => [R + 'x' + C, shapeReport(R, C)]);
+ok('every shape validates', reps.every(([, r]) => r.bad.length === 0),
+   reps.filter(([, r]) => r.bad.length).map(([k]) => k).join(' '));
+ok('every shape builds exactly two junctions', reps.every(([, r]) => r.junctions === 2));
+ok('exactly one switch setting wins, at every shape',
+   reps.every(([, r]) => r.wins === 1),
+   reps.filter(([, r]) => r.wins !== 1).map(([k, r]) => k + '=' + r.wins).join(' '));
+ok('and somebody still waits at the gap, at every shape',
+   reps.every(([, r]) => r.meets === 1),
+   reps.filter(([, r]) => r.meets !== 1).map(([k, r]) => k + '=' + r.meets).join(' '));
+ok('par is the reference solution, counted not guessed',
+   reps.every(([, r]) => r.sleepers === r.lv.par));
+ok('a bigger board is more track, not more lawn',
+   M.level1(13, 7).par > M.level1(7, 7).par && M.level1(7, 13).par > M.level1(7, 7).par,
+   M.level1(7, 7).par + ' -> ' + M.level1(13, 7).par + ' / ' + M.level1(7, 13).par);
+
+/* THE ODD-ROW RULE, AND WHY IT IS NOT TIDINESS. The wall sits at floor(R/2).
+   With an even count the two engines are the same distance from the gap, reach
+   it on the same tick from opposite ends, and lock. gridDims never asks for an
+   even number of ranks; this is the arm that shows what would happen if it
+   did. */
+const evens = [6, 8, 10, 12, 14].map((R) => shapeReport(R, 7));
+ok('an even rank count cannot be won at all', evens.every((r) => r.wins === 0));
+ok('and the odd one either side of it can',
+   [5, 7, 9, 11, 13, 15].every((R) => shapeReport(R, 7).wins === 1));
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed\n');
 process.exit(fail ? 1 : 0);
