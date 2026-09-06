@@ -1413,7 +1413,8 @@
       const dd = pathOf(g, e.cell, e.inSide, out);
       if (rem <= prog || k === 0) {
         const tt = prog - rem;
-        return { p: posOn(dd, tt), h: headingOn(dd, Math.max(0, Math.min(1, tt))) };
+        return { p: posOn(dd, tt), h: headingOn(dd, Math.max(0, Math.min(1, tt))),
+                 cell: e.cell, t: tt };
       }
       rem -= prog; k--; prog = 1;
     }
@@ -1444,8 +1445,16 @@
       body: c.hi, bodyLit: shade(c.hi, 0.30),
       iron: warmed('#5C5C5C', 0.14),
       grey: warmed('#8E8E8E', 0.10), greyLit: warmed('#BDBDBD', 0.08),
-      load: '#0E9A4E', loadMid: '#3DB54A', loadLit: '#8DC641',
-      tank: '#B4B4B4', band: '#F2E43A', bandLit: '#F0AE4B',
+      /* EVERY VEHICLE WEARS THE LIVERY. The wagons were left in the greens
+         and yellows they were drawn in, on the argument that real freight does
+         not match its locomotive — true of railways, wrong for this game,
+         where colour is the thing that says which shed a train belongs to. A
+         teal engine pulling a yellow tank made the one load-bearing signal on
+         the board the smallest part of the train. Each drawing keeps its own
+         VALUE structure, so a flat wagon still reads as a flat wagon and a
+         tanker as a tanker; only the hue is the engine's. */
+      load: shade(c.hi, -0.16), loadMid: c.hi, loadLit: shade(c.hi, 0.26),
+      tank: c.hi, band: shade(c.hi, 0.34), bandLit: shade(c.hi, 0.16),
     };
     ctx.save();
     ctx.translate(x, y);
@@ -1480,44 +1489,36 @@
        of that. 0.92 of a cell: it sits on the sleepers with its frames just
        inside them, and the engine is the thing the eye should go to. */
     const size = g.cell * 0.92;
+    /* WHAT IS THROUGH THE DOOR IS NOT DRAWN. Parking now runs the nose a whole
+       cell further in for every vehicle, so the rake slides into the shed and
+       the engine would otherwise come out through the back wall. Anything past
+       the middle of a shed is inside it; the roof is over it and the yard has
+       nothing standing in it. The upshot is the same shape at any length —
+       whatever the train, it is the LAST vehicle that ends up in the doorway,
+       which is where a lone engine has always parked. */
+    const indoors = (b) => b && lvl.kind[b.cell] === M.DEPOT && b.t >= 0.5;
+    const back = 0.34;
     for (const t of rn.trains) {
       if (t.state === 'queued') continue;
       const d = pathFor(g, t);
-      // The nose is what the model tracks, so the body hangs back from it and
-      // two engines meeting stop nose to nose rather than overlapping.
-      const back = 0.34;
-      const at = reduced() ? 0.5 : t.prog - back;
-      const p = posOn(d, at);
-      const heading = headingOn(d, Math.max(0, Math.min(1, at)));
-      // Steam BEFORE the engine, so the puffs come out from under it rather
-      // than sitting on top of the boiler.
       if (t.state === 'moving') drawExhaust(d, t, size, now);
-      /* THE RAKE, drawn from the back forward so each vehicle overlaps the one
-         behind it rather than the other way round, and the engine lands last
-         and on top. One cell apart, which is what the model says a carriage
-         costs, so the small gap between them is a coupling rather than a lie
-         about how much track this train is holding. */
+      /* From the back forward, so each vehicle overlaps the one behind it
+         rather than the other way round, and the engine lands last and on top.
+         One cell apart, which is what the model says a carriage costs. */
       for (let k = t.cars || 0; k >= 1; k--) {
-        // measured back from the NOSE, and the engine's own centre is already
-        // `back` behind it — so the first carriage is back + 1, not 1 - back,
-        // which parked it a third of a cell ON TOP of the engine
         const b = bodyPoint(g, t, back + k);
-        if (b) drawCar(b.p.x, b.p.y, b.h, t.colour, size * 0.84, t.id * 13 + k);
+        if (b && !indoors(b)) drawCar(b.p.x, b.p.y, b.h, t.colour, size * 0.84, t.id * 13 + k);
       }
-      drawEngine(p.x, p.y, heading, t.colour, size, { dark: t.state === 'parked' });
-      if (t.state === 'waiting' || t.state === 'stopped') drawSteam(p.x, p.y - size * 0.1, size * 0.5, now);
+      const nose = reduced()
+        ? { p: posOn(d, 0.5), h: headingOn(d, 0.5), cell: t.cell, t: 0.5 }
+        : bodyPoint(g, t, back);
+      if (!nose || indoors(nose)) continue;
+      drawEngine(nose.p.x, nose.p.y, nose.h, t.colour, size, { dark: t.state === 'parked' });
+      if (t.state === 'waiting' || t.state === 'stopped')
+        drawSteam(nose.p.x, nose.p.y - size * 0.1, size * 0.5, now);
     }
   }
 
-  /* STEAM FROM THE CHIMNEY, seen from above: puffs that leave the smokebox,
-     fall behind as the engine runs on, and spread and thin as they go. They
-     are laid along the track the engine has just covered rather than in a
-     straight line behind it, so a train coming out of a curve leaves a curved
-     trail — which is the whole reason to draw it from the path instead of
-     from the heading.
-
-     Deterministic: the phase comes from the RUN's own clock, not the wall
-     clock, so the same run makes the same smoke twice. */
   function drawExhaust(d, t, size, now) {
     const puffs = 5;
     const phase = (t.cells + t.prog) * 1.7;
@@ -2353,7 +2354,11 @@
         run: run ? {
           settled: run.settled, won: run.won, meetings: run.meetings,
           steps: run.steps,
-          trains: run.trains.map((t) => ({ id: t.id, colour: t.colour, state: t.state, cell: t.cell })),
+          trains: run.trains.map((t) => ({
+            id: t.id, colour: t.colour, state: t.state, cell: t.cell,
+            // where the body is, which is what a rake makes worth asking
+            prog: +t.prog.toFixed(3), cars: t.cars, trail: t.trail.map((e) => e.cell),
+          })),
         } : null,
       };
     },

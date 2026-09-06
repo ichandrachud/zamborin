@@ -404,5 +404,80 @@ ok('an even rank count cannot be won at all', evens.every((r) => r.wins === 0));
 ok('and the odd one either side of it can',
    [5, 7, 9, 11, 13, 15].every((R) => shapeReport(R, 7).wins === 1));
 
+/* ---------- CARRIAGES ---------- */
+head('a train with carriages is longer, and goes all the way in');
+const rakeRun = (R, C, n) => {
+  const lv = M.level1(R, C, null, [n, n]);
+  const t = M.layout(lv, lv.solution);
+  const js = [];
+  for (let i = 0; i < lv.size; i++) if (M.isJunction(t[i])) js.push(i);
+  for (let m = 0; m < (1 << js.length); m++) {
+    const c = M.cloneTrack(t);
+    js.forEach((i, k) => { if (m & (1 << k)) M.toggleSwitch(c, i); });
+    const r = M.runToEnd(lv, c);
+    if (r.won) return r;
+  }
+  return null;
+};
+const RAKES = [[7, 11], [9, 7], [11, 7], [9, 9], [13, 7]];
+ok('a rake still gets home, at every shape that fits it',
+   RAKES.every(([R, C]) => [0, 1, 2, 3].every((n) => !!rakeRun(R, C, n))));
+/* THE WHOLE TRAIN GOES IN. Parking used to stop when the engine reached the
+   middle of the shed, which left the carriages standing out in the yard. The
+   nose runs on one cell per vehicle, so prog ends at 0.5 + cars. */
+ok('and every vehicle is inside the shed, not just the engine',
+   RAKES.every(([R, C]) => [0, 1, 2, 3].every((n) => {
+     const r = rakeRun(R, C, n);
+     return r.trains.every((t) => Math.abs(t.prog - (0.5 + n)) < 0.01);
+   })));
+/* WHAT LENGTH ACTUALLY BUYS, and the first answer was wrong. Carriages
+   appeared to jam a small board — 7x7 dying at four of them — but that was a
+   PARKED train still holding the cells its trail ran through, blocking its own
+   approach for good. Once a train pulls into the shed and lets go, no rake
+   jams level 1 at all; it only costs time, about 0.9s a vehicle, which is one
+   cell at 2.2 cells a second.
+
+   Length is still real, and the honest demonstration is this: a board where
+   the two engines never contend can be given a contention by lengthening the
+   one that goes FIRST, because its tail is still in the corridor when the
+   other arrives. Which train you lengthen matters, not just by how much —
+   the same rake on the follower changes nothing. */
+const meets = (g, rake) => {
+  const lv = M.level1(9, 9, g, rake);
+  const t = M.layout(lv, lv.solution);
+  const js = [];
+  for (let i = 0; i < lv.size; i++) if (M.isJunction(t[i])) js.push(i);
+  for (let m = 0; m < (1 << js.length); m++) {
+    const c = M.cloneTrack(t);
+    js.forEach((i, k) => { if (m & (1 << k)) M.toggleSwitch(c, i); });
+    const r = M.runToEnd(lv, c);
+    if (r.won) return r.meetings;
+  }
+  return -1;
+};
+ok('with a wide gap the two engines never contend', meets(5, [0, 0]) === 0);
+ok('a rake on the LEADER makes them contend', meets(5, [4, 0]) === 1);
+ok('the same rake on the follower does not', meets(5, [0, 4]) === 0);
+ok('no rake jams level 1 once a parked train lets go of its track',
+   [0, 2, 4, 6, 8, 10].every((n) => !!rakeRun(7, 7, n)));
+const clock = (n) => { const r = rakeRun(9, 9, n); return r ? r.time : -1; };
+/* TWO cells a carriage, not one, and the factor of two is the mechanic. Both
+   engines carry the rake here, so every vehicle added costs the follower a
+   cell of WAITING while the leader clears the corridor, and then another cell
+   of its own pulling into the shed. At 2.2 cells a second that is 0.91s. */
+ok('length costs time instead — two cells a carriage when both are lengthened',
+   clock(4) > clock(0) && Math.abs((clock(4) - clock(0)) / 4 - 2 / 2.2) < 0.1,
+   ((clock(4) - clock(0)) / 4).toFixed(2) + 's per carriage');
+const solo = (n) => { const lv = M.level1(9, 9, 3, [n, 0]);
+  const t = M.layout(lv, lv.solution);
+  const js = []; for (let i = 0; i < lv.size; i++) if (M.isJunction(t[i])) js.push(i);
+  for (let m = 0; m < (1 << js.length); m++) { const c = M.cloneTrack(t);
+    js.forEach((i, k) => { if (m & (1 << k)) M.toggleSwitch(c, i); });
+    const r = M.runToEnd(lv, c); if (r.won) return r.time; }
+  return -1; };
+ok('and the control: lengthen only one and it is about one cell',
+   Math.abs((solo(4) - solo(0)) / 4 - 1 / 2.2) < 0.12,
+   ((solo(4) - solo(0)) / 4).toFixed(2) + 's per carriage');
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed\n');
 process.exit(fail ? 1 : 0);

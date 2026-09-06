@@ -644,8 +644,16 @@ const blocks = (t) => t.state === 'moving' || t.state === 'waiting' || t.state =
 function occupies(t, i) {
   if (t.cell === i) return true;
   if (!t.cars) return false;
+  /* A TRAIN PULLING INTO ITS SHED LETS GO OF THE TRACK BEHIND IT. Its body is
+     only as long as the part still outside, so the cell its last wagon has
+     just left is free for somebody else the moment it leaves — which is what
+     lets a second train follow one home down a shared approach. Parked, it
+     holds nothing but the shed. */
+  const outside = t.state === 'parked' ? 0
+    : t.state === 'parking' ? Math.ceil(Math.max(0, t.cars - Math.max(0, t.prog - 0.5)))
+    : t.cars;
   const n = t.trail.length;
-  for (let k = 1; k <= t.cars && k < n; k++) if (t.trail[n - 1 - k].cell === i) return true;
+  for (let k = 1; k <= outside && k < n; k++) if (t.trail[n - 1 - k].cell === i) return true;
   return false;
 }
 
@@ -700,8 +708,15 @@ function stepRun(level, track, run, dt) {
   for (const t of run.trains) {
     if (t.state === 'parked' || t.state === 'stopped' || t.state === 'queued') continue;
     if (t.state === 'parking') {
+      /* THE WHOLE TRAIN GOES IN, not just the nose. Parking used to stop the
+         moment the engine reached the middle of the shed, which left every
+         carriage standing out in the yard behind it — a three-car train parked
+         with two-thirds of itself on the running line. The nose carries on for
+         one cell per vehicle, which is exactly the length of the train, so the
+         last wagon is through the door as it finishes. */
+      const deep = 0.5 + (t.cars || 0);
       t.prog += v * step;
-      if (t.prog >= 0.5) { t.prog = 0.5; t.state = 'parked'; t.parkedAt = run.time; }
+      if (t.prog >= deep) { t.prog = deep; t.state = 'parked'; t.parkedAt = run.time; }
       continue;
     }
     if (t.state === 'moving') t.prog += v * step;
