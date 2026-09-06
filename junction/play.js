@@ -364,38 +364,58 @@
     }
     ctx.stroke();
   }
-  function drawTies(d, cell, alpha, hot) {
-    const half = cell * 0.20, w = Math.max(1.1, cell * 0.045);
-    ctx.strokeStyle = hot ? 'rgba(190,206,232,' + alpha + ')' : 'rgba(90,106,132,' + alpha + ')';
-    ctx.lineWidth = w; ctx.lineCap = 'butt';
-    for (let k = 0; k < 5; k++) {
-      const t = (k + 0.5) / 5;
-      const p = pointOn(d, t), h = headingOn(d, t) + Math.PI / 2;
+  /* SLEEPERS, and they are the reason a length of track reads as track. They
+     used to be translucent bars at 0.55 over a wide grey bed, which from a
+     step back is a grey road with a stripe down it. They are timber now:
+     opaque, dark, individually countable, each with a lit edge up and to the
+     left, sitting on the ballast and carrying the rails. */
+  function drawSleepers(d, cell, opts) {
+    const o = opts || {};
+    const half = cell * 0.18, th = cell * 0.075, n = 6;
+    /* Two strokes with round caps rather than two rotated rounded rects with a
+       save and a restore around each: same timber, a third of the cost, and
+       the sleepers are drawn six times per segment on every piece of track on
+       the board. The lit edge goes down first and the timber sits over it,
+       offset toward the shadow, so the light stays up and left. */
+    ctx.lineCap = 'round';
+    ctx.globalAlpha = o.dim ? 0.55 : 1;
+    for (let k = 0; k < n; k++) {
+      const t = (k + 0.5) / n;
+      const p = pointOn(d, t), a = headingOn(d, t) + Math.PI / 2;
+      const dx = Math.cos(a) * half, dy = Math.sin(a) * half;
+      ctx.strokeStyle = TRACK.sleeperLit; ctx.lineWidth = th;
       ctx.beginPath();
-      ctx.moveTo(p.x + Math.cos(h) * half, p.y + Math.sin(h) * half);
-      ctx.lineTo(p.x - Math.cos(h) * half, p.y - Math.sin(h) * half);
+      ctx.moveTo(p.x + dx, p.y + dy); ctx.lineTo(p.x - dx, p.y - dy); ctx.stroke();
+      ctx.strokeStyle = o.hot ? TRACK.sleeperHot : TRACK.sleeper;
+      ctx.lineWidth = th * 0.74;
+      ctx.beginPath();
+      ctx.moveTo(p.x + dx + 0.6, p.y + dy + 0.7); ctx.lineTo(p.x - dx + 0.6, p.y - dy + 0.7);
       ctx.stroke();
     }
+    ctx.globalAlpha = 1;
   }
-  // Ties first, then twin rails on top: the order a real board is built in,
-  // and the only order in which the rails read as sitting on the sleepers.
+
+  /* Ballast, sleepers, then the rails: the order a real length of track is
+     built in, and the only order in which the steel reads as sitting on top of
+     the timber rather than being painted through it. */
   function drawSegment(g, i, a, b, opts) {
     const o = opts || {};
     const d = pathOf(g, i, a, b), cell = g.cell;
     drawBallast(d, cell);
-    drawTies(d, cell, (o.dim ? 0.34 : 0.55) * (o.alpha == null ? 1 : o.alpha), o.hot);
-    const gauge = cell * 0.115, w = Math.max(1.1, cell * 0.05);
-    /* The branch the switch is NOT feeding is still real rail — a train that
-       reaches it ALONG that branch still takes it to the trunk, whatever the
-       switch says — so it is dimmed, not removed. 0.60 and no lower: measured
-       on the painted pixel against the lightest corner of the felt, 0.38 came
-       out at 2.37:1 against a 3:1 bar for a graphical object and 0.59 is where
-       it crosses. The visible difference is 3.0:1 against 5.8:1, which is a
-       real step in value, and the BLADE on the stand is what actually carries
-       the decision. Dimming was never going to carry it on its own. */
-    const col = o.dim ? 'rgba(159,176,200,0.60)' : (o.hot ? ART.railHot : ART.rail);
-    railStroke(d, -gauge, w, col);
-    railStroke(d, gauge, w, col);
+    drawSleepers(d, cell, o);
+    /* The branch the switch is NOT feeding is still real rail — a train
+       reaching it ALONG that branch takes it to the trunk whatever the switch
+       says — so it is dimmed, never removed, and the BLADE on the stand is
+       what actually carries the decision. */
+    const gauge = cell * 0.105;
+    const base = Math.max(1.2, cell * 0.055), core = Math.max(0.8, cell * 0.028);
+    const dim = o.dim ? 0.58 : 1;
+    for (const side of [-gauge, gauge]) {
+      ctx.globalAlpha = dim;
+      railStroke(d, side, base, TRACK.railBase);
+      railStroke(d, side - base * 0.16, core, o.hot ? TRACK.railHot : TRACK.railTop);
+      ctx.globalAlpha = 1;
+    }
   }
 
   function drawTrackCell(g, i, c, now) {
@@ -511,13 +531,28 @@
     ballastLit: '#565650',
   };
 
-  const SCEN = {
-    leaf:  ['#3E4E44', '#1E2721'],
-    leafBack: ['#26312B', '#151B18'],
-    wood:  ['#5E5446', '#332E27'],
-    leafRim: '#8CA396',
-    woodRim: '#9AA0A8',
+  /* THE TRACK. Steel and creosoted timber, both lit from up and left. The rail
+     is two strokes, a darker body with a brighter crown offset toward the
+     light, which is what makes a 3px line read as a rounded rail rather than
+     as a drawn line. */
+  const TRACK = {
+    sleeper: '#33291F', sleeperLit: '#7A6650', sleeperHot: '#8A7250',
+    railBase: '#77869B', railTop: '#C9D6EA', railHot: '#F0F6FF',
   };
+
+  /* Nothing here is a colour a tree is drawn IN any more — the trees carry
+     their own, from the export. This is only the shadow they throw. */
+  const SCEN = {
+    shadow: 'rgba(10,26,14,0.34)',
+  };
+
+  /* THE TONING, and it is a solved number rather than a taste. The exports are
+     daylight greens; the field is grass. A tree does not need darkening to sit
+     in the night, it needs to stay LIGHT enough to separate from the field it
+     stands on, and 0.22 is the darkest toning at which all three crowns still
+     clear 3:1 against #1B3A22 — 3.76, 3.01 and 4.11. By 0.26 the darkest is
+     under. 0 is the export exactly as drawn. */
+  const TREE_NIGHT = 0.22;
   function h32(a, b) {
     let x = (Math.imul(a | 0, 374761393) + Math.imul(b | 0, 668265263)) >>> 0;
     x = (x ^ (x >>> 13)) >>> 0;
@@ -618,155 +653,28 @@
     lay(cell * 0.34, GROUND.ballastLit);
   }
 
-  function drawScenery(g, i, lvl) {
-    const b = cellRect(g, i), cell = b.s;
-    const cx = b.x + cell / 2, cy = b.y + cell / 2;
-    const axis = runAxis(lvl, i);
+  /* ---------- THE LINESIDE ----------
+     Every tree on the board is one of the owner's three drawings. The first
+     pass at this used them only for the odd standalone tree and drew every
+     hedgerow and bush out of overlapping circles, which is most of what is on
+     screen — so the board was procedural blobs with the real art hiding in it.
+     There are no circles left: a hedgerow is drawn canopies overlapping along
+     the run, a bush is a small one, and the only variety comes from which of
+     the three, how big, and where.
 
-    /* Undergrowth: a soft dark patch the size of the cell, under everything
-       else. It exists because the hedge is a BAND about half a cell tall, so
-       the top and bottom of a blocked cell were bare ground and read as open —
-       a player would aim a stroke at them and be refused with no reason on
-       screen. A radial fade rather than a filled tile, so neighbouring cells
-       merge into one darker strip and nothing anywhere looks like a square. */
-    const ug = ctx.createRadialGradient(cx, cy, 0, cx, cy, cell * 0.74);
-    ug.addColorStop(0, 'rgba(9,14,24,0.46)');
-    ug.addColorStop(0.62, 'rgba(9,14,24,0.34)');
-    ug.addColorStop(1, 'rgba(9,14,24,0)');
-    ctx.fillStyle = ug;
-    ctx.fillRect(b.x - cell * 0.26, b.y - cell * 0.26, cell * 1.52, cell * 1.52);
+     THEY ARE NEVER ROTATED. Each drawing is already lit from the top left —
+     the lighter of its two shapes sits up and to the left of the darker one —
+     and turning it would turn the light with it. Scale and choice give plenty.
 
-    // How far a thing may lean out of this cell: over a neighbour that is also
-    // impassable, freely; over open ground, hardly at all.
-    const room = (side) => (isRock(lvl, M.neighbour(lvl, i, side)) ? 0.34 : 0.12);
+     LIGHT COMES FROM UP AND LEFT, so shadows fall down and right. The old halo
+     of darkness under every obstacle had no direction in it at all, which is
+     exactly why it read as a sticker's drop shadow rather than as light. Every
+     tree now casts its own silhouette, offset, in one pass before ANY foliage
+     is drawn, so a shadow never lands on top of the tree next to it. */
+  const LIGHT = { dx: 0.15, dy: 0.17 };   // shadow offset, as a share of size
 
-    if (axis) {
-      drawHedge(g, i, lvl, axis, 0);
-      drawPosts(g, i, lvl, axis);     // between the layers, so they peek through
-      drawHedge(g, i, lvl, axis, 1);
-    }
-    const n = axis
-      ? (rnd(i, 1) < 0.34 ? 0 : 1)
-      : 1 + (rnd(i, 2) < 0.55 ? 1 : 0) + (rnd(i, 3) < 0.22 ? 1 : 0);
-    const spanX = [-room(W), room(E)], spanY = [-room(N), room(S)];
-    for (let k = 0; k < n; k++) {
-      const a = rnd(i, 10 + k * 5), b2 = rnd(i, 11 + k * 5);
-      const c2 = rnd(i, 12 + k * 5), d2 = rnd(i, 13 + k * 5);
-      const ox = (spanX[0] + (spanX[1] - spanX[0]) * a) * cell;
-      const oy = (spanY[0] + (spanY[1] - spanY[0]) * b2) * cell;
-      const s = cell * (0.58 + c2 * 0.32) * (n > 1 ? 0.74 : 1) * (axis ? 1.0 : 1);
-      const seed = i * 31 + k;
-      // In a run the thing standing in the cell is what breaks the line, so it
-      // is usually a tree, it is bigger than the band, and it sits above it.
-      // Trees and the bushes beneath them, and nothing else. What blocks a
-      // train in this yard is something growing in it.
-      if (d2 < (axis ? 0.74 : 0.62)) drawTree(cx + ox, cy + (axis ? oy * 0.4 - cell * 0.10 : oy), s, seed);
-      else drawBush(cx + ox, cy + oy, s * 0.84, seed);
-    }
-  }
-
-  /* THE HEDGE, and it is the reason a run of obstacles is a hedgerow rather
-     than eight of the same blob. Lobes are placed at world pixel positions
-     measured from the FIRST cell of the run, so they walk across the cell
-     boundaries and overlap into a continuous band; their radius and their
-     wander off the line both come from the hash of the position, so the band
-     has an irregular edge rather than a repeating one. Two layers: a dark
-     back, then a lit front, which is what gives a mass of foliage depth
-     without an outline anywhere in it. */
-  function drawHedge(g, i, lvl, axis, layer) {
-    const b = cellRect(g, i), cell = b.s;
-    const horiz = axis === 'h';
-    const sb = cellRect(g, runStart(lvl, i, axis));
-    const base = horiz ? sb.x : sb.y;
-    const a0 = horiz ? b.x : b.y;
-    const cross = (horiz ? b.y : b.x) + cell / 2;
-    // Do not spill onto open ground at the ends of the run.
-    const openBack = !isRock(lvl, M.neighbour(lvl, i, horiz ? W : N));
-    const openFwd = !isRock(lvl, M.neighbour(lvl, i, horiz ? E : S));
-    const lo = a0 + (openBack ? cell * 0.16 : -cell * 0.34);
-    const hi = a0 + cell - (openFwd ? cell * 0.16 : -cell * 0.34);
-    const pitch = cell * 0.30;
-    let k = Math.ceil((lo - base) / pitch);
-    for (; base + k * pitch <= hi; k++) {
-      const px = base + k * pitch;
-      if (layer === 0 && rnd(k, 200) < 0.35) continue;
-      /* Groups of three lobes share a size, so the band SWELLS and thins in
-         clumps instead of jittering lobe by lobe. Per lobe noise reads as an
-         even fuzzy edge from a step back; correlated noise reads as bushes. */
-      const swell = 0.66 + rnd((k / 3) | 0, 150 + layer) * 0.80;
-      const rr = cell * (layer ? 0.20 : 0.24) * swell * (0.86 + rnd(k, 100 + layer) * 0.34);
-      const wander = (rnd(k, 110 + layer) - 0.5) * cell * 0.34;
-      const lift = layer ? -cell * 0.06 : cell * 0.02;
-      const x = horiz ? px : cross + wander;
-      const y = horiz ? cross + wander : px;
-      leafLobe(x, y + lift, rr, k * 7 + layer, layer, layer === 1);
-    }
-  }
-
-  /* Posts, and deliberately NOT a paling fence. The first version drew two
-     horizontal rails with pickets between them at an even pitch, which on a
-     dark ground is a picture of a railway track lying flat — in a game whose
-     whole subject is track. Posts alone cannot be misread: they are short,
-     they are vertical whatever way the run lies, they appear in about a third
-     of cells rather than all of them, and they sit off the centre line so
-     nothing in them is parallel to anything. */
-  function drawPosts(g, i, lvl, axis) {
-    if (rnd(i, 300) > 0.38) return;
-    const b = cellRect(g, i), cell = b.s;
-    const horiz = axis === 'h';
-    const cross = (horiz ? b.y : b.x) + cell / 2 + (rnd(i, 301) - 0.5) * cell * 0.34;
-    const a0 = horiz ? b.x : b.y;
-    const count = 2 + (h32(i, 302) % 2);
-    for (let k = 0; k < count; k++) {
-      const along = a0 + cell * (0.18 + 0.28 * k + rnd(i, 310 + k) * 0.12);
-      const h = cell * (0.22 + rnd(i, 320 + k) * 0.12);
-      const w = Math.max(1.6, cell * 0.055);
-      ctx.fillStyle = SCEN.wood[1];
-      ctx.fillRect(along, cross - h * 0.7, w, h);
-      ctx.fillStyle = SCEN.woodRim;
-      ctx.fillRect(along, cross - h * 0.7, Math.max(0.9, w * 0.34), h);
-    }
-  }
-
-  // A lobe of foliage: dark body, one moonlit edge up and to the left. `lit`
-  // is the front layer, which gets the rim; the back layer stays a silhouette.
-  function leafLobe(x, y, rr, seed, k, lit) {
-    const gr = ctx.createLinearGradient(x - rr, y - rr, x + rr * 0.6, y + rr);
-    gr.addColorStop(0, lit ? SCEN.leaf[0] : SCEN.leafBack[0]);
-    gr.addColorStop(1, lit ? SCEN.leaf[1] : SCEN.leafBack[1]);
-    ctx.fillStyle = gr;
-    ctx.beginPath();
-    ctx.ellipse(x, y, rr, rr * (0.80 + rnd(seed, 60 + k) * 0.28), 0, 0, Math.PI * 2);
-    ctx.fill();
-    if (lit === false) return;
-    ctx.strokeStyle = SCEN.leafRim;
-    ctx.lineWidth = Math.max(1.1, rr * 0.15);
-    ctx.beginPath();
-    ctx.ellipse(x, y, rr * 0.90, rr * 0.76, 0, Math.PI * 0.88, Math.PI * 1.70);
-    ctx.stroke();
-  }
-  /* THE OWNER'S TREES. Three drawn silhouettes rather than three lobes placed
-     by hash, which is a better answer to "not a repeat of the same shape" than
-     any amount of procedural wobble: these were drawn by a person and no two
-     of them are the same tree. Path2D takes the SVG path string directly, so
-     nothing is transcribed by hand and nothing is fetched at runtime.
-
-     They are canopies with no trunk, which is exactly right: the yard is seen
-     from above, and from above a tree is a canopy.
-
-     TONED FOR NIGHT. The exports are daylight greens — #8dc63f is a bright
-     yellow-green — and dropped unchanged onto a #1b273e ground at night they
-     read as stickers rather than as trees in the dark. Each fill is carried
-     toward the ground colour instead, which keeps the owner's hue and the
-     relationship between the two layers while putting them in the same room as
-     everything else. TREE_NIGHT is the one number that decides it, and it is
-     not a taste. It was 0.32 against a dark blue ground. The ground is grass
-     now and that inverts the problem: a tree no longer has to be darkened to
-     sit in the night, it has to stay LIGHT enough to separate from the field
-     it is standing on. 0.22 is the darkest toning at which all three crowns
-     still clear 3:1 against #1B3A22 — 3.76, 3.01 and 4.11 — and by 0.26 the
-     darkest of them is under. 0 is the export exactly as drawn. */
-  const TREE_NIGHT = 0.22;
+  /* The drawings, built once as Path2D straight from the SVG path strings, so
+     no curve in them is retyped by hand and nothing is fetched at runtime. */
   const TREE_ART = (ART_SRC ? ART_SRC.TREES : []).map((t) => ({
     x: t.x, y: t.y, w: t.w, h: t.h,
     paths: t.paths.map((p) => ({
@@ -775,131 +683,212 @@
     })),
   }));
 
-  /* THE HEDGE IS THE SAME WOOD AS THE TREES. Its greens used to be picked
-     independently, and once the drawn trees went in at the toning their own
-     contrast demanded, the two sat side by side in visibly different light:
-     vivid trees standing in a dark olive hedge, as though lit at different
-     times of day. So the hedge takes ITS colours from the tree palette, put
-     through the same toning, and the back layer is that darkened. One wood,
-     one lamp, one number to change. */
-  const treeTone = (hex) => mix(hex, '#141F31', TREE_NIGHT);
-  SCEN.leaf = [treeTone('#6cbf5b'), treeTone('#0eaa4c')];
-  SCEN.leafBack = [shade(treeTone('#0eaa4c'), -0.44), shade(treeTone('#009444'), -0.56)];
+  // Where the things in a cell stand. One list, used by the shadow pass and
+  // the foliage pass, so a shadow can never drift away from its tree.
+  function sceneryItems(g, i, lvl) {
+    const b = cellRect(g, i), cell = b.s;
+    const cx = b.x + cell / 2, cy = b.y + cell / 2;
+    const axis = runAxis(lvl, i);
+    const out = [];
+    if (axis) {
+      const horiz = axis === 'h';
+      const sb = cellRect(g, runStart(lvl, i, axis));
+      const base = horiz ? sb.x : sb.y;
+      const a0 = horiz ? b.x : b.y;
+      const cross = (horiz ? b.y : b.x) + cell / 2;
+      const openBack = !isRock(lvl, M.neighbour(lvl, i, horiz ? W : N));
+      const openFwd = !isRock(lvl, M.neighbour(lvl, i, horiz ? E : S));
+      const lo = a0 + (openBack ? cell * 0.20 : -cell * 0.32);
+      const hi = a0 + cell - (openFwd ? cell * 0.20 : -cell * 0.32);
+      /* Canopies are placed from the FIRST cell of the run in world pixels, so
+         they overlap across the cell boundaries into one hedgerow instead of
+         restarting inside each tile. Sizes come from a hash in groups of
+         three, so the line swells and thins in clumps. */
+      const pitch = cell * 0.36;
+      let k = Math.ceil((lo - base) / pitch);
+      for (; base + k * pitch <= hi; k++) {
+        const px = base + k * pitch;
+        const swell = 0.74 + rnd((k / 3) | 0, 150) * 0.58;
+        const s = cell * 0.54 * swell * (0.88 + rnd(k, 100) * 0.28);
+        const wander = (rnd(k, 110) - 0.5) * cell * 0.26;
+        out.push({ x: horiz ? px : cross + wander,
+                   y: horiz ? cross + wander : px,
+                   s, seed: k * 7 + 31 });
+      }
+    }
+    const room = (side) => (isRock(lvl, M.neighbour(lvl, i, side)) ? 0.30 : 0.10);
+    const spanX = [-room(W), room(E)], spanY = [-room(N), room(S)];
+    const n = axis
+      ? (rnd(i, 1) < 0.40 ? 0 : 1)
+      : 1 + (rnd(i, 2) < 0.60 ? 1 : 0) + (rnd(i, 3) < 0.26 ? 1 : 0);
+    for (let k = 0; k < n; k++) {
+      const a = rnd(i, 10 + k * 5), b2 = rnd(i, 11 + k * 5), c2 = rnd(i, 12 + k * 5);
+      out.push({
+        x: cx + (spanX[0] + (spanX[1] - spanX[0]) * a) * cell,
+        y: cy + (spanY[0] + (spanY[1] - spanY[0]) * b2) * cell * (axis ? 0.5 : 1),
+        s: cell * (0.62 + c2 * 0.34) * (n > 1 ? 0.76 : 1),
+        seed: i * 31 + k,
+      });
+    }
+    return out;
+  }
 
-  function drawTree(x, y, s, seed) {
-    if (!TREE_ART.length || !TREE_ART[0].paths[0].path) return drawBush(x, y, s * 0.9, seed);
+  function drawSceneryShadow(g, i, lvl) {
+    for (const it of sceneryItems(g, i, lvl))
+      drawTree(it.x + it.s * LIGHT.dx, it.y + it.s * LIGHT.dy, it.s, it.seed, true);
+  }
+  function drawScenery(g, i, lvl) {
+    for (const it of sceneryItems(g, i, lvl)) drawTree(it.x, it.y, it.s, it.seed, false);
+  }
+
+  /* One of the three drawings, at a size, in colour or as its own shadow.
+     `shadow` fills every path in one flat dark instead of its own colour,
+     which is what a silhouette IS. */
+  function drawTree(x, y, s, seed, shadow) {
+    if (!TREE_ART.length || !TREE_ART[0].paths[0].path) return;
     const t = TREE_ART[h32(seed, 9) % TREE_ART.length];
     const k = s / Math.max(t.w, t.h);
     ctx.save();
     ctx.translate(x, y);
     ctx.scale(k, k);
     ctx.translate(-(t.x + t.w / 2), -(t.y + t.h / 2));
-    /* The moonlit rim, and it is the same trick the stones and the hedge use:
-       the whole silhouette is filled once in the rim colour, shifted five art
-       units up and to the left, and the tree is then painted over it. What is
-       left showing is a crescent on the lit side only — an edge made of value,
-       not an outline, because nothing is stroked and the shadow side has none.
-       The drawn art is flat fills, so without this the trees would be the one
-       thing in the yard with no light on it. */
-    ctx.save();
-    ctx.translate(-5, -5);
-    ctx.fillStyle = SCEN.leafRim;
-    for (const p of t.paths) ctx.fill(p.path);
-    ctx.restore();
-    for (const p of t.paths) { ctx.fillStyle = p.fill; ctx.fill(p.path); }
+    if (shadow) {
+      ctx.fillStyle = SCEN.shadow;
+      for (const p of t.paths) ctx.fill(p.path);
+    } else {
+      for (const p of t.paths) { ctx.fillStyle = p.fill; ctx.fill(p.path); }
+    }
     ctx.restore();
   }
 
-  function drawTreeOld(x, y, s, seed) {
-    ctx.save();
-    ctx.fillStyle = SCEN.wood[1];
-    ctx.fillRect(x - s * 0.045, y - s * 0.02, s * 0.09, s * 0.34);
-    const lobes = 3 + (h32(seed, 1) % 2);
-    for (let k = 0; k < lobes; k++) {
-      const a = (k / lobes) * Math.PI * 2 + rnd(seed, 20 + k) * 1.4;
-      const d = s * (0.07 + rnd(seed, 30 + k) * 0.15);
-      const rr = s * (0.24 + rnd(seed, 40 + k) * 0.14);
-      leafLobe(x + Math.cos(a) * d, y - s * 0.24 + Math.sin(a) * d * 0.7, rr, seed, k, true);
-    }
-    ctx.restore();
-  }
-  function drawBush(x, y, s, seed) {
-    ctx.save();
-    const lobes = 2 + (h32(seed, 5) % 2);
-    for (let k = 0; k < lobes; k++) {
-      const d = s * (0.09 + rnd(seed, 50 + k) * 0.22);
-      const a = Math.PI + (k / Math.max(1, lobes - 1)) * Math.PI;
-      leafLobe(x + Math.cos(a) * d, y - s * 0.04 - Math.abs(Math.sin(a)) * d * 0.35,
-               s * (0.26 + rnd(seed, 55 + k) * 0.13), seed, k + 3, true);
-    }
-    ctx.restore();
-  }
   /* An arch: near-black opening, a band across its head, and for a shed a
      coloured interior glow. Drawn in a local frame with the mouth facing down
      and then turned to face the yard. */
-  function archPath(w, h, bottomY) {
-    const top = bottomY - h;
-    ctx.beginPath();
-    ctx.moveTo(-w / 2, bottomY);
-    ctx.lineTo(-w / 2, top + w / 2);
-    ctx.arc(0, top + w / 2, w / 2, Math.PI, 0);
-    ctx.lineTo(w / 2, bottomY);
-    ctx.closePath();
+  /* ---------- THE SHEDS ----------
+     Seen from above, which is how everything else in this yard is seen. The
+     old ones were an arch drawn flat on the ground with the train running over
+     the top of it, which reads as a decal rather than as a building.
+
+     A shed is now a roof, and it is painted in TWO parts around the trains:
+     the floor and the doorway go down before them and the roof goes on after,
+     so an engine inside is under its own roof and only what is through the
+     door is visible. That is the whole idea — a locomotive standing in a shed
+     with its nose out in the yard.
+
+     The roof is filled with a SCREEN-space gradient, not a local one, so the
+     light stays up and to the left however the building is turned; the ridge
+     runs along the track; and the whole thing throws a shadow down and right
+     like everything else on the board. A depot's roof carries its own colour,
+     a tunnel's is slate, so which is which is legible before you read a
+     single mark. */
+  const SHED = {
+    roof: '#463F37', roofLit: '#6B6155', ridge: '#8B7F6E',
+    wall: '#2C2823', dark: '#16200F',
+  };
+
+  function shedBox(g, i, face, cell) {
+    const b = cellRect(g, i);
+    return {
+      x: b.x + cell / 2, y: b.y + cell / 2,
+      w: cell * 0.76, h: cell * 0.90,
+      rot: face === N ? Math.PI : face === E ? -Math.PI / 2 : face === S ? 0 : Math.PI / 2,
+      door: cell * 0.26,          // how much of the front is open doorway
+    };
   }
 
-  function drawArch(g, i, face, colour, lit, count) {
-    const b = cellRect(g, i), cell = b.s;
-    const p = { x: b.x + cell / 2, y: b.y + cell / 2 };
-    const w = cell * 0.58, h = cell * 0.62;
+  // Floor and doorway: under the trains.
+  function drawShedFloor(g, i, face, colour, lit) {
+    const cell = g.cell, S2 = shedBox(g, i, face, cell);
     ctx.save();
-    ctx.translate(p.x, p.y);
-    ctx.rotate(face === N ? Math.PI : face === E ? -Math.PI / 2 : face === S ? 0 : Math.PI / 2);
-    // Nudged toward the mouth so the lintel is not flush with the board edge:
-    // every portal and shed sits on an edge cell by definition, so the head of
-    // the arch is always the thing nearest the frame.
-    ctx.translate(0, cell * 0.045);
-
-    /* THE STONE FACE, and it exists because of a measurement. A near-black
-       opening sitting straight on the felt is an edge of 1.31:1: the two are
-       both dark and the boundary between them is not there to be seen, which
-       is why the tunnels read as vague dark squares rather than as mouths.
-       A real portal has a stone face around the hole, so the hole is a hole in
-       something. Now the pairs that touch are stone against felt and mouth
-       against stone, and both of those have somewhere to go. */
-    archPath(w * 1.36, h * 1.20, h / 2);
-    const fg = ctx.createLinearGradient(0, h / 2 - h * 1.20, 0, h / 2);
-    fg.addColorStop(0, ART.stoneHi);
-    fg.addColorStop(1, ART.stone);
-    ctx.fillStyle = fg; ctx.fill();
-
-    archPath(w, h, h / 2);
-    const mouth = ctx.createLinearGradient(0, -h / 2, 0, h / 2);
-    mouth.addColorStop(0, ART.archMouth);
-    mouth.addColorStop(1, colour ? mix(ART.archMouth, colour, lit ? 0.34 : 0.16) : '#141A26');
-    ctx.fillStyle = mouth; ctx.fill();
-    if (lit) {
+    ctx.translate(S2.x, S2.y); ctx.rotate(S2.rot);
+    ctx.beginPath(); roundRect(-S2.w / 2, -S2.h / 2, S2.w, S2.h, cell * 0.10);
+    ctx.fillStyle = SHED.dark; ctx.fill();
+    if (lit && colour) {
+      // the shed lit from within, once its own engine is home
       ctx.save(); ctx.clip();
-      const gl = ctx.createRadialGradient(0, h * 0.2, 0, 0, h * 0.2, h);
-      gl.addColorStop(0, hexA(colour, 0.55)); gl.addColorStop(1, hexA(colour, 0));
-      ctx.fillStyle = gl; ctx.fillRect(-w, -h, w * 2, h * 2);
+      const gl = ctx.createRadialGradient(0, S2.h * 0.24, 0, 0, S2.h * 0.24, S2.h * 0.9);
+      gl.addColorStop(0, hexA(colour, 0.50)); gl.addColorStop(1, hexA(colour, 0));
+      ctx.fillStyle = gl; ctx.fillRect(-S2.w, -S2.h, S2.w * 2, S2.h * 2);
       ctx.restore();
     }
-
-    // The lintel across the head of the face. On a shed it is the identity.
-    const lh = cell * 0.15, lw = w * 1.48, ly = h / 2 - h * 1.20 - lh * 0.42;
-    ctx.beginPath();
-    roundRect(-lw / 2, ly, lw, lh, lh * 0.40);
-    const lg = ctx.createLinearGradient(0, ly, 0, ly + lh);
-    if (colour) {
-      lg.addColorStop(0, shade(colour, lit ? 0.34 : 0.12));
-      lg.addColorStop(1, shade(colour, -0.22));
-    } else {
-      lg.addColorStop(0, ART.stoneHi); lg.addColorStop(1, ART.stone);
-    }
-    ctx.fillStyle = lg; ctx.fill();
     ctx.restore();
-    if (colour) drawMark(p.x, p.y - cell * 0.03, cell * 0.16, colour, face);
-    if (count > 0) drawCount(b.x + cell * 0.86, b.y + cell * 0.14, cell * 0.19, count);
+  }
+
+  // Roof: over the trains, stopping short of the door.
+  function drawShedRoof(g, i, face, colour, lit, count) {
+    const cell = g.cell, S2 = shedBox(g, i, face, cell);
+    const roofH = S2.h - S2.door;
+    const top = -S2.h / 2, bot = top + roofH;
+    const r = cell * 0.07;
+
+    // the shadow it throws, down and right, in screen space
+    ctx.save();
+    ctx.translate(S2.x + cell * 0.07, S2.y + cell * 0.08); ctx.rotate(S2.rot);
+    ctx.beginPath(); roundRect(-S2.w / 2, top, S2.w, roofH, r);
+    ctx.restore();
+    ctx.fillStyle = SCEN.shadow; ctx.fill();
+
+    /* A PITCHED ROOF, not a card. Two slopes meeting at a ridge that runs
+       along the track, and which of them is the lit one is worked out from
+       where the building is FACING: the slope normals are turned by the same
+       rotation as the shed, and dotted against a lamp fixed up and to the
+       left. So a shed facing north and a shed facing south are lit on
+       opposite sides of their ridge, which is what stops four buildings on one
+       board from looking like four copies of one sticker. */
+    const lx = -0.707, ly = -0.707;
+    const nL = [-Math.cos(S2.rot), -Math.sin(S2.rot)];
+    const shine = (n) => Math.max(-1, Math.min(1, n[0] * lx + n[1] * ly));
+    const base = colour ? shade(colour, lit ? -0.10 : -0.30) : SHED.roof;
+    // both halves, clipped to the rounded roof outline
+    ctx.save();
+    ctx.save();
+    ctx.translate(S2.x, S2.y); ctx.rotate(S2.rot);
+    ctx.beginPath(); roundRect(-S2.w / 2, top, S2.w, roofH, r);
+    ctx.restore();
+    ctx.clip();
+    ctx.save();
+    ctx.translate(S2.x, S2.y); ctx.rotate(S2.rot);
+    ctx.fillStyle = shade(base, 0.30 * shine(nL));
+    ctx.fillRect(-S2.w / 2 - 2, top - 2, S2.w / 2 + 2, roofH + 4);
+    ctx.fillStyle = shade(base, 0.30 * shine([-nL[0], -nL[1]]));
+    ctx.fillRect(0, top - 2, S2.w / 2 + 2, roofH + 4);
+    // the ridge, a thin lit line along the track
+    ctx.strokeStyle = colour ? hexA(shade(colour, 0.52), 0.80) : SHED.ridge;
+    ctx.lineWidth = Math.max(1, cell * 0.024); ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(0, top + cell * 0.07); ctx.lineTo(0, bot - cell * 0.05); ctx.stroke();
+    ctx.restore();
+    ctx.restore();
+
+    /* The eave over the door, and the shadow it drops into the doorway. This
+       is what makes the opening read as UNDER something rather than as a black
+       rectangle lying next to a roof. */
+    ctx.save();
+    ctx.translate(S2.x, S2.y); ctx.rotate(S2.rot);
+    ctx.fillStyle = colour ? shade(colour, 0.30) : SHED.ridge;
+    ctx.beginPath();
+    roundRect(-S2.w / 2, bot - cell * 0.055, S2.w, cell * 0.055, cell * 0.02);
+    ctx.fill();
+    const sg = ctx.createLinearGradient(0, bot, 0, bot + S2.door * 0.75);
+    sg.addColorStop(0, 'rgba(0,0,0,0.62)');
+    sg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = sg;
+    ctx.fillRect(-S2.w / 2, bot, S2.w, S2.door * 0.75);
+    ctx.restore();
+
+    /* drawMark carries its own offset — it steps 2.1 radii AWAY from the face
+       before it draws, which is exactly the roof side of the cell. So the
+       centre of the shed is the right thing to hand it, and the old
+       hand-rolled offset on top of that was putting the chevron in the grass
+       above the building. The badge is placed the same way, off the face and
+       then sideways, so it lands on the roof whichever way the shed points. */
+    const ang = sideAngle(face);
+    if (colour) drawMark(S2.x, S2.y, cell * 0.13, colour, face);
+    if (count > 0) {
+      drawCount(S2.x - Math.cos(ang) * cell * 0.26 + Math.cos(ang + Math.PI / 2) * cell * 0.23,
+                S2.y - Math.sin(ang) * cell * 0.26 + Math.sin(ang + Math.PI / 2) * cell * 0.23,
+                cell * 0.16, count);
+    }
   }
 
   // The second channel. Colour is never the only one.
@@ -1111,8 +1100,12 @@
     }
     ctx.restore();
 
-    for (let i = 0; i < lvl.size; i++) if (lvl.kind[i] === M.ROCK) drawScenery(g, i, lvl);
+    /* Order is the light. Every shadow is laid down first, so no shadow ever
+       falls across the tree standing next to it; then the track; then the
+       foliage over both, because a tree is the tallest thing in the yard. */
+    for (let i = 0; i < lvl.size; i++) if (lvl.kind[i] === M.ROCK) drawSceneryShadow(g, i, lvl);
     for (let i = 0; i < lvl.size; i++) drawTrackCell(g, i, trk[i], now);
+    for (let i = 0; i < lvl.size; i++) if (lvl.kind[i] === M.ROCK) drawScenery(g, i, lvl);
 
     // the stroke under the finger, as chalk
     if (o.ghost && o.ghost.length) {
@@ -1139,32 +1132,42 @@
       ctx.beginPath(); ctx.arc(p.x, p.y, g.cell * (0.30 + 0.14 * (1 - k)), 0, Math.PI * 2); ctx.stroke();
     }
 
-    /* The queue is ON THE BOARD, which is what lets the phone drop the panel
-       entirely: the next engine out of a tunnel sits in its mouth, in its own
-       colour, and a badge appears only when more than one is behind it. The
-       brief asked for the order to be shown at the tunnel mouth, and a shape
-       in the hole is a better answer than a legend somewhere else. */
+    /* THREE PASSES AROUND THE TRAINS, and the order is the whole picture:
+       floors and doorways go down, then every engine — the ones running, the
+       ones parked and the one waiting in each tunnel — and then the roofs over
+       the lot. An engine inside a shed is under its own roof and only the part
+       of it through the door is in the yard.
+
+       The queue is on the board rather than in a legend, which is what lets
+       the phone carry no panel at all: the next engine out of a tunnel stands
+       in its doorway in its own colour, and a badge appears only when there is
+       another behind it. */
+    const shedState = [];
     for (let pi = 0; pi < lvl.portals.length; pi++) {
       const p = lvl.portals[pi];
       const q = rn
         ? rn.trains.filter((t) => t.portal === pi && t.state === 'queued').map((t) => t.colour)
         : p.queue.slice();
-      drawArch(g, p.i, p.face, null, false, q.length > 1 ? q.length : 0);
-      if (q.length) {
-        const c0 = cellCentre(g, p.i);
-        const back = g.cell * 0.10;
-        drawEngine(c0.x - Math.cos(sideAngle(p.face)) * back,
-                   c0.y - Math.sin(sideAngle(p.face)) * back,
-                   sideAngle(p.face), q[0], g.cell * 0.52, { dark: true });
-      }
+      shedState.push({ i: p.i, face: p.face, colour: null, lit: false,
+                       count: q.length > 1 ? q.length : 0, waiting: q[0] });
     }
     for (const d of lvl.depots) {
       const home = rn ? rn.trains.filter((t) => t.state === 'parked' && t.cell === d.i && t.colour === d.colour) : [];
       const lit = home.length > 0 && (!o.litAt || now >= o.litAt(home[0]));
-      drawArch(g, d.i, d.face, ENGINE[d.colour].hi, lit, 0);
+      shedState.push({ i: d.i, face: d.face, colour: ENGINE[d.colour].hi, lit, count: 0 });
     }
+    for (const sh of shedState) drawShedFloor(g, sh.i, sh.face, sh.colour, sh.lit);
 
     if (rn) drawTrains(g, lvl, rn, now);
+    // the engine standing in a tunnel doorway, nose out into the yard
+    for (const sh of shedState) {
+      if (sh.waiting == null) continue;
+      const c0 = cellCentre(g, sh.i), ang = sideAngle(sh.face);
+      const out = g.cell * 0.34;
+      drawEngine(c0.x + Math.cos(ang) * out, c0.y + Math.sin(ang) * out,
+                 ang, sh.waiting, g.cell * 0.56, {});
+    }
+    for (const sh of shedState) drawShedRoof(g, sh.i, sh.face, sh.colour, sh.lit, sh.count);
     ctx.restore();
 
     if (!plain) {
