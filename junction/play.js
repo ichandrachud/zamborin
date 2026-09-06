@@ -1246,17 +1246,14 @@
     ctx.restore();
   }
 
-  /* The signature detail: the lit window paints a faint moving glow onto the
-     rail ahead. The engine carries its own light, and it is the one thing that
-     makes the yard read as night rather than as a diagram. */
-  function drawLamp(x, y, heading, size) {
-    const ax = x + Math.cos(heading) * size * 0.9, ay = y + Math.sin(heading) * size * 0.9;
-    const gl = ctx.createRadialGradient(ax, ay, 0, ax, ay, size * 1.15);
-    gl.addColorStop(0, 'rgba(214,236,255,0.20)');
-    gl.addColorStop(1, 'rgba(214,236,255,0)');
-    ctx.fillStyle = gl;
-    ctx.beginPath(); ctx.arc(ax, ay, size * 1.15, 0, Math.PI * 2); ctx.fill();
-  }
+  /* THE HEADLAMP IS GONE. It threw a radial wash a whole cell wide ahead of
+     every running engine, and it was written for the board this game started
+     on — a dark yard at night, where a moving light was the thing that stopped
+     it reading as a diagram. The ground is grass in daylight now, so the wash
+     had nothing to be a light against: it just fogged the rails and the grass
+     around each train and took the crispness off the one object the eye is
+     meant to follow. The engine carries its own modelling and its own steam,
+     which is enough to say it is running. */
 
   function drawSteam(x, y, size, t) {
     const still = reduced();
@@ -1413,7 +1410,6 @@
       const at = reduced() ? 0.5 : t.prog - back;
       const p = posOn(d, at);
       const heading = headingOn(d, Math.max(0, Math.min(1, at)));
-      if (t.state !== 'parked' && t.state !== 'parking') drawLamp(p.x, p.y, heading, size * 0.8);
       // Steam BEFORE the engine, so the puffs come out from under it rather
       // than sitting on top of the boiler.
       if (t.state === 'moving') drawExhaust(d, t, size, now);
