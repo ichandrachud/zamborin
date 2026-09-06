@@ -25,6 +25,7 @@
   'use strict';
 
   const M = window.JUNCTION_MODEL;
+  const ART_SRC = window.JUNCTION_ART;
   const UI = window.ZAM_UI;
   const { N, E, S, W, opp } = M;
 
@@ -559,7 +560,7 @@
       const c2 = rnd(i, 12 + k * 5), d2 = rnd(i, 13 + k * 5);
       const ox = (spanX[0] + (spanX[1] - spanX[0]) * a) * cell;
       const oy = (spanY[0] + (spanY[1] - spanY[0]) * b2) * cell;
-      const s = cell * (0.62 + c2 * 0.34) * (n > 1 ? 0.74 : 1) * (axis ? 1.12 : 1);
+      const s = cell * (0.58 + c2 * 0.32) * (n > 1 ? 0.74 : 1) * (axis ? 1.0 : 1);
       const seed = i * 31 + k;
       // In a run the thing standing in the cell is what breaks the line, so it
       // is usually a tree, it is bigger than the band, and it sits above it.
@@ -649,7 +650,70 @@
     ctx.ellipse(x, y, rr * 0.90, rr * 0.76, 0, Math.PI * 0.88, Math.PI * 1.70);
     ctx.stroke();
   }
+  /* THE OWNER'S TREES. Three drawn silhouettes rather than three lobes placed
+     by hash, which is a better answer to "not a repeat of the same shape" than
+     any amount of procedural wobble: these were drawn by a person and no two
+     of them are the same tree. Path2D takes the SVG path string directly, so
+     nothing is transcribed by hand and nothing is fetched at runtime.
+
+     They are canopies with no trunk, which is exactly right: the yard is seen
+     from above, and from above a tree is a canopy.
+
+     TONED FOR NIGHT. The exports are daylight greens — #8dc63f is a bright
+     yellow-green — and dropped unchanged onto a #1b273e ground at night they
+     read as stickers rather than as trees in the dark. Each fill is carried
+     toward the ground colour instead, which keeps the owner's hue and the
+     relationship between the two layers while putting them in the same room as
+     everything else. TREE_NIGHT is the one number that decides it, and it is
+     not a taste: 0.32 is the DARKEST toning at which all three crowns still
+     clear 3:1 against the ground. At 0.34 tree2's crown, the darkest of the
+     three at #11af4b, drops to 2.91 and the tree stops having a legible edge.
+     0 is the export exactly as drawn; 1 is invisible. */
+  const TREE_NIGHT = 0.32;
+  const TREE_ART = (ART_SRC ? ART_SRC.TREES : []).map((t) => ({
+    x: t.x, y: t.y, w: t.w, h: t.h,
+    paths: t.paths.map((p) => ({
+      fill: mix(p.fill, '#141F31', TREE_NIGHT),
+      path: (typeof Path2D === 'function') ? new Path2D(p.d) : null,
+    })),
+  }));
+
+  /* THE HEDGE IS THE SAME WOOD AS THE TREES. Its greens used to be picked
+     independently, and once the drawn trees went in at the toning their own
+     contrast demanded, the two sat side by side in visibly different light:
+     vivid trees standing in a dark olive hedge, as though lit at different
+     times of day. So the hedge takes ITS colours from the tree palette, put
+     through the same toning, and the back layer is that darkened. One wood,
+     one lamp, one number to change. */
+  const treeTone = (hex) => mix(hex, '#141F31', TREE_NIGHT);
+  SCEN.leaf = [treeTone('#6cbf5b'), treeTone('#0eaa4c')];
+  SCEN.leafBack = [shade(treeTone('#0eaa4c'), -0.44), shade(treeTone('#009444'), -0.56)];
+
   function drawTree(x, y, s, seed) {
+    if (!TREE_ART.length || !TREE_ART[0].paths[0].path) return drawBush(x, y, s * 0.9, seed);
+    const t = TREE_ART[h32(seed, 9) % TREE_ART.length];
+    const k = s / Math.max(t.w, t.h);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(k, k);
+    ctx.translate(-(t.x + t.w / 2), -(t.y + t.h / 2));
+    /* The moonlit rim, and it is the same trick the stones and the hedge use:
+       the whole silhouette is filled once in the rim colour, shifted five art
+       units up and to the left, and the tree is then painted over it. What is
+       left showing is a crescent on the lit side only — an edge made of value,
+       not an outline, because nothing is stroked and the shadow side has none.
+       The drawn art is flat fills, so without this the trees would be the one
+       thing in the yard with no light on it. */
+    ctx.save();
+    ctx.translate(-5, -5);
+    ctx.fillStyle = SCEN.leafRim;
+    for (const p of t.paths) ctx.fill(p.path);
+    ctx.restore();
+    for (const p of t.paths) { ctx.fillStyle = p.fill; ctx.fill(p.path); }
+    ctx.restore();
+  }
+
+  function drawTreeOld(x, y, s, seed) {
     ctx.save();
     ctx.fillStyle = SCEN.wood[1];
     ctx.fillRect(x - s * 0.045, y - s * 0.02, s * 0.09, s * 0.34);
@@ -807,42 +871,94 @@
      front, and a darker under-band down each flank where the wheels are. No
      outline anywhere. The gradient is built in SCREEN space, not body space,
      so the lamp stays up and to the left however the engine is turned. */
+  /* THE ENGINE, from the owner's drawing. One drawing serves four colours,
+     because the fills in art.js are ROLES rather than values: the boiler and
+     its highlight take the engine's own colour and everything mechanical keeps
+     the greys it was drawn in. An engine that is entirely one colour stops
+     reading as a machine, and an engine with no colour at all stops telling
+     you which shed it belongs to; this splits the difference the way a real
+     livery does.
+
+     The art points DOWN in its own frame, so it is turned by heading - 90 to
+     put the nose along the direction of travel. `size` is the nose-to-tail
+     LENGTH, which is what the caller has always passed. */
+  const ENGINE_PATHS = new Map();
+  function enginePath(d) {
+    if (!ENGINE_PATHS.has(d)) ENGINE_PATHS.set(d, new Path2D(d));
+    return ENGINE_PATHS.get(d);
+  }
   function drawEngine(x, y, heading, colour, size, opts) {
     const o = opts || {};
-    const len = size, wid = size * 0.6;
+    const e = ART_SRC && ART_SRC.ENGINE;
+    const c = ENGINE[colour] || ENGINE[0];
+    if (!e || typeof Path2D !== 'function') return drawEngineBlock(x, y, heading, colour, size, o);
+    const k = size / e.h;
+    const role = {
+      body: c.hi,
+      bodyLit: shade(c.hi, 0.50),
+      plough: shade(c.hi, -0.26),
+      ploughDark: shade(c.hi, -0.46),
+      chassis: '#4E4E4E', frame: '#818181', frameLit: '#ABABAB',
+      /* The cab is a third of the engine's length and full width, and drawn in
+         the grey it was exported in it took a third of the engine away from
+         the ONE signal this game reads by. It is the engine's own colour,
+         darkened, so the livery is unbroken and the value structure the
+         drawing has — dark cab, bright boiler — survives. */
+      cab: shade(c.lo, -0.30),
+      // the cab window, and it is the lamp the engine carries: the same warm
+      // white the glow ahead of it is made of, so the two read as one light.
+      cabLit: o.dark ? 'rgba(214,236,255,0.30)' : ART.win,
+      iron: '#3E3E3E', ironEdge: '#818181', shade: '#2E3690',
+    };
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(heading - Math.PI / 2);
+    ctx.scale(k, k);
+    ctx.translate(-(e.x + e.w / 2), -(e.y + e.h / 2));
+    for (const op of e.ops) {
+      ctx.globalAlpha = op.a == null ? 1 : op.a;
+      ctx.fillStyle = role[op.f] || '#888';
+      if (op.t === 'rect') ctx.fillRect(op.x, op.y, op.w, op.h);
+      else if (op.t === 'poly') {
+        ctx.beginPath();
+        ctx.moveTo(op.p[0], op.p[1]);
+        for (let i = 2; i < op.p.length; i += 2) ctx.lineTo(op.p[i], op.p[i + 1]);
+        ctx.closePath(); ctx.fill();
+      } else if (op.t === 'circle') {
+        ctx.beginPath(); ctx.arc(op.cx, op.cy, op.r, 0, Math.PI * 2); ctx.fill();
+        if (op.s) { ctx.strokeStyle = role[op.s]; ctx.lineWidth = 1 / k; ctx.stroke(); }
+      } else if (op.t === 'path') ctx.fill(enginePath(op.d));
+    }
+    ctx.globalAlpha = 1;
+
+    /* The lamp is up and to the left in SCREEN space, not in the engine's,
+       so the light does not turn with the train. The mass is built under the
+       rotation and then filled after it is undone, which is the only way to
+       get a screen-space gradient onto a rotated shape. */
+    ctx.beginPath();
+    ctx.rect(e.x, 322.92, e.w, 195.46);
+    ctx.restore();
+    const lg = ctx.createLinearGradient(0, y - size * 0.34, 0, y + size * 0.34);
+    lg.addColorStop(0, 'rgba(255,255,255,0.13)');
+    lg.addColorStop(0.55, 'rgba(255,255,255,0)');
+    lg.addColorStop(1, 'rgba(0,0,0,0.20)');
+    ctx.fillStyle = lg; ctx.fill();
+  }
+
+  /* The fallback, for a browser with no Path2D. It is the block engine this
+     game shipped with: plainer, but it is a coloured thing on a rail that
+     points the right way, which is all the game actually requires of it. */
+  function drawEngineBlock(x, y, heading, colour, size, o) {
+    const len = size, wid = size * 0.52;
     const e = ENGINE[colour] || ENGINE[0];
     ctx.save();
-    ctx.save();
     ctx.translate(x, y); ctx.rotate(heading);
-    ctx.beginPath(); roundRect(-len / 2, -wid / 2, len, wid, wid * 0.34);
-    ctx.restore();
-    const gr = ctx.createLinearGradient(0, y - wid * 0.7, 0, y + wid * 0.7);
-    gr.addColorStop(0, shade(e.hi, 0.10));
-    gr.addColorStop(1, e.lo);
-    ctx.fillStyle = gr; ctx.fill();
-
-    ctx.save();
-    ctx.translate(x, y); ctx.rotate(heading);
-    // flanks: the wheels, implied
-    ctx.fillStyle = 'rgba(8,12,20,0.34)';
-    ctx.fillRect(-len * 0.36, -wid / 2, len * 0.72, wid * 0.14);
-    ctx.fillRect(-len * 0.36, wid / 2 - wid * 0.14, len * 0.72, wid * 0.14);
-    // roof band across the middle
-    ctx.fillStyle = hexA(shade(e.hi, 0.26), 0.85);
-    ctx.beginPath(); roundRect(-len * 0.10, -wid * 0.30, len * 0.26, wid * 0.60, wid * 0.14); ctx.fill();
-    // the one lit window, at the front
+    const gr = ctx.createLinearGradient(0, -wid * 0.7, 0, wid * 0.7);
+    gr.addColorStop(0, shade(e.hi, 0.10)); gr.addColorStop(1, e.lo);
+    ctx.fillStyle = gr;
+    ctx.beginPath(); roundRect(-len / 2, -wid / 2, len, wid, wid * 0.32); ctx.fill();
     ctx.fillStyle = o.dark ? 'rgba(214,236,255,0.28)' : ART.win;
     ctx.beginPath(); roundRect(len * 0.20, -wid * 0.22, len * 0.16, wid * 0.44, wid * 0.10); ctx.fill();
-    // the engraved mark
-    ctx.strokeStyle = 'rgba(12,16,26,0.55)'; ctx.fillStyle = 'rgba(12,16,26,0.55)';
-    ctx.lineWidth = Math.max(1, size * 0.055); ctx.lineCap = 'round';
-    const r = size * 0.13, mx = -len * 0.26;
-    if (e.mark === 'dot') { ctx.beginPath(); ctx.arc(mx, 0, r * 0.6, 0, Math.PI * 2); ctx.fill(); }
-    else if (e.mark === 'bar') { ctx.beginPath(); ctx.moveTo(mx, -r * 0.7); ctx.lineTo(mx, r * 0.7); ctx.stroke(); }
-    else if (e.mark === 'chevron') {
-      ctx.beginPath(); ctx.moveTo(mx - r * 0.4, -r * 0.7); ctx.lineTo(mx + r * 0.35, 0); ctx.lineTo(mx - r * 0.4, r * 0.7); ctx.stroke();
-    } else { ctx.beginPath(); ctx.arc(mx, 0, r * 0.6, 0, Math.PI * 2); ctx.stroke(); }
-    ctx.restore();
     ctx.restore();
   }
 
@@ -980,7 +1096,10 @@
   }
 
   function drawTrains(g, lvl, rn, now) {
-    const size = g.cell * 0.68;
+    /* 0.76 rather than the 0.68 a plain block needed. The drawing carries a
+       cab, a cowcatcher and frames, and at cell 41 the old size gave the whole
+       locomotive 28px to say all of that in. */
+    const size = g.cell * 0.76;
     for (const t of rn.trains) {
       if (t.state === 'queued') continue;
       const d = pathFor(g, t);
@@ -1547,6 +1666,13 @@
        card drawn the instant the last engine parks covers every bit of that.
        L.hit.cta is only set while the card is actually drawn, so nothing can
        be pressed through the gap either. */
+    /* Clear the card's hit box before deciding whether to draw one. L.hit is
+       only reset in layout(), so after a card closed its CTA box stayed in the
+       handle and hits().card still reported a card that was not on screen.
+       Nothing could be pressed through it — the input path only consults it in
+       the card phases — but a CHECK cannot tell a covered board from a bare
+       one, and one of them read the win card and called it the yard. */
+    L.hit.cta = null;
     if (phase === 'rules') drawCard('rules', now);
     else if (phase === 'win') {
       const k = (now - winAt - WIN_HOLD) / 400;
