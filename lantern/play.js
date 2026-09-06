@@ -1882,20 +1882,40 @@
     ctx.restore();
   }
 
-  /* THE WEB, as a wedge strung in the crook of two long lines.
+  /* THE WEB, BUILT THE WAY A SPIDER BUILDS ONE.
 
-     Two passes of detail work - sagging spans, free zones, wobble, gaps - and
-     the owner still could not see a difference, because none of it touched the
-     SHAPE. Every web was a complete circle, and almost nothing in the reference
-     art is: a web is built in an angle, hanging off two long frame threads that
-     run well past it, and the silk fills the wedge between them. That is why
-     real ones live in corners.
+     The owner looked at the last version and said clipart, and he is right. Not
+     because of the shape - the wedge in the crook of two lines is his sketch -
+     but because of four things that are what "clipart" MEANS when you look at
+     why a drawing reads as one:
 
-     Which also fixes the density problem. A few long lines and five or six big
-     sagging arcs read as a web; eleven spokes and six concentric rings read as
-     a doily, and no amount of jitter rescues it. Fewer strands, longer spans,
-     deeper sag. The chords between neighbouring radii have to be LONG or the
-     sag has nothing to show. */
+     ONE WEIGHT. Frame, radius and spiral were all drawn at about a pixel and
+     about the same brightness, so the whole thing was a single flat grey mesh.
+     A real web has an obvious hierarchy: the frame is thick and bright, the
+     radii are thinner, and the capture spiral is FINER THAN EITHER - it is the
+     thread that catches light and shows dew, and it is the finest thing there.
+     Weight is most of what separates a photograph from an icon.
+
+     SMOOTH NESTED CURVES. The spiral was a stack of even circular arcs, which
+     is exactly the cartoon idiom - a scallop, a fan, a shell. A real capture
+     spiral is a thread pulled taut from one radius to the next: STRAIGHT
+     between them, sagging a hair under its own weight. That is why real webs
+     look faceted and crystalline rather than drawn with a compass, and it is
+     the single biggest tell here. Straight chords also want more radii than
+     curves do, so the facets stay fine: six to nine, not three.
+
+     NO ANATOMY. An orb web is a dense knot of tight turns at the hub, then a
+     FREE ZONE with nothing in it but radii, then the capture spiral. Drawing an
+     even fill from the middle to the rim skips the two features that say web
+     rather than pattern.
+
+     TOO TIDY. Every arc completed, every one stopping dead on the boundary, one
+     flat alpha end to end. Real silk is ragged at the rim, missing whole runs,
+     and every thread it has is brighter where the light crosses it.
+
+     What has NOT changed is the honest radius: the capture spiral - the mass
+     that reads as danger - never paints past r. Only threads, the anchors and
+     the two bounding spokes, carry on past it, the same way the lattice does. */
   function drawWeb(w) {
     const s = L.scale;
     const hx = wx2s(w.x), hy = wy2s(w.y), r = w.r * s;
@@ -1906,108 +1926,171 @@
     const ink = Math.round(la.r * 0.30 + 218 * 0.70) + ',' +
                 Math.round(la.g * 0.30 + 230 * 0.70) + ',' +
                 Math.round(la.bl * 0.30 + 240 * 0.70);
+    const rgba = (al) => 'rgba(' + ink + ',' + Math.max(0, al).toFixed(3) + ')';
 
-    /* THREE OR FOUR RADII AND TEN ARCS - the ratio was upside down. The old
-       web drew 5 to 7 radii against 5 to 7 arcs, which is a doily: an even mesh
-       with no direction to it. Every web in the sketch is a couple of long
-       spokes carrying a dense stack of nested arcs, and the arcs are the whole
-       reading. Fewer spokes also make each chord much longer, which is what
-       lets the arc between them curve enough to be seen. */
-    const N = 2 + Math.floor(rnd() * 2);          // 2 or 3 gaps, 3 or 4 threads
-    const ang = [], reach = [], wob = [];
+    /* SIX TO NINE RADII, because the spiral is drawn as straight runs between
+       them now. Three radii and a straight chord cuts an enormous corner; nine
+       radii and the same chord is a facet. Spacing is uneven - a spider does
+       not step equal angles - and each one reaches its own distance. */
+    /* DETAIL IN PROPORTION TO THE SPACE THERE IS FOR IT. A twenty-pixel web
+       given nine radii and ten turns of spiral draws them a pixel and a half
+       apart, they merge, and the result is a scribble - the small webs were the
+       ones still reading as clipart after everything else was fixed. Both
+       counts are capped by the room available as well as by the angle. */
+    const N = Math.max(3, Math.min(9, Math.min(Math.round(w.span / 0.30),
+                                               Math.round(r / 6))));
+    const ang = [], reach = [];
     for (let i = 0; i <= N; i++) {
       const t = i / N;
-      ang.push(w.a0 + w.span * t + (i && i < N ? (rnd() - 0.5) * (w.span / N) * 0.45 : 0));
-      // never past r: the drawing may not promise more danger than the rule has
-      reach.push(r * (i === 0 || i === N ? 1.0 : Math.min(1, 0.88 + rnd() * 0.14)));
-      wob.push((rnd() - 0.5) * 0.34);
+      ang.push(w.a0 + w.span * t + (i && i < N ? (rnd() - 0.5) * (w.span / N) * 0.55 : 0));
+      reach.push(i === 0 || i === N ? 1 : 0.90 + rnd() * 0.10);
     }
-    const jx = (i, t) => hx + Math.cos(ang[i] + wob[i] * Math.sin(t * 2.6) * 0.30) * reach[i] * t;
-    const jy = (i, t) => hy + Math.sin(ang[i] + wob[i] * Math.sin(t * 2.6) * 0.30) * reach[i] * t;
+    const px = (i, t) => hx + Math.cos(ang[i]) * r * reach[i] * t;
+    const py = (i, t) => hy + Math.sin(ang[i]) * r * reach[i] * t;
 
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
 
-    /* --- THE TWO BOUNDING SPOKES. The long lines belong to the lattice now
-       --- and are drawn before any web, but a web still has to show its own two
-       --- EDGES or the wedge does not read - with the spokes gone entirely the
-       --- arcs floated as a little scallop shell pinned at a point. So: apex to
-       --- rim at full silk weight, carrying a third of their length past the
-       --- rim so the eye follows them out into the lattice. */
-    ctx.strokeStyle = 'rgba(' + ink + ',' + (0.26 + lit * 0.30).toFixed(3) + ')';
-    ctx.lineWidth = Math.max(0.7, 1.0 * s);
-    ctx.beginPath();
-    for (const i of [0, N]) {
-      ctx.moveTo(hx, hy);
-      ctx.lineTo(hx + Math.cos(ang[i]) * reach[i] * 1.34, hy + Math.sin(ang[i]) * reach[i] * 1.34);
-    }
-    ctx.stroke();
-    /* --- the radii between them. Nearly as strong as the arcs, not a third of
-       --- them: in the sketch the spokes cross every arc and that crossing is
-       --- what makes it read as a woven thing rather than as a contour map. */
-    ctx.strokeStyle = 'rgba(' + ink + ',' + ((0.24 + lit * 0.24) * (1 - torn * 0.5)).toFixed(3) + ')';
-    ctx.lineWidth = Math.max(0.5, 0.8 * s);
+    /* --- 1. THE RADII. Thin, and each one carries a little way past the silk:
+       --- a radius is an anchor thread and an anchor thread goes somewhere. */
+    ctx.strokeStyle = rgba((0.15 + lit * 0.20) * (1 - torn * 0.5));
+    ctx.lineWidth = Math.max(0.45, 0.7 * s);
     ctx.beginPath();
     for (let i = 1; i < N; i++) {
       ctx.moveTo(hx, hy);
-      for (let t = 0.25; t <= 1.0001; t += 0.25) ctx.lineTo(jx(i, t), jy(i, t));
+      ctx.lineTo(px(i, 1.02 + rnd() * 0.16), py(i, 1.02 + rnd() * 0.16));
     }
     ctx.stroke();
 
-    /* --- THE ARCS, and this is the whole look. They bow AWAY from the apex
-       --- now, not toward it: pulling the control point back toward the hub
-       --- made every span sag inward and the result read as a scallop shell or
-       --- a folded fan, which is exactly what the owner was looking at when he
-       --- called them poorly drawn. A web's capture spiral bulges outward.
-       ---
-       --- And the bow is not a constant. For a quadratic through two radii
-       --- half an angle THETA apart, tan(theta) squared is precisely the arc of
-       --- a circle - so it is computed from the actual chord width and the arcs
-       --- land ON the radius rather than inside or outside it. Which also keeps
-       --- the drawing honest: nothing paints past r. */
-    ctx.strokeStyle = 'rgba(' + ink + ',' +
-      (Math.min(0.70, 0.42 + lit * 0.26) * (1 - torn * 0.8)).toFixed(3) + ')';
-    ctx.lineWidth = Math.max(0.8, 1.05 * s);
-    const rings = 9 + Math.floor(rnd() * 4);
-    const half = (w.span / N) / 2;
-    const bow = Math.min(0.85, Math.tan(half) * Math.tan(half));
-    /* EVENLY SPACED RINGS READ AS A FINGERPRINT. A real capture spiral is laid
-       down in one pass by an animal walking it, so the gaps wander - and the
-       drawing has to wander with them or the whole web comes out as a contour
-       map. Widening outward, then knocked about per ring. */
-    const ringT = [];
-    for (let k = 0; k < rings; k++) {
-      const f0 = k / (rings - 1);
-      ringT.push(Math.min(1, (0.17 + 0.83 * (f0 * f0 * 0.5 + f0 * 0.5)) * (0.90 + rnd() * 0.19)));
+    /* --- 2. THE TWO BOUNDING SPOKES, the heaviest thread in the web. The long
+       --- lines belong to the lattice and are drawn before any web, but the
+       --- wedge still has to show its own edges or it does not read as a wedge
+       --- - with them gone entirely the silk floated as a scallop pinned at a
+       --- point. They run a third of their length past the rim so the eye
+       --- follows them out into the lattice. */
+    ctx.strokeStyle = rgba(0.26 + lit * 0.32);
+    ctx.lineWidth = Math.max(0.7, 1.05 * s);
+    ctx.beginPath();
+    for (const i of [0, N]) {
+      ctx.moveTo(hx, hy);
+      ctx.lineTo(px(i, 1.34), py(i, 1.34));
     }
-    for (let k = 0; k < rings; k++) {
+    ctx.stroke();
+
+    /* --- 3. THE HUB: four or five very tight turns right at the crook, where
+       --- the spider sits. Then nothing - the free zone - and then the capture
+       --- spiral starts. Those two features are most of what says web. */
+    const hub = 0.055 + rnd() * 0.03;
+    ctx.strokeStyle = rgba((0.30 + lit * 0.30) * (1 - torn * 0.6));
+    ctx.lineWidth = Math.max(0.4, 0.6 * s);
+    ctx.beginPath();
+    const hubTurns = r > 26 ? 4 : 3;
+    for (let k = 0; k < hubTurns; k++) {
+      const t = hub * (1 + k * 0.62);
+      for (let i = 0; i <= N; i++) {
+        const tt = t * (0.94 + ((i * 7 + k * 3 + (w.seed | 0)) % 5) * 0.03);
+        if (i === 0) ctx.moveTo(px(i, tt), py(i, tt));
+        else ctx.lineTo(px(i, tt), py(i, tt));
+      }
+    }
+    ctx.stroke();
+
+    /* --- 4. THE CAPTURE SPIRAL. Straight runs from radius to radius, sagging
+       --- a few per cent toward the hub the way a thread under its own weight
+       --- does - not the compass arcs that were here, which are what made the
+       --- whole thing read as a fan. Turn spacing widens outward and wanders,
+       --- because an even progression reads as a contour map. It is the FINEST
+       --- thread in the web and the one that answers the light most.
+       ---
+       --- Whole runs are missing, more of them near the rim, and the outermost
+       --- turn or two stop short: no real web is complete, and a boundary every
+       --- thread stops dead on is a cut-out. */
+    const free = 0.30 + rnd() * 0.08;
+    const turns = Math.max(4, Math.min(11, Math.round(r / 4.4) + Math.floor(rnd() * 3) - 1));
+    const sag = 0.055 + rnd() * 0.045;
+    const mid0 = w.a0 + w.span / 2;
+    for (let k = 0; k < turns; k++) {
+      const f = k / (turns - 1);
+      const t = free + (1 - free) * (f * 0.62 + f * f * 0.38) * (0.955 + rnd() * 0.09);
+      if (t > 1) continue;
       if (torn > 0.3 && k % 2 === 1) continue;
-      const t = ringT[k];
+      /* THE LIGHT CROSSES A WEB, it does not fill one. Taking a single reading
+         at the apex lit every thread the same and flattened the whole thing to
+         one grey - which is half of why it read as a printed pattern. Each turn
+         is lit where it actually sits, so a web the flame is passing brightens
+         from the near side outward and the far turns stay in the dark. */
+      const lt = Math.min(1, lightAt(hx + Math.cos(mid0) * r * t,
+                                     hy + Math.sin(mid0) * r * t).b * 1.2);
+      const vary = 0.82 + rnd() * 0.36;
+      const runs = [];
       let drawing = false;
+      ctx.lineWidth = Math.max(0.35, 0.55 * s);
+      ctx.strokeStyle = rgba((0.22 + lt * 0.46) * vary * (1 - torn * 0.8));
       ctx.beginPath();
       for (let i = 0; i < N; i++) {
-        const jitter = 1 + (((i * 7 + k * 5 + (w.seed | 0)) % 7) - 3) * 0.020;
-        const ta = Math.min(1, t * jitter);
-        const tb = Math.min(1, t * (1 + (((i + k) % 5) - 2) * 0.018));
-        if (((i * 3 + k * 7 + (w.seed | 0)) % 7) === 0) { drawing = false; continue; }
-        const ax = jx(i, ta), ay = jy(i, ta);
-        const bx2 = jx(i + 1, tb), by2 = jy(i + 1, tb);
-        if (!drawing) { ctx.moveTo(ax, ay); drawing = true; }
-        const mx = (ax + bx2) / 2, my = (ay + by2) / 2;
-        const sag = bow * (0.90 + ((i + k) % 3) * 0.10);
-        ctx.quadraticCurveTo(mx - (hx - mx) * sag, my - (hy - my) * sag, bx2, by2);
+        // gaps, and more of them out at the edge where a web frays first
+        const hole = ((i * 5 + k * 3 + (w.seed | 0)) % 13) < (f > 0.72 ? 3 : 1);
+        if (hole) { drawing = false; continue; }
+        const ta = t * (0.99 + ((i * 3 + k) % 4) * 0.008);
+        const tb = t * (0.99 + ((i * 3 + k + 2) % 4) * 0.008);
+        const ax = px(i, ta), ay = py(i, ta);
+        const bx = px(i + 1, tb), by = py(i + 1, tb);
+        const opens = !drawing;         // note it BEFORE the moveTo sets it
+        if (opens) { ctx.moveTo(ax, ay); drawing = true; }
+        // a taut thread, pulled a few per cent back toward the crook
+        const mx = (ax + bx) / 2, my = (ay + by) / 2;
+        ctx.quadraticCurveTo(mx + (hx - mx) * sag, my + (hy - my) * sag, bx, by);
+        runs.push([ax, ay, mx + (hx - mx) * sag, my + (hy - my) * sag, bx, by, opens]);
+      }
+      ctx.stroke();
+
+      /* A LIT THREAD BLOOMS. Wet silk with a flame near it is not a hairline -
+         it is a bright core inside a tight feather, which is the house rule for
+         glow everywhere in this fleet and never a wide wash. Only where the
+         light actually reaches, so a dark web costs nothing. */
+      if (lt > 0.16 && !REDUCED) {
+        ctx.lineWidth = Math.max(0.9, 1.9 * s);
+        ctx.strokeStyle = rgba((lt - 0.16) * 0.20 * vary);
+        ctx.beginPath();
+        for (const q of runs) {
+          if (q[6]) ctx.moveTo(q[0], q[1]);
+          ctx.quadraticCurveTo(q[2], q[3], q[4], q[5]);
+        }
+        ctx.stroke();
+      }
+    }
+
+    /* --- 5. LOOSE ENDS. One or two threads torn free and hanging, which is
+       --- the detail that stops a web looking manufactured. Nothing catches on
+       --- them; they are outside the rule as much as a blade of grass is. */
+    if (!REDUCED) {
+      ctx.strokeStyle = rgba(0.14 + lit * 0.22);
+      ctx.lineWidth = Math.max(0.3, 0.5 * s);
+      ctx.beginPath();
+      const ends = 1 + Math.floor(rnd() * 2);
+      for (let e = 0; e < ends; e++) {
+        const i = 1 + Math.floor(rnd() * Math.max(1, N - 1));
+        const t = 0.55 + rnd() * 0.4;
+        const ax = px(i, t), ay = py(i, t);
+        const dr = 0.20 + rnd() * 0.26, da = (rnd() - 0.5) * 1.5;
+        const bx2 = ax + Math.cos(ang[i] + da) * r * dr;
+        const by2 = ay + Math.sin(ang[i] + da) * r * dr;
+        const drift = 0.5 + 0.5 * Math.sin(clock * 0.7 + (w.seed | 0));
+        ctx.moveTo(ax, ay);
+        ctx.quadraticCurveTo((ax + bx2) / 2 + drift * 2 * s, (ay + by2) / 2,
+                             bx2 + drift * 3 * s, by2);
       }
       ctx.stroke();
     }
 
-    // --- glints where threads cross ---
+    // --- 6. glints where threads cross ---
     if (lit > 0.12 && !REDUCED) {
       ctx.fillStyle = 'rgba(255,255,255,' + (lit * 0.34).toFixed(3) + ')';
       for (let i = 1; i < N; i++) {
-        const t = 0.36 + ((i * 41) % 55) / 100;
+        const t = 0.40 + ((i * 41) % 52) / 100;
         const g = 0.5 + 0.5 * Math.sin(clock * 1.7 + i * 2.1 + w.seed);
-        if (g < 0.6) continue;
+        if (g < 0.62) continue;
         ctx.beginPath();
-        ctx.arc(jx(i, t), jy(i, t), Math.max(0.5, 0.9 * s * g), 0, Math.PI * 2);
+        ctx.arc(px(i, t), py(i, t), Math.max(0.5, 0.85 * s * g), 0, Math.PI * 2);
         ctx.fill();
       }
     }
@@ -2019,8 +2102,7 @@
     const heat = w.seat;
     const mid = w.a0 + w.span / 2;
     if (heat > 0.001) {
-      const ax2 = hx + Math.cos(ang[0]) * reach[0] * 1.05;
-      const ay2 = hy + Math.sin(ang[0]) * reach[0] * 1.05;
+      const ax2 = px(0, 1.05), ay2 = py(0, 1.05);
       const tx = wx2s(w.tx), ty = wy2s(w.ty);
       const sx2 = ax2 + (tx - ax2) * heat, sy2 = ay2 + (ty - ay2) * heat;
       drawSpider(sx2, sy2, Math.max(5.6, 14 * s), Math.atan2(ty - ay2, tx - ax2),
@@ -3666,6 +3748,8 @@
                                 y > L.playY && y < L.playY + L.playH;
       return {
         playRect: [L.playX, L.playY, L.playW, L.playH].map((v) => +v.toFixed(0)),
+        // field coords too, because setTouch and the rules speak field units
+        webField: S.webs.map((w) => [Math.round(w.x), Math.round(w.y), Math.round(w.r)]),
         twigs: S.twigs.map((t) => ({
           x: +wx2s(t.x).toFixed(0), y: +wy2s(t.y).toFixed(0),
           lenPx: +(t.len * s).toFixed(0), inFrame: inFrame(wx2s(t.x), wy2s(t.y)),
@@ -3731,10 +3815,14 @@
           const x = ax + (bx - ax) * u, y = ay + (by - ay) * u;
           if (!inside(x, y)) continue;
           let ok = true;
+          /* Clear of the silk, but only just: the window is W wide, so a
+             centre at 1.15r + 0.75W still puts its NEAREST EDGE outside the
+             web. Excluding at 1.45r + W was stricter than honesty needs and
+             left two tiers of the game with no clear line to sample at all. */
           for (const w of S.webs)
-            if (Math.hypot(x - wx2s(w.x), y - wy2s(w.y)) < w.r * s * 1.45 + W) ok = false;
+            if (Math.hypot(x - wx2s(w.x), y - wy2s(w.y)) < w.r * s * 1.15 + W * 0.75) ok = false;
           for (const tw of S.twigs)
-            if (Math.hypot(x - wx2s(tw.x), y - wy2s(tw.y)) < tw.len * s * 2 + W) ok = false;
+            if (Math.hypot(x - wx2s(tw.x), y - wy2s(tw.y)) < tw.len * s * 1.6 + W * 0.6) ok = false;
           // a crossing is two lines: counting it would flatter the line case
           for (const t2 of S.strands) {
             if (t2 === t) continue;
@@ -3761,9 +3849,9 @@
         if (!inside(x, y)) continue;
         let ok = true;
         for (const w of S.webs)
-          if (Math.hypot(x - wx2s(w.x), y - wy2s(w.y)) < w.r * s * 1.5 + W) ok = false;
+          if (Math.hypot(x - wx2s(w.x), y - wy2s(w.y)) < w.r * s * 1.3 + W * 0.8) ok = false;
         for (const tw of S.twigs)
-          if (Math.hypot(x - wx2s(tw.x), y - wy2s(tw.y)) < tw.len * s * 2 + W) ok = false;
+          if (Math.hypot(x - wx2s(tw.x), y - wy2s(tw.y)) < tw.len * s * 1.8 + W * 0.7) ok = false;
         for (const t2 of S.strands)
           if (segD(x, y, wx2s(t2.x0), wy2s(t2.y0), wx2s(t2.x1), wy2s(t2.y1)) < W) ok = false;
         if (ok) pts.push({ kind: 'empty', x, y });
@@ -3829,6 +3917,19 @@
         return v[Math.max(0, Math.min(v.length - 1, Math.round(q * (v.length - 1))))];
       };
       const p90Line = pct(by.line, 0.90), p10Web = pct(by.web, 0.10);
+      /* AND IT SAYS SO WHEN IT CANNOT TELL. At tier nine the webs cover so
+         much of the lattice that every line sample is excluded for being too
+         near silk, and the first version of this divided by the resulting zero
+         and reported a confusable ratio of 135,625 - a confident number about
+         nothing, which is the exact failure this file has been bitten by six
+         times. Fewer than five clear line windows is not a pass. */
+      if (by.line.length < 5) {
+        return { verdict: 'NOT ENOUGH CLEAR LINE TO JUDGE',
+                 lineSamples: by.line.length, webSamples: by.web.length,
+                 note: 'the webs cover the lattice here; judge this level by eye',
+                 nulls: { sameRenderTwice: +nullMax.toFixed(4),
+                          emptyNight: +emptyMax.toFixed(4) } };
+      }
       const densestLine = by.line.reduce((t, v) => Math.max(t, v.frac), 0);
       const sparsestWeb = by.web.reduce((t, v) => Math.min(t, v.frac), 1);
       const linePeak = by.line.reduce((t, v) => Math.max(t, v.peak), 0);
