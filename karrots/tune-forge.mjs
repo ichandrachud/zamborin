@@ -156,11 +156,15 @@ const CAP = 300000;
 const want = Number(process.argv[2] || 40);
 const out = [];
 let tried = 0;
-const r = rng(20260907);
+const r = rng(Number(process.env.KSEED || 20260907));
 console.log('forging on ' + M.C + 'x' + M.R + '…\n');
 console.log(' par  no-fox  delta  naive  branch   states  holes  walls  slats');
 console.log(' ---  ------  -----  -----  ------  -------  -----  -----  -----');
-while (out.length < want && tried < 400) {
+/* The attempt ceiling scales with what is asked for. It was a flat 400, so
+   asking for more boards than that could produce quietly returned the same
+   fifty-one every time - and once par has to survive the animals wandering,
+   most boards are thrown away and a much bigger pool is needed. */
+while (out.length < want && tried < Math.max(400, want * 25)) {
   tried++;
   /* A TIGHT BOARD. Sixteen to twenty-four holes left the opening position
      looking half empty, which the owner called out on 2026-09-07: a sliding
@@ -237,5 +241,5 @@ out.sort((a, b) => a.par - b.par);
 console.log(`\n${out.length} levels forged from ${tried} attempts. ` +
   `The fox changed the answer on ${out.filter(o => o.parDelta > 0 || o.naiveDies).length}.`);
 import { writeFileSync } from 'node:fs';
-writeFileSync('/tmp/karrots-forged.json', JSON.stringify(out, null, 1));
+writeFileSync(process.env.KOUT || '/tmp/karrots-forged.json', JSON.stringify(out, null, 1));
 console.log('written to /tmp/karrots-forged.json');

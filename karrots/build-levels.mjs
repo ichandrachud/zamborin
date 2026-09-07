@@ -57,6 +57,47 @@ function firstLosingSlide(start, budget = 20000) {
  * again from scratch by the unpruned search in this file. */
 const WORLD1 = JSON.parse(readFileSync(new URL('./world1.json', import.meta.url), 'utf8'));
 
+/* PAR HAS TO SURVIVE THE ANIMALS WANDERING.
+ *
+ * They really walk now - a pace step moves the model - so the player can wait
+ * for either of them to be standing somewhere else before making a move. A par
+ * measured with them pinned to their starting square is therefore only an
+ * upper bound, and on the ladder this replaced it was a wild one: six of eight
+ * levels could be beaten, one of them at par 12 in a single slide, because the
+ * whole difficulty was somebody standing in a doorway.
+ *
+ * So the search is run again over states that also carry each animal's POCKET
+ * rather than its square, with every placement tried, and a level whose two
+ * numbers disagree does not ship. */
+const cellsOf = (st, c) => { const r = M.regionFrom(st, c); const out = [];
+  for (let i = 0; i < M.N; i++) if (r[i]) out.push(i); return out; };
+const freeKey = st => String.fromCharCode.apply(null, st.grid) +
+  String.fromCharCode(cellsOf(st, st.bunny)[0]) + String.fromCharCode(cellsOf(st, st.fox)[0]);
+function parWhileTheyWander(st0, useFox, cap = 400000) {
+  if (M.won(st0)) return 0;
+  const seen = new Set([freeKey(st0)]);
+  let frontier = [st0];
+  for (let d = 1; d <= 40; d++) {
+    const next = [];
+    for (const s of frontier) {
+      for (const f of cellsOf(s, s.fox)) for (const b of cellsOf(s, s.bunny)) {
+        if (f === b) continue;
+        const placed = { grid: s.grid, bunny: b, fox: f, carrot: s.carrot };
+        for (const mv of M.slideMoves(placed)) {
+          const ns = M.apply(placed, mv);
+          if (useFox && M.caught(ns)) continue;
+          const k = freeKey(ns); if (seen.has(k)) continue; seen.add(k);
+          if (M.won(ns)) return d;
+          next.push(ns);
+        }
+      }
+    }
+    frontier = next;
+    if (!frontier.length || seen.size > cap) break;
+  }
+  return null;
+}
+
 const out = [];
 let changed = 0;
 console.log('lvl  par  no-fox   delta  naive  branch  fatal    states  holes  1st loss  notes');
@@ -66,17 +107,27 @@ for (const lv of WORLD1) {
   const r = foxChangesTheAnswer(st, { cap: BFS_CAP });
   if (!r.withFox.solved)
     throw new Error(`level ${lv.id} is not solvable within ${BFS_CAP} states — it does not ship`);
-  if (r.changed) changed++;
+  const wander = parWhileTheyWander(st, true);
+  if (wander === null)
+    throw new Error(`level ${lv.id}: the wandering search did not finish — it does not ship`);
+  if (wander !== r.withFox.par)
+    throw new Error(`level ${lv.id}: par is ${r.withFox.par} pinned but ${wander} once they wander. ` +
+      `The level leans on somebody standing in a doorway — it does not ship`);
+  const wanderNoFox = parWhileTheyWander(st, false);
+  /* Judged on the numbers the player actually plays against, not the pinned
+     ones: level 5 is par 8 against a no-fox 8 pinned but 5 once they wander,
+     and the pinned comparison called that "the fox does not matter". */
+  if (wanderNoFox !== null && wander > wanderNoFox) changed++;
   let holes = 0;
   for (let i = 0; i < M.N; i++) if (st.grid[i] === M.HOLE) holes++;
   const firstLoss = firstLosingSlide(st);
   console.log(String(lv.id).padStart(3), String(r.withFox.par).padStart(4),
-    String(r.without.par ?? '—').padStart(7), String(r.parDelta ?? '—').padStart(7),
+    String(wanderNoFox ?? '—').padStart(7), String(wander - wanderNoFox).padStart(7),
     (r.naiveDies ? 'dies' : '—').padStart(6), String(r.withFox.branchPoints).padStart(7),
     String(r.withFox.fatal).padStart(6), String(r.withFox.states).padStart(9),
     String(holes).padStart(6), String(firstLoss === null ? 'none' : firstLoss + ' moves').padStart(9),
     ' ' + lv.note.slice(0, 34));
-  out.push({ ...lv, par: r.withFox.par, noFoxPar: r.without.par, firstLoss,
+  out.push({ ...lv, par: r.withFox.par, noFoxPar: wanderNoFox, firstLoss,
              branchPoints: r.withFox.branchPoints, states: r.withFox.states });
 }
 /* Every level counts now. The "- 1" here dated from the version where level 1

@@ -672,15 +672,42 @@
      would draw them on the slat that has just landed, for 240ms, and the rule
      is that nothing but a slat is ever drawn on a slat. By the time the slide
      lands they are already on the square that is theirs. */
+  /* WHERE THEY STAND IS REAL. It was not, and that is what made the fox
+     impossible to trap: he paced as decoration, the rules kept him on the
+     square he started from, and the moment a slat was picked up he snapped
+     back to it - so the hole you had lined a brick up against was empty and
+     he was somewhere else. Three separate reports of "he can't be trapped"
+     were all this one thing.
+
+     So a step now MOVES him. The model cell is set the instant a step
+     completes, and this function - called whenever a slat is picked up, or
+     the board jumps - puts both of them on the square they are nearest and
+     tells the rules that is where they are. Combined with the freeze, at
+     every moment a slide can happen, the square you see somebody on is the
+     square the slide is refused by. */
+  function setAnimal(who, cell) {
+    st = { grid: st.grid, bunny: who === 'bunny' ? cell : st.bunny,
+           fox: who === 'fox' ? cell : st.fox, carrot: st.carrot };
+  }
+
   function snapPaceHome(now) {
     for (const who of ['bunny', 'fox']) {
-      const home = who === 'bunny' ? st.bunny : st.fox;
-      pace[who] = { at: home, from: home, to: home, t0: now, ms: WANDER.step, path: [], idx: 0 };
+      const w = pace[who];
+      let cell = who === 'bunny' ? st.bunny : st.fox;
+      if (w && w.from !== w.to && st.grid[w.to] === M.HOLE && st.grid[w.from] === M.HOLE) {
+        // mid-stride: finish the half of the step they are nearer to
+        const k = Math.min(1, (now - w.t0) / (w.ms || WANDER.step));
+        cell = k < 0.5 ? w.from : w.to;
+        setAnimal(who, cell);
+      }
+      pace[who] = { at: cell, from: cell, to: cell, t0: now, ms: WANDER.step, path: [], idx: 0 };
     }
   }
 
-  /* The cell of `cell`'s pocket that is furthest from it, and the walk there. */
-  function patrolTo(cell) {
+  /* The cell of `cell`'s pocket that is furthest from it, and the walk there.
+     Now that a step really moves them, the walk has to respect the same
+     squares a slide does: never the carrot, and never each other. */
+  function patrolTo(cell, other) {
     const prev = new Int16Array(M.N).fill(-1), dist = new Int16Array(M.N).fill(-1);
     const q = [cell]; prev[cell] = cell; dist[cell] = 0;
     let far = cell;
@@ -688,7 +715,7 @@
       const i = q.shift();
       if (dist[i] > dist[far]) far = i;
       for (const ni of M.NB4[i]) {
-        if (prev[ni] >= 0 || st.grid[ni] !== M.HOLE || ni === st.carrot) continue;
+        if (prev[ni] >= 0 || st.grid[ni] !== M.HOLE || ni === st.carrot || ni === other) continue;
         prev[ni] = i; dist[ni] = dist[i] + 1; q.push(ni);
       }
     }
@@ -732,9 +759,9 @@
        driving the drawing and a pacing animal walks about behind the card. */
     if (phase !== 'play') return;
     for (const who of ['bunny', 'fox']) {
-      const anchor = who === 'bunny' ? st.bunny : st.fox;
+      const anchor = () => (who === 'bunny' ? st.bunny : st.fox);
       let w = pace[who];
-      if (!w) w = pace[who] = { at: anchor, from: anchor, to: anchor, t0: now,
+      if (!w) w = pace[who] = { at: anchor(), from: anchor(), to: anchor(), t0: now,
                                 ms: WANDER.step, path: [], idx: 0 };
       /* A slat can land on the square they had walked TO: put them back on the
          cell the model has them in and start again from there. Only `to` is
@@ -743,7 +770,8 @@
          it - and testing that as well cancelled the step and popped them to
          the far end of it instead, which is the thing it was there to stop. */
       if (st.grid[w.to] !== M.HOLE) {
-        Object.assign(w, { at: anchor, from: anchor, to: anchor, t0: now, path: [], idx: 0 });
+        const a = anchor();
+        Object.assign(w, { at: a, from: a, to: a, t0: now, path: [], idx: 0 });
         continue;
       }
       const fast = now < fastUntil[who];
@@ -755,10 +783,11 @@
       if (now - w.t0 < stepMs + pause) continue;
 
       w.at = w.to;
+      setAnimal(who, w.to);            // the step is finished: he is really there
       if (w.idx < w.path.length) {                    // keep walking the line
         w.from = w.at; w.to = w.path[w.idx++]; w.t0 = now; continue;
       }
-      const path = patrolTo(w.at);                    // reached the end: turn round
+      const path = patrolTo(w.at, who === 'bunny' ? st.fox : st.bunny);
       if (!path.length) { w.t0 = now; continue; }
       w.path = path; w.idx = 0;
       w.from = w.at; w.to = w.path[w.idx++]; w.t0 = now;

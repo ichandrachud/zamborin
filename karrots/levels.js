@@ -27,53 +27,53 @@
       // searched. The first losing slide of any kind is 1 move in.
     },
     { id: 2, par: 5,
-      rows: ['.aabbddee', 'ghh.ii.jj', 'gkk#.ll..', 'mmnn#Boop', 'qq..Frr.p', 'ss.C.ttuu'],
+      rows: ['...aa.#..', '#bbdd.eeg', 'hhiBjj.kg', '.limFCnko', 'plqmrrn.o', 'p.qssttuu'],
       // par 5 with him on the board and 1 without; the short way round walks her straight into him.
-      // par 5, 1 with the fox rule off. 963 positions on the
-      // way to the answer where one move loses and another does not, out of 3882
+      // par 5, 1 with the fox rule off. 150 positions on the
+      // way to the answer where one move loses and another does not, out of 674
       // searched. The first losing slide of any kind is 0 moves in.
     },
     { id: 3, par: 6,
-      rows: ['a.#.bb#dd', 'a.e..gghh', 'i.ejjkk..', 'illmmBnno', '.pp..qqFo', 'rrssttCuu'],
+      rows: ['.aa.bbdd#', 'egghhii.j', 'ekllBmm.j', '.knFoo...', 'ppnqqCrrs', '#.ttuuvvs'],
       // par 6 with him on the board and 2 without; the short way round walks her straight into him.
-      // par 6, 2 with the fox rule off. 121 positions on the
-      // way to the answer where one move loses and another does not, out of 1836
-      // searched. The first losing slide of any kind is 1 move in.
-    },
-    { id: 4, par: 8,
-      rows: ['aabdd.eeg', '.hbiij#.g', 'khlmmjnno', 'k.lCFpp#o', 'qq.rrBsst', 'uuvv.ww.t'],
-      // par 8 with him on the board and 1 without; the short way round walks her straight into him.
-      // par 8, 1 with the fox rule off. 447 positions on the
-      // way to the answer where one move loses and another does not, out of 4869
+      // par 6, 2 with the fox rule off. 1103 positions on the
+      // way to the answer where one move loses and another does not, out of 2991
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: 5, par: 10,
-      rows: ['..a##.bbd', 'eea.gghhd', 'iiBjjkk..', 'lCmmFnnoo', 'lppqqrr.s', 'ttuuvvwws'],
-      // par 10 with him on the board and 5 without; the short way round walks her straight into him.
-      // par 10, 5 with the fox rule off. 184 positions on the
-      // way to the answer where one move loses and another does not, out of 1535
+    { id: 4, par: 7,
+      rows: ['....aab.#', 'dd.eB.b#g', 'hiiejjFCg', 'hkllmmnno', '.k.ppqq.o', 'rrssttuu.'],
+      // par 7 with him on the board and 2 without; the short way round walks her straight into him.
+      // par 7, 2 with the fox rule off. 304 positions on the
+      // way to the answer where one move loses and another does not, out of 2649
+      // searched. The first losing slide of any kind is 1 move in.
+    },
+    { id: 5, par: 8,
+      rows: ['..a.bbdde', 'ggahh..ie', '.j#kkllim', '.j.nnBoom', 'pp#Fqqrr.', 'ssttuuCvv'],
+      // par 8 with him on the board and 5 without.
+      // par 8, 5 with the fox rule off. 55 positions on the
+      // way to the answer where one move loses and another does not, out of 486
+      // searched. The first losing slide of any kind is 2 moves in.
+    },
+    { id: 6, par: 9,
+      rows: ['.CabbBdd.', '..a.ee..g', 'hiFjjkk.g', 'hi#llm.no', '.ppqqmrno', 'ssttuur.#'],
+      // par 9 with him on the board and 6 without; the short way round walks her straight into him.
+      // par 9, 6 with the fox rule off. 1798 positions on the
+      // way to the answer where one move loses and another does not, out of 52326
       // searched. The first losing slide of any kind is 3 moves in.
     },
-    { id: 6, par: 12,
-      rows: ['aa#CF.bb.', '.dd.eeBg#', 'hiijjkkg.', 'h.llmnnoo', 'pp..mqrrs', 'tt.uuq..s'],
-      // par 12 with him on the board and 1 without; the short way round walks her straight into him.
-      // par 12, 1 with the fox rule off. 2386 positions on the
-      // way to the answer where one move loses and another does not, out of 14578
+    { id: 7, par: 10,
+      rows: ['aa.#.b.dd', 'e.gghbii.', 'e.jjhBkkl', 'mCnnFoo.l', 'mppqqrrss', 'tt#uuvv..'],
+      // par 10 with him on the board and 5 without; the short way round walks her straight into him.
+      // par 10, 5 with the fox rule off. 1316 positions on the
+      // way to the answer where one move loses and another does not, out of 2714
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: 7, par: 15,
-      rows: ['.aabbdd.e', 'gCFh.ijje', 'g..h.i##k', 'll.mm..nk', '.ooBpqqnr', 'ssttp.uur'],
-      // par 15 with him on the board and 1 without; the short way round walks her straight into him.
-      // par 15, 1 with the fox rule off. 50869 positions on the
-      // way to the answer where one move loses and another does not, out of 283619
-      // searched. The first losing slide of any kind is 0 moves in.
-    },
-    { id: 8, par: 19,
-      rows: ['aabbddeeg', 'h#i..jj.g', 'hki..llmm', 'nkoo..pBq', 'nrr#CFp.q', '..ss.ttuu'],
-      // par 19 with him on the board and 2 without; the short way round walks her straight into him.
-      // par 19, 2 with the fox rule off. 17550 positions on the
-      // way to the answer where one move loses and another does not, out of 81769
-      // searched. The first losing slide of any kind is 1 move in.
+    { id: 8, par: 13,
+      rows: ['.aabbBdde', '.#.gghiFe', 'jkkllhiC.', 'jmm#.nnoo', 'pqqrrsstt', 'p...uu.vv'],
+      // par 13 with him on the board and 4 without; the short way round walks her straight into him.
+      // par 13, 4 with the fox rule off. 3324 positions on the
+      // way to the answer where one move loses and another does not, out of 35164
+      // searched. The first losing slide of any kind is 3 moves in.
     }
   ];
   return { LEVELS: LEVELS, WORLD: 'woods' };
