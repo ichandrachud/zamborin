@@ -541,5 +541,29 @@ ok('and it is the structure, not the size — the same holds at 11x11',
    (() => { const big = M.level1(11, 11); const r = tryEverySetting(big, big.solution);
             return r.wins === 1 && r.bestHome === 2; })());
 
+/* ---------- TWO LADDERS, ONE PER BREAKPOINT ----------
+   The house rule, stated by the owner and now enforced here: a phone and a
+   760x600 frame get DIFFERENT GAMES, not one set of boards shoved into
+   whichever frame turned up with decoration filling the gap. These tests exist
+   because the first ladder shipped portrait-only and left the desktop frame
+   two-thirds empty grass. */
+head('the two breakpoints get different boards');
+const port = M.LADDERS.portrait, land = M.LADDERS.landscape;
+ok('there is a portrait ladder', port.length > 0, port.length + ' levels');
+ok('there is a landscape ladder', land.length > 0, land.length + ' levels');
+ok('portrait boards are taller than they are wide',
+   port.every((l) => l.R > l.C), port.map((l) => l.C + 'x' + l.R).join(' '));
+ok('landscape boards are wider than they are tall',
+   land.every((l) => l.C > l.R), land.map((l) => l.C + 'x' + l.R).join(' '));
+/* AND THEY ARE NOT THE SAME PUZZLES TURNED SIDEWAYS. Each ladder is generated
+   from its own range of seeds; turning a board is an isomorphism, so if the
+   landscape set were just the portrait set rotated, every budget would match. */
+const sameBudgets = port.length === land.length &&
+  port.every((l, i) => land[i] && l.budget === land[i].budget &&
+                       l.R === land[i].C && l.C === land[i].R);
+ok('and they are different puzzles, not one set rotated', !sameBudgets,
+   'portrait ' + port.map((l) => l.budget).join(',') +
+   ' vs landscape ' + land.map((l) => l.budget).join(','));
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed\n');
 process.exit(fail ? 1 : 0);

@@ -46,6 +46,33 @@ const h32 = (a, b) => {
 };
 const pick = (seed, k, arr) => arr[h32(seed, k) % arr.length];
 
+/* TURNING A BOARD ON ITS SIDE. Rows become columns and the four sides rotate
+   with them — north is left once the board is laid down, south is right. It is
+   an isomorphism, so a level's certification survives it exactly: the same
+   routes, the same budget, the same single answer.
+
+   This is NOT how the two ladders are made different. Each ladder is generated
+   from its own range of seeds, so the desktop boards are different puzzles
+   rather than the phone's turned sideways — the orientation only decides which
+   way a family of boards is BUILT. */
+const TURN = { 0: 3, 1: 2, 2: 1, 3: 0 };            // N->W, E->S, S->E, W->N
+export function transposeSpec(sp) {
+  return {
+    ...sp, R: sp.C, C: sp.R,
+    rocks: sp.rocks.map(([r, c]) => [c, r]),
+    portals: sp.portals.map((p) => ({ ...p, at: [p.at[1], p.at[0]], face: TURN[p.face] })),
+    depots: sp.depots.map((d) => ({ ...d, at: [d.at[1], d.at[0]], face: TURN[d.face] })),
+    solution: (sp.solution || []).map((g) => [g[1], g[0], TURN[g[2]], TURN[g[3]]]),
+  };
+}
+export function specOf(lvl) {
+  const rocks = [];
+  for (let i = 0; i < lvl.size; i++) if (lvl.kind[i] === M.ROCK) rocks.push([Math.floor(i / lvl.C), i % lvl.C]);
+  return { n: lvl.n, tier: lvl.tier, R: lvl.R, C: lvl.C, rocks,
+    portals: lvl.portals.map((p) => ({ at: [p.r, p.c], face: p.face, queue: p.queue.slice() })),
+    depots: lvl.depots.map((d) => ({ at: [d.r, d.c], face: d.face, colour: d.colour })),
+    budget: lvl.budget, par: lvl.par, solution: (lvl.solution || []).map((g) => g.slice()) };
+}
 export function candidate(seed) {
   const R = pick(seed, 1, [10, 12, 14]);
   const C = pick(seed, 2, [7, 9]);
@@ -137,8 +164,8 @@ export function toSpec(entry, n) {
     seed: entry.seed, decoys: entry.decoys, greedyCost: entry.greedyCost,
   };
 }
-export function emit(specs) {
-  const body = specs.map((sp) => '  ' + JSON.stringify(sp)).join(',\n');
+export function emit(ladders) {
+  const one = (arr) => arr.map((sp) => '    ' + JSON.stringify(sp)).join(',\n');
   return `/* ============================================================
    Junction · the generated levels
    ============================================================
@@ -155,6 +182,10 @@ export function emit(specs) {
    \`decoys\` is how many layouts fit inside the budget and lose. It is the
    closest thing to a difficulty number this game has: the more ways there are
    to spend the rails and be wrong, the harder the board.
+
+   TWO LADDERS, because a phone and a 760x600 frame are not the same game with
+   different margins. They are generated from different seeds, so these are
+   different puzzles and not one set of boards turned sideways.
 */
 (function (root, factory) {
   const api = factory();
@@ -162,40 +193,54 @@ export function emit(specs) {
   else root.JUNCTION_LEVELS = api;
 }(typeof self !== 'undefined' ? self : this, function () {
 'use strict';
-return [
-${body}
-];
+return {
+  portrait: [
+${one(ladders.portrait)}
+  ],
+  landscape: [
+${one(ladders.landscape)}
+  ],
+};
 }));
 `;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
-  const want = parseInt(process.argv[2], 10) || 8;
+export function harvest(want, seedFrom, label) {
   const found = [];
-  const t0 = Date.now();
-  let tried = 0;
-  for (let seed = 1; found.length < want && seed < 4000; seed++) {
+  let seed = seedFrom, tried = 0;
+  while (found.length < want && seed < seedFrom + 4000) {
     const lvl = candidate(seed);
+    seed++;
     if (M.validate(lvl).length) continue;
     tried++;
     const a = assess(lvl);
-    if (!a) continue;
-    if (a.greedyWins) continue;
-    if (a.railLayouts !== 1) continue;
-    found.push({ seed, ...a });
-    console.log('  seed ' + String(seed).padStart(4) + '  ' + a.level.R + 'x' + a.level.C +
-      '  budget ' + String(a.budget).padStart(2) + '  greedy ' + String(a.greedyCost).padStart(2) +
+    if (!a || a.greedyWins || a.railLayouts !== 1) continue;
+    found.push({ seed: seed - 1, ...a });
+    console.log('  [' + label + '] seed ' + String(seed - 1).padStart(5) + '  ' +
+      a.level.R + 'x' + a.level.C + '  budget ' + String(a.budget).padStart(2) +
       '  decoys ' + a.decoys);
   }
-  console.log('\n' + found.length + ' certified levels from ' + tried + ' candidates in ' +
-    ((Date.now() - t0) / 1000).toFixed(0) + 's');
-  if (process.argv.includes('--emit')) {
-    /* ORDERED BY DECOYS: how many affordable layouts lose. A board with 174
-       ways to be wrong comes before one with 70,000. */
-    found.sort((a, b) => a.decoys - b.decoys);
-    const specs = found.map((e, i) => toSpec(e, i + 1));
-    const fs = await import('node:fs');
-    fs.writeFileSync(new URL('./levels.js', import.meta.url), emit(specs));
-    console.log('wrote levels.js with ' + specs.length + ' levels, easiest first');
-  }
+  return { found, tried };
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const want = parseInt(process.argv[2], 10) || 6;
+  const t0 = Date.now();
+  /* TWO LADDERS, FROM TWO SEED RANGES. A phone and a 760x600 frame are not the
+     same game with different margins — they get different boards, generated
+     and certified separately. The landscape family is built upright and then
+     turned on its side, which is an isomorphism and preserves the
+     certification; what makes the two ladders DIFFERENT is that they never
+     draw from the same seeds. */
+  const port = harvest(want, 1, 'portrait');
+  const land = harvest(want, 20000, 'landscape');
+  const portrait = port.found.sort((x, y) => x.decoys - y.decoys).map((e, i) => toSpec(e, i + 1));
+  const landscape = land.found.sort((x, y) => x.decoys - y.decoys)
+    .map((e, i) => transposeSpec(toSpec(e, i + 1)));
+  const fs = await import('node:fs');
+  fs.writeFileSync(new URL('./levels.js', import.meta.url), emit({ portrait, landscape }));
+  console.log('\nportrait ' + portrait.length + ' levels, landscape ' + landscape.length +
+    ' levels, in ' + ((Date.now() - t0) / 1000).toFixed(0) + 's');
+  console.log('portrait shapes :', portrait.map((s) => s.C + 'x' + s.R).join(' '));
+  console.log('landscape shapes:', landscape.map((s) => s.C + 'x' + s.R).join(' '));
 }

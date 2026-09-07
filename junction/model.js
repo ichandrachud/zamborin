@@ -621,12 +621,25 @@ const LEVELS = LEVEL_SPECS.map(buildLevel);
    neither passes the gate. */
 const GENERATED = (function () {
   if (typeof module === 'object' && module.exports) {
-    try { return require('./levels.js'); } catch (_) { return []; }
+    try { return require('./levels.js'); } catch (_) { return { portrait: [], landscape: [] }; }
   }
-  return (typeof self !== 'undefined' && self.JUNCTION_LEVELS) || [];
+  return (typeof self !== 'undefined' && self.JUNCTION_LEVELS) || { portrait: [], landscape: [] };
 }());
-const LADDER = GENERATED.map(buildLevel);
+/* TWO LADDERS, ONE PER BREAKPOINT. A phone and a 760x600 frame get different
+   boards — generated from different seeds and certified separately — rather
+   than one set of levels squeezed into whichever frame turned up. The renderer
+   picks the ladder once, at boot, from the same MODE that picks the layout. */
+const LADDERS = {
+  portrait: (GENERATED.portrait || []).map(buildLevel),
+  landscape: (GENERATED.landscape || []).map(buildLevel),
+};
+let LADDER = LADDERS.portrait.length ? LADDERS.portrait : LADDERS.landscape;
+const useLadder = (kind) => {
+  if (LADDERS[kind] && LADDERS[kind].length) LADDER = LADDERS[kind];
+  return LADDER.length;
+};
 const ladderCount = () => LADDER.length;
+const ladder = () => LADDER;
 /* The hand-authored levels by number, bypassing the ladder. The tests and the
    demos are written against these, and getLevel now answers with the ladder
    first — so asking for "level 1" and meaning the authored one needs saying. */
@@ -935,7 +948,7 @@ return {
   N, E, S, W, DR, DC, opp, EMPTY, ROCK, PORTAL, DEPOT, TUNE, RUN_DT,
   newTrack, cloneTrack, sleepers, segIndex, isJunction, hasSide, trunkOf,
   activeBranch, idleBranch, exitSide, canAddSegment, addSegment, toggleSwitch,
-  eraseCell, buildLevel, padLevel, level1, orderLevel, tightLevel, validate, LEVELS, LEVEL_SPECS, LADDER, ladderCount, authored, nextOnLadder, levelCount, getLevel,
+  eraseCell, buildLevel, padLevel, level1, orderLevel, tightLevel, validate, LEVELS, LEVEL_SPECS, LADDERS, ladder, ladderCount, authored, useLadder, nextOnLadder, levelCount, getLevel,
   rowOf, colOf, sideBetween, neighbour, validateStroke,
   createRun, stepRun, isWon, runToEnd, layout, advance,
 };

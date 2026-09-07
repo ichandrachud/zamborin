@@ -52,6 +52,10 @@
                 (window.innerWidth > 0 && window.innerWidth < 768))
     ? 'mobile' : 'desktop';
   document.body.classList.add('mode-' + MODE);
+  /* THE LADDER IS CHOSEN BY THE SAME BREAKPOINT AS THE LAYOUT, once, at boot.
+     A phone plays the portrait boards and a desktop frame plays the landscape
+     ones; they are different levels, not one set reflowed. */
+  if (M.useLadder) M.useLadder(MODE === 'mobile' ? 'portrait' : 'landscape');
 
   /* Reduced motion, and a way to CHECK it. The media query cannot be flipped
      from a test harness, so a reduced-motion promise is otherwise only ever
