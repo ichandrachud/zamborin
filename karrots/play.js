@@ -92,7 +92,7 @@
     slideMs: 130, hopMs: 170, snapMs: 90,
     lungeMs: 460, holdMs: 420, rewindMs: 300,
     carrot2Mult: 1.35,
-    dragStart: 6,          // px before a drag picks a direction
+    dragStart: 5,          // px ALONG the slat's axis before it starts to follow
     commitFrac: 0.42,      // share of a cell the tile must cross to land
   };
 
@@ -357,6 +357,13 @@
     if (rulesOpen) { dbg.lastDown.why = 'rules card open'; rulesPointerDown(p, e); return; }
     for (const b of ctrl) if (inBox(p, b)) { dbg.lastDown.why = 'control ' + b.id; press(b.id); return; }
     if (phase === 'won') { dbg.lastDown.why = 'win card'; if (inBox(p, winCTA)) nextLevel(); return; }
+    /* A snap or a snapback lasts 90ms, and a press arriving inside it used to
+       be dropped on the floor - so a quick second try after a refused drag did
+       nothing at all. Finish the little animation instead and take the press. */
+    if (anim && (anim.kind === 'snap' || anim.kind === 'snapback')) {
+      const a = anim; anim = null;
+      if (a.kind === 'snap') commit(a.mv);
+    }
     if (phase !== 'play' || anim) { dbg.lastDown.why = 'phase ' + phase + (anim ? ' + anim ' + anim.kind : ''); return; }
 
     const i = geo.cellAt(p.x, p.y);
@@ -370,7 +377,16 @@
        a pointerId it does not know, and with the capture call first that took
        the whole gesture down with it - the tile simply would not move and
        nothing said why. Capture is a nicety; the drag is the point. */
-    drag = { tile: t, x0: p.x, y0: p.y, dx: 0, dy: 0, dir: -1, moved: false };
+    /* Home before anyone touches anything. Whichever cell an animal blocks, it
+       is the cell it is drawn on the instant a slat is picked up. */
+    snapPaceHome(performance.now());
+
+    /* THE AXIS IS THE SLAT'S, NOT THE GESTURE'S. A slat slides along its own
+       length and nowhere else, so there is nothing to infer: a flat one moves
+       across the screen, a standing one up and down, and on a turned phone
+       board those two swap over. Work it out here, once, from the tile. */
+    drag = { tile: t, x0: p.x, y0: p.y, dx: 0, dy: 0, dir: -1, screenDir: -1,
+             axisIsX: (t.horiz !== TURNED), moved: false };
     dbg.downs++;
     try { canvas.setPointerCapture(e.pointerId); } catch (err) { dbg.captureFailed++; }
   });
@@ -380,24 +396,36 @@
     if (!drag) return;
     dbg.moves++;
     const rawX = p.x - drag.x0, rawY = p.y - drag.y0;
-    if (drag.dir < 0) {
-      if (Math.hypot(rawX, rawY) < TUNE.dragStart) return;
-      // The direction is chosen once, by the dominant axis, and then held. A
-      // domino can go four ways, so letting the axis flip mid-drag turns one
-      // gesture into a scrub through three different moves.
-      const screenDir = Math.abs(rawX) > Math.abs(rawY) ? (rawX > 0 ? 1 : 3) : (rawY > 0 ? 2 : 0);
+
+    /* Only the movement ALONG the slat's own axis counts. The previous version
+       picked the axis from whichever way the first six pixels of the gesture
+       happened to go, which on a thumb or a trackpad is noise: start a
+       sideways drag with a little downward wobble and it locked to the
+       vertical, which for a flat slat can never be legal, and the slat then
+       refused to move for the whole of that gesture however far you dragged
+       it. That is the "some tiles don't move" bug, and it was in the gesture
+       and never in the rules. */
+    const along = drag.axisIsX ? rawX : rawY;
+    if (Math.abs(along) < TUNE.dragStart) { drag.dx = drag.dy = 0; return; }
+
+    // Which of the two ways along that axis. It may change mid-gesture: drag
+    // back the other way and the slat follows, which is how every game in this
+    // family behaves.
+    const screenDir = drag.axisIsX ? (along > 0 ? 1 : 3) : (along > 0 ? 2 : 0);
+    if (screenDir !== drag.screenDir) {
       drag.screenDir = screenDir;
       drag.dir = DIR_FROM_SCREEN[screenDir];
       drag.legal = M.slideMoves(st).some(m => m.a === drag.tile.a && m.dir === drag.dir);
-      if (drag.legal) drag.preview = M.apply(st, { type: 'slide', a: drag.tile.a, b: drag.tile.b, dir: drag.dir });
-      else SND.refused();
+      drag.preview = drag.legal
+        ? M.apply(st, { type: 'slide', a: drag.tile.a, b: drag.tile.b, dir: drag.dir })
+        : null;
+      if (!drag.legal) SND.refused();
       drag.moved = true;
     }
-    const sd = M.DIRS[drag.screenDir];
+    const sd = M.DIRS[screenDir];
     // one cell of travel, and no rubber band past it: a slide is exactly one
-    const along = (sd.dx ? rawX * sd.dx : rawY * sd.dy);
-    const limit = drag.legal ? geo.cell : geo.cell * 0.12;    // an illegal slide gives a little and stops
-    const t = Math.max(0, Math.min(limit, along));
+    const limit = drag.legal ? geo.cell : geo.cell * 0.12;   // blocked: gives a little and stops
+    const t = Math.min(limit, Math.abs(along));
     drag.dx = sd.dx * t; drag.dy = sd.dy * t;
   });
 
@@ -454,8 +482,17 @@
      look exactly like winning. */
   /* Idle pacing is SLOW - an animal in a small pocket with nowhere to be. The
      quick pace is reserved for the moment a slide opens their pocket up, when
-     there is somewhere new to go and they go and look at it. */
-  const WANDER = { hold: 1700, walk: 760, fastHold: 260, fastWalk: 300, fastMs: 2200 };
+     there is somewhere new to go and they go and look at it.
+
+     IT IS OUT AND BACK, NEVER A RANDOM WALK, and that is not a style choice.
+     An animal BLOCKS the cell the model has it in - a slat cannot slide over
+     the bunny or the fox - and 16.4% of every refused slide on these eight
+     levels is refused for exactly that reason and nothing else. If they wander
+     off and settle somewhere else, the player is looking at an empty hole and
+     being told no by an animal that appears to be two cells away. So they step
+     out and they come straight back, and they REST on the cell that blocks. */
+  const WANDER = { hold: 1700, awayHold: 200, walk: 760,
+                   fastHold: 260, fastAwayHold: 120, fastWalk: 300, fastMs: 2200 };
   const pace = { bunny: null, fox: null };
   const fastUntil = { bunny: 0, fox: 0 };
   const pocketSize = { bunny: -1, fox: -1 };
@@ -463,6 +500,13 @@
   function regionOf(cell) { return M.regionFrom(st, cell); }
   function sizeOf(cell) { const r = regionOf(cell); let n = 0;
     for (let i = 0; i < M.N; i++) if (r[i]) n++; return n; }
+
+  function snapPaceHome(now) {
+    for (const who of ['bunny', 'fox']) {
+      const home = who === 'bunny' ? st.bunny : st.fox;
+      pace[who] = { home, from: home, to: home, t0: now, ms: WANDER.walk };
+    }
+  }
 
   /* Called after every slide: whoever's pocket just grew gets to hurry. */
   function notePockets(now) {
@@ -482,7 +526,9 @@
       if (!w || w.home !== home) { w = pace[who] = { home, from: home, to: home, t0: now }; }
       const fast = now < fastUntil[who];
       const walkMs = fast ? WANDER.fastWalk : WANDER.walk;
-      const holdMs = fast ? WANDER.fastHold : WANDER.hold;
+      const atHome = (w.to === home);
+      const holdMs = atHome ? (fast ? WANDER.fastHold : WANDER.hold)
+                            : (fast ? WANDER.fastAwayHold : WANDER.awayHold);
       w.ms = walkMs;
       /* A slat can slide into the cell they are VISUALLY standing in - only
          their real cell is protected - and then they are drawn on top of a
@@ -492,11 +538,12 @@
       }
       const el = now - w.t0;
       if (el < walkMs + holdMs) continue;
-      const region = regionOf(w.to);
-      const opts = M.NB4[w.to].filter(i =>
+      if (!atHome) { w.from = w.to; w.to = home; w.t0 = now; continue; }   // straight back
+      const region = regionOf(home);
+      const opts = M.NB4[home].filter(i =>
         region[i] && i !== st.carrot && (who === 'fox' ? i !== st.bunny : i !== st.fox));
       if (!opts.length) { w.t0 = now; continue; }
-      w.from = w.to;
+      w.from = home;
       w.to = opts[(Math.random() * opts.length) | 0];
       w.t0 = now;
     }
