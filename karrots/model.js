@@ -56,7 +56,15 @@
      that cannot be won and no way to see that from the board, which is a
      soft-lock; she is the one being helped and nobody would squash her. The
      switch stays so the two can still be measured against each other. */
-  var allowBurial = true;
+  /* A SLAT NEVER COVERS AN ANIMAL. There was a switch here for a while that
+     let a slide land on the fox and wipe him off the board - the owner asked
+     for cornering and that is what I built, and it was the wrong thing: it put
+     a slat on top of him, which is the one thing the board must never show,
+     and it read as deleting him rather than trapping him. Trapping him means
+     WALLING HIM IN - sealing his pocket of holes so it never touches hers -
+     and he stays on the board the whole time, pacing whatever is left to him.
+     So the fox is protected exactly as she is, and the switch is gone rather
+     than left lying about set to false. */
 
   var NB4 = [], NBD = [];
   (function () {
@@ -195,29 +203,43 @@
     if (na !== a && na !== b && !freeForTile(st, na)) return false;
     if (nb !== a && nb !== b && !freeForTile(st, nb)) return false;
     var filled = (na !== a && na !== b) ? na : nb;        // the one new covered cell
-    var wouldSeal = (filled === st.bunny) || (!allowBurial && filled === st.fox);
-    if (wouldSeal) {
-      var nb2 = NB4[filled], anyHole = false;
-      for (var q = 0; q < nb2.length; q++) if (g[nb2[q]] === HOLE) { anyHole = true; break; }
-      if (!anyHole) return false;                          // nowhere to step: refused
-    }
+    /* The slide is refused outright if whoever is standing there has nowhere
+       to step. Only the cell being covered changes next to them - the cell the
+       tile vacates is two squares away from it, never adjacent - so the grid
+       as it stands answers this correctly. */
+    if (filled === st.bunny && stepAsideFor(st, g, BUNNY) < 0) return false;
+    if (filled === st.fox   && stepAsideFor(st, g, FOX)   < 0) return false;
     return true;
   }
   function freeForTile(st, i) {
     return st.grid[i] === HOLE && i !== st.carrot;
   }
 
-  /* Where an animal steps when a slat takes the cell it was on. Lowest index
-     of the neighbouring holes, so a replay reproduces it exactly.
-     `blocked` is a cell it may not step into - the carrot, for the fox. If
-     that was his only way out he is simply cornered, which is the rule doing
-     its job and not an accident. */
-  function stepAside(grid, from, blocked) {
-    var nb = NB4[from];
-    for (var k = 0; k < nb.length; k++)
-      if (grid[nb[k]] === HOLE && nb[k] !== blocked) return nb[k];
-    return from;
+  /* WHERE AN ANIMAL CAN STEP when a slat takes the cell it is on: the lowest
+     numbered neighbouring hole that is a legal square for it, or -1 if there
+     is none. Lowest index so a replay reproduces it exactly.
+
+     ONE function answers this for both the refusal and the move. canSlide asks
+     "has it anywhere to go" and apply asks "where did it go", and when those
+     were two pieces of code they disagreed: canSlide counted the carrot as a
+     way out for the fox and apply would not put him there, which left him
+     under a slat - buried by a slide the rules had called legal.
+
+     The carrot is closed to him and so is the other animal's square. */
+  function stepAsideFor(st, grid, who) {
+    var from  = (who === FOX) ? st.fox : st.bunny;
+    var other = (who === FOX) ? st.bunny : st.fox;
+    var nb = NB4[from], k, c;
+    for (k = 0; k < nb.length; k++) {
+      c = nb[k];
+      if (grid[c] !== HOLE) continue;
+      if (c === other) continue;
+      if (who === FOX && c === st.carrot) continue;
+      return c;
+    }
+    return -1;
   }
+  var FOX = 'fox', BUNNY = 'bunny';
 
   function slideMoves(st) {
     var out = [], g = st.grid, i, a, b, k;
@@ -251,8 +273,10 @@
       g[na] = horiz ? HL : VT; g[nb] = horiz ? HR : VB;
       var bunny = st.bunny, fox = st.fox;
       // whoever was standing where the slat now is takes a step to the side
-      if (g[bunny] !== HOLE) bunny = stepAside(g, bunny);
-      if (g[fox] !== HOLE) fox = stepAside(g, fox, st.carrot);   // never onto the carrot
+      // Whoever the slat came down on steps aside, to the square canSlide
+      // already checked was there for them.
+      if (g[bunny] !== HOLE) { var nbun = stepAsideFor(st, g, BUNNY); if (nbun >= 0) bunny = nbun; }
+      if (g[fox]   !== HOLE) { var nfox = stepAsideFor(st, g, FOX);   if (nfox >= 0) fox   = nfox; }
       next = { grid: g, bunny: bunny, fox: fox, carrot: st.carrot };
     }
     return next;
@@ -390,9 +414,7 @@
     C: C, R: R, N: N,
     HOLE: HOLE, BRICK: BRICK, HL: HL, HR: HR, VT: VT, VB: VB,
     DIRS: DIRS, rc: rc, idx: idx, inside: inside, NB4: NB4, NBD: NBD,
-    parse: parse, parity: parity, tileAt: tileAt, validate: validate, stepAside: stepAside,
-    setAllowBurial: function (v) { allowBurial = !!v; },
-    getAllowBurial: function () { return allowBurial; },
+    parse: parse, parity: parity, tileAt: tileAt, validate: validate, stepAsideFor: stepAsideFor,
     slideMoves: slideMoves, moves: moves, apply: apply,
     foxRegion: foxRegion, regionFrom: regionFrom, caught: caught, won: won, buried: buried,
     key: key, clone: clone, ascii: ascii

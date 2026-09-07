@@ -188,7 +188,6 @@
   let drag = null;
   let threat = null;              // he is on his way; the board is still live
   let flinch = null;              // who just refused to be squashed, and when
-  let foxGone = null;             // the beat where he is cornered and leaves
   /* Honoured, not decorated around: the edge redraws without the sweep, the
      catch is a cut and a hold, and a tile lands instead of easing. §10. */
   const REDUCED = matchMedia('(prefers-reduced-motion: reduce)');
@@ -213,7 +212,7 @@
     const lv = LEVELS[levelIndex];
     start = M.parse(lv.rows, lv.id, lv.carrotAt ? { carrotAt: lv.carrotAt } : undefined);
     st = M.clone(start);
-    par = lv.par; moves = 0; history = []; phase = 'play'; anim = null; drag = null; threat = null; foxGone = null;
+    par = lv.par; moves = 0; history = []; phase = 'play'; anim = null; drag = null; threat = null;
     snapPaceHome(performance.now());   // drawn where the rules have them, from frame one
     T().levelStart && T().levelStart(levelIndex + 1);
     save();
@@ -330,9 +329,6 @@
       return;
     }
     if (threat) threat = null;                  // that slide closed the path
-    // Cornered: a slat has taken the last hole he had and he is out for good.
-    if (M.buried(st) && !foxGone) { foxGone = { t0: performance.now(), cell: st.fox }; SND.fox(); }
-    if (!M.buried(st)) foxGone = null;          // an undo can put him back
     if (!opts.silent) SND.snap();
     notePockets(performance.now());
 
@@ -409,7 +405,6 @@
        where it says they are: an animal left mid-stride after a rewind is
        drawn on a square the rules no longer agree with. */
     snapPaceHome(performance.now());
-    if (!M.buried(st)) foxGone = null;
     // AN UNDO COSTS A MOVE. House rule from Untangle: a scored counter that
     // does not charge for undo is not counting anything.
     moves = h.moves + 1;
@@ -737,7 +732,6 @@
        driving the drawing and a pacing animal walks about behind the card. */
     if (phase !== 'play') return;
     for (const who of ['bunny', 'fox']) {
-      if (who === 'fox' && M.buried(st)) continue;      // he is not there any more
       const anchor = who === 'bunny' ? st.bunny : st.fox;
       let w = pace[who];
       if (!w) w = pace[who] = { at: anchor, from: anchor, to: anchor, t0: now,
@@ -886,16 +880,15 @@
       if (held && t.a === held.a && t.b === held.b) continue;
       RD.drawTile(ctx, geo, t.a, t.b, world);
     }
-    /* THE CAST GOES UNDER THE SLAT IN HAND, AND IS CUT OUT OF IT ENTIRELY.
+    /* THE CAST IS CUT OUT OF THE SLAT IN HAND.
 
-       A legal slide may land on the fox - that is the player cornering him -
-       so while the slat is dragged across his hole he was drawn sitting on top
-       of it: the owner's "the fox is over the slat, even momentarily". Drawing
-       them before the held tile fixes the ordering, but not the whole of it,
-       because the slat's corners are rounded and he showed through them: 14
-       orange pixels out of 5,183 in the overlap, measured. So the cast is also
-       CLIPPED out of the held tile's footprint, and the number is zero. He is
-       covered as the slat comes across him, which is what is happening. */
+       No slide can land on either of them any more, so this is belt and
+       braces - but the drag itself still crosses their square on the way to
+       being refused, and that used to draw them sitting on top of the slat.
+       Drawing them before the held tile fixed the ordering and not the whole
+       of it, because the slat's corners are rounded and the fox showed through
+       them: 14 orange pixels out of 5,183 in the overlap, measured. Clipping
+       them out of the held tile's footprint makes it zero. */
     let hdx = 0, hdy = 0, hlift = 0;
     if (held) {
       if (drag) { hdx = drag.dx; hdy = drag.dy; hlift = geo.cell * 0.05; }
@@ -985,15 +978,11 @@
                             Math.abs(dx) > Math.abs(dy) && dx < 0);
   }
 
-  /* Cornered, and gone. There USED to be a shrink and a fade here, played on
-     the square that took him - but that square has a slat on it by then, so
-     the send-off was the one thing the board must never show: an animal drawn
-     on a slat. The slide lands and there is no fox. The knock and his yelp
-     carry the moment instead. */
-  function drawFox(now) {
-    if (M.buried(st)) { paintBox.fox = null; return; }
-    drawFoxLive(now);
-  }
+  /* He is always on the board. There was a spell where a slide could land on
+     him and he shrank and faded away, and it was wrong twice over: it drew him
+     on a slat, and it read as deleting him rather than trapping him. Trapping
+     him is walling him in, and a walled-in fox is still standing there. */
+  function drawFox(now) { drawFoxLive(now); }
 
   function drawFoxLive(now) {
     const c = geo.cell;
@@ -1132,11 +1121,14 @@
      scrolls, and the type never shrinks. It carries a LOOPING DEMO because the
      rule cannot be guessed from a still picture: a tile slides, his edge grows
      to touch her hole, and he crosses. */
+  /* The second line used to say "tap a hole beside the bunny to hop her",
+     which stopped being true the day she started going on her own, and the
+     card went on saying it for several rounds. */
   const RULES = [
-    'Drag a brick along its own length, one square into a hole. A brick lying flat goes left and right; a standing one goes up and down.',
-    'Tap a hole beside the bunny to hop her. Reach the carrot.',
-    'Watch where the fox paces. Those are the holes he can already reach.',
-    'Open a gap that joins his holes to hers and he comes through it.',
+    'Drag a brick along its own length. It goes as far as the holes let it, and every square it travels costs a move.',
+    'The bunny goes on her own: the moment a line of holes joins her to the carrot, she runs it.',
+    'Watch where the fox paces. Those are the holes he can already reach, and no brick will ever squash him.',
+    'Join his holes to hers and he comes through. Wall him in instead and he can do nothing.',
   ];
   let rulesGeom = null;
   function rulesBox() {

@@ -130,15 +130,16 @@
          bloom/ or kaleido/ for the shape and the length. -->
     <section class="game-info">
       <h1>Karrots: open a path, just not for him</h1>
-      <p>Karrots is a sliding puzzle with something living in the empty space. A bunny stands in a hole in a tray of bricks, her carrot is in another hole somewhere across the board, and you open a path between them by pushing bricks one square at a time. Every brick you move leaves a hole behind it. So does the next one. That is how she gets across.</p>
+      <p>Karrots is a sliding puzzle with something living in the empty space. A bunny stands in a hole in a tray of bricks, her carrot is in another hole somewhere across the board, and you open a path between them by sliding bricks along their own length. Every brick you move leaves a hole behind it. So does the next one. That is how she gets across.</p>
       <p>The fox stands in a hole too, and he paces the ones he can reach, which is how you see how far his reach goes. Open a gap that joins his holes to hers and the two of them are in the same space, which is the end of the level. Making room is the whole game and making room is also the risk.</p>
 
       <h2>How to play</h2>
-      <p>Two moves, and each of them costs one.</p>
+      <p>One move, and it is the only thing you do.</p>
       <ul>
-        <li><strong>Drag a brick</strong> one square along its own length. A brick lying flat slides left and right; a standing one slides up and down. It only moves if the square it moves into is empty, and it leaves a hole where it was.</li>
-        <li><strong>Tap a hole beside the bunny</strong> to hop her into it. She will not step onto a brick, and she will not walk towards the fox.</li>
+        <li><strong>Drag a brick</strong> along its own length. A brick lying flat slides left and right; a standing one slides up and down. It travels as far as the empty squares let it, it leaves a hole behind it, and every square it travels costs you a move.</li>
+        <li><strong>The bunny goes on her own.</strong> The moment a line of holes joins her to the carrot she runs it, so the whole game is opening that line without opening one to him.</li>
         <li><strong>Watch where the fox paces.</strong> He walks back and forth across every hole he can already reach, so his territory shows itself. Anything he can walk to, he can walk to.</li>
+        <li><strong>No brick will squash him.</strong> A brick will not slide onto the fox any more than it will onto the bunny; if there is somebody in the square, it does not move. You beat him by <em>walling him in</em> — closing his holes until the ones he has left touch nothing of yours.</li>
         <li><strong>Grey walls never move</strong> and the carrot's square is reserved: no brick can slide over it, and the only one who may ever stand on it is the bunny.</li>
         <li><strong>The goal</strong> is the carrot. Reach it in as few moves as you can: three carrots for matching par, two for close, one for finishing.</li>
         <li><strong>Undo and Restart</strong> are always available and Restart is instant. An undo costs you a move, because a move count that does not charge for undo is not counting anything.</li>
@@ -147,7 +148,7 @@
 
       <h2>Why it is clever</h2>
       <p>Every other game of this kind asks you to open space and rewards you for opening more of it. Here the space is shared. The corridor that gets the bunny to her carrot in nine moves is often the same corridor that connects the fox to her hole, and the route that keeps her safe costs you moves against par. That is the decision the game is made of, and it is why a board can be easy to solve and hard to solve well.</p>
-      <p>Nothing is hidden and nothing is random. The fox only ever moves through a hole you opened, and the outline showing his reach is on screen before you let go of the brick. Every level in the game was solved by an exhaustive search before it shipped, and par is the length of the shortest solution that search found, so it is a number that can actually be matched.</p>
+      <p>Nothing is hidden and nothing is random. The fox only ever moves through a hole you opened, and he shows you his reach himself by walking it. Every level in the game was solved by an exhaustive search before it shipped, and par is the length of the shortest solution that search found, so it is a number that can actually be matched.</p>
 
       <h2>Tips</h2>
       <ul>
@@ -189,10 +190,10 @@
   <script src="../shared/analytics.js?v=3"></script>
   <script src="../shared/embed.js?v=1"></script>
   <script defer src="../shared/ads.js?v=2"></script>
-  <script src="./model.js?v=7"></script>
+  <script src="./model.js?v=8"></script>
   <script src="./render.js?v=7"></script>
-  <script src="./levels.js?v=6"></script>
-  <script src="./play.js?v=29"></script>
+  <script src="./levels.js?v=7"></script>
+  <script src="./play.js?v=31"></script>
   <script>
     (() => {
       const btn = document.getElementById('focus-toggle');
