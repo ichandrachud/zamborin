@@ -292,6 +292,73 @@ function spec1(R, C, gapCol, rake) {
 }
 function level1(R, C, gapCol, rake) { return buildLevel(spec1(R, C, gapCol, rake)); }
 
+/* ============================================================
+   THE ORDERING BOARD — a demo of a different kind of difficulty
+   ============================================================
+
+   Built to answer one question: is "who goes first, and what does that cost in
+   track" the game we want? Every level before this is solved by routing each
+   engine its own shortest way, so the trains never have to be thought about
+   together. This one cannot be.
+
+   The wall sits DEAD CENTRE — an even rank count — so both engines are the
+   same distance from the single gap. They arrive on the same tick from
+   opposite ends, meet inside the three-cell spine, and lock. No switch setting
+   fixes it; the switches are not the problem.
+
+   The cure is to make one route LONGER so the other clears first, and the only
+   way to lengthen a route on a rectangle is to DOUBLE BACK — every monotone
+   path from A to B is exactly the same length, which is why three earlier
+   attempts at a "detour" cost nothing at all. Doubling back on the two rows
+   below the approach costs 2d + 2 sleepers and buys the same delay.
+
+   MEASURED at five board sizes: the cheapest layout locks and the smallest
+   detour — two extra sleepers — wins, every time. The budget is set to exactly
+   that, so there is no slack to waste and the player has to find the cheap
+   delay rather than any delay.
+
+   The detour rows need room: R must be at least w + 5. */
+function orderSpec(R, C, detour) {
+  const g = 3, w = Math.floor(R / 2), east = C - 2;
+  const d = detour == null ? 1 : detour;
+  const rocks = [];
+  for (let c = 0; c < C; c++) if (c !== g) rocks.push([w, c]);
+  const side = (a, b) => (b[0] === a[0] - 1 ? N : b[0] === a[0] + 1 ? S
+                        : b[1] === a[1] + 1 ? E : b[1] === a[1] - 1 ? W : -1);
+  const walk = (pts) => { const out = [pts[0].slice()];
+    for (let k = 1; k < pts.length; k++) {
+      let [r, c] = out[out.length - 1]; const [tr, tc] = pts[k];
+      while (r !== tr) { r += Math.sign(tr - r); out.push([r, c]); }
+      while (c !== tc) { c += Math.sign(tc - c); out.push([r, c]); }
+    } return out; };
+  const segsOf = (pts) => { const cs = walk(pts), out = [];
+    for (let k = 1; k < cs.length - 1; k++) {
+      const a = side(cs[k], cs[k - 1]), b = side(cs[k], cs[k + 1]);
+      if (a < 0 || b < 0 || a === b) return null;
+      out.push([cs[k][0], cs[k][1], a, b]);
+    } return out; };
+  const coral = segsOf([[0, g], [w + 1, g], [w + 1, east], [R - 1, east]]);
+  const teal = segsOf(d > 0
+    ? [[R - 1, 1], [w + 3, 1], [w + 3, 1 + d], [w + 2, 1 + d], [w + 2, 1],
+       [w + 1, 1], [w + 1, g], [w - 1, g], [w - 1, east], [0, east]]
+    : [[R - 1, 1], [w + 1, 1], [w + 1, g], [w - 1, g], [w - 1, east], [0, east]]);
+  if (!coral || !teal) return null;
+  return { n: 92, tier: 7, R, C, rocks,
+    portals: [{ at: [0, g], face: S, queue: [0] },
+              { at: [R - 1, 1], face: N, queue: [2] }],
+    depots: [{ at: [0, east], face: S, colour: 2 },
+             { at: [R - 1, east], face: N, colour: 0 }],
+    budget: 0, par: 0, solution: coral.concat(teal) };
+}
+function orderLevel(R, C, detour) {
+  const spec = orderSpec(R, C, detour);
+  if (!spec) return null;
+  // par is COUNTED from the solution, and the budget is exactly par: the
+  // cheapest delay that works is the only one you can afford.
+  const cost = sleepers(layout(buildLevel({ ...spec, budget: 999 }), spec.solution));
+  return buildLevel({ ...spec, budget: cost, par: cost });
+}
+
 function buildLevel(spec) {
   const R = spec.R, C = spec.C, size = R * C;
   const kind = new Array(size).fill(EMPTY);
@@ -776,7 +843,7 @@ return {
   N, E, S, W, DR, DC, opp, EMPTY, ROCK, PORTAL, DEPOT, TUNE, RUN_DT,
   newTrack, cloneTrack, sleepers, segIndex, isJunction, hasSide, trunkOf,
   activeBranch, idleBranch, exitSide, canAddSegment, addSegment, toggleSwitch,
-  eraseCell, buildLevel, padLevel, level1, validate, LEVELS, LEVEL_SPECS, levelCount, getLevel,
+  eraseCell, buildLevel, padLevel, level1, orderLevel, validate, LEVELS, LEVEL_SPECS, levelCount, getLevel,
   rowOf, colOf, sideBetween, neighbour, validateStroke,
   createRun, stepRun, isWon, runToEnd, layout, advance,
 };

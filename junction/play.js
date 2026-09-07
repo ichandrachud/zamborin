@@ -2789,7 +2789,13 @@
   resizeCanvas();
   const params = new URLSearchParams(location.search);
   const jump = parseInt(params.get('level'), 10);
-  if (jump) core = level = M.getLevel(jump);
+  /* ?level=92 is the ORDERING DEMO, not a shipped level: a board whose
+     cheapest layout deadlocks, where winning means buying one engine a lead
+     with two extra sleepers and the budget affords exactly that. It keeps the
+     shape it was authored at rather than following the breakpoint, because
+     the detour needs rows the desktop frame does not have. */
+  if (jump === 92) core = level = M.orderLevel(12, 9);
+  else if (jump) core = level = M.getLevel(jump);
   layout();
   if (save.seen && !params.get('rules')) phase = 'play';
   window.addEventListener('resize', onResize);

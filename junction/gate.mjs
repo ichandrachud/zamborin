@@ -137,6 +137,7 @@ export function gate(lvl, label) {
 
 if (import.meta.url === 'file://' + process.argv[1]) {
   const rows = [
+    gate(M.orderLevel(12, 9), 'THE ORDERING DEMO 12x9'),
     gate(M.getLevel(1), 'level 1, authored 7x7'),
     gate(M.level1(7, 11), 'level 1 at 7x11, a phone'),
     gate(M.level1(9, 7), 'level 1 at 9x7, the desktop frame'),
