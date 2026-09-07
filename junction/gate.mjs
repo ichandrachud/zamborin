@@ -87,6 +87,26 @@
    never leave one shed, because they would share rails in the same direction
    and the law forbids their ever separating.
 
+   AND MORE TRAINS DO NOT HELP EITHER. The last candidate was three engines and
+   two corridors with the middle one in both, so that a single delay would have
+   to serve two constraints at once. Measured: the winning delays are a
+   half-line again. Every apparent ceiling in three separate experiments turned
+   out to be the DETOUR breaking its own track — trains coming back "stopped"
+   with zero meetings, which is a severed route and not a deadlock. Check the
+   states before believing a ceiling.
+
+   THE REASON IS THE WAITING RULE, and it is structural. A deadlock needs both
+   engines INSIDE a corridor at once; every other timing is resolved by one of
+   them waiting. So a corridor forbids a narrow BAND of arrivals and nothing
+   above it, being later than every band is always safe, and no arrangement of
+   trains can change that.
+
+   WHICH LEAVES ONLY A RULE CHANGE, and only one candidate stands up: a second
+   budget measured in TIME. Time is the one cost that does not reset when a
+   train leaves the board — rails are spent once, waiting is free, and trains
+   depart — so a time limit is the only thing that can make arriving late
+   wrong. Unmeasured, and it would put a clock on a calm game.
+
    WHAT THIS MEANS FOR THE LADDER. Every level this game can hold asks the same
    question — find the cheapest sufficient delay — with the budget as the only
    ceiling. That is a good question, and it is one question. A short ladder of
