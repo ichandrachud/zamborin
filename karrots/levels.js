@@ -20,59 +20,59 @@
   'use strict';
   var LEVELS = [
     { id: 1, par: 4,
-      rows: ['..aabbdde', 'gghh.iije', 'kklmmnnjo', 'ppl.qq.#o', 'rrs#Btt..', 'uusCvvFww'],
+      rows: ['aaBbb.dd.', 'egg..Chhi', 'e.jFkk#li', '..jmnool.', '.ppmnqrrs', '.ttuuq#.s'],
       // the slide that opens the way to the carrot is the one that opens it to him.
-      // par 4, 3 with the fox rule off. 18 positions on the
-      // way to the answer where one move loses and another does not, out of 247
-      // searched. The first losing slide of any kind is 1 move in.
+      // par 4, 1 with the fox rule off. 56 positions on the
+      // way to the answer where one move loses and another does not, out of 310
+      // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: 2, par: 4,
-      rows: ['Baa..bb#.', 'degg.hii.', 'dejj.hklm', 'n.Coopklm', 'nFqq#pr..', 'ss.tt.ruu'],
+    { id: 2, par: 5,
+      rows: ['aa.bbddee', 'g.hhiijj.', 'gkk#.ll..', 'mmnn#Boop', '.qq..rr.p', 'ssFC.ttuu'],
       // the walls make one of the two routes a dead end. Work out which before you move.
-      // par 4, 4 with the fox rule off. 2 positions on the
-      // way to the answer where one move loses and another does not, out of 893
-      // searched. The first losing slide of any kind is 3 moves in.
+      // par 5, 1 with the fox rule off. 822 positions on the
+      // way to the answer where one move loses and another does not, out of 3898
+      // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: 3, par: 5,
-      rows: ['aab.ddee.', 'g.bhhiijj', 'gkk..llmm', 'nooppFCqq', 'n#rrsstt.', '#.uuvvBww'],
+    { id: 3, par: 6,
+      rows: ['.aa.bbBdd', 'eeghhFii.', 'jjg#..Ckk', '.llmmnoo.', 'pqq.#nrrs', 'p.tt.uu.s'],
       // his corridor crosses the route; watch which end of it he is at.
-      // par 5, 1 with the fox rule off. 167 positions on the
-      // way to the answer where one move loses and another does not, out of 331
+      // par 6, 1 with the fox rule off. 3211 positions on the
+      // way to the answer where one move loses and another does not, out of 9910
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: 4, par: 7,
-      rows: ['.aabbdd..', 'ee.Cgghhi', 'jjFkkl..i', 'mBnn.l.o.', 'mppqq.#or', '#ssttuu.r'],
+    { id: 4, par: 8,
+      rows: ['Baa..bb#.', 'dF.eeg.hh', 'di.jjgklm', 'niCoopklm', 'n.qq#pr..', 'ss.tt.ruu'],
       // the way through is not the way it looks.
-      // par 7, 1 with the fox rule off. 3345 positions on the
-      // way to the answer where one move loses and another does not, out of 15375
+      // par 8, 1 with the fox rule off. 16024 positions on the
+      // way to the answer where one move loses and another does not, out of 51031
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: 5, par: 9,
-      rows: ['aaCF.bb.d', 'ee.gghhid', '...jkB#il', '#mmjknool', 'ppqq.nrr.', 'ss..ttuu.'],
-      // the route has to be built from the far side of the walls.
-      // par 9, 2 with the fox rule off. 4231 positions on the
-      // way to the answer where one move loses and another does not, out of 34096
-      // searched. The first losing slide of any kind is 1 move in.
-    },
-    { id: 6, par: 10,
+    { id: 5, par: 10,
       rows: ['...aabbdd', 'eeghhii.j', 'kkgllm..j', '#nnFCm.oo', 'pqqrss.tt', 'p.#rBuu..'],
-      // his reach is longer than it looks from where he is standing.
+      // the route has to be built from the far side of the walls.
       // par 10, 1 with the fox rule off. 3295 positions on the
       // way to the answer where one move loses and another does not, out of 9390
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: 7, par: 13,
-      rows: ['aabb.dd.e', 'gghhi..#e', 'j...i.kkl', 'jmmn.Cool', 'pB.nFqq.r', 'psstt#uur'],
+    { id: 6, par: 12,
+      rows: ['aaCFbb.de', 'gg.hhiide', '...jBk#.l', '#mmjnkool', 'ppqqnrr..', '.ss.ttuu.'],
+      // his reach is longer than it looks from where he is standing.
+      // par 12, 2 with the fox rule off. 8649 positions on the
+      // way to the answer where one move loses and another does not, out of 39610
+      // searched. The first losing slide of any kind is 1 move in.
+    },
+    { id: 7, par: 15,
+      rows: ['.aab.ddee', '#ggbhhiij', 'kk..l..Cj', '.mnnlFoop', '.mqq.rr.p', 'ss.ttB#uu'],
       // the long one: ignoring him entirely would take a fraction of the moves.
-      // par 13, 1 with the fox rule off. 4175 positions on the
-      // way to the answer where one move loses and another does not, out of 13912
+      // par 15, 1 with the fox rule off. 15217 positions on the
+      // way to the answer where one move loses and another does not, out of 32293
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: 8, par: 17,
-      rows: ['aa#CF.bb.', '.dd.eeBg#', 'hiijjkkg.', 'h.llmnnoo', 'pp..mqrrs', 'tt.uuq..s'],
+    { id: 8, par: 16,
+      rows: ['aa.bbddee', 'gghhi.jjk', 'B.l.i.mmk', 'nnlCFoopp', 'q#.#rrsst', 'quu.vvwwt'],
       // the wall. Every slide near the middle is one he is waiting for.
-      // par 17, 1 with the fox rule off. 12030 positions on the
-      // way to the answer where one move loses and another does not, out of 199216
+      // par 16, 1 with the fox rule off. 2152 positions on the
+      // way to the answer where one move loses and another does not, out of 5136
       // searched. The first losing slide of any kind is 0 moves in.
     }
   ];

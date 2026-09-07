@@ -143,6 +143,7 @@
   let drag = null;
   let threat = null;              // he is on his way; the board is still live
   let flinch = null;              // who just refused to be squashed, and when
+  let foxGone = null;             // the beat where he is cornered and leaves
   /* Honoured, not decorated around: the edge redraws without the sweep, the
      catch is a cut and a hold, and a tile lands instead of easing. §10. */
   const REDUCED = matchMedia('(prefers-reduced-motion: reduce)');
@@ -167,7 +168,7 @@
     const lv = LEVELS[levelIndex];
     start = M.parse(lv.rows, lv.id, lv.carrotAt ? { carrotAt: lv.carrotAt } : undefined);
     st = M.clone(start);
-    par = lv.par; moves = 0; history = []; phase = 'play'; anim = null; drag = null; threat = null;
+    par = lv.par; moves = 0; history = []; phase = 'play'; anim = null; drag = null; threat = null; foxGone = null;
     T().levelStart && T().levelStart(levelIndex + 1);
     save();
   }
@@ -271,6 +272,9 @@
       return;
     }
     if (threat) threat = null;                  // that slide closed the path
+    // Cornered: a slat has taken the last hole he had and he is out for good.
+    if (M.buried(st) && !foxGone) { foxGone = { t0: performance.now(), cell: st.fox }; SND.fox(); }
+    if (!M.buried(st)) foxGone = null;          // an undo can put him back
     if (!opts.silent) SND.snap();
     notePockets(performance.now());
 
@@ -338,6 +342,7 @@
     if (threat) threat = null;
     const h = history.pop();
     st = h.state;
+    if (!M.buried(st)) foxGone = null;
     // AN UNDO COSTS A MOVE. House rule from Untangle: a scored counter that
     // does not charge for undo is not counting anything.
     moves = h.moves + 1;
@@ -575,6 +580,7 @@
   function stepPace(now) {
     if (!st || REDUCED.matches) return;
     for (const who of ['bunny', 'fox']) {
+      if (who === 'fox' && M.buried(st)) continue;      // he is not there any more
       const anchor = who === 'bunny' ? st.bunny : st.fox;
       let w = pace[who];
       if (!w) w = pace[who] = { at: anchor, from: anchor, to: anchor, t0: now,
@@ -785,7 +791,29 @@
     sprite(frame, x + c / 2, y + c * 0.90, c * 0.76, Math.abs(dx) > Math.abs(dy) && dx < 0);
   }
 
+  /* Cornered, and leaving. A short shrink and fade on the square that took
+     him, then nothing: the board simply has no fox on it. */
+  const GONE_MS = 460;
   function drawFox(now) {
+    if (M.buried(st)) {
+      if (!foxGone) return;                             // already gone, long since
+      const k = (now - foxGone.t0) / GONE_MS;
+      if (k >= 1) return;
+      const p = geo.at(foxGone.cell), c = geo.cell;
+      ctx.save();
+      ctx.globalAlpha = 1 - k;
+      const sc = 1 - k * 0.45;
+      ctx.translate(p.x + c / 2, p.y + c * 0.9);
+      ctx.scale(sc, sc);
+      ctx.translate(-(p.x + c / 2), -(p.y + c * 0.9));
+      sprite('fox-still', p.x + c / 2, p.y + c * 0.9, c * 0.8, false);
+      ctx.restore();
+      return;
+    }
+    drawFoxLive(now);
+  }
+
+  function drawFoxLive(now) {
     const c = geo.cell;
     let x, y, frame = 'fox-still', flip = false;
     if (threat || (anim && anim.kind === 'catch')) {

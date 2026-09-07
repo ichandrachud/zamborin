@@ -47,11 +47,16 @@
      rc() returns a fresh object every call, so the readable form of this loop
      is most of the solver's running time. NB4[i] holds i's orthogonal
      neighbours; NBD[i][k] is the neighbour in direction k, or -1. */
-  /* Whether a slat may be pushed onto an animal's last hole and seal it in.
-     OFF is the shipped rule. It is a switch rather than a constant because the
-     question "what would letting the player corner the fox do to par" can only
-     be answered by solving the same levels both ways. */
-  var allowBurial = false;
+  /* CORNERING THE FOX IS ALLOWED. Push a slat onto the last hole he has and he
+     is out of the game for good. The owner's call of 2026-09-07, and the
+     numbers behind it: solving all eight levels both ways, six were untouched
+     because the geometry rarely permits it, so it is a situational tactic
+     rather than a dominant one.
+     IT APPLIES TO HIM AND NOT TO HER. Sealing the bunny in would leave a level
+     that cannot be won and no way to see that from the board, which is a
+     soft-lock; she is the one being helped and nobody would squash her. The
+     switch stays so the two can still be measured against each other. */
+  var allowBurial = true;
 
   var NB4 = [], NBD = [];
   (function () {
@@ -190,7 +195,8 @@
     if (na !== a && na !== b && !freeForTile(st, na)) return false;
     if (nb !== a && nb !== b && !freeForTile(st, nb)) return false;
     var filled = (na !== a && na !== b) ? na : nb;        // the one new covered cell
-    if (!allowBurial && (filled === st.bunny || filled === st.fox)) {
+    var wouldSeal = (filled === st.bunny) || (!allowBurial && filled === st.fox);
+    if (wouldSeal) {
       var nb2 = NB4[filled], anyHole = false;
       for (var q = 0; q < nb2.length; q++) if (g[nb2[q]] === HOLE) { anyHole = true; break; }
       if (!anyHole) return false;                          // nowhere to step: refused
@@ -272,7 +278,14 @@
      every time, so it gets its own flood fill over ONE reused scratch buffer
      that stops the moment it touches her. */
   var _mark = new Uint8Array(N), _stack = new Int16Array(N), _epoch = 0;
+  /* A cornered fox is out of the game. His cell is under a slat, he cannot be
+     anywhere, and he never catches anyone again. Without this the flood fill
+     would start from the covered cell and still spill into the holes beside
+     it, which is a fox who has been sealed in and is somehow still hunting. */
+  function buried(st) { return st.grid[st.fox] !== HOLE; }
+
   function caught(st) {
+    if (buried(st)) return false;
     _epoch++;
     if (_epoch > 250) { _mark = new Uint8Array(N); _epoch = 1; }   // wrap before 255
     var top = 0, i, nb, k, ni, g = st.grid, bunny = st.bunny;
@@ -320,7 +333,9 @@
   function validate(st, where) {
     var w = where ? ' in ' + where : '';
     if (st.grid[st.bunny] !== HOLE) throw new Error('the bunny is not standing in a hole' + w);
-    if (st.grid[st.fox] !== HOLE) throw new Error('the fox is not standing in a hole' + w);
+    // A buried fox is legal now - that is the player cornering him - but he
+    // may only be buried on a cell a slat is actually covering.
+    if (st.grid[st.fox] === BRICK) throw new Error('the fox is inside an immovable block' + w);
     if (st.grid[st.carrot] !== HOLE) throw new Error('the carrot is not in a hole' + w);
     if (st.bunny === st.fox) throw new Error('the bunny and the fox share a cell' + w);
     if (!parity(st.grid).ok) throw new Error('blocked cells do not split evenly by colour' + w);
@@ -370,7 +385,7 @@
     setAllowBurial: function (v) { allowBurial = !!v; },
     getAllowBurial: function () { return allowBurial; },
     slideMoves: slideMoves, moves: moves, apply: apply,
-    foxRegion: foxRegion, regionFrom: regionFrom, caught: caught, won: won,
+    foxRegion: foxRegion, regionFrom: regionFrom, caught: caught, won: won, buried: buried,
     key: key, clone: clone, ascii: ascii
   };
 });

@@ -194,6 +194,7 @@ while (out.length < want && tried < 400) {
     const sc = (rr2.parDelta > 0 ? 1000 + rr2.parDelta * 100 : 0) +
                (rr2.naiveDies ? 500 : 0) + Math.min(400, rr2.withFox.branchPoints);
     M.validate(cand);   // never ship a position the parser would refuse
+    if (M.buried(cand)) continue;   // a level may not START with him cornered
     if (sc > score) { score = sc; st = cand; res = rr2; }
   }
   if (!st) continue;
