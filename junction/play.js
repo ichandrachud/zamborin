@@ -1464,6 +1464,28 @@
     }
     for (const sh of shedState) drawShedFloor(g, sh.i, sh.face, sh.colour, sh.lit);
 
+    /* AND THE ROLLING STOCK IS MASKED TO THE BOARD — not to the field, which
+       is not tight enough. A carriage still inside its shed sits near the back
+       wall, and it is three quarters of a cell long, so it hangs a fifth of a
+       cell past the closed end. On a shed in the top rank that is over the
+       board edge and out onto the grass; before this it was over the control
+       band and the Restart button with it.
+
+       The board is the yard, so the yard is where a train may be drawn. What
+       is inside a shed is then hidden by the roof, which goes on after. */
+    ctx.save();
+    ctx.beginPath();
+    /* INSET BY THE SHED'S OWN OVERHANG. A shed box is 0.90 of a cell, centred,
+       so it leaves a twentieth of a cell of bare ground at its closed end —
+       and that is the exact strip a carriage waiting inside was showing
+       through, above the roof, as a coral sliver. Clipping to the board alone
+       stopped it leaving the yard; clipping to the board LESS that overhang
+       stops it showing at all. It costs nothing anywhere else: the only track
+       on the outermost rank is a shed. */
+    const inset = g.cell * 0.05;
+    ctx.rect(g.ox + inset, g.oy + inset,
+             g.C * g.cell - inset * 2, g.R * g.cell - inset * 2);
+    ctx.clip();
     if (rn) drawTrains(g, lvl, rn, now);
     // the engine standing in a shed doorway, nose out into the yard
     for (const sh of shedState) {
@@ -1474,6 +1496,7 @@
                  ang, sh.waiting, g.cell * 0.56, {});
     }
     for (const sh of shedState) drawShedRoof(g, sh.i, sh.face, sh.colour, sh.lit, sh.count);
+    ctx.restore();
     ctx.restore();
 
   }
@@ -1491,13 +1514,20 @@
       const e = tr[k];
       const out = e.outSide >= 0 ? e.outSide : opp(e.inSide);
       const dd = pathOf(g, e.cell, e.inSide, out);
-      if (rem <= prog || k === 0) {
+      if (rem <= prog) {
         const tt = prog - rem;
         return { p: posOn(dd, tt), h: headingOn(dd, Math.max(0, Math.min(1, tt))),
                  cell: e.cell, t: tt };
       }
       rem -= prog; k--; prog = 1;
     }
+    /* PAST THE START OF THE TRAIL IS STILL IN THE SHED. The walk used to give
+       up at the first cell and return a NEGATIVE position anyway, which posOn
+       obligingly carried straight on — so a train that had only just been
+       dispatched drew its whole rake backwards out of the shed it was leaving,
+       across the grass, off the board and over the control band. A carriage
+       that has not been laid down on any track yet has not come out yet; it
+       appears at the door as the train pulls it into the world. */
     return null;
   }
 
