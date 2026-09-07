@@ -78,10 +78,10 @@ function board(nHoles, rnd, tries = 400) {
 
 const med = a => { if (!a.length) return null; const s = a.slice().sort((x, y) => x - y); return s[s.length >> 1]; };
 
-const CAP = 300000, PER = 14;
+const CAP = 250000, PER = 12;
 console.log('holes  tiles  solved  median par   median states   fox changed   uncapped');
 console.log('-----  -----  ------  ----------   -------------   -----------   --------');
-for (const h of [8, 10, 12, 14, 16, 18, 20, 22]) {
+for (const h of [14, 16, 18, 20, 22, 24, 26, 28, 30]) {
   const rnd = rng(20260906 + h);
   const pars = [], states = []; let solved = 0, changed = 0, capped = 0, made = 0;
   for (let n = 0; n < PER; n++) {
@@ -95,7 +95,7 @@ for (const h of [8, 10, 12, 14, 16, 18, 20, 22]) {
     solved++; pars.push(w.par); states.push(w.states);
     if (o.solved && w.par > o.par) changed++;
   }
-  console.log(String(h).padStart(5), String((36 - h) / 2).padStart(6),
+  console.log(String(h).padStart(5), String((M.N - h) / 2).padStart(6),
     String(solved + '/' + made).padStart(8), String(med(pars) ?? '—').padStart(11),
     String(med(states) ?? '—').padStart(16), String(changed).padStart(13),
     String(made - capped).padStart(11));

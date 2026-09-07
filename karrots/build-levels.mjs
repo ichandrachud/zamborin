@@ -16,7 +16,7 @@
  * Writes karrots/levels.js.
  */
 import { createRequire } from 'node:module';
-import { writeFileSync } from 'node:fs';
+import { writeFileSync, readFileSync } from 'node:fs';
 const require = createRequire(import.meta.url);
 const M = require('./model.js');
 import { solve, foxChangesTheAnswer, BFS_CAP } from './solve.mjs';
@@ -50,65 +50,12 @@ function firstLosingSlide(start, budget = 20000) {
   return null;
 }
 
-const WORLD1 = [
-  { id: 1, note: 'slide, then hop. The carrot starts under a brick, so the first move a player ever makes is the one the game is named for. Nothing on this board can lose.',
-    carrotAt: [2, 2],
-    rows: ['aabbc.',
-           'dde.cf',
-           '.Be.gf',
-           'hh.ig.',
-           'jjki.l',
-           'F.kmml'] },
-  { id: 2, note: 'he is on her row, two squares past the carrot, with one brick holding him in. Moving that brick is the first losing move in the game.',
-    rows: ['a.bbcc',
-           'addeff',
-           'BgCeF.',
-           'hgiijj',
-           'h.kkll',
-           'mm.nn.'] },
-  { id: 3, note: 'three squares and two bricks. A breather: the search says there is no losing move here at all.',
-    rows: ['a..bcc',
-           'addbe.',
-           'BffCeF',
-           'ghhiij',
-           'g.kllj',
-           'mmk.nn'] },
-  { id: 4, note: 'he moves off her row and underneath it, and the danger stops being at the end of the trip and starts being in the middle of it.',
-    rows: ['a..bbc',
-           'adde.c',
-           'BffeCg',
-           'hhFijg',
-           'kl.ijm',
-           'klnn.m'] },
-  { id: 5, note: 'his pocket is against the middle of the route. Ignoring him costs seven moves.',
-    rows: ['abbcc.',
-           'a.ddee',
-           'BffCgh',
-           'ijF.gh',
-           'ijkk.l',
-           '.mmnnl'] },
-  { id: 6, note: 'he is above the route now, so the safe side of him is not the side it looks like.',
-    rows: ['a.bbcc',
-           'adF.ee',
-           'BdfgCh',
-           'i.fgjh',
-           'ikklj.',
-           'mm.lnn'] },
-  { id: 7, note: 'corner to corner with him in the middle of the board, and a lane down the left that is the fast way to nothing.',
-    rows: ['a.b.cc',
-           'adbeef',
-           'BdgFhf',
-           'iigjhk',
-           '.lljmk',
-           '..nnmC'] },
-  { id: 8, note: 'the wall. The longest trip in the world, and the route turns a corner right past him.',
-    rows: ['aab.cc',
-           '.dbeef',
-           'Bdgghf',
-           'iiF.hj',
-           'k.llCj',
-           'kmmnn.'] },
-];
+/* World 1, forged by tune-forge.mjs and copied here so the shipped file is a
+ * plain list a person can read and edit. Every one is solvable BY
+ * CONSTRUCTION - each was built by walking backwards from the position where
+ * the bunny is already on her carrot - and every par below is then measured
+ * again from scratch by the unpruned search in this file. */
+const WORLD1 = JSON.parse(readFileSync(new URL('./world1.json', import.meta.url), 'utf8'));
 
 const out = [];
 let changed = 0;
@@ -139,7 +86,7 @@ const body = out.map(lv =>
   `    { id: ${lv.id}, par: ${lv.par}` +
   (lv.carrotAt ? `, carrotAt: [${lv.carrotAt}]` : '') +
   `,\n      rows: [${lv.rows.map(r => `'${r}'`).join(', ')}],\n` +
-  `      // ${lv.note}\n` +
+  (lv.note ? `      // ${lv.note}\n` : '') +
   `      // par ${lv.par}, ${lv.noFoxPar} with the fox rule off. ${lv.branchPoints} positions on the\n` +
   `      // way to the answer where one move loses and another does not, out of ${lv.states}\n` +
   `      // searched. The first losing slide of any kind is ` +

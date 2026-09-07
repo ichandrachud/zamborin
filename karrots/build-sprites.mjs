@@ -43,7 +43,9 @@ export const CAST = {
   'fox-still':   'new/fox still.svg',
   'fox-walk-1':  'new/fox walk 1.svg',
   'fox-walk-2':  'new/fox walk 2.svg',
-  'carrot':      'cop-carrot.svg',
+  // The owner redrew this on 2026-09-07. The old one was a crop out of a
+  // sprite sheet: a viewBox that cut the leaves off and a drop shadow baked in.
+  'carrot':      'carrot-2026-09-07.svg',
   'brick':       'new/brick wall.svg',
 };
 

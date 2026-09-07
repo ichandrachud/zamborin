@@ -1,0 +1,98 @@
+[
+ {
+  "id": 1,
+  "rows": [
+   "a#..bbdd.",
+   "aee.#.#gg",
+   "hhFii#.jj",
+   "Bkk..#llm",
+   "n.o#pp..m",
+   "nCoqqrr.."
+  ],
+  "note": "a short trip along her own row. One slat has to move before she can start, and only one slat can."
+ },
+ {
+  "id": 2,
+  "rows": [
+   "aaC.#bb#d",
+   "egg.hhi#d",
+   "ejj..Bi#k",
+   ".llmm#nok",
+   "...pF.no.",
+   "qq#p.rrss"
+  ],
+  "note": "the same distance through a tighter board, so the order matters."
+ },
+ {
+  "id": 3,
+  "rows": [
+   "C.#aa.b#d",
+   "ee..g#b#d",
+   "h.iig.#jj",
+   "hBkl##mm#",
+   "Fnkl.oo.#",
+   "#nppqqrr."
+  ],
+  "note": "the route bends, and the slat that opens it is the one holding him in."
+ },
+ {
+  "id": 4,
+  "rows": [
+   "C...aa.bb",
+   ".d#e.ggh#",
+   "idFeBjjh.",
+   "ik#.llmm.",
+   "nkoop..##",
+   "nqq#prrss"
+  ],
+  "note": "the first board with real branching: seven hundred positions on the way where one move loses and another does not."
+ },
+ {
+  "id": 5,
+  "rows": [
+   "..#..aa.C",
+   ".bb...#dd",
+   "e##gh.iiF",
+   "e##gh.jj.",
+   "kk#lBmmnn",
+   ".ool#ppqq"
+  ],
+  "note": "ten walls, and the way through is not the way it looks."
+ },
+ {
+  "id": 6,
+  "rows": [
+   "..#aabbdd",
+   ".eegghh..",
+   "iijj..Bkk",
+   "lF.mm.#nn",
+   "l#..opqqr",
+   "ssC#op##r"
+  ],
+  "note": "the route crosses in front of him twice."
+ },
+ {
+  "id": 7,
+  "rows": [
+   "#..#.#.C#",
+   "..aab..#d",
+   "#ee.bggFd",
+   "hhiijjBkl",
+   "mmnn.ookl",
+   ".#pp#..qq"
+  ],
+  "note": "the long one. Twenty-four moves, and reading him wrong costs eighteen of them: the only board in world 1 where he moves the answer itself."
+ },
+ {
+  "id": 8,
+  "rows": [
+   "abb.dd#ee",
+   "a.#gB#hhi",
+   "#.Fgjj.Ci",
+   "kk##llmm.",
+   ".nnoopp.q",
+   "...rr.ssq"
+  ],
+  "note": "the wall. Twenty-five moves and three and a half thousand places to get it wrong."
+ }
+]

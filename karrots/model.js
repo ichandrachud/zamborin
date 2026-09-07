@@ -25,7 +25,14 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  var C = 6, R = 6, N = C * R;
+  /* NINE WIDE, SIX TALL. The desktop frame is 760x600 landscape and the house
+     rule for a landscape grid is `rows + (rows <= 6 ? 2 : 3)`, which puts a
+     six-row board at nine columns exactly. 54 cells is also exactly the mobile
+     touch budget. A phone plays the SAME levels TRANSPOSED - six wide, nine
+     tall - which is a domino board either way and has an identical par,
+     because a transposed sliding puzzle is the same puzzle. The model only
+     ever knows the landscape orientation; the renderer does the turning. */
+  var C = 9, R = 6, N = C * R;
 
   /* A cell holds exactly one of these. A tile is stored as its two halves so
      the grid alone answers "what is at this cell" without a lookup table. */
@@ -103,15 +110,12 @@
 
     if (bunny < 0) throw new Error('no bunny' + where);
     if (fox < 0) throw new Error('no fox' + where);
-    /* The carrot may start UNDER a tile - §4.2 says the goal is not reserved,
-       and a level whose first move is "slide the brick off the carrot" is the
-       shortest honest way to teach both verbs at once. It cannot be written in
-       the grid, because a cell already spells out which tile covers it, so it
-       comes in beside the rows. */
-    if (opts.carrotAt) {
-      carrot = idx(opts.carrotAt[0], opts.carrotAt[1]);
-      if (grid[carrot] === BRICK) throw new Error('the carrot is under an immovable brick' + where);
-    }
+    /* THE CARROT SQUARE IS RESERVED. Nothing slides over it and nothing else
+       ever stands on it; the bunny arriving there is the win. The earlier rule
+       let a tile sit on top of it, which made a two-move opening level
+       possible, and it is gone: a goal you can bury is a goal that can be
+       hidden, and this one has to be visible from the first frame. */
+    if (opts.carrotAt) throw new Error('carrotAt is gone: the goal square is reserved' + where);
     if (carrot < 0) throw new Error('no carrot' + where);
     if (bunny === carrot) throw new Error('bunny starts on the carrot' + where);
 
@@ -149,17 +153,28 @@
     }
   }
 
-  /* A tile slides one cell in any of the four directions, and only if every
-     cell it moves into is an empty hole. The bunny and the fox are standing in
-     holes and a brick does not slide over an animal, so their cells do not
-     count as empty. The carrot does: a tile may pass over the goal freely, and
-     reserving it would take half the tension out of the last two moves. */
+  /* A TILE SLIDES ALONG ITS OWN AXIS AND NOTHING ELSE. A horizontal domino
+     goes left and right; a vertical one goes up and down. That is the rule the
+     whole sliding-block family runs on and it is what the 2014 game did: a
+     brick that can also be shoved sideways is a different, looser game, and it
+     was the wrong reading of §4.2.
+       Directions are 0 up, 1 right, 2 down, 3 left, so the axis test is simply
+     whether the direction is odd (horizontal) and the tile is too.
+       The cell it moves into must be an empty hole. The bunny and the fox
+     stand in holes and a brick does not slide over an animal. NOR OVER THE
+     CARROT: the goal square is reserved, and the only thing that may ever
+     share it is the bunny. */
   function canSlide(st, a, b, k) {
-    var g = st.grid, na = NBD[a][k], nb = NBD[b][k];
+    var g = st.grid, horiz = (g[a] === HL);
+    if (horiz !== ((k & 1) === 1)) return false;          // off-axis: refused
+    var na = NBD[a][k], nb = NBD[b][k];
     if (na < 0 || nb < 0) return false;
-    if (na !== a && na !== b && (g[na] !== HOLE || na === st.bunny || na === st.fox)) return false;
-    if (nb !== a && nb !== b && (g[nb] !== HOLE || nb === st.bunny || nb === st.fox)) return false;
+    if (na !== a && na !== b && !freeForTile(st, na)) return false;
+    if (nb !== a && nb !== b && !freeForTile(st, nb)) return false;
     return true;
+  }
+  function freeForTile(st, i) {
+    return st.grid[i] === HOLE && i !== st.bunny && i !== st.fox && i !== st.carrot;
   }
 
   function slideMoves(st) {
@@ -241,6 +256,23 @@
   }
   function won(st) { return st.bunny === st.carrot; }
 
+  /* Everything that must be true of a position, said out loud. A GENERATOR can
+     produce a state no parse would ever accept - a fox standing on a slat, say
+     - and nothing here complains: foxRegion starts from wherever he is, and
+     canSlide keeps tiles off his cell either way. So he sits on a domino,
+     unable to reach anything, and the level looks fine right up until
+     something tries to write it down and finds half a tile missing. That is
+     exactly what happened on 2026-09-07. */
+  function validate(st, where) {
+    var w = where ? ' in ' + where : '';
+    if (st.grid[st.bunny] !== HOLE) throw new Error('the bunny is not standing in a hole' + w);
+    if (st.grid[st.fox] !== HOLE) throw new Error('the fox is not standing in a hole' + w);
+    if (st.grid[st.carrot] !== HOLE) throw new Error('the carrot is not in a hole' + w);
+    if (st.bunny === st.fox) throw new Error('the bunny and the fox share a cell' + w);
+    if (!parity(st.grid).ok) throw new Error('blocked cells do not split evenly by colour' + w);
+    return true;
+  }
+
   /* The key a search dedupes on. Bricks, the fox and the carrot never move, so
      the grid plus the bunny is the whole of the changing state. Tiles are
      deliberately NOT labelled: two boards that differ only in which identical
@@ -279,7 +311,7 @@
     C: C, R: R, N: N,
     HOLE: HOLE, BRICK: BRICK, HL: HL, HR: HR, VT: VT, VB: VB,
     DIRS: DIRS, rc: rc, idx: idx, inside: inside, NB4: NB4, NBD: NBD,
-    parse: parse, parity: parity, tileAt: tileAt,
+    parse: parse, parity: parity, tileAt: tileAt, validate: validate,
     slideMoves: slideMoves, hopMoves: hopMoves, moves: moves, apply: apply,
     foxRegion: foxRegion, caught: caught, won: won,
     key: key, clone: clone, ascii: ascii

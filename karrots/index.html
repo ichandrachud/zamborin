@@ -22,7 +22,7 @@
   <meta property="og:image" content="https://zamborin.com/images/karrots-og.jpg" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
-  <meta property="og:image:alt" content="A grid of studded green bricks with dark holes between them, a white bunny, a carrot, and a fox standing inside a bright coral outline" />
+  <meta property="og:image:alt" content="A grid of studded green bricks with dark holes between them, a white bunny, a carrot, and and a fox pacing the dark holes he can reach" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Karrots — Open a path, just not for him" />
   <meta name="twitter:description" content="Slide the bricks to open a path for the bunny to her carrot. The fox lives in the same holes you are opening, and the moment your gap touches his, he comes through it." />
@@ -33,7 +33,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../shared/tokens.css?v=1" />
   <link rel="stylesheet" href="../shared/chrome.css?v=20" />
-  <link rel="stylesheet" href="./play.css?v=1" />
+  <link rel="stylesheet" href="./play.css?v=2" />
   <!-- Google AdSense. The site earns from these pages; keep both lines. -->
   <meta name="google-adsense-account" content="ca-pub-9207689324865969">
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9207689324865969" crossorigin="anonymous"></script>
@@ -131,14 +131,15 @@
     <section class="game-info">
       <h1>Karrots: open a path, just not for him</h1>
       <p>Karrots is a sliding puzzle with something living in the empty space. A bunny stands in a hole in a tray of bricks, her carrot is in another hole somewhere across the board, and you open a path between them by pushing bricks one square at a time. Every brick you move leaves a hole behind it. So does the next one. That is how she gets across.</p>
-      <p>The fox stands in a hole too. A coral outline is drawn around every hole he can already reach, and it is redrawn the instant a brick lands. Open a gap that touches that outline and the two of you are sharing the same space, which is the end of the level. Making room is the whole game and making room is also the risk.</p>
+      <p>The fox stands in a hole too, and he paces the ones he can reach, which is how you see how far his reach goes. Open a gap that joins his holes to hers and the two of them are in the same space, which is the end of the level. Making room is the whole game and making room is also the risk.</p>
 
       <h2>How to play</h2>
       <p>Two moves, and each of them costs one.</p>
       <ul>
-        <li><strong>Drag a brick</strong> one square into a hole beside it. It can go up, down, left or right, as long as every square it moves into is empty. It leaves holes where it was.</li>
+        <li><strong>Drag a brick</strong> one square along its own length. A brick lying flat slides left and right; a standing one slides up and down. It only moves if the square it moves into is empty, and it leaves a hole where it was.</li>
         <li><strong>Tap a hole beside the bunny</strong> to hop her into it. She will not step onto a brick, and she will not walk towards the fox.</li>
-        <li><strong>The coral edge</strong> is everywhere the fox can reach right now. It is never hidden and it is not a hint. Watch what your next slide does to it.</li>
+        <li><strong>Watch where the fox paces.</strong> He walks back and forth across every hole he can already reach, so his territory shows itself. Anything he can walk to, he can walk to.</li>
+        <li><strong>Grey walls never move</strong> and the carrot's square is reserved: no brick can slide over it, and the only one who may ever stand on it is the bunny.</li>
         <li><strong>The goal</strong> is the carrot. Reach it in as few moves as you can: three carrots for matching par, two for close, one for finishing.</li>
         <li><strong>Undo and Restart</strong> are always available and Restart is instant. An undo costs you a move, because a move count that does not charge for undo is not counting anything.</li>
       </ul>
@@ -151,8 +152,8 @@
       <h2>Tips</h2>
       <ul>
         <li>Plan backwards from the carrot. Decide which hole she arrives from, then work out which brick has to leave.</li>
-        <li>Read the coral edge before you read the board. The shortest route past the fox is usually the one that runs along his outline without ever touching it.</li>
-        <li>A brick can move sideways as well as along itself. That is not true of most sliding puzzles and it is where the extra routes come from.</li>
+        <li>Watch the fox before you touch anything. Where he walks is where he can already go, and the shortest route past him is usually the one that runs alongside it without ever joining it.</li>
+        <li>Count which bricks can move at all. On a tight board most of them cannot, and the one that can is usually the answer.</li>
         <li>The mistake everyone makes once is opening a lane down the side of the board because it is the fastest way through. It usually is, for him.</li>
       </ul>
 
@@ -188,10 +189,10 @@
   <script src="../shared/analytics.js?v=3"></script>
   <script src="../shared/embed.js?v=1"></script>
   <script defer src="../shared/ads.js?v=2"></script>
-  <script src="./model.js?v=1"></script>
-  <script src="./render.js?v=1"></script>
-  <script src="./levels.js?v=1"></script>
-  <script src="./play.js?v=1"></script>
+  <script src="./model.js?v=2"></script>
+  <script src="./render.js?v=5"></script>
+  <script src="./levels.js?v=2"></script>
+  <script src="./play.js?v=8"></script>
   <script>
     (() => {
       const btn = document.getElementById('focus-toggle');

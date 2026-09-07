@@ -19,61 +19,61 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
   var LEVELS = [
-    { id: 1, par: 2, carrotAt: [2,2],
-      rows: ['aabbc.', 'dde.cf', '.Be.gf', 'hh.ig.', 'jjki.l', 'F.kmml'],
-      // slide, then hop. The carrot starts under a brick, so the first move a player ever makes is the one the game is named for. Nothing on this board can lose.
-      // par 2, 2 with the fox rule off. 0 positions on the
-      // way to the answer where one move loses and another does not, out of 19
-      // searched. The first losing slide of any kind is 5 moves in.
-    },
-    { id: 2, par: 3,
-      rows: ['a.bbcc', 'addeff', 'BgCeF.', 'hgiijj', 'h.kkll', 'mm.nn.'],
-      // he is on her row, two squares past the carrot, with one brick holding him in. Moving that brick is the first losing move in the game.
-      // par 3, 3 with the fox rule off. 2 positions on the
-      // way to the answer where one move loses and another does not, out of 64
-      // searched. The first losing slide of any kind is 2 moves in.
-    },
-    { id: 3, par: 5,
-      rows: ['a..bcc', 'addbe.', 'BffCeF', 'ghhiij', 'g.kllj', 'mmk.nn'],
-      // three squares and two bricks. A breather: the search says there is no losing move here at all.
-      // par 5, 5 with the fox rule off. 0 positions on the
-      // way to the answer where one move loses and another does not, out of 123
-      // searched. The first losing slide of any kind is 9 moves in.
-    },
-    { id: 4, par: 13,
-      rows: ['a..bbc', 'adde.c', 'BffeCg', 'hhFijg', 'kl.ijm', 'klnn.m'],
-      // he moves off her row and underneath it, and the danger stops being at the end of the trip and starts being in the middle of it.
-      // par 13, 11 with the fox rule off. 1102 positions on the
-      // way to the answer where one move loses and another does not, out of 9909
+    { id: 1, par: 4,
+      rows: ['a#..bbdd.', 'aee.#.#gg', 'hhFii#.jj', 'Bkk..#llm', 'n.o#pp..m', 'nCoqqrr..'],
+      // a short trip along her own row. One slat has to move before she can start, and only one slat can.
+      // par 4, 4 with the fox rule off. 46 positions on the
+      // way to the answer where one move loses and another does not, out of 452
       // searched. The first losing slide of any kind is 1 move in.
     },
-    { id: 5, par: 16,
-      rows: ['abbcc.', 'a.ddee', 'BffCgh', 'ijF.gh', 'ijkk.l', '.mmnnl'],
-      // his pocket is against the middle of the route. Ignoring him costs seven moves.
-      // par 16, 9 with the fox rule off. 13607 positions on the
-      // way to the answer where one move loses and another does not, out of 89738
-      // searched. The first losing slide of any kind is 2 moves in.
+    { id: 2, par: 5,
+      rows: ['aaC.#bb#d', 'egg.hhi#d', 'ejj..Bi#k', '.llmm#nok', '...pF.no.', 'qq#p.rrss'],
+      // the same distance through a tighter board, so the order matters.
+      // par 5, 5 with the fox rule off. 67 positions on the
+      // way to the answer where one move loses and another does not, out of 712
+      // searched. The first losing slide of any kind is 1 move in.
     },
-    { id: 6, par: 20,
-      rows: ['a.bbcc', 'adF.ee', 'BdfgCh', 'i.fgjh', 'ikklj.', 'mm.lnn'],
-      // he is above the route now, so the safe side of him is not the side it looks like.
-      // par 20, 12 with the fox rule off. 28921 positions on the
-      // way to the answer where one move loses and another does not, out of 232758
+    { id: 3, par: 6,
+      rows: ['C.#aa.b#d', 'ee..g#b#d', 'h.iig.#jj', 'hBkl##mm#', 'Fnkl.oo.#', '#nppqqrr.'],
+      // the route bends, and the slat that opens it is the one holding him in.
+      // par 6, 6 with the fox rule off. 110 positions on the
+      // way to the answer where one move loses and another does not, out of 444
+      // searched. The first losing slide of any kind is 1 move in.
+    },
+    { id: 4, par: 7,
+      rows: ['C...aa.bb', '.d#e.ggh#', 'idFeBjjh.', 'ik#.llmm.', 'nkoop..##', 'nqq#prrss'],
+      // the first board with real branching: seven hundred positions on the way where one move loses and another does not.
+      // par 7, 7 with the fox rule off. 701 positions on the
+      // way to the answer where one move loses and another does not, out of 3400
+      // searched. The first losing slide of any kind is 0 moves in.
+    },
+    { id: 5, par: 11,
+      rows: ['..#..aa.C', '.bb...#dd', 'e##gh.iiF', 'e##gh.jj.', 'kk#lBmmnn', '.ool#ppqq'],
+      // ten walls, and the way through is not the way it looks.
+      // par 11, 11 with the fox rule off. 1158 positions on the
+      // way to the answer where one move loses and another does not, out of 38432
       // searched. The first losing slide of any kind is 4 moves in.
     },
-    { id: 7, par: 24,
-      rows: ['a.b.cc', 'adbeef', 'BdgFhf', 'iigjhk', '.lljmk', '..nnmC'],
-      // corner to corner with him in the middle of the board, and a lane down the left that is the fast way to nothing.
-      // par 24, 23 with the fox rule off. 33872 positions on the
-      // way to the answer where one move loses and another does not, out of 319635
-      // searched. The first losing slide of any kind is 2 moves in.
-    },
-    { id: 8, par: 26,
-      rows: ['aab.cc', '.dbeef', 'Bdgghf', 'iiF.hj', 'k.llCj', 'kmmnn.'],
-      // the wall. The longest trip in the world, and the route turns a corner right past him.
-      // par 26, 22 with the fox rule off. 20820 positions on the
-      // way to the answer where one move loses and another does not, out of 237622
+    { id: 6, par: 13,
+      rows: ['..#aabbdd', '.eegghh..', 'iijj..Bkk', 'lF.mm.#nn', 'l#..opqqr', 'ssC#op##r'],
+      // the route crosses in front of him twice.
+      // par 13, 13 with the fox rule off. 252 positions on the
+      // way to the answer where one move loses and another does not, out of 18080
       // searched. The first losing slide of any kind is 7 moves in.
+    },
+    { id: 7, par: 24,
+      rows: ['#..#.#.C#', '..aab..#d', '#ee.bggFd', 'hhiijjBkl', 'mmnn.ookl', '.#pp#..qq'],
+      // the long one. Twenty-four moves, and reading him wrong costs eighteen of them: the only board in world 1 where he moves the answer itself.
+      // par 24, 6 with the fox rule off. 1594 positions on the
+      // way to the answer where one move loses and another does not, out of 19889
+      // searched. The first losing slide of any kind is 1 move in.
+    },
+    { id: 8, par: 25,
+      rows: ['abb.dd#ee', 'a.#gB#hhi', '#.Fgjj.Ci', 'kk##llmm.', '.nnoopp.q', '...rr.ssq'],
+      // the wall. Twenty-five moves and three and a half thousand places to get it wrong.
+      // par 25, 25 with the fox rule off. 3552 positions on the
+      // way to the answer where one move loses and another does not, out of 45465
+      // searched. The first losing slide of any kind is 1 move in.
     }
   ];
   return { LEVELS: LEVELS, WORLD: 'woods' };

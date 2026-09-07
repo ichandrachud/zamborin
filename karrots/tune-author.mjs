@@ -23,29 +23,41 @@ import { foxChangesTheAnswer } from './solve.mjs';
 
 const LETTERS = 'abcdefghijklmnopqrstuvwxyzABDEGHIJKLMNOPQRSTUVWXYZ'; // no C/F, they are entities
 
-/** Every domino tiling of the '?' cells, up to `cap`. Standard backtracking
- *  from the first free cell, which only ever tries right and down, so each
- *  tiling is produced exactly once. */
-function tilings(free, cap = 4000) {
-  const out = [];
-  const grid = free.slice();                       // true = still to cover
-  const placed = [];
-  (function rec() {
-    if (out.length >= cap) return;
-    let i = grid.indexOf(true);
-    if (i < 0) { out.push(placed.map(p => p.slice())); return; }
-    const { r, c } = M.rc(i);
-    // right
-    if (c + 1 < M.C && grid[i + 1]) {
-      grid[i] = grid[i + 1] = false; placed.push([i, i + 1]);
-      rec(); placed.pop(); grid[i] = grid[i + 1] = true;
-    }
-    // down
-    if (r + 1 < M.R && grid[i + M.C]) {
-      grid[i] = grid[i + M.C] = false; placed.push([i, i + M.C]);
-      rec(); placed.pop(); grid[i] = grid[i + M.C] = true;
-    }
-  })();
+/** Domino tilings of the '?' cells, sampled rather than enumerated.
+ *
+ *  Enumerating in a fixed order was fine on a 6x6 with eight holes. On 9x6
+ *  with forty tile cells there are astronomically many tilings, and taking the
+ *  first two dozen in right-then-down order returns two dozen boards that are
+ *  IDENTICAL except for the last few dominoes - which is a sample of one
+ *  dressed up as a sample of twenty-four. Each run now shuffles which
+ *  direction is tried first, from a seeded generator so the bench repeats. */
+function tilings(free, cap = 4000, seed = 1) {
+  const out = [], sig = new Set();
+  let s = (seed >>> 0) || 1;
+  const rnd = () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296;
+  const grid0 = free.slice();
+  for (let attempt = 0; attempt < cap * 40 && out.length < cap; attempt++) {
+    const grid = grid0.slice(), placed = [];
+    const ok = (function rec() {
+      const i = grid.indexOf(true);
+      if (i < 0) return true;
+      const r = (i / M.C) | 0, c = i % M.C;
+      const opts = [];
+      if (c + 1 < M.C && grid[i + 1]) opts.push([i, i + 1]);
+      if (r + 1 < M.R && grid[i + M.C]) opts.push([i, i + M.C]);
+      if (opts.length === 2 && rnd() < 0.5) opts.reverse();
+      for (const [a, b] of opts) {
+        grid[a] = grid[b] = false; placed.push([a, b]);
+        if (rec()) return true;
+        placed.pop(); grid[a] = grid[b] = true;
+      }
+      return false;
+    })();
+    if (!ok) break;                                 // untileable at all
+    const k = placed.map(p => p.join(':')).sort().join('|');
+    if (sig.has(k)) continue;
+    sig.add(k); out.push(placed.map(p => p.slice()));
+  }
   return out;
 }
 
@@ -76,7 +88,10 @@ export function rebalance(layout) {
   const holes = [], moveable = [];
   flat.forEach((c, i) => {
     if (c === '.') { holes.push(i); moveable.push(i); }
-    else if (c === 'B' || c === 'F' || c === 'C') holes.push(i);
+    // Walls and the three of them are blocked cells for parity, but the
+    // repairer may not shift them: a wall is a design decision and the bunny,
+    // the fox and the carrot were placed on purpose.
+    else if (c === 'B' || c === 'F' || c === 'C' || c === '#') holes.push(i);
   });
   let d = 0, l = 0;
   holes.forEach(i => shadeOf(i) ? l++ : d++);
@@ -118,7 +133,7 @@ export function rebalance(layout) {
  *  actually be tiled, leaving the bunny, the fox and the carrot exactly where
  *  they were put. It repairs the arithmetic of a board; it never invents one.
  *  Returns the repaired rows, or null if a single nudge is not enough. */
-export function repair(layout, radius = 2) {
+export function repair(layout, radius = 2, nudges = 3) {
   const flat = layout.join('').split('');
   const free0 = flat.map(c => c === '?');
   if (free0.filter(Boolean).length % 2 === 0 && tileable(free0)) return { rows: layout, moved: null };
@@ -147,6 +162,40 @@ export function repair(layout, radius = 2) {
     for (let r = 0; r < M.R; r++) rows.push(out.slice(r * M.C, r * M.C + M.C).join(''));
     return { rows, moved: { from: at2(t.from), to: at2(t.to) } };
   }
+  /* One nudge was enough on a 6x6 with eight holes. On 9x6 with sixteen it
+     usually is not: the tile cells break into several pockets and fixing one
+     leaves another wrong. Try the best single nudge that at least reduces the
+     damage, then repair what is left, up to `nudges` deep. */
+  if (nudges > 1) {
+    const score = f => {
+      // fewer pockets that are odd or off-colour is closer to tileable
+      const mark = new Uint8Array(M.N); let bad = 0;
+      for (let i = 0; i < M.N; i++) {
+        if (!f[i] || mark[i]) continue;
+        const st = [i], cells = []; mark[i] = 1;
+        while (st.length) { const j = st.pop(); cells.push(j);
+          for (const nj of M.NB4[j]) if (f[nj] && !mark[nj]) { mark[nj] = 1; st.push(nj); } }
+        let d = 0, l = 0;
+        cells.forEach(j => { const p = M.rc(j); ((p.r + p.c) & 1) ? l++ : d++; });
+        if (cells.length % 2 || d !== l) bad++;
+      }
+      return bad;
+    };
+    let bestT = null, bestS = score(free0);
+    for (const t of tries) {
+      const f = free0.slice(); f[t.from] = true; f[t.to] = false;
+      const sc = score(f);
+      if (sc < bestS) { bestS = sc; bestT = t; }
+    }
+    if (bestT) {
+      const out = flat.slice(); out[bestT.from] = '?'; out[bestT.to] = '.';
+      const rows = [];
+      for (let r = 0; r < M.R; r++) rows.push(out.slice(r * M.C, r * M.C + M.C).join(''));
+      const deeper = repair(rows, radius, nudges - 1);
+      if (deeper) return { rows: deeper.rows,
+        moved: { from: at2(bestT.from), to: at2(bestT.to) + (deeper.moved ? ' +' : '') } };
+    }
+  }
   return null;
 }
 const at2 = i => { const p = M.rc(i); return p.r + ',' + p.c; };
@@ -160,7 +209,7 @@ export function bench(layout, opts = {}) {
 
   let dark = 0, light = 0;
   flat.forEach((c, i) => { if (c === '?') return; const p = M.rc(i);
-    if (c !== '#') { if ((p.r + p.c) & 1) light++; else dark++; } });
+    ((p.r + p.c) & 1) ? light++ : dark++; });   // '#' counts: a wall is blocked too
   if (dark !== light)
     throw new Error(`parity: ${dark} dark and ${light} light cells are blocked. ` +
       `A domino covers one of each, so no tiling exists. Move ` +
@@ -198,14 +247,14 @@ export function bench(layout, opts = {}) {
       (c.length > 5 ? ' …' : '') + '}').join(' ') +
     ' — a pocket needs an even count AND equal dark and light, whatever the whole board says.');
 
-  const all = tilings(free, opts.cap ?? 10);
+  const all = tilings(free, opts.cap ?? 24, opts.seed ?? 20260907);
   const results = [];
   for (const t of all) {
     const rows = letter(layout, t);
     let st;
     try { st = M.parse(rows, null, opts.carrotAt ? { carrotAt: opts.carrotAt } : undefined); }
     catch (e) { results.push({ rows, error: e.message }); continue; }
-    const r = foxChangesTheAnswer(st, { cap: opts.cap2 ?? 400000, path: false });
+    const r = foxChangesTheAnswer(st, { cap: opts.cap2 ?? 200000, path: false });
     results.push({ rows, par: r.withFox.par, noFoxPar: r.without.par,
                    changed: r.changed, parDelta: r.parDelta, naiveDies: r.naiveDies,
                    branch: r.withFox.branchPoints, fatal: r.withFox.fatal,
@@ -219,113 +268,78 @@ export function bench(layout, opts = {}) {
  * '.' hole   '#' brick   'B' bunny   'F' fox   'C' carrot   '?' under a tile
  */
 export const DRAFTS = {
-  /* THE TWO THINGS THE BENCH SETTLED, both of them measured.
+  /* NINE WIDE, SIX TALL, WITH WALLS, and every one of those three is a
+     measurement rather than a preference.
 
-     ONE. The fox only changes anything when his region sits ACROSS the route.
-     The first drafts put him at an edge and par came out identical with the
-     rule and without it on seven boards out of eight, which is the definition
-     of decoration. From L2 on he stands between her and the carrot.
+     The board turned landscape because the desktop frame is, and the house
+     rule for a landscape grid puts a six-row board at nine columns. A slat now
+     slides only along its own axis and the carrot square is reserved, so not
+     one par from the 6x6 set survived: this file was rebuilt from nothing on
+     2026-09-07.
 
-     TWO. The ladder is the DISTANCE from the bunny to her carrot, not how open
-     the board is. Opening the board up was the obvious lever and it is the
-     wrong one: tune-holes.mjs swept 8 to 22 holes and found that past about
-     ten the reachable state space grows faster than the search can hold, so a
-     loose board is easier to PLAY and impossible to produce an honest par for.
-     Every level here keeps eight holes and moves the carrot further away.
-
-     THREE, for the record: §5 of the brief cannot be built as written. Every
-     tier sets holes + bricks to nine, and nine is odd, so 27 cells are left
-     for dominoes that cover two each. */
-
-  /* L1 — slide, then hop, and nothing else. The carrot starts UNDER a tile, so
-     the first move a player ever makes is the move the game is named for, and
-     the second is the reward. He is sealed into two cells across the board:
-     the coral edge is on screen from the first frame, which is how the rule is
-     SHOWN before it is ever enforced. No move here loses. */
-  L1: { layout: ['?????.',
-                 '???.??',
-                 '.B?.??',
-                 '??.??.',
-                 '????.?',
-                 'F.????'], carrotAt: [2, 2], show: 2 },
-
-  /* L2 — the carrot is two squares along and one brick is in the way, and that
-     brick has an obvious hole to go to, so the whole level is three moves. He
-     is on the SAME ROW, two squares past the carrot, with one tile between:
-     move that one and she walks into him. The rule gets shown here. */
-  L2n: { layout: ['?.????',
-                 '??????',
-                 'B?C?F.',
-                 '??????',
-                 '?.????',
-                 '??.??.'], show: 3 },
-
-  /* L3 — three squares, two bricks in the way, and he is at the end of the
-     row again so the last gap she opens is the dangerous one. */
-  L3n: { layout: ['?..???',
-                 '?????.',
-                 'B??C?F',
-                 '??????',
-                 '?.????',
-                 '???.??'], show: 3 },
-
-  /* L4 — four squares, and he moves off the row and underneath it, so the
-     danger stops being at the end and starts being in the middle. */
-  L4n: { layout: ['?..???',
-                 '????.?',
-                 'B???C?',
-                 '??F???',
-                 '??.???',
-                 '????.?'], show: 3 },
-  /* L2 — the carrot two squares along and one brick in the way, with him directly below the gap she needs. */
-  L2: { layout: ['????.?',
-                 '?.????',
-                 'B?C???',
-                 '.F????',
-                 '???.??',
-                 '?????.'], show: 3 },
-  /* L3 — three squares, and his pocket now touches the middle of the route. */
-  L3: { layout: ['?????.',
-                 '?.????',
-                 'B??C??',
-                 '??F.??',
-                 '????.?',
-                 '.?????'], show: 3 },
-  /* L4 — four squares, and he is ABOVE the route for the first time, so the safe side changes. */
-  L4: { layout: ['.?????',
-                 '??F.??',
-                 'B???C?',
-                 '?.????',
-                 '?????.',
-                 '??.???'], show: 3 },
-  /* L5 — right across the board, with him beside the far end of it. */
-  L5: { layout: ['????.?',
-                 '?.????',
-                 'B??.?C',
-                 '???F??',
-                 '????.?',
-                 '?.????'], show: 3 },
-  /* L6 — the carrot drops off the row: the route turns a corner past him. */
-  L6: { layout: ['???.??',
-                 '.?????',
-                 'B?????',
-                 '??F.??',
-                 '?.??C?',
-                 '?????.'], show: 3 },
-  /* L7 — down the far side of the board, and the lane that gets there fastest is his. */
-  L7: { layout: ['?????.',
-                 '?.????',
-                 'B?.???',
-                 '??F???',
-                 '?????.',
-                 '.???C?'], show: 3 },
-  /* L8 — corner to corner, the longest trip in the world, and he is sitting in the middle of it. */
-  L8: { layout: ['????.?',
-                 '?.????',
-                 'B??F??',
-                 '???.??',
-                 '.?????',
-                 '?.???C'], show: 3 },
+     THE WALLS ARE WHAT MAKE PAR POSSIBLE. Fifty-four cells packed with twenty
+     dominoes has a reachable state space far past an exhaustive search:
+     tune-shape.mjs finished only 2 searches in 10 with no walls, and 10 in 10
+     with six of them. A wall takes a cell out of the board WITHOUT adding a
+     piece, which is the opposite of what a hole does. Six is the shape that
+     both searches to the end and still leaves the board open enough to cross.
+  */
+  /* L1 — four squares along her own row with one slat in the way, and he is under the gap she has to open. */
+  L1: { layout: ['????.?#?.',
+                 '.?#????.?',
+                 'B..?C?#??',
+                 '?.?..??#?',
+                 '???F.?#?.',
+                 '??.??#??.'], show: 6 },
+  /* L2 — six squares, and his pocket is against the middle of the route. */
+  L2: { layout: ['??#?.??#?',
+                 '?.???#.??',
+                 'B.?..?C?#',
+                 '?.?F??.?.',
+                 '????.#?.?',
+                 '.?#???.??'], show: 6 },
+  /* L3 — the route bends down the board and he is standing on the corner. */
+  L3: { layout: ['?.?#?.??.',
+                 'B.?.??#??',
+                 '?.?.F??#?',
+                 '??#..???.',
+                 '?#???.?C?',
+                 '????#?.?.'], show: 6 },
+  /* L4 — top left to bottom right past him, with the walls forcing the crossing. */
+  L4: { layout: ['B.?.?#???',
+                 '.?#???.?.',
+                 '??.?.#??.',
+                 '???.F??#?',
+                 '??#?.??.?',
+                 '???#?.C?.'], show: 6 },
+  /* L5 — right across all nine columns, and he is in the middle of them. */
+  L5: { layout: ['??#.??#?.',
+                 '?.??#?.??',
+                 'B.?.?..?C',
+                 '?.??F.???',
+                 '????.?#.?',
+                 '??#??.?#?'], show: 6 },
+  /* L6 — the carrot drops three rows, so the route turns exactly where his reach is. */
+  L6: { layout: ['B.?.?#?.?',
+                 '.?#?.??#?',
+                 '??.?F?.??',
+                 '???..#??C',
+                 '??#??.??.',
+                 '???.??#?.'], show: 6 },
+  /* L7 — the long way down the far side, past him twice. */
+  L7: { layout: ['B.?.#??.?',
+                 '?.?.??#??',
+                 '?#??.??.?',
+                 '??#.F?.?.',
+                 '????.??#?',
+                 '??.?#.?C?'], show: 6 },
+  /* L8 — the wall. Corner to corner, the longest trip on the board. */
+  L8: { layout: ['B.??#??.?',
+                 '.?#?.????',
+                 '??..F?#?.',
+                 '?#??.?.??',
+                 '?.#???.??',
+                 '???.?#?.C'], show: 6 },
 };
 
 if (import.meta.url === `file://${process.argv[1]}`) {

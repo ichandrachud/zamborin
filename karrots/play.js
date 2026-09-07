@@ -90,7 +90,7 @@
      Starting points for the gate, not decisions. */
   const TUNE = {
     slideMs: 130, hopMs: 170, snapMs: 90,
-    foxEdgeMs: 400, lungeMs: 460, holdMs: 420, rewindMs: 300,
+    lungeMs: 460, holdMs: 420, rewindMs: 300,
     carrot2Mult: 1.35,
     dragStart: 6,          // px before a drag picks a direction
     commitFrac: 0.42,      // share of a cell the tile must cross to land
@@ -106,7 +106,7 @@
   ART_NAMES.forEach(n => {
     const im = new Image();
     im.onload = () => { ART[n] = im; };
-    im.src = './art/' + n + '.svg?v=1';
+    im.src = './art/' + n + '.svg?v=2';
   });
   const HOP_FRAMES = {
     up:    ['bunny-up-1', 'bunny-up-2', 'bunny-up-3'],
@@ -140,13 +140,12 @@
   let phase = 'play';            // play | caught | won
   let anim = null;               // the one animation in flight
   let drag = null;
-  let edge = { segs: [], t: 1, t0: 0 };   // the fox's reach and its sweep
-
   /* Honoured, not decorated around: the edge redraws without the sweep, the
      catch is a cut and a hold, and a tile lands instead of easing. §10. */
   const REDUCED = matchMedia('(prefers-reduced-motion: reduce)');
   let hoverHops = 0;             // fade on the hop dots
   let rulesOpen = false, rulesScroll = 0;
+  const dbg = { downs: 0, captureFailed: 0, moves: 0, ups: 0, committed: 0, refused: 0 };
 
   function load() {
     try {
@@ -167,14 +166,8 @@
     start = M.parse(lv.rows, lv.id, lv.carrotAt ? { carrotAt: lv.carrotAt } : undefined);
     st = M.clone(start);
     par = lv.par; moves = 0; history = []; phase = 'play'; anim = null; drag = null;
-    rebuildEdge(1);
     T().levelStart && T().levelStart(levelIndex + 1);
     save();
-  }
-
-  function rebuildEdge(t) {
-    const from = (t === undefined || REDUCED.matches) ? 1 : t;
-    edge = { segs: RD.foxEdgeSegments(M, st, geo), t: from, t0: performance.now() };
   }
 
   /* ---------- GEOMETRY ----------
@@ -187,31 +180,41 @@
   const SIDE_PAD = 30;
   const topBand = () => (MODE === 'mobile' ? 64 : 56);
   const botBand = () => (MODE === 'mobile' ? 96 : 20);
-  const COL_W = 196;                       // the desktop ledger
+
+  /* THE PHONE PLAYS THE SAME BOARD TURNED A QUARTER TURN. The model is always
+     nine wide and six tall, which is the shape of the 760x600 desktop frame.
+     A portrait phone gets the transpose - six wide, nine tall - so the SAME
+     level, the same par and the same solution work in both, because a
+     transposed sliding puzzle is the same puzzle. Turning it is cheaper than
+     keeping two level sets, and far cheaper than being wrong about one. */
+  const TURNED = (MODE === 'mobile');
   const geo = {
-    cols: M.C, rows: M.R, cell: 40, ox: 0, oy: 0,
-    at(i) { const p = M.rc(i); return { x: this.ox + p.c * this.cell, y: this.oy + p.r * this.cell }; },
+    get cols() { return TURNED ? M.R : M.C; },
+    get rows() { return TURNED ? M.C : M.R; },
+    cell: 40, ox: 0, oy: 0,
+    at(i) {
+      const p = M.rc(i);
+      return TURNED ? { x: this.ox + p.r * this.cell, y: this.oy + p.c * this.cell }
+                    : { x: this.ox + p.c * this.cell, y: this.oy + p.r * this.cell };
+    },
     cellAt(x, y) {
-      const c = Math.floor((x - this.ox) / this.cell), r = Math.floor((y - this.oy) / this.cell);
-      return (r < 0 || c < 0 || r >= this.rows || c >= this.cols) ? -1 : M.idx(r, c);
+      const gx = Math.floor((x - this.ox) / this.cell), gy = Math.floor((y - this.oy) / this.cell);
+      if (gx < 0 || gy < 0 || gx >= this.cols || gy >= this.rows) return -1;
+      return TURNED ? M.idx(gx, gy) : M.idx(gy, gx);
     },
   };
-  let ctrl = [];        // control row hit boxes
-  let colRect = null;   // desktop ledger
+  /* A drag is in screen directions and the model thinks in board ones. Turned,
+     screen-up is board-left and screen-right is board-down. */
+  const DIR_FROM_SCREEN = TURNED ? [3, 2, 1, 0] : [0, 1, 2, 3];
+  let ctrl = [];
 
   function layout() {
-    const gap = 24;
-    const availW = Math.max(60, LW - SIDE_PAD * 2 - (MODE === 'desktop' ? COL_W + gap : 0));
+    const availW = Math.max(60, LW - SIDE_PAD * 2);
     const availH = Math.max(60, LH - topBand() - botBand());
     geo.cell = Math.max(8, Math.floor(Math.min(availW / geo.cols, availH / geo.rows)));
     const boardW = geo.cols * geo.cell, boardH = geo.rows * geo.cell;
-    geo.ox = MODE === 'desktop'
-      ? SIDE_PAD + Math.round((availW - boardW) / 2)
-      : Math.round((LW - boardW) / 2);
+    geo.ox = Math.round((LW - boardW) / 2);
     geo.oy = Math.round(topBand() + (availH - boardH) / 2);
-    colRect = MODE === 'desktop'
-      ? { x: SIDE_PAD + availW + gap, y: geo.oy, w: COL_W, h: boardH } : null;
-    if (st) rebuildEdge(edge.t);
     layoutControls();
   }
 
@@ -258,13 +261,11 @@
       // this move joined were both on screen before the tile landed.
       phase = 'caught';
       SND.fox();
-      rebuildEdge(0);
       const path = foxPathToBunny();
       anim = { kind: 'catch', t0: performance.now(), path, mv };
       T().levelRestart && T().levelRestart(levelIndex + 1);
       return;
     }
-    rebuildEdge(0);
     if (mv.type === 'hop') SND.hop(); else if (!opts.silent) SND.snap();
 
     if (M.won(st)) {
@@ -307,7 +308,6 @@
     // AN UNDO COSTS A MOVE. House rule from Untangle: a scored counter that
     // does not charge for undo is not counting anything.
     moves = h.moves + 1;
-    rebuildEdge(0);
     SND.undo();
   }
   function restart() {
@@ -327,23 +327,31 @@
   canvas.addEventListener('pointerdown', (e) => {
     SND.ready();
     const p = toLogical(e);
-    if (rulesOpen) { rulesPointerDown(p, e); return; }
-    for (const b of ctrl) if (inBox(p, b)) { press(b.id); return; }
-    if (phase === 'won') { if (inBox(p, winCTA)) nextLevel(); return; }
-    if (phase !== 'play' || anim) return;
+    dbg.lastDown = { x: Math.round(p.x), y: Math.round(p.y), why: 'reached' };
+    if (rulesOpen) { dbg.lastDown.why = 'rules card open'; rulesPointerDown(p, e); return; }
+    for (const b of ctrl) if (inBox(p, b)) { dbg.lastDown.why = 'control ' + b.id; press(b.id); return; }
+    if (phase === 'won') { dbg.lastDown.why = 'win card'; if (inBox(p, winCTA)) nextLevel(); return; }
+    if (phase !== 'play' || anim) { dbg.lastDown.why = 'phase ' + phase + (anim ? ' + anim ' + anim.kind : ''); return; }
 
     const i = geo.cellAt(p.x, p.y);
-    if (i < 0) return;
+    dbg.lastDown.cell = i;
+    if (i < 0) { dbg.lastDown.why = 'off the board'; return; }
 
     // A hole next to her is a hop. Everything else that is a tile is a drag.
     if (st.grid[i] === M.HOLE && M.hopMoves(st).some(m => m.to === i)) {
+      dbg.lastDown.why = 'hop';
       commit(M.hopMoves(st).find(m => m.to === i));
       return;
     }
     const t = M.tileAt(st.grid, i);
-    if (!t) return;
-    canvas.setPointerCapture?.(e.pointerId);
+    if (!t) { dbg.lastDown.why = 'not a slat (grid ' + st.grid[i] + ')'; return; }
+    /* Start the drag FIRST and capture afterwards. setPointerCapture throws on
+       a pointerId it does not know, and with the capture call first that took
+       the whole gesture down with it - the tile simply would not move and
+       nothing said why. Capture is a nicety; the drag is the point. */
     drag = { tile: t, x0: p.x, y0: p.y, dx: 0, dy: 0, dir: -1, moved: false };
+    dbg.downs++;
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) { dbg.captureFailed++; }
   });
 
   canvas.addEventListener('pointermove', (e) => {
@@ -355,32 +363,38 @@
       hoverHops = near ? 1 : 0;
       return;
     }
+    dbg.moves++;
     const rawX = p.x - drag.x0, rawY = p.y - drag.y0;
     if (drag.dir < 0) {
       if (Math.hypot(rawX, rawY) < TUNE.dragStart) return;
       // The direction is chosen once, by the dominant axis, and then held. A
       // domino can go four ways, so letting the axis flip mid-drag turns one
       // gesture into a scrub through three different moves.
-      drag.dir = Math.abs(rawX) > Math.abs(rawY) ? (rawX > 0 ? 1 : 3) : (rawY > 0 ? 2 : 0);
+      const screenDir = Math.abs(rawX) > Math.abs(rawY) ? (rawX > 0 ? 1 : 3) : (rawY > 0 ? 2 : 0);
+      drag.screenDir = screenDir;
+      drag.dir = DIR_FROM_SCREEN[screenDir];
       drag.legal = M.slideMoves(st).some(m => m.a === drag.tile.a && m.dir === drag.dir);
       if (drag.legal) drag.preview = M.apply(st, { type: 'slide', a: drag.tile.a, b: drag.tile.b, dir: drag.dir });
       else SND.refused();
       drag.moved = true;
     }
-    const d = M.DIRS[drag.dir];
+    const sd = M.DIRS[drag.screenDir];
     // one cell of travel, and no rubber band past it: a slide is exactly one
-    const along = (d.dx ? rawX * d.dx : rawY * d.dy);
+    const along = (sd.dx ? rawX * sd.dx : rawY * sd.dy);
     const limit = drag.legal ? geo.cell : geo.cell * 0.12;    // an illegal slide gives a little and stops
     const t = Math.max(0, Math.min(limit, along));
-    drag.dx = d.dx * t; drag.dy = d.dy * t;
+    drag.dx = sd.dx * t; drag.dy = sd.dy * t;
   });
 
   function endDrag() {
     if (!drag) return;
-    const d = M.DIRS[drag.dir] || { dx: 0, dy: 0 };
+    const d = M.DIRS[drag.screenDir] || { dx: 0, dy: 0 };   // screen space: this is the drawing
     const along = Math.abs(drag.dx || drag.dy);
     const mv = { type: 'slide', a: drag.tile.a, b: drag.tile.b, dir: drag.dir };
+    dbg.lastEnd = { legal: !!drag.legal, along: Math.round(along), need: Math.round(geo.cell * TUNE.commitFrac),
+                    dir: drag.dir, screenDir: drag.screenDir, moved: drag.moved };
     if (drag.legal && along >= geo.cell * TUNE.commitFrac) {
+      dbg.committed++;
       // snap the last few pixels home, then the move lands
       anim = { kind: 'snap', t0: performance.now(), mv,
                from: { dx: drag.dx, dy: drag.dy }, to: { dx: d.dx * geo.cell, dy: d.dy * geo.cell },
@@ -391,7 +405,7 @@
     }
     drag = null;
   }
-  canvas.addEventListener('pointerup', (e) => { e.preventDefault(); if (drag) endDrag(); });
+  canvas.addEventListener('pointerup', (e) => { e.preventDefault(); dbg.ups++; if (drag) endDrag(); });
   canvas.addEventListener('pointercancel', () => { drag = null; });
   canvas.addEventListener('contextmenu', e => e.preventDefault());
 
@@ -413,12 +427,58 @@
     if (phase === 'won' && (e.key === 'Enter' || e.key === ' ')) nextLevel();
   });
 
+  /* ---------- THEY PACE ----------
+     Both of them walk back and forth across the blank cells they can reach,
+     and stand still only when there is nowhere to go. It is entirely cosmetic
+     - the board state never moves with them - but it does a job that used to
+     belong to a drawn outline: the fox walking his territory is how you see
+     how far his territory goes. That is a better answer than a coral line
+     round it, because it is the animal itself telling you.
+
+     She is kept off the carrot square while pacing. Wandering onto it would
+     look exactly like winning. */
+  const WANDER = { hold: 620, walk: 420 };
+  const pace = { bunny: null, fox: null };
+
+  function regionOf(cell) { return M.foxRegion({ ...st, fox: cell }); }
+
+  function stepPace(now) {
+    if (!st || REDUCED.matches) return;
+    for (const who of ['bunny', 'fox']) {
+      const home = who === 'bunny' ? st.bunny : st.fox;
+      let w = pace[who];
+      if (!w || w.home !== home) { w = pace[who] = { home, from: home, to: home, t0: now }; }
+      const el = now - w.t0;
+      if (el < WANDER.walk + WANDER.hold) continue;
+      const region = regionOf(w.to);
+      const opts = M.NB4[w.to].filter(i =>
+        region[i] && i !== st.carrot && (who === 'fox' ? i !== st.bunny : i !== st.fox));
+      if (!opts.length) { w.t0 = now; continue; }
+      w.from = w.to;
+      w.to = opts[(Math.random() * opts.length) | 0];
+      w.t0 = now;
+    }
+  }
+
+  /* Where to draw one of them this frame, and which way it is facing. */
+  function paceAt(who, now) {
+    const home = who === 'bunny' ? st.bunny : st.fox;
+    const w = pace[who];
+    const c = geo.cell;
+    if (!w || w.home !== home || w.from === w.to) {
+      const p = geo.at(home);
+      return { x: p.x, y: p.y, moving: false, flip: false };
+    }
+    const k = Math.max(0, Math.min(1, (now - w.t0) / WANDER.walk));
+    const a = geo.at(w.from), b = geo.at(w.to);
+    const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+    return { x: a.x + (b.x - a.x) * e, y: a.y + (b.y - a.y) * e,
+             moving: k < 1, dx: b.x - a.x, dy: b.y - a.y, flip: b.x < a.x, k, cell: c };
+  }
+
   /* ---------- ANIMATION ---------- */
   function stepAnim(now) {
-    // Time-based, not per-frame. `t += 16/ms` assumes 60 fps, and the machine
-    // this has to run on is a 2018 school Chromebook, where the sweep would
-    // simply have run slower the worse the frame rate got.
-    if (edge.t < 1) edge.t = Math.min(1, (now - edge.t0) / TUNE.foxEdgeMs);
+    stepPace(now);
     if (!anim) return;
     const el = now - anim.t0;
     if (anim.kind === 'snap' || anim.kind === 'snapback') {
@@ -437,7 +497,7 @@
         // counter KEEPS the wasted move: restart is free, this is not.
         const h = history[history.length - 1];
         if (h) { st = h.state; history.pop(); }
-        phase = 'play'; anim = null; rebuildEdge(0);
+        phase = 'play'; anim = null;
       }
     }
   }
@@ -458,8 +518,6 @@
       if (st.grid[i] === M.HOLE) RD.drawHole(ctx, geo, i);
       else if (st.grid[i] === M.BRICK) RD.drawBrick(ctx, geo, i);
     }
-
-    RD.drawFoxEdge(ctx, edge.segs, edge.t);
 
     // the carrot sits in its hole, under whatever is over it
     drawCarrot();
@@ -484,11 +542,6 @@
       heldBox = RD.drawTile(ctx, geo, held.a, held.b, world, { dx, dy, lift });
     }
 
-    // If a brick is sitting ON the carrot, say so. §4.2 lets a tile pass over
-    // the goal square, and level 1 opens with the carrot underneath one, which
-    // without this is a level with no visible goal at all.
-    if (st.grid[st.carrot] !== M.HOLE) drawCoveredCarrot();
-
     // what this slide would do, while it is still in the hand
     if (drag && drag.moved && heldBox) {
       const safe = drag.legal && drag.preview && !M.caught(drag.preview);
@@ -503,7 +556,6 @@
     drawBunny(now);
 
     drawHUD();
-    if (MODE === 'desktop') drawLedger();
     ctrl.forEach(b => {
       if (b.icon) drawSoundPill(b);
       else UI.drawPill(ctx, b.label, b.cx, b.cy, { w: b.w, dim: b.id === 'undo' && !history.length });
@@ -513,48 +565,31 @@
     if (rulesOpen) drawRulesCard(now);
   }
 
+  /* The carrot sits in its black cell and nothing is drawn under it. The
+     earlier one was a crop out of a sprite sheet with a drop shadow baked in,
+     scaled to a height that cut the leaves off; this one is the owner's redraw
+     of 2026-09-07, fitted by its own aspect so the whole plant is inside the
+     cell. */
   function drawCarrot() {
     const p = geo.at(st.carrot), c = geo.cell;
-    if (!sprite('carrot', p.x + c / 2, p.y + c * 0.86, c * 0.66)) {
-      ctx.fillStyle = '#F5A11E';
-      ctx.beginPath(); ctx.moveTo(p.x + c / 2, p.y + c * 0.86);
-      ctx.lineTo(p.x + c * 0.32, p.y + c * 0.30); ctx.lineTo(p.x + c * 0.68, p.y + c * 0.30);
-      ctx.closePath(); ctx.fill();
-    }
-  }
-
-  /* Seen through the brick: a recess under it and the carrot itself at half
-     weight. Not a marker printed on the tile - the tile is a game piece and
-     nothing gets drawn on top of one - but the thing itself, where it is. */
-  function drawCoveredCarrot() {
-    const p = geo.at(st.carrot), c = geo.cell;
-    ctx.save();
-    ctx.globalAlpha = 0.30; ctx.fillStyle = '#000000';
-    ctx.filter = 'blur(' + Math.max(3, c * 0.09) + 'px)';
-    ctx.beginPath();
-    ctx.ellipse(p.x + c / 2, p.y + c * 0.60, c * 0.30, c * 0.34, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-    ctx.save(); ctx.globalAlpha = 0.52;
-    if (!sprite('carrot', p.x + c / 2, p.y + c * 0.84, c * 0.60)) {
-      ctx.fillStyle = '#F5A11E';
-      ctx.beginPath(); ctx.moveTo(p.x + c / 2, p.y + c * 0.84);
-      ctx.lineTo(p.x + c * 0.34, p.y + c * 0.32); ctx.lineTo(p.x + c * 0.66, p.y + c * 0.32);
-      ctx.closePath(); ctx.fill();
-    }
-    ctx.restore();
+    sprite('carrot', p.x + c / 2, p.y + c * 0.90, c * 0.80);
   }
 
   function drawBunny(now) {
     const c = geo.cell;
-    let i = st.bunny, ox = 0, oy = 0, frame = 'bunny-idle', flip = false;
-    if (anim && anim.kind === 'catch') { /* she stays put and he comes to her */ }
-    const p = geo.at(i);
-    if (!sprite(frame, p.x + c / 2 + ox, p.y + c * 0.88 + oy, c * 0.74, flip)) {
-      ctx.fillStyle = '#FFFFFF';
-      ctx.beginPath(); ctx.arc(p.x + c / 2, p.y + c * 0.58, c * 0.26, 0, Math.PI * 2); ctx.fill();
+    const w = paceAt('bunny', now);
+    let frame = 'bunny-idle', flip = false;
+    if (w.moving) {
+      const set = Math.abs(w.dx) > Math.abs(w.dy)
+        ? (w.dx > 0 ? HOP_FRAMES.right : HOP_FRAMES.left)
+        : (w.dy > 0 ? HOP_FRAMES.down : HOP_FRAMES.up);
+      frame = set[Math.min(set.length - 1, Math.floor(w.k * set.length))];
+      flip = Math.abs(w.dx) > Math.abs(w.dy) && w.dx < 0;
     }
-    void now;
+    if (!sprite(frame, w.x + c / 2, w.y + c * 0.90, c * 0.76, flip)) {
+      ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath(); ctx.arc(w.x + c / 2, w.y + c * 0.60, c * 0.26, 0, Math.PI * 2); ctx.fill();
+    }
   }
 
   function drawFox(now) {
@@ -571,9 +606,11 @@
       frame = (Math.floor(el / 110) % 2) ? 'fox-walk-1' : 'fox-walk-2';
       flip = b.x < a.x;
     } else {
-      const p = geo.at(st.fox); x = p.x; y = p.y;
+      const w = paceAt('fox', now);
+      x = w.x; y = w.y; flip = w.flip;
+      if (w.moving) frame = (Math.floor(now / 130) % 2) ? 'fox-walk-1' : 'fox-walk-2';
     }
-    if (!sprite(frame, x + c / 2, y + c * 0.88, c * 0.78, flip)) {
+    if (!sprite(frame, x + c / 2, y + c * 0.90, c * 0.80, flip)) {
       ctx.fillStyle = '#FF4713';
       ctx.beginPath(); ctx.arc(x + c / 2, y + c * 0.58, c * 0.26, 0, Math.PI * 2); ctx.fill();
     }
@@ -649,45 +686,6 @@
   /* The desktop side column carries the world's page as a live carrot ledger.
      It shows only what the player has already done, so it is a record and not
      an advantage. */
-  function drawLedger() {
-    if (!colRect) return;
-    const { x, y, w } = colRect;
-    ctx.textBaseline = 'top'; ctx.textAlign = 'left';
-    ctx.fillStyle = RD.INK72; ctx.font = '700 13px Inter, sans-serif';
-    const earned = LEVELS.reduce((n, lv) => n + (best[lv.id] ? best[lv.id].carrots : 0), 0);
-    ctx.fillText('THE WOODS', x, y);
-    ctx.textAlign = 'right';
-    ctx.fillStyle = RD.SUN;
-    ctx.fillText(earned + ' / ' + LEVELS.length * 3, x + w, y);
-    ctx.textAlign = 'left';
-
-    const cols = 2, cw = Math.floor((w - 10) / cols), ch = 54;
-    LEVELS.forEach((lv, k) => {
-      const bx = x + (k % cols) * (cw + 10), by = y + 26 + Math.floor(k / cols) * (ch + 8);
-      const cur = k === levelIndex;
-      ctx.fillStyle = cur ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.03)';
-      RD.rr(ctx, bx, by, cw, ch, 10); ctx.fill();
-      if (cur) {
-        ctx.strokeStyle = 'rgba(255,255,255,0.40)'; ctx.lineWidth = 1.5;
-        RD.rr(ctx, bx, by, cw, ch, 10); ctx.stroke();
-      }
-      ctx.fillStyle = RD.INK92; ctx.font = '700 15px Inter, sans-serif';
-      ctx.fillText(String(lv.id), bx + 12, by + 9);
-      ctx.fillStyle = RD.INK72; ctx.font = '600 12px Inter, sans-serif';
-      ctx.fillText('par ' + lv.par, bx + 12, by + 30);
-      const b = best[lv.id], have = b ? b.carrots : 0;
-      for (let i2 = 0; i2 < 3; i2++) {
-        ctx.beginPath(); ctx.arc(bx + cw - 14 - (2 - i2) * 12, by + 18, 4, 0, Math.PI * 2);
-        if (i2 < have) { ctx.fillStyle = RD.SUN; ctx.fill(); }
-        else { ctx.strokeStyle = 'rgba(255,255,255,0.30)'; ctx.lineWidth = 1.2; ctx.stroke(); }
-      }
-      if (b) {
-        ctx.fillStyle = RD.INK72; ctx.font = '600 12px Inter, sans-serif';
-        ctx.textAlign = 'right'; ctx.fillText('best ' + b.moves, bx + cw - 10, by + 30); ctx.textAlign = 'left';
-      }
-    });
-  }
-
   /* ---------- the win card ---------- */
   let winCTA = null;
   function drawWinCard() {
@@ -717,10 +715,10 @@
      rule cannot be guessed from a still picture: a tile slides, his edge grows
      to touch her hole, and he crosses. */
   const RULES = [
-    'Drag a brick one square into a hole. It leaves a hole behind it.',
+    'Drag a brick along its own length, one square into a hole. A brick lying flat goes left and right; a standing one goes up and down.',
     'Tap a hole beside the bunny to hop her. Reach the carrot.',
-    'The coral edge is everywhere the fox can already reach.',
-    'Open a gap that touches that edge and he comes through it.',
+    'Watch where the fox paces. Those are the holes he can already reach.',
+    'Open a gap that joins his holes to hers and he comes through it.',
   ];
   let rulesGeom = null;
   function rulesBox() {
@@ -746,7 +744,11 @@
     ctx.save();
     ctx.beginPath(); ctx.rect(b.px, bodyY, b.pw, bodyH); ctx.clip();
     let y = bodyY - rulesScroll;
-    const demoH = 152;
+    // 96, not 152. The body of the standard card is 168 tall, so a taller demo
+    // pushed every numbered rule below the fold and the card opened showing a
+    // picture and a button. At 96 the first rule is on screen and the fade
+    // says there is more, which is what the scrolling body is for.
+    const demoH = 96;
     drawDemo(b.px + 43, y, b.pw - 86, demoH, now);
     y += demoH + 18;
     RULES.forEach((line, i) => {
@@ -913,12 +915,6 @@
       if (state.grid[i] === M.HOLE) RD.drawHole(ctx, g, i);
       else if (state.grid[i] === M.BRICK) RD.drawBrick(ctx, g, i);
     }
-    /* His edge is ALWAYS on screen, before the slide as well as after it. §4.3
-       is explicit that it is never toggled off, and a demo that hides it half
-       the time teaches the opposite of the rule. What changes at the slide is
-       that the edge SWEEPS outward into the corridor that just opened. */
-    RD.drawFoxEdge(ctx, RD.foxEdgeSegments(M, state, g),
-                   slid ? Math.min(1, (t - 0.24) / 0.12) : 1);
     // Once it has slid, `state` IS the position afterwards and every tile is
     // already where it belongs. Before that, the moving one is held out and
     // drawn last, part way along, the way it looks under a finger.
@@ -980,7 +976,8 @@
   };
   window.karrots = { get st() { return st; }, get moves() { return moves; },
                      get par() { return par; }, get phase() { return phase; },
-                     get level() { return levelIndex; }, geo, load: loadLevel, M, commit };
+                     get level() { return levelIndex; }, get pace() { return pace; }, dbg,
+                     geo, load: loadLevel, M, commit };
 
   /* ---------- BOOT ---------- */
   function frame(now) {
