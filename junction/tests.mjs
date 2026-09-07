@@ -479,5 +479,67 @@ ok('and the control: lengthen only one and it is about one cell',
    Math.abs((solo(4) - solo(0)) / 4 - 1 / 2.2) < 0.12,
    ((solo(4) - solo(0)) / 4).toFixed(2) + 's per carriage');
 
+/* ---------- THE LAW THAT BOUNDS EVERY LEVEL ----------
+   Found while trying to build a harder board and failing four times. A
+   junction MERGES one way and SPLITS the other: a train arriving from the
+   trunk is sent wherever the switch points, and a train arriving from a branch
+   always goes to the trunk. Switches do not move during a run.
+
+   So two trains that run the same piece of track in the SAME direction both
+   arrive at every junction on it from the same side, and the switch sends them
+   both the same way. They cannot end up in different sheds — not with more
+   junctions, not with a bigger board, not with any setting.
+
+   TRAINS THAT SHARE TRACK IN ONE DIRECTION MUST SHARE A DESTINATION.
+
+   Which is why "add more junctions" cannot by itself make Junction harder: a
+   junction on a one-way trunk separates nothing. The only thing that separates
+   two trains is using the same track in OPPOSITE directions at different
+   times, and that is a question of ORDER — which is where the difficulty has
+   to come from. */
+head('trains sharing track one way must share a destination');
+const tryEverySetting = (lv, sol) => {
+  const t = M.layout(lv, sol);
+  const js = [];
+  for (let i = 0; i < lv.size; i++) if (M.isJunction(t[i])) js.push(i);
+  let wins = 0, bestHome = 0;
+  for (let m = 0; m < (1 << js.length); m++) {
+    const c = M.cloneTrack(t);
+    js.forEach((i, k) => { if (m & (1 << k)) M.toggleSwitch(c, i); });
+    const r = M.runToEnd(lv, c);
+    bestHome = Math.max(bestHome, r.trains.filter(
+      (x) => x.state === 'parked' && lv.colour[x.cell] === x.colour).length);
+    if (r.won) wins++;
+  }
+  return { junctions: js.length, settings: 1 << js.length, wins, bestHome };
+};
+const sg = (r, c, a, b) => [r, c, a, b];
+const oneWay = M.buildLevel({
+  n: 1, tier: 0, R: 5, C: 7, rocks: [],
+  portals: [{ at: [0, 0], face: S, queue: [0] }, { at: [4, 0], face: N, queue: [1] }],
+  depots: [{ at: [0, 6], face: S, colour: 0 }, { at: [4, 6], face: N, colour: 1 }],
+  budget: 99, par: 0,
+});
+const oneWaySol = [sg(1, 0, N, S), sg(2, 0, N, E), sg(3, 0, S, N),
+                   sg(2, 1, W, E), sg(2, 2, W, E), sg(2, 3, W, E), sg(2, 4, W, E),
+                   sg(2, 5, W, N), sg(2, 5, W, S), sg(1, 5, S, E), sg(3, 5, N, E),
+                   sg(1, 6, W, N), sg(3, 6, W, S)];
+const oneWayResult = tryEverySetting(oneWay, oneWaySol);
+ok('two engines down one shared trunk cannot reach two sheds',
+   oneWayResult.wins === 0, JSON.stringify(oneWayResult));
+ok('and the best any setting manages is one of the two home',
+   oneWayResult.bestHome === 1, 'best ' + oneWayResult.bestHome);
+
+/* THE CONTROL, and without it the test above only proves the board is broken.
+   Level 1 shares a spine too — three cells of it — but the two engines run it
+   in OPPOSITE directions, so each meets the junctions from a different side.
+   One setting of four gets both home. */
+const bothWays = tryEverySetting(L, L.solution);
+ok('the SAME sharing in opposite directions does reach two sheds',
+   bothWays.wins === 1 && bothWays.bestHome === 2, JSON.stringify(bothWays));
+ok('and it is the structure, not the size — the same holds at 11x11',
+   (() => { const big = M.level1(11, 11); const r = tryEverySetting(big, big.solution);
+            return r.wins === 1 && r.bestHome === 2; })());
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed\n');
 process.exit(fail ? 1 : 0);

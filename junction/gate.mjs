@@ -27,6 +27,27 @@
        the greedy layout comes in UNDER par at 30 against 31, so the budget
        never bites.
 
+   AND ONE LAW ANY GENERATOR HAS TO OBEY, found by building four harder boards
+   and watching every one of them fail. A junction MERGES one way and SPLITS
+   the other, and switches do not move during a run — so two engines running
+   the same track in the SAME direction meet every junction on it from the same
+   side, and the switch sends them both the same way.
+
+     TRAINS THAT SHARE TRACK IN ONE DIRECTION MUST SHARE A DESTINATION.
+
+   Measured, with its control, in tests.mjs. Two engines down one shared trunk
+   toward two sheds: zero of two settings win and the best case is one of them
+   home. The same sharing run in OPPOSITE directions — which is level 1 — wins
+   in one setting of four, at 7x7 and at 11x11 alike.
+
+   The consequence is worth stating plainly, because it was the plan: MORE
+   JUNCTIONS CANNOT BY ITSELF MAKE THIS GAME HARDER. A junction on a one-way
+   trunk separates nothing, so adding them adds settings to try without adding
+   a decision. The only thing that separates two trains is running the same
+   track in opposite directions at different times, which makes ORDER the one
+   real source of difficulty here — and order is bought with route length,
+   which the budget prices.
+
    WHAT IT DELIBERATELY DOES NOT CLAIM. It does not say a level is solvable, or
    what the cheapest winning layout costs. Finding that needs a real search
    over layouts, and three quick ones written while investigating this were all
