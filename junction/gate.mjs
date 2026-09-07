@@ -122,6 +122,49 @@
    the whole mechanic. A gate that reported "unsolvable" from any of those
    would have been confidently wrong. That solver is M2's job and this file
    should grow a fourth number when it exists.
+
+   THE LAST THREE CANDIDATES, MEASURED AND DEAD. Written down because each one
+   cost a run and every one of them looks reasonable until it is measured.
+
+   RAKES ARE COSMETIC. A train with carriages holds more cells and so blocks a
+   corridor for longer, which ought to widen the band of arrivals that deadlock
+   and change what the board has to pay. Six seeds, four rake settings each
+   (none, one car, two cars, one on each engine): the budget, the single rail
+   layout and the decoy count came back IDENTICAL every time. The reason is
+   worth keeping — THE DETOUR IS CHUNKY. The cheapest doubling-back on a grid
+   costs four rails and buys far more delay than any corridor needs, so a rule
+   that shifts the required delay a little shifts nothing at all. That one
+   sentence is why the convoy, the third engine and the rake all failed.
+
+   A SHARED DESTINATION HAS NO FAIL STATE. The junction law has a positive
+   case the game had never used: same-direction sharing is legal when the
+   trains want the same shed. Two portals both sending coral to one coral shed
+   makes merging the answer instead of the mistake, and the cheapest board
+   becomes a confluence problem. It also cannot be lost — two trains going the
+   same way just queue nose to tail — and greedy won all eight seeds that
+   certified. No fail state, no game.
+
+   AND A CLOCK WOULD FORBID NOTHING. This was the last idea standing, and the
+   argument for it was that shared track is paid for once but driven by both
+   trains, so thrift ought to cost time. Every winning layout on three shipped
+   levels was enumerated with the tick it settles on. On L3 all 669 of them
+   settle at 982. On L1 the cheapest is one tick off the fastest, out of 874.
+   Route choice does not move the clock, because the run ends when the LAST
+   train parks and that is set by the size of the board.
+
+   SO THERE IS NO RULE CHANGE, and the search should stop. Six candidates, six
+   disproofs. The mechanic is one fail state — head-on deadlock at a corridor —
+   with one fix, arrive later, and it does not go deeper than that.
+
+   WHICH MEANS THE FLATNESS WAS NEVER THE MECHANIC. It is the ladder. Every
+   level in both ladders is the same board family: one wall, one gap, two
+   engines, hard-coded in candidate(). Twelve levels, one puzzle, with the
+   rocks in different places. The fix is more FAMILIES — different shapes of
+   conflict under the same rules — and the first one is in this file's
+   neighbour: crossing() puts the portals on adjacent edges so the two routes
+   must cross, which they cannot, and the reason to spend rails becomes space
+   instead of time. It passes the greedy gate by construction. Its decoy
+   counts are low so far, so it is proven POSSIBLE and not yet proven good.
 */
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);

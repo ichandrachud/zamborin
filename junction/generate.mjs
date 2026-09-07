@@ -99,6 +99,52 @@ export function candidate(seed) {
     budget: 999, par: 0, solution: [],
   });
 }
+/* A SECOND FAMILY, AND THE REASON THERE HAS TO BE ONE.
+   The board above is the only shape this game has ever shipped: a wall across
+   the middle, one gap in it, one engine coming down and one coming up. Twelve
+   levels were generated from it and twelve levels is the same puzzle twelve
+   times — the rocks move, nothing else does.
+
+   This family asks a different question with the same rules. One portal on the
+   TOP and one on the LEFT, with the sheds on the bottom and the right, so the
+   two routes have to cross in the middle of the yard — and a cell cannot hold
+   a four-way, so they cannot. The reason to spend rails becomes SPACE rather
+   than TIME: somebody has to go round, and the obstacles decide who can afford
+   to.
+
+   It also passes the hardest gate by construction rather than by luck. Greedy
+   routes each engine its own shortest way; here those two shortest ways cross,
+   the layout will not build, and greedy loses every time. In the corridor
+   family that had to be found by searching seeds. */
+export function crossing(seed) {
+  const R = [8, 9, 10][h32(seed, 1) % 3];
+  const C = [8, 9][h32(seed, 2) % 2];
+  const aC = 2 + (h32(seed, 3) % (C - 4));       // coral in, along the top
+  const aD = 2 + (h32(seed, 4) % (C - 4));       // coral's shed, along the bottom
+  const bR = 2 + (h32(seed, 5) % (R - 4));       // teal in, down the left
+  const bD = 2 + (h32(seed, 6) % (R - 4));       // teal's shed, down the right
+  const taken = new Set([`0,${aC}`, `${R - 1},${aD}`, `${bR},0`, `${bD},${C - 1}`]);
+  const rocks = [];
+  /* Kept deliberately sparse. Obstacles are what make the go-round a choice
+     rather than a stroll, but scattering them is the wrong tool for making an
+     answer unique — see pin.mjs, which measured that and does it properly. */
+  const nR = 5 + (h32(seed, 7) % 5);
+  for (let k = 0; k < nR; k++) {
+    const r = 1 + (h32(seed, 30 + k * 2) % (R - 2));
+    const c = 1 + (h32(seed, 31 + k * 2) % (C - 2));
+    if (taken.has(`${r},${c}`)) continue;
+    taken.add(`${r},${c}`); rocks.push([r, c]);
+  }
+  return M.buildLevel({
+    n: 800 + seed, tier: 0, R, C, rocks,
+    portals: [{ at: [0, aC], face: S, queue: [0] },
+              { at: [bR, 0], face: E, queue: [2] }],
+    depots: [{ at: [R - 1, aD], face: N, colour: 0 },
+             { at: [bD, C - 1], face: W, colour: 2 }],
+    budget: 999, par: 0, solution: [],
+  });
+}
+
 const rebudget = (lvl, budget) => M.buildLevel({
   n: lvl.n, tier: lvl.tier, R: lvl.R, C: lvl.C,
   rocks: (() => { const out = [];
@@ -205,20 +251,34 @@ ${one(ladders.landscape)}
 `;
 }
 
-export function harvest(want, seedFrom, label) {
+export async function harvest(want, seedFrom, label, opts) {
+  /* THE FAMILY IS A PARAMETER NOW. One board shape generated twelve times is
+     twelve levels of the same puzzle, which is the honest reason the ladder
+     went flat — the mechanic was never the problem. */
+  const family = (opts && opts.family) || candidate;
+  /* Imported here rather than at the top: pin.mjs imports THIS file, and two
+     modules awaiting each other at load time never finish. By the time a
+     harvest runs, both are built. */
+  const { pin } = await import('./pin.mjs');
   const found = [];
   let seed = seedFrom, tried = 0;
   while (found.length < want && seed < seedFrom + 4000) {
-    const lvl = candidate(seed);
+    const lvl = family(seed);
     seed++;
     if (M.validate(lvl).length) continue;
     tried++;
-    const a = assess(lvl);
-    if (!a || a.greedyWins || a.railLayouts !== 1) continue;
-    found.push({ seed: seed - 1, ...a });
+    /* A board with several answers used to be thrown away. Now it is pinned:
+       rocks are placed on the cells the rival answers need, one at a time,
+       until one answer is left. It roughly doubled the yield of the corridor
+       family and it is the only thing that makes the crossing family usable
+       at all. */
+    const res = pin(lvl, { slack: 2 });
+    if (!res.ok) continue;
+    found.push({ seed: seed - 1, rocksAdded: res.rocksAdded, ...res.r });
     console.log('  [' + label + '] seed ' + String(seed - 1).padStart(5) + '  ' +
-      a.level.R + 'x' + a.level.C + '  budget ' + String(a.budget).padStart(2) +
-      '  decoys ' + a.decoys);
+      res.r.level.R + 'x' + res.r.level.C + '  budget ' + String(res.r.budget).padStart(2) +
+      '  decoys ' + String(res.r.decoys).padStart(6) +
+      '  pinned with ' + res.rocksAdded + ' rock(s)');
   }
   return { found, tried };
 }
@@ -232,8 +292,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
      turned on its side, which is an isomorphism and preserves the
      certification; what makes the two ladders DIFFERENT is that they never
      draw from the same seeds. */
-  const port = harvest(want, 1, 'portrait');
-  const land = harvest(want, 20000, 'landscape');
+  const port = await harvest(want, 1, 'portrait');
+  const land = await harvest(want, 20000, 'landscape');
   const portrait = port.found.sort((x, y) => x.decoys - y.decoys).map((e, i) => toSpec(e, i + 1));
   const landscape = land.found.sort((x, y) => x.decoys - y.decoys)
     .map((e, i) => transposeSpec(toSpec(e, i + 1)));
