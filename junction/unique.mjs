@@ -93,23 +93,36 @@ export function certify(lvl, slack) {
         const c = M.cloneTrack(t);
         js.forEach((i, n) => { if (m & (1 << n)) M.toggleSwitch(c, i); });
         if (!M.runToEnd(lvl, c).won) continue;
-        const key = c.map((x, i) => x
-          ? i + '[' + x.segs.map((g) => g.join('')).sort().join('|') + ']sw' + x.sw : '')
+        /* TWO KEYS, and the difference matters. `rails` is the track alone;
+           `key` adds the switch settings. A junction keeps whichever branch
+           was laid first, so the same physical setting is labelled differently
+           depending on build order — which makes the switch count
+           order-sensitive and the RAIL count the honest measure of "one
+           solution". */
+        const rails = c.map((x, i) => x
+          ? i + '[' + x.segs.map((g) => g.slice().sort().join('')).sort().join('|') + ']' : '')
           .filter(Boolean).join(' ');
-        if (!winners.has(key)) winners.set(key, { cost, segs: [].concat(...acc) });
+        const key = rails + ' SW' + c.map((x) => (x ? x.sw : '')).join('');
+        if (!winners.has(key)) winners.set(key, { cost, rails, segs: [].concat(...acc) });
       }
       return;
     }
     for (const o of legs[k]) walk(k + 1, acc.concat([o]));
   };
   walk(0, []);
-  const byCost = {};
-  for (const v of winners.values()) byCost[v.cost] = (byCost[v.cost] || 0) + 1;
+  const byCost = {}, railsByCost = {};
+  for (const v of winners.values()) {
+    byCost[v.cost] = (byCost[v.cost] || 0) + 1;
+    (railsByCost[v.cost] = railsByCost[v.cost] || new Set()).add(v.rails);
+  }
   const costs = Object.keys(byCost).map(Number).sort((a, b) => a - b);
   return {
     routeOptions: legs.map((l) => l.length), combinationsWithinBudget: laid,
     distinctWinningLayouts: winners.size, byCost,
+    distinctRailLayouts: new Set([...winners.values()].map((v) => v.rails)).size,
+
     trueMinimumCost: costs[0] ?? null,
+    railLayoutsAtTrueMinimum: costs.length ? railsByCost[costs[0]].size : 0,
     /* One layout that achieves the true minimum, so a level can ADOPT the
        cheapest real answer as its solution instead of shipping whichever one
        its author happened to think of. */
@@ -117,7 +130,8 @@ export function certify(lvl, slack) {
       ? [...winners.values()].find((v) => v.cost === costs[0]).segs : null,
     answersAtTrueMinimum: costs.length ? byCost[costs[0]] : 0,
     parIsExact: costs.length ? costs[0] === lvl.budget : false,
-    unique: winners.size === 1,
+    // "one solution" means one set of RAILS; see the note on switch labelling
+    unique: costs.length ? railsByCost[costs[0]].size === 1 : false,
   };
 }
 

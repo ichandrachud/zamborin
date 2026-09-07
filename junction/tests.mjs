@@ -21,7 +21,7 @@ const head = (s) => console.log('\n' + s);
 
 // ---------- the level itself ----------
 head('level 1');
-const L = M.getLevel(1);
+const L = M.authored(1);
 const problems = M.validate(L);
 ok('validates', problems.length === 0, problems.join('; '));
 ok('is 7x7', L.R === 7 && L.C === 7);
@@ -241,7 +241,7 @@ ok('a stroke past the budget is refused', !four.ok && four.why === 'over budget'
 
 // ---------- the tier 5 board ----------
 head('level 33, the first board of tier 5');
-const L5 = M.getLevel(33);
+const L5 = M.authored(33);
 ok('addressed by number, not position', L5.n === 33);
 const p5 = M.validate(L5);
 ok('validates', p5.length === 0, p5.join('; '));

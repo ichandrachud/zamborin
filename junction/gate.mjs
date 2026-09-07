@@ -166,11 +166,12 @@ export function gate(lvl, label) {
 
 if (import.meta.url === 'file://' + process.argv[1]) {
   const rows = [
+    ...M.LADDER.map((l) => gate(l, 'ladder level ' + l.n)),
     gate(M.orderLevel(12, 9), 'THE ORDERING DEMO 12x9'),
-    gate(M.getLevel(1), 'level 1, authored 7x7'),
+    gate(M.authored(1), 'level 1, authored 7x7'),
     gate(M.level1(7, 11), 'level 1 at 7x11, a phone'),
     gate(M.level1(9, 7), 'level 1 at 9x7, the desktop frame'),
-    gate(M.getLevel(33), 'level 33, tier 5'),
+    gate(M.authored(33), 'level 33, tier 5'),
   ];
   const pad = (s, n) => String(s).padEnd(n);
   console.log('\n' + pad('level', 30) + pad('board', 8) + pad('trains', 8) +

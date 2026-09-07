@@ -290,7 +290,7 @@ function spec1(R, C, gapCol, rake) {
     solution: seg,
   };
 }
-function level1(R, C, gapCol, rake) { return buildLevel(spec1(R, C, gapCol, rake)); }
+function level1(R, C, gapCol, rake) { return buildLevel({ ...spec1(R, C, gapCol, rake), shapeable: true }); }
 
 /* ============================================================
    THE ORDERING BOARD — a demo of a different kind of difficulty
@@ -436,6 +436,12 @@ function buildLevel(spec) {
     solution: spec.solution || null,
     // where the authored puzzle sits inside this board, when it was padded
     core: spec.core || { R, C, padT: 0, padR: 0, padB: 0, padL: 0 },
+    /* CAN THIS LEVEL BE REBUILT AT ANOTHER SHAPE? Only the parametric one can.
+       The renderer used to decide that by asking whether the level was
+       NUMBER 1, which was true of the parametric tutorial and then became true
+       of the first generated level as well — so a certified board was quietly
+       replaced by a different puzzle the moment it was laid out. */
+    shapeable: !!spec.shapeable,
   };
 }
 
@@ -602,13 +608,48 @@ LEVEL_SPECS.push({
 });
 
 const LEVELS = LEVEL_SPECS.map(buildLevel);
+
+/* ---------- THE LADDER ----------
+   The levels a player actually walks through come from levels.js, which is
+   written by generate.mjs and never by hand: every board in it has been
+   measured to defeat greedy routing, to carry the cheapest budget anything
+   wins at, and to have exactly one set of rails that achieves it.
+
+   The two hand-authored levels stay where they are. They are what the tests
+   and the demos are written against, and level 1 is still the parametric one
+   that reshapes to the breakpoint — but neither is on the ladder, because
+   neither passes the gate. */
+const GENERATED = (function () {
+  if (typeof module === 'object' && module.exports) {
+    try { return require('./levels.js'); } catch (_) { return []; }
+  }
+  return (typeof self !== 'undefined' && self.JUNCTION_LEVELS) || [];
+}());
+const LADDER = GENERATED.map(buildLevel);
+const ladderCount = () => LADDER.length;
+/* The hand-authored levels by number, bypassing the ladder. The tests and the
+   demos are written against these, and getLevel now answers with the ladder
+   first — so asking for "level 1" and meaning the authored one needs saying. */
+const authored = (n) => LEVELS.find((l) => l.n === (n | 0)) || null;
+const nextOnLadder = (n) => {
+  let best = null;
+  for (const l of LADDER) if (l.n > n && (best === null || l.n < best.n)) best = l;
+  return best ? best.n : null;
+};
 const levelCount = () => LEVELS.length;
 // Levels are addressed by their NUMBER, not their position, because the hand
 // authored set is sparse: milestone 1 ships level 1 and one tier 5 board, and
 // the tier a level belongs to is a fact about its number.
 function getLevel(n) {
   const want = n | 0;
+  // the ladder first: a generated level 1 is the one a player should meet
+  for (const l of LADDER) if (l.n === want) return l;
   for (const l of LEVELS) if (l.n === want) return l;
+  if (LADDER.length) {
+    let best = LADDER[0];
+    for (const l of LADDER) if (l.n <= want && l.n > best.n) best = l;
+    return best;
+  }
   let best = LEVELS[0];
   for (const l of LEVELS) if (l.n <= want && l.n > best.n) best = l;
   return best;
@@ -894,7 +935,7 @@ return {
   N, E, S, W, DR, DC, opp, EMPTY, ROCK, PORTAL, DEPOT, TUNE, RUN_DT,
   newTrack, cloneTrack, sleepers, segIndex, isJunction, hasSide, trunkOf,
   activeBranch, idleBranch, exitSide, canAddSegment, addSegment, toggleSwitch,
-  eraseCell, buildLevel, padLevel, level1, orderLevel, tightLevel, validate, LEVELS, LEVEL_SPECS, levelCount, getLevel,
+  eraseCell, buildLevel, padLevel, level1, orderLevel, tightLevel, validate, LEVELS, LEVEL_SPECS, LADDER, ladderCount, authored, nextOnLadder, levelCount, getLevel,
   rowOf, colOf, sideBetween, neighbour, validateStroke,
   createRun, stepRun, isWon, runToEnd, layout, advance,
 };

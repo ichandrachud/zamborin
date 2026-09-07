@@ -391,10 +391,11 @@
      board — not the same one padded — so the track goes with it, the way a
      new level would. Turning a phone is the only thing that does this. */
   function reshape(R, C) {
-    // Only the parametric level follows the frame. A hand-authored board — the
-    // tier-5 demo — keeps the shape it was written at, and asking to reshape it
-    // every frame would wipe the player's track every frame.
-    if (core.n !== 1) return;
+    /* Only the PARAMETRIC level follows the frame, and it says so itself. This
+       used to ask whether the level was number 1, which stopped being the same
+       question the moment the generator emitted its own level 1 — and quietly
+       swapped a certified board for a different puzzle. */
+    if (!core.shapeable) return;
     if (level.R === R && level.C === C) return;
     core = level = M.level1(R, C);
     track = M.newTrack(level.size);
@@ -1902,7 +1903,7 @@
       scrollMax: Math.max(0, contentH - viewH),
       ctaCy: py + ph - FOOTER + 16 + UI.CTA.h / 2,
       title: kind === 'rules' ? 'JUNCTION' : 'ALL HOME',
-      cta: kind === 'rules' ? 'PLAY' : 'AGAIN',
+      cta: kind === 'rules' ? 'PLAY' : (nextLevelNumber() === null ? 'AGAIN' : 'NEXT'),
       subtitle: kind === 'rules'
         ? 'Lay the track, set the switches, and send every engine to the shed of its own colour.'
         : 'Every engine home, through rails they had to share.',
@@ -2343,7 +2344,10 @@
 
     if (phase === 'rules' || phase === 'win') {
       if (inBox(p, L.hit.cta) && !d.moved) {
-        if (phase === 'win') { restartLevel(); }
+        if (phase === 'win') {
+          const nx = nextLevelNumber();
+          if (nx === null) restartLevel(); else goToLevel(nx);
+        }
         else { phase = 'play'; save.seen = true; persist(); markStarted(); }
         cardScroll = 0; play('click'); draw();
       }
@@ -2424,6 +2428,19 @@
     history = []; track = M.newTrack(level.size);
     T().levelStart(level.n);
     draw();
+  }
+
+  /* THE LADDER. Winning used to say AGAIN and hand back the same yard, which
+     is a demo rather than a game: there was nowhere to go. The roster is
+     whatever the model has, in order, so a level added by the generator joins
+     the ladder without another line here. */
+  const nextLevelNumber = () => M.nextOnLadder(level.n);
+  function goToLevel(n) {
+    core = level = M.getLevel(n);
+    track = M.newTrack(level.size);
+    history = []; run = null; winAt = 0; releases = 0; phase = 'play';
+    save.max = Math.max(save.max, n); persist();
+    layout(); T().levelStart(level.n); draw();
   }
 
   // ---------- SMALL HELPERS ----------
