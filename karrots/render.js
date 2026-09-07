@@ -29,7 +29,7 @@
       RAISED = '#1A2A45',   // --bg-panel  Raised. NOT #1B2A47; see the known drift
       SCRIM = '#0A101C',
       CORAL = '#FF6B5C',    // --accent-text   the fox's reach
-      GREEN = '#5DD39E',    // --green         a safe slide
+      GREEN = '#5DD39E',    // --green         palette, unused since the ring went
       SUN = '#FFD23F',      // --accent-2      par
       INK72 = 'rgba(255,255,255,0.72)',
       INK92 = 'rgba(255,255,255,0.92)';
@@ -142,24 +142,12 @@
      means it opens his path. Solid versus dashed is a SHAPE channel, so the
      warning does not depend on telling green from red. Both carry a dark
      casing so they read on a bright tile and on the dark floor alike. */
-  function drawRing(ctx, box, safe) {
-    var r = Math.round(Math.min(box.w, box.h) * 0.22);
-    ctx.save();
-    ctx.lineWidth = 6; ctx.strokeStyle = SCRIM;              // casing
-    ctx.setLineDash([]);
-    rr(ctx, box.x - 2, box.y - 2, box.w + 4, box.h + 4, r + 2); ctx.stroke();
-    ctx.lineWidth = 3; ctx.strokeStyle = safe ? GREEN : CORAL;
-    if (!safe) ctx.setLineDash([9, 7]);
-    rr(ctx, box.x - 2, box.y - 2, box.w + 4, box.h + 4, r + 2); ctx.stroke();
-    ctx.restore();
-  }
 
   return {
     GROUND: GROUND, SURFACE: SURFACE, RAISED: RAISED, SCRIM: SCRIM,
     PLATE: PLATE, TILE_R: TILE_R,
     CORAL: CORAL, GREEN: GREEN, SUN: SUN, INK72: INK72, INK92: INK92,
     WORLDS: WORLDS, rr: rr,
-    drawTray: drawTray, drawHole: drawHole, drawBrick: drawBrick, drawTile: drawTile,
-    drawRing: drawRing
+    drawTray: drawTray, drawHole: drawHole, drawBrick: drawBrick, drawTile: drawTile
   };
 });

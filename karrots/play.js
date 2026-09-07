@@ -114,6 +114,8 @@
      Rasterised once by the browser from the stripped SVGs in art/. Nothing
      waits on them: the board draws without a cast and repaints as they land. */
   const ART = {};
+  /* Where the cast was painted this frame, for the overlap check. */
+  const paintBox = { fox: null, bunny: null };
   const ART_NAMES = ['bunny-idle', 'bunny-down-1', 'bunny-down-2', 'bunny-down-3',
     'bunny-up-1', 'bunny-up-2', 'bunny-up-3', 'bunny-side-1', 'bunny-side-2',
     'bunny-side-3', 'fox-still', 'fox-walk-1', 'fox-walk-2', 'carrot', 'brick'];
@@ -122,6 +124,32 @@
     im.onload = () => { ART[n] = im; };
     im.src = './art/' + n + '.svg?v=4';
   });
+  /* HOW BIG EACH OF THEM IS DRAWN, and why it is not just a number.
+
+     A sprite is fitted by HEIGHT, so its width follows its own aspect - and
+     the fox's two walk frames are far wider than his standing one: stretched
+     out mid-stride he came to 77.6px on a 77px cell and crossed 0.1px into the
+     slat next door. Sub-pixel, but the rule is that the cast is never on a
+     slat, and a rule with an exception is a rule nobody can check.
+
+     So the height is capped by the WIDEST frame that character has: every
+     frame of one animal is drawn at the same height (no pulsing between
+     stride and stand) and none of them is wider than 0.94 of a cell. */
+  const CAST_FRAMES = {
+    fox:   ['fox-still', 'fox-walk-1', 'fox-walk-2'],
+    bunny: ['bunny-idle', 'bunny-down-1', 'bunny-down-2', 'bunny-down-3',
+            'bunny-up-1', 'bunny-up-2', 'bunny-up-3',
+            'bunny-side-1', 'bunny-side-2', 'bunny-side-3'],
+  };
+  function castH(who, want) {
+    let widest = 0;
+    for (const n of CAST_FRAMES[who]) {
+      const im = ART[n];
+      if (im && im.naturalWidth) widest = Math.max(widest, im.naturalWidth / im.naturalHeight);
+    }
+    return widest ? Math.min(want, geo.cell * 0.94 / widest) : want;
+  }
+
   const HOP_FRAMES = {
     up:    ['bunny-up-1', 'bunny-up-2', 'bunny-up-3'],
     down:  ['bunny-down-1', 'bunny-down-2', 'bunny-down-3'],
@@ -132,14 +160,18 @@
   /* Draw a sprite to fit a box, keeping its aspect and standing it on the
      floor of the cell rather than centring it, which is what makes a character
      look like it is IN the hole rather than floating over it. */
+  /* Returns the box it painted, or null if the art has not landed yet. The box
+     is what makes "nothing but a slat is ever drawn on a slat" a thing a test
+     can ask about rather than a thing to squint at. The SVGs are cropped to
+     their own ink by build-sprites.mjs, so the box IS the drawing. */
   function sprite(name, cx, footY, h, flip) {
-    const im = ART[name]; if (!im || !im.naturalWidth) return false;
+    const im = ART[name]; if (!im || !im.naturalWidth) return null;
     const w = h * (im.naturalWidth / im.naturalHeight);
     ctx.save();
     if (flip) { ctx.translate(cx, 0); ctx.scale(-1, 1); ctx.translate(-cx, 0); }
     ctx.drawImage(im, cx - w / 2, footY - h, w, h);
     ctx.restore();
-    return true;
+    return { x: cx - w / 2, y: footY - h, w: w, h: h };
   }
 
   /* ---------- GAME STATE ---------- */
@@ -266,6 +298,16 @@
   /* ---------- MOVES ---------- */
   function carrotsFor(m) { return m <= par ? 3 : m <= Math.ceil(par * TUNE.carrot2Mult) ? 2 : 1; }
 
+  /* One gesture, several cells, one move charged per cell. The run was built
+     to stop at a winning slide, so nothing here can land on a board she has
+     already left. */
+  function commitRun(mvs) {
+    for (let i = 0; i < mvs.length; i++) {
+      commit(mvs[i], { silent: i < mvs.length - 1 });
+      if (phase !== 'play') break;
+    }
+  }
+
   function commit(mv, opts) {
     opts = opts || {};
     history.push({ state: M.clone(st), moves });
@@ -273,7 +315,7 @@
     const prev = st;
     moves++;
     st = next;
-    paceStepAside(prev, performance.now());
+    if (st.bunny !== prev.bunny || st.fox !== prev.fox) snapPaceHome(performance.now());
 
     /* HE DOES NOT TAKE HER THE INSTANT THE GAP OPENS. He sets off, and the
        walk takes a couple of seconds, and until he arrives the board is still
@@ -316,14 +358,17 @@
 
   /* The 4-connected walk between two holes, so both the catch and her run to
      the carrot are journeys the player can follow rather than teleports. */
-  function pathThroughHoles(from, to) {
+  /* `avoid` is a cell the walker may not use. The fox is given the carrot:
+     nothing passes over it and only the bunny may share its square, so his
+     run at her has to go round. */
+  function pathThroughHoles(from, to, avoid) {
     const prev = new Int16Array(M.N).fill(-1);
     const q = [from]; prev[from] = from;
     while (q.length) {
       const i = q.shift();
       if (i === to) break;
       for (const ni of M.NB4[i]) {
-        if (prev[ni] >= 0 || st.grid[ni] !== M.HOLE) continue;
+        if (prev[ni] >= 0 || st.grid[ni] !== M.HOLE || ni === avoid) continue;
         prev[ni] = i; q.push(ni);
       }
     }
@@ -333,6 +378,8 @@
     return path;
   }
 
+  /* His run at her. It goes round the carrot: nothing passes over it, which
+     is also why caught() no longer reaches through it. */
   function foxPathToBunny() {
     const prev = new Int16Array(M.N).fill(-1);
     const q = [st.fox]; prev[st.fox] = st.fox;
@@ -343,7 +390,7 @@
       for (const d of M.DIRS) {
         if (!M.inside(p.r + d.dy, p.c + d.dx)) continue;
         const ni = M.idx(p.r + d.dy, p.c + d.dx);
-        if (prev[ni] >= 0 || st.grid[ni] !== M.HOLE) continue;
+        if (prev[ni] >= 0 || st.grid[ni] !== M.HOLE || ni === st.carrot) continue;
         prev[ni] = i; q.push(ni);
       }
     }
@@ -383,6 +430,30 @@
   }
   const inBox = (p, b) => b && p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h;
 
+  /* HOW FAR THIS SLAT CAN GO THIS WAY, as a list of the one-cell slides that
+     make up the run. A slide is still one cell to the rules and one cell to
+     the move counter - par is a count of one-cell slides and it has to stay
+     that - but one gesture may spend several of them, which is how the
+     original plays. Measured on the eight levels, 22.7% of legal slides have
+     somewhere further to go, so a fifth of every move used to be drag, stop,
+     drag again.
+
+     The run ends where the game does: a slide that opens her path to the
+     carrot is the last one, because she sets off the moment it lands. */
+  function slideRun(st0, tile, dir) {
+    const out = [];
+    let s = st0, a = tile.a, b = tile.b;
+    while (out.length < M.C) {
+      const mv = M.slideMoves(s).find(m => m.a === a && m.b === b && m.dir === dir);
+      if (!mv) break;
+      out.push(mv);
+      s = M.apply(s, mv);
+      if (M.won(s)) break;
+      a = M.NBD[a][dir]; b = M.NBD[b][dir];
+    }
+    return out;
+  }
+
   canvas.addEventListener('pointerdown', (e) => {
     SND.ready();
     const p = toLogical(e);
@@ -395,7 +466,7 @@
        nothing at all. Finish the little animation instead and take the press. */
     if (anim && (anim.kind === 'snap' || anim.kind === 'snapback')) {
       const a = anim; anim = null;
-      if (a.kind === 'snap') commit(a.mv);
+      if (a.kind === 'snap') commitRun(a.mvs);
     }
     if (phase !== 'play' || anim) { dbg.lastDown.why = 'phase ' + phase + (anim ? ' + anim ' + anim.kind : ''); return; }
 
@@ -451,10 +522,8 @@
     if (screenDir !== drag.screenDir) {
       drag.screenDir = screenDir;
       drag.dir = DIR_FROM_SCREEN[screenDir];
-      drag.legal = M.slideMoves(st).some(m => m.a === drag.tile.a && m.dir === drag.dir);
-      drag.preview = drag.legal
-        ? M.apply(st, { type: 'slide', a: drag.tile.a, b: drag.tile.b, dir: drag.dir })
-        : null;
+      drag.chain = slideRun(st, drag.tile, drag.dir);
+      drag.legal = drag.chain.length > 0;
       if (!drag.legal) {
         SND.refused();
         /* SAY WHO IS REFUSING. A slat that will not move because it would seal
@@ -473,8 +542,8 @@
       drag.trail = [];                         // a reversal is a fresh gesture
     }
     const sd = M.DIRS[screenDir];
-    // one cell of travel, and no rubber band past it: a slide is exactly one
-    const limit = drag.legal ? geo.cell : geo.cell * 0.12;   // blocked: gives a little and stops
+    // as far as the slat can actually go, and no rubber band past it
+    const limit = drag.legal ? geo.cell * drag.chain.length : geo.cell * 0.12;
     /* Take the dead zone off the travel. It used to be left on, so the instant
        the gesture passed 5px the slat jumped 5px to catch up - a small pop at
        the start of every single drag, and the first thing the hand feels. */
@@ -504,18 +573,26 @@
        it off the committed distance as well quietly moved the line from 42% of
        a cell to 52% on a phone - the opposite of the complaint. */
     const raw = drag.raw || 0;
-    const mv = { type: 'slide', a: drag.tile.a, b: drag.tile.b, dir: drag.dir };
-    dbg.lastEnd = { legal: !!drag.legal, along: Math.round(along), raw: Math.round(raw),
+    const run = drag.chain ? drag.chain.length : 0;
+    dbg.lastEnd = { legal: !!drag.legal, along: Math.round(along), raw: Math.round(raw), run: run,
                     need: Math.round(geo.cell * TUNE.commitFrac),
                     dir: drag.dir, screenDir: drag.screenDir, moved: drag.moved };
     const cellsPerMs = (drag.vel || 0) / geo.cell;
     const flick = cellsPerMs >= TUNE.flickVel && raw >= geo.cell * TUNE.flickMin;
-    dbg.lastEnd.vel = +cellsPerMs.toFixed(5); dbg.lastEnd.flick = flick;
-    if (drag.legal && (raw >= geo.cell * TUNE.commitFrac || flick)) {
+    /* Every whole cell the gesture crossed is spent; the part-cell left at the
+       end is spent on the same terms a single-cell drag ever was - 42% of it,
+       or a flick. */
+    const whole = Math.floor(raw / geo.cell);
+    const rest = raw - whole * geo.cell;
+    const cells = Math.max(0, Math.min(run,
+      whole + ((rest >= geo.cell * TUNE.commitFrac || flick) ? 1 : 0)));
+    dbg.lastEnd.vel = +cellsPerMs.toFixed(5); dbg.lastEnd.flick = flick; dbg.lastEnd.cells = cells;
+    if (drag.legal && cells > 0) {
       dbg.committed++;
-      // snap the last few pixels home, then the move lands
-      anim = { kind: 'snap', t0: performance.now(), mv,
-               from: { dx: drag.dx, dy: drag.dy }, to: { dx: d.dx * geo.cell, dy: d.dy * geo.cell },
+      // snap the last few pixels home, then the moves land
+      anim = { kind: 'snap', t0: performance.now(), mvs: drag.chain.slice(0, cells),
+               from: { dx: drag.dx, dy: drag.dy },
+               to: { dx: d.dx * geo.cell * cells, dy: d.dy * geo.cell * cells },
                tile: drag.tile };
     } else if (along > 0) {
       anim = { kind: 'snapback', t0: performance.now(),
@@ -596,18 +673,10 @@
     for (let i = 0; i < M.N; i++) if (r[i]) n++; return n; }
 
   /* A slide can land on the square an animal is standing in, and apply() then
-     steps it into a neighbouring hole. Walk that step instead of popping it:
-     it is the one moment the player is looking straight at them. */
-  function paceStepAside(prev, now) {
-    for (const who of ['bunny', 'fox']) {
-      const from = who === 'bunny' ? prev.bunny : prev.fox;
-      const to   = who === 'bunny' ? st.bunny   : st.fox;
-      if (from === to) continue;
-      pace[who] = { at: to, from: from, to: to, t0: now, ms: WANDER.fastStep,
-                    path: [], idx: 0 };
-    }
-  }
-
+     steps it into a neighbouring hole. That step is NOT animated: walking it
+     would draw them on the slat that has just landed, for 240ms, and the rule
+     is that nothing but a slat is ever drawn on a slat. By the time the slide
+     lands they are already on the square that is theirs. */
   function snapPaceHome(now) {
     for (const who of ['bunny', 'fox']) {
       const home = who === 'bunny' ? st.bunny : st.fox;
@@ -664,6 +733,9 @@
   function stepPace(now) {
     if (!st || REDUCED.matches) return;
     if (slatInPlay()) return;
+    /* Only while the level is live. Won, caught or running, somebody else is
+       driving the drawing and a pacing animal walks about behind the card. */
+    if (phase !== 'play') return;
     for (const who of ['bunny', 'fox']) {
       if (who === 'fox' && M.buried(st)) continue;      // he is not there any more
       const anchor = who === 'bunny' ? st.bunny : st.fox;
@@ -702,11 +774,15 @@
   /* A short recoil for whoever just refused to be squashed: back away from the
      slat, then settle. 380ms, and it never moves them off their own square. */
   const FLINCH_MS = 380;
+  /* 0.09 of a cell, and that number is not a taste. A sprite is drawn with its
+     feet at 0.90 of the cell and fitted into a box 0.80 high, so its head is
+     already at 0.10 - lift it further than that and it crosses into the cell
+     above, which is usually the very slat that just refused to squash it. */
   function flinchOffset(cell, now) {
     if (!flinch || flinch.cell !== cell) return null;
     const k = (now - flinch.t0) / FLINCH_MS;
     if (k >= 1) { flinch = null; return null; }
-    const kick = Math.sin(k * Math.PI) * geo.cell * 0.16;
+    const kick = Math.sin(k * Math.PI) * geo.cell * 0.09;
     return { d: kick, k };
   }
 
@@ -747,13 +823,19 @@
       anim.k = k * k * (3 - 2 * k);
       if (k >= 1) {
         const a = anim; anim = null;
-        if (a.kind === 'snap') commit(a.mv);
+        if (a.kind === 'snap') commitRun(a.mvs);
         else SND.refused();
       }
     } else if (anim.kind === 'run') {
       const per = 150;                                   // ms per square, quick
       if (el >= anim.path.length * per) {
         anim = null; phase = 'won';
+        /* SHE STAYS ON THE CARROT. Her run is an animation and the model still
+           had her on the square she set off from, so the moment the card came
+           up she was drawn back there and carried on pacing behind it. The
+           square she reached is hers now. */
+        st = { grid: st.grid, bunny: st.carrot, fox: st.fox, carrot: st.carrot };
+        snapPaceHome(now);
         const c = carrotsFor(moves);
         const id = LEVELS[levelIndex].id;
         if (!best[id] || moves < best[id].moves) best[id] = { moves, carrots: c };
@@ -804,25 +886,45 @@
       if (held && t.a === held.a && t.b === held.b) continue;
       RD.drawTile(ctx, geo, t.a, t.b, world);
     }
+    /* THE CAST GOES UNDER THE SLAT IN HAND, AND IS CUT OUT OF IT ENTIRELY.
+
+       A legal slide may land on the fox - that is the player cornering him -
+       so while the slat is dragged across his hole he was drawn sitting on top
+       of it: the owner's "the fox is over the slat, even momentarily". Drawing
+       them before the held tile fixes the ordering, but not the whole of it,
+       because the slat's corners are rounded and he showed through them: 14
+       orange pixels out of 5,183 in the overlap, measured. So the cast is also
+       CLIPPED out of the held tile's footprint, and the number is zero. He is
+       covered as the slat comes across him, which is what is happening. */
+    let hdx = 0, hdy = 0, hlift = 0;
     if (held) {
-      let dx = 0, dy = 0, lift = 0;
-      if (drag) { dx = drag.dx; dy = drag.dy; lift = geo.cell * 0.05; }
+      if (drag) { hdx = drag.dx; hdy = drag.dy; hlift = geo.cell * 0.05; }
       else if (anim && anim.k !== undefined) {
-        dx = anim.from.dx + (anim.to.dx - anim.from.dx) * anim.k;
-        dy = anim.from.dy + (anim.to.dy - anim.from.dy) * anim.k;
-        lift = geo.cell * 0.05 * (1 - anim.k);
+        hdx = anim.from.dx + (anim.to.dx - anim.from.dx) * anim.k;
+        hdy = anim.from.dy + (anim.to.dy - anim.from.dy) * anim.k;
+        hlift = geo.cell * 0.05 * (1 - anim.k);
       }
-      heldBox = RD.drawTile(ctx, geo, held.a, held.b, world, { dx, dy, lift });
+      const hp = geo.at(held.a), c = geo.cell;
+      const hw = held.horiz ? c * 2 : c, hh = held.horiz ? c : c * 2;
+      /* A pixel proud on every side. Chrome antialiases a clip, so an exact
+         rect left a one-pixel seam of him along the edge - 17 pixels of fox
+         orange, blended 85% against the ground, which is how it was found. */
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, 0, LW, LH);
+      ctx.rect(hp.x + hdx - 1, hp.y + hdy - 1, hw + 2, hh + 2);
+      ctx.clip('evenodd');
     }
-
-    // what this slide would do, while it is still in the hand
-    if (drag && drag.moved && heldBox) {
-      const safe = drag.legal && drag.preview && !M.caught(drag.preview);
-      RD.drawRing(ctx, heldBox, safe);
-    }
-
     drawFox(now);
     drawBunny(now);
+    if (held) ctx.restore();
+
+    if (held) {
+      heldBox = RD.drawTile(ctx, geo, held.a, held.b, world, { dx: hdx, dy: hdy, lift: hlift });
+      dbg.paint = { fox: paintBox.fox, bunny: paintBox.bunny, held: { a: held.a, b: held.b, dx: hdx, dy: hdy } };
+    } else {
+      dbg.paint = { fox: paintBox.fox, bunny: paintBox.bunny, held: null };
+    }
 
     drawHUD();
     ctrl.forEach(b => {
@@ -858,7 +960,8 @@
     }
     const fl = flinchOffset(st.bunny, now);
     if (fl) { ctx.save(); ctx.translate(0, -fl.d); }
-    const drew = sprite(frame, w.x + c / 2, w.y + c * 0.90, c * 0.76, flip);
+    const drew = sprite(frame, w.x + c / 2, w.y + c * 0.90, castH('bunny', c * 0.76), flip);
+    paintBox.bunny = drew;
     if (fl) ctx.restore();
     if (!drew) {
       ctx.fillStyle = '#FFFFFF';
@@ -878,28 +981,17 @@
       ? (dx > 0 ? HOP_FRAMES.right : HOP_FRAMES.left)
       : (dy > 0 ? HOP_FRAMES.down : HOP_FRAMES.up);
     const frame = set[Math.floor(now / 90) % set.length];
-    sprite(frame, x + c / 2, y + c * 0.90, c * 0.76, Math.abs(dx) > Math.abs(dy) && dx < 0);
+    paintBox.bunny = sprite(frame, x + c / 2, y + c * 0.90, castH('bunny', c * 0.76),
+                            Math.abs(dx) > Math.abs(dy) && dx < 0);
   }
 
-  /* Cornered, and leaving. A short shrink and fade on the square that took
-     him, then nothing: the board simply has no fox on it. */
-  const GONE_MS = 460;
+  /* Cornered, and gone. There USED to be a shrink and a fade here, played on
+     the square that took him - but that square has a slat on it by then, so
+     the send-off was the one thing the board must never show: an animal drawn
+     on a slat. The slide lands and there is no fox. The knock and his yelp
+     carry the moment instead. */
   function drawFox(now) {
-    if (M.buried(st)) {
-      if (!foxGone) return;                             // already gone, long since
-      const k = (now - foxGone.t0) / GONE_MS;
-      if (k >= 1) return;
-      const p = geo.at(foxGone.cell), c = geo.cell;
-      ctx.save();
-      ctx.globalAlpha = 1 - k;
-      const sc = 1 - k * 0.45;
-      ctx.translate(p.x + c / 2, p.y + c * 0.9);
-      ctx.scale(sc, sc);
-      ctx.translate(-(p.x + c / 2), -(p.y + c * 0.9));
-      sprite('fox-still', p.x + c / 2, p.y + c * 0.9, c * 0.8, false);
-      ctx.restore();
-      return;
-    }
+    if (M.buried(st)) { paintBox.fox = null; return; }
     drawFoxLive(now);
   }
 
@@ -933,7 +1025,8 @@
     }
     const fl2 = flinchOffset(st.fox, now);
     if (fl2) { ctx.save(); ctx.translate(0, -fl2.d); }
-    const drewFox = sprite(frame, x + c / 2, y + c * 0.90, c * 0.80, flip);
+    const drewFox = sprite(frame, x + c / 2, y + c * 0.90, castH('fox', c * 0.80), flip);
+    paintBox.fox = drewFox;
     if (fl2) ctx.restore();
     if (!drewFox) {
       ctx.fillStyle = '#FF4713';

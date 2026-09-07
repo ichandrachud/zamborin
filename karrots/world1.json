@@ -2,97 +2,97 @@
  {
   "id": 1,
   "rows": [
-   "aaBbb.dd.",
-   "egg..Chhi",
-   "e.jFkk#li",
-   "..jmnool.",
-   ".ppmnqrrs",
-   ".ttuuq#.s"
+   ".a.bbddee",
+   "ga..hii.j",
+   "gkllh.mmj",
+   ".knnFopqq",
+   "rrsC.op.#",
+   "ttsuuBvv#"
   ],
-  "note": "the slide that opens the way to the carrot is the one that opens it to him."
+  "note": "par 4 with him on the board and 1 without; the short way round walks her straight into him."
  },
  {
   "id": 2,
   "rows": [
-   "aa.bbddee",
-   "g.hhiijj.",
-   "gkk#.ll..",
-   "mmnn#Boop",
-   ".qq..rr.p",
-   "ssFC.ttuu"
+   "aab#.ddee",
+   "ggbhh.iij",
+   "kklmmF..j",
+   "n.lBooCpp",
+   "nqrsstt#u",
+   ".qr.vvwwu"
   ],
-  "note": "the walls make one of the two routes a dead end. Work out which before you move."
+  "note": "par 5 with him on the board and 4 without; the short way round walks her straight into him."
  },
  {
   "id": 3,
   "rows": [
-   ".aa.bbBdd",
-   "eeghhFii.",
-   "jjg#..Ckk",
-   ".llmmnoo.",
-   "pqq.#nrrs",
-   "p.tt.uu.s"
+   "aabbCFdd.",
+   "ee.ggh.Bi",
+   "jjk#lhmmi",
+   "nnk.l..oo",
+   "pp.qqrsst",
+   "uuvv#rwwt"
   ],
-  "note": "his corridor crosses the route; watch which end of it he is at."
+  "note": "par 6 with him on the board and 1 without; the short way round walks her straight into him."
  },
  {
   "id": 4,
   "rows": [
+   "aaCFbbdee",
+   "g#.hh.di.",
+   "g.jjBkki.",
+   "llmnn..op",
+   ".qm.rrsop",
+   ".qttuus#."
+  ],
+  "note": "par 8 with him on the board and 2 without; the short way round walks her straight into him."
+ },
+ {
+  "id": 5,
+  "rows": [
    "Baa..bb#.",
-   "dF.eeg.hh",
+   "d.Feeg.hh",
    "di.jjgklm",
    "niCoopklm",
    "n.qq#pr..",
    "ss.tt.ruu"
   ],
-  "note": "the way through is not the way it looks."
- },
- {
-  "id": 5,
-  "rows": [
-   "...aabbdd",
-   "eeghhii.j",
-   "kkgllm..j",
-   "#nnFCm.oo",
-   "pqqrss.tt",
-   "p.#rBuu.."
-  ],
-  "note": "the route has to be built from the far side of the walls."
+  "note": "par 10 with him on the board and 1 without; the short way round walks her straight into him."
  },
  {
   "id": 6,
   "rows": [
-   "aaCFbb.de",
-   "gg.hhiide",
-   "...jBk#.l",
-   "#mmjnkool",
-   "ppqqnrr..",
-   ".ss.ttuu."
+   "...aabbdd",
+   "ee.gg.hhB",
+   "ii.jjkkFl",
+   "mmnn.ooCl",
+   "pqq#.rrss",
+   "p.ttuu#vv"
   ],
-  "note": "his reach is longer than it looks from where he is standing."
+  "note": "par 12 with him on the board and 1 without; the short way round walks her straight into him."
  },
  {
   "id": 7,
   "rows": [
-   ".aab.ddee",
-   "#ggbhhiij",
-   "kk..l..Cj",
-   ".mnnlFoop",
-   ".mqq.rr.p",
-   "ss.ttB#uu"
+   "..aa#bb#d",
+   "eeg..hhBd",
+   "iigjjCFkl",
+   "m..n.opkl",
+   "mqqnropss",
+   "ttuurvvww"
   ],
-  "note": "the long one: ignoring him entirely would take a fraction of the moves."
+  "note": "par 15 with him on the board and 1 without; the short way round walks her straight into him."
  },
  {
   "id": 8,
   "rows": [
-   "aa.bbddee",
-   "gghhi.jjk",
-   "B.l.i.mmk",
-   "nnlCFoopp",
-   "q#.#rrsst",
-   "quu.vvwwt"
+   "aabbddeeg",
+   "h#i..jj.g",
+   "hki..llmm",
+   "nkoo..pBq",
+   "nrr#CFp.q",
+   "..ss.ttuu"
   ],
-  "note": "the wall. Every slide near the middle is one he is waiting for."
+  "note": "par 19 with him on the board and 2 without; the short way round walks her straight into him."
  }
 ]

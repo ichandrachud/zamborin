@@ -208,10 +208,14 @@
   }
 
   /* Where an animal steps when a slat takes the cell it was on. Lowest index
-     of the neighbouring holes, so a replay reproduces it exactly. */
-  function stepAside(grid, from) {
+     of the neighbouring holes, so a replay reproduces it exactly.
+     `blocked` is a cell it may not step into - the carrot, for the fox. If
+     that was his only way out he is simply cornered, which is the rule doing
+     its job and not an accident. */
+  function stepAside(grid, from, blocked) {
     var nb = NB4[from];
-    for (var k = 0; k < nb.length; k++) if (grid[nb[k]] === HOLE) return nb[k];
+    for (var k = 0; k < nb.length; k++)
+      if (grid[nb[k]] === HOLE && nb[k] !== blocked) return nb[k];
     return from;
   }
 
@@ -248,7 +252,7 @@
       var bunny = st.bunny, fox = st.fox;
       // whoever was standing where the slat now is takes a step to the side
       if (g[bunny] !== HOLE) bunny = stepAside(g, bunny);
-      if (g[fox] !== HOLE) fox = stepAside(g, fox);
+      if (g[fox] !== HOLE) fox = stepAside(g, fox, st.carrot);   // never onto the carrot
       next = { grid: g, bunny: bunny, fox: fox, carrot: st.carrot };
     }
     return next;
@@ -259,6 +263,11 @@
      carrot's cell are all holes, so they take part. Returns a Uint8Array
      marking the fox's component, which is both the losing test and the shape
      the coral edge is drawn around. */
+  /* THE CARROT IS CLOSED TO HIM. Owner's rule of 2026-09-07: nothing passes
+     over the carrot and only the bunny may share its cell. A slat was already
+     refused it (freeForTile); this is the other half - the fox may not stand
+     on it and so may not reach through it either, which makes the carrot a
+     one-cell wall against him and part of the puzzle rather than scenery. */
   function foxRegion(st) {
     var seen = new Uint8Array(N), stack = [st.fox], i, nb, k, ni;
     seen[st.fox] = 1;
@@ -266,7 +275,7 @@
       i = stack.pop(); nb = NB4[i];
       for (k = 0; k < nb.length; k++) {
         ni = nb[k];
-        if (seen[ni] || st.grid[ni] !== HOLE) continue;
+        if (seen[ni] || st.grid[ni] !== HOLE || ni === st.carrot) continue;
         seen[ni] = 1; stack.push(ni);
       }
     }
@@ -288,13 +297,13 @@
     if (buried(st)) return false;
     _epoch++;
     if (_epoch > 250) { _mark = new Uint8Array(N); _epoch = 1; }   // wrap before 255
-    var top = 0, i, nb, k, ni, g = st.grid, bunny = st.bunny;
+    var top = 0, i, nb, k, ni, g = st.grid, bunny = st.bunny, carrot = st.carrot;
     _mark[st.fox] = _epoch; _stack[top++] = st.fox;
     while (top) {
       i = _stack[--top]; nb = NB4[i];
       for (k = 0; k < nb.length; k++) {
         ni = nb[k];
-        if (_mark[ni] === _epoch || g[ni] !== HOLE) continue;
+        if (_mark[ni] === _epoch || g[ni] !== HOLE || ni === carrot) continue;
         if (ni === bunny) return true;
         _mark[ni] = _epoch; _stack[top++] = ni;
       }
