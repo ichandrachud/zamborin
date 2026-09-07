@@ -2,97 +2,97 @@
  {
   "id": 1,
   "rows": [
-   "....aabb.",
-   "ddFeegghi",
-   ".C...jjhi",
-   "k...lmmn.",
-   "koo.lppn.",
-   "..qqBrr.."
+   "aabdd.eeg",
+   "hhbii.jjg",
+   "Ckkllm..n",
+   "o..p.mqqn",
+   "o.Bprrss.",
+   "Ftt.uu.vv"
   ],
-  "note": "four slides, and one of them opens the way to the carrot in one. That one lets him in."
+  "note": "the first slide that opens the way to the carrot is the one that opens it to him too."
  },
  {
   "id": 2,
   "rows": [
-   "aa.bb..d.",
-   ".eeggC.dh",
-   "......ijh",
-   "k.Fl..ijm",
-   "kn.loo.pm",
-   "Bn..qq.p."
+   ".aabbddee",
+   "gg.hhiijj",
+   "kll.mmnn.",
+   "kBooppq..",
+   "rssFt.quu",
+   "r..Ct.vv."
   ],
-  "note": "the same trap with a second slat in the way: five slides against the one it would take to lose."
+  "note": "a tighter board and the same trap one square along."
  },
  {
   "id": 3,
   "rows": [
-   "...aa.bbd",
-   ".eegg.hhd",
-   "iijjBkkl.",
-   "m...nnClo",
-   "m.ppFqrro",
-   "sstt.q..."
+   "..aabb.dd",
+   "e.ggh..ii",
+   "ejkkhl.mm",
+   "CjBnnl.oo",
+   ".Fpp..qqr",
+   "ssttuuvvr"
   ],
-  "note": "his pocket sits between hers and the carrot's, so the short answer is the fatal one."
+  "note": "his corridor runs across the route; watch which end of it he is at."
  },
  {
   "id": 4,
   "rows": [
-   "aa..bb.dd",
-   ".eeBgghhi",
-   "..jj.kk.i",
-   "llF.m.n..",
-   "o.ppm.n..",
-   "oC.qq...."
+   "....aabbd",
+   "eegg.FhBd",
+   "iijklChmn",
+   "oojklppmn",
+   "....qqr..",
+   "ssttuurvv"
   ],
-  "note": "seven, where three would do it if he were not there. The safe route goes the long way round him."
+  "note": "the way through is not the way it looks."
  },
  {
   "id": 5,
   "rows": [
-   "...aa.Cbb",
-   ".ddF.eegg",
-   "hiijkk.l.",
-   "h..jBmml.",
-   "...nno.pp",
-   ".qqrross."
+   "a.bbdd...",
+   "a.egg..hi",
+   "jje.kklhi",
+   "#mmnnolpp",
+   "qq#rBoFss",
+   ".ttruuCvv"
   ],
-  "note": "two ways to open it and only one of them keeps him out."
+  "note": "the route has to be built from the far side."
  },
  {
   "id": 6,
   "rows": [
-   "a.....bbd",
-   "aeggF.hhd",
-   ".eC.ijjkk",
-   "lmmniBoo.",
-   "l..nppqqr",
-   ".ss...ttr"
+   ".aabBddee",
+   "ghhbii.j.",
+   "gk.F.lljm",
+   "nk.Co.ppm",
+   "n.qross.t",
+   "uuqrvvwwt"
   ],
-  "note": "nine slides against seven: the smallest margin in the world, and the hardest to see."
+  "note": "his reach is longer than it looks from where he is standing."
  },
  {
   "id": 7,
   "rows": [
-   "..aaBbb..",
-   "dd.eggF..",
-   "..heiCjjk",
-   "..h.ill.k",
-   ".mmnn.oop",
-   "qqrr.ss.p"
+   ".aa.bbdde",
+   ".gghhii.e",
+   ".jjBkkllm",
+   "nnFoo..pm",
+   "..qqCrrps",
+   "ttuuvvwws"
   ],
-  "note": "eleven slides. Ignoring him entirely would take three."
+  "note": "the long one: ignoring him entirely would take a fraction of the moves."
  },
  {
   "id": 8,
   "rows": [
-   "..aabbdd.",
-   "ee.gg..hh",
-   "ijj#k...C",
-   "i.#Fk.ll.",
-   "mmnnBoopq",
-   "rr.ssttpq"
+   "aaC.bF..#",
+   "ddeebgg.h",
+   "iijj.Bk.h",
+   ".ll.mmk.n",
+   "o.ppqqrsn",
+   "ottuu#rs."
   ],
-  "note": "the wall. Twelve slides, and the answer without him is two."
+  "note": "the wall. Every slide near the middle is one he is waiting for."
  }
 ]

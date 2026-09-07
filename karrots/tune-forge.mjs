@@ -162,12 +162,12 @@ console.log(' par  no-fox  delta  naive  branch   states  holes  walls  slats');
 console.log(' ---  ------  -----  -----  ------  -------  -----  -----  -----');
 while (out.length < want && tried < 400) {
   tried++;
-  /* AT MOST TWO WALLS. The owner's limit of 2026-09-07, and it took away the
-     thing that was making the search finish. What pays for it is the new win
-     condition: the bunny no longer has to be walked to the carrot square, only
-     joined to it, so the goal is reached far earlier and the search stops
-     sooner. More holes also help, by leaving fewer slats to permute. */
-  const nHoles = 16 + 2 * ((r() * 5) | 0);            // 16 to 24
+  /* A TIGHT BOARD. Sixteen to twenty-four holes left the opening position
+     looking half empty, which the owner called out on 2026-09-07: a sliding
+     puzzle should look packed. Ten to fourteen is the shape now, which is also
+     kinder to the search - fewer holes is less mobility is a smaller reachable
+     space - and the two walls stay the ceiling. */
+  const nHoles = 10 + 2 * ((r() * 3) | 0);            // 10, 12 or 14
   const nWalls = 2 * ((r() * 2) | 0);                 // 0 or 2
   if ((M.N - nHoles - nWalls) % 2) continue;
   const made = solvedBoard(nHoles, nWalls, r);

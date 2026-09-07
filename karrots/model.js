@@ -164,6 +164,18 @@
      stand in holes and a brick does not slide over an animal. NOR OVER THE
      CARROT: the goal square is reserved, and the only thing that may ever
      share it is the bunny. */
+  /* AN ANIMAL OCCUPIES A POCKET, NOT A SQUARE.
+     It used to be a square: a slat could not slide over the cell the model had
+     the bunny or the fox on. That made 16% of all refused slides depend on
+     exactly where an animal was standing, which in turn meant it could never
+     be allowed to walk anywhere - and the fox pacing his corridor end to end
+     is the whole way a player reads how far he can reach.
+     So he no longer blocks a square. A slat may slide into the pocket he is
+     in and he steps aside, which is what an animal does. The one thing that is
+     refused is BURYING him: a slide may not fill the last hole he has.
+     That test is cheap and needs no flood fill. A slide covers exactly one new
+     cell F, and the cell it vacates is never adjacent to F, so the animal has
+     somewhere to go if and only if F already has a neighbouring hole. */
   function canSlide(st, a, b, k) {
     var g = st.grid, horiz = (g[a] === HL);
     if (horiz !== ((k & 1) === 1)) return false;          // off-axis: refused
@@ -171,10 +183,24 @@
     if (na < 0 || nb < 0) return false;
     if (na !== a && na !== b && !freeForTile(st, na)) return false;
     if (nb !== a && nb !== b && !freeForTile(st, nb)) return false;
+    var filled = (na !== a && na !== b) ? na : nb;        // the one new covered cell
+    if (filled === st.bunny || filled === st.fox) {
+      var nb2 = NB4[filled], anyHole = false;
+      for (var q = 0; q < nb2.length; q++) if (g[nb2[q]] === HOLE) { anyHole = true; break; }
+      if (!anyHole) return false;                          // nowhere to step: refused
+    }
     return true;
   }
   function freeForTile(st, i) {
-    return st.grid[i] === HOLE && i !== st.bunny && i !== st.fox && i !== st.carrot;
+    return st.grid[i] === HOLE && i !== st.carrot;
+  }
+
+  /* Where an animal steps when a slat takes the cell it was on. Lowest index
+     of the neighbouring holes, so a replay reproduces it exactly. */
+  function stepAside(grid, from) {
+    var nb = NB4[from];
+    for (var k = 0; k < nb.length; k++) if (grid[nb[k]] === HOLE) return nb[k];
+    return from;
   }
 
   function slideMoves(st) {
@@ -207,7 +233,11 @@
       var na = NBD[mv.a][mv.dir], nb = NBD[mv.b][mv.dir];
       g[mv.a] = HOLE; g[mv.b] = HOLE;
       g[na] = horiz ? HL : VT; g[nb] = horiz ? HR : VB;
-      next = { grid: g, bunny: st.bunny, fox: st.fox, carrot: st.carrot };
+      var bunny = st.bunny, fox = st.fox;
+      // whoever was standing where the slat now is takes a step to the side
+      if (g[bunny] !== HOLE) bunny = stepAside(g, bunny);
+      if (g[fox] !== HOLE) fox = stepAside(g, fox);
+      next = { grid: g, bunny: bunny, fox: fox, carrot: st.carrot };
     }
     return next;
   }
@@ -330,7 +360,7 @@
     C: C, R: R, N: N,
     HOLE: HOLE, BRICK: BRICK, HL: HL, HR: HR, VT: VT, VB: VB,
     DIRS: DIRS, rc: rc, idx: idx, inside: inside, NB4: NB4, NBD: NBD,
-    parse: parse, parity: parity, tileAt: tileAt, validate: validate,
+    parse: parse, parity: parity, tileAt: tileAt, validate: validate, stepAside: stepAside,
     slideMoves: slideMoves, moves: moves, apply: apply,
     foxRegion: foxRegion, regionFrom: regionFrom, caught: caught, won: won,
     key: key, clone: clone, ascii: ascii

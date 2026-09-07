@@ -91,6 +91,7 @@
   const TUNE = {
     slideMs: 130, hopMs: 170, snapMs: 90,
     lungeMs: 460, holdMs: 420, rewindMs: 300,
+    graceMs: 2400,         // his walk over, and the player's chance to undo it
     carrot2Mult: 1.35,
     dragStart: 5,          // px ALONG the slat's axis before it starts to follow
     commitFrac: 0.42,      // share of a cell the tile must cross to land
@@ -140,6 +141,7 @@
   let phase = 'play';            // play | caught | won
   let anim = null;               // the one animation in flight
   let drag = null;
+  let threat = null;              // he is on his way; the board is still live
   /* Honoured, not decorated around: the edge redraws without the sweep, the
      catch is a cut and a hold, and a tile lands instead of easing. §10. */
   const REDUCED = matchMedia('(prefers-reduced-motion: reduce)');
@@ -164,7 +166,7 @@
     const lv = LEVELS[levelIndex];
     start = M.parse(lv.rows, lv.id, lv.carrotAt ? { carrotAt: lv.carrotAt } : undefined);
     st = M.clone(start);
-    par = lv.par; moves = 0; history = []; phase = 'play'; anim = null; drag = null;
+    par = lv.par; moves = 0; history = []; phase = 'play'; anim = null; drag = null; threat = null;
     T().levelStart && T().levelStart(levelIndex + 1);
     save();
   }
@@ -255,16 +257,19 @@
     moves++;
     st = next;
 
+    /* HE DOES NOT TAKE HER THE INSTANT THE GAP OPENS. He sets off, and the
+       walk takes a couple of seconds, and until he arrives the board is still
+       live: undo it, or slide something else, and the path closes and he goes
+       home. A slat pushed the wrong way by mistake should be a moment of
+       fright and a chance to fix it, not a loss with no answer to it.
+       The fail state is intact - stop watching and he still takes her - and
+       the escape is not free either, because undo costs a move. */
     if (M.caught(st)) {
-      // He runs the path and takes her. The board showed it: the two regions
-      // this move joined were both on screen before the tile landed.
-      phase = 'caught';
       SND.fox();
-      const path = foxPathToBunny();
-      anim = { kind: 'catch', t0: performance.now(), path, mv };
-      T().levelRestart && T().levelRestart(levelIndex + 1);
+      threat = { t0: performance.now(), path: foxPathToBunny() };
       return;
     }
+    if (threat) threat = null;                  // that slide closed the path
     if (!opts.silent) SND.snap();
     notePockets(performance.now());
 
@@ -329,6 +334,7 @@
 
   function undo() {
     if (phase !== 'play' || !history.length || anim) return;
+    if (threat) threat = null;
     const h = history.pop();
     st = h.state;
     // AN UNDO COSTS A MOVE. House rule from Untangle: a scored counter that
@@ -338,6 +344,7 @@
   }
   function restart() {
     if (anim && anim.kind === 'catch') return;
+    threat = null;
     loadLevel(levelIndex);
   }
 
@@ -491,8 +498,19 @@
      off and settle somewhere else, the player is looking at an empty hole and
      being told no by an animal that appears to be two cells away. So they step
      out and they come straight back, and they REST on the cell that blocks. */
-  const WANDER = { hold: 1700, awayHold: 200, walk: 760,
-                   fastHold: 260, fastAwayHold: 120, fastWalk: 300, fastMs: 2200 };
+  /* THEY PATROL, END TO END. The pacing used to step out to a neighbour and
+     straight back, because an animal BLOCKED the square the model had it on
+     and settling anywhere else meant refusing slides over holes that looked
+     empty. They no longer block a square - an animal occupies a pocket and
+     steps aside - so there is nothing to stay near, and the fox walking the
+     full length of his corridor is the clearest statement the game makes
+     about how far he can reach.
+
+     A patrol is a path to the FURTHEST cell of the pocket, walked one square
+     at a time; on arrival it picks the furthest cell from there, which on a
+     corridor is the other end again. */
+  const WANDER = { hold: 1700, step: 620, turn: 900,
+                   fastHold: 300, fastStep: 260, fastMs: 2200 };
   const pace = { bunny: null, fox: null };
   const fastUntil = { bunny: 0, fox: 0 };
   const pocketSize = { bunny: -1, fox: -1 };
@@ -504,8 +522,27 @@
   function snapPaceHome(now) {
     for (const who of ['bunny', 'fox']) {
       const home = who === 'bunny' ? st.bunny : st.fox;
-      pace[who] = { home, from: home, to: home, t0: now, ms: WANDER.walk };
+      pace[who] = { at: home, from: home, to: home, t0: now, ms: WANDER.step, path: [], idx: 0 };
     }
+  }
+
+  /* The cell of `cell`'s pocket that is furthest from it, and the walk there. */
+  function patrolTo(cell) {
+    const prev = new Int16Array(M.N).fill(-1), dist = new Int16Array(M.N).fill(-1);
+    const q = [cell]; prev[cell] = cell; dist[cell] = 0;
+    let far = cell;
+    while (q.length) {
+      const i = q.shift();
+      if (dist[i] > dist[far]) far = i;
+      for (const ni of M.NB4[i]) {
+        if (prev[ni] >= 0 || st.grid[ni] !== M.HOLE || ni === st.carrot) continue;
+        prev[ni] = i; dist[ni] = dist[i] + 1; q.push(ni);
+      }
+    }
+    if (far === cell) return [];
+    const path = []; let cur = far;
+    while (cur !== cell) { path.unshift(cur); cur = prev[cur]; }
+    return path;
   }
 
   /* Called after every slide: whoever's pocket just grew gets to hurry. */
@@ -521,44 +558,45 @@
   function stepPace(now) {
     if (!st || REDUCED.matches) return;
     for (const who of ['bunny', 'fox']) {
-      const home = who === 'bunny' ? st.bunny : st.fox;
+      const anchor = who === 'bunny' ? st.bunny : st.fox;
       let w = pace[who];
-      if (!w || w.home !== home) { w = pace[who] = { home, from: home, to: home, t0: now }; }
-      const fast = now < fastUntil[who];
-      const walkMs = fast ? WANDER.fastWalk : WANDER.walk;
-      const atHome = (w.to === home);
-      const holdMs = atHome ? (fast ? WANDER.fastHold : WANDER.hold)
-                            : (fast ? WANDER.fastAwayHold : WANDER.awayHold);
-      w.ms = walkMs;
-      /* A slat can slide into the cell they are VISUALLY standing in - only
-         their real cell is protected - and then they are drawn on top of a
-         slat. Snap home the moment that happens. */
+      if (!w) w = pace[who] = { at: anchor, from: anchor, to: anchor, t0: now,
+                                ms: WANDER.step, path: [], idx: 0 };
+      // A slat can land on the square they had walked to. Put them back on the
+      // cell the model has them in and start again from there.
       if (st.grid[w.to] !== M.HOLE || st.grid[w.from] !== M.HOLE) {
-        w.from = w.to = home; w.t0 = now; continue;
+        Object.assign(w, { at: anchor, from: anchor, to: anchor, t0: now, path: [], idx: 0 });
+        continue;
       }
-      const el = now - w.t0;
-      if (el < walkMs + holdMs) continue;
-      if (!atHome) { w.from = w.to; w.to = home; w.t0 = now; continue; }   // straight back
-      const region = regionOf(home);
-      const opts = M.NB4[home].filter(i =>
-        region[i] && i !== st.carrot && (who === 'fox' ? i !== st.bunny : i !== st.fox));
-      if (!opts.length) { w.t0 = now; continue; }
-      w.from = home;
-      w.to = opts[(Math.random() * opts.length) | 0];
-      w.t0 = now;
+      const fast = now < fastUntil[who];
+      const stepMs = fast ? WANDER.fastStep : WANDER.step;
+      w.ms = stepMs;
+      const midPatrol = w.idx < w.path.length;
+      // no pause between squares of a walk; a beat at each end of it
+      const pause = midPatrol ? 0 : (fast ? WANDER.fastHold : WANDER.hold);
+      if (now - w.t0 < stepMs + pause) continue;
+
+      w.at = w.to;
+      if (w.idx < w.path.length) {                    // keep walking the line
+        w.from = w.at; w.to = w.path[w.idx++]; w.t0 = now; continue;
+      }
+      const path = patrolTo(w.at);                    // reached the end: turn round
+      if (!path.length) { w.t0 = now; continue; }
+      w.path = path; w.idx = 0;
+      w.from = w.at; w.to = w.path[w.idx++]; w.t0 = now;
     }
   }
 
   /* Where to draw one of them this frame, and which way it is facing. */
   function paceAt(who, now) {
-    const home = who === 'bunny' ? st.bunny : st.fox;
+    const anchor = who === 'bunny' ? st.bunny : st.fox;
     const w = pace[who];
     const c = geo.cell;
-    if (!w || w.home !== home || w.from === w.to) {
-      const p = geo.at(home);
+    if (!w || w.from === w.to) {
+      const p = geo.at(w ? w.to : anchor);
       return { x: p.x, y: p.y, moving: false, flip: false };
     }
-    const k = Math.max(0, Math.min(1, (now - w.t0) / (w.ms || WANDER.walk)));
+    const k = Math.max(0, Math.min(1, (now - w.t0) / (w.ms || WANDER.step)));
     const a = geo.at(w.from), b = geo.at(w.to);
     const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
     return { x: a.x + (b.x - a.x) * e, y: a.y + (b.y - a.y) * e,
@@ -568,6 +606,17 @@
   /* ---------- ANIMATION ---------- */
   function stepAnim(now) {
     stepPace(now);
+
+    /* The grace running out is the only thing that actually loses a level. */
+    if (threat) {
+      if (!M.caught(st)) { threat = null; }
+      else if (now - threat.t0 >= TUNE.graceMs) {
+        const t = threat; threat = null;
+        phase = 'caught';
+        anim = { kind: 'catch', t0: now, path: t.path };
+        T().levelRestart && T().levelRestart(levelIndex + 1);
+      }
+    }
     if (!anim) return;
     const el = now - anim.t0;
     if (anim.kind === 'snap' || anim.kind === 'snapback') {
@@ -707,14 +756,17 @@
   function drawFox(now) {
     const c = geo.cell;
     let x, y, frame = 'fox-still', flip = false;
-    if (anim && anim.kind === 'catch') {
-      const el = now - anim.t0;
+    if (threat || (anim && anim.kind === 'catch')) {
+      const t0 = threat ? threat.t0 : anim.t0;
+      const span = threat ? TUNE.graceMs : TUNE.lungeMs;
+      const path = threat ? threat.path : anim.path;
+      const el = now - t0;
       // Reduced motion: he is simply THERE, beside her, and the board holds.
-      const k = REDUCED.matches ? 1 : Math.max(0, Math.min(1, el / TUNE.lungeMs));
-      const path = anim.path, f = k * (path.length - 1);
-      const i0 = Math.floor(f), i1 = Math.min(path.length - 1, i0 + 1), t = f - i0;
+      const k = REDUCED.matches ? 1 : Math.max(0, Math.min(1, el / span));
+      const f = k * (path.length - 1);
+      const i0 = Math.floor(f), i1 = Math.min(path.length - 1, i0 + 1), tt = f - i0;
       const a = geo.at(path[i0]), b = geo.at(path[i1]);
-      x = a.x + (b.x - a.x) * t; y = a.y + (b.y - a.y) * t;
+      x = a.x + (b.x - a.x) * tt; y = a.y + (b.y - a.y) * tt;
       frame = (Math.floor(el / 150) % 2) ? 'fox-walk-1' : 'fox-walk-2';
       flip = b.x > a.x;
     } else {
@@ -1093,7 +1145,7 @@
   };
   window.karrots = { get st() { return st; }, get moves() { return moves; },
                      get par() { return par; }, get phase() { return phase; },
-                     get level() { return levelIndex; }, get pace() { return pace; }, dbg,
+                     get level() { return levelIndex; }, get pace() { return pace; }, get threat() { return threat; }, dbg,
                      geo, load: loadLevel, M, commit };
 
   /* ---------- BOOT ---------- */
