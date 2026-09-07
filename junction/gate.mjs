@@ -48,6 +48,35 @@
    real source of difficulty here — and order is bought with route length,
    which the budget prices.
 
+   AND THE CEILING THAT FOLLOWS FROM IT, which is why there is no level 20.
+   Walking the actual routes of every level and asking which cells two trains
+   use in the SAME direction gives the same answer every time: NONE. Level 1,
+   tier 5, the ordering board, level 1 at 11x11 — zero cells shared one way, in
+   all of them, and three or four cells shared in OPPOSITE directions.
+
+   That is forced, not a coincidence. Two engines sharing track one way must
+   split apart eventually to reach different sheds, and they can only split at
+   a junction, which they both reach from the trunk, where one switch sends
+   them both the same way. So every piece of shared track in this game is
+   shared head-on, and head-on sharing is settled by ORDER.
+
+   Then the ordering itself turns out not to scale. Lengthening the shared
+   spine from three cells to seven changes nothing: the delay that fixes it
+   stays at 2 sleepers, because a longer corridor only makes the loser wait
+   longer outside it. MORE DELAY IS NEVER WORSE under the waiting rule, so a
+   level can only ever ask "buy the delay or do not" — one binary decision per
+   shared corridor, at a fixed price.
+
+   Which caps the game: difficulty is the NUMBER of corridors, each an
+   independent +2. Ten corridors is ten of the same decision, which is length
+   rather than depth. Nothing here multiplies.
+
+   To get decisions that interact, something has to make being LATE wrong, and
+   the model already has the machinery for the cleanest version: more than one
+   engine queued at a portal. A corridor with traffic in it has a rhythm, and a
+   delay that clears one train pushes you into the path of the next — that is a
+   window, with a floor and a ceiling, and windows is what deduction needs.
+
    WHAT IT DELIBERATELY DOES NOT CLAIM. It does not say a level is solvable, or
    what the cheapest winning layout costs. Finding that needs a real search
    over layouts, and three quick ones written while investigating this were all
