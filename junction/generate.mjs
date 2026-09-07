@@ -117,8 +117,13 @@ export function candidate(seed) {
    the layout will not build, and greedy loses every time. In the corridor
    family that had to be found by searching seeds. */
 export function crossing(seed) {
-  const R = [8, 9, 10][h32(seed, 1) % 3];
-  const C = [8, 9][h32(seed, 2) % 2];
+  /* WIDTH FIRST, THEN A HEIGHT GREATER THAN IT. Drawing R and C from two
+     overlapping lists let this family emit 8x8 and 9x9 boards, and a square
+     board fills neither breakpoint: a portrait ladder has to be taller than it
+     is wide so a phone is full, and the landscape ladder is these boards
+     turned on their side. The tests caught it; the lists were the bug. */
+  const C = [7, 8][h32(seed, 2) % 2];
+  const R = C + 1 + (h32(seed, 1) % 2);
   const aC = 2 + (h32(seed, 3) % (C - 4));       // coral in, along the top
   const aD = 2 + (h32(seed, 4) % (C - 4));       // coral's shed, along the bottom
   const bR = 2 + (h32(seed, 5) % (R - 4));       // teal in, down the left
@@ -144,6 +149,98 @@ export function crossing(seed) {
     budget: 999, par: 0, solution: [],
   });
 }
+
+/* THE SCATTER, shared by every family below. A handful of loose obstacles in
+   the open yard: not enough to be a maze, enough that the cheap route is not
+   always available. Making an answer UNIQUE is not this function's job — see
+   pin.mjs, which measured that scattering cannot do it. */
+function scatter(seed, R, C, w, taken, n) {
+  const rocks = [];
+  for (let k = 0; k < n; k++) {
+    const r = 1 + (h32(seed, 40 + k * 2) % (R - 2));
+    const c = h32(seed, 41 + k * 2) % C;
+    if (r === w || taken.has(`${r},${c}`)) continue;
+    taken.add(`${r},${c}`); rocks.push([r, c]);
+  }
+  return rocks;
+}
+
+/* TWO GAPS IN THE WALL. The corridor family offers a conflict exactly one fix:
+   buy the delay. Cut a second gap and there are two fixes competing — wait for
+   the other engine at the near gap, or spend rails walking to the far one —
+   and which is cheaper is a property of the board rather than a rule. That
+   comparison is a decision the one-gap family cannot pose.
+
+   It is also the cheapest family to certify: a fraction of a second a board,
+   because two gaps in a wall still prune the route search hard. */
+export function twoGap(seed) {
+  const R = [10, 12][h32(seed, 1) % 2];
+  const C = [7, 9][h32(seed, 2) % 2];
+  const w = Math.floor(R / 2);
+  const g1 = 1 + (h32(seed, 3) % 2);
+  const g2 = C - 2 - (h32(seed, 4) % 2);
+  const pc = 1 + (h32(seed, 5) % (C - 2));
+  const pt = 1 + (h32(seed, 6) % (C - 2));
+  const sc = 1 + (h32(seed, 7) % (C - 2));
+  const st = 1 + (h32(seed, 8) % (C - 2));
+  const rocks = [];
+  for (let c = 0; c < C; c++) if (c !== g1 && c !== g2) rocks.push([w, c]);
+  const taken = new Set([`0,${pc}`, `${R - 1},${pt}`, `${R - 1},${sc}`, `0,${st}`]);
+  rocks.push(...scatter(seed, R, C, w, taken, 1 + (h32(seed, 9) % 3)));
+  return M.buildLevel({ n: 900 + seed, tier: 0, R, C, rocks,
+    portals: [{ at: [0, pc], face: S, queue: [0] }, { at: [R - 1, pt], face: N, queue: [2] }],
+    depots: [{ at: [R - 1, sc], face: N, colour: 0 }, { at: [0, st], face: S, colour: 2 }],
+    budget: 999, par: 0, solution: [] });
+}
+
+/* THE SWAP. Both engines come in off the SAME edge and run the same way, and
+   their sheds are on the far side the other way round, so the two routes have
+   to change places on the way down.
+
+   They cannot cross — a cell holds no four-way — and they cannot merge either,
+   which is the junction law doing something useful for once: same direction
+   plus different destinations is precisely the case it forbids, and a merge
+   would hand one engine to the wrong shed. So somebody goes round an end, and
+   the wall decides what that costs. Greedy draws two straight lines that
+   cross, so it loses by construction.
+
+   The dearest family to certify (tens of seconds a board) and the one with the
+   steadiest decoy counts, which makes it the right place to end a ladder. */
+export function swap(seed) {
+  // Width first, then a greater height — see the note in crossing().
+  const C = [8, 9][h32(seed, 2) % 2];
+  const R = C + 1 + (h32(seed, 1) % 2);
+  const w = Math.floor(R / 2);
+  const g1 = 1 + (h32(seed, 3) % 2);
+  const g2 = C - 2 - (h32(seed, 4) % 2);
+  const a = 1 + (h32(seed, 5) % 2);              // coral in, left of the top
+  const b = C - 2 - (h32(seed, 6) % 2);          // teal in, right of the top
+  const sA = C - 2 - (h32(seed, 7) % 2);         // coral's shed, on the RIGHT
+  const sB = 1 + (h32(seed, 8) % 2);             // teal's shed, on the LEFT
+  const rocks = [];
+  for (let c = 0; c < C; c++) if (c !== g1 && c !== g2) rocks.push([w, c]);
+  const taken = new Set([`0,${a}`, `0,${b}`, `${R - 1},${sA}`, `${R - 1},${sB}`]);
+  rocks.push(...scatter(seed, R, C, w, taken, 1 + (h32(seed, 9) % 3)));
+  return M.buildLevel({ n: 950 + seed, tier: 0, R, C, rocks,
+    portals: [{ at: [0, a], face: S, queue: [0] }, { at: [0, b], face: S, queue: [2] }],
+    depots: [{ at: [R - 1, sA], face: N, colour: 0 }, { at: [R - 1, sB], face: N, colour: 2 }],
+    budget: 999, par: 0, solution: [] });
+}
+
+/* THE FOUR FAMILIES, in the order a player should meet them. Each asks a
+   different question with the same rules:
+
+     corridor  who goes through first?
+     twoGap    wait, or walk to the other gap?
+     crossing  who goes round?
+     swap      how do they change places?
+*/
+export const FAMILIES = [
+  { key: 'corridor', build: candidate },
+  { key: 'twoGap', build: twoGap },
+  { key: 'crossing', build: crossing },
+  { key: 'swap', build: swap },
+];
 
 const rebudget = (lvl, budget) => M.buildLevel({
   n: lvl.n, tier: lvl.tier, R: lvl.R, C: lvl.C,
@@ -207,7 +304,7 @@ export function toSpec(entry, n) {
     depots: lvl.depots.map((d) => ({ at: [d.r, d.c], face: d.face, colour: d.colour })),
     budget: entry.budget, par: entry.budget,
     solution: entry.solution.map((g) => g.slice()),
-    seed: entry.seed, decoys: entry.decoys, greedyCost: entry.greedyCost,
+    seed: entry.seed, family: entry.family, decoys: entry.decoys, greedyCost: entry.greedyCost,
   };
 }
 export function emit(ladders) {
@@ -256,13 +353,18 @@ export async function harvest(want, seedFrom, label, opts) {
      twelve levels of the same puzzle, which is the honest reason the ladder
      went flat — the mechanic was never the problem. */
   const family = (opts && opts.family) || candidate;
-  /* Imported here rather than at the top: pin.mjs imports THIS file, and two
-     modules awaiting each other at load time never finish. By the time a
-     harvest runs, both are built. */
+  /* Imported at call time, and handed the two functions it needs rather than
+     letting it import them back — see the note in pin.mjs about the cycle
+     that exits 0 with no error. */
   const { pin } = await import('./pin.mjs');
   const found = [];
+  /* A WALL CLOCK, because a family with a poor yield can otherwise run for
+     hours: a swap board that fails to certify costs twenty to forty seconds
+     to find that out, and the seed range is four thousand wide. Better a
+     short ladder that reports the shortfall than a run nobody is watching. */
+  const until = Date.now() + ((opts && opts.minutes) || 12) * 60000;
   let seed = seedFrom, tried = 0;
-  while (found.length < want && seed < seedFrom + 4000) {
+  while (found.length < want && seed < seedFrom + 4000 && Date.now() < until) {
     const lvl = family(seed);
     seed++;
     if (M.validate(lvl).length) continue;
@@ -272,9 +374,9 @@ export async function harvest(want, seedFrom, label, opts) {
        until one answer is left. It roughly doubled the yield of the corridor
        family and it is the only thing that makes the crossing family usable
        at all. */
-    const res = pin(lvl, { slack: 2 });
+    const res = pin(lvl, { slack: 2, assess, specOf });
     if (!res.ok) continue;
-    found.push({ seed: seed - 1, rocksAdded: res.rocksAdded, ...res.r });
+    found.push({ seed: seed - 1, family: label, rocksAdded: res.rocksAdded, ...res.r });
     console.log('  [' + label + '] seed ' + String(seed - 1).padStart(5) + '  ' +
       res.r.level.R + 'x' + res.r.level.C + '  budget ' + String(res.r.budget).padStart(2) +
       '  decoys ' + String(res.r.decoys).padStart(6) +
@@ -283,8 +385,30 @@ export async function harvest(want, seedFrom, label, opts) {
   return { found, tried };
 }
 
+/* THE LADDER, ASSEMBLED. Difficulty alone is the wrong order to put thirty
+   levels in: a player who meets the same board shape thirty times in a row is
+   bored by the tenth however carefully it ramps, which is exactly what the
+   first ladder did. So the run goes through all four families, easier half
+   first, and then through all four again with the harder half — a NEW QUESTION
+   every four levels or so, and a second, sharper go at each of them once all
+   four are known.
+
+   Within a family, decoys order the boards. Across families the number does
+   not compare: a big corridor board has tens of thousands of ways to be wrong
+   and a small crossing board has a few hundred, and that is board size talking
+   rather than difficulty. Sorting the whole ladder by decoys would have buried
+   three of the four families at the end. */
+export function assemble(byFamily, total) {
+  const sorted = FAMILIES.map((f) => (byFamily[f.key] || []).slice()
+    .sort((a, b) => a.decoys - b.decoys));
+  const halves = sorted.map((a) => [a.slice(0, Math.ceil(a.length / 2)), a.slice(Math.ceil(a.length / 2))]);
+  const out = [];
+  for (const pass of [0, 1]) for (const h of halves) out.push(...h[pass]);
+  return out.slice(0, total);
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const want = parseInt(process.argv[2], 10) || 6;
+  const total = parseInt(process.argv[2], 10) || 30;
   const t0 = Date.now();
   /* TWO LADDERS, FROM TWO SEED RANGES. A phone and a 760x600 frame are not the
      same game with different margins — they get different boards, generated
@@ -292,15 +416,28 @@ if (import.meta.url === `file://${process.argv[1]}`) {
      turned on its side, which is an isomorphism and preserves the
      certification; what makes the two ladders DIFFERENT is that they never
      draw from the same seeds. */
-  const port = await harvest(want, 1, 'portrait');
-  const land = await harvest(want, 20000, 'landscape');
-  const portrait = port.found.sort((x, y) => x.decoys - y.decoys).map((e, i) => toSpec(e, i + 1));
-  const landscape = land.found.sort((x, y) => x.decoys - y.decoys)
-    .map((e, i) => transposeSpec(toSpec(e, i + 1)));
+  async function ladderOf(base, tag) {
+    const per = FAMILIES.map((_, i) => Math.floor(total / FAMILIES.length) +
+      (i < total % FAMILIES.length ? 1 : 0));
+    const byFamily = {};
+    for (let i = 0; i < FAMILIES.length; i++) {
+      const f = FAMILIES[i];
+      console.log(`\n[${tag}] ${f.key} — want ${per[i]}`);
+      const h = await harvest(per[i], base + i * 100000, f.key, { family: f.build, minutes: 14 });
+      byFamily[f.key] = h.found;
+      console.log(`  ${f.key}: ${h.found.length} of ${per[i]} from ${h.tried} seeds` +
+        (h.found.length < per[i] ? '  <-- SHORT' : ''));
+    }
+    return assemble(byFamily, total);
+  }
+  const port = await ladderOf(1, 'portrait');
+  const land = await ladderOf(20000, 'landscape');
+  const portrait = port.map((e, i) => toSpec(e, i + 1));
+  const landscape = land.map((e, i) => transposeSpec(toSpec(e, i + 1)));
   const fs = await import('node:fs');
   fs.writeFileSync(new URL('./levels.js', import.meta.url), emit({ portrait, landscape }));
-  console.log('\nportrait ' + portrait.length + ' levels, landscape ' + landscape.length +
-    ' levels, in ' + ((Date.now() - t0) / 1000).toFixed(0) + 's');
-  console.log('portrait shapes :', portrait.map((s) => s.C + 'x' + s.R).join(' '));
-  console.log('landscape shapes:', landscape.map((s) => s.C + 'x' + s.R).join(' '));
+  console.log('\nportrait ' + portrait.length + ', landscape ' + landscape.length +
+    ', in ' + ((Date.now() - t0) / 60000).toFixed(1) + ' min');
+  console.log('portrait families :', portrait.map((s) => s.family).join(' '));
+  console.log('landscape families:', landscape.map((s) => s.family).join(' '));
 }

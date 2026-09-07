@@ -36,8 +36,17 @@
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const M = require('./model.js');
-const { assess, specOf } = await import('./generate.mjs');
 const { N, E, S, W } = M;
+
+/* WHY assess AND specOf ARRIVE AS ARGUMENTS instead of being imported. This
+   file needs two functions from generate.mjs, and generate.mjs needs pin()
+   from this one. Importing both ways at load time deadlocks whenever
+   generate.mjs is the program being RUN: its own top-level code is what calls
+   harvest, so it is still evaluating when this file asks for it, and the two
+   wait on each other forever. Node then drains its event loop and exits 0
+   with no error at all, which is a genuinely horrible thing to debug — it
+   printed one line and stopped. The caller hands the two functions over
+   instead, and there is no cycle to deadlock. */
 
 const rc = (l, i) => [Math.floor(i / l.C), i % l.C];
 const straightLine = (l, a, b) => {
@@ -109,6 +118,7 @@ export function winnersAtBudget(lvl, slack) {
 }
 
 export function pin(lvl, opts) {
+  const { assess, specOf } = opts;
   const slack = (opts && opts.slack) || 2;
   const maxRocks = (opts && opts.maxRocks) || 8;
   const ms = (opts && opts.msBudget) || 25000;
@@ -130,8 +140,11 @@ export function pin(lvl, opts) {
     const tally = new Map();
     for (let k = 1; k < winners.length; k++)
       for (const i of winners[k]) if (!keeper.has(i)) tally.set(i, (tally.get(i) || 0) + 1);
-    // Rivals that differ only in switch settings cannot be separated by a rock.
-    if (!tally.size) return { ok: false, why: 'rivals differ only in switches', log, r };
+    /* Two layouts can fill exactly the same CELLS and still be different
+       track — one holds a north-south straight where the other holds a
+       junction, say. No obstacle can separate those, because an obstacle only
+       takes cells away. The board is rejected rather than pinned. */
+    if (!tally.size) return { ok: false, why: 'rivals use the same cells, differently', log, r };
     let best = -1, bestN = 0;
     for (const [i, n] of tally) if (n > bestN) { bestN = n; best = i; }
     const sp = specOf(at);
@@ -145,12 +158,14 @@ export function pin(lvl, opts) {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const { candidate } = await import('./generate.mjs');
+  // Safe here: run directly, this file is the entry and generate.mjs does not
+  // reach back for pin() until something calls harvest.
+  const { candidate, assess, specOf } = await import('./generate.mjs');
   let ok = 0;
   const seeds = Number(process.argv[2] || 8);
   for (let s = 1; s <= seeds; s++) {
     const t0 = Date.now();
-    const res = pin(candidate(s), { slack: 2 });
+    const res = pin(candidate(s), { slack: 2, assess, specOf });
     const secs = ((Date.now() - t0) / 1000).toFixed(1);
     console.log(res.ok
       ? `seed ${s}: PINNED with ${res.rocksAdded} rock(s) — budget ${res.r.budget}, decoys ${res.r.decoys} (${secs}s)`

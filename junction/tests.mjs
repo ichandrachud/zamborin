@@ -565,5 +565,35 @@ ok('and they are different puzzles, not one set rotated', !sameBudgets,
    'portrait ' + port.map((l) => l.budget).join(',') +
    ' vs landscape ' + land.map((l) => l.budget).join(','));
 
+/* ---------- THE LADDER IS NOT ONE PUZZLE REPEATED ----------
+   The first ladder was twelve levels generated from a single hard-coded board
+   shape: one wall, one gap, two engines, with the rocks moved about. It ramped
+   perfectly well and it was still the same puzzle twelve times, which is what
+   makes a puzzle game dull — sameness rather than difficulty. Six rule changes
+   were measured looking for depth and all six were dead ends; the answer was
+   more board FAMILIES. These tests are what stops that being quietly undone. */
+head('the ladder changes the question, not just the numbers');
+const FAM = ['corridor', 'twoGap', 'crossing', 'swap'];
+for (const [name, set] of [['portrait', port], ['landscape', land]]) {
+  ok(name + ': every level says which family it is from',
+     set.every((l) => FAM.includes(l.family)),
+     set.map((l) => l.family || '?').join(' '));
+  const used = new Set(set.map((l) => l.family));
+  ok(name + ': all four families are used', used.size === FAM.length,
+     [...used].join(' '));
+  // The longest stretch of one family. Blocks are deliberate — a player needs
+  // more than one board to learn a shape — but a long block is the old ladder.
+  let run = 1, worst = 1;
+  for (let i = 1; i < set.length; i++) {
+    run = set[i].family === set[i - 1].family ? run + 1 : 1;
+    if (run > worst) worst = run;
+  }
+  ok(name + ': no family runs longer than five levels', worst <= 5, 'longest run ' + worst);
+  // And the player meets most of the game early rather than at the end.
+  const early = new Set(set.slice(0, 12).map((l) => l.family));
+  ok(name + ': at least three families inside the first twelve levels',
+     early.size >= 3, [...early].join(' '));
+}
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed\n');
 process.exit(fail ? 1 : 0);

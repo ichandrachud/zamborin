@@ -436,6 +436,11 @@ function buildLevel(spec) {
     solution: spec.solution || null,
     // where the authored puzzle sits inside this board, when it was padded
     core: spec.core || { R, C, padT: 0, padR: 0, padB: 0, padL: 0 },
+    /* WHICH BOARD FAMILY THIS CAME FROM — corridor, twoGap, crossing or swap.
+       Carried so the ladder can be checked for the thing that actually makes a
+       puzzle game dull, which is not difficulty but sameness: thirty boards of
+       one family is one puzzle thirty times. The tests assert on it. */
+    family: spec.family || null,
     /* CAN THIS LEVEL BE REBUILT AT ANOTHER SHAPE? Only the parametric one can.
        The renderer used to decide that by asking whether the level was
        NUMBER 1, which was true of the parametric tutorial and then became true
