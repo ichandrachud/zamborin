@@ -107,7 +107,7 @@
   ART_NAMES.forEach(n => {
     const im = new Image();
     im.onload = () => { ART[n] = im; };
-    im.src = './art/' + n + '.svg?v=3';
+    im.src = './art/' + n + '.svg?v=4';
   });
   const HOP_FRAMES = {
     up:    ['bunny-up-1', 'bunny-up-2', 'bunny-up-3'],
@@ -142,6 +142,7 @@
   let anim = null;               // the one animation in flight
   let drag = null;
   let threat = null;              // he is on his way; the board is still live
+  let flinch = null;              // who just refused to be squashed, and when
   /* Honoured, not decorated around: the edge redraws without the sweep, the
      catch is a cut and a hold, and a tile lands instead of easing. §10. */
   const REDUCED = matchMedia('(prefers-reduced-motion: reduce)');
@@ -426,7 +427,20 @@
       drag.preview = drag.legal
         ? M.apply(st, { type: 'slide', a: drag.tile.a, b: drag.tile.b, dir: drag.dir })
         : null;
-      if (!drag.legal) SND.refused();
+      if (!drag.legal) {
+        SND.refused();
+        /* SAY WHO IS REFUSING. A slat that will not move because it would seal
+           an animal into its last hole looked exactly like a slat that will
+           not move because there is another slat behind it, and on a muted
+           school Chromebook the knock is not there either. Whoever is in the
+           way flinches, so the answer is on screen and it names itself. */
+        const na = M.NBD[drag.tile.a][drag.dir], nb = M.NBD[drag.tile.b][drag.dir];
+        const filled = (na !== drag.tile.a && na !== drag.tile.b) ? na : nb;
+        if (filled >= 0 && (filled === st.bunny || filled === st.fox) &&
+            !M.NB4[filled].some(n2 => st.grid[n2] === M.HOLE)) {
+          flinch = { cell: filled, t0: performance.now() };
+        }
+      }
       drag.moved = true;
     }
     const sd = M.DIRS[screenDir];
@@ -509,8 +523,11 @@
      A patrol is a path to the FURTHEST cell of the pocket, walked one square
      at a time; on arrival it picks the furthest cell from there, which on a
      corridor is the other end again. */
-  const WANDER = { hold: 1700, step: 620, turn: 900,
-                   fastHold: 300, fastStep: 260, fastMs: 2200 };
+  /* `hold` is the pause at each END of a patrol, not between squares. It was
+     1700 against a 620ms step, so he stood still for most of every cycle and
+     read as not moving at all. */
+  const WANDER = { hold: 700, step: 520, turn: 900,
+                   fastHold: 200, fastStep: 240, fastMs: 2200 };
   const pace = { bunny: null, fox: null };
   const fastUntil = { bunny: 0, fox: 0 };
   const pocketSize = { bunny: -1, fox: -1 };
@@ -585,6 +602,17 @@
       w.path = path; w.idx = 0;
       w.from = w.at; w.to = w.path[w.idx++]; w.t0 = now;
     }
+  }
+
+  /* A short recoil for whoever just refused to be squashed: back away from the
+     slat, then settle. 380ms, and it never moves them off their own square. */
+  const FLINCH_MS = 380;
+  function flinchOffset(cell, now) {
+    if (!flinch || flinch.cell !== cell) return null;
+    const k = (now - flinch.t0) / FLINCH_MS;
+    if (k >= 1) { flinch = null; return null; }
+    const kick = Math.sin(k * Math.PI) * geo.cell * 0.16;
+    return { d: kick, k };
   }
 
   /* Where to draw one of them this frame, and which way it is facing. */
@@ -732,7 +760,11 @@
       frame = set[Math.min(set.length - 1, Math.floor(w.k * set.length))];
       flip = Math.abs(w.dx) > Math.abs(w.dy) && w.dx < 0;
     }
-    if (!sprite(frame, w.x + c / 2, w.y + c * 0.90, c * 0.76, flip)) {
+    const fl = flinchOffset(st.bunny, now);
+    if (fl) { ctx.save(); ctx.translate(0, -fl.d); }
+    const drew = sprite(frame, w.x + c / 2, w.y + c * 0.90, c * 0.76, flip);
+    if (fl) ctx.restore();
+    if (!drew) {
       ctx.fillStyle = '#FFFFFF';
       ctx.beginPath(); ctx.arc(w.x + c / 2, w.y + c * 0.60, c * 0.26, 0, Math.PI * 2); ctx.fill();
     }
@@ -777,9 +809,15 @@
          must be mirrored to walk RIGHT - the opposite of what this did, which
          is why he appeared to moonwalk. */
       flip = w.moving ? w.dx > 0 : false;
-      if (w.moving) frame = (Math.floor(now / 150) % 2) ? 'fox-walk-1' : 'fox-walk-2';
+      /* Alternate on the STEP's own clock, not the wall clock: two frames per
+         square walked, so every step shows both legs whatever the step time. */
+      if (w.moving) frame = (Math.floor(w.k * 2) % 2) ? 'fox-walk-2' : 'fox-walk-1';
     }
-    if (!sprite(frame, x + c / 2, y + c * 0.90, c * 0.80, flip)) {
+    const fl2 = flinchOffset(st.fox, now);
+    if (fl2) { ctx.save(); ctx.translate(0, -fl2.d); }
+    const drewFox = sprite(frame, x + c / 2, y + c * 0.90, c * 0.80, flip);
+    if (fl2) ctx.restore();
+    if (!drewFox) {
       ctx.fillStyle = '#FF4713';
       ctx.beginPath(); ctx.arc(x + c / 2, y + c * 0.58, c * 0.26, 0, Math.PI * 2); ctx.fill();
     }
@@ -1145,7 +1183,7 @@
   };
   window.karrots = { get st() { return st; }, get moves() { return moves; },
                      get par() { return par; }, get phase() { return phase; },
-                     get level() { return levelIndex; }, get pace() { return pace; }, get threat() { return threat; }, dbg,
+                     get level() { return levelIndex; }, get pace() { return pace; }, get threat() { return threat; }, get flinch() { return flinch; }, dbg,
                      geo, load: loadLevel, M, commit };
 
   /* ---------- BOOT ---------- */

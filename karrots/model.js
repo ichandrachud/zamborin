@@ -47,6 +47,12 @@
      rc() returns a fresh object every call, so the readable form of this loop
      is most of the solver's running time. NB4[i] holds i's orthogonal
      neighbours; NBD[i][k] is the neighbour in direction k, or -1. */
+  /* Whether a slat may be pushed onto an animal's last hole and seal it in.
+     OFF is the shipped rule. It is a switch rather than a constant because the
+     question "what would letting the player corner the fox do to par" can only
+     be answered by solving the same levels both ways. */
+  var allowBurial = false;
+
   var NB4 = [], NBD = [];
   (function () {
     for (var i = 0; i < N; i++) {
@@ -184,7 +190,7 @@
     if (na !== a && na !== b && !freeForTile(st, na)) return false;
     if (nb !== a && nb !== b && !freeForTile(st, nb)) return false;
     var filled = (na !== a && na !== b) ? na : nb;        // the one new covered cell
-    if (filled === st.bunny || filled === st.fox) {
+    if (!allowBurial && (filled === st.bunny || filled === st.fox)) {
       var nb2 = NB4[filled], anyHole = false;
       for (var q = 0; q < nb2.length; q++) if (g[nb2[q]] === HOLE) { anyHole = true; break; }
       if (!anyHole) return false;                          // nowhere to step: refused
@@ -361,6 +367,8 @@
     HOLE: HOLE, BRICK: BRICK, HL: HL, HR: HR, VT: VT, VB: VB,
     DIRS: DIRS, rc: rc, idx: idx, inside: inside, NB4: NB4, NBD: NBD,
     parse: parse, parity: parity, tileAt: tileAt, validate: validate, stepAside: stepAside,
+    setAllowBurial: function (v) { allowBurial = !!v; },
+    getAllowBurial: function () { return allowBurial; },
     slideMoves: slideMoves, moves: moves, apply: apply,
     foxRegion: foxRegion, regionFrom: regionFrom, caught: caught, won: won,
     key: key, clone: clone, ascii: ascii
