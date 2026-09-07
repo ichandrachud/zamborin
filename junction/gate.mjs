@@ -71,11 +71,28 @@
    independent +2. Ten corridors is ten of the same decision, which is length
    rather than depth. Nothing here multiplies.
 
-   To get decisions that interact, something has to make being LATE wrong, and
-   the model already has the machinery for the cleanest version: more than one
-   engine queued at a portal. A corridor with traffic in it has a rhythm, and a
-   delay that clears one train pushes you into the path of the next — that is a
-   window, with a floor and a ceiling, and windows is what deduction needs.
+   THE OBVIOUS FIX WAS TRIED AND IT DOES NOT WORK. More than one engine queued
+   at a portal ought to give a corridor a rhythm, so that a delay clearing one
+   train pushes you into the path of the next — a window with a ceiling as well
+   as a floor. Measured across five configurations, from one engine a side up
+   to four against two: the winning delays are a HALF-LINE every time. The
+   convoy raises the floor, 1 cell then 2 then 3, and nothing ever closes it at
+   the top. "After everybody" is always available, because trains leave the
+   board and never come back.
+
+   So a convoy is a floor dial — it makes the required delay bigger and the
+   budget bite harder — and not a new kind of decision. It is worth having for
+   that, and it costs nothing: a shed already accepts several engines of one
+   colour, which was a surprise and needed no model change. But two colours can
+   never leave one shed, because they would share rails in the same direction
+   and the law forbids their ever separating.
+
+   WHAT THIS MEANS FOR THE LADDER. Every level this game can hold asks the same
+   question — find the cheapest sufficient delay — with the budget as the only
+   ceiling. That is a good question, and it is one question. A short ladder of
+   20-30 boards can ring the changes on it; 72 or 100 would be the same puzzle
+   with the furniture moved. Anything more needs a rule that makes arriving
+   LATE wrong, and none of the candidates measured so far does.
 
    WHAT IT DELIBERATELY DOES NOT CLAIM. It does not say a level is solvable, or
    what the cheapest winning layout costs. Finding that needs a real search
@@ -166,7 +183,8 @@ export function gate(lvl, label) {
 
 if (import.meta.url === 'file://' + process.argv[1]) {
   const rows = [
-    ...M.LADDER.map((l) => gate(l, 'ladder level ' + l.n)),
+    ...M.LADDERS.portrait.map((l) => gate(l, 'portrait ' + l.n)),
+    ...M.LADDERS.landscape.map((l) => gate(l, 'landscape ' + l.n)),
     gate(M.orderLevel(12, 9), 'THE ORDERING DEMO 12x9'),
     gate(M.authored(1), 'level 1, authored 7x7'),
     gate(M.level1(7, 11), 'level 1 at 7x11, a phone'),
