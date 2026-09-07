@@ -94,7 +94,20 @@
     graceMs: 2400,         // his walk over, and the player's chance to undo it
     carrot2Mult: 1.35,
     dragStart: 5,          // px ALONG the slat's axis before it starts to follow
-    commitFrac: 0.42,      // share of a cell the tile must cross to land
+    commitFrac: 0.42,      // share of a cell a SLOW drag must cross to land
+    /* A FLICK LANDS ON SPEED, NOT ON DISTANCE. Requiring 42% of a cell however
+       fast the gesture was is what made this feel sticky: a quick flick of a
+       fifth of a cell is unmistakably "send it", and the slat sprang back
+       instead.
+
+       The speed is in CELLS per ms, not pixels, because the cell is 77px on
+       the desktop frame and 52px on a phone and a flick is the same gesture on
+       both. Measured, a flick of about a quarter of a cell in 60ms runs at
+       0.0030-0.0036 cells/ms and a deliberate drag at 0.0004-0.0005 - seven
+       times apart, so the line sits well clear of both. */
+    flickVel: 0.0018,      // cells per ms at release that count as a flick
+    flickMin: 0.15,        // ...and the least of a cell the gesture must cross
+    flickWin: 90,          // ms of gesture the speed is measured over
   };
 
   /* ---------- SPRITES ----------
@@ -169,6 +182,7 @@
     start = M.parse(lv.rows, lv.id, lv.carrotAt ? { carrotAt: lv.carrotAt } : undefined);
     st = M.clone(start);
     par = lv.par; moves = 0; history = []; phase = 'play'; anim = null; drag = null; threat = null; foxGone = null;
+    snapPaceHome(performance.now());   // drawn where the rules have them, from frame one
     T().levelStart && T().levelStart(levelIndex + 1);
     save();
   }
@@ -256,8 +270,10 @@
     opts = opts || {};
     history.push({ state: M.clone(st), moves });
     const next = M.apply(st, mv);
+    const prev = st;
     moves++;
     st = next;
+    paceStepAside(prev, performance.now());
 
     /* HE DOES NOT TAKE HER THE INSTANT THE GAP OPENS. He sets off, and the
        walk takes a couple of seconds, and until he arrives the board is still
@@ -342,6 +358,10 @@
     if (threat) threat = null;
     const h = history.pop();
     st = h.state;
+    /* The board has jumped back a move and both of them with it. Put them
+       where it says they are: an animal left mid-stride after a rewind is
+       drawn on a square the rules no longer agree with. */
+    snapPaceHome(performance.now());
     if (!M.buried(st)) foxGone = null;
     // AN UNDO COSTS A MOVE. House rule from Untangle: a scored counter that
     // does not charge for undo is not counting anything.
@@ -398,15 +418,18 @@
        length and nowhere else, so there is nothing to infer: a flat one moves
        across the screen, a standing one up and down, and on a turned phone
        board those two swap over. Work it out here, once, from the tile. */
-    drag = { tile: t, x0: p.x, y0: p.y, dx: 0, dy: 0, dir: -1, screenDir: -1,
-             axisIsX: (t.horiz !== TURNED), moved: false };
+    /* ONE POINTER OWNS THE GESTURE. Neither move nor up checked the id, so a
+       second finger anywhere on the board - a thumb resting, a palm - fed its
+       own coordinates into the live drag and the slat jumped to it. */
+    drag = { tile: t, id: e.pointerId, x0: p.x, y0: p.y, dx: 0, dy: 0, dir: -1,
+             screenDir: -1, axisIsX: (t.horiz !== TURNED), moved: false };
     dbg.downs++;
     try { canvas.setPointerCapture(e.pointerId); } catch (err) { dbg.captureFailed++; }
   });
 
   canvas.addEventListener('pointermove', (e) => {
     const p = toLogical(e);
-    if (!drag) return;
+    if (!drag || e.pointerId !== drag.id) return;
     dbg.moves++;
     const rawX = p.x - drag.x0, rawY = p.y - drag.y0;
 
@@ -447,22 +470,48 @@
         }
       }
       drag.moved = true;
+      drag.trail = [];                         // a reversal is a fresh gesture
     }
     const sd = M.DIRS[screenDir];
     // one cell of travel, and no rubber band past it: a slide is exactly one
     const limit = drag.legal ? geo.cell : geo.cell * 0.12;   // blocked: gives a little and stops
-    const t = Math.min(limit, Math.abs(along));
+    /* Take the dead zone off the travel. It used to be left on, so the instant
+       the gesture passed 5px the slat jumped 5px to catch up - a small pop at
+       the start of every single drag, and the first thing the hand feels. */
+    drag.raw = Math.abs(along);
+    const t = Math.min(limit, Math.max(0, drag.raw - TUNE.dragStart));
     drag.dx = sd.dx * t; drag.dy = sd.dy * t;
+
+    /* How fast the SLAT is travelling, over the last `flickWin` of gesture.
+       A running average was tried first and it lags: on a 60ms flick it read a
+       third under the true speed, which put the desktop right on the line and
+       left the phone - smaller cells, so fewer pixels for the same gesture -
+       just under it. A window over the samples has no lag to correct for. */
+    const ms = performance.now();
+    drag.trail = drag.trail || [];
+    drag.trail.push({ ms, t });
+    while (drag.trail.length > 2 && ms - drag.trail[0].ms > TUNE.flickWin) drag.trail.shift();
+    const a0 = drag.trail[0], dt = ms - a0.ms;
+    drag.vel = dt > 0 ? (t - a0.t) / dt : 0;
   });
 
   function endDrag() {
     if (!drag) return;
     const d = M.DIRS[drag.screenDir] || { dx: 0, dy: 0 };   // screen space: this is the drawing
-    const along = Math.abs(drag.dx || drag.dy);
+    const along = Math.abs(drag.dx || drag.dy);       // what the slat travelled
+    /* The DECISION is on the gesture, not on the drawing. The dead zone is
+       taken off the slat's travel so it does not pop at the start, and taking
+       it off the committed distance as well quietly moved the line from 42% of
+       a cell to 52% on a phone - the opposite of the complaint. */
+    const raw = drag.raw || 0;
     const mv = { type: 'slide', a: drag.tile.a, b: drag.tile.b, dir: drag.dir };
-    dbg.lastEnd = { legal: !!drag.legal, along: Math.round(along), need: Math.round(geo.cell * TUNE.commitFrac),
+    dbg.lastEnd = { legal: !!drag.legal, along: Math.round(along), raw: Math.round(raw),
+                    need: Math.round(geo.cell * TUNE.commitFrac),
                     dir: drag.dir, screenDir: drag.screenDir, moved: drag.moved };
-    if (drag.legal && along >= geo.cell * TUNE.commitFrac) {
+    const cellsPerMs = (drag.vel || 0) / geo.cell;
+    const flick = cellsPerMs >= TUNE.flickVel && raw >= geo.cell * TUNE.flickMin;
+    dbg.lastEnd.vel = +cellsPerMs.toFixed(5); dbg.lastEnd.flick = flick;
+    if (drag.legal && (raw >= geo.cell * TUNE.commitFrac || flick)) {
       dbg.committed++;
       // snap the last few pixels home, then the move lands
       anim = { kind: 'snap', t0: performance.now(), mv,
@@ -474,8 +523,13 @@
     }
     drag = null;
   }
-  canvas.addEventListener('pointerup', (e) => { e.preventDefault(); dbg.ups++; if (drag) endDrag(); });
-  canvas.addEventListener('pointercancel', () => { drag = null; });
+  canvas.addEventListener('pointerup', (e) => {
+    e.preventDefault(); dbg.ups++;
+    if (drag && e.pointerId === drag.id) endDrag();
+  });
+  canvas.addEventListener('pointercancel', (e) => {
+    if (drag && e.pointerId === drag.id) drag = null;
+  });
   canvas.addEventListener('contextmenu', e => e.preventDefault());
 
   function press(id) {
@@ -541,6 +595,19 @@
   function sizeOf(cell) { const r = regionOf(cell); let n = 0;
     for (let i = 0; i < M.N; i++) if (r[i]) n++; return n; }
 
+  /* A slide can land on the square an animal is standing in, and apply() then
+     steps it into a neighbouring hole. Walk that step instead of popping it:
+     it is the one moment the player is looking straight at them. */
+  function paceStepAside(prev, now) {
+    for (const who of ['bunny', 'fox']) {
+      const from = who === 'bunny' ? prev.bunny : prev.fox;
+      const to   = who === 'bunny' ? st.bunny   : st.fox;
+      if (from === to) continue;
+      pace[who] = { at: to, from: from, to: to, t0: now, ms: WANDER.fastStep,
+                    path: [], idx: 0 };
+    }
+  }
+
   function snapPaceHome(now) {
     for (const who of ['bunny', 'fox']) {
       const home = who === 'bunny' ? st.bunny : st.fox;
@@ -577,17 +644,39 @@
     }
   }
 
+  /* NOBODY PACES WHILE A SLAT IS MOVING, and this is the whole of the "they
+     walk over the slats" bug. The rules use the square the model has an animal
+     on; pacing draws it somewhere else in the same pocket, and on these eight
+     levels the fox can leave his own square in 78.2% of reachable positions
+     and get as far as ten cells from it. So the player covers the hole he is
+     STANDING IN, the model - which has him elsewhere - allows the slide, and
+     he is drawn on top of the slat that just landed and then pops back out.
+     Cornering him looked like a bug because it was one.
+
+     While a slat is in hand or in flight the model has not moved yet, so the
+     only safe place to draw them is the square the rules are about to use.
+     They are put there the moment a slat is picked up (snapPaceHome) and they
+     stay there until the slide has landed. What you see is what is refused. */
+  function slatInPlay() {
+    return !!drag || !!(anim && (anim.kind === 'snap' || anim.kind === 'snapback'));
+  }
+
   function stepPace(now) {
     if (!st || REDUCED.matches) return;
+    if (slatInPlay()) return;
     for (const who of ['bunny', 'fox']) {
       if (who === 'fox' && M.buried(st)) continue;      // he is not there any more
       const anchor = who === 'bunny' ? st.bunny : st.fox;
       let w = pace[who];
       if (!w) w = pace[who] = { at: anchor, from: anchor, to: anchor, t0: now,
                                 ms: WANDER.step, path: [], idx: 0 };
-      // A slat can land on the square they had walked to. Put them back on the
-      // cell the model has them in and start again from there.
-      if (st.grid[w.to] !== M.HOLE || st.grid[w.from] !== M.HOLE) {
+      /* A slat can land on the square they had walked TO: put them back on the
+         cell the model has them in and start again from there. Only `to` is
+         tested. `from` under a slat is the step-aside - a slide has landed on
+         the square they were standing in and they are walking out from under
+         it - and testing that as well cancelled the step and popped them to
+         the far end of it instead, which is the thing it was there to stop. */
+      if (st.grid[w.to] !== M.HOLE) {
         Object.assign(w, { at: anchor, from: anchor, to: anchor, t0: now, path: [], idx: 0 });
         continue;
       }
@@ -680,6 +769,7 @@
         // counter KEEPS the wasted move: restart is free, this is not.
         const h = history[history.length - 1];
         if (h) { st = h.state; history.pop(); }
+        snapPaceHome(now);                       // same rewind, same reason
         phase = 'play'; anim = null;
       }
     }
