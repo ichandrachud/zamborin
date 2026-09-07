@@ -2,96 +2,96 @@
  {
   "id": 1,
   "rows": [
-   "aabdd.eeg",
-   "hhbii.jjg",
-   "Ckkllm..n",
-   "o..p.mqqn",
-   "o.Bprrss.",
-   "Ftt.uu.vv"
+   "..aabbdde",
+   "gghh.iije",
+   "kklmmnnjo",
+   "ppl.qq.#o",
+   "rrs#Btt..",
+   "uusCvvFww"
   ],
-  "note": "the first slide that opens the way to the carrot is the one that opens it to him too."
+  "note": "the slide that opens the way to the carrot is the one that opens it to him."
  },
  {
   "id": 2,
   "rows": [
-   ".aabbddee",
-   "gg.hhiijj",
-   "kll.mmnn.",
-   "kBooppq..",
-   "rssFt.quu",
-   "r..Ct.vv."
+   "Baa..bb#.",
+   "degg.hii.",
+   "dejj.hklm",
+   "n.Coopklm",
+   "nFqq#pr..",
+   "ss.tt.ruu"
   ],
-  "note": "a tighter board and the same trap one square along."
+  "note": "the walls make one of the two routes a dead end. Work out which before you move."
  },
  {
   "id": 3,
   "rows": [
-   "..aabb.dd",
-   "e.ggh..ii",
-   "ejkkhl.mm",
-   "CjBnnl.oo",
-   ".Fpp..qqr",
-   "ssttuuvvr"
+   "aab.ddee.",
+   "g.bhhiijj",
+   "gkk..llmm",
+   "nooppFCqq",
+   "n#rrsstt.",
+   "#.uuvvBww"
   ],
-  "note": "his corridor runs across the route; watch which end of it he is at."
+  "note": "his corridor crosses the route; watch which end of it he is at."
  },
  {
   "id": 4,
   "rows": [
-   "....aabbd",
-   "eegg.FhBd",
-   "iijklChmn",
-   "oojklppmn",
-   "....qqr..",
-   "ssttuurvv"
+   ".aabbdd..",
+   "ee.Cgghhi",
+   "jjFkkl..i",
+   "mBnn.l.o.",
+   "mppqq.#or",
+   "#ssttuu.r"
   ],
   "note": "the way through is not the way it looks."
  },
  {
   "id": 5,
   "rows": [
-   "a.bbdd...",
-   "a.egg..hi",
-   "jje.kklhi",
-   "#mmnnolpp",
-   "qq#rBoFss",
-   ".ttruuCvv"
+   "aaCF.bb.d",
+   "ee.gghhid",
+   "...jkB#il",
+   "#mmjknool",
+   "ppqq.nrr.",
+   "ss..ttuu."
   ],
-  "note": "the route has to be built from the far side."
+  "note": "the route has to be built from the far side of the walls."
  },
  {
   "id": 6,
   "rows": [
-   ".aabBddee",
-   "ghhbii.j.",
-   "gk.F.lljm",
-   "nk.Co.ppm",
-   "n.qross.t",
-   "uuqrvvwwt"
+   "...aabbdd",
+   "eeghhii.j",
+   "kkgllm..j",
+   "#nnFCm.oo",
+   "pqqrss.tt",
+   "p.#rBuu.."
   ],
   "note": "his reach is longer than it looks from where he is standing."
  },
  {
   "id": 7,
   "rows": [
-   ".aa.bbdde",
-   ".gghhii.e",
-   ".jjBkkllm",
-   "nnFoo..pm",
-   "..qqCrrps",
-   "ttuuvvwws"
+   "aabb.dd.e",
+   "gghhi..#e",
+   "j...i.kkl",
+   "jmmn.Cool",
+   "pB.nFqq.r",
+   "psstt#uur"
   ],
   "note": "the long one: ignoring him entirely would take a fraction of the moves."
  },
  {
   "id": 8,
   "rows": [
-   "aaC.bF..#",
-   "ddeebgg.h",
-   "iijj.Bk.h",
-   ".ll.mmk.n",
-   "o.ppqqrsn",
-   "ottuu#rs."
+   "aa#CF.bb.",
+   ".dd.eeBg#",
+   "hiijjkkg.",
+   "h.llmnnoo",
+   "pp..mqrrs",
+   "tt.uuq..s"
   ],
   "note": "the wall. Every slide near the middle is one he is waiting for."
  }

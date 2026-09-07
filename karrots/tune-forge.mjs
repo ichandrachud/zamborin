@@ -167,8 +167,14 @@ while (out.length < want && tried < 400) {
      puzzle should look packed. Ten to fourteen is the shape now, which is also
      kinder to the search - fewer holes is less mobility is a smaller reachable
      space - and the two walls stay the ceiling. */
-  const nHoles = 10 + 2 * ((r() * 3) | 0);            // 10, 12 or 14
-  const nWalls = 2 * ((r() * 2) | 0);                 // 0 or 2
+  const nHoles = Number(process.env.KHOLES || 0) || (10 + 2 * ((r() * 3) | 0));
+  /* EVERY level gets its blockers. Rolling 0 or 2 meant six of the eight
+     shipped boards had none at all, because the selection then picked on par
+     and on whether the fox mattered and quietly favoured the empty ones. Two
+     is also the owner's ceiling, and it has to be EVEN: the holes are even, so
+     an odd number of walls leaves an odd number of cells for dominoes that
+     cover two each. */
+  const nWalls = 2;
   if ((M.N - nHoles - nWalls) % 2) continue;
   const made = solvedBoard(nHoles, nWalls, r);
   if (!made) continue;
