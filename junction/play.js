@@ -160,6 +160,86 @@
   // sound at all rather than quiet sound.
   const sfx = window.ZSFX ? window.ZSFX.create({ storageKey: 'zam.junction.sfx', gain: 2.4 }) : null;
   const play = (n) => { try { if (sfx) sfx.play(n); } catch (_) { /* audio never breaks play */ } };
+
+  /* ---------- THE YARD, HEARD ----------
+     Three sounds, and each one is tied to a thing the MODEL does rather than
+     to the clock, so what you hear is what is happening: a joint under the
+     wheels every time a train crosses a cell, a whistle when you dispatch, and
+     brakes when one train has to give way to another.
+
+     The last of those is the useful one. A meeting is the whole point of the
+     game and it is easy to miss on a board this size — two engines pause for
+     half a second somewhere off where you were looking and the run just takes
+     longer. Now it says so.
+
+     Built from the shared kit's primitives rather than added to its library:
+     these are Junction's art, and no other game wants a rail joint. */
+  const heardOn = () => sfx && sfx.isOn();
+
+  /* A JOINT UNDER A BOGIE — two axles about 45ms apart, which is what gives
+     the "ta-tak" rather than a single knock. Dull and low: a bandpass at 190
+     with a soft Q is a thud, not a ring. A longer train lands heavier, because
+     every vehicle is a cell apart and they all cross the joint together. */
+  function railJoint(cars) {
+    if (!heardOn()) return;
+    try {
+      const g = Math.min(0.085, 0.042 + 0.010 * (cars || 0));
+      sfx.noise(0.045, 190, 1.1, g);
+      sfx.tone(96, 0.070, g * 0.55, 'sine');
+      setTimeout(() => {
+        if (!heardOn()) return;
+        sfx.noise(0.038, 168, 1.1, g * 0.78);
+        sfx.tone(88, 0.060, g * 0.42, 'sine');
+      }, 45);
+    } catch (_) { /* audio never breaks play */ }
+  }
+
+  /* A STEAM WHISTLE is a chord, not a note — the pipe sounds a rough minor
+     third and a fifth at once, which is why a single tone reads as a doorbell.
+     Two blasts, the second shorter, which is the "right away" a signalman
+     would recognise. */
+  function whistle() {
+    if (!heardOn()) return;
+    try {
+      const blast = (t, dur, g) => setTimeout(() => {
+        if (!heardOn()) return;
+        sfx.tone(587, dur, g, 'triangle');
+        sfx.tone(698, dur, g * 0.72, 'triangle');
+        sfx.tone(880, dur, g * 0.45, 'triangle');
+      }, t);
+      blast(0, 0.42, 0.038);
+      blast(300, 0.30, 0.030);
+    } catch (_) { /* audio never breaks play */ }
+  }
+
+  /* BRAKES. A high-Q bandpass on noise is a squeal; two of them, the second
+     higher and shorter, is a train coming to a stand. Quiet on purpose — it
+     marks a moment, it does not announce one. */
+  function brakes() {
+    if (!heardOn()) return;
+    try {
+      sfx.noise(0.34, 820, 7, 0.026);
+      setTimeout(() => { if (heardOn()) sfx.noise(0.24, 1320, 9, 0.018); }, 100);
+    } catch (_) { /* audio never breaks play */ }
+  }
+
+  /* WHAT HAS ALREADY BEEN HEARD, per run. The model is stepped up to 600 times
+     in one frame and a debug fast-forward steps it thousands of times without
+     a frame at all, so the sounds are fired on the FRAME boundary from a
+     counter, never from inside the step. That caps it at one joint per train
+     per frame however far the simulation jumped. */
+  let heard = null;
+  function hearRun() {
+    if (!run || !heard) return;
+    for (const t of run.trains) {
+      const was = heard.cells[t.id] || 0;
+      if (t.cells > was) {
+        heard.cells[t.id] = t.cells;
+        if (was > 0 || t.state !== 'queued') railJoint(t.cars);
+      }
+    }
+    if (run.meetings > heard.meetings) { heard.meetings = run.meetings; brakes(); }
+  }
   let lastTick = 0;
 
   // ---------- PORTAL ----------
@@ -1943,6 +2023,7 @@
         M.stepRun(level, track, run, M.RUN_DT);
         acc -= M.RUN_DT;
       }
+      hearRun();
       if (run.settled) {
         acc = 0;
         onSettled();
@@ -2044,11 +2125,12 @@
     run = M.createRun(level, track);
     releases++;
     lastFrame = 0; acc = 0;
-    play('start');
+    heard = { cells: [], meetings: 0 };
+    whistle();
     draw();
   }
   function clearRun() {
-    run = null; winAt = 0;
+    run = null; winAt = 0; heard = null;
     draw();
   }
   function onSettled() {
@@ -2522,6 +2604,22 @@
       history = []; run = null; winAt = 0; phase = 'play';
       layout(); draw();
       return { ...this.state, art: this.art(), fit: this.hits().yardFits };
+    },
+    /* THE SOUND OBJECT ITSELF, so a harness can wrap its primitives and count
+       what a run actually plays. The fleet's audio has been wrong before — the
+       whole of it mixed four times too quiet, found by measuring rather than
+       listening — and a sound nobody can measure is a sound nobody checks. */
+    sfx,
+    /* RUN THE SIM THE WAY A FRAME DOES, sound and all. settle() is a
+       fast-forward that steps the model directly and deliberately fires
+       nothing; but the audio is triggered on the FRAME boundary, so without
+       this there is no way to check it from a harness — and a hidden tab never
+       runs a real frame, which is exactly where these get tested. */
+    tick(frames, dtMs) {
+      const step = dtMs || 16.7;
+      let t = performance.now();
+      for (let k = 0; k < (frames || 1); k++) { t += step; frame(t); }
+      return this.state;
     },
     /* COUPLE CARRIAGES ON. A train is as many cells long as it has vehicles,
        so this is a difficulty dial and not a costume: measured on level 1, a
