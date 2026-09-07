@@ -140,7 +140,11 @@
   let phase = 'play';            // play | caught | won
   let anim = null;               // the one animation in flight
   let drag = null;
-  let edge = { segs: [], t: 1 }; // the fox's reach and its sweep
+  let edge = { segs: [], t: 1, t0: 0 };   // the fox's reach and its sweep
+
+  /* Honoured, not decorated around: the edge redraws without the sweep, the
+     catch is a cut and a hold, and a tile lands instead of easing. §10. */
+  const REDUCED = matchMedia('(prefers-reduced-motion: reduce)');
   let hoverHops = 0;             // fade on the hop dots
   let rulesOpen = false, rulesScroll = 0;
 
@@ -169,7 +173,8 @@
   }
 
   function rebuildEdge(t) {
-    edge = { segs: RD.foxEdgeSegments(M, st, geo), t: t === undefined ? 0 : t };
+    const from = (t === undefined || REDUCED.matches) ? 1 : t;
+    edge = { segs: RD.foxEdgeSegments(M, st, geo), t: from, t0: performance.now() };
   }
 
   /* ---------- GEOMETRY ----------
@@ -410,11 +415,14 @@
 
   /* ---------- ANIMATION ---------- */
   function stepAnim(now) {
-    if (edge.t < 1) edge.t = Math.min(1, edge.t + 16 / TUNE.foxEdgeMs);
+    // Time-based, not per-frame. `t += 16/ms` assumes 60 fps, and the machine
+    // this has to run on is a 2018 school Chromebook, where the sweep would
+    // simply have run slower the worse the frame rate got.
+    if (edge.t < 1) edge.t = Math.min(1, (now - edge.t0) / TUNE.foxEdgeMs);
     if (!anim) return;
     const el = now - anim.t0;
     if (anim.kind === 'snap' || anim.kind === 'snapback') {
-      const k = Math.min(1, el / TUNE.snapMs);
+      const k = REDUCED.matches ? 1 : Math.min(1, el / TUNE.snapMs);
       anim.k = k * k * (3 - 2 * k);
       if (k >= 1) {
         const a = anim; anim = null;
@@ -422,7 +430,8 @@
         else SND.refused();
       }
     } else if (anim.kind === 'catch') {
-      const total = TUNE.lungeMs + TUNE.holdMs + TUNE.rewindMs;
+      const total = REDUCED.matches ? TUNE.holdMs
+                                    : TUNE.lungeMs + TUNE.holdMs + TUNE.rewindMs;
       if (el >= total) {
         // The fatal slide rewinds and he goes back where he was. The move
         // counter KEEPS the wasted move: restart is free, this is not.
@@ -553,7 +562,8 @@
     let x, y, frame = 'fox-still', flip = false;
     if (anim && anim.kind === 'catch') {
       const el = now - anim.t0;
-      const k = Math.max(0, Math.min(1, el / TUNE.lungeMs));
+      // Reduced motion: he is simply THERE, beside her, and the board holds.
+      const k = REDUCED.matches ? 1 : Math.max(0, Math.min(1, el / TUNE.lungeMs));
       const path = anim.path, f = k * (path.length - 1);
       const i0 = Math.floor(f), i1 = Math.min(path.length - 1, i0 + 1), t = f - i0;
       const a = geo.at(path[i0]), b = geo.at(path[i1]);
