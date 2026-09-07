@@ -188,17 +188,15 @@
     return out;
   }
 
-  function hopMoves(st) {
-    var out = [], byDir = NBD[st.bunny], k, ni;
-    for (k = 0; k < 4; k++) {
-      ni = byDir[k];
-      if (ni < 0 || st.grid[ni] !== HOLE || ni === st.fox) continue;
-      out.push({ type: 'hop', to: ni, dir: k });
-    }
-    return out;
-  }
+  /* THE BUNNY IS NOT A MOVE ANY MORE. The owner's rule of 2026-09-07: the
+     moment a path of holes joins her to the carrot she simply goes and takes
+     it. So hopping her one square at a time is gone, sliding a slat is the
+     only thing a player does, and a MOVE MEANS A SLIDE - which is what the
+     move counter and par now count.
 
-  function moves(st) { return slideMoves(st).concat(hopMoves(st)); }
+     What she still does is stand in the way: a slat cannot slide over an
+     animal, so where she is placed is still part of the board. */
+  function moves(st) { return slideMoves(st); }
 
   function apply(st, mv) {
     var g = new Uint8Array(st.grid), next;
@@ -254,7 +252,27 @@
     }
     return false;
   }
-  function won(st) { return st.bunny === st.carrot; }
+  /* Won the moment the carrot is in the same pocket of holes she is. She walks
+     the rest herself. Reaching it used to mean standing on it, which only made
+     sense while hopping was a move the player spent. */
+  function won(st) { return regionFrom(st, st.bunny)[st.carrot] === 1; }
+
+  /* The 4-connected pocket of holes containing `cell`. foxRegion is this with
+     the fox's cell filled in; both are here because the two questions - what
+     can he reach, what can she reach - are asked about different cells. */
+  function regionFrom(st, cell) {
+    var seen = new Uint8Array(N), stack = [cell], i, nb, k, ni;
+    seen[cell] = 1;
+    while (stack.length) {
+      i = stack.pop(); nb = NB4[i];
+      for (k = 0; k < nb.length; k++) {
+        ni = nb[k];
+        if (seen[ni] || st.grid[ni] !== HOLE) continue;
+        seen[ni] = 1; stack.push(ni);
+      }
+    }
+    return seen;
+  }
 
   /* Everything that must be true of a position, said out loud. A GENERATOR can
      produce a state no parse would ever accept - a fox standing on a slat, say
@@ -273,8 +291,9 @@
     return true;
   }
 
-  /* The key a search dedupes on. Bricks, the fox and the carrot never move, so
-     the grid plus the bunny is the whole of the changing state. Tiles are
+  /* The key a search dedupes on. Nothing but the slats moves now, so the grid
+     alone would do - the bunny is kept in it because she is still an obstacle
+     and a level could in principle place her differently. Tiles are
      deliberately NOT labelled: two boards that differ only in which identical
      domino sits where are the same position, and labelling them would inflate
      the search space without changing a single answer. */
@@ -312,8 +331,8 @@
     HOLE: HOLE, BRICK: BRICK, HL: HL, HR: HR, VT: VT, VB: VB,
     DIRS: DIRS, rc: rc, idx: idx, inside: inside, NB4: NB4, NBD: NBD,
     parse: parse, parity: parity, tileAt: tileAt, validate: validate,
-    slideMoves: slideMoves, hopMoves: hopMoves, moves: moves, apply: apply,
-    foxRegion: foxRegion, caught: caught, won: won,
+    slideMoves: slideMoves, moves: moves, apply: apply,
+    foxRegion: foxRegion, regionFrom: regionFrom, caught: caught, won: won,
     key: key, clone: clone, ascii: ascii
   };
 });

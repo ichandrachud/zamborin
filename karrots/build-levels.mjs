@@ -79,8 +79,10 @@ for (const lv of WORLD1) {
   out.push({ ...lv, par: r.withFox.par, noFoxPar: r.without.par, firstLoss,
              branchPoints: r.withFox.branchPoints, states: r.withFox.states });
 }
-console.log(`\nthe fox changed the answer on ${changed} of ${WORLD1.length - 1} levels after the first ` +
-            `(${Math.round(changed / (WORLD1.length - 1) * 100)}%). The gate's bar is 60%, and under 30% kills the game.`);
+/* Every level counts now. The "- 1" here dated from the version where level 1
+   was a two-move teacher with no fox in play, and it printed 8 of 7 = 114%. */
+console.log(`\nthe fox changed the answer on ${changed} of ${WORLD1.length} levels ` +
+            `(${Math.round(changed / WORLD1.length * 100)}%). The gate's bar is 60%, and under 30% kills the game.`);
 
 const body = out.map(lv =>
   `    { id: ${lv.id}, par: ${lv.par}` +

@@ -60,22 +60,18 @@
      so it reads as absence rather than as a dark piece. The earlier version
      drew each hole as a rounded, inset, shadowed object, which made it look
      like a tile that happened to be dark - the exact opposite of the read. */
-  /* Game art, not chrome, so it carries its own colour. Lifted from #B0212C
-     on 2026-09-07: against the hole the darker red measured 2.65:1, under the
-     3:1 bar for a graphical object, and this reads at 3.2:1 on the painted
-     pixel while still being the 2014 brick red. */
-  var PLATE = '#C8323C';
-  var PLATE_LIP = '#9B1F28';
+  /* THERE IS NO PLATE. It was red, and red only ever appeared as a frame round
+     the board and as hairlines between the slats - which is to say it read as
+     a BORDER, and the owner does not want borders on this board. The ground
+     under the slats is the page itself now, the same as a hole, so what is
+     left on screen is slats and holes and nothing drawn around them. */
+  var PLATE = GROUND;
 
   function drawTray(ctx, geo) {
     var pad = Math.round(geo.cell * 0.14);
-    var x = geo.ox - pad, y = geo.oy - pad;
-    var w = geo.cols * geo.cell + pad * 2, h = geo.rows * geo.cell + pad * 2;
-    var r = Math.round(geo.cell * 0.13);
-    ctx.fillStyle = PLATE_LIP;
-    rr(ctx, x, y + Math.max(2, geo.cell * 0.03), w, h, r); ctx.fill();
     ctx.fillStyle = PLATE;
-    rr(ctx, x, y, w, h, r); ctx.fill();
+    ctx.fillRect(geo.ox - pad, geo.oy - pad,
+                 geo.cols * geo.cell + pad * 2, geo.rows * geo.cell + pad * 2);
   }
 
   /* A hole is the page. Flat, square-cornered, no inset and no shadow. */
@@ -87,22 +83,20 @@
 
   /* An immovable brick: the same footprint, no studs, and it does not sit
      above the plate the way a slat does. */
-  function drawBrick(ctx, geo, i) {
-    var p = geo.at(i), c = geo.cell, r = Math.round(c * 0.10);
-    /* PALE stone. A wall has to be told apart from a hole, which is the
-       dangerous confusion - mistake one for the other and you misread where
-       she can walk - and the dark grey managed only 2.19:1 against it. This
-       reads at about 6:1.
-         Against the green slat no colour can do it: the slat sits mid-range,
-       so anything 3:1 lighter than it is nearly white and anything 3:1 darker
-       is nearly the hole. §7 of the design system covers exactly this - where
-       lightness cannot carry a distinction on its own it needs a second
-       channel - and the second channel here is the studs. Every slat has
-       them in a two-by-two grid; a wall has none, and never will. */
-    ctx.fillStyle = '#9AA0AD';
-    rr(ctx, p.x + 2, p.y + 2, c - 4, c - 4, r); ctx.fill();
-    ctx.fillStyle = 'rgba(0,0,0,0.16)';
-    rr(ctx, p.x + 2, p.y + c * 0.62, c - 4, c * 0.38 - 2, r); ctx.fill();
+  /* The immovable block, and in the woods it is the brick wall - the owner's
+     own 2014 drawing. `art` is the loaded sprite; without it the same thing is
+     drawn from its two colours, so the board never shows a gap where a wall
+     should be. Red brick works here only because the ground stopped being red. */
+  function drawBrick(ctx, geo, i, art) {
+    var p = geo.at(i), c = geo.cell, k;
+    if (art && art.naturalWidth) { ctx.drawImage(art, p.x, p.y, c, c); return; }
+    ctx.fillStyle = '#BE1E2D';
+    ctx.fillRect(p.x, p.y, c, c);
+    ctx.strokeStyle = '#FFD194'; ctx.lineWidth = Math.max(1, c * 0.04);
+    for (k = 1; k < 4; k++) {
+      ctx.beginPath(); ctx.moveTo(p.x, p.y + c * k / 4);
+      ctx.lineTo(p.x + c, p.y + c * k / 4); ctx.stroke();
+    }
   }
 
   /* ---------- a slat ----------
@@ -160,23 +154,12 @@
     ctx.restore();
   }
 
-  /* A hole the bunny could hop into. Deliberately quiet: a dot, not a ring.
-     The affordance has to be findable without turning the board into a map of
-     everywhere she is allowed to stand. */
-  function drawHopDot(ctx, geo, i, alpha) {
-    var p = geo.at(i), c = geo.cell;
-    ctx.save(); ctx.globalAlpha = alpha;
-    ctx.fillStyle = 'rgba(255,255,255,0.40)';
-    ctx.beginPath(); ctx.arc(p.x + c / 2, p.y + c / 2, Math.max(2.5, c * 0.055), 0, Math.PI * 2);
-    ctx.fill(); ctx.restore();
-  }
-
   return {
     GROUND: GROUND, SURFACE: SURFACE, RAISED: RAISED, SCRIM: SCRIM,
-    PLATE: PLATE, PLATE_LIP: PLATE_LIP, TILE_R: TILE_R,
+    PLATE: PLATE, TILE_R: TILE_R,
     CORAL: CORAL, GREEN: GREEN, SUN: SUN, INK72: INK72, INK92: INK92,
     WORLDS: WORLDS, rr: rr,
     drawTray: drawTray, drawHole: drawHole, drawBrick: drawBrick, drawTile: drawTile,
-    drawRing: drawRing, drawHopDot: drawHopDot
+    drawRing: drawRing
   };
 });

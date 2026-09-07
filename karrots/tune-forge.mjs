@@ -59,43 +59,58 @@ function solvedBoard(nHoles, nWalls, r) {
       if (b === a + 1) { grid[a] = M.HL; grid[b] = M.HR; }
       else { grid[a] = M.VT; grid[b] = M.VB; }
     });
-    /* The carrot goes near one end of the board and the fox is PARKED for now
-       at the far end, out of the way. He is placed properly later, once the
-       walk has said where the bunny ends up: a fox chosen before the route
-       exists is a fox nowhere near it, which is exactly what the first forge
-       produced - fifteen levels and not one where he changed the answer. */
-    let carrot = null, park = null, best = -1;
-    for (const i of holes) for (const j of holes) {
-      if (i === j) continue;
-      const a = M.rc(i), b = M.rc(j), dd = Math.abs(a.r - b.r) + Math.abs(a.c - b.c);
-      if (dd > best) { best = dd; carrot = i; park = j; }
+    /* The bunny does not move any more, so "solved" is no longer "she is
+       standing on it" - it is "the carrot is in her pocket of holes". The
+       board therefore starts with the two of them IN THE SAME POCKET, as far
+       apart inside it as it allows, and the walk pulls them apart.
+       The fox is parked at the far end for now and placed properly once the
+       walk is done: chosen first he ends up nowhere near a route that does
+       not exist yet. */
+    const st0 = { grid, bunny: holes[0], fox: holes[0], carrot: holes[0] };
+    let carrot = null, bunny = null, best = -1;
+    for (const i of holes) {
+      const reg = M.regionFrom(st0, i);
+      for (const j of holes) {
+        if (i === j || !reg[j]) continue;
+        const a = M.rc(i), b = M.rc(j), dd = Math.abs(a.r - b.r) + Math.abs(a.c - b.c);
+        if (dd > best) { best = dd; bunny = i; carrot = j; }
+      }
     }
-    const st = { grid, bunny: carrot, fox: park, carrot };
-    if (M.caught(st)) return null;
+    if (bunny === null) return null;                  // no pocket holds two
+    let park = null, pd = -1;
+    for (const i of holes) {
+      if (i === bunny || i === carrot) continue;
+      const a = M.rc(i), b = M.rc(bunny), dd = Math.abs(a.r - b.r) + Math.abs(a.c - b.c);
+      if (dd > pd) { pd = dd; park = i; }
+    }
+    if (park === null) return null;
+    const st = { grid, bunny, fox: park, carrot };
+    if (M.caught(st) || !M.won(st)) return null;      // must start solved
     return { st, holes };
   }
   return null;
 }
 
-/** Walk away from the solved position, LEANING AWAY from the carrot.
+/** Walk away from the solved position, LEANING TOWARDS SHUTTING HER IN.
  *
- *  An unbiased walk wanders and comes back: the first forge took up to
- *  forty-eight steps and produced par 3, because the bunny had hopped in a
- *  circle. Two thirds of the time the walk now takes the move that puts her
- *  furthest from her carrot, which turns a wander into a journey. */
+ *  She cannot move, so the walk is all slats, and what it is trying to undo is
+ *  the connection between her pocket and the carrot's. Two thirds of the time
+ *  it takes the slide that leaves her pocket smallest, which is the slide that
+ *  closes a door; the rest of the time it takes any legal one, so the boards
+ *  do not all end up looking the same. */
 function forge(st0, steps, r) {
   let st = st0;
-  const dist = (a, b) => { const p = M.rc(a), q = M.rc(b);
-    return Math.abs(p.r - q.r) + Math.abs(p.c - q.c); };
+  const pocket = s2 => { const reg = M.regionFrom(s2, s2.bunny); let n = 0;
+    for (let i = 0; i < M.N; i++) if (reg[i]) n++; return n; };
   for (let n = 0; n < steps; n++) {
     const legal = M.moves(st).filter(mv => !M.caught(M.apply(st, mv)));
     if (!legal.length) break;
     if (r() < 0.66) {
-      let bestMv = null, bestD = -1;
+      let bestMv = null, bestN = 1e9;
       for (const mv of legal) {
         const ns = M.apply(st, mv);
-        const d = dist(ns.bunny, ns.carrot);
-        if (d > bestD) { bestD = d; bestMv = mv; }
+        const n2 = pocket(ns) + (M.won(ns) ? 100 : 0);   // prefer breaking it
+        if (n2 < bestN) { bestN = n2; bestMv = mv; }
       }
       st = M.apply(st, bestMv);
     } else st = M.apply(st, pick(legal, r));
@@ -147,13 +162,18 @@ console.log(' par  no-fox  delta  naive  branch   states  holes  walls  slats');
 console.log(' ---  ------  -----  -----  ------  -------  -----  -----  -----');
 while (out.length < want && tried < 400) {
   tried++;
-  const nHoles = 12 + 2 * ((r() * 3) | 0);            // 12, 14 or 16
-  const nWalls = 6 + 2 * ((r() * 3) | 0);             // 6, 8 or 10
+  /* AT MOST TWO WALLS. The owner's limit of 2026-09-07, and it took away the
+     thing that was making the search finish. What pays for it is the new win
+     condition: the bunny no longer has to be walked to the carrot square, only
+     joined to it, so the goal is reached far earlier and the search stops
+     sooner. More holes also help, by leaving fewer slats to permute. */
+  const nHoles = 16 + 2 * ((r() * 5) | 0);            // 16 to 24
+  const nWalls = 2 * ((r() * 2) | 0);                 // 0 or 2
   if ((M.N - nHoles - nWalls) % 2) continue;
   const made = solvedBoard(nHoles, nWalls, r);
   if (!made) continue;
-  const walked = forge(made.st, 22 + ((r() * 34) | 0), r);
-  if (M.won(walked)) continue;
+  const walked = forge(made.st, 10 + ((r() * 26) | 0), r);
+  if (M.won(walked) || M.caught(walked)) continue;
   /* WHERE HE STANDS IS THE DESIGN, so it is chosen rather than taken. Trying
      the first three obstructive-looking holes and keeping whichever was
      solvable gave a fox who changed the answer on 2 boards in 30 - under the

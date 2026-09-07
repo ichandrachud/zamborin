@@ -128,8 +128,14 @@ function recrop(svg, box) {
   const pad = Math.max(box.w, box.h) * 0.02;
   const vb = [box.x - pad, box.y - pad, box.w + pad * 2, box.h + pad * 2]
     .map(n => +n.toFixed(2)).join(' ');
-  return svg.replace(/viewBox="[^"]*"/, `viewBox="${vb}"`)
-            .replace(/\s(width|height)="[^"]*"/g, '');
+  /* Strip width/height FROM THE ROOT TAG ONLY, so the viewBox governs the
+     size. Doing it across the whole file - which is what this did - also ate
+     the width and height of every <rect>, and the brick wall is nine
+     rectangles: it built, it loaded, it reported a natural size of 150x150,
+     and it painted absolutely nothing. */
+  return svg.replace(/<svg\b[^>]*>/, tag => tag
+      .replace(/viewBox="[^"]*"/, `viewBox="${vb}"`)
+      .replace(/\s(width|height)="[^"]*"/g, ''));
 }
 
 const readJSON = f => existsSync(join(OUT, f)) ? JSON.parse(readFileSync(join(OUT, f), 'utf8')) : {};

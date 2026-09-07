@@ -102,11 +102,11 @@
   const ART = {};
   const ART_NAMES = ['bunny-idle', 'bunny-down-1', 'bunny-down-2', 'bunny-down-3',
     'bunny-up-1', 'bunny-up-2', 'bunny-up-3', 'bunny-side-1', 'bunny-side-2',
-    'bunny-side-3', 'fox-still', 'fox-walk-1', 'fox-walk-2', 'carrot'];
+    'bunny-side-3', 'fox-still', 'fox-walk-1', 'fox-walk-2', 'carrot', 'brick'];
   ART_NAMES.forEach(n => {
     const im = new Image();
     im.onload = () => { ART[n] = im; };
-    im.src = './art/' + n + '.svg?v=2';
+    im.src = './art/' + n + '.svg?v=3';
   });
   const HOP_FRAMES = {
     up:    ['bunny-up-1', 'bunny-up-2', 'bunny-up-3'],
@@ -143,7 +143,6 @@
   /* Honoured, not decorated around: the edge redraws without the sweep, the
      catch is a cut and a hold, and a tile lands instead of easing. §10. */
   const REDUCED = matchMedia('(prefers-reduced-motion: reduce)');
-  let hoverHops = 0;             // fade on the hop dots
   let rulesOpen = false, rulesScroll = 0;
   const dbg = { downs: 0, captureFailed: 0, moves: 0, ups: 0, committed: 0, refused: 0 };
 
@@ -266,9 +265,19 @@
       T().levelRestart && T().levelRestart(levelIndex + 1);
       return;
     }
-    if (mv.type === 'hop') SND.hop(); else if (!opts.silent) SND.snap();
+    if (!opts.silent) SND.snap();
+    notePockets(performance.now());
 
     if (M.won(st)) {
+      /* THE PATH IS OPEN AND SHE TAKES IT. She is not walked square by square
+         any more; the moment her pocket of holes contains the carrot she runs
+         the whole way, and the win card waits for her to arrive. */
+      phase = 'running';
+      anim = { kind: 'run', t0: performance.now(), path: pathThroughHoles(st.bunny, st.carrot) };
+      SND.hop();
+      return;
+    }
+    if (false) {
       phase = 'won';
       const c = carrotsFor(moves);
       const id = LEVELS[levelIndex].id;
@@ -279,8 +288,25 @@
     }
   }
 
-  /* The 4-connected walk he actually takes, so the catch is a journey the
-     player can follow rather than a teleport. */
+  /* The 4-connected walk between two holes, so both the catch and her run to
+     the carrot are journeys the player can follow rather than teleports. */
+  function pathThroughHoles(from, to) {
+    const prev = new Int16Array(M.N).fill(-1);
+    const q = [from]; prev[from] = from;
+    while (q.length) {
+      const i = q.shift();
+      if (i === to) break;
+      for (const ni of M.NB4[i]) {
+        if (prev[ni] >= 0 || st.grid[ni] !== M.HOLE) continue;
+        prev[ni] = i; q.push(ni);
+      }
+    }
+    const path = []; let cur = to;
+    while (cur !== from && prev[cur] >= 0) { path.unshift(cur); cur = prev[cur]; }
+    path.unshift(from);
+    return path;
+  }
+
   function foxPathToBunny() {
     const prev = new Int16Array(M.N).fill(-1);
     const q = [st.fox]; prev[st.fox] = st.fox;
@@ -337,12 +363,7 @@
     dbg.lastDown.cell = i;
     if (i < 0) { dbg.lastDown.why = 'off the board'; return; }
 
-    // A hole next to her is a hop. Everything else that is a tile is a drag.
-    if (st.grid[i] === M.HOLE && M.hopMoves(st).some(m => m.to === i)) {
-      dbg.lastDown.why = 'hop';
-      commit(M.hopMoves(st).find(m => m.to === i));
-      return;
-    }
+    // She goes on her own now: there is nothing to tap. Only slats are dragged.
     const t = M.tileAt(st.grid, i);
     if (!t) { dbg.lastDown.why = 'not a slat (grid ' + st.grid[i] + ')'; return; }
     /* Start the drag FIRST and capture afterwards. setPointerCapture throws on
@@ -356,13 +377,7 @@
 
   canvas.addEventListener('pointermove', (e) => {
     const p = toLogical(e);
-    if (!drag) {
-      // fade the hop dots up when the pointer is anywhere near her
-      const b = geo.at(st ? st.bunny : 0);
-      const near = st && Math.hypot(p.x - (b.x + geo.cell / 2), p.y - (b.y + geo.cell / 2)) < geo.cell * 2.2;
-      hoverHops = near ? 1 : 0;
-      return;
-    }
+    if (!drag) return;
     dbg.moves++;
     const rawX = p.x - drag.x0, rawY = p.y - drag.y0;
     if (drag.dir < 0) {
@@ -437,10 +452,27 @@
 
      She is kept off the carrot square while pacing. Wandering onto it would
      look exactly like winning. */
-  const WANDER = { hold: 620, walk: 420 };
+  /* Idle pacing is SLOW - an animal in a small pocket with nowhere to be. The
+     quick pace is reserved for the moment a slide opens their pocket up, when
+     there is somewhere new to go and they go and look at it. */
+  const WANDER = { hold: 1700, walk: 760, fastHold: 260, fastWalk: 300, fastMs: 2200 };
   const pace = { bunny: null, fox: null };
+  const fastUntil = { bunny: 0, fox: 0 };
+  const pocketSize = { bunny: -1, fox: -1 };
 
-  function regionOf(cell) { return M.foxRegion({ ...st, fox: cell }); }
+  function regionOf(cell) { return M.regionFrom(st, cell); }
+  function sizeOf(cell) { const r = regionOf(cell); let n = 0;
+    for (let i = 0; i < M.N; i++) if (r[i]) n++; return n; }
+
+  /* Called after every slide: whoever's pocket just grew gets to hurry. */
+  function notePockets(now) {
+    for (const who of ['bunny', 'fox']) {
+      const cell = who === 'bunny' ? st.bunny : st.fox;
+      const n = sizeOf(cell);
+      if (pocketSize[who] >= 0 && n > pocketSize[who]) fastUntil[who] = now + WANDER.fastMs;
+      pocketSize[who] = n;
+    }
+  }
 
   function stepPace(now) {
     if (!st || REDUCED.matches) return;
@@ -448,8 +480,18 @@
       const home = who === 'bunny' ? st.bunny : st.fox;
       let w = pace[who];
       if (!w || w.home !== home) { w = pace[who] = { home, from: home, to: home, t0: now }; }
+      const fast = now < fastUntil[who];
+      const walkMs = fast ? WANDER.fastWalk : WANDER.walk;
+      const holdMs = fast ? WANDER.fastHold : WANDER.hold;
+      w.ms = walkMs;
+      /* A slat can slide into the cell they are VISUALLY standing in - only
+         their real cell is protected - and then they are drawn on top of a
+         slat. Snap home the moment that happens. */
+      if (st.grid[w.to] !== M.HOLE || st.grid[w.from] !== M.HOLE) {
+        w.from = w.to = home; w.t0 = now; continue;
+      }
       const el = now - w.t0;
-      if (el < WANDER.walk + WANDER.hold) continue;
+      if (el < walkMs + holdMs) continue;
       const region = regionOf(w.to);
       const opts = M.NB4[w.to].filter(i =>
         region[i] && i !== st.carrot && (who === 'fox' ? i !== st.bunny : i !== st.fox));
@@ -469,7 +511,7 @@
       const p = geo.at(home);
       return { x: p.x, y: p.y, moving: false, flip: false };
     }
-    const k = Math.max(0, Math.min(1, (now - w.t0) / WANDER.walk));
+    const k = Math.max(0, Math.min(1, (now - w.t0) / (w.ms || WANDER.walk)));
     const a = geo.at(w.from), b = geo.at(w.to);
     const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
     return { x: a.x + (b.x - a.x) * e, y: a.y + (b.y - a.y) * e,
@@ -488,6 +530,17 @@
         const a = anim; anim = null;
         if (a.kind === 'snap') commit(a.mv);
         else SND.refused();
+      }
+    } else if (anim.kind === 'run') {
+      const per = 150;                                   // ms per square, quick
+      if (el >= anim.path.length * per) {
+        anim = null; phase = 'won';
+        const c = carrotsFor(moves);
+        const id = LEVELS[levelIndex].id;
+        if (!best[id] || moves < best[id].moves) best[id] = { moves, carrots: c };
+        save();
+        SND.crunch(); setTimeout(SND.win, 220);
+        T().levelComplete && T().levelComplete(levelIndex + 1, moves);
       }
     } else if (anim.kind === 'catch') {
       const total = REDUCED.matches ? TUNE.holdMs
@@ -516,7 +569,7 @@
     // holes and bricks first: they are the floor everything else sits on
     for (let i = 0; i < M.N; i++) {
       if (st.grid[i] === M.HOLE) RD.drawHole(ctx, geo, i);
-      else if (st.grid[i] === M.BRICK) RD.drawBrick(ctx, geo, i);
+      else if (st.grid[i] === M.BRICK) RD.drawBrick(ctx, geo, i, ART['brick']);
     }
 
     // the carrot sits in its hole, under whatever is over it
@@ -548,10 +601,6 @@
       RD.drawRing(ctx, heldBox, safe);
     }
 
-    // where she can go
-    if (phase === 'play' && !drag && hoverHops > 0)
-      M.hopMoves(st).forEach(m => RD.drawHopDot(ctx, geo, m.to, 0.55 * hoverHops));
-
     drawFox(now);
     drawBunny(now);
 
@@ -577,6 +626,7 @@
 
   function drawBunny(now) {
     const c = geo.cell;
+    if (anim && anim.kind === 'run') { drawRunningBunny(now); return; }
     const w = paceAt('bunny', now);
     let frame = 'bunny-idle', flip = false;
     if (w.moving) {
@@ -592,6 +642,21 @@
     }
   }
 
+  /* Her run to the carrot: the same interpolation the fox's lunge uses. */
+  function drawRunningBunny(now) {
+    const c = geo.cell, per = 150, path = anim.path;
+    const f = Math.min(path.length - 1, (now - anim.t0) / per);
+    const i0 = Math.floor(f), i1 = Math.min(path.length - 1, i0 + 1), t = f - i0;
+    const a = geo.at(path[i0]), b = geo.at(path[i1]);
+    const x = a.x + (b.x - a.x) * t, y = a.y + (b.y - a.y) * t;
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const set = Math.abs(dx) > Math.abs(dy)
+      ? (dx > 0 ? HOP_FRAMES.right : HOP_FRAMES.left)
+      : (dy > 0 ? HOP_FRAMES.down : HOP_FRAMES.up);
+    const frame = set[Math.floor(now / 90) % set.length];
+    sprite(frame, x + c / 2, y + c * 0.90, c * 0.76, Math.abs(dx) > Math.abs(dy) && dx < 0);
+  }
+
   function drawFox(now) {
     const c = geo.cell;
     let x, y, frame = 'fox-still', flip = false;
@@ -603,12 +668,17 @@
       const i0 = Math.floor(f), i1 = Math.min(path.length - 1, i0 + 1), t = f - i0;
       const a = geo.at(path[i0]), b = geo.at(path[i1]);
       x = a.x + (b.x - a.x) * t; y = a.y + (b.y - a.y) * t;
-      frame = (Math.floor(el / 110) % 2) ? 'fox-walk-1' : 'fox-walk-2';
-      flip = b.x < a.x;
+      frame = (Math.floor(el / 150) % 2) ? 'fox-walk-1' : 'fox-walk-2';
+      flip = b.x > a.x;
     } else {
       const w = paceAt('fox', now);
-      x = w.x; y = w.y; flip = w.flip;
-      if (w.moving) frame = (Math.floor(now / 130) % 2) ? 'fox-walk-1' : 'fox-walk-2';
+      x = w.x; y = w.y;
+      /* THE FOX IS DRAWN FACING LEFT. In every one of the three supplied files
+         his head is at the low-x end and his brush at the high-x end, so he
+         must be mirrored to walk RIGHT - the opposite of what this did, which
+         is why he appeared to moonwalk. */
+      flip = w.moving ? w.dx > 0 : false;
+      if (w.moving) frame = (Math.floor(now / 150) % 2) ? 'fox-walk-1' : 'fox-walk-2';
     }
     if (!sprite(frame, x + c / 2, y + c * 0.90, c * 0.80, flip)) {
       ctx.fillStyle = '#FF4713';

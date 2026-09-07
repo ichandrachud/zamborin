@@ -2,97 +2,97 @@
  {
   "id": 1,
   "rows": [
-   "a#..bbdd.",
-   "aee.#.#gg",
-   "hhFii#.jj",
-   "Bkk..#llm",
-   "n.o#pp..m",
-   "nCoqqrr.."
+   "....aabb.",
+   "ddFeegghi",
+   ".C...jjhi",
+   "k...lmmn.",
+   "koo.lppn.",
+   "..qqBrr.."
   ],
-  "note": "a short trip along her own row. One slat has to move before she can start, and only one slat can."
+  "note": "four slides, and one of them opens the way to the carrot in one. That one lets him in."
  },
  {
   "id": 2,
   "rows": [
-   "aaC.#bb#d",
-   "egg.hhi#d",
-   "ejj..Bi#k",
-   ".llmm#nok",
-   "...pF.no.",
-   "qq#p.rrss"
+   "aa.bb..d.",
+   ".eeggC.dh",
+   "......ijh",
+   "k.Fl..ijm",
+   "kn.loo.pm",
+   "Bn..qq.p."
   ],
-  "note": "the same distance through a tighter board, so the order matters."
+  "note": "the same trap with a second slat in the way: five slides against the one it would take to lose."
  },
  {
   "id": 3,
   "rows": [
-   "C.#aa.b#d",
-   "ee..g#b#d",
-   "h.iig.#jj",
-   "hBkl##mm#",
-   "Fnkl.oo.#",
-   "#nppqqrr."
+   "...aa.bbd",
+   ".eegg.hhd",
+   "iijjBkkl.",
+   "m...nnClo",
+   "m.ppFqrro",
+   "sstt.q..."
   ],
-  "note": "the route bends, and the slat that opens it is the one holding him in."
+  "note": "his pocket sits between hers and the carrot's, so the short answer is the fatal one."
  },
  {
   "id": 4,
   "rows": [
-   "C...aa.bb",
-   ".d#e.ggh#",
-   "idFeBjjh.",
-   "ik#.llmm.",
-   "nkoop..##",
-   "nqq#prrss"
+   "aa..bb.dd",
+   ".eeBgghhi",
+   "..jj.kk.i",
+   "llF.m.n..",
+   "o.ppm.n..",
+   "oC.qq...."
   ],
-  "note": "the first board with real branching: seven hundred positions on the way where one move loses and another does not."
+  "note": "seven, where three would do it if he were not there. The safe route goes the long way round him."
  },
  {
   "id": 5,
   "rows": [
-   "..#..aa.C",
-   ".bb...#dd",
-   "e##gh.iiF",
-   "e##gh.jj.",
-   "kk#lBmmnn",
-   ".ool#ppqq"
+   "...aa.Cbb",
+   ".ddF.eegg",
+   "hiijkk.l.",
+   "h..jBmml.",
+   "...nno.pp",
+   ".qqrross."
   ],
-  "note": "ten walls, and the way through is not the way it looks."
+  "note": "two ways to open it and only one of them keeps him out."
  },
  {
   "id": 6,
   "rows": [
-   "..#aabbdd",
-   ".eegghh..",
-   "iijj..Bkk",
-   "lF.mm.#nn",
-   "l#..opqqr",
-   "ssC#op##r"
+   "a.....bbd",
+   "aeggF.hhd",
+   ".eC.ijjkk",
+   "lmmniBoo.",
+   "l..nppqqr",
+   ".ss...ttr"
   ],
-  "note": "the route crosses in front of him twice."
+  "note": "nine slides against seven: the smallest margin in the world, and the hardest to see."
  },
  {
   "id": 7,
   "rows": [
-   "#..#.#.C#",
-   "..aab..#d",
-   "#ee.bggFd",
-   "hhiijjBkl",
-   "mmnn.ookl",
-   ".#pp#..qq"
+   "..aaBbb..",
+   "dd.eggF..",
+   "..heiCjjk",
+   "..h.ill.k",
+   ".mmnn.oop",
+   "qqrr.ss.p"
   ],
-  "note": "the long one. Twenty-four moves, and reading him wrong costs eighteen of them: the only board in world 1 where he moves the answer itself."
+  "note": "eleven slides. Ignoring him entirely would take three."
  },
  {
   "id": 8,
   "rows": [
-   "abb.dd#ee",
-   "a.#gB#hhi",
-   "#.Fgjj.Ci",
-   "kk##llmm.",
-   ".nnoopp.q",
-   "...rr.ssq"
+   "..aabbdd.",
+   "ee.gg..hh",
+   "ijj#k...C",
+   "i.#Fk.ll.",
+   "mmnnBoopq",
+   "rr.ssttpq"
   ],
-  "note": "the wall. Twenty-five moves and three and a half thousand places to get it wrong."
+  "note": "the wall. Twelve slides, and the answer without him is two."
  }
 ]
