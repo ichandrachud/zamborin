@@ -595,5 +595,40 @@ for (const [name, set] of [['portrait', port], ['landscape', land]]) {
      early.size >= 3, [...early].join(' '));
 }
 
+/* ---------- EVERY SHIPPED LEVEL IS WINNABLE, THROUGH THE GAME'S OWN MODEL ----
+   The certifier said so, but the certifier is a separate program with its own
+   copy of the reasoning, and levels.js is written by a generator that nobody
+   reads. This lays each level's recorded solution on a fresh track and runs it
+   through the model the game actually plays on.
+
+   THE SWITCHES ARE PART OF THE ANSWER, which the first version of this test
+   got wrong and every level duly "failed". Laying the rails is not winning:
+   a junction keeps whichever branch went down first, so the solution has to be
+   run under a switch setting as well, and on level 1 exactly one of sixteen
+   settings wins. The count is reported rather than asserted at one, because a
+   junction the trains never split at can be set either way and still win. */
+head('every generated level can actually be won');
+for (const [name, set] of [['portrait', port], ['landscape', land]]) {
+  const broken = [], mispriced = [];
+  for (const lvl of set) {
+    if (!lvl.solution || !lvl.solution.length) { broken.push(lvl.n + ' has no solution'); continue; }
+    let track;
+    try { track = M.layout(lvl, lvl.solution); } catch (e) { broken.push(lvl.n + ' will not lay: ' + e.message); continue; }
+    if (M.sleepers(track) !== lvl.budget)
+      mispriced.push(lvl.n + ' costs ' + M.sleepers(track) + ' at budget ' + lvl.budget);
+    const js = [];
+    for (let i = 0; i < lvl.size; i++) if (M.isJunction(track[i])) js.push(i);
+    let wins = 0;
+    for (let m = 0; m < (1 << js.length); m++) {
+      const c = M.cloneTrack(track);
+      js.forEach((i, k) => { if (m & (1 << k)) M.toggleSwitch(c, i); });
+      if (M.runToEnd(lvl, c).won) wins++;
+    }
+    if (!wins) broken.push(lvl.n + ' wins under no switch setting');
+  }
+  ok(name + ": every level's own solution wins it", broken.length === 0, broken.join('; '));
+  ok(name + ': and costs exactly the budget', mispriced.length === 0, mispriced.join('; '));
+}
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed\n');
 process.exit(fail ? 1 : 0);
