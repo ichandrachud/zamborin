@@ -2794,7 +2794,10 @@
      with two extra sleepers and the budget affords exactly that. It keeps the
      shape it was authored at rather than following the breakpoint, because
      the detour needs rows the desktop frame does not have. */
-  if (jump === 92) core = level = M.orderLevel(12, 9);
+  /* ?level=94 is the TIGHT board: one rail layout, and exactly the rails to
+     build it, both certified by unique.mjs rather than authored. */
+  if (jump === 94) core = level = M.tightLevel();
+  else if (jump === 92) core = level = M.orderLevel(12, 9);
   else if (jump) core = level = M.getLevel(jump);
   layout();
   if (save.seen && !params.get('rules')) phase = 'play';

@@ -96,7 +96,7 @@ export function certify(lvl, slack) {
         const key = c.map((x, i) => x
           ? i + '[' + x.segs.map((g) => g.join('')).sort().join('|') + ']sw' + x.sw : '')
           .filter(Boolean).join(' ');
-        if (!winners.has(key)) winners.set(key, cost);
+        if (!winners.has(key)) winners.set(key, { cost, segs: [].concat(...acc) });
       }
       return;
     }
@@ -104,12 +104,17 @@ export function certify(lvl, slack) {
   };
   walk(0, []);
   const byCost = {};
-  for (const cost of winners.values()) byCost[cost] = (byCost[cost] || 0) + 1;
+  for (const v of winners.values()) byCost[v.cost] = (byCost[v.cost] || 0) + 1;
   const costs = Object.keys(byCost).map(Number).sort((a, b) => a - b);
   return {
     routeOptions: legs.map((l) => l.length), combinationsWithinBudget: laid,
     distinctWinningLayouts: winners.size, byCost,
     trueMinimumCost: costs[0] ?? null,
+    /* One layout that achieves the true minimum, so a level can ADOPT the
+       cheapest real answer as its solution instead of shipping whichever one
+       its author happened to think of. */
+    cheapestSolution: costs.length
+      ? [...winners.values()].find((v) => v.cost === costs[0]).segs : null,
     answersAtTrueMinimum: costs.length ? byCost[costs[0]] : 0,
     parIsExact: costs.length ? costs[0] === lvl.budget : false,
     unique: winners.size === 1,

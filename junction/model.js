@@ -359,6 +359,57 @@ function orderLevel(R, C, detour) {
   return buildLevel({ ...spec, budget: cost, par: cost });
 }
 
+/* ============================================================
+   THE TIGHT BOARD — one rail layout, and exactly the rails to build it
+   ============================================================
+
+   The owner's design rule, made real and then CERTIFIED rather than asserted:
+   exactly one solution, and exactly the number of rails to do it.
+
+   It is the ordering board at 12x7 with one extra obstacle, and every number
+   in it was measured by unique.mjs rather than authored.
+
+     THE BUDGET IS THE MEASURED MINIMUM. Enumerating every route each engine
+       could take, every combination of them and every switch setting gives 22
+       as the cheapest cost anything wins at. The ordering board shipped a par
+       of 27 that its author counted off his own solution — five rails too
+       many. Par cannot be written down; it has to be searched for.
+
+     ONE OBSTACLE DID THE WORK. At 22 the bare board has six winning rail
+       layouts. A single rock at row 7, column 4 takes that to ONE. Tightening
+       the budget alone never gets there: at the true minimum of the 10x7 board
+       there were still 52 answers.
+
+     AND THE CHEAPEST ROUTES LOSE. With both engines on their shortest paths
+       nothing wins at any price — they meet head-on in the gap. The player has
+       to spend two of the twenty-two rails on a route that doubles back,
+       purely to arrive late.
+
+   One honest caveat. Two of the sixteen switch settings win on that single
+   layout, so the RAILS are unique and the switching is not quite. Which
+   settings those are depends on the order the track was built in, because a
+   junction keeps whichever branch was laid first; the reachable states are the
+   same either way, so this is a labelling artefact and not a second answer. */
+function tightLevel() {
+  const S_ = 2, N_ = 0, E_ = 1, W_ = 3;
+  const sol = [
+    [1,3,N_,S_],[2,3,N_,S_],[3,3,N_,S_],[4,3,N_,S_],[5,3,N_,S_],[6,3,N_,S_],
+    [7,3,N_,S_],[8,3,N_,S_],[9,3,N_,S_],[10,3,N_,E_],[10,4,W_,E_],[10,5,W_,S_],
+    [10,1,S_,E_],[10,2,W_,E_],[10,3,W_,N_],[9,3,S_,N_],[8,3,S_,W_],[8,2,E_,N_],
+    [7,2,S_,E_],[7,3,W_,N_],[6,3,S_,N_],[5,3,S_,N_],[4,3,S_,N_],[3,3,S_,N_],
+    [2,3,S_,N_],[1,3,S_,E_],[1,4,W_,E_],[1,5,W_,N_],
+  ];
+  return buildLevel({
+    n: 94, tier: 9, R: 12, C: 7,
+    rocks: [[6,0],[6,1],[6,2],[6,4],[6,5],[6,6],[7,4]],
+    portals: [{ at: [0, 3], face: S, queue: [0] },
+              { at: [11, 1], face: N, queue: [2] }],
+    depots: [{ at: [0, 5], face: S, colour: 2 },
+             { at: [11, 5], face: N, colour: 0 }],
+    budget: 22, par: 22, solution: sol,
+  });
+}
+
 function buildLevel(spec) {
   const R = spec.R, C = spec.C, size = R * C;
   const kind = new Array(size).fill(EMPTY);
@@ -843,7 +894,7 @@ return {
   N, E, S, W, DR, DC, opp, EMPTY, ROCK, PORTAL, DEPOT, TUNE, RUN_DT,
   newTrack, cloneTrack, sleepers, segIndex, isJunction, hasSide, trunkOf,
   activeBranch, idleBranch, exitSide, canAddSegment, addSegment, toggleSwitch,
-  eraseCell, buildLevel, padLevel, level1, orderLevel, validate, LEVELS, LEVEL_SPECS, levelCount, getLevel,
+  eraseCell, buildLevel, padLevel, level1, orderLevel, tightLevel, validate, LEVELS, LEVEL_SPECS, levelCount, getLevel,
   rowOf, colOf, sideBetween, neighbour, validateStroke,
   createRun, stepRun, isWon, runToEnd, layout, advance,
 };
