@@ -83,8 +83,63 @@ measured or decided, not guessed. Ordered by who owns it.
 | 15 | ludo | ~ | OK | OK | - | OK | - | OK | 2026-08-22: handle added, **Z1 FIXED**, 9 sizes clean, state survives 9 rotations |
 | 16 | ricochet | - | - | - | - | - | - | - | shipped 2026-08-27, not yet audited |
 | 17 | ballast | OK | OK | OK | OK | ~ | OK | OK | audited 2026-08-28. Cleanest first audit on the track. One item, BA1, and it is cosmetic |
+| 18 | karrots | OK | OK | OK | ~ | OK | OK | ! | audited 2026-09-08 on launch. 96/96 levels load and solve, par proved twice. K-A1 (carrot vs road slats) and K-E1 (20px cells in a 480x360 embed) open |
 
 Row order matches the homepage card order. Ricochet has a card but no audit yet.
+Karrots is row 18 by ship date; on the homepage its card is first.
+
+## Karrots audit, 2026-09-08
+
+Audited as part of taking it live, so this is a first audit rather than a
+revisit. Everything here was measured on the running game, not read off the
+source.
+
+**FN.** 96 of 96 levels load. Level 1 of the woods solved through the model at
+par, the win card fires, the record is written and read back. Undo charges a
+move, Restart is instant. Autosave restores the level AND the per-level record;
+seeded with 30 cleared levels it came back on level 30 with the picker showing
+the right carrots. No soft-lock found: a brick that would land on an animal
+refuses to move rather than wedging, and the level picker is always a way out.
+
+**MB.** 7x10 at 50px cells on a 375 screen, 48px at 360. Above the 44px floor,
+below the 56px comfort target, which the owner accepted. A 320x568 SE gets 40px
+and cannot be fixed by layout: it is a property of ten cells on a 320 screen.
+
+**PF.** rAF only, no timers driving state, so a hidden tab stops on its own.
+stepPace advances at most ONE step per frame with no catch-up loop, so a tab
+hidden for five minutes does not fast-forward the animals when it comes back.
+
+**AX (~).** Canvas carries an aria-label, html lang is set, colour is never the
+only signal (the pips are shapes and the read-out is text). Every element on
+every ground clears 3:1, measured on the painted pixel across all 96 levels,
+worst 3.16. One item open, K-A1.
+
+**CN.** Header, footer, favicon, splash, blue chrome, fullscreen toggle all
+present and matching the fleet. No em dashes in the body copy, no emoji icons,
+the logo is not recoloured.
+
+**SEO.** Title, description, canonical, OG, Twitter, VideoGame JSON-LD.
+noindex removed on launch. In sitemap.xml with the guide. Guide written, linked
+both ways, in the hub and in llms.txt.
+
+**EMB (!).** No frame-busting, localStorage namespaced to `zam.karrots.*`,
+chrome hides under `?embed=1`, canvas fills the frame, no sideways scroll. One
+item open, K-E1.
+
+### K-A1 — the carrot rests on one feature in The Road
+The relit carrot root is amber and that world's slats are gold, five degrees of
+hue apart at the same value, so what separates the carrot from the furniture
+there is its green top alone. It clears its own ground (the grey hole) at 3.52,
+so this is a glance concern rather than a measured failure. Fixing it properly
+means moving the road's gold, which is the owner's own 2014 colour.
+
+### K-E1 — 20px cells in a landscape embed
+Mode is chosen on `innerWidth < 768`, so a 480x360 embed is treated as a phone
+and gets the portrait 7x10 board: ten rows into 360px of frame is 20px a cell.
+The same frame in desktop mode would be 10x7 and about 40px. The mode test
+should consider the frame's ASPECT and not only its width. Not a launch
+blocker, because zamborin.com never serves that shape, but it is a blocker for
+the distribution track.
 
 ## Ballast audit, 2026-08-28
 

@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Karrots strategy: you are opening a room, not a path &mdash; Zamborin</title>
+  <meta name="description" content="A practical Karrots strategy guide: why the win is a connected pocket of holes rather than a corridor, how to read a hunter's territory from the way they pace, why every hole you open is theirs too, how to wall one in when nothing can squash them, and why waiting for them to move never saves you a move." />
+  <meta name="theme-color" content="#0E1726" />
+  <link rel="canonical" href="https://zamborin.com/guides/karrots/" />
+  <link rel="icon" type="image/svg+xml" href="/images/zamborin-favicon.svg?v=2" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:site_name" content="Zamborin Games" />
+  <meta property="og:url" content="https://zamborin.com/guides/karrots/" />
+  <meta property="og:title" content="Karrots strategy: you are opening a room, not a path" />
+  <meta property="og:description" content="Why the win is a pocket rather than a path, reading a hunter's reach from their pacing, and how to wall one in." />
+  <meta property="og:image" content="https://zamborin.com/images/karrots-og.jpg" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Karrots strategy: you are opening a room, not a path" />
+  <meta name="twitter:description" content="A practical strategy guide to Karrots, the sliding puzzle with something living in the empty space." />
+  <meta name="twitter:image" content="https://zamborin.com/images/karrots-og.jpg" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../shared/tokens.css?v=1" />
+  <link rel="stylesheet" href="../../shared/chrome.css?v=20" />
+  <style>
+    .guide { max-width: 760px; margin: 0 auto; padding: 40px 24px 80px; color: var(--text-dim); line-height: 1.7; font-size: 17px; }
+    .guide .crumbs { font-size: 14px; margin-bottom: 22px; color: var(--text-dim); }
+    .guide .crumbs a { color: #4DC3FF; text-decoration: none; display: inline-block; padding: 4px 0; }  /* W18: 14px type gives a 17px link, under the 24px of WCAG 2.5.8. These are
+       navigation, not links inside a sentence, so the inline exemption does not
+       apply. inline-block is what makes the padding count toward height. */
+    .guide h1 { font-size: 38px; color: var(--text); font-weight: 800; margin: 0 0 6px; letter-spacing: -0.5px; line-height: 1.15; }
+    .guide .lede { font-size: 19px; color: var(--text); margin: 14px 0 8px; }
+    .guide h2 { font-size: 23px; color: var(--text); font-weight: 700; margin: 38px 0 10px; letter-spacing: -0.2px; }
+    .guide p { margin: 12px 0; }
+    .guide a { color: #4DC3FF; }
+    .guide strong { color: var(--text); font-weight: 600; }
+    .guide ul { margin: 12px 0; padding-left: 22px; }
+    .guide li { margin: 8px 0; }
+    .guide .cta { display: inline-block; margin-top: 8px; background: #4DC3FF; color: #06121e; font-weight: 700; text-decoration: none; padding: 13px 26px; border-radius: 10px; }
+    .guide .playbox { margin: 36px 0 8px; padding: 22px 24px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09); border-radius: 14px; }
+    .guide .playbox p { margin: 0 0 14px; color: var(--text); font-weight: 600; }
+    .guide .more { margin-top: 40px; padding-top: 22px; border-top: 1px solid rgba(255,255,255,0.09); font-size: 16px; }
+    /* W18: these are a row of navigation links formatted as a paragraph, not
+
+       links inside prose, so the inline exemption does not cover them. 15px type
+
+       gave an 18px target against the 24px of WCAG 2.5.8. */
+
+    .guide .more a { display: inline-block; padding: 4px 0; }
+    .guide table { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 16px; }
+    .guide th, .guide td { text-align: left; padding: 9px 12px; border-bottom: 1px solid rgba(255,255,255,0.09); }
+    .guide th { color: var(--text); font-weight: 700; }
+    @media (max-width: 720px) { .guide { padding: 28px 18px 56px; font-size: 16px; } .guide h1 { font-size: 30px; } }
+  </style>
+    <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "Karrots strategy: you are opening a room, not a path",
+    "about": "Karrots sliding puzzle strategy",
+    "description": "A practical Karrots strategy guide: why the win is a connected pocket of holes rather than a corridor, how to read a hunter's territory from the way they pace, why every hole you open is theirs too, how to wall one in when nothing can squash them, and why waiting for them to move never saves you a move.",
+    "author": { "@type": "Organization", "name": "Zamborin Games" },
+    "publisher": { "@type": "Organization", "name": "Zamborin Games", "url": "https://zamborin.com/" },
+    "mainEntityOfPage": "https://zamborin.com/guides/karrots/"
+  }
+  </script>
+  <meta name="google-adsense-account" content="ca-pub-9207689324865969">
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9207689324865969" crossorigin="anonymous"></script>
+</head>
+<body class="lobby-page">
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="Zamborin Games home">
+      <img class="brand-logo" src="/images/zamborin-logo.svg?v=2" alt="Zamborin" />
+    </a>
+    <a class="back-link" href="/">Back to all games</a>
+  </header>
+
+  <main class="guide">
+    <nav class="crumbs"><a href="/">Home</a> &rsaquo; <a href="/guides/">Guides</a> &rsaquo; Karrots</nav>
+
+    <h1>Karrots strategy: you are opening a room, not a path</h1>
+    <p class="lede">Most sliding puzzles ask you to clear a lane. Karrots does not. The bunny sets off the moment the carrot is in the same connected pocket of holes she is standing in, and she finds her own way through it. Once you see that, half the moves you were about to make turn out to be unnecessary, and the other half turn out to be dangerous.</p>
+
+    <h2>The win is a pocket, not a corridor</h2>
+    <p>Every hole on the board belongs to some pocket: a group of holes joined edge to edge. The bunny is in one. The carrot is in one. <strong>You win the moment those are the same pocket</strong>, and you lose the moment the hunter is in it too.</p>
+    <p>That is a far cheaper thing to build than a corridor. You do not need a clean lane from her to the carrot, and you do not need her to be anywhere in particular. You need one hole to join two pockets that were separate. Very often the whole level is a single brick that happens to be sitting in the one square where two pockets touch.</p>
+    <p>So before you slide anything, stop looking for a route and start looking for the seam.</p>
+
+    <h2>Their pacing is the map, and it is free</h2>
+    <p>The hunter walks back and forth across every hole they can already reach. That is not idle animation. It is <strong>the exact shape of their pocket</strong>, drawn for you before you have spent a move. Anything you see them walk to, they can walk to.</p>
+    <p>Watch a full circuit before you touch the board. It costs you nothing, and it tells you which side of the board is already theirs and which is still yours.</p>
+
+    <h2>Every hole you open is theirs too</h2>
+    <p>This is the whole game. A brick that moves leaves a hole behind it, and that hole belongs to whichever pocket it touches. Open space next to her and you have helped her. Open space next to their pocket and you have just built them a door.</p>
+    <p>Other games of this kind reward you for opening more space. Here space is shared, and the corridor that gets the bunny across in the fewest moves is very often the same corridor that joins the hunter to her. That tension is the game, and it is why a board can be easy to solve and hard to solve at par.</p>
+
+    <h2>Nothing squashes them, so wall them in</h2>
+    <p>A brick will not slide onto the hunter any more than it will onto the bunny. If somebody is standing in the square, the brick does not move, and you have not lost a move for trying.</p>
+    <p>You beat them by <strong>closing their pocket</strong> instead. Slide bricks into the holes their territory depends on until what they have left touches nothing of yours. A hunter with four holes and no way out of them is as harmless as one on the far side of the board, and walling one in is usually cheaper than going the long way round.</p>
+
+    <h2>You choose how far the brick goes</h2>
+    <p>A brick slides along its own length as far as the empty squares allow, and <strong>every square it travels costs a move</strong>. It does not have to travel the whole way. Drag it one square and it goes one square, for one move.</p>
+    <p>This matters more than it sounds. The instinct is to push a brick as far as it will go, and on a tight board that is often two or three moves spent to open a hole you did not want at the far end. Par is frequently a short slide that opens exactly one square.</p>
+
+    <h2>The carrot's square is a wall you already own</h2>
+    <p>Nothing slides over the carrot. No brick can pass through its square, and the only one who may ever stand on it is the bunny.</p>
+    <p>So the carrot is a fixed obstacle in the middle of the board that only helps you: it can block a slide you did not want, and it can cap the end of a hunter's pocket. On several boards the reason a run of holes is safe is the carrot sitting in the way of it.</p>
+
+    <h2>Waiting never saves a move</h2>
+    <p>The hunters pace while you think, so it is tempting to wait for one to step out of a doorway before you slide. It will not help.</p>
+    <p>Every level's par is worked out twice: once with the hunter held still, and once with them free to wander anywhere in their pocket. If those two numbers differ, <strong>the level is thrown away rather than shipped</strong>. Six hundred and thirty one boards were discarded for exactly that. So par never depends on catching anybody in a particular square, and a level you cannot solve is a level you have not seen the seam in yet, not one you need to time.</p>
+
+    <h2>Undo costs a move, so think first</h2>
+    <p>Undo is always available and it charges you a move, because a move count that does not charge for undo is not counting anything. Restart is instant and free, and on a board you have already spent four moves guessing on, Restart is usually the better instrument.</p>
+
+    <h2>Three carrots, and what they are worth</h2>
+    <p>Three carrots is par exactly. Two is within about a third of par. One is for finishing at all. Par is not a designer's estimate: it is the length of the shortest solution a complete search of the level's reachable positions could find, so it is a number that can actually be matched rather than one to admire.</p>
+    <p>Every level keeps your best, and the level picker shows what each one has yielded, so the second visit is the real game on the boards you scraped through the first time.</p>
+
+    <h2>Four worlds, and they do get harder</h2>
+    <p>Ninety six levels, twenty four in each world, rising within a world as well as across them.</p>
+    <table>
+      <tr><th>World</th><th>Hunter</th><th>Par</th></tr>
+      <tr><td>The Woods</td><td>a fox</td><td>4 to 7</td></tr>
+      <tr><td>Arctic Salad</td><td>a penguin</td><td>6 to 8</td></tr>
+      <tr><td>The Road</td><td>a police car</td><td>8 to 11</td></tr>
+      <tr><td>Ocean World</td><td>a shark</td><td>11 to 24</td></tr>
+    </table>
+    <p>The jump into Ocean World is real. Those boards are not longer versions of the woods, they are boards where the seam is four or five moves of preparation away, and where the pocket you have to close is the one you were standing in.</p>
+
+    <h2>The short version</h2>
+    <ul>
+      <li>Look for the seam between two pockets, not a route across the board.</li>
+      <li>Watch a full circuit of their pacing before you spend anything.</li>
+      <li>Ask what each hole you open gives <em>them</em>.</li>
+      <li>Drag short. A brick travels as far as you drag it, and every square is a move.</li>
+      <li>Wall them in rather than going round. Nothing can squash them.</li>
+      <li>Do not wait for them to move. Par never needs it.</li>
+      <li>Restart, do not undo, once a board has got away from you.</li>
+    </ul>
+
+    <div class="playbox">
+      <p>Ready to put it to work?</p>
+      <a class="cta" href="/karrots/">Play Karrots &rarr;</a>
+    </div>
+
+    <p class="more">More games: <a href="/arcade/">the arcade</a> &middot; <a href="/comb/">Comb</a> &middot; <a href="/">all Zamborin games</a> &middot; <a href="/guides/">all guides</a></p>
+  </main>
+
+  <footer class="site-footer">
+    <nav class="site-foot-nav">
+      <a href="/arcade/">Arcade</a>
+      <a href="/about/">About</a>
+      <a href="/guides/">Guides</a>
+      <a href="/privacy/">Privacy</a>
+      <a href="/contact/">Contact</a>
+    </nav>
+    <span>&copy; 2026 Zamborin. Games created by Indrajeet Chandrachud.</span>
+  </footer>
+  <script defer src="/_vercel/insights/script.js"></script>
+  <script defer src="/_vercel/speed-insights/script.js"></script>
+</body>
+</html>
