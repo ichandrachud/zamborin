@@ -126,6 +126,22 @@ both ways, in the hub and in llms.txt.
 chrome hides under `?embed=1`, canvas fills the frame, no sideways scroll. One
 item open, K-E1.
 
+### Pacing, and what "sealed in" means — 2026-09-08
+The owner reported the bunny not moving in the live game. One line:
+`stepPace` began `if (!st || REDUCED.matches) return;`, so a browser asking for
+reduced motion switched off a RULE rather than an animation. Pacing moves the
+model, and where the hunter stands is what his reach is read from. The bunny's
+run to the carrot is a separate path and was never gated, which is why that was
+the only movement left. It snaps now, like every other use of REDUCED in the
+file. Control on the same level with the query forced on: 1 cell before, 4
+after.
+
+ACCEPTED, NOT A DEFECT: the bunny starts sealed in a single square on 82 of 96
+levels and the hunter on 71. That falls out of packing the board tightly, which
+the owner asked for on 2026-09-07, and the owner confirmed on 2026-09-08 that a
+sealed start is fine. Do not "fix" it by loosening the boards; the two pull
+against each other and packing won. Where an animal has room, pacing works.
+
 ### The bomb, added and audited 2026-09-08
 The mechanic landed after the first audit, so everything it touches was
 re-checked rather than assumed.
