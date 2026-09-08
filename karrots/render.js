@@ -151,6 +151,34 @@
      Corner radius is 0.133 of a cell, thirty per cent down from the 0.19 the
      first pass used. */
   var TILE_R = 0.133;
+
+  /* HOW FAR THE STUDS SIT FROM THE TILE THEY ARE ON. 0 is the palette as
+     drawn, 1 would make them vanish into the body. The studs are texture, not
+     information - what tells you a cell is a slat is the slat against the hole
+     - so they can be quiet, and at full strength they were the loudest thing
+     on the board: a stud face 1.64:1 against its own body in the woods, with
+     the shadow at 1.65. At 0.5 that comes down to about 1.15-1.30, which is
+     still a read and no longer a pattern shouting over the board. */
+  var STUD_MIX = 0.5;
+  var _studCache = {};
+  function mix(a, b, t) {
+    var out = '#', i, va, vb;
+    for (i = 1; i < 7; i += 2) {
+      va = parseInt(a.substr(i, 2), 16); vb = parseInt(b.substr(i, 2), 16);
+      out += ('0' + Math.round(va * (1 - t) + vb * t).toString(16)).slice(-2);
+    }
+    return out;
+  }
+  /* Memoised: drawTile runs for every slat on the board every frame, and this
+     is string work. */
+  function studsOf(world) {
+    var k = world.lit + world.mid + world.dark;
+    if (!_studCache[k]) _studCache[k] = {
+      face: mix(world.lit, world.mid, STUD_MIX),
+      shade: mix(world.dark, world.mid, STUD_MIX),
+    };
+    return _studCache[k];
+  }
   function drawTile(ctx, geo, a, b, world, opts) {
     opts = opts || {};
     var c = geo.cell, pa = geo.at(a), pb = geo.at(b);
@@ -167,13 +195,13 @@
     /* Half-cell pitch, quarter-cell inset: FOUR studs per cell in a two-by-two
        grid, which is what the supplied file has. Subtracting one from the
        count was leaving three studs in a line down a two-cell slat. */
-    var sr = c * 0.134, off = Math.max(1, c * 0.015);
+    var sr = c * 0.134, off = Math.max(1, c * 0.015), stud = studsOf(world);
     var nx = Math.max(1, Math.round(w / (c / 2))), ny = Math.max(1, Math.round(h / (c / 2)));
     for (var i = 0; i < nx; i++) for (var j = 0; j < ny; j++) {
       var sx = x + w * (i + 0.5) / nx, sy = y + h * (j + 0.5) / ny;
-      ctx.globalAlpha = 0.6; ctx.fillStyle = world.dark;
+      ctx.globalAlpha = 0.6; ctx.fillStyle = stud.shade;
       ctx.beginPath(); ctx.arc(sx + off, sy + off, sr, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = 1; ctx.fillStyle = world.lit;
+      ctx.globalAlpha = 1; ctx.fillStyle = stud.face;
       ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI * 2); ctx.fill();
     }
     return { x: x, y: y, w: w, h: h };
