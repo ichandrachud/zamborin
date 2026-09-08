@@ -121,6 +121,59 @@ export function foxChangesTheAnswer(start, opts = {}) {
 const sig = mv => mv.type === 'hop' ? `hop ${M.rc(mv.to).r},${M.rc(mv.to).c}`
                                     : `slide ${M.rc(mv.a).r},${M.rc(mv.a).c} ${M.DIRS[mv.dir].n}`;
 
+/* PAR ONCE THE ANIMALS REALLY WANDER.
+ *
+ * A pace step moves the model, so the player can wait for either of them to be
+ * standing somewhere else before making a move, and a par measured with them
+ * pinned to one square is only an upper bound. On the ladder this replaced it
+ * was a wild one: six of eight levels could be beaten and one advertised at
+ * par 12 fell in a single slide, because the difficulty was somebody standing
+ * in a doorway rather than the puzzle.
+ *
+ * So the state carries each animal's POCKET - named by its lowest cell, so two
+ * boards differing only in where inside a pocket somebody stands are one state
+ * - and expansion tries every placement.
+ *
+ * This lives here rather than in build-levels.mjs because the forge filter
+ * needs the same answer, and two copies of a rule like this drift.
+ */
+export function cellsOf(st, cell) {
+  const r = M.regionFrom(st, cell), out = [];
+  for (let i = 0; i < M.N; i++) if (r[i]) out.push(i);
+  return out;
+}
+export const wanderKey = st => String.fromCharCode.apply(null, st.grid) +
+  String.fromCharCode(cellsOf(st, st.bunny)[0]) + String.fromCharCode(cellsOf(st, st.fox)[0]);
+
+export function parWhileTheyWander(st0, opts = {}) {
+  const useFox = opts.fox !== false;
+  const cap = opts.cap ?? 400000;
+  if (M.won(st0)) return 0;
+  const seen = new Set([wanderKey(st0)]);
+  let frontier = [st0];
+  for (let d = 1; d <= (opts.maxDepth ?? 40); d++) {
+    const next = [];
+    for (const s of frontier) {
+      for (const f of cellsOf(s, s.fox)) for (const b of cellsOf(s, s.bunny)) {
+        if (f === b) continue;
+        const placed = { grid: s.grid, bunny: b, fox: f, carrot: s.carrot };
+        for (const mv of M.slideMoves(placed)) {
+          const ns = M.apply(placed, mv);
+          if (useFox && M.caught(ns)) continue;
+          const k = wanderKey(ns);
+          if (seen.has(k)) continue;
+          seen.add(k);
+          if (M.won(ns)) return d;
+          next.push(ns);
+        }
+      }
+    }
+    frontier = next;
+    if (!frontier.length || seen.size > cap) break;
+  }
+  return null;
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
   const { LEVELS } = require('./levels.js');
   console.log('lvl  par  no-fox  changed  states   fatal  branch  optimal line');

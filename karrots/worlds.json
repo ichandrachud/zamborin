@@ -1,0 +1,316 @@
+{
+ "woods": [
+  {
+   "id": 1,
+   "n": 1,
+   "rows": [
+    "#aBbb.dd.",
+    "eagg.hii#",
+    "ejFkkh.ll",
+    "mj..Cnnoo",
+    "mppqqrrss",
+    ".ttuu..vv"
+   ],
+   "note": "par 4 with him on the board and 1 without; the short way round walks her straight into him."
+  },
+  {
+   "id": 2,
+   "n": 2,
+   "rows": [
+    "a.bbddee.",
+    "a.gghhiij",
+    "kll.mmnnj",
+    "koppqqBrr",
+    "so#.ttuu.",
+    "s.#vvCFww"
+   ],
+   "note": "par 4 with him on the board and 1 without; the short way round walks her straight into him."
+  },
+  {
+   "id": 3,
+   "n": 3,
+   "rows": [
+    "..aabbdd.",
+    "eeghiijjk",
+    "llgh.mmnk",
+    "ooFpp.qnr",
+    ".ssBttqur",
+    "vvC##wwu."
+   ],
+   "note": "par 5 with him on the board and 1 without; the short way round walks her straight into him."
+  },
+  {
+   "id": 4,
+   "n": 4,
+   "rows": [
+    "aabbdd.ee",
+    "gg.hhiijj",
+    "kllFmmnno",
+    "k.ppCqq.o",
+    "rrsB#tuu.",
+    "vvs#.t.ww"
+   ],
+   "note": "par 5 with him on the board and 1 without; the short way round walks her straight into him."
+  },
+  {
+   "id": 5,
+   "n": 5,
+   "rows": [
+    "aaFbb#dde",
+    "gChh.ii.e",
+    "gjBkk.llm",
+    ".jnnooppm",
+    "qqrr.ss.t",
+    "..#uu.vvt"
+   ],
+   "note": "par 6 with him on the board and 1 without; the short way round walks her straight into him."
+  },
+  {
+   "id": 6,
+   "n": 6,
+   "rows": [
+    ".aa.bb.d.",
+    "eB#.gghd.",
+    "eii.jjhkk",
+    "CFllmmnno",
+    "pqqrrss.o",
+    "p#.ttuuvv"
+   ],
+   "note": "par 6 with him on the board and 1 without; the short way round walks her straight into him."
+  },
+  {
+   "id": 7,
+   "n": 7,
+   "rows": [
+    ".aabb..dd",
+    ".ee.gghh.",
+    "ii.jkBllm",
+    "#nnjkoo.m",
+    "ppqqCFrr.",
+    "ssttuuvv#"
+   ],
+   "note": "par 6 with him on the board and 1 without; the short way round walks her straight into him."
+  },
+  {
+   "id": 8,
+   "n": 8,
+   "rows": [
+    "CFaa..bbd",
+    "eeBgghiid",
+    ".jjkkhl.m",
+    "nnoopplqm",
+    "rrstt..q#",
+    "#.suuvvww"
+   ],
+   "note": "par 7 with him on the board and 1 without; the short way round walks her straight into him."
+  },
+  {
+   "id": 9,
+   "n": 9,
+   "rows": [
+    "aa.bbddee",
+    ".gg.hhiij",
+    "kk#llmmnj",
+    "ooppBqqnr",
+    "ss.Ctt.ur",
+    ".#vvFwwu."
+   ],
+   "note": "par 7 with him on the board and 1 without; the short way round walks her straight into him."
+  },
+  {
+   "id": 10,
+   "n": 10,
+   "rows": [
+    "aabbddeeg",
+    ".hh#iijjg",
+    "k.ll.#mmn",
+    "k.oppqqrn",
+    "ssoBttFru",
+    "vv.ww..Cu"
+   ],
+   "note": "par 8 with him on the board and 2 without; the short way round walks her straight into him."
+  },
+  {
+   "id": 11,
+   "n": 11,
+   "rows": [
+    "..aa##b..",
+    "ddeeCFbgg",
+    "hhiijkk.l",
+    "mmnnjoo.l",
+    "pqqrrBss.",
+    "p.ttuuvv."
+   ],
+   "note": "par 8 with him on the board and 2 without; the short way round walks her straight into him."
+  },
+  {
+   "id": 12,
+   "n": 12,
+   "rows": [
+    "aa..bbdd.",
+    "eeggBhhii",
+    "jj.kkllm.",
+    "nnooFp#mq",
+    "#C...pr.q",
+    "ssttuurvv"
+   ],
+   "note": "par 8 with him on the board and 1 without; the short way round walks her straight into him."
+  },
+  {
+   "id": 13,
+   "n": 13,
+   "rows": [
+    ".aa.bbdd#",
+    "e.gghiijj",
+    "e.kkh.llC",
+    ".#.mm.nnF",
+    "opp.qqBrr",
+    "ossttuuvv"
+   ],
+   "note": "par 9 with him on the board and 3 without; the short way round walks her straight into him."
+  },
+  {
+   "id": 14,
+   "n": 14,
+   "rows": [
+    "aabbB#dde",
+    "gghiijjke",
+    "llhCFmmk.",
+    "nn.o.#p.q",
+    "r.sottp.q",
+    "r.suuvv.."
+   ],
+   "note": "par 9 with him on the board and 2 without; the short way round walks her straight into him."
+  },
+  {
+   "id": 15,
+   "n": 15,
+   "rows": [
+    "aaCFbb.dd",
+    "..eegg#hh",
+    "i.jj#kkll",
+    "immBnn.oo",
+    "ppqqrr.ss",
+    "ttuu.vv.."
+   ],
+   "note": "par 9 with him on the board and 2 without; the short way round walks her straight into him."
+  },
+  {
+   "id": 16,
+   "n": 16,
+   "rows": [
+    ".a#bbd.ee",
+    ".aCggdhh.",
+    ".iiBjj#.k",
+    "llFmm.nnk",
+    "ooppqqrrs",
+    "tt..uuvvs"
+   ],
+   "note": "par 10 with him on the board and 1 without; the short way round walks her straight into him."
+  },
+  {
+   "id": 17,
+   "n": 17,
+   "rows": [
+    "...aa##.b",
+    "ddegghijb",
+    "kFeBlhijm",
+    "kCnnlo.pm",
+    ".qqrrospt",
+    "uuvvwws.t"
+   ],
+   "note": "par 10 with him on the board and 1 without; the short way round walks her straight into him."
+  },
+  {
+   "id": 18,
+   "n": 18,
+   "rows": [
+    "FCaabbdde",
+    "gg.hhiije",
+    "Bkkll..j#",
+    "mnnoo.ppq",
+    "mrr..ss.q",
+    "#ttuuvvww"
+   ],
+   "note": "par 10 with him on the board and 1 without; the short way round walks her straight into him."
+  },
+  {
+   "id": 19,
+   "n": 19,
+   "rows": [
+    "...aabbd.",
+    "eghhBiidj",
+    "egkCllF#j",
+    "mmknnoop#",
+    "qqr..sspt",
+    "uurvvww.t"
+   ],
+   "note": "par 11 with him on the board and 9 without; the short way round walks her straight into him."
+  },
+  {
+   "id": 20,
+   "n": 20,
+   "rows": [
+    ".aabbdd.#",
+    ".eegg.hh.",
+    "iijjk#ll.",
+    "Bmm.knnoo",
+    "ppFqqrrss",
+    "Cttuuvvww"
+   ],
+   "note": "par 11 with him on the board and 6 without; the short way round walks her straight into him."
+  },
+  {
+   "id": 21,
+   "n": 21,
+   "rows": [
+    "aab.dd.ee",
+    "ggbhhii.j",
+    "kkllmmnnj",
+    "ooppqqrrs",
+    "...tFuuBs",
+    "vv#t#Cww."
+   ],
+   "note": "par 12 with him on the board and 7 without."
+  },
+  {
+   "id": 22,
+   "n": 22,
+   "rows": [
+    "..aabbdee",
+    ".gghhidj#",
+    "kk.lli.jm",
+    ".nn.oopqm",
+    "#rrssBpqt",
+    "uuvvFwwCt"
+   ],
+   "note": "par 12 with him on the board and 9 without; the short way round walks her straight into him."
+  },
+  {
+   "id": 23,
+   "n": 23,
+   "rows": [
+    "C.aaFbbdd",
+    "eeBgg.h.i",
+    "jj#kllhmi",
+    "nnok#ppmq",
+    "rross...q",
+    ".ttuuvvww"
+   ],
+   "note": "par 13 with him on the board and 4 without; the short way round walks her straight into him."
+  },
+  {
+   "id": 24,
+   "n": 24,
+   "rows": [
+    ".aaBbb.dd",
+    "eeFggChhi",
+    "jkllmmnni",
+    "jk##oop..",
+    "qrrss.ptt",
+    "quu.vv.ww"
+   ],
+   "note": "par 15 with him on the board and 3 without; the short way round walks her straight into him."
+  }
+ ]
+}

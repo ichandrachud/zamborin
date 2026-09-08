@@ -207,6 +207,11 @@
     } catch (e) { /* see load() */ }
   }
 
+  /* WHICH WORLD A LEVEL IS IN is a property of the level, not a constant. It
+     was RD.WORLDS.woods in five places, which is fine for one world and wrong
+     for four. */
+  function worldOf(lv) { return (lv && RD.WORLDS[lv.world]) || RD.WORLDS.woods; }
+
   function loadLevel(i) {
     levelIndex = Math.min(Math.max(0, i), LEVELS.length - 1);
     const lv = LEVELS[levelIndex];
@@ -888,7 +893,7 @@
     ctx.fillStyle = bg; ctx.fillRect(0, 0, LW, LH);
     if (!st) return;
 
-    const world = RD.WORLDS.woods;
+    const world = worldOf(LEVELS[levelIndex]);
     RD.drawTray(ctx, geo, world);
 
     // holes and bricks first: they are the floor everything else sits on
@@ -1072,12 +1077,12 @@
 
       ctx.textAlign = 'right';
       ctx.fillStyle = RD.INK72; ctx.font = '600 ' + Math.round(15 * hs) + 'px Inter, sans-serif';
-      ctx.fillText(RD.WORLDS.woods.name + '  ·  LEVEL ' + lv.id, LW - SIDE_PAD, 24);
+      ctx.fillText(worldOf(lv).name + '  ·  LEVEL ' + (lv.n || lv.id), LW - SIDE_PAD, 24);
       drawPips(LW - SIDE_PAD, 46, true);
     } else {
       ctx.textAlign = 'right';
       ctx.fillStyle = RD.INK72; ctx.font = '600 ' + Math.round(16 * hs) + 'px Inter, sans-serif';
-      const line = RD.WORLDS.woods.name + '   ·   LEVEL ' + lv.id +
+      const line = worldOf(lv).name + '   ·   LEVEL ' + (lv.n || lv.id) +
                    '   ·   MOVES ' + moves + '   ·   PAR ' + par;
       let f = 16;
       while (f > 11 && ctx.measureText(line).width > LW - SIDE_PAD - readoutMinX) {
@@ -1362,11 +1367,11 @@
       if (state.grid[i] !== M.HL && state.grid[i] !== M.VT) continue;
       const tl = M.tileAt(state.grid, i);
       if (!slid && tl.a === demo.mv.a && tl.b === demo.mv.b) continue;
-      RD.drawTile(ctx, g, tl.a, tl.b, RD.WORLDS.woods);
+      RD.drawTile(ctx, g, tl.a, tl.b, worldOf(LEVELS[levelIndex]));
     }
     if (!slid) {
       const d = M.DIRS[demo.mv.dir];
-      RD.drawTile(ctx, g, demo.mv.a, demo.mv.b, RD.WORLDS.woods,
+      RD.drawTile(ctx, g, demo.mv.a, demo.mv.b, worldOf(LEVELS[levelIndex]),
                   { dx: d.dx * cell * k, dy: d.dy * cell * k, lift: k > 0 ? cell * 0.05 : 0 });
     }
 

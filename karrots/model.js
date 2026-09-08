@@ -112,7 +112,14 @@
         else if (ch === 'B') { grid[i] = HOLE; bunny = i; }
         else if (ch === 'F') { grid[i] = HOLE; fox = i; }
         else if (ch === 'C') { grid[i] = HOLE; carrot = i; }
-        else if (ch >= 'a' && ch <= 'z') { (seen[ch] || (seen[ch] = [])).push(i); }
+        /* A domino is any letter that is not one of the three the cast uses.
+           lettered() runs off the end of the lowercase alphabet at 24 slats,
+           which a 9x6 board never reaches and a larger one does immediately -
+           so this threw "unknown character A" the first time the board grew,
+           and would have thrown on any hand-written level with 24 pieces. */
+        else if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')) {
+          (seen[ch] || (seen[ch] = [])).push(i);
+        }
         else throw new Error('unknown character "' + ch + '" at row ' + r + ' col ' + c + where);
       }
     }

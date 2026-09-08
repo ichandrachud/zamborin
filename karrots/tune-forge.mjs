@@ -153,6 +153,7 @@ function placeFox(st) {
 }
 
 const CAP = 300000;
+const PAR_MIN = Number(process.env.KPARMIN || 4);
 const want = Number(process.argv[2] || 40);
 const out = [];
 let tried = 0;
@@ -182,7 +183,13 @@ while (out.length < want && tried < Math.max(400, want * 25)) {
   if ((M.N - nHoles - nWalls) % 2) continue;
   const made = solvedBoard(nHoles, nWalls, r);
   if (!made) continue;
-  const walked = forge(made.st, 10 + ((r() * 26) | 0), r);
+  /* HOW FAR BACK THE WALK GOES is what sets scramble depth, and a ladder
+     wants a spread of it rather than one band. 10 to 35 gives par 4 to about
+     30 with the mass at 4 and 5; KWALK lifts the floor when the deep end of a
+     world needs filling. */
+  const walkMin = Number(process.env.KWALK || 10);
+  const walkRange = Number(process.env.KWALKR || 26);
+  const walked = forge(made.st, walkMin + ((r() * walkRange) | 0), r);
   if (M.won(walked) || M.caught(walked)) continue;
   /* WHERE HE STANDS IS THE DESIGN, so it is chosen rather than taken. Trying
      the first three obstructive-looking holes and keeping whichever was
@@ -194,7 +201,7 @@ while (out.length < want && tried < Math.max(400, want * 25)) {
     const cand = { ...walked, fox: f };
     if (M.caught(cand)) continue;
     const rr2 = foxChangesTheAnswer(cand, { cap: CAP });
-    if (!rr2.withFox.solved || rr2.withFox.capped || rr2.withFox.par < 4) continue;
+    if (!rr2.withFox.solved || rr2.withFox.capped || rr2.withFox.par < PAR_MIN) continue;
     const sc = (rr2.parDelta > 0 ? 1000 + rr2.parDelta * 100 : 0) +
                (rr2.naiveDies ? 500 : 0) + Math.min(400, rr2.withFox.branchPoints);
     M.validate(cand);   // never ship a position the parser would refuse

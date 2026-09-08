@@ -19,7 +19,7 @@ import { createRequire } from 'node:module';
 import { writeFileSync, readFileSync } from 'node:fs';
 const require = createRequire(import.meta.url);
 const M = require('./model.js');
-import { solve, foxChangesTheAnswer, BFS_CAP } from './solve.mjs';
+import { solve, foxChangesTheAnswer, BFS_CAP, parWhileTheyWander } from './solve.mjs';
 
 /* How many moves in the FIRST position appears from which some slide loses.
  *
@@ -55,65 +55,37 @@ function firstLosingSlide(start, budget = 20000) {
  * CONSTRUCTION - each was built by walking backwards from the position where
  * the bunny is already on her carrot - and every par below is then measured
  * again from scratch by the unpruned search in this file. */
-const WORLD1 = JSON.parse(readFileSync(new URL('./world1.json', import.meta.url), 'utf8'));
+/* FOUR WORLDS NOW, in one file keyed by world. Each entry is a board plus the
+   note that says what it is about; everything numeric below is measured here
+   and never carried in from the forge. */
+const WORLDS = JSON.parse(readFileSync(new URL('./worlds.json', import.meta.url), 'utf8'));
+const ORDER = ['woods', 'arctic', 'road', 'ocean'];
+const ALL = [];
+for (const w of ORDER) for (const lv of (WORLDS[w] || [])) ALL.push({ ...lv, world: w });
 
-/* PAR HAS TO SURVIVE THE ANIMALS WANDERING.
- *
- * They really walk now - a pace step moves the model - so the player can wait
- * for either of them to be standing somewhere else before making a move. A par
- * measured with them pinned to their starting square is therefore only an
- * upper bound, and on the ladder this replaced it was a wild one: six of eight
- * levels could be beaten, one of them at par 12 in a single slide, because the
- * whole difficulty was somebody standing in a doorway.
- *
- * So the search is run again over states that also carry each animal's POCKET
- * rather than its square, with every placement tried, and a level whose two
- * numbers disagree does not ship. */
-const cellsOf = (st, c) => { const r = M.regionFrom(st, c); const out = [];
-  for (let i = 0; i < M.N; i++) if (r[i]) out.push(i); return out; };
-const freeKey = st => String.fromCharCode.apply(null, st.grid) +
-  String.fromCharCode(cellsOf(st, st.bunny)[0]) + String.fromCharCode(cellsOf(st, st.fox)[0]);
-function parWhileTheyWander(st0, useFox, cap = 400000) {
-  if (M.won(st0)) return 0;
-  const seen = new Set([freeKey(st0)]);
-  let frontier = [st0];
-  for (let d = 1; d <= 40; d++) {
-    const next = [];
-    for (const s of frontier) {
-      for (const f of cellsOf(s, s.fox)) for (const b of cellsOf(s, s.bunny)) {
-        if (f === b) continue;
-        const placed = { grid: s.grid, bunny: b, fox: f, carrot: s.carrot };
-        for (const mv of M.slideMoves(placed)) {
-          const ns = M.apply(placed, mv);
-          if (useFox && M.caught(ns)) continue;
-          const k = freeKey(ns); if (seen.has(k)) continue; seen.add(k);
-          if (M.won(ns)) return d;
-          next.push(ns);
-        }
-      }
-    }
-    frontier = next;
-    if (!frontier.length || seen.size > cap) break;
-  }
-  return null;
-}
+/* PAR HAS TO SURVIVE THE ANIMALS WANDERING, and the search that proves it is
+ * in solve.mjs beside the ordinary one - the forge filter needs the same
+ * answer and two copies of this rule would drift. A level whose two pars
+ * disagree leans on somebody standing in a doorway, and does not ship. */
 
 const out = [];
 let changed = 0;
 console.log('lvl  par  no-fox   delta  naive  branch  fatal    states  holes  1st loss  notes');
 console.log('---  ---  ------  ------  -----  ------  -----  --------  -----  --------  -----');
-for (const lv of WORLD1) {
+let lastWorld = null;
+for (const lv of ALL) {
+  if (lv.world !== lastWorld) { lastWorld = lv.world; console.log(`--- ${lv.world} ---`); }
   const st = M.parse(lv.rows, 'level ' + lv.id, lv.carrotAt ? { carrotAt: lv.carrotAt } : undefined);
   const r = foxChangesTheAnswer(st, { cap: BFS_CAP });
   if (!r.withFox.solved)
     throw new Error(`level ${lv.id} is not solvable within ${BFS_CAP} states — it does not ship`);
-  const wander = parWhileTheyWander(st, true);
+  const wander = parWhileTheyWander(st);
   if (wander === null)
     throw new Error(`level ${lv.id}: the wandering search did not finish — it does not ship`);
   if (wander !== r.withFox.par)
     throw new Error(`level ${lv.id}: par is ${r.withFox.par} pinned but ${wander} once they wander. ` +
       `The level leans on somebody standing in a doorway — it does not ship`);
-  const wanderNoFox = parWhileTheyWander(st, false);
+  const wanderNoFox = parWhileTheyWander(st, { fox: false });
   /* Judged on the numbers the player actually plays against, not the pinned
      ones: level 5 is par 8 against a no-fox 8 pinned but 5 once they wander,
      and the pinned comparison called that "the fox does not matter". */
@@ -132,11 +104,16 @@ for (const lv of WORLD1) {
 }
 /* Every level counts now. The "- 1" here dated from the version where level 1
    was a two-move teacher with no fox in play, and it printed 8 of 7 = 114%. */
-console.log(`\nthe fox changed the answer on ${changed} of ${WORLD1.length} levels ` +
-            `(${Math.round(changed / WORLD1.length * 100)}%). The gate's bar is 60%, and under 30% kills the game.`);
+console.log(`\nthe predator changed the answer on ${changed} of ${ALL.length} levels ` +
+            `(${Math.round(changed / ALL.length * 100)}%). The gate's bar is 60%, and under 30% kills the game.`);
+for (const w of ORDER) {
+  const rows = out.filter(o => o.world === w);
+  if (rows.length) console.log(`  ${w.padEnd(7)} ${String(rows.length).padStart(2)} levels, par ` +
+    `${rows[0].par} to ${rows[rows.length - 1].par}`);
+}
 
 const body = out.map(lv =>
-  `    { id: ${lv.id}, par: ${lv.par}` +
+  `    { id: ${lv.id}, n: ${lv.n}, world: '${lv.world}', par: ${lv.par}` +
   (lv.carrotAt ? `, carrotAt: [${lv.carrotAt}]` : '') +
   `,\n      rows: [${lv.rows.map(r => `'${r}'`).join(', ')}],\n` +
   (lv.note ? `      // ${lv.note}\n` : '') +
