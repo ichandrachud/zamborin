@@ -61,27 +61,27 @@
        road     #6D6D6D   3.20   3.26   5.17     5.17   (the cone's white band)
        ocean    #007CB2   3.01   3.08   4.64     4.64
 
-     THE CARROT IS UNDER THE FLOOR AND STAYS THERE FOR NOW. Measured on the
-     painted pixel, every colour it is made of fails on the three light
-     worlds - not just its lightest part, which is the figure first recorded
-     here:
+     THE CARROT IS LIT, NOT THE CELL IT SITS IN. On the three light worlds
+     the 2014 orange measured 1.40 to 2.62 against the ground - every colour
+     it was made of, the leaves worst, not just its lightest part.
 
-       part          woods  arctic   road  ocean
-       root lit       8.57    2.62   2.58   2.31
-       root shade     7.24    2.21   2.18   1.95
-       leaf lit       7.47    2.28   2.24   2.01
-       leaf shade     5.21    1.59   1.57   1.40
-
-     There is no fix inside these colours. A hole must carry a near-black
+     Nothing on the board could move to fix it. A hole carries a near-black
      enemy AND a white bunny, which pins it to L 0.143-0.300, and on a ground
      that mid an object must reach L>=0.63 or drop to near black to clear
-     3:1. Orange and green are neither; a carrot lifted that far is apricot.
+     3:1. Painting the carrot's own cell as a deeper well does work - built,
+     3.52 worst of 96 - but the owner ruled the carrot sits on the same
+     colour as every other hole, so the carrot was relit instead. Its four
+     colours now clear 3:1 on all four grounds; see build-sprites.mjs, which
+     is where the remap lives so a rebuild cannot undo it.
 
-     Painting the carrot's own cell as a deeper well of the world's hue does
-     fix it - built and measured at 3.52 worst of 96 levels - but the owner
-     wants the carrot on the same ground as every other hole, so the board
-     keeps one colour per world and the carrot keeps its miss. It is a goal
-     marker rather than a hazard, and it is carried by hue. */
+     ONE THING IS STILL WEAK, AND IT IS THE ROAD. That world's slats are gold
+     and the relit root is amber - five degrees of hue apart at the same
+     value - so the root alone would vanish into the furniture. What carries
+     the carrot there is its green top, fifty degrees off the slats. The
+     carrot's own ground is the grey hole and it clears that at 3.52, so this
+     is a glance concern rather than a measured failure, but it rests on one
+     feature. Fixing it properly means moving the road's gold, which is the
+     owner's own 2014 colour. */
   var WORLDS = {
     woods:  { lit: '#7FBF57', mid: '#5E9440', dark: '#436E2C', hole: '#0C1F12',
               name: 'THE WOODS',    predator: 'fox',     block: 'brick'   },

@@ -123,7 +123,7 @@
   ART_NAMES.forEach(n => {
     const im = new Image();
     im.onload = () => { ART[n] = im; };
-    im.src = './art/' + n + '.svg?v=4';
+    im.src = './art/' + n + '.svg?v=5';
   });
   /* HOW BIG EACH OF THEM IS DRAWN, and why it is not just a number.
 

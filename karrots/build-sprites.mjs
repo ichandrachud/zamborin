@@ -69,6 +69,41 @@ const VALUE = {
   fox:   { recede: '#D8452A', deep: '#BE3A26' },   // the fox's own darker reds
 };
 const familyOf = n => n.startsWith('fox') ? 'fox' : 'bunny';
+
+/* --- the carrot is relit ------------------------------------------------
+ * The 2014 carrot is orange on green. That works in the woods, whose hole is
+ * near black, and fails everywhere else: on the three LIGHT worlds every
+ * colour it is made of measured 1.40 to 2.62 against the ground, under the
+ * 3:1 floor for a graphical object.
+ *
+ * Nothing else on the board can move to fix it. A hole has to carry a
+ * near-black enemy AND a white bunny at once, which pins it to L 0.143-0.300,
+ * and on a ground that mid an object must reach L>=0.63 or drop to near black
+ * to clear 3:1. The owner ruled the carrot sits on the same colour as every
+ * other hole, so the carrot is what changes.
+ *
+ * It is LIT, not washed. Washing toward white reached the luminance by
+ * spending the chroma and rendered as a peeled parsnip - pale root, sage
+ * leaves that all but vanished into it. Luminance for a warm hue lives in the
+ * green channel, so a few degrees toward gold buys the same light at full
+ * chroma: an amber root and a bright green top, both still carrot.
+ *
+ *   part          2014      now        woods  arctic   road  ocean
+ *   root lit      #fca414   #FFD800    12.35    3.77   3.71   3.33
+ *   root shade    #f88d2a   #FFD24E    11.95    3.65   3.59   3.22
+ *   leaf lit      #80bc00   #66F600    12.08    3.69   3.63   3.26
+ *   leaf shade    #789904   #7BF000    11.72    3.58   3.52   3.16
+ *
+ * Light before shade in both pairs, so the modelling survives the lift - the
+ * first attempt lifted each colour only as far as it had to and landed all
+ * four at L~0.63, which flattened the carrot and put its shade face lighter
+ * than its lit one.
+ */
+const RECOLOUR = {
+  carrot: { '#fca414': '#FFD800', '#f88d2a': '#FFD24E',
+            '#80bc00': '#66F600', '#789904': '#7BF000' },
+};
+
 const LINE_W = 4;   // source units; the 2014 files drew these at 2 and they all but vanish
 
 /* --- stroke removal ----------------------------------------------------- */
@@ -124,6 +159,11 @@ function build(name, file, invisible) {
       : `.kv${g.kv}{fill:${fam.recede}}`).join('');
     svg = svg.replace('</style>', decls + '</style>');
   }
+
+  // 3b — a sprite whose own colours cannot clear the ground gets relit.
+  const relit = RECOLOUR[name];
+  if (relit) for (const [from, to] of Object.entries(relit))
+    svg = svg.replace(new RegExp(from, 'gi'), to);
 
   // 4 — a rule left with nothing in it is noise.
   svg = svg.replace(/<style>([\s\S]*?)<\/style>/g, (m, c) =>
