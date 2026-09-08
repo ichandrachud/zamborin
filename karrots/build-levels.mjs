@@ -61,7 +61,14 @@ function firstLosingSlide(start, budget = 20000) {
 const WORLDS = JSON.parse(readFileSync(new URL('./worlds.json', import.meta.url), 'utf8'));
 const ORDER = ['woods', 'arctic', 'road', 'ocean'];
 const ALL = [];
-for (const w of ORDER) for (const lv of (WORLDS[w] || [])) ALL.push({ ...lv, world: w });
+/* THE ID IS ASSIGNED HERE, not carried in worlds.json. It was carried, and
+   when worlds.json was rewritten for the bomb the field was simply left out,
+   so every level shipped with `id: undefined`. Nothing threw: records were
+   kept under the key `undefined`, which is ONE record shared by all 96 levels,
+   so beating any level showed three carrots on every level and unlocked the
+   lot. Generated from the ladder position instead, which cannot go missing. */
+let _nextId = 0;
+for (const w of ORDER) for (const lv of (WORLDS[w] || [])) ALL.push({ ...lv, world: w, id: ++_nextId });
 
 /* PAR HAS TO SURVIVE THE ANIMALS WANDERING, and the search that proves it is
  * in solve.mjs beside the ordinary one - the forge filter needs the same
