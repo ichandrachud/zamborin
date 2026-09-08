@@ -1865,9 +1865,20 @@
        cut mid-thought, with nothing on screen to say so. The card gives up
        BODY to a scroll, which is its design; it must never give up a sentence
        silently. Two lines is the desktop case and costs nothing there. */
-    const subLines = wrapText(kind === 'rules'
+    /* THE END OF THE LINE IS ITS OWN CARD. Winning the last board used to
+       give the same "ALL HOME" as winning the second, with a button reading
+       AGAIN that put you back on the board you had just finished — thirty
+       levels and no moment at the end of them. The standfirst is written ONCE
+       here and used for both the header's height and the drawing, because the
+       header measures the copy and the two silently drifting apart is how a
+       sentence gets clipped. */
+    const finished = kind !== 'rules' && nextLevelNumber() === null;
+    const standfirst = kind === 'rules'
       ? 'Lay the track, set the switches, and send every engine to the shed of its own colour.'
-      : 'Every engine home, through rails they had to share.', pw - 68, 17).length;
+      : finished
+        ? 'All ' + M.ladderCount() + ' boards worked, and every engine home on every one of them. Nothing left to lay.'
+        : 'Every engine home, through rails they had to share.';
+    const subLines = wrapText(standfirst, pw - 68, 17).length;
     const HEADER = 130 + subLines * 24, FOOTER = 98;
     /* THE CARD IS AS TALL AS WHAT IT HOLDS, and the two kinds hold very
        different amounts. 420 was a desktop number applied to a phone: on an
@@ -1906,11 +1917,9 @@
       kind, px, py, pw, ph, HEADER, FOOTER, viewTop, viewH, items, contentH,
       scrollMax: Math.max(0, contentH - viewH),
       ctaCy: py + ph - FOOTER + 16 + UI.CTA.h / 2,
-      title: kind === 'rules' ? 'JUNCTION' : 'ALL HOME',
-      cta: kind === 'rules' ? 'PLAY' : (nextLevelNumber() === null ? 'AGAIN' : 'NEXT'),
-      subtitle: kind === 'rules'
-        ? 'Lay the track, set the switches, and send every engine to the shed of its own colour.'
-        : 'Every engine home, through rails they had to share.',
+      title: kind === 'rules' ? 'JUNCTION' : finished ? 'LINE CLEAR' : 'ALL HOME',
+      cta: kind === 'rules' ? 'PLAY' : (finished ? 'AGAIN' : 'NEXT'),
+      subtitle: standfirst,
     };
   }
 
