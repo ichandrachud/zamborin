@@ -310,7 +310,7 @@
   function apply(st, mv) {
     var g = new Uint8Array(st.grid), next;
     if (mv.type === 'hop') {
-      next = { grid: g, bunny: mv.to, fox: st.fox, carrot: st.carrot, bombs: (st.bombs || []).slice() };
+      next = { ...st, grid: g, bunny: mv.to, bombs: (st.bombs || []).slice() };
     } else {
       var horiz = (st.grid[mv.a] === HL);
       var na = NBD[mv.a][mv.dir], nb = NBD[mv.b][mv.dir];
@@ -334,7 +334,7 @@
       // already checked was there for them.
       if (g[bunny] !== HOLE) { var nbun = stepAsideFor(st, g, BUNNY); if (nbun >= 0) bunny = nbun; }
       if (g[fox]   !== HOLE) { var nfox = stepAsideFor(st, g, FOX);   if (nfox >= 0) fox   = nfox; }
-      next = { grid: g, bunny: bunny, fox: fox, carrot: st.carrot, bombs: bombs };
+      next = { ...st, grid: g, bunny: bunny, fox: fox, bombs: bombs };
     }
     return next;
   }
@@ -450,8 +450,9 @@
   }
 
   function clone(st) {
-    return { grid: new Uint8Array(st.grid), bunny: st.bunny, fox: st.fox,
-             carrot: st.carrot, bombs: (st.bombs || []).slice() };
+    /* Spread, then deep-copy the two things that must not be shared. Listing
+       the fields is how a state loses the one that was added last. */
+    return { ...st, grid: new Uint8Array(st.grid), bombs: (st.bombs || []).slice() };
   }
 
   /* Is this domino carrying one? Either cell answers, because the head is what

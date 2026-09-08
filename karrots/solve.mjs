@@ -169,7 +169,7 @@ export function parWhileTheyWander(st0, opts = {}) {
            was asked about, always with exactly the unbombed par, which is what
            gave it away: a filter that rejects everything is not a strict
            filter, it is a broken one. */
-        const placed = { grid: s.grid, bunny: b, fox: f, carrot: s.carrot, bombs: s.bombs };
+        const placed = { ...s, bunny: b, fox: f };
         for (const mv of M.slideMoves(placed)) {
           const ns = M.apply(placed, mv);
           if (useFox && M.caught(ns)) continue;

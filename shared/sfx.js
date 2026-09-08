@@ -73,6 +73,17 @@
     capture:  a => { a.noise(0.10, 240, 1.5, 0.30); setTimeout(() => a.tone(180, 0.18, 0.10, 'square'), 30); },
     thump:    a => a.tone(120, 0.16, 0.14, 'sine'),
 
+    // --- Blast, for Karrots ---
+    // Three layers because one is a hiss and two is a door slamming: a broad
+    // low crack, a body under it so it has weight, and a short bright tail a
+    // beat later that reads as the pieces coming down. Kept inside the house
+    // level - this is a toy bomb on a board, not a film.
+    explode:  a => {
+      a.noise(0.20, 170, 0.7, 0.30);
+      a.tone(90, 0.24, 0.15, 'sine');
+      setTimeout(() => a.noise(0.26, 520, 0.6, 0.085), 70);
+    },
+
     // --- Dice / wooden pieces ---
     'dice-shake': a => {
       a.woodClack(220, 0.10, 0.16);

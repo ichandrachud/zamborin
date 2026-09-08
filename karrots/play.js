@@ -85,6 +85,7 @@
     crunch:  () => { if (sfx) sfx.play('pop'); },
     win:     () => { if (sfx) sfx.play('win'); },
     undo:    () => { if (sfx) sfx.play('pop'); },
+    explode: () => { if (sfx) sfx.play('explode'); },
   };
 
   const UI = window.ZAM_UI;
@@ -98,6 +99,7 @@
     slideMs: 130, hopMs: 170, snapMs: 90,
     lungeMs: 460, holdMs: 420, rewindMs: 300,
     graceMs: 2400,         // his walk over, and the player's chance to undo it
+    boomMs: 420,           // the blast, drawn over the squares it opened
     carrot2Mult: 1.35,
     dragStart: 5,          // px ALONG the slat's axis before it starts to follow
     commitFrac: 0.42,      // share of a cell a SLOW drag must cross to land
@@ -214,6 +216,7 @@
      catch is a cut and a hold, and a tile lands instead of easing. §10. */
   const REDUCED = matchMedia('(prefers-reduced-motion: reduce)');
   let rulesOpen = false, rulesScroll = 0;
+  let boom = null;               // a bomb going off: decoration, it blocks nothing
   let levelsOpen = false, levelsWorld = 0, levelsScroll = 0, levelsHit = null;
   let wonPrev = null, wonBeat = false;   // the record before this run, and whether it fell
   const dbg = { downs: 0, captureFailed: 0, moves: 0, ups: 0, committed: 0, refused: 0 };
@@ -242,7 +245,7 @@
     start = M.parse(lv.rows, lv.id, lv.bomb ? { bombs: [lv.bomb] } : undefined);
     st = M.clone(start);
     par = lv.par; moves = 0; history = []; phase = 'play'; anim = null; drag = null; threat = null;
-    wonPrev = null; wonBeat = false;
+    wonPrev = null; wonBeat = false; boom = null;
     snapPaceHome(performance.now());   // drawn where the rules have them, from frame one
     T().levelStart && T().levelStart(levelIndex + 1);
     save();
@@ -360,10 +363,20 @@
   function commit(mv, opts) {
     opts = opts || {};
     history.push({ state: M.clone(st), moves });
+    /* Asked BEFORE the move, because afterwards the bomb is spent and there is
+       nothing left to ask. A piece that simply stopped existing read as a
+       glitch; it needs to go off. */
+    const wasBomb = M.bombedTile(st, mv.a, mv.b);
     const next = M.apply(st, mv);
     const prev = st;
     moves++;
     st = next;
+    if (wasBomb) {
+      const cells = [mv.a, mv.b, M.NBD[mv.a][mv.dir], M.NBD[mv.b][mv.dir]]
+        .filter((c, i, all) => c >= 0 && all.indexOf(c) === i);
+      boom = { cells, t0: performance.now() };
+      SND.explode();
+    }
     if (st.bunny !== prev.bunny || st.fox !== prev.fox) snapPaceHome(performance.now());
 
     /* HE DOES NOT TAKE HER THE INSTANT THE GAP OPENS. He sets off, and the
@@ -744,8 +757,13 @@
      every moment a slide can happen, the square you see somebody on is the
      square the slide is refused by. */
   function setAnimal(who, cell) {
-    st = { grid: st.grid, bunny: who === 'bunny' ? cell : st.bunny,
-           fox: who === 'fox' ? cell : st.fox, carrot: st.carrot };
+    /* SPREAD, DO NOT RE-LIST. This rebuilt the state by naming its fields, so
+       the day the state grew a `bombs` field the bomb was dropped every time an
+       animal took a step - which is a step a second, so the bomb vanished
+       before the player had finished looking at the board. Spreading carries
+       whatever the state has, including the next field somebody adds. */
+    st = { ...st, bunny: who === 'bunny' ? cell : st.bunny,
+                  fox:   who === 'fox'   ? cell : st.fox };
   }
 
   function snapPaceHome(now) {
@@ -915,7 +933,7 @@
            had her on the square she set off from, so the moment the card came
            up she was drawn back there and carried on pacing behind it. The
            square she reached is hers now. */
-        st = { grid: st.grid, bunny: st.carrot, fox: st.fox, carrot: st.carrot };
+        st = { ...st, bunny: st.carrot };
         snapPaceHome(now);
         const c = carrotsFor(moves);
         const id = LEVELS[levelIndex].id;
@@ -1012,6 +1030,7 @@
       dbg.paint = { fox: paintBox.fox, bunny: paintBox.bunny, held: null };
     }
 
+    drawBoom(now);
     drawHUD();
     ctrl.forEach(b => {
       if (b.icon) drawSoundPill(b);
@@ -1042,6 +1061,28 @@
     const cx = (pa.x + pb.x) / 2 + c / 2 + dx;
     const cy = (pa.y + pb.y) / 2 + c / 2 + dy;
     sprite('bomb', cx, cy + c * 0.30, c * 0.60);
+  }
+
+  /* THE BLAST. Squares of light that open fast and fade, with a ring running
+     out past them. Drawn over the board and under the chrome, it holds nothing
+     up and it is not part of the rules: by the time its first frame appears
+     the domino is already gone from the model. */
+  function drawBoom(now) {
+    if (!boom) return;
+    const t = (now - boom.t0) / TUNE.boomMs;
+    if (t >= 1) { boom = null; return; }
+    const c = geo.cell, ease = 1 - Math.pow(1 - t, 2);
+    ctx.save();
+    for (const cell of boom.cells) {
+      const p = geo.at(cell), cx = p.x + c / 2, cy = p.y + c / 2;
+      ctx.globalAlpha = (1 - t) * 0.85;
+      ctx.fillStyle = t < 0.35 ? '#FFF3C4' : RD.SUN;
+      ctx.beginPath(); ctx.arc(cx, cy, c * (0.18 + 0.34 * ease), 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = (1 - t) * 0.55;
+      ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = Math.max(1, c * 0.05 * (1 - t));
+      ctx.beginPath(); ctx.arc(cx, cy, c * (0.30 + 0.85 * ease), 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.restore();
   }
 
   function drawBunny(now) {
