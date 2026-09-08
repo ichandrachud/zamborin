@@ -407,6 +407,19 @@ export async function harvest(want, seedFrom, label, opts) {
        at all. */
     const res = pin(lvl, { slack: 2, assess, specOf });
     if (!res.ok) continue;
+    /* GATE THE ORIENTATION THAT SHIPS, NOT THE ONE THAT WAS BUILT. Turning a
+       board on its side is an isomorphism, so the budget is the same number and
+       the single answer is the same answer — but greedy is a HEURISTIC, not a
+       property of the board. It picks *a* shortest route, and which one comes
+       from the order the four directions are tried in, so a turn relabels the
+       directions and greedy makes different choices. Six landscape boards
+       passed upright and were won by greedy once they were on their side:
+       exactly the "solved it first try" fault this whole file exists to stop,
+       shipped by the one gate a rotation does not preserve. */
+    if (opts && opts.transposed) {
+      const turned = M.buildLevel(transposeSpec(specOf(res.r.level)));
+      if (gate(turned, 'shipped').greedy.wins) continue;
+    }
     found.push({ seed: seed - 1, family: label, rocksAdded: res.rocksAdded, ...res.r });
     console.log('  [' + label + '] seed ' + String(seed - 1).padStart(5) + '  ' +
       res.r.level.R + 'x' + res.r.level.C + '  budget ' + String(res.r.budget).padStart(2) +
@@ -466,7 +479,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       const f = FAMILIES[i];
       console.log(`\n[${tag}] ${f.key} — keeping ${quotas[i]}, harvesting up to ${quotas[i] + SPARE}`);
       const h = await harvest(quotas[i] + SPARE, base + i * 100000, f.key,
-        { family: f.build, minutes: 16 });
+        { family: f.build, minutes: 16, transposed: tag === 'landscape' });
       byFamily[f.key] = h.found;
       console.log(`  ${f.key}: ${h.found.length} found from ${h.tried} seeds` +
         (h.found.length < quotas[i] ? '  <-- SHORT' : ''));

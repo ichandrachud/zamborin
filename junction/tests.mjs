@@ -668,5 +668,28 @@ for (const [name, set] of [['portrait', port], ['landscape', land]]) {
      set.slice(1).map((l) => l.family).join(' '));
 }
 
+/* ---------- GREEDY MUST LOSE ON THE BOARD AS SHIPPED ----------
+   The generator gates every board before it emits it, and the landscape ladder
+   is built upright and then turned on its side. Two of the three gates survive
+   that turn, because they are exhaustive searches and a rotation is an
+   isomorphism: the budget is the same number and the single answer is the same
+   answer. THE GREEDY GATE DOES NOT SURVIVE IT. Greedy picks *a* shortest route,
+   and which one it picks comes from the order the four directions are tried in
+   — so turning the board relabels the directions and greedy makes different
+   choices. Six landscape boards passed upright and were won by greedy once
+   they were on their side, which is exactly the "solved it first try" fault
+   the whole certification exists to prevent.
+
+   So this measures the orientation the player actually gets. */
+head('routing each engine its own shortest way loses, in the shipped orientation');
+{
+  const { gate } = await import('./gate.mjs');
+  for (const [name, set] of [['portrait', port], ['landscape', land]]) {
+    const won = set.slice(1).filter((l) => gate(l, 'shipped').greedy.wins).map((l) => l.n);
+    ok(name + ': greedy wins none of the certified boards', won.length === 0,
+       won.length ? 'greedy wins ' + won.join(', ') : String(set.length - 1) + ' boards');
+  }
+}
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed\n');
 process.exit(fail ? 1 : 0);
