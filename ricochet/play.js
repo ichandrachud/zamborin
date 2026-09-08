@@ -214,22 +214,12 @@
      travelled 24px. Until then the board was completely inert: a wall, a 6px
      ball, and nothing moving. Players read that as broken and left, which is
      the worst possible outcome for a game whose whole decision is the aim.
-     Three additive layers fix it and none of them touch input semantics:
-       - the aim line rests on screen so a trajectory visibly exists,
-       - an idle ghost DRAGS itself and the line follows, so cause and effect
-         are shown rather than described,
-       - the launcher breathes so the eye starts in the right place. */
-  let idleT = 0;                  // seconds the player has been still, their turn
-  let shots = 0;                  // shots fired this run; the hint retires after a few
-  let hintT = 0;                  // seconds into the current ghost-drag cycle
-  let hintDir = 1;                // the demo leans left, then right, so the angle reads as YOURS
-  const HINT = {
-    cycle: 2.4,                   // one demo every 2.4s
-    reach: 0.62,                  // fraction of the cycle spent travelling
-    retireAfter: 3,               // stop nagging once they have clearly got it
-    idleWake: 5.0,                // but come back if they stall anywhere
-    swing: 26 * S.DEG,            // how far off vertical the demo aims
-  };
+
+     The line now simply RESTS on screen whenever it is your turn, and moves
+     under a mouse or a finger. A moving demo was tried and removed on the
+     owner's call: it taught the gesture, but a board that animates while you
+     are trying to read it is distracting, and a static tracer plus a line that
+     follows your pointer already answers "what do I do" without it. */
   let botRng = null;
   const shards = [];
   const flashes = [];
@@ -244,7 +234,7 @@
     botRng = S.makeRng(seed ^ 0x5EED1E);
     turn = null; acc = 0; descend = 0; card = null;
     aiming = false; aimShown = false; aimA = 90 * S.DEG;
-    idleT = 0; shots = 0; hintT = 0; aimShown = false; aimReady = false;
+    aimShown = false; aimReady = false;
     shards.length = 0; flashes.length = 0; trails.clear();
     TR().gameStart();
     TR().levelStart(1);
@@ -351,7 +341,7 @@
     const dy = p.y - L.launchY;
     if (dy > -14) return false;    // level with or below the launcher: no shot there
     aimA = S.legalAngle(Math.atan2(-dy, dx));
-    aimShown = true; idleT = 0; hintT = 0;
+    aimShown = true;
     return true;
   }
 
@@ -360,9 +350,7 @@
     !!state && !state.over && !turn && descend <= 0 && !card && !FLAG.bot;
 
   // Show the demo while the player is new to it, and again if they stall.
-  const hintOn = () =>
-    playersTurn() && !aiming && !aimShown &&
-    (shots < HINT.retireAfter || idleT > HINT.idleWake);
+
 
   const NOT_A_BUTTON = { lvlPill: 1 };
   function hitControls(p) {
@@ -406,7 +394,6 @@
     }
     if (FLAG.bot) return;
     if (!state || state.over || turn || descend > 0) return;
-    idleT = 0; hintT = 0;          // they are engaging: stop demonstrating
     aiming = true; dragFrom = p;
     if (HOVER_AIM) {
       // A mouse has already set an angle by hovering, so clearing it here
@@ -511,8 +498,8 @@
     }
     if (!state || state.over || turn || descend > 0 || FLAG.bot) return;
     const step = (e.shiftKey ? 0.25 : 1.5) * S.DEG;
-    if (e.key === 'ArrowLeft')  { e.preventDefault(); aimA = S.legalAngle(aimA + step); aimShown = true; idleT = 0; hintT = 0; }
-    if (e.key === 'ArrowRight') { e.preventDefault(); aimA = S.legalAngle(aimA - step); aimShown = true; idleT = 0; hintT = 0; }
+    if (e.key === 'ArrowLeft')  { e.preventDefault(); aimA = S.legalAngle(aimA + step); aimShown = true; }
+    if (e.key === 'ArrowRight') { e.preventDefault(); aimA = S.legalAngle(aimA - step); aimShown = true; }
     if (e.key === ' ' || e.key === 'Enter') {
       e.preventDefault();
       if (sfx) sfx.ensureAudio();
@@ -541,7 +528,6 @@
   }
 
   function fireTurn(angle) {
-    shots++; idleT = 0; hintT = 0;
     turn = S.startTurn(state, angle, { rec: true });
     acc = 0;
     trails.clear();
@@ -926,14 +912,13 @@
     ctx.fillRect(L.bx, dy - 1, L.bw, 2);
 
     if (turn) drawBallsAndTrails();
-    if (playersTurn() && !aimShown) drawLauncherPulse();
     drawLauncher();
     if (playersTurn()) {
       // The line is ALWAYS on when it is your turn. While the demo runs it
       // follows the ghost; otherwise it sits at the angle you last chose.
-      const live = aimShown;
-      drawAim(live ? aimA : (hintOn() ? hintAngle() : aimA), live ? 0.62 : 0.42);
-      if (hintOn()) drawHintGesture();
+      // Static at rest, brighter the moment a pointer is on it. Nothing here
+      // animates on its own.
+      drawAim(aimA, aimShown ? 0.62 : 0.42);
     }
   }
 
@@ -1008,82 +993,6 @@
     ctx.strokeStyle = 'rgba(255,243,212,' + Math.min(1, alpha + 0.23).toFixed(2) + ')';
     ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(sx(p1.x), sy(p1.y), 5.5, 0, 7); ctx.stroke();
-    ctx.restore();
-  }
-
-  /* The demo's angle SWEEPS across its travel rather than sitting still.
-     A ghost sliding along a fixed line just looks like a preview of the ball;
-     what teaches the control is watching the line swing while the ghost moves,
-     because that is the only thing on screen that says one causes the other.
-     Outside the travel window it rests at the end of the sweep. */
-  function hintAngle() {
-    const travel = HINT.cycle * HINT.reach;
-    const k = Math.max(0, Math.min(1, hintT / travel));
-    const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
-    return S.legalAngle(Math.PI / 2 + hintDir * HINT.swing * (e * 2 - 1));
-  }
-
-  /* THE DEMO. A ghost finger drags, and the aim line above it moves with it.
-     Showing the gesture alone would teach "swipe"; showing the line follow is
-     what teaches "swipe TO AIM", and that is the part nobody was getting.
-     Everything here is driven by hintT so it cannot drift from the cycle. */
-  function drawHintGesture() {
-    const travel = HINT.cycle * HINT.reach;
-    if (hintT > travel) return;                       // the pause between demos
-    const k = hintT / travel;
-    const ease = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
-    // Fade in fast, hold, fade out — so it reads as a repeated gesture rather
-    // than something stuck on screen.
-    const a = k < 0.14 ? k / 0.14 : k > 0.78 ? Math.max(0, (1 - k) / 0.22) : 1;
-
-    // The ghost travels OUT while the angle sweeps, so the gesture reads as
-    // "drag, and the direction you drag is the direction it goes".
-    const ang = hintAngle();
-    const reach = Math.min(96, Math.max(54, L.bw * 0.13));
-    const grow = Math.min(1, ease * 1.9);            // out quickly, then hold and sweep
-    // The SAME origin the aim line uses. This sat 30px higher and the two rays
-    // came out parallel instead of collinear, so the ghost visibly floated off
-    // the line it was supposed to be dragging.
-    const x0 = sx(state.launchX), y0 = L.launchY;
-    const x1 = x0 + Math.cos(ang) * reach * grow;
-    const y1 = y0 - Math.sin(ang) * reach * grow;
-
-    ctx.save();
-    // The path already travelled, so the gesture has a direction and not just
-    // a position.
-    ctx.globalAlpha = a * 0.55;
-    ctx.setLineDash([2, 6]); ctx.lineCap = 'round'; ctx.lineWidth = 2;
-    ctx.strokeStyle = 'rgba(255,243,212,0.9)';
-    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
-    ctx.setLineDash([]);
-
-    // The ghost itself: a soft disc, the size of a fingertip's contact.
-    ctx.globalAlpha = a;
-    const g = ctx.createRadialGradient(x1, y1, 0, x1, y1, 17);
-    g.addColorStop(0, 'rgba(255,243,212,0.42)');
-    g.addColorStop(1, 'rgba(255,243,212,0)');
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(x1, y1, 17, 0, 7); ctx.fill();
-    ctx.fillStyle = 'rgba(255,243,212,0.80)';
-    ctx.beginPath(); ctx.arc(x1, y1, 7.5, 0, 7); ctx.fill();
-    ctx.restore();
-  }
-
-  /* The launcher breathes while it waits. The ball is 6px on a 700px board and
-     the eye had no reason to find it; this is what puts the gesture's starting
-     point on screen before the gesture plays. */
-  function drawLauncherPulse() {
-    const ph = (idleT % 1.7) / 1.7;
-    const r = Math.max(9, TUNE.ballR * L.scale * 1.7);
-    const rr2 = r + 4 + ph * 15;
-    // Peak 0.42, measured at 3.77:1 on the board floor where the 3:1 bar for a
-    // graphical object sits at 0.38. A ring that fades is at its brightest the
-    // moment it appears, so that is the moment it has to clear the bar.
-    ctx.save();
-    ctx.globalAlpha = (1 - ph) * 0.42;
-    ctx.strokeStyle = 'rgba(255,243,212,0.95)';
-    ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(sx(state.launchX), L.launchY, rr2, 0, 7); ctx.stroke();
     ctx.restore();
   }
 
@@ -1522,15 +1431,6 @@
         fireTurn(botAngle());
       }
 
-      // Idle and demo clocks only run while the board is genuinely waiting on
-      // a person, so a long turn or an open card never counts as hesitation.
-      if (playersTurn() && !aiming) {
-        idleT += dt;
-        if (hintOn()) {
-          hintT += dt;
-          if (hintT >= HINT.cycle) { hintT -= HINT.cycle; hintDir = -hintDir; }
-        } else hintT = 0;
-      } else { idleT = 0; hintT = 0; }
 
       render(now);
     }
@@ -1544,29 +1444,15 @@
     mode: MODE,
     tile: () => TILE_STYLES[tileStyle],
     openCard: () => card,
-    // The whole point of this feature is that a player who reads nothing still
-    // knows what to do, so the states that teach them are measurable.
+    // A player who reads nothing still has to know what to do, so the states
+    // that tell them are measurable.
     hint: () => ({
-      playersTurn: playersTurn(), hintOn: hintOn(),
-      idleT: +idleT.toFixed(2), hintT: +hintT.toFixed(2), shots: shots,
-      aimShown: aimShown, restingLineDrawn: playersTurn(),
-      hintAngleDeg: +(hintAngle() / S.DEG).toFixed(1), dir: hintDir,
+      playersTurn: playersTurn(),
+      aimShown: aimShown, aimReady: aimReady,
+      restingLineDrawn: playersTurn(),
       scheme: HOVER_AIM ? 'hover' : 'drag', aimDeg: +(aimA / S.DEG).toFixed(1),
-      aimReady: aimReady,
-      retireAfter: HINT.retireAfter, idleWake: HINT.idleWake,
+      animated: false,
     }),
-    tick: (secs) => {            // advance the idle clocks with no rAF, for tests
-      const dt = 1 / 60;
-      for (let i = 0; i < Math.round(secs / dt); i++) {
-        if (playersTurn() && !aiming) {
-          idleT += dt;
-          if (hintOn()) { hintT += dt; if (hintT >= HINT.cycle) { hintT -= HINT.cycle; hintDir = -hintDir; } }
-          else hintT = 0;
-        }
-      }
-      render(performance.now());
-      return window.__RICOCHET_QC.hint();
-    },
     setCard: (k) => { card = k; cardScroll = 0; onResize(); render(performance.now()); return card; },
     scroll: (v) => { cardScroll = v; render(performance.now()); return cardScroll; },
     hits: () => Object.fromEntries(Object.entries(L.hit).map(([k, b]) => [k, [b.x, b.y, b.w, b.h]])),
