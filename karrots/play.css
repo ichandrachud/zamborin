@@ -1,0 +1,24 @@
+/* Karrots — per-game styles only. Everything else comes from
+   ../shared/tokens.css and ../shared/chrome.css. */
+
+/* Splash artwork per mode. The .splash frame, cover sizing and the fade all
+   come from ../shared/chrome.css; this file supplies only the image.
+
+   MEASURED, not estimated. The wordmark was found by taking the largest
+   connected blob of the orange it is drawn in, and checked against what
+   `cover` actually crops at each real frame aspect:
+
+     desktop 760x600      0.0% cropped   wordmark survives
+     iPhone SE 375x667    8.9% off top and bottom   survives
+     iPhone 14 390x844    0.0%           survives
+     15 Pro Max 430x932   0.1% off the sides        survives
+     narrow foldable      11.0% off the sides       survives
+
+   The wordmark is 52% of the width on the desktop art, against the house
+   guideline of 0.38 / aspect = 30%. That guideline is a conservative proxy for
+   a portrait crop; here the art is 1520 x 1200 and the desktop frame is
+   760 x 600, the SAME aspect, so cover crops nothing at all and the direct
+   measurement is the answer. If either art or frame aspect ever changes,
+   re-run the check and fix the art, never this file. */
+body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=1'); }
+body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=1'); }

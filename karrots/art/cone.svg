@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="699.9 1718.66 88.98 122.99">
+  <defs>
+    <style>
+      .st0 {
+        fill: #ea5b0c;
+      }
+      .st1 {
+        fill: #f15a24;
+      }
+      .st2 {
+        fill: url(#linear-gradient2);
+      }
+      .st3 {
+        fill: url(#linear-gradient1);
+      }
+      .st4 {
+        fill: url(#linear-gradient3);
+      }
+      .st5 {
+        fill: url(#linear-gradient5);
+      }
+      .st6 {
+        fill: url(#linear-gradient4);
+      }
+      .st7 {
+        fill: #789904;
+      }
+      .st8 {
+        fill: gray;
+      }
+      .st9 {
+        fill: #e6e6e6;
+      }
+      .st10 {
+        fill: #ffd900;
+      }
+      .st11 {
+        fill: #f88d2a;
+      }
+      .st12 {
+        font-family: MyriadPro-Regular, 'Myriad Pro';
+      }
+      .st12, .st13 {
+        font-size: 99.48px;
+      }
+      .st14 {
+        fill: none;
+      }
+      .st15 {
+        fill: url(#linear-gradient);
+      }
+      .st16 {
+        opacity: .5;
+      }
+      .st16, .st17, .st18, .st19, .st20 {
+        fill: #fff;
+      }
+      .st17 {
+        opacity: .47;
+      }
+      .st21 {
+        fill: #80bc00;
+      }
+      .st22 {
+        fill: #1d1d1b;
+      }
+      .st23 {
+        fill: #e94e1b;
+      }
+      .st24 {
+        fill: #ffed00;
+      }
+      .st25 {
+        fill: #666;
+      }
+      .st19 {
+        font-size: 48.44px;
+      }
+      .st19, .st20 {
+        font-family: BarthowheelRegular, Barthowheel;
+      }
+      .st26 {
+        fill: #fff7ae;
+      }
+      .st27 {
+        fill: #b7470f;
+      }
+      .st28 {
+        fill: #e30613;
+      }
+      .st29 {
+        fill: #f2f2f2;
+      }
+      .st20 {
+        font-size: 32.38px;
+      }
+      .st30 {
+        fill: #ededed;
+      }
+      .st31 {
+        fill: #fca414;
+      }
+      .st32 {
+        fill: #dadada;
+      }
+      .st13 {
+        font-family: MyriadPro-It, 'Myriad Pro';
+        font-style: italic;
+      }
+    </style>
+    <linearGradient id="linear-gradient" x1="991.87" y1="1074.18" x2="991.87" y2="1045.42" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ababab"/>
+      <stop offset=".1" stop-color="#fff"/>
+      <stop offset="1" stop-color="#d4d4d4"/>
+    </linearGradient>
+    <linearGradient id="linear-gradient1" x1="970.99" y1="887.99" x2="882.35" y2="963.15" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff"/>
+      <stop offset=".49" stop-color="#fff"/>
+      <stop offset="1" stop-color="#d4d4d4"/>
+    </linearGradient>
+    <linearGradient id="linear-gradient2" x1="1083.43" y1="1556.41" x2="1083.43" y2="1527.65" gradientTransform="translate(1705.2509) scale(-1 1)" xlink:href="#linear-gradient"/>
+    <linearGradient id="linear-gradient3" x1="1062" y1="1370.13" x2="974.33" y2="1444.48" gradientTransform="translate(1705.2509) scale(-1 1)" xlink:href="#linear-gradient1"/>
+    <linearGradient id="linear-gradient4" x1="719.4" y1="71.19" x2="1016.92" y2="191.7" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#999"/>
+      <stop offset=".49" stop-color="#fff"/>
+      <stop offset="1" stop-color="#999"/>
+    </linearGradient>
+    <linearGradient id="linear-gradient5" x1="727.86" y1="478.54" x2="973.88" y2="578.18" xlink:href="#linear-gradient4"/>
+  </defs>
+  <g>
+    <rect class="st0" x="702.46" y="1833.68" width="83.85" height="5.48" rx=".22" ry=".22"/>
+    <polygon class="st0" points="748.28 1721.05 740.5 1721.05 728.62 1764.06 760.16 1764.06 748.28 1721.05"/>
+    <polygon class="st30" points="728.62 1764.06 718.08 1802.19 770.69 1802.19 760.16 1764.06 728.62 1764.06"/>
+    <polygon class="st0" points="770.69 1802.19 718.08 1802.19 709.92 1831.75 778.86 1831.75 770.69 1802.19"/>
+    <polygon class="st27" points="709.92 1831.75 709.38 1833.68 779.39 1833.68 778.86 1831.75 709.92 1831.75"/>
+    <polygon class="st16" points="743.59 1721.05 741.66 1721.05 718.08 1833.68 726.91 1833.68 743.59 1721.05"/>
+    <rect class="st17" x="710.59" y="1833.68" width="11.45" height="5.48"/>
+  </g>
+</svg>
