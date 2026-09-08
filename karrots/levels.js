@@ -27,672 +27,672 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
   var LEVELS = [
-    { id: undefined, n: 1, world: 'woods', par: 2, bomb: 'g',
+    { id: 1, n: 1, world: 'woods', par: 2, bomb: 'g',
       rows: ['.aa.bbddee', '...gghiijj', 'k.llBh#mm.', 'knCFoopqq.', 'rnssttpuu.', 'rvvwwxx#yy', 'zzAADDEEGG'],
       // par 2 with the bomb on 'g' and 4 without it; 1 without the predator.
       // par 2, 1 with the fox rule off. 4 positions on the
       // way to the answer where one move loses and another does not, out of 33
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 2, world: 'woods', par: 2, bomb: 'l',
+    { id: 2, n: 2, world: 'woods', par: 2, bomb: 'l',
       rows: ['..aabbddee', 'gh..iijjkk', 'ghll.mm.nn', 'o#Bpp.qqr.', 'ossF.Cttru', 'vvwxxyy#zu', 'AAw.DDEEz.'],
       // par 2 with the bomb on 'l' and 5 without it; 1 without the predator.
       // par 2, 1 with the fox rule off. 5 positions on the
       // way to the answer where one move loses and another does not, out of 61
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 3, world: 'woods', par: 2, bomb: 'E',
+    { id: 3, n: 3, world: 'woods', par: 2, bomb: 'E',
       rows: ['aabbddeegg', 'hhiijjkkll', 'mm.nnooppq', 'rrsstC..#q', '.uu.t.Fvv.', 'wwxxy..#Bz', 'AADDy..EEz'],
       // par 2 with the bomb on 'E' and 7 without it; 1 without the predator.
       // par 2, 1 with the fox rule off. 7 positions on the
       // way to the answer where one move loses and another does not, out of 35
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 4, world: 'woods', par: 2, bomb: 'k',
+    { id: 4, n: 4, world: 'woods', par: 2, bomb: 'k',
       rows: ['aabbddeegg', 'CF.#.hhijj', 'klmm...i#n', 'klBopqq.rn', '.ssoptuurv', 'wwxxyt.zzv', 'AADDy.EEGG'],
       // par 2 with the bomb on 'k' and 9 without it; 1 without the predator.
       // par 2, 1 with the fox rule off. 3 positions on the
       // way to the answer where one move loses and another does not, out of 30
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 5, world: 'woods', par: 3, bomb: 'e',
+    { id: 5, n: 5, world: 'woods', par: 3, bomb: 'e',
       rows: ['CF#aabb.dd', 'egg.hi#jk.', 'e..Bhi.jk.', 'llmm..no..', 'ppqqrrnoss', 'ttuuvvwwxx', 'yyzzAA.DD.'],
       // par 3 with the bomb on 'e' and 8 without it; 1 without the predator.
       // par 3, 1 with the fox rule off. 56 positions on the
       // way to the answer where one move loses and another does not, out of 223
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 6, world: 'woods', par: 3, bomb: 'E',
+    { id: 6, n: 6, world: 'woods', par: 3, bomb: 'E',
       rows: ['aabbddeegg', '.hhiijjkkl', 'mm.nnooppl', '#.#qqrs.FC', 'tu.v.rsww.', 'tu.vxxyzz.', 'AA..DDyBEE'],
       // par 3 with the bomb on 'E' and 10 without it; 2 without the predator.
       // par 3, 2 with the fox rule off. 16 positions on the
       // way to the answer where one move loses and another does not, out of 157
       // searched. The first losing slide of any kind is 1 move in.
     },
-    { id: undefined, n: 7, world: 'woods', par: 3, bomb: 'D',
+    { id: 7, n: 7, world: 'woods', par: 3, bomb: 'D',
       rows: ['abb.deeghh', 'a.#.dijgkk', 'llmmnij..o', 'pqq.nr.sto', 'puuFCrvst.', 'wwBxx.vyyz', '.AADD.#EEz'],
       // par 3 with the bomb on 'D' and 4 without it; 1 without the predator.
       // par 3, 1 with the fox rule off. 68 positions on the
       // way to the answer where one move loses and another does not, out of 461
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 8, world: 'woods', par: 3, bomb: 'k',
+    { id: 8, n: 8, world: 'woods', par: 3, bomb: 'k',
       rows: ['#.aa.bbdde', 'CFgg.hhiie', 'jk#llmnn..', 'jkoppmqqrr', '.Bo.ssttuu', 'vv.wwxxyy.', 'zzAADDEEGG'],
       // par 3 with the bomb on 'k' and 4 without it; 1 without the predator.
       // par 3, 1 with the fox rule off. 62 positions on the
       // way to the answer where one move loses and another does not, out of 397
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 9, world: 'woods', par: 3, bomb: 'v',
+    { id: 9, n: 9, world: 'woods', par: 3, bomb: 'v',
       rows: ['#.aabb.dde', 'gghhiijjke', 'llmmnBook.', 'pqrrnss.t.', 'pquuvv..tw', 'x.yyFCzzAw', 'xDDEEGG.A#'],
       // par 3 with the bomb on 'v' and 4 without it; 2 without the predator.
       // par 3, 2 with the fox rule off. 16 positions on the
       // way to the answer where one move loses and another does not, out of 245
       // searched. The first losing slide of any kind is 1 move in.
     },
-    { id: undefined, n: 10, world: 'woods', par: 3, bomb: 'k',
+    { id: 10, n: 10, world: 'woods', par: 3, bomb: 'k',
       rows: ['..aaCbbdd.', 'ee.ggFhhii', 'j.kkB#lm.n', 'jooppqlm.n', 'rrsstqu.vw', 'xxyytzu.vw', 'AADD#zEEGG'],
       // par 3 with the bomb on 'k' and 4 without it; 1 without the predator.
       // par 3, 1 with the fox rule off. 6 positions on the
       // way to the answer where one move loses and another does not, out of 30
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 11, world: 'woods', par: 3, bomb: 'j',
+    { id: 11, n: 11, world: 'woods', par: 3, bomb: 'j',
       rows: ['.##...aab.', 'dd.FCeegb.', 'hhijj..gkl', '..iBmmnnkl', 'ooppqqrrst', 'uuvvwwxxst', '.yyzzAADD.'],
       // par 3 with the bomb on 'j' and 4 without it; 1 without the predator.
       // par 3, 1 with the fox rule off. 16 positions on the
       // way to the answer where one move loses and another does not, out of 71
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 12, world: 'woods', par: 3, bomb: 'g',
+    { id: 12, n: 12, world: 'woods', par: 3, bomb: 'g',
       rows: ['...aabb..C', '#d.eeFgg.h', 'id#.jjBkkh', 'i..l.mmnn.', 'oo.lppqqrs', 'ttuuvvwwrs', 'xxyyzzAADD'],
       // par 3 with the bomb on 'g' and 4 without it; 1 without the predator.
       // par 3, 1 with the fox rule off. 28 positions on the
       // way to the answer where one move loses and another does not, out of 180
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 13, world: 'woods', par: 3, bomb: 'j',
+    { id: 13, n: 13, world: 'woods', par: 3, bomb: 'j',
       rows: ['aab#ddeegg', 'hhbCii.jjk', 'llmFnB#ook', 'ppm.nqq.rr', 'ss.ttuu.vv', 'w.xxyy.zz.', 'w.AADD.EE.'],
       // par 3 with the bomb on 'j' and 5 without it; 2 without the predator.
       // par 3, 2 with the fox rule off. 4 positions on the
       // way to the answer where one move loses and another does not, out of 278
       // searched. The first losing slide of any kind is 1 move in.
     },
-    { id: undefined, n: 14, world: 'woods', par: 3, bomb: 'o',
+    { id: 14, n: 14, world: 'woods', par: 3, bomb: 'o',
       rows: ['aa.#bbd..#', 'ee.gg.d.h.', 'ijkkCllmhn', 'ijBooppm.n', '.qqrrssttu', 'vvFwwxxyyu', 'zzAADDEEGG'],
       // par 3 with the bomb on 'o' and 5 without it; 2 without the predator.
       // par 3, 2 with the fox rule off. 36 positions on the
       // way to the answer where one move loses and another does not, out of 145
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 15, world: 'woods', par: 4, bomb: 's',
+    { id: 15, n: 15, world: 'woods', par: 4, bomb: 's',
       rows: ['abb.dCFeeg', 'ahiidjkk.g', 'lhmnnjBoop', 'lqm.r.#s.p', '.q#.rttsuu', 'vvwwxyy.zz', '.AA.x.DDEE'],
       // par 4 with the bomb on 's' and 6 without it; 1 without the predator.
       // par 4, 1 with the fox rule off. 95 positions on the
       // way to the answer where one move loses and another does not, out of 337
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 16, world: 'woods', par: 4, bomb: 'A',
+    { id: 16, n: 16, world: 'woods', par: 4, bomb: 'A',
       rows: ['abb.ddee.g', 'a..hhi.jjg', 'kk.llimmnn', 'Coopqqrr#.', 'ssFp#ttuuv', 'Bww..xxy.v', 'zzAA.DDyEE'],
       // par 4 with the bomb on 'A' and 5 without it; 3 without the predator.
       // par 4, 3 with the fox rule off. 56 positions on the
       // way to the answer where one move loses and another does not, out of 1593
       // searched. The first losing slide of any kind is 1 move in.
     },
-    { id: undefined, n: 17, world: 'woods', par: 4, bomb: 'd',
+    { id: 17, n: 17, world: 'woods', par: 4, bomb: 'd',
       rows: ['aa.bbddeeg', 'hh.iijkkCg', 'lmmnnjFoop', 'lqqrs.tB.p', '.uvrswtxx.', 'yuv.#wzz.A', 'y..#DD.EEA'],
       // par 4 with the bomb on 'd' and 5 without it; 3 without the predator.
       // par 4, 3 with the fox rule off. 56 positions on the
       // way to the answer where one move loses and another does not, out of 1392
       // searched. The first losing slide of any kind is 1 move in.
     },
-    { id: undefined, n: 18, world: 'woods', par: 4, bomb: 'a',
+    { id: 18, n: 18, world: 'woods', par: 4, bomb: 'a',
       rows: ['.aabCd.ee#', 'g.hbFd.#.i', 'g.hBjjkk.i', '.llmmnnoop', 'qq.rrssttp', 'uuvvwwxxyy', 'zzAADDEEGG'],
       // par 4 with the bomb on 'a' and 5 without it; 2 without the predator.
       // par 4, 2 with the fox rule off. 11 positions on the
       // way to the answer where one move loses and another does not, out of 155
       // searched. The first losing slide of any kind is 1 move in.
     },
-    { id: undefined, n: 19, world: 'woods', par: 4, bomb: 'o',
+    { id: 19, n: 19, world: 'woods', par: 4, bomb: 'o',
       rows: ['aabbdee.gg', 'hhiidjB#kk', 'lmmnnjoop.', 'lqq.rrFCps', '.#t..uuv.s', '..twwxxvyy', 'zzAADDEEGG'],
       // par 4 with the bomb on 'o' and 5 without it; 2 without the predator.
       // par 4, 2 with the fox rule off. 37 positions on the
       // way to the answer where one move loses and another does not, out of 310
       // searched. The first losing slide of any kind is 1 move in.
     },
-    { id: undefined, n: 20, world: 'woods', par: 4, bomb: 'm',
+    { id: 20, n: 20, world: 'woods', par: 4, bomb: 'm',
       rows: ['.aa.bbFCd.', '.eeggBhhd.', 'ij#klm..n.', 'ij#klmoonp', '.qqrrssttp', 'uuvvwwxxyy', 'zzAADDEEGG'],
       // par 4 with the bomb on 'm' and 5 without it; 1 without the predator.
       // par 4, 1 with the fox rule off. 37 positions on the
       // way to the answer where one move loses and another does not, out of 144
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 21, world: 'woods', par: 4, bomb: 't',
+    { id: 21, n: 21, world: 'woods', par: 4, bomb: 't',
       rows: ['.aaBbbdde#', '..ggFhhiej', '.kkClmminj', 'opqql.rrns', 'op..tt#.us', 'v..wwxy.uz', 'vAADDxyEEz'],
       // par 4 with the bomb on 't' and 5 without it; 1 without the predator.
       // par 4, 1 with the fox rule off. 108 positions on the
       // way to the answer where one move loses and another does not, out of 362
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 22, world: 'woods', par: 4, bomb: 'q',
+    { id: 22, n: 22, world: 'woods', par: 4, bomb: 'q',
       rows: ['.aa.bdd.e.', 'g..hbijjek', 'gllhminook', 'ppqqmBn.rr', '#ssCFtu#..', 'v.ww.tuxxy', 'vzzAA..DDy'],
       // par 4 with the bomb on 'q' and 5 without it; 1 without the predator.
       // par 4, 1 with the fox rule off. 313 positions on the
       // way to the answer where one move loses and another does not, out of 1998
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 23, world: 'woods', par: 4, bomb: 'r',
+    { id: 23, n: 23, world: 'woods', par: 4, bomb: 'r',
       rows: ['aa.#bb#dde', 'gghh.ii..e', 'jjkkllmmn.', 'ooppqqrBnF', '.sstt.ruuC', 'vvww.xxyyz', 'AA.DD..EEz'],
       // par 4 with the bomb on 'r' and 5 without it; 1 without the predator.
       // par 4, 1 with the fox rule off. 412 positions on the
       // way to the answer where one move loses and another does not, out of 1508
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 24, world: 'woods', par: 4, bomb: 'l',
+    { id: 24, n: 24, world: 'woods', par: 4, bomb: 'l',
       rows: ['.aa.bbFC#.', 'ddeegBhhii', 'jjkkgl..m.', '..nnol#.mp', 'qrrsottuup', 'qvvs.wwxx.', 'yyzzAADDEE'],
       // par 4 with the bomb on 'l' and 5 without it; 1 without the predator.
       // par 4, 1 with the fox rule off. 99 positions on the
       // way to the answer where one move loses and another does not, out of 388
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 1, world: 'arctic', par: 5, bomb: 'k',
+    { id: 25, n: 1, world: 'arctic', par: 5, bomb: 'k',
       rows: ['..aabddee.', 'ghh.b..#ii', 'g.jjBkk...', '.l#mnnFoop', 'ql.mCrrssp', 'q.ttuuvvww', 'xxyyzzAADD'],
       // par 5 with the bomb on 'k' and 4 without it; 2 without the predator.
       // par 5, 2 with the fox rule off. 415 positions on the
       // way to the answer where one move loses and another does not, out of 1363
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 2, world: 'arctic', par: 5, bomb: 'v',
+    { id: 26, n: 2, world: 'arctic', par: 5, bomb: 'v',
       rows: ['a.bb.ddeeg', 'a#hiijjkkg', 'llh#mmnnoo', 'pqqrr.ss.C', 'ptt..uuFvv', '.wwxx.yyzz', '..AADD.EEB'],
       // par 5 with the bomb on 'v' and 4 without it; 3 without the predator.
       // par 5, 3 with the fox rule off. 128 positions on the
       // way to the answer where one move loses and another does not, out of 10334
       // searched. The first losing slide of any kind is 2 moves in.
     },
-    { id: undefined, n: 3, world: 'arctic', par: 5, bomb: 'd',
+    { id: 27, n: 3, world: 'arctic', par: 5, bomb: 'd',
       rows: ['.aabbdd.ee', '.gg.hhBiij', '.kkllmmFCj', 'nn.oopp.qq', 'rrssttuuvv', 'ww..xxy..z', '##AADDyEEz'],
       // par 5 with the bomb on 'd' and 7 without it; 3 without the predator.
       // par 5, 3 with the fox rule off. 64 positions on the
       // way to the answer where one move loses and another does not, out of 5293
       // searched. The first losing slide of any kind is 2 moves in.
     },
-    { id: undefined, n: 4, world: 'arctic', par: 5, bomb: 'a',
+    { id: 28, n: 4, world: 'arctic', par: 5, bomb: 'a',
       rows: ['Baa.b.dee.', 'ghh.bid.jj', 'gF.kkillm.', 'n.Coppqqmr', 'nsso..tuur', 'vvwwxxtyzz', '#AADDEEy.#'],
       // par 5 with the bomb on 'a' and 8 without it; 2 without the predator.
       // par 5, 2 with the fox rule off. 79 positions on the
       // way to the answer where one move loses and another does not, out of 337
       // searched. The first losing slide of any kind is 1 move in.
     },
-    { id: undefined, n: 5, world: 'arctic', par: 6, bomb: 'E',
+    { id: 29, n: 5, world: 'arctic', par: 6, bomb: 'E',
       rows: ['aa.bbd.e.g', 'hhi..d.ejg', 'kki#llmmjn', 'ooppCqrr.n', 'ss.t.qBuu.', 'vvwtxyyFzz', 'AAw.xDDEE#'],
       // par 6 with the bomb on 'E' and 7 without it; 4 without the predator.
       // par 6, 4 with the fox rule off. 753 positions on the
       // way to the answer where one move loses and another does not, out of 3052
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 6, world: 'arctic', par: 6, bomb: 'k',
+    { id: 30, n: 6, world: 'arctic', par: 6, bomb: 'k',
       rows: ['.Faa.bbd.e', 'ggBhii.d.e', 'Cjjhk.ll#m', 'nnook.pp.m', 'qqr#ssttuu', 'vvrwwxxyyz', 'AADDEE.GGz'],
       // par 6 with the bomb on 'k' and 7 without it; 2 without the predator.
       // par 6, 2 with the fox rule off. 114 positions on the
       // way to the answer where one move loses and another does not, out of 765
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 7, world: 'arctic', par: 6, bomb: 'l',
+    { id: 31, n: 7, world: 'arctic', par: 6, bomb: 'l',
       rows: ['aaFbbddee.', 'gBhh..iijk', 'gllCmmnnjk', '.oo....pqr', 'sstuuvvpqr', 'wwt##xxy.z', 'AADD...y.z'],
       // par 6 with the bomb on 'l' and 7 without it; 2 without the predator.
       // par 6, 2 with the fox rule off. 447 positions on the
       // way to the answer where one move loses and another does not, out of 1346
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 8, world: 'arctic', par: 6, bomb: 'h',
+    { id: 32, n: 8, world: 'arctic', par: 6, bomb: 'h',
       rows: ['Faa....Cb.', 'ddBe.#ggb.', 'hh.eiijjkk', 'llmn#.oopp', 'qqmnrrss.t', 'uuvwwxxyyt', 'zzvAADD.EE'],
       // par 6 with the bomb on 'h' and 8 without it; 4 without the predator.
       // par 6, 4 with the fox rule off. 323 positions on the
       // way to the answer where one move loses and another does not, out of 1755
       // searched. The first losing slide of any kind is 1 move in.
     },
-    { id: undefined, n: 9, world: 'arctic', par: 6, bomb: 'd',
+    { id: 33, n: 9, world: 'arctic', par: 6, bomb: 'd',
       rows: ['a.bb.dde..', 'agghhi#ejj', 'kllmminnop', 'kqqF#.rrop', 'ssBttuu..v', 'wxxCyyzzAv', 'w.DDEEGGA.'],
       // par 6 with the bomb on 'd' and 8 without it; 2 without the predator.
       // par 6, 2 with the fox rule off. 359 positions on the
       // way to the answer where one move loses and another does not, out of 2416
       // searched. The first losing slide of any kind is 1 move in.
     },
-    { id: undefined, n: 10, world: 'arctic', par: 6, bomb: 'n',
+    { id: 34, n: 10, world: 'arctic', par: 6, bomb: 'n',
       rows: ['aabdd.eegg', 'hhb..iijkk', 'llmnnooj#p', 'qqmBrrsstp', 'uuFvv...tw', 'xxyy.zz.#w', 'AADDCEEGG.'],
       // par 6 with the bomb on 'n' and 8 without it; 2 without the predator.
       // par 6, 2 with the fox rule off. 380 positions on the
       // way to the answer where one move loses and another does not, out of 1328
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 11, world: 'arctic', par: 6, bomb: 'k',
+    { id: 35, n: 11, world: 'arctic', par: 6, bomb: 'k',
       rows: ['.abbFdd.ee', 'ga.hhBiijj', 'gkk#Clmnno', '.ppqqlm..o', 'rrssttuu.v', '#wwxxyyzzv', 'AADD..EEGG'],
       // par 6 with the bomb on 'k' and 8 without it; 1 without the predator.
       // par 6, 1 with the fox rule off. 428 positions on the
       // way to the answer where one move loses and another does not, out of 909
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 12, world: 'arctic', par: 6, bomb: 'm',
+    { id: 36, n: 12, world: 'arctic', par: 6, bomb: 'm',
       rows: ['aabbdd#ee.', 'gg.hhii.jj', '.kkllm#noo', 'ppqqFmCnr.', '.s..tBuur.', 'vs.wtxxyyz', 'vAAwDD.EEz'],
       // par 6 with the bomb on 'm' and 5 without it; 2 without the predator.
       // par 6, 2 with the fox rule off. 723 positions on the
       // way to the answer where one move loses and another does not, out of 5088
       // searched. The first losing slide of any kind is 1 move in.
     },
-    { id: undefined, n: 13, world: 'arctic', par: 6, bomb: 'h',
+    { id: 37, n: 13, world: 'arctic', par: 6, bomb: 'h',
       rows: ['.....aabCd', 'ee..gghbid', 'j..kkBhFil', 'j.mmnnoopl', 'qrr.#sstpu', 'qvvwwxxtyu', 'zzAA..DDy#'],
       // par 6 with the bomb on 'h' and 7 without it; 3 without the predator.
       // par 6, 3 with the fox rule off. 554 positions on the
       // way to the answer where one move loses and another does not, out of 2599
       // searched. The first losing slide of any kind is 1 move in.
     },
-    { id: undefined, n: 14, world: 'arctic', par: 6, bomb: 'r',
+    { id: 38, n: 14, world: 'arctic', par: 6, bomb: 'r',
       rows: ['..aa.bddee', 'ggChhb..ii', 'j#kkFll.#m', 'jnnBoo.ppm', 'qqrr.ssttu', '.vvww.xx.u', 'yyzzAADDEE'],
       // par 6 with the bomb on 'r' and 7 without it; 4 without the predator.
       // par 6, 4 with the fox rule off. 1930 positions on the
       // way to the answer where one move loses and another does not, out of 8630
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 15, world: 'arctic', par: 6, bomb: 'z',
+    { id: 39, n: 15, world: 'arctic', par: 6, bomb: 'z',
       rows: ['aab...ddee', 'ggbhhijkk.', 'llmmnij.oo', 'ppqqnrsCF.', '.ttuursvv.', 'w.xx#yyzzA', 'w#DD..EEBA'],
       // par 6 with the bomb on 'z' and 7 without it; 5 without the predator.
       // par 6, 5 with the fox rule off. 6 positions on the
       // way to the answer where one move loses and another does not, out of 4810
       // searched. The first losing slide of any kind is 4 moves in.
     },
-    { id: undefined, n: 16, world: 'arctic', par: 6, bomb: 'z',
+    { id: 40, n: 16, world: 'arctic', par: 6, bomb: 'z',
       rows: ['.aa.bbddee', 'gghhiijjkk', 'llmCnno.pp', 'qqmrrFoss#', 't..uu.vwxx', 'tyyBzzvwAA', 'DDEEGG#...'],
       // par 6 with the bomb on 'z' and 5 without it; 3 without the predator.
       // par 6, 3 with the fox rule off. 134 positions on the
       // way to the answer where one move loses and another does not, out of 1130
       // searched. The first losing slide of any kind is 1 move in.
     },
-    { id: undefined, n: 17, world: 'arctic', par: 6, bomb: 'h',
+    { id: 41, n: 17, world: 'arctic', par: 6, bomb: 'h',
       rows: ['aabb#..dde', '.gghh.iije', 'kkllmmBnjo', 'ppqqCFrnso', 'ttuuvvr#sw', 'xxyy.z.AAw', '.DDEEz..GG'],
       // par 6 with the bomb on 'h' and 7 without it; 1 without the predator.
       // par 6, 1 with the fox rule off. 708 positions on the
       // way to the answer where one move loses and another does not, out of 2707
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 18, world: 'arctic', par: 6, bomb: 'b',
+    { id: 42, n: 18, world: 'arctic', par: 6, bomb: 'b',
       rows: ['..aabbBdd.', '.ee.gghF.i', 'jklmm.hnCi', 'jklooppnqq', 'rrs#ttuuvv', 'wwsxxyy#zz', 'AA..DDEEGG'],
       // par 6 with the bomb on 'b' and 7 without it; 1 without the predator.
       // par 6, 1 with the fox rule off. 1386 positions on the
       // way to the answer where one move loses and another does not, out of 9291
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 19, world: 'arctic', par: 7, bomb: 'i',
+    { id: 43, n: 19, world: 'arctic', par: 7, bomb: 'i',
       rows: ['..aaBbb#dd', '.egg..hh..', 'Feiijjkklm', 'n.oo..pplm', 'nCqqrrstuu', 'vvwwxxst.y', 'zzAADDEE#y'],
       // par 7 with the bomb on 'i' and 8 without it; 6 without the predator.
       // par 7, 6 with the fox rule off. 595 positions on the
       // way to the answer where one move loses and another does not, out of 23117
       // searched. The first losing slide of any kind is 3 moves in.
     },
-    { id: undefined, n: 20, world: 'arctic', par: 7, bomb: 'k',
+    { id: 44, n: 20, world: 'arctic', par: 7, bomb: 'k',
       rows: ['.aaBbbddee', '..ggFhhii#', '.jCkkl.mmn', '.joopl..#n', 'qq..pr..ss', 'ttuuvrwwxx', 'yyzzvAADD.'],
       // par 7 with the bomb on 'k' and 8 without it; 2 without the predator.
       // par 7, 2 with the fox rule off. 328 positions on the
       // way to the answer where one move loses and another does not, out of 1400
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 21, world: 'arctic', par: 7, bomb: 'D',
+    { id: 45, n: 21, world: 'arctic', par: 7, bomb: 'D',
       rows: ['abb.ddee.#', 'agghhiijkk', 'l.mmnoojp.', 'l.qqn.rrps', 'ttCuuvvwws', '.xxFyyzz.A', '..DDB#.EEA'],
       // par 7 with the bomb on 'D' and 8 without it; 2 without the predator.
       // par 7, 2 with the fox rule off. 3252 positions on the
       // way to the answer where one move loses and another does not, out of 5992
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 22, world: 'arctic', par: 7, bomb: 'r',
+    { id: 46, n: 22, world: 'arctic', par: 7, bomb: 'r',
       rows: ['.aabdd.#ee', 'gghbiij..k', 'llh#..jmmk', 'nnooppqqrs', 'ttuuvBwwrs', 'xyyzvAA.DD', 'x..zCFEEGG'],
       // par 7 with the bomb on 'r' and 8 without it; 1 without the predator.
       // par 7, 1 with the fox rule off. 69 positions on the
       // way to the answer where one move loses and another does not, out of 249
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 23, world: 'arctic', par: 7, bomb: 'd',
+    { id: 47, n: 23, world: 'arctic', par: 7, bomb: 'd',
       rows: ['aabCdd..ee', 'ggb.hhiij.', 'kkFll.m.jn', 'oopBqqm.#n', 'rrpstu.vv#', 'ww.stuxx.y', 'zzAADD.EEy'],
       // par 7 with the bomb on 'd' and 8 without it; 1 without the predator.
       // par 7, 1 with the fox rule off. 1418 positions on the
       // way to the answer where one move loses and another does not, out of 2577
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 24, world: 'arctic', par: 7, bomb: 'a',
+    { id: 48, n: 24, world: 'arctic', par: 7, bomb: 'a',
       rows: ['...aa.bbBd', 'eegg.hFiid', 'jkk.Chll.m', 'jnno#ppqqm', '.rrosstuu.', 'vvwwxxtyyz', 'AA#DDEEGGz'],
       // par 7 with the bomb on 'a' and 9 without it; 5 without the predator.
       // par 7, 5 with the fox rule off. 279 positions on the
       // way to the answer where one move loses and another does not, out of 4786
       // searched. The first losing slide of any kind is 2 moves in.
     },
-    { id: undefined, n: 1, world: 'road', par: 7, bomb: 'e',
+    { id: 49, n: 1, world: 'road', par: 7, bomb: 'e',
       rows: ['Baa.bbdd.e', 'ggFhhiijje', 'Ckkl..mmnn', 'ooplqq..rr', 's.p#ttuuvv', 'swwxxyy..z', 'AA#DDEEGGz'],
       // par 7 with the bomb on 'e' and 9 without it; 5 without the predator.
       // par 7, 5 with the fox rule off. 41 positions on the
       // way to the answer where one move loses and another does not, out of 1941
       // searched. The first losing slide of any kind is 3 moves in.
     },
-    { id: undefined, n: 2, world: 'road', par: 7, bomb: 'n',
+    { id: 50, n: 2, world: 'road', par: 7, bomb: 'n',
       rows: ['a#Fbb..dde', 'aghhBi.jje', 'kgCllimmnn', 'kooppqqrrs', '#tu.vwwxxs', 'ytuzvAADD.', 'y..z.EE.GG'],
       // par 7 with the bomb on 'n' and 9 without it; 3 without the predator.
       // par 7, 3 with the fox rule off. 810 positions on the
       // way to the answer where one move loses and another does not, out of 11194
       // searched. The first losing slide of any kind is 1 move in.
     },
-    { id: undefined, n: 3, world: 'road', par: 7, bomb: 'q',
+    { id: 51, n: 3, world: 'road', par: 7, bomb: 'q',
       rows: ['.aabddeegg', '.hhbijj.k.', 'llmmi.nnko', '.pp.q#Frro', 'sttuqvwBx#', 'syyu.vw.x.', '.zzAADDEEC'],
       // par 7 with the bomb on 'q' and 10 without it; 5 without the predator.
       // par 7, 5 with the fox rule off. 1385 positions on the
       // way to the answer where one move loses and another does not, out of 6696
       // searched. The first losing slide of any kind is 1 move in.
     },
-    { id: undefined, n: 4, world: 'road', par: 7, bomb: 'A',
+    { id: 52, n: 4, world: 'road', par: 7, bomb: 'A',
       rows: ['aa.bbdde..', 'g.hhiije.k', 'g..lmmjnnk', '.ool#ppqq.', 'rrssC..ttu', 'vvww#xxF.u', 'yyzz.AADDB'],
       // par 7 with the bomb on 'A' and 10 without it; 4 without the predator.
       // par 7, 4 with the fox rule off. 4463 positions on the
       // way to the answer where one move loses and another does not, out of 14023
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 5, world: 'road', par: 7, bomb: 'z',
+    { id: 53, n: 5, world: 'road', par: 7, bomb: 'z',
       rows: ['.#aab.dd..', 'eeggbhiijj', 'kllmmh.nn.', 'k.oo.p.qq.', 'Crrs.pt#uu', 'vvBswwtxxy', '.Fzz.AADDy'],
       // par 7 with the bomb on 'z' and 4 without it; 2 without the predator.
       // par 7, 2 with the fox rule off. 3160 positions on the
       // way to the answer where one move loses and another does not, out of 5957
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 6, world: 'road', par: 7, bomb: 'p',
+    { id: 54, n: 6, world: 'road', par: 7, bomb: 'p',
       rows: ['.aabb.ddeg', 'hCiiFjj#eg', 'hkkBll.mmn', 'oo#p.qqrrn', '..sp.t..uu', 'vvswwtxxyy', 'zzAADDEEGG'],
       // par 7 with the bomb on 'p' and 5 without it; 4 without the predator.
       // par 7, 4 with the fox rule off. 301 positions on the
       // way to the answer where one move loses and another does not, out of 1209
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 7, world: 'road', par: 7, bomb: 'g',
+    { id: 55, n: 7, world: 'road', par: 7, bomb: 'g',
       rows: ['a.bbddeeg.', 'a..#hBiigj', 'klmmhnnopj', 'klqqrFCops', '.ttur.vv.s', 'wwxu.#yyzz', 'AAx.DDEEGG'],
       // par 7 with the bomb on 'g' and 12 without it; 3 without the predator.
       // par 7, 3 with the fox rule off. 626 positions on the
       // way to the answer where one move loses and another does not, out of 19817
       // searched. The first losing slide of any kind is 2 moves in.
     },
-    { id: undefined, n: 8, world: 'road', par: 8, bomb: 'k',
+    { id: 56, n: 8, world: 'road', par: 8, bomb: 'k',
       rows: ['..aa.b.dde', 'gghhibjj.e', '.kklim#nno', 'ppql.m#rso', 'tBquuvvrsw', 'txxyy...zw', 'CFAADDEEz.'],
       // par 8 with the bomb on 'k' and 11 without it; 2 without the predator.
       // par 8, 2 with the fox rule off. 2064 positions on the
       // way to the answer where one move loses and another does not, out of 6457
       // searched. The first losing slide of any kind is 1 move in.
     },
-    { id: undefined, n: 9, world: 'road', par: 8, bomb: 'A',
+    { id: 57, n: 9, world: 'road', par: 8, bomb: 'A',
       rows: ['Faabdd.eeg', 'hB.bii.jjg', 'hkklmmn..o', 'ppClqqnrro', 'sttuvwwxx.', 'syyuv.zz##', '...AADD.EE'],
       // par 8 with the bomb on 'A' and 9 without it; 7 without the predator.
       // par 8, 7 with the fox rule off. 256 positions on the
       // way to the answer where one move loses and another does not, out of 23032
       // searched. The first losing slide of any kind is 4 moves in.
     },
-    { id: undefined, n: 10, world: 'road', par: 8, bomb: 'p',
+    { id: 58, n: 10, world: 'road', par: 8, bomb: 'p',
       rows: ['aaC.bbF.dd', 'eegghBiijj', 'kkl.hmm...', 'n.loop#qqr', 'nss.tpuuvr', 'wwx.tyyzvA', 'DDxEEGGz#A'],
       // par 8 with the bomb on 'p' and 9 without it; 5 without the predator.
       // par 8, 5 with the fox rule off. 382 positions on the
       // way to the answer where one move loses and another does not, out of 1869
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 11, world: 'road', par: 8, bomb: 'u',
+    { id: 59, n: 11, world: 'road', par: 8, bomb: 'u',
       rows: ['CF.abb.dd.', '.eeagghhii', '.jjk.lmmno', 'ppBk.lqqno', 'rrsstt.uuv', 'wwxyyzzAAv', 'DDx#EE#GG.'],
       // par 8 with the bomb on 'u' and 9 without it; 2 without the predator.
       // par 8, 2 with the fox rule off. 1536 positions on the
       // way to the answer where one move loses and another does not, out of 4648
       // searched. The first losing slide of any kind is 1 move in.
     },
-    { id: undefined, n: 12, world: 'road', par: 8, bomb: 'm',
+    { id: 60, n: 12, world: 'road', par: 8, bomb: 'm',
       rows: ['aa.bb.dd.e', 'gghhii...e', '.jj#kkllmn', 'opp.q.rrmn', 'o.ssqttuuv', 'wwBxxy#zzv', '.AAFCyDDEE'],
       // par 8 with the bomb on 'm' and 9 without it; 1 without the predator.
       // par 8, 1 with the fox rule off. 8539 positions on the
       // way to the answer where one move loses and another does not, out of 16832
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 13, world: 'road', par: 8, bomb: 'e',
+    { id: 61, n: 13, world: 'road', par: 8, bomb: 'e',
       rows: ['aab..dd.ee', 'ggbhi#.jjk', 'llmhinnopk', 'qqmrsB.op.', 'ttursvvFw.', 'x.uyyz.#wA', 'x.DD.zCEEA'],
       // par 8 with the bomb on 'e' and 10 without it; 3 without the predator.
       // par 8, 3 with the fox rule off. 1231 positions on the
       // way to the answer where one move loses and another does not, out of 11607
       // searched. The first losing slide of any kind is 2 moves in.
     },
-    { id: undefined, n: 14, world: 'road', par: 8, bomb: 'u',
+    { id: 62, n: 14, world: 'road', par: 8, bomb: 'u',
       rows: ['.aa.bbCdd.', 'eegghh#iiF', 'jjkllmmBnn', '..ko..pp.q', 'rr.ossttuq', 'vvwwx#yyu.', 'zzAAxDD.EE'],
       // par 8 with the bomb on 'u' and 7 without it; 6 without the predator.
       // par 8, 6 with the fox rule off. 2500 positions on the
       // way to the answer where one move loses and another does not, out of 43836
       // searched. The first losing slide of any kind is 2 moves in.
     },
-    { id: undefined, n: 15, world: 'road', par: 8, bomb: 'q',
+    { id: 63, n: 15, world: 'road', par: 8, bomb: 'q',
       rows: ['..aab#deeC', 'ghiibjdk.l', 'gh..#jmkBl', 'n.ooppmFqq', 'nrrssttuuv', 'wwxxyyzAAv', 'DDEEGGz.HH'],
       // par 8 with the bomb on 'q' and 5 without it; 5 without the predator.
       // par 8, 5 with the fox rule off. 48 positions on the
       // way to the answer where one move loses and another does not, out of 537
       // searched. The first losing slide of any kind is 3 moves in.
     },
-    { id: undefined, n: 16, world: 'road', par: 9, bomb: 'e',
+    { id: 64, n: 16, world: 'road', par: 9, bomb: 'e',
       rows: ['.aa.bddFee', 'g.hhbiCjj.', 'gkklli#Bmm', 'nnoopp.qqr', 'ssttuuvv.r', 'ww.xyyzz.A', 'DD.xEE#GGA'],
       // par 9 with the bomb on 'e' and 7 without it; 1 without the predator.
       // par 9, 1 with the fox rule off. 3622 positions on the
       // way to the answer where one move loses and another does not, out of 5120
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 17, world: 'road', par: 9, bomb: 'u',
+    { id: 65, n: 17, world: 'road', par: 9, bomb: 'u',
       rows: ['aabbddeegg', 'h.ii.jjkkl', 'hmm.nnoppl', 'qqCrrsott.', '.FuuBs..vv', 'wwxxy#.#zz', 'AADDyEEGG.'],
       // par 9 with the bomb on 'u' and 8 without it; 1 without the predator.
       // par 9, 1 with the fox rule off. 6165 positions on the
       // way to the answer where one move loses and another does not, out of 13966
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 18, world: 'road', par: 9, bomb: 'l',
+    { id: 66, n: 18, world: 'road', par: 9, bomb: 'l',
       rows: ['aaC#bb.dde', 'gghh.iijje', 'k.lmnn.oo.', 'kBlmp.qq.r', 'ssFtpuuvvr', 'ww#txyyzzA', 'DDEEx..GGA'],
       // par 9 with the bomb on 'l' and 8 without it; 2 without the predator.
       // par 9, 2 with the fox rule off. 1533 positions on the
       // way to the answer where one move loses and another does not, out of 12599
       // searched. The first losing slide of any kind is 1 move in.
     },
-    { id: undefined, n: 19, world: 'road', par: 9, bomb: 'o',
+    { id: 67, n: 19, world: 'road', par: 9, bomb: 'o',
       rows: ['.aa.#bbCdd', 'e..gghhij.', 'ekk.llBijm', '.n..#Foopm', 'qnrrssttpu', 'qvvwwxxyyu', 'zzAADDEEGG'],
       // par 9 with the bomb on 'o' and 8 without it; 5 without the predator.
       // par 9, 5 with the fox rule off. 1406 positions on the
       // way to the answer where one move loses and another does not, out of 6190
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 20, world: 'road', par: 9, bomb: 'j',
+    { id: 68, n: 20, world: 'road', par: 9, bomb: 'j',
       rows: ['Baa#bbddee', 'ghh.iij...', 'g.Cklljmmn', 'Fookpqq..n', 'rrsspt.uuv', 'wwxxyt#zzv', 'AADDyEEGG.'],
       // par 9 with the bomb on 'j' and 10 without it; 6 without the predator.
       // par 9, 6 with the fox rule off. 28 positions on the
       // way to the answer where one move loses and another does not, out of 5019
       // searched. The first losing slide of any kind is 5 moves in.
     },
-    { id: undefined, n: 21, world: 'road', par: 9, bomb: 'o',
+    { id: 69, n: 21, world: 'road', par: 9, bomb: 'o',
       rows: ['.aabbFddCe', '.gg.hhBiie', 'jjklm.nn#o', 'ppklmqq.ro', 'stt.uuvvrw', 'sxxyzAADDw', '.EEyz.#.GG'],
       // par 9 with the bomb on 'o' and 10 without it; 5 without the predator.
       // par 9, 5 with the fox rule off. 4968 positions on the
       // way to the answer where one move loses and another does not, out of 18097
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 22, world: 'road', par: 9, bomb: 'q',
+    { id: 70, n: 22, world: 'road', par: 9, bomb: 'q',
       rows: ['C.aaFbdd.e', '.ggBhbiije', 'kkllhm#nj.', 'opp.qm.n#.', 'o.rrqsst.u', 'vw.xxyyt.u', 'vwzzAADDEE'],
       // par 9 with the bomb on 'q' and 10 without it; 4 without the predator.
       // par 9, 4 with the fox rule off. 4721 positions on the
       // way to the answer where one move loses and another does not, out of 7265
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 23, world: 'road', par: 9, bomb: 'd',
+    { id: 71, n: 23, world: 'road', par: 9, bomb: 'd',
       rows: ['aa.....bb.', 'B.dd.eeggh', 'iiFjjk..lh', '.Cmnnkool#', 'ppm#qq.rrs', 'ttuuvwwxxs', 'yyzzv.AADD'],
       // par 9 with the bomb on 'd' and 5 without it; 2 without the predator.
       // par 9, 2 with the fox rule off. 3177 positions on the
       // way to the answer where one move loses and another does not, out of 4599
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 24, world: 'road', par: 9, bomb: 'd',
+    { id: 72, n: 24, world: 'road', par: 9, bomb: 'd',
       rows: ['aabbdCeegg', '.hhidFj#kk', 'l..iBmjnno', 'lppqqmrrso', 'tuu.#vv.sw', 't..xx..yyw', 'zzAADDEEGG'],
       // par 9 with the bomb on 'd' and 16 without it; 2 without the predator.
       // par 9, 2 with the fox rule off. 374 positions on the
       // way to the answer where one move loses and another does not, out of 1025
       // searched. The first losing slide of any kind is 1 move in.
     },
-    { id: undefined, n: 1, world: 'ocean', par: 10, bomb: 'y',
+    { id: 73, n: 1, world: 'ocean', par: 10, bomb: 'y',
       rows: ['aabCFddeeg', 'h.biiBjj#g', 'hkkllmno..', 'pp.qqmno.r', 'ssttuvv..r', 'wwxxuyzAAD', '.EEGGyz.#D'],
       // par 10 with the bomb on 'y' and 11 without it; 3 without the predator.
       // par 10, 3 with the fox rule off. 1066 positions on the
       // way to the answer where one move loses and another does not, out of 20248
       // searched. The first losing slide of any kind is 2 moves in.
     },
-    { id: undefined, n: 2, world: 'ocean', par: 10, bomb: 'D',
+    { id: 74, n: 2, world: 'ocean', par: 10, bomb: 'D',
       rows: ['..aabbddeg', 'hh..iijjeg', 'kklmnoppqq', 'r.lmno.ss#', 'rtt.u.vBww', 'xxyyu.vzzF', 'AA..DD#CEE'],
       // par 10 with the bomb on 'D' and 11 without it; 3 without the predator.
       // par 10, 3 with the fox rule off. 6557 positions on the
       // way to the answer where one move loses and another does not, out of 118142
       // searched. The first losing slide of any kind is 2 moves in.
     },
-    { id: undefined, n: 3, world: 'ocean', par: 10, bomb: 'n',
+    { id: 75, n: 3, world: 'ocean', par: 10, bomb: 'n',
       rows: ['Caa.bbddee', 'gFhh..i..j', 'gkB#lli#mj', 'nkooppqqmr', 'n.sstt.uur', 'vvwwxxyy.z', '.AADDEEGGz'],
       // par 10 with the bomb on 'n' and 11 without it; 2 without the predator.
       // par 10, 2 with the fox rule off. 4654 positions on the
       // way to the answer where one move loses and another does not, out of 10615
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 4, world: 'ocean', par: 10, bomb: 'D',
+    { id: 76, n: 4, world: 'ocean', par: 10, bomb: 'D',
       rows: ['aa.bbddee#', 'ggh.iijjkk', 'llhmnn..oo', 'pqqm.r..ss', 'pttCurv.ww', '#Bxxu.vyyz', 'AAFDDEEGGz'],
       // par 10 with the bomb on 'D' and 12 without it; 3 without the predator.
       // par 10, 3 with the fox rule off. 19241 positions on the
       // way to the answer where one move loses and another does not, out of 81487
       // searched. The first losing slide of any kind is 1 move in.
     },
-    { id: undefined, n: 5, world: 'ocean', par: 10, bomb: 'm',
+    { id: 77, n: 5, world: 'ocean', par: 10, bomb: 'm',
       rows: ['a#bbdde.gg', 'a..hhiejjk', 'lmmnnioopk', 'lBqqr.sspt', 'Fuu.rvvwwt', '#...Cxxyy.', 'zzAADDEEGG'],
       // par 10 with the bomb on 'm' and 12 without it; 1 without the predator.
       // par 10, 1 with the fox rule off. 261 positions on the
       // way to the answer where one move loses and another does not, out of 280
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 6, world: 'ocean', par: 10, bomb: 'A',
+    { id: 78, n: 6, world: 'ocean', par: 10, bomb: 'A',
       rows: ['..aabbdd#.', 'eegghhiijj', 'kkllmmnoo.', '.pp..qnBrF', 's#.tuqvvrC', 'swwtuxx..y', '.zz.AADD.y'],
       // par 10 with the bomb on 'A' and 12 without it; 1 without the predator.
       // par 10, 1 with the fox rule off. 53948 positions on the
       // way to the answer where one move loses and another does not, out of 105072
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 7, world: 'ocean', par: 10, bomb: 't',
+    { id: 79, n: 7, world: 'ocean', par: 10, bomb: 't',
       rows: ['aabb#.ddee', '#ggChhijj.', 'kkll..immn', 'oopp..qr.n', 'Bss.ttqruu', 'vwFxxyyzzA', 'vwDDEEGG.A'],
       // par 10 with the bomb on 't' and 13 without it; 6 without the predator.
       // par 10, 6 with the fox rule off. 2572 positions on the
       // way to the answer where one move loses and another does not, out of 27781
       // searched. The first losing slide of any kind is 2 moves in.
     },
-    { id: undefined, n: 8, world: 'ocean', par: 10, bomb: 'a',
+    { id: 80, n: 8, world: 'ocean', par: 10, bomb: 'a',
       rows: ['FaaBbdd.ee', 'gC.hbii#.j', 'gkkhllmnnj', 'ooppqqmrr.', '..sstt.u..', 'vv.wwxxuyy', '.zzAADD#EE'],
       // par 10 with the bomb on 'a' and 9 without it; 4 without the predator.
       // par 10, 4 with the fox rule off. 1618 positions on the
       // way to the answer where one move loses and another does not, out of 21527
       // searched. The first losing slide of any kind is 3 moves in.
     },
-    { id: undefined, n: 9, world: 'ocean', par: 11, bomb: 'u',
+    { id: 81, n: 9, world: 'ocean', par: 11, bomb: 'u',
       rows: ['a..#b.dCee', 'agg.bhdiiF', 'jkkllh#Bmm', 'j.nnoo.pp.', 'qqr.ssttuv', 'w.rxxyyzuv', 'wAADDEEzGG'],
       // par 11 with the bomb on 'u' and 8 without it; 7 without the predator.
       // par 11, 7 with the fox rule off. 424 positions on the
       // way to the answer where one move loses and another does not, out of 15228
       // searched. The first losing slide of any kind is 4 moves in.
     },
-    { id: undefined, n: 10, world: 'ocean', par: 11, bomb: 'l',
+    { id: 82, n: 10, world: 'ocean', par: 11, bomb: 'l',
       rows: ['aabdde..gg', 'hhbiiejkk.', 'l.mmn.jopp', 'l..qnrro##', 'Bssqt.uu.v', 'wwFxtyyzzv', 'CAAxDDEEGG'],
       // par 11 with the bomb on 'l' and 12 without it; 8 without the predator.
       // par 11, 8 with the fox rule off. 1198 positions on the
       // way to the answer where one move loses and another does not, out of 9271
       // searched. The first losing slide of any kind is 5 moves in.
     },
-    { id: undefined, n: 11, world: 'ocean', par: 11, bomb: 'v',
+    { id: 83, n: 11, world: 'ocean', par: 11, bomb: 'v',
       rows: ['Ba...bb#..', 'da#eegg.hh', 'dFi.Cjj.kk', '.li.mm..nn', '.loopqqrrs', 'ttuupvvwws', 'xxyyzzAADD'],
       // par 11 with the bomb on 'v' and 14 without it; 5 without the predator.
       // par 11, 5 with the fox rule off. 4799 positions on the
       // way to the answer where one move loses and another does not, out of 15338
       // searched. The first losing slide of any kind is 1 move in.
     },
-    { id: undefined, n: 12, world: 'ocean', par: 11, bomb: 'e',
+    { id: 84, n: 12, world: 'ocean', par: 11, bomb: 'e',
       rows: ['a#bddFeeg.', 'ahb.iiBjg.', 'khllmC#jnn', 'k.oomppqq.', 'rrs.ttuuvv', 'wwsxyyzz.A', 'DD.x.EEGGA'],
       // par 11 with the bomb on 'e' and 9 without it; 1 without the predator.
       // par 11, 1 with the fox rule off. 8543 positions on the
       // way to the answer where one move loses and another does not, out of 16365
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 13, world: 'ocean', par: 11, bomb: 'E',
+    { id: 85, n: 13, world: 'ocean', par: 11, bomb: 'E',
       rows: ['.aa.bb..dd', 'eegghhiijj', 'kkllmmnno.', 'ppqqFCrros', 'tt#Buvv.ws', 'xxyyuzzAw.', '.#.DD..AEE'],
       // par 11 with the bomb on 'E' and 13 without it; 2 without the predator.
       // par 11, 2 with the fox rule off. 3768 positions on the
       // way to the answer where one move loses and another does not, out of 12835
       // searched. The first losing slide of any kind is 1 move in.
     },
-    { id: undefined, n: 14, world: 'ocean', par: 12, bomb: 'b',
+    { id: 86, n: 14, world: 'ocean', par: 12, bomb: 'b',
       rows: ['.aabb.ddee', 'gghhii..jj', 'kkllmmno#.', 'ppq.rrnost', '#uqCvvwwst', '.uxyyFzzAA', 'DDxBEE.GG.'],
       // par 12 with the bomb on 'b' and 13 without it; 4 without the predator.
       // par 12, 4 with the fox rule off. 3765 positions on the
       // way to the answer where one move loses and another does not, out of 27358
       // searched. The first losing slide of any kind is 2 moves in.
     },
-    { id: undefined, n: 15, world: 'ocean', par: 12, bomb: 'y',
+    { id: 87, n: 15, world: 'ocean', par: 12, bomb: 'y',
       rows: ['aa.bbdeegg', 'hhii.djkk.', 'llmmnnj.op', 'qq#rr.ssop', '.tBuvvwwxx', 'Ct.u.yyzzA', '#FDDEEGG.A'],
       // par 12 with the bomb on 'y' and 9 without it; 4 without the predator.
       // par 12, 4 with the fox rule off. 551 positions on the
       // way to the answer where one move loses and another does not, out of 1769
       // searched. The first losing slide of any kind is 2 moves in.
     },
-    { id: undefined, n: 16, world: 'ocean', par: 13, bomb: 'u',
+    { id: 88, n: 16, world: 'ocean', par: 13, bomb: 'u',
       rows: ['aa.C#bbdde', 'gghh.iijje', 'Fkklmm....', 'nnBloo.ppq', 'rrssttuuvq', '.wwxx#yyvz', 'AADDEE.GGz'],
       // par 13 with the bomb on 'u' and 15 without it; 12 without the predator.
       // par 13, 12 with the fox rule off. 47 positions on the
       // way to the answer where one move loses and another does not, out of 218725
       // searched. The first losing slide of any kind is out of reach.
     },
-    { id: undefined, n: 17, world: 'ocean', par: 13, bomb: 'g',
+    { id: 89, n: 17, world: 'ocean', par: 13, bomb: 'g',
       rows: ['aaBbbd..ee', 'Fgghhdiijj', 'kkC#llmm.n', 'o.pqqrrssn', 'o.p#tt.uuv', 'wwxx.yyzzv', 'AADDEE.GG.'],
       // par 13 with the bomb on 'g' and 18 without it; 11 without the predator.
       // par 13, 11 with the fox rule off. 33 positions on the
       // way to the answer where one move loses and another does not, out of 15938
       // searched. The first losing slide of any kind is 10 moves in.
     },
-    { id: undefined, n: 18, world: 'ocean', par: 14, bomb: 'A',
+    { id: 90, n: 18, world: 'ocean', par: 14, bomb: 'A',
       rows: ['CaaFbbd#ee', 'gBhhiid.jk', 'glmmnnoojk', '#lpqq.rr..', 'ssp.tt.uvv', '...wwxxu.y', 'zz.AADDEEy'],
       // par 14 with the bomb on 'A' and 16 without it; 12 without the predator.
       // par 14, 12 with the fox rule off. 836 positions on the
       // way to the answer where one move loses and another does not, out of 95436
       // searched. The first losing slide of any kind is 8 moves in.
     },
-    { id: undefined, n: 19, world: 'ocean', par: 16, bomb: 'v',
+    { id: 91, n: 19, world: 'ocean', par: 16, bomb: 'v',
       rows: ['.aabb..dde', 'gg#.Chhiie', 'jjkl.mmFn.', 'ookl.ppqnr', 'ssttuuBqvr', 'wxxyyzzAv#', 'w.DD.EEAGG'],
       // par 16 with the bomb on 'v' and 17 without it; 6 without the predator.
       // par 16, 6 with the fox rule off. 34908 positions on the
       // way to the answer where one move loses and another does not, out of 80679
       // searched. The first losing slide of any kind is 1 move in.
     },
-    { id: undefined, n: 20, world: 'ocean', par: 16, bomb: 'k',
+    { id: 92, n: 20, world: 'ocean', par: 16, bomb: 'k',
       rows: ['a#Bbb.d...', 'aFee.gdhhi', 'j#kk.gl..i', 'jCmmnolpp.', 'qqrrnosstt', 'uuvvwwxx.y', 'zzAADDEE.y'],
       // par 16 with the bomb on 'k' and 18 without it; 6 without the predator.
       // par 16, 6 with the fox rule off. 23398 positions on the
       // way to the answer where one move loses and another does not, out of 60923
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 21, world: 'ocean', par: 19, bomb: 'A',
+    { id: 93, n: 21, world: 'ocean', par: 19, bomb: 'A',
       rows: ['aa#b...dde', 'gghbiij..e', 'k.hllmj.nn', 'k.oopmqq.r', 'FsCtpuuvvr', 'wsxtyyzzAA', 'wBx#DDEEGG'],
       // par 19 with the bomb on 'A' and 20 without it; 2 without the predator.
       // par 19, 2 with the fox rule off. 3124 positions on the
       // way to the answer where one move loses and another does not, out of 32583
       // searched. The first losing slide of any kind is 1 move in.
     },
-    { id: undefined, n: 22, world: 'ocean', par: 22, bomb: 'k',
+    { id: 94, n: 22, world: 'ocean', par: 22, bomb: 'k',
       rows: ['Caa.#bbdd.', '.eeg.hhiij', 'k.lg.mm..j', 'kBlnnooppq', 'Frrsst.uuq', 'vvwwxtyy#z', 'AADDxEEGGz'],
       // par 22 with the bomb on 'k' and 21 without it; 1 without the predator.
       // par 22, 1 with the fox rule off. 18606 positions on the
       // way to the answer where one move loses and another does not, out of 61852
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 23, world: 'ocean', par: 22, bomb: 'l',
+    { id: 95, n: 23, world: 'ocean', par: 22, bomb: 'l',
       rows: ['aabbddeeCF', 'ggh..ii.jj', 'kkhllmmnoB', '#ppqq.rnos', 'tt.uu.rvvs', '..wwxx.yy#', 'zzAADDEEGG'],
       // par 22 with the bomb on 'l' and 23 without it; 1 without the predator.
       // par 22, 1 with the fox rule off. 21482 positions on the
       // way to the answer where one move loses and another does not, out of 75883
       // searched. The first losing slide of any kind is 0 moves in.
     },
-    { id: undefined, n: 24, world: 'ocean', par: 25, bomb: 'l',
+    { id: 96, n: 24, world: 'ocean', par: 25, bomb: 'l',
       rows: ['C.aabb.dde', 'gghh.i.jje', 'kklm#inoo.', '.Blmppnqrr', 'ssF#ttuqv.', 'wwxxy.u.v.', 'zzAAy.DDEE'],
       // par 25 with the bomb on 'l' and 24 without it; 4 without the predator.
       // par 25, 4 with the fox rule off. 39182 positions on the

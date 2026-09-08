@@ -200,13 +200,30 @@
 
   /* ---------- GAME STATE ---------- */
   const SAVE_KEY = 'zam.karrots.save';
+
+  /* A RECORD BELONGS TO A BOARD, NOT TO A POSITION IN THE LADDER. Records were
+     keyed by level id, and every re-forge renumbers the ladder, so a player's
+     carrots would silently land on boards they had never played. It cost
+     nothing while the game was unreleased and became real the moment it
+     shipped. The key is the board itself now: the same puzzle keeps its record
+     wherever it ends up, a new puzzle simply has none, and the ladder can be
+     re-cut as often as it likes.
+
+     Cheap and stable rather than cryptographic - this only has to tell 96
+     boards apart, and it has to give the same answer on every device. */
+  function sigOf(lv) {
+    const src = lv.rows.join('|') + '#' + (lv.bomb || '');
+    let h = 5381;
+    for (let i = 0; i < src.length; i++) h = (((h << 5) + h) ^ src.charCodeAt(i)) >>> 0;
+    return h.toString(36);
+  }
   let levelIndex = 0;
   let st = null;                 // the live board
   let start = null;              // the level as it began, for Restart
   let par = 0;
   let moves = 0;
   let history = [];              // {state, moves} before each move, for Undo
-  let best = {};                 // levelId -> {moves, carrots}
+  let best = {};                 // board signature -> {moves, carrots}
   let phase = 'play';            // play | caught | won
   let anim = null;               // the one animation in flight
   let drag = null;
@@ -226,11 +243,24 @@
       const raw = JSON.parse(localStorage.getItem(SAVE_KEY) || '{}');
       if (typeof raw.level === 'number') levelIndex = Math.min(Math.max(0, raw.level), LEVELS.length - 1);
       if (raw.best && typeof raw.best === 'object') best = raw.best;
+      /* A save written before the key changed is keyed by level id, and those
+         ids still name the boards they were earned on UNTIL the ladder moves,
+         so this conversion is exact only while that is true. Run once, then
+         stamped, so a later ladder cannot re-run it against the wrong boards. */
+      if (raw.v !== 2) {
+        const moved = {};
+        LEVELS.forEach(lv => {
+          const old = best[lv.id];
+          if (old && typeof old === 'object') moved[sigOf(lv)] = old;
+        });
+        best = moved;
+        save();
+      }
     } catch (e) { /* a blocked or full store is not a reason to fail to start */ }
   }
   function save() {
     try {
-      localStorage.setItem(SAVE_KEY, JSON.stringify({ level: levelIndex, best }));
+      localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 2, level: levelIndex, best }));
     } catch (e) { /* see load() */ }
   }
 
@@ -407,7 +437,7 @@
     if (false) {
       phase = 'won';
       const c = carrotsFor(moves);
-      const id = LEVELS[levelIndex].id;
+      const id = sigOf(LEVELS[levelIndex]);
       if (!best[id] || moves < best[id].moves) best[id] = { moves, carrots: c };
       save();
       SND.crunch(); setTimeout(SND.win, 220);
@@ -949,7 +979,7 @@
         st = { ...st, bunny: st.carrot };
         snapPaceHome(now);
         const c = carrotsFor(moves);
-        const id = LEVELS[levelIndex].id;
+        const id = sigOf(LEVELS[levelIndex]);
         /* What the card needs is the record BEFORE this run, because the whole
            point of a score you can go back for is being told you beat it. */
         wonPrev = best[id] ? { moves: best[id].moves, carrots: best[id].carrots } : null;
@@ -1297,11 +1327,11 @@
 
   function highestOpen() {
     let top = levelIndex;
-    for (let i = 0; i < LEVELS.length; i++) if (best[LEVELS[i].id]) top = Math.max(top, i + 1);
+    for (let i = 0; i < LEVELS.length; i++) if (best[sigOf(LEVELS[i])]) top = Math.max(top, i + 1);
     return Math.min(top, LEVELS.length - 1);
   }
   const isOpen = i => i <= highestOpen();
-  const carrotsAt = i => { const b = best[LEVELS[i].id]; return b ? b.carrots : 0; };
+  const carrotsAt = i => { const b = best[sigOf(LEVELS[i])]; return b ? b.carrots : 0; };
 
   function openLevels() {
     levelsOpen = true; levelsScroll = 0;
