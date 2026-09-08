@@ -83,7 +83,7 @@ measured or decided, not guessed. Ordered by who owns it.
 | 15 | ludo | ~ | OK | OK | - | OK | - | OK | 2026-08-22: handle added, **Z1 FIXED**, 9 sizes clean, state survives 9 rotations |
 | 16 | ricochet | - | - | - | - | - | - | - | shipped 2026-08-27, not yet audited |
 | 17 | ballast | OK | OK | OK | OK | ~ | OK | OK | audited 2026-08-28. Cleanest first audit on the track. One item, BA1, and it is cosmetic |
-| 18 | karrots | OK | OK | OK | OK | OK | OK | OK | audited 2026-09-08 on launch. 96/96 levels load and solve, par proved twice. **K-A1 and K-E1 both CLOSED the same day**, before release, because the release has to match the distribution build |
+| 18 | karrots | OK | OK | OK | OK | OK | OK | OK | audited 2026-09-08 on launch, re-audited the same day after the bomb landed. 96/96 load, solve, and carry a bomb that changes their par. K-A1 and K-E1 both closed before release. One known limit: a 320x568 SE gets 40px cells and a 480x360 embed 42px, both under the 44px floor |
 
 Row order matches the homepage card order. Ricochet has a card but no audit yet.
 Karrots is row 18 by ship date; on the homepage its card is first.
@@ -125,6 +125,36 @@ both ways, in the hub and in llms.txt.
 **EMB (!).** No frame-busting, localStorage namespaced to `zam.karrots.*`,
 chrome hides under `?embed=1`, canvas fills the frame, no sideways scroll. One
 item open, K-E1.
+
+### The bomb, added and audited 2026-09-08
+The mechanic landed after the first audit, so everything it touches was
+re-checked rather than assumed.
+
+96 of 96 levels carry exactly one bomb; on 96 of 96 it changes par, proved in
+build-levels.mjs by solving the same board with the bomb taken off. The bomb is
+painted on its own domino and on no other, checked on all 96. Through the
+pointer, a bombed domino charges one move, opens exactly two more holes than a
+slide would, spends the bomb and leaves the board.
+
+Two faults were found by the owner and fixed:
+
+  - The bomb vanished on the first tick. setAnimal rebuilt the state by naming
+    its fields, so a pace step dropped the bomb about once a second. Every
+    state rebuild in play.js, solve.mjs and model.js now spreads and overrides.
+    The same fault had already appeared in the wander search an hour earlier;
+    it is the reason the rule is now SPREAD, DO NOT RE-LIST.
+  - It went off in silence, and then with the wrong sound. The blast is drawn
+    over the squares it opened and `sfx.js` gained a real `blast` primitive,
+    because the existing ones cannot make a bang.
+
+Ladder re-derived, since bombs change par: woods 2-4, arctic 5-7, road 7-9,
+ocean 10-25, against 4-7 / 6-8 / 8-11 / 11-24 before.
+
+ONE THING TO KNOW BEFORE ANY FUTURE RE-FORGE. Records in `zam.karrots.save`
+are keyed by level id, and this re-forge changed every id. Nothing is live yet
+so nothing was lost, but a re-forge AFTER launch would silently re-attribute
+every player's carrots to a different board. It needs a save migration, or the
+ids need to become stable.
 
 ### K-A1 — CLOSED. The Road is concrete, not gold
 Measured properly the problem was worse than "rests on one feature". Hue
