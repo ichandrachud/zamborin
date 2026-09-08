@@ -61,6 +61,23 @@ const sprites = Object.entries(CAST).map(([name, file]) => {
     repaired: existsSync(join(ART, name + '.svg'))
       ? readFileSync(join(ART, name + '.svg'), 'utf8') : raw.svg,
     vb: vbOf(raw.svg),
+    /* THE BOX IS MEASURED ON A WIDER BOARD THAN THE ART WAS DRAWN ON.
+       Painted alpha was the right idea and it was being read off a render the
+       browser had ALREADY clipped to the source viewBox, so the measured box
+       could never be bigger than the artboard however far the drawing ran past
+       it. Fifteen of the twenty four sprites run past it, the two penguins by
+       eighty three and eighty two units, which is the flat cut across their
+       wings. Widen the board first, then measure, then crop to what was
+       found. */
+    wide: (() => {
+      const [vx, vy, vw, vh] = vbOf(raw.svg);
+      const pad = Math.max(vw, vh) * 0.6;
+      const box = [vx - pad, vy - pad, vw + pad * 2, vh + pad * 2];
+      const svg = raw.svg.replace(/<svg\b[^>]*>/, tag => tag
+        .replace(/viewBox="[^"]*"/, 'viewBox="' + box.join(' ') + '"')
+        .replace(/\s(width|height)="[^"]*"/g, ''));
+      return { svg, vb: box };
+    })(),
   };
 });
 
@@ -96,16 +113,23 @@ const SPRITES = ${JSON.stringify(sprites)};
 const R = 480;
 const uri = s => 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(s)));
 function load(src){return new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=src;});}
-function raster(img, vb){
-  const c=document.createElement('canvas'); c.width=c.height=R;
+function raster(img, vb, res){
+  /* 'res' exists because the wide board is 2.2x the artboard, and rendering it
+     into the same 480 square drops the sprite to under half its pixel density.
+     Measured that way four sprites came back SMALLER on a bigger board, which
+     is impossible: their faint antialiased edges had fallen under the alpha
+     floor. Give the wide board proportionally more pixels and the box is the
+     same measurement, just of more of the drawing. */
+  const N = res || R;
+  const c=document.createElement('canvas'); c.width=c.height=N;
   const g=c.getContext('2d',{willReadFrequently:true});
-  const [vx,vy,vw,vh]=vb, s=Math.min(R/vw,R/vh), dw=vw*s, dh=vh*s, dx=(R-dw)/2, dy=(R-dh)/2;
+  const [vx,vy,vw,vh]=vb, s=Math.min(N/vw,N/vh), dw=vw*s, dh=vh*s, dx=(N-dw)/2, dy=(N-dh)/2;
   g.drawImage(img,dx,dy,dw,dh);
-  return {data:g.getImageData(0,0,R,R).data, s, dx, dy, vx, vy};
+  return {data:g.getImageData(0,0,N,N).data, s, dx, dy, vx, vy, N};
 }
 function tightBox(r){
-  const d=r.data; let x0=R,y0=R,x1=-1,y1=-1;
-  for(let y=0;y<R;y++)for(let x=0;x<R;x++) if(d[(y*R+x)*4+3]>8){
+  const N=r.N||R, d=r.data; let x0=N,y0=N,x1=-1,y1=-1;
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++) if(d[(y*N+x)*4+3]>8){
     if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y; }
   if(x1<0) return null;
   return { x:+(r.vx+(x0-r.dx)/r.s).toFixed(2), y:+(r.vy+(y0-r.dy)/r.s).toFixed(2),
@@ -120,7 +144,13 @@ const hide = (svg, sel) => svg.replace('</style>', sel+'{display:none}</style>')
   const bbox={}, inv={}, rows=document.getElementById('rows'); let nullLines=[];
   for(const sp of SPRITES){
     const base = raster(await load(uri(sp.stripped)), sp.vb);
-    bbox[sp.name] = tightBox(base);
+    /* The box comes off the WIDE board; the diffs below stay on the normal one,
+       because what they compare is one element against another at the same
+       scale and the crop plays no part in that. */
+    const wr = Math.min(2400, Math.ceil(R * Math.max(sp.wide.vb[2], sp.wide.vb[3])
+                                          / Math.max(sp.vb[2], sp.vb[3])));
+    const wide = raster(await load(uri(sp.wide.svg)), sp.wide.vb, wr);
+    bbox[sp.name] = tightBox(wide);
 
     // NULL TEST on the first three sprites: hiding nothing must be 0, hiding
     // every tagged element must be large. If either fails, the harness is
