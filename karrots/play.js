@@ -261,8 +261,19 @@
   const DIR_FROM_SCREEN = TURNED ? [3, 2, 1, 0] : [0, 1, 2, 3];
   let ctrl = [];
 
+  /* THE BOARD'S OWN SIDE MARGIN, separate from the chrome's. SIDE_PAD is 30
+     because that is where the HUD text sits; spending it on the board too cost
+     the phone 5px of cell, and at ten rows turned sideways that is the
+     difference between a 45px target and a 50px one. On a 360px Android the
+     board was coming out at 42px, under the 44px minimum. Measured after:
+     50px at 375, 48 at 360, 52 at 390, 58 on a Pro Max, 70 on the desktop
+     frame. The one device this board cannot serve is a 320x568 SE, where ten
+     rows into 408px of height is 40px whatever the side margin does - that is
+     the price of the taller board and no margin recovers it. */
+  const boardPad = () => (MODE === 'mobile' ? 10 : SIDE_PAD);
+
   function layout() {
-    const availW = Math.max(60, LW - SIDE_PAD * 2);
+    const availW = Math.max(60, LW - boardPad() * 2);
     const availH = Math.max(60, LH - topBand() - botBand());
     geo.cell = Math.max(8, Math.floor(Math.min(availW / geo.cols, availH / geo.rows)));
     const boardW = geo.cols * geo.cell, boardH = geo.rows * geo.cell;
