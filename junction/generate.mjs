@@ -292,6 +292,37 @@ export function assess(lvl, opts) {
   return null;
 }
 
+/* LEVEL ONE TEACHES, AND IS THE ONE LEVEL THAT IS NOT CERTIFIED.
+   Every other board in the ladder is measured to defeat greedy routing and to
+   have exactly one answer at exactly its price. A first level that did the
+   same would be a test before a lesson: the player has not yet seen track go
+   down, a switch thrown, or two engines meet.
+
+   So level 1 is the parametric teaching board, and the two ways it differs are
+   deliberate rather than missed. GREEDY WINS IT — the shortest route for each
+   engine works, so the obvious thing a player tries succeeds, and what they
+   learn is the vocabulary: draw, throw, dispatch. AND ITS BUDGET HAS SLACK,
+   six or seven sleepers of it, so a wasteful first attempt still gets home.
+   The board is built so the two engines meet exactly once and one of them
+   waits, which is the idea every later level charges rails for.
+
+   Measured at the shape used here, 11 rows by 7: par 23, budget 30, greedy
+   wins. The tests assert all of that, so that nobody later "fixes" level 1
+   into a puzzle. */
+export function tutorialSpec(R, C) {
+  const lvl = M.level1(R, C);
+  const rocks = [];
+  for (let i = 0; i < lvl.size; i++) if (lvl.kind[i] === M.ROCK) rocks.push([Math.floor(i / C), i % C]);
+  return {
+    n: 1, tier: 0, R, C, rocks,
+    portals: lvl.portals.map((p) => ({ at: [p.r, p.c], face: p.face, queue: p.queue.slice() })),
+    depots: lvl.depots.map((d) => ({ at: [d.r, d.c], face: d.face, colour: d.colour })),
+    budget: lvl.budget, par: lvl.par,
+    solution: lvl.solution.map((g) => g.slice()),
+    seed: null, family: 'tutorial', decoys: null, greedyCost: null,
+  };
+}
+
 /* A generated level as a SPEC, ready to be written into levels.js. The
    solution is carried because the game uses it for the debug lay-out and the
    tests use it to prove the level is completable without a solver. */
@@ -398,13 +429,22 @@ export async function harvest(want, seedFrom, label, opts) {
    and a small crossing board has a few hundred, and that is board size talking
    rather than difficulty. Sorting the whole ladder by decoys would have buried
    three of the four families at the end. */
-export function assemble(byFamily, total) {
-  const sorted = FAMILIES.map((f) => (byFamily[f.key] || []).slice()
-    .sort((a, b) => a.decoys - b.decoys));
-  const halves = sorted.map((a) => [a.slice(0, Math.ceil(a.length / 2)), a.slice(Math.ceil(a.length / 2))]);
-  const out = [];
-  for (const pass of [0, 1]) for (const h of halves) out.push(...h[pass]);
-  return out.slice(0, total);
+export function assemble(byFamily, quotas) {
+  /* EACH FAMILY IS OVER-HARVESTED AND THEN TRIMMED FROM BOTH ENDS. Taking the
+     first eight boards that certified and splitting them down the middle made
+     an opening that was not easy — portrait level 1 came out with a thousand
+     wrong-but-affordable layouts in it. Harvesting thirteen and keeping the
+     four EASIEST for the first pass and the four HARDEST for the second gives
+     a gentler start and a steeper climb from the same amount of searching.
+     The boards in the middle are thrown away, which is the point. */
+  const out1 = [], out2 = [];
+  FAMILIES.forEach((f, i) => {
+    const pool = (byFamily[f.key] || []).slice().sort((a, b) => a.decoys - b.decoys);
+    const q = quotas[i], k1 = Math.ceil(q / 2), k2 = Math.min(q - k1, Math.max(0, pool.length - k1));
+    out1.push(...pool.slice(0, k1));
+    out2.push(...pool.slice(pool.length - k2));
+  });
+  return out1.concat(out2);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
@@ -416,28 +456,34 @@ if (import.meta.url === `file://${process.argv[1]}`) {
      turned on its side, which is an isomorphism and preserves the
      certification; what makes the two ladders DIFFERENT is that they never
      draw from the same seeds. */
+  const want = total - 1;                        // level 1 is the tutorial
+  const quotas = FAMILIES.map((_, i) => Math.floor(want / FAMILIES.length) +
+    (i < want % FAMILIES.length ? 1 : 0));
+  const SPARE = 5;                               // harvested and then trimmed
   async function ladderOf(base, tag) {
-    const per = FAMILIES.map((_, i) => Math.floor(total / FAMILIES.length) +
-      (i < total % FAMILIES.length ? 1 : 0));
     const byFamily = {};
     for (let i = 0; i < FAMILIES.length; i++) {
       const f = FAMILIES[i];
-      console.log(`\n[${tag}] ${f.key} — want ${per[i]}`);
-      const h = await harvest(per[i], base + i * 100000, f.key, { family: f.build, minutes: 14 });
+      console.log(`\n[${tag}] ${f.key} — keeping ${quotas[i]}, harvesting up to ${quotas[i] + SPARE}`);
+      const h = await harvest(quotas[i] + SPARE, base + i * 100000, f.key,
+        { family: f.build, minutes: 16 });
       byFamily[f.key] = h.found;
-      console.log(`  ${f.key}: ${h.found.length} of ${per[i]} from ${h.tried} seeds` +
-        (h.found.length < per[i] ? '  <-- SHORT' : ''));
+      console.log(`  ${f.key}: ${h.found.length} found from ${h.tried} seeds` +
+        (h.found.length < quotas[i] ? '  <-- SHORT' : ''));
     }
-    return assemble(byFamily, total);
+    return assemble(byFamily, quotas);
   }
   const port = await ladderOf(1, 'portrait');
   const land = await ladderOf(20000, 'landscape');
-  const portrait = port.map((e, i) => toSpec(e, i + 1));
-  const landscape = land.map((e, i) => transposeSpec(toSpec(e, i + 1)));
+  // The teaching board, built upright and turned over for the wide frame like
+  // every other landscape level. Odd rows: spec1 needs them, and says why.
+  const portrait = [tutorialSpec(11, 7)].concat(port.map((e, i) => toSpec(e, i + 2)));
+  const landscape = [transposeSpec(tutorialSpec(11, 7))]
+    .concat(land.map((e, i) => transposeSpec(toSpec(e, i + 2))));
   const fs = await import('node:fs');
   fs.writeFileSync(new URL('./levels.js', import.meta.url), emit({ portrait, landscape }));
   console.log('\nportrait ' + portrait.length + ', landscape ' + landscape.length +
     ', in ' + ((Date.now() - t0) / 60000).toFixed(1) + ' min');
   console.log('portrait families :', portrait.map((s) => s.family).join(' '));
-  console.log('landscape families:', landscape.map((s) => s.family).join(' '));
+  console.log('portrait decoys   :', portrait.map((s) => s.decoys === null ? '-' : s.decoys).join(' '));
 }

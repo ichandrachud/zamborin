@@ -574,11 +574,12 @@ ok('and they are different puzzles, not one set rotated', !sameBudgets,
    more board FAMILIES. These tests are what stops that being quietly undone. */
 head('the ladder changes the question, not just the numbers');
 const FAM = ['corridor', 'twoGap', 'crossing', 'swap'];
+const ALL_FAM = ['tutorial'].concat(FAM);
 for (const [name, set] of [['portrait', port], ['landscape', land]]) {
   ok(name + ': every level says which family it is from',
-     set.every((l) => FAM.includes(l.family)),
+     set.every((l) => ALL_FAM.includes(l.family)),
      set.map((l) => l.family || '?').join(' '));
-  const used = new Set(set.map((l) => l.family));
+  const used = new Set(set.slice(1).map((l) => l.family));
   ok(name + ': all four families are used', used.size === FAM.length,
      [...used].join(' '));
   // The longest stretch of one family. Blocks are deliberate — a player needs
@@ -614,8 +615,11 @@ for (const [name, set] of [['portrait', port], ['landscape', land]]) {
     if (!lvl.solution || !lvl.solution.length) { broken.push(lvl.n + ' has no solution'); continue; }
     let track;
     try { track = M.layout(lvl, lvl.solution); } catch (e) { broken.push(lvl.n + ' will not lay: ' + e.message); continue; }
-    if (M.sleepers(track) !== lvl.budget)
-      mispriced.push(lvl.n + ' costs ' + M.sleepers(track) + ' at budget ' + lvl.budget);
+    /* Level 1 is the teaching board and is SUPPOSED to have spare rails; every
+       other level's answer must cost exactly what the level advertises. */
+    const cost = M.sleepers(track);
+    if (lvl.family === 'tutorial' ? cost > lvl.budget : cost !== lvl.budget)
+      mispriced.push(lvl.n + ' costs ' + cost + ' at budget ' + lvl.budget);
     const js = [];
     for (let i = 0; i < lvl.size; i++) if (M.isJunction(track[i])) js.push(i);
     let wins = 0;
@@ -628,6 +632,40 @@ for (const [name, set] of [['portrait', port], ['landscape', land]]) {
   }
   ok(name + ": every level's own solution wins it", broken.length === 0, broken.join('; '));
   ok(name + ': and costs exactly the budget', mispriced.length === 0, mispriced.join('; '));
+}
+
+/* ---------- LEVEL ONE TEACHES, AND IS NOT A TEST ----------
+   Every other board defeats greedy routing and has one answer at one price.
+   Level 1 deliberately does neither: the shortest route for each engine works,
+   so the first thing a player tries succeeds and what they learn is the
+   vocabulary — draw the track, throw the switch, dispatch. The slack in its
+   budget is there so a wasteful first attempt still gets home.
+
+   These exist so that nobody later reads "greedy wins level 1" as a bug and
+   quietly turns the lesson into an exam. */
+head('level 1 teaches rather than tests');
+for (const [name, set] of [['portrait', port], ['landscape', land]]) {
+  const one = set[0];
+  ok(name + ': level 1 is the teaching board', one.family === 'tutorial', one.family + '');
+  const t1 = M.layout(one, one.solution);
+  ok(name + ': and its budget has room to be wasteful',
+     one.budget > M.sleepers(t1), M.sleepers(t1) + ' rails against a budget of ' + one.budget);
+  /* ONE MEETING is the whole lesson: the engines share track, and one of them
+     waits. Every later level charges rails for arranging that. */
+  const js1 = [];
+  for (let i = 0; i < one.size; i++) if (M.isJunction(t1[i])) js1.push(i);
+  let won = null;
+  for (let m = 0; m < (1 << js1.length) && !won; m++) {
+    const c = M.cloneTrack(t1);
+    js1.forEach((i, k) => { if (m & (1 << k)) M.toggleSwitch(c, i); });
+    const r = M.runToEnd(one, c);
+    if (r.won) won = r;
+  }
+  ok(name + ': the two engines meet exactly once', won && won.meetings === 1,
+     won ? won.meetings + ' meetings' : 'never won');
+  ok(name + ': and every level after it is a certified board',
+     set.slice(1).every((l) => FAM.includes(l.family)),
+     set.slice(1).map((l) => l.family).join(' '));
 }
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed\n');
