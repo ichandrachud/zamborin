@@ -202,7 +202,24 @@
   let cardScroll = 0;             // rules card body offset, px
   let scrollDrag = null;
   let aiming = false, aimA = 90 * S.DEG, aimShown = false;
+  /* VISIBLE is not the same as ARMED, and they used to be one flag.
+     On touch the tracer must appear the instant a finger lands, but a bare tap
+     must not fire — so `aimShown` says the line is drawn live and `aimReady`
+     says a drag long enough to mean it has happened. */
+  let aimReady = false;
   let dragFrom = null;
+
+  /* TEACHING THE GESTURE, WITHOUT A WORD OF COPY.
+     The aim line used to exist only while a pointer was down and had already
+     travelled 24px. Until then the board was completely inert: a wall, a 6px
+     ball, and nothing moving. Players read that as broken and left, which is
+     the worst possible outcome for a game whose whole decision is the aim.
+
+     The line now simply RESTS on screen whenever it is your turn, and moves
+     under a mouse or a finger. A moving demo was tried and removed on the
+     owner's call: it taught the gesture, but a board that animates while you
+     are trying to read it is distracting, and a static tracer plus a line that
+     follows your pointer already answers "what do I do" without it. */
   let botRng = null;
   const shards = [];
   const flashes = [];
@@ -217,6 +234,7 @@
     botRng = S.makeRng(seed ^ 0x5EED1E);
     turn = null; acc = 0; descend = 0; card = null;
     aiming = false; aimShown = false; aimA = 90 * S.DEG;
+    aimShown = false; aimReady = false;
     shards.length = 0; flashes.length = 0; trails.clear();
     TR().gameStart();
     TR().levelStart(1);
@@ -306,6 +324,34 @@
 
   const AIM_MIN_DRAG = 24;        // logical px before an aim is taken seriously
 
+  /* TWO INPUTS, BECAUSE THERE ARE TWO DEVICES.
+     A mouse has a hover, so on desktop the aim simply follows the pointer and
+     the line comes alive the instant the cursor crosses the board — nothing to
+     discover. A finger has no hover and would sit on top of the very blocks it
+     is trying to read, so touch keeps the drag-delta scheme: the direction you
+     swipe is the direction it fires. Same game, same rules, same seeds; only
+     the way the angle is expressed differs, which is what the two layouts are
+     for. */
+  const HOVER_AIM = MODE === 'desktop';
+
+  // Aim at wherever the pointer is, measured from the launcher.
+  function aimFromPoint(p) {
+    if (!state) return false;
+    const dx = p.x - sx(state.launchX);
+    const dy = p.y - L.launchY;
+    if (dy > -14) return false;    // level with or below the launcher: no shot there
+    aimA = S.legalAngle(Math.atan2(-dy, dx));
+    aimShown = true;
+    return true;
+  }
+
+  // The one moment the board is waiting on a human.
+  const playersTurn = () =>
+    !!state && !state.over && !turn && descend <= 0 && !card && !FLAG.bot;
+
+  // Show the demo while the player is new to it, and again if they stall.
+
+
   const NOT_A_BUTTON = { lvlPill: 1 };
   function hitControls(p) {
     for (const id in L.hit) {
@@ -348,7 +394,17 @@
     }
     if (FLAG.bot) return;
     if (!state || state.over || turn || descend > 0) return;
-    aiming = true; aimShown = false; dragFrom = p;
+    aiming = true; dragFrom = p;
+    if (HOVER_AIM) {
+      // A mouse has already set an angle by hovering, so clearing it here
+      // would make every desktop click a dud.
+      aimFromPoint(p);
+    } else {
+      // Touch: the tracer appears the moment a finger lands, anywhere on the
+      // board, at the angle already showing. It is not armed until the finger
+      // travels far enough to mean it.
+      aimShown = true; aimReady = false;
+    }
     canvas.setPointerCapture?.(e.pointerId);
   });
 
@@ -360,15 +416,24 @@
       render(performance.now());
       return;
     }
+    // Desktop: the aim tracks the pointer whether or not a button is down, so
+    // there is one rule to learn instead of two.
+    if (HOVER_AIM) {
+      if (!playersTurn() && !aiming) return;
+      aimFromPoint(pt(e));
+      return;
+    }
     if (!aiming || !dragFrom) return;
     e.preventDefault();
     const p = pt(e);
     const dx = p.x - dragFrom.x, dy = p.y - dragFrom.y;
-    if (Math.hypot(dx, dy) < AIM_MIN_DRAG) { aimShown = false; return; }
+    // Under the threshold the tracer stays lit, it is simply not armed yet.
+    // Hiding it here is what made a finger landing on the board look dead.
+    if (Math.hypot(dx, dy) < AIM_MIN_DRAG) { aimReady = false; return; }
     // The drag vector IS the shot vector: drag up-left, fire up-left. Precision
     // rises with drag length, and the finger never has to sit on the target it
     // is trying to read.
-    aimShown = true;
+    aimShown = true; aimReady = true;
     aimA = S.legalAngle(Math.atan2(-dy, dx));
   });
 
@@ -382,12 +447,19 @@
     }
     if (!aiming) return;
     aiming = false;
-    const fire = aimShown;
-    aimShown = false; dragFrom = null;
+    const p = pt(e);
+    // Desktop fires on a click, but only one aimed above the launcher, so a
+    // stray click in the band under the board cannot loose a shot.
+    const fire = HOVER_AIM ? (aimShown && p.y < L.launchY - 14) : aimReady;
+    if (!HOVER_AIM) { aimShown = false; aimReady = false; }
+    dragFrom = null;
     if (fire && state && !state.over && !turn && descend <= 0) fireTurn(aimA);
   }
   canvas.addEventListener('pointerup', (e) => { e.preventDefault(); endPointer(e); });
-  canvas.addEventListener('pointercancel', () => { aiming = false; aimShown = false; L.armed = null; scrollDrag = null; });
+  canvas.addEventListener('pointercancel', () => {
+    aiming = false; L.armed = null; scrollDrag = null;
+    if (!HOVER_AIM) { aimShown = false; aimReady = false; }
+  });
 
   // Wheel scrolls the open card and nothing else. Passive is off deliberately:
   // without preventDefault the page behind the canvas scrolls instead, which on
@@ -431,7 +503,10 @@
     if (e.key === ' ' || e.key === 'Enter') {
       e.preventDefault();
       if (sfx) sfx.ensureAudio();
-      if (aimShown) fireTurn(aimA); else aimShown = true;
+      // The line is on screen at rest now, so there is nothing to reveal first:
+      // space fires. The old two-press behaviour existed only because the first
+      // press had to make the aim appear.
+      fireTurn(aimA);
     }
   });
 
@@ -794,6 +869,29 @@
     ctx.fillStyle = T.line;
     for (let c = 1; c < TUNE.cols; c++) ctx.fillRect(Math.round(L.bx + c * cell), L.by, 1, L.bh);
 
+    /* WHICH PIECES ACTUALLY END THE RUN.
+       The readout has always counted this and never shown it: the lowest row
+       holding a block or a mirror is the one that kills you when it is pushed
+       past the bottom, and a rock sitting in the very same row is harmless.
+       Nothing on screen said so, so a rock in the bottom row looked exactly as
+       alarming as a block.
+
+       Marked only when it is close, and STATIC — the owner cut the animated
+       demo for being distracting and this must not reintroduce it. */
+    const tl = S.turnsToLine(state);
+    let doomRow = -1;
+    if (tl <= 3) {
+      for (let r = state.rows.length - 1; r >= 0 && doomRow < 0; r--) {
+        const row = state.rows[r];
+        if (!row) continue;
+        for (let c = 0; c < TUNE.cols; c++) if (S.isLethal(row[c])) { doomRow = r; break; }
+      }
+    }
+    // Grows with the trouble, but the FAINTEST state still has to clear the 3:1
+    // graphical bar. 0.46 measured 2.20 against the danger band and would have
+    // shipped a mark you cannot reliably see at the moment it first appears.
+    const doomA = tl <= 1 ? 1 : tl <= 2 ? 0.82 : 0.66;
+
     // Row descent: the field slides in from one row above.
     const off = descend > 0 ? -descend * cell : 0;
     ctx.save();
@@ -808,6 +906,17 @@
         const x = L.bx + c * cell, y = L.by + r * cell;
         if (y + off > L.by + L.bh) continue;
         const pad = cell * 0.045;
+        // The halo sits on the board FLOOR around the piece, never on it, so a
+        // coral block cannot swallow a coral mark. It is a glow, not an outline.
+        if (r === doomRow && S.isLethal(cellv)) {
+          ctx.save();
+          ctx.shadowColor = 'rgba(255,107,92,' + (0.95 * doomA).toFixed(2) + ')';
+          ctx.shadowBlur = Math.max(9, cell * 0.34);
+          ctx.fillStyle = 'rgba(255,107,92,' + (0.85 * doomA).toFixed(2) + ')';
+          rr(x + pad, y + pad, cell - pad * 2, cell - pad * 2, Math.max(3, cell * 0.14));
+          ctx.fill(); ctx.fill();
+          ctx.restore();
+        }
         if (cellv.t === 'b') drawBlock(x + pad, y + pad, cell - pad * 2, cellv.hp, cellv.hp0);
         else if (cellv.t === 'm') drawMirror(x, y, cell, cellv.d, cellv.hp);
         else if (cellv.t === 'r') drawRock(x + pad, y + pad, cell - pad * 2, cellv.hp);
@@ -825,7 +934,7 @@
     // and not only in the read-out. A player watching the board should not have
     // to look away from it to find out how much trouble they are in.
     const dy = L.dangerY;
-    const tl = S.turnsToLine(state);
+    // tl is computed once at the top of this function, for the doom marks too.
     const urg = tl <= 1 ? 1 : tl <= 2 ? 0.72 : tl <= 4 ? 0.4 : 0;
     const warn = ctx.createLinearGradient(0, dy, 0, dy + cell * 0.9);
     warn.addColorStop(0, 'rgba(255,107,92,' + (0.18 + 0.30 * urg).toFixed(3) + ')');
@@ -836,9 +945,37 @@
     ctx.fillStyle = T.accentText;
     ctx.fillRect(L.bx, dy - 1, L.bw, 2);
 
+    /* The second channel, and the reliable one. A chevron in the danger band
+       under each doomed column: always on dark floor, so it reads at the same
+       strength whatever colour the piece above it happens to be, and its SHAPE
+       carries the meaning even where the coral halo and a coral block sit only
+       1.10 apart. It also says which way the trouble is going. */
+    if (doomRow >= 0) {
+      const row = state.rows[doomRow];
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,107,92,' + (0.95 * doomA).toFixed(2) + ')';
+      ctx.lineWidth = Math.max(2, cell * 0.055);
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      const w = Math.max(6, cell * 0.20), yTop = L.dangerY + Math.max(7, cell * 0.16);
+      for (let c = 0; c < TUNE.cols; c++) {
+        if (!S.isLethal(row[c])) continue;
+        const cx2 = L.bx + c * cell + cell / 2;
+        ctx.beginPath();
+        ctx.moveTo(cx2 - w, yTop); ctx.lineTo(cx2, yTop + w); ctx.lineTo(cx2 + w, yTop);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
     if (turn) drawBallsAndTrails();
     drawLauncher();
-    if (aimShown && !turn && descend <= 0 && !card && state && !state.over) drawAim();
+    if (playersTurn()) {
+      // The line is ALWAYS on when it is your turn. While the demo runs it
+      // follows the ghost; otherwise it sits at the angle you last chose.
+      // Static at rest, brighter the moment a pointer is on it. Nothing here
+      // animates on its own.
+      drawAim(aimA, aimShown ? 0.62 : 0.42);
+    }
   }
 
   function drawBallsAndTrails() {
@@ -888,13 +1025,18 @@
     ctx.textAlign = 'left';
   }
 
-  function drawAim() {
-    const pts = S.previewPath(state, aimA);
+  /* The aim line, at an angle and a weight.
+     0.62 is the live line under the player's finger. 0.42 is the resting one,
+     measured at 3.77:1 against the board floor where the 3:1 bar for a
+     graphical object sits at 0.38 — quieter than the live line without ever
+     dropping under the bar. */
+  function drawAim(angle, alpha) {
+    const pts = S.previewPath(state, angle);
     if (pts.length < 2) return;
     ctx.save();
     ctx.setLineDash([2.5, 7]);
     ctx.lineWidth = 2.4; ctx.lineCap = 'round';
-    ctx.strokeStyle = 'rgba(255,243,212,0.62)';
+    ctx.strokeStyle = 'rgba(255,243,212,' + alpha.toFixed(2) + ')';
     ctx.beginPath();
     ctx.moveTo(sx(pts[0].x), L.launchY);
     for (let i = 1; i < pts.length; i++) ctx.lineTo(sx(pts[i].x), sy(pts[i].y));
@@ -904,7 +1046,8 @@
     // line trailing off. The second leg is deliberately the last thing shown:
     // the full path would remove the decision.
     const p1 = pts[1];
-    ctx.strokeStyle = 'rgba(255,243,212,0.85)'; ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(255,243,212,' + Math.min(1, alpha + 0.23).toFixed(2) + ')';
+    ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(sx(p1.x), sy(p1.y), 5.5, 0, 7); ctx.stroke();
     ctx.restore();
   }
@@ -1344,6 +1487,7 @@
         fireTurn(botAngle());
       }
 
+
       render(now);
     }
     requestAnimationFrame(frame);
@@ -1356,6 +1500,28 @@
     mode: MODE,
     tile: () => TILE_STYLES[tileStyle],
     openCard: () => card,
+    // A player who reads nothing still has to know what to do, so the states
+    // that tell them are measurable.
+    hint: () => ({
+      playersTurn: playersTurn(),
+      aimShown: aimShown, aimReady: aimReady,
+      restingLineDrawn: playersTurn(),
+      scheme: HOVER_AIM ? 'hover' : 'drag', aimDeg: +(aimA / S.DEG).toFixed(1),
+      animated: false,
+      turnsToLine: state ? S.turnsToLine(state) : null,
+      doomed: state ? (() => {
+        const tl = S.turnsToLine(state);
+        if (tl > 3) return { marked: false, cells: [] };
+        for (let r = state.rows.length - 1; r >= 0; r--) {
+          const row = state.rows[r]; if (!row) continue;
+          const cells = [];
+          for (let c = 0; c < TUNE.cols; c++) if (S.isLethal(row[c])) cells.push({ c: c, t: row[c].t });
+          if (cells.length) return { marked: true, row: r, cells: cells,
+            safeInSameRow: row.filter(x => x && !S.isLethal(x)).map(x => x.t) };
+        }
+        return { marked: false, cells: [] };
+      })() : null,
+    }),
     setCard: (k) => { card = k; cardScroll = 0; onResize(); render(performance.now()); return card; },
     scroll: (v) => { cardScroll = v; render(performance.now()); return cardScroll; },
     hits: () => Object.fromEntries(Object.entries(L.hit).map(([k, b]) => [k, [b.x, b.y, b.w, b.h]])),

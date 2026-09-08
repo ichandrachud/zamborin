@@ -73,6 +73,17 @@
     capture:  a => { a.noise(0.10, 240, 1.5, 0.30); setTimeout(() => a.tone(180, 0.18, 0.10, 'square'), 30); },
     thump:    a => a.tone(120, 0.16, 0.14, 'sine'),
 
+    // --- Blast, for Karrots ---
+    // Three layers because one is a hiss and two is a door slamming: a broad
+    // low crack, a body under it so it has weight, and a short bright tail a
+    // beat later that reads as the pieces coming down. Kept inside the house
+    // level - this is a toy bomb on a board, not a film.
+    explode:  a => {
+      a.blast(0.55, 130, 0.42);                              // the bang itself
+      setTimeout(() => a.blast(0.30, 70, 0.10), 55);         // its short slap back
+      setTimeout(() => a.noise(0.34, 900, 0.7, 0.055), 110); // debris coming down
+    },
+
     // --- Dice / wooden pieces ---
     'dice-shake': a => {
       a.woodClack(220, 0.10, 0.16);
@@ -175,6 +186,72 @@
       src.start(t0);
     }
 
+    /* BLAST. An explosion is not a noise burst with a bandpass on it, which is
+       what stacking the existing primitives gave: `noise` is bandpassed and
+       decays linearly, so it lands as a narrow thump. Four things make the ear
+       hear an explosion, and all four have to be there.
+
+         1. An attack of about a millisecond. Anything slower is a whoosh.
+         2. Broadband noise, lowpassed rather than bandpassed, so it starts as
+            the whole spectrum at once.
+         3. A filter that CLOSES as it decays, from a couple of kHz down to
+            almost nothing. Air eats the high end first, and this is most of
+            what makes a bang read as distant and physical rather than digital.
+         4. An exponential tail, and a sine sub sweeping DOWN underneath it.
+            The downward sweep is the "boom"; a fixed low tone is a thud.
+
+       `dur` is the tail, `tone` the pitch the sub starts at, `gain` the level. */
+    function blast(dur, toneHz, gain) {
+      if (!on || !audioCtx) return;
+      const t0 = audioCtx.currentTime;
+      const len = Math.max(1, Math.floor(audioCtx.sampleRate * dur));
+      const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+      const d = buf.getChannelData(0);
+      /* Exponential decay, plus a couple of milliseconds of extra-hot front so
+         the transient cracks instead of merely beginning. */
+      for (let i = 0; i < len; i++) {
+        const x = i / len;
+        const env = Math.pow(1 - x, 2.6);
+        const crack = i < audioCtx.sampleRate * 0.002 ? 1.7 : 1;
+        d[i] = (Math.random() * 2 - 1) * env * crack;
+      }
+      const src = audioCtx.createBufferSource();
+      src.buffer = buf;
+
+      const lp = audioCtx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.setValueAtTime(2600, t0);
+      lp.frequency.exponentialRampToValueAtTime(110, t0 + dur * 0.9);
+      lp.Q.value = 0.6;
+
+      /* A little saturation. Clipping the peaks is what gives a bang its body;
+         without it the same envelope sounds like escaping air. */
+      const shaper = audioCtx.createWaveShaper();
+      const curve = new Float32Array(1024);
+      for (let i = 0; i < 1024; i++) {
+        const x = (i / 1023) * 2 - 1;
+        curve[i] = Math.tanh(x * 2.4);
+      }
+      shaper.curve = curve;
+
+      const g = audioCtx.createGain();
+      g.gain.setValueAtTime(gain, t0);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      src.connect(lp); lp.connect(shaper); shaper.connect(g); g.connect(out());
+      src.start(t0);
+
+      // the sub: a sine falling away underneath, which is the part you feel
+      const osc = audioCtx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(toneHz, t0);
+      osc.frequency.exponentialRampToValueAtTime(Math.max(18, toneHz * 0.32), t0 + dur * 0.8);
+      const og = audioCtx.createGain();
+      og.gain.setValueAtTime(gain * 1.15, t0);
+      og.gain.exponentialRampToValueAtTime(0.0001, t0 + dur * 0.85);
+      osc.connect(og); og.connect(out());
+      osc.start(t0); osc.stop(t0 + dur);
+    }
+
     // Wooden clack — damped low sine + 5ms low-passed noise attack. Reads
     // as "wood on wood" rather than "ceramic on ceramic" (the noise gives
     // a percussive "tk" front, the sine gives a hollow body).
@@ -262,7 +339,7 @@
 
     const api = {
       ensureAudio, setOn, isOn, out,
-      tone, noise, woodClack, arpeggio, paper,
+      tone, noise, blast, woodClack, arpeggio, paper,
       play(name, opts) {
         const recipe = LIB[name];
         if (!recipe) return;

@@ -83,8 +83,138 @@ measured or decided, not guessed. Ordered by who owns it.
 | 15 | ludo | ~ | OK | OK | - | OK | - | OK | 2026-08-22: handle added, **Z1 FIXED**, 9 sizes clean, state survives 9 rotations |
 | 16 | ricochet | - | - | - | - | - | - | - | shipped 2026-08-27, not yet audited |
 | 17 | ballast | OK | OK | OK | OK | ~ | OK | OK | audited 2026-08-28. Cleanest first audit on the track. One item, BA1, and it is cosmetic |
+| 18 | karrots | OK | OK | OK | OK | OK | OK | OK | audited 2026-09-08 on launch, re-audited the same day after the bomb landed. 96/96 load, solve, and carry a bomb that changes their par. K-A1 and K-E1 both closed before release. One known limit: a 320x568 SE gets 40px cells and a 480x360 embed 42px, both under the 44px floor |
 
 Row order matches the homepage card order. Ricochet has a card but no audit yet.
+Karrots is row 18 by ship date; on the homepage its card is first.
+
+## Karrots audit, 2026-09-08
+
+Audited as part of taking it live, so this is a first audit rather than a
+revisit. Everything here was measured on the running game, not read off the
+source.
+
+**FN.** 96 of 96 levels load. Level 1 of the woods solved through the model at
+par, the win card fires, the record is written and read back. Undo charges a
+move, Restart is instant. Autosave restores the level AND the per-level record;
+seeded with 30 cleared levels it came back on level 30 with the picker showing
+the right carrots. No soft-lock found: a brick that would land on an animal
+refuses to move rather than wedging, and the level picker is always a way out.
+
+**MB.** 7x10 at 50px cells on a 375 screen, 48px at 360. Above the 44px floor,
+below the 56px comfort target, which the owner accepted. A 320x568 SE gets 40px
+and cannot be fixed by layout: it is a property of ten cells on a 320 screen.
+
+**PF.** rAF only, no timers driving state, so a hidden tab stops on its own.
+stepPace advances at most ONE step per frame with no catch-up loop, so a tab
+hidden for five minutes does not fast-forward the animals when it comes back.
+
+**AX (~).** Canvas carries an aria-label, html lang is set, colour is never the
+only signal (the pips are shapes and the read-out is text). Every element on
+every ground clears 3:1, measured on the painted pixel across all 96 levels,
+worst 3.16. One item open, K-A1.
+
+**CN.** Header, footer, favicon, splash, blue chrome, fullscreen toggle all
+present and matching the fleet. No em dashes in the body copy, no emoji icons,
+the logo is not recoloured.
+
+**SEO.** Title, description, canonical, OG, Twitter, VideoGame JSON-LD.
+noindex removed on launch. In sitemap.xml with the guide. Guide written, linked
+both ways, in the hub and in llms.txt.
+
+**EMB (!).** No frame-busting, localStorage namespaced to `zam.karrots.*`,
+chrome hides under `?embed=1`, canvas fills the frame, no sideways scroll. One
+item open, K-E1.
+
+### Pacing, and what "sealed in" means — 2026-09-08
+The owner reported the bunny not moving in the live game. One line:
+`stepPace` began `if (!st || REDUCED.matches) return;`, so a browser asking for
+reduced motion switched off a RULE rather than an animation. Pacing moves the
+model, and where the hunter stands is what his reach is read from. The bunny's
+run to the carrot is a separate path and was never gated, which is why that was
+the only movement left. It snaps now, like every other use of REDUCED in the
+file. Control on the same level with the query forced on: 1 cell before, 4
+after.
+
+ACCEPTED, NOT A DEFECT: the bunny starts sealed in a single square on 82 of 96
+levels and the hunter on 71. That falls out of packing the board tightly, which
+the owner asked for on 2026-09-07, and the owner confirmed on 2026-09-08 that a
+sealed start is fine. Do not "fix" it by loosening the boards; the two pull
+against each other and packing won. Where an animal has room, pacing works.
+
+### The bomb, added and audited 2026-09-08
+The mechanic landed after the first audit, so everything it touches was
+re-checked rather than assumed.
+
+96 of 96 levels carry exactly one bomb; on 96 of 96 it changes par, proved in
+build-levels.mjs by solving the same board with the bomb taken off. The bomb is
+painted on its own domino and on no other, checked on all 96. Through the
+pointer, a bombed domino charges one move, opens exactly two more holes than a
+slide would, spends the bomb and leaves the board.
+
+Two faults were found by the owner and fixed:
+
+  - The bomb vanished on the first tick. setAnimal rebuilt the state by naming
+    its fields, so a pace step dropped the bomb about once a second. Every
+    state rebuild in play.js, solve.mjs and model.js now spreads and overrides.
+    The same fault had already appeared in the wander search an hour earlier;
+    it is the reason the rule is now SPREAD, DO NOT RE-LIST.
+  - It went off in silence, and then with the wrong sound. The blast is drawn
+    over the squares it opened and `sfx.js` gained a real `blast` primitive,
+    because the existing ones cannot make a bang.
+
+Ladder re-derived, since bombs change par: woods 2-4, arctic 5-7, road 7-9,
+ocean 10-25, against 4-7 / 6-8 / 8-11 / 11-24 before.
+
+ONE THING TO KNOW BEFORE ANY FUTURE RE-FORGE. Records in `zam.karrots.save`
+are keyed by level id, and this re-forge changed every id. Nothing is live yet
+so nothing was lost, but a re-forge AFTER launch would silently re-attribute
+every player's carrots to a different board. It needs a save migration, or the
+ids need to become stable.
+
+### K-A1 — CLOSED. The Road is concrete, not gold
+Measured properly the problem was worse than "rests on one feature". Hue
+degrees and contrast ratio each answer half the question; CIELAB dE answers the
+one the eye asks, and the road measured **dE 15.9** between the carrot's shade
+face and the road's mid tone, against 46.6 in the woods and 74.5 in the ocean.
+Under about 25 two colours read as versions of one another.
+
+Warmth turned out to be unavailable to this world. Its blocker is an orange
+cone and its carrot is amber, so any warm slat collides with one or the other:
+the best warm palette in the sweep reached dE 65 on the carrot and dropped the
+cone to 66. Cool neutral clears both. The slats are now concrete,
+`#E7E7EF / #CACADC / #9898BB`, holding each tone's luminance exactly so the
+tile still measures 3.20 against its hole and nothing else on that ground
+moved. Measured on the painted canvas: **dE 77.4**, tile/hole 3.20, carrot 3.52
+on its own ground. The cone, the carrot and the bunny are now the only
+saturated things on the board, which is the read this world wanted.
+
+### K-E1 — CLOSED. The frame decides, not the width
+Two tests were wrong, not one. Orientation was `MODE === 'mobile'`, a width
+test, so a 480x360 embed was handed the portrait board. And MODE itself gave
+that frame the phone chrome, whose bands then ate 160 of its 360 pixels.
+
+Orientation now takes whichever way round makes the cell bigger, and the mode
+test asks for a portrait frame as well as a narrow one, so a real phone still
+answers through its coarse pointer whichever way up it is while a short wide
+frame with a mouse does not. Measured, physical CSS pixels:
+
+  frame            was    now
+  760x600 desktop   70     70
+  375x812 phone     50     50
+  360x740 phone     48     48
+  430x932 phone     58     58
+  320x568 SE        40     40
+  480x360 embed     20     42
+  640x480 embed      -     56
+  800x600 embed      -     70
+
+Every device unchanged; the embed more than doubles. 42 is still 2px under the
+44 floor at the smallest frame /embed/ supports, and that residue is the
+760x600 site-wide frame letterboxing into 480x360 rather than anything this
+game can reach. A drag was driven through the real pointer path at both
+orientations and committed a legal move in each, which is the check that
+matters because the screen-to-board mapping is what the change touched.
 
 ## Ballast audit, 2026-08-28
 
