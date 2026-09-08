@@ -889,11 +889,11 @@
     if (!st) return;
 
     const world = RD.WORLDS.woods;
-    RD.drawTray(ctx, geo);
+    RD.drawTray(ctx, geo, world);
 
     // holes and bricks first: they are the floor everything else sits on
     for (let i = 0; i < M.N; i++) {
-      if (st.grid[i] === M.HOLE) RD.drawHole(ctx, geo, i);
+      if (st.grid[i] === M.HOLE) RD.drawHole(ctx, geo, i, world);
       else if (st.grid[i] === M.BRICK) RD.drawBrick(ctx, geo, i, ART['brick']);
     }
 

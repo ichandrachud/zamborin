@@ -47,6 +47,16 @@ export const CAST = {
   // sprite sheet: a viewBox that cut the leaves off and a drop shadow baked in.
   'carrot':      'carrot-2026-09-07.svg',
   'brick':       'new/brick wall.svg',
+  /* Worlds 2 to 4. The predators and their blockers, all from the owner's own
+     2014 sheets, put through the same strip-and-recrop as the woods cast so
+     they sit in a cell the same way. The rules that go with them are still a
+     proposal in the brief; the art is not. */
+  'penguin-1':   'new/penguin front 1.svg',
+  'penguin-2':   'new/penguin front 2.svg',
+  'iceberg':     'new/iceberg.svg',
+  'cop':         'cop-front.svg',
+  'cone':        'cop-cone.svg',
+  'shark':       'new/shark.svg',
 };
 
 /* --- the value palette -------------------------------------------------

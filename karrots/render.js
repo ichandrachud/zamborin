@@ -37,11 +37,26 @@
   /* ---------- the worlds ----------
      Per world the tiles recolour and nothing else does. Measured against the
      hole, which is the ground the board is actually read on. */
+  /* THE HOLE IS A WORLD COLOUR NOW. It used to be the page ground for every
+     world, which made four worlds that differed only in their tiles. Each
+     hole below is taken from that world's own scene art and then taken DOWN
+     until it reads as an absence again.
+
+     Taking the scene backgrounds literally does not work and the numbers say
+     why: the arctic tiles on the arctic water measure 1.25:1 and the ocean
+     tiles on the ocean water 1.12:1 - in the original illustrations the ice
+     and the sea are the same colour as the things floating on them. The
+     figure after each is the mid tile against that hole; the floor for a
+     graphical object is 3:1. */
   var WORLDS = {
-    woods:  { lit: '#7FBF57', mid: '#5E9440', dark: '#436E2C', name: 'THE WOODS' },
-    arctic: { lit: '#8FD8F2', mid: '#5FBEE3', dark: '#3B8FB4', name: 'ARCTIC SALAD' },
-    ocean:  { lit: '#5FB0E4', mid: '#3288C2', dark: '#1F608C', name: 'OCEAN WORLD' },
-    road:   { lit: '#F2CE3C', mid: '#D4A81F', dark: '#8F7112', name: 'THE ROAD' },
+    woods:  { lit: '#7FBF57', mid: '#5E9440', dark: '#436E2C', hole: '#0C1F12',
+              name: 'THE WOODS',    predator: 'fox',     block: 'brick'   },  // 4.74:1
+    arctic: { lit: '#8FD8F2', mid: '#5FBEE3', dark: '#3B8FB4', hole: '#071B29',
+              name: 'ARCTIC SALAD', predator: 'penguin', block: 'iceberg' },  // 8.32:1
+    road:   { lit: '#F2CE3C', mid: '#D4A81F', dark: '#8F7112', hole: '#181A1E',
+              name: 'THE ROAD',     predator: 'cop',     block: 'cone'    },  // 7.82:1
+    ocean:  { lit: '#5FB0E4', mid: '#3288C2', dark: '#1F608C', hole: '#031B2E',
+              name: 'OCEAN WORLD',  predator: 'shark',   block: 'iceberg' },  // 4.53:1
   };
 
   function rr(ctx, x, y, w, h, r) {
@@ -67,17 +82,17 @@
      left on screen is slats and holes and nothing drawn around them. */
   var PLATE = GROUND;
 
-  function drawTray(ctx, geo) {
+  function drawTray(ctx, geo, world) {
     var pad = Math.round(geo.cell * 0.14);
-    ctx.fillStyle = PLATE;
+    ctx.fillStyle = (world && world.hole) || PLATE;
     ctx.fillRect(geo.ox - pad, geo.oy - pad,
                  geo.cols * geo.cell + pad * 2, geo.rows * geo.cell + pad * 2);
   }
 
   /* A hole is the page. Flat, square-cornered, no inset and no shadow. */
-  function drawHole(ctx, geo, i) {
+  function drawHole(ctx, geo, i, world) {
     var p = geo.at(i), c = geo.cell;
-    ctx.fillStyle = GROUND;
+    ctx.fillStyle = (world && world.hole) || GROUND;
     ctx.fillRect(p.x, p.y, c, c);
   }
 
@@ -87,16 +102,26 @@
      own 2014 drawing. `art` is the loaded sprite; without it the same thing is
      drawn from its two colours, so the board never shows a gap where a wall
      should be. Red brick works here only because the ground stopped being red. */
+  /* THE SAME CORNERS AS A SLAT. The brick was drawn square and full-bleed
+     while every slat beside it was inset and rounded, so the one immovable
+     thing on the board was also the only thing with hard corners - it read as
+     a different material rather than as a piece that will not move. Same
+     inset, same radius, and the art is clipped to it. */
   function drawBrick(ctx, geo, i, art) {
     var p = geo.at(i), c = geo.cell, k;
-    if (art && art.naturalWidth) { ctx.drawImage(art, p.x, p.y, c, c); return; }
+    var inset = Math.max(1, c * 0.03), r = Math.round(c * TILE_R);
+    var x = p.x + inset, y = p.y + inset, w = c - inset * 2, h = c - inset * 2;
+    ctx.save();
+    rr(ctx, x, y, w, h, r); ctx.clip();
+    if (art && art.naturalWidth) { ctx.drawImage(art, x, y, w, h); ctx.restore(); return; }
     ctx.fillStyle = '#BE1E2D';
-    ctx.fillRect(p.x, p.y, c, c);
+    ctx.fillRect(x, y, w, h);
     ctx.strokeStyle = '#FFD194'; ctx.lineWidth = Math.max(1, c * 0.04);
     for (k = 1; k < 4; k++) {
-      ctx.beginPath(); ctx.moveTo(p.x, p.y + c * k / 4);
-      ctx.lineTo(p.x + c, p.y + c * k / 4); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x, y + h * k / 4);
+      ctx.lineTo(x + w, y + h * k / 4); ctx.stroke();
     }
+    ctx.restore();
   }
 
   /* ---------- a slat ----------
