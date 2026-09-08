@@ -123,7 +123,7 @@
   ART_NAMES.forEach(n => {
     const im = new Image();
     im.onload = () => { ART[n] = im; };
-    im.src = './art/' + n + '.svg?v=5';
+    im.src = './art/' + n + '.svg?v=6';
   });
   /* HOW BIG EACH OF THEM IS DRAWN, and why it is not just a number.
 
@@ -208,6 +208,8 @@
      catch is a cut and a hold, and a tile lands instead of easing. §10. */
   const REDUCED = matchMedia('(prefers-reduced-motion: reduce)');
   let rulesOpen = false, rulesScroll = 0;
+  let levelsOpen = false, levelsWorld = 0, levelsScroll = 0, levelsHit = null;
+  let wonPrev = null, wonBeat = false;   // the record before this run, and whether it fell
   const dbg = { downs: 0, captureFailed: 0, moves: 0, ups: 0, committed: 0, refused: 0 };
 
   function load() {
@@ -234,6 +236,7 @@
     start = M.parse(lv.rows, lv.id, lv.carrotAt ? { carrotAt: lv.carrotAt } : undefined);
     st = M.clone(start);
     par = lv.par; moves = 0; history = []; phase = 'play'; anim = null; drag = null; threat = null;
+    wonPrev = null; wonBeat = false;
     snapPaceHome(performance.now());   // drawn where the rules have them, from frame one
     T().levelStart && T().levelStart(levelIndex + 1);
     save();
@@ -485,9 +488,16 @@
     SND.ready();
     const p = toLogical(e);
     dbg.lastDown = { x: Math.round(p.x), y: Math.round(p.y), why: 'reached' };
+    if (levelsOpen) { dbg.lastDown.why = 'level picker open'; levelsPointerDown(p); return; }
     if (rulesOpen) { dbg.lastDown.why = 'rules card open'; rulesPointerDown(p, e); return; }
     for (const b of ctrl) if (inBox(p, b)) { dbg.lastDown.why = 'control ' + b.id; press(b.id); return; }
-    if (phase === 'won') { dbg.lastDown.why = 'win card'; if (inBox(p, winCTA)) nextLevel(); return; }
+    if (inBox(p, levelsHit)) { dbg.lastDown.why = 'read-out, opening the picker'; openLevels(); return; }
+    if (phase === 'won') {
+      dbg.lastDown.why = 'win card';
+      if (inBox(p, winLevelsBtn)) { openLevels(); return; }
+      if (inBox(p, winCTA)) nextLevel();
+      return;
+    }
     /* A snap or a snapback lasts 90ms, and a press arriving inside it used to
        be dropped on the floor - so a quick second try after a refused drag did
        nothing at all. Finish the little animation instead and take the press. */
@@ -648,6 +658,7 @@
   }
 
   window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && levelsOpen) { levelsOpen = false; return; }
     if (e.key === 'Escape' && rulesOpen) { rulesOpen = false; return; }
     if (e.key.toLowerCase() === 'u') undo();
     if (e.key.toLowerCase() === 'r') restart();
@@ -893,7 +904,11 @@
         snapPaceHome(now);
         const c = carrotsFor(moves);
         const id = LEVELS[levelIndex].id;
-        if (!best[id] || moves < best[id].moves) best[id] = { moves, carrots: c };
+        /* What the card needs is the record BEFORE this run, because the whole
+           point of a score you can go back for is being told you beat it. */
+        wonPrev = best[id] ? { moves: best[id].moves, carrots: best[id].carrots } : null;
+        wonBeat = !wonPrev || moves < wonPrev.moves;
+        if (wonBeat) best[id] = { moves, carrots: c };
         save();
         SND.crunch(); setTimeout(SND.win, 220);
         T().levelComplete && T().levelComplete(levelIndex + 1, moves);
@@ -987,6 +1002,7 @@
     });
 
     if (phase === 'won') drawWinCard();
+    if (levelsOpen) drawLevelsCard();
     if (rulesOpen) drawRulesCard(now);
   }
 
@@ -1106,8 +1122,14 @@
 
       ctx.textAlign = 'right';
       ctx.fillStyle = RD.INK72; ctx.font = '600 ' + Math.round(15 * hs) + 'px Inter, sans-serif';
-      ctx.fillText(worldOf(lv).name + '  ·  LEVEL ' + (lv.n || lv.id), LW - SIDE_PAD, 24);
+      const rtxt = worldOf(lv).name + '  ·  LEVEL ' + (lv.n || lv.id);
+      ctx.fillText(rtxt, LW - SIDE_PAD, 24);
       drawPips(LW - SIDE_PAD, 46, true);
+      /* The read-out is the way back to the picker mid level. It already names
+         where you are, and the control row has no width left for a fifth
+         pill. The box is the text plus the pips under it, never under 44 tall. */
+      const rw = Math.max(ctx.measureText(rtxt).width, 60);
+      levelsHit = { x: LW - SIDE_PAD - rw, y: 12, w: rw, h: 46 };
     } else {
       ctx.textAlign = 'right';
       ctx.fillStyle = RD.INK72; ctx.font = '600 ' + Math.round(16 * hs) + 'px Inter, sans-serif';
@@ -1118,16 +1140,33 @@
         f -= 1; ctx.font = '600 ' + f + 'px Inter, sans-serif';
       }
       ctx.fillText(line, LW - SIDE_PAD, topBand() / 2);
+      const dw = Math.max(ctx.measureText(line).width, 60);
+      levelsHit = { x: LW - SIDE_PAD - dw, y: topBand() / 2 - 22, w: dw, h: 44 };
     }
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   }
 
   /* Three pips that say what finishing RIGHT NOW would be worth. The stake is
      a live number, not something revealed after the fact. */
-  function drawPips(rightX, y, rightAligned) {
-    const have = carrotsFor(moves), r = 5, gap = 15;
+  /* The score is carrots, so the pips are carrots: the game's own sprite, not
+     a dot in the carrot's colour. An unearned one is the same drawing held
+     right back, which reads as "this is the slot you have not filled" instead
+     of as a different object. Until the art lands the dot still stands in,
+     because a sprite is fetched and the HUD is not going to wait for it. */
+  function drawPips(rightX, y, rightAligned, count, rr, gg) {
+    const have = (count === undefined) ? carrotsFor(moves) : count;
+    const r = rr || 5, gap = gg || 15;
+    const im = ART.carrot;
     for (let k = 0; k < 3; k++) {
       const x = rightAligned ? rightX - (2 - k) * gap : rightX + k * gap;
+      if (im && im.naturalWidth) {
+        const h = r * 3.2, w = h * (im.naturalWidth / im.naturalHeight);
+        ctx.save();
+        ctx.globalAlpha = k < have ? 1 : 0.20;
+        ctx.drawImage(im, x - w / 2, y - h / 2, w, h);
+        ctx.restore();
+        continue;
+      }
       ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
       if (k < have) { ctx.fillStyle = RD.SUN; ctx.fill(); }
       else { ctx.strokeStyle = 'rgba(255,255,255,0.30)'; ctx.lineWidth = 1.5; ctx.stroke(); }
@@ -1153,13 +1192,162 @@
     ctx.restore();
   }
 
-  /* The desktop side column carries the world's page as a live carrot ledger.
-     It shows only what the player has already done, so it is a record and not
-     an advantage. */
+  /* ---------- THE LEVEL PICKER ----------
+     Three carrots only mean anything if you can see the ones you have and go
+     back for the ones you missed. Before this, `best` was written on every win
+     and read absolutely nowhere, and nothing could return you to a level once
+     you had left it, so finishing on one carrot and finishing on three had the
+     same consequence: NEXT LEVEL, and the number gone for good.
+
+     A level is open once you have finished the one before it. Saves written
+     before this screen existed carry only a level number and a best table, so
+     anywhere the game has already sent you counts as open too, otherwise a
+     player who was on level sixty would come back to find fifty nine locked. */
+  const PAGES = (() => {
+    const out = [];
+    LEVELS.forEach((lv, i) => {
+      let pg = out.find(o => o.world === lv.world);
+      if (!pg) out.push(pg = { world: lv.world, name: worldOf(lv).name, at: [] });
+      pg.at.push(i);
+    });
+    return out;
+  })();
+
+  function highestOpen() {
+    let top = levelIndex;
+    for (let i = 0; i < LEVELS.length; i++) if (best[LEVELS[i].id]) top = Math.max(top, i + 1);
+    return Math.min(top, LEVELS.length - 1);
+  }
+  const isOpen = i => i <= highestOpen();
+  const carrotsAt = i => { const b = best[LEVELS[i].id]; return b ? b.carrots : 0; };
+
+  function openLevels() {
+    levelsOpen = true; levelsScroll = 0;
+    const here = PAGES.findIndex(pg => pg.at.indexOf(levelIndex) >= 0);
+    levelsWorld = here < 0 ? 0 : here;
+  }
+
+  /* A padlock, drawn rather than typed: the design system forbids emoji icons
+     and this is the one glyph the picker needs. */
+  function drawLock(x, y, s) {
+    ctx.strokeStyle = 'rgba(255,255,255,0.34)';
+    ctx.lineWidth = Math.max(1.5, s * 0.11);
+    ctx.beginPath();
+    ctx.arc(x, y - s * 0.30, s * 0.30, Math.PI, 0);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.34)';
+    RD.rr(ctx, x - s * 0.46, y - s * 0.06, s * 0.92, s * 0.72, s * 0.16);
+    ctx.fill();
+  }
+
+  let levelTiles = [], levelsPrev = null, levelsNext = null, levelsCTA = null, levelsGeom = null;
+
+  function levelsBox() {
+    const pw = Math.min(LW - 40, 470), ph = Math.min(LH - 20, 560);
+    return { px: Math.round((LW - pw) / 2), py: Math.max(10, Math.round((LH - ph) / 2)),
+             pw, ph, header: 104, footer: 76, body: ph - 104 - 76 };
+  }
+
+  function drawLevelsCard() {
+    const b = levelsBox(), pg = PAGES[levelsWorld];
+    ctx.fillStyle = 'rgba(10,16,28,0.88)'; ctx.fillRect(0, 0, LW, LH);
+    ctx.fillStyle = RD.SURFACE; RD.rr(ctx, b.px, b.py, b.pw, b.ph, 22); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ctx.lineWidth = 1;
+    RD.rr(ctx, b.px, b.py, b.pw, b.ph, 22); ctx.stroke();
+
+    // header: the world, and an arrow either side of it
+    ctx.textBaseline = 'top'; ctx.textAlign = 'center';
+    ctx.fillStyle = '#FFFFFF'; ctx.font = '800 20px Inter, sans-serif';
+    ctx.fillText(pg.name, b.px + b.pw / 2, b.py + 30);
+
+    const got = pg.at.reduce((n, i) => n + carrotsAt(i), 0);
+    ctx.fillStyle = 'rgba(255,255,255,0.62)'; ctx.font = '600 14px Inter, sans-serif';
+    ctx.fillText(got + ' of ' + (pg.at.length * 3) + ' carrots', b.px + b.pw / 2, b.py + 60);
+
+    const ay = b.py + 38, ar = 17;
+    const arrow = (cx, dir, live) => {
+      ctx.fillStyle = live ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.04)';
+      ctx.beginPath(); ctx.arc(cx, ay, ar, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = live ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.22)';
+      ctx.lineWidth = 2; ctx.beginPath();
+      ctx.moveTo(cx + dir * 3, ay - 6); ctx.lineTo(cx - dir * 3, ay); ctx.lineTo(cx + dir * 3, ay + 6);
+      ctx.stroke();
+      return { x: cx - 22, y: ay - 22, w: 44, h: 44 };   // 44px, the tap floor
+    };
+    levelsPrev = arrow(b.px + 36, 1, levelsWorld > 0);
+    levelsNext = arrow(b.px + b.pw - 36, -1, levelsWorld < PAGES.length - 1);
+
+    // the grid, clipped and scrollable so it survives a short screen
+    const bodyY = b.py + b.header, bodyH = b.body;
+    ctx.save(); ctx.beginPath(); ctx.rect(b.px, bodyY, b.pw, bodyH); ctx.clip();
+
+    const cols = 4, gap = 10, padX = 22;
+    const tw = Math.floor((b.pw - padX * 2 - gap * (cols - 1)) / cols);
+    const th = Math.round(tw * 0.86);
+    levelTiles = [];
+    pg.at.forEach((idx, k) => {
+      const cx = b.px + padX + (k % cols) * (tw + gap);
+      const cy = bodyY + 6 - levelsScroll + Math.floor(k / cols) * (th + gap);
+      const open = isOpen(idx), here = idx === levelIndex;
+      levelTiles.push({ x: cx, y: cy, w: tw, h: th, idx, open });
+      if (cy > bodyY + bodyH || cy + th < bodyY) return;   // off screen, skip the paint
+
+      ctx.fillStyle = open ? 'rgba(255,255,255,0.09)' : 'rgba(255,255,255,0.035)';
+      RD.rr(ctx, cx, cy, tw, th, 10); ctx.fill();
+      if (here) {
+        ctx.strokeStyle = RD.CORAL; ctx.lineWidth = 2;
+        RD.rr(ctx, cx + 1, cy + 1, tw - 2, th - 2, 9); ctx.stroke();
+      }
+      if (!open) { drawLock(cx + tw / 2, cy + th / 2, tw * 0.28); return; }
+
+      ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillStyle = '#FFFFFF'; ctx.font = '800 19px Inter, sans-serif';
+      ctx.fillText(String(LEVELS[idx].n || idx + 1), cx + tw / 2, cy + th * 0.20);
+      /* Big enough to READ as a carrot. At a 11px pitch three of them came out
+         as slashes: the sprite is 0.63 as wide as it is tall, so a small one is
+         mostly its green top. The tile has the room. */
+      drawPips(cx + tw / 2 - 16, cy + th * 0.66, false, carrotsAt(idx), 5.5, 16);
+    });
+    const rows = Math.ceil(pg.at.length / cols);
+    levelsGeom = { contentH: rows * (th + gap) + 12, viewportH: bodyH, bodyY };
+    ctx.restore();
+
+    // the same fades the rules card uses, so "there is more" reads the same way
+    const max = Math.max(0, levelsGeom.contentH - bodyH);
+    if (levelsScroll > 2) {
+      const g = ctx.createLinearGradient(0, bodyY, 0, bodyY + 22);
+      g.addColorStop(0, RD.SURFACE); g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g; ctx.fillRect(b.px + 1, bodyY, b.pw - 2, 22);
+    }
+    if (levelsScroll < max - 2) {
+      const g = ctx.createLinearGradient(0, bodyY + bodyH - 22, 0, bodyY + bodyH);
+      g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, RD.SURFACE);
+      ctx.fillStyle = g; ctx.fillRect(b.px + 1, bodyY + bodyH - 22, b.pw - 2, 22);
+    }
+
+    levelsCTA = UI.drawCTA(ctx, 'CLOSE', b.px + b.pw / 2, b.py + b.ph - 46, '#C24A39');
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  }
+
+  function levelsPointerDown(p) {
+    if (inBox(p, levelsCTA)) { levelsOpen = false; return; }
+    if (inBox(p, levelsPrev) && levelsWorld > 0) { levelsWorld--; levelsScroll = 0; return; }
+    if (inBox(p, levelsNext) && levelsWorld < PAGES.length - 1) { levelsWorld++; levelsScroll = 0; return; }
+    const b = levelsBox(), bodyY = b.py + b.header;
+    if (p.y > bodyY && p.y < bodyY + b.body) {
+      for (const t of levelTiles) {
+        if (p.x < t.x || p.x > t.x + t.w || p.y < t.y || p.y > t.y + t.h) continue;
+        if (!t.open) return;                       // a locked tile is inert, not a close
+        levelsOpen = false; loadLevel(t.idx); save(); return;
+      }
+    }
+    if (p.x < b.px || p.x > b.px + b.pw || p.y < b.py || p.y > b.py + b.ph) levelsOpen = false;
+  }
+
   /* ---------- the win card ---------- */
-  let winCTA = null;
+  let winCTA = null, winLevelsBtn = null;
   function drawWinCard() {
-    const pw = Math.min(LW - 56, 470), ph = Math.min(LH - 20, 300);
+    const pw = Math.min(LW - 56, 470), ph = Math.min(LH - 20, 360);
     const px = Math.round((LW - pw) / 2), py = Math.max(10, Math.round((LH - ph) / 2));
     ctx.fillStyle = 'rgba(10,16,28,0.82)'; ctx.fillRect(0, 0, LW, LH);
     ctx.fillStyle = RD.SURFACE; RD.rr(ctx, px, py, pw, ph, 22); ctx.fill();
@@ -1173,10 +1361,35 @@
     ctx.fillStyle = 'rgba(255,255,255,0.82)'; ctx.font = '600 17px Inter, sans-serif';
     ctx.fillText(moves + (moves === 1 ? ' move' : ' moves') + '   ·   par ' + par, px + pw / 2, py + 84);
     ctx.textAlign = 'left';
-    drawPips(px + pw / 2 - 15, py + 132, false);
+    drawPips(px + pw / 2 - 15, py + 128, false);
+
+    /* Say what the run was worth AGAINST THE RECORD. A score you can go back
+       for is worthless unless the game tells you when you beat it, and the old
+       card said the same thing whether you had just taken three carrots off a
+       level you had one on or repeated your worst run. */
+    ctx.textAlign = 'center';
+    let note = '', tone = 'rgba(255,255,255,0.62)';
+    if (wonBeat && wonPrev) { note = 'New best, was ' + wonPrev.moves; tone = RD.SUN; }
+    else if (wonBeat)       { note = c === 3 ? 'Par matched' : 'Par is ' + par; }
+    else if (wonPrev)       { note = 'Your best is ' + wonPrev.moves +
+                                     (wonPrev.carrots === 3 ? '' : ', par is ' + par); }
+    if (note) {
+      ctx.fillStyle = tone; ctx.font = '600 14px Inter, sans-serif';
+      ctx.fillText(note, px + pw / 2, py + 168);
+    }
+
     winCTA = UI.drawCTA(ctx, levelIndex + 1 < LEVELS.length ? 'NEXT LEVEL' : 'PLAY AGAIN',
-                        px + pw / 2, py + ph - 60, '#C24A39');   // --accent
-    ctx.textBaseline = 'top';
+                        px + pw / 2, py + ph - 116, '#C24A39');   // --accent
+
+    /* The way back to the picker. It cannot go in the control row: at 375 that
+       row already measures 315 of 375, and a fifth pill needs 408. */
+    ctx.save();
+    const lw = UI.pillWidth(ctx, 'Levels'), lcy = py + ph - 52;
+    UI.drawPill(ctx, 'Levels', px + pw / 2, lcy, { w: lw });
+    ctx.restore();
+    winLevelsBtn = { x: px + pw / 2 - lw / 2, y: lcy - UI.PILL.h / 2, w: lw, h: UI.PILL.h };
+
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   }
 
   /* ---------- the rules card ----------
@@ -1433,6 +1646,12 @@
     void e;
   }
   canvas.addEventListener('wheel', (e) => {
+    if (levelsOpen && levelsGeom) {
+      e.preventDefault();
+      const lmax = Math.max(0, levelsGeom.contentH - levelsGeom.viewportH);
+      levelsScroll = Math.max(0, Math.min(lmax, levelsScroll + e.deltaY));
+      return;
+    }
     if (!rulesOpen || !rulesGeom) return;
     e.preventDefault();
     const max = Math.max(0, rulesGeom.contentH - rulesGeom.viewportH);
