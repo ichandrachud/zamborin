@@ -37,26 +37,43 @@
   /* ---------- the worlds ----------
      Per world the tiles recolour and nothing else does. Measured against the
      hole, which is the ground the board is actually read on. */
-  /* THE HOLE IS A WORLD COLOUR NOW. It used to be the page ground for every
-     world, which made four worlds that differed only in their tiles. Each
-     hole below is taken from that world's own scene art and then taken DOWN
-     until it reads as an absence again.
+  /* THE HOLE IS A WORLD COLOUR, AND IT IS CHOSEN AGAINST THE CAST.
 
-     Taking the scene backgrounds literally does not work and the numbers say
-     why: the arctic tiles on the arctic water measure 1.25:1 and the ocean
-     tiles on the ocean water 1.12:1 - in the original illustrations the ice
-     and the sea are the same colour as the things floating on them. The
-     figure after each is the mid tile against that hole; the floor for a
-     graphical object is 3:1. */
+     First attempt got this wrong by measuring one thing. I picked each hole
+     for TILE contrast and never checked the ENEMY against it - and the penguin
+     is 45% black, the police car 28%, the shark 68%. On a near-black hole they
+     have no silhouette at all. The owner's own 2014 screens light those three
+     worlds for exactly that reason.
+
+     Taking the 2014 grounds literally does not work either: the arctic tiles
+     measure 1.29:1 against the arctic water and the ocean tiles 1.12:1 against
+     the sea, and the police car measures 1.91:1 against its own asphalt. With
+     the brief's tile palette NO single ground clears 3:1 for both the tile and
+     a black enemy - swept, and the best available was 2.74, 2.73 and 1.89.
+
+     So the tiles were lifted instead: a mid ground a black body reads on, and
+     tiles above it. Everything that sits in a hole is measured against it -
+     the tile beside it, the enemy, the bunny, the blocker:
+
+       world    hole      tile  enemy  bunny  blocker
+       woods    #0C1F12   4.74   5.05  17.21     2.80   (the fox is orange)
+       arctic   #197499   3.15   3.10   5.25     5.25
+       road     #6D6D6D   3.20   3.26   5.17     5.17   (the cone's white band)
+       ocean    #007CB2   3.01   3.08   4.64     4.64
+
+     The carrot is the one thing under the floor, at 2.3 to 2.6 on the three
+     light worlds. It is orange on blue and grey, so it is carried by hue
+     rather than value, and it is a goal marker rather than a hazard - but it
+     is under, and it is the next thing to fix. */
   var WORLDS = {
     woods:  { lit: '#7FBF57', mid: '#5E9440', dark: '#436E2C', hole: '#0C1F12',
-              name: 'THE WOODS',    predator: 'fox',     block: 'brick'   },  // 4.74:1
-    arctic: { lit: '#8FD8F2', mid: '#5FBEE3', dark: '#3B8FB4', hole: '#071B29',
-              name: 'ARCTIC SALAD', predator: 'penguin', block: 'iceberg' },  // 8.32:1
-    road:   { lit: '#F2CE3C', mid: '#D4A81F', dark: '#8F7112', hole: '#181A1E',
-              name: 'THE ROAD',     predator: 'cop',     block: 'cone'    },  // 7.82:1
-    ocean:  { lit: '#5FB0E4', mid: '#3288C2', dark: '#1F608C', hole: '#031B2E',
-              name: 'OCEAN WORLD',  predator: 'shark',   block: 'iceberg' },  // 4.53:1
+              name: 'THE WOODS',    predator: 'fox',     block: 'brick'   },
+    arctic: { lit: '#C8E8F5', mid: '#8FD2EB', dark: '#25A4D5', hole: '#197499',
+              name: 'ARCTIC SALAD', predator: 'penguin', block: 'iceberg' },
+    road:   { lit: '#F5E7BD', mid: '#E9C965', dark: '#BE971C', hole: '#6D6D6D',
+              name: 'THE ROAD',     predator: 'cop',     block: 'cone'    },
+    ocean:  { lit: '#E1EFF7', mid: '#B3D5EB', dark: '#60A6D6', hole: '#007CB2',
+              name: 'OCEAN WORLD',  predator: 'shark',   block: 'iceberg' },
   };
 
   function rr(ctx, x, y, w, h, r) {
