@@ -228,7 +228,12 @@ while (out.length < want && tried < Math.max(400, want * 25)) {
 
 /** The board written the way a level is written: one letter per domino. */
 function lettered(st) {
-  const LET = 'abdeghijklmnopqrstuvwxyzABDEGHIJKLMNOPQRSTUVWXYZ';
+  /* The domino alphabet must avoid B, F and C in BOTH cases: those three are
+     the bunny, the fox and the carrot. The lowercase half already skipped c
+     and f - the cast is uppercase - but the uppercase half kept B, so the 24th
+     domino on a board was written 'BB' and parsed as a second bunny. A 9x6
+     board never reaches 24 dominoes; a 10x7 one does immediately. */
+  const LET = 'abdeghijklmnopqrstuvwxyzADEGHIJKLMNOPQRSTUVWXYZ';
   const ch = new Array(M.N); let n = 0;
   for (let i = 0; i < M.N; i++) {
     if (st.grid[i] === M.BRICK) ch[i] = '#';

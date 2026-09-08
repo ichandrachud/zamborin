@@ -127,9 +127,14 @@
         i = idx(r, c); ch = rows[r][c];
         if (ch === '.') { grid[i] = HOLE; }
         else if (ch === '#') { grid[i] = BRICK; }
-        else if (ch === 'B') { grid[i] = HOLE; bunny = i; }
-        else if (ch === 'F') { grid[i] = HOLE; fox = i; }
-        else if (ch === 'C') { grid[i] = HOLE; carrot = i; }
+        /* Each of the three appears exactly once. Saying so out loud is what
+           catches a domino accidentally lettered with a cast character - the
+           forge wrote 'BB' for its 24th piece and this silently read the
+           second half as the bunny, giving a board where she was standing
+           somewhere nobody had put her. */
+        else if (ch === 'B') { if (bunny >= 0) throw new Error('two bunnies' + where); grid[i] = HOLE; bunny = i; }
+        else if (ch === 'F') { if (fox >= 0) throw new Error('two foxes' + where); grid[i] = HOLE; fox = i; }
+        else if (ch === 'C') { if (carrot >= 0) throw new Error('two carrots' + where); grid[i] = HOLE; carrot = i; }
         /* A domino is any letter that is not one of the three the cast uses.
            lettered() runs off the end of the lowercase alphabet at 24 slats,
            which a 9x6 board never reaches and a larger one does immediately -
