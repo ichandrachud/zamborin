@@ -829,7 +829,19 @@
   }
 
   function stepPace(now) {
-    if (!st || REDUCED.matches) return;
+    /* REDUCED MOTION MUST NOT STOP THE ANIMALS. This read `if (!st ||
+       REDUCED.matches) return;`, which did not suppress an animation, it
+       switched off a RULE: pacing moves the model, and where the hunter stands
+       is what the player reads his reach from. With the setting on, nobody
+       ever took a step and the only thing that moved on the whole board was
+       the bunny's run to the carrot, which is a different code path and was
+       never gated. So the game looked frozen and its central piece of free
+       information was simply absent.
+
+       Every other use of REDUCED in this file snaps a motion to its end rather
+       than cancelling it, and that is what pacing does now: the step still
+       happens on the same clock, it just arrives instead of gliding. */
+    if (!st) return;
     if (slatInPlay()) return;
     /* Only while the level is live. Won, caught or running, somebody else is
        driving the drawing and a pacing animal walks about behind the card. */
@@ -894,7 +906,8 @@
       const p = geo.at(w ? w.to : anchor);
       return { x: p.x, y: p.y, moving: false, flip: false };
     }
-    const k = Math.max(0, Math.min(1, (now - w.t0) / (w.ms || WANDER.step)));
+    const k = REDUCED.matches ? 1
+      : Math.max(0, Math.min(1, (now - w.t0) / (w.ms || WANDER.step)));
     const a = geo.at(w.from), b = geo.at(w.to);
     const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
     return { x: a.x + (b.x - a.x) * e, y: a.y + (b.y - a.y) * e,
