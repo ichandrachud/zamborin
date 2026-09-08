@@ -202,6 +202,11 @@
   let cardScroll = 0;             // rules card body offset, px
   let scrollDrag = null;
   let aiming = false, aimA = 90 * S.DEG, aimShown = false;
+  /* VISIBLE is not the same as ARMED, and they used to be one flag.
+     On touch the tracer must appear the instant a finger lands, but a bare tap
+     must not fire — so `aimShown` says the line is drawn live and `aimReady`
+     says a drag long enough to mean it has happened. */
+  let aimReady = false;
   let dragFrom = null;
 
   /* TEACHING THE GESTURE, WITHOUT A WORD OF COPY.
@@ -239,7 +244,7 @@
     botRng = S.makeRng(seed ^ 0x5EED1E);
     turn = null; acc = 0; descend = 0; card = null;
     aiming = false; aimShown = false; aimA = 90 * S.DEG;
-    idleT = 0; shots = 0; hintT = 0;
+    idleT = 0; shots = 0; hintT = 0; aimShown = false; aimReady = false;
     shards.length = 0; flashes.length = 0; trails.clear();
     TR().gameStart();
     TR().levelStart(1);
@@ -329,13 +334,35 @@
 
   const AIM_MIN_DRAG = 24;        // logical px before an aim is taken seriously
 
+  /* TWO INPUTS, BECAUSE THERE ARE TWO DEVICES.
+     A mouse has a hover, so on desktop the aim simply follows the pointer and
+     the line comes alive the instant the cursor crosses the board — nothing to
+     discover. A finger has no hover and would sit on top of the very blocks it
+     is trying to read, so touch keeps the drag-delta scheme: the direction you
+     swipe is the direction it fires. Same game, same rules, same seeds; only
+     the way the angle is expressed differs, which is what the two layouts are
+     for. */
+  const HOVER_AIM = MODE === 'desktop';
+
+  // Aim at wherever the pointer is, measured from the launcher.
+  function aimFromPoint(p) {
+    if (!state) return false;
+    const dx = p.x - sx(state.launchX);
+    const dy = p.y - L.launchY;
+    if (dy > -14) return false;    // level with or below the launcher: no shot there
+    aimA = S.legalAngle(Math.atan2(-dy, dx));
+    aimShown = true; idleT = 0; hintT = 0;
+    return true;
+  }
+
   // The one moment the board is waiting on a human.
   const playersTurn = () =>
     !!state && !state.over && !turn && descend <= 0 && !card && !FLAG.bot;
 
   // Show the demo while the player is new to it, and again if they stall.
   const hintOn = () =>
-    playersTurn() && !aiming && (shots < HINT.retireAfter || idleT > HINT.idleWake);
+    playersTurn() && !aiming && !aimShown &&
+    (shots < HINT.retireAfter || idleT > HINT.idleWake);
 
   const NOT_A_BUTTON = { lvlPill: 1 };
   function hitControls(p) {
@@ -380,7 +407,17 @@
     if (FLAG.bot) return;
     if (!state || state.over || turn || descend > 0) return;
     idleT = 0; hintT = 0;          // they are engaging: stop demonstrating
-    aiming = true; aimShown = false; dragFrom = p;
+    aiming = true; dragFrom = p;
+    if (HOVER_AIM) {
+      // A mouse has already set an angle by hovering, so clearing it here
+      // would make every desktop click a dud.
+      aimFromPoint(p);
+    } else {
+      // Touch: the tracer appears the moment a finger lands, anywhere on the
+      // board, at the angle already showing. It is not armed until the finger
+      // travels far enough to mean it.
+      aimShown = true; aimReady = false;
+    }
     canvas.setPointerCapture?.(e.pointerId);
   });
 
@@ -392,15 +429,24 @@
       render(performance.now());
       return;
     }
+    // Desktop: the aim tracks the pointer whether or not a button is down, so
+    // there is one rule to learn instead of two.
+    if (HOVER_AIM) {
+      if (!playersTurn() && !aiming) return;
+      aimFromPoint(pt(e));
+      return;
+    }
     if (!aiming || !dragFrom) return;
     e.preventDefault();
     const p = pt(e);
     const dx = p.x - dragFrom.x, dy = p.y - dragFrom.y;
-    if (Math.hypot(dx, dy) < AIM_MIN_DRAG) { aimShown = false; return; }
+    // Under the threshold the tracer stays lit, it is simply not armed yet.
+    // Hiding it here is what made a finger landing on the board look dead.
+    if (Math.hypot(dx, dy) < AIM_MIN_DRAG) { aimReady = false; return; }
     // The drag vector IS the shot vector: drag up-left, fire up-left. Precision
     // rises with drag length, and the finger never has to sit on the target it
     // is trying to read.
-    aimShown = true;
+    aimShown = true; aimReady = true;
     aimA = S.legalAngle(Math.atan2(-dy, dx));
   });
 
@@ -414,12 +460,19 @@
     }
     if (!aiming) return;
     aiming = false;
-    const fire = aimShown;
-    aimShown = false; dragFrom = null;
+    const p = pt(e);
+    // Desktop fires on a click, but only one aimed above the launcher, so a
+    // stray click in the band under the board cannot loose a shot.
+    const fire = HOVER_AIM ? (aimShown && p.y < L.launchY - 14) : aimReady;
+    if (!HOVER_AIM) { aimShown = false; aimReady = false; }
+    dragFrom = null;
     if (fire && state && !state.over && !turn && descend <= 0) fireTurn(aimA);
   }
   canvas.addEventListener('pointerup', (e) => { e.preventDefault(); endPointer(e); });
-  canvas.addEventListener('pointercancel', () => { aiming = false; aimShown = false; L.armed = null; scrollDrag = null; });
+  canvas.addEventListener('pointercancel', () => {
+    aiming = false; L.armed = null; scrollDrag = null;
+    if (!HOVER_AIM) { aimShown = false; aimReady = false; }
+  });
 
   // Wheel scrolls the open card and nothing else. Passive is off deliberately:
   // without preventDefault the page behind the canvas scrolls instead, which on
@@ -988,7 +1041,10 @@
     const ang = hintAngle();
     const reach = Math.min(96, Math.max(54, L.bw * 0.13));
     const grow = Math.min(1, ease * 1.9);            // out quickly, then hold and sweep
-    const x0 = sx(state.launchX), y0 = L.launchY - 30;
+    // The SAME origin the aim line uses. This sat 30px higher and the two rays
+    // came out parallel instead of collinear, so the ghost visibly floated off
+    // the line it was supposed to be dragging.
+    const x0 = sx(state.launchX), y0 = L.launchY;
     const x1 = x0 + Math.cos(ang) * reach * grow;
     const y1 = y0 - Math.sin(ang) * reach * grow;
 
@@ -1495,6 +1551,8 @@
       idleT: +idleT.toFixed(2), hintT: +hintT.toFixed(2), shots: shots,
       aimShown: aimShown, restingLineDrawn: playersTurn(),
       hintAngleDeg: +(hintAngle() / S.DEG).toFixed(1), dir: hintDir,
+      scheme: HOVER_AIM ? 'hover' : 'drag', aimDeg: +(aimA / S.DEG).toFixed(1),
+      aimReady: aimReady,
       retireAfter: HINT.retireAfter, idleWake: HINT.idleWake,
     }),
     tick: (secs) => {            // advance the idle clocks with no rAF, for tests
