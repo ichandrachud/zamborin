@@ -149,6 +149,19 @@
       }
     }
 
+    /* A BOMB IS FIXED TO A DOMINO, NOT TO A SQUARE, and it is named by the
+       domino's letter so a level stays readable: bombs: ['d', 'k']. It is
+       recorded on the domino's HEAD cell, which is stable because a bomb never
+       travels: the first move the domino makes is the one that destroys it. */
+    var bombCells = [];
+    (opts.bombs || []).forEach(function (ch) {
+      if (!seen[ch]) throw new Error('bomb on "' + ch + '", which is not a tile' + where);
+      bombCells.push(Math.min(seen[ch][0], seen[ch][1]));
+    });
+    bombCells.sort(function (x, y) { return x - y; });
+    for (var bi = 1; bi < bombCells.length; bi++)
+      if (bombCells[bi] === bombCells[bi-1]) throw new Error('two bombs on one tile' + where);
+
     Object.keys(seen).forEach(function (ch) {
       var cells = seen[ch];
       if (cells.length !== 2)
@@ -170,7 +183,7 @@
     if (carrot < 0) throw new Error('no carrot' + where);
     if (bunny === carrot) throw new Error('bunny starts on the carrot' + where);
 
-    var st = { grid: grid, bunny: bunny, fox: fox, carrot: carrot };
+    var st = { grid: grid, bunny: bunny, fox: fox, carrot: carrot, bombs: bombCells };
     var p = parity(grid);
     if (!p.ok) throw new Error('parity: ' + p.dark + ' dark and ' + p.light +
       ' light cells are blocked, so no domino tiling of the rest exists' + where);
@@ -297,19 +310,31 @@
   function apply(st, mv) {
     var g = new Uint8Array(st.grid), next;
     if (mv.type === 'hop') {
-      next = { grid: g, bunny: mv.to, fox: st.fox, carrot: st.carrot };
+      next = { grid: g, bunny: mv.to, fox: st.fox, carrot: st.carrot, bombs: (st.bombs || []).slice() };
     } else {
       var horiz = (st.grid[mv.a] === HL);
       var na = NBD[mv.a][mv.dir], nb = NBD[mv.b][mv.dir];
+      /* THE DOMINO IS THE FUSE. A bomb goes off only when the domino it sits
+         on is moved, and it can only move if there is an empty square in front
+         of it, so a bomb with nothing to move into is inert until the player
+         opens the way. Once it moves it ceases to exist, which is why the
+         squares it lands on are simply never painted: the opening it leaves is
+         the two squares it came from plus the one it reached. */
+      var boom = bombedTile(st, mv.a, mv.b);
+      var bombs = st.bombs || [];
       g[mv.a] = HOLE; g[mv.b] = HOLE;
-      g[na] = horiz ? HL : VT; g[nb] = horiz ? HR : VB;
+      if (boom) {
+        bombs = bombs.filter(function (c) { return c !== mv.a && c !== mv.b; });
+      } else {
+        g[na] = horiz ? HL : VT; g[nb] = horiz ? HR : VB;
+      }
       var bunny = st.bunny, fox = st.fox;
       // whoever was standing where the slat now is takes a step to the side
       // Whoever the slat came down on steps aside, to the square canSlide
       // already checked was there for them.
       if (g[bunny] !== HOLE) { var nbun = stepAsideFor(st, g, BUNNY); if (nbun >= 0) bunny = nbun; }
       if (g[fox]   !== HOLE) { var nfox = stepAsideFor(st, g, FOX);   if (nfox >= 0) fox   = nfox; }
-      next = { grid: g, bunny: bunny, fox: fox, carrot: st.carrot };
+      next = { grid: g, bunny: bunny, fox: fox, carrot: st.carrot, bombs: bombs };
     }
     return next;
   }
@@ -418,11 +443,24 @@
      these per generated position and string building was a real share of the
      running time. */
   function key(st) {
-    return String.fromCharCode.apply(null, st.grid) + String.fromCharCode(st.bunny);
+    /* The bombs still on the board are part of the position: two boards that
+       look identical but where one has a bomb left are not the same problem. */
+    var b = st.bombs && st.bombs.length ? '!' + st.bombs.join(',') : '';
+    return String.fromCharCode.apply(null, st.grid) + String.fromCharCode(st.bunny) + b;
   }
 
   function clone(st) {
-    return { grid: new Uint8Array(st.grid), bunny: st.bunny, fox: st.fox, carrot: st.carrot };
+    return { grid: new Uint8Array(st.grid), bunny: st.bunny, fox: st.fox,
+             carrot: st.carrot, bombs: (st.bombs || []).slice() };
+  }
+
+  /* Is this domino carrying one? Either cell answers, because the head is what
+     is recorded and callers hold whichever end they happened to pick up. */
+  function bombedTile(st, a, b) {
+    var bs = st.bombs;
+    if (!bs || !bs.length) return false;
+    for (var i = 0; i < bs.length; i++) if (bs[i] === a || bs[i] === b) return true;
+    return false;
   }
 
   function ascii(st) {
@@ -447,7 +485,7 @@
     HOLE: HOLE, BRICK: BRICK, HL: HL, HR: HR, VT: VT, VB: VB,
     DIRS: DIRS, rc: rc, idx: idx, inside: inside, NB4: NB4, NBD: NBD,
     parse: parse, parity: parity, tileAt: tileAt, validate: validate, stepAsideFor: stepAsideFor,
-    slideMoves: slideMoves, moves: moves, apply: apply,
+    slideMoves: slideMoves, moves: moves, apply: apply, bombedTile: bombedTile,
     foxRegion: foxRegion, regionFrom: regionFrom, caught: caught, won: won, buried: buried,
     key: key, clone: clone, ascii: ascii
   };

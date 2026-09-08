@@ -142,8 +142,14 @@ export function cellsOf(st, cell) {
   for (let i = 0; i < M.N; i++) if (r[i]) out.push(i);
   return out;
 }
+/* The bombs still on the board belong in the key as much as the dominoes do:
+   two positions that differ only by a bomb nobody has spent yet are not the
+   same problem, and collapsing them would let the search reach a win it has
+   not actually paid for. M.key carries them for the ordinary search; this one
+   builds its own key out of POCKETS, so it has to carry them too. */
 export const wanderKey = st => String.fromCharCode.apply(null, st.grid) +
-  String.fromCharCode(cellsOf(st, st.bunny)[0]) + String.fromCharCode(cellsOf(st, st.fox)[0]);
+  String.fromCharCode(cellsOf(st, st.bunny)[0]) + String.fromCharCode(cellsOf(st, st.fox)[0]) +
+  (st.bombs && st.bombs.length ? '!' + st.bombs.join(',') : '');
 
 export function parWhileTheyWander(st0, opts = {}) {
   const useFox = opts.fox !== false;
