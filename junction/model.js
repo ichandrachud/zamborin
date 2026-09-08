@@ -784,6 +784,105 @@ function validateStroke(level, track, path) {
   return { ok: true, why: '', adds, cost, track: scratch };
 }
 
+/* ============================================================
+   ONE PIECE OF THE ANSWER — the hint
+   ============================================================
+
+   The owner's rule: it shows ONE hint and does not finish the game. So this
+   returns a single segment out of the level's own solution, laid as a real
+   piece of track at the ordinary price of one sleeper — a sleeper the answer
+   was always going to spend, so a hint costs nothing but the knowing.
+
+   WHICH piece matters more than the fact of one. Handing over a cell on the
+   straight run between a tunnel and its shed tells a player what they had
+   already worked out. What they are stuck on is the doubling-back: the stretch
+   that buys one engine its delay, which goes the wrong way on purpose and is
+   the one part of the answer that staring at the sheds will never suggest.
+
+   SO "OFF THE ROAD" IS MEASURED, NOT ESTIMATED. The first version scored a
+   cell by Manhattan distance — tunnel to cell plus cell to shed, less tunnel
+   to shed — and it was wrong two thirds of the time, because a detour that
+   doubles back INSIDE the bounding box of the two scores zero by that measure.
+   Only 10 of 30 boards hinted a cell that was actually surprising.
+
+   What this does instead is breadth-first search, twice per engine: distances
+   out from the tunnel mouth and back from the shed door, over open ground. A
+   cell lies on SOME shortest road exactly when those two distances add up to
+   the shortest distance itself. Anything the answer uses that no shortest road
+   passes through is the detour, and that is what the button gives you.
+
+   Segments already laid are skipped, so a second press moves on, and anything
+   that will not fit the track or the budget is skipped too. Deterministic: the
+   same board in the same state always hints the same cell.
+*/
+function roadDistances(level, from) {
+  const d = new Array(level.size).fill(-1);
+  if (from < 0) return d;
+  d[from] = 0;
+  const q = [from];
+  for (let h = 0; h < q.length; h++) {
+    const cur = q[h];
+    for (const dir of [N, E, S, W]) {
+      const nx = neighbour(level, cur, dir);
+      if (nx < 0 || d[nx] >= 0 || level.kind[nx] !== EMPTY) continue;
+      d[nx] = d[cur] + 1; q.push(nx);
+    }
+  }
+  return d;
+}
+/* Every cell that lies on a shortest road between some tunnel and its own
+   shed. These are the cells a player works out for themselves. */
+function obviousCells(level) {
+  const on = new Set();
+  for (const p of level.portals) for (const colour of p.queue) {
+    const home = level.depots.find((x) => x.colour === colour);
+    if (!home) continue;
+    const start = neighbour(level, p.i, p.face), goal = neighbour(level, home.i, home.face);
+    if (start < 0 || goal < 0) continue;
+    const dS = roadDistances(level, start), dG = roadDistances(level, goal);
+    const best = dS[goal];
+    if (best < 0) continue;
+    for (let i = 0; i < level.size; i++)
+      if (dS[i] >= 0 && dG[i] >= 0 && dS[i] + dG[i] === best) on.add(i);
+  }
+  return on;
+}
+function hintSegment(level, track) {
+  if (!level.solution || !level.solution.length) return null;
+  const obvious = obviousCells(level);
+  const laid = sleepers(track);
+  /* AND A TIE IS BROKEN BY DEPTH, which matters more than it sounds. On the
+     crossing and the swap boards nothing is off the road — those answers have
+     no detour in them at all, the question is which route goes round — so
+     every candidate scores the same and the winner is decided by the tie. The
+     solution is written tunnel-outward, so first-past-the-post handed over the
+     cell against the tunnel mouth: the one piece of the answer nobody needs.
+     Furthest from any tunnel is the piece deepest into the puzzle. */
+  const depth = new Array(level.size).fill(0);
+  for (let i = 0; i < level.size; i++) {
+    let best = Infinity;
+    for (const p of level.portals) {
+      const d = Math.abs(Math.floor(i / level.C) - p.r) + Math.abs((i % level.C) - p.c);
+      if (d < best) best = d;
+    }
+    depth[i] = best === Infinity ? 0 : best;
+  }
+  let pick = null, bestOff = -1, bestDepth = -1;
+  for (const g of level.solution) {
+    const [r, c, a, b] = g;
+    const i = r * level.C + c;
+    const cell = track[i];
+    if (cell && cell.segs.some((x) => (x[0] === a && x[1] === b) || (x[0] === b && x[1] === a))) continue;
+    if (!canAddSegment(cell, a, b)) continue;
+    if (laid + 1 > level.budget) continue;
+    const off = obvious.has(i) ? 0 : 1;
+    if (off > bestOff || (off === bestOff && depth[i] > bestDepth)) {
+      bestOff = off; bestDepth = depth[i]; pick = g;
+    }
+  }
+  return pick;
+}
+
 // ---------- THE RUN ----------
 const RUN_DT = TUNE.dt;
 
@@ -954,7 +1053,7 @@ return {
   newTrack, cloneTrack, sleepers, segIndex, isJunction, hasSide, trunkOf,
   activeBranch, idleBranch, exitSide, canAddSegment, addSegment, toggleSwitch,
   eraseCell, buildLevel, padLevel, level1, orderLevel, tightLevel, validate, LEVELS, LEVEL_SPECS, LADDERS, ladder, ladderCount, authored, useLadder, nextOnLadder, levelCount, getLevel,
-  rowOf, colOf, sideBetween, neighbour, validateStroke,
+  rowOf, colOf, sideBetween, neighbour, validateStroke, hintSegment, obviousCells,
   createRun, stepRun, isWon, runToEnd, layout, advance,
 };
 }));

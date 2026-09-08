@@ -297,6 +297,7 @@
 
   const cellsOf = (i) => ({ r: M.rowOf(level, i), c: M.colOf(level, i) });
   const sleepersUsed = () => M.sleepers(track);
+  let hintUsed = false;             // one a board; reset on restart and on arrival
   const running = () => !!run && !run.settled;
 
   function pushHistory() {
@@ -1696,7 +1697,15 @@
     const gap = UI.PILL.gap, wS = UI.PILL.iconW;
     ctx.font = '700 ' + UI.PILL.font + 'px Inter, sans-serif';
     const wU = UI.pillWidth(ctx, 'Undo'), wR = UI.pillWidth(ctx, 'Restart');
-    const rowFull = wS + wU + wR + UI.pillWidth(ctx, 'Rules') + gap * 3;
+    /* FIVE PILLS NOW, and the row was already the tight one. The ladder gains a
+       rung rather than a magic number: full words, then Rules to its icon, then
+       Hint to its icon as well. Hint gives up its word SECOND because "Rules"
+       is the one a player can guess from a question mark, and an unlabelled
+       control is a cost paid only when the frame makes us. */
+    const wHintT = UI.pillWidth(ctx, 'Hint'), wRulesT = UI.pillWidth(ctx, 'Rules');
+    const rowW = (o) => wS + (o.u ? UI.PILL.iconW : wU) + (o.s ? UI.PILL.iconW : wR)
+      + (o.h ? UI.PILL.iconW : wHintT) + (o.r ? UI.PILL.iconW : wRulesT) + gap * 4;
+    const rowFull = rowW({});
     /* One line of numbers, and where it goes is the only difference between
        the two layouts. Landscape puts it in the band, right-aligned, opposite
        the control row — the fleet's standard HUD, which Junction had drifted
@@ -1729,7 +1738,7 @@
       ? rightEdge - leftEdge(0)
       : LW - 36 - (actionW() + 18);
     const iconRoom = L.wide
-      ? rightEdge - leftEdge(UI.pillWidth(ctx, 'Rules') - UI.PILL.iconW)
+      ? rightEdge - leftEdge(wRulesT - UI.PILL.iconW)
       : room;
     /* WHERE THE ROW FITS DEPENDS ON HOW IT IS ANCHORED, and a single magic
        number cannot say it for both. Landscape lays the pills from SIDE_PAD
@@ -1737,7 +1746,25 @@
        them, so 12px each side is enough. `LW - 24` for both let a 315px row
        start at 30 in a 340px frame and finish 5px past the edge. */
     const rowRoom = L.wide ? LW - SIDE_PAD * 2 : LW - 24;
-    let icon = rowFull > rowRoom;
+    /* MEASURED, and the numbers are worth keeping: 391 for five words, 358 with
+       Rules as a question mark, 336 with the lamp as well, 305 once Undo goes
+       too. A 320 frame offers 296. Four words fitted at 282 before Hint existed,
+       so adding it is what put the row over the edge there — by 8px each side,
+       with the speaker's tap target hanging off the screen. Hence a fourth
+       rung. It engages below 340 and nowhere else. */
+    /* A LADDER, WALKED, rather than three conditions each guessing at the next.
+       Written as conditions it got two cases wrong at once: 375 kept a 358 row
+       in 351 of space because the test asked whether the NEXT rung overflowed
+       rather than this one, and 320 refused to step down at all because the
+       step would not have been enough on its own. Concessions in order of what
+       they cost a player — the question mark first, since it is the one anybody
+       can read; the labels last. Take the first rung that fits, and the tightest
+       one if none do. */
+    const RUNGS = [{}, { r: 1 }, { r: 1, h: 1 }, { r: 1, h: 1, u: 1 }, { r: 1, h: 1, u: 1, s: 1 }];
+    let rung = RUNGS[RUNGS.length - 1];
+    for (const o of RUNGS) if (rowW(o) <= rowRoom) { rung = o; break; }
+    let icon = !!rung.r, iconHint = !!rung.h, iconUndo = !!rung.u;
+    const iconRestart = !!rung.s;
     let text = texts[0], hs = hs0, k = 0;
     const fits = (r) => width(text, hs) <= r;
     while (!fits(room) && k < texts.length - 1) text = texts[++k];
@@ -1753,16 +1780,19 @@
        of the field. So landscape borrows the portrait position rather than
        inventing a third one. */
     const inBand = fits(icon ? iconRoom : room);
-    return { iconRules: icon, text, hs, inBand };
+    return { iconRules: icon, iconHint, iconUndo, iconRestart, text, hs, inBand,
+             rowW: rowW(rung) };
   }
 
   function drawControls(now) {
     const gap = UI.PILL.gap, wS = UI.PILL.iconW;
-    const wU = UI.pillWidth(ctx, 'Undo'), wR = UI.pillWidth(ctx, 'Restart');
     const plan = L.plan;
+    const wU = plan.iconUndo ? UI.PILL.iconW : UI.pillWidth(ctx, 'Undo');
+    const wR = plan.iconRestart ? UI.PILL.iconW : UI.pillWidth(ctx, 'Restart');
     const iconRules = plan.iconRules;
     const wH = iconRules ? UI.PILL.iconW : UI.pillWidth(ctx, 'Rules');
-    const total = wS + wU + wR + wH + gap * 3;
+    const wN = plan.iconHint ? UI.PILL.iconW : UI.pillWidth(ctx, 'Hint');
+    const total = wS + wU + wR + wN + wH + gap * 4;
     const cy = L.ctrlCy;
     let x = L.wide ? SIDE_PAD : Math.round(LW / 2 - total / 2);   // portrait: centred, in the TOP band
     L.rowLeft = x;
@@ -1772,10 +1802,22 @@
     L.hit.sound = b; x += wS + gap;
 
     const busy = running();
-    L.hit.undo = UI.drawPill(ctx, 'Undo', x + wU / 2, cy, { w: wU, dim: busy || !history.length });
+    const noUndo = busy || !history.length;
+    L.hit.undo = UI.drawPill(ctx, plan.iconUndo ? '' : 'Undo', x + wU / 2, cy, { w: wU, dim: noUndo });
+    if (plan.iconUndo) undoIcon(x + wU / 2, cy, noUndo);
     x += wU + gap;
-    L.hit.restart = UI.drawPill(ctx, 'Restart', x + wR / 2, cy, { w: wR, dim: busy || !sleepersUsed() });
+    const noRestart = busy || !sleepersUsed();
+    L.hit.restart = UI.drawPill(ctx, plan.iconRestart ? '' : 'Restart', x + wR / 2, cy,
+      { w: wR, dim: noRestart });
+    if (plan.iconRestart) restartIcon(x + wR / 2, cy, noRestart);
     x += wR + gap;
+    /* ONE HINT A BOARD. Spent, it dims and stays dimmed until the level is
+       restarted or left, which is what "it does not finish the game" means in
+       chrome: there is no second press to lean on. */
+    const noHint = busy || hintUsed || !M.hintSegment(level, track);
+    L.hit.hint = UI.drawPill(ctx, plan.iconHint ? '' : 'Hint', x + wN / 2, cy, { w: wN, dim: noHint });
+    if (plan.iconHint) lampIcon(x + wN / 2, cy, noHint);
+    x += wN + gap;
     L.hit.rules = UI.drawPill(ctx, iconRules ? '' : 'Rules', x + wH / 2, cy, { w: wH });
     if (iconRules) {
       ctx.fillStyle = TOK.ink92;
@@ -1786,6 +1828,61 @@
     }
     L.rowRight = x + wH;
     void now;
+  }
+
+  /* AND AN ARROW BACK, for the same reason and only at the same extreme. */
+  function undoIcon(x, y, dim) {
+    ctx.save();
+    if (dim) ctx.globalAlpha = 0.42;
+    ctx.strokeStyle = TOK.ink92; ctx.lineWidth = 2.2; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.arc(x + 0.5, y + 1, 5.4, Math.PI * 0.92, Math.PI * 2.15); ctx.stroke();
+    ctx.fillStyle = TOK.ink92;
+    ctx.beginPath(); ctx.moveTo(x - 5.4, y - 3.4); ctx.lineTo(x - 1.1, y - 0.6);
+    ctx.lineTo(x - 6.2, y + 2.2); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+
+  /* A RING WITH A HEAD ON IT — restart, at the narrowest rung only. */
+  function restartIcon(x, y, dim) {
+    ctx.save();
+    if (dim) ctx.globalAlpha = 0.42;
+    ctx.strokeStyle = TOK.ink92; ctx.lineWidth = 2.2; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.arc(x, y, 5.4, Math.PI * 0.62, Math.PI * 2.28); ctx.stroke();
+    ctx.fillStyle = TOK.ink92;
+    ctx.beginPath(); ctx.moveTo(x + 1.4, y - 7.4); ctx.lineTo(x + 6.4, y - 4.6);
+    ctx.lineTo(x + 1.4, y - 1.8); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+
+  /* A LAMP, drawn rather than typed: the question mark is already Rules's and
+     no glyph in the type says "hint". Two bands under the bulb read as a lamp
+     at 17px where one reads as a pin. */
+  function lampIcon(x, y, dim) {
+    ctx.save();
+    if (dim) ctx.globalAlpha = 0.42;          // there is no ink40 token; the pill dims itself
+    ctx.fillStyle = TOK.ink92;
+    ctx.beginPath(); ctx.arc(x, y - 3, 5.4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillRect(x - 3.2, y + 2.6, 6.4, 2.2);
+    ctx.fillRect(x - 2.1, y + 5.7, 4.2, 2);
+    ctx.restore();
+  }
+
+  /* THE HINT LAYS ONE PIECE OF THE ANSWER, at the ordinary price of one
+     sleeper — a sleeper the answer was going to spend anyway, so what it costs
+     is the knowing and not the budget. Which piece is the model's decision and
+     is measured there; see hintSegment. It goes through pushHistory, so Undo
+     takes it straight back off. */
+  function useHint() {
+    if (running() || hintUsed) return;
+    const g = M.hintSegment(level, track);
+    if (!g) return;
+    if (run) clearRun();
+    pushHistory();
+    M.addSegment(track, g[0] * level.C + g[1], g[2], g[3]);
+    hintUsed = true;
+    T().hintUsed(level.n);
+    play('lay');
+    draw();
   }
 
   /* THE NUMBERS. One line, laid out from the end of its band opposite whatever
@@ -2203,6 +2300,7 @@
     if (run) clearRun();
     pushHistory();
     track = M.newTrack(level.size);
+    hintUsed = false;
     T().levelRestart(level.n);
     play('tick');
     draw();
@@ -2258,7 +2356,7 @@
       return;
     }
     if (inBox(p, L.hit.sound) || inBox(p, L.hit.undo) || inBox(p, L.hit.restart) ||
-        inBox(p, L.hit.rules) || inBox(p, L.hit.release)) return;
+        inBox(p, L.hit.hint) || inBox(p, L.hit.rules) || inBox(p, L.hit.release)) return;
     if (running()) return;
     const i = down.cell;
     if (i < 0) return;
@@ -2371,6 +2469,7 @@
       if (inBox(p, L.hit.sound)) { if (sfx) { sfx.setOn(!sfx.isOn()); play('click'); } draw(); return; }
       if (inBox(p, L.hit.undo)) { undo(); return; }
       if (inBox(p, L.hit.restart)) { restart(); return; }
+      if (inBox(p, L.hit.hint)) { useHint(); return; }
       if (inBox(p, L.hit.rules)) { phase = 'rules'; cardScroll = 0; demoT0 = 0; play('click'); draw(); return; }
       if (inBox(p, L.hit.release)) { release(); return; }
     }
@@ -2451,7 +2550,7 @@
   function goToLevel(n) {
     core = level = M.getLevel(n);
     track = M.newTrack(level.size);
-    history = []; run = null; winAt = 0; releases = 0; phase = 'play';
+    history = []; run = null; winAt = 0; releases = 0; phase = 'play'; hintUsed = false;
     save.max = Math.max(save.max, n); persist();
     layout(); T().levelStart(level.n); draw();
   }
@@ -2569,7 +2668,8 @@
         actionWhereItBelongs: !L.hit.release ||
           L.hit.release.y + L.hit.release.h <= L.field.y + 0.5 ||
           L.hit.release.y >= L.field.y + L.field.h - 0.5,
-        controls: { sound: L.hit.sound, undo: L.hit.undo, restart: L.hit.restart, rules: L.hit.rules },
+        controls: { sound: L.hit.sound, undo: L.hit.undo, restart: L.hit.restart,
+                    hint: L.hit.hint, rules: L.hit.rules },
         cta: L.hit.release || null,
         card: L.hit.cta || null,
         cellTarget: L.g.cell,

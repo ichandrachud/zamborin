@@ -715,5 +715,50 @@ for (const [name, set] of [['portrait', port], ['landscape', land]]) {
   ok(name + ': no two levels share tunnels, sheds and size', same.length === 0, same.join(' '));
 }
 
+/* ---------- ONE PIECE OF THE ANSWER ----------
+   The owner's rule for the hint: it shows ONE and does not finish the game. So
+   what it hands over has to be a real piece of the level's own solution, has to
+   fit the track and the budget, and has to be worth having — a cell against the
+   tunnel mouth is a hint about nothing. */
+head('the hint gives one real piece of the answer');
+for (const [name, set] of [['portrait', port], ['landscape', land]]) {
+  const none = [], notInSolution = [], tooShallow = [], unbuildable = [], sameTwice = [];
+  for (const lvl of set) {
+    const empty = M.newTrack(lvl.size);
+    const g = M.hintSegment(lvl, empty);
+    if (!g) { none.push(lvl.n); continue; }
+    const inSol = lvl.solution.some((x) => x[0] === g[0] && x[1] === g[1] &&
+      ((x[2] === g[2] && x[3] === g[3]) || (x[2] === g[3] && x[3] === g[2])));
+    if (!inSol) notInSolution.push(lvl.n);
+    if (!M.canAddSegment(empty[g[0] * lvl.C + g[1]], g[2], g[3])) unbuildable.push(lvl.n);
+    let near = Infinity;
+    for (const p of lvl.portals) near = Math.min(near, Math.abs(g[0] - p.r) + Math.abs(g[1] - p.c));
+    if (near < 2) tooShallow.push(lvl.n + ' at ' + near);
+    /* A SECOND PRESS MOVES ON. The button allows one a board, but the model
+       must not be the thing that stops it, or Restart would hand back the same
+       cell for ever. */
+    const after = M.newTrack(lvl.size);
+    M.addSegment(after, g[0] * lvl.C + g[1], g[2], g[3]);
+    const g2 = M.hintSegment(lvl, after);
+    if (g2 && g2[0] === g[0] && g2[1] === g[1] && g2[2] === g[2] && g2[3] === g[3]) sameTwice.push(lvl.n);
+  }
+  ok(name + ': every level offers a hint', none.length === 0, none.join(','));
+  ok(name + ": and it is part of that level's own answer", notInSolution.length === 0, notInSolution.join(','));
+  ok(name + ': and it can actually be laid', unbuildable.length === 0, unbuildable.join(','));
+  ok(name + ': and it is not the cell against the tunnel mouth', tooShallow.length === 0, tooShallow.join(' '));
+  ok(name + ': and pressing again moves on', sameTwice.length === 0, sameTwice.join(','));
+}
+/* AND IT NEVER SPENDS TRACK THE BOARD HAS NOT GOT. Laid over most of the
+   answer, the last hint must still fit inside the budget. */
+{
+  M.useLadder('portrait');
+  const lvl = M.ladder()[5];
+  const t = M.layout(lvl, lvl.solution.slice(0, lvl.solution.length - 1));
+  const g = M.hintSegment(lvl, t);
+  ok('a hint on a nearly finished board still fits the budget',
+     !g || M.sleepers(t) + 1 <= lvl.budget,
+     M.sleepers(t) + ' laid of ' + lvl.budget);
+}
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed\n');
 process.exit(fail ? 1 : 0);
