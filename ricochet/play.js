@@ -1209,8 +1209,16 @@
      not fit is a space problem and the card is what gives way. */
   const CARD_COPY = {
     rules: [
-      'Drag anywhere to aim. Release to fire the whole stream.',
-      'Every hit takes one off a block. Clear a row before it reaches the red line.',
+      // The control differs by device, so the copy has to as well. This said
+      // "drag anywhere" on both until desktop started aiming by pointer.
+      HOVER_AIM
+        ? 'Move the pointer to aim. Click to fire the whole stream.'
+        : 'Touch anywhere to aim, drag to set the angle, and lift to fire.',
+      'Every hit takes one off a block. A row is only safe once it is completely empty.',
+      // This used to read "clear a row before it reaches the red line", which is
+      // wrong twice over: reaching the line is fine, it is being pushed PAST it
+      // that ends the run, and only a block or a mirror counts.
+      'A block or a mirror pushed past the red line ends the run. Rocks and pickups fall away harmlessly.',
       'Your next shot fires from wherever the first ball came to rest.',
     ],
     over: [],
