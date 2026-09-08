@@ -1187,12 +1187,20 @@
   /* The second line used to say "tap a hole beside the bunny to hop her",
      which stopped being true the day she started going on her own, and the
      card went on saying it for several rounds. */
-  const RULES = [
-    'Drag a brick along its own length. It goes as far as the holes let it, and every square it travels costs a move.',
-    'The bunny goes on her own: the moment a line of holes joins her to the carrot, she runs it.',
-    'Watch where the fox paces. Those are the holes he can already reach, and no brick will ever squash him.',
-    'Join his holes to hers and he comes through. Wall him in instead and he can do nothing.',
-  ];
+  /* THE CARD NAMES THIS WORLD'S HUNTER. It said "the fox" in all four, which
+     is a plain untruth in three of them: the player has a shark on screen and
+     is being told to watch a fox. Same reason the second line was rewritten -
+     copy outlives the mechanic it describes, and nothing tests prose. */
+  const HUNTER = { fox: 'fox', penguin: 'penguin', cop: 'police car', shark: 'shark' };
+  const rulesNow = () => {
+    const who = HUNTER[worldOf(LEVELS[levelIndex]).predator] || 'fox';
+    return [
+      'Drag a brick along its own length. It goes as far as the holes let it, and every square it travels costs a move.',
+      'The bunny goes on her own: the moment a line of holes joins her to the carrot, she runs it.',
+      'Watch where the ' + who + ' paces. Those are the holes they can already reach, and no brick will ever squash them.',
+      'Join their holes to hers and they come through. Wall them in instead and they can do nothing.',
+    ];
+  };
   let rulesGeom = null;
   function rulesBox() {
     const pw = Math.min(LW - 56, 470), ph = Math.min(LH - 20, 420);
@@ -1210,7 +1218,7 @@
     ctx.fillStyle = '#FFFFFF'; ctx.font = '800 40px Inter, sans-serif';
     ctx.fillText('Karrots', b.px + 43, b.py + 34);
     ctx.fillStyle = 'rgba(255,255,255,0.82)'; ctx.font = '600 17px Inter, sans-serif';
-    ctx.fillText('Open a path. Just not for him.', b.px + 43, b.py + 34 + 54);
+    ctx.fillText('Open a path. Just not for them.', b.px + 43, b.py + 34 + 54);
 
     // body, clipped and scrolling
     const bodyY = b.py + b.header, bodyH = b.body;
@@ -1224,7 +1232,7 @@
     const demoH = 96;
     drawDemo(b.px + 43, y, b.pw - 86, demoH, now);
     y += demoH + 18;
-    RULES.forEach((line, i) => {
+    rulesNow().forEach((line, i) => {
       ctx.beginPath(); ctx.arc(b.px + 43, y + 11, 12, 0, Math.PI * 2);
       ctx.fillStyle = RD.CORAL; ctx.fill();
       ctx.fillStyle = RD.GROUND; ctx.font = '800 14px Inter, sans-serif';
