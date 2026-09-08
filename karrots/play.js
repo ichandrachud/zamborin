@@ -118,7 +118,8 @@
   const paintBox = { fox: null, bunny: null };
   const ART_NAMES = ['bunny-idle', 'bunny-down-1', 'bunny-down-2', 'bunny-down-3',
     'bunny-up-1', 'bunny-up-2', 'bunny-up-3', 'bunny-side-1', 'bunny-side-2',
-    'bunny-side-3', 'fox-still', 'fox-walk-1', 'fox-walk-2', 'carrot', 'brick'];
+    'bunny-side-3', 'fox-still', 'fox-walk-1', 'fox-walk-2', 'carrot', 'brick',
+    'penguin-1', 'penguin-2', 'iceberg', 'cop', 'cone', 'shark'];
   ART_NAMES.forEach(n => {
     const im = new Image();
     im.onload = () => { ART[n] = im; };
@@ -135,8 +136,23 @@
      So the height is capped by the WIDEST frame that character has: every
      frame of one animal is drawn at the same height (no pulsing between
      stride and stand) and none of them is wider than 0.94 of a cell. */
+  /* EACH WORLD HAS ITS OWN PREDATOR, and they do not all walk. The fox has a
+     stand and two strides; the penguin has two; the police car and the shark
+     are one drawing each, so in those worlds the predator does not animate as
+     it moves - it slides. Better than a stride that does not exist. */
+  const PREDATOR = {
+    fox:     { still: 'fox-still',  walk: ['fox-walk-1', 'fox-walk-2'] },
+    penguin: { still: 'penguin-1',  walk: ['penguin-1', 'penguin-2'] },
+    cop:     { still: 'cop',        walk: ['cop'] },
+    shark:   { still: 'shark',      walk: ['shark'] },
+  };
+  const castOf = () => PREDATOR[worldOf(LEVELS[levelIndex]).predator] || PREDATOR.fox;
+
   const CAST_FRAMES = {
     fox:   ['fox-still', 'fox-walk-1', 'fox-walk-2'],
+    penguin: ['penguin-1', 'penguin-2'],
+    cop:   ['cop'],
+    shark: ['shark'],
     bunny: ['bunny-idle', 'bunny-down-1', 'bunny-down-2', 'bunny-down-3',
             'bunny-up-1', 'bunny-up-2', 'bunny-up-3',
             'bunny-side-1', 'bunny-side-2', 'bunny-side-3'],
@@ -910,7 +926,7 @@
     // holes and bricks first: they are the floor everything else sits on
     for (let i = 0; i < M.N; i++) {
       if (st.grid[i] === M.HOLE) RD.drawHole(ctx, geo, i, world);
-      else if (st.grid[i] === M.BRICK) RD.drawBrick(ctx, geo, i, ART['brick']);
+      else if (st.grid[i] === M.BRICK) RD.drawBrick(ctx, geo, i, ART[world.block] || ART['brick']);
     }
 
     // the carrot sits in its hole, under whatever is over it
@@ -1031,7 +1047,8 @@
 
   function drawFoxLive(now) {
     const c = geo.cell;
-    let x, y, frame = 'fox-still', flip = false;
+    const cast = castOf();
+    let x, y, frame = cast.still, flip = false;
     if (threat || (anim && anim.kind === 'catch')) {
       const t0 = threat ? threat.t0 : anim.t0;
       const span = threat ? TUNE.graceMs : TUNE.lungeMs;
@@ -1043,7 +1060,7 @@
       const i0 = Math.floor(f), i1 = Math.min(path.length - 1, i0 + 1), tt = f - i0;
       const a = geo.at(path[i0]), b = geo.at(path[i1]);
       x = a.x + (b.x - a.x) * tt; y = a.y + (b.y - a.y) * tt;
-      frame = (Math.floor(el / 150) % 2) ? 'fox-walk-1' : 'fox-walk-2';
+      frame = cast.walk[Math.floor(el / 150) % cast.walk.length];
       flip = b.x > a.x;
     } else {
       const w = paceAt('fox', now);
@@ -1055,11 +1072,12 @@
       flip = w.moving ? w.dx > 0 : false;
       /* Alternate on the STEP's own clock, not the wall clock: two frames per
          square walked, so every step shows both legs whatever the step time. */
-      if (w.moving) frame = (Math.floor(w.k * 2) % 2) ? 'fox-walk-2' : 'fox-walk-1';
+      if (w.moving) frame = cast.walk[Math.floor(w.k * cast.walk.length) % cast.walk.length];
     }
     const fl2 = flinchOffset(st.fox, now);
     if (fl2) { ctx.save(); ctx.translate(0, -fl2.d); }
-    const drewFox = sprite(frame, x + c / 2, y + c * 0.90, castH('fox', c * 0.80), flip);
+    const drewFox = sprite(frame, x + c / 2, y + c * 0.90,
+                           castH(worldOf(LEVELS[levelIndex]).predator || 'fox', c * 0.80), flip);
     paintBox.fox = drewFox;
     if (fl2) ctx.restore();
     if (!drewFox) {
@@ -1395,7 +1413,8 @@
       fi = demo.walk[Math.min(demo.walk.length - 1, Math.round(f))];
     }
     const fp = g.at(fi);
-    sprite(t > 0.56 && t < 0.84 ? 'fox-walk-1' : 'fox-still', fp.x + cell / 2, fp.y + cell * 0.9, cell * 0.76);
+    const rc = castOf();
+    sprite(t > 0.56 && t < 0.84 ? rc.walk[0] : rc.still, fp.x + cell / 2, fp.y + cell * 0.9, cell * 0.76);
     ctx.restore();
   }
 

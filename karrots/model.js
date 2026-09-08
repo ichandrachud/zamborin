@@ -42,15 +42,17 @@
      It costs touch size: transposed for a phone the board is seven columns, so
      a cell is about 53px against the fleet's 56px comfort target. The owner
      took that trade on 2026-09-07. */
-  var C = 9, R = 6, N = C * R;
-  /* TEN BY SEVEN IS AGREED AND NOT YET SWITCHED ON. Changing the two numbers
-     above is the whole code change - everything derives from them, and the
-     layout, the parser and the phone sizing are all ready for it. What is not
-     ready is the levels: every board is authored for the size it was forged
-     at, so the flip has to happen with a rebuilt worlds.json in the same
-     commit or the game will not parse a single level. The 70-cell forge is
-     running; it is roughly ten times slower per board than 54 cells, because
-     the search it has to finish for each candidate is that much bigger. */
+  /* TEN BY SEVEN, seventy cells. It was nine by six, and that was the ceiling
+     on how deep a level could honestly get. Of 840 boards forged on 54 cells,
+     95 survived the wandering test, they averaged par 6.5, and the deepest was
+     18 - one board. On 70 cells, 1,047 forged gave 123 honest reaching par 24.
+
+     It costs touch size: turned for a phone the board is seven columns, so a
+     cell is 50px at 375 and 48 at 360, against the fleet's 56px comfort target
+     but above the 44px minimum. The one device it cannot serve is a 320x568
+     SE, where ten rows into 408px of height is 40px whatever the margin does.
+     The owner took that trade on 2026-09-07. */
+  var C = 10, R = 7, N = C * R;
 
   /* A cell holds exactly one of these. A tile is stored as its two halves so
      the grid alone answers "what is at this cell" without a lookup table. */

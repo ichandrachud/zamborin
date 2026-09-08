@@ -22,11 +22,17 @@ const IN = process.argv[2] || '/tmp/honest-big.json';
 const OUT = process.argv[3] || new URL('./worlds.json', import.meta.url).pathname;
 const PER_WORLD = Number(process.env.KPER || 24);
 
+/* The bands are what the honest pool can actually supply, not a wish. Of 1,047
+   boards forged on 10x7, 123 survived the wandering test: 25 at par 4 and two
+   above 20. So the ceiling is 24 and the mass is low, and the bands are cut to
+   fit that shape - each starting above the last one's floor and ending above
+   its ceiling, so finishing a world lands you somewhere already harder than
+   where that world began. */
 const BANDS = {
-  woods:  [4, 12],
-  arctic: [6, 16],
-  road:   [8, 22],
-  ocean:  [10, 30],
+  woods:  [4, 8],
+  arctic: [6, 11],
+  road:   [8, 15],
+  ocean:  [11, 24],
 };
 const ORDER = ['woods', 'arctic', 'road', 'ocean'];
 
@@ -53,8 +59,14 @@ function take(par) {
 const note = o => `par ${o.par} with him on the board and ${o.noFoxPar} without` +
   (o.naiveDies ? '; the short way round walks her straight into him.' : '.');
 
-const worlds = {}; let id = 0, missing = 0;
-for (const w of ORDER) {
+/* ALLOCATE DEEPEST WORLD FIRST. Picking in play order let the woods and the
+   road take the scarce deep boards on their way past, and the ocean - which
+   needs them most - was left choosing between par 5 boards and nothing. There
+   are 25 honest boards at par 4 and two above 20; the deep end is the resource
+   to ration, so the world with the highest band chooses first and the ids are
+   assigned afterwards in play order. */
+const worlds = {}; let missing = 0;
+for (const w of [...ORDER].reverse()) {
   const [lo, hi] = BANDS[w];
   const targets = [];
   for (let i = 0; i < PER_WORLD; i++)
@@ -66,11 +78,17 @@ for (const w of ORDER) {
     picked.push(o);
   }
   picked.sort((a, b) => a.par - b.par || better(b, a));
-  worlds[w] = picked.map((o, i) => ({ id: ++id, n: i + 1, rows: o.rows, note: note(o) }));
-  const pars = picked.map(o => o.par);
-  console.log(`${w.padEnd(7)} ${picked.length} levels, par ${pars[0]} to ${pars[pars.length - 1]}`);
-  console.log(`        ${pars.join(', ')}`);
+  worlds[w] = picked.map((o, i) => ({ n: i + 1, rows: o.rows, note: note(o) }));
+  worlds[w].pars = picked.map(o => o.par);
 }
+let id = 0;
+for (const w of ORDER) for (const lv of (worlds[w] || [])) lv.id = ++id;
 if (missing) console.error(`\n${missing} slots could not be filled from this pool`);
+for (const w of ORDER) {
+  const pars = worlds[w].pars;
+  console.log(`${w.padEnd(7)} ${worlds[w].length} levels, par ${pars[0]} to ${pars[pars.length - 1]}`);
+  console.log(`        ${pars.join(', ')}`);
+  delete worlds[w].pars;
+}
 writeFileSync(OUT, JSON.stringify(worlds, null, 1) + '\n');
 console.log(`\nwritten to ${OUT}`);
