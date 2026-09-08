@@ -61,10 +61,27 @@
        road     #6D6D6D   3.20   3.26   5.17     5.17   (the cone's white band)
        ocean    #007CB2   3.01   3.08   4.64     4.64
 
-     The carrot is the one thing under the floor, at 2.3 to 2.6 on the three
-     light worlds. It is orange on blue and grey, so it is carried by hue
-     rather than value, and it is a goal marker rather than a hazard - but it
-     is under, and it is the next thing to fix. */
+     THE CARROT IS UNDER THE FLOOR AND STAYS THERE FOR NOW. Measured on the
+     painted pixel, every colour it is made of fails on the three light
+     worlds - not just its lightest part, which is the figure first recorded
+     here:
+
+       part          woods  arctic   road  ocean
+       root lit       8.57    2.62   2.58   2.31
+       root shade     7.24    2.21   2.18   1.95
+       leaf lit       7.47    2.28   2.24   2.01
+       leaf shade     5.21    1.59   1.57   1.40
+
+     There is no fix inside these colours. A hole must carry a near-black
+     enemy AND a white bunny, which pins it to L 0.143-0.300, and on a ground
+     that mid an object must reach L>=0.63 or drop to near black to clear
+     3:1. Orange and green are neither; a carrot lifted that far is apricot.
+
+     Painting the carrot's own cell as a deeper well of the world's hue does
+     fix it - built and measured at 3.52 worst of 96 levels - but the owner
+     wants the carrot on the same ground as every other hole, so the board
+     keeps one colour per world and the carrot keeps its miss. It is a goal
+     marker rather than a hazard, and it is carried by hue. */
   var WORLDS = {
     woods:  { lit: '#7FBF57', mid: '#5E9440', dark: '#436E2C', hole: '#0C1F12',
               name: 'THE WOODS',    predator: 'fox',     block: 'brick'   },
