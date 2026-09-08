@@ -869,6 +869,29 @@
     ctx.fillStyle = T.line;
     for (let c = 1; c < TUNE.cols; c++) ctx.fillRect(Math.round(L.bx + c * cell), L.by, 1, L.bh);
 
+    /* WHICH PIECES ACTUALLY END THE RUN.
+       The readout has always counted this and never shown it: the lowest row
+       holding a block or a mirror is the one that kills you when it is pushed
+       past the bottom, and a rock sitting in the very same row is harmless.
+       Nothing on screen said so, so a rock in the bottom row looked exactly as
+       alarming as a block.
+
+       Marked only when it is close, and STATIC — the owner cut the animated
+       demo for being distracting and this must not reintroduce it. */
+    const tl = S.turnsToLine(state);
+    let doomRow = -1;
+    if (tl <= 3) {
+      for (let r = state.rows.length - 1; r >= 0 && doomRow < 0; r--) {
+        const row = state.rows[r];
+        if (!row) continue;
+        for (let c = 0; c < TUNE.cols; c++) if (S.isLethal(row[c])) { doomRow = r; break; }
+      }
+    }
+    // Grows with the trouble, but the FAINTEST state still has to clear the 3:1
+    // graphical bar. 0.46 measured 2.20 against the danger band and would have
+    // shipped a mark you cannot reliably see at the moment it first appears.
+    const doomA = tl <= 1 ? 1 : tl <= 2 ? 0.82 : 0.66;
+
     // Row descent: the field slides in from one row above.
     const off = descend > 0 ? -descend * cell : 0;
     ctx.save();
@@ -883,6 +906,17 @@
         const x = L.bx + c * cell, y = L.by + r * cell;
         if (y + off > L.by + L.bh) continue;
         const pad = cell * 0.045;
+        // The halo sits on the board FLOOR around the piece, never on it, so a
+        // coral block cannot swallow a coral mark. It is a glow, not an outline.
+        if (r === doomRow && S.isLethal(cellv)) {
+          ctx.save();
+          ctx.shadowColor = 'rgba(255,107,92,' + (0.95 * doomA).toFixed(2) + ')';
+          ctx.shadowBlur = Math.max(9, cell * 0.34);
+          ctx.fillStyle = 'rgba(255,107,92,' + (0.85 * doomA).toFixed(2) + ')';
+          rr(x + pad, y + pad, cell - pad * 2, cell - pad * 2, Math.max(3, cell * 0.14));
+          ctx.fill(); ctx.fill();
+          ctx.restore();
+        }
         if (cellv.t === 'b') drawBlock(x + pad, y + pad, cell - pad * 2, cellv.hp, cellv.hp0);
         else if (cellv.t === 'm') drawMirror(x, y, cell, cellv.d, cellv.hp);
         else if (cellv.t === 'r') drawRock(x + pad, y + pad, cell - pad * 2, cellv.hp);
@@ -900,7 +934,7 @@
     // and not only in the read-out. A player watching the board should not have
     // to look away from it to find out how much trouble they are in.
     const dy = L.dangerY;
-    const tl = S.turnsToLine(state);
+    // tl is computed once at the top of this function, for the doom marks too.
     const urg = tl <= 1 ? 1 : tl <= 2 ? 0.72 : tl <= 4 ? 0.4 : 0;
     const warn = ctx.createLinearGradient(0, dy, 0, dy + cell * 0.9);
     warn.addColorStop(0, 'rgba(255,107,92,' + (0.18 + 0.30 * urg).toFixed(3) + ')');
@@ -910,6 +944,28 @@
     ctx.fillRect(L.bx, dy - 2, L.bw, 5);
     ctx.fillStyle = T.accentText;
     ctx.fillRect(L.bx, dy - 1, L.bw, 2);
+
+    /* The second channel, and the reliable one. A chevron in the danger band
+       under each doomed column: always on dark floor, so it reads at the same
+       strength whatever colour the piece above it happens to be, and its SHAPE
+       carries the meaning even where the coral halo and a coral block sit only
+       1.10 apart. It also says which way the trouble is going. */
+    if (doomRow >= 0) {
+      const row = state.rows[doomRow];
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,107,92,' + (0.95 * doomA).toFixed(2) + ')';
+      ctx.lineWidth = Math.max(2, cell * 0.055);
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      const w = Math.max(6, cell * 0.20), yTop = L.dangerY + Math.max(7, cell * 0.16);
+      for (let c = 0; c < TUNE.cols; c++) {
+        if (!S.isLethal(row[c])) continue;
+        const cx2 = L.bx + c * cell + cell / 2;
+        ctx.beginPath();
+        ctx.moveTo(cx2 - w, yTop); ctx.lineTo(cx2, yTop + w); ctx.lineTo(cx2 + w, yTop);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
 
     if (turn) drawBallsAndTrails();
     drawLauncher();
@@ -1452,6 +1508,19 @@
       restingLineDrawn: playersTurn(),
       scheme: HOVER_AIM ? 'hover' : 'drag', aimDeg: +(aimA / S.DEG).toFixed(1),
       animated: false,
+      turnsToLine: state ? S.turnsToLine(state) : null,
+      doomed: state ? (() => {
+        const tl = S.turnsToLine(state);
+        if (tl > 3) return { marked: false, cells: [] };
+        for (let r = state.rows.length - 1; r >= 0; r--) {
+          const row = state.rows[r]; if (!row) continue;
+          const cells = [];
+          for (let c = 0; c < TUNE.cols; c++) if (S.isLethal(row[c])) cells.push({ c: c, t: row[c].t });
+          if (cells.length) return { marked: true, row: r, cells: cells,
+            safeInSameRow: row.filter(x => x && !S.isLethal(x)).map(x => x.t) };
+        }
+        return { marked: false, cells: [] };
+      })() : null,
     }),
     setCard: (k) => { card = k; cardScroll = 0; onResize(); render(performance.now()); return card; },
     scroll: (v) => { cardScroll = v; render(performance.now()); return cardScroll; },
