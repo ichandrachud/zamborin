@@ -691,5 +691,29 @@ head('routing each engine its own shortest way loses, in the shipped orientation
   }
 }
 
+/* ---------- NO BOARD IS THE SAME PUZZLE TWICE ----------
+   Certification cannot catch this, because two boards can each be separately
+   correct and still be the same puzzle: within a family the tunnels, sheds and
+   wall are seeded, and two seeds can land on the same arrangement with one
+   obstacle moved. Three pairs shipped that way — portrait 4 and 5, landscape
+   19 and 20, and landscape 2 and 3, which would have had a player draw the
+   identical track for their second and third boards. */
+head('no two boards are the same puzzle twice');
+for (const [name, set] of [['portrait', port], ['landscape', land]]) {
+  const bySolution = new Map(), dupes = [];
+  for (const l of set) {
+    const k = JSON.stringify(l.solution);
+    if (bySolution.has(k)) dupes.push(bySolution.get(k) + '/' + l.n); else bySolution.set(k, l.n);
+  }
+  ok(name + ': no two levels share an answer', dupes.length === 0, dupes.join(' '));
+  const byShape = new Map(), same = [];
+  for (const l of set) {
+    const k = JSON.stringify({ R: l.R, C: l.C,
+      p: l.portals.map((q) => [q.r, q.c, q.face]), d: l.depots.map((q) => [q.r, q.c, q.face, q.colour]) });
+    if (byShape.has(k)) same.push(byShape.get(k) + '/' + l.n); else byShape.set(k, l.n);
+  }
+  ok(name + ': no two levels share tunnels, sheds and size', same.length === 0, same.join(' '));
+}
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed\n');
 process.exit(fail ? 1 : 0);

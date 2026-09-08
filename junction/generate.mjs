@@ -389,6 +389,17 @@ export async function harvest(want, seedFrom, label, opts) {
      that exits 0 with no error. */
   const { pin } = await import('./pin.mjs');
   const found = [];
+  /* NO TWO BOARDS THAT ARE THE SAME PUZZLE TWICE. Within a family the tunnels,
+     the sheds and the wall are all seeded, and two seeds can land on the same
+     arrangement with the obstacles a cell apart — which produces two levels
+     with the IDENTICAL answer. It happened three times: portrait 4 and 5,
+     landscape 19 and 20, and worst of all landscape 2 and 3, so a player's
+     second and third boards would have been the same track drawn twice.
+     Certification cannot see this, because each board is separately correct.
+     The signature deliberately ignores the rocks: it is the tunnels and sheds
+     that decide what a board FEELS like, and one obstacle moved is not a new
+     puzzle. */
+  const shapes = new Set();
   /* A WALL CLOCK, because a family with a poor yield can otherwise run for
      hours: a swap board that fails to certify costs twenty to forty seconds
      to find that out, and the seed range is four thousand wide. Better a
@@ -420,6 +431,12 @@ export async function harvest(want, seedFrom, label, opts) {
       const turned = M.buildLevel(transposeSpec(specOf(res.r.level)));
       if (gate(turned, 'shipped').greedy.wins) continue;
     }
+    const lv = res.r.level;
+    const shape = JSON.stringify({ R: lv.R, C: lv.C,
+      p: lv.portals.map((q) => [q.r, q.c, q.face, q.queue.join('')]),
+      d: lv.depots.map((q) => [q.r, q.c, q.face, q.colour]) });
+    if (shapes.has(shape)) continue;
+    shapes.add(shape);
     found.push({ seed: seed - 1, family: label, rocksAdded: res.rocksAdded, ...res.r });
     console.log('  [' + label + '] seed ' + String(seed - 1).padStart(5) + '  ' +
       res.r.level.R + 'x' + res.r.level.C + '  budget ' + String(res.r.budget).padStart(2) +
