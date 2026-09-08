@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Flyover — prototype</title>
+<!--
+  ============================================================
+  FLYOVER — a prototype, not a game yet
+  ============================================================
+
+  This exists to answer one question: does Junction's law hold up as the
+  SUBJECT of a bigger game rather than as the constraint that bounds a small
+  one?
+
+  THE LAW. A junction merges one way and splits the other, and the switch does
+  not move while trains are running. So every train that passes a junction in
+  the same direction is sent the same way. In Junction that is why boards stay
+  small: to serve two sheds you need two approaches that never merge.
+
+  THE ONE RULE CHANGE. Junction refuses a four-way crossing — `canAddSegment`
+  requires the two segments in a cell to share exactly one side. Relax that to
+  allow a pair that shares NOTHING and you have a flyover: two roads crossing
+  without meeting, which is what a real railway builds when it cannot afford a
+  junction's consequences. So:
+
+      a junction  costs 1, and sends both trains the same way
+      a flyover   costs 5, and keeps them apart
+
+  That is the entire game. Every crossing is a decision to spend or to merge,
+  and merging is almost always wrong, because two trains that merge end up in
+  the same city and only one of them belongs there.
+
+  WHY THE BOARD IS BUILT THIS WAY. The platforms run coral / teal / amber down
+  the left and the cities run amber / coral / teal down the right, so the
+  three roads have to change places. On a bounded board they cannot go round
+  the outside, so crossings are FORCED, and the least number of them is the
+  number of inversions in that permutation. Getting home inside the budget
+  means finding that minimum — which is the crossing-number problem, and is
+  the thing this prototype is really testing.
+
+  Self-contained on purpose. It shares no code with /junction/ so that
+  experimenting here cannot break a game that is one push from live.
+-->
+<style>
+  :root{
+    --bg:#0E1726; --panel:#16223A; --ink:#E8EEF6; --ink-dim:#93A4BC;
+    --field:#2F4A33; --field-2:#27402B;
+    --coral:#E2634F; --teal:#3FA9A2; --amber:#D9A03C;
+    --rail:#59636F; --tie:#3B444E; --accent:#C24A39;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:16px/1.5 Inter,system-ui,-apple-system,Segoe UI,sans-serif;
+       display:flex;flex-direction:column;align-items:center;gap:14px;padding:20px 16px 40px}
+  .frame{width:min(100%,760px)}
+  .bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:12px}
+  button{font:600 14px/1 Inter,system-ui,sans-serif;letter-spacing:.04em;color:var(--ink);
+         background:var(--panel);border:1px solid #2B3B57;border-radius:999px;
+         padding:11px 18px;cursor:pointer}
+  button:hover{background:#1D2C49}
+  button:disabled{opacity:.45;cursor:default}
+  button.go{background:var(--accent);border-color:var(--accent);color:#fff}
+  button.go:hover{background:#A93E2F}
+  .read{margin-left:auto;display:flex;gap:18px;font-variant-numeric:tabular-nums;
+        font-size:14px;color:var(--ink-dim)}
+  .read b{color:var(--ink);font-weight:600}
+  canvas{display:block;width:100%;height:auto;border-radius:14px;touch-action:none}
+  .say{min-height:26px;font-size:15px;color:var(--ink-dim);margin-top:12px}
+  .say.bad{color:#FF8B7A}
+  .say.good{color:#6FD3C5}
+  .note{width:min(100%,760px);font-size:14.5px;color:var(--ink-dim);line-height:1.65;
+        border-top:1px solid #24334E;padding-top:16px}
+  .note b{color:var(--ink)}
+  .key{display:inline-flex;align-items:center;gap:7px;margin-right:18px}
+  .sw{width:14px;height:14px;border-radius:3px;display:inline-block}
+</style>
+</head>
+<body>
+
+<div class="frame">
+  <div class="bar">
+    <button id="undo">Undo</button>
+    <button id="clear">Clear</button>
+    <button id="run" class="go">RUN</button>
+    <div class="read">
+      <span>track <b id="cost">0</b> / <b id="budget">0</b></span>
+      <span>flyovers <b id="fly">0</b></span>
+    </div>
+  </div>
+  <canvas id="cv" width="1520" height="1100"></canvas>
+  <div class="say" id="say">Draw a road from each platform to the city of its own colour.</div>
+</div>
+
+<div class="note">
+  <span class="key"><i class="sw" style="background:var(--rail)"></i> track — 1 each</span>
+  <span class="key"><i class="sw" style="background:var(--amber)"></i> flyover — 5, and the roads stay apart</span>
+  <span class="key"><i class="sw" style="background:var(--coral)"></i> junction — 1, and both trains go the same way</span>
+  <p><b>The rule:</b> a junction merges one way and splits the other, and the switch does not
+  move once the trains are running. So two roads that meet at a junction are one road from
+  there on, and both trains end up in the same city. A flyover carries one road over the
+  other without meeting. Cross where you must, merge where it costs you nothing.</p>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+/* ---------- the board ------------------------------------------------ */
+const N=0,E=1,S=2,W=3, OPP=[2,3,0,1], DR=[-1,0,1,0], DC=[0,1,0,-1];
+const R=9, C=13;
+const COL={coral:'#E2634F', teal:'#3FA9A2', amber:'#D9A03C'};
+const NAMES=['coral','teal','amber'];
+
+/* Platforms down the left, cities down the right, in a DIFFERENT order — so
+   the three roads have to change places and crossings are forced. */
+const PLATFORMS=[{r:1,c:0,colour:0},{r:4,c:0,colour:1},{r:7,c:0,colour:2}];
+const CITIES   =[{r:1,c:C-1,colour:2},{r:4,c:C-1,colour:0},{r:7,c:C-1,colour:1}];
+const BUDGET=44, FLYOVER_COST=5;
+
+const at=(r,c)=>r*C+c;
+const inside=(r,c)=>r>=0&&r<R&&c>=0&&c<C;
+const stationAt=(r,c)=>PLATFORMS.find(p=>p.r===r&&p.c===c)||CITIES.find(p=>p.r===r&&p.c===c)||null;
+const isPlatform=(r,c)=>PLATFORMS.some(p=>p.r===r&&p.c===c);
+const isCity=(r,c)=>CITIES.some(p=>p.r===r&&p.c===c);
+
+/* ---------- track ----------------------------------------------------- */
+let cells, history;
+function reset(){ cells=new Array(R*C).fill(null); history=[]; run=null; say('Draw a road from each platform to the city of its own colour.',''); paint(); }
+
+const segHas=(g,s)=>g[0]===s||g[1]===s;
+const otherEnd=(g,s)=>g[0]===s?g[1]:(g[1]===s?g[0]:-1);
+const sameSeg=(g,a,b)=>(g[0]===a&&g[1]===b)||(g[0]===b&&g[1]===a);
+/* Two segments that share a side are a JUNCTION; the shared side is the trunk.
+   Two that share nothing are a FLYOVER — one road over the other. That single
+   distinction is the whole game. */
+function trunkOf(cell){
+  if(!cell||cell.segs.length<2) return -1;
+  const [g,h]=cell.segs;
+  for(const s of g) if(segHas(h,s)) return s;
+  return -1;
+}
+const isFlyover=c=>!!c&&c.segs.length===2&&trunkOf(c)<0;
+const isJunctionCell=c=>!!c&&c.segs.length===2&&trunkOf(c)>=0;
+
+function canAdd(cell,a,b){
+  if(a<0||b<0||a===b) return false;
+  if(!cell) return true;
+  if(cell.segs.some(g=>sameSeg(g,a,b))) return true;   // retracing is free
+  if(cell.segs.length>=2) return false;                // two roads a cell, no more
+  const g=cell.segs[0];
+  const shared=(segHas(g,a)?1:0)+(segHas(g,b)?1:0);
+  /* JUNCTION's rule was `shared === 1`. Allowing 0 as well is the entire
+     change: a pair that shares nothing is two roads crossing. */
+  return shared===0||shared===1;
+}
+function addCost(cell,a,b){
+  if(!cell) return 1;
+  if(cell.segs.some(g=>sameSeg(g,a,b))) return 0;
+  const g=cell.segs[0];
+  const shared=(segHas(g,a)?1:0)+(segHas(g,b)?1:0);
+  return shared===0?FLYOVER_COST:1;
+}
+function totalCost(){
+  let n=0;
+  for(const cell of cells){ if(!cell) continue;
+    n+=cell.segs.length===2&&trunkOf(cell)<0 ? 1+FLYOVER_COST : cell.segs.length; }
+  return n;
+}
+const flyoverCount=()=>cells.filter(isFlyover).length;
+
+/* ---------- drawing --------------------------------------------------- */
+let path=null, dragging=false;
+
+function commit(p){
+  if(p.length<2) return;
+  const adds=[];
+  let extra=0;
+  for(let k=0;k<p.length;k++){
+    const i=p[k];
+    const r=Math.floor(i/C), c=i%C;
+    if(stationAt(r,c)) continue;                      // a station is an end, not a piece
+    const a=k>0?sideBetween(p[k-1],i):-1;
+    const b=k<p.length-1?sideBetween(p[k+1],i):-1;
+    if(a<0||b<0) continue;
+    const cell=cells[i];
+    if(!canAdd(cell,a,b)){ say('Two roads already cross there.','bad'); return; }
+    extra+=addCost(cell,a,b);
+    adds.push([i,a,b]);
+  }
+  if(!adds.length) return;
+  if(totalCost()+extra>BUDGET){ say('That would cost more track than you have.','bad'); return; }
+  history.push(cells.map(x=>x?{segs:x.segs.map(g=>g.slice()),sw:x.sw}:null));
+  for(const [i,a,b] of adds){
+    if(!cells[i]) cells[i]={segs:[[a,b]],sw:0};
+    else if(!cells[i].segs.some(g=>sameSeg(g,a,b))) cells[i].segs.push([a,b]);
+  }
+  say('','');
+  paint();
+}
+function sideBetween(from,to){
+  const fr=Math.floor(from/C), fc=from%C, tr=Math.floor(to/C), tc=to%C;
+  for(let d=0;d<4;d++) if(tr+DR[d]===fr&&tc+DC[d]===fc) return d;
+  return -1;
+}
+
+/* ---------- the run --------------------------------------------------- */
+let run=null;
+function startRun(){
+  const trains=PLATFORMS.map((p,i)=>({
+    colour:p.colour, r:p.r, c:p.c, inSide:-1, prog:0.5, done:false, ok:false, dead:false,
+    trail:[at(p.r,p.c)]
+  }));
+  // leave the platform heading east, into the yard
+  for(const t of trains) t.inSide=W;
+  run={trains, t:0, over:false};
+  say('','');
+}
+function exitSide(cell,inSide){
+  if(!cell) return -1;
+  if(cell.segs.length===1) return otherEnd(cell.segs[0],inSide);
+  const trunk=trunkOf(cell);
+  if(trunk<0){                                        // FLYOVER: straight over
+    for(const g of cell.segs) if(segHas(g,inSide)) return otherEnd(g,inSide);
+    return -1;
+  }
+  if(inSide===trunk) return otherEnd(cell.segs[cell.sw],trunk);   // facing: the switch decides
+  for(const g of cell.segs) if(otherEnd(g,inSide)===trunk) return trunk;  // trailing: the trunk
+  return -1;
+}
+function step(dt){
+  if(!run) return;
+  let live=false;
+  for(const t of run.trains){
+    if(t.done||t.dead) continue;
+    live=true;
+    t.prog+=dt*2.6;
+    while(t.prog>=1){
+      t.prog-=1;
+      const here=at(t.r,t.c);
+      let out;
+      if(isPlatform(t.r,t.c)) out=E;                  // platforms face the yard
+      else out=exitSide(cells[here],t.inSide);
+      if(out<0){ t.dead=true; t.prog=0; break; }
+      const nr=t.r+DR[out], nc=t.c+DC[out];
+      if(!inside(nr,nc)){ t.dead=true; t.prog=0; break; }
+      const st=stationAt(nr,nc);
+      if(!st&&!cells[at(nr,nc)]){ t.dead=true; t.prog=0; break; }
+      t.r=nr; t.c=nc; t.inSide=OPP[out];
+      t.trail.push(at(nr,nc)); if(t.trail.length>4) t.trail.shift();
+      if(isCity(nr,nc)){ t.done=true; t.ok=(st.colour===t.colour); t.prog=0.5; break; }
+    }
+  }
+  if(!live&&!run.over){
+    run.over=true;
+    const home=run.trains.filter(t=>t.done&&t.ok).length;
+    const wrong=run.trains.filter(t=>t.done&&!t.ok);
+    const stuck=run.trains.filter(t=>t.dead);
+    if(home===3) say('All three home, on '+totalCost()+' track and '+flyoverCount()+' flyover'+(flyoverCount()===1?'':'s')+'.','good');
+    else if(wrong.length) say(wrong.length+' train'+(wrong.length===1?'':'s')+' went to the wrong city — a junction sent them the same way as another road.','bad');
+    else say(stuck.length+' train'+(stuck.length===1?' ran':'s ran')+' out of track.','bad');
+  }
+}
+
+/* ---------- paint ----------------------------------------------------- */
+const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+let CELL=0, OX=0, OY=0;
+function layout(){
+  const w=cv.width, h=cv.height, pad=26;
+  CELL=Math.floor(Math.min((w-pad*2)/C,(h-pad*2)/R));
+  OX=Math.round((w-CELL*C)/2); OY=Math.round((h-CELL*R)/2);
+}
+const cx=c=>OX+c*CELL+CELL/2, cy=r=>OY+r*CELL+CELL/2;
+
+function railPath(x0,y0,x1,y1,wide,colour){
+  ctx.lineCap='round';
+  ctx.strokeStyle='#1B2430'; ctx.lineWidth=wide*1.6;
+  ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x1,y1); ctx.stroke();
+  ctx.strokeStyle=colour||'var'; ctx.lineWidth=wide;
+  ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x1,y1); ctx.stroke();
+}
+function drawSeg(r,c,g,raised){
+  const x=cx(c), y=cy(r), h=CELL/2;
+  const pt=s=>[x+DC[s]*h, y+DR[s]*h];
+  const [ax,ay]=pt(g[0]), [bx,by]=pt(g[1]);
+  const w=Math.max(5,CELL*0.19);
+  if(raised){                                        // a bridge casts a shadow
+    ctx.save(); ctx.globalAlpha=.34; ctx.strokeStyle='#0A0F18';
+    ctx.lineWidth=w*1.9; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(ax+5,ay+7); ctx.lineTo(x+5,y+7); ctx.lineTo(bx+5,by+7); ctx.stroke();
+    ctx.restore();
+  }
+  ctx.lineCap='round'; ctx.lineJoin='round';
+  ctx.strokeStyle=raised?'#2A3340':'#20272F'; ctx.lineWidth=w*1.55;
+  ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(x,y); ctx.lineTo(bx,by); ctx.stroke();
+  ctx.strokeStyle=raised?'#77828F':'#59636F'; ctx.lineWidth=w*0.62;
+  ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(x,y); ctx.lineTo(bx,by); ctx.stroke();
+}
+function paint(){
+  layout();
+  ctx.fillStyle='#0E1726'; ctx.fillRect(0,0,cv.width,cv.height);
+  // the yard
+  ctx.fillStyle='#2F4A33';
+  roundRect(OX,OY,CELL*C,CELL*R,16); ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,.028)';
+  for(let r=0;r<R;r++) for(let c=0;c<C;c++) if((r+c)&1) ctx.fillRect(OX+c*CELL,OY+r*CELL,CELL,CELL);
+
+  // track: flat roads first, then the ones carried over them
+  for(let i=0;i<cells.length;i++){ const cell=cells[i]; if(!cell) continue;
+    const r=Math.floor(i/C), c=i%C;
+    if(isFlyover(cell)) drawSeg(r,c,cell.segs[0],false);
+    else for(const g of cell.segs) drawSeg(r,c,g,false);
+  }
+  for(let i=0;i<cells.length;i++){ const cell=cells[i]; if(!isFlyover(cell)) continue;
+    drawSeg(Math.floor(i/C),i%C,cell.segs[1],true); }
+
+  // a junction wears a marker, because it is the piece that costs you the game
+  for(let i=0;i<cells.length;i++){ if(!isJunctionCell(cells[i])) continue;
+    const r=Math.floor(i/C), c=i%C;
+    ctx.fillStyle='#E2634F'; ctx.beginPath();
+    ctx.arc(cx(c),cy(r),Math.max(4,CELL*0.13),0,7); ctx.fill(); }
+
+  for(const p of PLATFORMS) drawStation(p,true);
+  for(const p of CITIES) drawStation(p,false);
+  if(run) for(const t of run.trains) drawTrain(t);
+
+  document.getElementById('cost').textContent=totalCost();
+  document.getElementById('budget').textContent=BUDGET;
+  document.getElementById('fly').textContent=flyoverCount();
+}
+function roundRect(x,y,w,h,r){ ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+function drawStation(p,platform){
+  const x=OX+p.c*CELL, y=OY+p.r*CELL, m=CELL*0.13, col=COL[NAMES[p.colour]];
+  ctx.fillStyle=platform?'#39434F':col;
+  roundRect(x+m,y+m,CELL-m*2,CELL-m*2,CELL*0.16); ctx.fill();
+  if(platform){ ctx.fillStyle=col;
+    roundRect(x+CELL*0.56,y+m*1.9,CELL*0.24,CELL-m*3.8,CELL*0.07); ctx.fill(); }
+  else { ctx.fillStyle='rgba(10,15,24,.34)';
+    roundRect(x+CELL*0.34,y+CELL*0.34,CELL*0.32,CELL*0.32,CELL*0.07); ctx.fill(); }
+}
+function drawTrain(t){
+  const x=cx(t.c), y=cy(t.r), s=Math.max(9,CELL*0.3);
+  ctx.save();
+  ctx.globalAlpha=t.dead?0.4:1;
+  ctx.fillStyle='rgba(8,12,20,.4)';
+  roundRect(x-s/2+3,y-s/2+4,s,s,s*0.28); ctx.fill();
+  ctx.fillStyle=COL[NAMES[t.colour]];
+  roundRect(x-s/2,y-s/2,s,s,s*0.28); ctx.fill();
+  if(t.done&&!t.ok){ ctx.strokeStyle='#0E1726'; ctx.lineWidth=Math.max(2,s*0.14);
+    ctx.beginPath(); ctx.moveTo(x-s*0.2,y-s*0.2); ctx.lineTo(x+s*0.2,y+s*0.2);
+    ctx.moveTo(x+s*0.2,y-s*0.2); ctx.lineTo(x-s*0.2,y+s*0.2); ctx.stroke(); }
+  ctx.restore();
+}
+
+/* ---------- input ----------------------------------------------------- */
+function cellFromEvent(e){
+  const b=cv.getBoundingClientRect();
+  const x=(e.clientX-b.left)*(cv.width/b.width), y=(e.clientY-b.top)*(cv.height/b.height);
+  const c=Math.floor((x-OX)/CELL), r=Math.floor((y-OY)/CELL);
+  return inside(r,c)?at(r,c):-1;
+}
+cv.addEventListener('pointerdown',e=>{
+  if(run&&!run.over) return;
+  const i=cellFromEvent(e); if(i<0) return;
+  cv.setPointerCapture(e.pointerId);
+  dragging=true; path=[i]; run=null; paint();
+});
+cv.addEventListener('pointermove',e=>{
+  if(!dragging) return;
+  const i=cellFromEvent(e); if(i<0) return;
+  const last=path[path.length-1];
+  if(i===last) return;
+  if(path.length>1&&i===path[path.length-2]){ path.pop(); return; }
+  if(sideBetween(last,i)<0){                          // a fast drag skips cells: walk it
+    const lr=Math.floor(last/C), lc=last%C, ir=Math.floor(i/C), ic=i%C;
+    let r=lr, c=lc, guard=0;
+    while((r!==ir||c!==ic)&&guard++<40){
+      if(r!==ir) r+=Math.sign(ir-r); else c+=Math.sign(ic-c);
+      const j=at(r,c);
+      if(path.length>1&&j===path[path.length-2]) path.pop(); else path.push(j);
+    }
+    return;
+  }
+  path.push(i);
+});
+function endDrag(e){
+  if(!dragging) return;
+  dragging=false;
+  if(path) commit(path);
+  path=null;
+}
+cv.addEventListener('pointerup',endDrag);
+cv.addEventListener('pointercancel',endDrag);
+
+document.getElementById('undo').onclick=()=>{
+  if(!history.length) return;
+  cells=history.pop(); run=null; say('',''); paint();
+};
+document.getElementById('clear').onclick=reset;
+document.getElementById('run').onclick=()=>{
+  if(run&&!run.over){ run=null; paint(); return; }
+  startRun();
+};
+function say(msg,kind){ const el=document.getElementById('say');
+  el.textContent=msg; el.className='say'+(kind?' '+kind:''); }
+
+/* ---------- loop ------------------------------------------------------ */
+let last=performance.now();
+function frame(now){
+  const dt=Math.min(0.05,(now-last)/1000); last=now;
+  if(run&&!run.over) step(dt);
+  paint();
+  requestAnimationFrame(frame);
+}
+reset();
+requestAnimationFrame(frame);
+window.__flyover={ cells:()=>cells, run:()=>run, cost:totalCost, fly:flyoverCount,
+                   lay:(p)=>{commit(p);}, at, C, R, start:startRun, step };
+})();
+</script>
+</body>
+</html>
