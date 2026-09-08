@@ -57,6 +57,7 @@ export const CAST = {
   'cop':         'cop-front.svg',
   'cone':        'cop-cone.svg',
   'shark':       'new/shark.svg',
+  'bomb':        'new/bomb.svg',
 };
 
 /* --- the value palette -------------------------------------------------

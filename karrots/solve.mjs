@@ -162,7 +162,14 @@ export function parWhileTheyWander(st0, opts = {}) {
     for (const s of frontier) {
       for (const f of cellsOf(s, s.fox)) for (const b of cellsOf(s, s.bunny)) {
         if (f === b) continue;
-        const placed = { grid: s.grid, bunny: b, fox: f, carrot: s.carrot };
+        /* CARRY THE BOMBS. Rebuilding the state to try a placement dropped
+           them, so every position in this search looked unbombed, apply()
+           moved bombed dominoes like any other, and the answer came back as
+           the par of the board WITHOUT its bomb. It rejected all 48 levels it
+           was asked about, always with exactly the unbombed par, which is what
+           gave it away: a filter that rejects everything is not a strict
+           filter, it is a broken one. */
+        const placed = { grid: s.grid, bunny: b, fox: f, carrot: s.carrot, bombs: s.bombs };
         for (const mv of M.slideMoves(placed)) {
           const ns = M.apply(placed, mv);
           if (useFox && M.caught(ns)) continue;

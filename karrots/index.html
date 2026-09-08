@@ -139,6 +139,7 @@
         <li><strong>The bunny goes on her own.</strong> The moment a line of holes joins her to the carrot she runs it, so the whole game is opening that line without opening one to them.</li>
         <li><strong>Watch where the hunter paces.</strong> Whoever it is in this world walks back and forth across every hole they can already reach, so their territory shows itself. Anything they can walk to, they can walk to.</li>
         <li><strong>No brick will squash them.</strong> A brick will not slide onto the hunter any more than it will onto the bunny; if there is somebody in the square, it does not move. You beat them by <em>walling them in</em>, closing their holes until the ones they have left touch nothing of yours.</li>
+        <li><strong>One brick on every board carries a bomb.</strong> It does nothing where it stands. Move it and it is destroyed instead of arriving, so it leaves a bigger gap than a slide would, and it needs an empty square in front of it before it can go anywhere at all. It is a trade rather than a gift: that brick can never be slid into place again.</li>
         <li><strong>Some blocks never move.</strong> Every world has one that is fixed in place: a brick wall in The Woods, an iceberg in Arctic Salad and Ocean World, a traffic cone on The Road. The carrot's square is reserved too, so no brick can slide over it, and the only one who may ever stand on it is the bunny.</li>
         <li><strong>The goal</strong> is the carrot. Reach it in as few moves as you can: three carrots for matching par, two for close, one for finishing.</li>
         <li><strong>Undo and Restart</strong> are always available and Restart is instant. An undo costs you a move, because a move count that does not charge for undo is not counting anything.</li>
@@ -146,8 +147,8 @@
       <p>Your level, your best move counts and your carrots are saved in this browser, so you always pick up where you left off.</p>
 
       <h2>Four worlds, ninety six levels</h2>
-      <p>The board is ten squares across and seven down, and there are ninety six levels on it, twenty four in each of four worlds. The Woods, Arctic Salad, The Road and Ocean World each have their own ground, their own hunter and their own block that will not move.</p>
-      <p>They get harder in order. Par runs from four moves on the first woods level to twenty four on the last ocean one, and it climbs inside each world as well as across them. On a phone the board turns on its side, seven across and ten down, so the whole of it still fits without scrolling.</p>
+      <p>The board is ten squares across and seven down, and there are ninety six levels on it, twenty four in each of four worlds. Every one of them has exactly one bomb, and on every one of them the bomb changes the shortest solution: a bomb that made no difference would be decoration, and four dominoes in five are exactly that, so the one that carries it was chosen by search. The Woods, Arctic Salad, The Road and Ocean World each have their own ground, their own hunter and their own block that will not move.</p>
+      <p>They get harder in order. Par runs from two moves on the first woods level to twenty five on the last ocean one, and it climbs inside each world as well as across them. On a phone the board turns on its side, seven across and ten down, so the whole of it still fits without scrolling.</p>
 
       <h2>Why it is clever</h2>
       <p>Every other game of this kind asks you to open space and rewards you for opening more of it. Here the space is shared. The corridor that gets the bunny to her carrot in the fewest moves is often the same corridor that connects the hunter to her hole, and the route that keeps her safe costs you moves against par. That is the decision the game is made of, and it is why a board can be easy to solve and hard to solve well.</p>
@@ -166,7 +167,7 @@
       <p><strong>Is Karrots free?</strong> Yes, completely free to play, with no account or download, in any modern browser on phone, tablet or desktop.</p>
       <p><strong>Does it work on mobile?</strong> Yes. Karrots is built for touch as well as mouse, and the whole board fits a phone screen without scrolling.</p>
       <p><strong>How do I win?</strong> Get the bunny to the carrot without ever letting a connected path of holes join her to whoever is hunting her.</p>
-      <p><strong>How many levels are there?</strong> Ninety six, twenty four in each of four worlds, and they get harder in order. Par runs from four moves to twenty four.</p>
+      <p><strong>How many levels are there?</strong> Ninety six, twenty four in each of four worlds, and they get harder in order. Par runs from two moves to twenty five.</p>
       <p><strong>Is every level solvable?</strong> Yes, and it is proven rather than assumed. Every level was run through a complete breadth-first search of its reachable positions before it shipped, and the par shown on screen is the length of the shortest solution that search found.</p>
 
       <p class="guide-cta"><a href="/guides/karrots/">Stuck? Read the Karrots strategy guide <span aria-hidden="true">&rarr;</span></a></p>

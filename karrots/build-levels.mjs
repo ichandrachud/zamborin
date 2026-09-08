@@ -68,6 +68,15 @@ for (const w of ORDER) for (const lv of (WORLDS[w] || [])) ALL.push({ ...lv, wor
  * answer and two copies of this rule would drift. A level whose two pars
  * disagree leans on somebody standing in a doorway, and does not ship. */
 
+/* What this board's par is with the bomb taken off. Solved once per level and
+   remembered, because the ship gate and the note both want it. */
+const _bare = new Map();
+function bareParFor(lv) {
+  const k = lv.rows.join('|');
+  if (!_bare.has(k)) _bare.set(k, solve(M.parse(lv.rows, 'bare ' + lv.id), { cap: BFS_CAP, path: false }).par);
+  return _bare.get(k);
+}
+
 const out = [];
 let changed = 0;
 console.log('lvl  par  no-fox   delta  naive  branch  fatal    states  holes  1st loss  notes');
@@ -75,7 +84,7 @@ console.log('---  ---  ------  ------  -----  ------  -----  --------  -----  --
 let lastWorld = null;
 for (const lv of ALL) {
   if (lv.world !== lastWorld) { lastWorld = lv.world; console.log(`--- ${lv.world} ---`); }
-  const st = M.parse(lv.rows, 'level ' + lv.id, lv.carrotAt ? { carrotAt: lv.carrotAt } : undefined);
+  const st = M.parse(lv.rows, 'level ' + lv.id, lv.bomb ? { bombs: [lv.bomb] } : undefined);
   const r = foxChangesTheAnswer(st, { cap: BFS_CAP });
   if (!r.withFox.solved)
     throw new Error(`level ${lv.id} is not solvable within ${BFS_CAP} states — it does not ship`);
@@ -85,6 +94,17 @@ for (const lv of ALL) {
   if (wander !== r.withFox.par)
     throw new Error(`level ${lv.id}: par is ${r.withFox.par} pinned but ${wander} once they wander. ` +
       `The level leans on somebody standing in a doorway — it does not ship`);
+  /* THE BOMB HAS TO EARN ITS PLACE, the same gate the predator passes. A
+     bomb that does not change the answer is scenery, and measured over 248
+     placements four in five dominoes are exactly that. Proved here rather
+     than trusted: solve the same board with the bomb taken off and require a
+     different number. */
+  if (lv.bomb) {
+    const barePar = bareParFor(lv);
+    if (barePar === r.withFox.par)
+      throw new Error(`level ${lv.id}: the bomb on '${lv.bomb}' changes nothing, ` +
+        `par is ${barePar} with it and without it — it does not ship`);
+  }
   const wanderNoFox = parWhileTheyWander(st, { fox: false });
   /* Judged on the numbers the player actually plays against, not the pinned
      ones: level 5 is par 8 against a no-fox 8 pinned but 5 once they wander,
@@ -98,8 +118,14 @@ for (const lv of ALL) {
     (r.naiveDies ? 'dies' : '—').padStart(6), String(r.withFox.branchPoints).padStart(7),
     String(r.withFox.fatal).padStart(6), String(r.withFox.states).padStart(9),
     String(holes).padStart(6), String(firstLoss === null ? 'none' : firstLoss + ' moves').padStart(9),
-    ' ' + lv.note.slice(0, 34));
-  out.push({ ...lv, par: r.withFox.par, noFoxPar: wanderNoFox, firstLoss,
+    ' ' + (lv.note || (lv.bomb ? 'bomb ' + lv.bomb : '')).slice(0, 34));
+  /* The note is written here rather than carried in worlds.json, because
+     everything worth saying about a level is a number this run just measured. */
+  const note = lv.note || (lv.bomb
+    ? `par ${r.withFox.par} with the bomb on '${lv.bomb}' and ${bareParFor(lv)} without it; ` +
+      `${wanderNoFox} without the predator.`
+    : '');
+  out.push({ ...lv, note, par: r.withFox.par, noFoxPar: wanderNoFox, firstLoss,
              branchPoints: r.withFox.branchPoints, states: r.withFox.states });
 }
 /* Every level counts now. The "- 1" here dated from the version where level 1
@@ -114,7 +140,7 @@ for (const w of ORDER) {
 
 const body = out.map(lv =>
   `    { id: ${lv.id}, n: ${lv.n}, world: '${lv.world}', par: ${lv.par}` +
-  (lv.carrotAt ? `, carrotAt: [${lv.carrotAt}]` : '') +
+  (lv.bomb ? `, bomb: '${lv.bomb}'` : '') +
   `,\n      rows: [${lv.rows.map(r => `'${r}'`).join(', ')}],\n` +
   (lv.note ? `      // ${lv.note}\n` : '') +
   `      // par ${lv.par}, ${lv.noFoxPar} with the fox rule off. ${lv.branchPoints} positions on the\n` +

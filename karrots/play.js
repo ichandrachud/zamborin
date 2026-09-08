@@ -125,11 +125,11 @@
   const ART_NAMES = ['bunny-idle', 'bunny-down-1', 'bunny-down-2', 'bunny-down-3',
     'bunny-up-1', 'bunny-up-2', 'bunny-up-3', 'bunny-side-1', 'bunny-side-2',
     'bunny-side-3', 'fox-still', 'fox-walk-1', 'fox-walk-2', 'carrot', 'brick',
-    'penguin-1', 'penguin-2', 'iceberg', 'cop', 'cone', 'shark'];
+    'penguin-1', 'penguin-2', 'iceberg', 'cop', 'cone', 'shark', 'bomb'];
   ART_NAMES.forEach(n => {
     const im = new Image();
     im.onload = () => { ART[n] = im; };
-    im.src = './art/' + n + '.svg?v=6';
+    im.src = './art/' + n + '.svg?v=7';
   });
   /* HOW BIG EACH OF THEM IS DRAWN, and why it is not just a number.
 
@@ -239,7 +239,7 @@
   function loadLevel(i) {
     levelIndex = Math.min(Math.max(0, i), LEVELS.length - 1);
     const lv = LEVELS[levelIndex];
-    start = M.parse(lv.rows, lv.id, lv.carrotAt ? { carrotAt: lv.carrotAt } : undefined);
+    start = M.parse(lv.rows, lv.id, lv.bomb ? { bombs: [lv.bomb] } : undefined);
     st = M.clone(start);
     par = lv.par; moves = 0; history = []; phase = 'play'; anim = null; drag = null; threat = null;
     wonPrev = null; wonBeat = false;
@@ -970,6 +970,7 @@
       const t = M.tileAt(st.grid, i);
       if (held && t.a === held.a && t.b === held.b) continue;
       RD.drawTile(ctx, geo, t.a, t.b, world);
+      if (M.bombedTile(st, t.a, t.b)) drawBomb(t.a, t.b, 0, 0);
     }
     /* THE CAST IS CUT OUT OF THE SLAT IN HAND.
 
@@ -1005,6 +1006,7 @@
 
     if (held) {
       heldBox = RD.drawTile(ctx, geo, held.a, held.b, world, { dx: hdx, dy: hdy, lift: hlift });
+      if (M.bombedTile(st, held.a, held.b)) drawBomb(held.a, held.b, hdx, hdy - hlift);
       dbg.paint = { fox: paintBox.fox, bunny: paintBox.bunny, held: { a: held.a, b: held.b, dx: hdx, dy: hdy } };
     } else {
       dbg.paint = { fox: paintBox.fox, bunny: paintBox.bunny, held: null };
@@ -1029,6 +1031,17 @@
   function drawCarrot() {
     const p = geo.at(st.carrot), c = geo.cell;
     sprite('carrot', p.x + c / 2, p.y + c * 0.90, c * 0.80);
+  }
+
+  /* The bomb rides the domino it is fixed to, centred across both squares so
+     it reads as belonging to the piece rather than to a square. It travels
+     with the slat in hand, because until the slat is let go nothing has
+     happened yet: the move is the fuse. */
+  function drawBomb(a, b, dx, dy) {
+    const pa = geo.at(a), pb = geo.at(b), c = geo.cell;
+    const cx = (pa.x + pb.x) / 2 + c / 2 + dx;
+    const cy = (pa.y + pb.y) / 2 + c / 2 + dy;
+    sprite('bomb', cx, cy + c * 0.30, c * 0.60);
   }
 
   function drawBunny(now) {
@@ -1427,6 +1440,7 @@
       'The bunny goes on her own: the moment a line of holes joins her to the carrot, she runs it.',
       'Watch where the ' + who + ' paces. Those are the holes they can already reach, and no brick will ever squash them.',
       'Join their holes to hers and they come through. Wall them in instead and they can do nothing.',
+      'One brick on every board carries a bomb. Move it and it is destroyed, leaving a bigger gap than a slide would.',
     ];
   };
   let rulesGeom = null;
@@ -1543,7 +1557,7 @@
     const cands = [];
     for (const lv of LEVELS) {
       let s0;
-      try { s0 = M.parse(lv.rows, lv.id, lv.carrotAt ? { carrotAt: lv.carrotAt } : undefined); }
+      try { s0 = M.parse(lv.rows, lv.id, lv.bomb ? { bombs: [lv.bomb] } : undefined); }
       catch (e) { continue; }
       /* No level can be lost on the first move - that is deliberate - so the
          position to show is a few moves in. A short breadth-first walk finds

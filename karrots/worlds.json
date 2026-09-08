@@ -11,8 +11,7 @@
     "wwxxuyzAAD",
     ".EEGGyz.#D"
    ],
-   "note": "par 11 with him on the board and 3 without; the short way round walks her straight into him.",
-   "id": 73
+   "bomb": "y"
   },
   {
    "n": 2,
@@ -25,25 +24,10 @@
     "xxyyu.vzzF",
     "AA..DD#CEE"
    ],
-   "note": "par 11 with him on the board and 3 without; the short way round walks her straight into him.",
-   "id": 74
+   "bomb": "D"
   },
   {
    "n": 3,
-   "rows": [
-    "..aa.b.dde",
-    "gghhibjj.e",
-    ".kklim#nno",
-    "ppql.m#rso",
-    "tBquuvvrsw",
-    "txxyy...zw",
-    "CFAADDEEz."
-   ],
-   "note": "par 11 with him on the board and 2 without; the short way round walks her straight into him.",
-   "id": 75
-  },
-  {
-   "n": 4,
    "rows": [
     "Caa.bbddee",
     "gFhh..i..j",
@@ -53,25 +37,10 @@
     "vvwwxxyy.z",
     ".AADDEEGGz"
    ],
-   "note": "par 11 with him on the board and 2 without; the short way round walks her straight into him.",
-   "id": 76
+   "bomb": "n"
   },
   {
-   "n": 5,
-   "rows": [
-    "aabdde..gg",
-    "hhbiiejkk.",
-    "l.mmn.jopp",
-    "l..qnrro##",
-    "Bssqt.uu.v",
-    "wwFxtyyzzv",
-    "CAAxDDEEGG"
-   ],
-   "note": "par 12 with him on the board and 8 without; the short way round walks her straight into him.",
-   "id": 77
-  },
-  {
-   "n": 6,
+   "n": 4,
    "rows": [
     "aa.bbddee#",
     "ggh.iijjkk",
@@ -81,11 +50,10 @@
     "#Bxxu.vyyz",
     "AAFDDEEGGz"
    ],
-   "note": "par 12 with him on the board and 3 without; the short way round walks her straight into him.",
-   "id": 78
+   "bomb": "D"
   },
   {
-   "n": 7,
+   "n": 5,
    "rows": [
     "a#bbdde.gg",
     "a..hhiejjk",
@@ -95,11 +63,10 @@
     "#...Cxxyy.",
     "zzAADDEEGG"
    ],
-   "note": "par 12 with him on the board and 1 without; the short way round walks her straight into him.",
-   "id": 79
+   "bomb": "m"
   },
   {
-   "n": 8,
+   "n": 6,
    "rows": [
     "..aabbdd#.",
     "eegghhiijj",
@@ -109,39 +76,10 @@
     "swwtuxx..y",
     ".zz.AADD.y"
    ],
-   "note": "par 12 with him on the board and 1 without; the short way round walks her straight into him.",
-   "id": 80
+   "bomb": "A"
   },
   {
-   "n": 9,
-   "rows": [
-    "..aabbddee",
-    "gghhiFjkkC",
-    "llmminjopp",
-    "qqrssn.oBt",
-    "u.rv.#.wwt",
-    "ux#vyyzzAD",
-    ".x.EEGG.AD"
-   ],
-   "note": "par 13 with him on the board and 11 without.",
-   "id": 81
-  },
-  {
-   "n": 10,
-   "rows": [
-    "....aabbdd",
-    ".eegh#Bii.",
-    ".j.gh.#F..",
-    "kjCll..mnn",
-    "kooppqqmrr",
-    "ssttuuvvww",
-    "xxyyzzAADD"
-   ],
-   "note": "par 13 with him on the board and 9 without.",
-   "id": 82
-  },
-  {
-   "n": 11,
+   "n": 7,
    "rows": [
     "aabb#.ddee",
     "#ggChhijj.",
@@ -151,39 +89,49 @@
     "vwFxxyyzzA",
     "vwDDEEGG.A"
    ],
-   "note": "par 13 with him on the board and 12 without; the short way round walks her straight into him.",
-   "id": 83
+   "bomb": "t"
   },
   {
-   "n": 12,
+   "n": 8,
    "rows": [
-    ".aabb.ddee",
-    "gghhii..jj",
-    "kkllmmno#.",
-    "ppq.rrnost",
-    "#uqCvvwwst",
-    ".uxyyFzzAA",
-    "DDxBEE.GG."
+    "FaaBbdd.ee",
+    "gC.hbii#.j",
+    "gkkhllmnnj",
+    "ooppqqmrr.",
+    "..sstt.u..",
+    "vv.wwxxuyy",
+    ".zzAADD#EE"
    ],
-   "note": "par 13 with him on the board and 4 without; the short way round walks her straight into him.",
-   "id": 84
+   "bomb": "a"
   },
   {
-   "n": 13,
+   "n": 9,
    "rows": [
-    "aa#bb.ddee",
-    "gg.hhiijj.",
-    "kkllmm.nno",
-    "pCqqrrssto",
-    "puuFvww.t.",
-    "x.Byv.zAAD",
-    "xEEy#.zGGD"
+    "a..#b.dCee",
+    "agg.bhdiiF",
+    "jkkllh#Bmm",
+    "j.nnoo.pp.",
+    "qqr.ssttuv",
+    "w.rxxyyzuv",
+    "wAADDEEzGG"
    ],
-   "note": "par 14 with him on the board and 7 without.",
-   "id": 85
+   "bomb": "u"
   },
   {
-   "n": 14,
+   "n": 10,
+   "rows": [
+    "aabdde..gg",
+    "hhbiiejkk.",
+    "l.mmn.jopp",
+    "l..qnrro##",
+    "Bssqt.uu.v",
+    "wwFxtyyzzv",
+    "CAAxDDEEGG"
+   ],
+   "bomb": "l"
+  },
+  {
+   "n": 11,
    "rows": [
     "Ba...bb#..",
     "da#eegg.hh",
@@ -193,11 +141,62 @@
     "ttuupvvwws",
     "xxyyzzAADD"
    ],
-   "note": "par 14 with him on the board and 5 without; the short way round walks her straight into him.",
-   "id": 86
+   "bomb": "v"
+  },
+  {
+   "n": 12,
+   "rows": [
+    "a#bddFeeg.",
+    "ahb.iiBjg.",
+    "khllmC#jnn",
+    "k.oomppqq.",
+    "rrs.ttuuvv",
+    "wwsxyyzz.A",
+    "DD.x.EEGGA"
+   ],
+   "bomb": "e"
+  },
+  {
+   "n": 13,
+   "rows": [
+    ".aa.bb..dd",
+    "eegghhiijj",
+    "kkllmmnno.",
+    "ppqqFCrros",
+    "tt#Buvv.ws",
+    "xxyyuzzAw.",
+    ".#.DD..AEE"
+   ],
+   "bomb": "E"
+  },
+  {
+   "n": 14,
+   "rows": [
+    ".aabb.ddee",
+    "gghhii..jj",
+    "kkllmmno#.",
+    "ppq.rrnost",
+    "#uqCvvwwst",
+    ".uxyyFzzAA",
+    "DDxBEE.GG."
+   ],
+   "bomb": "b"
   },
   {
    "n": 15,
+   "rows": [
+    "aa.bbdeegg",
+    "hhii.djkk.",
+    "llmmnnj.op",
+    "qq#rr.ssop",
+    ".tBuvvwwxx",
+    "Ct.u.yyzzA",
+    "#FDDEEGG.A"
+   ],
+   "bomb": "y"
+  },
+  {
+   "n": 16,
    "rows": [
     "aa.C#bbdde",
     "gghh.iijje",
@@ -207,39 +206,10 @@
     ".wwxx#yyvz",
     "AADDEE.GGz"
    ],
-   "note": "par 15 with him on the board and 14 without; the short way round walks her straight into him.",
-   "id": 87
-  },
-  {
-   "n": 16,
-   "rows": [
-    "CaaFbbd#ee",
-    "gBhhiid.jk",
-    "glmmnnoojk",
-    "#lpqq.rr..",
-    "ssp.tt.uvv",
-    "...wwxxu.y",
-    "zz.AADDEEy"
-   ],
-   "note": "par 16 with him on the board and 12 without; the short way round walks her straight into him.",
-   "id": 88
+   "bomb": "u"
   },
   {
    "n": 17,
-   "rows": [
-    ".aabb..dde",
-    "gg#.Chhiie",
-    "jjkl.mmFn.",
-    "ookl.ppqnr",
-    "ssttuuBqvr",
-    "wxxyyzzAv#",
-    "w.DD.EEAGG"
-   ],
-   "note": "par 17 with him on the board and 6 without; the short way round walks her straight into him.",
-   "id": 89
-  },
-  {
-   "n": 18,
    "rows": [
     "aaBbbd..ee",
     "Fgghhdiijj",
@@ -249,11 +219,36 @@
     "wwxx.yyzzv",
     "AADDEE.GG."
    ],
-   "note": "par 18 with him on the board and 17 without.",
-   "id": 90
+   "bomb": "g"
+  },
+  {
+   "n": 18,
+   "rows": [
+    "CaaFbbd#ee",
+    "gBhhiid.jk",
+    "glmmnnoojk",
+    "#lpqq.rr..",
+    "ssp.tt.uvv",
+    "...wwxxu.y",
+    "zz.AADDEEy"
+   ],
+   "bomb": "A"
   },
   {
    "n": 19,
+   "rows": [
+    ".aabb..dde",
+    "gg#.Chhiie",
+    "jjkl.mmFn.",
+    "ookl.ppqnr",
+    "ssttuuBqvr",
+    "wxxyyzzAv#",
+    "w.DD.EEAGG"
+   ],
+   "bomb": "v"
+  },
+  {
+   "n": 20,
    "rows": [
     "a#Bbb.d...",
     "aFee.gdhhi",
@@ -263,11 +258,10 @@
     "uuvvwwxx.y",
     "zzAADDEE.y"
    ],
-   "note": "par 18 with him on the board and 6 without; the short way round walks her straight into him.",
-   "id": 91
+   "bomb": "k"
   },
   {
-   "n": 20,
+   "n": 21,
    "rows": [
     "aa#b...dde",
     "gghbiij..e",
@@ -277,22 +271,7 @@
     "wsxtyyzzAA",
     "wBx#DDEEGG"
    ],
-   "note": "par 20 with him on the board and 2 without; the short way round walks her straight into him.",
-   "id": 92
-  },
-  {
-   "n": 21,
-   "rows": [
-    ".aabbddC#e",
-    "gg.hh.iije",
-    "kkllmmnojp",
-    "qrrss.noBp",
-    "qttuuvvwwF",
-    "xxyyzzA..#",
-    "DD.EE.AGG."
-   ],
-   "note": "par 21 with him on the board and 20 without.",
-   "id": 93
+   "bomb": "A"
   },
   {
    "n": 22,
@@ -305,8 +284,7 @@
     "vvwwxtyy#z",
     "AADDxEEGGz"
    ],
-   "note": "par 21 with him on the board and 3 without; the short way round walks her straight into him.",
-   "id": 94
+   "bomb": "k"
   },
   {
    "n": 23,
@@ -319,8 +297,7 @@
     "..wwxx.yy#",
     "zzAADDEEGG"
    ],
-   "note": "par 23 with him on the board and 1 without; the short way round walks her straight into him.",
-   "id": 95
+   "bomb": "l"
   },
   {
    "n": 24,
@@ -333,111 +310,12 @@
     "wwxxy.u.v.",
     "zzAAy.DDEE"
    ],
-   "note": "par 24 with him on the board and 6 without.",
-   "id": 96
+   "bomb": "l"
   }
  ],
  "road": [
   {
    "n": 1,
-   "rows": [
-    "aabCdd..ee",
-    "ggb.hhiij.",
-    "kkFll.m.jn",
-    "oopBqqm.#n",
-    "rrpstu.vv#",
-    "ww.stuxx.y",
-    "zzAADD.EEy"
-   ],
-   "note": "par 8 with him on the board and 1 without; the short way round walks her straight into him.",
-   "id": 49
-  },
-  {
-   "n": 2,
-   "rows": [
-    "CF#aabb.dd",
-    "egg.hi#jk.",
-    "e..Bhi.jk.",
-    "llmm..no..",
-    "ppqqrrnoss",
-    "ttuuvvwwxx",
-    "yyzzAA.DD."
-   ],
-   "note": "par 8 with him on the board and 1 without; the short way round walks her straight into him.",
-   "id": 50
-  },
-  {
-   "n": 3,
-   "rows": [
-    "aabbddeegg",
-    ".h.iijjkkl",
-    ".hmm.nnool",
-    ".ppq#rrFss",
-    ".ttq.uuv.C",
-    "wwx.y#Bv.z",
-    "AAx.yDDEEz"
-   ],
-   "note": "par 9 with him on the board and 8 without.",
-   "id": 51
-  },
-  {
-   "n": 4,
-   "rows": [
-    "#FaaBbbdd.",
-    "eegCh.ii.j",
-    ".kglhmmnnj",
-    ".k#loopqq.",
-    "rr.ss.ptt.",
-    "uuvvwxyyzz",
-    "AADDwxEEGG"
-   ],
-   "note": "par 9 with him on the board and 7 without.",
-   "id": 52
-  },
-  {
-   "n": 5,
-   "rows": [
-    "FaaBbdd.ee",
-    "gC.hbii#.j",
-    "gkkhllmnnj",
-    "ooppqqmrr.",
-    "..sstt.u..",
-    "vv.wwxxuyy",
-    ".zzAADD#EE"
-   ],
-   "note": "par 9 with him on the board and 6 without.",
-   "id": 53
-  },
-  {
-   "n": 6,
-   "rows": [
-    "Faabdd.eeg",
-    "hB.bii.jjg",
-    "hkklmmn..o",
-    "ppClqqnrro",
-    "sttuvwwxx.",
-    "syyuv.zz##",
-    "...AADD.EE"
-   ],
-   "note": "par 9 with him on the board and 8 without; the short way round walks her straight into him.",
-   "id": 54
-  },
-  {
-   "n": 7,
-   "rows": [
-    "...aa.bbBd",
-    "eegg.hFiid",
-    "jkk.Chll.m",
-    "jnno#ppqqm",
-    ".rrosstuu.",
-    "vvwwxxtyyz",
-    "AA#DDEEGGz"
-   ],
-   "note": "par 9 with him on the board and 7 without; the short way round walks her straight into him.",
-   "id": 55
-  },
-  {
-   "n": 8,
    "rows": [
     "Baa.bbdd.e",
     "ggFhhiijje",
@@ -447,39 +325,10 @@
     "swwxxyy..z",
     "AA#DDEEGGz"
    ],
-   "note": "par 9 with him on the board and 5 without; the short way round walks her straight into him.",
-   "id": 56
+   "bomb": "e"
   },
   {
-   "n": 9,
-   "rows": [
-    "aaC.bbF.dd",
-    "eegghBiijj",
-    "kkl.hmm...",
-    "n.loop#qqr",
-    "nss.tpuuvr",
-    "wwx.tyyzvA",
-    "DDxEEGGz#A"
-   ],
-   "note": "par 9 with him on the board and 5 without; the short way round walks her straight into him.",
-   "id": 57
-  },
-  {
-   "n": 10,
-   "rows": [
-    "aa.bbdeegg",
-    "hhii.djkk.",
-    "llmmnnj.op",
-    "qq#rr.ssop",
-    ".tBuvvwwxx",
-    "Ct.u.yyzzA",
-    "#FDDEEGG.A"
-   ],
-   "note": "par 9 with him on the board and 4 without; the short way round walks her straight into him.",
-   "id": 58
-  },
-  {
-   "n": 11,
+   "n": 2,
    "rows": [
     "a#Fbb..dde",
     "aghhBi.jje",
@@ -489,67 +338,10 @@
     "ytuzvAADD.",
     "y..z.EE.GG"
    ],
-   "note": "par 9 with him on the board and 3 without; the short way round walks her straight into him.",
-   "id": 59
+   "bomb": "n"
   },
   {
-   "n": 12,
-   "rows": [
-    "CF.abb.dd.",
-    ".eeagghhii",
-    ".jjk.lmmno",
-    "ppBk.lqqno",
-    "rrsstt.uuv",
-    "wwxyyzzAAv",
-    "DDx#EE#GG."
-   ],
-   "note": "par 9 with him on the board and 2 without; the short way round walks her straight into him.",
-   "id": 60
-  },
-  {
-   "n": 13,
-   "rows": [
-    "a#bddFeeg.",
-    "ahb.iiBjg.",
-    "khllmC#jnn",
-    "k.oomppqq.",
-    "rrs.ttuuvv",
-    "wwsxyyzz.A",
-    "DD.x.EEGGA"
-   ],
-   "note": "par 9 with him on the board and 1 without; the short way round walks her straight into him.",
-   "id": 61
-  },
-  {
-   "n": 14,
-   "rows": [
-    "aa.bb.dd.e",
-    "gghhii...e",
-    ".jj#kkllmn",
-    "opp.q.rrmn",
-    "o.ssqttuuv",
-    "wwBxxy#zzv",
-    ".AAFCyDDEE"
-   ],
-   "note": "par 9 with him on the board and 1 without; the short way round walks her straight into him.",
-   "id": 62
-  },
-  {
-   "n": 15,
-   "rows": [
-    "Baa#bbddee",
-    "ghh.iij...",
-    "g.Cklljmmn",
-    "Fookpqq..n",
-    "rrsspt.uuv",
-    "wwxxyt#zzv",
-    "AADDyEEGG."
-   ],
-   "note": "par 10 with him on the board and 6 without; the short way round walks her straight into him.",
-   "id": 63
-  },
-  {
-   "n": 16,
+   "n": 3,
    "rows": [
     ".aabddeegg",
     ".hhbijj.k.",
@@ -559,39 +351,10 @@
     "syyu.vw.x.",
     ".zzAADDEEC"
    ],
-   "note": "par 10 with him on the board and 5 without; the short way round walks her straight into him.",
-   "id": 64
+   "bomb": "q"
   },
   {
-   "n": 17,
-   "rows": [
-    ".aabbFddCe",
-    ".gg.hhBiie",
-    "jjklm.nn#o",
-    "ppklmqq.ro",
-    "stt.uuvvrw",
-    "sxxyzAADDw",
-    ".EEyz.#.GG"
-   ],
-   "note": "par 10 with him on the board and 5 without; the short way round walks her straight into him.",
-   "id": 65
-  },
-  {
-   "n": 18,
-   "rows": [
-    "C.aaFbdd.e",
-    ".ggBhbiije",
-    "kkllhm#nj.",
-    "opp.qm.n#.",
-    "o.rrqsst.u",
-    "vw.xxyyt.u",
-    "vwzzAADDEE"
-   ],
-   "note": "par 10 with him on the board and 4 without; the short way round walks her straight into him.",
-   "id": 66
-  },
-  {
-   "n": 19,
+   "n": 4,
    "rows": [
     "aa.bbdde..",
     "g.hhiije.k",
@@ -601,11 +364,114 @@
     "vvww#xxF.u",
     "yyzz.AADDB"
    ],
-   "note": "par 10 with him on the board and 4 without; the short way round walks her straight into him.",
-   "id": 67
+   "bomb": "A"
   },
   {
-   "n": 20,
+   "n": 5,
+   "rows": [
+    ".#aab.dd..",
+    "eeggbhiijj",
+    "kllmmh.nn.",
+    "k.oo.p.qq.",
+    "Crrs.pt#uu",
+    "vvBswwtxxy",
+    ".Fzz.AADDy"
+   ],
+   "bomb": "z"
+  },
+  {
+   "n": 6,
+   "rows": [
+    ".aabb.ddeg",
+    "hCiiFjj#eg",
+    "hkkBll.mmn",
+    "oo#p.qqrrn",
+    "..sp.t..uu",
+    "vvswwtxxyy",
+    "zzAADDEEGG"
+   ],
+   "bomb": "p"
+  },
+  {
+   "n": 7,
+   "rows": [
+    "a.bbddeeg.",
+    "a..#hBiigj",
+    "klmmhnnopj",
+    "klqqrFCops",
+    ".ttur.vv.s",
+    "wwxu.#yyzz",
+    "AAx.DDEEGG"
+   ],
+   "bomb": "g"
+  },
+  {
+   "n": 8,
+   "rows": [
+    "..aa.b.dde",
+    "gghhibjj.e",
+    ".kklim#nno",
+    "ppql.m#rso",
+    "tBquuvvrsw",
+    "txxyy...zw",
+    "CFAADDEEz."
+   ],
+   "bomb": "k"
+  },
+  {
+   "n": 9,
+   "rows": [
+    "Faabdd.eeg",
+    "hB.bii.jjg",
+    "hkklmmn..o",
+    "ppClqqnrro",
+    "sttuvwwxx.",
+    "syyuv.zz##",
+    "...AADD.EE"
+   ],
+   "bomb": "A"
+  },
+  {
+   "n": 10,
+   "rows": [
+    "aaC.bbF.dd",
+    "eegghBiijj",
+    "kkl.hmm...",
+    "n.loop#qqr",
+    "nss.tpuuvr",
+    "wwx.tyyzvA",
+    "DDxEEGGz#A"
+   ],
+   "bomb": "p"
+  },
+  {
+   "n": 11,
+   "rows": [
+    "CF.abb.dd.",
+    ".eeagghhii",
+    ".jjk.lmmno",
+    "ppBk.lqqno",
+    "rrsstt.uuv",
+    "wwxyyzzAAv",
+    "DDx#EE#GG."
+   ],
+   "bomb": "u"
+  },
+  {
+   "n": 12,
+   "rows": [
+    "aa.bb.dd.e",
+    "gghhii...e",
+    ".jj#kkllmn",
+    "opp.q.rrmn",
+    "o.ssqttuuv",
+    "wwBxxy#zzv",
+    ".AAFCyDDEE"
+   ],
+   "bomb": "m"
+  },
+  {
+   "n": 13,
    "rows": [
     "aab..dd.ee",
     "ggbhi#.jjk",
@@ -615,111 +481,207 @@
     "x.uyyz.#wA",
     "x.DD.zCEEA"
    ],
-   "note": "par 10 with him on the board and 3 without; the short way round walks her straight into him.",
-   "id": 68
+   "bomb": "e"
+  },
+  {
+   "n": 14,
+   "rows": [
+    ".aa.bbCdd.",
+    "eegghh#iiF",
+    "jjkllmmBnn",
+    "..ko..pp.q",
+    "rr.ossttuq",
+    "vvwwx#yyu.",
+    "zzAAxDD.EE"
+   ],
+   "bomb": "u"
+  },
+  {
+   "n": 15,
+   "rows": [
+    "..aab#deeC",
+    "ghiibjdk.l",
+    "gh..#jmkBl",
+    "n.ooppmFqq",
+    "nrrssttuuv",
+    "wwxxyyzAAv",
+    "DDEEGGz.HH"
+   ],
+   "bomb": "q"
+  },
+  {
+   "n": 16,
+   "rows": [
+    ".aa.bddFee",
+    "g.hhbiCjj.",
+    "gkklli#Bmm",
+    "nnoopp.qqr",
+    "ssttuuvv.r",
+    "ww.xyyzz.A",
+    "DD.xEE#GGA"
+   ],
+   "bomb": "e"
+  },
+  {
+   "n": 17,
+   "rows": [
+    "aabbddeegg",
+    "h.ii.jjkkl",
+    "hmm.nnoppl",
+    "qqCrrsott.",
+    ".FuuBs..vv",
+    "wwxxy#.#zz",
+    "AADDyEEGG."
+   ],
+   "bomb": "u"
+  },
+  {
+   "n": 18,
+   "rows": [
+    "aaC#bb.dde",
+    "gghh.iijje",
+    "k.lmnn.oo.",
+    "kBlmp.qq.r",
+    "ssFtpuuvvr",
+    "ww#txyyzzA",
+    "DDEEx..GGA"
+   ],
+   "bomb": "l"
+  },
+  {
+   "n": 19,
+   "rows": [
+    ".aa.#bbCdd",
+    "e..gghhij.",
+    "ekk.llBijm",
+    ".n..#Foopm",
+    "qnrrssttpu",
+    "qvvwwxxyyu",
+    "zzAADDEEGG"
+   ],
+   "bomb": "o"
+  },
+  {
+   "n": 20,
+   "rows": [
+    "Baa#bbddee",
+    "ghh.iij...",
+    "g.Cklljmmn",
+    "Fookpqq..n",
+    "rrsspt.uuv",
+    "wwxxyt#zzv",
+    "AADDyEEGG."
+   ],
+   "bomb": "j"
   },
   {
    "n": 21,
    "rows": [
-    "aabbddeegg",
-    ".hhiijjkkl",
-    "mm.nnooppl",
-    "#.#qqrs.FC",
-    "tu.v.rsww.",
-    "tu.vxxyzz.",
-    "AA..DDyBEE"
+    ".aabbFddCe",
+    ".gg.hhBiie",
+    "jjklm.nn#o",
+    "ppklmqq.ro",
+    "stt.uuvvrw",
+    "sxxyzAADDw",
+    ".EEyz.#.GG"
    ],
-   "note": "par 10 with him on the board and 2 without; the short way round walks her straight into him.",
-   "id": 69
+   "bomb": "o"
   },
   {
    "n": 22,
    "rows": [
-    "..aa#.bb.d",
-    "..ee#gghhd",
-    "iijjkkBlFm",
-    ".nnoopplCm",
-    "qqrssttuu.",
-    "vvr.wwxxyy",
-    "zz..AADDEE"
+    "C.aaFbdd.e",
+    ".ggBhbiije",
+    "kkllhm#nj.",
+    "opp.qm.n#.",
+    "o.rrqsst.u",
+    "vw.xxyyt.u",
+    "vwzzAADDEE"
    ],
-   "note": "par 10 with him on the board and 2 without; the short way round walks her straight into him.",
-   "id": 70
+   "bomb": "q"
   },
   {
    "n": 23,
    "rows": [
-    ".aabbdde.g",
-    "hiijj.ke#g",
-    "hlmmnnk.oo",
-    "pl..qqrrss",
-    "ptt.uuvvww",
-    "xxByyzzAAD",
-    "FEE..C#GGD"
+    "aa.....bb.",
+    "B.dd.eeggh",
+    "iiFjjk..lh",
+    ".Cmnnkool#",
+    "ppm#qq.rrs",
+    "ttuuvwwxxs",
+    "yyzzv.AADD"
    ],
-   "note": "par 11 with him on the board and 8 without.",
-   "id": 71
+   "bomb": "d"
   },
   {
    "n": 24,
    "rows": [
-    "aa.#bbdd.e",
-    "gghiijj.ke",
-    "llhmmnookp",
-    "qrsttnu..p",
-    "qrsBvvu.ww",
-    "x.#yyzzAA.",
-    "xCDD.FEEGG"
+    "aabbdCeegg",
+    ".hhidFj#kk",
+    "l..iBmjnno",
+    "lppqqmrrso",
+    "tuu.#vv.sw",
+    "t..xx..yyw",
+    "zzAADDEEGG"
    ],
-   "note": "par 11 with him on the board and 10 without; the short way round walks her straight into him.",
-   "id": 72
+   "bomb": "d"
   }
  ],
  "arctic": [
   {
    "n": 1,
    "rows": [
-    ".#.aabbFdd",
-    "eeghiBjj..",
-    "k.ghilmCnn",
-    "koo.plmqqr",
-    "ssttpuuvvr",
-    "wwxxyzzAAD",
-    "EEGGy.#..D"
+    "..aabddee.",
+    "ghh.b..#ii",
+    "g.jjBkk...",
+    ".l#mnnFoop",
+    "ql.mCrrssp",
+    "q.ttuuvvww",
+    "xxyyzzAADD"
    ],
-   "note": "par 6 with him on the board and 2 without; the short way round walks her straight into him.",
-   "id": 25
+   "bomb": "k"
   },
   {
    "n": 2,
    "rows": [
-    "aabbddeegg",
-    "hh.iijjkk#",
-    "llmmnoo.pq",
-    "rrssn..tpq",
-    "uu.vvwwtBx",
-    "y...zz.AAx",
-    "yDDEEGGCF#"
+    "a.bb.ddeeg",
+    "a#hiijjkkg",
+    "llh#mmnnoo",
+    "pqqrr.ss.C",
+    "ptt..uuFvv",
+    ".wwxx.yyzz",
+    "..AADD.EEB"
    ],
-   "note": "par 6 with him on the board and 1 without; the short way round walks her straight into him.",
-   "id": 26
+   "bomb": "v"
   },
   {
    "n": 3,
    "rows": [
-    "abb.dCFeeg",
-    "ahiidjkk.g",
-    "lhmnnjBoop",
-    "lqm.r.#s.p",
-    ".q#.rttsuu",
-    "vvwwxyy.zz",
-    ".AA.x.DDEE"
+    ".aabbdd.ee",
+    ".gg.hhBiij",
+    ".kkllmmFCj",
+    "nn.oopp.qq",
+    "rrssttuuvv",
+    "ww..xxy..z",
+    "##AADDyEEz"
    ],
-   "note": "par 6 with him on the board and 1 without; the short way round walks her straight into him.",
-   "id": 27
+   "bomb": "d"
   },
   {
    "n": 4,
+   "rows": [
+    "Baa.b.dee.",
+    "ghh.bid.jj",
+    "gF.kkillm.",
+    "n.Coppqqmr",
+    "nsso..tuur",
+    "vvwwxxtyzz",
+    "#AADDEEy.#"
+   ],
+   "bomb": "a"
+  },
+  {
+   "n": 5,
    "rows": [
     "aa.bbd.e.g",
     "hhi..d.ejg",
@@ -729,22 +691,7 @@
     "vvwtxyyFzz",
     "AAw.xDDEE#"
    ],
-   "note": "par 7 with him on the board and 4 without; the short way round walks her straight into him.",
-   "id": 28
-  },
-  {
-   "n": 5,
-   "rows": [
-    "aa#Cbb.de.",
-    "gg.hhF.de#",
-    "i.jjkklm..",
-    "inn.oBlmpq",
-    ".r..osstpq",
-    "ur.vwxxtyy",
-    "uzzvw.AADD"
-   ],
-   "note": "par 7 with him on the board and 4 without; the short way round walks her straight into him.",
-   "id": 29
+   "bomb": "E"
   },
   {
    "n": 6,
@@ -757,8 +704,7 @@
     "vvrwwxxyyz",
     "AADDEE.GGz"
    ],
-   "note": "par 7 with him on the board and 2 without; the short way round walks her straight into him.",
-   "id": 30
+   "bomb": "k"
   },
   {
    "n": 7,
@@ -771,67 +717,10 @@
     "wwt##xxy.z",
     "AADD...y.z"
    ],
-   "note": "par 7 with him on the board and 2 without; the short way round walks her straight into him.",
-   "id": 31
+   "bomb": "l"
   },
   {
    "n": 8,
-   "rows": [
-    ".aa.bddFee",
-    "g.hhbiCjj.",
-    "gkklli#Bmm",
-    "nnoopp.qqr",
-    "ssttuuvv.r",
-    "ww.xyyzz.A",
-    "DD.xEE#GGA"
-   ],
-   "note": "par 7 with him on the board and 1 without; the short way round walks her straight into him.",
-   "id": 32
-  },
-  {
-   "n": 9,
-   "rows": [
-    "aabbddeegg",
-    "h.ii.jjkkl",
-    "hmm.nnoppl",
-    "qqCrrsott.",
-    ".FuuBs..vv",
-    "wwxxy#.#zz",
-    "AADDyEEGG."
-   ],
-   "note": "par 8 with him on the board and 6 without.",
-   "id": 33
-  },
-  {
-   "n": 10,
-   "rows": [
-    "aab.d.Ceeg",
-    "hhbBdii.jg",
-    "kkFllmnnjo",
-    "#ppqqm.rro",
-    "ss#.ttuu.v",
-    "ww.xxyyzzv",
-    ".AADDEE.GG"
-   ],
-   "note": "par 8 with him on the board and 6 without.",
-   "id": 34
-  },
-  {
-   "n": 11,
-   "rows": [
-    "..aaBbb#dd",
-    ".egg..hh..",
-    "Feiijjkklm",
-    "n.oo..pplm",
-    "nCqqrrstuu",
-    "vvwwxxst.y",
-    "zzAADDEE#y"
-   ],
-   "note": "par 8 with him on the board and 6 without.",
-   "id": 35
-  },
-  {
-   "n": 12,
    "rows": [
     "Faa....Cb.",
     "ddBe.#ggb.",
@@ -841,109 +730,10 @@
     "uuvwwxxyyt",
     "zzvAADD.EE"
    ],
-   "note": "par 8 with him on the board and 5 without.",
-   "id": 36
+   "bomb": "h"
   },
   {
-   "n": 13,
-   "rows": [
-    "aaC#bb.dde",
-    "gghh.iijje",
-    "k.lmnn.oo.",
-    "kBlmp.qq.r",
-    "ssFtpuuvvr",
-    "ww#txyyzzA",
-    "DDEEx..GGA"
-   ],
-   "note": "par 8 with him on the board and 4 without.",
-   "id": 37
-  },
-  {
-   "n": 14,
-   "rows": [
-    "a..#b.dCee",
-    "agg.bhdiiF",
-    "jkkllh#Bmm",
-    "j.nnoo.pp.",
-    "qqr.ssttuv",
-    "w.rxxyyzuv",
-    "wAADDEEzGG"
-   ],
-   "note": "par 8 with him on the board and 7 without; the short way round walks her straight into him.",
-   "id": 38
-  },
-  {
-   "n": 15,
-   "rows": [
-    "aabb#.....",
-    "ddeegghiij",
-    "kk.llmhnnj",
-    "oppqqm.rrs",
-    "oCttuu.vvs",
-    "wxxFy#zzAA",
-    "wBDDyEE.GG"
-   ],
-   "note": "par 8 with him on the board and 6 without; the short way round walks her straight into him.",
-   "id": 39
-  },
-  {
-   "n": 16,
-   "rows": [
-    ".aa.#bbCdd",
-    "e..gghhij.",
-    "ekk.llBijm",
-    ".n..#Foopm",
-    "qnrrssttpu",
-    "qvvwwxxyyu",
-    "zzAADDEEGG"
-   ],
-   "note": "par 8 with him on the board and 5 without; the short way round walks her straight into him.",
-   "id": 40
-  },
-  {
-   "n": 17,
-   "rows": [
-    "aabbdee#gg",
-    "..hhd..iij",
-    "kllmmnnooj",
-    "kppqrrFssB",
-    "ttuqv#ww.x",
-    "yyuzvC...x",
-    ".AAzDDEEGG"
-   ],
-   "note": "par 8 with him on the board and 3 without; the short way round walks her straight into him.",
-   "id": 41
-  },
-  {
-   "n": 18,
-   "rows": [
-    "Caa.Bbb.d.",
-    "e..gghh#di",
-    "e...Fjjk.i",
-    "ll#mmnnkoo",
-    "ppqqrrsstt",
-    "uuvvwwxxyy",
-    "zzAADDEEGG"
-   ],
-   "note": "par 8 with him on the board and 2 without; the short way round walks her straight into him.",
-   "id": 42
-  },
-  {
-   "n": 19,
-   "rows": [
-    ".aaBbbddee",
-    "..ggFhhii#",
-    ".jCkkl.mmn",
-    ".joopl..#n",
-    "qq..pr..ss",
-    "ttuuvrwwxx",
-    "yyzzvAADD."
-   ],
-   "note": "par 8 with him on the board and 2 without; the short way round walks her straight into him.",
-   "id": 43
-  },
-  {
-   "n": 20,
+   "n": 9,
    "rows": [
     "a.bb.dde..",
     "agghhi#ejj",
@@ -953,11 +743,10 @@
     "wxxCyyzzAv",
     "w.DDEEGGA."
    ],
-   "note": "par 8 with him on the board and 2 without; the short way round walks her straight into him.",
-   "id": 44
+   "bomb": "d"
   },
   {
-   "n": 21,
+   "n": 10,
    "rows": [
     "aabdd.eegg",
     "hhb..iijkk",
@@ -967,39 +756,10 @@
     "xxyy.zz.#w",
     "AADDCEEGG."
    ],
-   "note": "par 8 with him on the board and 2 without; the short way round walks her straight into him.",
-   "id": 45
+   "bomb": "n"
   },
   {
-   "n": 22,
-   "rows": [
-    "abb.ddee.#",
-    "agghhiijkk",
-    "l.mmnoojp.",
-    "l.qqn.rrps",
-    "ttCuuvvwws",
-    ".xxFyyzz.A",
-    "..DDB#.EEA"
-   ],
-   "note": "par 8 with him on the board and 2 without; the short way round walks her straight into him.",
-   "id": 46
-  },
-  {
-   "n": 23,
-   "rows": [
-    ".aabdd.#ee",
-    "gghbiij..k",
-    "llh#..jmmk",
-    "nnooppqqrs",
-    "ttuuvBwwrs",
-    "xyyzvAA.DD",
-    "x..zCFEEGG"
-   ],
-   "note": "par 8 with him on the board and 1 without; the short way round walks her straight into him.",
-   "id": 47
-  },
-  {
-   "n": 24,
+   "n": 11,
    "rows": [
     ".abbFdd.ee",
     "ga.hhBiijj",
@@ -1009,125 +769,10 @@
     "#wwxxyyzzv",
     "AADD..EEGG"
    ],
-   "note": "par 8 with him on the board and 1 without; the short way round walks her straight into him.",
-   "id": 48
-  }
- ],
- "woods": [
-  {
-   "n": 1,
-   "rows": [
-    "abb.deeghh",
-    "a.#.dijgkk",
-    "llmmnij..o",
-    "pqq.nr.sto",
-    "puuFCrvst.",
-    "wwBxx.vyyz",
-    ".AADD.#EEz"
-   ],
-   "note": "par 4 with him on the board and 1 without; the short way round walks her straight into him.",
-   "id": 1
+   "bomb": "k"
   },
   {
-   "n": 2,
-   "rows": [
-    "aa.bbddeeg",
-    "hhijjkkllg",
-    "mminn.opp#",
-    ".qqrssoFtt",
-    "uuvrwwBx.#",
-    "..v..yyx.C",
-    "zz..AA..DD"
-   ],
-   "note": "par 4 with him on the board and 1 without; the short way round walks her straight into him.",
-   "id": 2
-  },
-  {
-   "n": 3,
-   "rows": [
-    "...aabb.#d",
-    "..eegghh.d",
-    ".iijkkll.m",
-    "noojpCFqqm",
-    "n.rrpstt.u",
-    "vvwwxsByyu",
-    "zzAAx.DD#."
-   ],
-   "note": "par 4 with him on the board and 1 without; the short way round walks her straight into him.",
-   "id": 3
-  },
-  {
-   "n": 4,
-   "rows": [
-    "abb.ddee.g",
-    "a..hhi.jjg",
-    "kk.llimmnn",
-    "Coopqqrr#.",
-    "ssFp#ttuuv",
-    "Bww..xxy.v",
-    "zzAA.DDyEE"
-   ],
-   "note": "par 5 with him on the board and 3 without; the short way round walks her straight into him.",
-   "id": 4
-  },
-  {
-   "n": 5,
-   "rows": [
-    "aa.bbddeeg",
-    "hh.iijkkCg",
-    "lmmnnjFoop",
-    "lqqrs.tB.p",
-    ".uvrswtxx.",
-    "yuv.#wzz.A",
-    "y..#DD.EEA"
-   ],
-   "note": "par 5 with him on the board and 3 without; the short way round walks her straight into him.",
-   "id": 5
-  },
-  {
-   "n": 6,
-   "rows": [
-    ".aabCd.ee#",
-    "g.hbFd.#.i",
-    "g.hBjjkk.i",
-    ".llmmnnoop",
-    "qq.rrssttp",
-    "uuvvwwxxyy",
-    "zzAADDEEGG"
-   ],
-   "note": "par 5 with him on the board and 2 without; the short way round walks her straight into him.",
-   "id": 6
-  },
-  {
-   "n": 7,
-   "rows": [
-    "aabbdee.gg",
-    "hhiidjB#kk",
-    "lmmnnjoop.",
-    "lqq.rrFCps",
-    ".#t..uuv.s",
-    "..twwxxvyy",
-    "zzAADDEEGG"
-   ],
-   "note": "par 5 with him on the board and 2 without; the short way round walks her straight into him.",
-   "id": 7
-  },
-  {
-   "n": 8,
-   "rows": [
-    "aa.....bb.",
-    "B.dd.eeggh",
-    "iiFjjk..lh",
-    ".Cmnnkool#",
-    "ppm#qq.rrs",
-    "ttuuvwwxxs",
-    "yyzzv.AADD"
-   ],
-   "note": "par 5 with him on the board and 2 without; the short way round walks her straight into him.",
-   "id": 8
-  },
-  {
-   "n": 9,
+   "n": 12,
    "rows": [
     "aabbdd#ee.",
     "gg.hhii.jj",
@@ -1137,123 +782,10 @@
     "vs.wtxxyyz",
     "vAAwDD.EEz"
    ],
-   "note": "par 5 with him on the board and 2 without; the short way round walks her straight into him.",
-   "id": 9
-  },
-  {
-   "n": 10,
-   "rows": [
-    ".aa.bbFCd.",
-    ".eeggBhhd.",
-    "ij#klm..n.",
-    "ij#klmoonp",
-    ".qqrrssttp",
-    "uuvvwwxxyy",
-    "zzAADDEEGG"
-   ],
-   "note": "par 5 with him on the board and 1 without; the short way round walks her straight into him.",
-   "id": 10
-  },
-  {
-   "n": 11,
-   "rows": [
-    ".aaBbbdde#",
-    "..ggFhhiej",
-    ".kkClmminj",
-    "opqql.rrns",
-    "op..tt#.us",
-    "v..wwxy.uz",
-    "vAADDxyEEz"
-   ],
-   "note": "par 5 with him on the board and 1 without; the short way round walks her straight into him.",
-   "id": 11
-  },
-  {
-   "n": 12,
-   "rows": [
-    ".aa.bdd.e.",
-    "g..hbijjek",
-    "gllhminook",
-    "ppqqmBn.rr",
-    "#ssCFtu#..",
-    "v.ww.tuxxy",
-    "vzzAA..DDy"
-   ],
-   "note": "par 5 with him on the board and 1 without; the short way round walks her straight into him.",
-   "id": 12
+   "bomb": "m"
   },
   {
    "n": 13,
-   "rows": [
-    "aa.#bb#dde",
-    "gghh.ii..e",
-    "jjkkllmmn.",
-    "ooppqqrBnF",
-    ".sstt.ruuC",
-    "vvww.xxyyz",
-    "AA.DD..EEz"
-   ],
-   "note": "par 5 with him on the board and 1 without; the short way round walks her straight into him.",
-   "id": 13
-  },
-  {
-   "n": 14,
-   "rows": [
-    "..Ca.#bdd.",
-    "ee.aggbhhi",
-    "jjkl#mmnni",
-    "B.kloopp..",
-    "qqFrrsstt.",
-    "uuvvwwxxyy",
-    "zzAADDEEGG"
-   ],
-   "note": "par 6 with him on the board and 5 without.",
-   "id": 14
-  },
-  {
-   "n": 15,
-   "rows": [
-    "aabbddeegg",
-    "hhiijjkkll",
-    ".mmnn.oopp",
-    "qqrr...sCF",
-    "t..uvwws.x",
-    "t#yuvzzAAx",
-    "DDyEEGG.#B"
-   ],
-   "note": "par 6 with him on the board and 4 without.",
-   "id": 15
-  },
-  {
-   "n": 16,
-   "rows": [
-    "aabbd.ee.g",
-    "hhiidjjkkg",
-    "llmmnnoo#p",
-    "qq.rrsC..p",
-    "t.uu.sFvvB",
-    "twwxxyyzzA",
-    ".DD#EEGG.A"
-   ],
-   "note": "par 6 with him on the board and 1 without.",
-   "id": 16
-  },
-  {
-   "n": 17,
-   "rows": [
-    "aa......bb",
-    "BddegChhii",
-    "#Fjeg#..kk",
-    "l.j..mmnno",
-    "lppqq.rrso",
-    "ttuuvvwws.",
-    "xxyyzzAADD"
-   ],
-   "note": "par 6 with him on the board and 4 without; the short way round walks her straight into him.",
-   "id": 17
-  },
-  {
-   "n": 18,
    "rows": [
     ".....aabCd",
     "ee..gghbid",
@@ -1263,11 +795,10 @@
     "qvvwwxxtyu",
     "zzAA..DDy#"
    ],
-   "note": "par 7 with him on the board and 6 without.",
-   "id": 18
+   "bomb": "h"
   },
   {
-   "n": 19,
+   "n": 14,
    "rows": [
     "..aa.bddee",
     "ggChhb..ii",
@@ -1277,39 +808,10 @@
     ".vvww.xx.u",
     "yyzzAADDEE"
    ],
-   "note": "par 7 with him on the board and 4 without.",
-   "id": 19
+   "bomb": "r"
   },
   {
-   "n": 20,
-   "rows": [
-    "aaBb...#.d",
-    "..ebg..hhd",
-    "C.eigjjkkl",
-    "Fmmi#nnool",
-    "ppqqrssttu",
-    "vvwwrxxyyu",
-    ".zzAA.DDEE"
-   ],
-   "note": "par 7 with him on the board and 2 without.",
-   "id": 20
-  },
-  {
-   "n": 21,
-   "rows": [
-    ".aa.bbCdd.",
-    "eegghh#iiF",
-    "jjkllmmBnn",
-    "..ko..pp.q",
-    "rr.ossttuq",
-    "vvwwx#yyu.",
-    "zzAAxDD.EE"
-   ],
-   "note": "par 7 with him on the board and 6 without; the short way round walks her straight into him.",
-   "id": 21
-  },
-  {
-   "n": 22,
+   "n": 15,
    "rows": [
     "aab...ddee",
     "ggbhhijkk.",
@@ -1319,36 +821,438 @@
     "w.xx#yyzzA",
     "w#DD..EEBA"
    ],
-   "note": "par 7 with him on the board and 5 without; the short way round walks her straight into him.",
-   "id": 22
+   "bomb": "z"
+  },
+  {
+   "n": 16,
+   "rows": [
+    ".aa.bbddee",
+    "gghhiijjkk",
+    "llmCnno.pp",
+    "qqmrrFoss#",
+    "t..uu.vwxx",
+    "tyyBzzvwAA",
+    "DDEEGG#..."
+   ],
+   "bomb": "z"
+  },
+  {
+   "n": 17,
+   "rows": [
+    "aabb#..dde",
+    ".gghh.iije",
+    "kkllmmBnjo",
+    "ppqqCFrnso",
+    "ttuuvvr#sw",
+    "xxyy.z.AAw",
+    ".DDEEz..GG"
+   ],
+   "bomb": "h"
+  },
+  {
+   "n": 18,
+   "rows": [
+    "..aabbBdd.",
+    ".ee.gghF.i",
+    "jklmm.hnCi",
+    "jklooppnqq",
+    "rrs#ttuuvv",
+    "wwsxxyy#zz",
+    "AA..DDEEGG"
+   ],
+   "bomb": "b"
+  },
+  {
+   "n": 19,
+   "rows": [
+    "..aaBbb#dd",
+    ".egg..hh..",
+    "Feiijjkklm",
+    "n.oo..pplm",
+    "nCqqrrstuu",
+    "vvwwxxst.y",
+    "zzAADDEE#y"
+   ],
+   "bomb": "i"
+  },
+  {
+   "n": 20,
+   "rows": [
+    ".aaBbbddee",
+    "..ggFhhii#",
+    ".jCkkl.mmn",
+    ".joopl..#n",
+    "qq..pr..ss",
+    "ttuuvrwwxx",
+    "yyzzvAADD."
+   ],
+   "bomb": "k"
+  },
+  {
+   "n": 21,
+   "rows": [
+    "abb.ddee.#",
+    "agghhiijkk",
+    "l.mmnoojp.",
+    "l.qqn.rrps",
+    "ttCuuvvwws",
+    ".xxFyyzz.A",
+    "..DDB#.EEA"
+   ],
+   "bomb": "D"
+  },
+  {
+   "n": 22,
+   "rows": [
+    ".aabdd.#ee",
+    "gghbiij..k",
+    "llh#..jmmk",
+    "nnooppqqrs",
+    "ttuuvBwwrs",
+    "xyyzvAA.DD",
+    "x..zCFEEGG"
+   ],
+   "bomb": "r"
   },
   {
    "n": 23,
    "rows": [
-    ".aa#bbdd.e",
-    "#ghiijjkle",
-    ".ghmmnnkl.",
-    "oo....ppqq",
-    "rrCstt.uu.",
-    "Fvvswwxx.y",
-    "zzBAADDEEy"
+    "aabCdd..ee",
+    "ggb.hhiij.",
+    "kkFll.m.jn",
+    "oopBqqm.#n",
+    "rrpstu.vv#",
+    "ww.stuxx.y",
+    "zzAADD.EEy"
    ],
-   "note": "par 7 with him on the board and 5 without; the short way round walks her straight into him.",
-   "id": 23
+   "bomb": "d"
   },
   {
    "n": 24,
    "rows": [
-    "aa.b...dde",
-    "gghbC.iBje",
-    "kkhll#i.jm",
-    "n.o#ppqqFm",
-    "n.orrssttu",
-    ".vvwwxxyyu",
+    "...aa.bbBd",
+    "eegg.hFiid",
+    "jkk.Chll.m",
+    "jnno#ppqqm",
+    ".rrosstuu.",
+    "vvwwxxtyyz",
+    "AA#DDEEGGz"
+   ],
+   "bomb": "a"
+  }
+ ],
+ "woods": [
+  {
+   "n": 1,
+   "rows": [
+    ".aa.bbddee",
+    "...gghiijj",
+    "k.llBh#mm.",
+    "knCFoopqq.",
+    "rnssttpuu.",
+    "rvvwwxx#yy",
     "zzAADDEEGG"
    ],
-   "note": "par 7 with him on the board and 4 without; the short way round walks her straight into him.",
-   "id": 24
+   "bomb": "g"
+  },
+  {
+   "n": 2,
+   "rows": [
+    "..aabbddee",
+    "gh..iijjkk",
+    "ghll.mm.nn",
+    "o#Bpp.qqr.",
+    "ossF.Cttru",
+    "vvwxxyy#zu",
+    "AAw.DDEEz."
+   ],
+   "bomb": "l"
+  },
+  {
+   "n": 3,
+   "rows": [
+    "aabbddeegg",
+    "hhiijjkkll",
+    "mm.nnooppq",
+    "rrsstC..#q",
+    ".uu.t.Fvv.",
+    "wwxxy..#Bz",
+    "AADDy..EEz"
+   ],
+   "bomb": "E"
+  },
+  {
+   "n": 4,
+   "rows": [
+    "aabbddeegg",
+    "CF.#.hhijj",
+    "klmm...i#n",
+    "klBopqq.rn",
+    ".ssoptuurv",
+    "wwxxyt.zzv",
+    "AADDy.EEGG"
+   ],
+   "bomb": "k"
+  },
+  {
+   "n": 5,
+   "rows": [
+    "CF#aabb.dd",
+    "egg.hi#jk.",
+    "e..Bhi.jk.",
+    "llmm..no..",
+    "ppqqrrnoss",
+    "ttuuvvwwxx",
+    "yyzzAA.DD."
+   ],
+   "bomb": "e"
+  },
+  {
+   "n": 6,
+   "rows": [
+    "aabbddeegg",
+    ".hhiijjkkl",
+    "mm.nnooppl",
+    "#.#qqrs.FC",
+    "tu.v.rsww.",
+    "tu.vxxyzz.",
+    "AA..DDyBEE"
+   ],
+   "bomb": "E"
+  },
+  {
+   "n": 7,
+   "rows": [
+    "abb.deeghh",
+    "a.#.dijgkk",
+    "llmmnij..o",
+    "pqq.nr.sto",
+    "puuFCrvst.",
+    "wwBxx.vyyz",
+    ".AADD.#EEz"
+   ],
+   "bomb": "D"
+  },
+  {
+   "n": 8,
+   "rows": [
+    "#.aa.bbdde",
+    "CFgg.hhiie",
+    "jk#llmnn..",
+    "jkoppmqqrr",
+    ".Bo.ssttuu",
+    "vv.wwxxyy.",
+    "zzAADDEEGG"
+   ],
+   "bomb": "k"
+  },
+  {
+   "n": 9,
+   "rows": [
+    "#.aabb.dde",
+    "gghhiijjke",
+    "llmmnBook.",
+    "pqrrnss.t.",
+    "pquuvv..tw",
+    "x.yyFCzzAw",
+    "xDDEEGG.A#"
+   ],
+   "bomb": "v"
+  },
+  {
+   "n": 10,
+   "rows": [
+    "..aaCbbdd.",
+    "ee.ggFhhii",
+    "j.kkB#lm.n",
+    "jooppqlm.n",
+    "rrsstqu.vw",
+    "xxyytzu.vw",
+    "AADD#zEEGG"
+   ],
+   "bomb": "k"
+  },
+  {
+   "n": 11,
+   "rows": [
+    ".##...aab.",
+    "dd.FCeegb.",
+    "hhijj..gkl",
+    "..iBmmnnkl",
+    "ooppqqrrst",
+    "uuvvwwxxst",
+    ".yyzzAADD."
+   ],
+   "bomb": "j"
+  },
+  {
+   "n": 12,
+   "rows": [
+    "...aabb..C",
+    "#d.eeFgg.h",
+    "id#.jjBkkh",
+    "i..l.mmnn.",
+    "oo.lppqqrs",
+    "ttuuvvwwrs",
+    "xxyyzzAADD"
+   ],
+   "bomb": "g"
+  },
+  {
+   "n": 13,
+   "rows": [
+    "aab#ddeegg",
+    "hhbCii.jjk",
+    "llmFnB#ook",
+    "ppm.nqq.rr",
+    "ss.ttuu.vv",
+    "w.xxyy.zz.",
+    "w.AADD.EE."
+   ],
+   "bomb": "j"
+  },
+  {
+   "n": 14,
+   "rows": [
+    "aa.#bbd..#",
+    "ee.gg.d.h.",
+    "ijkkCllmhn",
+    "ijBooppm.n",
+    ".qqrrssttu",
+    "vvFwwxxyyu",
+    "zzAADDEEGG"
+   ],
+   "bomb": "o"
+  },
+  {
+   "n": 15,
+   "rows": [
+    "abb.dCFeeg",
+    "ahiidjkk.g",
+    "lhmnnjBoop",
+    "lqm.r.#s.p",
+    ".q#.rttsuu",
+    "vvwwxyy.zz",
+    ".AA.x.DDEE"
+   ],
+   "bomb": "s"
+  },
+  {
+   "n": 16,
+   "rows": [
+    "abb.ddee.g",
+    "a..hhi.jjg",
+    "kk.llimmnn",
+    "Coopqqrr#.",
+    "ssFp#ttuuv",
+    "Bww..xxy.v",
+    "zzAA.DDyEE"
+   ],
+   "bomb": "A"
+  },
+  {
+   "n": 17,
+   "rows": [
+    "aa.bbddeeg",
+    "hh.iijkkCg",
+    "lmmnnjFoop",
+    "lqqrs.tB.p",
+    ".uvrswtxx.",
+    "yuv.#wzz.A",
+    "y..#DD.EEA"
+   ],
+   "bomb": "d"
+  },
+  {
+   "n": 18,
+   "rows": [
+    ".aabCd.ee#",
+    "g.hbFd.#.i",
+    "g.hBjjkk.i",
+    ".llmmnnoop",
+    "qq.rrssttp",
+    "uuvvwwxxyy",
+    "zzAADDEEGG"
+   ],
+   "bomb": "a"
+  },
+  {
+   "n": 19,
+   "rows": [
+    "aabbdee.gg",
+    "hhiidjB#kk",
+    "lmmnnjoop.",
+    "lqq.rrFCps",
+    ".#t..uuv.s",
+    "..twwxxvyy",
+    "zzAADDEEGG"
+   ],
+   "bomb": "o"
+  },
+  {
+   "n": 20,
+   "rows": [
+    ".aa.bbFCd.",
+    ".eeggBhhd.",
+    "ij#klm..n.",
+    "ij#klmoonp",
+    ".qqrrssttp",
+    "uuvvwwxxyy",
+    "zzAADDEEGG"
+   ],
+   "bomb": "m"
+  },
+  {
+   "n": 21,
+   "rows": [
+    ".aaBbbdde#",
+    "..ggFhhiej",
+    ".kkClmminj",
+    "opqql.rrns",
+    "op..tt#.us",
+    "v..wwxy.uz",
+    "vAADDxyEEz"
+   ],
+   "bomb": "t"
+  },
+  {
+   "n": 22,
+   "rows": [
+    ".aa.bdd.e.",
+    "g..hbijjek",
+    "gllhminook",
+    "ppqqmBn.rr",
+    "#ssCFtu#..",
+    "v.ww.tuxxy",
+    "vzzAA..DDy"
+   ],
+   "bomb": "q"
+  },
+  {
+   "n": 23,
+   "rows": [
+    "aa.#bb#dde",
+    "gghh.ii..e",
+    "jjkkllmmn.",
+    "ooppqqrBnF",
+    ".sstt.ruuC",
+    "vvww.xxyyz",
+    "AA.DD..EEz"
+   ],
+   "bomb": "r"
+  },
+  {
+   "n": 24,
+   "rows": [
+    ".aa.bbFC#.",
+    "ddeegBhhii",
+    "jjkkgl..m.",
+    "..nnol#.mp",
+    "qrrsottuup",
+    "qvvs.wwxx.",
+    "yyzzAADDEE"
+   ],
+   "bomb": "l"
   }
  ]
 }
