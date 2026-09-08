@@ -82,12 +82,26 @@
      is a glance concern rather than a measured failure, but it rests on one
      feature. Fixing it properly means moving the road's gold, which is the
      owner's own 2014 colour. */
+  /* THE ROAD IS CONCRETE, NOT GOLD. Its slats were a warm gold, and the
+     carrot was relit to amber so it could clear the mid-value holes, which
+     put the two five degrees of hue apart at the same value: dE 15.9 between
+     the carrot's shade face and the road's mid tone, against 46.6 in the
+     woods and 74.5 in the ocean. Sixteen is one colour to a glance.
+
+     Warmth is not available to this world. The blocker is an orange cone and
+     the carrot is amber, so any warm slat collides with one or the other: the
+     best warm palette in the sweep reached dE 65 on the carrot and dropped
+     the cone to 66. Cool neutral clears both, at 72.5 and 91.6, and it is
+     what a street is made of. Every tone holds the luminance the gold had, so
+     the tile still measures 3.20 against its hole and nothing else on that
+     ground moved. The cone, the carrot and the bunny are now the only
+     saturated things on the board, which is the read this world wanted. */
   var WORLDS = {
     woods:  { lit: '#7FBF57', mid: '#5E9440', dark: '#436E2C', hole: '#0C1F12',
               name: 'THE WOODS',    predator: 'fox',     block: 'brick'   },
     arctic: { lit: '#C8E8F5', mid: '#8FD2EB', dark: '#25A4D5', hole: '#197499',
               name: 'ARCTIC SALAD', predator: 'penguin', block: 'iceberg' },
-    road:   { lit: '#F5E7BD', mid: '#E9C965', dark: '#BE971C', hole: '#6D6D6D',
+    road:   { lit: '#E7E7EF', mid: '#CACADC', dark: '#9898BB', hole: '#6D6D6D',
               name: 'THE ROAD',     predator: 'cop',     block: 'cone'    },
     ocean:  { lit: '#E1EFF7', mid: '#B3D5EB', dark: '#60A6D6', hole: '#007CB2',
               name: 'OCEAN WORLD',  predator: 'shark',   block: 'iceberg' },

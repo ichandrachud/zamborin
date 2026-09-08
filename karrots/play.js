@@ -19,8 +19,14 @@
      `innerWidth < 768` then reads as a phone, MODE is locked for the session,
      and a desktop player is left on the phone layout for good. Zero means "not
      measured yet", so it must not count as narrow. */
+  /* AND A NARROW FRAME IS NOT A PHONE IF IT IS LYING DOWN. The width test on
+     its own gave the mobile chrome to a 480x360 embed, whose bands then ate
+     160 of its 360 pixels. A real phone still answers here through the coarse
+     pointer whichever way up it is; what changes is a short, wide frame with a
+     mouse, which is what an embed is. */
+  const PORTRAITISH = window.innerHeight >= window.innerWidth;
   const MODE = (matchMedia('(pointer: coarse)').matches ||
-                (window.innerWidth > 0 && window.innerWidth < 768))
+                (window.innerWidth > 0 && window.innerWidth < 768 && PORTRAITISH))
     ? 'mobile' : 'desktop';
   document.body.classList.add('mode-' + MODE);
 
@@ -253,13 +259,21 @@
   const topBand = () => (MODE === 'mobile' ? 64 : 56);
   const botBand = () => (MODE === 'mobile' ? 96 : 20);
 
-  /* THE PHONE PLAYS THE SAME BOARD TURNED A QUARTER TURN. The model is always
-     nine wide and six tall, which is the shape of the 760x600 desktop frame.
-     A portrait phone gets the transpose - six wide, nine tall - so the SAME
+  /* A TALL FRAME PLAYS THE SAME BOARD TURNED A QUARTER TURN. The model is
+     always ten wide and seven tall, the shape of the 760x600 desktop frame.
+     A tall frame gets the transpose, seven wide and ten tall, so the SAME
      level, the same par and the same solution work in both, because a
      transposed sliding puzzle is the same puzzle. Turning it is cheaper than
      keeping two level sets, and far cheaper than being wrong about one. */
-  const TURNED = (MODE === 'mobile');
+  /* WHICH WAY IT LIES IS A QUESTION ABOUT THE FRAME, NOT THE DEVICE. This was
+     `MODE === 'mobile'`, which is a width test, so a 480x360 embed was called a
+     phone and handed the portrait board: ten rows into what the bands left of
+     360px came to a 20px cell, less than half the minimum target. Ask the frame
+     instead, and take whichever way round makes the cell bigger. A phone still
+     gets the transpose, because a phone is tall. */
+  let TURNED = false;
+  const orientFor = (availW, availH) =>
+    Math.min(availW / M.R, availH / M.C) > Math.min(availW / M.C, availH / M.R);
   const geo = {
     get cols() { return TURNED ? M.R : M.C; },
     get rows() { return TURNED ? M.C : M.R; },
@@ -277,7 +291,7 @@
   };
   /* A drag is in screen directions and the model thinks in board ones. Turned,
      screen-up is board-left and screen-right is board-down. */
-  const DIR_FROM_SCREEN = TURNED ? [3, 2, 1, 0] : [0, 1, 2, 3];
+  const dirFromScreen = () => (TURNED ? [3, 2, 1, 0] : [0, 1, 2, 3]);
   let ctrl = [];
 
   /* THE BOARD'S OWN SIDE MARGIN, separate from the chrome's. SIDE_PAD is 30
@@ -294,6 +308,7 @@
   function layout() {
     const availW = Math.max(60, LW - boardPad() * 2);
     const availH = Math.max(60, LH - topBand() - botBand());
+    TURNED = orientFor(availW, availH);      // before geo.cols/rows are read off it
     geo.cell = Math.max(8, Math.floor(Math.min(availW / geo.cols, availH / geo.rows)));
     const boardW = geo.cols * geo.cell, boardH = geo.rows * geo.cell;
     geo.ox = Math.round((LW - boardW) / 2);
@@ -558,7 +573,7 @@
     const screenDir = drag.axisIsX ? (along > 0 ? 1 : 3) : (along > 0 ? 2 : 0);
     if (screenDir !== drag.screenDir) {
       drag.screenDir = screenDir;
-      drag.dir = DIR_FROM_SCREEN[screenDir];
+      drag.dir = dirFromScreen()[screenDir];
       drag.chain = slideRun(st, drag.tile, drag.dir);
       drag.legal = drag.chain.length > 0;
       if (!drag.legal) {

@@ -83,7 +83,7 @@ measured or decided, not guessed. Ordered by who owns it.
 | 15 | ludo | ~ | OK | OK | - | OK | - | OK | 2026-08-22: handle added, **Z1 FIXED**, 9 sizes clean, state survives 9 rotations |
 | 16 | ricochet | - | - | - | - | - | - | - | shipped 2026-08-27, not yet audited |
 | 17 | ballast | OK | OK | OK | OK | ~ | OK | OK | audited 2026-08-28. Cleanest first audit on the track. One item, BA1, and it is cosmetic |
-| 18 | karrots | OK | OK | OK | ~ | OK | OK | ! | audited 2026-09-08 on launch. 96/96 levels load and solve, par proved twice. K-A1 (carrot vs road slats) and K-E1 (20px cells in a 480x360 embed) open |
+| 18 | karrots | OK | OK | OK | OK | OK | OK | OK | audited 2026-09-08 on launch. 96/96 levels load and solve, par proved twice. **K-A1 and K-E1 both CLOSED the same day**, before release, because the release has to match the distribution build |
 
 Row order matches the homepage card order. Ricochet has a card but no audit yet.
 Karrots is row 18 by ship date; on the homepage its card is first.
@@ -126,20 +126,49 @@ both ways, in the hub and in llms.txt.
 chrome hides under `?embed=1`, canvas fills the frame, no sideways scroll. One
 item open, K-E1.
 
-### K-A1 — the carrot rests on one feature in The Road
-The relit carrot root is amber and that world's slats are gold, five degrees of
-hue apart at the same value, so what separates the carrot from the furniture
-there is its green top alone. It clears its own ground (the grey hole) at 3.52,
-so this is a glance concern rather than a measured failure. Fixing it properly
-means moving the road's gold, which is the owner's own 2014 colour.
+### K-A1 — CLOSED. The Road is concrete, not gold
+Measured properly the problem was worse than "rests on one feature". Hue
+degrees and contrast ratio each answer half the question; CIELAB dE answers the
+one the eye asks, and the road measured **dE 15.9** between the carrot's shade
+face and the road's mid tone, against 46.6 in the woods and 74.5 in the ocean.
+Under about 25 two colours read as versions of one another.
 
-### K-E1 — 20px cells in a landscape embed
-Mode is chosen on `innerWidth < 768`, so a 480x360 embed is treated as a phone
-and gets the portrait 7x10 board: ten rows into 360px of frame is 20px a cell.
-The same frame in desktop mode would be 10x7 and about 40px. The mode test
-should consider the frame's ASPECT and not only its width. Not a launch
-blocker, because zamborin.com never serves that shape, but it is a blocker for
-the distribution track.
+Warmth turned out to be unavailable to this world. Its blocker is an orange
+cone and its carrot is amber, so any warm slat collides with one or the other:
+the best warm palette in the sweep reached dE 65 on the carrot and dropped the
+cone to 66. Cool neutral clears both. The slats are now concrete,
+`#E7E7EF / #CACADC / #9898BB`, holding each tone's luminance exactly so the
+tile still measures 3.20 against its hole and nothing else on that ground
+moved. Measured on the painted canvas: **dE 77.4**, tile/hole 3.20, carrot 3.52
+on its own ground. The cone, the carrot and the bunny are now the only
+saturated things on the board, which is the read this world wanted.
+
+### K-E1 — CLOSED. The frame decides, not the width
+Two tests were wrong, not one. Orientation was `MODE === 'mobile'`, a width
+test, so a 480x360 embed was handed the portrait board. And MODE itself gave
+that frame the phone chrome, whose bands then ate 160 of its 360 pixels.
+
+Orientation now takes whichever way round makes the cell bigger, and the mode
+test asks for a portrait frame as well as a narrow one, so a real phone still
+answers through its coarse pointer whichever way up it is while a short wide
+frame with a mouse does not. Measured, physical CSS pixels:
+
+  frame            was    now
+  760x600 desktop   70     70
+  375x812 phone     50     50
+  360x740 phone     48     48
+  430x932 phone     58     58
+  320x568 SE        40     40
+  480x360 embed     20     42
+  640x480 embed      -     56
+  800x600 embed      -     70
+
+Every device unchanged; the embed more than doubles. 42 is still 2px under the
+44 floor at the smallest frame /embed/ supports, and that residue is the
+760x600 site-wide frame letterboxing into 480x360 rather than anything this
+game can reach. A drag was driven through the real pointer path at both
+orientations and committed a legal move in each, which is the check that
+matters because the screen-to-board mapping is what the change touched.
 
 ## Ballast audit, 2026-08-28
 
