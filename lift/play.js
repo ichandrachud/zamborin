@@ -97,26 +97,39 @@
   const GROUND = '#0E1726', SURFACE = '#131F36', RAISED = '#1A2A45';
   const INK72 = 'rgba(255,255,255,0.72)', CORAL = '#C24A39';
 
-  const SHELL_TOP = '#1C2233', SHELL_BOT = '#12172A';
-  const WALL_A = '#232B45', WALL_B = '#1E2540';        // alternating corridor walls
-  const CEIL = 'rgba(255,255,255,0.10)';
-  const SKIRT = 'rgba(255,255,255,0.07)';
-  const DOOR_FILL = '#525A6D', DOOR_HI = '#626B80', DOOR_LO = '#3C4356';
+  /* A WARM, LIT HOTEL CORRIDOR. The building used to be dark navy, which was
+     wrong twice over: it did not look like a hotel, and it gave dark smoke
+     nothing to obscure, so the smoke read as a slightly darker dark. A lit
+     corridor fixes both - smoke works by BLOCKING LIGHT, and there is finally
+     some light for it to block. Reference register only; nothing is traced. */
+  const SHELL_TOP = '#3A2438', SHELL_BOT = '#2A1A2C';    // the shell behind it all
+  const CEIL_HI = '#F7C877', CEIL_LO = '#E9A751';
+  const CORNICE = '#C4703A';
+  const WALL_HI = '#F2AC42', WALL_LO = '#DD8F2F';
+  const WAINSCOT = '#D2812B', CHAIR_RAIL = '#B8642C';
+  const SKIRT_C = '#A8492F';
+  const FLOOR_HI = '#6E5070', FLOOR_LO = '#4B3552';
+  const DOOR_DARK = '#2B2331', DOOR_PANEL = '#372B3E', DOOR_EDGE = '#1D1723';
+  const ARCH = '#F8C97E';
+  const HANDLE = '#E8B44C';
+  const PLAQUE = '#241C28', PLAQUE_INK = '#F4E9D6';
+  const SCONCE = '#FFE6B4';
+  const FRAME_C = '#7A4A3A', FRAME_MAT = '#F6E8D8', FRAME_ART = '#C9685F';
+  const PLANT_C = '#4E8A54', POT_C = '#EDE6DC';
   const LAMP = '#FFD98A';
-  const CARPET = '#7A3A3A';
+  const CARPET = '#8E3A34';
   const SHAFT = '#0B1020', CABLE = 'rgba(255,255,255,0.08)';
   const CAR_HI = '#FFD98A', CAR_MID = '#E8B44C', CAR_LO = '#C9861E';
   const CAR_BEVEL = 'rgba(255,255,255,0.35)';
   const CAR_IN = '#FFE8B0', HEAD_WARM = '#FFF4E6';
-  /* BODY_LO was #4E6488, a mid-tone, which measured low against a dark wall AND
-   against light smoke - there was no ground it read on. Lifted so the figure
-   is a light shape that always sits on the dark halo behind it. */
-/* A TIGHTER, LIGHTER RANGE. The dark end used to be a mid-tone that measured
-   low against a dark wall and low again against pale smoke - there was no
-   ground it read on, which is what the halo was papering over. Lifted, it
-   clears 3:1 on the wall, on a guest door and on dark smoke, with nothing
-   drawn behind it. */
-const BODY_HI = '#C8D6EF', BODY_LO = '#ACC1E0', HEAD = '#DEE6F9';
+  /* DARK CLOTHES, LIGHT HEAD AND HANDS. On a lit wall a figure has to be dark
+     to read; inside dark smoke it has to be light. No single value does both -
+     against a wall at 0.48 you need at most 0.13, against smoke at 0.10 you
+     need at least 0.40 - so the figure carries BOTH. Dark clothing separates
+     it from the corridor, a light head and hands separate it from the smoke,
+     and that is also just what a person looks like. */
+  const BODY_HI = '#4A4258', BODY_LO = '#2F2A3D';        // clothing
+  const HEAD = '#F0D8BE', SKIN_HI = '#FFE9D2';           // head and hands
   /* DARK SMOKE, like Empyrean's, with a lit top surface. Pale smoke is what
      forced a dark halo behind every person - a light figure had nothing to sit
      against once a corridor filled. A dark mass fixes that at the source, it
@@ -488,152 +501,247 @@ const BODY_HI = '#C8D6EF', BODY_LO = '#ACC1E0', HEAD = '#DEE6F9';
     const g = ctx.createLinearGradient(0, geo.y, 0, geo.y + geo.h);
     g.addColorStop(0, SHELL_TOP); g.addColorStop(1, SHELL_BOT);
     ctx.fillStyle = g; rr(geo.x - 6, geo.y - 8, geo.w + 12, geo.h + 8, 8); ctx.fill();
-    // the roof, so a short hotel reads as a short hotel and not a cropped one
     ctx.fillStyle = 'rgba(255,255,255,0.06)';
-    ctx.fillRect(geo.x - 10, geo.y - 12, geo.w + 20, 4);
+    ctx.fillRect(geo.x - 10, geo.y - 12, geo.w + 20, 4);     // the roof line
   }
 
-  /* A HOTEL CORRIDOR, not a box: a ceiling with lamps in it, guest room doors
-     down one wall, a runner on the floor, and the lift lobby left clear where
-     the shaft is. */
+  /* THE CORRIDOR IS BAKED. It is a warm lit hallway with a ceiling, a cornice,
+     a chair rail, a skirting, guest doors recessed in their architraves with
+     numbered plaques over them, wall sconces, pictures and a runner - and none
+     of it ever changes during a level. Drawing that lot per floor per frame
+     would be absurd, so each corridor is rendered once into its own canvas and
+     blitted. The whole static hotel costs one drawImage a floor.
+
+     Rebuilt when the layout changes or a level starts, because which doors are
+     omitted depends on where that level's guests are standing. */
+  let bakeKey = '', baked = {};
+  function corridorKey() {
+    return [geo.corW, geo.rightW, geo.floorPx, floors(), levelIndex].join('|');
+  }
+  function bakeCorridors() {
+    baked = {};
+    const F = floors();
+    for (let f = 1; f <= F; f++) {
+      baked['L' + f] = bakeCorridor(geo.corW, geo.floorPx, f, 'left');
+      if (geo.rightW > 0) baked['R' + f] = bakeCorridor(geo.rightW, geo.floorPx, f, 'right');
+    }
+    bakeKey = corridorKey();
+  }
+
+  function bakeCorridor(w, h, f, side) {
+    const c = document.createElement('canvas');
+    const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+    c.width = Math.max(1, Math.round(w * dpr)); c.height = Math.max(1, Math.round(h * dpr));
+    const b = c.getContext('2d');
+    b.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const right = side === 'right';
+    // mirror the right-hand corridor so both run "outward from the lift"
+    if (right) { b.translate(w, 0); b.scale(-1, 1); }
+    paintCorridor(b, w, h, f, f === 1);
+    return c;
+  }
+
+  /* Everything is drawn in a corridor that runs left-to-right with the LIFT AT
+     THE RIGHT-HAND END, and the right-hand corridor is mirrored on the way
+     out. One piece of drawing code, both sides. */
+  function paintCorridor(b, w, h, f, isLobby) {
+    const ceilH = Math.max(4, h * 0.10);
+    const railY = h * 0.60;
+    const skirtH = Math.max(3, h * 0.075);
+    const floorH = Math.max(3, h * 0.055);
+    const wallBot = h - skirtH - floorH;
+    const tone = (f % 2) ? 0 : -4;                       // a touch of variation per floor
+
+    const shade = (hex, d) => {
+      const n = parseInt(hex.slice(1), 16);
+      const cl = v => Math.max(0, Math.min(255, v + d));
+      return 'rgb(' + cl(n >> 16) + ',' + cl((n >> 8) & 255) + ',' + cl(n & 255) + ')';
+    };
+
+    // ceiling
+    const cg = b.createLinearGradient(0, 0, 0, ceilH);
+    cg.addColorStop(0, shade(CEIL_HI, tone)); cg.addColorStop(1, shade(CEIL_LO, tone));
+    b.fillStyle = cg; b.fillRect(0, 0, w, ceilH);
+    b.fillStyle = CORNICE; b.fillRect(0, ceilH, w, Math.max(2, h * 0.022));
+
+    // wall
+    const wg = b.createLinearGradient(0, ceilH, 0, wallBot);
+    wg.addColorStop(0, shade(WALL_HI, tone)); wg.addColorStop(1, shade(WALL_LO, tone));
+    b.fillStyle = wg; b.fillRect(0, ceilH, w, wallBot - ceilH);
+    // lower wall below the chair rail is a shade deeper
+    b.fillStyle = shade(WAINSCOT, tone); b.fillRect(0, railY, w, wallBot - railY);
+    b.fillStyle = CHAIR_RAIL; b.fillRect(0, railY - Math.max(1.5, h * 0.014), w, Math.max(2, h * 0.020));
+
+    // skirting and the floor beyond it
+    b.fillStyle = SKIRT_C; b.fillRect(0, wallBot, w, skirtH);
+    const fg = b.createLinearGradient(0, wallBot + skirtH, 0, h);
+    fg.addColorStop(0, FLOOR_HI); fg.addColorStop(1, FLOOR_LO);
+    b.fillStyle = fg; b.fillRect(0, wallBot + skirtH, w, h - wallBot - skirtH);
+
+    if (isLobby) { paintLobby(b, w, h, ceilH, wallBot, skirtH); }
+    else { paintDoors(b, w, h, ceilH, railY, wallBot, f); }
+
+    // the runner, leading away toward the lift
+    const rin = Math.round(w * 0.04), rh = Math.max(3, floorH * 0.72);
+    b.fillStyle = CARPET;
+    b.fillRect(rin, wallBot + skirtH + (floorH - rh) / 2, w - rin * 2, rh);
+
+    // ceiling lights, and the pool each one throws down the wall
+    const bays = Math.max(2, Math.round(w / (h * 1.05)));
+    for (let i = 0; i < bays; i++) {
+      const lx = w * ((i + 0.5) / bays);
+      const g2 = b.createRadialGradient(lx, ceilH, 2, lx, ceilH, h * 0.95);
+      g2.addColorStop(0, 'rgba(255,231,176,0.34)');
+      g2.addColorStop(0.45, 'rgba(255,225,160,0.11)');
+      g2.addColorStop(1, 'rgba(255,220,150,0)');
+      b.fillStyle = g2; b.fillRect(0, 0, w, h);
+      b.fillStyle = LAMP;
+      const lw = Math.max(8, h * 0.15);
+      b.fillRect(lx - lw / 2, Math.max(1, ceilH * 0.35), lw, Math.max(2, h * 0.030));
+    }
+  }
+
+  /* Guest doors: recessed into a lighter architrave, a numbered plaque over
+     each one and a brass handle. Doors are omitted where somebody is standing,
+     both because a figure in a doorway looks wrong and because a pale door
+     behind a figure costs it its contrast. */
+  function paintDoors(b, w, h, ceilH, railY, wallBot, f) {
+    const doorH = (wallBot - ceilH) * 0.86, doorW = doorH * 0.52;
+    const lobby = Math.max(doorW * 1.4, w * 0.18);
+    const runX = 6, runW = w - lobby - 6;
+    const n = Math.max(1, Math.min(4, Math.floor(runW / (doorW * 2.3))));
+    const gap = runW / n;
+    const stands = (standsBy[f] || []).map(s => personXInCorridor(s.stand, w));
+    const keepOut = doorW * 0.5 + geo.floorPx * 0.52 * 0.24;
+
+    for (let i = 0; i < n; i++) {
+      const cx = runX + gap * (i + 0.5);
+      if (stands.some(px2 => Math.abs(px2 - cx) < keepOut)) continue;
+      const dx = Math.round(cx - doorW / 2), dy = Math.round(wallBot - doorH);
+      const aw = Math.max(3, doorW * 0.10);
+      // architrave, then the recess it sits in
+      b.fillStyle = ARCH;
+      b.fillRect(dx - aw, dy - aw, doorW + aw * 2, doorH + aw);
+      b.fillStyle = 'rgba(90,45,20,0.30)';
+      b.fillRect(dx - aw * 0.4, dy - aw * 0.4, doorW + aw * 0.8, doorH + aw * 0.4);
+      // the door
+      const dg = b.createLinearGradient(dx, dy, dx + doorW, dy);
+      dg.addColorStop(0, DOOR_EDGE); dg.addColorStop(0.35, DOOR_DARK); dg.addColorStop(1, DOOR_EDGE);
+      b.fillStyle = dg; b.fillRect(dx, dy, doorW, doorH);
+      // an inset panel, as a value step
+      b.fillStyle = DOOR_PANEL;
+      b.fillRect(dx + doorW * 0.16, dy + doorH * 0.14, doorW * 0.68, doorH * 0.52);
+      // brass handle on the lift side
+      b.fillStyle = HANDLE;
+      b.beginPath();
+      b.arc(dx + doorW * 0.84, dy + doorH * 0.58, Math.max(1.4, doorW * 0.065), 0, Math.PI * 2);
+      b.fill();
+      // the numbered plaque above it, and the little light over that
+      const ph2 = Math.max(6, doorH * 0.13), pw2 = doorW + aw * 2;
+      const py2 = dy - aw - ph2 - Math.max(2, h * 0.02);
+      if (py2 > ceilH + 2) {
+        b.fillStyle = PLAQUE;
+        b.fillRect(dx - aw, py2, pw2, ph2);
+        if (ph2 >= 9) drawUnflipped(b, String(f * 100 + n - i), dx - aw + pw2 / 2, py2 + ph2 * 0.55,
+          '700 ' + Math.round(ph2 * 0.70) + 'px Inter, sans-serif', PLAQUE_INK);
+        const gl = b.createRadialGradient(dx - aw + pw2 / 2, py2, 1, dx - aw + pw2 / 2, py2, pw2 * 0.7);
+        gl.addColorStop(0, 'rgba(255,180,90,0.40)'); gl.addColorStop(1, 'rgba(255,180,90,0)');
+        b.fillStyle = gl; b.fillRect(dx - aw * 2, py2 - ph2, pw2 + aw * 4, ph2 * 2.2);
+      }
+      // a wall sconce and a picture in the gap after the door
+      if (gap > doorW * 1.9) {
+        const sx = cx + gap * 0.5;
+        if (sx < w - lobby * 0.5) paintSconce(b, sx, ceilH + (railY - ceilH) * 0.55, h);
+        if (h > 56 && i % 2 === 0 && sx < w - lobby * 0.5) paintPicture(b, sx, ceilH + (railY - ceilH) * 0.30, h);
+      }
+    }
+  }
+
+  /* Draw a string the right way round inside a canvas that may be mirrored. */
+  function drawUnflipped(b, text, x, y, font, fill) {
+    const m = b.getTransform();
+    b.save();
+    if (m.a < 0) { b.translate(x, y); b.scale(-1, 1); b.translate(-x, -y); }
+    b.fillStyle = fill; b.font = font;
+    b.textAlign = 'center'; b.textBaseline = 'middle';
+    b.fillText(text, x, y);
+    b.restore();
+    b.textAlign = 'left'; b.textBaseline = 'top';
+  }
+
+  function paintSconce(b, x, y, h) {
+    const sw = Math.max(4, h * 0.055), sh = Math.max(7, h * 0.10);
+    const g2 = b.createRadialGradient(x, y, 1, x, y, h * 0.42);
+    g2.addColorStop(0, 'rgba(255,206,120,0.42)'); g2.addColorStop(1, 'rgba(255,206,120,0)');
+    b.fillStyle = g2; b.fillRect(x - h * 0.45, y - h * 0.45, h * 0.9, h * 0.9);
+    b.fillStyle = '#8C3F2E'; b.fillRect(x - sw * 0.62, y - sh * 0.5, sw * 1.24, sh);
+    b.fillStyle = SCONCE; b.fillRect(x - sw * 0.42, y - sh * 0.36, sw * 0.84, sh * 0.72);
+  }
+
+  function paintPicture(b, x, y, h) {
+    const fw = Math.max(9, h * 0.15), fh = fw * 1.15;
+    b.fillStyle = FRAME_C; b.fillRect(x - fw / 2, y - fh / 2, fw, fh);
+    b.fillStyle = FRAME_MAT;
+    b.fillRect(x - fw / 2 + fw * 0.13, y - fh / 2 + fh * 0.11, fw * 0.74, fh * 0.78);
+    b.fillStyle = FRAME_ART;
+    b.fillRect(x - fw / 2 + fw * 0.24, y - fh / 2 + fh * 0.22, fw * 0.52, fh * 0.56);
+  }
+
+  /* The lobby is what they are trying to reach, so it does not look like the
+     floors above it: no guest doors, a wide way out to the street, and the one
+     cool light in a warm building. */
+  function paintLobby(b, w, h, ceilH, wallBot, skirtH) {
+    const dw = Math.max(24, w * 0.24), dh = (wallBot - ceilH) * 0.90;
+    const dx = 10, dy = wallBot - dh;
+    b.fillStyle = ARCH; b.fillRect(dx - 4, dy - 4, dw + 8, dh + 4);
+    const g2 = b.createLinearGradient(dx, dy, dx, dy + dh);
+    g2.addColorStop(0, 'rgba(150,232,206,0.55)'); g2.addColorStop(1, 'rgba(120,200,180,0.28)');
+    b.fillStyle = g2; b.fillRect(dx, dy, dw, dh);
+    const glow = b.createRadialGradient(dx + dw / 2, dy + dh * 0.6, 2, dx + dw / 2, dy + dh * 0.6, dh * 1.2);
+    glow.addColorStop(0, 'rgba(150,232,206,0.20)'); glow.addColorStop(1, 'rgba(150,232,206,0)');
+    b.fillStyle = glow; b.fillRect(0, 0, w, h);
+    /* Text does not get mirrored with the corridor. The right-hand hallway is
+       painted flipped so one piece of code draws both, and the exit sign came
+       out reading TUO. */
+    if (dh > 26) drawUnflipped(b, 'OUT', dx + dw / 2, dy + dh * 0.42,
+      '700 ' + Math.max(8, Math.round(dh * 0.15)) + 'px Inter, sans-serif', '#123A31');
+    // a plant by the wall, because a lobby has one
+    const px2 = dx + dw + Math.max(10, w * 0.10), pot = Math.max(6, h * 0.11);
+    b.fillStyle = POT_C;
+    b.fillRect(px2 - pot * 0.42, wallBot + skirtH - pot, pot * 0.84, pot);
+    b.strokeStyle = PLANT_C; b.lineWidth = Math.max(1.4, pot * 0.13); b.lineCap = 'round';
+    for (let k = -2; k <= 2; k++) {
+      b.beginPath();
+      b.moveTo(px2, wallBot + skirtH - pot);
+      b.quadraticCurveTo(px2 + k * pot * 0.30, wallBot + skirtH - pot * 1.7,
+                         px2 + k * pot * 0.52, wallBot + skirtH - pot * 2.1);
+      b.stroke();
+    }
+  }
+
+  /* Where a person stands, in a corridor's own coordinates with the lift at
+     the right-hand end. The baked art and the live figures have to agree, so
+     both go through this. */
+  const personXInCorridor = (stand, w) => {
+    const m = geo.floorPx * 0.14;
+    return m + (w - m * 2) * stand;
+  };
+
   function drawCorridor(x, w, side, now) {
+    void now;
+    if (w <= 0) return;
+    if (bakeKey !== corridorKey()) bakeCorridors();
     const F = floors();
     ctx.save();
     ctx.beginPath(); rr(geo.x - 6, geo.y - 8, geo.w + 12, geo.h + 8, 8); ctx.clip();
     for (let f = 1; f <= F; f++) {
-      const top = roomTop(f), base = slabY(f), h = geo.floorPx;
-      ctx.fillStyle = (f % 2) ? WALL_A : WALL_B;
-      ctx.fillRect(x, top, w, h);
-
-      const ceilH = Math.max(3, h * 0.055);
-      ctx.fillStyle = CEIL; ctx.fillRect(x, top, w, ceilH);
-
-      if (f === 1) { drawLobby(x, w, top, base, side); }
-      else { drawDoors(x, w, top, base, side, f); }
-
-      // ceiling lamps, and the light they pool down the corridor
-      const bays = Math.max(2, Math.round(w / (h * 0.95)));
-      for (let i = 0; i < bays; i++) {
-        const lx = x + w * ((i + 0.5) / bays);
-        const g = ctx.createRadialGradient(lx, top + ceilH, 2, lx, top + ceilH, h * 1.15);
-        g.addColorStop(0, 'rgba(255,214,120,0.20)');
-        g.addColorStop(0.4, 'rgba(255,214,120,0.07)');
-        g.addColorStop(1, 'rgba(255,214,120,0)');
-        ctx.save();
-        ctx.beginPath(); ctx.rect(x, top, w, h); ctx.clip();
-        ctx.fillStyle = g; ctx.fillRect(x, top, w, h);
-        ctx.restore();
-        ctx.fillStyle = LAMP;
-        rr(lx - Math.max(5, h * 0.07), top + ceilH * 0.6, Math.max(10, h * 0.14), Math.max(2, h * 0.035), 1.5); ctx.fill();
-      }
-
-      // the runner, then the slab as a band of value rather than a stroke
-      const ch = Math.max(4, Math.round(h * 0.06));
-      const cg = ctx.createLinearGradient(0, base - 3 - ch, 0, base - 3);
-      cg.addColorStop(0, 'rgba(122,58,58,0.18)'); cg.addColorStop(1, 'rgba(122,58,58,0.68)');
-      ctx.fillStyle = cg;
-      const cin = Math.round(w * 0.06);
-      rr(x + cin, base - 3 - ch, w - cin * 2, ch, 2); ctx.fill();
-      ctx.fillStyle = SKIRT; ctx.fillRect(x, base - 3, w, 3);
-
+      const img = baked[(side === 'left' ? 'L' : 'R') + f];
+      if (img) ctx.drawImage(img, x, roomTop(f), w, geo.floorPx);
     }
     ctx.restore();
-    void now;
   }
 
-  function drawDoors(x, w, top, base, side, f) {
-    const h = base - top;
-    const doorH = Math.max(16, h * 0.56), doorW = Math.max(11, doorH * 0.56);
-    const lobby = Math.max(doorW * 1.3, w * 0.20);          // clear space by the lift
-    const runX = side === 'left' ? x + 6 : x + lobby;
-    const runW = w - lobby - 6;
-    /* Spaced at two and a half door widths. At 1.85 a wide corridor fitted six
-       of them and the wall of pale rectangles became the brightest thing in
-       the building, which is supposed to be the car. */
-    const n = Math.max(1, Math.min(4, Math.floor(runW / (doorW * 2.5))));
-    const gap = runW / n;
-    const onRight = side === 'right';
-    const clear = (standsBy[f] || []).filter(s => (!!s.right && geo.rightW > 0) === onRight)
-      .map(s => personX(s.stand, onRight));
-    const keepOut = doorW * 0.5 + geo.floorPx * 0.52 * 0.24;
-    for (let i = 0; i < n; i++) {
-      const cx0 = runX + gap * (i + 0.5);
-      if (clear.some(px2 => Math.abs(px2 - cx0) < keepOut)) continue;   // somebody is standing here
-      const dx = Math.round(cx0 - doorW / 2);
-      const dy = Math.round(base - 3 - doorH);
-      const g = ctx.createLinearGradient(dx, dy, dx + doorW, dy);
-      g.addColorStop(0, DOOR_HI); g.addColorStop(0.55, DOOR_FILL); g.addColorStop(1, DOOR_LO);
-      ctx.fillStyle = g;
-      rr(dx, dy, doorW, doorH, 2); ctx.fill();
-      // frame as a value step, never a stroke
-      ctx.fillStyle = 'rgba(0,0,0,0.22)';
-      ctx.fillRect(dx - 1, dy, 1, doorH);
-      ctx.fillStyle = 'rgba(255,255,255,0.10)';
-      ctx.fillRect(dx + doorW, dy, 1, doorH);
-      // handle, and a number plate on the door
-      ctx.fillStyle = 'rgba(255,255,255,0.42)';
-      ctx.beginPath(); ctx.arc(dx + doorW * (side === 'left' ? 0.82 : 0.18), dy + doorH * 0.55, Math.max(1.2, doorW * 0.055), 0, Math.PI * 2); ctx.fill();
-      if (doorH > 30) {
-        ctx.fillStyle = 'rgba(255,255,255,0.13)';
-        rr(dx + doorW * 0.28, dy + doorH * 0.14, doorW * 0.44, Math.max(3, doorH * 0.075), 1); ctx.fill();
-      }
-    }
-  }
 
-  /* The lobby is where they are trying to get to, so it does not look like the
-     floors above it: no guest doors, a wide doorway to the street, and it is
-     the one cool light in a warm building. */
-  function drawLobby(x, w, top, base, side) {
-    const h = base - top;
-    const dw = Math.max(26, w * 0.26), dh = h * 0.62;
-    const dx = Math.round(side === 'left' ? x + 10 : x + w - 10 - dw);
-    const dy = Math.round(base - 3 - dh);
-    const g = ctx.createLinearGradient(dx, dy, dx, dy + dh);
-    g.addColorStop(0, 'rgba(143,227,200,0.24)'); g.addColorStop(1, 'rgba(143,227,200,0.08)');
-    ctx.fillStyle = g; rr(dx, dy, dw, dh, 3); ctx.fill();
-    const glow = ctx.createRadialGradient(dx + dw / 2, dy + dh, 2, dx + dw / 2, dy + dh, dh * 1.2);
-    glow.addColorStop(0, 'rgba(143,227,200,0.13)'); glow.addColorStop(1, 'rgba(143,227,200,0)');
-    ctx.fillStyle = glow; ctx.fillRect(x, top, w, h);
-    ctx.fillStyle = 'rgba(255,255,255,0.55)';
-    ctx.font = '700 ' + Math.max(9, Math.round(h * 0.14)) + 'px Inter, sans-serif';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    if (dh > 28) ctx.fillText('OUT', dx + dw / 2, dy + dh * 0.45);
-    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-  }
-
-  /* THE SMOKE IS A FRONT, NOT A HAZE, AND IT BILLOWS.
-     Empyrean's technique, taken from its burning ships and buildings: a puff
-     is a HARD-EDGED filled circle that EXPANDS as it fades, and you draw a lot
-     of them at different ages over each other. The cauliflower structure comes
-     from those hard edges overlapping. Soft radial gradients, which is what
-     this was built with first, only average out into a flat wash however many
-     you stack up.
-
-     Empyrean pushed real particles with velocity and damping. Here each puff
-     runs its own endless cycle out of a hash of (floor, index) instead, so the
-     cloud is deterministic, allocates nothing, and is drawn from the model's
-     front alone - which matters, because the front IS the clock and it has to
-     be exactly where the model says it is.
-
-     Colour is the one thing not borrowed. Empyrean's smoke is a near-black
-     warm grey against a daylit sky; a corridor is dark, so it reads the other
-     way round and the smoke is the pale thing scattering the ceiling lights. */
-  /* MANY FEATHERED CIRCLES OF DIFFERENT SIZES. That is the whole thing, and
-     it is what smoke is.
- 
-     Two earlier versions failed and neither failed because of circles. The
-     first drew the density as a feathered RECTANGLE with blobs scattered over
-     it, and what you saw was the rectangle: a solid block with a soft edge,
-     sliding sideways as the front advanced. The second kept circles but gave
-     them barely a two-to-one size range on an even grid, and fifty of those
-     overlapping at high alpha average out into flat fog.
- 
-     So: no rectangle anywhere, a POWER-LAW size range so most circles are
-     small and a few are big, CLUSTERED placement so some of the corridor is
-     thick and some is thin, and a low enough alpha per circle that the
-     build-up is visible instead of saturating. The sprite is one plain
-     feathered circle, pre-rendered once, and every bit of structure comes from
-     how the stamps are sized and placed. */
   const SPR = 64;
   let SPRITES = null;
   function makeSprite(rgb) {
@@ -821,21 +929,15 @@ const BODY_HI = '#C8D6EF', BODY_LO = '#ACC1E0', HEAD = '#DEE6F9';
 
   /* `stand` is 1 at the lift doors and 0 at the far wall. The desktop frame
      lays the queue across both corridors, so odd slots are mirrored into the
-     right-hand one at the same depth - same clock, different side. */
+     right-hand one at the same depth - same clock, different side. Both this
+     and the baked doors go through personXInCorridor, so the art and the
+     people always agree about where somebody is. */
   function personXY(p) {
-    const base = slabY(p.floor) - 3;
-    /* Inset by half a figure. The person standing deepest is at 0.04 of the
-       corridor, and drawn straight off that fraction half of them hung outside
-       the building. The inset is about 2.5% of the corridor, so where the
-       smoke front appears to reach them is unchanged to the eye. */
-    const m = geo.floorPx * 0.14;
+    const base = slabY(p.floor) - 3 - geo.floorPx * 0.055;   // they stand on the runner
     const onRight = geo.rightW > 0 && (p.slot % 2 === 1);
-    if (onRight) return { x: geo.rightX + m + (geo.rightW - m * 2) * (1 - p.stand), y: base, face: -1 };
-    return { x: geo.leftX + m + (geo.corW - m * 2) * p.stand, y: base, face: 1 };
+    if (onRight) return { x: geo.rightX + geo.rightW - personXInCorridor(p.stand, geo.rightW), y: base, face: -1 };
+    return { x: geo.leftX + personXInCorridor(p.stand, geo.corW), y: base, face: 1 };
   }
-  const personX = (stand, right) => (right
-    ? geo.rightX + geo.floorPx * 0.14 + (geo.rightW - geo.floorPx * 0.28) * (1 - stand)
-    : geo.leftX + geo.floorPx * 0.14 + (geo.corW - geo.floorPx * 0.28) * stand);
 
   function drawPeople(now) {
     smokeLayer(1.00, performance.now());                     // the volume, behind them
@@ -964,6 +1066,7 @@ const BODY_HI = '#C8D6EF', BODY_LO = '#ACC1E0', HEAD = '#DEE6F9';
     // arms. The one on the side they are facing comes up to the mouth as the
     // smoke takes hold; the other stays down.
     ctx.lineWidth = Math.max(2, h * 0.064);
+    const hands = [];
     for (const s of [-1, 1]) {
       const shoulderX = cx + lean + s * shW * 1.00;
       const cover = (s === f) ? duck : duck * 0.25;
@@ -974,12 +1077,20 @@ const BODY_HI = '#C8D6EF', BODY_LO = '#ACC1E0', HEAD = '#DEE6F9';
       ctx.beginPath();
       ctx.moveTo(shoulderX, shoulderY); ctx.lineTo(elbowX, elbowY); ctx.lineTo(handX, handY);
       ctx.stroke();
+      hands.push([handX, handY]);
+    }
+    /* Hands are skin, not sleeve. Small, but with the head they are the light
+       part of the figure, and the light part is what separates it from dark
+       smoke the way the dark clothing separates it from a lit wall. */
+    ctx.fillStyle = HEAD;
+    for (const [hxx, hyy] of hands) {
+      ctx.beginPath(); ctx.arc(hxx, hyy, Math.max(1.3, h * 0.030), 0, Math.PI * 2); ctx.fill();
     }
 
     // head, lit from above like everything else
     const hx = cx + lean * 1.15, hy = headCYOf(baseY, h, duck) + breath + bob;
     const hg = ctx.createRadialGradient(hx - headR * 0.35, hy - headR * 0.5, headR * 0.1, hx, hy, headR * 1.25);
-    hg.addColorStop(0, '#DCE6FA'); hg.addColorStop(1, HEAD);
+    hg.addColorStop(0, SKIN_HI); hg.addColorStop(1, HEAD);
     ctx.fillStyle = hg;
     ctx.beginPath(); ctx.arc(hx, hy, headR, 0, Math.PI * 2); ctx.fill();
 
@@ -1302,15 +1413,15 @@ const BODY_HI = '#C8D6EF', BODY_LO = '#ACC1E0', HEAD = '#DEE6F9';
     ctx.save();
     ctx.beginPath(); rr(x, y, w, h, 6); ctx.clip();
     for (let r = 0; r < rows; r++) {
-      ctx.fillStyle = (r % 2) ? WALL_A : WALL_B;
+      ctx.fillStyle = (r % 2) ? WALL_HI : WALL_LO;
       ctx.fillRect(x, y + r * fh, corW, fh);
-      ctx.fillStyle = CEIL; ctx.fillRect(x, y + r * fh, corW, 2);
-      ctx.fillStyle = SKIRT; ctx.fillRect(x, y + (r + 1) * fh - 2, corW, 2);
-      ctx.fillStyle = 'rgba(142,151,171,0.85)';
-      rr(x + 8 + r * 3, y + (r + 1) * fh - 2 - fh * 0.5, fh * 0.28, fh * 0.5, 1); ctx.fill();
+      ctx.fillStyle = CEIL_HI; ctx.fillRect(x, y + r * fh, corW, Math.max(2, fh * 0.10));
+      ctx.fillStyle = SKIRT_C; ctx.fillRect(x, y + (r + 1) * fh - 3, corW, 3);
+      ctx.fillStyle = DOOR_DARK;
+      ctx.fillRect(x + 8 + r * 3, y + (r + 1) * fh - 3 - fh * 0.52, fh * 0.26, fh * 0.52);
     }
-    ctx.fillStyle = 'rgba(143,227,200,0.22)';
-    rr(x + corW - 26, y + h - 2 - fh * 0.55, 18, fh * 0.55, 2); ctx.fill();
+    ctx.fillStyle = 'rgba(150,232,206,0.45)';
+    rr(x + 6, y + h - 3 - fh * 0.6, 18, fh * 0.6, 2); ctx.fill();
     ctx.fillStyle = SHAFT; ctx.fillRect(sx, y, shaftW, h);
     // smoke building in the top corridor
     const dens = Math.min(1, t / 5);
