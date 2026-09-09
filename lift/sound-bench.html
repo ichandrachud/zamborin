@@ -1,0 +1,145 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Lift — sound bench</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #14121A; color: #EFEAF4;
+         font: 16px/1.5 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+         padding: 28px 20px 60px; }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: .01em; }
+  p.lede { color: #A69FB2; margin: 0 0 26px; max-width: 60ch; }
+  h2 { font-size: 13px; letter-spacing: .10em; text-transform: uppercase; color: #8C84A0;
+       margin: 30px 0 10px; border-bottom: 1px solid #2A2635; padding-bottom: 7px; }
+  .row { display: grid; grid-template-columns: 190px 1fr; gap: 14px; align-items: center;
+         padding: 9px 0; border-bottom: 1px solid #201D29; }
+  .row:last-child { border-bottom: 0; }
+  button { font: inherit; font-weight: 600; color: #14121A; background: #E8B25C;
+           border: 0; border-radius: 9px; padding: 10px 14px; cursor: pointer; width: 100%; }
+  button:hover { background: #F2C271; }
+  button.alt { background: #2E2A3A; color: #EFEAF4; }
+  button.alt:hover { background: #3A3549; }
+  .note { color: #A69FB2; font-size: 14px; }
+  .sliders { display: grid; grid-template-columns: 150px 1fr 62px; gap: 12px; align-items: center;
+             padding: 8px 0; }
+  input[type=range] { width: 100%; accent-color: #E8B25C; }
+  .val { font-variant-numeric: tabular-nums; color: #E8B25C; font-size: 14px; }
+  .bar { position: sticky; top: 0; background: #14121A; padding: 12px 0 14px; margin-bottom: 6px;
+         border-bottom: 1px solid #2A2635; z-index: 2; }
+  .bar button { width: auto; display: inline-block; margin-right: 10px; }
+</style>
+
+<div class="wrap">
+  <h1>Lift — sound bench</h1>
+  <p class="lede">Every sound in the game, one at a time. Inside a run they all arrive at once
+    and nothing is separable, so this is the only fair way to judge one. Press a sound, then say
+    what is wrong with it in plain words — too musical, too quiet, too short, sounds like a
+    doorbell. The description beside each button is what it is <em>trying</em> to be.</p>
+
+  <div class="bar">
+    <button id="ambOn">Start the fire &amp; alarm bed</button>
+    <button id="ambOff" class="alt">Stop</button>
+    <span class="note" id="ambState">bed: off</span>
+  </div>
+
+  <div class="sliders">
+    <label for="master">Master volume</label>
+    <input id="master" type="range" min="0.4" max="4" step="0.1" value="2.2">
+    <span class="val" id="masterV">2.2×</span>
+  </div>
+  <div class="sliders">
+    <label for="burn">How much is burning</label>
+    <input id="burn" type="range" min="0" max="1" step="0.01" value="0.35">
+    <span class="val" id="burnV">0.35</span>
+  </div>
+  <div class="sliders">
+    <label for="speed">Lift speed</label>
+    <input id="speed" type="range" min="0" max="1" step="0.01" value="0">
+    <span class="val" id="speedV">0.00</span>
+  </div>
+  <p class="note">The master slider is the one number I most need from you — the whole fleet is
+    mixed about four times too quiet, and this game now has a continuous bed under it. Move it
+    until the game is right and tell me where it landed.</p>
+
+  <h2>The building</h2>
+  <div id="building"></div>
+  <h2>The lift</h2>
+  <div id="lift"></div>
+  <h2>The people</h2>
+  <div id="people"></div>
+</div>
+
+<script src="../shared/sfx.js?v=5"></script>
+<script src="./sound.js?v=3"></script>
+<script>
+(function () {
+  'use strict';
+  let sfx = ZSFX.create({ storageKey: 'zam.lift.bench', gain: 2.2 });
+  let snd = LiftSound.create(sfx);
+
+  const GROUPS = {
+    building: [
+      ['Fire alarm (one full cycle)', 'Three half-second blasts, then a gap. A real building alarm, heard from down the corridor — not a beep and not a tune.', () => snd.alarmCycle()],
+      ['One alarm blast', 'The horn on its own, so you can hear its colour.', () => snd.horn(0, 0.5)],
+      ['The fire gets worse (a wave)', 'A gust and a drop underneath it. Replaces what used to be a buzzer.', () => snd.waveUp()],
+      ['Run over', 'The alarm has already stopped. What is left is the building.', () => snd.runEnd()]
+    ],
+    lift: [
+      ['Arrives at a floor', 'A struck bell, then the doors sliding open.', () => { snd.bell(); snd.doors(false); }],
+      ['Bell only', 'A metal bar struck — several partials, not a sine beep.', () => snd.bell()],
+      ['Doors open', 'A slide with weight, ending soft.', () => snd.doors(false)],
+      ['Doors close', 'The same slide, ending on the latch.', () => snd.doors(true)],
+      ['Stopped between floors', 'A dull clunk and a moment of grind. It costs you seconds, so it should sound like a mistake.', () => snd.misland()]
+    ],
+    people: [
+      ['One person boards', 'A scuff and a soft body on hotel carpet.', () => snd.steps(1)],
+      ['Four people board', 'Unevenly spaced, so a group sounds like a group.', () => snd.steps(4)],
+      ['Four reach the lobby', 'Feet going away and a low warm bell over them. The only good thing that happens in this building.', () => snd.rescue(4)],
+      ['Cough — one voice', 'Glottis, body, breath. Three things inside 300ms.', () => snd.cough(3)],
+      ['Cough — another voice', 'The seed picks a voice so eight people do not cough in unison.', () => snd.cough(11)],
+      ['A corridor of coughing', 'What a floor in trouble sounds like.', () => { [2,7,13,19].forEach((s,i) => setTimeout(() => snd.cough(s), i * 420 + Math.random() * 200)); }],
+      ['Somebody collapses', 'A body on carpet and a strike against you. The loudest event in the game, on purpose.', () => snd.collapse()]
+    ]
+  };
+
+  for (const key in GROUPS) {
+    const host = document.getElementById(key);
+    GROUPS[key].forEach(([label, note, fn]) => {
+      const row = document.createElement('div'); row.className = 'row';
+      const b = document.createElement('button'); b.textContent = label;
+      b.onclick = () => { sfx.ensureAudio(); fn(); };
+      const n = document.createElement('span'); n.className = 'note'; n.textContent = note;
+      row.appendChild(b); row.appendChild(n); host.appendChild(row);
+    });
+  }
+
+  const $ = id => document.getElementById(id);
+  let bed = false, raf = 0, last = performance.now();
+  function loop(t) {
+    const dt = Math.min(0.05, (t - last) / 1000); last = t;
+    snd.ambience(dt, { live: bed, burn: +$('burn').value, speed: +$('speed').value });
+    raf = requestAnimationFrame(loop);
+  }
+  $('ambOn').onclick = () => {
+    sfx.ensureAudio(); bed = true; $('ambState').textContent = 'bed: running';
+    if (!raf) { last = performance.now(); raf = requestAnimationFrame(loop); }
+  };
+  $('ambOff').onclick = () => { bed = false; $('ambState').textContent = 'bed: off'; };
+
+  /* The master gain is fixed when the context is built, so changing it means a
+     fresh engine. Cheap here, and it is the number that matters most. */
+  $('master').oninput = () => {
+    const g = +$('master').value; $('masterV').textContent = g.toFixed(1) + '×';
+    sfx = ZSFX.create({ storageKey: 'zam.lift.bench', gain: g });
+    sfx.ensureAudio(); snd = LiftSound.create(sfx);
+  };
+  /* A handle for the harness: the same trick the game plays with window.lift.
+     A bench that cannot be measured is just another thing to look at. */
+  window.bench = { get sfx(){return sfx;}, get snd(){return snd;} };
+
+  $('burn').oninput  = () => $('burnV').textContent  = (+$('burn').value).toFixed(2);
+  $('speed').oninput = () => $('speedV').textContent = (+$('speed').value).toFixed(2);
+})();
+</script>

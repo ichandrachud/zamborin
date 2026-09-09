@@ -83,8 +83,27 @@
     fitFullscreen(); resizeCanvas(); layout(); render(performance.now());
   }
 
-  const sfx = window.ZSFX ? window.ZSFX.create({ storageKey: 'zam.lift.sfx' }) : null;
+  const sfx = window.ZSFX ? window.ZSFX.create({ storageKey: 'zam.lift.sfx', gain: 2.2 }) : null;
   const UI = window.ZAM_UI;
+
+  /* ---------- THE SOUND OF A BUILDING ON FIRE ----------
+     The voices live in sound.js so the bench can play each one alone; the
+     first version of this was judged by looking at the code rather than by
+     listening, which is not a way to judge a sound. What is left here is the
+     wiring: what the game tells the sound about itself, once a frame. */
+  const snd = window.LiftSound ? window.LiftSound.create(sfx) : null;
+
+  function stepAmbience(dt) {
+    if (!snd) return;
+    let burn = 0;
+    if (smoke && level) for (let f = 1; f <= level.floors; f++) burn += smoke[f];
+    snd.ambience(dt, {
+      live: phase !== 'over' && !document.hidden,
+      burn: burn / Math.max(1, level ? level.floors * 0.7 : 1),
+      speed: Math.abs(car.v) / T.vMax
+    });
+  }
+
   const NOOP = { init(){}, gameStart(){}, levelStart(){}, levelComplete(){}, levelRestart(){}, hintUsed(){}, track(){} };
   const TR = () => (window.ZAM_TRACK || NOOP);
   TR().init('lift');
@@ -279,7 +298,7 @@
   let smoke = null, carSmoke = 0;
   let waiting = [], aboard = [], fallen = [], out = 0, lost = 0, lostFloors = [], standsBy = {};
   let phase = 'play';                  // 'play' | 'serve' | 'level' | 'over'
-  let serveT = 0, serveFloor = 1, doorOpen = 0, didWork = false;
+  let serveT = 0, serveFloor = 1, doorOpen = 0, didWork = false, didClose = false;
   let settleT = 0, settleDir = 1, sag = 0;
   let levelFrom = 1, levelTo = 1, levelT = 0, levelDir = 1;
   let departed = false, stopsMade = 0, nextId = 0, nextSpawn = 0;
@@ -418,6 +437,7 @@
   /* ---------- THE WORLD ---------- */
   function step(dt) {
     tNow += dt;
+    stepAmbience(dt);
     if (settleT > 0) settleT = Math.max(0, settleT - dt / 0.16);
     if (handlePulse > 0) handlePulse = Math.max(0, handlePulse - dt / 1.4);
     for (const p of puffs) p.t += dt / 1.1;
@@ -429,7 +449,7 @@
     M.stepSmoke(smoke, level.floors, level.fire, smokeRate(), dt, FIRE);
     if (waveNow() !== wave) {
       wave = waveNow(); waveFlash = 1;
-      if (sfx) sfx.play('error');
+      if (snd) snd.waveUp();
       TR().track('wave', { wave, out, lost });
     }
     if (waveFlash > 0) waveFlash = Math.max(0, waveFlash - dt / 2.2);
@@ -467,7 +487,7 @@
     lost++; lostFloors.push(floor);
     const q = personXY(p);
     fallen.push({ floor, slot: p.slot, stand: p.stand, x: q.x, side: q.face, seed: p.id + 1, t: 0 });
-    if (sfx) sfx.play('error');
+    if (snd) snd.collapse();
     if (lost >= STRIKES) finish();
   }
 
@@ -475,7 +495,7 @@
     if (phase === 'over') return;
     phase = 'over'; endT = 0;
     if (out > best) { best = out; putBest(); }
-    if (sfx) sfx.play('fail');
+    if (snd) snd.runEnd();
     TR().track('run_end', { out, lost, stops: stopsMade, seconds: Math.round(tNow) });
   }
 
@@ -507,7 +527,7 @@
       sag = 0;
     } else {
       sag = 2;
-      if (sfx) sfx.play('drop');
+      if (snd) snd.misland();
     }
   }
 
@@ -523,8 +543,8 @@
   }
 
   function startServe(f) {
-    phase = 'serve'; serveT = 0; serveFloor = f; didWork = false; stopsMade++;
-    if (sfx) sfx.play('ping');
+    phase = 'serve'; serveT = 0; serveFloor = f; didWork = false; didClose = false; stopsMade++;
+    if (snd) { snd.bell(); snd.doors(false); }
   }
   function serveTimes() {
     const n = f => (f === 1 ? aboard.length : Math.min(T.capacity - aboard.length, waiting.filter(p => p.floor === f).length));
@@ -552,7 +572,7 @@
             x0: right ? geo.shaftX + geo.shaftW + 4 : geo.shaftX - 4,
             x1: right ? geo.rightX + geo.rightW * 0.86 : geo.leftX + geo.corW * 0.14 });
         });
-        if (aboard.length && sfx) sfx.play('pop');
+        if (aboard.length && snd) snd.rescue(aboard.length);
         aboard = [];
       } else {
         const here = waiting.filter(p => p.floor === serveFloor).sort((a, b) => b.exp - a.exp);
@@ -566,10 +586,11 @@
             aboard.push(p);
           }
           waiting = waiting.filter(p => !ids.has(p.id));
-          if (sfx) sfx.play('step');
+          if (snd) snd.steps(take.length);
         }
       }
     }
+    if (!didClose && serveT >= t.open + t.act) { didClose = true; if (snd) snd.doors(true); }
     if (serveT >= t.total) { phase = 'play'; doorOpen = 0; }
   }
 
@@ -1100,11 +1121,23 @@
       const top = roomTop(f), y = top + geo.floorPx * 0.17;
       /* A floor sign, because a light numeral on light smoke measured 2.88:1.
          The plate gives it a ground of its own on any floor in any state. */
+      /* THE FLOOR SIGN IS THE BUILDING-LEVEL WARNING. Somebody about to go
+         is no use to the player if it can only be seen by scanning eight
+         corridors: the sign for that floor goes red and pulses, so the thing
+         you have to decide about announces itself from anywhere on screen. */
+      let crit = 0;
+      for (const p of waiting) if (p.floor === f && p.exp > FIRE.warnAt) crit = Math.max(crit, p.exp);
+      const pulse = crit ? (REDUCED ? 1 : 0.55 + 0.45 * Math.sin(performance.now() / 130)) : 0;
       const plate = (px2, align) => {
-        ctx.fillStyle = 'rgba(11,16,32,0.74)';
+        ctx.fillStyle = crit ? 'rgba(' + Math.round(120 + 90 * pulse) + ',26,20,0.92)' : 'rgba(11,16,32,0.74)';
         rr(px2 - (align === 'left' ? 3 : pw - 3), y - ph / 2, pw, ph, 3); ctx.fill();
-        ctx.fillStyle = FLOOR_NUM; ctx.textAlign = 'center';
+        ctx.fillStyle = crit ? '#FFEDE6' : FLOOR_NUM; ctx.textAlign = 'center';
         ctx.fillText(String(f), px2 - (align === 'left' ? 3 : pw - 3) + pw / 2, y);
+        if (crit) {
+          ctx.strokeStyle = 'rgba(255,90,70,' + (0.85 * pulse).toFixed(3) + ')';
+          ctx.lineWidth = 1.6;
+          rr(px2 - (align === 'left' ? 3 : pw - 3) - 1.5, y - ph / 2 - 1.5, pw + 3, ph + 3, 4); ctx.stroke();
+        }
       };
       plate(geo.leftX + 9, 'left');
       if (geo.rightW > 0) plate(geo.rightX + geo.rightW - 9, 'right');
@@ -1183,19 +1216,42 @@
          on where they stand, because where they stand is their clock and every
          level is certified against it - so this moves the picture, never the
          model. */
-      const paces = hash01(p.id * 3.7 + 1) > 0.40 && p.exp < 0.55 && !REDUCED;
+      /* URGENCY. They were strolling. Somebody waiting for a lift in a
+         burning building does not stroll: they move quickly, they keep turning
+         back to the shaft, and the worse the air gets the more agitated they
+         are until they cannot keep it up at all. Pace speed rises with how
+         close the smoke is to them. */
+      const near = Math.max(0, Math.min(1, (smoke[p.floor] - p.stand + 0.30) / 0.45));
+      const urgency = Math.max(near, p.exp * 1.3);
+      const paces = hash01(p.id * 3.7 + 1) > 0.28 && p.exp < 0.62 && !REDUCED;
       let px2 = q.x, face = q.face, gait = -1;
       if (paces) {
-        const sp = 0.26 + 0.20 * hash01(p.id * 5.1 + 2);
+        const sp = (0.52 + 0.30 * hash01(p.id * 5.1 + 2)) * (1 + urgency * 1.1);
         const ph = (tt * sp + hash01(p.id * 9.3 + 3)) % 1;
-        px2 = q.x + (1 - Math.abs(2 * ph - 1) - 0.5) * 2 * geo.corW * 0.038;
+        px2 = q.x + (1 - Math.abs(2 * ph - 1) - 0.5) * 2 * geo.corW * (0.038 + 0.022 * urgency);
         const lo = (q.face > 0 ? geo.leftX : geo.rightX) + edgePad;
         const hi = (q.face > 0 ? geo.leftX + geo.corW : geo.rightX + geo.rightW) - edgePad;
         px2 = Math.max(lo, Math.min(hi, px2));
         face = ph < 0.5 ? 1 : -1;
         gait = (tt * sp * 4.6 + hash01(p.id * 2.7)) % 1;
       }
-      const m = drawPerson(px2, q.y, h, p.exp, p.id + 1, now, face, gait);
+      /* A COUGH is the warning that somebody is about to go. It is a jolt you
+         can see from across the building, it fires on its own rhythm per
+         person so a corridor in trouble sounds and looks like one, and it
+         arrives well before they are lost. */
+      let cough = 0;
+      if (p.exp > FIRE.warnAt) {
+        const c = (tt * (0.85 + 0.35 * hash01(p.id * 4.3)) + hash01(p.id * 8.1)) % 1;
+        /* Reduced motion drops the JOLT, never the warning. Somebody who has
+           asked for less movement still needs to hear which corridor is in
+           trouble - it is the only notice they get before a strike. */
+        if (c < 0.16 && !REDUCED) cough = Math.sin((c / 0.16) * Math.PI);
+        if (c < 0.02 && p.coughAt !== Math.floor(tt)) {
+          p.coughAt = Math.floor(tt);
+          if (snd) snd.cough(p.id);
+        }
+      }
+      const m = drawPerson(px2, q.y, h, p.exp, p.id + 1, now, face, gait, cough);
       drawOxygen(m.hx, m.headTop, m.h, p.exp);
       /* WHERE IT ACTUALLY DREW. A contrast sweep that guesses these from the
          nominal height samples empty air, because a figure shrinks by up to a
@@ -1251,7 +1307,7 @@
      Posture is the second channel on exposure and it is the honest one: as the
      smoke takes hold they sink, a hand comes up to the mouth, and the head
      drops. Colour never carries it alone. */
-  function drawPerson(cx, baseY, h0, exp, seed, now, face, gait) {
+  function drawPerson(cx, baseY, h0, exp, seed, now, face, gait, cough) {
     const rnd = (k) => hash01(seed * 7.3 + k * 19.7);
     const fem = rnd(8) > 0.5;
     const fit = OUTFITS[Math.floor(rnd(9) * OUTFITS.length) % OUTFITS.length];
@@ -1263,10 +1319,11 @@
     const ph = walking ? gait * 6.283 : 0;
     const idle = REDUCED ? 0 : Math.sin(t * 1.15 + rnd(2) * 6.283);
     const breath = REDUCED ? 0 : Math.sin(t * 1.9 + rnd(3) * 6.283) * h * 0.005;
+    const cg2 = cough || 0;
     const bob = walking ? Math.abs(Math.cos(ph)) * h * 0.016 : idle * h * 0.004;
 
     const Y = (u) => baseY - h * u - bob;
-    const lean = f * h * (walking ? 0.030 : 0.008) + f * h * 0.075 * duck + (walking ? 0 : idle * h * 0.006);
+    const lean = f * h * (walking ? 0.030 : 0.008) + f * h * (0.075 * duck + 0.10 * cg2) + (walking ? 0 : idle * h * 0.006);
 
     const headR = h * 0.088;
     const hipY = Y(0.495), shoulderY = Y(0.815) + breath;
@@ -1901,7 +1958,7 @@
     get lost() { return lost; }, get waiting() { return waiting; }, get aboard() { return aboard; },
     get smoke() { return Array.from(smoke || []); }, get carSmoke() { return carSmoke; },
     get level() { return level; }, get fallen() { return fallen; },
-    geo, RUN, start: startRun,
+    geo, RUN, start: startRun, snd, FIRE,
     get renderMs() { return renderMs; },
     /* Drive headlessly, for verification: hold a direction, then let go and let
        it brake to rest and serve. */
