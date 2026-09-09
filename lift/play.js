@@ -252,12 +252,26 @@
      disk rather than deleted: the certifier and its numbers are the record of
      why the fire version was worth building at all. */
   const SAVE = 'zam.lift.save';
-  const STRIKES = 3;
+  /* FIVE STRIKES, AND THE RAMP HAPPENS IN WAVES YOU CAN SEE.
+
+     The first version of this was invisible and the measurement said why: the
+     ramp was tuned to reach full speed at about 125 seconds and a run lasted
+     28, so a player only ever saw the first fifth of it - arrivals moved by
+     15% and then it was over. Three strikes was most of that: it ends the run
+     before any escalation can land.
+
+     So five strikes, and the difficulty climbs in WAVES rather than drifting.
+     A continuous drift is exactly the sort of change nobody notices; a step
+     with a number on it is the old arcade convention because it works. Each
+     wave brings more people and faster smoke, and the whole curve is spent
+     inside a run rather than beyond the end of one. */
+  const STRIKES = 5;
   const RUN = {
     floors: 8,
     startPeople: 4,
-    spawnFrom: 5.4, spawnTo: 1.7, spawnRamp: 0.030,     // seconds between arrivals
-    rateFrom: 0.030, rateTo: 0.105, rateRamp: 0.00055,  // how fast the smoke moves
+    waveS: 16,                                          // how long a wave lasts
+    spawnFrom: 5.2, spawnStep: 0.42, spawnMin: 1.6,     // seconds between arrivals
+    rateFrom: 0.028, rateStep: 0.0105, rateMax: 0.105,  // how fast the smoke moves
   };
 
   let level = null;                    // the building this run is in
@@ -270,6 +284,7 @@
   let levelFrom = 1, levelTo = 1, levelT = 0, levelDir = 1;
   let departed = false, stopsMade = 0, nextId = 0, nextSpawn = 0;
   let puffs = [], runners = [], tNow = 0, endT = 0, best = 0;
+  let wave = 1, waveFlash = 0;
   let rulesOpen = false, rulesScroll = 0, handlePulse = 0;
   let rng = M.makeRng(1);
 
@@ -278,8 +293,9 @@
   }
   function putBest() { try { localStorage.setItem(SAVE, JSON.stringify({ best })); } catch (e) {} }
 
-  const spawnEvery = () => Math.max(RUN.spawnTo, RUN.spawnFrom - tNow * RUN.spawnRamp);
-  const smokeRate = () => Math.min(RUN.rateTo, RUN.rateFrom + tNow * RUN.rateRamp);
+  const waveNow = () => 1 + Math.floor(tNow / RUN.waveS);
+  const spawnEvery = () => Math.max(RUN.spawnMin, RUN.spawnFrom - (waveNow() - 1) * RUN.spawnStep);
+  const smokeRate = () => Math.min(RUN.rateMax, RUN.rateFrom + (waveNow() - 1) * RUN.rateStep);
 
   function startRun() {
     rng = M.makeRng((Date.now() & 0xffff) || 7);
@@ -292,7 +308,7 @@
     out = 0; lost = 0; lostFloors = [];
     phase = 'play'; doorOpen = 0; serveT = 0; sag = 0; settleT = 0;
     departed = false; stopsMade = 0; nextId = 0;
-    puffs = []; runners = []; tNow = 0; endT = 0;
+    puffs = []; runners = []; tNow = 0; endT = 0; wave = 1; waveFlash = 0;
     handlePulse = 1;
     best = loadBest();
     /* Doors keep clear of EVERY standing position, not just the occupied ones,
@@ -411,6 +427,12 @@
     if (phase === 'over') { endT += dt; return; }
 
     M.stepSmoke(smoke, level.floors, level.fire, smokeRate(), dt, FIRE);
+    if (waveNow() !== wave) {
+      wave = waveNow(); waveFlash = 1;
+      if (sfx) sfx.play('error');
+      TR().track('wave', { wave, out, lost });
+    }
+    if (waveFlash > 0) waveFlash = Math.max(0, waveFlash - dt / 2.2);
     nextSpawn -= dt;
     if (nextSpawn <= 0) { spawnPerson(); nextSpawn = spawnEvery(); }
     for (const r of fallen) r.t += dt;
@@ -1584,7 +1606,7 @@
     const inside = waiting.length + aboard.length;
     /* Both halves of the comparison, and the damage when there is any: a count
        that only goes up tells you nothing about whether you are still winning. */
-    const line = 'OUT ' + out + '   ·   ' + inside + ' INSIDE' + (best ? '   ·   BEST ' + best : '');
+    const line = 'WAVE ' + wave + '   ·   OUT ' + out + '   ·   ' + inside + ' INSIDE' + (best ? '   ·   BEST ' + best : '');
     const hs = Math.max(0.66, Math.min(1, LW / 620));
     let fs = Math.round(16 * hs);
     ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
@@ -1598,12 +1620,31 @@
     /* THE STRIKES, as dots. Three people overcome ends the run, so how many
        are gone is the second thing worth knowing after the score, and a count
        you have to read as a word is a count you miss. */
-    const dotR = 5, dg = 15;
+    const dotR = 4.5, dg = 12;
     const dx0 = readoutLeft - dg * STRIKES - 12;
     for (let i = 0; i < STRIKES; i++) {
       ctx.beginPath(); ctx.arc(dx0 + i * dg, topBand() / 2, dotR, 0, Math.PI * 2);
       ctx.fillStyle = i < lost ? '#F05A46' : 'rgba(255,255,255,0.18)';
       ctx.fill();
+    }
+
+    /* A WAVE HAS TO ANNOUNCE ITSELF. The number in the corner changing is the
+       kind of change nobody sees; the game saying it out loud for a moment is
+       why arcades did it that way. Drawn over the shaft, never over a
+       corridor, so it cannot hide somebody you need to reach. */
+    if (waveFlash > 0 && wave > 1) {
+      const a = Math.min(1, waveFlash * 2.2);
+      const cy2 = geo.y + geo.h * 0.5;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = 'rgba(10,8,16,' + (0.62 * a).toFixed(3) + ')';
+      rr(LW / 2 - 132, cy2 - 30, 264, 60, 12); ctx.fill();
+      ctx.fillStyle = 'rgba(255,150,60,' + a.toFixed(3) + ')';
+      ctx.font = '800 26px Inter, sans-serif';
+      ctx.fillText('WAVE ' + wave, LW / 2, cy2 - 9);
+      ctx.fillStyle = 'rgba(255,255,255,' + (0.82 * a).toFixed(3) + ')';
+      ctx.font = '600 14px Inter, sans-serif';
+      ctx.fillText('the fire is spreading faster', LW / 2, cy2 + 14);
+      ctx.textAlign = 'left'; ctx.textBaseline = 'top';
     }
 
     if (MODE === 'mobile' && statusLane() > 0 && tNow < 14) {
