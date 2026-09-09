@@ -39,15 +39,26 @@
     doorbell. The description beside each button is what it is <em>trying</em> to be.</p>
 
   <div class="bar">
-    <button id="ambOn">Start the fire &amp; alarm bed</button>
+    <button id="runIt">▶ Play 90 seconds, as it actually runs</button>
+    <button id="ambOn" class="alt">Bed only</button>
     <button id="ambOff" class="alt">Stop</button>
-    <span class="note" id="ambState">bed: off</span>
+    <span class="note" id="ambState">stopped</span>
   </div>
+  <p class="note" style="margin:2px 0 18px">
+    <strong style="color:#E8B25C">Start here.</strong> One sound at a time cannot tell you whether
+    something is irritating — irritation is a thing that happens over ninety seconds, not over one
+    press. This plays a whole run: the fire builds, the lift stops, people cough, somebody goes
+    down. If you want to stop playing by the end of it, the mix is still wrong.</p>
 
   <div class="sliders">
     <label for="master">Master volume</label>
     <input id="master" type="range" min="0.4" max="4" step="0.1" value="2.2">
     <span class="val" id="masterV">2.2×</span>
+  </div>
+  <div class="sliders">
+    <label for="alarmLvl">Alarm loudness</label>
+    <input id="alarmLvl" type="range" min="0" max="0.06" step="0.002" value="0.024">
+    <span class="val" id="alarmLvlV">0.024</span>
   </div>
   <div class="sliders">
     <label for="burn">How much is burning</label>
@@ -72,7 +83,7 @@
 </div>
 
 <script src="../shared/sfx.js?v=5"></script>
-<script src="./sound.js?v=3"></script>
+<script src="./sound.js?v=5"></script>
 <script>
 (function () {
   'use strict';
@@ -119,14 +130,22 @@
   let bed = false, raf = 0, last = performance.now();
   function loop(t) {
     const dt = Math.min(0.05, (t - last) / 1000); last = t;
-    snd.ambience(dt, { live: bed, burn: +$('burn').value, speed: +$('speed').value });
+    let burn = +$('burn').value, speed = +$('speed').value;
+    if (running) {
+      runT += dt;
+      burn = Math.min(1, 0.05 + runT / 110);            // the building going up
+      speed = (runT % 5.2) < 2.6 ? 0.85 : 0;            // the car working, then a stop
+      $('burn').value = burn; $('burnV').textContent = burn.toFixed(2);
+      $('speed').value = speed; $('speedV').textContent = speed.toFixed(2);
+    }
+    snd.ambience(dt, { live: bed, burn, speed });
     raf = requestAnimationFrame(loop);
   }
   $('ambOn').onclick = () => {
-    sfx.ensureAudio(); bed = true; $('ambState').textContent = 'bed: running';
+    sfx.ensureAudio(); bed = true; $('ambState').textContent = 'bed: running'; running = false;
     if (!raf) { last = performance.now(); raf = requestAnimationFrame(loop); }
   };
-  $('ambOff').onclick = () => { bed = false; $('ambState').textContent = 'bed: off'; };
+  $('ambOff').onclick = () => { bed = false; running = false; $('ambState').textContent = 'stopped'; };
 
   /* The master gain is fixed when the context is built, so changing it means a
      fresh engine. Cheap here, and it is the number that matters most. */
@@ -138,6 +157,38 @@
   /* A handle for the harness: the same trick the game plays with window.lift.
      A bench that cannot be measured is just another thing to look at. */
   window.bench = { get sfx(){return sfx;}, get snd(){return snd;} };
+
+  $('alarmLvl').oninput = () => {
+    LiftSound.MIX.alarm = +$('alarmLvl').value;
+    $('alarmLvlV').textContent = (+$('alarmLvl').value).toFixed(3);
+  };
+
+  /* A WHOLE RUN. The single-shot buttons above cannot show fatigue, which is
+     what actually makes somebody quit: the first alarm blast is fine and the
+     twentieth is why you close the tab. This drives the real ambience in real
+     time against a rising fire and fires the real events on top. */
+  let runT = 0, running = false;
+  function playRun() {
+    sfx.ensureAudio();
+    running = true; runT = 0; bed = true; $('ambState').textContent = 'playing a run…';
+    if (!raf) { last = performance.now(); raf = requestAnimationFrame(loop); }
+    const at = (t, fn) => setTimeout(() => { if (running) fn(); }, t * 1000);
+    // the lift working: a stop every few seconds, the way a played run goes
+    for (let t = 3; t < 88; t += 4.5 + Math.random() * 3) {
+      const tt = t;
+      at(tt, () => { snd.bell(); snd.doors(false); });
+      at(tt + 0.9, () => snd.steps(1 + Math.floor(Math.random() * 3)));
+      at(tt + 1.9, () => snd.doors(true));
+      if (Math.random() < 0.3) at(tt + 3.0, () => snd.rescue(2 + Math.floor(Math.random() * 3)));
+      if (Math.random() < 0.18) at(tt + 3.4, () => snd.misland());
+    }
+    // people in trouble, then losing them
+    for (let t = 22; t < 88; t += 2.2 + Math.random() * 2.5) at(t, () => snd.cough(Math.random() * 40));
+    [31, 52, 70, 83].forEach(t => at(t, () => snd.collapse()));
+    [28, 56, 78].forEach(t => at(t, () => snd.waveUp()));
+    at(90, () => { snd.runEnd(); running = false; bed = false; $('ambState').textContent = 'stopped'; });
+  }
+  $('runIt').onclick = playRun;
 
   $('burn').oninput  = () => $('burnV').textContent  = (+$('burn').value).toFixed(2);
   $('speed').oninput = () => $('speedV').textContent = (+$('speed').value).toFixed(2);

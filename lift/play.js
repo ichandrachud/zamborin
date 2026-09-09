@@ -83,7 +83,7 @@
     fitFullscreen(); resizeCanvas(); layout(); render(performance.now());
   }
 
-  const sfx = window.ZSFX ? window.ZSFX.create({ storageKey: 'zam.lift.sfx', gain: 2.2 }) : null;
+  const sfx = window.ZSFX ? window.ZSFX.create({ storageKey: 'zam.lift.sfx', gain: 1.5 }) : null;
   const UI = window.ZAM_UI;
 
   /* ---------- THE SOUND OF A BUILDING ON FIRE ----------

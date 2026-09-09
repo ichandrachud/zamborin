@@ -33,7 +33,7 @@
      so the fire drowned the thing it was warning you about. The bed is now held
      about 6 dB down and the events sit on top of it where they belong. */
   const MIX = {
-    alarm:   0.024,   // 33% duty over a whole run - it must not be the loudest thing
+    alarm:   0.024,   // ESTABLISHING level; it settles to about a third of this
     roarLo:  0.024,   // the fire at rest
     roarHi:  0.050,   // ...and with the building well alight
     crackle: 0.032,   // held while the roar came down: crackle is what says FIRE
@@ -42,7 +42,7 @@
     bell:    0.075,
     doors:   0.075,
     step:    0.045,
-    cough:   0.340,   // it is the WARNING - it has to clear the fire
+    cough:   0.260,   // it is the WARNING - it has to clear the fire
     collapse:0.210,   // the loudest thing in the game, on purpose
     misland: 0.085,
     wave:    0.075,
@@ -51,7 +51,7 @@
 
   function create(sfx) {
     let white = null, brownB = null, amb = null;
-    let alarmT = 0, crackT = 0;
+    let alarmT = 0, crackT = 0, alarmAge = 0, alarmBump = 0, wasLive = false, lastCough = -9;
 
     function rawCtx() { const d = sfx && sfx.out(); return (d && d.context) ? d.context : null; }
     function ctx() { return (sfx && sfx.isOn()) ? rawCtx() : null; }
@@ -122,9 +122,9 @@
       g.gain.exponentialRampToValueAtTime(G, t + 0.010);
       g.gain.setValueAtTime(G, t + dur - 0.025);
       g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-      const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2100; lp.Q.value = 0.9;
-      const pk = ac.createBiquadFilter(); pk.type = 'peaking'; pk.frequency.value = 1400; pk.Q.value = 1.1; pk.gain.value = 6;
-      [698, 705].forEach(f => {
+      const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1250; lp.Q.value = 0.9;
+      const pk = ac.createBiquadFilter(); pk.type = 'peaking'; pk.frequency.value = 1100; pk.Q.value = 1.1; pk.gain.value = 2;
+      [698, 701.5].forEach(f => {
         const o = ac.createOscillator(); o.type = 'square'; o.frequency.value = f;
         o.connect(lp); o.start(t); o.stop(t + dur + 0.05);
       });
@@ -176,6 +176,12 @@
        seed picks a voice, so eight people do not cough in unison and the men
        and the women on screen do not sound the same. */
     function cough(seed) {
+      /* The JOLT stays per person - that is on-screen information. The SOUND
+         is rationed: a run measured 19 coughs in 37 seconds, which is nagging
+         rather than alarming. One at a time is still a corridor in trouble. */
+      const ac0 = ctx(); if (!ac0) return;
+      if (ac0.currentTime - lastCough < 2.0) return;
+      lastCough = ac0.currentTime;
       const r = ((Math.sin((seed || 1) * 12.9898) * 43758.5453) % 1 + 1) % 1;
       const f = r < 0.5 ? 360 + r * 320 : 600 + (r - 0.5) * 480;
       burst({ freq: 1500, q: 0.7, dur: 0.022, gain: 0.200, attack: 0.0008 });
@@ -203,6 +209,7 @@
 
     /* The fire taking another step: a gust and a drop underneath it. */
     function waveUp() {
+      alarmBump = 1;
       burst({ freq: 300, q: 0.35, type: 'lowpass', dur: 1.10, gain: MIX.wave, attack: 0.45, rate: 0.6 });
       hit({ f0: 120, f1: 44, dur: 0.90, gain: 0.075, type: 'triangle' });
     }
@@ -272,7 +279,7 @@
          building goes up. */
       crackT -= dt;
       if (crackT <= 0) {
-        crackT = (0.55 - 0.40 * burn) * (0.4 + Math.random() * 1.2);
+        crackT = (0.90 - 0.55 * burn) * (0.4 + Math.random() * 1.2);
         if (live && burn > 0.02) {
           const n = 1 + (Math.random() < burn ? 1 : 0);
           for (let i = 0; i < n; i++)
@@ -282,8 +289,30 @@
         }
       }
 
+      /* THE ALARM RECEDES. A real one sounds until the fire is out, which is
+         exactly why a real one is unbearable - it is engineered to be. A game
+         cannot do that to somebody who is going to replay it twenty times, and
+         the alarm is the only voice here that carries no information: the cough
+         points at a person, the collapse at a strike, the bell at your own
+         stop. So it is the one that yields. It establishes itself over the
+         first fifteen seconds, then drops to something you have stopped
+         consciously hearing and blasts half as often - which is also what
+         genuinely happens to people standing in a building with one going. It
+         steps back up for a moment when the fire does, because THAT is worth
+         hearing. */
+      if (live && !wasLive) { alarmAge = 0; alarmBump = 0; }
+      wasLive = live;
+      if (live) alarmAge += dt;
+      alarmBump = Math.max(0, alarmBump - dt / 3.5);
       alarmT -= dt;
-      if (alarmT <= 0) { alarmT = 4.5; if (live) alarmCycle(); }
+      if (alarmT <= 0) {
+        const settled = Math.min(1, alarmAge / 15);
+        alarmT = 4.5 + 5.0 * settled;
+        if (live) {
+          const g = MIX.alarm * (1 - 0.70 * settled) * (1 + 1.5 * alarmBump);
+          for (let i = 0; i < 3; i++) horn(i * 1.0, 0.5, g);
+        }
+      }
     }
 
     return { MIX, horn, alarmCycle, bell, doors, steps, cough, collapse, misland, waveUp, rescue, runEnd, ambience };
