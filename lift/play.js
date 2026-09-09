@@ -527,8 +527,8 @@ const BODY_HI = '#9DB2D2', BODY_LO = '#6E86AE', HEAD = '#C9D6F0';
     const gap = runW / n;
     const onRight = side === 'right';
     const clear = (standsBy[f] || []).filter(s => (!!s.right && geo.rightW > 0) === onRight)
-      .map(s => x + w * (onRight ? 1 - s.stand : s.stand));
-    const keepOut = doorW * 0.5 + geo.floorPx * 0.52 * 0.34;
+      .map(s => personX(s.stand, onRight));
+    const keepOut = doorW * 0.5 + geo.floorPx * 0.52 * 0.24;
     for (let i = 0; i < n; i++) {
       const cx0 = runX + gap * (i + 0.5);
       if (clear.some(px2 => Math.abs(px2 - cx0) < keepOut)) continue;   // somebody is standing here
@@ -651,9 +651,9 @@ const BODY_HI = '#9DB2D2', BODY_LO = '#6E86AE', HEAD = '#C9D6F0';
     const F = floors();
     ctx.font = '700 ' + Math.max(12, Math.round(geo.floorPx * 0.22)) + 'px Inter, sans-serif';
     ctx.textBaseline = 'middle';
-    const pw = Math.max(16, geo.floorPx * 0.30), ph = Math.max(13, geo.floorPx * 0.26);
+    const pw = Math.max(15, geo.floorPx * 0.26), ph = Math.max(12, geo.floorPx * 0.22);
     for (let f = 1; f <= F; f++) {
-      const top = roomTop(f), y = top + geo.floorPx * 0.30;
+      const top = roomTop(f), y = top + geo.floorPx * 0.17;
       /* A floor sign, because a light numeral on light smoke measured 2.88:1.
          The plate gives it a ground of its own on any floor in any state. */
       const plate = (px2, align) => {
@@ -694,10 +694,18 @@ const BODY_HI = '#9DB2D2', BODY_LO = '#6E86AE', HEAD = '#C9D6F0';
      right-hand one at the same depth - same clock, different side. */
   function personXY(p) {
     const base = slabY(p.floor) - 3;
+    /* Inset by half a figure. The person standing deepest is at 0.04 of the
+       corridor, and drawn straight off that fraction half of them hung outside
+       the building. The inset is about 2.5% of the corridor, so where the
+       smoke front appears to reach them is unchanged to the eye. */
+    const m = geo.floorPx * 0.14;
     const onRight = geo.rightW > 0 && (p.slot % 2 === 1);
-    if (onRight) return { x: geo.rightX + geo.rightW * (1 - p.stand), y: base, face: -1 };
-    return { x: geo.leftX + geo.corW * p.stand, y: base, face: 1 };
+    if (onRight) return { x: geo.rightX + m + (geo.rightW - m * 2) * (1 - p.stand), y: base, face: -1 };
+    return { x: geo.leftX + m + (geo.corW - m * 2) * p.stand, y: base, face: 1 };
   }
+  const personX = (stand, right) => (right
+    ? geo.rightX + geo.floorPx * 0.14 + (geo.rightW - geo.floorPx * 0.28) * (1 - stand)
+    : geo.leftX + geo.floorPx * 0.14 + (geo.corW - geo.floorPx * 0.28) * stand);
 
   function drawPeople(now) {
     smokeLayer(0.72, now);                                   // the bulk of it, behind the people
