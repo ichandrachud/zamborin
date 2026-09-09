@@ -22,14 +22,14 @@ return { LEVELS: [
   { "id": 5, "band": "drive", "floors": 5, "fire": 4, "rate": 0.085, "people": [ 2, 4, 4, 5, 5, 5 ], "par": 5, "seconds": 18, "defeats": 0 },
   { "id": 6, "band": "drive", "floors": 6, "fire": 2, "rate": 0.088, "people": [ 2, 2, 5, 6, 6, 6 ], "par": 5, "seconds": 17, "defeats": 1 },
   { "id": 7, "band": "drive", "floors": 6, "fire": 3, "rate": 0.092, "people": [ 2, 3, 4, 5, 6, 6, 6 ], "par": 7, "seconds": 23, "defeats": 5 },
-  { "id": 8, "band": "plan", "floors": 7, "fire": 4, "rate": 0.072, "people": [ 3, 4, 4, 6, 7, 7, 7, 7 ], "par": 7, "seconds": 27, "defeats": 5 },
+  { "id": 8, "band": "plan", "floors": 7, "fire": 2, "rate": 0.072, "people": [ 2, 3, 3, 4, 5, 6, 6, 7 ], "par": 8, "seconds": 26, "defeats": 5 },
   { "id": 9, "band": "plan", "floors": 7, "fire": 5, "rate": 0.072, "people": [ 2, 2, 3, 4, 5, 6, 7, 7, 7 ], "par": 9, "seconds": 31, "defeats": 6 },
-  { "id": 10, "band": "plan", "floors": 8, "fire": 6, "rate": 0.068, "people": [ 3, 4, 5, 6, 6, 7, 7, 8 ], "par": 8, "seconds": 28, "defeats": 6 },
-  { "id": 11, "band": "plan", "floors": 8, "fire": 6, "rate": 0.074, "people": [ 2, 5, 5, 5, 6, 6, 7, 7, 8 ], "par": 8, "seconds": 30, "defeats": 7 },
-  { "id": 12, "band": "plan", "floors": 8, "fire": 5, "rate": 0.082, "people": [ 2, 4, 5, 6, 6, 7, 8, 8, 8 ], "par": 9, "seconds": 32, "defeats": 7 },
-  { "id": 13, "band": "plan", "floors": 9, "fire": 5, "rate": 0.074, "people": [ 3, 4, 5, 5, 5, 7, 8, 9, 9 ], "par": 9, "seconds": 33, "defeats": 7 },
-  { "id": 14, "band": "plan", "floors": 9, "fire": 5, "rate": 0.082, "people": [ 2, 2, 3, 4, 5, 7, 7, 8, 9 ], "par": 10, "seconds": 37, "defeats": 7 },
-  { "id": 15, "band": "plan", "floors": 10, "fire": 5, "rate": 0.078, "people": [ 2, 3, 5, 5, 7, 7, 8, 8, 8 ], "par": 8, "seconds": 30, "defeats": 7 },
+  { "id": 10, "band": "plan", "floors": 8, "fire": 3, "rate": 0.068, "people": [ 2, 3, 4, 4, 4, 5, 6, 8 ], "par": 8, "seconds": 29, "defeats": 6 },
+  { "id": 11, "band": "plan", "floors": 8, "fire": 4, "rate": 0.074, "people": [ 2, 2, 3, 4, 4, 5, 7, 8, 8 ], "par": 9, "seconds": 30, "defeats": 7 },
+  { "id": 12, "band": "plan", "floors": 8, "fire": 5, "rate": 0.082, "people": [ 2, 2, 4, 5, 5, 5, 7, 7, 8 ], "par": 8, "seconds": 31, "defeats": 7 },
+  { "id": 13, "band": "plan", "floors": 9, "fire": 5, "rate": 0.074, "people": [ 2, 2, 2, 3, 5, 6, 7, 7, 8 ], "par": 9, "seconds": 32, "defeats": 7 },
+  { "id": 14, "band": "plan", "floors": 9, "fire": 5, "rate": 0.082, "people": [ 2, 2, 3, 4, 5, 7, 7, 8, 9 ], "par": 10, "seconds": 35, "defeats": 7 },
+  { "id": 15, "band": "plan", "floors": 10, "fire": 7, "rate": 0.078, "people": [ 3, 5, 5, 5, 7, 9, 10, 10, 10 ], "par": 8, "seconds": 33, "defeats": 7 },
   { "id": 16, "band": "plan", "floors": 10, "fire": 6, "rate": 0.084, "people": [ 3, 4, 4, 5, 7, 7, 8, 8, 9 ], "par": 9, "seconds": 34, "defeats": 7 }
 ] };
 }));

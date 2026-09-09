@@ -111,8 +111,22 @@
   /* BODY_LO was #4E6488, a mid-tone, which measured low against a dark wall AND
    against light smoke - there was no ground it read on. Lifted so the figure
    is a light shape that always sits on the dark halo behind it. */
-const BODY_HI = '#9DB2D2', BODY_LO = '#6E86AE', HEAD = '#C9D6F0';
-  const SMOKE = '214,220,232';
+/* A TIGHTER, LIGHTER RANGE. The dark end used to be a mid-tone that measured
+   low against a dark wall and low again against pale smoke - there was no
+   ground it read on, which is what the halo was papering over. Lifted, it
+   clears 3:1 on the wall, on a guest door and on dark smoke, with nothing
+   drawn behind it. */
+const BODY_HI = '#C8D6EF', BODY_LO = '#ACC1E0', HEAD = '#DEE6F9';
+  /* DARK SMOKE, like Empyrean's, with a lit top surface. Pale smoke is what
+     forced a dark halo behind every person - a light figure had nothing to sit
+     against once a corridor filled. A dark mass fixes that at the source, it
+     is what smoke over a fire actually looks like, and it reads because it
+     SWALLOWS the corridor: the lamps, the doors and the runner disappear
+     behind it as it comes. The top of the layer catches the ceiling lamps, so
+     the leading edge still has a bright rim to read the clock off. */
+  const SMOKE = '78,74,88';
+  const SMOKE_LIT = '186,182,196';
+  const SMOKE_LIT_WARM = '224,190,150';
   const FLAME = '255,150,60';
   const EXIT_GLOW = '#8FE3C8';
   const FLOOR_NUM = 'rgba(226,234,250,0.96)';
@@ -197,7 +211,7 @@ const BODY_HI = '#9DB2D2', BODY_LO = '#6E86AE', HEAD = '#C9D6F0';
   let serveT = 0, serveFloor = 1, doorOpen = 0, didWork = false;
   let settleT = 0, settleDir = 1, sag = 0;
   let departed = false, stopsMade = 0;
-  let puffs = [], tNow = 0, endT = 0, won = false;
+  let puffs = [], runners = [], tNow = 0, endT = 0, won = false;
   let rulesOpen = false, rulesScroll = 0, handlePulse = 0;
 
   function loadSave() {
@@ -236,7 +250,7 @@ const BODY_HI = '#9DB2D2', BODY_LO = '#6E86AE', HEAD = '#C9D6F0';
     }
     aboard = []; out = 0; lost = 0; lostFloors = [];
     phase = 'play'; doorOpen = 0; serveT = 0; sag = 0; settleT = 0;
-    departed = false; stopsMade = 0; puffs = []; tNow = 0; endT = 0; won = false;
+    departed = false; stopsMade = 0; puffs = []; runners = []; tNow = 0; endT = 0; won = false;
     handlePulse = 1;
     layout();
     TR().levelStart(levelIndex + 1);
@@ -321,6 +335,8 @@ const BODY_HI = '#9DB2D2', BODY_LO = '#6E86AE', HEAD = '#C9D6F0';
     if (handlePulse > 0) handlePulse = Math.max(0, handlePulse - dt / 1.4);
     for (const p of puffs) p.t += dt / 1.1;
     puffs = puffs.filter(p => p.t < 1);
+    for (const r of runners) r.t += dt;
+    runners = runners.filter(r => r.t < r.dur);
     if (phase === 'over') { endT += dt; return; }
 
     M.stepSmoke(smoke, level.floors, level.fire, level.rate, dt, FIRE);
@@ -414,7 +430,13 @@ const BODY_HI = '#9DB2D2', BODY_LO = '#6E86AE', HEAD = '#C9D6F0';
     if (!didWork && serveT >= t.open) {
       didWork = true;
       if (serveFloor === 1) {
-        for (const p of aboard) { out++; puffs.push({ t: 0, floor: 1, side: 0, slot: p.slot, kind: 'out' }); }
+        aboard.forEach((p, i) => {
+          out++;
+          const right = geo.rightW > 0 && (i % 2 === 1);
+          runners.push({ floor: 1, kind: 'out', seed: p.id + 1, t: 0, dur: 0.85,
+            x0: right ? geo.shaftX + geo.shaftW + 4 : geo.shaftX - 4,
+            x1: right ? geo.rightX + geo.rightW * 0.86 : geo.leftX + geo.corW * 0.14 });
+        });
         if (aboard.length && sfx) sfx.play('pop');
         aboard = [];
       } else {
@@ -422,8 +444,13 @@ const BODY_HI = '#9DB2D2', BODY_LO = '#6E86AE', HEAD = '#C9D6F0';
         const take = here.slice(0, T.capacity - aboard.length);
         if (take.length) {
           const ids = new Set(take.map(p => p.id));
+          for (const p of take) {
+            const q = personXY(p);
+            runners.push({ floor: serveFloor, kind: 'in', seed: p.id + 1, t: 0, dur: T.boardS,
+              x0: q.x, x1: q.face > 0 ? geo.shaftX - 3 : geo.shaftX + geo.shaftW + 3 });
+            aboard.push(p);
+          }
           waiting = waiting.filter(p => !ids.has(p.id));
-          for (const p of take) aboard.push(p);
           if (sfx) sfx.play('step');
         }
       }
@@ -574,58 +601,149 @@ const BODY_HI = '#9DB2D2', BODY_LO = '#6E86AE', HEAD = '#C9D6F0';
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   }
 
-  /* THE SMOKE IS A FRONT, NOT A HAZE. It comes along the corridor from the
-     stairwell at the far end toward the lift, so how far the grey has got is
-     how long the people in that corridor have, and it is read off the picture
-     rather than off a number. Drawn in two passes with the people between
-     them: enough over them to say the corridor is filling, never enough to
-     hide who is still in it. */
-  function smokeBand(x, w, top, h, front, fromLeft, a, now) {
-    if (front < 0.005) return;
+  /* THE SMOKE IS A FRONT, NOT A HAZE, AND IT BILLOWS.
+     Empyrean's technique, taken from its burning ships and buildings: a puff
+     is a HARD-EDGED filled circle that EXPANDS as it fades, and you draw a lot
+     of them at different ages over each other. The cauliflower structure comes
+     from those hard edges overlapping. Soft radial gradients, which is what
+     this was built with first, only average out into a flat wash however many
+     you stack up.
+
+     Empyrean pushed real particles with velocity and damping. Here each puff
+     runs its own endless cycle out of a hash of (floor, index) instead, so the
+     cloud is deterministic, allocates nothing, and is drawn from the model's
+     front alone - which matters, because the front IS the clock and it has to
+     be exactly where the model says it is.
+
+     Colour is the one thing not borrowed. Empyrean's smoke is a near-black
+     warm grey against a daylit sky; a corridor is dark, so it reads the other
+     way round and the smoke is the pale thing scattering the ceiling lights. */
+  /* MANY FEATHERED CIRCLES OF DIFFERENT SIZES. That is the whole thing, and
+     it is what smoke is.
+ 
+     Two earlier versions failed and neither failed because of circles. The
+     first drew the density as a feathered RECTANGLE with blobs scattered over
+     it, and what you saw was the rectangle: a solid block with a soft edge,
+     sliding sideways as the front advanced. The second kept circles but gave
+     them barely a two-to-one size range on an even grid, and fifty of those
+     overlapping at high alpha average out into flat fog.
+ 
+     So: no rectangle anywhere, a POWER-LAW size range so most circles are
+     small and a few are big, CLUSTERED placement so some of the corridor is
+     thick and some is thin, and a low enough alpha per circle that the
+     build-up is visible instead of saturating. The sprite is one plain
+     feathered circle, pre-rendered once, and every bit of structure comes from
+     how the stamps are sized and placed. */
+  const SPR = 64;
+  let SPRITES = null;
+  function makeSprite(rgb) {
+    const c = document.createElement('canvas');
+    c.width = c.height = SPR;
+    const g = c.getContext('2d');
+    const rg = g.createRadialGradient(SPR / 2, SPR / 2, 0, SPR / 2, SPR / 2, SPR / 2);
+    rg.addColorStop(0, 'rgba(' + rgb + ',1)');
+    rg.addColorStop(0.42, 'rgba(' + rgb + ',0.55)');
+    rg.addColorStop(0.75, 'rgba(' + rgb + ',0.16)');
+    rg.addColorStop(1, 'rgba(' + rgb + ',0)');
+    g.fillStyle = rg;
+    g.fillRect(0, 0, SPR, SPR);
+    return c;
+  }
+  function sprites() {
+    if (!SPRITES) SPRITES = {
+      body: makeSprite(SMOKE), bodyWarm: makeSprite('92,72,66'),
+      lit: makeSprite(SMOKE_LIT), litWarm: makeSprite(SMOKE_LIT_WARM),
+    };
+    return SPRITES;
+  }
+
+  /* Smoke banks against the ceiling and the layer comes DOWN, so the cloud
+     fills that band rather than the whole floor. It is also a second thing the
+     player can read without being told. */
+  const layerFrac = (front) => 0.20 + 0.80 * Math.min(1, front * 1.7);
+
+  const CLUSTERS = 9, PER_CLUSTER = 11;
+  function smokeCloud(x, w, top, h, front, fromLeft, aScale, now, seed, warm) {
     const reach = w * front;
-    const far = fromLeft ? x : x + w;                     // the wall it came from
-    const lead = fromLeft ? x + reach : x + w - reach;    // where it has got to
+    if (reach < 2) return;
+    const S = sprites();
+    const body = warm > 0.5 ? S.bodyWarm : S.body;
+    const litImg = warm > 0.5 ? S.litWarm : S.lit;
     const dir = fromLeft ? 1 : -1;
-    const roll = Math.max(8, w * 0.10);
-    ctx.save();
-    ctx.beginPath(); ctx.rect(Math.min(far, lead), top, reach, h); ctx.clip();
+    const far = fromLeft ? x : x + w;
+    const t = REDUCED ? 0 : now / 1000;
+    const lb = h * layerFrac(front);
+    const nc = Math.max(2, Math.round(CLUSTERS * Math.min(1, 0.35 + front)));
 
-    /* The body is thin: you have to be able to see who is still in there. */
-    const g = ctx.createLinearGradient(far, 0, lead, 0);
-    g.addColorStop(0, 'rgba(' + SMOKE + ',' + (a * 0.50).toFixed(3) + ')');
-    g.addColorStop(1, 'rgba(' + SMOKE + ',' + (a * 0.32).toFixed(3) + ')');
-    ctx.fillStyle = g; ctx.fillRect(Math.min(far, lead), top, reach, h);
+    for (let c = 0; c < nc; c++) {
+      const c1 = hash01(seed * 31.7 + c * 7.71);
+      const c2 = hash01(seed * 17.3 + c * 3.31);
+      const c3 = hash01(seed * 53.9 + c * 11.13);
+      // clusters sit along the corridor, thicker back toward the stairwell
+      /* Clusters crowd toward the SOURCE. The stairwell at the far end is
+         where the smoke is coming from, so that end should be almost solid and
+         the leading edge should be wisps. Evenly spaced clusters gave an even
+         corridor, which is not what a corridor filling from one end looks
+         like. */
+      const u = Math.pow((c + 0.10 + 0.80 * c1) / nc, 1.35);
+      const drift = REDUCED ? 0 : Math.sin(t * 0.40 + c1 * 6.283) * h * 0.08;
+      const cx2 = far + dir * (reach * u + drift);
+      const cy = top + h * 0.03 + (lb - h * 0.06) * (0.12 + 0.76 * c2)
+               + (REDUCED ? 0 : Math.sin(t * 0.27 + c2 * 6.283) * h * 0.05);
+      const spread = h * (0.22 + 0.20 * c3);
+      /* Ragged and thin at the leading edge, dense behind it. The raggedness
+         IS the edge - nothing else draws one. */
+      const edge = Math.min(1, (1 - u) * 1.7);
+      const clusterA = aScale * (0.72 + 0.28 * c2) * (0.10 + 0.90 * Math.pow(edge, 1.3));
+      if (clusterA < 0.02) continue;
 
-    /* It hangs from the ceiling, mildly. */
-    const v = ctx.createLinearGradient(0, top, 0, top + h);
-    v.addColorStop(0, 'rgba(' + SMOKE + ',' + (a * 0.22).toFixed(3) + ')');
-    v.addColorStop(0.7, 'rgba(' + SMOKE + ',0)');
-    ctx.fillStyle = v; ctx.fillRect(Math.min(far, lead), top, reach, h);
-
-    /* THE LEADING EDGE IS THE CLOCK, so it is the brightest part of it: a real
-       smoke front rolls and thickens where it is advancing, and it means the
-       player can read exactly how far it has come rather than squinting at a
-       gradient. */
-    const e = ctx.createLinearGradient(lead - dir * roll, 0, lead, 0);
-    e.addColorStop(0, 'rgba(' + SMOKE + ',0)');
-    e.addColorStop(1, 'rgba(' + SMOKE + ',' + (a * 0.55).toFixed(3) + ')');
-    ctx.fillStyle = e;
-    ctx.fillRect(Math.min(lead, lead - dir * roll), top, roll, h);
-
-    if (!REDUCED) {
-      const t2 = now / 1000;
-      for (let k = 0; k < 3; k++) {
-        const cy2 = top + h * (0.16 + 0.3 * k) + Math.sin(t2 * 0.8 + k * 2.1 + top * 0.03) * h * 0.06;
-        const cx2 = lead - dir * roll * (0.25 + 0.35 * k) + Math.sin(t2 * 0.5 + k) * roll * 0.2;
-        const rg = ctx.createRadialGradient(cx2, cy2, 1, cx2, cy2, roll * 1.1);
-        rg.addColorStop(0, 'rgba(' + SMOKE + ',' + (a * 0.34).toFixed(3) + ')');
-        rg.addColorStop(1, 'rgba(' + SMOKE + ',0)');
-        ctx.fillStyle = rg; ctx.fillRect(Math.min(far, lead), top, reach, h);
+      for (let k = 0; k < PER_CLUSTER; k++) {
+        const j = c * 17 + k * 5;
+        const p1 = hash01(seed * 7.1 + j * 29.7);
+        const p2 = hash01(seed * 23.3 + j * 17.1);
+        const p3 = hash01(seed * 41.9 + j * 13.7);
+        /* POWER LAW: p^2.4 puts most of the circles at the small end and lets
+           a couple be big, which is the size spread real smoke has and the
+           thing a uniform range cannot fake. */
+        const rad = h * (0.05 + 0.62 * Math.pow(p1, 2.4));
+        const ang = p2 * 6.283 + (REDUCED ? 0 : t * 0.18 * (p3 > 0.5 ? 1 : -1));
+        const dist = spread * Math.pow(p3, 0.7);
+        const px2 = cx2 + Math.cos(ang) * dist;
+        const py = cy + Math.sin(ang) * dist * 0.62;
+        /* DARK SMOKE READS BY HIDING THINGS, so it has to actually be
+           opaque. At a tenth of this it was a dark corridor with a slightly
+           darker corridor in it. */
+        /* Dense enough at the source to HIDE the corridor. Dark smoke that
+           does not obscure the doors, the lamps and the runner just reads as a
+           slightly darker corridor - it has to actually take the room away. */
+        const a = clusterA * (0.44 + 0.42 * p2);
+        if (a < 0.004) continue;
+        ctx.globalAlpha = a;
+        ctx.drawImage(body, px2 - rad, py - rad, rad * 2, rad * 2);
+        /* The ceiling lamps light the top surface of the layer, so circles up
+           there get a pale pass over them. That is the bright rim on a dark
+           mass, and it is what keeps the front readable now the smoke is not
+           itself pale. */
+        /* ONLY THE TOP SURFACE. Big lit circles reaching a  low as 45% of the
+           layer washed the whole corridor to a mid grey, and a figure standing
+           in it measured 2.4:1 against a 3:1 bar - which is what the dark halo
+           behind every person used to be compensating for. Lighting only the
+           top of the layer is also what actually happens: the lamps are above
+           it, not inside it. */
+        const depth = (py - top) / Math.max(1, lb);
+        if (depth < 0.26) {
+          ctx.globalAlpha = a * (0.95 - depth * 2.4);
+          ctx.drawImage(litImg, px2 - rad * 0.7, py - rad * 0.95, rad * 1.4, rad * 1.2);
+        }
       }
     }
-    ctx.restore();
+    ctx.globalAlpha = 1;
   }
-  function smokeLayer(alphaScale, now) {
+
+  /* ONE PASS EACH, not the same layer twice. The volume goes BEHIND the people
+     so a filling corridor dims what is in it, and a thinner pass goes in FRONT
+     so smoke drifts across them. */
+  function smokeLayer(aScale, now) {
     const F = floors();
     ctx.save();
     ctx.beginPath(); rr(geo.x - 6, geo.y - 8, geo.w + 12, geo.h + 8, 8); ctx.clip();
@@ -633,14 +751,26 @@ const BODY_HI = '#9DB2D2', BODY_LO = '#6E86AE', HEAD = '#C9D6F0';
       const front = smoke[f];
       if (front < 0.005) continue;
       const top = roomTop(f), h = geo.floorPx;
-      const a = 0.78 * alphaScale;
-      smokeBand(geo.leftX, geo.corW, top, h, front, true, a, now);
-      if (geo.rightW > 0) smokeBand(geo.rightX, geo.rightW, top, h, front, false, a, now);
+      const warm = Math.abs(f - level.fire) === 0 ? 1 : 0;
+      ctx.save();
+      ctx.beginPath(); ctx.rect(geo.leftX, top, geo.corW, h); ctx.clip();
+      smokeCloud(geo.leftX, geo.corW, top, h, front, true, aScale, now, f * 1.7, warm);
+      ctx.restore();
+      if (geo.rightW > 0) {
+        ctx.save();
+        ctx.beginPath(); ctx.rect(geo.rightX, top, geo.rightW, h); ctx.clip();
+        smokeCloud(geo.rightX, geo.rightW, top, h, front, false, aScale, now, f * 1.7 + 99, warm);
+        ctx.restore();
+      }
     }
     ctx.restore();
   }
+
   function drawSmoke(now) {
-    smokeLayer(0.12, now);                                   // a thin veil over everyone
+    /* THIN in front of them. The mass belongs behind: you see people through
+       the near air, and a dense pass drawn over them took a light figure from
+       3.3:1 down to 2.1:1 against a 3:1 bar. */
+    smokeLayer(0.16, now);                                   // a thin veil, in front of them
     drawFire(now);
     drawFloorNumbers();
   }
@@ -708,81 +838,160 @@ const BODY_HI = '#9DB2D2', BODY_LO = '#6E86AE', HEAD = '#C9D6F0';
     : geo.leftX + geo.floorPx * 0.14 + (geo.corW - geo.floorPx * 0.28) * stand);
 
   function drawPeople(now) {
-    smokeLayer(0.72, now);                                   // the bulk of it, behind the people
+    smokeLayer(1.00, performance.now());                     // the volume, behind them
+    const h = geo.floorPx * 0.52;
+    const tt = now / 1000, edgePad = geo.floorPx * 0.16;
     for (const p of waiting) {
       const q = personXY(p);
-      /* A SOFT DARK HALO, NOT AN OUTLINE. Measured on the painted pixel: in a
-         full corridor a figure came out at 1.13:1 against the wall behind it,
-         because the smoke lifts the person and the wall to the same grey. The
-         fix is a value edge that arrives WITH the smoke - the corridor darkens
-         right around somebody standing in it - so a clear corridor keeps clean
-         figures and a smoky one still tells you who is in there. */
-      const haze = Math.max(0, Math.min(1, (smoke[p.floor] - p.stand + 0.10) / 0.34));
-      const h = geo.floorPx * 0.52;
-      {
-        /* It HOLDS at full darkness across the figure and only then falls
-           away. A plain radial put its mid-falloff right where the body is, so
-           the ground beside somebody was only half darkened and the body still
-           measured 1.96:1. */
-        /* A TALL SOFT SHADOW, not a disc. Held at full darkness across the
-           whole figure it measured 5.38:1 against a 3:1 bar and looked like a
-           spotlight; there is headroom to spend on making it a shape that
-           belongs in the picture. Elliptical, because a person is taller than
-           they are wide, and with a long tail so it has no edge. Peak and hold
-           are the two dials: 0.90/0.62 measured 5.38:1 and looked like a
-           spotlight, 0.70/0.34 looked right and fell to 2.48 against a 3:1
-           bar. These are the numbers that do both. */
-        /* ALWAYS ON, not only in smoke. Once people stood down the corridor
-           rather than by the doors they ended up in front of the guest doors,
-           and a figure against a pale door measured 1.57:1 with nothing behind
-           it. A contact shadow is what illustration uses for exactly this, and
-           it deepens as the smoke arrives. */
-        const a = (0.48 + 0.50 * haze).toFixed(3);
-        ctx.save();
-        ctx.translate(q.x, q.y - h * 0.48);
-        ctx.scale(1, 1.34);
-        const g = ctx.createRadialGradient(0, 0, h * 0.08, 0, 0, h * 0.92);
-        g.addColorStop(0, 'rgba(11,16,32,' + a + ')');
-        g.addColorStop(0.56, 'rgba(11,16,32,' + a + ')');
-        g.addColorStop(1, 'rgba(11,16,32,0)');
-        ctx.fillStyle = g;
-        ctx.fillRect(-h * 1.1, -h * 1.1, h * 2.2, h * 2.2);
-        ctx.restore();
+      /* PACING. Nobody waiting for a lift in a fire stands still. Some walk a
+         few steps back and forth, some hold their ground; whoever is starting
+         to struggle stops and crouches instead. The walk is SMALL and centred
+         on where they stand, because where they stand is their clock and every
+         level is certified against it - so this moves the picture, never the
+         model. */
+      const paces = hash01(p.id * 3.7 + 1) > 0.40 && p.exp < 0.55 && !REDUCED;
+      let px2 = q.x, face = q.face, gait = -1;
+      if (paces) {
+        const sp = 0.26 + 0.20 * hash01(p.id * 5.1 + 2);
+        const ph = (tt * sp + hash01(p.id * 9.3 + 3)) % 1;
+        px2 = q.x + (1 - Math.abs(2 * ph - 1) - 0.5) * 2 * geo.corW * 0.038;
+        const lo = (q.face > 0 ? geo.leftX : geo.rightX) + edgePad;
+        const hi = (q.face > 0 ? geo.leftX + geo.corW : geo.rightX + geo.rightW) - edgePad;
+        px2 = Math.max(lo, Math.min(hi, px2));
+        face = ph < 0.5 ? 1 : -1;
+        gait = (tt * sp * 4.6 + hash01(p.id * 2.7)) % 1;
       }
-      drawFigure(q.x, q.y, h, p.exp, now);
+      const m = drawPerson(px2, q.y, h, p.exp, p.id + 1, now, face, gait);
+      drawBreath(m.hx, m.headTop, m.h, p.exp, now);
+      /* WHERE IT ACTUALLY DREW. A contrast sweep that guesses these from the
+         nominal height samples empty air, because a figure shrinks by up to a
+         quarter as they duck and every person has their own height. Three
+         separate false readings came out of guessing before this existed. */
+      p.mark = { x: px2, side: q.face, h: m.h, headY: m.hy, bodyY: m.bodyY, armY: m.armY };
+    }
+    drawRunners(now);
+  }
+
+  /* They RUN for the doors when the car lands, and out of the lobby when it
+     gets them there. The model has already moved them; this is the second of
+     boarding time drawn rather than skipped. */
+  function drawRunners(now) {
+    const h = geo.floorPx * 0.52;
+    for (const r of runners) {
+      const k = Math.min(1, r.t / r.dur);
+      const x = r.x0 + (r.x1 - r.x0) * (r.kind === 'out' ? ease(k) : k);
+      const dir = r.x1 >= r.x0 ? 1 : -1;
+      const gait = REDUCED ? -1 : (now / 1000 * 3.4 + r.seed * 0.37) % 1;
+      ctx.globalAlpha = r.kind === 'out' ? 1 - Math.max(0, (k - 0.65) / 0.35) : 1;
+      drawPerson(x, slabY(r.floor) - 3, h, 0, r.seed, now, dir, gait);
+      ctx.globalAlpha = 1;
     }
   }
 
-  /* No faces, no outline, and nothing drawn over anybody. Exposure is a breath
-     arc that empties AND a figure that crouches lower: two channels, so it is
-     never colour alone. */
-  function drawFigure(cx, baseY, h, exp, now) {
-    const crouch = 1 - 0.22 * ease(Math.max(0, (exp - 0.35) / 0.65));
-    h = h * crouch;
-    const headR = h * 0.19, bodyW = h * 0.42, bodyH = h - headR * 2 - h * 0.04;
-    ctx.fillStyle = 'rgba(0,0,0,0.30)';
-    ctx.beginPath(); ctx.ellipse(cx, baseY + 1, bodyW * 0.66, h * 0.05, 0, 0, Math.PI * 2); ctx.fill();
-    const g = ctx.createLinearGradient(0, baseY - bodyH, 0, baseY);
-    g.addColorStop(0, BODY_HI); g.addColorStop(1, BODY_LO);
-    ctx.fillStyle = g;
-    const bt = baseY - bodyH, sh = bodyW * 0.36;
-    ctx.beginPath();
-    ctx.moveTo(cx - bodyW / 2, baseY);
-    ctx.lineTo(cx - bodyW / 2, bt + sh);
-    ctx.quadraticCurveTo(cx - bodyW / 2, bt, cx - bodyW / 2 + sh, bt);
-    ctx.lineTo(cx + bodyW / 2 - sh, bt);
-    ctx.quadraticCurveTo(cx + bodyW / 2, bt, cx + bodyW / 2, bt + sh);
-    ctx.lineTo(cx + bodyW / 2, baseY);
-    ctx.closePath(); ctx.fill();
-    ctx.fillStyle = HEAD;
-    ctx.beginPath(); ctx.arc(cx, bt - headR * 0.82, headR, 0, Math.PI * 2); ctx.fill();
+  /* A PERSON, NOT A CAPSULE. Head, neck, shoulders, a tapered torso, two arms
+     and two legs, at roughly one-to-six head-to-height - stylised, because at
+     27 pixels a true one-to-seven-and-a-half head is two pixels across, but
+     built on real proportions rather than a rectangle with a circle on it.
 
-    // the breath arc: how long they have, above their head
+     Everything is a filled form lit from above: the torso is a path with a
+     vertical gradient, the limbs are round-capped strokes of that same
+     gradient. No outline anywhere and no face, per the brief.
+
+     Posture is the second channel on exposure, and it is the honest one: as
+     the smoke takes hold they shrink down, a hand comes up to the mouth, and
+     the knees bend. Colour alone never carries it. */
+  const hash01 = (n) => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+
+  function drawPerson(cx, baseY, h0, exp, seed, now, face, gait) {
+    const rnd = (k) => hash01(seed * 7.3 + k * 19.7);
+    const duck = ease(Math.max(0, (exp - 0.26) / 0.62));
+    const h = h0 * (0.93 + 0.15 * rnd(1)) * (1 - 0.26 * duck);
+    const f = face || 1;
+    const t = REDUCED ? 0 : now / 1000;
+    const walking = gait != null && gait >= 0 && !REDUCED;
+    const g2 = walking ? gait * 6.283 : 0;
+    const swing = walking ? Math.sin(g2) : 0;              // legs fore/aft
+    const bob = walking ? Math.abs(Math.sin(g2)) * h * 0.014 : 0;
+    const sway = REDUCED ? 0 : Math.sin(t * 1.05 + rnd(2) * 6.283) * h * 0.011;
+    const breath = REDUCED ? 0 : Math.sin(t * 1.9 + rnd(3) * 6.283) * h * 0.006;
+
+    const Y = (u) => baseY - h * u;
+    const headR = h * 0.100;
+    const lean = f * h * 0.055 * duck + sway;
+    const shoulderY = Y(0.80) + breath + bob, hipY = Y(0.47) + bob;
+    const shW = h * 0.118, hipW = h * 0.082;
+    const stance = h * (0.030 + 0.030 * rnd(4));
+
+    ctx.fillStyle = 'rgba(0,0,0,0.34)';
+    ctx.beginPath(); ctx.ellipse(cx + lean * 0.3, baseY + 1, h * 0.13, h * 0.026, 0, 0, Math.PI * 2); ctx.fill();
+
+    const g = ctx.createLinearGradient(0, Y(1.02), 0, baseY);
+    g.addColorStop(0, BODY_HI); g.addColorStop(1, BODY_LO);
+    ctx.fillStyle = g; ctx.strokeStyle = g;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+
+    // legs, behind the torso
+    ctx.lineWidth = Math.max(2.2, h * 0.078);
+    for (const s of [-1, 1]) {
+      const step = walking ? swing * s * f : 0;            // one leg forward, one back
+      const hipX = cx + lean * 0.4 + s * hipW * 0.52;
+      const kneeX = cx + s * (hipW * 0.55 + stance * 0.5) + f * h * 0.045 * duck + step * h * 0.13;
+      const kneeY = Y(0.25) + h * 0.03 * duck + bob;
+      const footX = cx + s * (hipW * 0.5 + stance) + step * h * 0.24;
+      const lift = walking ? Math.max(0, step) * h * 0.05 : 0;
+      ctx.beginPath();
+      ctx.moveTo(hipX, hipY); ctx.lineTo(kneeX, kneeY); ctx.lineTo(footX, baseY - h * 0.012 - lift);
+      ctx.stroke();
+    }
+
+    // torso: shoulders wider than the waist, and it leans as they duck
+    ctx.beginPath();
+    ctx.moveTo(cx + lean - shW, shoulderY + h * 0.045);
+    ctx.quadraticCurveTo(cx + lean - shW * 1.04, shoulderY - h * 0.035, cx + lean - shW * 0.42, shoulderY - h * 0.050);
+    ctx.lineTo(cx + lean + shW * 0.42, shoulderY - h * 0.050);
+    ctx.quadraticCurveTo(cx + lean + shW * 1.04, shoulderY - h * 0.035, cx + lean + shW, shoulderY + h * 0.045);
+    ctx.lineTo(cx + hipW, hipY);
+    ctx.quadraticCurveTo(cx + lean * 0.4, hipY + h * 0.035, cx - hipW, hipY);
+    ctx.closePath(); ctx.fill();
+
+    // neck
+    ctx.lineWidth = Math.max(2, h * 0.068);
+    ctx.beginPath();
+    ctx.moveTo(cx + lean * 0.8, shoulderY - h * 0.02);
+    ctx.lineTo(cx + lean * 0.9, Y(0.840) + breath);
+    ctx.stroke();
+
+    // arms. The one on the side they are facing comes up to the mouth as the
+    // smoke takes hold; the other stays down.
+    ctx.lineWidth = Math.max(2, h * 0.064);
+    for (const s of [-1, 1]) {
+      const shoulderX = cx + lean + s * shW * 1.00;
+      const cover = (s === f) ? duck : duck * 0.25;
+      const elbowX = shoulderX + s * h * (0.078 + 0.024 * rnd(5)) - s * h * 0.09 * cover;
+      const elbowY = Y(0.60) + h * 0.02 * cover + bob - (walking ? swing * s * f * h * 0.05 : 0);
+      const handX = shoulderX + s * h * 0.058 + (cover > 0.02 ? (cx + lean - shoulderX) * cover * 0.95 : 0);
+      const handY = Y(0.45) * (1 - cover) + (Y(0.845) + breath) * cover + bob - (walking ? swing * s * f * h * 0.09 : 0);
+      ctx.beginPath();
+      ctx.moveTo(shoulderX, shoulderY); ctx.lineTo(elbowX, elbowY); ctx.lineTo(handX, handY);
+      ctx.stroke();
+    }
+
+    // head, lit from above like everything else
+    const hx = cx + lean * 1.15, hy = headCYOf(baseY, h, duck) + breath + bob;
+    const hg = ctx.createRadialGradient(hx - headR * 0.35, hy - headR * 0.5, headR * 0.1, hx, hy, headR * 1.25);
+    hg.addColorStop(0, '#DCE6FA'); hg.addColorStop(1, HEAD);
+    ctx.fillStyle = hg;
+    ctx.beginPath(); ctx.arc(hx, hy, headR, 0, Math.PI * 2); ctx.fill();
+
+    return { headTop: hy - headR, hx, h, hy, bodyY: (shoulderY + hipY) / 2, armY: Y(0.62) };
+  }
+  const headCYOf = (baseY, h, duck) => baseY - h * (0.905 - 0.02 * duck);
+
+  /* The breath arc: how long they have, above their head. A DARK track under
+     it, because a coral arc on grey smoke measured 1.06:1. */
+  function drawBreath(cx, topY, h, exp, now) {
     const left = Math.max(0, 1 - exp);
-    const r = Math.max(7, h * 0.30), ay = bt - headR * 2.2;
-    /* A DARK track, not a light one. The arc is the only thing telling you how
-       long somebody has, and a coral arc on grey smoke measured 1.06:1. On a
-       dark track it reads on any ground the corridor can be in. */
+    const r = Math.max(6, h * 0.26), ay = topY - r * 0.55;
     const lw = Math.max(2, h * 0.055);
     ctx.lineCap = 'round';
     ctx.lineWidth = lw + 3;
@@ -792,7 +1001,7 @@ const BODY_HI = '#9DB2D2', BODY_LO = '#6E86AE', HEAD = '#C9D6F0';
     ctx.strokeStyle = 'rgba(255,255,255,0.16)';
     ctx.beginPath(); ctx.arc(cx, ay, r, Math.PI * 1.15, Math.PI * 1.85); ctx.stroke();
     ctx.strokeStyle = left > 0.55 ? BREATH_OK : left > 0.28 ? BREATH_MID : BREATH_LOW;
-    const a0 = Math.PI * 1.15, a1 = a0 + (Math.PI * 0.70) * left;
+    const a0 = Math.PI * 1.15, a1 = a0 + Math.PI * 0.70 * left;
     if (left > 0.001) { ctx.beginPath(); ctx.arc(cx, ay, r, a0, a1); ctx.stroke(); }
     if (exp > FIRE.warnAt && !REDUCED) {
       const pulse = 0.5 + 0.5 * Math.sin(now / 130);
@@ -1204,6 +1413,7 @@ const BODY_HI = '#9DB2D2', BODY_LO = '#6E86AE', HEAD = '#C9D6F0';
     get smoke() { return Array.from(smoke || []); }, get carSmoke() { return carSmoke; },
     get level() { return level; }, get levelIndex() { return levelIndex; },
     geo, LEVELS, start: startLevel,
+    get renderMs() { return renderMs; },
     /* Drive headlessly, for verification: hold a direction, then let go and let
        it brake to rest and serve. */
     drive(dir, secs) {
@@ -1216,7 +1426,7 @@ const BODY_HI = '#9DB2D2', BODY_LO = '#6E86AE', HEAD = '#C9D6F0';
   };
 
   /* ---------- BOOT ---------- */
-  let last = 0, acc = 0;
+  let last = 0, acc = 0, renderMs = 0;
   const DT = 1 / 120;
   function frame(now) {
     if (!last) last = now;
@@ -1226,7 +1436,12 @@ const BODY_HI = '#9DB2D2', BODY_LO = '#6E86AE', HEAD = '#C9D6F0';
       let guard = 0;
       while (acc >= DT && guard++ < 60) { step(DT); acc -= DT; }
     } else acc = 0;
+    /* The target device is a school Chromebook, and a frame interval only ever
+       says "it kept up with vsync". What matters is how long the drawing takes,
+       because that is the headroom. Two clock reads a frame is free. */
+    const t0 = performance.now();
     render(now);
+    renderMs = renderMs * 0.9 + (performance.now() - t0) * 0.1;
     requestAnimationFrame(frame);
   }
 

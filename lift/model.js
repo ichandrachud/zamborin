@@ -63,6 +63,16 @@ const FIRE = {
      lobby never fills, because a lobby you cannot walk out of is not a level,
      it is a trap. */
   spreadDown: 0.09,
+  /* THE STACK EFFECT. Smoke does not climb a building at an even rate: it is
+     hot, it wants to go up, and the higher it gets the harder it is driven, so
+     the top floors fill fastest and each floor down is slower than the one
+     above it. Every floor above the fire gets this much more spread than the
+     floor below it.
+
+     It is also the best thing that has happened to the decision. The tension
+     the game runs on is that the smoke is worst at the top and the way out is
+     at the bottom; making the top genuinely fastest sharpens exactly that. */
+  stackGain: 0.38,
   warnAt: 0.72,       // exposure at which a person is visibly in trouble
 };
 
@@ -138,7 +148,8 @@ function stepSmoke(s, floors, fireFloor, rate, dt, F) {
   F = F || FIRE;
   s[fireFloor] = Math.min(1, s[fireFloor] + rate * dt);
   for (let f = fireFloor + 1; f <= floors; f++) {
-    s[f] = Math.min(1, s[f] + F.spread * Math.max(0, s[f - 1] - s[f]) * dt);
+    const stack = 1 + F.stackGain * (f - fireFloor - 1);
+    s[f] = Math.min(1, s[f] + F.spread * stack * Math.max(0, s[f - 1] - s[f]) * dt);
   }
   for (let f = fireFloor - 1; f >= 2; f--) {
     s[f] = Math.min(1, s[f] + F.spreadDown * Math.max(0, s[f + 1] - s[f]) * dt);
