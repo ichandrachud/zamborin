@@ -1145,98 +1145,148 @@
      the knees bend. Colour alone never carries it. */
   const hash01 = (n) => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
 
+  /* A PERSON IN PROFILE, because a front-on figure cannot walk. Legs swinging
+     left and right across a body facing the viewer is not a stride, it is a
+     shuffle - which is exactly why they read as pictograms sidestepping down
+     the hall. Walking is a side-on action, and everyone here is facing the
+     lift anyway.
+
+     So: profile. Head with a brow and a jaw and hair, a torso with a chest and
+     a back, a near arm and leg over a far arm and leg drawn darker behind, and
+     a real two-key gait - thigh swings, knee bends only on the way through,
+     arms counter-swing, body bobs on each step. Feet point where they are
+     going. Everything is a filled form lit from above, no outline and no face.
+
+     Posture is the second channel on exposure and it is the honest one: as the
+     smoke takes hold they sink, a hand comes up to the mouth, and the head
+     drops. Colour never carries it alone. */
   function drawPerson(cx, baseY, h0, exp, seed, now, face, gait) {
     const rnd = (k) => hash01(seed * 7.3 + k * 19.7);
     const duck = ease(Math.max(0, (exp - 0.26) / 0.62));
-    const h = h0 * (0.93 + 0.15 * rnd(1)) * (1 - 0.26 * duck);
+    const h = h0 * (0.92 + 0.16 * rnd(1)) * (1 - 0.24 * duck);
     const f = face || 1;
     const t = REDUCED ? 0 : now / 1000;
     const walking = gait != null && gait >= 0 && !REDUCED;
-    const g2 = walking ? gait * 6.283 : 0;
-    const swing = walking ? Math.sin(g2) : 0;              // legs fore/aft
-    const bob = walking ? Math.abs(Math.sin(g2)) * h * 0.014 : 0;
-    const sway = REDUCED ? 0 : Math.sin(t * 1.05 + rnd(2) * 6.283) * h * 0.011;
-    const breath = REDUCED ? 0 : Math.sin(t * 1.9 + rnd(3) * 6.283) * h * 0.006;
+    const ph = walking ? gait * 6.283 : 0;
+    const idle = REDUCED ? 0 : Math.sin(t * 1.15 + rnd(2) * 6.283);
+    const breath = REDUCED ? 0 : Math.sin(t * 1.9 + rnd(3) * 6.283) * h * 0.005;
+    const bob = walking ? Math.abs(Math.cos(ph)) * h * 0.016 : idle * h * 0.004;
 
-    const Y = (u) => baseY - h * u;
-    const headR = h * 0.100;
-    const lean = f * h * 0.055 * duck + sway;
-    const shoulderY = Y(0.80) + breath + bob, hipY = Y(0.47) + bob;
-    const shW = h * 0.118, hipW = h * 0.082;
-    const stance = h * (0.030 + 0.030 * rnd(4));
+    const Y = (u) => baseY - h * u - bob;
+    const lean = f * h * (walking ? 0.030 : 0.008) + f * h * 0.075 * duck + (walking ? 0 : idle * h * 0.006);
 
-    ctx.fillStyle = 'rgba(0,0,0,0.34)';
-    ctx.beginPath(); ctx.ellipse(cx + lean * 0.3, baseY + 1, h * 0.13, h * 0.026, 0, 0, Math.PI * 2); ctx.fill();
+    const headR = h * 0.079;
+    const hipY = Y(0.495), shoulderY = Y(0.815) + breath;
+    const hipX = cx + lean * 0.30, shoulderX = cx + lean;
+    const legLen = hipY - baseY;                              // negative, downward
+    const armLen = h * 0.335;
+    const depth = h * 0.125 * (0.9 + 0.2 * rnd(6));           // how deep front-to-back
 
-    const g = ctx.createLinearGradient(0, Y(1.02), 0, baseY);
-    g.addColorStop(0, BODY_HI); g.addColorStop(1, BODY_LO);
-    ctx.fillStyle = g; ctx.strokeStyle = g;
+    const dark = ctx.createLinearGradient(0, Y(1.0), 0, baseY);
+    dark.addColorStop(0, BODY_HI); dark.addColorStop(1, BODY_LO);
+    const far = 'rgba(14,12,20,0.85)';                        // limbs on the far side
+
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
 
-    // legs, behind the torso
-    ctx.lineWidth = Math.max(2.2, h * 0.078);
-    for (const s of [-1, 1]) {
-      const step = walking ? swing * s * f : 0;            // one leg forward, one back
-      const hipX = cx + lean * 0.4 + s * hipW * 0.52;
-      const kneeX = cx + s * (hipW * 0.55 + stance * 0.5) + f * h * 0.045 * duck + step * h * 0.13;
-      const kneeY = Y(0.25) + h * 0.03 * duck + bob;
-      const footX = cx + s * (hipW * 0.5 + stance) + step * h * 0.24;
-      const lift = walking ? Math.max(0, step) * h * 0.05 : 0;
-      ctx.beginPath();
-      ctx.moveTo(hipX, hipY); ctx.lineTo(kneeX, kneeY); ctx.lineTo(footX, baseY - h * 0.012 - lift);
-      ctx.stroke();
-    }
+    // a contact shadow, so they are standing on the runner and not floating
+    ctx.fillStyle = 'rgba(50,20,10,0.30)';
+    ctx.beginPath(); ctx.ellipse(cx + lean * 0.2, baseY + 1, h * 0.15, h * 0.027, 0, 0, Math.PI * 2); ctx.fill();
 
-    // torso: shoulders wider than the waist, and it leans as they duck
+    /* One leg. `side` is +1 for the near leg and -1 for the far one; they run
+       half a cycle apart. The knee only bends on the swing through, which is
+       the difference between a walk and a pair of scissors. */
+    const drawLeg = (side, colour) => {
+      const p2 = ph + (side > 0 ? 0 : Math.PI);
+      const a1 = walking ? Math.sin(p2) * 0.52 : side * (0.05 + 0.05 * rnd(4));
+      const bend = walking ? Math.max(0, Math.sin(p2 + 1.15)) * 0.95 : 0.06;
+      const a2 = a1 - bend - duck * 0.5;
+      const thigh = -legLen * 0.47, shin = -legLen * 0.53;
+      const kx = hipX + f * Math.sin(a1) * thigh + f * h * 0.05 * duck;
+      const ky = hipY + Math.cos(a1) * thigh;
+      const ax = kx + f * Math.sin(a2) * shin;
+      const ay = Math.min(baseY, ky + Math.cos(a2) * shin);
+      ctx.strokeStyle = colour; ctx.lineWidth = Math.max(2, h * 0.062);
+      ctx.beginPath(); ctx.moveTo(hipX, hipY); ctx.lineTo(kx, ky); ctx.lineTo(ax, ay); ctx.stroke();
+      // a foot, pointing where they are going
+      ctx.lineWidth = Math.max(1.8, h * 0.040);
+      ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(ax + f * h * 0.055, ay + h * 0.004); ctx.stroke();
+    };
+
+    const drawArm = (side, colour) => {
+      const p2 = ph + (side > 0 ? Math.PI : 0);               // arms oppose the legs
+      const cover = side > 0 ? duck : duck * 0.2;             // a hand to the mouth
+      const a1 = walking ? Math.sin(p2) * 0.42 : side * (0.06 + 0.05 * rnd(5));
+      const a2 = a1 + (walking ? Math.max(0, -Math.sin(p2)) * 0.7 : 0.12);
+      const upper = armLen * 0.47, fore = armLen * 0.53;
+      let ex = shoulderX + f * Math.sin(a1) * upper, ey = shoulderY + Math.cos(a1) * upper;
+      let hx2 = ex + f * Math.sin(a2) * fore, hy2 = ey + Math.cos(a2) * fore;
+      if (cover > 0.02) {                                     // fold it up to the face
+        ex = shoulderX + f * h * 0.045 * (1 - cover) + f * h * 0.02 * cover;
+        ey = shoulderY + upper * (1 - cover * 0.45);
+        hx2 = shoulderX + f * h * (0.05 * (1 - cover) + 0.055 * cover);
+        hy2 = shoulderY + (fore + upper) * (1 - cover) * 0.9 + (Y(0.855) - shoulderY) * cover;
+      }
+      ctx.strokeStyle = colour; ctx.lineWidth = Math.max(1.8, h * 0.050);
+      ctx.beginPath(); ctx.moveTo(shoulderX, shoulderY); ctx.lineTo(ex, ey); ctx.lineTo(hx2, hy2); ctx.stroke();
+      if (side > 0) { ctx.fillStyle = HEAD; ctx.beginPath(); ctx.arc(hx2, hy2, Math.max(1.2, h * 0.026), 0, Math.PI * 2); ctx.fill(); }
+    };
+
+    // far side first, then the body, then the near side over it
+    drawLeg(-1, far); drawArm(-1, far);
+
+    /* The torso in profile: a back that curves, a chest that stands proud of
+       it, and a waist that comes in. Drawn as one filled shape rather than a
+       rectangle, which is most of what separates a body from a sign. */
+    const sB = shoulderX - f * depth * 0.52, sF = shoulderX + f * depth * 0.48;
+    const hB = hipX - f * depth * 0.46, hF = hipX + f * depth * 0.44;
+    ctx.fillStyle = dark;
     ctx.beginPath();
-    ctx.moveTo(cx + lean - shW, shoulderY + h * 0.045);
-    ctx.quadraticCurveTo(cx + lean - shW * 1.04, shoulderY - h * 0.035, cx + lean - shW * 0.42, shoulderY - h * 0.050);
-    ctx.lineTo(cx + lean + shW * 0.42, shoulderY - h * 0.050);
-    ctx.quadraticCurveTo(cx + lean + shW * 1.04, shoulderY - h * 0.035, cx + lean + shW, shoulderY + h * 0.045);
-    ctx.lineTo(cx + hipW, hipY);
-    ctx.quadraticCurveTo(cx + lean * 0.4, hipY + h * 0.035, cx - hipW, hipY);
+    ctx.moveTo(sB, shoulderY);
+    ctx.quadraticCurveTo(sB - f * depth * 0.10, Y(0.66), hB, hipY);
+    ctx.lineTo(hF, hipY);
+    ctx.quadraticCurveTo(hF + f * depth * 0.16, Y(0.68), sF, shoulderY);
+    ctx.quadraticCurveTo(shoulderX + f * depth * 0.30, Y(0.845), shoulderX, Y(0.845));
     ctx.closePath(); ctx.fill();
 
     // neck
-    ctx.lineWidth = Math.max(2, h * 0.068);
+    ctx.strokeStyle = HEAD; ctx.lineWidth = Math.max(1.6, h * 0.046);
     ctx.beginPath();
-    ctx.moveTo(cx + lean * 0.8, shoulderY - h * 0.02);
-    ctx.lineTo(cx + lean * 0.9, Y(0.840) + breath);
+    ctx.moveTo(shoulderX + f * h * 0.006, Y(0.828));
+    ctx.lineTo(shoulderX + f * h * 0.016, Y(0.868) + breath);
     ctx.stroke();
 
-    // arms. The one on the side they are facing comes up to the mouth as the
-    // smoke takes hold; the other stays down.
-    ctx.lineWidth = Math.max(2, h * 0.064);
-    const hands = [];
-    for (const s of [-1, 1]) {
-      const shoulderX = cx + lean + s * shW * 1.00;
-      const cover = (s === f) ? duck : duck * 0.25;
-      const elbowX = shoulderX + s * h * (0.078 + 0.024 * rnd(5)) - s * h * 0.09 * cover;
-      const elbowY = Y(0.60) + h * 0.02 * cover + bob - (walking ? swing * s * f * h * 0.05 : 0);
-      const handX = shoulderX + s * h * 0.058 + (cover > 0.02 ? (cx + lean - shoulderX) * cover * 0.95 : 0);
-      const handY = Y(0.45) * (1 - cover) + (Y(0.845) + breath) * cover + bob - (walking ? swing * s * f * h * 0.09 : 0);
-      ctx.beginPath();
-      ctx.moveTo(shoulderX, shoulderY); ctx.lineTo(elbowX, elbowY); ctx.lineTo(handX, handY);
-      ctx.stroke();
-      hands.push([handX, handY]);
-    }
-    /* Hands are skin, not sleeve. Small, but with the head they are the light
-       part of the figure, and the light part is what separates it from dark
-       smoke the way the dark clothing separates it from a lit wall. */
+    /* The head in profile: a skull, a brow and a nose on the front, a jaw, and
+       a hair mass over the back of it. Those four things are what make a small
+       circle read as a head facing somewhere. */
+    const hx = shoulderX + f * h * 0.022 + lean * 0.25 - f * h * 0.03 * duck;
+    const hy = Y(0.925) + breath + h * 0.02 * duck;
     ctx.fillStyle = HEAD;
-    for (const [hxx, hyy] of hands) {
-      ctx.beginPath(); ctx.arc(hxx, hyy, Math.max(1.3, h * 0.030), 0, Math.PI * 2); ctx.fill();
-    }
-
-    // head, lit from above like everything else
-    const hx = cx + lean * 1.15, hy = headCYOf(baseY, h, duck) + breath + bob;
-    const hg = ctx.createRadialGradient(hx - headR * 0.35, hy - headR * 0.5, headR * 0.1, hx, hy, headR * 1.25);
-    hg.addColorStop(0, SKIN_HI); hg.addColorStop(1, HEAD);
-    ctx.fillStyle = hg;
     ctx.beginPath(); ctx.arc(hx, hy, headR, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath();                                          // brow, nose and jaw
+    ctx.moveTo(hx + f * headR * 0.20, hy - headR * 0.72);
+    ctx.quadraticCurveTo(hx + f * headR * 1.32, hy - headR * 0.10, hx + f * headR * 0.62, hy + headR * 0.52);
+    ctx.lineTo(hx - f * headR * 0.10, hy + headR * 0.86);
+    ctx.quadraticCurveTo(hx - f * headR * 0.60, hy + headR * 0.40, hx - f * headR * 0.30, hy - headR * 0.30);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = SKIN_HI;                                  // lit from the ceiling
+    ctx.beginPath(); ctx.arc(hx - f * headR * 0.18, hy - headR * 0.34, headR * 0.52, 0, Math.PI * 2); ctx.fill();
+    // hair: a cap over the crown and back, longer on some people
+    const longHair = rnd(7) > 0.55;
+    ctx.fillStyle = HAIR;
+    ctx.beginPath();
+    ctx.moveTo(hx + f * headR * 0.52, hy - headR * 0.62);
+    ctx.quadraticCurveTo(hx, hy - headR * 1.42, hx - f * headR * 0.92, hy - headR * 0.42);
+    ctx.quadraticCurveTo(hx - f * headR * (longHair ? 1.20 : 0.98), hy + headR * (longHair ? 0.95 : 0.15),
+                         hx - f * headR * (longHair ? 0.55 : 0.62), hy + headR * (longHair ? 0.85 : 0.05));
+    ctx.quadraticCurveTo(hx - f * headR * 0.30, hy - headR * 0.55, hx + f * headR * 0.52, hy - headR * 0.62);
+    ctx.closePath(); ctx.fill();
 
-    return { headTop: hy - headR, hx, h, hy, bodyY: (shoulderY + hipY) / 2, armY: Y(0.62) };
+    drawLeg(1, dark); drawArm(1, dark);
+
+    return { headTop: hy - headR * (1 + 0.35), hx, h, hy, bodyY: (shoulderY + hipY) / 2, armY: Y(0.62) };
   }
+
+
   const headCYOf = (baseY, h, duck) => baseY - h * (0.905 - 0.02 * duck);
 
   /* The breath arc: how long they have, above their head. A DARK track under
