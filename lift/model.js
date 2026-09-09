@@ -33,6 +33,15 @@ const TUNE = {
   vMax: 3.2,          // floors/s
   b: 5.5,             // floors/s^2, the brake once you let go
   levelTol: 0.08,     // floors; about 6px at a 74px floor
+  /* THE LEVELLING ZONE. A real lift does not have to be parked to the
+     millimetre by hand: stop it inside the levelling zone and it creeps itself
+     the rest of the way. Without one, a typical drag overshoots by three or
+     four tenths of a floor, so almost every stop was a miss followed by a
+     nudge - which reads as "it does not stop at floors" rather than as a
+     skill. Arriving inside a quarter of a floor, slowly, is still the skill;
+     hunting the last six pixels was never the point. */
+  snapZone: 0.25,
+  levelS: 0.30,       // how long the creep takes
   doorS: 0.6,
   boardS: 0.4,
   capacity: 4,

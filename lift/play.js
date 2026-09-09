@@ -30,7 +30,6 @@
 
   const M = window.LiftModel;
   const T = M.TUNE, FIRE = M.FIRE;
-  const LEVELS = (window.LiftLevels || { LEVELS: [] }).LEVELS;
 
   /* ---------- MODE ----------
      A browser can report a 0-wide viewport on the first frame; zero must not
@@ -140,8 +139,23 @@
      light head keeps carrying it inside the smoke. It also matches the doors,
      which is what a person looks like in a lit corridor. */
   const BODY_HI = '#2E2838', BODY_LO = '#1A1622';        // clothing
-  const HEAD = '#C9A98A', SKIN_HI = '#E4C6A6';           // head and hands
+  const HEAD = '#DCC0A2', SKIN_HI = '#F2DCC2';           // head and hands
   const HAIR = '#241C22';
+  /* CLOTHES VARY BY HUE, NOT BY VALUE. People should look like different
+     people, but a cream wall only lets a figure read if it stays dark, and the
+     fire has to remain the most saturated thing in the building. So: deep
+     muted colours, all within a narrow dark band, distinguishable from each
+     other and never competing with the flame. */
+  const OUTFITS = [
+    ['#2C3A52', '#1B2536'],   // navy
+    ['#3A2A38', '#241A24'],   // plum
+    ['#233A34', '#152420'],   // forest
+    ['#42302A', '#281C18'],   // rust
+    ['#2E3348', '#1C2030'],   // slate blue
+    ['#3E3524', '#251F14'],   // olive
+    ['#3A2530', '#22161E'],   // burgundy
+    ['#26363E', '#161F25'],   // teal
+  ];
   /* DARK SMOKE, like Empyrean's, with a lit top surface. Pale smoke is what
      forced a dark halo behind every person - a light figure had nothing to sit
      against once a corridor filled. A dark mass fixes that at the source, it
@@ -227,61 +241,94 @@
   }
 
   /* ---------- STATE ---------- */
+  /* ONE RUN, THREE STRIKES, NO LEVELS. The building does not get cleared and
+     replaced; it keeps filling. Guests keep coming out of their rooms, the
+     fire keeps growing, and the run ends when three of them are overcome. What
+     climbs is the number of people and the speed of the smoke - which is the
+     old arcade curve, and it is honest here because a fire really does get
+     away from you.
+
+     The certified levels in levels.js are no longer loaded. They are left on
+     disk rather than deleted: the certifier and its numbers are the record of
+     why the fire version was worth building at all. */
   const SAVE = 'zam.lift.save';
-  let levelIndex = 0, level = null;
+  const STRIKES = 3;
+  const RUN = {
+    floors: 8,
+    startPeople: 4,
+    spawnFrom: 5.4, spawnTo: 1.7, spawnRamp: 0.030,     // seconds between arrivals
+    rateFrom: 0.030, rateTo: 0.105, rateRamp: 0.00055,  // how fast the smoke moves
+  };
+
+  let level = null;                    // the building this run is in
   const car = { y: 1, v: 0 };
   let smoke = null, carSmoke = 0;
-  let waiting = [], aboard = [], out = 0, lost = 0, lostFloors = [], standsBy = {};
-  let phase = 'play';                  // 'play' | 'serve' | 'over'
+  let waiting = [], aboard = [], fallen = [], out = 0, lost = 0, lostFloors = [], standsBy = {};
+  let phase = 'play';                  // 'play' | 'serve' | 'level' | 'over'
   let serveT = 0, serveFloor = 1, doorOpen = 0, didWork = false;
   let settleT = 0, settleDir = 1, sag = 0;
-  let departed = false, stopsMade = 0;
-  let puffs = [], runners = [], tNow = 0, endT = 0, won = false;
+  let levelFrom = 1, levelTo = 1, levelT = 0, levelDir = 1;
+  let departed = false, stopsMade = 0, nextId = 0, nextSpawn = 0;
+  let puffs = [], runners = [], tNow = 0, endT = 0, best = 0;
   let rulesOpen = false, rulesScroll = 0, handlePulse = 0;
+  let rng = M.makeRng(1);
 
-  function loadSave() {
-    try { const s = JSON.parse(localStorage.getItem(SAVE) || '{}'); return Math.max(0, Math.min(LEVELS.length - 1, s.level | 0)); }
-    catch (e) { return 0; }
+  function loadBest() {
+    try { return (JSON.parse(localStorage.getItem(SAVE) || '{}').best | 0) || 0; } catch (e) { return 0; }
   }
-  function putSave() { try { localStorage.setItem(SAVE, JSON.stringify({ level: levelIndex })); } catch (e) {} }
+  function putBest() { try { localStorage.setItem(SAVE, JSON.stringify({ best })); } catch (e) {} }
 
-  function startLevel(i) {
-    levelIndex = Math.max(0, Math.min(LEVELS.length - 1, i));
-    level = LEVELS[levelIndex];
+  const spawnEvery = () => Math.max(RUN.spawnTo, RUN.spawnFrom - tNow * RUN.spawnRamp);
+  const smokeRate = () => Math.min(RUN.rateTo, RUN.rateFrom + tNow * RUN.rateRamp);
+
+  function startRun() {
+    rng = M.makeRng((Date.now() & 0xffff) || 7);
+    const F = RUN.floors;
+    level = { floors: F, fire: 2 + Math.floor(rng() * Math.max(1, F - 2)) };
     car.y = 1; car.v = 0;
-    smoke = new Float64Array(level.floors + 1);
+    smoke = new Float64Array(F + 1);
     carSmoke = 0;
-    /* Where somebody stands comes from their slot and NOTHING ELSE, so a
-       building plays the same on a phone as in the desktop frame even though
-       the desktop draws the queue across two corridors. The smoke reaches the
-       far end of a corridor first, so the deepest person is on the shortest
-       clock and you can see that without being told. */
-    const perFloor = {};
-    waiting = level.people.map((f, i2) => {
-      perFloor[f] = (perFloor[f] || 0) + 1;
-      const slot = perFloor[f] - 1;
-      return { id: i2, floor: f, exp: 0, slot, stand: M.standAt(slot), fade: 0 };
-    });
-    /* Where the doors may NOT go. Somebody standing in front of a guest door
-       had a pale grey ground behind them and measured 2.52:1 against a 3:1
-       bar, and it also looked like they were standing in a doorway. Computed
-       from the LEVEL rather than from who is still waiting, so a door does not
-       pop into existence when somebody gets in the lift. */
-    standsBy = {};
-    const seen = {};
-    for (const f of level.people) {
-      const slot = (seen[f] = (seen[f] || 0) + 1) - 1;
-      (standsBy[f] || (standsBy[f] = [])).push({ stand: M.standAt(slot), right: slot % 2 === 1 });
-    }
-    aboard = []; out = 0; lost = 0; lostFloors = [];
+    waiting = []; aboard = []; fallen = [];
+    out = 0; lost = 0; lostFloors = [];
     phase = 'play'; doorOpen = 0; serveT = 0; sag = 0; settleT = 0;
-    departed = false; stopsMade = 0; puffs = []; runners = []; tNow = 0; endT = 0; won = false;
+    departed = false; stopsMade = 0; nextId = 0;
+    puffs = []; runners = []; tNow = 0; endT = 0;
     handlePulse = 1;
+    best = loadBest();
+    /* Doors keep clear of EVERY standing position, not just the occupied ones,
+       because in a run people arrive where they like and a door cannot appear
+       and disappear under them. */
+    standsBy = {};
+    for (let f = 2; f <= F; f++) {
+      standsBy[f] = [0, 1, 2, 3].map(s => ({ stand: M.standAt(s), right: s % 2 === 1 }));
+    }
+    for (let i = 0; i < RUN.startPeople; i++) spawnPerson();
+    nextSpawn = spawnEvery();
     layout();
-    TR().levelStart(levelIndex + 1);
+    TR().gameStart();
   }
 
-  const totalPeople = () => (level ? level.people.length : 0);
+  /* Somebody comes out of a room. They take a free standing slot, and by
+     preference not one already lost to the smoke - emerging straight into a
+     corridor you cannot see across is a death you could not have prevented. */
+  function spawnPerson() {
+    const F = level.floors;
+    const free = [], ok = [];
+    for (let f = 2; f <= F; f++) {
+      const used = new Set(waiting.filter(p => p.floor === f).map(p => p.slot));
+      for (const p of fallen) if (p.floor === f) used.add(p.slot);
+      for (let s = 0; s < T.capacity; s++) {
+        if (used.has(s)) continue;
+        const cell = { f, s };
+        free.push(cell);
+        if (smoke[f] < M.standAt(s) + 0.10) ok.push(cell);
+      }
+    }
+    const pool = ok.length ? ok : free;
+    if (!pool.length) return;
+    const c = pool[Math.floor(rng() * pool.length)];
+    waiting.push({ id: nextId++, floor: c.f, slot: c.s, stand: M.standAt(c.s), exp: 0 });
+  }
 
   /* ---------- INPUT ---------- */
   let dragging = false, dragV = 0, dragLastY = 0, dragLastT = 0, keyDir = 0;
@@ -308,7 +355,7 @@
     const c = hitCtrl(p.x, p.y);
     if (c) { onCtrl(c.id); return; }
     if (phase === 'over') { onEndPointer(p); return; }
-    if (phase === 'serve') return;                       // never steer with the doors open
+    if (phase === 'serve' || phase === 'level') return;  // never steer while it is landing
     if (!inGrab(p.x, p.y)) return;
     /* Seed the target with the speed the car already has. A tall building needs
        more than one thumb-length, so a trip is taken in two or three gestures;
@@ -345,12 +392,11 @@
 
   function onCtrl(id) {
     if (id === 'sound') { if (sfx) sfx.setOn(!sfx.isOn()); return; }
-    if (id === 'restart') { TR().levelRestart(levelIndex + 1); startLevel(levelIndex); return; }
+    if (id === 'restart') { startRun(); return; }
     if (id === 'rules') { rulesOpen = !rulesOpen; rulesScroll = 0; return; }
   }
   function advanceFromCard() {
-    if (won && levelIndex < LEVELS.length - 1) { levelIndex++; putSave(); startLevel(levelIndex); }
-    else startLevel(levelIndex);
+    startRun();
   }
 
   /* ---------- THE WORLD ---------- */
@@ -364,7 +410,10 @@
     runners = runners.filter(r => r.t < r.dur);
     if (phase === 'over') { endT += dt; return; }
 
-    M.stepSmoke(smoke, level.floors, level.fire, level.rate, dt, FIRE);
+    M.stepSmoke(smoke, level.floors, level.fire, smokeRate(), dt, FIRE);
+    nextSpawn -= dt;
+    if (nextSpawn <= 0) { spawnPerson(); nextSpawn = spawnEvery(); }
+    for (const r of fallen) r.t += dt;
     carSmoke = M.carSmokeStep(carSmoke, doorOpen > 0.02 ? smoke[serveFloor] : 0, dt, doorOpen > 0.02, FIRE);
 
     for (let i = waiting.length - 1; i >= 0; i--) {
@@ -378,26 +427,34 @@
       if (p.exp >= 1) { overcome(p, Math.round(car.y)); aboard.splice(i, 1); }
     }
 
-    if (phase === 'serve') { stepServe(dt); }
-    else { stepDrive(dt); }
+    if (phase === 'serve') stepServe(dt);
+    else if (phase === 'level') stepLevelling(dt);
+    else stepDrive(dt);
 
-    if (waiting.length === 0 && aboard.length === 0 && phase !== 'serve') finish();
+
   }
 
   /* Nobody dies on screen and nothing is drawn over a person: the smoke closes
      over them and they are left behind. The card names their floor, because
      the floor you did not get back to is the thing worth remembering. */
+  /* THEY COLLAPSE WHERE THEY STAND. Removed from play - a person overcome
+     cannot be carried out - but drawn for the rest of the run, because a
+     corridor with somebody down in it is the only honest way to say you did
+     not get there. Three of them ends the run. */
   function overcome(p, floor) {
     lost++; lostFloors.push(floor);
-    puffs.push({ t: 0, floor, side: p.slot % 2, slot: p.slot, kind: 'lost' });
+    const q = personXY(p);
+    fallen.push({ floor, slot: p.slot, stand: p.stand, x: q.x, side: q.face, seed: p.id + 1, t: 0 });
     if (sfx) sfx.play('error');
+    if (lost >= STRIKES) finish();
   }
+
   function finish() {
     if (phase === 'over') return;
-    phase = 'over'; endT = 0; won = lost === 0;
-    if (won) { if (sfx) sfx.play('success'); TR().levelComplete(levelIndex + 1, stopsMade); }
-    else if (sfx) sfx.play('fail');
-    TR().track('level_end', { level: levelIndex + 1, out, lost, stops: stopsMade, seconds: Math.round(tNow) });
+    phase = 'over'; endT = 0;
+    if (out > best) { best = out; putBest(); }
+    if (sfx) sfx.play('fail');
+    TR().track('run_end', { out, lost, stops: stopsMade, seconds: Math.round(tNow) });
   }
 
   function stepDrive(dt) {
@@ -416,19 +473,30 @@
 
   function onStopped(releaseV) {
     departed = false;
-    const level_ = M.isLevel(car.y, T.levelTol);
-    TR().track('stop', { level: level_ ? 1 : 0, off: Math.round(Math.abs(car.y - Math.round(car.y)) * 100) / 100 });
-    if (level_) {
-      car.y = Math.round(car.y);
-      if (!REDUCED) { settleT = 1; settleDir = releaseV >= 0 ? 1 : -1; }
+    const off = Math.abs(car.y - Math.round(car.y));
+    TR().track('stop', { level: off <= T.levelTol ? 1 : 0, off: Math.round(off * 100) / 100 });
+    if (off <= T.snapZone) {
+      /* Inside the levelling zone the car takes itself the rest of the way,
+         the way a real one does. Outside it, that is a genuine miss: it bumps,
+         it sags, and it costs the seconds it costs. */
+      phase = 'level';
+      levelFrom = car.y; levelTo = Math.round(car.y); levelT = 0;
+      levelDir = releaseV >= 0 ? 1 : -1;
       sag = 0;
-      startServe(car.y);
     } else {
-      /* A missed stop opens no doors, so no smoke gets in. What it costs is the
-         overshoot, the sag and the nudge back, and under a fire that is the
-         only currency there is. */
       sag = 2;
       if (sfx) sfx.play('drop');
+    }
+  }
+
+  function stepLevelling(dt) {
+    levelT += dt;
+    const k = Math.min(1, levelT / T.levelS);
+    car.y = levelFrom + (levelTo - levelFrom) * ease(k);
+    if (k >= 1) {
+      car.y = levelTo;
+      if (!REDUCED) { settleT = 1; settleDir = levelDir; }
+      startServe(levelTo);
     }
   }
 
@@ -529,7 +597,7 @@
      omitted depends on where that level's guests are standing. */
   let bakeKey = '', baked = {};
   function corridorKey() {
-    return [geo.corW, geo.rightW, geo.floorPx, floors(), levelIndex].join('|');
+    return [geo.corW, geo.rightW, geo.floorPx, floors(), level ? level.fire : 0].join('|');
   }
   function bakeCorridors() {
     baked = {};
@@ -1084,6 +1152,7 @@
     smokeLayer(1.00, performance.now());                     // the volume, behind them
     const h = geo.floorPx * 0.52;
     const tt = now / 1000, edgePad = geo.floorPx * 0.16;
+    for (const r of fallen) drawFallen(r);
     for (const p of waiting) {
       const q = personXY(p);
       /* PACING. Nobody waiting for a lift in a fire stands still. Some walk a
@@ -1105,7 +1174,7 @@
         gait = (tt * sp * 4.6 + hash01(p.id * 2.7)) % 1;
       }
       const m = drawPerson(px2, q.y, h, p.exp, p.id + 1, now, face, gait);
-      drawBreath(m.hx, m.headTop, m.h, p.exp, now);
+      drawOxygen(m.hx, m.headTop, m.h, p.exp);
       /* WHERE IT ACTUALLY DREW. A contrast sweep that guesses these from the
          nominal height samples empty air, because a figure shrinks by up to a
          quarter as they duck and every person has their own height. Three
@@ -1162,8 +1231,10 @@
      drops. Colour never carries it alone. */
   function drawPerson(cx, baseY, h0, exp, seed, now, face, gait) {
     const rnd = (k) => hash01(seed * 7.3 + k * 19.7);
+    const fem = rnd(8) > 0.5;
+    const fit = OUTFITS[Math.floor(rnd(9) * OUTFITS.length) % OUTFITS.length];
     const duck = ease(Math.max(0, (exp - 0.26) / 0.62));
-    const h = h0 * (0.92 + 0.16 * rnd(1)) * (1 - 0.24 * duck);
+    const h = h0 * (fem ? 0.90 : 0.95) * (0.94 + 0.13 * rnd(1)) * (1 - 0.24 * duck);
     const f = face || 1;
     const t = REDUCED ? 0 : now / 1000;
     const walking = gait != null && gait >= 0 && !REDUCED;
@@ -1175,15 +1246,19 @@
     const Y = (u) => baseY - h * u - bob;
     const lean = f * h * (walking ? 0.030 : 0.008) + f * h * 0.075 * duck + (walking ? 0 : idle * h * 0.006);
 
-    const headR = h * 0.079;
+    const headR = h * 0.088;
     const hipY = Y(0.495), shoulderY = Y(0.815) + breath;
     const hipX = cx + lean * 0.30, shoulderX = cx + lean;
     const legLen = hipY - baseY;                              // negative, downward
     const armLen = h * 0.335;
-    const depth = h * 0.125 * (0.9 + 0.2 * rnd(6));           // how deep front-to-back
+    /* WITH SOME MASS TO THEM. A profile body is far narrower than a front-on
+       one, and drawn at the old depth they came out gaunt - spindly enough
+       that the contrast sweep could barely find them, which was the 1.7 the
+       last pass left unresolved. */
+    const depth = h * (fem ? 0.150 : 0.180) * (0.92 + 0.16 * rnd(6));
 
     const dark = ctx.createLinearGradient(0, Y(1.0), 0, baseY);
-    dark.addColorStop(0, BODY_HI); dark.addColorStop(1, BODY_LO);
+    dark.addColorStop(0, fit[0]); dark.addColorStop(1, fit[1]);
     const far = 'rgba(14,12,20,0.85)';                        // limbs on the far side
 
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
@@ -1205,11 +1280,11 @@
       const ky = hipY + Math.cos(a1) * thigh;
       const ax = kx + f * Math.sin(a2) * shin;
       const ay = Math.min(baseY, ky + Math.cos(a2) * shin);
-      ctx.strokeStyle = colour; ctx.lineWidth = Math.max(2, h * 0.062);
+      ctx.strokeStyle = colour; ctx.lineWidth = Math.max(2.4, h * (fem ? 0.070 : 0.084));
       ctx.beginPath(); ctx.moveTo(hipX, hipY); ctx.lineTo(kx, ky); ctx.lineTo(ax, ay); ctx.stroke();
       // a foot, pointing where they are going
-      ctx.lineWidth = Math.max(1.8, h * 0.040);
-      ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(ax + f * h * 0.055, ay + h * 0.004); ctx.stroke();
+      ctx.lineWidth = Math.max(2, h * 0.052);
+      ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(ax + f * h * 0.062, ay + h * 0.004); ctx.stroke();
     };
 
     const drawArm = (side, colour) => {
@@ -1226,7 +1301,7 @@
         hx2 = shoulderX + f * h * (0.05 * (1 - cover) + 0.055 * cover);
         hy2 = shoulderY + (fore + upper) * (1 - cover) * 0.9 + (Y(0.855) - shoulderY) * cover;
       }
-      ctx.strokeStyle = colour; ctx.lineWidth = Math.max(1.8, h * 0.050);
+      ctx.strokeStyle = colour; ctx.lineWidth = Math.max(2.2, h * 0.066);
       ctx.beginPath(); ctx.moveTo(shoulderX, shoulderY); ctx.lineTo(ex, ey); ctx.lineTo(hx2, hy2); ctx.stroke();
       if (side > 0) { ctx.fillStyle = HEAD; ctx.beginPath(); ctx.arc(hx2, hy2, Math.max(1.2, h * 0.026), 0, Math.PI * 2); ctx.fill(); }
     };
@@ -1249,7 +1324,7 @@
     ctx.closePath(); ctx.fill();
 
     // neck
-    ctx.strokeStyle = HEAD; ctx.lineWidth = Math.max(1.6, h * 0.046);
+    ctx.strokeStyle = HEAD; ctx.lineWidth = Math.max(2, h * 0.062);
     ctx.beginPath();
     ctx.moveTo(shoulderX + f * h * 0.006, Y(0.828));
     ctx.lineTo(shoulderX + f * h * 0.016, Y(0.868) + breath);
@@ -1271,7 +1346,7 @@
     ctx.fillStyle = SKIN_HI;                                  // lit from the ceiling
     ctx.beginPath(); ctx.arc(hx - f * headR * 0.18, hy - headR * 0.34, headR * 0.52, 0, Math.PI * 2); ctx.fill();
     // hair: a cap over the crown and back, longer on some people
-    const longHair = rnd(7) > 0.55;
+    const longHair = fem ? rnd(7) > 0.25 : rnd(7) > 0.80;
     ctx.fillStyle = HAIR;
     ctx.beginPath();
     ctx.moveTo(hx + f * headR * 0.52, hy - headR * 0.62);
@@ -1281,7 +1356,21 @@
     ctx.quadraticCurveTo(hx - f * headR * 0.30, hy - headR * 0.55, hx + f * headR * 0.52, hy - headR * 0.62);
     ctx.closePath(); ctx.fill();
 
-    drawLeg(1, dark); drawArm(1, dark);
+    drawLeg(1, dark);
+    /* A SKIRT is most of what tells you at forty pixels that this is a woman
+       and that one is a man - the silhouette does it, not detail nobody can
+       see. Drawn over the legs, which still show below the hem. */
+    if (fem) {
+      const hemY = Y(0.30), flare = depth * (1.35 + 0.35 * rnd(10));
+      ctx.fillStyle = dark;
+      ctx.beginPath();
+      ctx.moveTo(hipX - f * depth * 0.46, hipY - h * 0.03);
+      ctx.quadraticCurveTo(hipX - f * flare * 0.75, Y(0.42), hipX - f * flare, hemY);
+      ctx.quadraticCurveTo(hipX, hemY + h * 0.022, hipX + f * flare * 0.86, hemY);
+      ctx.quadraticCurveTo(hipX + f * flare * 0.62, Y(0.42), hipX + f * depth * 0.44, hipY - h * 0.03);
+      ctx.closePath(); ctx.fill();
+    }
+    drawArm(1, dark);
 
     return { headTop: hy - headR * (1 + 0.35), hx, h, hy, bodyY: (shoulderY + hipY) / 2, armY: Y(0.62) };
   }
@@ -1289,28 +1378,80 @@
 
   const headCYOf = (baseY, h, duck) => baseY - h * (0.905 - 0.02 * duck);
 
-  /* The breath arc: how long they have, above their head. A DARK track under
-     it, because a coral arc on grey smoke measured 1.06:1. */
-  function drawBreath(cx, topY, h, exp, now) {
-    const left = Math.max(0, 1 - exp);
-    const r = Math.max(6, h * 0.26), ay = topY - r * 0.55;
-    const lw = Math.max(2, h * 0.055);
-    ctx.lineCap = 'round';
-    ctx.lineWidth = lw + 3;
-    ctx.strokeStyle = 'rgba(11,16,32,0.78)';
-    ctx.beginPath(); ctx.arc(cx, ay, r, Math.PI * 1.13, Math.PI * 1.87); ctx.stroke();
-    ctx.lineWidth = lw;
-    ctx.strokeStyle = 'rgba(255,255,255,0.16)';
-    ctx.beginPath(); ctx.arc(cx, ay, r, Math.PI * 1.15, Math.PI * 1.85); ctx.stroke();
-    ctx.strokeStyle = left > 0.55 ? BREATH_OK : left > 0.28 ? BREATH_MID : BREATH_LOW;
-    const a0 = Math.PI * 1.15, a1 = a0 + Math.PI * 0.70 * left;
-    if (left > 0.001) { ctx.beginPath(); ctx.arc(cx, ay, r, a0, a1); ctx.stroke(); }
-    if (exp > FIRE.warnAt && !REDUCED) {
-      const pulse = 0.5 + 0.5 * Math.sin(now / 130);
-      ctx.strokeStyle = 'rgba(240,90,70,' + (0.35 * pulse).toFixed(3) + ')';
-      ctx.lineWidth = Math.max(3, h * 0.09);
-      ctx.beginPath(); ctx.arc(cx, ay, r, a0, a1 + 0.001); ctx.stroke();
+  /* A STRAIGHT CAPSULE, not an arc. How much air somebody has left is the
+     number the whole game is played on, and a depleting arc makes you judge an
+     angle; a bar you read at a glance. Dark track under it, because a coral
+     fill on grey smoke measured 1.06:1 on its own. */
+  function drawOxygen(cx, topY, h, exp) {
+    const left = Math.max(0, Math.min(1, 1 - exp));
+    const bw = Math.max(14, h * 0.72), bh = Math.max(4, h * 0.145);
+    const x = cx - bw / 2, y = topY - bh * 1.9;
+    ctx.fillStyle = 'rgba(10,8,16,0.85)';
+    rr(x - 1.5, y - 1.5, bw + 3, bh + 3, (bh + 3) / 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.13)';
+    rr(x, y, bw, bh, bh / 2); ctx.fill();
+    if (left > 0.005) {
+      ctx.save();
+      ctx.beginPath(); ctx.rect(x, y - 1, Math.max(1, bw * left), bh + 2); ctx.clip();
+      ctx.fillStyle = left > 0.55 ? BREATH_OK : left > 0.28 ? BREATH_MID : BREATH_LOW;
+      rr(x, y, bw, bh, bh / 2); ctx.fill();
+      ctx.restore();
     }
+    if (left < 0.28 && !REDUCED) {
+      const pulse = 0.45 + 0.55 * Math.sin(performance.now() / 150);
+      ctx.strokeStyle = 'rgba(240,90,70,' + (0.55 * pulse).toFixed(3) + ')';
+      ctx.lineWidth = 1.6;
+      rr(x - 1.5, y - 1.5, bw + 3, bh + 3, (bh + 3) / 2); ctx.stroke();
+    }
+  }
+
+  /* THEY COLLAPSE, THEY DO NOT VANISH. Somebody blinking out of existence
+     reads as a rendering glitch, not as a person you failed to reach - and it
+     hid the one thing the player most needs to see. So they sink down against
+     the wall and stay there for the rest of the run: slumped, still, and
+     desaturated, so a corridor you have given up on looks like one. Nothing is
+     drawn over them and nobody dies on screen; the brigade gets them. */
+  function drawFallen(r) {
+    const h = geo.floorPx * 0.50;
+    const baseY = slabY(r.floor) - 3 - geo.floorPx * 0.055;
+    const f = r.side;
+    const x = r.x;
+    const t = Math.min(1, r.t / 0.9);
+    const sink = ease(t);
+    const hipY = baseY - h * 0.20 * (1 - sink) - h * 0.12;
+    const shX = x - f * h * 0.24 * sink, shY = baseY - h * (0.62 - 0.26 * sink);
+
+    ctx.globalAlpha = 0.55 + 0.45 * (1 - sink * 0.35);
+    ctx.fillStyle = 'rgba(40,20,12,0.28)';
+    ctx.beginPath(); ctx.ellipse(x, baseY + 1, h * 0.30, h * 0.045, 0, 0, Math.PI * 2); ctx.fill();
+
+    const g = ctx.createLinearGradient(0, shY, 0, baseY);
+    g.addColorStop(0, '#4A4552'); g.addColorStop(1, '#2B2733');   // the colour has gone out of them
+    ctx.strokeStyle = g; ctx.fillStyle = g;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+
+    // legs, out along the floor
+    ctx.lineWidth = Math.max(2, h * 0.058);
+    ctx.beginPath();
+    ctx.moveTo(x, hipY);
+    ctx.lineTo(x + f * h * 0.26, baseY - h * 0.05);
+    ctx.lineTo(x + f * h * 0.52, baseY - h * 0.012);
+    ctx.stroke();
+    // torso, leaning back against the wall
+    ctx.lineWidth = Math.max(3, h * 0.150);
+    ctx.beginPath(); ctx.moveTo(x, hipY); ctx.lineTo(shX, shY); ctx.stroke();
+    // an arm gone slack
+    ctx.lineWidth = Math.max(1.8, h * 0.048);
+    ctx.beginPath();
+    ctx.moveTo(shX, shY); ctx.lineTo(shX + f * h * 0.10, shY + h * 0.17);
+    ctx.lineTo(shX + f * h * 0.24, baseY - h * 0.02); ctx.stroke();
+    // head, fallen forward
+    const hr = h * 0.082;
+    ctx.fillStyle = '#9C8878';
+    ctx.beginPath(); ctx.arc(shX - f * hr * 0.35, shY - hr * 0.75, hr, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#241C22';
+    ctx.beginPath(); ctx.arc(shX - f * hr * 0.85, shY - hr * 1.05, hr * 0.80, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
   }
 
   function drawSpill() {
@@ -1443,8 +1584,7 @@
     const inside = waiting.length + aboard.length;
     /* Both halves of the comparison, and the damage when there is any: a count
        that only goes up tells you nothing about whether you are still winning. */
-    const line = 'LEVEL ' + (levelIndex + 1) + '   ·   OUT ' + out + ' / ' + totalPeople() +
-                 '   ·   ' + inside + ' INSIDE' + (lost ? '   ·   ' + lost + ' BEHIND' : '');
+    const line = 'OUT ' + out + '   ·   ' + inside + ' INSIDE' + (best ? '   ·   BEST ' + best : '');
     const hs = Math.max(0.66, Math.min(1, LW / 620));
     let fs = Math.round(16 * hs);
     ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
@@ -1452,10 +1592,21 @@
     while (fs > 11 && ctx.measureText(line).width > (LW - SIDE_PAD) - readoutMinX) {
       fs -= 1; ctx.font = '600 ' + fs + 'px Inter, sans-serif';
     }
+    const readoutLeft = (LW - SIDE_PAD) - ctx.measureText(line).width;
     ctx.fillText(line, LW - SIDE_PAD, topBand() / 2);
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    /* THE STRIKES, as dots. Three people overcome ends the run, so how many
+       are gone is the second thing worth knowing after the score, and a count
+       you have to read as a word is a count you miss. */
+    const dotR = 5, dg = 15;
+    const dx0 = readoutLeft - dg * STRIKES - 12;
+    for (let i = 0; i < STRIKES; i++) {
+      ctx.beginPath(); ctx.arc(dx0 + i * dg, topBand() / 2, dotR, 0, Math.PI * 2);
+      ctx.fillStyle = i < lost ? '#F05A46' : 'rgba(255,255,255,0.18)';
+      ctx.fill();
+    }
 
-    if (MODE === 'mobile' && statusLane() > 0 && levelIndex < 3 && tNow < 14) {
+    if (MODE === 'mobile' && statusLane() > 0 && tNow < 14) {
       ctx.fillStyle = 'rgba(255,255,255,0.44)';
       ctx.font = '600 14px Inter, sans-serif';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -1501,27 +1652,22 @@
 
     ctx.textAlign = 'center'; ctx.textBaseline = 'top';
     ctx.fillStyle = '#FFFFFF'; ctx.font = '800 34px Inter, sans-serif';
-    ctx.fillText(won ? 'EVERYONE OUT' : out + ' OF ' + totalPeople() + ' OUT', b.px + b.pw / 2, b.py + 34);
+    ctx.fillText(out + (out === 1 ? ' PERSON OUT' : ' PEOPLE OUT'), b.px + b.pw / 2, b.py + 34);
 
     ctx.font = '600 17px Inter, sans-serif';
     ctx.fillStyle = 'rgba(255,255,255,0.82)';
-    let sub;
-    if (won) sub = 'Level ' + (levelIndex + 1) + ' · ' + stopsMade + ' stops, par ' + level.par;
-    else {
-      const uniq = [...new Set(lostFloors)].sort((a, b2) => b2 - a);
-      sub = uniq.length === 1 ? 'Floor ' + uniq[0] + ' was still waiting.'
-          : 'Floors ' + uniq.slice(0, 3).join(', ') + ' were still waiting.';
-    }
+    const uniq = [...new Set(lostFloors)].sort((a, b2) => b2 - a);
+    const sub = uniq.length === 1 ? 'Floor ' + uniq[0] + ' was still waiting.'
+              : 'Floors ' + uniq.slice(0, 3).join(', ') + ' were still waiting.';
     ctx.fillText(sub, b.px + b.pw / 2, b.py + 84);
 
     ctx.font = '500 16px Inter, sans-serif';
     ctx.fillStyle = 'rgba(255,255,255,0.62)';
-    ctx.fillText(won ? (levelIndex < LEVELS.length - 1 ? 'The brigade takes it from here.' : 'That is every building. Well driven.')
-                     : 'The brigade reached them after you.',
+    ctx.fillText(out >= best && out > 0 ? 'A new best.' : 'Best so far: ' + best,
                  b.px + b.pw / 2, b.py + 118);
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
 
-    const label = won ? (levelIndex < LEVELS.length - 1 ? 'NEXT BUILDING' : 'PLAY AGAIN') : 'TRY AGAIN';
+    const label = 'PLAY AGAIN';
     endCTA = UI.drawCTA(ctx, label, b.px + b.pw / 2, b.py + b.ph - 40 - 25, CORAL);
   }
   function onEndPointer(p) {
@@ -1713,8 +1859,8 @@
     get car() { return car; }, get phase() { return phase; }, get out() { return out; },
     get lost() { return lost; }, get waiting() { return waiting; }, get aboard() { return aboard; },
     get smoke() { return Array.from(smoke || []); }, get carSmoke() { return carSmoke; },
-    get level() { return level; }, get levelIndex() { return levelIndex; },
-    geo, LEVELS, start: startLevel,
+    get level() { return level; }, get fallen() { return fallen; },
+    geo, RUN, start: startRun,
     get renderMs() { return renderMs; },
     /* Drive headlessly, for verification: hold a direction, then let go and let
        it brake to rest and serve. */
@@ -1722,7 +1868,7 @@
       const dt = 1 / 120;
       for (let t = 0; t < secs; t += dt) { keyDir = dir; step(dt); }
       keyDir = 0;
-      for (let i = 0; i < 2400 && (Math.abs(car.v) > 1e-6 || phase === 'serve'); i++) step(dt);
+      for (let i = 0; i < 2400 && (Math.abs(car.v) > 1e-6 || phase === 'serve' || phase === 'level'); i++) step(dt);
       return { y: car.y, out, lost, phase };
     },
   };
@@ -1747,7 +1893,7 @@
     requestAnimationFrame(frame);
   }
 
-  startLevel(loadSave());
+  startRun();
   setCanvasVars();
   resizeCanvas();
   fitFullscreen();
