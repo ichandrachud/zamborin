@@ -1234,19 +1234,40 @@
          a turn to look at what is coming down the corridor. They never shuffle
          PAST their place, so the queue holds its shape. */
       const walking = p.stand < p.goal - 0.004;
-      let px2 = q.x, face = q.face, gait = -1;
-      if (walking && !REDUCED) {
-        gait = (tt * (2.1 + 0.7 * hash01(p.id * 2.7)) * (1 + urgency * 0.5)) % 1;
-      } else if (!REDUCED && p.exp < 0.62) {
+      let px2 = q.x;
+      /* WAITING AT THE DOORS. This used to run a full walk cycle while the body
+         moved six pixels and reversed halfway through it, with the facing on a
+         separate clock again - legs going, nobody travelling. That reads as a
+         figure vibrating on the spot, and because it never ended it read as
+         STUCK. Somebody waiting for a lift is still: they hold, they shift
+         their weight, they glance back down the corridor. So the shift is now
+         one discrete step and a long hold, not an oscillation. */
+      if (!walking && !REDUCED && p.exp < 0.62) {
         const sp = (0.42 + 0.26 * hash01(p.id * 5.1 + 2)) * (1 + urgency * 0.9);
         const ph = (tt * sp + hash01(p.id * 9.3 + 3)) % 1;
-        px2 = q.x - q.face * Math.abs(Math.sin(ph * Math.PI)) * geo.corW * (0.014 + 0.012 * urgency);
+        const shift = ph < 0.26 ? Math.sin((ph / 0.26) * Math.PI) : 0;
+        px2 = q.x - q.face * shift * geo.corW * (0.016 + 0.014 * urgency);
         const lo = (q.face > 0 ? geo.leftX : geo.rightX) + edgePad;
         const hi = (q.face > 0 ? geo.leftX + geo.corW : geo.rightX + geo.rightW) - edgePad;
         px2 = Math.max(lo, Math.min(hi, px2));
-        const look = (tt * (0.30 + 0.22 * hash01(p.id * 6.1)) + hash01(p.id * 1.9)) % 1;
-        face = look < (0.22 + 0.20 * urgency) ? -q.face : q.face;
-        gait = ph;
+      }
+      /* THE LEGS ARE DRIVEN BY THE GROUND, not by a clock. A gait on its own
+         timer slides the feet whenever the two disagree, and every version of
+         "how fast should the legs go" is that disagreement waiting to happen.
+         Advance the cycle by the distance actually covered and it cannot: a
+         figure that is not moving is STANDING, which is the whole fix. */
+      const stride = h * 0.42;
+      if (p.px == null) { p.px = px2; p.gp = 0; }
+      const moved = Math.abs(px2 - p.px);
+      p.gp = (p.gp + moved / stride) % 1;
+      p.px = px2;
+      let gait = moved > 0.05 ? p.gp : -1;
+      /* A glance back at what is coming: a held pose for about a second every
+         five, never the strobe a fast flip-flop produced. */
+      let face = q.face;
+      if (!walking && !REDUCED) {
+        const lp = (tt / (4.2 + 2.2 * hash01(p.id * 6.1)) + hash01(p.id * 1.9)) % 1;
+        if (lp < 0.20 - 0.06 * urgency) face = -q.face;
       }
       /* A COUGH is the warning that somebody is about to go. It is a jolt you
          can see from across the building, it fires on its own rhythm per
@@ -1284,7 +1305,15 @@
       const k = Math.min(1, r.t / r.dur);
       const x = r.x0 + (r.x1 - r.x0) * (r.kind === 'out' ? ease(k) : k);
       const dir = r.x1 >= r.x0 ? 1 : -1;
-      const gait = REDUCED ? -1 : (now / 1000 * 3.4 + r.seed * 0.37) % 1;
+      /* Same rule as the people waiting: the ground drives the legs. A fixed
+         3.4 Hz over a dash this quick wants a stride four times the one this
+         figure has, which is skating rather than running. */
+      const stride = h * 0.42;
+      if (r.px == null) { r.px = x; r.gp = 0; }
+      const moved = Math.abs(x - r.px);
+      r.gp = (r.gp + moved / stride) % 1;
+      r.px = x;
+      const gait = (REDUCED || moved <= 0.05) ? -1 : r.gp;
       ctx.globalAlpha = r.kind === 'out' ? 1 - Math.max(0, (k - 0.65) / 0.35) : 1;
       drawPerson(x, slabY(r.floor) - 3, h, 0, r.seed, now, dir, gait);
       ctx.globalAlpha = 1;
@@ -1977,7 +2006,7 @@
     get lost() { return lost; }, get waiting() { return waiting; }, get aboard() { return aboard; },
     get smoke() { return Array.from(smoke || []); }, get carSmoke() { return carSmoke; },
     get level() { return level; }, get fallen() { return fallen; },
-    geo, RUN, start: startRun, snd, FIRE,
+    geo, RUN, start: startRun, snd, FIRE, get runners() { return runners; },
     get renderMs() { return renderMs; },
     /* Drive headlessly, for verification: hold a direction, then let go and let
        it brake to rest and serve. */
