@@ -102,21 +102,26 @@
      nothing to obscure, so the smoke read as a slightly darker dark. A lit
      corridor fixes both - smoke works by BLOCKING LIGHT, and there is finally
      some light for it to block. Reference register only; nothing is traced. */
-  const SHELL_TOP = '#3A2438', SHELL_BOT = '#2A1A2C';    // the shell behind it all
-  const CEIL_HI = '#F7C877', CEIL_LO = '#E9A751';
-  const CORNICE = '#C4703A';
-  const WALL_HI = '#F2AC42', WALL_LO = '#DD8F2F';
-  const WAINSCOT = '#D2812B', CHAIR_RAIL = '#B8642C';
-  const SKIRT_C = '#A8492F';
-  const FLOOR_HI = '#6E5070', FLOOR_LO = '#4B3552';
-  const DOOR_DARK = '#2B2331', DOOR_PANEL = '#372B3E', DOOR_EDGE = '#1D1723';
-  const ARCH = '#F8C97E';
-  const HANDLE = '#E8B44C';
-  const PLAQUE = '#241C28', PLAQUE_INK = '#F4E9D6';
-  const SCONCE = '#FFE6B4';
-  const FRAME_C = '#7A4A3A', FRAME_MAT = '#F6E8D8', FRAME_ART = '#C9685F';
-  const PLANT_C = '#4E8A54', POT_C = '#EDE6DC';
-  const LAMP = '#FFD98A';
+  const SHELL_TOP = '#2E2036', SHELL_BOT = '#241A2A';    // the shell behind it all
+  /* PALE CREAM WALLS, a saturated ceiling. The wall was a strong amber, which
+     was the single worst decision in the building: everything looked orange,
+     and firelight - which is orange - had nowhere to land. A cream wall gives
+     the fire somewhere to read, gives dark smoke a huge range to work in, and
+     is what the reference actually is. */
+  const CEIL_HI = '#F3AE45', CEIL_LO = '#DE8B29';
+  const CORNICE = '#B85C25';
+  const WALL_HI = '#F7DDB2', WALL_LO = '#EDCB96';
+  const WALL_SEAM = 'rgba(150,96,40,0.10)';
+  const SKIRT_C = '#3A2C3E';
+  const FLOOR_HI = '#9179AE', FLOOR_LO = '#6E5689', TILE_LINE = 'rgba(40,26,52,0.28)';
+  const REVEAL = '#C0691F', REVEAL_TOP = '#EDA152', REVEAL_DEEP = '#8A4616';
+  const DOOR_DARK = '#2A2838', DOOR_PANEL = '#332F44', DOOR_EDGE = '#1A1826';
+  const HANDLE = '#F0A93C';
+  const PLAQUE = '#1E1B26', PLAQUE_INK = '#FFFFFF';
+  const SCONCE = '#FFF2CE', SCONCE_ARM = '#8A4A22';
+  const FRAME_C = '#2E2A40', FRAME_MAT = '#F6D9B8', FRAME_ART = '#E07C3C';
+  const PLANT_C = '#4E9A56', POT_C = '#F2EEE8';
+  const LAMP = '#FFE3A6';
   const CARPET = '#8E3A34';
   const SHAFT = '#0B1020', CABLE = 'rgba(255,255,255,0.08)';
   const CAR_HI = '#FFD98A', CAR_MID = '#E8B44C', CAR_LO = '#C9861E';
@@ -135,7 +140,8 @@
      light head keeps carrying it inside the smoke. It also matches the doors,
      which is what a person looks like in a lit corridor. */
   const BODY_HI = '#2E2838', BODY_LO = '#1A1622';        // clothing
-  const HEAD = '#F0D8BE', SKIN_HI = '#FFE9D2';           // head and hands
+  const HEAD = '#C9A98A', SKIN_HI = '#E4C6A6';           // head and hands
+  const HAIR = '#241C22';
   /* DARK SMOKE, like Empyrean's, with a lit top surface. Pale smoke is what
      forced a dark halo behind every person - a light figure had nothing to sit
      against once a corridor filled. A dark mass fixes that at the source, it
@@ -548,123 +554,9 @@
     return c;
   }
 
-  /* Everything is drawn in a corridor that runs left-to-right with the LIFT AT
-     THE RIGHT-HAND END, and the right-hand corridor is mirrored on the way
-     out. One piece of drawing code, both sides. */
-  function paintCorridor(b, w, h, f, isLobby) {
-    const ceilH = Math.max(4, h * 0.10);
-    const railY = h * 0.60;
-    const skirtH = Math.max(3, h * 0.075);
-    const floorH = Math.max(3, h * 0.055);
-    const wallBot = h - skirtH - floorH;
-    const tone = (f % 2) ? 0 : -4;                       // a touch of variation per floor
-
-    const shade = (hex, d) => {
-      const n = parseInt(hex.slice(1), 16);
-      const cl = v => Math.max(0, Math.min(255, v + d));
-      return 'rgb(' + cl(n >> 16) + ',' + cl((n >> 8) & 255) + ',' + cl(n & 255) + ')';
-    };
-
-    // ceiling
-    const cg = b.createLinearGradient(0, 0, 0, ceilH);
-    cg.addColorStop(0, shade(CEIL_HI, tone)); cg.addColorStop(1, shade(CEIL_LO, tone));
-    b.fillStyle = cg; b.fillRect(0, 0, w, ceilH);
-    b.fillStyle = CORNICE; b.fillRect(0, ceilH, w, Math.max(2, h * 0.022));
-
-    // wall
-    const wg = b.createLinearGradient(0, ceilH, 0, wallBot);
-    wg.addColorStop(0, shade(WALL_HI, tone)); wg.addColorStop(1, shade(WALL_LO, tone));
-    b.fillStyle = wg; b.fillRect(0, ceilH, w, wallBot - ceilH);
-    // lower wall below the chair rail is a shade deeper
-    b.fillStyle = shade(WAINSCOT, tone); b.fillRect(0, railY, w, wallBot - railY);
-    b.fillStyle = CHAIR_RAIL; b.fillRect(0, railY - Math.max(1.5, h * 0.014), w, Math.max(2, h * 0.020));
-
-    // skirting and the floor beyond it
-    b.fillStyle = SKIRT_C; b.fillRect(0, wallBot, w, skirtH);
-    const fg = b.createLinearGradient(0, wallBot + skirtH, 0, h);
-    fg.addColorStop(0, FLOOR_HI); fg.addColorStop(1, FLOOR_LO);
-    b.fillStyle = fg; b.fillRect(0, wallBot + skirtH, w, h - wallBot - skirtH);
-
-    if (isLobby) { paintLobby(b, w, h, ceilH, wallBot, skirtH); }
-    else { paintDoors(b, w, h, ceilH, railY, wallBot, f); }
-
-    // the runner, leading away toward the lift
-    const rin = Math.round(w * 0.04), rh = Math.max(3, floorH * 0.72);
-    b.fillStyle = CARPET;
-    b.fillRect(rin, wallBot + skirtH + (floorH - rh) / 2, w - rin * 2, rh);
-
-    // ceiling lights, and the pool each one throws down the wall
-    const bays = Math.max(2, Math.round(w / (h * 1.05)));
-    for (let i = 0; i < bays; i++) {
-      const lx = w * ((i + 0.5) / bays);
-      const g2 = b.createRadialGradient(lx, ceilH, 2, lx, ceilH, h * 0.95);
-      g2.addColorStop(0, 'rgba(255,231,176,0.34)');
-      g2.addColorStop(0.45, 'rgba(255,225,160,0.11)');
-      g2.addColorStop(1, 'rgba(255,220,150,0)');
-      b.fillStyle = g2; b.fillRect(0, 0, w, h);
-      b.fillStyle = LAMP;
-      const lw = Math.max(8, h * 0.15);
-      b.fillRect(lx - lw / 2, Math.max(1, ceilH * 0.35), lw, Math.max(2, h * 0.030));
-    }
-  }
-
-  /* Guest doors: recessed into a lighter architrave, a numbered plaque over
-     each one and a brass handle. Doors are omitted where somebody is standing,
-     both because a figure in a doorway looks wrong and because a pale door
-     behind a figure costs it its contrast. */
-  function paintDoors(b, w, h, ceilH, railY, wallBot, f) {
-    const doorH = (wallBot - ceilH) * 0.86, doorW = doorH * 0.52;
-    const lobby = Math.max(doorW * 1.4, w * 0.18);
-    const runX = 6, runW = w - lobby - 6;
-    const n = Math.max(1, Math.min(3, Math.floor(runW / (doorW * 2.3))));
-    const gap = runW / n;
-    const stands = (standsBy[f] || []).map(s => personXInCorridor(s.stand, w));
-    const keepOut = doorW * 0.5 + geo.floorPx * 0.52 * 0.24;   // clear of anyone standing
-
-    for (let i = 0; i < n; i++) {
-      const cx = runX + gap * (i + 0.5);
-      if (stands.some(px2 => Math.abs(px2 - cx) < keepOut)) continue;
-      const dx = Math.round(cx - doorW / 2), dy = Math.round(wallBot - doorH);
-      const aw = Math.max(3, doorW * 0.10);
-      // architrave, then the recess it sits in
-      b.fillStyle = ARCH;
-      b.fillRect(dx - aw, dy - aw, doorW + aw * 2, doorH + aw);
-      b.fillStyle = 'rgba(90,45,20,0.30)';
-      b.fillRect(dx - aw * 0.4, dy - aw * 0.4, doorW + aw * 0.8, doorH + aw * 0.4);
-      // the door
-      const dg = b.createLinearGradient(dx, dy, dx + doorW, dy);
-      dg.addColorStop(0, DOOR_EDGE); dg.addColorStop(0.35, DOOR_DARK); dg.addColorStop(1, DOOR_EDGE);
-      b.fillStyle = dg; b.fillRect(dx, dy, doorW, doorH);
-      // an inset panel, as a value step
-      b.fillStyle = DOOR_PANEL;
-      b.fillRect(dx + doorW * 0.16, dy + doorH * 0.14, doorW * 0.68, doorH * 0.52);
-      // brass handle on the lift side
-      b.fillStyle = HANDLE;
-      b.beginPath();
-      b.arc(dx + doorW * 0.84, dy + doorH * 0.58, Math.max(1.4, doorW * 0.065), 0, Math.PI * 2);
-      b.fill();
-      // the numbered plaque above it, and the little light over that
-      const ph2 = Math.max(6, doorH * 0.13), pw2 = doorW + aw * 2;
-      const py2 = dy - aw - ph2 - Math.max(2, h * 0.02);
-      if (py2 > ceilH + 2) {
-        b.fillStyle = PLAQUE;
-        b.fillRect(dx - aw, py2, pw2, ph2);
-        if (ph2 >= 9) drawUnflipped(b, String(f * 100 + n - i), dx - aw + pw2 / 2, py2 + ph2 * 0.55,
-          '700 ' + Math.round(ph2 * 0.70) + 'px Inter, sans-serif', PLAQUE_INK);
-        const gl = b.createRadialGradient(dx - aw + pw2 / 2, py2, 1, dx - aw + pw2 / 2, py2, pw2 * 0.7);
-        gl.addColorStop(0, 'rgba(255,180,90,0.40)'); gl.addColorStop(1, 'rgba(255,180,90,0)');
-        b.fillStyle = gl; b.fillRect(dx - aw * 2, py2 - ph2, pw2 + aw * 4, ph2 * 2.2);
-      }
-      // a wall sconce and a picture in the gap after the door
-      if (gap > doorW * 1.9) {
-        const sx = cx + gap * 0.5;
-        if (sx < w - lobby * 0.5) paintSconce(b, sx, ceilH + (railY - ceilH) * 0.55, h);
-        if (h > 56 && i % 2 === 0 && sx < w - lobby * 0.5) paintPicture(b, sx, ceilH + (railY - ceilH) * 0.30, h);
-      }
-    }
-  }
-
-  /* Draw a string the right way round inside a canvas that may be mirrored. */
+  /* Draw a string the right way round inside a canvas that may be mirrored.
+     The right-hand hallway is painted flipped so one piece of code draws both,
+     and without this the exit sign reads TUO. */
   function drawUnflipped(b, text, x, y, font, fill) {
     const m = b.getTransform();
     b.save();
@@ -676,59 +568,271 @@
     b.textAlign = 'left'; b.textBaseline = 'top';
   }
 
-  function paintSconce(b, x, y, h) {
-    const sw = Math.max(4, h * 0.055), sh = Math.max(7, h * 0.10);
-    const g2 = b.createRadialGradient(x, y, 1, x, y, h * 0.42);
-    g2.addColorStop(0, 'rgba(255,206,120,0.42)'); g2.addColorStop(1, 'rgba(255,206,120,0)');
-    b.fillStyle = g2; b.fillRect(x - h * 0.45, y - h * 0.45, h * 0.9, h * 0.9);
-    b.fillStyle = '#8C3F2E'; b.fillRect(x - sw * 0.62, y - sh * 0.5, sw * 1.24, sh);
-    b.fillStyle = SCONCE; b.fillRect(x - sw * 0.42, y - sh * 0.36, sw * 0.84, sh * 0.72);
+  /* Everything is drawn in a corridor that runs left-to-right with the LIFT AT
+     THE RIGHT-HAND END, and the right-hand corridor is mirrored on the way
+     out. One piece of drawing code, both sides. */
+  function paintCorridor(b, w, h, f, isLobby) {
+    const ceilH = Math.max(5, h * 0.115);
+    const corn = Math.max(2, h * 0.026);
+    const skirtH = Math.max(2, h * 0.030);
+    const floorH = Math.max(5, h * 0.115);
+    const wallTop = ceilH + corn;
+    const wallBot = h - floorH - skirtH;
+
+    // ceiling: the one saturated surface, as in the reference
+    const cg = b.createLinearGradient(0, 0, 0, ceilH);
+    cg.addColorStop(0, CEIL_HI); cg.addColorStop(1, CEIL_LO);
+    b.fillStyle = cg; b.fillRect(0, 0, w, ceilH);
+    b.fillStyle = CORNICE; b.fillRect(0, ceilH, w, corn);
+
+    // wall: pale cream, with faint panel seams
+    const wg = b.createLinearGradient(0, wallTop, 0, wallBot);
+    wg.addColorStop(0, WALL_HI); wg.addColorStop(1, WALL_LO);
+    b.fillStyle = wg; b.fillRect(0, wallTop, w, wallBot - wallTop);
+    b.fillStyle = WALL_SEAM;
+    for (let sx = h * 1.15; sx < w; sx += h * 1.15) b.fillRect(Math.round(sx), wallTop, 1, wallBot - wallTop);
+
+    // skirting, then a tiled floor
+    b.fillStyle = SKIRT_C; b.fillRect(0, wallBot, w, skirtH);
+    const fg = b.createLinearGradient(0, wallBot + skirtH, 0, h);
+    fg.addColorStop(0, FLOOR_HI); fg.addColorStop(1, FLOOR_LO);
+    b.fillStyle = fg; b.fillRect(0, wallBot + skirtH, w, h - wallBot - skirtH);
+    b.fillStyle = TILE_LINE;
+    const tile = Math.max(10, h * 0.30);
+    for (let tx = 0; tx < w + tile; tx += tile) {
+      b.beginPath();
+      b.moveTo(tx, h); b.lineTo(tx + tile * 0.34, wallBot + skirtH);
+      b.lineWidth = 1; b.strokeStyle = TILE_LINE; b.stroke();
+    }
+    b.fillStyle = 'rgba(255,255,255,0.07)';
+    b.fillRect(0, wallBot + skirtH, w, Math.max(1, floorH * 0.18));
+
+    if (isLobby) paintLobby(b, w, h, wallTop, wallBot, skirtH);
+    else paintDoors(b, w, h, wallTop, wallBot, f);
+
+    // the runner along the floor, leading to the lift
+    const rin = Math.round(w * 0.03), rh = Math.max(3, floorH * 0.50);
+    b.fillStyle = CARPET;
+    b.fillRect(rin, wallBot + skirtH + floorH * 0.30, w - rin * 2, rh);
+
+    /* CEILING LIGHTS, back where they were. Set into the ceiling, each throwing
+       a soft cone down the cream wall - which is most of why the corridor
+       reads as lit at all. */
+    const bays = Math.max(2, Math.round(w / (h * 0.95)));
+    for (let i = 0; i < bays; i++) {
+      const lx = w * ((i + 0.5) / bays);
+      const g2 = b.createRadialGradient(lx, ceilH, 2, lx, ceilH, h * 1.0);
+      g2.addColorStop(0, 'rgba(255,236,186,0.40)');
+      g2.addColorStop(0.42, 'rgba(255,228,168,0.13)');
+      g2.addColorStop(1, 'rgba(255,220,150,0)');
+      b.fillStyle = g2; b.fillRect(0, 0, w, h);
+      const lw = Math.max(10, h * 0.19), lh = Math.max(2, h * 0.035);
+      b.fillStyle = LAMP;
+      b.fillRect(lx - lw / 2, Math.max(1, ceilH * 0.42), lw, lh);
+      b.fillStyle = 'rgba(255,255,255,0.55)';
+      b.fillRect(lx - lw * 0.36, Math.max(1, ceilH * 0.42), lw * 0.72, Math.max(1, lh * 0.42));
+    }
+  }
+
+  /* Guest doors, recessed into a deep reveal: the opening is a warm box whose
+     top face catches the ceiling light and whose sides fall away dark, with a
+     numbered plaque inside it and the door itself set back. That box is what
+     makes the wall read as having depth rather than as stickers on a flat.
+     Doors are omitted where somebody is standing. */
+  function paintDoors(b, w, h, wallTop, wallBot, f) {
+    const openH = (wallBot - wallTop) * 0.90;
+    const doorW = openH * 0.46;
+    const rev = Math.max(3, doorW * 0.13);
+    const lobby = Math.max(doorW * 1.5, w * 0.16);
+    const runX = 6, runW = w - lobby - 6;
+    const n = Math.max(1, Math.min(3, Math.floor(runW / (doorW * 2.3))));
+    const gap = runW / n;
+    const stands = (standsBy[f] || []).map(s => personXInCorridor(s.stand, w));
+    const keepOut = doorW * 0.55 + geo.floorPx * 0.52 * 0.24;
+
+    for (let i = 0; i < n; i++) {
+      const cx = runX + gap * (i + 0.5);
+      if (stands.some(px2 => Math.abs(px2 - cx) < keepOut)) continue;
+      const ox = Math.round(cx - doorW / 2 - rev), oy = Math.round(wallBot - openH);
+      const ow = doorW + rev * 2;
+
+      // the reveal: lit top face, dark sides
+      b.fillStyle = REVEAL; b.fillRect(ox, oy, ow, openH);
+      const tg = b.createLinearGradient(0, oy, 0, oy + rev * 2.2);
+      tg.addColorStop(0, REVEAL_TOP); tg.addColorStop(1, REVEAL);
+      b.fillStyle = tg; b.fillRect(ox, oy, ow, rev * 2.2);
+      const sgL = b.createLinearGradient(ox, 0, ox + rev, 0);
+      sgL.addColorStop(0, REVEAL_DEEP); sgL.addColorStop(1, REVEAL);
+      b.fillStyle = sgL; b.fillRect(ox, oy + rev * 1.4, rev, openH - rev * 1.4);
+      const sgR = b.createLinearGradient(ox + ow, 0, ox + ow - rev, 0);
+      sgR.addColorStop(0, REVEAL_DEEP); sgR.addColorStop(1, REVEAL);
+      b.fillStyle = sgR; b.fillRect(ox + ow - rev, oy + rev * 1.4, rev, openH - rev * 1.4);
+
+      // the plaque, inside the reveal at the top
+      const ph2 = Math.max(6, openH * 0.11);
+      const py2 = oy + rev * 0.9;
+      b.fillStyle = PLAQUE;
+      b.fillRect(ox + rev * 0.7, py2, ow - rev * 1.4, ph2);
+      if (ph2 >= 9) drawUnflipped(b, String(f * 100 + n - i), ox + ow / 2, py2 + ph2 * 0.55,
+        '700 ' + Math.round(ph2 * 0.72) + 'px Inter, sans-serif', PLAQUE_INK);
+
+      // the door, set back inside the reveal
+      const dx = ox + rev, dy = py2 + ph2 + Math.max(1, rev * 0.5), dh2 = wallBot - dy;
+      const dg = b.createLinearGradient(dx, 0, dx + doorW, 0);
+      dg.addColorStop(0, DOOR_EDGE); dg.addColorStop(0.30, DOOR_DARK);
+      dg.addColorStop(0.85, DOOR_DARK); dg.addColorStop(1, DOOR_EDGE);
+      b.fillStyle = dg; b.fillRect(dx, dy, doorW, dh2);
+      // the inset panel, drawn as a value step with a thin lighter edge
+      const pi = doorW * 0.14;
+      b.fillStyle = 'rgba(255,255,255,0.07)';
+      b.fillRect(dx + pi, dy + dh2 * 0.10, doorW - pi * 2, dh2 * 0.74);
+      b.fillStyle = DOOR_PANEL;
+      b.fillRect(dx + pi + 1, dy + dh2 * 0.10 + 1, doorW - pi * 2 - 2, dh2 * 0.74 - 2);
+      // brass knob
+      b.fillStyle = HANDLE;
+      b.beginPath();
+      b.arc(dx + doorW * 0.14, dy + dh2 * 0.52, Math.max(1.5, doorW * 0.062), 0, Math.PI * 2);
+      b.fill();
+
+      // a framed picture on the wall in the gap after the door
+      if (gap > doorW * 2.0 && h > 46) {
+        const px3 = cx + gap * 0.5;
+        if (px3 < w - lobby * 0.6) paintPicture(b, px3, wallTop + (wallBot - wallTop) * 0.36, h);
+      }
+    }
   }
 
   function paintPicture(b, x, y, h) {
-    const fw = Math.max(9, h * 0.15), fh = fw * 1.15;
+    const fw = Math.max(11, h * 0.20), fh = fw * 1.02;
+    b.fillStyle = 'rgba(90,50,20,0.18)';
+    b.fillRect(x - fw / 2 + 2, y - fh / 2 + 3, fw, fh);
     b.fillStyle = FRAME_C; b.fillRect(x - fw / 2, y - fh / 2, fw, fh);
     b.fillStyle = FRAME_MAT;
-    b.fillRect(x - fw / 2 + fw * 0.13, y - fh / 2 + fh * 0.11, fw * 0.74, fh * 0.78);
+    b.fillRect(x - fw / 2 + fw * 0.14, y - fh / 2 + fh * 0.13, fw * 0.72, fh * 0.74);
     b.fillStyle = FRAME_ART;
-    b.fillRect(x - fw / 2 + fw * 0.24, y - fh / 2 + fh * 0.22, fw * 0.52, fh * 0.56);
+    b.fillRect(x - fw / 2 + fw * 0.27, y - fh / 2 + fh * 0.26, fw * 0.46, fh * 0.48);
   }
 
-  /* The lobby is what they are trying to reach, so it does not look like the
-     floors above it: no guest doors, a wide way out to the street, and the one
-     cool light in a warm building. */
-  function paintLobby(b, w, h, ceilH, wallBot, skirtH) {
-    const dw = Math.max(24, w * 0.24), dh = (wallBot - ceilH) * 0.90;
-    const dx = 10, dy = wallBot - dh;
-    b.fillStyle = ARCH; b.fillRect(dx - 4, dy - 4, dw + 8, dh + 4);
-    /* NIGHT-BLUE, not mint. The way out sits at the same end of the corridor
-       the fire glow comes from, and two warm-ish greens fought each other
-       there. Cool blue is the street outside at night, it is the furthest
-       thing on the wheel from flame, and it means the orange at the stairwell
-       end on the burning floors is unmistakably fire. */
-    const g2 = b.createLinearGradient(dx, dy, dx, dy + dh);
-    g2.addColorStop(0, 'rgba(178,214,255,0.72)'); g2.addColorStop(1, 'rgba(120,166,224,0.40)');
-    b.fillStyle = g2; b.fillRect(dx, dy, dw, dh);
-    const glow = b.createRadialGradient(dx + dw / 2, dy + dh * 0.6, 2, dx + dw / 2, dy + dh * 0.6, dh * 1.5);
-    glow.addColorStop(0, 'rgba(150,196,255,0.26)'); glow.addColorStop(1, 'rgba(150,196,255,0)');
-    b.fillStyle = glow; b.fillRect(0, 0, w, h);
-    /* Text does not get mirrored with the corridor. The right-hand hallway is
-       painted flipped so one piece of code draws both, and the exit sign came
-       out reading TUO. */
-    if (dh > 26) drawUnflipped(b, 'OUT', dx + dw / 2, dy + dh * 0.42,
-      '700 ' + Math.max(8, Math.round(dh * 0.15)) + 'px Inter, sans-serif', '#15243D');
-    // a plant by the wall, because a lobby has one
-    const px2 = dx + dw + Math.max(10, w * 0.10), pot = Math.max(6, h * 0.11);
-    b.fillStyle = POT_C;
-    b.fillRect(px2 - pot * 0.42, wallBot + skirtH - pot, pot * 0.84, pot);
-    b.strokeStyle = PLANT_C; b.lineWidth = Math.max(1.4, pot * 0.13); b.lineCap = 'round';
-    for (let k = -2; k <= 2; k++) {
+  /* A PROPER HOTEL LOBBY, not a corridor with an exit in it. It is the one
+     place in the building nobody is trapped, it is what every trip is FOR, and
+     it should look like somewhere you are relieved to reach: glazed doors to
+     the street, a reception desk with a lamp on it, planting, and pictures.
+
+     Night-blue glazing, because the way out sits at the same end of the
+     corridor the fire comes from and two warm things there fought each other. */
+  function paintLobby(b, w, h, wallTop, wallBot, skirtH) {
+    const wallH = wallBot - wallTop;
+    const floorY = wallBot + skirtH;
+
+    /* THE WAY OUT: glazed doors onto the street at NIGHT. Painted pale they
+       read as a grey slab in the wall. Looking out of a lit lobby after dark
+       the glass is DARK, with the street lights beyond it and the room
+       reflected in it - and a dark opening in a warm wall is unmistakably a
+       way through, where a pale rectangle is just a panel. The lit sign over
+       it is what says it is the way OUT. */
+    const openH = wallH * 0.94, dw = Math.max(30, w * 0.24);
+    const rev = Math.max(3, dw * 0.06);
+    const ox = Math.max(6, w * 0.025), oy = wallBot - openH;
+    b.fillStyle = REVEAL; b.fillRect(ox, oy, dw + rev * 2, openH);
+    const tg = b.createLinearGradient(0, oy, 0, oy + rev * 2.4);
+    tg.addColorStop(0, REVEAL_TOP); tg.addColorStop(1, REVEAL);
+    b.fillStyle = tg; b.fillRect(ox, oy, dw + rev * 2, rev * 2.4);
+
+    const gx = ox + rev, gy = oy + rev * 2.6, gh = wallBot - gy;
+    const g2 = b.createLinearGradient(gx, gy, gx, wallBot);
+    g2.addColorStop(0, '#141C33'); g2.addColorStop(0.55, '#1D2A4A'); g2.addColorStop(1, '#2A3A5E');
+    b.fillStyle = g2; b.fillRect(gx, gy, dw, gh);
+    // street lights out there, and the pavement catching them
+    for (let k = 0; k < 3; k++) {
+      const sx2 = gx + dw * (0.22 + 0.28 * k), sy2 = gy + gh * (0.30 + 0.10 * (k % 2));
+      const sg = b.createRadialGradient(sx2, sy2, 0.5, sx2, sy2, gh * 0.42);
+      sg.addColorStop(0, 'rgba(255,226,166,0.85)'); sg.addColorStop(1, 'rgba(255,210,140,0)');
+      b.fillStyle = sg; b.fillRect(gx, gy, dw, gh);
+    }
+    b.fillStyle = 'rgba(190,214,255,0.16)';
+    b.fillRect(gx, gy + gh * 0.80, dw, gh * 0.20);
+    // mullions and the reflection of the lit room in the glass
+    b.fillStyle = '#3A2C22';
+    b.fillRect(gx + dw / 2 - Math.max(1, dw * 0.028), gy, Math.max(2, dw * 0.056), gh);
+    b.fillStyle = 'rgba(255,232,190,0.12)';
+    b.fillRect(gx + dw * 0.06, gy + gh * 0.10, dw * 0.16, gh * 0.62);
+
+    // the lit sign over the doors
+    const sgnH = Math.max(5, openH * 0.13), sgnW = dw * 0.66;
+    const sgX = gx + (dw - sgnW) / 2, sgY = oy + rev * 0.7;
+    b.fillStyle = '#14432F'; b.fillRect(sgX, sgY, sgnW, sgnH);
+    b.fillStyle = '#5DD39E'; b.fillRect(sgX + 1, sgY + 1, sgnW - 2, sgnH - 2);
+    if (sgnH >= 8) drawUnflipped(b, 'OUT', sgX + sgnW / 2, sgY + sgnH * 0.55,
+      '800 ' + Math.round(sgnH * 0.74) + 'px Inter, sans-serif', '#0B2A1D');
+    const sgl = b.createRadialGradient(sgX + sgnW / 2, sgY + sgnH, 1, sgX + sgnW / 2, sgY + sgnH, openH * 0.7);
+    sgl.addColorStop(0, 'rgba(120,226,180,0.30)'); sgl.addColorStop(1, 'rgba(120,226,180,0)');
+    b.fillStyle = sgl; b.fillRect(0, 0, w, h);
+
+    // --- pictures on the wall behind the desk ---
+    if (h > 46) {
+      paintPicture(b, w * 0.52, wallTop + wallH * 0.26, h * 1.35);
+      paintPicture(b, w * 0.68, wallTop + wallH * 0.28, h * 1.05);
+    }
+
+    // --- reception desk ---
+    const dW = Math.max(34, w * 0.26), dX = w * 0.44, dH = Math.max(14, wallH * 0.46);
+    const dY = wallBot - dH;
+    b.fillStyle = 'rgba(60,30,15,0.20)';
+    b.fillRect(dX + 3, floorY - 2, dW, Math.max(2, h * 0.03));
+    const cg2 = b.createLinearGradient(0, dY, 0, wallBot);
+    cg2.addColorStop(0, '#8A5A34'); cg2.addColorStop(1, '#5E3A20');
+    b.fillStyle = cg2; b.fillRect(dX, dY, dW, dH);
+    b.fillStyle = '#B9834E';                                  // the lit counter top
+    b.fillRect(dX - Math.max(1, dW * 0.02), dY, dW + Math.max(2, dW * 0.04), Math.max(2, dH * 0.13));
+    b.fillStyle = 'rgba(255,255,255,0.10)';
+    b.fillRect(dX + dW * 0.08, dY + dH * 0.32, dW * 0.84, dH * 0.40);
+    // a small lamp on the desk
+    const lx = dX + dW * 0.16, ly = dY - Math.max(4, dH * 0.30);
+    const lg2 = b.createRadialGradient(lx, ly, 1, lx, ly, Math.max(9, dH * 0.9));
+    lg2.addColorStop(0, 'rgba(255,220,150,0.55)'); lg2.addColorStop(1, 'rgba(255,220,150,0)');
+    b.fillStyle = lg2; b.fillRect(lx - dH, ly - dH, dH * 2, dH * 2);
+    b.fillStyle = '#3A2C2A'; b.fillRect(lx - Math.max(0.7, dH * 0.03), ly, Math.max(1.4, dH * 0.06), dY - ly);
+    b.fillStyle = '#FFE7B4';
+    b.beginPath();
+    b.moveTo(lx - Math.max(3, dH * 0.20), ly);
+    b.lineTo(lx + Math.max(3, dH * 0.20), ly);
+    b.lineTo(lx + Math.max(2, dH * 0.13), ly - Math.max(3, dH * 0.22));
+    b.lineTo(lx - Math.max(2, dH * 0.13), ly - Math.max(3, dH * 0.22));
+    b.closePath(); b.fill();
+
+    // --- planting: a tall one by the doors, a smaller one by the lift ---
+    paintPlant(b, ox + dw + rev * 2 + Math.max(10, w * 0.05), floorY, h * 0.34, 5);
+    paintPlant(b, w * 0.86, floorY, h * 0.24, 4);
+
+    // --- a rug in front of the desk ---
+    const rx = dX - w * 0.02, rw2 = dW * 1.1;
+    b.fillStyle = 'rgba(142,58,52,0.55)';
+    b.fillRect(rx, floorY + (h - floorY) * 0.30, rw2, Math.max(2, (h - floorY) * 0.34));
+  }
+
+  function paintPlant(b, x, baseY, size, blades) {
+    const pot = Math.max(6, size * 0.55);
+    b.fillStyle = 'rgba(60,30,15,0.22)';
+    b.beginPath(); b.ellipse(x, baseY, pot * 0.66, pot * 0.15, 0, 0, Math.PI * 2); b.fill();
+    b.lineCap = 'round';
+    for (let k = -(blades >> 1); k <= (blades >> 1); k++) {
+      b.strokeStyle = k % 2 ? PLANT_C : '#3F7E48';
+      b.lineWidth = Math.max(1.5, pot * 0.17);
       b.beginPath();
-      b.moveTo(px2, wallBot + skirtH - pot);
-      b.quadraticCurveTo(px2 + k * pot * 0.30, wallBot + skirtH - pot * 1.7,
-                         px2 + k * pot * 0.52, wallBot + skirtH - pot * 2.1);
+      b.moveTo(x, baseY - pot * 0.75);
+      b.quadraticCurveTo(x + k * pot * 0.30, baseY - pot * 1.9,
+                         x + k * pot * 0.52, baseY - pot * (2.5 - Math.abs(k) * 0.28));
       b.stroke();
     }
+    b.fillStyle = POT_C;
+    b.beginPath();
+    b.moveTo(x - pot * 0.44, baseY - pot * 0.82);
+    b.lineTo(x + pot * 0.44, baseY - pot * 0.82);
+    b.lineTo(x + pot * 0.32, baseY);
+    b.lineTo(x - pot * 0.32, baseY);
+    b.closePath(); b.fill();
+    b.fillStyle = 'rgba(0,0,0,0.10)';
+    b.fillRect(x - pot * 0.44, baseY - pot * 0.82, pot * 0.88, Math.max(1, pot * 0.10));
   }
 
   /* Where a person stands, in a corridor's own coordinates with the lift at
@@ -938,18 +1042,26 @@
     ctx.save();
     ctx.beginPath(); rr(geo.x - 6, geo.y - 8, geo.w + 12, geo.h + 8, 8); ctx.clip();
     for (const s of sides) {
-      /* VALUE, NOT HUE. Orange light on an orange wall cannot read however
-         bright it is, so the fire is a small BLOWN-OUT core - near white, hot
-         enough to be the brightest thing on screen - with a tight feather off
-         it. The dark smoke around it supplies the other end of the range. */
-      const reach = Math.max(20, s.w * (overSmoke ? 0.09 : 0.26));
+      /* SATURATION, NOT BRIGHTNESS. Against the old amber wall the fire was
+         invisible because orange sat on orange, so it was made near-white -
+         and against a CREAM wall that failed the other way, because cream is
+         already at the top of the range and nothing can out-brighten it. It
+         measured 1.26:1.
+
+         What separates a fire from a pale wall is COLOUR: the wall is
+         deliberately desaturated and the fire is the most saturated thing in
+         the building. A deep orange-red body with only a small hot centre
+         reads instantly on cream, where a white blaze just looked like more
+         wall. Luminance contrast is the wrong measure for this one element and
+         the numbers say so. */
+      const reach = Math.max(20, s.w * (overSmoke ? 0.10 : 0.30));
       const k = overSmoke ? 0.62 : 1;
       const g = ctx.createLinearGradient(s.x, 0, s.x + s.dir * reach, 0);
-      g.addColorStop(0, 'rgba(255,252,240,' + (0.96 * k * flick).toFixed(3) + ')');
-      g.addColorStop(0.06, 'rgba(255,232,170,' + (0.80 * k * flick).toFixed(3) + ')');
-      g.addColorStop(0.22, 'rgba(255,170,72,' + (0.42 * k * flick).toFixed(3) + ')');
-      g.addColorStop(0.55, 'rgba(255,126,38,' + (0.14 * k * flick).toFixed(3) + ')');
-      g.addColorStop(1, 'rgba(255,120,30,0)');
+      g.addColorStop(0, 'rgba(255,244,206,' + (0.95 * k * flick).toFixed(3) + ')');
+      g.addColorStop(0.05, 'rgba(255,166,44,' + (0.94 * k * flick).toFixed(3) + ')');
+      g.addColorStop(0.18, 'rgba(240,88,20,' + (0.80 * k * flick).toFixed(3) + ')');
+      g.addColorStop(0.45, 'rgba(206,52,14,' + (0.42 * k * flick).toFixed(3) + ')');
+      g.addColorStop(1, 'rgba(180,40,12,0)');
       ctx.fillStyle = g;
       ctx.fillRect(Math.min(s.x, s.x + s.dir * reach), top, reach, h);
     }
