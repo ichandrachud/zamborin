@@ -25,12 +25,12 @@ const RDT = 0.25;        // the planner's rollout step
 export function newState(L) {
   /* Slot within the floor decides where somebody is standing, and the smoke
      front reaches the far end of the corridor first. Same rule as the game. */
-  const seen = {};
-  const stands = L.people.map(f => { seen[f] = (seen[f] || 0) + 1; return M.standAt(seen[f] - 1); });
+  const seen = {}, seenSlot = [];
+  const stands = L.people.map(f => { seen[f] = (seen[f] || 0) + 1; seenSlot.push(seen[f] - 1); return M.standAt(seen[f] - 1); });
   return {
     L, t: 0, car: 1, carSmoke: 0,
     s: new Float64Array(L.floors + 1),
-    waiting: L.people.map((f, i) => ({ id: i, floor: f, exp: 0, stand: stands[i] })),
+    waiting: L.people.map((f, i) => ({ id: i, floor: f, exp: 0, stand: stands[i], goal: M.queueAt(seenSlot[i]) })),
     aboard: [], out: 0, lost: 0, stops: 0,
   };
 }
@@ -52,6 +52,10 @@ function stepWorld(S, dt, doorFloor) {
   S.carSmoke = M.carSmokeStep(S.carSmoke, doorFloor ? S.s[doorFloor] : 0, dt, !!doorFloor, F);
   for (let i = S.waiting.length - 1; i >= 0; i--) {
     const p = S.waiting[i];
+    /* They walk to the lift, the same as they do on screen. A certificate from
+       a sim where everybody stands still would be a certificate about a game
+       nobody plays. */
+    p.stand = M.walkStep(p.stand, p.goal, p.exp, dt);
     p.exp += M.exposureStep(p.stand, S.s[p.floor], dt, F);
     if (p.exp >= 1) { S.waiting.splice(i, 1); S.lost++; }
   }

@@ -335,7 +335,7 @@
        and disappear under them. */
     standsBy = {};
     for (let f = 2; f <= F; f++) {
-      standsBy[f] = [0, 1, 2, 3].map(s => ({ stand: M.standAt(s), right: s % 2 === 1 }));
+      standsBy[f] = [0, 1, 2, 3].map(s => ({ stand: M.queueAt(s), right: s % 2 === 1 }));
     }
     for (let i = 0; i < RUN.startPeople; i++) spawnPerson();
     nextSpawn = spawnEvery();
@@ -362,7 +362,7 @@
     const pool = ok.length ? ok : free;
     if (!pool.length) return;
     const c = pool[Math.floor(rng() * pool.length)];
-    waiting.push({ id: nextId++, floor: c.f, slot: c.s, stand: M.standAt(c.s), exp: 0 });
+    waiting.push({ id: nextId++, floor: c.f, slot: c.s, stand: M.standAt(c.s), goal: M.queueAt(c.s), exp: 0 });
   }
 
   /* ---------- INPUT ---------- */
@@ -460,6 +460,7 @@
 
     for (let i = waiting.length - 1; i >= 0; i--) {
       const p = waiting[i];
+      p.stand = M.walkStep(p.stand, p.goal, p.exp, dt);
       p.exp += M.exposureStep(p.stand, smoke[p.floor], dt, FIRE);
       if (p.exp >= 1) { overcome(p, p.floor); waiting.splice(i, 1); }
     }
@@ -1223,17 +1224,29 @@
          close the smoke is to them. */
       const near = Math.max(0, Math.min(1, (smoke[p.floor] - p.stand + 0.30) / 0.45));
       const urgency = Math.max(near, p.exp * 1.3);
-      const paces = hash01(p.id * 3.7 + 1) > 0.28 && p.exp < 0.62 && !REDUCED;
+      /* WALKING, then WAITING. They used to oscillate on the spot, which reads
+         as a queue at a bus stop. Now while there is corridor between them and
+         the doors they are covering it - and the figure moves because p.stand
+         moves, so the picture and the model are the same thing rather than an
+         animation laid over a static clock.
+         Once they reach the front of the queue they stop, and what is left is
+         the fidget of somebody waiting for a lift they need: a half step back,
+         a turn to look at what is coming down the corridor. They never shuffle
+         PAST their place, so the queue holds its shape. */
+      const walking = p.stand < p.goal - 0.004;
       let px2 = q.x, face = q.face, gait = -1;
-      if (paces) {
-        const sp = (0.52 + 0.30 * hash01(p.id * 5.1 + 2)) * (1 + urgency * 1.1);
+      if (walking && !REDUCED) {
+        gait = (tt * (2.1 + 0.7 * hash01(p.id * 2.7)) * (1 + urgency * 0.5)) % 1;
+      } else if (!REDUCED && p.exp < 0.62) {
+        const sp = (0.42 + 0.26 * hash01(p.id * 5.1 + 2)) * (1 + urgency * 0.9);
         const ph = (tt * sp + hash01(p.id * 9.3 + 3)) % 1;
-        px2 = q.x + (1 - Math.abs(2 * ph - 1) - 0.5) * 2 * geo.corW * (0.038 + 0.022 * urgency);
+        px2 = q.x - q.face * Math.abs(Math.sin(ph * Math.PI)) * geo.corW * (0.014 + 0.012 * urgency);
         const lo = (q.face > 0 ? geo.leftX : geo.rightX) + edgePad;
         const hi = (q.face > 0 ? geo.leftX + geo.corW : geo.rightX + geo.rightW) - edgePad;
         px2 = Math.max(lo, Math.min(hi, px2));
-        face = ph < 0.5 ? 1 : -1;
-        gait = (tt * sp * 4.6 + hash01(p.id * 2.7)) % 1;
+        const look = (tt * (0.30 + 0.22 * hash01(p.id * 6.1)) + hash01(p.id * 1.9)) % 1;
+        face = look < (0.22 + 0.20 * urgency) ? -q.face : q.face;
+        gait = ph;
       }
       /* A COUGH is the warning that somebody is about to go. It is a jolt you
          can see from across the building, it fires on its own rhythm per
@@ -1663,7 +1676,7 @@
     const inside = waiting.length + aboard.length;
     /* Both halves of the comparison, and the damage when there is any: a count
        that only goes up tells you nothing about whether you are still winning. */
-    const line = 'WAVE ' + wave + '   ·   OUT ' + out + '   ·   ' + inside + ' INSIDE' + (best ? '   ·   BEST ' + best : '');
+    const line = 'OUT ' + out + '   ·   ' + inside + ' INSIDE' + (best ? '   ·   BEST ' + best : '');
     const hs = Math.max(0.66, Math.min(1, LW / 620));
     let fs = Math.round(16 * hs);
     ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
@@ -1690,17 +1703,23 @@
        why arcades did it that way. Drawn over the shaft, never over a
        corridor, so it cannot hide somebody you need to reach. */
     if (waveFlash > 0 && wave > 1) {
+      /* It said WAVE 2. A wave number is a designer's word for a difficulty
+         step - it tells the player which bucket they are in and nothing about
+         their building. Say what actually just happened instead. */
       const a = Math.min(1, waveFlash * 2.2);
       const cy2 = geo.y + geo.h * 0.5;
+      const msg = 'THE FIRE IS GETTING STRONGER';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      let ms = 22;
+      ctx.font = '800 ' + ms + 'px Inter, sans-serif';
+      while (ms > 11 && ctx.measureText(msg).width > LW - SIDE_PAD * 2 - 32) {
+        ms -= 1; ctx.font = '800 ' + ms + 'px Inter, sans-serif';
+      }
+      const bw = ctx.measureText(msg).width + 36, bh = ms + 26;
       ctx.fillStyle = 'rgba(10,8,16,' + (0.62 * a).toFixed(3) + ')';
-      rr(LW / 2 - 132, cy2 - 30, 264, 60, 12); ctx.fill();
+      rr(LW / 2 - bw / 2, cy2 - bh / 2, bw, bh, 12); ctx.fill();
       ctx.fillStyle = 'rgba(255,150,60,' + a.toFixed(3) + ')';
-      ctx.font = '800 26px Inter, sans-serif';
-      ctx.fillText('WAVE ' + wave, LW / 2, cy2 - 9);
-      ctx.fillStyle = 'rgba(255,255,255,' + (0.82 * a).toFixed(3) + ')';
-      ctx.font = '600 14px Inter, sans-serif';
-      ctx.fillText('the fire is spreading faster', LW / 2, cy2 + 14);
+      ctx.fillText(msg, LW / 2, cy2);
       ctx.textAlign = 'left'; ctx.textBaseline = 'top';
     }
 

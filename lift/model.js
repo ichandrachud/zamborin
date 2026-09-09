@@ -182,6 +182,23 @@ function stepSmoke(s, floors, fireFloor, rate, dt, F) {
 const STAND_FIRST = 0.64, STAND_STEP = 0.20;
 function standAt(slot) { return STAND_FIRST - STAND_STEP * slot; }
 
+/* WHERE THEY END UP. Nobody in a fire waits where they happened to be when the
+   alarm went: they go to the lift and get as close to the doors as they can.
+   So standAt is now only where somebody STARTS, queueAt is where they are
+   going, and the walk between the two is real - it is where the smoke catches
+   people, which is a better clock than standing still ever was. */
+const QUEUE_FIRST = 0.80, QUEUE_STEP = 0.072;
+function queueAt(slot) { return QUEUE_FIRST - QUEUE_STEP * slot; }
+
+/* Corridor-lengths a second. Somebody struggling for air slows down, and that
+   is what puts them in real trouble: the further back you were when it started
+   the worse the walk gets, because the walk itself costs you air. */
+const WALK_V = 0.115;
+function walkStep(stand, goal, exp, dt) {
+  if (stand >= goal) return goal;
+  return Math.min(goal, stand + WALK_V * (1 - 0.55 * Math.min(1, exp)) * dt);
+}
+
 /* What a second costs a person, given how far the smoke has come along their
    corridor. Nothing happens until the front reaches them; then it takes hold
    over the next fifth of the corridor. Exposure runs 0 to 1 and at 1 they are
@@ -227,5 +244,6 @@ function makeRng(seed) {
 }
 
 return { TUNE, FIRE, stepCar, isLevel, stopDistance, travelTime,
-         stepSmoke, standAt, engulf, exposureStep, carExposureStep, carSmokeStep, makeRng };
+         stepSmoke, standAt, queueAt, walkStep, engulf, exposureStep, carExposureStep, carSmokeStep, makeRng,
+         QUEUE_FIRST, QUEUE_STEP, WALK_V };
 }));
