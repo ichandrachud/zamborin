@@ -128,7 +128,13 @@
      need at least 0.40 - so the figure carries BOTH. Dark clothing separates
      it from the corridor, a light head and hands separate it from the smoke,
      and that is also just what a person looks like. */
-  const BODY_HI = '#4A4258', BODY_LO = '#2F2A3D';        // clothing
+  /* Genuinely dark, not a dark-ish mid-tone. Partly-smoked wall sits at about
+     0.20 relative luminance, which is right between a mid clothing value and a
+     light head - so neither half cleared 3:1 and the figure fell to 2.4. Taking
+     the clothing down to near-black puts it 3.6 against that wall while the
+     light head keeps carrying it inside the smoke. It also matches the doors,
+     which is what a person looks like in a lit corridor. */
+  const BODY_HI = '#2E2838', BODY_LO = '#1A1622';        // clothing
   const HEAD = '#F0D8BE', SKIN_HI = '#FFE9D2';           // head and hands
   /* DARK SMOKE, like Empyrean's, with a lit top surface. Pale smoke is what
      forced a dark halo behind every person - a light figure had nothing to sit
@@ -486,6 +492,7 @@
     drawShell();
     drawCorridor(geo.leftX, geo.corW, 'left', now);
     if (geo.rightW > 0) drawCorridor(geo.rightX, geo.rightW, 'right', now);
+    fireGlow(now, false);                                    // under the smoke it makes
     drawSpill();
     drawPeople(now);
     drawSmoke(now);
@@ -609,10 +616,10 @@
     const doorH = (wallBot - ceilH) * 0.86, doorW = doorH * 0.52;
     const lobby = Math.max(doorW * 1.4, w * 0.18);
     const runX = 6, runW = w - lobby - 6;
-    const n = Math.max(1, Math.min(4, Math.floor(runW / (doorW * 2.3))));
+    const n = Math.max(1, Math.min(3, Math.floor(runW / (doorW * 2.3))));
     const gap = runW / n;
     const stands = (standsBy[f] || []).map(s => personXInCorridor(s.stand, w));
-    const keepOut = doorW * 0.5 + geo.floorPx * 0.52 * 0.24;
+    const keepOut = doorW * 0.5 + geo.floorPx * 0.52 * 0.24;   // clear of anyone standing
 
     for (let i = 0; i < n; i++) {
       const cx = runX + gap * (i + 0.5);
@@ -694,17 +701,22 @@
     const dw = Math.max(24, w * 0.24), dh = (wallBot - ceilH) * 0.90;
     const dx = 10, dy = wallBot - dh;
     b.fillStyle = ARCH; b.fillRect(dx - 4, dy - 4, dw + 8, dh + 4);
+    /* NIGHT-BLUE, not mint. The way out sits at the same end of the corridor
+       the fire glow comes from, and two warm-ish greens fought each other
+       there. Cool blue is the street outside at night, it is the furthest
+       thing on the wheel from flame, and it means the orange at the stairwell
+       end on the burning floors is unmistakably fire. */
     const g2 = b.createLinearGradient(dx, dy, dx, dy + dh);
-    g2.addColorStop(0, 'rgba(150,232,206,0.55)'); g2.addColorStop(1, 'rgba(120,200,180,0.28)');
+    g2.addColorStop(0, 'rgba(178,214,255,0.72)'); g2.addColorStop(1, 'rgba(120,166,224,0.40)');
     b.fillStyle = g2; b.fillRect(dx, dy, dw, dh);
-    const glow = b.createRadialGradient(dx + dw / 2, dy + dh * 0.6, 2, dx + dw / 2, dy + dh * 0.6, dh * 1.2);
-    glow.addColorStop(0, 'rgba(150,232,206,0.20)'); glow.addColorStop(1, 'rgba(150,232,206,0)');
+    const glow = b.createRadialGradient(dx + dw / 2, dy + dh * 0.6, 2, dx + dw / 2, dy + dh * 0.6, dh * 1.5);
+    glow.addColorStop(0, 'rgba(150,196,255,0.26)'); glow.addColorStop(1, 'rgba(150,196,255,0)');
     b.fillStyle = glow; b.fillRect(0, 0, w, h);
     /* Text does not get mirrored with the corridor. The right-hand hallway is
        painted flipped so one piece of code draws both, and the exit sign came
        out reading TUO. */
     if (dh > 26) drawUnflipped(b, 'OUT', dx + dw / 2, dy + dh * 0.42,
-      '700 ' + Math.max(8, Math.round(dh * 0.15)) + 'px Inter, sans-serif', '#123A31');
+      '700 ' + Math.max(8, Math.round(dh * 0.15)) + 'px Inter, sans-serif', '#15243D');
     // a plant by the wall, because a lobby has one
     const px2 = dx + dw + Math.max(10, w * 0.10), pot = Math.max(6, h * 0.11);
     b.fillStyle = POT_C;
@@ -760,7 +772,7 @@
   function sprites() {
     if (!SPRITES) SPRITES = {
       body: makeSprite(SMOKE), bodyWarm: makeSprite('92,72,66'),
-      lit: makeSprite(SMOKE_LIT), litWarm: makeSprite(SMOKE_LIT_WARM),
+      lit: makeSprite(SMOKE_LIT), litWarm: makeSprite('198,182,180'),
     };
     return SPRITES;
   }
@@ -879,7 +891,7 @@
        the near air, and a dense pass drawn over them took a light figure from
        3.3:1 down to 2.1:1 against a 3:1 bar. */
     smokeLayer(0.16, now);                                   // a thin veil, in front of them
-    drawFire(now);
+    fireGlow(now, true);                                     // the core, back through the smoke
     drawFloorNumbers();
   }
   /* Which floor is which has to be readable in a corridor you cannot see
@@ -905,24 +917,41 @@
     }
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   }
-  function drawFire(now) {
+  /* THE FIRE IS LIGHT, NOT DRAWN FLAMES. Literal tongues at the end of the
+     corridor came out as cartoon candles stuck on the wall - crude, and
+     nothing like the register of the rest of the building.
+
+     What you actually see of a fire from down a hallway is a blown-out glow
+     around the corner: a core hotter than anything else on screen, a tight
+     feather off it, and the doors nearest it going to silhouette. The house
+     rule says the same thing - a glow is a thin bright core with a tight
+     feather, never a wide wash.
+
+     Drawn UNDER the smoke, so the smoke pouring out of that end is lit from
+     behind by it, with only the core punching back through. */
+  function fireGlow(now, overSmoke) {
     const f = level.fire, top = roomTop(f), h = geo.floorPx;
-    const d = smoke[f];
-    if (d < 0.02) return;
-    const flick = REDUCED ? 0.85 : 0.78 + 0.22 * Math.sin(now / 90) * Math.sin(now / 37);
-    const fx = geo.leftX + 4, fw = Math.max(18, geo.corW * 0.16);
+    const t = REDUCED ? 0 : now / 1000;
+    const flick = REDUCED ? 1 : 0.90 + 0.10 * (Math.sin(t * 3.1) * 0.6 + Math.sin(t * 7.7) * 0.4);
+    const sides = [{ x: geo.leftX, dir: 1, w: geo.corW }];
+    if (geo.rightW > 0) sides.push({ x: geo.rightX + geo.rightW, dir: -1, w: geo.rightW });
     ctx.save();
     ctx.beginPath(); rr(geo.x - 6, geo.y - 8, geo.w + 12, geo.h + 8, 8); ctx.clip();
-    const g = ctx.createLinearGradient(fx, 0, fx + fw * 2.4, 0);
-    g.addColorStop(0, 'rgba(' + FLAME + ',' + (0.42 * d * flick).toFixed(3) + ')');
-    g.addColorStop(1, 'rgba(' + FLAME + ',0)');
-    ctx.fillStyle = g; ctx.fillRect(fx - 4, top, fw * 2.4, h);
-    if (geo.rightW > 0) {
-      const gx = geo.rightX + geo.rightW - 4;
-      const g2 = ctx.createLinearGradient(gx, 0, gx - fw * 2.4, 0);
-      g2.addColorStop(0, 'rgba(' + FLAME + ',' + (0.42 * d * flick).toFixed(3) + ')');
-      g2.addColorStop(1, 'rgba(' + FLAME + ',0)');
-      ctx.fillStyle = g2; ctx.fillRect(gx - fw * 2.4 + 4, top, fw * 2.4, h);
+    for (const s of sides) {
+      /* VALUE, NOT HUE. Orange light on an orange wall cannot read however
+         bright it is, so the fire is a small BLOWN-OUT core - near white, hot
+         enough to be the brightest thing on screen - with a tight feather off
+         it. The dark smoke around it supplies the other end of the range. */
+      const reach = Math.max(20, s.w * (overSmoke ? 0.09 : 0.26));
+      const k = overSmoke ? 0.62 : 1;
+      const g = ctx.createLinearGradient(s.x, 0, s.x + s.dir * reach, 0);
+      g.addColorStop(0, 'rgba(255,252,240,' + (0.96 * k * flick).toFixed(3) + ')');
+      g.addColorStop(0.06, 'rgba(255,232,170,' + (0.80 * k * flick).toFixed(3) + ')');
+      g.addColorStop(0.22, 'rgba(255,170,72,' + (0.42 * k * flick).toFixed(3) + ')');
+      g.addColorStop(0.55, 'rgba(255,126,38,' + (0.14 * k * flick).toFixed(3) + ')');
+      g.addColorStop(1, 'rgba(255,120,30,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(Math.min(s.x, s.x + s.dir * reach), top, reach, h);
     }
     ctx.restore();
   }
