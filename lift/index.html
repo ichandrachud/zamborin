@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <title>Lift — A Zamborin Game</title>
-  <meta name="description" content="Drive a hotel lift by hand. Drag the car, let go, and let it coast to a stop level with the floor. Stop between floors and the doors stay shut." />
+  <meta name="description" content="A hotel is on fire. Drive the lift by hand, land it level with each corridor, and get everyone down to the lobby before the smoke reaches them." />
   <meta name="theme-color" content="#0E1726" />
   <link rel="canonical" href="https://zamborin.com/lift/" />
   <link rel="icon" type="image/svg+xml" href="../images/zamborin-favicon.svg?v=2" />
@@ -17,15 +17,15 @@
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Zamborin Games" />
   <meta property="og:url" content="https://zamborin.com/lift/" />
-  <meta property="og:title" content="Lift — Drag the car, stop it level" />
-  <meta property="og:description" content="Drive a hotel lift by hand. Drag the car, let go, and let it coast to a stop level with the floor. Stop between floors and the doors stay shut." />
+  <meta property="og:title" content="Lift — Get everyone out before the smoke" />
+  <meta property="og:description" content="A hotel is on fire. Drive the lift by hand, land it level with each corridor, and get everyone down to the lobby before the smoke reaches them." />
   <meta property="og:image" content="https://zamborin.com/images/lift-og.jpg" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
-  <meta property="og:image:alt" content="A brass lift car with its doors open, lit in a dark hotel shaft, with small figures waiting on a landing" />
+  <meta property="og:image:alt" content="A brass lift car lit in a dark hotel shaft, with smoke filling the corridors above it and small figures waiting" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Lift — Drag the car, stop it level" />
-  <meta name="twitter:description" content="Drive a hotel lift by hand. Drag the car, let go, and let it coast to a stop level with the floor. Stop between floors and the doors stay shut." />
+  <meta name="twitter:title" content="Lift — Get everyone out before the smoke" />
+  <meta name="twitter:description" content="A hotel is on fire. Drive the lift by hand, land it level with each corridor, and get everyone down to the lobby before the smoke reaches them." />
   <meta name="twitter:image" content="https://zamborin.com/images/lift-og.jpg" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -43,14 +43,14 @@
     "@context": "https://schema.org",
     "@type": "VideoGame",
     "name": "Lift",
-    "description": "Drive a hotel lift by hand. Drag the car, let go, and let it coast to a stop level with the floor. Stop between floors and the doors stay shut.",
+    "description": "A hotel is on fire. Drive the lift by hand, land it level with each corridor, and get everyone down to the lobby before the smoke reaches them.",
     "url": "https://zamborin.com/lift/",
     "image": "https://zamborin.com/images/lift-og.jpg",
     "playMode": "SinglePlayer",
     "gamePlatform": "Web Browser",
     "applicationCategory": "Game",
     "operatingSystem": "Web",
-    "genre": ["Puzzle","Logic"],
+    "genre": ["Puzzle","Strategy"],
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
     "publisher": { "@type": "Organization", "name": "Zamborin Games", "url": "https://zamborin.com/" }
   }
@@ -129,33 +129,35 @@
          policy alike. Write it in the calm voice, no em dashes. Look at
          bloom/ or kaleido/ for the shape and the length. -->
     <section class="game-info">
-      <h1>Lift: drag the car, stop it level</h1>
-      <p>You are the operator of a grand old hotel's lift. The car is heavy. Drag it in the shaft and it lags behind your hand; let go and it keeps going, braking over most of a floor from full speed. Land it level with a landing and the doors slide open and the light spills out. Land it between floors and it bumps, sags and sits there with the doors shut until you nudge it.</p>
+      <h1>Lift: get everyone out before the smoke</h1>
+      <p>A hotel is on fire. Smoke is coming along each corridor from the stairwell at the far end, and the only way out is the lobby at the bottom. You are the lift. The car is heavy: drag it in the shaft and it lags behind your hand, and when you let go it keeps going and brakes over most of a floor. Land it level with a corridor and the doors open. Land it between floors and they stay shut until you nudge it, and that costs you seconds you do not have.</p>
 
       <h2>How to play</h2>
       <p>Everything you do is done to the car. There is no button to press for a passenger and no menu to open. You drive, you stop, and the building does the rest.</p>
       <ul>
         <li><strong>The verb:</strong> drag anywhere in the shaft to pull the car up or down. On a desktop you can hold the up and down arrow keys instead, which is kinder to a trackpad.</li>
-        <li><strong>The feedback:</strong> let go and the car brakes. Level with a landing, the doors open and warm light lands on the floor. Between floors, a bump and no doors.</li>
-        <li><strong>The goal:</strong> the number over someone's head is the floor they want. Carry them there and they tip you.</li>
-        <li><strong>Restart:</strong> always free, and it costs you nothing but the tips on the counter.</li>
+        <li><strong>The clock:</strong> how far the smoke has come along a corridor is how long the people in it have. It reaches the far end first, so whoever is standing deepest is on the shortest clock.</li>
+        <li><strong>The car holds four.</strong> Every door you open lets smoke in, and it stays in, so a stop you did not need costs everyone already aboard.</li>
+        <li><strong>The goal:</strong> everyone down to the lobby. Anyone you do not reach is left behind, and the card tells you which floor was still waiting.</li>
       </ul>
 
       <h2>Why it is clever</h2>
-      <p>Almost every lift game is a puzzle about which button to press. This one is about weight. The brake needs nearly a whole floor to stop the car from full speed, so a good stop is a decision you make early, before you are anywhere near the landing you want. Landing one first time pays a small bonus, which is the only thing separating a careful operator from a careless one.</p>
-      <p>This is an early build. It is the car, the stop and the light. The people waiting do not yet run out of patience, so nothing can go wrong yet.</p>
+      <p>Most lift games are about which button to press. This one is about weight and about choosing. The brake needs nearly a whole floor from full speed, so a good stop is a decision you make early, before you are anywhere near the corridor you want. And because the smoke spreads rather than ticking down separately for each person, the floor you skip gets worse while you are somewhere else. Going low first can make the top unreachable.</p>
+      <p>Every level from four onward is checked by a program before it ships. A planner that thinks one trip ahead must be able to clear it, so it is always winnable. On the later levels seven different obvious approaches, including the sensible one of starting at the top and working down, must all fail to clear it, so there is no rule you can learn once and stop thinking. Buildings that fail either test are thrown away.</p>
 
       <h2>Tips</h2>
       <ul>
-        <li>Let go a floor early. Trying to steer the car onto the landing is how you end up between floors.</li>
-        <li>A short hop needs a short pull. Full speed for one floor will always overshoot.</li>
+        <li>Let go a floor early. Trying to steer the car onto a landing is how you end up between floors.</li>
+        <li>Fill the car. Two trips with two people each costs four door openings, and every one of them is smoke.</li>
+        <li>Watch the deepest person on each floor, not the floor. They are the one the smoke reaches first.</li>
       </ul>
 
       <h2>Frequently asked questions</h2>
       <p><strong>Is Lift free?</strong> Yes, completely free to play, with no account or download, in any modern browser on phone, tablet or desktop.</p>
-      <p><strong>Does it work on mobile?</strong> Yes. The shaft sits right of centre on a phone so your thumb never covers the landing you are serving.</p>
-      <p><strong>How do I win?</strong> There is no losing yet in this build. Carry people to the floor they asked for and the tips go up.</p>
-      <p><strong>Why did the doors not open?</strong> The car stopped between floors. Nudge it and let go again.</p>
+      <p><strong>Does it work on mobile?</strong> Yes. The shaft sits right of centre on a phone so your thumb never covers the corridor you are serving.</p>
+      <p><strong>How do I win a level?</strong> Get every person down to the lobby. Miss one and the level ends and you try again.</p>
+      <p><strong>Is every level winnable?</strong> Yes, and it is checked rather than assumed. See the note above on how levels are certified.</p>
+      <p><strong>Does anyone die?</strong> No. The fire brigade is on its way; anyone you do not reach in time is reached by them instead, and the card simply tells you how many you got out.</p>
 
       <p>Enjoy a good thinking puzzle? Try <a href="/bloom/">Bloom</a> or <a href="/kaleido/">Kaleido</a>, or browse <a href="/">all Zamborin games</a>.</p>
     </section>
@@ -182,8 +184,9 @@
   <script src="../shared/analytics.js?v=3"></script>
   <script src="../shared/embed.js?v=1"></script>
   <script defer src="../shared/ads.js?v=2"></script>
-  <script src="./model.js?v=1"></script>
-  <script src="./play.js?v=1"></script>
+  <script src="./model.js?v=2"></script>
+  <script src="./levels.js?v=1"></script>
+  <script src="./play.js?v=2"></script>
   <script>
     (() => {
       const btn = document.getElementById('focus-toggle');

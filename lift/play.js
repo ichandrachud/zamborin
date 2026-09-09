@@ -1,39 +1,47 @@
 /* ============================================================
-   Lift · A Zamborin Game — M1
+   Lift · A Zamborin Game
 
-   THE CAR IS HEAVY. Drag it in the shaft and it lags behind your hand; let go
-   and it keeps going, braking over most of a floor from full speed. Land it
-   level with a landing and the doors slide, warm light floods the landing, and
-   whoever is standing there gets in. Land it between floors and it bumps, sags
-   two pixels and sits there with the doors shut until you nudge it.
+   A hotel is on fire. Smoke rises from the fire floor and fills the corridors
+   above it, and the way out is the lobby at the bottom. You are the lift.
 
-   M1 is the building, the car, the stop, the doors, the light, one person at a
-   time, and tips. There are no patience rings, no quits and no shift yet: they
-   are M2, and until they exist this build cannot be lost. That is the
-   milestone, not the design.
+   Drag the car in the shaft and it lags behind your hand, because it is heavy;
+   let go and it keeps going, braking over most of a floor from full speed.
+   Land it level with a corridor and the doors slide and people get in. Land it
+   between floors and they stay shut until you nudge it, and every second of
+   that is a second of smoke.
 
-   The rules and the numbers live in model.js, which the headless gate also
-   loads, so the harness is arguing with the same car the player is.
+   THE TWO THINGS THAT MAKE IT A DECISION, both measured before they were built
+   (see tune-fire.mjs and the findings beside the brief):
+
+   1. Smoke is ONE clock and it SPREADS. A floor gets worse whether you go
+      there or not, and worse because of what is below it, so serving the wrong
+      floor costs a floor rather than a second. Reacting one stop at a time
+      clears 35% of buildings; planning a whole trip ahead clears 87%.
+   2. Smoke comes into the car through the OPEN DOOR. Every stop costs, so the
+      number of stops is a real budget. Turn that off and the game is 100%
+      winnable, 8% certifiable, and simply reacting clears 81% of it.
+
+   Levels are generated and certified in build-levels.mjs: a planner that
+   thinks one trip ahead clears every one of them, and from level 4 on the
+   obvious rules do not.
    ============================================================ */
 (() => {
   'use strict';
 
   const M = window.LiftModel;
-  const F = M.TUNE;
+  const T = M.TUNE, FIRE = M.FIRE;
+  const LEVELS = (window.LiftLevels || { LEVELS: [] }).LEVELS;
 
   /* ---------- MODE ----------
-     A browser can report a 0-wide viewport on the first frame. The obvious
-     `innerWidth < 768` then reads as a phone, MODE is locked for the session,
-     and a desktop player is left on the phone layout for good. Zero means "not
-     measured yet", so it must not count as narrow. And a narrow frame is not a
-     phone if it is lying down: the width test on its own handed the mobile
-     chrome to a 480x360 embed, whose bands then ate 160 of its 360 pixels. */
+     A browser can report a 0-wide viewport on the first frame; zero must not
+     count as narrow or a desktop player is locked to the phone layout for the
+     session. And a narrow frame is not a phone if it is lying down - the width
+     test alone handed the mobile chrome to a 480x360 embed. */
   const PORTRAITISH = window.innerHeight >= window.innerWidth;
   const MODE = (matchMedia('(pointer: coarse)').matches ||
                 (window.innerWidth > 0 && window.innerWidth < 768 && PORTRAITISH))
     ? 'mobile' : 'desktop';
   document.body.classList.add('mode-' + MODE);
-
   const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   /* ---------- CANVAS ---------- */
@@ -76,128 +84,91 @@
     fitFullscreen(); resizeCanvas(); layout(); render(performance.now());
   }
 
-  /* ---------- AUDIO ---------- */
   const sfx = window.ZSFX ? window.ZSFX.create({ storageKey: 'zam.lift.sfx' }) : null;
-
-  /* ---------- BUTTONS ---------- */
   const UI = window.ZAM_UI;
-
-  /* ---------- ANALYTICS ---------- */
   const NOOP = { init(){}, gameStart(){}, levelStart(){}, levelComplete(){}, levelRestart(){}, hintUsed(){}, track(){} };
-  const T = () => (window.ZAM_TRACK || NOOP);
-  T().init('lift');
-  /* A stop every three to five seconds is a lot of events for a quota the
-     whole fleet shares. The detail is only wanted from the start of a session
-     anyway, which is where the stranger test lives. */
-  const STOP_EVENT_CAP = 40;
+  const TR = () => (window.ZAM_TRACK || NOOP);
+  TR().init('lift');
 
   /* ---------- COLOUR ----------
-     Chrome takes tokens (shared/tokens.css) and nothing else. The hotel is
-     game art and carries its own palette, from the brief section 10. Canvas
-     cannot read CSS variables, so this is the one place they are restated. */
-  const GROUND = '#0E1726';                    // --bg
-  const SURFACE = '#131F36';                   // --bg-card
-  const RAISED = '#1A2A45';                    // --bg-panel
-  const INK72 = 'rgba(255,255,255,0.72)';
-  const CORAL = '#C24A39';                     // --accent
+     Chrome takes tokens (shared/tokens.css). The hotel is game art and carries
+     its own palette. Canvas cannot read CSS variables, so this is the one place
+     they are restated. */
+  const GROUND = '#0E1726', SURFACE = '#131F36', RAISED = '#1A2A45';
+  const INK72 = 'rgba(255,255,255,0.72)', CORAL = '#C24A39';
 
   const SHELL_TOP = '#1C2233', SHELL_BOT = '#12172A';
-  const ROOM_A = '#1E2640', ROOM_B = '#1A2138';
-  const SLAB = 'rgba(255,255,255,0.06)';
+  const WALL_A = '#232B45', WALL_B = '#1E2540';        // alternating corridor walls
+  const CEIL = 'rgba(255,255,255,0.10)';
+  const SKIRT = 'rgba(255,255,255,0.07)';
+  const DOOR_FILL = '#525A6D', DOOR_HI = '#626B80', DOOR_LO = '#3C4356';
   const LAMP = '#FFD98A';
   const CARPET = '#7A3A3A';
   const SHAFT = '#0B1020', CABLE = 'rgba(255,255,255,0.08)';
-  const LOCKED = 'rgba(200,215,240,0.25)';
   const CAR_HI = '#FFD98A', CAR_MID = '#E8B44C', CAR_LO = '#C9861E';
   const CAR_BEVEL = 'rgba(255,255,255,0.35)';
   const CAR_IN = '#FFE8B0', HEAD_WARM = '#FFF4E6';
-  const CALL_LIT = '#FFD24C', CALL_UNLIT = 'rgba(255,255,255,0.12)';
-  const BODY_HI = '#8FA6C8', BODY_LO = '#4E6488', HEAD = '#C9D6F0';
-  /* Floor numerals and the destination chip. Both are sampled in the contrast
-     sweep: the numeral against the darker of the two room fills, the chip
-     numeral against the chip. */
-  const FLOOR_NUM = 'rgba(201,214,240,0.62)';
-  const CHIP_FILL = '#FFE8B0', CHIP_INK = '#1A2138';
+  /* BODY_LO was #4E6488, a mid-tone, which measured low against a dark wall AND
+   against light smoke - there was no ground it read on. Lifted so the figure
+   is a light shape that always sits on the dark halo behind it. */
+const BODY_HI = '#9DB2D2', BODY_LO = '#6E86AE', HEAD = '#C9D6F0';
+  const SMOKE = '214,220,232';
+  const FLAME = '255,150,60';
+  const EXIT_GLOW = '#8FE3C8';
+  const FLOOR_NUM = 'rgba(226,234,250,0.96)';
+  const BREATH_OK = '#5DD39E', BREATH_MID = '#F0B23C', BREATH_LOW = '#F05A46';
 
-  /* ---------- LAYOUT ----------
-     One top band, both modes: controls sit left in it on desktop, in a bottom
-     row on a phone, and the read-out sits right in it either way.
-
-     The hotel is cut open. On the desktop frame the rooms take both outsides
-     and the two shafts run down the middle, which is what fills a 760x600
-     landscape frame with something real rather than two gutters. A phone has
-     no room for the far side, so it gets rooms, the working shaft right of
-     centre - so a thumb on the cable never covers the landing it is serving -
-     and the promise of the second shaft at the edge. */
+  /* ---------- LAYOUT ---------- */
   const SIDE_PAD = 30;
   const topBand = () => (MODE === 'mobile' ? 64 : 56);
   const botBand = () => (MODE === 'mobile' ? 96 : 20);
   const buildPad = () => (MODE === 'mobile' ? 12 : SIDE_PAD);
-  /* A phone reserves a lane under the building for one line of status. In M1
-     that is the late hint; at M2 it is where the decision cue pill goes. The
-     desktop frame has no spare height for it - 7 floors at 74 leaves 6px - so
-     there the hint goes in the gap the top band already has between the
-     control row and the read-out. */
-  /* A short frame does not get the lane. At 480x360, the smallest frame the
-     embed supports, a 64px band, a 96px control row and a 26px lane leave 174
-     pixels for seven floors and the building ran 11px past both bands. */
   const statusLane = () => (MODE === 'mobile' && LH >= 560 ? 26 : 0);
 
   const geo = {
     floorPx: 74, shaftW: 64, carW: 54, carH: 62,
-    x: 0, y: 0, w: 0, h: 0,
-    land1X: 0, land1W: 0, shaft1X: 0, shaft2X: 0, shaft2W: 0, land2X: 0, land2W: 0,
+    x: 0, y: 0, w: 0, h: 0, corW: 0, leftX: 0, shaftX: 0, rightX: 0, rightW: 0,
   };
   let ctrl = [], readoutMinX = SIDE_PAD;
+
+  function floors() { return level ? level.floors : 7; }
 
   function layout() {
     const availW = Math.max(80, LW - buildPad() * 2);
     const availH = Math.max(80, LH - topBand() - botBand() - statusLane());
-    const maxFloor = MODE === 'mobile' ? 84 : 76;
-    /* No minimum that the frame cannot pay for. A 28px floor was held even
-       where seven of them did not fit, and the building simply overflowed. */
-    geo.floorPx = Math.max(16, Math.min(maxFloor, Math.floor(availH / F.floors)));
-    geo.shaftW = Math.max(18, Math.min(84, Math.round(geo.floorPx * 0.86)));
-    geo.h = geo.floorPx * F.floors;
-    geo.shaft2W = geo.shaftW;
-    /* A room is a room, not a letterbox. Given the whole width a small frame
-       drew 404x28 landings, fourteen times as wide as they were tall, so the
-       landing is capped against the floor height and the building comes out
-       narrower than the frame rather than stretched across it. */
-    const shafts = geo.shaftW + geo.shaft2W;
-    const landCap = geo.floorPx * 6;
-    if (MODE === 'mobile') {
-      geo.land1W = Math.max(40, Math.min(availW - shafts, landCap));
-      geo.land2W = 0;
-      geo.w = geo.land1W + shafts;
-      geo.x = Math.round((LW - geo.w) / 2);
-      geo.land1X = geo.x;
-      geo.shaft1X = geo.x + geo.land1W;
-      geo.shaft2X = geo.shaft1X + geo.shaftW;
-      geo.land2X = 0;
-    } else {
-      const each = Math.max(40, Math.min(Math.floor((availW - shafts) / 2), landCap));
-      geo.land1W = each; geo.land2W = each;
-      geo.w = each * 2 + shafts;
-      geo.x = Math.round((LW - geo.w) / 2);
-      geo.land1X = geo.x;
-      geo.shaft1X = geo.x + geo.land1W;
-      geo.shaft2X = geo.shaft1X + geo.shaftW;
-      geo.land2X = geo.shaft2X + geo.shaft2W;
-    }
+    const F = floors();
+    /* The floor height is set by a five-floor building at minimum, so a small
+       hotel is SHORT rather than stretched: you see its roof and the street,
+       and the building grows into the frame as the levels do. */
+    const maxFloor = MODE === 'mobile' ? 120 : 104;
+    geo.floorPx = Math.max(30, Math.min(maxFloor, Math.floor(availH / Math.max(4, F))));
+    geo.shaftW = Math.max(30, Math.min(84, Math.round(geo.floorPx * 0.80)));
+    geo.h = geo.floorPx * F;
     geo.y = Math.round(topBand() + (availH - geo.h) / 2);
+
+    /* A corridor is a corridor, not a letterbox: capped against the floor
+       height so a wide frame does not draw a 400x40 room. */
+    const corCap = geo.floorPx * 5;
+    if (MODE === 'mobile') {
+      geo.corW = Math.max(60, Math.min(availW - geo.shaftW, corCap));
+      geo.rightW = 0;
+      geo.w = geo.corW + geo.shaftW;
+      geo.x = Math.round((LW - geo.w) / 2);
+      geo.leftX = geo.x; geo.shaftX = geo.x + geo.corW; geo.rightX = 0;
+    } else {
+      geo.corW = Math.max(60, Math.min(Math.floor((availW - geo.shaftW) / 2), corCap));
+      geo.rightW = geo.corW;
+      geo.w = geo.corW * 2 + geo.shaftW;
+      geo.x = Math.round((LW - geo.w) / 2);
+      geo.leftX = geo.x; geo.shaftX = geo.x + geo.corW; geo.rightX = geo.shaftX + geo.shaftW;
+    }
     geo.carW = Math.max(18, Math.round(geo.shaftW - 10));
     geo.carH = Math.max(20, Math.round(geo.floorPx - 12));
     layoutControls();
   }
-
-  /* The slab of floor f: the surface the car's floor lines up with, and the
-     surface people stand on. Floor 1 is the lobby, at the bottom. */
-  const slabY = (f) => geo.y + (F.floors - f + 1) * geo.floorPx;
+  const slabY = (f) => geo.y + (floors() - f + 1) * geo.floorPx;
   const roomTop = (f) => slabY(f) - geo.floorPx;
 
-  /* Order is fixed: sound, Undo, Restart, Hint, Rules. M1 has no undo and no
-     hint, so they are simply absent and the others do not move to fill in. */
   function layoutControls() {
     const items = [{ id: 'sound', icon: true }, { id: 'restart', label: 'Restart' }, { id: 'rules', label: 'Rules' }];
     ctx.save();
@@ -208,80 +179,85 @@
     const cy = MODE === 'mobile' ? LH - 74 : topBand() / 2;
     let x = MODE === 'mobile' ? Math.round((LW - total) / 2) : SIDE_PAD;
     ctrl = items.map(it => {
-      const box = { id: it.id, label: it.label, icon: it.icon, x, y: Math.round(cy - UI.PILL.h / 2), w: it.w, h: UI.PILL.h, cx: x + it.w / 2, cy };
+      const box = { id: it.id, label: it.label, icon: it.icon, x, y: Math.round(cy - UI.PILL.h / 2),
+                    w: it.w, h: UI.PILL.h, cx: x + it.w / 2, cy };
       x += it.w + UI.PILL.gap;
       return box;
     });
-    /* The control row and the read-out lay out from opposite ends of the same
-       band and nothing else checks whether they meet. Desktop is the only mode
-       where they share it, so measure there and give the read-out what is left. */
     readoutMinX = MODE === 'desktop' ? x + 16 : SIDE_PAD;
   }
 
   /* ---------- STATE ---------- */
+  const SAVE = 'zam.lift.save';
+  let levelIndex = 0, level = null;
   const car = { y: 1, v: 0 };
-  let phase = 'drive';            // 'drive' | 'serve'
-  let serveT = 0, serveFloor = 1, serveDrop = false, serveBoard = false, didDrop = false, didBoard = false;
-  let doorOpen = 0;               // 0 shut, 1 wide
-  let settleT = 0, settleDir = 1; // the two-frame overshoot on a level stop
-  let sag = 0, bumpT = 0;         // the unlevel stop, and how long it has sat
-  let departed = false;           // has the car actually gone anywhere since the last stop
-  let smoothArmed = true, armY = 1;
-  let waiting = null;             // { floor, dest }  — one person at a time in M1
-  let rider = null;               // { dest }
-  let tips = 0, busStops = 0, smoothStops = 0, stopEvents = 0;
-  let spawnAt = 0, tNow = 0;      // seconds of play, not wall clock
-  let flies = [];                 // the tips flying to the counter
-  let firstLevelAt = 0;           // when the player first landed one, for the late hint
-  let handlePulse = 0;
-  let rng = M.makeRng(1);
-  let rulesOpen = false, rulesScroll = 0;
+  let smoke = null, carSmoke = 0;
+  let waiting = [], aboard = [], out = 0, lost = 0, lostFloors = [], standsBy = {};
+  let phase = 'play';                  // 'play' | 'serve' | 'over'
+  let serveT = 0, serveFloor = 1, doorOpen = 0, didWork = false;
+  let settleT = 0, settleDir = 1, sag = 0;
+  let departed = false, stopsMade = 0;
+  let puffs = [], tNow = 0, endT = 0, won = false;
+  let rulesOpen = false, rulesScroll = 0, handlePulse = 0;
 
-  function reset() {
+  function loadSave() {
+    try { const s = JSON.parse(localStorage.getItem(SAVE) || '{}'); return Math.max(0, Math.min(LEVELS.length - 1, s.level | 0)); }
+    catch (e) { return 0; }
+  }
+  function putSave() { try { localStorage.setItem(SAVE, JSON.stringify({ level: levelIndex })); } catch (e) {} }
+
+  function startLevel(i) {
+    levelIndex = Math.max(0, Math.min(LEVELS.length - 1, i));
+    level = LEVELS[levelIndex];
     car.y = 1; car.v = 0;
-    phase = 'drive'; doorOpen = 0; settleT = 0; sag = 0; bumpT = 0; departed = false;
-    smoothArmed = true; armY = 1;
-    rider = null; tips = 0; busStops = 0; smoothStops = 0;
-    flies = []; tNow = 0; firstLevelAt = 0; handlePulse = 0;
-    rng = M.makeRng(1);
-    /* The first screen, exactly as the brief describes it: the car in the
-       lobby and one person on the third floor who wants the lobby. Two stops,
-       both short, and the first doors-open inside a few seconds. */
-    waiting = { floor: 3, dest: 1 };
-    spawnAt = 0;
+    smoke = new Float64Array(level.floors + 1);
+    carSmoke = 0;
+    /* Where somebody stands comes from their slot and NOTHING ELSE, so a
+       building plays the same on a phone as in the desktop frame even though
+       the desktop draws the queue across two corridors. The smoke reaches the
+       far end of a corridor first, so the deepest person is on the shortest
+       clock and you can see that without being told. */
+    const perFloor = {};
+    waiting = level.people.map((f, i2) => {
+      perFloor[f] = (perFloor[f] || 0) + 1;
+      const slot = perFloor[f] - 1;
+      return { id: i2, floor: f, exp: 0, slot, stand: M.standAt(slot), fade: 0 };
+    });
+    /* Where the doors may NOT go. Somebody standing in front of a guest door
+       had a pale grey ground behind them and measured 2.52:1 against a 3:1
+       bar, and it also looked like they were standing in a doorway. Computed
+       from the LEVEL rather than from who is still waiting, so a door does not
+       pop into existence when somebody gets in the lift. */
+    standsBy = {};
+    const seen = {};
+    for (const f of level.people) {
+      const slot = (seen[f] = (seen[f] || 0) + 1) - 1;
+      (standsBy[f] || (standsBy[f] = [])).push({ stand: M.standAt(slot), right: slot % 2 === 1 });
+    }
+    aboard = []; out = 0; lost = 0; lostFloors = [];
+    phase = 'play'; doorOpen = 0; serveT = 0; sag = 0; settleT = 0;
+    departed = false; stopsMade = 0; puffs = []; tNow = 0; endT = 0; won = false;
+    handlePulse = 1;
+    layout();
+    TR().levelStart(levelIndex + 1);
   }
 
-  function spawn() {
-    const here = Math.round(car.y);
-    let f = 1 + Math.floor(rng() * F.floors);
-    /* Never on the floor the car is already at. A person who appears under the
-       open doors is a delivery with no drive in it, and the drive is the game. */
-    if (f === here) f = 1 + ((f) % F.floors);
-    let d = 1 + Math.floor(rng() * (F.floors - 1));
-    if (d >= f) d++;
-    waiting = { floor: f, dest: d };
-  }
+  const totalPeople = () => (level ? level.people.length : 0);
 
   /* ---------- INPUT ---------- */
-  let dragging = false, dragV = 0, dragLastY = 0, dragLastT = 0;
-  let keyDir = 0;
+  let dragging = false, dragV = 0, dragLastY = 0, dragLastT = 0, keyDir = 0;
 
   function toLocal(e) {
-    const rect = canvas.getBoundingClientRect();
-    return {
-      x: (e.clientX - rect.left) * (LW / rect.width),
-      y: (e.clientY - rect.top) * (LH / rect.height),
-    };
+    const r = canvas.getBoundingClientRect();
+    return { x: (e.clientX - r.left) * (LW / r.width), y: (e.clientY - r.top) * (LH / r.height) };
   }
-  function hitCtrl(x, y) {
-    return ctrl.find(c => x >= c.x - 6 && x <= c.x + c.w + 6 && y >= c.y - 8 && y <= c.y + c.h + 8) || null;
-  }
-  /* The whole shaft is the handle, not just the car. There is nothing else in
-     the shaft, grabbing the cable is the same gesture as grabbing the car, and
-     a thumb does not have to find a 60px box first. */
+  const hitCtrl = (x, y) => ctrl.find(c => x >= c.x - 6 && x <= c.x + c.w + 6 && y >= c.y - 8 && y <= c.y + c.h + 8) || null;
+  /* The whole shaft is the handle. There is nothing else in it, grabbing the
+     cable is the same gesture as grabbing the car, and a thumb does not have to
+     find a 60px box first. */
   function inGrab(x, y) {
     const pad = MODE === 'mobile' ? 26 : 18;
-    return x >= geo.shaft1X - pad && x <= geo.shaft1X + geo.shaftW + pad &&
+    return x >= geo.shaftX - pad && x <= geo.shaftX + geo.shaftW + pad &&
            y >= geo.y - 12 && y <= geo.y + geo.h + 12;
   }
 
@@ -289,32 +265,29 @@
     e.preventDefault();
     if (sfx) sfx.ensureAudio();
     const p = toLocal(e);
-    if (rulesOpen) { onRulesPointer(p, e); return; }
+    if (rulesOpen) { onRulesPointer(p); return; }
     const c = hitCtrl(p.x, p.y);
     if (c) { onCtrl(c.id); return; }
-    if (phase === 'serve') return;            // never steer with the doors open
+    if (phase === 'over') { onEndPointer(p); return; }
+    if (phase === 'serve') return;                       // never steer with the doors open
     if (!inGrab(p.x, p.y)) return;
-    /* Seed the target with the speed the car already has. A long trip needs
-       more than one thumb-length of screen, so it is taken in two or three
-       gestures; starting each one from a target of zero braked the car at
-       aMax, which is HARDER than letting go, and made re-grabbing cost speed.
-       Lifting your thumb to take a fresh grip should cost nothing. */
+    /* Seed the target with the speed the car already has. A tall building needs
+       more than one thumb-length, so a trip is taken in two or three gestures;
+       starting each from zero braked at aMax, HARDER than letting go, and made
+       re-gripping cost speed. */
     dragging = true; dragV = car.v; dragLastY = p.y; dragLastT = performance.now();
     canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId);
   });
   canvas.addEventListener('pointermove', (e) => {
     if (!dragging) return;
-    const p = toLocal(e);
-    const now = performance.now();
+    const p = toLocal(e), now = performance.now();
     const dt = Math.max(0.008, (now - dragLastT) / 1000);
-    /* THE HAND'S VELOCITY IS THE TARGET. Screen y grows downward and floors
-       grow upward, hence the sign. Smoothed, because a raw pointer delta is
-       noisy enough to make the car buzz. */
+    // THE HAND'S VELOCITY IS THE TARGET. Screen y grows down, floors grow up.
     const raw = -(p.y - dragLastY) / geo.floorPx / dt;
     dragV = dragV * 0.55 + raw * 0.45;
     dragLastY = p.y; dragLastT = now;
   });
-  function endDrag() { dragging = false; dragV = 0; }
+  const endDrag = () => { dragging = false; dragV = 0; };
   canvas.addEventListener('pointerup', endDrag);
   canvas.addEventListener('pointercancel', endDrag);
 
@@ -322,6 +295,7 @@
     if (e.key === 'ArrowUp' || e.key === 'w') { keyDir = 1; e.preventDefault(); }
     else if (e.key === 'ArrowDown' || e.key === 's') { keyDir = -1; e.preventDefault(); }
     else if (e.key === 'Escape' && rulesOpen) { rulesOpen = false; }
+    else if (e.key === 'Enter' && phase === 'over') { advanceFromCard(); }
     else return;
     if (sfx) sfx.ensureAudio();
   });
@@ -332,326 +306,525 @@
 
   function onCtrl(id) {
     if (id === 'sound') { if (sfx) sfx.setOn(!sfx.isOn()); return; }
-    if (id === 'restart') { reset(); T().levelRestart(1); return; }
+    if (id === 'restart') { TR().levelRestart(levelIndex + 1); startLevel(levelIndex); return; }
     if (id === 'rules') { rulesOpen = !rulesOpen; rulesScroll = 0; return; }
   }
-
-  /* ---------- THE CAR ---------- */
-  function step(dt) {
-    tNow += dt;
-    stepFlies(dt);
-    if (settleT > 0) settleT = Math.max(0, settleT - dt / 0.16);
-    if (bumpT > 0) bumpT = Math.max(0, bumpT - dt / 0.20);
-    if (handlePulse > 0) handlePulse = Math.max(0, handlePulse - dt / 1.4);
-
-    if (phase === 'serve') { stepServe(dt); return; }
-
-    if (waiting === null && rider === null && spawnAt > 0 && tNow >= spawnAt) { spawn(); spawnAt = 0; }
-
-    let input;
-    if (dragging) {
-      /* A finger that has stopped moving is asking for a stop, not for the
-         speed it last had. */
-      const age = Math.max(0, (performance.now() - dragLastT) / 1000 - 0.06);
-      input = { mode: 'drag', targetV: dragV * Math.exp(-age * 12) };
-    } else if (keyDir) {
-      input = { mode: 'key', dir: keyDir };
-    } else {
-      input = { mode: 'free' };
-    }
-
-    const before = car.v;
-    const r = M.stepCar(car, dt, input, F);
-    if (Math.abs(car.v) > 0.02) departed = true;
-    if (!smoothArmed && Math.abs(car.y - armY) >= 0.75) smoothArmed = true;
-
-    if (departed && !dragging && !keyDir && Math.abs(car.v) < 1e-6) onStopped(before, r === 'end');
+  function advanceFromCard() {
+    if (won && levelIndex < LEVELS.length - 1) { levelIndex++; putSave(); startLevel(levelIndex); }
+    else startLevel(levelIndex);
   }
 
-  function onStopped(releaseV, hitEnd) {
-    departed = false;
-    const level = M.isLevel(car.y, F.levelTol);
-    if (stopEvents < STOP_EVENT_CAP) {
-      stopEvents++;
-      T().track('stop', { level: level ? 1 : 0, off: Math.round(Math.abs(car.y - Math.round(car.y)) * 100) / 100, speed: Math.round(Math.abs(releaseV) * 100) / 100 });
+  /* ---------- THE WORLD ---------- */
+  function step(dt) {
+    tNow += dt;
+    if (settleT > 0) settleT = Math.max(0, settleT - dt / 0.16);
+    if (handlePulse > 0) handlePulse = Math.max(0, handlePulse - dt / 1.4);
+    for (const p of puffs) p.t += dt / 1.1;
+    puffs = puffs.filter(p => p.t < 1);
+    if (phase === 'over') { endT += dt; return; }
+
+    M.stepSmoke(smoke, level.floors, level.fire, level.rate, dt, FIRE);
+    carSmoke = M.carSmokeStep(carSmoke, doorOpen > 0.02 ? smoke[serveFloor] : 0, dt, doorOpen > 0.02, FIRE);
+
+    for (let i = waiting.length - 1; i >= 0; i--) {
+      const p = waiting[i];
+      p.exp += M.exposureStep(p.stand, smoke[p.floor], dt, FIRE);
+      if (p.exp >= 1) { overcome(p, p.floor); waiting.splice(i, 1); }
     }
-    if (level) {
+    for (let i = aboard.length - 1; i >= 0; i--) {
+      const p = aboard[i];
+      p.exp += M.carExposureStep(carSmoke, dt, FIRE);  // nowhere to stand away from it
+      if (p.exp >= 1) { overcome(p, Math.round(car.y)); aboard.splice(i, 1); }
+    }
+
+    if (phase === 'serve') { stepServe(dt); }
+    else { stepDrive(dt); }
+
+    if (waiting.length === 0 && aboard.length === 0 && phase !== 'serve') finish();
+  }
+
+  /* Nobody dies on screen and nothing is drawn over a person: the smoke closes
+     over them and they are left behind. The card names their floor, because
+     the floor you did not get back to is the thing worth remembering. */
+  function overcome(p, floor) {
+    lost++; lostFloors.push(floor);
+    puffs.push({ t: 0, floor, side: p.slot % 2, slot: p.slot, kind: 'lost' });
+    if (sfx) sfx.play('error');
+  }
+  function finish() {
+    if (phase === 'over') return;
+    phase = 'over'; endT = 0; won = lost === 0;
+    if (won) { if (sfx) sfx.play('success'); TR().levelComplete(levelIndex + 1, stopsMade); }
+    else if (sfx) sfx.play('fail');
+    TR().track('level_end', { level: levelIndex + 1, out, lost, stops: stopsMade, seconds: Math.round(tNow) });
+  }
+
+  function stepDrive(dt) {
+    let input;
+    if (dragging) {
+      const age = Math.max(0, (performance.now() - dragLastT) / 1000 - 0.06);
+      input = { mode: 'drag', targetV: dragV * Math.exp(-age * 12) };
+    } else if (keyDir) input = { mode: 'key', dir: keyDir };
+    else input = { mode: 'free' };
+
+    const before = car.v;
+    M.stepCar(car, dt, input, level.floors, T);
+    if (Math.abs(car.v) > 0.02) departed = true;
+    if (departed && !dragging && !keyDir && Math.abs(car.v) < 1e-6) onStopped(before);
+  }
+
+  function onStopped(releaseV) {
+    departed = false;
+    const level_ = M.isLevel(car.y, T.levelTol);
+    TR().track('stop', { level: level_ ? 1 : 0, off: Math.round(Math.abs(car.y - Math.round(car.y)) * 100) / 100 });
+    if (level_) {
       car.y = Math.round(car.y);
       if (!REDUCED) { settleT = 1; settleDir = releaseV >= 0 ? 1 : -1; }
       sag = 0;
-      if (!firstLevelAt) firstLevelAt = tNow;
       startServe(car.y);
     } else {
-      sag = 2; bumpT = 1;
-      smoothArmed = false; armY = car.y;
+      /* A missed stop opens no doors, so no smoke gets in. What it costs is the
+         overshoot, the sag and the nudge back, and under a fire that is the
+         only currency there is. */
+      sag = 2;
       if (sfx) sfx.play('drop');
-      if (hitEnd) { /* the shaft ends are never level-tolerant by accident: 1 and floors ARE floors */ }
     }
   }
 
-  function startServe(floor) {
-    phase = 'serve'; serveT = 0; serveFloor = floor;
-    serveDrop = !!(rider && rider.dest === floor);
-    serveBoard = !!(waiting && waiting.floor === floor && !serveDropBlocks());
-    didDrop = false; didBoard = false;
+  function startServe(f) {
+    phase = 'serve'; serveT = 0; serveFloor = f; didWork = false; stopsMade++;
     if (sfx) sfx.play('ping');
   }
-  function serveDropBlocks() { return rider && rider.dest !== serveFloor; }
-
   function serveTimes() {
-    const acts = (serveDrop ? 1 : 0) + (serveBoard ? 1 : 0);
-    const open = F.doorS;
-    const act = F.boardS * Math.max(1, acts);
-    return { open, act, close: F.doorS, total: open + act + F.doorS };
+    const n = f => (f === 1 ? aboard.length : Math.min(T.capacity - aboard.length, waiting.filter(p => p.floor === f).length));
+    const acts = Math.max(1, n(serveFloor));
+    return { open: T.doorS, act: T.boardS * acts, close: T.doorS, total: T.doorS * 2 + T.boardS * acts };
   }
-
   function stepServe(dt) {
     serveT += dt;
     const t = serveTimes();
     /* Reduced motion snaps the doors to their end state. It must not skip the
-       time they take: the door is a RULE - it is what a stop costs - and only
-       the animation is optional. */
+       time they take: the door is a RULE - it is what a stop costs, in smoke -
+       and only the animation is optional. */
     if (REDUCED) doorOpen = serveT < t.open ? 0 : (serveT < t.open + t.act ? 1 : 0);
     else if (serveT < t.open) doorOpen = ease(serveT / t.open);
     else if (serveT < t.open + t.act) doorOpen = 1;
     else doorOpen = 1 - ease(Math.min(1, (serveT - t.open - t.act) / t.close));
 
-    if (!didDrop && serveDrop && serveT >= t.open) {
-      didDrop = true;
-      pay(rider, 'drop');
-      rider = null;
-      spawnAt = tNow + 1.0;
+    if (!didWork && serveT >= t.open) {
+      didWork = true;
+      if (serveFloor === 1) {
+        for (const p of aboard) { out++; puffs.push({ t: 0, floor: 1, side: 0, slot: p.slot, kind: 'out' }); }
+        if (aboard.length && sfx) sfx.play('pop');
+        aboard = [];
+      } else {
+        const here = waiting.filter(p => p.floor === serveFloor).sort((a, b) => b.exp - a.exp);
+        const take = here.slice(0, T.capacity - aboard.length);
+        if (take.length) {
+          const ids = new Set(take.map(p => p.id));
+          waiting = waiting.filter(p => !ids.has(p.id));
+          for (const p of take) aboard.push(p);
+          if (sfx) sfx.play('step');
+        }
+      }
     }
-    if (!didBoard && serveBoard && serveT >= t.open + (serveDrop ? F.boardS : 0)) {
-      didBoard = true;
-      rider = { dest: waiting.dest };
-      waiting = null;
-      creditStop();
-      if (sfx) sfx.play('step');
-    }
-    if (serveT >= t.total) {
-      phase = 'drive'; doorOpen = 0;
-    }
-  }
-
-  /* A stop that did business counts toward the smooth-stop rate, and pays the
-     craft bonus if the car got there first time. A stop at an empty landing
-     opens its doors and spills its light - that is the reward beat and it is
-     free - but it pays nothing, or parking on an empty floor would be an
-     income. */
-  function creditStop() {
-    busStops++;
-    if (smoothArmed) {
-      smoothStops++;
-      tips += F.smoothBonus;
-      addFly('+' + F.smoothBonus, 0.35, true);
-    }
-  }
-  function pay(who, kind) {
-    void kind;
-    const amount = Math.round(M.tipFor(1, 1, F));      // no patience in M1: everyone pays full
-    tips += amount;
-    addFly('+' + amount, 0, false);
-    creditStop();
-    if (sfx) sfx.play('pop');
-    T().track('delivery', { dest: who ? who.dest : 0 });
-  }
-
-  function addFly(txt, delay, small) {
-    const sx = geo.shaft1X + geo.shaftW / 2;
-    const sy = slabY(serveFloor) - geo.floorPx * 0.6;
-    flies.push({ txt, x: sx, y: sy, t: -delay, small: !!small });
-  }
-  function stepFlies(dt) {
-    for (const f of flies) f.t += dt / 0.9;
-    flies = flies.filter(f => f.t < 1);
+    if (serveT >= t.total) { phase = 'play'; doorOpen = 0; }
   }
 
   const ease = (t) => t < 0 ? 0 : t > 1 ? 1 : t * t * (3 - 2 * t);
 
   /* ---------- RENDER ---------- */
-  function rr(x, y, w, h, r) { UI.roundRectPath(ctx, x, y, w, h, r); }
+  const rr = (x, y, w, h, r) => UI.roundRectPath(ctx, x, y, w, h, r);
 
   function render(now) {
     ctx.clearRect(0, 0, LW, LH);
-    /* The Portal wash. Centre at 32% of width on the top edge, radius 1.1x
-       width. Every game in the fleet, same three stops. */
     const bg = ctx.createRadialGradient(LW * 0.32, 0, 0, LW * 0.32, 0, LW * 1.1);
     bg.addColorStop(0, RAISED); bg.addColorStop(0.6, SURFACE); bg.addColorStop(1, GROUND);
     ctx.fillStyle = bg; ctx.fillRect(0, 0, LW, LH);
+    if (!level) return;
 
     drawShell();
-    drawRooms(geo.land1X, geo.land1W, true);
-    if (geo.land2W > 0) drawRooms(geo.land2X, geo.land2W, false);
+    drawCorridor(geo.leftX, geo.corW, 'left', now);
+    if (geo.rightW > 0) drawCorridor(geo.rightX, geo.rightW, 'right', now);
     drawSpill();
-    drawWaiting(now);
-    drawShafts();
+    drawPeople(now);
+    drawSmoke(now);
+    drawShaft();
     drawCar(now);
-    drawFlies();
-    drawHud(now);
+    drawPuffs();
+    drawHud();
+    if (phase === 'over') drawEndCard();
     if (rulesOpen) drawRulesCard(now);
   }
 
   function drawShell() {
     const g = ctx.createLinearGradient(0, geo.y, 0, geo.y + geo.h);
     g.addColorStop(0, SHELL_TOP); g.addColorStop(1, SHELL_BOT);
-    ctx.fillStyle = g; rr(geo.x, geo.y, geo.w, geo.h, 12); ctx.fill();
+    ctx.fillStyle = g; rr(geo.x - 6, geo.y - 8, geo.w + 12, geo.h + 8, 8); ctx.fill();
+    // the roof, so a short hotel reads as a short hotel and not a cropped one
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    ctx.fillRect(geo.x - 10, geo.y - 12, geo.w + 20, 4);
   }
 
-  /* `served` marks the half of the hotel this lift actually reaches. The far
-     side is drawn the same way and is simply empty: it is the second shaft's
-     half of the building, and it is the promise. */
-  function drawRooms(x, w, served) {
-    if (w <= 0) return;
+  /* A HOTEL CORRIDOR, not a box: a ceiling with lamps in it, guest room doors
+     down one wall, a runner on the floor, and the lift lobby left clear where
+     the shaft is. */
+  function drawCorridor(x, w, side, now) {
+    const F = floors();
     ctx.save();
-    ctx.beginPath(); rr(geo.x, geo.y, geo.w, geo.h, 12); ctx.clip();
-    for (let f = 1; f <= F.floors; f++) {
-      const top = roomTop(f), base = slabY(f);
-      ctx.fillStyle = (f % 2) ? ROOM_A : ROOM_B;
-      ctx.fillRect(x, top, w, geo.floorPx);
+    ctx.beginPath(); rr(geo.x - 6, geo.y - 8, geo.w + 12, geo.h + 8, 8); ctx.clip();
+    for (let f = 1; f <= F; f++) {
+      const top = roomTop(f), base = slabY(f), h = geo.floorPx;
+      ctx.fillStyle = (f % 2) ? WALL_A : WALL_B;
+      ctx.fillRect(x, top, w, h);
 
-      /* One lamp, over the spot people stand on, and the light it pools below
-         it. The pool is a soft radial and not a shape: a gradient with a
-         boundary you can see reads as a tent pitched in the room, which is
-         what the first version looked like. The room falls to dark at its
-         edges and there is no stroke anywhere - floors are value steps. */
-      const lx = Math.round(x + w * (served ? 0.72 : 0.28));
-      ctx.save();
-      ctx.beginPath(); ctx.rect(x, top, w, geo.floorPx); ctx.clip();
-      const pool = ctx.createRadialGradient(lx, top + 4, 2, lx, top + 4, geo.floorPx * 1.5);
-      pool.addColorStop(0, 'rgba(255,214,120,0.20)');
-      pool.addColorStop(0.42, 'rgba(255,214,120,0.065)');
-      pool.addColorStop(1, 'rgba(255,214,120,0)');
-      ctx.fillStyle = pool; ctx.fillRect(x, top, w, geo.floorPx);
-      ctx.restore();
-      const lampW = Math.max(9, Math.round(geo.floorPx * 0.13));
-      ctx.fillStyle = LAMP;
-      rr(lx - lampW / 2, top + 2, lampW, 3, 1.5); ctx.fill();
+      const ceilH = Math.max(3, h * 0.055);
+      ctx.fillStyle = CEIL; ctx.fillRect(x, top, w, ceilH);
 
-      /* The runner, then the slab. It is the rug that LEADS TO THE LIFT, so it
-         covers the part of the landing nearest the shaft and no more. Drawn
-         across the full width it came out as fourteen saturated red rules at a
-         74px pitch, which is a cut-line on every floor and exactly what the
-         house rule against outlines is about. */
-      const ch = Math.max(4, Math.round(geo.floorPx * 0.075));
-      const cW = Math.round(w * 0.40);
-      const cX = served ? x + w - Math.round(w * 0.07) - cW : x + Math.round(w * 0.07);
-      const cg = ctx.createLinearGradient(0, base - 2 - ch, 0, base - 2);
-      cg.addColorStop(0, 'rgba(122,58,58,0.18)'); cg.addColorStop(1, 'rgba(122,58,58,0.70)');
+      if (f === 1) { drawLobby(x, w, top, base, side); }
+      else { drawDoors(x, w, top, base, side, f); }
+
+      // ceiling lamps, and the light they pool down the corridor
+      const bays = Math.max(2, Math.round(w / (h * 0.95)));
+      for (let i = 0; i < bays; i++) {
+        const lx = x + w * ((i + 0.5) / bays);
+        const g = ctx.createRadialGradient(lx, top + ceilH, 2, lx, top + ceilH, h * 1.15);
+        g.addColorStop(0, 'rgba(255,214,120,0.20)');
+        g.addColorStop(0.4, 'rgba(255,214,120,0.07)');
+        g.addColorStop(1, 'rgba(255,214,120,0)');
+        ctx.save();
+        ctx.beginPath(); ctx.rect(x, top, w, h); ctx.clip();
+        ctx.fillStyle = g; ctx.fillRect(x, top, w, h);
+        ctx.restore();
+        ctx.fillStyle = LAMP;
+        rr(lx - Math.max(5, h * 0.07), top + ceilH * 0.6, Math.max(10, h * 0.14), Math.max(2, h * 0.035), 1.5); ctx.fill();
+      }
+
+      // the runner, then the slab as a band of value rather than a stroke
+      const ch = Math.max(4, Math.round(h * 0.06));
+      const cg = ctx.createLinearGradient(0, base - 3 - ch, 0, base - 3);
+      cg.addColorStop(0, 'rgba(122,58,58,0.18)'); cg.addColorStop(1, 'rgba(122,58,58,0.68)');
       ctx.fillStyle = cg;
-      rr(cX, base - 2 - ch, cW, ch, 2); ctx.fill();
-      ctx.fillStyle = SLAB;
-      ctx.fillRect(x, base - 2, w, 2);
+      const cin = Math.round(w * 0.06);
+      rr(x + cin, base - 3 - ch, w - cin * 2, ch, 2); ctx.fill();
+      ctx.fillStyle = SKIRT; ctx.fillRect(x, base - 3, w, 3);
 
-      // floor numeral, on the outside edge
-      ctx.fillStyle = FLOOR_NUM;
-      ctx.font = '700 ' + Math.max(12, Math.round(geo.floorPx * 0.24)) + 'px Inter, sans-serif';
-      ctx.textAlign = served ? 'left' : 'right';
-      ctx.textBaseline = 'middle';
-      const nx = served ? x + Math.round(w * 0.07) : x + w - Math.round(w * 0.07);
-      ctx.fillText(String(f), nx, base - geo.floorPx * 0.5);
-      // the call button, on the shaft side of the landing
-      if (served) {
-        const bx = x + w - Math.max(12, w * 0.055), by = base - geo.floorPx * 0.5;
-        const lit = !!(waiting && waiting.floor === f);
-        if (lit) {
-          const gl = ctx.createRadialGradient(bx, by, 0, bx, by, 11);
-          gl.addColorStop(0, 'rgba(255,210,76,0.55)'); gl.addColorStop(1, 'rgba(255,210,76,0)');
-          ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(bx, by, 11, 0, Math.PI * 2); ctx.fill();
-        }
-        ctx.fillStyle = lit ? CALL_LIT : CALL_UNLIT;
-        ctx.beginPath(); ctx.arc(bx, by, Math.max(3, geo.floorPx * 0.055), 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+    void now;
+  }
+
+  function drawDoors(x, w, top, base, side, f) {
+    const h = base - top;
+    const doorH = Math.max(16, h * 0.56), doorW = Math.max(11, doorH * 0.56);
+    const lobby = Math.max(doorW * 1.3, w * 0.20);          // clear space by the lift
+    const runX = side === 'left' ? x + 6 : x + lobby;
+    const runW = w - lobby - 6;
+    /* Spaced at two and a half door widths. At 1.85 a wide corridor fitted six
+       of them and the wall of pale rectangles became the brightest thing in
+       the building, which is supposed to be the car. */
+    const n = Math.max(1, Math.min(4, Math.floor(runW / (doorW * 2.5))));
+    const gap = runW / n;
+    const onRight = side === 'right';
+    const clear = (standsBy[f] || []).filter(s => (!!s.right && geo.rightW > 0) === onRight)
+      .map(s => x + w * (onRight ? 1 - s.stand : s.stand));
+    const keepOut = doorW * 0.5 + geo.floorPx * 0.52 * 0.34;
+    for (let i = 0; i < n; i++) {
+      const cx0 = runX + gap * (i + 0.5);
+      if (clear.some(px2 => Math.abs(px2 - cx0) < keepOut)) continue;   // somebody is standing here
+      const dx = Math.round(cx0 - doorW / 2);
+      const dy = Math.round(base - 3 - doorH);
+      const g = ctx.createLinearGradient(dx, dy, dx + doorW, dy);
+      g.addColorStop(0, DOOR_HI); g.addColorStop(0.55, DOOR_FILL); g.addColorStop(1, DOOR_LO);
+      ctx.fillStyle = g;
+      rr(dx, dy, doorW, doorH, 2); ctx.fill();
+      // frame as a value step, never a stroke
+      ctx.fillStyle = 'rgba(0,0,0,0.22)';
+      ctx.fillRect(dx - 1, dy, 1, doorH);
+      ctx.fillStyle = 'rgba(255,255,255,0.10)';
+      ctx.fillRect(dx + doorW, dy, 1, doorH);
+      // handle, and a number plate on the door
+      ctx.fillStyle = 'rgba(255,255,255,0.42)';
+      ctx.beginPath(); ctx.arc(dx + doorW * (side === 'left' ? 0.82 : 0.18), dy + doorH * 0.55, Math.max(1.2, doorW * 0.055), 0, Math.PI * 2); ctx.fill();
+      if (doorH > 30) {
+        ctx.fillStyle = 'rgba(255,255,255,0.13)';
+        rr(dx + doorW * 0.28, dy + doorH * 0.14, doorW * 0.44, Math.max(3, doorH * 0.075), 1); ctx.fill();
       }
     }
-    /* The far wing has no lift yet, so it is unlit. This is the promise
-       drawn as a value step rather than a caption. */
-    if (!served) { ctx.fillStyle = 'rgba(11,16,32,0.30)'; ctx.fillRect(x, geo.y, w, geo.h); }
-    ctx.restore();
   }
 
-  /* The reward for a level stop is light. The fan leaves the shaft and lands
-     on the landing; an unlevel stop never opens the doors, so it never gets
-     one. */
-  function drawSpill() {
-    if (doorOpen <= 0.01) return;
-    const base = slabY(serveFloor);
-    const top = base - geo.floorPx;
-    const reach = Math.max(30, geo.land1W * 0.6) * doorOpen;
-    const x0 = geo.shaft1X;
-    const g = ctx.createLinearGradient(x0, 0, x0 - reach, 0);
-    g.addColorStop(0, 'rgba(255,214,120,' + (0.35 * doorOpen).toFixed(3) + ')');
-    g.addColorStop(1, 'rgba(255,214,120,0)');
-    /* Clipped to the room it is lighting. The fan widens as it leaves the
-       doorway, and unclipped it washed over the slab into the floor below,
-       which is a solid concrete floor. */
+  /* The lobby is where they are trying to get to, so it does not look like the
+     floors above it: no guest doors, a wide doorway to the street, and it is
+     the one cool light in a warm building. */
+  function drawLobby(x, w, top, base, side) {
+    const h = base - top;
+    const dw = Math.max(26, w * 0.26), dh = h * 0.62;
+    const dx = Math.round(side === 'left' ? x + 10 : x + w - 10 - dw);
+    const dy = Math.round(base - 3 - dh);
+    const g = ctx.createLinearGradient(dx, dy, dx, dy + dh);
+    g.addColorStop(0, 'rgba(143,227,200,0.24)'); g.addColorStop(1, 'rgba(143,227,200,0.08)');
+    ctx.fillStyle = g; rr(dx, dy, dw, dh, 3); ctx.fill();
+    const glow = ctx.createRadialGradient(dx + dw / 2, dy + dh, 2, dx + dw / 2, dy + dh, dh * 1.2);
+    glow.addColorStop(0, 'rgba(143,227,200,0.13)'); glow.addColorStop(1, 'rgba(143,227,200,0)');
+    ctx.fillStyle = glow; ctx.fillRect(x, top, w, h);
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.font = '700 ' + Math.max(9, Math.round(h * 0.14)) + 'px Inter, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    if (dh > 28) ctx.fillText('OUT', dx + dw / 2, dy + dh * 0.45);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  }
+
+  /* THE SMOKE IS A FRONT, NOT A HAZE. It comes along the corridor from the
+     stairwell at the far end toward the lift, so how far the grey has got is
+     how long the people in that corridor have, and it is read off the picture
+     rather than off a number. Drawn in two passes with the people between
+     them: enough over them to say the corridor is filling, never enough to
+     hide who is still in it. */
+  function smokeBand(x, w, top, h, front, fromLeft, a, now) {
+    if (front < 0.005) return;
+    const reach = w * front;
+    const far = fromLeft ? x : x + w;                     // the wall it came from
+    const lead = fromLeft ? x + reach : x + w - reach;    // where it has got to
+    const dir = fromLeft ? 1 : -1;
+    const roll = Math.max(8, w * 0.10);
     ctx.save();
-    ctx.beginPath(); ctx.rect(geo.land1X, top - 4, geo.land1W, geo.floorPx + 2); ctx.clip();
-    ctx.beginPath();
-    ctx.moveTo(x0, top + geo.floorPx * 0.18);
-    ctx.lineTo(x0 - reach, top - geo.floorPx * 0.10);
-    ctx.lineTo(x0 - reach, base + geo.floorPx * 0.16);
-    ctx.lineTo(x0, base);
-    ctx.closePath();
-    ctx.fillStyle = g; ctx.fill();
+    ctx.beginPath(); ctx.rect(Math.min(far, lead), top, reach, h); ctx.clip();
+
+    /* The body is thin: you have to be able to see who is still in there. */
+    const g = ctx.createLinearGradient(far, 0, lead, 0);
+    g.addColorStop(0, 'rgba(' + SMOKE + ',' + (a * 0.50).toFixed(3) + ')');
+    g.addColorStop(1, 'rgba(' + SMOKE + ',' + (a * 0.32).toFixed(3) + ')');
+    ctx.fillStyle = g; ctx.fillRect(Math.min(far, lead), top, reach, h);
+
+    /* It hangs from the ceiling, mildly. */
+    const v = ctx.createLinearGradient(0, top, 0, top + h);
+    v.addColorStop(0, 'rgba(' + SMOKE + ',' + (a * 0.22).toFixed(3) + ')');
+    v.addColorStop(0.7, 'rgba(' + SMOKE + ',0)');
+    ctx.fillStyle = v; ctx.fillRect(Math.min(far, lead), top, reach, h);
+
+    /* THE LEADING EDGE IS THE CLOCK, so it is the brightest part of it: a real
+       smoke front rolls and thickens where it is advancing, and it means the
+       player can read exactly how far it has come rather than squinting at a
+       gradient. */
+    const e = ctx.createLinearGradient(lead - dir * roll, 0, lead, 0);
+    e.addColorStop(0, 'rgba(' + SMOKE + ',0)');
+    e.addColorStop(1, 'rgba(' + SMOKE + ',' + (a * 0.55).toFixed(3) + ')');
+    ctx.fillStyle = e;
+    ctx.fillRect(Math.min(lead, lead - dir * roll), top, roll, h);
+
+    if (!REDUCED) {
+      const t2 = now / 1000;
+      for (let k = 0; k < 3; k++) {
+        const cy2 = top + h * (0.16 + 0.3 * k) + Math.sin(t2 * 0.8 + k * 2.1 + top * 0.03) * h * 0.06;
+        const cx2 = lead - dir * roll * (0.25 + 0.35 * k) + Math.sin(t2 * 0.5 + k) * roll * 0.2;
+        const rg = ctx.createRadialGradient(cx2, cy2, 1, cx2, cy2, roll * 1.1);
+        rg.addColorStop(0, 'rgba(' + SMOKE + ',' + (a * 0.34).toFixed(3) + ')');
+        rg.addColorStop(1, 'rgba(' + SMOKE + ',0)');
+        ctx.fillStyle = rg; ctx.fillRect(Math.min(far, lead), top, reach, h);
+      }
+    }
+    ctx.restore();
+  }
+  function smokeLayer(alphaScale, now) {
+    const F = floors();
+    ctx.save();
+    ctx.beginPath(); rr(geo.x - 6, geo.y - 8, geo.w + 12, geo.h + 8, 8); ctx.clip();
+    for (let f = 1; f <= F; f++) {
+      const front = smoke[f];
+      if (front < 0.005) continue;
+      const top = roomTop(f), h = geo.floorPx;
+      const a = 0.78 * alphaScale;
+      smokeBand(geo.leftX, geo.corW, top, h, front, true, a, now);
+      if (geo.rightW > 0) smokeBand(geo.rightX, geo.rightW, top, h, front, false, a, now);
+    }
+    ctx.restore();
+  }
+  function drawSmoke(now) {
+    smokeLayer(0.12, now);                                   // a thin veil over everyone
+    drawFire(now);
+    drawFloorNumbers();
+  }
+  /* Which floor is which has to be readable in a corridor you cannot see
+     across, so the numerals go ON TOP of the smoke. Under it they measured
+     2.27:1 against a 4.5 bar. */
+  function drawFloorNumbers() {
+    const F = floors();
+    ctx.font = '700 ' + Math.max(12, Math.round(geo.floorPx * 0.22)) + 'px Inter, sans-serif';
+    ctx.textBaseline = 'middle';
+    const pw = Math.max(16, geo.floorPx * 0.30), ph = Math.max(13, geo.floorPx * 0.26);
+    for (let f = 1; f <= F; f++) {
+      const top = roomTop(f), y = top + geo.floorPx * 0.30;
+      /* A floor sign, because a light numeral on light smoke measured 2.88:1.
+         The plate gives it a ground of its own on any floor in any state. */
+      const plate = (px2, align) => {
+        ctx.fillStyle = 'rgba(11,16,32,0.74)';
+        rr(px2 - (align === 'left' ? 3 : pw - 3), y - ph / 2, pw, ph, 3); ctx.fill();
+        ctx.fillStyle = FLOOR_NUM; ctx.textAlign = 'center';
+        ctx.fillText(String(f), px2 - (align === 'left' ? 3 : pw - 3) + pw / 2, y);
+      };
+      plate(geo.leftX + 9, 'left');
+      if (geo.rightW > 0) plate(geo.rightX + geo.rightW - 9, 'right');
+    }
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  }
+  function drawFire(now) {
+    const f = level.fire, top = roomTop(f), h = geo.floorPx;
+    const d = smoke[f];
+    if (d < 0.02) return;
+    const flick = REDUCED ? 0.85 : 0.78 + 0.22 * Math.sin(now / 90) * Math.sin(now / 37);
+    const fx = geo.leftX + 4, fw = Math.max(18, geo.corW * 0.16);
+    ctx.save();
+    ctx.beginPath(); rr(geo.x - 6, geo.y - 8, geo.w + 12, geo.h + 8, 8); ctx.clip();
+    const g = ctx.createLinearGradient(fx, 0, fx + fw * 2.4, 0);
+    g.addColorStop(0, 'rgba(' + FLAME + ',' + (0.42 * d * flick).toFixed(3) + ')');
+    g.addColorStop(1, 'rgba(' + FLAME + ',0)');
+    ctx.fillStyle = g; ctx.fillRect(fx - 4, top, fw * 2.4, h);
+    if (geo.rightW > 0) {
+      const gx = geo.rightX + geo.rightW - 4;
+      const g2 = ctx.createLinearGradient(gx, 0, gx - fw * 2.4, 0);
+      g2.addColorStop(0, 'rgba(' + FLAME + ',' + (0.42 * d * flick).toFixed(3) + ')');
+      g2.addColorStop(1, 'rgba(' + FLAME + ',0)');
+      ctx.fillStyle = g2; ctx.fillRect(gx - fw * 2.4 + 4, top, fw * 2.4, h);
+    }
     ctx.restore();
   }
 
-  function drawWaiting(now) {
-    if (!waiting) return;
-    const base = slabY(waiting.floor);
-    const cx = geo.land1X + geo.land1W * 0.72;
-    drawFigure(cx, base - 4, geo.floorPx * 0.52);
-    drawChip(cx, base - 4 - geo.floorPx * 0.52 - Math.max(11, geo.floorPx * 0.17), waiting.dest, now);
+  /* `stand` is 1 at the lift doors and 0 at the far wall. The desktop frame
+     lays the queue across both corridors, so odd slots are mirrored into the
+     right-hand one at the same depth - same clock, different side. */
+  function personXY(p) {
+    const base = slabY(p.floor) - 3;
+    const onRight = geo.rightW > 0 && (p.slot % 2 === 1);
+    if (onRight) return { x: geo.rightX + geo.rightW * (1 - p.stand), y: base, face: -1 };
+    return { x: geo.leftX + geo.corW * p.stand, y: base, face: 1 };
   }
 
-  /* No faces, and no outline. A torso with SHOULDERS and a flat base: drawn as
-     a capsule it came out the same width as the head and the pair read as two
-     stacked circles rather than a person. */
-  function drawFigure(cx, baseY, h) {
+  function drawPeople(now) {
+    smokeLayer(0.72, now);                                   // the bulk of it, behind the people
+    for (const p of waiting) {
+      const q = personXY(p);
+      /* A SOFT DARK HALO, NOT AN OUTLINE. Measured on the painted pixel: in a
+         full corridor a figure came out at 1.13:1 against the wall behind it,
+         because the smoke lifts the person and the wall to the same grey. The
+         fix is a value edge that arrives WITH the smoke - the corridor darkens
+         right around somebody standing in it - so a clear corridor keeps clean
+         figures and a smoky one still tells you who is in there. */
+      const haze = Math.max(0, Math.min(1, (smoke[p.floor] - p.stand + 0.10) / 0.34));
+      const h = geo.floorPx * 0.52;
+      {
+        /* It HOLDS at full darkness across the figure and only then falls
+           away. A plain radial put its mid-falloff right where the body is, so
+           the ground beside somebody was only half darkened and the body still
+           measured 1.96:1. */
+        /* A TALL SOFT SHADOW, not a disc. Held at full darkness across the
+           whole figure it measured 5.38:1 against a 3:1 bar and looked like a
+           spotlight; there is headroom to spend on making it a shape that
+           belongs in the picture. Elliptical, because a person is taller than
+           they are wide, and with a long tail so it has no edge. Peak and hold
+           are the two dials: 0.90/0.62 measured 5.38:1 and looked like a
+           spotlight, 0.70/0.34 looked right and fell to 2.48 against a 3:1
+           bar. These are the numbers that do both. */
+        /* ALWAYS ON, not only in smoke. Once people stood down the corridor
+           rather than by the doors they ended up in front of the guest doors,
+           and a figure against a pale door measured 1.57:1 with nothing behind
+           it. A contact shadow is what illustration uses for exactly this, and
+           it deepens as the smoke arrives. */
+        const a = (0.48 + 0.50 * haze).toFixed(3);
+        ctx.save();
+        ctx.translate(q.x, q.y - h * 0.48);
+        ctx.scale(1, 1.34);
+        const g = ctx.createRadialGradient(0, 0, h * 0.08, 0, 0, h * 0.92);
+        g.addColorStop(0, 'rgba(11,16,32,' + a + ')');
+        g.addColorStop(0.56, 'rgba(11,16,32,' + a + ')');
+        g.addColorStop(1, 'rgba(11,16,32,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(-h * 1.1, -h * 1.1, h * 2.2, h * 2.2);
+        ctx.restore();
+      }
+      drawFigure(q.x, q.y, h, p.exp, now);
+    }
+  }
+
+  /* No faces, no outline, and nothing drawn over anybody. Exposure is a breath
+     arc that empties AND a figure that crouches lower: two channels, so it is
+     never colour alone. */
+  function drawFigure(cx, baseY, h, exp, now) {
+    const crouch = 1 - 0.22 * ease(Math.max(0, (exp - 0.35) / 0.65));
+    h = h * crouch;
     const headR = h * 0.19, bodyW = h * 0.42, bodyH = h - headR * 2 - h * 0.04;
-    // a soft shadow under them: the lamp is above, so they stand on the carpet
     ctx.fillStyle = 'rgba(0,0,0,0.30)';
     ctx.beginPath(); ctx.ellipse(cx, baseY + 1, bodyW * 0.66, h * 0.05, 0, 0, Math.PI * 2); ctx.fill();
     const g = ctx.createLinearGradient(0, baseY - bodyH, 0, baseY);
     g.addColorStop(0, BODY_HI); g.addColorStop(1, BODY_LO);
     ctx.fillStyle = g;
-    const bw = bodyW, bt = baseY - bodyH, sh = bw * 0.36;
+    const bt = baseY - bodyH, sh = bodyW * 0.36;
     ctx.beginPath();
-    ctx.moveTo(cx - bw / 2, baseY);
-    ctx.lineTo(cx - bw / 2, bt + sh);
-    ctx.quadraticCurveTo(cx - bw / 2, bt, cx - bw / 2 + sh, bt);
-    ctx.lineTo(cx + bw / 2 - sh, bt);
-    ctx.quadraticCurveTo(cx + bw / 2, bt, cx + bw / 2, bt + sh);
-    ctx.lineTo(cx + bw / 2, baseY);
+    ctx.moveTo(cx - bodyW / 2, baseY);
+    ctx.lineTo(cx - bodyW / 2, bt + sh);
+    ctx.quadraticCurveTo(cx - bodyW / 2, bt, cx - bodyW / 2 + sh, bt);
+    ctx.lineTo(cx + bodyW / 2 - sh, bt);
+    ctx.quadraticCurveTo(cx + bodyW / 2, bt, cx + bodyW / 2, bt + sh);
+    ctx.lineTo(cx + bodyW / 2, baseY);
     ctx.closePath(); ctx.fill();
     ctx.fillStyle = HEAD;
     ctx.beginPath(); ctx.arc(cx, bt - headR * 0.82, headR, 0, Math.PI * 2); ctx.fill();
+
+    // the breath arc: how long they have, above their head
+    const left = Math.max(0, 1 - exp);
+    const r = Math.max(7, h * 0.30), ay = bt - headR * 2.2;
+    /* A DARK track, not a light one. The arc is the only thing telling you how
+       long somebody has, and a coral arc on grey smoke measured 1.06:1. On a
+       dark track it reads on any ground the corridor can be in. */
+    const lw = Math.max(2, h * 0.055);
+    ctx.lineCap = 'round';
+    ctx.lineWidth = lw + 3;
+    ctx.strokeStyle = 'rgba(11,16,32,0.78)';
+    ctx.beginPath(); ctx.arc(cx, ay, r, Math.PI * 1.13, Math.PI * 1.87); ctx.stroke();
+    ctx.lineWidth = lw;
+    ctx.strokeStyle = 'rgba(255,255,255,0.16)';
+    ctx.beginPath(); ctx.arc(cx, ay, r, Math.PI * 1.15, Math.PI * 1.85); ctx.stroke();
+    ctx.strokeStyle = left > 0.55 ? BREATH_OK : left > 0.28 ? BREATH_MID : BREATH_LOW;
+    const a0 = Math.PI * 1.15, a1 = a0 + (Math.PI * 0.70) * left;
+    if (left > 0.001) { ctx.beginPath(); ctx.arc(cx, ay, r, a0, a1); ctx.stroke(); }
+    if (exp > FIRE.warnAt && !REDUCED) {
+      const pulse = 0.5 + 0.5 * Math.sin(now / 130);
+      ctx.strokeStyle = 'rgba(240,90,70,' + (0.35 * pulse).toFixed(3) + ')';
+      ctx.lineWidth = Math.max(3, h * 0.09);
+      ctx.beginPath(); ctx.arc(cx, ay, r, a0, a1 + 0.001); ctx.stroke();
+    }
   }
 
-  /* The floor they want, as a numeral in a warm chip. The same chip stacks
-     above the car once they are aboard, so the plan the player is carrying is
-     drawn on the car itself rather than remembered. */
-  function drawChip(cx, cy, n, now) {
-    void now;
-    const r = Math.max(10, geo.floorPx * 0.155);
-    ctx.fillStyle = CHIP_FILL;
-    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = CHIP_INK;
-    ctx.font = '800 ' + Math.round(r * 1.25) + 'px Inter, sans-serif';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(String(n), cx, cy + 1);
-    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  function drawSpill() {
+    if (doorOpen <= 0.01) return;
+    const base = slabY(serveFloor), top = base - geo.floorPx;
+    const sides = [{ x0: geo.shaftX, dir: -1, w: geo.corW, cx: geo.leftX }];
+    if (geo.rightW > 0) sides.push({ x0: geo.shaftX + geo.shaftW, dir: 1, w: geo.rightW, cx: geo.rightX });
+    for (const s of sides) {
+      const reach = Math.max(24, s.w * 0.55) * doorOpen;
+      const g = ctx.createLinearGradient(s.x0, 0, s.x0 + s.dir * reach, 0);
+      g.addColorStop(0, 'rgba(255,214,120,' + (0.35 * doorOpen).toFixed(3) + ')');
+      g.addColorStop(1, 'rgba(255,214,120,0)');
+      ctx.save();
+      ctx.beginPath(); ctx.rect(s.cx, top - 4, s.w, geo.floorPx + 2); ctx.clip();
+      ctx.beginPath();
+      ctx.moveTo(s.x0, top + geo.floorPx * 0.18);
+      ctx.lineTo(s.x0 + s.dir * reach, top - geo.floorPx * 0.10);
+      ctx.lineTo(s.x0 + s.dir * reach, base + geo.floorPx * 0.16);
+      ctx.lineTo(s.x0, base);
+      ctx.closePath();
+      ctx.fillStyle = g; ctx.fill();
+      ctx.restore();
+    }
   }
 
-  function drawShafts() {
+  function drawShaft() {
     ctx.fillStyle = SHAFT;
-    ctx.fillRect(geo.shaft1X, geo.y, geo.shaftW, geo.h);
-    // the cables the car hangs from, blurring into two smears at speed
+    ctx.fillRect(geo.shaftX, geo.y, geo.shaftW, geo.h);
     const carTop = carBaseY() - geo.carH;
-    const speed = Math.min(1, Math.abs(car.v) / F.vMax);
+    const speed = Math.min(1, Math.abs(car.v) / T.vMax);
     const smear = REDUCED ? 0 : speed * 3;
     for (const f of [0.32, 0.68]) {
-      const cx = geo.shaft1X + geo.shaftW * f;
+      const cx = geo.shaftX + geo.shaftW * f;
       ctx.fillStyle = CABLE;
       ctx.fillRect(cx - 1, geo.y, 2, Math.max(0, carTop - geo.y));
       if (smear > 0.2) {
@@ -660,162 +833,116 @@
         ctx.fillRect(cx - 1 + smear, geo.y, 2, Math.max(0, carTop - geo.y));
       }
     }
-    // the second shaft: unbuilt, dashed, and labelled. It is the promise.
-    ctx.save();
-    ctx.setLineDash([6, 6]);
-    ctx.strokeStyle = LOCKED; ctx.lineWidth = 1.5;
-    rr(geo.shaft2X + 3, geo.y + 6, geo.shaft2W - 6, geo.h - 12, 8); ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.translate(geo.shaft2X + geo.shaft2W / 2, geo.y + geo.h / 2);
-    ctx.rotate(Math.PI / 2);
-    ctx.fillStyle = 'rgba(200,215,240,0.46)';
-    ctx.font = '700 ' + Math.max(11, Math.round(geo.shaftW * 0.19)) + 'px Inter, sans-serif';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('2nd LIFT', 0, 0);
-    ctx.restore();
-    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   }
 
   function carBaseY() {
     const settle = settleT > 0 ? Math.sin(settleT * Math.PI) * 4 * settleDir : 0;
-    return geo.y + (F.floors - car.y + 1) * geo.floorPx + sag + settle;
+    return geo.y + (floors() - car.y + 1) * geo.floorPx + sag + settle;
   }
 
   function drawCar(now) {
     const w = geo.carW, h = geo.carH;
-    const x = Math.round(geo.shaft1X + (geo.shaftW - w) / 2);
+    const x = Math.round(geo.shaftX + (geo.shaftW - w) / 2);
     const yb = carBaseY(), y = Math.round(yb - h);
-    const speed = Math.min(1, Math.abs(car.v) / F.vMax);
-
-    // the window light streaks behind the car at speed
+    const speed = Math.min(1, Math.abs(car.v) / T.vMax);
     if (!REDUCED && speed > 0.25) {
-      ctx.globalAlpha = 0.20 * speed;
-      ctx.fillStyle = CAR_MID;
+      ctx.globalAlpha = 0.20 * speed; ctx.fillStyle = CAR_MID;
       rr(x, y + (car.v > 0 ? 4 : -4), w, h, 6); ctx.fill();
       ctx.globalAlpha = 1;
     }
-
-    // brass body, edges made of value: a gradient and a bevel band, no stroke
     const g = ctx.createLinearGradient(x, y, x, y + h);
     g.addColorStop(0, CAR_HI); g.addColorStop(0.45, CAR_MID); g.addColorStop(1, CAR_LO);
     ctx.fillStyle = g; rr(x, y, w, h, 6); ctx.fill();
     ctx.fillStyle = CAR_BEVEL; ctx.fillRect(x + 4, y + 2, w - 8, 2);
 
-    // the doorway: warm interior, and two brass leaves that slide off it
     const ix = x + 6, iy = y + 8, iw = w - 12, ih = h - 14;
     ctx.save();
     ctx.beginPath(); rr(ix, iy, iw, ih, 3); ctx.clip();
     ctx.fillStyle = CAR_IN; ctx.fillRect(ix, iy, iw, ih);
-    if (rider) {
-      ctx.fillStyle = HEAD_WARM;
-      ctx.beginPath(); ctx.arc(ix + iw * 0.5, iy + ih * 0.34, Math.max(3, ih * 0.16), 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = 'rgba(201,134,30,0.35)';
-      rr(ix + iw * 0.5 - iw * 0.18, iy + ih * 0.52, iw * 0.36, ih * 0.4, iw * 0.1); ctx.fill();
+    // the riders, and the air they are breathing
+    if (aboard.length) {
+      const n = aboard.length;
+      for (let i = 0; i < n; i++) {
+        const hx = ix + iw * ((i + 0.5) / n);
+        ctx.fillStyle = HEAD_WARM;
+        ctx.beginPath(); ctx.arc(hx, iy + ih * 0.40, Math.max(2.5, ih * 0.15), 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(201,134,30,0.35)';
+        rr(hx - iw * 0.09, iy + ih * 0.56, iw * 0.18, ih * 0.34, iw * 0.05); ctx.fill();
+      }
     }
-    /* The leaves are the same brass as the body, stepped down in VALUE rather
-       than given a colour of their own. Drawn at the body's own gradient the
-       car read as one solid slab with a hairline down it, and a shut door has
-       to be visibly a door or an unlevel stop looks like nothing happened. */
+    if (carSmoke > 0.02) {
+      ctx.fillStyle = 'rgba(' + SMOKE + ',' + Math.min(0.62, carSmoke * 0.7).toFixed(3) + ')';
+      ctx.fillRect(ix, iy, iw, ih);
+    }
     const leaf = (iw / 2) * (1 - doorOpen);
     const dg = ctx.createLinearGradient(ix, iy, ix, iy + ih);
     dg.addColorStop(0, CAR_MID); dg.addColorStop(1, CAR_LO);
     ctx.fillStyle = dg;
-    ctx.fillRect(ix, iy, leaf, ih);
-    ctx.fillRect(ix + iw - leaf, iy, leaf, ih);
+    ctx.fillRect(ix, iy, leaf, ih); ctx.fillRect(ix + iw - leaf, iy, leaf, ih);
     ctx.fillStyle = 'rgba(0,0,0,0.26)';
-    ctx.fillRect(ix, iy, leaf, ih);
-    ctx.fillRect(ix + iw - leaf, iy, leaf, ih);
+    ctx.fillRect(ix, iy, leaf, ih); ctx.fillRect(ix + iw - leaf, iy, leaf, ih);
     if (leaf > 1) {
-      ctx.fillStyle = 'rgba(0,0,0,0.38)';
-      ctx.fillRect(ix + leaf - 1, iy, 1.5, ih);
-      ctx.fillStyle = 'rgba(255,255,255,0.14)';
-      ctx.fillRect(ix + iw - leaf, iy, 1, ih);
+      ctx.fillStyle = 'rgba(0,0,0,0.38)'; ctx.fillRect(ix + leaf - 1, iy, 1.5, ih);
+      ctx.fillStyle = 'rgba(255,255,255,0.14)'; ctx.fillRect(ix + iw - leaf, iy, 1, ih);
     }
     ctx.restore();
 
-    // the plan the player is carrying, stacked above the car
-    if (rider) drawChip(x + w / 2, y - Math.max(12, geo.floorPx * 0.18), rider.dest, now);
-
-    // the handle. It is drawn at rest, always, and pulses once at the start:
-    // an affordance that only exists mid-gesture leaves an inert screen.
+    // the handle: drawn at rest always, pulsing once at the start of a level.
     const ha = 0.34 + (handlePulse > 0 ? Math.sin(handlePulse * Math.PI) * 0.55 : 0);
-    const hy = y - Math.max(9, geo.floorPx * 0.13) - (rider ? Math.max(22, geo.floorPx * 0.34) : 0);
+    const hy = y - Math.max(9, geo.floorPx * 0.13);
     ctx.strokeStyle = 'rgba(255,232,176,' + ha.toFixed(3) + ')';
     ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     const s = Math.max(4, geo.floorPx * 0.07), mx = x + w / 2;
     ctx.beginPath();
-    ctx.moveTo(mx - s, hy + s * 0.4); ctx.lineTo(mx, hy - s * 0.5); ctx.lineTo(mx + s, hy + s * 0.4);
-    ctx.stroke();
+    ctx.moveTo(mx - s, hy + s * 0.4); ctx.lineTo(mx, hy - s * 0.5); ctx.lineTo(mx + s, hy + s * 0.4); ctx.stroke();
     ctx.beginPath();
-    ctx.moveTo(mx - s, hy + s * 1.5); ctx.lineTo(mx, hy + s * 2.4); ctx.lineTo(mx + s, hy + s * 1.5);
-    ctx.stroke();
+    ctx.moveTo(mx - s, hy + s * 1.5); ctx.lineTo(mx, hy + s * 2.4); ctx.lineTo(mx + s, hy + s * 1.5); ctx.stroke();
+    void now;
   }
 
-  function drawFlies() {
-    const tx = LW - SIDE_PAD - 26, ty = topBand() / 2;
-    for (const f of flies) {
-      if (f.t < 0) continue;
-      const t = ease(f.t);
-      /* Reduced motion counts up at the counter instead of flying. */
-      const x = REDUCED ? tx : f.x + (tx - f.x) * t;
-      const y = REDUCED ? ty : f.y - 18 * (1 - t) + (ty - (f.y - 18)) * t * t;
-      ctx.globalAlpha = f.t > 0.75 ? (1 - f.t) * 4 : 1;
-      ctx.fillStyle = CHIP_FILL;
-      ctx.font = '800 ' + (f.small ? 14 : 18) + 'px Inter, sans-serif';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(f.txt, x, y);
+  function drawPuffs() {
+    for (const p of puffs) {
+      const t = ease(p.t);
+      const base = slabY(p.floor) - 3;
+      const x = p.kind === 'out'
+        ? geo.leftX + geo.corW * 0.25
+        : (geo.rightW > 0 && p.side ? geo.rightX + geo.rightW * 0.35 : geo.leftX + geo.corW * 0.65);
+      const y = base - geo.floorPx * (0.3 + 0.35 * t);
+      ctx.globalAlpha = (1 - t) * 0.55;
+      ctx.fillStyle = p.kind === 'out' ? 'rgba(143,227,200,0.9)' : 'rgba(200,200,210,0.85)';
+      ctx.beginPath(); ctx.arc(x, y, Math.max(4, geo.floorPx * 0.10) * (0.6 + t), 0, Math.PI * 2); ctx.fill();
       ctx.globalAlpha = 1;
     }
-    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   }
 
   /* ---------- CHROME ---------- */
-  function drawHud(now) {
-    void now;
+  function drawHud() {
     for (const c of ctrl) {
       if (c.icon) { UI.drawPill(ctx, '', c.cx, c.cy, { w: UI.PILL.iconW }); drawSpeaker(c.cx, c.cy, !sfx || sfx.isOn()); }
       else UI.drawPill(ctx, c.label, c.cx, c.cy);
     }
-
-    const rate = busStops ? Math.round((smoothStops / busStops) * 100) : 0;
-    const line = 'TIPS ' + tips + '   ·   SMOOTH ' + rate + '%';
+    const inside = waiting.length + aboard.length;
+    /* Both halves of the comparison, and the damage when there is any: a count
+       that only goes up tells you nothing about whether you are still winning. */
+    const line = 'LEVEL ' + (levelIndex + 1) + '   ·   OUT ' + out + ' / ' + totalPeople() +
+                 '   ·   ' + inside + ' INSIDE' + (lost ? '   ·   ' + lost + ' BEHIND' : '');
     const hs = Math.max(0.66, Math.min(1, LW / 620));
     let fs = Math.round(16 * hs);
     ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = INK72;
-    ctx.font = '600 ' + fs + 'px Inter, sans-serif';
+    ctx.fillStyle = INK72; ctx.font = '600 ' + fs + 'px Inter, sans-serif';
     while (fs > 11 && ctx.measureText(line).width > (LW - SIDE_PAD) - readoutMinX) {
       fs -= 1; ctx.font = '600 ' + fs + 'px Inter, sans-serif';
     }
-    const readoutLeft = (LW - SIDE_PAD) - ctx.measureText(line).width;
     ctx.fillText(line, LW - SIDE_PAD, topBand() / 2);
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
 
-    drawLateHint(readoutLeft);
-  }
-
-  /* Zero instructions is the first-screen test, so this is not on the first
-     screen. It appears only if twelve seconds have gone by without a single
-     level stop, which is the case the pulsing handle failed to reach. */
-  function drawLateHint(readoutLeft) {
-    if (firstLevelAt || tNow < 12) return;
-    const txt = 'drag the car up or down · let go to stop';
-    ctx.font = '600 14px Inter, sans-serif';
-    const tw = ctx.measureText(txt).width;
-    ctx.fillStyle = 'rgba(255,255,255,0.44)';
-    ctx.textBaseline = 'middle';
-    ctx.textAlign = 'center';
-    if (MODE === 'mobile') {
-      ctx.fillText(txt, LW / 2, geo.y + geo.h + statusLane() / 2 + 3);
-    } else {
-      /* The band already has a control row at one end and the read-out at the
-         other, and nothing else checks whether a third thing fits between
-         them. Measure the gap that is actually left and say nothing if the
-         line will not clear both by 14px. */
-      const left = readoutMinX, right = readoutLeft - 14;
-      if (right - left >= tw + 14) ctx.fillText(txt, (left + right) / 2, topBand() / 2);
+    if (MODE === 'mobile' && statusLane() > 0 && levelIndex < 3 && tNow < 14) {
+      ctx.fillStyle = 'rgba(255,255,255,0.44)';
+      ctx.font = '600 14px Inter, sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('drag the car · let go to stop · take them to the lobby', LW / 2, geo.y + geo.h + statusLane() / 2 + 4);
+      ctx.textAlign = 'left'; ctx.textBaseline = 'top';
     }
-    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   }
 
   function drawSpeaker(cx, cy, on) {
@@ -836,18 +963,64 @@
     ctx.restore();
   }
 
-  /* ---------- RULES CARD ---------- */
-  const RULES = [
-    'Drag the car in the shaft, or hold the up and down keys. It is heavy: it lags behind your hand, and it keeps going when you let go.',
-    'Let go early. From full speed the brake needs almost a whole floor.',
-    'Level with a landing and the doors open and the light spills out. Between floors it bumps, sags and sits there until you nudge it.',
-    'The number over someone is the floor they want. Carry them there for the tip, and a stop you land first time pays a little more.',
+  /* ---------- THE CARD AT THE END ----------
+     Nobody dies and nothing is drawn over a person. When you do not get
+     everybody out the card says how many you did and NAMES THE FLOOR that was
+     still waiting, because that is the thing worth remembering and it is what
+     brings you back. */
+  let endCTA = null;
+  function endBox() {
+    const pw = Math.min(LW - 56, 430), ph = Math.min(LH - 20, 300);
+    return { px: Math.round((LW - pw) / 2), py: Math.max(10, Math.round((LH - ph) / 2)), pw, ph };
+  }
+  function drawEndCard() {
+    const b = endBox();
+    ctx.fillStyle = 'rgba(10,16,28,0.82)'; ctx.fillRect(0, 0, LW, LH);
+    ctx.fillStyle = SURFACE; rr(b.px, b.py, b.pw, b.ph, 22); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ctx.lineWidth = 1;
+    rr(b.px, b.py, b.pw, b.ph, 22); ctx.stroke();
+
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillStyle = '#FFFFFF'; ctx.font = '800 34px Inter, sans-serif';
+    ctx.fillText(won ? 'EVERYONE OUT' : out + ' OF ' + totalPeople() + ' OUT', b.px + b.pw / 2, b.py + 34);
+
+    ctx.font = '600 17px Inter, sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.82)';
+    let sub;
+    if (won) sub = 'Level ' + (levelIndex + 1) + ' · ' + stopsMade + ' stops, par ' + level.par;
+    else {
+      const uniq = [...new Set(lostFloors)].sort((a, b2) => b2 - a);
+      sub = uniq.length === 1 ? 'Floor ' + uniq[0] + ' was still waiting.'
+          : 'Floors ' + uniq.slice(0, 3).join(', ') + ' were still waiting.';
+    }
+    ctx.fillText(sub, b.px + b.pw / 2, b.py + 84);
+
+    ctx.font = '500 16px Inter, sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.62)';
+    ctx.fillText(won ? (levelIndex < LEVELS.length - 1 ? 'The brigade takes it from here.' : 'That is every building. Well driven.')
+                     : 'The brigade reached them after you.',
+                 b.px + b.pw / 2, b.py + 118);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+
+    const label = won ? (levelIndex < LEVELS.length - 1 ? 'NEXT BUILDING' : 'PLAY AGAIN') : 'TRY AGAIN';
+    endCTA = UI.drawCTA(ctx, label, b.px + b.pw / 2, b.py + b.ph - 40 - 25, CORAL);
+  }
+  function onEndPointer(p) {
+    if (endCTA && p.x >= endCTA.x && p.x <= endCTA.x + endCTA.w && p.y >= endCTA.y && p.y <= endCTA.y + endCTA.h) advanceFromCard();
+  }
+
+  /* ---------- RULES ---------- */
+  const RULES_TEXT = [
+    'The hotel is on fire. Smoke rises from the burning floor and fills the corridors above it. The way out is the lobby.',
+    'Drag the car in the shaft, or hold the up and down keys. It is heavy: it lags behind your hand and keeps going when you let go.',
+    'Land it level with a corridor and the doors open. Between floors they stay shut until you nudge it, and that costs you seconds you need.',
+    'The arc over someone is the air they have left. Four fit in the car. Every door you open lets smoke in, so a stop you did not need costs everyone aboard.',
   ];
   let rulesGeom = null, rulesCTA = null;
   function rulesBox() {
     const pw = Math.min(LW - 56, 470), ph = Math.min(LH - 20, 420);
-    const px = Math.round((LW - pw) / 2), py = Math.max(10, Math.round((LH - ph) / 2));
-    return { px, py, pw, ph, header: 154, footer: 98, body: ph - 154 - 98 };
+    return { px: Math.round((LW - pw) / 2), py: Math.max(10, Math.round((LH - ph) / 2)),
+             pw, ph, header: 154, footer: 98, body: ph - 154 - 98 };
   }
   function drawRulesCard(now) {
     const b = rulesBox();
@@ -860,7 +1033,7 @@
     ctx.fillStyle = '#FFFFFF'; ctx.font = '800 40px Inter, sans-serif';
     ctx.fillText('Lift', b.px + 43, b.py + 34);
     ctx.fillStyle = 'rgba(255,255,255,0.82)'; ctx.font = '600 17px Inter, sans-serif';
-    ctx.fillText('Drag the car. Let go to stop.', b.px + 43, b.py + 34 + 54);
+    ctx.fillText('Get everybody out before the smoke does.', b.px + 43, b.py + 34 + 54);
 
     const bodyY = b.py + b.header, bodyH = b.body;
     ctx.save();
@@ -869,9 +1042,9 @@
     const demoH = 92;
     drawDemo(b.px + 43, y, b.pw - 86, demoH, now);
     y += demoH + 18;
-    RULES.forEach((line, i) => {
+    RULES_TEXT.forEach((line, i) => {
       ctx.beginPath(); ctx.arc(b.px + 43, y + 11, 12, 0, Math.PI * 2);
-      ctx.fillStyle = '#FF6B5C'; ctx.fill();                    // --accent-text
+      ctx.fillStyle = '#FF6B5C'; ctx.fill();                 // --accent-text
       ctx.fillStyle = GROUND; ctx.font = '800 14px Inter, sans-serif';
       ctx.textAlign = 'center'; ctx.fillText(String(i + 1), b.px + 43, y + 4);
       ctx.textAlign = 'left';
@@ -884,7 +1057,6 @@
     const max = Math.max(0, rulesGeom.contentH - bodyH);
     if (rulesScroll > 1) fade(b.px, bodyY, b.pw, 20, true);
     if (rulesScroll < max - 1) fade(b.px, bodyY + bodyH - 20, b.pw, 20, false);
-
     rulesCTA = UI.drawCTA(ctx, 'GOT IT', b.px + b.pw / 2, b.py + b.ph - 32 - 25, CORAL);
   }
   function fade(x, y, w, h, top) {
@@ -903,94 +1075,81 @@
     return y;
   }
 
-  /* The eight-second wordless loop. It is the whole verb in one shot, in the
-     order a player meets it: someone appears wanting a floor, the car comes up
-     too fast and lands between floors, sags, gets nudged level, and only then
-     do the doors open and the light land on the landing. */
+  /* The eight-second wordless loop: a corridor filling with smoke, the car
+     coming up too fast and landing between floors, the nudge, the doors, and
+     the ride down to the lobby. The whole verb, in the order you meet it. */
   function drawDemo(x, y, w, h, now) {
-    const t = ((now / 1000) % 8);
+    const t = (now / 1000) % 8;
     const rows = 3, fh = h / rows;
-    const shaftW = Math.round(w * 0.17);
-    const landW = w - shaftW;
-    const sx = x + landW;
+    const shaftW = Math.round(w * 0.16), corW = w - shaftW, sx = x + corW;
     ctx.save();
     ctx.beginPath(); rr(x, y, w, h, 6); ctx.clip();
-    const g = ctx.createLinearGradient(0, y, 0, y + h);
-    g.addColorStop(0, SHELL_TOP); g.addColorStop(1, SHELL_BOT);
-    ctx.fillStyle = g; ctx.fillRect(x, y, w, h);
     for (let r = 0; r < rows; r++) {
-      ctx.fillStyle = (r % 2) ? ROOM_A : ROOM_B;
-      ctx.fillRect(x, y + r * fh, landW, fh);
-      ctx.fillStyle = SLAB; ctx.fillRect(x, y + (r + 1) * fh - 2, landW, 2);
-      ctx.fillStyle = CARPET; ctx.fillRect(x + 8, y + (r + 1) * fh - 5, landW - 16, 3);
+      ctx.fillStyle = (r % 2) ? WALL_A : WALL_B;
+      ctx.fillRect(x, y + r * fh, corW, fh);
+      ctx.fillStyle = CEIL; ctx.fillRect(x, y + r * fh, corW, 2);
+      ctx.fillStyle = SKIRT; ctx.fillRect(x, y + (r + 1) * fh - 2, corW, 2);
+      ctx.fillStyle = 'rgba(142,151,171,0.85)';
+      rr(x + 8 + r * 3, y + (r + 1) * fh - 2 - fh * 0.5, fh * 0.28, fh * 0.5, 1); ctx.fill();
     }
+    ctx.fillStyle = 'rgba(143,227,200,0.22)';
+    rr(x + corW - 26, y + h - 2 - fh * 0.55, 18, fh * 0.55, 2); ctx.fill();
     ctx.fillStyle = SHAFT; ctx.fillRect(sx, y, shaftW, h);
+    // smoke building in the top corridor
+    const dens = Math.min(1, t / 5);
+    const sg = ctx.createLinearGradient(0, y, 0, y + fh);
+    sg.addColorStop(0, 'rgba(' + SMOKE + ',' + (0.55 * dens).toFixed(3) + ')');
+    sg.addColorStop(1, 'rgba(' + SMOKE + ',' + (0.10 * dens).toFixed(3) + ')');
+    ctx.fillStyle = sg; ctx.fillRect(x, y, corW, fh);
 
-    // the scripted drive, in demo floor units where 0 is the top row
-    let cf, open = 0, boarded = false, personIn = true;
-    if (t < 1.0) { cf = 2; }
-    else if (t < 2.6) { cf = 2 - 2.42 * ease((t - 1.0) / 1.6); }           // overshoots past 0
-    else if (t < 3.4) { cf = -0.42; }                                       // sat between floors
-    else if (t < 4.2) { cf = -0.42 + 0.42 * ease((t - 3.4) / 0.8); }        // nudged level
-    else if (t < 5.2) { cf = 0; open = ease((t - 4.2) / 1.0); }
-    else if (t < 6.2) { cf = 0; open = 1; personIn = t < 5.6; boarded = t >= 5.6; }
-    else if (t < 7.0) { cf = 0; open = 1 - ease((t - 6.2) / 0.8); boarded = true; }
-    else { cf = 2 * ease((t - 7.0) / 1.0); boarded = true; }
+    let cf, open = 0, aboardN = 0, personIn = true;
+    if (t < 1.0) cf = 2;
+    else if (t < 2.5) cf = 2 - 2.4 * ease((t - 1.0) / 1.5);
+    else if (t < 3.2) cf = -0.4;
+    else if (t < 3.9) cf = -0.4 + 0.4 * ease((t - 3.2) / 0.7);
+    else if (t < 4.7) { cf = 0; open = ease((t - 3.9) / 0.8); }
+    else if (t < 5.5) { cf = 0; open = 1; personIn = t < 5.1; aboardN = t >= 5.1 ? 1 : 0; }
+    else if (t < 6.1) { cf = 0; open = 1 - ease((t - 5.5) / 0.6); aboardN = 1; }
+    else if (t < 7.4) { cf = 2 * ease((t - 6.1) / 1.3); aboardN = 1; }
+    else { cf = 2; open = ease((t - 7.4) / 0.6); aboardN = 0; }
 
-    const carH = fh - 8, carW = shaftW - 6;
-    const cyBase = y + (cf + 1) * fh + (t >= 2.6 && t < 3.4 ? 2 : 0);
-
-    // light on the landing, only once the doors are open
     if (open > 0.02) {
-      const reach = landW * 0.5 * open;
+      const reach = corW * 0.45 * open, ty = y + (cf + 0) * fh;
       const lg = ctx.createLinearGradient(sx, 0, sx - reach, 0);
       lg.addColorStop(0, 'rgba(255,214,120,' + (0.35 * open).toFixed(3) + ')');
       lg.addColorStop(1, 'rgba(255,214,120,0)');
-      ctx.fillStyle = lg;
-      ctx.beginPath();
-      ctx.moveTo(sx, y + 2); ctx.lineTo(sx - reach, y - 2);
-      ctx.lineTo(sx - reach, y + fh + 4); ctx.lineTo(sx, y + fh);
-      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = lg; ctx.fillRect(sx - reach, ty, reach, fh);
     }
-    // the person on the top landing, and the floor they want
     if (personIn) {
-      const px = x + landW * 0.62, pb = y + fh - 5;
-      drawFigureAt(px, pb, fh * 0.5);
-      const r = 8;
-      ctx.fillStyle = CHIP_FILL; ctx.beginPath(); ctx.arc(px, pb - fh * 0.5 - 9, r, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = CHIP_INK; ctx.font = '800 10px Inter, sans-serif';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText('1', px, pb - fh * 0.5 - 8);
-      ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+      const px2 = x + corW * 0.72, pb = y + fh - 3;
+      drawTinyFigure(px2, pb, fh * 0.46);
     }
-    // the car
-    const cxx = sx + (shaftW - carW) / 2, cyy = cyBase - carH;
+    const carH = fh - 6, carW = shaftW - 5;
+    const cxx = sx + (shaftW - carW) / 2, cyy = y + (cf + 1) * fh + (t >= 2.5 && t < 3.2 ? 2 : 0) - carH;
     ctx.fillStyle = CABLE; ctx.fillRect(sx + shaftW * 0.5 - 1, y, 2, Math.max(0, cyy - y));
     const cg = ctx.createLinearGradient(0, cyy, 0, cyy + carH);
     cg.addColorStop(0, CAR_HI); cg.addColorStop(0.45, CAR_MID); cg.addColorStop(1, CAR_LO);
     ctx.fillStyle = cg; rr(cxx, cyy, carW, carH, 4); ctx.fill();
-    ctx.fillStyle = CAR_BEVEL; ctx.fillRect(cxx + 2, cyy + 1, carW - 4, 1.5);
     const ix = cxx + 3, iy = cyy + 4, iw = carW - 6, ih = carH - 7;
     ctx.save();
     ctx.beginPath(); rr(ix, iy, iw, ih, 2); ctx.clip();
     ctx.fillStyle = CAR_IN; ctx.fillRect(ix, iy, iw, ih);
-    if (boarded) { ctx.fillStyle = HEAD_WARM; ctx.beginPath(); ctx.arc(ix + iw / 2, iy + ih * 0.4, ih * 0.2, 0, Math.PI * 2); ctx.fill(); }
+    if (aboardN) { ctx.fillStyle = HEAD_WARM; ctx.beginPath(); ctx.arc(ix + iw / 2, iy + ih * 0.4, ih * 0.2, 0, Math.PI * 2); ctx.fill(); }
     const leaf = (iw / 2) * (1 - open);
     ctx.fillStyle = CAR_LO;
     ctx.fillRect(ix, iy, leaf, ih); ctx.fillRect(ix + iw - leaf, iy, leaf, ih);
     ctx.restore();
     ctx.restore();
   }
-  function drawFigureAt(cx, baseY, h) {
-    const headR = h * 0.20, bodyW = h * 0.44, bodyH = h - headR * 2 - h * 0.06;
-    const g = ctx.createLinearGradient(0, baseY - bodyH, 0, baseY);
+  function drawTinyFigure(cx, baseY, h) {
+    const headR = h * 0.2, bw = h * 0.42, bh = h - headR * 2;
+    const g = ctx.createLinearGradient(0, baseY - bh, 0, baseY);
     g.addColorStop(0, BODY_HI); g.addColorStop(1, BODY_LO);
-    ctx.fillStyle = g; rr(cx - bodyW / 2, baseY - bodyH, bodyW, bodyH, bodyW * 0.42); ctx.fill();
-    ctx.fillStyle = HEAD; ctx.beginPath(); ctx.arc(cx, baseY - bodyH - headR * 0.85, headR, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = g; rr(cx - bw / 2, baseY - bh, bw, bh, bw * 0.3); ctx.fill();
+    ctx.fillStyle = HEAD; ctx.beginPath(); ctx.arc(cx, baseY - bh - headR * 0.8, headR, 0, Math.PI * 2); ctx.fill();
   }
 
-  function onRulesPointer(p, e) {
-    void e;
+  function onRulesPointer(p) {
     if (rulesCTA && p.x >= rulesCTA.x && p.x <= rulesCTA.x + rulesCTA.w &&
         p.y >= rulesCTA.y && p.y <= rulesCTA.y + rulesCTA.h) { rulesOpen = false; return; }
     const b = rulesBox();
@@ -1003,71 +1162,67 @@
     rulesScroll = Math.max(0, Math.min(max, rulesScroll + e.deltaY));
   }, { passive: false });
 
-  /* ---------- DETECTORS ----------
-     A card is not fixed until something can measure it, and neither is a
-     building. Both of these report numbers a sweep can fail on. */
+  /* ---------- DETECTORS ---------- */
   window.rulesFit = function () {
     const was = rulesOpen; rulesOpen = true;
     drawRulesCard(performance.now());
     rulesOpen = was;
     const b = rulesBox();
     const contentH = rulesGeom ? rulesGeom.contentH : 0;
-    return {
-      fits: (b.header + b.body + b.footer === b.ph) && b.py >= 0 && b.py + b.ph <= LH,
-      cardH: b.ph, frameH: LH, viewportH: b.body, contentH,
-      scrollMax: Math.max(0, contentH - b.body),
-      overlapPx: Math.max(0, (b.py + b.ph) - LH),
-    };
+    return { fits: (b.header + b.body + b.footer === b.ph) && b.py >= 0 && b.py + b.ph <= LH,
+             cardH: b.ph, frameH: LH, viewportH: b.body, contentH,
+             scrollMax: Math.max(0, contentH - b.body), overlapPx: Math.max(0, (b.py + b.ph) - LH) };
   };
-  /* The building must sit inside the band-free area at every viewport, and the
-     lowest control must not be under it. */
   window.layoutFit = function () {
     const ctrlTop = ctrl.length ? Math.min.apply(null, ctrl.map(c => c.y)) : LH;
     const top = topBand(), bot = LH - botBand();
     return {
-      mode: MODE, LW, LH, floorPx: geo.floorPx, shaftW: geo.shaftW,
-      land1W: geo.land1W, land2W: geo.land2W,
+      mode: MODE, LW, LH, floors: floors(), floorPx: geo.floorPx, shaftW: geo.shaftW, corW: geo.corW,
       buildTop: geo.y, buildBottom: geo.y + geo.h,
       overTop: Math.max(0, top - geo.y),
       overBottom: Math.max(0, (geo.y + geo.h) - (bot - statusLane())),
       ctrlOverlap: MODE === 'mobile' ? Math.max(0, (geo.y + geo.h) - ctrlTop) : 0,
-      fits: geo.y >= top && (geo.y + geo.h) <= (bot - statusLane()) &&
-            geo.land1W > 40 && geo.shaftW >= 26,
+      fits: geo.y >= top && (geo.y + geo.h) <= (bot - statusLane()) && geo.corW > 40 && geo.shaftW >= 30,
     };
   };
+  window.endFit = function () {
+    const b = endBox();
+    return { fits: b.py >= 0 && b.py + b.ph <= LH, cardH: b.ph, frameH: LH,
+             overlapPx: Math.max(0, (b.py + b.ph) - LH) };
+  };
   window.lift = {
-    get car() { return car; }, get tips() { return tips; }, get phase() { return phase; },
-    get waiting() { return waiting; }, get rider() { return rider; },
-    get smooth() { return busStops ? smoothStops / busStops : 0; },
-    get busStops() { return busStops; },
-    geo, F, reset,
-    /* Drive the car headlessly, for verification: hold a direction for `secs`,
-       then let go and let it brake to rest. */
+    get car() { return car; }, get phase() { return phase; }, get out() { return out; },
+    get lost() { return lost; }, get waiting() { return waiting; }, get aboard() { return aboard; },
+    get smoke() { return Array.from(smoke || []); }, get carSmoke() { return carSmoke; },
+    get level() { return level; }, get levelIndex() { return levelIndex; },
+    geo, LEVELS, start: startLevel,
+    /* Drive headlessly, for verification: hold a direction, then let go and let
+       it brake to rest and serve. */
     drive(dir, secs) {
       const dt = 1 / 120;
       for (let t = 0; t < secs; t += dt) { keyDir = dir; step(dt); }
       keyDir = 0;
       for (let i = 0; i < 2400 && (Math.abs(car.v) > 1e-6 || phase === 'serve'); i++) step(dt);
-      return { y: car.y, tips, phase };
+      return { y: car.y, out, lost, phase };
     },
   };
 
   /* ---------- BOOT ---------- */
   let last = 0, acc = 0;
-  const DT = 1 / 120;                      // fixed step, so a shift replays
+  const DT = 1 / 120;
   function frame(now) {
     if (!last) last = now;
     const raw = Math.min(0.25, (now - last) / 1000); last = now;
-    if (!document.hidden) {
+    if (!document.hidden && !rulesOpen) {
       acc += raw;
       let guard = 0;
       while (acc >= DT && guard++ < 60) { step(DT); acc -= DT; }
-    } else { acc = 0; }
+    } else acc = 0;
     render(now);
     requestAnimationFrame(frame);
   }
 
-  reset();
+  startLevel(loadSave());
   setCanvasVars();
   resizeCanvas();
   fitFullscreen();
@@ -1080,6 +1235,6 @@
   window.visualViewport && window.visualViewport.addEventListener('resize', onResize);
   setTimeout(onResize, 0);
   setTimeout(onResize, 300);
-  T().gameStart();
+  TR().gameStart();
   requestAnimationFrame(frame);
 })();
