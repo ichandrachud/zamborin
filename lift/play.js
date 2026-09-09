@@ -1207,7 +1207,7 @@
   function drawPeople(now) {
     smokeLayer(1.00, performance.now());                     // the volume, behind them
     const h = geo.floorPx * 0.52;
-    const tt = now / 1000, edgePad = geo.floorPx * 0.16;
+    const tt = now / 1000;
     for (const r of fallen) drawFallen(r);
     for (const p of waiting) {
       const q = personXY(p);
@@ -1234,38 +1234,35 @@
          a turn to look at what is coming down the corridor. They never shuffle
          PAST their place, so the queue holds its shape. */
       const walking = p.stand < p.goal - 0.004;
-      let px2 = q.x;
-      /* WAITING AT THE DOORS. This used to run a full walk cycle while the body
-         moved six pixels and reversed halfway through it, with the facing on a
-         separate clock again - legs going, nobody travelling. That reads as a
-         figure vibrating on the spot, and because it never ended it read as
-         STUCK. Somebody waiting for a lift is still: they hold, they shift
-         their weight, they glance back down the corridor. So the shift is now
-         one discrete step and a long hold, not an oscillation. */
-      if (!walking && !REDUCED && p.exp < 0.62) {
-        const sp = (0.42 + 0.26 * hash01(p.id * 5.1 + 2)) * (1 + urgency * 0.9);
-        const ph = (tt * sp + hash01(p.id * 9.3 + 3)) % 1;
-        const shift = ph < 0.26 ? Math.sin((ph / 0.26) * Math.PI) : 0;
-        px2 = q.x - q.face * shift * geo.corW * (0.016 + 0.014 * urgency);
-        const lo = (q.face > 0 ? geo.leftX : geo.rightX) + edgePad;
-        const hi = (q.face > 0 ? geo.leftX + geo.corW : geo.rightX + geo.rightW) - edgePad;
-        px2 = Math.max(lo, Math.min(hi, px2));
-      }
-      /* THE LEGS ARE DRIVEN BY THE GROUND, not by a clock. A gait on its own
-         timer slides the feet whenever the two disagree, and every version of
-         "how fast should the legs go" is that disagreement waiting to happen.
-         Advance the cycle by the distance actually covered and it cannot: a
-         figure that is not moving is STANDING, which is the whole fix. */
+      /* THE LEGS ARE DRIVEN BY THE GROUND THEY COVER - and by nothing else.
+         The last version gated the walk pose on a per-frame SPEED test, and
+         that test was the vibration rather than the cure: any small movement
+         is a sine, its speed passes through zero at both ends, so the legs
+         snapped between the walking pose and the standing pose twice per step,
+         forever. Worse, the measurement that said it was fixed - "25% of
+         frames moving" - was that strobe, being read as success.
+         There is nothing to infer. We KNOW who is walking: walking is p.stand
+         still short of p.goal. The phase advances by MODEL distance only, so
+         nothing a drawing does can touch it, and a figure at the doors is
+         simply standing. */
       const stride = h * 0.42;
-      if (p.px == null) { p.px = px2; p.gp = 0; }
-      const moved = Math.abs(px2 - p.px);
-      p.gp = (p.gp + moved / stride) % 1;
-      p.px = px2;
-      let gait = moved > 0.05 ? p.gp : -1;
-      /* A glance back at what is coming: a held pose for about a second every
-         five, never the strobe a fast flip-flop produced. */
-      let face = q.face;
+      if (p.px == null) { p.px = q.x; p.gp = 0; }
+      if (walking) p.gp = (p.gp + Math.abs(q.x - p.px) / stride) % 1;
+      p.px = q.x;
+      const gait = (walking && !REDUCED) ? p.gp : -1;
+
+      /* And waiting is WAITING. A seven-pixel shuffle every second is not what
+         somebody stood at a lift door does. They hold still, shift their
+         weight, and keep looking back at what is coming down the corridor. The
+         sway is slow and small enough to read as weight rather than travel -
+         and it cannot start a walk cycle, because the legs no longer read it. */
+      let px2 = q.x, face = q.face;
       if (!walking && !REDUCED) {
+        if (p.exp < 0.62) {
+          const sw = 0.13 + 0.09 * hash01(p.id * 5.1 + 2) + urgency * 0.10;
+          px2 = q.x - q.face * Math.sin(tt * sw * 6.283 + hash01(p.id * 9.3 + 3) * 6.283)
+                    * geo.corW * 0.006;
+        }
         const lp = (tt / (4.2 + 2.2 * hash01(p.id * 6.1)) + hash01(p.id * 1.9)) % 1;
         if (lp < 0.20 - 0.06 * urgency) face = -q.face;
       }
@@ -1275,16 +1272,26 @@
          arrives well before they are lost. */
       let cough = 0;
       if (p.exp > FIRE.warnAt) {
-        const c = (tt * (0.85 + 0.35 * hash01(p.id * 4.3)) + hash01(p.id * 8.1)) % 1;
-        /* Reduced motion drops the JOLT, never the warning. Somebody who has
-           asked for less movement still needs to hear which corridor is in
-           trouble - it is the only notice they get before a strike. */
-        if (c < 0.16 && !REDUCED) cough = Math.sin((c / 0.16) * Math.PI);
-        if (c < 0.02 && p.coughAt !== Math.floor(tt)) {
-          p.coughAt = Math.floor(tt);
-          if (snd) snd.cough(p.id);
+        /* IN BOUTS, NOT ON A METRONOME. This fired a three-pixel lurch every
+           second for as long as somebody was in trouble - and these are exactly
+           the people too far gone to sway, so the cough was the ONLY motion
+           they had. A figure standing perfectly still and twitching once a
+           second is the thing that reads as stuck and vibrating. Two coughs
+           together and then four or five seconds of nothing is both what a
+           person does and something you can watch.
+           Reduced motion drops the JOLT, never the warning: somebody who asked
+           for less movement still needs to hear which corridor is in trouble. */
+        const cyc = 4.2 + 2.0 * hash01(p.id * 4.3), off = hash01(p.id * 8.1);
+        const c = (tt / cyc + off) % 1, w = 0.055;
+        if (!REDUCED) {
+          const b1 = c < w ? Math.sin((c / w) * Math.PI) : 0;
+          const b2 = (c > w * 1.8 && c < w * 2.8) ? Math.sin(((c - w * 1.8) / w) * Math.PI) : 0;
+          cough = Math.max(b1, b2);
         }
+        const bout = Math.floor(tt / cyc + off);
+        if (c < 0.012 && p.coughAt !== bout) { p.coughAt = bout; if (snd) snd.cough(p.id); }
       }
+      p.cg = cough; p.gt = gait;                              // what was DRAWN, for the sweep
       const m = drawPerson(px2, q.y, h, p.exp, p.id + 1, now, face, gait, cough);
       drawOxygen(m.hx, m.headTop, m.h, p.exp);
       /* WHERE IT ACTUALLY DREW. A contrast sweep that guesses these from the
@@ -1310,10 +1317,9 @@
          figure has, which is skating rather than running. */
       const stride = h * 0.42;
       if (r.px == null) { r.px = x; r.gp = 0; }
-      const moved = Math.abs(x - r.px);
-      r.gp = (r.gp + moved / stride) % 1;
+      r.gp = (r.gp + Math.abs(x - r.px) / stride) % 1;
       r.px = x;
-      const gait = (REDUCED || moved <= 0.05) ? -1 : r.gp;
+      const gait = REDUCED ? -1 : r.gp;
       ctx.globalAlpha = r.kind === 'out' ? 1 - Math.max(0, (k - 0.65) / 0.35) : 1;
       drawPerson(x, slabY(r.floor) - 3, h, 0, r.seed, now, dir, gait);
       ctx.globalAlpha = 1;
