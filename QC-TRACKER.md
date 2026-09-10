@@ -84,9 +84,90 @@ measured or decided, not guessed. Ordered by who owns it.
 | 16 | ricochet | - | - | - | - | - | - | - | shipped 2026-08-27, not yet audited |
 | 17 | ballast | OK | OK | OK | OK | ~ | OK | OK | audited 2026-08-28. Cleanest first audit on the track. One item, BA1, and it is cosmetic |
 | 18 | karrots | OK | OK | OK | OK | OK | OK | OK | audited 2026-09-08 on launch, re-audited the same day after the bomb landed. 96/96 load, solve, and carry a bomb that changes their par. K-A1 and K-E1 both closed before release. One known limit: a 320x568 SE gets 40px cells and a 480x360 embed 42px, both under the 44px floor |
+| 19 | evac | OK | OK | OK | ~ | OK | OK | OK | audited 2026-09-10 BEFORE release, not after. Driven through real clicks and real pointer events, not the debug handle. AX has one open item, E1 |
 
 Row order matches the homepage card order. Ricochet has a card but no audit yet.
+Evac is row 19 by ship date and is the first game audited BEFORE it went live rather
+than after; on the homepage its card is first. It is not live yet — the branch is
+merged and pushed but `main` has not taken it.
 Karrots is row 18 by ship date; on the homepage its card is first.
+
+## Evac audit, 2026-09-10 — the first one done BEFORE release
+
+Every other row on this table was audited after the game was already live. This
+one was not, which is the only reason it is worth writing up separately.
+
+**Driven through the INPUT PATH, not the handle.** The lesson from Crucible was
+that every button passed a full QC pass while being dead, because the tests drove
+the debug handle. So: real clicks at real screen coordinates, and real
+PointerEvents through the canvas's own listeners.
+
+| Check | Result |
+|---|---|
+| Rules card | opens on a click, scrolls, closes on GOT IT. All five rules reachable — confirmed rule 5, the party rule, by scrolling to it |
+| Restart pill | 15 rescued -> 0, car back to floor 1 |
+| PLAY AGAIN on the end card | 18 -> 0, strikes 5 -> 0, phase over -> play |
+| Sound toggle | flips and persists to `zam.evac.sfx` |
+| The DRAG, the game's whole verb | real pointerdown + six pointermoves through the canvas listeners: car floor 1 -> 8 |
+| Autosave | seeded best 77, reloaded, HUD reads BEST 77 |
+| End state | five strikes ends the run; no soft-lock seen |
+
+FN carries no "level solvable" because there are no levels; it is an endless run,
+the same reason tessera's FN is marked the way it is.
+
+**MB** — 21 viewports, 0 fit failures on layout, rules card and end card. Mobile
+is a genuinely different layout: one corridor, controls at the bottom, 8 floors at
+82px. The embed at 375x667 switches to mobile mode on its own.
+
+**PF** — peak render 2.07ms against a 16.7ms budget at 60fps. Sim AND render both
+stop when the page is hidden: measured nothing advancing over three seconds, so a
+tab left open does not burn the building down in the background.
+
+**AX — one open item, E1.** Figures and air bars were swept with a footprint-vs-ring
+detector (single pixels had produced six false readings on an earlier game, so this
+compares the whole figure box against the ring of background around it, and passes
+if EITHER tonal part clears 3:1 — dark clothes for a lit wall, light head for dark
+smoke). Luminance null-tested at 21.00 / 1.00 / 4.48 / 4.69 / 4.54 first.
+
+    figures   light smoke  175 samples  worst 10.31  median 11.18  0 under 3:1
+              heavy smoke  100          worst  5.95  median  9.56  0
+              FULL smoke   300          worst  2.29  median  6.24  26
+    air bars  clear wall   232          worst  6.29  median 10.84  0
+              heavy smoke  180          worst  5.49  median  9.43  0
+              FULL smoke   420          worst  2.64  median  6.33  18
+
+Everything clears 3:1 except inside a corridor at front = 1.0, which the design
+deliberately makes unseeable — the model's own words are "a corridor you cannot see
+across". Nobody in one is reachable in time, and the floor alert says which floor it
+is without seeing into it. Judged a pass with the caveat recorded rather than buried.
+Colour is never the only signal: the air bar shortens as well as changing hue.
+
+**E1 — OPEN. The floor-alert band's contrast is unmeasured.** It is 2-3px tall and
+it defeated three successive probes; the last returned exactly 1.00, which is the
+signature of a sampling box that missed entirely. Reading the code did find and fix
+a real defect in it — the pulse ran `0.55 + 0.45*sin`, which swings to 0.10, so the
+alert all but vanished twice a second; it breathes 0.62..1.0 now and the band is
+thicker. But that fix came from reading, not from measuring, and the number is still
+owed. It needs the approach that worked for the capacity pill: have the game record
+the rect it drew and sample that, instead of re-deriving where the band should be.
+
+**CN** — header, footer, favicon, fullscreen toggle, splash, blue chrome all present.
+No emoji. Em dashes appear only in `title`, `og:title` and `twitter:title`, which is
+exactly where every other game has them, karrots included — the no-em-dash rule is
+about body copy, and checking a game that had already passed is what showed that.
+
+**SEO** — title, description, canonical, OG, Twitter, VideoGame JSON-LD, sitemap
+entry with lastmod, guide cross-linked in both directions, llms.txt entry. 295
+references checked across the game and guide pages with 0 broken, reading `content=`,
+CSS `url()` and JSON-LD as well as href/src.
+
+**EMB** — runs at 480x360, 800x600 and 375x667. Stays inside the frame, header,
+footer and ad slots all hidden, layout fits at every size, own localStorage keys
+(`zam.evac.*`).
+
+**Two things this environment could not test**, recorded rather than claimed:
+real touch on a physical device (the pointer events here are synthetic, though they
+do go through the game's own listeners), and whether it works offline.
 
 ## Karrots audit, 2026-09-08
 
