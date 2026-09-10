@@ -305,6 +305,7 @@
       if (live) alarmAge += dt;
       alarmBump = Math.max(0, alarmBump - dt / 3.5);
       alarmT -= dt;
+      if (s.alarm === false) { alarmT = 4.5; return; }   // switched off: no horn, no cycle
       if (alarmT <= 0) {
         const settled = Math.min(1, alarmAge / 15);
         alarmT = 4.5 + 5.0 * settled;

@@ -93,11 +93,20 @@
      wiring: what the game tells the sound about itself, once a frame. */
   const snd = window.EvacSound ? window.EvacSound.create(sfx) : null;
 
+  /* THE ALARM HAS ITS OWN SWITCH. It is the one voice in the game that carries
+     no information - the cough points at a person, the collapse at a strike,
+     the bell at your own stop - so it is the one somebody might reasonably want
+     gone while keeping the rest. Muting everything to escape it is too blunt a
+     trade. Remembered per device, like the sound setting. */
+  const ALARM_KEY = 'zam.evac.alarm';
+  let alarmOn = (() => { try { return localStorage.getItem(ALARM_KEY) !== '0'; } catch (e) { return true; } })();
+
   function stepAmbience(dt) {
     if (!snd) return;
     let burn = 0;
     if (smoke && level) for (let f = 1; f <= level.floors; f++) burn += smoke[f];
     snd.ambience(dt, {
+      alarm: alarmOn,
       live: phase !== 'over' && !document.hidden,
       burn: burn / Math.max(1, level ? level.floors * 0.7 : 1),
       speed: Math.abs(car.v) / T.vMax
@@ -279,7 +288,7 @@
   }
 
   function layoutControls() {
-    const items = [{ id: 'sound', icon: true }, { id: 'restart', label: 'Restart' }, { id: 'rules', label: 'Rules' }];
+    const items = [{ id: 'sound', icon: true }, { id: 'alarm', icon: true }, { id: 'restart', label: 'Restart' }, { id: 'rules', label: 'Rules' }];
     ctx.save();
     let total = 0;
     items.forEach(it => { it.w = it.icon ? UI.PILL.iconW : UI.pillWidth(ctx, it.label); total += it.w; });
@@ -525,6 +534,7 @@
 
   function onCtrl(id) {
     if (id === 'sound') { if (sfx) sfx.setOn(!sfx.isOn()); return; }
+    if (id === 'alarm') { alarmOn = !alarmOn; try { localStorage.setItem(ALARM_KEY, alarmOn ? '1' : '0'); } catch (e) {} return; }
     if (id === 'restart') { startRun(); return; }
     if (id === 'rules') { rulesOpen = !rulesOpen; rulesScroll = 0; return; }
   }
@@ -1892,7 +1902,11 @@
   /* ---------- CHROME ---------- */
   function drawHud() {
     for (const c of ctrl) {
-      if (c.icon) { UI.drawPill(ctx, '', c.cx, c.cy, { w: UI.PILL.iconW }); drawSpeaker(c.cx, c.cy, !sfx || sfx.isOn()); }
+      if (c.icon) {
+        UI.drawPill(ctx, '', c.cx, c.cy, { w: UI.PILL.iconW });
+        if (c.id === 'alarm') drawBell(c.cx, c.cy, alarmOn);
+        else drawSpeaker(c.cx, c.cy, !sfx || sfx.isOn());
+      }
       else UI.drawPill(ctx, c.label, c.cx, c.cy);
     }
     /* Both halves of the comparison, and the damage when there is any: a count
@@ -1975,6 +1989,29 @@
       ctx.fillText('drag the car · let go to stop · take them to the lobby', LW / 2, geo.y + geo.h + statusLane() / 2 + 4);
       ctx.textAlign = 'left'; ctx.textBaseline = 'top';
     }
+  }
+
+  /* A BELL, struck through when it is off - the same stroke weight and the same
+     cross as the speaker uses, so the pair reads as one row of switches rather
+     than two ideas. */
+  function drawBell(cx, cy, on) {
+    ctx.save();
+    ctx.strokeStyle = UI.PILL.text; ctx.fillStyle = UI.PILL.text;
+    ctx.lineWidth = 1.6; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(cx - 6, cy + 3);
+    ctx.quadraticCurveTo(cx - 5.5, cy - 4, cx - 1.5, cy - 5.5);
+    ctx.lineTo(cx + 1.5, cy - 5.5);
+    ctx.quadraticCurveTo(cx + 5.5, cy - 4, cx + 6, cy + 3);
+    ctx.closePath(); ctx.fill();
+    ctx.fillRect(cx - 7, cy + 3, 14, 1.6);
+    ctx.beginPath(); ctx.arc(cx, cy + 6.5, 1.7, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx, cy - 6.6, 1.3, 0, Math.PI * 2); ctx.fill();
+    if (!on) {
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(cx - 8, cy + 8); ctx.lineTo(cx + 8, cy - 8); ctx.stroke();
+    }
+    ctx.restore();
   }
 
   function drawSpeaker(cx, cy, on) {
