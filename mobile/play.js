@@ -207,6 +207,23 @@
   function shapeDrop(i, w) { const sh = shapeOf(i); return sh ? -sh.top * shapeK(i, w) : 0; }
   function shapeR(i, w) { const sh = shapeOf(i); return sh ? Math.abs(sh.top) * shapeK(i, w) : shapeK(i, w); }
 
+  /* HOW WIDE A SHAPE ACTUALLY IS. shapeR above is a VERTICAL measure — the top
+     extent, which is what the hanging string needs — and bounds() was using it
+     as the horizontal half-width too. These are blobs, not circles: 25 of the
+     28 forms are wider than that number, and the worst is 2.4x wider. That is
+     why shapes hung off the edge of a phone while the fit loop reported the
+     sculpture fitting with room to spare. Cached on the form: the polygons are
+     fixed for the life of the page and bounds() runs on every resize. */
+  function formHalfW(sh) {
+    if (sh._halfW == null) {
+      let m = 0;
+      for (let n = 0; n < sh.pts.length; n++) { const a = Math.abs(sh.pts[n][0]); if (a > m) m = a; }
+      sh._halfW = m;
+    }
+    return sh._halfW;
+  }
+  function shapeHalfW(i, w) { const sh = shapeOf(i); return sh ? formHalfW(sh) * shapeK(i, w) : shapeK(i, w); }
+
   function shapePath(i, w, cx, cy) {
     const sh = shapeOf(i);
     if (!sh) return null;
@@ -265,9 +282,16 @@
     const biggest = Math.max(...board.shapes);
     const xs = [], ys = [0];
     for (const r of sc.rods) { xs.push(r.lx, r.rx); ys.push(r.y); }
+    /* Any shape can end up on any hook, so the width has to assume the widest
+       one at the heaviest weight. The old code asked shapeR for form 0 and used
+       it on every hook, which was wrong twice over: the wrong dimension, and
+       the wrong form. The vertical term keeps shapeR deliberately — that IS a
+       vertical measure and the height behaviour is not what broke. */
+    let hw = 0;
+    for (let i = 0; i < board.shapes.length; i++) hw = Math.max(hw, shapeHalfW(i, biggest));
+    const rr = shapeR(0, biggest);
     for (const id in sc.hooks) {
-      const rr = shapeR(0, biggest);
-      xs.push(sc.hooks[id].x - rr, sc.hooks[id].x + rr);
+      xs.push(sc.hooks[id].x - hw, sc.hooks[id].x + hw);
       ys.push(sc.hooks[id].y + rr * 2.2);
     }
     unit = save;
@@ -662,10 +686,30 @@
       { act: () => { phase = 'menu'; } }));
   }
 
+  /* THE GAME HAD NO TEXT WRAPPING AT ALL. The one status sentence below was
+     drawn as a single fillText centred on LW/2: at 393px it measures 566px, so
+     87px fell off each side and it read as "...ced yet. Lift a piece and hang
+     it somew...". Measured on seven phones from a 320 SE to a 428 Plus and it
+     fitted on none of them.
+     Call with the font already set — it measures against the live context. */
+  function wrapLines(text, maxW) {
+    const words = text.split(' ');
+    const out = [];
+    let line = '';
+    for (let n = 0; n < words.length; n++) {
+      const t = line ? line + ' ' + words[n] : words[n];
+      if (line && ctx.measureText(t).width > maxW) { out.push(line); line = words[n]; }
+      else line = t;
+    }
+    if (line) out.push(line);
+    return out;
+  }
+
   function drawUnbalanced(t) {
     const f = verdictFade(t);
     ctx.save(); ctx.globalAlpha = f;
-    ctx.font = '700 ' + Math.round(LH * 0.030) + 'px Inter, sans-serif';
+    const px = Math.round(LH * 0.030);
+    ctx.font = '700 ' + px + 'px Inter, sans-serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     // The message lands wherever the sculpture happens to be hanging, and a piece
     // in the near-black or dark grey of the palette puts ink on ink. A white halo
@@ -673,15 +717,22 @@
     // and this keeps the chrome-free look the mockups ask for. Painted twice so
     // the halo is opaque enough to carry any shape behind it.
     const msg = 'Not balanced yet. Lift a piece and hang it somewhere else.';
+    /* 20 either side, the same breathing room the tray gives its pieces. Lines
+       stack UPWARD from the old baseline, into the open sculpture area, so a
+       second or third line can never crowd the SOLVE button underneath — which
+       on a short phone sits only about 28px below this text. */
+    const lines = wrapLines(msg, LW - 40);
+    const lh = Math.round(px * 1.30);
+    const yLast = Math.round(LH - 96);
+    const at = (i) => yLast - (lines.length - 1 - i) * lh;
     ctx.save();
     ctx.shadowColor = 'rgba(255,255,255,0.98)';
     ctx.shadowBlur = Math.max(6, Math.round(LH * 0.016));
     ctx.fillStyle = '#231F20';
-    ctx.fillText(msg, LW / 2, Math.round(LH - 96));
-    ctx.fillText(msg, LW / 2, Math.round(LH - 96));
+    for (let i = 0; i < lines.length; i++) { ctx.fillText(lines[i], LW / 2, at(i)); ctx.fillText(lines[i], LW / 2, at(i)); }
     ctx.restore();
     ctx.fillStyle = '#231F20';
-    ctx.fillText(msg, LW / 2, Math.round(LH - 96));
+    for (let i = 0; i < lines.length; i++) ctx.fillText(lines[i], LW / 2, at(i));
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
     const b = UI.drawCTA(ctx, 'SOLVE', LW / 2, Math.round(LH - 44), NEXT_RED);
     ctx.restore();
