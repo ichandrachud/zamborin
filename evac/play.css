@@ -1,25 +1,46 @@
 /* Evac — per-game styles. Inherits everything from
-   ../shared/chrome.css and ../shared/tokens.css. Add only what's
-   specific to this game (custom splash, HUD chrome, etc.). */
+   ../shared/chrome.css and ../shared/tokens.css.
 
-/* Splash example: replace the gradient with your game's splash.jpg. */
+   SPLASH ARTWORK PER MODE. The .splash frame, cover sizing and fade all come
+   from ../shared/chrome.css; this file supplies the image, and the smoke that
+   shows underneath it while 300-450 KB of JPEG is still arriving. The gradient
+   is the low-quality placeholder, so it is layered UNDER the photo rather than
+   replaced by it — on a slow connection you get the burning sky immediately
+   and the building fades in over it.
+
+   Desktop art is 1520 x 1200 and mobile art is 1170 x 2532 — the two frames'
+   own aspects, so at the frame `cover` crops nothing. The wordmark is baked
+   into the art, so there is no CSS text here; its position was measured off
+   the pixels by colour rather than by eye:
+
+     desktop art   wordmark x 33.0%..69.5%   y 50.3%..70.0%
+     mobile art    wordmark x 29.0%..72.6%   y 38.6%..48.0%
+
+   Worst realistic cases for `cover`:
+     desktop 760 x 600     no crop at all — 1520x1200 IS 760x600 doubled
+     iPhone SE 375 x 667   8.9% off top and bottom; wordmark sits at y 38.6%,
+                           so it clears the crop by 29.7 points
+     320 x 568             9.0% off top and bottom; same margin
+     tall 344 x 882        7.8% off each side; wordmark clears by 21.2 points
+     very tall 320 x 900  11.5% off each side; wordmark still clears by 17.5
+*/
+
 .splash {
+  /* Smoke over the roof, the fire's glow under it — game art, not chrome. */
+  --smoke: linear-gradient(135deg, #2F3527 0%, #3A3324 34%, #6C5A38 64%, #C98A62 87%, #EF9D6E 100%);
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, #0E1726 0%, #1a2540 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #FFFFFF;
-  font: 700 48px Inter, system-ui, sans-serif;
-  letter-spacing: 0.04em;
+  background-color: #3A3324;
+  background-image: var(--smoke);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
   transition: opacity 600ms ease-out;
   pointer-events: none;
   z-index: 10;
 }
-.splash::before {
-  content: 'Evac';
-}
+body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=1'), var(--smoke); }
+body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=1'),  var(--smoke); }
 .splash.fading {
   opacity: 0;
 }
