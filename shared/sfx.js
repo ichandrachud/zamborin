@@ -122,10 +122,27 @@
        limiter sits below the threshold at those levels and does nothing until a
        boosted game stacks several sounds at once, which is precisely when it
        should. */
+    /* RESUME, EVERY TIME. A context built outside a user gesture starts
+       SUSPENDED, and on iOS one built INSIDE a gesture very often does too -
+       Safari wants resume() called explicitly. Nothing plays until it is.
+       The old `if (audioCtx) return` made that unrecoverable: the first tap
+       built a suspended context and every tap afterwards returned early
+       without ever trying to start it, so a game could be silent for the whole
+       session. resume() is idempotent and this is only ever called from a
+       gesture handler, so calling it on every pass costs nothing. */
     function ensureAudio() {
-      if (audioCtx) return audioCtx;
-      try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
-      catch (_) { audioCtx = null; }
+      if (!audioCtx) {
+        try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+        catch (_) { audioCtx = null; }
+        buildGraph();
+      }
+      if (audioCtx && audioCtx.state === 'suspended') {
+        const p = audioCtx.resume();
+        if (p && p.catch) p.catch(() => {});
+      }
+      return audioCtx;
+    }
+    function buildGraph() {
       if (audioCtx) {
         master = audioCtx.createGain();
         master.gain.value = masterGain;
@@ -138,7 +155,6 @@
         // last node before the speakers by definition.
         master.connect(lim); lim.connect(audioCtx.destination);
       }
-      return audioCtx;
     }
     // Where every voice should connect — including the sustained ones a game
     // builds itself on this context, so they ride the same master.

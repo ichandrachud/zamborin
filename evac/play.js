@@ -2265,7 +2265,7 @@
     get lost() { return lost; }, get waiting() { return waiting; }, get aboard() { return aboard; },
     get smoke() { return Array.from(smoke || []); }, get carSmoke() { return carSmoke; },
     get level() { return level; }, get fallen() { return fallen; },
-    geo, RUN, PARTY, start: startRun, snd, FIRE, get runners() { return runners; },
+    geo, RUN, PARTY, start: startRun, snd, FIRE, sfx, get runners() { return runners; },
     get capRect() { return capRect; }, get chromeLeft() { return chromeLeft; }, capPlan,
     get renderMs() { return renderMs; },
     /* Drive headlessly, for verification: hold a direction, then let go and let
