@@ -60,7 +60,7 @@ const TUNE = {
    1.00 costs a point of winnable for it. 0.70 is the knee, and the settings
    past it are the ones we refuse. */
 const FIRE = {
-  tol: 12,            // seconds at full density before someone is overcome
+  tol: 16,            // seconds at full density before someone is overcome
   ingress: 0.70,      // how fast an open door loads the car
   decay: 0.10,        // how fast the car clears once the doors shut
   spread: 0.35,       // how fast smoke climbs from one floor to the next
