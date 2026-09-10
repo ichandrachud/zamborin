@@ -373,7 +373,7 @@
        and disappear under them. */
     standsBy = {};
     for (let f = 2; f <= F; f++) {
-      standsBy[f] = [0, 1, 2, 3].map(s => ({ stand: M.queueAt(s), right: s % 2 === 1 }));
+      standsBy[f] = [0, 1, 2, 3].map(s => ({ stand: M.queueAt(s), right: false }));
     }
     for (let i = 0; i < RUN.startPeople; i++) spawnPerson();
     nextSpawn = spawnEvery();
@@ -384,23 +384,66 @@
   /* Somebody comes out of a room. They take a free standing slot, and by
      preference not one already lost to the smoke - emerging straight into a
      corridor you cannot see across is a death you could not have prevented. */
+  /* PARTIES. Some of the people who come out of their rooms come out TOGETHER
+     and will not be separated - a family, a couple - so they board as one or
+     not at all.
+     The reason this exists is measured, not decorative: with only singles the
+     car's capacity never binds. Filling to four measured WORSE than leaving at
+     three (20.8 against 24.4), because holding somebody in a smoky car costs
+     them air, so there was never a reason to think about who fits. A party of
+     three that cannot be split is the thing that makes four a number you have
+     to plan around. */
+  const PARTY = { chance: 0.38, three: 0.45 };   // how often, and how often a THREE
+  let nextGid = 1;
+
   function spawnPerson() {
     const F = level.floors;
-    const free = [], ok = [];
+    const byFloor = {};
     for (let f = 2; f <= F; f++) {
       const used = new Set(waiting.filter(p => p.floor === f).map(p => p.slot));
       for (const p of fallen) if (p.floor === f) used.add(p.slot);
+      const open = [], clear = [];
       for (let s = 0; s < T.capacity; s++) {
         if (used.has(s)) continue;
-        const cell = { f, s };
-        free.push(cell);
-        if (smoke[f] < M.standAt(s) + 0.10) ok.push(cell);
+        open.push(s);
+        if (smoke[f] < M.standAt(s) + 0.10) clear.push(s);
       }
+      if (open.length) byFloor[f] = { open, clear };
     }
-    const pool = ok.length ? ok : free;
-    if (!pool.length) return;
-    const c = pool[Math.floor(rng() * pool.length)];
-    waiting.push({ id: nextId++, floor: c.f, slot: c.s, stand: M.standAt(c.s), goal: M.queueAt(c.s), exp: 0 });
+    const floors = Object.keys(byFloor).map(Number);
+    if (!floors.length) return;
+
+    /* A party needs room for all of it, so pick the size first and then a
+       floor that can actually hold it - otherwise a three would silently
+       become a one and the mechanic would quietly not exist. */
+    let size = 1;
+    if (rng() < PARTY.chance) size = rng() < PARTY.three ? 3 : 2;
+    let pick = null;
+    for (let want = size; want >= 1 && !pick; want--) {
+      const fits = floors.filter(f => (byFloor[f].clear.length >= want ? 1 : 0));
+      const pool = fits.length ? fits : floors.filter(f => byFloor[f].open.length >= want);
+      if (!pool.length) continue;
+      const f = pool[Math.floor(rng() * pool.length)];
+      const src = byFloor[f].clear.length >= want ? byFloor[f].clear : byFloor[f].open;
+      /* Take a RANDOM window of the free slots, not the first one. Slicing from
+         the front quietly put every single in slot 0 - the place nearest the
+         doors and the last the smoke reaches - which made the game easier by
+         five rescues a run and had nothing to do with parties. */
+      const start = Math.floor(rng() * (src.length - want + 1));
+      pick = { f, slots: src.slice(start, start + want), size: want };
+    }
+    if (!pick) return;
+    /* A PARTY STANDS TOGETHER. Which side of the shaft somebody waits on used
+       to be their slot's parity, which would have put a family of three two on
+       one side and one on the other - a rule the player cannot see is not a
+       rule they can play. Side is a property of the person now, and everyone
+       in a party shares it. */
+    const gid = pick.size > 1 ? nextGid++ : 0;
+    const side = geo.rightW > 0 ? (rng() < 0.5 ? 1 : 0) : 0;
+    for (const sl of pick.slots) {
+      waiting.push({ id: nextId++, floor: pick.f, slot: sl, stand: M.standAt(sl),
+                     goal: M.queueAt(sl), exp: 0, gid, gsize: pick.size, side });
+    }
   }
 
   /* ---------- INPUT ---------- */
@@ -616,7 +659,21 @@
         aboard = [];
       } else {
         const here = waiting.filter(p => p.floor === serveFloor).sort((a, b) => b.exp - a.exp);
-        const take = here.slice(0, T.capacity - aboard.length);
+        /* WHOLE PARTIES ONLY. Walk the floor in order of who is worst off and
+           take what fits: a single needs one slot, a party needs all of its
+           own. A party that will not fit is SKIPPED rather than ending the
+           boarding, so a single behind it still gets on - which is exactly the
+           decision the mechanic is for. */
+        const take = [], seen = new Set();
+        let room = T.capacity - aboard.length;
+        for (const p of here) {
+          if (seen.has(p.id)) continue;
+          if (!p.gid) { if (room >= 1) { take.push(p); seen.add(p.id); room--; } continue; }
+          const party = here.filter(q => q.gid === p.gid);
+          if (party.length <= room) { for (const q of party) { take.push(q); seen.add(q.id); } room -= party.length; }
+          else for (const q of party) seen.add(q.id);
+          if (room <= 0) break;
+        }
         if (take.length) {
           const ids = new Set(take.map(p => p.id));
           for (const p of take) {
@@ -1238,7 +1295,7 @@
      people always agree about where somebody is. */
   function personXY(p) {
     const base = slabY(p.floor) - 3 - geo.floorPx * 0.055;   // they stand on the runner
-    const onRight = geo.rightW > 0 && (p.slot % 2 === 1);
+    const onRight = geo.rightW > 0 && p.side === 1;
     if (onRight) return { x: geo.rightX + geo.rightW - personXInCorridor(p.stand, geo.rightW), y: base, face: -1 };
     return { x: geo.leftX + personXInCorridor(p.stand, geo.corW), y: base, face: 1 };
   }
@@ -1246,21 +1303,10 @@
   function drawPeople(now) {
     smokeLayer(1.00, performance.now());                     // the volume, behind them
     const h = geo.floorPx * 0.52;
-    const tt = now / 1000;
+    const tt = now / 1000, bars = new Map();
     for (const r of fallen) drawFallen(r);
     for (const p of waiting) {
       const q = personXY(p);
-      /* PACING. Nobody waiting for an elevator in a fire stands still. Some walk a
-         few steps back and forth, some hold their ground; whoever is starting
-         to struggle stops and crouches instead. The walk is SMALL and centred
-         on where they stand, because where they stand is their clock and every
-         level is certified against it - so this moves the picture, never the
-         model. */
-      /* URGENCY. They were strolling. Somebody waiting for an elevator in a
-         burning building does not stroll: they move quickly, they keep turning
-         back to the shaft, and the worse the air gets the more agitated they
-         are until they cannot keep it up at all. Pace speed rises with how
-         close the smoke is to them. */
       /* WALKING, then STILL. There is no idle animation any more, and that is
          deliberate: three attempts to make waiting "look urgent" all read as a
          figure vibrating on the spot, because at 32 pixels ANY repeating motion
@@ -1315,13 +1361,27 @@
       }
       p.cg = cough; p.gt = gait;                              // what was DRAWN, for the sweep
       const m = drawPerson(px2, q.y, h, p.exp, p.id + 1, now, face, gait, cough);
-      drawOxygen(m.hx, m.headTop, m.h, p.exp);
+      /* ONE BAR PER PARTY. A family boards together or not at all, so they get
+         a single air bar spanning them showing the WORST of them - which is
+         both the number that matters and the thing that says "these three are
+         one". Without it the rule is invisible, and a rule the player cannot
+         see is a rule they cannot play. */
+      if (!p.gid) drawOxygen(m.hx, m.headTop, m.h, p.exp);
+      else {
+        const b = bars.get(p.gid) || { x0: 1e9, x1: -1e9, top: 1e9, h: 0, exp: 0 };
+        b.x0 = Math.min(b.x0, m.hx); b.x1 = Math.max(b.x1, m.hx);
+        b.top = Math.min(b.top, m.headTop); b.h = Math.max(b.h, m.h);
+        b.exp = Math.max(b.exp, p.exp);
+        bars.set(p.gid, b);
+      }
       /* WHERE IT ACTUALLY DREW. A contrast sweep that guesses these from the
          nominal height samples empty air, because a figure shrinks by up to a
          quarter as they duck and every person has their own height. Three
          separate false readings came out of guessing before this existed. */
       p.mark = { x: px2, side: q.face, h: m.h, headY: m.hy, bodyY: m.bodyY, armY: m.armY };
     }
+    for (const b of bars.values())
+      drawOxygen((b.x0 + b.x1) / 2, b.top, b.h, b.exp, (b.x1 - b.x0) + b.h * 0.72);
     drawRunners(now);
   }
 
@@ -1537,9 +1597,9 @@
      number the whole game is played on, and a depleting arc makes you judge an
      angle; a bar you read at a glance. Dark track under it, because a coral
      fill on grey smoke measured 1.06:1 on its own. */
-  function drawOxygen(cx, topY, h, exp) {
+  function drawOxygen(cx, topY, h, exp, wide) {
     const left = Math.max(0, Math.min(1, 1 - exp));
-    const bw = Math.max(14, h * 0.72), bh = Math.max(4, h * 0.145);
+    const bw = Math.max(14, wide || h * 0.72), bh = Math.max(4, h * 0.145);
     const x = cx - bw / 2, y = topY - bh * 1.9;
     ctx.fillStyle = 'rgba(10,8,16,0.85)';
     rr(x - 1.5, y - 1.5, bw + 3, bh + 3, (bh + 3) / 2); ctx.fill();
@@ -1945,7 +2005,8 @@
     'The hotel is on fire. Smoke rises from the burning floor and fills the corridors above it. The way out is the lobby.',
     'Drag the car in the shaft, or hold the up and down keys. It is heavy: it lags behind your hand and keeps going when you let go.',
     'Land it level with a corridor and the doors open. Between floors they stay shut until you nudge it, and that costs you seconds you need.',
-    'The arc over someone is the air they have left. Four fit in the car. Every door you open lets smoke in, so a stop you did not need costs everyone aboard.',
+    'The bar over someone is the air they have left. Four fit in the car. Every door you open lets smoke in, so a stop you did not need costs everyone aboard.',
+    'People under ONE long bar are together and will not be separated. A family of three needs three free places, or they all stay behind.',
   ];
   let rulesGeom = null, rulesCTA = null;
   function rulesBox() {
@@ -2126,7 +2187,7 @@
     get lost() { return lost; }, get waiting() { return waiting; }, get aboard() { return aboard; },
     get smoke() { return Array.from(smoke || []); }, get carSmoke() { return carSmoke; },
     get level() { return level; }, get fallen() { return fallen; },
-    geo, RUN, start: startRun, snd, FIRE, get runners() { return runners; },
+    geo, RUN, PARTY, start: startRun, snd, FIRE, get runners() { return runners; },
     get capRect() { return capRect; }, get chromeLeft() { return chromeLeft; }, capPlan,
     get renderMs() { return renderMs; },
     /* Drive headlessly, for verification: hold a direction, then let go and let
