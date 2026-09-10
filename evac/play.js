@@ -1,8 +1,8 @@
 /* ============================================================
-   Lift · A Zamborin Game
+   Evac · A Zamborin Game
 
    A hotel is on fire. Smoke rises from the fire floor and fills the corridors
-   above it, and the way out is the lobby at the bottom. You are the lift.
+   above it, and the way out is the lobby at the bottom. You are the elevator.
 
    Drag the car in the shaft and it lags behind your hand, because it is heavy;
    let go and it keeps going, braking over most of a floor from full speed.
@@ -28,7 +28,7 @@
 (() => {
   'use strict';
 
-  const M = window.LiftModel;
+  const M = window.EvacModel;
   const T = M.TUNE, FIRE = M.FIRE;
 
   /* ---------- MODE ----------
@@ -83,7 +83,7 @@
     fitFullscreen(); resizeCanvas(); layout(); render(performance.now());
   }
 
-  const sfx = window.ZSFX ? window.ZSFX.create({ storageKey: 'zam.lift.sfx', gain: 1.5 }) : null;
+  const sfx = window.ZSFX ? window.ZSFX.create({ storageKey: 'zam.evac.sfx', gain: 1.5 }) : null;
   const UI = window.ZAM_UI;
 
   /* ---------- THE SOUND OF A BUILDING ON FIRE ----------
@@ -91,7 +91,7 @@
      first version of this was judged by looking at the code rather than by
      listening, which is not a way to judge a sound. What is left here is the
      wiring: what the game tells the sound about itself, once a frame. */
-  const snd = window.LiftSound ? window.LiftSound.create(sfx) : null;
+  const snd = window.EvacSound ? window.EvacSound.create(sfx) : null;
 
   function stepAmbience(dt) {
     if (!snd) return;
@@ -106,7 +106,7 @@
 
   const NOOP = { init(){}, gameStart(){}, levelStart(){}, levelComplete(){}, levelRestart(){}, hintUsed(){}, track(){} };
   const TR = () => (window.ZAM_TRACK || NOOP);
-  TR().init('lift');
+  TR().init('evac');
 
   /* ---------- COLOUR ----------
      Chrome takes tokens (shared/tokens.css). The hotel is game art and carries
@@ -265,7 +265,7 @@
     for (const dropBest of [false, true]) {
       ctx.font = '600 11px Inter, sans-serif';
       const need = ctx.measureText(readoutLine(dropBest)).width + 12 * STRIKES + 12;
-      for (const t of ['LIFT AT CAPACITY', 'LIFT FULL', 'FULL']) {
+      for (const t of ['ELEVATOR AT CAPACITY', 'ELEVATOR FULL', 'FULL']) {
         ctx.font = '700 ' + cfs + 'px Inter, sans-serif';
         const w = Math.round(ctx.measureText(t).width) + cfs * 1.9;
         if (readoutMinX + w + 14 + need <= LW - SIDE_PAD) {
@@ -308,7 +308,7 @@
      The certified levels in levels.js are no longer loaded. They are left on
      disk rather than deleted: the certifier and its numbers are the record of
      why the fire version was worth building at all. */
-  const SAVE = 'zam.lift.save';
+  const SAVE = 'zam.evac.save';
   /* FIVE STRIKES, AND THE RAMP HAPPENS IN WAVES YOU CAN SEE.
 
      The first version of this was invisible and the measurement said why: the
@@ -699,7 +699,7 @@
     const b = c.getContext('2d');
     b.setTransform(dpr, 0, 0, dpr, 0, 0);
     const right = side === 'right';
-    // mirror the right-hand corridor so both run "outward from the lift"
+    // mirror the right-hand corridor so both run "outward from the elevator"
     if (right) { b.translate(w, 0); b.scale(-1, 1); }
     paintCorridor(b, w, h, f, f === 1);
     return c;
@@ -719,7 +719,7 @@
     b.textAlign = 'left'; b.textBaseline = 'top';
   }
 
-  /* Everything is drawn in a corridor that runs left-to-right with the LIFT AT
+  /* Everything is drawn in a corridor that runs left-to-right with the ELEVATOR AT
      THE RIGHT-HAND END, and the right-hand corridor is mirrored on the way
      out. One piece of drawing code, both sides. */
   function paintCorridor(b, w, h, f, isLobby) {
@@ -761,7 +761,7 @@
     if (isLobby) paintLobby(b, w, h, wallTop, wallBot, skirtH);
     else paintDoors(b, w, h, wallTop, wallBot, f);
 
-    // the runner along the floor, leading to the lift
+    // the runner along the floor, leading to the elevator
     const rin = Math.round(w * 0.03), rh = Math.max(3, floorH * 0.50);
     b.fillStyle = CARPET;
     b.fillRect(rin, wallBot + skirtH + floorH * 0.30, w - rin * 2, rh);
@@ -951,7 +951,7 @@
     b.lineTo(lx - Math.max(2, dH * 0.13), ly - Math.max(3, dH * 0.22));
     b.closePath(); b.fill();
 
-    // --- planting: a tall one by the doors, a smaller one by the lift ---
+    // --- planting: a tall one by the doors, a smaller one by the elevator ---
     paintPlant(b, ox + dw + rev * 2 + Math.max(10, w * 0.05), floorY, h * 0.34, 5);
     paintPlant(b, w * 0.86, floorY, h * 0.24, 4);
 
@@ -986,7 +986,7 @@
     b.fillRect(x - pot * 0.44, baseY - pot * 0.82, pot * 0.88, Math.max(1, pot * 0.10));
   }
 
-  /* Where a person stands, in a corridor's own coordinates with the lift at
+  /* Where a person stands, in a corridor's own coordinates with the elevator at
      the right-hand end. The baked art and the live figures have to agree, so
      both go through this. */
   const personXInCorridor = (stand, w) => {
@@ -1231,7 +1231,7 @@
     ctx.restore();
   }
 
-  /* `stand` is 1 at the lift doors and 0 at the far wall. The desktop frame
+  /* `stand` is 1 at the elevator doors and 0 at the far wall. The desktop frame
      lays the queue across both corridors, so odd slots are mirrored into the
      right-hand one at the same depth - same clock, different side. Both this
      and the baked doors go through personXInCorridor, so the art and the
@@ -1250,13 +1250,13 @@
     for (const r of fallen) drawFallen(r);
     for (const p of waiting) {
       const q = personXY(p);
-      /* PACING. Nobody waiting for a lift in a fire stands still. Some walk a
+      /* PACING. Nobody waiting for an elevator in a fire stands still. Some walk a
          few steps back and forth, some hold their ground; whoever is starting
          to struggle stops and crouches instead. The walk is SMALL and centred
          on where they stand, because where they stand is their clock and every
          level is certified against it - so this moves the picture, never the
          model. */
-      /* URGENCY. They were strolling. Somebody waiting for a lift in a
+      /* URGENCY. They were strolling. Somebody waiting for an elevator in a
          burning building does not stroll: they move quickly, they keep turning
          back to the shaft, and the worse the air gets the more agitated they
          are until they cannot keep it up at all. Pace speed rises with how
@@ -1269,7 +1269,7 @@
          moves, so the picture and the model are the same thing rather than an
          animation laid over a static clock.
          Once they reach the front of the queue they stop, and what is left is
-         the fidget of somebody waiting for a lift they need: a half step back,
+         the fidget of somebody waiting for an elevator they need: a half step back,
          a turn to look at what is coming down the corridor. They never shuffle
          PAST their place, so the queue holds its shape. */
       const walking = p.stand < p.goal - 0.004;
@@ -1291,7 +1291,7 @@
       const gait = (walking && !REDUCED) ? p.gp : -1;
 
       /* And waiting is WAITING. A seven-pixel shuffle every second is not what
-         somebody stood at a lift door does. They hold still, shift their
+         somebody stood at an elevator door does. They hold still, shift their
          weight, and keep looking back at what is coming down the corridor. The
          sway is slow and small enough to read as weight rather than travel -
          and it cannot start a walk cycle, because the legs no longer read it. */
@@ -1383,7 +1383,7 @@
      left and right across a body facing the viewer is not a stride, it is a
      shuffle - which is exactly why they read as pictograms sidestepping down
      the hall. Walking is a side-on action, and everyone here is facing the
-     lift anyway.
+     elevator anyway.
 
      So: profile. Head with a brow and a jaw and hair, a torso with a chest and
      a back, a near arm and leg over a far arm and leg drawn darker behind, and
@@ -1910,7 +1910,7 @@
 
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
     ctx.fillStyle = '#FFFFFF'; ctx.font = '800 40px Inter, sans-serif';
-    ctx.fillText('Lift', b.px + 43, b.py + 34);
+    ctx.fillText('Evac', b.px + 43, b.py + 34);
     ctx.fillStyle = 'rgba(255,255,255,0.82)'; ctx.font = '600 17px Inter, sans-serif';
     ctx.fillText('Get everybody out before the smoke does.', b.px + 43, b.py + 34 + 54);
 
@@ -2069,7 +2069,7 @@
     return { fits: b.py >= 0 && b.py + b.ph <= LH, cardH: b.ph, frameH: LH,
              overlapPx: Math.max(0, (b.py + b.ph) - LH) };
   };
-  window.lift = {
+  window.evac = {
     get car() { return car; }, get phase() { return phase; }, get out() { return out; },
     get lost() { return lost; }, get waiting() { return waiting; }, get aboard() { return aboard; },
     get smoke() { return Array.from(smoke || []); }, get carSmoke() { return carSmoke; },

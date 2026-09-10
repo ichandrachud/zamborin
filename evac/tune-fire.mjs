@@ -1,4 +1,4 @@
-/* Lift — the fire design, measured against the SHIPPED rules.
+/* Evac — the fire design, measured against the SHIPPED rules.
  *
  * This used to carry its own copy of the smoke model. Then the model changed
  * twice - the smoke became a front that comes along the corridor rather than a
@@ -17,7 +17,7 @@
  *             level is asking the player to be a beam search.
  *   INGRESS   whether smoke through the open door is load-bearing, or a story.
  *
- * Run: node lift/tune-fire.mjs
+ * Run: node evac/tune-fire.mjs
  */
 import { createRequire } from 'node:module';
 import * as S from './sim.mjs';
@@ -60,7 +60,7 @@ function cell(floors, people, rate, n) {
   return { winnable: winnable / n, certifiable: certifiable / n, ruleClears: ruleClears / n };
 }
 
-console.log('LIFT — the fire design, against the rules that ship.\n');
+console.log('EVAC — the fire design, against the rules that ship.\n');
 console.log('  car:  one floor ' + f2(M.travelTime(1)) + 's, six floors ' + f2(M.travelTime(6)) +
             's, stop distance from vMax ' + f2(M.stopDistance(M.TUNE.vMax)) + ' floors' +
             (M.stopDistance(M.TUNE.vMax) <= 1 ? '  OK' : '  FAIL'));

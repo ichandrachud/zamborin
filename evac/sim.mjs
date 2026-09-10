@@ -1,4 +1,4 @@
-/* Lift — the headless building, and the policies that argue about it.
+/* Evac — the headless building, and the policies that argue about it.
  *
  * THE CANONICAL MODEL. The level builder certifies against this and the
  * harnesses sweep against this, and both take the smoke, the exposure and the
@@ -52,7 +52,7 @@ function stepWorld(S, dt, doorFloor) {
   S.carSmoke = M.carSmokeStep(S.carSmoke, doorFloor ? S.s[doorFloor] : 0, dt, !!doorFloor, F);
   for (let i = S.waiting.length - 1; i >= 0; i--) {
     const p = S.waiting[i];
-    /* They walk to the lift, the same as they do on screen. A certificate from
+    /* They walk to the elevator, the same as they do on screen. A certificate from
        a sim where everybody stands still would be a certificate about a game
        nobody plays. */
     p.stand = M.walkStep(p.stand, p.goal, p.exp, dt);

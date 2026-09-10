@@ -1,5 +1,5 @@
 /* ============================================================
-   Zamborin · Lift · the car, the fire, and the numbers they run on
+   Zamborin · Evac · the car, the fire, and the numbers they run on
 
    THE CAR IS THE VERB AND THE FIRE IS THE CLOCK. The car has weight, it lags
    behind the hand, and it keeps going when you let go. Stop it level with a
@@ -8,7 +8,7 @@
    which is what makes a stop you had to nudge cost something rather than
    nothing.
 
-   This file is shared by the game (a script tag, window.LiftModel), by the
+   This file is shared by the game (a script tag, window.EvacModel), by the
    level builder and by the harnesses (createRequire). That is the house rule:
    a gate must measure the SHIPPED game. The smoke that decides whether a level
    is certifiable has to be the same smoke the player is racing, or the
@@ -21,7 +21,7 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
-  else root.LiftModel = api;
+  else root.EvacModel = api;
 }(typeof self !== 'undefined' ? self : this, function () {
 'use strict';
 
@@ -33,7 +33,7 @@ const TUNE = {
   vMax: 3.2,          // floors/s
   b: 5.5,             // floors/s^2, the brake once you let go
   levelTol: 0.08,     // floors; about 6px at a 74px floor
-  /* THE LEVELLING ZONE. A real lift does not have to be parked to the
+  /* THE LEVELLING ZONE. A real elevator does not have to be parked to the
      millimetre by hand: stop it inside the levelling zone and it creeps itself
      the rest of the way. Without one, a typical drag overshoots by three or
      four tenths of a floor, so almost every stop was a miss followed by a
@@ -144,7 +144,7 @@ function travelTime(d, T) {
 
 /* Smoke rises, and it also ADVANCES DOWN THE CORRIDOR. `s[f]` is how far the
    smoke has come along floor f's corridor, from the stairwell at the far end
-   toward the lift in the middle: 0 is a clear corridor, 1 is one you cannot
+   toward the elevator in the middle: 0 is a clear corridor, 1 is one you cannot
    see across. The fire floor makes smoke and every floor above takes it from
    the floor below, so the people furthest from the way out are in trouble
    first. Floors below the fire stay clear, which is why the lobby is a lobby.
@@ -166,7 +166,7 @@ function stepSmoke(s, floors, fireFloor, rate, dt, F) {
 }
 
 /* Where a person stands in the corridor, by their place in the queue for the
-   lift. 1 is right by the doors and 0 is the far wall by the stairs. A
+   elevator. 1 is right by the doors and 0 is the far wall by the stairs. A
    function of the SLOT and nothing else, so a building plays the same on a
    phone as in the desktop frame even though the desktop draws the queue across
    two corridors.
@@ -183,7 +183,7 @@ const STAND_FIRST = 0.64, STAND_STEP = 0.20;
 function standAt(slot) { return STAND_FIRST - STAND_STEP * slot; }
 
 /* WHERE THEY END UP. Nobody in a fire waits where they happened to be when the
-   alarm went: they go to the lift and get as close to the doors as they can.
+   alarm went: they go to the elevator and get as close to the doors as they can.
    So standAt is now only where somebody STARTS, queueAt is where they are
    going, and the walk between the two is real - it is where the smoke catches
    people, which is a better clock than standing still ever was. */
@@ -206,7 +206,7 @@ function walkStep(stand, goal, exp, dt) {
    Nobody dies on screen and nothing is drawn over a person. */
 /* The window is exactly the distance from the person standing closest to the
    doors to the end of the corridor, so that person reaches full exposure just
-   as the corridor fills. Any wider and somebody at the lift end could never be
+   as the corridor fills. Any wider and somebody at the elevator end could never be
    more than partly exposed in a corridor you cannot see across, which is not a
    thing smoke does. */
 const ENGULF_WINDOW = 1 - STAND_FIRST;

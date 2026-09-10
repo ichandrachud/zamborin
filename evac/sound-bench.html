@@ -2,7 +2,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>Lift — sound bench</title>
+<title>Evac — sound bench</title>
 <style>
   :root { color-scheme: dark; }
   body { margin: 0; background: #14121A; color: #EFEAF4;
@@ -32,7 +32,7 @@
 </style>
 
 <div class="wrap">
-  <h1>Lift — sound bench</h1>
+  <h1>Evac — sound bench</h1>
   <p class="lede">Every sound in the game, one at a time. Inside a run they all arrive at once
     and nothing is separable, so this is the only fair way to judge one. Press a sound, then say
     what is wrong with it in plain words — too musical, too quiet, too short, sounds like a
@@ -47,7 +47,7 @@
   <p class="note" style="margin:2px 0 18px">
     <strong style="color:#E8B25C">Start here.</strong> One sound at a time cannot tell you whether
     something is irritating — irritation is a thing that happens over ninety seconds, not over one
-    press. This plays a whole run: the fire builds, the lift stops, people cough, somebody goes
+    press. This plays a whole run: the fire builds, the elevator stops, people cough, somebody goes
     down. If you want to stop playing by the end of it, the mix is still wrong.</p>
 
   <div class="sliders">
@@ -66,7 +66,7 @@
     <span class="val" id="burnV">0.35</span>
   </div>
   <div class="sliders">
-    <label for="speed">Lift speed</label>
+    <label for="speed">Elevator speed</label>
     <input id="speed" type="range" min="0" max="1" step="0.01" value="0">
     <span class="val" id="speedV">0.00</span>
   </div>
@@ -76,8 +76,8 @@
 
   <h2>The building</h2>
   <div id="building"></div>
-  <h2>The lift</h2>
-  <div id="lift"></div>
+  <h2>The elevator</h2>
+  <div id="elevator"></div>
   <h2>The people</h2>
   <div id="people"></div>
 </div>
@@ -87,8 +87,8 @@
 <script>
 (function () {
   'use strict';
-  let sfx = ZSFX.create({ storageKey: 'zam.lift.bench', gain: 2.2 });
-  let snd = LiftSound.create(sfx);
+  let sfx = ZSFX.create({ storageKey: 'zam.evac.bench', gain: 2.2 });
+  let snd = EvacSound.create(sfx);
 
   const GROUPS = {
     building: [
@@ -97,7 +97,7 @@
       ['The fire gets worse (a wave)', 'A gust and a drop underneath it. Replaces what used to be a buzzer.', () => snd.waveUp()],
       ['Run over', 'The alarm has already stopped. What is left is the building.', () => snd.runEnd()]
     ],
-    lift: [
+    elevator: [
       ['Arrives at a floor', 'A struck bell, then the doors sliding open.', () => { snd.bell(); snd.doors(false); }],
       ['Bell only', 'A metal bar struck — several partials, not a sine beep.', () => snd.bell()],
       ['Doors open', 'A slide with weight, ending soft.', () => snd.doors(false)],
@@ -151,15 +151,15 @@
      fresh engine. Cheap here, and it is the number that matters most. */
   $('master').oninput = () => {
     const g = +$('master').value; $('masterV').textContent = g.toFixed(1) + '×';
-    sfx = ZSFX.create({ storageKey: 'zam.lift.bench', gain: g });
-    sfx.ensureAudio(); snd = LiftSound.create(sfx);
+    sfx = ZSFX.create({ storageKey: 'zam.evac.bench', gain: g });
+    sfx.ensureAudio(); snd = EvacSound.create(sfx);
   };
-  /* A handle for the harness: the same trick the game plays with window.lift.
+  /* A handle for the harness: the same trick the game plays with window.evac.
      A bench that cannot be measured is just another thing to look at. */
   window.bench = { get sfx(){return sfx;}, get snd(){return snd;} };
 
   $('alarmLvl').oninput = () => {
-    LiftSound.MIX.alarm = +$('alarmLvl').value;
+    EvacSound.MIX.alarm = +$('alarmLvl').value;
     $('alarmLvlV').textContent = (+$('alarmLvl').value).toFixed(3);
   };
 
@@ -173,7 +173,7 @@
     running = true; runT = 0; bed = true; $('ambState').textContent = 'playing a run…';
     if (!raf) { last = performance.now(); raf = requestAnimationFrame(loop); }
     const at = (t, fn) => setTimeout(() => { if (running) fn(); }, t * 1000);
-    // the lift working: a stop every few seconds, the way a played run goes
+    // the elevator working: a stop every few seconds, the way a played run goes
     for (let t = 3; t < 88; t += 4.5 + Math.random() * 3) {
       const tt = t;
       at(tt, () => { snd.bell(); snd.doors(false); });

@@ -1,4 +1,4 @@
-/* Lift — per-game styles. Inherits everything from
+/* Evac — per-game styles. Inherits everything from
    ../shared/chrome.css and ../shared/tokens.css. Add only what's
    specific to this game (custom splash, HUD chrome, etc.). */
 
@@ -18,7 +18,7 @@
   z-index: 10;
 }
 .splash::before {
-  content: 'Lift';
+  content: 'Evac';
 }
 .splash.fading {
   opacity: 0;

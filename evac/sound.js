@@ -1,4 +1,4 @@
-/* Lift — the sound of a hotel on fire.
+/* Evac — the sound of a hotel on fire.
 
    Everything is synthesised on the shared Zamborin audio context, so mute is
    still silence and the game still weighs nothing. The house rule binds: sound
@@ -16,11 +16,11 @@
         A fire alarm is a temporal-three horn; two pleasant tones is a doorbell.
         Fire is crackle on a bed; a steady bed alone is an air conditioner.
      2. Nothing in a burning building is musical. No triads, no chirps. The one
-        exception is the lift bell, because a real lift really does chime.
+        exception is the elevator bell, because a real elevator really does chime.
 */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
-  else root.LiftSound = factory();
+  else root.EvacSound = factory();
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
@@ -134,7 +134,7 @@
 
     /* ---------- ONE-SHOTS ---------- */
 
-    /* A lift bell is a struck bar: a few INHARMONIC partials decaying at
+    /* An elevator bell is a struck bar: a few INHARMONIC partials decaying at
        different rates, plus the strike. Three is enough to stop it reading as
        a sine beep. This is the only pleasant sound in the game. */
     function bell(v) {

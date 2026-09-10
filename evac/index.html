@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-  <title>Lift — A Zamborin Game</title>
-  <meta name="description" content="A hotel is on fire. Drive the lift by hand, land it level with each corridor, and get everyone down to the lobby before the smoke reaches them." />
+  <title>Evac — A Zamborin Game</title>
+  <meta name="description" content="A hotel is on fire. Drive the elevator by hand, land it level with each corridor, and get everyone down to the lobby before the smoke reaches them." />
   <meta name="theme-color" content="#0E1726" />
-  <link rel="canonical" href="https://zamborin.com/lift/" />
+  <link rel="canonical" href="https://zamborin.com/evac/" />
   <link rel="icon" type="image/svg+xml" href="../images/zamborin-favicon.svg?v=2" />
   <!-- REMOVE THIS LINE ONLY WHEN THE GAME SHIPS. A prototype that is live but
        unlinked is NOT hidden: Google finds it through any external link and
@@ -16,17 +16,17 @@
   <!-- Open Graph / Twitter -->
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Zamborin Games" />
-  <meta property="og:url" content="https://zamborin.com/lift/" />
-  <meta property="og:title" content="Lift — Get everyone out before the smoke" />
-  <meta property="og:description" content="A hotel is on fire. Drive the lift by hand, land it level with each corridor, and get everyone down to the lobby before the smoke reaches them." />
-  <meta property="og:image" content="https://zamborin.com/images/lift-og.jpg" />
+  <meta property="og:url" content="https://zamborin.com/evac/" />
+  <meta property="og:title" content="Evac — Get everyone out before the smoke" />
+  <meta property="og:description" content="A hotel is on fire. Drive the elevator by hand, land it level with each corridor, and get everyone down to the lobby before the smoke reaches them." />
+  <meta property="og:image" content="https://zamborin.com/images/evac-og.jpg" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
-  <meta property="og:image:alt" content="A brass lift car lit in a dark hotel shaft, with smoke filling the corridors above it and small figures waiting" />
+  <meta property="og:image:alt" content="A brass elevator car lit in a dark hotel shaft, with smoke filling the corridors above it and small figures waiting" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Lift — Get everyone out before the smoke" />
-  <meta name="twitter:description" content="A hotel is on fire. Drive the lift by hand, land it level with each corridor, and get everyone down to the lobby before the smoke reaches them." />
-  <meta name="twitter:image" content="https://zamborin.com/images/lift-og.jpg" />
+  <meta name="twitter:title" content="Evac — Get everyone out before the smoke" />
+  <meta name="twitter:description" content="A hotel is on fire. Drive the elevator by hand, land it level with each corridor, and get everyone down to the lobby before the smoke reaches them." />
+  <meta name="twitter:image" content="https://zamborin.com/images/evac-og.jpg" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -42,10 +42,10 @@
   {
     "@context": "https://schema.org",
     "@type": "VideoGame",
-    "name": "Lift",
-    "description": "A hotel is on fire. Drive the lift by hand, land it level with each corridor, and get everyone down to the lobby before the smoke reaches them.",
-    "url": "https://zamborin.com/lift/",
-    "image": "https://zamborin.com/images/lift-og.jpg",
+    "name": "Evac",
+    "description": "A hotel is on fire. Drive the elevator by hand, land it level with each corridor, and get everyone down to the lobby before the smoke reaches them.",
+    "url": "https://zamborin.com/evac/",
+    "image": "https://zamborin.com/images/evac-og.jpg",
     "playMode": "SinglePlayer",
     "gamePlatform": "Web Browser",
     "applicationCategory": "Game",
@@ -105,7 +105,7 @@
 
     <section class="play-row">
       <div class="game-wrap">
-        <canvas id="game" aria-label="Lift"></canvas>
+        <canvas id="game" aria-label="Evac"></canvas>
         <!-- Splash: shows for 2 s at load, then fades to reveal the game. -->
         <div id="splash" class="splash" aria-hidden="true"></div>
       </div>
@@ -129,8 +129,8 @@
          policy alike. Write it in the calm voice, no em dashes. Look at
          bloom/ or kaleido/ for the shape and the length. -->
     <section class="game-info">
-      <h1>Lift: get everyone out before the smoke</h1>
-      <p>A hotel is on fire. Smoke is coming along each corridor from the stairwell at the far end, and the only way out is the lobby at the bottom. You are the lift. The car is heavy: drag it in the shaft and it lags behind your hand, and when you let go it keeps going and brakes over most of a floor. Land it level with a corridor and the doors open. Land it between floors and they stay shut until you nudge it, and that costs you seconds you do not have.</p>
+      <h1>Evac: get everyone out before the smoke</h1>
+      <p>A hotel is on fire. Smoke is coming along each corridor from the stairwell at the far end, and the only way out is the lobby at the bottom. You are the elevator. The car is heavy: drag it in the shaft and it lags behind your hand, and when you let go it keeps going and brakes over most of a floor. Land it level with a corridor and the doors open. Land it between floors and they stay shut until you nudge it, and that costs you seconds you do not have.</p>
 
       <h2>How to play</h2>
       <p>Everything you do is done to the car. There is no button to press for a passenger and no menu to open. You drive, you stop, and the building does the rest.</p>
@@ -142,7 +142,7 @@
       </ul>
 
       <h2>Why it is clever</h2>
-      <p>Most lift games are about which button to press. This one is about weight and about choosing. The brake needs nearly a whole floor from full speed, so a good stop is a decision you make early, before you are anywhere near the corridor you want. And because the smoke spreads rather than ticking down separately for each person, the floor you skip gets worse while you are somewhere else. Going low first can make the top unreachable.</p>
+      <p>Most elevator games are about which button to press. This one is about weight and about choosing. The brake needs nearly a whole floor from full speed, so a good stop is a decision you make early, before you are anywhere near the corridor you want. And because the smoke spreads rather than ticking down separately for each person, the floor you skip gets worse while you are somewhere else. Going low first can make the top unreachable.</p>
       <p>Every level from four onward is checked by a program before it ships. A planner that thinks one trip ahead must be able to clear it, so it is always winnable. On the later levels seven different obvious approaches, including the sensible one of starting at the top and working down, must all fail to clear it, so there is no rule you can learn once and stop thinking. Buildings that fail either test are thrown away.</p>
 
       <h2>Tips</h2>
@@ -153,7 +153,7 @@
       </ul>
 
       <h2>Frequently asked questions</h2>
-      <p><strong>Is Lift free?</strong> Yes, completely free to play, with no account or download, in any modern browser on phone, tablet or desktop.</p>
+      <p><strong>Is Evac free?</strong> Yes, completely free to play, with no account or download, in any modern browser on phone, tablet or desktop.</p>
       <p><strong>Does it work on mobile?</strong> Yes. The shaft sits right of centre on a phone so your thumb never covers the corridor you are serving.</p>
       <p><strong>How do I win a level?</strong> Get every person down to the lobby. Miss one and the level ends and you try again.</p>
       <p><strong>Is every level winnable?</strong> Yes, and it is checked rather than assumed. See the note above on how levels are certified.</p>
