@@ -1261,17 +1261,14 @@
          back to the shaft, and the worse the air gets the more agitated they
          are until they cannot keep it up at all. Pace speed rises with how
          close the smoke is to them. */
-      const near = Math.max(0, Math.min(1, (smoke[p.floor] - p.stand + 0.30) / 0.45));
-      const urgency = Math.max(near, p.exp * 1.3);
-      /* WALKING, then WAITING. They used to oscillate on the spot, which reads
-         as a queue at a bus stop. Now while there is corridor between them and
-         the doors they are covering it - and the figure moves because p.stand
-         moves, so the picture and the model are the same thing rather than an
-         animation laid over a static clock.
-         Once they reach the front of the queue they stop, and what is left is
-         the fidget of somebody waiting for an elevator they need: a half step back,
-         a turn to look at what is coming down the corridor. They never shuffle
-         PAST their place, so the queue holds its shape. */
+      /* WALKING, then STILL. There is no idle animation any more, and that is
+         deliberate: three attempts to make waiting "look urgent" all read as a
+         figure vibrating on the spot, because at 32 pixels ANY repeating motion
+         does. A half-step shuffle, a glance that mirrors the whole body, a
+         sub-pixel breath - each looked reasonable written down and each was the
+         same artefact on screen.
+         So a figure that is not walking does not move. The urgency lives where
+         it belongs now: in the walk down the corridor, and in the cough. */
       const walking = p.stand < p.goal - 0.004;
       /* THE LEGS ARE DRIVEN BY THE GROUND THEY COVER - and by nothing else.
          The last version gated the walk pose on a per-frame SPEED test, and
@@ -1290,21 +1287,7 @@
       p.px = q.x;
       const gait = (walking && !REDUCED) ? p.gp : -1;
 
-      /* And waiting is WAITING. A seven-pixel shuffle every second is not what
-         somebody stood at an elevator door does. They hold still, shift their
-         weight, and keep looking back at what is coming down the corridor. The
-         sway is slow and small enough to read as weight rather than travel -
-         and it cannot start a walk cycle, because the legs no longer read it. */
-      let px2 = q.x, face = q.face;
-      if (!walking && !REDUCED) {
-        if (p.exp < 0.62) {
-          const sw = 0.13 + 0.09 * hash01(p.id * 5.1 + 2) + urgency * 0.10;
-          px2 = q.x - q.face * Math.sin(tt * sw * 6.283 + hash01(p.id * 9.3 + 3) * 6.283)
-                    * geo.corW * 0.006;
-        }
-        const lp = (tt / (4.2 + 2.2 * hash01(p.id * 6.1)) + hash01(p.id * 1.9)) % 1;
-        if (lp < 0.20 - 0.06 * urgency) face = -q.face;
-      }
+      const px2 = q.x, face = q.face;
       /* A COUGH is the warning that somebody is about to go. It is a jolt you
          can see from across the building, it fires on its own rhythm per
          person so a corridor in trouble sounds and looks like one, and it
@@ -1404,8 +1387,14 @@
     const t = REDUCED ? 0 : now / 1000;
     const walking = gait != null && gait >= 0 && !REDUCED;
     const ph = walking ? gait * 6.283 : 0;
-    const idle = REDUCED ? 0 : Math.sin(t * 1.15 + rnd(2) * 6.283);
-    const breath = REDUCED ? 0 : Math.sin(t * 1.9 + rnd(3) * 6.283) * h * 0.005;
+    /* A STANDING FIGURE DOES NOT MOVE AT ALL. idle and breath were sub-pixel
+       sines on two different clocks, which on a 32px figure is not breathing -
+       it is the antialiasing changing every frame, and a shimmer is exactly
+       what "vibrating in place" looks like. Anything that moves a waiting
+       figure now comes from STATE - the duck as their air goes, the jolt of a
+       cough - and never from a free-running clock. */
+    const idle = (REDUCED || !walking) ? 0 : Math.sin(t * 1.15 + rnd(2) * 6.283);
+    const breath = (REDUCED || !walking) ? 0 : Math.sin(t * 1.9 + rnd(3) * 6.283) * h * 0.005;
     const cg2 = cough || 0;
     const bob = walking ? Math.abs(Math.cos(ph)) * h * 0.016 : idle * h * 0.004;
 
@@ -1676,15 +1665,62 @@
       rr(x, y + (car.v > 0 ? 4 : -4), w, h, 6); ctx.fill();
       ctx.globalAlpha = 1;
     }
-    const g = ctx.createLinearGradient(x, y, x, y + h);
-    g.addColorStop(0, CAR_HI); g.addColorStop(0.45, CAR_MID); g.addColorStop(1, CAR_LO);
-    ctx.fillStyle = g; rr(x, y, w, h, 6); ctx.fill();
-    ctx.fillStyle = CAR_BEVEL; ctx.fillRect(x + 4, y + 2, w - 8, 2);
+    /* THE CAB. It was a gold rounded rectangle with a cream hole in it. A car
+       in a building like this one has a brass frame with a sheen across it,
+       panelled leaves, a lit header and the two direction lanterns - and the
+       lanterns earn their place rather than being decoration, because they say
+       something TRUE about the car: which way it is going. Everything here is
+       a tonal step, never a stroke, which is the house rule for game pieces.
 
-    const ix = x + 6, iy = y + 8, iw = w - 12, ih = h - 14;
+       All of it scales off w and h, because the cab is 42x53 on a desktop
+       frame and about half that on a small phone, and detail that does not
+       shrink turns to mush. Anything under a pixel is skipped outright. */
+    const fine = w >= 26;                       // enough room for the small stuff
+
+    // the body: brass takes a specular band across it, not a top-to-bottom fade
+    const g = ctx.createLinearGradient(x, y, x + w, y);
+    g.addColorStop(0, CAR_LO); g.addColorStop(0.16, CAR_MID);
+    g.addColorStop(0.40, CAR_HI); g.addColorStop(0.68, CAR_MID); g.addColorStop(1, CAR_LO);
+    ctx.fillStyle = g; rr(x, y, w, h, 6); ctx.fill();
+    // and the light still comes from above, so the foot of it falls away
+    const vg = ctx.createLinearGradient(x, y, x, y + h);
+    vg.addColorStop(0, 'rgba(255,255,255,0.10)'); vg.addColorStop(0.55, 'rgba(0,0,0,0)');
+    vg.addColorStop(1, 'rgba(0,0,0,0.22)');
+    ctx.fillStyle = vg; rr(x, y, w, h, 6); ctx.fill();
+    ctx.fillStyle = CAR_BEVEL; ctx.fillRect(x + 4, y + 2, w - 8, 1.5);
+
+    /* THE HEADER, and the lanterns in it. Lit amber for the way the car is
+       travelling; both dim when it is standing, which is the moment the doors
+       can open. */
+    const hh = Math.max(4, Math.round(h * 0.13));
+    const hg = ctx.createLinearGradient(x, y + 2, x, y + 2 + hh);
+    hg.addColorStop(0, '#7A4E11'); hg.addColorStop(1, '#5C3A0C');
+    ctx.fillStyle = hg; ctx.fillRect(x + 4, y + 3, w - 8, hh);
+    if (fine) {
+      const lr = Math.max(1.2, hh * 0.30), ly = y + 3 + hh / 2;
+      const up = car.v > 0.15, dn = car.v < -0.15;
+      ctx.fillStyle = up ? '#FFD98A' : 'rgba(255,217,138,0.16)';
+      ctx.beginPath(); ctx.arc(x + 4 + lr * 2.2, ly, lr, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = dn ? '#FFD98A' : 'rgba(255,217,138,0.16)';
+      ctx.beginPath(); ctx.arc(x + w - 4 - lr * 2.2, ly, lr, 0, Math.PI * 2); ctx.fill();
+      // the indicator between them, brighter while the doors are working
+      ctx.fillStyle = 'rgba(255,232,176,' + (0.22 + 0.5 * doorOpen).toFixed(3) + ')';
+      ctx.fillRect(x + w / 2 - w * 0.14, ly - 0.75, w * 0.28, 1.5);
+    }
+
+    const ix = x + 5, iy = y + 4 + hh, iw = w - 10, ih = h - hh - 11;
+    // the jamb: the opening is RECESSED into the frame, by value not by a line
+    ctx.fillStyle = 'rgba(70,42,8,0.55)';
+    rr(ix - 1.5, iy - 1.5, iw + 3, ih + 3, 3); ctx.fill();
+
     ctx.save();
-    ctx.beginPath(); rr(ix, iy, iw, ih, 3); ctx.clip();
+    ctx.beginPath(); rr(ix, iy, iw, ih, 2); ctx.clip();
     ctx.fillStyle = CAR_IN; ctx.fillRect(ix, iy, iw, ih);
+    // a ceiling lamp in the cab, so the riders are lit from above like everything else
+    const cg2 = ctx.createLinearGradient(ix, iy, ix, iy + ih);
+    cg2.addColorStop(0, 'rgba(255,255,255,0.55)'); cg2.addColorStop(0.45, 'rgba(255,244,230,0)');
+    cg2.addColorStop(1, 'rgba(120,74,16,0.30)');
+    ctx.fillStyle = cg2; ctx.fillRect(ix, iy, iw, ih);
     // the riders, and the air they are breathing
     if (aboard.length) {
       const n = aboard.length;
@@ -1701,17 +1737,33 @@
       ctx.fillRect(ix, iy, iw, ih);
     }
     const leaf = (iw / 2) * (1 - doorOpen);
-    const dg = ctx.createLinearGradient(ix, iy, ix, iy + ih);
-    dg.addColorStop(0, CAR_MID); dg.addColorStop(1, CAR_LO);
+    const dg = ctx.createLinearGradient(ix, iy, ix + iw, iy);
+    dg.addColorStop(0, CAR_LO); dg.addColorStop(0.30, CAR_MID);
+    dg.addColorStop(0.5, CAR_LO); dg.addColorStop(0.70, CAR_MID); dg.addColorStop(1, CAR_LO);
     ctx.fillStyle = dg;
     ctx.fillRect(ix, iy, leaf, ih); ctx.fillRect(ix + iw - leaf, iy, leaf, ih);
-    ctx.fillStyle = 'rgba(0,0,0,0.26)';
-    ctx.fillRect(ix, iy, leaf, ih); ctx.fillRect(ix + iw - leaf, iy, leaf, ih);
+    // a recessed panel in each leaf, so a door reads as a door and not a block
+    if (fine && leaf > 5) {
+      const pm = Math.max(1.5, leaf * 0.22), py2 = iy + ih * 0.12, ph2 = ih * 0.76;
+      ctx.fillStyle = 'rgba(0,0,0,0.20)';
+      ctx.fillRect(ix + pm, py2, leaf - pm * 2, ph2);
+      ctx.fillRect(ix + iw - leaf + pm, py2, leaf - pm * 2, ph2);
+      ctx.fillStyle = 'rgba(255,255,255,0.13)';
+      ctx.fillRect(ix + pm, py2, leaf - pm * 2, 1);
+      ctx.fillRect(ix + iw - leaf + pm, py2, leaf - pm * 2, 1);
+    }
     if (leaf > 1) {
       ctx.fillStyle = 'rgba(0,0,0,0.38)'; ctx.fillRect(ix + leaf - 1, iy, 1.5, ih);
       ctx.fillStyle = 'rgba(255,255,255,0.14)'; ctx.fillRect(ix + iw - leaf, iy, 1, ih);
     }
+    // the kickplate: a brighter band along the sill, the way a worn cab has
+    ctx.fillStyle = 'rgba(255,217,138,0.30)';
+    ctx.fillRect(ix, iy + ih - Math.max(1.5, ih * 0.06), iw, Math.max(1.5, ih * 0.06));
     ctx.restore();
+
+    // the sill the cab sits on, catching the light
+    ctx.fillStyle = 'rgba(255,232,176,0.28)';
+    ctx.fillRect(x + 3, y + h - 4, w - 6, 1.5);
 
     // the handle: drawn at rest always, pulsing once at the start of a level.
     const ha = 0.34 + (handlePulse > 0 ? Math.sin(handlePulse * Math.PI) * 0.55 : 0);
