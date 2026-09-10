@@ -504,7 +504,12 @@
        starting each from zero braked at aMax, HARDER than letting go, and made
        re-gripping cost speed. */
     dragging = true; dragV = car.v; dragLastY = p.y; dragLastT = performance.now();
-    canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId);
+    /* Capture can throw if the pointer is already gone by the time we ask -
+       the existence check does not cover that. It is the last thing the handler
+       does, so the drag is already live and a throw costs nothing but an
+       uncaught error in the console; the rest of the fleet guards it the same
+       way. */
+    try { canvas.setPointerCapture?.(e.pointerId); } catch (err) { /* pointer already gone */ }
   });
   canvas.addEventListener('pointermove', (e) => {
     if (!dragging) return;
