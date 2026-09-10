@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Evac strategy: the car is not a safe place — Zamborin</title>
+  <meta name="description" content="A practical Evac strategy guide: why the smoke is the only clock that matters, why a full car is often the slower rescue, how to read the air bars instead of the floors, and why a family of three needs three free places or nobody moves." />
+  <meta name="theme-color" content="#0E1726" />
+  <link rel="canonical" href="https://zamborin.com/guides/evac/" />
+  <link rel="icon" type="image/svg+xml" href="/images/zamborin-favicon.svg?v=2" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:site_name" content="Zamborin Games" />
+  <meta property="og:url" content="https://zamborin.com/guides/evac/" />
+  <meta property="og:title" content="Evac strategy: the car is not a safe place" />
+  <meta property="og:description" content="Why the smoke is the only clock, why a full car can be the slower rescue, and why a family of three needs three free places." />
+  <meta property="og:image" content="https://zamborin.com/images/evac-og.jpg" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Evac strategy: the car is not a safe place" />
+  <meta name="twitter:description" content="A practical strategy guide to Evac, the hotel fire evacuation game." />
+  <meta name="twitter:image" content="https://zamborin.com/images/evac-og.jpg" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../shared/tokens.css?v=1" />
+  <link rel="stylesheet" href="../../shared/chrome.css?v=20" />
+  <style>
+    .guide { max-width: 760px; margin: 0 auto; padding: 40px 24px 80px; color: var(--text-dim); line-height: 1.7; font-size: 17px; }
+    .guide .crumbs { font-size: 14px; margin-bottom: 22px; color: var(--text-dim); }
+    .guide .crumbs a { color: #4DC3FF; text-decoration: none; display: inline-block; padding: 4px 0; }
+    .guide h1 { font-size: 38px; color: var(--text); font-weight: 800; margin: 0 0 6px; letter-spacing: -0.5px; line-height: 1.15; }
+    .guide .lede { font-size: 19px; color: var(--text); margin: 14px 0 8px; }
+    .guide h2 { font-size: 23px; color: var(--text); font-weight: 700; margin: 38px 0 10px; letter-spacing: -0.2px; }
+    .guide p { margin: 12px 0; }
+    .guide a { color: #4DC3FF; }
+    .guide strong { color: var(--text); font-weight: 600; }
+    .guide ul { margin: 12px 0; padding-left: 22px; }
+    .guide li { margin: 8px 0; }
+    .guide .cta { display: inline-block; margin-top: 8px; background: #4DC3FF; color: #06121e; font-weight: 700; text-decoration: none; padding: 13px 26px; border-radius: 10px; }
+    .guide .playbox { margin: 36px 0 8px; padding: 22px 24px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09); border-radius: 14px; }
+    .guide .playbox p { margin: 0 0 14px; color: var(--text); font-weight: 600; }
+    .guide .more { margin-top: 40px; padding-top: 22px; border-top: 1px solid rgba(255,255,255,0.09); font-size: 16px; }
+    .guide .more a { display: inline-block; padding: 4px 0; }
+    .guide table { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 16px; }
+    .guide th, .guide td { text-align: left; padding: 9px 12px; border-bottom: 1px solid rgba(255,255,255,0.09); }
+    .guide th { color: var(--text); font-weight: 700; }
+    @media (max-width: 720px) { .guide { padding: 28px 18px 56px; font-size: 16px; } .guide h1 { font-size: 30px; } }
+  </style>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "Evac strategy: the car is not a safe place",
+    "about": "Evac hotel fire evacuation and elevator routing strategy",
+    "description": "A practical Evac strategy guide: why the smoke is the only clock that matters, why a full car is often the slower rescue, how to read the air bars instead of the floors, and why a family of three needs three free places or nobody moves.",
+    "author": { "@type": "Organization", "name": "Zamborin Games" },
+    "publisher": { "@type": "Organization", "name": "Zamborin Games", "url": "https://zamborin.com/" },
+    "mainEntityOfPage": "https://zamborin.com/guides/evac/"
+  }
+  </script>
+  <meta name="google-adsense-account" content="ca-pub-9207689324865969">
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9207689324865969" crossorigin="anonymous"></script>
+</head>
+<body class="lobby-page">
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="Zamborin Games home">
+      <img class="brand-logo" src="/images/zamborin-logo.svg?v=2" alt="Zamborin" />
+    </a>
+    <a class="back-link" href="/">Back to all games</a>
+  </header>
+
+  <main class="guide">
+    <nav class="crumbs"><a href="/">Home</a> &rsaquo; <a href="/guides/">Guides</a> &rsaquo; Evac</nav>
+
+    <h1>Evac strategy: the car is not a safe place</h1>
+    <p class="lede">A hotel is on fire, and you are the elevator. There is no button to press for a passenger and no menu to open &mdash; you drag a heavy car up and down a shaft and the building does the rest. Almost every mistake in Evac comes from treating the car as somewhere people are already safe. They are not. The car breathes the same smoke they do.</p>
+
+    <h2>The smoke is the only clock</h2>
+    <p>Nobody has a private timer. Smoke enters each corridor from the stairwell at the far end and comes along it toward you, and a person only starts losing air once the front has actually reached them. That is why <strong>how far the smoke has come along a corridor is how long the people in it have</strong> &mdash; and why two people on the same floor are not on the same clock. Whoever is standing further from the doors is in trouble first.</p>
+    <p>It also means the clock is a <em>picture</em>, not a number. You do not have to remember anything. Glance down the shaft and the corridor that is furthest gone is the one that is furthest gone.</p>
+
+    <h2>A full car can be the slower rescue</h2>
+    <p>Four people fit. That does not make four the number to aim for.</p>
+    <p>Every door you open lets smoke into the car, and it clears slowly once the doors shut. So a passenger you picked up three stops ago has been breathing the building the whole way down. Measured over thirty runs, a driver who filled to four before returning to the lobby <strong>rescued fewer people than one who left at three</strong> &mdash; the extra passenger cost the other three more air than they were worth.</p>
+    <p>The rule that falls out of it is not "never fill up". It is <strong>never make an extra stop just to top up</strong>. If the fourth person is on your way down, take them. If collecting them means a detour, they are costing you the three you already have.</p>
+
+    <h2>Read the bars, not the floors</h2>
+    <p>The bar above each person is the air they have left. It is the only number in the game that matters, and it is the one most new players ignore in favour of whichever floor is nearest.</p>
+    <p>The difference is not small. Under identical buildings, a driver who always goes to the nearest floor with somebody on it averages around five rescues. A driver who always goes to <strong>whoever is worst off</strong> averages twenty-one. Same building, same car, four times the result, and the only change is which thing you look at.</p>
+
+    <h2>A family of three needs three free places</h2>
+    <p>Some people come out of their rooms together, and they will not be separated. You can see them: they stand side by side, they are dressed alike, and they are holding on to each other.</p>
+    <p>They board as one or not at all. Arrive at a family of three with two places free and <strong>nobody gets on</strong> &mdash; you have opened the doors, let smoke into your car, and taken nothing. A single standing behind them will still board, which is exactly the decision the rule is for.</p>
+    <p>This is the constraint that makes four a number you have to plan around rather than a number you drift toward. A pair fits almost anywhere; a three only fits in three. Once families are on the board, the driver who thinks about <strong>what will fit when they arrive</strong> beats the one who only reads the bars on 70% of identical buildings, and by about seven rescues a run.</p>
+    <p>The practical habit: before you climb toward a family, look at what you are carrying. Two aboard and a three waiting means going to the lobby <em>first</em> is not a wasted trip &mdash; it is the trip that makes the rescue possible.</p>
+
+    <h2>The top burns fastest, and the bottom is not safe</h2>
+    <p>Smoke is hot and it wants to go up, so it does not climb the building evenly. Each floor above the fire fills faster than the one below it, and the top of the building is where corridors go from clear to impassable quickest. If you are going to be late anywhere, be late at the bottom.</p>
+    <p>But not complacent there. Smoke also works downward, at about a quarter of the upward rate. It is slow enough that the lower floors are your reserve and fast enough that they are not a parking space. The lobby itself never fills &mdash; a way out you cannot use is not a way out.</p>
+
+    <h2>Land level, or pay for it</h2>
+    <p>The car is heavy. It lags behind your hand, and when you let go it keeps going and brakes over most of a floor. Land level with a corridor and the doors open. Land between floors and they stay shut until you nudge it, and the nudge costs seconds you do not have.</p>
+    <p>So a good stop is a decision you make <strong>early</strong> &mdash; before you are anywhere near the corridor you want. Release, and let the brake do the arithmetic. Riders who steer all the way to the floor overshoot it.</p>
+
+    <h2>The coughing is a warning, and it is a real one</h2>
+    <p>When somebody's air gets low they start to cough, and the runner they are standing on lights red and pulses so you can find the floor without scanning all eight. That warning arrives with roughly <strong>five to ten seconds</strong> left, depending on how deep in the smoke they are. It is enough time to reach most floors from most places, but only if you leave when you hear it rather than after you finish what you are doing.</p>
+
+    <h2>What the numbers actually are</h2>
+    <table>
+      <tr><th>Situation</th><th>Time until they are overcome</th></tr>
+      <tr><td>Standing in a fully smoke-logged corridor</td><td>about 19 seconds</td></tr>
+      <tr><td>Smoke has just reached them, near the doors</td><td>about 32&ndash;39 seconds</td></tr>
+      <tr><td>Smoke has just reached them, far end of the corridor</td><td>about 19&ndash;26 seconds</td></tr>
+      <tr><td>Sitting in a car whose doors keep opening</td><td>about 19 seconds of total exposure</td></tr>
+      <tr><td>From the first cough</td><td>about 5&ndash;10 seconds</td></tr>
+    </table>
+    <p>Five people overcome ends the run. There are no levels &mdash; the building keeps filling, the fire keeps getting stronger, and the game tells you when it does.</p>
+
+    <h2>The short version</h2>
+    <ul>
+      <li><strong>Go to the worst bar, not the nearest floor.</strong> It is worth four times as much.</li>
+      <li><strong>Check what you are carrying before you climb to a family.</strong> Two aboard and three waiting means the lobby first.</li>
+      <li><strong>Do not detour to fill the car.</strong> The fourth passenger costs the other three air.</li>
+      <li><strong>Release early and let it brake.</strong> Steering all the way in is how you land between floors.</li>
+      <li><strong>Move when you hear coughing.</strong> That is five to ten seconds, not thirty.</li>
+      <li><strong>Expect the top to go first</strong> and do not treat the bottom as parked.</li>
+    </ul>
+
+    <div class="playbox">
+      <p>Ready to put it to work?</p>
+      <a class="cta" href="/evac/">Play Evac &rarr;</a>
+    </div>
+
+    <p class="more">More games: <a href="/arcade/">the arcade</a> &middot; <a href="/fathom/">Fathom</a> &middot; <a href="/">all Zamborin games</a> &middot; <a href="/guides/">all guides</a></p>
+  </main>
+
+  <footer class="site-footer">
+    <nav class="site-foot-nav">
+      <a href="/arcade/">Arcade</a>
+      <a href="/about/">About</a>
+      <a href="/guides/">Guides</a>
+      <a href="/privacy/">Privacy</a>
+      <a href="/contact/">Contact</a>
+    </nav>
+    <span>&copy; 2026 Zamborin. Games created by Indrajeet Chandrachud.</span>
+  </footer>
+  <script defer src="/_vercel/insights/script.js"></script>
+  <script defer src="/_vercel/speed-insights/script.js"></script>
+</body>
+</html>
