@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Junction strategy: if you have sleepers left over, it will not run — Zamborin</title>
+  <meta name="description" content="A practical Junction strategy guide: why a board hands you the exact track its one answer needs, why two engines on one road must end in the same shed, how a delay is paid for in sleepers, and how to recognise each of the four kinds of board." />
+  <meta name="theme-color" content="#0E1726" />
+  <link rel="canonical" href="https://zamborin.com/guides/junction/" />
+  <link rel="icon" type="image/svg+xml" href="/images/zamborin-favicon.svg?v=2" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:site_name" content="Zamborin Games" />
+  <meta property="og:url" content="https://zamborin.com/guides/junction/" />
+  <meta property="og:title" content="Junction strategy: if you have sleepers left over, it will not run" />
+  <meta property="og:description" content="Why the budget is a clue rather than a limit, why two engines on one road must share a shed, and how to read each of the four kinds of board." />
+  <meta property="og:image" content="https://zamborin.com/images/junction-og.jpg" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Junction strategy: if you have sleepers left over, it will not run" />
+  <meta name="twitter:description" content="A practical strategy guide to Junction, the train-routing puzzle." />
+  <meta name="twitter:image" content="https://zamborin.com/images/junction-og.jpg" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../shared/tokens.css?v=1" />
+  <link rel="stylesheet" href="../../shared/chrome.css?v=20" />
+  <style>
+    .guide { max-width: 760px; margin: 0 auto; padding: 40px 24px 80px; color: var(--text-dim); line-height: 1.7; font-size: 17px; }
+    .guide .crumbs { font-size: 14px; margin-bottom: 22px; color: var(--text-dim); }
+    .guide .crumbs a { color: #4DC3FF; text-decoration: none; display: inline-block; padding: 4px 0; }  /* W18: 14px type gives a 17px link, under the 24px of WCAG 2.5.8. These are
+       navigation, not links inside a sentence, so the inline exemption does not
+       apply. inline-block is what makes the padding count toward height. */
+    .guide h1 { font-size: 38px; color: var(--text); font-weight: 800; margin: 0 0 6px; letter-spacing: -0.5px; line-height: 1.15; }
+    .guide .lede { font-size: 19px; color: var(--text); margin: 14px 0 8px; }
+    .guide h2 { font-size: 23px; color: var(--text); font-weight: 700; margin: 38px 0 10px; letter-spacing: -0.2px; }
+    .guide p { margin: 12px 0; }
+    .guide a { color: #4DC3FF; }
+    .guide strong { color: var(--text); font-weight: 600; }
+    .guide ul { margin: 12px 0; padding-left: 22px; }
+    .guide li { margin: 8px 0; }
+    .guide .cta { display: inline-block; margin-top: 8px; background: #4DC3FF; color: #06121e; font-weight: 700; text-decoration: none; padding: 13px 26px; border-radius: 10px; }
+    .guide .playbox { margin: 36px 0 8px; padding: 22px 24px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09); border-radius: 14px; }
+    .guide .playbox p { margin: 0 0 14px; color: var(--text); font-weight: 600; }
+    .guide .more { margin-top: 40px; padding-top: 22px; border-top: 1px solid rgba(255,255,255,0.09); font-size: 16px; }
+    /* W18: these are a row of navigation links formatted as a paragraph, not
+
+       links inside prose, so the inline exemption does not cover them. 15px type
+
+       gave an 18px target against the 24px of WCAG 2.5.8. */
+
+    .guide .more a { display: inline-block; padding: 4px 0; }
+    .guide table { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 16px; }
+    .guide th, .guide td { text-align: left; padding: 9px 12px; border-bottom: 1px solid rgba(255,255,255,0.09); }
+    .guide th { color: var(--text); font-weight: 700; }
+    @media (max-width: 720px) { .guide { padding: 28px 18px 56px; font-size: 16px; } .guide h1 { font-size: 30px; } }
+  </style>
+    <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "Junction strategy: if you have sleepers left over, it will not run",
+    "about": "Junction train-routing and track-budget strategy",
+    "description": "A practical Junction strategy guide: why a board hands you the exact track its one answer needs, why two engines on one road must end in the same shed, how a delay is paid for in sleepers, and how to recognise each of the four kinds of board.",
+    "author": { "@type": "Organization", "name": "Zamborin Games" },
+    "publisher": { "@type": "Organization", "name": "Zamborin Games", "url": "https://zamborin.com/" },
+    "mainEntityOfPage": "https://zamborin.com/guides/junction/"
+  }
+  </script>
+  <meta name="google-adsense-account" content="ca-pub-9207689324865969">
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9207689324865969" crossorigin="anonymous"></script>
+</head>
+<body class="lobby-page">
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="Zamborin Games home">
+      <img class="brand-logo" src="/images/zamborin-logo.svg?v=2" alt="Zamborin" />
+    </a>
+    <a class="back-link" href="/">Back to all games</a>
+  </header>
+
+  <main class="guide">
+    <nav class="crumbs"><a href="/">Home</a> &rsaquo; <a href="/guides/">Guides</a> &rsaquo; Junction</nav>
+
+    <h1>Junction strategy: if you have sleepers left over, it will not run</h1>
+    <p class="lede">Junction gives you a yard, two engines, and a number of sleepers. The number is not a limit you should try to come in under &mdash; it is the exact price of the one arrangement of track that works. So the moment you finish drawing and the counter says you have spare, you have not been thrifty. You have drawn the wrong answer.</p>
+
+    <h2>The budget is a clue, not a ceiling</h2>
+    <p>Every board after the first is built the same way. A search finds the cheapest price at which <em>anything</em> gets both engines home, checks that exactly one arrangement of track achieves it, and then hands you that number as your budget. Nothing wins for less, because less has already been ruled out.</p>
+    <p>That has a use at the table. <strong>A winning layout always costs exactly the budget.</strong> If you have sleepers in hand, stop drawing and start again &mdash; you are not one clever join away from it, you are looking at a different answer altogether.</p>
+    <p>It cuts the other way too, and this is the part that catches people. The obvious road &mdash; each engine sent its own shortest way, ignoring the other &mdash; is usually <em>cheaper</em> than the budget, not dearer. It looks like a bargain. It is simply the road that does not work, which is why the board can afford to be generous about it.</p>
+
+    <h2>Two engines on one road must end in the same shed</h2>
+    <p>This is the rule the whole game is built on, and it is worth understanding rather than discovering.</p>
+    <p>A junction <strong>merges</strong> one way and <strong>splits</strong> the other. Come in along either branch and you are put onto the trunk, whatever the switch is doing. Come in along the trunk and the switch decides which branch you leave by. And switches do not move once you have pressed DISPATCH.</p>
+    <p>Put those together. Two engines running the <em>same direction</em> over the same track meet every junction on it from the same side, so the switch sends them both the same way. They cannot separate later, however the rest of the yard is drawn. <strong>Trains that share a road in one direction must share a shed</strong> &mdash; and since your two engines want different sheds, a same-direction merge does not deadlock, it quietly delivers one of them to the wrong door.</p>
+    <p>So there is exactly one kind of sharing that is any use to you: <strong>head-on</strong>. Two engines running opposite ways over the same stretch. One merges where the other splits, and they can still go their separate ways at the end of it.</p>
+
+    <h2>Head-on is settled by order, and order costs track</h2>
+    <p>When two engines want the same stretch from opposite ends, nothing about the drawing decides it. What decides it is who gets there first. If they are already inside it when they meet, they stop nose to nose and stay there.</p>
+    <p>An engine that arrives at an occupied stretch simply <strong>waits</strong>, and waiting is free. So the whole problem is making sure one of them arrives after the other has cleared &mdash; and that is what you are actually buying with sleepers.</p>
+    <p>Here is the catch. On a grid, every sensible way across is the same length, so you cannot make an engine late by taking a scenic route. <strong>A delay has to double back.</strong> Go up and come back down, out and back in &mdash; two cells of track that lead nowhere except later. That is what the spare sleepers in your budget were always for, and it is why the answer can look wasteful and still be the cheapest thing that works.</p>
+
+    <h2>The four kinds of board</h2>
+    <p>There are thirty levels and they come in four families, four of one and then four of the next, so a new question turns up every few boards. The phone and the desktop get different sets, not the same boards turned sideways.</p>
+    <table>
+      <tr><th>Board</th><th>How to spot it</th><th>The question</th></tr>
+      <tr><td>Corridor</td><td>One wall across the yard with a single gap</td><td>Who goes through first?</td></tr>
+      <tr><td>Two gaps</td><td>The same wall, two ways through</td><td>Wait for them, or walk to the other gap?</td></tr>
+      <tr><td>Crossing</td><td>Tunnels on <em>adjacent</em> sides, sheds opposite them</td><td>Who gives way?</td></tr>
+      <tr><td>Swap</td><td>Both tunnels on one side, sheds the other way round</td><td>How do they change places?</td></tr>
+    </table>
+    <p>A <strong>corridor</strong> is the pure form. Both engines reach the gap on the same beat, so one of them must be made late, and the only question is which one is cheaper to delay.</p>
+    <p>A <strong>two-gap</strong> board gives that delay a rival. You can still buy the wait, or you can spend the same sleepers walking to the far gap and not wait at all. Which is cheaper is a property of the board, so count both before you commit.</p>
+    <p>A <strong>crossing</strong> is not a timing problem at all. The two straight roads cross, and a cell will not hold a four-way, so they cannot both be drawn. Somebody goes round. Nobody has to wait for anybody &mdash; look for the cheaper way round rather than for a delay.</p>
+    <p>A <strong>swap</strong> is the hardest to see and the most satisfying. Both engines come in off the same side, running the same way, and their sheds are reversed. They cannot cross. They cannot merge either, because that is the same-direction rule above and it would hand one of them to the wrong shed. So one of them has to go round an end, and the wall decides what that costs.</p>
+
+    <h2>If the road looks right and it still fails, try the switch</h2>
+    <p>The track is the puzzle, but the switch is part of the answer. Once your drawing is correct there is normally exactly one setting of the junctions that works, and it is easy to have the right yard and the wrong points.</p>
+    <p>Before you tear up a layout you believe in, flip each junction once and dispatch again. Watching where an engine actually goes is also the quickest way to learn what a junction does, which is worth more than reading it.</p>
+
+    <h2>The Hint button gives you one piece, and the useful one</h2>
+    <p>One per board, and it lays a real piece of the answer rather than pointing vaguely
+    at it. It costs a sleeper &mdash; but only one the answer was going to spend anyway, so
+    it does not put the budget out of reach.</p>
+    <p>What it hands over is chosen rather than random: wherever a board has a stretch that
+    goes the wrong way on purpose, that is the piece you get, because the direct roads are
+    the part you can work out for yourself. Undo takes it back off if you would rather not
+    have seen it, and Restart gives you a fresh one.</p>
+
+    <h2>Level 1 is a lesson, not a test</h2>
+    <p>The first board is the only one that does not follow any of the above. The obvious route wins it and the budget has room to spare, on purpose: it is there so you can draw track, throw a switch and watch two engines meet without having to be right about anything. The two of them share one stretch and one of them waits, which is the whole game in miniature.</p>
+    <p>From board two onward, the shortest route always loses.</p>
+
+    <h2>The short version</h2>
+    <ul>
+      <li>Sleepers left over means it will not run. The budget is the exact price of the answer.</li>
+      <li>The obvious road is usually <em>cheaper</em> than the budget. That is why it is wrong.</li>
+      <li>Two engines the same way down one road end in the same shed. Never merge two colours.</li>
+      <li>Shared track is only ever useful head-on.</li>
+      <li>Waiting is free. Arriving late costs track, because a delay must double back.</li>
+      <li>Crossings are about space, not time. Nobody waits &mdash; somebody goes round.</li>
+      <li>Right yard, wrong points is common. Flip a junction before you redraw.</li>
+      <li>The Hint gives one piece a board, and it picks the least guessable one.</li>
+      <li>Shared track is paid for once, so a road two engines both use is a bargain.</li>
+    </ul>
+
+    <div class="playbox">
+      <p>Ready to put it to work?</p>
+      <a class="cta" href="/junction/">Play Junction &rarr;</a>
+    </div>
+
+    <p class="more">More games: <a href="/arcade/">the arcade</a> &middot; <a href="/sluice/">Sluice</a> &middot; <a href="/">all Zamborin games</a> &middot; <a href="/guides/">all guides</a></p>
+  </main>
+
+  <footer class="site-footer">
+    <nav class="site-foot-nav">
+      <a href="/arcade/">Arcade</a>
+      <a href="/about/">About</a>
+      <a href="/guides/">Guides</a>
+      <a href="/privacy/">Privacy</a>
+      <a href="/contact/">Contact</a>
+    </nav>
+    <span>&copy; 2026 Zamborin. Games created by Indrajeet Chandrachud.</span>
+  </footer>
+  <script defer src="/_vercel/insights/script.js"></script>
+  <script defer src="/_vercel/speed-insights/script.js"></script>
+</body>
+</html>

@@ -1,0 +1,37 @@
+/* Junction — per-game styles. Everything else is inherited from
+   ../shared/tokens.css and ../shared/chrome.css. */
+
+/* The canvas owns every gesture on it. Without this a drag across the yard
+   scrolls the page under the finger on a phone and the stroke is lost. */
+#game { touch-action: none; }
+
+/* SPLASH. The frame, cover sizing, centring and fade all come from
+   shared/chrome.css; this only names the art, per mode.
+
+   THE WORDMARK SAFE ZONE IS THE THING TO CHECK, and it is not the phone that
+   threatens it. `cover` centres and crops, and mode-mobile is set by a COARSE
+   POINTER as well as by width — so a tablet at 768x1024 gets this image too.
+   Its frame is far wider in proportion than the art (0.75 against 0.46), so
+   the image is scaled to the width and the crop comes off the TOP and BOTTOM,
+   which is exactly where the word sits. Measured across real frames before
+   shipping; fix the art, never the CSS. */
+body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=1'); }
+body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=1'); }
+
+/* SO THE ART IS CHOSEN BY THE SHAPE OF THE FRAME, not by the pointer. Measured
+   by finding the wordmark's navy ink in each file and running the `cover` sums
+   against it: the tall art holds the word from an aspect of 0.355 to 0.690,
+   the wide art from 0.735 to 1.925. A phone is 0.46 and an iPad is 0.75, so
+   without this a tablet — coarse pointer, therefore mode-mobile — took the
+   TALL art, and the crop that comes off the top of a 0.46 image in a 0.75
+   frame took the word with it: 43px gone on an iPad, all of it in landscape.
+
+   The two bands do not quite meet, and the 0.690-0.735 gap has one real device
+   in it, an iPad Pro 11 in portrait at 0.698. The wide art is the better of
+   the two there — about 20px shaved off each end of an 830px word, against 6px
+   off the top of the letters — so the switch is at the tall art's proven upper
+   bound. Closing the gap properly is an ART fix, never a CSS one: the wide
+   file's wordmark is 57.8% of its width and would need to be 55%. */
+@media (min-aspect-ratio: 69/100) {
+  body.mode-mobile .splash { background-image: url('./splash-desktop.jpg?v=1'); }
+}
