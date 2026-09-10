@@ -241,6 +241,44 @@
   const slabY = (f) => geo.y + (floors() - f + 1) * geo.floorPx;
   const roomTop = (f) => slabY(f) - geo.floorPx;
 
+  /* THE CAPACITY PILL, SIZED. Kept apart from painting for two reasons: a
+     sweep can ask for the plan without needing a frame (the preview pane can
+     be hidden, and then nothing paints at all), and the wording can be chosen
+     against the space that is actually left. The band already carries the
+     score and five strike dots; a status pill that shoves those off the edge
+     is worse than a shorter word, so take the longest wording that still
+     leaves the readout its floor size, and if even the shortest will not fit,
+     show nothing rather than overlap. */
+  const readoutLine = (dropBest) => 'OUT ' + out + '   ·   ' + (waiting.length + aboard.length) +
+    ' INSIDE' + (best && !dropBest ? '   ·   BEST ' + best : '');
+  const hudScale = () => Math.max(0.66, Math.min(1, LW / 620));
+  function capPlan(force) {
+    if (!force && fullT <= 0) return null;
+    const cfs = Math.max(10, Math.round(12 * hudScale()));
+    ctx.save();
+    let plan = null;
+    /* On a 320px frame the readout wants 165px and the strike dots 72, which
+       leaves 37 for a pill that needs 43. Cramming it in on a six-pixel margin
+       would only break again the first time somebody scores a hundred, so the
+       BEST reminder yields instead: it is the one number on the band that is
+       not about this run, and it comes back the moment the car empties. */
+    for (const dropBest of [false, true]) {
+      ctx.font = '600 11px Inter, sans-serif';
+      const need = ctx.measureText(readoutLine(dropBest)).width + 12 * STRIKES + 12;
+      for (const t of ['LIFT AT CAPACITY', 'LIFT FULL', 'FULL']) {
+        ctx.font = '700 ' + cfs + 'px Inter, sans-serif';
+        const w = Math.round(ctx.measureText(t).width) + cfs * 1.9;
+        if (readoutMinX + w + 14 + need <= LW - SIDE_PAD) {
+          plan = { msg: t, w, fs: cfs, x: readoutMinX, h: Math.round(cfs * 1.85), dropBest };
+          break;
+        }
+      }
+      if (plan) break;
+    }
+    ctx.restore();
+    return plan;
+  }
+
   function layoutControls() {
     const items = [{ id: 'sound', icon: true }, { id: 'restart', label: 'Restart' }, { id: 'rules', label: 'Rules' }];
     ctx.save();
@@ -303,7 +341,7 @@
   let levelFrom = 1, levelTo = 1, levelT = 0, levelDir = 1;
   let departed = false, stopsMade = 0, nextId = 0, nextSpawn = 0;
   let puffs = [], runners = [], tNow = 0, endT = 0, best = 0;
-  let wave = 1, waveFlash = 0;
+  let wave = 1, waveFlash = 0, fullT = 0, capRect = null, chromeLeft = 0;
   let rulesOpen = false, rulesScroll = 0, handlePulse = 0;
   let rng = M.makeRng(1);
 
@@ -327,7 +365,7 @@
     out = 0; lost = 0; lostFloors = [];
     phase = 'play'; doorOpen = 0; serveT = 0; sag = 0; settleT = 0;
     departed = false; stopsMade = 0; nextId = 0;
-    puffs = []; runners = []; tNow = 0; endT = 0; wave = 1; waveFlash = 0;
+    puffs = []; runners = []; tNow = 0; endT = 0; wave = 1; waveFlash = 0; fullT = 0;
     handlePulse = 1;
     best = loadBest();
     /* Doors keep clear of EVERY standing position, not just the occupied ones,
@@ -453,6 +491,7 @@
       TR().track('wave', { wave, out, lost });
     }
     if (waveFlash > 0) waveFlash = Math.max(0, waveFlash - dt / 2.2);
+    fullT = aboard.length >= T.capacity ? Math.min(1, fullT + dt / 0.20) : 0;
     nextSpawn -= dt;
     if (nextSpawn <= 0) { spawnPerson(); nextSpawn = spawnEvery(); }
     for (const r of fallen) r.t += dt;
@@ -1708,15 +1747,37 @@
       if (c.icon) { UI.drawPill(ctx, '', c.cx, c.cy, { w: UI.PILL.iconW }); drawSpeaker(c.cx, c.cy, !sfx || sfx.isOn()); }
       else UI.drawPill(ctx, c.label, c.cx, c.cy);
     }
-    const inside = waiting.length + aboard.length;
     /* Both halves of the comparison, and the damage when there is any: a count
        that only goes up tells you nothing about whether you are still winning. */
-    const line = 'OUT ' + out + '   ·   ' + inside + ' INSIDE' + (best ? '   ·   BEST ' + best : '');
-    const hs = Math.max(0.66, Math.min(1, LW / 620));
+    const plan = capPlan();
+    const line = readoutLine(plan && plan.dropBest);
+    const hs = hudScale();
+
+    /* AT CAPACITY. Four is the car, and a stop with four aboard takes nobody
+       on - which, with no word for it, looks like the game ignoring you. It
+       lives in the top band because the band is chrome: a banner over the
+       building would hide the corridor you are about to drive to. Sized here,
+       BEFORE the readout, so the readout shrinks around it and the two can
+       never collide on a narrow frame. */
+    capRect = null;
+    if (plan) {
+      const py = Math.round(topBand() / 2 - plan.h / 2);
+      ctx.globalAlpha = fullT;
+      ctx.fillStyle = '#F0B45C';
+      rr(plan.x, py, plan.w, plan.h, plan.h / 2); ctx.fill();
+      capRect = { x: plan.x, y: py, w: plan.w, h: plan.h, msg: plan.msg };
+      ctx.fillStyle = '#191320';
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.font = '700 ' + plan.fs + 'px Inter, sans-serif';
+      ctx.fillText(plan.msg, plan.x + plan.fs * 0.95, topBand() / 2 + 0.5);
+      ctx.globalAlpha = 1;
+    }
+    const readFrom = readoutMinX + (plan ? plan.w + 14 : 0);
+
     let fs = Math.round(16 * hs);
     ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
     ctx.fillStyle = INK72; ctx.font = '600 ' + fs + 'px Inter, sans-serif';
-    while (fs > 11 && ctx.measureText(line).width > (LW - SIDE_PAD) - readoutMinX) {
+    while (fs > 11 && ctx.measureText(line).width > (LW - SIDE_PAD) - readFrom) {
       fs -= 1; ctx.font = '600 ' + fs + 'px Inter, sans-serif';
     }
     const readoutLeft = (LW - SIDE_PAD) - ctx.measureText(line).width;
@@ -1727,6 +1788,7 @@
        you have to read as a word is a count you miss. */
     const dotR = 4.5, dg = 12;
     const dx0 = readoutLeft - dg * STRIKES - 12;
+    chromeLeft = dx0 - dotR;                               // leftmost thing on the right of the band
     for (let i = 0; i < STRIKES; i++) {
       ctx.beginPath(); ctx.arc(dx0 + i * dg, topBand() / 2, dotR, 0, Math.PI * 2);
       ctx.fillStyle = i < lost ? '#F05A46' : 'rgba(255,255,255,0.18)';
@@ -2013,6 +2075,7 @@
     get smoke() { return Array.from(smoke || []); }, get carSmoke() { return carSmoke; },
     get level() { return level; }, get fallen() { return fallen; },
     geo, RUN, start: startRun, snd, FIRE, get runners() { return runners; },
+    get capRect() { return capRect; }, get chromeLeft() { return chromeLeft; }, capPlan,
     get renderMs() { return renderMs; },
     /* Drive headlessly, for verification: hold a direction, then let go and let
        it brake to rest and serve. */
