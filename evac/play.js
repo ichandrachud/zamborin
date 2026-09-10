@@ -187,7 +187,6 @@
   const SMOKE_LIT_WARM = '224,190,150';
   const FLAME = '255,150,60';
   const EXIT_GLOW = '#8FE3C8';
-  const FLOOR_NUM = 'rgba(226,234,250,0.96)';
   const BREATH_OK = '#5DD39E', BREATH_MID = '#F0B23C', BREATH_LOW = '#F05A46';
 
   /* ---------- LAYOUT ---------- */
@@ -418,19 +417,37 @@
        become a one and the mechanic would quietly not exist. */
     let size = 1;
     if (rng() < PARTY.chance) size = rng() < PARTY.three ? 3 : 2;
+    /* A party has to stand TOGETHER, so it needs slots NEXT TO each other -
+       0,1,3 leaves a stranger in the middle of a family. So the floor is chosen
+       by whether it has a long enough RUN of free slots, not by how many it has
+       free in total; picking on the total and then failing on adjacency would
+       quietly turn threes into ones without ever saying so.
+       Within a run the window is random rather than the front. Slicing from the
+       front put every single in slot 0, the place nearest the doors and the last
+       the smoke reaches, which made the game about five rescues a run easier and
+       had nothing to do with parties. */
+    const runsOf = (slots) => {
+      const out = []; let cur = [];
+      for (const sl of slots) {
+        if (cur.length && sl !== cur[cur.length - 1] + 1) { out.push(cur); cur = []; }
+        cur.push(sl);
+      }
+      if (cur.length) out.push(cur);
+      return out;
+    };
     let pick = null;
     for (let want = size; want >= 1 && !pick; want--) {
-      const fits = floors.filter(f => (byFloor[f].clear.length >= want ? 1 : 0));
-      const pool = fits.length ? fits : floors.filter(f => byFloor[f].open.length >= want);
-      if (!pool.length) continue;
-      const f = pool[Math.floor(rng() * pool.length)];
-      const src = byFloor[f].clear.length >= want ? byFloor[f].clear : byFloor[f].open;
-      /* Take a RANDOM window of the free slots, not the first one. Slicing from
-         the front quietly put every single in slot 0 - the place nearest the
-         doors and the last the smoke reaches - which made the game easier by
-         five rescues a run and had nothing to do with parties. */
-      const start = Math.floor(rng() * (src.length - want + 1));
-      pick = { f, slots: src.slice(start, start + want), size: want };
+      for (const src of ['clear', 'open']) {
+        const cand = [];
+        for (const f of floors)
+          for (const run of runsOf(byFloor[f][src]))
+            if (run.length >= want) cand.push({ f, run });
+        if (!cand.length) continue;
+        const c = cand[Math.floor(rng() * cand.length)];
+        const start = Math.floor(rng() * (c.run.length - want + 1));
+        pick = { f: c.f, slots: c.run.slice(start, start + want), size: want };
+        break;
+      }
     }
     if (!pick) return;
     /* A PARTY STANDS TOGETHER. Which side of the shaft somebody waits on used
@@ -1204,42 +1221,40 @@
        3.3:1 down to 2.1:1 against a 3:1 bar. */
     smokeLayer(0.16, now);                                   // a thin veil, in front of them
     fireGlow(now, true);                                     // the core, back through the smoke
-    drawFloorNumbers();
+    drawFloorAlerts();
   }
-  /* Which floor is which has to be readable in a corridor you cannot see
-     across, so the numerals go ON TOP of the smoke. Under it they measured
-     2.27:1 against a 4.5 bar. */
-  function drawFloorNumbers() {
+  /* THE NUMERALS ARE GONE. They were carrying two jobs and only one of them
+     was real: nobody drives this car by floor NUMBER - you drag it to a
+     corridor you can see - so the numeral told the player nothing they were
+     not already looking at.
+     The job that WAS real stays. Somebody about to go is no use if it can only
+     be found by scanning eight corridors, so the floor in trouble announces
+     itself: the runner its people are standing on lights and pulses red. That
+     is emergency lighting rather than a label, it needs no ground of its own
+     to be legible on, and it points at the floor instead of sitting beside it. */
+  function drawFloorAlerts() {
     const F = floors();
-    ctx.font = '700 ' + Math.max(12, Math.round(geo.floorPx * 0.22)) + 'px Inter, sans-serif';
-    ctx.textBaseline = 'middle';
-    const pw = Math.max(15, geo.floorPx * 0.26), ph = Math.max(12, geo.floorPx * 0.22);
     for (let f = 1; f <= F; f++) {
-      const top = roomTop(f), y = top + geo.floorPx * 0.17;
-      /* A floor sign, because a light numeral on light smoke measured 2.88:1.
-         The plate gives it a ground of its own on any floor in any state. */
-      /* THE FLOOR SIGN IS THE BUILDING-LEVEL WARNING. Somebody about to go
-         is no use to the player if it can only be seen by scanning eight
-         corridors: the sign for that floor goes red and pulses, so the thing
-         you have to decide about announces itself from anywhere on screen. */
       let crit = 0;
       for (const p of waiting) if (p.floor === f && p.exp > FIRE.warnAt) crit = Math.max(crit, p.exp);
-      const pulse = crit ? (REDUCED ? 1 : 0.55 + 0.45 * Math.sin(performance.now() / 130)) : 0;
-      const plate = (px2, align) => {
-        ctx.fillStyle = crit ? 'rgba(' + Math.round(120 + 90 * pulse) + ',26,20,0.92)' : 'rgba(11,16,32,0.74)';
-        rr(px2 - (align === 'left' ? 3 : pw - 3), y - ph / 2, pw, ph, 3); ctx.fill();
-        ctx.fillStyle = crit ? '#FFEDE6' : FLOOR_NUM; ctx.textAlign = 'center';
-        ctx.fillText(String(f), px2 - (align === 'left' ? 3 : pw - 3) + pw / 2, y);
-        if (crit) {
-          ctx.strokeStyle = 'rgba(255,90,70,' + (0.85 * pulse).toFixed(3) + ')';
-          ctx.lineWidth = 1.6;
-          rr(px2 - (align === 'left' ? 3 : pw - 3) - 1.5, y - ph / 2 - 1.5, pw + 3, ph + 3, 4); ctx.stroke();
-        }
+      if (!crit) continue;
+      /* The pulse has a FLOOR. 0.55 + 0.45*sin swings down to 0.10, so the
+         alert all but vanished twice a second - a warning you can miss by
+         blinking is not a warning. It breathes between 0.62 and 1.0 now, and
+         the band is thick enough to survive a small screen. */
+      const pulse = REDUCED ? 1 : 0.81 + 0.19 * Math.sin(performance.now() / 190);
+      const y = slabY(f) - 3, hgt = Math.max(3, geo.floorPx * 0.055);
+      const band = (x, w) => {
+        const g = ctx.createLinearGradient(0, y - hgt * 2.6, 0, y);
+        g.addColorStop(0, 'rgba(255,70,50,0)');
+        g.addColorStop(1, 'rgba(255,90,70,' + (0.40 * pulse).toFixed(3) + ')');
+        ctx.fillStyle = g; ctx.fillRect(x, y - hgt * 2.6, w, hgt * 2.6);
+        ctx.fillStyle = 'rgba(255,' + Math.round(120 + 80 * pulse) + ',96,' + (0.92 * pulse).toFixed(3) + ')';
+        ctx.fillRect(x, y - hgt, w, hgt);
       };
-      plate(geo.leftX + 9, 'left');
-      if (geo.rightW > 0) plate(geo.rightX + geo.rightW - 9, 'right');
+      band(geo.leftX, geo.corW);
+      if (geo.rightW > 0) band(geo.rightX, geo.rightW);
     }
-    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   }
   /* THE FIRE IS LIGHT, NOT DRAWN FLAMES. Literal tongues at the end of the
      corridor came out as cartoon candles stuck on the wall - crude, and
@@ -1303,7 +1318,7 @@
   function drawPeople(now) {
     smokeLayer(1.00, performance.now());                     // the volume, behind them
     const h = geo.floorPx * 0.52;
-    const tt = now / 1000, bars = new Map();
+    const tt = now / 1000, links = new Map();
     for (const r of fallen) drawFallen(r);
     for (const p of waiting) {
       const q = personXY(p);
@@ -1360,19 +1375,18 @@
         if (c < 0.012 && p.coughAt !== bout) { p.coughAt = bout; if (snd) snd.cough(p.id); }
       }
       p.cg = cough; p.gt = gait;                              // what was DRAWN, for the sweep
-      const m = drawPerson(px2, q.y, h, p.exp, p.id + 1, now, face, gait, cough);
-      /* ONE BAR PER PARTY. A family boards together or not at all, so they get
-         a single air bar spanning them showing the WORST of them - which is
-         both the number that matters and the thing that says "these three are
-         one". Without it the rule is invisible, and a rule the player cannot
-         see is a rule they cannot play. */
-      if (!p.gid) drawOxygen(m.hx, m.headTop, m.h, p.exp);
-      else {
-        const b = bars.get(p.gid) || { x0: 1e9, x1: -1e9, top: 1e9, h: 0, exp: 0 };
-        b.x0 = Math.min(b.x0, m.hx); b.x1 = Math.max(b.x1, m.hx);
-        b.top = Math.min(b.top, m.headTop); b.h = Math.max(b.h, m.h);
-        b.exp = Math.max(b.exp, p.exp);
-        bars.set(p.gid, b);
+      const m = drawPerson(px2, q.y, h, p.exp, p.id + 1, now, face, gait, cough,
+        p.gid ? Math.floor(hash01(p.gid * 13.7) * OUTFITS.length) : null);
+      drawOxygen(m.hx, m.headTop, m.h, p.exp);
+      /* A PARTY IS SHOWN BY THE PEOPLE, NOT BY THE READOUT. One long bar over
+         three of them did say "these are one", but it read as a piece of UI
+         laid across the picture. So the bars go back to one each, and the fact
+         that they are together is carried by the FIGURES: they wear the same
+         clothes and they are holding on to each other. */
+      if (p.gid) {
+        const l = links.get(p.gid) || [];
+        l.push({ x: m.hx, y: m.armY, h: m.h });
+        links.set(p.gid, l);
       }
       /* WHERE IT ACTUALLY DREW. A contrast sweep that guesses these from the
          nominal height samples empty air, because a figure shrinks by up to a
@@ -1380,8 +1394,28 @@
          separate false readings came out of guessing before this existed. */
       p.mark = { x: px2, side: q.face, h: m.h, headY: m.hy, bodyY: m.bodyY, armY: m.armY };
     }
-    for (const b of bars.values())
-      drawOxygen((b.x0 + b.x1) / 2, b.top, b.h, b.exp, (b.x1 - b.x0) + b.h * 0.72);
+    /* Linked arms: a short line that DROOPS between neighbours, because a
+       straight one reads as a rod bolted between two figures. */
+    for (const l of links.values()) {
+      if (l.length < 2) continue;
+      l.sort((a, b) => a.x - b.x);
+      for (let i = 1; i < l.length; i++) {
+        const a = l[i - 1], b = l[i], hh = (a.h + b.h) / 2;
+        if (b.x - a.x > hh * 1.5) continue;               // too far apart to be holding on
+        /* Only in the GAP. Run it centre-to-centre and it crosses the torso of
+           whoever stands between them, which reads as a rope tied round three
+           people rather than three people holding on to each other. */
+        const inset = hh * 0.115;
+        const ax = a.x + inset, bx = b.x - inset;
+        if (bx - ax < 1) continue;
+        ctx.strokeStyle = HEAD; ctx.lineWidth = Math.max(1.4, hh * 0.042);
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(ax, a.y);
+        ctx.quadraticCurveTo((ax + bx) / 2, Math.max(a.y, b.y) + hh * 0.075, bx, b.y);
+        ctx.stroke();
+      }
+    }
     drawRunners(now);
   }
 
@@ -1437,10 +1471,12 @@
      Posture is the second channel on exposure and it is the honest one: as the
      smoke takes hold they sink, a hand comes up to the mouth, and the head
      drops. Colour never carries it alone. */
-  function drawPerson(cx, baseY, h0, exp, seed, now, face, gait, cough) {
+  function drawPerson(cx, baseY, h0, exp, seed, now, face, gait, cough, outfit) {
     const rnd = (k) => hash01(seed * 7.3 + k * 19.7);
     const fem = rnd(8) > 0.5;
-    const fit = OUTFITS[Math.floor(rnd(9) * OUTFITS.length) % OUTFITS.length];
+    /* A party shares its clothes but not its build: same colour, still their
+       own height and gait, because a family is not three copies of one person. */
+    const fit = OUTFITS[(outfit != null ? outfit : Math.floor(rnd(9) * OUTFITS.length)) % OUTFITS.length];
     const duck = ease(Math.max(0, (exp - 0.26) / 0.62));
     const h = h0 * (fem ? 0.90 : 0.95) * (0.94 + 0.13 * rnd(1)) * (1 - 0.24 * duck);
     const f = face || 1;
@@ -1597,9 +1633,9 @@
      number the whole game is played on, and a depleting arc makes you judge an
      angle; a bar you read at a glance. Dark track under it, because a coral
      fill on grey smoke measured 1.06:1 on its own. */
-  function drawOxygen(cx, topY, h, exp, wide) {
+  function drawOxygen(cx, topY, h, exp) {
     const left = Math.max(0, Math.min(1, 1 - exp));
-    const bw = Math.max(14, wide || h * 0.72), bh = Math.max(4, h * 0.145);
+    const bw = Math.max(14, h * 0.72), bh = Math.max(4, h * 0.145);
     const x = cx - bw / 2, y = topY - bh * 1.9;
     ctx.fillStyle = 'rgba(10,8,16,0.85)';
     rr(x - 1.5, y - 1.5, bw + 3, bh + 3, (bh + 3) / 2); ctx.fill();
