@@ -224,7 +224,7 @@
   let moves = 0;
   let history = [];              // {state, moves} before each move, for Undo
   let best = {};                 // board signature -> {moves, carrots}
-  let phase = 'play';            // play | caught | won
+  let phase = 'play';            // play | caught | lost | won
   let anim = null;               // the one animation in flight
   let drag = null;
   let threat = null;              // he is on his way; the board is still live
@@ -414,8 +414,11 @@
        live: undo it, or slide something else, and the path closes and he goes
        home. A slat pushed the wrong way by mistake should be a moment of
        fright and a chance to fix it, not a loss with no answer to it.
-       The fail state is intact - stop watching and he still takes her - and
-       the escape is not free either, because undo costs a move. */
+       Stop watching and he DOES take her: the grace runs out, he arrives and
+       the level is lost. That was written here long before it was true - the
+       catch used to rewind the fatal slide and hand the board back, so the
+       game could not be lost at all, and this comment said otherwise for
+       days. Verified now rather than asserted. */
     if (M.caught(st)) {
       SND.fox();
       threat = { t0: performance.now(), path: foxPathToBunny() };
@@ -550,6 +553,11 @@
     if (rulesOpen) { dbg.lastDown.why = 'rules card open'; rulesPointerDown(p, e); return; }
     for (const b of ctrl) if (inBox(p, b)) { dbg.lastDown.why = 'control ' + b.id; press(b.id); return; }
     if (inBox(p, levelsHit)) { dbg.lastDown.why = 'read-out, opening the picker'; openLevels(); return; }
+    if (phase === 'lost') {
+      dbg.lastDown.why = 'lose card';
+      if (inBox(p, loseCTA)) loadLevel(levelIndex);
+      return;
+    }
     if (phase === 'won') {
       dbg.lastDown.why = 'win card';
       if (inBox(p, winLevelsBtn)) { openLevels(); return; }
@@ -721,6 +729,7 @@
     if (e.key.toLowerCase() === 'u') undo();
     if (e.key.toLowerCase() === 'r') restart();
     if (phase === 'won' && (e.key === 'Enter' || e.key === ' ')) nextLevel();
+    if (phase === 'lost' && (e.key === 'Enter' || e.key === ' ')) loadLevel(levelIndex);
   });
 
   /* ---------- THEY PACE ----------
@@ -993,12 +1002,20 @@
       const total = REDUCED.matches ? TUNE.holdMs
                                     : TUNE.lungeMs + TUNE.holdMs + TUNE.rewindMs;
       if (el >= total) {
-        // The fatal slide rewinds and he goes back where he was. The move
-        // counter KEEPS the wasted move: restart is free, this is not.
-        const h = history[history.length - 1];
-        if (h) { st = h.state; history.pop(); }
-        snapPaceHome(now);                       // same rewind, same reason
-        phase = 'play'; anim = null;
+        /* HE TAKES HER, AND THAT IS THE END OF THE LEVEL. This used to rewind
+           the fatal slide and hand the board back, so the fox could never
+           actually win: the level was unloseable and the comment above the
+           grace claimed the opposite. Par is the length of the shortest
+           solution found by a search that counts positions where ONE MOVE
+           LOSES AND ANOTHER DOES NOT, and that number means nothing if losing
+           is impossible.
+
+           The grace before this is untouched and is where the mercy lives: he
+           takes a couple of seconds to arrive, and undoing or closing the path
+           in that window still sends him home. */
+        anim = null; phase = 'lost';
+        SND.refused();
+        T().levelRestart && T().levelRestart(levelIndex + 1);
       }
     }
   }
@@ -1081,6 +1098,7 @@
     });
 
     if (phase === 'won') drawWinCard();
+    if (phase === 'lost') drawLoseCard();
     if (levelsOpen) drawLevelsCard();
     if (rulesOpen) drawRulesCard(now);
   }
@@ -1126,6 +1144,31 @@
       ctx.beginPath(); ctx.arc(cx, cy, c * (0.30 + 0.85 * ease), 0, Math.PI * 2); ctx.stroke();
     }
     ctx.restore();
+  }
+
+  /* The losing card. Same shape as the win card, because they are the two
+     ends of one sentence and a player should not have to re-learn the layout
+     to read bad news. */
+  let loseCTA = null;
+  function drawLoseCard() {
+    const pw = Math.min(LW - 56, 470), ph = Math.min(LH - 20, 300);
+    const px = Math.round((LW - pw) / 2), py = Math.max(10, Math.round((LH - ph) / 2));
+    ctx.fillStyle = 'rgba(10,16,28,0.82)'; ctx.fillRect(0, 0, LW, LH);
+    ctx.fillStyle = RD.SURFACE; RD.rr(ctx, px, py, pw, ph, 22); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ctx.lineWidth = 1;
+    RD.rr(ctx, px, py, pw, ph, 22); ctx.stroke();
+
+    const who = HUNTER[worldOf(LEVELS[levelIndex]).predator] || 'fox';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillStyle = '#FFFFFF'; ctx.font = '800 34px Inter, sans-serif';
+    ctx.fillText('He got her', px + pw / 2, py + 34);
+    ctx.fillStyle = 'rgba(255,255,255,0.82)'; ctx.font = '600 17px Inter, sans-serif';
+    ctx.fillText('your holes joined hers to the ' + who, px + pw / 2, py + 84);
+    ctx.fillStyle = 'rgba(255,255,255,0.62)'; ctx.font = '600 14px Inter, sans-serif';
+    ctx.fillText('Wall them in, or keep your gap away from theirs.', px + pw / 2, py + 118);
+
+    loseCTA = UI.drawCTA(ctx, 'TRY AGAIN', px + pw / 2, py + ph - 60, '#C24A39');
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   }
 
   function drawBunny(now) {

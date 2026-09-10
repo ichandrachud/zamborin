@@ -207,6 +207,32 @@ both ways, in the hub and in llms.txt.
 chrome hides under `?embed=1`, canvas fills the frame, no sideways scroll. One
 item open, K-E1.
 
+### The fox could never take her — 2026-09-10
+The owner reported "fox doesn't kill the rabbit" and it was literally true:
+the game had NO FAIL STATE. `caught()` fired correctly and `threat` was set,
+but when the grace ran out the catch animation REWOUND the fatal slide and set
+`phase = 'play'`. Every phase in the file was play / running / caught / won,
+with `caught` lasting about a second. There was no lose card and no path that
+ended a level badly.
+
+Worse, the comment above the grace claimed "the fail state is intact - stop
+watching and he still takes her". That was written before it was true and was
+never tested. It is the stale-copy failure in the one place it does most harm:
+a comment that reassures the next reader the thing already works.
+
+Fixed on the owner's call: the catch is terminal now. `phase = 'lost'`, a lose
+card, TRY AGAIN reloads the level. The 2400ms grace is untouched and is where
+the mercy lives - undoing or closing the path inside it still sends him home,
+and the undo still costs a move.
+
+This also mattered for the LADDER: par comes from a search that counts
+positions where one move loses and another does not, and that number is
+meaningless if losing is impossible. It is meaningful again.
+
+Verified through the game: play -> grace -> caught -> lost, and it STAYS lost;
+TRY AGAIN reloads the level at 0 moves; and with the fox lunging, pressing
+Undo clears the threat and charges the move.
+
 ### Pacing, and what "sealed in" means — 2026-09-08
 The owner reported the bunny not moving in the live game. One line:
 `stepPace` began `if (!st || REDUCED.matches) return;`, so a browser asking for
