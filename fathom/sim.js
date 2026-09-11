@@ -84,7 +84,13 @@ const TUNE = {
          diamond: { kg: 3.0, val: 6000, h: 2.8 } },
   gemDensity: [0.0080, 0.0060, 0.0040, 0.0025],   // per band, rarer as it deepens
   veinLen: [3, 7],
-  oreDensity: { shelf: 0.055, ribs: 0.038, blackreach: 0.028, foundry: 0.02 },
+  /* Doubled 2026-09-11 (owner, against Motherload). At the shipped values a
+     player cut 21 solid tiles between finds in the STARTING region and 60 in
+     the Foundry — long enough that digging read as empty work rather than
+     prospecting. Motherload pays out every few tiles. Gems are NOT doubled:
+     they are the rare category on purpose (see the gem block above), and at
+     $1200 a ruby their rarity is what keeps them safe. */
+  oreDensity: { shelf: 0.110, ribs: 0.076, blackreach: 0.056, foundry: 0.04 },
   veinShare: 0.55,              // of that density, the part that arrives in veins
   gasDensity: 0.013,
   cavernsPerRegion: [6, 11, 8, 5],
@@ -729,12 +735,23 @@ Run.prototype._fixed = function (inp, h) {
     this.batt = Math.min(this.battMax(), this.batt + t.surfaceRegen * h);
     if (this.hull < t.hullPips) this.hull = t.hullPips;    // repairs are free up here
     if (this.cargo.length || this.pendingRelic > 0) {
+      /* The haul is tallied BY TYPE here, not just summed. The card is a
+         receipt — what was sold, how many, what each fetched — and the cargo
+         array is gone by the time anything can draw it. */
       let val = 0, kg = 0;
-      for (const c of this.cargo) { val += c.val; kg += c.kg; }
+      const byType = new Map();
+      for (const c of this.cargo) {
+        val += c.val; kg += c.kg;
+        const e = byType.get(c.type) || { type: c.type, n: 0, kg: 0, val: 0, each: c.val };
+        e.n++; e.kg += c.kg; e.val += c.val;
+        byType.set(c.type, e);
+      }
+      const items = [...byType.values()].sort((a, b) => b.val - a.val);
       const relic = this.pendingRelic;
       this.money += val + relic;
       this.cargo = []; this.cargoKg = 0; this.pendingRelic = 0;
-      this.events.push({ t: 'banked', val, kg, relic, depth: Math.round(this.bestDepth) });
+      this.events.push({ t: 'banked', val, kg, relic, items,
+                         depth: Math.round(this.bestDepth) });
     }
   } else {
     this.air -= t.lifeSupport * h;

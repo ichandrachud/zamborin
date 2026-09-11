@@ -931,7 +931,10 @@
       if (sfx) sfx.noise(0.22, 180, 0.7, 0.07);
       floatText(ev.cause === 'magma' ? 'HEAT' : 'HULL', run.x, run.y - 8, C_ACCENT_TEXT);
     } else if (ev.t === 'banked') {
-      cardData = { val: ev.val, kg: ev.kg, depth: ev.depth };
+      /* The whole event, not three fields off it. The old copy dropped `relic`,
+         so the card's "salvage claimed" branch tested a value that was always
+         undefined and had never once drawn; it now also needs `items`. */
+      cardData = ev;
       card = 'banked';
       saveMeta();
       T().track('bank', { val: ev.val, kg: ev.kg, depth: ev.depth });
@@ -2436,6 +2439,115 @@
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   }
 
+  /* THE RECEIPT.
+     ------------------------------------------------------------------
+     Surfacing used to report one number. What a player actually wants to
+     know is what they were carrying and what each piece fetched — the run
+     read back to them, itemised, with its own art beside each line so the
+     thing on the card is the thing they dug out of the wall.
+
+     Rows shrink to fit rather than the card growing: it is the one card
+     whose length is set by play, and a seven-mineral haul must not push
+     DIVE AGAIN off the bottom. Measured by receiptFit(). */
+  function drawReceiptCard(d) {
+    const items0 = (d.items || []);
+    /* Height follows the receipt. A two-line haul in a 470 px card left ~200 px
+       of empty between the last row and DIVE AGAIN; the CTA stays anchored to
+       the bottom either way, so the card shrinks to the table instead of the
+       table floating in it. */
+    const wanted = 86 + (items0.length + (d.relic > 0 ? 1 : 0) + 2) * 26 + 20 + FOOT_H;
+    const { pw, ph, px, py } = cardBox(Math.max(300, Math.min(470, Math.round(wanted))));
+    ctx.fillStyle = SCRIM(0.86); ctx.fillRect(0, 0, LW, LH);
+    ctx.fillStyle = C_SURFACE;
+    ctx.beginPath(); UI.roundRectPath(ctx, px, py, pw, ph, 22); ctx.fill();
+    ctx.strokeStyle = TINT(0.12); ctx.lineWidth = 1;
+    ctx.beginPath(); UI.roundRectPath(ctx, px, py, pw, ph, 22); ctx.stroke();
+    const cx = px + pw / 2;
+    const items = (d.items || []).slice();
+    const hasRelic = d.relic > 0;
+
+    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = '#FFFFFF'; ctx.font = '800 30px Inter, sans-serif';
+    ctx.fillText('HAUL BANKED', cx, py + 46);
+    ctx.fillStyle = INK72; ctx.font = '600 14px Inter, sans-serif';
+    ctx.fillText(Math.round(d.kg) + ' kg from ' + d.depth + '\u00A0m', cx, py + 68);
+
+    // the space the table has to live in, between the head and the CTA
+    const top = py + 86;
+    const bot = py + ph - FOOT_H + 2;
+    const lines = items.length + (hasRelic ? 1 : 0) + 2;      // + divider row + total
+    /* Reserve 12 px before dividing. Fitting to the last pixel measured as a
+       pass at 480x360 with 2 px to spare, which is one font metric away from
+       drawing through DIVE AGAIN. */
+    let rowH = Math.min(26, Math.floor((bot - top - 12) / Math.max(1, lines)));
+    rowH = Math.max(13, rowH);   // 15 was the binding floor at 480x360, not the reserve
+    const fs = Math.max(11, Math.min(15, rowH - 8));
+    const icon = Math.min(rowH - 3, 20);
+
+    const xIcon = px + 26, xName = px + 26 + icon + 9;
+    const xQty = px + pw * 0.56, xEach = px + pw * 0.74, xTot = px + pw - 26;
+    let y = top + rowH * 0.72;
+    ctx.textBaseline = 'middle';
+
+    for (const it of items) {
+      const gem = TUNE.gem[it.type];
+      const im = gem ? ((GEM_ART[it.type] || {})._ok ? GEM_ART[it.type] : null)
+                     : pickSprite(it.type, 0);
+      if (im) {
+        const iw = icon * (im.width / im.height);
+        ctx.drawImage(im, xIcon + (icon - iw) / 2, y - icon / 2, iw, icon);
+      } else {
+        ctx.fillStyle = gem ? C_SUN : TINT(0.35);
+        ctx.beginPath(); ctx.arc(xIcon + icon / 2, y, icon * 0.34, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.font = '600 ' + fs + 'px Inter, sans-serif';
+      ctx.fillStyle = gem ? C_SUN : INK90;
+      ctx.textAlign = 'left';
+      ctx.fillText(it.type.charAt(0).toUpperCase() + it.type.slice(1), xName, y);
+      ctx.fillStyle = INK72; ctx.textAlign = 'right';
+      ctx.fillText('x' + it.n, xQty, y);
+      ctx.fillText(fmtMoney(it.each), xEach, y);
+      ctx.fillStyle = INK90; ctx.font = '700 ' + fs + 'px Inter, sans-serif';
+      ctx.fillText(fmtMoney(it.val), xTot, y);
+      y += rowH;
+    }
+    if (hasRelic) {
+      ctx.font = '600 ' + fs + 'px Inter, sans-serif';
+      ctx.fillStyle = C_SUN; ctx.textAlign = 'left';
+      ctx.fillText('Salvage up the pipe', xName, y);
+      ctx.textAlign = 'right'; ctx.font = '700 ' + fs + 'px Inter, sans-serif';
+      ctx.fillText(fmtMoney(d.relic), xTot, y);
+      y += rowH;
+    }
+    // the line, then the one number the player came up for
+    const ry = y - rowH * 0.45;
+    ctx.strokeStyle = TINT(0.16); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(px + 26, ry); ctx.lineTo(px + pw - 26, ry); ctx.stroke();
+    y += rowH * 0.18;
+    ctx.font = '800 ' + (fs + 3) + 'px Inter, sans-serif';
+    ctx.fillStyle = '#FFFFFF'; ctx.textAlign = 'left';
+    ctx.fillText('Total', xName, y);
+    ctx.textAlign = 'right';
+    ctx.fillText(fmtMoney(d.val + d.relic), xTot, y);
+    y += rowH;
+    ctx.font = '600 ' + fs + 'px Inter, sans-serif';
+    ctx.fillStyle = INK72; ctx.textAlign = 'left';
+    ctx.fillText('Bank total', xName, y);
+    ctx.textAlign = 'right';
+    ctx.fillText(fmtMoney(run.money), xTot, y);
+
+    L.receiptFit = {
+      rows: items.length, rowH, fontPx: fs,
+      tableBottom: Math.round(y + rowH * 0.5),
+      ctaTop: Math.round(py + ph - FOOT_H + 2),
+      overflowPx: Math.round(Math.max(0, (y + rowH * 0.5) - (py + ph - FOOT_H + 2))),
+    };
+    ctx.textAlign = 'center';
+    hit.cta = UI.drawCTA(ctx, 'DIVE AGAIN', cx, py + ph - FOOT_H + 16 + 25, C_ACCENT);
+    hit.newOcean = null;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  }
+
   function drawEndCard(title, subtitle, rows) {
     const { pw, ph, px, py } = cardBox();
     ctx.fillStyle = SCRIM(0.82); ctx.fillRect(0, 0, LW, LH);
@@ -2677,16 +2789,7 @@
     if (card === 'rules') drawRulesCard(now);
     else if (card === 'fleet') drawFleetCard();
     else if (card === 'banked' && cardData) {
-      drawEndCard('HAUL BANKED',
-        cardData.relic > 0 ? fmtMoney(cardData.val + cardData.relic) + ' banked · salvage claimed'
-                           : fmtMoney(cardData.val) + ' banked · ' + cardData.kg + ' kg',
-        cardData.relic > 0
-          ? [['Ore', fmtMoney(cardData.val) + ' · ' + cardData.kg + ' kg'],
-             ['Salvage sent up the pipe', fmtMoney(cardData.relic)],
-             ['Bank total', fmtMoney(run.money)]]
-          : [['Deepest point', cardData.depth + ' m'],
-             ['Tiles cut', String(run.digTiles)],
-             ['Bank total', fmtMoney(run.money)]]);
+      drawReceiptCard(cardData);
     } else if (card === 'blackout' && cardData) {
       drawEndCard('BLACKOUT', 'The tank ran dry at ' + cardData.depth + '\u00A0m',
         [['Haul lost', fmtMoney(cardData.lostVal) + ' · ' + cardData.lostKg + ' kg'],
@@ -2768,6 +2871,7 @@
       getTint: () => REGION_TINT,
       get cam() { return cam; },
       fleetFit: () => L.fleetFit || null,
+      receiptFit: () => L.receiptFit || null,
       warnings: () => activeWarnings(),
       WARN,
       fleet: { FLEET, get owned() { return owned; }, get cur() { return curSub; },
