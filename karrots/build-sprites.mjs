@@ -26,9 +26,10 @@
  */
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { homedir } from 'node:os';
 
-const SRC = '/Users/indrajeetchandrachud/Library/Mobile Documents/com~apple~CloudDocs/' +
-            'Claude Projects/Zamborin/source-assets/karrots/2014-vector';
+const SRC = join(homedir(), 'Library/Mobile Documents/com~apple~CloudDocs',
+            'Claude Projects/Zamborin/source-assets/karrots/2014-vector');
 const OUT = new URL('./art/', import.meta.url).pathname;
 
 export const CAST = {

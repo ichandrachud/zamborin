@@ -20,10 +20,11 @@
  */
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { homedir } from 'node:os';
 import { build, CAST } from './build-sprites.mjs';
 
-const SRC = '/Users/indrajeetchandrachud/Library/Mobile Documents/com~apple~CloudDocs/' +
-            'Claude Projects/Zamborin/source-assets/karrots/2014-vector';
+const SRC = join(homedir(), 'Library/Mobile Documents/com~apple~CloudDocs',
+            'Claude Projects/Zamborin/source-assets/karrots/2014-vector');
 const ART = new URL('./art/', import.meta.url).pathname;
 const OUT = process.argv[2] || new URL('./tune-art-check.html', import.meta.url).pathname;
 
