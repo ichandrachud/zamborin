@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Fathom strategy: a full hold is the slowest way home — Zamborin</title>
-  <meta name="description" content="A practical Fathom strategy guide: why 180 kg is the load to aim for and not 300, how value per kilogram decides what is worth digging, how to route a relic you can never lift down into a salvage intake, and what actually runs out on a deep dive." />
+  <meta name="description" content="A practical Fathom strategy guide: why 180 kg is the load to aim for and not 300, how value per kilogram decides what is worth digging, why iron is an anchor and platinum is the prize, and what actually runs out on a deep dive." />
   <meta name="theme-color" content="#0E1726" />
   <link rel="canonical" href="https://zamborin.com/guides/fathom/" />
   <link rel="icon" type="image/svg+xml" href="/images/zamborin-favicon.svg?v=2" />
@@ -13,7 +13,7 @@
   <meta property="og:site_name" content="Zamborin Games" />
   <meta property="og:url" content="https://zamborin.com/guides/fathom/" />
   <meta property="og:title" content="Fathom strategy: a full hold is the slowest way home" />
-  <meta property="og:description" content="Why 180 kg beats a full hold, how to route a relic you cannot lift, and what really runs out." />
+  <meta property="og:description" content="Why 180 kg beats a full hold, why the deep metals are worth the climb, and what really runs out." />
   <meta property="og:image" content="https://zamborin.com/images/fathom-og.jpg" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Fathom strategy: a full hold is the slowest way home" />
@@ -53,6 +53,12 @@
     .guide table { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 16px; }
     .guide th, .guide td { text-align: left; padding: 9px 12px; border-bottom: 1px solid rgba(255,255,255,0.09); }
     .guide th { color: var(--text); font-weight: 700; }
+    .guide td .where { font-size: 16px; color: var(--text-dim); font-weight: 500; }
+    /* Seven metals in four columns is ~351 px wide at minimum, wider than the
+       text column on a 320 or 360 px phone. The table scrolls inside itself;
+       the page body never scrolls sideways. */
+    .guide .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 18px 0; }
+    .guide .table-scroll table { margin: 0; }
     @media (max-width: 720px) { .guide { padding: 28px 18px 56px; font-size: 16px; } .guide h1 { font-size: 30px; } }
   </style>
     <script type="application/ld+json">
@@ -61,7 +67,7 @@
     "@type": "Article",
     "headline": "Fathom strategy: a full hold is the slowest way home",
     "about": "Fathom deep-sea digging and buoyancy strategy",
-    "description": "A practical Fathom strategy guide: why 180 kg is the load to aim for and not 300, how value per kilogram decides what is worth digging, how to route a relic you can never lift down into a salvage intake, and what actually runs out on a deep dive.",
+    "description": "A practical Fathom strategy guide: why 180 kg is the load to aim for and not 300, how value per kilogram decides what is worth digging, why iron is an anchor and platinum is the prize, and what actually runs out on a deep dive.",
     "author": { "@type": "Organization", "name": "Zamborin Games" },
     "publisher": { "@type": "Organization", "name": "Zamborin Games", "url": "https://zamborin.com/" },
     "mainEntityOfPage": "https://zamborin.com/guides/fathom/"
@@ -82,7 +88,7 @@
     <nav class="crumbs"><a href="/">Home</a> &rsaquo; <a href="/guides/">Guides</a> &rsaquo; Fathom</nav>
 
     <h1>Fathom strategy: a full hold is the slowest way home</h1>
-    <p class="lede">Fathom has no engine that lifts you. The submarine floods to sink and blows its tanks to rise, and everything you put in the hold is weight the tanks have to beat. That single fact decides how much you should dig, what is worth digging, and why the best things down there cannot come up in your hold at all.</p>
+    <p class="lede">Fathom has no engine that lifts you. The submarine floods to sink and blows its tanks to rise, and everything you put in the hold is weight the tanks have to beat. That single fact decides how much you should dig, which metals are worth the climb, and why the richest seams are the deepest ones.</p>
 
     <h2>You cannot fly. You can only float.</h2>
     <p>The hull displaces 1000 kg of water and weighs 700 kg dry, so you have <strong>300 kg of lift</strong> and never any more. Ballast is how you spend it: flood the tanks and you sink, blow them and you rise. There is no thrust that pushes you upward.</p>
@@ -91,31 +97,32 @@
     <h2>Load 180 kg, not 300</h2>
     <p>The temptation is to fill the hold, because a full hold looks like a good dive. It is not. The climb slows as the hold fills, so the last kilograms are carried at the slowest speed of the whole trip — you pay the most time for the cargo that earns the least.</p>
     <p>Work out the money per minute for every possible load and the answer is <strong>about 180 kg</strong>, well short of the ceiling. What is surprising is that the answer does not move: 180 kg is the best load at 200 m and still the best at 800 m, in every boat. The deep does not ask you to carry more, it asks you to make the same trip further.</p>
-    <p>Light, valuable cargo is the exception. A hold of vent crystals is worth stopping earlier still, nearer 100 kg, because with crystals the digging time is what costs you rather than the climb.</p>
+    <p>The lightest, richest metal is the exception. A hold of neodymium is worth stopping earlier still, nearer 120 kg, because it is hard to cut and light to carry, so the digging time is what costs you rather than the climb.</p>
 
-    <h2>Value per kilogram is the entire ore table</h2>
-    <p>Three ores, and the only number that matters is what a kilogram of each is worth, because kilograms are the thing you are actually rationing.</p>
+    <h2>The deeper the metal, the more it is worth</h2>
+    <p>Seven metals, laid down in the order you already rank them, and each one lives deeper than the last. The number that matters is what a kilogram is worth, because kilograms are the thing you are actually rationing.</p>
+    <div class="table-scroll">
     <table>
-      <tr><th>Ore</th><th>Weight</th><th>Value</th><th>Per kg</th></tr>
-      <tr><td>Manganese nodules</td><td>20 kg</td><td>$26</td><td>$1.30</td></tr>
-      <tr><td>Sulphides</td><td>12 kg</td><td>$48</td><td>$4.00</td></tr>
-      <tr><td>Vent crystals</td><td>5 kg</td><td>$95</td><td>$19.00</td></tr>
+      <tr><th>Metal</th><th>Weight</th><th>Value</th><th>Per kg</th></tr>
+      <tr><td><strong>Iron</strong><br><span class="where">The Shelf</span></td><td>20 kg</td><td>$18</td><td>$0.90</td></tr>
+      <tr><td><strong>Copper</strong><br><span class="where">The Shelf</span></td><td>16 kg</td><td>$34</td><td>$2.13</td></tr>
+      <tr><td><strong>Tungsten</strong><br><span class="where">The Ribs</span></td><td>14 kg</td><td>$62</td><td>$4.43</td></tr>
+      <tr><td><strong>Silver</strong><br><span class="where">The Ribs</span></td><td>10 kg</td><td>$110</td><td>$11.00</td></tr>
+      <tr><td><strong>Gold</strong><br><span class="where">Blackreach</span></td><td>6 kg</td><td>$240</td><td>$40.00</td></tr>
+      <tr><td><strong>Platinum</strong><br><span class="where">Blackreach</span></td><td>5 kg</td><td>$400</td><td>$80.00</td></tr>
+      <tr><td><strong>Neodymium</strong><br><span class="where">The Foundry</span></td><td>4 kg</td><td>$640</td><td>$160.00</td></tr>
     </table>
-    <p>A crystal is worth fifteen times a nodule per kilogram and takes up a quarter of the room. Once you have seen this table, nodules stop looking like treasure and start looking like what they are: the thing that fills your hold before you reach anything good. Early on they are worth taking because they are what there is. Past the first region, dig past them.</p>
-    <p>There is one use for a heavy, cheap ore, and it is not money. Nodules are excellent <strong>diving weight</strong>. Take some on the way down to sink faster, then drop them before you climb.</p>
+    </div>
+    <p>Platinum is worth nearly ninety times iron per kilogram and weighs a quarter as much. Once you have seen this table, iron stops looking like treasure and starts looking like what it is: the thing that fills your hold before you reach anything good. On the Shelf it is worth taking because it is what there is. Below that, dig past it.</p>
+    <p>There is one use for a heavy, cheap metal, and it is not money. Iron is excellent <strong>diving weight</strong>. Take some on the way down to sink faster, then drop it before you climb.</p>
+    <p>Tungsten is the one to watch. It is only worth a little more than copper, but it is genuinely hard to cut, so a tungsten seam costs you more battery and more time than its price suggests.</p>
 
     <h2>Drop cargo. It is a tool, not a defeat.</h2>
     <p>The DROP CARGO button exists because the law is unforgiving and the game expects you to use it. If you are stuck at the bottom of a shaft, dropping the heaviest thing you are carrying is what gets you home. Dropped cargo is lost, but a dive that ends on the seabed loses the whole hold.</p>
-    <p>Get in the habit of dropping nodules the moment you find something better. Room in the hold is not the constraint — the 300 kg is — so trading 20 kg of nodule for 5 kg of crystal is almost always right.</p>
-
-    <h2>The best things down there cannot be lifted at all</h2>
-    <p>Relics weigh <strong>900 kg</strong>. That is three times your entire lift, and it is deliberate: no boat, no upgrade and no amount of skill will ever float one. An idol is worth $400 and a drowned heart $2000, and the only way to be paid is to make the ocean move it for you.</p>
-    <p>The rules are short. A relic with nothing under it <strong>falls</strong>. A relic on the edge of a ledge <strong>topples</strong> sideways and then falls again. A relic with solid ground under it <strong>sits there</strong>, and you can shove it one cell at a time with the nose of the sub.</p>
-    <p>So you do not carry a relic, you <em>route</em> it. Cut the floor out from under it and let it drop into a shaft you have already dug, steer it with ledges on the way down, and land it beside a <strong>salvage intake</strong> — the corroded pipe set into the rock that sucks anything within reach up to the surface. Landing it one cell short is normal; that is what shoving is for.</p>
-    <p>This is the part of Fathom that stops being a mining game and becomes a puzzle. You are not asking "can I lift this", you are asking "what does the floor need to look like for this to end up over there".</p>
+    <p>Get in the habit of dropping iron the moment you find something better. Room in the hold is not the constraint — the 300 kg is — so trading 20 kg of iron for 6 kg of gold is almost always right.</p>
 
     <h2>Magma is the one thing that will not forgive you</h2>
-    <p>The orange seams in the deep are not ore. Breaking into magma damages the hull, and the hull is the one meter that does not refill on its own at the surface. Everything else is a running cost; hull is a budget for the whole boat.</p>
+    <p>The orange seams in the deep are not metal. Breaking into magma damages the hull, and the hull is the one meter that does not refill on its own at the surface. Everything else is a running cost; hull is a budget for the whole boat.</p>
     <p>Magma is easy to identify and easy to avoid, and it is placed where you would most like to dig. Take the long way round.</p>
 
     <h2>What actually runs out</h2>
@@ -124,10 +131,10 @@
     <p>Air is a clock rather than a wall. It refills at the surface, so it punishes dithering, not depth.</p>
 
     <h2>Four regions, and they are places</h2>
-    <p>The ocean is 880 m deep and divided into <strong>The Shelf</strong>, <strong>The Ribs</strong>, <strong>Blackreach</strong> and <strong>The Foundry</strong>. Ore gets rarer as you descend, not more common — the deep pays better per piece, not per minute — and the caverns, landmarks and intakes are placed rather than scattered, so the map is worth learning. Your tunnels persist between sessions, which means the shaft you cut today is the commute you get tomorrow.</p>
+    <p>The ocean is 880 m deep and divided into <strong>The Shelf</strong>, <strong>The Ribs</strong>, <strong>Blackreach</strong> and <strong>The Foundry</strong>. Each region is richer than the one above it: a stretch of the Foundry holds around seven times the metal value of the same stretch of the Shelf. The caverns and landmarks are placed rather than scattered, and the deepest of them are small motherlodes of silver, gold and platinum, so the map is worth learning. Your tunnels persist between sessions, which means the shaft you cut today is the commute you get tomorrow.</p>
 
     <h2>Precious stones ignore the law</h2>
-    <p>Amber, emeralds, rubies and diamonds are tiny, nearly weightless and worth a great deal. They are also genuinely rare — a couple of dozen stones in an entire ocean — so they are something you find rather than something you farm. They are the one cargo you never have to think about: a diamond costs you almost no lift at all.</p>
+    <p>Emeralds, rubies and diamonds are tiny, nearly weightless and worth a great deal. They are also genuinely rare — a couple of dozen stones in an entire ocean — so they are something you find rather than something you farm. They are the one cargo you never have to think about: a diamond costs you almost no lift at all.</p>
     <p>If you see one, it is worth a detour. You will not see many.</p>
 
     <h2>The fleet is the progression</h2>
@@ -138,10 +145,9 @@
     <ul>
       <li>You have 300 kg of lift, forever. Cargo spends it.</li>
       <li>Aim for 180 kg, not a full hold. A full hold does not rise.</li>
-      <li>Judge ore per kilogram: crystals $19, sulphides $4, nodules $1.30.</li>
-      <li>Carry nodules down as diving weight, then drop them.</li>
+      <li>The deeper the metal, the more it is worth: iron $0.90 a kilo, gold $40, neodymium $160.</li>
+      <li>Carry iron down as diving weight, then drop it.</li>
       <li>Dropping cargo is a tool. Use it before you are stuck, not after.</li>
-      <li>Relics weigh 900 kg. Never lift them — fall them into an intake.</li>
       <li>Magma damages the hull, and the hull does not come back.</li>
       <li>Battery is what stops you cutting fresh rock. Buy the drill.</li>
       <li>Your tunnels persist. Today's shaft is tomorrow's commute.</li>
