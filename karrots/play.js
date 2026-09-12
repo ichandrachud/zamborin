@@ -100,6 +100,12 @@
     lungeMs: 460, holdMs: 420, rewindMs: 300,
     graceMs: 2400,         // his walk over, and the player's chance to undo it
     boomMs: 420,           // the blast, drawn over the squares it opened
+    /* THE WORLD CARD. It opens every world, and it opens them EVERY time -
+       including a jump from the level picker - so it has to be short enough
+       that a player crossing back and forth is not made to wait. Two seconds
+       is the same beat the loading splash holds for, and any press skips it. */
+    worldHoldMs: 2000,
+    worldFadeMs: 420,
     carrot2Mult: 1.35,
     dragStart: 5,          // px ALONG the slat's axis before it starts to follow
     commitFrac: 0.42,      // share of a cell a SLOW drag must cross to land
@@ -129,6 +135,17 @@
     'bunny-side-3', 'fox-still', 'fox-walk-1', 'fox-walk-2', 'carrot', 'brick',
     'penguin-1', 'penguin-2', 'iceberg', 'cop', 'cone', 'shark', 'bomb'];
   ART_NAMES.forEach(n => {
+    const im = new Image();
+    im.onload = () => { ART[n] = im; };
+    im.src = './art/' + n + '.svg?v=7';
+  });
+  /* THE FOUR WORLD SCENES, loaded into the same ART map but deliberately NOT
+     in ART_NAMES: everything in that list is a cast member, fitted by height
+     through sprite() against a measured bbox, and these are whole 2000x2000
+     illustrations drawn edge to edge. Putting them in the list would have
+     tune-art.mjs measuring scenery as if it were a bunny. */
+  const SCENE_NAMES = ['world-woods', 'world-arctic', 'world-heist', 'world-ocean'];
+  SCENE_NAMES.forEach(n => {
     const im = new Image();
     im.onload = () => { ART[n] = im; };
     im.src = './art/' + n + '.svg?v=7';
@@ -228,6 +245,7 @@
   let anim = null;               // the one animation in flight
   let drag = null;
   let threat = null;              // he is on his way; the board is still live
+  let worldCard = null;           // { t0, world } while a world's card is up
   let flinch = null;              // who just refused to be squashed, and when
   /* Honoured, not decorated around: the edge redraws without the sweep, the
      catch is a cut and a hold, and a tile lands instead of easing. §10. */
@@ -269,7 +287,10 @@
      for four. */
   function worldOf(lv) { return (lv && RD.WORLDS[lv.world]) || RD.WORLDS.woods; }
 
-  function loadLevel(i) {
+  /* opts.noCard: a restart is not an ARRIVAL. Everything else that lands on a
+     world's first level - finishing the last level of the world before it, the
+     level picker, or opening the game for the first time - is. */
+  function loadLevel(i, opts) {
     levelIndex = Math.min(Math.max(0, i), LEVELS.length - 1);
     const lv = LEVELS[levelIndex];
     start = M.parse(lv.rows, lv.id, lv.bomb ? { bombs: [lv.bomb] } : undefined);
@@ -277,6 +298,14 @@
     par = lv.par; moves = 0; history = []; phase = 'play'; anim = null; drag = null; threat = null;
     wonPrev = null; wonBeat = false; boom = null;
     snapPaceHome(performance.now());   // drawn where the rules have them, from frame one
+    /* THE WORLD ANNOUNCES ITSELF. A first level is the beginning of a world,
+       and until now nothing marked it: the game opened straight onto a board,
+       and crossing from The Woods into Arctic Salad at level 37 looked like
+       any other level change. A first-time player never saw The Woods at all.
+       n === 1 is the test, so it covers the opening board as naturally as the
+       other three. */
+    worldCard = (lv.n === 1 && !(opts && opts.noCard))
+      ? { t0: performance.now(), world: lv.world } : null;
     T().levelStart && T().levelStart(levelIndex + 1);
     save();
   }
@@ -509,7 +538,7 @@
   function restart() {
     if (anim && anim.kind === 'catch') return;
     threat = null;
-    loadLevel(levelIndex);
+    loadLevel(levelIndex, { noCard: true });   // re-playing a board is not arriving in its world
   }
 
   /* ---------- INPUT ---------- */
@@ -549,6 +578,10 @@
     SND.ready();
     const p = toLogical(e);
     dbg.lastDown = { x: Math.round(p.x), y: Math.round(p.y), why: 'reached' };
+    /* FIRST, above every other target. A press that skips the card must not
+       also land on whatever sits under it - the picker button and the slats
+       are all still there behind the scrim. */
+    if (dismissWorldCard()) { dbg.lastDown.why = 'skipped the world card'; return; }
     if (levelsOpen) { dbg.lastDown.why = 'level picker open'; levelsPointerDown(p); return; }
     if (rulesOpen) { dbg.lastDown.why = 'rules card open'; rulesPointerDown(p, e); return; }
     for (const b of ctrl) if (inBox(p, b)) { dbg.lastDown.why = 'control ' + b.id; press(b.id); return; }
@@ -724,6 +757,7 @@
   }
 
   window.addEventListener('keydown', (e) => {
+    if (worldCard) { dismissWorldCard(); return; }   // any key gets past the arrival card
     if (e.key === 'Escape' && levelsOpen) { levelsOpen = false; return; }
     if (e.key === 'Escape' && rulesOpen) { rulesOpen = false; return; }
     if (e.key.toLowerCase() === 'u') undo();
@@ -1117,6 +1151,7 @@
     if (phase === 'lost') drawLoseCard();
     if (levelsOpen) drawLevelsCard();
     if (rulesOpen) drawRulesCard(now);
+    drawWorldCard(now);         // over everything: it is the arrival, not a layer of the board
   }
 
   /* The carrot sits in its black cell and nothing is drawn under it. The
@@ -1166,22 +1201,83 @@
      ends of one sentence and a player should not have to re-learn the layout
      to read bad news. */
   let loseCTA = null;
+  /* ---------- THE WORLD CARD ----------
+     The 2014 title illustration for the world you are entering, its name under
+     it, and nothing else. It is square art on a landscape frame, so the scene
+     is fitted to whichever of the two has less room to give and the name sits
+     beneath it rather than over it - the illustrations have their subject dead
+     centre and type across them covered the bunny every time. */
+  function worldCardK(now) {
+    if (!worldCard) return 0;
+    const el = now - worldCard.t0;
+    if (el >= TUNE.worldHoldMs + TUNE.worldFadeMs) return 0;
+    if (REDUCED.matches) return 1;                       // held, then gone; never a slow wash
+    if (el <= TUNE.worldHoldMs) return 1;
+    return 1 - (el - TUNE.worldHoldMs) / TUNE.worldFadeMs;
+  }
+
+  function drawWorldCard(now) {
+    const k = worldCardK(now);
+    if (k <= 0) { worldCard = null; return; }
+    const world = RD.WORLDS[worldCard.world] || RD.WORLDS.woods;
+
+    ctx.save();
+    ctx.globalAlpha = k;
+    ctx.fillStyle = 'rgba(10,16,28,0.92)'; ctx.fillRect(0, 0, LW, LH);
+
+    const label = Math.max(34, Math.round(LH * 0.10));    // room kept for the name
+    const side  = Math.min(LW - 72, LH - label - 48, 420);
+    const sx = Math.round((LW - side) / 2);
+    const sy = Math.round((LH - label - side) / 2);
+
+    const im = ART[world.splash];
+    if (im && im.naturalWidth) {
+      ctx.save();
+      RD.rr(ctx, sx, sy, side, side, 20); ctx.clip();
+      ctx.drawImage(im, sx, sy, side, side);
+      ctx.restore();
+      ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1;
+      RD.rr(ctx, sx, sy, side, side, 20); ctx.stroke();
+    } else {
+      /* The scene has not decoded yet. Draw the world's own ground rather than
+         a hole in the middle of the card - the name below still lands. */
+      ctx.fillStyle = world.mid; RD.rr(ctx, sx, sy, side, side, 20); ctx.fill();
+    }
+
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = '800 ' + Math.max(20, Math.round(side * 0.085)) + 'px Inter, sans-serif';
+    ctx.fillText(world.name, LW / 2, sy + side + label * 0.52);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.restore();
+  }
+
+  /* Any press gets past it. Returns true when it swallowed the input, so the
+     press that skips the card cannot also grab a slat on the board behind. */
+  function dismissWorldCard() {
+    if (!worldCard) return false;
+    worldCard = null;
+    return true;
+  }
+
   function drawLoseCard() {
-    const pw = Math.min(LW - 56, 470), ph = Math.min(LH - 20, 300);
+    const pw = Math.min(LW - 56, 470), ph = Math.min(LH - 20, 260);
     const px = Math.round((LW - pw) / 2), py = Math.max(10, Math.round((LH - ph) / 2));
     ctx.fillStyle = 'rgba(10,16,28,0.82)'; ctx.fillRect(0, 0, LW, LH);
     ctx.fillStyle = RD.SURFACE; RD.rr(ctx, px, py, pw, ph, 22); ctx.fill();
     ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ctx.lineWidth = 1;
     RD.rr(ctx, px, py, pw, ph, 22); ctx.stroke();
 
-    const who = HUNTER[worldOf(LEVELS[levelIndex]).predator] || 'fox';
+    /* ONE LINE OF EXPLANATION WAS CUT. It read "your holes joined hers to the
+       fox", which is the rule stated exactly - the pockets met - but in those
+       words, about a girl being caught, it reads as something else entirely,
+       and this is a game for children. The tip below carries the same lesson
+       in the vocabulary the board already uses. */
     ctx.textAlign = 'center'; ctx.textBaseline = 'top';
     ctx.fillStyle = '#FFFFFF'; ctx.font = '800 34px Inter, sans-serif';
-    ctx.fillText('He got her', px + pw / 2, py + 34);
-    ctx.fillStyle = 'rgba(255,255,255,0.82)'; ctx.font = '600 17px Inter, sans-serif';
-    ctx.fillText('your holes joined hers to the ' + who, px + pw / 2, py + 84);
-    ctx.fillStyle = 'rgba(255,255,255,0.62)'; ctx.font = '600 14px Inter, sans-serif';
-    ctx.fillText('Wall them in, or keep your gap away from theirs.', px + pw / 2, py + 118);
+    ctx.fillText('He got her', px + pw / 2, py + 40);
+    ctx.fillStyle = 'rgba(255,255,255,0.72)'; ctx.font = '600 15px Inter, sans-serif';
+    ctx.fillText('Wall them in, or keep your gap away from theirs.', px + pw / 2, py + 96);
 
     loseCTA = UI.drawCTA(ctx, 'TRY AGAIN', px + pw / 2, py + ph - 60, '#C24A39');
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
@@ -1886,7 +1982,8 @@
   };
   window.karrots = { get st() { return st; }, get moves() { return moves; },
                      get par() { return par; }, get phase() { return phase; },
-                     get level() { return levelIndex; }, get pace() { return pace; }, get threat() { return threat; }, get flinch() { return flinch; }, dbg,
+                     get level() { return levelIndex; }, get pace() { return pace; }, get threat() { return threat; }, get flinch() { return flinch; },
+                     get worldCard() { return worldCard; }, restart: restart, dbg,
                      geo, load: loadLevel, M, commit };
 
   /* ---------- BOOT ---------- */

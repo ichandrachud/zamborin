@@ -130,7 +130,7 @@
     <section class="game-info">
       <h1>Karrots: open a path, just not for them</h1>
       <p>Karrots is a sliding puzzle with something living in the empty space. A bunny stands in a hole in a tray of bricks, her carrot is in another hole somewhere across the board, and you open a path between them by sliding bricks along their own length. Every brick you move leaves a hole behind it. So does the next one. That is how she gets across.</p>
-      <p>Something else stands in a hole too, and it paces the ones it can reach, which is how you see how far that reach goes. In The Woods it is a fox. In Arctic Salad it is a penguin, on The Road a police car, and in Ocean World a shark. Open a gap that joins their holes to hers and the two of them are in the same space, which is the end of the level. Making room is the whole game and making room is also the risk.</p>
+      <p>Something else stands in a hole too, and it paces the ones it can reach, which is how you see how far that reach goes. In The Woods it is a fox. In Arctic Salad it is a penguin, in The Heist a police car, and in Ocean World a shark. Open a gap that joins their holes to hers and the two of them are in the same space, which is the end of the level. Making room is the whole game and making room is also the risk.</p>
 
       <h2>How to play</h2>
       <p>One move, and it is the only thing you do.</p>
@@ -140,14 +140,14 @@
         <li><strong>Watch where the hunter paces.</strong> Whoever it is in this world walks back and forth across every hole they can already reach, so their territory shows itself. Anything they can walk to, they can walk to.</li>
         <li><strong>No brick will squash them.</strong> A brick will not slide onto the hunter any more than it will onto the bunny; if there is somebody in the square, it does not move. You beat them by <em>walling them in</em>, closing their holes until the ones they have left touch nothing of yours.</li>
         <li><strong>One brick on every board carries a bomb.</strong> It does nothing where it stands. Move it and it is destroyed instead of arriving, so it leaves a bigger gap than a slide would, and it needs an empty square in front of it before it can go anywhere at all. It is a trade rather than a gift: that brick can never be slid into place again.</li>
-        <li><strong>Some blocks never move.</strong> Every world has one that is fixed in place: a brick wall in The Woods, an iceberg in Arctic Salad and Ocean World, a traffic cone on The Road. The carrot's square is reserved too, so no brick can slide over it, and the only one who may ever stand on it is the bunny.</li>
+        <li><strong>Some blocks never move.</strong> Every world has one that is fixed in place: a brick wall in The Woods, an iceberg in Arctic Salad and Ocean World, a traffic cone in The Heist. The carrot's square is reserved too, so no brick can slide over it, and the only one who may ever stand on it is the bunny.</li>
         <li><strong>The goal</strong> is the carrot. Reach it in as few moves as you can: three carrots for matching par, two for close, one for finishing.</li>
         <li><strong>Undo and Restart</strong> are always available and Restart is instant. An undo costs you a move, because a move count that does not charge for undo is not counting anything.</li>
       </ul>
       <p>Your level, your best move counts and your carrots are saved in this browser, so you always pick up where you left off.</p>
 
       <h2>Four worlds, a hundred and forty four levels</h2>
-      <p>The board is ten squares across and seven down, and there are a hundred and forty four levels on it, thirty six in each of four worlds. Every one of them has exactly one bomb, and on every one of them the bomb changes the shortest solution: a bomb that made no difference would be decoration, and four dominoes in five are exactly that, so the one that carries it was chosen by search. The Woods, Arctic Salad, The Road and Ocean World each have their own ground, their own hunter and their own block that will not move.</p>
+      <p>The board is ten squares across and seven down, and there are a hundred and forty four levels on it, thirty six in each of four worlds. Every one of them has exactly one bomb, and on every one of them the bomb changes the shortest solution: a bomb that made no difference would be decoration, and four dominoes in five are exactly that, so the one that carries it was chosen by search. The Woods, Arctic Salad, The Heist and Ocean World each have their own ground, their own hunter and their own block that will not move.</p>
       <p>They get harder in order. Par runs from four moves on the first woods level to twenty five on the last ocean one, and it climbs inside each world as well as across them. On a phone the board turns on its side, seven across and ten down, so the whole of it still fits without scrolling.</p>
 
       <h2>Why it is clever</h2>
@@ -197,9 +197,9 @@
   <script src="../shared/embed.js?v=1"></script>
   <script defer src="../shared/ads.js?v=2"></script>
   <script src="./model.js?v=11"></script>
-  <script src="./render.js?v=12"></script>
+  <script src="./render.js?v=11"></script>
   <script src="./levels.js?v=12"></script>
-  <script src="./play.js?v=41"></script>
+  <script src="./play.js?v=42"></script>
   <script>
     (() => {
       const btn = document.getElementById('focus-toggle');

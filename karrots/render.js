@@ -97,14 +97,25 @@
      ground moved. The cone, the carrot and the bunny are now the only
      saturated things on the board, which is the read this world wanted. */
   var WORLDS = {
+    /* `splash` is the 2014 title illustration for the world, drawn on the card
+       that opens it. The four source files are named for the worlds themselves
+       - "the woods", "arctic salad", "the heist", "ocean world" - which is how
+       the third world's real name came back: it had been shipping as THE ROAD,
+       a name this file invented. Its DATA KEY is still `road`, because that is
+       what all 144 levels and worlds.json are keyed by and renaming it would
+       mean regenerating them for nothing the player can see. */
     woods:  { lit: '#7FBF57', mid: '#5E9440', dark: '#436E2C', hole: '#0C1F12',
-              name: 'THE WOODS',    predator: 'fox',     block: 'brick'   },
+              name: 'THE WOODS',    predator: 'fox',     block: 'brick',
+              splash: 'world-woods'  },
     arctic: { lit: '#C8E8F5', mid: '#8FD2EB', dark: '#25A4D5', hole: '#197499',
-              name: 'ARCTIC SALAD', predator: 'penguin', block: 'iceberg' },
+              name: 'ARCTIC SALAD', predator: 'penguin', block: 'iceberg',
+              splash: 'world-arctic' },
     road:   { lit: '#E7E7EF', mid: '#CACADC', dark: '#9898BB', hole: '#6D6D6D',
-              name: 'THE ROAD',     predator: 'cop',     block: 'cone'    },
+              name: 'THE HEIST',    predator: 'cop',     block: 'cone',
+              splash: 'world-heist'  },
     ocean:  { lit: '#E1EFF7', mid: '#B3D5EB', dark: '#60A6D6', hole: '#007CB2',
-              name: 'OCEAN WORLD',  predator: 'shark',   block: 'iceberg' },
+              name: 'OCEAN WORLD',  predator: 'shark',   block: 'iceberg',
+              splash: 'world-ocean'  },
   };
 
   function rr(ctx, x, y, w, h, r) {
