@@ -2279,7 +2279,7 @@
         ctx.beginPath(); UI.roundRectPath(ctx, px - 0.4, py - 0.4, s + 0.8, s + 0.8, s * (0.15 + h1 * 0.1));
         ctx.fill();
         if (isOre && !oreTaken) {
-          const im = pickSprite('copper', 2);
+          const im = pickSprite('iron', 2);
           const oh = s * 0.66;
           if (im) ctx.drawImage(im, px + (s - oh * (im.width / im.height)) / 2, py + s - oh - s * 0.1,
                                 oh * (im.width / im.height), oh);
@@ -2302,7 +2302,7 @@
     // The dropped chunk falls away.
     if (dropped && loop < 6.4) {
       const f = (loop - 5.2) / 1.2;
-      const im = pickSprite('copper', 2);
+      const im = pickSprite('iron', 2);
       const oh = s * 0.5;
       ctx.globalAlpha = Math.max(0, 1 - f);
       if (im) ctx.drawImage(im, sxp - oh * (im.width / im.height) / 2, syp + s * 0.3 + f * s * 0.8,
@@ -2320,7 +2320,7 @@
     if (oreTaken && !dropped) {
       ctx.font = '700 11px Inter, sans-serif';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      const lab = '+20 kg';
+      const lab = '+' + TUNE.ore.iron.kg + ' kg';   // the piece it carries, by weight
       const w = ctx.measureText(lab).width + 12;
       ctx.fillStyle = SCRIM(0.7);
       ctx.beginPath(); UI.roundRectPath(ctx, sxp - w / 2, syp - Hp / 2 - 17, w, 15, 7.5); ctx.fill();
