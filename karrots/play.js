@@ -1420,34 +1420,102 @@
       ctx.fillStyle = RD.INK92; ctx.font = '800 ' + Math.round(30 * hs) + 'px Inter, sans-serif';
       const mtxt = String(moves);
       ctx.fillText(mtxt, SIDE_PAD, 30);
-      const mw = ctx.measureText(mtxt).width;
+      const mm = ctx.measureText(mtxt), mw = mm.width;
+      const digitsBottom = 30 + (mm.actualBoundingBoxDescent || Math.round(30 * hs) * 0.36);
       ctx.fillStyle = RD.SUN; ctx.font = '700 ' + Math.round(15 * hs) + 'px Inter, sans-serif';
-      ctx.fillText('par ' + par, SIDE_PAD + mw + 10, 32);
+      const ptxt = 'par ' + par;
+      ctx.fillText(ptxt, SIDE_PAD + mw + 10, 32);
+      const leftEnd = SIDE_PAD + mw + 10 + ctx.measureText(ptxt).width;
+      /* The carrots moved LEFT, under the count they are scoring. The right of
+         the band is the level button now, and a 40px pill centred in a 64px
+         band leaves no room beneath it for a row of carrots.
 
-      ctx.textAlign = 'right';
-      ctx.fillStyle = RD.INK72; ctx.font = '600 ' + Math.round(15 * hs) + 'px Inter, sans-serif';
-      const rtxt = worldOf(lv).name + '  ·  LEVEL ' + (lv.n || lv.id);
-      ctx.fillText(rtxt, LW - SIDE_PAD, 24);
-      drawPips(LW - SIDE_PAD, 46, true);
-      /* The read-out is the way back to the picker mid level. It already names
-         where you are, and the control row has no width left for a fifth
-         pill. The box is the text plus the pips under it, never under 44 tall. */
-      const rw = Math.max(ctx.measureText(rtxt).width, 60);
-      levelsHit = { x: LW - SIDE_PAD - rw, y: 12, w: rw, h: 46 };
+         WHERE THEY GO IS MEASURED, NOT A NUMBER, and it was got wrong twice.
+         They share the bottom of the band with the tray, whose padding pokes a
+         few pixels up above the board, and how much room that leaves changes
+         with the board's size. A fixed y=54 measured 0px clear of the tray on
+         a 320x568 and OVERLAPPED it by 1px on a 375x667. Centring the row in
+         the gap fixed those and broke every tall phone instead: with 100px
+         free it floated halfway down to the board, away from the count it
+         belongs to. So: snug 4px under the digits, which is where they want
+         to be, and only when the tray is closer than that do they shrink -
+         giving up size, never clearance. Both checked on painted pixels. */
+      const trayTop = geo.oy - Math.round(geo.cell * 0.14);        // RD.drawTray's pad
+      const room = trayTop - digitsBottom;
+      const pipR = Math.max(3, Math.min(5, (room - 8) / 3.2));
+      const pipY = digitsBottom + Math.min(4, (room - pipR * 3.2) / 2) + pipR * 1.6;
+      drawPips(SIDE_PAD + 5, Math.round(pipY), false, undefined, pipR);
+      const pill = drawLevelsPill(lv, LW - SIDE_PAD, 30, LW - SIDE_PAD - leftEnd - 14);
+      levelsHit = tapBox(pill);
     } else {
-      ctx.textAlign = 'right';
-      ctx.fillStyle = RD.INK72; ctx.font = '600 ' + Math.round(16 * hs) + 'px Inter, sans-serif';
-      const line = worldOf(lv).name + '   ·   LEVEL ' + (lv.n || lv.id) +
-                   '   ·   MOVES ' + moves + '   ·   PAR ' + par;
-      let f = 16;
-      while (f > 11 && ctx.measureText(line).width > LW - SIDE_PAD - readoutMinX) {
+      /* Desktop: the button takes the right edge, where the read-out always
+         was, and the running figures sit to its left. The figures shrink first
+         and the button's label shortens last, so the world's name is the final
+         thing to go. */
+      const cy = topBand() / 2;
+      const room = LW - SIDE_PAD - readoutMinX;
+      const stats = 'MOVES ' + moves + '   ·   PAR ' + par;
+      ctx.font = '600 12px Inter, sans-serif';
+      const statsMin = ctx.measureText(stats).width;
+      const pill = drawLevelsPill(lv, LW - SIDE_PAD, cy, room - statsMin - 16);
+      levelsHit = tapBox(pill);
+
+      ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = RD.INK72;
+      let f = Math.round(16 * hs); ctx.font = '600 ' + f + 'px Inter, sans-serif';
+      while (f > 12 && ctx.measureText(stats).width > pill.x - 16 - readoutMinX) {
         f -= 1; ctx.font = '600 ' + f + 'px Inter, sans-serif';
       }
-      ctx.fillText(line, LW - SIDE_PAD, topBand() / 2);
-      const dw = Math.max(ctx.measureText(line).width, 60);
-      levelsHit = { x: LW - SIDE_PAD - dw, y: topBand() / 2 - 22, w: dw, h: 44 };
+      ctx.fillText(stats, pill.x - 16, cy);
     }
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  }
+
+  /* ---------- THE LEVEL BUTTON ----------
+     The way into the level picker. It used to be the plain grey read-out in
+     the corner - "THE WOODS · LEVEL 1" - which opened the picker when tapped
+     and gave no sign it could be. Beside four pills that plainly are buttons,
+     a line of grey text plainly is not one, and the owner, who knew it was
+     there, still found it did not look clickable.
+
+     So it is drawn as one of them: the same shared pill, the same label type,
+     and a chevron for "this opens a list". The label is the longest of three
+     that fits the room it is given, so a phone or a narrow embed loses the
+     word LEVEL, then the world's name, but never overflows its band. */
+  const CHEVRON_W = 18;          // gap before the chevron plus the chevron itself
+  function drawLevelsPill(lv, rightX, cy, maxW) {
+    const name = worldOf(lv).name, n = lv.n || lv.id;
+    const tries = [name + '  ·  LEVEL ' + n, name + '  ·  ' + n, 'LEVEL ' + n];
+    ctx.save();
+    ctx.font = '700 ' + UI.PILL.font + 'px Inter, sans-serif';
+    let label = tries[tries.length - 1];
+    for (const t of tries) {
+      if (ctx.measureText(t).width + UI.PILL.padX + CHEVRON_W <= maxW) { label = t; break; }
+    }
+    const tw = ctx.measureText(label).width;
+    const w = Math.round(tw + UI.PILL.padX + CHEVRON_W);
+    const box = UI.drawPill(ctx, null, rightX - w / 2, cy, { w });
+
+    const midY = box.y + box.h / 2 + 1;
+    const tx = box.x + UI.PILL.padX / 2;
+    ctx.font = '700 ' + UI.PILL.font + 'px Inter, sans-serif';
+    ctx.fillStyle = UI.PILL.text; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText(label, tx, midY);
+
+    const chx = tx + tw + 12;
+    ctx.strokeStyle = UI.PILL.text; ctx.lineWidth = 2;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(chx - 4.5, midY - 2.5); ctx.lineTo(chx, midY + 2.5); ctx.lineTo(chx + 4.5, midY - 2.5);
+    ctx.stroke();
+    ctx.restore();
+    return box;
+  }
+  /* The pill is 40 tall, like every other control; the place a finger lands is
+     never under 44. */
+  function tapBox(b) {
+    const h = Math.max(44, b.h);
+    return { x: b.x, y: Math.round(b.y + b.h / 2 - h / 2), w: b.w, h };
   }
 
   /* Three pips that say what finishing RIGHT NOW would be worth. The stake is
@@ -1983,7 +2051,7 @@
   window.karrots = { get st() { return st; }, get moves() { return moves; },
                      get par() { return par; }, get phase() { return phase; },
                      get level() { return levelIndex; }, get pace() { return pace; }, get threat() { return threat; }, get flinch() { return flinch; },
-                     get worldCard() { return worldCard; }, restart: restart, dbg,
+                     get worldCard() { return worldCard; }, get levelsHit() { return levelsHit; }, restart: restart, dbg,
                      geo, load: loadLevel, M, commit };
 
   /* ---------- BOOT ---------- */
