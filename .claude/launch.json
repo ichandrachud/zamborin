@@ -6,7 +6,7 @@
       "runtimeExecutable": "sh",
       "runtimeArgs": [
         "-c",
-        "exec python3 -m http.server ${PORT:-5230} --directory /Users/indrajet/Projects/zamborin"
+        "exec python3 -m http.server ${PORT:-5230} --directory $HOME/Projects/zamborin"
       ],
       "port": 5230,
       "autoPort": true
@@ -16,7 +16,7 @@
       "runtimeExecutable": "sh",
       "runtimeArgs": [
         "-c",
-        "exec python3 -m http.server ${PORT:-5231} --directory /Users/indrajet/Projects/zamborin-fathom"
+        "exec python3 -m http.server ${PORT:-5231} --directory $HOME/Projects/zamborin-fathom"
       ],
       "port": 5231,
       "autoPort": true
@@ -26,7 +26,7 @@
       "runtimeExecutable": "sh",
       "runtimeArgs": [
         "-c",
-        "exec python3 -m http.server ${PORT:-5241} --directory /Users/indrajet/Projects/zamborin-pinion"
+        "exec python3 -m http.server ${PORT:-5241} --directory $HOME/Projects/zamborin-pinion"
       ],
       "port": 5241,
       "autoPort": true
@@ -36,7 +36,7 @@
       "runtimeExecutable": "sh",
       "runtimeArgs": [
         "-c",
-        "exec python3 -m http.server ${PORT:-5251} --directory /Users/indrajet/Projects/zamborin-lantern"
+        "exec python3 -m http.server ${PORT:-5251} --directory $HOME/Projects/zamborin-lantern"
       ],
       "port": 5251,
       "autoPort": true
@@ -46,7 +46,7 @@
       "runtimeExecutable": "sh",
       "runtimeArgs": [
         "-c",
-        "exec python3 -m http.server ${PORT:-5261} --directory /Users/indrajet/Projects/zamborin-junction"
+        "exec python3 -m http.server ${PORT:-5261} --directory $HOME/Projects/zamborin-junction"
       ],
       "port": 5261,
       "autoPort": true
