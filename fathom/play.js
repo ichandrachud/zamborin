@@ -222,7 +222,14 @@
   /* Only what is drawn. plant-1..5 stayed in this list after the pivot and
      were fetched on every load without ever reaching the canvas: 284 KB of
      download for nothing. They come back when the reef needs them at M5. */
-  const SPRITE_SETS = { nodule: 4, sulphide: 4, crystal: 4, fish: 5, reef: 4 };
+  /* Metals, 2026-09-12. Each family is the owner's own clay ore art re-coloured
+     by a luminance gradient map, so the shading is theirs and only the metal
+     changes: base metals (iron, copper, tungsten) on the rough ore rock,
+     precious ones on the faceted nugget, so shape is a second cue beside
+     colour. Silver and platinum were measured at 6.3 CIE Lab apart on the
+     first pass — the same colour — and pulled to 26.8. */
+  const SPRITE_SETS = { iron: 4, copper: 4, tungsten: 4, silver: 4, gold: 4,
+                        platinum: 4, neodymium: 4, fish: 5, reef: 4 };
   const IMG = {};
   for (const key of Object.keys(SPRITE_SETS)) {
     IMG[key] = [];
@@ -252,40 +259,45 @@
   TILE_ART_OF[TT.SILT] = 'silt'; TILE_ART_OF[TT.ROCK] = 'rock';
   TILE_ART_OF[TT.HARD] = 'hard'; TILE_ART_OF[TT.BED] = 'bedrock';
   TILE_ART_OF[TT.MAGMA] = 'magma'; TILE_ART_OF[TT.GAS] = 'gas';
-  TILE_ART_OF[TT.NOD] = 'rock'; TILE_ART_OF[TT.SUL] = 'rock'; TILE_ART_OF[TT.CRY] = 'rock';
+  for (const k of ['IRON', 'COPPER', 'TUNGSTEN', 'SILVER', 'GOLD', 'PLATINUM', 'NEODYMIUM'])
+    TILE_ART_OF[TT[k]] = 'rock';
 
-  /* Relic art, by type. idol has not been made yet and falls through to the
-     painted version, which is why that fallback exists. */
+  /* Relics and salvage intakes are retired (2026-09-12) — no ocean stamps
+     either any more. These stay as empty, never-fetched objects so the dormant
+     draw paths cannot throw, and the three relic PNGs plus the intake mouth
+     are no longer downloaded on every load. */
   const RELIC_ART = {};
-  for (const k of ['strongbox', 'megacrystal', 'heart']) {
-    const im = new Image();
-    im.onload = () => { im._ok = true; };
-    im.src = './assets/relic-' + k + '.png?v=1';
-    RELIC_ART[k] = im;
-  }
   /* Gem art, one file each rather than a family: there are only ever a handful
      in an ocean, so variants would be seen once. */
   const GEM_ART = {};
-  for (const k of ['amber', 'emerald', 'ruby', 'diamond']) {
+  for (const k of ['emerald', 'ruby', 'diamond']) {
     const im = new Image();
     im.onload = () => { im._ok = true; };
     im.src = './assets/gem-' + k + '.png?v=1';
     GEM_ART[k] = im;
   }
 
-  const INTAKE_ART = new Image();
-  INTAKE_ART.onload = () => { INTAKE_ART._ok = true; };
-  INTAKE_ART.src = './assets/intake-mouth.png?v=1';
+  const INTAKE_ART = { _ok: false, width: 1, height: 1 };
 
   /* Owner-locked, 2026-08-30: ore is sized by HEIGHT in metres, because the
      eye compares a chunk to the hull. Do not restate these as a fraction of
      a tile — the tile is not what the player is measuring against. */
-  const ORE_H = { nodule: 2.8, sulphide: 2.6, crystal: 3.4 };
+  /* Size RISES with depth. The first pass made precious metals smaller, to
+     read as dense — and at 548 m, inside the fog with only the lamp to see by,
+     gold and platinum came out as a few dim specks at the edge of the light.
+     The deeper metals are the prize, so they are the ones that must catch the
+     eye in the dark. */
+  const ORE_H = { iron: 2.6, copper: 2.7, tungsten: 2.8,
+                  silver: 2.9, gold: 3.1, platinum: 3.2, neodymium: 3.3 };
   /* Owner call, 2026-08-31: 20% bigger, and centred in the cell rather than
      resting on its floor. The locked heights above stay as written so the
      ratio between the three ores is untouched and one number carries the
      change. Effective: 3.36 / 3.12 / 4.08 m. */
   const ORE_SCALE = 1.2;
+  // what a metal looks like for the frame before its sprite has loaded
+  const METAL_TINT = { iron: '#8A4E36', copper: '#D2703A', tungsten: '#565C64',
+                       silver: '#C8C6C0', gold: '#E6B024', platinum: '#8EA8CC',
+                       neodymium: '#7E5AA4' };
 
   function pickSprite(key, salt) {
     const arr = IMG[key];
@@ -1372,14 +1384,14 @@
           const im = gem ? ((GEM_ART[oreKey] || {})._ok ? GEM_ART[oreKey] : null)
                          : pickSprite(oreKey, cc * 3 + rr);
           /* Gems carry their own height and skip ORE_SCALE. They are graded by
-             size on purpose: amber 1.8 m up to diamond 2.8 m, a 55% spread, so
+             size on purpose: emerald 2.0 m up to diamond 2.8 m, a 40% spread, so
              the four are told apart by more than colour alone. */
           const oh = (gem ? gem.h : ORE_H[oreKey] * ORE_SCALE) * L.ppm;
           if (im) {
             const ow = oh * (im.width / im.height);
             ctx.drawImage(im, px + (s - ow) / 2, py + (s - oh) / 2, ow, oh);
           } else {
-            ctx.fillStyle = oreKey === 'crystal' ? '#9FD8E8' : oreKey === 'sulphide' ? '#E0B24E' : '#C98A5A';
+            ctx.fillStyle = METAL_TINT[oreKey] || '#C98A5A';
             ctx.beginPath();
             ctx.ellipse(px + s * 0.5, py + s * 0.5, oh * 0.55, oh * 0.42, 0, 0, Math.PI * 2);
             ctx.fill();
@@ -2220,7 +2232,7 @@
     return [
       move,
       dig,
-      'Ore goes straight into the hold, and ore is weight. Only light things rise.',
+      'Metal goes straight into the hold, and metal is weight. Only light things rise. The deeper you dig, the more it is worth.',
       'TOO HEAVY means the hold outweighs the hull. ' +
         (MODE === 'desktop' ? 'J' : 'DROP CARGO') + ' sheds the heaviest piece, always.',
       'Your lamp is the only map. The way home is the shaft you remember digging.',
@@ -2267,7 +2279,7 @@
         ctx.beginPath(); UI.roundRectPath(ctx, px - 0.4, py - 0.4, s + 0.8, s + 0.8, s * (0.15 + h1 * 0.1));
         ctx.fill();
         if (isOre && !oreTaken) {
-          const im = pickSprite('nodule', 2);
+          const im = pickSprite('copper', 2);
           const oh = s * 0.66;
           if (im) ctx.drawImage(im, px + (s - oh * (im.width / im.height)) / 2, py + s - oh - s * 0.1,
                                 oh * (im.width / im.height), oh);
@@ -2290,7 +2302,7 @@
     // The dropped chunk falls away.
     if (dropped && loop < 6.4) {
       const f = (loop - 5.2) / 1.2;
-      const im = pickSprite('nodule', 2);
+      const im = pickSprite('copper', 2);
       const oh = s * 0.5;
       ctx.globalAlpha = Math.max(0, 1 - f);
       if (im) ctx.drawImage(im, sxp - oh * (im.width / im.height) / 2, syp + s * 0.3 + f * s * 0.8,
@@ -2854,7 +2866,7 @@
                       region: run.regionAt(run.y), card }),
       step: (frames, inp) => { for (let i = 0; i < frames; i++) run.step(inp || {}, 1 / 60); },
       teleport: (x, y) => { run.x = x; run.y = y; run.vx = 0; run.vy = 0; },
-      setCargo: (kg) => { run.cargo = [{ type: 'nodule', kg, val: 0 }]; run.cargoKg = kg; },
+      setCargo: (kg) => { run.cargo = [{ type: 'iron', kg, val: 0 }]; run.cargoKg = kg; },
       newRun: (s) => { run = new SIM.Run(s >>> 0); applyFleet(); },
       tileAt: (c, r) => run.world.at(c, r),
       relics: () => run.world.relics.map(r => ({ type: r.type, c: r.c, r: r.r,

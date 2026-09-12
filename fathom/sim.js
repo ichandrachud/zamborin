@@ -59,17 +59,32 @@ const TUNE = {
   surfaceY: 3,                  // above this the sub is "at the surface"
 
   // ---- digging ----
-  hardness: { silt: 0.7, rock: 1.7, hard: 3.2, nodule: 1.0, sulphide: 1.3,
-              crystal: 1.5, gas: 0.5,
-              amber: 0.9, emerald: 1.4, ruby: 1.8, diamond: 2.4 },
+  hardness: { silt: 0.7, rock: 1.7, hard: 3.2, gas: 0.5,
+              iron: 1.0, copper: 1.1, tungsten: 1.8, silver: 1.2,
+              gold: 1.2, platinum: 1.6, neodymium: 2.0,
+              emerald: 1.4, ruby: 1.8, diamond: 2.4 },
   drillMul: [0.8, 1.0, 1.25, 1.55, 1.9], hardNeedsDrill: 3,
   digBatt: 2.2,
   digReach: 0.6,                // metres past the hull a held direction reaches
 
   // ---- ore ----
-  ore: { nodule:   { kg: 20, val: 26 },
-         sulphide: { kg: 12, val: 48 },
-         crystal:  { kg: 5,  val: 95 } },
+  /* METALS, 2026-09-12 (owner). Nodule, sulphide and crystal meant nothing to
+     a player, and nobody reads "sulphide" as precious. These are metals people
+     already rank in their heads: iron is cheap, gold is not.
+
+     The ladder runs with depth, and value PER KILOGRAM rises faster than value
+     per piece, because the precious metals are also the light ones. That keeps
+     the law doing its job: iron is a heavy, cheap anchor you learn to leave in
+     the wall, and a hold of platinum barely touches the lift. The Shelf is
+     priced about where nodules were (iron + copper average ~$25 a piece), so
+     the opening is unchanged; everything below it is new money. */
+  ore: { iron:      { kg: 20, val: 18 },
+         copper:    { kg: 16, val: 34 },
+         tungsten:  { kg: 14, val: 62 },
+         silver:    { kg: 10, val: 110 },
+         gold:      { kg: 6,  val: 240 },
+         platinum:  { kg: 5,  val: 400 },
+         neodymium: { kg: 4,  val: 640 } },
   /* GEMS — a third category, not more ore. PROVISIONAL: these are the drafted
      ladder numbers and the M2 gate has not run on them.
 
@@ -77,9 +92,9 @@ const TUNE = {
      farm: priced as ore a hold of diamonds pays $144,000, more than the whole
      ocean. Rarity is what makes it safe. Twenty one stones in an entire ocean,
      so "best per kilogram" is a fact about something you cannot seek. Ore
-     fights the lift limit, relics are defeated by it, and gems ignore it. */
-  gem: { amber:   { kg: 1.5, val: 80,   h: 1.8 },
-         emerald: { kg: 2.0, val: 260,  h: 2.0 },
+     fights the lift limit and gems ignore it. Amber is gone: it is fossil
+     resin, not something anyone mines. */
+  gem: { emerald: { kg: 2.0, val: 260,  h: 2.0 },
          ruby:    { kg: 2.5, val: 1200, h: 2.3 },
          diamond: { kg: 3.0, val: 6000, h: 2.8 } },
   gemDensity: [0.0080, 0.0060, 0.0040, 0.0025],   // per band, rarer as it deepens
@@ -142,25 +157,30 @@ const REGIONS = [
 ];
 
 // ---------- CELL STATES ----------
+/* Tile ids are never saved — a save stores which cells were DUG and the world
+   regenerates from its seed — so the old ore ids can be reused freely. */
 const T_WATER = 0, T_SILT = 1, T_ROCK = 2, T_HARD = 3,
-      T_NOD = 4, T_SUL = 5, T_CRY = 6,
+      T_IRON = 4, T_COPPER = 5, T_TUNGSTEN = 6,
       T_GAS = 7, T_MAGMA = 8, T_BED = 9, T_AIR = 10,
-      T_AMBER = 11, T_EMERALD = 12, T_RUBY = 13, T_DIAMOND = 14;
+      T_SILVER = 11, T_EMERALD = 12, T_RUBY = 13, T_DIAMOND = 14,
+      T_GOLD = 15, T_PLATINUM = 16, T_NEODYMIUM = 17;
 const T = { WATER: T_WATER, SILT: T_SILT, ROCK: T_ROCK, HARD: T_HARD,
-            NOD: T_NOD, SUL: T_SUL, CRY: T_CRY, GAS: T_GAS,
-            MAGMA: T_MAGMA, BED: T_BED, AIR: T_AIR,
-            AMBER: T_AMBER, EMERALD: T_EMERALD, RUBY: T_RUBY, DIAMOND: T_DIAMOND };
+            IRON: T_IRON, COPPER: T_COPPER, TUNGSTEN: T_TUNGSTEN, SILVER: T_SILVER,
+            GOLD: T_GOLD, PLATINUM: T_PLATINUM, NEODYMIUM: T_NEODYMIUM,
+            GAS: T_GAS, MAGMA: T_MAGMA, BED: T_BED, AIR: T_AIR,
+            EMERALD: T_EMERALD, RUBY: T_RUBY, DIAMOND: T_DIAMOND };
+const METAL_TYPES = [T_IRON, T_COPPER, T_TUNGSTEN, T_SILVER, T_GOLD, T_PLATINUM, T_NEODYMIUM];
 
 const ORE_OF = {};
-ORE_OF[T_NOD] = 'nodule'; ORE_OF[T_SUL] = 'sulphide'; ORE_OF[T_CRY] = 'crystal';
-ORE_OF[T_AMBER] = 'amber'; ORE_OF[T_EMERALD] = 'emerald';
-ORE_OF[T_RUBY] = 'ruby'; ORE_OF[T_DIAMOND] = 'diamond';
+ORE_OF[T_IRON] = 'iron'; ORE_OF[T_COPPER] = 'copper'; ORE_OF[T_TUNGSTEN] = 'tungsten';
+ORE_OF[T_SILVER] = 'silver'; ORE_OF[T_GOLD] = 'gold'; ORE_OF[T_PLATINUM] = 'platinum';
+ORE_OF[T_NEODYMIUM] = 'neodymium';
+ORE_OF[T_EMERALD] = 'emerald'; ORE_OF[T_RUBY] = 'ruby'; ORE_OF[T_DIAMOND] = 'diamond';
 const HARD_KEY = {};
 HARD_KEY[T_SILT] = 'silt'; HARD_KEY[T_ROCK] = 'rock'; HARD_KEY[T_HARD] = 'hard';
-HARD_KEY[T_NOD] = 'nodule'; HARD_KEY[T_SUL] = 'sulphide';
-HARD_KEY[T_CRY] = 'crystal'; HARD_KEY[T_GAS] = 'gas';
-HARD_KEY[T_AMBER] = 'amber'; HARD_KEY[T_EMERALD] = 'emerald';
-HARD_KEY[T_RUBY] = 'ruby'; HARD_KEY[T_DIAMOND] = 'diamond';
+HARD_KEY[T_GAS] = 'gas';
+for (const ty of METAL_TYPES) HARD_KEY[ty] = ORE_OF[ty];
+HARD_KEY[T_EMERALD] = 'emerald'; HARD_KEY[T_RUBY] = 'ruby'; HARD_KEY[T_DIAMOND] = 'diamond';
 
 // A cell you can stand on / dig into. AIR (M4) is passable like water.
 const isSolidType = (t) => t !== T_WATER && t !== T_AIR;
@@ -186,34 +206,19 @@ const isFixedType = (t) => t === T_BED || t === T_MAGMA;
    so a sub that can reach a place can always dig out of it.
    ------------------------------------------------------------ */
 const STAMP_CHARS = { '~': T_WATER, 'S': T_SILT, '#': T_ROCK, 'H': T_HARD,
-                      'n': T_NOD, 's': T_SUL, 'c': T_CRY, 'g': T_GAS,
+                      'n': T_COPPER, 's': T_SILVER, 'c': T_GOLD, 'p': T_PLATINUM,
+                      'g': T_GAS,
                       'M': T_MAGMA, 'B': T_BED };
 /* R and L are not materials. They are a relic anchor and a salvage bell, and
    the stamper records them as entities and leaves open water in the cell. */
 const STAMP_ENTS = { 'R': 'relic', '>': 'intake+1', '<': 'intake-1' };
 
 const LANDMARKS = [
-  /* The Cradle. The one authored encounter that teaches fall-routing without
-     a word: the relic sits on a ledge, the bell stands at the foot of a
-     stepped floor, and both are inside one chamber so you can see the prize
-     and its destination at the same time. Cut the ledge and the ocean does
-     the rest. Verified by simulation, not by eye. */
-  { region: 0, key: 'cradle', name: 'The Cradle', always: true, rows: [
-    '###############',
-    '#~~~~~~~~~~~~~#',
-    '#~~~~~~~~~R~~~#',
-    '#~~~~~~~~###~~#',
-    '#~~~~~~~~~~~~~#',
-    '#~~~~~~~~~#####',
-    '#~~~~~~~~~~~~~#',
-    '#~~~~~~~~~~~~~#',
-    '#~~~~~~~~######',
-    '#~~~~~~~~~~~~~#',
-    '#~~~~~~~~~~~~~#',
-    '#~~~~~~~#######',
-    '#~~~~~~~~<~~~~#',
-    '###############',
-  ] },
+  /* The Cradle — the relic-and-salvage-pipe chamber — was removed 2026-09-12
+     (owner: "everything should be about mining precious metals at great
+     depths"). It was the ONLY place a relic or an intake was ever stamped, so
+     with it gone neither exists anywhere in any ocean. The relic engine in Run
+     is left in place, unreachable, rather than torn out of a live game. */
   { region: 0, key: 'nursery', name: 'The Nursery', rows: [
     '..############..',
     '.##~~~~~~~~~~##.',
@@ -249,9 +254,9 @@ const LANDMARKS = [
     '~~~~HH~~~~~~HH~~~~',
     '~~~HH~~~~~~~~HH~~~',
     '~~HH~~~MM~~~~~HH~~',
-    '~~H~~~MMMM~~c~~H~~',
+    '~~H~~~MMMM~~p~~H~~',
     '~~H~~~MMMM~~~~~H~~',
-    '~~HH~~~MM~~c~~HH~~',
+    '~~HH~~~MM~~p~~HH~~',
     '~~~HH~~~~~~~~HH~~~',
     '~~~~HHH~~~~HHH~~~~',
   ] },
@@ -442,10 +447,10 @@ World.prototype._generate = function () {
   /* 5. Ore: seeded scatter plus veins. A vein glimpsed at the lamp's
         edge is the pull deeper, so most of the value walks. */
   const ORE_BY_REGION = [
-    [[T_NOD, 1.0]],
-    [[T_NOD, 0.55], [T_SUL, 0.45]],
-    [[T_SUL, 0.45], [T_CRY, 0.55]],
-    [[T_SUL, 0.2], [T_CRY, 0.8]],
+    [[T_IRON, 0.65], [T_COPPER, 0.35]],                          // The Shelf
+    [[T_COPPER, 0.30], [T_TUNGSTEN, 0.45], [T_SILVER, 0.25]],   // The Ribs
+    [[T_SILVER, 0.30], [T_GOLD, 0.45], [T_PLATINUM, 0.25]],     // Blackreach
+    [[T_GOLD, 0.25], [T_PLATINUM, 0.40], [T_NEODYMIUM, 0.35]],  // The Foundry
   ];
   const DENSITY = [t.oreDensity.shelf, t.oreDensity.ribs,
                    t.oreDensity.blackreach, t.oreDensity.foundry];
@@ -491,7 +496,7 @@ World.prototype._generate = function () {
         depth and worth far more, so a shallow stone is a nice morning and a
         deep one is an event. */
   {
-    const GEM_T = [T_AMBER, T_EMERALD, T_RUBY, T_DIAMOND];
+    const GEM_T = [T_EMERALD, T_EMERALD, T_RUBY, T_DIAMOND];
     for (let reg = 0; reg < 4; reg++) {
       const rr = t.regionRows;
       const top = rr[reg];
