@@ -885,6 +885,12 @@
     /* Only while the level is live. Won, caught or running, somebody else is
        driving the drawing and a pacing animal walks about behind the card. */
     if (phase !== 'play') return;
+    /* NOBODY STROLLS WHILE HE IS COMING. Once the threat is armed his drawn
+       position comes from the threat path, and pacing went on moving his model
+       position underneath it - so the two could step onto the same square and
+       cancel the catch outright, which is the bug this line exists to stop.
+       He hunts; she waits. */
+    if (threat) return;
     for (const who of ['bunny', 'fox']) {
       const anchor = () => (who === 'bunny' ? st.bunny : st.fox);
       let w = pace[who];
@@ -1078,8 +1084,18 @@
       ctx.rect(hp.x + hdx - 1, hp.y + hdy - 1, hw + 2, hh + 2);
       ctx.clip('evenodd');
     }
-    drawFox(now);
-    drawBunny(now);
+    /* HE GOES OVER HER, AND SHE IS GONE. The catch fired correctly and read
+       as nothing, because the draw order never changed: she was painted after
+       him on every frame and was never removed, so he arrived, ended up BEHIND
+       her, and a card appeared while the two of them stood there together for
+       about seven hundred milliseconds.
+
+       So during the catch the order flips and she fades out underneath him.
+       Once the level is lost she is not drawn at all. No new art, which the
+       cast could not have supplied anyway: the fox has a stand and two
+       strides, and the cop and the shark have one frame each. */
+    if (catching()) { drawBunny(now); drawFox(now); }
+    else            { drawFox(now);   drawBunny(now); }
     if (held) ctx.restore();
 
     if (held) {
@@ -1171,7 +1187,36 @@
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   }
 
+  /* True while he is taking her: the lunge, the hold, and afterwards. */
+  function catching() {
+    return phase === 'lost' || (anim && anim.kind === 'catch');
+  }
+
+  /* How solid she still is. Whole while he crosses the ground to her, gone by
+     the end of the hold, so the moment she disappears is the moment he lands
+     rather than an arbitrary beat. */
+  function bunnyAlpha(now) {
+    if (phase === 'lost') return 0;
+    if (!anim || anim.kind !== 'catch') return 1;
+    const el = now - anim.t0;
+    if (el <= TUNE.lungeMs) return 1;
+    const k = Math.min(1, (el - TUNE.lungeMs) / Math.max(1, TUNE.holdMs));
+    return 1 - k;
+  }
+
   function drawBunny(now) {
+    const a = bunnyAlpha(now);
+    if (a <= 0) { paintBox.bunny = null; return; }
+    if (a < 1) {
+      ctx.save(); ctx.globalAlpha = a;
+      drawBunnyBody(now);
+      ctx.restore();
+      return;
+    }
+    drawBunnyBody(now);
+  }
+
+  function drawBunnyBody(now) {
     const c = geo.cell;
     if (anim && anim.kind === 'run') { drawRunningBunny(now); return; }
     const w = paceAt('bunny', now);
@@ -1221,13 +1266,21 @@
     const cast = castOf();
     let x, y, frame = cast.still, flip = false;
     if (threat || (anim && anim.kind === 'catch')) {
-      const t0 = threat ? threat.t0 : anim.t0;
-      const span = threat ? TUNE.graceMs : TUNE.lungeMs;
-      const path = threat ? threat.path : anim.path;
+      const hunting = !!threat;
+      const t0 = hunting ? threat.t0 : anim.t0;
+      const span = hunting ? TUNE.graceMs : TUNE.lungeMs;
+      const path = hunting ? threat.path : anim.path;
       const el = now - t0;
       // Reduced motion: he is simply THERE, beside her, and the board holds.
       const k = REDUCED.matches ? 1 : Math.max(0, Math.min(1, el / span));
-      const f = k * (path.length - 1);
+      /* THE GRACE CLOSES THE DISTANCE, THE LUNGE IS THE LAST SQUARE. The lunge
+         used to re-walk the path from its first cell, so he crossed the board,
+         arrived, snapped back to where he set off and charged a second time.
+         Now the two halves meet: the grace walks him to the square BESIDE her
+         and stops there, and the pounce carries him from that square onto her,
+         which is also why he must not be drawn under her while it happens. */
+      const edge = Math.max(0, path.length - 2);
+      const f = hunting ? k * edge : edge + k * ((path.length - 1) - edge);
       const i0 = Math.floor(f), i1 = Math.min(path.length - 1, i0 + 1), tt = f - i0;
       const a = geo.at(path[i0]), b = geo.at(path[i1]);
       x = a.x + (b.x - a.x) * tt; y = a.y + (b.y - a.y) * tt;

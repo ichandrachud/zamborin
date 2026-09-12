@@ -376,6 +376,16 @@
 
   function caught(st) {
     if (buried(st)) return false;
+    /* HE IS STANDING ON HER. The flood below starts AT the fox and never tests
+       its own start cell, so two animals on one square read as NO CATCH - the
+       most caught she can possibly be, scored as safe. Pacing walks both a
+       square at a time and nothing stopped one stepping onto the other; once
+       fused, each patrols from that same cell and they walk the board together
+       for the rest of the level, untouchable. That is the "open field" - the
+       hunter and the hunted strolling in step while the rule says all is well.
+       The model on its own never makes this state (0 of 34421 sampled), so par
+       and every gate are untouched by saying so here. */
+    if (st.fox === st.bunny) return true;
     _epoch++;
     if (_epoch > 250) { _mark = new Uint8Array(N); _epoch = 1; }   // wrap before 255
     var top = 0, i, nb, k, ni, g = st.grid, bunny = st.bunny, carrot = st.carrot;
