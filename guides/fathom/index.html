@@ -54,6 +54,7 @@
     .guide th, .guide td { text-align: left; padding: 9px 12px; border-bottom: 1px solid rgba(255,255,255,0.09); }
     .guide th { color: var(--text); font-weight: 700; }
     .guide td .where { font-size: 16px; color: var(--text-dim); font-weight: 500; }
+    .guide td .depth { white-space: nowrap; }   /* never split 276–492 m at the dash */
     /* The metal and stone tables are ~351 px wide at 12 px cell padding, wider
        than the text column on a 320-375 px phone. Tighter padding on a phone
        fits them from 360 px up; below that the table scrolls inside itself,
@@ -102,17 +103,17 @@
     <p>The lightest, richest metal is the exception. A hold of neodymium is worth stopping earlier still, nearer 120 kg, because it is hard to cut and light to carry, so the digging time is what costs you rather than the climb.</p>
 
     <h2>The deeper the metal, the more it is worth</h2>
-    <p>Seven metals, laid down in the order you already rank them, and each one lives deeper than the last. The number that matters is what a kilogram is worth, because kilograms are the thing you are actually rationing.</p>
+    <p>Seven metals, laid down in the order you already rank them. Their depths overlap, but on average each one lies deeper than the last. The number that matters is what a kilogram is worth, because kilograms are the thing you are actually rationing.</p>
     <div class="table-scroll">
     <table>
       <tr><th>Metal</th><th>Weight</th><th>Value</th><th>Per kg</th></tr>
-      <tr><td><strong>Iron</strong><br><span class="where">The Shelf</span></td><td>20 kg</td><td>$18</td><td>$0.90</td></tr>
-      <tr><td><strong>Copper</strong><br><span class="where">The Shelf</span></td><td>16 kg</td><td>$34</td><td>$2.13</td></tr>
-      <tr><td><strong>Tungsten</strong><br><span class="where">The Ribs</span></td><td>14 kg</td><td>$62</td><td>$4.43</td></tr>
-      <tr><td><strong>Silver</strong><br><span class="where">The Ribs</span></td><td>10 kg</td><td>$110</td><td>$11.00</td></tr>
-      <tr><td><strong>Gold</strong><br><span class="where">Blackreach</span></td><td>6 kg</td><td>$240</td><td>$40.00</td></tr>
-      <tr><td><strong>Platinum</strong><br><span class="where">Blackreach</span></td><td>5 kg</td><td>$400</td><td>$80.00</td></tr>
-      <tr><td><strong>Neodymium</strong><br><span class="where">The Foundry</span></td><td>4 kg</td><td>$640</td><td>$160.00</td></tr>
+      <tr><td><strong>Iron</strong><br><span class="where depth">76–268&nbsp;m</span><br><span class="where">The&nbsp;Shelf</span></td><td>20 kg</td><td>$18</td><td>$0.90</td></tr>
+      <tr><td><strong>Copper</strong><br><span class="where depth">76–492&nbsp;m</span><br><span class="where">The&nbsp;Shelf, The&nbsp;Ribs</span></td><td>16 kg</td><td>$34</td><td>$2.13</td></tr>
+      <tr><td><strong>Tungsten</strong><br><span class="where depth">276–492&nbsp;m</span><br><span class="where">The&nbsp;Ribs</span></td><td>14 kg</td><td>$62</td><td>$4.43</td></tr>
+      <tr><td><strong>Silver</strong><br><span class="where depth">276–700&nbsp;m</span><br><span class="where">The&nbsp;Ribs, Blackreach</span></td><td>10 kg</td><td>$110</td><td>$11.00</td></tr>
+      <tr><td><strong>Gold</strong><br><span class="where depth">500–860&nbsp;m</span><br><span class="where">Blackreach, The&nbsp;Foundry</span></td><td>6 kg</td><td>$240</td><td>$40.00</td></tr>
+      <tr><td><strong>Platinum</strong><br><span class="where depth">500–860&nbsp;m</span><br><span class="where">Blackreach, The&nbsp;Foundry</span></td><td>5 kg</td><td>$400</td><td>$80.00</td></tr>
+      <tr><td><strong>Neodymium</strong><br><span class="where depth">708–860&nbsp;m</span><br><span class="where">The&nbsp;Foundry</span></td><td>4 kg</td><td>$640</td><td>$160.00</td></tr>
     </table>
     </div>
     <p>Platinum is worth nearly ninety times iron per kilogram and weighs a quarter as much. Once you have seen this table, iron stops looking like treasure and starts looking like what it is: the thing that fills your hold before you reach anything good. On the Shelf it is worth taking because it is what there is. Below that, dig past it.</p>
@@ -124,9 +125,9 @@
     <div class="table-scroll">
     <table>
       <tr><th>Stone</th><th>Weight</th><th>Value</th><th>Per kg</th></tr>
-      <tr><td><strong>Emerald</strong><br><span class="where">The&nbsp;Shelf, The&nbsp;Ribs</span></td><td>2 kg</td><td>$260</td><td>$130</td></tr>
-      <tr><td><strong>Ruby</strong><br><span class="where">Blackreach</span></td><td>2.5 kg</td><td>$1,200</td><td>$480</td></tr>
-      <tr><td><strong>Diamond</strong><br><span class="where">The Foundry</span></td><td>3 kg</td><td>$6,000</td><td>$2,000</td></tr>
+      <tr><td><strong>Emerald</strong><br><span class="where depth">76–492&nbsp;m</span><br><span class="where">The&nbsp;Shelf, The&nbsp;Ribs</span></td><td>2 kg</td><td>$260</td><td>$130</td></tr>
+      <tr><td><strong>Ruby</strong><br><span class="where depth">500–700&nbsp;m</span><br><span class="where">Blackreach</span></td><td>2.5 kg</td><td>$1,200</td><td>$480</td></tr>
+      <tr><td><strong>Diamond</strong><br><span class="where depth">708–860&nbsp;m</span><br><span class="where">The&nbsp;Foundry</span></td><td>3 kg</td><td>$6,000</td><td>$2,000</td></tr>
     </table>
     </div>
     <p>They are genuinely rare. A whole ocean holds about fifteen: ten or so emeralds, three rubies and one or two diamonds. That makes them something you find rather than something you farm, and the one cargo you never have to think about, because the heaviest weighs 3&nbsp;kg. An emerald is worth more than a piece of gold at a third of the weight. A ruby is worth as much as three pieces of platinum. A diamond is worth more than nine pieces of neodymium and weighs less than one.</p>
