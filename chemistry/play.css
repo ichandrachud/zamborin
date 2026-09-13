@@ -1,0 +1,28 @@
+/* Lessons in Chemistry — per-game styles only. Everything else comes from
+   ../shared/tokens.css and ../shared/chrome.css.
+
+   M1, the grey box: no splash art exists yet, so the splash is the template's
+   plain title card. The two background-image rules replace it when the art
+   lands (brief §10), and the wordmark safe zone is checked then. */
+.splash {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, #0E1726 0%, #131F36 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+  font: 800 34px Inter, system-ui, sans-serif;
+  letter-spacing: 0.02em;
+  text-align: center;
+  padding: 0 24px;
+  transition: opacity 600ms ease-out;
+  pointer-events: none;
+  z-index: 10;
+}
+.splash::before {
+  content: 'Lessons in Chemistry';
+}
+.splash.fading {
+  opacity: 0;
+}
