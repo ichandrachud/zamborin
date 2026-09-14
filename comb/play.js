@@ -120,6 +120,16 @@
       isMuted: () => (sfx ? !sfx.isOn() : false),
       setMuted: (m) => { if (sfx) sfx.setOn(!m); },
     });
+    /* Bracket the boot. CrazyGames measures load time up to gameplayStart, and
+       gameplayStart cannot fire until the player presses PLAY on the rules
+       card — so without this pair the reported load time is the splash plus
+       however long they spent reading, which came back as 15.1 seconds for a
+       0.4 MB game. loadingStop fires when the splash lifts, which is the first
+       moment the game will actually take an input. */
+    portal.loadingStart();
+    window.addEventListener('splash-done', () => portal.loadingStop(), { once: true });
+    // No splash in this frame (the site's embed can skip it): close it now.
+    if (!document.getElementById('splash')) portal.loadingStop();
   }
 
   // ---------- ANALYTICS ----------
@@ -989,7 +999,7 @@
     const P = window.ZAM_PORTAL;
     const badged = !!(P && P.canReward());
     const cy = MODE === 'mobile' ? LH - 128 : LH - 44;
-    const pad = badged ? 40 : 0;
+    const pad = badged ? 38 : 0;
     const hw = UI.pillWidth(ctx, 'Hint') + pad;
     const sw = UI.pillWidth(ctx, 'Skip') + pad;
     const gap = 12;
@@ -998,24 +1008,49 @@
     else x = L.trayBand.x + (L.trayBand.w - (hw + sw + gap)) / 2;
 
     const out = hintsUsed >= HINT_CAP;
-    L.hit.hint = UI.drawPill(ctx, 'Hint', x + hw / 2, cy, { w: hw, dim: out });
-    if (badged) drawAdBadge(x + hw - 30, cy, out);
+    L.hit.hint = rewardPill('Hint', x, hw, cy, badged, out);
     x += hw + gap;
-    L.hit.skip = UI.drawPill(ctx, 'Skip', x + sw / 2, cy, { w: sw });
-    if (badged) drawAdBadge(x + sw - 30, cy, false);
+    L.hit.skip = rewardPill('Skip', x, sw, cy, badged, false);
   }
 
-  // A badge, not a button. Chrome, so tokens only, and badges are exempt from
-  // the 16px copy floor because nobody reads a badge as prose.
-  function drawAdBadge(cx, cy, dim) {
-    const w = 30, h = 18;
-    UI.roundRectPath(ctx, cx - w / 2, cy - h / 2, w, h, 5);
-    ctx.fillStyle = TOK.tint12; ctx.fill();
-    ctx.fillStyle = dim ? TOK.tint30 : TOK.ink72;
-    ctx.font = '700 10px Inter, sans-serif';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('AD', cx, cy + 1);
+  /* A pill whose label and video mark are centred TOGETHER.
+     The old version drew the label centred in the padded pill and then put the
+     badge near the right edge, so at 'Hint' the two overlapped by about 7px and
+     read as one cramped word, "HintAD". Measuring the pair and centring the
+     group is what fixes it; nothing here changes the hit box, which is still
+     the whole pill. */
+  function rewardPill(label, x, w, cy, badged, dim) {
+    const box = UI.drawPill(ctx, badged ? '' : label, x + w / 2, cy, { w, dim });
+    if (!badged) return box;
+    const BW = 22, GAP = 9;
+    ctx.font = '700 ' + UI.PILL.font + 'px Inter, sans-serif';
+    const lw = ctx.measureText(label).width;
+    const lx = x + w / 2 - (lw + GAP + BW) / 2;
+    ctx.fillStyle = dim ? UI.PILL.textDim : UI.PILL.text;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText(label, lx, cy + 1);
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    drawVideoMark(lx + lw + GAP + BW / 2, cy, BW, dim);
+    return box;
+  }
+
+  /* The mark is a VIDEO glyph, not the letters AD. CrazyGames' rewarded-ad
+     rule asks for "a video icon indicating advertisement requirement", and a
+     play triangle in a chip is the mark every portal player already reads that
+     way — where "AD" at 10px was both illegible and the wrong promise. Drawn,
+     never an emoji. Chrome, so tokens only. */
+  function drawVideoMark(cx, cy, w, dim) {
+    const h = 16, r = 4.5;
+    UI.roundRectPath(ctx, cx - w / 2, cy - h / 2, w, h, r);
+    ctx.fillStyle = TOK.tint12; ctx.fill();
+    const s = 5.4;
+    ctx.beginPath();
+    ctx.moveTo(cx - s * 0.40, cy - s * 0.60);
+    ctx.lineTo(cx + s * 0.74, cy);
+    ctx.lineTo(cx - s * 0.40, cy + s * 0.60);
+    ctx.closePath();
+    ctx.fillStyle = dim ? TOK.tint30 : TOK.ink72;
+    ctx.fill();
   }
 
   // Four little cells: the level map, and a way back to it.
@@ -1513,7 +1548,17 @@
     const p = toLocal(e);
 
     if (phase === 'rules') {
-      if (inBox(p, L.hit.close)) { phase = rulesFrom; if (phase === 'play') markStarted(); draw(); }
+      if (inBox(p, L.hit.close)) {
+        phase = rulesFrom;
+        /* THE FIRST PLAY OF A SESSION COMES THROUGH HERE, NOT openLevel().
+           openLevel() is only reached from the win card and the map, so a
+           player who presses PLAY on the rules card and never finishes a level
+           used to be invisible to the portal: CrazyGames' QA panel showed
+           Gameplay Start unlit, and Load size / Load time never resolved,
+           because both are measured up to that event. */
+        if (phase === 'play') { markStarted(); if (portal) portal.gameplayStart(); }
+        draw();
+      }
       return;
     }
     if (phase === 'win') {
@@ -1532,7 +1577,12 @@
       if (sfx) { sfx.setOn(!sfx.isOn()); if (sfx.isOn()) play('click'); }
       draw(); return;
     }
-    if (inBox(p, L.hit.rules)) { rulesFrom = phase; phase = 'rules'; cardScroll = 0; draw(); return; }
+    if (inBox(p, L.hit.rules)) {
+      // Opening the rules mid-level is a break, and their docs name entering a
+      // menu as one. Paired with the start above so the two always balance.
+      if (phase === 'play' && portal) portal.gameplayStop();
+      rulesFrom = phase; phase = 'rules'; cardScroll = 0; draw(); return;
+    }
 
     if (phase === 'map') {
       // A drag that scrolled the map is not a tap on whatever it ended over.
