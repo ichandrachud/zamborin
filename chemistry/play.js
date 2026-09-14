@@ -22,6 +22,10 @@
   const M = window.ChemModel, LV = window.ChemLevels;
   const TAU = Math.PI * 2;
   const params = new URLSearchParams(location.search);
+  /* ?chapter=2 is the reactions prototype (owner, 2026-09-14): whole molecules
+     in the dish and a test tube, run by lab-scene.js through this file's
+     canvas, marbles, HUD and cards. Chapter 1 is everything else here. */
+  const CHAPTER = params.get('chapter') === '2' && window.ChemLabScene ? 2 : 1;
 
   /* ---------- MODE ----------
      A browser can report a 0-wide viewport on the first frame; zero means "not
@@ -130,6 +134,7 @@
     Ca: { hi: '#F4E6C6', lo: '#A3875A', arm: '#F6ECD6', ink: '#3A2C12' },
     Al: { hi: '#C3C8DD', lo: '#555C7A', arm: '#D2D6E6', ink: '#1E2233' },
     Fe: { hi: '#E7AB7B', lo: '#7A4524', arm: '#F0C8A6', ink: '#FFFFFF' },
+    S:  { hi: '#F4DE6E', lo: '#9C7F12', arm: '#F6E7A0', ink: '#3A2E00' },
     knot: '#FFF6DC',
     palmGreen: '#5DD39E', palmAmber: '#F0B23C', palmOpen: '#FFFFFF',
     glassTop: '#0C1424', glassBot: '#0A1120',
@@ -199,14 +204,15 @@
   function lerpAng(a, b, k) { return a + Math.atan2(Math.sin(b - a), Math.cos(b - a)) * k; }
 
   /* ---------- LEVELS AND SAVE ---------- */
-  const LEVELS = LV[MODE];     // each is thinned to the room at load, see crowdSize
+  const LEVELS = CHAPTER === 2 ? LV.lab[MODE] : LV[MODE];     // chapter 1 levels are thinned to the room at load, see crowdSize
   const SAVE_KEY = 'zam.chemistry.save';
+  const SAVE_SLOT = MODE + (CHAPTER === 2 ? '-reactions' : '');
   function readSave() {
     try { const v = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); return v && typeof v === 'object' ? v : {}; }
     catch (_) { return {}; }
   }
   function writeSave() {
-    try { const v = readSave(); v[MODE] = li; localStorage.setItem(SAVE_KEY, JSON.stringify(v)); } catch (_) {}
+    try { const v = readSave(); v[SAVE_SLOT] = li; localStorage.setItem(SAVE_KEY, JSON.stringify(v)); } catch (_) {}
   }
 
   let li = 0, level = null, st = null;
@@ -226,6 +232,12 @@
     lastEvent = null; reactions = 0;
     const seed = parseInt(params.get('seed'), 10);
     rng = Number.isInteger(seed) ? mulberry(seed * 977 + li) : Math.random;
+    if (scene) {
+      scene.load(level);
+      writeSave();
+      T().levelStart && T().levelStart(li + 1);
+      return;
+    }
     layout();
     level = LV.withCrowd(LEVELS[li], crowdSize(LEVELS[li]));
     st = M.createState(level);
@@ -329,6 +341,7 @@
   function layout() {
     if (!level || !LW) return;
     layoutControls();
+    if (scene) { scene.layout(); return; }
     const oldW = G.WW, oldH = G.WH;
     if (MODE === 'mobile') layoutMobile(); else layoutDesktop();
     // A resize reshapes the world: carry every atom to the same place in it.
@@ -1149,8 +1162,8 @@
       if (b.icon) drawSoundPill(b);
       else UI.drawPill(ctx, b.label, b.cx, b.cy, { w: b.w });
     }
-    const lost = st.analysis.lost, y = topBand() / 2, rx = LW - SIDE_PAD;
-    const main = 'Level ' + (li + 1);
+    const lost = scene ? scene.lost() : st.analysis.lost, y = topBand() / 2, rx = LW - SIDE_PAD;
+    const main = (scene ? 'Reactions  ·  ' : '') + 'Level ' + (li + 1);
     ctx.save();
     ctx.font = '600 16px Inter, sans-serif'; ctx.textBaseline = 'middle'; ctx.textAlign = 'right';
     ctx.fillStyle = TOK.ink72; ctx.fillText(main, rx, y);
@@ -1214,7 +1227,7 @@
 
   /* ---------- INPUT ----------
      Buttons compare stable ids between press and release, never objects. */
-  const playable = () => !card && !st.result;
+  const playable = () => !card && !(scene ? scene.result() : st.result);
   function toLogical(e) {
     const r = canvas.getBoundingClientRect();
     return { x: (e.clientX - r.left) * (LW / r.width), y: (e.clientY - r.top) * (LH / r.height) };
@@ -1232,6 +1245,7 @@
     const b = ctrl.find((c) => inBox(p, tapBox(c)));
     if (b) { press = { id: b.id }; return; }
     if (!playable() || drag) return;
+    if (scene) { if (scene.down(p, e)) canvas.style.cursor = 'grabbing'; return; }
     const touch = e.pointerType !== 'mouse';
     const hit = atomAt(p);
     if (hit !== null) { startDrag(hit, p, touch, e.pointerId, false); canvas.style.cursor = 'grabbing'; return; }
@@ -1249,6 +1263,7 @@
   canvas.addEventListener('pointermove', (e) => {
     const p = toLogical(e);
     pointer = { x: p.x, y: p.y, type: e.pointerType };
+    if (scene) { scene.move(p, e); return; }
     if (drag && e.pointerId === drag.pid) { setTarget(p); return; }
     if (e.pointerType === 'mouse' && st && !card) {
       const over = atomAt(p) !== null || slots.some((s) => inBox(p, s) && (st.avail[s.el] || 0) > 0);
@@ -1257,6 +1272,7 @@
   });
   canvas.addEventListener('pointerup', (e) => {
     const p = toLogical(e);
+    if (scene && scene.up(p, e)) { canvas.style.cursor = 'default'; return; }
     if (drag && e.pointerId === drag.pid) {
       setTarget(p);
       stepWorld(0);          // carry it the last of the way, grabs included
@@ -1273,13 +1289,14 @@
     if (b.id === 'sound') SND.toggle();
     else if (b.id === 'restart') restart();
   });
-  canvas.addEventListener('pointercancel', () => { if (drag) finishDrag(); press = null; });
+  canvas.addEventListener('pointercancel', () => { if (scene) scene.cancel(); else if (drag) finishDrag(); press = null; });
 
   /* ---------- RENDER ---------- */
   function render(now) {
-    if (!st || !LW) return;
+    if (!LW || !(st || scene)) return;
     ctx.clearRect(0, 0, LW, LH);
     drawWash();
+    if (scene) { scene.render(now); drawHUD(); drawCard(now); return; }
     drawDish();
     const held = drag ? new Set(M.groupOf(st, drag.id)) : null;
     const threats = threatPairs();
@@ -1296,13 +1313,13 @@
     drawCard(now);
   }
   function frame(t) {
-    if (frozen === null && st) {
+    if (frozen === null && (st || scene)) {
       const dt = lastFrame ? Math.min(0.1, (t - lastFrame) / 1000) : 0;
       lastFrame = t;
       if (!(card && clock() >= card.showAt)) {
         stepAcc += dt;
         let n = 0;
-        while (stepAcc >= STEP && n < 6) { stepWorld(STEP); stepAcc -= STEP; n++; }
+        while (stepAcc >= STEP && n < 6) { if (scene) scene.step(STEP); else stepWorld(STEP); stepAcc -= STEP; n++; }
         if (n === 6) stepAcc = 0;
       }
     }
@@ -1316,6 +1333,10 @@
      element) in a straight line, grabs and all. */
   window.__chem = {
     get state() {
+      if (scene) {
+        return Object.assign({ mode: MODE, LW, LH, chapter: 2, level: li + 1, card: card ? card.kind : null, cardShown: !!ctaBox },
+                             scene.debug.state());
+      }
       return {
         mode: MODE, LW, LH, level: li + 1, S: +G.S.toFixed(3), world: [+G.WW.toFixed(2), +G.WH.toFixed(2)],
         made: Object.assign({}, st.made), wasted: st.wasted, lost: st.analysis.lost, best: st.analysis.best,
@@ -1331,6 +1352,7 @@
     },
     geom() {
       render(clock());
+      if (scene) return Object.assign({ mode: MODE, LW, LH, ctrl: ctrl.map((b) => ({ id: b.id, x: b.x, y: b.y, w: b.w, h: b.h })), cta: ctaBox }, scene.debug.geom());
       const atoms = {};
       for (const a of st.atoms) if (inDish(a)) atoms[a.id] = toPx(P.get(a.id));
       return { mode: MODE, LW, LH, dish: { x: G.x, y: G.y, w: G.w, h: G.h, S: G.S, WW: G.WW, WH: G.WH },
@@ -1344,7 +1366,7 @@
     advance(ms) {
       if (frozen === null) frozen = performance.now();
       const n = Math.round((ms || 0) / (STEP * 1000));
-      for (let i = 0; i < n; i++) { frozen += STEP * 1000; if (!(card && frozen >= card.showAt)) stepWorld(STEP); }
+      for (let i = 0; i < n; i++) { frozen += STEP * 1000; if (!(card && frozen >= card.showAt)) { if (scene) scene.step(STEP); else stepWorld(STEP); } }
       render(frozen);
       return this.state;
     },
@@ -1380,14 +1402,30 @@
     drop() { if (drag) finishDrag(); render(clock()); return this.state; },
     bondNow(a, b) { const ev = bondAtoms(a, b); render(clock()); return ev; },
     render() { render(clock()); },
+    lab: null,
   };
+
+  /* ---------- CHAPTER 2 ----------
+     The bench gets what it needs from this file and nothing else. */
+  const scene = CHAPTER === 2 ? window.ChemLabScene({
+    ctx, TOK, canvas, drawAtoms, feather, rr, label, clock, mulberry,
+    SND: { pick: SND.pick, set: SND.set, lift: SND.lift, lost: SND.lost, clasp: (n) => SND.clasp('O', n) },
+    size: () => ({ LW, LH, MODE }),
+    drift: () => DRIFT && !reduced(),
+    rng: () => rng(),
+    endLevel: (result, showAt) => {
+      card = { kind: result.kind, made: result.made, total: result.total, sounded: false, showAt };
+      if (result.kind === 'win') T().levelComplete && T().levelComplete(li + 1, 0);
+    },
+  }) : null;
+  if (scene) window.__chem.lab = scene.debug;
 
   /* ---------- BOOT ----------
      Every re-fit hook is part of the pattern. Timers as well as events, because
      rAF is throttled to nothing in some embedded browsers. */
   setCanvasVars(); resizeCanvas(); fitFullscreen(); resizeCanvas();
   const jump = parseInt(params.get('level'), 10);
-  const saved = readSave()[MODE];
+  const saved = readSave()[SAVE_SLOT];
   loadLevel(jump >= 1 && jump <= LEVELS.length ? jump - 1 : (Number.isInteger(saved) ? saved : 0));
   window.addEventListener('resize', onResize);
   window.addEventListener('orientationchange', () => setTimeout(onResize, 100));

@@ -9,6 +9,7 @@
 import { openPage, BASE } from './cdp.mjs';
 
 const LEVEL = process.argv[2] || '7';
+const LAB = process.argv.includes('chapter=2');     // node chemistry/layout-sweep.mjs 7 chapter=2
 const sizes = [];
 for (const w of [320, 340, 360, 375, 390, 414, 430]) for (const h of [568, 640, 667, 720, 780, 844, 896, 932]) sizes.push([w, h]);
 sizes.push([768, 1024], [820, 1180], [1024, 1366]);
@@ -19,7 +20,23 @@ const notes = [];
 try {
   for (const [w, h] of sizes) {
     await p.metrics(w, h, 2, true);
-    await p.navigate(BASE + '?drift=0&level=' + LEVEL, 800);
+    await p.navigate(BASE + '?drift=0&level=' + LEVEL + (LAB ? '&chapter=2' : ''), 800);
+    if (LAB) {
+      const g = await p.ev('__chem.geom()');
+      const issues = [];
+      const bottom = (r) => r.y + r.h, right = (r) => r.x + r.w;
+      const ctrlTop = Math.min(...g.ctrl.map((b) => b.y)), ctrlBottom = Math.max(...g.ctrl.map((b) => b.y + b.h));
+      const labelTop = Math.min(g.tube.y, g.tray.y, g.beaker.y) - 18;
+      const targetBottom = Math.max(...g.targets.map((f) => f.labelY + 9));
+      if (targetBottom > g.dish.y) issues.push('targets into the dish by ' + (targetBottom - g.dish.y).toFixed(1));
+      if (bottom(g.dish) > labelTop) issues.push('dish into the bench headings by ' + (bottom(g.dish) - labelTop).toFixed(1));
+      if (Math.max(bottom(g.tube), bottom(g.tray), bottom(g.beaker)) > ctrlTop) issues.push('bench into the controls');
+      if (ctrlBottom > h) issues.push('controls off screen');
+      if (g.tube.x < 0 || right(g.beaker) > w || right(g.tube) > g.tray.x || right(g.tray) > g.beaker.x) issues.push('bench overlaps or overflows');
+      if (Object.values(g.pieces).some((c) => c.x < g.dish.x || c.x > right(g.dish) || c.y < g.dish.y || c.y > bottom(g.dish))) issues.push('a molecule outside the dish');
+      if (issues.length) { bad++; console.log(`${w}x${h}  ${issues.join('; ')}`); }
+      continue;
+    }
     const g = await p.ev(`(() => { const g = __chem.geom(), box = document.getElementById('game').getBoundingClientRect();
       const half = (f) => { const lay = ChemModel.layoutMolecule(f.key); return ((lay.h - 1) * f.span) / 2 + f.span * 0.3; };
       return { g, cw: Math.round(box.width), ch: Math.round(box.height),

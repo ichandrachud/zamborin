@@ -201,5 +201,84 @@ ok(L.desktop.slice(2).every((lv) => lv.dish.some((el) => {
   return s.atoms.some((a) => a.el === el && s.analysis.palm[a.id] === 'amber');
 })), 'from level 3 every desktop dish has a radical that is only trouble');
 
+/* ================= CHAPTER 2: REACTIONS ================= */
+const X = require('./lab.js');
+const atomsOf = (key) => X.SPECIES[key].atoms.reduce((c, a) => { c[a.el] = (c[a.el] || 0) + 1; return c; }, {});
+const addUp = (list) => list.reduce((c, key) => { for (const [el, n] of Object.entries(atomsOf(key))) c[el] = (c[el] || 0) + n; return c; }, {});
+const sameAtoms = (a, b) => JSON.stringify(Object.entries(a).sort()) === JSON.stringify(Object.entries(b).sort());
+for (const r of X.REACTIONS) {
+  ok(!!X.SPECIES[r.a] && !!X.SPECIES[r.b] && r.products.every((k) => !!X.SPECIES[k]), 'known molecules: ' + r.a + ' + ' + r.b);
+  ok(sameAtoms(addUp([r.a, r.b]), addUp(r.products)), 'balances, atom for atom: ' + r.a + ' + ' + r.b + ' -> ' + r.products.join(' + '));
+  ok(X.reactionFor(r.b, r.a) === r, 'order in the tube does not matter: ' + r.a + ' + ' + r.b);
+}
+ok(new Set(X.REACTIONS.map((r) => [r.a, r.b].sort().join('+'))).size === X.REACTIONS.length, 'one reaction per pair');
+for (const sp of Object.values(X.SPECIES)) {
+  ok(sp.bonds.every((b) => b.a < sp.atoms.length && b.b < sp.atoms.length), 'drawing bonds point at real atoms: ' + sp.key);
+}
+{
+  const s = X.createLab({ targets: [['calcium-chloride', 1]], dish: ['hydrochloric-acid', 'hydrochloric-acid', 'calcium-hydroxide', 'water'] });
+  const [h1, h2, ca, w] = [0, 1, 2, 3];
+  eq(X.toTube(s, w).reaction, null, 'one molecule in the tube: nothing happens');
+  const nr = X.toTube(s, h1);
+  eq([nr.ok, !!nr.noReaction, nr.reaction], [true, true, null], 'water and hydrochloric acid: no reaction, both stay');
+  eq(X.toTube(s, h2).why, 'full', 'the tube holds two');
+  X.toDish(s, w); X.toDish(s, h1);
+  X.toTube(s, h1);
+  const ev = X.toTube(s, ca);
+  eq(ev.reaction.products, ['calcium-hydroxychloride', 'water'], 'one hydrochloric acid turns calcium hydroxide into the basic salt');
+  eq(s.pieces.filter((p) => p.zone === 'tray').map((p) => p.key), ['calcium-hydroxychloride', 'water'], 'the products wait on the tray');
+  eq(X.deliver(s, ev.products[1]).why, 'not-on-list', 'the beaker refuses water, which is not on the list');
+  X.toTube(s, ev.products[0]);
+  const ev2 = X.toTube(s, h2);
+  eq(ev2.reaction.products, ['calcium-chloride', 'water'], 'a second hydrochloric acid finishes it');
+  eq(ev2.poured.length, 1, 'the water left on the tray is poured away at the next reaction');
+  eq(X.deliver(s, ev2.products[0]).ok, true, 'calcium chloride goes into the beaker');
+  eq(s.result, { kind: 'win' }, 'and the level is won');
+}
+{
+  // a wrong pair uses up what the list needed
+  const s = X.createLab({ targets: [['calcium-hydroxide', 1], ['sodium-chloride', 1]], dish: ['calcium-oxide', 'hydrochloric-acid', 'sodium-hydroxide'] });
+  eq([s.analysis.best, s.analysis.lost], [2, 0], 'quicklime, hydrochloric acid and sodium hydroxide can make both');
+  X.toTube(s, 0);
+  const ev = X.toTube(s, 1);
+  eq([ev.lost, s.analysis.lost, s.result && s.result.kind], [true, 2, 'fail'], 'quicklime with the acid: no water and no salt can ever come, both lost');
+}
+{
+  // a byproduct poured away is lost once it is gone, not before
+  // (nitric acid and ammonia make ammonium nitrate and no water of their own)
+  const s = X.createLab({ targets: [['calcium-hydroxide', 1], ['sodium-chloride', 1]], dish: ['hydrochloric-acid', 'sodium-hydroxide', 'calcium-oxide', 'nitric-acid', 'ammonia'] });
+  X.toTube(s, 0); const ev = X.toTube(s, 1);
+  X.deliver(s, ev.products[0]);
+  eq(s.analysis.lost, 0, 'the water still on the tray still counts');
+  X.toTube(s, 3); const pour = X.toTube(s, 4);
+  eq([pour.poured.length, s.analysis.lost], [1, 1], 'react something else and the water is poured away: slaked lime lost');
+}
+for (const set of ['mobile', 'desktop']) {
+  eq(L.lab[set].length, 7, 'reactions, ' + set + ': seven levels');
+  L.lab[set].forEach((lv, i) => {
+    const name = 'reactions, ' + set + ' level ' + (i + 1);
+    const s = X.createLab(lv);
+    eq([s.analysis.lost, s.result], [0, null], name + ': nothing lost before the first move');
+    const cl = [...X.closure(lv.dish)];
+    const missing = [];
+    for (let a = 0; a < cl.length; a++) for (let b = a; b < cl.length; b++) {
+      if (X.shouldReact(cl[a], cl[b]) && !X.reactionFor(cl[a], cl[b])) missing.push(cl[a] + ' + ' + cl[b]);
+    }
+    ok(!missing.length, name + ': every pair that would react in real life has its reaction ' + JSON.stringify(missing));
+    ok(lv.targets.every(([k]) => !lv.dish.includes(k)), name + ': nothing on the list is already in the dish');
+    const log = [];
+    for (const [where, key] of lv.solution) {
+      const piece = s.pieces.find((p) => p.key === key && p.zone === 'tray') || s.pieces.find((p) => p.key === key && p.zone === 'dish');
+      if (!piece) { log.push('no ' + key); break; }
+      const ev = where === 'tube' ? X.toTube(s, piece.id) : where === 'beaker' ? X.deliver(s, piece.id) : { ok: X.toDish(s, piece.id) };
+      if (!ev.ok) { log.push(where + ' refused ' + key); break; }
+      if (ev.lost) log.push('lost at ' + key);
+    }
+    ok(!log.length, name + ': the solution plays through ' + JSON.stringify(log));
+    eq(s.result, { kind: 'win' }, name + ': and wins');
+  });
+}
+ok(L.lab.mobile.every((lv, i) => lv.dish.length < L.lab.desktop[i].dish.length), 'every desktop reaction level carries more decoys than its phone twin');
+
 console.log((fail ? 'FAILED  ' : 'ok  ') + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

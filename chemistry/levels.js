@@ -106,5 +106,61 @@ const desktop = [
     'Every atom you were given has a place. Find it before something else does.'),
 ];
 
-return { mobile, desktop, withoutCrowd, withCrowd, crowdOf };
+/* ---------- CHAPTER 2: REACTIONS ----------
+   The dish holds whole molecules; the tube reacts two at a time (lab.js).
+   `dish` is what floats at the start. `solution` is one way through, as
+   [where, molecule] steps, where is 'tube', 'dish' or 'beaker' and the
+   molecule is taken from the tray first, then the dish; tests.mjs plays it.
+   Desktop dishes carry a decoy or two more than phones. */
+const R = (targets, dish, seed, note, solution) => ({ targets, dish, seed, note, solution });
+const lab = {
+  mobile: [
+    R([['sodium-chloride', 1]], ['hydrochloric-acid', 'sodium-hydroxide', 'water'], 31,
+      'An acid and a base make a salt and water.',
+      [['tube', 'hydrochloric-acid'], ['tube', 'sodium-hydroxide'], ['beaker', 'sodium-chloride']]),
+    R([['calcium-sulphate', 1]], ['sulphuric-acid', 'hydrochloric-acid', 'calcium-hydroxide', 'water', 'sodium-chloride'], 32,
+      'Sulphuric acid and calcium hydroxide make calcium sulphate, and two waters.',
+      [['tube', 'sulphuric-acid'], ['tube', 'calcium-hydroxide'], ['beaker', 'calcium-sulphate']]),
+    R([['calcium-chloride', 1]], ['hydrochloric-acid', 'hydrochloric-acid', 'calcium-hydroxide', 'sulphuric-acid', 'water'], 33,
+      'An acid takes one hydroxide at a time. The basic salt in between is half done.',
+      [['tube', 'hydrochloric-acid'], ['tube', 'calcium-hydroxide'], ['tube', 'calcium-hydroxychloride'], ['tube', 'hydrochloric-acid'], ['beaker', 'calcium-chloride']]),
+    R([['sodium-sulphate', 1]], ['sulphuric-acid', 'sodium-hydroxide', 'sodium-hydroxide', 'hydrochloric-acid', 'water'], 34,
+      'Sulphuric acid has two hydrogens to give, so it takes two sodium hydroxides.',
+      [['tube', 'sulphuric-acid'], ['tube', 'sodium-hydroxide'], ['tube', 'sodium-hydrogen-sulphate'], ['tube', 'sodium-hydroxide'], ['beaker', 'sodium-sulphate']]),
+    R([['calcium-sulphate', 1], ['sodium-chloride', 1]], ['sulphuric-acid', 'calcium-hydroxychloride', 'sodium-hydroxide', 'water', 'sodium-nitrate'], 35,
+      'The acid you need can come out of the first reaction.',
+      [['tube', 'sulphuric-acid'], ['tube', 'calcium-hydroxychloride'], ['beaker', 'calcium-sulphate'], ['tube', 'hydrochloric-acid'], ['tube', 'sodium-hydroxide'], ['beaker', 'sodium-chloride']]),
+    R([['ammonium-nitrate', 1]], ['ammonium-chloride', 'sodium-hydroxide', 'nitric-acid', 'hydrochloric-acid', 'water'], 36,
+      'Sodium hydroxide drives ammonia out of its salt. Catch the gas before the next reaction pours it away.',
+      [['tube', 'ammonium-chloride'], ['tube', 'sodium-hydroxide'], ['dish', 'ammonia'], ['tube', 'ammonia'], ['tube', 'nitric-acid'], ['beaker', 'ammonium-nitrate']]),
+    R([['calcium-hydroxide', 1], ['sodium-chloride', 1]], ['calcium-oxide', 'hydrochloric-acid', 'sodium-hydroxide', 'sodium-nitrate'], 37,
+      'Quicklime and water make slaked lime. The water came from the first reaction.',
+      [['tube', 'hydrochloric-acid'], ['tube', 'sodium-hydroxide'], ['beaker', 'sodium-chloride'], ['dish', 'water'], ['tube', 'calcium-oxide'], ['tube', 'water'], ['beaker', 'calcium-hydroxide']]),
+  ],
+  desktop: [
+    R([['sodium-chloride', 1]], ['hydrochloric-acid', 'sodium-hydroxide', 'water', 'nitric-acid'], 41,
+      'An acid and a base make a salt and water.',
+      [['tube', 'hydrochloric-acid'], ['tube', 'sodium-hydroxide'], ['beaker', 'sodium-chloride']]),
+    R([['calcium-sulphate', 1]], ['sulphuric-acid', 'hydrochloric-acid', 'nitric-acid', 'calcium-hydroxide', 'water', 'sodium-chloride', 'sodium-nitrate'], 42,
+      'Sulphuric acid and calcium hydroxide make calcium sulphate, and two waters.',
+      [['tube', 'sulphuric-acid'], ['tube', 'calcium-hydroxide'], ['beaker', 'calcium-sulphate']]),
+    R([['calcium-chloride', 1]], ['hydrochloric-acid', 'hydrochloric-acid', 'calcium-hydroxide', 'sulphuric-acid', 'nitric-acid', 'water', 'sodium-chloride'], 43,
+      'An acid takes one hydroxide at a time. The basic salt in between is half done.',
+      [['tube', 'hydrochloric-acid'], ['tube', 'calcium-hydroxide'], ['tube', 'calcium-hydroxychloride'], ['tube', 'hydrochloric-acid'], ['beaker', 'calcium-chloride']]),
+    R([['sodium-sulphate', 1]], ['sulphuric-acid', 'sodium-hydroxide', 'sodium-hydroxide', 'hydrochloric-acid', 'nitric-acid', 'water', 'sodium-chloride'], 44,
+      'Sulphuric acid has two hydrogens to give, so it takes two sodium hydroxides.',
+      [['tube', 'sulphuric-acid'], ['tube', 'sodium-hydroxide'], ['tube', 'sodium-hydrogen-sulphate'], ['tube', 'sodium-hydroxide'], ['beaker', 'sodium-sulphate']]),
+    R([['calcium-sulphate', 1], ['sodium-chloride', 1]], ['sulphuric-acid', 'calcium-hydroxychloride', 'sodium-hydroxide', 'water', 'sodium-nitrate', 'nitric-acid', 'calcium-chloride'], 45,
+      'The acid you need can come out of the first reaction.',
+      [['tube', 'sulphuric-acid'], ['tube', 'calcium-hydroxychloride'], ['beaker', 'calcium-sulphate'], ['tube', 'hydrochloric-acid'], ['tube', 'sodium-hydroxide'], ['beaker', 'sodium-chloride']]),
+    R([['ammonium-nitrate', 1]], ['ammonium-chloride', 'sodium-hydroxide', 'nitric-acid', 'hydrochloric-acid', 'water', 'sodium-chloride', 'sodium-nitrate'], 46,
+      'Sodium hydroxide drives ammonia out of its salt. Catch the gas before the next reaction pours it away.',
+      [['tube', 'ammonium-chloride'], ['tube', 'sodium-hydroxide'], ['dish', 'ammonia'], ['tube', 'ammonia'], ['tube', 'nitric-acid'], ['beaker', 'ammonium-nitrate']]),
+    R([['calcium-hydroxide', 1], ['sodium-chloride', 1]], ['calcium-oxide', 'hydrochloric-acid', 'sodium-hydroxide', 'sodium-nitrate', 'nitric-acid', 'calcium-chloride'], 47,
+      'Quicklime and water make slaked lime. The water came from the first reaction.',
+      [['tube', 'hydrochloric-acid'], ['tube', 'sodium-hydroxide'], ['beaker', 'sodium-chloride'], ['dish', 'water'], ['tube', 'calcium-oxide'], ['tube', 'water'], ['beaker', 'calcium-hydroxide']]),
+  ],
+};
+
+return { mobile, desktop, withoutCrowd, withCrowd, crowdOf, lab };
 }));

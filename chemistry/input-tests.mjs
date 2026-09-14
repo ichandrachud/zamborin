@@ -200,5 +200,98 @@ await withPage({ w: 390, h: 844, dpr: 2, mobile: true, url: BASE + '?drift=0&cro
   ok(s.avail.H === 2 && s.reactions === 0, 'Restart works by touch', [s.avail, s.reactions]);
 });
 
+// ---------- chapter 2: reactions, by real drags ----------
+const keyAt = (st, key, zone) => st.pieces.find((q) => q.key === key && (!zone || q.zone === zone));
+await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&chapter=2&level=2' }, async ({ ev, mouseDrag, click }) => {
+  let st = await ev('__chem.state'), g = await ev('__chem.geom()');
+  ok(st.chapter === 2 && st.pieces.length === 7, 'chapter 2 level 2 floats seven molecules', [st.chapter, st.pieces.length]);
+  const tubeC = centre(g.tube), beakerC = centre(g.beaker);
+  await mouseDrag(g.pieces[keyAt(st, 'hydrochloric-acid').id], tubeC);
+  await mouseDrag(g.pieces[keyAt(st, 'sodium-chloride').id], tubeC);
+  st = await ev('__chem.state');
+  ok(st.tube.length === 2 && !st.reacting, 'an acid and a salt in the tube: no reaction, both stay', st.tube);
+  g = await ev('__chem.geom()');
+  await mouseDrag(g.pieces[keyAt(st, 'sodium-chloride', 'tube').id], { x: g.dish.x + 60, y: g.dish.y + 60 });
+  st = await ev('__chem.state');
+  ok(keyAt(st, 'sodium-chloride').zone === 'dish' && st.tube.length === 1, 'a molecule can be dragged back out of the tube', st.tube);
+  g = await ev('__chem.geom()');
+  await mouseDrag(g.pieces[keyAt(st, 'sodium-chloride').id], beakerC);
+  st = await ev('__chem.state');
+  ok(keyAt(st, 'sodium-chloride').zone === 'dish' && !st.made['sodium-chloride'], 'the beaker refuses what is not on the list');
+  g = await ev('__chem.geom()');
+  await mouseDrag(g.pieces[keyAt(st, 'hydrochloric-acid', 'tube').id], { x: g.dish.x + 300, y: g.dish.y + 380 });
+  g = await ev('__chem.geom()'); st = await ev('__chem.state');
+  await mouseDrag(g.pieces[keyAt(st, 'sulphuric-acid').id], tubeC);
+  g = await ev('__chem.geom()'); st = await ev('__chem.state');
+  await mouseDrag(g.pieces[keyAt(st, 'calcium-hydroxide').id], tubeC);
+  st = await ev('__chem.state');
+  ok(st.reacting && keyAt(st, 'calcium-sulphate', 'tray') && st.pieces.filter((q) => q.zone === 'tray').length === 3,
+     'sulphuric acid and calcium hydroxide react: calcium sulphate and two waters on the tray', st.pieces.filter((q) => q.zone === 'tray'));
+  await sleep(700);
+  g = await ev('__chem.geom()');
+  await mouseDrag(g.pieces[keyAt(st, 'calcium-sulphate', 'tray').id], beakerC);
+  st = await ev('__chem.state');
+  ok(st.made['calcium-sulphate'] === 1 && st.result && st.result.kind === 'win', 'calcium sulphate into the beaker: the level is won', [st.made, st.result]);
+  await sleep(1900);
+  g = await ev('__chem.geom()');
+  ok(!!g.cta, 'the win card shows');
+  if (g.cta) await click(g.cta.x + g.cta.w / 2, g.cta.y + g.cta.h / 2);
+  st = await ev('__chem.state');
+  ok(st.level === 3 && !st.card, 'NEXT LEVEL loads reaction level 3', [st.level, st.card]);
+});
+
+await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&chapter=2&level=6' }, async ({ ev, mouseDrag }) => {
+  let st = await ev('__chem.state'), g = await ev('__chem.geom()');
+  const tubeC = centre(g.tube), beakerC = centre(g.beaker);
+  await mouseDrag(g.pieces[keyAt(st, 'ammonium-chloride').id], tubeC);
+  g = await ev('__chem.geom()'); st = await ev('__chem.state');
+  await mouseDrag(g.pieces[keyAt(st, 'sodium-hydroxide').id], tubeC);
+  await sleep(600);
+  st = await ev('__chem.state'); g = await ev('__chem.geom()');
+  ok(['sodium-chloride', 'water', 'ammonia'].every((k) => keyAt(st, k, 'tray')), 'ammonium chloride and sodium hydroxide give salt, water and ammonia');
+  await mouseDrag(g.pieces[keyAt(st, 'ammonia', 'tray').id], { x: g.dish.x + g.dish.w / 2, y: g.dish.y + g.dish.h - 60 });
+  st = await ev('__chem.state');
+  ok(keyAt(st, 'ammonia').zone === 'dish', 'the ammonia byproduct is kept, back in the dish');
+  g = await ev('__chem.geom()');
+  await mouseDrag(g.pieces[keyAt(st, 'nitric-acid').id], tubeC);
+  g = await ev('__chem.geom()'); st = await ev('__chem.state');
+  await mouseDrag(g.pieces[keyAt(st, 'ammonia', 'dish').id], tubeC);
+  await sleep(600);
+  st = await ev('__chem.state'); g = await ev('__chem.geom()');
+  ok(keyAt(st, 'ammonium-nitrate', 'tray') && !keyAt(st, 'water', 'tray') && !keyAt(st, 'sodium-chloride', 'tray'),
+     'ammonia and nitric acid make ammonium nitrate, and the salt and water left on the tray are poured away', st.pieces.filter((q) => q.zone === 'tray'));
+  await mouseDrag(g.pieces[keyAt(st, 'ammonium-nitrate', 'tray').id], beakerC);
+  st = await ev('__chem.state');
+  ok(st.result && st.result.kind === 'win', 'ammonium nitrate into the beaker: won', st.result);
+});
+
+await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&chapter=2&level=7' }, async ({ ev, mouseDrag }) => {
+  let st = await ev('__chem.state'), g = await ev('__chem.geom()');
+  const tubeC = centre(g.tube);
+  await mouseDrag(g.pieces[keyAt(st, 'calcium-oxide').id], tubeC);
+  g = await ev('__chem.geom()'); st = await ev('__chem.state');
+  await mouseDrag(g.pieces[keyAt(st, 'hydrochloric-acid').id], tubeC);
+  st = await ev('__chem.state');
+  ok(st.lost === 2 && st.result && st.result.kind === 'fail', 'quicklime with the only hydrochloric acid: no salt and no water, both lost, the level fails', [st.lost, st.result]);
+  await sleep(2600);
+  ok((await ev('__chem.state')).cardShown, 'the fail card shows');
+});
+
+await withPage({ w: 390, h: 844, dpr: 2, mobile: true, url: BASE + '?drift=0&chapter=2&level=1' }, async ({ ev, touchDrag }) => {
+  let st = await ev('__chem.state'), g = await ev('__chem.geom()');
+  ok(st.mode === 'mobile' && st.chapter === 2, 'a phone gets chapter 2 in the phone layout');
+  const tubeC = centre(g.tube), beakerC = centre(g.beaker);
+  await touchDrag(g.pieces[keyAt(st, 'hydrochloric-acid').id], tubeC);
+  g = await ev('__chem.geom()'); st = await ev('__chem.state');
+  await touchDrag(g.pieces[keyAt(st, 'sodium-hydroxide').id], tubeC);
+  await sleep(600);
+  st = await ev('__chem.state'); g = await ev('__chem.geom()');
+  ok(keyAt(st, 'sodium-chloride', 'tray'), 'touch: acid and base react in the tube', st.pieces);
+  // a tray molecule rides above the finger, so the finger lands a little below the beaker's middle
+  await touchDrag(g.pieces[keyAt(st, 'sodium-chloride', 'tray').id], { x: beakerC.x, y: beakerC.y + 36 });
+  st = await ev('__chem.state');
+  ok(st.result && st.result.kind === 'win', 'touch: salt into the beaker wins', st.result);
+});
+
 console.log((fail ? 'FAILED  ' : 'ok  ') + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
