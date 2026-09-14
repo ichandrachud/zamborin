@@ -1,14 +1,20 @@
 /* ============================================================
-   Lessons in Chemistry · A Zamborin Game · M1, the grey box
+   Lessons in Chemistry · A Zamborin Game
 
-   The rules are in model.js and the levels in levels.js. This file is the
-   loop: layout, input, the drawing of the dish and its atoms, the flask row,
-   the tray, the HUD and the cards.
+   The owner's sketch, 2026-09-14. The dish is open space: free radicals
+   drift in it slowly, turning as they go, and every free hand is charged.
+   Bring two free hands within reach and they grab each other. The player
+   drags atoms in from the Available panel, or moves anything already in the
+   dish, and has to steer what they carry past everything it must not meet.
 
-   THE LINE THIS FILE EXISTS TO KEEP: every bond is drawn before it forms.
-   While an atom hovers over a cell, the dish is drawn from model.preview(),
-   which is the same placement run on a copy. Release calls model.place() on
-   the same cell. Nothing here decides a bond.
+   model.js decides what a bond makes. This file moves the atoms, finds the
+   hands that meet, and draws it all.
+
+   Two rules keep it fair, both the owner's:
+     nothing reacts on its own: charged radicals keep their distance from
+       each other, and only what the player carries can grab;
+     what the player carries grabs anything its hands pass near, all along
+       the drag, not only where it is let go.
    ============================================================ */
 (() => {
   'use strict';
@@ -19,10 +25,8 @@
 
   /* ---------- MODE ----------
      A browser can report a 0-wide viewport on the first frame; zero means "not
-     measured yet", so it must not count as narrow. A narrow frame lying on
-     its side with a mouse is an embed, not a phone (Karrots learned that at
-     480x360). ?mode=desktop / ?mode=mobile forces a layout, because the
-     in-app preview reports a coarse pointer whatever window it is in. */
+     measured yet". A narrow frame lying on its side with a mouse is an embed,
+     not a phone. ?mode=desktop / ?mode=mobile forces a layout. */
   const FORCED = /^(desktop|mobile)$/.test(params.get('mode') || '') ? params.get('mode') : null;
   const PORTRAITISH = window.innerHeight >= window.innerWidth;
   const MODE = FORCED || ((matchMedia('(pointer: coarse)').matches ||
@@ -70,24 +74,25 @@
   }
 
   /* ---------- AUDIO ----------
-     A lab at night: quiet and precise. Priya plays muted, so nothing here may
-     carry information the picture does not. */
+     A lab at night: quiet and precise. Nothing here may carry information the
+     picture does not. */
   const sfx = window.ZSFX ? window.ZSFX.create({ storageKey: 'zam.chemistry.sfx', gain: 3 }) : null;
-  const PITCH = { H: 1175, O: 988, N: 784, C: 587, Cl: 880, Na: 698, Ca: 523, Fe: 440 };   // lighter atoms ring higher
+  const PITCH = { H: 1175, O: 988, N: 784, C: 587, F: 1047, Cl: 880, Na: 698, Mg: 659, Ca: 523, Al: 622, Fe: 440 };
   const SND = {
     on:     () => !!(sfx && sfx.isOn()),
     ready:  () => { if (sfx) sfx.ensureAudio(); },
     toggle: () => { if (sfx) { sfx.setOn(!sfx.isOn()); if (sfx.isOn()) sfx.play('click'); } },
+    pick:   () => { if (sfx) sfx.play('tick'); },
     set:    () => { if (sfx) sfx.play('drop'); },
     clasp:  (el, n) => {
       if (!sfx) return;
-      for (let i = 0; i < Math.min(4, n); i++) {
+      for (let i = 0; i < Math.min(3, n); i++) {
         setTimeout(() => { sfx.woodClack(PITCH[el] * 0.5, 0.06, 0.12); sfx.tone(PITCH[el], 0.09, 0.03, 'triangle'); }, i * 55);
       }
     },
     waste:  () => { if (sfx) sfx.play('thump'); },
     lift:   () => { if (sfx) sfx.play('success'); },
-    palm:   () => { if (sfx) sfx.tone(196, 0.16, 0.05, 'sine'); },
+    lost:   () => { if (sfx) sfx.tone(196, 0.16, 0.05, 'sine'); },
     win:    () => { if (sfx) sfx.play('win'); },
     fail:   () => { if (sfx) sfx.play('fail'); },
   };
@@ -100,7 +105,7 @@
   /* ---------- COLOUR ----------
      Chrome takes tokens only; canvas cannot read CSS variables, so they are
      restated here with their names. The atoms, hands, knots, palms and the
-     dish are game art (brief §10), and none of that palette touches chrome. */
+     dish are game art, and none of that palette touches chrome. */
   const TOK = {
     bg: '#0E1726', card: '#131F36', panel: '#1A2A45',          // --bg, --bg-card, --bg-panel
     accent: '#C24A39', sun: '#FFD23F', green: '#5DD39E',       // --accent, --accent-2, --green
@@ -110,58 +115,77 @@
     tint12: 'rgba(255,255,255,0.12)', tint30: 'rgba(255,255,255,0.30)',
     scrim: 'rgba(10,16,28,0.82)',
   };
+  /* Each element: the lit and shaded ends of the marble, the colour of its
+     arms, and the ink its symbol is written in. The symbol is what tells two
+     similar marbles apart, so colour never has to. */
   const ART = {
-    H: { hi: '#F2F5FA', lo: '#98A4B8', arm: '#D9E0EA' },
-    O: { hi: '#F47A66', lo: '#8A2A1E', arm: '#F5A896' },
-    N: { hi: '#7A9EF2', lo: '#22408F', arm: '#A9C0F6' },
-    // Carbon lifted from the brief's #626A79 -> #181C24: that measured 2.08:1 on
-    // the glass as painted (mean of the body), under the 3:1 the brief sets.
-    C: { hi: '#838C9D', lo: '#343B48', arm: '#9FA8B8' },
-    // The four the owner's iron chloride needed. Chlorine is CPK green pushed
-    // toward lime so it never reads as the mint of a useful palm; calcium is
-    // bone rather than CPK green so it cannot be mistaken for chlorine.
-    Cl: { hi: '#C9EE8F', lo: '#4E8A24', arm: '#D5F2AE' },
-    Na: { hi: '#C7A6F6', lo: '#57339C', arm: '#DACAF8' },
-    Ca: { hi: '#F4E6C6', lo: '#A3875A', arm: '#F6ECD6' },
-    Fe: { hi: '#E7AB7B', lo: '#7A4524', arm: '#F0C8A6' },
+    H:  { hi: '#F2F5FA', lo: '#98A4B8', arm: '#D9E0EA', ink: '#1E2A3C' },
+    O:  { hi: '#F47A66', lo: '#8A2A1E', arm: '#F5A896', ink: '#FFFFFF' },
+    N:  { hi: '#7A9EF2', lo: '#22408F', arm: '#A9C0F6', ink: '#FFFFFF' },
+    C:  { hi: '#838C9D', lo: '#343B48', arm: '#9FA8B8', ink: '#FFFFFF' },
+    F:  { hi: '#C6F1F2', lo: '#3C8F95', arm: '#D3F4F4', ink: '#10363A' },
+    Cl: { hi: '#C9EE8F', lo: '#4E8A24', arm: '#D5F2AE', ink: '#17330B' },
+    Na: { hi: '#C7A6F6', lo: '#57339C', arm: '#DACAF8', ink: '#FFFFFF' },
+    Mg: { hi: '#F2D27C', lo: '#8C6A1C', arm: '#F5DFA3', ink: '#3A2A06' },
+    Ca: { hi: '#F4E6C6', lo: '#A3875A', arm: '#F6ECD6', ink: '#3A2C12' },
+    Al: { hi: '#C3C8DD', lo: '#555C7A', arm: '#D2D6E6', ink: '#1E2233' },
+    Fe: { hi: '#E7AB7B', lo: '#7A4524', arm: '#F0C8A6', ink: '#FFFFFF' },
     knot: '#FFF6DC',
     palmGreen: '#5DD39E', palmAmber: '#F0B23C', palmOpen: '#FFFFFF',
-    glassTop: '#0C1424', glassBot: '#0A1120', dot: 'rgba(255,255,255,0.055)',
+    glassTop: '#0C1424', glassBot: '#0A1120',
     veil: 'rgba(14,23,38,0.55)', wasteKnot: '#7A8290', wasteArm: '#5A6272',
   };
 
   /* ---------- TUNING ----------
-     The brief's §5 starting constants where it names one. */
+     Distances are in atom radii, so the dish plays the same at any size. */
   const TUNE = {
-    reachMs: 140, snapMs: 80, settlePx: 2, settleMs: 180,
-    liftMs: 600, riseCells: 1.5, dimMs: 300, wasteChipMs: 2000, palmTurnMs: 200,
-    cardDelayMs: 900, touchLift: 0.9,        // cells the dragged atom rides above a finger
-    /* Thermal motion. Every free radical wobbles about its cell, lighter atoms
-       more (amplitude falls as mass^-1/4), and every few seconds one lone
-       radical drifts to a neighbouring cell, lighter ones more often (chance
-       falls as mass^-1/2, as thermal speed does). Slow on purpose: the owner
-       asked for motion you notice without it getting in the way of thinking. */
-    wobble: 0.07, hopEveryMs: 3600, hopMs: 1600,
-    reachStretch: 1.3,                       // how far a radical's hand stretches toward an atom it wants
+    bond: 2.8,        // between two bonded centres
+    hand: 1.55,       // a free hand's reach from its atom's centre
+    capture: 3.3,     // centres this close and two free hands grab
+    warn: 5.4,        // centres this close and the hands start reaching
+    keep: 6.2,        // charged radicals drift no closer to each other than this
+    collide: 2.3, spread: 1.62, wall: 1.8,
+    /* Thermal motion: a hydrogen wanders at about this many radii a second,
+       heavier atoms slower by mass^-0.3, and turns about this many radians a
+       second. Slow on purpose: the owner wants motion you notice without it
+       getting in the way of thinking. */
+    drift: 0.42, spin: 0.5, driftTau: 3,
+    touchLift: 2.3,   // radii a panel atom rides above a finger
+    grabPx: 24,       // never a smaller hit radius than this
+    worldW: { desktop: 28, mobile: 19 }, maxScale: 22,
+    liftMs: 900, dimMs: 300, chipMs: 2000, flashMs: 380, cardWinMs: 1300, cardFailMs: 1500,
   };
+  const STEP = 1 / 60;
   const DRIFT = params.get('drift') !== '0';
   const REDUCED = matchMedia('(prefers-reduced-motion: reduce)');
   const reduced = () => REDUCED.matches || params.get('motion') === 'reduce';
 
-  /* A clock a test can stop, so a still frame of any moment of any animation
-     can be drawn on purpose rather than caught by luck. */
+  /* A clock a test can stop, so any moment can be drawn on purpose. While it
+     is frozen the dish only moves when a test advances it. */
   let frozen = null;
   const clock = () => (frozen !== null ? frozen : performance.now());
 
   const clamp01 = (v) => Math.max(0, Math.min(1, v));
   const easeOut = (t) => 1 - Math.pow(1 - t, 3);
   const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+  const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
   function hexRgb(h) { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
   function mix(a, b, k) {
     const A = hexRgb(a), B = hexRgb(b);
     return 'rgb(' + A.map((v, i) => Math.round(v + (B[i] - v) * k)).join(',') + ')';
   }
   function rr(x, y, w, h, r) { UI.roundRectPath(ctx, x, y, w, h, r); }
+  function mulberry(a) {
+    return () => {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  let rng = Math.random;
+  function gauss() { const u = 1 - rng(), v = rng(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(TAU * v); }
+  function lerpAng(a, b, k) { return a + Math.atan2(Math.sin(b - a), Math.cos(b - a)) * k; }
 
   /* ---------- LEVELS AND SAVE ---------- */
   const LEVELS = LV[MODE];
@@ -175,27 +199,28 @@
   }
 
   let li = 0, level = null, st = null;
-  let hover = null;        // { cell, t0, stamp, pv }  the ghost
-  let drag = null;         // { id, x, y, touch }
-  let press = null;        // { id, cell }
-  let pointer = null;      // { x, y, type }
-  let card = null;         // { kind, el, why, showAt, sounded }
-  let clasp = null;        // { ids, keys, t0 }
-  let lifts = [];          // { key, atoms, t0, cx, cy }
-  let wasteFx = [];        // { ids, t0, cx, cy, bottom }
-  const palmSeen = new Map();   // atom id -> { state, t }
-  let lastGhost = null, lastPlaced = null;
-  let hops = [];           // { id, from, to, t0 }  radicals sliding to a new cell
-  let nextHopAt = 0, hopCount = 0;
+  const P = new Map();      // atom id -> { x, y, th, vx, vy, w }, in radii from the dish's top left
+  let drag = null;          // { id, pid, touch, fromPanel, ox, oy, tx, ty, cx, cy }
+  let press = null, pointer = null, card = null;
+  let lifts = [], wasteFx = [], flashes = [];
+  const claspAt = new Map(), palmSeen = new Map(), previews = new Map();
+  let stepAcc = 0, lastFrame = 0, lastEvent = null, reactions = 0;
 
   function loadLevel(i) {
     li = ((i % LEVELS.length) + LEVELS.length) % LEVELS.length;
     level = LEVELS[li];
     st = M.createState(level);
-    hover = null; drag = null; press = null; card = null; clasp = null;
-    lifts = []; wasteFx = []; palmSeen.clear(); hops = []; nextHopAt = 0;
-    notePalms(-1e9);
+    drag = null; press = null; card = null;
+    lifts = []; wasteFx = []; flashes = [];
+    claspAt.clear(); palmSeen.clear(); previews.clear(); P.clear();
+    lastEvent = null; reactions = 0;
+    const seed = parseInt(params.get('seed'), 10);
+    rng = Number.isInteger(seed) ? mulberry(seed * 977 + li) : Math.random;
     layout();
+    const pts = scatter(st.atoms.length, level.seed);
+    const turn = mulberry(level.seed * 31 + 7);
+    st.atoms.forEach((a, k) => P.set(a.id, { x: pts[k].x, y: pts[k].y, th: turn() * TAU, vx: 0, vy: 0, w: 0 }));
+    notePalms(-1e9);
     writeSave();
     T().levelStart && T().levelStart(li + 1);
   }
@@ -203,66 +228,80 @@
     T().levelRestart && T().levelRestart(li + 1);
     loadLevel(li);
   }
+  // The level's radicals, spread out so no two start within reach of each other.
+  function scatter(n, seed) {
+    const r = mulberry(seed * 7919 + 13);
+    const m = TUNE.wall + 0.8, pts = [];
+    let minD = TUNE.keep * 1.1;
+    for (let k = 0; k < n; k++) {
+      let got = null;
+      for (let tries = 0; !got && tries < 1500; tries++) {
+        if (tries && tries % 300 === 0) minD *= 0.88;
+        const x = m + r() * Math.max(0.1, G.WW - 2 * m), y = m + r() * Math.max(0.1, G.WH - 2 * m);
+        if (pts.every((q) => Math.hypot(q.x - x, q.y - y) >= minD)) got = { x, y };
+      }
+      pts.push(got || { x: G.WW / 2, y: G.WH / 2 });
+    }
+    return pts;
+  }
 
   /* ---------- LAYOUT ----------
-     Desktop 760x600: controls left and the read-out right in the top band, the
-     flask row under it, the 8x6 dish on the left and the tray as a column on
-     the right, so the side space carries something real.
-     Mobile, measured: the read-out top right, the flask row, the 5x6 dish, the
-     tray panel, and the control row at thumb height. */
+     Desktop 760x600, from the sketch: controls left and the read-out right in
+     the top band, the targets under it, the dish on the left and the
+     Available panel as a column on the right.
+     Mobile, measured: the targets at the top, the dish, the Available panel
+     as a strip, and the controls at thumb height. */
   const SIDE_PAD = 30;
   const topBand = () => (MODE === 'mobile' ? 64 : 56);
   const botBand = () => (MODE === 'mobile' ? 96 : 20);
-  const G = { cols: 5, rows: 6, cell: 50, rim: 12, x: 0, y: 0, w: 0, h: 0, ox: 0, oy: 0 };
-  let flaskArea = { x: 0, y: 0, w: 0, h: 0 }, tray = { x: 0, y: 0, w: 0, h: 0 }, handBox = { x: 0, y: 0, w: 0, h: 0 };
-  let ctrl = [], readoutMinX = SIDE_PAD, ctaBox = null;
+  const G = { x: 0, y: 0, w: 0, h: 0, S: 18, WW: 28, WH: 23 };   // dish in px; S px per radius; world in radii
+  let flaskArea = { x: 0, y: 0, w: 0, h: 0 }, panel = { x: 0, y: 0, w: 0, h: 0 };
+  let slots = [], ctrl = [], readoutMinX = SIDE_PAD, ctaBox = null;
 
   function layout() {
     if (!level || !LW) return;
-    G.cols = level.dish[0]; G.rows = level.dish[1];
     layoutControls();
+    const oldW = G.WW, oldH = G.WH;
     if (MODE === 'mobile') layoutMobile(); else layoutDesktop();
-    G.ox = G.x + G.rim; G.oy = G.y + G.rim;
-    hover = null;
-  }
-  function layoutMobile() {
-    const top = topBand(), bot = botBand(), pad = 14;
-    let flaskH = 80, trayH = 96, gapMin = 12;
-    G.rim = 12;
-    const cellFor = () => Math.floor(Math.min(
-      (LW - pad * 2 - G.rim * 2) / G.cols,
-      (LH - top - flaskH - trayH - bot - gapMin * 3 - G.rim * 2) / G.rows));
-    let cell = cellFor();
-    // Short phones give up chrome height before the dish gives up cell size.
-    if (cell < 46) { flaskH = 70; trayH = 84; gapMin = 8; cell = cellFor(); }
-    G.cell = Math.max(24, Math.min(84, cell));
-    G.w = G.cols * G.cell + G.rim * 2; G.h = G.rows * G.cell + G.rim * 2;
-    const gap = Math.max(gapMin, Math.floor((LH - top - flaskH - G.h - trayH - bot) / 3));
-    flaskArea = { x: 16, y: top - 4, w: LW - 32, h: flaskH };
-    G.x = Math.round((LW - G.w) / 2);
-    G.y = Math.round(top + flaskH + gap);
-    const tw = Math.min(LW - (pad + 4) * 2, Math.max(G.w, 340));
-    tray = { x: Math.round((LW - tw) / 2), y: G.y + G.h + gap, w: tw, h: trayH };
-    handBox = { x: tray.x, y: tray.y - 6, w: Math.min(124, tray.w * 0.36), h: tray.h + 12 };
+    // A resize reshapes the world: carry every atom to the same place in it.
+    if (P.size && (Math.abs(oldW - G.WW) > 1e-6 || Math.abs(oldH - G.WH) > 1e-6)) {
+      for (const p of P.values()) { p.x *= G.WW / oldW; p.y *= G.WH / oldH; }
+    }
+    layoutSlots();
   }
   function layoutDesktop() {
     const top = topBand();
-    flaskArea = { x: SIDE_PAD, y: top + 2, w: LW - SIDE_PAD * 2, h: 76 };
-    G.rim = 12;
-    const colW = 124, gap = 22;
-    const fieldTop = flaskArea.y + flaskArea.h + 6, fieldBot = LH - botBand();
-    G.cell = Math.floor(Math.min(
-      (LW - SIDE_PAD * 2 - colW - gap - G.rim * 2) / G.cols,
-      (fieldBot - fieldTop - G.rim * 2) / G.rows));
-    G.w = G.cols * G.cell + G.rim * 2; G.h = G.rows * G.cell + G.rim * 2;
-    G.x = SIDE_PAD;
-    G.y = Math.round(fieldTop + (fieldBot - fieldTop - G.h) / 2);
-    tray = { x: G.x + G.w + gap, y: G.y, w: LW - SIDE_PAD - (G.x + G.w + gap), h: G.h };
-    handBox = { x: tray.x - 10, y: tray.y, w: tray.w + 20, h: 124 };
+    flaskArea = { x: SIDE_PAD, y: top + 2, w: LW - SIDE_PAD * 2, h: 74 };
+    const colW = 150, gap = 18;
+    const y0 = flaskArea.y + flaskArea.h + 8, y1 = LH - botBand();
+    G.x = SIDE_PAD; G.y = y0; G.w = LW - SIDE_PAD * 2 - colW - gap; G.h = y1 - y0;
+    panel = { x: G.x + G.w + gap, y: G.y, w: colW, h: G.h };
+    G.S = Math.min(TUNE.maxScale, G.w / TUNE.worldW.desktop);
+    G.WW = G.w / G.S; G.WH = G.h / G.S;
   }
-  /* Order is fixed: sound, Undo, Restart, Hint, Rules. M1 has no Undo (the
-     brief: none, restart is free), no Hint (rewarded, M5) and no Rules card
-     (M4), so they are absent; nothing moves to fill their places. */
+  function layoutMobile() {
+    const top = topBand(), bot = botBand(), short = LH < 700;
+    const flaskH = short ? 66 : 80, panelH = short ? 78 : 90, gap = short ? 8 : 12;
+    flaskArea = { x: 16, y: top - 4, w: LW - 32, h: flaskH };
+    G.x = 14; G.w = LW - 28; G.y = top + flaskH + gap;
+    panel = { x: 14, w: LW - 28, h: panelH, y: LH - bot - panelH - 4 };
+    G.h = Math.max(120, panel.y - gap - G.y);
+    G.S = Math.min(TUNE.maxScale, G.w / TUNE.worldW.mobile);
+    G.WW = G.w / G.S; G.WH = G.h / G.S;
+  }
+  function layoutSlots() {
+    const els = Object.keys(level.avail);
+    slots = [];
+    if (MODE === 'mobile') {
+      const w = panel.w / Math.max(1, els.length);
+      els.forEach((el, i) => slots.push({ el, x: panel.x + i * w, y: panel.y, w, h: panel.h }));
+    } else {
+      const top = panel.y + 30, h = 76;
+      els.forEach((el, i) => slots.push({ el, x: panel.x, y: top + i * h, w: panel.w, h: h - 6 }));
+    }
+  }
+  /* Order is fixed: sound, Undo, Restart, Hint, Rules. No Undo (bonds are for
+     good), no Hint yet, no Rules card yet; nothing moves to fill their places. */
   function layoutControls() {
     const items = [{ id: 'sound', icon: true }, { id: 'restart', label: 'Restart' }];
     ctx.save();
@@ -281,47 +320,277 @@
     readoutMinX = MODE === 'desktop' ? x + 16 : SIDE_PAD;
   }
 
-  const cellCentre = (cell) => ({ x: G.ox + (M.colOf(st, cell) + 0.5) * G.cell,
-                                  y: G.oy + (M.rowOf(st, cell) + 0.5) * G.cell });
-  function cellAt(x, y) {
-    const c = Math.floor((x - G.ox) / G.cell), r = Math.floor((y - G.oy) / G.cell);
-    if (c < 0 || r < 0 || c >= G.cols || r >= G.rows) return -1;
-    return c + r * G.cols;
-  }
-  /* Every atom is drawn from one set of proportions of the distance between
-     two bonded centres, on the dish, in the flask row and in the tray. */
-  function geomFor(span) {
-    return { span, R: span * 0.28, armW: Math.max(2, span * 0.068), freeLen: span * 0.45,
-             palmR: Math.max(3, span * 0.072), knotR: Math.max(2, span * 0.058), off: span * 0.1 };
+  const toPx = (p) => ({ x: G.x + p.x * G.S, y: G.y + p.y * G.S });
+  const toWorld = (p) => ({ x: (p.x - G.x) / G.S, y: (p.y - G.y) / G.S });
+  const insideAt = (x, y) => x > 0.4 && y > 0.4 && x < G.WW - 0.4 && y < G.WH - 0.4;
+  const inDish = (a) => !!a && (a.status === 'live' || a.status === 'waste') && P.has(a.id);
+
+  /* ---------- THE DISH IN MOTION ----------
+     Position-based: every atom wanders on its own slow random walk, then
+     constraints put the world right. Bonds hold their length, a molecule
+     spreads its arms, atoms do not overlap, charged radicals keep their
+     distance, and the walls hold everything in. */
+  function heldAtom() { return drag ? st.atoms[drag.id] : null; }
+  function heldIsLoose() {       // a panel atom still over the panel, outside the dish
+    const a = heldAtom();
+    return !!a && !a.committed && !insideAt(drag.cx, drag.cy);
   }
 
-  /* ---------- HANDS ----------
-     Free hands spread evenly round what the atom already holds: one hand
-     points up, two point up and down, three make a Y, four a cross. A bond
-     takes one direction whatever its order. */
-  const DIR_ANGLE = [-Math.PI / 2, 0, Math.PI / 2, Math.PI];
-  function freeAngles(dirs, f) {
-    if (f <= 0) return [];
-    if (!dirs.length) return Array.from({ length: f }, (_, i) => -Math.PI / 2 + TAU * i / f);
-    const angs = [...new Set(dirs)].map((d) => (DIR_ANGLE[d] + TAU) % TAU).sort((a, b) => a - b);
-    if (angs.length === 1) return Array.from({ length: f }, (_, i) => angs[0] + TAU * (i + 1) / (f + 1));
-    const gaps = angs.map((a, i) => ({ start: a, size: (i + 1 < angs.length ? angs[i + 1] : angs[0] + TAU) - a, n: 0 }));
-    for (let k = 0; k < f; k++) {
-      let best = gaps[0];
-      for (const g of gaps) if (g.size / (g.n + 1) > best.size / (best.n + 1)) best = g;
-      best.n++;
+  function simStep(dt) {
+    const atoms = [];
+    for (const a of st.atoms) {
+      if (!inDish(a)) continue;
+      if (drag && a.id === drag.id && heldIsLoose()) continue;
+      atoms.push(a);
     }
-    const out = [];
-    for (const g of gaps) for (let j = 1; j <= g.n; j++) out.push(g.start + g.size * j / (g.n + 1));
-    return out;
+    const mol = new Map();
+    for (const a of atoms) {
+      if (mol.has(a.id)) continue;
+      const g = M.groupOf(st, a.id);
+      g.forEach((i) => mol.set(i, g[0]));
+    }
+    const heldMol = drag ? (mol.has(drag.id) ? mol.get(drag.id) : -2) : -1;
+    const moving = DRIFT && !reduced() && dt > 0;
+    for (const a of atoms) {
+      if (!moving) break;
+      const p = P.get(a.id);
+      const m = M.ELEMENTS[a.el].mass, calm = a.status === 'waste' ? 0.45 : 1;
+      const vm = TUNE.drift * calm / Math.pow(m, 0.3), wm = TUNE.spin * calm / Math.pow(m, 0.3);
+      const k = Math.sqrt(2 * dt / TUNE.driftTau);
+      p.vx += -p.vx * dt / TUNE.driftTau + gauss() * vm * k;
+      p.vy += -p.vy * dt / TUNE.driftTau + gauss() * vm * k;
+      p.w += -p.w * dt / TUNE.driftTau + gauss() * wm * k;
+      p.th += p.w * dt;
+      if (mol.get(a.id) !== heldMol) { p.x += p.vx * dt; p.y += p.vy * dt; }
+    }
+    if (drag && P.has(drag.id)) { const p = P.get(drag.id); p.x = drag.cx; p.y = drag.cy; }
+    for (let it = 0; it < 4; it++) relax(atoms, mol, heldMol);
   }
-  const offsets = (order, off) => (order === 1 ? [0] : order === 2 ? [-off, off] : [-off * 1.25, 0, off * 1.25]);
 
-  /* ---------- THE MARBLE ----------
-     Lit from the upper left like the Portal wash, a broad specular, a darker
-     base, and a soft shadow on the glass. No outline: the edge is value.
-     Rendered once per element and size into a sprite, because a full 8x6 dish
-     is 48 of them and the target is a 2019 Chromebook. */
+  function relax(atoms, mol, heldMol) {
+    const held = drag ? drag.id : -1;
+    const wOf = (a) => (a.id === held ? 0 : 1 / Math.sqrt(M.ELEMENTS[a.el].mass));
+    const shove = (a, b, pa, pb, dx, dy, d, min, stiff) => {
+      const wa = wOf(a), wb = wOf(b);
+      if (wa + wb === 0) return;
+      const c = (min - d) * stiff / (wa + wb), ux = dx / d, uy = dy / d;
+      pa.x -= ux * c * wa; pa.y -= uy * c * wa;
+      pb.x += ux * c * wb; pb.y += uy * c * wb;
+    };
+    for (const a of atoms) {
+      for (const b of a.bonds) {
+        if (b.to < a.id || !P.has(b.to)) continue;
+        const B = st.atoms[b.to], pa = P.get(a.id), pb = P.get(B.id);
+        const dx = pb.x - pa.x, dy = pb.y - pa.y, d = Math.hypot(dx, dy) || 1e-6;
+        const wa = wOf(a), wb = wOf(B);
+        if (wa + wb === 0) continue;
+        const c = (d - TUNE.bond) * 0.6 / (wa + wb);
+        pa.x += dx / d * c * wa; pa.y += dy / d * c * wa;
+        pb.x -= dx / d * c * wb; pb.y -= dy / d * c * wb;
+      }
+    }
+    for (let i = 0; i < atoms.length; i++) {
+      const a = atoms[i], pa = P.get(a.id);
+      for (let j = i + 1; j < atoms.length; j++) {
+        const b = atoms[j];
+        if (a.bonds.some((q) => q.to === b.id)) continue;
+        const pb = P.get(b.id);
+        let dx = pb.x - pa.x, dy = pb.y - pa.y, d = Math.hypot(dx, dy);
+        if (d < 1e-4) { dx = 0.01; dy = 0.005; d = Math.hypot(dx, dy); }
+        const same = mol.get(a.id) === mol.get(b.id);
+        if (same) {
+          const min = TUNE.bond * TUNE.spread;
+          if (d < min) shove(a, b, pa, pb, dx, dy, d, min, 0.2);
+          continue;
+        }
+        if (d < TUNE.collide) shove(a, b, pa, pb, dx, dy, d, TUNE.collide, 0.5);
+        if (d < TUNE.keep && a.status === 'live' && b.status === 'live' && a.free > 0 && b.free > 0 &&
+            mol.get(a.id) !== heldMol && mol.get(b.id) !== heldMol) {
+          shove(a, b, pa, pb, dx, dy, d, TUNE.keep, 0.025);
+        }
+      }
+    }
+    for (const a of atoms) {
+      const p = P.get(a.id), m = TUNE.wall;
+      if (p.x < m) p.x = m; else if (p.x > G.WW - m) p.x = G.WW - m;
+      if (p.y < m) p.y = m; else if (p.y > G.WH - m) p.y = G.WH - m;
+    }
+  }
+
+  /* Move the held atom toward where the pointer wants it in steps of under
+     half a radius, and look for grabs at every step, so a fast drag cannot
+     jump past a radical it went straight through. */
+  function stepWorld(dt) {
+    if (!drag) { simStep(dt); return; }
+    const p = P.get(drag.id);
+    const sx = p.x, sy = p.y, tx = drag.tx, ty = drag.ty;
+    const n = Math.max(1, Math.ceil(Math.hypot(tx - sx, ty - sy) / 0.45));
+    for (let i = 1; i <= n; i++) {
+      drag.cx = sx + (tx - sx) * i / n;
+      drag.cy = sy + (ty - sy) * i / n;
+      simStep(i === n ? dt : 0);
+      react();
+      if (!drag) return;
+    }
+  }
+
+  /* ---------- HANDS THAT MEET ---------- */
+  function findCapture() {
+    if (!drag || heldIsLoose()) return null;
+    const heldIds = M.groupOf(st, drag.id), held = new Set(heldIds);
+    let best = null;
+    for (const ai of heldIds) {
+      const a = st.atoms[ai];
+      if (a.status !== 'live' || a.free === 0 || !P.has(ai)) continue;
+      const pa = P.get(ai);
+      for (const b of st.atoms) {
+        if (b.status !== 'live' || b.free === 0 || held.has(b.id) || !P.has(b.id)) continue;
+        const pb = P.get(b.id), d = Math.hypot(pb.x - pa.x, pb.y - pa.y);
+        if (d < TUNE.capture && (!best || d < best.d)) best = { a: ai, b: b.id, d };
+      }
+    }
+    return best;
+  }
+  function react() {
+    for (let guard = 0; guard < 8 && drag; guard++) {
+      const c = findCapture();
+      if (!c) return;
+      bondAtoms(c.a, c.b);
+    }
+  }
+  function bondAtoms(a, b) {
+    const pa = P.get(a), pb = P.get(b);
+    if (!pa || !pb) return null;
+    const now = clock();
+    const mid = { x: (pa.x + pb.x) / 2, y: (pa.y + pb.y) / 2 };
+    const ev = M.bond(st, a, b);
+    if (!ev) return null;
+    reactions++;
+    lastEvent = ev;
+    previews.clear();
+    flashes.push({ x: mid.x, y: mid.y, t0: now });
+    claspAt.set(Math.min(a, b) + '-' + Math.max(a, b), now);
+    SND.clasp(st.atoms[b].el, ev.order);
+    if (ev.done && ev.done.kind === 'required') {
+      if (drag && ev.done.ids.includes(drag.id)) drag = null;
+      startLift(ev.done.key, ev.done.ids, now);
+      setTimeout(SND.lift, 120);
+    } else if (ev.done) {
+      wasteFx.push({ ids: ev.done.ids, t0: now, lost: ev.lost });
+      setTimeout(SND.waste, 60);
+    } else if (ev.lost) {
+      wasteFx.push({ ids: M.groupOf(st, a), t0: now, lost: true, chipOnly: true });
+    }
+    notePalms(now);
+    if (ev.lost) setTimeout(SND.lost, 90);
+    if (st.result) endLevel(now);
+    return ev;
+  }
+  function endLevel(now) {
+    if (drag) finishDrag();
+    const r = st.result;
+    card = { kind: r.kind, made: r.made, total: r.total, sounded: false,
+             showAt: now + (r.kind === 'win' ? TUNE.cardWinMs : TUNE.cardFailMs) };
+    if (r.kind === 'win') T().levelComplete && T().levelComplete(li + 1, reactions);
+  }
+  function previewOf(a, b) {
+    const key = a + ':' + b + ':' + st.version;
+    if (!previews.has(key)) {
+      if (previews.size > 300) previews.clear();
+      previews.set(key, M.preview(st, a, b));
+    }
+    return previews.get(key);
+  }
+  // Every pair of free hands, one carried and one in the dish, close enough to reach.
+  function threatPairs() {
+    if (!drag || card || heldIsLoose()) return [];
+    const heldIds = M.groupOf(st, drag.id), held = new Set(heldIds), out = [];
+    for (const ai of heldIds) {
+      const a = st.atoms[ai];
+      if (a.status !== 'live' || !a.free || !P.has(ai)) continue;
+      const pa = P.get(ai);
+      for (const b of st.atoms) {
+        if (b.status !== 'live' || !b.free || held.has(b.id) || !P.has(b.id)) continue;
+        const pb = P.get(b.id), d = Math.hypot(pb.x - pa.x, pb.y - pa.y);
+        if (d >= TUNE.warn) continue;
+        const pv = previewOf(ai, b.id);
+        out.push({ a: ai, b: b.id, d, k: clamp01((TUNE.warn - d) / (TUNE.warn - TUNE.capture)),
+                   bad: !pv || pv.lost, pv });
+      }
+    }
+    return out.sort((x, y) => x.d - y.d);
+  }
+
+  /* ---------- DRAG ---------- */
+  function atomAt(p) {
+    let best = null;
+    const r = Math.max(TUNE.grabPx, G.S * 1.5);
+    for (const a of st.atoms) {
+      if (!inDish(a)) continue;
+      const c = toPx(P.get(a.id)), d = Math.hypot(c.x - p.x, c.y - p.y);
+      if (d <= r && (!best || d < best.d)) best = { id: a.id, d };
+    }
+    return best ? best.id : null;
+  }
+  function startDrag(id, p, touch, pid, fromPanel) {
+    const w = toWorld(p), q = P.get(id);
+    drag = { id, pid, touch, fromPanel,
+             ox: fromPanel ? 0 : q.x - w.x, oy: fromPanel ? (touch ? -TUNE.touchLift : 0) : q.y - w.y,
+             tx: q.x, ty: q.y, cx: q.x, cy: q.y };
+    if (pid != null && pid >= 0) { try { canvas.setPointerCapture(pid); } catch (_) { /* not every browser lets a canvas capture */ } }
+    setTargetWorld(w.x + drag.ox, w.y + drag.oy);
+  }
+  function setTargetWorld(x, y) {
+    const a = heldAtom();
+    if (!a) return;
+    if (a.committed || insideAt(x, y)) {
+      x = Math.max(TUNE.wall, Math.min(G.WW - TUNE.wall, x));
+      y = Math.max(TUNE.wall, Math.min(G.WH - TUNE.wall, y));
+    }
+    drag.tx = x; drag.ty = y;
+  }
+  function setTarget(p) { const w = toWorld(p); setTargetWorld(w.x + drag.ox, w.y + drag.oy); }
+  /* Let go. A panel atom that never touched anything goes back to the panel if
+     it is let go outside the dish, and into the dish if inside. */
+  function finishDrag() {
+    if (!drag) return;
+    const a = heldAtom();
+    if (a && a.status === 'live' && !a.committed) {
+      if (!insideAt(drag.cx, drag.cy)) { M.putBack(st, a.id); P.delete(a.id); }
+      else { M.commit(st, a.id); SND.set(); }
+    }
+    drag = null;
+    previews.clear();
+    notePalms(clock());
+  }
+
+  /* ---------- DRAWING ---------- */
+  function drawWash() {
+    const bg = ctx.createRadialGradient(LW * 0.32, 0, 0, LW * 0.32, 0, LW * 1.1);
+    bg.addColorStop(0, TOK.panel); bg.addColorStop(0.6, TOK.card); bg.addColorStop(1, TOK.bg);
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, LW, LH);
+  }
+  // The dish: dark glass in a vessel whose rim catches the light along its top.
+  function drawDish() {
+    const r = 24;
+    ctx.save();
+    const rim = ctx.createLinearGradient(0, G.y, 0, G.y + G.h);
+    rim.addColorStop(0, 'rgba(255,255,255,0.09)'); rim.addColorStop(0.18, 'rgba(255,255,255,0.05)');
+    rim.addColorStop(1, 'rgba(255,255,255,0.04)');
+    ctx.fillStyle = rim; rr(G.x, G.y, G.w, G.h, r); ctx.fill();
+    const ix = G.x + 7, iy = G.y + 7, iw = G.w - 14, ih = G.h - 14;
+    const glass = ctx.createLinearGradient(0, iy, 0, iy + ih);
+    glass.addColorStop(0, ART.glassTop); glass.addColorStop(1, ART.glassBot);
+    ctx.fillStyle = glass; rr(ix, iy, iw, ih, r - 7); ctx.fill();
+    const lit = ctx.createLinearGradient(0, iy, 0, iy + 22);
+    lit.addColorStop(0, 'rgba(255,255,255,0.06)'); lit.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = lit; rr(ix, iy, iw, ih, r - 7); ctx.fill();
+    ctx.restore();
+  }
+
+  /* The marble, lit from the upper left, a broad specular and a darker base on
+     a soft shadow. No outline: the edge is value. Rendered once per element
+     and size into a sprite. */
   const sprites = new Map();
   function bodySprite(el, R) {
     const s = Math.max(1, Math.min(4, backing));
@@ -343,92 +612,14 @@
     g.fillStyle = body; g.beginPath(); g.arc(half, half, R, 0, TAU); g.fill();
     const spx = half - R * 0.36, spy = half - R * 0.44;
     const sp = g.createRadialGradient(spx, spy, 0, spx, spy, R * 0.44);
-    sp.addColorStop(0, 'rgba(255,255,255,0.62)'); sp.addColorStop(1, 'rgba(255,255,255,0)');
+    sp.addColorStop(0, 'rgba(255,255,255,0.55)'); sp.addColorStop(1, 'rgba(255,255,255,0)');
     g.fillStyle = sp; g.beginPath(); g.arc(spx, spy, R * 0.44, 0, TAU); g.fill();
     spr = { c, half };
-    if (sprites.size > 160) sprites.clear();
+    if (sprites.size > 200) sprites.clear();
     sprites.set(key, spr);
     return spr;
   }
-
-  /* Draw a set of atoms: arms, then bodies, then the veil on waste, then
-     knots, then palms, so a knot is never under a body and a palm never under
-     an arm. Each item: { x, y, el, alpha, bonds: [{ dir, order, key, ext,
-     alpha, knotAlpha, knotScale }], freeAng, palm, palmK, wasteK }. */
-  function drawAtoms(items, g) {
-    ctx.save();
-    ctx.lineCap = 'round';
-    ctx.lineWidth = g.armW;
-    for (const a of items) {
-      const al = a.alpha == null ? 1 : a.alpha;
-      const armCol = a.wasteK ? mix(ART[a.el].arm, ART.wasteArm, a.wasteK) : ART[a.el].arm;
-      ctx.strokeStyle = armCol;
-      for (const b of a.bonds) {
-        const ux = M.DIRS[b.dir].dc, uy = M.DIRS[b.dir].dr, px = -uy, py = ux;
-        const len = (g.span / 2) * (b.ext == null ? 1 : b.ext);
-        ctx.globalAlpha = al * (b.alpha == null ? 1 : b.alpha);
-        for (const o of offsets(b.order, g.off)) {
-          ctx.beginPath();
-          ctx.moveTo(a.x + ux * g.R * 0.6 + px * o, a.y + uy * g.R * 0.6 + py * o);
-          ctx.lineTo(a.x + ux * len + px * o, a.y + uy * len + py * o);
-          ctx.stroke();
-        }
-      }
-      ctx.globalAlpha = al;
-      (a.freeAng || []).forEach((ang, hi) => {
-        const len = g.freeLen * (a.stretch && a.stretch.i === hi ? a.stretch.k : 1);
-        ctx.beginPath();
-        ctx.moveTo(a.x + Math.cos(ang) * g.R * 0.6, a.y + Math.sin(ang) * g.R * 0.6);
-        ctx.lineTo(a.x + Math.cos(ang) * len, a.y + Math.sin(ang) * len);
-        ctx.stroke();
-      });
-    }
-    for (const a of items) {
-      const spr = bodySprite(a.el, g.R);
-      ctx.globalAlpha = a.alpha == null ? 1 : a.alpha;
-      ctx.drawImage(spr.c, a.x - spr.half, a.y - spr.half, spr.half * 2, spr.half * 2);
-      if (a.wasteK) {
-        ctx.globalAlpha = (a.alpha == null ? 1 : a.alpha) * a.wasteK;
-        ctx.fillStyle = ART.veil;
-        ctx.beginPath(); ctx.arc(a.x, a.y, g.R + 0.5, 0, TAU); ctx.fill();
-      }
-    }
-    const drawn = new Set();
-    for (const a of items) {
-      const al = a.alpha == null ? 1 : a.alpha;
-      for (const b of a.bonds) {
-        if (b.key) { if (drawn.has(b.key)) continue; drawn.add(b.key); }
-        if ((b.ext == null ? 1 : b.ext) < 0.97) continue;
-        const ux = M.DIRS[b.dir].dc, uy = M.DIRS[b.dir].dr, px = -uy, py = ux;
-        const mx = a.x + ux * g.span / 2, my = a.y + uy * g.span / 2;
-        const kr = g.knotR * (b.knotScale || 1);
-        for (const o of offsets(b.order, g.off)) {
-          const kx = mx + px * o, ky = my + py * o;
-          const ka = al * (b.knotAlpha == null ? 1 : b.knotAlpha);
-          if (a.wasteK) {
-            ctx.globalAlpha = ka; ctx.fillStyle = mix(ART.knot, ART.wasteKnot, a.wasteK);
-            ctx.beginPath(); ctx.arc(kx, ky, kr, 0, TAU); ctx.fill();
-            continue;
-          }
-          feather(kx, ky, kr, kr * 2.6, '255,246,220', 0.55 * ka);   // the warmest point on the board
-          ctx.globalAlpha = ka; ctx.fillStyle = ART.knot;
-          ctx.beginPath(); ctx.arc(kx, ky, kr, 0, TAU); ctx.fill();
-        }
-      }
-    }
-    for (const a of items) {
-      if (!a.freeAng || !a.freeAng.length || !a.palm) continue;
-      a.freeAng.forEach((ang, hi) => {
-        const len = g.freeLen * (a.stretch && a.stretch.i === hi ? a.stretch.k : 1);
-        drawPalm(a.x + Math.cos(ang) * len, a.y + Math.sin(ang) * len, g.palmR,
-                 a.palm, a.palmK, a.alpha == null ? 1 : a.alpha);
-      });
-    }
-    ctx.restore();
-  }
-
-  /* A glow is a thin bright core with a tight feather, never a flat disc: a
-     disc at low alpha reads as a ring round the thing it lights. */
+  /* A glow is a thin bright core with a tight feather, never a flat disc. */
   function feather(x, y, r0, r1, rgb, a) {
     if (a <= 0) return;
     const g = ctx.createRadialGradient(x, y, r0 * 0.6, x, y, r1);
@@ -436,11 +627,10 @@
     ctx.globalAlpha = 1; ctx.fillStyle = g;
     ctx.beginPath(); ctx.arc(x, y, r1, 0, TAU); ctx.fill();
   }
-
-  /* THE PALM. Green and open while the fragment can still become something on
-     the list; amber with a bar across it when it cannot. The bar is the
-     channel that does not depend on seeing colour. White on the tray, before
-     the dish has decided anything. */
+  /* THE PALM. Green and open while the piece is still wanted by something on
+     the list; amber with a bar across it when it is no use to anything. The
+     bar is the channel that does not depend on seeing colour. White on an
+     atom not yet in the dish. */
   function drawPalm(x, y, r, state, k, al) {
     if (state === 'open') {
       ctx.globalAlpha = al; ctx.fillStyle = ART.palmOpen;
@@ -448,7 +638,7 @@
       return;
     }
     const amber = state === 'amber' ? (k == null ? 1 : k) : 0;
-    if (amber < 1) feather(x, y, r, r * 2.4, '93,211,158', 0.5 * al * (1 - amber));
+    if (amber < 1) feather(x, y, r, r * 2.4, '93,211,158', 0.45 * al * (1 - amber));
     ctx.globalAlpha = al;
     ctx.fillStyle = amber ? mix(ART.palmGreen, ART.palmAmber, amber) : ART.palmGreen;
     ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
@@ -458,352 +648,373 @@
       ctx.beginPath(); ctx.moveTo(x - r * 0.6, y + r * 0.6); ctx.lineTo(x + r * 0.6, y - r * 0.6); ctx.stroke();
     }
   }
+  const offsets = (order, off) => (order === 1 ? [0] : order === 2 ? [-off, off] : [-off * 1.25, 0, off * 1.25]);
 
-  /* ---------- WHAT THE DISH SHOWS ---------- */
-  const bondKey = (a, b) => Math.min(a, b) + '-' + Math.max(a, b);
-
-  /* Palm turns are remembered per atom so green-to-amber can take its 200ms.
-     An atom that lands already amber has no turn to animate (the ghost showed
-     it amber before release), but it is still the moment its fragment lost
-     its future, so it gets the tone and, under reduced motion, the word. */
-  function notePalms(now) {
-    let turned = false;
-    for (const [id, state] of Object.entries(st.analysis.palm)) {
-      const prev = palmSeen.get(+id);
-      if (!prev) {
-        palmSeen.set(+id, { state, t: now, born: true });
-        if (state === 'amber' && now > -1e9) turned = true;
-      } else if (prev.state !== state) {
-        palmSeen.set(+id, { state, t: now, born: false });
-        if (state === 'amber') turned = true;
+  /* Draw a set of atoms of radius R px: arms, then bodies and symbols, then the
+     veil on waste, then knots, then palms, so a knot is never under a body and
+     a palm never under an arm. Each item: { x, y, el, alpha, label,
+     bonds: [{ ang, half, order, key, knot }], free: [{ ang, len, glow }],
+     palm, palmK, wasteK }. */
+  function drawAtoms(items, R) {
+    const armW = Math.max(2, R * 0.24), palmR = Math.max(2.5, R * 0.26), knotR = Math.max(1.8, R * 0.2), off = R * 0.34;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineWidth = armW;
+    for (const a of items) {
+      const al = a.alpha == null ? 1 : a.alpha;
+      ctx.globalAlpha = al;
+      ctx.strokeStyle = a.wasteK ? mix(ART[a.el].arm, ART.wasteArm, a.wasteK) : ART[a.el].arm;
+      for (const b of a.bonds) {
+        const ux = Math.cos(b.ang), uy = Math.sin(b.ang), nx = -uy, ny = ux;
+        for (const o of offsets(b.order, off)) {
+          ctx.beginPath();
+          ctx.moveTo(a.x + ux * R * 0.6 + nx * o, a.y + uy * R * 0.6 + ny * o);
+          ctx.lineTo(a.x + ux * b.half + nx * o, a.y + uy * b.half + ny * o);
+          ctx.stroke();
+        }
+      }
+      for (const h of a.free || []) {
+        ctx.beginPath();
+        ctx.moveTo(a.x + Math.cos(h.ang) * R * 0.6, a.y + Math.sin(h.ang) * R * 0.6);
+        ctx.lineTo(a.x + Math.cos(h.ang) * h.len, a.y + Math.sin(h.ang) * h.len);
+        ctx.stroke();
       }
     }
-    return turned;
+    for (const a of items) {
+      const al = a.alpha == null ? 1 : a.alpha;
+      const spr = bodySprite(a.el, R);
+      ctx.globalAlpha = al;
+      ctx.drawImage(spr.c, a.x - spr.half, a.y - spr.half, spr.half * 2, spr.half * 2);
+      if (a.label !== false && R >= 9) {
+        ctx.fillStyle = ART[a.el].ink;
+        ctx.font = '800 ' + Math.round(R * (a.el.length > 1 ? 0.8 : 0.95)) + 'px Inter, sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(a.el, a.x, a.y + R * 0.05);
+      }
+      if (a.wasteK) {
+        ctx.globalAlpha = al * a.wasteK;
+        ctx.fillStyle = ART.veil;
+        ctx.beginPath(); ctx.arc(a.x, a.y, R + 0.5, 0, TAU); ctx.fill();
+      }
+    }
+    const drawn = new Set();
+    for (const a of items) {
+      const al = a.alpha == null ? 1 : a.alpha;
+      for (const b of a.bonds) {
+        if (drawn.has(b.key)) continue;
+        drawn.add(b.key);
+        const ux = Math.cos(b.ang), uy = Math.sin(b.ang), nx = -uy, ny = ux;
+        const mx = a.x + ux * b.half, my = a.y + uy * b.half, kr = knotR * (b.knot || 1);
+        for (const o of offsets(b.order, off)) {
+          const kx = mx + nx * o, ky = my + ny * o;
+          if (a.wasteK) {
+            ctx.globalAlpha = al; ctx.fillStyle = mix(ART.knot, ART.wasteKnot, a.wasteK);
+            ctx.beginPath(); ctx.arc(kx, ky, kr, 0, TAU); ctx.fill();
+            continue;
+          }
+          feather(kx, ky, kr, kr * 2.6, '255,246,220', 0.55 * al);
+          ctx.globalAlpha = al; ctx.fillStyle = ART.knot;
+          ctx.beginPath(); ctx.arc(kx, ky, kr, 0, TAU); ctx.fill();
+        }
+      }
+    }
+    for (const a of items) {
+      if (!a.free || !a.free.length || !a.palm) continue;
+      const al = a.alpha == null ? 1 : a.alpha;
+      for (const h of a.free) {
+        const x = a.x + Math.cos(h.ang) * h.len, y = a.y + Math.sin(h.ang) * h.len;
+        if (h.glow) feather(x, y, palmR, palmR * 3.4, h.glow.rgb, h.glow.a * al);
+        drawPalm(x, y, palmR, h.glow ? (h.glow.bad ? 'amber' : 'green') : a.palm, h.glow ? 1 : a.palmK, al);
+      }
+    }
+    ctx.restore();
+  }
+
+  // Free hands spread into the widest gaps between what an atom already holds.
+  function freeAnglesAround(angs, f) {
+    if (f <= 0) return [];
+    const sorted = angs.map((x) => ((x % TAU) + TAU) % TAU).sort((a, b) => a - b);
+    if (sorted.length === 1) return Array.from({ length: f }, (_, i) => sorted[0] + TAU * (i + 1) / (f + 1));
+    const gaps = sorted.map((s, i) => ({ start: s, size: (i + 1 < sorted.length ? sorted[i + 1] : sorted[0] + TAU) - s, n: 0 }));
+    for (let k = 0; k < f; k++) {
+      let best = gaps[0];
+      for (const g of gaps) if (g.size / (g.n + 1) > best.size / (best.n + 1)) best = g;
+      best.n++;
+    }
+    const out = [];
+    for (const g of gaps) for (let j = 1; j <= g.n; j++) out.push(g.start + g.size * j / (g.n + 1));
+    return out;
+  }
+  const evenAngles = (th, f) => Array.from({ length: f }, (_, i) => th + TAU * i / f);
+
+  /* Palm turns are remembered per atom so green-to-amber takes its 200ms. */
+  function notePalms(now) {
+    for (const [id, state] of Object.entries(st.analysis.palm)) {
+      const prev = palmSeen.get(+id);
+      if (!prev) palmSeen.set(+id, { state, t: now, born: true });
+      else if (prev.state !== state) palmSeen.set(+id, { state, t: now, born: false });
+    }
   }
   function palmK(id, now) {
     const p = palmSeen.get(id);
     if (!p || p.state !== 'amber' || p.born) return 1;
-    return reduced() ? 1 : clamp01((now - p.t) / TUNE.palmTurnMs);
+    return reduced() ? 1 : clamp01((now - p.t) / 200);
   }
   function wasteK(id, now) {
-    const w = wasteFx.find((f) => f.ids.includes(id));
+    const w = wasteFx.find((f) => !f.chipOnly && f.ids.includes(id));
     if (!w || reduced()) return 1;
     return clamp01((now - w.t0) / TUNE.dimMs);
   }
 
-  /* Where thermal motion has an atom right now. A bonded group moves as one
-     body, so arms and knots stay true; a group that grabs the ghost holds
-     still while it reaches. Waste has lost its heat. */
-  function motionOffsets(s, now, o) {
-    const out = new Map();
-    const done = new Set();
-    for (const a of s.atoms) {
-      if (a.status !== 'live' || done.has(a.id)) continue;
-      const ids = M.groupOf(s, a.id);
-      ids.forEach((i) => done.add(i));
-      let x = 0, y = 0;
-      const still = o.preview && ids.some((i) => i === o.ghostId || (o.partners && o.partners.has(i)));
-      if (!reduced() && !still && ids.some((i) => s.atoms[i].free > 0)) {
-        const mass = ids.reduce((m, i) => m + M.ELEMENTS[s.atoms[i].el].mass, 0);
-        const amp = G.cell * TUNE.wobble * Math.pow(mass, -0.25);
-        const t = now / 1000, ph = ids[0] * 1.7 + 0.3;
-        x = amp * (0.62 * Math.sin(t * 0.83 + ph) + 0.38 * Math.sin(t * 1.37 + ph * 2.3));
-        y = amp * (0.62 * Math.sin(t * 0.71 + ph * 1.9) + 0.38 * Math.sin(t * 1.21 + ph * 0.7));
-      }
-      for (const i of ids) {
-        let hx = x, hy = y;
-        const h = hops.find((q) => q.id === i);
-        if (h && !reduced()) {
-          const k = 1 - easeInOut(clamp01((now - h.t0) / TUNE.hopMs));
-          const f = cellCentre(h.from), to = cellCentre(h.to);
-          hx += (f.x - to.x) * k; hy += (f.y - to.y) * k;
-        }
-        out.set(i, { x: hx, y: hy });
-      }
-    }
-    return out;
-  }
-
-  function dishItems(s, now, o) {
+  function atomItems(now, threats) {
     const items = [];
-    const moved = motionOffsets(s, now, o);
-    const ghostNear = o.preview ? new Set([0, 1, 2, 3].map((d) => M.neighbourCell(s, s.atoms[o.ghostId].cell, d))) : null;
-    for (const a of s.atoms) {
-      if (a.status === 'gone') continue;
-      const p = cellCentre(a.cell);
-      const m = moved.get(a.id) || { x: 0, y: 0 };
-      let dy = 0;
-      if (!o.preview && clasp && clasp.ids.has(a.id) && !reduced()) {
-        const t = now - clasp.t0;
-        if (t >= 0 && t < TUNE.settleMs) dy = TUNE.settlePx * Math.sin(Math.PI * t / TUNE.settleMs);
-      }
-      const item = { id: a.id, el: a.el, x: p.x + m.x, y: p.y + m.y + dy, alpha: a.id === o.ghostId ? 0.55 : 1, bonds: [],
-                     freeAng: freeAngles(a.bonds.map((b) => b.dir), a.free) };
-      /* A radical beside the atom being aimed that does NOT get it still wants
-         it: one hand swings toward the ghost and stretches. That is the pounce
-         the player is steering between. */
-      if (o.preview && a.id !== o.ghostId && a.free > 0 && a.status === 'live' && ghostNear.has(a.cell) && item.freeAng.length) {
-        const gp = cellCentre(s.atoms[o.ghostId].cell);
-        const want = Math.atan2(gp.y - p.y, gp.x - p.x);
-        let near = 0;
-        item.freeAng.forEach((ang, i) => {
-          const dd = (x) => Math.abs(Math.atan2(Math.sin(x - want), Math.cos(x - want)));
-          if (dd(ang) < dd(item.freeAng[near])) near = i;
-        });
-        item.freeAng[near] = want;
-        item.stretch = { i: near, k: reduced() ? 1 : 1 + (TUNE.reachStretch - 1) * o.reach };
-      }
+    for (const a of st.atoms) {
+      if (!inDish(a)) continue;
+      const p = P.get(a.id), c = toPx(p);
+      const item = { id: a.id, el: a.el, x: c.x, y: c.y, bonds: [], free: [] };
+      const nb = [];
       for (const b of a.bonds) {
-        const key = bondKey(a.id, b.to);
-        const bond = { dir: b.dir, order: b.order, key };
-        if (o.preview && o.newKeys.has(key)) {
-          bond.ext = o.reach; bond.alpha = 0.85; bond.knotAlpha = 0.55;          // the promise, faint
-        } else if (!o.preview && clasp && clasp.keys.has(key)) {
-          const t = now - clasp.t0;
-          bond.ext = reduced() || t >= TUNE.snapMs ? 1 : 0.82 + 0.18 * easeOut(clamp01(t / TUNE.snapMs));
-          bond.knotScale = reduced() ? 1 : 1 + 0.8 * clamp01(1 - t / 260);    // the knot lights
+        const q = P.get(b.to);
+        if (!q) continue;
+        const ang = Math.atan2(q.y - p.y, q.x - p.x);
+        nb.push(ang);
+        const key = Math.min(a.id, b.to) + '-' + Math.max(a.id, b.to), t0 = claspAt.get(key);
+        item.bonds.push({ ang, half: Math.hypot(q.x - p.x, q.y - p.y) * G.S / 2, order: b.order, key,
+                          knot: t0 == null || reduced() ? 1 : 1 + 0.9 * clamp01(1 - (now - t0) / 260) });
+      }
+      if (a.free > 0) {
+        const angs = nb.length ? freeAnglesAround(nb, a.free) : evenAngles(p.th, a.free);
+        item.free = angs.map((ang) => ({ ang, len: G.S * TUNE.hand }));
+        /* A charged hand with a partner in reach swings round to it and
+           stretches, more the closer it gets. Amber if that grab would lose a
+           molecule, green if not. */
+        const used = new Set();
+        for (const t of threats) {
+          if (t.a !== a.id && t.b !== a.id) continue;
+          if (used.size >= item.free.length) break;
+          const o = P.get(t.a === a.id ? t.b : t.a);
+          const want = Math.atan2(o.y - p.y, o.x - p.x);
+          let pick = -1, bd = 9;
+          item.free.forEach((h, i) => {
+            if (used.has(i)) return;
+            const dd = Math.abs(Math.atan2(Math.sin(h.ang - want), Math.cos(h.ang - want)));
+            if (dd < bd) { bd = dd; pick = i; }
+          });
+          if (pick < 0) continue;
+          used.add(pick);
+          const h = item.free[pick];
+          h.ang = lerpAng(h.ang, want, clamp01(t.k * 3));
+          const reach = Math.max(TUNE.hand, (t.d / 2) * 0.97);
+          const quiver = reduced() ? 1 : 1 + 0.05 * Math.sin(now / 70 + a.id * 1.3) * t.k;
+          h.len = G.S * (TUNE.hand + (reach - TUNE.hand) * t.k) * quiver;
+          h.glow = { rgb: t.bad ? '240,178,60' : '93,211,158', a: 0.2 + 0.5 * t.k, bad: t.bad };
         }
-        item.bonds.push(bond);
       }
       if (a.status === 'waste') item.wasteK = wasteK(a.id, now);
       else if (a.free > 0) {
-        item.palm = o.palm[a.id] || 'green';
-        item.palmK = o.preview ? 1 : palmK(a.id, now);
+        item.palm = a.committed ? (st.analysis.palm[a.id] || 'green') : 'open';
+        item.palmK = palmK(a.id, now);
       }
       items.push(item);
     }
     return items;
   }
 
-  /* ---------- DRAWING ---------- */
-  function drawWash() {
-    const bg = ctx.createRadialGradient(LW * 0.32, 0, 0, LW * 0.32, 0, LW * 1.1);
-    bg.addColorStop(0, TOK.panel); bg.addColorStop(0.6, TOK.card); bg.addColorStop(1, TOK.bg);
-    ctx.fillStyle = bg; ctx.fillRect(0, 0, LW, LH);
-  }
-
-  /* The dish: dark glass in a vessel whose rim catches the light along its
-     top. A lit band, never a stroke. */
-  function drawDish() {
-    const r = 24;
-    ctx.save();
-    const rim = ctx.createLinearGradient(0, G.y, 0, G.y + G.h);
-    rim.addColorStop(0, 'rgba(255,255,255,0.09)'); rim.addColorStop(0.18, 'rgba(255,255,255,0.05)');
-    rim.addColorStop(1, 'rgba(255,255,255,0.04)');
-    ctx.fillStyle = rim; rr(G.x, G.y, G.w, G.h, r); ctx.fill();
-    const ix = G.x + 7, iy = G.y + 7, iw = G.w - 14, ih = G.h - 14;
-    const glass = ctx.createLinearGradient(0, iy, 0, iy + ih);
-    glass.addColorStop(0, ART.glassTop); glass.addColorStop(1, ART.glassBot);
-    ctx.fillStyle = glass; rr(ix, iy, iw, ih, r - 7); ctx.fill();
-    const lit = ctx.createLinearGradient(0, iy, 0, iy + 22);
-    lit.addColorStop(0, 'rgba(255,255,255,0.06)'); lit.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.fillStyle = lit; rr(ix, iy, iw, ih, r - 7); ctx.fill();
-    ctx.fillStyle = ART.dot;
-    for (let rI = 0; rI < G.rows; rI++) for (let cI = 0; cI < G.cols; cI++) {
-      ctx.beginPath();
-      ctx.arc(G.ox + (cI + 0.5) * G.cell, G.oy + (rI + 0.5) * G.cell, Math.max(1.5, G.cell * 0.028), 0, TAU);
-      ctx.fill();
-    }
-    ctx.restore();
-  }
-
-  function drawGhostRing(cell) {
-    const p = cellCentre(cell), R = geomFor(G.cell).R;
-    ctx.save();
-    ctx.strokeStyle = TOK.green; ctx.lineWidth = 2; ctx.setLineDash([4, 4]);
-    ctx.beginPath(); ctx.arc(p.x, p.y, R + 7, 0, TAU); ctx.stroke();
-    ctx.restore();
-  }
-
   /* A chip at the point of action: HUD, so exempt from the 16px copy rule,
-     but 15px and never below 11. */
+     but 15px and never below 11. Kept inside the dish. */
   function drawChip(text, cx, cy, tone, al) {
     ctx.save();
     ctx.globalAlpha = al == null ? 1 : al;
     ctx.font = '700 15px Inter, sans-serif';
     const w = Math.round(ctx.measureText(text).width + 28), h = 30;
     const x = Math.round(Math.max(G.x + 6, Math.min(G.x + G.w - 6 - w, cx - w / 2)));
-    const y = Math.round(cy - h / 2);
+    const y = Math.round(Math.max(G.y + 6, Math.min(G.y + G.h - 6 - h, cy - h / 2)));
     ctx.fillStyle = TOK.card; rr(x, y, w, h, h / 2); ctx.fill();
     ctx.fillStyle = tone === 'green' ? TOK.green : tone === 'amber' ? TOK.sun : TOK.ink82;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(text, x + w / 2, y + h / 2 + 1);
     ctx.restore();
-    return { x, y, w, h };
   }
-  /* A chip goes above its group or below it, whichever covers fewer atoms: on
-     a crowded dish "above" is often somebody else. */
-  function chipY(box, s) {
-    const above = box.top - G.cell * 0.78, below = box.bottom + G.cell * 0.78;
-    const covered = (y) => {
-      if (y - 15 < G.y + 2 || y + 15 > G.y + G.h - 2) return 99;
-      let n = 0;
-      for (const a of s.atoms) {
-        if (a.status === 'gone') continue;
-        const c = cellCentre(a.cell);
-        if (Math.abs(c.y - y) < G.cell * 0.45 && Math.abs(c.x - box.cx) < G.cell * 1.3) n++;
-      }
-      return n;
-    };
-    return covered(below) < covered(above) ? below : above;
-  }
-  function groupBox(cells) {
-    const pts = cells.map(cellCentre);
-    const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
+  function groupPx(ids) {
+    const pts = ids.map((i) => P.get(i)).filter(Boolean).map(toPx);
+    if (!pts.length) return null;
+    const xs = pts.map((q) => q.x), ys = pts.map((q) => q.y);
     return { cx: (Math.min(...xs) + Math.max(...xs)) / 2, top: Math.min(...ys), bottom: Math.max(...ys) };
   }
-  /* The ghost's chip says what release makes: the name when it is on the
-     list, "wasted" when it is not. Above the group, or below it when the
-     group sits on the top row. */
-  function drawPreviewChip(pv) {
-    const costs = pv.analysis.lost > st.analysis.lost;
-    if (!pv.done && !costs) return;
-    const ids = pv.done ? pv.done.ids : [pv.ev.id];
-    const box = groupBox(ids.map((i) => pv.view.atoms[i].cell));
-    const y = chipY(box, pv.view);
-    if (pv.done && pv.done.kind === 'required') drawChip('makes ' + M.MOLECULES[pv.done.key].short, box.cx, y, 'green');
-    else if (costs) drawChip('loses a molecule', box.cx, y, 'amber');
-    else drawChip('wasted', box.cx, y, 'grey');
-  }
   function drawWasteChips(now) {
+    wasteFx = wasteFx.filter((w) => now - w.t0 < TUNE.chipMs + 50);
     for (const w of wasteFx) {
-      const t = now - w.t0;
-      if (t < 0 || t > TUNE.wasteChipMs) continue;
-      const al = t < 150 ? t / 150 : t > TUNE.wasteChipMs - 250 ? (TUNE.wasteChipMs - t) / 250 : 1;
-      const y = chipY(w, st);
-      drawChip(w.lost ? 'lost a molecule' : 'wasted', w.cx, y, w.lost ? 'amber' : 'grey', al);
+      const t = now - w.t0, box = groupPx(w.ids);
+      if (!box || t > TUNE.chipMs) continue;
+      const al = t < 150 ? t / 150 : t > TUNE.chipMs - 250 ? (TUNE.chipMs - t) / 250 : 1;
+      const below = box.bottom + G.S * 2.4;
+      const y = below + 15 > G.y + G.h - 6 ? box.top - G.S * 2.4 : below;
+      drawChip(w.lost ? 'lost a molecule' : 'wasted', box.cx, y, w.lost ? 'amber' : 'grey', al);
     }
-    if (reduced()) {
-      for (const [id, p] of palmSeen) {
-        if (p.state !== 'amber' || clock() - p.t > 1000 || !st.atoms[id] || st.atoms[id].free === 0) continue;
-        const c = cellCentre(st.atoms[id].cell);
-        drawChip('no future', c.x, c.y - G.cell * 0.78, 'grey');
-        break;
-      }
+  }
+  // Said once, at the closest reach, when it is nearly a grab.
+  function drawThreatChip(threats) {
+    const t = threats[0];
+    if (!t || t.k < 0.72) return;
+    const q = P.get(t.b);
+    if (!q) return;
+    const c = toPx(q);
+    let text = null, tone = 'grey';
+    if (t.bad) { text = 'loses a molecule'; tone = 'amber'; }
+    else if (t.pv && t.pv.done && t.pv.done.kind === 'required') { text = 'makes ' + M.MOLECULES[t.pv.done.key].formula; tone = 'green'; }
+    if (!text) return;
+    const above = c.y - G.S * 2.6;
+    drawChip(text, c.x, above - 15 < G.y + 6 ? c.y + G.S * 2.6 : above, tone, 1);
+  }
+  function drawFlashes(now) {
+    flashes = flashes.filter((f) => now - f.t0 < TUNE.flashMs);
+    ctx.save();
+    for (const f of flashes) {
+      const t = clamp01((now - f.t0) / TUNE.flashMs), c = toPx(f);
+      feather(c.x, c.y, G.S * 0.3, G.S * (0.8 + 1.6 * easeOut(t)), '255,246,220', 0.7 * (1 - t));
     }
+    ctx.restore();
   }
 
   /* ---------- THE LIFT ----------
-     A required molecule rises a cell and a half with its name, then flies into
-     its flask. The eye goes to the flask row only because the molecule flies
-     there. */
-  function startLift(done, now) {
-    const atoms = done.atoms.map((a) => Object.assign({}, a, cellCentre(a.cell)));
+     A finished target rises a little with its name, then flies to its place in
+     the target row. */
+  function startLift(key, ids, now) {
+    const atoms = ids.filter((i) => P.has(i)).map((i) => {
+      const c = toPx(P.get(i));
+      return { id: i, el: st.atoms[i].el, x: c.x, y: c.y, bonds: st.atoms[i].bonds.map((b) => ({ to: b.to, order: b.order })) };
+    });
+    ids.forEach((i) => P.delete(i));
+    if (!atoms.length) return;
     const xs = atoms.map((a) => a.x), ys = atoms.map((a) => a.y);
-    lifts.push({ key: done.key, atoms, t0: now,
-                 cx: (Math.min(...xs) + Math.max(...xs)) / 2, cy: (Math.min(...ys) + Math.max(...ys)) / 2,
-                 top: Math.min(...ys) });
+    lifts.push({ key, atoms, t0: now, cx: (Math.min(...xs) + Math.max(...xs)) / 2,
+                 cy: (Math.min(...ys) + Math.max(...ys)) / 2, top: Math.min(...ys) });
   }
   const inFlight = (key, now) => lifts.filter((L) => L.key === key && now - L.t0 < TUNE.liftMs).length;
   function drawLifts(now) {
+    lifts = lifts.filter((L) => now - L.t0 < TUNE.liftMs);
     for (const L of lifts) {
       const t = (now - L.t0) / TUNE.liftMs;
-      if (t < 0 || t >= 1) continue;
       const dest = flaskSlot(L.key);
+      const endR = dest.span * 0.3;
       let cx = L.cx, cy = L.cy, sc = 1, al = 1;
-      const rise = TUNE.riseCells * G.cell;
+      const rise = G.S * 2.4;
       if (reduced()) al = 1 - t;
-      else if (t < 0.45) cy = L.cy - rise * easeOut(t / 0.45);
+      else if (t < 0.4) cy = L.cy - rise * easeOut(t / 0.4);
       else {
-        const u = easeInOut((t - 0.45) / 0.55);
+        const u = easeInOut((t - 0.4) / 0.6);
         cx = L.cx + (dest.x - L.cx) * u;
         cy = (L.cy - rise) + (dest.y - (L.cy - rise)) * u;
-        sc = 1 + (dest.span / G.cell - 1) * u;
-        al = 1 - 0.75 * u;
+        sc = 1 + (endR / G.S - 1) * u;
+        al = 1 - 0.7 * u;
       }
-      // The glow is each atom's own tight feather, not a wash behind the group.
-      const gR = geomFor(G.cell * sc).R;
-      ctx.save();
-      for (const a of L.atoms) feather(cx + (a.x - L.cx) * sc, cy + (a.y - L.cy) * sc, gR, gR * 1.9, '255,246,220', 0.34 * al);
-      ctx.restore();
+      const byId = new Map(L.atoms.map((a) => [a.id, a]));
       const items = L.atoms.map((a) => ({
-        el: a.el, x: cx + (a.x - L.cx) * sc, y: cy + (a.y - L.cy) * sc, alpha: al,
-        bonds: a.bonds.map((b) => ({ dir: b.dir, order: b.order, key: bondKey(a.id, b.to) })), freeAng: [],
+        el: a.el, x: cx + (a.x - L.cx) * sc, y: cy + (a.y - L.cy) * sc, alpha: al, free: [],
+        bonds: a.bonds.filter((b) => byId.has(b.to)).map((b) => {
+          const o = byId.get(b.to);
+          return { ang: Math.atan2(o.y - a.y, o.x - a.x), half: Math.hypot(o.x - a.x, o.y - a.y) * sc / 2,
+                   order: b.order, key: Math.min(a.id, b.to) + '-' + Math.max(a.id, b.to) };
+        }),
       }));
-      drawAtoms(items, geomFor(G.cell * sc));
+      ctx.save();
+      for (const it of items) feather(it.x, it.y, G.S * sc, G.S * sc * 1.9, '255,246,220', 0.3 * al);
+      ctx.restore();
+      drawAtoms(items, G.S * sc);
       if (t < 0.5 && !reduced()) {
-        drawChip(M.MOLECULES[L.key].short, cx, cy - (L.cy - L.top) - G.cell * 0.78, 'green', t > 0.4 ? (0.5 - t) * 10 : 1);
+        const m = M.MOLECULES[L.key];
+        drawChip(cap(m.name), cx, cy - (L.cy - L.top) - G.S * 2.4, 'green', t > 0.4 ? (0.5 - t) * 10 : 1);
       }
     }
   }
 
-  /* ---------- THE FLASK ROW ----------
-     The list, read once: each molecule drawn in its own atoms, its name, and
-     how many are made. It changes only when a molecule arrives. */
+  /* ---------- THE TARGET ROW ----------
+     The list, read once: each molecule drawn in its own atoms, its name and
+     formula, and how many are made. */
   function flaskSlots() {
     const n = st.targets.length, out = [];
+    ctx.save();
+    ctx.font = '700 15px Inter, sans-serif';
+    const nameOf = (t, long) => {
+      const m = M.MOLECULES[t.key];
+      return long ? cap(m.name) + ' (' + m.formula + ')' : m.formula;
+    };
     if (MODE === 'mobile') {
-      const colW = flaskArea.w / n;
-      const span = 17;
-      // icons centred in the room above the label, so a three-row methane clears it on a short phone too
+      const colW = flaskArea.w / n, span = 17;
       const labelY = flaskArea.y + flaskArea.h - 12, iconY = flaskArea.y + (flaskArea.h - 24) / 2;
       st.targets.forEach((t, i) => {
         const cx = flaskArea.x + colW * (i + 0.5);
-        out.push({ key: t.key, n: t.n, x: cx, y: iconY, span, labelX: cx, labelY, align: 'center', maxW: colW - 8 });
+        out.push({ key: t.key, n: t.n, x: cx, y: iconY, span, labelX: cx, labelY, align: 'center', maxW: colW - 8, name: nameOf(t, false) });
       });
     } else {
-      const span = 19, gapItems = 40, labelGap = 14;
-      ctx.save(); ctx.font = '700 15px Inter, sans-serif';
-      let total = 0;
-      const parts = st.targets.map((t) => {
-        const lay = M.layoutMolecule(t.key), iw = (lay.w - 1) * span + span * 0.6;
-        const lw = ctx.measureText(M.MOLECULES[t.key].short + '  ' + t.n + ' / ' + t.n).width;
-        total += iw + labelGap + lw;
-        return { t, iw, lw };
-      });
-      ctx.restore();
-      total += gapItems * (n - 1);
-      let x = flaskArea.x + Math.max(0, (flaskArea.w - total) / 2);
-      const y = flaskArea.y + 46;
-      parts.forEach((p) => {
-        out.push({ key: p.t.key, n: p.t.n, x: x + p.iw / 2, y, span, labelX: x + p.iw + labelGap, labelY: y, align: 'left', maxW: p.lw + 8 });
+      const span = 19, gapItems = 30, labelGap = 12;
+      const measure = (long) => {
+        let total = 0;
+        const parts = st.targets.map((t) => {
+          const lay = M.layoutMolecule(t.key), iw = (lay.w - 1) * span + span * 0.8;
+          const name = nameOf(t, long), lw = ctx.measureText(name + '  ' + t.n + ' / ' + t.n).width;
+          total += iw + labelGap + lw;
+          return { t, iw, lw, name };
+        });
+        return { parts, total: total + gapItems * (n - 1) };
+      };
+      let m = measure(true);
+      if (m.total > flaskArea.w) m = measure(false);
+      let x = flaskArea.x + Math.max(0, (flaskArea.w - m.total) / 2);
+      const y = flaskArea.y + 44;
+      m.parts.forEach((p) => {
+        out.push({ key: p.t.key, n: p.t.n, x: x + p.iw / 2, y, span, labelX: x + p.iw + labelGap, labelY: y,
+                   align: 'left', maxW: p.lw + 10, name: p.name });
         x += p.iw + labelGap + p.lw + gapItems;
       });
     }
+    ctx.restore();
     return out;
   }
   function flaskSlot(key) {
-    const s = flaskSlots().find((f) => f.key === key);
-    return s || { x: LW / 2, y: 0, span: 17 };
+    return flaskSlots().find((f) => f.key === key) || { x: LW / 2, y: 0, span: 17 };
+  }
+  function iconItems(key, cx, cy, span) {
+    const lay = M.layoutMolecule(key);
+    const x0 = cx - ((lay.w - 1) * span) / 2, y0 = cy - ((lay.h - 1) * span) / 2;
+    return lay.atoms.map((a, i) => ({
+      el: a.el, x: x0 + a.x * span, y: y0 + a.y * span, free: [], label: false,
+      bonds: lay.bonds.filter((b) => b.a === i || b.b === i).map((b) => {
+        const o = lay.atoms[b.a === i ? b.b : b.a];
+        return { ang: Math.atan2(o.y - a.y, o.x - a.x), half: span / 2, order: b.order, key: b.a + '-' + b.b };
+      }),
+    }));
+  }
+  function label(text, x, y, align, alpha) {
+    ctx.save();
+    ctx.globalAlpha = alpha == null ? 1 : alpha;
+    ctx.fillStyle = TOK.ink72; ctx.font = '700 12px Inter, sans-serif';
+    ctx.textAlign = align || 'left'; ctx.textBaseline = 'middle';
+    if ('letterSpacing' in ctx) ctx.letterSpacing = '1.2px';
+    ctx.fillText(text, x, y);
+    ctx.restore();
   }
   function drawFlaskRow(now) {
-    const slots = flaskSlots();
-    ctx.save();
-    ctx.fillStyle = TOK.ink72; ctx.font = '700 13px Inter, sans-serif';
-    ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
-    if ('letterSpacing' in ctx) ctx.letterSpacing = '1.5px';
-    if (MODE === 'mobile') ctx.fillText('MAKE', SIDE_PAD, topBand() / 2);
-    else {
-      // over the first molecule, so the word belongs to the row it names
-      const f0 = slots[0], lay0 = M.layoutMolecule(f0.key);
-      ctx.fillText('MAKE', Math.round(f0.x - ((lay0.w - 1) * f0.span) / 2 - f0.span * 0.3), flaskArea.y + 12);
+    const slotsF = flaskSlots();
+    if (MODE === 'mobile') label('MAKE', SIDE_PAD, topBand() / 2);
+    else if (slotsF[0]) {
+      const f0 = slotsF[0], lay0 = M.layoutMolecule(f0.key);
+      label('MAKE', Math.round(f0.x - ((lay0.w - 1) * f0.span) / 2 - f0.span * 0.4), flaskArea.y + 12);
     }
-    if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
-    ctx.restore();
-
-    for (const f of slots) {
+    for (const f of slotsF) {
       const lay = M.layoutMolecule(f.key);
-      const made = (st.made[f.key] || 0) - inFlight(f.key, now);
+      const made = Math.max(0, (st.made[f.key] || 0) - inFlight(f.key, now));
       const full = made >= f.n;
-      const x0 = f.x - ((lay.w - 1) * f.span) / 2, y0 = f.y - ((lay.h - 1) * f.span) / 2;
-      const items = lay.atoms.map((a, i) => ({
-        el: a.el, x: x0 + a.x * f.span, y: y0 + a.y * f.span,
-        bonds: lay.bonds.filter((b) => b.a === i || b.b === i).map((b) => {
-          const o = lay.atoms[b.a === i ? b.b : b.a];
-          const dx = o.x - a.x, dy = o.y - a.y;
-          return { dir: dy < 0 ? 0 : dx > 0 ? 1 : dy > 0 ? 2 : 3, order: b.order, key: b.a + '-' + b.b };
-        }),
-        freeAng: [],
-      }));
-      drawAtoms(items, geomFor(f.span));
+      drawAtoms(iconItems(f.key, f.x, f.y, f.span), f.span * 0.3);
       if (full) {
+        const x0 = f.x - ((lay.w - 1) * f.span) / 2, y0 = f.y - ((lay.h - 1) * f.span) / 2;
         const tx = x0 + (lay.w - 1) * f.span + f.span * 0.55, ty = y0 - f.span * 0.35;
         ctx.save();
         ctx.strokeStyle = TOK.green; ctx.lineWidth = 2.4; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
         ctx.beginPath(); ctx.moveTo(tx - 5, ty); ctx.lineTo(tx - 1.5, ty + 3.5); ctx.lineTo(tx + 6, ty - 5); ctx.stroke();
         ctx.restore();
       }
-      const text = M.MOLECULES[f.key].short + '  ' + Math.max(0, made) + ' / ' + f.n;
+      const text = f.name + '  ' + made + ' / ' + f.n;
       ctx.save();
       let size = 15;
       ctx.font = '700 ' + size + 'px Inter, sans-serif';
@@ -815,79 +1026,51 @@
     }
   }
 
-  /* ---------- THE TRAY ---------- */
-  function trayAtom(el, x, y, R, al) {
-    drawAtoms([{ el, x, y, alpha: al, bonds: [], freeAng: freeAngles([], M.ELEMENTS[el].hands), palm: 'open' }],
-              geomFor(R / 0.28));
+  /* ---------- THE AVAILABLE PANEL ----------
+     From the sketch: each atom the player can add, its name, its valency and
+     how many are left. Drag one out to use it. */
+  function panelAtom(el, x, y, R, al) {
+    const f = M.ELEMENTS[el].hands;
+    drawAtoms([{ el, x, y, alpha: al, bonds: [], palm: 'open',
+                 free: evenAngles(-Math.PI / 2, f).map((ang) => ({ ang, len: R * TUNE.hand })) }], R);
   }
-  function label(text, x, y, align) {
-    ctx.save();
-    ctx.fillStyle = TOK.ink72; ctx.font = '700 12px Inter, sans-serif';
-    ctx.textAlign = align || 'left'; ctx.textBaseline = 'middle';
-    if ('letterSpacing' in ctx) ctx.letterSpacing = '1.2px';
-    ctx.fillText(text, x, y);
-    ctx.restore();
-  }
-  function drawTray() {
-    const el = st.supply[st.next];
-    const next = st.supply.slice(st.next + 1, st.next + 4);
-    const left = st.supply.length - st.next;
-    const used = st.grid.filter((v) => v >= 0).length;
-    const handAlpha = drag ? 0 : hover ? 0.35 : 1;
+  function drawPanel() {
     if (MODE === 'mobile') {
       ctx.save();
-      ctx.fillStyle = TOK.tint03; rr(tray.x, tray.y, tray.w, tray.h, 22); ctx.fill();
-      ctx.strokeStyle = TOK.tint10; ctx.lineWidth = 1; rr(tray.x + 0.5, tray.y + 0.5, tray.w - 1, tray.h - 1, 22); ctx.stroke();
+      ctx.fillStyle = TOK.tint03; rr(panel.x, panel.y, panel.w, panel.h, 20); ctx.fill();
+      ctx.strokeStyle = TOK.tint10; ctx.lineWidth = 1; rr(panel.x + 0.5, panel.y + 0.5, panel.w - 1, panel.h - 1, 20); ctx.stroke();
       ctx.restore();
-      /* An atom's hands reach 1.54 of its radius, so the atoms sit low enough
-         that an upward hand clears the label and a downward one the panel. */
-      const midY = tray.y + tray.h * 0.62;
-      if (el) label('IN HAND', tray.x + 20, tray.y + 17);
-      const handR = Math.min(18, tray.h * 0.19);
-      if (el) trayAtom(el, tray.x + 56, midY, handR, handAlpha);
-      const nx0 = tray.x + 118;
-      if (next.length) label('NEXT', nx0 - 10, tray.y + 17);
-      /* The next three are always shown. On a narrow tray the WORDS give way
-         ("6 left", "2 / 30"), never an atom and never the type size. */
-      ctx.save(); ctx.font = '600 15px Inter, sans-serif';
-      const lost = st.analysis.lost;
-      const long = [left + (left === 1 ? ' atom left' : ' atoms left'), lost + ' lost', 'space ' + used + ' / ' + st.grid.length];
-      const short = [left + ' left', lost + ' lost', used + ' / ' + st.grid.length];
-      const widthOf = (ls) => Math.max(...ls.map((s) => ctx.measureText(s).width));
-      const rx = tray.x + tray.w - 18;
-      const fits = (ls) => (rx - widthOf(ls) - 10 - nx0) / 3 >= 26;
-      const lines = fits(long) ? long : short;
-      const room = rx - widthOf(lines) - 10 - nx0;
-      ctx.restore();
-      const step = Math.max(24, Math.min(40, room / 3));
-      next.forEach((e, i) => trayAtom(e, nx0 + 10 + i * step, midY, 10, 1));
-      ctx.save();
-      ctx.font = '600 15px Inter, sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-      ctx.fillStyle = TOK.ink72; ctx.fillText(lines[0], rx, tray.y + tray.h * 0.27);
-      ctx.fillStyle = lost ? TOK.sun : TOK.ink72; ctx.fillText(lines[1], rx, tray.y + tray.h * 0.52);
-      ctx.fillStyle = TOK.ink72; ctx.fillText(lines[2], rx, tray.y + tray.h * 0.77);
-      ctx.restore();
+      label('AVAILABLE', panel.x + 16, panel.y + 14);
+      for (const s of slots) {
+        const n = st.avail[s.el] || 0, al = n > 0 ? 1 : 0.35;
+        const cx = s.x + s.w / 2, cy = s.y + s.h * 0.5 + 2;
+        panelAtom(s.el, cx - 13, cy, 11.5, al);
+        ctx.save();
+        ctx.globalAlpha = al;
+        ctx.font = '800 16px Inter, sans-serif'; ctx.fillStyle = TOK.white; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+        ctx.fillText('×' + n, cx + 6, cy);
+        ctx.font = '600 12px Inter, sans-serif'; ctx.fillStyle = TOK.ink72; ctx.textAlign = 'center';
+        ctx.fillText(cap(M.ELEMENTS[s.el].name), cx, s.y + s.h - 12);
+        ctx.restore();
+      }
     } else {
-      const cx = tray.x + tray.w / 2;
-      if (el) label('IN HAND', tray.x, tray.y + 12);
-      if (el) trayAtom(el, cx, tray.y + 70, 24, handAlpha);
-      if (next.length) label('NEXT', tray.x, tray.y + 138);
-      next.forEach((e, i) => trayAtom(e, cx, tray.y + 180 + i * 56, 14, 1));
-      ctx.save();
-      ctx.font = '600 16px Inter, sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-      ctx.fillStyle = st.analysis.lost ? TOK.sun : TOK.ink72;
-      ctx.fillText(st.analysis.lost + (st.analysis.lost === 1 ? ' molecule lost' : ' molecules lost'), tray.x, tray.y + tray.h - 40);
-      ctx.fillStyle = TOK.ink72;
-      ctx.fillText('space ' + used + ' / ' + st.grid.length, tray.x, tray.y + tray.h - 12);
-      ctx.restore();
+      label('AVAILABLE', panel.x, panel.y + 12);
+      for (const s of slots) {
+        const n = st.avail[s.el] || 0, al = n > 0 ? 1 : 0.35;
+        const R = 12.5, cx = s.x + 21, cy = s.y + s.h / 2;
+        panelAtom(s.el, cx, cy, R, al);
+        ctx.save();
+        ctx.globalAlpha = al;
+        ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+        ctx.font = '700 15px Inter, sans-serif'; ctx.fillStyle = TOK.ink90;
+        ctx.fillText(cap(M.ELEMENTS[s.el].name), s.x + 46, cy - 9);
+        ctx.font = '600 13px Inter, sans-serif'; ctx.fillStyle = TOK.ink72;
+        ctx.fillText('valency ' + M.ELEMENTS[s.el].hands, s.x + 46, cy + 10);
+        ctx.font = '800 17px Inter, sans-serif'; ctx.fillStyle = TOK.white; ctx.textAlign = 'right';
+        ctx.fillText('×' + n, s.x + s.w, cy + 10);
+        ctx.restore();
+      }
     }
-  }
-  function drawDragAtom() {
-    if (!drag || hover) return;
-    const el = st.supply[st.next];
-    if (!el) return;
-    const y = drag.touch ? drag.y - TUNE.touchLift * G.cell : drag.y;
-    drawAtoms([{ el, x: drag.x, y, bonds: [], freeAng: freeAngles([], M.ELEMENTS[el].hands), palm: 'open' }], geomFor(G.cell));
   }
 
   /* ---------- HUD ---------- */
@@ -914,33 +1097,26 @@
       if (b.icon) drawSoundPill(b);
       else UI.drawPill(ctx, b.label, b.cx, b.cy, { w: b.w });
     }
-    /* The read-out keeps its 16px and gives up WORDS on a narrow frame. The
-       shared hs scale bottoms out at 0.66, which is 11px on a phone. */
-    const n = li + 1, les = level.lesson, left = st.supply.length - st.next;
-    const tries = MODE === 'desktop'
-      ? ['Level ' + n + '   ·   Lesson ' + les + '   ·   ' + left + (left === 1 ? ' atom left' : ' atoms left'),
-         'Level ' + n + '  ·  Lesson ' + les + '  ·  ' + left + ' left', 'Level ' + n + '  ·  ' + left + ' left']
-      : ['Level ' + n + '   ·   Lesson ' + les, 'Level ' + n + '  ·  Lesson ' + les, 'Level ' + n];
+    const lost = st.analysis.lost, y = topBand() / 2, rx = LW - SIDE_PAD;
+    const main = 'Level ' + (li + 1);
     ctx.save();
-    ctx.font = '600 16px Inter, sans-serif';
-    const minX = MODE === 'desktop' ? readoutMinX : SIDE_PAD + 70;     // clear of MAKE on a phone
-    const room = LW - SIDE_PAD - minX;
-    const text = tries.find((s) => ctx.measureText(s).width <= room) || tries[tries.length - 1];
-    ctx.fillStyle = TOK.ink72; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-    ctx.fillText(text, LW - SIDE_PAD, topBand() / 2);
+    ctx.font = '600 16px Inter, sans-serif'; ctx.textBaseline = 'middle'; ctx.textAlign = 'right';
+    ctx.fillStyle = TOK.ink72; ctx.fillText(main, rx, y);
+    if (lost) {
+      const minX = MODE === 'desktop' ? readoutMinX : SIDE_PAD + 70;
+      const w = ctx.measureText(main).width;
+      const tries = [lost + (lost === 1 ? ' molecule lost' : ' molecules lost') + '   ·   ', lost + ' lost  ·  '];
+      const text = tries.find((s) => rx - w - ctx.measureText(s).width >= minX) || tries[1];
+      ctx.fillStyle = TOK.sun; ctx.fillText(text, rx - w, y);
+    }
     ctx.restore();
   }
 
-  /* ---------- CARDS ----------
-     The fail card names the shortage and restarts in one tap with the same
-     supply. It waits long enough for the clasp, the dulling and the palms to
-     be seen, because the stake is the dish, not the card. */
+  /* ---------- CARDS ---------- */
   function cardCopy() {
     if (card.kind === 'win') {
-      return { title: 'Flasks full', sub: LV.LESSONS[level.lesson].sentence,
-               cta: li + 1 < LEVELS.length ? 'NEXT LEVEL' : 'PLAY AGAIN' };
+      return { title: 'Flasks full', sub: level.note || '', cta: li + 1 < LEVELS.length ? 'NEXT LEVEL' : 'PLAY AGAIN' };
     }
-    if (card.noRoom) return { title: 'No room left', sub: 'An atom is waiting and every cell is full.', cta: 'TRY AGAIN' };
     return { title: card.made ? card.made + ' of ' + card.total + ' made' : 'Nothing made',
              sub: 'Every molecule on the list has to be made.', cta: 'TRY AGAIN' };
   }
@@ -978,61 +1154,6 @@
     ctx.restore();
     ctaBox = UI.drawCTA(ctx, copy.cta, px + pw / 2, py + ph - 57, TOK.accent);
   }
-
-  /* ---------- THE MOVE ---------- */
-  const playable = () => !card && !st.result && st.next < st.supply.length;
-  function dragCell() {
-    return cellAt(drag.x, drag.touch ? drag.y - TUNE.touchLift * G.cell : drag.y);
-  }
-  function hoverCell() {
-    if (!playable()) return -1;
-    if (drag) return dragCell();
-    // A mouse over an empty cell previews a click. A finger has no hover, so a
-    // phone previews only while dragging.
-    if (MODE === 'desktop' && pointer && pointer.type === 'mouse') return cellAt(pointer.x, pointer.y);
-    return -1;
-  }
-  function refreshHover() {
-    const cell = hoverCell();
-    if (cell < 0 || !M.canPlace(st, cell)) { hover = null; return; }
-    if (hover && hover.cell === cell && hover.stamp === st.version) return;
-    hover = { cell, t0: clock(), stamp: st.version, pv: M.preview(st, cell) };
-  }
-
-  function doPlace(cell) {
-    const lostBefore = st.analysis.lost;
-    const pv = M.preview(st, cell);
-    const ev = M.place(st, cell);
-    if (!ev) return null;
-    const now = clock();
-    lastGhost = pv && pv.ev.bonds; lastPlaced = ev.bonds;
-    const partners = ev.bonds.map((b) => b.to);
-    clasp = { ids: new Set([ev.id].concat(partners)), keys: new Set(partners.map((p) => bondKey(ev.id, p))), t0: now };
-    const orders = ev.bonds.reduce((n, b) => n + b.order, 0);
-    if (orders) SND.clasp(ev.el, orders); else SND.set();
-    const lostNow = st.analysis.lost > lostBefore;
-    if (ev.done && ev.done.kind === 'required') {
-      startLift(ev.done, now);
-      setTimeout(SND.lift, 120);
-    } else if (ev.done) {
-      const box = groupBox(ev.done.ids.map((i) => st.atoms[i].cell));
-      wasteFx.push({ ids: ev.done.ids, t0: now, cx: box.cx, top: box.top, bottom: box.bottom, lost: lostNow });
-      setTimeout(SND.waste, 60);
-    } else if (lostNow) {
-      const box = groupBox([ev.cell]);
-      wasteFx.push({ ids: [], t0: now, cx: box.cx, top: box.top, bottom: box.bottom, lost: true });
-    }
-    if (notePalms(now) || lostNow) setTimeout(SND.palm, 90);
-    if (st.result) {
-      const r = st.result;
-      card = { kind: r.kind, made: r.made, total: r.total, noRoom: !!r.noRoom,
-               showAt: now + (r.kind === 'win' ? TUNE.liftMs + 350 : TUNE.cardDelayMs), sounded: false };
-      if (r.kind === 'win') T().levelComplete && T().levelComplete(li + 1, st.placements);
-    }
-    hover = null;
-    refreshHover();
-    return ev;
-  }
   function onCTA() {
     if (!card) return;
     if (card.kind === 'win') loadLevel(li + 1);
@@ -1040,8 +1161,8 @@
   }
 
   /* ---------- INPUT ----------
-     Buttons compare stable ids between press and release, never objects
-     (Crucible's dead buttons). */
+     Buttons compare stable ids between press and release, never objects. */
+  const playable = () => !card && !st.result;
   function toLogical(e) {
     const r = canvas.getBoundingClientRect();
     return { x: (e.clientX - r.left) * (LW / r.width), y: (e.clientY - r.top) * (LH / r.height) };
@@ -1055,53 +1176,52 @@
     const p = toLogical(e);
     pointer = { x: p.x, y: p.y, type: e.pointerType };
     press = null;
-    const now = clock();
-    // Once the card is up, its CTA is the only thing that answers. Before it
-    // shows, the controls still work; the dish is closed by playable().
-    if (card && now >= card.showAt) { if (inBox(p, ctaBox)) press = { id: 'cta' }; return; }
+    if (card && clock() >= card.showAt) { if (inBox(p, ctaBox)) press = { id: 'cta' }; return; }
     const b = ctrl.find((c) => inBox(p, tapBox(c)));
     if (b) { press = { id: b.id }; return; }
-    if (!playable()) return;
-    if (inBox(p, handBox)) {
-      drag = { id: e.pointerId, x: p.x, y: p.y, touch: e.pointerType !== 'mouse' };
-      try { canvas.setPointerCapture(e.pointerId); } catch (_) { /* not every browser lets a canvas capture */ }
-      refreshHover();
-      return;
-    }
-    if (e.pointerType === 'mouse') {
-      const cell = cellAt(p.x, p.y);
-      if (cell >= 0 && M.canPlace(st, cell)) press = { id: 'cell', cell };
+    if (!playable() || drag) return;
+    const touch = e.pointerType !== 'mouse';
+    const hit = atomAt(p);
+    if (hit !== null) { startDrag(hit, p, touch, e.pointerId, false); canvas.style.cursor = 'grabbing'; return; }
+    const slot = slots.find((s) => inBox(p, s));
+    if (slot && (st.avail[slot.el] || 0) > 0) {
+      const id = M.take(st, slot.el);
+      if (id < 0) return;
+      const w = toWorld(p);
+      P.set(id, { x: w.x, y: w.y + (touch ? -TUNE.touchLift : 0), th: -Math.PI / 2, vx: 0, vy: 0, w: 0 });
+      startDrag(id, p, touch, e.pointerId, true);
+      canvas.style.cursor = 'grabbing';
+      SND.pick();
     }
   });
   canvas.addEventListener('pointermove', (e) => {
     const p = toLogical(e);
     pointer = { x: p.x, y: p.y, type: e.pointerType };
-    if (drag && e.pointerId === drag.id) { drag.x = p.x; drag.y = p.y; }
-    refreshHover();
+    if (drag && e.pointerId === drag.pid) { setTarget(p); return; }
+    if (e.pointerType === 'mouse' && st && !card) {
+      const over = atomAt(p) !== null || slots.some((s) => inBox(p, s) && (st.avail[s.el] || 0) > 0);
+      canvas.style.cursor = over ? 'grab' : 'default';
+    }
   });
   canvas.addEventListener('pointerup', (e) => {
     const p = toLogical(e);
-    pointer = { x: p.x, y: p.y, type: e.pointerType };
-    if (drag && e.pointerId === drag.id) {
-      drag.x = p.x; drag.y = p.y;
-      const cell = dragCell();
-      drag = null;
-      if (cell >= 0 && M.canPlace(st, cell)) doPlace(cell);
-      refreshHover();
+    if (drag && e.pointerId === drag.pid) {
+      setTarget(p);
+      stepWorld(0);          // carry it the last of the way, grabs included
+      finishDrag();
+      canvas.style.cursor = 'default';
       return;
     }
     const pr = press;
     press = null;
     if (!pr) return;
     if (pr.id === 'cta') { if (inBox(p, ctaBox)) onCTA(); return; }
-    if (pr.id === 'cell') { if (cellAt(p.x, p.y) === pr.cell) doPlace(pr.cell); return; }
     const b = ctrl.find((c) => c.id === pr.id);
     if (!b || !inBox(p, tapBox(b))) return;
     if (b.id === 'sound') SND.toggle();
     else if (b.id === 'restart') restart();
   });
-  canvas.addEventListener('pointercancel', () => { drag = null; press = null; refreshHover(); });
-  canvas.addEventListener('pointerleave', () => { if (!drag) { pointer = null; refreshHover(); } });
+  canvas.addEventListener('pointercancel', () => { if (drag) finishDrag(); press = null; });
 
   /* ---------- RENDER ---------- */
   function render(now) {
@@ -1109,115 +1229,110 @@
     ctx.clearRect(0, 0, LW, LH);
     drawWash();
     drawDish();
-    const pv = hover && hover.pv;
-    const s = pv ? pv.view : st;
-    const reach = !pv || reduced() ? 1 : 0.5 + 0.5 * easeOut(clamp01((now - hover.t0) / TUNE.reachMs));
-    const newKeys = pv ? new Set(pv.ev.bonds.map((b) => bondKey(pv.ev.id, b.to))) : null;
-    const partners = pv ? new Set(pv.ev.bonds.map((b) => b.to)) : null;
-    drawAtoms(dishItems(s, now, { preview: !!pv, palm: pv ? pv.analysis.palm : st.analysis.palm,
-                                   ghostId: pv ? pv.ev.id : -1, newKeys, reach, partners }), geomFor(G.cell));
-    if (pv) { drawGhostRing(pv.ev.cell); drawPreviewChip(pv); }
-    drawLifts(now);
+    const held = drag ? new Set(M.groupOf(st, drag.id)) : null;
+    const threats = threatPairs();
+    const items = atomItems(now, threats);
+    drawAtoms(items.filter((it) => !held || !held.has(it.id)), G.S);
+    drawFlashes(now);
     drawWasteChips(now);
     drawFlaskRow(now);
-    drawTray();
-    drawDragAtom();
+    drawPanel();
+    drawLifts(now);
+    if (held) drawAtoms(items.filter((it) => held.has(it.id)), G.S);
+    drawThreatChip(threats);
     drawHUD();
     drawCard(now);
   }
-  /* ---------- DRIFT ----------
-     Never while the clock is frozen (tests draw still frames), never under a
-     card, and never in or beside the cell being aimed at: the model refuses
-     those cells, so the ghost cannot change under the player's finger. */
-  function blockedCells() {
-    const b = new Set();
-    if (hover) {
-      b.add(hover.cell);
-      for (let d = 0; d < 4; d++) { const n = M.neighbourCell(st, hover.cell, d); if (n >= 0) b.add(n); }
+  function frame(t) {
+    if (frozen === null && st) {
+      const dt = lastFrame ? Math.min(0.1, (t - lastFrame) / 1000) : 0;
+      lastFrame = t;
+      if (!(card && clock() >= card.showAt)) {
+        stepAcc += dt;
+        let n = 0;
+        while (stepAcc >= STEP && n < 6) { stepWorld(STEP); stepAcc -= STEP; n++; }
+        if (n === 6) stepAcc = 0;
+      }
     }
-    return b;
-  }
-  function doHop(now, rnd) {
-    const blocked = blockedCells(), cands = [];
-    let wsum = 0;
-    for (const a of st.atoms) {
-      if (hops.some((h) => h.id === a.id && now - h.t0 < TUNE.hopMs)) continue;
-      const to = M.hopTargets(st, a.id, blocked);
-      if (!to.length) continue;
-      const w = 1 / Math.sqrt(M.ELEMENTS[a.el].mass);
-      cands.push({ a, to, w }); wsum += w;
-    }
-    if (!cands.length) return false;
-    let x = rnd() * wsum, pick = cands[cands.length - 1];
-    for (const c of cands) { x -= c.w; if (x <= 0) { pick = c; break; } }
-    const from = pick.a.cell, cell = pick.to[Math.floor(rnd() * pick.to.length)];
-    if (!M.hop(st, pick.a.id, cell, blocked)) return false;
-    hops = hops.filter((h) => h.id !== pick.a.id && now - h.t0 < TUNE.hopMs);
-    hops.push({ id: pick.a.id, from, to: cell, t0: now });
-    hopCount++;
-    if (hover) hover = { cell: hover.cell, t0: hover.t0, stamp: st.version, pv: M.preview(st, hover.cell) };
-    return true;
-  }
-  function stepDrift(now) {
-    if (!DRIFT || frozen !== null || card || st.result) return;
-    if (!nextHopAt) { nextHopAt = now + TUNE.hopEveryMs; return; }
-    if (now < nextHopAt) return;
-    nextHopAt = now + TUNE.hopEveryMs * (0.6 + Math.random() * 0.8);
-    doHop(now, Math.random);
-  }
-
-  function frame() {
-    const now = clock();
-    stepDrift(now);
-    render(now);
+    render(clock());
     requestAnimationFrame(frame);
   }
 
   /* ---------- DEBUG HANDLE ----------
-     For tests: state, geometry in logical canvas coordinates so a test can
-     PRESS things, and a frozen clock so any moment can be drawn. */
+     For tests and still frames. World units are atom radii from the dish's
+     top left; `carry` drags an atom (or a fresh one from the panel, by
+     element) in a straight line, grabs and all. */
   window.__chem = {
     get state() {
       return {
-        mode: MODE, LW, LH, level: li + 1, lesson: level.lesson, cell: G.cell,
-        next: st.next, supply: st.supply.length, inHand: st.supply[st.next] || null,
-        placements: st.placements, made: Object.assign({}, st.made), wasted: st.wasted,
-        lost: st.analysis.lost, best: st.analysis.best, version: st.version, hops: hopCount, drift: DRIFT,
-        cells: st.atoms.filter((a) => a.status === 'live').map((a) => ({ id: a.id, el: a.el, c: M.colOf(st, a.cell), r: M.rowOf(st, a.cell), free: a.free })),
-        result: st.result, card: card ? card.kind : null, cardShown: !!ctaBox,
-        palm: Object.assign({}, st.analysis.palm), hover: hover ? hover.cell : -1, dragging: !!drag,
-        ghostBonds: hover && hover.pv ? hover.pv.ev.bonds : null,
-        lastGhost, lastPlaced, reduced: reduced(),
+        mode: MODE, LW, LH, level: li + 1, S: +G.S.toFixed(3), world: [+G.WW.toFixed(2), +G.WH.toFixed(2)],
+        made: Object.assign({}, st.made), wasted: st.wasted, lost: st.analysis.lost, best: st.analysis.best,
+        result: st.result, card: card ? card.kind : null, cardShown: !!ctaBox, avail: Object.assign({}, st.avail),
+        dragging: drag ? drag.id : -1, reactions, version: st.version, drift: DRIFT, reduced: reduced(),
+        palm: Object.assign({}, st.analysis.palm), lastEvent,
+        atoms: st.atoms.filter(inDish).map((a) => {
+          const p = P.get(a.id);
+          return { id: a.id, el: a.el, status: a.status, free: a.free, committed: a.committed,
+                   x: +p.x.toFixed(2), y: +p.y.toFixed(2), mol: M.groupOf(st, a.id)[0] };
+        }),
       };
     },
     geom() {
       render(clock());
-      const cells = [];
-      for (let i = 0; i < G.cols * G.rows; i++) { const c = cellCentre(i); cells.push({ i, x: c.x, y: c.y }); }
-      return { mode: MODE, LW, LH, dish: { x: G.x, y: G.y, w: G.w, h: G.h, cell: G.cell, cols: G.cols, rows: G.rows },
-               cells, hand: handBox, tray, flask: flaskArea, flaskSlots: flaskSlots(), ctrl: ctrl.map((b) => ({ id: b.id, x: b.x, y: b.y, w: b.w, h: b.h })),
-               cta: ctaBox };
+      const atoms = {};
+      for (const a of st.atoms) if (inDish(a)) atoms[a.id] = toPx(P.get(a.id));
+      return { mode: MODE, LW, LH, dish: { x: G.x, y: G.y, w: G.w, h: G.h, S: G.S, WW: G.WW, WH: G.WH },
+               slots: slots.map((s) => ({ el: s.el, x: s.x, y: s.y, w: s.w, h: s.h })), atoms, flaskSlots: flaskSlots(),
+               ctrl: ctrl.map((b) => ({ id: b.id, x: b.x, y: b.y, w: b.w, h: b.h })), panel, flask: flaskArea, cta: ctaBox };
     },
+    toPage(x, y) { return toPx({ x, y }); },
     goto(n) { loadLevel(n - 1); render(clock()); return this.state; },
-    place(c, r) { doPlace(M.cellOf(st, c, r)); render(clock()); return this.state; },
-    solve() { for (const [c, r] of level.solution) doPlace(M.cellOf(st, c, r)); render(clock()); return this.state; },
-    hoverAt(c, r) {
-      const cell = M.cellOf(st, c, r);
-      hover = M.canPlace(st, cell) ? { cell, t0: clock() - 1000, stamp: st.version, pv: M.preview(st, cell) } : null;
-      render(clock()); return this.state;
+    restart() { restart(); render(clock()); return this.state; },
+    freeze(ms) { frozen = performance.now() + (ms || 0); render(frozen); return frozen; },
+    advance(ms) {
+      if (frozen === null) frozen = performance.now();
+      const n = Math.round((ms || 0) / (STEP * 1000));
+      for (let i = 0; i < n; i++) { frozen += STEP * 1000; if (!(card && frozen >= card.showAt)) stepWorld(STEP); }
+      render(frozen);
+      return this.state;
     },
-    freeze(msAfterNow) { frozen = performance.now() + (msAfterNow || 0); render(frozen); return frozen; },
-    advance(ms) { if (frozen === null) frozen = performance.now(); frozen += ms; render(frozen); return frozen; },
-    thaw() { frozen = null; },
-    // One drift now, chosen by a seeded draw, so a test can watch motion without waiting.
-    hopNow(seed) { let x = seed || 1; const rnd = () => ((x = (x * 16807) % 2147483647) / 2147483647); const ok = doHop(clock(), rnd); render(clock()); return ok; },
+    thaw() { frozen = null; lastFrame = 0; },
+    move(id, x, y) { const p = P.get(id); if (p) { p.x = x; p.y = y; } render(clock()); return this.state; },
+    carry(what, x, y, opts) {
+      const o = opts || {};
+      if (card || st.result) return this.state;
+      let id = what;
+      if (typeof what === 'string') {
+        const s0 = slots.find((q) => q.el === what);
+        if (!s0) return this.state;
+        id = M.take(st, what);
+        if (id < 0) return this.state;
+        const w = toWorld({ x: s0.x + s0.w / 2, y: s0.y + s0.h / 2 });
+        P.set(id, { x: w.x, y: w.y, th: -Math.PI / 2, vx: 0, vy: 0, w: 0 });
+        drag = { id, pid: -1, touch: false, fromPanel: true, ox: 0, oy: 0, tx: w.x, ty: w.y, cx: w.x, cy: w.y };
+      } else {
+        const q = P.get(id);
+        if (!q) return this.state;
+        drag = { id, pid: -1, touch: false, fromPanel: false, ox: 0, oy: 0, tx: q.x, ty: q.y, cx: q.x, cy: q.y };
+      }
+      const sx = drag.cx, sy = drag.cy, n = o.steps || 40;
+      for (let i = 1; i <= n && drag; i++) {
+        setTargetWorld(sx + (x - sx) * i / n, sy + (y - sy) * i / n);
+        stepWorld(STEP);
+        if (frozen !== null) frozen += STEP * 1000;
+      }
+      if (drag && !o.hold) finishDrag();
+      render(clock());
+      return this.state;
+    },
+    drop() { if (drag) finishDrag(); render(clock()); return this.state; },
+    bondNow(a, b) { const ev = bondAtoms(a, b); render(clock()); return ev; },
     render() { render(clock()); },
   };
 
   /* ---------- BOOT ----------
-     Every re-fit hook is part of the pattern (Tailwind collapsed into a strip
-     without them). Timers as well as events, because rAF is throttled to
-     nothing in some embedded browsers. */
+     Every re-fit hook is part of the pattern. Timers as well as events, because
+     rAF is throttled to nothing in some embedded browsers. */
   setCanvasVars(); resizeCanvas(); fitFullscreen(); resizeCanvas();
   const jump = parseInt(params.get('level'), 10);
   const saved = readSave()[MODE];

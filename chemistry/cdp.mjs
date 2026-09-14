@@ -36,8 +36,12 @@ export async function openPage({ w, h, dpr = 1, mobile = false, url, settle = 34
     const d = JSON.parse(m.data);
     if (d.id && pending.has(d.id)) { pending.get(d.id)(d); pending.delete(d.id); }
     if (d.method === 'Runtime.exceptionThrown') errors.push(d.params.exceptionDetails.exception?.description || d.params.exceptionDetails.text);
-    // Vercel's two scripts only exist on Vercel; everything else is a real 404
-    if (d.method === 'Log.entryAdded' && d.params.entry.level === 'error' && !/_vercel/.test(d.params.entry.url || '')) {
+    // Vercel's scripts only exist on Vercel, and the AdSense script logs its own
+    // report-only CSP notices about framing google.com; neither is the game.
+    const e = d.params && d.params.entry;
+    const thirdParty = e && (/_vercel|googlesyndication|adtrafficquality|doubleclick/.test(e.url || '') ||
+                             /report-only Content Security Policy/.test(e.text || ''));
+    if (d.method === 'Log.entryAdded' && e.level === 'error' && !thirdParty) {
       errors.push(d.params.entry.text + ' ' + (d.params.entry.url || ''));
     }
   };

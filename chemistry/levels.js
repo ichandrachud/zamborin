@@ -1,23 +1,18 @@
 /* ============================================================
-   Lessons in Chemistry · levels, written by hand
+   Lessons in Chemistry · levels
 
-   The owner, 2026-09-13, after playing the first seven: "there is only one
-   possible answer on the board and there is not too much penalty for where you
-   place the atom". So the dish now starts crowded with free radicals: the
-   atoms a molecule needs (iron for iron chloride) and ones waiting to pounce
-   on whatever lands beside them (hydrogen, sodium, calcium). A chlorine that
-   lands beside a hydrogen makes hydrogen chloride, and the iron chloride it
-   was meant for is lost.
+   From the owner's sketch, 2026-09-14: an open dish with free radicals
+   floating in it, targets listed at the top, and a set number of atoms in
+   the Available panel. Some radicals are what a target needs (iron for iron
+   chloride); the rest are waiting to grab whatever comes near (a hydrogen
+   that meets a chlorine makes hydrogen chloride, and the iron chloride that
+   chlorine was for is lost).
 
-   Two sets, because the phone dish is 5 x 6 and the desktop dish is 8 x 6.
-
-   `pre` is what is on the dish at the start. No two atoms with free hands may
-   start side by side (they would clasp at once); tests.mjs checks it.
-   `solution` is a cell for every atom in supply order that makes every
-   molecule, with the radicals held still. tests.mjs replays it. It proves a
-   level can be won; it says nothing about how hard it is.
-
-   Coordinates are [column, row] from the top left.
+   `dish` is what floats in the dish at the start, scattered by `seed`.
+   `avail` is the panel. Every level has exactly the atoms its targets need,
+   plus the radicals that get in the way; tests.mjs checks nothing is lost
+   before the first move. Phone and desktop get their own sets: the desktop
+   dish is bigger and carries more trouble.
    ============================================================ */
 (function (root, factory) {
   const api = factory();
@@ -26,116 +21,41 @@
 }(typeof self !== 'undefined' ? self : this, function () {
 'use strict';
 
-const LESSONS = {
-  1: { name: 'Hands', sentence: 'Every atom has hands, and every hand wants a friend.' },
-  2: { name: 'Free radicals', sentence: 'A free hand grabs the first hand it touches, right or wrong.' },
-};
-
-const at = (el, c, r) => ({ el, c, r });
-
 const mobile = [
-  { // 1 · the first clasp: an oxygen is already there, reaching
-    lesson: 1, dish: [5, 6],
-    targets: [['water', 1]],
-    pre: [at('O', 2, 2)],
-    supply: ['H', 'H'],
-    solution: [[1, 2], [3, 2]],
-  },
-  { // 2 · a sodium waits above and to the right of the oxygen
-    lesson: 1, dish: [5, 6],
-    targets: [['water', 1]],
-    pre: [at('O', 1, 2), at('Na', 2, 1), at('Na', 3, 4)],
-    supply: ['H', 'H'],
-    solution: [[0, 2], [1, 3]],
-  },
-  { // 3 · iron wants three chlorines; the hydrogen will take one if it can
-    lesson: 2, dish: [5, 6],
-    targets: [['iron-chloride', 1]],
-    pre: [at('Fe', 2, 2), at('H', 3, 3), at('Na', 0, 4), at('H', 4, 0)],
-    supply: ['Cl', 'Cl', 'Cl'],
-    solution: [[2, 1], [1, 2], [2, 3]],
-  },
-  { // 4 · only two safe sides: spend the spare hydrogen on the sodium
-    lesson: 2, dish: [5, 6],
-    targets: [['iron-chloride', 1]],
-    pre: [at('Fe', 2, 2), at('H', 3, 3), at('Na', 1, 1)],
-    supply: ['Cl', 'Cl', 'H', 'Cl'],
-    solution: [[2, 1], [2, 3], [0, 1], [1, 2]],
-  },
-  { // 5 · salt: now the irons are the ones that pounce
-    lesson: 2, dish: [5, 6],
-    targets: [['salt', 2]],
-    pre: [at('Na', 1, 1), at('Na', 3, 4), at('Fe', 2, 2), at('Fe', 4, 2), at('H', 0, 4)],
-    supply: ['Cl', 'H', 'Cl'],
-    solution: [[0, 1], [0, 5], [2, 4]],
-  },
-  { // 6 · iron chloride and salt, one hydrogen in the way
-    lesson: 2, dish: [5, 6],
-    targets: [['iron-chloride', 1], ['salt', 1]],
-    pre: [at('Fe', 1, 2), at('Na', 3, 4), at('H', 2, 1)],
-    supply: ['Cl', 'Cl', 'H', 'Cl', 'Cl'],
-    solution: [[0, 2], [1, 3], [3, 1], [2, 2], [3, 3]],
-  },
-  { // 7 · three molecules, one hydrogen between them all
-    lesson: 2, dish: [5, 6],
-    targets: [['iron-chloride', 1], ['calcium-chloride', 1], ['salt', 1]],
-    pre: [at('Fe', 1, 1), at('Ca', 3, 3), at('Na', 0, 4), at('H', 2, 2)],
-    supply: ['Cl', 'Cl', 'Cl', 'H', 'Cl', 'Cl', 'Cl'],
-    solution: [[1, 0], [0, 1], [1, 2], [2, 1], [3, 2], [3, 4], [1, 4]],
-  },
+  { targets: [['water', 1]], avail: { H: 2 }, dish: ['O'], seed: 11,
+    note: 'Every atom has hands, and every hand wants a friend.' },
+  { targets: [['water', 1]], avail: { H: 2 }, dish: ['O', 'Na'], seed: 12,
+    note: 'A free hand grabs the first hand it touches.' },
+  { targets: [['iron-chloride', 1]], avail: { Cl: 3 }, dish: ['Fe', 'H', 'H'], seed: 13,
+    note: 'A hydrogen will take a chlorine before the iron gets it.' },
+  { targets: [['iron-chloride', 1], ['water', 1]], avail: { Cl: 3, H: 1 }, dish: ['Fe', 'O', 'H', 'Na'], seed: 14,
+    note: 'Use a hydrogen before a chlorine finds it.' },
+  { targets: [['calcium-chloride', 1], ['salt', 1]], avail: { Cl: 2 }, dish: ['Ca', 'Na', 'Cl', 'H'], seed: 15,
+    note: 'Two chlorines that touch become chlorine gas.' },
+  { targets: [['magnesium-oxide', 1], ['salt', 2]], avail: { Cl: 1, Na: 1 }, dish: ['Mg', 'O', 'Na', 'Cl', 'H'], seed: 16,
+    note: 'Oxygen holds magnesium with both hands.' },
+  { targets: [['iron-chloride', 1], ['calcium-chloride', 1], ['water', 1]], avail: { Cl: 4 },
+    dish: ['Fe', 'Ca', 'O', 'H', 'H', 'Na', 'Cl'], seed: 17,
+    note: 'Every atom you were given has a place. Find it before something else does.' },
 ];
 
 const desktop = [
-  { // 1 · the first clasp
-    lesson: 1, dish: [8, 6],
-    targets: [['water', 1]],
-    pre: [at('O', 3, 2)],
-    supply: ['H', 'H'],
-    solution: [[2, 2], [4, 2]],
-  },
-  { // 2 · two waters, and a sodium beside each oxygen
-    lesson: 1, dish: [8, 6],
-    targets: [['water', 2]],
-    pre: [at('O', 1, 2), at('O', 5, 3), at('Na', 2, 1), at('Na', 6, 2)],
-    supply: ['H', 'H', 'H', 'H'],
-    solution: [[0, 2], [1, 3], [5, 4], [4, 3]],
-  },
-  { // 3 · iron wants three chlorines; the hydrogen will take one if it can
-    lesson: 2, dish: [8, 6],
-    targets: [['iron-chloride', 1]],
-    pre: [at('Fe', 3, 2), at('H', 4, 3), at('Na', 6, 1), at('H', 1, 4)],
-    supply: ['Cl', 'Cl', 'Cl'],
-    solution: [[3, 1], [2, 2], [3, 3]],
-  },
-  { // 4 · two irons, two safe sides each, and two spare hydrogens to spend
-    lesson: 2, dish: [8, 6],
-    targets: [['iron-chloride', 2]],
-    pre: [at('Fe', 2, 2), at('Fe', 5, 3), at('H', 3, 3), at('Na', 1, 1), at('Na', 6, 2)],
-    supply: ['Cl', 'Cl', 'H', 'Cl', 'Cl', 'H', 'Cl', 'Cl'],
-    solution: [[2, 1], [2, 3], [0, 1], [1, 2], [5, 4], [7, 2], [4, 3], [5, 2]],
-  },
-  { // 5 · salt three times: the irons pounce now
-    lesson: 2, dish: [8, 6],
-    targets: [['salt', 3]],
-    pre: [at('Na', 1, 1), at('Na', 4, 4), at('Na', 6, 1), at('Fe', 2, 2), at('Fe', 5, 3), at('H', 3, 0)],
-    supply: ['Cl', 'Cl', 'H', 'Cl'],
-    solution: [[1, 2], [4, 5], [4, 0], [6, 2]],
-  },
-  { // 6 · iron chloride, calcium chloride and salt, with two hydrogens loose
-    lesson: 2, dish: [8, 6],
-    targets: [['iron-chloride', 1], ['calcium-chloride', 1], ['salt', 1]],
-    pre: [at('Fe', 1, 1), at('Ca', 4, 3), at('Na', 6, 1), at('H', 2, 2), at('H', 5, 2)],
-    supply: ['Cl', 'Cl', 'H', 'Cl', 'Cl', 'Cl', 'Cl'],
-    solution: [[1, 0], [0, 1], [3, 2], [1, 2], [4, 4], [3, 3], [6, 2]],
-  },
-  { // 7 · two irons and a salt, a calcium in the corner
-    lesson: 2, dish: [8, 6],
-    targets: [['iron-chloride', 2], ['salt', 1]],
-    pre: [at('Fe', 1, 2), at('Fe', 5, 2), at('Na', 3, 4), at('H', 2, 1), at('H', 6, 3), at('Ca', 4, 0)],
-    supply: ['Cl', 'Cl', 'H', 'Cl', 'Cl', 'Cl', 'Cl', 'Cl'],
-    solution: [[0, 2], [1, 3], [2, 0], [1, 1], [5, 1], [5, 3], [4, 2], [3, 3]],
-  },
+  { targets: [['water', 1]], avail: { H: 2 }, dish: ['O'], seed: 21,
+    note: 'Every atom has hands, and every hand wants a friend.' },
+  { targets: [['water', 2]], avail: { H: 4 }, dish: ['O', 'O', 'Na'], seed: 22,
+    note: 'Two oxygens that touch hold each other with both hands, and nobody asked for oxygen gas.' },
+  { targets: [['iron-chloride', 1]], avail: { Cl: 3 }, dish: ['Fe', 'H', 'H', 'Na'], seed: 23,
+    note: 'A hydrogen will take a chlorine before the iron gets it.' },
+  { targets: [['iron-chloride', 1], ['water', 1]], avail: { Cl: 3, H: 1 }, dish: ['Fe', 'O', 'H', 'Na', 'Ca'], seed: 24,
+    note: 'Use a hydrogen before a chlorine finds it.' },
+  { targets: [['calcium-chloride', 1], ['salt', 2]], avail: { Cl: 3, Na: 1 }, dish: ['Ca', 'Na', 'Cl', 'H', 'H'], seed: 25,
+    note: 'Two chlorines that touch become chlorine gas.' },
+  { targets: [['magnesium-oxide', 1], ['salt', 2]], avail: { Cl: 1, Na: 1 }, dish: ['Mg', 'O', 'Na', 'Cl', 'H', 'Fe'], seed: 26,
+    note: 'Oxygen holds magnesium with both hands.' },
+  { targets: [['iron-chloride', 1], ['calcium-chloride', 1], ['water', 1]], avail: { Cl: 4 },
+    dish: ['Fe', 'Ca', 'O', 'H', 'H', 'Na', 'Cl', 'Mg'], seed: 27,
+    note: 'Every atom you were given has a place. Find it before something else does.' },
 ];
 
-return { LESSONS, mobile, desktop };
+return { mobile, desktop };
 }));

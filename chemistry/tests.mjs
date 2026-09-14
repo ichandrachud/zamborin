@@ -1,9 +1,12 @@
-/* Lessons in Chemistry · model and level tests.   node chemistry/tests.mjs
+/* Lessons in Chemistry · rule tests.   node chemistry/tests.mjs
 
-   What this proves: the rules do what the game says, the ghost's preview is
-   the placement, a lost molecule is counted the moment it becomes true, drift
-   never makes a bond, and every level can be won on its own dish. What it
-   does NOT prove: that any level is fun. Only playing it does that. */
+   What this proves: the rules do what the game says. Two free hands that meet
+   hold each other with every hand they both have; a finished target is
+   collected and anything else finished is waste; a lost molecule is counted
+   the moment it becomes true and play goes on; the level passes only when
+   every molecule is made; and every level can be won from where it starts.
+   What it does NOT prove: that any level is fun. Only playing it does that.
+   Motion, dragging and drawing are play.js, tested in input-tests.mjs. */
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const M = require('./model.js');
@@ -18,22 +21,16 @@ function eq(a, b, name) {
   const A = JSON.stringify(a), B = JSON.stringify(b);
   ok(A === B, name + (A === B ? '' : '\n      got      ' + A + '\n      expected ' + B));
 }
-const sameCounts = (a, b) => M.ORDER.every((el) => (a[el] || 0) === (b[el] || 0));
-const at = (s, c, r) => M.cellOf(s, c, r);
-const pre = (el, c, r) => ({ el, c, r });
+const idOf = (s, el, k) => s.atoms.filter((a) => a.el === el && a.status === 'live')[k || 0].id;
 
 /* ---------- the molecule table ---------- */
 for (const m of Object.values(M.MOLECULES)) {
   ok(m.els.every((el) => !!M.ELEMENTS[el]), 'known elements: ' + m.key);
-  ok(m.els.every((el, i) => m.adj[i].reduce((n, [, o]) => n + o, 0) === M.ELEMENTS[el].hands),
-     'valences balance: ' + m.key);
+  ok(m.els.every((el, i) => m.adj[i].reduce((n, [, o]) => n + o, 0) === M.ELEMENTS[el].hands), 'valences balance: ' + m.key);
+  const bonds = m.adj.reduce((n, l) => n + l.length, 0) / 2;
+  eq(bonds, m.els.length - 1, 'a tree, no rings: ' + m.key);
   const lay = M.layoutMolecule(m.key);
-  ok(!!lay, 'lays out without a collision: ' + m.key);
-  if (lay) {
-    ok(new Set(lay.atoms.map((a) => a.x + ',' + a.y)).size === lay.atoms.length, 'one atom per grid point: ' + m.key);
-    ok(lay.bonds.every((b) => Math.abs(lay.atoms[b.a].x - lay.atoms[b.b].x) + Math.abs(lay.atoms[b.a].y - lay.atoms[b.b].y) === 1),
-       'bonded atoms are neighbours: ' + m.key);
-  }
+  ok(!!lay && new Set(lay.atoms.map((a) => a.x + ',' + a.y)).size === lay.atoms.length, 'lays out as a diagram: ' + m.key);
 }
 const keys = Object.keys(M.MOLECULES);
 for (const a of keys) for (const b of keys) {
@@ -41,180 +38,150 @@ for (const a of keys) for (const b of keys) {
 }
 eq(M.MOLECULES['iron-chloride'].els, ['Fe', 'Cl', 'Cl', 'Cl'], 'two-letter symbols parse');
 
-/* ---------- matching ---------- */
-const OH = { els: ['O', 'H'], adj: [[[1, 1]], [[0, 1]]], count: { O: 1, H: 1 } };
-const OO2 = { els: ['O', 'O'], adj: [[[1, 2]], [[0, 2]]], count: { O: 2 } };
-ok(M.embeds(OH, M.MOLECULES.water), 'O-H sits inside water');
-ok(!M.embeds(OO2, M.MOLECULES['hydrogen-peroxide']), 'O=O does not sit inside peroxide: a bond order never changes');
-
-/* ---------- clasping ---------- */
+/* ---------- matching, including pieces still apart ---------- */
 {
-  const s = M.createState({ dish: [3, 3], targets: [['water', 1]], supply: ['O'],
-    pre: [pre('H', 1, 0), pre('H', 2, 1), pre('H', 1, 2)] });
-  const ev = M.place(s, at(s, 1, 1));
-  eq(ev.bonds.map((b) => b.dir), [0, 1], 'placement order is top, right, bottom, left');
-  eq(ev.done && ev.done.key, 'water', 'and the two it took make water');
+  const OH = { els: ['O', 'H'], adj: [[[1, 1]], [[0, 1]]], count: { O: 1, H: 1 } };
+  const OO2 = { els: ['O', 'O'], adj: [[[1, 2]], [[0, 2]]], count: { O: 2 } };
+  ok(M.embeds(OH, M.MOLECULES.water), 'O-H sits inside water');
+  ok(!M.embeds(OO2, M.MOLECULES['hydrogen-peroxide']), 'O=O does not sit inside peroxide: a bond never changes');
+  const twoApart = { els: ['Fe', 'Cl'], adj: [[], []], count: { Fe: 1, Cl: 1 }, part: [0, 1] };
+  const twoTogetherUnbonded = { els: ['Fe', 'Cl'], adj: [[], []], count: { Fe: 1, Cl: 1 } };
+  ok(M.embeds(twoApart, M.MOLECULES['iron-chloride']), 'an iron and a chlorine still apart can become iron chloride');
+  ok(!M.embeds(twoTogetherUnbonded, M.MOLECULES['iron-chloride']), 'but as one piece with no bond they cannot');
+}
+
+/* ---------- a bond ---------- */
+{
+  const s = M.createState({ targets: [['water', 1]], avail: { H: 2 }, dish: ['O', 'O'] });
+  const ev = M.bond(s, 0, 1);
+  eq([ev.order, ev.done.kind], [2, 'waste'], 'two bare oxygens hold each other with both hands: oxygen gas, waste');
+  eq(s.atoms.map((a) => a.status), ['waste', 'waste'], 'waste stays in the dish');
+  eq(s.result, { kind: 'fail', made: 0, total: 1, lost: 1 }, 'with no oxygen left, the water is lost and the level fails');
+  ok(M.bond(s, 0, 1) === null, 'finished atoms grab nothing');
 }
 {
-  // THE OWNER'S EXAMPLE: a chlorine landing between a hydrogen (above) and an iron (left)
-  const s = M.createState({ dish: [3, 3], targets: [['iron-chloride', 1]], supply: ['Cl', 'Cl', 'Cl'],
-    pre: [pre('H', 1, 0), pre('Fe', 0, 1)] });
-  ok(!s.result && s.analysis.lost === 0, 'iron and three chlorines: nothing lost yet');
-  eq(s.analysis.palm, { 0: 'amber', 1: 'green' }, 'the hydrogen is amber (no use), the iron green');
-  const pv = M.preview(s, at(s, 1, 1));
-  eq(pv.ev.bonds.map((b) => b.to), [0], 'the ghost shows the hydrogen grabbing the chlorine');
-  eq([pv.done && pv.done.kind, pv.analysis.lost], ['waste', 1], 'and that it loses the iron chloride');
-  const ev = M.place(s, at(s, 1, 1));
-  eq(ev.done.kind, 'waste', 'hydrogen chloride is waste here');
-  eq(s.analysis.lost, 1, 'the iron chloride is lost');
-  eq(s.result, { kind: 'fail', made: 0, total: 1, lost: 1, noRoom: false }, 'nothing else can be made: the level fails');
+  const s = M.createState({ targets: [['ethane', 1]], avail: { H: 6 }, dish: ['C', 'C'] });
+  eq(M.bond(s, 0, 1).order, 3, 'two bare carbons grab each other three times');
+}
+{
+  const s = M.createState({ targets: [['water', 1]], avail: { H: 2 }, dish: ['O'] });
+  const h1 = M.take(s, 'H'), h2 = M.take(s, 'H');
+  M.bond(s, 0, h1);
+  ok(M.bond(s, h1, 0) === null && !M.canBond(s, 0, h1), 'two atoms already in one molecule never grab again');
+  const ev = M.bond(s, h2, 0);
+  eq([ev.done.kind, ev.done.key, s.result], ['required', 'water', { kind: 'win' }], 'finished and on the list: collected, and the level is won');
+  eq(s.atoms.map((a) => a.status), ['gone', 'gone', 'gone'], 'a collected molecule leaves the dish');
+}
+
+/* ---------- the panel ---------- */
+{
+  const s = M.createState({ targets: [['salt', 1]], avail: { Cl: 1 }, dish: ['Na'] });
+  const cl = M.take(s, 'Cl');
+  eq([s.avail.Cl, s.analysis.lost], [0, 0], 'taking from the panel spends nothing yet');
+  ok(M.take(s, 'Cl') === -1, 'an empty slot gives nothing');
+  ok(M.putBack(s, cl) && s.avail.Cl === 1, 'a panel atom that touched nothing goes back');
+  const cl2 = M.take(s, 'Cl');
+  ok(M.commit(s, cl2) && !M.putBack(s, cl2), 'let go in the dish, it is the dish\'s');
+  eq(s.analysis.lost, 0, 'and still counts toward the salt');
+}
+
+/* ---------- THE OWNER'S EXAMPLE ---------- */
+{
+  const s = M.createState({ targets: [['iron-chloride', 1]], avail: { Cl: 3 }, dish: ['Fe', 'H'] });
+  eq(s.analysis.palm, { 0: 'green', 1: 'amber' }, 'the iron is wanted, the hydrogen is only trouble');
+  const cl = M.take(s, 'Cl');
+  const bad = M.preview(s, cl, 1), good = M.preview(s, cl, 0);
+  eq([bad.done.kind, bad.lost], ['waste', true], 'a chlorine meeting the hydrogen would make HCl and lose the iron chloride');
+  eq([good.done, good.lost], [null, false], 'meeting the iron would lose nothing');
+  eq(s.analysis.lost, 0, 'a preview changes nothing');
+  M.bond(s, cl, 1);
+  eq([s.wasted, s.analysis.lost, s.result && s.result.kind], [1, 1, 'fail'], 'and when it happens, it does');
 }
 
 /* ---------- a lost molecule does not end the level; the end does ---------- */
 {
-  const lv = { dish: [7, 3], targets: [['salt', 2]], supply: ['Cl', 'Cl'],
-    pre: [pre('Na', 1, 1), pre('H', 3, 0), pre('Na', 5, 1)] };
-  const s = M.createState(lv);
-  M.place(s, at(s, 3, 1));            // beside the hydrogen above it: HCl
-  eq(s.analysis.lost, 1, 'one salt lost');
-  eq(s.result, null, 'but the other salt can still be made, so play goes on');
-  M.place(s, at(s, 6, 1));            // beside the second sodium
+  const s = M.createState({ targets: [['salt', 2]], avail: { Cl: 2 }, dish: ['Na', 'H', 'Na'] });
+  M.bond(s, M.take(s, 'Cl'), idOf(s, 'H'));
+  eq([s.analysis.lost, s.result], [1, null], 'one salt lost, but the other can still be made, so play goes on');
+  M.bond(s, M.take(s, 'Cl'), idOf(s, 'Na'));
   eq(s.made.salt, 1, 'the second salt is made');
-  eq(s.result, { kind: 'fail', made: 1, total: 2, lost: 1, noRoom: false }, 'every molecule must be made: 1 of 2 fails');
+  eq(s.result, { kind: 'fail', made: 1, total: 2, lost: 1 }, 'every molecule must be made: 1 of 2 fails');
 }
 
-/* ---------- two fragments CAN share a molecule when a placed atom grabs both ---------- */
+/* ---------- pieces in the dish can join each other ---------- */
 {
-  const s = M.createState({ dish: [3, 1], targets: [['water', 1]], supply: ['O'],
-    pre: [pre('H', 0, 0), pre('H', 2, 0)] });
-  eq([s.analysis.lost, s.result], [0, null], 'two hydrogen radicals and an oxygen to come: water is still makeable');
-  eq(s.analysis.palm, { 0: 'green', 1: 'green' }, 'both hydrogens green');
-  const ev = M.place(s, at(s, 1, 0));
-  eq([ev.done && ev.done.key, s.result && s.result.kind], ['water', 'win'], 'the oxygen dropped between them makes it');
+  const s = M.createState({ targets: [['water', 1]], avail: {}, dish: ['H', 'O', 'H'] });
+  eq([s.analysis.lost, s.analysis.best], [0, 1], 'three radicals in the dish, nothing in the panel: water is still makeable');
+  M.bond(s, 0, 1);
+  eq(s.analysis.palm, { 1: 'green', 2: 'green' }, 'O-H and the last hydrogen are both still wanted');
+  const ev = M.bond(s, 2, 1);
+  eq([ev.done.key, s.result], ['water', { kind: 'win' }], 'dragged together, they make it');
 }
 {
-  // but two atoms already down can never hold each other
-  const s = M.createState({ dish: [3, 1], targets: [['salt', 1]], supply: ['H'],
-    pre: [pre('Na', 0, 0), pre('Cl', 2, 0)] });
-  eq([s.analysis.best, s.analysis.over], [0, true], 'a sodium and a chlorine already down cannot become salt');
-}
-
-/* ---------- palms and space ---------- */
-{
-  const s = M.createState({ dish: [4, 1], targets: [['water', 2]], supply: ['O', 'H', 'H', 'H'],
-    pre: [pre('H', 0, 0), pre('O', 1, 0)] });
-  M.place(s, at(s, 2, 0));
-  const f = s.analysis.fragments[0];
-  ok(!f.green && f.why === 'shape', 'H-O-O is amber when only water is owed');
-  eq(s.result && s.result.kind, 'fail', 'and no water can be made from what is left');
+  const s = M.createState({ targets: [['iron-chloride', 3]], avail: { Cl: 3 }, dish: ['Fe', 'Fe', 'Fe'] });
+  eq([s.analysis.best, s.analysis.lost], [1, 2], 'three irons and three chlorines: only one iron chloride can be made');
 }
 {
-  const s = M.createState({ dish: [3, 1], targets: [['water', 1]], supply: ['H', 'H', 'H', 'H', 'H'],
-    pre: [pre('O', 0, 0)] });
-  M.place(s, 2);
-  eq(M.place(s, 1).done.kind, 'waste', 'H-H between the oxygen and the wall is waste');
-  const o = s.analysis.fragments.find((fr) => fr.ids.includes(0));
-  ok(o && !o.green && o.why === 'space', 'the oxygen is amber: waste and the wall surround it');
-  eq(s.result && s.result.kind, 'fail', 'nothing can be made: fail');
-}
-{
-  // three irons, three chlorines: only one iron chloride can be made, and any iron could be it
-  const s = M.createState({ dish: [7, 3], targets: [['iron-chloride', 3]], supply: ['Cl', 'Cl', 'Cl'],
-    pre: [pre('Fe', 1, 1), pre('Fe', 3, 0), pre('Fe', 5, 1)] });
-  eq([s.analysis.best, s.analysis.lost], [1, 2], 'three owed, one makeable, two lost from the start');
-  ok(Object.values(s.analysis.palm).every((p) => p === 'green'), 'every iron is still a candidate');
+  // a piece nothing wants makes its palms amber
+  const s = M.createState({ targets: [['magnesium-oxide', 1]], avail: { Cl: 1 }, dish: ['Mg', 'O'] });
+  M.bond(s, M.take(s, 'Cl'), 0);
+  eq([s.analysis.palm[0], s.analysis.lost, s.result && s.result.kind], ['amber', 1, 'fail'], 'Mg-Cl can never be magnesium oxide');
 }
 
-/* ---------- no room ---------- */
-{
-  const s = M.createState({ dish: [2, 1], targets: [['water', 1]], supply: ['O', 'H', 'H'],
-    pre: [pre('H', 0, 0)] });
-  M.place(s, 1);    // O beside the hydrogen: O-H, one hand left, dish full
-  eq(s.result, { kind: 'fail', made: 0, total: 1, lost: 1, noRoom: true }, 'an atom waiting and no empty cell ends the level');
-}
-
-/* ---------- drift ---------- */
-{
-  const lv = { dish: [5, 5], targets: [['iron-chloride', 1]], supply: ['Cl', 'Cl', 'Cl'],
-    pre: [pre('Fe', 2, 2), pre('H', 0, 0), pre('Na', 4, 4)] };
-  const s = M.createState(lv);
-  // every legal drift, from every state reachable by drifting at random, keeps the rule
-  let x = 7;
-  const rnd = () => ((x = (x * 16807) % 2147483647) / 2147483647);
-  let hops = 0, broke = false, bonded = false;
-  for (let i = 0; i < 400; i++) {
-    const movers = s.atoms.filter((a) => M.hopTargets(s, a.id).length);
-    if (!movers.length) break;
-    const a = movers[Math.floor(rnd() * movers.length)];
-    const to = M.hopTargets(s, a.id);
-    const bondsBefore = s.atoms.reduce((n, q) => n + q.bonds.length, 0);
-    ok(M.hop(s, a.id, to[Math.floor(rnd() * to.length)]), 'a listed drift is accepted');
-    hops++;
-    if (s.atoms.reduce((n, q) => n + q.bonds.length, 0) !== bondsBefore) bonded = true;
-    for (const q of s.atoms) {
-      if (q.free === 0) continue;
-      for (let d = 0; d < 4; d++) {
-        const n = M.neighbourCell(s, q.cell, d);
-        if (n >= 0 && s.grid[n] >= 0 && s.atoms[s.grid[n]].free > 0) broke = true;
+/* ---------- every level: starts clean, and can be won ---------- */
+// Build every target by bonding its centre to each leaf: dish atoms first, then the panel.
+function buildAll(level) {
+  const s = M.createState(level);
+  const used = new Set();
+  const pick = (el) => {
+    const a = s.atoms.find((q) => q.el === el && q.status === 'live' && q.committed && !used.has(q.id) && q.bonds.length === 0);
+    if (a) { used.add(a.id); return a.id; }
+    const id = M.take(s, el);
+    if (id >= 0) used.add(id);
+    return id;
+  };
+  const log = [];
+  for (const [key, n] of level.targets) {
+    for (let k = 0; k < n; k++) {
+      const T = M.MOLECULES[key];
+      const centre = T.adj.reduce((best, l, i) => (l.length > T.adj[best].length ? i : best), 0);
+      const ids = T.els.map(() => -1);
+      ids[centre] = pick(T.els[centre]);
+      // walk out from the centre so each new atom bonds to one already placed
+      const q = [centre], seen = new Set([centre]);
+      while (q.length) {
+        const u = q.shift();
+        for (const [v] of T.adj[u]) {
+          if (seen.has(v)) continue;
+          seen.add(v); q.push(v);
+          ids[v] = pick(T.els[v]);
+          const ev = M.bond(s, ids[u], ids[v]);
+          log.push(ev ? (ev.lost ? 'LOST' : 'ok') : 'NO BOND');
+        }
       }
     }
   }
-  ok(hops > 50, 'radicals drift (' + hops + ' drifts)');
-  ok(!broke, 'no drift ever puts two free hands side by side');
-  ok(!bonded, 'no drift ever makes a bond');
-  eq(s.analysis.lost, 0, 'drifting loses nothing');
-  const iron = s.atoms.find((a) => a.el === 'Fe');
-  eq(M.hopTargets(s, iron.id).length > 0, true, 'a lone iron drifts too (slowly, in play)');
-  // bonded atoms stay put, and blocked cells are never left or entered
-  M.place(s, [0, 1, 2, 3].map((d) => M.neighbourCell(s, iron.cell, d)).find((n) => n >= 0 && s.grid[n] < 0 &&
-    [0, 1, 2, 3].every((e) => { const m = M.neighbourCell(s, n, e); return m < 0 || m === iron.cell || s.grid[m] < 0 || s.atoms[s.grid[m]].free === 0; })));
-  eq(M.hopTargets(s, iron.id), [], 'an iron holding a chlorine no longer drifts');
-  const h = s.atoms.find((a) => a.el === 'H');
-  const blocked = new Set([h.cell]);
-  eq(M.hopTargets(s, h.id, blocked), [], 'a radical in a blocked cell stays');
-  const dest = M.hopTargets(s, h.id);
-  if (dest.length) ok(!M.hopTargets(s, h.id, new Set(dest)).length, 'blocked cells are never entered');
+  return { s, log };
 }
-
-/* ---------- every level, through preview and place ---------- */
-function replay(level, name) {
-  const s = M.createState(level);
-  let early = null;
-  ok(!s.atoms.some((a) => a.bonds.length), name + ': nothing starts bonded');
-  ok(!s.atoms.some((a) => a.free > 0 && [0, 1, 2, 3].some((d) => {
-    const n = M.neighbourCell(s, a.cell, d); return n >= 0 && s.grid[n] >= 0 && s.atoms[s.grid[n]].free > 0; })),
-     name + ': no two radicals start side by side');
-  eq(s.analysis.lost, 0, name + ': nothing is lost at the start');
-  level.solution.forEach(([c, r], i) => {
-    const cell = at(s, c, r);
-    const pv = M.preview(s, cell);
-    const ev = M.place(s, cell);
-    const step = name + ' step ' + (i + 1) + ': ';
-    if (!pv || !ev) { ok(false, step + 'legal cell'); return; }
-    eq(pv.ev.bonds, ev.bonds, step + 'ghost bonds equal placed bonds');
-    eq(pv.done ? pv.done.kind : null, ev.done ? ev.done.kind : null, step + 'ghost outcome equals placed outcome');
-    eq(pv.result, ev.result, step + 'ghost result equals placed result');
-    eq(pv.analysis.lost, s.analysis.lost, step + 'ghost lost count equals the count after release');
-    eq(s.analysis.lost, 0, step + 'nothing lost');
-    if (ev.result && i < level.solution.length - 1 && !early) early = { step: i + 1, result: ev.result };
-  });
-  ok(!early, name + ': nothing ends the level early ' + JSON.stringify(early));
-  eq(s.result, { kind: 'win' }, name + ': the solution wins');
-  eq(s.next, level.supply.length, name + ': every atom is placed');
-}
-for (const [set, dish] of [['mobile', [5, 6]], ['desktop', [8, 6]]]) {
+for (const set of ['mobile', 'desktop']) {
   eq(L[set].length, 7, set + ': seven levels');
   L[set].forEach((lv, i) => {
     const name = set + ' level ' + (i + 1);
-    eq(lv.dish, dish, name + ': its own dish size');
-    eq(lv.solution.length, lv.supply.length, name + ': a cell for every atom');
-    ok(!!L.LESSONS[lv.lesson], name + ': a known lesson');
-    replay(lv, name);
+    const s = M.createState(lv);
+    eq([s.analysis.lost, s.result], [0, null], name + ': nothing lost before the first move');
+    ok(lv.dish.length >= 1 && Object.keys(lv.avail).length >= 1, name + ': something in the dish and something in the panel');
+    ok(typeof lv.note === 'string' && lv.note.length > 0, name + ': a line for the win card');
+    const { s: done, log } = buildAll(lv);
+    ok(log.every((x) => x === 'ok'), name + ': built in order, nothing lost on the way ' + JSON.stringify(log));
+    eq(done.result, { kind: 'win' }, name + ': every molecule made');
   });
 }
-ok(L.mobile.slice(1).every((lv, i) => JSON.stringify([lv.pre, lv.supply, lv.targets]) !== JSON.stringify([L.desktop[i + 1].pre, L.desktop[i + 1].supply, L.desktop[i + 1].targets])),
-   'mobile and desktop levels 2 to 7 are different levels, not one set reflowed');
-ok(L.mobile.slice(2).every((lv) => (lv.pre || []).length >= 3), 'from level 3 the phone dish starts crowded');
+ok(L.mobile.slice(1).every((lv, i) => JSON.stringify([lv.dish, lv.avail, lv.targets]) !== JSON.stringify([L.desktop[i + 1].dish, L.desktop[i + 1].avail, L.desktop[i + 1].targets])),
+   'phone and desktop levels 2 to 7 are different levels');
+ok(L.desktop.slice(2).every((lv) => lv.dish.some((el) => {
+  const s = M.createState(lv);
+  return s.atoms.some((a) => a.el === el && s.analysis.palm[a.id] === 'amber');
+})), 'from level 3 every desktop dish has a radical that is only trouble');
 
 console.log((fail ? 'FAILED  ' : 'ok  ') + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
