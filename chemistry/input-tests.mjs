@@ -37,7 +37,7 @@ async function withPage(opts, body) {
 }
 
 // ---------- desktop, mouse ----------
-await withPage({ w: 760, h: 600, url: BASE + '?embed=1&level=1' }, async ({ ev, hover, down, up, click }) => {
+await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&level=1' }, async ({ ev, hover, down, up, click }) => {
   let g = await ev('__chem.geom()');
   ok(g.mode === 'desktop' && g.LW === 760 && g.LH === 600, 'desktop frame is 760x600', [g.mode, g.LW, g.LH]);
   const cell = (c, r) => g.cells[c + r * g.dish.cols];
@@ -88,33 +88,46 @@ await withPage({ w: 760, h: 600, url: BASE + '?embed=1&level=1' }, async ({ ev, 
   ok((await ev('__chem.state')).placements === 1, 'a click on an occupied cell does nothing');
 });
 
-await withPage({ w: 760, h: 600, url: BASE + '?embed=1' }, async ({ ev }) => {
+await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0' }, async ({ ev }) => {
   ok((await ev('__chem.state')).level === 1, 'a fresh browser starts on level 1');
 });
 
-// ---------- desktop, a fail through the input path ----------
-await withPage({ w: 760, h: 600, url: BASE + '?embed=1&level=6' }, async ({ ev, click }) => {
+// ---------- desktop, a lost molecule through the input path ----------
+await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&level=3' }, async ({ ev, click }) => {
   const g = await ev('__chem.geom()');
   const cell = (c, r) => g.cells[c + r * g.dish.cols];
-  await click(cell(0, 0).x, cell(0, 0).y);
-  await click(cell(3, 1).x, cell(3, 1).y);
-  await click(cell(4, 1).x, cell(4, 1).y);      // an oxygen beside an oxygen
+  await click(cell(4, 2).x, cell(4, 2).y);      // a chlorine beside the iron, with a hydrogen below it
   let s = await ev('__chem.state');
-  ok(s.wasted === 1 && s.result && s.result.kind === 'shortage' && s.result.el === 'O', 'O beside O by click: waste, not enough oxygen', [s.wasted, s.result]);
-  ok(!s.cardShown, 'the card waits, so the waste is seen first');
+  ok(s.wasted === 1 && s.lost === 1, 'the hydrogen takes the chlorine: hydrogen chloride, iron chloride lost', [s.wasted, s.lost]);
+  ok(s.result && s.result.kind === 'fail' && s.result.made === 0, 'two chlorines cannot finish the iron: the level fails', s.result);
+  ok(!s.cardShown, 'the card waits, so the loss is seen first');
   const restart = g.ctrl.find((b) => b.id === 'restart');
   await sleep(1200);
   const g2 = await ev('__chem.geom()');
   ok(!!g2.cta, 'then the fail card shows');
   await click(restart.x + restart.w / 2, restart.y + restart.h / 2);
-  ok((await ev('__chem.state')).card === 'shortage', 'with the card up, Restart under the scrim does nothing');
+  ok((await ev('__chem.state')).card === 'fail', 'with the card up, Restart under the scrim does nothing');
   await click(g2.cta.x + g2.cta.w / 2, g2.cta.y + g2.cta.h / 2);
   s = await ev('__chem.state');
-  ok(s.level === 6 && s.placements === 0 && !s.card && s.next === 0, 'TRY AGAIN restarts the level with the same supply', [s.level, s.placements]);
+  ok(s.level === 3 && s.placements === 0 && !s.card && s.lost === 0, 'TRY AGAIN restarts the level', [s.level, s.placements, s.lost]);
+});
+
+// ---------- drift, live ----------
+await withPage({ w: 760, h: 600, url: BASE + '?embed=1&level=7' }, async ({ ev }) => {
+  const before = await ev('__chem.state');
+  await sleep(9000);
+  const after = await ev('__chem.state');
+  ok(after.drift && after.hops >= 1, 'radicals drift on their own (' + after.hops + ' in 9 s)', after.hops);
+  ok(after.hops <= 6, 'and slowly (' + after.hops + ' in 9 s)');
+  ok(after.placements === 0 && after.lost === 0 && after.version === before.version + after.hops, 'drifting places nothing and loses nothing', [after.lost, after.version]);
+  const cells = after.cells, byCell = new Map(cells.map((a) => [a.c + ',' + a.r, a]));
+  const touching = cells.some((a) => a.free > 0 && [[0,-1],[1,0],[0,1],[-1,0]].some(([dc, dr]) => {
+    const b = byCell.get((a.c + dc) + ',' + (a.r + dr)); return b && b.free > 0; }));
+  ok(!touching, 'no two free hands side by side after drifting');
 });
 
 // ---------- mobile, touch ----------
-await withPage({ w: 390, h: 844, dpr: 2, mobile: true, url: BASE + '?level=1' }, async ({ ev, touch }) => {
+await withPage({ w: 390, h: 844, dpr: 2, mobile: true, url: BASE + '?drift=0&level=1' }, async ({ ev, touch }) => {
   let g = await ev('__chem.geom()');
   ok(g.mode === 'mobile' && g.LW === 390 && g.LH === 844, 'a touch phone gets the mobile layout at its own size', [g.mode, g.LW, g.LH]);
   const cell = (c, r) => g.cells[c + r * g.dish.cols];

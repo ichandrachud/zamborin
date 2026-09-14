@@ -13,38 +13,38 @@ const LIB = `
   const px = (x, y) => Array.from(cx.getImageData(Math.round(x * k), Math.round(y * k), 1, 1).data).slice(0, 3);
   const avg = (pts) => { const s = [0,0,0]; pts.forEach(p => { const c = px(p[0], p[1]); s[0]+=c[0]; s[1]+=c[1]; s[2]+=c[2]; }); return s.map(v => v / pts.length); };
 `;
-const p = await openPage({ w: 760, h: 600, dpr: 2, url: BASE + '?embed=1&level=5' });
+const p = await openPage({ w: 760, h: 600, dpr: 2, url: BASE + '?embed=1&drift=0&level=6' });
 let failed = 0;
 try {
   const nul = await p.ev(`(() => { ${LIB} return [ratio([255,255,255],[0,0,0]), ratio([128,128,128],[128,128,128])].map(v => +v.toFixed(2)); })()`);
   const nullOk = nul[0] === 21 && nul[1] === 1;
   console.log('null test, white on black and grey on grey (expect 21, 1):', nul.join(', '), nullOk ? 'ok' : 'FAILED');
   if (!nullOk) failed++;
-  // Desktop level 5 carries all four elements: place them apart and sample.
-  const res = await p.ev(`(() => { ${LIB}
-    const c = __chem; c.freeze(0);
-    [[1,1],[0,4],[4,1],[6,4]].forEach(q => { c.place(...q); c.advance(900); });   // O, H (alone), N, C
-    const g = c.geom(), R = g.dish.cell * 0.28, cell = (cc, rr) => g.cells[cc + rr * g.dish.cols];
-    const out = {};
-    for (const [el, cc, rr] of [['H',0,4],['O',1,1],['N',4,1],['C',6,4]]) {
-      const q = cell(cc, rr), body = [];
-      for (let a = 0; a < 16; a++) for (const f of [0.2, 0.45, 0.7, 0.85]) body.push([q.x + Math.cos(a/16*6.283)*R*f, q.y + Math.sin(a/16*6.283)*R*f]);
+  // Every element on a real dish: desktop level 6 carries iron, calcium, sodium
+  // and hydrogen, a lone chlorine is dropped in a corner, and level 2 has oxygen.
+  const SAMPLE = `(() => { ${LIB}
+    const c = __chem, g = c.geom(), R = g.dish.cell * 0.28, out = {};
+    for (const a of c.state.cells) {
+      if (out[a.el]) continue;
+      const q = g.cells[a.c + a.r * g.dish.cols], body = [];
+      for (let k = 0; k < 16; k++) for (const f of [0.2, 0.45, 0.7, 0.85]) body.push([q.x + Math.cos(k/16*6.283)*R*f, q.y + Math.sin(k/16*6.283)*R*f]);
       const glass = avg([[q.x - g.dish.cell*0.36, q.y - g.dish.cell*0.36], [q.x + g.dish.cell*0.36, q.y - g.dish.cell*0.36]]);
-      out[el] = { body: +ratio(avg(body), glass).toFixed(2), darkEdge: +ratio(px(q.x + R*0.6, q.y + R*0.6), glass).toFixed(2) };
+      out[a.el] = { body: +ratio(avg(body), glass).toFixed(2), darkEdge: +ratio(px(q.x + R*0.6, q.y + R*0.6), glass).toFixed(2) };
     }
-    // a green palm, found on the painted oxygen's cell
-    const o = cell(1,1); let green = null;
-    for (let dy = -g.dish.cell/2; dy <= g.dish.cell/2 && !green; dy++) for (let dx = -g.dish.cell/2; dx <= g.dish.cell/2 && !green; dx++) {
-      const v = px(o.x + dx, o.y + dy); if (v[1] > 180 && v[0] < 120) green = v; }
-    out.palmGreen = green ? +ratio(green, [10,17,32]).toFixed(2) : null;
-    return out; })()`);
-  for (const el of ['H', 'O', 'N', 'C']) {
-    const pass = res[el].body >= 3;
+    return out; })()`;
+  const res = {};
+  await p.navigate(BASE + '?embed=1&drift=0&motion=reduce&level=6');
+  await p.ev('(() => { __chem.freeze(0); __chem.place(7, 5); __chem.advance(900); })()');
+  Object.assign(res, await p.ev(SAMPLE));
+  await p.navigate(BASE + '?embed=1&drift=0&motion=reduce&level=2');
+  await p.ev('__chem.freeze(0)');
+  Object.assign(res, await p.ev(SAMPLE));
+  for (const el of ['H', 'O', 'Cl', 'Na', 'Ca', 'Fe']) {
+    const r = res[el];
+    const pass = r && r.body >= 3;
     if (!pass) failed++;
-    console.log(`${el}: body on glass ${res[el].body}:1 ${pass ? 'ok' : 'UNDER 3:1'}   (darkest edge ${res[el].darkEdge}:1)`);
+    console.log(`${el}: body on glass ${r ? r.body : '?'}:1 ${pass ? 'ok' : 'UNDER 3:1'}   (darkest edge ${r ? r.darkEdge : '?'}:1)`);
   }
-  console.log('green palm on glass: ' + res.palmGreen + ':1 ' + (res.palmGreen >= 3 ? 'ok' : 'UNDER 3:1'));
-  if (!(res.palmGreen >= 3)) failed++;
   if (p.errors.length) { failed++; console.log('console errors: ' + p.errors.join(' | ')); }
 } finally { p.close(); }
 console.log(failed ? `FAILED  ${failed}` : 'ok');

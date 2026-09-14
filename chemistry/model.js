@@ -11,7 +11,8 @@
      a group with no free hand is finished;
      finished and on the list, it leaves the dish; finished and not on the
        list, it is waste and stays;
-     bonds never change once made, so the dish only ever moves forward.
+     bonds never change once made, so the dish only ever moves forward;
+     a lone radical may drift, but never to where it would touch a free hand.
    ============================================================ */
 (function (root, factory) {
   const api = factory();
@@ -24,12 +25,16 @@
    Real valences, so a teacher sees something honest. The player needs none of
    it: the hands carry the rule. */
 const ELEMENTS = {
-  H: { name: 'hydrogen', hands: 1 },
-  O: { name: 'oxygen',   hands: 2 },
-  N: { name: 'nitrogen', hands: 3 },
-  C: { name: 'carbon',   hands: 4 },
+  H:  { name: 'hydrogen', hands: 1, mass: 1 },
+  O:  { name: 'oxygen',   hands: 2, mass: 16 },
+  N:  { name: 'nitrogen', hands: 3, mass: 14 },
+  C:  { name: 'carbon',   hands: 4, mass: 12 },
+  Cl: { name: 'chlorine', hands: 1, mass: 35 },
+  Na: { name: 'sodium',   hands: 1, mass: 23 },
+  Ca: { name: 'calcium',  hands: 2, mass: 40 },
+  Fe: { name: 'iron',     hands: 3, mass: 56 },    // iron as it is in iron(III) chloride
 };
-const ORDER = ['H', 'O', 'N', 'C'];
+const ORDER = ['H', 'O', 'N', 'C', 'Cl', 'Na', 'Ca', 'Fe'];
 const MAX_BOND = 3;
 
 /* Neighbours are ALWAYS considered in this order. It decides which friend a
@@ -55,7 +60,7 @@ function countEls(els) {
    by atom index, '-' single, '=' double, '#' triple. tests.mjs checks that
    every atom's bonds add up to its hands, so a typo here cannot ship. */
 function mol(key, name, short, atoms, bonds) {
-  const els = atoms.split('');
+  const els = atoms.match(/[A-Z][a-z]?/g);
   const adj = els.map(() => []);
   for (const b of bonds.split(' ')) {
     const m = b.match(/^(\d+)([-=#])(\d+)$/);
@@ -83,6 +88,10 @@ const MOLECULES = {};
   mol('dimethyl-ether',    'dimethyl ether',    'ETHER',          'CCOHHHHHH', '0-2 1-2 0-3 0-4 0-5 1-6 1-7 1-8'),
   mol('ethyne',            'ethyne',            'ETHYNE',         'CCHH',      '0#1 0-2 1-3'),
   mol('urea',              'urea',              'UREA',           'CONNHHHH',  '0=1 0-2 0-3 2-4 2-5 3-6 3-7'),
+  mol('hydrogen-chloride', 'hydrogen chloride', 'HCl',            'HCl',       '0-1'),
+  mol('salt',              'sodium chloride',   'NaCl',           'NaCl',      '0-1'),
+  mol('calcium-chloride',  'calcium chloride',  'CaCl\u2082',     'CaClCl',    '0-1 0-2'),
+  mol('iron-chloride',     'iron chloride',     'FeCl\u2083',     'FeClClCl',  '0-1 0-2 0-3'),
 ].forEach((m) => { MOLECULES[m.key] = m; });
 
 /* ---------- MATCHING ----------
@@ -158,6 +167,7 @@ function createState(level) {
     wasted: 0,
     wastedAtoms: 0,
     placements: 0,
+    version: 0,
     result: null,
     analysis: null,
   };
@@ -180,7 +190,7 @@ function clone(s) {
     next: s.next,
     targets: s.targets,        // never mutated
     made: Object.assign({}, s.made),
-    wasted: s.wasted, wastedAtoms: s.wastedAtoms, placements: s.placements,
+    wasted: s.wasted, wastedAtoms: s.wastedAtoms, placements: s.placements, version: s.version,
     result: s.result, analysis: null,
   };
 }
@@ -245,36 +255,42 @@ function resolve(s, done) {
 }
 
 /* ---------- WHAT THE DISH CAN STILL BECOME ----------
-   Run after every placement. Three answers come out of it:
+   Run after every placement.
 
-   PALMS. A fragment is green while it sits inside some molecule still to be
-   made and the atoms still to come can finish that molecule; amber otherwise.
-   On top of the brief's two tests there is a third, about SPACE: a hand whose
-   every neighbour is a wall, waste, its own fragment or an amber fragment can
-   never be reached by anything, because none of those will ever leave. A
-   fragment with such a hand is dead however well the numbers look, and a
-   green palm on it would be the picture lying.
+   THE PLAN. How many of the molecules still owed can still be made? A molecule
+   is built from new atoms plus any fragments already on the dish, and two
+   fragments CAN end up in one molecule when a placed atom grabs both (an
+   oxygen dropped between two hydrogens). What can never happen is a bond
+   between two atoms that are already down, so a set of fragments fits a
+   molecule only if they sit inside it with no bond between them. The best
+   plan is the most molecules those rules and the atoms still to come allow.
+   Every molecule short of all of them is LOST, and the flask row says so.
 
-   SHORTAGE. Two fragments on the dish can never join each other: bonds only
-   form with the atom being placed. So each molecule still to make is built
-   from AT MOST ONE fragment plus new atoms. The level is over when no
-   assignment of green fragments to the molecules still owed leaves the supply
-   enough of every element. The element named is the one furthest short in
-   the closest assignment. This is count arithmetic, so a level that only the
-   ORDER of the supply has doomed is caught later, at the first placement that
-   makes the counts fail too.
+   This is counting, not a search of the dish, so it is generous: a molecule
+   the supply ORDER has already doomed is caught a placement later.
 
-   NO ROOM. An atom is waiting and every cell is full. */
-function covers(supply, need, have) {
-  for (const el of ORDER) if ((need[el] || 0) - (have[el] || 0) > (supply[el] || 0)) return false;
-  return true;
+   PALMS. Green while the fragment is part of some best plan; amber when it is
+   the wrong shape for anything owed, walled in where nothing can reach it
+   (the SPACE rule: waste, the edge and its own atoms never leave), or simply
+   not needed by any best plan.
+
+   OVER. The level ends when nothing more can be made, or an atom is waiting
+   and every cell is full. It is won only if every molecule was made. */
+const EMPTY_G = { els: [], adj: [], count: {} };
+function joinGraphs(A, B) {
+  const off = A.els.length, count = Object.assign({}, A.count);
+  for (const [el, n] of Object.entries(B.count)) count[el] = (count[el] || 0) + n;
+  return { els: A.els.concat(B.els), adj: A.adj.concat(B.adj.map((l) => l.map(([j, o]) => [j + off, o]))), count };
 }
 function analyse(s) {
   const remaining = [];
+  let total = 0, made = 0;
   for (const t of s.targets) {
-    const r = t.n - (s.made[t.key] || 0);
-    if (r > 0) remaining.push([t.key, r]);
+    const m = Math.min(t.n, s.made[t.key] || 0);
+    total += t.n; made += m;
+    if (t.n > m) remaining.push([t.key, t.n - m]);
   }
+  const owed = total - made;
   const supply = countEls(s.supply.slice(s.next));
 
   const fragments = [], fragOf = new Map();
@@ -283,9 +299,7 @@ function analyse(s) {
     const ids = groupOf(s, a.id);
     const g = graphOf(s, ids);
     const keys = remaining.filter(([k]) => embeds(g, MOLECULES[k])).map(([k]) => k);
-    const fed = keys.filter((k) => covers(supply, MOLECULES[k].count, g.count));
-    const f = { ids, count: g.count, keys, green: fed.length > 0,
-                why: fed.length ? null : (keys.length ? 'supply' : 'shape') };
+    const f = { ids, g, count: g.count, keys, green: keys.length > 0, why: keys.length ? null : 'shape', type: -1 };
     ids.forEach((i) => fragOf.set(i, fragments.length));
     fragments.push(f);
   }
@@ -311,70 +325,149 @@ function analyse(s) {
     });
   }
 
-  const won = remaining.length === 0;
-  let shortage = null, stuck = false;
-  if (!won) {
-    shortage = shortageOf(remaining, supply, fragments.filter((f) => f.green));
-    // Belt and braces: with nothing left to place, the count check above
-    // always fires, but a level must never be left open with an empty tray.
-    if (!shortage && s.next >= s.supply.length) stuck = true;
-  }
-  const noRoom = !won && !shortage && !stuck && s.next < s.supply.length && !s.grid.some((v) => v < 0);
+  const usable = fragments.filter((f) => f.green);
+  const pl = plan(remaining, supply, usable);
+  usable.forEach((f) => { if (!pl.useful.has(f.type)) { f.green = false; f.why = 'supply'; } });
 
-  /* Once the level cannot be won, no fragment on the dish can still become
-     something on the list, whatever each would manage alone. Green palms on a
-     lost dish would say "still fine" for the second before the card. */
-  const lost = !!(shortage || stuck || noRoom);
+  const won = owed === 0;
+  const noRoom = !won && s.next < s.supply.length && !s.grid.some((v) => v < 0);
+  const over = !won && (pl.best === 0 || noRoom);
   const palm = {};
   fragments.forEach((f) => f.ids.forEach((i) => {
-    if (s.atoms[i].free > 0) palm[i] = f.green && !lost ? 'green' : 'amber';
+    if (s.atoms[i].free > 0) palm[i] = f.green && !over ? 'green' : 'amber';
   }));
-  return { remaining, supply, fragments, palm, won, shortage, stuck, noRoom };
+  return { remaining, supply, fragments, palm, won, over, noRoom,
+           total, made, best: pl.best, lost: owed - pl.best };
 }
 
-function shortageOf(remaining, supply, greens) {
-  const slots = {}, cur = {};
-  for (const el of ORDER) cur[el] = 0;
-  for (const [k, r] of remaining) {
-    slots[k] = r;
-    for (const el of ORDER) cur[el] += r * (MOLECULES[k].count[el] || 0);
+function plan(remaining, supply, frags) {
+  const keys = remaining.map(([k]) => k);
+  const rOf = Object.fromEntries(remaining);
+  if (!keys.length) return { best: 0, useful: new Set() };
+
+  // Fragments that are the same shape are interchangeable: count them by type.
+  const types = [];
+  frags.forEach((f) => {
+    let ti = types.findIndex((t) => isomorphic(t.g, f.g));
+    if (ti < 0) { ti = types.length; types.push({ g: f.g, n: 0, keys: new Set(f.keys) }); }
+    types[ti].n++;
+    f.type = ti;
+  });
+
+  /* Every way a molecule could take in fragments: how many of each type, and
+     what the supply must add. Adding a copy that does not fit means no bigger
+     set with it fits either, so the walk stops there. */
+  const tpl = {};
+  for (const k of keys) {
+    const T = MOLECULES[k], list = [], use = types.map(() => 0);
+    (function go(ti, union) {
+      if (ti === types.length) {
+        const need = {};
+        for (const el of ORDER) need[el] = (T.count[el] || 0) - (union.count[el] || 0);
+        list.push({ use: use.slice(), need, size: union.els.length });
+        return;
+      }
+      go(ti + 1, union);
+      const t = types[ti];
+      if (!t.keys.has(k)) return;
+      let u = union;
+      for (let c = 1; c <= t.n; c++) {
+        u = joinGraphs(u, t.g);
+        if (u.els.length > T.els.length || !embeds(u, T)) break;
+        use[ti] = c;
+        go(ti + 1, u);
+      }
+      use[ti] = 0;
+    })(0, EMPTY_G);
+    list.sort((a, b) => b.size - a.size);      // fragment-heavy first: they find the best plan sooner
+    tpl[k] = list;
   }
-  let best = null;
-  /* The element named is the one furthest short; on a tie, the one with the
-     largest share of its need missing. A carbon walled in with three
-     hydrogens still to come is one carbon short and one hydrogen short, and
-     "not enough carbon" is the true story: the carbon is the atom that died. */
-  const score = () => {
-    let tot = 0, worst = null, w = 0, wf = 0;
-    for (const el of ORDER) {
-      const d = Math.max(0, cur[el] - (supply[el] || 0));
-      tot += d;
-      const frac = d ? d / cur[el] : 0;
-      if (d > w || (d === w && d > 0 && frac > wf)) { w = d; wf = frac; worst = el; }
+
+  const avail = types.map((t) => t.n);
+  const ceiling = keys.reduce((n, k) => n + rOf[k], 0);
+  const best = maxPlan(keys, rOf, tpl, avail, supply, -1, ceiling);
+  const useful = new Set();
+  if (best > 0) types.forEach((t, ti) => { if (maxPlan(keys, rOf, tpl, avail, supply, ti, best) >= best) useful.add(ti); });
+  return { best: Math.max(0, best), useful };
+}
+
+// The most molecules a plan can make, optionally with at least one fragment of type `must`.
+function maxPlan(keys, rOf, tpl, avail, supply, must, stopAt) {
+  const use = avail.map(() => 0), left = {};
+  for (const el of ORDER) left[el] = supply[el] || 0;
+  const after = [];
+  for (let i = keys.length - 1, acc = 0; i >= 0; i--) { after[i] = acc; acc += rOf[keys[i]]; }
+  const memo = new Map();
+  let best = -1;
+  function rec(ki, j, placed, count) {
+    if (best >= stopAt) return;
+    const k = keys[ki];
+    if (count + (rOf[k] - placed) + after[ki] <= best) return;
+    const memoKey = ki + '|' + j + '|' + placed + '|' + count + '|' + use.join(',') + '|' + ORDER.map((el) => left[el]).join(',');
+    if (memo.has(memoKey)) return;
+    memo.set(memoKey, true);
+    const list = tpl[k];
+    if (placed < rOf[k]) {
+      for (let t = j; t < list.length; t++) {
+        const tp = list[t];
+        let ok = true;
+        for (let x = 0; x < avail.length && ok; x++) if (use[x] + tp.use[x] > avail[x]) ok = false;
+        for (const el of ORDER) if (ok && tp.need[el] > left[el]) ok = false;
+        if (!ok) continue;
+        for (let x = 0; x < avail.length; x++) use[x] += tp.use[x];
+        for (const el of ORDER) left[el] -= tp.need[el];
+        rec(ki, t, placed + 1, count + 1);
+        for (let x = 0; x < avail.length; x++) use[x] -= tp.use[x];
+        for (const el of ORDER) left[el] += tp.need[el];
+        if (best >= stopAt) return;
+      }
     }
-    return { tot, worst };
-  };
-  (function go(i) {
-    if (best && best.tot === 0) return;
-    if (i === greens.length) { const sc = score(); if (!best || sc.tot < best.tot) best = sc; return; }
-    go(i + 1);
-    const f = greens[i];
-    for (const k of f.keys) {
-      if (!(slots[k] > 0)) continue;
-      slots[k]--; for (const el of ORDER) cur[el] -= (f.count[el] || 0);
-      go(i + 1);
-      slots[k]++; for (const el of ORDER) cur[el] += (f.count[el] || 0);
-    }
-  })(0);
-  return best.tot === 0 ? null : best.worst;
+    if (ki + 1 < keys.length) rec(ki + 1, 0, 0, count);
+    else if (must < 0 || use[must] > 0) best = Math.max(best, count);
+  }
+  rec(0, 0, 0, 0);
+  return best;
 }
 
 function resultOf(an) {
   if (an.won) return { kind: 'win' };
-  if (an.shortage) return { kind: 'shortage', el: an.shortage };
-  if (an.stuck) return { kind: 'shortage', el: null };
-  if (an.noRoom) return { kind: 'noroom' };
+  if (an.over) return { kind: 'fail', made: an.made, total: an.total, lost: an.lost, noRoom: an.noRoom };
   return null;
+}
+
+/* ---------- THERMAL MOTION ----------
+   A lone radical (one atom, a free hand, no bonds) can drift to a neighbouring
+   empty cell. It never drifts to where its hand would touch another free
+   hand, so drifting never makes a bond: every bond on the dish is still one
+   the player placed. `blocked` is the cells a drift must neither leave nor
+   enter, which play.js fills with the cell being aimed at and its
+   neighbours, so the preview never changes under the player's finger. */
+function hopTargets(s, id, blocked) {
+  const a = s.atoms[id];
+  if (!a || s.result || a.status !== 'live' || a.bonds.length || a.free === 0) return [];
+  if (blocked && blocked.has(a.cell)) return [];
+  const out = [];
+  for (let d = 0; d < 4; d++) {
+    const nc = neighbourCell(s, a.cell, d);
+    if (nc < 0 || s.grid[nc] !== -1 || (blocked && blocked.has(nc))) continue;
+    let touches = false;
+    for (let e = 0; e < 4 && !touches; e++) {
+      const mc = neighbourCell(s, nc, e);
+      if (mc < 0 || mc === a.cell) continue;
+      const mid = s.grid[mc];
+      if (mid >= 0 && s.atoms[mid].free > 0) touches = true;
+    }
+    if (!touches) out.push(nc);
+  }
+  return out;
+}
+function hop(s, id, cell, blocked) {
+  if (!hopTargets(s, id, blocked).includes(cell)) return false;
+  const a = s.atoms[id];
+  s.grid[a.cell] = -1; a.cell = cell; s.grid[cell] = id;
+  s.version += 1;
+  s.analysis = analyse(s);
+  return true;
 }
 
 /* ---------- THE TWO WAYS IN ----------
@@ -388,7 +481,7 @@ function canPlace(s, cell) {
 function place(s, cell) {
   if (!canPlace(s, cell)) return null;
   const ev = placeAtom(s, s.supply[s.next], cell);
-  s.next += 1; s.placements += 1;
+  s.next += 1; s.placements += 1; s.version += 1;
   const done = classify(s, ev.id);
   ev.done = done && {
     kind: done.kind, key: done.key || null, ids: done.ids,
@@ -460,7 +553,7 @@ function layoutMolecule(key) {
 return {
   ELEMENTS, ORDER, MAX_BOND, DIRS, OPP, MOLECULES,
   countEls, embeds, isomorphic,
-  createState, clone, place, preview, canPlace, analyse, groupOf, graphOf,
+  createState, clone, place, preview, canPlace, analyse, groupOf, graphOf, hopTargets, hop,
   cellOf, colOf, rowOf, neighbourCell, layoutMolecule,
 };
 }));
