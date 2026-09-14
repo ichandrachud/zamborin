@@ -141,9 +141,13 @@
   const TUNE = {
     bond: 2.8,        // between two bonded centres
     hand: 1.55,       // a free hand's reach from its atom's centre
-    capture: 3.3,     // centres this close and two free hands grab
-    warn: 5.4,        // centres this close and the hands start reaching
-    keep: 6.2,        // charged radicals drift no closer to each other than this
+    capture: 3.0,     // centres this close and two free hands grab
+    warn: 5.0,        // centres this close and the hands start reaching
+    /* Charged radicals drift no closer to each other than this. Tightened from
+       6.2 with capture from 3.3 when the owner asked for a crowd: two radicals
+       at this spacing still leave a carried atom a lane between them only if
+       it threads the middle, which is the searching the owner wants. */
+    keep: 5.4,
     collide: 2.3, spread: 1.62, wall: 1.8,
     /* Thermal motion: a hydrogen wanders at about this many radii a second,
        heavier atoms slower by mass^-0.3, and turns about this many radians a
@@ -152,11 +156,18 @@
     drift: 0.42, spin: 0.5, driftTau: 3,
     touchLift: 2.3,   // radii a panel atom rides above a finger
     grabPx: 24,       // never a smaller hit radius than this
-    worldW: { desktop: 28, mobile: 19 }, maxScale: 22,
+    /* How many radii wide the dish is: more radii, smaller atoms, more room.
+       Was 28 and 19 before the crowd. */
+    worldW: { desktop: 36, mobile: 23 }, maxScale: 22,
+    /* A phone shorter than the one the crowds were written for (390x844, whose
+       dish has this much room inside its walls, in radii squared) gets a
+       thinner crowd, never under 40% of it. */
+    crowdArea: 475,
     liftMs: 900, dimMs: 300, chipMs: 2000, flashMs: 380, cardWinMs: 1300, cardFailMs: 1500,
   };
   const STEP = 1 / 60;
   const DRIFT = params.get('drift') !== '0';
+  const CROWD = params.get('crowd') !== '0';        // ?crowd=0: needs and hazards only, for tests
   const REDUCED = matchMedia('(prefers-reduced-motion: reduce)');
   const reduced = () => REDUCED.matches || params.get('motion') === 'reduce';
 
@@ -188,7 +199,7 @@
   function lerpAng(a, b, k) { return a + Math.atan2(Math.sin(b - a), Math.cos(b - a)) * k; }
 
   /* ---------- LEVELS AND SAVE ---------- */
-  const LEVELS = LV[MODE];
+  const LEVELS = LV[MODE];     // each is thinned to the room at load, see crowdSize
   const SAVE_KEY = 'zam.chemistry.save';
   function readSave() {
     try { const v = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); return v && typeof v === 'object' ? v : {}; }
@@ -203,46 +214,103 @@
   let drag = null;          // { id, pid, touch, fromPanel, ox, oy, tx, ty, cx, cy }
   let press = null, pointer = null, card = null;
   let lifts = [], wasteFx = [], flashes = [];
-  const claspAt = new Map(), palmSeen = new Map(), previews = new Map();
-  let stepAcc = 0, lastFrame = 0, lastEvent = null, reactions = 0;
+  const claspAt = new Map(), previews = new Map();
+  let stepAcc = 0, lastFrame = 0, lastEvent = null, reactions = 0, placement = null;
 
   function loadLevel(i) {
     li = ((i % LEVELS.length) + LEVELS.length) % LEVELS.length;
     level = LEVELS[li];
-    st = M.createState(level);
     drag = null; press = null; card = null;
     lifts = []; wasteFx = []; flashes = [];
-    claspAt.clear(); palmSeen.clear(); previews.clear(); P.clear();
+    claspAt.clear(); previews.clear(); P.clear();
     lastEvent = null; reactions = 0;
     const seed = parseInt(params.get('seed'), 10);
     rng = Number.isInteger(seed) ? mulberry(seed * 977 + li) : Math.random;
     layout();
-    const pts = scatter(st.atoms.length, level.seed);
+    level = LV.withCrowd(LEVELS[li], crowdSize(LEVELS[li]));
+    st = M.createState(level);
+    const pts = placeAtoms(level.seed);
     const turn = mulberry(level.seed * 31 + 7);
     st.atoms.forEach((a, k) => P.set(a.id, { x: pts[k].x, y: pts[k].y, th: turn() * TAU, vx: 0, vy: 0, w: 0 }));
-    notePalms(-1e9);
     writeSave();
     T().levelStart && T().levelStart(li + 1);
+  }
+  function crowdSize(base) {
+    if (!CROWD) return 0;
+    if (MODE !== 'mobile') return base.crowd[0];
+    const m = TUNE.wall + 0.6, room = Math.max(0, G.WW - 2 * m) * Math.max(0, G.WH - 2 * m);
+    return Math.round(base.crowd[0] * Math.max(0.4, Math.min(1, room / TUNE.crowdArea)));
   }
   function restart() {
     T().levelRestart && T().levelRestart(li + 1);
     loadLevel(li);
   }
-  // The level's radicals, spread out so no two start within reach of each other.
+  /* The level's radicals, spread out so no two start within reach of each
+     other, and scattered again until every radical the list needs can be
+     reached from the edge of the dish without passing within reach of any
+     other. A crowd is the point; a crowd with its prize walled in is not.
+     If no scatter in forty manages it, the one that walls in the fewest. */
+  function placeAtoms(seed) {
+    const need = st.atoms.filter((a) => st.analysis.palm[a.id] === 'green').map((a) => a.id);
+    let best = null;
+    for (let attempt = 0; attempt < 40; attempt++) {
+      const pts = scatter(st.atoms.length, seed * 7919 + 13 + attempt * 101);
+      const open = need.filter((id) => reachable(pts, id)).length;
+      if (!best || open > best.open) best = { pts, open, attempt };
+      if (open === need.length) break;
+    }
+    placement = { attempts: best.attempt + 1, reachable: best.open, needed: need.length, atoms: st.atoms.length };
+    return best.pts;
+  }
   function scatter(n, seed) {
-    const r = mulberry(seed * 7919 + 13);
-    const m = TUNE.wall + 0.8, pts = [];
-    let minD = TUNE.keep * 1.1;
+    const r = mulberry(seed);
+    const m = TUNE.wall + 0.6, pts = [];
+    let minD = TUNE.keep * 1.08;
     for (let k = 0; k < n; k++) {
       let got = null;
-      for (let tries = 0; !got && tries < 1500; tries++) {
-        if (tries && tries % 300 === 0) minD *= 0.88;
+      for (let tries = 0; !got && tries < 4000; tries++) {
+        if (tries && tries % 500 === 0) minD = Math.max(TUNE.warn, minD * 0.95);
         const x = m + r() * Math.max(0.1, G.WW - 2 * m), y = m + r() * Math.max(0.1, G.WH - 2 * m);
         if (pts.every((q) => Math.hypot(q.x - x, q.y - y) >= minD)) got = { x, y };
       }
-      pts.push(got || { x: G.WW / 2, y: G.WH / 2 });
+      pts.push(got || { x: m + r() * Math.max(0.1, G.WW - 2 * m), y: m + r() * Math.max(0.1, G.WH - 2 * m) });
     }
     return pts;
+  }
+  /* Can an atom carried in from outside the dish get within reach of radical
+     t without coming within reach of any other? A walk over a fine grid: a
+     point is open when every other radical is further than a grab away. */
+  function reachable(pts, t) {
+    const step = 0.4, m = TUNE.wall;
+    const nx = Math.max(2, Math.floor((G.WW - 2 * m) / step) + 1), ny = Math.max(2, Math.floor((G.WH - 2 * m) / step) + 1);
+    const clear = TUNE.capture + 0.25, goal = TUNE.capture - 0.1;
+    const open = new Uint8Array(nx * ny), near = new Uint8Array(nx * ny), seen = new Uint8Array(nx * ny);
+    for (let j = 0; j < ny; j++) {
+      for (let i = 0; i < nx; i++) {
+        const x = m + i * step, y = m + j * step;
+        let ok = 1;
+        for (let k = 0; k < pts.length && ok; k++) {
+          const d = Math.hypot(pts[k].x - x, pts[k].y - y);
+          if (k === t) { if (d < goal) near[j * nx + i] = 1; if (d < TUNE.collide) ok = 0; }
+          else if (d < clear) ok = 0;
+        }
+        open[j * nx + i] = ok;
+      }
+    }
+    const q = [];
+    const push = (c) => { if (open[c] && !seen[c]) { seen[c] = 1; q.push(c); } };
+    for (let i = 0; i < nx; i++) { push(i); push((ny - 1) * nx + i); }
+    for (let j = 0; j < ny; j++) { push(j * nx); push(j * nx + nx - 1); }
+    for (let h = 0; h < q.length; h++) {
+      const c = q[h];
+      if (near[c]) return true;
+      const i = c % nx;
+      if (i > 0) push(c - 1);
+      if (i < nx - 1) push(c + 1);
+      if (c >= nx) push(c - nx);
+      if (c + nx < nx * ny) push(c + nx);
+    }
+    return false;
   }
 
   /* ---------- LAYOUT ----------
@@ -481,7 +549,6 @@
     } else if (ev.lost) {
       wasteFx.push({ ids: M.groupOf(st, a), t0: now, lost: true, chipOnly: true });
     }
-    notePalms(now);
     if (ev.lost) setTimeout(SND.lost, 90);
     if (st.result) endLevel(now);
     return ev;
@@ -561,7 +628,6 @@
     }
     drag = null;
     previews.clear();
-    notePalms(clock());
   }
 
   /* ---------- DRAWING ---------- */
@@ -627,10 +693,12 @@
     ctx.globalAlpha = 1; ctx.fillStyle = g;
     ctx.beginPath(); ctx.arc(x, y, r1, 0, TAU); ctx.fill();
   }
-  /* THE PALM. Green and open while the piece is still wanted by something on
-     the list; amber with a bar across it when it is no use to anything. The
-     bar is the channel that does not depend on seeing colour. White on an
-     atom not yet in the dish. */
+  /* THE PALM. At rest every free hand ends in the same white palm, so nothing
+     but the symbol says which radical is the one you need (the owner's call,
+     2026-09-14: the search is the game). Only when a carried atom comes within
+     reach does a palm turn green, if that grab would help, or amber with a bar
+     across it, if it would lose a molecule. The bar is the channel that does
+     not depend on seeing colour. */
   function drawPalm(x, y, r, state, k, al) {
     if (state === 'open') {
       ctx.globalAlpha = al; ctx.fillStyle = ART.palmOpen;
@@ -654,7 +722,7 @@
      veil on waste, then knots, then palms, so a knot is never under a body and
      a palm never under an arm. Each item: { x, y, el, alpha, label,
      bonds: [{ ang, half, order, key, knot }], free: [{ ang, len, glow }],
-     palm, palmK, wasteK }. */
+     palm, wasteK }. */
   function drawAtoms(items, R) {
     const armW = Math.max(2, R * 0.24), palmR = Math.max(2.5, R * 0.26), knotR = Math.max(1.8, R * 0.2), off = R * 0.34;
     ctx.save();
@@ -724,7 +792,7 @@
       for (const h of a.free) {
         const x = a.x + Math.cos(h.ang) * h.len, y = a.y + Math.sin(h.ang) * h.len;
         if (h.glow) feather(x, y, palmR, palmR * 3.4, h.glow.rgb, h.glow.a * al);
-        drawPalm(x, y, palmR, h.glow ? (h.glow.bad ? 'amber' : 'green') : a.palm, h.glow ? 1 : a.palmK, al);
+        drawPalm(x, y, palmR, h.glow ? (h.glow.bad ? 'amber' : 'green') : a.palm, 1, al);
       }
     }
     ctx.restore();
@@ -747,19 +815,6 @@
   }
   const evenAngles = (th, f) => Array.from({ length: f }, (_, i) => th + TAU * i / f);
 
-  /* Palm turns are remembered per atom so green-to-amber takes its 200ms. */
-  function notePalms(now) {
-    for (const [id, state] of Object.entries(st.analysis.palm)) {
-      const prev = palmSeen.get(+id);
-      if (!prev) palmSeen.set(+id, { state, t: now, born: true });
-      else if (prev.state !== state) palmSeen.set(+id, { state, t: now, born: false });
-    }
-  }
-  function palmK(id, now) {
-    const p = palmSeen.get(id);
-    if (!p || p.state !== 'amber' || p.born) return 1;
-    return reduced() ? 1 : clamp01((now - p.t) / 200);
-  }
   function wasteK(id, now) {
     const w = wasteFx.find((f) => !f.chipOnly && f.ids.includes(id));
     if (!w || reduced()) return 1;
@@ -811,10 +866,7 @@
         }
       }
       if (a.status === 'waste') item.wasteK = wasteK(a.id, now);
-      else if (a.free > 0) {
-        item.palm = a.committed ? (st.analysis.palm[a.id] || 'green') : 'open';
-        item.palmK = palmK(a.id, now);
-      }
+      else if (a.free > 0) item.palm = 'open';
       items.push(item);
     }
     return items;
@@ -1268,7 +1320,7 @@
         mode: MODE, LW, LH, level: li + 1, S: +G.S.toFixed(3), world: [+G.WW.toFixed(2), +G.WH.toFixed(2)],
         made: Object.assign({}, st.made), wasted: st.wasted, lost: st.analysis.lost, best: st.analysis.best,
         result: st.result, card: card ? card.kind : null, cardShown: !!ctaBox, avail: Object.assign({}, st.avail),
-        dragging: drag ? drag.id : -1, reactions, version: st.version, drift: DRIFT, reduced: reduced(),
+        dragging: drag ? drag.id : -1, reactions, version: st.version, drift: DRIFT, reduced: reduced(), placement,
         palm: Object.assign({}, st.analysis.palm), lastEvent,
         atoms: st.atoms.filter(inDish).map((a) => {
           const p = P.get(a.id);

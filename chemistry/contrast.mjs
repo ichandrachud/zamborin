@@ -20,7 +20,7 @@ try {
   const nullOk = nul[0] === 21 && nul[1] === 1;
   console.log('null test, white on black and grey on grey (expect 21, 1):', nul.join(', '), nullOk ? 'ok' : 'FAILED');
   if (!nullOk) failed++;
-  // Desktop level 7 carries iron, calcium, oxygen, hydrogen, sodium, chlorine and magnesium.
+  // Desktop level 7's crowd carries every element in the game but carbon and nitrogen.
   const res = await p.ev(`(() => { ${LIB}
     __chem.freeze(0);
     const g = __chem.geom(), R = g.dish.S, out = {};
@@ -36,7 +36,7 @@ try {
       out[a.el] = { body: +ratio(avg(body), glass).toFixed(2), glass };
     }
     return out; })()`);
-  for (const el of ['H', 'O', 'Cl', 'Na', 'Mg', 'Ca', 'Fe']) {
+  for (const el of ['H', 'O', 'F', 'Cl', 'Na', 'Mg', 'Al', 'Ca', 'Fe']) {
     const r = res[el];
     const pass = r && r.body >= 3;
     if (!pass) failed++;

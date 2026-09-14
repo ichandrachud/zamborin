@@ -62,9 +62,10 @@ async function withPage(opts, body) {
   } finally { p.close(); }
 }
 const atomsOf = (s, el) => s.atoms.filter((a) => a.el === el);
+// Drops land 2.6 radii from a partner: inside the 3.0 a grab needs (play.js TUNE.capture).
 
 // ---------- desktop: build iron chloride by dragging chlorine in from the panel ----------
-await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&level=3' }, async ({ ev, world, mouseDrag, click }) => {
+await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&crowd=0&level=3' }, async ({ ev, world, mouseDrag, click }) => {
   let s = await ev('__chem.state');
   ok(s.mode === 'desktop' && s.LW === 760 && s.LH === 600, 'desktop frame is 760x600', [s.mode, s.LW, s.LH]);
   const [fe] = atomsOf(s, 'Fe'), [h1, h2] = atomsOf(s, 'H'), [na] = atomsOf(s, 'Na');
@@ -76,16 +77,16 @@ await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&level=3' }, async
   const molOf = (st, id) => st.atoms.find((a) => a.id === id).mol;
 
   let f = await feAt();
-  await mouseDrag(slot, await world(f.x + 3.0, f.y));
+  await mouseDrag(slot, await world(f.x + 2.6, f.y));
   s = await ev('__chem.state');
   const cl1 = s.atoms.find((a) => a.el === 'Cl');
   ok(cl1 && cl1.mol === molOf(s, fe.id), 'a chlorine dragged to the iron is grabbed by it', s.atoms);
   ok(s.avail.Cl === 2 && s.lost === 0 && s.wasted === 0, 'one chlorine used, nothing lost', [s.avail, s.lost]);
 
   f = await feAt();
-  await mouseDrag(slot, await world(f.x, f.y + 3.0));
+  await mouseDrag(slot, await world(f.x, f.y + 2.6));
   f = await feAt();
-  await mouseDrag(slot, await world(f.x - 3.0, f.y - 0.4), 20);
+  await mouseDrag(slot, await world(f.x - 2.6, f.y - 0.4), 20);
   s = await ev('__chem.state');
   ok(s.made['iron-chloride'] === 1, 'three chlorines on the iron make iron chloride, and it is collected', s.made);
   ok(s.result && s.result.kind === 'win', 'every molecule made: the level is won', s.result);
@@ -98,7 +99,7 @@ await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&level=3' }, async
 });
 
 // ---------- desktop: the path matters, and a lost molecule fails the level ----------
-await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&level=3' }, async ({ ev, world, mouseDragPath, click }) => {
+await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&crowd=0&level=3' }, async ({ ev, world, mouseDragPath, click }) => {
   let s = await ev('__chem.state');
   const [fe] = atomsOf(s, 'Fe'), [h1, h2] = atomsOf(s, 'H'), [na] = atomsOf(s, 'Na');
   // the hydrogen sits right on the way to the iron
@@ -123,7 +124,7 @@ await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&level=3' }, async
 });
 
 // ---------- desktop: move things in the dish, and put a panel atom back ----------
-await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&level=2' }, async ({ ev, world, mouseDrag }) => {
+await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&crowd=0&level=2' }, async ({ ev, world, mouseDrag }) => {
   let s = await ev('__chem.state');
   const [o, o2nd] = atomsOf(s, 'O'), [na] = atomsOf(s, 'Na');
   const hStart = s.avail.H;
@@ -139,9 +140,28 @@ await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&level=2' }, async
   s = await ev('__chem.state');
   ok(s.avail.H === hStart && s.atoms.length === 3, 'a panel atom let go outside the dish goes back to the panel', [s.avail, s.atoms.length]);
   // carry the oxygen onto the sodium: sodium hydroxide is not on the list, so a hydrogen is still needed... O-Na is a piece nothing wants
-  await mouseDrag(await world(12, 14), await world(22 - 3.0, 20));
+  await mouseDrag(await world(12, 14), await world(22 - 2.6, 20));
   s = await ev('__chem.state');
   ok(s.reactions === 1 && s.lost === 1, 'dragging a dish atom into a radical is a reaction too, and it can lose a molecule', [s.reactions, s.lost]);
+});
+
+// ---------- the crowd ----------
+await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&level=7' }, async ({ ev }) => {
+  const s = await ev('__chem.state');
+  ok(s.atoms.length === 18, 'desktop level 7 floats 18 radicals', s.atoms.length);
+  ok(s.placement.reachable === s.placement.needed && s.placement.needed === 6, 'and every one the list needs can be reached without passing another', s.placement);
+  ok(Object.values(s.palm).length === 18, 'all of them charged');
+  const g = await ev('__chem.geom()');
+  ok(Object.values(g.atoms).every((a) => a.x > g.dish.x && a.x < g.dish.x + g.dish.w && a.y > g.dish.y && a.y < g.dish.y + g.dish.h), 'all inside the dish');
+});
+await withPage({ w: 390, h: 844, dpr: 2, mobile: true, url: BASE + '?drift=0&level=6' }, async ({ ev }) => {
+  const s = await ev('__chem.state');
+  ok(s.atoms.length === 11 && s.placement.reachable === s.placement.needed, 'a 390x844 phone gets level 6 with its full crowd of 11, every needed radical reachable', [s.atoms.length, s.placement]);
+});
+await withPage({ w: 320, h: 568, dpr: 2, mobile: true, url: BASE + '?drift=0&level=7' }, async ({ ev }) => {
+  const s = await ev('__chem.state');
+  ok(s.atoms.length < 12 && s.atoms.length >= 7 && s.placement.reachable === s.placement.needed,
+     'a short phone gets a thinner crowd, and still every needed radical reachable', [s.atoms.length, s.placement]);
 });
 
 // ---------- live drift ----------
@@ -161,7 +181,7 @@ await withPage({ w: 760, h: 600, url: BASE + '?embed=1&level=7' }, async ({ ev }
 });
 
 // ---------- mobile, touch ----------
-await withPage({ w: 390, h: 844, dpr: 2, mobile: true, url: BASE + '?drift=0&level=1' }, async ({ ev, world, touchDrag, touchTap }) => {
+await withPage({ w: 390, h: 844, dpr: 2, mobile: true, url: BASE + '?drift=0&crowd=0&level=1' }, async ({ ev, world, touchDrag, touchTap }) => {
   let s = await ev('__chem.state');
   ok(s.mode === 'mobile' && s.LW === 390 && s.LH === 844, 'a touch phone gets the mobile layout at its own size', [s.mode, s.LW, s.LH]);
   const [o] = atomsOf(s, 'O');
@@ -169,7 +189,7 @@ await withPage({ w: 390, h: 844, dpr: 2, mobile: true, url: BASE + '?drift=0&lev
   const g = await ev('__chem.geom()');
   const slot = centre(g.slots.find((q) => q.el === 'H'));
   // the atom rides above the finger, so the finger goes a little below where the atom should land
-  const land = await world(9 + 3.0, 10 + 2.3);
+  const land = await world(9 + 2.6, 10 + 2.3);
   await touchDrag(slot, land, 20);
   s = await ev('__chem.state');
   const h = s.atoms.find((a) => a.el === 'H');

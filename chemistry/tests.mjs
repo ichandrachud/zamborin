@@ -176,6 +176,24 @@ for (const set of ['mobile', 'desktop']) {
     eq(done.result, { kind: 'win' }, name + ': every molecule made');
   });
 }
+/* ---------- the crowd: many radicals, and the one you need is the only one of its kind ---------- */
+const count = (list, el) => list.filter((x) => x === el).length;
+for (const set of ['mobile', 'desktop']) {
+  L[set].forEach((lv, i) => {
+    const name = set + ' level ' + (i + 1);
+    eq(lv.dish.length, lv.needs.length + lv.hazards.length + lv.crowd[0], name + ': the dish is needs, hazards and the crowd');
+    ok(L.crowdOf(lv).every((el) => !lv.needs.includes(el)), name + ': the crowd never holds a needed element');
+    ok([...new Set(lv.needs)].every((el) => count(lv.dish, el) === count(lv.needs, el)), name + ': every needed radical is the only one of its kind');
+    eq(L.withoutCrowd(lv).dish, lv.needs.concat(lv.hazards), name + ': ?crowd=0 leaves needs and hazards');
+    for (const n of [0, Math.floor(lv.crowd[0] / 2), lv.crowd[0]]) {
+      const thin = L.withCrowd(lv, n), st = M.createState(thin);
+      eq([thin.dish.length, st.analysis.lost], [lv.needs.length + lv.hazards.length + n, 0], name + ': thinned to ' + n + ', still nothing lost');
+    }
+  });
+}
+ok(L.mobile.slice(2).every((lv) => lv.dish.length >= 9), 'from level 3 a phone dish holds at least 9 radicals');
+ok(L.desktop.slice(2).every((lv) => lv.dish.length >= 13), 'from level 3 a desktop dish holds at least 13 radicals');
+
 ok(L.mobile.slice(1).every((lv, i) => JSON.stringify([lv.dish, lv.avail, lv.targets]) !== JSON.stringify([L.desktop[i + 1].dish, L.desktop[i + 1].avail, L.desktop[i + 1].targets])),
    'phone and desktop levels 2 to 7 are different levels');
 ok(L.desktop.slice(2).every((lv) => lv.dish.some((el) => {
