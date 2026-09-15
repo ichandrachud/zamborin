@@ -13,16 +13,16 @@ const LIB = `
   const px = (x, y) => Array.from(cx.getImageData(Math.round(x * k), Math.round(y * k), 1, 1).data).slice(0, 3);
   const avg = (pts) => { const s = [0,0,0]; pts.forEach(p => { const c = px(p[0], p[1]); s[0]+=c[0]; s[1]+=c[1]; s[2]+=c[2]; }); return s.map(v => v / pts.length); };
 `;
-const p = await openPage({ w: 760, h: 600, dpr: 2, url: BASE + '?embed=1&drift=0&motion=reduce&level=7' });
+const p = await openPage({ w: 760, h: 600, dpr: 2, url: BASE + '?embed=1&drift=0&motion=reduce&level=22' });
 let failed = 0;
 try {
   const nul = await p.ev(`(() => { ${LIB} return [ratio([255,255,255],[0,0,0]), ratio([128,128,128],[128,128,128])].map(v => +v.toFixed(2)); })()`);
   const nullOk = nul[0] === 21 && nul[1] === 1;
   console.log('null test, white on black and grey on grey (expect 21, 1):', nul.join(', '), nullOk ? 'ok' : 'FAILED');
   if (!nullOk) failed++;
-  // Desktop level 7's crowd carries every element in the game but carbon and nitrogen.
-  const res = await p.ev(`(() => { ${LIB}
-    __chem.freeze(0);
+  // Desktop level 22's crowd carries every element in the game but carbon and nitrogen; level 44 needs both.
+  const measure = (level) => p.ev(`(() => { ${LIB}
+    __chem.goto(${level}, 1); __chem.freeze(0);
     const g = __chem.geom(), R = g.dish.S, out = {};
     for (const a of __chem.state.atoms) {
       if (out[a.el]) continue;
@@ -36,7 +36,8 @@ try {
       out[a.el] = { body: +ratio(avg(body), glass).toFixed(2), glass };
     }
     return out; })()`);
-  for (const el of ['H', 'O', 'F', 'Cl', 'Na', 'Mg', 'Al', 'Ca', 'Fe']) {
+  const res = Object.assign(await measure(44), await measure(22));
+  for (const el of ['H', 'O', 'N', 'C', 'F', 'Cl', 'Na', 'Mg', 'Al', 'Ca', 'Fe']) {
     const r = res[el];
     const pass = r && r.body >= 3;
     if (!pass) failed++;

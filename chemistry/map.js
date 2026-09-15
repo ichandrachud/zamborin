@@ -109,15 +109,19 @@
       }
       ctx.restore();
 
-      // Fades at the edges, so it is plain there is more.
+      /* Fades at the edges, so it is plain there is more. The page's own wash
+         is painted back over the cells in thin bands, fullest at the edge, so
+         they melt into the ground rather than under a darker shelf. */
+      ctx.save();
+      ctx.fillStyle = host.washStyle();
       for (const top of [true, false]) {
         if (top ? scroll <= 1 : scroll >= maxScroll - 1) continue;
-        const y = top ? view.y : view.y + view.h - 24;
-        const g = ctx.createLinearGradient(0, y, 0, y + 24);
-        g.addColorStop(top ? 0 : 1, 'rgba(14,23,38,0.92)');
-        g.addColorStop(top ? 1 : 0, 'rgba(14,23,38,0)');
-        ctx.fillStyle = g; ctx.fillRect(0, y, LW, 24);
+        for (let k = 0; k < 12; k++) {
+          ctx.globalAlpha = 1 - k / 12;
+          ctx.fillRect(0, top ? view.y + k * 2 : view.y + view.h - (k + 1) * 2, LW, 2);
+        }
       }
+      ctx.restore();
     }
 
     /* ---------- INPUT ----------

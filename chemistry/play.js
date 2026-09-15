@@ -698,11 +698,12 @@
   }
 
   /* ---------- DRAWING ---------- */
-  function drawWash() {
+  function washStyle() {
     const bg = ctx.createRadialGradient(LW * 0.32, 0, 0, LW * 0.32, 0, LW * 1.1);
     bg.addColorStop(0, TOK.panel); bg.addColorStop(0.6, TOK.card); bg.addColorStop(1, TOK.bg);
-    ctx.fillStyle = bg; ctx.fillRect(0, 0, LW, LH);
+    return bg;
   }
+  function drawWash() { ctx.fillStyle = washStyle(); ctx.fillRect(0, 0, LW, LH); }
   // The dish: dark glass in a vessel whose rim catches the light along its top.
   function drawDish() {
     const r = 24;
@@ -1513,7 +1514,7 @@
 
   /* ---------- THE MAP ---------- */
   const map = window.ChemMap({
-    ctx, TOK, rr, label, pad: SIDE_PAD, topBand, botBand,
+    ctx, TOK, rr, label, washStyle, pad: SIDE_PAD, topBand, botBand,
     size: () => ({ LW, LH, MODE }),
     chapters: () => CHAPTERS.map((ch, k) => ({
       name: ch.name, count: ch.levels().length, done: Math.min(ch.levels().length, progress(k + 1).done),

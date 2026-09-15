@@ -22,10 +22,10 @@
    tests.mjs checks nothing is lost before the first move.
    ============================================================ */
 (function (root, factory) {
-  const api = factory();
+  const api = factory(root);
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.ChemLevels = api;
-}(typeof self !== 'undefined' ? self : this, function () {
+}(typeof self !== 'undefined' ? self : this, function (root) {
 'use strict';
 
 function mulberry(a) {
@@ -70,7 +70,7 @@ function withCrowd(lv, n) {
   return Object.assign({}, lv, { dish: dishFor(lv, k) });
 }
 
-const mobile = [
+const firstMobile = [
   level([['water', 1]], { H: 2 }, ['O'], [], [2, ['Na', 'Mg']], 11,
     'Every atom has hands, and every hand wants a friend.'),
   level([['water', 1]], { H: 2 }, ['O'], ['Na'], [5, ['Cl', 'Mg', 'F']], 12,
@@ -88,7 +88,7 @@ const mobile = [
     'Every atom you were given has a place. Find it before something else does.'),
 ];
 
-const desktop = [
+const firstDesktop = [
   level([['water', 1]], { H: 2 }, ['O'], [], [3, ['Na', 'Mg', 'Cl']], 21,
     'Every atom has hands, and every hand wants a friend.'),
   level([['water', 2]], { H: 4 }, ['O', 'O'], ['Na'], [7, ['Cl', 'Mg', 'F', 'Ca']], 22,
@@ -105,6 +105,101 @@ const desktop = [
     [10, ['Na', 'Mg', 'F', 'Al']], 27,
     'Every atom you were given has a place. Find it before something else does.'),
 ];
+
+/* ---------- THE LADDER: FIFTY LEVELS ----------
+   Owner, 2026-09-14: "after about 50 levels of making molecules, could we
+   start doing reactions?" Each rung is written once, for both breakpoints:
+   the molecules to make, what the Available panel holds, and the trouble.
+   The dish needs whatever the list takes that the panel does not give; the
+   crowd is dealt from elements the list never uses, so a radical of a
+   target's element is always one the list needs; and the dish fills up
+   along the ladder, 9 radicals to 13 on a phone and 13 to 18 on a desktop,
+   where one more hazard joins in. The seven levels the owner played keep
+   their places and exactly their dishes.
+
+   The lessons climb by hands: one-handed pairs, then two hands, then three,
+   then carbon's four. From level 14 the order you build in matters: two
+   atoms that meet hold on with every hand they both have free, so two bare
+   oxygens make oxygen gas, and hydrogen peroxide needs a hydrogen on each
+   oxygen first. tests.mjs plays every rung to a win without losing a
+   molecule, and checks each order lesson really does punish the bare meeting. */
+const Model = typeof module === 'object' && module.exports ? require('./model.js') : root.ChemModel;
+const VARIETY = ['Na', 'Mg', 'F', 'Al', 'Ca', 'Cl', 'H', 'Fe', 'N', 'O', 'C'];
+function needsOf(targets, avail) {
+  const left = Object.assign({}, avail), needs = [];
+  for (const [key, n] of targets) {
+    for (let k = 0; k < n; k++) for (const el of Model.MOLECULES[key].els) { if (left[el] > 0) left[el] -= 1; else needs.push(el); }
+  }
+  return needs;
+}
+function rung(i, targets, avail, hazards, note) {
+  const used = new Set(targets.flatMap(([key]) => Model.MOLECULES[key].els));
+  const needs = needsOf(targets, avail), spare = VARIETY.filter((el) => !used.has(el) && !hazards.includes(el));
+  const pool = spare.slice(1, 1 + Math.min(5, 2 + Math.floor(i / 8)));
+  const phoneCrowd = Math.max(2, 9 + Math.floor((i * 4) / 49) - needs.length - hazards.length);
+  const deskHazards = hazards.concat(spare[0]);
+  const deskCrowd = Math.max(3, 13 + Math.floor((i * 5) / 49) - needs.length - deskHazards.length);
+  return [level(targets, avail, needs, hazards, [phoneCrowd, pool], 100 + i, note),
+          level(targets, avail, needs, deskHazards, [deskCrowd, pool], 300 + i, note)];
+}
+const RUNGS = [
+  /* 1 */ null,
+  /* 2 */ null,
+  [[['salt', 1]], { Na: 1 }, ['H'], 'Sodium and chlorine have one hand each. One handshake makes salt.'],
+  [[['hydrogen-chloride', 2]], { H: 2 }, ['Na'], 'Two chlorines, and each one wants a hydrogen of its own.'],
+  [[['water', 1], ['salt', 1]], { H: 2, Na: 1 }, [], 'Hydrogen belongs with oxygen and sodium with chlorine. Mix them up and a molecule is lost.'],
+  [[['magnesium-oxide', 1]], { Mg: 1 }, ['H'], 'Magnesium and oxygen have two hands each, and hold on with both.'],
+  [[['magnesium-chloride', 1]], { Cl: 2 }, ['H', 'Na'], 'Magnesium has two hands, and a chlorine goes in each.'],
+  [[['hydrogen-fluoride', 1], ['salt', 1]], { H: 1, Na: 1 }, [], 'Fluorine and chlorine both have one hand. Read the letters first.'],
+  [[['water', 2]], { H: 4 }, ['Na'], 'Two oxygens that touch hold each other with both hands, and nobody asked for oxygen gas.'],
+  /* 10 */ null,
+  /* 11 */ null,
+  [[['calcium-oxide', 1], ['water', 1]], { Ca: 1, H: 2 }, ['Na'], 'Calcium wants an oxygen with both hands free: the one without hydrogens.'],
+  [[['sodium-hydroxide', 1]], { Na: 1, H: 1 }, ['Cl'], 'Oxygen has two hands: one for the sodium, one for the hydrogen.'],
+  [[['hydrogen-peroxide', 1]], { H: 2 }, ['Na'], 'A hydrogen on each oxygen before they meet, or they grab each other with both hands.'],
+  [[['calcium-hydroxide', 1]], { H: 2 }, ['Na'], 'A hydrogen on each oxygen first, or calcium takes one oxygen with both hands.'],
+  [[['ammonia', 1]], { H: 3 }, ['Cl'], 'Nitrogen has three hands, and wants a hydrogen in each.'],
+  /* 17 */ null,
+  /* 18 */ null,
+  [[['aluminium-chloride', 1], ['hydrogen-chloride', 1]], { Cl: 4 }, ['Na'], 'Aluminium takes three chlorines. The fourth is for the hydrogen.'],
+  [[['ammonia', 2]], { H: 6 }, ['Cl'], 'Two nitrogens that meet hold on with all three hands.'],
+  [[['hydrazine', 1]], { H: 4 }, ['Cl'], 'Two hydrogens on each nitrogen first. Then the nitrogens shake just one hand.'],
+  /* 22 */ null,
+  [[['nitrous-acid', 1]], { H: 1 }, ['Na'], 'The hydrogen goes on an oxygen, never on the nitrogen.'],
+  [[['magnesium-chloride', 1], ['calcium-oxide', 1]], { Cl: 2, O: 1 }, ['H'], 'Two metals with two hands each. One wants chlorines, the other wants the oxygen.'],
+  [[['sodium-hydroxide', 1], ['hydrogen-chloride', 1]], { H: 2 }, ['F'], 'One hydrogen for the oxygen, one for the chlorine. Keep the sodium off the chlorine.'],
+  [[['methane', 1]], { H: 4 }, ['Cl'], 'Carbon has four hands, more than anyone else here.'],
+  [[['carbon-dioxide', 1]], { O: 2 }, ['H'], 'Carbon holds each oxygen with two hands.'],
+  [[['formaldehyde', 1]], { H: 2, O: 1 }, ['Na'], 'Carbon holds the oxygen with two hands, and a hydrogen with each of the others.'],
+  [[['methanol', 1]], { H: 4 }, ['Na'], 'Bare carbon and bare oxygen grab each other with two hands. Hydrogens first.'],
+  [[['ethyne', 1]], { H: 2 }, ['Cl'], 'Two bare carbons grab each other with three hands, which is just what this one needs.'],
+  [[['ethylene', 1]], { H: 4 }, ['Cl'], 'Two hydrogens on each carbon first, and the carbons meet with two hands.'],
+  [[['ethane', 1]], { H: 6 }, ['Na'], 'Three hydrogens on a carbon leave it one hand. Two of those make a single bond.'],
+  [[['ethanol', 1]], { H: 6 }, ['Na'], 'Carbon, carbon, oxygen, in a row. Fill hands with hydrogen before atoms meet.'],
+  [[['dimethyl-ether', 1]], { H: 6 }, ['Na'], 'The same atoms as ethanol in another order: the oxygen sits between the carbons.'],
+  [[['carbon-dioxide', 1], ['water', 1]], { O: 2, H: 2 }, ['Na'], 'The oxygen in the dish is for the water. The two you carry are for the carbon.'],
+  [[['urea', 1]], { H: 4 }, ['Cl'], 'Two hydrogens on each nitrogen first. Carbon holds the oxygen with two hands.'],
+  [[['calcium-hydroxide', 1], ['magnesium-chloride', 1]], { H: 2, Cl: 2 }, ['Na'], 'Hydrogens on the oxygens and chlorines on the magnesium, before calcium finds either.'],
+  [[['aluminium-chloride', 1], ['sodium-hydroxide', 1]], { Cl: 3, H: 1 }, ['F'], 'Three chlorines for the aluminium. The oxygen takes the sodium and the hydrogen.'],
+  [[['ammonia', 1], ['hydrogen-chloride', 1], ['water', 1]], { H: 6 }, ['Na'], 'Six hydrogens: three for the nitrogen, one for the chlorine, two for the oxygen.'],
+  [[['iron-chloride', 1], ['ammonia', 1]], { Cl: 3, H: 3 }, ['Na'], 'Iron and nitrogen both have three hands. Chlorines for one, hydrogens for the other.'],
+  [[['methanol', 1], ['carbon-dioxide', 1]], { H: 4, O: 2 }, ['Na'], 'One carbon takes two oxygens with both hands. The other takes one, holding a hydrogen.'],
+  [[['ethanol', 1], ['water', 1]], { H: 8 }, ['Na'], 'Six hydrogens for the ethanol, two for the water. Keep the oxygens apart.'],
+  [[['ethylene', 1], ['hydrogen-chloride', 2]], { H: 6 }, ['Na'], 'Two hydrogens on each carbon, and one for each chlorine.'],
+  [[['methane', 1], ['ammonia', 1], ['water', 1]], { H: 9 }, ['Na'], 'Four hands on carbon, three on nitrogen, two on oxygen: nine hydrogens.'],
+  [[['hydrogen-peroxide', 1], ['ethyne', 1]], { H: 4 }, ['Na'], 'Hydrogens on the oxygens before they meet. The carbons may meet bare.'],
+  [[['ethane', 1], ['carbon-dioxide', 1]], { H: 6, O: 2 }, ['Na'], 'Hydrogens on two of the carbons, and both oxygens on the third.'],
+  [[['urea', 1], ['water', 1]], { H: 6 }, ['Na'], 'One oxygen is for the carbon, the other for two hydrogens. Do not mix them up.'],
+  [[['dimethyl-ether', 1], ['hydrazine', 1]], { H: 10 }, ['Cl'], 'Two hydrogens on each nitrogen before they meet, and three on each carbon.'],
+  [[['ethanol', 1], ['ammonia', 1], ['salt', 1]], { H: 9, Na: 1 }, ['F'], 'Salt, ammonia and ethanol: every hand in the dish has somewhere to go.'],
+  [[['ethylene', 1], ['calcium-hydroxide', 1], ['hydrogen-chloride', 1]], { H: 7 }, ['Na'], 'Carbons, calcium and a chlorine, all waiting for hydrogen. The last level of molecules.'],
+];
+const KEPT = { 0: 0, 1: 1, 9: 5, 10: 4, 16: 2, 17: 3, 21: 6 };      // rung index -> index in the first seven
+const mobile = [], desktop = [];
+RUNGS.forEach((row, i) => {
+  const [m, d] = row ? rung(i, ...row) : [firstMobile[KEPT[i]], firstDesktop[KEPT[i]]];
+  mobile.push(m); desktop.push(d);
+});
 
 /* ---------- CHAPTER 2: REACTIONS ----------
    The dish holds whole molecules; the tube reacts two at a time (lab.js).

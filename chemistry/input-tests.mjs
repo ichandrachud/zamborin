@@ -68,7 +68,7 @@ const atomsOf = (s, el) => s.atoms.filter((a) => a.el === el);
 // Drops land 2.6 radii from a partner: inside the 3.0 a grab needs (play.js TUNE.capture).
 
 // ---------- desktop: build iron chloride by dragging chlorine in from the panel ----------
-await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&crowd=0&level=3' }, async ({ ev, world, mouseDrag, click }) => {
+await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&crowd=0&level=17' }, async ({ ev, world, mouseDrag, click }) => {
   let s = await ev('__chem.state');
   ok(s.mode === 'desktop' && s.LW === 760 && s.LH === 600, 'desktop frame is 760x600', [s.mode, s.LW, s.LH]);
   const [fe] = atomsOf(s, 'Fe'), [h1, h2] = atomsOf(s, 'H'), [na] = atomsOf(s, 'Na');
@@ -98,11 +98,11 @@ await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&crowd=0&level=3' 
   ok(!!g2.cta, 'the win card shows');
   if (g2.cta) await click(g2.cta.x + g2.cta.w / 2, g2.cta.y + g2.cta.h / 2);
   s = await ev('__chem.state');
-  ok(s.level === 4 && !s.card, 'NEXT LEVEL loads level 4', [s.level, s.card]);
+  ok(s.level === 18 && !s.card, 'NEXT LEVEL loads level 18', [s.level, s.card]);
 });
 
 // ---------- desktop: the path matters, and a lost molecule fails the level ----------
-await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&crowd=0&level=3' }, async ({ ev, world, mouseDragPath, click }) => {
+await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&crowd=0&level=17' }, async ({ ev, world, mouseDragPath, click }) => {
   let s = await ev('__chem.state');
   const [fe] = atomsOf(s, 'Fe'), [h1, h2] = atomsOf(s, 'H'), [na] = atomsOf(s, 'Na');
   // the hydrogen sits right on the way to the iron
@@ -123,7 +123,7 @@ await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&crowd=0&level=3' 
   ok((await ev('__chem.state')).card === 'fail', 'with the card up, Restart under the scrim does nothing');
   await click(g2.cta.x + g2.cta.w / 2, g2.cta.y + g2.cta.h / 2);
   s = await ev('__chem.state');
-  ok(s.level === 3 && !s.card && s.lost === 0 && s.avail.Cl === 3, 'TRY AGAIN restarts the level with the panel full', [s.level, s.avail]);
+  ok(s.level === 17 && !s.card && s.lost === 0 && s.avail.Cl === 3, 'TRY AGAIN restarts the level with the panel full', [s.level, s.avail]);
 });
 
 // ---------- desktop: move things in the dish, and put a panel atom back ----------
@@ -149,26 +149,26 @@ await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&crowd=0&level=2' 
 });
 
 // ---------- the crowd ----------
-await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&level=7' }, async ({ ev }) => {
+await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&level=22' }, async ({ ev }) => {
   const s = await ev('__chem.state');
-  ok(s.atoms.length === 18, 'desktop level 7 floats 18 radicals', s.atoms.length);
+  ok(s.atoms.length === 18, 'desktop level 22 floats 18 radicals', s.atoms.length);
   ok(s.placement.reachable === s.placement.needed && s.placement.needed === 6, 'and every one the list needs can be reached without passing another', s.placement);
   ok(Object.values(s.palm).length === 18, 'all of them charged');
   const g = await ev('__chem.geom()');
   ok(Object.values(g.atoms).every((a) => a.x > g.dish.x && a.x < g.dish.x + g.dish.w && a.y > g.dish.y && a.y < g.dish.y + g.dish.h), 'all inside the dish');
 });
-await withPage({ w: 390, h: 844, dpr: 2, mobile: true, url: BASE + '?drift=0&level=6' }, async ({ ev }) => {
+await withPage({ w: 390, h: 844, dpr: 2, mobile: true, url: BASE + '?drift=0&level=10' }, async ({ ev }) => {
   const s = await ev('__chem.state');
-  ok(s.atoms.length === 11 && s.placement.reachable === s.placement.needed, 'a 390x844 phone gets level 6 with its full crowd of 11, every needed radical reachable', [s.atoms.length, s.placement]);
+  ok(s.atoms.length === 11 && s.placement.reachable === s.placement.needed, 'a 390x844 phone gets level 10 with its full crowd of 11, every needed radical reachable', [s.atoms.length, s.placement]);
 });
-await withPage({ w: 320, h: 568, dpr: 2, mobile: true, url: BASE + '?drift=0&level=7' }, async ({ ev }) => {
+await withPage({ w: 320, h: 568, dpr: 2, mobile: true, url: BASE + '?drift=0&level=22' }, async ({ ev }) => {
   const s = await ev('__chem.state');
   ok(s.atoms.length < 12 && s.atoms.length >= 7 && s.placement.reachable === s.placement.needed,
      'a short phone gets a thinner crowd, and still every needed radical reachable', [s.atoms.length, s.placement]);
 });
 
 // ---------- live drift ----------
-await withPage({ w: 760, h: 600, url: BASE + '?embed=1&level=7' }, async ({ ev }) => {
+await withPage({ w: 760, h: 600, url: BASE + '?embed=1&level=22' }, async ({ ev }) => {
   const before = await ev('__chem.state');
   await sleep(5000);
   const after = await ev('__chem.state');

@@ -8,8 +8,42 @@
    radius a finger gets. Needs the local server (see cdp.mjs). */
 import { openPage, BASE } from './cdp.mjs';
 
-const LEVEL = process.argv[2] || '7';
+const LEVEL = process.argv[2] || '22';
 const MAP = LEVEL === 'map';                         // node chemistry/layout-sweep.mjs map
+/* node chemistry/layout-sweep.mjs all: every molecules level at six phone sizes
+   and the desktop frame. Each level's radicals placed with every one the list
+   needs reachable, and its target row inside the frame, icon clear of icon. */
+if (LEVEL === 'all') {
+  const frames = [[320, 568, true], [360, 640, true], [375, 667, true], [390, 844, true], [430, 932, true], [768, 1024, true], [760, 600, false]];
+  const q = await openPage({ w: 390, h: 844, dpr: 2, mobile: true, settle: 0 });
+  let failed = 0;
+  try {
+    for (const [w, h, mob] of frames) {
+      await q.metrics(w, h, mob ? 2 : 1, mob);
+      await q.navigate(BASE + '?drift=0&level=1' + (mob ? '' : '&embed=1'), 900);
+      const out = await q.ev(`(() => {
+        const bad = [];
+        for (let n = 1; n <= ChemLevels[__chem.state.mode].length; n++) {
+          __chem.goto(n, 1);
+          const s = __chem.state, g = __chem.geom(), f = g.flaskSlots, issues = [];
+          if (s.placement.reachable !== s.placement.needed) issues.push('walled in ' + (s.placement.needed - s.placement.reachable) + ' of ' + s.placement.needed);
+          const half = (t) => { const lay = ChemModel.layoutMolecule(t.key); return ((lay.w - 1) * t.span) / 2 + t.span * 0.4; };
+          f.forEach((t, i) => {
+            if (t.x - half(t) < 0 || t.x + half(t) > s.LW) issues.push(t.key + ' icon past the frame');
+            if (i && f[i - 1].x + half(f[i - 1]) > t.x - half(t) - 2) issues.push(t.key + ' icon into ' + f[i - 1].key);
+            if (s.mode === 'desktop' && t.labelX + t.maxW - 10 > s.LW - 20) issues.push(t.key + ' label past the frame');
+            if (s.mode === 'desktop' && i && f[i - 1].labelX + f[i - 1].maxW - 10 > t.x - half(t)) issues.push(t.key + ' into the label before it');
+          });
+          if (issues.length) bad.push('level ' + n + ': ' + issues.join(', '));
+        }
+        return bad; })()`);
+      if (out.length) { failed++; console.log(`${w}x${h}\n  ` + out.join('\n  ')); }
+    }
+    if (q.errors.length) { failed++; console.log('console errors: ' + q.errors.join(' | ')); }
+  } finally { q.close(); }
+  console.log(failed ? `FAILED  at ${failed} of ${frames.length} frames` : `ok  all molecules levels placed and fitted at ${frames.length} frames`);
+  process.exit(failed ? 1 : 0);
+}
 const LAB = process.argv.find((a) => a === 'chapter=2' || a === 'chapter=3');     // node chemistry/layout-sweep.mjs 7 chapter=2
 const sizes = [];
 for (const w of [320, 340, 360, 375, 390, 414, 430]) for (const h of [568, 640, 667, 720, 780, 844, 896, 932]) sizes.push([w, h]);

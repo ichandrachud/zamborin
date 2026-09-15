@@ -128,53 +128,72 @@ eq(M.MOLECULES['iron-chloride'].els, ['Fe', 'Cl', 'Cl', 'Cl'], 'two-letter symbo
   eq([s.analysis.palm[0], s.analysis.lost, s.result && s.result.kind], ['amber', 1, 'fail'], 'Mg-Cl can never be magnesium oxide');
 }
 
-/* ---------- every level: starts clean, and can be won ---------- */
-// Build every target by bonding its centre to each leaf: dish atoms first, then the panel.
-function buildAll(level) {
-  const s = M.createState(level);
-  const used = new Set();
-  const pick = (el) => {
-    const a = s.atoms.find((q) => q.el === el && q.status === 'live' && q.committed && !used.has(q.id) && q.bonds.length === 0);
-    if (a) { used.add(a.id); return a.id; }
-    const id = M.take(s, el);
-    if (id >= 0) used.add(id);
-    return id;
-  };
-  const log = [];
-  for (const [key, n] of level.targets) {
-    for (let k = 0; k < n; k++) {
-      const T = M.MOLECULES[key];
-      const centre = T.adj.reduce((best, l, i) => (l.length > T.adj[best].length ? i : best), 0);
-      const ids = T.els.map(() => -1);
-      ids[centre] = pick(T.els[centre]);
-      // walk out from the centre so each new atom bonds to one already placed
-      const q = [centre], seen = new Set([centre]);
-      while (q.length) {
-        const u = q.shift();
-        for (const [v] of T.adj[u]) {
-          if (seen.has(v)) continue;
-          seen.add(v); q.push(v);
-          ids[v] = pick(T.els[v]);
-          const ev = M.bond(s, ids[u], ids[v]);
-          log.push(ev ? (ev.lost ? 'LOST' : 'ok') : 'NO BOND');
-        }
-      }
+/* ---------- every level: starts clean, and can be won ----------
+   A player's moves that never cost a molecule, depth first: a panel atom onto
+   a dish atom, one dish atom onto another, or a panel atom set down alone.
+   Only atoms of the list's elements are touched. Where the order of building
+   matters, a fixed order would fail; this finds one that works. */
+function solve(level, limit = 20000) {
+  const want = new Set(level.targets.flatMap(([k]) => M.MOLECULES[k].els));
+  let nodes = 0;
+  function go(s) {
+    if (s.result) return s.result.kind === 'win' ? [] : null;
+    if (++nodes > limit) return null;
+    const live = s.atoms.filter((a) => a.status === 'live' && a.committed && a.free > 0 && want.has(a.el));
+    const moves = [];
+    for (let i = 0; i < live.length; i++) for (let j = i + 1; j < live.length; j++) moves.push(['dish', live[i].id, live[j].id]);
+    for (const el of Object.keys(s.avail)) if (s.avail[el] > 0) for (const b of live) moves.push(['panel', el, b.id]);
+    for (const el of Object.keys(s.avail)) if (s.avail[el] > 0) moves.push(['drop', el]);
+    for (const mv of moves) {
+      const t = M.clone(s);
+      let lost;
+      if (mv[0] === 'dish') { const ev = M.bond(t, mv[1], mv[2]); if (!ev) continue; lost = ev.lost; }
+      else if (mv[0] === 'panel') { const ev = M.bond(t, M.take(t, mv[1]), mv[2]); if (!ev) continue; lost = ev.lost; }
+      else { M.commit(t, M.take(t, mv[1])); lost = t.analysis.lost > s.analysis.lost; }
+      if (lost) continue;
+      const rest = go(t);
+      if (rest) return [mv].concat(rest);
     }
+    return null;
   }
-  return { s, log };
+  const s0 = M.createState(level);
+  return go(s0) ? { won: true, nodes } : { won: false, nodes };
 }
 for (const set of ['mobile', 'desktop']) {
-  eq(L[set].length, 7, set + ': seven levels');
+  eq(L[set].length, 50, set + ': fifty levels');
   L[set].forEach((lv, i) => {
     const name = set + ' level ' + (i + 1);
     const s = M.createState(lv);
     eq([s.analysis.lost, s.result], [0, null], name + ': nothing lost before the first move');
     ok(lv.dish.length >= 1 && Object.keys(lv.avail).length >= 1, name + ': something in the dish and something in the panel');
     ok(typeof lv.note === 'string' && lv.note.length > 0, name + ': a line for the win card');
-    const { s: done, log } = buildAll(lv);
-    ok(log.every((x) => x === 'ok'), name + ': built in order, nothing lost on the way ' + JSON.stringify(log));
-    eq(done.result, { kind: 'win' }, name + ': every molecule made');
+    const uses = new Set(lv.targets.flatMap(([k]) => M.MOLECULES[k].els));
+    const panelAtoms = Object.values(lv.avail).reduce((n, v) => n + v, 0);
+    const listAtoms = lv.targets.reduce((n, [k, c]) => n + M.MOLECULES[k].els.length * c, 0);
+    eq(panelAtoms + lv.needs.length, listAtoms, name + ': the panel and the dish hold exactly the atoms the list takes');
+    ok(lv.hazards.concat(L.crowdOf(lv)).every((el) => !uses.has(el)), name + ': no hazard or crowd radical is of an element the list uses');
+    const r = solve(lv);
+    ok(r.won, name + ': can be won without losing a molecule (' + r.nodes + ' positions searched)');
   });
+}
+/* ---------- the order lessons: the bare meeting the note warns about really loses ---------- */
+{
+  // [level, first element, second element, loses?]: both atoms taken from the dish as the level starts
+  const lessons = [[9, 'O', 'O', true], [14, 'O', 'O', true], [15, 'Ca', 'O', true], [20, 'N', 'N', true], [21, 'N', 'N', true],
+                   [29, 'C', 'O', true], [30, 'C', 'C', false], [31, 'C', 'C', true], [32, 'C', 'C', true], [33, 'C', 'O', true],
+                   [34, 'C', 'C', true], [36, 'N', 'C', true]];
+  for (const set of ['mobile', 'desktop']) {
+    for (const [n, a, b, loses] of lessons) {
+      const s = M.createState(L[set][n - 1]);
+      const A = s.atoms.find((q) => q.el === a), B = s.atoms.find((q) => q.el === b && q.id !== A.id);
+      const ev = M.bond(s, A.id, B.id);
+      eq(!!(ev && ev.lost), loses, set + ' level ' + n + ': bare ' + a + ' meeting bare ' + b + (loses ? ' loses a molecule' : ' is the right move'));
+    }
+    // and where the lesson is a hydrogen in the wrong place
+    const hno2 = M.createState(L[set][22]);
+    const N = hno2.atoms.find((q) => q.el === 'N');
+    eq(M.bond(hno2, M.take(hno2, 'H'), N.id).lost, true, set + ' level 23: a hydrogen on the nitrogen of nitrous acid loses it');
+  }
 }
 /* ---------- the crowd: many radicals, and the one you need is the only one of its kind ---------- */
 const count = (list, el) => list.filter((x) => x === el).length;
@@ -195,7 +214,9 @@ ok(L.mobile.slice(2).every((lv) => lv.dish.length >= 9), 'from level 3 a phone d
 ok(L.desktop.slice(2).every((lv) => lv.dish.length >= 13), 'from level 3 a desktop dish holds at least 13 radicals');
 
 ok(L.mobile.slice(1).every((lv, i) => JSON.stringify([lv.dish, lv.avail, lv.targets]) !== JSON.stringify([L.desktop[i + 1].dish, L.desktop[i + 1].avail, L.desktop[i + 1].targets])),
-   'phone and desktop levels 2 to 7 are different levels');
+   'phone and desktop levels 2 to 50 are different levels');
+ok(L.mobile.every((lv, i) => i < 2 || lv.dish.length >= 9 + Math.floor((i * 4) / 49) - 1), 'the phone dish fills up along the ladder');
+ok(L.mobile.slice(40).every((lv) => lv.dish.length >= 12) && L.desktop.slice(40).every((lv) => lv.dish.length >= 16), 'the last ten levels are the most crowded');
 ok(L.desktop.slice(2).every((lv) => lv.dish.some((el) => {
   const s = M.createState(lv);
   return s.atoms.some((a) => a.el === el && s.analysis.palm[a.id] === 'amber');
