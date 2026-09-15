@@ -45,10 +45,10 @@ function sp(key, name, formula, atoms, bonds, tags) {
 const SPECIES = {};
 [
   sp('water', 'water', 'H₂O', [['O', 0, -0.2], ['H', -0.8, 0.4], ['H', 0.8, 0.4]], '0-1 0-2', ['water']),
-  sp('hydrochloric-acid', 'hydrochloric acid', 'HCl', [['H', -0.5, 0], ['Cl', 0.5, 0]], '0-1', ['acid', 'chloride']),
-  sp('nitric-acid', 'nitric acid', 'HNO₃', [['N', 0, 0], ['O', 0, -1], ['O', 0.87, 0.5], ['O', -0.87, 0.5], ['H', -1.6, 0.1]], '0=1 0-2 0-3 3-4', ['acid']),
+  sp('hydrochloric-acid', 'hydrochloric acid', 'HCl', [['H', -0.5, 0], ['Cl', 0.5, 0]], '0-1', ['acid', 'strong-acid', 'hydrogen-halide', 'chloride']),
+  sp('nitric-acid', 'nitric acid', 'HNO₃', [['N', 0, 0], ['O', 0, -1], ['O', 0.87, 0.5], ['O', -0.87, 0.5], ['H', -1.6, 0.1]], '0=1 0-2 0-3 3-4', ['acid', 'strong-acid']),
   sp('sulphuric-acid', 'sulphuric acid', 'H₂SO₄',
-     [['S', 0, 0], ['O', 0, -1], ['O', 0, 1], ['O', -1, 0], ['O', 1, 0], ['H', -1.7, -0.55], ['H', 1.7, 0.55]], '0=1 0=2 0-3 0-4 3-5 4-6', ['acid']),
+     [['S', 0, 0], ['O', 0, -1], ['O', 0, 1], ['O', -1, 0], ['O', 1, 0], ['H', -1.7, -0.55], ['H', 1.7, 0.55]], '0=1 0=2 0-3 0-4 3-5 4-6', ['acid', 'strong-acid']),
   sp('sodium-hydroxide', 'sodium hydroxide', 'NaOH', [['Na', -1, 0], ['O', 0, 0], ['H', 0.8, 0.6]], '0-1 1-2', ['base', 'strong-base']),
   sp('sodium-chloride', 'sodium chloride', 'NaCl', [['Na', -0.5, 0], ['Cl', 0.5, 0]], '0-1', ['salt', 'chloride']),
   sp('sodium-nitrate', 'sodium nitrate', 'NaNO₃', [['N', 0, 0], ['O', 0, -1], ['O', 0.87, 0.5], ['O', -0.87, 0.5], ['Na', -1.74, 1]], '0=1 0-2 0-3 3-4', ['salt']),
@@ -77,6 +77,38 @@ const SPECIES = {};
   sp('ammonium-nitrate', 'ammonium nitrate', 'NH₄NO₃',
      [['N', 0, 0], ['H', 0, -1], ['H', 1, 0], ['H', 0, 1], ['H', -1, 0], ['N', 3, 0], ['O', 3, -1], ['O', 3.87, 0.5], ['O', 2.13, 0.5]],
      '0-1 0-2 0-3 0-4 5=6 5-7 5-8', ['ammonium', 'salt']),
+  /* ---------- chapter 3: organic ----------
+     Hydrogens sit 0.72 of a bond from their carbon or oxygen, as a C-H bond
+     is shorter than a C-C one. Formulas are written the way a school book
+     writes them, so the group that reacts shows: C₂H₅OH, CH₃COOH. */
+  sp('ethene', 'ethene', 'C₂H₄',
+     [['C', -0.5, 0], ['C', 0.5, 0], ['H', -0.95, -0.62], ['H', -0.95, 0.62], ['H', 0.95, -0.62], ['H', 0.95, 0.62]], '0=1 0-2 0-3 1-4 1-5', ['alkene']),
+  sp('ethane', 'ethane', 'C₂H₆',
+     [['C', -0.5, 0], ['C', 0.5, 0], ['H', -1.2, 0], ['H', -0.72, -0.68], ['H', -0.72, 0.68], ['H', 1.2, 0], ['H', 0.72, -0.68], ['H', 0.72, 0.68]],
+     '0-1 0-2 0-3 0-4 1-5 1-6 1-7', ['alkane']),
+  sp('hydrogen', 'hydrogen', 'H₂', [['H', -0.36, 0], ['H', 0.36, 0]], '0-1', ['hydrogen']),
+  sp('bromine', 'bromine', 'Br₂', [['Br', -0.55, 0], ['Br', 0.55, 0]], '0-1', ['halogen']),
+  sp('oxygen', 'oxygen', 'O₂', [['O', -0.5, 0], ['O', 0.5, 0]], '0=1', ['oxygen']),
+  sp('carbon-dioxide', 'carbon dioxide', 'CO₂', [['O', -1, 0], ['C', 0, 0], ['O', 1, 0]], '1=0 1=2', []),
+  sp('dibromoethane', 'dibromoethane', 'C₂H₄Br₂',
+     [['C', -0.5, 0], ['C', 0.5, 0], ['Br', -1.0, -0.87], ['H', -1.12, 0.3], ['H', -0.45, 0.72], ['Br', 1.0, 0.87], ['H', 1.12, -0.3], ['H', 0.45, -0.72]],
+     '0-1 0-2 0-3 0-4 1-5 1-6 1-7', ['haloalkane']),
+  sp('ethanol', 'ethanol', 'C₂H₅OH',
+     [['C', -1, 0.25], ['C', 0, -0.25], ['O', 1, 0.25], ['H', 1.64, -0.07], ['H', -0.68, 0.89], ['H', -1.64, 0.57], ['H', -1.32, -0.39], ['H', -0.51, -0.76], ['H', 0.51, -0.76]],
+     '0-1 1-2 2-3 0-4 0-5 0-6 1-7 1-8', ['alcohol']),
+  sp('ethanoic-acid', 'ethanoic acid', 'CH₃COOH',
+     [['C', -0.9, 0.25], ['C', 0.1, -0.2], ['O', 0.1, -1.2], ['O', 1.05, 0.2], ['H', 1.67, -0.16], ['H', -0.6, 0.91], ['H', -1.56, 0.55], ['H', -1.2, -0.41]],
+     '0-1 1=2 1-3 3-4 0-5 0-6 0-7', ['acid', 'carboxylic-acid']),
+  sp('ethyl-ethanoate', 'ethyl ethanoate', 'CH₃COOC₂H₅',
+     [['C', -1.9, 0.3], ['C', -0.9, -0.1], ['O', -0.9, -1.1], ['O', 0.05, 0.3], ['C', 1.0, -0.1], ['C', 2.0, 0.3],
+      ['H', -1.63, 0.97], ['H', -2.57, 0.57], ['H', -2.17, -0.37], ['H', 0.49, -0.6], ['H', 1.5, -0.61], ['H', 2.27, -0.37], ['H', 2.67, 0.57], ['H', 1.73, 0.97]],
+     '0-1 1=2 1-3 3-4 4-5 0-6 0-7 0-8 4-9 4-10 5-11 5-12 5-13', ['ester']),
+  sp('chloroethane', 'chloroethane', 'C₂H₅Cl',
+     [['C', -0.5, 0.25], ['C', 0.5, -0.25], ['Cl', 1.35, 0.3], ['H', -0.18, 0.89], ['H', -1.14, 0.57], ['H', -0.82, -0.39], ['H', 0.02, -0.79], ['H', 1.04, -0.73]],
+     '0-1 1-2 0-3 0-4 0-5 1-6 1-7', ['haloalkane']),
+  sp('sodium-ethanoate', 'sodium ethanoate', 'CH₃COONa',
+     [['C', -0.9, 0.25], ['C', 0.1, -0.2], ['O', 0.1, -1.2], ['O', 1.05, 0.2], ['Na', 1.92, -0.3], ['H', -0.6, 0.91], ['H', -1.56, 0.55], ['H', -1.2, -0.41]],
+     '0-1 1=2 1-3 3-4 0-5 0-6 0-7', ['salt', 'weak-acid-salt']),
 ].forEach((s) => { SPECIES[s.key] = s; });
 
 /* ---------- REACTIONS ----------
@@ -112,16 +144,39 @@ rx('hydrochloric-acid', 'ammonia', ['ammonium-chloride']);
 rx('nitric-acid', 'ammonia', ['ammonium-nitrate']);
 rx('ammonium-chloride', 'sodium-hydroxide', ['sodium-chloride', 'water', 'ammonia']);
 rx('ammonium-nitrate', 'sodium-hydroxide', ['sodium-nitrate', 'water', 'ammonia']);
+// organic: the double bond in an alkene opens and takes something on each carbon
+rx('ethene', 'hydrogen', ['ethane']);
+rx('ethene', 'bromine', ['dibromoethane']);
+rx('ethene', 'water', ['ethanol']);
+rx('ethene', 'hydrochloric-acid', ['chloroethane']);
+// an alcohol and an acid make an ester and water; water and alkali take it apart again
+rx('ethanol', 'ethanoic-acid', ['ethyl-ethanoate', 'water']);
+rx('ethyl-ethanoate', 'water', ['ethanol', 'ethanoic-acid']);
+rx('ethyl-ethanoate', 'sodium-hydroxide', ['sodium-ethanoate', 'ethanol']);
+// oxygen turns an alcohol into its acid; hydrogen chloride swaps its OH for Cl
+rx('ethanol', 'oxygen', ['ethanoic-acid', 'water']);
+rx('ethanol', 'hydrochloric-acid', ['chloroethane', 'water']);
+rx('chloroethane', 'sodium-hydroxide', ['ethanol', 'sodium-chloride']);
+// ethanoic acid is an acid like any other, and a strong acid takes its salt back
+rx('ethanoic-acid', 'sodium-hydroxide', ['sodium-ethanoate', 'water']);
+rx('sodium-ethanoate', 'hydrochloric-acid', ['ethanoic-acid', 'sodium-chloride']);
 
 function reactionFor(a, b) {
   return REACTIONS.find((r) => (r.a === a && r.b === b) || (r.a === b && r.b === a)) || null;
 }
-/* Would these two react in real life? The honesty check: an acid with a
-   base, an ammonium salt with a strong base or lime, and lime with water. */
+/* Would these two react in the tube? The honesty check. Chapter 2: an acid
+   with a base, an ammonium salt with a strong base or lime, lime with water.
+   Chapter 3 (the tube brings whatever heat, light or catalyst a school lab
+   would): an alkene with hydrogen, a halogen, a hydrogen halide or water; an
+   alcohol with an acid, oxygen or a hydrogen halide; an ester with water or
+   alkali; a haloalkane with alkali; the salt of a weak acid with a strong one. */
 function shouldReact(a, b) {
   const A = SPECIES[a].tags, B = SPECIES[b].tags, has = (t, x) => t.includes(x);
   const pair = (p, q) => (has(A, p) && has(B, q)) || (has(A, q) && has(B, p));
-  return pair('acid', 'base') || pair('ammonium', 'strong-base') || pair('ammonium', 'oxide') || pair('oxide', 'water');
+  return pair('acid', 'base') || pair('ammonium', 'strong-base') || pair('ammonium', 'oxide') || pair('oxide', 'water') ||
+    pair('alkene', 'hydrogen') || pair('alkene', 'halogen') || pair('alkene', 'hydrogen-halide') || pair('alkene', 'water') ||
+    pair('alcohol', 'carboxylic-acid') || pair('alcohol', 'oxygen') || pair('alcohol', 'hydrogen-halide') ||
+    pair('ester', 'water') || pair('ester', 'strong-base') || pair('haloalkane', 'strong-base') || pair('weak-acid-salt', 'strong-acid');
 }
 
 /* ---------- THE BENCH ----------
@@ -238,38 +293,44 @@ function bestPlan(counts, owed) {
   if (!tkeys.length) return 0;
   const rel = [...relevantTo(tkeys)];
   const idx = new Map(rel.map((k, i) => [k, i]));
-  const c = rel.map((k) => counts[k] || 0);
-  const o = tkeys.map((k) => owed[k]);
   const rxs = REACTIONS.filter((r) => idx.has(r.a) && idx.has(r.b)).map((r) => ({
     a: idx.get(r.a), b: idx.get(r.b), out: r.products.filter((k) => idx.has(k)).map((k) => idx.get(k)),
   }));
   const tIdx = tkeys.map((k) => idx.get(k));
   const memo = new Map();
   let budget = 200000;
-  function go() {
-    const key = c.join(',') + '|' + o.join(',');
-    if (memo.has(key)) return memo.get(key);
-    if (--budget < 0) return 0;
+  /* Some reactions undo others (an ester and water give back the alcohol and
+     the acid), so from each mix the search first walks everything the tube
+     can reach without delivering, then delivers. A delivery shortens the
+     list, so that half never goes round in a circle. */
+  function go(c, o) {
+    const start = c.join(',') + '|' + o.join(',');
+    if (memo.has(start)) return memo.get(start);
+    const most = o.reduce((n, v) => n + v, 0);
+    const seen = new Set([start]), queue = [c];
     let best = 0;
-    for (let t = 0; t < tIdx.length; t++) {
-      if (o[t] > 0 && c[tIdx[t]] > 0) {
-        c[tIdx[t]]--; o[t]--;
-        best = Math.max(best, 1 + go());
-        c[tIdx[t]]++; o[t]++;
+    while (queue.length && best < most && --budget >= 0) {
+      const cur = queue.pop();
+      for (let t = 0; t < tIdx.length; t++) {
+        if (o[t] > 0 && cur[tIdx[t]] > 0) {
+          const nc = cur.slice(), no = o.slice();
+          nc[tIdx[t]]--; no[t]--;
+          best = Math.max(best, 1 + go(nc, no));
+        }
+      }
+      for (const r of rxs) {
+        if (r.a === r.b ? cur[r.a] < 2 : (cur[r.a] < 1 || cur[r.b] < 1)) continue;
+        const next = cur.slice();
+        next[r.a]--; next[r.b]--;
+        r.out.forEach((k) => next[k]++);
+        const key = next.join(',') + '|' + o.join(',');
+        if (!seen.has(key)) { seen.add(key); queue.push(next); }
       }
     }
-    for (const r of rxs) {
-      if (r.a === r.b ? c[r.a] < 2 : (c[r.a] < 1 || c[r.b] < 1)) continue;
-      c[r.a]--; c[r.b]--;
-      r.out.forEach((k) => c[k]++);
-      best = Math.max(best, go());
-      r.out.forEach((k) => c[k]--);
-      c[r.a]++; c[r.b]++;
-    }
-    memo.set(key, best);
+    memo.set(start, best);
     return best;
   }
-  return go();
+  return go(rel.map((k) => counts[k] || 0), tkeys.map((k) => owed[k]));
 }
 
 // Every molecule a level can ever hold: the dish, and everything any reaction among them makes.

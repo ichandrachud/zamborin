@@ -253,10 +253,20 @@ for (const sp of Object.values(X.SPECIES)) {
   X.toTube(s, 3); const pour = X.toTube(s, 4);
   eq([pour.poured.length, s.analysis.lost], [1, 1], 'react something else and the water is poured away: slaked lime lost');
 }
-for (const set of ['mobile', 'desktop']) {
-  eq(L.lab[set].length, 7, 'reactions, ' + set + ': seven levels');
-  L.lab[set].forEach((lv, i) => {
-    const name = 'reactions, ' + set + ' level ' + (i + 1);
+ok(X.REACTIONS.every((r) => X.shouldReact(r.a, r.b)), 'every reaction in the table is a kind the honesty check knows');
+{
+  // an ester and water give back the alcohol and the acid, so the search can go round in a circle
+  const s = X.createLab({ targets: [['ethyl-ethanoate', 2]], dish: ['ethanol', 'ethanoic-acid', 'water'] });
+  eq([s.analysis.best, s.analysis.lost], [1, 1], 'a reaction that undoes another: the search still ends, one ester from one alcohol');
+  const back = X.createLab({ targets: [['ethanol', 1]], dish: ['ethyl-ethanoate', 'water'] });
+  eq(back.analysis.best, 1, 'and it counts the way back: water splits the ester into ethanol');
+  X.toTube(back, 0);
+  eq(X.toTube(back, 1).reaction.products, ['ethanol', 'ethanoic-acid'], 'ethyl ethanoate and water in the tube give ethanol and ethanoic acid');
+}
+for (const [chapter, sets, count] of [['reactions', L.lab, 7], ['organic', L.organic, 6]]) for (const set of ['mobile', 'desktop']) {
+  eq(sets[set].length, count, chapter + ', ' + set + ': ' + count + ' levels');
+  sets[set].forEach((lv, i) => {
+    const name = chapter + ', ' + set + ' level ' + (i + 1);
     const s = X.createLab(lv);
     eq([s.analysis.lost, s.result], [0, null], name + ': nothing lost before the first move');
     const cl = [...X.closure(lv.dish)];
@@ -276,9 +286,19 @@ for (const set of ['mobile', 'desktop']) {
     }
     ok(!log.length, name + ': the solution plays through ' + JSON.stringify(log));
     eq(s.result, { kind: 'win' }, name + ': and wins');
+    if (chapter !== 'organic') return;
+    // a wrong pair that costs a molecule: without one there is nothing to get wrong
+    const traps = [];
+    for (let a = 0; a < lv.dish.length; a++) for (let b = a + 1; b < lv.dish.length; b++) {
+      const t = X.createLab(lv);
+      X.toTube(t, a);
+      if (X.toTube(t, b).lost) traps.push(lv.dish[a] + ' + ' + lv.dish[b]);
+    }
+    ok(traps.length > 0, name + ': the dish has a wrong pair that loses the molecule');
   });
 }
 ok(L.lab.mobile.every((lv, i) => lv.dish.length < L.lab.desktop[i].dish.length), 'every desktop reaction level carries more decoys than its phone twin');
+ok(L.organic.mobile.every((lv, i) => lv.dish.length < L.organic.desktop[i].dish.length), 'every desktop organic level carries more decoys than its phone twin');
 
 console.log((fail ? 'FAILED  ' : 'ok  ') + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

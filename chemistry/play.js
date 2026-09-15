@@ -24,8 +24,9 @@
   const params = new URLSearchParams(location.search);
   /* ?chapter=2 is the reactions prototype (owner, 2026-09-14): whole molecules
      in the dish and a test tube, run by lab-scene.js through this file's
-     canvas, marbles, HUD and cards. Chapter 1 is everything else here. */
-  const CHAPTER = params.get('chapter') === '2' && window.ChemLabScene ? 2 : 1;
+     canvas, marbles, HUD and cards. ?chapter=3 is the same bench with organic
+     reactions. Chapter 1 is everything else here. */
+  const CHAPTER = ['2', '3'].includes(params.get('chapter')) && window.ChemLabScene ? +params.get('chapter') : 1;
 
   /* ---------- MODE ----------
      A browser can report a 0-wide viewport on the first frame; zero means "not
@@ -135,6 +136,7 @@
     Al: { hi: '#C3C8DD', lo: '#555C7A', arm: '#D2D6E6', ink: '#1E2233' },
     Fe: { hi: '#E7AB7B', lo: '#7A4524', arm: '#F0C8A6', ink: '#FFFFFF' },
     S:  { hi: '#F4DE6E', lo: '#9C7F12', arm: '#F6E7A0', ink: '#3A2E00' },
+    Br: { hi: '#E0785A', lo: '#6E2414', arm: '#EBA48C', ink: '#FFFFFF' },
     knot: '#FFF6DC',
     palmGreen: '#5DD39E', palmAmber: '#F0B23C', palmOpen: '#FFFFFF',
     glassTop: '#0C1424', glassBot: '#0A1120',
@@ -204,9 +206,9 @@
   function lerpAng(a, b, k) { return a + Math.atan2(Math.sin(b - a), Math.cos(b - a)) * k; }
 
   /* ---------- LEVELS AND SAVE ---------- */
-  const LEVELS = CHAPTER === 2 ? LV.lab[MODE] : LV[MODE];     // chapter 1 levels are thinned to the room at load, see crowdSize
+  const LEVELS = CHAPTER === 3 ? LV.organic[MODE] : CHAPTER === 2 ? LV.lab[MODE] : LV[MODE];     // chapter 1 levels are thinned to the room at load, see crowdSize
   const SAVE_KEY = 'zam.chemistry.save';
-  const SAVE_SLOT = MODE + (CHAPTER === 2 ? '-reactions' : '');
+  const SAVE_SLOT = MODE + (CHAPTER === 3 ? '-organic' : CHAPTER === 2 ? '-reactions' : '');
   function readSave() {
     try { const v = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); return v && typeof v === 'object' ? v : {}; }
     catch (_) { return {}; }
@@ -1163,7 +1165,7 @@
       else UI.drawPill(ctx, b.label, b.cx, b.cy, { w: b.w });
     }
     const lost = scene ? scene.lost() : st.analysis.lost, y = topBand() / 2, rx = LW - SIDE_PAD;
-    const main = (scene ? 'Reactions  ·  ' : '') + 'Level ' + (li + 1);
+    const main = (CHAPTER === 3 ? 'Organic  ·  ' : scene ? 'Reactions  ·  ' : '') + 'Level ' + (li + 1);
     ctx.save();
     ctx.font = '600 16px Inter, sans-serif'; ctx.textBaseline = 'middle'; ctx.textAlign = 'right';
     ctx.fillStyle = TOK.ink72; ctx.fillText(main, rx, y);
@@ -1334,7 +1336,7 @@
   window.__chem = {
     get state() {
       if (scene) {
-        return Object.assign({ mode: MODE, LW, LH, chapter: 2, level: li + 1, card: card ? card.kind : null, cardShown: !!ctaBox },
+        return Object.assign({ mode: MODE, LW, LH, chapter: CHAPTER, level: li + 1, card: card ? card.kind : null, cardShown: !!ctaBox },
                              scene.debug.state());
       }
       return {
@@ -1405,9 +1407,9 @@
     lab: null,
   };
 
-  /* ---------- CHAPTER 2 ----------
+  /* ---------- CHAPTERS 2 AND 3 ----------
      The bench gets what it needs from this file and nothing else. */
-  const scene = CHAPTER === 2 ? window.ChemLabScene({
+  const scene = CHAPTER >= 2 ? window.ChemLabScene({
     ctx, TOK, canvas, drawAtoms, feather, rr, label, clock, mulberry,
     SND: { pick: SND.pick, set: SND.set, lift: SND.lift, lost: SND.lost, clasp: (n) => SND.clasp('O', n) },
     size: () => ({ LW, LH, MODE }),

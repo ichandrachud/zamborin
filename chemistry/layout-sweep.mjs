@@ -9,7 +9,7 @@
 import { openPage, BASE } from './cdp.mjs';
 
 const LEVEL = process.argv[2] || '7';
-const LAB = process.argv.includes('chapter=2');     // node chemistry/layout-sweep.mjs 7 chapter=2
+const LAB = process.argv.find((a) => a === 'chapter=2' || a === 'chapter=3');     // node chemistry/layout-sweep.mjs 7 chapter=2
 const sizes = [];
 for (const w of [320, 340, 360, 375, 390, 414, 430]) for (const h of [568, 640, 667, 720, 780, 844, 896, 932]) sizes.push([w, h]);
 sizes.push([768, 1024], [820, 1180], [1024, 1366]);
@@ -20,7 +20,7 @@ const notes = [];
 try {
   for (const [w, h] of sizes) {
     await p.metrics(w, h, 2, true);
-    await p.navigate(BASE + '?drift=0&level=' + LEVEL + (LAB ? '&chapter=2' : ''), 800);
+    await p.navigate(BASE + '?drift=0&level=' + LEVEL + (LAB ? '&' + LAB : ''), 800);
     if (LAB) {
       const g = await p.ev('__chem.geom()');
       const issues = [];

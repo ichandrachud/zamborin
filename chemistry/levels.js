@@ -162,5 +162,53 @@ const lab = {
   ],
 };
 
-return { mobile, desktop, withoutCrowd, withCrowd, crowdOf, lab };
+/* ---------- CHAPTER 3: ORGANIC ----------
+   The same bench, carbon chemistry. One reaction a level at first, then a
+   synthesis: two reactions to make what the third one needs. */
+const organic = {
+  mobile: [
+    R([['ethane', 1]], ['ethene', 'hydrogen', 'water'], 51,
+      'The double bond in ethene opens up and takes a hydrogen on each carbon.',
+      [['tube', 'ethene'], ['tube', 'hydrogen'], ['beaker', 'ethane']]),
+    R([['dibromoethane', 1]], ['ethene', 'bromine', 'water', 'carbon-dioxide'], 52,
+      'Orange bromine turns colourless when it meets a double bond. That is how chemists test for one.',
+      [['tube', 'ethene'], ['tube', 'bromine'], ['beaker', 'dibromoethane']]),
+    R([['ethanol', 1]], ['ethene', 'water', 'hydrogen', 'hydrochloric-acid'], 53,
+      'Ethene and steam make ethanol. Most of the alcohol industry uses is made this way.',
+      [['tube', 'ethene'], ['tube', 'water'], ['beaker', 'ethanol']]),
+    R([['ethyl-ethanoate', 1]], ['ethanol', 'ethanoic-acid', 'sodium-hydroxide', 'water'], 54,
+      'An alcohol and an acid make an ester, and esters smell of fruit. This one smells of pear drops.',
+      [['tube', 'ethanol'], ['tube', 'ethanoic-acid'], ['beaker', 'ethyl-ethanoate']]),
+    R([['ethanoic-acid', 1]], ['ethanol', 'oxygen', 'water', 'hydrochloric-acid'], 55,
+      'Oxygen turns ethanol into ethanoic acid. That is why an open bottle of wine turns to vinegar.',
+      [['tube', 'ethanol'], ['tube', 'oxygen'], ['beaker', 'ethanoic-acid']]),
+    R([['ethyl-ethanoate', 1]], ['ethene', 'water', 'sodium-ethanoate', 'hydrochloric-acid', 'hydrogen'], 56,
+      'Two reactions to make what the third one needs. Chemists call that a synthesis.',
+      [['tube', 'ethene'], ['tube', 'water'], ['dish', 'ethanol'], ['tube', 'sodium-ethanoate'], ['tube', 'hydrochloric-acid'],
+       ['dish', 'ethanoic-acid'], ['tube', 'ethanol'], ['tube', 'ethanoic-acid'], ['beaker', 'ethyl-ethanoate']]),
+  ],
+  desktop: [
+    R([['ethane', 1]], ['ethene', 'hydrogen', 'water', 'carbon-dioxide'], 61,
+      'The double bond in ethene opens up and takes a hydrogen on each carbon.',
+      [['tube', 'ethene'], ['tube', 'hydrogen'], ['beaker', 'ethane']]),
+    R([['dibromoethane', 1]], ['ethene', 'bromine', 'water', 'carbon-dioxide', 'hydrogen'], 62,
+      'Orange bromine turns colourless when it meets a double bond. That is how chemists test for one.',
+      [['tube', 'ethene'], ['tube', 'bromine'], ['beaker', 'dibromoethane']]),
+    R([['ethanol', 1]], ['ethene', 'water', 'hydrogen', 'hydrochloric-acid', 'carbon-dioxide'], 63,
+      'Ethene and steam make ethanol. Most of the alcohol industry uses is made this way.',
+      [['tube', 'ethene'], ['tube', 'water'], ['beaker', 'ethanol']]),
+    R([['ethyl-ethanoate', 1]], ['ethanol', 'ethanoic-acid', 'sodium-hydroxide', 'water', 'oxygen'], 64,
+      'An alcohol and an acid make an ester, and esters smell of fruit. This one smells of pear drops.',
+      [['tube', 'ethanol'], ['tube', 'ethanoic-acid'], ['beaker', 'ethyl-ethanoate']]),
+    R([['ethanoic-acid', 1]], ['ethanol', 'oxygen', 'water', 'carbon-dioxide', 'hydrochloric-acid'], 65,
+      'Oxygen turns ethanol into ethanoic acid. That is why an open bottle of wine turns to vinegar.',
+      [['tube', 'ethanol'], ['tube', 'oxygen'], ['beaker', 'ethanoic-acid']]),
+    R([['ethyl-ethanoate', 1]], ['ethene', 'water', 'sodium-ethanoate', 'hydrochloric-acid', 'hydrogen', 'sodium-hydroxide'], 66,
+      'Two reactions to make what the third one needs. Chemists call that a synthesis.',
+      [['tube', 'ethene'], ['tube', 'water'], ['dish', 'ethanol'], ['tube', 'sodium-ethanoate'], ['tube', 'hydrochloric-acid'],
+       ['dish', 'ethanoic-acid'], ['tube', 'ethanol'], ['tube', 'ethanoic-acid'], ['beaker', 'ethyl-ethanoate']]),
+  ],
+};
+
+return { mobile, desktop, withoutCrowd, withCrowd, crowdOf, lab, organic };
 }));

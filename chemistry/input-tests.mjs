@@ -293,5 +293,35 @@ await withPage({ w: 390, h: 844, dpr: 2, mobile: true, url: BASE + '?drift=0&cha
   ok(st.result && st.result.kind === 'win', 'touch: salt into the beaker wins', st.result);
 });
 
+// ---------- chapter 3: organic, the same bench ----------
+await withPage({ w: 390, h: 844, dpr: 2, mobile: true, url: BASE + '?drift=0&chapter=3&level=1' }, async ({ ev, touchDrag }) => {
+  let st = await ev('__chem.state'), g = await ev('__chem.geom()');
+  ok(st.mode === 'mobile' && st.chapter === 3 && st.pieces.length === 3, 'a phone gets chapter 3 with three molecules', [st.mode, st.chapter, st.pieces.length]);
+  const tubeC = centre(g.tube), beakerC = centre(g.beaker);
+  await touchDrag(g.pieces[keyAt(st, 'ethene').id], tubeC);
+  g = await ev('__chem.geom()'); st = await ev('__chem.state');
+  await touchDrag(g.pieces[keyAt(st, 'hydrogen').id], tubeC);
+  await sleep(600);
+  st = await ev('__chem.state'); g = await ev('__chem.geom()');
+  ok(keyAt(st, 'ethane', 'tray'), 'touch: ethene and hydrogen make ethane', st.pieces);
+  await touchDrag(g.pieces[keyAt(st, 'ethane', 'tray').id], { x: beakerC.x, y: beakerC.y + 36 });
+  st = await ev('__chem.state');
+  ok(st.result && st.result.kind === 'win', 'touch: ethane into the beaker wins', st.result);
+});
+
+await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&chapter=3&level=3' }, async ({ ev, mouseDrag }) => {
+  let st = await ev('__chem.state'), g = await ev('__chem.geom()');
+  const tubeC = centre(g.tube);
+  await mouseDrag(g.pieces[keyAt(st, 'ethene').id], tubeC);
+  g = await ev('__chem.geom()'); st = await ev('__chem.state');
+  await mouseDrag(g.pieces[keyAt(st, 'hydrogen').id], tubeC);
+  await sleep(600);
+  st = await ev('__chem.state');
+  ok(keyAt(st, 'ethane', 'tray') && st.lost === 1, 'mouse: ethene with hydrogen when the list wants ethanol loses it', [st.lost, st.pieces]);
+  await sleep(2600);
+  st = await ev('__chem.state');
+  ok(st.card === 'fail' && st.cardShown, 'and the fail card shows', [st.card, st.cardShown]);
+});
+
 console.log((fail ? 'FAILED  ' : 'ok  ') + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
