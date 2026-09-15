@@ -294,9 +294,13 @@ await withPage({ w: 390, h: 844, dpr: 2, mobile: true, url: BASE + '?drift=0&cha
 });
 
 // ---------- chapter 3: organic, the same bench ----------
-await withPage({ w: 390, h: 844, dpr: 2, mobile: true, url: BASE + '?drift=0&chapter=3&level=1' }, async ({ ev, touchDrag }) => {
-  let st = await ev('__chem.state'), g = await ev('__chem.geom()');
+await withPage({ w: 390, h: 844, dpr: 2, mobile: true, url: BASE + '?drift=0&chapter=3&level=1' }, async ({ ev, touchDrag, touchTap }) => {
+  let g = await ev('__chem.geom()'), st = await ev('__chem.state');
   ok(st.mode === 'mobile' && st.chapter === 3 && st.pieces.length === 3, 'a phone gets chapter 3 with three molecules', [st.mode, st.chapter, st.pieces.length]);
+  ok(st.card === 'clue' && st.cardShown && g.card && g.card.lines >= 2, 'an organic level opens on its clue card', [st.card, st.cardShown, g.card]);
+  await touchTap(g.cta.x + g.cta.w / 2, g.cta.y + g.cta.h / 2);
+  st = await ev('__chem.state'); g = await ev('__chem.geom()');
+  ok(st.card === null, 'touch: START puts the clue away', st.card);
   const tubeC = centre(g.tube), beakerC = centre(g.beaker);
   await touchDrag(g.pieces[keyAt(st, 'ethene').id], tubeC);
   g = await ev('__chem.geom()'); st = await ev('__chem.state');
@@ -309,9 +313,15 @@ await withPage({ w: 390, h: 844, dpr: 2, mobile: true, url: BASE + '?drift=0&cha
   ok(st.result && st.result.kind === 'win', 'touch: ethane into the beaker wins', st.result);
 });
 
-await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&chapter=3&level=3' }, async ({ ev, mouseDrag }) => {
-  let st = await ev('__chem.state'), g = await ev('__chem.geom()');
+await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&chapter=3&level=3' }, async ({ ev, mouseDrag, click }) => {
+  let g = await ev('__chem.geom()'), st = await ev('__chem.state');
   const tubeC = centre(g.tube);
+  await mouseDrag(g.pieces[keyAt(st, 'ethene').id], tubeC);
+  st = await ev('__chem.state');
+  ok(st.card === 'clue' && st.tube.length === 0, 'mouse: nothing can be dragged while the clue is up', [st.card, st.tube]);
+  await click(g.cta.x + g.cta.w / 2, g.cta.y + g.cta.h / 2);
+  st = await ev('__chem.state'); g = await ev('__chem.geom()');
+  ok(st.card === null, 'mouse: START puts the clue away', st.card);
   await mouseDrag(g.pieces[keyAt(st, 'ethene').id], tubeC);
   g = await ev('__chem.geom()'); st = await ev('__chem.state');
   await mouseDrag(g.pieces[keyAt(st, 'hydrogen').id], tubeC);

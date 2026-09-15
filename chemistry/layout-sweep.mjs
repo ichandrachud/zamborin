@@ -34,6 +34,21 @@ try {
       if (ctrlBottom > h) issues.push('controls off screen');
       if (g.tube.x < 0 || right(g.beaker) > w || right(g.tube) > g.tray.x || right(g.tray) > g.beaker.x) issues.push('bench overlaps or overflows');
       if (Object.values(g.pieces).some((c) => c.x < g.dish.x || c.x > right(g.dish) || c.y < g.dish.y || c.y > bottom(g.dish))) issues.push('a molecule outside the dish');
+      if (LAB === 'chapter=3') {
+        // the clue card, then the win card after the level's own solution: every line above the button, all on screen
+        const cardOk = (c, cta, what) => {
+          if (!c || !cta) { issues.push(what + ' card missing'); return; }
+          if (c.textBottom + 8 > cta.y) issues.push(what + ' card text into its button by ' + (c.textBottom + 8 - cta.y).toFixed(1));
+          if (c.y < 0 || bottom(c) > h) issues.push(what + ' card off screen');
+          if (cta.y + cta.h > bottom(c)) issues.push(what + ' button outside its card');
+        };
+        cardOk(g.card, g.cta, 'clue');
+        const won = await p.ev(`(() => { __chem.freeze(0); const s = __chem.state, L = __chem.lab;
+          for (const [where, key] of ChemLevels.organic[s.mode][s.level - 1].solution) { L.act(where, L.find(key)); __chem.advance(1200); }
+          __chem.advance(2600); return Object.assign(__chem.geom(), { kind: __chem.state.card }); })()`);
+        if (won.kind !== 'win') issues.push('the solution did not win');
+        else cardOk(won.card, won.cta, 'win');
+      }
       if (issues.length) { bad++; console.log(`${w}x${h}  ${issues.join('; ')}`); }
       continue;
     }

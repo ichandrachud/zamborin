@@ -220,7 +220,7 @@
   let li = 0, level = null, st = null;
   const P = new Map();      // atom id -> { x, y, th, vx, vy, w }, in radii from the dish's top left
   let drag = null;          // { id, pid, touch, fromPanel, ox, oy, tx, ty, cx, cy }
-  let press = null, pointer = null, card = null;
+  let press = null, pointer = null, card = null, cardBox = null;
   let lifts = [], wasteFx = [], flashes = [];
   const claspAt = new Map(), previews = new Map();
   let stepAcc = 0, lastFrame = 0, lastEvent = null, reactions = 0, placement = null;
@@ -236,6 +236,8 @@
     rng = Number.isInteger(seed) ? mulberry(seed * 977 + li) : Math.random;
     if (scene) {
       scene.load(level);
+      // an organic level opens on its clue: the rule, never the answer (owner, 2026-09-14)
+      if (level.clue) card = { kind: 'clue', sounded: true, showAt: 0 };
       writeSave();
       T().levelStart && T().levelStart(li + 1);
       return;
@@ -1181,6 +1183,7 @@
 
   /* ---------- CARDS ---------- */
   function cardCopy() {
+    if (card.kind === 'clue') return { title: 'Clue', sub: level.clue, cta: 'START' };
     if (card.kind === 'win') {
       return { title: 'Flasks full', sub: level.note || '', cta: li + 1 < LEVELS.length ? 'NEXT LEVEL' : 'PLAY AGAIN' };
     }
@@ -1198,7 +1201,7 @@
     return lines;
   }
   function drawCard(now) {
-    ctaBox = null;
+    ctaBox = null; cardBox = null;
     if (!card || now < card.showAt) return;
     if (!card.sounded) { card.sounded = true; (card.kind === 'win' ? SND.win : SND.fail)(); }
     const copy = cardCopy();
@@ -1206,7 +1209,7 @@
     ctx.fillStyle = TOK.scrim; ctx.fillRect(0, 0, LW, LH);
     const pw = Math.min(LW - 56, 470);
     ctx.font = '600 17px Inter, sans-serif';
-    const subLines = wrapLines(copy.sub, pw - 60).slice(0, 3);
+    const subLines = wrapLines(copy.sub, pw - 60);
     const ph = Math.min(LH - 20, 130 + subLines.length * 24 + 92);
     const px = Math.round((LW - pw) / 2), py = Math.max(10, Math.round((LH - ph) / 2));
     ctx.fillStyle = TOK.card; rr(px, py, pw, ph, 22); ctx.fill();
@@ -1220,9 +1223,11 @@
     subLines.forEach((s, i) => ctx.fillText(s, px + pw / 2, py + 112 + i * 24));
     ctx.restore();
     ctaBox = UI.drawCTA(ctx, copy.cta, px + pw / 2, py + ph - 57, TOK.accent);
+    cardBox = { x: px, y: py, w: pw, h: ph, lines: subLines.length, textBottom: py + 112 + (subLines.length - 1) * 24 + 12 };
   }
   function onCTA() {
     if (!card) return;
+    if (card.kind === 'clue') { card = null; return; }
     if (card.kind === 'win') loadLevel(li + 1);
     else restart();
   }
@@ -1354,7 +1359,7 @@
     },
     geom() {
       render(clock());
-      if (scene) return Object.assign({ mode: MODE, LW, LH, ctrl: ctrl.map((b) => ({ id: b.id, x: b.x, y: b.y, w: b.w, h: b.h })), cta: ctaBox }, scene.debug.geom());
+      if (scene) return Object.assign({ mode: MODE, LW, LH, ctrl: ctrl.map((b) => ({ id: b.id, x: b.x, y: b.y, w: b.w, h: b.h })), cta: ctaBox, card: cardBox }, scene.debug.geom());
       const atoms = {};
       for (const a of st.atoms) if (inDish(a)) atoms[a.id] = toPx(P.get(a.id));
       return { mode: MODE, LW, LH, dish: { x: G.x, y: G.y, w: G.w, h: G.h, S: G.S, WW: G.WW, WH: G.WH },
