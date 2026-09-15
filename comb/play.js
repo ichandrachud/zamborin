@@ -170,7 +170,7 @@
      in it worth a migration path, and half-read progress is worse than none. */
   const SAVE_KEY = 'zam.comb.progress';
   const LEVELS = 100;
-  const blankSave = () => ({ v: 1, max: 1, stars: {}, streak: 0, last: '', daily: { date: '', stars: 0 } });
+  const blankSave = () => ({ v: 1, max: 1, stars: {}, streak: 0, last: '', daily: { date: '', stars: 0 }, dailyStars: 0 });
 
   function loadSave() {
     try {
@@ -184,7 +184,9 @@
         stars: (o.stars && typeof o.stars === 'object') ? o.stars : b.stars,
         streak: Math.max(0, o.streak | 0),
         last: typeof o.last === 'string' ? o.last : '',
-        daily: (o.daily && typeof o.daily === 'object') ? o.daily : b.daily };
+        daily: (o.daily && typeof o.daily === 'object') ? o.daily : b.daily,
+        // Added 2026-09-15; a record from before simply starts it at zero.
+        dailyStars: Math.max(0, o.dailyStars | 0) };
     } catch (_) { return blankSave(); }
   }
   function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (_) {} }
@@ -203,7 +205,12 @@
   // run and a run with one rethink are genuinely different results.
   const starsFor = (m, par) => (m <= par + G.TUNE.starPar ? 3 : m <= par + G.TUNE.starPlus ? 2 : 1);
   const starsAt = (n) => (save.stars[n] | 0);
-  const totalStars = () => Object.keys(save.stars).reduce((a, k) => a + (save.stars[k] | 0), 0);
+  const totalStars = () => Object.keys(save.stars).reduce((a, k) => a + (save.stars[k] | 0), 0) + (save.dailyStars | 0);
+  /* The streak as it stands today: alive if the daily was finished today or
+     yesterday, broken otherwise. The stored number is kept until the next
+     completion decides it, but the map never shows a streak that the next
+     daily would not continue. */
+  const liveStreak = () => (save.last === utcDay() || save.last === utcDay(-1)) ? save.streak : 0;
   const unlocked = (n) => n <= save.max;
 
   function recordWin(n, isDaily, moves, par, forced) {
@@ -213,7 +220,12 @@
        on telling the truth. */
     const st = forced || starsFor(moves, par);
     if (isDaily) {
-      save.daily = { date: utcDay(), stars: Math.max(st, save.daily.date === utcDay() ? save.daily.stars | 0 : 0) };
+      const prev = save.daily.date === utcDay() ? save.daily.stars | 0 : 0;
+      const best = Math.max(st, prev);
+      // Daily stars join the total, once per day at that day's best: a replay
+      // that beats the morning's result adds only the difference.
+      save.dailyStars = (save.dailyStars | 0) + (best - prev);
+      save.daily = { date: utcDay(), stars: best };
       T().track('daily_played', { stars: st });
     } else {
       if (st > starsAt(n)) save.stars[n] = st;
@@ -221,11 +233,13 @@
     }
     T().track('stars_awarded', { level: n, stars: st, daily: isDaily ? 1 : 0 });
 
-    /* The streak counts DAYS WITH A COMPLETION, so it moves at most once a day
-       and only ever forward by one. Yesterday continues it, anything older
-       starts again at one. */
+    /* THE STREAK IS THE DAILY'S (owner's call 2026-09-15). It counts days on
+       which that day's puzzle was finished, so it moves at most once a day and
+       only ever forward by one. Yesterday continues it, anything older starts
+       again at one. It used to count ANY completion, which left the daily with
+       no job: a player kept the streak without ever opening it. */
     const today = utcDay();
-    if (save.last !== today) {
+    if (isDaily && save.last !== today) {
       save.streak = (save.last === utcDay(-1)) ? save.streak + 1 : 1;
       save.last = today;
       T().track('streak_day', { n: save.streak });
@@ -1228,7 +1242,7 @@
       : rowLeft + total;
     const avail = LW - SIDE_PAD - rowRight - 16;
     const txt = onMap
-      ? 'STREAK ' + save.streak + '   ·   ' + totalStars() + ' STARS'
+      ? 'DAILY STREAK ' + liveStreak() + '   ·   ' + totalStars() + ' STARS'
       : (isDaily ? 'DAILY' : 'LEVEL ' + levelNo) + '   ·   MOVES ' + moves;
     let hs = Math.max(0.66, Math.min(1, LW / 620));
     ctx.font = '600 ' + (16 * hs).toFixed(1) + 'px Inter, sans-serif';
@@ -1363,7 +1377,7 @@
     const cols = Math.max(4, Math.min(10, Math.round(availW / 68)));
     const cw = availW / cols;
     const ch = Math.max(52, Math.min(84, cw * 0.92));
-    const headH = 118;                       // title, then the daily button
+    const headH = 132;                       // title, then the two-line daily button
     const rows = Math.ceil(LEVELS / cols);
     const contentH = headH + rows * ch + 12;
     return { pad, viewTop, viewH, availW, cols, cw, ch, headH, rows, contentH,
@@ -1426,7 +1440,7 @@
     // The daily. One puzzle a day, the same one for everyone.
     const doneToday = save.daily.date === utcDay();
     const dy = y + 62;
-    const dh = 44;
+    const dh = 58;
     L.hit.daily = { x: M.pad, y: dy, w: M.availW, h: dh };
     UI.roundRectPath(ctx, M.pad, dy, M.availW, dh, dh / 2);
     ctx.fillStyle = doneToday ? TOK.tint03 : TOK.tint07; ctx.fill();
@@ -1436,8 +1450,27 @@
     ctx.fillStyle = doneToday ? TOK.ink72 : TOK.ink92;
     ctx.font = '700 15px Inter, sans-serif';
     ctx.textAlign = 'left';
-    ctx.fillText(doneToday ? "TODAY'S PUZZLE, DONE" : "TODAY'S PUZZLE", M.pad + 20, dy + dh / 2 + 5);
-    if (doneToday) drawStars(M.pad + M.availW - 44, dy + dh / 2, 6, save.daily.stars | 0, 15);
+    // Once done, its stars take the right end of this line, and the long label
+    // ran into them on a 320 phone. The dim button and the stars still say done.
+    const long = "TODAY'S PUZZLE, DONE";
+    const label = doneToday && M.pad + 20 + ctx.measureText(long).width + 12 <= M.pad + M.availW - 65 ? long : "TODAY'S PUZZLE";
+    ctx.fillText(label, M.pad + 20, dy + 23);
+    if (doneToday) drawStars(M.pad + M.availW - 44, dy + 18, 6, save.daily.stars | 0, 15);
+    /* The second line says what makes it the daily. Nothing on screen used to:
+       "the same puzzle for everyone" was true and invisible, and the streak it
+       now carries was not mentioned anywhere. Measured into the button, so a
+       narrow phone gets the short form rather than a clipped sentence. It is
+       read, not glanced at, so it keeps the 16px floor. */
+    ctx.fillStyle = TOK.ink72;
+    ctx.font = '600 16px Inter, sans-serif';
+    const roomW = M.availW - 40;
+    const lines = doneToday
+      ? ['Same for everyone · back tomorrow for your streak', 'Same for everyone · back tomorrow',
+         'Back tomorrow for your streak', 'Back tomorrow']
+      : ['Same for everyone · keeps your daily streak', 'Same for everyone · keeps your streak', 'Same for everyone'];
+    const line = lines.find(t => ctx.measureText(t).width <= roomW) || lines[lines.length - 1];
+    ctx.fillText(line, M.pad + 20, dy + 43);
+    L.dailyNote = { text: line, w: Math.round(ctx.measureText(line).width), room: Math.round(roomW), label };
 
     // The hundred.
     for (let i = 0; i < LEVELS; i++) {
@@ -1607,7 +1640,7 @@
           const mid = c.px + c.pw / 2;
           ctx.textAlign = 'center';
           ctx.fillStyle = TOK.ink90; ctx.font = '500 16px Inter, sans-serif';
-          ctx.fillText(isDaily ? "Today's puzzle" : 'Level ' + levelNo, mid, yy + 22);
+          ctx.fillText(isDaily ? "Today's puzzle · daily streak " + liveStreak() : 'Level ' + levelNo, mid, yy + 22);
           drawStarsPop(mid, yy + 58, 17, lastStars, 44, now - winT0);
           ctx.fillStyle = TOK.ink82; ctx.font = '600 16px Inter, sans-serif';
           ctx.fillText(moves + (moves === 1 ? ' move' : ' moves') + '   ·   par ' + level.par,
@@ -1712,7 +1745,10 @@
   canvas.addEventListener('pointerdown', (e) => {
     if (sfx) sfx.ensureAudio();          // browsers only allow audio after a gesture
     const p = toLocal(e);
-    if (phase === 'rules' || phase === 'win') return;   // handled on pointerup
+    // Pieces are only picked up in play. The map is drawn OVER the level just
+    // finished, and a tap on it used to lift a hidden piece and put it back,
+    // which won that level again: its card came back instead of the level.
+    if (phase !== 'play') return;
     if (celebrating()) return;
 
     // From the tray.
@@ -2078,7 +2114,8 @@
 
     /* What the player's record actually says. */
     progress() {
-      return { max: save.max, stars: totalStars(), streak: save.streak,
+      return { max: save.max, stars: totalStars(), streak: save.streak, liveStreak: liveStreak(),
+               dailyStars: save.dailyStars | 0, dailyNote: L.dailyNote || null,
                last: save.last, daily: save.daily,
                perLevel: Object.keys(save.stars).length };
     },
