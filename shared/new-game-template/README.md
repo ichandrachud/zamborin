@@ -3,7 +3,9 @@
 > **STOP. Read `DESIGN-SYSTEM.md` at the repo root before you start.** It is the
 > authority on layout, colour, buttons, the rules modal and the splash, and it
 > overrides anything below that contradicts it. Four games were built without it
-> because it used to live outside the repo.
+> because it used to live outside the repo. Read `NEW-GAME-PROMPT.md` too: it
+> is the one-page bar a new game is held to, and DESIGN-SYSTEM 10 is the long
+> version of it.
 
 Copy this folder, rename it to the game's URL slug, find-and-replace the
 placeholders, and you have a page that is already at the standard every
@@ -63,7 +65,14 @@ and had it hand-built back on at launch:
    `images/<slug>-teaser.jpg` 1200x800 in the shared images folder. Masters go
    to `iCloud/Claude Projects/Zamborin/source-assets/`, never into the repo, and
    there is no `splash/` folder in a game directory.
-4. **Check the splash wordmark safe zone.** `cover` crops the sides: the widest
+4. **Make it look finished, not like a prototype.** DESIGN-SYSTEM 10, in full:
+   it lands in gameplay with the verb shown at rest, every input answers inside
+   a frame, nothing is ever clipped, and shadows are drawn in a pass of their
+   own. This is the difference between a game that gets taken and one that gets
+   "looks like a prototype".
+5. **Write the `?harness=1` handle as you go**, not afterwards. CONTRIBUTING has
+   what it must carry; without it nothing about the game can be measured.
+6. **Check the splash wordmark safe zone.** `cover` crops the sides: the widest
    the wordmark may be, as a share of image width, is 0.38 divided by the image
    aspect. Fix the art, never the CSS.
 

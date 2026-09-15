@@ -383,7 +383,63 @@ has no sound at all, not quiet sound.
 
 ---
 
-## 10. Sign-off
+## 10. Finished, not a prototype
+
+CrazyGames rejected Comb with one line: "The overall quality of the game does
+not yet meet the expectations of our platform." The mechanic was not the
+problem, and neither was the art on its own: what was missing was everything
+below. A game that skips these reads as a prototype however good the idea is,
+and every rule here can be tested.
+
+### 10.1 The first ten seconds
+
+- **The first screen is the game, already playable.** No title screen, no menu,
+  no rules card in the way. CrazyGames allows at most one click into gameplay,
+  and their standard is to "land new users in gameplay immediately".
+- A **returning player lands in the next thing they were going to do**, never on
+  a map or a menu. If the game has a daily, that is what they land in until it
+  is done, and a single line says which board they are on.
+- The rules stay one tap away on the Rules pill. They are not where a new player
+  has to begin.
+- **The verb is shown at rest, not explained.** A ghost piece and a hand that
+  loops on the first board, and stops at the first input. An affordance that
+  exists only mid-gesture leaves an inert board on screen.
+
+### 10.2 Every input answers, inside one frame
+
+- **Accepted:** it lands with a pop, a spark and a sound.
+- **Refused: it goes back visibly.** Flying home to where it came from, with a
+  shake and a sound. Comb set a `flash` timestamp for months that nothing ever
+  drew, so a refused drop simply vanished, which reads as a bug rather than a
+  rule.
+- **Won:** something happens on the board first and the result card comes after.
+  A static card as the only reward is the thing that reads as unfinished.
+- `prefers-reduced-motion` **snaps each of those to its end state**. It never
+  turns the answer off.
+- A dimmed button is still clickable, so the guard lives in the handler and the
+  analytics call sits below it.
+
+### 10.3 Nothing is ever clipped
+
+- Any string that can grow is **measured against the room it has**, with a chain
+  of shorter forms and the shortest last. Comb's daily line carries three forms;
+  a 320-wide phone gets the shortest rather than a sentence running off a pill.
+- Every surface that holds copy gets a **fit detector that can fail**, and the
+  type inside it never shrinks below the 16px floor in §8. HUD read-outs may
+  scale, down to 0.66.
+- Sweep the whole width range, **320 to 1920**. Eight sample frames is not a
+  proof: the daily button passed at five sizes and overflowed at 360.
+
+### 10.4 Depth in two passes
+
+Shadows are drawn in a pass of their own, all of them, and then every piece on
+top. Drawn piece by piece, each new piece lays its shadow across the one beside
+it, which is the single note the owner gave on Comb's finished art. See §6 for
+what makes an edge and §7 for what has to be measured.
+
+---
+
+## 11. Sign-off
 
 - [ ] All chrome colour from tokens. No invented hex in chrome. `#1A2A45` for Raised.
 - [ ] Portal wash at `0.32 / 0` radius `1.1 x LW`, three stops.
@@ -399,4 +455,9 @@ has no sound at all, not quiet sound.
 - [ ] AA swept including hover and focus. Colour transforms null-tested.
 - [ ] Splash at both sizes, wordmark inside the safe zone.
 - [ ] Audio master gain set, peak checked.
+- [ ] Lands in gameplay, one click at most; the verb shown at rest on the first board.
+- [ ] Accept, refuse and win each answer visibly; reduced motion snaps to the end.
+- [ ] Growing strings measured with a fallback chain; widths swept 320 to 1920.
+- [ ] Shadows in a pass of their own; no piece shades its neighbour.
+- [ ] `?harness=1` handle present, and every check driven through pointer events.
 - [ ] `git ls-files | grep ' '` empty; `node --check <game>/play.js` passes; zero console 404s.

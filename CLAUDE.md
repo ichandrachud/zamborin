@@ -17,7 +17,7 @@ happened to.** Read `DESIGN-SYSTEM.md` first.
 | **Any design, layout, colour or UI work** | `DESIGN-SYSTEM.md` — **in full, before writing code.** It overrides every build brief. |
 | Any structural change, new game, shipping | `CONTRIBUTING.md` — the rulebook. Every rule cost a cleanup. |
 | Any QC, audit or bug hunt | `QC-TRACKER.md` — go to **START HERE** at the very bottom. Everything above it is history. |
-| Building a new game | `shared/new-game-template/README.md` — a production checklist, not a readme. |
+| Building a new game | `NEW-GAME-PROMPT.md` — the bar a new game is built to, in one page. Then `shared/new-game-template/README.md`, a production checklist, not a readme. |
 
 Do not infer the design system from a screenshot, a concept image, or another
 game's output. Concept images are art direction, not specification. Read the
