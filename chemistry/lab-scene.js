@@ -20,6 +20,7 @@
     const TAU = Math.PI * 2;
     const clamp01 = (v) => Math.max(0, Math.min(1, v));
     const easeOut = (t) => 1 - Math.pow(1 - t, 3);
+    const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
     const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
     const inside = (p, r) => p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h;
     const grow = (r, m) => ({ x: r.x - m, y: r.y - m, w: r.w + 2 * m, h: r.h + 2 * m });
@@ -32,7 +33,7 @@
       bond: 1.9, atom: 0.58,
       worldW: { desktop: 26, mobile: 22 }, maxScale: 22,
       drift: 0.3, spin: 0.2, tau: 3,
-      reactMs: 750, productsAt: 450, chipMs: 1900, eqMs: 3400, dropMs: 600,
+      reactMs: 2600, productsAt: 2240, chipMs: 1900, eqMs: 4600, dropMs: 600,
       touchLift: 36,
     };
 
@@ -77,15 +78,15 @@
       const oldW = D.WW, oldH = D.WH;
       if (MODE === 'mobile') {
         const top = 64, bot = 96, short = LH < 700;
-        const flaskH = short ? 70 : 84, benchH = short ? 150 : 176, gap = short ? 8 : 12;
+        const flaskH = short ? 70 : 84, benchH = short ? 150 : 196, gap = short ? 8 : 12, head = 40;
         targetsArea = { x: 16, y: top - 4, w: LW - 32, h: flaskH };
         D.x = 14; D.w = LW - 28; D.y = top + flaskH + gap;
         const benchY = LH - bot - benchH - 4;
         D.h = Math.max(120, benchY - gap - D.y);
         const w = LW - 28, tw = Math.round(w * 0.24), bw = Math.round(w * 0.26), gutter = 8;
-        tube = { x: 14, y: benchY + 20, w: tw, h: benchH - 24 };
-        tray = { x: 14 + tw + gutter, y: benchY + 20, w: w - tw - bw - gutter * 2, h: benchH - 24 };
-        beaker = { x: LW - 14 - bw, y: benchY + 20, w: bw, h: benchH - 24 };
+        tube = { x: 14, y: benchY + head, w: tw, h: benchH - head - 4 };
+        tray = { x: 14 + tw + gutter, y: benchY + head, w: w - tw - bw - gutter * 2, h: benchH - head - 4 };
+        beaker = { x: LW - 14 - bw, y: benchY + head, w: bw, h: benchH - head - 4 };
         D.S = Math.min(L.maxScale, D.w / L.worldW.mobile);
       } else {
         targetsArea = { x: 30, y: 58, w: LW - 60, h: 74 };
@@ -250,9 +251,26 @@
       ctx.arc(g.x + rad, g.y + g.h - rad, rad - i, Math.PI, 0, true);
       ctx.lineTo(g.x + g.w - i, g.y + 3);
     }
+    /* The reaction (owner, 2026-09-15: "show it transform to a couple of
+       different colours (2-3 seconds) and then the molecules will be on the
+       shelf"). The tube stands empty until both molecules are in. Then liquid
+       rises, turns teal, then violet, then amber as it bubbles, and drains
+       away as the products appear on the shelf. Each stop: when, as a share
+       of the reaction, and the liquid's dark and light shades. */
+    const REACTION = [[0, '#5A6068', '#9AA1A8'], [0.2, '#2A9D8F', '#7FD8CC'], [0.36, '#2A9D8F', '#7FD8CC'], [0.5, '#6D4BC9', '#B39DF2'],
+                      [0.62, '#6D4BC9', '#B39DF2'], [0.76, '#D9822B', '#F5C07A'], [1, '#D9822B', '#F5C07A']];
+    const mixHex = (a, b, k) => 'rgb(' + [1, 3, 5].map((i) => Math.round(parseInt(a.slice(i, i + 2), 16) * (1 - k) + parseInt(b.slice(i, i + 2), 16) * k)).join(',') + ')';
+    function reactionShades(t) {
+      let i = 0;
+      while (i < REACTION.length - 2 && t > REACTION[i + 1][0]) i++;
+      const [t0, d0, l0] = REACTION[i], [t1, d1, l1] = REACTION[i + 1], k = clamp01((t - t0) / Math.max(1e-6, t1 - t0));
+      return [mixHex(d0, d1, k), mixHex(l0, l1, k)];
+    }
+    // How full the tube is through a reaction: it fills, holds, then drains as the products leave.
+    const reactionLevel = (t) => (t < 0.18 ? easeOut(t / 0.18) : t < 0.86 ? 1 : 1 - easeInOut(clamp01((t - 0.86) / 0.14)));
     function drawTube(now) {
       const g = tubeGlass(), active = react && now - react.t0 < L.reactMs, gap = Math.max(3, g.w * 0.045);
-      const t = active ? (now - react.t0) / L.reactMs : 0, fill = active ? Math.sin(Math.PI * t) : 0;
+      const t = active ? (now - react.t0) / L.reactMs : 0, fill = active ? reactionLevel(t) : 0;
       const rad = g.w / 2, cx = g.x + rad, cy = g.y + g.h - rad;
       ctx.save();
       if (drag && inside(heldCentre(), grow(tube, 14))) { ctx.fillStyle = 'rgba(93,211,158,0.16)'; tubeLine(g, gap); ctx.closePath(); ctx.fill(); }
@@ -260,11 +278,13 @@
         const level = g.y + g.h - gap - (g.h - gap - 8) * 0.7 * fill;
         ctx.save();
         tubeLine(g, gap); ctx.closePath(); ctx.clip();
-        ctx.fillStyle = liquidFill(g.x + gap, g.x + g.w - gap); ctx.fillRect(g.x, level, g.w, g.h);
+        const [dark, light] = reactionShades(t), shade = ctx.createLinearGradient(g.x + gap, 0, g.x + g.w - gap, 0);
+        shade.addColorStop(0, dark); shade.addColorStop(1, light);
+        ctx.fillStyle = shade; ctx.fillRect(g.x, level, g.w, g.h);
         ctx.fillStyle = GLASS.surface; ctx.fillRect(g.x, level, g.w, 1.2);
         ctx.fillStyle = GLASS.bubble;
-        for (let b = 0; b < 6; b++) {
-          const bt = (t * 1.8 + b / 6) % 1, br = 1.4 + (b % 3) * 0.7;
+        for (let b = 0; b < 8; b++) {
+          const bt = (t * 5 + b / 8) % 1, br = 1.4 + (b % 3) * 0.7;
           const bx = g.x + g.w * (0.3 + 0.45 * ((b * 37) % 10) / 10), by = g.y + g.h - gap - 4 - bt * (g.y + g.h - gap - 4 - level);
           if (by > level + br + 1) { ctx.beginPath(); ctx.arc(bx, by, br, 0, TAU); ctx.fill(); }
         }
@@ -289,7 +309,7 @@
       if (active) {
         react.used.forEach((key, k) => {
           const r = tubeSlot(k), cc = centre(r);
-          drawMolecule(key, cc.x, cc.y, fit(key, r.w, r.h), 0, 1 - easeOut(clamp01(t / 0.7)));
+          drawMolecule(key, cc.x, cc.y, fit(key, r.w, r.h), 0, 1 - easeOut(clamp01((now - react.t0) / 500)));
         });
       }
       tubeOrder = tubeOrder.filter((id) => st.pieces[id].zone === 'tube');
@@ -333,9 +353,7 @@
        lands; one dropped in sinks and dissolves. The zone keeps its old name,
        `beaker`, in the code. */
     function drawBeaker(now) {
-      const dw = Math.min(beaker.w - 16, MODE === 'mobile' ? beaker.w - 16 : 168), gap = 3;
-      const dh = Math.min(30, beaker.h * 0.34), x = beaker.x + (beaker.w - dw) / 2;
-      const bottom = beaker.y + beaker.h - 6, top = bottom - dh, r = Math.min(10, dh * 0.4);
+      const { x, top, dw, dh, bottom } = dishGeom(), gap = 3, r = Math.min(10, dh * 0.4);
       const inBeaker = st.pieces.filter((p) => p.zone === 'beaker');
       const total = st.targets.reduce((n, t) => n + t.n, 0), last = dropped[dropped.length - 1];
       const landing = last && inBeaker.some((p) => p.id === last.id) ? 1 - easeOut(clamp01((now - last.t0) / L.dropMs)) : 0;
@@ -461,6 +479,50 @@
     /* The bench's headings, and the equation of the last reaction in their
        place while it shows: where the eye already is when the tube reacts.
        On a desktop it takes the PRODUCTS line; on a phone the whole row. */
+    /* ---------- WORDS ON THE BENCH ----------
+       The owner, 2026-09-15: no names over the glassware; over the test tube,
+       "place compounds in the test tube", and under the petri dish, "place
+       target molecules here", both centred. HUD size, like the chips; on a
+       phone they wrap to fit the narrow bench. */
+    const HINT = { tube: 'Place compounds in the test tube', dish: 'Place target molecules here' }, HINT_LH = 18;
+    const hintFont = () => '600 ' + (MODE === 'mobile' ? 14 : 15) + 'px Inter, sans-serif';
+    function wrap(text, maxW) {
+      ctx.save(); ctx.font = hintFont();
+      const lines = [];
+      let line = '';
+      for (const w of text.split(' ')) { const t = line ? line + ' ' + w : w; if (ctx.measureText(t).width > maxW && line) { lines.push(line); line = w; } else line = t; }
+      if (line) lines.push(line);
+      const widest = Math.max(...lines.map((l) => ctx.measureText(l).width));
+      ctx.restore();
+      return { lines, widest };
+    }
+    // Lines centred on cx, the first line's middle at y, kept between lo and hi (the bench's side margins unless given).
+    function hintAt(text, cx, y, maxW, lo, hi) {
+      const { lines, widest } = wrap(text, maxW), a = lo == null ? 14 : lo, b = hi == null ? LW - 14 : hi;
+      const x = Math.max(a + widest / 2, Math.min(b - widest / 2, cx));
+      return { lines, x, y, box: { x: x - widest / 2, y: y - HINT_LH / 2, w: widest, h: lines.length * HINT_LH } };
+    }
+    function drawHint(h) {
+      ctx.save(); ctx.font = hintFont(); ctx.fillStyle = TOK.ink72; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      h.lines.forEach((l, i) => ctx.fillText(l, h.x, h.y + i * HINT_LH));
+      ctx.restore();
+    }
+    // Over the tube, its last line just above the glass.
+    function tubeHint() {
+      const maxW = MODE === 'mobile' ? 124 : tube.w, n = wrap(HINT.tube, maxW).lines.length;
+      return hintAt(HINT.tube, tube.x + tube.w / 2, tube.y - 10 - (n - 1) * HINT_LH, maxW);
+    }
+    // The petri dish and the words under it: at the top of its space on a desktop, centred in it on a phone.
+    function dishGeom() {
+      const dw = Math.min(beaker.w - 16, MODE === 'mobile' ? beaker.w - 16 : 168), dh = Math.min(30, beaker.h * 0.34);
+      // on a phone the words may be a little wider than the dish's column, but never reach over the shelf beside it
+      const lo = MODE === 'mobile' ? tray.x + tray.w + 4 : beaker.x, hi = MODE === 'mobile' ? LW - 10 : beaker.x + beaker.w;
+      const n = wrap(HINT.dish, hi - lo).lines.length;
+      const block = 4 + dh + 12 + n * HINT_LH, top = beaker.y + 4 + (MODE === 'mobile' ? Math.max(0, (beaker.h - block) / 2) : 0);
+      return { x: beaker.x + (beaker.w - dw) / 2, top, dw, dh, bottom: top + dh,
+               hint: hintAt(HINT.dish, beaker.x + beaker.w / 2, top + dh + 12 + HINT_LH / 2, hi - lo, lo, hi) };
+    }
+
     function drawHeadings(now) {
       const t = react ? now - react.t0 : 1e9, on = t < L.eqMs;
       const al = !on ? 0 : t < 200 ? t / 200 : t > L.eqMs - 400 ? (L.eqMs - t) / 400 : 1;
@@ -474,18 +536,19 @@
         ctx.fillText(react.eq, x, y);
         ctx.restore();
       };
+      drawHint(dishGeom().hint);
       if (MODE === 'mobile') {
-        if (on) { eq(tube.x, tube.y - 9, beaker.x + beaker.w - tube.x); return; }
-        label('TEST TUBE', tube.x, tube.y - 9); label('PRODUCTS', tray.x, tray.y - 9);
-        // on the narrowest phones the dish's name is wider than its column: it ends at the column's edge instead
+        if (on) { eq(tube.x, tube.y - 19, beaker.x + beaker.w - tube.x); return; }
+        const th = tubeHint();
+        drawHint(th);
+        // the shelf's name, centred over it, where the tube's words leave room
         ctx.save(); ctx.font = '700 12px Inter, sans-serif'; if ('letterSpacing' in ctx) ctx.letterSpacing = '1.2px';
-        const fits = ctx.measureText('PETRI DISH').width <= beaker.w;
+        const pw = ctx.measureText('PRODUCTS').width;
         ctx.restore();
-        if (fits) label('PETRI DISH', beaker.x, beaker.y - 9); else label('PETRI DISH', beaker.x + beaker.w, beaker.y - 9, 'right');
+        if (tray.x + tray.w / 2 - pw / 2 >= th.box.x + th.box.w + 10) label('PRODUCTS', tray.x + tray.w / 2, tube.y - 10, 'center');
         return;
       }
-      label('TEST TUBE', tube.x, tube.y - 9);
-      label('PETRI DISH', beaker.x, beaker.y - 9);
+      drawHint(tubeHint());
       if (on) eq(tray.x, tray.y - 9, tray.w);
       else label('PRODUCTS', tray.x, tray.y - 9);
     }
@@ -516,8 +579,9 @@
        Let it go over the tube, the beaker or the dish. Anywhere else, it stays
        where it was. */
     function hit(p) {
+      const shelfReady = !react || clock() - react.t0 >= L.productsAt;
       for (const piece of st.pieces) {
-        if (piece.zone === 'tray' && traySlot.has(piece.id) && inside(p, traySlotRect(traySlot.get(piece.id)))) return { id: piece.id, from: 'tray' };
+        if (shelfReady && piece.zone === 'tray' && traySlot.has(piece.id) && inside(p, traySlotRect(traySlot.get(piece.id)))) return { id: piece.id, from: 'tray' };
       }
       for (let k = 0; k < tubeOrder.length; k++) {
         if (inside(p, tubeSlot(k))) return { id: tubeOrder[k], from: 'tube' };
@@ -570,6 +634,10 @@
       return f(r.a) + ' + ' + f(r.b) + '  →  ' + out.map((q) => (q.n > 1 ? q.n + ' ' : '') + f(q.k)).join(' + ');
     }
     function intoTube(id, now) {
+      if (react && now - react.t0 < L.reactMs) {
+        chip('still reacting', { x: centre(tube).x, y: tube.y + 20 }, 'grey', now);
+        return { ok: false, why: 'reacting' };
+      }
       const from = st.pieces[id].zone, slots = new Map(traySlot);
       const ev = X.toTube(st, id);
       if (!ev.ok) {
@@ -636,7 +704,7 @@
         return {
           pieces: st.pieces.map((p) => ({ id: p.id, key: p.key, zone: p.zone, slot: traySlot.has(p.id) ? traySlot.get(p.id) : null })),
           tube: tubeOrder.slice(), made: Object.assign({}, st.made), result: st.result,
-          lost: st.analysis.lost, best: st.analysis.best, reacting: !!react, dragging: drag ? drag.id : -1,
+          lost: st.analysis.lost, best: st.analysis.best, reacting: !!(react && clock() - react.t0 < L.reactMs), dragging: drag ? drag.id : -1,
         };
       },
       geom() {
@@ -647,7 +715,8 @@
           else if (p.zone === 'tube') { const k = tubeOrder.indexOf(p.id); if (k >= 0) pieces[p.id] = centre(tubeSlot(k)); }
         }
         return { dish: Object.assign({}, D), tube: Object.assign({}, tube), tray: Object.assign({}, tray), beaker: Object.assign({}, beaker),
-                 traySlots: [0, 1, 2].map(traySlotRect), tubeSlots: [0, 1].map(tubeSlot), targets: targetSlots(), pieces };
+                 traySlots: [0, 1, 2].map(traySlotRect), tubeSlots: [0, 1].map(tubeSlot), targets: targetSlots(), pieces,
+                 hints: { tube: tubeHint().box, dish: dishGeom().hint.box }, petri: (({ x, top, dw, dh }) => ({ x, y: top - 3, w: dw, h: dh + 3 }))(dishGeom()) };
       },
       // Straight to a place, through the same code a drop uses.
       act(where, id, x, y) {

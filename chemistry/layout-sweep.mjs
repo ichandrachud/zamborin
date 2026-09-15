@@ -79,7 +79,7 @@ try {
       const issues = [];
       const bottom = (r) => r.y + r.h, right = (r) => r.x + r.w;
       const ctrlTop = Math.min(...g.ctrl.map((b) => b.y)), ctrlBottom = Math.max(...g.ctrl.map((b) => b.y + b.h));
-      const labelTop = Math.min(g.tube.y, g.tray.y, g.beaker.y) - 18;
+      const labelTop = Math.min(g.tube.y - 18, g.hints.tube.y);
       const targetBottom = Math.max(...g.targets.map((f) => f.labelY + 9));
       if (targetBottom > g.dish.y) issues.push('targets into the dish by ' + (targetBottom - g.dish.y).toFixed(1));
       if (bottom(g.dish) > labelTop) issues.push('dish into the bench headings by ' + (bottom(g.dish) - labelTop).toFixed(1));
@@ -87,6 +87,16 @@ try {
       if (ctrlBottom > h) issues.push('controls off screen');
       if (g.tube.x < 0 || right(g.beaker) > w || right(g.tube) > g.tray.x || right(g.tray) > g.beaker.x) issues.push('bench overlaps or overflows');
       if (Object.values(g.pieces).some((c) => c.x < g.dish.x || c.x > right(g.dish) || c.y < g.dish.y || c.y > bottom(g.dish))) issues.push('a molecule outside the dish');
+      // the words on the bench: on screen, clear of the shelf, the dish's words under the petri dish and above the controls
+      const meets = (a, b) => a.x < right(b) && right(a) > b.x && a.y < bottom(b) && bottom(a) > b.y;
+      for (const [name, box] of Object.entries(g.hints)) {
+        if (box.x < 8 || right(box) > w - 8) issues.push(name + ' words past the side');
+        if (g.traySlots.some((r) => meets(box, r))) issues.push(name + ' words over the shelf');
+        if (bottom(box) > ctrlTop - 2) issues.push(name + ' words into the controls');
+      }
+      if (bottom(g.hints.tube) > g.tube.y + 2) issues.push('tube words into the tube');
+      if (g.hints.dish.y < bottom(g.petri)) issues.push('dish words into the petri dish');
+      if (bottom(g.hints.dish) > bottom(g.beaker) + 2) issues.push('dish words below their space');
       if (LAB === 'chapter=3') {
         // the clue card, then the win card after the level's own solution: every line above the button, all on screen
         const cardOk = (c, cta, what) => {
@@ -97,7 +107,7 @@ try {
         };
         cardOk(g.card, g.cta, 'clue');
         const won = await p.ev(`(() => { __chem.freeze(0); const s = __chem.state, L = __chem.lab;
-          for (const [where, key] of ChemLevels.organic[s.mode][s.level - 1].solution) { L.act(where, L.find(key)); __chem.advance(1200); }
+          for (const [where, key] of ChemLevels.organic[s.mode][s.level - 1].solution) { L.act(where, L.find(key)); __chem.advance(2800); }
           __chem.advance(2600); return Object.assign(__chem.geom(), { kind: __chem.state.card }); })()`);
         if (won.kind !== 'win') issues.push('the solution did not win');
         else cardOk(won.card, won.cta, 'win');
