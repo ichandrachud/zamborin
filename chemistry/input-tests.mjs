@@ -79,17 +79,31 @@ await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&crowd=0&level=17'
   const feAt = async () => (await ev('__chem.state')).atoms.find((a) => a.id === fe.id);
   const molOf = (st, id) => st.atoms.find((a) => a.id === id).mol;
 
+  // A chlorine from the panel lands free, even let go right beside the iron.
   let f = await feAt();
   await mouseDrag(slot, await world(f.x + 2.6, f.y));
   s = await ev('__chem.state');
-  const cl1 = s.atoms.find((a) => a.el === 'Cl');
-  ok(cl1 && cl1.mol === molOf(s, fe.id), 'a chlorine dragged to the iron is grabbed by it', s.atoms);
+  const first = s.atoms.find((a) => a.el === 'Cl');
+  ok(first && first.mol !== molOf(s, fe.id) && s.reactions === 0 && s.avail.Cl === 2,
+     'a chlorine carried in from the panel grabs nothing, even let go beside the iron', [s.reactions, s.avail, s.atoms]);
+  // Moved again, it is grabbed. Out into open water first, then onto the iron from three sides.
+  const bring = async (id, dx, dy) => {
+    let q = (await ev('__chem.state')).atoms.find((a) => a.id === id);
+    await mouseDrag(await world(q.x, q.y), await world(18, 6));
+    q = (await ev('__chem.state')).atoms.find((a) => a.id === id);
+    const fe2 = await feAt();
+    await mouseDrag(await world(q.x, q.y), await world(fe2.x + dx, fe2.y + dy), 20);
+  };
+  await bring(first.id, 2.6, 0);
+  s = await ev('__chem.state');
+  ok(s.atoms.find((a) => a.id === first.id).mol === molOf(s, fe.id), 'dragged to the iron from the dish, the chlorine is grabbed', s.atoms);
   ok(s.avail.Cl === 2 && s.lost === 0 && s.wasted === 0, 'one chlorine used, nothing lost', [s.avail, s.lost]);
-
-  f = await feAt();
-  await mouseDrag(slot, await world(f.x, f.y + 2.6));
-  f = await feAt();
-  await mouseDrag(slot, await world(f.x - 2.6, f.y - 0.4), 20);
+  for (const [dx, dy] of [[0, 2.6], [-2.6, -0.4]]) {
+    await mouseDrag(slot, await world(18, 6));
+    s = await ev('__chem.state');
+    const loose = s.atoms.filter((a) => a.el === 'Cl' && a.free === 1).pop();
+    await bring(loose.id, dx, dy);
+  }
   s = await ev('__chem.state');
   ok(s.made['iron-chloride'] === 1, 'three chlorines on the iron make iron chloride, and it is collected', s.made);
   ok(s.result && s.result.kind === 'win', 'every molecule made: the level is won', s.result);
@@ -110,9 +124,15 @@ await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&crowd=0&level=17'
   const g = await ev('__chem.geom()');
   const slot = centre(g.slots.find((q) => q.el === 'Cl'));
   const edge = await world(g.dish.WW + 0.3, 11);     // just outside the dish's right wall, level with the iron
-  await mouseDragPath([slot, edge, await world(9, 11)], 16);
+  // from the panel, straight over the hydrogen: nothing
+  await mouseDragPath([slot, edge, await world(14, 11.5), await world(20, 4)], 16);
   s = await ev('__chem.state');
-  ok(s.wasted === 1 && s.lost === 1, 'dragged past a hydrogen, the chlorine is grabbed on the way: hydrogen chloride', [s.wasted, s.lost, s.lastEvent]);
+  const cl = s.atoms.find((a) => a.el === 'Cl');
+  ok(cl && s.reactions === 0 && s.avail.Cl === 2, 'a chlorine carried from the panel right over a hydrogen grabs nothing, and lands free', [s.reactions, s.avail]);
+  // moved again through the same hydrogen, it is grabbed on the way
+  await mouseDragPath([await world(cl.x, cl.y), await world(17, 11), await world(9, 11)], 16);
+  s = await ev('__chem.state');
+  ok(s.wasted === 1 && s.lost === 1, 'dragged from the dish past a hydrogen, the chlorine is grabbed on the way: hydrogen chloride', [s.wasted, s.lost, s.lastEvent]);
   ok(s.result && s.result.kind === 'fail', 'two chlorines cannot finish the iron: the level fails', s.result);
   ok(!s.cardShown, 'the card waits, so the loss is seen first');
   await sleep(1800);
@@ -191,12 +211,18 @@ await withPage({ w: 390, h: 844, dpr: 2, mobile: true, url: BASE + '?drift=0&cro
   await ev(`__chem.move(${o.id}, 9, 10)`);
   const g = await ev('__chem.geom()');
   const slot = centre(g.slots.find((q) => q.el === 'H'));
-  // the atom rides above the finger, so the finger goes a little below where the atom should land
-  const land = await world(9 + 2.6, 10 + 2.3);
-  await touchDrag(slot, land, 20);
+  // a panel atom rides above the finger, so the finger goes a little below where the atom should land
+  await touchDrag(slot, await world(9 + 2.6, 10 + 2.3), 20);
   s = await ev('__chem.state');
-  const h = s.atoms.find((a) => a.el === 'H');
-  ok(h && h.mol === s.atoms.find((a) => a.id === o.id).mol && s.avail.H === 1, 'a hydrogen dragged in by touch is grabbed by the oxygen', s.atoms);
+  let h = s.atoms.find((a) => a.el === 'H');
+  ok(h && h.mol !== s.atoms.find((a) => a.id === o.id).mol && s.avail.H === 1 && s.reactions === 0,
+     'a hydrogen dragged in by touch and let go by the oxygen lands free', s.atoms);
+  // a dish atom is lifted from where it is: out to open water, then back onto the oxygen
+  await touchDrag(await world(h.x, h.y), await world(18, 18), 20);
+  h = (await ev('__chem.state')).atoms.find((a) => a.id === h.id);
+  await touchDrag(await world(h.x, h.y), await world(9 + 2.6, 10), 20);
+  s = await ev('__chem.state');
+  ok(s.atoms.find((a) => a.id === h.id).mol === s.atoms.find((a) => a.id === o.id).mol, 'then dragged to the oxygen by touch, it is grabbed', s.atoms);
   const rs = g.ctrl.find((b) => b.id === 'restart');
   await touchTap(rs.x + rs.w / 2, rs.y + rs.h / 2);
   s = await ev('__chem.state');
@@ -341,8 +367,12 @@ await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&crowd=0' }, async
   let st = await ev('__chem.state');
   ok(st.phase === 'play' && st.chapter === 1 && st.level === 1, 'a new player starts on level 1, not the map', [st.phase, st.chapter, st.level]);
   const O = st.atoms.find((a) => a.el === 'O');
-  await ev(`__chem.carry('H', ${O.x + 2.6}, ${O.y})`);
-  st = await ev(`__chem.carry('H', ${O.x - 2.6}, ${O.y})`);
+  await ev(`__chem.move(${O.id}, 18, 12)`);
+  for (const side of [1, -1]) {
+    st = await ev(`__chem.carry('H', ${18 + 8 * side}, 12)`);
+    const h = st.atoms.filter((a) => a.el === 'H' && a.free === 1).pop();
+    st = await ev(`__chem.carry(${h.id}, ${18 + 2.6 * side}, 12)`);
+  }
   ok(st.result && st.result.kind === 'win', 'level 1 won', st.result);
   const saved = await ev(`JSON.parse(localStorage.getItem('zam.chemistry.progress'))`);
   ok(JSON.stringify(saved && saved['desktop-1']) === JSON.stringify({ at: 0, done: 1 }), 'the win is saved: one molecules level done', saved);

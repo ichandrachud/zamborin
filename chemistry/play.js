@@ -10,11 +10,13 @@
    model.js decides what a bond makes. This file moves the atoms, finds the
    hands that meet, and draws it all.
 
-   Two rules keep it fair, both the owner's:
+   Three rules keep it fair, all the owner's:
      nothing reacts on its own: charged radicals keep their distance from
        each other, and only what the player carries can grab;
-     what the player carries grabs anything its hands pass near, all along
-       the drag, not only where it is let go.
+     what the player moves in the dish grabs anything its hands pass near,
+       all along the drag, not only where it is let go;
+     an atom carried in from the panel grabs nothing, not even where it is
+       let go: it lands free, and is moved again to bond (2026-09-15).
    ============================================================ */
 (() => {
   'use strict';
@@ -571,7 +573,7 @@
 
   /* ---------- HANDS THAT MEET ---------- */
   function findCapture() {
-    if (!drag || heldIsLoose()) return null;
+    if (!drag || drag.fromPanel || heldIsLoose()) return null;
     const heldIds = M.groupOf(st, drag.id), held = new Set(heldIds);
     let best = null;
     for (const ai of heldIds) {
@@ -637,7 +639,7 @@
   }
   // Every pair of free hands, one carried and one in the dish, close enough to reach.
   function threatPairs() {
-    if (!drag || card || heldIsLoose()) return [];
+    if (!drag || drag.fromPanel || card || heldIsLoose()) return [];
     const heldIds = M.groupOf(st, drag.id), held = new Set(heldIds), out = [];
     for (const ai of heldIds) {
       const a = st.atoms[ai];
@@ -684,8 +686,9 @@
     drag.tx = x; drag.ty = y;
   }
   function setTarget(p) { const w = toWorld(p); setTargetWorld(w.x + drag.ox, w.y + drag.oy); }
-  /* Let go. A panel atom that never touched anything goes back to the panel if
-     it is let go outside the dish, and into the dish if inside. */
+  /* Let go. A panel atom goes back to the panel if it is let go outside the
+     dish, and lands free in the dish if inside, wherever that is: it grabs
+     nothing on the way in (owner, 2026-09-15), and is moved again to bond. */
   function finishDrag() {
     if (!drag) return;
     const a = heldAtom();
