@@ -71,7 +71,7 @@ const SPECIES = {};
   sp('calcium-chloride-nitrate', 'calcium chloride nitrate', 'CaCl(NO₃)',
      [['Cl', -1, 0], ['Ca', 0, 0], ['O', 1, 0], ['N', 2, 0], ['O', 2, -1], ['O', 2.87, 0.5]], '1-0 1-2 2-3 3=4 3-5', ['salt', 'chloride']),
   sp('calcium-oxide', 'calcium oxide', 'CaO', [['Ca', -0.5, 0], ['O', 0.5, 0]], '0=1', ['base', 'oxide']),
-  sp('ammonia', 'ammonia', 'NH₃', [['N', 0, 0], ['H', 0, -1], ['H', 0.87, 0.5], ['H', -0.87, 0.5]], '0-1 0-2 0-3', ['base']),
+  sp('ammonia', 'ammonia', 'NH₃', [['N', 0, 0], ['H', 0, -1], ['H', 0.87, 0.5], ['H', -0.87, 0.5]], '0-1 0-2 0-3', ['base', 'ammonia']),
   sp('ammonium-chloride', 'ammonium chloride', 'NH₄Cl',
      [['N', 0, 0], ['H', 0, -1], ['H', 1, 0], ['H', 0, 1], ['H', -1, 0], ['Cl', 2.2, 0]], '0-1 0-2 0-3 0-4', ['ammonium', 'salt', 'chloride']),
   sp('ammonium-nitrate', 'ammonium nitrate', 'NH₄NO₃',
@@ -111,11 +111,214 @@ const SPECIES = {};
      '0-1 1=2 1-3 3-4 0-5 0-6 0-7', ['salt', 'weak-acid-salt']),
 ].forEach((s) => { SPECIES[s.key] = s; });
 
+/* ---------- THE IONIC WORLD ----------
+   Most of the bench is ionic: a metal (or ammonium) holding what is left of
+   an acid. Writing every salt out by hand would be dozens of near-identical
+   drawings, so each ion is described once, here, and a compound's picture,
+   name, formula and tags are worked out from the pair. The twenty molecules
+   above were drawn by hand first and keep their own pictures; this only
+   tells the engine what ions they are made of.
+
+   An ion's centre atom is index 0 and coordinates are in bond lengths, y
+   down. `arms` say where a partner's centre sits and which atom holds it
+   (`h` for a hydrogen, which is small and sits off to one side). `bridge` is
+   the second drawing for a partner that takes both charges at once, the way
+   the calcium of calcium sulphate does. */
+const SUB = '₀₁₂₃₄₅₆₇₈₉';
+const sub = (n) => String(n).split('').map((d) => SUB[+d]).join('');
+const gcd = (a, b) => (b ? gcd(b, a % b) : a);
+const CATIONS = {
+  H:   { charge: 1, name: 'hydrogen', formula: 'H', atoms: [['H', 0, 0]], bonds: '' },
+  Na:  { charge: 1, name: 'sodium', formula: 'Na', atoms: [['Na', 0, 0]], bonds: '' },
+  K:   { charge: 1, name: 'potassium', formula: 'K', atoms: [['K', 0, 0]], bonds: '' },
+  NH4: { charge: 1, name: 'ammonium', formula: 'NH₄', group: true, reach: 1.2, loose: true,
+         atoms: [['N', 0, 0], ['H', 0, -1], ['H', 1, 0], ['H', 0, 1], ['H', -1, 0]], bonds: '0-1 0-2 0-3 0-4' },
+  Mg:  { charge: 2, name: 'magnesium', formula: 'Mg', atoms: [['Mg', 0, 0]], bonds: '' },
+  Ca:  { charge: 2, name: 'calcium', formula: 'Ca', atoms: [['Ca', 0, 0]], bonds: '' },
+  Zn:  { charge: 2, name: 'zinc', formula: 'Zn', atoms: [['Zn', 0, 0]], bonds: '' },
+  Cu:  { charge: 2, name: 'copper', formula: 'Cu', atoms: [['Cu', 0, 0]], bonds: '' },
+};
+const ANIONS = {
+  Cl:   { charge: 1, name: 'chloride', acid: 'hydrochloric acid', formula: 'Cl',
+          atoms: [['Cl', 0, 0]], bonds: '', arms: [{ a: 0, p: [-1, 0] }] },
+  Br:   { charge: 1, name: 'bromide', acid: 'hydrobromic acid', formula: 'Br',
+          atoms: [['Br', 0, 0]], bonds: '', arms: [{ a: 0, p: [-1, 0] }] },
+  OH:   { charge: 1, name: 'hydroxide', formula: 'OH', group: true,
+          atoms: [['O', 0, 0], ['H', 0.7, 0.55]], bonds: '0-1', arms: [{ a: 0, p: [-1, 0], h: [-0.7, -0.55] }] },
+  O:    { charge: 2, name: 'oxide', formula: 'O', atoms: [['O', 0, 0]], bonds: '',
+          arms: [{ a: 0, p: [-1, 0] }, { a: 0, p: [1, 0] }], bridge: { p: [-1, 0], a: [0, 0] } },
+  NO3:  { charge: 1, name: 'nitrate', acid: 'nitric acid', formula: 'NO₃', group: true,
+          atoms: [['N', 0, 0], ['O', -1, 0], ['O', 0.5, -0.87], ['O', 0.5, 0.87]], bonds: '0-1 0=2 0-3',
+          arms: [{ a: 1, p: [-2, 0], h: [-1.7, -0.55] }] },
+  SO4:  { charge: 2, name: 'sulphate', acid: 'sulphuric acid', formula: 'SO₄', group: true,
+          atoms: [['S', 0, 0], ['O', -1, 0], ['O', 1, 0], ['O', 0, -1], ['O', 0, 1]], bonds: '0-1 0-2 0=3 0=4',
+          arms: [{ a: 1, p: [-2, 0], h: [-1.7, -0.55] }, { a: 2, p: [2, 0], h: [1.7, 0.55] }],
+          bridge: { bonds: '0-1 0=2 0=3 0-4', p: [-1, 1], a: [1, 4] } },
+  HSO4: { charge: 1, name: 'hydrogen sulphate', formula: 'HSO₄', group: true,
+          atoms: [['S', 0, 0], ['O', -1, 0], ['O', 1, 0], ['O', 0, -1], ['O', 0, 1], ['H', 1.7, 0.55]], bonds: '0-1 0-2 0=3 0=4 2-5',
+          arms: [{ a: 1, p: [-2, 0], h: [-1.7, -0.55] }] },
+  CO3:  { charge: 2, name: 'carbonate', formula: 'CO₃', group: true,
+          atoms: [['C', 0, 0], ['O', -1, 0], ['O', 0.5, -0.87], ['O', 0.5, 0.87]], bonds: '0-1 0=2 0-3',
+          arms: [{ a: 1, p: [-2, 0], h: [-1.7, -0.55] }, { a: 3, p: [1, 1.74] }],
+          bridge: { p: [-0.65, 1.13], a: [1, 3] } },
+  HCO3: { charge: 1, name: 'hydrogencarbonate', formula: 'HCO₃', group: true,
+          atoms: [['C', 0, 0], ['O', -1, 0], ['O', 0.5, -0.87], ['O', 0.5, 0.87], ['H', 0.86, 1.49]], bonds: '0-1 0=2 0-3 3-4',
+          arms: [{ a: 1, p: [-2, 0], h: [-1.7, -0.55] }] },
+};
+const ORDER = ['OH', 'O', 'Cl', 'Br', 'NO3', 'SO4', 'HSO4', 'CO3', 'HCO3'];
+// Which salts will not dissolve: the ones that drop out of a clear liquid as a solid.
+const INSOLUBLE = { CO3: ['Mg', 'Ca', 'Zn', 'Cu'], OH: ['Mg', 'Zn', 'Cu'], SO4: ['Ca'] };
+const STRONG_ACID = ['Cl', 'Br', 'NO3', 'SO4'];
+const WEAK_OXIDE = ['Zn', 'Cu'];        // these oxides take a hydrogen from an acid, but not from water
+const NAMED = { 'OH,Cl': 'hydroxychloride', 'OH,Br': 'hydroxybromide', 'OH,NO3': 'hydroxynitrate', 'Cl,NO3': 'chloride nitrate' };
+
+/* One compound of `cat` and the anions in `ans` (a list, so a half-swapped
+   salt like Ca(OH)Cl is two different anions on one calcium). Built once and
+   kept; a molecule already drawn by hand above keeps its own picture. */
+function ionic(cat, raw) {
+  const kinds = [...new Set(raw)];
+  const ans = (kinds.length === 1 ? kinds : raw.slice()).sort((x, y) => ORDER.indexOf(x) - ORDER.indexOf(y));
+  const C = CATIONS[cat], list = ans.map((k) => ANIONS[k]);
+  if (!C || list.some((A) => !A)) return null;
+  const mixed = ans.length > 1;
+  // an oxide takes no partner, and a salt cannot hold a hydroxide and a spare hydrogen at once
+  if (ans.includes('O') && (mixed || C.charge === 1)) return null;
+  if (mixed && ans.includes('OH') && ans.some((a) => a === 'HSO4' || a === 'HCO3')) return null;
+  if (mixed && ans.includes('HSO4') && ans.includes('HCO3')) return null;
+  let m, n;
+  if (mixed) {
+    if (list.reduce((t, A) => t + A.charge, 0) !== C.charge || ans.length > 2) return null;
+    m = 1; n = 1;
+  } else {
+    const g = gcd(C.charge, list[0].charge);
+    m = list[0].charge / g; n = C.charge / g;
+  }
+  if (m > 2 || n > 2) return null;                       // nothing on this bench needs three of a kind
+  if (cat === 'NH4' && (m > 1 || ans.includes('OH'))) return null;   // ammonia already stands for its solution
+  const isAcid = cat === 'H';
+  if (isAcid && (mixed || ans[0] === 'OH' || ans[0] === 'O')) return null;  // that would be water
+  const name = isAcid ? list[0].acid
+    : mixed ? C.name + ' ' + (NAMED[ans.join(',')] || ans.map((k) => ANIONS[k].name).join(' '))
+    : C.name + ' ' + list[0].name;
+  if (!name || name.includes('undefined')) return null;
+  const key = name.replace(/ /g, '-');
+
+  const tags = [];
+  if (isAcid) {
+    tags.push('acid');
+    if (STRONG_ACID.includes(ans[0])) tags.push('strong-acid');
+    if (list[0].charge === 2) tags.push('diprotic-acid');
+    if (ans[0] === 'SO4') tags.push('sulphate');
+    if (ans[0] === 'Cl' || ans[0] === 'Br') tags.push('hydrogen-halide');
+  } else {
+    if (ans.includes('OH') || ans.includes('O')) {
+      tags.push('base');
+      if (ans.includes('O')) { tags.push('oxide'); if (!WEAK_OXIDE.includes(cat)) tags.push('slakes'); }
+      if (!mixed && ans[0] === 'OH' && ['Na', 'K', 'Ca'].includes(cat)) tags.push('strong-base');
+      if (mixed) tags.push('basic-salt');
+    }
+    if (ans.includes('HSO4')) tags.push('acid');
+    if (ans.some((a) => a !== 'OH' && a !== 'O')) tags.push('salt');
+    if (ans.includes('CO3') || ans.includes('HCO3')) tags.push('carbonate');
+    if (ans.includes('HCO3')) tags.push('hydrogencarbonate');
+    if (cat === 'NH4') tags.push('ammonium');
+    if (ans.some((a) => (INSOLUBLE[a] || []).includes(cat))) tags.push('insoluble');
+    if (ans.includes('SO4')) tags.push('sulphate');
+    const free = (a) => (INSOLUBLE[a] || []).includes(cat) && !ans.includes(a);
+    if (free('OH')) tags.push('hydroxide-falls');
+    if (free('CO3') && !ans.includes('HCO3')) tags.push('carbonate-falls');
+    if (free('SO4') && !ans.includes('HSO4')) tags.push('sulphate-falls');
+    if (METALS[cat]) tags.push(METALS[cat] + '-salt');
+  }
+  if (ans.includes('Cl')) tags.push('chloride');
+
+  const drawn = SPECIES[key];
+  const s = drawn || sp(key, name, formula(C, m, list, n, mixed), ...picture(C, m, list, n, mixed), tags);
+  for (const t of tags) if (!s.tags.includes(t)) s.tags.push(t);
+  s.ions = { cat, m, ans: mixed ? ans.slice() : Array(n).fill(ans[0]) };
+  SPECIES[key] = s;
+  return s;
+}
+function formula(C, m, list, n, mixed) {
+  const one = (ion, k, force) => (k > 1 || (force && ion.group) ? (ion.group ? '(' + ion.formula + ')' : ion.formula) + (k > 1 ? sub(k) : '') : ion.formula);
+  return one(C, m) + (mixed ? list.map((A) => one(A, 1, true)).join('') : one(list[0], n));
+}
+/* The picture. One ion is the host and the others hang off its arms: the
+   anion holds the metals when there is one of it, and the metal holds the
+   anions when there are two. A partner placed on the left is turned right
+   round, so its own tail points outwards. */
+function picture(C, m, list, n, mixed) {
+  const atoms = [], bonds = [];
+  const put = (tpl, dx, dy, turn, art) => {
+    const base = atoms.length;
+    tpl.atoms.forEach(([el, x, y]) => atoms.push([el, dx + turn * x, dy + turn * y]));
+    for (const b of ((art && art.bonds) || tpl.bonds || '').split(' ').filter(Boolean)) {
+      const [, i, k, j] = b.match(/^(\d+)([-=#])(\d+)$/);
+      bonds.push((base + +i) + k + (base + +j));
+    }
+    return base;
+  };
+  const link = (i, j, order) => bonds.push(i + (order === 2 ? '=' : '-') + j);
+  if (!mixed && n === 1) {                                  // the anion holds the metals
+    const A = list[0], bridge = m === 1 && C.charge === 2 && A.charge === 2 && A.bridge;
+    const base = put(A, 0, 0, 1, bridge || null);
+    if (bridge) {
+      const b = put(C, bridge.p[0], bridge.p[1], 1);
+      if (bridge.a[0] === bridge.a[1]) link(b, base + bridge.a[0], 2);
+      else bridge.a.forEach((i) => link(b, base + i));
+    } else {
+      for (let i = 0; i < m; i++) {
+        const arm = A.arms[i], h = C.formula === 'H' && arm.h ? arm.h : arm.p;
+        const away = Math.hypot(arm.p[0], arm.p[1]), push = (C.reach || 0) / (away || 1);
+        const x = h[0] * (1 + (h === arm.p ? push : 0)), y = h[1] * (1 + (h === arm.p ? push : 0));
+        const b = put(C, x, y, x > 0.01 ? -1 : 1);
+        if (!C.loose) link(b, base + arm.a, C.atoms.length === 1 && A.atoms.length === 1 ? Math.min(C.charge, A.charge) : 1);
+      }
+    }
+  } else {                                                  // the metal holds the anions
+    const base = put(C, 0, 0, 1);
+    const slots = mixed ? list : Array(n).fill(list[0]);
+    slots.forEach((A, i) => {
+      const turn = slots.length === 1 || i === 0 ? -1 : 1, arm = A.arms[0];
+      const b = put(A, -turn * arm.p[0], -turn * arm.p[1], turn);
+      link(base, b + arm.a, C.atoms.length === 1 && A.atoms.length === 1 ? Math.min(C.charge, A.charge) : 1);
+    });
+  }
+  return [atoms, bonds.join(' ')];
+}
+
+/* The bench: the acids, what each metal makes with them, and the half-swapped
+   salts in between. */
+const METALS = { Mg: 'magnesium', Zn: 'zinc', Cu: 'copper' };
+const ABOVE = { Mg: 3, Zn: 2, H: 1, Cu: 0 };                // which metal pushes which out of its salt
+for (const an of ['Cl', 'Br', 'NO3', 'SO4']) ionic('H', [an]);
+for (const cat of ['Na', 'K', 'NH4', 'Mg', 'Ca', 'Zn', 'Cu']) {
+  for (const an of ['Cl', 'Br', 'NO3', 'SO4', 'OH', 'CO3']) ionic(cat, [an]);
+}
+for (const cat of ['Na', 'K', 'NH4']) for (const an of ['HSO4', 'HCO3']) ionic(cat, [an]);
+for (const cat of ['Mg', 'Ca', 'Zn', 'Cu']) {
+  ionic(cat, ['O']); ionic(cat, ['HSO4']); ionic(cat, ['HCO3']);
+  for (const an of ['Cl', 'Br', 'NO3']) { ionic(cat, ['OH', an]); ionic(cat, ['HCO3', an]); }
+  ionic(cat, ['Cl', 'NO3']);
+}
+[
+  sp('carbon-dioxide', 'carbon dioxide', 'CO₂', [['C', 0, 0], ['O', -1.1, 0], ['O', 1.1, 0]], '0=1 0=2', ['gas']),
+  sp('magnesium', 'magnesium', 'Mg', [['Mg', 0, 0]], '', ['metal', 'beats-hydrogen', 'beats-zinc', 'beats-copper']),
+  sp('zinc', 'zinc', 'Zn', [['Zn', 0, 0]], '', ['metal', 'beats-hydrogen', 'beats-copper']),
+  sp('copper', 'copper', 'Cu', [['Cu', 0, 0]], '', ['metal']),
+].forEach((s) => { if (!SPECIES[s.key]) SPECIES[s.key] = s; SPECIES[s.key].metal = METALS[s.formula] ? s.formula : undefined; });
+SPECIES.water.ions = { cat: 'H', m: 2, ans: ['O'] };
+
 /* ---------- REACTIONS ----------
    Two molecules in, one to three out, in the order the tray shows them: the
    interesting product first, water last. */
 const REACTIONS = [];
-function rx(a, b, products, note) { REACTIONS.push({ a, b, products, note }); }
+const BY_PAIR = new Map();
+function rx(a, b, products, note, kind) {
+  const r = { a, b, products, note, kind };
+  REACTIONS.push(r);
+  BY_PAIR.set(a < b ? a + '+' + b : b + '+' + a, r);
+}
 // an acid and a base make a salt and water
 rx('hydrochloric-acid', 'sodium-hydroxide', ['sodium-chloride', 'water']);
 rx('nitric-acid', 'sodium-hydroxide', ['sodium-nitrate', 'water']);
@@ -160,9 +363,191 @@ rx('chloroethane', 'sodium-hydroxide', ['ethanol', 'sodium-chloride']);
 // ethanoic acid is an acid like any other, and a strong acid takes its salt back
 rx('ethanoic-acid', 'sodium-hydroxide', ['sodium-ethanoate', 'water']);
 rx('sodium-ethanoate', 'hydrochloric-acid', ['ethanoic-acid', 'sodium-chloride']);
+rx('sodium-ethanoate', 'nitric-acid', ['ethanoic-acid', 'sodium-nitrate']);
+rx('sodium-ethanoate', 'sulphuric-acid', ['ethanoic-acid', 'sodium-hydrogen-sulphate']);
+
+/* ---------- THE EQUATIONS, WORKED OUT ----------
+   The rules above were written out one by one. The rest of the bench is far
+   too big for that, so these are worked out from the ions themselves, in
+   three ways a school lab would recognise:
+
+   A hydrogen moves. Every acid is a hydrogen looking for somewhere better to
+   sit, and every base is somewhere better. How readily one leaves, and how
+   strongly a base holds it, are the two numbers below; the hydrogen moves
+   when the giver's number is under the taker's. That one rule covers
+   neutralisation, quicklime slaking in water, ammonia coming off an ammonium
+   salt, and a carbonate fizzing — and it correctly refuses the pairs that do
+   nothing, like ammonium chloride with baking soda. As many hydrogens move
+   as both sides can manage, which is why one sulphuric acid takes a whole
+   calcium hydroxide but only half a sodium one.
+
+   A metal pushes another out. Magnesium beats zinc, zinc beats hydrogen,
+   hydrogen beats copper: the higher metal takes the salt and the lower one
+   is left as metal (or as hydrogen, bubbling off).
+
+   Something will not dissolve. Swap the partners of two salts, and if either
+   new pair is one of the insoluble ones it falls out of the liquid as a
+   solid, which is what drags the reaction along. */
+const GIVES = { H: 0, HSO4: 2, NH4: 9, HCO3: 10, water: 16 };
+const TAKES = { O: 30, OH: 16, CO3: 10, ammonia: 9, HCO3: 6 };
+const count = (list, x) => list.filter((y) => y === x).length;
+const drop = (list, x, k) => { const out = list.slice(); for (let i = 0; i < k; i++) out.splice(out.indexOf(x), 1); return out; };
+
+// What this molecule can give a hydrogen from, and how readily.
+function gives(key) {
+  const io = SPECIES[key].ions;
+  if (key === 'water') return { pka: GIVES.water, n: 1, from: 'water' };
+  if (!io) return null;
+  if (io.cat === 'H') return { pka: GIVES.H, n: io.m, from: 'H' };
+  if (count(io.ans, 'HSO4')) return { pka: GIVES.HSO4, n: count(io.ans, 'HSO4'), from: 'HSO4' };
+  if (io.cat === 'NH4') return { pka: GIVES.NH4, n: io.m, from: 'NH4' };
+  if (count(io.ans, 'HCO3')) return { pka: GIVES.HCO3, n: count(io.ans, 'HCO3'), from: 'HCO3' };
+  return null;
+}
+// Every place this molecule could take a hydrogen, the strongest first.
+function takes(key) {
+  const io = SPECIES[key].ions, out = [];
+  if (key === 'ammonia') return [{ pka: TAKES.ammonia, at: -1 }];
+  if (!io || io.cat === 'H') return out;
+  io.ans.forEach((a, i) => {
+    const soft = WEAK_OXIDE.includes(io.cat) ? 14 : null;
+    if (a === 'O') out.push({ pka: soft || TAKES.O, at: i }, { pka: soft || TAKES.OH, at: i });
+    else if (a === 'OH') out.push({ pka: soft || TAKES.OH, at: i });
+    else if (a === 'CO3') out.push({ pka: TAKES.CO3, at: i }, { pka: TAKES.HCO3, at: i });
+    else if (a === 'HCO3') out.push({ pka: TAKES.HCO3, at: i });
+  });
+  return out.sort((x, y) => y.pka - x.pka);
+}
+/* Move as many hydrogens as both sides can manage, then see what is left:
+   loose ions to pair up, and whatever came off as water, gas or ammonia. */
+function moveHydrogen(dKey, aKey) {
+  const g = gives(dKey), slots = takes(aKey);
+  if (!g) return null;
+  const use = slots.filter((s) => s.pka > g.pka).slice(0, g.n);
+  if (!use.length) return null;
+  const D = SPECIES[dKey].ions, A = SPECIES[aKey].ions, k = use.length;
+  const cats = [], ans = [], loose = [];
+  // the giver, one hydrogen lighter
+  if (g.from === 'water') { ans.push('OH'); }
+  else if (g.from === 'H') {                             // a hydrogen still on the acid stays on its own anion
+    const kept = D.ans.slice();
+    for (let i = 0; i < D.m - k; i++) {
+      const j = kept.findIndex((x) => x === 'SO4' || x === 'CO3');
+      if (j < 0) cats.push('H'); else kept[j] = kept[j] === 'SO4' ? 'HSO4' : 'HCO3';
+    }
+    ans.push(...kept);
+  }
+  else if (g.from === 'NH4') { for (let i = 0; i < D.m - k; i++) cats.push('NH4'); for (let i = 0; i < k; i++) loose.push('ammonia'); ans.push(...D.ans); }
+  else {
+    for (let i = 0; i < D.m; i++) cats.push(D.cat);
+    const left = g.from === 'HSO4' ? 'SO4' : 'CO3';
+    ans.push(...drop(D.ans, g.from, k), ...Array(k).fill(left));
+  }
+  // the taker, k hydrogens heavier
+  if (aKey === 'ammonia') { cats.push('NH4'); }
+  else {
+    for (let i = 0; i < A.m; i++) cats.push(A.cat);
+    const rest = A.ans.slice();
+    for (const s of use) {
+      const was = rest[s.at];
+      if (was === 'O') rest[s.at] = 'OH';
+      else if (was === 'OH') { rest[s.at] = null; loose.push('water'); }
+      else if (was === 'CO3') rest[s.at] = 'HCO3';
+      else if (was === 'HCO3') { rest[s.at] = null; loose.push('water', 'carbon-dioxide'); }
+    }
+    ans.push(...rest.filter(Boolean));
+  }
+  const got = split(cats, ans);
+  if (!got) return null;
+  const made = got.keys;
+  const first = SPECIES[dKey].ions && SPECIES[dKey].ions.ans[0];
+  made.sort((x, y) => (SPECIES[y].ions.ans.includes(first) ? 1 : 0) - (SPECIES[x].ions.ans.includes(first) ? 1 : 0));
+  return [...made, ...loose.filter((l) => l === 'water'), ...loose.filter((l) => l !== 'water')];
+}
+/* Pair loose ions back into compounds: as many separate ones as possible,
+   whole salts before half-swapped ones, and a solid that will not dissolve
+   ahead of anything else. */
+function split(cats, ans) {
+  if (!cats.length && !ans.length) return { score: 0, keys: [] };
+  if (!cats.length || !ans.length) return null;
+  const c = cats[0], cc = CATIONS[c].charge, have = count(cats, c);
+  let best = null;
+  const tryOne = (who, take, charge) => {
+    for (const pick of sets(ans, charge)) {
+      const s = ionic(who, pick);
+      if (!s || s.ions.ans.length !== pick.length || s.ions.m !== count(cats, who) - count(take, who)) continue;
+      const rest = split(take, pick.reduce((l, a) => drop(l, a, 1), ans));
+      if (!rest) continue;
+      const score = rest.score + 10 - (new Set(pick).size > 1 ? 5 : 0) + (s.tags.includes('insoluble') ? 6 : 0);
+      if (!best || score > best.score) best = { score, keys: [s.key, ...rest.keys] };
+    }
+  };
+  for (let k = 1; k <= have; k++) tryOne(c, drop(cats, c, k), k * cc);
+  return best;
+}
+// Every one or two anions from `ans` adding up to `charge` of negative.
+function sets(ans, charge) {
+  const kinds = [...new Set(ans)], out = [];
+  for (const a of kinds) {
+    const ca = ANIONS[a].charge;
+    if (ca === charge) out.push([a]);
+    if (ca * 2 === charge && count(ans, a) > 1) out.push([a, a]);
+    for (const b of kinds) if (b !== a && ca + ANIONS[b].charge === charge) out.push([a, b]);
+  }
+  return out;
+}
+
+// A metal pushes a lower one out of its salt, or hydrogen out of an acid.
+function pushOut(mKey, sKey) {
+  const M = SPECIES[mKey].metal, io = SPECIES[sKey].ions;
+  if (!M || !io || ABOVE[M] === undefined || ABOVE[io.cat] === undefined || ABOVE[M] <= ABOVE[io.cat]) return null;
+  if (CATIONS[io.cat].charge !== 2 && io.cat !== 'H') return null;
+  if (io.cat === 'H' && (io.m !== 2 || io.ans.length !== 1)) return null;   // one metal needs two hydrogens
+  if (io.ans.some((a) => a === 'OH' || a === 'O' || a === 'CO3' || a === 'HCO3')) return null;
+  const made = ionic(M, io.ans);
+  if (!made || made.ions.m !== 1) return null;
+  return [made.key, io.cat === 'H' ? 'hydrogen' : METALS[io.cat]];
+}
+// Two salts swap partners, and one of the new pairs will not dissolve.
+function fallOut(aKey, bKey) {
+  const A = SPECIES[aKey].ions, B = SPECIES[bKey].ions;
+  const solid = (k) => SPECIES[k].tags.includes('insoluble');
+  const stuck = (k) => SPECIES[k].tags.includes('oxide') || (SPECIES[k].ions || { ans: [] }).ans.some((x) => x === 'HSO4' || x === 'HCO3');
+  if (!A || !B || solid(aKey) || solid(bKey) || aKey === 'water' || bKey === 'water') return null;
+  if (stuck(aKey) || stuck(bKey)) return null;             // an oxide will not swap in water, and a spare hydrogen moves first
+  const cats = [...Array(A.m).fill(A.cat), ...Array(B.m).fill(B.cat)];
+  const got = split(cats, [...A.ans, ...B.ans]);
+  if (!got || !got.keys.some(solid)) return null;
+  return [...got.keys.filter(solid), ...got.keys.filter((k) => !solid(k))];
+}
+
+/* Working the equations out makes compounds nobody had asked for, so go
+   round again until the bench stops growing. */
+for (let pass = 0, seen = 0; pass < 4 && Object.keys(SPECIES).length > seen; pass++) {
+  const keys = Object.keys(SPECIES);
+  seen = keys.length;
+  for (let i = 0; i < keys.length; i++) for (let j = i + 1; j < keys.length; j++) {
+    const a = keys[i], b = keys[j], tag = (k, t) => SPECIES[k].tags.includes(t);
+    if (reactionFor(a, b)) continue;
+    let kind = 'moves-hydrogen', made = moveHydrogen(a, b) || moveHydrogen(b, a);
+    if (made) {
+      kind = made.includes('carbon-dioxide') ? 'fizz'
+        : made.some((k) => tag(k, 'hydrogencarbonate')) && !tag(a, 'hydrogencarbonate') && !tag(b, 'hydrogencarbonate') ? 'part-fizz'
+        : made.includes('ammonia') ? 'ammonia-off'
+        : a === 'water' || b === 'water' ? 'slakes'
+        : a === 'ammonia' || b === 'ammonia' ? 'ammonia-salt'
+        : tag(a, 'oxide') || tag(b, 'oxide') ? 'oxide-and-acid' : 'neutralise';
+    } else if ((made = pushOut(a, b) || pushOut(b, a))) {
+      kind = made.includes('hydrogen') ? 'hydrogen-off' : 'pushed-out';
+    } else if ((made = fallOut(a, b))) kind = 'falls-out';
+    if (!made || !made.length) continue;
+    if (made.length === 2 && made.includes(a) && made.includes(b)) continue;
+    rx(a, b, made, null, kind);
+  }
+}
 
 function reactionFor(a, b) {
-  return REACTIONS.find((r) => (r.a === a && r.b === b) || (r.a === b && r.b === a)) || null;
+  return BY_PAIR.get(a < b ? a + '+' + b : b + '+' + a) || null;
 }
 /* Would these two react in the tube? The honesty check. Chapter 2: an acid
    with a base, an ammonium salt with a strong base or lime, lime with water.
@@ -170,10 +555,29 @@ function reactionFor(a, b) {
    would): an alkene with hydrogen, a halogen, a hydrogen halide or water; an
    alcohol with an acid, oxygen or a hydrogen halide; an ester with water or
    alkali; a haloalkane with alkali; the salt of a weak acid with a strong one. */
+/* Can two of these trade partners, one unit against one unit? Each metal has
+   to be able to take a whole number of the other's anions: one magnesium
+   sulphate and one sodium hydroxide cannot, which is why that pair is left
+   alone even though a chemist would pour two of the hydroxide in. */
+function canSwap(a, b) {
+  const A = SPECIES[a].ions, B = SPECIES[b].ions;
+  if (!A || !B || A.cat === 'NH4' || B.cat === 'NH4') return false;
+  return (CATIONS[A.cat].charge * A.m) % ANIONS[B.ans[0]].charge === 0 &&
+         (CATIONS[B.cat].charge * B.m) % ANIONS[A.ans[0]].charge === 0;
+}
 function shouldReact(a, b) {
   const A = SPECIES[a].tags, B = SPECIES[b].tags, has = (t, x) => t.includes(x);
   const pair = (p, q) => (has(A, p) && has(B, q)) || (has(A, q) && has(B, p));
-  return pair('acid', 'base') || pair('ammonium', 'strong-base') || pair('ammonium', 'oxide') || pair('oxide', 'water') ||
+  const soluble = !has(A, 'insoluble') && !has(B, 'insoluble');
+  // an ammonium salt gives its hydrogen up to anything that holds one more tightly than ammonia does
+  const ammoniumMeets = (t, o) => has(t, 'ammonium') && !has(o, 'ammonia') &&
+    (has(o, 'base') || (has(o, 'carbonate') && !has(o, 'hydrogencarbonate')));
+  return pair('acid', 'base') || pair('hydrogencarbonate', 'base') || pair('slakes', 'water') ||
+    pair('acid', 'carbonate') || ammoniumMeets(A, B) || ammoniumMeets(B, A) ||
+    pair('beats-hydrogen', 'diprotic-acid') || pair('beats-copper', 'copper-salt') || pair('beats-zinc', 'zinc-salt') ||
+    (soluble && canSwap(a, b) && !has(A, 'oxide') && !has(B, 'oxide') &&
+      (pair('carbonate', 'carbonate-falls') || pair('sulphate', 'sulphate-falls') ||
+       (has(A, 'base') !== has(B, 'base') && pair('base', 'hydroxide-falls')))) ||
     pair('alkene', 'hydrogen') || pair('alkene', 'halogen') || pair('alkene', 'hydrogen-halide') || pair('alkene', 'water') ||
     pair('alcohol', 'carboxylic-acid') || pair('alcohol', 'oxygen') || pair('alcohol', 'hydrogen-halide') ||
     pair('ester', 'water') || pair('ester', 'strong-base') || pair('haloalkane', 'strong-base') || pair('weak-acid-salt', 'strong-acid');
@@ -183,7 +587,21 @@ function shouldReact(a, b) {
    2026-09-15: "each complete reaction will give a modal that tells you the
    reaction"). Worked out from the same tags as the honesty check, the most
    particular kinds first; tests.mjs checks every reaction has one. */
+const WORDS = {
+  fizz: { title: 'Fizzing', words: 'The acid sets the carbonate\u2019s carbon dioxide free, so it bubbles off, leaving a salt and water behind.' },
+  'part-fizz': { title: 'Halfway to a fizz', words: 'The carbonate takes one hydrogen from the acid. One more and the carbon dioxide will come off.' },
+  'ammonia-off': { title: 'Ammonia released', words: 'The base takes a hydrogen from the ammonium, so ammonia comes off, leaving water and a salt behind.' },
+  'ammonia-salt': { title: 'Neutralisation', words: 'The acid hands its hydrogen to the ammonia, which becomes an ammonium salt.' },
+  slakes: { title: 'Slaking lime', words: 'Quicklime and water make slaked lime, and it gets hot as it does. Builders have done this for thousands of years.' },
+  'oxide-and-acid': { title: 'Neutralisation', words: 'The metal oxide takes the acid\u2019s hydrogens as water, and the metal and the rest of the acid make a salt.' },
+  neutralise: { title: 'Neutralisation', words: 'An acid and a base cancel each other out: the acid\u2019s hydrogen and the base\u2019s OH make water, and what is left is a salt.' },
+  'hydrogen-off': { title: 'Hydrogen off a metal', words: 'The metal pushes the acid\u2019s hydrogen out of its place, and it bubbles away as gas.' },
+  'pushed-out': { title: 'One metal pushes another out', words: 'The livelier metal takes the salt for itself, and leaves the quieter one behind as metal.' },
+  'falls-out': { title: 'A solid falls out', words: 'The two salts swap partners, and one new pair will not dissolve: it drops through the liquid as a solid.' },
+};
 function explain(a, b) {
+  const r = reactionFor(a, b);
+  if (r && WORDS[r.kind]) return WORDS[r.kind];
   const A = SPECIES[a].tags, B = SPECIES[b].tags, has = (t, x) => t.includes(x);
   const pair = (p, q) => (has(A, p) && has(B, q)) || (has(A, q) && has(B, p));
   const either = (k) => a === k || b === k;

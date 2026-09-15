@@ -288,6 +288,92 @@ for (const r of X.REACTIONS) {
   X.toTube(back, 0);
   eq(X.toTube(back, 1).reaction.products, ['ethanol', 'ethanoic-acid'], 'ethyl ethanoate and water in the tube give ethanol and ethanoic acid');
 }
+
+/* The engine works the equations out from the ions, so a test that asks the
+   engine what it thinks could not fail. These are written out of a school
+   chemistry book instead: pairs that must react, pairs that must be left
+   alone, and what a few of them must make. */
+const MUST = [
+  ['hydrochloric-acid', 'sodium-hydroxide', ['sodium-chloride', 'water']],
+  ['nitric-acid', 'potassium-hydroxide', ['potassium-nitrate', 'water']],
+  ['sulphuric-acid', 'calcium-carbonate', ['calcium-sulphate', 'water', 'carbon-dioxide']],
+  ['hydrochloric-acid', 'sodium-hydrogencarbonate', ['sodium-chloride', 'water', 'carbon-dioxide']],
+  ['hydrochloric-acid', 'sodium-carbonate', ['sodium-chloride', 'sodium-hydrogencarbonate']],
+  ['sulphuric-acid', 'copper-oxide', ['copper-sulphate', 'water']],
+  ['sulphuric-acid', 'magnesium', ['magnesium-sulphate', 'hydrogen']],
+  ['sulphuric-acid', 'zinc', ['zinc-sulphate', 'hydrogen']],
+  ['zinc', 'copper-sulphate', ['zinc-sulphate', 'copper']],
+  ['magnesium', 'zinc-chloride', ['magnesium-chloride', 'zinc']],
+  ['sodium-carbonate', 'calcium-chloride', ['calcium-carbonate', 'sodium-chloride', 'sodium-chloride']],
+  ['potassium-carbonate', 'magnesium-bromide', ['magnesium-carbonate', 'potassium-bromide', 'potassium-bromide']],
+  ['calcium-oxide', 'water', ['calcium-hydroxide']],
+  ['ammonium-chloride', 'sodium-hydroxide', ['sodium-chloride', 'water', 'ammonia']],
+  ['ammonia', 'nitric-acid', ['ammonium-nitrate']],
+  ['sodium-hydroxide', 'sodium-hydrogencarbonate', ['sodium-carbonate', 'water']],
+  ['sodium-hydroxide', 'zinc-chloride', null],
+  ['sodium-sulphate', 'calcium-chloride', null],
+  ['magnesium-oxide', 'hydrochloric-acid', null],
+];
+const NEVER = [
+  ['copper', 'sulphuric-acid', 'copper sits below hydrogen, so no acid pushes it out'],
+  ['copper', 'zinc-sulphate', 'copper cannot push zinc out, only the other way round'],
+  ['zinc', 'magnesium-chloride', 'zinc cannot push magnesium out'],
+  ['sodium-chloride', 'potassium-nitrate', 'nothing made is a solid or a gas'],
+  ['sodium-chloride', 'water', 'salt water is still salt and water'],
+  ['sodium-hydroxide', 'water', 'an alkali in water stays an alkali'],
+  ['zinc-oxide', 'water', 'only quicklime slakes'],
+  ['copper-oxide', 'water', 'only quicklime slakes'],
+  ['ammonium-chloride', 'sodium-hydrogencarbonate', 'ammonium is not acid enough to shift hydrogencarbonate'],
+  ['sodium-carbonate', 'sodium-hydrogencarbonate', 'they are two steps of the same thing'],
+  ['sodium-sulphate', 'sodium-chloride', 'two salts that both dissolve, and no swap to make'],
+  ['calcium-chloride', 'magnesium-bromide', 'every pairing dissolves'],
+  ['ammonia', 'ammonium-chloride', 'ammonia cannot take a hydrogen from ammonium'],
+  ['magnesium', 'water', 'cold water does not touch it'],
+];
+for (const [a, b, products] of MUST) {
+  const r = X.reactionFor(a, b);
+  ok(!!r, 'a school book says these react: ' + a + ' + ' + b);
+  ok(X.shouldReact(a, b), 'and the honesty check agrees: ' + a + ' + ' + b);
+  if (r && products) eq(r.products.slice().sort(), products.slice().sort(), a + ' + ' + b + ' makes what it should');
+}
+for (const [a, b, why] of NEVER) {
+  ok(!X.reactionFor(a, b), 'nothing happens: ' + a + ' + ' + b + ' — ' + why);
+  ok(!X.shouldReact(a, b), 'and the honesty check does not claim it: ' + a + ' + ' + b);
+}
+/* Every formula must read back as the molecule that is drawn: Ca(OH)₂ is one
+   calcium, two oxygens, two hydrogens, and so is the picture. */
+{
+  const SUB = '₀₁₂₃₄₅₆₇₈₉';
+  // Read a written formula into its atoms: element letters, bracketed groups, subscripts.
+  const readFormula = (f) => {
+    let i = 0;
+    const number = () => { let n = ''; while (i < f.length && SUB.includes(f[i])) n += SUB.indexOf(f[i++]); return n ? +n : 1; };
+    const run = (stop) => {
+      const count = {};
+      while (i < f.length && f[i] !== stop) {
+        let part;
+        if (f[i] === '(') { i++; part = run(')'); i++; } else {
+          let el = f[i++];
+          while (i < f.length && f[i] >= 'a' && f[i] <= 'z') el += f[i++];
+          part = { [el]: 1 };
+        }
+        const k = number();
+        for (const [el, n] of Object.entries(part)) count[el] = (count[el] || 0) + n * k;
+      }
+      return count;
+    };
+    return run(null);
+  };
+  const tally = (c) => Object.entries(c).sort().map(([el, n]) => el + n).join(' ');
+  let checked = 0;
+  for (const s of Object.values(X.SPECIES)) {
+    const drawn = s.atoms.reduce((c, a) => { c[a.el] = (c[a.el] || 0) + 1; return c; }, {});
+    eq(tally(readFormula(s.formula)), tally(drawn), 'the formula matches the picture: ' + s.key + ' ' + s.formula);
+    checked++;
+  }
+  ok(checked > 100, 'every molecule on the bench had its formula read back (' + checked + ')');
+}
+
 for (const [chapter, sets, count] of [['reactions', L.lab, 7], ['organic', L.organic, 6]]) for (const set of ['mobile', 'desktop']) {
   eq(sets[set].length, count, chapter + ', ' + set + ': ' + count + ' levels');
   sets[set].forEach((lv, i) => {
