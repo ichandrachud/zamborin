@@ -16,7 +16,7 @@
 
   window.ChemLabScene = function (host) {
     const X = window.ChemLab;
-    const { ctx, TOK, drawAtoms, feather, rr, label, SND, clock } = host;
+    const { ctx, TOK, drawAtoms, rr, label, SND, clock } = host;
     const TAU = Math.PI * 2;
     const clamp01 = (v) => Math.max(0, Math.min(1, v));
     const easeOut = (t) => 1 - Math.pow(1 - t, 3);
@@ -29,7 +29,7 @@
        1.9, an atom's radius 0.58. Molecules drift slowly, turn a little and
        settle back upright, so a formula always reads the right way up. */
     const L = {
-      bond: 1.9, atom: 0.58, labelRoom: 1.5,
+      bond: 1.9, atom: 0.58,
       worldW: { desktop: 26, mobile: 22 }, maxScale: 22,
       drift: 0.3, spin: 0.2, tau: 3,
       reactMs: 750, productsAt: 450, chipMs: 1900, eqMs: 3400, dropMs: 600,
@@ -49,6 +49,23 @@
 
     function gauss() { const u = 1 - host.rng(), v = host.rng(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(TAU * v); }
     const radiusOf = (key) => X.SPECIES[key].extent * L.bond + L.atom + 0.35;
+    /* How near each edge of the dish a molecule's centre may come, in world
+       units: every atom, turned any way, and the formula label under it, at
+       least 10px inside the glass rim (owner, 2026-09-15). The rim, the 10px
+       and the label are pixels, worked out at the size the dish is drawn. */
+    const RIM = 7, CLEAR = 10, chipHalf = new Map();
+    function margins(key) {
+      const sp = X.SPECIES[key], e = sp.extent * L.bond, pad = (RIM + CLEAR) / D.S;
+      let half = chipHalf.get(key);
+      if (half == null) {
+        ctx.save(); ctx.font = '700 13px Inter, sans-serif';
+        half = (ctx.measureText(sp.formula).width + 14) / 2;
+        ctx.restore();
+        if (!document.fonts || document.fonts.check('700 13px Inter')) chipHalf.set(key, half);
+      }
+      // the label hangs below the lowest atom: a third of a bond, then 14px to its middle and 11px more to its bottom
+      return { side: Math.max(e + L.atom, half / D.S) + pad, top: e + L.atom + pad, bottom: e + 0.32 * L.bond + 25 / D.S + pad };
+    }
     const unitPx = () => Math.round(L.bond * D.S * 2) / 2;
 
     /* ---------- LAYOUT ----------
@@ -94,14 +111,14 @@
       layout();
       const r = host.mulberry(lv.seed * 7919 + 5), placed = [];
       for (const p of st.pieces) {
-        const rad = radiusOf(p.key);
+        const rad = radiusOf(p.key), m = margins(p.key);
+        const spot = () => ({ x: m.side + r() * Math.max(0.1, D.WW - 2 * m.side), y: m.top + r() * Math.max(0.1, D.WH - m.top - m.bottom) });
         let got = null;
         for (let t = 0; t < 3000 && !got; t++) {
-          const slack = t > 2000 ? 0.1 : t > 1000 ? 0.4 : 0.9;
-          const x = rad + r() * Math.max(0.1, D.WW - 2 * rad), y = rad + r() * Math.max(0.1, D.WH - 2 * rad - L.labelRoom);
-          if (placed.every((q) => Math.hypot(q.x - x, q.y - y) >= q.rad + rad + slack)) got = { x, y };
+          const slack = t > 2000 ? 0.1 : t > 1000 ? 0.4 : 0.9, c = spot();
+          if (placed.every((q) => Math.hypot(q.x - c.x, q.y - c.y) >= q.rad + rad + slack)) got = c;
         }
-        if (!got) got = { x: rad + r() * Math.max(0.1, D.WW - 2 * rad), y: rad + r() * Math.max(0.1, D.WH - 2 * rad - L.labelRoom) };
+        if (!got) got = spot();
         placed.push({ x: got.x, y: got.y, rad });
         pos.set(p.id, { x: got.x, y: got.y, th: (r() - 0.5) * 0.8, vx: 0, vy: 0, w: 0 });
       }
@@ -135,9 +152,9 @@
           }
         }
         for (const p of list) {
-          const q = pos.get(p.id), rad = radiusOf(p.key);
-          q.x = Math.max(rad, Math.min(D.WW - rad, q.x));
-          q.y = Math.max(rad, Math.min(D.WH - rad - L.labelRoom, q.y));
+          const q = pos.get(p.id), m = margins(p.key);
+          q.x = Math.max(m.side, Math.min(D.WW - m.side, q.x));
+          q.y = Math.max(m.top, Math.min(D.WH - m.bottom, q.y));
         }
       }
     }
@@ -203,64 +220,66 @@
       void now;
     }
 
-    /* The test tube: a slim glass tube, round at the bottom, holding at most
-       two. Glass is clearest in the middle and brightest down its sides, where
-       you look through the most of it. It has a rolled lip at the mouth and a
-       little clear liquid in the bottom, and the streaks of light on its front
-       lie over what is inside, as they do on real glass. */
+    /* The glassware, flat (owner, 2026-09-15, with a picture: "simpler, more
+       in this style", then "no lid", "clear, but define the edges"): clear
+       glass drawn as one pale blue line, a white highlight, and flat liquid.
+       No gradients, no shadows. */
+    const GLASS = { edge: '#AEDFE9', liquid: '#E9434A', surface: '#F2787C', shine: 'rgba(255,255,255,0.85)', bubble: 'rgba(255,255,255,0.6)' };
+    const edgeW = () => (MODE === 'mobile' ? 2.5 : 3);
+    // A white highlight: a rounded bar.
+    function shine(x0, y0, x1, y1, w) {
+      ctx.strokeStyle = GLASS.shine; ctx.lineWidth = w; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+    }
+
+    /* The test tube, open at the top, holding at most two. Empty at rest; when
+       two molecules react, liquid rises in it and falls away again as the
+       products leave. */
     function tubeGlass() {
-      const gw = Math.min(MODE === 'mobile' ? 66 : 84, tube.w - 8), gh = tube.h - 8;
-      return { x: tube.x + (tube.w - gw) / 2, y: tube.y + 6, w: gw, h: gh };
+      const gw = Math.min(MODE === 'mobile' ? 60 : 78, tube.w - 16);
+      return { x: tube.x + (tube.w - gw) / 2, y: tube.y + 8, w: gw, h: tube.h - 12 };
     }
     function tubeSlot(k) {
       const g = tubeGlass();
-      return { x: g.x + 4, y: g.y + 8 + k * (g.h - 16) / 2, w: g.w - 8, h: (g.h - 16) / 2 };
+      return { x: g.x + 4, y: g.y + 6 + k * (g.h - 12) / 2, w: g.w - 8, h: (g.h - 12) / 2 };
     }
-    function tubePath(g) {
-      const rad = g.w / 2;
+    // The inside of a round-bottomed tube, as a path.
+    function tubeInside(x, y, w, h) {
+      const rad = w / 2;
       ctx.beginPath();
-      ctx.moveTo(g.x, g.y);
-      ctx.lineTo(g.x, g.y + g.h - rad);
-      ctx.arc(g.x + rad, g.y + g.h - rad, rad, Math.PI, 0, true);
-      ctx.lineTo(g.x + g.w, g.y);
-      ctx.closePath();
+      ctx.moveTo(x, y); ctx.lineTo(x, y + h - rad);
+      ctx.arc(x + rad, y + h - rad, rad, Math.PI, 0, true);
+      ctx.lineTo(x + w, y); ctx.closePath();
     }
     function drawTube(now) {
-      const g = tubeGlass(), path = () => tubePath(g);
-      const active = react && now - react.t0 < L.reactMs, heat = active ? Math.sin(Math.PI * (now - react.t0) / L.reactMs) : 0;
+      const g = tubeGlass(), active = react && now - react.t0 < L.reactMs, ew = edgeW();
+      const t = active ? (now - react.t0) / L.reactMs : 0, fill = active ? Math.sin(Math.PI * t) : 0;
       ctx.save();
-      // its shadow on the bench
-      let gr = ctx.createRadialGradient(g.x + g.w / 2 + 4, g.y + g.h + 3, 0, g.x + g.w / 2 + 4, g.y + g.h + 3, g.w * 0.75);
-      gr.addColorStop(0, 'rgba(0,0,0,0.32)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = gr; ctx.beginPath(); ctx.ellipse(g.x + g.w / 2 + 4, g.y + g.h + 3, g.w * 0.75, 6, 0, 0, TAU); ctx.fill();
-      // the glass
-      gr = ctx.createLinearGradient(g.x, 0, g.x + g.w, 0);
-      gr.addColorStop(0, 'rgba(255,255,255,0.20)'); gr.addColorStop(0.1, 'rgba(255,255,255,0.07)'); gr.addColorStop(0.5, 'rgba(255,255,255,0.025)');
-      gr.addColorStop(0.9, 'rgba(255,255,255,0.06)'); gr.addColorStop(1, 'rgba(255,255,255,0.16)');
-      ctx.fillStyle = gr; path(); ctx.fill();
-      if (drag && inside(heldCentre(), grow(tube, 14))) { ctx.fillStyle = 'rgba(93,211,158,0.10)'; path(); ctx.fill(); }
-      ctx.save(); path(); ctx.clip();
-      // a little clear liquid in the round bottom, warming while it reacts, its surface a lit ellipse
-      const top = g.y + g.h - g.w * 0.72;
-      gr = ctx.createLinearGradient(0, top, 0, g.y + g.h);
-      gr.addColorStop(0, 'rgba(170,215,240,' + (0.08 + 0.12 * heat) + ')'); gr.addColorStop(1, 'rgba(150,200,235,' + (0.18 + 0.14 * heat) + ')');
-      ctx.fillStyle = gr; ctx.fillRect(g.x, top, g.w, g.y + g.h - top);
-      ctx.fillStyle = 'rgba(225,242,255,0.2)';
-      ctx.beginPath(); ctx.ellipse(g.x + g.w / 2, top, g.w / 2, 2.5, 0, 0, TAU); ctx.fill();
-      if (active) {
-        const t = (now - react.t0) / L.reactMs;
-        feather(g.x + g.w / 2, g.y + g.h * 0.62, g.w * 0.2, g.h * 0.7, '255,246,220', 0.35 * Math.sin(Math.PI * t));
-        for (let b = 0; b < 9; b++) {
-          const bt = (t * 1.6 + b / 9) % 1;
-          const bx = g.x + g.w * (0.2 + 0.6 * ((b * 37) % 10) / 10), by = g.y + g.h * (1 - bt);
-          ctx.globalAlpha = 0.5 * (1 - bt); ctx.fillStyle = '#FFF6DC';
-          ctx.beginPath(); ctx.arc(bx, by, 2 + (b % 3), 0, TAU); ctx.fill();
+      if (drag && inside(heldCentre(), grow(tube, 14))) { ctx.fillStyle = 'rgba(93,211,158,0.16)'; tubeInside(g.x, g.y, g.w, g.h); ctx.fill(); }
+      if (fill > 0) {
+        const m = ew / 2 + 3, lw = g.w - 2 * m, lh = (g.h - m) * 0.72 * fill, ly = g.y + g.h - m - lh, rad = lw / 2;
+        ctx.save();
+        ctx.beginPath(); ctx.rect(g.x, ly, g.w, g.h); ctx.clip();
+        ctx.fillStyle = GLASS.liquid; tubeInside(g.x + m, g.y, lw, g.h - m); ctx.fill();
+        ctx.restore();
+        ctx.fillStyle = GLASS.bubble;
+        for (let b = 0; b < 6; b++) {
+          const bt = (t * 1.8 + b / 6) % 1, br = 1.5 + (b % 3) * 0.8;
+          const bx = g.x + m + lw * (0.25 + 0.5 * ((b * 37) % 10) / 10), by = g.y + g.h - m - rad * 0.5 - bt * Math.max(0, lh - rad);
+          if (by > ly + br) { ctx.beginPath(); ctx.arc(bx, by, br, 0, TAU); ctx.fill(); }
         }
       }
-      ctx.restore();
+      // the glass: one line down, round the bottom and up, with a small lip turned out at the mouth
+      const rad = g.w / 2, lip = Math.max(4, g.w * 0.08);
+      ctx.strokeStyle = GLASS.edge; ctx.lineWidth = ew; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(g.x - lip, g.y); ctx.lineTo(g.x, g.y); ctx.lineTo(g.x, g.y + g.h - rad);
+      ctx.arc(g.x + rad, g.y + g.h - rad, rad, Math.PI, 0, true);
+      ctx.lineTo(g.x + g.w, g.y); ctx.lineTo(g.x + g.w + lip, g.y);
+      ctx.stroke();
+      shine(g.x + g.w * 0.84, g.y + g.h * 0.14, g.x + g.w * 0.84, g.y + g.h * 0.5, Math.max(3, g.w * 0.06));
       ctx.restore();
       if (active) {
-        const t = (now - react.t0) / L.reactMs;
         react.used.forEach((key, k) => {
           const r = tubeSlot(k), cc = centre(r);
           drawMolecule(key, cc.x, cc.y, fit(key, r.w, r.h), 0, 1 - easeOut(clamp01(t / 0.7)));
@@ -271,37 +290,7 @@
         if (drag && drag.id === id) return;
         const r = tubeSlot(k), cc = centre(r), key = st.pieces[id].key;
         drawMolecule(key, cc.x, cc.y - 6, fit(key, r.w, r.h - 14), 0, 1);
-      });
-      // the front of the glass: streaks of light, and a crescent in the round bottom
-      ctx.save(); path(); ctx.clip();
-      gr = ctx.createLinearGradient(g.x + g.w * 0.14, 0, g.x + g.w * 0.3, 0);
-      gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(0.5, 'rgba(255,255,255,0.22)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
-      ctx.fillStyle = gr; ctx.fillRect(g.x + g.w * 0.14, g.y + 10, g.w * 0.16, g.h - g.w * 0.6);
-      gr = ctx.createLinearGradient(g.x + g.w * 0.8, 0, g.x + g.w * 0.87, 0);
-      gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(0.5, 'rgba(255,255,255,0.1)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
-      ctx.fillStyle = gr; ctx.fillRect(g.x + g.w * 0.8, g.y + 14, g.w * 0.07, g.h - g.w * 0.75);
-      // the crescent: a band round the inside of the bottom, bright at the left and gone by the right
-      const bx = g.x + g.w / 2, by = g.y + g.h - g.w / 2;
-      gr = ctx.createLinearGradient(g.x, 0, g.x + g.w, 0);
-      gr.addColorStop(0, 'rgba(255,255,255,0.12)'); gr.addColorStop(0.75, 'rgba(255,255,255,0)');
-      ctx.fillStyle = gr;
-      for (const [r0, r1] of [[0.31, 0.47], [0.35, 0.43]]) {
-        ctx.beginPath();
-        ctx.arc(bx, by, g.w * r1, 0.1 * Math.PI, Math.PI);
-        ctx.arc(bx, by, g.w * r0, Math.PI, 0.1 * Math.PI, true);
-        ctx.closePath(); ctx.fill();
-      }
-      ctx.restore();
-      // the rolled lip at the mouth, a band of thicker glass
-      ctx.save();
-      gr = ctx.createLinearGradient(0, g.y - 4, 0, g.y + 3);
-      gr.addColorStop(0, 'rgba(255,255,255,0.36)'); gr.addColorStop(1, 'rgba(255,255,255,0.1)');
-      ctx.fillStyle = gr; rr(g.x - 3, g.y - 4, g.w + 6, 7, 3.5); ctx.fill();
-      ctx.restore();
-      tubeOrder.forEach((id, k) => {
-        if (drag && drag.id === id) return;
-        const r = tubeSlot(k), cc = centre(r);
-        formulaChip(X.SPECIES[st.pieces[id].key].formula, cc.x, r.y + r.h - 8, 1, 12);
+        formulaChip(X.SPECIES[key].formula, cc.x, r.y + r.h - 8, 1, 12);
       });
     }
 
@@ -330,78 +319,50 @@
       }
     }
 
-    /* The beaker: straight glass sides, a rolled rim with a pouring lip, white
-       measuring marks and a thick base. What has been made stands in it as a
-       pool, which rises as each molecule lands. */
-    function beakerPath(b) {
-      const { x, y, w, h } = b;
-      ctx.beginPath();
-      ctx.moveTo(x, y); ctx.lineTo(x + w * 0.04, y + h - 9);
-      ctx.quadraticCurveTo(x + w * 0.05, y + h, x + w * 0.13, y + h);
-      ctx.lineTo(x + w * 0.87, y + h); ctx.quadraticCurveTo(x + w * 0.95, y + h, x + w * 0.96, y + h - 9);
-      ctx.lineTo(x + w, y); ctx.closePath();
-    }
+    /* Where made molecules go: a petri dish (owner, 2026-09-15), wide and
+       shallow, seen a little from above, drawn in the same pale blue line.
+       Flat liquid in it rises as each molecule on the list lands; a molecule
+       dropped in sinks and dissolves into it. The zone keeps its old name,
+       `beaker`, in the code. */
     function drawBeaker(now) {
-      const bw = Math.min(beaker.w - 16, MODE === 'mobile' ? beaker.w - 16 : 150), bh = beaker.h - 8;
-      const x = beaker.x + (beaker.w - bw) / 2, y = beaker.y + 6, b = { x, y, w: bw, h: bh };
+      const ew = edgeW(), dw = Math.min(beaker.w - 16, MODE === 'mobile' ? beaker.w - 16 : 168);
+      const ry = dw * 0.13, wall = Math.min(24, beaker.h * 0.26), x0 = beaker.x + beaker.w / 2;
+      const bottom = beaker.y + beaker.h - ry - 4, rim = bottom - wall, left = x0 - dw / 2;
       const inBeaker = st.pieces.filter((p) => p.zone === 'beaker');
-      ctx.save();
-      // its shadow on the bench
-      let gr = ctx.createRadialGradient(x + bw / 2 + 5, y + bh + 3, 0, x + bw / 2 + 5, y + bh + 3, bw * 0.62);
-      gr.addColorStop(0, 'rgba(0,0,0,0.32)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = gr; ctx.beginPath(); ctx.ellipse(x + bw / 2 + 5, y + bh + 3, bw * 0.62, 7, 0, 0, TAU); ctx.fill();
-      // the glass
-      gr = ctx.createLinearGradient(x, 0, x + bw, 0);
-      gr.addColorStop(0, 'rgba(255,255,255,0.18)'); gr.addColorStop(0.08, 'rgba(255,255,255,0.07)'); gr.addColorStop(0.5, 'rgba(255,255,255,0.025)');
-      gr.addColorStop(0.92, 'rgba(255,255,255,0.06)'); gr.addColorStop(1, 'rgba(255,255,255,0.15)');
-      ctx.fillStyle = gr; beakerPath(b); ctx.fill();
-      if (drag && inside(heldCentre(), grow(beaker, 14))) { ctx.fillStyle = 'rgba(93,211,158,0.10)'; beakerPath(b); ctx.fill(); }
-      // the pool: how much of the list is made, rising to its new level as the last one lands
       const total = st.targets.reduce((n, t) => n + t.n, 0), last = dropped[dropped.length - 1];
       const landing = last && inBeaker.some((p) => p.id === last.id) ? 1 - easeOut(clamp01((now - last.t0) / L.dropMs)) : 0;
       const fill = total ? Math.max(0, inBeaker.length - landing) / total : 0;
+      // the inside of the dish: its floor, the walls, up to the rim
+      const bowl = (inset, top) => {
+        const rx = dw / 2 - inset, ey = ry * rx / (dw / 2);
+        ctx.beginPath();
+        ctx.moveTo(x0 - rx, top); ctx.lineTo(x0 - rx, bottom);
+        ctx.ellipse(x0, bottom, rx, ey, 0, Math.PI, 0, true);
+        ctx.lineTo(x0 + rx, top);
+        ctx.ellipse(x0, top, rx, ey, 0, 0, Math.PI, true);
+        ctx.closePath();
+      };
+      ctx.save();
+      if (drag && inside(heldCentre(), grow(beaker, 14))) { ctx.fillStyle = 'rgba(93,211,158,0.16)'; bowl(0, rim); ctx.fill(); }
+      // a molecule on its way in, sinking and dissolving
+      if (last && now - last.t0 < L.dropMs && inBeaker.some((p) => p.id === last.id)) {
+        const p = st.pieces[last.id], t = clamp01((now - last.t0) / L.dropMs);
+        drawMolecule(p.key, x0, rim - (1 - easeOut(t)) * beaker.h * 0.5, fit(p.key, dw / 2.4, beaker.h * 0.5), 0, 1 - clamp01((t - 0.5) / 0.5));
+      }
       if (fill > 0) {
-        const level = y + bh - fill * (bh - 16);
-        ctx.save(); beakerPath(b); ctx.clip();
-        gr = ctx.createLinearGradient(0, level, 0, y + bh);
-        gr.addColorStop(0, 'rgba(170,215,240,0.1)'); gr.addColorStop(1, 'rgba(150,200,235,0.2)');
-        ctx.fillStyle = gr; ctx.fillRect(x, level, bw, y + bh - level);
-        ctx.fillStyle = 'rgba(225,242,255,0.2)';
-        ctx.beginPath(); ctx.ellipse(x + bw / 2, level, bw / 2, 3, 0, 0, TAU); ctx.fill();
-        ctx.restore();
+        const m = ew / 2 + 3, level = bottom - (wall - 2) * fill, rx = dw / 2 - m, ey = ry * rx / (dw / 2);
+        ctx.fillStyle = GLASS.liquid; bowl(m, level); ctx.fill();
+        ctx.fillStyle = GLASS.surface; ctx.beginPath(); ctx.ellipse(x0, level, rx, ey, 0, 0, TAU); ctx.fill();
       }
-      ctx.restore();
-      inBeaker.slice(-3).forEach((p, k, arr) => {
-        const fx = dropped.find((d) => d.id === p.id);
-        const t = fx ? clamp01((now - fx.t0) / L.dropMs) : 1;
-        const cx = x + bw * (arr.length === 1 ? 0.5 : 0.22 + 0.56 * k / (arr.length - 1));
-        const cy = y + bh * 0.62 - (1 - easeOut(t)) * bh * 0.7;
-        drawMolecule(p.key, cx, cy, fit(p.key, bw / 3, bh * 0.6), 0, 0.4 + 0.6 * t);
-      });
-      // the front of the glass: white measuring marks, a streak of light, the thick base
-      ctx.save();
-      beakerPath(b); ctx.clip();
-      ctx.fillStyle = 'rgba(255,255,255,0.34)';
-      for (let k = 1; k <= 4; k++) {
-        const ty = y + bh - (bh - 16) * k / 5, long = k % 2 === 0;
-        ctx.fillRect(x + bw * 0.1, ty - 0.75, bw * (long ? 0.14 : 0.08), 1.5);
-      }
-      gr = ctx.createLinearGradient(x + bw * 0.78, 0, x + bw * 0.88, 0);
-      gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(0.5, 'rgba(255,255,255,0.18)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
-      ctx.fillStyle = gr; ctx.fillRect(x + bw * 0.78, y + 8, bw * 0.1, bh - 20);
-      gr = ctx.createLinearGradient(0, y + bh - 7, 0, y + bh);
-      gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(1, 'rgba(255,255,255,0.22)');
-      ctx.fillStyle = gr; ctx.fillRect(x, y + bh - 7, bw, 7);
-      ctx.restore();
-      // the rolled rim, with its pouring lip at the left
-      ctx.save();
-      gr = ctx.createLinearGradient(0, y - 3, 0, y + 3);
-      gr.addColorStop(0, 'rgba(255,255,255,0.34)'); gr.addColorStop(1, 'rgba(255,255,255,0.1)');
-      ctx.fillStyle = gr;
-      rr(x - 2, y - 3, bw + 4, 6, 3); ctx.fill();
+      // the glass: the rim all round, the walls, and the curve of the floor in front
+      ctx.strokeStyle = GLASS.edge; ctx.lineWidth = ew; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.ellipse(x0, rim, dw / 2, ry, 0, 0, TAU); ctx.stroke();
       ctx.beginPath();
-      ctx.moveTo(x + 4, y - 3); ctx.quadraticCurveTo(x - 6, y - 5, x - 9, y - 1);
-      ctx.quadraticCurveTo(x - 5, y + 2, x + 4, y + 3); ctx.closePath(); ctx.fill();
+      ctx.moveTo(left, rim); ctx.lineTo(left, bottom);
+      ctx.ellipse(x0, bottom, dw / 2, ry, 0, Math.PI, 0, true);
+      ctx.lineTo(left + dw, rim);
+      ctx.stroke();
+      shine(x0 + dw * 0.3, rim + ry * 0.9, x0 + dw * 0.3, bottom + ry * 0.45, Math.max(3, dw * 0.03));
       ctx.restore();
     }
 
@@ -498,11 +459,16 @@
       };
       if (MODE === 'mobile') {
         if (on) { eq(tube.x, tube.y - 9, beaker.x + beaker.w - tube.x); return; }
-        label('TEST TUBE', tube.x, tube.y - 9); label('PRODUCTS', tray.x, tray.y - 9); label('BEAKER', beaker.x, beaker.y - 9);
+        label('TEST TUBE', tube.x, tube.y - 9); label('PRODUCTS', tray.x, tray.y - 9);
+        // on the narrowest phones the dish's name is wider than its column: it ends at the column's edge instead
+        ctx.save(); ctx.font = '700 12px Inter, sans-serif'; if ('letterSpacing' in ctx) ctx.letterSpacing = '1.2px';
+        const fits = ctx.measureText('PETRI DISH').width <= beaker.w;
+        ctx.restore();
+        if (fits) label('PETRI DISH', beaker.x, beaker.y - 9); else label('PETRI DISH', beaker.x + beaker.w, beaker.y - 9, 'right');
         return;
       }
       label('TEST TUBE', tube.x, tube.y - 9);
-      label('BEAKER', beaker.x, beaker.y - 9);
+      label('PETRI DISH', beaker.x, beaker.y - 9);
       if (on) eq(tray.x, tray.y - 9, tray.w);
       else label('PRODUCTS', tray.x, tray.y - 9);
     }

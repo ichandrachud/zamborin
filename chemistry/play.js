@@ -158,7 +158,7 @@
        at this spacing still leave a carried atom a lane between them only if
        it threads the middle, which is the searching the owner wants. */
     keep: 5.4,
-    collide: 2.3, spread: 1.62, wall: 1.8,
+    collide: 2.3, spread: 1.62,
     /* Thermal motion: a hydrogen wanders at about this many radii a second,
        heavier atoms slower by mass^-0.3, and turns about this many radians a
        second. Slow on purpose: the owner wants motion you notice without it
@@ -171,11 +171,19 @@
     worldW: { desktop: 36, mobile: 23 }, maxScale: 22,
     /* A phone shorter than the one the crowds were written for (390x844, whose
        dish has this much room inside its walls, in radii squared) gets a
-       thinner crowd, never under 40% of it. */
-    crowdArea: 475,
+       thinner crowd, never under 40% of it. 475 until the walls moved in to
+       keep hands 10px off the rim; the same phone measures 383 now. */
+    crowdArea: 383,
     liftMs: 900, dimMs: 300, chipMs: 2000, flashMs: 380, cardWinMs: 1300, cardFailMs: 1500,
   };
   const STEP = 1 / 60;
+  /* How near the edge of the dish an atom's centre may come, in radii: far
+     enough that a hand pointing straight out, palm and all, ends at least
+     10px inside the glass rim (owner, 2026-09-15: "make sure they stay
+     inside at least 10 px"). The rim, the 10px and the palm are pixels, so
+     it is worked out for the size the dish is drawn at. */
+  const RIM = 7, CLEAR = 10;
+  const wall = () => TUNE.hand + (RIM + CLEAR + Math.max(2.5, G.S * 0.26)) / G.S;
   const DRIFT = params.get('drift') !== '0';
   const CROWD = params.get('crowd') !== '0';        // ?crowd=0: needs and hazards only, for tests
   const REDUCED = matchMedia('(prefers-reduced-motion: reduce)');
@@ -301,7 +309,7 @@
   function crowdSize(base) {
     if (!CROWD) return 0;
     if (MODE !== 'mobile') return base.crowd[0];
-    const m = TUNE.wall + 0.6, room = Math.max(0, G.WW - 2 * m) * Math.max(0, G.WH - 2 * m);
+    const m = wall() + 0.6, room = Math.max(0, G.WW - 2 * m) * Math.max(0, G.WH - 2 * m);
     return Math.round(base.crowd[0] * Math.max(0.4, Math.min(1, room / TUNE.crowdArea)));
   }
   function restart() {
@@ -327,7 +335,7 @@
   }
   function scatter(n, seed) {
     const r = mulberry(seed);
-    const m = TUNE.wall + 0.6, pts = [];
+    const m = wall() + 0.6, pts = [];
     let minD = TUNE.keep * 1.08;
     for (let k = 0; k < n; k++) {
       let got = null;
@@ -344,7 +352,7 @@
      t without coming within reach of any other? A walk over a fine grid: a
      point is open when every other radical is further than a grab away. */
   function reachable(pts, t) {
-    const step = 0.4, m = TUNE.wall;
+    const step = 0.4, m = wall();
     const nx = Math.max(2, Math.floor((G.WW - 2 * m) / step) + 1), ny = Math.max(2, Math.floor((G.WH - 2 * m) / step) + 1);
     const clear = TUNE.capture + 0.25, goal = TUNE.capture - 0.1;
     const open = new Uint8Array(nx * ny), near = new Uint8Array(nx * ny), seen = new Uint8Array(nx * ny);
@@ -547,8 +555,9 @@
         }
       }
     }
+    const m = wall();
     for (const a of atoms) {
-      const p = P.get(a.id), m = TUNE.wall;
+      const p = P.get(a.id);
       if (p.x < m) p.x = m; else if (p.x > G.WW - m) p.x = G.WW - m;
       if (p.y < m) p.y = m; else if (p.y > G.WH - m) p.y = G.WH - m;
     }
@@ -680,8 +689,9 @@
     const a = heldAtom();
     if (!a) return;
     if (a.committed || insideAt(x, y)) {
-      x = Math.max(TUNE.wall, Math.min(G.WW - TUNE.wall, x));
-      y = Math.max(TUNE.wall, Math.min(G.WH - TUNE.wall, y));
+      const m = wall();
+      x = Math.max(m, Math.min(G.WW - m, x));
+      y = Math.max(m, Math.min(G.WH - m, y));
     }
     drag.tx = x; drag.ty = y;
   }
@@ -1504,7 +1514,7 @@
   /* ---------- CHAPTERS 2 AND 3 ----------
      The bench gets what it needs from this file and nothing else. */
   const bench = window.ChemLabScene ? window.ChemLabScene({
-    ctx, TOK, canvas, drawAtoms, feather, rr, label, clock, mulberry,
+    ctx, TOK, canvas, drawAtoms, rr, label, clock, mulberry,
     SND: { pick: SND.pick, set: SND.set, lift: SND.lift, lost: SND.lost, clasp: (n) => SND.clasp('O', n) },
     size: () => ({ LW, LH, MODE }),
     drift: () => DRIFT && !reduced(),
