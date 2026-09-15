@@ -219,16 +219,20 @@
   /* ---------- LEVELS AND SAVE ----------
      Three chapters, each its own list per breakpoint: molecules, reactions,
      organic. Progress is kept per breakpoint and chapter, as the level sets
-     differ: where the player is, and how many levels are done. Levels open
-     in order, and a chapter opens when the one before it is done. */
+     differ: where the player is, and how many levels are done. Every chapter
+     is open from the start; inside one, levels open in order. */
+  /* Titles from the owner, 2026-09-15, who found the reactions the most fun
+     and wanted all three open from the start; the third's is a nod to organic
+     chemistry being the chemistry of carbon. `short` names the chapter in the
+     top band. */
   const CHAPTERS = [
-    { name: 'MOLECULES', levels: () => LV[MODE] },          // thinned to the room at load, see crowdSize
-    { name: 'REACTIONS', levels: () => LV.lab[MODE] },
-    { name: 'ORGANIC', levels: () => LV.organic[MODE] },
+    { name: 'Get acquainted with molecules', short: '', levels: () => LV[MODE] },          // thinned to the room at load, see crowdSize
+    { name: 'Chem Lab experiments', short: 'Chem Lab', levels: () => LV.lab[MODE] },
+    { name: 'Carbon Lab experiments', short: 'Carbon Lab', levels: () => LV.organic[MODE] },
   ];
   let LEVELS = CHAPTERS[CHAPTER - 1].levels();
   let phase = 'play';                                        // 'play' | 'map'
-  const UNLOCK_ALL = params.get('unlock') === 'all';         // for the owner, trying any chapter from the map
+  const UNLOCK_ALL = params.get('unlock') === 'all';         // for the owner, trying any level from the map
   const SAVE_KEY = 'zam.chemistry.progress';
   function readSave() {
     try { const v = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); return v && typeof v === 'object' ? v : {}; }
@@ -245,7 +249,6 @@
       localStorage.setItem(SAVE_KEY, JSON.stringify(v));
     } catch (_) {}
   }
-  const chapterOpen = (c) => UNLOCK_ALL || c === 1 || progress(c - 1).done >= CHAPTERS[c - 2].levels().length;
   // A level's number across the whole game, for analytics: molecules 1-50, then reactions, then organic.
   const gameLevel = () => CHAPTERS.slice(0, CHAPTER - 1).reduce((n, ch) => n + ch.levels().length, 0) + li + 1;
 
@@ -303,7 +306,7 @@
     if (bench) bench.cancel();
     phase = 'map'; card = null; press = null;
     layout();
-    map.focus();
+    map.focus(CHAPTER, !CHAPTERS.some((ch, k) => progress(k + 1).done > 0));
     canvas.style.cursor = 'default';
   }
   function crowdSize(base) {
@@ -1249,7 +1252,7 @@
       return;
     }
     const lost = scene ? scene.lost() : st.analysis.lost, y = topBand() / 2, rx = LW - SIDE_PAD;
-    const main = (CHAPTER === 3 ? 'Organic  ·  ' : scene ? 'Reactions  ·  ' : '') + 'Level ' + (li + 1);
+    const main = (CHAPTERS[CHAPTER - 1].short ? CHAPTERS[CHAPTER - 1].short + '  ·  ' : '') + 'Level ' + (li + 1);
     ctx.save();
     ctx.font = '600 16px Inter, sans-serif'; ctx.textBaseline = 'middle'; ctx.textAlign = 'right';
     ctx.fillStyle = TOK.ink72; ctx.fillText(main, rx, y);
@@ -1319,7 +1322,7 @@
 
   /* ---------- INPUT ----------
      Buttons compare stable ids between press and release, never objects. */
-  const playable = () => phase === 'play' && !card && !(scene ? scene.result() : st.result);
+  const playable = () => phase === 'play' && !card && !(scene && scene.modalOpen()) && !(scene ? scene.result() : st.result);
   function toLogical(e) {
     const r = canvas.getBoundingClientRect();
     return { x: (e.clientX - r.left) * (LW / r.width), y: (e.clientY - r.top) * (LH / r.height) };
@@ -1333,6 +1336,7 @@
     const p = toLogical(e);
     pointer = { x: p.x, y: p.y, type: e.pointerType };
     press = null;
+    if (phase === 'play' && scene && scene.modalDown(p)) return;
     if (card && clock() >= card.showAt) { if (inBox(p, ctaBox)) press = { id: 'cta' }; return; }
     const b = ctrl.find((c) => inBox(p, tapBox(c)));
     if (b) { press = { id: b.id }; return; }
@@ -1366,6 +1370,7 @@
   });
   canvas.addEventListener('pointerup', (e) => {
     const p = toLogical(e);
+    if (phase === 'play' && scene && scene.modalUp(p)) return;
     if (phase === 'map' && map.up(p, e)) return;
     if (scene && scene.up(p, e)) { canvas.style.cursor = 'default'; return; }
     if (drag && e.pointerId === drag.pid) {
@@ -1395,7 +1400,7 @@
     if (!(st || scene)) return;
     ctx.clearRect(0, 0, LW, LH);
     drawWash();
-    if (scene) { scene.render(now); drawHUD(); drawCard(now); return; }
+    if (scene) { scene.render(now); drawHUD(); scene.renderModal(now); drawCard(now); return; }
     drawDish();
     const held = drag ? new Set(M.groupOf(st, drag.id)) : null;
     const threats = threatPairs();
@@ -1433,7 +1438,7 @@
   window.__chem = {
     get state() {
       if (phase === 'map') {
-        return { mode: MODE, LW, LH, phase, progress: CHAPTERS.map((ch, k) => Object.assign({ open: chapterOpen(k + 1), count: ch.levels().length }, progress(k + 1))) };
+        return { mode: MODE, LW, LH, phase, progress: CHAPTERS.map((ch, k) => Object.assign({ name: ch.name, count: ch.levels().length }, progress(k + 1))) };
       }
       if (scene) {
         return Object.assign({ mode: MODE, LW, LH, phase, chapter: CHAPTER, level: li + 1, card: card ? card.kind : null, cardShown: !!ctaBox },
@@ -1518,6 +1523,7 @@
     SND: { pick: SND.pick, set: SND.set, lift: SND.lift, lost: SND.lost, clasp: (n) => SND.clasp('O', n) },
     size: () => ({ LW, LH, MODE }),
     drift: () => DRIFT && !reduced(),
+    reduced: () => reduced(),
     rng: () => rng(),
     endLevel: (result, showAt) => {
       card = { kind: result.kind, made: result.made, total: result.total, sounded: false, showAt };
@@ -1527,11 +1533,11 @@
 
   /* ---------- THE MAP ---------- */
   const map = window.ChemMap({
-    ctx, TOK, rr, label, washStyle, pad: SIDE_PAD, topBand, botBand,
+    ctx, TOK, rr, washStyle, pad: SIDE_PAD, topBand, botBand,
     size: () => ({ LW, LH, MODE }),
     chapters: () => CHAPTERS.map((ch, k) => ({
       name: ch.name, count: ch.levels().length, done: Math.min(ch.levels().length, progress(k + 1).done),
-      open: chapterOpen(k + 1), all: UNLOCK_ALL, locked: 'Finish ' + CHAPTERS[Math.max(0, k - 1)].name.toLowerCase() + ' first',
+      all: UNLOCK_ALL,
     })),
     open: (c, i) => openLevel(c, i),
   });
@@ -1540,12 +1546,11 @@
      Every re-fit hook is part of the pattern. Timers as well as events, because
      rAF is throttled to nothing in some embedded browsers. */
   setCanvasVars(); resizeCanvas(); fitFullscreen(); resizeCanvas();
-  /* ?chapter and ?level go straight to a level, and ?map=1 to the map. With
-     neither, a returning player starts on the map and a new one on level 1. */
+  /* ?chapter and ?level go straight to a level. Otherwise everyone starts on
+     the map, where all three chapters are on offer. */
   setChapter(CHAPTER);
   const jump = parseInt(params.get('level'), 10);
-  const returning = CHAPTERS.some((ch, k) => progress(k + 1).done > 0);
-  if (params.get('map') === '1' || (!params.has('chapter') && !params.has('level') && returning)) openMap();
+  if (params.get('map') === '1' || (!params.has('chapter') && !params.has('level'))) openMap();
   else openLevel(CHAPTER, jump >= 1 && jump <= LEVELS.length ? jump - 1 : progress(CHAPTER).at);
   window.addEventListener('resize', onResize);
   window.addEventListener('orientationchange', () => setTimeout(onResize, 100));

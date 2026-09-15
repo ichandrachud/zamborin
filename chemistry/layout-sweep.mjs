@@ -61,7 +61,10 @@ try {
       const ctrlTop = Math.min(...g.ctrl.map((b) => b.y)), ctrlBottom = Math.max(...g.ctrl.map((b) => b.y + b.h));
       if (g.phase !== 'map') issues.push('not on the map');
       if (v.titleW > w - 2 * v.pad + 0.5) issues.push('title wider than the frame');
-      for (const hd of v.heads) if (hd.labelRight + 12 > hd.textLeft) issues.push('"' + hd.text + '" into its heading');
+      for (const hd of v.heads) {
+        if (hd.titleRight > w - v.pad + 0.5) issues.push('"' + hd.text + '" past the side');
+        if (hd.oneLine && hd.titleRight + 12 > hd.countLeft) issues.push('"' + hd.text + '" into its count');
+      }
       if (g.cells.some((q) => q.x < 8 || q.x + q.w > w - 8)) issues.push('a cell past the side');
       if (g.cells.some((q) => q.w < 44 || q.h < 44)) issues.push('a cell under 44px');
       if (g.mode === 'mobile' && v.y + v.h > ctrlTop - 4) issues.push('map into the controls');
@@ -97,6 +100,14 @@ try {
       if (bottom(g.hints.tube) > g.tube.y + 2) issues.push('tube words into the tube');
       if (g.hints.dish.y < bottom(g.petri)) issues.push('dish words into the petri dish');
       if (bottom(g.hints.dish) > bottom(g.beaker) + 2) issues.push('dish words below their space');
+      // the reaction card, for the reactions with the most to say and one with three products: all on screen, words clear of the button
+      for (const [a, b] of [['hydrochloric-acid', 'calcium-hydroxide'], ['ammonium-nitrate', 'sodium-hydroxide'], ['calcium-oxide', 'water']]) {
+        const rc = await p.ev(`(() => { __chem.lab.showCard('${a}', '${b}'); const r = __chem.geom().reactionCard; __chem.lab.closeCard(); return r; })()`);
+        if (!rc) { issues.push('no card for ' + a + ' + ' + b); continue; }
+        if (rc.box.x < 0 || right(rc.box) > w || rc.box.y < 0 || bottom(rc.box) > h) issues.push('reaction card off screen');
+        if (rc.box.wordsBottom + 8 > rc.button.y) issues.push('reaction card words into its button by ' + (rc.box.wordsBottom + 8 - rc.button.y).toFixed(1));
+        if (bottom(rc.button) > bottom(rc.box)) issues.push('reaction card button outside it');
+      }
       if (LAB === 'chapter=3') {
         // the clue card, then the win card after the level's own solution: every line above the button, all on screen
         const cardOk = (c, cta, what) => {

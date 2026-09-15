@@ -275,6 +275,10 @@ for (const sp of Object.values(X.SPECIES)) {
   eq([pour.poured.length, s.analysis.lost], [1, 1], 'react something else and the water is poured away: slaked lime lost');
 }
 ok(X.REACTIONS.every((r) => X.shouldReact(r.a, r.b)), 'every reaction in the table is a kind the honesty check knows');
+for (const r of X.REACTIONS) {
+  const e = X.explain(r.a, r.b);
+  ok(e && e.title && e.words && e.words.length < 130, 'the reaction card can explain ' + r.a + ' + ' + r.b + (e ? ': ' + e.title : ''));
+}
 {
   // an ester and water give back the alcohol and the acid, so the search can go round in a circle
   const s = X.createLab({ targets: [['ethyl-ethanoate', 2]], dish: ['ethanol', 'ethanoic-acid', 'water'] });

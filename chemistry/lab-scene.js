@@ -108,7 +108,7 @@
       level = lv;
       st = X.createLab(lv);
       pos.clear(); traySlot.clear(); tubeOrder = [];
-      drag = null; react = null; chips = []; dropped = [];
+      drag = null; react = null; chips = []; dropped = []; modal = null; pendingEnd = null;
       layout();
       const r = host.mulberry(lv.seed * 7919 + 5), placed = [];
       for (const p of st.pieces) {
@@ -127,7 +127,7 @@
 
     /* ---------- MOTION ---------- */
     function step(dt) {
-      if (!st) return;
+      if (!st || modal) return;
       const list = st.pieces.filter((p) => p.zone === 'dish' && pos.has(p.id) && !(drag && drag.id === p.id));
       if (host.drift() && dt > 0) {
         for (const p of list) {
@@ -564,6 +564,7 @@
 
     function render(now) {
       if (!st) return;
+      if (react && !react.explained && now - react.t0 >= L.reactMs) openCard(react.reaction, react.eq, now);
       drawTargets();
       drawDish(now);
       drawTube(now);
@@ -572,6 +573,130 @@
       drawHeadings(now);
       drawChips(now);
       drawHeld();
+    }
+
+    /* ---------- THE REACTION CARD ----------
+       The owner, 2026-09-15: "each complete reaction will give a modal that
+       tells you the reaction with animations. (there could be a skip button
+       on this)". When the tube's colours are done, a card shows the reaction:
+       its name; the two molecules that went in coming apart, their atoms
+       flying across and joining up as the products, so it is plain every
+       atom is kept; the equation; and what happened, in plain words. Skip
+       closes it at any time, and once the atoms have landed it says CONTINUE.
+       A level the reaction ended waits for the card to close. */
+    const CARD = { stillMs: 700, breakMs: 350, flyMs: 1200, formMs: 350 };
+    const cardMs = () => CARD.stillMs + CARD.breakMs + CARD.flyMs + CARD.formMs;
+    let modal = null, pendingEnd = null, modalBtn = null, modalBox = null;
+    const UI = window.ZAM_UI;
+    function openCard(reaction, eq, now) {
+      if (react) react.explained = true;
+      const e = X.explain(reaction.a, reaction.b) || { title: 'Reaction', words: '' };
+      modal = { t0: now, a: reaction.a, b: reaction.b, products: reaction.products.slice(), title: e.title, words: e.words, eq, press: false };
+    }
+    function closeCard() {
+      modal = null;
+      if (pendingEnd) { const r = pendingEnd; pendingEnd = null; host.endLevel(r, clock() + 400); }
+    }
+    function wrapWords(text, maxW) {
+      const lines = [];
+      let line = '';
+      for (const w of text.split(' ')) { const t = line ? line + ' ' + w : w; if (ctx.measureText(t).width > maxW && line) { lines.push(line); line = w; } else line = t; }
+      if (line) lines.push(line);
+      return lines;
+    }
+    function cardLayout() {
+      const pw = Math.min(LW - (MODE === 'mobile' ? 28 : 56), 560), stageH = MODE === 'mobile' ? 132 : 150;
+      ctx.save(); ctx.font = '600 16px Inter, sans-serif';
+      const words = wrapWords(modal.words, pw - 48);
+      ctx.restore();
+      const ph = Math.min(LH - 20, 64 + stageH + 40 + words.length * 23 + 22 + 76);
+      const px = Math.round((LW - pw) / 2), py = Math.max(10, Math.round((LH - ph) / 2));
+      return { px, py, pw, ph, words, stage: { x: px + 16, y: py + 64, w: pw - 32, h: stageH } };
+    }
+    // Where each molecule of the reaction sits on the stage: what went in at the left, what came out at the right.
+    function stageSpots(S) {
+      const ins = [modal.a, modal.b], outs = modal.products, chipRoom = 30;
+      const slot = (list, x0, x1) => list.map((key, i) => ({ key, x: x0 + (x1 - x0) * (i + 0.5) / list.length, y: S.y + (S.h - chipRoom) / 2, w: (x1 - x0) / list.length }));
+      const left = slot(ins, S.x, S.x + S.w * 0.44), right = slot(outs, S.x + S.w * 0.56, S.x + S.w);
+      const unit = Math.min(...left.concat(right).map((q) => fit(q.key, q.w - 2, S.h - chipRoom - 4)));
+      return { left, right, unit, chipY: S.y + S.h - chipRoom / 2 };
+    }
+    const atomsAt = (spots, unit) => spots.flatMap((q) => X.SPECIES[q.key].atoms.map((a) => ({ el: a.el, x: q.x + a.x * unit, y: q.y + a.y * unit })));
+    // Each atom that went in, matched to an atom of the same element that came out, nearest first.
+    function pairAtoms(from, to) {
+      const cand = [];
+      from.forEach((f, i) => to.forEach((t, j) => { if (f.el === t.el) cand.push([Math.hypot(f.x - t.x, f.y - t.y), i, j]); }));
+      cand.sort((p, q) => p[0] - q[0]);
+      const fi = new Set(), tj = new Set(), pairs = [];
+      for (const [, i, j] of cand) { if (fi.has(i) || tj.has(j)) continue; fi.add(i); tj.add(j); pairs.push([from[i], to[j]]); }
+      return pairs;
+    }
+    function drawStage(S, t) {
+      const Z = stageSpots(S), still = host.reduced() ? cardMs() : t;
+      const t1 = CARD.stillMs, t2 = t1 + CARD.breakMs, t3 = t2 + CARD.flyMs, t4 = t3 + CARD.formMs;
+      ctx.save();
+      ctx.fillStyle = TOK.ink72; ctx.font = '700 22px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      // the plus in the gap between the two molecules that went in, not between their middles
+      const reach = (key, side) => Math.max(...X.SPECIES[key].atoms.map((a) => side * a.x)) * Z.unit + Z.unit * L.atom / L.bond;
+      if (Z.left.length > 1) ctx.fillText('+', ((Z.left[0].x + reach(Z.left[0].key, 1)) + (Z.left[1].x - reach(Z.left[1].key, -1))) / 2, Z.left[0].y);
+      ctx.fillText('→', S.x + S.w * 0.5, Z.left[0].y);
+      ctx.restore();
+      // what went in fades as its atoms leave, and comes back faintly at the end, so the card reads as the whole equation
+      const inAlpha = still < t1 ? 1 : still < t3 ? 1 - clamp01((still - t1) / CARD.breakMs) : 0.3 * clamp01((still - t3) / CARD.formMs);
+      const outAlpha = clamp01((still - t3) / CARD.formMs);
+      Z.left.forEach((q) => { if (inAlpha > 0) drawMolecule(q.key, q.x, q.y, Z.unit, 0, inAlpha); });
+      Z.right.forEach((q) => { if (outAlpha > 0) drawMolecule(q.key, q.x, q.y, Z.unit, 0, outAlpha); });
+      if (still > t1 && still < t4) {
+        const k = easeInOut(clamp01((still - t2) / CARD.flyMs));
+        const bare = clamp01((still - t1) / CARD.breakMs) * (1 - clamp01((still - t3) / CARD.formMs));
+        const items = pairAtoms(atomsAt(Z.left, Z.unit), atomsAt(Z.right, Z.unit)).map(([f, g]) => ({
+          el: f.el, x: f.x + (g.x - f.x) * k, y: f.y + (g.y - f.y) * k - Math.sin(Math.PI * k) * S.h * 0.12, alpha: bare, label: false, bonds: [], free: [],
+        }));
+        drawAtoms(items, Math.max(1.5, Z.unit * L.atom / L.bond));
+      }
+      Z.left.forEach((q) => formulaChip(X.SPECIES[q.key].formula, q.x, Z.chipY, 1, 12));
+      Z.right.forEach((q) => formulaChip(X.SPECIES[q.key].formula, q.x, Z.chipY, outAlpha, 12));
+    }
+    function renderModal(now) {
+      modalBtn = null; modalBox = null;
+      if (!modal) return;
+      const M = cardLayout(), t = now - modal.t0, done = host.reduced() || t >= cardMs();
+      ctx.save();
+      ctx.fillStyle = TOK.scrim; ctx.fillRect(0, 0, LW, LH);
+      ctx.fillStyle = TOK.card; rr(M.px, M.py, M.pw, M.ph, 22); ctx.fill();
+      ctx.strokeStyle = TOK.tint12; ctx.lineWidth = 1; rr(M.px + 0.5, M.py + 0.5, M.pw - 1, M.ph - 1, 22); ctx.stroke();
+      let size = 28;
+      ctx.font = '800 ' + size + 'px Inter, sans-serif';
+      while (size > 20 && ctx.measureText(modal.title).width > M.pw - 48) { size -= 1; ctx.font = '800 ' + size + 'px Inter, sans-serif'; }
+      ctx.fillStyle = TOK.white; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(modal.title, M.px + M.pw / 2, M.py + 38);
+      ctx.restore();
+      drawStage(M.stage, t);
+      ctx.save();
+      const eqY = M.stage.y + M.stage.h + 22;
+      size = 17;
+      ctx.font = '700 ' + size + 'px Inter, sans-serif';
+      while (size > 13 && ctx.measureText(modal.eq).width > M.pw - 40) { size -= 1; ctx.font = '700 ' + size + 'px Inter, sans-serif'; }
+      ctx.fillStyle = TOK.white; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(modal.eq, M.px + M.pw / 2, eqY);
+      ctx.font = '600 16px Inter, sans-serif'; ctx.fillStyle = TOK.ink82;
+      M.words.forEach((line, i) => ctx.fillText(line, M.px + M.pw / 2, eqY + 30 + i * 23));
+      ctx.restore();
+      const by = M.py + M.ph - 40;
+      modalBtn = done ? UI.drawCTA(ctx, 'CONTINUE', M.px + M.pw / 2, by, TOK.accent) : UI.drawPill(ctx, 'Skip', M.px + M.pw / 2, by, {});
+      modalBox = { x: M.px, y: M.py, w: M.pw, h: M.ph, wordsBottom: eqY + 30 + (M.words.length - 1) * 23 + 11 };
+    }
+    // While the card is up it takes every press; only its button does anything.
+    function modalDown(p) {
+      if (!modal) return false;
+      modal.press = !!(modalBtn && inside(p, grow(modalBtn, 6)));
+      return true;
+    }
+    function modalUp(p) {
+      if (!modal) return false;
+      if (modal.press && modalBtn && inside(p, grow(modalBtn, 6))) closeCard();
+      else modal.press = false;
+      return true;
     }
 
     /* ---------- INPUT ----------
@@ -650,14 +775,14 @@
       if (ev.reaction) {
         const used = tubeOrder.slice();
         react = { t0: now, used: used.map((i) => st.pieces[i].key), poured: ev.poured.map((i) => ({ key: st.pieces[i].key, slot: slots.get(i) || 0 })),
-                  eq: equation(ev.reaction) };
+                  eq: equation(ev.reaction), reaction: ev.reaction, explained: false };
         tubeOrder = [];
         traySlot.clear();
         ev.products.forEach((pid, k) => traySlot.set(pid, k));
         SND.clasp(ev.reaction.products.length);
         setTimeout(SND.lift, L.productsAt);
         if (ev.lost) { chip('lost a molecule', { x: centre(tray).x, y: tray.y + tray.h + 6 }, 'amber', now + L.productsAt); setTimeout(SND.lost, L.productsAt + 80); }
-        if (ev.result) host.endLevel(ev.result, now + L.reactMs + 1000);
+        if (ev.result) pendingEnd = ev.result;
       } else if (ev.noReaction) {
         chip('no reaction', { x: centre(tube).x, y: tube.y + 20 }, 'grey', now);
         SND.set();
@@ -677,6 +802,7 @@
       if (from === 'dish') pos.delete(id);
       traySlot.delete(id);
       tubeOrder = tubeOrder.filter((q) => q !== id);
+      modal = null;
       dropped.push({ id, t0: now });
       SND.lift();
       if (ev.result) host.endLevel(ev.result, now + L.dropMs + 700);
@@ -705,6 +831,7 @@
           pieces: st.pieces.map((p) => ({ id: p.id, key: p.key, zone: p.zone, slot: traySlot.has(p.id) ? traySlot.get(p.id) : null })),
           tube: tubeOrder.slice(), made: Object.assign({}, st.made), result: st.result,
           lost: st.analysis.lost, best: st.analysis.best, reacting: !!(react && clock() - react.t0 < L.reactMs), dragging: drag ? drag.id : -1,
+          reactionCard: modal ? modal.title : null,
         };
       },
       geom() {
@@ -716,7 +843,8 @@
         }
         return { dish: Object.assign({}, D), tube: Object.assign({}, tube), tray: Object.assign({}, tray), beaker: Object.assign({}, beaker),
                  traySlots: [0, 1, 2].map(traySlotRect), tubeSlots: [0, 1].map(tubeSlot), targets: targetSlots(), pieces,
-                 hints: { tube: tubeHint().box, dish: dishGeom().hint.box }, petri: (({ x, top, dw, dh }) => ({ x, y: top - 3, w: dw, h: dh + 3 }))(dishGeom()) };
+                 hints: { tube: tubeHint().box, dish: dishGeom().hint.box }, petri: (({ x, top, dw, dh }) => ({ x, y: top - 3, w: dw, h: dh + 3 }))(dishGeom()),
+                 reactionCard: modal ? { box: modalBox, button: modalBtn } : null };
       },
       // Straight to a place, through the same code a drop uses.
       act(where, id, x, y) {
@@ -726,13 +854,17 @@
         if (where === 'dish') return intoDish(id, { x: x == null ? D.x + D.w / 2 : x, y: y == null ? D.y + D.h / 2 : y });
         return null;
       },
+      // The card for any reaction, as if the tube had just run it: for the sweeps and still frames.
+      showCard(a, b) { const r = X.reactionFor(a, b); if (r) openCard(r, equation(r), clock()); return !!r; },
+      closeCard() { if (modal) closeCard(); },
       find(key) {
         return (st.pieces.find((p) => p.key === key && p.zone === 'tray') || st.pieces.find((p) => p.key === key && p.zone === 'dish') || {}).id;
       },
     };
 
     return {
-      load, layout, step, render, down, move, up, cancel, debug,
+      load, layout, step, render, renderModal, modalDown, modalUp, down, move, up, cancel, debug,
+      modalOpen: () => !!modal,
       lost: () => (st ? st.analysis.lost : 0),
       result: () => (st ? st.result : null),
       dragging: () => !!drag,

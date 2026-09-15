@@ -179,6 +179,33 @@ function shouldReact(a, b) {
     pair('ester', 'water') || pair('ester', 'strong-base') || pair('haloalkane', 'strong-base') || pair('weak-acid-salt', 'strong-acid');
 }
 
+/* What a reaction is, in plain words, for the card that follows it (owner,
+   2026-09-15: "each complete reaction will give a modal that tells you the
+   reaction"). Worked out from the same tags as the honesty check, the most
+   particular kinds first; tests.mjs checks every reaction has one. */
+function explain(a, b) {
+  const A = SPECIES[a].tags, B = SPECIES[b].tags, has = (t, x) => t.includes(x);
+  const pair = (p, q) => (has(A, p) && has(B, q)) || (has(A, q) && has(B, p));
+  const either = (k) => a === k || b === k;
+  if (pair('alkene', 'hydrogen')) return { title: 'Hydrogenation', words: 'The double bond opens and takes a hydrogen onto each carbon.' };
+  if (pair('alkene', 'halogen')) return { title: 'Addition', words: 'The double bond opens and takes a bromine onto each carbon. That is why orange bromine loses its colour.' };
+  if (pair('alkene', 'hydrogen-halide')) return { title: 'Addition', words: 'The double bond opens: the hydrogen goes onto one carbon and the chlorine onto the other.' };
+  if (pair('alkene', 'water')) return { title: 'Hydration', words: 'The double bond opens: H goes onto one carbon and OH onto the other, which makes an alcohol.' };
+  if (pair('alcohol', 'carboxylic-acid')) return { title: 'Esterification', words: 'An alcohol and an acid join into an ester and give off water. Esters are what make fruit smell sweet.' };
+  if (pair('alcohol', 'oxygen')) return { title: 'Oxidation', words: 'Oxygen turns the alcohol into an acid and gives off water. It is how wine turns to vinegar.' };
+  if (pair('alcohol', 'hydrogen-halide')) return { title: 'Substitution', words: 'The hydrogen chloride swaps the alcohol\'s OH for a chlorine, and the OH leaves as water.' };
+  if (pair('ester', 'water')) return { title: 'Hydrolysis', words: 'Water splits the ester back into the alcohol and the acid it was made from.' };
+  if (pair('ester', 'strong-base')) return { title: 'Splitting an ester', words: 'Alkali splits the ester into its alcohol and the sodium salt of its acid. Soap is made this way.' };
+  if (pair('haloalkane', 'strong-base')) return { title: 'Substitution', words: 'The alkali swaps the chlorine for an OH, which makes an alcohol again, and leaves salt.' };
+  if (pair('weak-acid-salt', 'strong-acid')) return { title: 'An acid set free', words: 'The strong acid hands over its hydrogen, and the salt turns back into the weak acid it came from.' };
+  if (pair('ammonium', 'strong-base') || pair('ammonium', 'oxide')) return { title: 'Ammonia released', words: 'The base takes a hydrogen from the ammonium, so ammonia comes off, leaving water and a salt behind.' };
+  if (pair('oxide', 'water')) return { title: 'Slaking lime', words: 'Quicklime and water make slaked lime, and it gets hot as it does. Builders have done this for thousands of years.' };
+  if (pair('acid', 'base') && either('ammonia')) return { title: 'Neutralisation', words: 'The acid hands its hydrogen to the ammonia, which becomes an ammonium salt.' };
+  if (pair('acid', 'base') && (has(A, 'oxide') || has(B, 'oxide'))) return { title: 'Neutralisation', words: 'The metal oxide takes the acid\'s hydrogens as water, and the metal and the rest of the acid make a salt.' };
+  if (pair('acid', 'base')) return { title: 'Neutralisation', words: 'An acid and a base cancel each other out: the acid\'s hydrogen and the base\'s OH make water, and what is left is a salt.' };
+  return null;
+}
+
 /* ---------- THE BENCH ----------
    Every molecule is a piece in one place: the dish, the tube (two at most),
    the tray (what the last reaction made), the beaker, or gone. */
@@ -345,5 +372,5 @@ function closure(dish) {
   return have;
 }
 
-return { SPECIES, REACTIONS, TUBE, reactionFor, shouldReact, createLab, toTube, toDish, deliver, analyse, bestPlan, closure };
+return { SPECIES, REACTIONS, TUBE, reactionFor, shouldReact, explain, createLab, toTube, toDish, deliver, analyse, bestPlan, closure };
 }));
