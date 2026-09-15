@@ -13,5 +13,9 @@
    The mobile art is 1170x2532 at 0.462, which is a modern phone almost
    exactly. Its wordmark sits at 70.9% of the width, inside the 82.2% that
    survives a cover-crop on the narrowest viewport worth designing for. */
+/* The honey ground under the canvas, so the frame is warm before the first
+   draw and at any sub-pixel edge. Matches HONEY in play.js. */
+body .game-wrap { background: radial-gradient(at 30% 0%, #4C3110 0%, #3A240B 60%, #241606 100%); }
+
 body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=1'); }
 body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=1'); }

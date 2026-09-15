@@ -56,6 +56,17 @@ Centre at **32% of width, on the top edge**, radius **1.1 x width**. The light
 comes from up and slightly left, always, in every game. The `.game-wrap` CSS
 gradient in `chrome.css` is the same three stops at `at 30% 0%`.
 
+> **EXCEPTION: Comb's honey world (owner's call 2026-09-15).** Comb's canvas
+> floor is a warm radial with the Portal wash's own geometry (`#4C3110`,
+> `#3A240B`, `#241606`), its empty cells are wax, and its cards, scrims and
+> scroll fades use the same honey family (`HONEY`, `WAX`, `HONEY_UI` in
+> `comb/play.js`). The golden-honeycomb cover over a navy game read as two
+> products to CrazyGames' QA, who rejected Comb on "overall quality". Every
+> other rule still applies to it: `ZAM_UI` sizes, tokens for pills and type,
+> no outlines, and 3:1 measured on painted pixels (pieces against the honey
+> ground, and against the wall of ground between wax cells). **Do not "fix"
+> Comb back to navy.** It is not a precedent for any other game.
+
 > **KNOWN DRIFT, fix on sight.** `#1B2A47` is in production as BG_TOP in
 > `bloom`, `needle`, `orbit`, `prism`, `sluice` **and in `shared/chrome.css`**,
 > against the `--bg-panel` token `#1A2A45` used by `kaleido`, `tailwind`,
@@ -183,6 +194,13 @@ preview, a score column. Not an empty gutter. A landscape grid needs roughly a
 playfield over 56px targets. Buy depth from relationships, not more positions.
 
 ### 2.2 Full screen
+
+**When the game IS the whole page, the window is the frame.** Comb takes the
+window's own size as `LW`/`LH` in an embed, a portal package and full screen
+(one CSS pixel to one unit), instead of contain-fitting 760 x 600 into it:
+the fitted frame left 29% of every CrazyGames 16:9 window empty and set 16px
+type at 12.3px in their smallest (821 x 462). A desktop window narrower than
+760 is laid out at 760 across and scaled, so the top band keeps its row.
 
 `body.focus-mode` is shared chrome. For a **fixed-board** game the board grows
 with the frame and that is correct. For a **scrolling-world** game the frame
