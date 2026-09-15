@@ -19,7 +19,9 @@ product on the day it goes live, not like a prototype that gets polished later.
 Read in full before writing code: `CLAUDE.md`, `DESIGN-SYSTEM.md`,
 `CONTRIBUTING.md`, `shared/new-game-template/README.md`. They override anything
 below. Start from `shared/new-game-template`. The idea must already have passed
-the Question Set, including a real fail state: no fail state, no game.
+the Question Set. A fail state belongs in the game when it makes the game
+better; if nothing can be lost, say what holds the player instead and show it.
+A verb with no consequence at all is still a kill.
 
 Work like this: ask me a quick question rather than deliberating, and show me a
 frame early rather than a finished thing late. I am not a developer, so tell me
