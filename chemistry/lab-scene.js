@@ -271,7 +271,7 @@
         ctx.restore();
       }
       // the highlight: a bar down the left inside the glass, then a crescent round the bottom that tapers to nothing
-      const wb = Math.max(3, g.w * 0.06), xl = g.x + gap + 2, ra = rad - gap - 2;
+      const wb = Math.max(3, g.w * 0.06), xl = g.x + gap + 5, ra = rad - gap - 5;
       ctx.fillStyle = GLASS.shine;
       ctx.fillRect(xl, g.y + 6, wb, cy - g.y - 6);
       ctx.save();
@@ -326,62 +326,60 @@
       }
     }
 
-    /* Where made molecules go: a petri dish (owner, 2026-09-15), wide and
-       shallow and seen a little from above, in the same hairline glass as the
-       tube, with the same highlight and liquid. The liquid rises as each
-       molecule on the list lands; one dropped in sinks and dissolves. The
-       zone keeps its old name, `beaker`, in the code. */
+    /* Where made molecules go: a petri dish (owner, 2026-09-15), drawn flat
+       from the side like the tube: a shallow open dish with a rim, the same
+       hairline glass, the same highlight down the left wall and along the
+       floor, and the same liquid, which rises as each molecule on the list
+       lands; one dropped in sinks and dissolves. The zone keeps its old name,
+       `beaker`, in the code. */
     function drawBeaker(now) {
       const dw = Math.min(beaker.w - 16, MODE === 'mobile' ? beaker.w - 16 : 168), gap = 3;
-      const ry = dw * 0.13, wall = Math.min(24, beaker.h * 0.26), x0 = beaker.x + beaker.w / 2;
-      const bottom = beaker.y + beaker.h - ry - 4, rim = bottom - wall, rx = dw / 2;
+      const dh = Math.min(30, beaker.h * 0.34), x = beaker.x + (beaker.w - dw) / 2;
+      const bottom = beaker.y + beaker.h - 6, top = bottom - dh, r = Math.min(10, dh * 0.4);
       const inBeaker = st.pieces.filter((p) => p.zone === 'beaker');
       const total = st.targets.reduce((n, t) => n + t.n, 0), last = dropped[dropped.length - 1];
       const landing = last && inBeaker.some((p) => p.id === last.id) ? 1 - easeOut(clamp01((now - last.t0) / L.dropMs)) : 0;
       const fill = total ? Math.max(0, inBeaker.length - landing) / total : 0;
-      // a dish outline inset by i: its walls and the curve of its floor, open at the top
-      const bowl = (i, top) => {
-        const a = rx - i, b = ry * a / rx;
+      // the dish's outline inset by i: down the left wall, along the floor with its round corners, up the right
+      const dishLine = (i) => {
+        const ri = Math.max(1, r - i), yb = bottom - i;
         ctx.beginPath();
-        ctx.moveTo(x0 - a, top); ctx.lineTo(x0 - a, bottom - i * 0.6);
-        ctx.ellipse(x0, bottom - i * 0.6, a, b, 0, Math.PI, 0, true);
-        ctx.lineTo(x0 + a, top);
+        ctx.moveTo(x + i, top + 3); ctx.lineTo(x + i, yb - ri);
+        ctx.arcTo(x + i, yb, x + i + ri, yb, ri);
+        ctx.lineTo(x + dw - i - ri, yb);
+        ctx.arcTo(x + dw - i, yb, x + dw - i, yb - ri, ri);
+        ctx.lineTo(x + dw - i, top + 3);
       };
       ctx.save();
-      if (drag && inside(heldCentre(), grow(beaker, 14))) {
-        ctx.fillStyle = 'rgba(93,211,158,0.16)'; bowl(gap, rim); ctx.ellipse(x0, rim, rx - gap, ry * (rx - gap) / rx, 0, 0, Math.PI, true); ctx.fill();
-      }
+      if (drag && inside(heldCentre(), grow(beaker, 14))) { ctx.fillStyle = 'rgba(93,211,158,0.16)'; dishLine(gap); ctx.closePath(); ctx.fill(); }
       // a molecule on its way in, sinking and dissolving
       if (last && now - last.t0 < L.dropMs && inBeaker.some((p) => p.id === last.id)) {
         const p = st.pieces[last.id], t = clamp01((now - last.t0) / L.dropMs);
-        drawMolecule(p.key, x0, rim - (1 - easeOut(t)) * beaker.h * 0.5, fit(p.key, dw / 2.4, beaker.h * 0.5), 0, 1 - clamp01((t - 0.5) / 0.5));
+        drawMolecule(p.key, x + dw / 2, top + dh * 0.3 - (1 - easeOut(t)) * beaker.h * 0.5, fit(p.key, dw / 2.4, beaker.h * 0.5), 0, 1 - clamp01((t - 0.5) / 0.5));
       }
       if (fill > 0) {
-        const level = bottom - gap - (wall - gap - 3) * fill, a = rx - gap, b = ry * a / rx;
-        ctx.fillStyle = liquidFill(x0 - a, x0 + a);
-        bowl(gap, level); ctx.ellipse(x0, level, a, b, 0, 0, Math.PI, true); ctx.fill();
-        ctx.beginPath(); ctx.ellipse(x0, level, a, b, 0, 0, TAU); ctx.fill();
-        ctx.strokeStyle = GLASS.surface; ctx.lineWidth = 1.2;
-        ctx.beginPath(); ctx.ellipse(x0, level, a, b, 0, 0, TAU); ctx.stroke();
+        const level = bottom - gap - (dh - gap - 6) * fill;
+        ctx.save();
+        dishLine(gap); ctx.closePath(); ctx.clip();
+        ctx.fillStyle = liquidFill(x + gap, x + dw - gap); ctx.fillRect(x, level, dw, dh);
+        ctx.fillStyle = GLASS.surface; ctx.fillRect(x, level, dw, 1.2);
+        ctx.restore();
       }
-      // the highlight: a bar down the left wall, then a crescent along the floor that tapers away
-      const wb = Math.max(3, dw * 0.035), xl = x0 - rx + gap + 2;
+      // the highlight: down the left wall, round the corner and along the floor, tapering to nothing
+      const wb = Math.max(3, dw * 0.03), xa = x + gap + 5, yb = bottom - gap - 5, rc = Math.max(wb + 1, r - gap - 3), tip = x + dw * 0.45;
       ctx.fillStyle = GLASS.shine;
-      ctx.fillRect(xl, rim + ry * 0.35, wb, bottom - rim - ry * 0.35);
-      ctx.save();
-      ctx.beginPath(); ctx.rect(x0 - rx, bottom, rx * 0.9, ry + 2); ctx.clip();
-      const a = rx - gap - 2, b = ry * a / rx;
       ctx.beginPath();
-      ctx.ellipse(x0, bottom, a, b, 0, 0, TAU);
-      ctx.ellipse(x0 + wb * 1.6, bottom - wb * 0.25, a, b, 0, 0, TAU, true);
-      ctx.fill('evenodd');
-      ctx.restore();
-      // the glass: the rim as two ellipses, the outer walls and floor, and the inner ones
-      hair(1);
-      ctx.beginPath(); ctx.ellipse(x0, rim, rx, ry, 0, 0, TAU); ctx.stroke();
-      ctx.beginPath(); ctx.ellipse(x0, rim, rx - gap, ry * (rx - gap) / rx, 0, 0, TAU); ctx.stroke();
-      bowl(0, rim); ctx.stroke();
-      bowl(gap, rim + ry * (rx - gap) / rx * 0.2); ctx.stroke();
+      ctx.moveTo(xa, top + 6); ctx.lineTo(xa, yb - rc);
+      ctx.arc(xa + rc, yb - rc, rc, Math.PI, Math.PI / 2, true);
+      ctx.lineTo(tip, yb);
+      ctx.lineTo(xa + rc, yb - wb);
+      ctx.arc(xa + rc, yb - rc, rc - wb, Math.PI / 2, Math.PI, false);
+      ctx.lineTo(xa + wb, top + 6);
+      ctx.closePath(); ctx.fill();
+      // the glass: its outer face and its inner, and the rim across the top
+      hair(1); dishLine(0); ctx.stroke();
+      hair(1); dishLine(gap); ctx.stroke();
+      hair(1); rr(x - 5, top - 3, dw + 10, 6, 3); ctx.stroke();
       ctx.restore();
     }
 
