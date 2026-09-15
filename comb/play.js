@@ -516,6 +516,12 @@
   /* Ask the portal, then act on the answer. On zamborin.com `canReward` is
      false and the action simply runs, which is the owner's decision recorded
      as one branch rather than two builds. */
+  /* CrazyGames switches ads off for a game in Basic Launch, and every request
+     then answers `adsDisabledBasicLaunch`. There is no way to ask before
+     requesting one, so the first refusal is how the game finds out, and Skip
+     goes for the rest of the session: offered again, it could only fail again. */
+  let videosOff = false;
+
   function withReward(kind, act) {
     const P = window.ZAM_PORTAL;
     if (!P || !P.canReward()) { act(); draw(); return; }
@@ -523,13 +529,14 @@
     P.rewarded(function () {
       T().track('rewarded_watched', { kind: kind, level: isDaily ? 0 : levelNo });
       act(); draw();
-    }, function () {
+    }, function (reason) {
       /* No finished video, no reward. CrazyGames' ad rules say it in as many
          words ("When our rewarded ad returns with an adError callback, do NOT
          reward the player"), and granting it anyway was an integration breach
          in the build they rejected. The player is told, and Hint stays free,
          which is the alternative to an ad their rules also ask for. */
-      toast = { msg: 'No video available right now', t: performance.now() };
+      if (reason === 'adsDisabledBasicLaunch') videosOff = true;
+      toast = { msg: videosOff ? 'Skip is not available yet' : 'No video available right now', t: performance.now() };
       draw();
     });
   }
@@ -1274,15 +1281,16 @@
     const hw = UI.pillWidth(ctx, 'Hint');
     const sw = UI.pillWidth(ctx, 'Skip') + (badged ? 38 : 0);
     const gap = 12;
+    const rowW = videosOff ? hw : hw + gap + sw;
     let x;
-    if (MODE === 'mobile') x = (LW - (hw + sw + gap)) / 2;
-    else x = L.trayBand.x + (L.trayBand.w - (hw + sw + gap)) / 2;
+    if (MODE === 'mobile') x = (LW - rowW) / 2;
+    else x = L.trayBand.x + (L.trayBand.w - rowW) / 2;
 
     const out = hintsUsed >= HINT_CAP;
-    const rowMid = x + (hw + gap + sw) / 2;
+    const rowMid = x + rowW / 2;
     L.hit.hint = rewardPill('Hint', x, hw, cy, false, out);
     x += hw + gap;
-    L.hit.skip = rewardPill('Skip', x, sw, cy, badged, false);
+    L.hit.skip = videosOff ? null : rewardPill('Skip', x, sw, cy, badged, false);
     L.toast = { x: rowMid, y: cy - 50 };
   }
 
