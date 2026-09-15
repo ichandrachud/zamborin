@@ -224,11 +224,13 @@ function ionic(cat, raw) {
     if (cat === 'NH4') tags.push('ammonium');
     if (ans.some((a) => (INSOLUBLE[a] || []).includes(cat))) tags.push('insoluble');
     if (ans.includes('SO4')) tags.push('sulphate');
-    const free = (a) => (INSOLUBLE[a] || []).includes(cat) && !ans.includes(a);
+    // a salt carrying a spare hydrogen gives that up before it swaps anything
+    const held = ans.includes('HSO4') || ans.includes('HCO3');
+    const free = (a) => (INSOLUBLE[a] || []).includes(cat) && !ans.includes(a) && !held;
     if (free('OH')) tags.push('hydroxide-falls');
     if (free('CO3') && !ans.includes('HCO3')) tags.push('carbonate-falls');
     if (free('SO4') && !ans.includes('HSO4')) tags.push('sulphate-falls');
-    if (METALS[cat]) tags.push(METALS[cat] + '-salt');
+    if (METALS[cat] && !ans.includes('O') && !ans.includes('OH') && !held) tags.push(METALS[cat] + '-salt');
   }
   if (ans.includes('Cl')) tags.push('chloride');
 
@@ -503,7 +505,7 @@ function pushOut(mKey, sKey) {
   if (!M || !io || ABOVE[M] === undefined || ABOVE[io.cat] === undefined || ABOVE[M] <= ABOVE[io.cat]) return null;
   if (CATIONS[io.cat].charge !== 2 && io.cat !== 'H') return null;
   if (io.cat === 'H' && (io.m !== 2 || io.ans.length !== 1)) return null;   // one metal needs two hydrogens
-  if (io.ans.some((a) => a === 'OH' || a === 'O' || a === 'CO3' || a === 'HCO3')) return null;
+  if (io.ans.some((a) => a === 'OH' || a === 'O' || a === 'CO3' || a === 'HCO3' || a === 'HSO4')) return null;
   const made = ionic(M, io.ans);
   if (!made || made.ions.m !== 1) return null;
   return [made.key, io.cat === 'H' ? 'hydrogen' : METALS[io.cat]];
@@ -562,6 +564,7 @@ function reactionFor(a, b) {
 function canSwap(a, b) {
   const A = SPECIES[a].ions, B = SPECIES[b].ions;
   if (!A || !B || A.cat === 'NH4' || B.cat === 'NH4') return false;
+  if (A.cat === B.cat) return false;                      // two salts of one metal have nothing to trade
   return (CATIONS[A.cat].charge * A.m) % ANIONS[B.ans[0]].charge === 0 &&
          (CATIONS[B.cat].charge * B.m) % ANIONS[A.ans[0]].charge === 0;
 }
@@ -572,11 +575,14 @@ function shouldReact(a, b) {
   // an ammonium salt gives its hydrogen up to anything that holds one more tightly than ammonia does
   const ammoniumMeets = (t, o) => has(t, 'ammonium') && !has(o, 'ammonia') &&
     (has(o, 'base') || (has(o, 'carbonate') && !has(o, 'hydrogencarbonate')));
-  return pair('acid', 'base') || pair('hydrogencarbonate', 'base') || pair('slakes', 'water') ||
+  return pair('acid', 'base') || pair('slakes', 'water') ||
+    (pair('hydrogencarbonate', 'base') && !has(A, 'ammonia') && !has(B, 'ammonia')) ||
     pair('acid', 'carbonate') || ammoniumMeets(A, B) || ammoniumMeets(B, A) ||
-    pair('beats-hydrogen', 'diprotic-acid') || pair('beats-copper', 'copper-salt') || pair('beats-zinc', 'zinc-salt') ||
+    pair('beats-hydrogen', 'diprotic-acid') ||
+    (soluble && (pair('beats-copper', 'copper-salt') || pair('beats-zinc', 'zinc-salt'))) ||
     (soluble && canSwap(a, b) && !has(A, 'oxide') && !has(B, 'oxide') &&
-      (pair('carbonate', 'carbonate-falls') || pair('sulphate', 'sulphate-falls') ||
+      ((pair('carbonate', 'carbonate-falls') && !has(A, 'hydrogencarbonate') && !has(B, 'hydrogencarbonate')) ||
+       pair('sulphate', 'sulphate-falls') ||
        (has(A, 'base') !== has(B, 'base') && pair('base', 'hydroxide-falls')))) ||
     pair('alkene', 'hydrogen') || pair('alkene', 'halogen') || pair('alkene', 'hydrogen-halide') || pair('alkene', 'water') ||
     pair('alcohol', 'carboxylic-acid') || pair('alcohol', 'oxygen') || pair('alcohol', 'hydrogen-halide') ||

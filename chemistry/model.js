@@ -33,10 +33,13 @@ const ELEMENTS = {
   F:  { name: 'fluorine',  hands: 1, mass: 19 },
   Cl: { name: 'chlorine',  hands: 1, mass: 35 },
   Na: { name: 'sodium',    hands: 1, mass: 23 },
+  K:  { name: 'potassium', hands: 1, mass: 39 },
   Mg: { name: 'magnesium', hands: 2, mass: 24 },
   Ca: { name: 'calcium',   hands: 2, mass: 40 },
   Al: { name: 'aluminium', hands: 3, mass: 27 },
   Fe: { name: 'iron',      hands: 3, mass: 56 },
+  Zn: { name: 'zinc',      hands: 2, mass: 65 },
+  Cu: { name: 'copper',    hands: 2, mass: 64 },
 };
 const ORDER = Object.keys(ELEMENTS);
 const MAX_BOND = 3;

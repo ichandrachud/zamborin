@@ -244,9 +244,9 @@ const closeReactionCard = async (ev, press) => {
   }
   return false;
 };
-await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&chapter=2&level=2' }, async ({ ev, mouseDrag, click }) => {
+await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&chapter=2&level=4' }, async ({ ev, mouseDrag, click }) => {
   let st = await ev('__chem.state'), g = await ev('__chem.geom()');
-  ok(st.chapter === 2 && st.pieces.length === 7, 'chapter 2 level 2 floats seven molecules', [st.chapter, st.pieces.length]);
+  ok(st.chapter === 2 && st.pieces.length === 6, 'chapter 2 level 4 floats six molecules', [st.chapter, st.pieces.length]);
   const tubeC = centre(g.tube), beakerC = centre(g.beaker);
   await mouseDrag(g.pieces[keyAt(st, 'hydrochloric-acid').id], tubeC);
   await mouseDrag(g.pieces[keyAt(st, 'sodium-chloride').id], tubeC);
@@ -282,10 +282,10 @@ await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&chapter=2&level=2
   ok(!!g.cta, 'the win card shows');
   if (g.cta) await click(g.cta.x + g.cta.w / 2, g.cta.y + g.cta.h / 2);
   st = await ev('__chem.state');
-  ok(st.level === 3 && !st.card, 'NEXT LEVEL loads reaction level 3', [st.level, st.card]);
+  ok(st.level === 5 && !st.card, 'NEXT LEVEL loads reaction level 5', [st.level, st.card]);
 });
 
-await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&chapter=2&level=6' }, async ({ ev, mouseDrag, click }) => {
+await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&chapter=2&level=16' }, async ({ ev, mouseDrag, click }) => {
   let st = await ev('__chem.state'), g = await ev('__chem.geom()');
   const tubeC = centre(g.tube), beakerC = centre(g.beaker);
   await mouseDrag(g.pieces[keyAt(st, 'ammonium-chloride').id], tubeC);
@@ -337,7 +337,7 @@ await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&chapter=2&level=1
   ok(st.result && st.result.kind === 'win', 'then the salt goes to the petri dish: won', st.result);
 });
 
-await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&chapter=2&level=7' }, async ({ ev, mouseDrag, click }) => {
+await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&chapter=2&level=13' }, async ({ ev, mouseDrag, click }) => {
   let st = await ev('__chem.state'), g = await ev('__chem.geom()');
   const tubeC = centre(g.tube);
   await mouseDrag(g.pieces[keyAt(st, 'calcium-oxide').id], tubeC);
@@ -454,9 +454,9 @@ await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&crowd=0' }, async
   ok(st.phase === 'play' && st.chapter === 1 && st.level === 2, 'tapping the next level plays it', [st.phase, st.chapter, st.level]);
 });
 
-await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&chapter=2&level=7' }, async ({ ev, click }) => {
+await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&chapter=2&level=60' }, async ({ ev, click }) => {
   await ev(`(() => { __chem.freeze(0); const L = __chem.lab;
-    for (const [where, key] of ChemLevels.lab.desktop[6].solution) { L.act(where, L.find(key)); __chem.advance(2800); }
+    for (const [where, key] of ChemLevels.lab.desktop[59].solution) { L.act(where, L.find(key)); __chem.advance(2800); }
     __chem.advance(2600); })()`);
   let st = await ev('__chem.state');
   const g = await ev('__chem.geom()');

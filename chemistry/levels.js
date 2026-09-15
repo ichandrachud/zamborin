@@ -208,58 +208,210 @@ RUNGS.forEach((row, i) => {
    molecule is taken from the tray first, then the dish; tests.mjs plays it.
    Desktop dishes carry a decoy or two more than phones. */
 const R = (targets, dish, seed, note, solution, clue) => ({ targets, dish, seed, note, solution, clue });
-const lab = {
-  mobile: [
-    R([['sodium-chloride', 1]], ['hydrochloric-acid', 'sodium-hydroxide', 'water'], 31,
-      'An acid and a base make a salt and water.',
-      [['tube', 'hydrochloric-acid'], ['tube', 'sodium-hydroxide'], ['beaker', 'sodium-chloride']]),
-    R([['calcium-sulphate', 1]], ['sulphuric-acid', 'hydrochloric-acid', 'calcium-hydroxide', 'water', 'sodium-chloride'], 32,
-      'Sulphuric acid and calcium hydroxide make calcium sulphate, and two waters.',
-      [['tube', 'sulphuric-acid'], ['tube', 'calcium-hydroxide'], ['beaker', 'calcium-sulphate']]),
-    R([['calcium-chloride', 1]], ['hydrochloric-acid', 'hydrochloric-acid', 'calcium-hydroxide', 'sulphuric-acid', 'water'], 33,
-      'An acid takes one hydroxide at a time. The basic salt in between is half done.',
-      [['tube', 'hydrochloric-acid'], ['tube', 'calcium-hydroxide'], ['tube', 'calcium-hydroxychloride'], ['tube', 'hydrochloric-acid'], ['beaker', 'calcium-chloride']]),
-    R([['sodium-sulphate', 1]], ['sulphuric-acid', 'sodium-hydroxide', 'sodium-hydroxide', 'hydrochloric-acid', 'water'], 34,
-      'Sulphuric acid has two hydrogens to give, so it takes two sodium hydroxides.',
-      [['tube', 'sulphuric-acid'], ['tube', 'sodium-hydroxide'], ['tube', 'sodium-hydrogen-sulphate'], ['tube', 'sodium-hydroxide'], ['beaker', 'sodium-sulphate']]),
-    R([['calcium-sulphate', 1], ['sodium-chloride', 1]], ['sulphuric-acid', 'calcium-hydroxychloride', 'sodium-hydroxide', 'water', 'sodium-nitrate'], 35,
-      'The acid you need can come out of the first reaction.',
-      [['tube', 'sulphuric-acid'], ['tube', 'calcium-hydroxychloride'], ['beaker', 'calcium-sulphate'], ['tube', 'hydrochloric-acid'], ['tube', 'sodium-hydroxide'], ['beaker', 'sodium-chloride']]),
-    R([['ammonium-nitrate', 1]], ['ammonium-chloride', 'sodium-hydroxide', 'nitric-acid', 'hydrochloric-acid', 'water'], 36,
-      'Sodium hydroxide drives ammonia out of its salt. Catch the gas before the next reaction pours it away.',
-      [['tube', 'ammonium-chloride'], ['tube', 'sodium-hydroxide'], ['dish', 'ammonia'], ['tube', 'ammonia'], ['tube', 'nitric-acid'], ['beaker', 'ammonium-nitrate']]),
-    R([['calcium-hydroxide', 1], ['sodium-chloride', 1]], ['calcium-oxide', 'hydrochloric-acid', 'sodium-hydroxide', 'sodium-nitrate'], 37,
-      'Quicklime and water make slaked lime. The water came from the first reaction.',
-      [['tube', 'hydrochloric-acid'], ['tube', 'sodium-hydroxide'], ['beaker', 'sodium-chloride'], ['dish', 'water'], ['tube', 'calcium-oxide'], ['tube', 'water'], ['beaker', 'calcium-hydroxide']]),
-  ],
-  desktop: [
-    R([['sodium-chloride', 1]], ['hydrochloric-acid', 'sodium-hydroxide', 'water', 'nitric-acid'], 41,
-      'An acid and a base make a salt and water.',
-      [['tube', 'hydrochloric-acid'], ['tube', 'sodium-hydroxide'], ['beaker', 'sodium-chloride']]),
-    R([['calcium-sulphate', 1]], ['sulphuric-acid', 'hydrochloric-acid', 'nitric-acid', 'calcium-hydroxide', 'water', 'sodium-chloride', 'sodium-nitrate'], 42,
-      'Sulphuric acid and calcium hydroxide make calcium sulphate, and two waters.',
-      [['tube', 'sulphuric-acid'], ['tube', 'calcium-hydroxide'], ['beaker', 'calcium-sulphate']]),
-    R([['calcium-chloride', 1]], ['hydrochloric-acid', 'hydrochloric-acid', 'calcium-hydroxide', 'sulphuric-acid', 'nitric-acid', 'water', 'sodium-chloride'], 43,
-      'An acid takes one hydroxide at a time. The basic salt in between is half done.',
-      [['tube', 'hydrochloric-acid'], ['tube', 'calcium-hydroxide'], ['tube', 'calcium-hydroxychloride'], ['tube', 'hydrochloric-acid'], ['beaker', 'calcium-chloride']]),
-    R([['sodium-sulphate', 1]], ['sulphuric-acid', 'sodium-hydroxide', 'sodium-hydroxide', 'hydrochloric-acid', 'nitric-acid', 'water', 'sodium-chloride'], 44,
-      'Sulphuric acid has two hydrogens to give, so it takes two sodium hydroxides.',
-      [['tube', 'sulphuric-acid'], ['tube', 'sodium-hydroxide'], ['tube', 'sodium-hydrogen-sulphate'], ['tube', 'sodium-hydroxide'], ['beaker', 'sodium-sulphate']]),
-    R([['calcium-sulphate', 1], ['sodium-chloride', 1]], ['sulphuric-acid', 'calcium-hydroxychloride', 'sodium-hydroxide', 'water', 'sodium-nitrate', 'nitric-acid', 'calcium-chloride'], 45,
-      'The acid you need can come out of the first reaction.',
-      [['tube', 'sulphuric-acid'], ['tube', 'calcium-hydroxychloride'], ['beaker', 'calcium-sulphate'], ['tube', 'hydrochloric-acid'], ['tube', 'sodium-hydroxide'], ['beaker', 'sodium-chloride']]),
-    R([['ammonium-nitrate', 1]], ['ammonium-chloride', 'sodium-hydroxide', 'nitric-acid', 'hydrochloric-acid', 'water', 'sodium-chloride', 'sodium-nitrate'], 46,
-      'Sodium hydroxide drives ammonia out of its salt. Catch the gas before the next reaction pours it away.',
-      [['tube', 'ammonium-chloride'], ['tube', 'sodium-hydroxide'], ['dish', 'ammonia'], ['tube', 'ammonia'], ['tube', 'nitric-acid'], ['beaker', 'ammonium-nitrate']]),
-    R([['calcium-hydroxide', 1], ['sodium-chloride', 1]], ['calcium-oxide', 'hydrochloric-acid', 'sodium-hydroxide', 'sodium-nitrate', 'nitric-acid', 'calcium-chloride'], 47,
-      'Quicklime and water make slaked lime. The water came from the first reaction.',
-      [['tube', 'hydrochloric-acid'], ['tube', 'sodium-hydroxide'], ['beaker', 'sodium-chloride'], ['dish', 'water'], ['tube', 'calcium-oxide'], ['tube', 'water'], ['beaker', 'calcium-hydroxide']]),
-  ],
-};
+/* ---------- chapter 2: the Chem Lab ----------
+   Sixty benches, in the order the chemistry builds up: an acid meeting a
+   base, then one hydrogen at a time, metal oxides, ammonia, carbonates
+   fizzing, metals pushing each other out, and solids dropping out of clear
+   water.
 
-/* ---------- CHAPTER 3: ORGANIC ----------
-   The same bench, carbon chemistry. One reaction a level at first, then a
-   synthesis: two reactions to make what the third one needs. */
+   A lesson is written once: what it teaches, what to make, and the
+   reactions that make it. The dish and the worked solution are read off the
+   route, so a level cannot drift from its own answer, and the last two
+   lists are the decoys — the phone gets a few, the desktop more, which is
+   what makes the two breakpoints two different benches. tests.mjs plays
+   every solution through and checks nothing is lost on the way. */
+const LESSONS = [
+  // ---- an acid and a base ----
+  ['An acid and a base make a salt and water.', ['sodium-chloride'],
+    [['hydrochloric-acid', 'sodium-hydroxide']], ['water'], ['nitric-acid']],
+  ['Every acid has its own salt. Nitric acid makes a nitrate.', ['potassium-nitrate'],
+    [['nitric-acid', 'potassium-hydroxide']], ['water', 'sodium-chloride'], ['hydrochloric-acid']],
+  ['Hydrobromic acid makes a bromide, the same way.', ['sodium-bromide'],
+    [['hydrobromic-acid', 'sodium-hydroxide']], ['water', 'potassium-nitrate'], ['nitric-acid', 'sodium-chloride']],
+  ['Sulphuric acid and calcium hydroxide make calcium sulphate, and two waters.', ['calcium-sulphate'],
+    [['sulphuric-acid', 'calcium-hydroxide']], ['hydrochloric-acid', 'water'], ['sodium-chloride', 'nitric-acid']],
+  // ---- one hydrogen at a time ----
+  ['Sulphuric acid has two hydrogens to give, so it takes two sodium hydroxides.', ['sodium-sulphate'],
+    [['sulphuric-acid', 'sodium-hydroxide'], ['sodium-hydrogen-sulphate', 'sodium-hydroxide']], ['water'], ['hydrochloric-acid', 'sodium-chloride']],
+  ['An acid takes one hydroxide at a time. The basic salt in between is half done.', ['calcium-chloride'],
+    [['hydrochloric-acid', 'calcium-hydroxide'], ['calcium-hydroxychloride', 'hydrochloric-acid']], ['sulphuric-acid', 'water'], ['nitric-acid', 'sodium-chloride']],
+  ['Two different acids, one at each hydroxide, leave a salt of both.', ['calcium-chloride-nitrate'],
+    [['hydrochloric-acid', 'calcium-hydroxide'], ['calcium-hydroxychloride', 'nitric-acid']], ['water'], ['sulphuric-acid', 'sodium-chloride']],
+  ['Potassium hydroxide takes the same two steps as sodium.', ['potassium-sulphate'],
+    [['sulphuric-acid', 'potassium-hydroxide'], ['potassium-hydrogen-sulphate', 'potassium-hydroxide']], ['water', 'sodium-chloride'], ['hydrochloric-acid', 'potassium-nitrate']],
+  // ---- metal oxides ----
+  ['A metal oxide is a base too: it takes the acid’s hydrogens as water.', ['copper-sulphate'],
+    [['copper-oxide', 'sulphuric-acid']], ['water', 'sodium-chloride'], ['hydrochloric-acid', 'nitric-acid']],
+  ['Zinc oxide takes one hydrogen, then the other.', ['zinc-chloride'],
+    [['zinc-oxide', 'hydrochloric-acid'], ['zinc-hydroxychloride', 'hydrochloric-acid']], ['water'], ['sulphuric-acid', 'sodium-chloride']],
+  ['Magnesium oxide and nitric acid, one hydrogen at a time.', ['magnesium-nitrate'],
+    [['magnesium-oxide', 'nitric-acid'], ['magnesium-hydroxynitrate', 'nitric-acid']], ['water', 'sodium-chloride'], ['hydrochloric-acid', 'potassium-nitrate']],
+  ['Quicklime and water make slaked lime, and it gets hot as it does.', ['calcium-hydroxide'],
+    [['calcium-oxide', 'water']], ['sodium-chloride'], ['hydrochloric-acid', 'sodium-nitrate']],
+  ['The water you need can come out of a reaction you have already run.', ['calcium-hydroxide', 'sodium-chloride'],
+    [['hydrochloric-acid', 'sodium-hydroxide'], ['calcium-oxide', 'water']], ['sodium-nitrate'], ['nitric-acid', 'potassium-nitrate']],
+  // ---- ammonia ----
+  ['Ammonia is a base with no hydroxide at all, so it makes no water.', ['ammonium-chloride'],
+    [['ammonia', 'hydrochloric-acid']], ['water', 'sodium-chloride'], ['nitric-acid']],
+  ['A strong base drives ammonia back out of its salt.', ['ammonia'],
+    [['ammonium-chloride', 'sodium-hydroxide']], ['water'], ['hydrochloric-acid', 'sodium-chloride']],
+  ['Drive the ammonia out, then give it to a different acid.', ['ammonium-nitrate'],
+    [['ammonium-chloride', 'sodium-hydroxide'], ['ammonia', 'nitric-acid']], ['water'], ['hydrochloric-acid', 'sodium-chloride']],
+  ['Quicklime will drive ammonia out as well as any hydroxide.', ['ammonia'],
+    [['ammonium-nitrate', 'calcium-oxide']], ['water', 'sodium-chloride'], ['hydrochloric-acid', 'sodium-nitrate']],
+  // ---- carbonates ----
+  ['Washing soda takes one hydrogen and becomes baking soda.', ['sodium-hydrogencarbonate'],
+    [['sodium-carbonate', 'hydrochloric-acid']], ['water'], ['nitric-acid', 'sodium-chloride']],
+  ['One more hydrogen and the carbon dioxide comes off: that is the fizz.', ['carbon-dioxide'],
+    [['sodium-hydrogencarbonate', 'hydrochloric-acid']], ['water', 'sodium-chloride'], ['nitric-acid']],
+  ['Two steps from washing soda to the fizz.', ['carbon-dioxide', 'sodium-chloride'],
+    [['sodium-carbonate', 'hydrochloric-acid'], ['sodium-hydrogencarbonate', 'hydrochloric-acid']], ['water'], ['nitric-acid', 'potassium-nitrate']],
+  ['Sulphuric acid has two hydrogens, so limestone fizzes in one go.', ['carbon-dioxide', 'calcium-sulphate'],
+    [['calcium-carbonate', 'sulphuric-acid']], ['water'], ['hydrochloric-acid', 'sodium-chloride']],
+  ['An alkali takes baking soda back to washing soda.', ['sodium-carbonate'],
+    [['sodium-hydrogencarbonate', 'sodium-hydroxide']], ['water', 'sodium-chloride'], ['hydrochloric-acid']],
+  // ---- metals ----
+  ['A metal pushes the acid’s hydrogen out, and it bubbles away.', ['hydrogen'],
+    [['magnesium', 'sulphuric-acid']], ['water'], ['sodium-chloride', 'sodium-sulphate']],
+  ['Zinc does it too, a little more slowly.', ['zinc-sulphate'],
+    [['zinc', 'sulphuric-acid']], ['water', 'sodium-chloride'], ['sodium-sulphate', 'potassium-nitrate']],
+  ['A livelier metal takes the salt and leaves the quieter one behind.', ['copper'],
+    [['zinc', 'copper-sulphate']], ['water', 'sodium-chloride'], ['zinc-sulphate', 'potassium-nitrate']],
+  ['Magnesium is livelier than zinc, so it pushes zinc out as well.', ['zinc'],
+    [['magnesium', 'zinc-chloride']], ['water', 'sodium-chloride'], ['magnesium-chloride', 'potassium-nitrate']],
+  ['Make the salt first, then push the metal out of it.', ['copper'],
+    [['copper-oxide', 'sulphuric-acid'], ['copper-sulphate', 'magnesium']], ['water'], ['sodium-chloride', 'magnesium-sulphate']],
+  // ---- solids that fall out ----
+  ['Swap the partners of two salts, and chalk falls out of the water.', ['calcium-carbonate'],
+    [['sodium-carbonate', 'calcium-chloride']], ['water', 'sodium-chloride'], ['potassium-nitrate', 'sodium-nitrate']],
+  ['Any carbonate and any of these metals: the carbonate is the one that will not dissolve.', ['magnesium-carbonate'],
+    [['potassium-carbonate', 'magnesium-bromide']], ['water', 'potassium-bromide'], ['sodium-chloride', 'potassium-nitrate']],
+  ['A hydroxide will fall out too, if the metal holds it tightly enough.', ['zinc-hydroxychloride'],
+    [['sodium-hydroxide', 'zinc-chloride']], ['water', 'sodium-chloride'], ['potassium-nitrate', 'sodium-nitrate']],
+  ['Calcium sulphate is the plaster on a wall: it will not stay in water either.', ['calcium-sulphate'],
+    [['sodium-sulphate', 'calcium-chloride']], ['water', 'sodium-chloride'], ['potassium-nitrate', 'sodium-nitrate']],
+  ['Make the carbonate first, then drop it out as chalk.', ['calcium-carbonate'],
+    [['sodium-hydrogencarbonate', 'sodium-hydroxide'], ['sodium-carbonate', 'calcium-chloride']], ['water'], ['sodium-chloride', 'potassium-nitrate']],
+  // ---- copper, and the colours of it ----
+  ['Copper carbonate is the green on an old roof. It will not dissolve.', ['copper-carbonate'],
+    [['copper-sulphate', 'sodium-carbonate']], ['water', 'sodium-sulphate'], ['sodium-chloride', 'potassium-nitrate']],
+  ['Acid takes the green carbonate back to a blue salt, fizzing as it goes.', ['copper-chloride', 'carbon-dioxide'],
+    [['copper-carbonate', 'hydrochloric-acid'], ['copper-chloride-hydrogencarbonate', 'hydrochloric-acid']], ['water'], ['sodium-chloride', 'nitric-acid']],
+  ['Make the green carbonate, then push the copper out of what is left.', ['copper-carbonate', 'copper'],
+    [['copper-sulphate', 'sodium-carbonate'], ['copper-sulphate', 'zinc']], ['water'], ['sodium-chloride', 'zinc-sulphate']],
+  // ---- three steps ----
+  ['Three steps: slake the lime, then take both hydroxides off it.', ['calcium-chloride'],
+    [['calcium-oxide', 'water'], ['calcium-hydroxide', 'hydrochloric-acid'], ['calcium-hydroxychloride', 'hydrochloric-acid']], [], ['sulphuric-acid', 'sodium-chloride']],
+  ['Slake the lime with water you make yourself.', ['calcium-hydroxide', 'potassium-nitrate'],
+    [['nitric-acid', 'potassium-hydroxide'], ['calcium-oxide', 'water']], ['sodium-chloride'], ['hydrochloric-acid', 'sodium-nitrate']],
+  ['The acid for the second reaction comes out of the first.', ['calcium-sulphate', 'sodium-chloride'],
+    [['sulphuric-acid', 'calcium-hydroxychloride'], ['hydrochloric-acid', 'sodium-hydroxide']], ['water'], ['sodium-nitrate', 'nitric-acid']],
+  ['Drop the chalk out, then fizz it with the acid you set free.', ['calcium-carbonate', 'carbon-dioxide'],
+    [['sodium-carbonate', 'calcium-chloride'], ['sodium-hydrogencarbonate', 'hydrochloric-acid']],
+    ['sodium-hydrogencarbonate', 'hydrochloric-acid'], ['water', 'sodium-chloride']],
+  // ---- baking soda, both ways ----
+  ['Baking soda from washing soda, and the salt beside it.', ['sodium-hydrogencarbonate', 'sodium-chloride'],
+    [['sodium-carbonate', 'hydrochloric-acid']], ['water'], ['nitric-acid', 'potassium-nitrate']],
+  ['Potassium keeps up with sodium all the way to the fizz.', ['carbon-dioxide', 'potassium-chloride'],
+    [['potassium-carbonate', 'hydrochloric-acid'], ['potassium-hydrogencarbonate', 'hydrochloric-acid']], ['water'], ['nitric-acid', 'sodium-chloride']],
+  ['An ammonium salt fizzes as well, and gives up its ammonia after.', ['carbon-dioxide', 'ammonia'],
+    [['ammonium-hydrogencarbonate', 'hydrochloric-acid'], ['ammonium-chloride', 'sodium-hydroxide']],
+    ['ammonium-chloride', 'sodium-hydroxide'], ['water', 'sodium-chloride']],
+  ['Turn baking soda back into washing soda, then drop it out as chalk.', ['calcium-carbonate', 'sodium-chloride'],
+    [['sodium-hydrogencarbonate', 'sodium-hydroxide'], ['sodium-carbonate', 'calcium-chloride']], ['water'], ['nitric-acid', 'potassium-nitrate']],
+  // ---- the reactivity order ----
+  ['Copper sits below hydrogen, so no acid will push it out. Use a livelier metal.', ['copper', 'magnesium-sulphate'],
+    [['magnesium', 'copper-sulphate']], ['water', 'sulphuric-acid'], ['sodium-chloride', 'potassium-nitrate']],
+  ['Zinc pushes copper out but cannot touch magnesium.', ['copper', 'zinc-bromide'],
+    [['zinc', 'copper-bromide']], ['water', 'magnesium-bromide'], ['sodium-chloride', 'potassium-nitrate']],
+  ['Make the zinc salt with acid, then take the zinc back off it with magnesium.', ['hydrogen', 'magnesium-sulphate'],
+    [['zinc', 'sulphuric-acid'], ['zinc-sulphate', 'magnesium']], ['water'], ['sodium-chloride', 'potassium-nitrate']],
+  ['Dissolve the zinc carbonate in acid first: the metal is locked up in a solid.', ['zinc', 'carbon-dioxide'],
+    [['zinc-carbonate', 'sulphuric-acid'], ['zinc-sulphate', 'magnesium']], ['water'], ['sodium-chloride', 'potassium-nitrate']],
+  // ---- two targets, two routes ----
+  ['Two salts to make, and only one of each acid.', ['sodium-chloride', 'potassium-nitrate'],
+    [['hydrochloric-acid', 'sodium-hydroxide'], ['nitric-acid', 'potassium-hydroxide']], ['water'], ['sodium-nitrate', 'potassium-chloride']],
+  ['Both salts of sulphuric acid: stop at the first for one, go on for the other.', ['sodium-hydrogen-sulphate', 'sodium-sulphate'],
+    [['sulphuric-acid', 'sodium-hydroxide'], ['sulphuric-acid', 'sodium-hydroxide'], ['sodium-hydrogen-sulphate', 'sodium-hydroxide']],
+    ['water'], ['hydrochloric-acid', 'sodium-chloride']],
+  ['Two salts of calcium: one half done, one with a different acid on each side.', ['calcium-hydroxynitrate', 'calcium-chloride-nitrate'],
+    [['nitric-acid', 'calcium-hydroxide'], ['hydrochloric-acid', 'calcium-hydroxide'], ['calcium-hydroxychloride', 'nitric-acid']],
+    ['water'], ['sulphuric-acid', 'sodium-chloride']],
+  ['A solid and a gas from the same bench.', ['calcium-carbonate', 'carbon-dioxide'],
+    [['sodium-carbonate', 'calcium-chloride'], ['sodium-hydrogencarbonate', 'nitric-acid']],
+    ['sodium-hydrogencarbonate', 'nitric-acid'], ['water', 'sodium-chloride']],
+  // ---- work out what the bench can spare ----
+  ['The hydroxide you need is what the first reaction leaves behind.', ['calcium-sulphate', 'sodium-chloride'],
+    [['sodium-hydrogen-sulphate', 'calcium-hydroxide'], ['sodium-hydroxide', 'hydrochloric-acid']], ['water'], ['nitric-acid', 'sodium-nitrate']],
+  ['Quicklime takes the ammonia out, and the water it makes slakes the next one.', ['ammonia', 'calcium-hydroxide'],
+    [['ammonium-chloride', 'sodium-hydroxide'], ['calcium-oxide', 'water']], ['sodium-chloride'], ['hydrochloric-acid', 'sodium-nitrate']],
+  ['Set the nitric acid free from its salt, then fizz the soda with it.', ['calcium-sulphate', 'carbon-dioxide'],
+    [['sulphuric-acid', 'calcium-hydroxynitrate'], ['nitric-acid', 'sodium-hydrogencarbonate']], ['water'], ['sodium-chloride', 'potassium-nitrate']],
+  ['Everything here is wanted twice. Spend it in the right order.', ['zinc-chloride', 'carbon-dioxide'],
+    [['zinc-oxide', 'hydrochloric-acid'], ['zinc-hydroxychloride', 'hydrochloric-acid'], ['sodium-hydrogencarbonate', 'hydrochloric-acid']],
+    ['water'], ['sodium-chloride', 'nitric-acid']],
+  // ---- the long ones ----
+  ['Four reactions, and the bench gives you nothing spare.', ['calcium-chloride', 'sodium-sulphate'],
+    [['calcium-oxide', 'water'], ['calcium-hydroxide', 'hydrochloric-acid'], ['calcium-hydroxychloride', 'hydrochloric-acid'],
+     ['sulphuric-acid', 'sodium-hydroxide'], ['sodium-hydrogen-sulphate', 'sodium-hydroxide']], [], ['sodium-chloride', 'nitric-acid']],
+  ['From quicklime to chalk, the long way round.', ['calcium-carbonate'],
+    [['calcium-oxide', 'water'], ['calcium-hydroxide', 'hydrochloric-acid'], ['calcium-hydroxychloride', 'hydrochloric-acid'],
+     ['calcium-chloride', 'sodium-carbonate']], ['water'], ['sodium-chloride', 'nitric-acid']],
+  ['Copper, twice over: out of its carbonate and out of its sulphate.', ['copper', 'carbon-dioxide'],
+    [['copper-carbonate', 'sulphuric-acid'], ['copper-sulphate', 'zinc']], ['water'], ['sodium-chloride', 'zinc-sulphate']],
+  ['Make the washing soda, drop the chalk, and keep the fizz for last.', ['calcium-carbonate', 'carbon-dioxide', 'sodium-chloride'],
+    [['sodium-hydrogencarbonate', 'sodium-hydroxide'], ['sodium-carbonate', 'calcium-chloride'], ['sodium-hydrogencarbonate', 'hydrochloric-acid']],
+    ['sodium-hydrogencarbonate'], ['water', 'nitric-acid']],
+  ['Everything you have learned, in one bench.', ['copper', 'calcium-carbonate', 'ammonia'],
+    [['copper-sulphate', 'magnesium'], ['sodium-carbonate', 'calcium-chloride'], ['ammonium-chloride', 'sodium-hydroxide']],
+    ['water'], ['sodium-chloride', 'potassium-nitrate']],
+];
+
+/* Read a lesson: which molecules the dish must start with, and the moves
+   that win. Anything the next reaction would pour off the tray is put back
+   in the dish first, and anything on the list is handed over as it appears. */
+const chem = () => root.ChemLab || (typeof require === 'function' ? require('./lab.js') : null);
+function bench(note, targets, route, decoys, seed) {
+  const dish = [], moves = [], owed = {};
+  for (const t of targets) owed[t] = (owed[t] || 0) + 1;
+  let tray = [];
+  const stock = {};
+  const wantedLater = (i, k) => owed[k] > 0 || route.slice(i).some(([a, b]) => a === k || b === k);
+  route.forEach(([a, b], i) => {
+    const keep = [];
+    for (const k of tray) {
+      if ((k === a || k === b) && !keep.includes(k)) { keep.push(k); continue; }
+      if (wantedLater(i, k)) { moves.push(['dish', k]); stock[k] = (stock[k] || 0) + 1; }
+    }
+    tray = keep;
+    for (const k of [a, b]) {
+      const t = tray.indexOf(k);
+      if (t >= 0) tray.splice(t, 1);
+      else if (stock[k]) stock[k]--;
+      else dish.push(k);
+      moves.push(['tube', k]);
+    }
+    tray = chem().reactionFor(a, b).products.slice();
+    for (let j = 0; j < tray.length; j++) {
+      const k = tray[j];
+      if (owed[k] > 0) { moves.push(['beaker', k]); owed[k]--; tray.splice(j--, 1); }
+    }
+  });
+  return R(targets.map((k) => [k, 1]), [...dish, ...decoys], seed, note, moves);
+}
+let ladder = null;
+function rungs() {
+  if (!ladder) {
+    ladder = { mobile: [], desktop: [] };
+    LESSONS.forEach(([note, targets, route, phone, more], i) => {
+      ladder.mobile.push(bench(note, targets, route, phone, 31 + i));
+      ladder.desktop.push(bench(note, targets, route, [...phone, ...(more || [])], 201 + i));
+    });
+  }
+  return ladder;
+}
+const lab = { get mobile() { return rungs().mobile; }, get desktop() { return rungs().desktop; } };
+
 const organic = {
   mobile: [
     R([['ethane', 1]], ['ethene', 'hydrogen', 'water'], 51,

@@ -374,7 +374,7 @@ for (const [a, b, why] of NEVER) {
   ok(checked > 100, 'every molecule on the bench had its formula read back (' + checked + ')');
 }
 
-for (const [chapter, sets, count] of [['reactions', L.lab, 7], ['organic', L.organic, 6]]) for (const set of ['mobile', 'desktop']) {
+for (const [chapter, sets, count] of [['reactions', L.lab, 60], ['organic', L.organic, 6]]) for (const set of ['mobile', 'desktop']) {
   eq(sets[set].length, count, chapter + ', ' + set + ': ' + count + ' levels');
   sets[set].forEach((lv, i) => {
     const name = chapter + ', ' + set + ' level ' + (i + 1);

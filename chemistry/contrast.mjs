@@ -36,12 +36,37 @@ try {
       out[a.el] = { body: +ratio(avg(body), glass).toFixed(2), glass };
     }
     return out; })()`);
+  /* The Chem Lab's own marbles: potassium, zinc, copper, bromine and sulphur
+     never float in chapter 1, so they are measured on the bench instead, where
+     the molecules are drawn smaller and the glass behind them is the same. */
+  const bench = (chapter, level) => p.ev(`(() => { ${LIB}
+    __chem.goto(${level}, ${chapter}); __chem.freeze(0); __chem.advance(200);
+    const g = __chem.geom(), R = g.marble, out = {};
+    for (const a of g.atoms) {
+      if (out[a.el]) continue;
+      const body = [];
+      for (let t = 0; t < 16; t++) for (const f of [0.2, 0.45, 0.7]) body.push([a.x + Math.cos(t/16*6.283)*R*f, a.y + Math.sin(t/16*6.283)*R*f]);
+      let glass = null;
+      for (let t = 0; t < 12; t++) {
+        const c = px(a.x + Math.cos(t/12*6.283)*R*3.4, a.y + Math.sin(t/12*6.283)*R*3.4);
+        if (!glass || lum(c) < lum(glass)) glass = c;
+      }
+      out[a.el] = { body: +ratio(avg(body), glass).toFixed(2), glass };
+    }
+    return out; })()`);
   const res = Object.assign(await measure(44), await measure(22));
+  const lab = Object.assign({}, await bench(2, 26), await bench(2, 28), await bench(2, 3), await bench(2, 9));
   for (const el of ['H', 'O', 'N', 'C', 'F', 'Cl', 'Na', 'Mg', 'Al', 'Ca', 'Fe']) {
     const r = res[el];
     const pass = r && r.body >= 3;
     if (!pass) failed++;
     console.log(`${el}: body on glass ${r ? r.body : '?'}:1 ${pass ? 'ok' : 'UNDER 3:1'}`);
+  }
+  for (const el of ['K', 'Zn', 'Cu', 'Br', 'S']) {
+    const r = lab[el];
+    const pass = r && r.body >= 3;
+    if (!pass) failed++;
+    console.log(`${el}: body on the bench glass ${r ? r.body : 'never drawn'}:1 ${pass ? 'ok' : 'UNDER 3:1'}`);
   }
   if (p.errors.length) { failed++; console.log('console errors: ' + p.errors.join(' | ')); }
 } finally { p.close(); }

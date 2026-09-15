@@ -44,19 +44,21 @@
     let drag = null;                // { id, from, pid, touch, x, y, ox, oy }
     let react = null;               // { t0, used: [key], poured: [{ key, slot }], eq }
     let chips = [], dropped = [];
-    const D = { x: 0, y: 0, w: 0, h: 0, S: 16, WW: 26, WH: 26 };
+    const D = { x: 0, y: 0, w: 0, h: 0, S: 16, WW: 26, WH: 26, bond: 1.9, atom: 0.58 };
     let tube = { x: 0, y: 0, w: 0, h: 0 }, tray = { x: 0, y: 0, w: 0, h: 0 }, beaker = { x: 0, y: 0, w: 0, h: 0 };
     let targetsArea = { x: 0, y: 0, w: 0, h: 0 };
 
     function gauss() { const u = 1 - host.rng(), v = host.rng(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(TAU * v); }
-    const radiusOf = (key) => X.SPECIES[key].extent * L.bond + L.atom + 0.35;
+    const radiusOf = (key) => X.SPECIES[key].extent * D.bond + D.atom + 0.35;
     /* How near each edge of the dish a molecule's centre may come, in world
        units: every atom, turned any way, and the formula label under it, at
        least 10px inside the glass rim (owner, 2026-09-15). The rim, the 10px
        and the label are pixels, worked out at the size the dish is drawn. */
-    const RIM = 7, CLEAR = 10, chipHalf = new Map();
+    // ...and one pixel more, because a marble's edge is drawn soft and its
+    // last faint ring would otherwise sit inside the ten.
+    const RIM = 7, CLEAR = 10, FRINGE = 1, chipHalf = new Map();
     function margins(key) {
-      const sp = X.SPECIES[key], e = sp.extent * L.bond, pad = (RIM + CLEAR) / D.S;
+      const sp = X.SPECIES[key], e = sp.extent * D.bond, pad = (RIM + CLEAR + FRINGE) / D.S;
       let half = chipHalf.get(key);
       if (half == null) {
         ctx.save(); ctx.font = '700 13px Inter, sans-serif';
@@ -65,9 +67,25 @@
         if (!document.fonts || document.fonts.check('700 13px Inter')) chipHalf.set(key, half);
       }
       // the label hangs below the lowest atom: a third of a bond, then 14px to its middle and 11px more to its bottom
-      return { side: Math.max(e + L.atom, half / D.S) + pad, top: e + L.atom + pad, bottom: e + 0.32 * L.bond + 25 / D.S + pad };
+      return { side: Math.max(e + D.atom, half / D.S) + pad, top: e + D.atom + pad, bottom: e + 0.32 * D.bond + 25 / D.S + pad };
     }
-    const unitPx = () => Math.round(L.bond * D.S * 2) / 2;
+    const unitPx = () => Math.round(D.bond * D.S * 2) / 2;
+    /* The biggest molecule has to sit in the dish with its label under it and
+       still keep 10px off the rim. On a short phone that is more than the dish
+       can give, so the whole bench is drawn a little smaller until it fits. */
+    function fitBench() {
+      D.bond = L.bond; D.atom = L.atom;
+      if (!st) return;
+      const pad = (RIM + CLEAR + FRINGE) / D.S;
+      let k = 1;
+      for (const key of new Set(st.pieces.map((p) => p.key))) {
+        const e = X.SPECIES[key].extent * L.bond;
+        k = Math.min(k, (D.WH - 25 / D.S - 2 * pad) / (2 * e + L.atom + 0.32 * L.bond),
+                        (D.WW / 2 - pad) / (e + L.atom));
+      }
+      k = Math.max(0.5, Math.min(1, k));
+      D.bond = L.bond * k; D.atom = L.atom * k;
+    }
 
     /* ---------- LAYOUT ----------
        Desktop 760x600: the dish on the left, and the bench as a column on the
@@ -98,6 +116,7 @@
         D.S = Math.min(L.maxScale, D.w / L.worldW.desktop);
       }
       D.WW = D.w / D.S; D.WH = D.h / D.S;
+      fitBench();
       if (pos.size && oldW && (Math.abs(oldW - D.WW) > 1e-6 || Math.abs(oldH - D.WH) > 1e-6)) {
         for (const q of pos.values()) { q.x *= D.WW / oldW; q.y *= D.WH / oldH; }
       }
@@ -172,7 +191,7 @@
           return { ang: Math.atan2(o.y - p.y, o.x - p.x), half: Math.hypot(o.x - p.x, o.y - p.y) / 2, order: b.order, key: b.a + '-' + b.b };
         }),
       }));
-      drawAtoms(items, Math.max(1.5, unit * L.atom / L.bond));
+      drawAtoms(items, Math.max(1.5, unit * D.atom / D.bond));
     }
     // The largest bond length that fits a molecule in a w x h box, capped at the dish's own.
     function fit(key, w, h) {
@@ -714,7 +733,7 @@
       let best = null;
       for (const piece of st.pieces) {
         if (piece.zone !== 'dish' || !pos.has(piece.id)) continue;
-        const c = dishPx(pos.get(piece.id)), rad = Math.max(24, (X.SPECIES[piece.key].extent * L.bond + L.atom) * D.S + 6);
+        const c = dishPx(pos.get(piece.id)), rad = Math.max(24, (X.SPECIES[piece.key].extent * D.bond + D.atom) * D.S + 6);
         const d = Math.hypot(c.x - p.x, c.y - p.y);
         if (d <= rad && (!best || d < best.d)) best = { id: piece.id, from: 'dish', d, c };
       }
@@ -841,8 +860,18 @@
           else if (p.zone === 'tray' && traySlot.has(p.id)) pieces[p.id] = centre(traySlotRect(traySlot.get(p.id)));
           else if (p.zone === 'tube') { const k = tubeOrder.indexOf(p.id); if (k >= 0) pieces[p.id] = centre(tubeSlot(k)); }
         }
+        // every marble in the dish, where it is painted, for the contrast check
+        const atoms = [], u = unitPx();
+        for (const p of st.pieces) {
+          if (p.zone !== 'dish' || !pos.has(p.id)) continue;
+          const c = dishPx(pos.get(p.id)), q = pos.get(p.id), co = Math.cos(q.th), sn = Math.sin(q.th);
+          for (const a of X.SPECIES[p.key].atoms) {
+            atoms.push({ el: a.el, x: c.x + (a.x * co - a.y * sn) * u, y: c.y + (a.x * sn + a.y * co) * u });
+          }
+        }
         return { dish: Object.assign({}, D), tube: Object.assign({}, tube), tray: Object.assign({}, tray), beaker: Object.assign({}, beaker),
-                 traySlots: [0, 1, 2].map(traySlotRect), tubeSlots: [0, 1].map(tubeSlot), targets: targetSlots(), pieces,
+                 traySlots: [0, 1, 2].map(traySlotRect), tubeSlots: [0, 1].map(tubeSlot), targets: targetSlots(), pieces, atoms,
+                 marble: Math.max(1.5, u * D.atom / D.bond),
                  hints: { tube: tubeHint().box, dish: dishGeom().hint.box }, petri: (({ x, top, dw, dh }) => ({ x, y: top - 3, w: dw, h: dh + 3 }))(dishGeom()),
                  reactionCard: modal ? { box: modalBox, button: modalBtn } : null };
       },
