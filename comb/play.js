@@ -582,6 +582,7 @@
       bh = LH - botBand() - TRAY_H - 14 - by;
       L.trayBand = { x: SIDE_PAD, y: LH - botBand() - TRAY_H, w: LW - SIDE_PAD * 2, h: TRAY_H, vertical: false };
     }
+    L.boardMid = bx + bw / 2;   // a toast about the whole level centres here
 
     /* The level's own extent, measured at unit radius from the REAL cells.
 
@@ -1070,12 +1071,15 @@
     ctx.globalAlpha = Math.max(0, Math.min(1, dt / 150, (2400 - dt) / 300));
     ctx.font = '600 16px Inter, sans-serif';
     const w = ctx.measureText(toast.msg).width + 36, h = 38;
-    const x = Math.max(SIDE_PAD + w / 2, Math.min(LW - SIDE_PAD - w / 2, L.toast.x));
-    UI.roundRectPath(ctx, x - w / 2, L.toast.y - h / 2, w, h, h / 2);
+    // A toast about Skip sits by Skip. One about the whole level goes over the
+    // board, under the top band: by the tray it covered the pieces on a phone.
+    const y = toast.top ? topBand() + 12 + h / 2 : L.toast.y;
+    const x = Math.max(SIDE_PAD + w / 2, Math.min(LW - SIDE_PAD - w / 2, toast.top ? L.boardMid : L.toast.x));
+    UI.roundRectPath(ctx, x - w / 2, y - h / 2, w, h, h / 2);
     ctx.fillStyle = TOK.bgCard; ctx.fill();
     ctx.strokeStyle = TOK.tint12; ctx.lineWidth = 1; ctx.stroke();
     ctx.fillStyle = TOK.ink90; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(toast.msg, x, L.toast.y + 1);
+    ctx.fillText(toast.msg, x, y + 1);
     ctx.restore();
   }
 
@@ -1587,7 +1591,9 @@
       scrollMax: Math.max(0, contentH - viewH),
       ctaCy: py + ph - FOOTER + 16 + UI.CTA.h / 2,
       title: kind === 'rules' ? 'COMB' : 'FILLED',
-      cta: kind === 'rules' ? 'PLAY' : (isDaily || levelNo >= LEVELS ? 'MAP' : 'NEXT'),
+      cta: kind === 'rules' ? 'PLAY'
+        : isDaily ? (starsAt(LEVELS) > 0 ? 'MAP' : 'LEVEL ' + save.max)
+        : (levelNo >= LEVELS ? 'MAP' : 'NEXT'),
       subtitle: kind === 'rules'
         ? 'Fit the clusters together until no cell is left open.'
         : (lastStars === 3 ? 'Not a move wasted.'
@@ -1871,6 +1877,9 @@
     }
     if (phase === 'win') {
       if (inBox(p, L.hit.next)) {
+        // After the daily, on to the player's own next level; the map is the
+        // top-left button. Only a finished ladder sends it back to the map.
+        if (isDaily && starsAt(LEVELS) === 0) { openLevel(save.max); return; }
         if (isDaily || levelNo >= LEVELS) { phase = 'map'; draw(); return; }
         const wasTier = G.tierOf(levelNo);
         openLevel(levelNo + 1);
@@ -2268,8 +2277,24 @@
     /* A returning player lands IN their next level, with the map one tap
        away on the top-left button. It used to open on the map, which
        CrazyGames counts as a menu between the player and the game: their
-       standard is to "land new users in gameplay immediately". */
-    genLevel(save.max); phase = 'play';
+       standard is to "land new users in gameplay immediately".
+       TODAY'S PUZZLE FIRST, until it is done (owner's call 2026-09-15). The
+       button on the map was the only way in, so a player could come back
+       every day and never see it. Its win card goes on to their own level. */
+    const dailyFirst = save.daily.date !== utcDay();
+    genLevel(dailyFirst ? 0 : save.max, { daily: dailyFirst }); phase = 'play';
+    if (dailyFirst) {
+      // Say so when the splash lifts: this is not the level they left.
+      const hello = () => {
+        if (phase !== 'play' || !isDaily) return;
+        const long = "Today's puzzle · same for everyone";
+        ctx.font = '600 16px Inter, sans-serif';
+        toast = { msg: ctx.measureText(long).width + 36 <= LW - SIDE_PAD * 2 ? long : "Today's puzzle", t: performance.now(), top: true };
+        draw();
+      };
+      if (document.getElementById('splash')) window.addEventListener('splash-done', hello, { once: true });
+      else hello();
+    }
   } else {
     /* A new player lands in level 1 with no card in the way (owner's call
        2026-09-15). The rules stay one tap away on the Rules pill, and the one
