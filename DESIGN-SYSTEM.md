@@ -56,16 +56,11 @@ Centre at **32% of width, on the top edge**, radius **1.1 x width**. The light
 comes from up and slightly left, always, in every game. The `.game-wrap` CSS
 gradient in `chrome.css` is the same three stops at `at 30% 0%`.
 
-> **EXCEPTION: Comb's honey world (owner's call 2026-09-15).** Comb's canvas
-> floor is a warm radial with the Portal wash's own geometry (`#4C3110`,
-> `#3A240B`, `#241606`), its empty cells are wax, and its cards, scrims and
-> scroll fades use the same honey family (`HONEY`, `WAX`, `HONEY_UI` in
-> `comb/play.js`). The golden-honeycomb cover over a navy game read as two
-> products to CrazyGames' QA, who rejected Comb on "overall quality". Every
-> other rule still applies to it: `ZAM_UI` sizes, tokens for pills and type,
-> no outlines, and 3:1 measured on painted pixels (pieces against the honey
-> ground, and against the wall of ground between wax cells). **Do not "fix"
-> Comb back to navy.** It is not a precedent for any other game.
+> **Comb's wax comb (2026-09-15).** Comb's empty cells are wax: game art on
+> the Portal wash, which 1.5 allows. A honey ground with honey cards and scrims
+> was built and played the same day and the owner put the ground back to blue,
+> keeping the wax and the pieces. Comb's floor, cards and scrims are the house
+> tokens; do not re-try the honey ground without the owner.
 
 > **KNOWN DRIFT, fix on sight.** `#1B2A47` is in production as BG_TOP in
 > `bloom`, `needle`, `orbit`, `prism`, `sluice` **and in `shared/chrome.css`**,

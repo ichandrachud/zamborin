@@ -60,30 +60,13 @@
     '#E0679F', '#7C84F0', '#86B83A', '#5FB8E6', '#E36A3B',
   ];
 
-  /* THE HONEY WORLD. Comb's one departure from the Portal wash and the navy
-     ground ladder, owner's call 2026-09-15 (recorded in DESIGN-SYSTEM 1.2). The
-     cover is a golden honeycomb, and a navy game under it measured as two
-     different products to CrazyGames' QA, who rejected Comb on "overall
-     quality". The ground is dark honey so every chrome token keeps its
-     contrast on it; the empty comb is wax, lit from up and slightly left like
-     everything else in the fleet; the pieces keep distinct jewel hues because
-     telling two clusters apart is the game, and amber pieces on amber wax
-     would not be. Every pair is measured on painted pixels in __comb.contrast. */
-  /* Measured, not picked: at #5A3A13 the lit corner held blue, red, violet
-     and indigo pieces under 3:1 (2.38 at worst), and the board sits in that
-     corner on desktop. #4C3110 clears every piece. */
-  const HONEY = { top: '#4C3110', mid: '#3A240B', edge: '#241606' };
+  /* THE WAX COMB ON THE HOUSE BLUE. The empty cells are wax, lit from up and
+     slightly left like everything else in the fleet: game art on the Portal
+     wash, which DESIGN-SYSTEM 1.5 allows. A honey ground with honey cards was
+     built and played on 2026-09-15; the owner kept the wax and the pieces and
+     put the ground back to blue. The pieces keep distinct jewel hues because
+     telling two clusters apart is the game. Measured in __comb.contrast. */
   const WAX = { rimTop: '#DDA850', rimBot: '#B37D32', cupTop: '#7D5018', cupBot: '#A26B26' };
-  /* Cards, scrims and scroll fades in the same family. The house structure is
-     unchanged (a Surface fill, a Tint 12 border, a scrim below the ground at
-     0.88 for the rules and a lighter one for the win); only the hue moves. A
-     navy card over the honey world put the old navy game back on screen the
-     moment a level was won. */
-  const HONEY_UI = {
-    surface: '#2E1D0A', surfaceClear: 'rgba(46,29,10,0)',
-    scrim: 'rgba(20,12,3,0.88)', scrimWin: 'rgba(20,12,3,0.62)',
-    fade: 'rgba(36,22,6,0.92)', fadeClear: 'rgba(36,22,6,0)',
-  };
 
   // ---------- CANVAS ----------
   let LW, LH;
@@ -924,12 +907,12 @@
 
   function render(now) {
     ctx.clearRect(0, 0, LW, LH);
-    // The honey ground: the Portal wash's own geometry (centre at 32% of
-    // width on the top edge, radius 1.1 x width) with Comb's warm stops.
+    // The Portal wash, exactly: centre at 32% of width on the top edge,
+    // radius 1.1 x width, three stops. Do not re-derive it.
     const bg = ctx.createRadialGradient(LW * 0.32, 0, 0, LW * 0.32, 0, LW * 1.1);
-    bg.addColorStop(0, HONEY.top);
-    bg.addColorStop(0.6, HONEY.mid);
-    bg.addColorStop(1, HONEY.edge);
+    bg.addColorStop(0, TOK.bgPanel);
+    bg.addColorStop(0.6, TOK.bgCard);
+    bg.addColorStop(1, TOK.bg);
     ctx.fillStyle = bg; ctx.fillRect(0, 0, LW, LH);
     if (!level) return;
 
@@ -1075,7 +1058,7 @@
     const w = ctx.measureText(toast.msg).width + 36, h = 38;
     const x = Math.max(SIDE_PAD + w / 2, Math.min(LW - SIDE_PAD - w / 2, L.toast.x));
     UI.roundRectPath(ctx, x - w / 2, L.toast.y - h / 2, w, h, h / 2);
-    ctx.fillStyle = HONEY_UI.surface; ctx.fill();
+    ctx.fillStyle = TOK.bgCard; ctx.fill();
     ctx.strokeStyle = TOK.tint12; ctx.lineWidth = 1; ctx.stroke();
     ctx.fillStyle = TOK.ink90; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(toast.msg, x, L.toast.y + 1);
@@ -1101,6 +1084,7 @@
     }
 
     // Seated pieces.
+    const seated = [];
     for (const qi of history) {
       if (drag && drag.qi === qi) continue;
       const p = placedAt[qi];
@@ -1108,26 +1092,29 @@
       const shape = level.catalogue[level.queue[qi].shape];
       const t = seatT.get(qi) || 0;
       const k = Math.min(1, (now - t) / 220);
-      const pop = 1 + 0.06 * Math.sin(Math.PI * k) * (1 - k);
-      const anchor = { x: L.ox + hexX(p.t[0], p.t[1], L.R), y: L.oy + hexY(p.t[0], p.t[1], L.R) };
-      ctx.save();
-      if (pop !== 1) {
-        const cx = anchor.x, cy = anchor.y;
-        ctx.translate(cx, cy); ctx.scale(pop, pop); ctx.translate(-cx, -cy);
-      }
-      /* A shadow underneath, the edge DESIGN-SYSTEM 6 allows instead of an
-         outline. Jewel pieces and amber wax are both mid-tones, so without it a
-         seated cluster met the empty cell beside it at 1.0 to 2.9:1; the
-         shadow puts a dark value edge on every side that touches wax. */
-      ctx.save();
-      ctx.shadowColor = 'rgba(12, 6, 0, 0.62)';
-      ctx.shadowBlur = L.R * 0.35; ctx.shadowOffsetY = L.R * 0.10;
-      ctx.fillStyle = PIECE[qi % PIECE.length];
-      for (const c of shape.cells) { hexPath(anchor.x + hexX(c[0], c[1], L.R), anchor.y + hexY(c[0], c[1], L.R), L.R); ctx.fill(); }
-      ctx.restore();
-      drawPieceAt(shape, anchor.x, anchor.y, L.R, PIECE[qi % PIECE.length], 0);
-      ctx.restore();
+      seated.push({ qi, shape, pop: 1 + 0.06 * Math.sin(Math.PI * k) * (1 - k),
+                    anchor: { x: L.ox + hexX(p.t[0], p.t[1], L.R), y: L.oy + hexY(p.t[0], p.t[1], L.R) } });
     }
+    /* TWO PASSES: every shadow, then every piece. A shadow underneath is the
+       edge DESIGN-SYSTEM 6 allows instead of an outline, and it gives a seated
+       cluster a dark value edge against the wax beside it (jewel pieces and
+       wax are both mid-tones). Drawn piece by piece, each cluster's shadow fell
+       across the one seated before it, which the owner saw at once ("it
+       doesn't look neat", 2026-09-15). Now a shadow only lands on wax and
+       ground, because every piece is drawn over every shadow. */
+    const withPop = (s, fn) => {
+      ctx.save();
+      if (s.pop !== 1) { ctx.translate(s.anchor.x, s.anchor.y); ctx.scale(s.pop, s.pop); ctx.translate(-s.anchor.x, -s.anchor.y); }
+      fn();
+      ctx.restore();
+    };
+    for (const s of seated) withPop(s, () => {
+      ctx.shadowColor = 'rgba(10, 16, 28, 0.62)';
+      ctx.shadowBlur = L.R * 0.35; ctx.shadowOffsetY = L.R * 0.10;
+      ctx.fillStyle = PIECE[s.qi % PIECE.length];
+      for (const c of s.shape.cells) { hexPath(s.anchor.x + hexX(c[0], c[1], L.R), s.anchor.y + hexY(c[0], c[1], L.R), L.R); ctx.fill(); }
+    });
+    for (const s of seated) withPop(s, () => drawPieceAt(s.shape, s.anchor.x, s.anchor.y, L.R, PIECE[s.qi % PIECE.length], 0));
   }
 
   function drawTray(now) {
@@ -1483,8 +1470,8 @@
   function mapFade(M, top) {
     const y = top ? M.viewTop : M.viewTop + M.viewH - 24;
     const g = ctx.createLinearGradient(0, y, 0, y + 24);
-    g.addColorStop(top ? 0 : 1, HONEY_UI.fade);
-    g.addColorStop(top ? 1 : 0, HONEY_UI.fadeClear);
+    g.addColorStop(top ? 0 : 1, 'rgba(14,23,38,0.92)');
+    g.addColorStop(top ? 1 : 0, 'rgba(14,23,38,0)');
     ctx.fillStyle = g; ctx.fillRect(0, y, LW, 24);
   }
 
@@ -1579,8 +1566,8 @@
   function fadeEdge(c, top) {
     const y = top ? c.viewTop : c.viewTop + c.viewH - 20;
     const g = ctx.createLinearGradient(0, y, 0, y + 20);
-    g.addColorStop(top ? 0 : 1, HONEY_UI.surface);
-    g.addColorStop(top ? 1 : 0, HONEY_UI.surfaceClear);
+    g.addColorStop(top ? 0 : 1, TOK.bgCard);
+    g.addColorStop(top ? 1 : 0, 'rgba(19,31,54,0)');
     ctx.fillStyle = g; ctx.fillRect(c.px + 1, y, c.pw - 2, 20);
   }
 
@@ -1590,10 +1577,10 @@
     L.cardBody = { x: c.px, y: c.viewTop, w: c.pw, h: c.viewH, max: c.scrollMax };
 
     ctx.save();
-    ctx.fillStyle = kind === 'win' ? HONEY_UI.scrimWin : HONEY_UI.scrim;
+    ctx.fillStyle = kind === 'win' ? TOK.scrimWin : TOK.scrim;
     ctx.fillRect(0, 0, LW, LH);
     UI.roundRectPath(ctx, c.px, c.py, c.pw, c.ph, 22);
-    ctx.fillStyle = HONEY_UI.surface; ctx.fill();
+    ctx.fillStyle = TOK.bgCard; ctx.fill();
     ctx.strokeStyle = TOK.tint12; ctx.lineWidth = 1;
     UI.roundRectPath(ctx, c.px + 0.5, c.py + 0.5, c.pw - 1, c.ph - 1, 22);
     ctx.stroke();
@@ -1630,7 +1617,7 @@
           n++;
           ctx.beginPath(); ctx.arc(c.px + 43, yy + 11, 12, 0, Math.PI * 2);
           ctx.fillStyle = TOK.accentText; ctx.fill();
-          ctx.fillStyle = HONEY.edge; ctx.font = '800 14px Inter, sans-serif';
+          ctx.fillStyle = TOK.bg; ctx.font = '800 14px Inter, sans-serif';
           ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
           ctx.fillText(String(n), c.px + 43, yy + 12);
           ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
@@ -2208,10 +2195,10 @@
         whiteOnWhite: Math.round(ratio([255, 255, 255], [255, 255, 255]) * 100) / 100,
         greyOnGrey: Math.round(ratio([128, 128, 128], [128, 128, 128]) * 100) / 100,
       };
-      // The grounds a piece is actually drawn on in the honey world: the lit
-      // top of the ground, its middle and edge (the tray sits over these), and
+      // The grounds a piece is actually drawn on: the three stops of the
+      // Portal wash (the tray and the walls between cells sit over these), and
       // the wax of the empty cells beside a seated cluster.
-      const grounds = { honeyTop: HONEY.top, honeyMid: HONEY.mid, honeyEdge: HONEY.edge,
+      const grounds = { panel: TOK.bgPanel, card: TOK.bgCard, bg: TOK.bg,
                         waxRim: WAX.rimTop, waxCup: WAX.cupTop };
       const out = {};
       let worst = Infinity, worstAt = '';
