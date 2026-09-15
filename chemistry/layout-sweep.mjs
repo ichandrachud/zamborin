@@ -9,6 +9,7 @@
 import { openPage, BASE } from './cdp.mjs';
 
 const LEVEL = process.argv[2] || '7';
+const MAP = LEVEL === 'map';                         // node chemistry/layout-sweep.mjs map
 const LAB = process.argv.find((a) => a === 'chapter=2' || a === 'chapter=3');     // node chemistry/layout-sweep.mjs 7 chapter=2
 const sizes = [];
 for (const w of [320, 340, 360, 375, 390, 414, 430]) for (const h of [568, 640, 667, 720, 780, 844, 896, 932]) sizes.push([w, h]);
@@ -20,6 +21,24 @@ const notes = [];
 try {
   for (const [w, h] of sizes) {
     await p.metrics(w, h, 2, true);
+    if (MAP) {
+      await p.navigate(BASE + '?drift=0&map=1&unlock=all', 800);
+      const g = await p.ev('__chem.geom()'), v = g.view, issues = [];
+      const ctrlTop = Math.min(...g.ctrl.map((b) => b.y)), ctrlBottom = Math.max(...g.ctrl.map((b) => b.y + b.h));
+      if (g.phase !== 'map') issues.push('not on the map');
+      if (v.titleW > w - 2 * v.pad + 0.5) issues.push('title wider than the frame');
+      for (const hd of v.heads) if (hd.labelRight + 12 > hd.textLeft) issues.push('"' + hd.text + '" into its heading');
+      if (g.cells.some((q) => q.x < 8 || q.x + q.w > w - 8)) issues.push('a cell past the side');
+      if (g.cells.some((q) => q.w < 44 || q.h < 44)) issues.push('a cell under 44px');
+      if (g.mode === 'mobile' && v.y + v.h > ctrlTop - 4) issues.push('map into the controls');
+      if (v.y < Math.max(...g.ctrl.filter((b) => b.y < h / 2).map((b) => b.y + b.h), 0)) issues.push('map into the top controls');
+      if (ctrlBottom > h) issues.push('controls off screen');
+      const end = await p.ev('(__chem.scrollMap(1e9), __chem.geom())');
+      const last = end.cells[end.cells.length - 1];
+      if (!last || last.c !== 3 || last.y + last.h > end.view.y + end.view.h) issues.push('the last level cannot be scrolled into view');
+      if (issues.length) { bad++; console.log(`${w}x${h}  ${issues.join('; ')}`); }
+      continue;
+    }
     await p.navigate(BASE + '?drift=0&level=' + LEVEL + (LAB ? '&' + LAB : ''), 800);
     if (LAB) {
       const g = await p.ev('__chem.geom()');
@@ -77,6 +96,6 @@ try {
   }
   if (p.errors.length) { bad++; console.log('console errors: ' + p.errors.join(' | ')); }
 } finally { p.close(); }
-console.log(bad ? `FAILED  ${bad} of ${sizes.length} sizes` : `ok  no collisions at ${sizes.length} sizes, level ${LEVEL}`);
+console.log(bad ? `FAILED  ${bad} of ${sizes.length} sizes` : `ok  no collisions at ${sizes.length} sizes, ${MAP ? 'the map' : 'level ' + LEVEL}`);
 if (notes.length) console.log('tight: ' + notes.join(', '));
 process.exit(bad ? 1 : 0);

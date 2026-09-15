@@ -26,7 +26,7 @@
      in the dish and a test tube, run by lab-scene.js through this file's
      canvas, marbles, HUD and cards. ?chapter=3 is the same bench with organic
      reactions. Chapter 1 is everything else here. */
-  const CHAPTER = ['2', '3'].includes(params.get('chapter')) && window.ChemLabScene ? +params.get('chapter') : 1;
+  let CHAPTER = ['2', '3'].includes(params.get('chapter')) && window.ChemLabScene ? +params.get('chapter') : 1;
 
   /* ---------- MODE ----------
      A browser can report a 0-wide viewport on the first frame; zero means "not
@@ -114,9 +114,10 @@
   const TOK = {
     bg: '#0E1726', card: '#131F36', panel: '#1A2A45',          // --bg, --bg-card, --bg-panel
     accent: '#C24A39', sun: '#FFD23F', green: '#5DD39E',       // --accent, --accent-2, --green
+    accentText: '#FF6B5C',                                      // --accent-text
     ink72: 'rgba(255,255,255,0.72)', ink82: 'rgba(255,255,255,0.82)',
     ink90: 'rgba(255,255,255,0.90)', ink92: 'rgba(255,255,255,0.92)', white: '#FFFFFF',
-    tint03: 'rgba(255,255,255,0.03)', tint10: 'rgba(255,255,255,0.10)',
+    tint03: 'rgba(255,255,255,0.03)', tint07: 'rgba(255,255,255,0.07)', tint10: 'rgba(255,255,255,0.10)',
     tint12: 'rgba(255,255,255,0.12)', tint30: 'rgba(255,255,255,0.30)',
     scrim: 'rgba(10,16,28,0.82)',
   };
@@ -205,19 +206,40 @@
   function gauss() { const u = 1 - rng(), v = rng(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(TAU * v); }
   function lerpAng(a, b, k) { return a + Math.atan2(Math.sin(b - a), Math.cos(b - a)) * k; }
 
-  /* ---------- LEVELS AND SAVE ---------- */
-  const LEVELS = CHAPTER === 3 ? LV.organic[MODE] : CHAPTER === 2 ? LV.lab[MODE] : LV[MODE];     // chapter 1 levels are thinned to the room at load, see crowdSize
-  const SAVE_KEY = 'zam.chemistry.save';
-  const SAVE_SLOT = MODE + (CHAPTER === 3 ? '-organic' : CHAPTER === 2 ? '-reactions' : '');
+  /* ---------- LEVELS AND SAVE ----------
+     Three chapters, each its own list per breakpoint: molecules, reactions,
+     organic. Progress is kept per breakpoint and chapter, as the level sets
+     differ: where the player is, and how many levels are done. Levels open
+     in order, and a chapter opens when the one before it is done. */
+  const CHAPTERS = [
+    { name: 'MOLECULES', levels: () => LV[MODE] },          // thinned to the room at load, see crowdSize
+    { name: 'REACTIONS', levels: () => LV.lab[MODE] },
+    { name: 'ORGANIC', levels: () => LV.organic[MODE] },
+  ];
+  let LEVELS = CHAPTERS[CHAPTER - 1].levels();
+  let phase = 'play';                                        // 'play' | 'map'
+  const UNLOCK_ALL = params.get('unlock') === 'all';         // for the owner, trying any chapter from the map
+  const SAVE_KEY = 'zam.chemistry.progress';
   function readSave() {
     try { const v = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); return v && typeof v === 'object' ? v : {}; }
     catch (_) { return {}; }
   }
-  function writeSave() {
-    try { const v = readSave(); v[SAVE_SLOT] = li; localStorage.setItem(SAVE_KEY, JSON.stringify(v)); } catch (_) {}
+  function progress(c) {
+    const v = readSave()[MODE + '-' + c] || {};
+    return { at: Number.isInteger(v.at) ? v.at : 0, done: Number.isInteger(v.done) ? v.done : 0 };
   }
+  function writeSave(won) {
+    try {
+      const v = readSave(), was = progress(CHAPTER);
+      v[MODE + '-' + CHAPTER] = { at: li, done: won ? Math.max(was.done, li + 1) : was.done };
+      localStorage.setItem(SAVE_KEY, JSON.stringify(v));
+    } catch (_) {}
+  }
+  const chapterOpen = (c) => UNLOCK_ALL || c === 1 || progress(c - 1).done >= CHAPTERS[c - 2].levels().length;
+  // A level's number across the whole game, for analytics: molecules 1-50, then reactions, then organic.
+  const gameLevel = () => CHAPTERS.slice(0, CHAPTER - 1).reduce((n, ch) => n + ch.levels().length, 0) + li + 1;
 
-  let li = 0, level = null, st = null;
+  let li = 0, level = null, st = null, scene = null;
   const P = new Map();      // atom id -> { x, y, th, vx, vy, w }, in radii from the dish's top left
   let drag = null;          // { id, pid, touch, fromPanel, ox, oy, tx, ty, cx, cy }
   let press = null, pointer = null, card = null, cardBox = null;
@@ -238,8 +260,8 @@
       scene.load(level);
       // an organic level opens on its clue: the rule, never the answer (owner, 2026-09-14)
       if (level.clue) card = { kind: 'clue', sounded: true, showAt: 0 };
-      writeSave();
-      T().levelStart && T().levelStart(li + 1);
+      writeSave(false);
+      T().levelStart && T().levelStart(gameLevel());
       return;
     }
     layout();
@@ -248,8 +270,31 @@
     const pts = placeAtoms(level.seed);
     const turn = mulberry(level.seed * 31 + 7);
     st.atoms.forEach((a, k) => P.set(a.id, { x: pts[k].x, y: pts[k].y, th: turn() * TAU, vx: 0, vy: 0, w: 0 }));
-    writeSave();
-    T().levelStart && T().levelStart(li + 1);
+    writeSave(false);
+    T().levelStart && T().levelStart(gameLevel());
+  }
+  function setChapter(c) {
+    CHAPTER = c;
+    LEVELS = CHAPTERS[c - 1].levels();
+    scene = c >= 2 ? bench : null;
+    window.__chem.lab = scene ? scene.debug : null;
+  }
+  // From the map, or the last level of a chapter: start level i of chapter c.
+  function openLevel(c, i) {
+    if (drag) finishDrag();
+    if (bench) bench.cancel();
+    setChapter(c);
+    phase = 'play';
+    loadLevel(i);
+    layout();
+  }
+  function openMap() {
+    if (drag) finishDrag();
+    if (bench) bench.cancel();
+    phase = 'map'; card = null; press = null;
+    layout();
+    map.focus();
+    canvas.style.cursor = 'default';
   }
   function crowdSize(base) {
     if (!CROWD) return 0;
@@ -258,7 +303,7 @@
     return Math.round(base.crowd[0] * Math.max(0.4, Math.min(1, room / TUNE.crowdArea)));
   }
   function restart() {
-    T().levelRestart && T().levelRestart(li + 1);
+    T().levelRestart && T().levelRestart(gameLevel());
     loadLevel(li);
   }
   /* The level's radicals, spread out so no two start within reach of each
@@ -343,8 +388,9 @@
   let slots = [], ctrl = [], readoutMinX = SIDE_PAD, ctaBox = null;
 
   function layout() {
-    if (!level || !LW) return;
+    if (!LW) return;
     layoutControls();
+    if (phase === 'map' || !level) return;
     if (scene) { scene.layout(); return; }
     const oldW = G.WW, oldH = G.WH;
     if (MODE === 'mobile') layoutMobile(); else layoutDesktop();
@@ -386,9 +432,13 @@
     }
   }
   /* Order is fixed: sound, Undo, Restart, Hint, Rules. No Undo (bonds are for
-     good), no Hint yet, no Rules card yet; nothing moves to fill their places. */
+     good), no Hint yet, no Rules card yet; nothing moves to fill their places.
+     The map button comes first, as in Comb, and in the same row in both
+     layouts: a phone's bottom row has the room for it. On the map itself it
+     would lead nowhere, so only sound is left. */
   function layoutControls() {
-    const items = [{ id: 'sound', icon: true }, { id: 'restart', label: 'Restart' }];
+    const items = phase === 'map' ? [{ id: 'sound', icon: true }]
+      : [{ id: 'map', icon: true }, { id: 'sound', icon: true }, { id: 'restart', label: 'Restart' }];
     ctx.save();
     let total = 0;
     items.forEach((it) => { it.w = it.icon ? UI.PILL.iconW : UI.pillWidth(ctx, it.label); total += it.w; });
@@ -575,7 +625,7 @@
     const r = st.result;
     card = { kind: r.kind, made: r.made, total: r.total, sounded: false,
              showAt: now + (r.kind === 'win' ? TUNE.cardWinMs : TUNE.cardFailMs) };
-    if (r.kind === 'win') T().levelComplete && T().levelComplete(li + 1, reactions);
+    if (r.kind === 'win') { writeSave(true); T().levelComplete && T().levelComplete(gameLevel(), reactions); }
   }
   function previewOf(a, b) {
     const key = a + ':' + b + ':' + st.version;
@@ -1143,6 +1193,14 @@
   }
 
   /* ---------- HUD ---------- */
+  // Four small squares: the level map. Drawn, never an emoji.
+  function drawMapPill(b) {
+    UI.drawPill(ctx, '', b.cx, b.cy, { w: b.w });
+    ctx.save();
+    ctx.fillStyle = TOK.ink92;
+    for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) rr(b.cx + dx * 4.5 - 3.5, b.cy + dy * 4.5 - 3.5, 7, 7, 2), ctx.fill();
+    ctx.restore();
+  }
   function drawSoundPill(b) {
     UI.drawPill(ctx, '', b.cx, b.cy, { w: b.w });
     const on = SND.on(), x = b.cx - 6, y = b.cy;
@@ -1163,8 +1221,18 @@
   }
   function drawHUD() {
     for (const b of ctrl) {
-      if (b.icon) drawSoundPill(b);
+      if (b.id === 'map') drawMapPill(b);
+      else if (b.icon) drawSoundPill(b);
       else UI.drawPill(ctx, b.label, b.cx, b.cy, { w: b.w });
+    }
+    if (phase === 'map') {
+      const all = CHAPTERS.reduce((n, ch) => n + ch.levels().length, 0);
+      const done = CHAPTERS.reduce((n, ch, k) => n + Math.min(ch.levels().length, progress(k + 1).done), 0);
+      ctx.save();
+      ctx.font = '600 16px Inter, sans-serif'; ctx.textBaseline = 'middle'; ctx.textAlign = 'right';
+      ctx.fillStyle = TOK.ink72; ctx.fillText(done + ' of ' + all + ' done', LW - SIDE_PAD, topBand() / 2);
+      ctx.restore();
+      return;
     }
     const lost = scene ? scene.lost() : st.analysis.lost, y = topBand() / 2, rx = LW - SIDE_PAD;
     const main = (CHAPTER === 3 ? 'Organic  ·  ' : scene ? 'Reactions  ·  ' : '') + 'Level ' + (li + 1);
@@ -1185,7 +1253,8 @@
   function cardCopy() {
     if (card.kind === 'clue') return { title: 'Clue', sub: level.clue, cta: 'START' };
     if (card.kind === 'win') {
-      return { title: 'Flasks full', sub: level.note || '', cta: li + 1 < LEVELS.length ? 'NEXT LEVEL' : 'PLAY AGAIN' };
+      const cta = li + 1 < LEVELS.length ? 'NEXT LEVEL' : CHAPTER < CHAPTERS.length ? 'NEXT CHAPTER' : 'LEVEL MAP';
+      return { title: 'Flasks full', sub: level.note || '', cta };
     }
     return { title: card.made ? card.made + ' of ' + card.total + ' made' : 'Nothing made',
              sub: 'Every molecule on the list has to be made.', cta: 'TRY AGAIN' };
@@ -1228,13 +1297,15 @@
   function onCTA() {
     if (!card) return;
     if (card.kind === 'clue') { card = null; return; }
-    if (card.kind === 'win') loadLevel(li + 1);
-    else restart();
+    if (card.kind !== 'win') restart();
+    else if (li + 1 < LEVELS.length) loadLevel(li + 1);
+    else if (CHAPTER < CHAPTERS.length) openLevel(CHAPTER + 1, 0);
+    else openMap();
   }
 
   /* ---------- INPUT ----------
      Buttons compare stable ids between press and release, never objects. */
-  const playable = () => !card && !(scene ? scene.result() : st.result);
+  const playable = () => phase === 'play' && !card && !(scene ? scene.result() : st.result);
   function toLogical(e) {
     const r = canvas.getBoundingClientRect();
     return { x: (e.clientX - r.left) * (LW / r.width), y: (e.clientY - r.top) * (LH / r.height) };
@@ -1251,6 +1322,7 @@
     if (card && clock() >= card.showAt) { if (inBox(p, ctaBox)) press = { id: 'cta' }; return; }
     const b = ctrl.find((c) => inBox(p, tapBox(c)));
     if (b) { press = { id: b.id }; return; }
+    if (phase === 'map') { map.down(p, e); return; }
     if (!playable() || drag) return;
     if (scene) { if (scene.down(p, e)) canvas.style.cursor = 'grabbing'; return; }
     const touch = e.pointerType !== 'mouse';
@@ -1270,6 +1342,7 @@
   canvas.addEventListener('pointermove', (e) => {
     const p = toLogical(e);
     pointer = { x: p.x, y: p.y, type: e.pointerType };
+    if (phase === 'map') { map.move(p, e); return; }
     if (scene) { scene.move(p, e); return; }
     if (drag && e.pointerId === drag.pid) { setTarget(p); return; }
     if (e.pointerType === 'mouse' && st && !card) {
@@ -1279,6 +1352,7 @@
   });
   canvas.addEventListener('pointerup', (e) => {
     const p = toLogical(e);
+    if (phase === 'map' && map.up(p, e)) return;
     if (scene && scene.up(p, e)) { canvas.style.cursor = 'default'; return; }
     if (drag && e.pointerId === drag.pid) {
       setTarget(p);
@@ -1295,12 +1369,16 @@
     if (!b || !inBox(p, tapBox(b))) return;
     if (b.id === 'sound') SND.toggle();
     else if (b.id === 'restart') restart();
+    else if (b.id === 'map') openMap();
   });
-  canvas.addEventListener('pointercancel', () => { if (scene) scene.cancel(); else if (drag) finishDrag(); press = null; });
+  canvas.addEventListener('pointercancel', () => { map.cancel(); if (scene) scene.cancel(); else if (drag) finishDrag(); press = null; });
+  canvas.addEventListener('wheel', (e) => { if (phase !== 'map') return; e.preventDefault(); map.wheel(e.deltaY); }, { passive: false });
 
   /* ---------- RENDER ---------- */
   function render(now) {
-    if (!LW || !(st || scene)) return;
+    if (!LW) return;
+    if (phase === 'map') { ctx.clearRect(0, 0, LW, LH); drawWash(); map.render(); drawHUD(); return; }
+    if (!(st || scene)) return;
     ctx.clearRect(0, 0, LW, LH);
     drawWash();
     if (scene) { scene.render(now); drawHUD(); drawCard(now); return; }
@@ -1320,7 +1398,7 @@
     drawCard(now);
   }
   function frame(t) {
-    if (frozen === null && (st || scene)) {
+    if (frozen === null && phase === 'play' && (st || scene)) {
       const dt = lastFrame ? Math.min(0.1, (t - lastFrame) / 1000) : 0;
       lastFrame = t;
       if (!(card && clock() >= card.showAt)) {
@@ -1340,12 +1418,15 @@
      element) in a straight line, grabs and all. */
   window.__chem = {
     get state() {
+      if (phase === 'map') {
+        return { mode: MODE, LW, LH, phase, progress: CHAPTERS.map((ch, k) => Object.assign({ open: chapterOpen(k + 1), count: ch.levels().length }, progress(k + 1))) };
+      }
       if (scene) {
-        return Object.assign({ mode: MODE, LW, LH, chapter: CHAPTER, level: li + 1, card: card ? card.kind : null, cardShown: !!ctaBox },
+        return Object.assign({ mode: MODE, LW, LH, phase, chapter: CHAPTER, level: li + 1, card: card ? card.kind : null, cardShown: !!ctaBox },
                              scene.debug.state());
       }
       return {
-        mode: MODE, LW, LH, level: li + 1, S: +G.S.toFixed(3), world: [+G.WW.toFixed(2), +G.WH.toFixed(2)],
+        mode: MODE, LW, LH, phase, chapter: 1, level: li + 1, S: +G.S.toFixed(3), world: [+G.WW.toFixed(2), +G.WH.toFixed(2)],
         made: Object.assign({}, st.made), wasted: st.wasted, lost: st.analysis.lost, best: st.analysis.best,
         result: st.result, card: card ? card.kind : null, cardShown: !!ctaBox, avail: Object.assign({}, st.avail),
         dragging: drag ? drag.id : -1, reactions, version: st.version, drift: DRIFT, reduced: reduced(), placement,
@@ -1359,6 +1440,8 @@
     },
     geom() {
       render(clock());
+      const ctrlBoxes = ctrl.map((b) => ({ id: b.id, x: b.x, y: b.y, w: b.w, h: b.h }));
+      if (phase === 'map') return { mode: MODE, LW, LH, phase, ctrl: ctrlBoxes, cells: map.debug.cells(), view: map.debug.view() };
       if (scene) return Object.assign({ mode: MODE, LW, LH, ctrl: ctrl.map((b) => ({ id: b.id, x: b.x, y: b.y, w: b.w, h: b.h })), cta: ctaBox, card: cardBox }, scene.debug.geom());
       const atoms = {};
       for (const a of st.atoms) if (inDish(a)) atoms[a.id] = toPx(P.get(a.id));
@@ -1367,7 +1450,9 @@
                ctrl: ctrl.map((b) => ({ id: b.id, x: b.x, y: b.y, w: b.w, h: b.h })), panel, flask: flaskArea, cta: ctaBox };
     },
     toPage(x, y) { return toPx({ x, y }); },
-    goto(n) { loadLevel(n - 1); render(clock()); return this.state; },
+    goto(n, chapter) { openLevel(chapter || CHAPTER, n - 1); render(clock()); return this.state; },
+    map() { openMap(); render(clock()); return this.state; },
+    scrollMap(v) { map.debug.scrollTo(v); render(clock()); return map.debug.view(); },
     restart() { restart(); render(clock()); return this.state; },
     freeze(ms) { frozen = performance.now() + (ms || 0); render(frozen); return frozen; },
     advance(ms) {
@@ -1414,7 +1499,7 @@
 
   /* ---------- CHAPTERS 2 AND 3 ----------
      The bench gets what it needs from this file and nothing else. */
-  const scene = CHAPTER >= 2 ? window.ChemLabScene({
+  const bench = window.ChemLabScene ? window.ChemLabScene({
     ctx, TOK, canvas, drawAtoms, feather, rr, label, clock, mulberry,
     SND: { pick: SND.pick, set: SND.set, lift: SND.lift, lost: SND.lost, clasp: (n) => SND.clasp('O', n) },
     size: () => ({ LW, LH, MODE }),
@@ -1422,18 +1507,32 @@
     rng: () => rng(),
     endLevel: (result, showAt) => {
       card = { kind: result.kind, made: result.made, total: result.total, sounded: false, showAt };
-      if (result.kind === 'win') T().levelComplete && T().levelComplete(li + 1, 0);
+      if (result.kind === 'win') { writeSave(true); T().levelComplete && T().levelComplete(gameLevel(), 0); }
     },
   }) : null;
-  if (scene) window.__chem.lab = scene.debug;
+
+  /* ---------- THE MAP ---------- */
+  const map = window.ChemMap({
+    ctx, TOK, rr, label, pad: SIDE_PAD, topBand, botBand,
+    size: () => ({ LW, LH, MODE }),
+    chapters: () => CHAPTERS.map((ch, k) => ({
+      name: ch.name, count: ch.levels().length, done: Math.min(ch.levels().length, progress(k + 1).done),
+      open: chapterOpen(k + 1), all: UNLOCK_ALL, locked: 'Finish ' + CHAPTERS[Math.max(0, k - 1)].name.toLowerCase() + ' first',
+    })),
+    open: (c, i) => openLevel(c, i),
+  });
 
   /* ---------- BOOT ----------
      Every re-fit hook is part of the pattern. Timers as well as events, because
      rAF is throttled to nothing in some embedded browsers. */
   setCanvasVars(); resizeCanvas(); fitFullscreen(); resizeCanvas();
+  /* ?chapter and ?level go straight to a level, and ?map=1 to the map. With
+     neither, a returning player starts on the map and a new one on level 1. */
+  setChapter(CHAPTER);
   const jump = parseInt(params.get('level'), 10);
-  const saved = readSave()[SAVE_SLOT];
-  loadLevel(jump >= 1 && jump <= LEVELS.length ? jump - 1 : (Number.isInteger(saved) ? saved : 0));
+  const returning = CHAPTERS.some((ch, k) => progress(k + 1).done > 0);
+  if (params.get('map') === '1' || (!params.has('chapter') && !params.has('level') && returning)) openMap();
+  else openLevel(CHAPTER, jump >= 1 && jump <= LEVELS.length ? jump - 1 : progress(CHAPTER).at);
   window.addEventListener('resize', onResize);
   window.addEventListener('orientationchange', () => setTimeout(onResize, 100));
   window.addEventListener('splash-done', onResize);

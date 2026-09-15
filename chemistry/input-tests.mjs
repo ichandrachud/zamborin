@@ -55,6 +55,9 @@ async function withPage(opts, body) {
       await sleep(60);
     },
     async touchTap(x, y) { await touch('touchStart', x, y); await touch('touchEnd'); await sleep(60); },
+    // a new address in the same browser, so what the game saved is still there
+    async reload(url) { await p.navigate(url, 2600); },
+    async wheel(x, y, dy) { const q = await logical(x, y); await p.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: q.x, y: q.y, deltaX: 0, deltaY: dy }); await sleep(60); },
   };
   try {
     await body(io);
@@ -331,6 +334,76 @@ await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&chapter=3&level=3
   await sleep(2600);
   st = await ev('__chem.state');
   ok(st.card === 'fail' && st.cardShown, 'and the fail card shows', [st.card, st.cardShown]);
+});
+
+// ---------- the level map ----------
+await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&crowd=0' }, async ({ ev, click, reload }) => {
+  let st = await ev('__chem.state');
+  ok(st.phase === 'play' && st.chapter === 1 && st.level === 1, 'a new player starts on level 1, not the map', [st.phase, st.chapter, st.level]);
+  const O = st.atoms.find((a) => a.el === 'O');
+  await ev(`__chem.carry('H', ${O.x + 2.6}, ${O.y})`);
+  st = await ev(`__chem.carry('H', ${O.x - 2.6}, ${O.y})`);
+  ok(st.result && st.result.kind === 'win', 'level 1 won', st.result);
+  const saved = await ev(`JSON.parse(localStorage.getItem('zam.chemistry.progress'))`);
+  ok(JSON.stringify(saved && saved['desktop-1']) === JSON.stringify({ at: 0, done: 1 }), 'the win is saved: one molecules level done', saved);
+  await reload(BASE + '?embed=1&drift=0&crowd=0');
+  st = await ev('__chem.state');
+  let g = await ev('__chem.geom()');
+  ok(st.phase === 'map', 'a returning player starts on the map', st.phase);
+  const cell = (c, n) => g.cells.find((q) => q.c === c && q.n === n);
+  ok(cell(1, 1).done && cell(1, 2).next && cell(1, 2).open && !cell(1, 3).open && !cell(2, 1).open,
+     'level 1 ticked, level 2 next, the rest shut', [cell(1, 1), cell(1, 2), cell(1, 3), cell(2, 1)]);
+  await click(cell(1, 3).x + 20, cell(1, 3).y + 20);
+  ok((await ev('__chem.state')).phase === 'map', 'a shut level does not open');
+  await click(cell(2, 1).x + 20, cell(2, 1).y + 20);
+  ok((await ev('__chem.state')).phase === 'map', 'nor does a level in a shut chapter');
+  await click(cell(1, 2).x + cell(1, 2).w / 2, cell(1, 2).y + cell(1, 2).h / 2);
+  st = await ev('__chem.state');
+  ok(st.phase === 'play' && st.chapter === 1 && st.level === 2, 'tapping the next level plays it', [st.phase, st.chapter, st.level]);
+  g = await ev('__chem.geom()');
+  ok(g.ctrl.map((b) => b.id).join() === 'map,sound,restart', 'the map button leads the control row', g.ctrl.map((b) => b.id));
+  const mapBtn = g.ctrl[0];
+  await click(mapBtn.x + mapBtn.w / 2, mapBtn.y + mapBtn.h / 2);
+  ok((await ev('__chem.state')).phase === 'map', 'the map button opens the map');
+});
+
+await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&chapter=2&level=7' }, async ({ ev, click }) => {
+  await ev(`(() => { __chem.freeze(0); const L = __chem.lab;
+    for (const [where, key] of ChemLevels.lab.desktop[6].solution) { L.act(where, L.find(key)); __chem.advance(1200); }
+    __chem.advance(2600); })()`);
+  let st = await ev('__chem.state');
+  const g = await ev('__chem.geom()');
+  ok(st.card === 'win' && g.cta, 'the last reactions level won', st.card);
+  await click(g.cta.x + g.cta.w / 2, g.cta.y + g.cta.h / 2);
+  st = await ev('__chem.state');
+  ok(st.phase === 'play' && st.chapter === 3 && st.level === 1 && st.card === 'clue',
+     'its button goes on to the next chapter: organic level 1, on its clue', [st.phase, st.chapter, st.level, st.card]);
+});
+
+await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&chapter=3&level=6' }, async ({ ev, click }) => {
+  await ev(`(() => { __chem.freeze(0); const L = __chem.lab;
+    for (const [where, key] of ChemLevels.organic.desktop[5].solution) { L.act(where, L.find(key)); __chem.advance(1200); }
+    __chem.advance(2600); })()`);
+  const g = await ev('__chem.geom()');
+  ok((await ev('__chem.state')).card === 'win' && g.cta, 'the last organic level won');
+  await click(g.cta.x + g.cta.w / 2, g.cta.y + g.cta.h / 2);
+  const st = await ev('__chem.state');
+  ok(st.phase === 'map', 'after the very last level, its button opens the map', st.phase);
+});
+
+await withPage({ w: 375, h: 667, dpr: 2, mobile: true, url: BASE + '?drift=0&map=1' }, async ({ ev, touchDrag, touchTap }) => {
+  let g = await ev('__chem.geom()');
+  ok(g.phase === 'map' && g.view.maxScroll > 0, 'on a short phone the map scrolls', g.view);
+  const x = g.LW / 2, low = g.view.y + g.view.h - 40;
+  await touchDrag({ x, y: low }, { x, y: low - 160 });
+  g = await ev('__chem.geom()');
+  ok(g.phase === 'map' && g.view.scroll > 60, 'touch: a drag scrolls the map and opens nothing', [g.phase, g.view.scroll]);
+  await touchDrag({ x, y: g.view.y + 30 }, { x, y: g.view.y + 330 });
+  g = await ev('__chem.geom()');
+  const one = g.cells.find((q) => q.c === 1 && q.n === 1);
+  await touchTap(one.x + one.w / 2, one.y + one.h / 2);
+  const st = await ev('__chem.state');
+  ok(st.phase === 'play' && st.chapter === 1 && st.level === 1, 'touch: a tap on level 1 plays it', [st.phase, st.level]);
 });
 
 console.log((fail ? 'FAILED  ' : 'ok  ') + pass + ' passed, ' + fail + ' failed');
