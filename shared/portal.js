@@ -34,17 +34,27 @@
      ZAM_PORTAL.rewarded(ok, no)
      ZAM_PORTAL.interstitial(done)
      ZAM_PORTAL.gameplayStart() / gameplayStop()
+     ZAM_PORTAL.whenReady(fn)   fn once init has settled; at once with no SDK
+     ZAM_PORTAL.getItem(k) / setItem(k, v)   the account save, or nothing
+     ZAM_PORTAL.onSettings(fn)  fn(settings) now and whenever they change
    ============================================================================ */
 (function (root) {
   'use strict';
 
   var hooks = { onPause: null, onResume: null, isMuted: null, setMuted: null };
+  /* CrazyGames v3 must be init()ed before anything else is called, and init is
+     ASYNC. gameplayStart survives that because nobody presses Play inside the
+     first tick, but loadingStart is called during boot and would be thrown
+     away. Hold the promise and let the boot-time calls queue behind it. */
+  var ready = null;
   var pendingReward = null;
   var wasMuted = false;
   var busy = false;
 
   function gd()  { return (typeof root.gdsdk !== 'undefined' && root.gdsdk) || null; }
   function cg()  { return (root.CrazyGames && root.CrazyGames.SDK) || null; }
+  // Read on every call, like SDK.game: never hold on to a module object.
+  function data() { var c = cg(); return (c && c.data) || null; }
   function name() { return cg() ? 'crazygames' : (gd() ? 'gd' : null); }
 
   /* Every ad path goes through these two, including the failure paths. An ad
@@ -63,6 +73,18 @@
     // Back to what the PLAYER had, not to unmuted.
     try { if (hooks.setMuted) hooks.setMuted(wasMuted); } catch (e) {}
     try { if (hooks.onResume) hooks.onResume(); } catch (e) {}
+  }
+
+  /* Run fn with the SDK's game module once init has settled. Reads SDK.game
+     INSIDE the callback on purpose: it hands back a fresh object per access,
+     so a reference captured earlier is a different object from the one the
+     SDK actually uses. */
+  function afterReady(fn) {
+    function go() {
+      var c = cg();
+      if (c && c.game) { try { fn(c.game); } catch (e) {} }
+    }
+    if (ready && ready.then) { ready.then(go, go); } else { go(); }
   }
 
   var api = {
@@ -89,7 +111,12 @@
 
       // CrazyGames v3 wants an explicit init before anything else is called.
       var c = cg();
-      if (c && c.init) { try { var p = c.init(); if (p && p.catch) p.catch(function () {}); } catch (e) {} }
+      if (c && c.init && !ready) {
+        try {
+          var p = c.init();
+          ready = (p && p.then) ? p.then(null, function () {}) : null;
+        } catch (e) { ready = null; }
+      }
       return api;
     },
 
@@ -169,6 +196,49 @@
       }
 
       end();
+    },
+
+    /* LOADING. Required for HTML5 on CrazyGames, and the reason a game that
+       never calls them reports a nonsense load time: their platform measures
+       loading up to `gameplayStart`, so without a loadingStop the number
+       silently includes every second the player spent on a rules card. */
+    loadingStart: function () { afterReady(function (g) { if (g.loadingStart) g.loadingStart(); }); },
+    loadingStop:  function () { afterReady(function (g) { if (g.loadingStop)  g.loadingStop();  }); },
+
+    /* READY. CrazyGames preloads the player's saved data during init, so
+       anything that reads it must wait for init to settle, success or not.
+       With no SDK there is nothing to wait for and fn runs at once. */
+    whenReady: function (fn) {
+      function go() { try { fn(); } catch (e) {} }
+      if (ready && ready.then) { ready.then(go, go); } else { go(); }
+    },
+
+    /* STORAGE. CrazyGames' data module has localStorage's own shape and ties
+       a save to the player's account, which Full Launch requires. It is only
+       switched on when the listing is submitted with Progress Save, and a
+       disabled module throws, so both calls answer "nothing" rather than
+       fail: the caller keeps its own localStorage copy either way. */
+    getItem: function (k) {
+      var d = data();
+      if (!d || !d.getItem) return null;
+      try { return d.getItem(k); } catch (e) { return null; }
+    },
+    setItem: function (k, v) {
+      var d = data();
+      if (!d || !d.setItem) return false;
+      try { d.setItem(k, v); return true; } catch (e) { return false; }
+    },
+
+    /* SETTINGS. CrazyGames can tell a game to be silent (`muteAudio`), and
+       that must outrank the game's own sound switch. fn runs once init has
+       settled and again whenever the platform changes the setting. */
+    onSettings: function (fn) {
+      afterReady(function (g) {
+        if (g.settings) fn(g.settings);
+        if (g.addSettingsChangeListener) {
+          g.addSettingsChangeListener(function (s) { try { fn(s); } catch (e) {} });
+        }
+      });
     },
 
     // CrazyGames uses these to decide when its own ad breaks are acceptable.

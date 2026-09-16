@@ -100,8 +100,10 @@ function drawPill(ctx, label, cx, cy, opts) {
 }
 
 // Draw the one primary action. `fill` is the game's accent.
-function drawCTA(ctx, label, cx, cy, fill) {
-  const w = ctaWidth(ctx, label), h = CTA.h, r = radius(h);
+// `width` is optional: two CTAs that must match (a video offer and the way
+// on without it) share one, instead of each sizing to its own label.
+function drawCTA(ctx, label, cx, cy, fill, width) {
+  const w = width || ctaWidth(ctx, label), h = CTA.h, r = radius(h);
   const x = Math.round(cx - w / 2), y = Math.round(cy - h / 2);
   ctx.fillStyle = fill; roundRectPath(ctx, x, y, w, h, r); ctx.fill();
   ctx.fillStyle = CTA.text;

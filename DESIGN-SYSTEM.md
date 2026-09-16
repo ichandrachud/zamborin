@@ -56,6 +56,23 @@ Centre at **32% of width, on the top edge**, radius **1.1 x width**. The light
 comes from up and slightly left, always, in every game. The `.game-wrap` CSS
 gradient in `chrome.css` is the same three stops at `at 30% 0%`.
 
+> **Comb's wax comb (2026-09-15).** Comb's empty cells are wax: game art on
+> the Portal wash, which 1.5 allows. A honey ground with honey cards and scrims
+> was built and played the same day and the owner put the ground back to blue,
+> keeping the wax and the pieces. Comb's floor, cards and scrims are the house
+> tokens; do not re-try the honey ground without the owner.
+>
+> **Comb's colour and light pass (2026-09-16), each piece the owner's call.** The
+> wax is lit from the upper left with a gentle gradation, and its cup reads as a
+> hollow. Honey standing in the cups, a comb pattern across the ground, and
+> diagonal light with highlights on the pieces were all built and all taken out;
+> do not re-propose them. The pieces keep their straight-down gradient by choice,
+> although the light rule above says up and left. The piece colours are the old
+> set nudged apart, and they are judged on how alike two TOUCHING clusters look on
+> the painted canvas (worst 30.6, median 32.8 delta E over 425 pairs), not on how
+> evenly they sit round the wheel: an even ladder at one lightness measured worse
+> than the colours it replaced.
+
 > **KNOWN DRIFT, fix on sight.** `#1B2A47` is in production as BG_TOP in
 > `bloom`, `needle`, `orbit`, `prism`, `sluice` **and in `shared/chrome.css`**,
 > against the `--bg-panel` token `#1A2A45` used by `kaleido`, `tailwind`,
@@ -183,6 +200,13 @@ preview, a score column. Not an empty gutter. A landscape grid needs roughly a
 playfield over 56px targets. Buy depth from relationships, not more positions.
 
 ### 2.2 Full screen
+
+**When the game IS the whole page, the window is the frame.** Comb takes the
+window's own size as `LW`/`LH` in an embed, a portal package and full screen
+(one CSS pixel to one unit), instead of contain-fitting 760 x 600 into it:
+the fitted frame left 29% of every CrazyGames 16:9 window empty and set 16px
+type at 12.3px in their smallest (821 x 462). A desktop window narrower than
+760 is laid out at 760 across and scaled, so the top band keeps its row.
 
 `body.focus-mode` is shared chrome. For a **fixed-board** game the board grows
 with the frame and that is correct. For a **scrolling-world** game the frame
@@ -370,7 +394,63 @@ has no sound at all, not quiet sound.
 
 ---
 
-## 10. Sign-off
+## 10. Finished, not a prototype
+
+CrazyGames rejected Comb with one line: "The overall quality of the game does
+not yet meet the expectations of our platform." The mechanic was not the
+problem, and neither was the art on its own: what was missing was everything
+below. A game that skips these reads as a prototype however good the idea is,
+and every rule here can be tested.
+
+### 10.1 The first ten seconds
+
+- **The first screen is the game, already playable.** No title screen, no menu,
+  no rules card in the way. CrazyGames allows at most one click into gameplay,
+  and their standard is to "land new users in gameplay immediately".
+- A **returning player lands in the next thing they were going to do**, never on
+  a map or a menu. If the game has a daily, that is what they land in until it
+  is done, and a single line says which board they are on.
+- The rules stay one tap away on the Rules pill. They are not where a new player
+  has to begin.
+- **The verb is shown at rest, not explained.** A ghost piece and a hand that
+  loops on the first board, and stops at the first input. An affordance that
+  exists only mid-gesture leaves an inert board on screen.
+
+### 10.2 Every input answers, inside one frame
+
+- **Accepted:** it lands with a pop, a spark and a sound.
+- **Refused: it goes back visibly.** Flying home to where it came from, with a
+  shake and a sound. Comb set a `flash` timestamp for months that nothing ever
+  drew, so a refused drop simply vanished, which reads as a bug rather than a
+  rule.
+- **Won:** something happens on the board first and the result card comes after.
+  A static card as the only reward is the thing that reads as unfinished.
+- `prefers-reduced-motion` **snaps each of those to its end state**. It never
+  turns the answer off.
+- A dimmed button is still clickable, so the guard lives in the handler and the
+  analytics call sits below it.
+
+### 10.3 Nothing is ever clipped
+
+- Any string that can grow is **measured against the room it has**, with a chain
+  of shorter forms and the shortest last. Comb's daily line carries three forms;
+  a 320-wide phone gets the shortest rather than a sentence running off a pill.
+- Every surface that holds copy gets a **fit detector that can fail**, and the
+  type inside it never shrinks below the 16px floor in §8. HUD read-outs may
+  scale, down to 0.66.
+- Sweep the whole width range, **320 to 1920**. Eight sample frames is not a
+  proof: the daily button passed at five sizes and overflowed at 360.
+
+### 10.4 Depth in two passes
+
+Shadows are drawn in a pass of their own, all of them, and then every piece on
+top. Drawn piece by piece, each new piece lays its shadow across the one beside
+it, which is the single note the owner gave on Comb's finished art. See §6 for
+what makes an edge and §7 for what has to be measured.
+
+---
+
+## 11. Sign-off
 
 - [ ] All chrome colour from tokens. No invented hex in chrome. `#1A2A45` for Raised.
 - [ ] Portal wash at `0.32 / 0` radius `1.1 x LW`, three stops.
@@ -386,4 +466,9 @@ has no sound at all, not quiet sound.
 - [ ] AA swept including hover and focus. Colour transforms null-tested.
 - [ ] Splash at both sizes, wordmark inside the safe zone.
 - [ ] Audio master gain set, peak checked.
+- [ ] Lands in gameplay, one click at most; the verb shown at rest on the first board.
+- [ ] Accept, refuse and win each answer visibly; reduced motion snaps to the end.
+- [ ] Growing strings measured with a fallback chain; widths swept 320 to 1920.
+- [ ] Shadows in a pass of their own; no piece shades its neighbour.
+- [ ] `?harness=1` handle present, and every check driven through pointer events.
 - [ ] `git ls-files | grep ' '` empty; `node --check <game>/play.js` passes; zero console 404s.

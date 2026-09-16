@@ -51,14 +51,47 @@
     scrim: 'rgba(10,16,28,0.88)', scrimWin: 'rgba(10,16,28,0.82)',
   };
 
-  /* GAME ART, and only game art: the pieces on the playfield. Distinct
-     saturated hues, one per piece in tray order so two pieces that touch never
-     share a colour by accident. Every one is measured against the Portal wash
-     in __comb.contrast(). */
+  /* GAME ART, and only game art: the pieces on the playfield, one per piece in
+     tray order. What these colours are FOR is telling two clusters apart where
+     they touch, so that is what they are measured on: the closest pair of
+     touching cells from different clusters, read off the painted canvas over
+     14 shipped levels, 425 pairs, in CIE76 delta E.
+
+     The set these replace scored 19.4 at worst and 25.5 at the median, with a
+     pair under 20 in 6 levels of 14. An evenly spaced ladder solved to one
+     lightness was built on 2026-09-15 and measured WORSE, 16.9 and 17.6:
+     colours of equal lightness can differ only in hue, and the old set's
+     uneven lightness was what kept neighbours apart. An optimiser left free to
+     maximise the number returned neon green and bright yellow. These are the
+     old set NUDGED, the owner's call on 2026-09-16: each held within delta E
+     13 of the colour it replaces, index for index, and moved only to open the
+     closest pairs. 30.6 at worst, 32.8 at the median, no level under 20. Every
+     one is also measured against the Portal wash in __comb.contrast(). */
   const PIECE = [
-    '#4E9BD6', '#E0703C', '#8CC152', '#E3B23C', '#A46BD8',
-    '#D9556B', '#3FBFA0', '#7C8CE8', '#D98CC4', '#5FB8C9',
+    '#859DEB', '#E74C65', '#45B16C', '#C86FDC', '#25AEA5',
+    '#D379A5', '#6571EE', '#80A12B', '#25A8D4', '#D35A28',
   ];
+
+  /* THE WAX COMB ON THE HOUSE BLUE. The empty cells are wax: game art on the
+     Portal wash, which DESIGN-SYSTEM 1.5 allows. A honey ground with honey
+     cards was built and played on 2026-09-15; the owner kept the wax and the
+     pieces and put the ground back to blue.
+
+     LIT FROM THE UPPER LEFT, GENTLY. The wash is centred at 32% of the width on
+     the top edge, so the room was always lit from up and left while the cells
+     were shaded straight down. Owner, 2026-09-16: angled, deeper than before,
+     "not so dark, just a gentle gradation". Honey standing in the cups and a
+     comb pattern across the ground were both built that day and both taken
+     out on the owner's call, and the pieces keep their straight-down
+     gradient, also the owner's call. Measured in __comb.contrast. */
+  const WAX = { rimLit: '#E5B159', rimMid: '#C89340', rimDark: '#A57530',
+                cupDark: '#6E4715', cupLit: '#A66F2E' };
+  /* LIGHT points FROM the lit face TOWARDS the shaded one. The wash is a lamp
+     in the room, not a sun at infinity, so each cell takes its light from a
+     slightly different angle: 65% towards the lamp and 35% towards this fixed
+     diagonal, enough to be felt across a board without lighting a cell at the
+     edge of a wide window from the side. */
+  const LIGHT = { x: 0.6, y: 0.8 };
 
   // ---------- CANVAS ----------
   let LW, LH;
@@ -66,9 +99,30 @@
   const ctx = canvas.getContext('2d');
   const gameWrap = canvas.parentElement;
 
+  /* THE FRAME FILLS ITS WINDOW WHEN THE GAME IS THE WHOLE PAGE. On zamborin.com
+     the desktop game sits in the 760x600 site frame. In an embed, a portal
+     package and full screen the window IS the frame, and contain-fitting the
+     760x600 picture into CrazyGames' 16:9 player left 29% of every one of their
+     windows empty and set 16px type at 12.3px in the smallest (measured
+     2026-09-15). There the logical size is the window's own, one CSS pixel to
+     one unit, and the layout decides what goes where instead of a scale factor.
+     A zero reading (a hidden frame's first tick) falls back to the site frame
+     until the real size arrives on the next resize. */
+  const fillsWindow = () => MODE === 'mobile' ||
+    document.documentElement.classList.contains('embed') ||
+    document.body.classList.contains('focus-mode');
   function setCanvasVars() {
-    if (MODE === 'mobile') { LW = window.innerWidth; LH = window.innerHeight; }
-    else { LW = 760; LH = 600; }
+    if (fillsWindow()) {
+      const vw = window.innerWidth > 0 ? window.innerWidth : 760;
+      const vh = window.innerHeight > 0 ? window.innerHeight : 600;
+      /* Narrower than the site frame, a desktop top band cannot hold its row
+         of house-size pills beside the read-out: at 480x360, the smallest
+         frame /embed/ supports, they collided on every level. Such a window
+         keeps its own shape but is laid out 760 across and scaled down, as
+         the whole game used to be. CrazyGames' smallest window is 821. */
+      const k = (MODE === 'desktop' && vw < 760) ? 760 / vw : 1;
+      LW = Math.round(vw * k); LH = Math.round(vh * k);
+    } else { LW = 760; LH = 600; }
     document.body.style.setProperty('--canvas-w', LW + 'px');
     document.body.style.setProperty('--canvas-h', LH + 'px');
   }
@@ -83,20 +137,15 @@
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
   }
   function fitFullscreen() {
-    if (MODE === 'mobile') {
-      gameWrap.style.width = window.innerWidth + 'px';
-      gameWrap.style.height = window.innerHeight + 'px';
+    if (fillsWindow()) {
+      gameWrap.style.width = (window.innerWidth > 0 ? window.innerWidth : LW) + 'px';
+      gameWrap.style.height = (window.innerHeight > 0 ? window.innerHeight : LH) + 'px';
       return;
     }
-    const active = document.body.classList.contains('focus-mode');
-    if (!active) { gameWrap.style.width = ''; gameWrap.style.height = ''; return; }
-    const vw = window.innerWidth, vh = window.innerHeight, aspect = LW / LH;
-    let cw = vw, ch = Math.round(vw / aspect);
-    if (ch > vh) { ch = vh; cw = Math.round(vh * aspect); }
-    gameWrap.style.width = cw + 'px'; gameWrap.style.height = ch + 'px';
+    gameWrap.style.width = ''; gameWrap.style.height = '';
   }
   function onResize() {
-    if (MODE === 'mobile') setCanvasVars();
+    setCanvasVars();
     fitFullscreen(); resizeCanvas(); layout(); draw();
   }
 
@@ -120,6 +169,16 @@
       isMuted: () => (sfx ? !sfx.isOn() : false),
       setMuted: (m) => { if (sfx) sfx.setOn(!m); },
     });
+    /* Bracket the boot. CrazyGames measures load time up to gameplayStart, and
+       gameplayStart cannot fire until the player presses PLAY on the rules
+       card — so without this pair the reported load time is the splash plus
+       however long they spent reading, which came back as 15.1 seconds for a
+       0.4 MB game. loadingStop fires when the splash lifts, which is the first
+       moment the game will actually take an input. */
+    portal.loadingStart();
+    window.addEventListener('splash-done', () => portal.loadingStop(), { once: true });
+    // No splash in this frame (the site's embed can skip it): close it now.
+    if (!document.getElementById('splash')) portal.loadingStop();
   }
 
   // ---------- ANALYTICS ----------
@@ -136,7 +195,7 @@
      in it worth a migration path, and half-read progress is worse than none. */
   const SAVE_KEY = 'zam.comb.progress';
   const LEVELS = 100;
-  const blankSave = () => ({ v: 1, max: 1, stars: {}, streak: 0, last: '', daily: { date: '', stars: 0 } });
+  const blankSave = () => ({ v: 1, max: 1, stars: {}, streak: 0, last: '', daily: { date: '', stars: 0 }, dailyStars: 0 });
 
   function loadSave() {
     try {
@@ -150,7 +209,9 @@
         stars: (o.stars && typeof o.stars === 'object') ? o.stars : b.stars,
         streak: Math.max(0, o.streak | 0),
         last: typeof o.last === 'string' ? o.last : '',
-        daily: (o.daily && typeof o.daily === 'object') ? o.daily : b.daily };
+        daily: (o.daily && typeof o.daily === 'object') ? o.daily : b.daily,
+        // Added 2026-09-15; a record from before simply starts it at zero.
+        dailyStars: Math.max(0, o.dailyStars | 0) };
     } catch (_) { return blankSave(); }
   }
   function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (_) {} }
@@ -169,7 +230,12 @@
   // run and a run with one rethink are genuinely different results.
   const starsFor = (m, par) => (m <= par + G.TUNE.starPar ? 3 : m <= par + G.TUNE.starPlus ? 2 : 1);
   const starsAt = (n) => (save.stars[n] | 0);
-  const totalStars = () => Object.keys(save.stars).reduce((a, k) => a + (save.stars[k] | 0), 0);
+  const totalStars = () => Object.keys(save.stars).reduce((a, k) => a + (save.stars[k] | 0), 0) + (save.dailyStars | 0);
+  /* The streak as it stands today: alive if the daily was finished today or
+     yesterday, broken otherwise. The stored number is kept until the next
+     completion decides it, but the map never shows a streak that the next
+     daily would not continue. */
+  const liveStreak = () => (save.last === utcDay() || save.last === utcDay(-1)) ? save.streak : 0;
   const unlocked = (n) => n <= save.max;
 
   function recordWin(n, isDaily, moves, par, forced) {
@@ -179,7 +245,12 @@
        on telling the truth. */
     const st = forced || starsFor(moves, par);
     if (isDaily) {
-      save.daily = { date: utcDay(), stars: Math.max(st, save.daily.date === utcDay() ? save.daily.stars | 0 : 0) };
+      const prev = save.daily.date === utcDay() ? save.daily.stars | 0 : 0;
+      const best = Math.max(st, prev);
+      // Daily stars join the total, once per day at that day's best: a replay
+      // that beats the morning's result adds only the difference.
+      save.dailyStars = (save.dailyStars | 0) + (best - prev);
+      save.daily = { date: utcDay(), stars: best };
       T().track('daily_played', { stars: st });
     } else {
       if (st > starsAt(n)) save.stars[n] = st;
@@ -187,11 +258,13 @@
     }
     T().track('stars_awarded', { level: n, stars: st, daily: isDaily ? 1 : 0 });
 
-    /* The streak counts DAYS WITH A COMPLETION, so it moves at most once a day
-       and only ever forward by one. Yesterday continues it, anything older
-       starts again at one. */
+    /* THE STREAK IS THE DAILY'S (owner's call 2026-09-15). It counts days on
+       which that day's puzzle was finished, so it moves at most once a day and
+       only ever forward by one. Yesterday continues it, anything older starts
+       again at one. It used to count ANY completion, which left the daily with
+       no job: a player kept the streak without ever opening it. */
     const today = utcDay();
-    if (save.last !== today) {
+    if (isDaily && save.last !== today) {
       save.streak = (save.last === utcDay(-1)) ? save.streak + 1 : 1;
       save.last = today;
       T().track('streak_day', { n: save.streak });
@@ -212,7 +285,9 @@
   const botBand = () => (MODE === 'mobile' ? 150 : 80);
   const mapBotBand = () => (MODE === 'mobile' ? 96 : 20);
   const TRAY_H = 118;          // the tray as a strip, under a portrait board
-  const trayW = () => Math.round(Math.min(170, LW * 0.30));   // as a column
+  // As a column: 170 in the site frame, wider in a big window so the pieces
+  // are drawn at a size that belongs to the board beside them.
+  const trayW = () => Math.round(Math.min(LW * 0.30, Math.max(170, LH * 0.30)));
 
   /* WHICH WAY THE TRAY GOES IS DECIDED BY THE FRAME'S SHAPE, NOT BY MODE.
      The two layouts are landscape and portrait; desktop and mobile is only
@@ -222,6 +297,8 @@
      board 68 logical pixels of height and the hexagons collapsed to their
      minimum radius of 10. boardFit() reported it on its first run. */
   const landscape = () => LW >= LH * 1.15;
+  // Widest board, in hex columns, of every tier of the shipped ladder.
+  const TIER_MAX_COLS = [5, 6, 5.5, 5.5, 5.5, 5.5, 6, 6, 6, 6, 6, 7, 6.5, 7.5];
   const SQ3 = Math.sqrt(3);
 
   // ---------- HEX PIXEL MATH ----------
@@ -275,7 +352,17 @@
   let drag = null;          // {qi, shape, x, y, grabDX, grabDY, ghost}
   let cardScroll = 0;
   let trayScroll = 0;
-  let flash = 0;            // refusal feedback, a timestamp
+  let back = null;          // a refused piece flying home: {qi, x, y, r, t}
+  let bursts = [];          // placement sparks: {x, y, R, t}
+  let celebrate = null;     // the filled comb's wave of light: {x, y, t}
+  let winT0 = 0;            // when the win card opened, for its stars
+  let tutor = false;        // the first-drag demonstration is showing
+  let tutorT0 = 0;
+  let toast = null;         // a one-line notice: {msg, t}
+  const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const CELEBRATE_MS = REDUCED ? 0 : 800;
+  const BACK_MS = 200;
+  const celebrating = () => !!celebrate && performance.now() - celebrate.t < CELEBRATE_MS;
   let seatT = new Map();    // queue index -> when it seated, for the settle
   const L = { hit: {} };    // layout + hit boxes, rebuilt every layout()
 
@@ -299,6 +386,7 @@
     placedMask = new Uint8Array(level.queue.length);
     placedAt = new Array(level.queue.length).fill(null);
     history = []; moves = 0; drag = null; seatT = new Map(); trayScroll = 0;
+    back = null; bursts = []; celebrate = null; toast = null;
     lastStars = 0;
     hintsUsed = 0;
     skipped = false;
@@ -329,18 +417,36 @@
     placedMask[qi] = 1;
     placedAt[qi] = { idx, t: [tq, tr] };
     history.push(qi);
-    seatT.set(qi, now || performance.now());
+    const t = now || performance.now();
+    seatT.set(qi, t);
     layoutTray();
     moves++;
+    tutor = false;
     play('drop');
+    let sx = 0, sy = 0;
+    for (const i of idx) { sx += cellX(i); sy += cellY(i); }
+    const mid = { x: sx / idx.length, y: sy / idx.length };
+    if (!REDUCED) {
+      bursts.push({ x: mid.x, y: mid.y, R: L.R, t });
+      if (bursts.length > 6) bursts.shift();
+    }
     if (won()) {
       lastStars = recordWin(levelNo, isDaily, moves, level.par);
-      play('success');
+      play('win');
       T().levelComplete(levelNo, moves);
-      // The ad, if one is due, goes BEFORE the card rather than over it, so
-      // the player is never reading a result through an overlay.
       if (portal) portal.gameplayStop();
-      maybeInterstitial(() => { phase = 'win'; cardScroll = 0; draw(); });
+      /* THE COMB FILLS, THEN THE CARD. A wave of honey light runs out from the
+         last cluster across every cell before anything covers the board, so
+         solving is seen rather than replaced by a result. Input waits for it.
+         The ad, if one is due, still goes before the card, never over it. */
+      celebrate = { x: mid.x, y: mid.y, t };
+      setTimeout(() => {
+        maybeInterstitial(() => {
+          phase = 'win'; winT0 = performance.now(); cardScroll = 0;
+          if (!REDUCED) for (let i = 0; i < lastStars; i++) setTimeout(() => play('ping'), 240 + i * 140 + 200);
+          draw();
+        });
+      }, CELEBRATE_MS);
     }
     return true;
   }
@@ -423,7 +529,7 @@
       history.push(qi); seatT.set(qi, now);
     }
     layoutTray();
-    phase = 'win'; cardScroll = 0;
+    phase = 'win'; cardScroll = 0; winT0 = performance.now(); celebrate = null; tutor = false;
     lastStars = recordWin(levelNo, isDaily, moves, level.par, 1);
     skipped = true;
     play('success');
@@ -435,6 +541,12 @@
   /* Ask the portal, then act on the answer. On zamborin.com `canReward` is
      false and the action simply runs, which is the owner's decision recorded
      as one branch rather than two builds. */
+  /* CrazyGames switches ads off for a game in Basic Launch, and every request
+     then answers `adsDisabledBasicLaunch`. There is no way to ask before
+     requesting one, so the first refusal is how the game finds out, and Skip
+     goes for the rest of the session: offered again, it could only fail again. */
+  let videosOff = false;
+
   function withReward(kind, act) {
     const P = window.ZAM_PORTAL;
     if (!P || !P.canReward()) { act(); draw(); return; }
@@ -442,11 +554,15 @@
     P.rewarded(function () {
       T().track('rewarded_watched', { kind: kind, level: isDaily ? 0 : levelNo });
       act(); draw();
-    }, function () {
-      /* No fill, or the player closed it early. The brief's caps are about
-         what the game gives away, not about punishing a failed ad request, and
-         an ad that would not load is not the player's fault. They get it. */
-      act(); draw();
+    }, function (reason) {
+      /* No finished video, no reward. CrazyGames' ad rules say it in as many
+         words ("When our rewarded ad returns with an adError callback, do NOT
+         reward the player"), and granting it anyway was an integration breach
+         in the build they rejected. The player is told, and Hint stays free,
+         which is the alternative to an ad their rules also ask for. */
+      if (reason === 'adsDisabledBasicLaunch') videosOff = true;
+      toast = { msg: videosOff ? 'Skip is not available yet' : 'No video available right now', t: performance.now() };
+      draw();
     });
   }
 
@@ -478,7 +594,12 @@
       const TW = trayW();
       bx = SIDE_PAD; by = topBand();
       bw = LW - SIDE_PAD * 2 - TW - 20;
-      bh = LH - botBand() - by;
+      /* On desktop HINT and SKIP sit under the tray column, so the board's
+         side of the frame has nothing below it to reserve room for: it runs to
+         a bottom margin. Worth 60px of height, which on a 16:9 window is
+         where the board's size is decided. A phone held sideways keeps its
+         bottom control row and so keeps the reserve. */
+      bh = LH - (MODE === 'desktop' ? SIDE_PAD : botBand()) - by;
       // The BAND the tray may occupy, not the panel. The panel is sized to
       // what it holds, in layoutTray().
       // The bottom reserve already holds HINT and SKIP, so the column simply
@@ -493,6 +614,7 @@
       bh = LH - botBand() - TRAY_H - 14 - by;
       L.trayBand = { x: SIDE_PAD, y: LH - botBand() - TRAY_H, w: LW - SIDE_PAD * 2, h: TRAY_H, vertical: false };
     }
+    L.boardMid = bx + bw / 2;   // a toast about the whole level centres here
 
     /* The level's own extent, measured at unit radius from the REAL cells.
 
@@ -535,15 +657,27 @@
        drawn at 76px across the flats and a nine-column one could not have
        been drawn at all. The cost is that today's narrow boards are drawn
        smaller than they were, because today's levels do not use the width. */
-    const PORTRAIT_COLS = 8;
-    const capCols = landscape() ? 44
-      : bw / ((PORTRAIT_COLS + 0.5) * SQ3 + PAD * 2);
+    /* On a phone the cell is sized to the widest board IN THIS TIER, not to
+       an 8-column board no level has. Measured over all 100 shipped levels
+       (2026-09-15): tier 1 is 5 columns and the widest anywhere is 7.5, so the
+       8-column rule drew level 1 at 10% of a 390x844 screen. The owner's
+       2026-08-28 reason still holds within a tier: a run of levels keeps one
+       cell size and only a new tier changes it. The table is re-derived by
+       __comb.tierColsCheck(); the daily, which is outside the ladder, is
+       never drawn narrower than its own width. */
+    const ownCols = unitW / SQ3;
+    const tierCols = isDaily ? ownCols : Math.max(ownCols, TIER_MAX_COLS[Math.min(TIER_MAX_COLS.length - 1, G.tierOf(levelNo))]);
+    // The landscape cap grows with the window: 44 in the site frame, larger
+    // in full screen, where a fixed 44 left the board small in the middle.
+    const capR = landscape() ? Math.max(44, LH / 12) : 44;
+    const capCols = landscape() ? capR
+      : bw / ((tierCols + 0.5) * SQ3 + PAD * 2);
     /* The floor is 8, not 10, and it only ever binds BELOW the smallest frame
        the embed documents. A landscape phone at 568x320 gives the board 106px
        of height, and a six-row outline needs a radius under 10 to fit it: at a
        floor of 10 three levels in a hundred overflowed by 8px. Small and
        legible is the right way to fail there; clipped is not. */
-    L.R = Math.max(8, Math.min(44, capCols, fitR));
+    L.R = Math.max(8, Math.min(capR, capCols, fitR));
 
     L.ox = bx + (bw - unitW * L.R) / 2 - rx0 * L.R + L.R * SQ3 / 2;
     L.oy = by + (bh - unitH * L.R) / 2 - ry0 * L.R + L.R;
@@ -632,8 +766,15 @@
        not all be scrolled into view. The floor is a preference; fitting the
        window is not. */
     const fitsWindow = along / needAlong;
-    L.trayR = Math.max(6, Math.min(L.R, across / needAcross, fitsWindow,
-                                   Math.max(forThree, TRAY_RMIN)));
+    /* EVERY PIECE AT ONCE when they fit at a comfortable size. Sized to show
+       three, a four-piece level scrolled its tray in CrazyGames' standard
+       907x510 window with the fourth piece cut in half behind a scroll bar,
+       which is the first thing a new player would have to work out. Sized off
+       the whole queue so pieces keep their size as the tray empties. */
+    const nAll = level.queue.length;
+    const fitAll = (along - GAPT * (nAll - 1)) / (nAll * needAlong);
+    const want = fitAll >= TRAY_RMIN ? fitAll : Math.max(forThree, TRAY_RMIN);
+    L.trayR = Math.max(6, Math.min(L.R, across / needAcross, fitsWindow, want));
 
     /* A SHORT TRAY GETS MORE AIR BETWEEN ITS PIECES. Owner's call 2026-08-28:
        under four pieces, the base gap packs them tighter than the space
@@ -713,6 +854,28 @@
     return `rgb(${m(r)}, ${m(g)}, ${m(b)})`;
   }
 
+  /* The rim stops at 0.88 R so a dark wall of ground runs between cells, as
+     it does in real comb. That wall is what a seated cluster actually touches:
+     jewel pieces and amber wax are both mid-tones, and at 0.92 R the wall was
+     2px, so the only thing separating a piece from the wax beside it was hue. */
+  function drawWaxCell(cx, cy, R) {
+    const rim = R * 0.88, cup = R * 0.66;
+    // Which way the light falls on THIS cell. See LIGHT.
+    const lx = cx - LW * 0.32, ly = cy + LH * 0.5, m = Math.hypot(lx, ly) || 1;
+    let dx = LIGHT.x * 0.35 + (lx / m) * 0.65, dy = LIGHT.y * 0.35 + (ly / m) * 0.65;
+    const k = Math.hypot(dx, dy) || 1; dx /= k; dy /= k;
+    // The rim stands proud, so it is lit on the arc facing the light.
+    const g = ctx.createLinearGradient(cx - dx * rim, cy - dy * rim, cx + dx * rim, cy + dy * rim);
+    g.addColorStop(0, WAX.rimLit); g.addColorStop(0.5, WAX.rimMid); g.addColorStop(1, WAX.rimDark);
+    hexPath(cx, cy, rim); ctx.fillStyle = g; ctx.fill();
+    /* The cup is a HOLLOW, so it reads the other way round: the wall under the
+       light is the shaded one and the floor opposite catches the light. Lit
+       the same way round as the rim, an empty cell reads as a flat ring. */
+    const c = ctx.createLinearGradient(cx - dx * cup, cy - dy * cup, cx + dx * cup, cy + dy * cup);
+    c.addColorStop(0, WAX.cupDark); c.addColorStop(1, WAX.cupLit);
+    hexPath(cx, cy, cup); ctx.fillStyle = c; ctx.fill();
+  }
+
   /* One cell of a seated piece. Full radius, so cells inside a piece tile
      exactly and merge into one mass. The edge is made of value and nothing
      else: a vertical gradient, a light band across the top. No outline. */
@@ -782,7 +945,15 @@
     rafId = 0;
     render(now);
     // Keep animating only while something is actually moving.
-    if (drag || now - flash < 260 || anySettling(now)) draw();
+    if (drag || anySettling(now) || animating(now)) draw();
+  }
+  function animating(now) {
+    return (back && now - back.t < BACK_MS + 260) ||
+           bursts.some(b => now - b.t < 460) ||
+           (!!celebrate && now - celebrate.t < CELEBRATE_MS + 200) ||
+           (phase === 'win' && now - winT0 < 1100) ||
+           (tutor && phase === 'play') ||
+           (!!toast && now - toast.t < 2400);
   }
   function anySettling(now) {
     for (const t of seatT.values()) if (now - t < 220) return true;
@@ -802,28 +973,163 @@
 
     if (phase === 'map') { drawMap(now); drawHUD(); return; }
     drawBoard(now);
+    drawCelebration(now);
     drawTray(now);
     drawHUD();
     drawExtras();
+    drawBursts(now);
+    drawBack(now);
+    if (tutor && phase === 'play' && !drag) drawTutor(now);
+    drawToast(now);
     if (drag) drawDrag(now);
     if (phase === 'rules') drawCard('rules', now);
     else if (phase === 'win') drawCard('win', now);
   }
 
+  function shapeMid(shape, R) {
+    let minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
+    for (const c of shape.cells) {
+      const x = hexX(c[0], c[1], R), y = hexY(c[0], c[1], R);
+      if (x < minX) minX = x; if (x > maxX) maxX = x;
+      if (y < minY) minY = y; if (y > maxY) maxY = y;
+    }
+    return { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
+  }
+
+  // After the flight home, one short shake in the slot.
+  function shakeAt(dt) {
+    if (dt < BACK_MS || dt > BACK_MS + 260) return 0;
+    const k = (dt - BACK_MS) / 260;
+    return Math.sin(k * Math.PI * 4) * (1 - k) * 6;
+  }
+
+  function drawBack(now) {
+    if (!back || now - back.t >= BACK_MS) return;
+    const n = L.remaining.indexOf(back.qi);
+    const box = n >= 0 ? trayBox(n) : null;
+    if (!box) return;
+    const shape = level.catalogue[level.queue[back.qi].shape];
+    const home = shapeAnchor(shape, box.x, box.y, box.w, box.h, L.trayR);
+    const k = 1 - Math.pow(1 - (now - back.t) / BACK_MS, 3);
+    const r = back.r + (L.trayR - back.r) * k;
+    const m0 = shapeMid(shape, back.r), m1 = shapeMid(shape, L.trayR), m = shapeMid(shape, r);
+    const cx = back.x + m0.x + ((home.x + m1.x) - (back.x + m0.x)) * k;
+    const cy = back.y + m0.y + ((home.y + m1.y) - (back.y + m0.y)) * k;
+    drawPieceAt(shape, cx - m.x, cy - m.y, r, PIECE[back.qi % PIECE.length], 0);
+  }
+
+  // Sparks where a cluster seats: a bright core, no wash (DESIGN-SYSTEM 6).
+  function drawBursts(now) {
+    for (const b of bursts) {
+      const dt = now - b.t;
+      if (dt < 0 || dt > 460) continue;
+      const k = dt / 460;
+      ctx.globalAlpha = 1 - k;
+      ctx.fillStyle = '#FFE08A';
+      for (let i = 0; i < 10; i++) {
+        const a = (i / 10) * Math.PI * 2 + b.x * 0.013;
+        const d = b.R * (0.6 + 1.3 * (1 - Math.pow(1 - k, 2)));
+        ctx.beginPath();
+        ctx.arc(b.x + Math.cos(a) * d, b.y + Math.sin(a) * d - k * b.R * 0.3,
+                Math.max(0.5, b.R * 0.09 * (1 - k)), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // The comb filling: light runs out from the last cluster across every cell.
+  function drawCelebration(now) {
+    if (!celebrate) return;
+    const dt = now - celebrate.t;
+    if (dt < 0 || dt > CELEBRATE_MS + 200) return;
+    let far = 1;
+    for (let i = 0; i < level.n; i++) far = Math.max(far, Math.hypot(cellX(i) - celebrate.x, cellY(i) - celebrate.y));
+    for (let i = 0; i < level.n; i++) {
+      const cx = cellX(i), cy = cellY(i);
+      const u = (dt - (Math.hypot(cx - celebrate.x, cy - celebrate.y) / far) * CELEBRATE_MS * 0.5) / 380;
+      if (u <= 0 || u >= 1) continue;
+      const a = Math.sin(Math.PI * u) * 0.55;
+      const g = ctx.createRadialGradient(cx, cy - L.R * 0.3, 0, cx, cy, L.R);
+      g.addColorStop(0, 'rgba(255, 236, 170, ' + a.toFixed(3) + ')');
+      g.addColorStop(1, 'rgba(255, 190, 60, ' + (a * 0.6).toFixed(3) + ')');
+      hexPath(cx, cy, L.R); ctx.fillStyle = g; ctx.fill();
+    }
+  }
+
+  /* THE FIRST DRAG, SHOWN. A new player lands in level 1 with no card in the
+     way, so the one move the game is made of is demonstrated where it happens:
+     the first cluster leaves the tray and sets where the level's own solution
+     puts it, with a finger under it held the way a real drag holds a piece.
+     It loops until the player takes hold of anything. Drawn, never an emoji.
+     With reduced motion it holds still at the end of the carry. */
+  const TUTOR_LOOP = 2600;
+  function drawTutor(now) {
+    const qi = L.remaining[0];
+    const box = qi === undefined ? null : trayBox(0);
+    if (!box) return;
+    const p = level.queue[qi], shape = level.catalogue[p.shape];
+    const from = shapeAnchor(shape, box.x, box.y, box.w, box.h, L.trayR);
+    const fm = shapeMid(shape, L.trayR), tm = shapeMid(shape, L.R);
+    const c0 = { x: from.x + fm.x, y: from.y + fm.y };
+    const c1 = { x: L.ox + hexX(p.t[0], p.t[1], L.R) + tm.x, y: L.oy + hexY(p.t[0], p.t[1], L.R) + tm.y };
+    const u = REDUCED ? 0.6 : ((now - tutorT0) % TUTOR_LOOP) / TUTOR_LOOP;
+    const carry = Math.max(0, Math.min(1, (u - 0.14) / 0.42));
+    const e = carry < 0.5 ? 4 * carry * carry * carry : 1 - Math.pow(-2 * carry + 2, 3) / 2;
+    const fade = u < 0.74 ? 1 : Math.max(0, 1 - (u - 0.74) / 0.18);
+    const r = L.trayR + (L.R - L.trayR) * e;
+    const m = shapeMid(shape, r);
+    const cx = c0.x + (c1.x - c0.x) * e, cy = c0.y + (c1.y - c0.y) * e;
+    ctx.save();
+    ctx.globalAlpha = 0.62 * fade;
+    drawPieceAt(shape, cx - m.x, cy - m.y, r, PIECE[qi % PIECE.length], 0.4);
+    // The finger sits under the piece, as far below it as a real drag lifts it.
+    const pressed = u > 0.08 && u < 0.62;
+    const fx = cx, fy = cy - liftY() * e;
+    ctx.globalAlpha = fade;
+    ctx.fillStyle = TOK.tint40;
+    ctx.beginPath(); ctx.arc(fx, fy, pressed ? 21 : 16, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = TOK.ink92;
+    ctx.beginPath(); ctx.arc(fx, fy, pressed ? 9 : 11, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+
+    // One line of plain words, below the board if there is room, else above.
+    ctx.font = '600 16px Inter, sans-serif';
+    ctx.fillStyle = TOK.ink90; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const below = L.plate.y + L.plate.h + 18, above = L.plate.y - 16;
+    const tx = L.area.x + L.area.w / 2;
+    if (below <= L.area.y + L.area.h - 4) ctx.fillText('Drag each cluster into the honeycomb', tx, below);
+    else if (above >= L.area.y + 10) ctx.fillText('Drag each cluster into the honeycomb', tx, above);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  }
+
+  function drawToast(now) {
+    if (!toast || !L.toast) return;
+    const dt = now - toast.t;
+    if (dt > 2400) return;
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, Math.min(1, dt / 150, (2400 - dt) / 300));
+    ctx.font = '600 16px Inter, sans-serif';
+    const w = ctx.measureText(toast.msg).width + 36, h = 38;
+    // A toast about Skip sits by Skip. One about the whole level goes over the
+    // board, under the top band: by the tray it covered the pieces on a phone.
+    const y = toast.top ? topBand() + 12 + h / 2 : L.toast.y;
+    const x = Math.max(SIDE_PAD + w / 2, Math.min(LW - SIDE_PAD - w / 2, toast.top ? L.boardMid : L.toast.x));
+    UI.roundRectPath(ctx, x - w / 2, y - h / 2, w, h, h / 2);
+    ctx.fillStyle = TOK.bgCard; ctx.fill();
+    ctx.strokeStyle = TOK.tint12; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = TOK.ink90; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(toast.msg, x, y + 1);
+    ctx.restore();
+  }
+
   function drawBoard(now) {
-    // Empty cells at 0.90 R. The gap between them is what makes the lattice
-    // read as a lattice.
+    // Empty cells: wax. A lit rim at 0.92 R round a recessed cup, so each
+    // reads as a honeycomb cell and the board's outline is the brightest
+    // thing on the ground. The old 4.5% white plot measured 1.19:1 there.
     for (let i = 0; i < level.n; i++) {
       if (occ[i]) continue;
-      const cx = cellX(i), cy = cellY(i), r = L.R * 0.90;
-      hexPath(cx, cy, r);
-      ctx.fillStyle = 'rgba(255,255,255,0.045)'; ctx.fill();
-      ctx.save(); hexPath(cx, cy, r); ctx.clip();
-      const band = ctx.createLinearGradient(0, cy - r, 0, cy - r * 0.35);
-      band.addColorStop(0, 'rgba(255,255,255,0.07)');
-      band.addColorStop(1, 'rgba(255,255,255,0)');
-      ctx.fillStyle = band; ctx.fillRect(cx - r, cy - r, r * 2, r * 0.7);
-      ctx.restore();
+      drawWaxCell(cellX(i), cellY(i), L.R);
     }
 
     // The ghost: where the dragged piece would land. A value wash of the
@@ -836,6 +1142,7 @@
     }
 
     // Seated pieces.
+    const seated = [];
     for (const qi of history) {
       if (drag && drag.qi === qi) continue;
       const p = placedAt[qi];
@@ -843,16 +1150,29 @@
       const shape = level.catalogue[level.queue[qi].shape];
       const t = seatT.get(qi) || 0;
       const k = Math.min(1, (now - t) / 220);
-      const pop = 1 + 0.06 * Math.sin(Math.PI * k) * (1 - k);
-      const anchor = { x: L.ox + hexX(p.t[0], p.t[1], L.R), y: L.oy + hexY(p.t[0], p.t[1], L.R) };
-      ctx.save();
-      if (pop !== 1) {
-        const cx = anchor.x, cy = anchor.y;
-        ctx.translate(cx, cy); ctx.scale(pop, pop); ctx.translate(-cx, -cy);
-      }
-      drawPieceAt(shape, anchor.x, anchor.y, L.R, PIECE[qi % PIECE.length], 0);
-      ctx.restore();
+      seated.push({ qi, shape, pop: 1 + 0.06 * Math.sin(Math.PI * k) * (1 - k),
+                    anchor: { x: L.ox + hexX(p.t[0], p.t[1], L.R), y: L.oy + hexY(p.t[0], p.t[1], L.R) } });
     }
+    /* TWO PASSES: every shadow, then every piece. A shadow underneath is the
+       edge DESIGN-SYSTEM 6 allows instead of an outline, and it gives a seated
+       cluster a dark value edge against the wax beside it (jewel pieces and
+       wax are both mid-tones). Drawn piece by piece, each cluster's shadow fell
+       across the one seated before it, which the owner saw at once ("it
+       doesn't look neat", 2026-09-15). Now a shadow only lands on wax and
+       ground, because every piece is drawn over every shadow. */
+    const withPop = (s, fn) => {
+      ctx.save();
+      if (s.pop !== 1) { ctx.translate(s.anchor.x, s.anchor.y); ctx.scale(s.pop, s.pop); ctx.translate(-s.anchor.x, -s.anchor.y); }
+      fn();
+      ctx.restore();
+    };
+    for (const s of seated) withPop(s, () => {
+      ctx.shadowColor = 'rgba(10, 16, 28, 0.62)';
+      ctx.shadowBlur = L.R * 0.35; ctx.shadowOffsetY = L.R * 0.10;
+      ctx.fillStyle = PIECE[s.qi % PIECE.length];
+      for (const c of s.shape.cells) { hexPath(s.anchor.x + hexX(c[0], c[1], L.R), s.anchor.y + hexY(c[0], c[1], L.R), L.R); ctx.fill(); }
+    });
+    for (const s of seated) withPop(s, () => drawPieceAt(s.shape, s.anchor.x, s.anchor.y, L.R, PIECE[s.qi % PIECE.length], 0));
   }
 
   function drawTray(now) {
@@ -873,9 +1193,11 @@
       if (!box) continue;
       L.hit['tray' + n] = { ...box, qi };
       if (drag && drag.qi === qi) continue;
+      if (back && back.qi === qi && now - back.t < BACK_MS) continue;   // still flying home
       const shape = level.catalogue[level.queue[qi].shape];
       const a = shapeAnchor(shape, box.x, box.y, box.w, box.h, L.trayR);
-      drawPieceAt(shape, a.x, a.y, L.trayR, PIECE[qi % PIECE.length], 0);
+      const shake = (back && back.qi === qi) ? shakeAt(now - back.t) : 0;
+      drawPieceAt(shape, a.x + shake, a.y, L.trayR, PIECE[qi % PIECE.length], 0);
     }
     ctx.restore();
 
@@ -964,7 +1286,7 @@
       : rowLeft + total;
     const avail = LW - SIDE_PAD - rowRight - 16;
     const txt = onMap
-      ? 'STREAK ' + save.streak + '   ·   ' + totalStars() + ' STARS'
+      ? 'DAILY STREAK ' + liveStreak() + '   ·   ' + totalStars() + ' STARS'
       : (isDaily ? 'DAILY' : 'LEVEL ' + levelNo) + '   ·   MOVES ' + moves;
     let hs = Math.max(0.66, Math.min(1, LW / 620));
     ctx.font = '600 ' + (16 * hs).toFixed(1) + 'px Inter, sans-serif';
@@ -987,35 +1309,62 @@
   function drawExtras() {
     if (phase !== 'play') { L.hit.hint = L.hit.skip = null; return; }
     const P = window.ZAM_PORTAL;
-    const badged = !!(P && P.canReward());
+    const badged = !!(P && P.canReward());   // Skip only: a hint is free
     const cy = MODE === 'mobile' ? LH - 128 : LH - 44;
-    const pad = badged ? 40 : 0;
-    const hw = UI.pillWidth(ctx, 'Hint') + pad;
-    const sw = UI.pillWidth(ctx, 'Skip') + pad;
+    const hw = UI.pillWidth(ctx, 'Hint');
+    const sw = UI.pillWidth(ctx, 'Skip') + (badged ? 38 : 0);
     const gap = 12;
+    const rowW = videosOff ? hw : hw + gap + sw;
     let x;
-    if (MODE === 'mobile') x = (LW - (hw + sw + gap)) / 2;
-    else x = L.trayBand.x + (L.trayBand.w - (hw + sw + gap)) / 2;
+    if (MODE === 'mobile') x = (LW - rowW) / 2;
+    else x = L.trayBand.x + (L.trayBand.w - rowW) / 2;
 
     const out = hintsUsed >= HINT_CAP;
-    L.hit.hint = UI.drawPill(ctx, 'Hint', x + hw / 2, cy, { w: hw, dim: out });
-    if (badged) drawAdBadge(x + hw - 30, cy, out);
+    const rowMid = x + rowW / 2;
+    L.hit.hint = rewardPill('Hint', x, hw, cy, false, out);
     x += hw + gap;
-    L.hit.skip = UI.drawPill(ctx, 'Skip', x + sw / 2, cy, { w: sw });
-    if (badged) drawAdBadge(x + sw - 30, cy, false);
+    L.hit.skip = videosOff ? null : rewardPill('Skip', x, sw, cy, badged, false);
+    L.toast = { x: rowMid, y: cy - 50 };
   }
 
-  // A badge, not a button. Chrome, so tokens only, and badges are exempt from
-  // the 16px copy floor because nobody reads a badge as prose.
-  function drawAdBadge(cx, cy, dim) {
-    const w = 30, h = 18;
-    UI.roundRectPath(ctx, cx - w / 2, cy - h / 2, w, h, 5);
-    ctx.fillStyle = TOK.tint12; ctx.fill();
-    ctx.fillStyle = dim ? TOK.tint30 : TOK.ink72;
-    ctx.font = '700 10px Inter, sans-serif';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('AD', cx, cy + 1);
+  /* A pill whose label and video mark are centred TOGETHER.
+     The old version drew the label centred in the padded pill and then put the
+     badge near the right edge, so at 'Hint' the two overlapped by about 7px and
+     read as one cramped word, "HintAD". Measuring the pair and centring the
+     group is what fixes it; nothing here changes the hit box, which is still
+     the whole pill. */
+  function rewardPill(label, x, w, cy, badged, dim) {
+    const box = UI.drawPill(ctx, badged ? '' : label, x + w / 2, cy, { w, dim });
+    if (!badged) return box;
+    const BW = 22, GAP = 9;
+    ctx.font = '700 ' + UI.PILL.font + 'px Inter, sans-serif';
+    const lw = ctx.measureText(label).width;
+    const lx = x + w / 2 - (lw + GAP + BW) / 2;
+    ctx.fillStyle = dim ? UI.PILL.textDim : UI.PILL.text;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText(label, lx, cy + 1);
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    drawVideoMark(lx + lw + GAP + BW / 2, cy, BW, dim);
+    return box;
+  }
+
+  /* The mark is a VIDEO glyph, not the letters AD. CrazyGames' rewarded-ad
+     rule asks for "a video icon indicating advertisement requirement", and a
+     play triangle in a chip is the mark every portal player already reads that
+     way — where "AD" at 10px was both illegible and the wrong promise. Drawn,
+     never an emoji. Chrome, so tokens only. */
+  function drawVideoMark(cx, cy, w, dim) {
+    const h = 16, r = 4.5;
+    UI.roundRectPath(ctx, cx - w / 2, cy - h / 2, w, h, r);
+    ctx.fillStyle = TOK.tint12; ctx.fill();
+    const s = 5.4;
+    ctx.beginPath();
+    ctx.moveTo(cx - s * 0.40, cy - s * 0.60);
+    ctx.lineTo(cx + s * 0.74, cy);
+    ctx.lineTo(cx - s * 0.40, cy + s * 0.60);
+    ctx.closePath();
+    ctx.fillStyle = dim ? TOK.tint30 : TOK.ink72;
+    ctx.fill();
   }
 
   // Four little cells: the level map, and a way back to it.
@@ -1073,7 +1422,7 @@
     const cols = Math.max(4, Math.min(10, Math.round(availW / 68)));
     const cw = availW / cols;
     const ch = Math.max(52, Math.min(84, cw * 0.92));
-    const headH = 118;                       // title, then the daily button
+    const headH = 132;                       // title, then the two-line daily button
     const rows = Math.ceil(LEVELS / cols);
     const contentH = headH + rows * ch + 12;
     return { pad, viewTop, viewH, availW, cols, cw, ch, headH, rows, contentH,
@@ -1099,6 +1448,21 @@
     ctx.fillStyle = on ? TOK.accent2 : TOK.tint12;
     ctx.fill();
   }
+  // The win card's stars: each socket is always there, and each earned star
+  // lands in turn with a small overshoot.
+  function drawStarsPop(cx, cy, r, n, gap, dt) {
+    for (let i = 0; i < 3; i++) {
+      const x = cx + (i - 1) * gap;
+      drawStar(x, cy, r, false);
+      if (i >= n) continue;
+      const d = REDUCED ? 1e9 : dt - (240 + i * 140);
+      if (d <= 0) continue;
+      const s = d >= 380 ? 1 : (d < 220 ? 1.25 * (d / 220) : 1.25 - 0.25 * ((d - 220) / 160));
+      ctx.save(); ctx.translate(x, cy); ctx.scale(s, s);
+      drawStar(0, 0, r, true);
+      ctx.restore();
+    }
+  }
   function drawStars(cx, cy, r, n, gap) {
     const g = gap || r * 2.4;
     for (let i = 0; i < 3; i++) drawStar(cx + (i - 1) * g, cy, r, i < n);
@@ -1121,7 +1485,7 @@
     // The daily. One puzzle a day, the same one for everyone.
     const doneToday = save.daily.date === utcDay();
     const dy = y + 62;
-    const dh = 44;
+    const dh = 58;
     L.hit.daily = { x: M.pad, y: dy, w: M.availW, h: dh };
     UI.roundRectPath(ctx, M.pad, dy, M.availW, dh, dh / 2);
     ctx.fillStyle = doneToday ? TOK.tint03 : TOK.tint07; ctx.fill();
@@ -1131,8 +1495,27 @@
     ctx.fillStyle = doneToday ? TOK.ink72 : TOK.ink92;
     ctx.font = '700 15px Inter, sans-serif';
     ctx.textAlign = 'left';
-    ctx.fillText(doneToday ? "TODAY'S PUZZLE, DONE" : "TODAY'S PUZZLE", M.pad + 20, dy + dh / 2 + 5);
-    if (doneToday) drawStars(M.pad + M.availW - 44, dy + dh / 2, 6, save.daily.stars | 0, 15);
+    // Once done, its stars take the right end of this line, and the long label
+    // ran into them on a 320 phone. The dim button and the stars still say done.
+    const long = "TODAY'S PUZZLE, DONE";
+    const label = doneToday && M.pad + 20 + ctx.measureText(long).width + 12 <= M.pad + M.availW - 65 ? long : "TODAY'S PUZZLE";
+    ctx.fillText(label, M.pad + 20, dy + 23);
+    if (doneToday) drawStars(M.pad + M.availW - 44, dy + 18, 6, save.daily.stars | 0, 15);
+    /* The second line says what makes it the daily. Nothing on screen used to:
+       "the same puzzle for everyone" was true and invisible, and the streak it
+       now carries was not mentioned anywhere. Measured into the button, so a
+       narrow phone gets the short form rather than a clipped sentence. It is
+       read, not glanced at, so it keeps the 16px floor. */
+    ctx.fillStyle = TOK.ink72;
+    ctx.font = '600 16px Inter, sans-serif';
+    const roomW = M.availW - 40;
+    const lines = doneToday
+      ? ['Same for everyone · back tomorrow for your streak', 'Same for everyone · back tomorrow',
+         'Back tomorrow for your streak', 'Back tomorrow']
+      : ['Same for everyone · keeps your daily streak', 'Same for everyone · keeps your streak', 'Same for everyone'];
+    const line = lines.find(t => ctx.measureText(t).width <= roomW) || lines[lines.length - 1];
+    ctx.fillText(line, M.pad + 20, dy + 43);
+    L.dailyNote = { text: line, w: Math.round(ctx.measureText(line).width), room: Math.round(roomW), label };
 
     // The hundred.
     for (let i = 0; i < LEVELS; i++) {
@@ -1249,7 +1632,9 @@
       scrollMax: Math.max(0, contentH - viewH),
       ctaCy: py + ph - FOOTER + 16 + UI.CTA.h / 2,
       title: kind === 'rules' ? 'COMB' : 'FILLED',
-      cta: kind === 'rules' ? 'PLAY' : (isDaily || levelNo >= LEVELS ? 'MAP' : 'NEXT'),
+      cta: kind === 'rules' ? 'PLAY'
+        : isDaily ? (starsAt(LEVELS) > 0 ? 'MAP' : 'LEVEL ' + save.max)
+        : (levelNo >= LEVELS ? 'MAP' : 'NEXT'),
       subtitle: kind === 'rules'
         ? 'Fit the clusters together until no cell is left open.'
         : (lastStars === 3 ? 'Not a move wasted.'
@@ -1302,8 +1687,8 @@
           const mid = c.px + c.pw / 2;
           ctx.textAlign = 'center';
           ctx.fillStyle = TOK.ink90; ctx.font = '500 16px Inter, sans-serif';
-          ctx.fillText(isDaily ? "Today's puzzle" : 'Level ' + levelNo, mid, yy + 22);
-          drawStars(mid, yy + 58, 17, lastStars, 44);
+          ctx.fillText(isDaily ? "Today's puzzle · daily streak " + liveStreak() : 'Level ' + levelNo, mid, yy + 22);
+          drawStarsPop(mid, yy + 58, 17, lastStars, 44, now - winT0);
           ctx.fillStyle = TOK.ink82; ctx.font = '600 16px Inter, sans-serif';
           ctx.fillText(moves + (moves === 1 ? ' move' : ' moves') + '   ·   par ' + level.par,
                        mid, yy + 104);
@@ -1341,10 +1726,7 @@
     const cx = x + w / 2, cy = y + h / 2;
     const empt = [[0, 0], [1, 0], [0, 1], [1, 1], [-1, 1], [2, 0], [-1, 2], [0, 2]];
     const ox = cx - hexX(0.5, 1, r), oy = cy - hexY(0, 1, r);
-    for (const c of empt) {
-      const hx = ox + hexX(c[0], c[1], r), hy = oy + hexY(c[0], c[1], r);
-      hexPath(hx, hy, r * 0.9); ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fill();
-    }
+    for (const c of empt) drawWaxCell(ox + hexX(c[0], c[1], r), oy + hexY(c[0], c[1], r), r);
     const a = { cells: [[0, 0], [1, 0], [0, 1]], w: 2, h: 2 };
     for (const c of a.cells) drawPieceCell(ox + hexX(c[0], c[1], r), oy + hexY(c[0], c[1], r), r, PIECE[0], 0);
     drawSeams(a.cells, { x: ox, y: oy }, r);
@@ -1401,6 +1783,8 @@
     const a = shapeAnchor(shape, box.x, box.y, box.w, box.h, r0);
     drag = { qi, from: 'tray', t0: performance.now(), r0,
              grabDX: a.x - p0.x, grabDY: a.y - p0.y - liftY(), x: a.x, y: a.y, ghost: null };
+    tutor = false;
+    markStarted();
     play('click');
     updateDrag(p);
   }
@@ -1408,7 +1792,11 @@
   canvas.addEventListener('pointerdown', (e) => {
     if (sfx) sfx.ensureAudio();          // browsers only allow audio after a gesture
     const p = toLocal(e);
-    if (phase === 'rules' || phase === 'win') return;   // handled on pointerup
+    // Pieces are only picked up in play. The map is drawn OVER the level just
+    // finished, and a tap on it used to lift a hidden piece and put it back,
+    // which won that level again: its card came back instead of the level.
+    if (phase !== 'play') return;
+    if (celebrating()) return;
 
     // From the tray.
     for (let n = 0; n < L.remaining.length; n++) {
@@ -1483,9 +1871,11 @@
     if (drag.ghost) {
       seat(drag.qi, drag.ghost.t[0], drag.ghost.t[1], now);
     } else {
-      // A refusal costs nothing. It just goes back.
-      play('error');
-      flash = now;
+      // A refusal costs nothing, and it goes back VISIBLY: the cluster flies
+      // home to its slot and the slot shakes once. It used to vanish on
+      // release, with a timestamp set for a flash that nothing ever drew.
+      play('snag');
+      back = REDUCED ? null : { qi: drag.qi, x: drag.x, y: drag.y, r: L.R, t: now };
     }
     drag = null;
     canvas.releasePointerCapture?.(e.pointerId);
@@ -1513,11 +1903,24 @@
     const p = toLocal(e);
 
     if (phase === 'rules') {
-      if (inBox(p, L.hit.close)) { phase = rulesFrom; if (phase === 'play') markStarted(); draw(); }
+      if (inBox(p, L.hit.close)) {
+        phase = rulesFrom;
+        /* THE FIRST PLAY OF A SESSION COMES THROUGH HERE, NOT openLevel().
+           openLevel() is only reached from the win card and the map, so a
+           player who presses PLAY on the rules card and never finishes a level
+           used to be invisible to the portal: CrazyGames' QA panel showed
+           Gameplay Start unlit, and Load size / Load time never resolved,
+           because both are measured up to that event. */
+        if (phase === 'play') { markStarted(); if (portal) portal.gameplayStart(); }
+        draw();
+      }
       return;
     }
     if (phase === 'win') {
       if (inBox(p, L.hit.next)) {
+        // After the daily, on to the player's own next level; the map is the
+        // top-left button. Only a finished ladder sends it back to the map.
+        if (isDaily && starsAt(LEVELS) === 0) { openLevel(save.max); return; }
         if (isDaily || levelNo >= LEVELS) { phase = 'map'; draw(); return; }
         const wasTier = G.tierOf(levelNo);
         openLevel(levelNo + 1);
@@ -1528,11 +1931,19 @@
       return;
     }
 
+    // Nothing but the comb filling while it fills: a Rules tap here opened the
+    // card and the win card replaced it a moment later.
+    if (celebrating()) return;
     if (inBox(p, L.hit.sound)) {
       if (sfx) { sfx.setOn(!sfx.isOn()); if (sfx.isOn()) play('click'); }
       draw(); return;
     }
-    if (inBox(p, L.hit.rules)) { rulesFrom = phase; phase = 'rules'; cardScroll = 0; draw(); return; }
+    if (inBox(p, L.hit.rules)) {
+      // Opening the rules mid-level is a break, and their docs name entering a
+      // menu as one. Paired with the start above so the two always balance.
+      if (phase === 'play' && portal) portal.gameplayStop();
+      rulesFrom = phase; phase = 'rules'; cardScroll = 0; draw(); return;
+    }
 
     if (phase === 'map') {
       // A drag that scrolled the map is not a tap on whatever it ended over.
@@ -1555,7 +1966,7 @@
     // the analytics call sits BELOW it.
     if (inBox(p, L.hit.hint)) {
       if (hintsUsed >= HINT_CAP) { play('error'); return; }
-      withReward('hint', applyHint);
+      applyHint(); draw();
       return;
     }
     if (inBox(p, L.hit.skip)) { withReward('skip', applySkip); return; }
@@ -1613,7 +2024,7 @@
   // Small on purpose. Every handle here is something a future session will
   // actually need: reach a level, prove it is completable, and ask the two
   // questions no check running on a page at rest can answer for itself.
-  window.__comb = {
+  if (new URLSearchParams(location.search).get('harness') === '1') window.__comb = {
     get state() {
       return { level: levelNo, tier: G.tierOf(levelNo) + 1, phase, moves,
                cells: level.n, par: level.par, placed: history.length,
@@ -1696,7 +2107,9 @@
       return {
         mode: MODE, LW, LH, phase, R: L.R, liftY: liftY(),
         controls: { sound: L.hit.sound, undo: L.hit.undo, restart: L.hit.restart,
-                    rules: L.hit.rules, map: L.hit.map || null },
+                    rules: L.hit.rules, map: L.hit.map || null,
+                    hint: L.hit.hint || null, skip: L.hit.skip || null },
+        tutor, toast: toast ? toast.msg : null,
         cta: L.hit.close || L.hit.next || null,
         daily: L.hit.daily || null,
         levels,
@@ -1735,9 +2148,24 @@
       };
     },
 
+    /* Re-derive TIER_MAX_COLS from the ladder itself, so the table cannot
+       drift from the levels it describes. Slow: it builds all 100. */
+    tierColsCheck() {
+      const got = [];
+      for (let n = 1; n <= LEVELS; n++) {
+        const lv = G.shippedLevel(n);
+        let x0 = 1e9, x1 = -1e9;
+        for (const k of lv.board) { const x = hexX(G.keyQ(k), G.keyR(k), 1); if (x < x0) x0 = x; if (x > x1) x1 = x; }
+        const t = G.tierOf(n), cols = Math.round(((x1 - x0) / SQ3 + 1) * 2) / 2;
+        got[t] = Math.max(got[t] || 0, cols);
+      }
+      return { table: TIER_MAX_COLS, measured: got, matches: got.every((v, i) => v === TIER_MAX_COLS[i]) };
+    },
+
     /* What the player's record actually says. */
     progress() {
-      return { max: save.max, stars: totalStars(), streak: save.streak,
+      return { max: save.max, stars: totalStars(), streak: save.streak, liveStreak: liveStreak(),
+               dailyStars: save.dailyStars | 0, dailyNote: L.dailyNote || null,
                last: save.last, daily: save.daily,
                perLevel: Object.keys(save.stars).length };
     },
@@ -1854,6 +2282,9 @@
         whiteOnWhite: Math.round(ratio([255, 255, 255], [255, 255, 255]) * 100) / 100,
         greyOnGrey: Math.round(ratio([128, 128, 128], [128, 128, 128]) * 100) / 100,
       };
+      /* The grounds a piece actually meets: the three stops of the Portal wash.
+         The tray and the walls between cells sit over these, and the wall is
+         what a seated cluster touches (see drawWaxCell's 0.88 R). */
       const grounds = { panel: TOK.bgPanel, card: TOK.bgCard, bg: TOK.bg };
       const out = {};
       let worst = Infinity, worstAt = '';
@@ -1864,7 +2295,27 @@
           return { i, hex: p, ratio: v };
         });
       }
-      return { nullTest, worst, worstAt, passes3to1: worst >= 3, byGround: out };
+      /* THE WAX IS A GRADIENT, so it is swept end to end and not read at one
+         stop. Read at the rim's top alone, one blue looked uniquely broken at
+         1.03:1; swept, every colour in the old palette and the new one matches
+         the wax's lightness somewhere along the rim (measured 2026-09-16).
+         Lightness never parted a piece from the wax. The dark wall between
+         cells and the seated shadow do, so the wax is reported on its own and
+         kept out of passes3to1 rather than failing it forever. */
+      const mix = (a, b, t) => rgb(a).map((v, j) => Math.round(v + (rgb(b)[j] - v) * t));
+      let waxLowest = Infinity, waxAt = '';
+      for (let t = 0; t <= 10; t++) {
+        for (const w of [mix(WAX.rimLit, WAX.rimMid, t / 10), mix(WAX.rimMid, WAX.rimDark, t / 10),
+                         mix(WAX.cupDark, WAX.cupLit, t / 10)]) {
+          for (const p of PIECE) {
+            const v = ratio(rgb(p), w);
+            if (v < waxLowest) { waxLowest = v; waxAt = p; }
+          }
+        }
+      }
+      return { nullTest, worst, worstAt, passes3to1: worst >= 3, byGround: out,
+               wax: { lowest: Math.round(waxLowest * 100) / 100, at: waxAt,
+                      partedBy: 'the dark wall between cells and the seated shadow' } };
     },
   };
 
@@ -1883,13 +2334,39 @@
   } else if (params.get('daily')) {
     genLevel(0, { daily: true }); phase = 'play';
   } else if (save.max > 1 || totalStars() > 0) {
-    /* A returning player lands on the MAP, not on a level. The row of
-       unfinished levels is the pull of a progression game, and a player
-       dropped straight back into level 37 never sees how far they have come or
-       how far is left. */
-    genLevel(save.max); phase = 'map';
+    /* A returning player lands IN their next level, with the map one tap
+       away on the top-left button. It used to open on the map, which
+       CrazyGames counts as a menu between the player and the game: their
+       standard is to "land new users in gameplay immediately".
+       TODAY'S PUZZLE FIRST, until it is done (owner's call 2026-09-15). The
+       button on the map was the only way in, so a player could come back
+       every day and never see it. Its win card goes on to their own level. */
+    const dailyFirst = save.daily.date !== utcDay();
+    genLevel(dailyFirst ? 0 : save.max, { daily: dailyFirst }); phase = 'play';
+    if (dailyFirst) {
+      // Say so when the splash lifts: this is not the level they left.
+      const hello = () => {
+        if (phase !== 'play' || !isDaily) return;
+        const long = "Today's puzzle · same for everyone";
+        ctx.font = '600 16px Inter, sans-serif';
+        toast = { msg: ctx.measureText(long).width + 36 <= LW - SIDE_PAD * 2 ? long : "Today's puzzle", t: performance.now(), top: true };
+        draw();
+      };
+      if (document.getElementById('splash')) window.addEventListener('splash-done', hello, { once: true });
+      else hello();
+    }
   } else {
-    genLevel(1); phase = 'rules'; rulesFrom = 'play';
+    /* A new player lands in level 1 with no card in the way (owner's call
+       2026-09-15). The rules stay one tap away on the Rules pill, and the one
+       move the game is made of is shown by the hand. */
+    genLevel(1); phase = 'play'; tutor = true; tutorT0 = performance.now();
+  }
+  /* Landing in a level IS the session's first gameplay. The portal hears it
+     when the splash lifts, the first moment a player can act. */
+  if (phase === 'play' && portal) {
+    if (document.getElementById('splash')) {
+      window.addEventListener('splash-done', () => { if (phase === 'play') portal.gameplayStart(); }, { once: true });
+    } else portal.gameplayStart();
   }
   window.addEventListener('resize', onResize);
   window.addEventListener('orientationchange', () => setTimeout(onResize, 100));

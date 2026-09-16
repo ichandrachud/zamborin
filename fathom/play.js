@@ -69,7 +69,37 @@
   /* The fleet is mixed about 4x too quiet; 2.2 is this game's owner-locked
      master gain. The mix IS the noise meter, so held verbs must be smooth:
      one soft blub per quarter second, never a per-frame crackle. */
-  const sfx = window.ZSFX ? window.ZSFX.create({ storageKey: 'zam.fathom.sfx', gain: 2.2 }) : null;
+  const SFX_GAIN = 2.2;
+  const sfx = window.ZSFX ? window.ZSFX.create({ storageKey: 'zam.fathom.sfx', gain: SFX_GAIN }) : null;
+
+  /* ---------- PORTAL ----------
+     Harmless when there is no portal, which is every visit to zamborin.com.
+     An ad silences the MASTER BUS, never sfx.setOn(): setOn writes the
+     player's own sound switch to storage, and an ad has no business changing
+     it. CrazyGames' muteAudio setting rides the same bus, which is how it
+     outranks the switch without touching it. */
+  const portal = window.ZAM_PORTAL;
+  let adPaused = false, adMuted = false, siteMuted = false;
+  function applyMute() {
+    const bus = sfx && sfx.out();
+    const want = (adMuted || siteMuted) ? 0 : SFX_GAIN;
+    if (bus && bus.gain && Math.abs(bus.gain.value - want) > 1e-3) bus.gain.value = want;
+  }
+  if (portal) {
+    portal.init({
+      onPause: () => { adPaused = true; },
+      onResume: () => { adPaused = false; },
+      isMuted: () => adMuted,
+      setMuted: (m) => { adMuted = !!m; applyMute(); },
+    });
+    portal.onSettings((s) => { siteMuted = !!(s && s.muteAudio); applyMute(); });
+    /* Bracket the boot, as Comb does: CrazyGames measures load time up to
+       gameplayStart, which waits for PLAY on the rules card, so without this
+       pair the number includes however long the player spent reading. */
+    portal.loadingStart();
+    window.addEventListener('splash-done', () => portal.loadingStop(), { once: true });
+    if (!document.getElementById('splash')) portal.loadingStop();
+  }
 
   // ---------- BUTTONS / ANALYTICS ----------
   const UI = window.ZAM_UI;
@@ -112,6 +142,7 @@
      and the fleet all persist; a closed tab costs the current dive's cargo
      and nothing else. Written on banking and on purchase, never on unload. */
   const SAVE_KEY = 'zam.fathom.save';
+  let acctRead = false;          // CrazyGames' account copy has been read (THE ACCOUNT COPY)
   function readSave() {
     try { return JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); } catch (_) { return null; }
   }
@@ -190,18 +221,21 @@
     return { w: w * k, h: h * k };
   }
   let owned = [0], curSub = 0, fleetView = 0;
-  if (saved) {
-    owned = Array.isArray(saved.owned) && saved.owned.length
-      ? saved.owned.filter(n => n >= 0 && n < FLEET.length) : [0];
+  function takeFleet(s) {
+    owned = Array.isArray(s.owned) && s.owned.length
+      ? s.owned.filter(n => n >= 0 && n < FLEET.length) : [0];
     if (!owned.includes(0)) owned.unshift(0);
-    curSub = owned.includes(saved.cur | 0) ? saved.cur | 0 : 0;
-    run.money = Math.max(0, saved.m | 0);
+    curSub = owned.includes(s.cur | 0) ? s.cur | 0 : 0;
+    run.money = Math.max(0, s.m | 0);
   }
+  if (saved) takeFleet(saved);
   function saveMeta() {
     try {
       const s = run.saveState();
       s.owned = owned; s.cur = curSub;
-      localStorage.setItem(SAVE_KEY, JSON.stringify(s));
+      const json = JSON.stringify(s);
+      try { localStorage.setItem(SAVE_KEY, json); } catch (_) {}
+      if (acctRead) portal.setItem(SAVE_KEY, json);
     } catch (_) {}
   }
   function loadoutOf(i) {
@@ -460,7 +494,7 @@
   const inRect = (p, r) => p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h;
 
   // Hit boxes the renderer fills in each frame.
-  const hit = { pills: [], cta: null, newOcean: null, rulesBody: null };
+  const hit = { pills: [], cta: null, reward: null, newOcean: null, rulesBody: null };
   let rulesDrag = null;
 
   canvas.addEventListener('pointerdown', (e) => {
@@ -473,6 +507,7 @@
         if (hit.fleetNext && inRect(p, hit.fleetNext)) { fleetView = Math.min(FLEET.length - 1, fleetView + 1); if (sfx) sfx.play('tick'); return; }
         if (hit.fleetClose && inRect(p, hit.fleetClose)) { card = null; return; }
       }
+      if (hit.reward && inRect(p, hit.reward)) { claimReward(); return; }
       if (hit.cta && inRect(p, hit.cta)) { cardCTA(); return; }
       if (hit.newOcean && inRect(p, hit.newOcean)) { newOceanTapped(); return; }
       if (card === 'rules' && hit.rulesBody && inRect(p, hit.rulesBody)) {
@@ -558,13 +593,80 @@
     saveMeta();
     if (sfx) sfx.play('start');
   }
+  /* An ocean that arrived after boot: CrazyGames' account copy, read once
+     the SDK is ready (THE ACCOUNT COPY, at the bottom). The same swap as
+     newOcean, loading a save instead of rolling a new seed. */
+  function adoptSave(s) {
+    run = new SIM.Run(s.seed >>> 0);
+    run.loadWorldState(s);
+    takeFleet(s);
+    applyFleet();
+    particles.length = 0; floats.length = 0; jetsam.length = 0; rings.length = 0;
+    buildFish();
+    cam.y = -20; cam.x = run.x - (L.viewWm || 100) / 2;
+  }
+
+  /* ---------- ADS ----------
+     Two moments, both on the cards between dives and never in the water.
+     On zamborin.com neither exists: canReward() is false, and with no portal
+     an interstitial is never asked for.
+
+     RECOVER HAUL. A failed dive can hand its lost haul back for one video.
+     CrazyGames forbids offering a rewarded video every time a player loses,
+     and wants the button hidden when it is not on offer, so it is rationed:
+     at most once every four minutes, and only when there was a haul to lose.
+     It pays out only when the video finishes.
+
+     BETWEEN DIVES. A video after DIVE AGAIN: never after the first dive of a
+     session, never within three minutes of the last ad of either kind.
+     CrazyGames enforces its own three-minute cap on top and answers
+     `adCooldown` when it disagrees, which portal.js swallows. */
+  const REWARD_GAP_MS = 240000, BREAK_GAP_MS = 180000;
+  let lastAdAt = -Infinity, lastOfferAt = -Infinity;
+  let divesEnded = 0;
+  let adBusy = false;            // an ad is on screen: the card ignores taps
+  let offer = null;              // { val, state: 'open' | 'won' | 'none' }
+
+  function offerFor(ev) {
+    const now = Date.now();
+    if (!portal || !portal.canReward() || !(ev.lostVal > 0) || now - lastOfferAt < REWARD_GAP_MS) return null;
+    lastOfferAt = now;
+    return { val: ev.lostVal, state: 'open' };
+  }
+  function claimReward() {
+    if (adBusy || !offer || offer.state !== 'open') return;
+    const o = offer;
+    adBusy = true;
+    lastAdAt = Date.now();
+    portal.rewarded(() => {
+      adBusy = false;
+      run.money += o.val;
+      o.state = 'won';
+      saveMeta();
+      if (sfx) sfx.play('success');
+    }, () => {
+      adBusy = false;
+      o.state = 'none';          // no finished video, no haul
+    });
+  }
+  function breakAd(then) {
+    const now = Date.now();
+    if (!portal || !portal.name || divesEnded < 2 || now - lastAdAt < BREAK_GAP_MS) { then(); return; }
+    adBusy = true;
+    lastAdAt = now;
+    portal.interstitial(() => { adBusy = false; then(); });
+  }
+
   function cardCTA() {
     oceanArmed = false;
+    if (adBusy) return;
     if (card === 'rules') { card = null; }
     else if (card === 'banked' || card === 'blackout' || card === 'breach' || card === 'stranded') {
-      if (run.mode !== 'dive') run.revive();
-      diveT0 = performance.now();
-      card = null;
+      breakAd(() => {
+        if (run.mode !== 'dive') run.revive();
+        diveT0 = performance.now();
+        card = null; offer = null;
+      });
     } else if (card === 'fleet') {
       const i = fleetView, f = FLEET[i];
       if (owned.includes(i)) {
@@ -805,10 +907,25 @@
     };
   }
 
+  /* CrazyGames wants to hear every time play starts and stops: each dive,
+     each card, each ad. Reading it off the frame, rather than off the dozen
+     places a card opens or closes, means no path can be missed. It is also
+     where the mute is re-applied, because the audio bus only exists after
+     the player's first tap. */
+  let portalLive = false;
+  function syncPortal() {
+    applyMute();
+    const live = !card && !adPaused;
+    if (live === portalLive) return;
+    portalLive = live;
+    if (portal) { if (live) portal.gameplayStart(); else portal.gameplayStop(); }
+  }
+
   function tick(now) {
     const dt = Math.min(0.05, (now - lastNow) / 1000);
     lastNow = now;
-    if (!card) {
+    syncPortal();
+    if (!card && !adPaused) {
       const inp = inputNow();
       wantJettison = false;
       const events = run.step(inp, dt);
@@ -948,6 +1065,7 @@
          undefined and had never once drawn; it now also needs `items`. */
       cardData = ev;
       card = 'banked';
+      divesEnded++; offer = null;
       saveMeta();
       T().track('bank', { val: ev.val, kg: ev.kg, depth: ev.depth });
       T().track('dig_tiles', { n: run.digTiles });
@@ -956,8 +1074,15 @@
       endRun('banked');
       if (sfx) sfx.play('success');
     } else if (ev.t === 'blackout' || ev.t === 'breach' || ev.t === 'stranded') {
+      /* One ending, handled once. The sim runs two fixed sub-steps per 60 Hz
+         frame and an empty tank ends the dive on both, so the same blackout
+         can arrive twice in one frame. Before this guard it saved twice,
+         played its hum twice and logged run_end twice; now it would also
+         count the dive twice and ration away its own video offer. */
+      if (card === ev.t) return;
       cardData = ev;
       card = ev.t;
+      divesEnded++; offer = offerFor(ev);
       saveMeta();                      // the world you dug is kept; the haul is not
       endRun(ev.t);
       // A soft descending hum. The run ends gently; so does its sound.
@@ -2560,8 +2685,35 @@
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   }
 
+  /* The video offer's button: the house CTA with a video mark beside the
+     words, the pair centred together. The mark is a play triangle in a chip,
+     drawn and never an emoji; CrazyGames asks every rewarded offer to carry
+     a video icon. White on the accent fill, like the label. */
+  const VIDEO_MARK_W = 26, VIDEO_MARK_GAP = 10;
+  function rewardCTA(label, cx, cy, w) {
+    const box = UI.drawCTA(ctx, '', cx, cy, C_ACCENT, w);
+    ctx.font = '700 ' + UI.CTA.font + 'px Inter, sans-serif';
+    const lw = ctx.measureText(label).width;
+    const x0 = cx - (VIDEO_MARK_W + VIDEO_MARK_GAP + lw) / 2;
+    const my = box.y + box.h / 2 + 1;
+    ctx.fillStyle = TINT(0.2);
+    ctx.beginPath(); UI.roundRectPath(ctx, x0, my - 9, VIDEO_MARK_W, 18, 5); ctx.fill();
+    const tx = x0 + VIDEO_MARK_W / 2, s = 6;
+    ctx.fillStyle = UI.CTA.text;
+    ctx.beginPath();
+    ctx.moveTo(tx - s * 0.4, my - s * 0.62); ctx.lineTo(tx + s * 0.76, my); ctx.lineTo(tx - s * 0.4, my + s * 0.62);
+    ctx.closePath(); ctx.fill();
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText(label, x0 + VIDEO_MARK_W + VIDEO_MARK_GAP, my);
+    ctx.textAlign = 'center';
+    return box;
+  }
+
   function drawEndCard(title, subtitle, rows) {
-    const { pw, ph, px, py } = cardBox();
+    // A video offer stacks a second CTA above DIVE AGAIN, and the card grows by it.
+    const offerShown = !!(offer && (offer.state === 'open' || offer.state === 'none'));
+    const lift = offerShown ? UI.CTA.h + 12 : 0;
+    const { pw, ph, px, py } = cardBox(420 + lift);
     ctx.fillStyle = SCRIM(0.82); ctx.fillRect(0, 0, LW, LH);
     ctx.fillStyle = C_SURFACE;
     ctx.beginPath(); UI.roundRectPath(ctx, px, py, pw, ph, 22); ctx.fill();
@@ -2592,7 +2744,18 @@
 
     ctx.textBaseline = 'middle';
     let ry = py + HEAD_H + 18 + (subLines.length > 1 ? (subLines.length - 1) * (ss + 4) : 0);
-    for (const [k, v] of rows) {
+    const ctaY = py + ph - FOOT_H + 16 + 25;
+    const topY = (offerShown ? ctaY - lift : ctaY) - UI.CTA.h / 2;   // top of the button stack
+    /* A short card gives up content before anything draws through a button:
+       the rows close up to 22 px apart, then the last row (the reassurance)
+       goes. Measured with the video offer up: at 30 px the rows reached the
+       button on viewports under 425 px tall. */
+    let list = rows, pitch = 30;
+    const lastBottom = () => ry + (list.length - 1) * pitch + 10;
+    const closeUp = () => { if (list.length > 1 && lastBottom() > topY - 8) pitch = Math.max(22, (topY - 18 - ry) / (list.length - 1)); };
+    closeUp();
+    if (list.length > 2 && lastBottom() > topY - 8) { list = list.slice(0, -1); pitch = 30; closeUp(); }
+    for (const [k, v] of list) {
       // a long key and a long value must not meet in the middle
       let rs = 16;
       for (;;) {
@@ -2604,17 +2767,37 @@
       ctx.fillText(k, px + 56, ry);
       ctx.fillStyle = INK90; ctx.textAlign = 'right';
       ctx.fillText(v, px + pw - 56, ry);
-      ry += 30;
+      ry += pitch;
     }
     // The next thing to want: the cheapest boat you cannot afford yet.
+    // Dropped, rather than drawn through a button, when the card is short.
     const next = FLEET.find((f, i) => !owned.includes(i) && f.price > run.money);
-    if (next) {
+    if (next && ry + 6 + 9 <= topY - 8) {
       ctx.textAlign = 'center'; ctx.fillStyle = INK72; ctx.font = '500 15px Inter, sans-serif';
       ctx.fillText(next.name + ' · ' + fmtMoney(next.price - run.money) + ' to go', cx, ry + 6);
     }
     ctx.textAlign = 'center';
-    hit.cta = UI.drawCTA(ctx, 'DIVE AGAIN', cx, py + ph - FOOT_H + 16 + 25, C_ACCENT);
+    if (offerShown) {
+      /* Identical in size, font and colour: CrazyGames requires the way on
+         without a video to look exactly like the video offer. */
+      const w = Math.max(UI.ctaWidth(ctx, 'RECOVER HAUL') + VIDEO_MARK_W + VIDEO_MARK_GAP,
+                         UI.ctaWidth(ctx, 'DIVE AGAIN'));
+      if (offer.state === 'open') hit.reward = rewardCTA('RECOVER HAUL', cx, ctaY - lift, w);
+      else {
+        ctx.fillStyle = INK72; ctx.font = '500 16px Inter, sans-serif'; ctx.textBaseline = 'middle';
+        ctx.fillText('No video to watch right now', cx, ctaY - lift);
+      }
+      hit.cta = UI.drawCTA(ctx, 'DIVE AGAIN', cx, ctaY, C_ACCENT, w);
+    } else {
+      hit.cta = UI.drawCTA(ctx, 'DIVE AGAIN', cx, ctaY, C_ACCENT);
+    }
     hit.newOcean = null;
+    // For the fit check: the last row's text must clear the top of the buttons.
+    const rowsBottom = ry - pitch + 10;
+    L.endFit = { rowsBottom: Math.round(rowsBottom), buttonsTop: Math.round(topY),
+                 overlapPx: Math.max(0, Math.round(rowsBottom - topY)), cardH: ph,
+                 offer: offer ? offer.state : null, rewardBox: hit.reward, ctaBox: hit.cta,
+                 rowsShown: list.length, pitch: Math.round(pitch) };
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   }
 
@@ -2778,6 +2961,13 @@
   }
 
   // ---------- RENDER ----------
+  // The first row of a failed dive's card, which a finished video rewrites.
+  function haulRow() {
+    return offer && offer.state === 'won'
+      ? ['Haul recovered', fmtMoney(offer.val) + ' · banked']
+      : ['Haul lost', fmtMoney(cardData.lostVal) + ' · ' + cardData.lostKg + ' kg'];
+  }
+
   function render(now) {
     ctx.clearRect(0, 0, LW, LH);
     // The Portal wash: the one canvas floor, centre 32% width on the top edge.
@@ -2797,26 +2987,26 @@
       ctx.fillStyle = vg; ctx.fillRect(0, 0, LW, LH);
     }
 
-    hit.cta = null;
+    hit.cta = null; hit.reward = null;
     if (card === 'rules') drawRulesCard(now);
     else if (card === 'fleet') drawFleetCard();
     else if (card === 'banked' && cardData) {
       drawReceiptCard(cardData);
     } else if (card === 'blackout' && cardData) {
       drawEndCard('BLACKOUT', 'The tank ran dry at ' + cardData.depth + '\u00A0m',
-        [['Haul lost', fmtMoney(cardData.lostVal) + ' · ' + cardData.lostKg + ' kg'],
+        [haulRow(),
          ['Banked money', fmtMoney(run.money) + ' · safe'],
          ['Your mine', 'still there']]);
     } else if (card === 'breach' && cardData) {
       drawEndCard('HULL BREACH', 'The pressure found a way in at ' + cardData.depth + '\u00A0m',
-        [['Haul lost', fmtMoney(cardData.lostVal) + ' · ' + cardData.lostKg + ' kg'],
+        [haulRow(),
          ['Banked money', fmtMoney(run.money) + ' · safe'],
          ['Your mine', 'still there']]);
     } else if (card === 'stranded' && cardData) {
       /* Named for the cause, not the symptom: the player needs to know it was
          the battery, and that the battery is what buys the way back. */
       drawEndCard('BATTERY DEAD', 'Stranded under rock at ' + cardData.depth + '\u00A0m',
-        [['Haul lost', fmtMoney(cardData.lostVal) + ' · ' + cardData.lostKg + ' kg'],
+        [haulRow(),
          ['Banked money', fmtMoney(run.money) + ' · safe'],
          ['Your mine', 'still there']]);
     }
@@ -2884,6 +3074,7 @@
       get cam() { return cam; },
       fleetFit: () => L.fleetFit || null,
       receiptFit: () => L.receiptFit || null,
+      endFit: () => L.endFit || null,
       warnings: () => activeWarnings(),
       WARN,
       fleet: { FLEET, get owned() { return owned; }, get cur() { return curSub; },
@@ -2938,5 +3129,33 @@
   window.visualViewport?.addEventListener('resize', onResize);
   setTimeout(onResize, 0);
   setTimeout(onResize, 300);
+
+  /* ---------- THE ACCOUNT COPY ----------
+     On CrazyGames the save also lives on the player's account, through their
+     data module, which Full Launch requires. It only arrives once the SDK
+     has finished init, after the boot above has already read this device's
+     localStorage. An account holding a different ocean wins, provided
+     nothing has been played yet. If something has, the account is left
+     alone for this session rather than overwritten with a save the player
+     was never shown. zamborin.com has no account and returns at once. */
+  if (portal) portal.whenReady(() => {
+    if (!portal.name || qs.has('seed')) return;
+    let local = null;
+    try { local = localStorage.getItem(SAVE_KEY); } catch (_) {}
+    const raw = portal.getItem(SAVE_KEY);
+    if (raw && raw !== local) {
+      if (started || card !== 'rules') return;
+      let acct = null;
+      try { acct = JSON.parse(raw); } catch (_) {}
+      if (!acct || (acct.v | 0) < 2 || acct.seed == null) return;
+      adoptSave(acct);
+      try { localStorage.setItem(SAVE_KEY, raw); } catch (_) {}
+    }
+    acctRead = true;
+    // Progress Save newly on for a player with a save on this device: carry
+    // it up, rather than leave their account empty until the next bank.
+    if (!raw && local) portal.setItem(SAVE_KEY, local);
+  });
+
   requestAnimationFrame(tick);
 })();

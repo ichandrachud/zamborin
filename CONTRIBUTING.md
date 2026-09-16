@@ -134,6 +134,58 @@ loop. Assume a third of players block it.
 `.ad-slot` and `.sidebar` are gated behind a `body.ads-on` class that nothing
 sets. Leave it that way until there is traffic data to justify a placement.
 
+## Built to be measured — the harness
+
+Behind `?harness=1`, every game exposes `window.__<slug>`. Comb's is the model
+(`comb/play.js`, bottom of the file). It carries:
+
+- `state` — phase, level, the counters, `LW`/`LH` and the layout mode
+- a way to **reach** any level and a way to **complete** one
+- `hits()` — the box of every control, every cell and every tray slot, so a test
+  can press the buttons rather than invent coordinates
+- a **fit check per surface** the game draws: the rules card, and whatever else
+  it has (map, tray, board, top band)
+- `contrast()` — the painted grounds and what is drawn on them
+- `progress()` — what the player's record actually says
+
+Three rules go with it:
+
+1. **Drive every check through pointer events, never the game's own functions.**
+   Ballast, when it was still Crucible, passed a full QC pass with every button
+   dead, because each check called the code behind the button instead of
+   pressing it.
+2. **A check that cannot fail proves nothing.** Break it once and watch it fail
+   before you trust a pass. The map bug in Comb re-won a level on a single press
+   with the old line, and survived 1,245 presses with the fix: that pair is what
+   made the fix a fact.
+3. **A failing check is usually the check.** See `CLAUDE.md`.
+
+The handle is gated on the query string, costs nothing, and ships in the
+package. Do not strip it at submission time.
+
+## Portal-ready from the first commit
+
+Even for a game that ships on the site first. Retrofitting this is how a
+rejection happens.
+
+- **No outbound links inside the game**, and no third-party ads or analytics in
+  a package. `tools/portal-build.mjs` strips them and asserts every removal.
+- **Ads only through `shared/portal.js`**, which no-ops without an SDK, so the
+  site build and the portal build stay one build.
+- **Report `gameplayStart()` and `gameplayStop()`** on every entry into play and
+  every break out of it, including the first Play press. CrazyGames measures
+  load time up to the first gameplay start.
+- **Never an ad on navigation.** Interstitials belong before a result card, at
+  most one every three minutes.
+- **No reward when a video fails.** CrazyGames answers `adsDisabledBasicLaunch`
+  for the whole of Basic Launch, so a rewarded button that only reports failure
+  is dead for the launch window their KPIs are measured in: stop offering it
+  after the first such answer, and keep the free alternative working.
+- `node tools/portal-build.mjs <slug> --portal=crazygames` **must build**.
+  CrazyGames refuses zips, so the upload folder is flat: shared files beside
+  `index.html` and `./shared/` rewritten to `./`. Test the flat copy exactly as
+  the portal will receive it, and check its bytes against what you tested.
+
 ## Locked decisions
 
 Do not "improve" these while working nearby:
