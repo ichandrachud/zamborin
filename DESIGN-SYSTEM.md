@@ -214,6 +214,20 @@ the fitted frame left 29% of every CrazyGames 16:9 window empty and set 16px
 type at 12.3px in their smallest (821 x 462). A desktop window narrower than
 760 is laid out at 760 across and scaled, so the top band keeps its row.
 
+**Litmus adds three things to that rule** (2026-09-16, pending the owner's
+look at before and after frames). In an embed or a package the window's
+**shape** picks the layout, not the pointer: CrazyGames plays phones and
+tablets on their side (800 x 450, 1080 x 607), where the portrait phone layout
+squeezed the dish into a strip. The landscape layout is laid out at **least
+760 x 450 and at most 720 tall** and scaled to the window, so every full screen
+shows the 1280 x 720 layout enlarged instead of 16px type in a room-sized
+dish. And its dishes keep the **frame's room in world units** (radii squared)
+whatever the shape, so a crowd is as thick in a wide short dish as in
+760 x 600. In the site's own full screen the page's exit button (44px, 24px in
+from the top right) covers the end of a right-aligned read-out once the game
+fills the window: Litmus stops its read-out 12px short of it. Comb does not
+yet. `chemistry/window-sweep.mjs` checks all of it.
+
 `body.focus-mode` is shared chrome. For a **fixed-board** game the board grows
 with the frame and that is correct. For a **scrolling-world** game the frame
 grows and the drawing scale must not — take the viewport's real pixels as

@@ -9,15 +9,19 @@
    at least 5px across, so one that reached the first 2px shows in the rest.
    The rounded corners are left out; the walls keep hands clear of them too.
 
-   Checked, at four phone sizes and the desktop frame: every level of all
-   three chapters as it loads and after 20 seconds of drift, and, in chapter
-   1, an atom dragged hard against each wall. `quick` runs a few levels at two
-   sizes. Needs the local server (see cdp.mjs). */
+   Checked, at four phone sizes, the desktop frame and three windows the
+   landscape layout fills as an embed (CrazyGames' smallest and default, and
+   the 1280x720 layout every full screen shows; 800x450 is their phone on its
+   side): every level of all three chapters as it loads and after 20 seconds
+   of drift, and, in chapter 1, an atom dragged hard against each wall.
+   `quick` runs a few levels at three sizes. Needs the local server (see
+   cdp.mjs). Each frame: width, height, touch, embedded. */
 import { openPage, BASE } from './cdp.mjs';
 
 const QUICK = process.argv.includes('quick');
-const frames = QUICK ? [[320, 568, true], [760, 600, false]]
-  : [[320, 568, true], [375, 667, true], [390, 844, true], [430, 932, true], [760, 600, false]];
+const frames = QUICK ? [[320, 568, true, false], [760, 600, false, true], [800, 450, true, true]]
+  : [[320, 568, true, false], [375, 667, true, false], [390, 844, true, false], [430, 932, true, false], [760, 600, false, true],
+     [821, 462, false, true], [907, 510, false, true], [1280, 720, false, true], [800, 450, true, true]];
 
 const EDGE = `(() => {
   const g = __chem.geom(), s = __chem.state, cv = document.getElementById('game'), cx = cv.getContext('2d'), k = cv.width / s.LW;
@@ -48,11 +52,11 @@ const p = await openPage({ w: 390, h: 844, dpr: 2, mobile: true, settle: 0 });
 let bad = 0, checks = 0;
 const report = (where, hits) => { checks++; if (hits.length) { bad++; console.log(where + ': ' + hits.join(', ')); } };
 try {
-  for (const [w, h, mob] of frames) {
+  for (const [w, h, mob, embed] of frames) {
     await p.metrics(w, h, 2, mob);
     const tag = w + 'x' + h;
     for (const chapter of [1, 2, 3]) {
-      await p.navigate(BASE + '?seed=11&chapter=' + chapter + '&level=1' + (mob ? '' : '&embed=1'), 900);
+      await p.navigate(BASE + '?seed=11&chapter=' + chapter + '&level=1' + (embed ? '&embed=1' : ''), 900);
       const count = await p.ev(`(${chapter} === 1 ? ChemLevels : ${chapter} === 2 ? ChemLevels.lab : ChemLevels.organic)[__chem.state.mode].length`);
       const levels = QUICK ? [1, Math.ceil(count / 2), count] : Array.from({ length: count }, (_, i) => i + 1);
       for (const n of levels) {
@@ -64,7 +68,7 @@ try {
       }
     }
     // an atom carried hard against each wall: the oxygen of level 1, alone in the dish
-    await p.navigate(BASE + '?seed=11&crowd=0&level=1' + (mob ? '' : '&embed=1'), 900);
+    await p.navigate(BASE + '?seed=11&crowd=0&level=1' + (embed ? '&embed=1' : ''), 900);
     for (const [name, fx, fy] of [['top', 0.5, -9], ['bottom', 0.5, 9], ['left', -9, 0.5], ['right', 9, 0.5]]) {
       const hits = await p.ev(`(() => { __chem.freeze(0); const s = __chem.state, d = __chem.geom().dish, o = s.atoms.find((a) => a.el === 'O');
         const tx = ${fx} < 0 ? -9 : ${fx} > 1 ? d.WW + 9 : d.WW * ${fx}, ty = ${fy} < 0 ? -9 : ${fy} > 1 ? d.WH + 9 : d.WH * ${fy};

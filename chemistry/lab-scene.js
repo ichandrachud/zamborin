@@ -91,7 +91,13 @@
        Desktop 760x600: the dish on the left, and the bench as a column on the
        right, tube above tray above beaker. Phone: the controls in the top band,
        the targets, the dish, then the bench as one strip along the bottom,
-       tube, tray and beaker side by side. */
+       tube, tray and beaker side by side.
+       A desktop window of another shape (an embed, a portal package, full
+       screen) keeps the column 262 wide and gives the dish the rest of the
+       width; the tube, tray and beaker stand taller or shorter with the
+       window, and the dish keeps the frame's room in world units, as
+       chapter 1's does. */
+    const FRAME_DISH = { w: 420, h: 440 };
     function layout() {
       ({ LW, LH, MODE } = host.size());
       const oldW = D.WW, oldH = D.WH;
@@ -110,12 +116,16 @@
         D.S = Math.min(L.maxScale, D.w / L.worldW.mobile);
       } else {
         targetsArea = { x: 30, y: 58, w: LW - 60, h: 74 };
-        D.x = 30; D.y = 140; D.w = 420; D.h = LH - 20 - 140;
-        const cx = D.x + D.w + 18, cw = LW - 30 - cx;
-        tube = { x: cx, y: 162, w: cw, h: 182 };
-        tray = { x: cx, y: 370, w: cw, h: 94 };
-        beaker = { x: cx, y: 490, w: cw, h: 90 };
-        D.S = Math.min(L.maxScale, D.w / L.worldW.desktop);
+        D.x = 30; D.y = 140; D.w = LW - 60 - 18 - 262; D.h = LH - 20 - 140;
+        // the words over the tube and the shelf's heading keep their room; only the glass and the shelf stretch
+        const cx = D.x + D.w + 18, cw = LW - 30 - cx, s = (D.h - 22 - 26 - 26) / (182 + 94 + 90);
+        tube = { x: cx, y: D.y + 22, w: cw, h: Math.round(182 * s) };
+        tray = { x: cx, y: tube.y + tube.h + 26, w: cw, h: Math.round(94 * s) };
+        beaker = { x: cx, y: tray.y + tray.h + 26, w: cw, h: 0 };
+        beaker.h = D.y + D.h - beaker.y;
+        // the frame's own scale times the change in shape: exactly 420/26 in the 760x600 frame
+        const shape = (D.h / D.w) / (FRAME_DISH.h / FRAME_DISH.w);
+        D.S = Math.min(L.maxScale, (D.w / L.worldW.desktop) * Math.sqrt(shape));
       }
       D.WW = D.w / D.S; D.WH = D.h / D.S;
       fitBench();
@@ -257,7 +267,8 @@
     /* The test tube, holding at most two. Empty at rest; when two molecules
        react, liquid rises in it and falls away again as the products leave. */
     function tubeGlass() {
-      const gw = Math.min(MODE === 'mobile' ? 60 : 78, tube.w - 16);
+      // a desktop tube in a short window keeps the frame's 78 by 170 shape, so it stays a tube and not a cup
+      const gw = MODE === 'mobile' ? Math.min(60, tube.w - 16) : Math.min(78, tube.w - 16, Math.round((tube.h - 12) * 78 / 170));
       return { x: tube.x + (tube.w - gw) / 2, y: tube.y + 8, w: gw, h: tube.h - 12 };
     }
     function tubeSlot(k) {

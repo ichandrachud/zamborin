@@ -33,11 +33,17 @@
   /* ---------- MODE ----------
      A browser can report a 0-wide viewport on the first frame; zero means "not
      measured yet". A narrow frame lying on its side with a mouse is an embed,
-     not a phone. ?mode=desktop / ?mode=mobile forces a layout. */
+     not a phone. ?mode=desktop / ?mode=mobile forces a layout.
+     In an embed or a portal package the window's shape decides, not the
+     pointer: CrazyGames plays its phones and tablets on their side (800x450
+     and 1080x607), where the phone layout squeezed the dish into a strip and
+     stood the test tube on the page's bottom edge (measured 2026-09-16). */
   const FORCED = /^(desktop|mobile)$/.test(params.get('mode') || '') ? params.get('mode') : null;
   const PORTRAITISH = window.innerHeight >= window.innerWidth;
-  const MODE = FORCED || ((matchMedia('(pointer: coarse)').matches ||
-                (window.innerWidth > 0 && window.innerWidth < 768 && PORTRAITISH)) ? 'mobile' : 'desktop');
+  const EMBEDDED = document.documentElement.classList.contains('embed');
+  const MODE = FORCED || (EMBEDDED && window.innerWidth > 0 ? (PORTRAITISH ? 'mobile' : 'desktop')
+    : (matchMedia('(pointer: coarse)').matches ||
+       (window.innerWidth > 0 && window.innerWidth < 768 && PORTRAITISH)) ? 'mobile' : 'desktop');
   document.body.classList.add('mode-' + MODE);
 
   /* ---------- CANVAS ---------- */
@@ -46,9 +52,25 @@
   const ctx = canvas.getContext('2d');
   const gameWrap = canvas.parentElement;
 
+  /* THE FRAME FILLS ITS WINDOW WHEN THE GAME IS THE WHOLE PAGE: in an embed, a
+     portal package and full screen, as Comb does (DESIGN-SYSTEM 2.2). Fitting
+     760x600 into CrazyGames' 16:9 windows left 29% of each one empty. There
+     the landscape layout takes the window's own shape, laid out at least 760
+     across and 450 tall (scaled down to a smaller window) and at most 720 tall
+     (scaled up to a bigger one, so a 1920x1080 screen shows the 1280x720
+     layout at one and a half times, not 16px type and pills lost in a corner
+     of a dish the size of a room). A zero reading falls back to the site frame
+     until the real size arrives. */
+  const FILL = { minW: 760, minH: 450, maxH: 720 };
+  const fillsWindow = () => MODE === 'mobile' || EMBEDDED || document.body.classList.contains('focus-mode');
   function setCanvasVars() {
     if (MODE === 'mobile') { LW = window.innerWidth; LH = window.innerHeight; }
-    else { LW = 760; LH = 600; }
+    else if (fillsWindow() && window.innerWidth > 0 && window.innerHeight > 0) {
+      const vw = window.innerWidth, vh = window.innerHeight;
+      const down = Math.max(FILL.minW / vw, FILL.minH / vh);
+      const k = down > 1 ? down : 1 / Math.max(1, Math.min(vw / FILL.minW, vh / FILL.maxH));
+      LW = Math.round(vw * k); LH = Math.round(vh * k);
+    } else { LW = 760; LH = 600; }
     document.body.style.setProperty('--canvas-w', LW + 'px');
     document.body.style.setProperty('--canvas-h', LH + 'px');
   }
@@ -63,20 +85,15 @@
     ctx.setTransform(backing, 0, 0, backing, 0, 0);
   }
   function fitFullscreen() {
-    if (MODE === 'mobile') {
-      gameWrap.style.width = window.innerWidth + 'px';
-      gameWrap.style.height = window.innerHeight + 'px';
+    if (fillsWindow()) {
+      gameWrap.style.width = (window.innerWidth > 0 ? window.innerWidth : LW) + 'px';
+      gameWrap.style.height = (window.innerHeight > 0 ? window.innerHeight : LH) + 'px';
       return;
     }
-    const active = document.body.classList.contains('focus-mode');
-    if (!active) { gameWrap.style.width = ''; gameWrap.style.height = ''; return; }
-    const vw = window.innerWidth, vh = window.innerHeight, aspect = LW / LH;
-    let cw = vw, ch = Math.round(vw / aspect);
-    if (ch > vh) { ch = vh; cw = Math.round(vh * aspect); }
-    gameWrap.style.width = cw + 'px'; gameWrap.style.height = ch + 'px';
+    gameWrap.style.width = ''; gameWrap.style.height = '';
   }
   function onResize() {
-    if (MODE === 'mobile') setCanvasVars();
+    setCanvasVars();
     fitFullscreen(); resizeCanvas(); layout(); render(clock());
   }
 
@@ -249,8 +266,22 @@
     try {
       const v = readSave(), was = progress(CHAPTER);
       v[MODE + '-' + CHAPTER] = { at: li, done: won ? Math.max(was.done, li + 1) : was.done };
+      v[MODE + '-last'] = CHAPTER;
       localStorage.setItem(SAVE_KEY, JSON.stringify(v));
     } catch (_) {}
+  }
+  /* Where a visit opens: the chapter played last, at the level the player was
+     on, or the one after it if they won that and left before moving on; a
+     finished chapter hands on to the next. A first visit is chapter 1, level 1. */
+  function resumeAt() {
+    const last = readSave()[MODE + '-last'];
+    let c = [1, 2, 3].includes(last) ? last : 1;
+    for (;;) {
+      const p = progress(c), n = CHAPTERS[c - 1].levels().length;
+      if (p.done >= n && p.at >= n - 1 && c < CHAPTERS.length) { c += 1; continue; }
+      const at = p.at === p.done - 1 ? p.done : p.at;
+      return { c, i: Math.max(0, Math.min(at, n - 1)) };
+    }
   }
   // A level's number across the whole game, for analytics: molecules 1-50, then reactions, then organic.
   const gameLevel = () => CHAPTERS.slice(0, CHAPTER - 1).reduce((n, ch) => n + ch.levels().length, 0) + li + 1;
@@ -405,7 +436,7 @@
   const botBand = () => 20;
   const G = { x: 0, y: 0, w: 0, h: 0, S: 18, WW: 28, WH: 23 };   // dish in px; S px per radius; world in radii
   let flaskArea = { x: 0, y: 0, w: 0, h: 0 }, panel = { x: 0, y: 0, w: 0, h: 0 };
-  let slots = [], ctrl = [], readoutMinX = SIDE_PAD, readoutBox = null, ctaBox = null;
+  let slots = [], ctrl = [], readoutMinX = SIDE_PAD, readoutMaxX = 760 - SIDE_PAD, readoutBox = null, ctaBox = null;
 
   function layout() {
     if (!LW) return;
@@ -420,6 +451,12 @@
     }
     layoutSlots();
   }
+  /* The desktop crowds were written for the 760x600 dish, 36 radii across and
+     about 30 down. A window of another shape keeps that much room, in radii
+     squared, so a crowd is as thick in a wide short dish as in the frame's.
+     Only once its atoms are drawn at the largest size (TUNE.maxScale) does
+     the room grow instead. */
+  const FRAME_DISH = { w: 760 - SIDE_PAD * 2 - 150 - 18, h: 600 - 20 - (56 + 2 + 74 + 8) };   // 532 x 440
   function layoutDesktop() {
     const top = topBand();
     flaskArea = { x: SIDE_PAD, y: top + 2, w: LW - SIDE_PAD * 2, h: 74 };
@@ -427,7 +464,9 @@
     const y0 = flaskArea.y + flaskArea.h + 8, y1 = LH - botBand();
     G.x = SIDE_PAD; G.y = y0; G.w = LW - SIDE_PAD * 2 - colW - gap; G.h = y1 - y0;
     panel = { x: G.x + G.w + gap, y: G.y, w: colW, h: G.h };
-    G.S = Math.min(TUNE.maxScale, G.w / TUNE.worldW.desktop);
+    // the frame's own scale times the change in shape: exactly 532/36 in the 760x600 frame
+    const shape = (G.h / G.w) / (FRAME_DISH.h / FRAME_DISH.w);
+    G.S = Math.min(TUNE.maxScale, (G.w / TUNE.worldW.desktop) * Math.sqrt(shape));
     G.WW = G.w / G.S; G.WH = G.h / G.S;
   }
   function layoutMobile() {
@@ -473,6 +512,13 @@
       return b;
     });
     readoutMinX = MODE === 'desktop' ? x + 16 : x + 2;
+    /* In the site's own full screen the page's exit button sits over the top
+       right corner of the window (chrome.css: 44px, 24px in from the top and
+       the right), where the read-out ends now the game fills the window. The
+       read-out stops 12px short of it. */
+    readoutMaxX = LW - EDGE();
+    const w = canvas.getBoundingClientRect().width;
+    if (document.body.classList.contains('focus-mode') && w > 0) readoutMaxX = Math.min(readoutMaxX, (w - 24 - 44 - 12) * LW / w);
   }
 
   const toPx = (p) => ({ x: G.x + p.x * G.S, y: G.y + p.y * G.S });
@@ -1258,12 +1304,12 @@
       ctx.save();
       ctx.font = '600 16px Inter, sans-serif'; ctx.textBaseline = 'middle'; ctx.textAlign = 'right';
       const text = done + ' of ' + all + ' done', tw = ctx.measureText(text).width;
-      ctx.fillStyle = TOK.ink72; ctx.fillText(text, LW - EDGE(), topBand() / 2);
-      readoutBox = { x: LW - EDGE() - tw, y: topBand() / 2 - 10, w: tw, h: 20 };
+      ctx.fillStyle = TOK.ink72; ctx.fillText(text, readoutMaxX, topBand() / 2);
+      readoutBox = { x: readoutMaxX - tw, y: topBand() / 2 - 10, w: tw, h: 20 };
       ctx.restore();
       return;
     }
-    const lost = scene ? scene.lost() : st.analysis.lost, y = topBand() / 2, rx = LW - EDGE();
+    const lost = scene ? scene.lost() : st.analysis.lost, y = topBand() / 2, rx = readoutMaxX;
     /* The read-out shares its line with the controls, so it gives up words
        before it runs into them: the chapter first, then the word Level, and
        the lost note's longer form before either. The shortest forms are last. */
@@ -1563,12 +1609,16 @@
      Every re-fit hook is part of the pattern. Timers as well as events, because
      rAF is throttled to nothing in some embedded browsers. */
   setCanvasVars(); resizeCanvas(); fitFullscreen(); resizeCanvas();
-  /* ?chapter and ?level go straight to a level. Otherwise everyone starts on
-     the map, where all three chapters are on offer. */
+  /* ?chapter and ?level go straight to a level, ?map=1 to the map. Otherwise
+     a visit opens on play, where the player left off (resumeAt): on
+     CrazyGames the map in front of the first level was one more click
+     between a new player and the game, and the map is one tap away in the
+     top band. */
   setChapter(CHAPTER);
   const jump = parseInt(params.get('level'), 10);
-  if (params.get('map') === '1' || (!params.has('chapter') && !params.has('level'))) openMap();
-  else openLevel(CHAPTER, jump >= 1 && jump <= LEVELS.length ? jump - 1 : progress(CHAPTER).at);
+  if (params.get('map') === '1') openMap();
+  else if (params.has('chapter') || params.has('level')) openLevel(CHAPTER, jump >= 1 && jump <= LEVELS.length ? jump - 1 : progress(CHAPTER).at);
+  else { const r = resumeAt(); openLevel(r.c, r.i); }
   window.addEventListener('resize', onResize);
   window.addEventListener('orientationchange', () => setTimeout(onResize, 100));
   window.addEventListener('splash-done', onResize);
