@@ -15,7 +15,7 @@ happened to.** Read `DESIGN-SYSTEM.md` first.
 | When | Read |
 |---|---|
 | **Any design, layout, colour or UI work** | `DESIGN-SYSTEM.md` — **in full, before writing code.** It overrides every build brief. |
-| What "good" means, across every product | `~/Library/Mobile Documents/com~apple~CloudDocs/Claude Projects/Design Systems/GOOD-DESIGN.md` — the definition and its tests; `DESIGN-SYSTEM.md` is the games' operational form of it. |
+| What "good" means, across every product | `~/Library/Mobile Documents/com~apple~CloudDocs/Claude Projects/Standards/GOOD-DESIGN.md` (the central folder's start file is `Claude Projects/CLAUDE.md`) — the definition and its tests; `DESIGN-SYSTEM.md` is the games' operational form of it. |
 | Any structural change, new game, shipping | `CONTRIBUTING.md` — the rulebook. Every rule cost a cleanup. |
 | Any QC, audit or bug hunt | `QC-TRACKER.md` — go to **START HERE** at the very bottom. Everything above it is history. |
 | Building a new game | `NEW-GAME-PROMPT.md` — the bar a new game is built to, in one page. Then `shared/new-game-template/README.md`, a production checklist, not a readme. |
