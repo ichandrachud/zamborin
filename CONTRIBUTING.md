@@ -193,7 +193,7 @@ Do not "improve" these while working nearby:
 - Desktop frame is **760x600** for every game (Carrom, Ludo, Zood and Empyrean excepted)
 - `shared/ui.js` is the button system; sizes are never scaled per game
 - No game name on the canvas. Controls left, level read-out top right
-- On phones, controls stay at the **bottom**
+- On phones, controls stay at the **bottom** (Litmus is the owner's exception: top band, DESIGN-SYSTEM §2)
 - Full-screen sizing is done in JS per game (`fitFullscreen()`), never CSS `dvh`
 - Pins' physics constants (K, C, dt) are locked; the system is chaotic at high drive
 

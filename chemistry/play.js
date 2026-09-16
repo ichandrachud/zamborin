@@ -394,14 +394,18 @@
      Desktop 760x600, from the sketch: controls left and the read-out right in
      the top band, the targets under it, the dish on the left and the
      Available panel as a column on the right.
-     Mobile, measured: the targets at the top, the dish, the Available panel
-     as a strip, and the controls at thumb height. */
+     Mobile, from the owner (2026-09-16): the controls and the read-out on one
+     line in the top band, "so that the user doesn't accidentally tap
+     restart", the targets under them, the dish, and what is available along
+     the bottom with no box round it. On a phone every edge is the dish's own
+     14px inset, so the controls, the target row and the dish line up. */
   const SIDE_PAD = 30;
+  const EDGE = () => (MODE === 'mobile' ? 14 : SIDE_PAD);
   const topBand = () => (MODE === 'mobile' ? 64 : 56);
-  const botBand = () => (MODE === 'mobile' ? 96 : 20);
+  const botBand = () => 20;
   const G = { x: 0, y: 0, w: 0, h: 0, S: 18, WW: 28, WH: 23 };   // dish in px; S px per radius; world in radii
   let flaskArea = { x: 0, y: 0, w: 0, h: 0 }, panel = { x: 0, y: 0, w: 0, h: 0 };
-  let slots = [], ctrl = [], readoutMinX = SIDE_PAD, ctaBox = null;
+  let slots = [], ctrl = [], readoutMinX = SIDE_PAD, readoutBox = null, ctaBox = null;
 
   function layout() {
     if (!LW) return;
@@ -427,11 +431,11 @@
     G.WW = G.w / G.S; G.WH = G.h / G.S;
   }
   function layoutMobile() {
-    const top = topBand(), bot = botBand(), short = LH < 700;
-    const flaskH = short ? 66 : 80, panelH = short ? 78 : 90, gap = short ? 8 : 12;
-    flaskArea = { x: 16, y: top - 4, w: LW - 32, h: flaskH };
+    const top = topBand(), short = LH < 700;
+    const flaskH = short ? 92 : 108, panelH = short ? 84 : 96, gap = short ? 8 : 12;
+    flaskArea = { x: 14, y: top, w: LW - 28, h: flaskH };
     G.x = 14; G.w = LW - 28; G.y = top + flaskH + gap;
-    panel = { x: 14, w: LW - 28, h: panelH, y: LH - bot - panelH - 4 };
+    panel = { x: 14, w: LW - 28, h: panelH, y: LH - botBand() - panelH };
     G.h = Math.max(120, panel.y - gap - G.y);
     G.S = Math.min(TUNE.maxScale, G.w / TUNE.worldW.mobile);
     G.WW = G.w / G.S; G.WH = G.h / G.S;
@@ -449,9 +453,9 @@
   }
   /* Order is fixed: sound, Undo, Restart, Hint, Rules. No Undo (bonds are for
      good), no Hint yet, no Rules card yet; nothing moves to fill their places.
-     The map button comes first, as in Comb, and in the same row in both
-     layouts: a phone's bottom row has the room for it. On the map itself it
-     would lead nowhere, so only sound is left. */
+     The map button comes first, as in Comb, and in the same place in both
+     layouts: left in the top band. On the map itself it would lead nowhere, so
+     only sound is left. */
   function layoutControls() {
     const items = phase === 'map' ? [{ id: 'sound', icon: true }]
       : [{ id: 'map', icon: true }, { id: 'sound', icon: true }, { id: 'restart', label: 'Restart' }];
@@ -460,15 +464,15 @@
     items.forEach((it) => { it.w = it.icon ? UI.PILL.iconW : UI.pillWidth(ctx, it.label); total += it.w; });
     ctx.restore();
     total += UI.PILL.gap * (items.length - 1);
-    const cy = MODE === 'mobile' ? LH - 74 : topBand() / 2;
-    let x = MODE === 'mobile' ? Math.round((LW - total) / 2) : SIDE_PAD;
+    const cy = topBand() / 2;
+    let x = EDGE();
     ctrl = items.map((it) => {
       const b = { id: it.id, label: it.label, icon: it.icon, x, y: Math.round(cy - UI.PILL.h / 2),
                   w: it.w, h: UI.PILL.h, cx: x + it.w / 2, cy };
       x += it.w + UI.PILL.gap;
       return b;
     });
-    readoutMinX = MODE === 'desktop' ? x + 16 : SIDE_PAD;
+    readoutMinX = MODE === 'desktop' ? x + 16 : x + 2;
   }
 
   const toPx = (p) => ({ x: G.x + p.x * G.S, y: G.y + p.y * G.S });
@@ -1079,11 +1083,18 @@
       return long ? cap(m.name) + ' (' + m.formula + ')' : m.formula;
     };
     if (MODE === 'mobile') {
-      const colW = flaskArea.w / n, span = 17;
-      const labelY = flaskArea.y + flaskArea.h - 12, iconY = flaskArea.y + (flaskArea.h - 24) / 2;
+      // One size for the whole row: the biggest at which every molecule on the list fits its column.
+      const colW = flaskArea.w / n, labelY = flaskArea.y + flaskArea.h - 12;
+      const iconTop = flaskArea.y + 24, iconH = labelY - 16 - iconTop;
+      let span = 40;
+      for (const t of st.targets) {
+        const lay = M.layoutMolecule(t.key);
+        span = Math.min(span, (colW - 14) / (lay.w - 1 + 0.6), iconH / (lay.h - 1 + 0.6));
+      }
+      span = Math.max(12, Math.floor(span));
       st.targets.forEach((t, i) => {
         const cx = flaskArea.x + colW * (i + 0.5);
-        out.push({ key: t.key, n: t.n, x: cx, y: iconY, span, labelX: cx, labelY, align: 'center', maxW: colW - 8, name: nameOf(t, false) });
+        out.push({ key: t.key, n: t.n, x: cx, y: iconTop + iconH / 2, span, labelX: cx, labelY, align: 'center', maxW: colW - 8, name: nameOf(t, false) });
       });
     } else {
       const span = 19, gapItems = 30, labelGap = 12;
@@ -1135,7 +1146,7 @@
   }
   function drawFlaskRow(now) {
     const slotsF = flaskSlots();
-    if (MODE === 'mobile') label('MAKE', SIDE_PAD, topBand() / 2);
+    if (MODE === 'mobile') label('MAKE', flaskArea.x + 2, flaskArea.y + 10);
     else if (slotsF[0]) {
       const f0 = slotsF[0], lay0 = M.layoutMolecule(f0.key);
       label('MAKE', Math.round(f0.x - ((lay0.w - 1) * f0.span) / 2 - f0.span * 0.4), flaskArea.y + 12);
@@ -1155,7 +1166,7 @@
       }
       const text = f.name + '  ' + made + ' / ' + f.n;
       ctx.save();
-      let size = 15;
+      let size = MODE === 'mobile' ? 16 : 15;
       ctx.font = '700 ' + size + 'px Inter, sans-serif';
       while (size > 11 && ctx.measureText(text).width > f.maxW) { size -= 1; ctx.font = '700 ' + size + 'px Inter, sans-serif'; }
       ctx.fillStyle = full ? TOK.green : TOK.ink82;
@@ -1175,19 +1186,15 @@
   }
   function drawPanel() {
     if (MODE === 'mobile') {
-      ctx.save();
-      ctx.fillStyle = TOK.tint03; rr(panel.x, panel.y, panel.w, panel.h, 20); ctx.fill();
-      ctx.strokeStyle = TOK.tint10; ctx.lineWidth = 1; rr(panel.x + 0.5, panel.y + 0.5, panel.w - 1, panel.h - 1, 20); ctx.stroke();
-      ctx.restore();
-      label('AVAILABLE', panel.x + 16, panel.y + 14);
+      label('AVAILABLE', panel.x + 2, panel.y + 10);
       for (const s of slots) {
         const n = st.avail[s.el] || 0, al = n > 0 ? 1 : 0.35;
         const cx = s.x + s.w / 2, cy = s.y + s.h * 0.5 + 2;
-        panelAtom(s.el, cx - 13, cy, 11.5, al);
+        panelAtom(s.el, cx - 15, cy, 14, al);
         ctx.save();
         ctx.globalAlpha = al;
         ctx.font = '800 16px Inter, sans-serif'; ctx.fillStyle = TOK.white; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-        ctx.fillText('×' + n, cx + 6, cy);
+        ctx.fillText('×' + n, cx + 8, cy);
         ctx.font = '600 12px Inter, sans-serif'; ctx.fillStyle = TOK.ink72; ctx.textAlign = 'center';
         ctx.fillText(cap(M.ELEMENTS[s.el].name), cx, s.y + s.h - 12);
         ctx.restore();
@@ -1250,22 +1257,28 @@
       const done = CHAPTERS.reduce((n, ch, k) => n + Math.min(ch.levels().length, progress(k + 1).done), 0);
       ctx.save();
       ctx.font = '600 16px Inter, sans-serif'; ctx.textBaseline = 'middle'; ctx.textAlign = 'right';
-      ctx.fillStyle = TOK.ink72; ctx.fillText(done + ' of ' + all + ' done', LW - SIDE_PAD, topBand() / 2);
+      const text = done + ' of ' + all + ' done', tw = ctx.measureText(text).width;
+      ctx.fillStyle = TOK.ink72; ctx.fillText(text, LW - EDGE(), topBand() / 2);
+      readoutBox = { x: LW - EDGE() - tw, y: topBand() / 2 - 10, w: tw, h: 20 };
       ctx.restore();
       return;
     }
-    const lost = scene ? scene.lost() : st.analysis.lost, y = topBand() / 2, rx = LW - SIDE_PAD;
-    const main = (CHAPTERS[CHAPTER - 1].short ? CHAPTERS[CHAPTER - 1].short + '  ·  ' : '') + 'Level ' + (li + 1);
+    const lost = scene ? scene.lost() : st.analysis.lost, y = topBand() / 2, rx = LW - EDGE();
+    /* The read-out shares its line with the controls, so it gives up words
+       before it runs into them: the chapter first, then the word Level, and
+       the lost note's longer form before either. The shortest forms are last. */
+    const short = CHAPTERS[CHAPTER - 1].short, n = li + 1;
+    const mains = [...(short ? [short + '  ·  Level ' + n] : []), 'Level ' + n, String(n)];
+    const notes = lost ? [lost + (lost === 1 ? ' molecule lost' : ' molecules lost') + '   ·   ', lost + ' lost  ·  '] : [''];
     ctx.save();
     ctx.font = '600 16px Inter, sans-serif'; ctx.textBaseline = 'middle'; ctx.textAlign = 'right';
+    const forms = mains.flatMap((m) => notes.map((note) => [m, note]));
+    if (lost) forms.push(['', lost + ' lost']);          // last of all, the loss matters more than the number
+    const [main, note] = forms.find(([m, t]) => rx - ctx.measureText(m).width - ctx.measureText(t).width >= readoutMinX) || forms[forms.length - 1];
     ctx.fillStyle = TOK.ink72; ctx.fillText(main, rx, y);
-    if (lost) {
-      const minX = MODE === 'desktop' ? readoutMinX : SIDE_PAD + 70;
-      const w = ctx.measureText(main).width;
-      const tries = [lost + (lost === 1 ? ' molecule lost' : ' molecules lost') + '   ·   ', lost + ' lost  ·  '];
-      const text = tries.find((s) => rx - w - ctx.measureText(s).width >= minX) || tries[1];
-      ctx.fillStyle = TOK.sun; ctx.fillText(text, rx - w, y);
-    }
+    if (note) { ctx.fillStyle = TOK.sun; ctx.fillText(note, rx - ctx.measureText(main).width, y); }
+    const rw = ctx.measureText(main).width + ctx.measureText(note).width;
+    readoutBox = { x: rx - rw, y: y - 10, w: rw, h: 20 };
     ctx.restore();
   }
 
@@ -1463,13 +1476,13 @@
     geom() {
       render(clock());
       const ctrlBoxes = ctrl.map((b) => ({ id: b.id, x: b.x, y: b.y, w: b.w, h: b.h }));
-      if (phase === 'map') return { mode: MODE, LW, LH, phase, ctrl: ctrlBoxes, cells: map.debug.cells(), view: map.debug.view() };
-      if (scene) return Object.assign({ mode: MODE, LW, LH, ctrl: ctrl.map((b) => ({ id: b.id, x: b.x, y: b.y, w: b.w, h: b.h })), cta: ctaBox, card: cardBox }, scene.debug.geom());
+      if (phase === 'map') return { mode: MODE, LW, LH, phase, ctrl: ctrlBoxes, readout: readoutBox, cells: map.debug.cells(), view: map.debug.view() };
+      if (scene) return Object.assign({ mode: MODE, LW, LH, ctrl: ctrl.map((b) => ({ id: b.id, x: b.x, y: b.y, w: b.w, h: b.h })), readout: readoutBox, cta: ctaBox, card: cardBox }, scene.debug.geom());
       const atoms = {};
       for (const a of st.atoms) if (inDish(a)) atoms[a.id] = toPx(P.get(a.id));
       return { mode: MODE, LW, LH, dish: { x: G.x, y: G.y, w: G.w, h: G.h, S: G.S, WW: G.WW, WH: G.WH },
                slots: slots.map((s) => ({ el: s.el, x: s.x, y: s.y, w: s.w, h: s.h })), atoms, flaskSlots: flaskSlots(),
-               ctrl: ctrl.map((b) => ({ id: b.id, x: b.x, y: b.y, w: b.w, h: b.h })), panel, flask: flaskArea, cta: ctaBox };
+               ctrl: ctrl.map((b) => ({ id: b.id, x: b.x, y: b.y, w: b.w, h: b.h })), readout: readoutBox, panel, flask: flaskArea, cta: ctaBox };
     },
     toPage(x, y) { return toPx({ x, y }); },
     goto(n, chapter) { openLevel(chapter || CHAPTER, n - 1); render(clock()); return this.state; },
@@ -1525,6 +1538,7 @@
     ctx, TOK, canvas, drawAtoms, rr, label, clock, mulberry,
     SND: { pick: SND.pick, set: SND.set, lift: SND.lift, lost: SND.lost, clasp: (n) => SND.clasp('O', n) },
     size: () => ({ LW, LH, MODE }),
+    topBand, botBand,
     drift: () => DRIFT && !reduced(),
     reduced: () => reduced(),
     rng: () => rng(),
@@ -1536,7 +1550,7 @@
 
   /* ---------- THE MAP ---------- */
   const map = window.ChemMap({
-    ctx, TOK, rr, washStyle, pad: SIDE_PAD, topBand, botBand,
+    ctx, TOK, rr, washStyle, get pad() { return EDGE(); }, topBand, botBand,
     size: () => ({ LW, LH, MODE }),
     chapters: () => CHAPTERS.map((ch, k) => ({
       name: ch.name, count: ch.levels().length, done: Math.min(ch.levels().length, progress(k + 1).done),

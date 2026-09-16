@@ -89,17 +89,19 @@
 
     /* ---------- LAYOUT ----------
        Desktop 760x600: the dish on the left, and the bench as a column on the
-       right, tube above tray above beaker. Phone: the dish, then the bench as
-       one strip, tube, tray and beaker side by side, above the controls. */
+       right, tube above tray above beaker. Phone: the controls in the top band,
+       the targets, the dish, then the bench as one strip along the bottom,
+       tube, tray and beaker side by side. */
     function layout() {
       ({ LW, LH, MODE } = host.size());
       const oldW = D.WW, oldH = D.WH;
       if (MODE === 'mobile') {
-        const top = 64, bot = 96, short = LH < 700;
-        const flaskH = short ? 70 : 84, benchH = short ? 150 : 196, gap = short ? 8 : 12, head = 40;
-        targetsArea = { x: 16, y: top - 4, w: LW - 32, h: flaskH };
+        // the controls sit in the top band now (owner, 2026-09-16), so the bench takes the bottom of the screen
+        const top = host.topBand(), short = LH < 700;
+        const flaskH = short ? 92 : 108, benchH = short ? 150 : 196, gap = short ? 8 : 12, head = 40;
+        targetsArea = { x: 14, y: top, w: LW - 28, h: flaskH };
         D.x = 14; D.w = LW - 28; D.y = top + flaskH + gap;
-        const benchY = LH - bot - benchH - 4;
+        const benchY = LH - host.botBand() - benchH;
         D.h = Math.max(120, benchY - gap - D.y);
         const w = LW - 28, tw = Math.round(w * 0.24), bw = Math.round(w * 0.26), gutter = 8;
         tube = { x: 14, y: benchY + head, w: tw, h: benchH - head - 4 };
@@ -427,11 +429,21 @@
       ctx.font = '700 15px Inter, sans-serif';
       const nameOf = (t, long) => (long ? cap(X.SPECIES[t.key].name) + ' (' + X.SPECIES[t.key].formula + ')' : X.SPECIES[t.key].formula);
       if (MODE === 'mobile') {
-        const colW = targetsArea.w / n, unit = 11;
+        /* One size for the whole row: the biggest at which every molecule on the
+           list fits its column, measured from its centre as it is drawn. */
+        const colW = targetsArea.w / n, labelY = targetsArea.y + targetsArea.h - 12;
+        const iconTop = targetsArea.y + 24, iconH = labelY - 16 - iconTop, across = (2 * L.atom) / L.bond;
+        let unit = 40;
+        for (const t of st.targets) {
+          const at = X.SPECIES[t.key].atoms;
+          const hx = Math.max(...at.map((a) => Math.abs(a.x))), hy = Math.max(...at.map((a) => Math.abs(a.y)));
+          unit = Math.min(unit, (colW - 14) / (2 * hx + across), iconH / (2 * hy + across));
+        }
+        unit = Math.max(6, Math.floor(unit));
         st.targets.forEach((t, i) => {
           const cx = targetsArea.x + colW * (i + 0.5);
-          out.push({ key: t.key, n: t.n, x: cx, y: targetsArea.y + (targetsArea.h - 24) / 2, unit, labelX: cx,
-                     labelY: targetsArea.y + targetsArea.h - 12, align: 'center', maxW: colW - 8, name: nameOf(t, false) });
+          out.push({ key: t.key, n: t.n, x: cx, y: iconTop + iconH / 2, unit, labelX: cx,
+                     labelY, align: 'center', maxW: colW - 8, name: nameOf(t, false) });
         });
       } else {
         const unit = 12, gapItems = 34, labelGap = 12;
@@ -459,14 +471,14 @@
     }
     function drawTargets() {
       const slots = targetSlots();
-      if (MODE === 'mobile') label('MAKE', 30, 32);
+      if (MODE === 'mobile') label('MAKE', targetsArea.x + 2, targetsArea.y + 10);
       else if (slots[0]) label('MAKE', Math.round(slots[0].x - X.SPECIES[slots[0].key].extent * slots[0].unit - 6), targetsArea.y + 12);
       for (const f of slots) {
         const made = Math.min(f.n, st.made[f.key] || 0), full = made >= f.n;
         drawMolecule(f.key, f.x, f.y, f.unit, 0, 1);
         const text = f.name + '  ' + made + ' / ' + f.n;
         ctx.save();
-        let size = 15;
+        let size = MODE === 'mobile' ? 16 : 15;
         ctx.font = '700 ' + size + 'px Inter, sans-serif';
         while (size > 11 && ctx.measureText(text).width > f.maxW) { size -= 1; ctx.font = '700 ' + size + 'px Inter, sans-serif'; }
         ctx.fillStyle = full ? TOK.green : TOK.ink82;
@@ -870,7 +882,7 @@
           }
         }
         return { dish: Object.assign({}, D), tube: Object.assign({}, tube), tray: Object.assign({}, tray), beaker: Object.assign({}, beaker),
-                 traySlots: [0, 1, 2].map(traySlotRect), tubeSlots: [0, 1].map(tubeSlot), targets: targetSlots(), pieces, atoms,
+                 traySlots: [0, 1, 2].map(traySlotRect), tubeSlots: [0, 1].map(tubeSlot), targets: targetSlots(), targetsArea: Object.assign({}, targetsArea), pieces, atoms,
                  marble: Math.max(1.5, u * D.atom / D.bond),
                  hints: { tube: tubeHint().box, dish: dishGeom().hint.box }, petri: (({ x, top, dw, dh }) => ({ x, y: top - 3, w: dw, h: dh + 3 }))(dishGeom()),
                  reactionCard: modal ? { box: modalBox, button: modalBtn } : null };

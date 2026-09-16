@@ -158,6 +158,12 @@ locks, and a desktop player is stuck on the phone layout all session.
 | Controls | **top band, left aligned** | **bottom**, thumb reach |
 | Read-out | top band, right aligned | top band, right aligned |
 
+- **Litmus puts the phone controls in the top band**, left, with the read-out
+  right on the same line: the owner's call on 2026-09-16, "so that the user
+  doesn't accidentally tap restart". What the player can add runs along the
+  bottom instead, unboxed. The read-out gives up words before it meets the
+  controls (the chapter, then "Level", the number last). A choice, not a slip:
+  do not move it back.
 - **760 x 600 is the one site-wide frame.** Do not invent another. (Carrom,
   Ludo and Zood are pre-existing exceptions. New games are not.)
 - **Mobile is measured in JS. Never CSS `dvh`.** iOS Safari with
