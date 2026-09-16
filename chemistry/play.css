@@ -1,28 +1,18 @@
 /* Litmus — per-game styles only. Everything else comes from
    ../shared/tokens.css and ../shared/chrome.css.
 
-   M1, the grey box: no splash art exists yet, so the splash is the template's
-   plain title card. The two background-image rules replace it when the art
-   lands (brief §10), and the wordmark safe zone is checked then. */
-.splash {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, #0E1726 0%, #131F36 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #FFFFFF;
-  font: 800 34px Inter, system-ui, sans-serif;
-  letter-spacing: 0.02em;
-  text-align: center;
-  padding: 0 24px;
-  transition: opacity 600ms ease-out;
-  pointer-events: none;
-  z-index: 10;
-}
-.splash::before {
-  content: 'Litmus';
-}
-.splash.fading {
-  opacity: 0;
-}
+   Splash artwork per mode. The .splash frame, cover sizing and fade come from
+   chrome.css; this file supplies the two images, and the paper colour that
+   shows while a JPEG is still arriving, so a slow connection sees the art's
+   own white come up rather than the dark page flashing to white.
+
+   The desktop art is 1520 x 1200 against the 760 x 600 frame, the same 1.267
+   aspect, so nothing is cropped. The mobile art is 1170 x 2532 at 0.462; its
+   wordmark is 72.8% of the width, centred, inside the 82.2% that survives the
+   side crop at a 0.38 screen, with 54px of the art to spare on each side. On
+   a 375 x 667 phone the top crop leaves it 104px below the edge. Measured on
+   the painted pixels, 2026-09-16. Fix the art if that is ever breached, never
+   the CSS. */
+.splash { background-color: #FAFAFA; }
+body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=1'); }
+body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=1'); }
