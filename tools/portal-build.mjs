@@ -17,7 +17,8 @@
    model.js and every asset are copied byte-for-byte, which is both less to
    maintain and what GD's agreement asks for: 2.6.4 requires their copy to be
    identical to the version published elsewhere. The only file transformed is
-   index.html, and only to remove site chrome and add their SDK.
+   index.html, and only to remove site chrome, add their SDK and carry the
+   typeface inside the package.
 
    Every removal below asserts it matched. A silent miss would ship a package
    with a tracker or an outbound link still in it, which is a rejection.
@@ -144,10 +145,40 @@ h = cut(h, /\s*<link rel="icon"[^>]*>/g, 'favicon');
 h = cut(h, /\s*<!-- Open Graph \/ Twitter -->[\s\S]*?<meta name="twitter:image"[^>]*>/g, 'og/twitter block');
 h = cut(h, /\s*<!-- Structured data: VideoGame schema -->\s*<script type="application\/ld\+json">[\s\S]*?<\/script>/g, 'json-ld');
 
-// Google Fonts. Not forbidden, but it is the last request leaving the page,
-// and tokens.css already falls back to system-ui.
+/* THE TYPEFACE TRAVELS WITH THE GAME. This step used to cut the Google Fonts
+   link and stop, "because tokens.css already falls back to system-ui". It does,
+   and that was the defect: every package drew in whatever sans-serif the
+   player's machine had and never in Inter, while the site and the preview
+   videos were in Inter. Nothing caught it. Inter is not installed on the Mac
+   the packages were tested on, so the rig drew system sans too, and the check
+   that only the portal SDK leaves the page PASSED precisely because the font
+   request had been cut. Found by the Litmus audit on 2026-09-16: text widths
+   in the package matched generic sans, not Inter.
+
+   The Google link still goes, and the font now ships inside the package:
+   shared/fonts/InterVariable.woff2, every weight in one file, under the SIL
+   Open Font License, whose text travels beside it as that license requires.
+   The face is declared inline in index.html so its url resolves the same way
+   in the zip and in the flattened upload. Canvas text is measured when layout
+   runs, so once the face has loaded the page fires a resize, and every game's
+   re-fit listener lays out again with Inter's real metrics. */
 h = cut(h, /\s*<link rel="preconnect" href="https:\/\/fonts\.[^>]*>/g, 'font preconnects');
-h = cut(h, /\s*<link href="https:\/\/fonts\.googleapis\.com[^>]*>/g, 'google fonts');
+const fontLinks = h.match(/<link href="https:\/\/fonts\.googleapis\.com[^>]*>/g) || [];
+if (fontLinks.length !== 1) throw new Error(`FAILED to find exactly one Google Fonts link (found ${fontLinks.length}) — index.html has changed, fix this script`);
+const families = [...fontLinks[0].matchAll(/family=([^&:"]+)/g)].map(m => decodeURIComponent(m[1]).replace(/\+/g, ' '));
+const unbundled = families.filter(f => f !== 'Inter');
+if (unbundled.length) throw new Error(`index.html asks Google Fonts for ${unbundled.join(', ')}, and only Inter is bundled — add the face to shared/fonts and to this step`);
+h = h.replace(fontLinks[0], [
+  `<link rel="preload" href="./shared/InterVariable.woff2" as="font" type="font/woff2" crossorigin>`,
+  // An id, because step 2 later cuts every bare <style> block (the site's
+  // game-info styles), and on the first run it cut this one too.
+  `  <style id="packaged-font">@font-face{font-family:'Inter';font-style:normal;font-weight:100 900;font-display:block;src:url('./shared/InterVariable.woff2') format('woff2')}</style>`,
+  `  <script>document.fonts&&document.fonts.load('600 16px Inter').then(function(){window.dispatchEvent(new Event('resize'))},function(){})</script>`,
+].join('\n'));
+cuts += 1;
+for (const f of ['InterVariable.woff2', 'Inter-LICENSE.txt']) {
+  cpSync(join(ROOT, 'shared', 'fonts', f), join(OUT, 'shared', f));
+}
 
 // Site chrome. The aside is nested inside play-row, which stays.
 h = cut(h, /\s*<aside class="sidebar">[\s\S]*?<\/aside>/g, 'sidebar');
@@ -243,7 +274,7 @@ if (failures.length) {
    element, so removing the header kills the first, the throw abandons the
    block, and the splash sits over an unplayable game forever. Assert the
    removal itself, and only for a game that has a splash to remove. */
-const REQUIRED = ['./shared/chrome.css', 'id="game"']
+const REQUIRED = ['./shared/chrome.css', 'id="game"', "url('./shared/InterVariable.woff2')"]
   .concat(h.includes('id="splash"') ? ['splash.remove()'] : [])
   .concat(NO_SDK ? [] : (PORTAL === 'crazygames' ? ['crazygames-sdk-v3.js'] : ['GD_OPTIONS', 'SDK_REWARDED_WATCH_COMPLETE']))
   /* The portal contract must survive into the package, or every ad call in
@@ -258,6 +289,9 @@ const REQUIRED = ['./shared/chrome.css', 'id="game"']
   .concat(MAN.shared.includes('portal.js') ? ['./shared/portal.js'] : []);
 for (const must of REQUIRED) {
   if (!h.includes(must)) throw new Error(`package is missing ${must}`);
+}
+for (const f of ['shared/InterVariable.woff2', 'shared/Inter-LICENSE.txt']) {
+  if (!existsSync(join(OUT, f))) throw new Error(`package is missing ${f}`);
 }
 
 // ---- 4. zip it ----------------------------------------------------------
