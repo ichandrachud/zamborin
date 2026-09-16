@@ -418,10 +418,23 @@ await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&crowd=0' }, async
   const cell = (c, n) => g.cells.find((q) => q.c === c && q.n === n);
   ok(st.phase === 'map' && g.view.scroll === 0, 'everyone starts on the map, a new player at its top', [st.phase, g.view.scroll]);
   ok(cell(1, 1).open && cell(1, 1).next && !cell(1, 2).open, 'molecules: level 1 open, level 2 not yet', [cell(1, 1), cell(1, 2)]);
-  g = await ev('(__chem.scrollMap(1e9), __chem.geom())');
-  ok(cell(2, 1) && cell(2, 1).open && !cell(2, 2).open && cell(3, 1) && cell(3, 1).open,
-     'Chem Lab and Carbon Lab are open from the start, each at level 1', [cell(2, 1), cell(2, 2), cell(3, 1)]);
-  await click(cell(2, 1).x + cell(2, 1).w / 2, cell(2, 1).y + cell(2, 1).h / 2);
+  // the map is long now, so gather the cells a screenful at a time
+  const seen = await ev(`(() => { const all = [];
+    __chem.scrollMap(-1e9);
+    for (let i = 0; i < 40; i++) { __chem.scrollMap(i * 150); for (const q of __chem.geom().cells) all.push(q); }
+    return all; })()`);
+  const any = (c, n) => seen.find((q) => q.c === c && q.n === n);
+  ok(any(2, 1) && any(2, 1).open && !any(2, 2).open && any(3, 1) && any(3, 1).open,
+     'Chem Lab and Carbon Lab are open from the start, each at level 1', [any(2, 1), any(2, 2), any(3, 1)]);
+  // scroll until the Chem Lab's first cell is on screen, then tap it
+  let chem1 = null;
+  for (let y = 0; y <= 800 && !chem1; y += 100) {
+    g = await ev(`(__chem.scrollMap(${y}), __chem.geom())`);
+    const q = cell(2, 1);
+    if (q && q.y >= g.view.y && q.y + q.h <= g.view.y + g.view.h) chem1 = q;
+  }
+  ok(!!chem1, 'the Chem Lab section can be scrolled to');
+  await click(chem1.x + chem1.w / 2, chem1.y + chem1.h / 2);
   st = await ev('__chem.state');
   ok(st.phase === 'play' && st.chapter === 2 && st.level === 1, 'a tap on Chem Lab level 1 plays it, no molecules needed first', [st.phase, st.chapter, st.level]);
   g = await ev('__chem.geom()');
@@ -467,9 +480,9 @@ await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&chapter=2&level=6
      'its button goes on to the next chapter: organic level 1, on its clue', [st.phase, st.chapter, st.level, st.card]);
 });
 
-await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&chapter=3&level=6' }, async ({ ev, click }) => {
+await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&chapter=3&level=40' }, async ({ ev, click }) => {
   await ev(`(() => { __chem.freeze(0); const L = __chem.lab;
-    for (const [where, key] of ChemLevels.organic.desktop[5].solution) { L.act(where, L.find(key)); __chem.advance(2800); }
+    for (const [where, key] of ChemLevels.organic.desktop[39].solution) { L.act(where, L.find(key)); __chem.advance(2800); }
     __chem.advance(2600); })()`);
   const g = await ev('__chem.geom()');
   ok((await ev('__chem.state')).card === 'win' && g.cta, 'the last organic level won');

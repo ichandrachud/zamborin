@@ -92,7 +92,7 @@ const SPECIES = {};
   sp('carbon-dioxide', 'carbon dioxide', 'CO₂', [['O', -1, 0], ['C', 0, 0], ['O', 1, 0]], '1=0 1=2', []),
   sp('dibromoethane', 'dibromoethane', 'C₂H₄Br₂',
      [['C', -0.5, 0], ['C', 0.5, 0], ['Br', -1.0, -0.87], ['H', -1.12, 0.3], ['H', -0.45, 0.72], ['Br', 1.0, 0.87], ['H', 1.12, -0.3], ['H', 0.45, -0.72]],
-     '0-1 0-2 0-3 0-4 1-5 1-6 1-7', ['haloalkane']),
+     '0-1 0-2 0-3 0-4 1-5 1-6 1-7', ['dihaloalkane']),
   sp('ethanol', 'ethanol', 'C₂H₅OH',
      [['C', -1, 0.25], ['C', 0, -0.25], ['O', 1, 0.25], ['H', 1.64, -0.07], ['H', -0.68, 0.89], ['H', -1.64, 0.57], ['H', -1.32, -0.39], ['H', -0.51, -0.76], ['H', 0.51, -0.76]],
      '0-1 1-2 2-3 0-4 0-5 0-6 1-7 1-8', ['alcohol']),
@@ -170,7 +170,7 @@ const ORDER = ['OH', 'O', 'Cl', 'Br', 'NO3', 'SO4', 'HSO4', 'CO3', 'HCO3'];
 const INSOLUBLE = { CO3: ['Mg', 'Ca', 'Zn', 'Cu'], OH: ['Mg', 'Zn', 'Cu'], SO4: ['Ca'] };
 const STRONG_ACID = ['Cl', 'Br', 'NO3', 'SO4'];
 const WEAK_OXIDE = ['Zn', 'Cu'];        // these oxides take a hydrogen from an acid, but not from water
-const NAMED = { 'OH,Cl': 'hydroxychloride', 'OH,Br': 'hydroxybromide', 'OH,NO3': 'hydroxynitrate', 'Cl,NO3': 'chloride nitrate' };
+const NAMED = { 'Cl,NO3': 'chloride nitrate' };
 
 /* One compound of `cat` and the anions in `ans` (a list, so a half-swapped
    salt like Ca(OH)Cl is two different anions on one calcium). Built once and
@@ -185,6 +185,9 @@ function ionic(cat, raw) {
   if (ans.includes('O') && (mixed || C.charge === 1)) return null;
   if (mixed && ans.includes('OH') && ans.some((a) => a === 'HSO4' || a === 'HCO3')) return null;
   if (mixed && ans.includes('HSO4') && ans.includes('HCO3')) return null;
+  // an acid group beside a second acid group, or beside a spare hydrogen, would not sit still
+  if (mixed && ans.filter((a) => ANIONS[a].organic).length &&
+      (ans.every((a) => ANIONS[a].organic) || ans.some((a) => a === 'HSO4' || a === 'HCO3'))) return null;
   let m, n;
   if (mixed) {
     if (list.reduce((t, A) => t + A.charge, 0) !== C.charge || ans.length > 2) return null;
@@ -198,7 +201,7 @@ function ionic(cat, raw) {
   const isAcid = cat === 'H';
   if (isAcid && (mixed || ans[0] === 'OH' || ans[0] === 'O')) return null;  // that would be water
   const name = isAcid ? list[0].acid
-    : mixed ? C.name + ' ' + (NAMED[ans.join(',')] || ans.map((k) => ANIONS[k].name).join(' '))
+    : mixed ? C.name + ' ' + (NAMED[ans.join(',')] || (ans[0] === 'OH' ? 'hydroxy' + ANIONS[ans[1]].name : ans.map((k) => ANIONS[k].name).join(' ')))
     : C.name + ' ' + list[0].name;
   if (!name || name.includes('undefined')) return null;
   const key = name.replace(/ /g, '-');
@@ -210,6 +213,7 @@ function ionic(cat, raw) {
     if (list[0].charge === 2) tags.push('diprotic-acid');
     if (ans[0] === 'SO4') tags.push('sulphate');
     if (ans[0] === 'Cl' || ans[0] === 'Br') tags.push('hydrogen-halide');
+    if (list[0].organic) tags.push('carboxylic-acid');
   } else {
     if (ans.includes('OH') || ans.includes('O')) {
       tags.push('base');
@@ -217,6 +221,7 @@ function ionic(cat, raw) {
       if (!mixed && ans[0] === 'OH' && ['Na', 'K', 'Ca'].includes(cat)) tags.push('strong-base');
       if (mixed) tags.push('basic-salt');
     }
+    if (ans.some((a) => ANIONS[a].organic)) tags.push('weak-acid-salt');
     if (ans.includes('HSO4')) tags.push('acid');
     if (ans.some((a) => a !== 'OH' && a !== 'O')) tags.push('salt');
     if (ans.includes('CO3') || ans.includes('HCO3')) tags.push('carbonate');
@@ -243,6 +248,7 @@ function ionic(cat, raw) {
 }
 function formula(C, m, list, n, mixed) {
   const one = (ion, k, force) => (k > 1 || (force && ion.group) ? (ion.group ? '(' + ion.formula + ')' : ion.formula) + (k > 1 ? sub(k) : '') : ion.formula);
+  if (!mixed && list[0].organic) return one(list[0], n) + one(C, m);   // CH₃COOH, CH₃COONa
   return one(C, m) + (mixed ? list.map((A) => one(A, 1, true)).join('') : one(list[0], n));
 }
 /* The picture. One ion is the host and the others hang off its arms: the
@@ -289,6 +295,148 @@ function picture(C, m, list, n, mixed) {
   return [atoms, bonds.join(' ')];
 }
 
+/* ---------- THE CARBON CHAIN ----------
+   Carbon has four hands, so an organic molecule is a chain of carbons with
+   hydrogens filling whatever is left over. Four skeletons cover the whole
+   Carbon Lab — a plain chain, a chain with a double bond in it, a chain
+   ending in something, and a chain ending in the acid group — and every
+   hydrogen is placed by the same rule: into the widest gap between the
+   bonds its atom already has.
+
+   The acid group is put in the ion tables above rather than built here, so
+   that every metal's salt of it, and all the hydrogen-moving that goes with
+   it, comes out of the same engine as the rest of the bench. */
+const STEM = ['meth', 'eth', 'prop'];
+const ALKYL = ['methyl', 'ethyl', 'propyl'];
+const LONGEST = 3;                                        // three carbons keeps every family closed
+const HANDS = { C: 4, O: 2, N: 3, Cl: 1, Br: 1 };
+const ZIG = (i) => [i * 0.95, (i % 2) * 0.5];
+const ALKANE = ['CH₄', 'C₂H₆', 'C₃H₈'];
+const ALKYL_F = ['CH₃', 'C₂H₅', 'C₃H₇'];
+
+// The widest k gaps between the directions an atom is already bonded in.
+function gaps(dirs, k) {
+  const out = [], list = dirs.slice().sort((a, b) => a - b);
+  if (!list.length) { for (let i = 0; i < k; i++) out.push(-Math.PI / 2 + (i * 2 * Math.PI) / k); return out; }
+  for (let i = 0; i < k; i++) {
+    let at = 0, wide = -1;
+    for (let j = 0; j < list.length; j++) {
+      const a = list[j], b = j + 1 < list.length ? list[j + 1] : list[0] + 2 * Math.PI;
+      if (b - a > wide) { wide = b - a; at = j; }
+    }
+    const a = list[at], b = at + 1 < list.length ? list[at + 1] : list[0] + 2 * Math.PI;
+    const mid = (a + b) / 2;
+    out.push(mid);
+    list.push(mid > Math.PI ? mid - 2 * Math.PI : mid);
+    list.sort((x, y) => x - y);
+  }
+  return out;
+}
+function sketch() {
+  const at = [], bo = [];
+  const dirsAt = (i) => bo.filter((b) => b[0] === i || b[1] === i)
+    .map((b) => { const o = at[b[0] === i ? b[1] : b[0]]; return Math.atan2(o[2] - at[i][2], o[1] - at[i][1]); });
+  const spare = (i) => HANDS[at[i][0]] - bo.filter((b) => b[0] === i || b[1] === i).reduce((t, b) => t + b[2], 0);
+  const g = {
+    at, bo, dirsAt,
+    add(el, x, y) { at.push([el, x, y]); return at.length - 1; },
+    join(a, b, order) { bo.push([a, b, order || 1]); return b; },
+    // A new atom on the side of an old one, in its widest gap.
+    hang(i, el, order, far) {
+      const a = gaps(dirsAt(i), 1)[0], d = far == null ? 1 : far;
+      const j = g.add(el, at[i][1] + Math.cos(a) * d, at[i][2] + Math.sin(a) * d);
+      g.join(i, j, order);
+      return j;
+    },
+    fill(except) {
+      for (let i = at.length - 1; i >= 0; i--) {
+        if (!HANDS[at[i][0]] || (except || []).includes(i)) continue;
+        for (const a of gaps(dirsAt(i), spare(i))) {
+          g.join(i, g.add('H', at[i][1] + Math.cos(a) * 0.72, at[i][2] + Math.sin(a) * 0.72));
+        }
+      }
+      return g;
+    },
+    out() { return [at, bo.map(([a, b, o]) => a + (o === 2 ? '=' : '-') + b).join(' ')]; },
+  };
+  return g;
+}
+// n carbons along the zig-zag, with a double bond at the front if asked.
+function backbone(g, n, double) {
+  const c = [];
+  for (let i = 0; i < n; i++) c.push(g.add('C', ...ZIG(i)));
+  for (let i = 1; i < n; i++) g.join(c[i - 1], c[i], double && i === 1 ? 2 : 1);
+  return c;
+}
+function carbon(key, name, formula, tags, note, make) {
+  let s = SPECIES[key];                                   // some were drawn by hand, and keep their picture
+  if (!s) {
+    const g = sketch();
+    make(g);
+    g.fill();
+    s = sp(key, name, formula, ...g.out(), tags);
+    SPECIES[key] = s;
+  }
+  for (const t of tags) if (!s.tags.includes(t)) s.tags.push(t);
+  s.carbon = note;
+  return s;
+}
+
+const HALO = { Cl: ['chloro', 'Cl'], Br: ['bromo', 'Br'] };
+const chainF = (n) => 'C' + (n > 1 ? sub(n) : '') + 'H';
+for (let n = 1; n <= LONGEST; n++) {
+  carbon(STEM[n - 1] + 'ane', STEM[n - 1] + 'ane', ALKANE[n - 1], ['alkane'], { n, kind: 'alkane' }, (g) => backbone(g, n));
+  if (n >= 2) carbon(STEM[n - 1] + 'ene', STEM[n - 1] + 'ene', chainF(n) + sub(2 * n), ['alkene'], { n, kind: 'alkene' },
+    (g) => backbone(g, n, true));
+  carbon(STEM[n - 1] + 'anol', STEM[n - 1] + 'anol', ALKYL_F[n - 1] + 'OH', ['alcohol'], { n, kind: 'alcohol' }, (g) => {
+    const c = backbone(g, n);
+    g.join(c[n - 1], g.add('O', ...ZIG(n)), 1);
+  });
+  for (const [X, [pre, sym]] of Object.entries(HALO)) {
+    carbon(pre + STEM[n - 1] + 'ane', pre + STEM[n - 1] + 'ane', ALKYL_F[n - 1] + sym,
+      ['haloalkane'], { n, kind: 'haloalkane', x: X }, (g) => {
+        const c = backbone(g, n);
+        g.join(c[n - 1], g.add(X, ...ZIG(n)), 1);
+      });
+    if (n >= 2) carbon('di' + pre + STEM[n - 1] + 'ane', 'di' + pre + STEM[n - 1] + 'ane', chainF(n) + sub(2 * n) + sym + sub(2),
+      ['dihaloalkane'], { n, kind: 'dihalo', x: X },
+      (g) => { const c = backbone(g, n); g.hang(c[0], X, 1); g.hang(c[1], X, 1); });
+  }
+}
+// An ester: the acid's chain, its two oxygens, then the alcohol's chain.
+for (let a = 1; a <= LONGEST; a++) for (let b = 1; b <= LONGEST; b++) {
+  carbon(ALKYL[b - 1] + '-' + STEM[a - 1] + 'anoate', ALKYL[b - 1] + ' ' + STEM[a - 1] + 'anoate',
+    (a === 1 ? 'H' : ALKYL_F[a - 2]) + 'COO' + ALKYL_F[b - 1], ['ester'], { n: b, acid: a, kind: 'ester' }, (g) => {
+      const c = backbone(g, a);
+      g.hang(c[a - 1], 'O', 2);
+      let prev = g.add('O', ...ZIG(a));
+      g.join(c[a - 1], prev, 1);
+      for (let i = 0; i < b; i++) prev = g.join(prev, g.add('C', ...ZIG(a + 1 + i)), 1);
+    });
+}
+
+/* The acid group goes in the ion tables, so every metal's salt of it and all
+   the hydrogen-moving that goes with it come out of the same engine as the
+   rest of the bench. A carboxylic acid holds its hydrogen far more tightly
+   than hydrochloric acid does, which is what makes it fizz with baking soda
+   but leave most things alone. */
+for (let n = 1; n <= LONGEST; n++) {
+  const g = sketch(), c = backbone(g, n);
+  g.hang(c[n - 1], 'O', 2);
+  const o = g.add('O', ...ZIG(n));
+  g.join(c[n - 1], o, 1);
+  g.fill([o]);
+  const dir = gaps(g.dirsAt(o), 1)[0], ox = g.at[o][1], oy = g.at[o][2];
+  ANIONS[STEM[n - 1] + 'anoate'] = {
+    charge: 1, organic: true, group: true, pka: 5,
+    name: STEM[n - 1] + 'anoate', acid: STEM[n - 1] + 'anoic acid',
+    formula: (n === 1 ? 'H' : ALKYL_F[n - 2]) + 'COO',
+    atoms: g.at, bonds: g.bo.map(([a, b, ord]) => a + (ord === 2 ? '=' : '-') + b).join(' '),
+    arms: [{ a: o, p: [ox + Math.cos(dir), oy + Math.sin(dir)], h: [ox + Math.cos(dir) * 0.72, oy + Math.sin(dir) * 0.72] }],
+  };
+  ORDER.push(STEM[n - 1] + 'anoate');
+}
+
 /* The bench: the acids, what each metal makes with them, and the half-swapped
    salts in between. */
 const METALS = { Mg: 'magnesium', Zn: 'zinc', Cu: 'copper' };
@@ -298,6 +446,11 @@ for (const cat of ['Na', 'K', 'NH4', 'Mg', 'Ca', 'Zn', 'Cu']) {
   for (const an of ['Cl', 'Br', 'NO3', 'SO4', 'OH', 'CO3']) ionic(cat, [an]);
 }
 for (const cat of ['Na', 'K', 'NH4']) for (const an of ['HSO4', 'HCO3']) ionic(cat, [an]);
+for (let n = 1; n <= LONGEST; n++) {
+  const an = STEM[n - 1] + 'anoate';
+  ionic('H', [an]);
+  for (const cat of ['Na', 'K', 'NH4', 'Ca']) ionic(cat, [an]);
+}
 for (const cat of ['Mg', 'Ca', 'Zn', 'Cu']) {
   ionic(cat, ['O']); ionic(cat, ['HSO4']); ionic(cat, ['HCO3']);
   for (const an of ['Cl', 'Br', 'NO3']) { ionic(cat, ['OH', an]); ionic(cat, ['HCO3', an]); }
@@ -305,6 +458,7 @@ for (const cat of ['Mg', 'Ca', 'Zn', 'Cu']) {
 }
 [
   sp('carbon-dioxide', 'carbon dioxide', 'CO₂', [['C', 0, 0], ['O', -1.1, 0], ['O', 1.1, 0]], '0=1 0=2', ['gas']),
+  sp('chlorine', 'chlorine', 'Cl₂', [['Cl', -0.6, 0], ['Cl', 0.6, 0]], '0-1', ['halogen']),
   sp('magnesium', 'magnesium', 'Mg', [['Mg', 0, 0]], '', ['metal', 'beats-hydrogen', 'beats-zinc', 'beats-copper']),
   sp('zinc', 'zinc', 'Zn', [['Zn', 0, 0]], '', ['metal', 'beats-hydrogen', 'beats-copper']),
   sp('copper', 'copper', 'Cu', [['Cu', 0, 0]], '', ['metal']),
@@ -400,7 +554,7 @@ function gives(key) {
   const io = SPECIES[key].ions;
   if (key === 'water') return { pka: GIVES.water, n: 1, from: 'water' };
   if (!io) return null;
-  if (io.cat === 'H') return { pka: GIVES.H, n: io.m, from: 'H' };
+  if (io.cat === 'H') return { pka: ANIONS[io.ans[0]].pka || GIVES.H, n: io.m, from: 'H' };
   if (count(io.ans, 'HSO4')) return { pka: GIVES.HSO4, n: count(io.ans, 'HSO4'), from: 'HSO4' };
   if (io.cat === 'NH4') return { pka: GIVES.NH4, n: io.m, from: 'NH4' };
   if (count(io.ans, 'HCO3')) return { pka: GIVES.HCO3, n: count(io.ans, 'HCO3'), from: 'HCO3' };
@@ -417,6 +571,7 @@ function takes(key) {
     else if (a === 'OH') out.push({ pka: soft || TAKES.OH, at: i });
     else if (a === 'CO3') out.push({ pka: TAKES.CO3, at: i }, { pka: TAKES.HCO3, at: i });
     else if (a === 'HCO3') out.push({ pka: TAKES.HCO3, at: i });
+    else if (ANIONS[a].pka) out.push({ pka: ANIONS[a].pka, at: i });
   });
   return out.sort((x, y) => y.pka - x.pka);
 }
@@ -456,6 +611,7 @@ function moveHydrogen(dKey, aKey) {
       else if (was === 'OH') { rest[s.at] = null; loose.push('water'); }
       else if (was === 'CO3') rest[s.at] = 'HCO3';
       else if (was === 'HCO3') { rest[s.at] = null; loose.push('water', 'carbon-dioxide'); }
+      else if (ANIONS[was].organic) { rest[s.at] = null; cats.push('H'); ans.push(was); }
     }
     ans.push(...rest.filter(Boolean));
   }
@@ -523,6 +679,51 @@ function fallOut(aKey, bKey) {
   return [...got.keys.filter(solid), ...got.keys.filter((k) => !solid(k))];
 }
 
+/* What a carbon chain does that is not a hydrogen moving or a partner
+   swapping: the double bond opening and taking something onto each carbon,
+   the acid group and an alcohol joining into an ester and coming apart
+   again, and a chain trading whatever sits on its end. The tube brings
+   whatever heat, light or catalyst a school lab would. */
+const CHAIN_OF = (an) => STEM.indexOf(an.replace('anoate', '')) + 1;
+function carbonChange(aKey, bKey) {
+  const A = SPECIES[aKey], B = SPECIES[bKey], has = (s, t) => s.tags.includes(t);
+  // the carbon chain first, whatever meets it second
+  const both = (kind, test) => (A.carbon && A.carbon.kind === kind && test(B) ? [A, B]
+    : B.carbon && B.carbon.kind === kind && test(A) ? [B, A] : null);
+  const halogenOf = (s) => (s.key === 'bromine' ? 'Br' : s.key === 'chlorine' ? 'Cl' : null);
+  const left = (base, take) => {                          // the base, one hydroxide lighter
+    const io = base.ions, ans = io.ans.slice();
+    ans.splice(ans.indexOf('OH'), 1);
+    const got = split(Array(io.m).fill(io.cat), [...ans, take]);
+    return got && got.keys;
+  };
+  let p;
+  if ((p = both('alkene', (s) => s.key === 'hydrogen'))) return [STEM[p[0].carbon.n - 1] + 'ane'];
+  if ((p = both('alkene', (s) => halogenOf(s)))) return ['di' + HALO[halogenOf(p[1])][0] + STEM[p[0].carbon.n - 1] + 'ane'];
+  if ((p = both('alkene', (s) => has(s, 'hydrogen-halide')))) return [HALO[p[1].ions.ans[0]][0] + STEM[p[0].carbon.n - 1] + 'ane'];
+  if ((p = both('alkene', (s) => s.key === 'water'))) return [STEM[p[0].carbon.n - 1] + 'anol'];
+  if ((p = both('alcohol', (s) => has(s, 'carboxylic-acid')))) {
+    return [ALKYL[p[0].carbon.n - 1] + '-' + STEM[CHAIN_OF(p[1].ions.ans[0]) - 1] + 'anoate', 'water'];
+  }
+  if ((p = both('alcohol', (s) => s.key === 'oxygen'))) return [STEM[p[0].carbon.n - 1] + 'anoic-acid', 'water'];
+  if ((p = both('alcohol', (s) => has(s, 'hydrogen-halide')))) {
+    return [HALO[p[1].ions.ans[0]][0] + STEM[p[0].carbon.n - 1] + 'ane', 'water'];
+  }
+  if ((p = both('ester', (s) => s.key === 'water'))) {
+    return [STEM[p[0].carbon.n - 1] + 'anol', STEM[p[0].carbon.acid - 1] + 'anoic-acid'];
+  }
+  if ((p = both('ester', (s) => has(s, 'strong-base')))) {
+    const rest = left(p[1], STEM[p[0].carbon.acid - 1] + 'anoate');
+    return rest && [STEM[p[0].carbon.n - 1] + 'anol', ...rest];
+  }
+  if ((p = both('haloalkane', (s) => has(s, 'strong-base')))) {
+    if (p[0].carbon.kind !== 'haloalkane') return null;    // both halogens at once is a step too far
+    const rest = left(p[1], p[0].carbon.x);
+    return rest && [STEM[p[0].carbon.n - 1] + 'anol', ...rest];
+  }
+  return null;
+}
+
 /* Working the equations out makes compounds nobody had asked for, so go
    round again until the bench stops growing. */
 for (let pass = 0, seen = 0; pass < 4 && Object.keys(SPECIES).length > seen; pass++) {
@@ -542,6 +743,7 @@ for (let pass = 0, seen = 0; pass < 4 && Object.keys(SPECIES).length > seen; pas
     } else if ((made = pushOut(a, b) || pushOut(b, a))) {
       kind = made.includes('hydrogen') ? 'hydrogen-off' : 'pushed-out';
     } else if ((made = fallOut(a, b))) kind = 'falls-out';
+    else if ((made = carbonChange(a, b))) kind = null;     // the card's own words know these by their tags
     if (!made || !made.length) continue;
     if (made.length === 2 && made.includes(a) && made.includes(b)) continue;
     rx(a, b, made, null, kind);
@@ -572,6 +774,7 @@ function shouldReact(a, b) {
   const A = SPECIES[a].tags, B = SPECIES[b].tags, has = (t, x) => t.includes(x);
   const pair = (p, q) => (has(A, p) && has(B, q)) || (has(A, q) && has(B, p));
   const soluble = !has(A, 'insoluble') && !has(B, 'insoluble');
+  const setsFree = (salt, acid) => has(salt, 'weak-acid-salt') && has(acid, 'acid') && !has(acid, 'carboxylic-acid');
   // an ammonium salt gives its hydrogen up to anything that holds one more tightly than ammonia does
   const ammoniumMeets = (t, o) => has(t, 'ammonium') && !has(o, 'ammonia') &&
     (has(o, 'base') || (has(o, 'carbonate') && !has(o, 'hydrogencarbonate')));
@@ -586,7 +789,9 @@ function shouldReact(a, b) {
        (has(A, 'base') !== has(B, 'base') && pair('base', 'hydroxide-falls')))) ||
     pair('alkene', 'hydrogen') || pair('alkene', 'halogen') || pair('alkene', 'hydrogen-halide') || pair('alkene', 'water') ||
     pair('alcohol', 'carboxylic-acid') || pair('alcohol', 'oxygen') || pair('alcohol', 'hydrogen-halide') ||
-    pair('ester', 'water') || pair('ester', 'strong-base') || pair('haloalkane', 'strong-base') || pair('weak-acid-salt', 'strong-acid');
+    pair('ester', 'water') || pair('ester', 'strong-base') || pair('haloalkane', 'strong-base') ||
+    // a weak acid's salt gives its acid back to any acid that holds its hydrogen less tightly
+    setsFree(A, B) || setsFree(B, A);
 }
 
 /* What a reaction is, in plain words, for the card that follows it (owner,

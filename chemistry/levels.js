@@ -371,7 +371,7 @@ const LESSONS = [
    that win. Anything the next reaction would pour off the tray is put back
    in the dish first, and anything on the list is handed over as it appears. */
 const chem = () => root.ChemLab || (typeof require === 'function' ? require('./lab.js') : null);
-function bench(note, targets, route, decoys, seed) {
+function bench(note, targets, route, decoys, seed, clue) {
   const dish = [], moves = [], owed = {};
   for (const t of targets) owed[t] = (owed[t] || 0) + 1;
   let tray = [];
@@ -397,7 +397,7 @@ function bench(note, targets, route, decoys, seed) {
       if (owed[k] > 0) { moves.push(['beaker', k]); owed[k]--; tray.splice(j--, 1); }
     }
   });
-  return R(targets.map((k) => [k, 1]), [...dish, ...decoys], seed, note, moves);
+  return R(targets.map((k) => [k, 1]), [...dish, ...decoys], seed, note, moves, clue);
 }
 let ladder = null;
 function rungs() {
@@ -412,62 +412,211 @@ function rungs() {
 }
 const lab = { get mobile() { return rungs().mobile; }, get desktop() { return rungs().desktop; } };
 
-const organic = {
-  mobile: [
-    R([['ethane', 1]], ['ethene', 'hydrogen', 'water'], 51,
-      'The double bond in ethene opens up and takes a hydrogen on each carbon.',
-      [['tube', 'ethene'], ['tube', 'hydrogen'], ['beaker', 'ethane']],
-      'The two sticks between the carbons are a double bond. It can open up and take on a small molecule, half on each carbon.'),
-    R([['dibromoethane', 1]], ['ethene', 'bromine', 'water', 'carbon-dioxide'], 52,
-      'Orange bromine turns colourless when it meets a double bond. That is how chemists test for one.',
-      [['tube', 'ethene'], ['tube', 'bromine'], ['beaker', 'dibromoethane']],
-      'A double bond opens up and takes on a small molecule, half on each carbon. Count the atoms in what you need.'),
-    R([['ethanol', 1]], ['ethene', 'water', 'hydrogen', 'hydrochloric-acid'], 53,
-      'Ethene and steam make ethanol. Most of the alcohol industry uses is made this way.',
-      [['tube', 'ethene'], ['tube', 'water'], ['beaker', 'ethanol']],
-      'A double bond takes on a small molecule, half on each carbon. Count the atoms: which one gives C₂H₅OH?'),
-    R([['ethyl-ethanoate', 1]], ['ethanol', 'ethanoic-acid', 'sodium-hydroxide', 'water'], 54,
-      'An alcohol and an acid make an ester, and esters smell of fruit. This one smells of pear drops.',
-      [['tube', 'ethanol'], ['tube', 'ethanoic-acid'], ['beaker', 'ethyl-ethanoate']],
-      'An alcohol (ends in OH) and an acid (ends in COOH) join into an ester, and give off water.'),
-    R([['ethanoic-acid', 1]], ['ethanol', 'oxygen', 'water', 'hydrochloric-acid'], 55,
-      'Oxygen turns ethanol into ethanoic acid. That is why an open bottle of wine turns to vinegar.',
-      [['tube', 'ethanol'], ['tube', 'oxygen'], ['beaker', 'ethanoic-acid']],
-      'Oxygen turns an alcohol (ends in OH) into an acid (ends in COOH).'),
-    R([['ethyl-ethanoate', 1]], ['ethene', 'water', 'sodium-ethanoate', 'hydrochloric-acid', 'hydrogen'], 56,
-      'Two reactions to make what the third one needs. Chemists call that a synthesis.',
-      [['tube', 'ethene'], ['tube', 'water'], ['dish', 'ethanol'], ['tube', 'sodium-ethanoate'], ['tube', 'hydrochloric-acid'],
-       ['dish', 'ethanoic-acid'], ['tube', 'ethanol'], ['tube', 'ethanoic-acid'], ['beaker', 'ethyl-ethanoate']],
-      'Make an alcohol and an acid (ends in COOH) first, then join them. A strong acid turns a salt (ends in COONa) back into its acid.'),
-  ],
-  desktop: [
-    R([['ethane', 1]], ['ethene', 'hydrogen', 'water', 'carbon-dioxide'], 61,
-      'The double bond in ethene opens up and takes a hydrogen on each carbon.',
-      [['tube', 'ethene'], ['tube', 'hydrogen'], ['beaker', 'ethane']],
-      'The two sticks between the carbons are a double bond. It can open up and take on a small molecule, half on each carbon.'),
-    R([['dibromoethane', 1]], ['ethene', 'bromine', 'water', 'carbon-dioxide', 'hydrogen'], 62,
-      'Orange bromine turns colourless when it meets a double bond. That is how chemists test for one.',
-      [['tube', 'ethene'], ['tube', 'bromine'], ['beaker', 'dibromoethane']],
-      'A double bond opens up and takes on a small molecule, half on each carbon. Count the atoms in what you need.'),
-    R([['ethanol', 1]], ['ethene', 'water', 'hydrogen', 'hydrochloric-acid', 'carbon-dioxide'], 63,
-      'Ethene and steam make ethanol. Most of the alcohol industry uses is made this way.',
-      [['tube', 'ethene'], ['tube', 'water'], ['beaker', 'ethanol']],
-      'A double bond takes on a small molecule, half on each carbon. Count the atoms: which one gives C₂H₅OH?'),
-    R([['ethyl-ethanoate', 1]], ['ethanol', 'ethanoic-acid', 'sodium-hydroxide', 'water', 'oxygen'], 64,
-      'An alcohol and an acid make an ester, and esters smell of fruit. This one smells of pear drops.',
-      [['tube', 'ethanol'], ['tube', 'ethanoic-acid'], ['beaker', 'ethyl-ethanoate']],
-      'An alcohol (ends in OH) and an acid (ends in COOH) join into an ester, and give off water.'),
-    R([['ethanoic-acid', 1]], ['ethanol', 'oxygen', 'water', 'carbon-dioxide', 'hydrochloric-acid'], 65,
-      'Oxygen turns ethanol into ethanoic acid. That is why an open bottle of wine turns to vinegar.',
-      [['tube', 'ethanol'], ['tube', 'oxygen'], ['beaker', 'ethanoic-acid']],
-      'Oxygen turns an alcohol (ends in OH) into an acid (ends in COOH).'),
-    R([['ethyl-ethanoate', 1]], ['ethene', 'water', 'sodium-ethanoate', 'hydrochloric-acid', 'hydrogen', 'sodium-hydroxide'], 66,
-      'Two reactions to make what the third one needs. Chemists call that a synthesis.',
-      [['tube', 'ethene'], ['tube', 'water'], ['dish', 'ethanol'], ['tube', 'sodium-ethanoate'], ['tube', 'hydrochloric-acid'],
-       ['dish', 'ethanoic-acid'], ['tube', 'ethanol'], ['tube', 'ethanoic-acid'], ['beaker', 'ethyl-ethanoate']],
-      'Make an alcohol and an acid (ends in COOH) first, then join them. A strong acid turns a salt (ends in COONa) back into its acid.'),
-  ],
-};
+/* ---------- chapter 3: the Carbon Lab ----------
+   Forty benches of organic chemistry, each opening on a clue card that says
+   the rule and never the answer. They are written the same way the Chem Lab's
+   are — what it teaches, what to make, and the reactions that make it — with
+   the clue as the second line. */
+const CARBON = [
+  // ---- the double bond opens ----
+  ['The double bond in ethene opens up and takes a hydrogen on each carbon.',
+    'The two sticks between the carbons are a double bond. It can open up and take on a small molecule, half on each carbon.',
+    ['ethane'], [['ethene', 'hydrogen']], ['water'], ['propane']],
+  ['Orange bromine turns colourless when it meets a double bond. That is how chemists test for one.',
+    'A double bond opens up and takes on a small molecule, half on each carbon. Count the atoms in what you need.',
+    ['dibromoethane'], [['ethene', 'bromine']], ['water', 'carbon-dioxide'], ['hydrogen']],
+  ['Ethene and steam make ethanol. Most of the alcohol industry uses is made this way.',
+    'A double bond takes on a small molecule, half on each carbon. Count the atoms: which one gives C₂H₅OH?',
+    ['ethanol'], [['ethene', 'water']], ['hydrogen', 'hydrochloric-acid'], ['bromine']],
+  ['Hydrogen chloride adds on too: the hydrogen to one carbon, the chlorine to the other.',
+    'A double bond takes on a small molecule, half on each carbon. Which of these is made of two halves?',
+    ['chloroethane'], [['ethene', 'hydrochloric-acid']], ['water', 'hydrogen'], ['bromine', 'ethane']],
+  ['Propene does everything ethene does, with one more carbon along for the ride.',
+    'The chain is longer but the double bond is the same, and it opens the same way.',
+    ['propane'], [['propene', 'hydrogen']], ['water', 'ethene'], ['bromine', 'ethane']],
+  ['A longer chain, the same orange test.',
+    'A double bond opens and takes a bromine onto each carbon. Count the carbons in what you need.',
+    ['dibromopropane'], [['propene', 'bromine']], ['water', 'ethene'], ['hydrogen', 'dibromoethane']],
+  // ---- alcohols ----
+  ['Oxygen turns ethanol into ethanoic acid. That is why an open bottle of wine turns to vinegar.',
+    'Oxygen turns an alcohol (ends in OH) into an acid (ends in COOH).',
+    ['ethanoic-acid'], [['ethanol', 'oxygen']], ['water', 'hydrochloric-acid'], ['ethene', 'hydrogen']],
+  ['Methanol is the simplest alcohol of all, and oxygen treats it just the same.',
+    'Oxygen turns an alcohol into the acid with the same number of carbons.',
+    ['methanoic-acid'], [['methanol', 'oxygen']], ['water', 'ethanol'], ['hydrochloric-acid', 'ethanoic-acid']],
+  ['Hydrogen chloride swaps an alcohol’s OH for a chlorine, and the OH leaves as water.',
+    'The OH on the end of an alcohol can be swapped for something else. What is left over has to go somewhere.',
+    ['chloroethane'], [['ethanol', 'hydrochloric-acid']], ['water', 'oxygen'], ['ethene', 'hydrogen']],
+  ['Hydrogen bromide does the same swap, and leaves a bromine on the end instead.',
+    'The OH on the end of an alcohol can be swapped for whatever halogen is offered.',
+    ['bromopropane'], [['propanol', 'hydrobromic-acid']], ['water', 'ethanol'], ['hydrochloric-acid', 'oxygen']],
+  ['Alkali puts the OH back, and takes the halogen away as a salt.',
+    'Alkali (ends in OH) will swap a halogen on the end of a chain back for an OH.',
+    ['ethanol'], [['chloroethane', 'sodium-hydroxide']], ['water'], ['hydrochloric-acid', 'sodium-chloride']],
+  ['The same swap, whichever halogen is on the end and whichever alkali is offered.',
+    'Alkali swaps the halogen on the end of a chain for an OH, and takes the halogen away as a salt.',
+    ['propanol', 'potassium-bromide'], [['bromopropane', 'potassium-hydroxide']], ['water'], ['ethanol', 'sodium-hydroxide']],
+  // ---- esters ----
+  ['An alcohol and an acid make an ester, and esters smell of fruit. This one smells of pear drops.',
+    'An alcohol (ends in OH) and an acid (ends in COOH) join into an ester, and give off water.',
+    ['ethyl-ethanoate'], [['ethanol', 'ethanoic-acid']], ['sodium-hydroxide', 'water'], ['methanol', 'oxygen']],
+  ['The ester takes its first name from the alcohol and its last from the acid.',
+    'An alcohol and an acid join into an ester. Which alcohol and which acid would make this one?',
+    ['methyl-ethanoate'], [['methanol', 'ethanoic-acid']], ['water', 'ethanol'], ['methanoic-acid', 'oxygen']],
+  ['Swap them round and you get a different ester with the same atoms in it.',
+    'The alcohol gives the ester its first name, the acid gives it the last. Read the name carefully.',
+    ['ethyl-methanoate'], [['ethanol', 'methanoic-acid']], ['water', 'methanol'], ['ethanoic-acid', 'oxygen']],
+  ['Water splits an ester back into the alcohol and the acid it was made from.',
+    'What water and an ester do is the opposite of what an alcohol and an acid do.',
+    ['ethanol', 'ethanoic-acid'], [['ethyl-ethanoate', 'water']], ['oxygen'], ['methanol', 'propanol']],
+  ['Alkali splits an ester too, but keeps the acid as its salt. Soap is made this way.',
+    'Alkali (ends in OH) splits an ester into the alcohol and a salt of the acid (ends in COONa).',
+    ['ethanol', 'sodium-ethanoate'], [['ethyl-ethanoate', 'sodium-hydroxide']], ['water'], ['hydrochloric-acid', 'oxygen']],
+  ['Potassium alkali makes the potassium salt. Soft soap is the potassium kind.',
+    'Alkali splits an ester into the alcohol and the salt of the acid. Whose salt depends on the alkali.',
+    ['propanol', 'potassium-ethanoate'], [['propyl-ethanoate', 'potassium-hydroxide']], ['water'], ['sodium-hydroxide', 'ethanol']],
+  // ---- the acid group is still an acid ----
+  ['Ethanoic acid is an acid like any other: alkali turns it into a salt and water.',
+    'An acid (ends in COOH) and a base make a salt and water, the same as any acid does.',
+    ['sodium-ethanoate'], [['ethanoic-acid', 'sodium-hydroxide']], ['water'], ['ethanol', 'hydrochloric-acid']],
+  ['Vinegar and baking soda: the fizz is carbon dioxide leaving the soda.',
+    'An acid takes the fixed carbon dioxide out of a hydrogencarbonate, and it bubbles off.',
+    ['carbon-dioxide', 'sodium-ethanoate'], [['ethanoic-acid', 'sodium-hydrogencarbonate']], ['water'], ['ethanol', 'sodium-hydroxide']],
+  ['A stronger acid takes the salt back, and the weak acid is free again.',
+    'A strong acid hands its hydrogen over, and the salt (ends in COONa) turns back into its own acid.',
+    ['ethanoic-acid'], [['sodium-ethanoate', 'hydrochloric-acid']], ['water'], ['sodium-hydroxide', 'ethanol']],
+  ['Ammonia has no hydroxide at all, so this one makes no water.',
+    'Ammonia is a base. An acid hands its hydrogen to it, and there is nothing left over.',
+    ['ammonium-ethanoate'], [['ethanoic-acid', 'ammonia']], ['water', 'ethanol'], ['sodium-hydroxide', 'propanol']],
+  ['Quicklime takes both of the acid’s hydrogens, one for each of its own.',
+    'Lime is a base with two hydroxides to give. One acid can only reach one of them.',
+    ['calcium-hydroxyethanoate'], [['ethanoic-acid', 'calcium-hydroxide']], ['water'], ['sodium-hydroxide', 'ethanol']],
+  // ---- two steps ----
+  ['Make the alcohol first, then let oxygen have it.',
+    'A double bond takes on a small molecule. Oxygen turns an alcohol into an acid.',
+    ['ethanoic-acid'], [['ethene', 'water'], ['ethanol', 'oxygen']], [], ['hydrogen', 'hydrochloric-acid']],
+  ['Two reactions to make what the third one needs. Chemists call that a synthesis.',
+    'Make an alcohol and an acid (ends in COOH) first, then join them. A strong acid turns a salt (ends in COONa) back into its acid.',
+    ['ethyl-ethanoate'], [['ethene', 'water'], ['sodium-ethanoate', 'hydrochloric-acid'], ['ethanol', 'ethanoic-acid']],
+    ['hydrogen'], ['bromine', 'sodium-hydroxide']],
+  ['From ethene all the way to the smell of pear drops.',
+    'A double bond takes on water. Oxygen turns an alcohol into an acid. An alcohol and an acid make an ester.',
+    ['ethyl-ethanoate'], [['ethene', 'water'], ['ethanol', 'oxygen'], ['ethanol', 'ethanoic-acid']],
+    ['ethene', 'water'], ['hydrogen', 'bromine']],
+  ['Make the ester, then let alkali take it apart: what comes back is the salt, not the acid.',
+    'An alcohol and an acid make an ester. Alkali splits an ester into the alcohol and a salt of the acid.',
+    ['sodium-propanoate'], [['propanol', 'propanoic-acid'], ['propyl-propanoate', 'sodium-hydroxide']],
+    ['water'], ['ethanol', 'oxygen']],
+  ['Swap the halogen for an OH, then let oxygen finish the job.',
+    'Alkali puts an OH back on the end of a chain. Oxygen turns an alcohol into an acid.',
+    ['propanoic-acid'], [['chloropropane', 'sodium-hydroxide'], ['propanol', 'oxygen']], ['water'], ['ethanol', 'hydrochloric-acid']],
+  ['Make the acid, then make its salt fizz.',
+    'Oxygen turns an alcohol into an acid. An acid takes the carbon dioxide out of a hydrogencarbonate.',
+    ['carbon-dioxide'], [['methanol', 'oxygen'], ['methanoic-acid', 'sodium-hydrogencarbonate']], ['water'], ['ethanol', 'sodium-hydroxide']],
+  ['Split the ester, then put one half to work.',
+    'Water splits an ester into an alcohol and an acid. Oxygen turns an alcohol into an acid.',
+    ['ethanoic-acid', 'methanoic-acid'], [['methyl-ethanoate', 'water'], ['methanol', 'oxygen']], ['water'], ['propanol', 'oxygen']],
+  ['Two alcohols on the bench and only one acid: only one of the esters can be made.',
+    'An alcohol and an acid join into an ester. Read which alcohol the one you need was made from.',
+    ['methyl-ethanoate'], [['methanol', 'ethanoic-acid']], ['ethanol', 'water'], ['oxygen', 'propanol']],
+  ['Two chains, two esters, and only one of each alcohol.',
+    'The alcohol gives the ester its first name, the acid its last.',
+    ['methyl-ethanoate', 'ethyl-methanoate'], [['methanol', 'ethanoic-acid'], ['ethanol', 'methanoic-acid']],
+    ['water'], ['propanol', 'oxygen']],
+  // ---- three steps and more ----
+  ['Everything the double bond can do, in one bench.',
+    'A double bond takes on a small molecule, half on each carbon. Alkali swaps a halogen for an OH.',
+    ['propanol', 'dibromopropane'], [['propene', 'hydrobromic-acid'], ['bromopropane', 'sodium-hydroxide'], ['propene', 'bromine']],
+    ['water'], ['hydrogen', 'ethene']],
+  ['Make the alcohol, make the acid, then join them: the long way to an ester.',
+    'A double bond takes on water. Oxygen turns an alcohol into an acid. An alcohol and an acid join into an ester.',
+    ['propyl-propanoate'], [['propene', 'water'], ['propanol', 'oxygen'], ['propene', 'water'], ['propanol', 'propanoic-acid']],
+    ['oxygen'], ['hydrogen', 'ethene']],
+  ['One alcohol, two different acids, and the esters they make.',
+    'An alcohol and an acid join into an ester and give off water. Oxygen makes an acid out of an alcohol.',
+    ['ethyl-ethanoate', 'ethyl-methanoate'], [['ethanol', 'ethanoic-acid'], ['methanol', 'oxygen'], ['ethanol', 'methanoic-acid']],
+    ['ethanol'], ['water', 'oxygen']],
+  ['The acid you need is locked up in a salt.',
+    'A strong acid turns a salt (ends in COONa) back into its own acid. An alcohol and an acid make an ester.',
+    ['propyl-ethanoate'], [['sodium-ethanoate', 'hydrochloric-acid'], ['propanol', 'ethanoic-acid']], ['water'], ['ethanol', 'oxygen']],
+  ['Take the ester apart with alkali and put the pieces back together differently.',
+    'Alkali splits an ester into an alcohol and a salt. A strong acid frees the acid from the salt.',
+    ['methyl-ethanoate'], [['ethyl-ethanoate', 'sodium-hydroxide'], ['sodium-ethanoate', 'hydrochloric-acid'], ['methanol', 'ethanoic-acid']],
+    ['propanol'], ['oxygen', 'hydrobromic-acid']],
+  ['Two chains at once, and nothing to spare.',
+    'Oxygen turns an alcohol into an acid. An alcohol and an acid join into an ester.',
+    ['propyl-methanoate', 'water'], [['methanol', 'oxygen'], ['propanol', 'methanoic-acid']], [], ['ethanol', 'oxygen']],
+  ['Start at the double bond and finish at the fizz.',
+    'A double bond takes on water. Oxygen makes an acid. An acid takes the carbon dioxide out of a hydrogencarbonate.',
+    ['carbon-dioxide', 'sodium-ethanoate'], [['ethene', 'water'], ['ethanol', 'oxygen'], ['ethanoic-acid', 'sodium-hydrogencarbonate']],
+    [], ['hydrogen', 'bromine']],
+  ['Everything you have learned, in one bench.',
+    'A double bond takes on a small molecule. Oxygen makes an acid out of an alcohol. An alcohol and an acid make an ester.',
+    ['ethyl-ethanoate', 'dibromoethane'], [['ethene', 'water'], ['ethanol', 'oxygen'], ['ethene', 'water'], ['ethanol', 'ethanoic-acid'], ['ethene', 'bromine']],
+    [], ['hydrogen', 'hydrochloric-acid']],
+];
+
+/* A bench needs a wrong pair that costs you the win, or there is nothing to
+   get wrong. Where a lesson's own molecules cannot make one, one more decoy
+   can: the first of each pair goes on the phone's bench, the second on the
+   desktop's, because the desktop's extra molecules sometimes give a way back.
+   tests.mjs checks every bench has its wrong pair. */
+const CARBON_TRAPS = [
+  [null, null],
+  [null, null],
+  [null, null],
+  [null, null],
+  [null, null],
+  [null, null],
+  [null, 'methanol'],
+  [null, null],
+  [null, 'sodium-hydroxide'],
+  [null, null],
+  ['hydrochloric-acid', null],
+  ['sodium-hydroxide', null],
+  [null, null],
+  ['sodium-hydroxide', null],
+  ['sodium-hydroxide', null],
+  ['sodium-hydroxide', 'sodium-hydroxide'],
+  ['potassium-hydroxide', null],
+  ['sodium-hydroxide', null],
+  ['potassium-hydroxide', null],
+  ['sodium-hydroxide', null],
+  ['sodium-hydroxide', null],
+  ['sodium-hydroxide', null],
+  ['sodium-hydroxide', null],
+  ['hydrochloric-acid', null],
+  [null, null],
+  ['methanol', 'methanol'],
+  ['potassium-hydroxide', 'hydrochloric-acid'],
+  ['hydrochloric-acid', null],
+  ['sodium-hydroxide', null],
+  ['sodium-hydroxide', 'sodium-hydroxide'],
+  ['sodium-hydroxide', null],
+  ['sodium-hydroxide', null],
+  ['chlorine', null],
+  ['hydrochloric-acid', null],
+  [null, 'hydrochloric-acid'],
+  [null, null],
+  ['ethene', null],
+  [null, null],
+  ['sodium-hydroxide', null],
+  ['hydrochloric-acid', null],
+];
+
+let carbonLadder = null;
+function carbonRungs() {
+  if (!carbonLadder) {
+    carbonLadder = { mobile: [], desktop: [] };
+    CARBON.forEach(([note, clue, targets, route, phone, more], i) => {
+      const trap = CARBON_TRAPS[i] || [];
+      carbonLadder.mobile.push(bench(note, targets, route, [...phone, ...(trap[0] ? [trap[0]] : [])], 91 + i, clue));
+      carbonLadder.desktop.push(bench(note, targets, route, [...phone, ...(more || []), ...(trap[1] ? [trap[1]] : [])], 251 + i, clue));
+    });
+  }
+  return carbonLadder;
+}
+const organic = { get mobile() { return carbonRungs().mobile; }, get desktop() { return carbonRungs().desktop; } };
 
 return { mobile, desktop, withoutCrowd, withCrowd, crowdOf, lab, organic };
 }));
