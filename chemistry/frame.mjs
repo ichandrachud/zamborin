@@ -1,4 +1,4 @@
-/* Lessons in Chemistry · a still frame of any moment.
+/* Litmus · a still frame of any moment.
    node chemistry/frame.mjs <out.png> <query> <desktop|mobile> [snippet]
 
    Opens the game, waits out the splash, runs a snippet against window.__chem

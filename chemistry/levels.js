@@ -1,5 +1,5 @@
 /* ============================================================
-   Lessons in Chemistry · levels
+   Litmus · levels
 
    From the owner's sketch, 2026-09-14: an open dish with free radicals
    floating in it, targets listed at the top, and a set number of atoms in

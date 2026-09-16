@@ -1,5 +1,5 @@
 /* ============================================================
-   Lessons in Chemistry · chapter 2, reactions: the rules
+   Litmus · chapter 2, reactions: the rules
 
    Headless, like model.js: no canvas, no motion. play.js moves the molecules
    and asks this file what the test tube does.

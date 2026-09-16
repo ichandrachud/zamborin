@@ -1,4 +1,4 @@
-/* Lessons in Chemistry · nothing within 10px of the rim.   node chemistry/edge-check.mjs [quick]
+/* Litmus · nothing within 10px of the rim.   node chemistry/edge-check.mjs [quick]
 
    The owner, 2026-09-15: atoms were going over the dish's border; "make sure
    they stay inside at least 10 px". This reads the painted canvas, not the

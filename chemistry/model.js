@@ -1,5 +1,5 @@
 /* ============================================================
-   Lessons in Chemistry · the rules
+   Litmus · the rules
 
    Headless: no canvas, no clock, no motion. play.js moves the atoms around
    the dish and asks this file what happens when two free hands meet.

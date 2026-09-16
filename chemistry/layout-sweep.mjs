@@ -1,4 +1,4 @@
-/* Lessons in Chemistry · phone layout sweep.   node chemistry/layout-sweep.mjs [level]
+/* Litmus · phone layout sweep.   node chemistry/layout-sweep.mjs [level]
 
    The phone layout at 59 phone and tablet sizes. Each check compares two
    different things' boxes: target icons against their labels and the top

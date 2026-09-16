@@ -1,4 +1,4 @@
-/* Lessons in Chemistry · rule tests.   node chemistry/tests.mjs
+/* Litmus · rule tests.   node chemistry/tests.mjs
 
    What this proves: the rules do what the game says. Two free hands that meet
    hold each other with every hand they both have; a finished target is

@@ -1,5 +1,5 @@
 /* ============================================================
-   Lessons in Chemistry · chapter 2, reactions: the bench
+   Litmus · chapter 2, reactions: the bench
 
    The dish floats whole molecules, each with its formula under it. Drag two
    into the test tube; if they react, what they make lands on the tray. Drag

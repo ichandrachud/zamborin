@@ -1,4 +1,4 @@
-/* Lessons in Chemistry — per-game styles only. Everything else comes from
+/* Litmus — per-game styles only. Everything else comes from
    ../shared/tokens.css and ../shared/chrome.css.
 
    M1, the grey box: no splash art exists yet, so the splash is the template's
@@ -21,7 +21,7 @@
   z-index: 10;
 }
 .splash::before {
-  content: 'Lessons in Chemistry';
+  content: 'Litmus';
 }
 .splash.fading {
   opacity: 0;

@@ -1,4 +1,4 @@
-/* Lessons in Chemistry · input-path tests.   node chemistry/input-tests.mjs
+/* Litmus · input-path tests.   node chemistry/input-tests.mjs
 
    Real mouse and touch events through Chrome, never the game's own drag code:
    a harness that calls the model tests the model, and the controls are a

@@ -1,4 +1,4 @@
-/* Lessons in Chemistry · a headless Chrome page over the DevTools protocol,
+/* Litmus · a headless Chrome page over the DevTools protocol,
    for the harnesses beside this file. Instruments, not the site: .mjs is not
    served by the deployment.
 

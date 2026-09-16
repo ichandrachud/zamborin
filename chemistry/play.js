@@ -1,5 +1,5 @@
 /* ============================================================
-   Lessons in Chemistry · A Zamborin Game
+   Litmus · A Zamborin Game
 
    The owner's sketch, 2026-09-14. The dish is open space: free radicals
    drift in it slowly, turning as they go, and every free hand is charged.

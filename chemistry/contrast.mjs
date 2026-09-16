@@ -1,4 +1,4 @@
-/* Lessons in Chemistry · painted-pixel contrast.   node chemistry/contrast.mjs
+/* Litmus · painted-pixel contrast.   node chemistry/contrast.mjs
 
    Reads the canvas backing store after the game draws, so it measures the
    pixel actually painted, not the source hex. Each atom's body (the mean of

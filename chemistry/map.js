@@ -1,5 +1,5 @@
 /* ============================================================
-   Lessons in Chemistry · the level map
+   Litmus · the level map
 
    Every level of every chapter as a numbered cell: done, next, or not yet.
    All three chapters are open from the start (owner, 2026-09-15: the
@@ -16,7 +16,7 @@
 
   window.ChemMap = function (host) {
     const { ctx, TOK, rr } = host;
-    const TITLE = 'LESSONS IN CHEMISTRY';
+    const TITLE = 'LITMUS';
     const CELL = 68;                                    // five columns on a 390 phone, ten on the desktop frame
     const TITLE_H = 60, GAP = 18;
     let LW = 760, LH = 600, MODE = 'desktop', pad = 30;
