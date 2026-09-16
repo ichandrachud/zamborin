@@ -124,7 +124,7 @@ const firstDesktop = [
    oxygen first. tests.mjs plays every rung to a win without losing a
    molecule, and checks each order lesson really does punish the bare meeting. */
 const Model = typeof module === 'object' && module.exports ? require('./model.js') : root.ChemModel;
-const VARIETY = ['Na', 'Mg', 'F', 'Al', 'Ca', 'Cl', 'H', 'Fe', 'N', 'O', 'C'];
+const VARIETY = ['Na', 'Mg', 'F', 'Al', 'Ca', 'Cl', 'H', 'Fe', 'K', 'Zn', 'Cu', 'N', 'O', 'C'];
 function needsOf(targets, avail) {
   const left = Object.assign({}, avail), needs = [];
   for (const [key, n] of targets) {
@@ -192,7 +192,58 @@ const RUNGS = [
   [[['urea', 1], ['water', 1]], { H: 6 }, ['Na'], 'One oxygen is for the carbon, the other for two hydrogens. Do not mix them up.'],
   [[['dimethyl-ether', 1], ['hydrazine', 1]], { H: 10 }, ['Cl'], 'Two hydrogens on each nitrogen before they meet, and three on each carbon.'],
   [[['ethanol', 1], ['ammonia', 1], ['salt', 1]], { H: 9, Na: 1 }, ['F'], 'Salt, ammonia and ethanol: every hand in the dish has somewhere to go.'],
-  [[['ethylene', 1], ['calcium-hydroxide', 1], ['hydrogen-chloride', 1]], { H: 7 }, ['Na'], 'Carbons, calcium and a chlorine, all waiting for hydrogen. The last level of molecules.'],
+  [[['ethylene', 1], ['calcium-hydroxide', 1], ['hydrogen-chloride', 1]], { H: 7 }, ['Na'], 'Carbons, calcium and a chlorine, all waiting for hydrogen.'],
+  // ---- the second fifty ----
+  [[['potassium-chloride', 1]], { K: 1 }, ['H'], 'Potassium has one hand, the same as sodium.'],
+  [[['potassium-oxide', 1]], { K: 2 }, ['H'], 'Oxygen has two hands and potassium only one, so it takes two of them.'],
+  [[['zinc-oxide', 1]], { Zn: 1 }, ['H'], 'Zinc holds the oxygen with both hands, the way magnesium does.'],
+  [[['copper-chloride', 1]], { Cl: 2 }, ['H', 'Na'], 'Copper has two hands, and a chlorine goes in each.'],
+  [[['potassium-hydroxide', 1]], { K: 1, H: 1 }, ['Cl'], 'One hand of the oxygen for the potassium, the other for the hydrogen.'],
+  [[['zinc-hydroxide', 1]], { H: 2 }, ['Na'], 'A hydrogen on each oxygen first, or the zinc takes one of them with both hands.'],
+  [[['magnesium-hydroxide', 1]], { H: 2 }, ['K'], 'The same again, and magnesium is just as greedy as zinc.'],
+  [[['calcium-fluoride', 1], ['potassium-chloride', 1]], { K: 1 }, ['H'], 'Two metals, two halogens. Read which is which.'],
+  [[['aluminium-fluoride', 1]], { F: 3 }, ['Na'], 'Aluminium has three hands, and fluorine one each.'],
+  [[['aluminium-oxide', 1]], { Al: 2 }, ['H'], 'Two aluminiums and three oxygens: six hands on each side of it.'],
+  [[['iron-oxide', 1]], { Fe: 2 }, ['H'], 'Iron has three hands too, and two of them share three oxygens.'],
+  [[['aluminium-hydroxide', 1]], { H: 3 }, ['Na'], 'A hydrogen on each oxygen before the aluminium can reach them.'],
+  [[['iron-hydroxide', 1]], { H: 3 }, ['K'], 'The same three hands, and the same trap waiting in the oxygens.'],
+  [[['sodium-oxide', 1], ['water', 1]], { Na: 2, H: 2 }, ['Cl'], 'One oxygen takes two sodiums, the other takes two hydrogens.'],
+  [[['potassium-oxide', 1], ['salt', 1]], { K: 2, Na: 1 }, ['H'], 'Both metals have one hand. Only one of them is asked for the oxygen.'],
+  [[['chloromethane', 1]], { H: 3 }, ['Na'], 'Three hydrogens and one chlorine, and carbon has a hand for each.'],
+  [[['dichloromethane', 1]], { H: 2, Cl: 2 }, ['Na'], 'Two of each this time. Count the hands before you start.'],
+  [[['chloroform', 1]], { Cl: 3 }, ['Na'], 'Three chlorines and one hydrogen: the same four hands, shared out differently.'],
+  [[['carbon-tetrachloride', 1]], { Cl: 4 }, ['H'], 'Every one of carbon\u2019s four hands takes a chlorine.'],
+  [[['tetrafluoromethane', 1]], { F: 4 }, ['H', 'Na'], 'Fluorine has one hand, like chlorine, and there is room for four.'],
+  [[['hydrogen-cyanide', 1]], { H: 1 }, ['Na'], 'Carbon and nitrogen hold each other with three hands. That leaves carbon one.'],
+  [[['methanoic-acid', 1]], { H: 2 }, ['Na'], 'One oxygen takes two of the carbon\u2019s hands, the other takes one and a hydrogen.'],
+  [[['ethanoic-acid', 1]], { H: 4 }, ['Na'], 'Three hydrogens on one carbon. The other carbon holds both oxygens and the last hydrogen.'],
+  [[['carbonic-acid', 1]], { H: 2 }, ['Na'], 'Three oxygens on one carbon: one held with two hands, two with one each.'],
+  [[['acetaldehyde', 1]], { H: 4 }, ['Na'], 'One carbon takes three hydrogens, the other takes the oxygen with two hands and one hydrogen.'],
+  [[['propanone', 1]], { H: 6 }, ['Na'], 'Three hydrogens on each end. The middle carbon holds the oxygen with both spare hands.'],
+  [[['propane', 1]], { H: 8 }, ['Na'], 'Three carbons in a row, and eight hydrogens for what is left over.'],
+  [[['propene', 1]], { H: 6 }, ['Na'], 'The same three carbons, but two of them hold each other with two hands.'],
+  [[['propyne', 1]], { H: 4 }, ['Cl'], 'Two carbons hold each other with three hands. Fill the rest before they meet.'],
+  [[['methylamine', 1]], { H: 5 }, ['Cl'], 'Three hydrogens for the carbon, two for the nitrogen, and they take the last hand each.'],
+  [[['propane', 1], ['water', 1]], { H: 10 }, ['Na'], 'Eight hydrogens for the chain and two for the oxygen.'],
+  [[['ethanoic-acid', 1], ['water', 1]], { H: 6 }, ['Na'], 'Three oxygens between them. Two go on the acid, one takes two hydrogens.'],
+  [[['methylamine', 1], ['ammonia', 1]], { H: 8 }, ['Na'], 'Two nitrogens: one takes a carbon, the other takes hydrogens only.'],
+  [[['chloromethane', 1], ['hydrogen-chloride', 1]], { H: 4 }, ['Na'], 'Two chlorines: one for a carbon, one for a hydrogen of its own.'],
+  [[['propanone', 1], ['water', 1]], { H: 8 }, ['Na'], 'Two oxygens. The one with two hydrogens must not go near the carbons.'],
+  [[['zinc-hydroxide', 1], ['potassium-chloride', 1]], { H: 2, K: 1 }, [], 'Hydrogens on the oxygens first, and keep the potassium off them.'],
+  [[['aluminium-oxide', 1], ['water', 1]], { Al: 2, H: 2 }, ['Na'], 'Four oxygens: three for the aluminiums, one for the hydrogens.'],
+  [[['iron-oxide', 1], ['salt', 1]], { Fe: 2, Na: 1 }, ['H'], 'Three oxygens for the two irons, and the sodium wants the chlorine.'],
+  [[['carbonic-acid', 1], ['carbon-dioxide', 1]], { H: 2 }, ['Na'], 'Five oxygens and two carbons. Only one carbon gets the hydrogens\u2019 oxygens.'],
+  [[['methanoic-acid', 1], ['methane', 1]], { H: 6 }, ['Na'], 'Two carbons: one takes both oxygens, the other takes four hydrogens.'],
+  [[['propene', 1], ['hydrogen-chloride', 1]], { H: 7 }, ['Na'], 'Six hydrogens for the chain, one for the chlorine.'],
+  [[['hydrogen-cyanide', 1], ['ammonia', 1]], { H: 4 }, ['Na'], 'Two nitrogens. One takes a carbon with three hands, the other takes three hydrogens.'],
+  [[['acetaldehyde', 1], ['water', 1]], { H: 6 }, ['K'], 'Two oxygens, and only one of them belongs on a carbon.'],
+  [[['ethanoic-acid', 1], ['salt', 1]], { H: 4, Na: 1 }, ['F'], 'The sodium wants the chlorine, not an oxygen. Keep them apart.'],
+  [[['aluminium-hydroxide', 1], ['potassium-chloride', 1]], { H: 3, K: 1 }, [], 'Three oxygens for the aluminium, each with a hydrogen on it first.'],
+  [[['propane', 1], ['carbon-dioxide', 1]], { H: 8, O: 2 }, ['Na'], 'Four carbons: three make the chain, the last takes both oxygens.'],
+  [[['methylamine', 1], ['water', 1], ['salt', 1]], { H: 7, Na: 1 }, ['F'], 'Every hand in the dish has somewhere to go, and only one order works.'],
+  [[['propanone', 1], ['methanol', 1]], { H: 10 }, ['Na'], 'Four carbons and two oxygens: one oxygen is held with two hands, one with one.'],
+  [[['ethanoic-acid', 1], ['ammonia', 1], ['water', 1]], { H: 9 }, ['Na'], 'Nine hydrogens, three oxygens and a nitrogen. Work out where each hydrogen belongs.'],
+  [[['propene', 1], ['zinc-hydroxide', 1], ['hydrogen-chloride', 1]], { H: 9 }, ['Na'], 'Carbons, zinc and a chlorine, all waiting for hydrogen. The last level of molecules.'],
 ];
 const KEPT = { 0: 0, 1: 1, 9: 5, 10: 4, 16: 2, 17: 3, 21: 6 };      // rung index -> index in the first seven
 const mobile = [], desktop = [];

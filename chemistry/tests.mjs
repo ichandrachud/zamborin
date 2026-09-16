@@ -160,7 +160,7 @@ function solve(level, limit = 20000) {
   return go(s0) ? { won: true, nodes } : { won: false, nodes };
 }
 for (const set of ['mobile', 'desktop']) {
-  eq(L[set].length, 50, set + ': fifty levels');
+  eq(L[set].length, 100, set + ': a hundred levels');
   L[set].forEach((lv, i) => {
     const name = set + ' level ' + (i + 1);
     const s = M.createState(lv);
@@ -214,9 +214,9 @@ ok(L.mobile.slice(2).every((lv) => lv.dish.length >= 9), 'from level 3 a phone d
 ok(L.desktop.slice(2).every((lv) => lv.dish.length >= 13), 'from level 3 a desktop dish holds at least 13 radicals');
 
 ok(L.mobile.slice(1).every((lv, i) => JSON.stringify([lv.dish, lv.avail, lv.targets]) !== JSON.stringify([L.desktop[i + 1].dish, L.desktop[i + 1].avail, L.desktop[i + 1].targets])),
-   'phone and desktop levels 2 to 50 are different levels');
+   'phone and desktop levels 2 to 100 are different levels');
 ok(L.mobile.every((lv, i) => i < 2 || lv.dish.length >= 9 + Math.floor((i * 4) / 49) - 1), 'the phone dish fills up along the ladder');
-ok(L.mobile.slice(40).every((lv) => lv.dish.length >= 12) && L.desktop.slice(40).every((lv) => lv.dish.length >= 16), 'the last ten levels are the most crowded');
+ok(L.mobile.slice(90).every((lv) => lv.dish.length >= 14) && L.desktop.slice(90).every((lv) => lv.dish.length >= 19), 'the last ten levels are the most crowded');
 ok(L.desktop.slice(2).every((lv) => lv.dish.some((el) => {
   const s = M.createState(lv);
   return s.atoms.some((a) => a.el === el && s.analysis.palm[a.id] === 'amber');
