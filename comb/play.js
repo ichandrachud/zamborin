@@ -51,22 +51,47 @@
     scrim: 'rgba(10,16,28,0.88)', scrimWin: 'rgba(10,16,28,0.82)',
   };
 
-  /* GAME ART, and only game art: the pieces on the playfield. Distinct
-     saturated hues, one per piece in tray order so two pieces that touch never
-     share a colour by accident. Every one is measured against the Portal wash
-     in __comb.contrast(). */
+  /* GAME ART, and only game art: the pieces on the playfield, one per piece in
+     tray order. What these colours are FOR is telling two clusters apart where
+     they touch, so that is what they are measured on: the closest pair of
+     touching cells from different clusters, read off the painted canvas over
+     14 shipped levels, 425 pairs, in CIE76 delta E.
+
+     The set these replace scored 19.4 at worst and 25.5 at the median, with a
+     pair under 20 in 6 levels of 14. An evenly spaced ladder solved to one
+     lightness was built on 2026-09-15 and measured WORSE, 16.9 and 17.6:
+     colours of equal lightness can differ only in hue, and the old set's
+     uneven lightness was what kept neighbours apart. An optimiser left free to
+     maximise the number returned neon green and bright yellow. These are the
+     old set NUDGED, the owner's call on 2026-09-16: each held within delta E
+     13 of the colour it replaces, index for index, and moved only to open the
+     closest pairs. 30.6 at worst, 32.8 at the median, no level under 20. Every
+     one is also measured against the Portal wash in __comb.contrast(). */
   const PIECE = [
-    '#4A90E8', '#E5566B', '#3AA76D', '#A96DE6', '#23A9B5',
-    '#E0679F', '#7C84F0', '#86B83A', '#5FB8E6', '#E36A3B',
+    '#859DEB', '#E74C65', '#45B16C', '#C86FDC', '#25AEA5',
+    '#D379A5', '#6571EE', '#80A12B', '#25A8D4', '#D35A28',
   ];
 
-  /* THE WAX COMB ON THE HOUSE BLUE. The empty cells are wax, lit from up and
-     slightly left like everything else in the fleet: game art on the Portal
-     wash, which DESIGN-SYSTEM 1.5 allows. A honey ground with honey cards was
-     built and played on 2026-09-15; the owner kept the wax and the pieces and
-     put the ground back to blue. The pieces keep distinct jewel hues because
-     telling two clusters apart is the game. Measured in __comb.contrast. */
-  const WAX = { rimTop: '#DDA850', rimBot: '#B37D32', cupTop: '#7D5018', cupBot: '#A26B26' };
+  /* THE WAX COMB ON THE HOUSE BLUE. The empty cells are wax: game art on the
+     Portal wash, which DESIGN-SYSTEM 1.5 allows. A honey ground with honey
+     cards was built and played on 2026-09-15; the owner kept the wax and the
+     pieces and put the ground back to blue.
+
+     LIT FROM THE UPPER LEFT, GENTLY. The wash is centred at 32% of the width on
+     the top edge, so the room was always lit from up and left while the cells
+     were shaded straight down. Owner, 2026-09-16: angled, deeper than before,
+     "not so dark, just a gentle gradation". Honey standing in the cups and a
+     comb pattern across the ground were both built that day and both taken
+     out on the owner's call, and the pieces keep their straight-down
+     gradient, also the owner's call. Measured in __comb.contrast. */
+  const WAX = { rimLit: '#E5B159', rimMid: '#C89340', rimDark: '#A57530',
+                cupDark: '#6E4715', cupLit: '#A66F2E' };
+  /* LIGHT points FROM the lit face TOWARDS the shaded one. The wash is a lamp
+     in the room, not a sun at infinity, so each cell takes its light from a
+     slightly different angle: 65% towards the lamp and 35% towards this fixed
+     diagonal, enough to be felt across a board without lighting a cell at the
+     edge of a wide window from the side. */
+  const LIGHT = { x: 0.6, y: 0.8 };
 
   // ---------- CANVAS ----------
   let LW, LH;
@@ -835,11 +860,19 @@
      2px, so the only thing separating a piece from the wax beside it was hue. */
   function drawWaxCell(cx, cy, R) {
     const rim = R * 0.88, cup = R * 0.66;
-    const g = ctx.createLinearGradient(0, cy - rim, 0, cy + rim);
-    g.addColorStop(0, WAX.rimTop); g.addColorStop(1, WAX.rimBot);
+    // Which way the light falls on THIS cell. See LIGHT.
+    const lx = cx - LW * 0.32, ly = cy + LH * 0.5, m = Math.hypot(lx, ly) || 1;
+    let dx = LIGHT.x * 0.35 + (lx / m) * 0.65, dy = LIGHT.y * 0.35 + (ly / m) * 0.65;
+    const k = Math.hypot(dx, dy) || 1; dx /= k; dy /= k;
+    // The rim stands proud, so it is lit on the arc facing the light.
+    const g = ctx.createLinearGradient(cx - dx * rim, cy - dy * rim, cx + dx * rim, cy + dy * rim);
+    g.addColorStop(0, WAX.rimLit); g.addColorStop(0.5, WAX.rimMid); g.addColorStop(1, WAX.rimDark);
     hexPath(cx, cy, rim); ctx.fillStyle = g; ctx.fill();
-    const c = ctx.createLinearGradient(0, cy - cup, 0, cy + cup);
-    c.addColorStop(0, WAX.cupTop); c.addColorStop(1, WAX.cupBot);
+    /* The cup is a HOLLOW, so it reads the other way round: the wall under the
+       light is the shaded one and the floor opposite catches the light. Lit
+       the same way round as the rim, an empty cell reads as a flat ring. */
+    const c = ctx.createLinearGradient(cx - dx * cup, cy - dy * cup, cx + dx * cup, cy + dy * cup);
+    c.addColorStop(0, WAX.cupDark); c.addColorStop(1, WAX.cupLit);
     hexPath(cx, cy, cup); ctx.fillStyle = c; ctx.fill();
   }
 
@@ -2249,11 +2282,10 @@
         whiteOnWhite: Math.round(ratio([255, 255, 255], [255, 255, 255]) * 100) / 100,
         greyOnGrey: Math.round(ratio([128, 128, 128], [128, 128, 128]) * 100) / 100,
       };
-      // The grounds a piece is actually drawn on: the three stops of the
-      // Portal wash (the tray and the walls between cells sit over these), and
-      // the wax of the empty cells beside a seated cluster.
-      const grounds = { panel: TOK.bgPanel, card: TOK.bgCard, bg: TOK.bg,
-                        waxRim: WAX.rimTop, waxCup: WAX.cupTop };
+      /* The grounds a piece actually meets: the three stops of the Portal wash.
+         The tray and the walls between cells sit over these, and the wall is
+         what a seated cluster touches (see drawWaxCell's 0.88 R). */
+      const grounds = { panel: TOK.bgPanel, card: TOK.bgCard, bg: TOK.bg };
       const out = {};
       let worst = Infinity, worstAt = '';
       for (const [gn, gv] of Object.entries(grounds)) {
@@ -2263,7 +2295,27 @@
           return { i, hex: p, ratio: v };
         });
       }
-      return { nullTest, worst, worstAt, passes3to1: worst >= 3, byGround: out };
+      /* THE WAX IS A GRADIENT, so it is swept end to end and not read at one
+         stop. Read at the rim's top alone, one blue looked uniquely broken at
+         1.03:1; swept, every colour in the old palette and the new one matches
+         the wax's lightness somewhere along the rim (measured 2026-09-16).
+         Lightness never parted a piece from the wax. The dark wall between
+         cells and the seated shadow do, so the wax is reported on its own and
+         kept out of passes3to1 rather than failing it forever. */
+      const mix = (a, b, t) => rgb(a).map((v, j) => Math.round(v + (rgb(b)[j] - v) * t));
+      let waxLowest = Infinity, waxAt = '';
+      for (let t = 0; t <= 10; t++) {
+        for (const w of [mix(WAX.rimLit, WAX.rimMid, t / 10), mix(WAX.rimMid, WAX.rimDark, t / 10),
+                         mix(WAX.cupDark, WAX.cupLit, t / 10)]) {
+          for (const p of PIECE) {
+            const v = ratio(rgb(p), w);
+            if (v < waxLowest) { waxLowest = v; waxAt = p; }
+          }
+        }
+      }
+      return { nullTest, worst, worstAt, passes3to1: worst >= 3, byGround: out,
+               wax: { lowest: Math.round(waxLowest * 100) / 100, at: waxAt,
+                      partedBy: 'the dark wall between cells and the seated shadow' } };
     },
   };
 

@@ -61,6 +61,17 @@ gradient in `chrome.css` is the same three stops at `at 30% 0%`.
 > was built and played the same day and the owner put the ground back to blue,
 > keeping the wax and the pieces. Comb's floor, cards and scrims are the house
 > tokens; do not re-try the honey ground without the owner.
+>
+> **Comb's colour and light pass (2026-09-16), each piece the owner's call.** The
+> wax is lit from the upper left with a gentle gradation, and its cup reads as a
+> hollow. Honey standing in the cups, a comb pattern across the ground, and
+> diagonal light with highlights on the pieces were all built and all taken out;
+> do not re-propose them. The pieces keep their straight-down gradient by choice,
+> although the light rule above says up and left. The piece colours are the old
+> set nudged apart, and they are judged on how alike two TOUCHING clusters look on
+> the painted canvas (worst 30.6, median 32.8 delta E over 425 pairs), not on how
+> evenly they sit round the wheel: an even ladder at one lightness measured worse
+> than the colours it replaced.
 
 > **KNOWN DRIFT, fix on sight.** `#1B2A47` is in production as BG_TOP in
 > `bloom`, `needle`, `orbit`, `prism`, `sluice` **and in `shared/chrome.css`**,
