@@ -283,7 +283,27 @@
      board is width-bound in portrait, capped by PORTRAIT_COLS, so the height
      given up was slack. The map has one row and takes 96 directly. */
   const botBand = () => (MODE === 'mobile' ? 150 : 80);
-  const mapBotBand = () => (MODE === 'mobile' ? 96 : 20);
+  const mapBotBand = () => (phoneLayout() ? 16 : MODE === 'mobile' ? 96 : 20);
+
+  /* THE PHONE LAYOUT, from the owner's mockup and notes (2026-09-16). Every
+     control in one row across the top as a round icon button, so a thumb
+     resting at the bottom of the screen can never land on Restart; the board;
+     under it EVERY piece at once, sitting straight on the canvas and loosely
+     arranged, drawn smaller than the board and growing to board size the
+     moment it is touched; and along the bottom the level and moves at the
+     left and the sound switch, bare, at the right. Icons wherever a word is
+     not needed: six round icons fit a 390 phone with room to spare, where six
+     buttons with words need about 390px on their own. Portrait phones only; a
+     phone held sideways keeps the layout it had. */
+  const phoneLayout = () => MODE === 'mobile' && !landscape();
+  const PHONE_PAD = 16;        // side margin, from the mockup
+  const PHONE_LEGEND = 52;     // the bottom row, clear of the home indicator
+  /* THE DESKTOP FRAME, owner's notes 2026-09-16: Hint and Skip move up into the
+     right end of the top band, the level and moves read-out moves to the
+     bottom left under the board, and the tray column shows every piece at once
+     with no panel behind them. Landscape desktop frames only. */
+  const deskLayout = () => MODE === 'desktop' && landscape();
+  const DESK_READ_BAND = 40;
   const TRAY_H = 118;          // the tray as a strip, under a portrait board
   // As a column: 170 in the site frame, wider in a big window so the pieces
   // are drawn at a size that belongs to the board beside them.
@@ -584,13 +604,50 @@
   // ---------- LAYOUT ----------
   function layout() {
     L.hit = {};
-    L.ctrlCy = MODE === 'mobile' ? LH - 74 : topBand() / 2;
+    L.ctrlCy = (MODE === 'mobile' && !phoneLayout()) ? LH - 74 : topBand() / 2;
     if (!level) return;
+
+    /* The level's own extent, measured at unit radius from the REAL cells.
+
+       The first version worked from the bounding box in offset coordinates and
+       anchored the origin on the corner cell (minC, minR). That corner is
+       often not a cell at all, and a hexagon's x depends on its row's PARITY
+       as well as its column: odd rows sit half a width to the right. When the
+       topmost row was odd but the leftmost cell sat on an even row, the whole
+       board was placed half a cell out and the plate hung 17px past the edge
+       of the area it was given. boardFit() caught it; nothing else could.
+
+       Measuring the cells directly has no parity in it to get wrong. Measured
+       before the frame is divided, because the phone gives the tray only the
+       height the board does not need. */
+    let rx0 = 1e9, rx1 = -1e9, ry0 = 1e9, ry1 = -1e9;
+    for (const k of level.board) {
+      const q = G.keyQ(k), r = G.keyR(k);
+      const x = hexX(q, r, 1), y = hexY(q, r, 1);
+      if (x < rx0) rx0 = x;
+      if (x > rx1) rx1 = x;
+      if (y < ry0) ry0 = y;
+      if (y > ry1) ry1 = y;
+    }
+    // Full pixel box at unit radius: centre span plus the hexagon's own size.
+    const unitW = (rx1 - rx0) + SQ3, unitH = (ry1 - ry0) + 2;
+    const PAD = 0.55;
+    const ownCols = unitW / SQ3;
+    const tierCols = isDaily ? ownCols : Math.max(ownCols, TIER_MAX_COLS[Math.min(TIER_MAX_COLS.length - 1, G.tierOf(levelNo))]);
 
     /* Which way the tray goes is decided by the frame's shape. See
        `landscape` above for what that fixed. */
     let bx, by, bw, bh;
-    if (landscape()) {
+    if (deskLayout()) {
+      const TW = trayW();
+      bx = SIDE_PAD; by = topBand();
+      bw = LW - SIDE_PAD * 2 - TW - 20;
+      bh = LH - DESK_READ_BAND - by;      // the read-out sits under the board
+      // The column runs the full height now that Hint and Skip are at the top.
+      const ty = topBand() + 6, th = LH - SIDE_PAD - ty;
+      const g = deskTrayGrid(TW, th, Math.max(44, LH / 12) * 0.5);
+      L.trayBand = { x: LW - SIDE_PAD - TW, y: ty, w: TW, h: th, vertical: true, grid: g };
+    } else if (landscape()) {
       const TW = trayW();
       bx = SIDE_PAD; by = topBand();
       bw = LW - SIDE_PAD * 2 - TW - 20;
@@ -608,6 +665,21 @@
       const th = Math.min(room, 150 * 3 + 20);
       L.trayBand = { x: LW - SIDE_PAD - TW, y: topBand() + 6 + (room - th) / 2,
                      w: TW, h: th, vertical: true };
+    } else if (phoneLayout()) {
+      bx = PHONE_PAD; by = topBand();
+      bw = LW - PHONE_PAD * 2;
+      /* The board first: the size its tier's widest board allows across, and
+         the height this level needs at that size. The tray takes what is left,
+         and its pieces get smaller before the board does (owner: "make them
+         smaller if needed"). */
+      const boardR = Math.min(44, bw / ((tierCols + 0.5) * SQ3 + PAD * 2));
+      const trayRoom = LH - by - PHONE_LEGEND - 14 - (unitH + PAD * 2) * boardR;
+      // The board's radius once a tray of height h has been taken out.
+      const boardRWith = (h) => Math.min(boardR, (LH - by - PHONE_LEGEND - 16 - h) / (unitH + PAD * 2));
+      const g = phoneTrayGrid(bw, trayRoom, boardR, boardRWith);
+      const trayTop = LH - PHONE_LEGEND - g.h;
+      bh = trayTop - 14 - by;
+      L.trayBand = { x: PHONE_PAD, y: trayTop, w: bw, h: g.h, vertical: false, grid: g };
     } else {
       bx = SIDE_PAD; by = topBand();
       bw = LW - SIDE_PAD * 2;
@@ -616,36 +688,15 @@
     }
     L.boardMid = bx + bw / 2;   // a toast about the whole level centres here
 
-    /* The level's own extent, measured at unit radius from the REAL cells.
-
-       The first version worked from the bounding box in offset coordinates and
-       anchored the origin on the corner cell (minC, minR). That corner is
-       often not a cell at all, and a hexagon's x depends on its row's PARITY
-       as well as its column: odd rows sit half a width to the right. When the
-       topmost row was odd but the leftmost cell sat on an even row, the whole
-       board was placed half a cell out and the plate hung 17px past the edge
-       of the area it was given. boardFit() caught it; nothing else could.
-
-       Measuring the cells directly has no parity in it to get wrong. */
-    let rx0 = 1e9, rx1 = -1e9, ry0 = 1e9, ry1 = -1e9;
-    for (const k of level.board) {
-      const q = G.keyQ(k), r = G.keyR(k);
-      const x = hexX(q, r, 1), y = hexY(q, r, 1);
-      if (x < rx0) rx0 = x;
-      if (x > rx1) rx1 = x;
-      if (y < ry0) ry0 = y;
-      if (y > ry1) ry1 = y;
-    }
-    // Full pixel box at unit radius: centre span plus the hexagon's own size.
-    const unitW = (rx1 - rx0) + SQ3, unitH = (ry1 - ry0) + 2;
-
     /* The plate's own padding is part of the fit, not something added after
        it. Fitting the board first and then wrapping a 0.55R plate round it
        overflowed the area by 3px, which boardFit() caught and nothing else
        could have: the plate is derived from the board, so a check that
        measured one against the other would always have passed. */
-    const PAD = 0.55;
-    const fitR = Math.min(bw / (unitW + PAD * 2), bh / (unitH + PAD * 2));
+    /* Two pixels of slack on a phone, where the height binds far more often
+       than in the other layouts: the plate rounds its padding outward and a
+       height-bound board came out up to 2px past its area on four levels. */
+    const fitR = Math.min(bw / (unitW + PAD * 2), (bh - (phoneLayout() ? 2 : 0)) / (unitH + PAD * 2));
 
     /* THE CELL IS CAPPED BY HOW WIDE A BOARD THE FRAME MUST BE ABLE TO HOLD,
        not by how wide this level happens to be. Owner's call 2026-08-28: on a
@@ -665,8 +716,6 @@
        cell size and only a new tier changes it. The table is re-derived by
        __comb.tierColsCheck(); the daily, which is outside the ladder, is
        never drawn narrower than its own width. */
-    const ownCols = unitW / SQ3;
-    const tierCols = isDaily ? ownCols : Math.max(ownCols, TIER_MAX_COLS[Math.min(TIER_MAX_COLS.length - 1, G.tierOf(levelNo))]);
     // The landscape cap grows with the window: 44 in the site frame, larger
     // in full screen, where a fixed 44 left the board small in the middle.
     const capR = landscape() ? Math.max(44, LH / 12) : 44;
@@ -700,6 +749,126 @@
     layoutTray();
   }
 
+  /* THE PHONE TRAY: every piece at once (owner, 2026-09-16: "I want all the
+     game pieces to be visible. Make them smaller if needed"). Rows of three as
+     the mockup draws them, four or five across only when that draws the pieces
+     bigger in the room the board leaves. One radius for every piece, taken off
+     the largest shape in the WHOLE queue, so no piece changes size as others
+     are placed, and never more than about half the board's own cell. The width
+     of a slot is a hard limit; the height is the room the board leaves, down to
+     a floor where a piece is still worth drawing. */
+  // No panels (owner: "let them sit on the canvas"), so a row needs no padding
+  // of its own; the cell's padding is the room a piece has to sit off-line in.
+  const PHONE_ROW_GAP = 8, PHONE_CELL_GAP = 10, PHONE_CELL_PAD = 8;
+  const PHONE_TRAY_RMIN = 8;
+  function phoneTrayGrid(bw, room, boardR, boardRWith) {
+    const n = level.queue.length;
+    let maxW = 1, maxH = 1;
+    for (const p of level.queue) {
+      const sh = level.catalogue[p.shape];
+      if (sh.w > maxW) maxW = sh.w;
+      if (sh.h > maxH) maxH = sh.h;
+    }
+    const needW = (maxW + 0.5) * SQ3, needH = maxH * 1.5 + 0.5;
+    const innerW = bw;
+    let best = null;
+    for (let cols = Math.min(3, n); cols <= Math.min(5, n); cols++) {
+      const rows = Math.ceil(n / cols);
+      const cellW = (innerW - PHONE_CELL_GAP * (cols - 1)) / cols;
+      const rW = (cellW - PHONE_CELL_PAD * 2) / needW;
+      const rowRoom = (room - PHONE_ROW_GAP * (rows - 1)) / rows - PHONE_CELL_PAD * 2;
+      const r = Math.min(rW, Math.max(PHONE_TRAY_RMIN, Math.min(rowRoom / needH, boardR * 0.55)));
+      const h = rows * (r * needH + PHONE_CELL_PAD * 2) + PHONE_ROW_GAP * (rows - 1);
+      /* THE BOARD DECIDES FIRST. Choosing the biggest pieces kept three across
+         on a 320x568 phone, where three rows of pieces at their floor size
+         crushed a tall board to the minimum cell (swept 2026-09-16); four
+         across is two rows, and the board got the height back. So: the most
+         board, then the biggest pieces, then the fewest columns. */
+      const bR = boardRWith(h);
+      const better = !best || bR > best.bR + 0.5 ||
+        (Math.abs(bR - best.bR) <= 0.5 && r > best.r + 0.25);
+      if (better) best = { cols, rows, r, cellW, bR };
+    }
+    const cellH = best.r * needH + PHONE_CELL_PAD * 2;
+    return { cols: best.cols, rows: best.rows, r: best.r, cellW: best.cellW, cellH,
+             rowGap: PHONE_ROW_GAP, cellGap: PHONE_CELL_GAP, y0: 0, organic: true,
+             h: best.rows * cellH + PHONE_ROW_GAP * (best.rows - 1) };
+  }
+
+  /* THE DESKTOP COLUMN: every piece at once, with no scrolling (owner,
+     2026-09-16). One, two or three across, whichever draws the pieces biggest;
+     the height is a hard limit here, because nothing may sit out of view. The
+     pieces stay in a tidy column, centred in the height they leave. */
+  function deskTrayGrid(w, h, rCap) {
+    const n = level.queue.length, CELL_GAP = 10, ROW_GAP = 8, CELL_PAD = 6;
+    let maxW = 1, maxH = 1;
+    for (const p of level.queue) {
+      const sh = level.catalogue[p.shape];
+      if (sh.w > maxW) maxW = sh.w;
+      if (sh.h > maxH) maxH = sh.h;
+    }
+    const needW = (maxW + 0.5) * SQ3, needH = maxH * 1.5 + 0.5;
+    let best = null;
+    for (let cols = 1; cols <= Math.min(3, n); cols++) {
+      const rows = Math.ceil(n / cols);
+      const cellW = (w - CELL_GAP * (cols - 1)) / cols;
+      const rW = (cellW - CELL_PAD * 2) / needW;
+      const rH = ((h - ROW_GAP * (rows - 1)) / rows - CELL_PAD * 2) / needH;
+      const r = Math.max(4, Math.min(rW, rH, rCap));
+      if (!best || r > best.r + 0.25) best = { cols, rows, r, cellW };
+    }
+    const cellH = best.r * needH + CELL_PAD * 2;
+    const gh = best.rows * cellH + ROW_GAP * (best.rows - 1);
+    return { cols: best.cols, rows: best.rows, r: best.r, cellW: best.cellW, cellH,
+             rowGap: ROW_GAP, cellGap: CELL_GAP, y0: Math.max(0, (h - gh) / 2), organic: false, h: gh };
+  }
+
+  /* A slot belongs to its piece for the whole level: its row and column come
+     from the piece's place in the queue, and a short last row is centred. A
+     piece placed on the board leaves its slot empty rather than letting the
+     rest slide along under the player's hand.
+
+     ON A PHONE THE PIECES SIT A LITTLE OFF-LINE (owner, 2026-09-16: "they can
+     be arranged a little organically"). Each is nudged within the room its own
+     slot leaves around it, by an amount fixed for that piece on that level, so
+     the arrangement is loose but never moves and never crosses a neighbour.
+     The slot rectangle stays the tap target; `ox`, `oy` say where the piece is
+     drawn inside it. */
+  function gridSlot(qi, n) {
+    if (qi === undefined) return null;
+    /* A phone keeps every piece in its own slot, because the thumb is on the
+       tray. A desktop column closes up instead: with a mouse nothing slides
+       under the hand, and a two-column tray with gaps where placed pieces had
+       been looked scattered rather than tidy (framed 2026-09-16). */
+    const g = L.tray.grid;
+    const k = g.organic ? qi : n, total = g.organic ? level.queue.length : L.remaining.length;
+    const row = Math.floor(k / g.cols), col = k % g.cols;
+    const inRow = row === g.rows - 1 ? total - g.cols * (g.rows - 1) : g.cols;
+    const shift = (g.cols - inRow) * (g.cellW + g.cellGap) / 2;
+    const box = { x: L.tray.x + shift + col * (g.cellW + g.cellGap),
+                  y: L.tray.y + g.y0 + row * (g.cellH + g.rowGap),
+                  w: g.cellW, h: g.cellH, ox: 0, oy: 0 };
+    if (g.organic) {
+      const sh = level.catalogue[level.queue[qi].shape], R = g.r;
+      let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+      for (const c of sh.cells) {
+        const x = hexX(c[0], c[1], R), y = hexY(c[0], c[1], R);
+        if (x < x0) x0 = x; if (x > x1) x1 = x;
+        if (y < y0) y0 = y; if (y > y1) y1 = y;
+      }
+      const slackX = Math.max(0, (box.w - (x1 - x0 + R * SQ3)) / 2 - 1);
+      const slackY = Math.max(0, (box.h - (y1 - y0 + R * 2)) / 2 - 1);
+      let hsh = ((qi + 1) * 2654435761 ^ ((levelNo + (isDaily ? dailySeed() : 0) + 7) * 40503)) >>> 0;
+      hsh = Math.imul(hsh ^ (hsh >>> 15), 2246822519) >>> 0;
+      const u = ((hsh & 0xffff) / 0xffff) * 2 - 1, v = (((hsh >>> 16) & 0xffff) / 0xffff) * 2 - 1;
+      box.ox = u * slackX * 0.85;
+      box.oy = v * slackY * 0.85;
+    }
+    return box;
+  }
+  // Where a piece is DRAWN in its slot: the slot, moved by the piece's own nudge.
+  const drawnBox = (b) => ({ x: b.x + (b.ox || 0), y: b.y + (b.oy || 0), w: b.w, h: b.h });
+
   /* ONE TRAY, not three slots. Owner's call 2026-08-28: the tray is a single
      scrollable unit holding every piece still to be placed, rather than a
      three-slot window onto a queue.
@@ -721,10 +890,16 @@
     if (!level || !L.trayBand) return;
     const PADT = 12, GAPT = 10;
     const band = L.trayBand;
-    L.tray = { x: band.x, y: band.y, w: band.w, h: band.h, vertical: band.vertical };
+    L.tray = { x: band.x, y: band.y, w: band.w, h: band.h, vertical: band.vertical, grid: band.grid };
     const rem = [];
     for (let i = 0; i < level.queue.length; i++) if (!placedMask[i]) rem.push(i);
     L.remaining = rem;
+    if (band.grid) {
+      // Nothing scrolls on a phone: every piece already has a slot on screen.
+      L.trayR = band.grid.r; L.trayStep = 1; L.trayGap = 0; L.trayPad = 0;
+      L.trayContent = 0; L.trayView = 0; L.trayMax = 0; L.trayOffset = 0; trayScroll = 0;
+      return;
+    }
     if (!rem.length) {
       L.trayR = L.R * 0.5; L.trayStep = 1; L.trayView = 1;
       L.trayContent = 0; L.trayMax = 0; trayScroll = 0;
@@ -825,6 +1000,7 @@
   // Where a tray piece sits right now, scroll included. Null when it is
   // scrolled out of sight.
   function trayBox(n) {
+    if (L.tray.grid) return gridSlot(L.remaining[n], n);
     const vert = L.tray.vertical;
     const pad = L.trayPad, gap = L.trayGap;
     const a = L.tray[vert ? 'y' : 'x'] + pad + (L.trayOffset || 0) + n * L.trayStep - trayScroll;
@@ -1009,7 +1185,8 @@
     const box = n >= 0 ? trayBox(n) : null;
     if (!box) return;
     const shape = level.catalogue[level.queue[back.qi].shape];
-    const home = shapeAnchor(shape, box.x, box.y, box.w, box.h, L.trayR);
+    const hb = drawnBox(box);
+    const home = shapeAnchor(shape, hb.x, hb.y, hb.w, hb.h, L.trayR);
     const k = 1 - Math.pow(1 - (now - back.t) / BACK_MS, 3);
     const r = back.r + (L.trayR - back.r) * k;
     const m0 = shapeMid(shape, back.r), m1 = shapeMid(shape, L.trayR), m = shapeMid(shape, r);
@@ -1069,7 +1246,8 @@
     const box = qi === undefined ? null : trayBox(0);
     if (!box) return;
     const p = level.queue[qi], shape = level.catalogue[p.shape];
-    const from = shapeAnchor(shape, box.x, box.y, box.w, box.h, L.trayR);
+    const fb = drawnBox(box);
+    const from = shapeAnchor(shape, fb.x, fb.y, fb.w, fb.h, L.trayR);
     const fm = shapeMid(shape, L.trayR), tm = shapeMid(shape, L.R);
     const c0 = { x: from.x + fm.x, y: from.y + fm.y };
     const c1 = { x: L.ox + hexX(p.t[0], p.t[1], L.R) + tm.x, y: L.oy + hexY(p.t[0], p.t[1], L.R) + tm.y };
@@ -1181,6 +1359,23 @@
     // radius does not degrade into nothing, it degrades into a sliver.
     if (!L.remaining.length) return;
 
+    if (t.grid) {
+      // No panel: the pieces sit on the canvas (owner, 2026-09-16).
+      for (let n = 0; n < L.remaining.length; n++) {
+        const qi = L.remaining[n];
+        const box = trayBox(n);
+        L.hit['tray' + n] = { ...box, qi };
+        if (drag && drag.qi === qi) continue;
+        if (back && back.qi === qi && now - back.t < BACK_MS) continue;
+        const shape = level.catalogue[level.queue[qi].shape];
+        const d = drawnBox(box);
+        const a = shapeAnchor(shape, d.x, d.y, d.w, d.h, L.trayR);
+        const shake = (back && back.qi === qi && !back.quiet) ? shakeAt(now - back.t) : 0;
+        drawPieceAt(shape, a.x + shake, a.y, L.trayR, PIECE[qi % PIECE.length], 0);
+      }
+      return;
+    }
+
     // The panel. Chrome, so it takes a tint and not an invented hex.
     UI.roundRectPath(ctx, t.x, t.y, t.w, t.h, 18);
     ctx.fillStyle = TOK.tint03; ctx.fill();
@@ -1237,11 +1432,13 @@
 
   function drawHUD() {
     const onMap = phase === 'map';
+    if (phoneLayout()) { drawPhoneHUD(onMap); return; }
 
     /* THE MAP BUTTON IS ALWAYS TOP-BAND-LEFT, in both layouts. On desktop that
        is where the control row already lives, so it is simply the first pill
-       in it. On a phone the row is at the bottom for thumb reach and the top
-       band is otherwise empty, so it sits up there alone.
+       in it. On a phone held sideways the row is at the bottom for thumb reach
+       and the top band is otherwise empty, so it sits up there alone. (An
+       upright phone never reaches here: drawPhoneHUD() draws its controls.)
 
        It is not in the row on mobile because it does not fit: measured, the
        four existing pills come to 315 of the 330 available on a 390 phone, and
@@ -1254,8 +1451,8 @@
       L.hit.map = b;
     }
 
-    // Controls: one top band on desktop, the bottom row on a phone. Order is
-    // fixed site-wide: sound, Undo, Restart, Rules.
+    // Controls: one top band on desktop, the bottom row on a phone held
+    // sideways. Order: sound, Undo, Restart, Rules.
     const cy = L.ctrlCy;
     const items = onMap
       ? [{ key: 'sound', icon: true, w: UI.PILL.iconW }, { key: 'rules', label: 'Rules' }]
@@ -1272,7 +1469,7 @@
     let x = rowLeft;
     for (const it of items) {
       const box = UI.drawPill(ctx, it.icon ? '' : it.label, x + it.w / 2, cy, { w: it.w, dim: it.dim });
-      if (it.icon) drawSpeaker(x + it.w / 2, cy, sfx ? sfx.isOn() : true);
+      if (it.icon) UI.drawIcon(ctx, 'sound', x + it.w / 2, cy, { on: sfx ? sfx.isOn() : true });
       L.hit[it.key] = box;
       x += it.w + UI.PILL.gap;
     }
@@ -1284,7 +1481,7 @@
     const rowRight = MODE === 'mobile'
       ? (onMap ? 0 : SIDE_PAD + UI.PILL.iconW)
       : rowLeft + total;
-    const avail = LW - SIDE_PAD - rowRight - 16;
+    const avail = (deskLayout() && !onMap && L.area) ? L.area.w : LW - SIDE_PAD - rowRight - 16;
     const txt = onMap
       ? 'DAILY STREAK ' + liveStreak() + '   ·   ' + totalStars() + ' STARS'
       : (isDaily ? 'DAILY' : 'LEVEL ' + levelNo) + '   ·   MOVES ' + moves;
@@ -1295,12 +1492,74 @@
       ctx.font = '600 ' + (16 * hs).toFixed(1) + 'px Inter, sans-serif';
     }
     ctx.fillStyle = TOK.ink72;
-    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-    ctx.fillText(txt, LW - SIDE_PAD, bandCy);
+    if (deskLayout() && !onMap) {
+      /* On a desktop level the read-out sits at the bottom left, under the
+         board (owner, 2026-09-16), and Hint and Skip take its place at the top
+         right. drawExtras() then records Hint's edge for bandFit(). */
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillText(txt, SIDE_PAD, LH - DESK_READ_BAND / 2);
+      L.readoutW = ctx.measureText(txt).width;
+      L.deskRead = { x: SIDE_PAD, y: LH - DESK_READ_BAND / 2 - 10, w: L.readoutW, h: 20 };
+      L.readoutLeft = LW;
+    } else {
+      ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+      ctx.fillText(txt, LW - SIDE_PAD, bandCy);
+      L.readoutW = ctx.measureText(txt).width;
+      L.readoutLeft = LW - SIDE_PAD - L.readoutW;
+    }
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-    L.readoutW = ctx.measureText(txt).width;
-    L.readoutLeft = LW - SIDE_PAD - L.readoutW;
     L.rowRight = rowRight;
+  }
+
+  /* THE PHONE'S CONTROLS (owner's notes, 2026-09-16). Every control across the
+     top as a round icon button, spread over the width the way the mockup
+     draws them. Along the bottom, the level and moves at the left and the sound
+     switch, bare, at the right. The map shows the levels and nothing else: no
+     controls, no read-out, no title and no daily button (the daily still opens
+     itself for a returning player who has not played it today). */
+  function drawPhoneHUD(onMap) {
+    if (onMap) {
+      // Nothing is drawn, so nothing from the play screen may stay tappable.
+      L.hit.sound = L.hit.rules = null;
+      L.rowRight = 0; L.readoutLeft = LW; L.phoneLegend = null;
+      return;
+    }
+    const D = UI.PILL.iconW, cy = topBand() / 2;   // 44 across: a circle, and the touch target
+    const P = window.ZAM_PORTAL;
+    const items = [{ key: 'map' },
+                   { key: 'undo', dim: history.length === 0 },
+                   { key: 'restart', dim: history.length === 0 },
+                   { key: 'hint', dim: hintsUsed >= HINT_CAP },
+                   ...(videosOff ? [] : [{ key: 'skip', badged: !!(P && P.canReward()) }]),
+                   { key: 'rules' }];
+    const room = LW - PHONE_PAD * 2;
+    const gap = Math.max(4, Math.min(28, (room - items.length * D) / (items.length - 1)));
+    let x = PHONE_PAD;
+    for (const it of items) {
+      const box = UI.drawRound(ctx, x + D / 2, cy);
+      if (it.key === 'map') drawMapGlyph(x + D / 2, cy);   // Comb's own: comb cells
+      else UI.drawIcon(ctx, it.key, x + D / 2, cy, { dim: it.dim });
+      // The rewarded mark rides the edge of Skip, so every button keeps one size.
+      if (it.badged) UI.drawVideoMark(ctx, x + D - 6, cy - D / 2 + 3, 20, false);
+      L.hit[it.key] = box;
+      x += D + gap;
+    }
+
+    const ly = LH - PHONE_LEGEND / 2;
+    const txt = (isDaily ? 'DAILY' : 'LEVEL ' + levelNo) + '   ·   MOVES ' + moves;
+    ctx.font = '600 16px Inter, sans-serif';
+    ctx.fillStyle = TOK.ink72; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText(txt, PHONE_PAD, ly);
+    const tw = ctx.measureText(txt).width;
+    // The speaker's drawing runs from 7px left of its centre to 11px right.
+    const sx = LW - PHONE_PAD - 11;
+    UI.drawIcon(ctx, 'sound', sx, ly, { on: sfx ? sfx.isOn() : true });
+    // No circle, but still a full-size target.
+    L.hit.sound = { x: Math.round(Math.min(LW - 44, sx - 20)), y: Math.round(Math.min(LH - 44, ly - 22)), w: 44, h: 44 };
+    L.phoneLegend = { textEnd: PHONE_PAD + tw, sound: L.hit.sound };
+    L.rowRight = PHONE_PAD + tw;
+    L.readoutLeft = L.hit.sound.x;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
   }
 
   /* HINT and SKIP, with their rewarded badge where an ad can actually back
@@ -1308,23 +1567,27 @@
      buttons simply work. */
   function drawExtras() {
     if (phase !== 'play') { L.hit.hint = L.hit.skip = null; return; }
+    // On a phone Hint and Skip are icons in the top row; a toast sits under it.
+    if (phoneLayout()) { L.toast = { x: LW / 2, y: topBand() + 26 }; return; }
     const P = window.ZAM_PORTAL;
     const badged = !!(P && P.canReward());   // Skip only: a hint is free
-    const cy = MODE === 'mobile' ? LH - 128 : LH - 44;
+    const cy = MODE === 'mobile' ? LH - 128 : deskLayout() ? topBand() / 2 : LH - 44;
     const hw = UI.pillWidth(ctx, 'Hint');
     const sw = UI.pillWidth(ctx, 'Skip') + (badged ? 38 : 0);
     const gap = 12;
     const rowW = videosOff ? hw : hw + gap + sw;
     let x;
     if (MODE === 'mobile') x = (LW - rowW) / 2;
+    else if (deskLayout()) x = LW - SIDE_PAD - rowW;   // the top band's right end
     else x = L.trayBand.x + (L.trayBand.w - rowW) / 2;
+    if (deskLayout()) L.readoutLeft = x;              // bandFit: the control row against Hint
 
     const out = hintsUsed >= HINT_CAP;
     const rowMid = x + rowW / 2;
     L.hit.hint = rewardPill('Hint', x, hw, cy, false, out);
     x += hw + gap;
     L.hit.skip = videosOff ? null : rewardPill('Skip', x, sw, cy, badged, false);
-    L.toast = { x: rowMid, y: cy - 50 };
+    L.toast = { x: rowMid, y: deskLayout() ? topBand() + 30 : cy - 50 };
   }
 
   /* A pill whose label and video mark are centred TOGETHER.
@@ -1344,27 +1607,8 @@
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
     ctx.fillText(label, lx, cy + 1);
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-    drawVideoMark(lx + lw + GAP + BW / 2, cy, BW, dim);
+    UI.drawVideoMark(ctx, lx + lw + GAP + BW / 2, cy, BW, dim);
     return box;
-  }
-
-  /* The mark is a VIDEO glyph, not the letters AD. CrazyGames' rewarded-ad
-     rule asks for "a video icon indicating advertisement requirement", and a
-     play triangle in a chip is the mark every portal player already reads that
-     way — where "AD" at 10px was both illegible and the wrong promise. Drawn,
-     never an emoji. Chrome, so tokens only. */
-  function drawVideoMark(cx, cy, w, dim) {
-    const h = 16, r = 4.5;
-    UI.roundRectPath(ctx, cx - w / 2, cy - h / 2, w, h, r);
-    ctx.fillStyle = TOK.tint12; ctx.fill();
-    const s = 5.4;
-    ctx.beginPath();
-    ctx.moveTo(cx - s * 0.40, cy - s * 0.60);
-    ctx.lineTo(cx + s * 0.74, cy);
-    ctx.lineTo(cx - s * 0.40, cy + s * 0.60);
-    ctx.closePath();
-    ctx.fillStyle = dim ? TOK.tint30 : TOK.ink72;
-    ctx.fill();
   }
 
   // Four little cells: the level map, and a way back to it.
@@ -1384,35 +1628,15 @@
     ctx.restore();
   }
 
-  // A speaker, drawn. No emoji, anywhere, ever.
-  function drawSpeaker(cx, cy, on) {
-    ctx.save();
-    ctx.strokeStyle = TOK.ink92; ctx.fillStyle = TOK.ink92;
-    ctx.lineWidth = 1.6; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(cx - 7, cy - 3); ctx.lineTo(cx - 3, cy - 3); ctx.lineTo(cx + 1, cy - 7);
-    ctx.lineTo(cx + 1, cy + 7); ctx.lineTo(cx - 3, cy + 3); ctx.lineTo(cx - 7, cy + 3);
-    ctx.closePath(); ctx.fill();
-    if (on) {
-      ctx.beginPath(); ctx.arc(cx + 2, cy, 5.5, -0.9, 0.9); ctx.stroke();
-      ctx.beginPath(); ctx.arc(cx + 2, cy, 9, -0.85, 0.85); ctx.stroke();
-    } else {
-      ctx.beginPath();
-      ctx.moveTo(cx + 5, cy - 4); ctx.lineTo(cx + 12, cy + 4);
-      ctx.moveTo(cx + 12, cy - 4); ctx.lineTo(cx + 5, cy + 4);
-      ctx.stroke();
-    }
-    ctx.restore();
-  }
-
   /* ---------- THE MAP ----------
      A hundred levels, the daily, and what every one of them is worth. It is
      the first screen a returning player sees rather than something behind a
      menu, because the row of unfinished levels is the whole pull of a
      progression game and a menu hides exactly that. */
   function mapLayout() {
-    const pad = SIDE_PAD;
-    const viewTop = topBand() + 6;
+    const phone = phoneLayout();
+    const pad = phone ? PHONE_PAD : SIDE_PAD;
+    const viewTop = phone ? 16 : topBand() + 6;
     const viewH = Math.max(80, LH - mapBotBand() - viewTop);
     const availW = LW - pad * 2;
     /* 68 rather than 74: on a 390 phone that is five columns of 66 rather
@@ -1422,7 +1646,7 @@
     const cols = Math.max(4, Math.min(10, Math.round(availW / 68)));
     const cw = availW / cols;
     const ch = Math.max(52, Math.min(84, cw * 0.92));
-    const headH = 132;                       // title, then the two-line daily button
+    const headH = phone ? 0 : 132;           // title, then the two-line daily button; none on a phone
     const rows = Math.ceil(LEVELS / cols);
     const contentH = headH + rows * ch + 12;
     return { pad, viewTop, viewH, availW, cols, cw, ch, headH, rows, contentH,
@@ -1477,6 +1701,9 @@
     ctx.beginPath(); ctx.rect(0, M.viewTop, LW, M.viewH); ctx.clip();
     let y = M.viewTop - mapScroll;
 
+    // On a phone the map is the levels and nothing else (owner, 2026-09-16).
+    if (phoneLayout()) { L.hit.daily = null; L.dailyNote = null; }
+    else {
     ctx.fillStyle = TOK.text;
     ctx.font = '800 30px Inter, sans-serif';
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
@@ -1516,6 +1743,7 @@
     const line = lines.find(t => ctx.measureText(t).width <= roomW) || lines[lines.length - 1];
     ctx.fillText(line, M.pad + 20, dy + 43);
     L.dailyNote = { text: line, w: Math.round(ctx.measureText(line).width), room: Math.round(roomW), label };
+    }
 
     // The hundred.
     for (let i = 0; i < LEVELS; i++) {
@@ -1802,6 +2030,16 @@
     for (let n = 0; n < L.remaining.length; n++) {
       const hit = L.hit['tray' + n];
       if (!inBox(p, hit)) continue;
+      if (L.tray.grid) {
+        /* Nothing scrolls on a phone, so there is nothing to wait for: the
+           piece is taken up where it lies and grows to board size the moment
+           it is touched (owner, 2026-09-16). */
+        beginDrag(hit.qi, drawnBox(hit), L.trayR, p, p);
+        drag.p0 = p; drag.moved = false;
+        canvas.setPointerCapture?.(e.pointerId);
+        draw();
+        return;
+      }
       pending = { qi: hit.qi, box: { x: hit.x, y: hit.y, w: hit.w, h: hit.h }, p0: p };
       canvas.setPointerCapture?.(e.pointerId);
       return;
@@ -1858,7 +2096,9 @@
   canvas.addEventListener('pointermove', (e) => {
     if (!drag) return;
     e.preventDefault();
-    updateDrag(toLocal(e));
+    const pt = toLocal(e);
+    if (drag.p0 && !drag.moved && Math.hypot(pt.x - drag.p0.x, pt.y - drag.p0.y) >= TRAY_SLOP) drag.moved = true;
+    updateDrag(pt);
     draw();
   });
 
@@ -1874,8 +2114,13 @@
       // A refusal costs nothing, and it goes back VISIBLY: the cluster flies
       // home to its slot and the slot shakes once. It used to vanish on
       // release, with a timestamp set for a flash that nothing ever drew.
-      play('snag');
-      back = REDUCED ? null : { qi: drag.qi, x: drag.x, y: drag.y, r: L.R, t: now };
+      /* A touch on a phone that never moved is not a refusal: the piece that
+         grew under the finger simply settles back into its slot, with no
+         shake and no sound. */
+      const quiet = !!drag.p0 && !drag.moved;
+      if (!quiet) play('snag');
+      const grown = drag.r0 + (L.R - drag.r0) * Math.min(1, (now - drag.t0) / 120);
+      back = REDUCED ? null : { qi: drag.qi, x: drag.x, y: drag.y, r: quiet ? grown : L.R, t: now, quiet };
     }
     drag = null;
     canvas.releasePointerCapture?.(e.pointerId);
@@ -2092,7 +2337,7 @@
       const tray = [];
       for (let n = 0; n < L.remaining.length; n++) {
         const b = L.hit['tray' + n];
-        if (b) tray.push({ n, qi: b.qi, cx: Math.round(b.x + b.w / 2), cy: Math.round(b.y + b.h / 2) });
+        if (b) tray.push({ n, qi: b.qi, cx: Math.round(b.x + (b.ox || 0) + b.w / 2), cy: Math.round(b.y + (b.oy || 0) + b.h / 2) });
       }
       // On the map, the level cells are the buttons, so they are what a test
       // has to be able to aim at.
@@ -2226,6 +2471,103 @@
         rowRight: Math.round(L.rowRight), readoutLeft: Math.round(L.readoutLeft),
         gap: Math.round(L.readoutLeft - L.rowRight),
         clear: L.readoutLeft - L.rowRight > 0,
+      };
+    },
+    /* THE PHONE LAYOUT (2026-09-16), measured rather than trusted: the round
+       controls inside the top band and clear of each other; the level and
+       moves clear of the sound switch at the bottom; and EVERY piece still to
+       be placed visible at once, DRAWN (nudge included) inside its own slot,
+       clear of every other piece, clear of the board and inside the frame. */
+    phoneFit() {
+      render(performance.now());
+      if (!phoneLayout()) return { phone: false };
+      const over = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+      const onMap = phase === 'map';
+      const top = onMap ? [] : ['map', 'undo', 'restart', 'hint', 'skip', 'rules'].map(k => L.hit[k]).filter(Boolean);
+      let controlOverlaps = 0, controlsOutside = 0;
+      for (let i = 0; i < top.length; i++) {
+        const a = top[i];
+        if (a.x < 0 || a.x + a.w > LW || a.y < 0 || a.y + a.h > topBand()) controlsOutside++;
+        for (let j = i + 1; j < top.length; j++) if (over(a, top[j])) controlOverlaps++;
+      }
+      const leg = L.phoneLegend;
+      const legendClear = onMap || (!!leg && leg.textEnd + 8 <= leg.sound.x &&
+        leg.sound.x >= 0 && leg.sound.x + leg.sound.w <= LW && leg.sound.y + leg.sound.h <= LH);
+      const mapClear = !onMap || (!L.hit.sound && !L.hit.rules && !L.hit.daily);
+      let hidden = 0, pieceOutsideSlot = 0, pieceOverlaps = 0, outsideTray = 0;
+      const drawn = [];
+      if (phase === 'play') {
+        for (let n = 0; n < L.remaining.length; n++) {
+          const b = trayBox(n);
+          if (!b) { hidden++; continue; }
+          const sh = level.catalogue[level.queue[L.remaining[n]].shape], R = L.trayR;
+          const d = drawnBox(b), a = shapeAnchor(sh, d.x, d.y, d.w, d.h, R);
+          let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+          for (const c of sh.cells) {
+            const cx = a.x + hexX(c[0], c[1], R), cy = a.y + hexY(c[0], c[1], R);
+            x0 = Math.min(x0, cx - R * SQ3 / 2); x1 = Math.max(x1, cx + R * SQ3 / 2);
+            y0 = Math.min(y0, cy - R); y1 = Math.max(y1, cy + R);
+          }
+          const pb = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+          if (pb.x < b.x - 0.5 || pb.x + pb.w > b.x + b.w + 0.5 || pb.y < b.y - 0.5 || pb.y + pb.h > b.y + b.h + 0.5) pieceOutsideSlot++;
+          if (b.x < L.tray.x - 0.5 || b.x + b.w > L.tray.x + L.tray.w + 0.5 ||
+              b.y < L.tray.y - 0.5 || b.y + b.h > L.tray.y + L.tray.h + 0.5) outsideTray++;
+          for (const o of drawn) if (over(pb, o)) pieceOverlaps++;
+          drawn.push(pb);
+        }
+      }
+      const trayInFrame = L.tray.y >= topBand() && L.tray.y + L.tray.h <= LH - PHONE_LEGEND + 0.5;
+      const boardClear = phase !== 'play' || L.plate.y + L.plate.h <= L.tray.y;
+      const nudged = phase === 'play' ? L.remaining.filter((_, k) => { const b = trayBox(k); return b && (Math.abs(b.ox) > 1 || Math.abs(b.oy) > 1); }).length : 0;
+      return {
+        phone: true, LW, LH, phase,
+        controls: top.length, controlOverlaps, controlsOutside, legendClear, mapClear,
+        pieces: L.remaining.length, hidden, pieceOutsideSlot, pieceOverlaps, outsideTray, nudged,
+        cols: L.tray.grid ? L.tray.grid.cols : null, rows: L.tray.grid ? L.tray.grid.rows : null,
+        trayR: Math.round(L.trayR * 10) / 10, boardR: Math.round(L.R * 10) / 10,
+        trayInFrame, boardClear,
+        fits: controlOverlaps === 0 && controlsOutside === 0 && legendClear && mapClear && hidden === 0 &&
+              pieceOutsideSlot === 0 && pieceOverlaps === 0 && outsideTray === 0 && trayInFrame && boardClear,
+      };
+    },
+
+    /* THE DESKTOP FRAME (2026-09-16), measured: Hint and Skip at the top right,
+       inside the frame and clear of the control row; the read-out at the bottom
+       left, inside the frame and clear of the board; and EVERY piece in the
+       column visible at once, with nothing to scroll, each inside its slot and
+       inside the column. */
+    deskFit() {
+      render(performance.now());
+      if (!deskLayout()) return { desk: false };
+      const over = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+      const onMap = phase === 'map';
+      const hint = L.hit.hint, skip = L.hit.skip;
+      const extras = [hint, skip].filter(Boolean);
+      const extrasInBand = extras.every(b => b.x >= 0 && b.x + b.w <= LW && b.y >= 0 && b.y + b.h <= topBand());
+      const rowClear = onMap || !hint || L.rowRight + 12 <= hint.x;
+      const rd = L.deskRead;
+      const readoutClear = onMap || (!!rd && rd.y + rd.h <= LH && rd.x + rd.w <= L.area.x + L.area.w &&
+        L.plate.y + L.plate.h <= rd.y + 2);
+      let hidden = 0, pieceOutsideSlot = 0, slotOverlaps = 0, outsideColumn = 0;
+      const slots = [];
+      if (phase === 'play') {
+        for (let n = 0; n < L.remaining.length; n++) {
+          const b = trayBox(n);
+          if (!b) { hidden++; continue; }
+          const sh = level.catalogue[level.queue[L.remaining[n]].shape];
+          if ((sh.w + 0.5) * SQ3 * L.trayR > b.w + 0.5 || (sh.h * 1.5 + 0.5) * L.trayR > b.h + 0.5) pieceOutsideSlot++;
+          if (b.x < L.tray.x - 0.5 || b.x + b.w > L.tray.x + L.tray.w + 0.5 ||
+              b.y < L.tray.y - 0.5 || b.y + b.h > L.tray.y + L.tray.h + 0.5 || b.y + b.h > LH) outsideColumn++;
+          for (const o of slots) if (over(b, o)) slotOverlaps++;
+          slots.push(b);
+        }
+      }
+      return {
+        desk: true, LW, LH, phase, extrasInBand, rowClear, readoutClear,
+        pieces: L.remaining.length, hidden, pieceOutsideSlot, slotOverlaps, outsideColumn, scrolls: L.trayMax > 0.5,
+        cols: L.tray.grid ? L.tray.grid.cols : null, trayR: Math.round(L.trayR * 10) / 10,
+        fits: extrasInBand && rowClear && readoutClear && hidden === 0 && pieceOutsideSlot === 0 &&
+              slotOverlaps === 0 && outsideColumn === 0 && !(L.trayMax > 0.5),
       };
     },
     /* Does the board fit inside its plate, and is a cell big enough to hit?

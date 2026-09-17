@@ -101,7 +101,7 @@ with zero console 404s.
 |---|---|
 | `/shared/tokens.css` | Design tokens. Take every colour from here. |
 | `/shared/chrome.css` | Site frame + mobile auto-focus |
-| `/shared/ui.js` | `ZAM_UI.drawPill / drawCTA`, the button system |
+| `/shared/ui.js` | `ZAM_UI.drawPill / drawRound / drawIcon / drawCTA`, the button system and the control icons |
 | `/shared/sfx.js` | `ZSFX.create({ storageKey })` audio engine |
 | `/shared/analytics.js` | `window.ZAM_TRACK`, six events, fire-and-forget |
 | `/shared/embed.js` | `?embed=1` chrome-free mode for iframes on other sites |
