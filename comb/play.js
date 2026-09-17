@@ -602,9 +602,30 @@
   }
 
   // ---------- LAYOUT ----------
+  /* THE PAGE'S EXIT BUTTON. In zamborin.com's own full screen, chrome.css pins
+     its exit button 24px in from the top right, 44 across, from 1152 wide up:
+     over the right end of the top band. At 1440x900 it covered Skip, and a
+     click meant for Skip left full screen instead (found by the Litmus
+     session, 2026-09-16). Measured from the page rather than restated, so a
+     change to chrome.css cannot bring it back. Its box in canvas units when it
+     hangs into the top band, otherwise null. */
+  function exitButtonBox() {
+    const el = document.getElementById('focus-toggle');
+    if (!el || !document.body.classList.contains('focus-mode')) return null;
+    const b = el.getBoundingClientRect(), c = canvas.getBoundingClientRect();
+    if (!b.width || !c.width) return null;
+    const k = LW / c.width;
+    const box = { x: (b.left - c.left) * k, y: (b.top - c.top) * k, w: b.width * k, h: b.height * k };
+    return box.y < topBand() && box.x < LW ? box : null;
+  }
+  // Where the top band's right-hand content must end: the margin, or 12 short
+  // of the exit button when it is there.
+  const bandRight = () => (L.exit ? Math.min(LW - SIDE_PAD, L.exit.x - 12) : LW - SIDE_PAD);
+
   function layout() {
     L.hit = {};
     L.ctrlCy = (MODE === 'mobile' && !phoneLayout()) ? LH - 74 : topBand() / 2;
+    L.exit = exitButtonBox();
     if (!level) return;
 
     /* The level's own extent, measured at unit radius from the REAL cells.
@@ -643,8 +664,11 @@
       bx = SIDE_PAD; by = topBand();
       bw = LW - SIDE_PAD * 2 - TW - 20;
       bh = LH - DESK_READ_BAND - by;      // the read-out sits under the board
-      // The column runs the full height now that Hint and Skip are at the top.
-      const ty = topBand() + 6, th = LH - SIDE_PAD - ty;
+      // The column runs the full height now that Hint and Skip are at the top,
+      // starting below the page's exit button where that hangs over it.
+      const ex = L.exit, tx = LW - SIDE_PAD - TW;
+      const ty = Math.max(topBand() + 6, ex && ex.x < tx + TW && ex.x + ex.w > tx ? ex.y + ex.h + 6 : 0);
+      const th = LH - SIDE_PAD - ty;
       const g = deskTrayGrid(TW, th, Math.max(44, LH / 12) * 0.5);
       L.trayBand = { x: LW - SIDE_PAD - TW, y: ty, w: TW, h: th, vertical: true, grid: g };
     } else if (landscape()) {
@@ -1481,7 +1505,7 @@
     const rowRight = MODE === 'mobile'
       ? (onMap ? 0 : SIDE_PAD + UI.PILL.iconW)
       : rowLeft + total;
-    const avail = (deskLayout() && !onMap && L.area) ? L.area.w : LW - SIDE_PAD - rowRight - 16;
+    const avail = (deskLayout() && !onMap && L.area) ? L.area.w : bandRight() - rowRight - 16;
     const txt = onMap
       ? 'DAILY STREAK ' + liveStreak() + '   ·   ' + totalStars() + ' STARS'
       : (isDaily ? 'DAILY' : 'LEVEL ' + levelNo) + '   ·   MOVES ' + moves;
@@ -1503,9 +1527,9 @@
       L.readoutLeft = LW;
     } else {
       ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-      ctx.fillText(txt, LW - SIDE_PAD, bandCy);
+      ctx.fillText(txt, bandRight(), bandCy);
       L.readoutW = ctx.measureText(txt).width;
-      L.readoutLeft = LW - SIDE_PAD - L.readoutW;
+      L.readoutLeft = bandRight() - L.readoutW;
     }
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
     L.rowRight = rowRight;
@@ -1578,7 +1602,7 @@
     const rowW = videosOff ? hw : hw + gap + sw;
     let x;
     if (MODE === 'mobile') x = (LW - rowW) / 2;
-    else if (deskLayout()) x = LW - SIDE_PAD - rowW;   // the top band's right end
+    else if (deskLayout()) x = bandRight() - rowW;     // the top band's right end
     else x = L.trayBand.x + (L.trayBand.w - rowW) / 2;
     if (deskLayout()) L.readoutLeft = x;              // bandFit: the control row against Hint
 
@@ -2562,11 +2586,16 @@
           slots.push(b);
         }
       }
+      /* Clear of the page's exit button in full screen, measured from the page
+         again here rather than read back from the layout that avoided it. */
+      const ex = exitButtonBox();
+      const exitClear = !ex || (extras.every(b => b.x + b.w <= ex.x - 11.5) &&
+        (!onMap || L.readoutLeft + L.readoutW <= ex.x - 11.5) && !slots.some(b => over(b, ex)));
       return {
-        desk: true, LW, LH, phase, extrasInBand, rowClear, readoutClear,
+        desk: true, LW, LH, phase, extrasInBand, rowClear, readoutClear, exitButton: !!ex, exitClear,
         pieces: L.remaining.length, hidden, pieceOutsideSlot, slotOverlaps, outsideColumn, scrolls: L.trayMax > 0.5,
         cols: L.tray.grid ? L.tray.grid.cols : null, trayR: Math.round(L.trayR * 10) / 10,
-        fits: extrasInBand && rowClear && readoutClear && hidden === 0 && pieceOutsideSlot === 0 &&
+        fits: extrasInBand && rowClear && readoutClear && exitClear && hidden === 0 && pieceOutsideSlot === 0 &&
               slotOverlaps === 0 && outsideColumn === 0 && !(L.trayMax > 0.5),
       };
     },
