@@ -5,8 +5,10 @@ that contradicts it. Read it in full before designing, laying out, colouring or
 restyling anything.
 
 **Reference implementation: `bloom/`.** Every number below is measured from
-Bloom or from `shared/`. Where a game disagrees with this document, the game is
-wrong unless this document says otherwise.
+Bloom or from `shared/`, except the controls, the read-out and the pieces
+waiting to be played (2.1, 4.2 to 4.5), which are measured from `comb/`. Where
+a game disagrees with this document, the game is wrong unless this document
+says otherwise.
 
 **Do not infer the system from a screenshot or a concept image.** Those are art
 direction. The specification is `shared/tokens.css`, `shared/chrome.css`,
@@ -155,8 +157,8 @@ locks, and a desktop player is stuck on the phone layout all session.
 |---|---|---|
 | Logical size | **760 x 600** | measured viewport, e.g. 393 x 852 |
 | Aspect | 1.267 landscape | ~0.46 portrait |
-| Controls | **top band, left aligned** | **bottom**, thumb reach |
-| Read-out | top band, right aligned | top band, right aligned |
+| Controls | **top band**: pills at the left, Hint and Skip at the right | **top row** of round icon buttons, across the width |
+| Read-out | **bottom left**, under the playfield | **bottom left**, with the sound switch bottom right |
 
 - **760 x 600 is the one site-wide frame.** Do not invent another. (Carrom,
   Ludo and Zood are pre-existing exceptions. New games are not.)
@@ -166,18 +168,20 @@ locks, and a desktop player is stuck on the phone layout all session.
 - Keep **every** re-fit listener from the template: `resize`,
   `orientationchange`, `splash-done`, `load`, `visualViewport`.
 
-### 2.1 The band system — measured from Bloom
+### 2.1 The band system, measured from Comb
 
-The HUD is **one top band, not two edges**. Controls sit left in it, the
-read-out sits right in the same band, on the same centre line.
+**Controls at the top, the read-out at the bottom left, in both layouts**
+(owner, 2026-09-16; Comb is the worked example). The top band holds every
+control. A band along the bottom holds the read-out and, on a phone, the sound
+switch at its right end. Sections 4.2 to 4.5 say what goes in each.
 
 | Constant | Desktop | Mobile | Meaning |
 |---|---|---|---|
-| `SIDE_PAD` | **30** | **30** | Left and right margin for band content and playfield. |
-| `topBand()` | **56** | **64** | Height of the top HUD band. |
-| `botBand()` | **20** | **96** | Bottom reserve. Mobile holds the control row. |
-| Control row centre `cy` | `topBand() / 2` = **28** | `LH - 74` | |
-| Read-out baseline | `topBand() / 2` = **28** | same | Right aligned at `LW - SIDE_PAD`. |
+| `SIDE_PAD` | **30** | **16** | Left and right margin for band content and playfield. Comb's phone value is `PHONE_PAD`. |
+| `topBand()` | **56** | **64** | Height of the top band: the controls. |
+| `botBand()` | **40** | **52** | Height of the bottom band: the read-out. The phone's is taller to clear the home indicator. |
+| Control centre `cy` | `topBand() / 2` = **28** | `topBand() / 2` = **32** | |
+| Read-out centre | `LH - botBand() / 2` | same | Left aligned at the side margin. |
 
 Playfield, both modes:
 
@@ -242,39 +246,103 @@ example. Measured across all 15 games: nothing clips in full screen.
 ### 4.1 Buttons — `ZAM_UI`, never scaled
 
 ```
-PILL  h 40   font 15/700   padX 36   gap 10   iconW 44   radius h/2
-      fill Tint 07   border Tint 40 at 1.5   label Ink 92   disabled Tint 30
-CTA   h 50   font 17/700   minW 210   padX 90   label #FFFFFF   radius h/2
+PILL   h 40   font 15/700   padX 36   gap 10   iconW 44   radius h/2
+       fill Tint 07   border Tint 40 at 1.5   label Ink 92   disabled Tint 30
+ROUND  a perfect circle PILL.iconW (44) across, which is also its touch target
+       fill, border and icon ink as PILL
+CTA    h 50   font 17/700   minW 210   padX 90   label #FFFFFF   radius h/2
 ```
 
-Draw with `ZAM_UI.drawPill()` / `ZAM_UI.drawCTA()`. **Sizes are never scaled
-per game.** A button is chrome, not content: it is the same physical size in
-this game as in Bloom. Mobile's NEXT was once sized as a fraction of a phone
-mock and came out 21px tall with a 9px label in the desktop frame.
+Draw with `ZAM_UI.drawPill()`, `ZAM_UI.drawRound()` and `ZAM_UI.drawCTA()`.
+**Sizes are never scaled per game.** A button is chrome, not content: it is the
+same physical size in this game as in Bloom. Mobile's NEXT was once sized as a
+fraction of a phone mock and came out 21px tall with a 9px label in the desktop
+frame.
+
+**Icons come from `ZAM_UI.drawIcon(ctx, key, cx, cy, { dim, on })`**: `map`,
+`undo`, `restart`, `hint`, `skip`, `rules` and `sound`, so every game shows the
+same ones. The map icon is the one a game may draw for itself from its own
+pieces: Comb's is five comb cells. The rewarded mark is
+`ZAM_UI.drawVideoMark()`.
 
 **Never more than one CTA on screen.**
 
-### 4.2 The control row
+### 4.2 The controls, at the top
 
-Order is fixed, left to right: **sound icon, Undo, Restart, Hint, Rules.**
-Omit what a game does not have; never reorder. `gap` 10 between pills.
+> **Changed 2026-09-16, by the owner.** Controls used to sit at the bottom of a
+> phone, and the read-out top right in both layouts. Comb is the only game on
+> the arrangement below so far. **Every other game converts the next time a
+> session works on it**, in that session: checked at 320 wide and in the
+> 760 x 600 frame, and shown to the owner on a phone and on desktop before it
+> ships.
 
-- Desktop: starts at `x = SIDE_PAD`, centred on `cy = topBand() / 2`.
-- Mobile: the row is centred horizontally, on `cy = LH - 74`.
-- A dimmed pill is **still clickable** — `dim` only changes label colour. If a
-  control must not fire, guard it in the handler, and put the analytics call
-  **below** the guard, not above it.
+**Phone.** Every control is a round icon button, with no label, in one row
+across the top. Order, left to right: **map, Undo, Restart, Hint, Skip, Rules.**
+Omit what a game does not have; never reorder. The sound switch is not in the
+row (4.3).
 
-### 4.3 The read-out
+- The row starts at `x = 16`, centred on `cy = topBand() / 2`, and its gaps
+  share out the width: `gap = max(4, min(28, (LW - 32 - n * 44) / (n - 1)))`.
+- **Six buttons is the most a 320-wide phone holds**: they fill its 288 units
+  between the margins exactly. A seventh control has to replace one.
+- A rewarded Skip carries `drawVideoMark()` at `w 20` on its top-right edge, so
+  the button keeps its size.
 
-One right-aligned line at `LW - SIDE_PAD`, on the band centre. Ink 72,
-`600 16px`. All figures in that one line, separated by `   ·   `. It scales
-down on narrow frames: `hs = max(0.66, min(1, LW / 620))`.
+**Desktop.** Labelled pills in the top band, left aligned from `x = SIDE_PAD`:
+**map icon, sound icon, Undo, Restart, Rules**, `gap` 10. Hint and Skip are
+pills at the band's **right** end, finishing at `LW - SIDE_PAD`, `gap` 12.
 
-**Nothing checks whether the control row and the read-out collide.** They lay
-out from opposite ends of the same band. Measure the row once, give the
-read-out the room that is left, and shrink its type into that with a floor.
-Orbit's collided as soon as the score passed four figures.
+- **The two ends of the band can meet.** The row lays out from the left and
+  Hint and Skip from the right, so measure both and prove the gap between them
+  at the narrowest frame; Comb's `bandFit()` does. Orbit's read-out collided
+  with its row this way as soon as the score passed four figures.
+
+**Both.** A dimmed button is **still clickable**: `dim` only changes the ink.
+If a control must not fire, guard it in the handler, and put the analytics call
+**below** the guard, not above it.
+
+A phone held sideways is not settled yet. Ask the owner before designing it;
+Comb still draws its old arrangement there.
+
+### 4.3 The read-out, at the bottom left
+
+One left-aligned line, Ink 72, `600 16px`, every figure in it separated by
+`   ·   `: `LEVEL 12   ·   MOVES 4`. It sits at the side margin, centred in
+the bottom band.
+
+- **Phone:** the **sound switch** sits at the other end of the same band as a
+  bare icon, `drawIcon('sound')` with no circle, its drawing ending 16 from the
+  edge and its touch target still 44 x 44. The read-out keeps 16px; measure it
+  against that target at 320 wide.
+- **Desktop:** it may scale down on a narrow frame, to a floor:
+  `hs = max(0.66, min(1, LW / 620))`.
+
+### 4.4 The map on a phone shows the levels, and nothing else
+
+No controls, no read-out, no title and no daily button: the level cells fill
+the screen. A player picks a level to leave it. The desktop map keeps its top
+band. The daily is still what a returning player lands in until it is done
+(10.1). What this costs, accepted by the owner: on a phone, a daily left
+unfinished cannot be reopened from the map until the next visit.
+
+### 4.5 Pieces waiting to be played
+
+For a game with a tray of pieces:
+
+- **Every piece is visible at once.** No scrolling, no pages, no window of the
+  next three. If they do not fit, draw them smaller (Comb's floor on a phone is
+  a radius of 8) before anything is hidden.
+- **Nothing behind them.** No panel, card or tray fill: they sit on the Portal
+  wash.
+- **A piece grows when it is touched.** It lifts at its tray size and grows to
+  board size under the finger in 120ms. A touch that does not move puts it back
+  quietly, with no refusal shake or sound, because nothing was refused.
+- **Phone:** each piece keeps its own slot in a loose grid under the board,
+  nudged a little off the grid by a hash of the piece and the level. It looks
+  placed by hand, and it never shuffles when a neighbour is played or the level
+  is reopened. The board is sized first; the pieces take the room that is left.
+- **Desktop:** the pieces stand in the side space at the right, in whichever of
+  one to three columns draws them largest, and close up as each one is played.
 
 ---
 
@@ -410,8 +478,8 @@ and every rule here can be tested.
 - A **returning player lands in the next thing they were going to do**, never on
   a map or a menu. If the game has a daily, that is what they land in until it
   is done, and a single line says which board they are on.
-- The rules stay one tap away on the Rules pill. They are not where a new player
-  has to begin.
+- The rules stay one tap away on the Rules button. They are not where a new
+  player has to begin.
 - **The verb is shown at rest, not explained.** A ghost piece and a hand that
   loops on the first board, and stops at the first input. An affordance that
   exists only mid-gesture leaves an inert board on screen.
@@ -454,9 +522,11 @@ what makes an edge and §7 for what has to be measured.
 
 - [ ] All chrome colour from tokens. No invented hex in chrome. `#1A2A45` for Raised.
 - [ ] Portal wash at `0.32 / 0` radius `1.1 x LW`, three stops.
-- [ ] Buttons drawn by `ZAM_UI` at `ZAM_UI` sizes, unscaled. One CTA maximum.
-- [ ] Control row order sound, Undo, Restart, Hint, Rules. Left on desktop, bottom on mobile.
-- [ ] Read-out one right-aligned line; row-versus-read-out collision measured.
+- [ ] Buttons and icons drawn by `ZAM_UI` at `ZAM_UI` sizes, unscaled. One CTA maximum.
+- [ ] Controls at the top: on a phone, round icons in the order map, Undo, Restart, Hint, Skip, Rules; on desktop, pills at the left and Hint and Skip at the right, the gap between them measured.
+- [ ] Read-out one line at the bottom left; on a phone, the sound switch bare at the bottom right.
+- [ ] On a phone, the map shows the levels and nothing else.
+- [ ] Every waiting piece visible at once, nothing behind it, growing when touched.
 - [ ] Desktop 760 x 600 designed as landscape, side space carrying something real.
 - [ ] Mobile measured in JS, portrait, inside the 54-target touch budget.
 - [ ] No CSS `dvh` in sizing. Every re-fit listener present.

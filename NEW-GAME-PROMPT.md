@@ -34,7 +34,7 @@ have to do in a dashboard.
   no rules card in the way. CrazyGames allows at most one click to gameplay.
 - A returning player lands in the next thing they were going to do, not on a
   map or a menu.
-- The rules live one tap away on a Rules pill, and they are not where a new
+- The rules live one tap away on a Rules button, and they are not where a new
   player has to begin.
 - The one move the game is made of is **shown at rest**, not explained: a ghost
   piece and a hand that loops on the first board and stops at the first input.
@@ -61,7 +61,21 @@ have to do in a dashboard.
 - Prove it at all ten CrazyGames window sizes, at 480x360, on 320 / 360 / 390
   wide phones, and in the site frame.
 
-### 4. Nothing is ever clipped
+### 4. The same controls in the same places
+
+The owner set these on 2026-09-16 (DESIGN-SYSTEM 4.2 to 4.5); Comb shows them.
+
+- Controls at the top. On a phone, one row of round icon buttons across the
+  top, in the order map, Undo, Restart, Hint, Skip, Rules, from
+  `ZAM_UI.drawRound` and `ZAM_UI.drawIcon`. On desktop, labelled pills at the
+  left of the top band, and Hint and Skip at its right.
+- The level and moves in one line at the bottom left. On a phone, the sound
+  switch is a bare icon at the bottom right.
+- On a phone the level map shows the levels and nothing else.
+- Every piece waiting to be played is visible at once, with nothing behind it:
+  smaller if it has to be, growing to full size when it is touched.
+
+### 5. Nothing is ever clipped
 
 - Any string that can grow is measured against the space it has, with a chain of
   shorter forms and the shortest last. Never let a sentence run under a button
@@ -70,7 +84,7 @@ have to do in a dashboard.
   shrinks below 16px. Sweep the whole width range, 320 to 1920: eight sample
   frames is not a proof.
 
-### 5. Depth without outlines
+### 6. Depth without outlines
 
 - No strokes on game pieces. Edges are made of value: a gradient, a lit rim, a
   shadow.
@@ -80,7 +94,7 @@ have to do in a dashboard.
 - Contrast is measured on the painted pixel, not on the source hex, and any
   colour transform gets a null test.
 
-### 6. It is measurable, or it is not finished
+### 7. It is measurable, or it is not finished
 
 Behind `?harness=1`, expose `window.__<slug>` with: the state, a way to reach
 any level, a way to complete one, `hits()` giving the box of every control and
@@ -89,7 +103,7 @@ Then **drive every check through real pointer events**, never by calling the
 game's own functions: an entire game once passed QC with every button dead.
 A check that cannot fail proves nothing, so prove each one by breaking it.
 
-### 7. Portal-ready from the first commit
+### 8. Portal-ready from the first commit
 
 Even if it ships on the site first: no outbound links in the game, the ad
 interface only through `shared/portal.js`, gameplay start and stop reported,
@@ -98,14 +112,15 @@ never an ad on navigation, and no reward when a video fails, including the
 `node tools/portal-build.mjs <slug> --portal=crazygames` must build, and the
 package gets tested as the portal will receive it.
 
-### 8. It gives a reason to come back tomorrow
+### 9. It gives a reason to come back tomorrow
 
 If the game has a ladder of levels, it also has a daily built from the UTC date,
-the same for everyone that day, and a streak that only the daily moves. Say so
-on the button, count its stars in the total, and land returning players on it
-until it is done. CrazyGames' Basic Launch is judged on next-day return.
+the same for everyone that day, and a streak that only the daily moves. Count
+its stars in the total, land returning players on it until it is done, and on
+desktop say so on its button (a phone's map has none). CrazyGames' Basic Launch
+is judged on next-day return.
 
-### 9. Before you tell me it is done
+### 10. Before you tell me it is done
 
 `node --check`, zero console 404s, zero errors in the harness, AA contrast swept
 on painted pixels, fit checks passing at every size above, the input path driven

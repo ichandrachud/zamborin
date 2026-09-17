@@ -36,7 +36,9 @@ summary of the design system and they do not replace reading it.
    buttons, type, HUD or controls. Game *art* may have its own palette. If you
    cannot decide which a thing is, it is chrome.
 3. **Buttons come from `ZAM_UI` at `ZAM_UI` sizes, never scaled per game.**
-   A button is chrome, not content.
+   A button is chrome, not content. Controls go at the top and the read-out at
+   the bottom left (DESIGN-SYSTEM 4.2 and 4.3, set 2026-09-16). **A game still
+   on the old arrangement is converted by whichever session works on it next.**
 4. **No outlines on game pieces.** Edges are made of value — gradients, a light
    band, a shadow. No emoji anywhere, ever.
 5. **A card is not fixed until something can measure it.** Write the detector,

@@ -1436,8 +1436,9 @@
 
     /* THE MAP BUTTON IS ALWAYS TOP-BAND-LEFT, in both layouts. On desktop that
        is where the control row already lives, so it is simply the first pill
-       in it. On a phone the row is at the bottom for thumb reach and the top
-       band is otherwise empty, so it sits up there alone.
+       in it. On a phone held sideways the row is at the bottom for thumb reach
+       and the top band is otherwise empty, so it sits up there alone. (An
+       upright phone never reaches here: drawPhoneHUD() draws its controls.)
 
        It is not in the row on mobile because it does not fit: measured, the
        four existing pills come to 315 of the 330 available on a 390 phone, and
@@ -1450,8 +1451,8 @@
       L.hit.map = b;
     }
 
-    // Controls: one top band on desktop, the bottom row on a phone. Order is
-    // fixed site-wide: sound, Undo, Restart, Rules.
+    // Controls: one top band on desktop, the bottom row on a phone held
+    // sideways. Order: sound, Undo, Restart, Rules.
     const cy = L.ctrlCy;
     const items = onMap
       ? [{ key: 'sound', icon: true, w: UI.PILL.iconW }, { key: 'rules', label: 'Rules' }]
@@ -1468,7 +1469,7 @@
     let x = rowLeft;
     for (const it of items) {
       const box = UI.drawPill(ctx, it.icon ? '' : it.label, x + it.w / 2, cy, { w: it.w, dim: it.dim });
-      if (it.icon) drawSpeaker(x + it.w / 2, cy, sfx ? sfx.isOn() : true);
+      if (it.icon) UI.drawIcon(ctx, 'sound', x + it.w / 2, cy, { on: sfx ? sfx.isOn() : true });
       L.hit[it.key] = box;
       x += it.w + UI.PILL.gap;
     }
@@ -1535,10 +1536,11 @@
     const gap = Math.max(4, Math.min(28, (room - items.length * D) / (items.length - 1)));
     let x = PHONE_PAD;
     for (const it of items) {
-      const box = drawCircleButton(x + D / 2, cy, D);
-      drawGlyph(it.key, x + D / 2, cy, it.dim);
+      const box = UI.drawRound(ctx, x + D / 2, cy);
+      if (it.key === 'map') drawMapGlyph(x + D / 2, cy);   // Comb's own: comb cells
+      else UI.drawIcon(ctx, it.key, x + D / 2, cy, { dim: it.dim });
       // The rewarded mark rides the edge of Skip, so every button keeps one size.
-      if (it.badged) drawVideoMark(x + D - 6, cy - D / 2 + 3, 20, false);
+      if (it.badged) UI.drawVideoMark(ctx, x + D - 6, cy - D / 2 + 3, 20, false);
       L.hit[it.key] = box;
       x += D + gap;
     }
@@ -1551,69 +1553,13 @@
     const tw = ctx.measureText(txt).width;
     // The speaker's drawing runs from 7px left of its centre to 11px right.
     const sx = LW - PHONE_PAD - 11;
-    drawSpeaker(sx, ly, sfx ? sfx.isOn() : true);
+    UI.drawIcon(ctx, 'sound', sx, ly, { on: sfx ? sfx.isOn() : true });
     // No circle, but still a full-size target.
     L.hit.sound = { x: Math.round(Math.min(LW - 44, sx - 20)), y: Math.round(Math.min(LH - 44, ly - 22)), w: 44, h: 44 };
     L.phoneLegend = { textEnd: PHONE_PAD + tw, sound: L.hit.sound };
     L.rowRight = PHONE_PAD + tw;
     L.readoutLeft = L.hit.sound.x;
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-  }
-
-  // A perfect circle (owner, 2026-09-16), in the house button's fill and border.
-  function drawCircleButton(cx, cy, d) {
-    ctx.beginPath(); ctx.arc(cx, cy, d / 2, 0, Math.PI * 2);
-    ctx.fillStyle = UI.PILL.fill; ctx.fill();
-    ctx.lineWidth = UI.PILL.borderW; ctx.strokeStyle = UI.PILL.border;
-    ctx.beginPath(); ctx.arc(cx, cy, d / 2 - UI.PILL.borderW / 2, 0, Math.PI * 2); ctx.stroke();
-    return { x: Math.round(cx - d / 2), y: Math.round(cy - d / 2), w: d, h: d };
-  }
-
-  // The phone's controls, drawn. No emoji, anywhere, ever.
-  function drawGlyph(key, cx, cy, dim) {
-    if (key === 'map') { drawMapGlyph(cx, cy); return; }
-    if (key === 'sound') { drawSpeaker(cx, cy, sfx ? sfx.isOn() : true); return; }
-    const ink = dim ? UI.PILL.textDim : TOK.ink92;
-    ctx.save();
-    ctx.strokeStyle = ink; ctx.fillStyle = ink;
-    ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    const head = (x, y, dx, dy, s) => {           // a filled arrowhead pointing along (dx, dy)
-      const nx = -dy, ny = dx;
-      ctx.beginPath();
-      ctx.moveTo(x + dx * s * 0.75, y + dy * s * 0.75);
-      ctx.lineTo(x - dx * s * 0.35 + nx * s * 0.6, y - dy * s * 0.35 + ny * s * 0.6);
-      ctx.lineTo(x - dx * s * 0.35 - nx * s * 0.6, y - dy * s * 0.35 - ny * s * 0.6);
-      ctx.closePath(); ctx.fill();
-    };
-    if (key === 'undo') {
-      // An arc turning back over the top, arrow at its left end.
-      const r = 7, ox = cx + 1, oy = cy + 2, a0 = Math.PI * 0.25, a1 = Math.PI * 1.1;
-      ctx.beginPath(); ctx.arc(ox, oy, r, a0, a1, true); ctx.stroke();
-      head(ox + r * Math.cos(a1), oy + r * Math.sin(a1), Math.sin(a1), -Math.cos(a1), 5);
-    } else if (key === 'restart') {
-      // Nearly a full turn, clockwise, arrow at the top.
-      const r = 7.5, a0 = -Math.PI * 0.35, a1 = Math.PI * 1.42;
-      ctx.beginPath(); ctx.arc(cx, cy, r, a0, a1, false); ctx.stroke();
-      head(cx + r * Math.cos(a1), cy + r * Math.sin(a1), -Math.sin(a1), Math.cos(a1), 5);
-    } else if (key === 'hint') {
-      // A bulb.
-      ctx.beginPath(); ctx.arc(cx, cy - 2.5, 6, Math.PI * 0.8, Math.PI * 2.2); ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(cx - 3.2, cy + 5); ctx.lineTo(cx + 3.2, cy + 5);
-      ctx.moveTo(cx - 2, cy + 8.2); ctx.lineTo(cx + 2, cy + 8.2);
-      ctx.stroke();
-    } else if (key === 'skip') {
-      // Next: a play triangle against a bar.
-      ctx.beginPath();
-      ctx.moveTo(cx - 6, cy - 6.5); ctx.lineTo(cx + 3.5, cy); ctx.lineTo(cx - 6, cy + 6.5);
-      ctx.closePath(); ctx.fill();
-      ctx.fillRect(cx + 4.5, cy - 6.5, 2.6, 13);
-    } else if (key === 'rules') {
-      ctx.font = '700 19px Inter, sans-serif';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText('?', cx, cy + 1);
-    }
-    ctx.restore();
   }
 
   /* HINT and SKIP, with their rewarded badge where an ad can actually back
@@ -1661,27 +1607,8 @@
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
     ctx.fillText(label, lx, cy + 1);
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-    drawVideoMark(lx + lw + GAP + BW / 2, cy, BW, dim);
+    UI.drawVideoMark(ctx, lx + lw + GAP + BW / 2, cy, BW, dim);
     return box;
-  }
-
-  /* The mark is a VIDEO glyph, not the letters AD. CrazyGames' rewarded-ad
-     rule asks for "a video icon indicating advertisement requirement", and a
-     play triangle in a chip is the mark every portal player already reads that
-     way — where "AD" at 10px was both illegible and the wrong promise. Drawn,
-     never an emoji. Chrome, so tokens only. */
-  function drawVideoMark(cx, cy, w, dim) {
-    const h = 16, r = 4.5;
-    UI.roundRectPath(ctx, cx - w / 2, cy - h / 2, w, h, r);
-    ctx.fillStyle = TOK.tint12; ctx.fill();
-    const s = 5.4;
-    ctx.beginPath();
-    ctx.moveTo(cx - s * 0.40, cy - s * 0.60);
-    ctx.lineTo(cx + s * 0.74, cy);
-    ctx.lineTo(cx - s * 0.40, cy + s * 0.60);
-    ctx.closePath();
-    ctx.fillStyle = dim ? TOK.tint30 : TOK.ink72;
-    ctx.fill();
   }
 
   // Four little cells: the level map, and a way back to it.
@@ -1697,27 +1624,6 @@
         if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
       }
       ctx.closePath(); ctx.fill();
-    }
-    ctx.restore();
-  }
-
-  // A speaker, drawn. No emoji, anywhere, ever.
-  function drawSpeaker(cx, cy, on) {
-    ctx.save();
-    ctx.strokeStyle = TOK.ink92; ctx.fillStyle = TOK.ink92;
-    ctx.lineWidth = 1.6; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(cx - 7, cy - 3); ctx.lineTo(cx - 3, cy - 3); ctx.lineTo(cx + 1, cy - 7);
-    ctx.lineTo(cx + 1, cy + 7); ctx.lineTo(cx - 3, cy + 3); ctx.lineTo(cx - 7, cy + 3);
-    ctx.closePath(); ctx.fill();
-    if (on) {
-      ctx.beginPath(); ctx.arc(cx + 2, cy, 5.5, -0.9, 0.9); ctx.stroke();
-      ctx.beginPath(); ctx.arc(cx + 2, cy, 9, -0.85, 0.85); ctx.stroke();
-    } else {
-      ctx.beginPath();
-      ctx.moveTo(cx + 5, cy - 4); ctx.lineTo(cx + 12, cy + 4);
-      ctx.moveTo(cx + 12, cy - 4); ctx.lineTo(cx + 5, cy + 4);
-      ctx.stroke();
     }
     ctx.restore();
   }

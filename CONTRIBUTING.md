@@ -192,8 +192,14 @@ Do not "improve" these while working nearby:
 
 - Desktop frame is **760x600** for every game (Carrom, Ludo, Zood and Empyrean excepted)
 - `shared/ui.js` is the button system; sizes are never scaled per game
-- No game name on the canvas. Controls left, level read-out top right
-- On phones, controls stay at the **bottom**
+- No game name on the canvas. Controls at the **top**, the level read-out at the
+  **bottom left** (DESIGN-SYSTEM 4.2 and 4.3)
+- On phones, controls are round icon buttons across the top and the sound switch
+  is a bare icon at the bottom right. The owner moved them up from the bottom on
+  2026-09-16: a game still on the old arrangement converts the next time anyone
+  works on it
+- On a phone, the level map shows the levels and nothing else; every piece
+  waiting to be played is visible at once (DESIGN-SYSTEM 4.4 and 4.5)
 - Full-screen sizing is done in JS per game (`fitFullscreen()`), never CSS `dvh`
 - Pins' physics constants (K, C, dt) are locked; the system is chaotic at high drive
 
