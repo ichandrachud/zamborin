@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Litmus strategy: count the hands, then plan the reaction — Zamborin</title>
+  <meta name="description" content="A practical Litmus strategy guide: counting hands to plan a molecule, dragging around radicals rather than through them, working backwards from the target on the bench, the four reactions that do most of the work, and reading the organic clues." />
+  <meta name="theme-color" content="#0E1726" />
+  <link rel="canonical" href="https://zamborin.com/guides/chemistry/" />
+  <link rel="icon" type="image/svg+xml" href="/images/zamborin-favicon.svg?v=2" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:site_name" content="Zamborin Games" />
+  <meta property="og:url" content="https://zamborin.com/guides/chemistry/" />
+  <meta property="og:title" content="Litmus strategy: count the hands, then plan the reaction" />
+  <meta property="og:description" content="How to count hands, drag safely, work backwards from a target, and read the reactions in Litmus." />
+  <meta property="og:image" content="https://zamborin.com/images/chemistry-og.jpg" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Litmus strategy: count the hands, then plan the reaction" />
+  <meta name="twitter:description" content="A practical strategy guide to Litmus, the chemistry puzzle in three parts." />
+  <meta name="twitter:image" content="https://zamborin.com/images/chemistry-og.jpg" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../shared/tokens.css?v=1" />
+  <link rel="stylesheet" href="../../shared/chrome.css?v=20" />
+  <style>
+    .guide { max-width: 760px; margin: 0 auto; padding: 40px 24px 80px; color: var(--text-dim); line-height: 1.7; font-size: 17px; }
+    .guide .crumbs { font-size: 14px; margin-bottom: 22px; color: var(--text-dim); }
+    .guide .crumbs a { color: #4DC3FF; text-decoration: none; display: inline-block; padding: 4px 0; }  /* W18: 14px type gives a 17px link, under the 24px of WCAG 2.5.8. These are
+       navigation, not links inside a sentence, so the inline exemption does not
+       apply. inline-block is what makes the padding count toward height. */
+    .guide h1 { font-size: 38px; color: var(--text); font-weight: 800; margin: 0 0 6px; letter-spacing: -0.5px; line-height: 1.15; }
+    .guide .lede { font-size: 19px; color: var(--text); margin: 14px 0 8px; }
+    .guide h2 { font-size: 23px; color: var(--text); font-weight: 700; margin: 38px 0 10px; letter-spacing: -0.2px; }
+    .guide p { margin: 12px 0; }
+    .guide a { color: #4DC3FF; }
+    .guide strong { color: var(--text); font-weight: 600; }
+    .guide ul { margin: 12px 0; padding-left: 22px; }
+    .guide li { margin: 8px 0; }
+    .guide .cta { display: inline-block; margin-top: 8px; background: #4DC3FF; color: #06121e; font-weight: 700; text-decoration: none; padding: 13px 26px; border-radius: 10px; }
+    .guide .playbox { margin: 36px 0 8px; padding: 22px 24px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09); border-radius: 14px; }
+    .guide .playbox p { margin: 0 0 14px; color: var(--text); font-weight: 600; }
+    .guide .more { margin-top: 40px; padding-top: 22px; border-top: 1px solid rgba(255,255,255,0.09); font-size: 16px; }
+    /* W18: these are a row of navigation links formatted as a paragraph, not
+
+       links inside prose, so the inline exemption does not cover them. 15px type
+
+       gave an 18px target against the 24px of WCAG 2.5.8. */
+
+    .guide .more a { display: inline-block; padding: 4px 0; }
+    .guide table { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 16px; }
+    .guide th, .guide td { text-align: left; padding: 9px 12px; border-bottom: 1px solid rgba(255,255,255,0.09); }
+    .guide th { color: var(--text); font-weight: 700; }
+    @media (max-width: 720px) { .guide { padding: 28px 18px 56px; font-size: 16px; } .guide h1 { font-size: 30px; } }
+  </style>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "Litmus strategy: count the hands, then plan the reaction",
+    "about": "Litmus chemistry puzzle strategy",
+    "description": "A practical Litmus strategy guide: counting hands to plan a molecule, dragging around radicals rather than through them, working backwards from the target on the bench, the four reactions that do most of the work, and reading the organic clues.",
+    "author": { "@type": "Organization", "name": "Zamborin Games" },
+    "publisher": { "@type": "Organization", "name": "Zamborin Games", "url": "https://zamborin.com/" },
+    "mainEntityOfPage": "https://zamborin.com/guides/chemistry/"
+  }
+  </script>
+  <meta name="google-adsense-account" content="ca-pub-9207689324865969">
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9207689324865969" crossorigin="anonymous"></script>
+</head>
+<body class="lobby-page">
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="Zamborin Games home">
+      <img class="brand-logo" src="/images/zamborin-logo.svg?v=2" alt="Zamborin" />
+    </a>
+    <a class="back-link" href="/">Back to all games</a>
+  </header>
+
+  <main class="guide">
+    <nav class="crumbs"><a href="/">Home</a> &rsaquo; <a href="/guides/">Guides</a> &rsaquo; Litmus</nav>
+
+    <h1>Litmus strategy: count the hands, then plan the reaction</h1>
+    <p class="lede">Litmus is three games that share one idea. In the Moleculator you join atoms into molecules, in the Reactor you react whole compounds in a test tube, and in the Carbon Chamber you do the same with carbon. Each one looks like a question of chemistry, and each one is really a question of order: what to make first, and what to keep out of the way while you do.</p>
+
+    <h2>Count the hands before you move anything</h2>
+    <p>Every atom has a fixed number of hands. Hydrogen, chlorine, sodium and potassium have one. Oxygen, magnesium and calcium have two. Iron, aluminium and nitrogen have three, and carbon has four. A molecule is finished when every hand in it is holding another, and not before.</p>
+    <p>So read the list as arithmetic. Water is an oxygen with two hands and two hydrogens with one each: three atoms, and the oxygen is the one everything joins. <strong>The atom with the most hands is the centre of its molecule, and it is the one to place first.</strong> Bring the one-handed atoms to it, never the other way round, because a one-handed atom is finished the moment it grabs anything, right or wrong.</p>
+
+    <h2>Moleculator: drag around radicals, not through them</h2>
+    <p>A free hand grabs the first free hand that comes within reach, and it does not care what you meant. Whatever you are dragging grabs anything it passes near, all the way along the drag, not only where you let go. A hydrogen carried past the chlorine you were saving for the iron becomes hydrogen chloride on the way.</p>
+    <ul>
+      <li><strong>An atom from the Available panel is safe until you let it go.</strong> Carry it to the exact spot you want and release it there, next to its partner.</li>
+      <li><strong>Clear the path first.</strong> If a radical sits between you and where you are going, move it aside slowly through open space, then make the move you wanted.</li>
+      <li><strong>Hands reach before they grab.</strong> When two atoms come close, their hands stretch toward each other. If you see an arm reaching that you did not intend, pull back before it closes.</li>
+    </ul>
+    <p>Anything you finish that is not on the list stays in the dish as waste. That is not fatal. What costs you the level is using up an atom the list needed, because there is always just enough and never a spare.</p>
+
+    <h2>Reactor: work backwards from the target</h2>
+    <p>On the bench the question turns around. Do not ask what the compounds in the dish could make. Ask what the target is made from, then what makes those. Calcium sulphate is calcium and sulphate, so it comes from something with calcium in it and something with sulphate in it: slaked lime and sulphuric acid, say. Once you know the last reaction, the rest of the level is finding its two ingredients.</p>
+    <p>The test tube holds two compounds, one of each, and reacts them as soon as both are in. What comes out lands in the product boxes, and any of it can go straight back into the tube. So some targets take two steps: make an ingredient first, then use it.</p>
+
+    <h2>The four reactions that do most of the work</h2>
+    <ul>
+      <li><strong>Neutralisation.</strong> An acid and a base cancel each other out. The acid's hydrogen and the base's OH make water, and what is left is a salt. Hydrochloric acid and sodium hydroxide make sodium chloride and water.</li>
+      <li><strong>One metal pushes another out.</strong> A livelier metal takes the salt for itself and leaves the quieter one behind as bare metal. In Litmus the order is magnesium, then zinc, then hydrogen, then copper: magnesium pushes out zinc, zinc pushes out copper, and magnesium and zinc both push hydrogen out of an acid, so it bubbles off. Copper pushes out nothing.</li>
+      <li><strong>A solid falls out.</strong> Two salts swap partners, and it only happens when one of the new pairs will not dissolve. The ones that will not: the carbonates of magnesium, calcium, zinc and copper, the hydroxides of magnesium, zinc and copper, and calcium sulphate. Anything with sodium, potassium or ammonium in it dissolves.</li>
+      <li><strong>Fizzing.</strong> An acid sets a carbonate's carbon dioxide free. It happens in two steps: the first hydrogen turns the carbonate into a hydrogencarbonate, and the second one lets the gas go.</li>
+    </ul>
+    <p>Every reaction explains itself on a card the first time you see it. The cards add up to these rules, so reading the first few is the fastest way to get good.</p>
+
+    <h2>The compound you did not need is the dangerous one</h2>
+    <p>Every bench has a few compounds on it that are not part of the answer, and they are there on purpose. Most of them react with something you do need. Put one in the tube with your only acid and the acid is gone, and so is the level. Before anything goes in the tube, say out loud what will come out. If you cannot, find out on a later level, not this one.</p>
+
+    <h2>Carbon Chamber: read the clue, then look for the double bond</h2>
+    <p>Each organic level opens on a clue that states the rule it teaches, never the answer. Take it literally. Most of the chamber turns on a handful of moves:</p>
+    <ul>
+      <li><strong>A double bond opens.</strong> An alkene takes a hydrogen onto each carbon with hydrogen, a bromine onto each with bromine, H and Cl across it with hydrogen chloride, or H and OH with water, which makes an alcohol.</li>
+      <li><strong>An alcohol and an acid join</strong> into an ester and give off water. Esters are what make fruit smell sweet.</li>
+      <li><strong>An alcohol turns into an acid</strong> with oxygen, which is how wine becomes vinegar.</li>
+      <li><strong>An ester splits back</strong> into its alcohol and acid with water, or into the alcohol and a sodium salt with alkali, which is how soap is made.</li>
+    </ul>
+    <p>The acids in the chamber keep all their ordinary chemistry too, so vinegar still fizzes with baking soda and still neutralises a base.</p>
+
+    <h2>When a level goes wrong</h2>
+    <p>Losing a molecule the list needs does not end the level on the spot. You can play on and see what else you can make, but the level has to be done again, and Restart is always in the top corner. Every level has been checked by solving it from what it starts with, so there is always a way through.</p>
+
+    <h2>The short version</h2>
+    <ul>
+      <li>Count the hands. The atom with the most is the centre, and goes first.</li>
+      <li>Bring one-handed atoms to the centre, never the centre to them.</li>
+      <li>Drag around radicals, not through them.</li>
+      <li>On the bench, work backwards from the target.</li>
+      <li>Products can go back in the tube. Some targets take two steps.</li>
+      <li>Know what will come out before anything goes in.</li>
+      <li>In the chamber, the clue is the rule. Take it literally.</li>
+    </ul>
+
+    <div class="playbox">
+      <p>Ready to put it to work?</p>
+      <a class="cta" href="/chemistry/">Play Litmus &rarr;</a>
+    </div>
+
+    <p class="more">More games: <a href="/junction/">Junction</a> &middot; <a href="/kaleido/">Kaleido</a> &middot; <a href="/">all Zamborin games</a> &middot; <a href="/guides/">all guides</a></p>
+  </main>
+
+  <footer class="site-footer">
+    <nav class="site-foot-nav">
+      <a href="/arcade/">Arcade</a>
+      <a href="/about/">About</a>
+      <a href="/guides/">Guides</a>
+      <a href="/privacy/">Privacy</a>
+      <a href="/contact/">Contact</a>
+    </nav>
+    <span>&copy; 2026 Zamborin. Games created by Indrajeet Chandrachud.</span>
+  </footer>
+  <script defer src="/_vercel/insights/script.js"></script>
+  <script defer src="/_vercel/speed-insights/script.js"></script>
+</body>
+</html>
