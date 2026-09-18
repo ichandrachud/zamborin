@@ -310,6 +310,12 @@ pills at the band's **right** end, finishing at `LW - SIDE_PAD`, `gap` 12.
   Hint and Skip from the right, so measure both and prove the gap between them
   at the narrowest frame; Comb's `bandFit()` does. Orbit's read-out collided
   with its row this way as soon as the score passed four figures.
+- **In zamborin.com's full screen the page's exit button hangs over the band's
+  right end**: 44 across, 24 in from the top right, shown from 1152 wide up (so
+  never on a phone). Hint, Skip and anything else at that end stop 12 short of
+  it. Measure the button from the page whenever the layout runs, as Comb's
+  `exitButtonBox()` does, and check it in the fit test. At 1440 x 900 it covered
+  Skip, and a click meant for Skip left full screen.
 
 **Both.** A dimmed button is **still clickable**: `dim` only changes the ink.
 If a control must not fire, guard it in the handler, and put the analytics call
