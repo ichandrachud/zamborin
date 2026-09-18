@@ -3,8 +3,10 @@
    The owner, 2026-09-15: atoms were going over the dish's border; "make sure
    they stay inside at least 10 px". This reads the painted canvas, not the
    positions: the strip from 2 to 10px inside the glass rim, along all four
-   sides, must hold nothing brighter than the dark glass. Every part of an
-   atom (arms, palms, bodies) and every formula label is far brighter. The
+   sides, must hold nothing darker than the paper the dish is drawn on (the
+   page went to a notebook in 2026-09-17, so the test flipped: it used to look
+   for anything brighter than dark glass). Every part of an atom (arms, palms,
+   bodies) and every formula label is far darker than paper and its grain. The
    strip starts 2px in because the rim's own soft edge is lighter; a palm is
    at least 5px across, so one that reached the first 2px shows in the rest.
    The rounded corners are left out; the walls keep hands clear of them too.
@@ -31,9 +33,16 @@ const EDGE = `(() => {
   const scan = (x0, y0, w, h, side) => {
     const X = Math.round(x0 * k), Y = Math.round(y0 * k), W = Math.max(1, Math.round(w * k)), H = Math.max(1, Math.round(h * k));
     const px = cx.getImageData(X, Y, W, H).data;
-    let worst = 0;
-    for (let i = 0; i < px.length; i += 4) worst = Math.max(worst, lum(px[i], px[i + 1], px[i + 2]));
-    if (worst > 0.05) out.push(side + ' ' + worst.toFixed(3));
+    /* The paper's own grain has single specks as dark as 0.78, so the test
+       counts dark pixels rather than taking the darkest one: a marble, an arm
+       or a letter puts dozens of pixels well under 0.70 in this strip. */
+    let dark = 0, worst = 1;
+    for (let i = 0; i < px.length; i += 4) {
+      const L = lum(px[i], px[i + 1], px[i + 2]);
+      if (L < 0.70) dark++;
+      worst = Math.min(worst, L);
+    }
+    if (dark > 8) out.push(side + ' ' + dark + 'px, darkest ' + worst.toFixed(3));
   };
   scan(ix + skip, iy + 2, iw - 2 * skip, 8, 'top');
   scan(ix + skip, iy + ih - 10, iw - 2 * skip, 8, 'bottom');

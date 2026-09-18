@@ -29,7 +29,7 @@
       ({ LW, LH, MODE } = host.size());
       pad = host.pad;
       const top = host.topBand() + 4;
-      const bottom = MODE === 'mobile' ? LH - host.botBand() - 10 : LH - 16;
+      const bottom = LH - host.botBand() - 10;          // the read-out has its own line on both now
       view = { x: 0, y: top, w: LW, h: Math.max(80, bottom - top) };
       const availW = LW - pad * 2;
       cols = Math.max(4, Math.min(10, Math.round(availW / CELL)));
@@ -111,10 +111,15 @@
       for (const q of B.cells) {
         const y = oy + q.y;
         if (y + q.h < view.y - 20 || y > view.y + view.h + 20) continue;
+        /* On the page a cell is drawn as the bench's glassware is: a pale wash
+            inside an ink hairline, so its edge carries the 3:1 the fill cannot.
+            A level still shut keeps a quieter line and a lighter number. */
         rr(q.x, y, q.w, q.h, 14);
         ctx.fillStyle = q.open ? TOK.tint07 : TOK.tint03; ctx.fill();
+        ctx.lineWidth = 1.2; ctx.strokeStyle = q.open ? host.INK.line : 'rgba(28,115,161,0.35)';
+        rr(q.x, y, q.w, q.h, 14); ctx.stroke();
         if (q.next) { ctx.lineWidth = 2; ctx.strokeStyle = TOK.accentText; rr(q.x, y, q.w, q.h, 14); ctx.stroke(); }
-        ctx.fillStyle = q.open ? TOK.ink92 : TOK.tint30;
+        ctx.fillStyle = q.open ? TOK.ink92 : '#4C7E9C';
         ctx.font = '700 17px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText(String(q.i + 1), q.x + q.w / 2, y + q.h / 2 - (q.done ? 7 : 0));
         if (q.done) check(q.x + q.w / 2, y + q.h / 2 + 11);

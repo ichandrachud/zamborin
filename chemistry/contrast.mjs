@@ -28,10 +28,11 @@ try {
       if (out[a.el]) continue;
       const q = g.atoms[a.id], body = [];
       for (let t = 0; t < 16; t++) for (const f of [0.2, 0.45, 0.7, 0.85]) body.push([q.x + Math.cos(t/16*6.283)*R*f, q.y + Math.sin(t/16*6.283)*R*f]);
+      // the page is the LIGHTEST thing around a marble now, so the ground is the lightest sample
       let glass = null;
       for (let t = 0; t < 12; t++) {
         const c = px(q.x + Math.cos(t/12*6.283)*R*2.7, q.y + Math.sin(t/12*6.283)*R*2.7);
-        if (!glass || lum(c) < lum(glass)) glass = c;
+        if (!glass || lum(c) > lum(glass)) glass = c;
       }
       out[a.el] = { body: +ratio(avg(body), glass).toFixed(2), glass };
     }
@@ -49,7 +50,7 @@ try {
       let glass = null;
       for (let t = 0; t < 12; t++) {
         const c = px(a.x + Math.cos(t/12*6.283)*R*3.4, a.y + Math.sin(t/12*6.283)*R*3.4);
-        if (!glass || lum(c) < lum(glass)) glass = c;
+        if (!glass || lum(c) > lum(glass)) glass = c;
       }
       out[a.el] = { body: +ratio(avg(body), glass).toFixed(2), glass };
     }

@@ -142,29 +142,49 @@
   };
   /* Each element: the lit and shaded ends of the marble, the colour of its
      arms, and the ink its symbol is written in. The symbol is what tells two
-     similar marbles apart, so colour never has to. */
+     similar marbles apart, so colour never has to.
+     DEEPENED FOR THE PAPER PAGE, 2026-09-17: on the dark page every marble
+     stood clear of its ground; on paper eight of them (H, F, Cl, Na, Ca, Fe,
+     Zn, S) measured 1.9 to 2.8:1 against a 3:1 bar for a graphical object.
+     Each was darkened in linear light until contrast.mjs measured it over 3:1,
+     hue and shading kept, so hydrogen is still the palest marble on the bench. */
   const ART = {
-    H:  { hi: '#F2F5FA', lo: '#98A4B8', arm: '#D9E0EA', ink: '#1E2A3C' },
+    H:  { hi: '#B9BBBF', lo: '#737D8C', arm: '#A5ABB3', ink: '#1E2A3C' },
     O:  { hi: '#F47A66', lo: '#8A2A1E', arm: '#F5A896', ink: '#FFFFFF' },
     N:  { hi: '#7A9EF2', lo: '#22408F', arm: '#A9C0F6', ink: '#FFFFFF' },
     C:  { hi: '#838C9D', lo: '#343B48', arm: '#9FA8B8', ink: '#FFFFFF' },
-    F:  { hi: '#C6F1F2', lo: '#3C8F95', arm: '#D3F4F4', ink: '#10363A' },
-    Cl: { hi: '#C9EE8F', lo: '#4E8A24', arm: '#D5F2AE', ink: '#17330B' },
-    Na: { hi: '#C7A6F6', lo: '#57339C', arm: '#DACAF8', ink: '#FFFFFF' },
+    F:  { hi: '#A6CBCC', lo: '#31777C', arm: '#B1CCCC', ink: '#10363A' },
+    Cl: { hi: '#ADCD7A', lo: '#42761E', arm: '#B7D095', ink: '#17330B' },
+    Na: { hi: '#AF91D9', lo: '#4C2B89', arm: '#C0B2DB', ink: '#FFFFFF' },
     K:  { hi: '#F0A9D2', lo: '#82255F', arm: '#F5C9E6', ink: '#FFFFFF' },
     Mg: { hi: '#F2D27C', lo: '#8C6A1C', arm: '#F5DFA3', ink: '#3A2A06' },
-    Ca: { hi: '#F4E6C6', lo: '#A3875A', arm: '#F6ECD6', ink: '#3A2C12' },
+    Ca: { hi: '#E1D4B7', lo: '#967C52', arm: '#E3DAC5', ink: '#3A2C12' },
     Al: { hi: '#C3C8DD', lo: '#555C7A', arm: '#D2D6E6', ink: '#1E2233' },
-    Fe: { hi: '#E7AB7B', lo: '#7A4524', arm: '#F0C8A6', ink: '#FFFFFF' },
-    S:  { hi: '#F4DE6E', lo: '#9C7F12', arm: '#F6E7A0', ink: '#3A2E00' },
+    Fe: { hi: '#D79E71', lo: '#704021', arm: '#DFB99A', ink: '#FFFFFF' },
+    S:  { hi: '#BAA952', lo: '#765F0B', arm: '#BBB079', ink: '#3A2E00' },
     Br: { hi: '#E0785A', lo: '#6E2414', arm: '#EBA48C', ink: '#FFFFFF' },
-    Zn: { hi: '#B3C6D6', lo: '#3E5A70', arm: '#CBD9E4', ink: '#FFFFFF' },
+    Zn: { hi: '#ABBDCD', lo: '#3B566B', arm: '#C2CFDA', ink: '#FFFFFF' },
     Cu: { hi: '#F0A878', lo: '#8A3B12', arm: '#F5C6A6', ink: '#FFFFFF' },
     knot: '#FFF6DC',
     palmGreen: '#5DD39E', palmAmber: '#F0B23C', palmOpen: '#FFFFFF',
     glassTop: '#0C1424', glassBot: '#0A1120',
     veil: 'rgba(14,23,38,0.55)', wasteKnot: '#7A8290', wasteArm: '#5A6272',
   };
+  /* THE NOTEBOOK (owner, 2026-09-16, screen by screen): the game is played on a
+     school notebook page — a very light paper, pale blue rules, everything else
+     drawn in one blue ink. The tokens above are the dark page the game was
+     built on; these replace them. The marbles keep their own palette. */
+  TOK.ground = 'paper';
+  Object.assign(TOK, {
+    bg: '#E9EFEF', card: '#FFFFFF', panel: '#FDFEFE', accent: '#1C73A1', sun: '#8F5400', green: '#17744A', accentText: '#B83A2B',
+    ink72: '#1D6690', ink82: '#175A80', ink90: '#12486A', ink92: '#12486A', white: '#0E3F5C',
+    tint03: 'rgba(28,115,161,0.06)', tint07: 'rgba(28,115,161,0.10)', tint10: 'rgba(28,115,161,0.12)',
+    tint12: 'rgba(28,115,161,0.20)', tint30: 'rgba(28,115,161,0.45)', scrim: 'rgba(233,239,239,0.86)',
+  });
+  Object.assign(ART, { glassTop: '#FFFFFF', glassBot: '#F7FAFA' });
+  Object.assign(UI.PILL, { fill: 'rgba(28,115,161,0.05)', border: 'rgba(28,115,161,0.85)', text: '#12486A', textDim: 'rgba(18,72,106,0.45)' });
+  const INK = { line: 'rgba(28,115,161,0.85)', wall: 'rgba(28,115,161,0.5)', tint: 'rgba(28,115,161,0.035)' };
+  const PAPER_KNOT = '#12486A';           // the bond's bead: navy, 8.8:1 on the paper (owner's pick, 2026-09-16)
 
   /* ---------- TUNING ----------
      Distances are in atom radii, so the dish plays the same at any size. */
@@ -246,9 +266,12 @@
      chemistry being the chemistry of carbon. `short` names the chapter in the
      top band. */
   const CHAPTERS = [
-    { name: 'Get acquainted with molecules', short: '', levels: () => LV[MODE] },          // thinned to the room at load, see crowdSize
-    { name: 'Chem Lab experiments', short: 'Chem Lab', levels: () => LV.lab[MODE] },
-    { name: 'Carbon Lab experiments', short: 'Carbon Lab', levels: () => LV.organic[MODE] },
+    /* The three parts of the game, named by the owner on the sections screen
+       (2026-09-17): the same names on the map and in the read-out, so a player
+       is never told two names for the same place. */
+    { name: 'Moleculator', short: 'Moleculator', levels: () => LV[MODE] },                 // thinned to the room at load, see crowdSize
+    { name: 'Reactor', short: 'Reactor', levels: () => LV.lab[MODE] },
+    { name: 'Carbon Chamber', short: 'Carbon Chamber', levels: () => LV.organic[MODE] },
   ];
   let LEVELS = CHAPTERS[CHAPTER - 1].levels();
   let phase = 'play';                                        // 'play' | 'map'
@@ -266,22 +289,16 @@
     try {
       const v = readSave(), was = progress(CHAPTER);
       v[MODE + '-' + CHAPTER] = { at: li, done: won ? Math.max(was.done, li + 1) : was.done };
-      v[MODE + '-last'] = CHAPTER;
       localStorage.setItem(SAVE_KEY, JSON.stringify(v));
     } catch (_) {}
   }
-  /* Where a visit opens: the chapter played last, at the level the player was
-     on, or the one after it if they won that and left before moving on; a
-     finished chapter hands on to the next. A first visit is chapter 1, level 1. */
-  function resumeAt() {
-    const last = readSave()[MODE + '-last'];
-    let c = [1, 2, 3].includes(last) ? last : 1;
-    for (;;) {
-      const p = progress(c), n = CHAPTERS[c - 1].levels().length;
-      if (p.done >= n && p.at >= n - 1 && c < CHAPTERS.length) { c += 1; continue; }
-      const at = p.at === p.done - 1 ? p.done : p.at;
-      return { c, i: Math.max(0, Math.min(at, n - 1)) };
-    }
+  /* Where a section opens: the level the player was on, or the one after it if
+     they won that and left before moving on. A section never played opens at
+     its first level. */
+  function resumeIn(c) {
+    const p = progress(c), n = CHAPTERS[c - 1].levels().length;
+    const at = p.at === p.done - 1 ? p.done : p.at;
+    return Math.max(0, Math.min(at, n - 1));
   }
   // A level's number across the whole game, for analytics: molecules 1-50, then reactions, then organic.
   const gameLevel = () => CHAPTERS.slice(0, CHAPTER - 1).reduce((n, ch) => n + ch.levels().length, 0) + li + 1;
@@ -433,13 +450,14 @@
   const SIDE_PAD = 30;
   const EDGE = () => (MODE === 'mobile' ? 14 : SIDE_PAD);
   const topBand = () => (MODE === 'mobile' ? 64 : 56);
-  const botBand = () => 20;
+  const botBand = () => (MODE === 'mobile' ? 52 : 40);       // the read-out's line (DESIGN-SYSTEM 2.1)
   const G = { x: 0, y: 0, w: 0, h: 0, S: 18, WW: 28, WH: 23 };   // dish in px; S px per radius; world in radii
   let flaskArea = { x: 0, y: 0, w: 0, h: 0 }, panel = { x: 0, y: 0, w: 0, h: 0 };
   let slots = [], ctrl = [], readoutMinX = SIDE_PAD, readoutMaxX = 760 - SIDE_PAD, readoutBox = null, ctaBox = null;
 
   function layout() {
     if (!LW) return;
+    if (phase === 'home') { ctrl = []; layoutHome(); return; }
     layoutControls();
     if (phase === 'map' || !level) return;
     if (scene) { scene.layout(); return; }
@@ -456,12 +474,15 @@
      squared, so a crowd is as thick in a wide short dish as in the frame's.
      Only once its atoms are drawn at the largest size (TUNE.maxScale) does
      the room grow instead. */
-  const FRAME_DISH = { w: 760 - SIDE_PAD * 2 - 150 - 18, h: 600 - 20 - (56 + 2 + 74 + 8) };   // 532 x 440
+  const FRAME_DISH = { w: 760 - SIDE_PAD * 2 - 150 - 18, h: 600 - 40 - (56 + 2 + 74 + 8) };   // 532 x 420
   function layoutDesktop() {
     const top = topBand();
-    flaskArea = { x: SIDE_PAD, y: top + 2, w: LW - SIDE_PAD * 2, h: 74 };
+    /* In the shortest windows a portal plays (760x450 and the like) the row of
+       targets gives up eight pixels so the dish keeps its marbles at 12px. */
+    const short = LH < 520, rowH = short ? 66 : 74, rowGap = short ? 6 : 8;
+    flaskArea = { x: SIDE_PAD, y: top + 2, w: LW - SIDE_PAD * 2, h: rowH };
     const colW = 150, gap = 18;
-    const y0 = flaskArea.y + flaskArea.h + 8, y1 = LH - botBand();
+    const y0 = flaskArea.y + flaskArea.h + rowGap, y1 = LH - botBand();
     G.x = SIDE_PAD; G.y = y0; G.w = LW - SIDE_PAD * 2 - colW - gap; G.h = y1 - y0;
     panel = { x: G.x + G.w + gap, y: G.y, w: colW, h: G.h };
     // the frame's own scale times the change in shape: exactly 532/36 in the 760x600 frame
@@ -496,7 +517,22 @@
      layouts: left in the top band. On the map itself it would lead nowhere, so
      only sound is left. */
   function layoutControls() {
-    const items = phase === 'map' ? [{ id: 'sound', icon: true }]
+    const onMap = phase === 'map', cyTop = topBand() / 2;
+    /* A phone gets round icon buttons across the top and a bare speaker at the
+       bottom right, a desktop gets pills (DESIGN-SYSTEM 4.1, 4.2). From the map
+       the left button goes back to the sections. */
+    if (MODE === 'mobile') {
+      const ids = onMap ? ['home'] : ['map', 'restart'], D = UI.PILL.iconW;
+      const gap = Math.max(4, Math.min(28, (LW - 32 - ids.length * D) / Math.max(1, ids.length - 1)));
+      let x = 16;
+      ctrl = ids.map((id) => { const b = { id, icon: true, x, y: Math.round(cyTop - D / 2), w: D, h: D, cx: x + D / 2, cy: cyTop }; x += D + gap; return b; });
+      const sy = LH - botBand() / 2;
+      ctrl.push({ id: 'sound', icon: true, bare: true, x: LW - 16 - 33, y: Math.round(sy - 22), w: 44, h: 44, cx: LW - 16 - 11, cy: sy });
+      readoutMinX = 16;
+      readoutMaxX = LW - EDGE();
+      return;
+    }
+    const items = onMap ? [{ id: 'home', icon: true }, { id: 'sound', icon: true }]
       : [{ id: 'map', icon: true }, { id: 'sound', icon: true }, { id: 'restart', label: 'Restart' }];
     ctx.save();
     let total = 0;
@@ -511,14 +547,8 @@
       x += it.w + UI.PILL.gap;
       return b;
     });
-    readoutMinX = MODE === 'desktop' ? x + 16 : x + 2;
-    /* In the site's own full screen the page's exit button sits over the top
-       right corner of the window (chrome.css: 44px, 24px in from the top and
-       the right), where the read-out ends now the game fills the window. The
-       read-out stops 12px short of it. */
-    readoutMaxX = LW - EDGE();
-    const w = canvas.getBoundingClientRect().width;
-    if (document.body.classList.contains('focus-mode') && w > 0) readoutMaxX = Math.min(readoutMaxX, (w - 24 - 44 - 12) * LW / w);
+    readoutMinX = SIDE_PAD;
+    readoutMaxX = LW - SIDE_PAD;
   }
 
   const toPx = (p) => ({ x: G.x + p.x * G.S, y: G.y + p.y * G.S });
@@ -766,28 +796,96 @@
     previews.clear();
   }
 
-  /* ---------- DRAWING ---------- */
-  function washStyle() {
-    const bg = ctx.createRadialGradient(LW * 0.32, 0, 0, LW * 0.32, 0, LW * 1.1);
-    bg.addColorStop(0, TOK.panel); bg.addColorStop(0.6, TOK.card); bg.addColorStop(1, TOK.bg);
-    return bg;
+  /* ---------- DRAWING ----------
+     THE PAGE: paper, ruled in pale blue at a 26px pitch with the first line
+     tucked under the top band, a margin rule down the left on a desktop, and a
+     very light grain — fine speckle, soft mottling and a few fibres — made once
+     at device pixels and laid over the paper with multiply. Every word in the
+     game sits ON a rule: `onRule` snaps a baseline to the nearest one, and the
+     things that hang under words (the tube, the product boxes, the target
+     glass) are placed from the snapped baseline, never the other way round. */
+  const NOTE = { paper: '#FBFBF9', rule: 'rgba(88,140,196,0.204)', margin: 'rgba(120,134,150,0.252)', band: '#1C73A1', pitch: 26, marginX: 18 };
+  const ruleFirst = () => topBand() - 2.2;
+  const onRule = (baseline) => { const f = ruleFirst(); return f + NOTE.pitch * Math.round((baseline - f) / NOTE.pitch); };
+  let notebookPage = null;
+  function paperGrain(W, H) {
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const g = c.getContext('2d'), img = g.createImageData(W, H), d = img.data, r = mulberry(4021);
+    const noise = (cell) => {
+      const gw = Math.ceil(W / cell) + 2, grid = new Float32Array(gw * (Math.ceil(H / cell) + 2));
+      for (let i = 0; i < grid.length; i++) grid[i] = r();
+      return (x, y) => {
+        const gx = x / cell, gy = y / cell, x0 = gx | 0, y0 = gy | 0, fx = gx - x0, fy = gy - y0;
+        const a = grid[y0 * gw + x0], b = grid[y0 * gw + x0 + 1], c2 = grid[(y0 + 1) * gw + x0], e = grid[(y0 + 1) * gw + x0 + 1];
+        const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+        return (a * (1 - sx) + b * sx) * (1 - sy) + (c2 * (1 - sx) + e * sx) * sy;
+      };
+    };
+    const broad = noise(90), fine = noise(14);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const speck = Math.pow(r(), 12) * 12, mottle = broad(x, y) * 2.2 + fine(x, y) * 1.4, v = 255 - speck - mottle;
+      const k = (y * W + x) * 4; d[k] = v; d[k + 1] = v; d[k + 2] = v - 1.5; d[k + 3] = 255;
+    }
+    g.putImageData(img, 0, 0);
+    g.lineCap = 'round';
+    for (let i = 0; i < Math.round(W * H / 14000); i++) {
+      const x = r() * W, y = r() * H, len = 14 + r() * 50, ang = r() * Math.PI * 2, bend = (r() - 0.5) * 18;
+      g.strokeStyle = 'rgba(110,100,86,' + (0.025 + r() * 0.03).toFixed(3) + ')'; g.lineWidth = 0.6 + r() * 0.5;
+      g.beginPath(); g.moveTo(x, y);
+      g.quadraticCurveTo(x + Math.cos(ang) * len / 2 - Math.sin(ang) * bend, y + Math.sin(ang) * len / 2 + Math.cos(ang) * bend, x + Math.cos(ang) * len, y + Math.sin(ang) * len);
+      g.stroke();
+    }
+    return c;
   }
-  function drawWash() { ctx.fillStyle = washStyle(); ctx.fillRect(0, 0, LW, LH); }
+  // the page with no rules on it, for the insides of the glassware (owner: no rules in the dish, the tube or the petri dish)
+  const barePaper = () => (notebookPage ? notebookPage.bare : null);
+  function buildPage() {
+    const W = Math.round(LW * backing), H = Math.round(LH * backing), key = W + 'x' + H + '-' + MODE + '-' + Math.round(ruleFirst() * 10);
+    if (notebookPage && notebookPage.key === key) return notebookPage;
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const g = c.getContext('2d');
+    g.fillStyle = NOTE.paper; g.fillRect(0, 0, W, H);
+    g.globalCompositeOperation = 'multiply'; g.drawImage(paperGrain(W, H), 0, 0); g.globalCompositeOperation = 'source-over';
+    const bare = document.createElement('canvas'); bare.width = W; bare.height = H;
+    bare.getContext('2d').drawImage(c, 0, 0);
+    g.setTransform(backing, 0, 0, backing, 0, 0);
+    g.strokeStyle = NOTE.rule; g.lineWidth = 1;
+    for (let y = ruleFirst(); y < LH - 4; y += NOTE.pitch) { g.beginPath(); g.moveTo(0, y + 0.5); g.lineTo(LW, y + 0.5); g.stroke(); }
+    if (MODE !== 'mobile') {
+      g.strokeStyle = NOTE.margin; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(NOTE.marginX + 0.5, 0); g.lineTo(NOTE.marginX + 0.5, LH); g.stroke();
+    }
+    notebookPage = { key, c, bare };
+    return notebookPage;
+  }
+  // Inside a shape, the paper with no rules on it.
+  function unruled(path) {
+    const page = barePaper();
+    if (!page) return;
+    ctx.save(); path(); ctx.clip();
+    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(page, 0, 0);
+    ctx.restore();
+  }
+  // the page itself as a fill, so the map can paint it back over its cells at the scroll's edges
+  function washStyle() {
+    const page = buildPage();
+    const pat = ctx.createPattern(page.c, 'no-repeat');
+    if (pat && pat.setTransform && window.DOMMatrix) pat.setTransform(new DOMMatrix([1 / backing, 0, 0, 1 / backing, 0, 0]));
+    return pat || NOTE.paper;
+  }
+  function drawWash() {
+    const page = buildPage();
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(page.c, 0, 0); ctx.restore();
+    if (phase !== 'home') { ctx.fillStyle = NOTE.band; ctx.fillRect(0, 0, LW, topBand()); }
+  }
   // The dish: dark glass in a vessel whose rim catches the light along its top.
   function drawDish() {
     const r = 24;
+    unruled(() => rr(G.x, G.y, G.w, G.h, r));
     ctx.save();
-    const rim = ctx.createLinearGradient(0, G.y, 0, G.y + G.h);
-    rim.addColorStop(0, 'rgba(255,255,255,0.09)'); rim.addColorStop(0.18, 'rgba(255,255,255,0.05)');
-    rim.addColorStop(1, 'rgba(255,255,255,0.04)');
-    ctx.fillStyle = rim; rr(G.x, G.y, G.w, G.h, r); ctx.fill();
-    const ix = G.x + 7, iy = G.y + 7, iw = G.w - 14, ih = G.h - 14;
-    const glass = ctx.createLinearGradient(0, iy, 0, iy + ih);
-    glass.addColorStop(0, ART.glassTop); glass.addColorStop(1, ART.glassBot);
-    ctx.fillStyle = glass; rr(ix, iy, iw, ih, r - 7); ctx.fill();
-    const lit = ctx.createLinearGradient(0, iy, 0, iy + 22);
-    lit.addColorStop(0, 'rgba(255,255,255,0.06)'); lit.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.fillStyle = lit; rr(ix, iy, iw, ih, r - 7); ctx.fill();
+    ctx.fillStyle = INK.tint; rr(G.x, G.y, G.w, G.h, r); ctx.fill();
+    ctx.strokeStyle = INK.line; ctx.lineWidth = 1.2; rr(G.x + 0.5, G.y + 0.5, G.w - 1, G.h - 1, r); ctx.stroke();
+    ctx.strokeStyle = INK.wall; ctx.lineWidth = 1; rr(G.x + 5.5, G.y + 5.5, G.w - 11, G.h - 11, r - 5); ctx.stroke();
     ctx.restore();
   }
 
@@ -843,7 +941,7 @@
       return;
     }
     const amber = state === 'amber' ? (k == null ? 1 : k) : 0;
-    if (amber < 1) feather(x, y, r, r * 2.4, '93,211,158', 0.45 * al * (1 - amber));
+    if (amber < 1) feather(x, y, r, r * 2.4, '23,116,74', 0.40 * al * (1 - amber));
     ctx.globalAlpha = al;
     ctx.fillStyle = amber ? mix(ART.palmGreen, ART.palmAmber, amber) : ART.palmGreen;
     ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
@@ -868,7 +966,8 @@
     for (const a of items) {
       const al = a.alpha == null ? 1 : a.alpha;
       ctx.globalAlpha = al;
-      ctx.strokeStyle = a.wasteK ? mix(ART[a.el].arm, ART.wasteArm, a.wasteK) : ART[a.el].arm;
+      const arm = mix(ART[a.el].lo, '#0E1A26', 0.2);
+      ctx.strokeStyle = a.wasteK ? mix(ART[a.el].arm, ART.wasteArm, a.wasteK) : arm;
       for (const b of a.bonds) {
         const ux = Math.cos(b.ang), uy = Math.sin(b.ang), nx = -uy, ny = ux;
         for (const o of offsets(b.order, off)) {
@@ -917,8 +1016,7 @@
             ctx.beginPath(); ctx.arc(kx, ky, kr, 0, TAU); ctx.fill();
             continue;
           }
-          feather(kx, ky, kr, kr * 2.6, '255,246,220', 0.55 * al);
-          ctx.globalAlpha = al; ctx.fillStyle = ART.knot;
+          ctx.globalAlpha = al; ctx.fillStyle = PAPER_KNOT;
           ctx.beginPath(); ctx.arc(kx, ky, kr, 0, TAU); ctx.fill();
         }
       }
@@ -999,7 +1097,7 @@
           const reach = Math.max(TUNE.hand, (t.d / 2) * 0.97);
           const quiver = reduced() ? 1 : 1 + 0.05 * Math.sin(now / 70 + a.id * 1.3) * t.k;
           h.len = G.S * (TUNE.hand + (reach - TUNE.hand) * t.k) * quiver;
-          h.glow = { rgb: t.bad ? '240,178,60' : '93,211,158', a: 0.2 + 0.5 * t.k, bad: t.bad };
+          h.glow = { rgb: t.bad ? '143,84,0' : '23,116,74', a: 0.18 + 0.42 * t.k, bad: t.bad };
         }
       }
       if (a.status === 'waste') item.wasteK = wasteK(a.id, now);
@@ -1060,7 +1158,7 @@
     ctx.save();
     for (const f of flashes) {
       const t = clamp01((now - f.t0) / TUNE.flashMs), c = toPx(f);
-      feather(c.x, c.y, G.S * 0.3, G.S * (0.8 + 1.6 * easeOut(t)), '255,246,220', 0.7 * (1 - t));
+      feather(c.x, c.y, G.S * 0.3, G.S * (0.8 + 1.6 * easeOut(t)), '18,72,106', 0.34 * (1 - t));
     }
     ctx.restore();
   }
@@ -1107,7 +1205,7 @@
         }),
       }));
       ctx.save();
-      for (const it of items) feather(it.x, it.y, G.S * sc, G.S * sc * 1.9, '255,246,220', 0.3 * al);
+      for (const it of items) feather(it.x, it.y, G.S * sc, G.S * sc * 1.9, '18,72,106', 0.16 * al);
       ctx.restore();
       drawAtoms(items, G.S * sc);
       if (t < 0.5 && !reduced()) {
@@ -1267,65 +1365,49 @@
 
   /* ---------- HUD ---------- */
   // Four small squares: the level map. Drawn, never an emoji.
-  function drawMapPill(b) {
-    UI.drawPill(ctx, '', b.cx, b.cy, { w: b.w });
+  function drawBackIcon(cx, cy) {                 // no back arrow in the shared set: a plain chevron
     ctx.save();
-    ctx.fillStyle = TOK.ink92;
-    for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) rr(b.cx + dx * 4.5 - 3.5, b.cy + dy * 4.5 - 3.5, 7, 7, 2), ctx.fill();
+    ctx.strokeStyle = UI.PILL.text; ctx.lineWidth = 2.2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(cx + 3.5, cy - 6.5); ctx.lineTo(cx - 3.5, cy); ctx.lineTo(cx + 3.5, cy + 6.5); ctx.stroke();
     ctx.restore();
   }
-  function drawSoundPill(b) {
-    UI.drawPill(ctx, '', b.cx, b.cy, { w: b.w });
-    const on = SND.on(), x = b.cx - 6, y = b.cy;
-    ctx.save();
-    ctx.strokeStyle = on ? TOK.ink92 : TOK.tint30;
-    ctx.fillStyle = ctx.strokeStyle; ctx.lineWidth = 1.8; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(x - 4, y - 3); ctx.lineTo(x - 1, y - 3);
-    ctx.lineTo(x + 3, y - 7); ctx.lineTo(x + 3, y + 7); ctx.lineTo(x - 1, y + 3);
-    ctx.lineTo(x - 4, y + 3); ctx.closePath(); ctx.fill();
-    if (on) {
-      ctx.beginPath(); ctx.arc(x + 5, y, 5, -0.9, 0.9); ctx.stroke();
-      ctx.beginPath(); ctx.arc(x + 5, y, 9, -0.8, 0.8); ctx.stroke();
-    } else {
-      ctx.beginPath(); ctx.moveTo(x + 7, y - 5); ctx.lineTo(x + 15, y + 5);
-      ctx.moveTo(x + 15, y - 5); ctx.lineTo(x + 7, y + 5); ctx.stroke();
-    }
-    ctx.restore();
+  function drawCtrlIcon(b) {
+    if (b.id === 'home') drawBackIcon(b.cx, b.cy);
+    else UI.drawIcon(ctx, b.id, b.cx, b.cy, { on: SND.on() });
   }
   function drawHUD() {
-    for (const b of ctrl) {
-      if (b.id === 'map') drawMapPill(b);
-      else if (b.icon) drawSoundPill(b);
-      else UI.drawPill(ctx, b.label, b.cx, b.cy, { w: b.w });
+    const pill = UI.PILL, was = { fill: pill.fill, border: pill.border, text: pill.text, ink92: TOK.ink92, ink72: TOK.ink72, tint30: TOK.tint30 };
+    Object.assign(pill, { fill: 'rgba(255,255,255,0)', border: 'rgba(255,255,255,0.85)', text: '#FFFFFF' });
+    Object.assign(TOK, { ink92: '#FFFFFF', ink72: '#FFFFFF', tint30: 'rgba(255,255,255,0.55)' });
+    try {
+      for (const b of ctrl) {
+        if (b.bare) continue;
+        if (MODE === 'mobile') { UI.drawRound(ctx, b.cx, b.cy); drawCtrlIcon(b); }
+        else if (b.icon) { UI.drawPill(ctx, '', b.cx, b.cy, { w: b.w }); drawCtrlIcon(b); }
+        else UI.drawPill(ctx, b.label, b.cx, b.cy, { w: b.w });
+      }
+    } finally {
+      Object.assign(pill, { fill: was.fill, border: was.border, text: was.text });
+      Object.assign(TOK, { ink92: was.ink92, ink72: was.ink72, tint30: was.tint30 });
     }
+    const y = LH - botBand() / 2, pad = MODE === 'mobile' ? 16 : SIDE_PAD;
+    let txt;
     if (phase === 'map') {
       const all = CHAPTERS.reduce((n, ch) => n + ch.levels().length, 0);
       const done = CHAPTERS.reduce((n, ch, k) => n + Math.min(ch.levels().length, progress(k + 1).done), 0);
-      ctx.save();
-      ctx.font = '600 16px Inter, sans-serif'; ctx.textBaseline = 'middle'; ctx.textAlign = 'right';
-      const text = done + ' of ' + all + ' done', tw = ctx.measureText(text).width;
-      ctx.fillStyle = TOK.ink72; ctx.fillText(text, readoutMaxX, topBand() / 2);
-      readoutBox = { x: readoutMaxX - tw, y: topBand() / 2 - 10, w: tw, h: 20 };
-      ctx.restore();
-      return;
+      txt = done + ' of ' + all + ' done';
+    } else {
+      const lost = scene ? scene.lost() : st.analysis.lost;
+      txt = [CHAPTERS[CHAPTER - 1].short, 'Level ' + (li + 1), lost ? lost + ' lost' : ''].filter(Boolean).join('   ·   ');
     }
-    const lost = scene ? scene.lost() : st.analysis.lost, y = topBand() / 2, rx = readoutMaxX;
-    /* The read-out shares its line with the controls, so it gives up words
-       before it runs into them: the chapter first, then the word Level, and
-       the lost note's longer form before either. The shortest forms are last. */
-    const short = CHAPTERS[CHAPTER - 1].short, n = li + 1;
-    const mains = [...(short ? [short + '  ·  Level ' + n] : []), 'Level ' + n, String(n)];
-    const notes = lost ? [lost + (lost === 1 ? ' molecule lost' : ' molecules lost') + '   ·   ', lost + ' lost  ·  '] : [''];
+    txt = txt.toUpperCase();
     ctx.save();
-    ctx.font = '600 16px Inter, sans-serif'; ctx.textBaseline = 'middle'; ctx.textAlign = 'right';
-    const forms = mains.flatMap((m) => notes.map((note) => [m, note]));
-    if (lost) forms.push(['', lost + ' lost']);          // last of all, the loss matters more than the number
-    const [main, note] = forms.find(([m, t]) => rx - ctx.measureText(m).width - ctx.measureText(t).width >= readoutMinX) || forms[forms.length - 1];
-    ctx.fillStyle = TOK.ink72; ctx.fillText(main, rx, y);
-    if (note) { ctx.fillStyle = TOK.sun; ctx.fillText(note, rx - ctx.measureText(main).width, y); }
-    const rw = ctx.measureText(main).width + ctx.measureText(note).width;
-    readoutBox = { x: rx - rw, y: y - 10, w: rw, h: 20 };
+    ctx.font = '600 16px Inter, sans-serif'; ctx.fillStyle = TOK.ink72; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText(txt, pad, y);
+    readoutBox = { x: pad, y: y - 10, w: ctx.measureText(txt).width, h: 20 };
     ctx.restore();
+    const bare = ctrl.find((b) => b.bare);
+    if (bare) UI.drawIcon(ctx, 'sound', bare.cx, bare.cy, { on: SND.on() });   // bare, in ink; its drawing ends 16 from the edge
   }
 
   /* ---------- CARDS ---------- */
@@ -1402,6 +1484,7 @@
     if (card && clock() >= card.showAt) { if (inBox(p, ctaBox)) press = { id: 'cta' }; return; }
     const b = ctrl.find((c) => inBox(p, tapBox(c)));
     if (b) { press = { id: b.id }; return; }
+    if (phase === 'home') { const r = homeHit(p); if (r) press = { id: 'home-row', chapter: r.sec.chapter }; return; }
     if (phase === 'map') { map.down(p, e); return; }
     if (!playable() || drag) return;
     if (scene) { if (scene.down(p, e)) canvas.style.cursor = 'grabbing'; return; }
@@ -1445,19 +1528,223 @@
     const pr = press;
     press = null;
     if (!pr) return;
+    if (pr.id === 'home-row') {
+      const r = homeHit(p);
+      if (r && r.sec.chapter === pr.chapter) openLevel(pr.chapter, resumeIn(pr.chapter));
+      return;
+    }
     if (pr.id === 'cta') { if (inBox(p, ctaBox)) onCTA(); return; }
     const b = ctrl.find((c) => c.id === pr.id);
     if (!b || !inBox(p, tapBox(b))) return;
     if (b.id === 'sound') SND.toggle();
     else if (b.id === 'restart') restart();
     else if (b.id === 'map') openMap();
+    else if (b.id === 'home') openHome();
   });
   canvas.addEventListener('pointercancel', () => { map.cancel(); if (scene) scene.cancel(); else if (drag) finishDrag(); press = null; });
   canvas.addEventListener('wheel', (e) => { if (phase !== 'map') return; e.preventDefault(); map.wheel(e.deltaY); }, { passive: false });
 
+  /* ---------- THE SECTIONS ----------
+     The screen the game opens on (owner, 2026-09-17): the three parts of the
+     game, each with a picture drawn from the game's own art — atoms closing in,
+     a tube fizzing with what was made, a carbon molecule — the words beside it
+     and a solid button under them. No boxes: it all sits on the paper. Every
+     picture is on the left with the same gap to its words on every row, the
+     same margin left and right, and the same air above, between and below.
+     A desktop steps the rows across the page; a phone has no room to step. */
+  const SECTIONS = [
+    { name: 'Moleculator', sub: 'Take atoms, make molecules.', art: 'atoms', chapter: 1 },
+    { name: 'Reactor', sub: 'Derive the right compounds.', art: 'tube', chapter: 2 },
+    { name: 'Carbon Chamber', sub: 'Let’s go organic!', art: 'organic', chapter: 3 },
+  ];
+  let homeRows = [];
+  // the whole screen grows and shrinks with the window, between three quarters and a third again
+  const homeScale = () => (MODE === 'mobile'
+    ? Math.max(0.8, Math.min(1.15, Math.min(LW / 390, LH / 844)))
+    : Math.max(0.75, Math.min(1.3, Math.min(LW / 760, LH / 600))));
+  // A molecule from the lab's own table, drawn at `unit` px a bond.
+  function drawSpecies(key, cx, cy, unit, th) {
+    const sp = window.ChemLab.SPECIES[key], c = Math.cos(th || 0), sn = Math.sin(th || 0);
+    const pts = sp.atoms.map((a) => ({ el: a.el, x: cx + (a.x * c - a.y * sn) * unit, y: cy + (a.x * sn + a.y * c) * unit }));
+    drawAtoms(pts.map((pt, i) => ({
+      el: pt.el, x: pt.x, y: pt.y, free: [],
+      bonds: sp.bonds.filter((b) => b.a === i || b.b === i).map((b) => {
+        const o = pts[b.a === i ? b.b : b.a];
+        return { ang: Math.atan2(o.y - pt.y, o.x - pt.x), half: Math.hypot(o.x - pt.x, o.y - pt.y) / 2, order: b.order, key: b.a + '-' + b.b };
+      }),
+    })), Math.max(2, unit * 0.305));
+  }
+  function speciesBox(key, unit, th) {
+    const sp = window.ChemLab.SPECIES[key], c = Math.cos(th), sn = Math.sin(th), R = Math.max(2, unit * 0.305);
+    const xs = sp.atoms.map((a) => (a.x * c - a.y * sn) * unit), ys = sp.atoms.map((a) => (a.x * sn + a.y * c) * unit);
+    const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+    return { w: x1 - x0 + R * 2, h: y1 - y0 + R * 2, cx: (x0 + x1) / 2, cy: (y0 + y1) / 2 };
+  }
+  // The tube, in the bench's own hairlines, with liquid to `level` and bubbles in it.
+  function tubeShape(cx, top, w, h, i) {
+    const rad = w / 2, x = cx - rad, bot = top + h;
+    ctx.beginPath();
+    ctx.moveTo(x + i, top + 3); ctx.lineTo(x + i, bot - rad);
+    ctx.arc(cx, bot - rad, rad - i, Math.PI, 0, true);
+    ctx.lineTo(x + w - i, top + 3);
+  }
+  function drawTube(cx, top, w, h, o) {
+    const gap = Math.max(2.5, w * 0.045), x = cx - w / 2;
+    ctx.save();
+    if (o.level != null) {
+      ctx.save(); tubeShape(cx, top, w, h, gap); ctx.closePath(); ctx.clip();
+      const g = ctx.createLinearGradient(0, o.level, 0, top + h);
+      g.addColorStop(0, o.shade[0]); g.addColorStop(1, o.shade[1]);
+      ctx.fillStyle = g; ctx.fillRect(x, o.level, w, h);
+      ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fillRect(x, o.level, w, 1.2);
+      ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1.1;
+      for (const b of o.bubbles || []) { ctx.beginPath(); ctx.arc(cx + b[0], o.level + b[1], b[2], 0, TAU); ctx.stroke(); }
+      ctx.restore();
+    }
+    ctx.strokeStyle = INK.line; ctx.lineWidth = 1.2; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    tubeShape(cx, top, w, h, 0); ctx.stroke();
+    ctx.lineWidth = 1; ctx.strokeStyle = INK.wall; tubeShape(cx, top, w, h, gap); ctx.stroke();
+    ctx.lineWidth = 1.2; ctx.strokeStyle = INK.line;
+    rr(x - 5, top - 3, w + 10, 6, 3); ctx.stroke();
+    ctx.restore();
+  }
+  /* The Reactor's picture: a tube of what the player made, fizzing, with the
+     bubbles popping out of it. Drawn in its own units, centred on (cx, cy). */
+  function drawFizz(cx, cy, k) {
+    const w = 60, h = 136, level = 58, out = 26;           // `out` is the room the loose bubbles need
+    const ink = (a) => 'rgba(28,115,161,' + a + ')';
+    ctx.save();
+    ctx.translate(cx, cy); ctx.scale(k, k); ctx.translate(0, -(h + out) / 2 + out);
+    ctx.lineWidth = 1.2; ctx.lineCap = 'round';
+    for (const b of [[-13, -20, 4.2, 0.72], [4, -11, 3.2, 0.6], [15, -23, 2.4, 0.5], [-3, -32, 2, 0.38]]) {
+      ctx.strokeStyle = ink(b[3]);                         // the ones that got away
+      ctx.beginPath(); ctx.arc(b[0], b[1], b[2], 0, TAU); ctx.stroke();
+    }
+    drawTube(0, 0, w, h, { level, shade: ['#35A06E', '#1E7B50'],
+      bubbles: [[-14, 22, 3.4], [7, 38, 2.6], [17, 16, 3], [-4, 52, 2], [12, 60, 2.4], [-18, 44, 1.8]] });
+    for (const b of [[-9, 34, 3.6, 0.7], [8, 20, 2.8, 0.6], [-16, 12, 2.2, 0.5], [3, 46, 2, 0.42]]) {
+      ctx.strokeStyle = ink(b[3]);                         // rising in the neck, above the liquid
+      ctx.beginPath(); ctx.arc(b[0], level - b[1], b[2], 0, TAU); ctx.stroke();
+    }
+    ctx.restore();
+  }
+  /* The Moleculator's picture: loose atoms closing in on one another, each
+     still its own piece with its hands out, the way they sit in the dish. */
+  function drawCluster(cx, cy, R) {
+    const reach = R * TUNE.hand, span = reach * 2 + R * 0.8;
+    const angs = [-2.02, -0.45, 1.12, 2.69];
+    const items = [{ el: 'C', x: cx, y: cy, bonds: [], free: angs.map((ang) => ({ ang, len: reach })) }];
+    const IN = [{ el: 'O', ang: angs[0], hands: 2 }, { el: 'H', ang: angs[1], hands: 1 },
+                { el: 'H', ang: angs[2], hands: 1 }, { el: 'H', ang: angs[3], hands: 1 }];
+    ctx.save();
+    ctx.strokeStyle = 'rgba(28,115,161,0.34)'; ctx.lineWidth = Math.max(1.2, R * 0.1); ctx.lineCap = 'round';
+    for (const a of IN) {
+      const x = cx + Math.cos(a.ang) * span, y = cy + Math.sin(a.ang) * span;
+      for (const [rad, al] of [[R * 1.55, 0.34], [R * 2.0, 0.2]]) {        // it is moving IN
+        ctx.globalAlpha = al;
+        ctx.beginPath(); ctx.arc(x, y, rad, a.ang - 0.52, a.ang + 0.52); ctx.stroke();
+      }
+      const free = [{ ang: a.ang + Math.PI, len: reach }];
+      if (a.hands > 1) free.push({ ang: a.ang + Math.PI - 2.09, len: reach });
+      items.push({ el: a.el, x, y, bonds: [], free });
+    }
+    ctx.restore();
+    drawAtoms(items, R);
+  }
+  function artPlan(art, phone, k) {
+    if (art === 'atoms') { const R = (phone ? 14 : 15) * k; return { R, w: 9.4 * R, h: 9.4 * R }; }
+    if (art === 'tube') { const s = (phone ? 1.12 : 0.87) * k; return { k: s, w: 70 * s, h: 172 * s }; }
+    // the same marble size as the atoms two rows up, so it does not read as finer work
+    const key = phone ? 'ethene' : 'ethyl-ethanoate', unit = (phone ? 46 : 44) * k, th = phone ? -0.12 : -0.13;
+    const box = speciesBox(key, unit, th);
+    return { key, unit, th, box, w: box.w, h: box.h };
+  }
+  function drawArt(art, plan, cx, cy) {
+    if (art === 'atoms') drawCluster(cx, cy, plan.R);
+    else if (art === 'tube') drawFizz(cx, cy, plan.k);
+    else drawSpecies(plan.key, cx - plan.box.cx, cy - plan.box.cy, plan.unit, plan.th);
+  }
+  function layoutHome() {
+    const phone = MODE === 'mobile', k = homeScale();
+    const PAD = Math.round((phone ? 22 : 45) * k), GAP = Math.round((phone ? 16 : 26) * k);
+    const step = phone ? [0, 0, 0] : [0, 0, Math.round(58 * k)];
+    const subF = Math.max(13, Math.round(15 * k)), lh = Math.round(subF * 1.33);
+    const tallyF = Math.max(11, Math.round(13 * k));
+    const rows = SECTIONS.map((sec, i) => {
+      const plan = artPlan(sec.art, phone, k), room = LW - PAD * 2 - step[i] - plan.w - GAP;
+      let size = Math.max(17, Math.min(34, Math.round((phone ? 25 : 26) * k)));
+      ctx.font = '800 ' + size + 'px Inter, sans-serif';
+      while (size > 15 && ctx.measureText(sec.name).width > room) { size -= 1; ctx.font = '800 ' + size + 'px Inter, sans-serif'; }
+      const p = progress(sec.chapter), n = CHAPTERS[sec.chapter - 1].levels().length;
+      return { sec, plan, room, size, i, gapX: GAP, subF, lh, tallyF, count: n,
+        done: Math.min(n, p.done),
+        started: p.done > 0 || p.at > 0 };      // been in this section before: the button says CONTINUE
+    });
+    const size = Math.min(...rows.map((r) => r.size));       // one heading size down the page
+    for (const r of rows) {
+      ctx.font = '600 ' + subF + 'px Inter, sans-serif';
+      r.subs = wrapLines(r.sec.sub, r.room);
+      const subW = Math.max(...r.subs.map((l) => ctx.measureText(l).width));
+      r.label = r.started ? 'CONTINUE' : 'START';
+      r.tally = r.done + ' of ' + r.count + ' done';
+      r.pillW = UI.pillWidth(ctx, r.label);
+      ctx.font = '600 ' + tallyF + 'px Inter, sans-serif';
+      const buttonW = r.pillW + 14 + ctx.measureText(r.tally).width;
+      ctx.font = '800 ' + size + 'px Inter, sans-serif';
+      r.size = size;
+      r.blockW = Math.max(ctx.measureText(r.sec.name).width, subW, buttonW);
+      r.gapHead = Math.round(6 * k); r.gapButton = Math.max(16, Math.round(30 * k));
+      r.textH = size + r.gapHead + (r.subs.length - 1) * lh + r.gapButton + UI.PILL.h;
+      r.h = Math.max(r.plan.h, r.textH);
+      r.w = r.plan.w + GAP + r.blockW;
+      r.x = phone ? PAD : (r.i === 1 ? Math.max(PAD, LW - PAD - r.w) : PAD + step[r.i]);
+    }
+    // the same air above, between and below
+    const total = rows.reduce((t, r) => t + r.h, 0), space = Math.max(8, (LH - total) / 4);
+    let y = space;
+    for (const r of rows) { r.y = y; y += r.h + space; }
+    homeRows = rows;
+    return rows;
+  }
+  function drawHome() {
+    for (const r of homeRows) {
+      const cy = r.y + r.h / 2, tx = r.x + r.plan.w + r.gapX;
+      drawArt(r.sec.art, r.plan, r.x + r.plan.w / 2, cy);
+      ctx.save();
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      let y = Math.round(cy - r.textH / 2) + r.size / 2;
+      ctx.font = '800 ' + r.size + 'px Inter, sans-serif'; ctx.fillStyle = TOK.white;
+      ctx.fillText(r.sec.name, tx, y);
+      y += r.size / 2 + r.gapHead + r.subF / 2;
+      ctx.font = '600 ' + r.subF + 'px Inter, sans-serif'; ctx.fillStyle = TOK.ink72;
+      r.subs.forEach((l, i) => ctx.fillText(l, tx, y + i * r.lh));
+      y += (r.subs.length - 1) * r.lh + r.gapButton + UI.PILL.h / 2;
+      ctx.restore();
+      const pill = UI.PILL, was = { fill: pill.fill, border: pill.border, text: pill.text };
+      Object.assign(pill, { fill: NOTE.band, border: NOTE.band, text: '#FFFFFF' });   // solid buttons (owner, 2026-09-17)
+      const box = UI.drawPill(ctx, r.label, tx + r.pillW / 2, y, { w: r.pillW });
+      Object.assign(pill, was);
+      r.button = box;
+      ctx.save();
+      ctx.font = '600 ' + r.tallyF + 'px Inter, sans-serif'; ctx.fillStyle = TOK.ink72;
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillText(r.tally, box.x + box.w + 14, y);
+      ctx.restore();
+    }
+  }
+  const homeHit = (p) => homeRows.find((r) => p.x >= r.x - 6 && p.x <= r.x + r.w + 6 && p.y >= r.y - 6 && p.y <= r.y + r.h + 6);
+  function openHome() {
+    if (drag) finishDrag();
+    if (bench) bench.cancel();
+    phase = 'home'; card = null; press = null;
+    layout();
+    canvas.style.cursor = 'default';
+  }
+
   /* ---------- RENDER ---------- */
   function render(now) {
     if (!LW) return;
+    if (phase === 'home') { ctx.clearRect(0, 0, LW, LH); drawWash(); drawHome(); return; }
     if (phase === 'map') { ctx.clearRect(0, 0, LW, LH); drawWash(); map.render(); drawHUD(); return; }
     if (!(st || scene)) return;
     ctx.clearRect(0, 0, LW, LH);
@@ -1499,7 +1786,7 @@
      element) in a straight line, grabs and all. */
   window.__chem = {
     get state() {
-      if (phase === 'map') {
+      if (phase === 'home' || phase === 'map') {
         return { mode: MODE, LW, LH, phase, progress: CHAPTERS.map((ch, k) => Object.assign({ name: ch.name, count: ch.levels().length }, progress(k + 1))) };
       }
       if (scene) {
@@ -1521,18 +1808,25 @@
     },
     geom() {
       render(clock());
-      const ctrlBoxes = ctrl.map((b) => ({ id: b.id, x: b.x, y: b.y, w: b.w, h: b.h }));
+      const ctrlBoxes = ctrl.map((b) => ({ id: b.id, x: b.x, y: b.y, w: b.w, h: b.h, bare: !!b.bare }));
+      if (phase === 'home') {
+        return { mode: MODE, LW, LH, phase, ctrl: ctrlBoxes,
+                 rows: homeRows.map((r) => ({ name: r.sec.name, chapter: r.sec.chapter, x: r.x, y: r.y, w: r.w, h: r.h,
+                   art: { x: r.x, y: r.y + (r.h - r.plan.h) / 2, w: r.plan.w, h: r.plan.h },
+                   text: { x: r.x + r.plan.w + r.gapX, w: r.blockW, h: r.textH }, button: r.button, label: r.label, size: r.size })) };
+      }
       if (phase === 'map') return { mode: MODE, LW, LH, phase, ctrl: ctrlBoxes, readout: readoutBox, cells: map.debug.cells(), view: map.debug.view() };
-      if (scene) return Object.assign({ mode: MODE, LW, LH, ctrl: ctrl.map((b) => ({ id: b.id, x: b.x, y: b.y, w: b.w, h: b.h })), readout: readoutBox, cta: ctaBox, card: cardBox }, scene.debug.geom());
+      if (scene) return Object.assign({ mode: MODE, LW, LH, ctrl: ctrlBoxes, readout: readoutBox, cta: ctaBox, card: cardBox }, scene.debug.geom());
       const atoms = {};
       for (const a of st.atoms) if (inDish(a)) atoms[a.id] = toPx(P.get(a.id));
       return { mode: MODE, LW, LH, dish: { x: G.x, y: G.y, w: G.w, h: G.h, S: G.S, WW: G.WW, WH: G.WH },
                slots: slots.map((s) => ({ el: s.el, x: s.x, y: s.y, w: s.w, h: s.h })), atoms, flaskSlots: flaskSlots(),
-               ctrl: ctrl.map((b) => ({ id: b.id, x: b.x, y: b.y, w: b.w, h: b.h })), readout: readoutBox, panel, flask: flaskArea, cta: ctaBox };
+               ctrl: ctrlBoxes, readout: readoutBox, panel, flask: flaskArea, cta: ctaBox };
     },
     toPage(x, y) { return toPx({ x, y }); },
     goto(n, chapter) { openLevel(chapter || CHAPTER, n - 1); render(clock()); return this.state; },
     map() { openMap(); render(clock()); return this.state; },
+    home() { openHome(); render(clock()); return this.state; },
     scrollMap(v) { map.debug.scrollTo(v); render(clock()); return map.debug.view(); },
     restart() { restart(); render(clock()); return this.state; },
     freeze(ms) { frozen = performance.now() + (ms || 0); render(frozen); return frozen; },
@@ -1584,7 +1878,7 @@
     ctx, TOK, canvas, drawAtoms, rr, label, clock, mulberry,
     SND: { pick: SND.pick, set: SND.set, lift: SND.lift, lost: SND.lost, clasp: (n) => SND.clasp('O', n) },
     size: () => ({ LW, LH, MODE }),
-    topBand, botBand,
+    topBand, botBand, INK, onRule, PITCH: NOTE.pitch, barePaper,
     drift: () => DRIFT && !reduced(),
     reduced: () => reduced(),
     rng: () => rng(),
@@ -1596,7 +1890,7 @@
 
   /* ---------- THE MAP ---------- */
   const map = window.ChemMap({
-    ctx, TOK, rr, washStyle, get pad() { return EDGE(); }, topBand, botBand,
+    ctx, TOK, rr, washStyle, INK, get pad() { return EDGE(); }, topBand, botBand,
     size: () => ({ LW, LH, MODE }),
     chapters: () => CHAPTERS.map((ch, k) => ({
       name: ch.name, count: ch.levels().length, done: Math.min(ch.levels().length, progress(k + 1).done),
@@ -1609,16 +1903,14 @@
      Every re-fit hook is part of the pattern. Timers as well as events, because
      rAF is throttled to nothing in some embedded browsers. */
   setCanvasVars(); resizeCanvas(); fitFullscreen(); resizeCanvas();
-  /* ?chapter and ?level go straight to a level, ?map=1 to the map. Otherwise
-     a visit opens on play, where the player left off (resumeAt): on
-     CrazyGames the map in front of the first level was one more click
-     between a new player and the game, and the map is one tap away in the
-     top band. */
+  /* ?chapter and ?level go straight to a level, ?map=1 to the map. Otherwise a
+     visit opens on the sections screen (owner, 2026-09-17), which is the game's
+     front door: one tap from there is the level the player left off at. */
   setChapter(CHAPTER);
   const jump = parseInt(params.get('level'), 10);
   if (params.get('map') === '1') openMap();
   else if (params.has('chapter') || params.has('level')) openLevel(CHAPTER, jump >= 1 && jump <= LEVELS.length ? jump - 1 : progress(CHAPTER).at);
-  else { const r = resumeAt(); openLevel(r.c, r.i); }
+  else openHome();
   window.addEventListener('resize', onResize);
   window.addEventListener('orientationchange', () => setTimeout(onResize, 100));
   window.addEventListener('splash-done', onResize);

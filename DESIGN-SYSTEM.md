@@ -290,6 +290,12 @@ pieces: Comb's is five comb cells. The rewarded mark is
 > 760 x 600 frame, and shown to the owner on a phone and on desktop before it
 > ships.
 
+> **Litmus, by the owner, 2026-09-17.** A phone held sideways in an embed keeps
+> the landscape arrangement — the window's shape decides the layout there, not
+> the pointer — and the game's own screens (its sections screen and its map)
+> carry a way back where the map button would be: the left button on the map
+> goes home.
+
 **Phone.** Every control is a round icon button, with no label, in one row
 across the top. Order, left to right: **map, Undo, Restart, Hint, Skip, Rules.**
 Omit what a game does not have; never reorder. The sound switch is not in the
@@ -354,6 +360,11 @@ For a game with a tray of pieces:
   a radius of 8) before anything is hidden.
 - **Nothing behind them.** No panel, card or tray fill: they sit on the Portal
   wash.
+  > **Litmus, by the owner, 2026-09-17.** Its four product boxes keep an
+  > outline and a fill: they are the places a reaction's products land, not
+  > pieces waiting to be played, and on a paper page an empty place has to be
+  > visible before anything is in it. The pieces themselves — the marbles —
+  > still sit on the page with nothing behind them.
 - **A piece grows when it is touched.** It lifts at its tray size and grows to
   board size under the finger in 120ms. A touch that does not move puts it back
   quietly, with no refusal shake or sound, because nothing was refused.
@@ -436,6 +447,14 @@ demo**. Stained's does.
 - **No outlines on game pieces.** Stroked borders and cut-lines read cartoonish
   and kill the elegance. Define every edge with **value**: gradients, a light
   band across the top, a shadow underneath.
+  > **Litmus, by the owner, 2026-09-16 and 09-17.** The game is played on a
+  > school notebook page, and its glassware — dish, test tube, target glass,
+  > product boxes, map cells — is drawn in blue ink hairlines, because that is
+  > what a drawing on paper looks like. The rule still holds where it matters:
+  > the pieces, the marbles, keep value-only edges and no outline. A paper page
+  > also changes what contrast costs: eight of the sixteen marbles measured
+  > under 3:1 on it and were deepened in linear light until they cleared the
+  > bar, hue and shading kept (7, and `chemistry/contrast.mjs`).
 - **Glow is a thin bright core with a tight feather.** Never a wide wash.
 - Light comes from **up and slightly left**, matching the Portal wash.
 - **No emoji anywhere.** Flat or outlined SVG and canvas glyphs only. Absolute.

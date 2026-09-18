@@ -38,23 +38,24 @@ try {
              tube: [b.tube.y, b.tube.h], tray: [b.tray.y, b.tray.h], beaker: [b.beaker.y, b.beaker.h] }; })()`);
   fail('site frame', [
     ...(site.LW === 760 && site.LH === 600 ? [] : ['frame ' + site.LW + 'x' + site.LH]),
-    ...(JSON.stringify(site.dish) === JSON.stringify([30, 140, 532, 440, 532 / 36]) ? [] : ['molecules dish ' + site.dish]),
-    ...(JSON.stringify(site.lab) === JSON.stringify([30, 140, 420, 440, 420 / 26]) ? [] : ['lab dish ' + site.lab]),
-    ...(JSON.stringify([site.tube, site.tray, site.beaker]) === '[[162,182],[370,94],[490,90]]' ? [] : ['bench ' + JSON.stringify([site.tube, site.tray, site.beaker])]),
+    ...(JSON.stringify(site.dish) === JSON.stringify([30, 140, 532, 420, 532 / 36]) ? [] : ['molecules dish ' + site.dish]),
+    ...(JSON.stringify(site.lab) === JSON.stringify([30, 140, 420, 420, 420 / 26]) ? [] : ['lab dish ' + site.lab]),
+    // the notebook column: the tube under its line, the boxes and the target glass under theirs, on the dish's floor
+    ...(JSON.stringify([site.tube, site.tray, site.beaker]) === '[[162.8,190.8],[401.8,158.2],[398.8,161.2]]' ? [] : ['bench ' + JSON.stringify([site.tube, site.tray, site.beaker])]),
   ]);
 
   // the site's own full screen
   await p.metrics(1440, 900, 1, false);
   await p.navigate(BASE + '?drift=0&seed=11&chapter=2&level=16', 1200);
   const FULL = `(() => { const s = __chem.state, g = __chem.geom(), r = document.getElementById('game').getBoundingClientRect(), b = document.getElementById('focus-toggle').getBoundingClientRect();
-    return { LW: s.LW, LH: s.LH, box: [r.left, r.top, r.width, r.height].map(Math.round), button: b.left, readoutRight: (g.readout.x + g.readout.w) * r.width / s.LW }; })()`;
+    return { LW: s.LW, LH: s.LH, box: [r.left, r.top, r.width, r.height].map(Math.round), button: b.left, readoutBottom: g.readout.y + g.readout.h }; })()`;
   await p.ev(`document.getElementById('focus-toggle').click()`); await sleep(500);
   const on = await p.ev(FULL);
   await p.ev(`document.getElementById('focus-toggle').click()`); await sleep(500);
   const off = await p.ev(FULL);
   fail('site full screen', [
     ...(on.box.join() === '0,0,1440,900' && on.LW === 1152 && on.LH === 720 ? [] : ['fills ' + on.box + ' at ' + on.LW + 'x' + on.LH]),
-    ...(on.readoutRight <= on.button - 8 ? [] : ['read-out under the exit button (ends ' + on.readoutRight.toFixed(0) + ', button at ' + on.button + ')']),
+    ...(on.readoutBottom >= on.LH - 44 ? [] : ['read-out not on its line at the bottom (' + on.readoutBottom.toFixed(0) + ' of ' + on.LH + ')']),
     ...(off.LW === 760 && off.LH === 600 && off.box[2] === 760 ? [] : ['leaving it gives ' + off.LW + 'x' + off.LH + ' in ' + off.box]),
   ]);
 
@@ -71,10 +72,10 @@ try {
     if (Math.abs(frame.LW / frame.LH - w / h) > 0.01) issues.push('logical shape ' + frame.LW + 'x' + frame.LH + ' is not the window\'s');
     const LW = frame.LW, LH = frame.LH;
     const band = (g) => {
-      const top = Math.min(...g.ctrl.map((b) => b.y)), low = Math.max(...g.ctrl.map((b) => b.y + b.h)), rgt = Math.max(...g.ctrl.map((b) => b.x + b.w));
+      const top = Math.min(...g.ctrl.map((b) => b.y)), low = Math.max(...g.ctrl.map((b) => b.y + b.h));
       const out = [];
       if (top < 0 || low > 56) out.push('controls outside the top band');
-      if (!g.readout || g.readout.x < rgt + 2 || right(g.readout) > LW) out.push('read-out into the controls or off the side');
+      if (!g.readout || g.readout.x < 20 || g.readout.y < LH - 40 || right(g.readout) > LW - 20) out.push('read-out off its line at the bottom left');
       return { out, low };
     };
 
@@ -99,7 +100,7 @@ try {
       if (m.placement.reachable !== m.placement.needed) issues.push(where + 'a needed radical walled in');
       // the smallest logical window, 760x450, draws them at 11.997px: the 12px the phones hold, to rounding
       if (d.S < 11.99) issues.push(where + 'atoms under 12px radius (' + d.S.toFixed(3) + ')');
-      const room = d.WW * d.WH, frameRoom = 36 * (440 / (532 / 36));
+      const room = d.WW * d.WH, frameRoom = 36 * (420 / (532 / 36));
       if (d.S < 21.999 && Math.abs(room / frameRoom - 1) > 0.001) issues.push(where + 'room ' + room.toFixed(0) + ' radii squared, not the frame\'s ' + frameRoom.toFixed(0));
     }
 
@@ -119,14 +120,14 @@ try {
       });
       const col = [g.tube, g.tray, g.beaker];
       if (right(g.dish) > g.tube.x || col.some((r) => right(r) > LW - 20 || r.x < right(g.dish))) issues.push(where + 'dish into the bench column');
-      if (bottom(g.dish) > LH || bottom(g.beaker) > LH - 4) issues.push(where + 'off the bottom');
-      if (bottom(g.tube) > g.tray.y - 18) issues.push(where + 'tube into the shelf heading by ' + (bottom(g.tube) - g.tray.y + 18).toFixed(1));
-      if (bottom(g.tray) > g.beaker.y) issues.push(where + 'shelf into the petri dish');
-      if (g.hints.tube.y < g.targetsArea.y + g.targetsArea.h - 2) issues.push(where + 'tube words into the target row');
-      if (bottom(g.hints.tube) > g.tube.y + 2) issues.push(where + 'tube words into the tube');
-      if (g.hints.dish.y < bottom(g.petri)) issues.push(where + 'dish words into the petri dish');
-      if (bottom(g.hints.dish) > LH - 4) issues.push(where + 'dish words off the bottom');
-      for (const box of Object.values(g.hints)) if (box.x < g.tube.x - 8 || right(box) > LW - 8 || g.traySlots.some((r) => meets(box, r))) issues.push(where + 'bench words out of place');
+      if (bottom(g.dish) > LH - 40 || bottom(g.beaker) > LH - 40) issues.push(where + 'into the read-out line');
+      if (bottom(g.tube) > g.words.dish.y - 4) issues.push(where + 'tube into the words below it by ' + (bottom(g.tube) - g.words.dish.y + 4).toFixed(1));
+      if (right(g.tray) > g.beaker.x) issues.push(where + 'product boxes into the target glass');
+      if (g.words.tube.y < g.targetsArea.y + g.targetsArea.h - 2) issues.push(where + 'tube words into the target row');
+      if (bottom(g.words.tube) > g.glass.y + 4) issues.push(where + 'tube words into the tube');
+      if (bottom(g.words.dish) > g.petri.y + 6) issues.push(where + 'dish words into the target glass');
+      if (bottom(g.words.tray) > g.tray.y + 4) issues.push(where + 'product words into the boxes');
+      for (const box of Object.values(g.words)) if (box.x < g.dish.x || right(box) > LW - 8 || g.traySlots.some((r) => meets(box, r))) issues.push(where + 'bench words out of place');
       if (Object.values(g.pieces).some((q) => q.x < g.dish.x || q.x > right(g.dish) || q.y < g.dish.y || q.y > bottom(g.dish))) issues.push(where + 'a molecule outside the dish');
       if (g.marble < 7) issues.push(where + 'marbles under 7px (' + g.marble.toFixed(1) + ')');
       if (c === 2 && n === 16) {
