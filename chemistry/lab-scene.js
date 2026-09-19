@@ -122,18 +122,18 @@
         D.x = 14; D.w = LW - 28; D.y = top + flaskH + gap;
         D.h = Math.max(120, benchTop - 14 - D.y);
         tube = { x: m, y: benchTop, w: Math.round(LW * 0.26), h: benchH };
-        const gx = tube.x + tube.w + BENCH.colGap;
-
+        // the troughs keep the owner's proportions: about a fifth of the screen wide, well apart
+        const cw = Math.round(LW * 0.222), cgap = Math.round(LW * 0.067), gw = cw * 2 + cgap;
         const gh = Math.min(benchH - BENCH.head, 2 * 82 + BENCH.cellGap);
-        tray = { x: gx, y: floor - gh, w: LW - m - gx, h: gh };
+        tray = { x: Math.max(tube.x + tube.w + BENCH.colGap, LW - m - 14 - gw), y: floor - gh, w: gw, h: gh, gap: cgap };
         wordBase = { tray: shelfTop() - 10 };
         D.S = Math.min(L.maxScale, D.w / L.worldW.mobile);
       } else {
         targetsArea = { x: 30, y: 58, w: LW - 60, h: 74 };
         D.x = 30; D.y = 140; D.w = LW - 60 - 18 - 280; D.h = LH - host.botBand() - 140;
         const cx = D.x + D.w + 18, cw = LW - 30 - cx, floor = D.y + D.h, colTop = D.y + 22;
-        tube = { x: cx, y: colTop, w: 104, h: floor - colTop };
-        const gx = cx + tube.w + BENCH.colGap, gw = cw - (gx - cx);
+        tube = { x: cx, y: colTop, w: 92, h: floor - colTop };
+        const gx = cx + tube.w + 14, gw = cw - (gx - cx);
         // the shelves stand on the dish's floor; they take what two rows need, and no more
         const gridH = Math.min(floor - colTop - BENCH.head, 2 * 104 + BENCH.cellGap);
         tray = { x: gx, y: floor - gridH, w: gw, h: gridH };
@@ -224,14 +224,16 @@
       const e = X.SPECIES[key].extent;
       return Math.max(3, Math.min(unitPx(), Math.min(w, h) / (2 * e + 1.4)));
     }
-    function formulaChip(text, x, y, alpha, size) {
+    function formulaChip(text, x, y, alpha, size, bare) {
       ctx.save();
       ctx.globalAlpha = alpha == null ? 1 : alpha;
       const fs = size || 13;
       ctx.font = '700 ' + fs + 'px Inter, sans-serif';
-      const w = Math.round(ctx.measureText(text).width + 14), h = fs + 9;
-      ctx.fillStyle = '#E7EFF4';
-      rr(Math.round(x - w / 2), Math.round(y - h / 2), w, h, h / 2); ctx.fill();
+      if (!bare) {                                   // under a trough the formula is written on the paper itself
+        const w = Math.round(ctx.measureText(text).width + 14), h = fs + 9;
+        ctx.fillStyle = '#E7EFF4';
+        rr(Math.round(x - w / 2), Math.round(y - h / 2), w, h, h / 2); ctx.fill();
+      }
       ctx.fillStyle = '#0E3F5C'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(text, x, y + 1);
       ctx.restore();
@@ -344,10 +346,9 @@
       ctx.arc(cx + wb * 0.95, cy - wb * 0.3, ra, 0, TAU, true);
       ctx.fill('evenodd');
       ctx.restore();
-      // the glass: its outer face and its inner, and the rim across the mouth
+      // the glass: its outer face and its inner, open at the mouth (owner's drawing, 2026-09-19: no lip)
       hair(1); tubeLine(g, 0); ctx.stroke();
       hair(1); tubeLine(g, gap); ctx.stroke();
-      hair(1); rr(g.x - 5, g.y - 3, g.w + 10, 6, 3); ctx.stroke();
       ctx.restore();
       if (active) {
         react.used.forEach((key, k) => {
@@ -374,9 +375,12 @@
     }
     const shelfBox = (r) => ({ x: r.x, y: r.y, w: r.w, h: r.h - BENCH.label });   // a shelf's room, above its label
     // what is actually drawn: the bracket's own arms and floor, which is what anything else must keep clear of
-    const shelfDrawn = (r) => { const b = shelfBox(r); return { x: b.x, y: b.y + b.h * 0.58, w: b.w, h: b.h * 0.42 }; };
+    const shelfDrawn = (r) => { const b = shelfBox(r), d = troughDepth(b); return { x: b.x, y: b.y + b.h - d, w: b.w, h: d }; };
+    /* A trough, as the owner drew it: short straight sides, a flat floor and
+       small corners, about a third as deep as it is wide. */
+    const troughDepth = (b) => Math.min(b.h * 0.42, b.w * 0.3);
     function bracketPath(r) {
-      const b = shelfBox(r), rad = Math.min(16, b.h * 0.42), top = b.y + b.h * 0.58;   // shallow, as the owner drew them
+      const b = shelfBox(r), d = troughDepth(b), rad = Math.min(11, d * 0.6), top = b.y + b.h - d;
       ctx.beginPath();
       ctx.moveTo(b.x, top);
       ctx.lineTo(b.x, b.y + b.h - rad);
@@ -391,14 +395,13 @@
       for (let k = 0; k < TRAY_SLOTS; k++) { bracketPath(traySlotRect(k)); ctx.stroke(); }
       ctx.restore();
       const appear = react ? clamp01((now - react.t0 - L.productsAt) / 250) : 1;
+      /* A molecule stands IN its trough with nothing behind it: the paper is
+         the background (owner, 2026-09-19). Its formula goes under the floor. */
       const stand = (key, r, alpha) => {
-        const b = shelfBox(r), cc = { x: b.x + b.w / 2, y: b.y + b.h * 0.56 };
-        ctx.save();
-        ctx.globalAlpha = alpha; ctx.fillStyle = TOK.tint03;
-        rr(b.x + 3, b.y + b.h * 0.3, b.w - 6, b.h * 0.7 - 3, 10); ctx.fill();
-        ctx.restore();
-        drawMolecule(key, cc.x, cc.y, fit(key, b.w - 12, b.h * 0.62), 0, alpha);
-        formulaChip(X.SPECIES[key].formula, cc.x, r.y + r.h - 6, alpha, 12);
+        const b = shelfBox(r), d = troughDepth(b);
+        const cc = { x: b.x + b.w / 2, y: b.y + b.h - d + d * 0.3 };   // standing in the trough's mouth
+        drawMolecule(key, cc.x, cc.y, fit(key, b.w - 10, b.h), 0, alpha);
+        formulaChip(X.SPECIES[key].formula, cc.x, r.y + r.h - 5, alpha, 12, true);
       };
       if (react && now - react.t0 < 300) {
         const fade = 1 - (now - react.t0) / 300;
