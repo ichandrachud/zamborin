@@ -155,18 +155,18 @@
     C:  { hi: '#838C9D', lo: '#343B48', arm: '#9FA8B8', ink: '#FFFFFF' },
     F:  { hi: '#A6CBCC', lo: '#31777C', arm: '#B1CCCC', ink: '#10363A' },
     Cl: { hi: '#ADCD7A', lo: '#42761E', arm: '#B7D095', ink: '#17330B' },
-    Na: { hi: '#AF91D9', lo: '#4C2B89', arm: '#C0B2DB', ink: '#FFFFFF' },
+    Na: { hi: '#A78ACF', lo: '#482882', arm: '#B7A9D1', ink: '#FFFFFF' },
     K:  { hi: '#F0A9D2', lo: '#82255F', arm: '#F5C9E6', ink: '#FFFFFF' },
     Mg: { hi: '#F2D27C', lo: '#8C6A1C', arm: '#F5DFA3', ink: '#3A2A06' },
-    Ca: { hi: '#E1D4B7', lo: '#967C52', arm: '#E3DAC5', ink: '#3A2C12' },
+    Ca: { hi: '#D6CAAE', lo: '#8E764E', arm: '#D8CFBB', ink: '#3A2C12' },
     Al: { hi: '#C3C8DD', lo: '#555C7A', arm: '#D2D6E6', ink: '#1E2233' },
-    Fe: { hi: '#D79E71', lo: '#704021', arm: '#DFB99A', ink: '#FFFFFF' },
+    Fe: { hi: '#CF986D', lo: '#6C3D1F', arm: '#D7B294', ink: '#FFFFFF' },
     S:  { hi: '#BAA952', lo: '#765F0B', arm: '#BBB079', ink: '#3A2E00' },
     Br: { hi: '#E0785A', lo: '#6E2414', arm: '#EBA48C', ink: '#FFFFFF' },
     Zn: { hi: '#ABBDCD', lo: '#3B566B', arm: '#C2CFDA', ink: '#FFFFFF' },
     Cu: { hi: '#F0A878', lo: '#8A3B12', arm: '#F5C6A6', ink: '#FFFFFF' },
     knot: '#FFF6DC',
-    palmGreen: '#5DD39E', palmAmber: '#F0B23C', palmOpen: '#FFFFFF',
+    palmGreen: '#17744A', palmAmber: '#8F5400', palmOpen: '#12486A',   // 5.3, 5.6 and 8.8:1 on the paper
     glassTop: '#0C1424', glassBot: '#0A1120',
     veil: 'rgba(14,23,38,0.55)', wasteKnot: '#7A8290', wasteArm: '#5A6272',
   };
@@ -190,7 +190,7 @@
      Distances are in atom radii, so the dish plays the same at any size. */
   const TUNE = {
     bond: 2.8,        // between two bonded centres
-    hand: 1.55,       // a free hand's reach from its atom's centre
+    hand: 1.8,        // a free hand's reach from its atom's centre (1.55 until the owner asked for longer hands, 2026-09-19)
     capture: 3.0,     // centres this close and two free hands grab
     warn: 5.0,        // centres this close and the hands start reaching
     /* Charged radicals drift no closer to each other than this. Tightened from
@@ -928,12 +928,14 @@
     ctx.globalAlpha = 1; ctx.fillStyle = g;
     ctx.beginPath(); ctx.arc(x, y, r1, 0, TAU); ctx.fill();
   }
-  /* THE PALM. At rest every free hand ends in the same white palm, so nothing
-     but the symbol says which radical is the one you need (the owner's call,
-     2026-09-14: the search is the game). Only when a carried atom comes within
-     reach does a palm turn green, if that grab would help, or amber with a bar
-     across it, if it would lose a molecule. The bar is the channel that does
-     not depend on seeing colour. */
+  /* THE PALM. At rest every free hand ends in the same palm, so nothing but
+     the symbol says which radical is the one you need (the owner's call,
+     2026-09-14: the search is the game). On the paper page it is the navy of
+     the knot two hands make when they clasp, because white could not be seen
+     there (owner, 2026-09-19). Only when a carried atom comes within reach
+     does a palm turn green and grow, if that grab would help, or amber with a
+     bar across it, if it would lose a molecule. Size and the bar are the
+     channels that do not depend on seeing colour. */
   function drawPalm(x, y, r, state, k, al) {
     if (state === 'open') {
       ctx.globalAlpha = al; ctx.fillStyle = ART.palmOpen;
@@ -941,6 +943,7 @@
       return;
     }
     const amber = state === 'amber' ? (k == null ? 1 : k) : 0;
+    r *= 1 + 0.3 * (1 - amber);                      // a helpful grab stands out by size as well as colour
     if (amber < 1) feather(x, y, r, r * 2.4, '23,116,74', 0.40 * al * (1 - amber));
     ctx.globalAlpha = al;
     ctx.fillStyle = amber ? mix(ART.palmGreen, ART.palmAmber, amber) : ART.palmGreen;
@@ -1094,7 +1097,7 @@
           used.add(pick);
           const h = item.free[pick];
           h.ang = lerpAng(h.ang, want, clamp01(t.k * 3));
-          const reach = Math.max(TUNE.hand, (t.d / 2) * 0.97);
+          const reach = (t.d / 2) * 0.97;
           const quiver = reduced() ? 1 : 1 + 0.05 * Math.sin(now / 70 + a.id * 1.3) * t.k;
           h.len = G.S * (TUNE.hand + (reach - TUNE.hand) * t.k) * quiver;
           h.glow = { rgb: t.bad ? '143,84,0' : '23,116,74', a: 0.18 + 0.42 * t.k, bad: t.bad };
@@ -1652,7 +1655,7 @@
     drawAtoms(items, R);
   }
   function artPlan(art, phone, k) {
-    if (art === 'atoms') { const R = (phone ? 14 : 15) * k; return { R, w: 9.4 * R, h: 9.4 * R }; }
+    if (art === 'atoms') { const R = (phone ? 14 : 15) * k, side = 2 * (0.9 * (2 * TUNE.hand + 0.8) + 1.1) * R; return { R, w: side, h: side }; }
     if (art === 'tube') { const s = (phone ? 1.12 : 0.87) * k; return { k: s, w: 70 * s, h: 172 * s }; }
     // the same marble size as the atoms two rows up, so it does not read as finer work
     const key = phone ? 'ethene' : 'ethyl-ethanoate', unit = (phone ? 46 : 44) * k, th = phone ? -0.12 : -0.13;

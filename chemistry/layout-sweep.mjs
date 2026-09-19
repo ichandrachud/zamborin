@@ -113,9 +113,13 @@ try {
         if (bottom(box) > h - 2) issues.push(name + ' words off the bottom');
       }
       if (meets(g.words.tube, g.words.tray) || meets(g.words.tray, g.words.dish)) issues.push('the bench words run into each other');
-      if (bottom(g.words.tube) > g.glass.y + 4) issues.push('tube words into the tube');
-      if (bottom(g.words.dish) > g.petri.y + 6) issues.push('dish words into the target glass');
-      if (bottom(g.words.tray) > g.tray.y + 4) issues.push('product words into the boxes');
+      /* Against the RIMS, with clear paper between. This used to compare the
+         words with the top of the glass under the rim, with slack, and passed
+         words that sat on the rim itself on a real phone (owner, 2026-09-19). */
+      const clear = 5, rimTube = g.glass.y - 3, rimGlass = g.petri.y;
+      if (bottom(g.words.tube) + clear > rimTube) issues.push('tube words on its rim by ' + (bottom(g.words.tube) + clear - rimTube).toFixed(1));
+      if (bottom(g.words.dish) + clear > rimGlass) issues.push('dish words on the target glass by ' + (bottom(g.words.dish) + clear - rimGlass).toFixed(1));
+      if (bottom(g.words.tray) + clear > g.tray.y) issues.push('product words on the boxes by ' + (bottom(g.words.tray) + clear - g.tray.y).toFixed(1));
       // the reaction card, for the reactions with the most to say and one with three products: all on screen, words clear of the button
       for (const [a, b] of [['hydrochloric-acid', 'calcium-hydroxide'], ['ammonium-nitrate', 'sodium-hydroxide'], ['calcium-oxide', 'water']]) {
         const rc = await p.ev(`(() => { __chem.lab.showCard('${a}', '${b}'); const r = __chem.geom().reactionCard; __chem.lab.closeCard(); return r; })()`);

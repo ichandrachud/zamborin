@@ -106,19 +106,27 @@
       ({ LW, LH, MODE } = host.size());
       const oldW = D.WW, oldH = D.WH;
       if (MODE === 'mobile') {
+        /* From the bottom up (owner, 2026-09-19: the words were crashing into
+           the glass on a real phone): the tube, the boxes and the glass keep
+           their height above the read-out line; the words sit on the rule
+           WORD_GAP above their tops, and the tops come up to meet them; the
+           dish takes what is left. */
         const top = host.topBand(), short = LH < 700;
-        const flaskH = short ? 92 : 108, benchH = short ? 150 : 196, gap = short ? 8 : 12;
-        const benchY = LH - host.botBand() - benchH, base = onRule(benchY + 38), floor = LH - host.botBand() - 4;
+        const flaskH = short ? 92 : 108, gap = short ? 8 : 12, boxH = short ? 106 : 150;
+        const floor = LH - host.botBand() - 4;
+        let base = onRule(floor - boxH - WORD_GAP);
+        if (base > floor - boxH - WORD_GAP) base -= PITCH;
+        const boxTop = base + WORD_GAP;
         wordBase = { tube: base, low: base };
         targetsArea = { x: 14, y: top, w: LW - 28, h: flaskH };
         D.x = 14; D.w = LW - 28; D.y = top + flaskH + gap;
-        D.h = Math.max(120, base - 8 - D.y);              // trimmed below, once the words are measured
         const m = Math.max(12, Math.round(LW * 0.064)), tw = Math.round(LW * 0.195), bw = Math.round(LW * 0.18);
-        tube = { x: m, y: base - 4, w: tw, h: floor - (base - 4) };
-        tray = { x: m + tw + 13, y: base + 4, w: LW - m - bw - 16 - (m + tw + 13), h: floor - (base + 4) };
-        beaker = { x: LW - m - bw, y: base - 4, w: bw, h: floor - (base - 4) };
+        // a glass's rim is drawn 5 below the top of its box, so those boxes start 5 higher than the product boxes
+        tube = { x: m, y: boxTop - 5, w: tw, h: floor - (boxTop - 5) };
+        tray = { x: m + tw + 13, y: boxTop, w: LW - m - bw - 16 - (m + tw + 13), h: floor - boxTop };
+        beaker = { x: LW - m - bw, y: boxTop - 5, w: bw, h: floor - (boxTop - 5) };
         const lines = Math.max(...Object.values(wordPlan()).map((w) => w.lines.length));
-        D.h = Math.max(120, base - (lines - 1) * HINT_LH - WORD_SIZE - 8 - D.y);
+        D.h = Math.max(120, base - (lines - 1) * WORD_LH - WORD_SIZE - 10 - D.y);
         D.S = Math.min(L.maxScale, D.w / L.worldW.mobile);
       } else {
         targetsArea = { x: 30, y: 58, w: LW - 60, h: 74 };
@@ -129,9 +137,9 @@
         const low = onRule(floor - lowH - 10), tubeTop = onRule(D.y + 18);
         wordBase = { tube: tubeTop, low };
         const trayW = Math.round(cw * 0.58), glassW = Math.round(cw * 0.32);
-        tube = { x: cx, y: tubeTop + 5, w: cw, h: Math.max(60, (low - HINT_LH - 20) - (tubeTop + 5)) };
-        tray = { x: cx, y: low + 10, w: trayW, h: floor - (low + 10) };
-        beaker = { x: cx + cw - glassW - 5, y: low + 7, w: glassW, h: floor - (low + 7) };
+        tube = { x: cx, y: tubeTop + 5, w: cw, h: Math.max(60, (low - WORD_LH - WORD_SIZE - 10) - (tubeTop + 5)) };
+        tray = { x: cx, y: low + WORD_GAP, w: trayW, h: floor - (low + WORD_GAP) };
+        beaker = { x: cx + cw - glassW - 5, y: low + WORD_GAP, w: glassW, h: floor - (low + WORD_GAP) };
         // the frame's own scale times the change in shape: exactly 420/26 in the 760x600 frame
         const shape = (D.h / D.w) / (FRAME_DISH.h / FRAME_DISH.w);
         D.S = Math.min(L.maxScale, (D.w / L.worldW.desktop) * Math.sqrt(shape));
@@ -284,7 +292,6 @@
     function tubeGlass() {
       // a desktop tube in a short window keeps the frame's 78 by 170 shape, so it stays a tube and not a cup
       const gw = MODE === 'mobile' ? Math.min(60, tube.w - 16) : Math.min(78, tube.w - 16, Math.round((tube.h - 12) * 78 / 170));
-      void 0;
       return { x: tube.x + (tube.w - gw) / 2, y: tube.y + 8, w: gw, h: tube.h - 12 };
     }
     function tubeSlot(k) {
@@ -410,7 +417,6 @@
        `beaker`, in the code. */
     function drawBeaker(now) {
       const { x, top, dw, dh, bottom } = dishGeom(), gap = 3, r = Math.min(10, dh * 0.4);
-      void 0;
       const inBeaker = st.pieces.filter((p) => p.zone === 'beaker');
       const total = st.targets.reduce((n, t) => n + t.n, 0), last = dropped[dropped.length - 1];
       const landing = last && inBeaker.some((p) => p.id === last.id) ? 1 - easeOut(clamp01((now - last.t0) / L.dropMs)) : 0;
@@ -555,13 +561,15 @@
        The owner, 2026-09-15 and 2026-09-17: no names over the glassware; short
        lines instead, telling the player what each thing is for, centred over it
        and sitting on the page's rules. */
-    const HINT_LH = Math.round(PITCH * 0.7 * 10) / 10;      // the owner cut the wrapped leading by 30%
+    /* Bold and in the page's darkest ink, so they read as instructions and not
+       as captions; the lines of one label close together; and a clear gap
+       above whatever they name (owner, 2026-09-19). */
+    const WORD_SIZE = 14, WORD_LH = 16, WORD_GAP = 10, WORD_FONT = '700 14px Inter, sans-serif';
     /* THE BENCH'S WORDS (owner, 2026-09-17): three short lines in the page's
        own hand, centred over what they name, their last line ON a rule and the
        line above it at seven tenths of the pitch — the leading the owner set. */
-    const WORD_SIZE = 13;
     function wrapBench(text, maxW) {
-      ctx.save(); ctx.font = '600 ' + WORD_SIZE + 'px Inter, sans-serif';
+      ctx.save(); ctx.font = WORD_FONT;
       const lines = [];
       let line = '';
       for (const w of text.split(' ')) {
@@ -576,16 +584,17 @@
        owner set them; on a phone, or in any window too narrow for that, they
        break to fit the column they stand over. */
     const WORDS = {
-      tube: (avail) => wrapBench('Place reactants here', MODE === 'mobile' ? avail : Math.min(avail, 200)),
+      // over the tube on a phone, in two lines, so it never runs on into the word over the boxes
+      tube: (avail) => wrapBench('Place reactants here', Math.min(avail, MODE === 'mobile' ? 118 : 200)),
       tray: () => ['Products'],
-      dish: (avail) => wrapBench('Place target molecules here', Math.min(avail, 104)),
+      dish: (avail) => wrapBench('Place target molecules here', Math.min(avail, 120)),
     };
     function wordBox(lines, cx, base, lo, hi) {
-      ctx.save(); ctx.font = '600 ' + WORD_SIZE + 'px Inter, sans-serif';
+      ctx.save(); ctx.font = WORD_FONT;
       const widest = Math.max(...lines.map((l) => ctx.measureText(l).width));
       ctx.restore();
       const x = Math.max(lo + widest / 2, Math.min(hi - widest / 2, cx));
-      const top = base - (lines.length - 1) * HINT_LH - WORD_SIZE * 0.8;
+      const top = base - (lines.length - 1) * WORD_LH - WORD_SIZE * 0.8;
       return { lines, x, base, box: { x: x - widest / 2, y: top, w: widest, h: base + 3 - top, lines: lines.slice() } };
     }
     /* Where the three sets of words go. On a phone the tube, the boxes and the
@@ -593,10 +602,13 @@
        the tube is above the other two and may lean over the column's edges. */
     function wordPlan() {
       const phone = MODE === 'mobile';
+      ctx.save(); ctx.font = WORD_FONT;
+      const mid = tray.x + tray.w / 2, half = ctx.measureText(WORDS.tray()[0]).width / 2 + 12;
+      ctx.restore();
       const bounds = {
-        tube: [phone ? 8 : tube.x - 24, phone ? tray.x - 6 : tube.x + tube.w + 24],
+        tube: [phone ? 8 : tube.x - 24, phone ? mid - half : tube.x + tube.w + 24],
         tray: [tray.x - 40, tray.x + tray.w + 40],
-        dish: [phone ? tray.x + tray.w + 6 : beaker.x - 55, phone ? LW - 8 : Math.min(LW - 8, beaker.x + beaker.w + 55)],
+        dish: [phone ? mid + half : beaker.x - 55, phone ? LW - 8 : Math.min(LW - 8, beaker.x + beaker.w + 55)],
       };
       const at = { tube: tube.x + tube.w / 2, tray: tray.x + tray.w / 2, dish: beaker.x + beaker.w / 2 };
       const base = { tube: wordBase.tube, tray: wordBase.low, dish: wordBase.low };
@@ -609,9 +621,9 @@
     }
     function drawWords(w) {
       ctx.save();
-      ctx.font = '600 ' + WORD_SIZE + 'px Inter, sans-serif'; ctx.fillStyle = TOK.ink72;
+      ctx.font = WORD_FONT; ctx.fillStyle = TOK.ink90;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      w.lines.forEach((l, i) => ctx.fillText(l, w.x, w.base - (w.lines.length - 1 - i) * HINT_LH - WORD_SIZE * 0.3013));
+      w.lines.forEach((l, i) => ctx.fillText(l, w.x, w.base - (w.lines.length - 1 - i) * WORD_LH - WORD_SIZE * 0.3013));
       ctx.restore();
     }
     // The glass the target molecules go in: a tall one, standing on the dish's floor.

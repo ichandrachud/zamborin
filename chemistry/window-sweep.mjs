@@ -40,8 +40,8 @@ try {
     ...(site.LW === 760 && site.LH === 600 ? [] : ['frame ' + site.LW + 'x' + site.LH]),
     ...(JSON.stringify(site.dish) === JSON.stringify([30, 140, 532, 420, 532 / 36]) ? [] : ['molecules dish ' + site.dish]),
     ...(JSON.stringify(site.lab) === JSON.stringify([30, 140, 420, 420, 420 / 26]) ? [] : ['lab dish ' + site.lab]),
-    // the notebook column: the tube under its line, the boxes and the target glass under theirs, on the dish's floor
-    ...(JSON.stringify([site.tube, site.tray, site.beaker]) === '[[162.8,190.8],[401.8,158.2],[398.8,161.2]]' ? [] : ['bench ' + JSON.stringify([site.tube, site.tray, site.beaker])]),
+    // the notebook column: the tube under its line, the boxes and the target glass under theirs, every rim 10 below its words, on the dish's floor
+    ...(JSON.stringify([site.tube, site.tray, site.beaker]) === '[[162.8,189],[401.8,158.2],[401.8,158.2]]' ? [] : ['bench ' + JSON.stringify([site.tube, site.tray, site.beaker])]),
   ]);
 
   // the site's own full screen
@@ -124,9 +124,10 @@ try {
       if (bottom(g.tube) > g.words.dish.y - 4) issues.push(where + 'tube into the words below it by ' + (bottom(g.tube) - g.words.dish.y + 4).toFixed(1));
       if (right(g.tray) > g.beaker.x) issues.push(where + 'product boxes into the target glass');
       if (g.words.tube.y < g.targetsArea.y + g.targetsArea.h - 2) issues.push(where + 'tube words into the target row');
-      if (bottom(g.words.tube) > g.glass.y + 4) issues.push(where + 'tube words into the tube');
-      if (bottom(g.words.dish) > g.petri.y + 6) issues.push(where + 'dish words into the target glass');
-      if (bottom(g.words.tray) > g.tray.y + 4) issues.push(where + 'product words into the boxes');
+      // against the rims, with clear paper between (see layout-sweep)
+      if (bottom(g.words.tube) + 5 > g.glass.y - 3) issues.push(where + 'tube words on its rim');
+      if (bottom(g.words.dish) + 5 > g.petri.y) issues.push(where + 'dish words on the target glass');
+      if (bottom(g.words.tray) + 5 > g.tray.y) issues.push(where + 'product words on the boxes');
       for (const box of Object.values(g.words)) if (box.x < g.dish.x || right(box) > LW - 8 || g.traySlots.some((r) => meets(box, r))) issues.push(where + 'bench words out of place');
       if (Object.values(g.pieces).some((q) => q.x < g.dish.x || q.x > right(g.dish) || q.y < g.dish.y || q.y > bottom(g.dish))) issues.push(where + 'a molecule outside the dish');
       if (g.marble < 7) issues.push(where + 'marbles under 7px (' + g.marble.toFixed(1) + ')');

@@ -69,6 +69,25 @@ try {
     if (!pass) failed++;
     console.log(`${el}: body on the bench glass ${r ? r.body : 'never drawn'}:1 ${pass ? 'ok' : 'UNDER 3:1'}`);
   }
+  /* The palms: the dot at the end of every free hand, which was white and
+     vanished on the paper page (owner, 2026-09-19). On the ring a palm sits
+     on, the darkest pixel is the palm; the paper is the lightest pixel further
+     out. Every free atom on a crowded molecules level. */
+  const palms = await p.ev(`(() => { ${LIB}
+    __chem.goto(22, 1); __chem.freeze(0); __chem.advance(200);
+    const g = __chem.geom(), s = __chem.state, S = g.dish.S, reach = 1.8, out = [];
+    for (const a of s.atoms.filter((q) => q.free > 0)) {
+      const c = g.atoms[a.id]; if (!c) continue;
+      let dark = null, ground = null;
+      for (let t = 0; t < 180; t++) { const q = px(c.x + Math.cos(t / 180 * 6.2832) * reach * S, c.y + Math.sin(t / 180 * 6.2832) * reach * S); if (!dark || lum(q) < lum(dark)) dark = q; }
+      for (let t = 0; t < 24; t++) { const q = px(c.x + Math.cos(t / 24 * 6.2832) * 3.2 * S, c.y + Math.sin(t / 24 * 6.2832) * 3.2 * S); if (!ground || lum(q) > lum(ground)) ground = q; }
+      out.push([a.el, +ratio(dark, ground).toFixed(2)]);
+    }
+    return out; })()`);
+  const worst = palms.reduce((m, q) => (q[1] < m[1] ? q : m), ['none', 99]);
+  const palmsOk = palms.length > 0 && worst[1] >= 3;
+  if (!palmsOk) failed++;
+  console.log(`palms: ${palms.length} measured, lowest ${worst[0]} ${worst[1]}:1 ${palmsOk ? 'ok' : 'UNDER 3:1'}`);
   if (p.errors.length) { failed++; console.log('console errors: ' + p.errors.join(' | ')); }
 } finally { p.close(); }
 console.log(failed ? `FAILED  ${failed}` : 'ok');
