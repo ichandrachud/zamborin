@@ -882,6 +882,10 @@ function toTube(s, id) {
         s.pieces.push(np);
         ev.products.push(np.id);
       });
+      /* Anything the list still wants counts the moment it is made (owner,
+         2026-09-19). There is no glass to carry it to any more: it lands on
+         the shelf, is counted, and flies up to the list. */
+      ev.collected = ev.products.filter((pid) => deliver(s, pid).ok);
     } else {
       ev.noReaction = true;
     }

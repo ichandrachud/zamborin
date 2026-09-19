@@ -253,7 +253,7 @@ for (const sp of Object.values(X.SPECIES)) {
   const ev2 = X.toTube(s, h2);
   eq(ev2.reaction.products, ['calcium-chloride', 'water'], 'a second hydrochloric acid finishes it');
   eq(ev2.poured.length, 1, 'the water left on the tray is poured away at the next reaction');
-  eq(X.deliver(s, ev2.products[0]).ok, true, 'calcium chloride goes into the beaker');
+  eq([ev2.collected.length, s.made['calcium-chloride'] || 0], [1, 1], 'calcium chloride is counted where it lands, with nothing to carry');
   eq(s.result, { kind: 'win' }, 'and the level is won');
 }
 {

@@ -255,7 +255,8 @@ RUNGS.forEach((row, i) => {
 /* ---------- CHAPTER 2: REACTIONS ----------
    The dish holds whole molecules; the tube reacts two at a time (lab.js).
    `dish` is what floats at the start. `solution` is one way through, as
-   [where, molecule] steps, where is 'tube', 'dish' or 'beaker' and the
+   [where, molecule] steps, where is 'tube' or 'dish' (what the list wants is
+   counted where it lands, so nothing carries it anywhere) and the
    molecule is taken from the tray first, then the dish; tests.mjs plays it.
    Desktop dishes carry a decoy or two more than phones. */
 const R = (targets, dish, seed, note, solution, clue) => ({ targets, dish, seed, note, solution, clue });
@@ -445,7 +446,8 @@ function bench(note, targets, route, decoys, seed, clue) {
     tray = chem().reactionFor(a, b).products.slice();
     for (let j = 0; j < tray.length; j++) {
       const k = tray[j];
-      if (owed[k] > 0) { moves.push(['beaker', k]); owed[k]--; tray.splice(j--, 1); }
+      // what the list wants is counted where it lands (2026-09-19), so the route does not carry it anywhere
+      if (owed[k] > 0) { owed[k]--; tray.splice(j--, 1); }
     }
   });
   return R(targets.map((k) => [k, 1]), [...dish, ...decoys], seed, note, moves, clue);

@@ -3,7 +3,7 @@
 
    The dish floats whole molecules, each with its formula under it. Drag two
    into the test tube; if they react, what they make lands on the tray. Drag
-   the molecule the list wants into the beaker, and a byproduct a later step
+   what the list wants is counted where it lands, and a byproduct a later step
    needs back into the dish. Whatever is left on the tray is poured away at
    the next reaction.
 
@@ -16,7 +16,7 @@
 
   window.ChemLabScene = function (host) {
     const X = window.ChemLab;
-    const { ctx, TOK, drawAtoms, rr, label, SND, clock, INK, onRule, PITCH, barePaper } = host;
+    const { ctx, TOK, drawAtoms, rr, label, SND, clock, INK } = host;
     const TAU = Math.PI * 2;
     const clamp01 = (v) => Math.max(0, Math.min(1, v));
     const easeOut = (t) => 1 - Math.pow(1 - t, 3);
@@ -33,19 +33,20 @@
       bond: 1.9, atom: 0.58,
       worldW: { desktop: 26, mobile: 22 }, maxScale: 22,
       drift: 0.3, spin: 0.2, tau: 3,
-      reactMs: 2600, productsAt: 2240, chipMs: 1900, eqMs: 4600, dropMs: 600,
+      reactMs: 2600, productsAt: 2240, chipMs: 1900, eqMs: 4600, dropMs: 600, flyMs: 320,
       touchLift: 36,
     };
 
     let level = null, st = null, MODE = 'desktop', LW = 760, LH = 600;
     const pos = new Map();          // dish piece id -> { x, y, th, vx, vy, w }
-    const traySlot = new Map();     // tray piece id -> slot 0..2
+    const traySlot = new Map();     // tray piece id -> slot 0..3
+    const collected = new Map();    // a counted molecule on its way up to the list: id -> { slot, t0 }
     let tubeOrder = [];             // tube piece ids, in the order they went in
     let drag = null;                // { id, from, pid, touch, x, y, ox, oy }
     let react = null;               // { t0, used: [key], poured: [{ key, slot }], eq }
-    let chips = [], dropped = [];
+    let chips = [];
     const D = { x: 0, y: 0, w: 0, h: 0, S: 16, WW: 26, WH: 26, bond: 1.9, atom: 0.58 };
-    let tube = { x: 0, y: 0, w: 0, h: 0 }, tray = { x: 0, y: 0, w: 0, h: 0 }, beaker = { x: 0, y: 0, w: 0, h: 0 };
+    let tube = { x: 0, y: 0, w: 0, h: 0 }, tray = { x: 0, y: 0, w: 0, h: 0 };
     let targetsArea = { x: 0, y: 0, w: 0, h: 0 };
 
     function gauss() { const u = 1 - host.rng(), v = host.rng(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(TAU * v); }
@@ -100,47 +101,43 @@
        screen) keeps the column 262 wide and gives the dish the rest of the
        width; the tube stands taller or shorter with the window, and the dish
        keeps the frame's room in world units, as chapter 1's does. */
-    const FRAME_DISH = { w: 420, h: 420 };
-    let wordBase = { tube: 0, low: 0 };
+    const FRAME_DISH = { w: 402, h: 420 };        // the 760x600 frame's lab dish, beside a 280 wide bench
+    /* THE BENCH, simplified to the owner's drawing (2026-09-19): the test tube
+       on the left with what to do written inside it, and the products on open
+       shelves to its right. There is no glass to carry a finished molecule to
+       any more: the list counts it where it lands. */
+    const BENCH = { head: 26, label: 15, cellGap: 10, colGap: 18 };
+    // where a shelf's bracket begins, which is what the heading sits above
+    const shelfTop = () => shelfDrawn(traySlotRect(0)).y;
+    let wordBase = { tray: 0 };
     function layout() {
       ({ LW, LH, MODE } = host.size());
       const oldW = D.WW, oldH = D.WH;
       if (MODE === 'mobile') {
-        /* From the bottom up (owner, 2026-09-19: the words were crashing into
-           the glass on a real phone): the tube, the boxes and the glass keep
-           their height above the read-out line; the words sit on the rule
-           WORD_GAP above their tops, and the tops come up to meet them; the
-           dish takes what is left. */
         const top = host.topBand(), short = LH < 700;
-        const flaskH = short ? 92 : 108, gap = short ? 8 : 12, boxH = short ? 106 : 150;
-        const floor = LH - host.botBand() - 4;
-        let base = onRule(floor - boxH - WORD_GAP);
-        if (base > floor - boxH - WORD_GAP) base -= PITCH;
-        const boxTop = base + WORD_GAP;
-        wordBase = { tube: base, low: base };
+        const flaskH = short ? 92 : 108, gap = short ? 8 : 12;
+        const floor = LH - host.botBand() - 6, benchH = Math.min(short ? 176 : 212, Math.round(LH * 0.3));
+        const benchTop = floor - benchH, m = 16;
         targetsArea = { x: 14, y: top, w: LW - 28, h: flaskH };
         D.x = 14; D.w = LW - 28; D.y = top + flaskH + gap;
-        const m = Math.max(12, Math.round(LW * 0.064)), tw = Math.round(LW * 0.195), bw = Math.round(LW * 0.18);
-        // a glass's rim is drawn 5 below the top of its box, so those boxes start 5 higher than the product boxes
-        tube = { x: m, y: boxTop - 5, w: tw, h: floor - (boxTop - 5) };
-        tray = { x: m + tw + 13, y: boxTop, w: LW - m - bw - 16 - (m + tw + 13), h: floor - boxTop };
-        beaker = { x: LW - m - bw, y: boxTop - 5, w: bw, h: floor - (boxTop - 5) };
-        const lines = Math.max(...Object.values(wordPlan()).map((w) => w.lines.length));
-        D.h = Math.max(120, base - (lines - 1) * WORD_LH - WORD_SIZE - 10 - D.y);
+        D.h = Math.max(120, benchTop - 14 - D.y);
+        tube = { x: m, y: benchTop, w: Math.round(LW * 0.26), h: benchH };
+        const gx = tube.x + tube.w + BENCH.colGap;
+
+        const gh = Math.min(benchH - BENCH.head, 2 * 82 + BENCH.cellGap);
+        tray = { x: gx, y: floor - gh, w: LW - m - gx, h: gh };
+        wordBase = { tray: shelfTop() - 10 };
         D.S = Math.min(L.maxScale, D.w / L.worldW.mobile);
       } else {
         targetsArea = { x: 30, y: 58, w: LW - 60, h: 74 };
-        D.x = 30; D.y = 140; D.w = LW - 60 - 18 - 262; D.h = LH - host.botBand() - 140;
-        const cx = D.x + D.w + 18, cw = LW - 30 - cx, floor = D.y + D.h;
-        // the boxes and the glass take the bottom of the column, the tube everything above them
-        const lowH = Math.max(100, Math.min(170, (floor - (D.y + 22)) * 0.45));
-        const low = onRule(floor - lowH - 10), tubeTop = onRule(D.y + 18);
-        wordBase = { tube: tubeTop, low };
-        const trayW = Math.round(cw * 0.58), glassW = Math.round(cw * 0.32);
-        tube = { x: cx, y: tubeTop + 5, w: cw, h: Math.max(60, (low - WORD_LH - WORD_SIZE - 10) - (tubeTop + 5)) };
-        tray = { x: cx, y: low + WORD_GAP, w: trayW, h: floor - (low + WORD_GAP) };
-        beaker = { x: cx + cw - glassW - 5, y: low + WORD_GAP, w: glassW, h: floor - (low + WORD_GAP) };
-        // the frame's own scale times the change in shape: exactly 420/26 in the 760x600 frame
+        D.x = 30; D.y = 140; D.w = LW - 60 - 18 - 280; D.h = LH - host.botBand() - 140;
+        const cx = D.x + D.w + 18, cw = LW - 30 - cx, floor = D.y + D.h, colTop = D.y + 22;
+        tube = { x: cx, y: colTop, w: 104, h: floor - colTop };
+        const gx = cx + tube.w + BENCH.colGap, gw = cw - (gx - cx);
+        // the shelves stand on the dish's floor; they take what two rows need, and no more
+        const gridH = Math.min(floor - colTop - BENCH.head, 2 * 104 + BENCH.cellGap);
+        tray = { x: gx, y: floor - gridH, w: gw, h: gridH };
+        wordBase = { tray: shelfTop() - 10 };
         const shape = (D.h / D.w) / (FRAME_DISH.h / FRAME_DISH.w);
         D.S = Math.min(L.maxScale, (D.w / L.worldW.desktop) * Math.sqrt(shape));
       }
@@ -155,8 +152,8 @@
     function load(lv) {
       level = lv;
       st = X.createLab(lv);
-      pos.clear(); traySlot.clear(); tubeOrder = [];
-      drag = null; react = null; chips = []; dropped = []; modal = null; pendingEnd = null;
+      pos.clear(); traySlot.clear(); collected.clear(); tubeOrder = [];
+      drag = null; react = null; chips = []; modal = null; pendingEnd = null;
       layout();
       const r = host.mulberry(lv.seed * 7919 + 5), placed = [];
       for (const p of st.pieces) {
@@ -239,17 +236,8 @@
       ctx.fillText(text, x, y + 1);
       ctx.restore();
     }
-    // Inside a shape, the paper with no rules on it.
-    function unruled(shape) {
-      const page = barePaper();
-      if (!page) return;
-      ctx.save(); shape(); ctx.closePath(); ctx.clip();
-      ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(page, 0, 0);
-      ctx.restore();
-    }
     // The dish, drawn like the tube: two ink hairlines with the wall between and a faint glass tint.
     function glassRect(r, radius) {
-      unruled(() => rr(r.x, r.y, r.w, r.h, radius));
       ctx.save();
       ctx.fillStyle = INK.tint; rr(r.x, r.y, r.w, r.h, radius); ctx.fill();
       ctx.strokeStyle = GLASS.line; ctx.lineWidth = 1.2; rr(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1, radius); ctx.stroke();
@@ -327,7 +315,6 @@
       const g = tubeGlass(), active = react && now - react.t0 < L.reactMs, gap = Math.max(3, g.w * 0.045);
       const t = active ? (now - react.t0) / L.reactMs : 0, fill = active ? reactionLevel(t) : 0;
       const rad = g.w / 2, cx = g.x + rad, cy = g.y + g.h - rad;
-      unruled(() => tubeLine(g, 0));
       ctx.save();
       if (drag && inside(heldCentre(), grow(tube, 14))) { ctx.fillStyle = 'rgba(23,116,74,0.14)'; tubeLine(g, gap); ctx.closePath(); ctx.fill(); }
       if (fill > 0) {
@@ -377,92 +364,62 @@
       });
     }
 
-    /* Four boxes in a square, outlined, with the paper under them and no rules
-       showing through (owner, 2026-09-17). */
+    /* FOUR OPEN SHELVES in a square (owner's drawing, 2026-09-19): each one an
+       ink bracket, open at the top, with what the reaction made standing in it
+       and its formula written underneath. */
     const TRAY_SLOTS = 4;
     function traySlotRect(k) {
-      const gap = 8, cw = (tray.w - gap) / 2, ch = (tray.h - gap) / 2;
-      return { x: tray.x + (k % 2) * (cw + gap), y: tray.y + Math.floor(k / 2) * (ch + gap), w: cw, h: ch };
+      const cw = (tray.w - BENCH.cellGap) / 2, ch = (tray.h - BENCH.cellGap) / 2;
+      return { x: tray.x + (k % 2) * (cw + BENCH.cellGap), y: tray.y + Math.floor(k / 2) * (ch + BENCH.cellGap), w: cw, h: ch };
+    }
+    const shelfBox = (r) => ({ x: r.x, y: r.y, w: r.w, h: r.h - BENCH.label });   // a shelf's room, above its label
+    // what is actually drawn: the bracket's own arms and floor, which is what anything else must keep clear of
+    const shelfDrawn = (r) => { const b = shelfBox(r); return { x: b.x, y: b.y + b.h * 0.58, w: b.w, h: b.h * 0.42 }; };
+    function bracketPath(r) {
+      const b = shelfBox(r), rad = Math.min(16, b.h * 0.42), top = b.y + b.h * 0.58;   // shallow, as the owner drew them
+      ctx.beginPath();
+      ctx.moveTo(b.x, top);
+      ctx.lineTo(b.x, b.y + b.h - rad);
+      ctx.arcTo(b.x, b.y + b.h, b.x + rad, b.y + b.h, rad);
+      ctx.lineTo(b.x + b.w - rad, b.y + b.h);
+      ctx.arcTo(b.x + b.w, b.y + b.h, b.x + b.w, b.y + b.h - rad, rad);
+      ctx.lineTo(b.x + b.w, top);
     }
     function drawTray(now) {
-      for (let k = 0; k < TRAY_SLOTS; k++) {
-        const r = traySlotRect(k);
-        unruled(() => rr(r.x, r.y, r.w, r.h, 12));
-        ctx.save();
-        ctx.fillStyle = TOK.tint03; rr(r.x, r.y, r.w, r.h, 12); ctx.fill();
-        ctx.strokeStyle = GLASS.line; ctx.lineWidth = 1.2; rr(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1, 12); ctx.stroke();
-        ctx.restore();
-      }
+      ctx.save();
+      ctx.strokeStyle = INK.wall; ctx.lineWidth = 1.3; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+      for (let k = 0; k < TRAY_SLOTS; k++) { bracketPath(traySlotRect(k)); ctx.stroke(); }
+      ctx.restore();
       const appear = react ? clamp01((now - react.t0 - L.productsAt) / 250) : 1;
+      const stand = (key, r, alpha) => {
+        const b = shelfBox(r), cc = { x: b.x + b.w / 2, y: b.y + b.h * 0.56 };
+        ctx.save();
+        ctx.globalAlpha = alpha; ctx.fillStyle = TOK.tint03;
+        rr(b.x + 3, b.y + b.h * 0.3, b.w - 6, b.h * 0.7 - 3, 10); ctx.fill();
+        ctx.restore();
+        drawMolecule(key, cc.x, cc.y, fit(key, b.w - 12, b.h * 0.62), 0, alpha);
+        formulaChip(X.SPECIES[key].formula, cc.x, r.y + r.h - 6, alpha, 12);
+      };
       if (react && now - react.t0 < 300) {
         const fade = 1 - (now - react.t0) / 300;
-        for (const q of react.poured) {
-          const r = traySlotRect(q.slot), cc = centre(r);
-          drawMolecule(q.key, cc.x, cc.y - 8, fit(q.key, r.w - 8, r.h - 26), 0, fade);
-        }
+        for (const q of react.poured) stand(q.key, traySlotRect(q.slot), fade);
       }
       for (const p of st.pieces) {
         if (p.zone !== 'tray' || !traySlot.has(p.id) || (drag && drag.id === p.id)) continue;
-        const r = traySlotRect(traySlot.get(p.id)), cc = centre(r);
-        drawMolecule(p.key, cc.x, cc.y - 8, fit(p.key, r.w - 8, r.h - 26), 0, appear);
-        formulaChip(X.SPECIES[p.key].formula, cc.x, r.y + r.h - 12, appear, 12);
+        stand(p.key, traySlotRect(traySlot.get(p.id)), appear);
       }
-    }
-
-    /* Where made molecules go: a petri dish (owner, 2026-09-15), drawn flat
-       from the side like the tube: a shallow open dish with a rim, the same
-       hairline glass, the same highlight down the left wall and along the
-       floor, and the same liquid, which rises as each molecule on the list
-       lands; one dropped in sinks and dissolves. The zone keeps its old name,
-       `beaker`, in the code. */
-    function drawBeaker(now) {
-      const { x, top, dw, dh, bottom } = dishGeom(), gap = 3, r = Math.min(10, dh * 0.4);
-      const inBeaker = st.pieces.filter((p) => p.zone === 'beaker');
-      const total = st.targets.reduce((n, t) => n + t.n, 0), last = dropped[dropped.length - 1];
-      const landing = last && inBeaker.some((p) => p.id === last.id) ? 1 - easeOut(clamp01((now - last.t0) / L.dropMs)) : 0;
-      const fill = total ? Math.max(0, inBeaker.length - landing) / total : 0;
-      // the dish's outline inset by i: down the left wall, along the floor with its round corners, up the right
-      const dishLine = (i) => {
-        const ri = Math.max(1, r - i), yb = bottom - i;
-        ctx.beginPath();
-        ctx.moveTo(x + i, top + 3); ctx.lineTo(x + i, yb - ri);
-        ctx.arcTo(x + i, yb, x + i + ri, yb, ri);
-        ctx.lineTo(x + dw - i - ri, yb);
-        ctx.arcTo(x + dw - i, yb, x + dw - i, yb - ri, ri);
-        ctx.lineTo(x + dw - i, top + 3);
-      };
-      unruled(() => dishLine(0));
-      ctx.save();
-      if (drag && inside(heldCentre(), grow(beaker, 14))) { ctx.fillStyle = 'rgba(23,116,74,0.14)'; dishLine(gap); ctx.closePath(); ctx.fill(); }
-      // a molecule on its way in, sinking and dissolving
-      if (last && now - last.t0 < L.dropMs && inBeaker.some((p) => p.id === last.id)) {
-        const p = st.pieces[last.id], t = clamp01((now - last.t0) / L.dropMs);
-        drawMolecule(p.key, x + dw / 2, top + dh * 0.3 - (1 - easeOut(t)) * beaker.h * 0.5, fit(p.key, dw / 2.4, beaker.h * 0.5), 0, 1 - clamp01((t - 0.5) / 0.5));
+      /* What the list wanted is counted where it lands, then flies up to the
+         list, the way a finished molecule does in the dish. */
+      for (const [id, c] of collected) {
+        const t = (now - c.t0) / L.flyMs;
+        if (t < 0 || t >= 1) continue;
+        const p = st.pieces[id], r = traySlotRect(c.slot), b = shelfBox(r);
+        const from = { x: b.x + b.w / 2, y: b.y + b.h * 0.56 };
+        const to = targetSlots().find((f) => f.key === p.key) || from;
+        const k = easeOut(t);
+        drawMolecule(p.key, from.x + (to.x - from.x) * k, from.y + (to.y - from.y) * k,
+                     fit(p.key, b.w - 12, b.h * 0.62) * (1 - 0.5 * k), 0, 1 - 0.2 * k);
       }
-      if (fill > 0) {
-        const level = bottom - gap - (dh - gap - 6) * fill;
-        ctx.save();
-        dishLine(gap); ctx.closePath(); ctx.clip();
-        ctx.fillStyle = liquidFill(x + gap, x + dw - gap); ctx.fillRect(x, level, dw, dh);
-        ctx.fillStyle = GLASS.surface; ctx.fillRect(x, level, dw, 1.2);
-        ctx.restore();
-      }
-      // the highlight: down the left wall, round the corner and along the floor, tapering to nothing
-      const wb = Math.max(3, dw * 0.03), xa = x + gap + 5, yb = bottom - gap - 5, rc = Math.max(wb + 1, r - gap - 3), tip = x + dw * 0.45;
-      ctx.fillStyle = GLASS.shine;
-      ctx.beginPath();
-      ctx.moveTo(xa, top + 6); ctx.lineTo(xa, yb - rc);
-      ctx.arc(xa + rc, yb - rc, rc, Math.PI, Math.PI / 2, true);
-      ctx.lineTo(tip, yb);
-      ctx.lineTo(xa + rc, yb - wb);
-      ctx.arc(xa + rc, yb - rc, rc - wb, Math.PI / 2, Math.PI, false);
-      ctx.lineTo(xa + wb, top + 6);
-      ctx.closePath(); ctx.fill();
-      // the glass: its outer face and its inner, and the rim across the top
-      hair(1); dishLine(0); ctx.stroke();
-      hair(1); dishLine(gap); ctx.stroke();
-      hair(1); rr(x - 5, top - 3, dw + 10, 6, 3); ctx.stroke();
-      ctx.restore();
     }
 
     // The target row: each molecule drawn, its name and formula, and how many are made.
@@ -474,7 +431,7 @@
       if (MODE === 'mobile') {
         /* One size for the whole row: the biggest at which every molecule on the
            list fits its column, measured from its centre as it is drawn. */
-        const colW = targetsArea.w / n, labelY = onRule(targetsArea.y + targetsArea.h - 12 + 4.82) - 4.82;
+        const colW = targetsArea.w / n, labelY = targetsArea.y + targetsArea.h - 12;
         const iconTop = targetsArea.y + 24, iconH = labelY - 16 - iconTop, across = (2 * L.atom) / L.bond;
         let unit = 40;
         for (const t of st.targets) {
@@ -503,7 +460,7 @@
         let m = measure(true);
         if (m.total > targetsArea.w) m = measure(false);
         let x = targetsArea.x + Math.max(0, (targetsArea.w - m.total) / 2);
-        const y = onRule(targetsArea.y + 44 + 4.82) - 4.82;
+        const y = targetsArea.y + 44;
         m.parts.forEach((p) => {
           out.push({ key: p.t.key, n: p.t.n, x: x + p.iw / 2, y, unit, labelX: x + p.iw + labelGap, labelY: y, align: 'left', maxW: p.lw + 10, name: p.name });
           x += p.iw + labelGap + p.lw + gapItems;
@@ -515,11 +472,8 @@
     function drawTargets() {
       const slots = targetSlots();
       if (!slots[0]) { /* nothing to name */ }
-      else if (MODE === 'mobile') {
-        let b = onRule(slots[0].y);                       // its own line, above the molecules' middle
-        if (b <= slots[0].y + 1) b += PITCH;
-        label('MAKE', targetsArea.x + 2, b - 3.61);
-      } else label('MAKE', targetsArea.x, slots[0].labelY + 0.9);
+      else if (MODE === 'mobile') label('MAKE', targetsArea.x + 2, slots[0].y);
+      else label('MAKE', targetsArea.x, slots[0].labelY + 0.9);
       for (const f of slots) {
         const made = Math.min(f.n, st.made[f.key] || 0), full = made >= f.n;
         drawMolecule(f.key, f.x, f.y, f.unit, 0, 1);
@@ -564,12 +518,13 @@
     /* Bold and in the page's darkest ink, so they read as instructions and not
        as captions; the lines of one label close together; and a clear gap
        above whatever they name (owner, 2026-09-19). */
-    const WORD_SIZE = 14, WORD_LH = 16, WORD_GAP = 10, WORD_FONT = '700 14px Inter, sans-serif';
+    const WORD_SIZE = 14, WORD_LH = 16, WORD_FONT = '700 14px Inter, sans-serif';
+    const TUBE_SIZE = 12, TUBE_FONT = '700 12px Inter, sans-serif';       // what is written inside the tube
     /* THE BENCH'S WORDS (owner, 2026-09-17): three short lines in the page's
        own hand, centred over what they name, their last line ON a rule and the
        line above it at seven tenths of the pitch — the leading the owner set. */
-    function wrapBench(text, maxW) {
-      ctx.save(); ctx.font = WORD_FONT;
+    function wrapBench(text, maxW, font) {
+      ctx.save(); ctx.font = font || WORD_FONT;
       const lines = [];
       let line = '';
       for (const w of text.split(' ')) {
@@ -584,53 +539,32 @@
        owner set them; on a phone, or in any window too narrow for that, they
        break to fit the column they stand over. */
     const WORDS = {
-      // over the tube on a phone, in two lines, so it never runs on into the word over the boxes
-      tube: (avail) => wrapBench('Place reactants here', Math.min(avail, MODE === 'mobile' ? 118 : 200)),
+      tube: (avail) => wrapBench('Place reactants here', avail, TUBE_FONT),
       tray: () => ['Products'],
-      dish: (avail) => wrapBench('Place target molecules here', Math.min(avail, 120)),
     };
-    function wordBox(lines, cx, base, lo, hi) {
-      ctx.save(); ctx.font = WORD_FONT;
+    function wordBox(lines, cx, base, lo, hi, font, size) {
+      const f = font || WORD_FONT, sz = size || WORD_SIZE, lh = size ? size + 3 : WORD_LH;
+      ctx.save(); ctx.font = f;
       const widest = Math.max(...lines.map((l) => ctx.measureText(l).width));
       ctx.restore();
       const x = Math.max(lo + widest / 2, Math.min(hi - widest / 2, cx));
-      const top = base - (lines.length - 1) * WORD_LH - WORD_SIZE * 0.8;
-      return { lines, x, base, box: { x: x - widest / 2, y: top, w: widest, h: base + 3 - top, lines: lines.slice() } };
+      const top = base - (lines.length - 1) * lh - sz * 0.8;
+      return { lines, x, base, font: f, lh, size: sz, box: { x: x - widest / 2, y: top, w: widest, h: base + 3 - top, lines: lines.slice() } };
     }
-    /* Where the three sets of words go. On a phone the tube, the boxes and the
-       glass stand side by side, so each keeps to its own column; on a desktop
-       the tube is above the other two and may lean over the column's edges. */
+    /* Two sets of words now (owner, 2026-09-19): what to do, written inside
+       the empty tube, and the heading over the shelves. */
     function wordPlan() {
-      const phone = MODE === 'mobile';
-      ctx.save(); ctx.font = WORD_FONT;
-      const mid = tray.x + tray.w / 2, half = ctx.measureText(WORDS.tray()[0]).width / 2 + 12;
-      ctx.restore();
-      const bounds = {
-        tube: [phone ? 8 : tube.x - 24, phone ? mid - half : tube.x + tube.w + 24],
-        tray: [tray.x - 40, tray.x + tray.w + 40],
-        dish: [phone ? mid + half : beaker.x - 55, phone ? LW - 8 : Math.min(LW - 8, beaker.x + beaker.w + 55)],
-      };
-      const at = { tube: tube.x + tube.w / 2, tray: tray.x + tray.w / 2, dish: beaker.x + beaker.w / 2 };
-      const base = { tube: wordBase.tube, tray: wordBase.low, dish: wordBase.low };
-      const out = {};
-      for (const k of ['tube', 'tray', 'dish']) {
-        const [lo, hi] = bounds[k];
-        out[k] = wordBox(WORDS[k](hi - lo), at[k], base[k], lo, hi);
-      }
-      return out;
+      const g = tubeGlass();
+      const inside = wordBox(WORDS.tube(g.w - 14), g.x + g.w / 2, g.y + g.h * 0.62, g.x, g.x + g.w, TUBE_FONT, TUBE_SIZE);
+      const heading = wordBox(WORDS.tray(), tray.x + tray.w / 2, wordBase.tray, tray.x - 30, tray.x + tray.w + 30);
+      return { tube: inside, tray: heading };
     }
     function drawWords(w) {
       ctx.save();
-      ctx.font = WORD_FONT; ctx.fillStyle = TOK.ink90;
+      ctx.font = w.font; ctx.fillStyle = TOK.ink90;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      w.lines.forEach((l, i) => ctx.fillText(l, w.x, w.base - (w.lines.length - 1 - i) * WORD_LH - WORD_SIZE * 0.3013));
+      w.lines.forEach((l, i) => ctx.fillText(l, w.x, w.base - (w.lines.length - 1 - i) * w.lh - w.size * 0.3013));
       ctx.restore();
-    }
-    // The glass the target molecules go in: a tall one, standing on the dish's floor.
-    function dishGeom() {
-      const dw = MODE === 'mobile' ? Math.min(60, beaker.w - 8) : beaker.w;
-      const top = beaker.y + (MODE === 'mobile' ? 8 : 3), bottom = beaker.y + beaker.h;
-      return { x: beaker.x + (beaker.w - dw) / 2, top, dw, dh: bottom - top, bottom };
     }
 
     function drawHeadings(now) {
@@ -647,9 +581,9 @@
         ctx.restore();
       };
       const plan = wordPlan();
-      drawWords(plan.tube);
-      drawWords(plan.dish);
-      if (on) eq(tray.x, tray.y - 10, tray.w);
+      // what to do is written inside the tube, and clears out as soon as anything is in it
+      if (!st.pieces.some((q) => q.zone === 'tube') && !(react && now - react.t0 < L.reactMs)) drawWords(plan.tube);
+      if (on) eq(tray.x, tray.y - 12, tray.w);          // the equation reads above the shelves, clear of what is on them
       else drawWords(plan.tray);
     }
 
@@ -669,7 +603,6 @@
       drawDish(now);
       drawTube(now);
       drawTray(now);
-      drawBeaker(now);
       drawHeadings(now);
       drawChips(now);
       drawHeld();
@@ -801,7 +734,7 @@
 
     /* ---------- INPUT ----------
        Press a molecule to lift it: on the tray, in the tube, or in the dish.
-       Let it go over the tube, the beaker or the dish. Anywhere else, it stays
+       Let it go over the tube or the dish. Anywhere else, it stays
        where it was. */
     function hit(p) {
       const shelfReady = !react || clock() - react.t0 >= L.productsAt;
@@ -849,7 +782,6 @@
       drag = null;
       const c = { x: d.x + d.ox, y: d.y + d.oy };
       if (inside(c, grow(tube, 14))) return intoTube(d.id, now);
-      if (inside(c, grow(beaker, 14))) return intoBeaker(d.id, now);
       if (inside(c, D)) return intoDish(d.id, c);
       return null;
     }
@@ -877,8 +809,10 @@
         react = { t0: now, used: used.map((i) => st.pieces[i].key), poured: ev.poured.map((i) => ({ key: st.pieces[i].key, slot: slots.get(i) || 0 })),
                   eq: equation(ev.reaction), reaction: ev.reaction, explained: false };
         tubeOrder = [];
-        traySlot.clear();
+        traySlot.clear(); collected.clear();
         ev.products.forEach((pid, k) => traySlot.set(pid, k));
+        // what the list wanted flies up to it as soon as it lands, before the card explains the reaction
+        (ev.collected || []).forEach((pid) => { collected.set(pid, { slot: traySlot.get(pid), t0: now + L.productsAt + 40 }); traySlot.delete(pid); });
         SND.clasp(ev.reaction.products.length);
         setTimeout(SND.lift, L.productsAt);
         if (ev.lost) { chip('lost a molecule', { x: centre(tray).x, y: tray.y + tray.h + 6 }, 'amber', now + L.productsAt); setTimeout(SND.lost, L.productsAt + 80); }
@@ -889,23 +823,6 @@
       } else {
         SND.set();
       }
-      return ev;
-    }
-    function intoBeaker(id, now) {
-      const from = st.pieces[id].zone;
-      const ev = X.deliver(st, id);
-      if (!ev.ok) {
-        const text = ev.why === 'not-on-list' ? 'not on the list' : ev.why === 'enough' ? 'you have enough' : 'not now';
-        chip(text, { x: centre(beaker).x, y: beaker.y + 14 }, 'grey', now);
-        return ev;
-      }
-      if (from === 'dish') pos.delete(id);
-      traySlot.delete(id);
-      tubeOrder = tubeOrder.filter((q) => q !== id);
-      modal = null;
-      dropped.push({ id, t0: now });
-      SND.lift();
-      if (ev.result) host.endLevel(ev.result, now + L.dropMs + 700);
       return ev;
     }
     function intoDish(id, c) {
@@ -950,18 +867,17 @@
             atoms.push({ el: a.el, x: c.x + (a.x * co - a.y * sn) * u, y: c.y + (a.x * sn + a.y * co) * u });
           }
         }
-        return { dish: Object.assign({}, D), tube: Object.assign({}, tube), tray: Object.assign({}, tray), beaker: Object.assign({}, beaker),
+        return { dish: Object.assign({}, D), tube: Object.assign({}, tube), tray: Object.assign({}, tray),
                  traySlots: [0, 1, 2, 3].map(traySlotRect), tubeSlots: [0, 1].map(tubeSlot), targets: targetSlots(), targetsArea: Object.assign({}, targetsArea), pieces, atoms,
                  marble: Math.max(1.5, u * D.atom / D.bond),
-                 words: (() => { const w = wordPlan(); return { tube: w.tube.box, tray: w.tray.box, dish: w.dish.box }; })(),
-                 glass: tubeGlass(), petri: (({ x, top, dw, dh }) => ({ x, y: top - 3, w: dw, h: dh + 3 }))(dishGeom()),
+                 words: (() => { const w = wordPlan(); return { tube: w.tube.box, tray: w.tray.box }; })(),
+                 glass: tubeGlass(), shelves: [0, 1, 2, 3].map((k) => shelfDrawn(traySlotRect(k))), shelfRoom: [0, 1, 2, 3].map((k) => shelfBox(traySlotRect(k))),
                  reactionCard: modal ? { box: modalBox, button: modalBtn } : null };
       },
       // Straight to a place, through the same code a drop uses.
       act(where, id, x, y) {
         const now = clock();
         if (where === 'tube') return intoTube(id, now);
-        if (where === 'beaker') return intoBeaker(id, now);
         if (where === 'dish') return intoDish(id, { x: x == null ? D.x + D.w / 2 : x, y: y == null ? D.y + D.h / 2 : y });
         return null;
       },

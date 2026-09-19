@@ -797,16 +797,11 @@
   }
 
   /* ---------- DRAWING ----------
-     THE PAGE: paper, ruled in pale blue at a 26px pitch with the first line
-     tucked under the top band, a margin rule down the left on a desktop, and a
-     very light grain — fine speckle, soft mottling and a few fibres — made once
-     at device pixels and laid over the paper with multiply. Every word in the
-     game sits ON a rule: `onRule` snaps a baseline to the nearest one, and the
-     things that hang under words (the tube, the product boxes, the target
-     glass) are placed from the snapped baseline, never the other way round. */
-  const NOTE = { paper: '#FBFBF9', rule: 'rgba(88,140,196,0.204)', margin: 'rgba(120,134,150,0.252)', band: '#1C73A1', pitch: 26, marginX: 18 };
-  const ruleFirst = () => topBand() - 2.2;
-  const onRule = (baseline) => { const f = ruleFirst(); return f + NOTE.pitch * Math.round((baseline - f) / NOTE.pitch); };
+     THE PAGE: plain paper with a very light grain, fine speckle, soft mottling
+     and a few fibres, made once at device pixels and laid over the paper with
+     multiply. It was ruled like a school notebook until the owner took the
+     rules off (2026-09-19); nothing is anchored to a line any more. */
+  const NOTE = { paper: '#FBFBF9', band: '#1C73A1' };
   let notebookPage = null;
   function paperGrain(W, H) {
     const c = document.createElement('canvas'); c.width = W; c.height = H;
@@ -837,34 +832,15 @@
     }
     return c;
   }
-  // the page with no rules on it, for the insides of the glassware (owner: no rules in the dish, the tube or the petri dish)
-  const barePaper = () => (notebookPage ? notebookPage.bare : null);
   function buildPage() {
-    const W = Math.round(LW * backing), H = Math.round(LH * backing), key = W + 'x' + H + '-' + MODE + '-' + Math.round(ruleFirst() * 10);
+    const W = Math.round(LW * backing), H = Math.round(LH * backing), key = W + 'x' + H;
     if (notebookPage && notebookPage.key === key) return notebookPage;
     const c = document.createElement('canvas'); c.width = W; c.height = H;
     const g = c.getContext('2d');
     g.fillStyle = NOTE.paper; g.fillRect(0, 0, W, H);
-    g.globalCompositeOperation = 'multiply'; g.drawImage(paperGrain(W, H), 0, 0); g.globalCompositeOperation = 'source-over';
-    const bare = document.createElement('canvas'); bare.width = W; bare.height = H;
-    bare.getContext('2d').drawImage(c, 0, 0);
-    g.setTransform(backing, 0, 0, backing, 0, 0);
-    g.strokeStyle = NOTE.rule; g.lineWidth = 1;
-    for (let y = ruleFirst(); y < LH - 4; y += NOTE.pitch) { g.beginPath(); g.moveTo(0, y + 0.5); g.lineTo(LW, y + 0.5); g.stroke(); }
-    if (MODE !== 'mobile') {
-      g.strokeStyle = NOTE.margin; g.lineWidth = 1;
-      g.beginPath(); g.moveTo(NOTE.marginX + 0.5, 0); g.lineTo(NOTE.marginX + 0.5, LH); g.stroke();
-    }
-    notebookPage = { key, c, bare };
+    g.globalCompositeOperation = 'multiply'; g.drawImage(paperGrain(W, H), 0, 0);
+    notebookPage = { key, c };
     return notebookPage;
-  }
-  // Inside a shape, the paper with no rules on it.
-  function unruled(path) {
-    const page = barePaper();
-    if (!page) return;
-    ctx.save(); path(); ctx.clip();
-    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(page, 0, 0);
-    ctx.restore();
   }
   // the page itself as a fill, so the map can paint it back over its cells at the scroll's edges
   function washStyle() {
@@ -881,7 +857,6 @@
   // The dish: dark glass in a vessel whose rim catches the light along its top.
   function drawDish() {
     const r = 24;
-    unruled(() => rr(G.x, G.y, G.w, G.h, r));
     ctx.save();
     ctx.fillStyle = INK.tint; rr(G.x, G.y, G.w, G.h, r); ctx.fill();
     ctx.strokeStyle = INK.line; ctx.lineWidth = 1.2; rr(G.x + 0.5, G.y + 0.5, G.w - 1, G.h - 1, r); ctx.stroke();
@@ -1881,7 +1856,7 @@
     ctx, TOK, canvas, drawAtoms, rr, label, clock, mulberry,
     SND: { pick: SND.pick, set: SND.set, lift: SND.lift, lost: SND.lost, clasp: (n) => SND.clasp('O', n) },
     size: () => ({ LW, LH, MODE }),
-    topBand, botBand, INK, onRule, PITCH: NOTE.pitch, barePaper,
+    topBand, botBand, INK,
     drift: () => DRIFT && !reduced(),
     reduced: () => reduced(),
     rng: () => rng(),

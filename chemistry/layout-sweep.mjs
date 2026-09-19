@@ -90,7 +90,7 @@ try {
       const bottom = (r) => r.y + r.h, right = (r) => r.x + r.w;
       const bare = g.ctrl.find((b) => b.bare), band = g.ctrl.filter((b) => !b.bare);
       const ctrlTop = Math.min(...band.map((b) => b.y)), ctrlBottom = Math.max(...band.map((b) => b.y + b.h));
-      const labelTop = Math.min(g.tube.y - 18, g.words.tube.y);
+      const labelTop = Math.min(g.tube.y, g.words.tray.y) - 6;
       const targetTop = await p.ev(`Math.min(...__chem.geom().targets.map((f) => f.y - Math.max(...ChemLab.SPECIES[f.key].atoms.map((a) => Math.abs(a.y))) * f.unit - f.unit * 0.305))`);
       if (ctrlTop < 0 || ctrlBottom > 64) issues.push('controls outside the top band');
       if (!bare || bare.y < h - 52 - 8 || bare.x + bare.w > w) issues.push('speaker not at the bottom right');
@@ -100,26 +100,23 @@ try {
       const targetBottom = Math.max(...g.targets.map((f) => f.labelY + 9));
       if (targetBottom > g.dish.y) issues.push('targets into the dish by ' + (targetBottom - g.dish.y).toFixed(1));
       if (bottom(g.dish) > labelTop) issues.push('dish into the bench headings by ' + (bottom(g.dish) - labelTop).toFixed(1));
-      if (Math.max(bottom(g.tube), bottom(g.tray), bottom(g.beaker)) > h - 4) issues.push('bench off the bottom');
-      if (g.tube.x < 0 || right(g.beaker) > w || right(g.tube) > g.tray.x || right(g.tray) > g.beaker.x) issues.push('bench overlaps or overflows');
+      if (Math.max(bottom(g.tube), bottom(g.tray)) > h - 4) issues.push('bench off the bottom');
+      if (g.tube.x < 0 || right(g.tray) > w || right(g.tube) > g.tray.x) issues.push('bench overlaps or overflows');
+      if (g.shelfRoom.some((r) => r.x < g.tray.x - 0.5 || right(r) > right(g.tray) + 0.5 || bottom(r) > bottom(g.tray) + 0.5)) issues.push('a shelf outside its space');
+      if (g.shelfRoom.some((r) => r.w < 44 || r.h < 40)) issues.push('a shelf too small to hold a molecule');
       if (Object.values(g.pieces).some((c) => c.x < g.dish.x || c.x > right(g.dish) || c.y < g.dish.y || c.y > bottom(g.dish))) issues.push('a molecule outside the dish');
-      /* The words on the bench sit above what they name, on the page's rules:
-         on screen, clear of one another and of the boxes, each one's last line
-         no lower than the top of the thing it names. */
+      /* Two sets of words (owner, 2026-09-19): what to do, written INSIDE the
+         empty tube, and the heading over the shelves with clear paper under it. */
       const meets = (a, b) => a.x < right(b) && right(a) > b.x && a.y < bottom(b) && bottom(a) > b.y;
       for (const [name, box] of Object.entries(g.words)) {
         if (box.x < 8 || right(box) > w - 8) issues.push(name + ' words past the side');
-        if (g.traySlots.some((r) => meets(box, r))) issues.push(name + ' words over the boxes');
         if (bottom(box) > h - 2) issues.push(name + ' words off the bottom');
       }
-      if (meets(g.words.tube, g.words.tray) || meets(g.words.tray, g.words.dish)) issues.push('the bench words run into each other');
-      /* Against the RIMS, with clear paper between. This used to compare the
-         words with the top of the glass under the rim, with slack, and passed
-         words that sat on the rim itself on a real phone (owner, 2026-09-19). */
-      const clear = 5, rimTube = g.glass.y - 3, rimGlass = g.petri.y;
-      if (bottom(g.words.tube) + clear > rimTube) issues.push('tube words on its rim by ' + (bottom(g.words.tube) + clear - rimTube).toFixed(1));
-      if (bottom(g.words.dish) + clear > rimGlass) issues.push('dish words on the target glass by ' + (bottom(g.words.dish) + clear - rimGlass).toFixed(1));
-      if (bottom(g.words.tray) + clear > g.tray.y) issues.push('product words on the boxes by ' + (bottom(g.words.tray) + clear - g.tray.y).toFixed(1));
+      const inside = (a, b) => a.x >= b.x - 0.5 && right(a) <= right(b) + 0.5 && a.y >= b.y - 0.5 && bottom(a) <= bottom(b) + 0.5;
+      if (!inside(g.words.tube, g.glass)) issues.push('the tube words are not inside the tube');
+      if (g.shelves.some((r) => meets(g.words.tray, r))) issues.push('the shelf heading sits on a shelf');
+      if (bottom(g.words.tray) + 5 > g.shelves[0].y) issues.push('the shelf heading crowds the shelves by ' + (bottom(g.words.tray) + 5 - g.shelves[0].y).toFixed(1));
+      if (meets(g.words.tray, g.tube)) issues.push('the shelf heading runs into the tube');
       // the reaction card, for the reactions with the most to say and one with three products: all on screen, words clear of the button
       for (const [a, b] of [['hydrochloric-acid', 'calcium-hydroxide'], ['ammonium-nitrate', 'sodium-hydroxide'], ['calcium-oxide', 'water']]) {
         const rc = await p.ev(`(() => { __chem.lab.showCard('${a}', '${b}'); const r = __chem.geom().reactionCard; __chem.lab.closeCard(); return r; })()`);
@@ -138,7 +135,8 @@ try {
         };
         cardOk(g.card, g.cta, 'clue');
         const won = await p.ev(`(() => { __chem.freeze(0); const s = __chem.state, L = __chem.lab;
-          for (const [where, key] of ChemLevels.organic[s.mode][s.level - 1].solution) { L.act(where, L.find(key)); __chem.advance(2800); }
+          // a player reads each reaction's card and closes it; the level's end comes with it
+          for (const [where, key] of ChemLevels.organic[s.mode][s.level - 1].solution) { L.act(where, L.find(key)); __chem.advance(2800); L.closeCard(); }
           __chem.advance(2600); return Object.assign(__chem.geom(), { kind: __chem.state.card }); })()`);
         if (won.kind !== 'win') issues.push('the solution did not win');
         else cardOk(won.card, won.cta, 'win');

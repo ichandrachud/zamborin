@@ -9,7 +9,7 @@
    the read-out clear of them; the target row stays inside the frame, icon
    clear of icon and label, and above the dish; the dish and what sits beside
    it do not meet; every atom and molecule is inside the dish; the bench's
-   tube, shelf and petri dish are stacked without touching, their words clear
+   tube and shelves stand side by side without touching, their words clear
    of them and on screen; the reaction card and the clue and win cards fit;
    the map's cells are on screen. And the 760x600 site frame, not embedded, is
    the frame as designed, to the pixel; the site's own full screen fills the
@@ -35,13 +35,13 @@ try {
   await p.navigate(BASE + '?drift=0&seed=11&level=22', 1200);
   const site = await p.ev(`(() => { const g = __chem.geom(); __chem.goto(16, 2); const b = __chem.geom();
     return { LW: g.LW, LH: g.LH, dish: [g.dish.x, g.dish.y, g.dish.w, g.dish.h, g.dish.S], lab: [b.dish.x, b.dish.y, b.dish.w, b.dish.h, b.dish.S],
-             tube: [b.tube.y, b.tube.h], tray: [b.tray.y, b.tray.h], beaker: [b.beaker.y, b.beaker.h] }; })()`);
+             tube: [b.tube.y, b.tube.h], tray: [b.tray.y, b.tray.h] }; })()`);
   fail('site frame', [
     ...(site.LW === 760 && site.LH === 600 ? [] : ['frame ' + site.LW + 'x' + site.LH]),
     ...(JSON.stringify(site.dish) === JSON.stringify([30, 140, 532, 420, 532 / 36]) ? [] : ['molecules dish ' + site.dish]),
-    ...(JSON.stringify(site.lab) === JSON.stringify([30, 140, 420, 420, 420 / 26]) ? [] : ['lab dish ' + site.lab]),
-    // the notebook column: the tube under its line, the boxes and the target glass under theirs, every rim 10 below its words, on the dish's floor
-    ...(JSON.stringify([site.tube, site.tray, site.beaker]) === '[[162.8,189],[401.8,158.2],[401.8,158.2]]' ? [] : ['bench ' + JSON.stringify([site.tube, site.tray, site.beaker])]),
+    ...(JSON.stringify(site.lab) === JSON.stringify([30, 140, 402, 420, 402 / 26]) ? [] : ['lab dish ' + site.lab]),
+    // the bench, simplified (2026-09-19): the tube down its column, the shelves standing on the dish's floor
+    ...(JSON.stringify([site.tube, site.tray]) === '[[162,398],[342,218]]' ? [] : ['bench ' + JSON.stringify([site.tube, site.tray])]),
   ]);
 
   // the site's own full screen
@@ -118,17 +118,15 @@ try {
         if (i && tops[i - 1].labelX + tops[i - 1].maxW - 10 > f.l) issues.push(where + f.key + ' into the label before it');
         if (f.labelY + 9 > g.dish.y) issues.push(where + f.key + ' label into the dish');
       });
-      const col = [g.tube, g.tray, g.beaker];
+      const col = [g.tube, g.tray];
       if (right(g.dish) > g.tube.x || col.some((r) => right(r) > LW - 20 || r.x < right(g.dish))) issues.push(where + 'dish into the bench column');
-      if (bottom(g.dish) > LH - 40 || bottom(g.beaker) > LH - 40) issues.push(where + 'into the read-out line');
-      if (bottom(g.tube) > g.words.dish.y - 4) issues.push(where + 'tube into the words below it by ' + (bottom(g.tube) - g.words.dish.y + 4).toFixed(1));
-      if (right(g.tray) > g.beaker.x) issues.push(where + 'product boxes into the target glass');
-      if (g.words.tube.y < g.targetsArea.y + g.targetsArea.h - 2) issues.push(where + 'tube words into the target row');
-      // against the rims, with clear paper between (see layout-sweep)
-      if (bottom(g.words.tube) + 5 > g.glass.y - 3) issues.push(where + 'tube words on its rim');
-      if (bottom(g.words.dish) + 5 > g.petri.y) issues.push(where + 'dish words on the target glass');
-      if (bottom(g.words.tray) + 5 > g.tray.y) issues.push(where + 'product words on the boxes');
-      for (const box of Object.values(g.words)) if (box.x < g.dish.x || right(box) > LW - 8 || g.traySlots.some((r) => meets(box, r))) issues.push(where + 'bench words out of place');
+      if (bottom(g.dish) > LH - 40 || bottom(g.tray) > LH - 40) issues.push(where + 'into the read-out line');
+      if (right(g.tube) > g.tray.x) issues.push(where + 'the tube runs into the shelves');
+      if (g.shelfRoom.some((r) => r.w < 60 || r.h < 50)) issues.push(where + 'a shelf too small to hold a molecule');
+      const holds = (a, b) => a.x >= b.x - 0.5 && right(a) <= right(b) + 0.5 && a.y >= b.y - 0.5 && bottom(a) <= bottom(b) + 0.5;
+      if (!holds(g.words.tube, g.glass)) issues.push(where + 'the tube words are not inside the tube');
+      if (bottom(g.words.tray) + 5 > g.shelves[0].y || meets(g.words.tray, g.tube)) issues.push(where + 'the shelf heading is out of place');
+      for (const box of Object.values(g.words)) if (box.x < g.dish.x || right(box) > LW - 8) issues.push(where + 'bench words out of place');
       if (Object.values(g.pieces).some((q) => q.x < g.dish.x || q.x > right(g.dish) || q.y < g.dish.y || q.y > bottom(g.dish))) issues.push(where + 'a molecule outside the dish');
       if (g.marble < 7) issues.push(where + 'marbles under 7px (' + g.marble.toFixed(1) + ')');
       if (c === 2 && n === 16) {
@@ -149,7 +147,8 @@ try {
         };
         cardOk(g.card, g.cta, 'clue');
         const won = await p.ev(`(() => { __chem.freeze(0); const s = __chem.state, L = __chem.lab;
-          for (const [where, key] of ChemLevels.organic[s.mode][s.level - 1].solution) { L.act(where, L.find(key)); __chem.advance(2800); }
+          // a player reads each reaction's card and closes it; the level's end comes with it
+          for (const [where, key] of ChemLevels.organic[s.mode][s.level - 1].solution) { L.act(where, L.find(key)); __chem.advance(2800); L.closeCard(); }
           __chem.advance(2600); return Object.assign(__chem.geom(), { kind: __chem.state.card }); })()`);
         if (won.kind !== 'win') issues.push(where + 'the solution did not win');
         else cardOk(won.card, won.cta, 'win');
