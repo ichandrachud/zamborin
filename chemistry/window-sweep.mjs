@@ -28,6 +28,7 @@ const p = await openPage({ w: 907, h: 510, dpr: 1, settle: 0 });
 let bad = 0;
 const fail = (tag, issues) => { if (issues.length) { bad++; console.log(`${tag}  ${issues.join('; ')}`); } };
 const right = (r) => r.x + r.w, bottom = (r) => r.y + r.h;
+const SITE_BENCH = '[[162,189.5],[353,207]]';     // the 760x600 frame: the beaker, then the troughs
 const meets = (a, b) => a.x < right(b) && right(a) > b.x && a.y < bottom(b) && bottom(a) > b.y;
 try {
   // the site frame, not embedded: exactly as designed
@@ -40,8 +41,8 @@ try {
     ...(site.LW === 760 && site.LH === 600 ? [] : ['frame ' + site.LW + 'x' + site.LH]),
     ...(JSON.stringify(site.dish) === JSON.stringify([30, 140, 532, 420, 532 / 36]) ? [] : ['molecules dish ' + site.dish]),
     ...(JSON.stringify(site.lab) === JSON.stringify([30, 140, 402, 420, 402 / 26]) ? [] : ['lab dish ' + site.lab]),
-    // the bench, simplified (2026-09-19): the tube down its column, the shelves standing on the dish's floor
-    ...(JSON.stringify([site.tube, site.tray]) === '[[162,398],[342,218]]' ? [] : ['bench ' + JSON.stringify([site.tube, site.tray])]),
+    // the bench, as the owner drew it (2026-09-19): the beaker above, the heading, then the troughs on the dish's floor
+    ...(JSON.stringify([site.tube, site.tray]) === SITE_BENCH ? [] : ['bench ' + JSON.stringify([site.tube, site.tray])]),
   ]);
 
   // the site's own full screen
@@ -121,8 +122,10 @@ try {
       const col = [g.tube, g.tray];
       if (right(g.dish) > g.tube.x || col.some((r) => right(r) > LW - 20 || r.x < right(g.dish))) issues.push(where + 'dish into the bench column');
       if (bottom(g.dish) > LH - 40 || bottom(g.tray) > LH - 40) issues.push(where + 'into the read-out line');
-      if (right(g.tube) > g.tray.x) issues.push(where + 'the tube runs into the shelves');
-      if (g.shelfRoom.some((r) => r.w < 60 || r.h < 50)) issues.push(where + 'a shelf too small to hold a molecule');
+      // the beaker sits above the heading, the heading above the troughs, all in the one column
+      if (bottom(g.tube) + 6 > g.words.tray.y) issues.push(where + 'the beaker runs into the heading under it');
+      if (g.tube.x < right(g.dish) || right(g.tube) > LW - 20) issues.push(where + 'the beaker is outside its column');
+      if (g.shelfRoom.some((r) => r.w < 60 || r.h < 40)) issues.push(where + 'a shelf too small to hold a molecule');
       const holds = (a, b) => a.x >= b.x - 0.5 && right(a) <= right(b) + 0.5 && a.y >= b.y - 0.5 && bottom(a) <= bottom(b) + 0.5;
       if (!holds(g.words.tube, g.glass)) issues.push(where + 'the tube words are not inside the tube');
       if (bottom(g.words.tray) + 5 > g.shelves[0].y || meets(g.words.tray, g.tube)) issues.push(where + 'the shelf heading is out of place');

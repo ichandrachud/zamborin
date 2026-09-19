@@ -106,7 +106,7 @@
        on the left with what to do written inside it, and the products on open
        shelves to its right. There is no glass to carry a finished molecule to
        any more: the list counts it where it lands. */
-    const BENCH = { head: 26, label: 15, cellGap: 10, colGap: 18 };
+    const BENCH = { head: 26, label: 15, cellGap: 10, colGap: 18, headGap: 24 };
     // where a shelf's bracket begins, which is what the heading sits above
     const shelfTop = () => shelfDrawn(traySlotRect(0)).y;
     let wordBase = { tray: 0 };
@@ -126,18 +126,19 @@
         const cw = Math.round(LW * 0.222), cgap = Math.round(LW * 0.067), gw = cw * 2 + cgap;
         const gh = Math.min(benchH - BENCH.head, 2 * 82 + BENCH.cellGap);
         tray = { x: Math.max(tube.x + tube.w + BENCH.colGap, LW - m - 14 - gw), y: floor - gh, w: gw, h: gh, gap: cgap };
-        wordBase = { tray: shelfTop() - 10 };
+        wordBase = { tray: shelfTop() - BENCH.headGap };
         D.S = Math.min(L.maxScale, D.w / L.worldW.mobile);
       } else {
         targetsArea = { x: 30, y: 58, w: LW - 60, h: 74 };
         D.x = 30; D.y = 140; D.w = LW - 60 - 18 - 280; D.h = LH - host.botBand() - 140;
         const cx = D.x + D.w + 18, cw = LW - 30 - cx, floor = D.y + D.h, colTop = D.y + 22;
-        tube = { x: cx, y: colTop, w: 92, h: floor - colTop };
-        const gx = cx + tube.w + 14, gw = cw - (gx - cx);
-        // the shelves stand on the dish's floor; they take what two rows need, and no more
-        const gridH = Math.min(floor - colTop - BENCH.head, 2 * 104 + BENCH.cellGap);
-        tray = { x: gx, y: floor - gridH, w: gw, h: gridH };
-        wordBase = { tray: shelfTop() - 10 };
+        /* The owner's desktop drawing, 2026-09-19: the beaker above, the
+           heading under it and the four troughs standing on the dish's floor,
+           all the column's width, so the equation has the room to read. */
+        const gridH = Math.round(Math.min((floor - colTop) * 0.52, 2 * 104 + BENCH.cellGap));
+        tray = { x: cx, y: floor - gridH, w: cw, h: gridH, gap: 16 };
+        wordBase = { tray: shelfTop() - BENCH.headGap };
+        tube = { x: cx, y: colTop, w: cw, h: Math.max(90, wordBase.tray - 26 - colTop) };
         const shape = (D.h / D.w) / (FRAME_DISH.h / FRAME_DISH.w);
         D.S = Math.min(L.maxScale, (D.w / L.worldW.desktop) * Math.sqrt(shape));
       }
@@ -280,16 +281,31 @@
     /* The test tube, holding at most two. Empty at rest; when two molecules
        react, liquid rises in it and falls away again as the products leave. */
     function tubeGlass() {
-      // a desktop tube in a short window keeps the frame's 78 by 170 shape, so it stays a tube and not a cup
-      const gw = MODE === 'mobile' ? Math.min(60, tube.w - 16) : Math.min(78, tube.w - 16, Math.round((tube.h - 12) * 78 / 170));
+      // a phone keeps the test tube; a desktop pours into a beaker, wide and flat-bottomed (owner, 2026-09-19)
+      const gw = MODE === 'mobile' ? Math.min(60, tube.w - 16) : Math.min(150, tube.w - 30, Math.round((tube.h - 12) * 0.85));
       return { x: tube.x + (tube.w - gw) / 2, y: tube.y + 8, w: gw, h: tube.h - 12 };
     }
     function tubeSlot(k) {
       const g = tubeGlass();
+      // in the beaker the two stand side by side; in the tube one above the other
+      if (MODE !== 'mobile') return { x: g.x + 4 + k * (g.w - 8) / 2, y: g.y + 8, w: (g.w - 8) / 2, h: g.h - 16 };
       return { x: g.x + 4, y: g.y + 6 + k * (g.h - 12) / 2, w: g.w - 8, h: (g.h - 12) / 2 };
     }
-    // A round-bottomed tube's outline, inset by `i` from the glass's outer face.
+    /* The vessel's outline, inset by `i` from its outer face: a round-bottomed
+       tube on a phone, a straight-sided beaker with a flat floor on a desktop.
+       Both are open at the mouth. */
     function tubeLine(g, i) {
+      if (MODE !== 'mobile') {
+        const rad = Math.max(6, Math.min(18, g.w * 0.13)) - i * 0.5, yb = g.y + g.h - i;
+        ctx.beginPath();
+        ctx.moveTo(g.x + i, g.y + 3);
+        ctx.lineTo(g.x + i, yb - rad);
+        ctx.arcTo(g.x + i, yb, g.x + i + rad, yb, rad);
+        ctx.lineTo(g.x + g.w - i - rad, yb);
+        ctx.arcTo(g.x + g.w - i, yb, g.x + g.w - i, yb - rad, rad);
+        ctx.lineTo(g.x + g.w - i, g.y + 3);
+        return;
+      }
       const rad = g.w / 2;
       ctx.beginPath();
       ctx.moveTo(g.x + i, g.y + 3); ctx.lineTo(g.x + i, g.y + g.h - rad);
@@ -335,17 +351,22 @@
         }
         ctx.restore();
       }
-      // the highlight: a bar down the left inside the glass, then a crescent round the bottom that tapers to nothing
-      const wb = Math.max(3, g.w * 0.06), xl = g.x + gap + 5, ra = rad - gap - 5;
+      /* The highlight: a bar down the left wall. A tube's carries on round its
+         round bottom and tapers away; a beaker's stops above its flat floor. */
+      const wb = Math.max(3, Math.min(7, g.w * 0.06)), xl = g.x + gap + 5, ra = rad - gap - 5;
       ctx.fillStyle = GLASS.shine;
-      ctx.fillRect(xl, g.y + 6, wb, cy - g.y - 6);
-      ctx.save();
-      ctx.beginPath(); ctx.rect(g.x, cy, rad * 1.15, rad + 2); ctx.clip();
-      ctx.beginPath();
-      ctx.arc(cx, cy, ra, 0, TAU);
-      ctx.arc(cx + wb * 0.95, cy - wb * 0.3, ra, 0, TAU, true);
-      ctx.fill('evenodd');
-      ctx.restore();
+      if (MODE !== 'mobile') {
+        ctx.fillRect(xl, g.y + 6, wb, g.h - 6 - gap - 12);
+      } else {
+        ctx.fillRect(xl, g.y + 6, wb, cy - g.y - 6);
+        ctx.save();
+        ctx.beginPath(); ctx.rect(g.x, cy, rad * 1.15, rad + 2); ctx.clip();
+        ctx.beginPath();
+        ctx.arc(cx, cy, ra, 0, TAU);
+        ctx.arc(cx + wb * 0.95, cy - wb * 0.3, ra, 0, TAU, true);
+        ctx.fill('evenodd');
+        ctx.restore();
+      }
       // the glass: its outer face and its inner, open at the mouth (owner's drawing, 2026-09-19: no lip)
       hair(1); tubeLine(g, 0); ctx.stroke();
       hair(1); tubeLine(g, gap); ctx.stroke();
@@ -378,7 +399,7 @@
     const shelfDrawn = (r) => { const b = shelfBox(r), d = troughDepth(b); return { x: b.x, y: b.y + b.h - d, w: b.w, h: d }; };
     /* A trough, as the owner drew it: short straight sides, a flat floor and
        small corners, about a third as deep as it is wide. */
-    const troughDepth = (b) => Math.min(b.h * 0.42, b.w * 0.3);
+    const troughDepth = (b) => Math.round(Math.min(b.h * 0.42, b.w * 0.3));
     function bracketPath(r) {
       const b = shelfBox(r), d = troughDepth(b), rad = Math.min(11, d * 0.6), top = b.y + b.h - d;
       ctx.beginPath();
@@ -586,7 +607,8 @@
       const plan = wordPlan();
       // what to do is written inside the tube, and clears out as soon as anything is in it
       if (!st.pieces.some((q) => q.zone === 'tube') && !(react && now - react.t0 < L.reactMs)) drawWords(plan.tube);
-      if (on) eq(tray.x, tray.y - 12, tray.w);          // the equation reads above the shelves, clear of what is on them
+      // the equation takes the heading's line, and on a desktop the whole column's width so it reads at full size
+      if (on) eq(tray.x, wordBase.tray, MODE === 'mobile' ? tray.w : tube.w);
       else drawWords(plan.tray);
     }
 
