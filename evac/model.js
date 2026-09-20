@@ -44,7 +44,7 @@ const TUNE = {
   levelS: 0.30,       // how long the creep takes
   doorS: 0.6,
   boardS: 0.4,
-  capacity: 4,
+  capacity: 6,
 };
 
 /* The fire. Every one of these was swept against the rules that ship, and
@@ -179,7 +179,11 @@ function stepSmoke(s, floors, fireFloor, rate, dt, F) {
    points of planning, 0.72/0.20 is worth 28, 0.64/0.20 is worth 52, and
    0.56/0.18 is worth 55 but drops winnable to 90%. 0.64/0.20 is the interior
    choice: 98% winnable, 28% certifiable, and planning worth 52 points. */
-const STAND_FIRST = 0.64, STAND_STEP = 0.20;
+/* SIX SLOTS, NOT FOUR. The step was 0.20, which put slots 4 and 5 at -0.16
+   and -0.36: outside the corridor altogether. The first slot stays where it
+   was, because ENGULF_WINDOW is measured from it and the deepest person's
+   clock must not move; the rest pack in tighter, toward the doors. */
+const STAND_FIRST = 0.64, STAND_STEP = 0.115;
 function standAt(slot) { return STAND_FIRST - STAND_STEP * slot; }
 
 /* WHERE THEY END UP. Nobody in a fire waits where they happened to be when the

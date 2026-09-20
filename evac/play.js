@@ -257,7 +257,11 @@
      is worse than a shorter word, so take the longest wording that still
      leaves the readout its floor size, and if even the shortest will not fit,
      show nothing rather than overlap. */
-  const readoutLine = (dropBest) => 'OUT ' + out + '   ·   ' + (waiting.length + aboard.length) +
+  /* GUESTS SAVED, not OUT. "Out" is the programmer's word for the counter;
+     the player is running a hotel and what they are counting is people. It is
+     a longer label, so the band's existing fit logic earns its keep: the type
+     shrinks first and BEST yields before anything is allowed to overlap. */
+  const readoutLine = (dropBest) => 'GUESTS SAVED ' + out + '   ·   ' + (waiting.length + aboard.length) +
     ' INSIDE' + (best && !dropBest ? '   ·   BEST ' + best : '');
   const hudScale = () => Math.max(0.66, Math.min(1, LW / 620));
   function capPlan(force) {
@@ -345,12 +349,20 @@
   let waiting = [], aboard = [], fallen = [], out = 0, lost = 0, lostFloors = [], standsBy = {};
   let phase = 'play';                  // 'play' | 'serve' | 'level' | 'over'
   let serveT = 0, serveFloor = 1, doorOpen = 0, didWork = false, didClose = false;
+  /* CALLS. Dragging a heavy car is a fine verb and a hard landing: players
+     reported both, that it is difficult to steer and that it does not arrive
+     level. A called floor is a promise the car keeps by itself - it leaves at
+     full pull, brakes on a curve and arrives with nothing left, so it lands
+     level every time. The drag still works; it simply is not the only way.
+     The queue is served in the order the buttons were pressed, which is the
+     only order a player can predict. */
+  let calls = [];
   let settleT = 0, settleDir = 1, sag = 0;
   let levelFrom = 1, levelTo = 1, levelT = 0, levelDir = 1;
   let departed = false, stopsMade = 0, nextId = 0, nextSpawn = 0;
   let puffs = [], runners = [], tNow = 0, endT = 0, best = 0;
-  let wave = 1, waveFlash = 0, fullT = 0, capRect = null, chromeLeft = 0;
-  let rulesOpen = false, rulesScroll = 0, handlePulse = 0;
+  let wave = 1, waveFlash = 0, fullT = 0, fullFlash = 0, capRect = null, chromeLeft = 0;
+  let rulesOpen = false, rulesScroll = 0;
   let rng = M.makeRng(1);
 
   function loadBest() {
@@ -369,12 +381,11 @@
     car.y = 1; car.v = 0;
     smoke = new Float64Array(F + 1);
     carSmoke = 0;
-    waiting = []; aboard = []; fallen = [];
+    waiting = []; aboard = []; fallen = []; calls = [];
     out = 0; lost = 0; lostFloors = [];
     phase = 'play'; doorOpen = 0; serveT = 0; sag = 0; settleT = 0;
     departed = false; stopsMade = 0; nextId = 0;
-    puffs = []; runners = []; tNow = 0; endT = 0; wave = 1; waveFlash = 0; fullT = 0;
-    handlePulse = 1;
+    puffs = []; runners = []; tNow = 0; endT = 0; wave = 1; waveFlash = 0; fullT = 0; fullFlash = 0;
     best = loadBest();
     /* Doors keep clear of EVERY standing position, not just the occupied ones,
        because in a run people arrive where they like and a door cannot appear
@@ -472,22 +483,20 @@
     }
   }
 
-  /* ---------- INPUT ---------- */
-  let dragging = false, dragV = 0, dragLastY = 0, dragLastT = 0, keyDir = 0;
+  /* ---------- INPUT ----------
+     THE CAR IS CALLED, NEVER STEERED. Dragging a heavy car was this game's
+     original verb, and it is gone: players reported it as hard to control and
+     as landing between floors, and a velocity-coupled drag is genuinely both.
+     Pressing a floor is now the whole interface. keyDir survives as an
+     internal for the headless harness at the bottom of this file; nothing a
+     player can touch sets it. */
+  let keyDir = 0;
 
   function toLocal(e) {
     const r = canvas.getBoundingClientRect();
     return { x: (e.clientX - r.left) * (LW / r.width), y: (e.clientY - r.top) * (LH / r.height) };
   }
   const hitCtrl = (x, y) => ctrl.find(c => x >= c.x - 6 && x <= c.x + c.w + 6 && y >= c.y - 8 && y <= c.y + c.h + 8) || null;
-  /* The whole shaft is the handle. There is nothing else in it, grabbing the
-     cable is the same gesture as grabbing the car, and a thumb does not have to
-     find a 60px box first. */
-  function inGrab(x, y) {
-    const pad = MODE === 'mobile' ? 26 : 18;
-    return x >= geo.shaftX - pad && x <= geo.shaftX + geo.shaftW + pad &&
-           y >= geo.y - 12 && y <= geo.y + geo.h + 12;
-  }
 
   canvas.addEventListener('pointerdown', (e) => {
     e.preventDefault();
@@ -497,45 +506,111 @@
     const c = hitCtrl(p.x, p.y);
     if (c) { onCtrl(c.id); return; }
     if (phase === 'over') { onEndPointer(p); return; }
-    if (phase === 'serve' || phase === 'level') return;  // never steer while it is landing
-    if (!inGrab(p.x, p.y)) return;
-    /* Seed the target with the speed the car already has. A tall building needs
-       more than one thumb-length, so a trip is taken in two or three gestures;
-       starting each from zero braked at aMax, HARDER than letting go, and made
-       re-gripping cost speed. */
-    dragging = true; dragV = car.v; dragLastY = p.y; dragLastT = performance.now();
-    /* Capture can throw if the pointer is already gone by the time we ask -
-       the existence check does not cover that. It is the last thing the handler
-       does, so the drag is already live and a throw costs nothing but an
-       uncaught error in the console; the rest of the fleet guards it the same
-       way. */
-    try { canvas.setPointerCapture?.(e.pointerId); } catch (err) { /* pointer already gone */ }
+    const cb = callButtons().find(q => Math.hypot(p.x - q.x, p.y - q.y) <= q.r + 10);
+    if (cb) pressCall(cb.f);
   });
-  canvas.addEventListener('pointermove', (e) => {
-    if (!dragging) return;
-    const p = toLocal(e), now = performance.now();
-    const dt = Math.max(0.008, (now - dragLastT) / 1000);
-    // THE HAND'S VELOCITY IS THE TARGET. Screen y grows down, floors grow up.
-    const raw = -(p.y - dragLastY) / geo.floorPx / dt;
-    dragV = dragV * 0.55 + raw * 0.45;
-    dragLastY = p.y; dragLastT = now;
-  });
-  const endDrag = () => { dragging = false; dragV = 0; };
-  canvas.addEventListener('pointerup', endDrag);
-  canvas.addEventListener('pointercancel', endDrag);
 
+  /* A keyboard presses the BUTTONS; it does not drive the car. 1-9 call that
+     floor, which is the same act as tapping it, so the game stays playable
+     without a pointer now that the drag is gone. */
   window.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowUp' || e.key === 'w') { keyDir = 1; e.preventDefault(); }
-    else if (e.key === 'ArrowDown' || e.key === 's') { keyDir = -1; e.preventDefault(); }
+    if (e.key >= '1' && e.key <= '9') {
+      const f = Number(e.key);
+      if (f <= floors()) { pressCall(f); e.preventDefault(); }
+    }
     else if (e.key === 'Escape' && rulesOpen) { rulesOpen = false; }
     else if (e.key === 'Enter' && phase === 'over') { advanceFromCard(); }
     else return;
     if (sfx) sfx.ensureAudio();
   });
-  window.addEventListener('keyup', (e) => {
-    if ((e.key === 'ArrowUp' || e.key === 'w') && keyDir === 1) keyDir = 0;
-    if ((e.key === 'ArrowDown' || e.key === 's') && keyDir === -1) keyDir = 0;
-  });
+
+  /* The buttons live in the shaft itself, one at each landing, on the back
+     wall the car runs past. The car covers the one it is standing at, which is
+     exactly right: you cannot call a lift that is already with you. */
+  function callButtons() {
+    const r = Math.max(8, Math.min(14, Math.min(geo.shaftW * 0.36, geo.floorPx * 0.19)));
+    const out = [];
+    for (let f = 1; f <= floors(); f++) {
+      out.push({ f: f, x: geo.shaftX + geo.shaftW / 2, y: roomTop(f) + geo.floorPx * 0.42, r: r });
+    }
+    return out;
+  }
+  function pressCall(f) {
+    if (phase !== 'play' && phase !== 'serve') return;
+    if (calls.includes(f)) { calls = calls.filter(c => c !== f); return; }  // press again to cancel
+    calls.push(f);
+    if (snd) snd.bell();
+    TR().track('call', { floor: f, queued: calls.length });
+    if (phase === 'play' && Math.abs(car.y - f) < 0.02 && Math.abs(car.v) < 0.02) {
+      car.y = f; startServe(f);
+    }
+  }
+  /* A CIRCLE WITH A LIGHT IN IT, AND THE FLOOR ON IT. Every button is lit -
+     an unlit button in an unlit shaft is invisible, which is exactly what the
+     first pass got wrong. So the lens is always burning and the numeral always
+     legible; being CALLED is a second, brighter state on top of that: a wider
+     halo, a hotter core and a slow breath. Same brass as the car, because it
+     is the same machine. */
+  function drawCallButtons(now) {
+    for (const b of callButtons()) {
+      const queued = calls.indexOf(b.f);
+      const lit = queued >= 0;
+      const pulse = (lit && !REDUCED) ? 0.84 + 0.16 * Math.sin(now / 230 + b.f) : 1;
+
+      // the light it throws into the shaft: always some, a lot when called
+      const reach = b.r * (lit ? 3.6 : 2.1);
+      const gl = ctx.createRadialGradient(b.x, b.y, b.r * 0.35, b.x, b.y, reach);
+      gl.addColorStop(0, 'rgba(255,206,126,' + ((lit ? 0.52 : 0.20) * pulse).toFixed(3) + ')');
+      gl.addColorStop(0.42, 'rgba(255,184,100,' + ((lit ? 0.18 : 0.07) * pulse).toFixed(3) + ')');
+      gl.addColorStop(1, 'rgba(255,176,88,0)');
+      ctx.fillStyle = gl;
+      ctx.beginPath(); ctx.arc(b.x, b.y, reach, 0, Math.PI * 2); ctx.fill();
+
+      // the bezel, lit from above like everything else in this building
+      const bz = ctx.createLinearGradient(b.x, b.y - b.r * 1.34, b.x, b.y + b.r * 1.34);
+      bz.addColorStop(0, '#5A4F63'); bz.addColorStop(0.5, '#2E2739'); bz.addColorStop(1, '#171223');
+      ctx.fillStyle = bz;
+      ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 1.34, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(0,0,0,0.40)';
+      ctx.beginPath(); ctx.arc(b.x, b.y + b.r * 0.08, b.r * 1.12, 0, Math.PI * 2); ctx.fill();
+
+      // the lens
+      const lens = ctx.createRadialGradient(b.x - b.r * 0.26, b.y - b.r * 0.32, b.r * 0.12,
+                                            b.x, b.y, b.r);
+      if (lit) {
+        lens.addColorStop(0, '#FFF6DC'); lens.addColorStop(0.42, '#FFCF72');
+        lens.addColorStop(1, '#E09A22');
+      } else {
+        lens.addColorStop(0, '#FFD98A'); lens.addColorStop(0.45, '#E8B44C');
+        lens.addColorStop(1, '#B4791D');
+      }
+      ctx.fillStyle = lens;
+      ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
+
+      // the floor, printed on the glass
+      ctx.fillStyle = 'rgba(38,22,6,0.94)';
+      ctx.font = '800 ' + Math.max(9, Math.round(b.r * 1.22)) + 'px Inter, sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(String(b.f), b.x, b.y + b.r * 0.07);
+
+      // and the sheen across it
+      ctx.fillStyle = 'rgba(255,255,255,0.26)';
+      ctx.beginPath();
+      ctx.ellipse(b.x, b.y - b.r * 0.46, b.r * 0.56, b.r * 0.22, 0, 0, Math.PI * 2); ctx.fill();
+
+      /* CALLED IS A RING, not a slightly brighter lens. Every button is lit, so
+         being answered has to be a different KIND of light: the ring round the
+         bezel burns, the way a hall call does when it takes your press. */
+      if (lit) {
+        ctx.strokeStyle = 'rgba(255,214,140,' + (0.95 * pulse).toFixed(3) + ')';
+        ctx.lineWidth = Math.max(1.6, b.r * 0.26);
+        ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 1.30, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,255,255,' + (0.38 * pulse).toFixed(3) + ')';
+        ctx.lineWidth = Math.max(0.8, b.r * 0.09);
+        ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 1.24, 0, Math.PI * 2); ctx.stroke();
+      }
+    }
+  }
 
   function onCtrl(id) {
     if (id === 'sound') { if (sfx) sfx.setOn(!sfx.isOn()); return; }
@@ -552,7 +627,6 @@
     tNow += dt;
     stepAmbience(dt);
     if (settleT > 0) settleT = Math.max(0, settleT - dt / 0.16);
-    if (handlePulse > 0) handlePulse = Math.max(0, handlePulse - dt / 1.4);
     for (const p of puffs) p.t += dt / 1.1;
     puffs = puffs.filter(p => p.t < 1);
     for (const r of runners) r.t += dt;
@@ -566,7 +640,10 @@
       TR().track('wave', { wave, out, lost });
     }
     if (waveFlash > 0) waveFlash = Math.max(0, waveFlash - dt / 2.2);
+    const wasFull = fullT > 0;
     fullT = aboard.length >= T.capacity ? Math.min(1, fullT + dt / 0.20) : 0;
+    if (fullT > 0 && !wasFull) fullFlash = 1;                // it just filled: say so
+    if (fullFlash > 0) fullFlash = Math.max(0, fullFlash - dt / 1.9);
     nextSpawn -= dt;
     if (nextSpawn <= 0) { spawnPerson(); nextSpawn = spawnEvery(); }
     for (const r of fallen) r.t += dt;
@@ -616,16 +693,20 @@
 
   function stepDrive(dt) {
     let input;
-    if (dragging) {
-      const age = Math.max(0, (performance.now() - dragLastT) / 1000 - 0.06);
-      input = { mode: 'drag', targetV: dragV * Math.exp(-age * 12) };
-    } else if (keyDir) input = { mode: 'key', dir: keyDir };
-    else input = { mode: 'free' };
+    if (keyDir) input = { mode: 'key', dir: keyDir };        // the harness only
+    else if (calls.length) {
+      /* Brake on a curve rather than bang-bang: v = sqrt(2 b d) is exactly the
+         speed the car can still stop from, so it arrives with nothing left and
+         onStopped puts it level. 0.92 keeps a margin for the frame it misses. */
+      const d = calls[0] - car.y, ad = Math.abs(d);
+      const v = Math.sign(d) * Math.min(T.vMax, Math.sqrt(2 * T.b * ad) * 0.92);
+      input = { mode: 'drag', targetV: ad < 0.004 ? 0 : v };
+    } else input = { mode: 'free' };
 
     const before = car.v;
     M.stepCar(car, dt, input, level.floors, T);
     if (Math.abs(car.v) > 0.02) departed = true;
-    if (departed && !dragging && !keyDir && Math.abs(car.v) < 1e-6) onStopped(before);
+    if (departed && !keyDir && Math.abs(car.v) < 1e-6) onStopped(before);
   }
 
   function onStopped(releaseV) {
@@ -658,6 +739,7 @@
   }
 
   function startServe(f) {
+    calls = calls.filter(c => c !== f);                      // this one is answered
     phase = 'serve'; serveT = 0; serveFloor = f; didWork = false; didClose = false; stopsMade++;
     if (snd) { snd.bell(); snd.doors(false); }
   }
@@ -680,12 +762,16 @@
     if (!didWork && serveT >= t.open) {
       didWork = true;
       if (serveFloor === 1) {
+        /* THEY LEAVE ONE BEHIND THE OTHER. Four runners starting together on
+           alternating sides read as one person: the eye cannot count a crowd
+           that moves as a block, and the whole point of a full car is that you
+           see four people saved. Same door, a fifth of a second apart, each
+           stopping a little shorter than the one in front. */
         aboard.forEach((p, i) => {
           out++;
-          const right = geo.rightW > 0 && (i % 2 === 1);
-          runners.push({ floor: 1, kind: 'out', seed: p.id + 1, t: 0, dur: 0.85,
-            x0: right ? geo.shaftX + geo.shaftW + 4 : geo.shaftX - 4,
-            x1: right ? geo.rightX + geo.rightW * 0.86 : geo.leftX + geo.corW * 0.14 });
+          runners.push({ floor: 1, kind: 'out', seed: p.id + 1, t: -0.22 * i, dur: 0.95,
+            x0: geo.shaftX - 4,
+            x1: geo.leftX + geo.corW * (0.12 + 0.055 * i) });
         });
         if (aboard.length && snd) snd.rescue(aboard.length);
         aboard = [];
@@ -705,6 +791,21 @@
           if (party.length <= room) { for (const q of party) { take.push(q); seen.add(q.id); } room -= party.length; }
           else for (const q of party) seen.add(q.id);
           if (room <= 0) break;
+        }
+        /* NOBODY IS LEFT BEHIND FOR A SEAT THAT IS FREE. Whole parties are
+           still preferred and still board together when they fit. But if
+           skipping one leaves the car with room, the people on that floor take
+           it one at a time, worst off first - which is what `here` is already
+           sorted by. Driving away with an empty place while somebody is
+           suffocating in front of the doors is not a mechanic, it is a bug,
+           and it is what players hit at three aboard. */
+        if (room > 0) {
+          const taken = new Set(take.map(q => q.id));
+          for (const q of here) {
+            if (room <= 0) break;
+            if (taken.has(q.id)) continue;
+            take.push(q); taken.add(q.id); room--;
+          }
         }
         if (take.length) {
           const ids = new Set(take.map(p => p.id));
@@ -743,6 +844,7 @@
     drawPeople(now);
     drawSmoke(now);
     drawShaft();
+    drawCallButtons(now);                                    // on the shaft wall, behind the car
     drawCar(now);
     drawPuffs();
     drawHud();
@@ -753,9 +855,13 @@
   function drawShell() {
     const g = ctx.createLinearGradient(0, geo.y, 0, geo.y + geo.h);
     g.addColorStop(0, SHELL_TOP); g.addColorStop(1, SHELL_BOT);
-    ctx.fillStyle = g; rr(geo.x - 6, geo.y - 8, geo.w + 12, geo.h + 8, 8); ctx.fill();
+    /* THE SHELL IS THE BUILDING, NOT A FRAME ROUND IT. It used to stand 6px
+       proud on each side, and nothing ever painted a wall into those 6px - but
+       the smoke and the firelight clipped to them, so the edge of every burning
+       floor had a dead strip beside it that caught light and held nothing. */
+    ctx.fillStyle = g; rr(geo.x, geo.y - 8, geo.w, geo.h + 8, 8); ctx.fill();
     ctx.fillStyle = 'rgba(255,255,255,0.06)';
-    ctx.fillRect(geo.x - 10, geo.y - 12, geo.w + 20, 4);     // the roof line
+    ctx.fillRect(geo.x - 4, geo.y - 12, geo.w + 8, 4);       // the roof line
   }
 
   /* THE CORRIDOR IS BAKED. It is a warm lit hallway with a ceiling, a cornice,
@@ -1089,7 +1195,7 @@
     if (bakeKey !== corridorKey()) bakeCorridors();
     const F = floors();
     ctx.save();
-    ctx.beginPath(); rr(geo.x - 6, geo.y - 8, geo.w + 12, geo.h + 8, 8); ctx.clip();
+    ctx.beginPath(); rr(geo.x, geo.y - 8, geo.w, geo.h + 8, 8); ctx.clip();
     for (let f = 1; f <= F; f++) {
       const img = baked[(side === 'left' ? 'L' : 'R') + f];
       if (img) ctx.drawImage(img, x, roomTop(f), w, geo.floorPx);
@@ -1210,7 +1316,7 @@
   function smokeLayer(aScale, now) {
     const F = floors();
     ctx.save();
-    ctx.beginPath(); rr(geo.x - 6, geo.y - 8, geo.w + 12, geo.h + 8, 8); ctx.clip();
+    ctx.beginPath(); rr(geo.x, geo.y - 8, geo.w, geo.h + 8, 8); ctx.clip();
     for (let f = 1; f <= F; f++) {
       const front = smoke[f];
       if (front < 0.005) continue;
@@ -1290,7 +1396,7 @@
     const sides = [{ x: geo.leftX, dir: 1, w: geo.corW }];
     if (geo.rightW > 0) sides.push({ x: geo.rightX + geo.rightW, dir: -1, w: geo.rightW });
     ctx.save();
-    ctx.beginPath(); rr(geo.x - 6, geo.y - 8, geo.w + 12, geo.h + 8, 8); ctx.clip();
+    ctx.beginPath(); rr(geo.x, geo.y - 8, geo.w, geo.h + 8, 8); ctx.clip();
     for (const s of sides) {
       /* SATURATION, NOT BRIGHTNESS. Against the old amber wall the fire was
          invisible because orange sat on orange, so it was made near-white -
@@ -1440,6 +1546,7 @@
   function drawRunners(now) {
     const h = geo.floorPx * 0.52;
     for (const r of runners) {
+      if (r.t < 0) continue;                                 // still waiting their turn
       const k = Math.min(1, r.t / r.dur);
       const x = r.x0 + (r.x1 - r.x0) * (r.kind === 'out' ? ease(k) : k);
       const dir = r.x1 >= r.x0 ? 1 : -1;
@@ -1876,16 +1983,7 @@
     ctx.fillStyle = 'rgba(255,232,176,0.28)';
     ctx.fillRect(x + 3, y + h - 4, w - 6, 1.5);
 
-    // the handle: drawn at rest always, pulsing once at the start of a level.
-    const ha = 0.34 + (handlePulse > 0 ? Math.sin(handlePulse * Math.PI) * 0.55 : 0);
-    const hy = y - Math.max(9, geo.floorPx * 0.13);
-    ctx.strokeStyle = 'rgba(255,232,176,' + ha.toFixed(3) + ')';
-    ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    const s = Math.max(4, geo.floorPx * 0.07), mx = x + w / 2;
-    ctx.beginPath();
-    ctx.moveTo(mx - s, hy + s * 0.4); ctx.lineTo(mx, hy - s * 0.5); ctx.lineTo(mx + s, hy + s * 0.4); ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(mx - s, hy + s * 1.5); ctx.lineTo(mx, hy + s * 2.4); ctx.lineTo(mx + s, hy + s * 1.5); ctx.stroke();
+    /* The grab chevrons above the cab are gone with the drag they advertised. */
     void now;
   }
 
@@ -1926,20 +2024,13 @@
        building would hide the corridor you are about to drive to. Sized here,
        BEFORE the readout, so the readout shrinks around it and the two can
        never collide on a narrow frame. */
+    /* THE FULL CAR SAYS IT WHERE YOU ARE LOOKING. A pill tucked beside the
+       Rules button is in the one place a player's eye never is while driving:
+       every reported miss of it was a player watching the shaft. It speaks in
+       the middle now, the same way the wave does. */
     capRect = null;
-    if (plan) {
-      const py = Math.round(topBand() / 2 - plan.h / 2);
-      ctx.globalAlpha = fullT;
-      ctx.fillStyle = '#F0B45C';
-      rr(plan.x, py, plan.w, plan.h, plan.h / 2); ctx.fill();
-      capRect = { x: plan.x, y: py, w: plan.w, h: plan.h, msg: plan.msg };
-      ctx.fillStyle = '#191320';
-      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-      ctx.font = '700 ' + plan.fs + 'px Inter, sans-serif';
-      ctx.fillText(plan.msg, plan.x + plan.fs * 0.95, topBand() / 2 + 0.5);
-      ctx.globalAlpha = 1;
-    }
-    const readFrom = readoutMinX + (plan ? plan.w + 14 : 0);
+    const readFrom = readoutMinX;
+    void plan;
 
     let fs = Math.round(16 * hs);
     ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
@@ -1966,13 +2057,8 @@
        kind of change nobody sees; the game saying it out loud for a moment is
        why arcades did it that way. Drawn over the shaft, never over a
        corridor, so it cannot hide somebody you need to reach. */
-    if (waveFlash > 0 && wave > 1) {
-      /* It said WAVE 2. A wave number is a designer's word for a difficulty
-         step - it tells the player which bucket they are in and nothing about
-         their building. Say what actually just happened instead. */
-      const a = Math.min(1, waveFlash * 2.2);
-      const cy2 = geo.y + geo.h * 0.5;
-      const msg = 'THE FIRE IS GETTING STRONGER';
+    function banner(msg, a, col, dy) {
+      const cy2 = geo.y + geo.h * 0.5 + (dy || 0);
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       let ms = 22;
       ctx.font = '800 ' + ms + 'px Inter, sans-serif';
@@ -1982,16 +2068,36 @@
       const bw = ctx.measureText(msg).width + 36, bh = ms + 26;
       ctx.fillStyle = 'rgba(10,8,16,' + (0.62 * a).toFixed(3) + ')';
       rr(LW / 2 - bw / 2, cy2 - bh / 2, bw, bh, 12); ctx.fill();
-      ctx.fillStyle = 'rgba(255,150,60,' + a.toFixed(3) + ')';
+      ctx.fillStyle = col.replace('ALPHA', a.toFixed(3));
       ctx.fillText(msg, LW / 2, cy2);
       ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    }
+    /* Never both at once, and the fire outranks the car. */
+    if (fullFlash > 0 && !(waveFlash > 0 && wave > 1)) {
+      banner('ELEVATOR FULL', Math.min(1, fullFlash * 2.2), 'rgba(240,180,92,ALPHA)');
+    }
+    if (waveFlash > 0 && wave > 1) {
+      /* It said WAVE 2. A wave number is a designer's word for a difficulty
+         step - it tells the player which bucket they are in and nothing about
+         their building. Say what actually just happened instead. */
+      banner('THE FIRE IS GETTING STRONGER', Math.min(1, waveFlash * 2.2),
+             'rgba(255,150,60,ALPHA)');
     }
 
     if (MODE === 'mobile' && statusLane() > 0 && tNow < 14) {
       ctx.fillStyle = 'rgba(255,255,255,0.44)';
-      ctx.font = '600 14px Inter, sans-serif';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText('drag the car · let go to stop · take them to the lobby', LW / 2, geo.y + geo.h + statusLane() / 2 + 4);
+      /* The first thing a thumb should try is the thing the buttons are for.
+         The drag is still there and still works; it is no longer the lesson.
+         It SHRINKS: the old line sat within a few pixels of a 375px screen,
+         so any rewording ran off both ends of the phone it was written for. */
+      const hint = 'tap a floor button · take them to the lobby';
+      let hs = 14;
+      ctx.font = '600 ' + hs + 'px Inter, sans-serif';
+      while (hs > 10 && ctx.measureText(hint).width > LW - SIDE_PAD * 2) {
+        hs -= 1; ctx.font = '600 ' + hs + 'px Inter, sans-serif';
+      }
+      ctx.fillText(hint, LW / 2, geo.y + geo.h + statusLane() / 2 + 4);
       ctx.textAlign = 'left'; ctx.textBaseline = 'top';
     }
   }
@@ -2056,7 +2162,7 @@
 
     ctx.textAlign = 'center'; ctx.textBaseline = 'top';
     ctx.fillStyle = '#FFFFFF'; ctx.font = '800 34px Inter, sans-serif';
-    ctx.fillText(out + (out === 1 ? ' PERSON OUT' : ' PEOPLE OUT'), b.px + b.pw / 2, b.py + 34);
+    ctx.fillText(out + (out === 1 ? ' GUEST SAVED' : ' GUESTS SAVED'), b.px + b.pw / 2, b.py + 34);
 
     ctx.font = '600 17px Inter, sans-serif';
     ctx.fillStyle = 'rgba(255,255,255,0.82)';
@@ -2080,12 +2186,15 @@
 
   /* ---------- RULES ---------- */
   const RULES_TEXT = [
-    'The hotel is on fire. Smoke rises from the burning floor and fills the corridors above it. The way out is the lobby.',
-    'Drag the car in the shaft, or hold the up and down keys. It is heavy: it lags behind your hand and keeps going when you let go.',
-    'Land it level with a corridor and the doors open. Between floors they stay shut until you nudge it, and that costs you seconds you need.',
-    'The bar over someone is the air they have left. Four fit in the car. Every door you open lets smoke in, so a stop you did not need costs everyone aboard.',
-    'People under ONE long bar are together and will not be separated. A family of three needs three free places, or they all stay behind.',
+    'A hotel is on fire. Smoke comes along every corridor from the stairwell at the far end, and the way out is the lobby.',
+    'You do not drive the car. Press a floor button and it goes there and lands level. Press several and it answers them in that order; press a lit one again to cancel it. On a keyboard, the number keys call a floor.',
+    'The bar over someone is the air they have left. It only runs down once the smoke has reached them, so whoever stands deepest is on the shortest clock.',
+    'Six fit in the car. Every door you open lets smoke into it, so a stop you did not need costs everyone already aboard.',
+    'People holding on to each other board together when there is room for all of them. When there is not, the free place goes to whoever has the least air.',
+    'Five people overcome ends the run, and the fire gets stronger the longer you are in the building.',
   ];
+
+
   let rulesGeom = null, rulesCTA = null;
   function rulesBox() {
     const pw = Math.min(LW - 56, 470), ph = Math.min(LH - 20, 420);
@@ -2265,6 +2374,7 @@
     get lost() { return lost; }, get waiting() { return waiting; }, get aboard() { return aboard; },
     get smoke() { return Array.from(smoke || []); }, get carSmoke() { return carSmoke; },
     get level() { return level; }, get fallen() { return fallen; },
+    get calls() { return calls.slice(); }, call(f) { pressCall(f); },
     geo, RUN, PARTY, start: startRun, snd, FIRE, get runners() { return runners; },
     get capRect() { return capRect; }, get chromeLeft() { return chromeLeft; }, capPlan,
     get renderMs() { return renderMs; },
@@ -2307,7 +2417,7 @@
   layout();
   window.addEventListener('resize', onResize);
   window.addEventListener('orientationchange', () => setTimeout(onResize, 100));
-  window.addEventListener('splash-done', () => { handlePulse = 1; render(performance.now()); });
+  window.addEventListener('splash-done', () => { render(performance.now()); });
   window.addEventListener('load', onResize);
   window.visualViewport && window.visualViewport.addEventListener('resize', onResize);
   setTimeout(onResize, 0);
