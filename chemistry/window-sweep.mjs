@@ -28,7 +28,7 @@ const p = await openPage({ w: 907, h: 510, dpr: 1, settle: 0 });
 let bad = 0;
 const fail = (tag, issues) => { if (issues.length) { bad++; console.log(`${tag}  ${issues.join('; ')}`); } };
 const right = (r) => r.x + r.w, bottom = (r) => r.y + r.h;
-const SITE_BENCH = '[[162,189.5],[353,207]]';     // the 760x600 frame: the beaker, then the troughs
+const SITE_BENCH = '[[162,192.5],[353,207]]';     // the 760x600 frame: the beaker, then the troughs
 const meets = (a, b) => a.x < right(b) && right(a) > b.x && a.y < bottom(b) && bottom(a) > b.y;
 try {
   // the site frame, not embedded: exactly as designed

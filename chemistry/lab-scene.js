@@ -106,7 +106,7 @@
        on the left with what to do written inside it, and the products on open
        shelves to its right. There is no glass to carry a finished molecule to
        any more: the list counts it where it lands. */
-    const BENCH = { head: 26, label: 15, cellGap: 10, colGap: 18, headGap: 24 };
+    const BENCH = { head: 26, label: 15, cellGap: 10, colGap: 18, headGap: 24, trough: 100, troughGap: 26 };
     // where a shelf's bracket begins, which is what the heading sits above
     const shelfTop = () => shelfDrawn(traySlotRect(0)).y;
     let wordBase = { tray: 0 };
@@ -122,10 +122,11 @@
         D.x = 14; D.w = LW - 28; D.y = top + flaskH + gap;
         D.h = Math.max(120, benchTop - 14 - D.y);
         tube = { x: m, y: benchTop, w: Math.round(LW * 0.26), h: benchH };
-        // the troughs keep the owner's proportions: about a fifth of the screen wide, well apart
-        const cw = Math.round(LW * 0.222), cgap = Math.round(LW * 0.067), gw = cw * 2 + cgap;
+        // the troughs are the same size and spacing here as on a desktop, shrunk only if the phone is too narrow
+        const room = LW - m - 14 - (tube.x + tube.w + BENCH.colGap);
+        const cw = Math.min(BENCH.trough, (room - BENCH.troughGap) / 2), gw = cw * 2 + BENCH.troughGap;
         const gh = Math.min(benchH - BENCH.head, 2 * 82 + BENCH.cellGap);
-        tray = { x: Math.max(tube.x + tube.w + BENCH.colGap, LW - m - 14 - gw), y: floor - gh, w: gw, h: gh, gap: cgap };
+        tray = { x: LW - m - 14 - gw, y: floor - gh, w: gw, h: gh, gap: BENCH.troughGap };
         wordBase = { tray: shelfTop() - BENCH.headGap };
         D.S = Math.min(L.maxScale, D.w / L.worldW.mobile);
       } else {
@@ -136,7 +137,8 @@
            heading under it and the four troughs standing on the dish's floor,
            all the column's width, so the equation has the room to read. */
         const gridH = Math.round(Math.min((floor - colTop) * 0.52, 2 * 104 + BENCH.cellGap));
-        tray = { x: cx, y: floor - gridH, w: cw, h: gridH, gap: 16 };
+        const gw = Math.min(cw, BENCH.trough * 2 + BENCH.troughGap);
+        tray = { x: cx + Math.round((cw - gw) / 2), y: floor - gridH, w: gw, h: gridH, gap: BENCH.troughGap };
         wordBase = { tray: shelfTop() - BENCH.headGap };
         tube = { x: cx, y: colTop, w: cw, h: Math.max(90, wordBase.tray - 26 - colTop) };
         const shape = (D.h / D.w) / (FRAME_DISH.h / FRAME_DISH.w);
@@ -294,15 +296,20 @@
     /* The vessel's outline, inset by `i` from its outer face: a round-bottomed
        tube on a phone, a straight-sided beaker with a flat floor on a desktop.
        Both are open at the mouth. */
+    /* The beaker, measured off the owner's drawing (2026-09-19): straight
+       double walls that turn OUT at the bottom onto a flat base a little wider
+       than the vessel, and that base's top edge is the floor. */
+    const beakerFoot = (g) => Math.max(6, Math.round(g.w * 0.07));
+    const beakerFlare = (g) => Math.max(4, Math.round(g.w * 0.065));
     function tubeLine(g, i) {
       if (MODE !== 'mobile') {
-        const rad = Math.max(6, Math.min(18, g.w * 0.13)) - i * 0.5, yb = g.y + g.h - i;
+        const foot = beakerFoot(g), flare = beakerFlare(g), yf = g.y + g.h - foot;
         ctx.beginPath();
         ctx.moveTo(g.x + i, g.y + 3);
-        ctx.lineTo(g.x + i, yb - rad);
-        ctx.arcTo(g.x + i, yb, g.x + i + rad, yb, rad);
-        ctx.lineTo(g.x + g.w - i - rad, yb);
-        ctx.arcTo(g.x + g.w - i, yb, g.x + g.w - i, yb - rad, rad);
+        ctx.lineTo(g.x + i, yf - flare);
+        ctx.quadraticCurveTo(g.x + i, yf, g.x + i - flare + i, yf);
+        ctx.lineTo(g.x + g.w - i + flare - i, yf);
+        ctx.quadraticCurveTo(g.x + g.w - i, yf, g.x + g.w - i, yf - flare);
         ctx.lineTo(g.x + g.w - i, g.y + 3);
         return;
       }
@@ -370,6 +377,10 @@
       // the glass: its outer face and its inner, open at the mouth (owner's drawing, 2026-09-19: no lip)
       hair(1); tubeLine(g, 0); ctx.stroke();
       hair(1); tubeLine(g, gap); ctx.stroke();
+      if (MODE !== 'mobile') {                       // the base the beaker stands on
+        const foot = beakerFoot(g), flare = beakerFlare(g);
+        hair(1); rr(g.x - flare - 1, g.y + g.h - foot, g.w + 2 * (flare + 1), foot, foot / 2); ctx.stroke();
+      }
       ctx.restore();
       if (active) {
         react.used.forEach((key, k) => {
