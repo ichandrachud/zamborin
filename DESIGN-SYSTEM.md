@@ -183,6 +183,16 @@ switch at its right end. Sections 4.2 to 4.5 say what goes in each.
 | Control centre `cy` | `topBand() / 2` = **28** | `topBand() / 2` = **32** | |
 | Read-out centre | `LH - botBand() / 2` | same | Left aligned at the side margin. |
 
+> **Litmus, by the owner, 2026-09-20.** It has **no bottom band**: the read-out
+> ends the **top** band, right aligned at the side margin, white on the band's
+> blue (5.2:1), and the phone's sound switch joins the round icons at the
+> band's left instead of standing bare at the bottom. The bottom of the screen
+> is plain air — `botPad()` is **20** in both layouts — and the play area keeps
+> the height the read-out line used to take. In the site's own full screen the
+> page's exit button floats over the band's right end (2.2), so the read-out is
+> inset by its width there. A read-out too long for the room between the last
+> control and that edge drops the chapter's name before it drops the level.
+
 Playfield, both modes:
 
 ```js
@@ -334,7 +344,7 @@ Comb still draws its old arrangement there.
 
 One left-aligned line, Ink 72, `600 16px`, every figure in it separated by
 `   ·   `: `LEVEL 12   ·   MOVES 4`. It sits at the side margin, centred in
-the bottom band.
+the bottom band. (Litmus moved it to the top band's right end; see 2.1.)
 
 - **Phone:** the **sound switch** sits at the other end of the same band as a
   bare icon, `drawIcon('sound')` with no circle, its drawing ending 16 from the

@@ -9,6 +9,20 @@
    gets. Needs the local server (see cdp.mjs). */
 import { openPage, BASE } from './cdp.mjs';
 
+/* The top band, on every screen: the controls packed against its left, the
+   read-out ending it, and clear paper between them (owner, 2026-09-20). */
+function band(g, w) {
+  const out = [], r = g.readout;
+  const top = Math.min(...g.ctrl.map((b) => b.y)), bottom = Math.max(...g.ctrl.map((b) => b.y + b.h));
+  const right = Math.max(...g.ctrl.map((b) => b.x + b.w));
+  if (top < 0 || bottom > 64) out.push('controls outside the top band');
+  if (!r) return out.concat('no read-out');
+  if (r.y < 0 || r.y + r.h > 64) out.push('read-out outside the top band');
+  if (r.x < right + 8) out.push('read-out into the controls by ' + (right + 8 - r.x).toFixed(1));
+  if (r.x + r.w > w - 12) out.push('read-out past the side by ' + (r.x + r.w - (w - 12)).toFixed(1));
+  return out;
+}
+
 const LEVEL = process.argv[2] || '22';
 const MAP = LEVEL === 'map';                         // node chemistry/layout-sweep.mjs map
 /* node chemistry/layout-sweep.mjs all: every molecules level at six phone sizes
@@ -67,16 +81,13 @@ try {
       }
       if (g.cells.some((q) => q.x < 8 || q.x + q.w > w - 8)) issues.push('a cell past the side');
       if (g.cells.some((q) => q.w < 44 || q.h < 44)) issues.push('a cell under 44px');
-      /* The controls are round buttons in the top band and the read-out is on
-         its own line at the bottom left, with the bare speaker at its right
-         (DESIGN-SYSTEM 2.1, 4.1, 4.2). */
-      const bare = g.ctrl.find((b) => b.bare), band = g.ctrl.filter((b) => !b.bare);
-      const topOf = Math.min(...band.map((b) => b.y)), botOf = Math.max(...band.map((b) => b.y + b.h));
-      if (v.y + v.h > h - 52) issues.push('map into the read-out line');
+      /* Every control is a round button packed against the left of the top
+         band and the read-out ends the same band (owner, 2026-09-20); below
+         them the screen is the game's, down to 20px of air. */
+      const botOf = Math.max(...g.ctrl.map((b) => b.y + b.h));
+      if (v.y + v.h > h - 20) issues.push('map past the bottom');
       if (v.y < botOf) issues.push('map into the top controls');
-      if (topOf < 0 || botOf > 64) issues.push('controls outside the top band');
-      if (!bare || bare.y < h - 52 - 8 || bare.x + bare.w > w) issues.push('speaker not at the bottom right');
-      if (!g.readout || g.readout.x < 12 || g.readout.y < h - 52 || g.readout.x + g.readout.w > bare.x - 8) issues.push('read-out off its line or into the speaker');
+      issues.push(...band(g, w));
       const end = await p.ev('(__chem.scrollMap(1e9), __chem.geom())');
       const last = end.cells[end.cells.length - 1];
       if (!last || last.c !== 3 || last.y + last.h > end.view.y + end.view.h) issues.push('the last level cannot be scrolled into view');
@@ -88,13 +99,9 @@ try {
       const g = await p.ev('__chem.geom()');
       const issues = [];
       const bottom = (r) => r.y + r.h, right = (r) => r.x + r.w;
-      const bare = g.ctrl.find((b) => b.bare), band = g.ctrl.filter((b) => !b.bare);
-      const ctrlTop = Math.min(...band.map((b) => b.y)), ctrlBottom = Math.max(...band.map((b) => b.y + b.h));
       const labelTop = Math.min(g.tube.y, g.words.tray.y) - 6;
       const targetTop = await p.ev(`Math.min(...__chem.geom().targets.map((f) => f.y - Math.max(...ChemLab.SPECIES[f.key].atoms.map((a) => Math.abs(a.y))) * f.unit - f.unit * 0.305))`);
-      if (ctrlTop < 0 || ctrlBottom > 64) issues.push('controls outside the top band');
-      if (!bare || bare.y < h - 52 - 8 || bare.x + bare.w > w) issues.push('speaker not at the bottom right');
-      if (!g.readout || g.readout.x < 12 || g.readout.y < h - 52 || g.readout.x + g.readout.w > bare.x - 8) issues.push('read-out off its line or into the speaker');
+      issues.push(...band(g, w));
       if (targetTop < 64 + 4) issues.push('target molecules into the top band by ' + (68 - targetTop).toFixed(1));
       if (g.targetsArea.y < 64) issues.push('target row, and its MAKE label, into the top band');
       const targetBottom = Math.max(...g.targets.map((f) => f.labelY + 9));
@@ -157,14 +164,10 @@ try {
     if (g.iconBottom > g.labelTop) issues.push('target icon into its label by ' + (g.iconBottom - g.labelTop).toFixed(1));
     if (g.labelBottom > d.y) issues.push('label into the dish by ' + (g.labelBottom - d.y).toFixed(1));
     if (d.y + d.h > pn.y) issues.push('dish into the panel by ' + (d.y + d.h - pn.y).toFixed(1));
-    const bare = G.ctrl.find((b) => b.bare), band = G.ctrl.filter((b) => !b.bare);
-    const ctrlTop = Math.min(...band.map((b) => b.y)), ctrlBottom = Math.max(...band.map((b) => b.y + b.h));
-    if (ctrlTop < 0 || ctrlBottom > 64) issues.push('controls outside the top band');
-    if (!bare || bare.y < h - 52 - 8 || bare.x + bare.w > w) issues.push('speaker not at the bottom right');
-    if (!G.readout || G.readout.x < 12 || G.readout.y < h - 52 || G.readout.x + G.readout.w > bare.x - 8) issues.push('read-out off its line or into the speaker');
+    issues.push(...band(G, w));
     if (g.iconTop < 68) issues.push('target icon into the top band by ' + (68 - g.iconTop).toFixed(1));
     if (G.flask.y < 64) issues.push('target row, and its MAKE label, into the top band');
-    if (pn.y + pn.h > h - 52) issues.push('what is available into the read-out line by ' + (pn.y + pn.h - (h - 52)).toFixed(1));
+    if (pn.y + pn.h > h - 20) issues.push('what is available past the bottom by ' + (pn.y + pn.h - (h - 20)).toFixed(1));
     if (d.x < 0 || d.x + d.w > w || pn.x < 0 || pn.x + pn.w > w) issues.push('horizontal overflow');
     if (G.slots.some((s) => s.x < pn.x - 0.5 || s.x + s.w > pn.x + pn.w + 0.5 || s.y < pn.y - 0.5 || s.y + s.h > pn.y + pn.h + 0.5)) issues.push('a slot outside the panel');
     if (Object.values(G.atoms).some((a) => a.x < d.x || a.x > d.x + d.w || a.y < d.y || a.y > d.y + d.h)) issues.push('an atom outside the dish');

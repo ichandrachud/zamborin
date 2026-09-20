@@ -29,7 +29,7 @@
       ({ LW, LH, MODE } = host.size());
       pad = host.pad;
       const top = host.topBand() + 4;
-      const bottom = LH - host.botBand() - 10;          // the read-out has its own line on both now
+      const bottom = LH - host.botPad() - 10;
       view = { x: 0, y: top, w: LW, h: Math.max(80, bottom - top) };
       const availW = LW - pad * 2;
       cols = Math.max(4, Math.min(10, Math.round(availW / CELL)));

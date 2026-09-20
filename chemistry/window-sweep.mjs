@@ -28,7 +28,7 @@ const p = await openPage({ w: 907, h: 510, dpr: 1, settle: 0 });
 let bad = 0;
 const fail = (tag, issues) => { if (issues.length) { bad++; console.log(`${tag}  ${issues.join('; ')}`); } };
 const right = (r) => r.x + r.w, bottom = (r) => r.y + r.h;
-const SITE_BENCH = '[[162,192.5],[353,207]]';     // the 760x600 frame: the beaker, then the troughs
+const SITE_BENCH = '[[162,207],[420,160]]';       // the 760x600 frame: the beaker's column, then the troughs
 const meets = (a, b) => a.x < right(b) && right(a) > b.x && a.y < bottom(b) && bottom(a) > b.y;
 try {
   // the site frame, not embedded: exactly as designed
@@ -39,8 +39,8 @@ try {
              tube: [b.tube.y, b.tube.h], tray: [b.tray.y, b.tray.h] }; })()`);
   fail('site frame', [
     ...(site.LW === 760 && site.LH === 600 ? [] : ['frame ' + site.LW + 'x' + site.LH]),
-    ...(JSON.stringify(site.dish) === JSON.stringify([30, 140, 532, 420, 532 / 36]) ? [] : ['molecules dish ' + site.dish]),
-    ...(JSON.stringify(site.lab) === JSON.stringify([30, 140, 402, 420, 402 / 26]) ? [] : ['lab dish ' + site.lab]),
+    ...(JSON.stringify(site.dish) === JSON.stringify([30, 140, 532, 440, 532 / 36]) ? [] : ['molecules dish ' + site.dish]),
+    ...(JSON.stringify(site.lab) === JSON.stringify([30, 140, 402, 440, 402 / 26]) ? [] : ['lab dish ' + site.lab]),
     // the bench, as the owner drew it (2026-09-19): the beaker above, the heading, then the troughs on the dish's floor
     ...(JSON.stringify([site.tube, site.tray]) === SITE_BENCH ? [] : ['bench ' + JSON.stringify([site.tube, site.tray])]),
   ]);
@@ -49,14 +49,17 @@ try {
   await p.metrics(1440, 900, 1, false);
   await p.navigate(BASE + '?drift=0&seed=11&chapter=2&level=16', 1200);
   const FULL = `(() => { const s = __chem.state, g = __chem.geom(), r = document.getElementById('game').getBoundingClientRect(), b = document.getElementById('focus-toggle').getBoundingClientRect();
-    return { LW: s.LW, LH: s.LH, box: [r.left, r.top, r.width, r.height].map(Math.round), button: b.left, readoutBottom: g.readout.y + g.readout.h }; })()`;
+    return { LW: s.LW, LH: s.LH, box: [r.left, r.top, r.width, r.height].map(Math.round), button: b.left,
+             readoutBottom: g.readout.y + g.readout.h, readoutRight: g.readout.x + g.readout.w }; })()`;
   await p.ev(`document.getElementById('focus-toggle').click()`); await sleep(500);
   const on = await p.ev(FULL);
   await p.ev(`document.getElementById('focus-toggle').click()`); await sleep(500);
   const off = await p.ev(FULL);
   fail('site full screen', [
     ...(on.box.join() === '0,0,1440,900' && on.LW === 1152 && on.LH === 720 ? [] : ['fills ' + on.box + ' at ' + on.LW + 'x' + on.LH]),
-    ...(on.readoutBottom >= on.LH - 44 ? [] : ['read-out not on its line at the bottom (' + on.readoutBottom.toFixed(0) + ' of ' + on.LH + ')']),
+    ...(on.readoutBottom <= 56 ? [] : ['read-out not in the top band (' + on.readoutBottom.toFixed(0) + ')']),
+    // the site's exit button floats over the band's right end: the read-out stops short of it
+    ...(on.readoutRight <= on.button * (on.LW / 1440) - 8 ? [] : ['read-out under the full-screen button']),
     ...(off.LW === 760 && off.LH === 600 && off.box[2] === 760 ? [] : ['leaving it gives ' + off.LW + 'x' + off.LH + ' in ' + off.box]),
   ]);
 
@@ -76,7 +79,8 @@ try {
       const top = Math.min(...g.ctrl.map((b) => b.y)), low = Math.max(...g.ctrl.map((b) => b.y + b.h));
       const out = [];
       if (top < 0 || low > 56) out.push('controls outside the top band');
-      if (!g.readout || g.readout.x < 20 || g.readout.y < LH - 40 || right(g.readout) > LW - 20) out.push('read-out off its line at the bottom left');
+      if (!g.readout || g.readout.y < 0 || bottom(g.readout) > 56) out.push('read-out outside the top band');
+      if (g.readout && (g.readout.x < Math.max(...g.ctrl.map(right)) + 8 || right(g.readout) > LW - 20)) out.push('read-out into the controls or past the side');
       return { out, low };
     };
 
@@ -101,7 +105,7 @@ try {
       if (m.placement.reachable !== m.placement.needed) issues.push(where + 'a needed radical walled in');
       // the smallest logical window, 760x450, draws them at 11.997px: the 12px the phones hold, to rounding
       if (d.S < 11.99) issues.push(where + 'atoms under 12px radius (' + d.S.toFixed(3) + ')');
-      const room = d.WW * d.WH, frameRoom = 36 * (420 / (532 / 36));
+      const room = d.WW * d.WH, frameRoom = 36 * (440 / (532 / 36));
       if (d.S < 21.999 && Math.abs(room / frameRoom - 1) > 0.001) issues.push(where + 'room ' + room.toFixed(0) + ' radii squared, not the frame\'s ' + frameRoom.toFixed(0));
     }
 
@@ -121,7 +125,7 @@ try {
       });
       const col = [g.tube, g.tray];
       if (right(g.dish) > g.tube.x || col.some((r) => right(r) > LW - 20 || r.x < right(g.dish))) issues.push(where + 'dish into the bench column');
-      if (bottom(g.dish) > LH - 40 || bottom(g.tray) > LH - 40) issues.push(where + 'into the read-out line');
+      if (bottom(g.dish) > LH - 20 || bottom(g.tray) > LH - 20) issues.push(where + 'past the bottom');
       // the beaker sits above the heading, the heading above the troughs, all in the one column
       if (bottom(g.tube) + 6 > g.words.tray.y) issues.push(where + 'the beaker runs into the heading under it');
       if (g.tube.x < right(g.dish) || right(g.tube) > LW - 20) issues.push(where + 'the beaker is outside its column');

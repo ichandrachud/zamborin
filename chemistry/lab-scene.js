@@ -16,7 +16,7 @@
 
   window.ChemLabScene = function (host) {
     const X = window.ChemLab;
-    const { ctx, TOK, drawAtoms, rr, label, SND, clock, INK } = host;
+    const { ctx, TOK, drawAtoms, rr, label, SND, clock, INK, PAPER } = host;
     const TAU = Math.PI * 2;
     const clamp01 = (v) => Math.max(0, Math.min(1, v));
     const easeOut = (t) => 1 - Math.pow(1 - t, 3);
@@ -101,12 +101,16 @@
        screen) keeps the column 262 wide and gives the dish the rest of the
        width; the tube stands taller or shorter with the window, and the dish
        keeps the frame's room in world units, as chapter 1's does. */
-    const FRAME_DISH = { w: 402, h: 420 };        // the 760x600 frame's lab dish, beside a 280 wide bench
+    const FRAME_DISH = { w: 402, h: 440 };        // the 760x600 frame's lab dish, beside a 280 wide bench
     /* THE BENCH, simplified to the owner's drawing (2026-09-19): the test tube
        on the left with what to do written inside it, and the products on open
        shelves to its right. There is no glass to carry a finished molecule to
        any more: the list counts it where it lands. */
-    const BENCH = { head: 26, label: 15, cellGap: 10, colGap: 18, headGap: 24, trough: 100, troughGap: 26 };
+    /* `cell` is one trough's whole cell, `headGap` the clear paper under the
+       equation and `eqAir` the clear paper above it: the equation needs the
+       room to read, and the troughs needed far less air over them than they
+       had (owner, 2026-09-20). */
+    const BENCH = { head: 26, label: 15, cell: 75, cellGap: 10, colGap: 18, headGap: 34, eqAir: 45, trough: 100, troughGap: 26 };
     // where a shelf's bracket begins, which is what the heading sits above
     const shelfTop = () => shelfDrawn(traySlotRect(0)).y;
     let wordBase = { tray: 0 };
@@ -116,7 +120,7 @@
       if (MODE === 'mobile') {
         const top = host.topBand(), short = LH < 700;
         const flaskH = short ? 92 : 108, gap = short ? 8 : 12;
-        const floor = LH - host.botBand() - 6, benchH = Math.min(short ? 176 : 212, Math.round(LH * 0.3));
+        const floor = LH - host.botPad(), benchH = Math.min(short ? 176 : 212, Math.round(LH * 0.3));
         const benchTop = floor - benchH, m = 16;
         targetsArea = { x: 14, y: top, w: LW - 28, h: flaskH };
         D.x = 14; D.w = LW - 28; D.y = top + flaskH + gap;
@@ -125,22 +129,22 @@
         // the troughs are the same size and spacing here as on a desktop, shrunk only if the phone is too narrow
         const room = LW - m - 14 - (tube.x + tube.w + BENCH.colGap);
         const cw = Math.min(BENCH.trough, (room - BENCH.troughGap) / 2), gw = cw * 2 + BENCH.troughGap;
-        const gh = Math.min(benchH - BENCH.head, 2 * 82 + BENCH.cellGap);
+        const gh = Math.min(benchH - BENCH.head, 2 * BENCH.cell + BENCH.cellGap);
         tray = { x: LW - m - 14 - gw, y: floor - gh, w: gw, h: gh, gap: BENCH.troughGap };
         wordBase = { tray: shelfTop() - BENCH.headGap };
         D.S = Math.min(L.maxScale, D.w / L.worldW.mobile);
       } else {
         targetsArea = { x: 30, y: 58, w: LW - 60, h: 74 };
-        D.x = 30; D.y = 140; D.w = LW - 60 - 18 - 280; D.h = LH - host.botBand() - 140;
+        D.x = 30; D.y = 140; D.w = LW - 60 - 18 - 280; D.h = LH - host.botPad() - 140;
         const cx = D.x + D.w + 18, cw = LW - 30 - cx, floor = D.y + D.h, colTop = D.y + 22;
         /* The owner's desktop drawing, 2026-09-19: the beaker above, the
            heading under it and the four troughs standing on the dish's floor,
            all the column's width, so the equation has the room to read. */
-        const gridH = Math.round(Math.min((floor - colTop) * 0.52, 2 * 104 + BENCH.cellGap));
+        const gridH = Math.round(Math.min((floor - colTop) * 0.52, 2 * BENCH.cell + BENCH.cellGap));
         const gw = Math.min(cw, BENCH.trough * 2 + BENCH.troughGap);
         tray = { x: cx + Math.round((cw - gw) / 2), y: floor - gridH, w: gw, h: gridH, gap: BENCH.troughGap };
         wordBase = { tray: shelfTop() - BENCH.headGap };
-        tube = { x: cx, y: colTop, w: cw, h: Math.max(90, wordBase.tray - 26 - colTop) };
+        tube = { x: cx, y: colTop, w: cw, h: Math.max(90, wordBase.tray - BENCH.eqAir - colTop) };
         const shape = (D.h / D.w) / (FRAME_DISH.h / FRAME_DISH.w);
         D.S = Math.min(L.maxScale, (D.w / L.worldW.desktop) * Math.sqrt(shape));
       }
@@ -268,24 +272,25 @@
       void now;
     }
 
-    /* The glassware, in the style of the owner's last picture (2026-09-15):
-       the glass as two hairlines, its outer face and its inner, with the
-       wall's thickness between them; a rim across the tube's mouth; a long
-       highlight down the left that follows the curve of the bottom and
-       tapers away; and liquid shaded from dark at the left to light at the
-       right, with a lighter line where its surface is. */
-    const GLASS = { line: 'rgba(28,115,161,0.85)', shine: 'rgba(28,115,161,0.20)', dark: '#2E8FC0', light: '#9ED8EE',
+    /* The glassware: an ink wall with thickness and no highlight down it, and
+       liquid shaded from dark at the left to light at the right, with a
+       lighter line where its surface is. */
+    const GLASS = { line: 'rgba(28,115,161,0.85)', dark: '#2E8FC0', light: '#9ED8EE',
                     surface: 'rgba(255,255,255,0.9)', bubble: 'rgba(255,255,255,0.65)' };
-    const hair = (w) => { ctx.strokeStyle = GLASS.line; ctx.lineWidth = w || 1; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; };
-    // liquid across a span of x, dark at the left and light at the right
-    const liquidFill = (x0, x1) => { const g = ctx.createLinearGradient(x0, 0, x1, 0); g.addColorStop(0, GLASS.dark); g.addColorStop(1, GLASS.light); return g; };
 
     /* The test tube, holding at most two. Empty at rest; when two molecules
        react, liquid rises in it and falls away again as the products leave. */
     function tubeGlass() {
-      // a phone keeps the test tube; a desktop pours into a beaker, wide and flat-bottomed (owner, 2026-09-19)
-      const gw = MODE === 'mobile' ? Math.min(60, tube.w - 16) : Math.min(150, tube.w - 30, Math.round((tube.h - 12) * 0.85));
-      return { x: tube.x + (tube.w - gw) / 2, y: tube.y + 8, w: gw, h: tube.h - 12 };
+      // a phone keeps the test tube, long and narrow; a desktop pours into a beaker (owner, 2026-09-19)
+      if (MODE === 'mobile') {
+        const gw = Math.min(60, tube.w - 16);
+        return { x: tube.x + (tube.w - gw) / 2, y: tube.y + 8, w: gw, h: tube.h - 12 };
+      }
+      /* The beaker keeps its shape, a little taller than it is wide, and any
+         room the column has over that becomes air around it. */
+      const gw = Math.min(150, tube.w - 30, Math.round((tube.h - 12) * 0.85));
+      const gh = Math.min(tube.h - 12, Math.round(gw * 1.15));
+      return { x: tube.x + (tube.w - gw) / 2, y: tube.y + Math.round((tube.h - gh) / 2), w: gw, h: gh };
     }
     function tubeSlot(k) {
       const g = tubeGlass();
@@ -293,31 +298,45 @@
       if (MODE !== 'mobile') return { x: g.x + 4 + k * (g.w - 8) / 2, y: g.y + 8, w: (g.w - 8) / 2, h: g.h - 16 };
       return { x: g.x + 4, y: g.y + 6 + k * (g.h - 12) / 2, w: g.w - 8, h: (g.h - 12) / 2 };
     }
-    /* The vessel's outline, inset by `i` from its outer face: a round-bottomed
-       tube on a phone, a straight-sided beaker with a flat floor on a desktop.
-       Both are open at the mouth. */
-    /* The beaker, measured off the owner's drawing (2026-09-19): straight
-       double walls that turn OUT at the bottom onto a flat base a little wider
-       than the vessel, and that base's top edge is the floor. */
-    const beakerFoot = (g) => Math.max(6, Math.round(g.w * 0.07));
+    /* GLASSWARE IS A WALL WITH THICKNESS (owner, 2026-09-20, measured off the
+       drawing: the two faces run parallel about six apart and the wall is
+       closed with a round cap wherever it ends). Stroke the centre line at the
+       wall's width in ink, then again narrower in the paper's own colour: that
+       leaves two parallel faces, round caps, and one thickness everywhere. */
+    const GLASS_T = 6, FACE = 1.15;
+    function glassWall(path, t) {
+      const T = t || GLASS_T;
+      ctx.save();
+      ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+      ctx.strokeStyle = GLASS.line; ctx.lineWidth = T;
+      path(); ctx.stroke();
+      ctx.strokeStyle = PAPER; ctx.lineWidth = Math.max(0.5, T - 2 * FACE);
+      path(); ctx.stroke();
+      ctx.restore();
+    }
+    /* The vessel, in ONE continuous shape (owner, 2026-09-20: a base drawn
+       under the walls "is awful"): on a desktop a flat-bottomed flask whose
+       walls splay out at the bottom onto their own floor, on a phone a
+       round-bottomed tube. `i` insets the OUTER face, so `tubeLine(g, 0)` is
+       the shape the owner sees and `tubeLine(g, GLASS_T / 2)` its inside. */
     const beakerFlare = (g) => Math.max(4, Math.round(g.w * 0.065));
     function tubeLine(g, i) {
+      const o = i + GLASS_T / 2, xl = g.x + o, xr = g.x + g.w - o, yf = g.y + g.h - o;
+      ctx.beginPath();
       if (MODE !== 'mobile') {
-        const foot = beakerFoot(g), flare = beakerFlare(g), yf = g.y + g.h - foot;
-        ctx.beginPath();
-        ctx.moveTo(g.x + i, g.y + 3);
-        ctx.lineTo(g.x + i, yf - flare);
-        ctx.quadraticCurveTo(g.x + i, yf, g.x + i - flare + i, yf);
-        ctx.lineTo(g.x + g.w - i + flare - i, yf);
-        ctx.quadraticCurveTo(g.x + g.w - i, yf, g.x + g.w - i, yf - flare);
-        ctx.lineTo(g.x + g.w - i, g.y + 3);
+        const flare = beakerFlare(g);
+        ctx.moveTo(xl, g.y + 3);
+        ctx.lineTo(xl, yf - flare);
+        ctx.quadraticCurveTo(xl, yf, xl - flare, yf);
+        ctx.lineTo(xr + flare, yf);
+        ctx.quadraticCurveTo(xr, yf, xr, yf - flare);
+        ctx.lineTo(xr, g.y + 3);
         return;
       }
-      const rad = g.w / 2;
-      ctx.beginPath();
-      ctx.moveTo(g.x + i, g.y + 3); ctx.lineTo(g.x + i, g.y + g.h - rad);
-      ctx.arc(g.x + rad, g.y + g.h - rad, rad - i, Math.PI, 0, true);
-      ctx.lineTo(g.x + g.w - i, g.y + 3);
+      const rad = g.w / 2 - o;
+      ctx.moveTo(xl, g.y + 3); ctx.lineTo(xl, yf - rad);
+      ctx.arc(g.x + g.w / 2, yf - rad, rad, Math.PI, 0, true);
+      ctx.lineTo(xr, g.y + 3);
     }
     /* The reaction (owner, 2026-09-15: "show it transform to a couple of
        different colours (2-3 seconds) and then the molecules will be on the
@@ -337,50 +356,30 @@
     // How full the tube is through a reaction: it fills, holds, then drains as the products leave.
     const reactionLevel = (t) => (t < 0.18 ? easeOut(t / 0.18) : t < 0.86 ? 1 : 1 - easeInOut(clamp01((t - 0.86) / 0.14)));
     function drawTube(now) {
-      const g = tubeGlass(), active = react && now - react.t0 < L.reactMs, gap = Math.max(3, g.w * 0.045);
+      const g = tubeGlass(), active = react && now - react.t0 < L.reactMs;
       const t = active ? (now - react.t0) / L.reactMs : 0, fill = active ? reactionLevel(t) : 0;
-      const rad = g.w / 2, cx = g.x + rad, cy = g.y + g.h - rad;
+      const inner = GLASS_T / 2;                     // the inset that reaches the wall's inside face
       ctx.save();
-      if (drag && inside(heldCentre(), grow(tube, 14))) { ctx.fillStyle = 'rgba(23,116,74,0.14)'; tubeLine(g, gap); ctx.closePath(); ctx.fill(); }
+      if (drag && inside(heldCentre(), grow(tube, 14))) { ctx.fillStyle = 'rgba(23,116,74,0.14)'; tubeLine(g, inner); ctx.closePath(); ctx.fill(); }
       if (fill > 0) {
-        const level = g.y + g.h - gap - (g.h - gap - 8) * 0.7 * fill;
+        const level = g.y + g.h - GLASS_T - (g.h - GLASS_T - 8) * 0.7 * fill;
         ctx.save();
-        tubeLine(g, gap); ctx.closePath(); ctx.clip();
-        const [dark, light] = reactionShades(t), shade = ctx.createLinearGradient(g.x + gap, 0, g.x + g.w - gap, 0);
+        tubeLine(g, inner); ctx.closePath(); ctx.clip();
+        const [dark, light] = reactionShades(t), shade = ctx.createLinearGradient(g.x + GLASS_T, 0, g.x + g.w - GLASS_T, 0);
         shade.addColorStop(0, dark); shade.addColorStop(1, light);
         ctx.fillStyle = shade; ctx.fillRect(g.x, level, g.w, g.h);
         ctx.fillStyle = GLASS.surface; ctx.fillRect(g.x, level, g.w, 1.2);
         ctx.fillStyle = GLASS.bubble;
         for (let b = 0; b < 8; b++) {
           const bt = (t * 5 + b / 8) % 1, br = 1.4 + (b % 3) * 0.7;
-          const bx = g.x + g.w * (0.3 + 0.45 * ((b * 37) % 10) / 10), by = g.y + g.h - gap - 4 - bt * (g.y + g.h - gap - 4 - level);
+          const bx = g.x + g.w * (0.3 + 0.45 * ((b * 37) % 10) / 10), by = g.y + g.h - GLASS_T - 4 - bt * (g.y + g.h - GLASS_T - 4 - level);
           if (by > level + br + 1) { ctx.beginPath(); ctx.arc(bx, by, br, 0, TAU); ctx.fill(); }
         }
         ctx.restore();
       }
-      /* The highlight: a bar down the left wall. A tube's carries on round its
-         round bottom and tapers away; a beaker's stops above its flat floor. */
-      const wb = Math.max(3, Math.min(7, g.w * 0.06)), xl = g.x + gap + 5, ra = rad - gap - 5;
-      ctx.fillStyle = GLASS.shine;
-      if (MODE !== 'mobile') {
-        ctx.fillRect(xl, g.y + 6, wb, g.h - 6 - gap - 12);
-      } else {
-        ctx.fillRect(xl, g.y + 6, wb, cy - g.y - 6);
-        ctx.save();
-        ctx.beginPath(); ctx.rect(g.x, cy, rad * 1.15, rad + 2); ctx.clip();
-        ctx.beginPath();
-        ctx.arc(cx, cy, ra, 0, TAU);
-        ctx.arc(cx + wb * 0.95, cy - wb * 0.3, ra, 0, TAU, true);
-        ctx.fill('evenodd');
-        ctx.restore();
-      }
-      // the glass: its outer face and its inner, open at the mouth (owner's drawing, 2026-09-19: no lip)
-      hair(1); tubeLine(g, 0); ctx.stroke();
-      hair(1); tubeLine(g, gap); ctx.stroke();
-      if (MODE !== 'mobile') {                       // the base the beaker stands on
-        const foot = beakerFoot(g), flare = beakerFlare(g);
-        hair(1); rr(g.x - flare - 1, g.y + g.h - foot, g.w + 2 * (flare + 1), foot, foot / 2); ctx.stroke();
-      }
+      // The glass itself: one wall, closed everywhere but the mouth. No
+      // highlight down it: over liquid it read as a dark streak (owner, 2026-09-20).
+      glassWall(() => tubeLine(g, 0));
       ctx.restore();
       if (active) {
         react.used.forEach((key, k) => {
@@ -410,7 +409,7 @@
     const shelfDrawn = (r) => { const b = shelfBox(r), d = troughDepth(b); return { x: b.x, y: b.y + b.h - d, w: b.w, h: d }; };
     /* A trough, as the owner drew it: short straight sides, a flat floor and
        small corners, about a third as deep as it is wide. */
-    const troughDepth = (b) => Math.round(Math.min(b.h * 0.42, b.w * 0.3));
+    const troughDepth = (b) => Math.round(Math.min(b.h * 0.55, b.w * 0.3));
     function bracketPath(r) {
       const b = shelfBox(r), d = troughDepth(b), rad = Math.min(11, d * 0.6), top = b.y + b.h - d;
       ctx.beginPath();
@@ -422,10 +421,7 @@
       ctx.lineTo(b.x + b.w, top);
     }
     function drawTray(now) {
-      ctx.save();
-      ctx.strokeStyle = INK.wall; ctx.lineWidth = 1.3; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-      for (let k = 0; k < TRAY_SLOTS; k++) { bracketPath(traySlotRect(k)); ctx.stroke(); }
-      ctx.restore();
+      for (let k = 0; k < TRAY_SLOTS; k++) glassWall(() => bracketPath(traySlotRect(k)));
       const appear = react ? clamp01((now - react.t0 - L.productsAt) / 250) : 1;
       /* A molecule stands IN its trough with nothing behind it: the paper is
          the background (owner, 2026-09-19). Its formula goes under the floor. */

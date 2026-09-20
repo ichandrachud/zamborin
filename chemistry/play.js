@@ -63,6 +63,12 @@
      until the real size arrives. */
   const FILL = { minW: 760, minH: 450, maxH: 720 };
   const fillsWindow = () => MODE === 'mobile' || EMBEDDED || document.body.classList.contains('focus-mode');
+  /* In the site's own full screen its exit button floats, fixed, over the top
+     band's right end, where the read-out now ends: the read-out keeps clear of
+     it. An embed or a portal package never shows that button. */
+  const FOCUS_BTN = 24 + 44 + 12;                  // its inset from the window, its width, and clear paper
+  const chromeInset = () => (!EMBEDDED && window.innerWidth > 0 && document.body.classList.contains('focus-mode')
+    ? Math.round(FOCUS_BTN * LW / window.innerWidth) : 0);
   function setCanvasVars() {
     if (MODE === 'mobile') { LW = window.innerWidth; LH = window.innerHeight; }
     else if (fillsWindow() && window.innerWidth > 0 && window.innerHeight > 0) {
@@ -155,7 +161,7 @@
     C:  { hi: '#838C9D', lo: '#343B48', arm: '#9FA8B8', ink: '#FFFFFF' },
     F:  { hi: '#A6CBCC', lo: '#31777C', arm: '#B1CCCC', ink: '#10363A' },
     Cl: { hi: '#ADCD7A', lo: '#42761E', arm: '#B7D095', ink: '#17330B' },
-    Na: { hi: '#A78ACF', lo: '#482882', arm: '#B7A9D1', ink: '#FFFFFF' },
+    Na: { hi: '#9E82C5', lo: '#44267B', arm: '#ADA0C6', ink: '#FFFFFF' },
     K:  { hi: '#F0A9D2', lo: '#82255F', arm: '#F5C9E6', ink: '#FFFFFF' },
     Mg: { hi: '#F2D27C', lo: '#8C6A1C', arm: '#F5DFA3', ink: '#3A2A06' },
     Ca: { hi: '#D6CAAE', lo: '#8E764E', arm: '#D8CFBB', ink: '#3A2C12' },
@@ -450,10 +456,13 @@
   const SIDE_PAD = 30;
   const EDGE = () => (MODE === 'mobile' ? 14 : SIDE_PAD);
   const topBand = () => (MODE === 'mobile' ? 64 : 56);
-  const botBand = () => (MODE === 'mobile' ? 52 : 40);       // the read-out's line (DESIGN-SYSTEM 2.1)
+  /* The read-out rides at the right end of the top band now (owner,
+     2026-09-20), so the bottom of the screen is plain air: the play area keeps
+     the height the old read-out line used to take. */
+  const botPad = () => 20;
   const G = { x: 0, y: 0, w: 0, h: 0, S: 18, WW: 28, WH: 23 };   // dish in px; S px per radius; world in radii
   let flaskArea = { x: 0, y: 0, w: 0, h: 0 }, panel = { x: 0, y: 0, w: 0, h: 0 };
-  let slots = [], ctrl = [], readoutMinX = SIDE_PAD, readoutMaxX = 760 - SIDE_PAD, readoutBox = null, ctaBox = null;
+  let slots = [], ctrl = [], readoutBox = null, ctaBox = null;
 
   function layout() {
     if (!LW) return;
@@ -474,7 +483,7 @@
      squared, so a crowd is as thick in a wide short dish as in the frame's.
      Only once its atoms are drawn at the largest size (TUNE.maxScale) does
      the room grow instead. */
-  const FRAME_DISH = { w: 760 - SIDE_PAD * 2 - 150 - 18, h: 600 - 40 - (56 + 2 + 74 + 8) };   // 532 x 420
+  const FRAME_DISH = { w: 760 - SIDE_PAD * 2 - 150 - 18, h: 600 - 20 - (56 + 2 + 74 + 8) };   // 532 x 440
   function layoutDesktop() {
     const top = topBand();
     /* In the shortest windows a portal plays (760x450 and the like) the row of
@@ -482,7 +491,7 @@
     const short = LH < 520, rowH = short ? 66 : 74, rowGap = short ? 6 : 8;
     flaskArea = { x: SIDE_PAD, y: top + 2, w: LW - SIDE_PAD * 2, h: rowH };
     const colW = 150, gap = 18;
-    const y0 = flaskArea.y + flaskArea.h + rowGap, y1 = LH - botBand();
+    const y0 = flaskArea.y + flaskArea.h + rowGap, y1 = LH - botPad();
     G.x = SIDE_PAD; G.y = y0; G.w = LW - SIDE_PAD * 2 - colW - gap; G.h = y1 - y0;
     panel = { x: G.x + G.w + gap, y: G.y, w: colW, h: G.h };
     // the frame's own scale times the change in shape: exactly 532/36 in the 760x600 frame
@@ -495,7 +504,7 @@
     const flaskH = short ? 92 : 108, panelH = short ? 84 : 96, gap = short ? 8 : 12;
     flaskArea = { x: 14, y: top, w: LW - 28, h: flaskH };
     G.x = 14; G.w = LW - 28; G.y = top + flaskH + gap;
-    panel = { x: 14, w: LW - 28, h: panelH, y: LH - botBand() - panelH };
+    panel = { x: 14, w: LW - 28, h: panelH, y: LH - botPad() - panelH };
     G.h = Math.max(120, panel.y - gap - G.y);
     G.S = Math.min(TUNE.maxScale, G.w / TUNE.worldW.mobile);
     G.WW = G.w / G.S; G.WH = G.h / G.S;
@@ -518,18 +527,14 @@
      only sound is left. */
   function layoutControls() {
     const onMap = phase === 'map', cyTop = topBand() / 2;
-    /* A phone gets round icon buttons across the top and a bare speaker at the
-       bottom right, a desktop gets pills (DESIGN-SYSTEM 4.1, 4.2). From the map
-       the left button goes back to the sections. */
+    /* A phone gets round icon buttons, a desktop pills (DESIGN-SYSTEM 4.1,
+       4.2). They are packed against the left of the top band, the speaker with
+       them, and the read-out takes the right end of the same band. From the
+       map the left button goes back to the sections. */
     if (MODE === 'mobile') {
-      const ids = onMap ? ['home'] : ['map', 'restart'], D = UI.PILL.iconW;
-      const gap = Math.max(4, Math.min(28, (LW - 32 - ids.length * D) / Math.max(1, ids.length - 1)));
+      const ids = onMap ? ['home', 'sound'] : ['map', 'restart', 'sound'], D = UI.PILL.iconW;
       let x = 16;
-      ctrl = ids.map((id) => { const b = { id, icon: true, x, y: Math.round(cyTop - D / 2), w: D, h: D, cx: x + D / 2, cy: cyTop }; x += D + gap; return b; });
-      const sy = LH - botBand() / 2;
-      ctrl.push({ id: 'sound', icon: true, bare: true, x: LW - 16 - 33, y: Math.round(sy - 22), w: 44, h: 44, cx: LW - 16 - 11, cy: sy });
-      readoutMinX = 16;
-      readoutMaxX = LW - EDGE();
+      ctrl = ids.map((id) => { const b = { id, icon: true, x, y: Math.round(cyTop - D / 2), w: D, h: D, cx: x + D / 2, cy: cyTop }; x += D + 10; return b; });
       return;
     }
     const items = onMap ? [{ id: 'home', icon: true }, { id: 'sound', icon: true }]
@@ -547,8 +552,6 @@
       x += it.w + UI.PILL.gap;
       return b;
     });
-    readoutMinX = SIDE_PAD;
-    readoutMaxX = LW - SIDE_PAD;
   }
 
   const toPx = (p) => ({ x: G.x + p.x * G.S, y: G.y + p.y * G.S });
@@ -1359,7 +1362,6 @@
     Object.assign(TOK, { ink92: '#FFFFFF', ink72: '#FFFFFF', tint30: 'rgba(255,255,255,0.55)' });
     try {
       for (const b of ctrl) {
-        if (b.bare) continue;
         if (MODE === 'mobile') { UI.drawRound(ctx, b.cx, b.cy); drawCtrlIcon(b); }
         else if (b.icon) { UI.drawPill(ctx, '', b.cx, b.cy, { w: b.w }); drawCtrlIcon(b); }
         else UI.drawPill(ctx, b.label, b.cx, b.cy, { w: b.w });
@@ -1368,24 +1370,31 @@
       Object.assign(pill, { fill: was.fill, border: was.border, text: was.text });
       Object.assign(TOK, { ink92: was.ink92, ink72: was.ink72, tint30: was.tint30 });
     }
-    const y = LH - botBand() / 2, pad = MODE === 'mobile' ? 16 : SIDE_PAD;
-    let txt;
+    /* The read-out ends the top band: white on the band's blue, right
+       against the edge the controls start from. A narrow phone drops the
+       chapter's name before it would ever reach the last button. */
+    const y = topBand() / 2, pad = EDGE();
+    let lines;
     if (phase === 'map') {
       const all = CHAPTERS.reduce((n, ch) => n + ch.levels().length, 0);
       const done = CHAPTERS.reduce((n, ch, k) => n + Math.min(ch.levels().length, progress(k + 1).done), 0);
-      txt = done + ' of ' + all + ' done';
+      lines = [done + ' of ' + all + ' done'];
     } else {
-      const lost = scene ? scene.lost() : st.analysis.lost;
-      txt = [CHAPTERS[CHAPTER - 1].short, 'Level ' + (li + 1), lost ? lost + ' lost' : ''].filter(Boolean).join('   ·   ');
+      const lost = scene ? scene.lost() : st.analysis.lost, lostTxt = lost ? lost + ' lost' : '';
+      const join = (...a) => a.filter(Boolean).join('   ·   ');
+      lines = [join(CHAPTERS[CHAPTER - 1].short, 'Level ' + (li + 1), lostTxt),
+               join('Level ' + (li + 1), lostTxt), 'Level ' + (li + 1)];
     }
-    txt = txt.toUpperCase();
     ctx.save();
-    ctx.font = '600 16px Inter, sans-serif'; ctx.fillStyle = TOK.ink72; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    ctx.fillText(txt, pad, y);
-    readoutBox = { x: pad, y: y - 10, w: ctx.measureText(txt).width, h: 20 };
+    ctx.font = '600 16px Inter, sans-serif'; ctx.fillStyle = '#FFFFFF'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    const last = ctrl.length ? Math.max(...ctrl.map((b) => b.x + b.w)) : pad;
+    const end = LW - pad - chromeInset(), room = end - last - 16;
+    let txt = lines[lines.length - 1].toUpperCase();
+    for (const t of lines) { if (ctx.measureText(t.toUpperCase()).width <= room) { txt = t.toUpperCase(); break; } }
+    const w = ctx.measureText(txt).width;
+    ctx.fillText(txt, end, y);
+    readoutBox = { x: end - w, y: y - 10, w, h: 20 };
     ctx.restore();
-    const bare = ctrl.find((b) => b.bare);
-    if (bare) UI.drawIcon(ctx, 'sound', bare.cx, bare.cy, { on: SND.on() });   // bare, in ink; its drawing ends 16 from the edge
   }
 
   /* ---------- CARDS ---------- */
@@ -1786,7 +1795,7 @@
     },
     geom() {
       render(clock());
-      const ctrlBoxes = ctrl.map((b) => ({ id: b.id, x: b.x, y: b.y, w: b.w, h: b.h, bare: !!b.bare }));
+      const ctrlBoxes = ctrl.map((b) => ({ id: b.id, x: b.x, y: b.y, w: b.w, h: b.h }));
       if (phase === 'home') {
         return { mode: MODE, LW, LH, phase, ctrl: ctrlBoxes,
                  rows: homeRows.map((r) => ({ name: r.sec.name, chapter: r.sec.chapter, x: r.x, y: r.y, w: r.w, h: r.h,
@@ -1856,7 +1865,7 @@
     ctx, TOK, canvas, drawAtoms, rr, label, clock, mulberry,
     SND: { pick: SND.pick, set: SND.set, lift: SND.lift, lost: SND.lost, clasp: (n) => SND.clasp('O', n) },
     size: () => ({ LW, LH, MODE }),
-    topBand, botBand, INK,
+    topBand, botPad, INK, PAPER: NOTE.paper,
     drift: () => DRIFT && !reduced(),
     reduced: () => reduced(),
     rng: () => rng(),
@@ -1868,7 +1877,7 @@
 
   /* ---------- THE MAP ---------- */
   const map = window.ChemMap({
-    ctx, TOK, rr, washStyle, INK, get pad() { return EDGE(); }, topBand, botBand,
+    ctx, TOK, rr, washStyle, INK, get pad() { return EDGE(); }, topBand, botPad,
     size: () => ({ LW, LH, MODE }),
     chapters: () => CHAPTERS.map((ch, k) => ({
       name: ch.name, count: ch.levels().length, done: Math.min(ch.levels().length, progress(k + 1).done),
