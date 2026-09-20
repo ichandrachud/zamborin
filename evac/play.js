@@ -1474,10 +1474,22 @@
          the numbers say so. */
       const reach = Math.max(20, s.w * (overSmoke ? 0.10 : 0.30));
       const k = overSmoke ? 0.62 : 1;
+      /* THE HOT CENTRE SITS INSIDE THE WALL, NOT ON IT. The near-white core
+         used to be stop 0, which put it exactly on the building's outer edge,
+         where the next pixel along is the dark background. A 1-2px whitish
+         line between navy and orange does not read as the middle of a fire; it
+         reads as a seam, as though the flame stopped short of the wall and
+         left a gap. Measured at the outer wall it was (176,156,127) on the
+         left and (183,163,133) on the right - pale and desaturated, the two
+         places the eye is most likely to check.
+         So the wall itself is saturated orange and the core moves a few
+         percent in, which is also what a fire looks like: the bright part is
+         surrounded by the fire, not stuck to the outside of it. */
       const g = ctx.createLinearGradient(s.x, 0, s.x + s.dir * reach, 0);
-      g.addColorStop(0, 'rgba(255,244,206,' + (0.95 * k * flick).toFixed(3) + ')');
-      g.addColorStop(0.05, 'rgba(255,166,44,' + (0.94 * k * flick).toFixed(3) + ')');
-      g.addColorStop(0.18, 'rgba(240,88,20,' + (0.80 * k * flick).toFixed(3) + ')');
+      g.addColorStop(0, 'rgba(255,150,36,' + (0.95 * k * flick).toFixed(3) + ')');
+      g.addColorStop(0.06, 'rgba(255,244,206,' + (0.95 * k * flick).toFixed(3) + ')');
+      g.addColorStop(0.12, 'rgba(255,166,44,' + (0.94 * k * flick).toFixed(3) + ')');
+      g.addColorStop(0.22, 'rgba(240,88,20,' + (0.80 * k * flick).toFixed(3) + ')');
       g.addColorStop(0.45, 'rgba(206,52,14,' + (0.42 * k * flick).toFixed(3) + ')');
       g.addColorStop(1, 'rgba(180,40,12,0)');
       ctx.fillStyle = g;
@@ -2069,8 +2081,6 @@
     }
     /* Both halves of the comparison, and the damage when there is any: a count
        that only goes up tells you nothing about whether you are still winning. */
-    const plan = capPlan();
-    const line = readoutLine(plan && plan.dropBest);
     const hs = hudScale();
 
     /* AT CAPACITY. Four is the car, and a stop with four aboard takes nobody
@@ -2085,13 +2095,30 @@
        the middle now, the same way the wave does. */
     capRect = null;
     const readFrom = readoutMinX;
-    void plan;
 
-    let fs = Math.round(16 * hs);
+    /* THE DOTS ARE PART OF THE READOUT'S WIDTH, and for a while they were not.
+       The readout was allowed to shrink into everything from the Rules pill to
+       the right edge, and then the strikes were laid out 72px to its LEFT -
+       which is to say on top of Rules. It went unseen because it needs a long
+       line to bite, and the line got longer twice: GUESTS SAVED is wider than
+       OUT, and venting the corridors took a good score from about fifty to
+       about three hundred, which is a whole extra digit in two places.
+       So the dots are reserved here, and BEST yields on its own now rather
+       than only when the old capacity pill asked for room. */
+    const dotR = 4.5, dg = 12, dotsW = dg * STRIKES + 12;
+    const room = (LW - SIDE_PAD) - readFrom - dotsW;
+
     ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = INK72; ctx.font = '600 ' + fs + 'px Inter, sans-serif';
-    while (fs > 11 && ctx.measureText(line).width > (LW - SIDE_PAD) - readFrom) {
-      fs -= 1; ctx.font = '600 ' + fs + 'px Inter, sans-serif';
+    ctx.fillStyle = INK72;
+    let line = '', fs = 16;
+    for (const dropBest of [false, true]) {
+      line = readoutLine(dropBest);
+      fs = Math.round(16 * hs);
+      ctx.font = '600 ' + fs + 'px Inter, sans-serif';
+      while (fs > 11 && ctx.measureText(line).width > room) {
+        fs -= 1; ctx.font = '600 ' + fs + 'px Inter, sans-serif';
+      }
+      if (ctx.measureText(line).width <= room) break;
     }
     const readoutLeft = (LW - SIDE_PAD) - ctx.measureText(line).width;
     ctx.fillText(line, LW - SIDE_PAD, topBand() / 2);
@@ -2099,8 +2126,7 @@
     /* THE STRIKES, as dots. Three people overcome ends the run, so how many
        are gone is the second thing worth knowing after the score, and a count
        you have to read as a word is a count you miss. */
-    const dotR = 4.5, dg = 12;
-    const dx0 = readoutLeft - dg * STRIKES - 12;
+    const dx0 = readoutLeft - dotsW;
     chromeLeft = dx0 - dotR;                               // leftmost thing on the right of the band
     for (let i = 0; i < STRIKES; i++) {
       ctx.beginPath(); ctx.arc(dx0 + i * dg, topBand() / 2, dotR, 0, Math.PI * 2);
