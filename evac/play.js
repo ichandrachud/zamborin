@@ -335,12 +335,50 @@
      wave brings more people and faster smoke, and the whole curve is spent
      inside a run rather than beyond the end of one. */
   const STRIKES = 5;
+  /* ARRIVALS CLOSE ON THE CAR'S LIMIT, THEN CRAWL.
+
+     The linear ramp was measured and it made a cliff, not a curve. Across 25
+     runs the first person was lost at 1:56 and the fifth at 2:28: nothing went
+     wrong for two minutes and then the whole game happened in 31 seconds. The
+     cause is that a lift is a queue, and a queue has a threshold rather than a
+     slope - below the rate the car can serve, the corridors drain and nobody
+     can be lost at all; above it the queue grows without bound and everybody
+     is. A straight line through that threshold spends about half a minute in
+     the only band where playing well is what saves anyone.
+
+     So the rate FALLS FAST to about the rate the car can hold, and then
+     tightens by a hair a wave. The run is spent just the wrong side of
+     break-even, where one bad choice costs exactly one person and a good one
+     wins them back, which is the only place a score means anything. */
   const RUN = {
     floors: 8,
     startPeople: 4,
     waveS: 16,                                          // how long a wave lasts
-    spawnFrom: 5.2, spawnStep: 0.42, spawnMin: 1.6,     // seconds between arrivals
-    rateFrom: 0.028, rateStep: 0.0105, rateMax: 0.105,  // how fast the smoke moves
+    spawnFrom: 5.2, spawnStep: 0.58,                    // seconds between arrivals, and the approach
+    spawnKnee: 2.9, spawnCrawl: 0.24, spawnMin: 1.25,   // where it slows, and how slowly it tightens
+    /* THE FIRE BURNS AT ONE STRENGTH. It used to ramp, and the ramp was
+       measured as inert: the fire floor saturates inside the first forty
+       seconds and is pinned there for the rest of the run, so freezing the
+       ramp altogether moved the median run by zero seconds. Driving the
+       SPREAD with it instead does land - and it lands the wrong way, flooding
+       the whole building back to one flat lethal sheet and taking the skill
+       gap from 3.78x down to 0.76x. The arrivals are the ramp now. */
+    rateFrom: 0.028, rateStep: 0, rateMax: 0.028,       // how fast the smoke moves
+    /* WHERE THE FIRE STARTS, AND WHY IT IS NOT ANYWHERE.
+
+       Once corridors vent, the fire's floor decides how much of the building
+       is permanently lost, and it decided too much: measured at fourteen runs
+       a floor, a fire on 7 was worth 108 guests and a fire on 3 was worth 68.
+       That is a 1.59x swing handed out by the seed before a button is pressed,
+       against 1.77x for playing well - half your score was the draw.
+
+       Low is the half to keep. A fire high in the building leaves a safe zone
+       so large there is nothing left to triage, and the skill gap collapses
+       with it: across 5-7 it is 1.17x and across 4-6 it is 1.23x, while 2-4
+       holds 1.74x - the full range's gap, at a tenth of the luck. Most of the
+       building is above the fire and in trouble, which is the situation the
+       game is actually about. */
+    fireLow: 2, fireHigh: 4,
   };
 
   let level = null;                    // the building this run is in
@@ -353,7 +391,7 @@
      reported both, that it is difficult to steer and that it does not arrive
      level. A called floor is a promise the car keeps by itself - it leaves at
      full pull, brakes on a curve and arrives with nothing left, so it lands
-     level every time. The drag still works; it simply is not the only way.
+     level every time. The drag is gone: a call is now the only control.
      The queue is served in the order the buttons were pressed, which is the
      only order a player can predict. */
   let calls = [];
@@ -371,13 +409,37 @@
   function putBest() { try { localStorage.setItem(SAVE, JSON.stringify({ best })); } catch (e) {} }
 
   const waveNow = () => 1 + Math.floor(tNow / RUN.waveS);
-  const spawnEvery = () => Math.max(RUN.spawnMin, RUN.spawnFrom - (waveNow() - 1) * RUN.spawnStep);
+  const spawnEvery = () => {
+    const w = waveNow() - 1;
+    const fast = RUN.spawnFrom - w * RUN.spawnStep;
+    if (fast > RUN.spawnKnee) return fast;
+    const kneeAt = (RUN.spawnFrom - RUN.spawnKnee) / RUN.spawnStep;   // the wave it lands on
+    return Math.max(RUN.spawnMin, RUN.spawnKnee - (w - kneeAt) * RUN.spawnCrawl);
+  };
   const smokeRate = () => Math.min(RUN.rateMax, RUN.rateFrom + (waveNow() - 1) * RUN.rateStep);
 
+  /* A RUN NEEDS A SEED THAT IS NOT THE CLOCK'S LOW BITS. It used to be
+     Date.now() & 0xffff, which throws away everything above sixteen bits for
+     no reason - makeRng takes a full 32 - and sixteen bits of a millisecond
+     clock wrap every 65.5 seconds. Two runs started about a minute apart got
+     the same building. Restarting is exactly the thing a player does over and
+     over, and often at a fairly regular interval, so the collision was aimed
+     squarely at the way the game is actually played. The seed is kept on the
+     level so a run can be named when one behaves strangely. */
+  function freshSeed() {
+    try {
+      const c = window.crypto;
+      if (c && c.getRandomValues) return c.getRandomValues(new Uint32Array(1))[0] || 1;
+    } catch (e) {}
+    return ((Math.random() * 4294967296) >>> 0) || 1;
+  }
+
   function startRun() {
-    rng = M.makeRng((Date.now() & 0xffff) || 7);
+    const seed = freshSeed();
+    rng = M.makeRng(seed);
     const F = RUN.floors;
-    level = { floors: F, fire: 2 + Math.floor(rng() * Math.max(1, F - 2)) };
+    const fHi = Math.min(RUN.fireHigh, F), fLo = Math.min(RUN.fireLow, fHi);
+    level = { floors: F, seed, fire: fLo + Math.floor(rng() * (fHi - fLo + 1)) };
     car.y = 1; car.v = 0;
     smoke = new Float64Array(F + 1);
     carSmoke = 0;
@@ -1439,8 +1501,33 @@
   function drawPeople(now) {
     smokeLayer(1.00, performance.now());                     // the volume, behind them
     const h = geo.floorPx * 0.52;
-    const tt = now / 1000, links = new Map();
+    const tt = now / 1000;
     for (const r of fallen) drawFallen(r);
+    /* A PARTY IS ONE PATCH OF FLOOR. The held hands were drawn as a line
+       between two figures and at 32px that is a string tied round them, not an
+       arm. They already wear the same clothes; what they gain here is a single
+       pooled shadow instead of one each, which is what standing together
+       actually looks like and reads at any size. Drawn before the people so
+       their own contact shadows sink into it. */
+    {
+      const g = new Map();
+      for (const p of waiting) {
+        if (!p.gid) continue;
+        const q = personXY(p);
+        const l = g.get(p.gid) || []; l.push({ x: q.x, y: q.y }); g.set(p.gid, l);
+      }
+      ctx.fillStyle = 'rgba(12,8,18,0.30)';
+      for (const l of g.values()) {
+        if (l.length < 2) continue;
+        l.sort((a, b) => a.x - b.x);
+        const a = l[0], b = l[l.length - 1];
+        if (b.x - a.x > h * 2.6) continue;                // too spread to be together
+        const pad = h * 0.17;
+        ctx.beginPath();
+        ctx.ellipse((a.x + b.x) / 2, a.y + 1, (b.x - a.x) / 2 + pad, h * 0.040, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
     for (const p of waiting) {
       const q = personXY(p);
       /* WALKING, then STILL. There is no idle animation any more, and that is
@@ -1499,43 +1586,11 @@
       const m = drawPerson(px2, q.y, h, p.exp, p.id + 1, now, face, gait, cough,
         p.gid ? Math.floor(hash01(p.gid * 13.7) * OUTFITS.length) : null);
       drawOxygen(m.hx, m.headTop, m.h, p.exp);
-      /* A PARTY IS SHOWN BY THE PEOPLE, NOT BY THE READOUT. One long bar over
-         three of them did say "these are one", but it read as a piece of UI
-         laid across the picture. So the bars go back to one each, and the fact
-         that they are together is carried by the FIGURES: they wear the same
-         clothes and they are holding on to each other. */
-      if (p.gid) {
-        const l = links.get(p.gid) || [];
-        l.push({ x: m.hx, y: m.armY, h: m.h });
-        links.set(p.gid, l);
-      }
       /* WHERE IT ACTUALLY DREW. A contrast sweep that guesses these from the
          nominal height samples empty air, because a figure shrinks by up to a
          quarter as they duck and every person has their own height. Three
          separate false readings came out of guessing before this existed. */
       p.mark = { x: px2, side: q.face, h: m.h, headY: m.hy, bodyY: m.bodyY, armY: m.armY };
-    }
-    /* Linked arms: a short line that DROOPS between neighbours, because a
-       straight one reads as a rod bolted between two figures. */
-    for (const l of links.values()) {
-      if (l.length < 2) continue;
-      l.sort((a, b) => a.x - b.x);
-      for (let i = 1; i < l.length; i++) {
-        const a = l[i - 1], b = l[i], hh = (a.h + b.h) / 2;
-        if (b.x - a.x > hh * 1.5) continue;               // too far apart to be holding on
-        /* Only in the GAP. Run it centre-to-centre and it crosses the torso of
-           whoever stands between them, which reads as a rope tied round three
-           people rather than three people holding on to each other. */
-        const inset = hh * 0.115;
-        const ax = a.x + inset, bx = b.x - inset;
-        if (bx - ax < 1) continue;
-        ctx.strokeStyle = HEAD; ctx.lineWidth = Math.max(1.4, hh * 0.042);
-        ctx.lineCap = 'round';
-        ctx.beginPath();
-        ctx.moveTo(ax, a.y);
-        ctx.quadraticCurveTo((ax + bx) / 2, Math.max(a.y, b.y) + hh * 0.075, bx, b.y);
-        ctx.stroke();
-      }
     }
     drawRunners(now);
   }
@@ -2079,8 +2134,12 @@
     if (waveFlash > 0 && wave > 1) {
       /* It said WAVE 2. A wave number is a designer's word for a difficulty
          step - it tells the player which bucket they are in and nothing about
-         their building. Say what actually just happened instead. */
-      banner('THE FIRE IS GETTING STRONGER', Math.min(1, waveFlash * 2.2),
+         their building. Say what actually just happened instead - and what
+         actually just happened is that more people are coming, not that the
+         fire grew. The fire burns at one strength now and the arrival rate is
+         the whole ramp, so the old line was a caption for a thing that was
+         not occurring. */
+      banner('MORE GUESTS ARE ARRIVING', Math.min(1, waveFlash * 2.2),
              'rgba(255,150,60,ALPHA)');
     }
 
@@ -2187,11 +2246,12 @@
   /* ---------- RULES ---------- */
   const RULES_TEXT = [
     'A hotel is on fire. Smoke comes along every corridor from the stairwell at the far end, and the way out is the lobby.',
+    'Smoke climbs, so the floors above the fire stay the worst ones in the building. A corridor the fire is no longer feeding clears again, which is why the floors below it come back and are the ones you can leave for later.',
     'You do not drive the car. Press a floor button and it goes there and lands level. Press several and it answers them in that order; press a lit one again to cancel it. On a keyboard, the number keys call a floor.',
     'The bar over someone is the air they have left. It only runs down once the smoke has reached them, so whoever stands deepest is on the shortest clock.',
     'Six fit in the car. Every door you open lets smoke into it, so a stop you did not need costs everyone already aboard.',
     'People holding on to each other board together when there is room for all of them. When there is not, the free place goes to whoever has the least air.',
-    'Five people overcome ends the run, and the fire gets stronger the longer you are in the building.',
+    'Five people overcome ends the run, and more guests keep arriving the longer you last.',
   ];
 
 
@@ -2377,7 +2437,7 @@
     get calls() { return calls.slice(); }, call(f) { pressCall(f); },
     geo, RUN, PARTY, start: startRun, snd, FIRE, get runners() { return runners; },
     get capRect() { return capRect; }, get chromeLeft() { return chromeLeft; }, capPlan,
-    get renderMs() { return renderMs; },
+    get renderMs() { return renderMs; }, get t() { return tNow; }, get wave() { return wave; },
     /* Drive headlessly, for verification: hold a direction, then let go and let
        it brake to rest and serve. */
     drive(dir, secs) {
