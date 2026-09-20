@@ -31,9 +31,27 @@
   const gameWrap = canvas.parentElement;
   const FRAME_W = 760, FRAME_H = 600;   // the one site-wide desktop frame
 
+  /* THE WINDOW IS THE FRAME wherever the game IS the page: a phone, an embed,
+     a portal package and the site's own full screen (DESIGN-SYSTEM 2.2).
+     Fathom did this for full screen only, so inside a CrazyGames player it
+     drew the 760 x 600 box and let the window letterbox it. That left about
+     29% of their 16:9 window empty, which is the thing they rejected Comb
+     for; fixed here on 2026-09-20. */
+  const fillsWindow = () => MODE === 'mobile' ||
+    document.documentElement.classList.contains('embed') ||
+    document.body.classList.contains('focus-mode');
+
   function setCanvasVars() {
-    if (MODE === 'mobile') { LW = window.innerWidth; LH = window.innerHeight; }
-    else { LW = FRAME_W; LH = FRAME_H; }
+    if (fillsWindow()) {
+      const vw = window.innerWidth > 0 ? window.innerWidth : FRAME_W;
+      const vh = window.innerHeight > 0 ? window.innerHeight : FRAME_H;
+      /* A zero reading is a hidden frame's first tick, not a narrow window.
+         Narrower than the site frame, the desktop top band cannot hold its
+         row of house-size pills, so such a window keeps its own shape but is
+         laid out 760 across and scaled down, exactly as Comb does. */
+      const k = (MODE === 'desktop' && vw < FRAME_W) ? FRAME_W / vw : 1;
+      LW = Math.round(vw * k); LH = Math.round(vh * k);
+    } else { LW = FRAME_W; LH = FRAME_H; }
     document.body.style.setProperty('--canvas-w', LW + 'px');
     document.body.style.setProperty('--canvas-h', LH + 'px');
   }
@@ -50,17 +68,19 @@
   /* Full screen: the frame grows, the drawing scale does not. A scrolling
      world anchors metres-per-pixel to FRAME_W so more world is revealed
      rather than the same picture blown up. */
+  // The wrap takes the window too, so the canvas is not contain-fitted inside
+  // a box of the old frame's shape.
   function fitFullscreen() {
-    if (!document.body.classList.contains('focus-mode')) return;
-    if (MODE === 'mobile') { LW = window.innerWidth; LH = window.innerHeight; }
-    else { LW = Math.max(FRAME_W, window.innerWidth); LH = Math.max(FRAME_H, window.innerHeight); }
-    document.body.style.setProperty('--canvas-w', LW + 'px');
-    document.body.style.setProperty('--canvas-h', LH + 'px');
+    if (fillsWindow()) {
+      gameWrap.style.width = (window.innerWidth > 0 ? window.innerWidth : LW) + 'px';
+      gameWrap.style.height = (window.innerHeight > 0 ? window.innerHeight : LH) + 'px';
+      return;
+    }
+    gameWrap.style.width = ''; gameWrap.style.height = '';
   }
   function onResize() {
     setCanvasVars();
     fitFullscreen();
-    if (MODE === 'mobile') { gameWrap.style.width = LW + 'px'; gameWrap.style.height = LH + 'px'; }
     resizeCanvas();
     layout();
   }
@@ -154,10 +174,21 @@
   if (saved && !qs.has('seed')) run.loadWorldState(saved);
 
   // ---------- GAME SHELL STATE ----------
-  let card = 'rules';            // 'rules' | 'fleet' | 'banked' | 'blackout' | 'breach' | null
+  /* THE FIRST SCREEN IS THE GAME (DESIGN-SYSTEM 10.1). Fathom used to open on
+     a card with a DIVE button: the first thing a new player saw was text on a
+     scrim, which is the pattern CrazyGames' QA calls out and the one Comb was
+     rejected for. Every player now lands in the water with the boat at the
+     surface. The rules stay one tap away on the ? button. */
+  let card = null;               // 'rules' | 'fleet' | 'banked' | 'blackout' | 'breach' | null
   let cardData = null;
   let rulesScroll = 0;
   let started = false;           // first real input -> analytics game_start
+  /* THE VERB, SHOWN AT REST. Instead of explaining the controls on that card,
+     the move loops beside the boat until the player makes it: on a phone the
+     same ring and knob the game draws under a real thumb, sliding down and
+     back; on a desktop the arrow keys, with DOWN pressed. It stops at the
+     first input and a player with a save never sees it. */
+  let tutor = !saved;
   let diveT0 = performance.now();
 
   // ---------- THE FLEET ----------
@@ -373,6 +404,7 @@
 
   // ---------- LAYOUT ----------
   const SIDE_PAD = 30;
+  const PHONE_PAD = 16;          // the phone's side margin (DESIGN-SYSTEM 2.1)
   /* Mobile has no bands. It used to spend 84 px at the top and 96 px at the
      bottom on solid chrome — 180 px of a ~700 px phone, a quarter of the
      screen, not showing the game. Desktop already floated its instruments on
@@ -464,6 +496,7 @@
   let wantJettison = false;
 
   function markStarted() {
+    tutor = false;               // the verb has been used; stop showing it
     if (!started) { started = true; T().gameStart(); diveT0 = performance.now(); }
   }
 
@@ -621,6 +654,14 @@
      session, never within three minutes of the last ad of either kind.
      CrazyGames enforces its own three-minute cap on top and answers
      `adCooldown` when it disagrees, which portal.js swallows. */
+  /* BASIC LAUNCH. CrazyGames switches ads off for the whole of a Basic Launch
+     and answers every request with `adsDisabledBasicLaunch`. Nothing can be
+     asked beforehand, so the first refusal is how the game finds out: after it
+     no haul is offered again this session, because the offer could only fail
+     again and their rules forbid paying out on a video that did not play.
+     Comb does the same with Skip. */
+  let videosOff = false;
+
   const REWARD_GAP_MS = 240000, BREAK_GAP_MS = 180000;
   let lastAdAt = -Infinity, lastOfferAt = -Infinity;
   let divesEnded = 0;
@@ -629,7 +670,8 @@
 
   function offerFor(ev) {
     const now = Date.now();
-    if (!portal || !portal.canReward() || !(ev.lostVal > 0) || now - lastOfferAt < REWARD_GAP_MS) return null;
+    if (videosOff || !portal || !portal.canReward() || !(ev.lostVal > 0) ||
+        now - lastOfferAt < REWARD_GAP_MS) return null;
     lastOfferAt = now;
     return { val: ev.lostVal, state: 'open' };
   }
@@ -644,9 +686,10 @@
       o.state = 'won';
       saveMeta();
       if (sfx) sfx.play('success');
-    }, () => {
+    }, (reason) => {
       adBusy = false;
       o.state = 'none';          // no finished video, no haul
+      if (reason === 'adsDisabledBasicLaunch') videosOff = true;
     });
   }
   function breakAd(then) {
@@ -2137,28 +2180,14 @@
     draw(cx, cy);
     return box;
   }
-  function speakerIcon(cx, cy, on) {
-    ctx.strokeStyle = INK92; ctx.fillStyle = INK92; ctx.lineWidth = 1.8;
-    ctx.beginPath();
-    ctx.moveTo(cx - 8, cy - 3); ctx.lineTo(cx - 4, cy - 3); ctx.lineTo(cx + 1, cy - 7);
-    ctx.lineTo(cx + 1, cy + 7); ctx.lineTo(cx - 4, cy + 3); ctx.lineTo(cx - 8, cy + 3);
-    ctx.closePath(); ctx.fill();
-    if (on) {
-      ctx.beginPath(); ctx.arc(cx + 4, cy, 4.5, -1, 1); ctx.stroke();
-      ctx.beginPath(); ctx.arc(cx + 4, cy, 7.5, -1, 1); ctx.stroke();
-    } else {
-      ctx.beginPath();
-      ctx.moveTo(cx + 4, cy - 4); ctx.lineTo(cx + 10, cy + 4);
-      ctx.moveTo(cx + 10, cy - 4); ctx.lineTo(cx + 4, cy + 4);
-      ctx.stroke();
-    }
-  }
-  function questionIcon(cx, cy) {
-    ctx.fillStyle = INK92;
-    ctx.font = '700 15px Inter, sans-serif';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('?', cx, cy + 1);
-    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  // A phone control: the house round button with one drawn icon in it.
+  function roundBtn(id, cx, cy, draw) {
+    const box = UI.drawRound(ctx, cx, cy);
+    let entry = hit.pills.find(p => p.id === id);
+    if (!entry) { entry = { id, tapped: null }; hit.pills.push(entry); }
+    entry.box = box;
+    draw(cx, cy);
+    return box;
   }
   function subGlyph(cx, cy) {
     ctx.fillStyle = INK92;
@@ -2191,6 +2220,74 @@
     return box;
   }
 
+  /* The one move, drawn next to the boat and looping until it is made. No
+     text card, no arrow pointing at a button: the gesture itself, in the same
+     ring and knob the game draws under a real thumb, so what the player
+     copies is what the game shows them later. */
+  function drawTutor(now) {
+    if (!tutor || card) { L.tutorBox = null; return; }
+    const x = sx(run.x), y = sy(run.y);
+    const t = (now % 2800) / 2800;
+    const k = t < 0.12 ? 0 : t < 0.55 ? (t - 0.12) / 0.43 : t < 0.82 ? 1 : 1 - (t - 0.82) / 0.18;
+    const ease = k * k * (3 - 2 * k);
+    ctx.save();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    if (MODE === 'mobile') {
+      const R = DRAG_RANGE * 0.72;
+      /* A boat's length clear of the hull, then clamped: on a short frame the
+         ring and its line would otherwise sit under the bottom edge, and near
+         a wall the boat is not in the middle of the screen. */
+      ctx.font = '600 16px Inter, sans-serif';
+      const half = Math.max(ctx.measureText('Hold anywhere and drag down').width / 2, R);
+      const ax = Math.min(Math.max(x, PHONE_PAD + half), LW - PHONE_PAD - half);
+      const ay = Math.min(y + 104, LH - 40 - R - 34);
+      ctx.globalAlpha = t < 0.06 || t > 0.94 ? 0.35 : 0.95;
+      ctx.beginPath(); ctx.arc(ax, ay, R, 0, Math.PI * 2);
+      ctx.strokeStyle = TINT(0.3); ctx.lineWidth = 2; ctx.stroke();
+      ctx.beginPath(); ctx.arc(ax, ay, R, Math.PI * 0.25, Math.PI * 0.75);
+      ctx.strokeStyle = TINT(0.65); ctx.lineWidth = 3; ctx.stroke();
+      ctx.beginPath(); ctx.arc(ax, ay + R * ease, 15, 0, Math.PI * 2);
+      ctx.fillStyle = TINT(0.18); ctx.fill();
+      ctx.strokeStyle = TINT(0.8); ctx.lineWidth = 2; ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.font = '600 16px Inter, sans-serif'; ctx.fillStyle = '#FFFFFF';
+      ctx.fillText('Hold anywhere and drag down', ax, ay + R + 34);
+      L.tutorBox = { x: ax - half, y: ay - R, w: half * 2, h: 2 * R + 42 };
+    } else {
+      const K = 30, g = 5, cy0 = y + 6;                 // beside the boat
+      ctx.font = '600 16px Inter, sans-serif';
+      const half = Math.max(ctx.measureText('Arrow keys steer. Down floods and sinks.').width / 2,
+                            K * 1.5 + g);
+      const cx0 = Math.min(Math.max(x + 150, L.ocean.x + half + 12),
+                           L.ocean.x + L.ocean.w - half - 12);
+      const key = (kx, ky, dir, lit) => {
+        ctx.beginPath(); UI.roundRectPath(ctx, kx - K / 2, ky - K / 2, K, K, 7);
+        ctx.fillStyle = lit ? TINT(0.30) : TINT(0.12); ctx.fill();
+        ctx.strokeStyle = lit ? TINT(0.85) : TINT(0.4); ctx.lineWidth = 1.5; ctx.stroke();
+        ctx.fillStyle = lit ? '#FFFFFF' : TINT(0.75);
+        ctx.beginPath();
+        const a = dir === 'up' ? -Math.PI / 2 : dir === 'down' ? Math.PI / 2 : dir === 'left' ? Math.PI : 0;
+        for (let i = 0; i < 3; i++) {
+          const th = a + (i === 0 ? 0 : i === 1 ? Math.PI * 0.75 : -Math.PI * 0.75);
+          const r = i === 0 ? 7 : 6.5;
+          const px = kx + Math.cos(th) * r, py = ky + Math.sin(th) * r;
+          if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.closePath(); ctx.fill();
+      };
+      key(cx0, cy0 - K - g, 'up', false);
+      key(cx0 - K - g, cy0, 'left', false);
+      key(cx0, cy0, 'down', ease > 0.25);
+      key(cx0 + K + g, cy0, 'right', false);
+      ctx.font = '600 16px Inter, sans-serif'; ctx.fillStyle = '#FFFFFF';
+      ctx.fillText('Arrow keys steer. Down floods and sinks.', cx0, cy0 + K + 24);
+      L.tutorBox = { x: cx0 - half, y: cy0 - K * 1.5 - g, w: half * 2,
+                     h: (cy0 + K + 32) - (cy0 - K * 1.5 - g) };
+    }
+    ctx.restore();
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  }
+
   function drawChromeMobile(now) {
     /* A scrim instead of a band: the world runs behind the chrome, so the
        instruments need their own legibility rather than a wall of Ground. */
@@ -2201,26 +2298,44 @@
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, LW, L.hudBot + 30);
 
-    /* Row 1 is desktop's shape: control row left, read-out right-aligned.
-       DROP CARGO does NOT go here. Three icon pills plus a 130 px DROP CARGO
-       plus the read-out measures ~364 px against 362 px of usable width on a
-       390 px phone, so the read-out drew straight over the button. It gets
-       its own line under the instruments instead. */
+    /* Row 1: the controls are round house buttons across the top, the fleet's
+       shape since 2026-09-16 (DESIGN-SYSTEM 4.2), drawn with the shared icons
+       so they are the same ones every game shows.
+
+       Fathom keeps the read-out and the sound switch up here rather than at
+       the bottom, which the rule asks for (owner, 2026-09-20). Below
+       L.chromeTop every pixel is the steering surface: a bare speaker in the
+       bottom corner would sit exactly where a thumb lands to drag, and the
+       read-out would sit under it. The top 54 px already refuse a drag.
+
+       DROP CARGO does NOT go on this row. Three buttons plus a 130 px DROP
+       CARGO plus the read-out measures ~364 px against 358 px of usable width
+       on a 390 px phone, so it gets its own line under the instruments. */
     const cy = L.rowCy;
     ctx.textBaseline = 'middle';
-    iconPill('sound', SIDE_PAD + 22, cy, (cx, cyy) => speakerIcon(cx, cyy, sfx ? sfx.isOn() : true));
-    iconPill('rules', SIDE_PAD + 22 + (UI.PILL.iconW + UI.PILL.gap), cy, questionIcon);
-    const p3 = iconPill('fleet', SIDE_PAD + 22 + (UI.PILL.iconW + UI.PILL.gap) * 2, cy, subGlyph);
-    L.rowRight = p3.x + p3.w;
+    const D = UI.PILL.iconW;
+    const items = [
+      ['fleet', subGlyph],
+      ['sound', (cx, cyy) => UI.drawIcon(ctx, 'sound', cx, cyy, { on: sfx ? sfx.isOn() : true })],
+      ['rules', (cx, cyy) => UI.drawIcon(ctx, 'rules', cx, cyy)],
+    ];
+    const room = LW - PHONE_PAD * 2;
+    const gap = Math.max(4, Math.min(28, (room - items.length * D) / (items.length - 1)));
+    let bx = PHONE_PAD;
+    for (const [id, draw] of items) {
+      const box = roundBtn(id, bx + D / 2, cy, draw);
+      L.rowRight = box.x + box.w;
+      bx += D + gap;
+    }
 
     const ro = fmtMoney(run.money) + '  ·  ' + Math.round(run.y) + ' m';
     ctx.font = '700 15px Inter, sans-serif';
     const roW = ctx.measureText(ro).width;
-    const roomFor = LW - SIDE_PAD - (L.rowRight + 12);
+    const roomFor = LW - PHONE_PAD - (L.rowRight + 12);
     const hs = roW > roomFor ? Math.max(0.62, roomFor / roW) : 1;
     L.roFits = roW * hs <= roomFor + 0.5;
     ctx.save();
-    ctx.translate(LW - SIDE_PAD, cy);
+    ctx.translate(LW - PHONE_PAD, cy);
     ctx.scale(hs, hs);
     ctx.fillStyle = '#FFFFFF'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
     ctx.fillText(ro, 0, 1);
@@ -2228,14 +2343,14 @@
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
 
     // Row 2: two columns of instruments, floating on the water.
-    const colW = Math.floor((LW - SIDE_PAD * 2 - 10) / 2);
+    const colW = Math.floor((LW - PHONE_PAD * 2 - 10) / 2);
     const airF = run.air / run.airMax(), battF = run.batt / run.battMax();
     const iy = 54;
-    drawIndicators(SIDE_PAD, iy, colW, [
+    drawIndicators(PHONE_PAD, iy, colW, [
       ['AIR', airF, airF < LOW_FRAC ? C_ACCENT_TEXT : C_GREEN, Math.round(run.air) + ''],
       ['BATT', battF, battF < LOW_FRAC ? C_ACCENT_TEXT : C_SUN, Math.round(run.batt) + ''],
     ]);
-    drawIndicators(LW - SIDE_PAD - colW, iy, colW, [
+    drawIndicators(LW - PHONE_PAD - colW, iy, colW, [
       ['CARGO', run.cargoKg / run.cargoMax(), C_ACCENT_TEXT,
        Math.round(run.cargoKg) + '/' + run.cargoMax()],
       ['HULL', 'pips', run.hull <= TUNE.hullPips * LOW_FRAC ? C_ACCENT_TEXT : C_BRAND,
@@ -2291,30 +2406,21 @@
   }
 
   function drawChromeDesktop(now) {
-    // Top band: control row left, read-out right, on the same centre line.
+    /* Controls at the left of the top band; the read-out moved to the bottom
+       left on 2026-09-20 (DESIGN-SYSTEM 4.2 and 4.3). Fleet comes first: it
+       is the way out of the dive, which is where every other game puts its
+       map button. It keeps its word rather than becoming an icon, because a
+       submarine glyph alone does not say "the boats you can buy". The sound
+       switch is the shared icon, so it matches every other game. */
     const cy = L.top / 2;
     let x = SIDE_PAD;
-    const b1 = iconPill('sound', x + 22, cy, (cx, cyy) => speakerIcon(cx, cyy, sfx ? sfx.isOn() : true));
+    const b1 = pill('fleet', 'Fleet', x + UI.pillWidth(ctx, 'Fleet') / 2, cy);
     x = b1.x + b1.w + UI.PILL.gap;
-    const b2 = pill('fleet', 'Fleet', x + UI.pillWidth(ctx, 'Fleet') / 2, cy);
+    const b2 = iconPill('sound', x + 22, cy,
+                        (cx, cyy) => UI.drawIcon(ctx, 'sound', cx, cyy, { on: sfx ? sfx.isOn() : true }));
     x = b2.x + b2.w + UI.PILL.gap;
     const b3 = pill('rules', 'Rules', x + UI.pillWidth(ctx, 'Rules') / 2, cy);
     L.rowRight = b3.x + b3.w;
-    // Read-out: depth and the bank in one right-aligned line, shrinking into
-    // whatever room the control row has left it, with a floor.
-    const ro = 'DEPTH ' + Math.round(run.y) + ' m   ·   ' + fmtMoney(run.money);
-    ctx.font = '600 16px Inter, sans-serif';
-    const roW = ctx.measureText(ro).width;
-    const roomFor = LW - SIDE_PAD - (L.rowRight + 16);
-    const hs = roW > roomFor ? Math.max(0.66, roomFor / roW) : 1;
-    L.roFits = roW * hs <= roomFor + 0.5;
-    ctx.save();
-    ctx.translate(LW - SIDE_PAD, cy);
-    ctx.scale(hs, hs);
-    ctx.fillStyle = INK72; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-    ctx.fillText(ro, 0, 1);
-    ctx.restore();
-    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
 
     // Floating instruments on the water: air, battery and hull top-left,
     // cargo top-right. The rest of the frame is world.
@@ -2329,7 +2435,22 @@
       ['CARGO', run.cargoKg / run.cargoMax(), C_ACCENT_TEXT,
        Math.round(run.cargoKg) + ' / ' + run.cargoMax() + ' kg'],
     ]);
-    jettisonPill(L.jettison.cx, L.jettison.cy);
+    const jbox = jettisonPill(L.jettison.cx, L.jettison.cy);
+
+    /* The read-out: depth and the bank in one line at the bottom left, on
+       DROP CARGO's centre line. It floats on the water rather than sitting in
+       a band of its own, because the view's scale is anchored to the ocean's
+       height (see layout) and a band would shrink the whole world. Measured
+       against the button beside it rather than assumed. */
+    const ro = 'DEPTH ' + Math.round(run.y) + ' m   ·   ' + fmtMoney(run.money);
+    ctx.font = '600 16px Inter, sans-serif';
+    const roW = ctx.measureText(ro).width;
+    ctx.fillStyle = INK72; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText(ro, SIDE_PAD, L.jettison.cy + 1);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    L.deskRead = { x: SIDE_PAD, y: L.jettison.cy - 10, w: roW, h: 20 };
+    L.roFits = SIDE_PAD + roW + 16 <= jbox.x && L.jettison.cy + 20 <= LH;
+
     drawTooHeavy(now);
   }
 
@@ -2785,7 +2906,8 @@
       if (offer.state === 'open') hit.reward = rewardCTA('RECOVER HAUL', cx, ctaY - lift, w);
       else {
         ctx.fillStyle = INK72; ctx.font = '500 16px Inter, sans-serif'; ctx.textBaseline = 'middle';
-        ctx.fillText('No video to watch right now', cx, ctaY - lift);
+        ctx.fillText(videosOff ? 'Videos are not available yet' : 'No video to watch right now',
+                     cx, ctaY - lift);
       }
       hit.cta = UI.drawCTA(ctx, 'DIVE AGAIN', cx, ctaY, C_ACCENT, w);
     } else {
@@ -2976,6 +3098,7 @@
     ctx.fillStyle = bg; ctx.fillRect(0, 0, LW, LH);
 
     drawWorld(now);
+    drawTutor(now);
     if (MODE === 'mobile') drawChromeMobile(now); else drawChromeDesktop(now);
     drawWarnings(now);
 
@@ -3039,6 +3162,11 @@
       rowRight: L.rowRight || 0,
       rowReadoutRoom: MODE === 'desktop' ? (LW - SIDE_PAD - ((L.rowRight || 0) + 16)) : null,
       readoutFits: L.roFits !== false,
+      readOut: L.deskRead || null,
+      tutor: L.tutorBox || null,
+      tutorInFrame: !L.tutorBox || (L.tutorBox.x >= 0 && L.tutorBox.y >= 0 &&
+                                    L.tutorBox.x + L.tutorBox.w <= LW &&
+                                    L.tutorBox.y + L.tutorBox.h <= LH),
     };
   }
 
