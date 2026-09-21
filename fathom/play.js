@@ -411,16 +411,21 @@
      screen, not showing the game. Desktop already floated its instruments on
      the water; mobile now does the same, so the world is the whole viewport
      and the chrome sits over it on a scrim. */
-  const topBand = () => (MODE === 'mobile' ? 0 : 56);
-  const botBand = () => (MODE === 'mobile' ? 0 : 20);
+  /* NO BANDS ON EITHER LAYOUT (owner, 2026-09-20). Desktop kept a 56 px band
+     of Ground across the top for its control row; with the row drawn as round
+     icon buttons on a scrim, as the phone draws them, the band is 56 px of the
+     ocean given up for nothing. The world is the whole frame now and the
+     chrome floats on it. */
+  const topBand = () => 0;
+  const botBand = () => 0;
   const L = {};                  // everything measured, nothing implicit
   function layout() {
     L.top = topBand(); L.bot = botBand();
     if (MODE === 'desktop') {
-      /* The world takes the whole frame below the top band; the instruments
+      /* The world takes the whole frame; the instruments and the controls
          float on the water (owner round 5 — no side section, no gauge). */
       L.bot = 0;
-      L.ocean = { x: 0, y: L.top, w: LW, h: LH - L.top };
+      L.ocean = { x: 0, y: 0, w: LW, h: LH };
       /* ppm was pinned to the 760 frame so that going full screen WIDENED the
          view rather than scaling the art. That intent is defeated by the fog:
          everything below the seabed is dark except the lamp, and the lamp
@@ -433,10 +438,19 @@
          what the 760x600 frame shows, the art scales up with the window, and
          the lamp keeps lighting the same FRACTION of the frame it always did.
          At 760x600 this is arithmetically the old value, so the windowed frame
-         is untouched. */
-      const FRAME_VIEW_H = (FRAME_H - 56) / (FRAME_W / TUNE.VIEW_W);
+         is untouched.
+
+         The band went on 2026-09-20 and the ocean grew by its 56 px, so the
+         anchor drops the same 56: the art in the 760 frame is the size it has
+         always been, and the extra band is extra WATER rather than a 10%
+         zoom. */
+      const FRAME_VIEW_H = FRAME_H / (FRAME_W / TUNE.VIEW_W);
       L.ppm = L.ocean.h / FRAME_VIEW_H;
       L.jettison = { cx: LW / 2, cy: LH - 40 };
+      // The control row floats where the phone's does, and the instruments
+      // hang under it rather than beside it.
+      L.rowCy = 30;
+      L.instY = 62;
     } else {
       L.ocean = { x: 0, y: 0, w: LW, h: LH };
       L.ppm = LW / TUNE.VIEW_W;
@@ -445,6 +459,7 @@
          throws away the cargo the whole dive was for — was the easiest thing
          on the screen to hit by accident. */
       L.rowCy = 30;
+      L.instY = 54;
       L.chromeTop = 54;                  // no drag may START above this
       L.hudBot = 164;                    // where the overlaid chrome ends
       L.jettison = { cx: LW / 2, cy: L.rowCy };
@@ -2181,7 +2196,7 @@
     ctx.font = '700 15px Inter, sans-serif';
     const tw = ctx.measureText(msg).width;
     const w = tw + 74, h = 40;
-    const x = o.x + o.w / 2 - w / 2, y = o.y + (MODE === 'desktop' ? 84 : L.hudBot + 12);
+    const x = o.x + o.w / 2 - w / 2, y = o.y + (MODE === 'desktop' ? L.instY + 106 : L.hudBot + 12);
     const pulse = 0.75 + 0.25 * Math.sin(now / 300);
     ctx.fillStyle = SCRIM(0.85);
     ctx.beginPath(); UI.roundRectPath(ctx, x, y, w, h, h / 2); ctx.fill();
@@ -2220,14 +2235,14 @@
     if (!list.length) return;
     const o = L.ocean;
     // below TOO HEAVY when that is up, so the two never collide
-    let y = o.y + (MODE === 'desktop' ? 108 : L.hudBot + 12) +
+    let y = o.y + (MODE === 'desktop' ? L.instY + 106 : L.hudBot + 12) +
             (run.tooHeavyNeed() > 0 ? 52 : 0);
     const pulse = 0.55 + 0.45 * Math.sin(now / 220);
     ctx.font = '800 15px Inter, sans-serif';
     ctx.textBaseline = 'middle';
     for (const msg of list) {
       const tw = ctx.measureText(msg).width;
-      const w = tw + 26, x = MODE === 'desktop' ? o.x + 14 : o.x + o.w / 2 - w / 2;
+      const w = tw + 26, x = MODE === 'desktop' ? o.x + SIDE_PAD : o.x + o.w / 2 - w / 2;
       ctx.fillStyle = SCRIM(0.8);
       ctx.beginPath(); UI.roundRectPath(ctx, x, y, w, 32, 16); ctx.fill();
       ctx.globalAlpha = 0.55 + pulse * 0.45;
@@ -2436,7 +2451,7 @@
     // Row 2: two columns of instruments, floating on the water.
     const colW = Math.floor((LW - PHONE_PAD * 2 - 10) / 2);
     const airF = run.air / run.airMax(), battF = run.batt / run.battMax();
-    const iy = 54;
+    const iy = L.instY;
     drawIndicators(PHONE_PAD, iy, colW, [
       ['AIR', airF, airF < LOW_FRAC ? C_ACCENT_TEXT : C_GREEN, Math.round(run.air) + ''],
       ['BATT', battF, battF < LOW_FRAC ? C_ACCENT_TEXT : C_SUN, Math.round(run.batt) + ''],
@@ -2497,34 +2512,44 @@
   }
 
   function drawChromeDesktop(now) {
-    /* Controls at the left of the top band; the read-out moved to the bottom
-       left on 2026-09-20 (DESIGN-SYSTEM 4.2 and 4.3). Fleet comes first: it
-       is the way out of the dive, which is where every other game puts its
-       map button. It keeps its word rather than becoming an icon, because a
-       submarine glyph alone does not say "the boats you can buy". The sound
-       switch is the shared icon, so it matches every other game. */
-    const cy = L.top / 2;
-    let x = SIDE_PAD;
-    const b1 = pill('fleet', 'Fleet', x + UI.pillWidth(ctx, 'Fleet') / 2, cy);
-    x = b1.x + b1.w + UI.PILL.gap;
-    const b2 = iconPill('sound', x + 22, cy,
-                        (cx, cyy) => UI.drawIcon(ctx, 'sound', cx, cyy, { on: sfx ? sfx.isOn() : true }));
-    x = b2.x + b2.w + UI.PILL.gap;
-    const b3 = iconPill('prices', x + 22, cy, priceGlyph);
-    x = b3.x + b3.w + UI.PILL.gap;
-    const b4 = pill('rules', 'Rules', x + UI.pillWidth(ctx, 'Rules') / 2, cy);
-    L.rowRight = b4.x + b4.w;
+    /* The phone's shape, on the big frame (owner, 2026-09-20): round house
+       buttons at the top left on a scrim, the instruments hanging under them,
+       the read-out at the bottom left. The 56 px band of Ground is gone, so
+       the water runs behind all of it and the frame is all world.
 
-    // Floating instruments on the water: air, battery and hull top-left,
-    // cargo top-right. The rest of the frame is world.
+       Order follows the fleet rule: the way out of the dive first, then the
+       sound switch, then the game's own, with the rules last. */
+    const g = ctx.createLinearGradient(0, 0, 0, L.instY + 120);
+    g.addColorStop(0, SCRIM(0.58));
+    g.addColorStop(0.55, SCRIM(0.24));
+    g.addColorStop(1, SCRIM(0));
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, LW, L.instY + 120);
+
+    const cy = L.rowCy, D = UI.PILL.iconW;
+    const items = [
+      ['fleet', subGlyph],
+      ['sound', (cx, cyy) => UI.drawIcon(ctx, 'sound', cx, cyy, { on: sfx ? sfx.isOn() : true })],
+      ['prices', priceGlyph],
+      ['rules', (cx, cyy) => UI.drawIcon(ctx, 'rules', cx, cyy)],
+    ];
+    let bx = SIDE_PAD;
+    for (const [id, draw] of items) {
+      const box = roundBtn(id, bx + D / 2, cy, draw);
+      L.rowRight = box.x + box.w;
+      bx += D + UI.PILL.gap;
+    }
+
+    // Floating instruments on the water, under the row: air, battery and hull
+    // left, cargo right. The rest of the frame is world.
     const o = L.ocean;
-    drawIndicators(o.x + 14, o.y + 14, 216, [
+    drawIndicators(SIDE_PAD, L.instY, 216, [
       ['AIR', run.air / run.airMax(), run.air / run.airMax() < 0.25 ? C_ACCENT_TEXT : C_GREEN,
        Math.round(run.air) + ''],
       ['BATT', run.batt / run.battMax(), C_SUN, Math.round(run.batt) + ''],
       ['HULL', 'pips', run.hull <= 2 ? C_ACCENT_TEXT : C_BRAND, Math.ceil(run.hull)],
     ]);
-    drawIndicators(o.x + o.w - 14 - 216, o.y + 14, 216, [
+    drawIndicators(LW - SIDE_PAD - 216, L.instY, 216, [
       ['CARGO', run.cargoKg / run.cargoMax(), C_ACCENT_TEXT,
        Math.round(run.cargoKg) + ' / ' + run.cargoMax() + ' kg'],
     ]);
