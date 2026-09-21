@@ -2117,6 +2117,31 @@
      (iron is $0.90 a kilo against copper's $2.13), and rounding flattened
      them to $1 and $2. */
   const fmtRate = (n) => n < 10 ? '$ ' + n.toFixed(2) : fmtMoney(n);
+  /* Money shortened, for the one line that has to share a row with the
+     controls. A boat costs up to $10 000, so five and six figures are normal
+     play, not an edge case. */
+  const fmtShortMoney = (n) => {
+    if (n < 10000) return fmtMoney(n);
+    if (n < 1000000) return '$ ' + (n / 1000).toFixed(n < 100000 ? 1 : 0).replace('.0', '') + 'k';
+    return '$ ' + (n / 1000000).toFixed(1).replace('.0', '') + 'M';
+  };
+  /* The read-out, longest first. Every string that can grow gets a chain of
+     shorter forms with the shortest last (DESIGN-SYSTEM 10.3): the bank has
+     no ceiling, and at seven figures the full line ran into the control row
+     on a 320 phone. */
+  const readoutForms = () => {
+    const m = run.money, d = Math.round(run.y);
+    /* The depth is never dropped: it is the number a player reads while the
+       air runs down. The bank is what gives up its digits. */
+    return [fmtMoney(m) + '  ·  ' + d + ' m',
+            fmtMoney(m) + ' · ' + d + ' m',
+            fmtShortMoney(m) + ' · ' + d + ' m',
+            fmtShortMoney(m).replace('$ ', '$') + ' · ' + d + 'm'];
+  };
+  const pickForm = (forms, room) => {
+    for (const f of forms) if (ctx.measureText(f).width <= room) return f;
+    return forms[forms.length - 1];
+  };
 
   /* A floating instrument: a small scrim block with labelled rows, drawn ON
      the water. A row is [label, frac, color, valueText] or, for the hull,
@@ -2383,7 +2408,8 @@
        width: four buttons at the rule's 28 px gap plus the read-out measures
        366 px against 320, and the read-out would shrink into the last one. */
     ctx.font = '700 15px Inter, sans-serif';
-    const roomRO = ctx.measureText(fmtMoney(run.money) + '  ·  ' + Math.round(run.y) + ' m').width;
+    const forms = readoutForms();
+    const roomRO = Math.min(ctx.measureText(forms[0]).width, (LW - PHONE_PAD * 2) * 0.42);
     const room = LW - PHONE_PAD * 2 - roomRO - 16;
     const gap = Math.max(4, Math.min(28, (room - items.length * D) / (items.length - 1)));
     let bx = PHONE_PAD;
@@ -2393,10 +2419,10 @@
       bx += D + gap;
     }
 
-    const ro = fmtMoney(run.money) + '  ·  ' + Math.round(run.y) + ' m';
     ctx.font = '700 15px Inter, sans-serif';
-    const roW = ctx.measureText(ro).width;
     const roomFor = LW - PHONE_PAD - (L.rowRight + 12);
+    const ro = pickForm(forms, roomFor);
+    const roW = ctx.measureText(ro).width;
     const hs = roW > roomFor ? Math.max(0.62, roomFor / roW) : 1;
     L.roFits = roW * hs <= roomFor + 0.5;
     ctx.save();
@@ -2509,8 +2535,12 @@
        a band of its own, because the view's scale is anchored to the ocean's
        height (see layout) and a band would shrink the whole world. Measured
        against the button beside it rather than assumed. */
-    const ro = 'DEPTH ' + Math.round(run.y) + ' m   ·   ' + fmtMoney(run.money);
     ctx.font = '600 16px Inter, sans-serif';
+    const deskForms = ['DEPTH ' + Math.round(run.y) + ' m   ·   ' + fmtMoney(run.money),
+                       'DEPTH ' + Math.round(run.y) + ' m  ·  ' + fmtMoney(run.money),
+                       Math.round(run.y) + ' m  ·  ' + fmtMoney(run.money),
+                       Math.round(run.y) + ' m  ·  ' + fmtShortMoney(run.money)];
+    const ro = pickForm(deskForms, jbox.x - SIDE_PAD - 16);
     const roW = ctx.measureText(ro).width;
     ctx.fillStyle = INK72; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
     ctx.fillText(ro, SIDE_PAD, L.jettison.cy + 1);
