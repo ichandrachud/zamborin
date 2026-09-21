@@ -2145,13 +2145,10 @@
      no ceiling, and at seven figures the full line ran into the control row
      on a 320 phone. */
   const readoutForms = () => {
-    const m = run.money, d = Math.round(run.y);
-    /* The depth is never dropped: it is the number a player reads while the
-       air runs down. The bank is what gives up its digits. */
-    return [fmtMoney(m) + '  ·  ' + d + ' m',
-            fmtMoney(m) + ' · ' + d + ' m',
-            fmtShortMoney(m) + ' · ' + d + ' m',
-            fmtShortMoney(m).replace('$ ', '$') + ' · ' + d + 'm'];
+    /* The bank alone since 2026-09-20: the depth is the gauge down the right
+       edge now. It still shortens, because the bank has no ceiling. */
+    const m = run.money;
+    return [fmtMoney(m), fmtShortMoney(m)];
   };
   const pickForm = (forms, room) => {
     for (const f of forms) if (ctx.measureText(f).width <= room) return f;
@@ -2424,7 +2421,7 @@
        366 px against 320, and the read-out would shrink into the last one. */
     ctx.font = '700 15px Inter, sans-serif';
     const forms = readoutForms();
-    const roomRO = Math.min(ctx.measureText(forms[0]).width, (LW - PHONE_PAD * 2) * 0.42);
+    const roomRO = Math.min(ctx.measureText(forms[0]).width, (LW - PHONE_PAD * 2) * 0.34);
     const room = LW - PHONE_PAD * 2 - roomRO - 16;
     const gap = Math.max(4, Math.min(28, (room - items.length * D) / (items.length - 1)));
     let bx = PHONE_PAD;
@@ -2470,6 +2467,7 @@
     L.jettison = { cx: LW / 2, cy: jcy };
     jettisonPill(LW / 2, jcy);
 
+    drawDepthGauge();
     drawTooHeavy(now);
 
     /* The stick. Removing the UP/DOWN buttons removed the only visible sign
@@ -2509,6 +2507,49 @@
       ctx.strokeStyle = TINT(0.75); ctx.lineWidth = 2; ctx.stroke();
       ctx.restore();
     }
+  }
+
+  /* THE DEPTH GAUGE (owner's drawing, 2026-09-20). Depth left the read-out
+     line and became a rule down the right edge: the whole dive at a glance,
+     with the boat's own dot on it and the number beside it. The faint ticks
+     are the four regions, so the scale means something rather than being a
+     line with a dot on it.
+
+     It is drawn, never tappable: the phone steers by dragging anywhere, and a
+     control at that edge would eat the gesture. */
+  function drawDepthGauge() {
+    const phone = MODE === 'mobile';
+    const x = LW - (phone ? PHONE_PAD : SIDE_PAD);
+    const top = (phone ? L.hudBot : L.instY + 116) + 16;
+    const bot = LH - (phone ? 30 : 56);
+    if (bot - top < 80) { L.gauge = null; return; }
+    const depthM = TUNE.ROWS * TUNE.TILE;
+    const at = (m) => top + (bot - top) * Math.max(0, Math.min(1, m / depthM));
+
+    ctx.save();
+    ctx.strokeStyle = TINT(0.22); ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(x + 0.5, top); ctx.lineTo(x + 0.5, bot); ctx.stroke();
+    ctx.strokeStyle = TINT(0.16); ctx.lineWidth = 1;
+    for (const row of TUNE.regionRows) {
+      const y = at(row * TUNE.TILE);
+      ctx.beginPath(); ctx.moveTo(x - 5.5, y + 0.5); ctx.lineTo(x + 0.5, y + 0.5); ctx.stroke();
+    }
+    const dy = at(Math.max(0, run.y));
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath(); ctx.arc(x + 0.5, dy, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = SCRIM(0.55); ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(x + 0.5, dy, 5, 0, Math.PI * 2); ctx.stroke();
+    const label = Math.round(run.y) + ' m';
+    ctx.font = '700 14px Inter, sans-serif';
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    const lw = ctx.measureText(label).width;
+    ctx.fillStyle = SCRIM(0.6);
+    ctx.beginPath(); UI.roundRectPath(ctx, x - 13 - lw - 9, dy - 11, lw + 18, 22, 11); ctx.fill();
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillText(label, x - 13, dy + 1);
+    ctx.restore();
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    L.gauge = { x, top, bot, dotY: dy, labelLeft: x - 13 - lw - 9 };
   }
 
   function drawChromeDesktop(now) {
@@ -2553,26 +2594,22 @@
       ['CARGO', run.cargoKg / run.cargoMax(), C_ACCENT_TEXT,
        Math.round(run.cargoKg) + ' / ' + run.cargoMax() + ' kg'],
     ]);
-    const jbox = jettisonPill(L.jettison.cx, L.jettison.cy);
+    jettisonPill(L.jettison.cx, L.jettison.cy);
 
-    /* The read-out: depth and the bank in one line at the bottom left, on
-       DROP CARGO's centre line. It floats on the water rather than sitting in
-       a band of its own, because the view's scale is anchored to the ocean's
-       height (see layout) and a band would shrink the whole world. Measured
-       against the button beside it rather than assumed. */
-    ctx.font = '600 16px Inter, sans-serif';
-    const deskForms = ['DEPTH ' + Math.round(run.y) + ' m   ·   ' + fmtMoney(run.money),
-                       'DEPTH ' + Math.round(run.y) + ' m  ·  ' + fmtMoney(run.money),
-                       Math.round(run.y) + ' m  ·  ' + fmtMoney(run.money),
-                       Math.round(run.y) + ' m  ·  ' + fmtShortMoney(run.money)];
-    const ro = pickForm(deskForms, jbox.x - SIDE_PAD - 16);
+    /* The bank sits at the top right, on the buttons' line, where the phone
+       keeps it. Depth is not here any more: it is the gauge down the right
+       edge (owner's drawing, 2026-09-20), so the bottom left is water again. */
+    ctx.font = '700 16px Inter, sans-serif';
+    const ro = pickForm([fmtMoney(run.money), fmtShortMoney(run.money)],
+                        LW - SIDE_PAD - (L.rowRight + 16));
     const roW = ctx.measureText(ro).width;
-    ctx.fillStyle = INK72; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    ctx.fillText(ro, SIDE_PAD, L.jettison.cy + 1);
+    ctx.fillStyle = '#FFFFFF'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ctx.fillText(ro, LW - SIDE_PAD, L.rowCy + 1);
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-    L.deskRead = { x: SIDE_PAD, y: L.jettison.cy - 10, w: roW, h: 20 };
-    L.roFits = SIDE_PAD + roW + 16 <= jbox.x && L.jettison.cy + 20 <= LH;
+    L.deskRead = { x: LW - SIDE_PAD - roW, y: L.rowCy - 10, w: roW, h: 20 };
+    L.roFits = L.rowRight + 16 <= LW - SIDE_PAD - roW;
 
+    drawDepthGauge();
     drawTooHeavy(now);
   }
 
@@ -3401,6 +3438,9 @@
       rowReadoutRoom: MODE === 'desktop' ? (LW - SIDE_PAD - ((L.rowRight || 0) + 16)) : null,
       readoutFits: L.roFits !== false,
       readOut: L.deskRead || null,
+      gauge: L.gauge || null,
+      gaugeInFrame: !L.gauge || (L.gauge.top >= 0 && L.gauge.bot <= LH &&
+                                 L.gauge.labelLeft >= 0 && L.gauge.x <= LW),
       tutor: L.tutorBox || null,
       tutorInFrame: !L.tutorBox || (L.tutorBox.x >= 0 && L.tutorBox.y >= 0 &&
                                     L.tutorBox.x + L.tutorBox.w <= LW &&
