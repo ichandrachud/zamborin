@@ -620,6 +620,11 @@
 
      Value per KILOGRAM is the number, because kilograms are what the player is
      rationing: 300 kg of lift, and the hold comes out of it. */
+  /* WHAT THE THING IS CALLED. A 6 kg piece at $40 a kilo is not bullion, and
+     calling it "gold" invited the arithmetic (owner, 2026-09-20): what the
+     drill cuts out of the wall is ore, and the stones are rough. */
+  const mineralName = (key, gem) => key.charAt(0).toUpperCase() + key.slice(1) + (gem ? '' : ' ore');
+
   function priceRows() {
     const t = TUNE, lastRock = t.ROWS - t.BED_ROWS - 1;
     const depthOf = (row) => Math.round(row * t.TILE + t.TILE / 2);
@@ -2231,16 +2236,16 @@
     draw(cx, cy);
     return box;
   }
-  // A price tag: the one button that is not in the shared icon set, because
-  // no other game has prices to show.
-  function tagGlyph(cx, cy) {
+  /* The prices button: a dollar sign (owner, 2026-09-20). It is the one glyph
+     not in the shared icon set, because no other game has prices to show. */
+  function priceGlyph(cx, cy) {
     ctx.save();
-    ctx.translate(cx, cy); ctx.rotate(-Math.PI / 4);
-    ctx.strokeStyle = INK92; ctx.fillStyle = INK92;
-    ctx.lineWidth = 1.8; ctx.lineJoin = 'round';
-    ctx.beginPath(); UI.roundRectPath(ctx, -9, -6.5, 17.5, 13, 3.5); ctx.stroke();
-    ctx.beginPath(); ctx.arc(-4.5, 0, 1.9, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = INK92;
+    ctx.font = '700 19px Inter, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('$', cx, cy + 1);
     ctx.restore();
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   }
 
   function subGlyph(cx, cy) {
@@ -2371,7 +2376,7 @@
     const items = [
       ['fleet', subGlyph],
       ['sound', (cx, cyy) => UI.drawIcon(ctx, 'sound', cx, cyy, { on: sfx ? sfx.isOn() : true })],
-      ['prices', tagGlyph],
+      ['prices', priceGlyph],
       ['rules', (cx, cyy) => UI.drawIcon(ctx, 'rules', cx, cyy)],
     ];
     /* The row spreads across what the read-out leaves it, not across the whole
@@ -2479,7 +2484,7 @@
     const b2 = iconPill('sound', x + 22, cy,
                         (cx, cyy) => UI.drawIcon(ctx, 'sound', cx, cyy, { on: sfx ? sfx.isOn() : true }));
     x = b2.x + b2.w + UI.PILL.gap;
-    const b3 = pill('prices', 'Prices', x + UI.pillWidth(ctx, 'Prices') / 2, cy);
+    const b3 = iconPill('prices', x + 22, cy, priceGlyph);
     x = b3.x + b3.w + UI.PILL.gap;
     const b4 = pill('rules', 'Rules', x + UI.pillWidth(ctx, 'Rules') / 2, cy);
     L.rowRight = b4.x + b4.w;
@@ -2778,66 +2783,82 @@
     ctx.beginPath(); UI.roundRectPath(ctx, px, py, pw, ph, 22); ctx.fill();
     ctx.strokeStyle = TINT(0.12); ctx.lineWidth = 1;
     ctx.beginPath(); UI.roundRectPath(ctx, px, py, pw, ph, 22); ctx.stroke();
-    const cx = px + pw / 2, headW = pw - 44;
+    const cx = px + pw / 2;
 
-    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-    ctx.fillStyle = '#FFFFFF';
-    let hts = 40;
-    do { ctx.font = '800 ' + hts + 'px Inter, sans-serif'; hts -= 2; }
-    while (ctx.measureText('WHAT IT PAYS').width > headW && hts >= 26);
-    ctx.fillText('WHAT IT PAYS', cx, py + 34 + 32);
-    ctx.fillStyle = INK82;
-    const lede = 'What a kilogram fetches, and where it lies.';
-    let lts = 17;
-    do { ctx.font = '600 ' + lts + 'px Inter, sans-serif'; lts -= 1; }
-    while (ctx.measureText(lede).width > headW && lts >= 13);
-    ctx.fillText(lede, cx, py + 34 + 70);
+    /* No title (owner, 2026-09-20): the card is a table and the columns say
+       what it is. The header is one row of column names, which buys the rows
+       their breathing room back. */
+    const HEAD = 62;
+    const xIcon0 = px + 26, icon = 28;
+    const xName = xIcon0 + icon + 12, xRight = px + pw - 26;
+    const rows0 = priceRows();
 
-    const bodyY = py + HEAD_H, bodyH = ph - HEAD_H - FOOT_H;
+    /* Three columns, laid out from their own widest cell right to left rather
+       than from guessed offsets, which is how the first draft ran the piece
+       value straight through the rate. What a piece weighs is on the receipt
+       after every dive; here the question is what a kilo is worth and how
+       deep it lies (owner, 2026-09-20). */
+    const GAP = 26;
+    const widest = (f, fn) => { ctx.font = f; return Math.max(...rows0.map(r => ctx.measureText(fn(r)).width)); };
+    const wRate = Math.max(widest('700 16px Inter, sans-serif', r => fmtRate(r.perKg)),
+                           (ctx.font = '700 12px Inter, sans-serif', ctx.measureText('PER KG').width));
+    const wDepth = Math.max(widest('500 15px Inter, sans-serif', r => r.depth),
+                            (ctx.font = '700 12px Inter, sans-serif', ctx.measureText('DEPTH').width));
+    const wName = (ctx.font = '600 16px Inter, sans-serif',
+                   Math.max(...rows0.map(r => ctx.measureText(mineralName(r.key, r.gem)).width)));
+
+    const xPer = xRight;                                   // right edges
+    const xDepth = xPer - wRate - GAP;
+    /* A phone's card is 319 px wide and the three columns want 350, so there
+       the depth goes under the name instead of beside it. Nothing is dropped
+       and nothing is shrunk; the row is simply two lines deep. */
+    const stacked = xName + wName + 16 > xDepth - wDepth;
+
+    ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+    ctx.font = '700 12px Inter, sans-serif'; ctx.fillStyle = INK72;
+    const hy = py + 40;
+    ctx.fillText('MINERAL', xName, hy);
+    ctx.textAlign = 'right';
+    if (!stacked) ctx.fillText('DEPTH', xDepth, hy);
+    ctx.fillText('PER KG', xPer, hy);
+    ctx.strokeStyle = TINT(0.12); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(px + 26, hy + 16.5); ctx.lineTo(xRight, hy + 16.5); ctx.stroke();
+
+    const bodyY = py + HEAD, bodyH = ph - HEAD - FOOT_H;
     hit.pricesBody = { x: px, y: bodyY, w: pw, h: bodyH };
-    const rows = priceRows();
-    const ROW_H = 40, icon = 24;
-    const contentH = rows.length * ROW_H + 6;
+    const rows = rows0;
+    const ROW_H = 46;
+    const contentH = rows.length * ROW_H + 8;
     const scrollMax = Math.max(0, contentH - bodyH);
     pricesScroll = Math.max(0, Math.min(scrollMax, pricesScroll));
 
     ctx.save();
     ctx.beginPath(); ctx.rect(px, bodyY, pw, bodyH); ctx.clip();
-    let ry = bodyY - pricesScroll + 6;
-    const xIcon = px + 24, xName = xIcon + icon + 10, xRight = px + pw - 24;
-    for (const r of rows) {
+    let ry = bodyY - pricesScroll + ROW_H / 2;
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
       const im = r.gem ? ((GEM_ART[r.key] || {})._ok ? GEM_ART[r.key] : null) : pickSprite(r.key, 0);
       if (im) {
         const iw = icon * (im.width / im.height);
-        ctx.drawImage(im, xIcon + (icon - iw) / 2, ry + 4, iw, icon);
+        ctx.drawImage(im, xIcon0 + (icon - iw) / 2, ry - icon / 2, iw, icon);
       } else {
         ctx.fillStyle = r.gem ? C_SUN : TINT(0.35);
-        ctx.beginPath(); ctx.arc(xIcon + icon / 2, ry + 16, icon * 0.34, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(xIcon0 + icon / 2, ry, icon * 0.34, 0, Math.PI * 2); ctx.fill();
       }
       ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
-      ctx.font = '700 16px Inter, sans-serif';
+      ctx.font = '600 16px Inter, sans-serif';
       ctx.fillStyle = r.gem ? C_SUN : INK90;
-      ctx.fillText(r.key.charAt(0).toUpperCase() + r.key.slice(1), xName, ry + 12);
+      ctx.fillText(mineralName(r.key, r.gem), xName, stacked ? ry - 9 : ry);
+      ctx.font = '500 15px Inter, sans-serif'; ctx.fillStyle = INK72;
+      if (stacked) ctx.fillText(r.depth, xName, ry + 11);
+      else { ctx.textAlign = 'right'; ctx.fillText(r.depth, xDepth, ry); }
       ctx.textAlign = 'right';
       ctx.font = '700 16px Inter, sans-serif'; ctx.fillStyle = INK90;
-      ctx.fillText(fmtRate(r.perKg) + ' / kg', xRight, ry + 12);
-      /* Two second lines, one from each edge. On a narrow card they met in
-         the middle, so the left one gives up its region names first and the
-         right one its piece value, rather than either being clipped. */
-      ctx.font = '500 13px Inter, sans-serif'; ctx.fillStyle = INK72;
-      const rightFull = r.kg + ' kg a piece  ·  ' + fmtMoney(r.val);
-      const rightShort = r.kg + ' kg  ·  ' + fmtMoney(r.val);
-      const room = xRight - xName - 14;
-      let leftText = r.where, rightText = rightFull;
-      if (ctx.measureText(leftText).width + ctx.measureText(rightText).width > room) {
-        rightText = rightShort;
-        if (ctx.measureText(leftText).width + ctx.measureText(rightText).width > room) {
-          leftText = r.depth;
-        }
+      ctx.fillText(fmtRate(r.perKg), xPer, ry);
+      if (i < rows.length - 1) {
+        ctx.strokeStyle = TINT(0.07); ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(xName, ry + ROW_H / 2 - 0.5); ctx.lineTo(xRight, ry + ROW_H / 2 - 0.5); ctx.stroke();
       }
-      ctx.fillText(rightText, xRight, ry + 30);
-      ctx.textAlign = 'left'; ctx.fillStyle = INK72;
-      ctx.fillText(leftText, xName, ry + 30);
       ry += ROW_H;
     }
     ctx.restore();
@@ -2861,6 +2882,10 @@
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
     L.pricesFit = { rows: rows.length, contentH, bodyH: Math.round(bodyH),
                     scrollMax: Math.round(scrollMax), cardH: ph,
+                    widths: { name: Math.round(wName), depth: Math.round(wDepth), rate: Math.round(wRate) },
+                    stacked,
+                    clear: stacked ? Math.max(wName, wDepth) + 16 <= xPer - wRate - xName
+                                   : xName + wName + 12 <= xDepth - wDepth && xDepth + 12 <= xPer - wRate,
                     fits: py >= 0 && py + ph <= LH && bodyH > 40 };
   }
 
@@ -2918,7 +2943,7 @@
       ctx.font = '600 ' + fs + 'px Inter, sans-serif';
       ctx.fillStyle = gem ? C_SUN : INK90;
       ctx.textAlign = 'left';
-      ctx.fillText(it.type.charAt(0).toUpperCase() + it.type.slice(1), xName, y);
+      ctx.fillText(mineralName(it.type, !!gem), xName, y);
       ctx.fillStyle = INK72; ctx.textAlign = 'right';
       ctx.fillText('x' + it.n, xQty, y);
       ctx.fillText(fmtMoney(it.each), xEach, y);
