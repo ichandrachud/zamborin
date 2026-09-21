@@ -182,6 +182,7 @@
   let card = null;               // 'rules' | 'fleet' | 'banked' | 'blackout' | 'breach' | null
   let cardData = null;
   let rulesScroll = 0;
+  let pricesScroll = 0;
   let started = false;           // first real input -> analytics game_start
   /* THE VERB, SHOWN AT REST. Instead of explaining the controls on that card,
      the move loops beside the boat until the player makes it: on a phone the
@@ -527,8 +528,9 @@
   const inRect = (p, r) => p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h;
 
   // Hit boxes the renderer fills in each frame.
-  const hit = { pills: [], cta: null, reward: null, newOcean: null, rulesBody: null };
+  const hit = { pills: [], cta: null, reward: null, newOcean: null, rulesBody: null, pricesBody: null };
   let rulesDrag = null;
+  let pricesDrag = null;
 
   canvas.addEventListener('pointerdown', (e) => {
     e.preventDefault();
@@ -545,6 +547,9 @@
       if (hit.newOcean && inRect(p, hit.newOcean)) { newOceanTapped(); return; }
       if (card === 'rules' && hit.rulesBody && inRect(p, hit.rulesBody)) {
         rulesDrag = { y: p.y, s: rulesScroll };
+      }
+      if (card === 'prices' && hit.pricesBody && inRect(p, hit.pricesBody)) {
+        pricesDrag = { y: p.y, s: pricesScroll };
       }
       return;
     }
@@ -568,6 +573,7 @@
   canvas.addEventListener('pointermove', (e) => {
     const p = ptXY(e);
     if (rulesDrag) { rulesScroll = rulesDrag.s - (p.y - rulesDrag.y); return; }
+    if (pricesDrag) { pricesScroll = pricesDrag.s - (p.y - pricesDrag.y); return; }
     if (held.joy === e.pointerId && dragAnchor) {
       dragNow = { x: p.x, y: p.y };
       const dx = p.x - dragAnchor.x, dy = p.y - dragAnchor.y;
@@ -581,6 +587,7 @@
   function endPointer(e) {
     const p = ptXY(e);
     rulesDrag = null;
+    pricesDrag = null;
     for (const pill of hit.pills) {
       if (pill.tapped === e.pointerId) {
         pill.tapped = null;
@@ -595,12 +602,43 @@
   canvas.addEventListener('pointercancel', endPointer);
   canvas.addEventListener('wheel', (e) => {
     if (card === 'rules' && hit.rulesBody) { rulesScroll += e.deltaY * 0.6; e.preventDefault(); }
+    if (card === 'prices' && hit.pricesBody) { pricesScroll += e.deltaY * 0.6; e.preventDefault(); }
   }, { passive: false });
 
   function pillAction(id) {
     if (id === 'sound') { if (sfx) { sfx.setOn(!sfx.isOn()); sfx.play('click'); } }
     else if (id === 'rules') { card = 'rules'; rulesScroll = 0; }
+    else if (id === 'prices') { card = 'prices'; pricesScroll = 0; }
     else if (id === 'fleet') { fleetView = curSub; card = 'fleet'; }
+  }
+
+  /* WHAT IT PAYS. Every mineral, what a kilogram of it fetches, and the depths
+     it lies at. Read out of the sim rather than typed here: the prices are
+     TUNE.ore / TUNE.gem and the depths come from SIM.BANDS, which the world
+     generator builds its scatter from, so the card cannot drift from the game
+     the way the guide's hand-typed table once did.
+
+     Value per KILOGRAM is the number, because kilograms are what the player is
+     rationing: 300 kg of lift, and the hold comes out of it. */
+  function priceRows() {
+    const t = TUNE, lastRock = t.ROWS - t.BED_ROWS - 1;
+    const depthOf = (row) => Math.round(row * t.TILE + t.TILE / 2);
+    const bandText = (b) => {
+      const top = t.regionRows[b.from];
+      const bot = (b.to + 1 < t.regionRows.length ? t.regionRows[b.to + 1] : lastRock + 1) - 1;
+      const names = SIM.REGIONS.slice(b.from, b.to + 1).map(r => r.name).join(', ');
+      const depth = depthOf(top) + '-' + depthOf(bot) + ' m';
+      return { depth, full: depth + '  ·  ' + names };
+    };
+    const rows = [];
+    const add = (key, o, gem) => {
+      const b = SIM.BANDS[key] ? bandText(SIM.BANDS[key]) : { depth: '', full: '' };
+      rows.push({ key, gem, kg: o.kg, val: o.val, perKg: o.val / o.kg,
+                  depth: b.depth, where: b.full });
+    };
+    for (const [key, o] of Object.entries(t.ore)) add(key, o, false);
+    for (const [key, g] of Object.entries(t.gem)) add(key, g, true);
+    return rows;
   }
   /* One ocean per save, and the current ocean is the default forever. NEW
      OCEAN is a deliberate act: it discards the mine you dug and keeps the
@@ -703,7 +741,7 @@
   function cardCTA() {
     oceanArmed = false;
     if (adBusy) return;
-    if (card === 'rules') { card = null; }
+    if (card === 'rules' || card === 'prices') { card = null; }
     else if (card === 'banked' || card === 'blackout' || card === 'breach' || card === 'stranded') {
       breakAd(() => {
         if (run.mode !== 'dive') run.revive();
@@ -2070,6 +2108,10 @@
     }
   }
   const fmtMoney = (n) => '$ ' + String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  /* A rate, not a price: under ten dollars the cents are the whole ladder
+     (iron is $0.90 a kilo against copper's $2.13), and rounding flattened
+     them to $1 and $2. */
+  const fmtRate = (n) => n < 10 ? '$ ' + n.toFixed(2) : fmtMoney(n);
 
   /* A floating instrument: a small scrim block with labelled rows, drawn ON
      the water. A row is [label, frac, color, valueText] or, for the hull,
@@ -2189,6 +2231,18 @@
     draw(cx, cy);
     return box;
   }
+  // A price tag: the one button that is not in the shared icon set, because
+  // no other game has prices to show.
+  function tagGlyph(cx, cy) {
+    ctx.save();
+    ctx.translate(cx, cy); ctx.rotate(-Math.PI / 4);
+    ctx.strokeStyle = INK92; ctx.fillStyle = INK92;
+    ctx.lineWidth = 1.8; ctx.lineJoin = 'round';
+    ctx.beginPath(); UI.roundRectPath(ctx, -9, -6.5, 17.5, 13, 3.5); ctx.stroke();
+    ctx.beginPath(); ctx.arc(-4.5, 0, 1.9, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+
   function subGlyph(cx, cy) {
     ctx.fillStyle = INK92;
     ctx.beginPath(); ctx.ellipse(cx + 1, cy + 1, 8.5, 4.4, 0, 0, Math.PI * 2); ctx.fill();
@@ -2317,9 +2371,15 @@
     const items = [
       ['fleet', subGlyph],
       ['sound', (cx, cyy) => UI.drawIcon(ctx, 'sound', cx, cyy, { on: sfx ? sfx.isOn() : true })],
+      ['prices', tagGlyph],
       ['rules', (cx, cyy) => UI.drawIcon(ctx, 'rules', cx, cyy)],
     ];
-    const room = LW - PHONE_PAD * 2;
+    /* The row spreads across what the read-out leaves it, not across the whole
+       width: four buttons at the rule's 28 px gap plus the read-out measures
+       366 px against 320, and the read-out would shrink into the last one. */
+    ctx.font = '700 15px Inter, sans-serif';
+    const roomRO = ctx.measureText(fmtMoney(run.money) + '  ·  ' + Math.round(run.y) + ' m').width;
+    const room = LW - PHONE_PAD * 2 - roomRO - 16;
     const gap = Math.max(4, Math.min(28, (room - items.length * D) / (items.length - 1)));
     let bx = PHONE_PAD;
     for (const [id, draw] of items) {
@@ -2419,8 +2479,10 @@
     const b2 = iconPill('sound', x + 22, cy,
                         (cx, cyy) => UI.drawIcon(ctx, 'sound', cx, cyy, { on: sfx ? sfx.isOn() : true }));
     x = b2.x + b2.w + UI.PILL.gap;
-    const b3 = pill('rules', 'Rules', x + UI.pillWidth(ctx, 'Rules') / 2, cy);
-    L.rowRight = b3.x + b3.w;
+    const b3 = pill('prices', 'Prices', x + UI.pillWidth(ctx, 'Prices') / 2, cy);
+    x = b3.x + b3.w + UI.PILL.gap;
+    const b4 = pill('rules', 'Rules', x + UI.pillWidth(ctx, 'Rules') / 2, cy);
+    L.rowRight = b4.x + b4.w;
 
     // Floating instruments on the water: air, battery and hull top-left,
     // cargo top-right. The rest of the frame is world.
@@ -2707,6 +2769,101 @@
      Rows shrink to fit rather than the card growing: it is the one card
      whose length is set by play, and a seven-mineral haul must not push
      DIVE AGAIN off the bottom. Measured by receiptFit(). */
+  /* The price card. Same box, header and footer as the rules; the body is a
+     row per mineral with its own art beside it, and it scrolls. */
+  function drawPricesCard() {
+    const { pw, ph, px, py } = cardBox();
+    ctx.fillStyle = SCRIM(0.88); ctx.fillRect(0, 0, LW, LH);
+    ctx.fillStyle = C_SURFACE;
+    ctx.beginPath(); UI.roundRectPath(ctx, px, py, pw, ph, 22); ctx.fill();
+    ctx.strokeStyle = TINT(0.12); ctx.lineWidth = 1;
+    ctx.beginPath(); UI.roundRectPath(ctx, px, py, pw, ph, 22); ctx.stroke();
+    const cx = px + pw / 2, headW = pw - 44;
+
+    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = '#FFFFFF';
+    let hts = 40;
+    do { ctx.font = '800 ' + hts + 'px Inter, sans-serif'; hts -= 2; }
+    while (ctx.measureText('WHAT IT PAYS').width > headW && hts >= 26);
+    ctx.fillText('WHAT IT PAYS', cx, py + 34 + 32);
+    ctx.fillStyle = INK82;
+    const lede = 'What a kilogram fetches, and where it lies.';
+    let lts = 17;
+    do { ctx.font = '600 ' + lts + 'px Inter, sans-serif'; lts -= 1; }
+    while (ctx.measureText(lede).width > headW && lts >= 13);
+    ctx.fillText(lede, cx, py + 34 + 70);
+
+    const bodyY = py + HEAD_H, bodyH = ph - HEAD_H - FOOT_H;
+    hit.pricesBody = { x: px, y: bodyY, w: pw, h: bodyH };
+    const rows = priceRows();
+    const ROW_H = 40, icon = 24;
+    const contentH = rows.length * ROW_H + 6;
+    const scrollMax = Math.max(0, contentH - bodyH);
+    pricesScroll = Math.max(0, Math.min(scrollMax, pricesScroll));
+
+    ctx.save();
+    ctx.beginPath(); ctx.rect(px, bodyY, pw, bodyH); ctx.clip();
+    let ry = bodyY - pricesScroll + 6;
+    const xIcon = px + 24, xName = xIcon + icon + 10, xRight = px + pw - 24;
+    for (const r of rows) {
+      const im = r.gem ? ((GEM_ART[r.key] || {})._ok ? GEM_ART[r.key] : null) : pickSprite(r.key, 0);
+      if (im) {
+        const iw = icon * (im.width / im.height);
+        ctx.drawImage(im, xIcon + (icon - iw) / 2, ry + 4, iw, icon);
+      } else {
+        ctx.fillStyle = r.gem ? C_SUN : TINT(0.35);
+        ctx.beginPath(); ctx.arc(xIcon + icon / 2, ry + 16, icon * 0.34, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+      ctx.font = '700 16px Inter, sans-serif';
+      ctx.fillStyle = r.gem ? C_SUN : INK90;
+      ctx.fillText(r.key.charAt(0).toUpperCase() + r.key.slice(1), xName, ry + 12);
+      ctx.textAlign = 'right';
+      ctx.font = '700 16px Inter, sans-serif'; ctx.fillStyle = INK90;
+      ctx.fillText(fmtRate(r.perKg) + ' / kg', xRight, ry + 12);
+      /* Two second lines, one from each edge. On a narrow card they met in
+         the middle, so the left one gives up its region names first and the
+         right one its piece value, rather than either being clipped. */
+      ctx.font = '500 13px Inter, sans-serif'; ctx.fillStyle = INK72;
+      const rightFull = r.kg + ' kg a piece  ·  ' + fmtMoney(r.val);
+      const rightShort = r.kg + ' kg  ·  ' + fmtMoney(r.val);
+      const room = xRight - xName - 14;
+      let leftText = r.where, rightText = rightFull;
+      if (ctx.measureText(leftText).width + ctx.measureText(rightText).width > room) {
+        rightText = rightShort;
+        if (ctx.measureText(leftText).width + ctx.measureText(rightText).width > room) {
+          leftText = r.depth;
+        }
+      }
+      ctx.fillText(rightText, xRight, ry + 30);
+      ctx.textAlign = 'left'; ctx.fillStyle = INK72;
+      ctx.fillText(leftText, xName, ry + 30);
+      ry += ROW_H;
+    }
+    ctx.restore();
+    ctx.textAlign = 'left';
+
+    // The same edge fades the rules card uses, so "there is more" is visible.
+    if (pricesScroll > 1) {
+      const tg = ctx.createLinearGradient(0, bodyY, 0, bodyY + 20);
+      tg.addColorStop(0, C_SURFACE); tg.addColorStop(1, 'rgba(19,31,54,0)');
+      ctx.fillStyle = tg; ctx.fillRect(px + 2, bodyY, pw - 4, 20);
+    }
+    if (pricesScroll < scrollMax - 1) {
+      const fg = ctx.createLinearGradient(0, bodyY + bodyH - 20, 0, bodyY + bodyH);
+      fg.addColorStop(0, 'rgba(19,31,54,0)'); fg.addColorStop(1, C_SURFACE);
+      ctx.fillStyle = fg; ctx.fillRect(px + 2, bodyY + bodyH - 20, pw - 4, 20);
+    }
+
+    ctx.textAlign = 'center';
+    hit.cta = UI.drawCTA(ctx, 'DIVE', cx, py + ph - FOOT_H + 16 + 25, C_ACCENT);
+    hit.newOcean = null;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    L.pricesFit = { rows: rows.length, contentH, bodyH: Math.round(bodyH),
+                    scrollMax: Math.round(scrollMax), cardH: ph,
+                    fits: py >= 0 && py + ph <= LH && bodyH > 40 };
+  }
+
   function drawReceiptCard(d) {
     const items0 = (d.items || []);
     /* Height follows the receipt. A two-line haul in a 470 px card left ~200 px
@@ -3112,6 +3269,7 @@
 
     hit.cta = null; hit.reward = null;
     if (card === 'rules') drawRulesCard(now);
+    else if (card === 'prices') drawPricesCard();
     else if (card === 'fleet') drawFleetCard();
     else if (card === 'banked' && cardData) {
       drawReceiptCard(cardData);
@@ -3209,6 +3367,7 @@
                setSub: (i) => { curSub = i; if (!owned.includes(i)) owned.push(i); applyFleet(); },
                setMoney: (m) => { run.money = m; } },
       rulesFit, fit,
+      pricesFit: () => L.pricesFit || null,
       render: () => render(performance.now()),
       /* The preview pane reports visibilityState 'hidden' and never services
          requestAnimationFrame, so the harness drives frames itself: sim,

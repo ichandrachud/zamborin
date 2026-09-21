@@ -171,6 +171,18 @@ const T = { WATER: T_WATER, SILT: T_SILT, ROCK: T_ROCK, HARD: T_HARD,
             EMERALD: T_EMERALD, RUBY: T_RUBY, DIAMOND: T_DIAMOND };
 const METAL_TYPES = [T_IRON, T_COPPER, T_TUNGSTEN, T_SILVER, T_GOLD, T_PLATINUM, T_NEODYMIUM];
 
+/* WHERE EACH MINERAL LIES, by region. The generator reads these to scatter
+   ore and stones; the game's own price card reads them to tell the player
+   where to look, so the two can never disagree. The guide's tables are typed
+   by hand from the same numbers and one of them was wrong once. */
+const ORE_BY_REGION = [
+  [[T_IRON, 0.65], [T_COPPER, 0.35]],                         // The Shelf
+  [[T_COPPER, 0.30], [T_TUNGSTEN, 0.45], [T_SILVER, 0.25]],   // The Ribs
+  [[T_SILVER, 0.30], [T_GOLD, 0.45], [T_PLATINUM, 0.25]],     // Blackreach
+  [[T_GOLD, 0.25], [T_PLATINUM, 0.40], [T_NEODYMIUM, 0.35]],  // The Foundry
+];
+const GEM_BY_REGION = [T_EMERALD, T_EMERALD, T_RUBY, T_DIAMOND];
+
 const ORE_OF = {};
 ORE_OF[T_IRON] = 'iron'; ORE_OF[T_COPPER] = 'copper'; ORE_OF[T_TUNGSTEN] = 'tungsten';
 ORE_OF[T_SILVER] = 'silver'; ORE_OF[T_GOLD] = 'gold'; ORE_OF[T_PLATINUM] = 'platinum';
@@ -446,12 +458,6 @@ World.prototype._generate = function () {
 
   /* 5. Ore: seeded scatter plus veins. A vein glimpsed at the lamp's
         edge is the pull deeper, so most of the value walks. */
-  const ORE_BY_REGION = [
-    [[T_IRON, 0.65], [T_COPPER, 0.35]],                          // The Shelf
-    [[T_COPPER, 0.30], [T_TUNGSTEN, 0.45], [T_SILVER, 0.25]],   // The Ribs
-    [[T_SILVER, 0.30], [T_GOLD, 0.45], [T_PLATINUM, 0.25]],     // Blackreach
-    [[T_GOLD, 0.25], [T_PLATINUM, 0.40], [T_NEODYMIUM, 0.35]],  // The Foundry
-  ];
   const DENSITY = [t.oreDensity.shelf, t.oreDensity.ribs,
                    t.oreDensity.blackreach, t.oreDensity.foundry];
   const pickOre = (reg, q) => {
@@ -496,7 +502,7 @@ World.prototype._generate = function () {
         depth and worth far more, so a shallow stone is a nice morning and a
         deep one is an event. */
   {
-    const GEM_T = [T_EMERALD, T_EMERALD, T_RUBY, T_DIAMOND];
+    const GEM_T = GEM_BY_REGION;
     for (let reg = 0; reg < 4; reg++) {
       const rr = t.regionRows;
       const top = rr[reg];
@@ -1141,8 +1147,24 @@ Run.prototype.loadWorldState = function (s) {
   return n >= 0;
 };
 
+/* key -> { from, to }: the first and last REGION a mineral appears in,
+   derived rather than restated, so a change to the tables above moves the
+   price card with it. */
+const BANDS = (function () {
+  const b = {};
+  const note = (type, reg) => {
+    const k = ORE_OF[type];
+    if (!k) return;
+    if (!b[k]) b[k] = { from: reg, to: reg };
+    else { b[k].from = Math.min(b[k].from, reg); b[k].to = Math.max(b[k].to, reg); }
+  };
+  ORE_BY_REGION.forEach((table, reg) => table.forEach(([type]) => note(type, reg)));
+  GEM_BY_REGION.forEach((type, reg) => note(type, reg));
+  return b;
+}());
+
 const API = { TUNE, T, REGIONS, LANDMARKS, Run, World, mulberry32,
-              isSolidType, isFixedType, ORE_OF, HARD_KEY };
+              isSolidType, isFixedType, ORE_OF, HARD_KEY, BANDS };
 root.FathomSim = API;
 if (typeof module !== 'undefined' && module.exports) module.exports = API;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
