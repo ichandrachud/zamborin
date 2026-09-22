@@ -36,6 +36,7 @@ const GAMES = {
   tailwind: '1a95f9ebc00d4da9a26e431242260751',
   ludo:     '6eedf3fa8030453ab29c7cdaea3599ab',
   zood:     'a916b78506ab4816a24526a4b28a84cf',
+  comb:     'ec9e6af3de574f76999341c761bff166',
 };
 
 const GAME = process.argv.slice(2).find(a => !a.startsWith('--')) || 'tailwind';
