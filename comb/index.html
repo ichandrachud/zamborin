@@ -29,7 +29,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../shared/tokens.css?v=1" />
   <link rel="stylesheet" href="../shared/chrome.css?v=20" />
-  <link rel="stylesheet" href="./play.css?v=5" />
+  <link rel="stylesheet" href="./play.css?v=7" />
   <!-- Google AdSense. The site earns from these pages; keep both lines. -->
   <meta name="google-adsense-account" content="ca-pub-9207689324865969">
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9207689324865969" crossorigin="anonymous"></script>
@@ -229,7 +229,7 @@
   <script src="../shared/portal.js?v=2"></script>
   <script defer src="../shared/ads.js?v=2"></script>
   <script src="./gen.js?v=5"></script>
-  <script src="./play.js?v=38"></script>
+  <script src="./play.js?v=39"></script>
   <script>
     (() => {
       const btn = document.getElementById('focus-toggle');
@@ -245,6 +245,34 @@
     (() => {
       const splash = document.getElementById('splash');
       if (!splash) return;
+      /* GAMEDISTRIBUTION ONLY (GD_OPTIONS exists only in that package). Their
+         SDK is approved once a pre-roll has been watched, and their guide puts
+         it on a Play button behind a tap, so there the splash waits for one
+         and the tap plays the ad. Everywhere else the splash lifts itself and
+         the player lands straight in the game, as CrazyGames asks. */
+      if (window.GD_OPTIONS) {
+        splash.classList.add('tap-to-play');
+        const lift = () => {
+          splash.classList.add('fading');
+          setTimeout(() => {
+            splash.remove();
+            window.dispatchEvent(new CustomEvent('splash-done'));
+          }, 700);
+        };
+        splash.addEventListener('pointerup', function go() {
+          splash.removeEventListener('pointerup', go);
+          splash.classList.remove('tap-to-play');
+          // The SDK loads on its own; give a fast tap a moment to meet it.
+          const t0 = Date.now();
+          (function when() {
+            const P = window.ZAM_PORTAL;
+            if (window.gdsdk && P && P.interstitial) { P.interstitial(lift); return; }
+            if (Date.now() - t0 > 1500) { lift(); return; }
+            setTimeout(when, 100);
+          })();
+        });
+        return;
+      }
       setTimeout(() => splash.classList.add('fading'), 2000);
       setTimeout(() => {
         splash.remove();

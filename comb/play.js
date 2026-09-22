@@ -589,8 +589,13 @@
   /* Interstitials: every third completion, at least two minutes apart, and
      never before level 4. CrazyGames enforces its own cooldown on top of this
      and answers `adCooldown` when it disagrees, which portal.js swallows. */
+  const onGD = () => { const P = window.ZAM_PORTAL; return !!P && P.name === 'gd'; };
+  let gdAdBusy = false;
   function maybeInterstitial(then) {
     completions++;
+    // GameDistribution's ads must sit behind a tap, so there the ad is asked
+    // for on NEXT instead (see the win card's handler), never before the card.
+    if (onGD()) { then(); return; }
     const P = window.ZAM_PORTAL;
     const now = Date.now();
     const eligible = P && P.name && !isDaily && levelNo >= 4 &&
@@ -2187,13 +2192,28 @@
     }
     if (phase === 'win') {
       if (inBox(p, L.hit.next)) {
-        // After the daily, on to the player's own next level; the map is the
-        // top-left button. Only a finished ladder sends it back to the map.
-        if (isDaily && starsAt(LEVELS) === 0) { openLevel(save.max); return; }
-        if (isDaily || levelNo >= LEVELS) { phase = 'map'; draw(); return; }
-        const wasTier = G.tierOf(levelNo);
-        openLevel(levelNo + 1);
-        if (G.tierOf(levelNo) !== wasTier) play('unlock');
+        const next = () => {
+          // After the daily, on to the player's own next level; the map is the
+          // top-left button. Only a finished ladder sends it back to the map.
+          if (isDaily && starsAt(LEVELS) === 0) { openLevel(save.max); return; }
+          if (isDaily || levelNo >= LEVELS) { phase = 'map'; draw(); return; }
+          const wasTier = G.tierOf(levelNo);
+          openLevel(levelNo + 1);
+          if (G.tierOf(levelNo) !== wasTier) play('unlock');
+        };
+        /* GAMEDISTRIBUTION ONLY: the between-levels ad plays on this tap,
+           which is where their guide puts a mid-roll (a Next button, behind a
+           mouse or touch up). Their SDK decides how often one actually shows,
+           so it is asked for on every NEXT. A second tap while it plays is
+           ignored rather than asking twice. */
+        if (onGD()) {
+          if (gdAdBusy) return;
+          gdAdBusy = true;
+          T().track('interstitial_shown', { level: levelNo });
+          window.ZAM_PORTAL.interstitial(() => { gdAdBusy = false; next(); });
+          return;
+        }
+        next();
         return;
       }
       if (inBox(p, L.hit.map)) { phase = 'map'; draw(); return; }
