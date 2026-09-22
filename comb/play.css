@@ -13,5 +13,14 @@
    The mobile art is 1170x2532 at 0.462, which is a modern phone almost
    exactly. Its wordmark sits at 70.9% of the width, inside the 82.2% that
    survives a cover-crop on the narrowest viewport worth designing for. */
-body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=1'); }
+body.mode-desktop .splash {
+  background-image: url('./splash-desktop.jpg?v=1');
+  /* A portal's window is often far wider than the art. Cover then crops top
+     and bottom, and centred it took the top off the wordmark in
+     GameDistribution's 2.3:1 console. The letters span 20.9% to 62.8% of the
+     art's height (measured), so anchoring the art's 36% line to the box's 36%
+     keeps the whole word in every window up to 3:1. In the site's own frame
+     the aspects match and nothing is cropped either way. */
+  background-position: center 36%;
+}
 body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=1'); }
