@@ -406,6 +406,8 @@
   // ---------- LAYOUT ----------
   const SIDE_PAD = 30;
   const PHONE_PAD = 16;          // the phone's side margin (DESIGN-SYSTEM 2.1)
+  const ZOOM_MAX = 1.25;         // how much bigger than the site frame art may be drawn
+  const LAMP_ZOOM_MAX = 1.5;     // and how much further the lamp may reach for it
   /* Mobile has no bands. It used to spend 84 px at the top and 96 px at the
      bottom on solid chrome — 180 px of a ~700 px phone, a quarter of the
      screen, not showing the game. Desktop already floated its instruments on
@@ -444,8 +446,19 @@
          anchor drops the same 56: the art in the 760 frame is the size it has
          always been, and the extra band is extra WATER rather than a 10%
          zoom. */
+      /* THE ZOOM STOPS (owner, 2026-09-23). Anchored to the ocean's height
+         alone, a taller window magnified the art and never showed more water:
+         at 1920x1080 a tile was drawn twice the size it is in the frame, which
+         is the "why is it so zoomed in". The scale now stops at 1.25 times the
+         site frame's, and every pixel past that is more ocean.
+
+         The lamp grows with the view, or the extra would be fog: it lights the
+         same share of the frame it always did, up to 1.5x its own metres. That
+         was the reason the anchor moved to the height in the first place. */
       const FRAME_VIEW_H = FRAME_H / (FRAME_W / TUNE.VIEW_W);
-      L.ppm = L.ocean.h / FRAME_VIEW_H;
+      const PPM_FRAME = FRAME_W / TUNE.VIEW_W;
+      L.ppm = Math.min(L.ocean.h / FRAME_VIEW_H, PPM_FRAME * ZOOM_MAX);
+      L.lampZoom = Math.min(LAMP_ZOOM_MAX, Math.max(1, (L.ocean.h / L.ppm) / FRAME_VIEW_H));
       L.jettison = { cx: LW / 2, cy: LH - 40 };
       // The control row floats where the phone's does, and the instruments
       // hang under it rather than beside it.
@@ -454,6 +467,7 @@
     } else {
       L.ocean = { x: 0, y: 0, w: LW, h: LH };
       L.ppm = LW / TUNE.VIEW_W;
+      L.lampZoom = 1;                    // a phone's view is the width, as it was
       /* The control row moved from the bottom edge to the top. At the bottom
          it sat exactly where a thumb rests to drag, and DROP CARGO — which
          throws away the cargo the whole dive was for — was the easiest thing
@@ -486,6 +500,9 @@
     cam.x += (tx - cam.x) * a;
     cam.y += (ty - cam.y) * a;
   }
+  // The lamp's reach in metres, stretched with the view so a bigger window is
+  // more sea to see into rather than more fog.
+  const lampM = () => run.lampR() * (L.lampZoom || 1);
   const sx = (wx) => L.ocean.x + (wx - cam.x) * L.ppm;
   const sy = (wy) => L.ocean.y + (wy - cam.y) * L.ppm;
 
@@ -639,6 +656,9 @@
      calling it "gold" invited the arithmetic (owner, 2026-09-20): what the
      drill cuts out of the wall is ore, and the stones are rough. */
   const mineralName = (key, gem) => key.charAt(0).toUpperCase() + key.slice(1) + (gem ? '' : ' ore');
+  // On the price card a stone carries its size; the rate alone does not say
+  // what one find is worth. A phone puts it on the second line instead.
+  const nameCell = (r, withSize) => mineralName(r.key, r.gem) + (withSize && r.gem ? ', ' + r.size : '');
 
   function priceRows() {
     const t = TUNE, lastRock = t.ROWS - t.BED_ROWS - 1;
@@ -653,7 +673,11 @@
     const rows = [];
     const add = (key, o, gem) => {
       const b = SIM.BANDS[key] ? bandText(SIM.BANDS[key]) : { depth: '', full: '' };
-      rows.push({ key, gem, kg: o.kg, val: o.val, perKg: o.val / o.kg,
+      // Ore is priced by the kilo, stones by the carat: the unit each is
+      // actually bought in (owner, 2026-09-23).
+      rows.push({ key, gem, kg: o.kg, ct: o.ct, val: o.val,
+                  rate: gem ? o.val / o.ct : o.val / o.kg,
+                  size: gem ? o.ct + ' ct' : o.kg + ' kg',
                   depth: b.depth, where: b.full });
     };
     for (const [key, o] of Object.entries(t.ore)) add(key, o, false);
@@ -1314,7 +1338,7 @@
     /* Under the seabed the fog is 0.9 opaque, so a mote outside the lamp is
        work spent on a pixel nobody sees. Clamp the lattice to the lamp down
        there and leave it full width in the open sea. */
-    const floor = TUNE.SEA_ROWS * TILE, lr = run.lampR() * 1.05;
+    const floor = TUNE.SEA_ROWS * TILE, lr = lampM() * 1.05;
     const deep = cam.y > floor - L.viewHm * 0.5;
     const xLo = deep ? Math.max(cam.x, run.x - lr) : cam.x;
     const xHi = deep ? Math.min(cam.x + L.viewWm, run.x + lr) : cam.x + L.viewWm;
@@ -1966,7 +1990,7 @@
        pixel, it collapsed the rock-against-tunnel edge from 5:1 to 1.3:1 in
        exactly the place you are drilling. The fog is what lights the world;
        this is only the bulb. */
-    const lr = run.lampR() * ppm * 0.24;
+    const lr = lampM() * ppm * 0.24;
     const lg = ctx.createRadialGradient(Wp * 0.26, 0, 0, Wp * 0.26, 0, lr);
     lg.addColorStop(0, 'rgba(224,246,255,0.3)');
     lg.addColorStop(0.34, 'rgba(224,246,255,0.07)');
@@ -2023,7 +2047,7 @@
     fogCtx.fillRect(0, bandTop, LW, bandBot - bandTop);
 
     fogCtx.globalCompositeOperation = 'destination-out';
-    const px = sx(run.x), py = sy(run.y), lr = run.lampR() * ppm;
+    const px = sx(run.x), py = sy(run.y), lr = lampM() * ppm;
     const lamp = fogCtx.createRadialGradient(px, py, 0, px, py, lr);
     lamp.addColorStop(0, 'rgba(0,0,0,1)');
     lamp.addColorStop(0.52, 'rgba(0,0,0,0.88)');
@@ -2892,12 +2916,13 @@
        deep it lies (owner, 2026-09-20). */
     const GAP = 26;
     const widest = (f, fn) => { ctx.font = f; return Math.max(...rows0.map(r => ctx.measureText(fn(r)).width)); };
-    const wRate = Math.max(widest('700 16px Inter, sans-serif', r => fmtRate(r.perKg)),
-                           (ctx.font = '700 12px Inter, sans-serif', ctx.measureText('PER KG').width));
+    const wRate = Math.max(widest('700 16px Inter, sans-serif', r => fmtRate(r.rate)),
+                           (ctx.font = '700 12px Inter, sans-serif',
+                            Math.max(ctx.measureText('PER KG').width, ctx.measureText('PER CARAT').width)));
     const wDepth = Math.max(widest('500 15px Inter, sans-serif', r => r.depth),
                             (ctx.font = '700 12px Inter, sans-serif', ctx.measureText('DEPTH').width));
     const wName = (ctx.font = '600 16px Inter, sans-serif',
-                   Math.max(...rows0.map(r => ctx.measureText(mineralName(r.key, r.gem)).width)));
+                   Math.max(...rows0.map(r => ctx.measureText(nameCell(r, true)).width)));
 
     const xPer = xRight;                                   // right edges
     const xDepth = xPer - wRate - GAP;
@@ -2919,16 +2944,30 @@
     const bodyY = py + HEAD, bodyH = ph - HEAD - FOOT_H;
     hit.pricesBody = { x: px, y: bodyY, w: pw, h: bodyH };
     const rows = rows0;
-    const ROW_H = 46;
-    const contentH = rows.length * ROW_H + 8;
+    const ROW_H = 46, SECTION_H = 38;
+    const contentH = rows.length * ROW_H + SECTION_H + 8;
     const scrollMax = Math.max(0, contentH - bodyH);
     pricesScroll = Math.max(0, Math.min(scrollMax, pricesScroll));
 
     ctx.save();
     ctx.beginPath(); ctx.rect(px, bodyY, pw, bodyH); ctx.clip();
     let ry = bodyY - pricesScroll + ROW_H / 2;
+    let sectioned = false;
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i];
+      /* The stones start their own section, because they are priced in their
+         own unit. One head, not a unit repeated on every line. */
+      if (r.gem && !sectioned) {
+        sectioned = true;
+        ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+        ctx.font = '700 12px Inter, sans-serif'; ctx.fillStyle = INK72;
+        ctx.fillText('STONES', xName, ry + 2);
+        ctx.textAlign = 'right';
+        ctx.fillText('PER CARAT', xPer, ry + 2);
+        ctx.strokeStyle = TINT(0.12); ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(xName, ry + 18.5); ctx.lineTo(xRight, ry + 18.5); ctx.stroke();
+        ry += SECTION_H;
+      }
       const im = r.gem ? ((GEM_ART[r.key] || {})._ok ? GEM_ART[r.key] : null) : pickSprite(r.key, 0);
       if (im) {
         const iw = icon * (im.width / im.height);
@@ -2940,13 +2979,15 @@
       ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
       ctx.font = '600 16px Inter, sans-serif';
       ctx.fillStyle = r.gem ? C_SUN : INK90;
-      ctx.fillText(mineralName(r.key, r.gem), xName, stacked ? ry - 9 : ry);
+      ctx.fillText(nameCell(r, !stacked), xName, stacked ? ry - 9 : ry);
       ctx.font = '500 15px Inter, sans-serif'; ctx.fillStyle = INK72;
-      if (stacked) ctx.fillText(r.depth, xName, ry + 11);
+      // Stacked, a stone's line leads with its size: what a carat costs means
+      // little until you know how many carats one stone is.
+      if (stacked) ctx.fillText(r.gem ? r.size + '  ·  ' + r.depth : r.depth, xName, ry + 11);
       else { ctx.textAlign = 'right'; ctx.fillText(r.depth, xDepth, ry); }
       ctx.textAlign = 'right';
       ctx.font = '700 16px Inter, sans-serif'; ctx.fillStyle = INK90;
-      ctx.fillText(fmtRate(r.perKg), xPer, ry);
+      ctx.fillText(fmtRate(r.rate), xPer, ry);
       if (i < rows.length - 1) {
         ctx.strokeStyle = TINT(0.07); ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(xName, ry + ROW_H / 2 - 0.5); ctx.lineTo(xRight, ry + ROW_H / 2 - 0.5); ctx.stroke();
@@ -3433,6 +3474,8 @@
       mode: MODE, LW, LH, ppm: L.ppm,
       ocean: L.ocean,
       viewWm: L.viewWm, viewHm: L.viewHm,
+      zoom: L.ppm / (FRAME_W / TUNE.VIEW_W), lampZoom: L.lampZoom || 1,
+      lampM: run.lampR() * (L.lampZoom || 1),
       tilesAcross: L.viewWm / TILE,
       rowRight: L.rowRight || 0,
       rowReadoutRoom: MODE === 'desktop' ? (LW - SIDE_PAD - ((L.rowRight || 0) + 16)) : null,

@@ -94,9 +94,19 @@ const TUNE = {
      so "best per kilogram" is a fact about something you cannot seek. Ore
      fights the lift limit and gems ignore it. Amber is gone: it is fossil
      resin, not something anyone mines. */
-  gem: { emerald: { kg: 2.0, val: 260,  h: 2.0 },
-         ruby:    { kg: 2.5, val: 1200, h: 2.3 },
-         diamond: { kg: 3.0, val: 6000, h: 2.8 } },
+  /* PRICED BY THE CARAT (owner, 2026-09-23). At 2 to 3 kg a "gem" was a
+     boulder, and per carat it came out at three cents, which is why the price
+     card could not use the unit anyone prices stones in. A rough stone is now
+     a handful of grams: `ct` is carats, `kg` is the same weight (a carat is
+     0.2 g). The VALUE PER STONE is untouched, so the money ladder is exactly
+     what it was and no gate result moves; what changed is that a stone now
+     weighs nothing against the 300 kg law, which was always the intent — ore
+     fights the lift and gems ignore it.
+     `h` is how tall the stone is DRAWN, and stays graded so the three are
+     told apart by more than colour. A find has to be seen to be a find. */
+  gem: { emerald: { ct: 15, kg: 0.0030, val: 260,  h: 2.0 },
+         ruby:    { ct: 8,  kg: 0.0016, val: 1200, h: 2.3 },
+         diamond: { ct: 5,  kg: 0.0010, val: 6000, h: 2.8 } },
   gemDensity: [0.0080, 0.0060, 0.0040, 0.0025],   // per band, rarer as it deepens
   veinLen: [3, 7],
   /* Doubled 2026-09-11 (owner, against Motherload). At the shipped values a
