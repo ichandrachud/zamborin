@@ -163,6 +163,7 @@
      and nothing else. Written on banking and on purchase, never on unload. */
   const SAVE_KEY = 'zam.fathom.save';
   let acctRead = false;          // CrazyGames' account copy has been read (THE ACCOUNT COPY)
+  let savedHere = false;         // this session has written the device's save
   function readSave() {
     try { return JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); } catch (_) { return null; }
   }
@@ -262,6 +263,7 @@
   }
   if (saved) takeFleet(saved);
   function saveMeta() {
+    savedHere = true;
     try {
       const s = run.saveState();
       s.owned = owned; s.cur = curSub;
@@ -2953,6 +2955,7 @@
     ctx.beginPath(); ctx.rect(px, bodyY, pw, bodyH); ctx.clip();
     let ry = bodyY - pricesScroll + ROW_H / 2;
     let sectioned = false;
+    let gapName = Infinity, gapLine = Infinity, shortened = 0;   // for pricesFit
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i];
       /* The stones start their own section, because they are priced in their
@@ -2977,13 +2980,34 @@
         ctx.beginPath(); ctx.arc(xIcon0 + icon / 2, ry, icon * 0.34, 0, Math.PI * 2); ctx.fill();
       }
       ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+      /* Stacked, both lines of a row share its height with the price, so each
+         is measured against the row's own price and shortens when it would
+         run into it (DESIGN-SYSTEM 10.3). On a 320-wide phone
+         "5 ct  ·  708-860 m" met "$ 1 200" and ran under it. */
+      ctx.font = '700 16px Inter, sans-serif';
+      const rateLeft = xPer - ctx.measureText(fmtRate(r.rate)).width;
+      const fits = (s) => xName + ctx.measureText(s).width + 12 <= rateLeft;
+      const pick = (forms) => {
+        const s = forms.find(fits) || forms[forms.length - 1];
+        if (s !== forms[0]) shortened++;
+        return s;
+      };
       ctx.font = '600 16px Inter, sans-serif';
       ctx.fillStyle = r.gem ? C_SUN : INK90;
-      ctx.fillText(nameCell(r, !stacked), xName, stacked ? ry - 9 : ry);
+      // An ore's shorter form is the metal alone ("Neodymium").
+      const name = !stacked ? nameCell(r, true)
+        : pick(r.gem ? [nameCell(r, false)] : [nameCell(r, false), mineralName(r.key, true)]);
+      ctx.fillText(name, xName, stacked ? ry - 9 : ry);
+      if (stacked) gapName = Math.min(gapName, rateLeft - xName - ctx.measureText(name).width);
       ctx.font = '500 15px Inter, sans-serif'; ctx.fillStyle = INK72;
       // Stacked, a stone's line leads with its size: what a carat costs means
-      // little until you know how many carats one stone is.
-      if (stacked) ctx.fillText(r.gem ? r.size + '  ·  ' + r.depth : r.depth, xName, ry + 11);
+      // little until you know how many carats one stone is. The size is the
+      // last thing to go.
+      if (stacked) {
+        const line = pick(r.gem ? [r.size + '  ·  ' + r.depth, r.size + ' · ' + r.depth, r.depth] : [r.depth]);
+        ctx.fillText(line, xName, ry + 11);
+        gapLine = Math.min(gapLine, rateLeft - xName - ctx.measureText(line).width);
+      }
       else { ctx.textAlign = 'right'; ctx.fillText(r.depth, xDepth, ry); }
       ctx.textAlign = 'right';
       ctx.font = '700 16px Inter, sans-serif'; ctx.fillStyle = INK90;
@@ -3017,7 +3041,10 @@
                     scrollMax: Math.round(scrollMax), cardH: ph,
                     widths: { name: Math.round(wName), depth: Math.round(wDepth), rate: Math.round(wRate) },
                     stacked,
-                    clear: stacked ? Math.max(wName, wDepth) + 16 <= xPer - wRate - xName
+                    // Stacked: every drawn line against its own row's price.
+                    gaps: stacked ? { name: Math.round(gapName), line: Math.round(gapLine) } : null,
+                    shortened,
+                    clear: stacked ? gapName >= 12 && gapLine >= 12
                                    : xName + wName + 12 <= xDepth - wDepth && xDepth + 12 <= xPer - wRate,
                     fits: py >= 0 && py + ph <= LH && bodyH > 40 };
   }
@@ -3530,6 +3557,7 @@
                setSub: (i) => { curSub = i; if (!owned.includes(i)) owned.push(i); applyFleet(); },
                setMoney: (m) => { run.money = m; } },
       rulesFit, fit,
+      hits: () => hit,           // every control's box, so a test presses the button
       pricesFit: () => L.pricesFit || null,
       render: () => render(performance.now()),
       /* The preview pane reports visibilityState 'hidden' and never services
@@ -3587,18 +3615,26 @@
      localStorage. An account holding a different ocean wins, provided
      nothing has been played yet. If something has, the account is left
      alone for this session rather than overwritten with a save the player
-     was never shown. zamborin.com has no account and returns at once. */
+     was never shown. zamborin.com has no account and returns at once.
+
+     Nothing played means the boat has not moved, nothing has been saved,
+     and no card but the rules is open. This used to read "still on the
+     rules card", which was true of every boot while Fathom opened on one;
+     once it landed in the water that card was never up, so an account
+     holding a different ocean was never taken up, and nothing was written
+     back to it for the rest of the session. */
   if (portal) portal.whenReady(() => {
     if (!portal.name || qs.has('seed')) return;
     let local = null;
     try { local = localStorage.getItem(SAVE_KEY); } catch (_) {}
     const raw = portal.getItem(SAVE_KEY);
     if (raw && raw !== local) {
-      if (started || card !== 'rules') return;
+      if (started || savedHere || (card && card !== 'rules')) return;
       let acct = null;
       try { acct = JSON.parse(raw); } catch (_) {}
       if (!acct || (acct.v | 0) < 2 || acct.seed == null) return;
       adoptSave(acct);
+      tutor = false;             // a player with a save never sees the verb
       try { localStorage.setItem(SAVE_KEY, raw); } catch (_) {}
     }
     acctRead = true;
