@@ -565,6 +565,13 @@
   const hit = { pills: [], cta: null, reward: null, newOcean: null, rulesBody: null, pricesBody: null };
   let rulesDrag = null;
   let pricesDrag = null;
+  /* GameDistribution wants every ad behind a mouse or touch UP, and on a
+     touch screen only the release counts as the player's gesture for a
+     video. So there a card's buttons (RECOVER HAUL, DIVE AGAIN, both of
+     which can play one) arm on the press and act on the release, inside
+     the same button. Everywhere else they act on the press, as before. */
+  const onGD = () => !!portal && portal.name === 'gd';
+  let armed = null;              // { id: 'reward' | 'cta', pid } awaiting its release
 
   canvas.addEventListener('pointerdown', (e) => {
     e.preventDefault();
@@ -576,8 +583,14 @@
         if (hit.fleetNext && inRect(p, hit.fleetNext)) { fleetView = Math.min(FLEET.length - 1, fleetView + 1); if (sfx) sfx.play('tick'); return; }
         if (hit.fleetClose && inRect(p, hit.fleetClose)) { card = null; return; }
       }
-      if (hit.reward && inRect(p, hit.reward)) { claimReward(); return; }
-      if (hit.cta && inRect(p, hit.cta)) { cardCTA(); return; }
+      if (hit.reward && inRect(p, hit.reward)) {
+        if (onGD()) { armed = { id: 'reward', pid: e.pointerId }; return; }
+        claimReward(); return;
+      }
+      if (hit.cta && inRect(p, hit.cta)) {
+        if (onGD()) { armed = { id: 'cta', pid: e.pointerId }; return; }
+        cardCTA(); return;
+      }
       if (hit.newOcean && inRect(p, hit.newOcean)) { newOceanTapped(); return; }
       if (card === 'rules' && hit.rulesBody && inRect(p, hit.rulesBody)) {
         rulesDrag = { y: p.y, s: rulesScroll };
@@ -622,6 +635,14 @@
     const p = ptXY(e);
     rulesDrag = null;
     pricesDrag = null;
+    if (armed && armed.pid === e.pointerId) {
+      const a = armed.id;
+      armed = null;
+      if (e.type === 'pointerup' && card) {
+        if (a === 'reward' && hit.reward && inRect(p, hit.reward)) claimReward();
+        else if (a === 'cta' && hit.cta && inRect(p, hit.cta)) cardCTA();
+      }
+    }
     for (const pill of hit.pills) {
       if (pill.tapped === e.pointerId) {
         pill.tapped = null;

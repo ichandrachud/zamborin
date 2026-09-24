@@ -34,6 +34,29 @@
 }
 body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=1'), var(--water); }
 body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=1'),  var(--water); }
+/* The desktop wordmark sits low, 71.6% to 86.8% down the art, so a window
+   wider than the art crops it first: centred, a CrazyGames 16:9 player cut
+   the bottom off the letters and GameDistribution's 2.3:1 console showed
+   half of them. Anchored 80% down, the wordmark stays whole in any window
+   up to 3:1; what goes instead is the top of the submarine. At the site's
+   own 760 x 600 the art is not cropped at all, so nothing there moves. */
+body.mode-desktop .splash { background-position: center 80%; }
 .splash.fading {
   opacity: 0;
+}
+
+/* GameDistribution only: the splash waits for a tap, because their pre-roll
+   must sit behind one. The prompt is the house CTA (accent fill, white
+   17/700, 50 tall), placed just above the wordmark by the page's splash
+   script; the whole splash takes the tap, not just the button. */
+.splash.tap-to-play { pointer-events: auto; cursor: pointer; }
+.splash.tap-to-play::after {
+  content: 'PLAY';
+  position: absolute; left: 50%; top: var(--play-y, 88%);
+  transform: translate(-50%, -50%);
+  min-width: 210px; height: 50px;
+  padding: 0 32px; border-radius: 25px; box-sizing: border-box;
+  background: var(--accent); color: var(--text); text-align: center;
+  font: 700 17px/50px Inter, sans-serif; letter-spacing: 0.02em;
+  box-shadow: 0 6px 18px rgba(10, 16, 28, 0.45);
 }
