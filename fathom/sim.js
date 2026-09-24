@@ -654,6 +654,7 @@ function Run(seed, tuneOverride) {
   this.mode = 'dive';                    // 'dive' | 'blackout' | 'breach'
   this.events = [];
   this._acc = 0;
+  this._dropQueued = false;              // one DROP CARGO press, for the next fixed step
   this.time = 0;
   this.progress = new Map();             // half-cracked tiles: key -> seconds done
   this.regionsSeen = [false, false, false, false];
@@ -719,6 +720,7 @@ Run.prototype.tooHeavyNeed = function () {
 
 Run.prototype.step = function (inp, dt) {
   this.events.length = 0;
+  if (inp && inp.jettison) this._dropQueued = true;   // see DROP CARGO in _fixed
   this._acc += Math.min(0.05, dt || 0);
   const h = 1 / 120;
   let guard = 0;
@@ -930,12 +932,20 @@ Run.prototype._fixed = function (inp, h) {
   this._stepRelics(h);
 
   // ---------- DROP CARGO ----------
-  if (inp.jettison && this.cargo.length) {
-    let pick = 0;
-    for (let i = 1; i < this.cargo.length; i++) if (this.cargo[i].kg >= this.cargo[pick].kg) pick = i;
-    const item = this.cargo.splice(pick, 1)[0];
-    this.cargoKg = Math.max(0, this.cargoKg - item.kg);
-    this.events.push({ t: 'jettison', kg: item.kg, type: item.type, x: this.x, y: this.y });
+  /* One press is one piece. The press arrives once per frame and a frame
+     runs as many fixed steps as fit in it: two at 60 Hz, up to six on a slow
+     frame, none on some frames at 144 Hz. Read here on every step, a press
+     shed two pieces on most screens and could be lost on a fast one, so
+     step() queues it and the first fixed step to run carries it out. */
+  if (this._dropQueued) {
+    this._dropQueued = false;
+    if (this.cargo.length) {
+      let pick = 0;
+      for (let i = 1; i < this.cargo.length; i++) if (this.cargo[i].kg >= this.cargo[pick].kg) pick = i;
+      const item = this.cargo.splice(pick, 1)[0];
+      this.cargoKg = Math.max(0, this.cargoKg - item.kg);
+      this.events.push({ t: 'jettison', kg: item.kg, type: item.type, x: this.x, y: this.y });
+    }
   }
 
   // ---------- MAGMA ----------
