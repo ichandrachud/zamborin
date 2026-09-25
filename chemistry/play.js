@@ -199,6 +199,15 @@
     hand: 1.8,        // a free hand's reach from its atom's centre (1.55 until the owner asked for longer hands, 2026-09-19)
     capture: 3.0,     // centres this close and two free hands grab
     warn: 5.0,        // centres this close and the hands start reaching
+    /* A grab that helps (its palm turns green) pulls and clasps sooner (owner,
+       2026-09-25: "when 2 atoms come closer the open arm should be pulled
+       together and they should snap together more easily"). The palms touched
+       from about 4.4 and nothing clasped until 3.0. A grab that would lose a
+       molecule keeps `capture` and is never pulled: steering past it is the
+       game, and the owner chose to keep it. */
+    snap: 3.6,        // a helpful pair clasps this close: two hands' length, tip to tip
+    letGo: 4.4,       // let go with a helpful partner this close, palms touching, and they clasp
+    pull: 7,          // radii a second a helpful partner is drawn in at, at the clasp; none at `warn`
     /* Charged radicals drift no closer to each other than this. Tightened from
        6.2 with capture from 3.3 when the owner asked for a crowd: two radicals
        at this spacing still leave a carried atom a lane between them only if
@@ -598,7 +607,32 @@
       if (mol.get(a.id) !== heldMol) { p.x += p.vx * dt; p.y += p.vy * dt; }
     }
     if (drag && P.has(drag.id)) { const p = P.get(drag.id); p.x = drag.cx; p.y = drag.cy; }
+    if (drag && dt > 0) pullIn(dt);
     for (let it = 0; it < 4; it++) relax(atoms, mol, heldMol);
+  }
+
+  /* THE PULL. While an atom is carried, a partner it would grab to good effect
+     (a green palm) is drawn in along the line between them: not at all at the
+     edge of reach, faster as they close, so hands that touch are hands that
+     clasp. One partner per free hand, nearest first, each moved with its
+     molecule as one piece. It is the motion, not the drift, so it runs with
+     drift off and with reduced motion too. Amber partners are never pulled. */
+  function pullIn(dt) {
+    const hands = new Map(), moved = new Set();
+    for (const t of threatPairs()) {
+      if (t.bad || t.k <= 0) continue;
+      const left = hands.has(t.a) ? hands.get(t.a) : st.atoms[t.a].free;
+      if (left <= 0) continue;
+      const group = M.groupOf(st, t.b);
+      if (moved.has(group[0])) continue;
+      const step = Math.min(t.d - TUNE.bond, TUNE.pull * t.k * dt);
+      if (step <= 0) continue;
+      const pa = P.get(t.a), pb = P.get(t.b);
+      const ux = (pa.x - pb.x) / t.d, uy = (pa.y - pb.y) / t.d;
+      for (const id of group) { const q = P.get(id); if (q) { q.x += ux * step; q.y += uy * step; } }
+      hands.set(t.a, left - 1);
+      moved.add(group[0]);
+    }
   }
 
   function relax(atoms, mol, heldMol) {
@@ -669,22 +703,12 @@
     }
   }
 
-  /* ---------- HANDS THAT MEET ---------- */
+  /* ---------- HANDS THAT MEET ----------
+     The nearest pair in reach that is close enough: a grab that helps clasps
+     at `snap`, any other only at `capture`. */
+  const clasps = (t) => t.d < (t.bad ? TUNE.capture : TUNE.snap);
   function findCapture() {
-    if (!drag || drag.fromPanel || heldIsLoose()) return null;
-    const heldIds = M.groupOf(st, drag.id), held = new Set(heldIds);
-    let best = null;
-    for (const ai of heldIds) {
-      const a = st.atoms[ai];
-      if (a.status !== 'live' || a.free === 0 || !P.has(ai)) continue;
-      const pa = P.get(ai);
-      for (const b of st.atoms) {
-        if (b.status !== 'live' || b.free === 0 || held.has(b.id) || !P.has(b.id)) continue;
-        const pb = P.get(b.id), d = Math.hypot(pb.x - pa.x, pb.y - pa.y);
-        if (d < TUNE.capture && (!best || d < best.d)) best = { a: ai, b: b.id, d };
-      }
-    }
-    return best;
+    return threatPairs().find(clasps) || null;
   }
   function react() {
     for (let guard = 0; guard < 8 && drag; guard++) {
@@ -747,9 +771,10 @@
         if (b.status !== 'live' || !b.free || held.has(b.id) || !P.has(b.id)) continue;
         const pb = P.get(b.id), d = Math.hypot(pb.x - pa.x, pb.y - pa.y);
         if (d >= TUNE.warn) continue;
-        const pv = previewOf(ai, b.id);
-        out.push({ a: ai, b: b.id, d, k: clamp01((TUNE.warn - d) / (TUNE.warn - TUNE.capture)),
-                   bad: !pv || pv.lost, pv });
+        const pv = previewOf(ai, b.id), bad = !pv || pv.lost;
+        // k runs 0 at the edge of reach to 1 where this pair clasps
+        out.push({ a: ai, b: b.id, d, k: clamp01((TUNE.warn - d) / (TUNE.warn - (bad ? TUNE.capture : TUNE.snap))),
+                   bad, pv });
       }
     }
     return out.sort((x, y) => x.d - y.d);
@@ -790,6 +815,10 @@
      nothing on the way in (owner, 2026-09-15), and is moved again to bond. */
   function finishDrag() {
     if (!drag) return;
+    /* Let go with a helpful partner's palm touching yours and the two clasp:
+       the grab the player was making, finished, not one the dish makes on its
+       own. Never for an atom still coming in from the panel (no pairs). */
+    const clasp = threatPairs().find((t) => !t.bad && t.d < TUNE.letGo) || null;
     const a = heldAtom();
     if (a && a.status === 'live' && !a.committed) {
       if (!insideAt(drag.cx, drag.cy)) { M.putBack(st, a.id); P.delete(a.id); }
@@ -797,6 +826,7 @@
     }
     drag = null;
     previews.clear();
+    if (clasp) bondAtoms(clasp.a, clasp.b);
   }
 
   /* ---------- DRAWING ----------
