@@ -14,8 +14,12 @@
      a hydrogen    amber: hydrogen chloride would lose a molecule.
    Prints the table, then checks it: a green partner clasps anywhere their
    hands are reaching, held or let go; an amber one only as near as it always
-   needed. Then atoms straight from the panel, and a helpful pair left just out
-   of reach, which must not be pushed apart. Last, the same on a phone by touch. */
+   needed. Then atoms straight from the panel: a helpful partner clasps, and,
+   the owner's second look the same day ("not hard enough"), a harmful one
+   grabs it too, on the way in as well: the panel is no safe route, so the
+   steady hand is back. Two metals held together never bond ("Al can't grab
+   Fe"). A helpful pair left just out of reach must not be pushed apart. Last,
+   the same on a phone by touch. */
 import { openPage, BASE, sleep } from './cdp.mjs';
 
 let pass = 0, fail = 0;
@@ -93,7 +97,9 @@ async function panelDrop(partner, D) {
   await ev('__chem.restart()');
   let s = await ev('__chem.state');
   const fe = s.atoms.find((a) => a.el === 'Fe'), hs = s.atoms.filter((a) => a.el === 'H'), na = s.atoms.find((a) => a.el === 'Na');
-  await ev(`(() => { __chem.move(${fe.id}, 8, 11); __chem.move(${hs[0].id}, 22, 11); __chem.move(${hs[1].id}, 3, 20); __chem.move(${na.id}, 24, 20); })()`);
+  // the line in from the panel must pass wide of every wrong atom but the one under test: the panel is no safe route
+  const hy = partner === 'green' ? 22 : 11;
+  await ev(`(() => { __chem.move(${fe.id}, 8, 11); __chem.move(${hs[0].id}, 22, ${hy}); __chem.move(${hs[1].id}, 3, 20); __chem.move(${na.id}, 30, 24); })()`);
   s = await ev('__chem.state');
   const P = s.atoms.find((a) => a.id === (partner === 'green' ? fe.id : hs[0].id));
   const to = { x: P.x + (partner === 'green' ? D : -D), y: P.y };
@@ -109,7 +115,52 @@ async function panelDrop(partner, D) {
 }
 for (const D of [2.6, 3.6, 4.4, 4.8]) ok((await panelDrop('green', D)).clasped, `from the panel, let go ${D} from the iron: clasps`);
 ok(!(await panelDrop('green', 5.4)).clasped, 'from the panel, let go 5.4 from the iron (out of reach): lands free');
-ok(!(await panelDrop('amber', 2.6)).clasped, 'from the panel, let go 2.6 from a hydrogen (would lose a molecule): lands free');
+// The owner, 2026-09-25: the panel is no safe route. A wrong atom grabs a panel atom as it grabs anything carried.
+ok((await panelDrop('amber', 2.6)).clasped, 'from the panel, let go 2.6 from a hydrogen (would lose a molecule): grabbed');
+
+/* ---------- a steady hand: carried from the panel past a wrong atom ----------
+   Past the hydrogen on the way to open water: within `capture` (3.0) it grabs,
+   a little wider it does not, and it never pulls. */
+async function panelPast(miss) {
+  await ev('__chem.restart()');
+  let s = await ev('__chem.state');
+  const fe = s.atoms.find((a) => a.el === 'Fe'), hs = s.atoms.filter((a) => a.el === 'H'), na = s.atoms.find((a) => a.el === 'Na');
+  await ev(`(() => { __chem.move(${fe.id}, 5, 20); __chem.move(${hs[0].id}, 18, 11); __chem.move(${hs[1].id}, 3, 3); __chem.move(${na.id}, 30, 22); })()`);
+  s = await ev('__chem.state');
+  const h = s.atoms.find((a) => a.id === hs[0].id);
+  const slot = await slotWorld('Cl');
+  // in from the panel, along a line that passes `miss` radii above the hydrogen, and on into open water
+  const pts = [slot, { x: h.x + 8, y: h.y - miss }, { x: h.x, y: h.y - miss }, { x: h.x - 6, y: h.y - miss }];
+  down = false; await mouse('mouseMoved', pts[0].x, pts[0].y);
+  down = true; await mouse('mousePressed', pts[0].x, pts[0].y);
+  for (let k = 1; k < pts.length; k++) for (let i = 1; i <= 12; i++) await mouse('mouseMoved', pts[k - 1].x + (pts[k].x - pts[k - 1].x) * i / 12, pts[k - 1].y + (pts[k].y - pts[k - 1].y) * i / 12);
+  const last = pts[pts.length - 1];
+  down = false; await mouse('mouseReleased', last.x, last.y);
+  await sleep(120);
+  s = await ev('__chem.state');
+  const cl = s.atoms.find((a) => a.el === 'Cl'), h2 = s.atoms.find((a) => a.id === h.id);
+  return !!(cl && h2 && cl.mol === h2.mol);
+}
+ok(await panelPast(2.4), 'carried from the panel 2.4 radii past a hydrogen: grabbed on the way');
+ok(!(await panelPast(3.6)), 'carried from the panel 3.6 radii past a hydrogen: not grabbed, and not pulled in');
+
+// Two metals never grab each other (the owner: "Al can't grab Fe"): the sodium dragged right up to the iron.
+{
+  await ev('__chem.restart()');
+  let s = await ev('__chem.state');
+  const fe = s.atoms.find((a) => a.el === 'Fe'), hs = s.atoms.filter((a) => a.el === 'H'), na = s.atoms.find((a) => a.el === 'Na');
+  await ev(`(() => { __chem.move(${fe.id}, 8, 11); __chem.move(${hs[0].id}, 22, 18); __chem.move(${hs[1].id}, 3, 20); __chem.move(${na.id}, 18, 11); })()`);
+  s = await ev('__chem.state');
+  const f = s.atoms.find((a) => a.id === fe.id), n = s.atoms.find((a) => a.id === na.id);
+  await mouse('mouseMoved', n.x, n.y); down = true; await mouse('mousePressed', n.x, n.y);
+  for (let i = 1; i <= 16; i++) await mouse('mouseMoved', n.x + (f.x + 2.5 - n.x) * i / 16, n.y);
+  await sleep(HOLD);
+  down = false; await mouse('mouseReleased', f.x + 2.5, n.y);
+  await sleep(120);
+  s = await ev('__chem.state');
+  const n2 = s.atoms.find((a) => a.id === na.id), f2 = s.atoms.find((a) => a.id === fe.id);
+  ok(n2.mol !== f2.mol && s.reactions === 0, 'sodium held right against the iron: two metals, no grab', [s.reactions, s.lastEvent]);
+}
 
 // What the player put down beside a helpful partner stays there: let go at 5.2, just out of reach, and a second later
 // it is no further away. (The crowd still keeps its distance: input-tests checks no two radicals drift within reach.)

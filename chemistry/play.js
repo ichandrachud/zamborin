@@ -13,14 +13,16 @@
    Three rules keep it fair, all the owner's:
      nothing reacts on its own: charged radicals keep their distance from
        each other, and only what the player carries can grab;
-     what the player moves in the dish grabs anything its hands pass near,
-       all along the drag, not only where it is let go;
-     an atom carried in from the panel reaches for nothing that would lose a
-       molecule, on the way in or where it is let go (2026-09-15).
+     whatever the player carries, from the panel or the dish, grabs anything
+       it could bond with that its hands pass near, all along the drag, not
+       only where it is let go: the panel is no safe route (2026-09-25; from
+       2026-09-15 to then a panel atom grabbed nothing on the way in);
+     two metals never grab each other (model.js, 2026-09-25).
    And one that makes the right grab easy (2026-09-25): a partner it would
    help (a green palm) is pulled in while carried, clasps sooner, clasps on
    letting go anywhere their hands are reaching, and, once the player has
-   put an atom beside it, no longer pushes it away.
+   put an atom beside it, no longer pushes it away. A grab that would lose a
+   molecule stays exactly as hard as it always was: no pull, `capture`.
    ============================================================ */
 (() => {
   'use strict';
@@ -797,11 +799,10 @@
         if (b.status !== 'live' || !b.free || held.has(b.id) || !P.has(b.id)) continue;
         const pb = P.get(b.id), d = Math.hypot(pb.x - pa.x, pb.y - pa.y);
         if (d >= TUNE.warn) continue;
-        const pv = previewOf(ai, b.id), bad = !pv || pv.lost;
-        // Coming in from the panel, an atom does not even reach for a grab that
-        // would lose a molecule (the owner's rule, 2026-09-15); a helpful one it
-        // may clasp, on the way in or where it is let go (2026-09-25).
-        if (bad && drag.fromPanel) continue;
+        const pv = previewOf(ai, b.id);
+        // A pair that could never bond does not reach at all: two metals (model.js).
+        if (!pv) continue;
+        const bad = pv.lost;
         // k runs 0 at the edge of reach to 1 where this pair clasps
         out.push({ a: ai, b: b.id, d, k: clamp01((TUNE.warn - d) / (TUNE.warn - (bad ? TUNE.capture : TUNE.snap))),
                    bad, pv });
@@ -848,8 +849,9 @@
     if (!drag) return;
     /* Let go with a helpful partner's hands reaching for yours and the two
        clasp: the grab the player was making, finished, not one the dish makes
-       on its own. An atom from the panel too, since it now reaches only for
-       helpful partners; let go outside the dish, it has no pairs. */
+       on its own. From the panel or the dish alike; let go outside the dish,
+       an atom has no pairs. A harmful partner never clasps on letting go: it
+       grabs only by being passed within `capture`, as it always did. */
     const clasp = threatPairs().find((t) => !t.bad && t.d < TUNE.letGo) || null;
     const a = heldAtom();
     if (a && a.status === 'live' && !a.committed) {

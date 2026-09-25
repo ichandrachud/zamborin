@@ -124,12 +124,12 @@ await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&crowd=0&level=17'
   const g = await ev('__chem.geom()');
   const slot = centre(g.slots.find((q) => q.el === 'Cl'));
   const edge = await world(g.dish.WW + 0.3, 11);     // just outside the dish's right wall, level with the iron
-  // from the panel, straight over the hydrogen: nothing
-  await mouseDragPath([slot, edge, await world(14, 11.5), await world(20, 4)], 16);
+  // from the panel, wide of the hydrogen, into open water: it lands free
+  await mouseDragPath([slot, edge, await world(20, 4)], 16);
   s = await ev('__chem.state');
   const cl = s.atoms.find((a) => a.el === 'Cl');
-  ok(cl && s.reactions === 0 && s.avail.Cl === 2, 'a chlorine carried from the panel right over a hydrogen grabs nothing, and lands free', [s.reactions, s.avail]);
-  // moved again through the same hydrogen, it is grabbed on the way
+  ok(cl && s.reactions === 0 && s.avail.Cl === 2, 'a chlorine carried from the panel wide of the hydrogen lands free', [s.reactions, s.avail]);
+  // moved again through the hydrogen, it is grabbed on the way
   await mouseDragPath([await world(cl.x, cl.y), await world(17, 11), await world(9, 11)], 16);
   s = await ev('__chem.state');
   ok(s.wasted === 1 && s.lost === 1, 'dragged from the dish past a hydrogen, the chlorine is grabbed on the way: hydrogen chloride', [s.wasted, s.lost, s.lastEvent]);
@@ -144,6 +144,12 @@ await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&crowd=0&level=17'
   await click(g2.cta.x + g2.cta.w / 2, g2.cta.y + g2.cta.h / 2);
   s = await ev('__chem.state');
   ok(s.level === 17 && !s.card && s.lost === 0 && s.avail.Cl === 3, 'TRY AGAIN restarts the level with the panel full', [s.level, s.avail]);
+  // The panel is no safe route (owner, 2026-09-25): carried from it straight over the hydrogen, it is grabbed on the way.
+  const [fe3] = atomsOf(s, 'Fe'), [h3, h4] = atomsOf(s, 'H'), [na3] = atomsOf(s, 'Na');
+  await ev(`(() => { __chem.move(${fe3.id}, 6, 11); __chem.move(${h3.id}, 14, 11.5); __chem.move(${h4.id}, 3, 20); __chem.move(${na3.id}, 24, 21); })()`);
+  await mouseDragPath([slot, edge, await world(14, 11.5), await world(20, 4)], 16);
+  s = await ev('__chem.state');
+  ok(s.wasted === 1 && s.lost === 1 && s.avail.Cl === 2, 'carried from the panel right over a hydrogen, the chlorine is grabbed on the way: hydrogen chloride', [s.wasted, s.lost, s.avail, s.lastEvent]);
 });
 
 // ---------- desktop: move things in the dish, and put a panel atom back ----------

@@ -31,6 +31,8 @@ for (const m of Object.values(M.MOLECULES)) {
   eq(bonds, m.els.length - 1, 'a tree, no rings: ' + m.key);
   const lay = M.layoutMolecule(m.key);
   ok(!!lay && new Set(lay.atoms.map((a) => a.x + ',' + a.y)).size === lay.atoms.length, 'lays out as a diagram: ' + m.key);
+  // two metals never bond (canBond), so a molecule that needed them to could never be made
+  ok(m.adj.every((l, i) => l.every(([j]) => !(M.ELEMENTS[m.els[i]].metal && M.ELEMENTS[m.els[j]].metal))), 'no metal holds a metal: ' + m.key);
 }
 const keys = Object.keys(M.MOLECULES);
 for (const a of keys) for (const b of keys) {
@@ -62,6 +64,16 @@ eq(M.MOLECULES['iron-chloride'].els, ['Fe', 'Cl', 'Cl', 'Cl'], 'two-letter symbo
 {
   const s = M.createState({ targets: [['ethane', 1]], avail: { H: 6 }, dish: ['C', 'C'] });
   eq(M.bond(s, 0, 1).order, 3, 'two bare carbons grab each other three times');
+}
+{
+  // The owner, 2026-09-25: "Al can't grab Fe." Two metals never bond; a metal and a non-metal still do.
+  const s = M.createState({ targets: [['iron-chloride', 1]], avail: { Cl: 3 }, dish: ['Fe', 'Al', 'Na', 'Mg', 'O'] });
+  const metals = [0, 1, 2, 3];
+  let none = true;
+  for (const a of metals) for (const b of metals) if (a !== b && (M.canBond(s, a, b) || M.preview(s, a, b))) none = false;
+  ok(none, 'no two metals can bond: iron, aluminium, sodium, magnesium');
+  ok(M.bond(s, 1, 0) === null && s.atoms[0].free === 3 && s.atoms[1].free === 3, 'aluminium does not grab iron, and neither loses a hand');
+  ok(M.canBond(s, 1, 4) && M.canBond(s, 0, M.take(s, 'Cl')), 'a metal still bonds to oxygen, and iron to chlorine');
 }
 {
   const s = M.createState({ targets: [['water', 1]], avail: { H: 2 }, dish: ['O'] });

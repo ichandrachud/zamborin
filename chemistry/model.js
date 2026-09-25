@@ -7,7 +7,8 @@
    The game in six lines, from the owner's sketch (2026-09-14):
      an atom has hands, and the number of hands IS the element;
      every free hand is charged: two that come within reach grab each other,
-       and the two atoms hold with every hand they both have spare (up to 3);
+       and the two atoms hold with every hand they both have spare (up to 3),
+       unless both atoms are metals, which never bond (2026-09-25);
      a molecule with no free hand is finished;
      finished and on the list, it is collected; finished and not on the list,
        it is waste, and those atoms are used up;
@@ -32,14 +33,14 @@ const ELEMENTS = {
   C:  { name: 'carbon',    hands: 4, mass: 12 },
   F:  { name: 'fluorine',  hands: 1, mass: 19 },
   Cl: { name: 'chlorine',  hands: 1, mass: 35 },
-  Na: { name: 'sodium',    hands: 1, mass: 23 },
-  K:  { name: 'potassium', hands: 1, mass: 39 },
-  Mg: { name: 'magnesium', hands: 2, mass: 24 },
-  Ca: { name: 'calcium',   hands: 2, mass: 40 },
-  Al: { name: 'aluminium', hands: 3, mass: 27 },
-  Fe: { name: 'iron',      hands: 3, mass: 56 },
-  Zn: { name: 'zinc',      hands: 2, mass: 65 },
-  Cu: { name: 'copper',    hands: 2, mass: 64 },
+  Na: { name: 'sodium',    hands: 1, mass: 23, metal: true },
+  K:  { name: 'potassium', hands: 1, mass: 39, metal: true },
+  Mg: { name: 'magnesium', hands: 2, mass: 24, metal: true },
+  Ca: { name: 'calcium',   hands: 2, mass: 40, metal: true },
+  Al: { name: 'aluminium', hands: 3, mass: 27, metal: true },
+  Fe: { name: 'iron',      hands: 3, mass: 56, metal: true },
+  Zn: { name: 'zinc',      hands: 2, mass: 65, metal: true },
+  Cu: { name: 'copper',    hands: 2, mass: 64, metal: true },
 };
 const ORDER = Object.keys(ELEMENTS);
 const MAX_BOND = 3;
@@ -261,6 +262,11 @@ function canBond(s, a, b) {
   const A = s.atoms[a], B = s.atoms[b];
   if (!A || !B || a === b || s.result) return false;
   if (A.status !== 'live' || B.status !== 'live' || A.free === 0 || B.free === 0) return false;
+  /* Two metals never grab each other: what metals make together is an alloy,
+     not a molecule, and no molecule on any list has such a bond (tests.mjs).
+     The owner, 2026-09-25: "they should be atoms that would form bonds. Al
+     can't grab Fe." */
+  if (ELEMENTS[A.el].metal && ELEMENTS[B.el].metal) return false;
   return !groupOf(s, a).includes(b);
 }
 
