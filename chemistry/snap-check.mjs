@@ -12,8 +12,10 @@
    a partner, then either held still for 0.3 s or let go at once. Partners:
      the iron      green: iron chloride is on the list;
      a hydrogen    amber: hydrogen chloride would lose a molecule.
-   Prints the table, then checks it: a green partner clasps whenever the palms
-   touch, held or let go; an amber one only as near as it always needed. */
+   Prints the table, then checks it: a green partner clasps anywhere their
+   hands are reaching, held or let go; an amber one only as near as it always
+   needed. Then atoms straight from the panel, and a helpful pair left just out
+   of reach, which must not be pushed apart. Last, the same on a phone by touch. */
 import { openPage, BASE, sleep } from './cdp.mjs';
 
 let pass = 0, fail = 0;
@@ -75,13 +77,49 @@ for (const r of rows) console.log('  ' + String(r.D).padEnd(9) + '  ' + cols.map
 const reach = (c) => Math.max(0, ...rows.filter((r) => r[c]).map((r) => r.D));
 console.log('\n  furthest clasp: ' + cols.map((c) => c + ' ' + reach(c)).join(', ') + '\n');
 
-// The palms of two green hands visibly meet at about 4.4 radii: from there, held or let go, it is a clasp.
+// Green hands reach for each other from 5.0 radii: anywhere inside that, held or let go, it is a clasp.
 for (const r of rows) {
-  if (r.D <= 4.4) ok(r['green held'] && r['green let go'], `green partner at ${r.D}: clasps held and let go`, r);
+  if (r.D < 5) ok(r['green held'] && r['green let go'], `green partner at ${r.D}: clasps held and let go`, r);
   if (r.D <= 2.8) ok(r['amber held'] && r['amber let go'], `amber partner at ${r.D}: still grabbed, as before`, r);
   if (r.D >= 3.2) ok(!r['amber held'] && !r['amber let go'], `amber partner at ${r.D}: no pull, no grab, as before`, r);
 }
 ok(!rows.find((r) => r.D === 5.2)['green let go'], 'a green partner out of reach is not grabbed on letting go');
+
+/* ---------- straight from the panel, let go at D from a partner ----------
+   The owner's level 18 (2026-09-25): a chlorine let go against the iron sat
+   there, then was pushed away. A helpful partner now clasps; a harmful one
+   is still not even reached for. */
+async function panelDrop(partner, D) {
+  await ev('__chem.restart()');
+  let s = await ev('__chem.state');
+  const fe = s.atoms.find((a) => a.el === 'Fe'), hs = s.atoms.filter((a) => a.el === 'H'), na = s.atoms.find((a) => a.el === 'Na');
+  await ev(`(() => { __chem.move(${fe.id}, 8, 11); __chem.move(${hs[0].id}, 22, 11); __chem.move(${hs[1].id}, 3, 20); __chem.move(${na.id}, 24, 20); })()`);
+  s = await ev('__chem.state');
+  const P = s.atoms.find((a) => a.id === (partner === 'green' ? fe.id : hs[0].id));
+  const to = { x: P.x + (partner === 'green' ? D : -D), y: P.y };
+  const slot = await slotWorld('Cl');
+  down = false; await mouse('mouseMoved', slot.x, slot.y);
+  down = true; await mouse('mousePressed', slot.x, slot.y);
+  for (let i = 1; i <= 16; i++) await mouse('mouseMoved', slot.x + (to.x - slot.x) * i / 16, slot.y + (to.y - slot.y) * i / 16);
+  down = false; await mouse('mouseReleased', to.x, to.y);
+  await sleep(120);
+  s = await ev('__chem.state');
+  const cl = s.atoms.find((a) => a.el === 'Cl'), p2 = s.atoms.find((a) => a.id === P.id);
+  return { clasped: !!(cl && p2 && cl.mol === p2.mol), d: cl && p2 ? +Math.hypot(cl.x - p2.x, cl.y - p2.y).toFixed(2) : null, cl, P: p2 };
+}
+for (const D of [2.6, 3.6, 4.4, 4.8]) ok((await panelDrop('green', D)).clasped, `from the panel, let go ${D} from the iron: clasps`);
+ok(!(await panelDrop('green', 5.4)).clasped, 'from the panel, let go 5.4 from the iron (out of reach): lands free');
+ok(!(await panelDrop('amber', 2.6)).clasped, 'from the panel, let go 2.6 from a hydrogen (would lose a molecule): lands free');
+
+// What the player put down beside a helpful partner stays there: let go at 5.2, just out of reach, and a second later
+// it is no further away. (The crowd still keeps its distance: input-tests checks no two radicals drift within reach.)
+const rest = await panelDrop('green', 5.2);
+await sleep(1000);
+const after = await ev('__chem.state');
+const c3 = after.atoms.find((a) => a.id === rest.cl.id), f3 = after.atoms.find((a) => a.id === rest.P.id);
+const grew = Math.hypot(c3.x - f3.x, c3.y - f3.y) - rest.d;
+ok(!rest.clasped && grew < 0.05, 'let go just out of reach of a helpful partner, it is not pushed away (grew ' + grew.toFixed(2) + ' radii in 1 s)');
+
 ok(p.errors.length === 0, 'no console errors', p.errors);
 p.close();
 

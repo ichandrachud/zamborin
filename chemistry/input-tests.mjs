@@ -79,31 +79,31 @@ await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&crowd=0&level=17'
   const feAt = async () => (await ev('__chem.state')).atoms.find((a) => a.id === fe.id);
   const molOf = (st, id) => st.atoms.find((a) => a.id === id).mol;
 
-  // A chlorine from the panel lands free, even let go right beside the iron.
+  /* A chlorine from the panel, let go right beside the iron, clasps it: a grab
+     that helps (owner, 2026-09-25). It used to land free there, under the rule
+     of 2026-09-15, which now covers only grabs that would lose a molecule. */
   let f = await feAt();
   await mouseDrag(slot, await world(f.x + 2.6, f.y));
   s = await ev('__chem.state');
   const first = s.atoms.find((a) => a.el === 'Cl');
-  ok(first && first.mol !== molOf(s, fe.id) && s.reactions === 0 && s.avail.Cl === 2,
-     'a chlorine carried in from the panel grabs nothing, even let go beside the iron', [s.reactions, s.avail, s.atoms]);
-  // Moved again, it is grabbed. Out into open water first, then onto the iron from three sides.
-  const bring = async (id, dx, dy) => {
-    let q = (await ev('__chem.state')).atoms.find((a) => a.id === id);
-    await mouseDrag(await world(q.x, q.y), await world(18, 6));
-    q = (await ev('__chem.state')).atoms.find((a) => a.id === id);
+  ok(first && first.mol === molOf(s, fe.id) && s.reactions === 1 && s.avail.Cl === 2,
+     'a chlorine carried in from the panel and let go beside the iron clasps it', [s.reactions, s.avail, s.atoms]);
+  // Let go in open water, one lands free; moved again from the dish, it is grabbed.
+  const bring = async (dx, dy) => {
+    await mouseDrag(slot, await world(18, 4));
+    const st2 = await ev('__chem.state');
+    const loose = st2.atoms.filter((a) => a.el === 'Cl' && a.free === 1).pop();
+    ok(!!loose && loose.mol !== molOf(st2, fe.id), 'let go in open water, a chlorine from the panel lands free', st2.atoms);
+    if (!loose) return -1;
     const fe2 = await feAt();
-    await mouseDrag(await world(q.x, q.y), await world(fe2.x + dx, fe2.y + dy), 20);
+    await mouseDrag(await world(loose.x, loose.y), await world(fe2.x + dx, fe2.y + dy), 20);
+    return loose.id;
   };
-  await bring(first.id, 2.6, 0);
+  const second = await bring(0, 2.6);
   s = await ev('__chem.state');
-  ok(s.atoms.find((a) => a.id === first.id).mol === molOf(s, fe.id), 'dragged to the iron from the dish, the chlorine is grabbed', s.atoms);
-  ok(s.avail.Cl === 2 && s.lost === 0 && s.wasted === 0, 'one chlorine used, nothing lost', [s.avail, s.lost]);
-  for (const [dx, dy] of [[0, 2.6], [-2.6, -0.4]]) {
-    await mouseDrag(slot, await world(18, 6));
-    s = await ev('__chem.state');
-    const loose = s.atoms.filter((a) => a.el === 'Cl' && a.free === 1).pop();
-    await bring(loose.id, dx, dy);
-  }
+  ok(s.atoms.find((a) => a.id === second)?.mol === molOf(s, fe.id), 'dragged to the iron from the dish, the chlorine is grabbed', s.atoms);
+  ok(s.avail.Cl === 1 && s.lost === 0 && s.wasted === 0, 'two chlorines used, nothing lost', [s.avail, s.lost]);
+  await bring(-2.6, -0.4);
   s = await ev('__chem.state');
   ok(s.made['iron-chloride'] === 1, 'three chlorines on the iron make iron chloride, and it is collected', s.made);
   ok(s.result && s.result.kind === 'win', 'every molecule made: the level is won', s.result);
@@ -215,18 +215,22 @@ await withPage({ w: 390, h: 844, dpr: 2, mobile: true, url: BASE + '?drift=0&cro
   await touchDrag(slot, await world(9 + 2.6, 10 + 2.3), 20);
   s = await ev('__chem.state');
   let h = s.atoms.find((a) => a.el === 'H');
-  ok(h && h.mol !== s.atoms.find((a) => a.id === o.id).mol && s.avail.H === 1 && s.reactions === 0,
-     'a hydrogen dragged in by touch and let go by the oxygen lands free', s.atoms);
-  // a dish atom is lifted from where it is: out to open water, then back onto the oxygen
-  await touchDrag(await world(h.x, h.y), await world(18, 18), 20);
-  h = (await ev('__chem.state')).atoms.find((a) => a.id === h.id);
-  await touchDrag(await world(h.x, h.y), await world(9 + 2.6, 10), 20);
-  s = await ev('__chem.state');
-  ok(s.atoms.find((a) => a.id === h.id).mol === s.atoms.find((a) => a.id === o.id).mol, 'then dragged to the oxygen by touch, it is grabbed', s.atoms);
+  ok(h && h.mol === s.atoms.find((a) => a.id === o.id).mol && s.avail.H === 1 && s.reactions === 1,
+     'a hydrogen dragged in by touch and let go by the oxygen clasps it', s.atoms);
   const rs = g.ctrl.find((b) => b.id === 'restart');
   await touchTap(rs.x + rs.w / 2, rs.y + rs.h / 2);
   s = await ev('__chem.state');
   ok(s.avail.H === 2 && s.reactions === 0, 'Restart works by touch', [s.avail, s.reactions]);
+  // let go in open water it lands free; lifted from where it is, it is taken to the oxygen
+  const [o2] = atomsOf(s, 'O');
+  await ev(`__chem.move(${o2.id}, 9, 10)`);
+  await touchDrag(slot, await world(18, 18 + 2.3), 20);
+  s = await ev('__chem.state');
+  h = s.atoms.find((a) => a.el === 'H');
+  ok(h && h.mol !== s.atoms.find((a) => a.id === o2.id).mol && s.reactions === 0, 'let go by touch in open water, it lands free', s.atoms);
+  await touchDrag(await world(h.x, h.y), await world(9 + 2.6, 10), 20);
+  s = await ev('__chem.state');
+  ok(s.atoms.find((a) => a.id === h.id).mol === s.atoms.find((a) => a.id === o2.id).mol, 'then dragged to the oxygen by touch, it is grabbed', s.atoms);
 });
 
 // ---------- chapter 2: reactions, by real drags ----------
@@ -449,8 +453,9 @@ await withPage({ w: 760, h: 600, url: BASE + '?embed=1&drift=0&crowd=0' }, async
   await ev(`__chem.move(${O.id}, 18, 12)`);
   for (const side of [1, -1]) {
     st = await ev(`__chem.carry('H', ${18 + 8 * side}, 12)`);
+    // carried across the dish from the panel, it may clasp the oxygen on the way in: a helpful grab (2026-09-25)
     const h = st.atoms.filter((a) => a.el === 'H' && a.free === 1).pop();
-    st = await ev(`__chem.carry(${h.id}, ${18 + 2.6 * side}, 12)`);
+    if (h) st = await ev(`__chem.carry(${h.id}, ${18 + 2.6 * side}, 12)`);
   }
   ok(st.result && st.result.kind === 'win', 'level 1 won', st.result);
   const saved = await ev(`JSON.parse(localStorage.getItem('zam.chemistry.progress'))`);

@@ -15,8 +15,12 @@
        each other, and only what the player carries can grab;
      what the player moves in the dish grabs anything its hands pass near,
        all along the drag, not only where it is let go;
-     an atom carried in from the panel grabs nothing, not even where it is
-       let go: it lands free, and is moved again to bond (2026-09-15).
+     an atom carried in from the panel reaches for nothing that would lose a
+       molecule, on the way in or where it is let go (2026-09-15).
+   And one that makes the right grab easy (2026-09-25): a partner it would
+   help (a green palm) is pulled in while carried, clasps sooner, clasps on
+   letting go anywhere their hands are reaching, and, once the player has
+   put an atom beside it, no longer pushes it away.
    ============================================================ */
 (() => {
   'use strict';
@@ -206,7 +210,12 @@
        molecule keeps `capture` and is never pulled: steering past it is the
        game, and the owner chose to keep it. */
     snap: 3.6,        // a helpful pair clasps this close: two hands' length, tip to tip
-    letGo: 4.4,       // let go with a helpful partner this close, palms touching, and they clasp
+    /* Let go with a helpful partner this close and they clasp: anywhere their
+       hands are reaching for each other, which is `warn`. It was 4.4, palms
+       touching, and the owner's play on 2026-09-25 showed why that was not
+       enough: a prod that ended at 4.9 did nothing, and the pair was then
+       pushed back apart before the next one. */
+    letGo: 5.0,
     pull: 7,          // radii a second a helpful partner is drawn in at, at the clasp; none at `warn`
     /* Charged radicals drift no closer to each other than this. Tightened from
        6.2 with capture from 3.3 when the owner asked for a crowd: two radicals
@@ -321,6 +330,7 @@
   let li = 0, level = null, st = null, scene = null;
   const P = new Map();      // atom id -> { x, y, th, vx, vy, w }, in radii from the dish's top left
   let drag = null;          // { id, pid, touch, fromPanel, ox, oy, tx, ty, cx, cy }
+  const handled = new Set(); // every atom the player has picked up this level
   let press = null, pointer = null, card = null, cardBox = null;
   let lifts = [], wasteFx = [], flashes = [];
   const claspAt = new Map(), previews = new Map();
@@ -331,7 +341,7 @@
     level = LEVELS[li];
     drag = null; press = null; card = null;
     lifts = []; wasteFx = []; flashes = [];
-    claspAt.clear(); previews.clear(); P.clear();
+    claspAt.clear(); previews.clear(); P.clear(); handled.clear();
     lastEvent = null; reactions = 0;
     const seed = parseInt(params.get('seed'), 10);
     rng = Number.isInteger(seed) ? mulberry(seed * 977 + li) : Math.random;
@@ -608,7 +618,23 @@
     }
     if (drag && P.has(drag.id)) { const p = P.get(drag.id); p.x = drag.cx; p.y = drag.cy; }
     if (drag && dt > 0) pullIn(dt);
-    for (let it = 0; it < 4; it++) relax(atoms, mol, heldMol);
+    // the molecules the player has had a hand in, for `stays`
+    const ours = new Set();
+    for (const id of handled) if (mol.has(id)) ours.add(mol.get(id));
+    for (let it = 0; it < 4; it++) relax(atoms, mol, heldMol, ours);
+  }
+
+  /* What the player put down beside a partner it would help stays there. A
+     helpful pair with an atom the player has handled does not push itself
+     apart, so a prod that falls short leaves them where they were instead of
+     being undone before the next one (the owner's level 18, 2026-09-25: eight
+     prods from 5.4 to 4.9, each pushed back to 5.4). The crowd, untouched,
+     keeps its distance as always, and a pair that would lose a molecule always
+     does, which is what keeps a dropped atom safe from its neighbours. */
+  function stays(a, b, mol, ours) {
+    if (!ours.has(mol.get(a.id)) && !ours.has(mol.get(b.id))) return false;
+    const pv = previewOf(Math.min(a.id, b.id), Math.max(a.id, b.id));
+    return !!pv && !pv.lost;
   }
 
   /* THE PULL. While an atom is carried, a partner it would grab to good effect
@@ -635,7 +661,7 @@
     }
   }
 
-  function relax(atoms, mol, heldMol) {
+  function relax(atoms, mol, heldMol, ours) {
     const held = drag ? drag.id : -1;
     const wOf = (a) => (a.id === held ? 0 : 1 / Math.sqrt(M.ELEMENTS[a.el].mass));
     const shove = (a, b, pa, pb, dx, dy, d, min, stiff) => {
@@ -673,7 +699,7 @@
         }
         if (d < TUNE.collide) shove(a, b, pa, pb, dx, dy, d, TUNE.collide, 0.5);
         if (d < TUNE.keep && a.status === 'live' && b.status === 'live' && a.free > 0 && b.free > 0 &&
-            mol.get(a.id) !== heldMol && mol.get(b.id) !== heldMol) {
+            mol.get(a.id) !== heldMol && mol.get(b.id) !== heldMol && !stays(a, b, mol, ours)) {
           shove(a, b, pa, pb, dx, dy, d, TUNE.keep, 0.025);
         }
       }
@@ -761,7 +787,7 @@
   }
   // Every pair of free hands, one carried and one in the dish, close enough to reach.
   function threatPairs() {
-    if (!drag || drag.fromPanel || card || heldIsLoose()) return [];
+    if (!drag || card || heldIsLoose()) return [];
     const heldIds = M.groupOf(st, drag.id), held = new Set(heldIds), out = [];
     for (const ai of heldIds) {
       const a = st.atoms[ai];
@@ -772,6 +798,10 @@
         const pb = P.get(b.id), d = Math.hypot(pb.x - pa.x, pb.y - pa.y);
         if (d >= TUNE.warn) continue;
         const pv = previewOf(ai, b.id), bad = !pv || pv.lost;
+        // Coming in from the panel, an atom does not even reach for a grab that
+        // would lose a molecule (the owner's rule, 2026-09-15); a helpful one it
+        // may clasp, on the way in or where it is let go (2026-09-25).
+        if (bad && drag.fromPanel) continue;
         // k runs 0 at the edge of reach to 1 where this pair clasps
         out.push({ a: ai, b: b.id, d, k: clamp01((TUNE.warn - d) / (TUNE.warn - (bad ? TUNE.capture : TUNE.snap))),
                    bad, pv });
@@ -793,6 +823,7 @@
   }
   function startDrag(id, p, touch, pid, fromPanel) {
     const w = toWorld(p), q = P.get(id);
+    handled.add(id);
     drag = { id, pid, touch, fromPanel,
              ox: fromPanel ? 0 : q.x - w.x, oy: fromPanel ? (touch ? -TUNE.touchLift : 0) : q.y - w.y,
              tx: q.x, ty: q.y, cx: q.x, cy: q.y };
@@ -815,9 +846,10 @@
      nothing on the way in (owner, 2026-09-15), and is moved again to bond. */
   function finishDrag() {
     if (!drag) return;
-    /* Let go with a helpful partner's palm touching yours and the two clasp:
-       the grab the player was making, finished, not one the dish makes on its
-       own. Never for an atom still coming in from the panel (no pairs). */
+    /* Let go with a helpful partner's hands reaching for yours and the two
+       clasp: the grab the player was making, finished, not one the dish makes
+       on its own. An atom from the panel too, since it now reaches only for
+       helpful partners; let go outside the dish, it has no pairs. */
     const clasp = threatPairs().find((t) => !t.bad && t.d < TUNE.letGo) || null;
     const a = heldAtom();
     if (a && a.status === 'live' && !a.committed) {
@@ -1873,6 +1905,7 @@
         if (!q) return this.state;
         drag = { id, pid: -1, touch: false, fromPanel: false, ox: 0, oy: 0, tx: q.x, ty: q.y, cx: q.x, cy: q.y };
       }
+      handled.add(id);
       const sx = drag.cx, sy = drag.cy, n = o.steps || 40;
       for (let i = 1; i <= n && drag; i++) {
         setTargetWorld(sx + (x - sx) * i / n, sy + (y - sy) * i / n);
