@@ -42,6 +42,8 @@
     ? 'mobile' : 'desktop';
   document.body.classList.add('mode-' + MODE);
   const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const HARNESS = new URLSearchParams(location.search).get('harness') === '1';
+  let frozen = false;                  // a test holding the picture still (HARNESS)
 
   /* ---------- CANVAS ---------- */
   let LW, LH;
@@ -49,9 +51,24 @@
   const ctx = canvas.getContext('2d');
   const gameWrap = canvas.parentElement;
 
+  /* THE FRAME FILLS ITS WINDOW WHEN THE GAME IS THE WHOLE PAGE (DESIGN-SYSTEM
+     2.2, as Comb does). On zamborin.com the desktop game sits in the 760x600
+     site frame. In an embed and in full screen the window IS the frame, one
+     CSS pixel to one unit, and the hotel is laid out in it instead of the
+     760x600 picture being letterboxed into it. A desktop window narrower than
+     760 is laid out 760 across and scaled, so the top band keeps its row of
+     pills. A zero reading (a hidden frame's first tick) falls back to the
+     site frame until the real size arrives on the next resize. */
+  const fillsWindow = () => MODE === 'mobile' ||
+    document.documentElement.classList.contains('embed') ||
+    document.body.classList.contains('focus-mode');
   function setCanvasVars() {
-    if (MODE === 'mobile') { LW = window.innerWidth; LH = window.innerHeight; }
-    else { LW = 760; LH = 600; }
+    if (fillsWindow()) {
+      const vw = window.innerWidth > 0 ? window.innerWidth : 760;
+      const vh = window.innerHeight > 0 ? window.innerHeight : 600;
+      const k = (MODE === 'desktop' && vw < 760) ? 760 / vw : 1;
+      LW = Math.round(vw * k); LH = Math.round(vh * k);
+    } else { LW = 760; LH = 600; }
     document.body.style.setProperty('--canvas-w', LW + 'px');
     document.body.style.setProperty('--canvas-h', LH + 'px');
   }
@@ -66,20 +83,15 @@
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
   }
   function fitFullscreen() {
-    if (MODE === 'mobile') {
-      gameWrap.style.width = window.innerWidth + 'px';
-      gameWrap.style.height = window.innerHeight + 'px';
+    if (fillsWindow()) {
+      gameWrap.style.width = (window.innerWidth > 0 ? window.innerWidth : LW) + 'px';
+      gameWrap.style.height = (window.innerHeight > 0 ? window.innerHeight : LH) + 'px';
       return;
     }
-    const active = document.body.classList.contains('focus-mode');
-    if (!active) { gameWrap.style.width = ''; gameWrap.style.height = ''; return; }
-    const vw = window.innerWidth, vh = window.innerHeight, aspect = LW / LH;
-    let cw = vw, ch = Math.round(vw / aspect);
-    if (ch > vh) { ch = vh; cw = Math.round(vh * aspect); }
-    gameWrap.style.width = cw + 'px'; gameWrap.style.height = ch + 'px';
+    gameWrap.style.width = ''; gameWrap.style.height = '';
   }
   function onResize() {
-    if (MODE === 'mobile') setCanvasVars();
+    setCanvasVars();
     fitFullscreen(); resizeCanvas(); layout(); render(performance.now());
   }
 
@@ -198,24 +210,36 @@
   const EXIT_GLOW = '#8FE3C8';
   const BREATH_OK = '#5DD39E', BREATH_MID = '#F0B23C', BREATH_LOW = '#F05A46';
 
-  /* ---------- LAYOUT ---------- */
+  /* ---------- LAYOUT ----------
+     CONTROLS AT THE TOP, THE READ-OUT AT THE BOTTOM LEFT, the fleet's
+     arrangement since 2026-09-16 (DESIGN-SYSTEM 2.1, 4.2, 4.3). A phone has
+     Restart and Rules as round icons across the top, the read-out bottom left
+     and the two sound switches standing bare at the bottom right; the desktop
+     keeps its pills top left and puts the read-out under the building. */
   const SIDE_PAD = 30;
+  const PHONE_PAD = 16;          // a phone's side margin, for the bands and the building
+  const PHONE_LEGEND = 52;       // a phone's bottom band, tall enough to clear the home indicator
+  const DESK_READ_BAND = 40;     // the desktop's bottom band
+  /* The roof line stands 12 above the top floor. Left out of the sum, it sat
+     on the bottom edge of the pills in the 760x600 frame. */
+  const ROOF = 12;
   const topBand = () => (MODE === 'mobile' ? 64 : 56);
-  const botBand = () => (MODE === 'mobile' ? 96 : 20);
-  const buildPad = () => (MODE === 'mobile' ? 12 : SIDE_PAD);
+  const botBand = () => (MODE === 'mobile' ? PHONE_LEGEND : DESK_READ_BAND);
+  const buildPad = () => (MODE === 'mobile' ? PHONE_PAD : SIDE_PAD);
   const statusLane = () => (MODE === 'mobile' && LH >= 560 ? 26 : 0);
+  const SEP = '   ·   ';
 
   const geo = {
     floorPx: 74, shaftW: 64, carW: 54, carH: 62,
     x: 0, y: 0, w: 0, h: 0, corW: 0, leftX: 0, shaftX: 0, rightX: 0, rightW: 0,
   };
-  let ctrl = [], readoutMinX = SIDE_PAD;
+  let ctrl = [], rowRight = 0, exitBox = null;
 
   function floors() { return level ? level.floors : 7; }
 
   function layout() {
     const availW = Math.max(80, LW - buildPad() * 2);
-    const availH = Math.max(80, LH - topBand() - botBand() - statusLane());
+    const availH = Math.max(80, LH - topBand() - ROOF - botBand() - statusLane());
     const F = floors();
     /* The floor height is set by a five-floor building at minimum, so a small
        hotel is SHORT rather than stretched: you see its roof and the street,
@@ -224,7 +248,7 @@
     geo.floorPx = Math.max(30, Math.min(maxFloor, Math.floor(availH / Math.max(4, F))));
     geo.shaftW = Math.max(30, Math.min(84, Math.round(geo.floorPx * 0.80)));
     geo.h = geo.floorPx * F;
-    geo.y = Math.round(topBand() + (availH - geo.h) / 2);
+    geo.y = Math.round(topBand() + ROOF + (availH - geo.h) / 2);
 
     /* A corridor is a corridor, not a letterbox: capped against the floor
        height so a wide frame does not draw a 400x40 room. */
@@ -249,64 +273,72 @@
   const slabY = (f) => geo.y + (floors() - f + 1) * geo.floorPx;
   const roomTop = (f) => slabY(f) - geo.floorPx;
 
-  /* THE CAPACITY PILL, SIZED. Kept apart from painting for two reasons: a
-     sweep can ask for the plan without needing a frame (the preview pane can
-     be hidden, and then nothing paints at all), and the wording can be chosen
-     against the space that is actually left. The band already carries the
-     score and five strike dots; a status pill that shoves those off the edge
-     is worse than a shorter word, so take the longest wording that still
-     leaves the readout its floor size, and if even the shortest will not fit,
-     show nothing rather than overlap. */
   /* GUESTS SAVED, not OUT. "Out" is the programmer's word for the counter;
-     the player is running a hotel and what they are counting is people. It is
-     a longer label, so the band's existing fit logic earns its keep: the type
-     shrinks first and BEST yields before anything is allowed to overlap. */
-  const readoutLine = (dropBest) => 'GUESTS SAVED ' + out + '   ·   ' + (waiting.length + aboard.length) +
-    ' INSIDE' + (best && !dropBest ? '   ·   BEST ' + best : '');
-  const hudScale = () => Math.max(0.66, Math.min(1, LW / 620));
-  function capPlan(force) {
-    if (!force && fullT <= 0) return null;
-    const cfs = Math.max(10, Math.round(12 * hudScale()));
-    ctx.save();
-    let plan = null;
-    /* On a 320px frame the readout wants 165px and the strike dots 72, which
-       leaves 37 for a pill that needs 43. Cramming it in on a six-pixel margin
-       would only break again the first time somebody scores a hundred, so the
-       BEST reminder yields instead: it is the one number on the band that is
-       not about this run, and it comes back the moment the car empties. */
-    for (const dropBest of [false, true]) {
-      ctx.font = '600 11px Inter, sans-serif';
-      const need = ctx.measureText(readoutLine(dropBest)).width + 12 * STRIKES + 12;
-      for (const t of ['ELEVATOR AT CAPACITY', 'ELEVATOR FULL', 'FULL']) {
-        ctx.font = '700 ' + cfs + 'px Inter, sans-serif';
-        const w = Math.round(ctx.measureText(t).width) + cfs * 1.9;
-        if (readoutMinX + w + 14 + need <= LW - SIDE_PAD) {
-          plan = { msg: t, w, fs: cfs, x: readoutMinX, h: Math.round(cfs * 1.85), dropBest };
-          break;
-        }
-      }
-      if (plan) break;
-    }
-    ctx.restore();
-    return plan;
+     the player is running a hotel and what they are counting is people.
+     A LINE THAT WILL NOT FIT TAKES A SHORTER FORM, NEVER A SMALLER SIZE: the
+     read-out keeps the fleet's 16px and a 320-wide phone gets fewer words
+     (DESIGN-SYSTEM 4.3, 10.3). BEST yields first, because it is the one figure
+     that is not about this run. */
+  function readoutForms(saved, inside, bestV) {
+    const f = [];
+    if (bestV) f.push('GUESTS SAVED ' + saved + SEP + inside + ' INSIDE' + SEP + 'BEST ' + bestV);
+    f.push('GUESTS SAVED ' + saved + SEP + inside + ' INSIDE');
+    f.push('SAVED ' + saved + SEP + inside + ' INSIDE');
+    f.push('SAVED ' + saved);
+    return f;
   }
+  /* The five strikes lead the read-out as dots, so they hold still while the
+     figures grow to their right. */
+  const DOT_R = 4.5, DOT_GAP = 12, DOTS_W = DOT_GAP * 4 + DOT_R * 2, DOTS_TO_TEXT = 14;
+
+  /* The site's full-screen exit button hangs over the top band's right end
+     from 1152 wide up, and whatever sits at that end stops 12 short of it
+     (DESIGN-SYSTEM 4.2). Measured from the page each time the layout runs. */
+  function exitButtonBox() {
+    const el = document.getElementById('focus-toggle');
+    if (!el || !document.body.classList.contains('focus-mode')) return null;
+    const b = el.getBoundingClientRect(), c = canvas.getBoundingClientRect();
+    if (!b.width || !c.width) return null;
+    const k = LW / c.width;
+    const box = { x: (b.left - c.left) * k, y: (b.top - c.top) * k, w: b.width * k, h: b.height * k };
+    return box.y < topBand() && box.x < LW ? box : null;
+  }
+  const bandRight = () => (exitBox ? Math.min(LW - buildPad(), exitBox.x - 12) : LW - buildPad());
 
   function layoutControls() {
+    exitBox = exitButtonBox();
+    if (MODE === 'mobile') {
+      const D = UI.PILL.iconW, cy = topBand() / 2;       // 44 across: a circle, and the touch target
+      const row = ['restart', 'rules'];
+      const gap = Math.max(4, Math.min(28, (LW - PHONE_PAD * 2 - row.length * D) / (row.length - 1)));
+      ctrl = row.map((id, i) => {
+        const cx = PHONE_PAD + D / 2 + i * (D + gap);
+        return { id, kind: 'round', cx, cy, x: Math.round(cx - D / 2), y: Math.round(cy - D / 2), w: D, h: D };
+      });
+      rowRight = ctrl[ctrl.length - 1].x + D;
+      /* THE TWO SOUND SWITCHES STAND BARE at the bottom right: the speaker
+         where every game keeps it, its drawing ending 16 from the edge (it runs
+         from 7 left of its centre to 11 right), and the alarm bell one full
+         target to its left. No circles, and each keeps a 44x44 target. */
+      const ly = LH - PHONE_LEGEND / 2, sx = LW - PHONE_PAD - 11;
+      const sBox = { x: Math.round(Math.min(LW - 44, sx - 20)), y: Math.round(Math.min(LH - 44, ly - 22)), w: 44, h: 44 };
+      ctrl.push({ id: 'alarm', kind: 'bare', cx: sBox.x - 22, cy: ly, x: sBox.x - 44, y: sBox.y, w: 44, h: 44 });
+      ctrl.push({ id: 'sound', kind: 'bare', cx: sx, cy: ly, x: sBox.x, y: sBox.y, w: 44, h: 44 });
+      return;
+    }
     const items = [{ id: 'sound', icon: true }, { id: 'alarm', icon: true }, { id: 'restart', label: 'Restart' }, { id: 'rules', label: 'Rules' }];
     ctx.save();
-    let total = 0;
-    items.forEach(it => { it.w = it.icon ? UI.PILL.iconW : UI.pillWidth(ctx, it.label); total += it.w; });
-    total += UI.PILL.gap * (items.length - 1);
+    items.forEach(it => { it.w = it.icon ? UI.PILL.iconW : UI.pillWidth(ctx, it.label); });
     ctx.restore();
-    const cy = MODE === 'mobile' ? LH - 74 : topBand() / 2;
-    let x = MODE === 'mobile' ? Math.round((LW - total) / 2) : SIDE_PAD;
+    const cy = topBand() / 2;
+    let x = SIDE_PAD;
     ctrl = items.map(it => {
-      const box = { id: it.id, label: it.label, icon: it.icon, x, y: Math.round(cy - UI.PILL.h / 2),
+      const box = { id: it.id, kind: 'pill', label: it.label, icon: it.icon, x, y: Math.round(cy - UI.PILL.h / 2),
                     w: it.w, h: UI.PILL.h, cx: x + it.w / 2, cy };
       x += it.w + UI.PILL.gap;
       return box;
     });
-    readoutMinX = MODE === 'desktop' ? x + 16 : SIDE_PAD;
+    rowRight = x - UI.PILL.gap;
   }
 
   /* ---------- STATE ---------- */
@@ -399,7 +431,12 @@
   let levelFrom = 1, levelTo = 1, levelT = 0, levelDir = 1;
   let departed = false, stopsMade = 0, nextId = 0, nextSpawn = 0;
   let puffs = [], runners = [], tNow = 0, endT = 0, best = 0;
-  let wave = 1, waveFlash = 0, fullT = 0, fullFlash = 0, capRect = null, chromeLeft = 0;
+  let wave = 1, waveFlash = 0, fullT = 0, fullFlash = 0;
+  /* THE MOMENTS, on the game clock so a still of a named moment is the same
+     picture every time: the last guest out through the lobby doors, and the
+     last strike. A guest counts as out when their run is this far through. */
+  const SAVED_AT = 0.72, HINT_S = 14, END_HOLD = 1.1;
+  let savedAt = -99, lostAt = -99;
   let rulesOpen = false, rulesScroll = 0;
   let rng = M.makeRng(1);
 
@@ -434,8 +471,8 @@
     return ((Math.random() * 4294967296) >>> 0) || 1;
   }
 
-  function startRun() {
-    const seed = freshSeed();
+  function startRun(seedIn) {
+    const seed = (seedIn >>> 0) || freshSeed();          // a test may name the building
     rng = M.makeRng(seed);
     const F = RUN.floors;
     const fHi = Math.min(RUN.fireHigh, F), fLo = Math.min(RUN.fireLow, fHi);
@@ -448,6 +485,7 @@
     phase = 'play'; doorOpen = 0; serveT = 0; sag = 0; settleT = 0;
     departed = false; stopsMade = 0; nextId = 0;
     puffs = []; runners = []; tNow = 0; endT = 0; wave = 1; waveFlash = 0; fullT = 0; fullFlash = 0;
+    savedAt = -99; lostAt = -99;
     best = loadBest();
     /* Doors keep clear of EVERY standing position, not just the occupied ones,
        because in a run people arrive where they like and a door cannot appear
@@ -558,7 +596,13 @@
     const r = canvas.getBoundingClientRect();
     return { x: (e.clientX - r.left) * (LW / r.width), y: (e.clientY - r.top) * (LH / r.height) };
   }
-  const hitCtrl = (x, y) => ctrl.find(c => x >= c.x - 6 && x <= c.x + c.w + 6 && y >= c.y - 8 && y <= c.y + c.h + 8) || null;
+  /* A pill takes a little slop round its 40px height. A round or bare icon is
+     already a full 44x44 target, and the phone's two bare switches sit edge to
+     edge, so slop there would let one steal the other's press. */
+  const hitCtrl = (x, y) => ctrl.find(c => {
+    const sx = c.kind === 'pill' ? 6 : 0, sy = c.kind === 'pill' ? 8 : 0;
+    return x >= c.x - sx && x <= c.x + c.w + sx && y >= c.y - sy && y <= c.y + c.h + sy;
+  }) || null;
 
   canvas.addEventListener('pointerdown', (e) => {
     e.preventDefault();
@@ -581,7 +625,7 @@
       if (f <= floors()) { pressCall(f); e.preventDefault(); }
     }
     else if (e.key === 'Escape' && rulesOpen) { rulesOpen = false; }
-    else if (e.key === 'Enter' && phase === 'over') { advanceFromCard(); }
+    else if (e.key === 'Enter' && endShown()) { advanceFromCard(); }
     else return;
     if (sfx) sfx.ensureAudio();
   });
@@ -691,9 +735,15 @@
     if (settleT > 0) settleT = Math.max(0, settleT - dt / 0.16);
     for (const p of puffs) p.t += dt / 1.1;
     puffs = puffs.filter(p => p.t < 1);
-    for (const r of runners) r.t += dt;
+    for (const r of runners) {
+      const was = r.t; r.t += dt;
+      if (r.kind === 'out' && was < r.dur * SAVED_AT && r.t >= r.dur * SAVED_AT) savedAt = tNow;
+    }
     runners = runners.filter(r => r.t < r.dur);
-    if (phase === 'over') { endT += dt; return; }
+    /* The last collapse still plays out after the run ends: the card waits
+       for it (END_HOLD), and a person frozen mid-fall behind it was never
+       seen only because the card used to arrive on the same frame. */
+    if (phase === 'over') { endT += dt; for (const r of fallen) r.t += dt; return; }
 
     M.stepSmoke(smoke, level.floors, level.fire, smokeRate(), dt, FIRE);
     if (waveNow() !== wave) {
@@ -738,7 +788,7 @@
      corridor with somebody down in it is the only honest way to say you did
      not get there. Three of them ends the run. */
   function overcome(p, floor) {
-    lost++; lostFloors.push(floor);
+    lost++; lostFloors.push(floor); lostAt = tNow;
     const q = personXY(p);
     fallen.push({ floor, slot: p.slot, stand: p.stand, x: q.x, side: q.face, seed: p.id + 1, t: 0 });
     if (snd) snd.collapse();
@@ -828,12 +878,14 @@
            alternating sides read as one person: the eye cannot count a crowd
            that moves as a block, and the whole point of a full car is that you
            see four people saved. Same door, a fifth of a second apart, each
-           stopping a little shorter than the one in front. */
+           stopping a little shorter than the one in front - and all six of a
+           full car still inside the doors' width, where the old spacing, set
+           for four, left the last two fading out in the middle of the lobby. */
         aboard.forEach((p, i) => {
           out++;
           runners.push({ floor: 1, kind: 'out', seed: p.id + 1, t: -0.22 * i, dur: 0.95,
             x0: geo.shaftX - 4,
-            x1: geo.leftX + geo.corW * (0.12 + 0.055 * i) });
+            x1: geo.leftX + geo.corW * (0.12 + 0.03 * i) });
         });
         if (aboard.length && snd) snd.rescue(aboard.length);
         aboard = [];
@@ -979,13 +1031,24 @@
   /* Everything is drawn in a corridor that runs left-to-right with the ELEVATOR AT
      THE RIGHT-HAND END, and the right-hand corridor is mirrored on the way
      out. One piece of drawing code, both sides. */
+  /* A corridor's bands, and the lobby's glazed doors, in the corridor's own
+     coordinates. The baked art and the light that answers a rescue both come
+     from these, so they cannot disagree about where the doors are. */
+  function corridorBands(h) {
+    const ceilH = Math.max(5, h * 0.115), corn = Math.max(2, h * 0.026);
+    const skirtH = Math.max(2, h * 0.030), floorH = Math.max(5, h * 0.115);
+    return { ceilH, corn, skirtH, floorH, wallTop: ceilH + corn, wallBot: h - floorH - skirtH };
+  }
+  function lobbyDoor(w, wallTop, wallBot) {
+    const openH = (wallBot - wallTop) * 0.94, dw = Math.max(30, w * 0.24);
+    const rev = Math.max(3, dw * 0.06);
+    const ox = Math.max(6, w * 0.025), oy = wallBot - openH;
+    const gx = ox + rev, gy = oy + rev * 2.6;
+    return { openH, dw, rev, ox, oy, gx, gy, gh: wallBot - gy };
+  }
+
   function paintCorridor(b, w, h, f, isLobby) {
-    const ceilH = Math.max(5, h * 0.115);
-    const corn = Math.max(2, h * 0.026);
-    const skirtH = Math.max(2, h * 0.030);
-    const floorH = Math.max(5, h * 0.115);
-    const wallTop = ceilH + corn;
-    const wallBot = h - floorH - skirtH;
+    const { ceilH, corn, skirtH, floorH, wallTop, wallBot } = corridorBands(h);
 
     // ceiling: the one saturated surface, as in the reference
     const cg = b.createLinearGradient(0, 0, 0, ceilH);
@@ -1138,15 +1201,12 @@
        reflected in it - and a dark opening in a warm wall is unmistakably a
        way through, where a pale rectangle is just a panel. The lit sign over
        it is what says it is the way OUT. */
-    const openH = wallH * 0.94, dw = Math.max(30, w * 0.24);
-    const rev = Math.max(3, dw * 0.06);
-    const ox = Math.max(6, w * 0.025), oy = wallBot - openH;
+    const { openH, dw, rev, ox, oy, gx, gy, gh } = lobbyDoor(w, wallTop, wallBot);
     b.fillStyle = REVEAL; b.fillRect(ox, oy, dw + rev * 2, openH);
     const tg = b.createLinearGradient(0, oy, 0, oy + rev * 2.4);
     tg.addColorStop(0, REVEAL_TOP); tg.addColorStop(1, REVEAL);
     b.fillStyle = tg; b.fillRect(ox, oy, dw + rev * 2, rev * 2.4);
 
-    const gx = ox + rev, gy = oy + rev * 2.6, gh = wallBot - gy;
     const g2 = b.createLinearGradient(gx, gy, gx, wallBot);
     g2.addColorStop(0, '#141C33'); g2.addColorStop(0.55, '#1D2A4A'); g2.addColorStop(1, '#2A3A5E');
     b.fillStyle = g2; b.fillRect(gx, gy, dw, gh);
@@ -1418,20 +1478,25 @@
   function drawFloorAlerts() {
     const F = floors();
     for (let f = 1; f <= F; f++) {
-      let crit = 0;
+      let crit = 0, flash = 0;
       for (const p of waiting) if (p.floor === f && p.exp > FIRE.warnAt) crit = Math.max(crit, p.exp);
-      if (!crit) continue;
+      /* A STRIKE FLASHES ITS FLOOR. The runner lights once, hard, where
+         somebody has just gone down, so the dot landing in the read-out has
+         a place in the building to point at. */
+      for (const r of fallen) if (r.floor === f && r.t < 1) flash = Math.max(flash, 1 - r.t);
+      if (!crit && !flash) continue;
       /* The pulse has a FLOOR. 0.55 + 0.45*sin swings down to 0.10, so the
          alert all but vanished twice a second - a warning you can miss by
          blinking is not a warning. It breathes between 0.62 and 1.0 now, and
          the band is thick enough to survive a small screen. */
-      const pulse = REDUCED ? 1 : 0.81 + 0.19 * Math.sin(performance.now() / 190);
+      const pulse = Math.max(flash, !crit ? 0 : REDUCED ? 1 : 0.81 + 0.19 * Math.sin(performance.now() / 190));
       const y = slabY(f) - 3, hgt = Math.max(3, geo.floorPx * 0.055);
+      const glowH = hgt * (2.6 + 3.4 * flash);
       const band = (x, w) => {
-        const g = ctx.createLinearGradient(0, y - hgt * 2.6, 0, y);
+        const g = ctx.createLinearGradient(0, y - glowH, 0, y);
         g.addColorStop(0, 'rgba(255,70,50,0)');
         g.addColorStop(1, 'rgba(255,90,70,' + (0.40 * pulse).toFixed(3) + ')');
-        ctx.fillStyle = g; ctx.fillRect(x, y - hgt * 2.6, w, hgt * 2.6);
+        ctx.fillStyle = g; ctx.fillRect(x, y - glowH, w, glowH);
         ctx.fillStyle = 'rgba(255,' + Math.round(120 + 80 * pulse) + ',96,' + (0.92 * pulse).toFixed(3) + ')';
         ctx.fillRect(x, y - hgt, w, hgt);
       };
@@ -1612,6 +1677,32 @@
      boarding time drawn rather than skipped. */
   function drawRunners(now) {
     const h = geo.floorPx * 0.52;
+    /* THE DOORS ANSWER A RESCUE. Each guest going out lights the glazed doors
+       from the street side, a cool flare that peaks as they pass through, so
+       a car emptying at the lobby is counted out in light as well as in the
+       read-out. */
+    let flare = 0;
+    for (const r of runners) {
+      if (r.kind !== 'out' || r.t < 0) continue;
+      const k = (r.t / r.dur - 0.60) / 0.28;
+      if (k > 0 && k < 1) flare = Math.max(flare, Math.sin(Math.PI * k));
+    }
+    if (flare > 0.01) {
+      const cb = corridorBands(geo.floorPx), d = lobbyDoor(geo.corW, cb.wallTop, cb.wallBot);
+      const gx = geo.leftX + d.gx, gy = roomTop(1) + d.gy;
+      const lg = ctx.createLinearGradient(0, gy, 0, gy + d.gh);
+      lg.addColorStop(0, 'rgba(143,227,200,' + (0.12 * flare).toFixed(3) + ')');
+      lg.addColorStop(1, 'rgba(206,255,238,' + (0.50 * flare).toFixed(3) + ')');
+      ctx.fillStyle = lg; ctx.fillRect(gx, gy, d.dw, d.gh);
+      // and it spills out across the lobby floor in front of them, inside the walls
+      const fy = roomTop(1) + cb.wallBot, fh = geo.floorPx - cb.wallBot;
+      const sp = ctx.createRadialGradient(gx + d.dw / 2, fy, 1, gx + d.dw / 2, fy, d.dw * 1.1);
+      sp.addColorStop(0, 'rgba(143,227,200,' + (0.30 * flare).toFixed(3) + ')');
+      sp.addColorStop(1, 'rgba(143,227,200,0)');
+      ctx.fillStyle = sp;
+      const sx0 = Math.max(geo.leftX, gx - d.dw * 0.6);
+      ctx.fillRect(sx0, fy, gx + d.dw * 1.6 - sx0, fh);
+    }
     for (const r of runners) {
       if (r.t < 0) continue;                                 // still waiting their turn
       const k = Math.min(1, r.t / r.dur);
@@ -2050,6 +2141,33 @@
     ctx.fillStyle = 'rgba(255,232,176,0.28)';
     ctx.fillRect(x + 3, y + h - 4, w - 6, 1.5);
 
+    /* FULL, ON THE CAR. A full car stopping at a floor takes nobody on, and
+       with no word for it that looks like the game ignoring you. The word was
+       a banner across the middle of the building, over the corridors, for two
+       seconds; it is a lamp on the car's roof now, where the eye already is
+       when it picks the next floor, and it stays lit for as long as the car
+       is full, the way a lift's own FULL lamp does. It flares as it lights. */
+    if (fullT > 0) {
+      const fs = Math.max(11, Math.min(14, Math.round(w * 0.24)));
+      ctx.font = '800 ' + fs + 'px Inter, sans-serif';
+      const pw = Math.round(ctx.measureText('FULL').width + fs * 0.9), ph = Math.round(fs * 1.4);
+      const px = Math.round(x + w / 2 - pw / 2), py = y - ph - 2;
+      const on = REDUCED ? 1 : ease(fullT), flare = REDUCED ? 0 : fullFlash;
+      const gl = ctx.createRadialGradient(x + w / 2, py + ph / 2, 1, x + w / 2, py + ph / 2, pw * (0.9 + 0.5 * flare));
+      gl.addColorStop(0, 'rgba(255,190,100,' + ((0.30 + 0.35 * flare) * on).toFixed(3) + ')');
+      gl.addColorStop(1, 'rgba(255,190,100,0)');
+      ctx.fillStyle = gl;
+      ctx.fillRect(x + w / 2 - pw * 1.4, py + ph / 2 - pw * 1.4, pw * 2.8, pw * 2.8);
+      ctx.fillStyle = 'rgba(30,20,14,' + (0.94 * on).toFixed(3) + ')';
+      rr(px, py, pw, ph, 3); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,' + (0.10 * on).toFixed(3) + ')';   // lit from above
+      ctx.fillRect(px + 2, py + 1, pw - 4, 1);
+      ctx.fillStyle = 'rgba(255,' + Math.round(200 + 40 * flare) + ',' + Math.round(120 + 70 * flare) + ',' + on.toFixed(3) + ')';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('FULL', px + pw / 2, py + ph / 2 + 1);
+      ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    }
+
     /* The grab chevrons above the cab are gone with the drag they advertised. */
     void now;
   }
@@ -2070,126 +2188,155 @@
   }
 
   /* ---------- CHROME ---------- */
+  let hud = { readout: null, note: null, hint: null };     // where the chrome last drew, for hudFit()
+
   function drawHud() {
+    hud = { readout: null, note: null, hint: null };
     for (const c of ctrl) {
-      if (c.icon) {
-        UI.drawPill(ctx, '', c.cx, c.cy, { w: UI.PILL.iconW });
-        if (c.id === 'alarm') drawBell(c.cx, c.cy, alarmOn);
-        else drawSpeaker(c.cx, c.cy, !sfx || sfx.isOn());
-      }
-      else UI.drawPill(ctx, c.label, c.cx, c.cy);
+      if (c.kind === 'round') { UI.drawRound(ctx, c.cx, c.cy); UI.drawIcon(ctx, c.id, c.cx, c.cy); continue; }
+      if (c.kind === 'pill' && !c.icon) { UI.drawPill(ctx, c.label, c.cx, c.cy); continue; }
+      if (c.kind === 'pill') UI.drawPill(ctx, '', c.cx, c.cy, { w: UI.PILL.iconW });
+      if (c.id === 'alarm') drawBell(c.cx, c.cy, alarmOn);
+      else UI.drawIcon(ctx, 'sound', c.cx, c.cy, { on: !sfx || sfx.isOn() });
     }
-    /* Both halves of the comparison, and the damage when there is any: a count
-       that only goes up tells you nothing about whether you are still winning. */
-    const hs = hudScale();
-
-    /* AT CAPACITY. Four is the car, and a stop with four aboard takes nobody
-       on - which, with no word for it, looks like the game ignoring you. It
-       lives in the top band because the band is chrome: a banner over the
-       building would hide the corridor you are about to drive to. Sized here,
-       BEFORE the readout, so the readout shrinks around it and the two can
-       never collide on a narrow frame. */
-    /* THE FULL CAR SAYS IT WHERE YOU ARE LOOKING. A pill tucked beside the
-       Rules button is in the one place a player's eye never is while driving:
-       every reported miss of it was a player watching the shaft. It speaks in
-       the middle now, the same way the wave does. */
-    capRect = null;
-    const readFrom = readoutMinX;
-
-    /* THE DOTS ARE PART OF THE READOUT'S WIDTH, and for a while they were not.
-       The readout was allowed to shrink into everything from the Rules pill to
-       the right edge, and then the strikes were laid out 72px to its LEFT -
-       which is to say on top of Rules. It went unseen because it needs a long
-       line to bite, and the line got longer twice: GUESTS SAVED is wider than
-       OUT, and venting the corridors took a good score from about fifty to
-       about three hundred, which is a whole extra digit in two places.
-       So the dots are reserved here, and BEST yields on its own now rather
-       than only when the old capacity pill asked for room. */
-    const dotR = 4.5, dg = 12, dotsW = dg * STRIKES + 12;
-    const room = (LW - SIDE_PAD) - readFrom - dotsW;
-
-    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = INK72;
-    let line = '', fs = 16;
-    for (const dropBest of [false, true]) {
-      line = readoutLine(dropBest);
-      fs = Math.round(16 * hs);
-      ctx.font = '600 ' + fs + 'px Inter, sans-serif';
-      while (fs > 11 && ctx.measureText(line).width > room) {
-        fs -= 1; ctx.font = '600 ' + fs + 'px Inter, sans-serif';
-      }
-      if (ctx.measureText(line).width <= room) break;
-    }
-    const readoutLeft = (LW - SIDE_PAD) - ctx.measureText(line).width;
-    ctx.fillText(line, LW - SIDE_PAD, topBand() / 2);
-    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-    /* THE STRIKES, as dots. Three people overcome ends the run, so how many
-       are gone is the second thing worth knowing after the score, and a count
-       you have to read as a word is a count you miss. */
-    const dx0 = readoutLeft - dotsW;
-    chromeLeft = dx0 - dotR;                               // leftmost thing on the right of the band
-    for (let i = 0; i < STRIKES; i++) {
-      ctx.beginPath(); ctx.arc(dx0 + i * dg, topBand() / 2, dotR, 0, Math.PI * 2);
-      ctx.fillStyle = i < lost ? '#F05A46' : 'rgba(255,255,255,0.18)';
-      ctx.fill();
-    }
-
-    /* A WAVE HAS TO ANNOUNCE ITSELF. The number in the corner changing is the
-       kind of change nobody sees; the game saying it out loud for a moment is
-       why arcades did it that way. Drawn over the shaft, never over a
-       corridor, so it cannot hide somebody you need to reach. */
-    function banner(msg, a, col, dy) {
-      const cy2 = geo.y + geo.h * 0.5 + (dy || 0);
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      let ms = 22;
-      ctx.font = '800 ' + ms + 'px Inter, sans-serif';
-      while (ms > 11 && ctx.measureText(msg).width > LW - SIDE_PAD * 2 - 32) {
-        ms -= 1; ctx.font = '800 ' + ms + 'px Inter, sans-serif';
-      }
-      const bw = ctx.measureText(msg).width + 36, bh = ms + 26;
-      ctx.fillStyle = 'rgba(10,8,16,' + (0.62 * a).toFixed(3) + ')';
-      rr(LW / 2 - bw / 2, cy2 - bh / 2, bw, bh, 12); ctx.fill();
-      ctx.fillStyle = col.replace('ALPHA', a.toFixed(3));
-      ctx.fillText(msg, LW / 2, cy2);
-      ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-    }
-    /* Never both at once, and the fire outranks the car. */
-    if (fullFlash > 0 && !(waveFlash > 0 && wave > 1)) {
-      banner('ELEVATOR FULL', Math.min(1, fullFlash * 2.2), 'rgba(240,180,92,ALPHA)');
-    }
-    if (waveFlash > 0 && wave > 1) {
-      /* It said WAVE 2. A wave number is a designer's word for a difficulty
-         step - it tells the player which bucket they are in and nothing about
-         their building. Say what actually just happened instead - and what
-         actually just happened is that more people are coming, not that the
-         fire grew. The fire burns at one strength now and the arrival rate is
-         the whole ramp, so the old line was a caption for a thing that was
-         not occurring. */
-      banner('MORE GUESTS ARE ARRIVING', Math.min(1, waveFlash * 2.2),
-             'rgba(255,150,60,ALPHA)');
-    }
-
-    if (MODE === 'mobile' && statusLane() > 0 && tNow < 14) {
-      ctx.fillStyle = 'rgba(255,255,255,0.44)';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      /* The first thing a thumb should try is the thing the buttons are for.
-         The drag is still there and still works; it is no longer the lesson.
-         It SHRINKS: the old line sat within a few pixels of a 375px screen,
-         so any rewording ran off both ends of the phone it was written for. */
-      const hint = 'tap a floor button · take them to the lobby';
-      let hs = 14;
-      ctx.font = '600 ' + hs + 'px Inter, sans-serif';
-      while (hs > 10 && ctx.measureText(hint).width > LW - SIDE_PAD * 2) {
-        hs -= 1; ctx.font = '600 ' + hs + 'px Inter, sans-serif';
-      }
-      ctx.fillText(hint, LW / 2, geo.y + geo.h + statusLane() / 2 + 4);
-      ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-    }
+    drawReadout();
+    drawBandNote();
+    drawPhoneHint();
   }
 
-  /* A BELL, struck through when it is off - the same stroke weight and the same
-     cross as the speaker uses, so the pair reads as one row of switches rather
-     than two ideas. */
+  /* THE READ-OUT, at the bottom left (DESIGN-SYSTEM 4.3): the five strike
+     dots, then one line in Ink 72 at 600 16px. Its room runs to the phone's
+     bell or to the desktop's right margin, and it draws the longest form that
+     fits there. Both halves of the comparison, and the damage when there is
+     any: a count that only goes up tells you nothing about whether you are
+     still winning. */
+  function planReadout(saved, inside, bestV) {
+    const pad = buildPad();
+    const alarm = MODE === 'mobile' ? ctrl.find(c => c.id === 'alarm') : null;
+    const right = alarm ? alarm.x - 8 : LW - SIDE_PAD;
+    const textX = pad + DOTS_W + DOTS_TO_TEXT;
+    const forms = readoutForms(saved, inside, bestV);
+    ctx.save();
+    ctx.font = '600 16px Inter, sans-serif';
+    let line = null, w = 0;
+    for (const f of forms) {
+      w = ctx.measureText(f).width;
+      if (textX + w <= right) { line = f; break; }
+    }
+    ctx.restore();
+    return { line, x: pad, textX, w: line ? w : 0, right, cy: LH - botBand() / 2 };
+  }
+  /* A RESCUE IS COUNTED AS IT HAPPENS. The score used to jump by the whole
+     car the instant the lobby doors opened; it counts each guest now as they
+     go out through the doors, and the line brightens as it does, so a full
+     car arriving is six small moments rather than one number changing. */
+  const shownSaved = () => out - runners.filter(r => r.kind === 'out' && r.t < r.dur * SAVED_AT).length;
+  function drawReadout() {
+    const p = planReadout(shownSaved(), waiting.length + aboard.length, best);
+    const cy = p.cy;
+    /* THE STRIKES, as dots. How many are gone is the second thing worth
+       knowing after the score, and a count you have to read as a word is a
+       count you miss. An empty place is a Tint 40 socket; a strike is coral,
+       and the newest one lands: it swells and throws a ring. */
+    for (let i = 0; i < STRIKES; i++) {
+      const dx = p.x + DOT_R + i * DOT_GAP;
+      let r = DOT_R;
+      if (i < lost) {
+        const age = i === lost - 1 ? tNow - lostAt : 99;
+        if (!REDUCED && age < 0.6) {
+          const k = age / 0.6;
+          ctx.strokeStyle = 'rgba(255,107,92,' + (0.7 * (1 - k)).toFixed(3) + ')';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.arc(dx, cy, DOT_R + 10 * ease(k), 0, Math.PI * 2); ctx.stroke();
+          r = DOT_R * (1 + 0.6 * (1 - ease(Math.min(1, age / 0.35))));
+        }
+        ctx.fillStyle = '#FF6B5C';                             // --accent-text
+      } else ctx.fillStyle = 'rgba(255,255,255,0.40)';        // Tint 40
+      ctx.beginPath(); ctx.arc(dx, cy, r, 0, Math.PI * 2); ctx.fill();
+    }
+    if (p.line) {
+      const glow = REDUCED ? 0 : Math.max(0, 1 - (tNow - savedAt) / 0.6);
+      ctx.font = '600 16px Inter, sans-serif';
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = 'rgba(255,255,255,' + (0.72 + 0.28 * glow).toFixed(3) + ')';   // Ink 72, Ink 100 as it counts
+      ctx.fillText(p.line, p.textX, cy);
+      ctx.textBaseline = 'top';
+    }
+    hud.readout = { x: p.x, y: cy - 10, w: p.textX - p.x + p.w, h: 20, right: p.right, line: p.line };
+  }
+
+  /* THE TOP BAND'S RIGHT END carries what the building says that needs no
+     answer. MORE GUESTS ARE ARRIVING was a banner across the middle of the
+     building, over the very corridors a player is watching, and nothing may
+     cover play; it is a line of coral at the end of the band now, and the
+     desktop's first-seconds hint shares the place (a phone keeps its hint
+     under the building). Right aligned to the margin, or 12 short of the
+     site's full-screen exit button, and a note too long for the room after
+     the controls takes a shorter form or is not drawn. */
+  const NOTES = {
+    wave: { font: '700 16px Inter, sans-serif', ink: '255,107,92',            // --accent-text
+            forms: ['MORE GUESTS ARE ARRIVING', 'MORE GUESTS ARRIVING', 'MORE GUESTS'] },
+    hint: { font: '600 16px Inter, sans-serif', ink: '255,255,255', max: 0.72, // Ink 72
+            forms: ['click a floor button · take them to the lobby', 'click a floor button'] },
+  };
+  function planNote(kind) {
+    const n = NOTES[kind], right = bandRight(), left = rowRight + 24;
+    ctx.save();
+    ctx.font = n.font;
+    let msg = null, w = 0;
+    for (const f of n.forms) {
+      w = ctx.measureText(f).width;
+      if (right - w >= left) { msg = f; break; }
+    }
+    ctx.restore();
+    return msg ? { msg, x: right - w, w, right, left } : null;
+  }
+  function drawBandNote() {
+    if (phase === 'over') return;
+    let kind = null, a = 0;
+    if (waveFlash > 0 && wave > 1) { kind = 'wave'; a = Math.min(1, waveFlash * 2.2); }
+    else if (MODE === 'desktop' && tNow < HINT_S) { kind = 'hint'; a = Math.min(1, (HINT_S - tNow) / 0.8); }
+    if (!kind) return;
+    const p = planNote(kind);
+    if (!p) return;
+    const n = NOTES[kind];
+    ctx.font = n.font; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(' + n.ink + ',' + ((n.max || 1) * a).toFixed(3) + ')';
+    ctx.fillText(p.msg, p.x, topBand() / 2);
+    ctx.textBaseline = 'top';
+    hud.note = { x: p.x, y: topBand() / 2 - 10, w: p.w, h: 20, msg: p.msg };
+  }
+
+  /* THE PHONE'S FIRST-SECONDS HINT, in its own lane under the building. The
+     first thing a thumb should try is the thing the buttons are for. It keeps
+     16px and takes a shorter form on a narrow phone, where it used to shrink
+     to 10. */
+  function planPhoneHint() {
+    ctx.save();
+    ctx.font = '600 16px Inter, sans-serif';
+    let msg = null, w = 0;
+    for (const f of ['tap a floor button · take them to the lobby', 'tap a floor · take them to the lobby', 'tap a floor button']) {
+      w = ctx.measureText(f).width;
+      if (w <= LW - PHONE_PAD * 2) { msg = f; break; }
+    }
+    ctx.restore();
+    return msg ? { msg, w, cy: geo.y + geo.h + statusLane() / 2 + 4 } : null;
+  }
+  function drawPhoneHint() {
+    if (MODE !== 'mobile' || statusLane() <= 0 || tNow >= HINT_S || phase === 'over') return;
+    const p = planPhoneHint();
+    if (!p) return;
+    const a = Math.min(1, (HINT_S - tNow) / 0.8);
+    ctx.font = '600 16px Inter, sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,' + (0.72 * a).toFixed(3) + ')';   // Ink 72
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(p.msg, LW / 2, p.cy);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    hud.hint = { x: LW / 2 - p.w / 2, y: p.cy - 10, w: p.w, h: 20, msg: p.msg };
+  }
+
+  /* A BELL, struck through when it is off, drawn to the weight of the shared
+     speaker so the pair reads as one set of switches rather than two ideas. */
   function drawBell(cx, cy, on) {
     ctx.save();
     ctx.strokeStyle = UI.PILL.text; ctx.fillStyle = UI.PILL.text;
@@ -2210,24 +2357,6 @@
     ctx.restore();
   }
 
-  function drawSpeaker(cx, cy, on) {
-    ctx.save();
-    ctx.strokeStyle = UI.PILL.text; ctx.fillStyle = UI.PILL.text;
-    ctx.lineWidth = 1.6; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    ctx.beginPath();
-    ctx.moveTo(cx - 7, cy - 3); ctx.lineTo(cx - 3, cy - 3); ctx.lineTo(cx + 1, cy - 7);
-    ctx.lineTo(cx + 1, cy + 7); ctx.lineTo(cx - 3, cy + 3); ctx.lineTo(cx - 7, cy + 3);
-    ctx.closePath(); ctx.fill();
-    if (on) {
-      ctx.beginPath(); ctx.arc(cx + 3, cy, 4, -0.9, 0.9); ctx.stroke();
-      ctx.beginPath(); ctx.arc(cx + 3, cy, 7, -0.9, 0.9); ctx.stroke();
-    } else {
-      ctx.beginPath(); ctx.moveTo(cx + 4, cy - 4); ctx.lineTo(cx + 9, cy + 4); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(cx + 9, cy - 4); ctx.lineTo(cx + 4, cy + 4); ctx.stroke();
-    }
-    ctx.restore();
-  }
-
   /* ---------- THE CARD AT THE END ----------
      Nobody dies and nothing is drawn over a person. When you do not get
      everybody out the card says how many you did and NAMES THE FLOOR that was
@@ -2238,32 +2367,76 @@
     const pw = Math.min(LW - 56, 430), ph = Math.min(LH - 20, 300);
     return { px: Math.round((LW - pw) / 2), py: Math.max(10, Math.round((LH - ph) / 2)), pw, ph };
   }
+  /* THE RUN ENDS ON THE BOARD FIRST (DESIGN-SYSTEM 10.2). The fifth guest
+     goes down, their floor's runner flashes, the last strike lands in the
+     read-out and the building's lights go down; the card follows END_HOLD
+     later, rising a little as it fades in. Reduced motion keeps the wait,
+     which is time and not movement, and drops the fade and the rise. */
+  const endShown = () => phase === 'over' && endT >= END_HOLD;
   function drawEndCard() {
+    const dim = REDUCED ? 1 : ease(Math.min(1, endT / END_HOLD));
+    ctx.fillStyle = 'rgba(10,8,16,' + (0.34 * dim).toFixed(3) + ')';
+    rr(geo.x, geo.y - 8, geo.w, geo.h + 8, 8); ctx.fill();
+    if (!endShown()) { endCTA = null; return; }
+    const a = REDUCED ? 1 : ease(Math.min(1, (endT - END_HOLD) / 0.35));
     const b = endBox();
+    ctx.save();
+    ctx.globalAlpha = a;
     ctx.fillStyle = 'rgba(10,16,28,0.82)'; ctx.fillRect(0, 0, LW, LH);
+    ctx.translate(0, Math.round(14 * (1 - a)));
     ctx.fillStyle = SURFACE; rr(b.px, b.py, b.pw, b.ph, 22); ctx.fill();
     ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ctx.lineWidth = 1;
     rr(b.px, b.py, b.pw, b.ph, 22); ctx.stroke();
 
     ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-    ctx.fillStyle = '#FFFFFF'; ctx.font = '800 34px Inter, sans-serif';
-    ctx.fillText(out + (out === 1 ? ' GUEST SAVED' : ' GUESTS SAVED'), b.px + b.pw / 2, b.py + 34);
+    const t = endTitle(out, b.pw - 40);
+    ctx.fillStyle = '#FFFFFF'; ctx.font = '800 ' + t.fs + 'px Inter, sans-serif';
+    ctx.fillText(t.text, b.px + b.pw / 2, b.py + 34 + (34 - t.fs) / 2);
 
     ctx.font = '600 17px Inter, sans-serif';
-    ctx.fillStyle = 'rgba(255,255,255,0.82)';
-    const uniq = [...new Set(lostFloors)].sort((a, b2) => b2 - a);
-    const sub = uniq.length === 1 ? 'Floor ' + uniq[0] + ' was still waiting.'
-              : 'Floors ' + uniq.slice(0, 3).join(', ') + ' were still waiting.';
-    ctx.fillText(sub, b.px + b.pw / 2, b.py + 84);
+    ctx.fillStyle = 'rgba(255,255,255,0.82)';                // Ink 82
+    ctx.fillText(endSub(lostFloors, b.pw - 40), b.px + b.pw / 2, b.py + 84);
 
     ctx.font = '500 16px Inter, sans-serif';
-    ctx.fillStyle = 'rgba(255,255,255,0.62)';
+    ctx.fillStyle = INK72;
     ctx.fillText(out >= best && out > 0 ? 'A new best.' : 'Best so far: ' + best,
                  b.px + b.pw / 2, b.py + 118);
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
 
     const label = 'PLAY AGAIN';
     endCTA = UI.drawCTA(ctx, label, b.px + b.pw / 2, b.py + b.ph - 40 - 25, CORAL);
+    ctx.restore();
+  }
+  /* THE CARD'S WORDS ARE MEASURED. A three-figure score made the title wider
+     than a phone's card, and three floors made the line under it wider than
+     a 320 phone's, both off the edge of the card since the card was drawn.
+     The title steps down to 26px and then drops GUESTS; the floors line drops
+     "were", then names only the highest floor. */
+  function endTitle(n, room) {
+    const forms = [n + (n === 1 ? ' GUEST SAVED' : ' GUESTS SAVED'), n + ' SAVED'];
+    ctx.save();
+    let pick = null;
+    for (const f of forms) {
+      for (let fs = 34; fs >= 26 && !pick; fs -= 2) {
+        ctx.font = '800 ' + fs + 'px Inter, sans-serif';
+        if (ctx.measureText(f).width <= room) pick = { text: f, fs, w: ctx.measureText(f).width };
+      }
+      if (pick) break;
+    }
+    ctx.restore();
+    return pick || { text: forms[1], fs: 26, w: Infinity };
+  }
+  function endSub(floorsLost, room) {
+    const uniq = [...new Set(floorsLost)].sort((a, b) => b - a);
+    const forms = uniq.length === 1 ? ['Floor ' + uniq[0] + ' was still waiting.']
+      : ['Floors ' + uniq.slice(0, 3).join(', ') + ' were still waiting.',
+         'Floors ' + uniq.slice(0, 3).join(', ') + ' still waiting.',
+         'Floor ' + uniq[0] + ' was still waiting.'];
+    ctx.save();
+    ctx.font = '600 17px Inter, sans-serif';
+    const pick = forms.find(f => ctx.measureText(f).width <= room) || forms[forms.length - 1];
+    ctx.restore();
+    return pick;
   }
   function onEndPointer(p) {
     if (endCTA && p.x >= endCTA.x && p.x <= endCTA.x + endCTA.w && p.y >= endCTA.y && p.y <= endCTA.y + endCTA.h) advanceFromCard();
@@ -2439,21 +2612,64 @@
              scrollMax: Math.max(0, contentH - b.body), overlapPx: Math.max(0, (b.py + b.ph) - LH) };
   };
   window.layoutFit = function () {
-    const ctrlTop = ctrl.length ? Math.min.apply(null, ctrl.map(c => c.y)) : LH;
-    const top = topBand(), bot = LH - botBand();
+    const top = topBand() + ROOF, bot = LH - botBand() - statusLane();
     return {
       mode: MODE, LW, LH, floors: floors(), floorPx: geo.floorPx, shaftW: geo.shaftW, corW: geo.corW,
       buildTop: geo.y, buildBottom: geo.y + geo.h,
       overTop: Math.max(0, top - geo.y),
-      overBottom: Math.max(0, (geo.y + geo.h) - (bot - statusLane())),
-      ctrlOverlap: MODE === 'mobile' ? Math.max(0, (geo.y + geo.h) - ctrlTop) : 0,
-      fits: geo.y >= top && (geo.y + geo.h) <= (bot - statusLane()) && geo.corW > 40 && geo.shaftW >= 30,
+      overBottom: Math.max(0, (geo.y + geo.h) - bot),
+      fits: geo.y >= top && (geo.y + geo.h) <= bot && geo.corW > 40 && geo.shaftW >= 30,
     };
   };
+  /* THE CHROME, MEASURED (DESIGN-SYSTEM 10.3). Every control, the read-out
+     at a long line (three-figure scores by default), each note at the form it
+     would take, and the phone's hint, checked against one another, the
+     building (roof included) and the frame. The two notes share one place and
+     are never drawn together, so that pair is not compared. Pure layout: no
+     frame has to be painted, so it works with the preview pane hidden. */
+  window.hudFit = function (saved = 999, inside = 99, bestV = 999) {
+    const boxes = ctrl.map(c => ({ name: c.id, x: c.x, y: c.y, w: c.w, h: c.h }));
+    const r = planReadout(saved, inside, bestV);
+    boxes.push({ name: 'readout', x: r.x, y: r.cy - 10, w: r.textX - r.x + r.w, h: 20 });
+    const notes = {};
+    for (const k of Object.keys(NOTES)) {
+      if (k === 'hint' && MODE !== 'desktop') continue;      // a phone's hint lives under the building
+      const n = planNote(k);
+      notes[k] = n ? n.msg : null;
+      if (n) boxes.push({ name: 'note:' + k, x: n.x, y: topBand() / 2 - 10, w: n.w, h: 20 });
+    }
+    const ph = MODE === 'mobile' && statusLane() > 0 ? planPhoneHint() : null;
+    if (ph) boxes.push({ name: 'hint', x: LW / 2 - ph.w / 2, y: ph.cy - 10, w: ph.w, h: 20 });
+    const build = { name: 'building', x: geo.x - 4, y: geo.y - ROOF, w: geo.w + 8, h: geo.h + ROOF };
+    const hit = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+    const problems = [];
+    if (!r.line) problems.push('readout: no form fits');
+    for (let i = 0; i < boxes.length; i++) {
+      const a = boxes[i];
+      if (a.x < 0 || a.y < 0 || a.x + a.w > LW || a.y + a.h > LH) problems.push(a.name + ' leaves the frame');
+      if (hit(a, build)) problems.push(a.name + ' is on the building');
+      if (exitBox && hit(a, { x: exitBox.x - 12, y: exitBox.y, w: exitBox.w + 12, h: exitBox.h })) problems.push(a.name + ' is under the exit button');
+      for (let j = i + 1; j < boxes.length; j++) {
+        const b = boxes[j];
+        if (a.name.startsWith('note:') && b.name.startsWith('note:')) continue;
+        if (hit(a, b)) problems.push(a.name + ' overlaps ' + b.name);
+      }
+    }
+    return { ok: problems.length === 0, problems, readout: r.line, room: Math.round(r.right - r.textX - r.w),
+             notes, hint: ph ? ph.msg : null, boxes };
+  };
+  /* The card, and the longest things written on it: the title at a
+     three-figure score, and the floors line naming three floors. */
   window.endFit = function () {
-    const b = endBox();
-    return { fits: b.py >= 0 && b.py + b.ph <= LH, cardH: b.ph, frameH: LH,
-             overlapPx: Math.max(0, (b.py + b.ph) - LH) };
+    const b = endBox(), inner = b.pw - 40;
+    const t = endTitle(888, inner), sub = endSub([8, 7, 6], inner);
+    ctx.save();
+    ctx.font = '600 17px Inter, sans-serif';
+    const subW = ctx.measureText(sub).width;
+    ctx.restore();
+    return { fits: b.py >= 0 && b.py + b.ph <= LH && t.w <= inner && subW <= inner,
+             cardH: b.ph, frameH: LH, overlapPx: Math.max(0, (b.py + b.ph) - LH),
+             cardW: b.pw, title: t.text, titleFs: t.fs, sub };
   };
   window.evac = {
     get car() { return car; }, get phase() { return phase; }, get out() { return out; },
@@ -2462,7 +2678,16 @@
     get level() { return level; }, get fallen() { return fallen; },
     get calls() { return calls.slice(); }, call(f) { pressCall(f); },
     geo, RUN, PARTY, start: startRun, snd, FIRE, get runners() { return runners; },
-    get capRect() { return capRect; }, get chromeLeft() { return chromeLeft; }, capPlan,
+    /* STILLS, behind ?harness=1: a named building, the clock advanced with no
+       one at the controls, and the picture held while it is drawn, so two
+       looks can be compared on the same moment of the same run. */
+    ...(HARNESS ? {
+      seed(n) { startRun(n); return level.seed; },
+      freeze(on) { frozen = on !== false; acc = 0; return frozen; },
+      advance(secs) { for (let t = 0; t < secs; t += DT) step(DT); return { t: tNow, out, lost, waiting: waiting.length }; },
+      paint(now) { render(now == null ? performance.now() : now); },
+    } : {}),
+    get hud() { return hud; }, get ctrl() { return ctrl; },
     get renderMs() { return renderMs; }, get t() { return tNow; }, get wave() { return wave; },
     /* Drive headlessly, for verification: hold a direction, then let go and let
        it brake to rest and serve. */
@@ -2481,7 +2706,7 @@
   function frame(now) {
     if (!last) last = now;
     const raw = Math.min(0.25, (now - last) / 1000); last = now;
-    if (!document.hidden && !rulesOpen) {
+    if (!document.hidden && !rulesOpen && !frozen) {
       acc += raw;
       let guard = 0;
       while (acc >= DT && guard++ < 60) { step(DT); acc -= DT; }
