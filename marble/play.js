@@ -1878,17 +1878,58 @@ WORLDS_ADD('neon', (w) => {
     cubes.setMatrixAt(i, m); cubes.setColorAt(i, col.setHex(r() < 0.5 ? 0x5FF0FF : 0xFF8A5C));
   }
   q.identity(); G.add(cubes);
-  w.restyle = () => {
-    const grid = canvasTex(128, 128, (g) => {
-      g.fillStyle = '#000'; g.fillRect(0, 0, 128, 128);
-      g.fillStyle = '#FFF'; g.fillRect(0, 0, 128, 3); g.fillRect(0, 0, 3, 128); g.fillRect(0, 64, 128, 2); g.fillRect(64, 0, 2, 128);
-    }, true);
-    const top = new MeshStandardMaterial({ color: 0x0B1322, metalness: 0.4, roughness: 0.25, emissive: 0x34E0FF, emissiveMap: grid, emissiveIntensity: 0.9 });
-    const side = new MeshStandardMaterial({ color: 0x101A30, metalness: 0.5, roughness: 0.3, emissive: 0x6A2AFF, emissiveIntensity: 0.18 });
-    const under = new MeshStandardMaterial({ color: 0x080C16, roughness: 1 });
-    for (const c of colliders) { c.mesh.material = [side, side, top, under, side, side]; setTopUV(c.mesh, false); }
-  };
+  w.restyle = () => neonCourse(neonStyle);
 });
+
+/* THE COURSE IN THE NEON CITY. The owner found it merging into the city: its
+   grid was the same cyan as half the towers, and its dark glass as dark as
+   their faces. Three ways to lift it out, for a side-by-side sheet:
+     grid      as first built: dark glass, a cyan grid
+     glowgrid  A: the grid glows in magenta, a colour the city never uses,
+               a thin bright core in a tight halo
+     edges     B: the slabs' sides are lit, so the course's outline shines;
+               the top is calm dark glass with only a faint grid
+     frosted   C: a lighter frosted top glowing faintly from within, a thin
+               white grid; the course is the brightest surface on screen */
+let neonStyle = 'grid';
+function neonGrid(core, halo, haloCol) {
+  return canvasTex(256, 256, (g) => {
+    g.fillStyle = '#000'; g.fillRect(0, 0, 256, 256);
+    const lines = (wd, col) => {
+      g.fillStyle = col;
+      for (const p of [0, 128, 256]) { g.fillRect(0, p - wd / 2, 256, wd); g.fillRect(p - wd / 2, 0, wd, 256); }
+    };
+    if (halo) { g.filter = `blur(${halo}px)`; lines(halo * 1.6, haloCol); g.filter = 'none'; }
+    lines(core, '#FFFFFF');
+  }, true);
+}
+function neonCourse(style) {
+  neonStyle = style;
+  const under = new MeshStandardMaterial({ color: 0x080C16, roughness: 1 });
+  let top, side;
+  if (style === 'glowgrid') {
+    top = new MeshStandardMaterial({ color: 0x0A0F1E, metalness: 0.4, roughness: 0.3, emissive: 0xFFFFFF,
+      emissiveMap: neonGrid(3, 7, 'rgba(255,60,210,0.95)'), emissiveIntensity: 1.5 });
+    side = new MeshStandardMaterial({ color: 0x140A24, metalness: 0.5, roughness: 0.3, emissive: 0xFF3FD0, emissiveIntensity: 0.3 });
+  } else if (style === 'edges') {
+    top = new MeshStandardMaterial({ color: 0x0B1322, metalness: 0.4, roughness: 0.25, emissive: 0x34E0FF,
+      emissiveMap: neonGrid(2, 0), emissiveIntensity: 0.22 });
+    side = new MeshStandardMaterial({ color: 0xFFD6F4, roughness: 0.4, emissive: 0xFF7FE6, emissiveIntensity: 2.2 });
+  } else if (style === 'frosted') {
+    const frost = canvasTex(256, 256, (g) => {
+      g.fillStyle = '#141E36'; g.fillRect(0, 0, 256, 256);
+      g.fillStyle = 'rgba(255,255,255,0.85)';
+      for (const p of [0, 128, 256]) { g.fillRect(0, p - 1, 256, 2); g.fillRect(p - 1, 0, 2, 256); }
+    }, true);
+    top = new MeshStandardMaterial({ color: 0x4A62A0, metalness: 0.1, roughness: 0.55, emissive: 0xFFFFFF, emissiveMap: frost, emissiveIntensity: 0.95 });
+    side = new MeshStandardMaterial({ color: 0x2A3C68, metalness: 0.2, roughness: 0.5, emissive: 0x5F7FFF, emissiveIntensity: 0.4 });
+  } else {
+    top = new MeshStandardMaterial({ color: 0x0B1322, metalness: 0.4, roughness: 0.25, emissive: 0x34E0FF, emissiveMap: neonGrid(3, 0), emissiveIntensity: 0.9 });
+    side = new MeshStandardMaterial({ color: 0x101A30, metalness: 0.5, roughness: 0.3, emissive: 0x6A2AFF, emissiveIntensity: 0.18 });
+  }
+  for (const c of colliders) { c.mesh.material = [side, side, top, under, side, side]; setTopUV(c.mesh, false); }
+  return neonStyle;
+}
 
 // ---- 4. Low-poly valley: grassy ledges over trees, sheep and snowy peaks, a faceted marble ----
 const valleyY = (x, z) => -46 + 3 * Math.sin(x * 0.05) + 2.5 * Math.cos(z * 0.07) + 1.5 * Math.sin((x + z) * 0.11);
@@ -1987,7 +2028,11 @@ requestAnimationFrame(frame);
 // A world can be asked for by the link's #name (hills, desk, lagoon, space,
 // crystal, blocks, neon, valley), so
 // the owner can try each mock-up on a phone. The plain link keeps the void.
-function worldFromHash() { const h = location.hash.slice(1); setWorld(WORLDS[h] ? h : 'void'); }
+function worldFromHash() {
+  const [h, v] = location.hash.slice(1).split('-');
+  if (h === 'neon') neonStyle = ['glowgrid', 'edges', 'frosted'].includes(v) ? v : 'grid';   // #neon-edges and so on
+  setWorld(WORLDS[h] ? h : 'void');
+}
 if (location.hash) worldFromHash();
 window.addEventListener('hashchange', worldFromHash);
 
@@ -2018,6 +2063,7 @@ if (HARNESS) {
     eye: (style) => { buildEye(style); return eyeStyle; },
     world: (name) => setWorld(name),
     skin: (name) => setMarbleSkin(name),
+    neon: (style) => neonCourse(style),
     quiet: () => { everMoved = true; },       // no drag hint, for stills
     closeup: (on) => {
       closeup = !!on;
