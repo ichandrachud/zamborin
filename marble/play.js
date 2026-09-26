@@ -1890,8 +1890,10 @@ WORLDS_ADD('neon', (w) => {
      edges     B: the slabs' sides are lit, so the course's outline shines;
                the top is calm dark glass with only a faint grid
      frosted   C: a lighter frosted top glowing faintly from within, a thin
-               white grid; the course is the brightest surface on screen */
-let neonStyle = 'grid';
+               white grid; the course is the brightest surface on screen
+   The owner chose A (2026-09-26), so it is the neon course now; the others
+   stay on the link (#neon-grid, #neon-edges, #neon-frosted) to compare. */
+let neonStyle = 'glowgrid';
 function neonGrid(core, halo, haloCol) {
   return canvasTex(256, 256, (g) => {
     g.fillStyle = '#000'; g.fillRect(0, 0, 256, 256);
@@ -2030,7 +2032,7 @@ requestAnimationFrame(frame);
 // the owner can try each mock-up on a phone. The plain link keeps the void.
 function worldFromHash() {
   const [h, v] = location.hash.slice(1).split('-');
-  if (h === 'neon') neonStyle = ['glowgrid', 'edges', 'frosted'].includes(v) ? v : 'grid';   // #neon-edges and so on
+  if (h === 'neon') neonStyle = ['grid', 'glowgrid', 'edges', 'frosted'].includes(v) ? v : 'glowgrid';   // #neon-edges and so on
   setWorld(WORLDS[h] ? h : 'void');
 }
 if (location.hash) worldFromHash();
