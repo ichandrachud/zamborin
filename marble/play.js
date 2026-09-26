@@ -150,8 +150,98 @@ function updateRoll() {
   const sp = Math.hypot(ball.v.x, ball.v.z);
   const on = sfx.isOn() && ball.grounded && state === 'play';
   const t = roll.ac.currentTime;
-  roll.g.gain.setTargetAtTime(on ? Math.min(0.14, 0.14 * sp / VMAX) : 0, t, 0.05);
+  const k = world.name === 'neon' ? 0.5 : 1;          // under the city's hum, a quieter glassy roll
+  roll.g.gain.setTargetAtTime(on ? Math.min(0.14, 0.14 * sp / VMAX) * k : 0, t, 0.05);
   roll.f.frequency.setTargetAtTime(200 + sp * 55, t, 0.08);
+}
+
+/* ---------- THE NEON CITY'S SOUND (owner, 2026-09-26: "work on the sounds") ----------
+   An electric hum under the marble that rises with its speed, a faint tick as
+   it rolls over each line of the grid, a two-note chime at a blue ring, a
+   rising run at the orange one, a falling sweep when it drops off and a
+   shimmer as it comes home, a low hum under the whole city, and the train's
+   rush as it passes, from its own side. Everything goes through the house
+   sound module (DESIGN-SYSTEM 9), so the sound switch silences all of it. */
+let citySound = null;                                 // the continuous voices, built on the first touch
+function voice(type, f0, f1, dur, gain, delay = 0) { // one note, gliding from f0 to f1
+  const out = sfx && sfx.out && sfx.out();
+  if (!out || !sfx.isOn()) return;
+  const ac = out.context, t0 = ac.currentTime + delay;
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = type; o.frequency.setValueAtTime(f0, t0);
+  if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, t0 + dur);
+  g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(gain, t0 + 0.008);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g); g.connect(out); o.start(t0); o.stop(t0 + dur + 0.05);
+}
+const NEON_SOUNDS = {
+  unlock() {                                          // a blue ring: two notes a fifth apart, and their echo
+    for (const [d, k] of [[0, 1], [0.16, 0.45]]) { voice('triangle', 1318.5, 1318.5, 0.22, 0.07 * k, d); voice('sine', 1975.5, 1975.5, 0.3, 0.06 * k, d + 0.09); }
+  },
+  win() {                                             // the orange ring: a rising run, a whoosh, a chord
+    [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => voice('triangle', f, f, 0.28, 0.07, i * 0.09));
+    voice('sawtooth', 180, 1400, 0.45, 0.016);
+    [523.25, 783.99, 1318.5].forEach((f) => voice('sine', f, f, 0.9, 0.035, 0.4));
+  },
+  drop() { voice('sine', 620, 70, 0.55, 0.08); voice('triangle', 310, 40, 0.55, 0.03); },
+  home() { voice('sine', 220, 880, 0.16, 0.05); voice('sine', 1760, 1760, 0.12, 0.025); voice('sine', 90, 60, 0.18, 0.08, 0.14); },
+};
+// The city's version of a sound where it has one, the house sound elsewhere.
+function sound(name) {
+  if (world.name === 'neon' && NEON_SOUNDS[name]) { if (sfx && sfx.isOn()) NEON_SOUNDS[name](); }
+  else play(name === 'home' ? 'land' : name);
+}
+function ensureCitySound() {
+  if (citySound || !sfx || !sfx.out) return;
+  sfx.ensureAudio();
+  const out = sfx.out();
+  if (!out) return;
+  const ac = out.context;
+  const h1 = ac.createOscillator(), h2 = ac.createOscillator();          // the hum under the marble
+  h1.type = 'sawtooth'; h2.type = 'triangle';
+  const hf = ac.createBiquadFilter(); hf.type = 'lowpass'; hf.frequency.value = 300; hf.Q.value = 1.2;
+  const hg = ac.createGain(); hg.gain.value = 0;
+  h1.connect(hf); h2.connect(hf); hf.connect(hg); hg.connect(out); h1.start(); h2.start();
+  const p1 = ac.createOscillator(), p2 = ac.createOscillator();          // the city: two low voices, the filter breathing
+  p1.type = p2.type = 'sawtooth'; p1.frequency.value = 55; p2.frequency.value = 82.6;
+  const pf = ac.createBiquadFilter(); pf.type = 'lowpass'; pf.frequency.value = 320; pf.Q.value = 0.8;
+  const lfo = ac.createOscillator(), lfoG = ac.createGain(); lfo.frequency.value = 0.07; lfoG.gain.value = 140;
+  lfo.connect(lfoG); lfoG.connect(pf.frequency);
+  const pg = ac.createGain(); pg.gain.value = 0;
+  p1.connect(pf); p2.connect(pf); pf.connect(pg); pg.connect(out); p1.start(); p2.start(); lfo.start();
+  const nb = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate), nd = nb.getChannelData(0);   // the train's rush
+  for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+  const ns = ac.createBufferSource(); ns.buffer = nb; ns.loop = true;
+  const tf = ac.createBiquadFilter(); tf.type = 'bandpass'; tf.frequency.value = 520; tf.Q.value = 0.7;
+  const tg = ac.createGain(); tg.gain.value = 0;
+  const tp = ac.createStereoPanner ? ac.createStereoPanner() : null;
+  ns.connect(tf); tf.connect(tg);
+  if (tp) { tg.connect(tp); tp.connect(out); } else tg.connect(out);
+  ns.start();
+  citySound = { ac, h1, h2, hf, hg, pg, tg, tp, lastCell: null };
+}
+function updateCitySound() {
+  const c = citySound;
+  if (!c) return;
+  const t = c.ac.currentTime, on = sfx.isOn() && world.name === 'neon';
+  const sp = Math.hypot(ball.v.x, ball.v.z), rolling = on && ball.grounded && state === 'play';
+  const f = 52 + sp * 9;
+  c.h1.frequency.setTargetAtTime(f, t, 0.06); c.h2.frequency.setTargetAtTime(f * 2.01, t, 0.06);
+  c.hf.frequency.setTargetAtTime(260 + sp * 140, t, 0.08);
+  c.hg.gain.setTargetAtTime(rolling ? Math.min(0.07, 0.07 * sp / VMAX) : 0, t, 0.05);
+  c.pg.gain.setTargetAtTime(on && state !== 'rules' ? 0.022 : 0, t, 0.4);
+  const tr = cityRefs.train;
+  if (tr && on) {
+    const dx = tr.position.x - camera.position.x, dy = tr.position.y - camera.position.y, dz = TRAIN_Z - camera.position.z;
+    c.tg.gain.setTargetAtTime(Math.pow(Math.max(0, 1 - Math.hypot(dx, dy, dz) / 45), 2) * 0.09, t, 0.1);
+    if (c.tp) c.tp.pan.setTargetAtTime(Math.max(-1, Math.min(1, dx / 25)), t, 0.1);
+  } else c.tg.gain.setTargetAtTime(0, t, 0.1);
+  // A faint tick for each metre of grid the marble rolls over.
+  if (rolling && sp > 0.8) {
+    const cell = Math.floor(ball.p.x) + ',' + Math.floor(ball.p.z);
+    if (c.lastCell && cell !== c.lastCell) voice('sine', 2600 + Math.random() * 300, 2600, 0.012, 0.012 + 0.014 * sp / VMAX);
+    c.lastCell = cell;
+  } else c.lastCell = null;
 }
 
 // ---------- ANALYTICS ----------
@@ -634,7 +724,7 @@ function setState(s) { state = s; stateT = 0; }
 
 function startFall() {
   falls++;
-  play('drop');
+  sound('drop');
   setState('fall');
 }
 /* A fall is refused, not punished: the marble flies back to where it came
@@ -653,7 +743,7 @@ function arrive() {
   ball.p.copy(flight.to); ball.v.set(0, 0, 0);
   ball.grounded = true; ball.airT = 0;
   lastGroundY = flight.to.y - R;
-  play('land');
+  sound('home');
   shake = 0.3;
   burst(ball.p.x, ball.p.y - R + 0.05, ball.p.z, 0xFFFFFF, 14, 3);
   setState('play');
@@ -663,14 +753,14 @@ function passGate(g) {
   g.mat.color.setHex(0x5DD39E); g.mat.emissive.setHex(0x5DD39E); g.mat.emissiveIntensity = 0.7;
   g.discMat.color.setHex(0x5DD39E); g.discMat.opacity = 0.22;
   spawn.set(g.pos.x, g.pos.y + R + 0.01, g.pos.z);
-  play('unlock');
+  sound('unlock');
   burst(g.pos.x, g.pos.y + 1.1, g.pos.z, 0x5DD39E, 26, 4);
 }
 function startGoal() {
   setState('goal');
   ball.v.set(0, 0, 0);
   goal.t0 = performance.now();
-  play('win');
+  sound('win');
   burst(goal.pos.x, goal.pos.y + 1.3, goal.pos.z, 0xFFD23F, 56, 6);
   burst(goal.pos.x, goal.pos.y + 1.3, goal.pos.z, 0xFFFFFF, 22, 5);
   const best = save.best[levelNo];
@@ -756,6 +846,7 @@ function update(dt, now) {
   updateSunPoint();
   if (world.tick) world.tick(dt);
   updateRoll();
+  updateCitySound();
 }
 
 function animateRings(now, dt) {
@@ -855,6 +946,7 @@ function hitKey(p) {
 function firstGesture() {
   if (sfx) sfx.ensureAudio();
   ensureRoll();
+  ensureCitySound();
 }
 
 hud.addEventListener('pointerdown', (e) => {
@@ -1993,8 +2085,25 @@ function futureCity(G, tops, r) {
   };
   const body = new InstancedMesh(loft(2.3, carProf, 22, 18), new MeshStandardMaterial({ color: 0xFFFFFF, metalness: 0.55, roughness: 0.28, envMap: env }), N);
   const canopy = new InstancedMesh(new SphereGeometry(0.5, 18, 10), new MeshStandardMaterial({ color: 0x0A1222, metalness: 0.9, roughness: 0.08, envMap: env, envMapIntensity: 1.4 }), N);
-  const heads = new InstancedMesh(new BoxGeometry(0.1, 0.07, 0.16), new MeshBasicMaterial({ color: 0xFFFFFF }), N * 2);
-  const tails = new InstancedMesh(new BoxGeometry(0.06, 0.07, 0.3), new MeshBasicMaterial({ color: 0xFF2D48 }), N * 2);
+  /* Lights, after the owner's note that the headlights read as "small white
+     squares": a thin LED strip across the nose and another across the tail,
+     and a soft cone of light spilling ahead of the car, which is what reads
+     as "lights on" from the game's camera above. */
+  const heads = new InstancedMesh(new BoxGeometry(0.05, 0.04, 0.44), new MeshBasicMaterial({ color: 0xEAF6FF, toneMapped: false }), N);
+  const tails = new InstancedMesh(new BoxGeometry(0.04, 0.05, 0.5), new MeshBasicMaterial({ color: 0xFF2D48, toneMapped: false }), N);
+  const coneTex = canvasTex(128, 64, (g) => {
+    const img = g.createImageData(128, 64);
+    for (let y = 0; y < 64; y++) for (let x = 0; x < 128; x++) {
+      const u = x / 127, v = (y / 63 - 0.5), half = 0.1 + 0.36 * u;
+      const k = Math.exp(-(v / half) * (v / half) * 3) * Math.pow(1 - u, 1.6) * Math.min(1, u / 0.06) * 150;
+      const i = (y * 128 + x) * 4; img.data[i] = img.data[i + 1] = img.data[i + 2] = k; img.data[i + 3] = 255;
+    }
+    g.putImageData(img, 0, 0);
+  });
+  const beams = new InstancedMesh(new PlaneGeometry(2.6, 1.6), new MeshBasicMaterial({ map: coneTex, color: 0xDDF2FF, transparent: true,
+    blending: AdditiveBlending, depthWrite: false, side: DoubleSide, toneMapped: false }), N);
+  const tailGlow = new InstancedMesh(new PlaneGeometry(0.9, 0.7), new MeshBasicMaterial({ map: dot, color: 0xFF2D48, transparent: true,
+    opacity: 0.8, blending: AdditiveBlending, depthWrite: false, side: DoubleSide, toneMapped: false }), N);
   const under = new InstancedMesh(new PlaneGeometry(1.9, 1.0), new MeshBasicMaterial({ map: dot, transparent: true, blending: AdditiveBlending, depthWrite: false, toneMapped: false }), N);
   const paint = [0xF2F4F8, 0x9FB4D8, 0xFF8A3D, 0xFFD23F, 0x2EC4B6, 0xE63946, 0xB8C0CC];
   const colr = new Color();
@@ -2002,13 +2111,13 @@ function futureCity(G, tops, r) {
     body.setColorAt(i, colr.setHex(paint[i % paint.length]));
     under.setColorAt(i, colr.setHex(i % 3 ? 0x34E0FF : 0xFF8A5C));
   });
-  G.add(body, canopy, heads, tails, under);
+  G.add(body, canopy, heads, tails, under, beams, tailGlow);
   // Where each part sits on a car, in the car's own frame (x forward).
   const part = (x, y, z, sx = 1, sy = 1, sz = 1, rx = 0) =>
     new Matrix4().compose(new Vector3(x, y, z), new Quaternion().setFromEuler(new Euler(rx, 0, 0)), new Vector3(sx, sy, sz));
   const P_CANOPY = part(-0.1, 0.17, 0, 0.8, 0.36, 0.5);
-  const P_HEADS = [part(0.8, -0.06, 0.29), part(0.8, -0.06, -0.29)];
-  const P_TAILS = [part(-1.16, 0.02, 0.17), part(-1.16, 0.02, -0.17)];
+  const P_HEAD = part(0.95, -0.06, 0), P_TAIL = part(-1.155, 0.0, 0);
+  const P_BEAM = part(2.25, -0.08, 0, 1, 1, 1, -Math.PI / 2), P_TAILGLOW = part(-1.45, -0.02, 0, 1, 1, 1, -Math.PI / 2);
   const P_UNDER = part(0, -0.27, 0, 1, 1, 1, -Math.PI / 2);
   const carM = new Matrix4(), one = new Vector3(1, 1, 1);
   function placeCars() {
@@ -2021,12 +2130,12 @@ function futureCity(G, tops, r) {
       body.setMatrixAt(i, carM);
       canopy.setMatrixAt(i, m.multiplyMatrices(carM, P_CANOPY));
       under.setMatrixAt(i, m.multiplyMatrices(carM, P_UNDER));
-      for (let k = 0; k < 2; k++) {
-        heads.setMatrixAt(i * 2 + k, m.multiplyMatrices(carM, P_HEADS[k]));
-        tails.setMatrixAt(i * 2 + k, m.multiplyMatrices(carM, P_TAILS[k]));
-      }
+      heads.setMatrixAt(i, m.multiplyMatrices(carM, P_HEAD));
+      tails.setMatrixAt(i, m.multiplyMatrices(carM, P_TAIL));
+      beams.setMatrixAt(i, m.multiplyMatrices(carM, P_BEAM));
+      tailGlow.setMatrixAt(i, m.multiplyMatrices(carM, P_TAILGLOW));
     });
-    for (const im of [body, canopy, heads, tails, under]) im.instanceMatrix.needsUpdate = true;
+    for (const im of [body, canopy, heads, tails, under, beams, tailGlow]) im.instanceMatrix.needsUpdate = true;
   }
   placeCars();
 
@@ -2428,6 +2537,8 @@ if (HARNESS) {
     world: (name) => setWorld(name),
     skin: (name) => setMarbleSkin(name),
     neon: (style) => neonCourse(style),
+    audio: () => citySound && { hum: +citySound.hg.gain.value.toFixed(4), city: +citySound.pg.gain.value.toFixed(4),
+                                train: +citySound.tg.gain.value.toFixed(4), state: citySound.ac.state },
     peek: (p, a) => { peekCam = p ? { pos: p, at: a } : null; return !!peekCam; },
     freeze: (on) => { cityRefs.frozen = !!on; return cityRefs.frozen; },
     trainAt: (x) => { if (cityRefs.train) cityRefs.train.position.x = x; return !!cityRefs.train; },
