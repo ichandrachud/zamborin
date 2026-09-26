@@ -13,11 +13,11 @@
    takes tokens. */
 
 import {
-  WebGLRenderer, Scene, PerspectiveCamera, Fog, HemisphereLight, DirectionalLight,
+  WebGLRenderer, Scene, PerspectiveCamera, Fog, HemisphereLight, DirectionalLight, DoubleSide,
   Mesh, Group, SphereGeometry, TorusGeometry, CircleGeometry, BufferGeometry,
   Float32BufferAttribute, Points, PointsMaterial, MeshStandardMaterial,
   MeshPhysicalMaterial, MeshBasicMaterial, CanvasTexture, RepeatWrapping,
-  SRGBColorSpace, Vector3, Quaternion, Euler, PCFShadowMap, NeutralToneMapping,
+  SRGBColorSpace, Color, Vector3, Quaternion, Euler, PCFShadowMap, NeutralToneMapping,
   PMREMGenerator, AdditiveBlending, DynamicDrawUsage, RoundedBoxGeometry,
   RoomEnvironment,
 } from './assets/three-r186.min.js';
@@ -174,6 +174,9 @@ try {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = PCFShadowMap;
   renderer.toneMapping = NeutralToneMapping;      // keeps hues; ACES would push the coral to orange
+  // Glass draws the scene a second time to see through it. The marble is a
+  // small thing on a phone, so that second pass can run at half size there.
+  if (MODE === 'mobile') renderer.transmissionResolutionScale = 0.5;
 } catch (_) { renderer = null; }
 
 const scene = new Scene();
@@ -275,6 +278,83 @@ const marble = new Mesh(new SphereGeometry(R, 48, 32), new MeshPhysicalMaterial(
 }));
 marble.castShadow = true;
 scene.add(marble);
+
+/* ---------- THE MARBLE'S LOOK ----------
+   The owner chose clear glass with a stronger coloured eye (2026-09-26), from a
+   sheet of three looks:
+     now    the painted coral marble as first built
+     glass  clear glass with a coloured eye inside, like a cat's-eye: the glass
+            is mostly highlights, and what shows through it is the stone
+     sun    the same glass, plus the point of focused sunlight it throws into
+            its own shadow, which real marbles do (a burning glass; kept for the
+            burning-glass idea, not shown in play)
+   Glass picks up the pale stone behind it, so at game size the eye has to carry
+   the marble: EYES holds the strengths laid out for the owner. */
+const paintedMat = marble.material;
+const glassMat = new MeshPhysicalMaterial({
+  color: 0xFFFFFF, metalness: 0, roughness: 0.07, transmission: 1, thickness: 0.32, ior: 1.52,
+  clearcoat: 1, clearcoatRoughness: 0.03, envMap: envTex, envMapIntensity: 1.4,
+  attenuationColor: new Color(0xDDEFE8), attenuationDistance: 3,
+});
+/* The eye: three petals twisted round the middle, the way a cat's-eye is made.
+   Each petal runs from the axis outward, so no two cross: two whole vanes
+   crossing on the axis drew a stair-stepped seam once the glass magnified it. */
+function vane(color, turn, width, glow) {
+  const segs = 48, w = R * width, len = R * 1.4, twist = Math.PI;
+  const pos = [], idx = [];
+  for (let i = 0; i <= segs; i++) {
+    const y = -len / 2 + len * i / segs, a = turn + twist * (i / segs - 0.5);
+    for (const r of [0.004, w]) pos.push(Math.cos(a) * r, y, Math.sin(a) * r);
+  }
+  for (let i = 0; i < segs; i++) { const k = i * 2; idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2); }
+  const g = new BufferGeometry();
+  g.setAttribute('position', new Float32BufferAttribute(pos, 3));
+  g.setIndex(idx); g.computeVertexNormals();
+  return new Mesh(g, new MeshStandardMaterial({ color, roughness: 0.35, side: DoubleSide,
+                                                 emissive: color, emissiveIntensity: glow }));
+}
+const EYES = {
+  soft:      { width: 0.17, glow: 0.12, petals: [0xFF6B5C, 0xFF6B5C, 0xFFF1EC] },   // as first shown
+  stronger:  { width: 0.22, glow: 0.22, petals: [0xFF6B5C, 0xFF6B5C, 0xFF6B5C] },
+  strongest: { width: 0.25, glow: 0.30, petals: [0xD62828, 0xD62828, 0xD62828] },   // a deeper marble red
+};
+const eye = new Group();
+eye.rotation.z = 0.5;
+marble.add(eye);
+let eyeStyle = 'stronger';
+function buildEye(style) {
+  eyeStyle = style;
+  for (const m of [...eye.children]) { eye.remove(m); m.geometry.dispose(); m.material.dispose(); }
+  const e = EYES[style];
+  e.petals.forEach((c, i) => eye.add(vane(c, i * Math.PI * 2 / e.petals.length, e.width, e.glow)));
+}
+buildEye(eyeStyle);
+// The point of sunlight: a thin bright core with a tight feather, added to the
+// shadow it sits in, on the line from the sun through the marble's centre.
+const sunPoint = new Mesh(new CircleGeometry(0.24, 32), new MeshBasicMaterial({
+  map: dot, color: 0xFFF1CF, transparent: true, depthWrite: false, blending: AdditiveBlending, toneMapped: false }));
+sunPoint.rotation.x = -Math.PI / 2;
+sunPoint.visible = false;
+scene.add(sunPoint);
+let look = 'glass';
+function setLook(name) {
+  look = name;
+  marble.material = name === 'now' ? paintedMat : glassMat;
+  eye.visible = name !== 'now';
+}
+setLook(look);
+function updateSunPoint() {
+  const on = look === 'sun' && ball.grounded && state !== 'fall' && state !== 'home' && state !== 'goal';
+  sunPoint.visible = on;
+  if (!on) return;
+  const d = _ax.copy(SUN_OFFSET).normalize().negate();       // from the sun, through the marble
+  const t = R / -d.y;
+  sunPoint.position.set(ball.p.x + d.x * t, ball.p.y - R + 0.012, ball.p.z + d.z * t);
+  // Lying flat (x turned down), its local y runs along the ground: turn that
+  // toward the sun's heading and stretch it by the slant of the light.
+  sunPoint.rotation.set(-Math.PI / 2, 0, Math.atan2(-d.x, -d.z));
+  sunPoint.scale.set(1, 1 / -d.y, 1);
+}
 
 /* The dust: a few hundred faint motes in the void. Without anything between
    the course and the sky, the eye has nothing to judge depth or movement by
@@ -668,6 +748,7 @@ function update(dt, now) {
   animateRings(now, dt);
   updateSparks(dt);
   updateCamera(dt, false);
+  updateSunPoint();
   updateRoll();
 }
 
@@ -703,7 +784,7 @@ function fitCamera() {
   camera.updateProjectionMatrix();
 }
 const camFocus = new Vector3();
-let camY = 0;
+let camY = 0, closeup = false;
 function updateCamera(dt, snap) {
   const P = camParams();
   const k = snap ? 1 : 1 - Math.exp(-5 * dt);
@@ -720,6 +801,10 @@ function updateCamera(dt, snap) {
   }
   camera.position.set(camFocus.x + sx, camY + P.h + sy, camFocus.z + P.back);
   camera.lookAt(camFocus.x + sx, camY, camFocus.z - P.ahead);
+  if (closeup) {                              // the harness's still-life view of the marble
+    camera.position.set(ball.p.x + 1.35, ball.p.y + 1.05, ball.p.z + 2.1);
+    camera.lookAt(ball.p.x + 0.12, ball.p.y - 0.2, ball.p.z - 0.1);
+  }
   // The sun rides with the view, so its shadow map always covers the marble.
   sun.target.position.set(camFocus.x, camY, camFocus.z - 2);
   sun.position.copy(sun.target.position).add(SUN_OFFSET);
@@ -1140,5 +1225,13 @@ if (HARNESS) {
                overlapPx: Math.max(0, c.py + c.ph - LH) };
     },
     progress: () => JSON.parse(JSON.stringify(save)),
+    look: (name) => { setLook(name); return look; },
+    eye: (style) => { buildEye(style); return eyeStyle; },
+    quiet: () => { everMoved = true; },       // no drag hint, for stills
+    closeup: (on) => {
+      closeup = !!on;
+      camera.fov = on ? 30 : camParams().fov; camera.updateProjectionMatrix();
+      return closeup;
+    },
   };
 }
