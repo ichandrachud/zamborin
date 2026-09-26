@@ -14,7 +14,8 @@
 
 import {
   WebGLRenderer, Scene, PerspectiveCamera, Fog, HemisphereLight, DirectionalLight, DoubleSide,
-  Mesh, Group, SphereGeometry, TorusGeometry, CircleGeometry, BufferGeometry,
+  Mesh, Group, SphereGeometry, TorusGeometry, CircleGeometry, BufferGeometry, BoxGeometry,
+  CylinderGeometry, PlaneGeometry, RingGeometry, ConeGeometry, IcosahedronGeometry, Sprite, SpriteMaterial,
   Float32BufferAttribute, Points, PointsMaterial, MeshStandardMaterial,
   MeshPhysicalMaterial, MeshBasicMaterial, CanvasTexture, RepeatWrapping,
   SRGBColorSpace, Color, Vector3, Quaternion, Euler, PCFShadowMap, NeutralToneMapping,
@@ -108,6 +109,7 @@ function resizeCanvases() {
     renderer.setSize(cssW, cssH, false);
   }
   fitCamera();
+  fitBackground();
 }
 function onResize() {
   setCanvasVars(); fitFullscreen(); resizeCanvases();
@@ -183,12 +185,13 @@ const scene = new Scene();
 // Distant stone sinks into Surface, the wash's middle stop, rather than ending
 // at a hard far plane.
 scene.fog = new Fog(0x131F36, 24, 58);
-const camera = new PerspectiveCamera(50, 760 / 600, 0.1, 140);
+const camera = new PerspectiveCamera(50, 760 / 600, 0.1, 700);
 
 /* The light comes from up and slightly left, as in every Zamborin game
    (DESIGN-SYSTEM 6), and a little from the viewer's side so the faces the
    camera sees are the lit ones. */
-scene.add(new HemisphereLight(0xDDE8FF, 0x1A2A45, 1.15));
+const hemi = new HemisphereLight(0xDDE8FF, 0x1A2A45, 1.15);
+scene.add(hemi);
 const sun = new DirectionalLight(0xFFF3E2, 2.6);
 const SUN_OFFSET = new Vector3(-7, 15, 6);
 sun.castShadow = true;
@@ -513,6 +516,7 @@ function loadLevel(n) {
   scene.add(levelGroup);
   colliders = []; ferries = []; gates = [];
   for (const pc of level.pieces) buildPiece(pc);
+  if (world.name !== 'void') setWorld(world.name);   // scenery that follows the course is rebuilt for it
   level.minTop = Math.min(...level.pieces.map((p) => (p.t === 'ramp' ? Math.min(p.y0, p.y1) : p.y)));
   for (const [x, y, z] of level.gates) gates.push(makeRing(x, y, z, false));
   goal = makeRing(level.goal[0], level.goal[1], level.goal[2], true);
@@ -749,6 +753,7 @@ function update(dt, now) {
   updateSparks(dt);
   updateCamera(dt, false);
   updateSunPoint();
+  if (world.tick) world.tick(dt);
   updateRoll();
 }
 
@@ -1175,6 +1180,434 @@ function drawHUD(now) {
   else if (state === 'win') drawCard('win');
 }
 
+// ---------- WORLDS (mock-ups for the owner, 2026-09-26) ----------
+/* The owner asked what could replace the dark void, and picked four worlds to
+   see as frames: sunny hills with a sea and waterfalls (in the spirit of the
+   Sonic games, without Sega's own checkered earth or totems), a giant child's
+   desk, a sunlit lagoon under water, and space made spectacular. Only the
+   harness switches them; the game plays the void until one is chosen. Each
+   world sets the sky, fog and light, adds its scenery, and may restyle the
+   course (the desk turns the stone into books, rulers and an eraser). */
+const WORLDS = {};
+const WORLDS_ADD = (name, build) => { WORLDS[name] = build; };
+const DEFAULT_WORLD = { fog: [0x131F36, 24, 58], hemi: [0xDDE8FF, 0x1A2A45, 1.15], sun: [0xFFF3E2, 2.6] };
+let world = { name: 'void', group: null, tick: null, restyle: null };
+const seeded = (seed) => () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+
+function gradientTex(stops) {
+  return canvasTex(4, 512, (g) => {
+    const lg = g.createLinearGradient(0, 0, 0, 512);
+    for (const [t, c] of stops) lg.addColorStop(t, c);
+    g.fillStyle = lg; g.fillRect(0, 0, 4, 512);
+  });
+}
+// A painted backdrop is fitted to the frame the way CSS "cover" fits a picture.
+function fitBackground() {
+  const t = scene.background;
+  if (!t || !t.userData || !t.userData.cover) return;
+  const a = cssW / cssH;
+  if (a < 1) { t.repeat.set(a, 1); t.offset.set((1 - a) / 2, 0); }
+  else { t.repeat.set(1, 1 / a); t.offset.set(0, (1 - 1 / a) / 2); }
+}
+function coverTex(size, draw) { const t = canvasTex(size, size, draw); t.userData.cover = true; return t; }
+
+// Top-face UVs, per mesh: world-scale tiles for stone, 0..1 across a piece for the desk's printed tops.
+function setTopUV(mesh, perPiece) {
+  const g = mesh.geometry, pos = g.attributes.position, uv = g.attributes.uv, top = g.groups[2];
+  const hx = g.parameters.width / 2, hz = g.parameters.depth / 2;
+  for (let i = top.start; i < top.start + top.count; i++) {
+    if (perPiece) uv.setXY(i, (pos.getX(i) / hx + 1) / 2, (pos.getZ(i) / hz + 1) / 2);
+    else uv.setXY(i, pos.getX(i) / 2, pos.getZ(i) / 2);
+  }
+  uv.needsUpdate = true;
+}
+function restoreCourse() {
+  for (const c of colliders) { c.mesh.material = faceMats(c.ferry ? ferryStone : stone); setTopUV(c.mesh, false); }
+}
+
+function setWorld(name) {
+  if (world.group) scene.remove(world.group);
+  scene.background = null;
+  const [fc, fn, ff] = DEFAULT_WORLD.fog;
+  scene.fog.color.setHex(fc); scene.fog.near = fn; scene.fog.far = ff;
+  hemi.color.setHex(DEFAULT_WORLD.hemi[0]); hemi.groundColor.setHex(DEFAULT_WORLD.hemi[1]); hemi.intensity = DEFAULT_WORLD.hemi[2];
+  sun.color.setHex(DEFAULT_WORLD.sun[0]); sun.intensity = DEFAULT_WORLD.sun[1];
+  restoreCourse();
+  world = { name: 'void', group: null, tick: null, restyle: null };
+  const build = WORLDS[name];
+  if (build) {
+    world = { name, group: new Group(), tick: null, restyle: null };
+    build(world);
+    scene.add(world.group);
+    if (world.restyle) world.restyle();
+  }
+  fitBackground();
+  return world.name;
+}
+
+// ---- 1. Sunny hills: a bright sky, a sparkling sea far below, islands with palms and a waterfall ----
+function cloudTex() {
+  return canvasTex(256, 128, (g) => {
+    const r = seeded(11);
+    for (let i = 0; i < 9; i++) {
+      const x = 50 + r() * 156, y = 70 - Math.sin((x - 50) / 156 * Math.PI) * 26 + r() * 10, rad = 22 + r() * 22;
+      const rg = g.createRadialGradient(x - rad * 0.3, y - rad * 0.4, rad * 0.2, x, y, rad);
+      rg.addColorStop(0, 'rgba(255,255,255,1)'); rg.addColorStop(0.7, 'rgba(244,249,255,0.95)'); rg.addColorStop(1, 'rgba(214,229,245,0)');
+      g.fillStyle = rg; g.beginPath(); g.arc(x, y, rad, 0, Math.PI * 2); g.fill();
+    }
+  });
+}
+function palm(x, y, z, h, lean) {
+  const tree = new Group();
+  const bark = new MeshStandardMaterial({ color: 0xB9854F, roughness: 0.9 });
+  const frond = new MeshStandardMaterial({ color: 0x3CAB4C, roughness: 0.7, side: DoubleSide });
+  let px = 0, py = 0;
+  for (let i = 0; i < 5; i++) {                       // a trunk that curves as it rises
+    const seg = new Mesh(new CylinderGeometry(0.22 - i * 0.02, 0.26 - i * 0.02, h / 5, 8), bark);
+    seg.position.set(px, py + h / 10, 0); seg.rotation.z = -lean * (i + 1) * 0.12;
+    tree.add(seg); px += Math.sin(lean * (i + 1) * 0.12) * h / 5; py += h / 5;
+  }
+  for (let i = 0; i < 7; i++) {                       // fronds drooping outward
+    const f = new Mesh(new ConeGeometry(0.55, 3.4, 4, 1), frond);
+    f.scale.set(1, 1, 0.12);
+    const a = i / 7 * Math.PI * 2;
+    f.position.set(px + Math.cos(a) * 1.3, py - 0.2, Math.sin(a) * 1.3);
+    f.lookAt(px + Math.cos(a) * 4, py - 1.6, Math.sin(a) * 4); f.rotateX(Math.PI / 2);
+    tree.add(f);
+  }
+  tree.position.set(x, y, z);
+  return tree;
+}
+function isle(x, y, z, r, seed) {
+  const g = new Group(), rr = seeded(seed);
+  const grass = new Mesh(new SphereGeometry(r, 28, 12), new MeshStandardMaterial({ color: 0x5FC25C, roughness: 0.85 }));
+  grass.scale.set(1, 0.26, 1); grass.position.y = 0.2; g.add(grass);
+  const earth = new Mesh(new ConeGeometry(r * 0.97, r * 1.5, 24, 1), new MeshStandardMaterial({ color: 0xECB57E, roughness: 0.95 }));
+  earth.rotation.x = Math.PI; earth.position.y = -r * 0.75; g.add(earth);
+  const rock = new Mesh(new ConeGeometry(r * 0.6, r * 1.1, 18, 1), new MeshStandardMaterial({ color: 0xC0824F, roughness: 1 }));
+  rock.rotation.x = Math.PI; rock.position.y = -r * 1.35; g.add(rock);
+  const n = Math.max(1, Math.round(r / 3));
+  for (let i = 0; i < n; i++) {
+    const a = rr() * Math.PI * 2, d = rr() * r * 0.5;
+    g.add(palm(Math.cos(a) * d, 0.3, Math.sin(a) * d, 3.5 + rr() * 2.5, (rr() - 0.5) * 2));
+  }
+  g.position.set(x, y, z);
+  return g;
+}
+WORLDS_ADD('hills', (w) => {
+  scene.background = gradientTex([[0, '#1A5FC8'], [0.42, '#3E93E6'], [0.74, '#9CD4FF'], [1, '#DDF2FF']]);
+  scene.fog.color.setHex(0xBFE3FF); scene.fog.near = 50; scene.fog.far = 300;
+  hemi.color.setHex(0xD4EBFF); hemi.groundColor.setHex(0xB9D6EE); hemi.intensity = 1.9;
+  sun.color.setHex(0xFFF6E2); sun.intensity = 3.1;
+  const G = w.group, r = seeded(5);
+  const sea = canvasTex(256, 256, (g) => {
+    g.fillStyle = '#2F8BD8'; g.fillRect(0, 0, 256, 256);
+    for (let i = 0; i < 14; i++) {                  // broad swells of lighter and darker water
+      const sx = r() * 256, sy = r() * 256;
+      const rg = g.createRadialGradient(sx, sy, 0, sx, sy, 40 + r() * 60);
+      rg.addColorStop(0, r() > 0.5 ? 'rgba(90,170,235,0.35)' : 'rgba(20,90,170,0.3)'); rg.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = rg; g.fillRect(0, 0, 256, 256);
+    }
+    for (let i = 0; i < 40; i++) {                  // a few small glints
+      g.fillStyle = `rgba(255,255,255,${0.25 + r() * 0.35})`;
+      g.fillRect(r() * 256, r() * 256, 2 + r() * 5, 1);
+    }
+  }, true);
+  sea.repeat.set(40, 40);
+  const water = new Mesh(new CircleGeometry(520, 64), new MeshStandardMaterial({ map: sea, roughness: 0.35 }));
+  water.rotation.x = -Math.PI / 2; water.position.set(0, -34, -150); G.add(water);
+  // Far hills on the horizon, fading into haze.
+  for (let i = 0; i < 9; i++) {
+    const h = new Mesh(new SphereGeometry(40 + r() * 40, 32, 16),
+      new MeshStandardMaterial({ color: [0x4FB35A, 0x43A553, 0x5DBE63][i % 3], roughness: 0.9 }));
+    h.scale.y = 0.45; h.position.set(-200 + i * 50 + r() * 20, -46, -270 - r() * 30); G.add(h);
+  }
+  // Islands with palms, one with a waterfall.
+  const isles = [[-26, -10, -40, 7, 1], [32, -14, -60, 9, 2], [-40, -20, -88, 11, 3], [14, -24, -118, 12, 4], [46, -8, -30, 5, 5]];
+  for (const [x, y, z, rad, s] of isles) G.add(isle(x, y, z, rad, s));
+  const fall = canvasTex(64, 256, (g) => {
+    const lg = g.createLinearGradient(0, 0, 0, 256);
+    lg.addColorStop(0, 'rgba(255,255,255,0.95)'); lg.addColorStop(0.7, 'rgba(200,236,255,0.8)'); lg.addColorStop(1, 'rgba(200,236,255,0)');
+    g.fillStyle = lg; g.fillRect(8, 0, 48, 256);
+    g.fillStyle = 'rgba(160,210,245,0.5)';
+    for (let x = 12; x < 56; x += 7) g.fillRect(x, 0, 2, 256);
+  });
+  const wf = new Mesh(new PlaneGeometry(3.2, 22), new MeshBasicMaterial({ map: fall, transparent: true, depthWrite: false }));
+  wf.position.set(30, -25, -50.6); G.add(wf);
+  // Clouds, some high and far, some drifting below the course.
+  const ct = cloudTex();
+  const clouds = [[-30, 16, -90, 26], [18, 22, -130, 34], [60, 12, -100, 24], [-70, 26, -160, 40], [-16, -16, -30, 16], [26, -22, -18, 18], [-44, -4, -60, 20], [85, 30, -190, 44]];
+  for (const [x, y, z, s] of clouds) {
+    const sp = new Sprite(new SpriteMaterial({ map: ct, transparent: true, depthWrite: false }));
+    sp.scale.set(s, s / 2, 1); sp.position.set(x, y, z); G.add(sp);
+  }
+});
+
+// ---- 2. A giant child's desk: books, rulers and an eraser, a sunny window, the room out of focus ----
+function rulerTex(len, cm) {
+  return canvasTex(128, 1024, (g) => {
+    g.fillStyle = '#EDCF93'; g.fillRect(0, 0, 128, 1024);
+    for (let i = 0; i < 60; i++) { g.fillStyle = `rgba(160,110,50,${0.05 + (i % 3) * 0.02})`; g.fillRect(0, i * 17 + 3, 128, 2); }
+    const n = Math.round(len * cm);
+    g.fillStyle = '#3A2A18'; g.font = '600 18px Inter, sans-serif'; g.textAlign = 'center';
+    for (let i = 0; i <= n * 10; i++) {
+      const y = 1024 - i / (n * 10) * 1024, long = i % 10 === 0, mid = i % 5 === 0;
+      const t = long ? 30 : mid ? 20 : 12;
+      g.fillRect(0, y - 1, t, 2); g.fillRect(128 - t, y - 1, t, 2);
+      if (long && i > 0 && i < n * 10) g.fillText(String(i / 10), 64, y + 6);
+    }
+  });
+}
+function paperTex() {
+  return canvasTex(512, 512, (g) => {
+    g.fillStyle = '#FBF7EC'; g.fillRect(0, 0, 512, 512);
+    g.fillStyle = 'rgba(80,130,210,0.55)'; for (let y = 40; y < 512; y += 28) g.fillRect(0, y, 512, 2);
+    g.fillStyle = 'rgba(220,70,70,0.6)'; g.fillRect(70, 0, 3, 512);
+  });
+}
+function coverTexBook(col, band) {
+  return canvasTex(256, 256, (g) => {
+    g.fillStyle = col; g.fillRect(0, 0, 256, 256);
+    g.fillStyle = band; g.fillRect(28, 60, 200, 40); g.fillRect(28, 112, 150, 12);
+    g.strokeStyle = 'rgba(255,255,255,0.18)'; g.lineWidth = 3; g.strokeRect(14, 14, 228, 228);
+  });
+}
+function book(w, h, d, col) {
+  const pages = new MeshStandardMaterial({ color: 0xF3EBD9, roughness: 0.95 });
+  const cover = new MeshStandardMaterial({ color: col, roughness: 0.75 });
+  return new Mesh(new BoxGeometry(w, h, d), [pages, cover, cover, cover, pages, pages]);
+}
+WORLDS_ADD('desk', (w) => {
+  scene.background = coverTex(512, (g) => {
+    const lg = g.createLinearGradient(0, 0, 0, 512);
+    lg.addColorStop(0, '#C9AE8C'); lg.addColorStop(0.6, '#DCC6A6'); lg.addColorStop(1, '#E7D6BC');
+    g.fillStyle = lg; g.fillRect(0, 0, 512, 512);
+    g.filter = 'blur(12px)';
+    g.fillStyle = '#FFF6DE'; g.fillRect(40, 30, 190, 230);                 // the window, up and to the left
+    g.fillStyle = 'rgba(214,196,168,0.9)'; g.fillRect(130, 30, 10, 230); g.fillRect(40, 140, 190, 10);
+    g.fillStyle = 'rgba(126,156,186,0.85)'; g.fillRect(0, 10, 42, 290);   // a curtain
+    g.fillStyle = '#6A4A33'; g.fillRect(330, 60, 170, 250);               // a bookshelf
+    const cols = ['#C94F4F', '#E0A33A', '#4F7FC9', '#5AA66A', '#8A5FC0', '#E07A5F', '#3F8F9F'];
+    for (let row = 0; row < 3; row++) for (let i = 0; i < 9; i++) {
+      g.fillStyle = cols[(i + row * 3) % cols.length];
+      g.fillRect(340 + i * 17, 72 + row * 80, 13, 64 - (i % 3) * 8);
+    }
+    g.fillStyle = 'rgba(255,238,190,0.9)'; g.beginPath(); g.arc(290, 330, 36, 0, Math.PI * 2); g.fill();  // a lamp's glow
+    g.filter = 'none';
+  });
+  scene.fog.color.setHex(0xD8C3A4); scene.fog.near = 34; scene.fog.far = 110;
+  hemi.color.setHex(0xFFF1DE); hemi.groundColor.setHex(0x7A5A3E); hemi.intensity = 1.1;
+  sun.color.setHex(0xFFE6C2); sun.intensity = 3.0;
+  const G = w.group, r = seeded(9);
+  const wood = canvasTex(512, 512, (g) => {
+    g.fillStyle = '#CDA77E'; g.fillRect(0, 0, 512, 512);
+    for (let i = 0; i < 90; i++) {
+      g.strokeStyle = `rgba(${120 + r() * 40},${80 + r() * 25},${45 + r() * 20},${0.10 + r() * 0.14})`;
+      g.lineWidth = 1 + r() * 3; g.beginPath();
+      const y = r() * 512; g.moveTo(0, y);
+      for (let x = 0; x <= 512; x += 32) g.lineTo(x, y + Math.sin(x / 90 + i) * 6);
+      g.stroke();
+    }
+  }, true);
+  wood.repeat.set(2, 2);
+  const desk = new Mesh(new PlaneGeometry(260, 260), new MeshStandardMaterial({ map: wood, roughness: 0.55 }));
+  desk.rotation.x = -Math.PI / 2; desk.position.set(0, -9, -60); desk.receiveShadow = true; G.add(desk);
+  // Stacks of books hold the course up off the desk.
+  const bookCols = [0x2F6F73, 0xC24A39, 0xE3A33B, 0x4F6FB5, 0x6A9F58, 0x8C5FB0, 0xD9774F];
+  for (const c of colliders) {
+    if (c.ferry) continue;
+    let y = -9, k = 0;
+    const top = c.pos.y - c.half.y;
+    while (y < top - 0.05) {
+      const t = Math.min(top - y, 1.1 + r() * 0.6);
+      const b = book(c.half.x * 2 * (0.8 + r() * 0.3), t, c.half.z * 2 * (0.75 + r() * 0.3), bookCols[(k * 3 + Math.abs(Math.floor(c.pos.z))) % 7]);
+      b.position.set(c.pos.x + (r() - 0.5) * 0.5, y + t / 2, c.pos.z + (r() - 0.5) * 0.5);
+      b.rotation.y = (r() - 0.5) * 0.16; b.castShadow = true; b.receiveShadow = true;
+      G.add(b); y += t; k++;
+    }
+  }
+  // Things on the desk: a pencil pot, loose pencils, a crumpled paper ball.
+  const pot = new Mesh(new CylinderGeometry(2.4, 2.2, 7, 32, 1, true), new MeshStandardMaterial({ color: 0x5A87C2, roughness: 0.5, side: DoubleSide }));
+  pot.position.set(-15, -5.5, -26); G.add(pot);
+  const pcols = [0xF2C230, 0xE0513A, 0x3E9E5A, 0x4A74C9, 0x9A5FC4];
+  for (let i = 0; i < 6; i++) {
+    const p = new Mesh(new CylinderGeometry(0.34, 0.34, 11, 6), new MeshStandardMaterial({ color: pcols[i % 5], roughness: 0.6 }));
+    p.position.set(-15 + Math.cos(i) * 1.1, -2.5, -26 + Math.sin(i) * 1.1); p.rotation.set((r() - 0.5) * 0.4, 0, (r() - 0.5) * 0.4); G.add(p);
+    const tip = new Mesh(new ConeGeometry(0.34, 1.1, 6), new MeshStandardMaterial({ color: 0xE9C99A, roughness: 0.8 }));
+    tip.position.copy(p.position).add(new Vector3(0, 6, 0)); tip.rotation.copy(p.rotation); G.add(tip);
+  }
+  for (let i = 0; i < 3; i++) {
+    const p = new Mesh(new CylinderGeometry(0.34, 0.34, 11, 6), new MeshStandardMaterial({ color: pcols[(i + 2) % 5], roughness: 0.6 }));
+    p.rotation.set(Math.PI / 2, 0, 0.4 + i * 0.7); p.position.set(14 + i * 2.2, -8.66, -12 - i * 5); p.castShadow = true; G.add(p);
+  }
+  const ball = new Mesh(new IcosahedronGeometry(2.2, 1), new MeshStandardMaterial({ color: 0xF4F1EA, roughness: 0.95, flatShading: true }));
+  ball.position.set(15, -6.9, -34); ball.castShadow = true; G.add(ball);
+  // The course itself becomes things from the desk.
+  w.restyle = () => {
+    const bookSkin = { top: coverTexBook('#2F6F73', '#E9D9B6'), side: 0xF3EBD9 };   // a hardcover book to start on
+    const eraser = { top: null, side: 0xF29AA8, topCol: 0xF6B3BE };                // a pink eraser
+    const notebook = { top: paperTex(), side: 0xF3EBD9 };                           // a notebook to finish on
+    colliders.forEach((c, i) => {
+      if (c.ferry) return;
+      const s = i === 0 ? bookSkin : i === colliders.length - 1 ? notebook : i % 3 === 2 ? eraser : { ruler: true };
+      const len = c.half.z * 2;
+      let topMat, sideMat;
+      if (s.ruler) {
+        topMat = new MeshStandardMaterial({ map: rulerTex(len, 1), roughness: 0.6 });
+        sideMat = new MeshStandardMaterial({ color: 0xD9B77C, roughness: 0.7 });
+      } else {
+        topMat = new MeshStandardMaterial({ map: s.top || null, color: s.top ? 0xFFFFFF : s.topCol, roughness: 0.8 });
+        sideMat = new MeshStandardMaterial({ color: s.side, roughness: 0.9 });
+      }
+      c.mesh.material = [sideMat, sideMat, topMat, sideMat, sideMat, sideMat];
+      setTopUV(c.mesh, true);
+    });
+  };
+});
+
+// ---- 3. A sunlit lagoon: light rippling over the stone, shafts from the surface, fish and coral ----
+function causticsTex() {
+  const N = 256, pts = [], r = seeded(21);
+  for (let i = 0; i < 26; i++) pts.push([r() * N, r() * N]);
+  return canvasTex(N, N, (g) => {
+    const img = g.createImageData(N, N);
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      let f1 = 1e9, f2 = 1e9;
+      for (const [px, py] of pts) for (let ox = -N; ox <= N; ox += N) for (let oy = -N; oy <= N; oy += N) {
+        const d = Math.hypot(x - px - ox, y - py - oy);
+        if (d < f1) { f2 = f1; f1 = d; } else if (d < f2) f2 = d;
+      }
+      const e = f2 - f1, v = Math.pow(Math.max(0, 1 - e / 6), 2.6) * 255;
+      const k = (y * N + x) * 4;
+      img.data[k] = img.data[k + 1] = img.data[k + 2] = v; img.data[k + 3] = 255;
+    }
+    g.putImageData(img, 0, 0);
+    g.filter = 'blur(1.4px)'; g.drawImage(g.canvas, 0, 0); g.filter = 'none';
+  }, true);
+}
+WORLDS_ADD('lagoon', (w) => {
+  scene.background = gradientTex([[0, '#8BEAE2'], [0.3, '#3EC1D2'], [0.72, '#137DAA'], [1, '#0A4E7B']]);
+  scene.fog.color.setHex(0x2598BA); scene.fog.near = 12; scene.fog.far = 62;
+  hemi.color.setHex(0xA8F4FF); hemi.groundColor.setHex(0x0C4A6A); hemi.intensity = 1.25;
+  sun.color.setHex(0xE6FFFF); sun.intensity = 2.3;
+  const G = w.group, r = seeded(33), caus = causticsTex();
+  caus.repeat.set(0.6, 0.6);
+  const causBed = caus.clone(); causBed.repeat.set(110, 110);
+  // Light from the surface ripples over everything.
+  const lagoonTop = stone[1].clone(); lagoonTop.emissive = new Color(0xCFF8FF); lagoonTop.emissiveMap = caus; lagoonTop.emissiveIntensity = 0.38;
+  const lagoonStone = [stone[0], lagoonTop, stone[2]];
+  w.restyle = () => { for (const c of colliders) if (!c.ferry) c.mesh.material = faceMats(lagoonStone); };
+  w.tick = (dt) => { for (const t of [caus, causBed]) { t.offset.x += dt * 0.03; t.offset.y += dt * 0.017; } };
+  const sand = canvasTex(256, 256, (g) => {
+    g.fillStyle = '#E3D2A0'; g.fillRect(0, 0, 256, 256);
+    for (let i = 0; i < 26; i++) { g.strokeStyle = 'rgba(170,140,80,0.25)'; g.lineWidth = 3; g.beginPath(); const y = i * 10; g.moveTo(0, y); for (let x = 0; x <= 256; x += 16) g.lineTo(x, y + Math.sin(x / 30 + i) * 3); g.stroke(); }
+  }, true);
+  sand.repeat.set(30, 30);
+  const bedMat = new MeshStandardMaterial({ map: sand, roughness: 0.95, emissive: new Color(0xBFF6FF), emissiveMap: causBed, emissiveIntensity: 0.28 });
+  const bed = new Mesh(new PlaneGeometry(300, 300), bedMat);
+  bed.rotation.x = -Math.PI / 2; bed.position.set(0, -14, -60); bed.receiveShadow = true; G.add(bed);
+  // Coral, rocks and weed on the bed.
+  const coralCols = [0xFF7A8A, 0xFF9E4F, 0xA078FF, 0xFFCF5A, 0x3FC2A0];
+  for (let i = 0; i < 38; i++) {
+    const x = -30 + r() * 60, z = 10 - r() * 80;
+    if (Math.abs(x - 2) < 5 && z > -45) continue;
+    const kind = i % 3, col = coralCols[i % 5];
+    if (kind === 0) {
+      const rock = new Mesh(new IcosahedronGeometry(1.5 + r() * 2.5, 1), new MeshStandardMaterial({ color: 0x5E7F86, roughness: 1, flatShading: true }));
+      rock.position.set(x, -14, z); rock.scale.y = 0.6; G.add(rock);
+    } else if (kind === 1) {
+      for (let b = 0; b < 5; b++) {
+        const c = new Mesh(new CylinderGeometry(0.18, 0.3, 2 + r() * 2.5, 6), new MeshStandardMaterial({ color: col, roughness: 0.7 }));
+        c.position.set(x + (r() - 0.5) * 1.6, -13 + r(), z + (r() - 0.5) * 1.6); c.rotation.set((r() - 0.5) * 0.9, 0, (r() - 0.5) * 0.9); G.add(c);
+      }
+    } else {
+      const weed = new Mesh(new ConeGeometry(0.35, 6 + r() * 6, 5), new MeshStandardMaterial({ color: 0x2E9F6A, roughness: 0.8 }));
+      weed.position.set(x, -11, z); weed.rotation.z = (r() - 0.5) * 0.4; G.add(weed);
+    }
+  }
+  // Shafts of light from the surface, slanting with the sun.
+  const shaft = canvasTex(64, 256, (g) => {
+    const lg = g.createLinearGradient(0, 0, 64, 0);
+    lg.addColorStop(0, 'rgba(255,255,255,0)'); lg.addColorStop(0.5, 'rgba(255,255,255,1)'); lg.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = lg; g.fillRect(0, 0, 64, 256);
+    g.globalCompositeOperation = 'destination-in';
+    const fade = g.createLinearGradient(0, 0, 0, 256); fade.addColorStop(0, 'rgba(0,0,0,1)'); fade.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = fade; g.fillRect(0, 0, 64, 256);
+  });
+  for (let i = 0; i < 7; i++) {
+    const s = new Mesh(new PlaneGeometry(2.5 + r() * 3, 60), new MeshBasicMaterial({ map: shaft, color: 0xCFFBFF, transparent: true,
+      opacity: 0.16, blending: AdditiveBlending, depthWrite: false, fog: false }));
+    s.position.set(-24 + i * 9 + r() * 4, 6, -20 - r() * 45); s.rotation.z = 0.35; G.add(s);
+  }
+  // A few fish, and a small school.
+  const fishCols = [0xFF8A3D, 0xFFD23F, 0x4FA8FF];
+  const fish = (x, y, z, s, col, dir) => {
+    const f = new Group();
+    const body = new Mesh(new SphereGeometry(0.6, 16, 10), new MeshStandardMaterial({ color: col, roughness: 0.5 }));
+    body.scale.set(1.5, 0.75, 0.4); f.add(body);
+    const tail = new Mesh(new ConeGeometry(0.45, 0.7, 4), new MeshStandardMaterial({ color: col, roughness: 0.5 }));
+    tail.rotation.z = dir > 0 ? Math.PI / 2 : -Math.PI / 2; tail.position.x = -dir * 1.05; tail.scale.z = 0.3; f.add(tail);
+    f.position.set(x, y, z); f.scale.setScalar(s); return f;
+  };
+  G.add(fish(-7, -2, -14, 1.3, fishCols[0], 1), fish(12, -4, -26, 1.6, fishCols[2], -1), fish(-14, 2, -40, 1.2, fishCols[1], 1));
+  for (let i = 0; i < 12; i++) G.add(fish(18 + r() * 8, -1 + r() * 4, -44 - r() * 8, 0.55, 0xBFE6FF, -1));
+  const bub = new Float32Array(90 * 3);
+  for (let i = 0; i < 90; i++) { bub[i * 3] = -8 + r() * 20; bub[i * 3 + 1] = -12 + r() * 22; bub[i * 3 + 2] = -r() * 40; }
+  const bg = new BufferGeometry(); bg.setAttribute('position', new Float32BufferAttribute(bub, 3));
+  G.add(new Points(bg, new PointsMaterial({ size: 0.16, map: dot, color: 0xE8FFFF, transparent: true, opacity: 0.7, depthWrite: false })));
+});
+
+// ---- 4. Space, made spectacular: a nebula, a ringed planet, a moon, a falling star ----
+WORLDS_ADD('space', (w) => {
+  scene.background = coverTex(1024, (g) => {
+    const r = seeded(77);
+    const lg = g.createLinearGradient(0, 0, 0, 1024);
+    lg.addColorStop(0, '#060A1C'); lg.addColorStop(0.5, '#0E1430'); lg.addColorStop(1, '#171038');
+    g.fillStyle = lg; g.fillRect(0, 0, 1024, 1024);
+    g.filter = 'blur(40px)';
+    for (const [x, y, rad, col] of [[260, 300, 260, 'rgba(192,79,216,0.35)'], [620, 220, 300, 'rgba(54,194,216,0.25)'], [760, 520, 240, 'rgba(107,79,216,0.35)'], [420, 560, 200, 'rgba(255,107,92,0.18)']]) {
+      g.fillStyle = col; g.beginPath(); g.arc(x, y, rad, 0, Math.PI * 2); g.fill();
+    }
+    g.filter = 'blur(10px)';                               // the Milky Way, a faint band
+    g.save(); g.translate(512, 512); g.rotate(-0.5); g.fillStyle = 'rgba(220,225,255,0.10)'; g.fillRect(-800, -70, 1600, 140); g.restore();
+    g.filter = 'none';
+    for (let i = 0; i < 900; i++) {
+      const b = r(), s = b > 0.985 ? 2.2 : b > 0.9 ? 1.4 : 0.8;
+      g.fillStyle = `rgba(255,255,255,${0.35 + b * 0.65})`; g.beginPath(); g.arc(r() * 1024, r() * 1024, s, 0, Math.PI * 2); g.fill();
+    }
+  });
+  scene.fog.color.setHex(0x0B1026); scene.fog.near = 40; scene.fog.far = 140;
+  hemi.color.setHex(0xAFBCFF); hemi.groundColor.setHex(0x221A4A); hemi.intensity = 1.0;
+  sun.color.setHex(0xFFFFFF); sun.intensity = 2.8;
+  const G = w.group;
+  const bands = canvasTex(64, 512, (g) => {
+    const cols = ['#F2D7A6', '#E8B982', '#D99A6A', '#F5E3C0', '#C98457', '#EAC79A', '#B8714A', '#F0D2A0'];
+    let y = 0; const r = seeded(4);
+    while (y < 512) { const h = 18 + r() * 50; g.fillStyle = cols[Math.floor(r() * cols.length)]; g.fillRect(0, y, 64, h); y += h; }
+    g.filter = 'blur(3px)'; g.drawImage(g.canvas, 0, 0);
+  });
+  const planet = new Mesh(new SphereGeometry(34, 64, 32), new MeshStandardMaterial({ map: bands, roughness: 0.8, fog: false }));
+  planet.position.set(44, -64, -150); planet.rotation.z = 0.35; G.add(planet);
+  const ringTex = canvasTex(512, 512, (g) => {
+    const rg = g.createRadialGradient(256, 256, 0, 256, 256, 256);
+    rg.addColorStop(0.0, 'rgba(0,0,0,0)'); rg.addColorStop(0.62, 'rgba(0,0,0,0)');
+    rg.addColorStop(0.66, 'rgba(240,215,170,0.75)'); rg.addColorStop(0.74, 'rgba(210,170,120,0.35)');
+    rg.addColorStop(0.8, 'rgba(245,225,190,0.8)'); rg.addColorStop(0.9, 'rgba(200,160,110,0.45)'); rg.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = rg; g.fillRect(0, 0, 512, 512);
+  });
+  const ring = new Mesh(new RingGeometry(40, 70, 128), new MeshBasicMaterial({ map: ringTex, transparent: true, side: DoubleSide, depthWrite: false, fog: false }));
+  // RingGeometry's UVs are planar, so the radial bands of the texture fall on the ring.
+  ring.position.copy(planet.position); ring.rotation.set(-1.25, 0.1, 0.35); G.add(ring);
+  const moon = new Mesh(new SphereGeometry(6, 32, 16), new MeshStandardMaterial({ color: 0xBFC3CF, roughness: 1, fog: false }));
+  moon.position.set(-44, -24, -104); G.add(moon);
+  const streak = canvasTex(256, 16, (g) => {
+    const lg = g.createLinearGradient(0, 0, 256, 0); lg.addColorStop(0, 'rgba(255,255,255,0)'); lg.addColorStop(1, 'rgba(255,255,255,1)');
+    g.fillStyle = lg; g.fillRect(0, 6, 256, 4);
+  });
+  const star = new Mesh(new PlaneGeometry(26, 1.2), new MeshBasicMaterial({ map: streak, transparent: true, blending: AdditiveBlending, depthWrite: false, fog: false }));
+  star.position.set(-26, -12, -120); star.rotation.z = -0.45; G.add(star);
+});
+
 // ---------- LOOP ----------
 let last = performance.now(), frames = 0, frameMs = 16.7;
 function frame(now) {
@@ -1201,6 +1634,11 @@ window.visualViewport?.addEventListener('resize', onResize);
 setTimeout(onResize, 0);
 setTimeout(onResize, 300);
 requestAnimationFrame(frame);
+// A world can be asked for by the link's #name (hills, desk, lagoon, space), so
+// the owner can try each mock-up on a phone. The plain link keeps the void.
+function worldFromHash() { const h = location.hash.slice(1); setWorld(WORLDS[h] ? h : 'void'); }
+if (location.hash) worldFromHash();
+window.addEventListener('hashchange', worldFromHash);
 
 // ---------- HARNESS ----------
 if (HARNESS) {
@@ -1227,6 +1665,7 @@ if (HARNESS) {
     progress: () => JSON.parse(JSON.stringify(save)),
     look: (name) => { setLook(name); return look; },
     eye: (style) => { buildEye(style); return eyeStyle; },
+    world: (name) => setWorld(name),
     quiet: () => { everMoved = true; },       // no drag hint, for stills
     closeup: (on) => {
       closeup = !!on;
