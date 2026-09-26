@@ -2183,13 +2183,50 @@ function futureCity(G, tops, r) {
   train.position.set(-95, -5, TRAIN_Z); G.add(train);
   cityRefs.train = train;
   cityRefs.cars = () => cars.map((c) => { body.getMatrixAt(cars.indexOf(c), m); return new Vector3().setFromMatrixPosition(m).toArray(); });
-  // Dark steel: magenta belongs to the course alone, or the eye reads the track as more course.
-  const track = new Mesh(new BoxGeometry(260, 0.5, 0.8), new MeshStandardMaterial({ color: 0x1C2438, metalness: 0.5, roughness: 0.5 }));
-  track.position.set(3, -6.2, TRAIN_Z); G.add(track);
-  for (let x = -120; x <= 120; x += 16) {
-    const pylon = new Mesh(new BoxGeometry(0.7, 60, 0.7), new MeshStandardMaterial({ color: 0x10162A, roughness: 0.8 }));
-    pylon.position.set(x, -36.4, TRAIN_Z); G.add(pylon);
+  /* THE GUIDEWAY (owner: "futuristic rails with a faint glow rather than just
+     a black strip"). A rounded gunmetal beam that takes the city's reflections,
+     a faint cyan line along each side, two cyan guide rails along its top in a
+     soft glow, and dashes of light running along them the way the train goes.
+     Cyan, the train's colour: magenta belongs to the course alone, or the eye
+     would read the track as more course. */
+  const beamGlow = canvasTex(8, 256, (g) => {
+    g.fillStyle = '#000'; g.fillRect(0, 0, 8, 256);
+    g.fillStyle = '#34E0FF'; for (const v of [0.25, 0.75]) g.fillRect(0, (1 - v) * 256 - 1.5, 8, 3);
+  });
+  const beam = new Mesh(loft(260, () => ({ w: 0.55, top: 0.22, bot: -0.42 }), 2, 24), new MeshStandardMaterial({
+    color: 0x1A2233, metalness: 0.65, roughness: 0.3, envMap: env, emissive: 0xFFFFFF, emissiveMap: beamGlow, emissiveIntensity: 0.55 }));
+  beam.position.set(3, -6.2, TRAIN_Z); G.add(beam);
+  const railTex = canvasTex(256, 4, (g) => {
+    g.fillStyle = '#2A9FB4'; g.fillRect(0, 0, 256, 4);
+    g.fillStyle = '#D8FCFF'; g.fillRect(20, 0, 26, 4); g.fillRect(150, 0, 10, 4);
+  }, true);
+  railTex.repeat.set(260 / 8, 1);                      // one run of dashes every 8 m
+  const railMat = new MeshBasicMaterial({ map: railTex, toneMapped: false });
+  for (const z of [-0.36, 0.36]) {
+    const rail = new Mesh(new BoxGeometry(260, 0.05, 0.07), railMat);
+    rail.position.set(3, -5.96, TRAIN_Z + z); G.add(rail);
   }
+  const railHalo = canvasTex(8, 128, (g) => {          // a thin core in a tight feather round each rail
+    const img = g.createImageData(8, 128);
+    for (let y = 0; y < 128; y++) {
+      const v = y / 127, d = Math.min(Math.abs(v - 0.243), Math.abs(v - 0.757));
+      const k = Math.min(1, Math.exp(-d * d * 9000) + Math.exp(-d * d * 600) * 0.35) * 255;
+      for (let x = 0; x < 8; x++) { const i = (y * 8 + x) * 4; img.data[i] = img.data[i + 1] = img.data[i + 2] = k; img.data[i + 3] = 255; }
+    }
+    g.putImageData(img, 0, 0);
+  });
+  const halo = new Mesh(new PlaneGeometry(260, 1.5), new MeshBasicMaterial({ map: railHalo, color: 0x34E0FF, transparent: true,
+    opacity: 0.55, blending: AdditiveBlending, depthWrite: false, toneMapped: false }));
+  halo.rotation.x = -Math.PI / 2; halo.position.set(3, -5.93, TRAIN_Z); G.add(halo);
+  const pylonMat = new MeshStandardMaterial({ color: 0x141B2E, metalness: 0.5, roughness: 0.45, envMap: env });
+  const capMat = new MeshBasicMaterial({ color: 0x34E0FF, toneMapped: false });
+  for (let x = -120; x <= 120; x += 16) {
+    const pylon = new Mesh(new BoxGeometry(0.7, 60, 0.7), pylonMat);
+    pylon.position.set(x, -36.4, TRAIN_Z); G.add(pylon);
+    const cap = new Mesh(new BoxGeometry(0.95, 0.06, 0.95), capMat);      // where each support meets the beam
+    cap.position.set(x, -6.64, TRAIN_Z); G.add(cap);
+  }
+  cityRefs.railTex = railTex;
 
   // Hologram billboards beside the course: five different ads, each its own
   // colour and drawing, no words and no brands.
@@ -2244,6 +2281,7 @@ function futureCity(G, tops, r) {
     placeCars();
     train.position.x += 14 * dt;
     if (train.position.x > 110) train.position.x = -110;
+    railTex.offset.x -= dt * 0.9;                       // light running along the rails, the way the train goes
     for (const bd of boards) { if (bd.scroll) bd.t.offset.x = -t * 0.35; bd.b.material.opacity = 0.84 + 0.16 * Math.sin(t * 2 + bd.ph); }
     tall.forEach((_, i) => lamps.setColorAt(i, lampCol.setHex(((t + lampPh[i]) % 1.6) < 0.35 ? 0xFF2D48 : 0x2A060C)));
     if (lamps.instanceColor) lamps.instanceColor.needsUpdate = true;
