@@ -3,8 +3,9 @@
    ============================================================
 
    The first 3D game on the site, built to answer one question: how does 3D
-   play in a phone browser? A marble, a floating course, white rings that save
-   your place and a gold ring at the far end.
+   play in a phone browser? A chrome marble on a glowing course high above a
+   neon city (the owner's choice of world, 2026-09-26), blue rings that save
+   your place and an orange ring at the far end.
 
    Two canvases share the frame. #world is three.js (WebGL) underneath. #game is
    the house canvas UI on top, so the controls, the read-out and the cards are
@@ -1056,8 +1057,8 @@ function drawGhost(now) {
 // ---------- CARDS (DESIGN-SYSTEM 5, drawn as Comb draws them) ----------
 const RULES = [
   'Drag anywhere to roll the marble. The further you drag, the harder it rolls. On a computer the arrow keys work too.',
-  'Roll through the gold ring at the end of the course to finish the level.',
-  'White rings save your place. Roll through one and it turns green.',
+  'Roll through the orange ring at the end of the course to finish the level.',
+  'Blue rings save your place. Roll through one and it turns green.',
   'Roll off the edge and the marble flies back to the last green ring. The fall is counted, and nothing else is lost.',
 ];
 function wrapText(text, maxW, size) {
@@ -1087,7 +1088,7 @@ function cardLayout(kind) {
     ctaCy: py + ph - FOOTER + 16 + UI.CTA.h / 2,
     title: kind === 'rules' ? 'MARBLE' : 'CLEARED',
     cta: kind === 'rules' ? 'PLAY' : last ? 'PLAY AGAIN' : 'NEXT',
-    subtitle: kind === 'rules' ? 'Roll the marble along the course and through the gold ring.'
+    subtitle: kind === 'rules' ? 'Roll the marble along the course and through the orange ring.'
       : last ? 'That was the last of the three courses.'
       : falls === 0 ? 'The whole course without a single fall.'
       : 'Home, with ' + falls + (falls === 1 ? ' fall' : ' falls') + ' on the way.',
@@ -2027,15 +2028,17 @@ window.visualViewport?.addEventListener('resize', onResize);
 setTimeout(onResize, 0);
 setTimeout(onResize, 300);
 requestAnimationFrame(frame);
-// A world can be asked for by the link's #name (hills, desk, lagoon, space,
-// crystal, blocks, neon, valley), so
-// the owner can try each mock-up on a phone. The plain link keeps the void.
+/* THE GAME'S WORLD IS THE NEON CITY (owner, 2026-09-26). The plain link opens
+   it. The other mock-ups stay on the link's #name to compare (hills, desk,
+   lagoon, space, crystal, blocks, valley), and #void is the dark void the
+   game started with. */
 function worldFromHash() {
   const [h, v] = location.hash.slice(1).split('-');
-  if (h === 'neon') neonStyle = ['grid', 'glowgrid', 'edges', 'frosted'].includes(v) ? v : 'glowgrid';   // #neon-edges and so on
-  setWorld(WORLDS[h] ? h : 'void');
+  const name = h || 'neon';
+  if (name === 'neon') neonStyle = ['grid', 'glowgrid', 'edges', 'frosted'].includes(v) ? v : 'glowgrid';   // #neon-edges and so on
+  setWorld(WORLDS[name] ? name : 'void');
 }
-if (location.hash) worldFromHash();
+worldFromHash();
 window.addEventListener('hashchange', worldFromHash);
 
 // ---------- HARNESS ----------
