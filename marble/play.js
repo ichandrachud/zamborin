@@ -790,7 +790,8 @@ function fitCamera() {
   camera.updateProjectionMatrix();
 }
 const camFocus = new Vector3();
-let camY = 0, closeup = false;
+let camY = 0, closeup = false, peekCam = null;
+const cityRefs = { frozen: false };                   // the harness's handles on the city, for stills
 function updateCamera(dt, snap) {
   const P = camParams();
   const k = snap ? 1 : 1 - Math.exp(-5 * dt);
@@ -807,6 +808,7 @@ function updateCamera(dt, snap) {
   }
   camera.position.set(camFocus.x + sx, camY + P.h + sy, camFocus.z + P.back);
   camera.lookAt(camFocus.x + sx, camY, camFocus.z - P.ahead);
+  if (peekCam) { camera.position.set(...peekCam.pos); camera.lookAt(...peekCam.at); }
   if (closeup) {                              // the harness's still-life view of the marble
     camera.position.set(ball.p.x + 1.35, ball.p.y + 1.05, ball.p.z + 2.1);
     camera.lookAt(ball.p.x + 0.12, ball.p.y - 0.2, ball.p.z - 0.1);
@@ -1937,9 +1939,44 @@ function makeTrail() {
    train runs under the narrow bridge in a gap kept free of towers, and the
    billboards stand beside the course, never over it. */
 const TRAIN_Z = -26;                                    // the train's line, kept clear of towers
+/* A body lofted along x through rounded-rectangle sections: prof(t) gives each
+   section's half-width, top and bottom, for t from 0 (the back, -x) to 1 (the
+   front, +x). UVs run u along the body and v round the section from its
+   bottom (0.25 the right side, 0.5 the top, 0.75 the left). */
+function loft(len, prof, stations, around) {
+  const pos = [], uv = [], idx = [];
+  for (let i = 0; i <= stations; i++) {
+    const t = i / stations, x = -len / 2 + t * len, p = prof(t);
+    for (let j = 0; j <= around; j++) {
+      const a = j / around, th = a * Math.PI * 2 - Math.PI / 2, c = Math.cos(th), s = Math.sin(th);
+      const z = Math.sign(c) * Math.pow(Math.abs(c), 0.55), y = Math.sign(s) * Math.pow(Math.abs(s), 0.55);
+      pos.push(x, p.bot + (y + 1) / 2 * (p.top - p.bot), z * p.w);
+      uv.push(t, a);
+    }
+  }
+  const ring = around + 1;
+  for (let i = 0; i < stations; i++) for (let j = 0; j < around; j++) {
+    const k = i * ring + j;
+    idx.push(k, k + ring, k + 1, k + 1, k + ring, k + ring + 1);
+  }
+  const g = new BufferGeometry();
+  g.setAttribute('position', new Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new Float32BufferAttribute(uv, 2));
+  g.setIndex(idx); g.computeVertexNormals();
+  return g;
+}
 function futureCity(G, tops, r) {
   const m = new Matrix4(), q = new Quaternion(), pos = new Vector3(), sc = new Vector3(), up = new Vector3(0, 1, 0);
-  // Flying cars: a dark body, a white light at the nose, a red one at the tail.
+  /* THE OWNER'S NOTES ON THE FIRST CITY (2026-09-26): the train had windows on
+     its roof and was "4 similar solids stuck to each other"; the cars were
+     "solids with one end glowing"; every billboard showed the same ad. So the
+     train is one lofted body with a nose at each end and windows on its sides
+     only, the cars are shaped with a canopy and lights, and each billboard
+     carries its own ad. */
+  const env = neonEnvMap() || envTex;
+
+  // Flying cars: a shaped body in its own paint, a dark glass canopy, two
+  // headlights, two taillights, and a glow underneath.
   const lanes = [
     { axis: 'z', at: -7, y: -3.2, dir: -1, from: 30, to: -110 }, { axis: 'z', at: -11.5, y: -4.6, dir: 1, from: 30, to: -110 },
     { axis: 'z', at: 13, y: -3.6, dir: 1, from: 30, to: -110 },  { axis: 'z', at: 17.5, y: -4.8, dir: -1, from: 30, to: -110 },
@@ -1947,40 +1984,112 @@ function futureCity(G, tops, r) {
     { axis: 'x', at: -52, y: -3.4, dir: 1, from: -37, to: 43 },
   ];
   const cars = [];
-  lanes.forEach((l, li) => { const n = l.axis === 'z' ? 4 : 3; for (let i = 0; i < n; i++) cars.push({ l, u: (i + r() * 0.6) / n, v: 9 + r() * 7 }); });
+  lanes.forEach((l) => { const n = l.axis === 'z' ? 4 : 3; for (let i = 0; i < n; i++) cars.push({ l, u: (i + r() * 0.6) / n, v: 9 + r() * 7 }); });
   const N = cars.length;
-  const body = new InstancedMesh(new RoundedBoxGeometry(1.9, 0.5, 0.95, 2, 0.2), new MeshStandardMaterial({ color: 0x1C2438, metalness: 0.7, roughness: 0.3, envMap: neonEnvMap() || envTex }), N);
-  const nose = new InstancedMesh(new BoxGeometry(0.1, 0.16, 0.72), new MeshBasicMaterial({ color: 0xFFFFFF }), N);
-  const tail = new InstancedMesh(new BoxGeometry(0.1, 0.16, 0.72), new MeshBasicMaterial({ color: 0xFF2D48 }), N);
-  G.add(body, nose, tail);
+  const carProf = (t) => {                       // t: 0 at the tail, 1 at the nose
+    const kn = Math.min(1, (1 - t) * 2.3 / 0.95), kt = Math.min(1, t * 2.3 / 0.3);
+    const rn = Math.sqrt(1 - (1 - kn) * (1 - kn)), rt = Math.sqrt(1 - (1 - kt) * (1 - kt));
+    return { w: 0.52 * (0.25 + 0.75 * Math.sqrt(kn)) * (0.6 + 0.4 * rt), top: -0.12 + 0.32 * rn * (0.7 + 0.3 * rt), bot: -0.2 + 0.06 * (1 - kn) };
+  };
+  const body = new InstancedMesh(loft(2.3, carProf, 22, 18), new MeshStandardMaterial({ color: 0xFFFFFF, metalness: 0.55, roughness: 0.28, envMap: env }), N);
+  const canopy = new InstancedMesh(new SphereGeometry(0.5, 18, 10), new MeshStandardMaterial({ color: 0x0A1222, metalness: 0.9, roughness: 0.08, envMap: env, envMapIntensity: 1.4 }), N);
+  const heads = new InstancedMesh(new BoxGeometry(0.1, 0.07, 0.16), new MeshBasicMaterial({ color: 0xFFFFFF }), N * 2);
+  const tails = new InstancedMesh(new BoxGeometry(0.06, 0.07, 0.3), new MeshBasicMaterial({ color: 0xFF2D48 }), N * 2);
+  const under = new InstancedMesh(new PlaneGeometry(1.9, 1.0), new MeshBasicMaterial({ map: dot, transparent: true, blending: AdditiveBlending, depthWrite: false, toneMapped: false }), N);
+  const paint = [0xF2F4F8, 0x9FB4D8, 0xFF8A3D, 0xFFD23F, 0x2EC4B6, 0xE63946, 0xB8C0CC];
+  const colr = new Color();
+  cars.forEach((c, i) => {
+    body.setColorAt(i, colr.setHex(paint[i % paint.length]));
+    under.setColorAt(i, colr.setHex(i % 3 ? 0x34E0FF : 0xFF8A5C));
+  });
+  G.add(body, canopy, heads, tails, under);
+  // Where each part sits on a car, in the car's own frame (x forward).
+  const part = (x, y, z, sx = 1, sy = 1, sz = 1, rx = 0) =>
+    new Matrix4().compose(new Vector3(x, y, z), new Quaternion().setFromEuler(new Euler(rx, 0, 0)), new Vector3(sx, sy, sz));
+  const P_CANOPY = part(-0.1, 0.17, 0, 0.8, 0.36, 0.5);
+  const P_HEADS = [part(0.8, -0.06, 0.29), part(0.8, -0.06, -0.29)];
+  const P_TAILS = [part(-1.16, 0.02, 0.17), part(-1.16, 0.02, -0.17)];
+  const P_UNDER = part(0, -0.27, 0, 1, 1, 1, -Math.PI / 2);
+  const carM = new Matrix4(), one = new Vector3(1, 1, 1);
   function placeCars() {
     cars.forEach((c, i) => {
       // dir 1 runs from 'from' to 'to', dir -1 the other way; the car faces the way it goes.
       const L = c.l, span = L.to - L.from, f = ((c.u % 1) + 1) % 1, s = L.dir > 0 ? L.from + f * span : L.to - f * span;
       const dx = L.axis === 'x' ? Math.sign(span) * L.dir : 0, dz = L.axis === 'z' ? Math.sign(span) * L.dir : 0;
-      const x = L.axis === 'x' ? s : L.at, z = L.axis === 'z' ? s : L.at;
       q.setFromAxisAngle(up, Math.atan2(-dz, dx));
-      sc.set(1, 1, 1);
-      m.compose(pos.set(x, L.y, z), q, sc); body.setMatrixAt(i, m);
-      m.compose(pos.set(x + dx * 0.97, L.y, z + dz * 0.97), q, sc); nose.setMatrixAt(i, m);
-      m.compose(pos.set(x - dx * 0.97, L.y, z - dz * 0.97), q, sc); tail.setMatrixAt(i, m);
+      carM.compose(pos.set(L.axis === 'x' ? s : L.at, L.y, L.axis === 'z' ? s : L.at), q, one);
+      body.setMatrixAt(i, carM);
+      canopy.setMatrixAt(i, m.multiplyMatrices(carM, P_CANOPY));
+      under.setMatrixAt(i, m.multiplyMatrices(carM, P_UNDER));
+      for (let k = 0; k < 2; k++) {
+        heads.setMatrixAt(i * 2 + k, m.multiplyMatrices(carM, P_HEADS[k]));
+        tails.setMatrixAt(i * 2 + k, m.multiplyMatrices(carM, P_TAILS[k]));
+      }
     });
-    body.instanceMatrix.needsUpdate = nose.instanceMatrix.needsUpdate = tail.instanceMatrix.needsUpdate = true;
+    for (const im of [body, canopy, heads, tails, under]) im.instanceMatrix.needsUpdate = true;
   }
   placeCars();
-  // The sky train: a white train with a band of lit windows, on a track with a glowing underside.
-  const winTex = canvasTex(256, 32, (g) => {
-    g.fillStyle = '#E9EEF6'; g.fillRect(0, 0, 256, 32);
-    g.fillStyle = '#16233A'; g.fillRect(0, 9, 256, 12);
-    for (let x = 6; x < 256; x += 22) { g.fillStyle = '#7FF4FF'; g.fillRect(x, 11, 14, 8); }
-  }, true);
-  const trainMat = new MeshStandardMaterial({ map: winTex, metalness: 0.3, roughness: 0.35, emissive: 0xFFFFFF, emissiveMap: winTex, emissiveIntensity: 0.35 });
+
+  // The sky train: ONE body, lofted from nose to nose. Pearl white, a dark
+  // skirt, a cyan line along each side, windows on the sides only, a
+  // windscreen wrapped over each nose, white lights at the front and red at
+  // the back, and a cyan glow underneath where it floats over the track.
+  const TL = 30, NOSE = 6;
+  const trainProf = (t) => {
+    const d = Math.min(t, 1 - t) * TL;
+    if (d >= NOSE) return { w: 0.9, top: 1.0, bot: -0.8 };
+    const k = d / NOSE, round = Math.sqrt(1 - (1 - k) * (1 - k));   // the roof sweeps down to a low tip
+    return { w: 0.9 * (0.02 + 0.98 * Math.sqrt(k)), top: -0.62 + 1.62 * round, bot: -0.8 + 0.2 * (1 - k) * (1 - k) };
+  };
+  // Texture space: u runs along the train (0 the back, 1 the front), v round
+  // its section from the bottom (0.25 the right side, 0.5 the roof, 0.75 the left).
+  const W = 2048, H = 256, noseU = NOSE / TL;
+  const band = (g, v0, v1, fill, u0 = 0, u1 = 1) => { g.fillStyle = fill; g.fillRect(u0 * W, (1 - v1) * H, (u1 - u0) * W, (v1 - v0) * H); };
+  const sides = [[0.253, 0.305], [0.695, 0.747]], stripes = [[0.222, 0.238], [0.762, 0.778]];
+  const trainMap = canvasTex(W, H, (g) => {
+    band(g, 0, 1, '#EEF2F8');
+    band(g, 0, 0.17, '#2A3244'); band(g, 0.83, 1, '#2A3244');                     // the dark skirt
+    for (const [a, b] of stripes) band(g, a, b, '#34C9E0');
+    for (const [a, b] of sides) {
+      band(g, a, b, '#16203A', noseU + 0.015, 1 - noseU - 0.015);                  // the window band, sides only
+      for (let x = (noseU + 0.03) * W, i = 0; x < (1 - noseU - 0.03) * W - 60; x += 92, i++) {
+        g.fillStyle = i % 5 === 2 ? '#0B1224' : '#BFEFFF';                         // every fifth a door
+        g.fillRect(x, (1 - b) * H + 2, 64, (b - a) * H - 4);
+      }
+    }
+    for (const [u0, u1] of [[0.04, noseU - 0.012], [1 - noseU + 0.012, 0.96]]) {  // windscreens over the noses
+      const gr = g.createLinearGradient(0, 0.25 * H, 0, 0.75 * H);
+      gr.addColorStop(0, '#0E1626'); gr.addColorStop(0.5, '#3A4C70'); gr.addColorStop(1, '#0E1626');
+      g.fillStyle = gr; g.fillRect(u0 * W, 0.28 * H, (u1 - u0) * W, 0.44 * H);
+    }
+  });
+  const trainGlow = canvasTex(W, H, (g) => {
+    band(g, 0, 1, '#000');
+    for (const [a, b] of stripes) band(g, a, b, '#1FA8C0');
+    for (const [a, b] of sides) for (let x = (noseU + 0.03) * W, i = 0; x < (1 - noseU - 0.03) * W - 60; x += 92, i++) {
+      if (i % 5 === 2) continue;
+      g.fillStyle = '#9FEFFF'; g.fillRect(x, (1 - b) * H + 2, 64, (b - a) * H - 4);
+    }
+    for (const v of [0.21, 0.79]) {                                               // headlights and tail lights
+      g.fillStyle = '#FFFFFF'; g.fillRect(0.975 * W, (1 - v - 0.02) * H, 0.018 * W, 0.04 * H);
+      g.fillStyle = '#FF2D48'; g.fillRect(0.007 * W, (1 - v - 0.02) * H, 0.018 * W, 0.04 * H);
+    }
+  });
   const train = new Group();
-  for (let i = 0; i < 5; i++) {
-    const car = new Mesh(new RoundedBoxGeometry(6, 1.7, 1.7, 3, 0.5), trainMat);
-    car.position.x = -i * 6.25; train.add(car);
-  }
-  train.position.set(-80, -5, TRAIN_Z); G.add(train);
+  const trainBody = new Mesh(loft(TL, trainProf, 90, 36), new MeshStandardMaterial({ map: trainMap, emissive: 0xFFFFFF, emissiveMap: trainGlow,
+    emissiveIntensity: 1.1, metalness: 0.35, roughness: 0.3, envMap: env }));
+  train.add(trainBody);
+  const glowTex = canvasTex(64, 64, (g) => {
+    const lg = g.createLinearGradient(0, 0, 0, 64);
+    lg.addColorStop(0, 'rgba(0,0,0,1)'); lg.addColorStop(0.5, 'rgba(255,255,255,1)'); lg.addColorStop(1, 'rgba(0,0,0,1)');
+    g.fillStyle = lg; g.fillRect(0, 0, 64, 64);
+  });
+  const hover = new Mesh(new PlaneGeometry(TL - 8, 1.1), new MeshBasicMaterial({ map: glowTex, color: 0x34E0FF, transparent: true,
+    blending: AdditiveBlending, depthWrite: false, toneMapped: false }));
+  hover.rotation.x = -Math.PI / 2; hover.position.y = -0.92; train.add(hover);
+  train.position.set(-95, -5, TRAIN_Z); G.add(train);
+  cityRefs.train = train;
+  cityRefs.cars = () => cars.map((c) => { body.getMatrixAt(cars.indexOf(c), m); return new Vector3().setFromMatrixPosition(m).toArray(); });
   // Dark steel: magenta belongs to the course alone, or the eye reads the track as more course.
   const track = new Mesh(new BoxGeometry(260, 0.5, 0.8), new MeshStandardMaterial({ color: 0x1C2438, metalness: 0.5, roughness: 0.5 }));
   track.position.set(3, -6.2, TRAIN_Z); G.add(track);
@@ -1988,24 +2097,48 @@ function futureCity(G, tops, r) {
     const pylon = new Mesh(new BoxGeometry(0.7, 60, 0.7), new MeshStandardMaterial({ color: 0x10162A, roughness: 0.8 }));
     pylon.position.set(x, -36.4, TRAIN_Z); G.add(pylon);
   }
-  // Hologram billboards beside the course: abstract shapes, no words, no brands.
-  const holoTex = (hue) => canvasTex(256, 144, (g) => {
+
+  // Hologram billboards beside the course: five different ads, each its own
+  // colour and drawing, no words and no brands.
+  const adBase = (g, h1, h2) => {
     const lg = g.createLinearGradient(0, 0, 256, 144);
-    lg.addColorStop(0, `hsla(${hue},100%,60%,0.55)`); lg.addColorStop(1, `hsla(${hue + 60},100%,55%,0.25)`);
+    lg.addColorStop(0, `hsla(${h1},100%,58%,0.6)`); lg.addColorStop(1, `hsla(${h2},100%,52%,0.28)`);
     g.fillStyle = lg; g.fillRect(0, 0, 256, 144);
-    g.strokeStyle = 'rgba(255,255,255,0.9)'; g.lineWidth = 5;
-    g.beginPath(); g.arc(70, 72, 38, 0, Math.PI * 2); g.stroke();
-    g.beginPath(); g.arc(70, 72, 18, 0, Math.PI * 2); g.stroke();
-    g.fillStyle = 'rgba(255,255,255,0.85)';
-    for (let i = 0; i < 7; i++) g.fillRect(132 + i * 16, 110 - (20 + ((i * 37) % 60)), 10, 20 + ((i * 37) % 60));
-    for (let y = 0; y < 144; y += 4) { g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(0, y, 256, 1); }
-  }, true);
+    g.strokeStyle = 'rgba(255,255,255,0.92)'; g.fillStyle = 'rgba(255,255,255,0.9)'; g.lineWidth = 5; g.lineCap = 'round'; g.lineJoin = 'round';
+  };
+  const scan = (g) => { for (let y = 0; y < 144; y += 4) { g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(0, y, 256, 1); } };
+  const ADS = [
+    { hue: [300, 250], draw(g) {                          // music: a speaker and a level meter
+      g.beginPath(); g.arc(70, 72, 38, 0, Math.PI * 2); g.stroke(); g.beginPath(); g.arc(70, 72, 16, 0, Math.PI * 2); g.stroke();
+      for (let i = 0; i < 7; i++) { const h = 20 + ((i * 37) % 60); g.fillRect(132 + i * 16, 110 - h, 10, h); }
+    } },
+    { hue: [200, 260], draw(g) {                          // space travel: a ringed planet and a rocket's arc
+      g.beginPath(); g.arc(92, 76, 30, 0, Math.PI * 2); g.stroke();
+      g.beginPath(); g.ellipse(92, 76, 58, 14, -0.3, 0, Math.PI * 2); g.stroke();
+      g.setLineDash([2, 12]); g.beginPath(); g.moveTo(150, 120); g.quadraticCurveTo(200, 30, 236, 28); g.stroke(); g.setLineDash([]);
+      g.beginPath(); g.arc(236, 28, 6, 0, Math.PI * 2); g.fill();
+    } },
+    { hue: [20, 350], scroll: true, draw(g) {             // speed: chevrons that run across it
+      for (let x = -40; x < 300; x += 44) { g.beginPath(); g.moveTo(x, 36); g.lineTo(x + 26, 72); g.lineTo(x, 108); g.stroke(); }
+    } },
+    { hue: [35, 10], draw(g) {                            // a cafe: a cup with steam rising
+      g.beginPath(); g.moveTo(88, 62); g.lineTo(96, 116); g.lineTo(150, 116); g.lineTo(158, 62); g.closePath(); g.stroke();
+      g.beginPath(); g.arc(166, 86, 14, -1.2, 1.2); g.stroke();
+      for (const x of [104, 123, 142]) { g.beginPath(); g.moveTo(x, 50); g.bezierCurveTo(x - 10, 38, x + 10, 30, x, 16); g.stroke(); }
+    } },
+    { hue: [150, 190], draw(g) {                          // health: a heartbeat line and a pulse dot
+      g.beginPath(); g.moveTo(10, 80); g.lineTo(80, 80); g.lineTo(96, 40); g.lineTo(114, 116); g.lineTo(132, 60); g.lineTo(146, 80); g.lineTo(246, 80); g.stroke();
+      g.beginPath(); g.arc(214, 80, 9, 0, Math.PI * 2); g.fill();
+    } },
+  ];
   const boards = [];
-  for (const [x, y, z, hue, turn] of [[-12, -1.5, -12, 300, 0.5], [18, -2.5, -20, 190, -0.5], [-11, -3, -40, 20, 0.45], [16, -1, -52, 280, -0.45], [-14, -4, -64, 180, 0.4]]) {
-    const t = holoTex(hue);
+  [[-12, -1.5, -12, 0.5], [18, -2.5, -20, -0.5], [-11, -3, -40, 0.45], [16, -1, -52, -0.45], [-14, -4, -64, 0.4]].forEach(([x, y, z, turn], i) => {
+    const ad = ADS[i % ADS.length];
+    const t = canvasTex(256, 144, (g) => { adBase(g, ad.hue[0], ad.hue[1]); ad.draw(g); scan(g); }, !!ad.scroll);
     const b = new Mesh(new PlaneGeometry(7, 3.94), new MeshBasicMaterial({ map: t, transparent: true, blending: AdditiveBlending, depthWrite: false, side: DoubleSide, toneMapped: false }));
-    b.position.set(x, y, z); b.rotation.y = turn; G.add(b); boards.push({ b, t, ph: r() * 6 });
-  }
+    b.position.set(x, y, z); b.rotation.y = turn; G.add(b); boards.push({ b, t, ph: r() * 6, scroll: !!ad.scroll });
+  });
+
   // Red lights blinking on the tallest towers.
   const tall = tops.filter((t) => t.y > -16).slice(0, 36);
   const lamps = new InstancedMesh(new SphereGeometry(0.35, 8, 6), new MeshBasicMaterial({ color: 0xFFFFFF }), Math.max(1, tall.length));
@@ -2013,11 +2146,12 @@ function futureCity(G, tops, r) {
   tall.forEach((t, i) => { m.compose(pos.set(t.x, t.y + 0.4, t.z), q.identity(), sc.set(1, 1, 1)); lamps.setMatrixAt(i, m); lamps.setColorAt(i, lampCol.setHex(0xFF2D48)); });
   lamps.count = tall.length; G.add(lamps);
   return (dt, t) => {
+    if (cityRefs.frozen) return;
     for (const c of cars) c.u += c.v * dt / Math.abs(c.l.to - c.l.from);
     placeCars();
     train.position.x += 14 * dt;
-    if (train.position.x > 90) train.position.x = -95;
-    for (const bd of boards) { bd.t.offset.y = Math.floor(t * 8) % 2 ? 0.004 : 0; bd.b.material.opacity = 0.82 + 0.18 * Math.sin(t * 2 + bd.ph); }
+    if (train.position.x > 110) train.position.x = -110;
+    for (const bd of boards) { if (bd.scroll) bd.t.offset.x = -t * 0.35; bd.b.material.opacity = 0.84 + 0.16 * Math.sin(t * 2 + bd.ph); }
     tall.forEach((_, i) => lamps.setColorAt(i, lampCol.setHex(((t + lampPh[i]) % 1.6) < 0.35 ? 0xFF2D48 : 0x2A060C)));
     if (lamps.instanceColor) lamps.instanceColor.needsUpdate = true;
   };
@@ -2058,7 +2192,17 @@ WORLDS_ADD('neon', (w) => {
   }
   A.count = a; B.count = b; G.add(A, B);
   // Lit cubes hanging in the air.
-  const cubes = new InstancedMesh(box, new MeshBasicMaterial({ color: 0xFFFFFF }), 70), col = new Color();
+  // Lit and shaded, so their faces show which way they turn (the owner: "some
+  // shade and light so the dimension can be seen"), with rounded edges to
+  // catch the light, and still glowing in their own colour.
+  const cubeMat = new MeshStandardMaterial({ color: 0xFFFFFF, roughness: 0.35, metalness: 0.2, emissive: 0xFFFFFF, emissiveIntensity: 0.4,
+                                             envMap: neonEnvMap() || envTex, envMapIntensity: 0.6 });
+  cubeMat.onBeforeCompile = (sh) => {
+    sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>',
+      '#include <emissivemap_fragment>\n#if defined( USE_INSTANCING_COLOR ) || defined( USE_COLOR )\n  totalEmissiveRadiance *= vColor.rgb;\n#endif');
+  };
+  cubeMat.customProgramCacheKey = () => 'lit-cubes';
+  const cubes = new InstancedMesh(new RoundedBoxGeometry(1, 1, 1, 2, 0.12), cubeMat, 70), col = new Color();
   const hang = [];
   for (let i = 0; i < 70; i++) {
     pos.set(-40 + r() * 90, -18 + r() * 30, -8 - r() * 145);
@@ -2284,6 +2428,10 @@ if (HARNESS) {
     world: (name) => setWorld(name),
     skin: (name) => setMarbleSkin(name),
     neon: (style) => neonCourse(style),
+    peek: (p, a) => { peekCam = p ? { pos: p, at: a } : null; return !!peekCam; },
+    freeze: (on) => { cityRefs.frozen = !!on; return cityRefs.frozen; },
+    trainAt: (x) => { if (cityRefs.train) cityRefs.train.position.x = x; return !!cityRefs.train; },
+    cars: () => (cityRefs.cars ? cityRefs.cars() : []),
     trail: () => lastTrail && { n: lastTrail.pts.length, count: lastTrail.geo.drawRange.count, inScene: !!lastTrail.mesh.parent && !!lastTrail.mesh.parent.parent,
                                first: lastTrail.pts[0], last: lastTrail.pts[lastTrail.pts.length - 1] },
     quiet: () => { everMoved = true; },       // no drag hint, for stills
