@@ -1038,12 +1038,19 @@
   // THE GLASS. Game art, so it carries its own palette (DESIGN-SYSTEM 1.5):
   // ruby, amber, emerald and sapphire. Each has a ground (the cell behind the
   // ornament), a main (the ornament), an accent (its inner detail) and a gem.
+  //
+  // The gem is a pale tint of its OWN glass (lighten(main, 0.7)), never a second
+  // hue. It was gold on ruby, ruby on amber and gold on emerald, and in the
+  // palette a red swatch with a yellow jewel read as the YELLOW piece: two
+  // colours in one legend, and the eye picks the one in the middle (owner,
+  // 2026-09-26). One colour family per piece keeps the picker and the board
+  // saying the same thing.
   const LEAD_INK = '#120F16';
   const GLASS = [
-    { ground: '#8E1426', main: '#D8283A', accent: '#F26A3A', gem: '#FFD84A' },   // ruby
-    { ground: '#A8620E', main: '#F4B82C', accent: '#FFE36A', gem: '#D8283A' },   // amber
-    { ground: '#0E5A30', main: '#22A24E', accent: '#8BDB5A', gem: '#FFE36A' },   // emerald
-    { ground: '#12307A', main: '#2A62C8', accent: '#48B8EE', gem: '#FFFFFF' },   // sapphire
+    { ground: '#8E1426', main: '#D8283A', accent: '#F26A3A', gem: '#F3BFC4' },   // ruby
+    { ground: '#A8620E', main: '#F4B82C', accent: '#FFE36A', gem: '#FCEAC0' },   // amber
+    { ground: '#0E5A30', main: '#22A24E', accent: '#8BDB5A', gem: '#BDE3CA' },   // emerald
+    { ground: '#12307A', main: '#2A62C8', accent: '#48B8EE', gem: '#BFD0EF' },   // sapphire
   ];
   // Unlit glass, and the unlit cells of the wedge, which are yours to fill.
   // Those breathe between WEDGE and WEDGE_HI (see drawGlass).

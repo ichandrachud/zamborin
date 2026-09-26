@@ -13,5 +13,5 @@
    wordmark spans x 18.1%..81.9% and y 72.5%..76.3%, so at 64% of the width it
    sits inside the 82% that survives a cover-crop on the narrowest viewport
    worth designing for. */
-body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=5'), radial-gradient(circle at 50% 44%, #3A3044, #120E17 80%); }
-body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=5'), radial-gradient(circle at 50% 41%, #3A3044, #120E17 80%); }
+body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=6'), radial-gradient(circle at 50% 44%, #3A3044, #120E17 80%); }
+body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=6'), radial-gradient(circle at 50% 41%, #3A3044, #120E17 80%); }
