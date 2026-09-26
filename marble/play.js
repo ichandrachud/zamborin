@@ -150,18 +150,18 @@ function updateRoll() {
   const sp = Math.hypot(ball.v.x, ball.v.z);
   const on = sfx.isOn() && ball.grounded && state === 'play';
   const t = roll.ac.currentTime;
-  const k = world.name === 'neon' ? 0.5 : 1;          // under the city's hum, a quieter glassy roll
-  roll.g.gain.setTargetAtTime(on ? Math.min(0.14, 0.14 * sp / VMAX) * k : 0, t, 0.05);
+  roll.g.gain.setTargetAtTime(on ? Math.min(0.14, 0.14 * sp / VMAX) : 0, t, 0.05);
   roll.f.frequency.setTargetAtTime(200 + sp * 55, t, 0.08);
 }
 
 /* ---------- THE NEON CITY'S SOUND (owner, 2026-09-26: "work on the sounds") ----------
-   An electric hum under the marble that rises with its speed, a faint tick as
-   it rolls over each line of the grid, a two-note chime at a blue ring, a
-   rising run at the orange one, a falling sweep when it drops off and a
-   shimmer as it comes home, a low hum under the whole city, and the train's
-   rush as it passes, from its own side. Everything goes through the house
-   sound module (DESIGN-SYSTEM 9), so the sound switch silences all of it. */
+   A two-note chime at a blue ring, a rising run at the orange one, a falling
+   sweep when the marble drops off and a shimmer as it comes home, a low hum
+   under the whole city, and the train's rush as it passes, from its own side.
+   The marble itself keeps the rolling rumble it always had: an electric hum
+   and a tick per grid line were tried under it, and the owner preferred the
+   rumble ("I liked the sound you had before better"). Everything goes through
+   the house sound module (DESIGN-SYSTEM 9), so the sound switch silences it. */
 let citySound = null;                                 // the continuous voices, built on the first touch
 function voice(type, f0, f1, dur, gain, delay = 0) { // one note, gliding from f0 to f1
   const out = sfx && sfx.out && sfx.out();
@@ -197,11 +197,6 @@ function ensureCitySound() {
   const out = sfx.out();
   if (!out) return;
   const ac = out.context;
-  const h1 = ac.createOscillator(), h2 = ac.createOscillator();          // the hum under the marble
-  h1.type = 'sawtooth'; h2.type = 'triangle';
-  const hf = ac.createBiquadFilter(); hf.type = 'lowpass'; hf.frequency.value = 300; hf.Q.value = 1.2;
-  const hg = ac.createGain(); hg.gain.value = 0;
-  h1.connect(hf); h2.connect(hf); hf.connect(hg); hg.connect(out); h1.start(); h2.start();
   const p1 = ac.createOscillator(), p2 = ac.createOscillator();          // the city: two low voices, the filter breathing
   p1.type = p2.type = 'sawtooth'; p1.frequency.value = 55; p2.frequency.value = 82.6;
   const pf = ac.createBiquadFilter(); pf.type = 'lowpass'; pf.frequency.value = 320; pf.Q.value = 0.8;
@@ -218,17 +213,12 @@ function ensureCitySound() {
   ns.connect(tf); tf.connect(tg);
   if (tp) { tg.connect(tp); tp.connect(out); } else tg.connect(out);
   ns.start();
-  citySound = { ac, h1, h2, hf, hg, pg, tg, tp, lastCell: null };
+  citySound = { ac, pg, tg, tp };
 }
 function updateCitySound() {
   const c = citySound;
   if (!c) return;
   const t = c.ac.currentTime, on = sfx.isOn() && world.name === 'neon';
-  const sp = Math.hypot(ball.v.x, ball.v.z), rolling = on && ball.grounded && state === 'play';
-  const f = 52 + sp * 9;
-  c.h1.frequency.setTargetAtTime(f, t, 0.06); c.h2.frequency.setTargetAtTime(f * 2.01, t, 0.06);
-  c.hf.frequency.setTargetAtTime(260 + sp * 140, t, 0.08);
-  c.hg.gain.setTargetAtTime(rolling ? Math.min(0.07, 0.07 * sp / VMAX) : 0, t, 0.05);
   c.pg.gain.setTargetAtTime(on && state !== 'rules' ? 0.022 : 0, t, 0.4);
   const tr = cityRefs.train;
   if (tr && on) {
@@ -236,12 +226,6 @@ function updateCitySound() {
     c.tg.gain.setTargetAtTime(Math.pow(Math.max(0, 1 - Math.hypot(dx, dy, dz) / 45), 2) * 0.09, t, 0.1);
     if (c.tp) c.tp.pan.setTargetAtTime(Math.max(-1, Math.min(1, dx / 25)), t, 0.1);
   } else c.tg.gain.setTargetAtTime(0, t, 0.1);
-  // A faint tick for each metre of grid the marble rolls over.
-  if (rolling && sp > 0.8) {
-    const cell = Math.floor(ball.p.x) + ',' + Math.floor(ball.p.z);
-    if (c.lastCell && cell !== c.lastCell) voice('sine', 2600 + Math.random() * 300, 2600, 0.012, 0.012 + 0.014 * sp / VMAX);
-    c.lastCell = cell;
-  } else c.lastCell = null;
 }
 
 // ---------- ANALYTICS ----------
@@ -2537,7 +2521,7 @@ if (HARNESS) {
     world: (name) => setWorld(name),
     skin: (name) => setMarbleSkin(name),
     neon: (style) => neonCourse(style),
-    audio: () => citySound && { hum: +citySound.hg.gain.value.toFixed(4), city: +citySound.pg.gain.value.toFixed(4),
+    audio: () => citySound && { roll: roll ? +roll.g.gain.value.toFixed(4) : null, city: +citySound.pg.gain.value.toFixed(4),
                                 train: +citySound.tg.gain.value.toFixed(4), state: citySound.ac.state },
     peek: (p, a) => { peekCam = p ? { pos: p, at: a } : null; return !!peekCam; },
     freeze: (on) => { cityRefs.frozen = !!on; return cityRefs.frozen; },
