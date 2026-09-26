@@ -20,7 +20,7 @@ import {
   MeshPhysicalMaterial, MeshBasicMaterial, CanvasTexture, RepeatWrapping,
   SRGBColorSpace, Color, Vector3, Quaternion, Euler, PCFShadowMap, NeutralToneMapping,
   PMREMGenerator, AdditiveBlending, DynamicDrawUsage, RoundedBoxGeometry,
-  RoomEnvironment,
+  RoomEnvironment, InstancedMesh, Matrix4,
 } from './assets/three-r186.min.js';
 
 // ---------- MODE ----------
@@ -684,8 +684,8 @@ let lastWasBest = false;
 function restartLevel() {
   for (const g of gates) {
     g.passed = false; g.t0 = 0; g.ring.scale.setScalar(1);
-    g.mat.color.setHex(0xFFFFFF); g.mat.emissive.setHex(0xFFFFFF); g.mat.emissiveIntensity = 0.35;
-    g.discMat.color.setHex(0xFFFFFF); g.discMat.opacity = 0.13;
+    g.mat.color.setHex(gateColour()); g.mat.emissive.setHex(gateColour()); g.mat.emissiveIntensity = 0.35;
+    g.discMat.color.setHex(gateColour()); g.discMat.opacity = 0.13;
   }
   clock = 0; falls = 0; started = false;
   spawn.copy(startPos);
@@ -1222,7 +1222,10 @@ function setTopUV(mesh, perPiece) {
   uv.needsUpdate = true;
 }
 function restoreCourse() {
-  for (const c of colliders) { c.mesh.material = faceMats(c.ferry ? ferryStone : stone); setTopUV(c.mesh, false); }
+  for (const c of colliders) {
+    if (c.deco) { for (const d of c.deco) c.mesh.remove(d); c.deco = []; }
+    c.mesh.material = faceMats(c.ferry ? ferryStone : stone); setTopUV(c.mesh, false);
+  }
 }
 
 function setWorld(name) {
@@ -1233,13 +1236,17 @@ function setWorld(name) {
   hemi.color.setHex(DEFAULT_WORLD.hemi[0]); hemi.groundColor.setHex(DEFAULT_WORLD.hemi[1]); hemi.intensity = DEFAULT_WORLD.hemi[2];
   sun.color.setHex(DEFAULT_WORLD.sun[0]); sun.intensity = DEFAULT_WORLD.sun[1];
   restoreCourse();
-  world = { name: 'void', group: null, tick: null, restyle: null };
+  world = { name: 'void', group: null, tick: null, restyle: null, marble: null, rings: null };
+  setMarbleSkin('glass');
+  tintRings(0xFFFFFF, 0xFFD23F);
   const build = WORLDS[name];
   if (build) {
-    world = { name, group: new Group(), tick: null, restyle: null };
+    world = { name, group: new Group(), tick: null, restyle: null, marble: null, rings: null };
     build(world);
     scene.add(world.group);
     if (world.restyle) world.restyle();
+    if (world.marble) setMarbleSkin(world.marble);
+    if (world.rings) tintRings(world.rings[0], world.rings[1]);
   }
   fitBackground();
   return world.name;
@@ -1608,6 +1615,349 @@ WORLDS_ADD('space', (w) => {
   star.position.set(-26, -12, -120); star.rotation.z = -0.45; G.add(star);
 });
 
+// ---------- WORLDS, ROUND TWO (the owner's own pictures, 2026-09-26) ----------
+/* Of the first four the owner liked the desk best, because its course was
+   made of the world's own things, and sent six pictures of the kind of world
+   they meant: a crystal canyon at night, a lantern-lit temple, a bright sky of
+   toy blocks, a neon city, a low-poly valley. They asked that the marble and
+   the course match the world. So each world here dresses three things: the
+   scenery, the course, and the marble. */
+
+// ---- the marble's skins ----
+const sphereGeo = marble.geometry;
+const skinParts = new Group();
+marble.add(skinParts);
+let marbleSkin = 'glass';
+let neonEnv = null;
+function neonEnvMap() {
+  if (neonEnv || !renderer) return neonEnv;
+  const t = canvasTex(512, 256, (g) => {
+    const lg = g.createLinearGradient(0, 0, 0, 256);
+    lg.addColorStop(0, '#05040C'); lg.addColorStop(0.42, '#1A0B2E'); lg.addColorStop(0.52, '#FF5A3C');
+    lg.addColorStop(0.6, '#2A0F3A'); lg.addColorStop(1, '#05040C');
+    g.fillStyle = lg; g.fillRect(0, 0, 512, 256);
+    const r = seeded(3);
+    for (let i = 0; i < 70; i++) {
+      g.fillStyle = r() > 0.5 ? 'rgba(80,230,255,0.95)' : 'rgba(255,140,60,0.95)';
+      g.fillRect(r() * 512, 50 + r() * 150, 3 + r() * 14, 2 + r() * 22);
+    }
+  });
+  const pm = new PMREMGenerator(renderer);
+  neonEnv = pm.fromEquirectangular(t).texture;
+  pm.dispose();
+  return neonEnv;
+}
+const SKINS = {
+  glass() { marble.material = glassMat; eye.visible = true; },
+  // An amethyst: violet glass with a faceted crystal glowing at its heart.
+  amethyst() {
+    marble.material = new MeshPhysicalMaterial({ color: 0xF2D2FF, transmission: 1, thickness: 0.8, ior: 1.54, roughness: 0.05,
+      attenuationColor: new Color(0xA040F0), attenuationDistance: 0.55, clearcoat: 1, envMap: envTex, envMapIntensity: 1.4 });
+    skinParts.add(new Mesh(new IcosahedronGeometry(R * 0.42, 0), new MeshStandardMaterial({
+      color: 0xFF8AEA, emissive: 0xFF3FD0, emissiveIntensity: 1.9, flatShading: true })));
+  },
+  // A white candy marble with rainbow sprinkles: bright on any coloured block.
+  candy() {
+    const t = canvasTex(256, 128, (g) => {
+      g.fillStyle = '#FFFDF8'; g.fillRect(0, 0, 256, 128);
+      const r = seeded(8), cols = ['#FF5F8F', '#FFB23F', '#3FC9C0', '#7F6BFF', '#FFD84D', '#5FB0FF'];
+      g.lineCap = 'round'; g.lineWidth = 5;
+      for (let i = 0; i < 90; i++) {
+        const x = r() * 256, y = 10 + r() * 108, a = r() * Math.PI;
+        g.strokeStyle = cols[i % cols.length]; g.beginPath();
+        g.moveTo(x - Math.cos(a) * 6, y - Math.sin(a) * 6); g.lineTo(x + Math.cos(a) * 6, y + Math.sin(a) * 6); g.stroke();
+      }
+    });
+    marble.material = new MeshPhysicalMaterial({ map: t, roughness: 0.28, clearcoat: 1, clearcoatRoughness: 0.08, envMap: envTex, envMapIntensity: 0.9 });
+  },
+  // Chrome, so the neon city runs across it.
+  chrome() { marble.material = new MeshStandardMaterial({ color: 0xFFFFFF, metalness: 1, roughness: 0.05, envMap: neonEnvMap() || envTex, envMapIntensity: 1.4 }); },
+  // Faceted, like everything in the low-poly valley.
+  faceted() {
+    marble.geometry = new IcosahedronGeometry(R, 1);
+    marble.material = new MeshStandardMaterial({ color: 0xFF6B3D, roughness: 0.5, flatShading: true });
+  },
+};
+function setMarbleSkin(name) {
+  for (const m of [...skinParts.children]) skinParts.remove(m);
+  eye.visible = false;
+  if (marble.geometry !== sphereGeo) { marble.geometry.dispose(); marble.geometry = sphereGeo; }
+  marbleSkin = SKINS[name] ? name : 'glass';
+  SKINS[marbleSkin]();
+  return marbleSkin;
+}
+function tintRings(gateCol, goalCol) {
+  for (const g of gates) if (!g.passed) { g.mat.color.setHex(gateCol); g.mat.emissive.setHex(gateCol); g.discMat.color.setHex(gateCol); }
+  goal.mat.color.setHex(goalCol); goal.mat.emissive.setHex(goalCol); goal.discMat.color.setHex(goalCol);
+}
+const gateColour = () => (world.rings ? world.rings[0] : 0xFFFFFF);
+// Things fixed to a course piece ride with it, ferries included.
+function addDeco(c, obj) { (c.deco || (c.deco = [])).push(obj); c.mesh.add(obj); }
+const HIDDEN = new MeshBasicMaterial({ visible: false });
+
+// ---- 1. Crystal canyon at night: slate with glowing runes, pink crystals, an amethyst marble ----
+function glyph(g, x, y, k) {
+  g.beginPath();
+  if (k === 0) g.arc(x, y, 7, 0, Math.PI * 2);
+  else if (k === 1) { g.moveTo(x - 7, y - 7); g.lineTo(x + 7, y + 7); g.moveTo(x + 7, y - 7); g.lineTo(x - 7, y + 7); }
+  else if (k === 2) for (let a = 0; a < 3; a++) { g.moveTo(x - 7, y - 6 + a * 6); g.lineTo(x + 7, y - 6 + a * 6); }
+  else if (k === 3) { g.arc(x, y, 7, 0.4, Math.PI * 1.7); g.moveTo(x, y); g.lineTo(x + 6, y - 4); }
+  else { g.moveTo(x, y - 8); g.lineTo(x + 7, y + 6); g.lineTo(x - 7, y + 6); g.closePath(); }
+  g.stroke();
+}
+function runeTop(len, seed) {
+  const H = 1024, r = seeded(seed);
+  const map = canvasTex(256, H, (g) => {
+    g.fillStyle = '#2A3850'; g.fillRect(0, 0, 256, H);
+    for (let i = 0; i < 70; i++) {
+      const x = r() * 256, y = r() * H, rad = 20 + r() * 60;
+      const rg = g.createRadialGradient(x, y, 0, x, y, rad);
+      rg.addColorStop(0, r() < 0.5 ? 'rgba(70,96,130,0.35)' : 'rgba(20,30,48,0.35)'); rg.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = rg; g.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+    }
+    g.fillStyle = 'rgba(8,14,26,0.7)'; g.fillRect(30, 0, 3, H); g.fillRect(223, 0, 3, H);
+  });
+  const glow = canvasTex(256, H, (g) => {
+    g.fillStyle = '#000'; g.fillRect(0, 0, 256, H);
+    g.strokeStyle = '#FFF'; g.lineWidth = 3; g.lineCap = 'round';
+    const n = Math.max(3, Math.round(len * 1.3));
+    for (let i = 0; i < n; i++) {
+      const y = (i + 0.5) * H / n;
+      glyph(g, 15, y, (i * 3) % 5); glyph(g, 241, y, (i * 3 + 2) % 5);
+    }
+  });
+  return new MeshStandardMaterial({ map, roughness: 0.8, emissive: new Color(0x54E0FF), emissiveMap: glow, emissiveIntensity: 1.4 });
+}
+const crystalMat = new MeshStandardMaterial({ color: 0xFFB8F2, emissive: 0xFF3FD0, emissiveIntensity: 1.1, roughness: 0.25, flatShading: true });
+function crystal(h, rad) {
+  const g = new Group();
+  const body = new Mesh(new CylinderGeometry(rad, rad * 0.9, h, 6), crystalMat); body.position.y = h / 2; g.add(body);
+  const tip = new Mesh(new ConeGeometry(rad, rad * 1.8, 6), crystalMat); tip.position.y = h + rad * 0.9; g.add(tip);
+  return g;
+}
+function cluster(G, x, y, z, s, seed) {
+  const r = seeded(seed), c = new Group();
+  for (let i = 0; i < 6; i++) {
+    const k = crystal((1.2 + r() * 2.4) * s, (0.22 + r() * 0.2) * s);
+    k.rotation.set((r() - 0.5) * 1.2, r() * 6, (r() - 0.5) * 1.2);
+    k.position.set((r() - 0.5) * s, 0, (r() - 0.5) * s);
+    c.add(k);
+  }
+  const halo = new Sprite(new SpriteMaterial({ map: dot, color: 0xFF4FD8, transparent: true, opacity: 0.6, blending: AdditiveBlending, depthWrite: false }));
+  halo.scale.set(2.6 * s, 2.6 * s, 1); halo.position.y = 1.3 * s; halo.material.opacity = 0.45; c.add(halo);
+  const base = new Mesh(new IcosahedronGeometry(1, 0), new MeshStandardMaterial({ color: 0x2C4460, roughness: 0.95, flatShading: true }));
+  base.scale.set(1.3 * s, 0.7 * s, 1.3 * s); base.position.y = -0.2 * s; c.add(base);
+  c.position.set(x, y, z); G.add(c);
+}
+WORLDS_ADD('crystal', (w) => {
+  scene.background = gradientTex([[0, '#070F24'], [0.5, '#0C1E3C'], [1, '#101832']]);
+  scene.fog.color.setHex(0x0B1B33); scene.fog.near = 18; scene.fog.far = 90;
+  hemi.color.setHex(0x6A96D8); hemi.groundColor.setHex(0x2A1A40); hemi.intensity = 1.9;
+  sun.color.setHex(0xB8CCFF); sun.intensity = 2.3;
+  w.marble = 'amethyst'; w.rings = [0x54E0FF, 0xFF4FD8];
+  const G = w.group, r = seeded(12);
+  // Canyon walls: great low-poly boulders either side, mossed on top.
+  const rock = new MeshStandardMaterial({ color: 0x33506E, roughness: 0.95, flatShading: true });
+  const moss = new MeshStandardMaterial({ color: 0x3E9384, roughness: 0.9, flatShading: true });
+  for (const side of [-1, 1]) for (let i = 0; i < 10; i++) {
+    const b = new Mesh(new IcosahedronGeometry(1, 0), rock);
+    b.scale.set(7 + r() * 6, 20 + r() * 12, 7 + r() * 5);
+    b.position.set(side < 0 ? -14 - r() * 5 : 21 + r() * 5, -20 + r() * 5, 10 - i * 8.5); b.rotation.y = r() * 3; G.add(b);
+    const m = new Mesh(new IcosahedronGeometry(1, 0), moss);
+    m.scale.set(b.scale.x * 0.8, 1.6, b.scale.z * 0.8); m.position.set(b.position.x, b.position.y + b.scale.y * 0.86, b.position.z); G.add(m);
+  }
+  const floor = new Mesh(new PlaneGeometry(200, 200), new MeshStandardMaterial({ color: 0x0B1626, roughness: 1 }));
+  floor.rotation.x = -Math.PI / 2; floor.position.set(0, -30, -40); G.add(floor);
+  // Crystals: on the canyon floor, on the walls, and close by the course.
+  for (let i = 0; i < 14; i++) cluster(G, -12 + r() * 32, -30, 6 - r() * 60, 2.2 + r() * 1.6, 100 + i);
+  for (const [x, y, z, s] of [[-12, -2, -12, 1.8], [19, -1, -26, 2], [-11, -4, -34, 1.6], [18, -6, -6, 1.4], [-4.2, -2.4, -6, 1.0], [9.4, -2.2, -18, 0.9], [1.6, -2.4, -31, 0.9]]) cluster(G, x, y, z, s, Math.round(x * 13 + z));
+  w.restyle = () => {
+    const side = new MeshStandardMaterial({ color: 0x1E2A3C, roughness: 0.9 });
+    const under = new MeshStandardMaterial({ color: 0x141C2A, roughness: 1 });
+    colliders.forEach((c, i) => {
+      c.mesh.material = [side, side, runeTop(c.half.z * 2, 40 + i), under, side, side];
+      setTopUV(c.mesh, true);
+    });
+  };
+});
+
+// ---- 2. Toy blocks in the sky: a course of coloured blocks, block islands, big clouds, a candy marble ----
+const blockMat = new MeshStandardMaterial({ color: 0xFFFFFF, roughness: 0.5 });
+const BLOCK_PAIRS = [[0xFF7FA8, 0xFFA24C], [0x3FD0C9, 0xFFD84D], [0xB48CFF, 0xFF7FA8], [0xFFA24C, 0x3FD0C9], [0x5FB8FF, 0xFFD84D]];
+function blockPiece(c, pair) {
+  const hx = c.half.x, hz = c.half.z;
+  const nx = Math.max(1, Math.round(hx * 2 / 1.1)), nz = Math.max(1, Math.round(hz * 2 / 1.1));
+  const sx = hx * 2 / nx, sz = hz * 2 / nz;
+  const im = new InstancedMesh(new RoundedBoxGeometry(sx * 0.97, c.half.y * 2, sz * 0.97, 2, 0.09), blockMat, nx * nz);
+  const m = new Matrix4(), col = new Color();
+  let k = 0;
+  for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++) {
+    m.makeTranslation(-hx + sx * (i + 0.5), 0, -hz + sz * (j + 0.5));
+    im.setMatrixAt(k, m); im.setColorAt(k, col.setHex(pair[(i + j) % 2])); k++;
+  }
+  im.castShadow = true; im.receiveShadow = true;
+  return im;
+}
+WORLDS_ADD('blocks', (w) => {
+  scene.background = gradientTex([[0, '#4FBDFF'], [0.45, '#8FDAFF'], [0.8, '#E2F5FF'], [1, '#FFE6F1']]);
+  scene.fog.color.setHex(0xD9F1FF); scene.fog.near = 40; scene.fog.far = 210;
+  hemi.color.setHex(0xE0F6FF); hemi.groundColor.setHex(0xFFD1E6); hemi.intensity = 1.5;
+  sun.color.setHex(0xFFFFFF); sun.intensity = 3.0;
+  w.marble = 'candy';
+  const G = w.group, r = seeded(21);
+  // Floating islands and towers of blocks, all one draw.
+  const N = 260, cols = [0xFF7FA8, 0xFFA24C, 0x3FD0C9, 0xFFD84D, 0xB48CFF, 0x5FB8FF];
+  const im = new InstancedMesh(new RoundedBoxGeometry(1, 1, 1, 2, 0.08), blockMat, N);
+  const m = new Matrix4(), col = new Color(), q = new Quaternion(), pos = new Vector3(), sc = new Vector3();
+  let k = 0;
+  const spots = [];
+  for (let i = 0; i < 26; i++) {
+    const x = (r() < 0.5 ? -1 : 1) * (10 + r() * 45) + 3, z = 12 - r() * 130, y = -28 + r() * 34;
+    spots.push([x, y, z, 2 + Math.floor(r() * 4), 1 + Math.floor(r() * 3), r() < 0.25]);
+  }
+  for (const [x, y, z, a, b, tower] of spots) {
+    const cA = cols[Math.floor(r() * cols.length)], cB = cols[Math.floor(r() * cols.length)];
+    for (let i = 0; i < a && k < N; i++) for (let j = 0; j < b && k < N; j++) {
+      const h = tower ? 3 + Math.floor(r() * 8) : 1;
+      pos.set(x + i * 2.1, y - h / 2, z - j * 2.1); sc.set(2, h, 2);
+      m.compose(pos, q, sc); im.setMatrixAt(k, m); im.setColorAt(k, col.setHex((i + j) % 2 ? cA : cB)); k++;
+    }
+  }
+  im.count = k; im.castShadow = true; G.add(im);
+  // A striped ball floating off to one side, as in the owner's picture.
+  const ballTex = canvasTex(256, 128, (g) => { for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? '#FF9CC4' : '#FF6FA6'; g.fillRect(0, i * 16, 256, 16); } });
+  const ball = new Mesh(new SphereGeometry(7, 32, 16), new MeshStandardMaterial({ map: ballTex, roughness: 0.5 }));
+  ball.position.set(38, 8, -70); ball.rotation.z = 0.4; G.add(ball);
+  const ct = cloudTex();
+  for (const [x, y, z, s] of [[-26, 10, -60, 34], [30, 16, -110, 46], [-60, 22, -150, 56], [14, -24, -30, 26], [-30, -18, -20, 24], [48, -10, -44, 30], [70, 26, -180, 60]]) {
+    const sp = new Sprite(new SpriteMaterial({ map: ct, transparent: true, depthWrite: false }));
+    sp.scale.set(s, s / 2, 1); sp.position.set(x, y, z); G.add(sp);
+  }
+  w.restyle = () => {
+    colliders.forEach((c, i) => { c.mesh.material = HIDDEN; addDeco(c, blockPiece(c, BLOCK_PAIRS[i % BLOCK_PAIRS.length])); });
+  };
+});
+
+// ---- 3. Neon city: glowing towers below, lit cubes in the air, a glass course with a grid, a chrome marble ----
+function stripeTex() {
+  return canvasTex(64, 256, (g) => {
+    g.fillStyle = '#000'; g.fillRect(0, 0, 64, 256);
+    const r = seeded(31);
+    for (let y = 6; y < 256; y += 12) { g.fillStyle = `rgba(255,255,255,${0.55 + r() * 0.45})`; g.fillRect(4, y, 56, 4); }
+  });
+}
+WORLDS_ADD('neon', (w) => {
+  scene.background = gradientTex([[0, '#05040C'], [0.35, '#140A26'], [0.62, '#3A1238'], [0.8, '#7A2A3A'], [1, '#1A0B22']]);
+  scene.fog.color.setHex(0x160A24); scene.fog.near = 25; scene.fog.far = 175;
+  hemi.color.setHex(0x4A3A8A); hemi.groundColor.setHex(0x0A0612); hemi.intensity = 0.7;
+  sun.color.setHex(0xB8C8FF); sun.intensity = 1.3;
+  w.marble = 'chrome'; w.rings = [0x34E0FF, 0xFF6A3C];
+  const G = w.group, r = seeded(41), stripes = stripeTex();
+  const box = new BoxGeometry(1, 1, 1);
+  const towerA = new MeshStandardMaterial({ color: 0x0B1020, roughness: 0.6, emissive: 0x34E0FF, emissiveMap: stripes, emissiveIntensity: 1.3 });
+  const towerB = new MeshStandardMaterial({ color: 0x0B1020, roughness: 0.6, emissive: 0xFF6A3C, emissiveMap: stripes, emissiveIntensity: 1.3 });
+  const A = new InstancedMesh(box, towerA, 220), B = new InstancedMesh(box, towerB, 220);
+  const m = new Matrix4(), q = new Quaternion(), pos = new Vector3(), sc = new Vector3();
+  let a = 0, b = 0;
+  for (let x = -80; x <= 86; x += 7) for (let z = 26; z >= -210; z -= 7) {
+    if (r() < 0.35) continue;
+    const nearCourse = x > -10 && x < 18 && z > -60;
+    const top = nearCourse ? -12 - r() * 20 : -6 - r() * 26 + (Math.abs(x - 3) > 40 ? r() * 20 : 0);
+    const h = top + 70, wdt = 3 + r() * 3;
+    pos.set(x + r() * 2, top - h / 2, z + r() * 2); sc.set(wdt, h, 3 + r() * 3); m.compose(pos, q, sc);
+    if (r() < 0.55 && a < 220) A.setMatrixAt(a++, m); else if (b < 220) B.setMatrixAt(b++, m);
+  }
+  A.count = a; B.count = b; G.add(A, B);
+  // Lit cubes hanging in the air.
+  const cubes = new InstancedMesh(box, new MeshBasicMaterial({ color: 0xFFFFFF }), 70), col = new Color();
+  for (let i = 0; i < 70; i++) {
+    pos.set(-40 + r() * 90, -18 + r() * 30, 12 - r() * 150);
+    if (pos.x > -6 && pos.x < 14 && pos.z > -50 && pos.y > -4) pos.y -= 12;
+    const s = 0.4 + r() * 1.2; sc.set(s, s, s);
+    q.setFromEuler(new Euler(r() * 3, r() * 3, 0)); m.compose(pos, q, sc);
+    cubes.setMatrixAt(i, m); cubes.setColorAt(i, col.setHex(r() < 0.5 ? 0x5FF0FF : 0xFF8A5C));
+  }
+  q.identity(); G.add(cubes);
+  w.restyle = () => {
+    const grid = canvasTex(128, 128, (g) => {
+      g.fillStyle = '#000'; g.fillRect(0, 0, 128, 128);
+      g.fillStyle = '#FFF'; g.fillRect(0, 0, 128, 3); g.fillRect(0, 0, 3, 128); g.fillRect(0, 64, 128, 2); g.fillRect(64, 0, 2, 128);
+    }, true);
+    const top = new MeshStandardMaterial({ color: 0x0B1322, metalness: 0.4, roughness: 0.25, emissive: 0x34E0FF, emissiveMap: grid, emissiveIntensity: 0.9 });
+    const side = new MeshStandardMaterial({ color: 0x101A30, metalness: 0.5, roughness: 0.3, emissive: 0x6A2AFF, emissiveIntensity: 0.18 });
+    const under = new MeshStandardMaterial({ color: 0x080C16, roughness: 1 });
+    for (const c of colliders) { c.mesh.material = [side, side, top, under, side, side]; setTopUV(c.mesh, false); }
+  };
+});
+
+// ---- 4. Low-poly valley: grassy ledges over trees, sheep and snowy peaks, a faceted marble ----
+const valleyY = (x, z) => -46 + 3 * Math.sin(x * 0.05) + 2.5 * Math.cos(z * 0.07) + 1.5 * Math.sin((x + z) * 0.11);
+WORLDS_ADD('valley', (w) => {
+  scene.background = gradientTex([[0, '#3FE0D6'], [0.5, '#9FF0DE'], [0.85, '#F2F7D8'], [1, '#FFF1CF']]);
+  scene.fog.color.setHex(0xCFEFE0); scene.fog.near = 30; scene.fog.far = 230;
+  hemi.color.setHex(0xD8FFF6); hemi.groundColor.setHex(0x7BBF5A); hemi.intensity = 1.35;
+  sun.color.setHex(0xFFF4DC); sun.intensity = 3.2;
+  w.marble = 'faceted';
+  const G = w.group, r = seeded(51);
+  // The valley floor: faceted, in patches of green and gold.
+  const land = new PlaneGeometry(420, 420, 84, 84);
+  land.rotateX(-Math.PI / 2);
+  const p = land.attributes.position, colours = [], cl = new Color();
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), z = p.getZ(i) - 80;
+    p.setY(i, valleyY(x, z) + (r() - 0.5) * 0.8);
+    cl.setHex(Math.sin(x * 0.03) + Math.cos(z * 0.04) > 1.1 ? 0xE6D25A : r() < 0.5 ? 0x5CC95A : 0x6FD65F);
+    colours.push(cl.r, cl.g, cl.b);
+  }
+  land.setAttribute('color', new Float32BufferAttribute(colours, 3));
+  land.computeVertexNormals();
+  const ground = new Mesh(land, new MeshStandardMaterial({ vertexColors: true, roughness: 0.95, flatShading: true }));
+  ground.position.z = -80; ground.receiveShadow = true; G.add(ground);
+  const leaf = new MeshStandardMaterial({ color: 0x5FC83E, roughness: 0.8, flatShading: true });
+  const leaf2 = new MeshStandardMaterial({ color: 0x3FA83A, roughness: 0.8, flatShading: true });
+  const bark = new MeshStandardMaterial({ color: 0x6B4A32, roughness: 0.9, flatShading: true });
+  for (let i = 0; i < 70; i++) {
+    const x = -80 + r() * 170, z = 20 - r() * 170, y = valleyY(x, z), s = 1.6 + r() * 1.8;
+    if (Math.abs(x - 3) < 14 && z > -60) continue;           // nothing tall right under the course
+    const trunk = new Mesh(new CylinderGeometry(0.22 * s, 0.32 * s, 2.4 * s, 5), bark); trunk.position.set(x, y + 1.2 * s, z); G.add(trunk);
+    const crown = new Mesh(new IcosahedronGeometry(1.6 * s, 0), i % 3 ? leaf : leaf2); crown.position.set(x, y + 3.2 * s, z); crown.rotation.y = r() * 3; G.add(crown);
+  }
+  const wool = new MeshStandardMaterial({ color: 0xF6F6F2, roughness: 0.9, flatShading: true });
+  const black = new MeshStandardMaterial({ color: 0x222222, roughness: 0.8 });
+  for (let i = 0; i < 16; i++) {
+    const x = -40 + r() * 90, z = 5 - r() * 80, y = valleyY(x, z);
+    const body = new Mesh(new IcosahedronGeometry(0.9, 0), wool); body.scale.set(1.3, 0.9, 1); body.position.set(x, y + 0.8, z); G.add(body);
+    const head = new Mesh(new BoxGeometry(0.5, 0.5, 0.6), black); head.position.set(x + 1.1, y + 1.0, z); G.add(head);
+  }
+  const rockM = new MeshStandardMaterial({ color: 0x6E7A86, roughness: 0.9, flatShading: true });
+  const snow = new MeshStandardMaterial({ color: 0xF4F8FF, roughness: 0.7, flatShading: true });
+  for (let i = 0; i < 11; i++) {
+    const h = 50 + r() * 50, rad = 28 + r() * 22, x = -190 + i * 38 + r() * 10, z = -230 - r() * 30;
+    const peak = new Mesh(new ConeGeometry(rad, h, 7), rockM); peak.position.set(x, -30 + h / 2, z); peak.rotation.y = r() * 3; G.add(peak);
+    const cap = new Mesh(new ConeGeometry(rad * 0.34, h * 0.34, 7), snow); cap.position.set(x, -30 + h - h * 0.17 + 0.3, z); cap.rotation.y = peak.rotation.y; G.add(cap);
+  }
+  const cloudM = new MeshStandardMaterial({ color: 0xFFFFFF, roughness: 0.9, flatShading: true });
+  for (let i = 0; i < 9; i++) {
+    const cx = -50 + r() * 110, cy = 4 + r() * 14, cz = -20 - r() * 110;
+    for (let j = 0; j < 3; j++) { if (Math.abs(cx - 3) < 12 && cz > -50) break; const puff = new Mesh(new IcosahedronGeometry(2.4 + r() * 2, 0), cloudM); puff.position.set(cx + j * 3, cy + r(), cz + r() * 2); G.add(puff); }
+  }
+  w.restyle = () => {
+    const grass = new MeshStandardMaterial({ color: 0xB4EC72, roughness: 0.9, flatShading: true });
+    const earth = new MeshStandardMaterial({ color: 0xB07A45, roughness: 0.95, flatShading: true });
+    const under = new MeshStandardMaterial({ color: 0x8A5A32, roughness: 1 });
+    const tuftM = new MeshStandardMaterial({ color: 0x5FC83E, roughness: 0.9, flatShading: true });
+    colliders.forEach((c, i) => {
+      c.mesh.material = [earth, earth, grass, under, earth, earth];
+      const rr = seeded(60 + i), n = Math.round(c.half.z * 2.2);
+      for (let k = 0; k < n; k++) for (const sx of [-1, 1]) {
+        const t = new Mesh(new ConeGeometry(0.16, 0.45, 4), tuftM);
+        t.position.set(sx * (c.half.x - 0.12), c.half.y + 0.18, -c.half.z + (k + rr()) * (c.half.z * 2 / n));
+        addDeco(c, t);
+      }
+    });
+  };
+});
+
 // ---------- LOOP ----------
 let last = performance.now(), frames = 0, frameMs = 16.7;
 function frame(now) {
@@ -1634,7 +1984,8 @@ window.visualViewport?.addEventListener('resize', onResize);
 setTimeout(onResize, 0);
 setTimeout(onResize, 300);
 requestAnimationFrame(frame);
-// A world can be asked for by the link's #name (hills, desk, lagoon, space), so
+// A world can be asked for by the link's #name (hills, desk, lagoon, space,
+// crystal, blocks, neon, valley), so
 // the owner can try each mock-up on a phone. The plain link keeps the void.
 function worldFromHash() { const h = location.hash.slice(1); setWorld(WORLDS[h] ? h : 'void'); }
 if (location.hash) worldFromHash();
@@ -1666,6 +2017,7 @@ if (HARNESS) {
     look: (name) => { setLook(name); return look; },
     eye: (style) => { buildEye(style); return eyeStyle; },
     world: (name) => setWorld(name),
+    skin: (name) => setMarbleSkin(name),
     quiet: () => { everMoved = true; },       // no drag hint, for stills
     closeup: (on) => {
       closeup = !!on;
