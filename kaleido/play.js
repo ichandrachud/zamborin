@@ -43,12 +43,12 @@
   document.body.classList.add('mode-' + MODE);
 
   let LW = 760, LH = 600;
-  // Canvas device pixels per logical unit. The motif tiles are rasterised at
+  // Canvas device pixels per logical unit. The glass tiles are rasterised at
   // this scale, so a change to it has to throw them away. Declared HERE rather
-  // than beside the motif code because resizeCanvas() touches both at boot and
-  // a `let` further down the file would still be in its temporal dead zone.
+  // than beside the window code because resizeCanvas() touches both at boot
+  // and a `let` further down the file would still be in its temporal dead zone.
   let PIXEL_SCALE = 1;
-  const motifTiles = new Map();
+  const glassTiles = new Map();
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
 
@@ -66,7 +66,7 @@
     if (canvas.width !== bW) canvas.width = bW;
     if (canvas.height !== bH) canvas.height = bH;
     const scale = Math.min(bW / LW, bH / LH);
-    if (Math.abs(scale - PIXEL_SCALE) > 0.001) { PIXEL_SCALE = scale; motifTiles.clear(); }
+    if (Math.abs(scale - PIXEL_SCALE) > 0.001) { PIXEL_SCALE = scale; glassTiles.clear(); }
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
   }
   const gameWrap = canvas.parentElement;
@@ -270,10 +270,10 @@
   }
 
   // ---------- THE FOUR GLASSES ----------
-  // A piece is identified by its COLOUR. Each also owns a shape, used only by
-  // the colourblind mode, which swaps the colour out and cuts that shape into
-  // the pane instead. Same board, same puzzle, no colour needed.
-  const T_PETAL = 0, T_DIAMOND = 1, T_TREFOIL = 2, T_DOT = 3, NTOK = 4;
+  // A piece is identified by its COLOUR, and each also carries a jewel whose
+  // SHAPE says the same thing (see THE WINDOW). The colourblind mode takes the
+  // colour out and leaves the jewels. Same board, same puzzle, no colour needed.
+  const NTOK = 4;
   // How many of the four are in play this level. The ramp moves it between 3
   // and 4: fewer colours propagate harder so more can be hidden, more colours
   // make longer chains, and the two are not the same dial.
@@ -302,11 +302,10 @@
     brand:    '#B0E0E6',   // --brand     powder blue
   };
 
-  // The glass is the four Zamborin accents, nothing invented. The sky blue that
-  // was here before was not in the system; --brand takes its place.
+  // The four Zamborin accents, which number the rules on the rules card. That
+  // card is chrome, so it takes tokens; the glass itself is game art and has
+  // its own palette (GLASS, in THE WINDOW).
   const PANE_COL = [Z.accent, Z.accent2, Z.green, Z.brand];
-
-  const PLAIN = Z.textDim;                  // shape-only mode: one glass for all
 
   // ---------- THE RAMP ----------
   // A HUNDRED levels, and difficulty is a measured target rather than a table of
@@ -394,7 +393,7 @@
   // copy it in. That is a different and much harder game than the one the board
   // appears to be, and it is what made the whole thing unreadable.
   let dom = [], solved = [], givenDom = new Set();
-  let level = 1, sel = T_PETAL, shapeOnly = false;
+  let level = 1, sel = 0, shapeOnly = false;
   let phase = 'menu', history = [], uiButtons = [], hitCells = [];
   let placeT = [], wonT = -1e9, animEnd = 0, raf = 0, fb = 0, lastMeasure = null;
   let refuseCell = -1, refuseT = -1e9, hintCell = -1, hintT = -1e9;
@@ -699,42 +698,46 @@
   function solvedNow() { return placed() === blanks() && conflicts() === 0; }
 
   // ---------- LAYOUT ----------
-  let bcx = 0, bcy = 0, boardR = 200, ringR = [];
-  // These are the site's numbers, not this game's. Bloom, Prism, Stained, Needle
-  // and Sluice all use 64 on a phone and 56 on desktop, and 18 / 30 of side
-  // padding. Kaleido had drifted to 60 and 12.
+  // boardR is the glass the player taps. frameR is the whole window, and the
+  // difference between them is its frame: a stone ring and, where there is
+  // room, a border of leaves (see measureBoard).
+  let bcx = 0, bcy = 0, boardR = 200, ringR = [], frameR = 216, border = 16;
+  // THE FLEET'S BANDS (DESIGN-SYSTEM 2.1, 4.2 and 4.3; owner, 2026-09-16).
+  // Every control is in the top band: round icons across a phone, labelled
+  // pills at the desktop's left with Hint at the band's right end. The read-out
+  // sits at the bottom left, and on a phone the sound switch stands bare at the
+  // other end of that band.
   const topBand = () => MODE === 'mobile' ? 64 : 56;
-  const SIDE_PAD = MODE === 'mobile' ? 18 : 30;
+  const botBand = () => MODE === 'mobile' ? 52 : 40;
+  const SIDE_PAD = MODE === 'mobile' ? 16 : 30;
   const SW = MODE === 'mobile' ? 58 : 54, SW_GAP = MODE === 'mobile' ? 14 : 16;
   // Minimum air between the wheel and anything you can press. Without it the
   // control row sat 8px off the rim and read as touching it.
   const CLEAR = 15;
-  const CTRL_LABELS = ['Undo', 'Hint', 'Restart', 'Rules'];
+  // The phone's colours, in a row just above the bottom band, where the thumb is.
+  const paletteCY = () => LH - botBand() - 8 - SW / 2;
 
-  // How many rows the control pills need, worked out ONCE and used by both the
-  // layout and the drawing. Two copies of this sum disagreeing is what put the
-  // palette straight through the pills on a phone: the layout assumed one row
-  // and the renderer wrapped to two.
-  function ctrlRows() {
-    if (MODE !== 'mobile') return 1;
-    const P = ZUI.PILL, avail = LW - SIDE_PAD * 2;
-    let used = P.iconW + P.gap, rows = 1;
-    for (const l of CTRL_LABELS) {
-      const w = ZUI.pillWidth(ctx, l) + P.gap;
-      if (used + w > avail) { rows++; used = 0; }
-      used += w;
-    }
-    return rows;
+  // The site's full-screen exit button hangs over the top band's right end
+  // from 1152 wide up, and whatever sits at that end stops 12 short of it
+  // (DESIGN-SYSTEM 4.2). Measured from the page each time the layout runs, as
+  // Comb's is, so a change to chrome.css cannot bring the collision back.
+  let exitBox = null;
+  function exitButtonBox() {
+    const el = document.getElementById('focus-toggle');
+    if (!el || !document.body.classList.contains('focus-mode')) return null;
+    const b = el.getBoundingClientRect(), c = canvas.getBoundingClientRect();
+    if (!b.width || !c.width) return null;
+    const k = LW / c.width;
+    const box = { x: (b.left - c.left) * k, y: (b.top - c.top) * k, w: b.width * k, h: b.height * k };
+    return box.y < topBand() && box.y + box.h > 0 && box.x < LW ? box : null;
   }
-  // The bottom stack on a phone, measured from the thumb upward: the last
-  // control row sits at LH-74, the rest stack above it, then the palette, then
-  // the wheel gets whatever is left.
-  function mobileStack() {
-    const P = ZUI.PILL, rows = ctrlRows();
-    const ctrlTop = LH - 74 - (rows - 1) * (P.h + 10) - P.h / 2;
-    const paletteCY = ctrlTop - 14 - SW / 2;
-    return { rows, ctrlTop, paletteCY, boardBottom: paletteCY - SW / 2 - CLEAR };
-  }
+  const bandRight = () => (exitBox ? Math.min(LW - SIDE_PAD, exitBox.x - 12) : LW - SIDE_PAD);
+
+  // The frame's width. At least a stone rim, at most a full border of leaves,
+  // and in between it takes whatever radius the rings do not need: the touch
+  // budget outranks the ornament. A 360-wide phone keeps its third ring with a
+  // rim of 4, where a fixed border would have cost it the ring.
+  const BORDER_MIN = 4, BORDER_MAX = MODE === 'mobile' ? 24 : 30;
 
   // Three separate jobs, kept apart because they used to be one function that
   // could re-enter genLevel from inside itself.
@@ -742,26 +745,33 @@
   // clearances are guaranteed instead of hoped for.
   //
   // DESKTOP puts the colours in a column down the right. The frame is 760x600,
-  // so the wheel is limited by HEIGHT and the bottom band was costing it radius
-  // for a row of swatches that fits perfectly well beside it. Out of the bottom
-  // band, the wheel goes from 226 to 256.
+  // so the wheel is limited by HEIGHT, and a row of swatches under it would
+  // cost radius that the column beside it does not.
   //
   // PHONE keeps them in a row underneath, because there the wheel is limited by
   // WIDTH and a column would take the one dimension it cannot spare.
   function measureBoard() {
+    exitBox = MODE === 'mobile' ? null : exitButtonBox();
     const controlsBottom = Math.round(topBand() / 2) + ZUI.PILL.h / 2;
     let left = SIDE_PAD, right = LW - SIDE_PAD, top, bottom;
     if (MODE === 'mobile') {
       top = topBand();
-      bottom = mobileStack().boardBottom;             // clear of the whole bottom stack
+      bottom = paletteCY() - SW / 2 - CLEAR;          // clear of the colours
     } else {
       top = controlsBottom + CLEAR;                   // clear of the control row
-      bottom = LH - 24;
+      bottom = LH - botBand();                        // clear of the read-out
       right = LW - SIDE_PAD - SW - CLEAR;             // clear of the palette column
     }
-    boardR = Math.max(40, Math.min((right - left) / 2, (bottom - top) / 2));
+    frameR = Math.max(40, Math.min((right - left) / 2, (bottom - top) / 2));
     bcx = Math.round((left + right) / 2);
     bcy = Math.round((top + bottom) / 2);
+    // Size the rings first with the thinnest frame, then give the frame the
+    // slack. Five is the most rings the ramp ever asks for.
+    boardR = frameR - BORDER_MIN;
+    const most = Math.min(5, budgetRings());
+    const need = MIN_RING / (thinnestRing(most) / boardR) + 0.5;
+    border = Math.max(BORDER_MIN, Math.min(BORDER_MAX, frameR - need));
+    boardR = frameR - border;
   }
   // The touch budget is a ceiling on the board, and it outranks the ramp. A
   // phone fits three rings; asking for five would put cells under 44px and no
@@ -938,7 +948,7 @@
   // Same PITCH for every copy, deliberately. They ARE copies. A rising figure
   // would say they were different from one another, which is the opposite of
   // what the game is about. Only the gain falls, like light going round.
-  const COPY_MS = 45;            // shared with drawFigure's ripple, moved together or not at all
+  const COPY_MS = 45;            // shared with drawGlass's ripple, moved together or not at all
   const COPY_FALLOFF = 0.72;     // 0.62 buried the last two copies at six-fold
   const PLACE_GAIN = 0.055;      // house `drop` is 0.070
   const snd = {
@@ -998,197 +1008,379 @@
     if (k >= '1' && k <= '4') { sel = +k - 1; render(performance.now()); }
   });
 
-  // ---------- GLYPHS ----------
-  // Four silhouettes, each unmistakable at a glance in a unit box. No strokes:
-  // edges come from value, per the studio rule.
-  function glyphPath(t) {
-    ctx.beginPath();
-    if (t === T_PETAL) {
-      ctx.moveTo(0, -1);
-      ctx.bezierCurveTo(0.62, -0.52, 0.62, 0.52, 0, 1);
-      ctx.bezierCurveTo(-0.62, 0.52, -0.62, -0.52, 0, -1);
-    } else if (t === T_DIAMOND) {
-      ctx.moveTo(0, -1); ctx.lineTo(0.86, 0); ctx.lineTo(0, 1); ctx.lineTo(-0.86, 0);
-    } else if (t === T_TREFOIL) {
-      const R = 0.5, D = 0.5;
-      for (let i = 0; i < 3; i++) {
-        const a = -Math.PI / 2 + i * TAU / 3;
-        ctx.moveTo(Math.cos(a) * D + R, Math.sin(a) * D);
-        ctx.arc(Math.cos(a) * D, Math.sin(a) * D, R, 0, TAU);
-      }
-    } else {
-      ctx.moveTo(0.88, 0); ctx.arc(0, 0, 0.88, 0, TAU);
-    }
-    ctx.closePath();
-  }
-  // FLAT. One solid colour per piece: no gradient, no glow, no specular lens.
-  // The edge is defined by the piece against its bed, which is what the studio
-  // rule about using value rather than outlines asks for, and it is what keeps
-  // the AA sweep honest, since a gradient darkens the rim below the colour that
-  // was actually measured.
+  // ---------- THE WINDOW ----------
+  // A MANDALA ROSE WINDOW (owner, 2026-09-26). The flat panes read as juvenile
+  // and the marks cut into them as dingbats. The owner asked for the whole
+  // figure to be a mandala, intricate from the very first level, in the
+  // backlit stained glass of the rose-window mock-up.
   //
-  // The scale is UNIFORM. It used to be independent in x and y so a piece would
-  // fill its cell in both directions, which stretched a circle into an ellipse
-  // and squashed the trefoil differently in every ring. A shape has to be the
-  // same shape everywhere or it stops being a shape.
-  function drawGlyph(t, x, y, s, angle, alpha, col) {
-    ctx.save();
-    ctx.translate(x, y); ctx.rotate(angle); ctx.scale(s, s);
-    ctx.globalAlpha = alpha;
-    ctx.fillStyle = col || PLAIN;
-    glyphPath(t); ctx.fill();
-    ctx.restore();
-    ctx.globalAlpha = 1;
-  }
+  // So every ring carries its own ornament in the lead: petals, a zigzag band,
+  // arches, leaves and scallops. Each ornament meets its neighbours at the
+  // cell's edges, so it runs unbroken right round the ring. The tracery is
+  // there whether a cell is lit or not, which is what makes the window
+  // intricate before a single piece is placed. A placed piece lights its cell
+  // in that piece's glass, brightest where the light comes through the middle,
+  // with a jewel at its heart whose SHAPE also tells the pieces apart.
+  //
+  // Every cell of a ring is a turn of every other, so each ring's cell is
+  // painted ONCE per state into a tile and blitted turned into place. The
+  // leading, the rosette and the frame do not change during play and are
+  // baked once per layout, so a frame is a few hundred blits and no paths.
+
   // Returns HEX, not rgb(), because its output is fed back in as a colour.
   // Returning rgb() once made a second pass parse NaN out of the string and
   // take down the whole render.
   function hex(c) { return [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)]; }
   const hx = (r, g, b) => '#' + [r, g, b].map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
   function lighten(c, f) { const [r, g, b] = hex(c); return hx(r + (255 - r) * f, g + (255 - g) * f, b + (255 - b) * f); }
+  function darken(c, f) { const [r, g, b] = hex(c); return hx(r * (1 - f), g * (1 - f), b * (1 - f)); }
 
-  // ---------- THE MOTIF ----------
-  // The mechanic is that a pane placed in the wedge lands in every other wedge
-  // at once, and that is the best idea in the game. It was paying off in a
-  // block of flat colour. A motif cut into the glass makes the copy visible:
-  // place one pane and the same mark blooms all the way round the wheel.
-  //
-  // Per COLOUR, not per cell. Per cell would imply a rule that does not exist.
-  // Per colour gives a second channel carrying exactly what hue carries, which
-  // is the K4 finding: by default colour is the only thing separating three of
-  // the four glasses, and the mode that fixes that is off by default.
-  //
-  // Revealed only on PLACEMENT. An empty socket stays plain and dark, because
-  // the rule is that no two panes of the same colour may touch and colour
-  // adjacency is the whole puzzle: an unsolved board has to stay readable.
-  //
-  // HANDED, every one of them. The copies are ROTATIONS, not reflections:
-  // domainOf() maps sector s to s mod (SEC/fold) and there is no mirror
-  // anywhere in this file. A mark with a direction turns the wheel into a
-  // pinwheel; a symmetric one repeats flatly and shows nothing.
-  //
-  // NOT ON THE LETTER GRID. The first set drawn was a comb (a bar with teeth)
-  // and a hook (a thick L), and the finished wheel read as rows of the letters
-  // T and L. Latin letterforms are horizontal and vertical strokes meeting at
-  // right angles, so a mark built on that grid gets read as type. Triangles,
-  // diagonals and zigzags cannot be. Do not put a right-angled mark here.
-  //
-  // ONE INK. Measured on the four glasses, black is 5.20:1 on coral and 11.3 to
-  // 14.7 on the rest, and --bg is 4.45:1 on coral and 9.6 to 12.5 on the rest.
-  // Both clear the 3:1 that graphical objects have to hold, so coral needs no
-  // special case. White is 1.4 to 1.9 on three of the four and is not an option.
-  const INK = Z.bg;                          // --bg, the same ink the glyphs cut
-  const mDisc = (g, x, y, r) => { g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill(); };
-  const mPoly = (g, pts) => {
-    g.beginPath(); g.moveTo(pts[0][0], pts[0][1]);
-    for (let i = 1; i < pts.length; i++) g.lineTo(pts[i][0], pts[i][1]);
-    g.closePath(); g.fill();
-  };
-  // Drawn in a unit box centred on the pane. +x runs tangentially counter
-  // clockwise and -y points OUTWARD, which is the frame drawGlyph already uses
-  // via `cc.a + PI/2`. Detail d is 1 or 2; 0 never reaches here.
-  const MOTIF = [
-    // coral: a triangle cluster, one large leaning with smaller followers
-    (g, d) => {
-      mPoly(g, [[-0.30, 0.24], [0.02, -0.30], [0.16, 0.10]]);
-      if (d > 1) {
-        mPoly(g, [[0.10, 0.30], [0.30, 0.02], [0.34, 0.26]]);
-        mPoly(g, [[-0.32, -0.16], [-0.14, -0.32], [-0.12, -0.10]]);
-      }
-    },
-    // sunshine: a zigzag band running one way across the pane
-    (g, d) => {
-      const n = d > 1 ? 3 : 2, w = 0.115;
-      for (let i = 0; i < n; i++) {
-        const y = -0.30 + i * (0.60 / n);
-        mPoly(g, [[-0.32, y + 0.60 / n], [-0.02, y], [0.32, y + 0.42 / n],
-                  [0.32, y + 0.42 / n + w], [-0.02, y + w], [-0.32, y + 0.60 / n + w]]);
-      }
-    },
-    // green: a row of beads stepping diagonally
-    (g, d) => {
-      const n = d > 1 ? 4 : 2, R = d > 1 ? 0.105 : 0.15;
-      for (let i = 0; i < n; i++) mDisc(g, -0.28 + i * 0.19, -0.24 + i * 0.16, R);
-    },
-    // powder blue: a half disc with a notch bitten out of one side.
-    // The notch is destination-out, which is why a motif may ONLY ever be drawn
-    // through a tile: straight onto the board it would punch a hole through the
-    // pane and show the came underneath.
-    (g, d) => {
-      g.beginPath(); g.arc(0.02, 0.06, 0.30, Math.PI * 1.05, Math.PI * 2.05);
-      g.closePath(); g.fill();
-      g.save(); g.globalCompositeOperation = 'destination-out';
-      mPoly(g, [[0.14, -0.30], [0.36, -0.30], [0.36, 0.04], [0.14, 0.04]]);
-      g.restore();
-      if (d > 1) mPoly(g, [[-0.30, 0.16], [0.26, 0.16], [0.30, 0.28], [-0.26, 0.28]]);
-    },
+  // THE GLASS. Game art, so it carries its own palette (DESIGN-SYSTEM 1.5):
+  // ruby, amber, emerald and sapphire. Each has a ground (the cell behind the
+  // ornament), a main (the ornament), an accent (its inner detail) and a gem.
+  const LEAD_INK = '#120F16';
+  const GLASS = [
+    { ground: '#8E1426', main: '#D8283A', accent: '#F26A3A', gem: '#FFD84A' },   // ruby
+    { ground: '#A8620E', main: '#F4B82C', accent: '#FFE36A', gem: '#D8283A' },   // amber
+    { ground: '#0E5A30', main: '#22A24E', accent: '#8BDB5A', gem: '#FFE36A' },   // emerald
+    { ground: '#12307A', main: '#2A62C8', accent: '#48B8EE', gem: '#FFFFFF' },   // sapphire
   ];
+  // Unlit glass, and the unlit cells of the wedge, which are yours to fill.
+  // Those breathe between WEDGE and WEDGE_HI (see drawGlass).
+  const DARK  = { ground: '#15111E', main: '#282036', accent: '#342A46', bead: '#3A3050' };
+  const WEDGE = { ground: '#2A2238', main: '#3C3150', accent: '#4A3D60', bead: '#5A4E72' };
+  const WEDGE_HI = { ground: lighten(WEDGE.ground, 0.12), main: lighten(WEDGE.main, 0.12),
+                     accent: lighten(WEDGE.accent, 0.12), bead: lighten(WEDGE.bead, 0.12) };
+  // Colourblind mode: one clear glass for every piece, with the jewel cut dark
+  // and large into it, so the shape carries everything the colour did.
+  // Its beads stay pale, so the only dark marks in a lit cell are the jewel's.
+  const CLEAR_GLASS = { ground: '#3E4658', main: '#7E889C', accent: '#AEB8CA', gem: LEAD_INK, bead: '#DDE3EE' };
+  const GOLD = '#E8C77A';                      // the beads along the lead
+  const WARM = 'rgba(255,214,150,';            // the light round the window and along the wedge
+  const STONE = '#6E655C', STONE_LIT = '#9A9084';
 
-  // MEASURED pane sizes, taken off the running game rather than assumed:
-  //   desktop 760x600   boardR 256.5, panes 88x81 near the middle to 50x38 at the rim
-  //   phone   390x844   boardR 177, three rings always, panes about 55x49
-  //   embed   480x360   boardR 57.5, panes 23x24
-  // The embed is not slivers: the touch budget caps that frame at TWO rings, so
-  // its panes come out near square. 23px on the short side is the smallest the
-  // board is ever drawn anywhere on the site.
-  //
-  // Complexity steps down with the pane and then DROPS OUT, which is the ladder
-  // menuLayout() already walks for the rules-card demo: shrink it, then lose it
-  // rather than keep it too small to read. Two numbers, on purpose, so the
-  // threshold is one edit and can be swept.
-  const MOTIF_MIN = 26, MOTIF_FULL = 44;
-  function motifDetail(px) { return px >= MOTIF_FULL ? 2 : px >= MOTIF_MIN ? 1 : 0; }
-
-  // 0.86 of the pane's short side, and two things fix it. The motif's bounding
-  // box is about 0.76 wide, so 0.86 keeps its corners inside the circle
-  // inscribed in the pane and it cannot spill across the came, which means no
-  // per-pane clip and no clip cost. And it lands the ink at the same visual
-  // weight as the shape-only glyph, which occupies 0.64 of the short side.
-  const MOTIF_FILL = 0.86;
-
-  // Rasterised ONCE per colour, detail level and size, then blitted. The board
-  // redraws on rAF and carries up to 90 panes, so building a dozen paths per
-  // pane per frame is not an option. Rotation stays on the blit rather than in
-  // the key: baking it in would multiply the cache by the sector count for no
-  // gain, since a rotated drawImage costs the same either way.
-  function motifTile(tok, det, px) {
-    const key = tok + '|' + det + '|' + px;
-    let tile = motifTiles.get(key);
-    if (tile) return tile;
-    const dev = Math.max(4, Math.round(px * PIXEL_SCALE));
-    tile = document.createElement('canvas');
-    tile.width = dev; tile.height = dev;
-    const g = tile.getContext('2d');
-    g.setTransform(dev, 0, 0, dev, dev / 2, dev / 2);   // the unit box, centred
-    g.fillStyle = INK;
-    MOTIF[tok % MOTIF.length](g, det);
-    motifTiles.set(key, tile);
-    return tile;
+  // THE ORNAMENTS, in a cell's own terms: u runs across the cell (0 to 1,
+  // clockwise) and v from its inner edge (0) to its outer edge (1). Each is a
+  // list of regions filled in order, lead veins, beads, and the spot where the
+  // jewel sits. `small` marks the ornaments whose jewel sits in a narrow place.
+  function quadPts(p0, c, p1, n) {
+    const out = [];
+    for (let i = 0; i <= n; i++) {
+      const t = i / n;
+      out.push([(1 - t) * (1 - t) * p0[0] + 2 * (1 - t) * t * c[0] + t * t * p1[0],
+                (1 - t) * (1 - t) * p0[1] + 2 * (1 - t) * t * c[1] + t * t * p1[1]]);
+    }
+    return out;
   }
-  // Is the board carrying motifs at all right now? At the 480x360 embed the
-  // panes come out 21 to 22px and every ring falls below the floor, so the
-  // whole board is flat colour. The palette has to follow: this file already
-  // says, in drawPalette, that the swatches must not advertise something the
-  // board does not actually use, and a mark on the palette that appears nowhere
-  // on the wheel is exactly that.
-  function boardHasMotif() {
-    for (let r = 0; r < RINGS; r++) if (motifDetail(cellShort(r)) > 0) return true;
-    return false;
+  function ovalPts(cu, cv, ru, rv, n, from, to) {
+    const out = [];
+    from = from || 0; to = to == null ? TAU : to;
+    for (let i = 0; i <= n; i++) { const a = from + (to - from) * i / n; out.push([cu + Math.cos(a) * ru, cv + Math.sin(a) * rv]); }
+    return out;
   }
-  // Fades in with the pane it belongs to, so the reveal IS the placement and
-  // the copies inherit the ripple that already carries a pane round the wheel.
-  function drawMotif(tok, r, s, alpha) {
-    const short = cellShort(r), det = motifDetail(short);
-    if (det === 0) return;
-    const px = Math.round(short * MOTIF_FILL);
-    const cc = cellCentre(r, s);
+  const CELL_BOX = [[0, 0], [1, 0], [1, 1], [0, 1]];
+  const ORN = {
+    petal: { regions: [
+        ['ground', CELL_BOX],
+        ['main', [...quadPts([0.08, 0.02], [0.0, 0.62], [0.5, 0.97], 14), ...quadPts([0.5, 0.97], [1.0, 0.62], [0.92, 0.02], 14)]],
+        ['accent', [...quadPts([0.27, 0.06], [0.2, 0.52], [0.5, 0.78], 12), ...quadPts([0.5, 0.78], [0.8, 0.52], [0.73, 0.06], 12)]],
+        ['accent', ovalPts(0, 0.84, 0.09, 0.1, 16, -Math.PI / 2, Math.PI / 2)],
+        ['accent', ovalPts(1, 0.84, 0.09, 0.1, 16, Math.PI / 2, Math.PI * 1.5)],
+      ], veins: [[[0.5, 0.06], [0.5, 0.2], [0.5, 0.22]], [[0.5, 0.52], [0.5, 0.66], [0.5, 0.76]]],
+      beads: [[0.2, 0.2], [0.8, 0.2], [0.14, 0.42], [0.86, 0.42]], gem: [0.5, 0.36] },
+    zigzag: { regions: [
+        ['ground', CELL_BOX],
+        ['main', [[0, 0.88], [0.5, 0.46], [1, 0.88], [1, 0.60], [0.5, 0.18], [0, 0.60]]],
+        ['accent', [[0.5, 0.62], [0.62, 0.78], [0.5, 0.94], [0.38, 0.78]]],
+        ['accent', [[0, 0.08], [0.1, 0.24], [0, 0.40]]],
+        ['accent', [[1, 0.08], [0.9, 0.24], [1, 0.40]]],
+      ], veins: [[[0, 0.74], [0.25, 0.53], [0.5, 0.32]], [[0.5, 0.32], [0.75, 0.53], [1, 0.74]]],
+      beads: [[0.25, 0.9], [0.75, 0.9], [0.5, 0.06], [0.3, 0.2], [0.7, 0.2]], gem: [0.5, 0.78], small: true },
+    arch: { regions: [
+        ['ground', CELL_BOX],
+        ['main', [...quadPts([0.06, 0.03], [0.04, 0.6], [0.5, 0.95], 14), ...quadPts([0.5, 0.95], [0.96, 0.6], [0.94, 0.03], 14)]],
+        ['accent', [...quadPts([0.5, 0.74], [0.26, 0.52], [0.3, 0.34], 10), ...ovalPts(0.5, 0.34, 0.2, 0.2, 18, Math.PI, 0).slice(1),
+                    ...quadPts([0.7, 0.34], [0.74, 0.52], [0.5, 0.74], 10).slice(1)]],
+        ['accent', ovalPts(0, 0.8, 0.08, 0.1, 14, -Math.PI / 2, Math.PI / 2)],
+        ['accent', ovalPts(1, 0.8, 0.08, 0.1, 14, Math.PI / 2, Math.PI * 1.5)],
+        ['accent', ovalPts(0.5, 0.86, 0.05, 0.05, 12)],
+      ], beads: [[0.18, 0.12], [0.82, 0.12], [0.5, 0.08]], gem: [0.5, 0.36] },
+    leaves: { regions: [
+        ['ground', CELL_BOX],
+        ['main', [...quadPts([0.16, 0.04], [0.06, 0.6], [0.44, 0.94], 12), ...quadPts([0.44, 0.94], [0.38, 0.4], [0.16, 0.04], 12)]],
+        ['main', [...quadPts([0.56, 0.04], [0.46, 0.6], [0.84, 0.94], 12), ...quadPts([0.84, 0.94], [0.78, 0.4], [0.56, 0.04], 12)]],
+        ['accent', [[0.44, 1], [0.56, 1], [0.5, 0.8]]],
+        ['accent', [[0.96, 1], [1, 1], [1, 0.84]]], ['accent', [[0, 1], [0.04, 1], [0, 0.84]]],
+      ], veins: [[[0.16, 0.04], [0.3, 0.5], [0.44, 0.94]], [[0.56, 0.04], [0.7, 0.5], [0.84, 0.94]],
+                 [[0.24, 0.3], [0.22, 0.42], [0.17, 0.5]], [[0.3, 0.52], [0.28, 0.64], [0.23, 0.72]],
+                 [[0.64, 0.3], [0.62, 0.42], [0.57, 0.5]], [[0.7, 0.52], [0.68, 0.64], [0.63, 0.72]]],
+      beads: [[0.5, 0.62], [0.06, 0.2], [0.94, 0.2]], gem: [0.5, 0.3], small: true },
+    scallop: { regions: [
+        ['ground', CELL_BOX],
+        ['accent', [[0, 0], [1, 0], [1, 0.14], [0, 0.14]]],
+        ['main', ovalPts(0.5, 1, 0.46, 0.5, 24, Math.PI, TAU)],
+        ['accent', ovalPts(0.2, 0.34, 0.07, 0.09, 14)], ['accent', ovalPts(0.8, 0.34, 0.07, 0.09, 14)],
+      ], beads: [[0.5, 0.3], [0.12, 0.7], [0.88, 0.7]], gem: [0.5, 0.74], small: true },
+  };
+  // Ring by ring from the middle out, for each size of board.
+  const RING_ORN = { 2: ['petal', 'leaves'], 3: ['petal', 'zigzag', 'leaves'],
+                     4: ['petal', 'zigzag', 'arch', 'leaves'],
+                     5: ['petal', 'zigzag', 'arch', 'leaves', 'scallop'] };
+  const ornName = (r) => (RING_ORN[RINGS] || RING_ORN[5])[r] || 'petal';
+  // Line weights follow the size of the window. The mock-up was drawn on one
+  // 268 across; the floor keeps the lead a real line on a small phone.
+  const lineScale = (R) => Math.max(0.72, Math.min(1.1, R / 268));
+
+  // The jewel at a lit cell's heart. Its SHAPE tells the pieces apart, colour
+  // or no colour: a lozenge, a star, a leaning drop and a quatrefoil. Pointed
+  // outward, so it turns with the wheel like everything else in the figure.
+  function jewel(g, x, y, sz, ang, t, col) {
+    g.save();
+    g.translate(x, y); g.rotate(ang + Math.PI / 2); g.scale(sz, sz);
+    g.fillStyle = col; g.strokeStyle = LEAD_INK; g.lineWidth = 0.12; g.lineJoin = 'round';
+    g.beginPath();
+    if (t === 0) { g.moveTo(0, -1); g.lineTo(0.55, 0); g.lineTo(0, 1); g.lineTo(-0.55, 0); }
+    else if (t === 1) {
+      for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, r = i % 2 ? 0.42 : 1; g.lineTo(Math.cos(a) * r, Math.sin(a) * r); }
+    } else if (t === 2) {
+      g.moveTo(0.15, -1); g.bezierCurveTo(0.95, -0.1, 0.65, 0.9, 0, 0.9); g.bezierCurveTo(-0.65, 0.9, -0.75, 0.05, 0.15, -1);
+    } else {
+      for (let i = 0; i < 4; i++) {
+        const a = i * Math.PI / 2;
+        g.moveTo(Math.cos(a) * 0.5 + 0.48, Math.sin(a) * 0.5); g.arc(Math.cos(a) * 0.5, Math.sin(a) * 0.5, 0.48, 0, TAU);
+      }
+    }
+    g.closePath(); g.fill(); g.stroke();
+    g.restore();
+  }
+
+  // Which glass a tile is painted in: 'dark', 'wedge', 'wedgeHi', 'lit0' to
+  // 'lit3', or 'plain0' to 'plain3' for the colourblind mode.
+  function glassState(key) {
+    if (key === 'dark') return { pal: DARK };
+    if (key === 'wedge') return { pal: WEDGE };
+    if (key === 'wedgeHi') return { pal: WEDGE_HI };
+    const tok = +key.slice(-1), plain = key[0] === 'p';
+    return { pal: plain ? CLEAR_GLASS : GLASS[tok], lit: true, tok, plain };
+  }
+  const litKey = (t) => (shapeOnly ? 'plain' : 'lit') + t;
+
+  const FINE_MIN = 20;                         // px on a cell's short side
+  // One cell, painted about the centre (0, 0) between radii r0 and r1 and
+  // angles a0 and a1: the ground, the ornament, its veins and beads, and the
+  // jewel if the cell is lit. `s` is the line scale.
+  function paintCell(g, r0, r1, a0, a1, O, st, s) {
+    const map = (u, v) => { const a = a0 + u * (a1 - a0), rr = r0 + v * (r1 - r0); return [Math.cos(a) * rr, Math.sin(a) * rr]; };
+    const trace = (pts) => {
+      g.beginPath();
+      pts.forEach(([u, v], i) => { const [x, y] = map(u, v); if (i) g.lineTo(x, y); else g.moveTo(x, y); });
+    };
+    const sector = () => { g.beginPath(); g.arc(0, 0, r1, a0, a1); g.arc(0, 0, r0, a1, a0, true); g.closePath(); };
+    const am = (a0 + a1) / 2, rm = (r0 + r1) / 2, mx = Math.cos(am) * rm, my = Math.sin(am) * rm;
+    const span = Math.max(r1 - r0, rm * (a1 - a0)), short = Math.min(r1 - r0, rm * (a1 - a0));
+    const pal = st.pal;
+    g.save();
+    sector(); g.clip();
+    g.lineJoin = 'round'; g.lineCap = 'round';
+    for (const [cls, pts] of O.regions) {
+      if (cls === 'ground') sector(); else { trace(pts); g.closePath(); }   // the ground follows the arcs
+      let col = pal[cls];
+      // Backlit: each piece of glass is brightest where the light comes
+      // through the middle of its cell.
+      if (st.lit) {
+        const gg = g.createRadialGradient(mx, my, 1, mx, my, span * 0.8);
+        gg.addColorStop(0, lighten(col, cls === 'ground' ? 0.30 : 0.42));
+        gg.addColorStop(0.7, col);
+        gg.addColorStop(1, darken(col, 0.18));
+        col = gg;
+      }
+      g.fillStyle = col; g.fill();
+      g.strokeStyle = LEAD_INK; g.lineWidth = Math.max(1, 1.7 * s); g.stroke();
+    }
+    // Veins and beads only where a cell is big enough to show them. On the
+    // rules card's little window they were noise, and the demo has to read at
+    // a glance.
+    const fine = short >= FINE_MIN;
+    g.strokeStyle = LEAD_INK; g.lineWidth = Math.max(0.8, 1.1 * s);
+    for (const vn of fine ? O.veins || [] : []) { trace(quadPts(vn[0], vn[1], vn[2], 12)); g.stroke(); }
+    const br = Math.max(1.4, short * 0.045);
+    for (const [bu, bv] of fine ? O.beads || [] : []) {
+      const [bx, by] = map(bu, bv);
+      g.beginPath(); g.arc(bx, by, br, 0, TAU);
+      g.fillStyle = st.lit && !st.plain ? pal.gem : pal.bead; g.fill();
+      g.lineWidth = Math.max(0.7, 0.9 * s); g.stroke();
+    }
+    if (st.lit) {
+      const [gx, gy] = map(O.gem[0], O.gem[1]);
+      const room = Math.min(r1 - r0, (r0 + (r1 - r0) * O.gem[1]) * (a1 - a0));
+      const k = st.plain ? (O.small ? 0.26 : 0.3) : (O.small ? 0.16 : 0.2);
+      jewel(g, gx, gy, room * k, am, st.tok, pal.gem);
+    }
+    g.restore();
+  }
+
+  // One ring's first cell, painted once per state and kept. Keyed on its
+  // geometry, so the rules card's little window shares the cache with the
+  // board; resizeCanvas() empties it when the pixel scale moves.
+  function glassTile(r0, r1, sec, orn, state, s) {
+    const key = r0.toFixed(2) + '|' + r1.toFixed(2) + '|' + sec + '|' + orn + '|' + state + '|' + s.toFixed(3);
+    let t = glassTiles.get(key);
+    if (t) return t;
+    const a0 = A0, a1 = A0 + TAU / sec;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (let k = 0; k <= 12; k++) {
+      const a = a0 + (a1 - a0) * k / 12;
+      for (const rr of [r0, r1]) {
+        const x = Math.cos(a) * rr, y = Math.sin(a) * rr;
+        x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y);
+      }
+    }
+    x0 = Math.floor(x0) - 2; y0 = Math.floor(y0) - 2; x1 = Math.ceil(x1) + 2; y1 = Math.ceil(y1) + 2;
+    // At least twice the logical size, so a tile turned into place is sampled
+    // from more pixels than it lands on and the tracery stays sharp on a 1x
+    // screen.
+    const K = Math.max(2, PIXEL_SCALE);
+    const cv = document.createElement('canvas');
+    cv.width = Math.ceil((x1 - x0) * K); cv.height = Math.ceil((y1 - y0) * K);
+    const g = cv.getContext('2d');
+    g.setTransform(K, 0, 0, K, -x0 * K, -y0 * K);
+    paintCell(g, r0, r1, a0, a1, ORN[orn], glassState(state), s);
+    if (glassTiles.size > 400) glassTiles.clear();
+    t = { cv, x: x0, y: y0, w: cv.width / K, h: cv.height / K };
+    glassTiles.set(key, t);
+    return t;
+  }
+  // A tile turned about (cx, cy) into sector `rot`.
+  function blitTile(t, cx, cy, rot, alpha) {
     ctx.save();
-    ctx.globalAlpha = alpha;
-    ctx.translate(cc.x, cc.y);
-    ctx.rotate(cc.a + Math.PI / 2);
-    ctx.drawImage(motifTile(tok, det, px), -px / 2, -px / 2, px, px);
+    ctx.translate(cx, cy); ctx.rotate(rot);
+    if (alpha < 1) ctx.globalAlpha = alpha;
+    ctx.drawImage(t.cv, t.x, t.y, t.w, t.h);
     ctx.restore();
   }
+
+  // THE ROSETTE at the middle: twelve petals, a star and a sapphire boss.
+  function paintRosette(g, hr, s) {
+    for (let i = 0; i < 12; i++) {
+      const a = A0 + i * TAU / 12, w = TAU / 24;
+      g.beginPath();
+      g.moveTo(Math.cos(a - w) * hr * 0.45, Math.sin(a - w) * hr * 0.45);
+      g.quadraticCurveTo(Math.cos(a - w) * hr * 1.02, Math.sin(a - w) * hr * 1.02, Math.cos(a) * hr, Math.sin(a) * hr);
+      g.quadraticCurveTo(Math.cos(a + w) * hr * 1.02, Math.sin(a + w) * hr * 1.02, Math.cos(a + w) * hr * 0.45, Math.sin(a + w) * hr * 0.45);
+      g.closePath();
+      g.fillStyle = i % 2 ? GLASS[1].main : GLASS[0].main; g.fill();
+      g.strokeStyle = LEAD_INK; g.lineWidth = Math.max(1, 1.4 * s); g.stroke();
+    }
+    g.beginPath();
+    for (let i = 0; i < 24; i++) { const a = A0 + i * TAU / 24, r = i % 2 ? hr * 0.3 : hr * 0.48; g.lineTo(Math.cos(a) * r, Math.sin(a) * r); }
+    g.closePath();
+    g.fillStyle = GLASS[1].accent; g.fill(); g.lineWidth = Math.max(1, 1.2 * s); g.stroke();
+    g.beginPath(); g.arc(0, 0, hr * 0.2, 0, TAU);
+    g.fillStyle = GLASS[3].main; g.fill(); g.stroke();
+  }
+
+  // THE NET, which turns with the figure: the heavy lead between the cells, a
+  // beaded band on every ring's edge, and the rosette. Drawn about (0, 0).
+  function paintNet(g, rr, secOf, s) {
+    const n = rr.length - 1;
+    g.save();
+    g.strokeStyle = LEAD_INK; g.lineCap = 'round';
+    g.lineWidth = Math.max(1.6, 3.2 * s);
+    for (let r = 0; r < n; r++) {
+      const S = secOf(r);
+      g.beginPath();
+      for (let k = 0; k < S; k++) {
+        const a = A0 + k * TAU / S;
+        g.moveTo(Math.cos(a) * rr[r], Math.sin(a) * rr[r]);
+        g.lineTo(Math.cos(a) * rr[r + 1], Math.sin(a) * rr[r + 1]);
+      }
+      g.stroke();
+    }
+    for (let i = 0; i <= n; i++) {
+      g.beginPath(); g.arc(0, 0, rr[i], 0, TAU);
+      g.lineWidth = Math.max(2, 5 * s); g.strokeStyle = LEAD_INK; g.stroke();
+      // A multiple of six, so a turn of one fold step lands every bead on a
+      // bead. None where they would sit closer than 6px, which is only ever the
+      // rules card's little window.
+      if (9 * s < 6) continue;
+      const m = 6 * Math.max(1, Math.round(TAU * rr[i] / (9 * s) / 6)), br = Math.max(0.8, 1.25 * s);
+      g.fillStyle = GOLD; g.beginPath();
+      for (let k = 0; k < m; k++) {
+        const a = k * TAU / m, x = Math.cos(a) * rr[i], y = Math.sin(a) * rr[i];
+        g.moveTo(x + br, y); g.arc(x, y, br, 0, TAU);
+      }
+      g.fill();
+    }
+    g.restore();
+    paintRosette(g, rr[0] - 3 * s, s);
+  }
+  // THE WEDGE YOU FILL, outlined in warm light over the lead: its two radial
+  // edges and its outer arc. Its own layer, because it fades as the win begins:
+  // the wedge's work is done, and without it a turn of one fold step lands the
+  // figure exactly on itself. `K` is device pixels per unit, because a
+  // shadow's blur ignores the transform.
+  function paintWedge(g, rr, fold, s, K) {
+    const n = rr.length - 1, w0 = A0, w1 = A0 + TAU / fold;
+    g.save();
+    g.strokeStyle = WARM + '0.85)'; g.lineWidth = Math.max(1.2, 1.6 * s); g.lineCap = 'round';
+    g.shadowColor = 'rgba(255,200,120,0.9)'; g.shadowBlur = 8 * s * K;
+    g.beginPath();
+    g.moveTo(Math.cos(w0) * rr[0], Math.sin(w0) * rr[0]);
+    g.lineTo(Math.cos(w0) * rr[n], Math.sin(w0) * rr[n]);
+    g.arc(0, 0, rr[n], w0, w1);
+    g.lineTo(Math.cos(w1) * rr[0], Math.sin(w1) * rr[0]);
+    g.stroke();
+    g.restore();
+  }
+
+  // THE FRAME, which never turns: the stone the window is set in and, where
+  // measureBoard() left room for it, a mandala's border of leaves.
+  function paintFrame(g, s) {
+    const disc = (r, col) => { g.fillStyle = col; g.beginPath(); g.arc(0, 0, r, 0, TAU); g.fill(); };
+    const stone = Math.max(3, Math.min(11, border * 0.36));
+    disc(frameR, STONE);
+    disc(frameR - stone * 0.35, STONE_LIT);
+    disc(frameR - stone, LEAD_INK);
+    const base = boardR + 2 * s, tip = frameR - stone - 3 * s;
+    if (tip - base >= 5) {
+      const n = SEC(RINGS - 1) * 2, mid = (base + tip) / 2;
+      const p = (ang, r) => [Math.cos(ang) * r, Math.sin(ang) * r];
+      for (let i = 0; i < n; i++) {
+        const a = A0 + (i + 0.5) * TAU / n, w = TAU / n * 0.62;
+        g.beginPath(); g.moveTo(...p(a - w, base));
+        g.quadraticCurveTo(...p(a - w * 0.9, mid), ...p(a, tip));
+        g.quadraticCurveTo(...p(a + w * 0.9, mid), ...p(a + w, base));
+        g.closePath();
+        g.fillStyle = i % 2 ? GLASS[3].main : GLASS[2].main; g.fill();
+        g.strokeStyle = LEAD_INK; g.lineWidth = Math.max(1, 1.6 * s); g.stroke();
+        g.beginPath(); g.moveTo(...p(a, base + 2 * s)); g.lineTo(...p(a, tip - 5 * s));
+        g.strokeStyle = 'rgba(18,15,22,0.7)'; g.lineWidth = Math.max(0.8, s); g.stroke();
+      }
+    }
+    disc(boardR + 1.5 * s, LEAD_INK);
+  }
+
+  // The three bakes, redone only when the layout, the board or the pixel
+  // scale moves. Each is a square about the window's centre.
+  let frameBake = null, netBake = null, wedgeBake = null, bakeKey = '';
+  function bakeCanvas() {
+    const K = PIXEL_SCALE, half = Math.ceil(frameR + 4);
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = Math.ceil(half * 2 * K);
+    const g = cv.getContext('2d');
+    g.setTransform(K, 0, 0, K, cv.width / 2, cv.height / 2);
+    return { cv, g, half };
+  }
+  function ensureBakes() {
+    const key = [frameR.toFixed(2), boardR.toFixed(2), RINGS, N_FOLD, PIXEL_SCALE.toFixed(3)].join('|');
+    if (key === bakeKey && frameBake && netBake && wedgeBake) return;
+    bakeKey = key;
+    const s = lineScale(frameR);
+    frameBake = bakeCanvas(); paintFrame(frameBake.g, s);
+    netBake = bakeCanvas(); paintNet(netBake.g, ringR, SEC, s);
+    wedgeBake = bakeCanvas(); paintWedge(wedgeBake.g, ringR, N_FOLD, s, PIXEL_SCALE);
+  }
+  const drawBake = (b) => ctx.drawImage(b.cv, -b.half, -b.half, b.half * 2, b.half * 2);
 
   // ---------- THE SOLVED WHEEL TURNS ----------
   // Orbit does this in one line: the solved mandala drifts at 0.09 rad/s from
@@ -1196,8 +1388,8 @@
   // N-fold rotational symmetry and its copies literally are rotations, so a
   // turn of one fold step lands the figure back on itself. That is the game's
   // whole idea stated in motion rather than decorated: your wedge is every
-  // wedge. The motif is what makes it legible, because a wheel of flat colour
-  // just looks like colours sliding around.
+  // wedge. The tracery and the jewels are what make it legible, because a
+  // wheel of flat colour just looks like colours sliding around.
   //
   // The step duration grows with the fold but not in proportion to it. A fold
   // step is 60 degrees at six-fold and a 180 degree half turn at two-fold, and
@@ -1238,110 +1430,67 @@
   }
 
   // ---------- RENDER ----------
-  // The came is the ONLY thing between two panes. The gap and the stroke are the
-  // same width on purpose, so the white covers the gap edge to edge and no dark
-  // shows either side of it. The backing is white too, so nothing dark can leak
-  // through where the two disagree by a fraction of a pixel.
-  //
-  // The cost, stated plainly because it is real: a pane now touches the white
-  // directly, and a pale pane cannot clear 3:1 against white. Sunshine measures
-  // 1.44:1 and powder blue 1.43:1, so along those panes the came reads as a soft
-  // seam rather than a hard line. What carries the boundary instead is the rule
-  // itself: no two panes of the same colour may ever touch, so every edge on a
-  // correct board is a change of hue. For a player who cannot see hue, shape-only
-  // mode is the answer, and it is not a lesser board: same panes, same layout,
-  // colour swapped for a shape cut into the glass.
-  const LEAD = 1.6, CAME_W = 1.6;
-  const CAME = Z.text;
-  function cellPath(r, s, grow) {
-    const r0 = ringR[r] + LEAD * 0.5, r1 = ringR[r + 1] - LEAD * 0.5;
-    if (r1 <= r0) return false;
-    const w = TAU / SEC(r);
-    const base = A0 + s * w;
-    const d0 = (LEAD * 0.5) / Math.max(1, r0), d1 = (LEAD * 0.5) / Math.max(1, r1);
-    const a0 = base, a1 = base + w;
-    if (a1 - d0 <= a0 + d0) return false;
-    const g = grow || 0;
-    ctx.beginPath();
-    ctx.arc(bcx, bcy, r0 - g, a0 + d0, a1 - d0, false);
-    ctx.arc(bcx, bcy, r1 + g, a1 - d1, a0 + d1, true);
-    ctx.closePath();
-    return true;
-  }
   function cellCentre(r, s) {
     const rm = (ringR[r] + ringR[r + 1]) / 2;
     const am = A0 + (s + 0.5) * (TAU / SEC(r));
     return { x: bcx + rm * Math.cos(am), y: bcy + rm * Math.sin(am), a: am, rm };
   }
-  // Inscribed in the SMALLER of the two cell dimensions, so the piece is the
-  // same shape in every ring and at every radius. Filling both dimensions made
-  // the figure denser but distorted every glyph differently depending on where
-  // it sat, which is a worse trade than a little air around each piece.
-  const FILL = 0.52;
-  // The pane's SHORT side in px, which is the number that decides whether
-  // anything drawn inside it can be read. cellSize() is this times FILL; the
-  // motif ladder needs the raw figure, and deriving one from the other keeps
-  // the two from drifting apart.
+  // The cell's SHORT side in px, which decides how big anything drawn over it
+  // can be.
   function cellShort(r) {
-    const th = Math.max(6, ringR[r + 1] - ringR[r] - LEAD);
+    const th = Math.max(6, ringR[r + 1] - ringR[r]);
     const rm = (ringR[r] + ringR[r + 1]) / 2;
-    const arc = Math.max(6, TAU * rm / SEC(r) - LEAD);
+    const arc = Math.max(6, TAU * rm / SEC(r));
     return Math.min(th, arc);
   }
-  function cellSize(r) { return cellShort(r) * FILL; }
   function ease(t) { return 1 - Math.pow(1 - t, 3); }
 
   function render(now) {
     ctx.clearRect(0, 0, LW, LH);
     uiButtons = [];
-
-    // ground
-    const bg = ctx.createRadialGradient(LW * 0.5, bcy, 0, LW * 0.5, bcy, Math.max(LW, LH) * 0.85);
-    bg.addColorStop(0, Z.bgPanel); bg.addColorStop(0.55, Z.bgCard); bg.addColorStop(1, Z.bg);
-    ctx.fillStyle = bg; ctx.fillRect(0, 0, LW, LH);
-
-    drawBacklight(now);
-    drawStone();
-    // Only the FIGURE turns. The backlight, stone and boss are circles about
-    // the same centre so rotating them would change nothing, and the HUD, the
-    // palette and the win banner must stay put or the whole frame swims.
-    const spin = winSpin(now);
-    if (spin) { ctx.save(); ctx.translate(bcx, bcy); ctx.rotate(spin); ctx.translate(-bcx, -bcy); }
-    drawFigure(now);
-    if (spin) ctx.restore();
-    drawBoss(now);
+    ensureBakes();
+    drawBackdrop();
+    // The frame never turns. Only the FIGURE does: the glass, its lead and the
+    // rosette. The light, the HUD, the palette and the win banner stay put, or
+    // the whole frame swims.
+    ctx.save(); ctx.translate(bcx, bcy); drawBake(frameBake); ctx.restore();
+    drawGlass(now, winSpin(now));
+    drawBloom(now);
+    drawSeamBreaks();
+    drawHint(now);
     drawHUD();
     // During the win the figure IS the reward, so nothing overlays it. The top
-    // band hands its space to the banner instead of the read-out and pills.
+    // band hands its space to the banner instead of the controls.
     if (phase === 'play') { drawPalette(); drawControls(); }
     if (phase === 'won') drawPalette();
     if (phase === 'won') winBloom(now);
     if (phase === 'menu') menuOverlay(now);
   }
 
-  // The one luminous element. Soft central backlight, brightening as the
-  // figure fills, so progress is felt before it is counted.
-  function drawBacklight(now) {
-    const fill = NDOM ? placed() / NDOM : 0;
-    const w = phase === 'won' ? Math.min(1, (now - wonT) / 900) : 0;
-    const a = 0.07 + fill * 0.06 + w * 0.14;
-    const g = ctx.createRadialGradient(bcx, bcy, 0, bcx, bcy, boardR * (1.18 + w * 0.12));
-    g.addColorStop(0, 'rgba(176,224,230,' + (a * 1.6).toFixed(3) + ')');
-    g.addColorStop(0.45, 'rgba(150,200,235,' + (a * 0.7).toFixed(3) + ')');
-    g.addColorStop(1, 'rgba(150,200,235,0)');
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(bcx, bcy, boardR * 1.3, 0, TAU); ctx.fill();
+  // The wall the window is set in, and the warm light spilling round it.
+  function drawBackdrop() {
+    const bg = ctx.createRadialGradient(bcx, bcy, frameR * 0.22, bcx, bcy, frameR * 2);
+    bg.addColorStop(0, '#3A3044'); bg.addColorStop(1, '#120E17');
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, LW, LH);
+    const gl = ctx.createRadialGradient(bcx, bcy, frameR * 0.76, bcx, bcy, frameR * 1.38);
+    gl.addColorStop(0, WARM + '0.24)'); gl.addColorStop(1, WARM + '0)');
+    ctx.fillStyle = gl; ctx.fillRect(0, 0, LW, LH);
   }
 
-  // The stone the glass is set into. Without it the cell beds were LIGHTER
-  // than their surround, which inverts the read: glass has to sit in shadow to
-  // look lit.
-  // The came layer. Every pane is inset by half of LEAD, so this disc is what
-  // shows through the gaps and IS the leading: one continuous net rather than a
-  // set of strokes that have to meet each other correctly at the joins.
-  function drawStone() {
-    ctx.fillStyle = CAME;
-    ctx.beginPath(); ctx.arc(bcx, bcy, ringR[RINGS] + LEAD * 0.5, 0, TAU); ctx.fill();
+  // The light through the whole window. It brightens as the figure fills, so
+  // progress is felt before it is counted, and again when the figure is whole.
+  function drawBloom(now) {
+    const fill = NDOM ? placed() / NDOM : 0;
+    const w = phase === 'won' ? Math.min(1, (now - wonT) / 900) : 0;
+    const a = 0.13 + fill * 0.05 + w * 0.14;
+    const bl = ctx.createRadialGradient(bcx, bcy, 0, bcx, bcy, boardR);
+    bl.addColorStop(0, 'rgba(255,240,210,' + a.toFixed(3) + ')');
+    bl.addColorStop(0.6, 'rgba(255,240,210,' + (a * 0.25).toFixed(3) + ')');
+    bl.addColorStop(1, 'rgba(255,240,210,0)');
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    ctx.fillStyle = bl; ctx.beginPath(); ctx.arc(bcx, bcy, boardR, 0, TAU); ctx.fill();
+    ctx.restore();
   }
 
   // Which seams are broken right now, and which way each offending piece is
@@ -1381,221 +1530,129 @@
       }
     }
   }
-  // The hot came. Drawn over the leading, at the exact edge that is in trouble.
+  // The hot came, over the lead at the exact edge that is in trouble. The lead
+  // thickens there and runs hot along its middle: the light stops coming
+  // through where the rule is broken, and the break glows.
   function drawSeamBreaks() {
     if (!seamBad.length) return;
-    ctx.save();
-    ctx.lineCap = 'round';
-    ctx.shadowColor = 'rgba(216, 82, 63, 0.9)';   // --accent
-    for (const e of seamBad) {
-      // The came goes dark and hot: the light stops coming through where the
-      // rule is broken, which is a reading a backlit window can carry.
-      ctx.shadowBlur = 10;
-      ctx.strokeStyle = Z.bg;
-      ctx.lineWidth = CAME_W * 2.4;
+    const s = lineScale(frameR);
+    const path = (e) => {
       ctx.beginPath();
       if (e.kind === 'ang') {
-        const pad = LEAD;
+        const pad = 2 * s;
         ctx.moveTo(bcx + (ringR[e.r] + pad) * Math.cos(e.ang), bcy + (ringR[e.r] + pad) * Math.sin(e.ang));
         ctx.lineTo(bcx + (ringR[e.r + 1] - pad) * Math.cos(e.ang), bcy + (ringR[e.r + 1] - pad) * Math.sin(e.ang));
       } else {
-        const rr = ringR[e.r + 1], pad = LEAD / Math.max(1, rr);
+        const rr = ringR[e.r + 1], pad = 2 * s / Math.max(1, rr);
         ctx.arc(bcx, bcy, rr, e.a0 + pad, e.a1 - pad);
       }
-      ctx.stroke();
-    }
-    ctx.restore();
-  }
-
-  function drawFigure(now) {
-    hitCells = [];
-    computeSeamBad(now);
-    const w = phase === 'won' ? Math.min(1, (now - wonT) / 700) : 0;
-    for (let r = 0; r < RINGS; r++) {
-      const step = DOMSEC(r);
-      for (let s = 0; s < SEC(r); s++) {
-        const i = OFF[r] + s;
-        const inWedge = s < step;
-        const lock = isLocked(i);
-        const t = tokAt(i);
-        if (!cellPath(r, s, 0)) continue;
-
-        // ---- an empty socket ----
-        // A gap has to read as a hole in the window rather than as a pane that
-        // happens to be dull, so it goes DARKER than the stone, and the ones in
-        // the wedge take a faint lift to say they are yours to fill.
-        if (t < 0) {
-          // A socket is dark, so it reads as a hole rather than as dull glass.
-          //
-          // The ones in the LIT WEDGE breathe. Marking the wedge with a heavier
-          // came was what made the line weights look wrong, and marking it with
-          // a stronger glow alone turned out to be invisible at real size. Light
-          // that MOVES is unmissable, costs no contrast, and is the honest cue
-          // here: those are the sockets waiting for glass. Reduced motion gets
-          // the bright end of the same range, held still.
-          if (inWedge) {
-            const b = REDUCED ? 1 : 0.5 + 0.5 * Math.sin(now / 620);
-            ctx.fillStyle = lighten(Z.bgPanel, 0.02 + 0.14 * b);   // --bg-panel, breathing
-          } else {
-            ctx.fillStyle = Z.bg;                                   // --bg, a hole through
-          }
-          ctx.fill();
-          // A dot, so a socket announces itself as a socket. Dark alone was not
-          // enough: an empty pane and the dark ground between the outer rim and
-          // the frame are the same value, so the gaps did not read as holes in
-          // the window so much as smudges on it. The dot is a positive mark and
-          // it cannot be mistaken for anything else on this board, since nothing
-          // else here is a small centred shape.
-          const cd = cellCentre(r, s);
-          ctx.fillStyle = inWedge ? Z.textDim : Z.textMute;
-          ctx.beginPath();
-          ctx.arc(cd.x, cd.y, Math.max(2, cellSize(r) * 0.22), 0, TAU);
-          ctx.fill();
-          continue;
-        }
-
-        const { d } = domainOf(i);
-        // the placement ripples outward from the wedge into its copies
-        const delay = lock ? 0 : (Math.floor(s / step) * COPY_MS);
-        const p = lock ? 1 : Math.min(1, Math.max(0, (now - placeT[d] - delay) / 260));
-        if (p <= 0) continue;
-        let al = ease(p);
-
-        // A pane in a broken pair pulses, since a pane cannot lean away from
-        // its neighbour the way a small shape could. The hot came between them
-        // says where; this says which two.
-        if (nudge[i]) al *= REDUCED ? 0.62 : 0.55 + 0.25 * (0.5 + 0.5 * Math.sin(now / 190));
-        // the refusal: a fixed pane flashes back when you try to change it
-        const rf = (now - refuseT) / 340;
-        if (i === refuseCell && rf >= 0 && rf < 1) al *= 1 - 0.45 * Math.abs(Math.sin(rf * Math.PI * 2.5)) * (1 - rf);
-
-        ctx.globalAlpha = al;
-        ctx.fillStyle = shapeOnly ? PLAIN : PANE_COL[t % PANE_COL.length];
-        ctx.fill();
-        // Shape-only mode keeps the panes and takes the colour out, cutting the
-        // shape into the glass instead. Same board, same everything, so a
-        // colourblind player is playing the same game rather than a port of it.
-        if (shapeOnly) {
-          const cc = cellCentre(r, s);
-          drawGlyph(t, cc.x, cc.y, cellSize(r) * 0.62, cc.a + Math.PI / 2, al * 0.92, Z.bg);
-        } else {
-          // Shape-only mode gets NO motif. The glyph is already the second
-          // channel there, so a mark as well would be two answers to one
-          // question, and it would sit on the same PLAIN grey for all four.
-          drawMotif(t, r, s, al);
-        }
-        ctx.globalAlpha = 1;
-
-        // the hint: a ring of light closes onto the pane it just filled
-        if (d === hintCell) {
-          const hp = (now - hintT) / 900;
-          if (hp >= 0 && hp < 1) {
-            const cc = cellCentre(r, s);
-            ctx.save();
-            ctx.globalAlpha = (1 - hp) * 0.9;
-            ctx.strokeStyle = Z.accent2; ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.arc(cc.x, cc.y, cellSize(r) * (1 + 1.8 * (1 - ease(hp))), 0, TAU);
-            ctx.stroke(); ctx.restore();
-          }
-        }
-      }
-    }
-    drawCameNet(now);
-    drawSeamBreaks();
-  }
-
-  // Every white line in the figure, stroked at ONE width. Relying on the gaps
-  // between panes to be the net meant the apparent thickness moved around: the
-  // outer rim came out half again as wide as a ring boundary, and the wedge was
-  // marked by a line 2.6x the others, which reads as a mistake rather than as
-  // intent. Strokes at a fixed width cannot drift.
-  //
-  // The glow is the backlight. The lead is a dark body and the light leaks along
-  // it, so the highlight sits in the middle of the came with a soft bloom either
-  // side. The lit wedge is picked out by a STRONGER GLOW at the same width,
-  // never by a thicker line.
-  function drawCameNet(now) {
-    const glow = (blur, alpha, width) => {
-      ctx.shadowColor = 'rgba(198,228,255,' + alpha + ')';
-      ctx.shadowBlur = blur;
-      ctx.strokeStyle = CAME;
-      ctx.lineWidth = width;
-      ctx.lineCap = 'butt';
     };
     ctx.save();
-    glow(7, 0.55, CAME_W);
-    // ring boundaries, inner edge and outer rim
-    for (let i = 0; i <= RINGS; i++) { ctx.beginPath(); ctx.arc(bcx, bcy, ringR[i], 0, TAU); ctx.stroke(); }
-    // every radial divider
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = LEAD_INK; ctx.lineWidth = Math.max(3.5, 6.5 * s);
+    for (const e of seamBad) { path(e); ctx.stroke(); }
+    ctx.shadowColor = 'rgba(255,107,92,0.95)'; ctx.shadowBlur = 12 * PIXEL_SCALE;
+    ctx.strokeStyle = '#FF6B5C'; ctx.lineWidth = Math.max(1.8, 2.8 * s);   // --accent-text
+    for (const e of seamBad) { path(e); ctx.stroke(); }
+    ctx.restore();
+  }
+
+  // The glass, cell by cell, then the net over it, all turned by `spin`.
+  function drawGlass(now, spin) {
+    hitCells = [];
+    computeSeamBad(now);
+    const s = lineScale(frameR);
+    // The unlit cells in the LIT WEDGE breathe. Marking the wedge with a
+    // heavier came was what made the line weights look wrong, and marking it
+    // with a stronger glow alone turned out to be invisible at real size. Light
+    // that MOVES is unmissable, costs no contrast, and is the honest cue here:
+    // those are the cells waiting for glass. Reduced motion gets the bright end
+    // of the same range, held still.
+    const breathe = REDUCED ? 1 : 0.5 + 0.5 * Math.sin(now / 620);
     for (let r = 0; r < RINGS; r++) {
-      const w = TAU / SEC(r);
-      for (let sc = 0; sc < SEC(r); sc++) {
-        const a = A0 + sc * w;
-        ctx.beginPath();
-        ctx.moveTo(bcx + ringR[r] * Math.cos(a), bcy + ringR[r] * Math.sin(a));
-        ctx.lineTo(bcx + ringR[r + 1] * Math.cos(a), bcy + ringR[r + 1] * Math.sin(a));
-        ctx.stroke();
+      const S = SEC(r), w = TAU / S, step = DOMSEC(r), r0 = ringR[r], r1 = ringR[r + 1], orn = ornName(r);
+      for (let sc = 0; sc < S; sc++) {
+        const i = OFF[r] + sc, t = tokAt(i), inWedge = sc < step, rot = spin + sc * w;
+        let al = 0;
+        if (t >= 0) {
+          const { d } = domainOf(i), lock = isLocked(i);
+          // the placement ripples outward from the wedge into its copies
+          const delay = lock ? 0 : (Math.floor(sc / step) * COPY_MS);
+          const p = lock ? 1 : Math.min(1, Math.max(0, (now - placeT[d] - delay) / 260));
+          al = ease(p);
+          // A pane in a broken pair pulses, since a pane cannot lean away from
+          // its neighbour the way a small shape could. The hot came between
+          // them says where; this says which two.
+          if (nudge[i]) al *= REDUCED ? 0.62 : 0.55 + 0.25 * (0.5 + 0.5 * Math.sin(now / 190));
+          // the refusal: a fixed pane flashes back when you try to change it
+          const rf = (now - refuseT) / 340;
+          if (i === refuseCell && rf >= 0 && rf < 1) al *= 1 - 0.45 * Math.abs(Math.sin(rf * Math.PI * 2.5)) * (1 - rf);
+        }
+        // The unlit glass is always under it, so a pane fading in or pulsing
+        // shows the tracery through it rather than a hole.
+        if (al < 1) {
+          blitTile(glassTile(r0, r1, S, orn, inWedge ? 'wedge' : 'dark', s), bcx, bcy, rot, 1);
+          if (inWedge && t < 0) blitTile(glassTile(r0, r1, S, orn, 'wedgeHi', s), bcx, bcy, rot, breathe);
+        }
+        if (al > 0) blitTile(glassTile(r0, r1, S, orn, litKey(t), s), bcx, bcy, rot, al);
       }
     }
+    ctx.save(); ctx.translate(bcx, bcy); if (spin) ctx.rotate(spin);
+    drawBake(netBake);
+    const wa = phase === 'won' ? (REDUCED ? 0 : Math.max(0, 1 - (now - wonT) / 500)) : 1;
+    if (wa > 0) { ctx.globalAlpha = wa; drawBake(wedgeBake); }
     ctx.restore();
-    drawWedgeMark();
   }
-  function drawWedgeMark() {
-    const r0 = ringR[0], r1 = ringR[RINGS];
-    const w = TAU / N_FOLD;                    // one fold, whatever the fold is
-    // Same width as every other came. What marks it out is a harder backlight.
+
+  // The hint: a ring of light closes onto the pane it just filled, and onto
+  // each copy as the ripple reaches it.
+  function drawHint(now) {
+    if (hintCell < 0 || hintCell >= NDOM) return;
+    const hp = (now - hintT) / 900;
+    if (hp < 0 || hp >= 1) return;
     ctx.save();
-    ctx.shadowColor = 'rgba(214,238,255,0.95)';
-    ctx.shadowBlur = 14;
-    ctx.strokeStyle = CAME;
-    ctx.lineWidth = CAME_W; ctx.lineCap = 'butt';
-    for (const a of [A0, A0 + w]) {
+    ctx.globalAlpha = (1 - hp) * 0.9;
+    ctx.strokeStyle = Z.accent2; ctx.lineWidth = 2;
+    for (const i of orbitOf(hintCell)) {
+      const { r, s } = cellRS(i);
+      if (now - hintT < domainOf(i).k * COPY_MS) continue;
+      const cc = cellCentre(r, s);
       ctx.beginPath();
-      ctx.moveTo(bcx + r0 * Math.cos(a), bcy + r0 * Math.sin(a));
-      ctx.lineTo(bcx + r1 * Math.cos(a), bcy + r1 * Math.sin(a));
+      ctx.arc(cc.x, cc.y, cellShort(r) * 0.52 * (1 + 1.8 * (1 - ease(hp))), 0, TAU);
       ctx.stroke();
     }
-    ctx.beginPath(); ctx.arc(bcx, bcy, r1, A0, A0 + w); ctx.stroke();
     ctx.restore();
   }
 
-  // Flat, like everything else in the figure. It was the one shaded object left
-  // once the pieces went flat, and an off-centre highlight made it read as a
-  // ball bearing sitting on the window rather than as the boss at its centre.
-  function drawBoss(now) {
-    const w = phase === 'won' ? Math.min(1, (now - wonT) / 900) : 0;
-    const R = ringR[0] - LEAD * 0.5;
-    // The light behind the window, so it is the one thing brighter than the
-    // came. Solid rather than a gradient, in keeping with the flat panes.
-    ctx.save();
-    ctx.shadowColor = 'rgba(198,228,255,0.9)';
-    ctx.shadowBlur = 16 + w * 26;
-    ctx.fillStyle = CAME;
-    ctx.beginPath(); ctx.arc(bcx, bcy, R, 0, TAU); ctx.fill();
-    ctx.restore();
+  // THE READ-OUT, at the bottom left (DESIGN-SYSTEM 4.3): one line, Ink 72,
+  // 600 16px. A line that will not fit takes a shorter form, never a smaller
+  // size, so a 320-wide phone gets fewer words.
+  //
+  // No count of clashes. The wedge-level number (34) and the number of marks
+  // the player can actually see on the board (186, once symmetry has copied
+  // each break six times) are both true and neither is reconcilable with the
+  // other, so a figure here is worse than none. The board says WHERE; this
+  // says WHAT, in the same words the rules card uses.
+  const READ_SEP = '   ·   ';
+  function readoutForms() {
+    const lv = 'LEVEL ' + level;
+    if (seamBreaks()) {
+      const what = shapeOnly ? 'SHAPES TOUCHING' : 'COLOURS TOUCHING';
+      return [lv + READ_SEP + what, what];
+    }
+    const pb = placed() + '/' + blanks();
+    return [lv + READ_SEP + pb + ' GAPS FILLED', lv + READ_SEP + pb + ' FILLED', lv + READ_SEP + pb, pb];
   }
-
   function drawHUD() {
-    // Not behind the rules card. The overlay only dims it, so it read as a
-    // stray fragment poking out from under the panel.
+    // Not behind the rules card, and not over the win.
     if (phase === 'won' || phase === 'menu') return;
-    const hs = Math.max(0.7, Math.min(1, LW / 620));
-    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = Z.textDim;
-    ctx.font = '600 ' + Math.round(16 * hs) + 'px Inter, sans-serif';
-    // "2 clashes" told the player a number and not a problem. Name the thing
-    // that is wrong, in the same words the rules card used.
-    // No count. The wedge-level number (34) and the number of marks the player
-    // can actually see on the board (186, once symmetry has copied each break
-    // six times) are both true and neither is reconcilable with the other, so
-    // a figure here is worse than none. The board says WHERE; this says WHAT.
-    // One phrase, not both. Two of them ran the read-out left across the control
-    // row, and the board is already saying WHERE every one of them is, so the
-    // words only need to name the kind of problem the player is looking at.
-    const state = seamBreaks() ? (shapeOnly ? 'shapes touching' : 'colours touching')
-                : placed() + '/' + blanks() + ' gaps filled';
-    ctx.fillText('Level ' + level + '   ·   ' + state, LW - SIDE_PAD, Math.round(topBand() / 2));
+    const right = MODE === 'mobile' ? soundBox().x - 8 : LW - SIDE_PAD;
+    ctx.font = '600 16px Inter, sans-serif';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(255,255,255,0.72)';                       // Ink 72
+    const forms = readoutForms();
+    const line = forms.find((f) => SIDE_PAD + ctx.measureText(f).width <= right) || forms[forms.length - 1];
+    ctx.fillText(line, SIDE_PAD, Math.round(LH - botBand() / 2));
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   }
 
@@ -1607,107 +1664,82 @@
     const vertical = MODE !== 'mobile';
     // Column down the right beside the wheel, or a row beneath it on a phone.
     let x = vertical ? LW - SIDE_PAD - sz : Math.round(LW / 2 - total / 2);
-    let y = vertical ? Math.round(bcy - total / 2) : Math.round(mobileStack().paletteCY - sz / 2);
+    let y = vertical ? Math.round(bcy - total / 2) : Math.round(paletteCY() - sz / 2);
     for (let t = 0; t < n; t++) {
       const on = sel === t;
       const bx = Math.round(x), by = Math.round(y);
       ctx.fillStyle = on ? 'rgba(255,255,255,0.155)' : 'rgba(255,255,255,0.055)';
       ZUI.roundRectPath(ctx, bx, by, sz, sz, 15); ctx.fill();
       if (on) { ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,255,255,0.62)'; ZUI.roundRectPath(ctx, bx, by, sz, sz, 15); ctx.stroke(); }
-      if (!shapeOnly) {
-        // Full strength, always. Fading the unselected ones to 60% over a dark
-        // card turned three of the four muddy, so the palette advertised colours
-        // the board does not actually use. Selection is the surrounding pill.
-        ctx.fillStyle = PANE_COL[t % PANE_COL.length];
-        ZUI.roundRectPath(ctx, bx + 11, by + 11, sz - 22, sz - 22, 7); ctx.fill();
-        // The palette is where the motif becomes a LEGEND, and that is most of
-        // what it is worth: a player who cannot separate three of these by hue
-        // can match the mark instead. The swatch is 32px on a desktop and 36 on
-        // a phone, both clear of the 26px floor, so the swatch itself is never
-        // the binding constraint. The BOARD is: no marks on the wheel means no
-        // marks here either.
-        const psz = sz - 22, pdet = motifDetail(psz);
-        if (pdet > 0 && boardHasMotif()) {
-          const pp = Math.round(psz * MOTIF_FILL), po = (psz - pp) / 2;
-          ctx.drawImage(motifTile(t, pdet, pp), bx + 11 + po, by + 11 + po, pp, pp);
-        }
-      } else {
-        // Neutral on purpose. Hue belongs to the wedge, so a coloured swatch
-        // would promise a colour the piece will not have once it lands.
-        drawGlyph(t, bx + sz / 2, by + sz / 2, sz * 0.30, 0, on ? 1 : 0.62, PLAIN);
-      }
+      // Each swatch is a piece of the glass itself, lit, with its jewel, so the
+      // palette is the legend for both channels at once. Full strength, always:
+      // fading the unselected ones turned three of the four muddy, and the
+      // palette advertised colours the board does not use. Selection is the
+      // surrounding pill.
+      const G = shapeOnly ? CLEAR_GLASS : GLASS[t], m = 8, gw = sz - m * 2;
+      const gcx = bx + sz / 2, gcy = by + sz / 2;
+      const gg = ctx.createRadialGradient(gcx, gcy, 2, gcx, gcy, gw * 0.7);
+      gg.addColorStop(0, lighten(G.main, 0.3)); gg.addColorStop(1, G.main);
+      ZUI.roundRectPath(ctx, bx + m, by + m, gw, gw, 7);
+      ctx.fillStyle = gg; ctx.fill();
+      ctx.strokeStyle = LEAD_INK; ctx.lineWidth = 2; ctx.stroke();
+      jewel(ctx, gcx, gcy, shapeOnly ? 13 : 11, -Math.PI / 2, t, G.gem);
       uiButtons.push({ x: bx, y: by, w: sz, h: sz, act: ((k) => () => { sel = k; snd.pick(); render(performance.now()); })(t) });
       if (vertical) y += sz + gap; else x += sz + gap;
     }
   }
 
-  function speakerIcon(cx, cy, on) {
-    const s = 8;
-    ctx.strokeStyle = on ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.40)';
-    ctx.fillStyle = ctx.strokeStyle;
-    ctx.lineWidth = 1.6; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(cx - s * 0.8, cy - s * 0.3); ctx.lineTo(cx - s * 0.35, cy - s * 0.3);
-    ctx.lineTo(cx + s * 0.15, cy - s * 0.75); ctx.lineTo(cx + s * 0.15, cy + s * 0.75);
-    ctx.lineTo(cx - s * 0.35, cy + s * 0.3); ctx.lineTo(cx - s * 0.8, cy + s * 0.3);
-    ctx.closePath(); ctx.fill();
-    if (on) {
-      ctx.beginPath(); ctx.arc(cx + s * 0.35, cy, s * 0.42, -0.9, 0.9); ctx.stroke();
-      ctx.beginPath(); ctx.arc(cx + s * 0.35, cy, s * 0.78, -0.85, 0.85); ctx.stroke();
-    } else {
-      ctx.beginPath(); ctx.moveTo(cx + s * 0.42, cy - s * 0.42); ctx.lineTo(cx + s * 1.0, cy + s * 0.42);
-      ctx.moveTo(cx + s * 1.0, cy - s * 0.42); ctx.lineTo(cx + s * 0.42, cy + s * 0.42); ctx.stroke();
-    }
+  // The phone's sound switch, bare at the bottom right: its drawing ends 16
+  // from the edge and its touch target is still 44 x 44.
+  function soundBox() {
+    const cy = LH - botBand() / 2, cx = LW - SIDE_PAD - 11;
+    return { cx, cy, x: Math.round(Math.min(LW - 44, cx - 20)), y: Math.round(Math.min(LH - 44, cy - 22)), w: 44, h: 44 };
   }
-
+  // The controls, in the fleet's places (DESIGN-SYSTEM 4.2). A phone has
+  // round icons across the top in the fleet's order, Undo, Restart, Hint and
+  // Rules, with the gaps sharing out the width. A desktop has the sound icon,
+  // Undo, Restart and Rules as pills from the left, and Hint at the band's
+  // right end, 12 short of the full-screen exit button when that is showing.
+  // A dimmed Undo still takes the tap; undo() itself refuses an empty history.
   function drawControls() {
-    const P = ZUI.PILL, gap = P.gap;
-    const ACTS = { Undo: undo, Hint: hint, Restart: restart,
-                   Rules: () => { phase = 'menu'; ensureAnim(performance.now()); } };
-    const game = CTRL_LABELS.map((label) => ({ label, act: ACTS[label] }));
-    const row = (items, cy, leftAlign, withSound) => {
-      const ws = items.map((it) => ZUI.pillWidth(ctx, it.label));
-      let totw = ws.reduce((a, b) => a + b, 0) + gap * (items.length - 1);
-      if (withSound) totw += P.iconW + gap;
-      let x = leftAlign ? SIDE_PAD : Math.round(LW / 2 - totw / 2);
-      if (withSound) {
-        const hit = ZUI.drawPill(ctx, '', x + P.iconW / 2, cy, { w: P.iconW });
-        speakerIcon(x + P.iconW / 2, cy, snd.on());
-        uiButtons.push({ ...hit, act: () => { snd.ready(); snd.toggle(); render(performance.now()); } });
-        x += P.iconW + gap;
-      }
-      items.forEach((it, i) => {
-        const dim = (it.label === 'Undo' && !history.length) || it.label === 'Cycle off';
-        uiButtons.push({ ...ZUI.drawPill(ctx, it.label, x + ws[i] / 2, cy, { w: ws[i], dim }), act: it.act });
-        x += ws[i] + gap;
+    const ACTS = { undo, hint, restart, rules: () => { phase = 'menu'; ensureAnim(performance.now()); } };
+    const dimOf = (id) => id === 'undo' && !history.length;
+    const toggleSound = () => { snd.ready(); snd.toggle(); render(performance.now()); };
+    if (MODE === 'mobile') {
+      const row = ['undo', 'restart', 'hint', 'rules'], D = ZUI.PILL.iconW, cy = topBand() / 2;
+      const gap = Math.max(4, Math.min(28, (LW - SIDE_PAD * 2 - row.length * D) / (row.length - 1)));
+      row.forEach((id, i) => {
+        const cx = SIDE_PAD + D / 2 + i * (D + gap);
+        const hit = ZUI.drawRound(ctx, cx, cy);
+        ZUI.drawIcon(ctx, id, cx, cy, { dim: dimOf(id) });
+        uiButtons.push({ ...hit, act: ACTS[id] });
       });
-    };
-    // Desktop: the row the title used to have, left, opposite the read-out.
-    // Phone: the BOTTOM row, below the palette. That is the locked decision, and
-    // it is Prism's arrangement too, which puts its rack above its controls.
-    if (MODE !== 'mobile') { row(game, Math.round(topBand() / 2), true, true); return; }
-    // On a phone the controls stay at the bottom, in thumb reach, and PACK into
-    // as many rows as they need. Five pills do not fit 375px on one line, and a
-    // row that runs off the screen loses whichever control fell off the end.
-    const avail = LW - SIDE_PAD * 2;
-    const rows = [[]];
-    let used = P.iconW + gap;                     // the sound pill leads row one
-    for (const it of game) {
-      const w = ZUI.pillWidth(ctx, it.label) + gap;
-      if (used + w > avail && rows[rows.length - 1].length) { rows.push([]); used = 0; }
-      rows[rows.length - 1].push(it); used += w;
+      const sb = soundBox();
+      ZUI.drawIcon(ctx, 'sound', sb.cx, sb.cy, { on: snd.on() });
+      uiButtons.push({ x: sb.x, y: sb.y, w: sb.w, h: sb.h, act: toggleSound });
+      return;
     }
-    // Same arithmetic mobileStack() used to reserve the space.
-    const base = LH - 74 - (rows.length - 1) * (P.h + 10);
-    rows.forEach((items, i) => row(items, base + i * (P.h + 10), false, i === 0));
+    const P = ZUI.PILL, cy = Math.round(topBand() / 2);
+    let x = SIDE_PAD;
+    const sHit = ZUI.drawPill(ctx, '', x + P.iconW / 2, cy, { w: P.iconW });
+    ZUI.drawIcon(ctx, 'sound', x + P.iconW / 2, cy, { on: snd.on() });
+    uiButtons.push({ ...sHit, act: toggleSound });
+    x += P.iconW + P.gap;
+    for (const [id, label] of [['undo', 'Undo'], ['restart', 'Restart'], ['rules', 'Rules']]) {
+      const w = ZUI.pillWidth(ctx, label);
+      uiButtons.push({ ...ZUI.drawPill(ctx, label, x + w / 2, cy, { w, dim: dimOf(id) }), act: ACTS[id] });
+      x += w + P.gap;
+    }
+    const hw = ZUI.pillWidth(ctx, 'Hint');
+    uiButtons.push({ ...ZUI.drawPill(ctx, 'Hint', bandRight() - hw / 2, cy, { w: hw }), act: hint });
   }
 
   function winBloom(now) {
     const t = Math.min(1, Math.max(0, (now - wonT) / 900));
-    // a single ring travelling outward through the leading, then it settles
+    // a single ring of warm light travelling outward through the leading
     const rr = boardR * (0.2 + 1.05 * ease(t));
-    ctx.globalAlpha = (1 - t) * 0.5;
-    ctx.strokeStyle = Z.brand; ctx.lineWidth = 3 * (1 - t) + 1;
+    ctx.globalAlpha = (1 - t) * 0.6;
+    ctx.strokeStyle = WARM + '1)'; ctx.lineWidth = 3 * (1 - t) + 1;
     ctx.beginPath(); ctx.arc(bcx, bcy, rr, 0, TAU); ctx.stroke();
     ctx.globalAlpha = 1;
     const a = Math.min(1, Math.max(0, (now - wonT - 700) / 500));
@@ -1747,13 +1779,13 @@
   const WIN_TITLE_PX = 20, WIN_SUB_PX = 16;      // no copy on this site goes below 16
   const WIN_PAD_MIN = 12, WIN_PAD_MAX = 30, WIN_FLOOR = 0.62;
   function winBannerLayout() {
-    // SIDE_PAD alone is not enough room here. It is 18 on a phone, which let
+    // SIDE_PAD alone is not enough room here. It was 18 on a phone, which let
     // the line run 341px across a 390px frame and read as wall to wall even
     // though it technically fitted. Cap the line at 84% of the frame as well,
     // so the air at the sides is proportional to the frame rather than a
     // constant borrowed from the board's own margin.
     const avail = Math.min(LW - SIDE_PAD * 2, LW * 0.84);
-    const rim = bcy - boardR;                    // the top of the glass
+    const rim = bcy - frameR;                    // the top of the window's stone
     let k = 1, m = winBannerWidths(k);
     while (k > WIN_FLOOR && m.total > avail) { k = Math.max(WIN_FLOOR, k - 0.03); m = winBannerWidths(k); }
     const lineH = WIN_TITLE_PX * k;
@@ -1839,59 +1871,31 @@
     const rr = [];
     for (let i = 0; i <= DEMO_RINGS; i++) rr[i] = R * (0.22 + 0.78 * i / DEMO_RINGS);
     const fold = 6, secOf = (i) => 6 * (i + 1);
+    // Finer lead than the board's, because the whole window is a fifth of the
+    // size and the same weights would drown its cells.
+    const s = Math.max(0.45, R / 150);
 
     // the stone, so the demo reads as the same object as the board
-    ctx.fillStyle = CAME;
-    ctx.beginPath(); ctx.arc(cx, cy, rr[DEMO_RINGS] + 2, 0, TAU); ctx.fill();
+    const disc = (r, col) => { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.fill(); };
+    disc(rr[DEMO_RINGS] + 5, STONE); disc(rr[DEMO_RINGS] + 3.5, STONE_LIT); disc(rr[DEMO_RINGS] + 2, LEAD_INK);
 
     for (let r = 0; r < DEMO_RINGS; r++) {
-      const S = secOf(r), w = TAU / S, step = S / fold;
-      const r0 = rr[r] + 1, r1 = rr[r + 1] - 1;
-      const rm = (r0 + r1) / 2;
+      const S = secOf(r), w = TAU / S, step = S / fold, orn = RING_ORN[DEMO_RINGS][r];
       for (let sc = 0; sc < S; sc++) {
-        const a0 = A0 + sc * w, k = Math.floor(sc / step);
-        const inWedge = sc < step;
-        const d0 = 1 / Math.max(1, r0), d1 = 1 / Math.max(1, r1);
-        const path = () => {
-          ctx.beginPath();
-          ctx.arc(cx, cy, r0, a0 + d0, a0 + w - d0, false);
-          ctx.arc(cx, cy, r1, a0 + w - d1, a0 + d1, true);
-          ctx.closePath();
-        };
-        path();
-        ctx.fillStyle = inWedge ? Z.bgPanel : Z.bg;
-        ctx.fill();
-
+        const k = Math.floor(sc / step), inWedge = sc < step;
+        blitTile(glassTile(rr[r], rr[r + 1], S, orn, inWedge ? 'wedge' : 'dark', s), cx, cy, sc * w, 1);
         // the wedge fills in sequence; each copy follows one rotation behind
         const idx = DEMO_SEQ.indexOf(sc % step);
         const born = 420 + idx * 520 + (inWedge ? 0 : 210 + k * 120);
         const p = Math.max(0, Math.min(1, (t - born) / 300));
         const gone = Math.max(0, Math.min(1, (t - 3500) / 400));
         if (p <= 0 || gone >= 1 || idx < 0) continue;
-        const tok = demoTok(r, sc) % PANE_COL.length;
-        ctx.globalAlpha = ease(p) * (1 - gone);
-        ctx.fillStyle = shapeOnly ? PLAIN : PANE_COL[tok];
-        path(); ctx.fill();
-        if (shapeOnly) {
-          const am = a0 + w / 2;
-          drawGlyph(tok, cx + rm * Math.cos(am), cy + rm * Math.sin(am),
-                    Math.min(r1 - r0, TAU * rm / S) * 0.28, am + Math.PI / 2, 0.92, Z.bg);
-        }
-        ctx.globalAlpha = 1;
+        blitTile(glassTile(rr[r], rr[r + 1], S, orn, litKey(demoTok(r, sc)), s), cx, cy, sc * w, ease(p) * (1 - gone));
       }
     }
-    ctx.fillStyle = CAME;
-    ctx.beginPath(); ctx.arc(cx, cy, rr[0] - 1, 0, TAU); ctx.fill();
-    // the lit wedge, same mark the board uses
-    const w6 = TAU / fold;
-    ctx.save(); ctx.shadowColor = 'rgba(214,238,255,0.9)'; ctx.shadowBlur = 8;
-    ctx.strokeStyle = CAME; ctx.lineWidth = CAME_W; ctx.lineCap = 'butt';
-    for (const a of [A0, A0 + w6]) {
-      ctx.beginPath();
-      ctx.moveTo(cx + rr[0] * Math.cos(a), cy + rr[0] * Math.sin(a));
-      ctx.lineTo(cx + rr[DEMO_RINGS] * Math.cos(a), cy + rr[DEMO_RINGS] * Math.sin(a));
-      ctx.stroke();
-    }
+    // the lead, the lit wedge and the rosette, the same net the board uses
+    ctx.save(); ctx.translate(cx, cy);
+    paintNet(ctx, rr, secOf, s); paintWedge(ctx, rr, fold, s, PIXEL_SCALE);
     ctx.restore();
     // the tapping finger, an outline ring rather than any glyph
     // The guard is on t, not on the derived index. Deriving the index with a
@@ -2122,40 +2126,26 @@
         fits: pillTop - copyBottom >= 0 && L.needed <= L.ph + 0.5 && L.py >= 0,
       };
     },
-    // What the motif is doing right now, per ring. Nothing about the motif is
-    // fixed until something can ask it these questions: what size is the pane,
-    // which rung of the ladder is it on, and does the ink stay inside the pane.
-    // `escapes` is the one that matters: the motif is drawn WITHOUT a clip, on
-    // the argument that MOTIF_FILL keeps its corners inside the circle
-    // inscribed in the pane, and this is that argument stated as a number.
-    motif() {
+    // What the window is doing right now, ring by ring: which ornament, how
+    // big a cell's short side is, how wide its jewel comes out, and how the
+    // frame split the radius with the glass.
+    look() {
       const rings = [];
       for (let r = 0; r < RINGS; r++) {
-        const short = cellShort(r), det = motifDetail(short);
-        const th = ringR[r + 1] - ringR[r], rm = (ringR[r] + ringR[r + 1]) / 2;
-        const w = TAU / SEC(r);
-        // the largest circle that fits in an annular sector, centred on the pane
-        const inscribed = Math.min(th / 2, rm * Math.sin(w / 2));
-        // the motif's own circumscribed radius: half-diagonal of its box
-        const reach = short * MOTIF_FILL * Math.hypot(0.38, 0.36);
-        rings.push({ ring: r, sectors: SEC(r),
-                     paneW: Math.round(TAU * rm / SEC(r) * 10) / 10,
-                     paneH: Math.round(th * 10) / 10,
-                     shortSide: Math.round(short * 10) / 10,
-                     detail: det,
-                     inscribed: Math.round(inscribed * 10) / 10,
-                     reach: Math.round(reach * 10) / 10,
-                     escapes: det > 0 && reach > inscribed });
+        const O = ORN[ornName(r)], r0 = ringR[r], r1 = ringR[r + 1], w = TAU / SEC(r);
+        const room = Math.min(r1 - r0, (r0 + (r1 - r0) * O.gem[1]) * w);
+        rings.push({ ring: r, ornament: ornName(r), sectors: SEC(r),
+                     thickness: Math.round((r1 - r0) * 10) / 10,
+                     shortSide: Math.round(cellShort(r) * 10) / 10,
+                     jewel: Math.round(room * (shapeOnly ? (O.small ? 0.26 : 0.3) : (O.small ? 0.16 : 0.2)) * 20) / 10 });
       }
-      return { LW, LH, mode: MODE, boardR, rings: RINGS, shapeOnly,
-               floor: MOTIF_MIN, full: MOTIF_FULL, fill: MOTIF_FILL,
-               shown: rings.filter((x) => x.detail > 0).length,
-               anyEscapes: rings.some((x) => x.escapes),
-               tilesCached: motifTiles.size, perRing: rings };
+      return { LW, LH, mode: MODE, frameR: Math.round(frameR * 10) / 10, boardR: Math.round(boardR * 10) / 10,
+               border: Math.round(border * 10) / 10, lineScale: Math.round(lineScale(frameR) * 1000) / 1000,
+               rings: RINGS, fold: N_FOLD, shapeOnly, tilesCached: glassTiles.size, perRing: rings };
     },
-    // Cost of one FULL render, averaged over n frames. The motif turned each
-    // pane from one fill into a fill plus a blit, and the whole argument for the
-    // tile cache is that a blit is cheaper than the dozen paths it replaces.
+    // Cost of one FULL render, averaged over n frames. The window is painted
+    // cell by cell into tiles, and the whole argument for the tile cache is
+    // that a blit is cheaper than the dozens of paths each cell is made of.
     // This is how that gets checked rather than asserted. Drives render()
     // directly with a synthetic clock so the number is draw cost and not vsync.
     frameTime(n) {
@@ -2215,7 +2205,7 @@
     // The board's box and every hit target, for checking nothing collides and
     // that the touch budget is being honoured.
     geometry() {
-      return { bcx, bcy, boardR, minRing: MIN_RING,
+      return { bcx, bcy, boardR, frameR, border, minRing: MIN_RING,
                ringThickness: [3, 4, 5, 6].map((n) => Math.round(thinnestRing(n) * 10) / 10),
                ringsAllowed: budgetRings(),
                buttons: uiButtons.map((b) => ({ x: b.x, y: b.y, w: b.w, h: b.h })) };
