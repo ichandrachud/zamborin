@@ -142,8 +142,9 @@
      painted hotel's smoke stand out, walnut doors, a honey-wood floor, brick
      planters, and lamps drawn as a flat disc in rings of fading halo. Every
      piece of art is flat fills with no outline; the only gradient left is the
-     sky. The people are drawn rather than painted, because a realistic figure
-     always looked a little off. */
+     sky. The people are the exception, chosen by the owner: chibi pixel
+     sprites with a dark outline (see PIXEL PEOPLE), because a realistic
+     figure always looked a little off. */
   const NIGHT = '#143A49', NIGHT_HI = '#1C4A5B', MIST = 'rgba(47,103,120,0.55)';
   const SHELL = '#0D2A35', SHELL_HI = '#1A4453', CEIL = '#17414F';
   const WALL = '#F3DBB0', WALL_LO = '#E6C592', RAIL = '#D6AC72';
@@ -160,14 +161,7 @@
      where they overlap. The fire's own floor burns warmer. */
   const SMOKE_T = ['#3E4A5C', '#4D5A6E', '#5E6C84'], SMOKE_WARM_T = ['#5B4449', '#6B525A', '#7E646C'];
   const SMOKE_ALPHA = 0.5;
-  /* THE PEOPLE: dark legs and hair carry a figure against the lit wall
-     (10.9:1) and inside the smoke (5.3:1); the light face and the white of
-     the eye carry it in the smoke too. Every shirt clears 3:1 on the beige
-     on its own, measured, so a party still reads as its colour. */
-  const LEGS = '#1A2A33', NOSE = '#E24E5A', PUPIL = '#10222B';
-  const OUTFITS = ['#D64B55', '#A1721C', '#8A5CD0', '#377FBE', '#468B2D', '#BD5A86', '#BE6324', '#1A897D'];
-  const SKINS = ['#F4B9A6', '#E9A283', '#C98363', '#9A5D40', '#734330'];
-  const HAIRS = ['#151515', '#2D1B12', '#4A2A1A', '#9A6A2A', '#8E3A22', '#6E7684'];
+  const PUPIL = '#10222B';                               // the numerals on the call buttons
   const BREATH_OK = '#5DD39E', BREATH_MID = '#F0B23C', BREATH_LOW = '#F05A46';
 
   /* ---------- LAYOUT ----------
@@ -1083,7 +1077,7 @@
     if (!hasFar || Math.abs(pic - far) > 20 * u) painting(b, pic, B.wallTop + 9 * u, u);
     if (hasFar) planter(b, far, ft, u * 0.9);
   }
-  const RECEPTION = { outfit: '#8E2F3C', skin: '#C98363', hair: '#2D1B12', size: 1, bun: true, badge: true };
+  const RECEPTION = { size: 1, badge: true };            // its pixel colours are set beside the sprites
 
   // a plant in a brick planter, standing on the floor at (x, ft)
   function planter(b, x, ft, s) {
@@ -1420,42 +1414,136 @@
   function lookOf(id, gid) {
     const k = gid ? gid * 13.7 : id * 5.3;
     return {
-      outfit: OUTFITS[Math.floor(hash01(k) * OUTFITS.length)],
-      skin: SKINS[Math.floor(hash01(id * 2.9 + 1) * SKINS.length)],
-      hair: HAIRS[Math.floor(hash01(id * 7.1 + 3) * HAIRS.length)],
       size: 0.94 + 0.12 * hash01(id * 3.7 + 2),
+      oi: Math.floor(hash01(k) * 8), si: Math.floor(hash01(id * 2.9 + 1) * 5),
+      hi: Math.floor(hash01(id * 7.1 + 3) * 6), ei: Math.floor(hash01(id * 6.3 + 5) * 4),
     };
   }
 
-  /* THE PEOPLE ARE DRAWN, NOT PAINTED (owner, 2026-09-25: a realistic person
-     "is always going to look a little off"). A big round head with the hair
-     massed behind it, a big nose and one round eye facing where they are
-     going, a rounded body in their own colour and short dark legs. No
-     outline anywhere.
-     Posture still carries the exposure, because colour never should alone:
-     deep in the smoke they duck, and a hand comes up to the mouth. A cough
-     jolts the whole figure; the walk swings the legs. */
+  /* PIXEL PEOPLE (owner, 2026-09-25, from two chibi sprite sheets): the
+     figures are pixel art in the flat-night hotel. A big bushy head of hair,
+     a small face with one coloured eye and a blush, a short body with its
+     hand at its side, stubby legs, and a near-black outline round all of it,
+     which is what carries them against the beige and inside the smoke.
+     Original sprites drawn in that style, not traced. Each is drawn once per
+     look, size and facing into a small canvas, then placed on whole screen
+     pixels so it stays crisp at every size.
+     Keys: o outline, h/H/d hair base, light and dark, s/S skin and shade,
+     k blush, e eye, g iris, c/C shirt and shade, y badge, p/P trousers, b shoes. */
+  const PX_STAND = [
+    '....oooooo.....',
+    '..oohhhhHHoo...',
+    '.ohhhhhhhHHHho.',
+    'ohhdhhhhhhhhhho',
+    'ohhhhdhhhhshsho',
+    'ohdhhhssssssso.',
+    'ohhhhsssssesso.',
+    'ohdhhsssssgsso.',
+    '.ohhhSssssskso.',
+    '..ohhoSssssso..',
+    '...ooooSSSoo...',
+    '....occccco....',
+    '....occccCso...',
+    '....oCCCCCo....',
+    '.....oppppo....',
+    '.....oppopo....',
+    '.....obbobbo...',
+  ];
+  const PX_SPRITES = {
+    stand: PX_STAND,
+    // mid-stride: the legs apart
+    walk: PX_STAND.slice(0, 14).concat(['....opppppo....', '...oppo.oppo...', '..obbo...obbo..']),
+    // crouched in the smoke: one leg-row shorter, so the whole figure sits lower
+    duck: PX_STAND.slice(0, 14).concat(PX_STAND.slice(15)),
+    // down: lying on their back along the floor, head to the left, eye shut
+    lying: [
+      '..ooooo...........',
+      '.ohhhhho..........',
+      'ohhdhhhoooooooo...',
+      'ohhhhssscccccppo..',
+      'ohhhseSsccccCppbo.',
+      '.ohhssssooooooooo.',
+      '..ooooo...........',
+    ],
+  };
+  const PX = {
+    out: '#141014', blush: '#F08A80', badge: '#F6D94A', shoes: '#1E1A1E', pants: ['#3A3A44', '#2A2A32'],
+    hair: [['#2B2B30', '#45454C', '#1E1E22'], ['#5A3424', '#7A4A34', '#3E2418'], ['#8A5230', '#A86A40', '#6A3E22'],
+           ['#D8B048', '#F0D070', '#B08A30'], ['#C0582C', '#DC7440', '#943E1E'], ['#A0A0AC', '#C4C4CE', '#80808C']],
+    skin: [['#F4B894', '#D8967A'], ['#E0A078', '#C28060'], ['#C88458', '#A86A44'], ['#9A6040', '#7E4C32'], ['#704430', '#5A3424']],
+    shirt: [['#D8322E', '#A42420'], ['#3A6AC8', '#2A4E96'], ['#2E9A4E', '#20743A'], ['#8A4AC0', '#66368E'],
+            ['#E0782A', '#AE5A1E'], ['#1E9A8E', '#16746A'], ['#D84A8A', '#A43868'], ['#E0B82E', '#AE8C20']],
+    eye: ['#3A9A4A', '#3A6AC8', '#7A4A28', '#2A2A30'],
+  };
+  const PX_RECEPTION = { shirt: ['#8E2F3C', '#6A1F2A'], hair: PX.hair[1], skin: PX.skin[2], eye: PX.eye[2] };
+  RECEPTION.px = PX_RECEPTION;
+  const PX_GREY = { shirt: ['#7F8A92', '#65707A'], hair: ['#4A4E58', '#5E626C', '#3A3E48'], skin: ['#A9B0B6', '#8E959C'], eye: '#4A4E58', grey: true };
+  function pxPal(lk) {
+    const P = lk.px || { shirt: PX.shirt[lk.oi % PX.shirt.length], hair: PX.hair[lk.hi % PX.hair.length],
+                         skin: PX.skin[lk.si % PX.skin.length], eye: PX.eye[lk.ei % PX.eye.length] };
+    return { o: PX.out, h: P.hair[0], H: P.hair[1], d: P.hair[2], s: P.skin[0], S: P.skin[1],
+             k: P.grey ? P.skin[1] : PX.blush, e: PX.out, g: P.eye, c: P.shirt[0], C: P.shirt[1],
+             y: PX.badge, p: PX.pants[0], P: PX.pants[1], b: PX.shoes };
+  }
+  const pxCache = new Map();
+  function pxSprite(kind, lk, face, dev) {
+    const pal = pxPal(lk);
+    const key = kind + face + dev + (lk.badge ? 'y' : '') + pal.h + pal.s + pal.c + pal.g;
+    let cv = pxCache.get(key);
+    if (cv) return cv;
+    const rows = PX_SPRITES[kind], W = rows[0].length, Hh = rows.length;
+    cv = document.createElement('canvas'); cv.width = W * dev; cv.height = Hh * dev;
+    const g = cv.getContext('2d');
+    for (let j = 0; j < Hh; j++) for (let i = 0; i < W; i++) {
+      let k = rows[j][face > 0 ? i : W - 1 - i];
+      if (k === '.') continue;
+      if (lk.badge && kind !== 'lying' && j === 12 && (face > 0 ? i : W - 1 - i) === 6) k = 'y';
+      g.fillStyle = pal[k]; g.fillRect(i * dev, j * dev, dev, dev);
+    }
+    if (pxCache.size > 600) pxCache.clear();
+    pxCache.set(key, cv);
+    return cv;
+  }
+  // one sprite pixel is two frame units, rounded to whole screen pixels
+  function pxScale(c, u) {
+    const m = c.getTransform(), sc = Math.hypot(m.a, m.b) || 1;
+    const dev = Math.max(1, Math.round(2 * u * sc));
+    return { sc, dev, p: dev / sc };
+  }
   function figure(c, x, baseY, face, lk, o) {
-    const u = U() * (lk.size || 1);
-    const duck = o.duck || 0, cough = o.cough || 0, gait = o.gait == null ? -1 : o.gait;
-    const r = 9.5 * u, legH = 6 * u, bodyH = 10 * u * (1 - duck * 0.15), bodyW = 13 * u;
-    const bodyTop = baseY - legH - bodyH + duck * 1.5 * u - cough * 1.6 * u;
-    const sw = gait >= 0 ? Math.sin(gait * Math.PI * 2) * 3 * u : 0;
+    const u = o.px ? o.px / 2 : U() * (lk.size || 1), { sc, dev, p } = pxScale(c, u);
+    const gait = o.gait == null ? -1 : o.gait;
+    const kind = (o.duck || 0) > 0.5 ? 'duck' : (gait >= 0 && ((gait * 2) | 0) % 2 === 1) ? 'walk' : 'stand';
+    const rows = PX_SPRITES[kind], W = rows[0].length, Hh = rows.length;
+    const cv = pxSprite(kind, lk, face, dev);
+    const jolt = (o.cough || 0) > 0.5 ? p : 0;
+    const x0 = Math.round((x - 7.5 * p) * sc) / sc, y0 = Math.round((baseY - Hh * p + jolt) * sc) / sc;
     c.fillStyle = 'rgba(60,30,10,0.18)';
-    c.beginPath(); c.ellipse(x, baseY + u, 8 * u, 1.8 * u, 0, 0, Math.PI * 2); c.fill();
-    for (const [dx, s] of [[-2.8 * u, sw], [2.8 * u, -sw]]) fillRR(c, x + dx - 2.2 * u + s * 0.5, baseY - legH - u, 4.4 * u, legH + u, 2.2 * u, lk.legs || LEGS);
-    fillRR(c, x - bodyW / 2, bodyTop, bodyW, bodyH + u, 5 * u, lk.outfit);
-    if (lk.badge) disc(c, x + face * 3 * u, bodyTop + 3.5 * u, 1.4 * u, MOON);
-    const hy = bodyTop - r * 0.7 + duck * 2 * u;
-    disc(c, x - face * 2.2 * u, hy - 1.5 * u, r * 1.02, lk.hair);
-    if (lk.bun) disc(c, x - face * 8.8 * u, hy - 5.5 * u, 3.8 * u, lk.hair);
-    disc(c, x + face * 1.6 * u, hy + 1.2 * u, r * 0.82, lk.skin);
-    disc(c, x + face * 8.2 * u, hy + 2.8 * u, 3.1 * u, lk.nose || NOSE);
-    disc(c, x + face * 4.6 * u, hy - 0.6 * u, 2.5 * u, lk.eye || '#FFFFFF');
-    if (lk.shut) { c.fillStyle = PUPIL; c.fillRect(x + face * 4.6 * u - 2 * u, hy - 0.8 * u, 4 * u, 1.1 * u); }
-    else disc(c, x + face * 5.3 * u, hy - 0.4 * u, 1.2 * u, PUPIL);
-    if (duck > 0.3) disc(c, x + face * 7 * u, hy + 5.5 * u, 2.6 * u, lk.skin);   // a hand over the mouth
-    return { hx: x + face * u, headTop: hy - r * 1.05, h: 34 * u, hy, bodyY: bodyTop + bodyH / 2, armY: bodyTop + bodyH * 0.6 };
+    c.beginPath(); c.ellipse(x, baseY + p * 0.5, 5 * p, p, 0, 0, Math.PI * 2); c.fill();
+    c.save(); c.imageSmoothingEnabled = false;
+    c.drawImage(cv, x0, y0, W * p, Hh * p);
+    c.restore();
+    return { hx: x, headTop: y0, h: 34 * u, hy: y0 + 5 * p, bodyY: y0 + 12 * p, armY: y0 + 12 * p };
+  }
+  /* THEY COLLAPSE, THEY DO NOT VANISH. Somebody blinking out of existence
+     reads as a rendering glitch, not as a person you failed to reach - and it
+     hid the one thing the player most needs to see. So they go down: in their
+     own colours they crouch for half the fall, then lie along the floor for
+     the rest of the run, grey, the eye shut, the head away from the doors
+     they were walking to. Nothing is drawn over them and nobody dies on
+     screen; the brigade gets them. (Tipping the standing figure over was
+     tried first: with a head this big it lands like a ball, not a person.) */
+  function drawFallen(r) {
+    const u = U(), baseY = slabY(r.floor) - 3 - geo.floorPx * 0.055, { sc, dev, p } = pxScale(ctx, u);
+    const k = Math.min(1, r.t / 0.9);
+    if (k < 0.5 && !REDUCED) { figure(ctx, r.x, baseY, r.side, lookOf(r.seed - 1, r.gid || 0), { duck: 1 }); return; }
+    const rows = PX_SPRITES.lying, W = rows[0].length, Hh = rows.length;
+    const lk = { px: PX_GREY };
+    const cv = pxSprite('lying', lk, r.side, dev);             // head away from the doors
+    const x0 = Math.round((r.x - (r.side > 0 ? 12 : W - 12) * p) * sc) / sc, y0 = Math.round((baseY - Hh * p) * sc) / sc;
+    ctx.save(); ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(cv, x0, y0, W * p, Hh * p);
+    ctx.restore();
   }
 
   const headCYOf = (baseY, h, duck) => baseY - h * (0.905 - 0.02 * duck);
@@ -1485,38 +1573,6 @@
       ctx.lineWidth = 1.6;
       rr(x - 1.5, y - 1.5, bw + 3, bh + 3, (bh + 3) / 2); ctx.stroke();
     }
-  }
-
-  /* THEY COLLAPSE, THEY DO NOT VANISH. Somebody blinking out of existence
-     reads as a rendering glitch, not as a person you failed to reach - and it
-     hid the one thing the player most needs to see. So they go down: in their
-     own colours they crouch and sink for half the fall, then lie along the
-     floor for the rest of the run, the colour gone out of them and the eye
-     shut. They fall back, away from the doors they were walking to. Nothing
-     is drawn over them and nobody dies on screen; the brigade gets them.
-     (Tipping the standing figure over was tried first: with a head this big
-     it lands like a ball, not a person.) */
-  const FALLEN_LOOK = { outfit: '#7F939A', skin: '#A9B4B8', hair: '#3A4A52', legs: '#3A4A52' };
-  function drawFallen(r) {
-    const u = U(), baseY = slabY(r.floor) - 3 - geo.floorPx * 0.055;
-    const k = Math.min(1, r.t / 0.9);
-    if (k < 0.5 && !REDUCED) {
-      ctx.save();
-      ctx.translate(r.x, baseY); ctx.scale(1, 1 - 0.5 * ease(k / 0.5));
-      figure(ctx, 0, 0, r.side, lookOf(r.seed - 1, r.gid || 0), { duck: 1 });
-      ctx.restore();
-      return;
-    }
-    const f = -r.side, x = r.x;
-    ctx.fillStyle = 'rgba(60,30,10,0.18)';
-    ctx.beginPath(); ctx.ellipse(x + f * 3 * u, baseY + u, 20 * u, 2 * u, 0, 0, Math.PI * 2); ctx.fill();
-    fillRR(ctx, Math.min(x, x - f * 14 * u), baseY - 4.5 * u, 14 * u, 4.5 * u, 2.2 * u, FALLEN_LOOK.legs);
-    fillRR(ctx, Math.min(x + f * u, x + f * 13 * u), baseY - 8.5 * u, 12 * u, 8.5 * u, 4 * u, FALLEN_LOOK.outfit);
-    const hx = x + f * 18 * u, hy = baseY - 6.5 * u;
-    disc(ctx, hx + f * 1.5 * u, hy - 0.5 * u, 7.4 * u, FALLEN_LOOK.hair);
-    disc(ctx, hx - f * 0.5 * u, hy + 0.5 * u, 6 * u, FALLEN_LOOK.skin);
-    ctx.fillStyle = FALLEN_LOOK.hair;
-    ctx.fillRect(Math.min(hx - f * 3 * u, hx - f * 0.8 * u), hy - 1.2 * u, 2.2 * u, 1.2 * u);
   }
 
   // the light from an open car, laid across the corridor it is serving
@@ -2011,14 +2067,7 @@
     ctx.restore();
   }
   function drawTinyFigure(cx, baseY, h) {
-    const r = h * 0.26;
-    ctx.fillStyle = LEGS;
-    ctx.fillRect(cx - h * 0.13, baseY - h * 0.2, h * 0.1, h * 0.2);
-    ctx.fillRect(cx + h * 0.03, baseY - h * 0.2, h * 0.1, h * 0.2);
-    fillRR(ctx, cx - h * 0.19, baseY - h * 0.48, h * 0.38, h * 0.3, h * 0.1, OUTFITS[3]);
-    disc(ctx, cx - h * 0.06, baseY - h * 0.7, r * 1.02, HAIRS[1]);
-    disc(ctx, cx + h * 0.04, baseY - h * 0.66, r * 0.82, SKINS[1]);
-    disc(ctx, cx + h * 0.23, baseY - h * 0.62, r * 0.33, NOSE);
+    figure(ctx, cx, baseY, 1, { oi: 1, si: 0, hi: 3, ei: 1, size: 1 }, { px: h / 17 });
   }
 
   function onRulesPointer(p) {
