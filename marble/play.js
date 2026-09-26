@@ -1840,6 +1840,189 @@ WORLDS_ADD('blocks', (w) => {
 });
 
 // ---- 3. Neon city: glowing towers below, lit cubes in the air, a glass course with a grid, a chrome marble ----
+/* THE CITY ALIVE (owner, 2026-09-26: "Now let's bring the city to life"). Three
+   things move, all kept quiet enough that the eye stays on the marble, and
+   none of them moves for a player who has asked for reduced motion:
+     windows  each lit row of each tower goes dark now and then and comes
+              back, at its own random moment, as a city does at night
+     cubes    the lit cubes in the air bob and turn, slowly
+     trail    a thin ribbon of light runs behind the marble and fades within
+              half a second: a bright core in a tight feather (DESIGN-SYSTEM 6)
+   #neon-still on the link keeps the city as it was, to compare. */
+let neonLive = true;
+const cityTime = { value: 0 };
+function flickerWindows(mat, seed) {
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uTime = cityTime;
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying float vInst;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n#ifdef USE_INSTANCING\n  vInst = float(gl_InstanceID);\n#else\n  vInst = 0.0;\n#endif');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying float vInst;\nuniform float uTime;\nfloat cityHash(float n) { return fract(sin(n) * 43758.5453); }')
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+  {
+    // One row of windows is one 12px band of the stripe texture.
+    float row = floor(vEmissiveMapUv.y * 256.0 / 12.0);
+    float h = cityHash(vInst * 17.13 + row * 3.71 + ${seed.toFixed(1)});
+    float cycle = floor(uTime * (0.10 + h * 0.22) + h * 13.0);
+    float on = step(0.14, cityHash(h * 91.7 + cycle * 7.3));
+    totalEmissiveRadiance *= mix(0.1, 1.0, on);
+  }`);
+  };
+  mat.customProgramCacheKey = () => 'city-windows-' + seed;
+}
+const TRAIL_N = 40;
+let lastTrail = null;                                   // for the harness
+function makeTrail() {
+  const geo = new BufferGeometry();
+  const pos = new Float32BufferAttribute(new Float32Array(TRAIL_N * 6), 3).setUsage(DynamicDrawUsage);
+  const uv = new Float32BufferAttribute(new Float32Array(TRAIL_N * 4), 2).setUsage(DynamicDrawUsage);
+  geo.setAttribute('position', pos); geo.setAttribute('uv', uv);
+  const idx = [];
+  for (let i = 0; i < TRAIL_N - 1; i++) { const k = i * 2; idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2); }
+  geo.setIndex(idx); geo.setDrawRange(0, 0);
+  // Across the ribbon: a bright core and a tight feather. Along it: bright at
+  // the head, gone at the tail. Additive, so black is simply no light.
+  const tex = canvasTex(64, 64, (g) => {
+    const img = g.createImageData(64, 64);
+    for (let y = 0; y < 64; y++) for (let x = 0; x < 64; x++) {
+      const u = Math.abs(x / 63 - 0.5) * 2, head = Math.pow(1 - y / 63, 1.4);
+      const v = Math.min(1, Math.exp(-u * u * 40) + Math.exp(-u * u * 6) * 0.55) * head * 255;
+      const k = (y * 64 + x) * 4; img.data[k] = img.data[k + 1] = img.data[k + 2] = v; img.data[k + 3] = 255;
+    }
+    g.putImageData(img, 0, 0);
+  });
+  // Cyan, so it never reads as one more line of the course's magenta grid.
+  const mesh = new Mesh(geo, new MeshBasicMaterial({ map: tex, color: 0x3FE8FF, transparent: true, blending: AdditiveBlending,
+                                                     depthWrite: false, side: DoubleSide, toneMapped: false }));
+  mesh.frustumCulled = false;
+  const pts = [];
+  function update() {
+    const now = performance.now() / 1000, rolling = state === 'play' || state === 'fall';
+    const x = ball.p.x, y = ball.p.y - R + 0.03, z = ball.p.z;
+    if (!rolling) pts.length = 0;
+    else {
+      // Lay a point each time the marble has gone 8 cm past the last one laid.
+      // (Moving the newest point along with the marble instead meant a marble
+      // slower than about 5 m/s never laid a second point: no trail at all.)
+      const last = pts[pts.length - 1];
+      if (!last || Math.hypot(x - last.x, y - last.y, z - last.z) > 0.08) pts.push({ x, y, z, t: now });
+    }
+    while (pts.length && now - pts[0].t > 0.5) pts.shift();
+    while (pts.length > TRAIL_N - 1) pts.shift();
+    // The ribbon runs from the oldest point laid to the marble itself.
+    const line = rolling ? pts.concat([{ x, y, z, t: now }]) : pts;
+    const n = line.length;
+    if (n < 2) { geo.setDrawRange(0, 0); return; }
+    const P = pos.array, U = uv.array, half = 0.26;
+    for (let i = 0; i < n; i++) {
+      const a = line[Math.max(0, i - 1)], b = line[Math.min(n - 1, i + 1)], p = line[i];
+      let dx = b.x - a.x, dz = b.z - a.z; const L = Math.hypot(dx, dz) || 1; dx /= L; dz /= L;
+      P[i * 6] = p.x - dz * half; P[i * 6 + 1] = p.y; P[i * 6 + 2] = p.z + dx * half;
+      P[i * 6 + 3] = p.x + dz * half; P[i * 6 + 4] = p.y; P[i * 6 + 5] = p.z - dx * half;
+      const v = i / (n - 1);                                   // 0 at the tail, 1 at the head
+      U[i * 4] = 0; U[i * 4 + 1] = v; U[i * 4 + 2] = 1; U[i * 4 + 3] = v;
+    }
+    pos.needsUpdate = true; uv.needsUpdate = true;
+    geo.setDrawRange(0, (n - 1) * 6);
+  }
+  lastTrail = { mesh, geo, pts };
+  return { mesh, update };
+}
+
+/* A FUTURISTIC CITY (owner, 2026-09-26: "can the floating cubes move? Can
+   there be moving floating cars? some other objects that make this look like
+   a futuristic city"). Everything that moves keeps to where it cannot hide
+   the course: traffic flies just above the rooftops and under the course, the
+   train runs under the narrow bridge in a gap kept free of towers, and the
+   billboards stand beside the course, never over it. */
+const TRAIN_Z = -26;                                    // the train's line, kept clear of towers
+function futureCity(G, tops, r) {
+  const m = new Matrix4(), q = new Quaternion(), pos = new Vector3(), sc = new Vector3(), up = new Vector3(0, 1, 0);
+  // Flying cars: a dark body, a white light at the nose, a red one at the tail.
+  const lanes = [
+    { axis: 'z', at: -7, y: -3.2, dir: -1, from: 30, to: -110 }, { axis: 'z', at: -11.5, y: -4.6, dir: 1, from: 30, to: -110 },
+    { axis: 'z', at: 13, y: -3.6, dir: 1, from: 30, to: -110 },  { axis: 'z', at: 17.5, y: -4.8, dir: -1, from: 30, to: -110 },
+    { axis: 'x', at: -17, y: -3.0, dir: 1, from: -37, to: 43 },  { axis: 'x', at: -37, y: -4.4, dir: -1, from: -37, to: 43 },
+    { axis: 'x', at: -52, y: -3.4, dir: 1, from: -37, to: 43 },
+  ];
+  const cars = [];
+  lanes.forEach((l, li) => { const n = l.axis === 'z' ? 4 : 3; for (let i = 0; i < n; i++) cars.push({ l, u: (i + r() * 0.6) / n, v: 9 + r() * 7 }); });
+  const N = cars.length;
+  const body = new InstancedMesh(new RoundedBoxGeometry(1.9, 0.5, 0.95, 2, 0.2), new MeshStandardMaterial({ color: 0x1C2438, metalness: 0.7, roughness: 0.3, envMap: neonEnvMap() || envTex }), N);
+  const nose = new InstancedMesh(new BoxGeometry(0.1, 0.16, 0.72), new MeshBasicMaterial({ color: 0xFFFFFF }), N);
+  const tail = new InstancedMesh(new BoxGeometry(0.1, 0.16, 0.72), new MeshBasicMaterial({ color: 0xFF2D48 }), N);
+  G.add(body, nose, tail);
+  function placeCars() {
+    cars.forEach((c, i) => {
+      // dir 1 runs from 'from' to 'to', dir -1 the other way; the car faces the way it goes.
+      const L = c.l, span = L.to - L.from, f = ((c.u % 1) + 1) % 1, s = L.dir > 0 ? L.from + f * span : L.to - f * span;
+      const dx = L.axis === 'x' ? Math.sign(span) * L.dir : 0, dz = L.axis === 'z' ? Math.sign(span) * L.dir : 0;
+      const x = L.axis === 'x' ? s : L.at, z = L.axis === 'z' ? s : L.at;
+      q.setFromAxisAngle(up, Math.atan2(-dz, dx));
+      sc.set(1, 1, 1);
+      m.compose(pos.set(x, L.y, z), q, sc); body.setMatrixAt(i, m);
+      m.compose(pos.set(x + dx * 0.97, L.y, z + dz * 0.97), q, sc); nose.setMatrixAt(i, m);
+      m.compose(pos.set(x - dx * 0.97, L.y, z - dz * 0.97), q, sc); tail.setMatrixAt(i, m);
+    });
+    body.instanceMatrix.needsUpdate = nose.instanceMatrix.needsUpdate = tail.instanceMatrix.needsUpdate = true;
+  }
+  placeCars();
+  // The sky train: a white train with a band of lit windows, on a track with a glowing underside.
+  const winTex = canvasTex(256, 32, (g) => {
+    g.fillStyle = '#E9EEF6'; g.fillRect(0, 0, 256, 32);
+    g.fillStyle = '#16233A'; g.fillRect(0, 9, 256, 12);
+    for (let x = 6; x < 256; x += 22) { g.fillStyle = '#7FF4FF'; g.fillRect(x, 11, 14, 8); }
+  }, true);
+  const trainMat = new MeshStandardMaterial({ map: winTex, metalness: 0.3, roughness: 0.35, emissive: 0xFFFFFF, emissiveMap: winTex, emissiveIntensity: 0.35 });
+  const train = new Group();
+  for (let i = 0; i < 5; i++) {
+    const car = new Mesh(new RoundedBoxGeometry(6, 1.7, 1.7, 3, 0.5), trainMat);
+    car.position.x = -i * 6.25; train.add(car);
+  }
+  train.position.set(-80, -5, TRAIN_Z); G.add(train);
+  // Dark steel: magenta belongs to the course alone, or the eye reads the track as more course.
+  const track = new Mesh(new BoxGeometry(260, 0.5, 0.8), new MeshStandardMaterial({ color: 0x1C2438, metalness: 0.5, roughness: 0.5 }));
+  track.position.set(3, -6.2, TRAIN_Z); G.add(track);
+  for (let x = -120; x <= 120; x += 16) {
+    const pylon = new Mesh(new BoxGeometry(0.7, 60, 0.7), new MeshStandardMaterial({ color: 0x10162A, roughness: 0.8 }));
+    pylon.position.set(x, -36.4, TRAIN_Z); G.add(pylon);
+  }
+  // Hologram billboards beside the course: abstract shapes, no words, no brands.
+  const holoTex = (hue) => canvasTex(256, 144, (g) => {
+    const lg = g.createLinearGradient(0, 0, 256, 144);
+    lg.addColorStop(0, `hsla(${hue},100%,60%,0.55)`); lg.addColorStop(1, `hsla(${hue + 60},100%,55%,0.25)`);
+    g.fillStyle = lg; g.fillRect(0, 0, 256, 144);
+    g.strokeStyle = 'rgba(255,255,255,0.9)'; g.lineWidth = 5;
+    g.beginPath(); g.arc(70, 72, 38, 0, Math.PI * 2); g.stroke();
+    g.beginPath(); g.arc(70, 72, 18, 0, Math.PI * 2); g.stroke();
+    g.fillStyle = 'rgba(255,255,255,0.85)';
+    for (let i = 0; i < 7; i++) g.fillRect(132 + i * 16, 110 - (20 + ((i * 37) % 60)), 10, 20 + ((i * 37) % 60));
+    for (let y = 0; y < 144; y += 4) { g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(0, y, 256, 1); }
+  }, true);
+  const boards = [];
+  for (const [x, y, z, hue, turn] of [[-12, -1.5, -12, 300, 0.5], [18, -2.5, -20, 190, -0.5], [-11, -3, -40, 20, 0.45], [16, -1, -52, 280, -0.45], [-14, -4, -64, 180, 0.4]]) {
+    const t = holoTex(hue);
+    const b = new Mesh(new PlaneGeometry(7, 3.94), new MeshBasicMaterial({ map: t, transparent: true, blending: AdditiveBlending, depthWrite: false, side: DoubleSide, toneMapped: false }));
+    b.position.set(x, y, z); b.rotation.y = turn; G.add(b); boards.push({ b, t, ph: r() * 6 });
+  }
+  // Red lights blinking on the tallest towers.
+  const tall = tops.filter((t) => t.y > -16).slice(0, 36);
+  const lamps = new InstancedMesh(new SphereGeometry(0.35, 8, 6), new MeshBasicMaterial({ color: 0xFFFFFF }), Math.max(1, tall.length));
+  const lampCol = new Color(), lampPh = tall.map(() => r() * 3);
+  tall.forEach((t, i) => { m.compose(pos.set(t.x, t.y + 0.4, t.z), q.identity(), sc.set(1, 1, 1)); lamps.setMatrixAt(i, m); lamps.setColorAt(i, lampCol.setHex(0xFF2D48)); });
+  lamps.count = tall.length; G.add(lamps);
+  return (dt, t) => {
+    for (const c of cars) c.u += c.v * dt / Math.abs(c.l.to - c.l.from);
+    placeCars();
+    train.position.x += 14 * dt;
+    if (train.position.x > 90) train.position.x = -95;
+    for (const bd of boards) { bd.t.offset.y = Math.floor(t * 8) % 2 ? 0.004 : 0; bd.b.material.opacity = 0.82 + 0.18 * Math.sin(t * 2 + bd.ph); }
+    tall.forEach((_, i) => lamps.setColorAt(i, lampCol.setHex(((t + lampPh[i]) % 1.6) < 0.35 ? 0xFF2D48 : 0x2A060C)));
+    if (lamps.instanceColor) lamps.instanceColor.needsUpdate = true;
+  };
+}
+
 function stripeTex() {
   return canvasTex(64, 256, (g) => {
     g.fillStyle = '#000'; g.fillRect(0, 0, 64, 256);
@@ -1857,28 +2040,57 @@ WORLDS_ADD('neon', (w) => {
   const box = new BoxGeometry(1, 1, 1);
   const towerA = new MeshStandardMaterial({ color: 0x0B1020, roughness: 0.6, emissive: 0x34E0FF, emissiveMap: stripes, emissiveIntensity: 1.3 });
   const towerB = new MeshStandardMaterial({ color: 0x0B1020, roughness: 0.6, emissive: 0xFF6A3C, emissiveMap: stripes, emissiveIntensity: 1.3 });
+  const live = neonLive && !REDUCED;
+  if (live) { flickerWindows(towerA, 0); flickerWindows(towerB, 57); }
   const A = new InstancedMesh(box, towerA, 220), B = new InstancedMesh(box, towerB, 220);
   const m = new Matrix4(), q = new Quaternion(), pos = new Vector3(), sc = new Vector3();
   let a = 0, b = 0;
+  const tops = [];
   for (let x = -80; x <= 86; x += 7) for (let z = 26; z >= -210; z -= 7) {
     if (r() < 0.35) continue;
+    if (Math.abs(z - TRAIN_Z) < 5) continue;                      // the train's line
     const nearCourse = x > -10 && x < 18 && z > -60;
     const top = nearCourse ? -12 - r() * 20 : -6 - r() * 26 + (Math.abs(x - 3) > 40 ? r() * 20 : 0);
     const h = top + 70, wdt = 3 + r() * 3;
     pos.set(x + r() * 2, top - h / 2, z + r() * 2); sc.set(wdt, h, 3 + r() * 3); m.compose(pos, q, sc);
+    tops.push({ x: pos.x, y: top, z: pos.z });
     if (r() < 0.55 && a < 220) A.setMatrixAt(a++, m); else if (b < 220) B.setMatrixAt(b++, m);
   }
   A.count = a; B.count = b; G.add(A, B);
   // Lit cubes hanging in the air.
   const cubes = new InstancedMesh(box, new MeshBasicMaterial({ color: 0xFFFFFF }), 70), col = new Color();
+  const hang = [];
   for (let i = 0; i < 70; i++) {
-    pos.set(-40 + r() * 90, -18 + r() * 30, 12 - r() * 150);
+    pos.set(-40 + r() * 90, -18 + r() * 30, -8 - r() * 145);
     if (pos.x > -6 && pos.x < 14 && pos.z > -50 && pos.y > -4) pos.y -= 12;
+    if (pos.z > -30 && Math.abs(pos.x - 3) < 15) pos.x += pos.x < 3 ? -12 : 12;   // nothing swimming into the camera
     const s = 0.4 + r() * 1.2; sc.set(s, s, s);
-    q.setFromEuler(new Euler(r() * 3, r() * 3, 0)); m.compose(pos, q, sc);
+    const rx = r() * 3, ry = r() * 3;
+    q.setFromEuler(new Euler(rx, ry, 0)); m.compose(pos, q, sc);
     cubes.setMatrixAt(i, m); cubes.setColorAt(i, col.setHex(r() < 0.5 ? 0x5FF0FF : 0xFF8A5C));
+    hang.push({ x: pos.x, y: pos.y, z: pos.z, s, rx, ry, ph: r() * 6.3, spin: 0.15 + r() * 0.35, bob: 0.3 + r() * 0.5,
+                orbit: 1.5 + r() * 4, rate: (0.12 + r() * 0.18) * (r() < 0.5 ? -1 : 1) });
   }
   q.identity(); G.add(cubes);
+  const trail = live ? makeTrail() : null;
+  if (trail) G.add(trail.mesh);
+  const cityMoves = futureCity(G, tops, r);
+  const e = new Euler();
+  w.tick = (dt) => {
+    if (!live) return;
+    cityTime.value += dt;
+    const t = cityTime.value;
+    for (let i = 0; i < hang.length; i++) {
+      const c = hang[i];
+      const a = t * c.rate + c.ph;
+      pos.set(c.x + Math.cos(a) * c.orbit, c.y + Math.sin(t * 0.6 + c.ph) * c.bob, c.z + Math.sin(a) * c.orbit);
+      q.setFromEuler(e.set(c.rx + t * c.spin, c.ry + t * c.spin * 0.7, 0));
+      sc.set(c.s, c.s, c.s); m.compose(pos, q, sc); cubes.setMatrixAt(i, m);
+    }
+    cubes.instanceMatrix.needsUpdate = true;
+    trail.update();
+    cityMoves(dt, t);
+  };
   w.restyle = () => neonCourse(neonStyle);
 });
 
@@ -2035,7 +2247,10 @@ requestAnimationFrame(frame);
 function worldFromHash() {
   const [h, v] = location.hash.slice(1).split('-');
   const name = h || 'neon';
-  if (name === 'neon') neonStyle = ['grid', 'glowgrid', 'edges', 'frosted'].includes(v) ? v : 'glowgrid';   // #neon-edges and so on
+  if (name === 'neon') {
+    neonStyle = ['grid', 'glowgrid', 'edges', 'frosted'].includes(v) ? v : 'glowgrid';   // #neon-edges and so on
+    neonLive = v !== 'still';                                                            // #neon-still: the city unmoving
+  }
   setWorld(WORLDS[name] ? name : 'void');
 }
 worldFromHash();
@@ -2069,6 +2284,8 @@ if (HARNESS) {
     world: (name) => setWorld(name),
     skin: (name) => setMarbleSkin(name),
     neon: (style) => neonCourse(style),
+    trail: () => lastTrail && { n: lastTrail.pts.length, count: lastTrail.geo.drawRange.count, inScene: !!lastTrail.mesh.parent && !!lastTrail.mesh.parent.parent,
+                               first: lastTrail.pts[0], last: lastTrail.pts[lastTrail.pts.length - 1] },
     quiet: () => { everMoved = true; },       // no drag hint, for stills
     closeup: (on) => {
       closeup = !!on;
