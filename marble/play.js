@@ -738,7 +738,27 @@ function passGate(g) {
   g.discMat.color.setHex(0x5DD39E); g.discMat.opacity = 0.22;
   spawn.set(g.pos.x, g.pos.y + R + 0.01, g.pos.z);
   sound('unlock');
-  burst(g.pos.x, g.pos.y + 1.1, g.pos.z, 0x5DD39E, 26, 4);
+  if (world.glowGates) lightGate(g);
+  else burst(g.pos.x, g.pos.y + 1.1, g.pos.z, 0x5DD39E, 26, 4);
+}
+/* THE NEON GATES LIGHT UP (owner, 2026-09-26: "make the neon gates glow when
+   passed"). A ring passed flashes white-hot and settles into a steady green
+   glow, a tight halo hugging its tube (DESIGN-SYSTEM 6: a thin bright core,
+   never a wide wash); one ring of light pulses outward; the pad under it
+   brightens. It stays lit, so the lit rings are the ones holding your place.
+   No sparks in the city: the glow is the answer, and it keeps to "no confetti". */
+const GATE_GREEN = new Color(0x5DD39E), GATE_WHITE = new Color(0xFFFFFF);
+function lightGate(g) {
+  const rad = g.ring.geometry.parameters.radius, y = g.ring.position.y;
+  const add = (m) => { m.position.y = y; g.grp.add(m); return m; };
+  const glowMat = (color, opacity) => new MeshBasicMaterial({ color, transparent: true, opacity, blending: AdditiveBlending,
+                                                             depthWrite: false, side: DoubleSide, toneMapped: false });
+  g.glow = {
+    inner: add(new Mesh(new TorusGeometry(rad, 0.13, 10, 72), glowMat(0x5DD39E, 0.4))),
+    outer: add(new Mesh(new TorusGeometry(rad, 0.24, 10, 72), glowMat(0x5DD39E, 0.14))),
+    pulse: add(new Mesh(new RingGeometry(rad * 0.94, rad * 1.06, 72), glowMat(0xBFFFE0, 0.9))),
+  };
+  g.discMat.opacity = 0.34;
 }
 function startGoal() {
   setState('goal');
@@ -758,6 +778,10 @@ let lastWasBest = false;
 
 function restartLevel() {
   for (const g of gates) {
+    if (g.glow) {
+      for (const m of Object.values(g.glow)) { g.grp.remove(m); m.geometry.dispose(); m.material.dispose(); }
+      g.glow = null;
+    }
     g.passed = false; g.t0 = 0; g.ring.scale.setScalar(1);
     g.mat.color.setHex(gateColour()); g.mat.emissive.setHex(gateColour()); g.mat.emissiveIntensity = 0.35;
     g.discMat.color.setHex(gateColour()); g.discMat.opacity = 0.13;
@@ -838,6 +862,18 @@ function animateRings(now, dt) {
     if (!g.t0) continue;
     const k = Math.min(1, (now - g.t0) / 450);
     g.ring.scale.setScalar(REDUCED ? 1 : 1 + 0.28 * Math.sin(Math.PI * k));
+    if (g.glow) {
+      const fl = REDUCED ? 0 : 1 - Math.min(1, (now - g.t0) / 650);        // the flash, settling into the steady glow
+      const breathe = REDUCED ? 0 : 0.05 * Math.sin(now / 380);
+      g.mat.emissive.copy(GATE_GREEN).lerp(GATE_WHITE, fl * 0.8);
+      g.mat.emissiveIntensity = 1.5 + 2.5 * fl;
+      g.glow.inner.material.opacity = 0.34 + 0.35 * fl + breathe;
+      g.glow.outer.material.opacity = 0.12 + 0.2 * fl + breathe * 0.5;
+      const p = Math.min(1, (now - g.t0) / 700);                             // one ring of light, outward
+      g.glow.pulse.visible = !REDUCED && p < 1;
+      g.glow.pulse.scale.setScalar(1 + 0.9 * ease(p));
+      g.glow.pulse.material.opacity = 0.9 * (1 - p);
+    }
   }
   goal.ring.rotation.y += dt * 0.8;
   if (goal.t0) {
@@ -2300,7 +2336,7 @@ WORLDS_ADD('neon', (w) => {
   scene.fog.color.setHex(0x160A24); scene.fog.near = 25; scene.fog.far = 175;
   hemi.color.setHex(0x4A3A8A); hemi.groundColor.setHex(0x0A0612); hemi.intensity = 0.7;
   sun.color.setHex(0xB8C8FF); sun.intensity = 1.3;
-  w.marble = 'chrome'; w.rings = [0x34E0FF, 0xFF6A3C];
+  w.marble = 'chrome'; w.rings = [0x34E0FF, 0xFF6A3C]; w.glowGates = true;
   const G = w.group, r = seeded(41), stripes = stripeTex();
   const box = new BoxGeometry(1, 1, 1);
   const towerA = new MeshStandardMaterial({ color: 0x0B1020, roughness: 0.6, emissive: 0x34E0FF, emissiveMap: stripes, emissiveIntensity: 1.3 });
