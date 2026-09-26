@@ -29,3 +29,24 @@ body.embed .play-row {
   padding-left: env(safe-area-inset-left, 0px);
   padding-right: env(safe-area-inset-right, 0px);
 }
+
+/* The cover (DESIGN-SYSTEM 3). The .splash frame, cover sizing and fade come
+   from chrome.css; this supplies the art per mode, over the city's own dusk
+   while the picture is still arriving. The art is rendered from the game:
+   level 25's hologram bridge over the sky train, the marble at its edge.
+
+   Mobile art is 1170 x 2532. Its wordmark is 70.7% of the width, inside the
+   82% safe zone (0.38 / 0.462), and sits 14% to 19% down, clear of the 8.9%
+   an iPhone SE crops off the top; the marble clears the bottom crop too.
+   A phone or tablet held sideways is still "mobile" but landscape, and there
+   the tall art would be cut down to a strip through the middle, so it gets
+   the landscape art. */
+.splash {
+  --dusk: linear-gradient(180deg, #05040C 0%, #140A26 35%, #3A1238 62%, #1A0B22 100%);
+  background-image: var(--dusk);
+}
+body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=1'), var(--dusk); }
+body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=1'),  var(--dusk); }
+@media (orientation: landscape) {
+  body.mode-mobile .splash { background-image: url('./splash-desktop.jpg?v=1'), var(--dusk); }
+}

@@ -185,10 +185,12 @@ const NEON_SOUNDS = {
   },
   drop() { voice('sine', 620, 70, 0.55, 0.08); voice('triangle', 310, 40, 0.55, 0.03); },
   home() { voice('sine', 220, 880, 0.16, 0.05); voice('sine', 1760, 1760, 0.12, 0.025); voice('sine', 90, 60, 0.18, 0.08, 0.14); },
+  boost() { voice('sawtooth', 160, 900, 0.32, 0.018); voice('sine', 440, 1320, 0.28, 0.04); },     // a speed strip: a rising rush
+  jump() { voice('square', 260, 780, 0.16, 0.022); voice('sine', 520, 1560, 0.2, 0.05); },         // a jump pad: a quick spring upward
 };
 // The city's version of a sound where it has one, the house sound elsewhere.
 function sound(name) {
-  if (world.name === 'neon' && NEON_SOUNDS[name]) { if (sfx && sfx.isOn()) NEON_SOUNDS[name](); }
+  if ((world.name === 'neon' || name === 'boost' || name === 'jump') && NEON_SOUNDS[name]) { if (sfx && sfx.isOn()) NEON_SOUNDS[name](); }
   else play(name === 'home' ? 'land' : name);
 }
 function ensureCitySound() {
@@ -493,35 +495,131 @@ function updateSparks(dt) {
 // ---------- THE COURSES ----------
 /* Every piece is a box. F is a flat pad whose TOP is at y, centred on (x, z).
    RAMP runs from z0 to z1 (forward is -z), climbing from y0 to y1. FERRY is a
-   pad that swings along x or z; at each end of its swing it sits flush with
-   the stone it serves. Tops meet exactly, or the marble clips a seam. */
+   pad that runs to and fro along x or z, amp either side of (x, z), and waits
+   `dwell` seconds at each end of its run, where it sits flush with the stone
+   it serves. Tops meet exactly, or the marble clips a seam.
+   HOLO is a hologram bridge, solid only while it is lit: lit for `on` seconds
+   of every `period`. BOOST is a speed strip that drives the marble on along
+   -z. JUMP is a pad that throws the marble up and on over the gap after it. */
 const THICK = 0.6;
 const F = (x, z, w, d, y = 0) => ({ t: 'flat', x, z, w, d, y });
 const RAMP = (x, z0, z1, w, y0, y1) => ({ t: 'ramp', x, z0, z1, w, y0, y1 });
-const FERRY = (x, z, w, d, y, axis, amp, period, phase = 0) => ({ t: 'ferry', x, z, w, d, y, axis, amp, period, phase });
+const FERRY = (x, z, w, d, y, axis, amp, period, dwell, phase = 0) => ({ t: 'ferry', x, z, w, d, y, axis, amp, period, dwell, phase });
+const HOLO = (x, z, w, d, y, period, on, phase = 0) => ({ t: 'holo', x, z, w, d, y, period, on, phase });
+const BOOST = (x, z, w, d, y) => ({ t: 'boost', x, z, w, d, y });
+const JUMP = (x, z, w, d, y) => ({ t: 'jump', x, z, w, d, y });
+const seeded = (seed) => () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+const mix = (a, b, t) => a + (b - a) * t;
 
-const LEVELS = [
-  { // 1. Steer, turn right, a narrow bridge.
-    start: [0, 0, 1], gates: [[4.8, 0, -19.5]], goal: [4.8, 0, -37.2],
-    pieces: [F(0, 0, 5, 5), F(0, -7, 3.2, 9), F(2.4, -13.1, 8, 3.2), F(4.8, -19.7, 3.2, 10),
-             F(4.8, -28.7, 1.8, 8), F(4.8, -36.7, 6, 8)],
-  },
-  { // 2. Down a ramp, across a sliding pad, and up again.
-    start: [0, 0, 1], gates: [[0, -2.5, -14], [0, -2.5, -22.8]], goal: [0, 0, -36.3],
-    pieces: [F(0, 0, 5, 5), RAMP(0, -2.5, -10.5, 3.2, 0, -2.5), F(0, -13.5, 4, 6, -2.5),
-             FERRY(0, -18.25, 3.6, 3.5, -2.5, 'x', 3, 5.5), F(0, -22.5, 4, 5, -2.5),
-             RAMP(0, -25, -33, 3.2, -2.5, 0), F(0, -36, 6, 6)],
-  },
-  { // 3. Narrow planks, and a ferry across a gap.
-    start: [0, 0, 1], gates: [[5.2, 0, -16], [5.2, 0, -34.1]], goal: [5.2, 0, -48.2],
-    pieces: [F(0, 0, 5, 5), F(0, -5.5, 1.6, 6), F(2.6, -9.3, 6.8, 1.6), F(5.2, -14.6, 1.6, 9),
-             F(5.2, -21.1, 4, 4), FERRY(5.2, -27.6, 3, 3, 0, 'z', 3, 6, Math.PI / 2),
-             F(5.2, -34.1, 4, 4), F(5.2, -40.1, 1.6, 8), F(5.2, -47.6, 6, 7)],
-  },
-];
+/* FORTY LEVELS IN FIVE DISTRICTS OF THE CITY (owner, 2026-09-26: "write 40
+   levels", progressively harder and longer). Each district brings one new
+   thing and keeps what came before:
+     1-8    Downtown    turns, narrowing paths, ramps
+     9-16   Transit     pads that slide across a gap, and pads that ferry you over one
+     17-24  Holograms   bridges that switch off and on: cross while they are lit
+     25-32  Boost       speed strips, and jump pads over gaps
+     33-40  Express     all of it, on the longest courses
+   makeLevel(n) builds course n from its own seed, so it is the same every
+   time. Across the forty, courses grow from about 45 m to about 200 m, paths
+   narrow from 4 m to 1.3 m, the blue rings that save your place grow further
+   apart, and the windows to cross a bridge or catch a pad shrink. Pieces are
+   listed in the order the marble meets them. */
+const DISTRICTS = ['Downtown', 'Transit', 'Holograms', 'Boost', 'Express'];
+function makeLevel(n) {
+  const r = seeded(9001 + n * 7919);
+  const d = Math.floor((n - 1) / 8), k = ((n - 1) % 8) / 7, g = (n - 1) / 39;
+  const W = (a, b) => mix(a, b, g);
+  const wide = W(4, 2.2), narrow = Math.max(1.3, W(2.5, 1.4) - 0.25 * k);
+  const saveEvery = W(15, 28);
+  const pieces = [F(0, 0, 5, 5)], gates = [];
+  let x = 0, y = 0, z = -2.5, run = 0, sinceSave = 0;
+  const on = (len) => { z -= len; run += len; sinceSave += len; };
+  const r2 = (v) => Math.round(v * 100) / 100;
+  function straight(len, w) {
+    pieces.push(F(x, z - len / 2, w, len, y));
+    if (sinceSave >= saveEvery && len >= 4) { gates.push([x, y, r2(z - len / 2)]); sinceSave = -len / 2; }
+    on(len);
+  }
+  function jog(w) {                                     // a step sideways, two square turns
+    let dx = (r() < 0.5 ? -1 : 1) * (2.5 + r() * 2.5);
+    if (x + dx < -3 || x + dx > 9) dx = -dx;
+    pieces.push(F(r2(x + dx / 2), z - w / 2, r2(Math.abs(dx) + w), w, y));
+    x = r2(x + dx); on(w);
+  }
+  function ramp(w) {
+    const len = r2(6 + r() * 2);
+    let dy = (r() < 0.5 ? -1 : 1) * r2(1 + r());
+    if (y + dy < -1.2 || y + dy > 2.4) dy = -dy;
+    pieces.push(RAMP(x, z, z - len, w, y, r2(y + dy)));
+    y = r2(y + dy); on(len);
+  }
+  // A moving pad waits at each end of its run for about a second and a half
+  // early on, under one late; the runs between get quicker too.
+  const dwell = r2(W(1.6, 0.9)), runT = W(2.4, 1.6), period = r2(2 * dwell + 2 * runT);
+  function slide() {                                    // a pad that carries you sideways, to a path further over
+    const amp = r2(W(2.6, 3.4));
+    let dir = r() < 0.5 ? -1 : 1;
+    if (x + 2 * amp * dir < -3 || x + 2 * amp * dir > 9) dir = -dir;
+    pieces.push(FERRY(r2(x + amp * dir), z - 1.5, r2(Math.max(2.6, wide + 0.4)), 3, y, 'x', amp, period, dwell, r2(r() * 6.28)));
+    x = r2(x + 2 * amp * dir); on(3);
+    straight(r2(3 + r() * 2), wide);                    // somewhere to land
+  }
+  function shuttle() {                                  // a pad that carries you over a long gap
+    const gap = r2(W(6, 10)), pad = 3;
+    pieces.push(FERRY(x, z - gap / 2, r2(wide + 0.4), pad, y, 'z', r2((gap - pad) / 2), period, dwell, r2(r() * 6.28)));
+    on(gap);
+    straight(r2(3 + r() * 2), wide);
+  }
+  function bridge(w) {                                  // a hologram bridge: cross while it is lit
+    const len = r2(W(4, 8)), lit = Math.max(len / 4.5 + 0.9, mix(3.4, 1.9, g)), dark = mix(1.2, 2.2, g);
+    pieces.push(HOLO(x, z - len / 2, w, len, y, r2(lit + dark), r2(lit), r2(r() * (lit + dark))));
+    on(len);
+    straight(r2(3 + r() * 2), w);
+  }
+  function boost(w) {                                   // a speed strip, and room to spend the speed
+    pieces.push(BOOST(x, z - 1.5, w, 3, y)); on(3);
+    straight(r2(14 + r() * 4), w);
+  }
+  function jump(w) {                                    // a jump pad, a gap, a long landing
+    pieces.push(JUMP(x, z - 0.75, w, 1.5, y)); on(1.5);
+    on(r2(mix(2.5, 3.5, k)));
+    straight(r2(8 + r() * 3), Math.max(w, 2.2));
+  }
+  function boostJump(w) {
+    pieces.push(BOOST(x, z - 1.5, w, 3, y)); on(3);
+    straight(4, w);
+    jump(w);
+  }
+  // Every other feature is the district's own, so it carries the district;
+  // the rest are what came before. The Express draws on everything.
+  const ALL = ['bridge', 'slide', 'shuttle', 'boostJump', 'jump', 'jog', 'ramp', 'narrow'];
+  const OWN = [['jog', 'ramp', 'narrow', 'ramp'], ['slide', 'shuttle'], ['bridge'], ['jump', 'boostJump', 'boost'], ALL];
+  const EARLIER = [['jog', 'narrow'], ['jog', 'ramp', 'narrow'], ['jog', 'slide', 'shuttle', 'narrow'], ['bridge', 'slide', 'shuttle', 'jog'], ALL];
+  const OPENER = ['jog', 'slide', 'bridge', 'jump', 'boostJump'];
+  const features = 2 + Math.round(k * 2) + d, length = 45 + 155 * g;
+  straight(5, wide);
+  for (let f = 0; f < features + 8 && (f < features || run < length); f++) {
+    const pool = f % 2 ? EARLIER[d] : OWN[d];
+    const pick = f === 0 ? OPENER[d] : pool[Math.floor(r() * pool.length)];
+    const w = r() < 0.3 + 0.35 * k ? narrow : wide;
+    if (pick === 'ramp' && n >= 3) ramp(w);
+    else if (pick === 'narrow' && n >= 4) straight(r2(W(6, 12) + r() * 2), narrow);
+    else if (pick === 'slide') slide();
+    else if (pick === 'shuttle') shuttle();
+    else if (pick === 'bridge') bridge(w);
+    else if (pick === 'boost') boost(wide);
+    else if (pick === 'jump') jump(wide);
+    else if (pick === 'boostJump') boostJump(wide);
+    else jog(w);
+    straight(r2(mix(6, 4, g) + r() * 3), r() < 0.5 ? wide : narrow);
+  }
+  pieces.push(F(x, z - 3.5, 6, 7, y));                  // the finish, and the orange ring on it
+  return { start: [0, 0, 1], gates, goal: [x, y, r2(z - 4)], pieces, district: DISTRICTS[d], length: Math.round(run + 7) };
+}
+const LEVELS = Array.from({ length: 40 }, (_, i) => makeLevel(i + 1));
 
 let levelGroup = null;
-let colliders = [], ferries = [], gates = [], goal = null, level = null;
+let colliders = [], ferries = [], holos = [], pads = [], gates = [], goal = null, level = null;
 
 function platformGeometry(w, h, d) {
   const g = new RoundedBoxGeometry(w, h, d, 3, Math.min(0.14, h / 2 - 0.01));
@@ -531,6 +629,89 @@ function platformGeometry(w, h, d) {
   for (let i = top.start; i < top.start + top.count; i++) uv.setXY(i, pos.getX(i) / 2, pos.getZ(i) / 2);
   uv.needsUpdate = true;
   return g;
+}
+
+/* THE PIECES THAT ACT ON THE MARBLE show what they do before they do it. A
+   hologram bridge is see-through, flickers just before it switches off, and
+   leaves a faint ghost of itself while it is dark, brightening as it comes
+   back. A speed strip carries yellow arrows running the way it throws you. A
+   jump pad pulses yellow rings. Yellow belongs to these two alone. */
+const PAD_YELLOW = 0xFFD23F;
+const glowMat = (color, opacity, map) => new MeshBasicMaterial({ color, map: map || null, transparent: true, opacity,
+  blending: AdditiveBlending, depthWrite: false, toneMapped: false });
+const holoTex = canvasTex(256, 256, (g) => {
+  g.fillStyle = 'rgb(70,14,60)'; g.fillRect(0, 0, 256, 256);          // added to what is behind, so dark is clear
+  g.fillStyle = 'rgba(255,120,230,0.35)';
+  for (let y = 0; y < 256; y += 8) g.fillRect(0, y, 256, 2);            // scan lines
+  g.filter = 'blur(6px)'; g.fillStyle = 'rgba(255,60,210,0.9)';
+  for (const p of [0, 128, 256]) { g.fillRect(0, p - 6, 256, 12); g.fillRect(p - 6, 0, 12, 256); }
+  g.filter = 'none'; g.fillStyle = '#FFE6FA';
+  for (const p of [0, 128, 256]) { g.fillRect(0, p - 1.5, 256, 3); g.fillRect(p - 1.5, 0, 3, 256); }
+}, true);
+const arrowTex = canvasTex(128, 128, (g) => {
+  g.fillStyle = '#000'; g.fillRect(0, 0, 128, 128);
+  g.lineCap = 'round'; g.lineJoin = 'round';
+  g.filter = 'blur(5px)'; g.strokeStyle = 'rgba(255,190,40,0.9)'; g.lineWidth = 22;
+  g.beginPath(); g.moveTo(22, 92); g.lineTo(64, 42); g.lineTo(106, 92); g.stroke();
+  g.filter = 'none'; g.strokeStyle = '#FFF4C2'; g.lineWidth = 9;
+  g.beginPath(); g.moveTo(22, 92); g.lineTo(64, 42); g.lineTo(106, 92); g.stroke();   // points up the canvas, which is on along -z
+}, true);
+const holoState = (h, t) => {                           // lit or dark at time t, and how far into it
+  const u = ((t + h.phase) % h.period + h.period) % h.period;
+  return u < h.on ? { lit: true, t: u, left: h.on - u } : { lit: false, t: u - h.on, left: h.period - u };
+};
+function dressPiece(c, pc, w, d) {
+  if (pc.t === 'holo') {
+    c.holo = { period: pc.period, on: pc.on, phase: pc.phase };
+    c.holoMats = [glowMat(0xFF3FD0, 0.5), glowMat(0xFFFFFF, 1, holoTex), glowMat(0xFF3FD0, 0.2), glowMat(0xFFD6F6, 1)];
+    c.mesh.castShadow = false;
+    for (const sx of [-1, 1]) {                         // a bright line down each edge, so its width is plain
+      const edge = new Mesh(new PlaneGeometry(0.07, d), c.holoMats[3]);
+      edge.rotation.x = -Math.PI / 2; edge.position.set(sx * (w / 2 - 0.05), c.half.y + 0.012, 0);
+      c.mesh.add(edge);
+    }
+    holos.push(c);
+  } else if (pc.t === 'boost' || pc.t === 'jump') {
+    c.pad = pc.t;
+    const top = c.half.y + 0.012;
+    if (pc.t === 'boost') {
+      const t = arrowTex.clone();
+      t.repeat.set(Math.max(1, Math.round((w - 0.3) / 1.4)), (d - 0.3) / 1.1);
+      const deco = new Mesh(new PlaneGeometry(w - 0.3, d - 0.3), glowMat(0xFFFFFF, 1, t));
+      deco.rotation.x = -Math.PI / 2; deco.position.y = top;
+      c.mesh.add(deco); c.padFx = { tex: t };
+    } else {
+      const rings = [0, 1, 2].map(() => {
+        const m = new Mesh(new RingGeometry(0.86, 1, 48), glowMat(PAD_YELLOW, 1));
+        m.rotation.x = -Math.PI / 2; m.position.y = top; c.mesh.add(m); return m;
+      });
+      const core = new Mesh(new CircleGeometry(0.2, 32), glowMat(0xFFF4C2, 1));
+      core.rotation.x = -Math.PI / 2; core.position.y = top; c.mesh.add(core);
+      c.padFx = { rings, R: Math.min(w, d) / 2 - 0.08 };
+    }
+    pads.push(c);
+  }
+}
+// BoxGeometry's face order: +x, -x, +y (top), -y, +z, -z.
+function holoFaces(c) { const [side, top, under] = c.holoMats; c.mesh.material = [side, side, top, under, side, side]; }
+// What each special piece does on screen, every frame.
+function animatePieces(dt) {
+  for (const c of holos) {
+    const s = holoState(c.holo, simT);
+    let k;
+    if (s.lit) k = REDUCED ? 1 : s.left < 0.6 ? (Math.floor(s.left * 16) % 2 ? 0.2 : 1) : Math.min(1, s.t / 0.12);
+    else k = 0.16 + 0.16 * s.t / (c.holo.period - c.holo.on);
+    const [side, top, under, edge] = c.holoMats;
+    top.opacity = k; side.opacity = 0.5 * k; under.opacity = 0.2 * k; edge.opacity = Math.min(1, k * 1.15);
+  }
+  for (const c of pads) {
+    if (c.pad === 'boost') { if (!REDUCED) c.padFx.tex.offset.y -= dt * 1.6; continue; }
+    c.padFx.rings.forEach((m, i) => {
+      const p = REDUCED ? 0.6 : ((simT * 0.9 + i / 3) % 1);          // three rings, each spreading outward and fading
+      m.scale.setScalar(c.padFx.R * (0.25 + 0.75 * p));
+      m.material.opacity = REDUCED ? 0.8 : Math.sin(Math.PI * p);
+    });
+  }
 }
 
 function buildPiece(pc) {
@@ -551,11 +732,13 @@ function buildPiece(pc) {
   mesh.castShadow = true; mesh.receiveShadow = true;
   levelGroup.add(mesh);
   const c = { mesh, pos: center.clone(), prev: center.clone(), quat, inv: quat.clone().invert(),
-              half: new Vector3(w / 2, h / 2, d / 2), delta: new Vector3(), ferry: null };
+              half: new Vector3(w / 2, h / 2, d / 2), delta: new Vector3(), ferry: null, holo: null, pad: null };
   if (isFerry) {
-    c.ferry = { base: center.clone(), axis: pc.axis, amp: pc.amp, period: pc.period, phase: pc.phase };
+    c.ferry = { base: center.clone(), axis: pc.axis, amp: pc.amp, period: pc.period, dwell: pc.dwell, phase: pc.phase };
     ferries.push(c);
   }
+  dressPiece(c, pc, w, d);
+  if (c.holo) holoFaces(c);
   colliders.push(c);
 }
 
@@ -580,6 +763,8 @@ function loadLevel(n) {
   levelNo = Math.max(1, Math.min(LEVELS.length, n));
   level = LEVELS[levelNo - 1];
   if (levelGroup) {
+    for (const c of holos) for (const m of c.holoMats) m.dispose();
+    for (const c of pads) if (c.padFx.tex) c.padFx.tex.dispose();
     scene.remove(levelGroup);
     levelGroup.traverse((o) => {
       if (o.geometry) o.geometry.dispose();
@@ -589,19 +774,20 @@ function loadLevel(n) {
   }
   levelGroup = new Group();
   scene.add(levelGroup);
-  colliders = []; ferries = []; gates = [];
+  colliders = []; ferries = []; holos = []; pads = []; gates = [];
   for (const pc of level.pieces) buildPiece(pc);
   if (world.name !== 'void') setWorld(world.name);   // scenery that follows the course is rebuilt for it
   level.minTop = Math.min(...level.pieces.map((p) => (p.t === 'ramp' ? Math.min(p.y0, p.y1) : p.y)));
   for (const [x, y, z] of level.gates) gates.push(makeRing(x, y, z, false));
   goal = makeRing(level.goal[0], level.goal[1], level.goal[2], true);
+  if (world.rings) tintRings(world.rings[0], world.rings[1]);   // the world was set before these rings were made
   simT = 0;
   for (const c of ferries) updateFerry(c, 0);
   const [sx, sy, sz] = level.start;
   startPos.set(sx, sy + R + 0.01, sz);
   spawn.copy(startPos);
   ball.p.copy(startPos); ball.v.set(0, 0, 0); ball.spin.set(0, 0, 0);
-  ball.grounded = true; ball.onFerry = null; ball.airT = 0;
+  ball.grounded = true; ball.onFerry = null; ball.airT = 0; ball.boostT = 0; ball.jumpCD = 0;
   lastGroundY = sy;
   clock = 0; falls = 0; started = false;
   setState('play');
@@ -610,11 +796,21 @@ function loadLevel(n) {
   T().levelStart(levelNo);
 }
 
+/* Where a moving pad is, as a share of its run: +1 and -1 are its two ends,
+   where it waits; between them it eases out and in, so it never jerks. */
+function ferryAt(f, t) {
+  const u = ((t / f.period + f.phase / (2 * Math.PI)) % 1 + 1) % 1, a = f.dwell / f.period;
+  const ease3 = (v) => v * v * (3 - 2 * v);
+  if (u < a) return 1;
+  if (u < 0.5) return 1 - 2 * ease3((u - a) / (0.5 - a));
+  if (u < 0.5 + a) return -1;
+  return -1 + 2 * ease3((u - 0.5 - a) / (0.5 - a));
+}
 function updateFerry(c, t) {
   const f = c.ferry;
   c.prev.copy(c.pos);
   c.pos.copy(f.base);
-  c.pos[f.axis] += f.amp * Math.sin(2 * Math.PI * t / f.period + f.phase);
+  c.pos[f.axis] += f.amp * ferryAt(f, t);
   c.delta.subVectors(c.pos, c.prev);
   c.mesh.position.copy(c.pos);
 }
@@ -624,10 +820,14 @@ const G = 22;              // gravity, a little over twice Earth's: a marble thi
 const ACC_GROUND = 18, ACC_AIR = 6;
 const DAMP_GROUND = 1.6, DAMP_AIR = 0.12;   // per second; enough grip to hold a 1.6 m plank
 const VMAX = 8;            // horizontal speed cap, metres per second
+/* A speed strip pushes on along -z and lifts the cap for a moment after, with
+   less grip, so the rush lasts about a second. A jump pad throws the marble
+   up, and on at no less than JUMP_ON, which clears any gap a course has. */
+const BOOST_ACC = 34, VBOOST = 13, BOOST_T = 1, JUMP_UP = 9, JUMP_ON = 8;
 const STEP = 1 / 240;      // physics runs at 240 Hz whatever the display does
 
 const ball = { p: new Vector3(), v: new Vector3(), spin: new Vector3(), grounded: false,
-               onFerry: null, airT: 0 };
+               onFerry: null, airT: 0, pad: null, boostT: 0, jumpCD: 0, onBoost: false };
 const startPos = new Vector3(), spawn = new Vector3();
 let lastGroundY = 0, simT = 0, acc = 0;
 
@@ -638,6 +838,9 @@ const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
    closest point of the box to the marble's centre, and out along the line
    between them. A ramp is just a box turned about x. */
 function collide(c, dt) {
+  // A hologram holds the marble only while it is lit, and only from above: one
+  // that lights up round a marble already falling through it lets it fall.
+  if (c.holo && (!holoState(c.holo, simT).lit || ball.p.y - R < c.pos.y + c.half.y - 0.3)) return;
   _L.subVectors(ball.p, c.pos).applyQuaternion(c.inv);
   const h = c.half;
   if (Math.abs(_L.x) > h.x + R || Math.abs(_L.y) > h.y + R || Math.abs(_L.z) > h.z + R) return;
@@ -665,7 +868,7 @@ function collide(c, dt) {
     if (floor && rel < -4 && ball.airT > 0.12) { play('land'); shake = Math.max(shake, 0.12); }
     else if (!floor && rel < -3) play('tick');
   }
-  if (floor) { ball.grounded = true; if (c.ferry) ball.onFerry = c; }
+  if (floor) { ball.grounded = true; if (c.ferry) ball.onFerry = c; if (c.pad) ball.pad = c.pad; }
 }
 
 function step(dt, ix, iz) {
@@ -675,13 +878,22 @@ function step(dt, ix, iz) {
   const a = ball.grounded ? ACC_GROUND : ACC_AIR;
   ball.v.x += ix * a * dt; ball.v.z += iz * a * dt;
   ball.v.y = Math.max(-30, ball.v.y - G * dt);
-  const k = Math.exp(-(ball.grounded ? DAMP_GROUND : DAMP_AIR) * dt);
+  const k = Math.exp(-(ball.grounded ? DAMP_GROUND * (ball.boostT > 0 ? 0.35 : 1) : DAMP_AIR) * dt);
   ball.v.x *= k; ball.v.z *= k;
-  const hs = Math.hypot(ball.v.x, ball.v.z);
-  if (hs > VMAX) { ball.v.x *= VMAX / hs; ball.v.z *= VMAX / hs; }
+  const hs = Math.hypot(ball.v.x, ball.v.z), cap = VMAX + (VBOOST - VMAX) * clamp(ball.boostT / 0.5, 0, 1);
+  if (hs > cap) { ball.v.x *= cap / hs; ball.v.z *= cap / hs; }
   ball.p.addScaledVector(ball.v, dt);
-  ball.grounded = false; ball.onFerry = null;
+  ball.grounded = false; ball.onFerry = null; ball.pad = null;
   for (const c of colliders) collide(c, dt);
+  ball.boostT = Math.max(0, ball.boostT - dt); ball.jumpCD = Math.max(0, ball.jumpCD - dt);
+  if (ball.pad === 'boost') {
+    ball.v.z -= BOOST_ACC * dt; ball.boostT = BOOST_T;
+    if (!ball.onBoost) sound('boost');
+  } else if (ball.pad === 'jump' && ball.jumpCD === 0) {
+    ball.v.y = JUMP_UP; ball.v.z = Math.min(ball.v.z, -JUMP_ON); ball.jumpCD = 0.4;
+    sound('jump');
+  }
+  ball.onBoost = ball.pad === 'boost';
   ball.airT = ball.grounded ? 0 : ball.airT + dt;
   if (ball.grounded) lastGroundY = ball.p.y - R;
 }
@@ -719,7 +931,7 @@ function flyTo(dest) {
   flight.ctl.addVectors(flight.from, flight.to).multiplyScalar(0.5);
   flight.ctl.y = Math.max(flight.from.y, flight.to.y) + 4;
   flight.dur = Math.min(0.9, 0.45 + flight.from.distanceTo(flight.to) * 0.02);
-  ball.v.set(0, 0, 0); ball.onFerry = null;
+  ball.v.set(0, 0, 0); ball.onFerry = null; ball.boostT = 0;
   setState('home');
   if (REDUCED) arrive();
 }
@@ -849,6 +1061,7 @@ function update(dt, now) {
   } else spinMarble(dt);
 
   animateRings(now, dt);
+  animatePieces(dt);
   updateSparks(dt);
   updateCamera(dt, false);
   updateSunPoint();
@@ -938,7 +1151,9 @@ const JR = 52, DEAD = 0.1;
 let joy = null, pressed = null, cardDrag = null;
 const keys = new Set();
 
+let forced = null;                                      // the harness's stick, for fast checks
 function readInput() {
+  if (forced) return forced;
   let x = 0, z = 0;
   if (joy) {
     const dx = (joy.x - joy.ox) / JR, dy = (joy.y - joy.oy) / JR;
@@ -1168,12 +1383,39 @@ function drawGhost(now) {
   ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
 }
 
+/* A new thing gets one line the first time it comes: at the start of the level
+   that opens its district, until the marble has rolled on a way. */
+const NEWS = {
+  9: 'Some pads move. Wait for one to line up with the path, then roll on',
+  17: 'Bridges switch off and on. Cross while they are lit',
+  25: 'Yellow arrows speed you up. Yellow rings throw you over a gap',
+  33: 'The Express: everything at once, on the longest courses',
+};
+function drawNews() {
+  const t = NEWS[levelNo];
+  if (!t || state !== 'play' || ball.p.z < -12) return;
+  const pad = MODE === 'mobile' ? PHONE_PAD : SIDE_PAD;
+  const lines = wrapText(t, LW - 2 * pad - 36, 16);
+  ctx.font = '600 16px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const w = Math.max(...lines.map((l) => ctx.measureText(l).width)) + 28, h = lines.length * 22 + 14;
+  const cy = topBand() + 22 + h / 2;
+  UI.roundRectPath(ctx, LW / 2 - w / 2, cy - h / 2, w, h, 15);
+  ctx.fillStyle = 'rgba(10,16,28,0.72)'; ctx.fill();
+  ctx.fillStyle = TOK.ink92;
+  lines.forEach((l, i) => ctx.fillText(l, LW / 2, cy + (i - (lines.length - 1) / 2) * 22 + 1));
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  L.news = { x: LW / 2 - w / 2, y: cy - h / 2, w, h, lines };
+}
+
 // ---------- CARDS (DESIGN-SYSTEM 5, drawn as Comb draws them) ----------
 const RULES = [
   'Drag anywhere to roll the marble. The further you drag, the harder it rolls. On a computer the arrow keys work too.',
   'Roll through the orange ring at the end of the course to finish the level.',
   'Blue rings save your place. Roll through one and it turns green.',
   'Roll off the edge and the marble flies back to the last green ring. The fall is counted, and nothing else is lost.',
+  'Some pads move. Wait for one to line up with the path, roll on, and ride it across.',
+  'See-through bridges switch off and on. Cross while they are lit. They flicker just before they go dark.',
+  'Yellow arrows speed the marble up. Yellow rings throw it into the air, over the gap ahead.',
 ];
 function wrapText(text, maxW, size) {
   ctx.font = '500 ' + size + 'px Inter, sans-serif';
@@ -1203,7 +1445,7 @@ function cardLayout(kind) {
     title: kind === 'rules' ? 'MARBLE' : 'CLEARED',
     cta: kind === 'rules' ? 'PLAY' : last ? 'PLAY AGAIN' : 'NEXT',
     subtitle: kind === 'rules' ? 'Roll the marble along the course and through the orange ring.'
-      : last ? 'That was the last of the three courses.'
+      : last ? 'That was the last of the forty courses.'
       : falls === 0 ? 'The whole course without a single fall.'
       : 'Home, with ' + falls + (falls === 1 ? ' fall' : ' falls') + ' on the way.',
   };
@@ -1285,8 +1527,9 @@ function drawHUD(now) {
   L.hit = {};
   if (!renderer) { drawNoWorld(); return; }
   drawScrims();
-  L.ghost = null;
+  L.ghost = null; L.news = null;
   drawGhost(now);
+  drawNews();
   drawStick();
   drawControls();
   drawReadout();
@@ -1307,7 +1550,6 @@ const WORLDS = {};
 const WORLDS_ADD = (name, build) => { WORLDS[name] = build; };
 const DEFAULT_WORLD = { fog: [0x131F36, 24, 58], hemi: [0xDDE8FF, 0x1A2A45, 1.15], sun: [0xFFF3E2, 2.6] };
 let world = { name: 'void', group: null, tick: null, restyle: null };
-const seeded = (seed) => () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
 
 function gradientTex(stops) {
   return canvasTex(4, 512, (g) => {
@@ -1340,11 +1582,27 @@ function restoreCourse() {
   for (const c of colliders) {
     if (c.deco) { for (const d of c.deco) c.mesh.remove(d); c.deco = []; }
     c.mesh.material = faceMats(c.ferry ? ferryStone : stone); setTopUV(c.mesh, false);
+    if (c.holo) holoFaces(c);
   }
+}
+/* A world is rebuilt for every course, so the one it replaces is let go: its
+   shapes, its materials and the textures it drew. Shared light maps stay. */
+function disposeWorld(grp) {
+  const seen = new Set();
+  grp.traverse((o) => {
+    if (o.geometry) o.geometry.dispose();
+    for (const m of [].concat(o.material || [])) {
+      if (seen.has(m)) continue;
+      seen.add(m);
+      for (const t of [m.map, m.emissiveMap]) if (t && t.isCanvasTexture && t !== dot) t.dispose();
+      m.dispose();
+    }
+  });
 }
 
 function setWorld(name) {
-  if (world.group) scene.remove(world.group);
+  if (world.group) { scene.remove(world.group); disposeWorld(world.group); }
+  if (scene.background && scene.background.isCanvasTexture) scene.background.dispose();
   scene.background = null;
   const [fc, fn, ff] = DEFAULT_WORLD.fog;
   scene.fog.color.setHex(fc); scene.fog.near = fn; scene.fog.far = ff;
@@ -1360,6 +1618,7 @@ function setWorld(name) {
     build(world);
     scene.add(world.group);
     if (world.restyle) world.restyle();
+    for (const c of holos) holoFaces(c);                 // a hologram is a hologram in every world
     if (world.marble) setMarbleSkin(world.marble);
     if (world.rings) tintRings(world.rings[0], world.rings[1]);
   }
@@ -2051,6 +2310,12 @@ function makeTrail() {
    train runs under the narrow bridge in a gap kept free of towers, and the
    billboards stand beside the course, never over it. */
 const TRAIN_Z = -26;                                    // the train's line, kept clear of towers
+// Where the course ends (it runs along -z), so the city reaches past it.
+function courseEnd() {
+  let z = 0;
+  for (const p of level ? level.pieces : []) z = Math.min(z, p.t === 'ramp' ? p.z1 : p.z - p.d / 2);
+  return z;
+}
 /* A body lofted along x through rounded-rectangle sections: prof(t) gives each
    section's half-width, top and bottom, for t from 0 (the back, -x) to 1 (the
    front, +x). UVs run u along the body and v round the section from its
@@ -2089,14 +2354,18 @@ function futureCity(G, tops, r) {
 
   // Flying cars: a shaped body in its own paint, a dark glass canopy, two
   // headlights, two taillights, and a glow underneath.
+  const end = courseEnd(), far = Math.min(-110, end - 60);
   const lanes = [
-    { axis: 'z', at: -7, y: -3.2, dir: -1, from: 30, to: -110 }, { axis: 'z', at: -11.5, y: -4.6, dir: 1, from: 30, to: -110 },
-    { axis: 'z', at: 13, y: -3.6, dir: 1, from: 30, to: -110 },  { axis: 'z', at: 17.5, y: -4.8, dir: -1, from: 30, to: -110 },
+    { axis: 'z', at: -7, y: -3.2, dir: -1, from: 30, to: far }, { axis: 'z', at: -11.5, y: -4.6, dir: 1, from: 30, to: far },
+    { axis: 'z', at: 13, y: -3.6, dir: 1, from: 30, to: far },  { axis: 'z', at: 17.5, y: -4.8, dir: -1, from: 30, to: far },
     { axis: 'x', at: -17, y: -3.0, dir: 1, from: -37, to: 43 },  { axis: 'x', at: -37, y: -4.4, dir: -1, from: -37, to: 43 },
     { axis: 'x', at: -52, y: -3.4, dir: 1, from: -37, to: 43 },
   ];
-  const cars = [];
-  lanes.forEach((l) => { const n = l.axis === 'z' ? 4 : 3; for (let i = 0; i < n; i++) cars.push({ l, u: (i + r() * 0.6) / n, v: 9 + r() * 7 }); });
+  for (let z = -74, i = 0; z > end - 20; z -= 22, i++) {                      // cross traffic all along a long course
+    lanes.push({ axis: 'x', at: z, y: [-3.0, -4.4, -3.4][i % 3], dir: i % 2 ? 1 : -1, from: -37, to: 43 });
+  }
+  const cars = [], zCars = Math.max(4, Math.round((30 - far) / 35));
+  lanes.forEach((l) => { const n = l.axis === 'z' ? zCars : 3; for (let i = 0; i < n; i++) cars.push({ l, u: (i + r() * 0.6) / n, v: 9 + r() * 7 }); });
   const N = cars.length;
   const carProf = (t) => {                       // t: 0 at the tail, 1 at the nose
     const kn = Math.min(1, (1 - t) * 2.3 / 0.95), kt = Math.min(1, t * 2.3 / 0.3);
@@ -2297,8 +2566,13 @@ function futureCity(G, tops, r) {
       g.beginPath(); g.arc(214, 80, 9, 0, Math.PI * 2); g.fill();
     } },
   ];
-  const boards = [];
-  [[-12, -1.5, -12, 0.5], [18, -2.5, -20, -0.5], [-11, -3, -40, 0.45], [16, -1, -52, -0.45], [-14, -4, -64, 0.4]].forEach(([x, y, z, turn], i) => {
+  const boards = [], boardsAt = [[-12, -1.5, -12, 0.5], [18, -2.5, -20, -0.5], [-11, -3, -40, 0.45], [16, -1, -52, -0.45], [-14, -4, -64, 0.4]];
+  for (let z = -78, i = 0; z > end - 10; z -= 13 + r() * 5, i++) {           // and on, beside a long course, clear of the train
+    if (Math.abs(z - TRAIN_Z) < 8) continue;
+    const left = i % 2 === 1;
+    boardsAt.push([left ? -11 - r() * 3 : 16 + r() * 2, -1 - r() * 3, z, (left ? 1 : -1) * (0.4 + r() * 0.1)]);
+  }
+  boardsAt.forEach(([x, y, z, turn], i) => {
     const ad = ADS[i % ADS.length];
     const t = canvasTex(256, 144, (g) => { adBase(g, ad.hue[0], ad.hue[1]); ad.draw(g); scan(g); }, !!ad.scroll);
     const b = new Mesh(new PlaneGeometry(7, 3.94), new MeshBasicMaterial({ map: t, transparent: true, blending: AdditiveBlending, depthWrite: false, side: DoubleSide, toneMapped: false }));
@@ -2343,19 +2617,23 @@ WORLDS_ADD('neon', (w) => {
   const towerB = new MeshStandardMaterial({ color: 0x0B1020, roughness: 0.6, emissive: 0xFF6A3C, emissiveMap: stripes, emissiveIntensity: 1.3 });
   const live = neonLive && !REDUCED;
   if (live) { flickerWindows(towerA, 0); flickerWindows(towerB, 57); }
-  const A = new InstancedMesh(box, towerA, 220), B = new InstancedMesh(box, towerB, 220);
+  // The city runs 150 m past the end of the course, where the fog closes.
+  const end = courseEnd(), cityEnd = Math.min(-210, end - 150), rExt = seeded(43), rOld = r;
+  const cap = Math.round(250 + (26 - cityEnd) * 1.4);
+  const A = new InstancedMesh(box, towerA, cap), B = new InstancedMesh(box, towerB, cap);
   const m = new Matrix4(), q = new Quaternion(), pos = new Vector3(), sc = new Vector3();
   let a = 0, b = 0;
   const tops = [];
-  for (let x = -80; x <= 86; x += 7) for (let z = 26; z >= -210; z -= 7) {
-    if (r() < 0.35) continue;
+  for (let x = -80; x <= 86; x += 7) for (let z = 26; z >= cityEnd; z -= 7) {
+    const rr = z >= -210 ? r : rExt;                              // past the first 210 m, a stream of its own
+    if (rr() < 0.35) continue;
     if (Math.abs(z - TRAIN_Z) < 5) continue;                      // the train's line
-    const nearCourse = x > -10 && x < 18 && z > -60;
-    const top = nearCourse ? -12 - r() * 20 : -6 - r() * 26 + (Math.abs(x - 3) > 40 ? r() * 20 : 0);
-    const h = top + 70, wdt = 3 + r() * 3;
-    pos.set(x + r() * 2, top - h / 2, z + r() * 2); sc.set(wdt, h, 3 + r() * 3); m.compose(pos, q, sc);
+    const nearCourse = x > -10 && x < 18 && z > Math.min(-60, end - 10);   // low under the course, all the way along
+    const top = nearCourse ? -12 - rr() * 20 : -6 - rr() * 26 + (Math.abs(x - 3) > 40 ? rr() * 20 : 0);
+    const h = top + 70, wdt = 3 + rr() * 3;
+    pos.set(x + rr() * 2, top - h / 2, z + rr() * 2); sc.set(wdt, h, 3 + rr() * 3); m.compose(pos, q, sc);
     tops.push({ x: pos.x, y: top, z: pos.z });
-    if (r() < 0.55 && a < 220) A.setMatrixAt(a++, m); else if (b < 220) B.setMatrixAt(b++, m);
+    if (rr() < 0.55 && a < cap) A.setMatrixAt(a++, m); else if (b < cap) B.setMatrixAt(b++, m);
   }
   A.count = a; B.count = b; G.add(A, B);
   // Lit cubes hanging in the air.
@@ -2369,11 +2647,14 @@ WORLDS_ADD('neon', (w) => {
       '#include <emissivemap_fragment>\n#if defined( USE_INSTANCING_COLOR ) || defined( USE_COLOR )\n  totalEmissiveRadiance *= vColor.rgb;\n#endif');
   };
   cubeMat.customProgramCacheKey = () => 'lit-cubes';
-  const cubes = new InstancedMesh(new RoundedBoxGeometry(1, 1, 1, 2, 0.12), cubeMat, 70), col = new Color();
+  const more = Math.max(0, Math.round((-153 - (end - 30)) / 2.1));   // more cubes along a long course
+  const cubes = new InstancedMesh(new RoundedBoxGeometry(1, 1, 1, 2, 0.12), cubeMat, 70 + more), col = new Color();
   const hang = [];
-  for (let i = 0; i < 70; i++) {
-    pos.set(-40 + r() * 90, -18 + r() * 30, -8 - r() * 145);
-    if (pos.x > -6 && pos.x < 14 && pos.z > -50 && pos.y > -4) pos.y -= 12;
+  for (let i = 0; i < 70 + more; i++) {
+    const r = i < 70 ? rOld : rExt;
+    pos.set(-40 + r() * 90, -18 + r() * 30, i < 70 ? -8 - r() * 145 : -153 + (end - 30 + 153) * r());
+    // Under the course wherever it runs, orbit and all, so none can hide it.
+    if (pos.x > -12 && pos.x < 20 && pos.z > Math.min(-50, end - 10) && pos.y > -4) pos.y = Math.min(pos.y - 12, -4.5);
     if (pos.z > -30 && Math.abs(pos.x - 3) < 15) pos.x += pos.x < 3 ? -12 : 12;   // nothing swimming into the camera
     const s = 0.4 + r() * 1.2; sc.set(s, s, s);
     const rx = r() * 3, ry = r() * 3;
@@ -2429,8 +2710,23 @@ function neonGrid(core, halo, haloCol) {
     lines(core, '#FFFFFF');
   }, true);
 }
+/* Pads that move keep their own colour here too: the same dark glass with a
+   pale blue grid, so a moving pad reads as a different thing before it has
+   moved. Speed strips and jump pads are plain dark glass with yellow sides,
+   under their yellow arrows and rings. Holograms keep their own light. Each
+   style's materials are made once and shared by every course. */
+const neonMats = {};
 function neonCourse(style) {
   neonStyle = style;
+  const M = neonMats[style] || (neonMats[style] = neonMaterials(style));
+  for (const c of colliders) {
+    if (c.holo) continue;
+    const [side, top] = c.ferry ? [M.ferrySide, M.ferryTop] : c.pad ? [M.padSide, M.padTop] : [M.side, M.top];
+    c.mesh.material = [side, side, top, M.under, side, side]; setTopUV(c.mesh, false);
+  }
+  return neonStyle;
+}
+function neonMaterials(style) {
   const under = new MeshStandardMaterial({ color: 0x080C16, roughness: 1 });
   let top, side;
   if (style === 'glowgrid') {
@@ -2453,8 +2749,14 @@ function neonCourse(style) {
     top = new MeshStandardMaterial({ color: 0x0B1322, metalness: 0.4, roughness: 0.25, emissive: 0x34E0FF, emissiveMap: neonGrid(3, 0), emissiveIntensity: 0.9 });
     side = new MeshStandardMaterial({ color: 0x101A30, metalness: 0.5, roughness: 0.3, emissive: 0x6A2AFF, emissiveIntensity: 0.18 });
   }
-  for (const c of colliders) { c.mesh.material = [side, side, top, under, side, side]; setTopUV(c.mesh, false); }
-  return neonStyle;
+  return {
+    top, side, under,
+    ferryTop: new MeshStandardMaterial({ color: 0x0A0F1E, metalness: 0.4, roughness: 0.3, emissive: 0xFFFFFF,
+      emissiveMap: neonGrid(3, 7, 'rgba(80,180,255,0.95)'), emissiveIntensity: 1.3 }),
+    ferrySide: new MeshStandardMaterial({ color: 0x0C1830, metalness: 0.5, roughness: 0.3, emissive: 0x5FB8FF, emissiveIntensity: 0.35 }),
+    padTop: new MeshStandardMaterial({ color: 0x0A0F1E, metalness: 0.4, roughness: 0.3 }),
+    padSide: new MeshStandardMaterial({ color: 0x1C1606, metalness: 0.5, roughness: 0.3, emissive: PAD_YELLOW, emissiveIntensity: 0.45 }),
+  };
 }
 
 // ---- 4. Low-poly valley: grassy ledges over trees, sheep and snowy peaks, a faceted marble ----
@@ -2526,14 +2828,14 @@ WORLDS_ADD('valley', (w) => {
 });
 
 // ---------- LOOP ----------
-let last = performance.now(), frames = 0, frameMs = 16.7;
+let last = performance.now(), frames = 0, frameMs = 16.7, simHold = false;
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
   frameMs += ((now - last) - frameMs) * 0.05;
   last = now; frames++;
   if (renderer) {
-    update(dt, now);
+    if (!simHold) update(dt, now);
     renderer.render(scene, camera);
   }
   drawHUD(now);
@@ -2557,7 +2859,12 @@ requestAnimationFrame(frame);
    game started with. */
 function worldFromHash() {
   const [h, v] = location.hash.slice(1).split('-');
-  const name = h || 'neon';
+  if (h === 'level') {                                  // #level-17 opens course 17, to look at one
+    const n = parseInt(v, 10);
+    if (n >= 1 && n <= LEVELS.length) loadLevel(n);
+    if (world.name === 'neon') return;
+  }
+  const name = h && h !== 'level' ? h : 'neon';
   if (name === 'neon') {
     neonStyle = ['grid', 'glowgrid', 'edges', 'frosted'].includes(v) ? v : 'glowgrid';   // #neon-edges and so on
     neonLive = v !== 'still';                                                            // #neon-still: the city unmoving
@@ -2568,6 +2875,7 @@ worldFromHash();
 window.addEventListener('hashchange', worldFromHash);
 
 // ---------- HARNESS ----------
+let fakeNow = 0;
 if (HARNESS) {
   window.__marble = {
     state: () => ({ phase: state, level: levelNo, clock: +clock.toFixed(2), falls, started, everMoved,
@@ -2576,12 +2884,24 @@ if (HARNESS) {
                     v: ball.v.toArray().map((v) => +v.toFixed(3)),
                     gates: gates.map((g) => g.passed), frames, frameMs: +frameMs.toFixed(1) }),
     reach: (n) => loadLevel(n),
+    simT: () => +simT.toFixed(3),
+    holos: () => holos.map((c) => { const h = holoState(c.holo, simT); return { lit: h.lit, t: +h.t.toFixed(3), left: +h.left.toFixed(3) }; }),
+    // Fast checks: hold the clock, then run the game a step at a time with a
+    // given stick, through the same update() a frame runs.
+    hold: (on) => { simHold = !!on; return simHold; },
+    drive: (ix, iz, steps = 1) => {
+      forced = [ix, iz];
+      for (let i = 0; i < steps; i++) update(1 / 60, (fakeNow += 1000 / 60));
+      forced = null;
+      return state;
+    },
     complete: () => { if (state === 'play') { ball.p.set(goal.pos.x, goal.pos.y + R, goal.pos.z); } },
     hits: () => JSON.parse(JSON.stringify(L.hit)),
     course: () => JSON.parse(JSON.stringify(level)),
     ferries: () => ferries.map((c) => c.pos.toArray()),
     readout: () => ({ ...L.readout }),
     ghost: () => (L.ghost ? JSON.parse(JSON.stringify(L.ghost)) : null),
+    news: () => (L.news ? JSON.parse(JSON.stringify(L.news)) : null),
     rulesFit: () => {
       const c = cardLayout('rules');
       const sum = c.HEADER + c.viewH + c.FOOTER;
@@ -2597,7 +2917,12 @@ if (HARNESS) {
     neon: (style) => neonCourse(style),
     audio: () => citySound && { roll: roll ? +roll.g.gain.value.toFixed(4) : null, city: +citySound.pg.gain.value.toFixed(4),
                                 train: +citySound.tg.gain.value.toFixed(4), state: citySound.ac.state },
-    peek: (p, a) => { peekCam = p ? { pos: p, at: a } : null; return !!peekCam; },
+    peek: (p, a, fov) => {
+      peekCam = p ? { pos: p, at: a } : null;
+      camera.fov = p && fov ? fov : camParams().fov; camera.updateProjectionMatrix();
+      return !!peekCam;
+    },
+    place: (x, y, z) => { ball.p.set(x, y, z); ball.v.set(0, 0, 0); marble.position.copy(ball.p); return ball.p.toArray(); },
     freeze: (on) => { cityRefs.frozen = !!on; return cityRefs.frozen; },
     trainAt: (x) => { if (cityRefs.train) cityRefs.train.position.x = x; return !!cityRefs.train; },
     cars: () => (cityRefs.cars ? cityRefs.cars() : []),

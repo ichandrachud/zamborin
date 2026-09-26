@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <title>Marble — A Zamborin Game</title>
-  <meta name="description" content="Roll a chrome marble along a glowing course high above a neon city, and through the ring at the end. A 3D test for Zamborin, free in any browser." />
+  <meta name="description" content="Roll a chrome marble along glowing courses high above a neon city. Forty levels of moving pads, hologram bridges, speed strips and jumps, free in any browser." />
   <meta name="theme-color" content="#0E1726" />
   <link rel="canonical" href="https://zamborin.com/marble/" />
   <link rel="icon" type="image/svg+xml" href="../images/zamborin-favicon.svg?v=2" />
@@ -18,14 +18,14 @@
   <meta property="og:site_name" content="Zamborin Games" />
   <meta property="og:url" content="https://zamborin.com/marble/" />
   <meta property="og:title" content="Marble — Roll it home" />
-  <meta property="og:description" content="Roll a chrome marble along a glowing course high above a neon city, and through the ring at the end. A 3D test for Zamborin, free in any browser." />
+  <meta property="og:description" content="Roll a chrome marble along glowing courses high above a neon city. Forty levels of moving pads, hologram bridges, speed strips and jumps, free in any browser." />
   <meta property="og:image" content="https://zamborin.com/images/marble-og.jpg" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
-  <meta property="og:image:alt" content="A chrome marble on a glowing magenta grid, high above a neon city" />
+  <meta property="og:image:alt" content="A chrome marble at the edge of a glowing hologram bridge high above a neon city, under the word Marble in blue neon" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Marble — Roll it home" />
-  <meta name="twitter:description" content="Roll a chrome marble along a glowing course high above a neon city, and through the ring at the end. A 3D test for Zamborin, free in any browser." />
+  <meta name="twitter:description" content="Roll a chrome marble along glowing courses high above a neon city. Forty levels of moving pads, hologram bridges, speed strips and jumps, free in any browser." />
   <meta name="twitter:image" content="https://zamborin.com/images/marble-og.jpg" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -33,7 +33,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../shared/tokens.css?v=1" />
   <link rel="stylesheet" href="../shared/chrome.css?v=20" />
-  <link rel="stylesheet" href="./play.css?v=1" />
+  <link rel="stylesheet" href="./play.css?v=2" />
   <!-- Google AdSense. The site earns from these pages; keep both lines. -->
   <meta name="google-adsense-account" content="ca-pub-9207689324865969">
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9207689324865969" crossorigin="anonymous"></script>
@@ -43,7 +43,7 @@
     "@context": "https://schema.org",
     "@type": "VideoGame",
     "name": "Marble",
-    "description": "Roll a chrome marble along a glowing course high above a neon city, and through the ring at the end. A 3D test for Zamborin, free in any browser.",
+    "description": "Roll a chrome marble along glowing courses high above a neon city. Forty levels of moving pads, hologram bridges, speed strips and jumps, free in any browser.",
     "url": "https://zamborin.com/marble/",
     "image": "https://zamborin.com/images/marble-og.jpg",
     "playMode": "SinglePlayer",
@@ -107,10 +107,11 @@
       <div class="game-wrap">
         <!-- The 3D world is WebGL on #world. Every control, card and read-out is
              the house canvas UI on #game, laid over it, so the chrome is the
-             same code as every other game's. No splash: this test is partly
-             about how fast 3D appears, and a two-second cover would hide it. -->
+             same code as every other game's. The splash covers both for its
+             two seconds while the city builds underneath. -->
         <canvas id="world" aria-hidden="true"></canvas>
         <canvas id="game" aria-label="Marble"></canvas>
+        <div id="splash" class="splash" aria-hidden="true"></div>
       </div>
       <aside class="sidebar">
         <div class="ad-slot ad-medrec" aria-label="Advertisement">
@@ -133,7 +134,7 @@
          bloom/ or kaleido/ for the shape and the length. -->
     <section class="game-info">
       <h1>Marble: roll it home</h1>
-      <p>A chrome marble, a glowing course high above a neon city, and a ring of light at the far end. Marble is the first 3D game on Zamborin, built to find out how 3D plays in a phone browser.</p>
+      <p>A chrome marble, glowing courses high above a neon city, and a ring of light at the end of each one. Marble is the first 3D game on Zamborin: forty levels across five districts of the city, each course longer and harder than the one before.</p>
 
       <h2>How to play</h2>
       <p>Put a finger anywhere on the course and drag. The marble rolls the way you drag, and the further you drag, the harder it rolls.</p>
@@ -142,19 +143,24 @@
         <li><strong>Save your place:</strong> roll through a blue ring and it turns green. That is where you start again.</li>
         <li><strong>Fall off:</strong> the marble flies back to the last green ring, and the fall is counted.</li>
         <li><strong>Finish:</strong> roll through the orange ring at the end of the course.</li>
+        <li><strong>Moving pads:</strong> pads with a blue grid carry you across gaps. Wait for one to stop at your end, roll on, and roll off when it stops at the other.</li>
+        <li><strong>Hologram bridges:</strong> see-through bridges switch off and on. Cross while they are lit. They flicker just before they go dark.</li>
+        <li><strong>Speed strips and jump pads:</strong> yellow arrows speed the marble up, and yellow rings throw it into the air, over the gap ahead.</li>
       </ul>
       <p>Your level is saved, so you always pick up where you left off.</p>
 
       <h2>Tips</h2>
       <ul>
         <li>Short drags steer gently. Save the long drags for the straights.</li>
-        <li>A moving pad carries you with it. Wait for it to line up, roll on, and ride.</li>
+        <li>A moving pad waits at each end of its run. Roll on while it waits, and stay in the middle while it moves.</li>
+        <li>Wait at the edge of a dark bridge. The moment it lights, go, and keep going.</li>
+        <li>After a speed strip, ease off before the next turn.</li>
       </ul>
 
       <h2>Frequently asked questions</h2>
       <p><strong>Is Marble free?</strong> Yes, completely free to play, with no account or download, in any modern browser on phone, tablet or desktop.</p>
       <p><strong>Does it work on mobile?</strong> Yes. Marble is built for touch first.</p>
-      <p><strong>How many levels are there?</strong> Three, for now.</p>
+      <p><strong>How many levels are there?</strong> Forty, in five districts of the city. Downtown has turns, narrow paths and ramps. Transit adds pads that move. The Holograms district adds bridges that switch off and on. Boost adds speed strips and jump pads. The Express puts all of them together on the longest courses.</p>
 
       <p>Prefer something slower? Try <a href="/bloom/">Bloom</a> or <a href="/kaleido/">Kaleido</a>, or browse <a href="/">all Zamborin games</a>.</p>
     </section>
@@ -181,7 +187,7 @@
   <script src="../shared/analytics.js?v=3"></script>
   <script src="../shared/embed.js?v=1"></script>
   <script defer src="../shared/ads.js?v=2"></script>
-  <script type="module" src="./play.js?v=2"></script>
+  <script type="module" src="./play.js?v=3"></script>
   <script>
     (() => {
       const btn = document.getElementById('focus-toggle');
