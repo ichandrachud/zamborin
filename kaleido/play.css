@@ -1,13 +1,17 @@
 /* Kaleido — per-game styles. Everything else comes from
    ../shared/chrome.css and ../shared/tokens.css.
 
-   The .splash frame, cover-sizing and fade all live in shared chrome.
-   Only the artwork is declared here.
+   The .splash frame, cover-sizing and fade all live in shared chrome. This
+   file supplies the artwork and, layered under it, the wall the window is set
+   in, so a slow connection shows the wall at once and the window over it.
 
-   The desktop art is 1520x1200 against a 760x600 frame, the same 1.267
-   aspect, so nothing is cropped. The mobile art is 1170x2532 at 0.462,
-   which matches a modern phone almost exactly; the wordmark sits at 77%
-   of the width, inside the 82% that survives a cover-crop on the
-   narrowest viewport worth designing for. */
-body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=4'); }
-body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=4'); }
+   The art is the mandala rose window (owner, 2026-09-26), drawn in code by the
+   game's own glass painters; the masters and the drawing are in iCloud
+   source-assets/kaleido. The desktop art is 1520x1200 against a 760x600
+   frame, the same 1.267 aspect, so nothing is cropped. The mobile art is
+   1170x2532 at 0.462, which matches a modern phone almost exactly; the
+   wordmark spans x 18.1%..81.9% and y 72.5%..76.3%, so at 64% of the width it
+   sits inside the 82% that survives a cover-crop on the narrowest viewport
+   worth designing for. */
+body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=5'), radial-gradient(circle at 50% 44%, #3A3044, #120E17 80%); }
+body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=5'), radial-gradient(circle at 50% 41%, #3A3044, #120E17 80%); }
