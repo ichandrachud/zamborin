@@ -214,6 +214,15 @@ const NEON_SOUNDS = {
     voice('sawtooth', 110, 660, 0.9, 0.014, 0.08); voice('sine', 220, 1320, 0.8, 0.035, 0.08);
   },
   pass() { voice('sine', 330, 660, 0.3, 0.05); voice('sine', 990, 990, 0.25, 0.02, 0.08); },       // through a wall of its own colour
+  key() {                                             // a key taken: a bright chime, and a glint over it
+    voice('triangle', 1567.98, 1567.98, 0.2, 0.06); voice('sine', 2349.3, 2349.3, 0.32, 0.045, 0.07); voice('sine', 3135.96, 3135.96, 0.22, 0.018, 0.13);
+  },
+  gate() {                                            // a gate opened: the key turns, the bars slide down, a chord
+    voice('square', 140, 80, 0.1, 0.05, 0.3); voice('triangle', 1046.5, 1046.5, 0.12, 0.03, 0.3);
+    voice('sawtooth', 240, 70, 0.5, 0.018, 0.38);
+    [523.25, 659.25, 783.99].forEach((f, i) => voice('sine', f, f, 0.6, 0.035, 0.45 + i * 0.05));
+  },
+  reset() { voice('sawtooth', 1300, 150, 0.55, 0.016); voice('sine', 1760, 330, 0.5, 0.045); voice('sine', 220, 220, 0.3, 0.04, 0.45); },   // a square put back
   buzz() { voice('square', 110, 100, 0.22, 0.035); voice('sawtooth', 55, 50, 0.2, 0.03); },        // a wall of the other colour
   bump() {                                            // a car meets the marble: a thud, and two notes of horn
     voice('sine', 170, 55, 0.3, 0.11); voice('triangle', 90, 40, 0.25, 0.05);
@@ -222,7 +231,7 @@ const NEON_SOUNDS = {
 };
 // The city's version of a sound where it has one, the house sound elsewhere.
 function sound(name) {
-  if ((world.name === 'neon' || ['boost', 'jump', 'bump', 'depart', 'tint', 'pass', 'buzz', 'warp', 'tube', 'pop', 'power', 'zap', 'knock', 'clink', 'crack', 'shatter', 'burn', 'flame', 'blast'].includes(name)) && NEON_SOUNDS[name]) { if (sfx && sfx.isOn()) NEON_SOUNDS[name](); }
+  if ((world.name === 'neon' || ['boost', 'jump', 'bump', 'depart', 'tint', 'pass', 'buzz', 'key', 'gate', 'reset', 'warp', 'tube', 'pop', 'power', 'zap', 'knock', 'clink', 'crack', 'shatter', 'burn', 'flame', 'blast'].includes(name)) && NEON_SOUNDS[name]) { if (sfx && sfx.isOn()) NEON_SOUNDS[name](); }
   else play(name === 'home' ? 'land' : name);
 }
 function ensureCitySound() {
@@ -726,6 +735,109 @@ const SCAN = (x, z, w, d, y, period, phase, bars) => ({ t: 'scan', x, z, w, d, y
 const TUBE = (x, z, y, side, gap) => ({ t: 'tube', x, z, y, side, gap, w: 1.6, d: gap });
 const ROUND = (x, z, y, spin, exits, lead, ew) => ({ t: 'round', x, z, y, ri: RB_RI, ro: RB_RO, w: 2 * RB_RO, d: 2 * RB_RO, spin, exits, lead, ew });
 const TRAIN = (x, z, w, y, amp, period, dwell, phase, pull) => ({ t: 'train', x, z, w, d: TRAIN_DECK, y, axis: 'z', amp, period, dwell, phase, pull });
+/* PUZZLE SQUARES (owner, 2026-09-27: "besides running and clearing obstacles
+   there is nothing that is keeping the user from reaching the end ... where the
+   user has to get the key, or do something that will open the next gate? This
+   will be a theme through all worlds ... it should be cerebral, not just going
+   through the motions"). From level 2 the finish stands past a walled square
+   of CELL-metre cells, a small puzzle, and the camera rises to show all of it.
+   A square is drawn as a map: 2 rows + 1 lines of 2 cols + 1 characters, north
+   at the top. Odd places on odd lines are cells: '.' floor, '#' no floor, or a
+   letter from the legend. The places between are edges: ' ' open, '-' and '|'
+   walls, or a letter from the legend. The way in is the south edge of column
+   `entry`, the way out the north edge of column `exit`. What a legend holds:
+     key: n       a stand with key n on it (1 gold, 2 silver, 3 copper). Roll
+                  over it to take the key. You carry one at a time: the key you
+                  held is left on the stand in its place
+     keygate: n   a gate that key n opens, and keeps: one key, one gate
+   Every layout is solved by a search before it goes in (the same rules, in
+   pzsolve), which also counts the traps: moves after which the way out can no
+   longer be reached. The reset pad on a bay beside the road in puts the square
+   back as it was. */
+const CELL = 2.2, WALL_H = 0.7, WALL_T = 0.26;
+// PLAZAS START
+const KEYS = { a: { key: 1 }, b: { key: 2 }, c: { key: 3 }, A: { keygate: 1 }, B: { keygate: 2 }, C: { keygate: 3 } };
+const PLAZAS = {
+  // The first: the way out is locked, and its key is in a room whose door is round the far side.
+  K1: { entry: 2, exit: 2, legend: KEYS, map: [
+    '+-+-+A+-+-+',
+    '|. . . . .|',
+    '+ +-+ +-+ +',
+    '|. . .|. .|',
+    '+ + + + + +',
+    '|. . .|a .|',
+    '+ + + +-+-+',
+    '|. . . . .|',
+    '+-+-+ +-+-+'] },
+  // Two rooms and one gold key: only one room holds the key to the way out.
+  K2: { entry: 2, exit: 2, legend: KEYS, map: [
+    '+-+-+B+-+-+',
+    '|c .|.|. b|',
+    '+ + + + + +',
+    '|. .A.A. .|',
+    '+-+-+ +-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|a . . . .|',
+    '+-+-+ +-+-+'] },
+  // Three gold gates and two gold keys: the room beside the first key is a trap.
+  K3: { entry: 2, exit: 2, legend: KEYS, map: [
+    '+-+-+A+-+-+',
+    '|b .|.|. a|',
+    '+ + + + + +',
+    '|. .|.|. .|',
+    '+-+A+B+C+-+',
+    '|c|. . . .|',
+    '+A+ + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|a . . . c|',
+    '+-+-+ +-+-+'] },
+  // Three copper gates and two copper keys, both behind silver gates: one copper gate must stay shut.
+  K4: { entry: 2, exit: 2, legend: KEYS, map: [
+    '+-+-+C+-+-+',
+    '|a .|.|. c|',
+    '+ + + + + +',
+    '|. .|.|. .|',
+    '+ + + + + +',
+    '|. .|.|. .|',
+    '+-+C+C+B+-+',
+    '|.A. . .B.|',
+    '+ + + + + +',
+    '|b|. . .|c|',
+    '+-+ + + +-+',
+    '|. a . b .|',
+    '+-+-+ +-+-+'] },
+};
+// PLAZAS END
+// Which square each level ends with; '~' mirrors it left to right.
+const PLAZA_AT = { 2: 'K1', 3: 'K2', 4: 'K2~', 5: 'K3', 6: 'K3~', 7: 'K4', 8: 'K4~' };
+function plazaLayout(id) {
+  const flipped = id.endsWith('~'), T = PLAZAS[flipped ? id.slice(0, -1) : id];
+  const cols = (T.map[0].length - 1) / 2, rows = (T.map.length - 1) / 2;
+  if (!flipped) return { id, cols, rows, map: T.map, legend: T.legend, entry: T.entry, exit: T.exit };
+  const legend = {};
+  for (const [ch, v] of Object.entries(T.legend)) {                 // and anything that points turns with it
+    const u = legend[ch] = { ...v };
+    if (u.mirror) u.mirror = u.mirror === '/' ? '\\' : '/';
+    if (u.source === 'e' || u.source === 'w') u.source = u.source === 'e' ? 'w' : 'e';
+    if ('tile' in u) u.tile = (u.tile & 5) | (u.tile & 2 ? 8 : 0) | (u.tile & 8 ? 2 : 0);
+  }
+  return { id, cols, rows, map: T.map.map((l) => [...l].reverse().join('')), legend, entry: cols - 1 - T.entry, exit: cols - 1 - T.exit };
+}
+// A square's map read into cells[r][c], edges h[k][c] (the south edge of row k) and v[r][c] (the west edge of column c).
+function plazaGrid(pc) {
+  const { map, legend, rows, cols } = pc;
+  const edge = (ch) => (ch === ' ' ? null : ch === '-' || ch === '|' ? 'wall' : { ...legend[ch], ch });
+  const cells = [], h = [], v = [];
+  for (let k = 0; k <= rows; k++) { const l = map[2 * (rows - k)]; h.push([]); for (let c = 0; c < cols; c++) h[k].push(edge(l[2 * c + 1])); }
+  for (let r = 0; r < rows; r++) {
+    const l = map[2 * (rows - 1 - r) + 1]; cells.push([]); v.push([]);
+    for (let c = 0; c < cols; c++) { const ch = l[2 * c + 1]; cells[r].push(ch === '.' ? {} : ch === '#' ? { void: true } : { ...legend[ch], ch }); }
+    for (let c = 0; c <= cols; c++) v[r].push(edge(l[2 * c]));
+  }
+  return { cells, h, v };
+}
 const seeded = (seed) => () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
 const mix = (a, b, t) => a + (b - a) * t;
 
@@ -1035,6 +1147,23 @@ function makeLevel(n) {
     straight(4, w);
     jump(w);
   }
+  /* THE PUZZLE SQUARE before the finish (PLAZAS): the road in, with a ring on
+     it and the square's reset pad on a bay beside it; a step sideways if the
+     square would stand out past the city's clear lane; the square; a short
+     road out to the finish. */
+  function square(id) {
+    const T = plazaLayout(id), W = T.cols * CELL, D = T.rows * CELL, rw = 2.4, iw = r2(Math.max(rw, Math.min(wide, 3)));
+    straight(5, iw, true);                              // the road in, with a ring on it
+    const bs = x > 3 ? -1 : 1, bx = r2(x + bs * (iw / 2 + 1.1)), bz = r2(z + 2.5);
+    pieces.push({ ...F(bx, bz, 2.2, 2.2, y), bay: true }, { t: 'reset', x: bx, z: bz, y, w: 1.5, d: 1.5 });
+    const x0 = r2(Math.min(14.5 - W, Math.max(-8.5, x - (T.entry + 0.5) * CELL))), ex = r2(x0 + (T.entry + 0.5) * CELL);
+    if (Math.abs(ex - x) > 0.05) { pieces.push(F(r2((x + ex) / 2), r2(z - rw / 2), r2(Math.abs(ex - x) + rw), rw, y)); x = ex; on(rw); }
+    straight(1.5, rw);
+    pieces.push({ t: 'plaza', ...T, x: r2(x0 + W / 2), z: r2(z - D / 2), w: W, d: D, y, x0, z0: r2(z) });
+    on(D); run += D;                                    // the way through a square is longer than the square
+    x = r2(x0 + (T.exit + 0.5) * CELL);
+    straight(2, rw);
+  }
   // Every other feature is the district's own, so it carries the district;
   // the rest are what came before. The Express draws on everything.
   const ALL = ['bridge', 'slide', 'shuttle', 'boostJump', 'jump', 'jog', 'ramp', 'narrow', 'cross', 'ride', 'locks', 'wormhole', 'fork', 'loop'];
@@ -1085,6 +1214,7 @@ function makeLevel(n) {
     else jog(w);
     straight(r2(mix(6, 4, g) + r() * 3), r() < 0.5 ? wide : narrow);
   }
+  if (PLAZA_AT[n]) square(PLAZA_AT[n]);
   pieces.push(F(x, z - 3.5, 6, 7, y));                  // the finish, and the orange ring on it
   return { start: [0, 0, 1], gates, goal: [x, y, r2(z - 4)], pieces, district: DISTRICTS[d], length: Math.round(run + 7) };
 }
@@ -1101,7 +1231,7 @@ const STAR_TIMES = [23, 27, 22, 29, 25, 19, 25, 33, 33, 44, 69, 33, 72, 61, 51, 
                     72, 88, 57, 86, 39, 39, 41, 46, 49, 52, 43, 48, 87, 92, 50, 96, 53, 77, 116, 60];
 
 let levelGroup = null;
-let colliders = [], ferries = [], holos = [], pads = [], crossings = [], riders = [], curtains = [], locks = [], wormholes = [], loopsIn = [], mags = [], winds = [], rounds = [], tubes = [], switches = [], scans = [], posts = [], blinkers = [], flames = [], cracks = [], gates = [], goal = null, level = null;
+let colliders = [], ferries = [], holos = [], pads = [], crossings = [], riders = [], curtains = [], locks = [], wormholes = [], loopsIn = [], mags = [], winds = [], rounds = [], tubes = [], switches = [], scans = [], posts = [], blinkers = [], flames = [], cracks = [], plazas = [], gates = [], goal = null, level = null;
 
 function platformGeometry(w, h, d) {
   const g = new RoundedBoxGeometry(w, h, d, 3, Math.min(0.14, h / 2 - 0.01));
@@ -2428,12 +2558,12 @@ function freeCourse(grp) {
   });
 }
 function enterPocket(W) {
-  pocket = { colliders, ferries, holos, pads, crossings, riders, curtains, locks, wormholes, loopsIn, mags, winds, rounds, tubes, switches, scans, posts, blinkers, flames, cracks, gates, goal, level, levelGroup,
+  pocket = { colliders, ferries, holos, pads, crossings, riders, curtains, locks, wormholes, loopsIn, mags, winds, rounds, tubes, switches, scans, posts, blinkers, flames, cracks, plazas, gates, goal, level, levelGroup,
              world: world.name, from: W };
   levelGroup.visible = false;
   const P = W.pc.pocket;
   levelGroup = new Group(); scene.add(levelGroup);
-  colliders = []; ferries = []; holos = []; pads = []; crossings = []; riders = []; curtains = []; locks = []; wormholes = []; loopsIn = []; mags = []; winds = []; rounds = []; tubes = []; switches = []; scans = []; posts = []; blinkers = []; flames = []; cracks = []; gates = [];
+  colliders = []; ferries = []; holos = []; pads = []; crossings = []; riders = []; curtains = []; locks = []; wormholes = []; loopsIn = []; mags = []; winds = []; rounds = []; tubes = []; switches = []; scans = []; posts = []; blinkers = []; flames = []; cracks = []; plazas = []; gates = [];
   goal = null;
   level = { pieces: P.pieces, gates: [], start: P.start, world: P.world };
   for (const pc of P.pieces) buildPiece(pc);
@@ -2449,7 +2579,7 @@ function enterPocket(W) {
 function leavePocket() {
   freeCourse(levelGroup);
   const S = pocket; pocket = null;
-  ({ colliders, ferries, holos, pads, crossings, riders, curtains, locks, wormholes, loopsIn, mags, winds, rounds, tubes, switches, scans, posts, blinkers, flames, cracks, gates, goal, level, levelGroup } = S);
+  ({ colliders, ferries, holos, pads, crossings, riders, curtains, locks, wormholes, loopsIn, mags, winds, rounds, tubes, switches, scans, posts, blinkers, flames, cracks, plazas, gates, goal, level, levelGroup } = S);
   levelGroup.visible = true;
   setWorld(S.world);
   const out = S.from.twin;
@@ -2536,6 +2666,319 @@ function animateCrossings() {
   }
 }
 
+/* THE PUZZLE SQUARES, built. The floor is course, a slab to a cell, so each
+   world styles it (the city lays each cell as a tile with a glowing edge).
+   Walls and gates are their own: dark walls with a bright line along the top;
+   a gate of glowing bars in the colour of the key that opens it, that key's
+   sign lying over it. A key floats turning over its stand, and the key the
+   marble carries floats over the marble, so what you hold is always in view. */
+const PAD_R = 0.75, GATE_H = 1.1, KEY_UP = 1.05, KEY_FLY = 0.38;
+const KEY_COLS = [0xFFFFFF, 0xFFC83D, 0xD8E6F6, 0xFF8A55];   // none, gold, silver, copper
+// A key's bow is its sign: gold round, silver three-sided, copper square.
+function bowGeo(n, rad, tube) {
+  const g = new TorusGeometry(rad, tube, 8, [40, 40, 3, 4][n]);
+  if (n === 2) g.rotateZ(Math.PI / 3);                 // a point away from the shaft
+  if (n === 3) g.rotateZ(Math.PI / 4);                 // flat sides
+  return g;
+}
+const lineGlowTex = canvasTex(8, 64, (g) => {           // a line's halo, across v: bright in the middle, gone at the edges
+  const lg = g.createLinearGradient(0, 0, 0, 64);
+  lg.addColorStop(0, 'rgba(255,255,255,0)'); lg.addColorStop(0.36, 'rgba(255,255,255,0.18)');
+  lg.addColorStop(0.5, 'rgba(255,255,255,0.9)'); lg.addColorStop(0.64, 'rgba(255,255,255,0.18)'); lg.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = lg; g.fillRect(0, 0, 8, 64);
+});
+const wallGlowTex = canvasTex(8, 64, (g) => {          // a wall's sides: lit along the top, dark at the foot
+  const lg = g.createLinearGradient(0, 0, 0, 64);
+  lg.addColorStop(0, 'rgb(170,150,255)'); lg.addColorStop(0.18, 'rgb(70,58,140)'); lg.addColorStop(1, 'rgb(6,6,16)');
+  g.fillStyle = lg; g.fillRect(0, 0, 8, 64);
+});
+const sheetTex = canvasTex(8, 64, (g) => {              // the light between a gate's bars: strongest at the foot
+  const lg = g.createLinearGradient(0, 0, 0, 64);
+  lg.addColorStop(0, 'rgba(255,255,255,0.05)'); lg.addColorStop(1, 'rgba(255,255,255,0.75)');
+  g.fillStyle = lg; g.fillRect(0, 0, 8, 64);
+});
+const resetGlyph = canvasTex(128, 128, (g) => {          // a circling arrow: put it back
+  g.fillStyle = '#000'; g.fillRect(0, 0, 128, 128);
+  const arrow = (w) => {
+    g.lineWidth = w; g.lineCap = 'round';
+    g.beginPath(); g.arc(64, 64, 34, -Math.PI * 0.2, Math.PI * 1.45); g.stroke();
+    const a = Math.PI * 1.45, tx = 64 + 34 * Math.cos(a), ty = 64 + 34 * Math.sin(a);
+    g.beginPath(); g.moveTo(tx - 16, ty - 4); g.lineTo(tx + 2, ty - 2); g.lineTo(tx - 4, ty + 16); g.stroke();
+  };
+  g.filter = 'blur(5px)'; g.strokeStyle = 'rgba(255,255,255,0.8)'; arrow(16);
+  g.filter = 'none'; g.strokeStyle = '#FFFFFF'; arrow(7);
+});
+function keyModel(n, P) {
+  const mat = P.mats.key[n], g = new Group(), inner = new Group();
+  const edge = [0, 0.19, 0.095, 0.134][n];
+  const bow = new Mesh(bowGeo(n, 0.19, 0.055), mat);
+  const shaft = new Mesh(new BoxGeometry(0.72 - edge, 0.075, 0.075), mat); shaft.position.x = (edge + 0.72) / 2;
+  const bit1 = new Mesh(new BoxGeometry(0.075, 0.17, 0.075), mat); bit1.position.set(0.66, -0.1, 0);
+  const bit2 = new Mesh(new BoxGeometry(0.075, 0.11, 0.075), mat); bit2.position.set(0.52, -0.07, 0);
+  inner.add(bow, shaft, bit1, bit2); inner.position.x = -0.26 * 1.4; inner.scale.setScalar(1.4);
+  for (const m of [bow, shaft, bit1, bit2]) m.castShadow = true;
+  const glow = new Sprite(new SpriteMaterial({ map: dot, color: KEY_COLS[n], transparent: true, opacity: 0.42,
+    blending: AdditiveBlending, depthWrite: false, toneMapped: false }));
+  glow.scale.set(1.9, 1.9, 1);
+  g.add(glow, inner);
+  g.rotation.order = 'YXZ';                            // turning about the upright, lying back toward the camera
+  levelGroup.add(g);
+  return g;
+}
+function buildPlaza(pc) {
+  const G = plazaGrid(pc);
+  const P = { pc, grid: G, x0: pc.x0, z0: pc.z0, y: pc.y, cols: pc.cols, rows: pc.rows, stands: [], gates: [], keys: [],
+              held: null, onPad: -1, cam: null, reset: null, noteT: 0 };
+  const X = P.X = (c) => P.x0 + (c + 0.5) * CELL, Z = P.Z = (r) => P.z0 - (r + 0.5) * CELL;
+  const env = neonEnvMap() || envTex;
+  P.mats = {
+    wall: new MeshStandardMaterial({ color: 0x141833, metalness: 0.4, roughness: 0.4, emissive: 0xFFFFFF, emissiveMap: wallGlowTex, emissiveIntensity: 1 }),
+    line: new MeshBasicMaterial({ color: 0xF6F2FF, toneMapped: false }),
+    halo: glowMat(0xB7A6FF, 0.85, lineGlowTex),
+    base: new MeshStandardMaterial({ color: 0x151A2A, metalness: 0.7, roughness: 0.3, envMap: env }),
+    key: KEY_COLS.map((col) => new MeshStandardMaterial({ color: col, metalness: 0.85, roughness: 0.25, emissive: col, emissiveIntensity: 0.5, envMap: env })),
+  };
+  // The floor: a slab to a cell.
+  for (let r = 0; r < P.rows; r++) for (let c = 0; c < P.cols; c++) {
+    if (!G.cells[r][c].void) buildPiece({ t: 'flat', x: X(c), z: Z(r), w: CELL, d: CELL, y: P.y, cell: true });
+  }
+  // The walls, a straight run of wall edges at a time, each end reaching over the corner.
+  const wallRun = (x, z, lx, lz) => {
+    const box = new Mesh(new BoxGeometry(lx, WALL_H, lz), Array(6).fill(P.mats.wall));
+    box.position.set(x, P.y + WALL_H / 2, z); box.castShadow = true; box.receiveShadow = true;
+    const L = Math.max(lx, lz), along = lx > lz;
+    const line = new Mesh(new BoxGeometry(along ? L : 0.05, 0.02, along ? 0.05 : L), P.mats.line);
+    line.position.set(x, P.y + WALL_H + 0.011, z);
+    const halo = new Mesh(new PlaneGeometry(L + 0.24, 0.5), P.mats.halo);
+    halo.rotation.set(-Math.PI / 2, 0, along ? 0 : Math.PI / 2); halo.position.set(x, P.y + WALL_H + 0.024, z);
+    levelGroup.add(box, line, halo);
+    colliders.push({ mesh: box, pos: box.position.clone(), prev: box.position.clone(), quat: new Quaternion(), inv: new Quaternion(),
+                     half: new Vector3(lx / 2, WALL_H / 2, lz / 2), delta: new Vector3(), ferry: null, holo: null, pad: null, obstacle: 'wall' });
+  };
+  for (let k = 0; k <= P.rows; k++) for (let c = 0, c0 = -1; c <= P.cols; c++) {
+    const w = c < P.cols && G.h[k][c] === 'wall';
+    if (w && c0 < 0) c0 = c;
+    if (!w && c0 >= 0) { const a = P.x0 + c0 * CELL - WALL_T / 2, b = P.x0 + c * CELL + WALL_T / 2; wallRun((a + b) / 2, P.z0 - k * CELL, b - a, WALL_T); c0 = -1; }
+  }
+  for (let c = 0; c <= P.cols; c++) for (let r = 0, r0 = -1; r <= P.rows; r++) {
+    const w = r < P.rows && G.v[r][c] === 'wall';
+    if (w && r0 < 0) r0 = r;
+    if (!w && r0 >= 0) { const a = P.z0 - r0 * CELL + WALL_T / 2, b = P.z0 - r * CELL - WALL_T / 2; wallRun(P.x0 + c * CELL, (a + b) / 2, WALL_T, a - b); r0 = -1; }
+  }
+  // The gates.
+  // (Each is named by its edge as the search names it: H c,k is the south edge of row k in column c; V c,r the west edge of column c in row r.)
+  for (let k = 0; k <= P.rows; k++) for (let c = 0; c < P.cols; c++) if (G.h[k][c] && G.h[k][c] !== 'wall') buildGate(P, G.h[k][c], X(c), P.z0 - k * CELL, true, 'H' + c + ',' + k);
+  for (let r = 0; r < P.rows; r++) for (let c = 0; c <= P.cols; c++) if (G.v[r][c] && G.v[r][c] !== 'wall') buildGate(P, G.v[r][c], P.x0 + c * CELL, Z(r), false, 'V' + c + ',' + r);
+  // The stands, and their keys.
+  for (let r = 0; r < P.rows; r++) for (let c = 0; c < P.cols; c++) {
+    const cell = G.cells[r][c];
+    if (!('key' in cell)) continue;
+    const grp = new Group(); grp.position.set(X(c), P.y, Z(r));
+    const base = new Mesh(new CylinderGeometry(0.62, 0.7, 0.07, 48), P.mats.base);
+    base.position.y = 0.035; base.receiveShadow = true;
+    const ringMat = glowMat(KEY_COLS[cell.key], 0.9);
+    const ring = new Mesh(new RingGeometry(0.56, 0.6, 48), ringMat);
+    ring.rotation.x = -Math.PI / 2; ring.position.y = 0.074;
+    const pool = new Mesh(new CircleGeometry(1.05, 48), glowMat(KEY_COLS[cell.key], 0.2, dot));
+    pool.rotation.x = -Math.PI / 2; pool.position.y = 0.012;
+    grp.add(base, ring, pool);
+    levelGroup.add(grp);
+    const s = { c, r, x: X(c), z: Z(r), ringMat, pool, key: null, flash: 0 };
+    if (cell.key) {
+      const K = { n: cell.key, model: keyModel(cell.key, P), home: s, to: s, from: new Vector3(), t: 1, spin: Math.random() * 6 };
+      s.key = K; P.keys.push(K);
+    }
+    P.stands.push(s);
+  }
+  // The reset pad, on its bay beside the road in.
+  const rp = level.pieces.find((q) => q.t === 'reset');
+  if (rp) {
+    const grp = new Group(); grp.position.set(rp.x, rp.y, rp.z);
+    const base = new Mesh(new CylinderGeometry(0.7, 0.78, 0.06, 48), P.mats.base); base.position.y = 0.03;
+    const glyphMat = glowMat(0xFFFFFF, 0.85, resetGlyph), glyph = new Mesh(new CircleGeometry(0.6, 48), glyphMat);
+    glyph.rotation.x = -Math.PI / 2; glyph.position.y = 0.064;
+    const ring = new Mesh(new RingGeometry(0.66, 0.72, 48), glowMat(0xFFFFFF, 0.8));
+    ring.rotation.x = -Math.PI / 2; ring.position.y = 0.065;
+    grp.add(base, glyph, ring);
+    levelGroup.add(grp);
+    P.reset = { x: rp.x, z: rp.z, glyphMat, flash: 0 };
+  }
+  plazas.push(P);
+}
+// A gate on an edge: bars across the doorway, a sheet of light between them, the sign of what opens it lying over it.
+function buildGate(P, e, x, z, alongX, ek) {
+  const span = CELL - WALL_T, need = e.keygate, col = KEY_COLS[need];
+  const grp = new Group(); grp.position.set(x, P.y, z);
+  if (!alongX) grp.rotation.y = Math.PI / 2;
+  const barMat = new MeshBasicMaterial({ color: col, toneMapped: false });
+  const bars = new Group();
+  for (let i = -2; i <= 2; i++) {
+    const b = new Mesh(new CylinderGeometry(0.04, 0.04, GATE_H, 10), barMat);
+    b.position.set(i * span / 5.4, GATE_H / 2, 0); bars.add(b);
+  }
+  const rail = new Mesh(new BoxGeometry(span, 0.07, 0.07), barMat); rail.position.y = GATE_H; bars.add(rail);
+  const sheetMat = glowMat(col, 0.35, sheetTex), sheet = new Mesh(new PlaneGeometry(span, GATE_H), sheetMat);
+  sheet.material.side = DoubleSide; sheet.position.y = GATE_H / 2; bars.add(sheet);
+  const signMat = new MeshBasicMaterial({ color: col, toneMapped: false, transparent: true });
+  const sign = new Mesh(bowGeo(need, 0.3, 0.055), signMat);
+  sign.rotation.x = -Math.PI / 2; sign.position.y = GATE_H + 0.32;
+  const signGlow = new Mesh(new CircleGeometry(0.62, 32), glowMat(col, 0.35, dot));
+  signGlow.rotation.x = -Math.PI / 2; signGlow.position.y = GATE_H + 0.3;
+  const posts = [-1, 1].map((sx) => {
+    const p = new Mesh(new BoxGeometry(0.16, GATE_H + 0.12, 0.16), P.mats.wall);
+    p.position.set(sx * span / 2, (GATE_H + 0.12) / 2, 0); p.castShadow = true; return p;
+  });
+  grp.add(bars, sign, signGlow, ...posts);
+  levelGroup.add(grp);
+  const g = { P, e, ek, need, col, x, z, alongX, state: 'shut', t: 0, open: 0, bars, sign, signMat, sheetMat, flash: 0, buzzT: 0 };
+  const q = new Quaternion(), box = new Mesh(new BoxGeometry(0.1, 0.1, 0.1), Array(6).fill(HIDDEN));
+  box.position.set(x, P.y + GATE_H / 2, z); box.visible = false; levelGroup.add(box);
+  colliders.push({ mesh: box, pos: box.position.clone(), prev: box.position.clone(), quat: q, inv: q.clone(), gate: g,
+                   half: alongX ? new Vector3(span / 2, GATE_H / 2, 0.1) : new Vector3(0.1, GATE_H / 2, span / 2),
+                   delta: new Vector3(), ferry: null, holo: null, pad: null, obstacle: 'gate' });
+  P.gates.push(g);
+}
+// Touching a gate: with its key, the key flies into it and it opens; without, a buzz.
+function gateTouch(g) {
+  if (g.state !== 'shut') return;
+  const P = g.P;
+  if (g.need && P.held && P.held.n === g.need) {
+    const K = P.held; P.held = null;
+    flyKey(K, g); K.used = true;
+    g.state = 'opening'; g.t = 0;
+    sound('gate');
+  } else if (g.buzzT <= 0) { sound('buzz'); g.buzzT = 0.45; g.flash = 1; }
+}
+function flyKey(K, to) {
+  K.from.copy(K.model.position); K.to = to; K.t = 0;
+}
+// Every physics step: which cell's pad the marble is on. Rolling onto one is what works it.
+function plazaStep() {
+  for (const P of plazas) {
+    let on = -1;
+    if (ball.grounded && Math.abs(ball.p.y - R - P.y) < 0.25) {
+      const c = Math.floor((ball.p.x - P.x0) / CELL), r = Math.floor((P.z0 - ball.p.z) / CELL);
+      if (c >= 0 && c < P.cols && r >= 0 && r < P.rows) { if (Math.hypot(ball.p.x - P.X(c), ball.p.z - P.Z(r)) < PAD_R) on = r * P.cols + c; }
+      else if (P.reset && Math.hypot(ball.p.x - P.reset.x, ball.p.z - P.reset.z) < PAD_R) on = -2;
+    }
+    if (on === P.onPad) continue;
+    P.onPad = on;
+    if (on === -2) resetPlaza(P, false);
+    else if (on >= 0) padEnter(P, on % P.cols, Math.floor(on / P.cols));
+  }
+}
+function padEnter(P, c, r) {
+  const cell = P.grid.cells[r][c];
+  if ('key' in cell) {                                  // a stand: take its key, and leave the one you held
+    const s = P.stands.find((q) => q.c === c && q.r === r), had = P.held, there = s.key;
+    if (!had && !there) return;
+    P.held = there; s.key = had;
+    if (there) flyKey(there, 'marble');
+    if (had) flyKey(had, s);
+    s.flash = 1;
+    sound('key');
+  }
+}
+// Back as it was: every key to its own stand, every gate shut.
+function resetPlaza(P, quiet) {
+  let moved = !!P.held;
+  P.held = null;
+  for (const s of P.stands) s.key = null;
+  for (const K of P.keys) {
+    if (K.used || K.to !== K.home) moved = true;
+    K.used = false; K.fade = 0; K.home.key = K; flyKey(K, K.home); K.model.visible = true; K.model.scale.setScalar(1);
+  }
+  for (const g of P.gates) if (g.state !== 'shut') { g.state = 'shut'; g.t = 0; moved = true; }
+  if (quiet) { for (const K of P.keys) K.t = 1; for (const g of P.gates) g.open = 0; }
+  if (P.reset) P.reset.flash = 1;
+  if (!quiet) sound(moved ? 'reset' : 'tick');
+}
+const _kp = new Vector3();
+function animatePlazas(dt) {
+  for (const P of plazas) {
+    for (const K of P.keys) {
+      // Where it belongs: over its stand, over the marble, or in the lock of the gate it opened.
+      const T = K.to, bob = REDUCED ? 0 : Math.sin(simT * 2.2 + K.spin) * 0.06;
+      if (T === 'marble') _kp.set(marble.position.x, marble.position.y + KEY_UP + bob, marble.position.z);
+      else if (T.need !== undefined) _kp.set(T.x, P.y + GATE_H + 0.3, T.z);
+      else _kp.set(T.x, P.y + KEY_UP + bob, T.z);
+      K.t = Math.min(1, K.t + dt / KEY_FLY);
+      if (K.t < 1 && !REDUCED) {                         // an arc from where it was
+        const u = ease(K.t);
+        K.model.position.lerpVectors(K.from, _kp, u);
+        K.model.position.y += Math.sin(Math.PI * u) * 0.9;
+      } else K.model.position.copy(_kp);
+      K.spin += dt * (T === 'marble' ? 1.6 : 1.1);
+      K.model.rotation.set(-1.1, K.spin, 0);
+      if (K.used) {                                     // into the lock, and gone
+        if (K.t >= 1) K.fade = Math.min(1, (K.fade || 0) + dt / 0.3);
+        const s = 1 - (K.fade || 0);
+        K.model.scale.setScalar(Math.max(0.001, s)); K.model.visible = s > 0.01;
+      }
+    }
+    for (const s of P.stands) {
+      s.flash = Math.max(0, s.flash - dt * 2.5);
+      const col = KEY_COLS[s.key ? s.key.n : 0];
+      s.ringMat.color.setHex(col); s.pool.material.color.setHex(col);
+      s.ringMat.opacity = (s.key ? 0.55 : 0.25) + 0.45 * s.flash;
+      s.pool.material.opacity = (s.key ? 0.2 : 0.06) + 0.3 * s.flash;
+    }
+    for (const g of P.gates) {
+      g.buzzT = Math.max(0, g.buzzT - dt); g.flash = Math.max(0, g.flash - dt * 3);
+      if (g.state === 'opening') { g.t += dt; if (g.t >= KEY_FLY + 0.22) g.state = 'open'; }
+      const target = g.state === 'shut' ? 0 : g.state === 'opening' ? Math.max(0, (g.t - KEY_FLY) / 0.45) : 1;
+      g.open += (Math.min(1, target) - g.open) * (REDUCED ? 1 : 1 - Math.exp(-14 * dt));
+      g.bars.position.y = -GATE_H * 1.02 * ease(g.open);
+      g.bars.visible = g.open < 0.99;
+      g.signMat.opacity = (1 - g.open) * (0.85 + 0.15 * Math.sin(simT * 4)) + 0.6 * g.flash;
+      g.sign.visible = g.signMat.opacity > 0.01;
+      g.sheetMat.opacity = 0.35 * (1 - g.open) + 0.4 * g.flash;
+    }
+    if (P.reset) { P.reset.flash = Math.max(0, P.reset.flash - dt * 2); P.reset.glyphMat.opacity = 0.7 + 0.3 * P.reset.flash; }
+    if (plazaAt === P && plazaView > 0.6) P.noteT += dt;   // how long its note has been up
+  }
+}
+// The square the marble is in, or on the road into (with its reset pad).
+function plazaHere() {
+  for (const P of plazas) {
+    const W = P.cols * CELL, D = P.rows * CELL;
+    if (ball.p.x > P.x0 - 1.2 && ball.p.x < P.x0 + W + 1.2 && ball.p.z < P.z0 + 5.8 && ball.p.z > P.z0 - D - 0.6) return P;
+  }
+  return null;
+}
+/* Where the camera stands to show all of a square in this frame: back and up,
+   looking down at about 56 degrees, as close as it can be with the square's
+   corners (and a wall's height over them) inside the frame, clear of the top
+   band and the bottom edge. Worked out once for each frame shape. */
+const _pc = new PerspectiveCamera(), _pv = new Vector3();
+function plazaCam(P) {
+  const key = cssW + 'x' + cssH + ':' + camera.fov;
+  if (P.cam && P.cam.key === key) return P.cam;
+  const W = P.cols * CELL, D = P.rows * CELL, cx = P.x0 + W / 2, cz = P.z0 - D / 2, pitch = 0.98;
+  _pc.fov = camera.fov; _pc.aspect = cssW / cssH; _pc.near = 0.1; _pc.far = 700; _pc.updateProjectionMatrix();
+  const pts = [];
+  for (const x of [P.x0 - 0.3, P.x0 + W + 0.3]) for (const z of [P.z0 + 0.5, P.z0 - D - 0.5]) for (const y of [P.y, P.y + 1.5]) pts.push(new Vector3(x, y, z));
+  const TOP = 0.62, BOT = -0.88, SIDE = 0.93;           // room at the top for the square's note
+  const fit = (dist, shift) => {
+    _pc.position.set(cx, P.y + dist * Math.sin(pitch), cz + shift + dist * Math.cos(pitch));
+    _pc.lookAt(cx, P.y, cz + shift); _pc.updateMatrixWorld();
+    let side = 0, top = -9, bot = 9;
+    for (const p of pts) { _pv.copy(p).project(_pc); side = Math.max(side, Math.abs(_pv.x)); top = Math.max(top, _pv.y); bot = Math.min(bot, _pv.y); }
+    return { ok: side < SIDE && top < TOP && bot > BOT, top, bot };
+  };
+  let shift = 0, dist = 30;
+  for (let round = 0; round < 4; round++) {
+    let lo = 3, hi = 90;
+    for (let i = 0; i < 28; i++) { const m = (lo + hi) / 2; if (fit(m, shift).ok) hi = m; else lo = m; }
+    dist = hi;
+    const f = fit(dist, shift), mid = (f.top + f.bot) / 2, want = (TOP + BOT) / 2;
+    shift -= (mid - want) * D * 0.35;                   // aim further on to lower it in the frame, nearer to raise it
+  }
+  fit(dist, shift);
+  P.cam = { key, pos: _pc.position.clone(), at: new Vector3(cx, P.y, cz + shift) };
+  return P.cam;
+}
+
 function buildPiece(pc) {
   if (pc.t === 'loop') { buildLoop(pc); return; }
   if (pc.t === 'worm') { buildWormhole(pc); return; }
@@ -2547,7 +2990,8 @@ function buildPiece(pc) {
   if (pc.t === 'posts') { buildPosts(pc); return; }
   if (pc.t === 'shards') { buildShards(pc); return; }
   if (pc.t === 'block') { buildBlock(pc); return; }
-  if (pc.t === 'gauntlet') return;
+  if (pc.t === 'gauntlet' || pc.t === 'reset') return;   // a reset pad is built with its square
+  if (pc.t === 'plaza') { buildPlaza(pc); return; }
   let h = THICK;
   const quat = new Quaternion(), center = new Vector3();
   let w = pc.w, d = pc.d;
@@ -2575,6 +3019,7 @@ function buildPiece(pc) {
     ferries.push(c);
   }
   if (pc.lane) c.lane = pc.lane;
+  if (pc.cell) c.cell = true;                           // a puzzle square's floor tile
   if (pc.crack) buildCrackSlab(c, pc, w, d);
   if (pc.dark !== undefined) {                          // a dark road: solid only once its switch is on
     const S = switches[pc.dark];
@@ -2632,7 +3077,7 @@ function loadLevel(n) {
   }
   levelGroup = new Group();
   scene.add(levelGroup);
-  colliders = []; ferries = []; holos = []; pads = []; crossings = []; riders = []; curtains = []; locks = []; wormholes = []; loopsIn = []; mags = []; winds = []; rounds = []; tubes = []; switches = []; scans = []; posts = []; blinkers = []; flames = []; cracks = []; gates = [];
+  colliders = []; ferries = []; holos = []; pads = []; crossings = []; riders = []; curtains = []; locks = []; wormholes = []; loopsIn = []; mags = []; winds = []; rounds = []; tubes = []; switches = []; scans = []; posts = []; blinkers = []; flames = []; cracks = []; plazas = []; gates = [];
   for (const pc of level.pieces) buildPiece(pc);
   if (world.name !== 'void') setWorld(world.name);   // scenery that follows the course is rebuilt for it
   level.minTop = Math.min(...level.pieces.map((p) => (p.t === 'ramp' ? Math.min(p.y0, p.y1) : p.y)));
@@ -2647,7 +3092,7 @@ function loadLevel(n) {
   spawn.copy(startPos);
   ball.p.copy(startPos); ball.v.set(0, 0, 0); ball.spin.set(0, 0, 0);
   ball.grounded = true; ball.onFerry = null; ball.airT = 0; ball.boostT = 0; ball.jumpCD = 0; ball.hitT = 0; ball.onLoop = null; ball.onRound = null; ball.tube = null;
-  setTint(0); spawnTint = 0; loopView = 0; loopAt = null;
+  setTint(0); spawnTint = 0; loopView = 0; loopAt = null; plazaView = 0; plazaAt = null;
   lastGroundY = sy;
   clock = 0; falls = 0; started = false;
   setState('play');
@@ -2709,6 +3154,7 @@ function collide(c, dt) {
   if (c.lock && ball.tint === c.lock) return;
   if (c.power && !c.power.on) return;                   // a dark road is not there until its switch is on
   if (c.crack && c.crack.state === 'gone') return;       // a crystal slab that has dropped away
+  if (c.gate && c.gate.state === 'open') return;         // an open gate in a puzzle square
   _L.subVectors(ball.p, c.pos).applyQuaternion(c.inv);
   const h = c.half;
   if (Math.abs(_L.x) > h.x + R || Math.abs(_L.y) > h.y + R || Math.abs(_L.z) > h.z + R) return;
@@ -2728,6 +3174,7 @@ function collide(c, dt) {
   }
   _N.applyQuaternion(c.quat);
   ball.p.addScaledVector(_N, pen);
+  if (c.gate) gateTouch(c.gate);
   const floor = _N.y > 0.55;
   const rel = ball.v.dot(_N) - (c.ferry ? c.delta.dot(_N) / dt : 0);
   if (rel < 0) {
@@ -2780,6 +3227,7 @@ function step(dt, ix, iz) {
   if (scans.length && state === 'play') scanStep();
   if (flames.length && state === 'play') flameStep();
   if (cracks.length) crackStep();
+  if (plazas.length && state === 'play') plazaStep();
   ball.onLoop = null;
   for (const L of loopsIn) loopContact(L);
   tintStep();
@@ -2923,6 +3371,7 @@ function restartLevel() {
   }
   clock = 0; falls = 0; started = false;
   spawn.copy(startPos); spawnTint = 0; setTint(0);
+  for (const P of plazas) resetPlaza(P, true);
   T().levelRestart(levelNo);
   if (state === 'play' || state === 'fall' || state === 'home') flyTo(startPos);
   else loadLevel(levelNo);
@@ -3004,6 +3453,7 @@ function update(dt, now) {
   animateFlames();
   animateCracks(dt);
   animateBlocks();
+  animatePlazas(dt);
   updateSparks(dt);
   updateCamera(dt, false);
   updateSunPoint();
@@ -3057,7 +3507,7 @@ function fitCamera() {
   camera.updateProjectionMatrix();
 }
 const camFocus = new Vector3();
-let loopView = 0, loopAt = null, tubeView = 0;
+let loopView = 0, loopAt = null, tubeView = 0, plazaView = 0, plazaAt = null;
 const _lp = new Vector3(), _la = new Vector3(), _lb = new Vector3();
 let camY = 0, closeup = false, peekCam = null;
 const cityRefs = { frozen: false };                   // the harness's handles on the city, for stills
@@ -3087,6 +3537,16 @@ function updateCamera(dt, snap) {
     camera.position.lerp(_lp, k);
     _la.set(L.x0 + L.shift / 2, L.cy, L.z0 - LOOP_RUN / 2);
     _lb.set(camFocus.x + sx, camY, camFocus.z - P.ahead).lerp(_la, k);
+    camera.lookAt(_lb);
+  }
+  // In a puzzle square, and on the road into it: up and back, to show the whole square.
+  const Pz = state === 'goal' || state === 'win' ? null : plazaHere();
+  plazaView += ((Pz ? 1 : 0) - plazaView) * (snap || REDUCED ? 1 : 1 - Math.exp(-2.2 * dt));
+  if (Pz) plazaAt = Pz;
+  if (plazaView > 0.001 && plazaAt) {
+    const V = plazaCam(plazaAt), k = ease(plazaView);
+    camera.position.lerp(V.pos, k);
+    _lb.set(camFocus.x + sx, camY, camFocus.z - P.ahead).lerp(V.at, k);
     camera.lookAt(_lb);
   }
   if (peekCam) { camera.position.set(...peekCam.pos); camera.lookAt(...peekCam.at); }
@@ -3388,9 +3848,21 @@ const POCKET_NEWS_AT = {                                 // where each canyon ob
   20: 'Fireballs roll across. Wait at the line for the green light',
   22: 'Crystal bridges crack under you. Keep rolling, never stop on them',
 };
+// A square's own note, for its first few seconds on screen.
+const PLAZA_NEWS = {
+  K1: 'The way out is locked. Its key is somewhere in the square',
+  K2: 'One gold key, two gold gates. A gate keeps its key: pick the room you need',
+  K3: 'Three gold gates, and only two gold keys. Look before you open one',
+  K4: 'Count the copper gates, and the copper keys, before you open any',
+};
+const PLAZA_NOTE_T = 7;
 function drawNews() {
-  const t = pocket ? (POCKET_NEWS_AT[levelNo] || POCKET_NEWS[level.world]) : NEWS[levelNo];
-  if (!t || state !== 'play' || ball.p.z < -12) return;
+  let t = pocket ? (POCKET_NEWS_AT[levelNo] || POCKET_NEWS[level.world]) : NEWS[levelNo], alpha = 1;
+  const Pz = !pocket && plazaAt && plazaView > 0.6 ? plazaAt : null, note = Pz && PLAZA_NEWS[Pz.pc.id.replace('~', '')];
+  if (note && Pz.noteT < PLAZA_NOTE_T) { t = note; alpha = Math.min(1, (PLAZA_NOTE_T - Pz.noteT) / 0.6, Pz.noteT / 0.3); }
+  else if (ball.p.z < -12) return;
+  if (!t || state !== 'play') return;
+  ctx.globalAlpha = alpha;
   const pad = MODE === 'mobile' ? PHONE_PAD : SIDE_PAD;
   const lines = wrapText(t, LW - 2 * pad - 36, 16);
   ctx.font = '600 16px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -3400,7 +3872,7 @@ function drawNews() {
   ctx.fillStyle = 'rgba(10,16,28,0.72)'; ctx.fill();
   ctx.fillStyle = TOK.ink92;
   lines.forEach((l, i) => ctx.fillText(l, LW / 2, cy + (i - (lines.length - 1) / 2) * 22 + 1));
-  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; ctx.globalAlpha = 1;
   L.news = { x: LW / 2 - w / 2, y: cy - h / 2, w, h, lines };
 }
 
@@ -3409,6 +3881,9 @@ const RULES = [
   'Drag anywhere to roll the marble. The further you drag, the harder it rolls. On a computer the arrow keys work too.',
   'Roll through the orange ring at the end of the course to finish the level.',
   'Blue rings save your place. Roll through one and it turns green.',
+  'From level 2 the finish stands past a puzzle square, and its way out is shut. As you roll up to the square the camera rises to show all of it: look before you move.',
+  'Keys: roll over a key to take it. You carry one at a time, so taking another leaves the one you held in its place. A gate opens for the key of its colour and shape, and keeps it: count your keys before you open a gate.',
+  'Stuck in a square? Roll over the reset pad beside the road into it, and the square goes back as it was.',
   'Each level has a star time, shown by the star at the bottom. Finish under it to win the level\'s star.',
   'Where the road splits, the narrow way is quicker and the wide way is safer. Both lead on.',
   'Roll off the edge and the marble flies back to the last green ring. The fall is counted, and nothing else is lost.',
@@ -5283,8 +5758,8 @@ function neonCourse(style) {
       continue;
     }
     const [side, top] = c.ferry ? [M.ferrySide, M.ferryTop] : c.pad ? [M.padSide, M.padTop] : c.mag ? [M.magSide, M.padTop]
-      : c.lane ? [M.laneSide[c.lane], M.laneTop[c.lane]] : [M.side, M.top];
-    c.mesh.material = [side, side, top, M.under, side, side]; setTopUV(c.mesh, false);
+      : c.lane ? [M.laneSide[c.lane], M.laneTop[c.lane]] : c.cell ? [M.side, M.cellTop] : [M.side, M.top];
+    c.mesh.material = [side, side, top, M.under, side, side]; setTopUV(c.mesh, !!c.cell);
   }
   return neonStyle;
 }
@@ -5324,6 +5799,14 @@ function neonMaterials(style) {
       color: 0x0A0F1E, metalness: 0.4, roughness: 0.3, emissive: 0xFFFFFF, emissiveMap: neonGrid(3, 7, halo), emissiveIntensity: 1.4 })),
     laneSide: [null, 0xA8FF3E, 0x9D6BFF].map((col) => col && new MeshStandardMaterial({
       color: 0x10131C, metalness: 0.5, roughness: 0.3, emissive: col, emissiveIntensity: 0.4 })),
+    // A puzzle square's floor: a tile to a cell, each with its own glowing edge.
+    cellTop: new MeshStandardMaterial({ color: 0x0A0F1E, metalness: 0.4, roughness: 0.3, emissive: 0xFFFFFF, emissiveIntensity: 0.8,
+      emissiveMap: canvasTex(256, 256, (g) => {
+        g.fillStyle = '#000'; g.fillRect(0, 0, 256, 256);
+        g.filter = 'blur(6px)'; g.strokeStyle = 'rgba(255,60,210,0.9)'; g.lineWidth = 10; g.strokeRect(16, 16, 224, 224);
+        g.filter = 'none'; g.strokeStyle = '#FFD6F4'; g.lineWidth = 3; g.strokeRect(16, 16, 224, 224);
+        g.fillStyle = 'rgba(255,120,230,0.5)'; for (const [cx, cy] of [[16, 16], [240, 16], [16, 240], [240, 240]]) { g.beginPath(); g.arc(cx, cy, 5, 0, 7); g.fill(); }
+      }) }),
   };
 }
 
@@ -7758,6 +8241,9 @@ if (HARNESS) {
     switches: () => switches.map((S) => ({ on: S.on, x: S.pc.x, z: S.pc.z })),
     flames: () => flames.map((F) => ({ lines: F.lines.map((L) => { const st = flameState(L, simT); return { active: st.active, h: +st.h.toFixed(2), offFor: +st.offFor.toFixed(3), z: L.z }; }) })),
     cracks: () => cracks.map((c) => ({ state: c.crack.state, z: c.pos.z })),
+    plaza: () => plazas.map((P) => ({ held: P.held ? P.held.n : 0, onPad: P.onPad, x0: P.x0, z0: P.z0, y: P.y, cols: P.cols, rows: P.rows,
+                                      gates: P.gates.map((g) => ({ ek: g.ek, state: g.state })), stands: P.stands.map((s) => ({ c: s.c, r: s.r, n: s.key ? s.key.n : 0 })),
+                                      view: +plazaView.toFixed(3), cam: P.cam && { pos: P.cam.pos.toArray().map((v) => +v.toFixed(2)), at: P.cam.at.toArray().map((v) => +v.toFixed(2)) } })),
     scans: () => scans.map((Sc) => ({ x: Sc.x, z: Sc.zc, d: Sc.d, w: Sc.w, A: Sc.A, period: Sc.period, phase: Sc.phase, bars: Sc.bars.length,
                                       at: Sc.bars.map((_, i) => +scanX(Sc, simT, i).toFixed(3)) })),
     winds: () => winds.map((W) => { const st = windState(W, simT); return { k: +st.k.toFixed(3), show: +st.show.toFixed(3), z: W.z, d: W.d }; }),
