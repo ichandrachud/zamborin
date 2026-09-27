@@ -196,6 +196,8 @@ const NEON_SOUNDS = {
     voice('triangle', 1318.5, 1318.5, 0.3, 0.015); voice('triangle', 1046.5, 1046.5, 0.4, 0.015, 0.32);
   },
   tint() { voice('sine', 880, 1320, 0.25, 0.05); voice('triangle', 1760, 2640, 0.2, 0.015, 0.04); },  // a curtain colours the marble
+  tube() { voice('sawtooth', 140, 900, 0.5, 0.016); voice('sine', 330, 1320, 0.45, 0.045); },     // into a glass tube: drawn in with a rush
+  pop() { voice('sine', 1100, 520, 0.14, 0.05); voice('triangle', 2200, 1400, 0.1, 0.012); },     // and out of it
   pass() { voice('sine', 330, 660, 0.3, 0.05); voice('sine', 990, 990, 0.25, 0.02, 0.08); },       // through a wall of its own colour
   buzz() { voice('square', 110, 100, 0.22, 0.035); voice('sawtooth', 55, 50, 0.2, 0.03); },        // a wall of the other colour
   bump() {                                            // a car meets the marble: a thud, and two notes of horn
@@ -205,7 +207,7 @@ const NEON_SOUNDS = {
 };
 // The city's version of a sound where it has one, the house sound elsewhere.
 function sound(name) {
-  if ((world.name === 'neon' || ['boost', 'jump', 'bump', 'depart', 'tint', 'pass', 'buzz', 'warp'].includes(name)) && NEON_SOUNDS[name]) { if (sfx && sfx.isOn()) NEON_SOUNDS[name](); }
+  if ((world.name === 'neon' || ['boost', 'jump', 'bump', 'depart', 'tint', 'pass', 'buzz', 'warp', 'tube', 'pop'].includes(name)) && NEON_SOUNDS[name]) { if (sfx && sfx.isOn()) NEON_SOUNDS[name](); }
   else play(name === 'home' ? 'land' : name);
 }
 function ensureCitySound() {
@@ -595,6 +597,16 @@ function makePocket(n) {
   return { pieces, start: [0, 0, 1], world: 'crystal' };
 }
 const LOCK = (x, z, w, y, col) => ({ t: 'lock', x, z, w, d: 0.24, y, col });
+/* ROUND is a roundabout: a ring road from RB_RI to RB_RO round a raised
+   island, turning clockwise (seen from above) at `spin` radians a second.
+   The road in meets it from the south; `exits` names the roads out (W, N, E)
+   and `lead` the one that leads on. The others stop short. */
+const RB_RI = 2, RB_RO = 4.6, ISLAND_H = 0.7, RB_CF = 0.7;
+/* TUBE is a glass tube: its mouth stands at the end of the road (z), and it
+   carries the marble up, once round a coil out over the city (to `side`, +1
+   or -1 in x), and down onto the road that starts `gap` further on. */
+const TUBE = (x, z, y, side, gap) => ({ t: 'tube', x, z, y, side, gap, w: 1.6, d: gap });
+const ROUND = (x, z, y, spin, exits, lead, ew) => ({ t: 'round', x, z, y, ri: RB_RI, ro: RB_RO, w: 2 * RB_RO, d: 2 * RB_RO, spin, exits, lead, ew });
 const TRAIN = (x, z, w, y, amp, period, dwell, phase, pull) => ({ t: 'train', x, z, w, d: TRAIN_DECK, y, axis: 'z', amp, period, dwell, phase, pull });
 const seeded = (seed) => () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
 const mix = (a, b, t) => a + (b - a) * t;
@@ -770,6 +782,46 @@ function makeLevel(n) {
     on(len);
     straight(r2(5 + r() * 2), ww);
   }
+  /* THE ROUNDABOUT: in from the south; out to the west, north or east, where
+     one road leads on and the others stop short. A road out to the side
+     turns north again past the ring. The first one leads straight on. */
+  let roundsN = 0;
+  function roundabout() {
+    roundsN++;
+    const ew = r2(Math.max(2.2, narrow + 0.5)), ro = RB_RO, spin = r2(W(0.5, 0.8));
+    straight(4, ew);                                    // the road in (a ring on it, if one is due)
+    const cx = x, cz = r2(z - ro), side = r2(ro + 1.5 + ew / 2);
+    const leads = ['N'];                                // a road out to the side must stay over the city's clear lane
+    if (cx - side >= -4) leads.push('W');
+    if (cx + side <= 10) leads.push('E');
+    const lead = n === 19 ? 'N' : leads[Math.floor(r() * leads.length)];
+    pieces.push(ROUND(cx, cz, y, spin, ['W', 'N', 'E'], lead, ew));
+    // Every road out starts under the ring's edge, a hair lower, so it meets the curve with no gap.
+    const out = (dir, len, stub) => {
+      const a = ro - 0.3, b = ro + len, m = (a + b) / 2;
+      const q = dir === 'N' ? F(cx, r2(cz - m), ew, r2(b - a), r2(y - 0.004)) : F(r2(cx + (dir === 'E' ? m : -m)), cz, r2(b - a), ew, r2(y - 0.004));
+      pieces.push({ ...q, spoke: true, ...(stub ? { stub: dir } : {}) });
+    };
+    pieces.push({ ...F(cx, r2(cz + ro - 0.15), ew, 0.3, r2(y - 0.004)), spoke: true });
+    for (const dir of ['W', 'N', 'E']) if (dir !== lead) out(dir, 3.2, true);
+    const L = lead === 'N' ? 2 * ro + 2.5 : ro + side + ew;              // about how far the marble rolls, round and out
+    run += L; sinceSave += L;
+    if (lead === 'N') { out('N', 2.5); z = r2(cz - ro - 2.5); }
+    else { out(lead, r2(1.5 + ew)); x = r2(cx + (lead === 'E' ? side : -side)); z = r2(cz - ew / 2); }
+    straight(r2((lead === 'N' ? 5 : 7) + r() * 2), ew); // on from the roundabout, clear of the road that stops short
+  }
+  /* THE GLASS TUBE: the road ends at its mouth; it lands the marble on a long
+     road ahead, over the gap. Its coil swings out toward the middle of the city. */
+  let tubesN = 0;
+  function glassTube() {
+    tubesN++;
+    straight(5, r2(Math.max(2.2, narrow + 0.4)));       // the road to the mouth (a ring on it, if one is due)
+    const gap = r2(W(18, 24));
+    pieces.push(TUBE(x, z, y, x < 3 ? 1 : -1, gap));
+    run += gap + 28; sinceSave += gap + 28;             // the ride is longer than the gap it crosses
+    z = r2(z - gap);
+    straight(r2(10 + r() * 3), Math.max(wide, 2.6));    // somewhere to land
+  }
   function boost(w) {                                   // a speed strip, and room to spend the speed
     pieces.push(BOOST(x, z - 1.5, w, 3, y)); on(3);
     straight(r2(14 + r() * 4), w);
@@ -792,11 +844,13 @@ function makeLevel(n) {
                    ['bridge', 'slide', 'shuttle', 'jog', 'cross', 'locks', 'wormhole', 'fork'], ALL];
   // What a level opens with: its district's new thing, and a crossing where they begin.
   const OPENER = ['jog', 'slide', 'bridge', 'jump', 'boostJump'], opener = n === 5 ? 'cross' : n === 7 ? 'fork' : n === 11 ? 'wormhole' : n === 13 ? 'ride'
-    : n === 15 ? 'mag' : n === 21 ? 'locks' : n === 23 ? 'wind' : n === 27 ? 'loop' : OPENER[d];
+    : n === 15 ? 'mag' : n === 19 ? 'round' : n === 21 ? 'locks' : n === 23 ? 'wind' : n === 27 ? 'loop' : n === 29 ? 'tube' : OPENER[d];
   // The newer challenges join the draw from the level that brings each in, so
   // the courses before it stay exactly as they were.
   if (n >= 15) { OWN[1].push('mag'); EARLIER[2].push('mag'); EARLIER[3].push('mag'); ALL.push('mag'); }
+  if (n >= 19) { OWN[2].push('round'); EARLIER[3].push('round'); ALL.push('round'); }
   if (n >= 23) { OWN[2].push('wind'); EARLIER[3].push('wind'); ALL.push('wind'); }
+  if (n >= 29) { OWN[3].push('tube'); ALL.push('tube'); }
   const features = 2 + Math.round(k * 2) + d, length = 45 + 155 * g;
   straight(5, wide);
   for (let f = 0; f < features + 8 && (f < features || run < length); f++) {
@@ -819,6 +873,8 @@ function makeLevel(n) {
     else if (pick === 'loop') { if (n >= 27 && loops < 2) loopDeLoop(); else boostJump(wide); }
     else if (pick === 'mag') { if (magsN++ < 2) maglev(w); else jog(w); }
     else if (pick === 'wind') { if (windsN++ < 2) gusts(w); else jog(w); }
+    else if (pick === 'round') { if (!roundsN) roundabout(); else jog(w); }
+    else if (pick === 'tube') { if (!tubesN) glassTube(); else boost(wide); }
     else jog(w);
     straight(r2(mix(6, 4, g) + r() * 3), r() < 0.5 ? wide : narrow);
   }
@@ -828,7 +884,7 @@ function makeLevel(n) {
 const LEVELS = Array.from({ length: 40 }, (_, i) => makeLevel(i + 1));
 
 let levelGroup = null;
-let colliders = [], ferries = [], holos = [], pads = [], crossings = [], riders = [], curtains = [], locks = [], wormholes = [], loopsIn = [], mags = [], winds = [], gates = [], goal = null, level = null;
+let colliders = [], ferries = [], holos = [], pads = [], crossings = [], riders = [], curtains = [], locks = [], wormholes = [], loopsIn = [], mags = [], winds = [], rounds = [], tubes = [], gates = [], goal = null, level = null;
 
 function platformGeometry(w, h, d) {
   const g = new RoundedBoxGeometry(w, h, d, 3, Math.min(0.14, h / 2 - 0.01));
@@ -1016,6 +1072,253 @@ function animateMagsAndWinds(dt) {
       o.updateMatrix(); m.setMatrixAt(i, o.matrix);
     });
     m.instanceMatrix.needsUpdate = true;
+  }
+}
+
+/* THE ROUNDABOUT (owner, 2026-09-27: "proceed on the next 4 blocks and
+   obstacles"). A ring road turns round a glowing island, clockwise seen from
+   above, and carries the marble round with it, pushing it gently outward.
+   Roads leave it on three sides; one leads on and the others stop short at
+   a red bar. Ride it round and roll off at the right moment: the ring keeps
+   carrying the marble sideways as it goes. */
+let polarTex = null;                                    // the ring's grid: circles and spokes, the course's magenta
+function ringGrid() {
+  if (polarTex) return polarTex;
+  polarTex = canvasTex(1024, 1024, (g) => {
+    g.fillStyle = '#000'; g.fillRect(0, 0, 1024, 1024);
+    const px = 512 / RB_RO, lines = (wd, col) => {
+      g.strokeStyle = col; g.lineWidth = wd;
+      for (let i = 0; i <= 3; i++) { g.beginPath(); g.arc(512, 512, (RB_RI + (RB_RO - RB_RI) * i / 3) * px - (i === 3 ? wd / 2 : 0), 0, 2 * Math.PI); g.stroke(); }
+      for (let i = 0; i < 20; i++) {
+        const a = i * Math.PI / 10, c = Math.cos(a), s = Math.sin(a);
+        g.beginPath(); g.moveTo(512 + c * RB_RI * px, 512 + s * RB_RI * px); g.lineTo(512 + c * RB_RO * px, 512 + s * RB_RO * px); g.stroke();
+      }
+    };
+    g.filter = 'blur(7px)'; lines(11, 'rgba(255,60,210,0.95)'); g.filter = 'none';
+    lines(3, '#FFFFFF');
+  });
+  polarTex.anisotropy = 4;
+  return polarTex;
+}
+function buildRound(pc) {
+  const { x, z, y, ri, ro } = pc;
+  const spinGrp = new Group(), fixed = new Group();
+  spinGrp.position.set(x, y, z); fixed.position.set(x, y, z);
+  const top = new Mesh(new RingGeometry(ri, ro, 96, 1), new MeshStandardMaterial({ color: 0x0A0F1E, metalness: 0.4, roughness: 0.3,
+    emissive: 0xFFFFFF, emissiveMap: ringGrid(), emissiveIntensity: 1.5 }));
+  top.rotation.x = -Math.PI / 2; top.receiveShadow = true;
+  const rim = new Mesh(new CylinderGeometry(ro, ro, THICK, 96, 1, true), new MeshStandardMaterial({ color: 0x140A24, metalness: 0.5, roughness: 0.3,
+    emissive: 0xFF3FD0, emissiveIntensity: 0.3 }));
+  rim.position.y = -THICK / 2;
+  const under = new Mesh(new RingGeometry(ri, ro, 96, 1), new MeshStandardMaterial({ color: 0x080C16, roughness: 1 }));
+  under.rotation.x = Math.PI / 2; under.position.y = -THICK;
+  // Lights round the rim, turning with it, so the turn shows from behind.
+  const lamps = new InstancedMesh(new BoxGeometry(0.34, 0.07, 0.05), new MeshBasicMaterial({ color: 0xFFE6FA, toneMapped: false }), 24);
+  const o = new Object3D();
+  for (let i = 0; i < 24; i++) {
+    const a = i * Math.PI / 12;
+    o.position.set(Math.cos(a) * (ro + 0.026), -0.12, Math.sin(a) * (ro + 0.026)); o.rotation.set(0, -a + Math.PI / 2, 0);
+    o.updateMatrix(); lamps.setMatrixAt(i, o.matrix);
+  }
+  spinGrp.add(top, rim, under, lamps);
+  // The island: dark glass with a cyan rim, and above it a slow gyroscope of light.
+  const island = new Mesh(new CylinderGeometry(ri - 0.02, ri - 0.02, THICK + ISLAND_H, 64), new MeshStandardMaterial({ color: 0x0C1426, metalness: 0.6,
+    roughness: 0.25, envMap: neonEnvMap() || envTex, emissive: 0x34E0FF, emissiveIntensity: 0.08 }));
+  island.position.y = (ISLAND_H - THICK) / 2; island.castShadow = true;
+  const lip = new Mesh(new TorusGeometry(ri - 0.06, 0.045, 8, 96), new MeshBasicMaterial({ color: 0x5FE8FF, toneMapped: false }));
+  lip.rotation.x = Math.PI / 2; lip.position.y = ISLAND_H;
+  const glow = new Mesh(new CircleGeometry(ri - 0.1, 64), glowMat(0x34E0FF, 0.22, dot));
+  glow.rotation.x = -Math.PI / 2; glow.position.y = ISLAND_H + 0.01;
+  const gyro = new Group(), rings = [[0.95, 0xFF8A5C, 0], [0.72, 0x5FF0FF, 1.1], [0.5, 0xFFD6F4, 2.2]].map(([rad, col, tilt]) => {
+    const m = new Mesh(new TorusGeometry(rad, 0.03, 8, 72), new MeshBasicMaterial({ color: col, toneMapped: false }));
+    m.rotation.set(Math.PI / 2 + tilt * 0.5, tilt, 0); gyro.add(m); return m;
+  });
+  const core = new Mesh(new SphereGeometry(0.16, 20, 14), new MeshBasicMaterial({ color: 0xFFF4E8, toneMapped: false }));
+  gyro.add(core); gyro.position.y = ISLAND_H + 0.95;
+  fixed.add(island, lip, glow, gyro);
+  levelGroup.add(spinGrp, fixed);
+  rounds.push({ pc, x, z, y, ri, ro, spin: pc.spin, spinGrp, gyro, rings });
+}
+// The marble against a roundabout: the ring's top and outer edge, and the island's wall and top.
+const _rn = new Vector3();
+function roundContact(Rd) {
+  const dx = ball.p.x - Rd.x, dz = ball.p.z - Rd.z, r = Math.hypot(dx, dz) || 1e-6, ux = dx / r, uz = dz / r;
+  if (r > Rd.ro + R + 0.05 || ball.p.y > Rd.y + ISLAND_H + R + 0.1 || ball.p.y < Rd.y - THICK - R) return;
+  let pen = 0, onRing = false;
+  if (r < Rd.ri + R && ball.p.y < Rd.y + ISLAND_H + R) {
+    if (r < Rd.ri && ball.p.y - R > Rd.y + ISLAND_H - 0.25) { _rn.set(0, 1, 0); pen = Rd.y + ISLAND_H + R - ball.p.y; }   // on the island's top
+    else if (ball.p.y > Rd.y + ISLAND_H) {                                        // its top edge
+      _rn.set(dx - ux * Rd.ri, ball.p.y - Rd.y - ISLAND_H, dz - uz * Rd.ri); const d = _rn.length();
+      if (d < R && d > 1e-6) { _rn.multiplyScalar(1 / d); pen = R - d; }
+    } else { _rn.set(ux, 0, uz); pen = Rd.ri + R - r; }                            // its wall
+  } else if (r <= Rd.ro) {                                                         // the ring's top
+    if (ball.p.y - Rd.y < R && ball.p.y - Rd.y > -0.3) { _rn.set(0, 1, 0); pen = Rd.y + R - ball.p.y; onRing = true; }
+  } else {                                                                         // its outer edge
+    const ey = clamp(ball.p.y, Rd.y - THICK, Rd.y);
+    _rn.set(dx - ux * Rd.ro, ball.p.y - ey, dz - uz * Rd.ro); const d = _rn.length();
+    if (d < R && d > 1e-6) { _rn.multiplyScalar(1 / d); pen = R - d; onRing = _rn.y > 0.55; }
+  }
+  if (pen <= 0) return;
+  ball.p.addScaledVector(_rn, pen);
+  const floor = _rn.y > 0.55, rel = ball.v.dot(_rn);
+  if (rel < 0) {
+    ball.v.addScaledVector(_rn, -(1 + (floor ? (rel < -7 ? 0.25 : 0) : 0.35)) * rel);
+    if (floor && rel < -4 && ball.airT > 0.12) { play('land'); shake = Math.max(shake, 0.12); }
+    else if (!floor && rel < -3) play('tick');
+  }
+  if (floor) { ball.grounded = true; if (onRing) ball.onRound = Rd; }
+}
+function animateRounds(dt) {
+  for (const Rd of rounds) {
+    Rd.spinGrp.rotation.y = -Rd.spin * simT;
+    if (!REDUCED) { Rd.gyro.rotation.y += dt * 0.5; Rd.rings.forEach((m, i) => { m.rotation.z += dt * (0.4 + 0.3 * i) * (i % 2 ? -1 : 1); }); }
+  }
+}
+
+/* THE GLASS TUBE (owner, 2026-09-27: "proceed on the next 4 blocks and
+   obstacles"; on the menu as "a breather, and a spectacle"). The road ends
+   at the mouth of a clear tube. Roll in and it takes the marble: up, once
+   round a coil high over the city, and down onto the road ahead, where it
+   lets go. Nothing to steer: the rings of light along it flare as the marble
+   shoots through. */
+const TUBE_R = 0.8, TUBE_V = 13, TUBE_V_OUT = 7, TUBE_DS = 0.05;
+// A smooth path through the points (centripetal Catmull-Rom), measured out
+// every TUBE_DS metres so a ride can go at an even pace.
+function tubePath(P) {
+  const Q = [P[0].map((v, i) => 2 * v - P[1][i]), ...P, P[P.length - 1].map((v, i) => 2 * v - P[P.length - 2][i])];
+  const dense = [];
+  for (let k = 0; k + 3 < Q.length; k++) {
+    const [p0, p1, p2, p3] = Q.slice(k, k + 4), dist = (a, b) => Math.max(1e-4, Math.sqrt(Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2])));
+    const t1 = dist(p0, p1), t2 = t1 + dist(p1, p2), t3 = t2 + dist(p2, p3);
+    const L = (a, b, ta, tb, u) => a.map((v, i) => ((tb - u) * v + (u - ta) * b[i]) / (tb - ta));
+    for (let j = 0; j < 40; j++) {
+      const u = t1 + (t2 - t1) * j / 40;
+      const A1 = L(p0, p1, 0, t1, u), A2 = L(p1, p2, t1, t2, u), A3 = L(p2, p3, t2, t3, u);
+      dense.push(L(L(A1, A2, 0, t2, u), L(A2, A3, t1, t3, u), t1, t2, u));
+    }
+  }
+  dense.push(P[P.length - 1]);
+  const acc = [0];
+  for (let i = 1; i < dense.length; i++) { const a = dense[i - 1], b = dense[i]; acc.push(acc[i - 1] + Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2])); }
+  const len = acc[acc.length - 1], n = Math.floor(len / TUBE_DS) + 1, pts = new Float32Array(n * 3);
+  for (let i = 0, j = 0; i < n; i++) {
+    const s = i * TUBE_DS;
+    while (j < acc.length - 2 && acc[j + 1] < s) j++;
+    const f = (s - acc[j]) / Math.max(1e-6, acc[j + 1] - acc[j]);
+    for (let c = 0; c < 3; c++) pts[i * 3 + c] = dense[j][c] + (dense[j + 1][c] - dense[j][c]) * f;
+  }
+  return { pts, n, len: (n - 1) * TUBE_DS };
+}
+function tubeAt(T, s, out) {                           // the point at s metres along, into out
+  const f = clamp(s / TUBE_DS, 0, T.n - 1.001), i = Math.floor(f), k = f - i, q = T.pts;
+  return out.set(q[i * 3] + (q[i * 3 + 3] - q[i * 3]) * k, q[i * 3 + 1] + (q[i * 3 + 4] - q[i * 3 + 1]) * k, q[i * 3 + 2] + (q[i * 3 + 5] - q[i * 3 + 2]) * k);
+}
+function tubeDir(T, s, out) {                          // the way it runs there
+  const i = clamp(Math.floor(s / TUBE_DS), 0, T.n - 2), q = T.pts;
+  return out.set(q[i * 3 + 3] - q[i * 3], q[i * 3 + 4] - q[i * 3 + 1], q[i * 3 + 5] - q[i * 3 + 2]).normalize();
+}
+let tubeGlass = null;
+function tubeGlassMat() {                               // clear, and bright only where the eye meets it edge-on
+  if (tubeGlass) return tubeGlass;
+  tubeGlass = new MeshStandardMaterial({ color: 0x9FDFFF, metalness: 0.1, roughness: 0.08, transparent: true, depthWrite: false, side: DoubleSide,
+                                         envMap: neonEnvMap() || envTex, envMapIntensity: 1.1 });
+  tubeGlass.onBeforeCompile = (sh) => {
+    sh.fragmentShader = sh.fragmentShader.replace('#include <opaque_fragment>', `#include <opaque_fragment>
+  {
+    float rim = pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 2.4);
+    gl_FragColor.rgb += vec3(0.3, 0.8, 1.0) * rim * 0.8;
+    gl_FragColor.a = clamp(0.05 + 0.75 * rim, 0.0, 1.0);
+  }`);
+  };
+  tubeGlass.customProgramCacheKey = () => 'tube-glass';
+  return tubeGlass;
+}
+const _ta = new Vector3(), _tb = new Vector3(), _tn = new Vector3(), _tq = new Quaternion(), _tz = new Vector3(0, 0, 1);
+function buildTube(pc) {
+  const { x, z, side: sd, gap } = pc, yc = pc.y + R, zc = z - gap / 2, cx = x + sd * 6.5, RH = 4.5;
+  const P = [[x, yc, z + 0.8], [x, yc + 0.1, z - 1.6], [x + sd * 0.7, yc + 2.6, z - 4.6]];
+  for (let i = 0; i <= 8; i++) {                        // once round, drifting forward so the coil clears itself
+    const a = i * Math.PI / 4;
+    P.push([cx - sd * RH * Math.cos(a), yc + 9 - 2.6 * i / 8, zc - RH * Math.sin(a) - 2.4 * i / 8]);   // a coil: down 2.6 m as it goes round
+  }
+  P.push([x + sd * 1.1, yc + 4.2, zc - 7.5], [x, yc + 1.9, z - gap + 2.2], [x, yc + 0.95, z - gap - 1.3]);
+  const T = tubePath(P);
+  // The glass: rings of vertices round the path, carried along it without twisting.
+  const ringN = Math.floor(T.len / 0.2) + 1, seg = 20, pos = new Float32Array(ringN * seg * 3), idx = [];
+  const nrm = new Vector3(1, 0, 0), bi = new Vector3(), t = new Vector3(), c = new Vector3();
+  tubeDir(T, 0, t); nrm.set(-t.z, 0, t.x).normalize();
+  for (let i = 0; i < ringN; i++) {
+    const sI = Math.min(T.len, i * 0.2);
+    tubeAt(T, sI, c); tubeDir(T, sI, t);
+    nrm.addScaledVector(t, -nrm.dot(t)).normalize(); bi.crossVectors(t, nrm);
+    for (let j = 0; j < seg; j++) {
+      const a = j / seg * Math.PI * 2, k = (i * seg + j) * 3;
+      pos[k] = c.x + (nrm.x * Math.cos(a) + bi.x * Math.sin(a)) * TUBE_R;
+      pos[k + 1] = c.y + (nrm.y * Math.cos(a) + bi.y * Math.sin(a)) * TUBE_R;
+      pos[k + 2] = c.z + (nrm.z * Math.cos(a) + bi.z * Math.sin(a)) * TUBE_R;
+      if (i < ringN - 1) { const b = i * seg, j2 = (j + 1) % seg; idx.push(b + j, b + seg + j, b + j2, b + j2, b + seg + j, b + seg + j2); }
+    }
+  }
+  const geo = new BufferGeometry();
+  geo.setAttribute('position', new Float32BufferAttribute(pos, 3)); geo.setIndex(idx); geo.computeVertexNormals();
+  const glass = new Mesh(geo, tubeGlassMat()); glass.renderOrder = 2;
+  // Rings of light every 1.4 m, and a bigger one at each open end.
+  const n = Math.floor(T.len / 1.4), rings = new InstancedMesh(new TorusGeometry(TUBE_R + 0.015, 0.03, 6, 40),
+    new MeshBasicMaterial({ color: 0xFFFFFF, toneMapped: false }), n), o = new Object3D(), col = new Color(0x2A9FC0);
+  for (let i = 0; i < n; i++) {
+    const sI = (i + 0.5) * T.len / n;
+    tubeAt(T, sI, o.position); tubeDir(T, sI, t); o.quaternion.setFromUnitVectors(_tz, t); o.updateMatrix();
+    rings.setMatrixAt(i, o.matrix); rings.setColorAt(i, col);
+  }
+  const ends = [0, T.len].map((sI) => {
+    const m = new Mesh(new TorusGeometry(TUBE_R + 0.12, 0.07, 10, 48), new MeshBasicMaterial({ color: 0x5FE8FF, toneMapped: false }));
+    tubeAt(T, sI, m.position); tubeDir(T, sI, t); m.quaternion.setFromUnitVectors(_tz, t);
+    const halo = new Mesh(new CircleGeometry(TUBE_R + 0.5, 40), glowMat(0x34E0FF, 0.35, dot));
+    halo.position.copy(m.position); halo.quaternion.copy(m.quaternion);
+    levelGroup.add(m, halo); return m;
+  });
+  levelGroup.add(glass, rings);
+  const out = new Vector3(); tubeAt(T, 0, out);
+  tubes.push({ pc, T, rings, ringS: Array.from({ length: n }, (_, i) => (i + 0.5) * T.len / n), mouth: out, cap: 1.25, ends });
+}
+// Into a tube's mouth: any marble rolling over the road's end, at road height.
+function tubeCatch() {
+  for (const U of tubes) {
+    const m = U.mouth;
+    if (ball.p.z < m.z + 0.1 && ball.p.z > m.z - 1.2 && Math.abs(ball.p.x - m.x) < U.cap && Math.abs(ball.p.y - m.y) < 0.9) {
+      ball.tube = { U, s: Math.max(0, m.z - ball.p.z), t: 0, v0: Math.max(3, -ball.v.z), off: new Vector3().subVectors(ball.p, tubeAt(U.T, 0, _ta)) };
+      ball.tube.off.z = 0;
+      sound('tube');
+      return;
+    }
+  }
+}
+function rideTube(dt) {
+  const k = ball.tube, T = k.U.T;
+  k.t += dt;
+  let v = k.v0 + (TUBE_V - k.v0) * (1 - Math.exp(-3.5 * k.t));          // drawn in, quicker and quicker
+  const left = T.len - k.s;
+  if (left < 7) v = TUBE_V_OUT + (v - TUBE_V_OUT) * left / 7;              // easing before it lets go
+  k.s += v * dt;
+  tubeDir(T, Math.min(k.s, T.len - TUBE_DS), _tb);
+  if (k.s >= T.len) {                                                     // out, onto the road ahead
+    tubeAt(T, T.len, ball.p); ball.v.copy(_tb).multiplyScalar(TUBE_V_OUT);
+    ball.tube = null; ball.airT = 0; sound('pop');
+    return;
+  }
+  tubeAt(T, k.s, ball.p).addScaledVector(k.off, Math.max(0, 1 - k.t / 0.3));
+  ball.v.copy(_tb).multiplyScalar(v);
+  ball.grounded = false; ball.spin.set(_tb.z, 0, -_tb.x).multiplyScalar(v / R);
+}
+function animateTubes() {
+  const col = new Color();
+  for (const U of tubes) {
+    const at = ball.tube && ball.tube.U === U ? ball.tube.s : -99;
+    U.ringS.forEach((sI, i) => {                        // a ring flares as the marble passes and fades behind it
+      const d = at - sI, f = d > -1.2 && d < 7 ? (d < 0 ? 1 + d / 1.2 : Math.exp(-d / 2.2)) : 0;
+      U.rings.setColorAt(i, col.setRGB(0.16 + 0.84 * f, 0.62 + 0.38 * f, 0.75 + 0.25 * f));
+    });
+    U.rings.instanceColor.needsUpdate = true;
   }
 }
 
@@ -1404,12 +1707,12 @@ function freeCourse(grp) {
   });
 }
 function enterPocket(W) {
-  pocket = { colliders, ferries, holos, pads, crossings, riders, curtains, locks, wormholes, loopsIn, mags, winds, gates, goal, level, levelGroup,
+  pocket = { colliders, ferries, holos, pads, crossings, riders, curtains, locks, wormholes, loopsIn, mags, winds, rounds, tubes, gates, goal, level, levelGroup,
              world: world.name, from: W };
   levelGroup.visible = false;
   const P = W.pc.pocket;
   levelGroup = new Group(); scene.add(levelGroup);
-  colliders = []; ferries = []; holos = []; pads = []; crossings = []; riders = []; curtains = []; locks = []; wormholes = []; loopsIn = []; mags = []; winds = []; gates = [];
+  colliders = []; ferries = []; holos = []; pads = []; crossings = []; riders = []; curtains = []; locks = []; wormholes = []; loopsIn = []; mags = []; winds = []; rounds = []; tubes = []; gates = [];
   goal = null;
   level = { pieces: P.pieces, gates: [], start: P.start, world: P.world };
   for (const pc of P.pieces) buildPiece(pc);
@@ -1425,7 +1728,7 @@ function enterPocket(W) {
 function leavePocket() {
   freeCourse(levelGroup);
   const S = pocket; pocket = null;
-  ({ colliders, ferries, holos, pads, crossings, riders, curtains, locks, wormholes, loopsIn, mags, winds, gates, goal, level, levelGroup } = S);
+  ({ colliders, ferries, holos, pads, crossings, riders, curtains, locks, wormholes, loopsIn, mags, winds, rounds, tubes, gates, goal, level, levelGroup } = S);
   levelGroup.visible = true;
   setWorld(S.world);
   const out = S.from.twin;
@@ -1498,6 +1801,8 @@ function buildPiece(pc) {
   if (pc.t === 'worm') { buildWormhole(pc); return; }
   if (pc.t === 'curtain') { buildCurtain(pc); return; }
   if (pc.t === 'lock') { buildLock(pc); return; }
+  if (pc.t === 'round') { buildRound(pc); return; }
+  if (pc.t === 'tube') { buildTube(pc); return; }
   let h = THICK;
   const quat = new Quaternion(), center = new Vector3();
   let w = pc.w, d = pc.d;
@@ -1525,6 +1830,12 @@ function buildPiece(pc) {
     ferries.push(c);
   }
   if (pc.lane) c.lane = pc.lane;
+  if (pc.stub) {                                        // a road out of a roundabout that stops short: a red bar across its end
+    const along = pc.stub === 'N' ? [0, -1] : pc.stub === 'W' ? [-1, 0] : [1, 0];
+    const bar = new Mesh(new BoxGeometry(along[0] ? 0.1 : w, 0.08, along[0] ? d : 0.1), new MeshBasicMaterial({ color: 0xFF2D48, toneMapped: false }));
+    bar.position.set(along[0] * (w / 2 - 0.05), h / 2 + 0.04, along[1] * (d / 2 - 0.05));
+    mesh.add(bar);
+  }
   dressPiece(c, pc, w, d);
   if (c.holo) holoFaces(c);
   colliders.push(c);
@@ -1566,7 +1877,7 @@ function loadLevel(n) {
   }
   levelGroup = new Group();
   scene.add(levelGroup);
-  colliders = []; ferries = []; holos = []; pads = []; crossings = []; riders = []; curtains = []; locks = []; wormholes = []; loopsIn = []; mags = []; winds = []; gates = [];
+  colliders = []; ferries = []; holos = []; pads = []; crossings = []; riders = []; curtains = []; locks = []; wormholes = []; loopsIn = []; mags = []; winds = []; rounds = []; tubes = []; gates = [];
   for (const pc of level.pieces) buildPiece(pc);
   if (world.name !== 'void') setWorld(world.name);   // scenery that follows the course is rebuilt for it
   level.minTop = Math.min(...level.pieces.map((p) => (p.t === 'ramp' ? Math.min(p.y0, p.y1) : p.y)));
@@ -1580,7 +1891,7 @@ function loadLevel(n) {
   startPos.set(sx, sy + R + 0.01, sz);
   spawn.copy(startPos);
   ball.p.copy(startPos); ball.v.set(0, 0, 0); ball.spin.set(0, 0, 0);
-  ball.grounded = true; ball.onFerry = null; ball.airT = 0; ball.boostT = 0; ball.jumpCD = 0; ball.hitT = 0; ball.onLoop = null;
+  ball.grounded = true; ball.onFerry = null; ball.airT = 0; ball.boostT = 0; ball.jumpCD = 0; ball.hitT = 0; ball.onLoop = null; ball.onRound = null; ball.tube = null;
   setTint(0); spawnTint = 0; loopView = 0; loopAt = null;
   lastGroundY = sy;
   clock = 0; falls = 0; started = false;
@@ -1625,7 +1936,7 @@ const BOOST_ACC = 34, VBOOST = 13, BOOST_T = 1, JUMP_UP = 9, JUMP_ON = 8;
 const STEP = 1 / 240;      // physics runs at 240 Hz whatever the display does
 
 const ball = { p: new Vector3(), v: new Vector3(), spin: new Vector3(), grounded: false,
-               onFerry: null, airT: 0, pad: null, boostT: 0, jumpCD: 0, onBoost: false, hitT: 0, tint: 0, onLoop: null, mag: 0, push: 0 };
+               onFerry: null, airT: 0, pad: null, boostT: 0, jumpCD: 0, onBoost: false, hitT: 0, tint: 0, onLoop: null, mag: 0, push: 0, onRound: null, tube: null };
 let spawnTint = 0;                                      // the marble's colour when it passed its last ring
 const startPos = new Vector3(), spawn = new Vector3();
 let lastGroundY = 0, simT = 0, acc = 0;
@@ -1675,10 +1986,17 @@ function collide(c, dt) {
 function step(dt, ix, iz) {
   simT += dt;
   for (const c of ferries) updateFerry(c, simT);
+  if (ball.tube) { rideTube(dt); for (const c of crossings) crossStep(c, simT); return; }   // in a tube, the tube steers
   if (ball.onFerry) {
     ball.p.add(ball.onFerry.delta);                    // a pad carries what rests on it
     const T = ball.onFerry.train;                      // and a train pulls on what rides it
     if (T) ball.v[ball.onFerry.ferry.axis] -= ball.onFerry.ferry.a * T.pull * dt;
+  }
+  if (ball.onRound) {                                   // a roundabout carries what rests on it round with it,
+    const Rd = ball.onRound, a = -Rd.spin * dt, dx = ball.p.x - Rd.x, dz = ball.p.z - Rd.z, c = Math.cos(a), s = Math.sin(a);
+    ball.p.x = Rd.x + dx * c + dz * s; ball.p.z = Rd.z - dx * s + dz * c;
+    const f = RB_CF * Rd.spin * Rd.spin;                // and pushes it gently outward
+    ball.v.x += dx * f * dt; ball.v.z += dz * f * dt;
   }
   const WP = world.physics;                             // a world may grip differently: crystal is slippery
   if (ball.onLoop) { ix = 0; iz = 0; }                  // round a loop the loop carries the marble
@@ -1690,10 +2008,12 @@ function step(dt, ix, iz) {
   const hs = Math.hypot(ball.v.x, ball.v.z), cap = VMAX + (VBOOST - VMAX) * clamp(ball.boostT / 0.5, 0, 1);
   if (hs > cap && !ball.onLoop) { ball.v.x *= cap / hs; ball.v.z *= cap / hs; }
   ball.p.addScaledVector(ball.v, dt);
-  ball.grounded = false; ball.onFerry = null; ball.pad = null; ball.mag = 0;
+  ball.grounded = false; ball.onFerry = null; ball.pad = null; ball.mag = 0; ball.onRound = null;
   for (const c of colliders) collide(c, dt);
   for (const c of riders) collide(c, dt);
   for (const c of locks) collide(c, dt);
+  for (const Rd of rounds) roundContact(Rd);
+  if (tubes.length) tubeCatch();
   ball.onLoop = null;
   for (const L of loopsIn) loopContact(L);
   tintStep();
@@ -1895,6 +2215,8 @@ function update(dt, now) {
   animateWormholes(dt);
   animateRipple(dt);
   animateMagsAndWinds(dt);
+  animateRounds(dt);
+  animateTubes();
   updateSparks(dt);
   updateCamera(dt, false);
   updateSunPoint();
@@ -1948,7 +2270,7 @@ function fitCamera() {
   camera.updateProjectionMatrix();
 }
 const camFocus = new Vector3();
-let loopView = 0, loopAt = null;
+let loopView = 0, loopAt = null, tubeView = 0;
 const _lp = new Vector3(), _la = new Vector3(), _lb = new Vector3();
 let camY = 0, closeup = false, peekCam = null;
 const cityRefs = { frozen: false };                   // the harness's handles on the city, for stills
@@ -1959,14 +2281,15 @@ function updateCamera(dt, snap) {
   camFocus.z += (ball.p.z - camFocus.z) * k;
   // Height follows the ground the marble last stood on, so a fall drops away
   // from the camera instead of dragging it down into the void.
-  const ty = state === 'home' ? flight.to.y - R : state === 'fall' ? camY : lastGroundY;
-  camY += (ty - camY) * (snap ? 1 : 1 - Math.exp(-3 * dt));
+  const ty = state === 'home' ? flight.to.y - R : state === 'fall' ? camY : ball.tube ? ball.p.y - R : lastGroundY;
+  camY += (ty - camY) * (snap ? 1 : 1 - Math.exp(-(ball.tube ? 5 : 3) * dt));
+  tubeView += ((ball.tube && !REDUCED ? 1 : 0) - tubeView) * (snap ? 1 : 1 - Math.exp(-2.5 * dt));
   let sx = 0, sy = 0;
   if (shake > 0) {
     shake = Math.max(0, shake - dt);
     if (!REDUCED) { sx = (Math.random() - 0.5) * shake * 0.3; sy = (Math.random() - 0.5) * shake * 0.3; }
   }
-  camera.position.set(camFocus.x + sx, camY + P.h + sy, camFocus.z + P.back);
+  camera.position.set(camFocus.x + sx, camY + P.h + 2.5 * tubeView + sy, camFocus.z + P.back + 5 * tubeView);
   camera.lookAt(camFocus.x + sx, camY, camFocus.z - P.ahead);
   // Round a loop: out to the side, where the loop shows as a loop.
   loopView += ((ball.onLoop && !REDUCED ? 1 : 0) - loopView) * (snap ? 1 : 1 - Math.exp(-(ball.onLoop ? 9 : 7) * dt));
@@ -2240,10 +2563,12 @@ const NEWS = {
   13: 'The sky train stops here. Roll onto its roof, and hold on when it moves',
   15: 'Maglev strips pull the marble to one side. Steer against the arrows',
   17: 'Bridges switch off and on. Cross while they are lit',
+  19: 'The roundabout turns. Ride it round, and roll off where the road leads on',
   21: 'A wall lets through only its own colour. Take the lane that matches it',
   23: 'Wind blows between the towers. When the streaks come, lean into them',
   25: 'Yellow arrows speed you up. Yellow rings throw you over a gap',
   27: 'A loop! Hit the yellow arrows first, and it carries you round',
+  29: 'A glass tube! Roll into it, and it carries you over the city',
   33: 'The Express: everything at once, on the longest courses',
 };
 const POCKET_NEWS = { crystal: 'The crystal canyon: the road is slippery. Brake early' };
@@ -2275,10 +2600,12 @@ const RULES = [
   'A wormhole takes the marble to the crystal canyon, where the road is slippery. Cross it to come out on the far side.',
   'The sky train stops at stations. Roll onto its roof, hold on as it pulls away, and roll off at the next station.',
   'Maglev strips pull the marble toward the edge their arrows point to. Steer the other way to stay on.',
+  'A roundabout turns and carries the marble round with it. Roll off onto the road that leads on; the others stop short at a red bar.',
   'Gusts blow out of the gaps between towers. Streaks of light come just before each gust: lean into it, or wait for it to pass.',
   'See-through bridges switch off and on. Cross while they are lit. They flicker just before they go dark.',
   'Yellow arrows speed the marble up. Yellow rings throw it into the air, over the gap ahead.',
   'A loop carries the marble round if it comes in fast. Roll over the yellow arrows before it.',
+  'A glass tube carries the marble over the city to the road ahead. Just roll into it.',
   'Lime and violet walls let through only a marble of their own colour. Roll through a curtain of that colour first: it colours the marble.',
 ];
 function wrapText(text, maxW, size) {
@@ -3992,7 +4319,10 @@ window.addEventListener('hashchange', worldFromHash);
 let fakeNow = 0;
 if (HARNESS) {
   window.__marble = {
-    state: () => ({ phase: state, level: levelNo, clock: +clock.toFixed(2), falls, started, everMoved, pocket: !!pocket, push: +ball.push.toFixed(3),
+    state: () => ({ phase: state, level: levelNo, clock: +clock.toFixed(2), falls, started, everMoved, pocket: !!pocket, push: +ball.push.toFixed(3), tube: !!ball.tube,
+                    ...(() => { const Rd = ball.onRound; if (!Rd) return { carry: [0, 0], cf: [0, 0] };
+                                const dx = ball.p.x - Rd.x, dz = ball.p.z - Rd.z, f = RB_CF * Rd.spin * Rd.spin;
+                                return { carry: [-Rd.spin * dz, Rd.spin * dx], cf: [dx * f, dz * f] }; })(),
                     spawn: spawn.toArray().map((v) => +v.toFixed(2)),
                     LW, LH, mode: MODE, webgl: !!renderer, grounded: ball.grounded,
                     ball: ball.p.toArray().map((v) => +v.toFixed(3)),
