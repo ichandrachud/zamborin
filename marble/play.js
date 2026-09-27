@@ -187,10 +187,14 @@ const NEON_SOUNDS = {
   home() { voice('sine', 220, 880, 0.16, 0.05); voice('sine', 1760, 1760, 0.12, 0.025); voice('sine', 90, 60, 0.18, 0.08, 0.14); },
   boost() { voice('sawtooth', 160, 900, 0.32, 0.018); voice('sine', 440, 1320, 0.28, 0.04); },     // a speed strip: a rising rush
   jump() { voice('square', 260, 780, 0.16, 0.022); voice('sine', 520, 1560, 0.2, 0.05); },         // a jump pad: a quick spring upward
+  bump() {                                            // a car meets the marble: a thud, and two notes of horn
+    voice('sine', 170, 55, 0.3, 0.11); voice('triangle', 90, 40, 0.25, 0.05);
+    voice('square', 466, 466, 0.1, 0.022, 0.06); voice('square', 370, 370, 0.16, 0.022, 0.2);
+  },
 };
 // The city's version of a sound where it has one, the house sound elsewhere.
 function sound(name) {
-  if ((world.name === 'neon' || name === 'boost' || name === 'jump') && NEON_SOUNDS[name]) { if (sfx && sfx.isOn()) NEON_SOUNDS[name](); }
+  if ((world.name === 'neon' || name === 'boost' || name === 'jump' || name === 'bump') && NEON_SOUNDS[name]) { if (sfx && sfx.isOn()) NEON_SOUNDS[name](); }
   else play(name === 'home' ? 'land' : name);
 }
 function ensureCitySound() {
@@ -508,6 +512,8 @@ const FERRY = (x, z, w, d, y, axis, amp, period, dwell, phase = 0) => ({ t: 'fer
 const HOLO = (x, z, w, d, y, period, on, phase = 0) => ({ t: 'holo', x, z, w, d, y, period, on, phase });
 const BOOST = (x, z, w, d, y) => ({ t: 'boost', x, z, w, d, y });
 const JUMP = (x, z, w, d, y) => ({ t: 'jump', x, z, w, d, y });
+// CROSS is a stretch of road that one or two lanes of flying cars cross.
+const CROSS = (x, z, w, d, y, lanes) => ({ t: 'cross', x, z, w, d, y, lanes });
 const seeded = (seed) => () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
 const mix = (a, b, t) => a + (b - a) * t;
 
@@ -576,6 +582,17 @@ function makeLevel(n) {
     on(len);
     straight(r2(3 + r() * 2), w);
   }
+  function cross(w) {                                   // flying cars across the road, and a light to cross by
+    const two = n >= 20 && r() < 0.35 + 0.4 * g;         // later, two lanes going opposite ways
+    const d = two ? 3.8 : 2.4, speed = r2(W(7, 11) + r());
+    const lane = (dz, dir) => {
+      const gaps = [];                                  // seconds between cars, uneven, so some gaps are worth waiting for
+      for (let i = 3 + Math.floor(r() * 2); i > 0; i--) gaps.push(r2(W(3.4, 2.7) + r() * W(2.6, 1.8)));
+      return { dz, dir, speed, gaps, phase: r2(r()) };
+    };
+    pieces.push(CROSS(x, z - d / 2, w, d, y, two ? [lane(-0.8, 1), lane(0.8, -1)] : [lane(0, r() < 0.5 ? 1 : -1)]));
+    on(d);
+  }
   function boost(w) {                                   // a speed strip, and room to spend the speed
     pieces.push(BOOST(x, z - 1.5, w, 3, y)); on(3);
     straight(r2(14 + r() * 4), w);
@@ -592,15 +609,17 @@ function makeLevel(n) {
   }
   // Every other feature is the district's own, so it carries the district;
   // the rest are what came before. The Express draws on everything.
-  const ALL = ['bridge', 'slide', 'shuttle', 'boostJump', 'jump', 'jog', 'ramp', 'narrow'];
-  const OWN = [['jog', 'ramp', 'narrow', 'ramp'], ['slide', 'shuttle'], ['bridge'], ['jump', 'boostJump', 'boost'], ALL];
-  const EARLIER = [['jog', 'narrow'], ['jog', 'ramp', 'narrow'], ['jog', 'slide', 'shuttle', 'narrow'], ['bridge', 'slide', 'shuttle', 'jog'], ALL];
-  const OPENER = ['jog', 'slide', 'bridge', 'jump', 'boostJump'];
+  const ALL = ['bridge', 'slide', 'shuttle', 'boostJump', 'jump', 'jog', 'ramp', 'narrow', 'cross'];
+  const OWN = [['jog', 'ramp', 'narrow', 'ramp', 'cross'], ['slide', 'shuttle'], ['bridge'], ['jump', 'boostJump', 'boost'], ALL];
+  const EARLIER = [['jog', 'narrow'], ['jog', 'ramp', 'narrow', 'cross'], ['jog', 'slide', 'shuttle', 'narrow', 'cross'],
+                   ['bridge', 'slide', 'shuttle', 'jog', 'cross'], ALL];
+  // What a level opens with: its district's new thing, and a crossing where they begin.
+  const OPENER = ['jog', 'slide', 'bridge', 'jump', 'boostJump'], opener = n === 5 ? 'cross' : OPENER[d];
   const features = 2 + Math.round(k * 2) + d, length = 45 + 155 * g;
   straight(5, wide);
   for (let f = 0; f < features + 8 && (f < features || run < length); f++) {
     const pool = f % 2 ? EARLIER[d] : OWN[d];
-    const pick = f === 0 ? OPENER[d] : pool[Math.floor(r() * pool.length)];
+    const pick = f === 0 ? opener : pool[Math.floor(r() * pool.length)];
     const w = r() < 0.3 + 0.35 * k ? narrow : wide;
     if (pick === 'ramp' && n >= 3) ramp(w);
     else if (pick === 'narrow' && n >= 4) straight(r2(W(6, 12) + r() * 2), narrow);
@@ -610,6 +629,7 @@ function makeLevel(n) {
     else if (pick === 'boost') boost(wide);
     else if (pick === 'jump') jump(wide);
     else if (pick === 'boostJump') boostJump(wide);
+    else if (pick === 'cross' && n >= 5) cross(w);
     else jog(w);
     straight(r2(mix(6, 4, g) + r() * 3), r() < 0.5 ? wide : narrow);
   }
@@ -619,7 +639,7 @@ function makeLevel(n) {
 const LEVELS = Array.from({ length: 40 }, (_, i) => makeLevel(i + 1));
 
 let levelGroup = null;
-let colliders = [], ferries = [], holos = [], pads = [], gates = [], goal = null, level = null;
+let colliders = [], ferries = [], holos = [], pads = [], crossings = [], gates = [], goal = null, level = null;
 
 function platformGeometry(w, h, d) {
   const g = new RoundedBoxGeometry(w, h, d, 3, Math.min(0.14, h / 2 - 0.01));
@@ -690,7 +710,7 @@ function dressPiece(c, pc, w, d) {
       c.padFx = { rings, R: Math.min(w, d) / 2 - 0.08 };
     }
     pads.push(c);
-  }
+  } else if (pc.t === 'cross') buildCrossing(c, pc, w, d);
 }
 // BoxGeometry's face order: +x, -x, +y (top), -y, +z, -z.
 function holoFaces(c) { const [side, top, under] = c.holoMats; c.mesh.material = [side, side, top, under, side, side]; }
@@ -711,6 +731,112 @@ function animatePieces(dt) {
       m.scale.setScalar(c.padFx.R * (0.25 + 0.75 * p));
       m.material.opacity = REDUCED ? 0.8 : Math.sin(Math.PI * p);
     });
+  }
+}
+
+/* TRAFFIC CROSSINGS (owner, 2026-09-27: "lets start adding these", the first of
+   three new challenges). One or two lanes of flying cars cross the road at
+   marble height; each lane is marked in the air beyond the road, so it reads
+   with no car in it. A light over each side of the stop line shows green when
+   it is safe to start across: no car will reach the crossing for CROSS_WARN
+   seconds, time enough to cross at a normal push with room to spare. A car
+   that meets the marble throws it off the road. Traffic is regular for each
+   lane but the gaps differ, so some are worth waiting for. */
+const CROSS_WARN = 1.2, CAR_LIFT = 0.42, CAR_HX = 1.15, CAR_HY = 0.36, CAR_HZ = 0.5;
+let crossKit = null;                                    // the cars' shapes, made once and shared
+const laneTex = canvasTex(128, 32, (g) => {             // 4 m of lane: a faint road with dashed edges
+  g.fillStyle = 'rgb(18,34,52)'; g.fillRect(0, 0, 128, 32);           // added to what is behind, so dark is clear
+  g.fillStyle = '#EAF6FF';
+  for (let u = 0; u < 128; u += 32) { g.fillRect(u, 0, 18, 3); g.fillRect(u, 29, 18, 3); }
+}, true);
+laneTex.repeat.set(15, 1);
+function buildCrossing(c, pc, w, d) {
+  if (!crossKit) crossKit = carKit(neonEnvMap() || envTex);
+  const K = crossKit, top = pc.y, near = pc.z + d / 2;
+  const X = { lanes: [], cars: [], lights: [], green: true, greenSince: 0, w, x: pc.x, top };
+  pc.lanes.forEach((L, li) => {
+    const len = L.speed * L.gaps.reduce((a, b) => a + b, 0);
+    const lane = { ...L, z: pc.z + L.dz, len, at: [] };
+    let s = 0;
+    for (const gap of L.gaps) { lane.at.push(s); s += gap * L.speed; }
+    X.lanes.push(lane);
+    // The lane in the air: a faint road with dashed edges, 60 m of it.
+    const road = new Mesh(new PlaneGeometry(60, 2 * CAR_HZ + 0.2), glowMat(0xFFFFFF, 0.8, laneTex));
+    road.rotation.x = -Math.PI / 2; road.position.set(pc.x, top + 0.02, lane.z);
+    levelGroup.add(road);
+    lane.at.forEach((_, i) => {
+      const car = new Group(), paintHex = CAR_PAINT[(li * 3 + i * 2) % CAR_PAINT.length];
+      const add = (geo, mat, at) => { const m = new Mesh(geo, mat); if (at) { m.matrixAutoUpdate = false; m.matrix.copy(at); } car.add(m); return m; };
+      add(K.body, K.paint(paintHex)); add(K.canopy, K.canopyMat, CAR_AT.canopy);
+      add(K.head, K.headMat, CAR_AT.head); add(K.tail, K.tailMat, CAR_AT.tail);
+      add(K.beam, K.beamMat, CAR_AT.beam); add(K.tailGlow, K.tailGlowMat, CAR_AT.tailGlow);
+      add(K.under, K.underMat(i % 2 ? 0x34E0FF : 0xFF8A5C), CAR_AT.under);
+      car.rotation.y = L.dir > 0 ? 0 : Math.PI;
+      levelGroup.add(car);
+      X.cars.push({ mesh: car, lane, i, x: 0 });
+    });
+  });
+  // The stop line, and a light floating over each side of it.
+  const line = new Mesh(new PlaneGeometry(w - 0.2, 0.09), glowMat(0xFFFFFF, 0.9));
+  line.rotation.x = -Math.PI / 2; line.position.set(pc.x, top + 0.02, near - 0.12);
+  levelGroup.add(line);
+  const housingMat = new MeshStandardMaterial({ color: 0x141B2E, metalness: 0.5, roughness: 0.4 });
+  for (const sx of [-1, 1]) {
+    const post = new Group();
+    const housing = new Mesh(new RoundedBoxGeometry(0.46, 0.46, 0.16, 2, 0.07), housingMat);
+    const lamp = new Mesh(new CircleGeometry(0.16, 28), new MeshBasicMaterial({ color: 0x3DFF8A, toneMapped: false }));
+    lamp.position.z = 0.085;
+    const halo = new Mesh(new PlaneGeometry(1.2, 1.2), glowMat(0x3DFF8A, 0.8, dot));
+    halo.position.z = 0.09;
+    post.add(housing, lamp, halo);
+    post.position.set(pc.x + sx * (w / 2 + 0.4), top + 1.15, near - 0.12);
+    levelGroup.add(post);
+    X.lights.push({ lamp, halo });
+  }
+  c.cross = X;
+  crossings.push(c);
+}
+// Where each car of a lane is along it, at time t: s runs the way the lane goes.
+const carS = (lane, i, t) => (((lane.speed * t + lane.phase * lane.len + lane.at[i]) % lane.len) + lane.len) % lane.len;
+function crossingGreen(X, t) {
+  for (const lane of X.lanes) {
+    const Z = X.w / 2 + CAR_HX + R, mid = lane.len / 2;
+    for (let i = 0; i < lane.at.length; i++) {
+      const s = carS(lane, i, t);
+      if (s > mid - Z - lane.speed * CROSS_WARN && s < mid + Z) return false;
+    }
+  }
+  return true;
+}
+// Every physics step: move the cars, and throw the marble if one meets it.
+function crossStep(c, t) {
+  const X = c.cross;
+  for (const car of X.cars) {
+    const L = car.lane, s = carS(L, car.i, t);
+    car.x = X.x - L.dir * L.len / 2 + L.dir * s;
+    if (ball.hitT > 0 || state !== 'play') continue;
+    const cy = X.top + CAR_LIFT;
+    const dx = ball.p.x - clamp(ball.p.x, car.x - CAR_HX, car.x + CAR_HX);
+    const dy = ball.p.y - clamp(ball.p.y, cy - CAR_HY, cy + CAR_HY);
+    const dz = ball.p.z - clamp(ball.p.z, L.z - CAR_HZ, L.z + CAR_HZ);
+    if (dx * dx + dy * dy + dz * dz < R * R) {
+      ball.v.set(L.dir * Math.max(11, L.speed * 1.3), 5.5, ball.v.z * 0.3);
+      ball.hitT = 0.6; ball.onFerry = null; shake = 0.35;
+      sound('bump');
+    }
+  }
+  const green = crossingGreen(X, t);
+  if (green && !X.green) X.greenSince = t;
+  X.green = green;
+}
+function animateCrossings() {
+  for (const c of crossings) {
+    const X = c.cross;
+    for (const car of X.cars) car.mesh.position.set(car.x, X.top + CAR_LIFT, car.lane.z);
+    for (const L of X.lights) {
+      const col = X.green ? 0x3DFF8A : 0xFF2D48;
+      L.lamp.material.color.setHex(col); L.halo.material.color.setHex(col);
+    }
   }
 }
 
@@ -774,7 +900,7 @@ function loadLevel(n) {
   }
   levelGroup = new Group();
   scene.add(levelGroup);
-  colliders = []; ferries = []; holos = []; pads = []; gates = [];
+  colliders = []; ferries = []; holos = []; pads = []; crossings = []; gates = [];
   for (const pc of level.pieces) buildPiece(pc);
   if (world.name !== 'void') setWorld(world.name);   // scenery that follows the course is rebuilt for it
   level.minTop = Math.min(...level.pieces.map((p) => (p.t === 'ramp' ? Math.min(p.y0, p.y1) : p.y)));
@@ -783,11 +909,12 @@ function loadLevel(n) {
   if (world.rings) tintRings(world.rings[0], world.rings[1]);   // the world was set before these rings were made
   simT = 0;
   for (const c of ferries) updateFerry(c, 0);
+  for (const c of crossings) crossStep(c, 0);
   const [sx, sy, sz] = level.start;
   startPos.set(sx, sy + R + 0.01, sz);
   spawn.copy(startPos);
   ball.p.copy(startPos); ball.v.set(0, 0, 0); ball.spin.set(0, 0, 0);
-  ball.grounded = true; ball.onFerry = null; ball.airT = 0; ball.boostT = 0; ball.jumpCD = 0;
+  ball.grounded = true; ball.onFerry = null; ball.airT = 0; ball.boostT = 0; ball.jumpCD = 0; ball.hitT = 0;
   lastGroundY = sy;
   clock = 0; falls = 0; started = false;
   setState('play');
@@ -827,7 +954,7 @@ const BOOST_ACC = 34, VBOOST = 13, BOOST_T = 1, JUMP_UP = 9, JUMP_ON = 8;
 const STEP = 1 / 240;      // physics runs at 240 Hz whatever the display does
 
 const ball = { p: new Vector3(), v: new Vector3(), spin: new Vector3(), grounded: false,
-               onFerry: null, airT: 0, pad: null, boostT: 0, jumpCD: 0, onBoost: false };
+               onFerry: null, airT: 0, pad: null, boostT: 0, jumpCD: 0, onBoost: false, hitT: 0 };
 const startPos = new Vector3(), spawn = new Vector3();
 let lastGroundY = 0, simT = 0, acc = 0;
 
@@ -885,7 +1012,8 @@ function step(dt, ix, iz) {
   ball.p.addScaledVector(ball.v, dt);
   ball.grounded = false; ball.onFerry = null; ball.pad = null;
   for (const c of colliders) collide(c, dt);
-  ball.boostT = Math.max(0, ball.boostT - dt); ball.jumpCD = Math.max(0, ball.jumpCD - dt);
+  ball.boostT = Math.max(0, ball.boostT - dt); ball.jumpCD = Math.max(0, ball.jumpCD - dt); ball.hitT = Math.max(0, ball.hitT - dt);
+  for (const c of crossings) crossStep(c, simT);
   if (ball.pad === 'boost') {
     ball.v.z -= BOOST_ACC * dt; ball.boostT = BOOST_T;
     if (!ball.onBoost) sound('boost');
@@ -931,7 +1059,7 @@ function flyTo(dest) {
   flight.ctl.addVectors(flight.from, flight.to).multiplyScalar(0.5);
   flight.ctl.y = Math.max(flight.from.y, flight.to.y) + 4;
   flight.dur = Math.min(0.9, 0.45 + flight.from.distanceTo(flight.to) * 0.02);
-  ball.v.set(0, 0, 0); ball.onFerry = null; ball.boostT = 0;
+  ball.v.set(0, 0, 0); ball.onFerry = null; ball.boostT = 0; ball.hitT = 0;
   setState('home');
   if (REDUCED) arrive();
 }
@@ -1026,7 +1154,7 @@ function update(dt, now) {
   while (acc >= STEP) {
     acc -= STEP;
     if (state === 'play' || state === 'fall') step(STEP, state === 'play' ? ix : 0, state === 'play' ? iz : 0);
-    else { simT += STEP; for (const c of ferries) updateFerry(c, simT); }
+    else { simT += STEP; for (const c of ferries) updateFerry(c, simT); for (const c of crossings) crossStep(c, simT); }
   }
 
   if (state === 'play') {
@@ -1062,6 +1190,7 @@ function update(dt, now) {
 
   animateRings(now, dt);
   animatePieces(dt);
+  animateCrossings();
   updateSparks(dt);
   updateCamera(dt, false);
   updateSunPoint();
@@ -1386,6 +1515,7 @@ function drawGhost(now) {
 /* A new thing gets one line the first time it comes: at the start of the level
    that opens its district, until the marble has rolled on a way. */
 const NEWS = {
+  5: 'Flying cars cross the road. Wait at the line for the green light',
   9: 'Some pads move. Wait for one to line up with the path, then roll on',
   17: 'Bridges switch off and on. Cross while they are lit',
   25: 'Yellow arrows speed you up. Yellow rings throw you over a gap',
@@ -1413,6 +1543,7 @@ const RULES = [
   'Roll through the orange ring at the end of the course to finish the level.',
   'Blue rings save your place. Roll through one and it turns green.',
   'Roll off the edge and the marble flies back to the last green ring. The fall is counted, and nothing else is lost.',
+  'Flying cars cross some roads. Wait at the line for the green light, then roll across.',
   'Some pads move. Wait for one to line up with the path, roll on, and ride it across.',
   'See-through bridges switch off and on. Cross while they are lit. They flicker just before they go dark.',
   'Yellow arrows speed the marble up. Yellow rings throw it into the air, over the gap ahead.',
@@ -2342,6 +2473,51 @@ function loft(len, prof, stations, around) {
   g.setIndex(idx); g.computeVertexNormals();
   return g;
 }
+/* A flying car's parts: a lofted body in its own paint, a dark glass canopy,
+   LED strips across the nose and the tail, a soft cone of light ahead and a
+   glow underneath. The city draws many at once with instancing; a crossing
+   draws a few as plain meshes. Lights, after the owner's note that the first
+   headlights read as "small white squares": a thin strip across the nose, and
+   the cone spilling ahead, which is what reads as "lights on" from above. */
+const carProf = (t) => {                                // t: 0 at the tail, 1 at the nose
+  const kn = Math.min(1, (1 - t) * 2.3 / 0.95), kt = Math.min(1, t * 2.3 / 0.3);
+  const rn = Math.sqrt(1 - (1 - kn) * (1 - kn)), rt = Math.sqrt(1 - (1 - kt) * (1 - kt));
+  return { w: 0.52 * (0.25 + 0.75 * Math.sqrt(kn)) * (0.6 + 0.4 * rt), top: -0.12 + 0.32 * rn * (0.7 + 0.3 * rt), bot: -0.2 + 0.06 * (1 - kn) };
+};
+// Where each part sits on a car, in the car's own frame (x forward).
+const carPart = (x, y, z, sx = 1, sy = 1, sz = 1, rx = 0) =>
+  new Matrix4().compose(new Vector3(x, y, z), new Quaternion().setFromEuler(new Euler(rx, 0, 0)), new Vector3(sx, sy, sz));
+const CAR_AT = {
+  canopy: carPart(-0.1, 0.17, 0, 0.8, 0.36, 0.5), head: carPart(0.95, -0.06, 0), tail: carPart(-1.155, 0.0, 0),
+  beam: carPart(2.25, -0.08, 0, 1, 1, 1, -Math.PI / 2), tailGlow: carPart(-1.45, -0.02, 0, 1, 1, 1, -Math.PI / 2),
+  under: carPart(0, -0.27, 0, 1, 1, 1, -Math.PI / 2),
+};
+const CAR_PAINT = [0xF2F4F8, 0x9FB4D8, 0xFF8A3D, 0xFFD23F, 0x2EC4B6, 0xE63946, 0xB8C0CC];
+function carKit(env) {
+  const coneTex = canvasTex(128, 64, (g) => {
+    const img = g.createImageData(128, 64);
+    for (let y = 0; y < 64; y++) for (let x = 0; x < 128; x++) {
+      const u = x / 127, v = (y / 63 - 0.5), half = 0.1 + 0.36 * u;
+      const k = Math.exp(-(v / half) * (v / half) * 3) * Math.pow(1 - u, 1.6) * Math.min(1, u / 0.06) * 150;
+      const i = (y * 128 + x) * 4; img.data[i] = img.data[i + 1] = img.data[i + 2] = k; img.data[i + 3] = 255;
+    }
+    g.putImageData(img, 0, 0);
+  });
+  return {
+    body: loft(2.3, carProf, 22, 18),
+    paint: (color) => new MeshStandardMaterial({ color, metalness: 0.55, roughness: 0.28, envMap: env }),
+    canopy: new SphereGeometry(0.5, 18, 10),
+    canopyMat: new MeshStandardMaterial({ color: 0x0A1222, metalness: 0.9, roughness: 0.08, envMap: env, envMapIntensity: 1.4 }),
+    head: new BoxGeometry(0.05, 0.04, 0.44), headMat: new MeshBasicMaterial({ color: 0xEAF6FF, toneMapped: false }),
+    tail: new BoxGeometry(0.04, 0.05, 0.5), tailMat: new MeshBasicMaterial({ color: 0xFF2D48, toneMapped: false }),
+    beam: new PlaneGeometry(2.6, 1.6), beamMat: new MeshBasicMaterial({ map: coneTex, color: 0xDDF2FF, transparent: true,
+      blending: AdditiveBlending, depthWrite: false, side: DoubleSide, toneMapped: false }),
+    tailGlow: new PlaneGeometry(0.9, 0.7), tailGlowMat: new MeshBasicMaterial({ map: dot, color: 0xFF2D48, transparent: true,
+      opacity: 0.8, blending: AdditiveBlending, depthWrite: false, side: DoubleSide, toneMapped: false }),
+    under: new PlaneGeometry(1.9, 1.0),
+    underMat: (color) => new MeshBasicMaterial({ map: dot, color, transparent: true, blending: AdditiveBlending, depthWrite: false, toneMapped: false }),
+  };
+}
 function futureCity(G, tops, r) {
   const m = new Matrix4(), q = new Quaternion(), pos = new Vector3(), sc = new Vector3(), up = new Vector3(0, 1, 0);
   /* THE OWNER'S NOTES ON THE FIRST CITY (2026-09-26): the train had windows on
@@ -2366,48 +2542,20 @@ function futureCity(G, tops, r) {
   }
   const cars = [], zCars = Math.max(4, Math.round((30 - far) / 35));
   lanes.forEach((l) => { const n = l.axis === 'z' ? zCars : 3; for (let i = 0; i < n; i++) cars.push({ l, u: (i + r() * 0.6) / n, v: 9 + r() * 7 }); });
-  const N = cars.length;
-  const carProf = (t) => {                       // t: 0 at the tail, 1 at the nose
-    const kn = Math.min(1, (1 - t) * 2.3 / 0.95), kt = Math.min(1, t * 2.3 / 0.3);
-    const rn = Math.sqrt(1 - (1 - kn) * (1 - kn)), rt = Math.sqrt(1 - (1 - kt) * (1 - kt));
-    return { w: 0.52 * (0.25 + 0.75 * Math.sqrt(kn)) * (0.6 + 0.4 * rt), top: -0.12 + 0.32 * rn * (0.7 + 0.3 * rt), bot: -0.2 + 0.06 * (1 - kn) };
-  };
-  const body = new InstancedMesh(loft(2.3, carProf, 22, 18), new MeshStandardMaterial({ color: 0xFFFFFF, metalness: 0.55, roughness: 0.28, envMap: env }), N);
-  const canopy = new InstancedMesh(new SphereGeometry(0.5, 18, 10), new MeshStandardMaterial({ color: 0x0A1222, metalness: 0.9, roughness: 0.08, envMap: env, envMapIntensity: 1.4 }), N);
-  /* Lights, after the owner's note that the headlights read as "small white
-     squares": a thin LED strip across the nose and another across the tail,
-     and a soft cone of light spilling ahead of the car, which is what reads
-     as "lights on" from the game's camera above. */
-  const heads = new InstancedMesh(new BoxGeometry(0.05, 0.04, 0.44), new MeshBasicMaterial({ color: 0xEAF6FF, toneMapped: false }), N);
-  const tails = new InstancedMesh(new BoxGeometry(0.04, 0.05, 0.5), new MeshBasicMaterial({ color: 0xFF2D48, toneMapped: false }), N);
-  const coneTex = canvasTex(128, 64, (g) => {
-    const img = g.createImageData(128, 64);
-    for (let y = 0; y < 64; y++) for (let x = 0; x < 128; x++) {
-      const u = x / 127, v = (y / 63 - 0.5), half = 0.1 + 0.36 * u;
-      const k = Math.exp(-(v / half) * (v / half) * 3) * Math.pow(1 - u, 1.6) * Math.min(1, u / 0.06) * 150;
-      const i = (y * 128 + x) * 4; img.data[i] = img.data[i + 1] = img.data[i + 2] = k; img.data[i + 3] = 255;
-    }
-    g.putImageData(img, 0, 0);
-  });
-  const beams = new InstancedMesh(new PlaneGeometry(2.6, 1.6), new MeshBasicMaterial({ map: coneTex, color: 0xDDF2FF, transparent: true,
-    blending: AdditiveBlending, depthWrite: false, side: DoubleSide, toneMapped: false }), N);
-  const tailGlow = new InstancedMesh(new PlaneGeometry(0.9, 0.7), new MeshBasicMaterial({ map: dot, color: 0xFF2D48, transparent: true,
-    opacity: 0.8, blending: AdditiveBlending, depthWrite: false, side: DoubleSide, toneMapped: false }), N);
-  const under = new InstancedMesh(new PlaneGeometry(1.9, 1.0), new MeshBasicMaterial({ map: dot, transparent: true, blending: AdditiveBlending, depthWrite: false, toneMapped: false }), N);
-  const paint = [0xF2F4F8, 0x9FB4D8, 0xFF8A3D, 0xFFD23F, 0x2EC4B6, 0xE63946, 0xB8C0CC];
+  const N = cars.length, K = carKit(env);
+  const body = new InstancedMesh(K.body, K.paint(0xFFFFFF), N);
+  const canopy = new InstancedMesh(K.canopy, K.canopyMat, N);
+  const heads = new InstancedMesh(K.head, K.headMat, N), tails = new InstancedMesh(K.tail, K.tailMat, N);
+  const beams = new InstancedMesh(K.beam, K.beamMat, N), tailGlow = new InstancedMesh(K.tailGlow, K.tailGlowMat, N);
+  const under = new InstancedMesh(K.under, K.underMat(0xFFFFFF), N);
   const colr = new Color();
   cars.forEach((c, i) => {
-    body.setColorAt(i, colr.setHex(paint[i % paint.length]));
+    body.setColorAt(i, colr.setHex(CAR_PAINT[i % CAR_PAINT.length]));
     under.setColorAt(i, colr.setHex(i % 3 ? 0x34E0FF : 0xFF8A5C));
   });
   G.add(body, canopy, heads, tails, under, beams, tailGlow);
-  // Where each part sits on a car, in the car's own frame (x forward).
-  const part = (x, y, z, sx = 1, sy = 1, sz = 1, rx = 0) =>
-    new Matrix4().compose(new Vector3(x, y, z), new Quaternion().setFromEuler(new Euler(rx, 0, 0)), new Vector3(sx, sy, sz));
-  const P_CANOPY = part(-0.1, 0.17, 0, 0.8, 0.36, 0.5);
-  const P_HEAD = part(0.95, -0.06, 0), P_TAIL = part(-1.155, 0.0, 0);
-  const P_BEAM = part(2.25, -0.08, 0, 1, 1, 1, -Math.PI / 2), P_TAILGLOW = part(-1.45, -0.02, 0, 1, 1, 1, -Math.PI / 2);
-  const P_UNDER = part(0, -0.27, 0, 1, 1, 1, -Math.PI / 2);
+  const P_CANOPY = CAR_AT.canopy, P_HEAD = CAR_AT.head, P_TAIL = CAR_AT.tail;
+  const P_BEAM = CAR_AT.beam, P_TAILGLOW = CAR_AT.tailGlow, P_UNDER = CAR_AT.under;
   const carM = new Matrix4(), one = new Vector3(1, 1, 1);
   function placeCars() {
     cars.forEach((c, i) => {
@@ -2886,6 +3034,8 @@ if (HARNESS) {
     reach: (n) => loadLevel(n),
     simT: () => +simT.toFixed(3),
     holos: () => holos.map((c) => { const h = holoState(c.holo, simT); return { lit: h.lit, t: +h.t.toFixed(3), left: +h.left.toFixed(3) }; }),
+    crossings: () => crossings.map((c) => ({ green: c.cross.green, greenFor: c.cross.green ? +(simT - c.cross.greenSince).toFixed(3) : -1,
+                                             cars: c.cross.cars.map((k) => [+k.x.toFixed(2), k.lane.z]) })),
     // Fast checks: hold the clock, then run the game a step at a time with a
     // given stick, through the same update() a frame runs.
     hold: (on) => { simHold = !!on; return simHold; },
