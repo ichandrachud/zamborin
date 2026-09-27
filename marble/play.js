@@ -43,6 +43,7 @@ const TOK = {
   tint07: 'rgba(255,255,255,0.07)', tint12: 'rgba(255,255,255,0.12)',
   tint40: 'rgba(255,255,255,0.40)',
   accent: '#C24A39', accentText: '#FF6B5C',
+  accent2: '#FFD23F',                                   // --accent-2, the sunshine highlight: the stars
   scrim: 'rgba(10,16,28,0.88)', scrimWin: 'rgba(10,16,28,0.82)',
 };
 
@@ -198,6 +199,13 @@ const NEON_SOUNDS = {
   tint() { voice('sine', 880, 1320, 0.25, 0.05); voice('triangle', 1760, 2640, 0.2, 0.015, 0.04); },  // a curtain colours the marble
   tube() { voice('sawtooth', 140, 900, 0.5, 0.016); voice('sine', 330, 1320, 0.45, 0.045); },     // into a glass tube: drawn in with a rush
   pop() { voice('sine', 1100, 520, 0.14, 0.05); voice('triangle', 2200, 1400, 0.1, 0.012); },     // and out of it
+  zap() {                                             // caught by a scanner
+    voice('sawtooth', 1500, 90, 0.38, 0.045); voice('square', 760, 60, 0.3, 0.025); voice('sine', 2400, 380, 0.16, 0.02);
+  },
+  power() {                                           // a power switch: a clunk, then the power rising
+    voice('square', 90, 55, 0.14, 0.05); voice('sine', 160, 60, 0.18, 0.07);
+    voice('sawtooth', 110, 660, 0.9, 0.014, 0.08); voice('sine', 220, 1320, 0.8, 0.035, 0.08);
+  },
   pass() { voice('sine', 330, 660, 0.3, 0.05); voice('sine', 990, 990, 0.25, 0.02, 0.08); },       // through a wall of its own colour
   buzz() { voice('square', 110, 100, 0.22, 0.035); voice('sawtooth', 55, 50, 0.2, 0.03); },        // a wall of the other colour
   bump() {                                            // a car meets the marble: a thud, and two notes of horn
@@ -207,7 +215,7 @@ const NEON_SOUNDS = {
 };
 // The city's version of a sound where it has one, the house sound elsewhere.
 function sound(name) {
-  if ((world.name === 'neon' || ['boost', 'jump', 'bump', 'depart', 'tint', 'pass', 'buzz', 'warp', 'tube', 'pop'].includes(name)) && NEON_SOUNDS[name]) { if (sfx && sfx.isOn()) NEON_SOUNDS[name](); }
+  if ((world.name === 'neon' || ['boost', 'jump', 'bump', 'depart', 'tint', 'pass', 'buzz', 'warp', 'tube', 'pop', 'power', 'zap'].includes(name)) && NEON_SOUNDS[name]) { if (sfx && sfx.isOn()) NEON_SOUNDS[name](); }
   else play(name === 'home' ? 'land' : name);
 }
 function ensureCitySound() {
@@ -241,7 +249,13 @@ function ensureCitySound() {
   ws.connect(wf); wf.connect(wg);
   if (wp) { wg.connect(wp); wp.connect(out); } else wg.connect(out);
   ws.start();
-  citySound = { ac, pg, tg, tp, wf, wg, wp };
+  // A scanner: a low electric hum, its filter opening as the bar slides fastest.
+  const s1 = ac.createOscillator(), s2 = ac.createOscillator();
+  s1.type = s2.type = 'sawtooth'; s1.frequency.value = 110; s2.frequency.value = 116.5;
+  const sf = ac.createBiquadFilter(); sf.type = 'bandpass'; sf.frequency.value = 600; sf.Q.value = 1.4;
+  const sg = ac.createGain(); sg.gain.value = 0;
+  s1.connect(sf); s2.connect(sf); sf.connect(sg); sg.connect(out); s1.start(); s2.start();
+  citySound = { ac, pg, tg, tp, wf, wg, wp, sf, sg };
 }
 function updateCitySound() {
   const c = citySound;
@@ -261,6 +275,13 @@ function updateCitySound() {
     if (l > wl) { wl = l; wd = W.dir; }
   }
   c.wg.gain.setTargetAtTime(0.11 * wl, t, 0.08);
+  let sl = 0, sv = 0;                                   // the nearest scanner, and how fast its bar is sliding
+  if (on) for (const Sc of scans) {
+    const near = Math.max(0, 1 - Math.max(0, Math.abs(ball.p.z - Sc.zc) - Sc.d / 2) / 14);
+    if (near > sl) { sl = near; sv = Math.abs(Math.sin(2 * Math.PI * (simT + Sc.phase) / Sc.period)); }
+  }
+  c.sg.gain.setTargetAtTime(0.035 * sl, t, 0.1);
+  c.sf.frequency.setTargetAtTime(450 + 1100 * sv, t, 0.05);
   c.wf.frequency.setTargetAtTime(560 + 520 * wl, t, 0.1);
   if (c.wp) c.wp.pan.setTargetAtTime(-0.55 * wd, t, 0.2);
 }
@@ -273,8 +294,8 @@ T().init('marble');
 // ---------- SAVE ----------
 const SAVE_KEY = 'zamborin-marble.v1';
 function loadSave() {
-  try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s && s.level) return s; } catch (_) {}
-  return { level: 1, best: {} };
+  try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s && s.level) { s.best = s.best || {}; s.stars = s.stars || {}; return s; } } catch (_) {}
+  return { level: 1, best: {}, stars: {} };
 }
 const save = loadSave();
 function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (_) {} }
@@ -602,6 +623,17 @@ const LOCK = (x, z, w, y, col) => ({ t: 'lock', x, z, w, d: 0.24, y, col });
    The road in meets it from the south; `exits` names the roads out (W, N, E)
    and `lead` the one that leads on. The others stop short. */
 const RB_RI = 2, RB_RO = 4.6, ISLAND_H = 0.7, RB_CF = 0.7;
+/* SWITCH is a power switch: a button at (x, z) on a pad at the end of a side
+   road that leaves the main road at the junction (jx, jz). Rolling over it
+   lights the dark road `link` (a flat carrying `dark: link`), which cannot be
+   crossed until then. `cable` is the line of lights from the button to the
+   dark road, as [x, z] corners. */
+const SWITCH = (x, z, y, link, jx, jz, cable) => ({ t: 'switch', x, z, y, link, jx, jz, cable, w: 1.6, d: 1.6 });
+/* SCAN is road swept by a scanner: a red bar of light that sweeps from side to
+   side across it, a little past each edge, once every `period` seconds; with
+   `bars` 2, a second bar sweeps the other way and they cross in the middle.
+   Touching a bar sends the marble back to the last ring. */
+const SCAN = (x, z, w, d, y, period, phase, bars) => ({ t: 'scan', x, z, w, d, y, period, phase, bars });
 /* TUBE is a glass tube: its mouth stands at the end of the road (z), and it
    carries the marble up, once round a coil out over the city (to `side`, +1
    or -1 in x), and down onto the road that starts `gap` further on. */
@@ -810,6 +842,40 @@ function makeLevel(n) {
     else { out(lead, r2(1.5 + ew)); x = r2(cx + (lead === 'E' ? side : -side)); z = r2(cz - ew / 2); }
     straight(r2((lead === 'N' ? 5 : 7) + r() * 2), ew); // on from the roundabout, clear of the road that stops short
   }
+  /* POWER SWITCHES: a ring, a junction, a side road out to the switch, then a
+     short run to the dark road. The side road heads toward the middle of the
+     city and grows longer through the game. */
+  let switchesN = 0;
+  function powerSwitch() {
+    const k = switchesN++, jw = r2(Math.max(wide, 2.4)), sw = r2(Math.max(narrow, 1.8));
+    straight(4, jw, true);                              // a ring before the junction: a fall comes back here
+    const side = x <= 3 ? 1 : -1, len = r2(W(4, 9) + r() * 2), zj = r2(z - jw / 2);
+    pieces.push(F(x, zj, jw, jw, y));                   // the junction
+    const a = r2(x + side * jw / 2), b = r2(a + side * len), px = r2(b + side * 1.3);
+    pieces.push({ ...F(r2((a + b) / 2), zj, len, sw, y), detour: k }, { ...F(px, zj, 2.6, 2.6, y), detour: k });
+    const run0 = 2.5, dl = r2(W(4, 7)), cz = r2(zj + sw / 2 - 0.28), ex = r2(x + side * (jw / 2 - 0.28));
+    // The lamps: from the button along the near edge of the side road, then along the main road to the dark road.
+    pieces.push(SWITCH(px, zj, y, k, x, zj, [[r2(px - side * 0.95), cz], [ex, cz], [ex, r2(z - jw - run0)]]));
+    on(jw); run += 2 * (len + 1.3); sinceSave += 2 * (len + 1.3);
+    straight(run0, jw);
+    pieces.push({ ...F(x, r2(z - dl / 2), jw, dl, y), dark: k }); on(dl);
+    straight(r2(4 + r() * 2), jw);
+  }
+  /* SCANNER LASERS: a little road to wait on, the scanned stretch, and on.
+     Later the stretch is longer, the bar quicker, and from level 35 some have
+     two bars. */
+  let scansN = 0;
+  function scanner() {
+    scansN++;
+    // Every stretch leaves a fair window: with one bar, a side stays clear for over half its sweep; with two,
+    // the middle clears between crossings, so those stretches are shorter and their sweep slower.
+    const two = n >= 35 && (scansN === 1 || r() < 0.5), sw = r2(Math.max(wide, 2.4));   // from 35, a level's first has two bars
+    const d = r2(two ? W(3.6, 4.4) : W(4, 5.5) + r() * 0.8), period = r2(W(4, 3.2) + r() * 0.5 + (two ? 0.4 : 0));
+    straight(3, sw);
+    pieces.push(SCAN(x, r2(z - d / 2), sw, d, y, period, r2(r() * period), two ? 2 : 1));
+    on(d);
+    straight(r2(3 + r() * 2), sw);
+  }
   /* THE GLASS TUBE: the road ends at its mouth; it lands the marble on a long
      road ahead, over the gap. Its coil swings out toward the middle of the city. */
   let tubesN = 0;
@@ -844,13 +910,15 @@ function makeLevel(n) {
                    ['bridge', 'slide', 'shuttle', 'jog', 'cross', 'locks', 'wormhole', 'fork'], ALL];
   // What a level opens with: its district's new thing, and a crossing where they begin.
   const OPENER = ['jog', 'slide', 'bridge', 'jump', 'boostJump'], opener = n === 5 ? 'cross' : n === 7 ? 'fork' : n === 11 ? 'wormhole' : n === 13 ? 'ride'
-    : n === 15 ? 'mag' : n === 19 ? 'round' : n === 21 ? 'locks' : n === 23 ? 'wind' : n === 27 ? 'loop' : n === 29 ? 'tube' : OPENER[d];
+    : n === 6 ? 'switch' : n === 15 ? 'mag' : n === 19 ? 'round' : n === 21 ? 'locks' : n === 23 ? 'wind' : n === 27 ? 'loop' : n === 29 ? 'tube' : n === 31 ? 'scan' : OPENER[d];
   // The newer challenges join the draw from the level that brings each in, so
   // the courses before it stay exactly as they were.
+  if (n >= 6) { OWN[0].push('switch'); EARLIER[1].push('switch'); EARLIER[2].push('switch'); EARLIER[3].push('switch'); ALL.push('switch'); }
   if (n >= 15) { OWN[1].push('mag'); EARLIER[2].push('mag'); EARLIER[3].push('mag'); ALL.push('mag'); }
   if (n >= 19) { OWN[2].push('round'); EARLIER[3].push('round'); ALL.push('round'); }
   if (n >= 23) { OWN[2].push('wind'); EARLIER[3].push('wind'); ALL.push('wind'); }
   if (n >= 29) { OWN[3].push('tube'); ALL.push('tube'); }
+  if (n >= 31) { OWN[3].push('scan'); ALL.push('scan', 'scan'); }      // the newest danger turns up often in the Express
   const features = 2 + Math.round(k * 2) + d, length = 45 + 155 * g;
   straight(5, wide);
   for (let f = 0; f < features + 8 && (f < features || run < length); f++) {
@@ -875,6 +943,8 @@ function makeLevel(n) {
     else if (pick === 'wind') { if (windsN++ < 2) gusts(w); else jog(w); }
     else if (pick === 'round') { if (!roundsN) roundabout(); else jog(w); }
     else if (pick === 'tube') { if (!tubesN) glassTube(); else boost(wide); }
+    else if (pick === 'switch') { if (!switchesN) powerSwitch(); else jog(w); }
+    else if (pick === 'scan') { if (scansN < 2) scanner(); else jog(w); }
     else jog(w);
     straight(r2(mix(6, 4, g) + r() * 3), r() < 0.5 ? wide : narrow);
   }
@@ -882,9 +952,18 @@ function makeLevel(n) {
   return { start: [0, 0, 1], gates, goal: [x, y, r2(z - 4)], pieces, district: DISTRICTS[d], length: Math.round(run + 7) };
 }
 const LEVELS = Array.from({ length: 40 }, (_, i) => makeLevel(i + 1));
+/* TIME STARS (owner, 2026-09-27: "let's do the 3 you suggest"). Each level has
+   a star time: finish under it and the level's star is yours. Each was set by
+   the autopilot racing the course, quick and clean with no falls, by the
+   quicker way at a fork, plus 6% (at least a second), rounded up to a whole
+   second. The autopilot playing carefully earns none of them. The courses come
+   from their seeds, so these hold until a course changes; then they must be
+   raced again. */
+const STAR_TIMES = [23, 27, 23, 19, 26, 18, 22, 20, 33, 39, 54, 43, 43, 48, 55, 56, 51, 42, 61, 61,
+                    47, 48, 41, 40, 63, 38, 38, 33, 71, 47, 68, 45, 39, 42, 42, 53, 53, 52, 60, 93];
 
 let levelGroup = null;
-let colliders = [], ferries = [], holos = [], pads = [], crossings = [], riders = [], curtains = [], locks = [], wormholes = [], loopsIn = [], mags = [], winds = [], rounds = [], tubes = [], gates = [], goal = null, level = null;
+let colliders = [], ferries = [], holos = [], pads = [], crossings = [], riders = [], curtains = [], locks = [], wormholes = [], loopsIn = [], mags = [], winds = [], rounds = [], tubes = [], switches = [], scans = [], gates = [], goal = null, level = null;
 
 function platformGeometry(w, h, d) {
   const g = new RoundedBoxGeometry(w, h, d, 3, Math.min(0.14, h / 2 - 0.01));
@@ -958,6 +1037,7 @@ function dressPiece(c, pc, w, d) {
   } else if (pc.t === 'cross') buildCrossing(c, pc, w, d);
   else if (pc.t === 'mag') buildMag(c, pc, w, d);
   else if (pc.t === 'wind') buildWind(c, pc, w, d);
+  else if (pc.t === 'scan') buildScan(c, pc, w, d);
   else if (pc.t === 'train') buildRide(c, pc, w, d);
 }
 // BoxGeometry's face order: +x, -x, +y (top), -y, +z, -z.
@@ -1182,6 +1262,166 @@ function animateRounds(dt) {
     Rd.spinGrp.rotation.y = -Rd.spin * simT;
     if (!REDUCED) { Rd.gyro.rotation.y += dt * 0.5; Rd.rings.forEach((m, i) => { m.rotation.z += dt * (0.4 + 0.3 * i) * (i % 2 ? -1 : 1); }); }
   }
+}
+
+/* POWER SWITCHES (owner, 2026-09-27: "let's do the 3 you suggest"). The road
+   ahead is dark: its grid is out but for a fitful flicker, and a dark road
+   cannot be crossed. A line of unlit lamps runs from it, back along the road
+   and down a side road, to a switch: a round button with the power sign on
+   it, its ring pulsing. Roll over the button and the lamps light one after
+   another, back to the dark road, which flickers on and holds. */
+const powerGlyph = canvasTex(128, 128, (g) => {          // the power sign: a ring open at the top, a bar through the gap
+  const draw = () => {
+    g.beginPath(); g.arc(64, 68, 34, -Math.PI / 2 + 0.62, 1.5 * Math.PI - 0.62); g.stroke();
+    g.beginPath(); g.moveTo(64, 20); g.lineTo(64, 62); g.stroke();
+  };
+  g.lineCap = 'round';
+  g.filter = 'blur(6px)'; g.strokeStyle = 'rgba(255,120,230,0.9)'; g.lineWidth = 22; draw();
+  g.filter = 'none'; g.strokeStyle = '#FFFFFF'; g.lineWidth = 9; draw();
+});
+const DOT_OFF = new Color(0x62557E), DOT_ON = new Color(0xFFD6F4), PULSE_V = 14;
+function buildSwitch(pc) {
+  const grp = new Group(); grp.position.set(pc.x, pc.y, pc.z);
+  const base = new Mesh(new CylinderGeometry(0.78, 0.84, 0.05, 48), new MeshStandardMaterial({ color: 0x151A2A, metalness: 0.7, roughness: 0.3,
+    envMap: neonEnvMap() || envTex }));
+  base.position.y = 0.025; base.receiveShadow = true;
+  const faceMat = glowMat(0xFFFFFF, 0.7, powerGlyph), face = new Mesh(new CircleGeometry(0.62, 48), faceMat);
+  face.rotation.x = -Math.PI / 2; face.position.y = 0.052;
+  const ringMat = new MeshBasicMaterial({ color: 0xFF7FE6, toneMapped: false, transparent: true, opacity: 0.8 });
+  const ring = new Mesh(new TorusGeometry(0.76, 0.035, 8, 64), ringMat);
+  ring.rotation.x = Math.PI / 2; ring.position.y = 0.055;
+  const halo = new Mesh(new CircleGeometry(1.3, 48), glowMat(0xFF3FD0, 0.25, dot));
+  halo.rotation.x = -Math.PI / 2; halo.position.y = 0.012;
+  grp.add(base, face, ring, halo);
+  levelGroup.add(grp);
+  // The lamps along the cable, a hand's width in from the road's edge.
+  const pts = pc.cable, lens = [0];
+  for (let i = 1; i < pts.length; i++) lens.push(lens[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+  const L = lens[lens.length - 1], n = Math.max(2, Math.floor(L / 0.55)), dots = new InstancedMesh(new BoxGeometry(0.13, 0.035, 0.13),
+    new MeshBasicMaterial({ color: 0xFFFFFF, toneMapped: false }), n), o = new Object3D(), at = [];
+  for (let i = 0; i < n; i++) {
+    const sI = (i + 0.5) * L / n;
+    let k = 1; while (k < lens.length - 1 && lens[k] < sI) k++;
+    const f = (sI - lens[k - 1]) / Math.max(1e-6, lens[k] - lens[k - 1]);
+    o.position.set(pts[k - 1][0] + (pts[k][0] - pts[k - 1][0]) * f, pc.y + 0.018, pts[k - 1][1] + (pts[k][1] - pts[k - 1][1]) * f);
+    o.updateMatrix(); dots.setMatrixAt(i, o.matrix); dots.setColorAt(i, DOT_OFF); at.push(sI);
+  }
+  levelGroup.add(dots);
+  switches.push({ pc, on: false, t: 0, lit: 0, face, faceMat, ringMat, halo, button: base, dots, at, L, decals: [], top: null, side: null, top0: 1, side0: 1 });
+}
+// Over the button: the switch is on, and the dark road is solid from now on.
+function switchStep() {
+  for (const S of switches) {
+    if (S.on || !ball.grounded) continue;
+    if (Math.hypot(ball.p.x - S.pc.x, ball.p.z - S.pc.z) < 0.8 && Math.abs(ball.p.y - R - S.pc.y) < 0.2) { S.on = true; S.t = 0; sound('power'); }
+  }
+}
+function animateSwitches(dt) {
+  for (const S of switches) {
+    let road;
+    if (!S.on) {                                        // waiting: the ring pulses; the dark road stirs now and then
+      const p = REDUCED ? 0.7 : 0.5 + 0.5 * Math.sin(simT * 4);
+      S.ringMat.opacity = 0.45 + 0.5 * p; S.faceMat.opacity = 0.5 + 0.35 * p;
+      const f = REDUCED ? 0 : ((simT * 0.7 + S.pc.link * 0.37) % 2.6);
+      road = f < 0.12 ? 0.25 : f > 0.3 && f < 0.36 ? 0.18 : 0.05;
+    } else {
+      S.t += dt;
+      const reach = REDUCED ? S.L : S.t * PULSE_V, since = S.t - S.L / PULSE_V;
+      S.ringMat.opacity = 1; S.faceMat.opacity = 1;
+      if (S.button.position.y > -0.02) S.button.position.y -= dt * 0.25;       // the button sinks home
+      // The dark road flickers on as the light arrives, then holds.
+      road = since < 0 ? 0.05 : REDUCED ? 1 : since < 0.08 ? 0.55 : since < 0.16 ? 0.08 : since < 0.28 ? 0.8 : since < 0.34 ? 0.25 : 1;
+      for (const g of S.decals) g.material.opacity = since < 0 ? 0.45 : Math.max(0, 0.45 - since);
+      S.at.forEach((a, i) => S.dots.setColorAt(i, a <= reach ? DOT_ON : DOT_OFF));
+      S.dots.instanceColor.needsUpdate = true;
+    }
+    if (S.top) { S.top.emissiveIntensity = S.top0 * road; S.side.emissiveIntensity = S.side0 * Math.max(0.15, road); }
+  }
+}
+
+/* SCANNER LASERS (owner, 2026-09-27: "let's do the 3 you suggest"). A stretch
+   of road between two red thresholds is swept by a scanner: a bar of red light
+   standing on the road, a thin bright line along the surface with a curtain of
+   light rising from it, sliding from side to side across the road and a little
+   past each edge. It hums as it goes. Touch it and the marble is caught with a
+   zap and flies back to the last ring. The way through: down one side, just
+   after the bar has left it. Where two bars sweep, down the middle just after
+   they cross. */
+const SCAN_OVER = 0.45, SCAN_H = 0.95;
+const scanTex = canvasTex(8, 128, (g) => {               // the curtain: brightest at the road, gone by the top
+  const lg = g.createLinearGradient(0, 0, 0, 128);
+  lg.addColorStop(0, 'rgba(255,40,70,0)'); lg.addColorStop(0.6, 'rgba(255,40,70,0.28)'); lg.addColorStop(0.95, 'rgba(255,70,95,0.85)');
+  lg.addColorStop(1, 'rgba(255,200,210,1)');
+  g.fillStyle = lg; g.fillRect(0, 0, 8, 128);
+});
+const strandTex = canvasTex(32, 128, (g) => {           // one upright strand: a thin bright core in a tight feather, fading at the top
+  const fade = g.createLinearGradient(0, 0, 0, 128);
+  fade.addColorStop(0, 'rgba(255,255,255,0)'); fade.addColorStop(0.18, 'rgba(255,255,255,1)'); fade.addColorStop(1, 'rgba(255,255,255,1)');
+  const across = g.createLinearGradient(0, 0, 32, 0);
+  across.addColorStop(0, 'rgba(255,40,70,0)'); across.addColorStop(0.38, 'rgba(255,50,80,0.75)'); across.addColorStop(0.47, 'rgba(255,215,222,1)');
+  across.addColorStop(0.53, 'rgba(255,215,222,1)'); across.addColorStop(0.62, 'rgba(255,50,80,0.75)'); across.addColorStop(1, 'rgba(255,40,70,0)');
+  g.fillStyle = across; g.fillRect(0, 0, 32, 128);
+  g.globalCompositeOperation = 'destination-in'; g.fillStyle = fade; g.fillRect(0, 0, 32, 128);
+});
+const scanGlowTex = canvasTex(64, 8, (g) => {            // its light on the road, feathering out to each side
+  const lg = g.createLinearGradient(0, 0, 64, 0);
+  lg.addColorStop(0, 'rgba(255,40,70,0)'); lg.addColorStop(0.5, 'rgba(255,60,90,0.9)'); lg.addColorStop(1, 'rgba(255,40,70,0)');
+  g.fillStyle = lg; g.fillRect(0, 0, 64, 8);
+});
+function buildScan(c, pc, w, d) {
+  const top = c.half.y, red = new MeshBasicMaterial({ color: 0xFF2D48, toneMapped: false });
+  for (const e of [1, -1]) {                            // the thresholds: a red line across the road, a post with a lamp at each end
+    const line = new Mesh(new BoxGeometry(w, 0.02, 0.06), red);
+    line.position.set(0, top + 0.012, e * (d / 2 - 0.05)); c.mesh.add(line);
+    for (const sx of [-1, 1]) {
+      const post = new Mesh(new BoxGeometry(0.12, 1.05, 0.12), new MeshStandardMaterial({ color: 0x151A2A, metalness: 0.7, roughness: 0.35 }));
+      post.position.set(sx * (w / 2 + 0.2), top + 0.5, e * (d / 2 - 0.05)); c.mesh.add(post);
+      const lamp = new Mesh(new SphereGeometry(0.08, 12, 8), red);
+      lamp.position.set(sx * (w / 2 + 0.2), top + 1.08, e * (d / 2 - 0.05)); c.mesh.add(lamp);
+    }
+  }
+  const Sc = { pc, x: pc.x, zc: pc.z, y: pc.y, d, w, A: w / 2 + SCAN_OVER, period: pc.period, phase: pc.phase, bars: [] };
+  for (let i = 0; i < (pc.bars || 1); i++) {
+    const g = new Group();
+    const sheet = new Mesh(new PlaneGeometry(d, SCAN_H), glowMat(0xFFFFFF, 0.9, scanTex));
+    sheet.material.side = DoubleSide; sheet.rotation.y = Math.PI / 2; sheet.position.y = SCAN_H / 2;
+    const core = new Mesh(new BoxGeometry(0.035, 0.02, d), new MeshBasicMaterial({ color: 0xFFE0E6, toneMapped: false }));
+    core.position.y = 0.013;
+    const glow = new Mesh(new PlaneGeometry(1.1, d), glowMat(0xFFFFFF, 1, scanGlowTex));
+    glow.rotation.x = -Math.PI / 2; glow.position.y = 0.01;
+    g.add(sheet, core, glow);
+    // A row of upright strands along the bar, facing down the road, so it reads from behind as a fence of light.
+    const ns = Math.max(3, Math.round(d / 0.85)), strands = new InstancedMesh(new PlaneGeometry(0.2, SCAN_H), glowMat(0xFFFFFF, 1, strandTex), ns), o = new Object3D();
+    for (let k = 0; k < ns; k++) { o.position.set(0, SCAN_H / 2, -d / 2 + (k + 0.5) * d / ns); o.updateMatrix(); strands.setMatrixAt(k, o.matrix); }
+    strands.material.side = DoubleSide;
+    g.add(strands);
+    for (const e of [1, -1]) {                          // where the bar meets each threshold
+      const nub = new Mesh(new BoxGeometry(0.16, 0.07, 0.12), red);
+      nub.position.set(0, 0.035, e * (d / 2 - 0.05)); g.add(nub);
+    }
+    g.position.set(pc.x, pc.y, pc.z);
+    levelGroup.add(g); Sc.bars.push(g);
+  }
+  scans.push(Sc);
+}
+function scanX(Sc, t, i) {                              // where bar i stands at time t
+  return Sc.x + (i ? -1 : 1) * Sc.A * Math.cos(2 * Math.PI * (t + Sc.phase) / Sc.period);
+}
+function scanStep() {
+  for (const Sc of scans) {
+    if (Math.abs(ball.p.z - Sc.zc) > Sc.d / 2 + R * 0.5 || ball.p.y - Sc.y > SCAN_H + R || ball.p.y < Sc.y - 0.3) continue;
+    for (let i = 0; i < Sc.bars.length; i++) if (Math.abs(ball.p.x - scanX(Sc, simT, i)) < R + 0.03) { zap(); return; }
+  }
+}
+function zap() {                                        // caught: a zap, sparks, and back to the last ring
+  sound('zap'); shake = Math.max(shake, 0.25);
+  burst(ball.p.x, ball.p.y, ball.p.z, 0xFF2D48, 30, 4);
+  burst(ball.p.x, ball.p.y, ball.p.z, 0xFFFFFF, 10, 3);
+  ball.v.set(0, 0, 0);
+  startFall();
+}
+function animateScans() {
+  for (const Sc of scans) Sc.bars.forEach((g, i) => { g.position.x = scanX(Sc, simT, i); });
 }
 
 /* THE GLASS TUBE (owner, 2026-09-27: "proceed on the next 4 blocks and
@@ -1709,6 +1949,7 @@ function freeCourse(grp) {
   for (const c of ferries) if (c.train) for (const t of c.train.model.userData.maps) t.dispose();
   for (const c of locks) c.mat.map.dispose();
   for (const c of mags) c.magFx.tex.dispose();
+  for (const S of switches) if (S.top) { S.top.dispose(); S.side.dispose(); }
   scene.remove(grp);
   grp.traverse((o) => {
     if (o.geometry) o.geometry.dispose();
@@ -1716,12 +1957,12 @@ function freeCourse(grp) {
   });
 }
 function enterPocket(W) {
-  pocket = { colliders, ferries, holos, pads, crossings, riders, curtains, locks, wormholes, loopsIn, mags, winds, rounds, tubes, gates, goal, level, levelGroup,
+  pocket = { colliders, ferries, holos, pads, crossings, riders, curtains, locks, wormholes, loopsIn, mags, winds, rounds, tubes, switches, scans, gates, goal, level, levelGroup,
              world: world.name, from: W };
   levelGroup.visible = false;
   const P = W.pc.pocket;
   levelGroup = new Group(); scene.add(levelGroup);
-  colliders = []; ferries = []; holos = []; pads = []; crossings = []; riders = []; curtains = []; locks = []; wormholes = []; loopsIn = []; mags = []; winds = []; rounds = []; tubes = []; gates = [];
+  colliders = []; ferries = []; holos = []; pads = []; crossings = []; riders = []; curtains = []; locks = []; wormholes = []; loopsIn = []; mags = []; winds = []; rounds = []; tubes = []; switches = []; scans = []; gates = [];
   goal = null;
   level = { pieces: P.pieces, gates: [], start: P.start, world: P.world };
   for (const pc of P.pieces) buildPiece(pc);
@@ -1737,7 +1978,7 @@ function enterPocket(W) {
 function leavePocket() {
   freeCourse(levelGroup);
   const S = pocket; pocket = null;
-  ({ colliders, ferries, holos, pads, crossings, riders, curtains, locks, wormholes, loopsIn, mags, winds, rounds, tubes, gates, goal, level, levelGroup } = S);
+  ({ colliders, ferries, holos, pads, crossings, riders, curtains, locks, wormholes, loopsIn, mags, winds, rounds, tubes, switches, scans, gates, goal, level, levelGroup } = S);
   levelGroup.visible = true;
   setWorld(S.world);
   const out = S.from.twin;
@@ -1812,6 +2053,7 @@ function buildPiece(pc) {
   if (pc.t === 'lock') { buildLock(pc); return; }
   if (pc.t === 'round') { buildRound(pc); return; }
   if (pc.t === 'tube') { buildTube(pc); return; }
+  if (pc.t === 'switch') { buildSwitch(pc); return; }
   let h = THICK;
   const quat = new Quaternion(), center = new Vector3();
   let w = pc.w, d = pc.d;
@@ -1839,6 +2081,13 @@ function buildPiece(pc) {
     ferries.push(c);
   }
   if (pc.lane) c.lane = pc.lane;
+  if (pc.dark !== undefined) {                          // a dark road: solid only once its switch is on
+    const S = switches[pc.dark];
+    c.power = S;
+    const g = new Mesh(new PlaneGeometry(1.5, 1.5), glowMat(0xFFFFFF, 0.45, powerGlyph));
+    g.rotation.x = -Math.PI / 2; g.position.y = h / 2 + 0.014;
+    mesh.add(g); S.decals.push(g);
+  }
   if (pc.stub) {                                        // a road out of a roundabout that stops short: a red bar across its end
     const along = pc.stub === 'N' ? [0, -1] : pc.stub === 'W' ? [-1, 0] : [1, 0];
     const bar = new Mesh(new BoxGeometry(along[0] ? 0.1 : w, 0.08, along[0] ? d : 0.1), new MeshBasicMaterial({ color: 0xFF2D48, toneMapped: false }));
@@ -1868,7 +2117,7 @@ function makeRing(x, y, z, isGoal) {
 }
 
 function loadLevel(n) {
-  if (pocket) { freeCourse(levelGroup); levelGroup = pocket.levelGroup; ({ holos, pads, ferries, locks, mags } = pocket); pocket = null; }
+  if (pocket) { freeCourse(levelGroup); levelGroup = pocket.levelGroup; ({ holos, pads, ferries, locks, mags, switches } = pocket); pocket = null; }
   levelNo = Math.max(1, Math.min(LEVELS.length, n));
   level = LEVELS[levelNo - 1];
   if (levelGroup) {
@@ -1877,6 +2126,7 @@ function loadLevel(n) {
     for (const c of ferries) if (c.train) for (const t of c.train.model.userData.maps) t.dispose();
     for (const c of locks) c.mat.map.dispose();
     for (const c of mags) c.magFx.tex.dispose();
+    for (const S of switches) if (S.top) { S.top.dispose(); S.side.dispose(); }
     scene.remove(levelGroup);
     levelGroup.traverse((o) => {
       if (o.geometry) o.geometry.dispose();
@@ -1886,7 +2136,7 @@ function loadLevel(n) {
   }
   levelGroup = new Group();
   scene.add(levelGroup);
-  colliders = []; ferries = []; holos = []; pads = []; crossings = []; riders = []; curtains = []; locks = []; wormholes = []; loopsIn = []; mags = []; winds = []; rounds = []; tubes = []; gates = [];
+  colliders = []; ferries = []; holos = []; pads = []; crossings = []; riders = []; curtains = []; locks = []; wormholes = []; loopsIn = []; mags = []; winds = []; rounds = []; tubes = []; switches = []; scans = []; gates = [];
   for (const pc of level.pieces) buildPiece(pc);
   if (world.name !== 'void') setWorld(world.name);   // scenery that follows the course is rebuilt for it
   level.minTop = Math.min(...level.pieces.map((p) => (p.t === 'ramp' ? Math.min(p.y0, p.y1) : p.y)));
@@ -1961,6 +2211,7 @@ function collide(c, dt) {
   // that lights up round a marble already falling through it lets it fall.
   if (c.holo && (!holoState(c.holo, simT).lit || ball.p.y - R < c.pos.y + c.half.y - 0.3)) return;
   if (c.lock && ball.tint === c.lock) return;
+  if (c.power && !c.power.on) return;                   // a dark road is not there until its switch is on
   _L.subVectors(ball.p, c.pos).applyQuaternion(c.inv);
   const h = c.half;
   if (Math.abs(_L.x) > h.x + R || Math.abs(_L.y) > h.y + R || Math.abs(_L.z) > h.z + R) return;
@@ -2023,6 +2274,8 @@ function step(dt, ix, iz) {
   for (const c of locks) collide(c, dt);
   for (const Rd of rounds) roundContact(Rd);
   if (tubes.length) tubeCatch();
+  if (switches.length) switchStep();
+  if (scans.length && state === 'play') scanStep();
   ball.onLoop = null;
   for (const L of loopsIn) loopContact(L);
   tintStep();
@@ -2130,11 +2383,26 @@ function startGoal() {
   const best = save.best[levelNo];
   if (!best || clock < best) save.best[levelNo] = clock;
   lastWasBest = !best || clock < best;
+  lastStar = clock < STAR_TIMES[levelNo - 1];
+  if (lastStar) save.stars[levelNo] = 1;
   save.level = Math.min(LEVELS.length, levelNo + 1);
   persist();
   T().levelComplete(levelNo);
 }
-let lastWasBest = false;
+let lastWasBest = false, lastStar = false;
+const starCount = () => Object.keys(save.stars).length;
+// A five-point star, point up: filled, or drawn as an outline.
+function drawStarIcon(cx, cy, r, filled, color) {
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? r * 0.46 : r;
+    const px = cx + Math.cos(a) * rr, py = cy + Math.sin(a) * rr;
+    if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py);
+  }
+  ctx.closePath();
+  if (filled) { ctx.fillStyle = color; ctx.fill(); }
+  else { ctx.strokeStyle = color; ctx.lineWidth = 1.75; ctx.lineJoin = 'round'; ctx.stroke(); }
+}
 
 function restartLevel() {
   if (pocket && state !== 'warp') leavePocket();
@@ -2226,6 +2494,8 @@ function update(dt, now) {
   animateMagsAndWinds(dt);
   animateRounds(dt);
   animateTubes();
+  animateSwitches(dt);
+  animateScans();
   updateSparks(dt);
   updateCamera(dt, false);
   updateSunPoint();
@@ -2474,17 +2744,35 @@ function drawControls() {
 /* The read-out, one line at the bottom left (DESIGN-SYSTEM 4.3). It can grow
    (a long time, many falls), so it has forms, the shortest last, and takes the
    longest that fits (10.3). */
+/* The star time rides beside the clock, as a star and a time: a filled star
+   when the level's star is already yours, a gold outline while this run can
+   still earn it, and a grey one once the clock has passed it. */
+const STAR_W = 17;
 function drawReadout() {
   const phone = MODE === 'mobile', ly = LH - botBand() / 2, x0 = phone ? PHONE_PAD : SIDE_PAD;
   const room = phone ? LW - PHONE_PAD * 2 - 44 - 8 : LW - SIDE_PAD * 2;
-  const lv = 'LEVEL ' + levelNo, tm = fmt(clock);
-  const forms = [lv + SEP + 'TIME ' + tm + SEP + 'FALLS ' + falls, lv + SEP + tm + SEP + 'FALLS ' + falls, lv + SEP + tm];
+  const lv = 'LEVEL ' + levelNo, tm = fmt(clock), fl = 'FALLS ' + falls, starT = STAR_TIMES[levelNo - 1], sT = fmt(starT);
+  const forms = [[lv, { t: 'TIME ' + tm, s: sT }, fl], [lv, { t: tm, s: sT }, fl], [lv, { t: tm, s: sT }], [lv, tm]];
   ctx.font = '600 16px Inter, sans-serif';
-  let txt = forms[forms.length - 1];
-  for (const f of forms) if (ctx.measureText(f).width <= room) { txt = f; break; }
-  ctx.fillStyle = TOK.ink72; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-  ctx.fillText(txt, x0, ly);
-  L.readout = { text: txt, x: x0, w: ctx.measureText(txt).width };
+  const sepW = ctx.measureText(SEP).width;
+  const segW = (g) => (typeof g === 'string' ? ctx.measureText(g).width : ctx.measureText(g.t).width + 11 + STAR_W + 5 + ctx.measureText(g.s).width);
+  const width = (f) => f.reduce((a, g, i) => a + segW(g) + (i ? sepW : 0), 0);
+  let form = forms[forms.length - 1];
+  for (const f of forms) if (width(f) <= room) { form = f; break; }
+  ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = TOK.ink72;
+  let x = x0;
+  const have = !!save.stars[levelNo], still = clock < starT;
+  form.forEach((g, i) => {
+    if (i) { ctx.fillText(SEP, x, ly); x += sepW; }
+    if (typeof g === 'string') { ctx.fillText(g, x, ly); x += segW(g); return; }
+    ctx.fillText(g.t, x, ly);
+    const sx = x + ctx.measureText(g.t).width + 11;
+    drawStarIcon(sx + STAR_W / 2, ly - 1, STAR_W / 2, have, have || still ? TOK.accent2 : TOK.tint40);
+    ctx.fillStyle = TOK.ink72; ctx.fillText(g.s, sx + STAR_W + 5, ly);          // the time stays readable; the star greys
+    x += segW(g);
+  });
+  const txt = form.map((g) => (typeof g === 'string' ? g : g.t + ' *' + g.s)).join(SEP);
+  L.readout = { text: txt, x: x0, w: x - x0 };
   if (phone) {
     // The sound switch, bare at the bottom right; no circle, but a full target.
     const sx = LW - PHONE_PAD - 11;
@@ -2566,6 +2854,7 @@ function drawGhost(now) {
    that opens its district, until the marble has rolled on a way. */
 const NEWS = {
   5: 'Flying cars cross the road. Wait at the line for the green light',
+  6: 'The road ahead is dark. Follow the lamps to its switch, roll over it, and come back',
   7: 'The road splits. The narrow way is quicker; the wide way is safer',
   9: 'Some pads move. Wait for one to line up with the path, then roll on',
   11: 'A wormhole! Roll in to cross the crystal canyon, and come out on the far side',
@@ -2578,6 +2867,7 @@ const NEWS = {
   25: 'Yellow arrows speed you up. Yellow rings throw you over a gap',
   27: 'A loop! Hit the yellow arrows first, and it carries you round',
   29: 'A glass tube! Roll into it, and it carries you over the city',
+  31: 'A scanner sweeps the road. Roll down one side just after the red bar has left it',
   33: 'The Express: everything at once, on the longest courses',
 };
 const POCKET_NEWS = { crystal: 'The crystal canyon: the road is slippery. Brake early' };
@@ -2602,8 +2892,10 @@ const RULES = [
   'Drag anywhere to roll the marble. The further you drag, the harder it rolls. On a computer the arrow keys work too.',
   'Roll through the orange ring at the end of the course to finish the level.',
   'Blue rings save your place. Roll through one and it turns green.',
+  'Each level has a star time, shown by the star at the bottom. Finish under it to win the level\'s star.',
   'Where the road splits, the narrow way is quicker and the wide way is safer. Both lead on.',
   'Roll off the edge and the marble flies back to the last green ring. The fall is counted, and nothing else is lost.',
+  'A dark road cannot be crossed. Follow the line of lamps down the side road to its switch and roll over it: the road lights up.',
   'Flying cars cross some roads. Wait at the line for the green light, then roll across.',
   'Some pads move. Wait for one to line up with the path, roll on, and ride it across.',
   'A wormhole takes the marble to the crystal canyon, where the road is slippery. Cross it to come out on the far side.',
@@ -2615,6 +2907,7 @@ const RULES = [
   'Yellow arrows speed the marble up. Yellow rings throw it into the air, over the gap ahead.',
   'A loop carries the marble round if it comes in fast. Roll over the yellow arrows before it.',
   'A glass tube carries the marble over the city to the road ahead. Just roll into it.',
+  'A red scanner bar sweeps across some roads, and touching it sends the marble back to the last ring. Roll down one side just after the bar has left it. Where two bars sweep, go down the middle just after they cross.',
   'Lime and violet walls let through only a marble of their own colour. Roll through a curtain of that colour first: it colours the marble.',
 ];
 function wrapText(text, maxW, size) {
@@ -2634,7 +2927,7 @@ function cardLayout(kind) {
   const items = [];
   if (kind === 'rules') {
     for (const r of RULES) { const lines = wrapText(r, pw - 100, 16); items.push({ t: 'rule', lines, h: lines.length * 22 + 13 }); }
-  } else items.push({ t: 'won', h: 96 });
+  } else items.push({ t: 'won', h: 158 });
   let contentH = 0; for (const it of items) contentH += it.h;
   contentH = Math.max(0, contentH - 13);
   const last = levelNo >= LEVELS.length;
@@ -2689,6 +2982,16 @@ function drawCard(kind) {
       ctx.fillText(fmt(clock), mid, yy + 64);
       ctx.fillStyle = TOK.ink82; ctx.font = '600 16px Inter, sans-serif';
       ctx.fillText(lastWasBest ? 'Your best time' : 'Best ' + fmt(best || clock), mid, yy + 92);
+      // The star: this run's, or the one already won, or the time to beat for it.
+      const st = STAR_TIMES[levelNo - 1], have = !!save.stars[levelNo];
+      const line = lastStar ? 'Star earned: under ' + fmt(st) : have ? 'Your star, for under ' + fmt(st) : 'Beat ' + fmt(st) + ' for the star';
+      ctx.font = '600 17px Inter, sans-serif';
+      const lw = ctx.measureText(line).width, sx = mid - (lw + 24) / 2;
+      drawStarIcon(sx + 9, yy + 125, 10, lastStar || have, lastStar || have ? TOK.accent2 : TOK.tint40);
+      ctx.fillStyle = lastStar ? TOK.text : TOK.ink82; ctx.textAlign = 'left';
+      ctx.fillText(line, sx + 24, yy + 131);
+      ctx.textAlign = 'center'; ctx.fillStyle = TOK.ink72; ctx.font = '500 16px Inter, sans-serif';
+      ctx.fillText(starCount() + ' of ' + LEVELS.length + ' stars', mid, yy + 154);
       ctx.textAlign = 'left';
     } else {
       n++;
@@ -4164,6 +4467,13 @@ function neonCourse(style) {
   const M = neonMats[style] || (neonMats[style] = neonMaterials(style));
   for (const c of colliders) {
     if (c.holo) continue;
+    if (c.power) {
+      const S = c.power;
+      if (S.top) { S.top.dispose(); S.side.dispose(); }
+      S.top = M.top.clone(); S.side = M.side.clone(); S.top0 = M.top.emissiveIntensity; S.side0 = M.side.emissiveIntensity;
+      c.mesh.material = [S.side, S.side, S.top, M.under, S.side, S.side]; setTopUV(c.mesh, false);
+      continue;
+    }
     const [side, top] = c.ferry ? [M.ferrySide, M.ferryTop] : c.pad ? [M.padSide, M.padTop] : c.mag ? [M.magSide, M.padTop]
       : c.lane ? [M.laneSide[c.lane], M.laneTop[c.lane]] : [M.side, M.top];
     c.mesh.material = [side, side, top, M.under, side, side]; setTopUV(c.mesh, false);
@@ -4341,6 +4651,9 @@ if (HARNESS) {
     tint: () => ball.tint,
     simT: () => +simT.toFixed(3),
     holos: () => holos.map((c) => { const h = holoState(c.holo, simT); return { lit: h.lit, t: +h.t.toFixed(3), left: +h.left.toFixed(3) }; }),
+    switches: () => switches.map((S) => ({ on: S.on, x: S.pc.x, z: S.pc.z })),
+    scans: () => scans.map((Sc) => ({ x: Sc.x, z: Sc.zc, d: Sc.d, w: Sc.w, A: Sc.A, period: Sc.period, phase: Sc.phase, bars: Sc.bars.length,
+                                      at: Sc.bars.map((_, i) => +scanX(Sc, simT, i).toFixed(3)) })),
     winds: () => winds.map((W) => { const st = windState(W, simT); return { k: +st.k.toFixed(3), show: +st.show.toFixed(3), z: W.z, d: W.d }; }),
     windDebug: () => winds.map((W) => { const m = W.streaks, e = []; for (let i = 0; i < 4; i++) { const a = new Matrix4(); m.getMatrixAt(i, a); e.push(a.elements.map((v) => +v.toFixed(2))); }
       return { op: m.material.opacity, count: m.count, inScene: !!m.parent && !!m.parent.parent, from: W.from, to: W.to, e, map: !!m.material.map, vis: m.visible }; }),
@@ -4370,6 +4683,7 @@ if (HARNESS) {
                overlapPx: Math.max(0, c.py + c.ph - LH) };
     },
     progress: () => JSON.parse(JSON.stringify(save)),
+    starTime: (n) => STAR_TIMES[(n || levelNo) - 1],
     look: (name) => { setLook(name); return look; },
     eye: (style) => { buildEye(style); return eyeStyle; },
     world: (name) => setWorld(name),
