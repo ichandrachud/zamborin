@@ -191,6 +191,9 @@ const NEON_SOUNDS = {
     voice('sine', 659.25, 659.25, 0.5, 0.06); voice('sine', 523.25, 523.25, 0.7, 0.06, 0.32);
     voice('triangle', 1318.5, 1318.5, 0.3, 0.015); voice('triangle', 1046.5, 1046.5, 0.4, 0.015, 0.32);
   },
+  tint() { voice('sine', 880, 1320, 0.25, 0.05); voice('triangle', 1760, 2640, 0.2, 0.015, 0.04); },  // a curtain colours the marble
+  pass() { voice('sine', 330, 660, 0.3, 0.05); voice('sine', 990, 990, 0.25, 0.02, 0.08); },       // through a wall of its own colour
+  buzz() { voice('square', 110, 100, 0.22, 0.035); voice('sawtooth', 55, 50, 0.2, 0.03); },        // a wall of the other colour
   bump() {                                            // a car meets the marble: a thud, and two notes of horn
     voice('sine', 170, 55, 0.3, 0.11); voice('triangle', 90, 40, 0.25, 0.05);
     voice('square', 466, 466, 0.1, 0.022, 0.06); voice('square', 370, 370, 0.16, 0.022, 0.2);
@@ -198,7 +201,7 @@ const NEON_SOUNDS = {
 };
 // The city's version of a sound where it has one, the house sound elsewhere.
 function sound(name) {
-  if ((world.name === 'neon' || ['boost', 'jump', 'bump', 'depart'].includes(name)) && NEON_SOUNDS[name]) { if (sfx && sfx.isOn()) NEON_SOUNDS[name](); }
+  if ((world.name === 'neon' || ['boost', 'jump', 'bump', 'depart', 'tint', 'pass', 'buzz'].includes(name)) && NEON_SOUNDS[name]) { if (sfx && sfx.isOn()) NEON_SOUNDS[name](); }
   else play(name === 'home' ? 'land' : name);
 }
 function ensureCitySound() {
@@ -523,6 +526,12 @@ const CROSS = (x, z, w, d, y, lanes) => ({ t: 'cross', x, z, w, d, y, lanes });
    side of z. `pull` is how much of the train's own acceleration the marble
    feels: it rolls back as the train pulls away and on as it brakes. */
 const TRAIN_DECK = 18, TRAIN_H = 0.3;
+/* COLOUR LOCKS: a CURTAIN of light across a lane colours the marble that rolls
+   through it (colour 1 lime, 2 violet); a LOCK is a wall across the road that
+   lets through only a marble of its own colour. Lane planks carry `lane`, the
+   colour of their curtain. */
+const CURTAIN = (x, z, w, y, col) => ({ t: 'curtain', x, z, w, d: 0.1, y, col });
+const LOCK = (x, z, w, y, col) => ({ t: 'lock', x, z, w, d: 0.24, y, col });
 const TRAIN = (x, z, w, y, amp, period, dwell, phase, pull) => ({ t: 'train', x, z, w, d: TRAIN_DECK, y, axis: 'z', amp, period, dwell, phase, pull });
 const seeded = (seed) => () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
 const mix = (a, b, t) => a + (b - a) * t;
@@ -592,6 +601,18 @@ function makeLevel(n) {
     on(len);
     straight(r2(3 + r() * 2), w);
   }
+  function locks(times) {                               // the road forks into two lanes, a colour on each, then a wall of one
+    const laneW = r2(Math.max(1.4, narrow)), off = r2(laneW / 2 + 0.5), L = r2(W(6, 8)), wideW = r2(2 * off + laneW);
+    for (let k = 0; k < times; k++) {
+      pieces.push(F(x, z - 1.5, wideW, 3, y)); on(3);
+      const left = r() < 0.5 ? 1 : 2, col = r() < 0.5 ? 1 : 2;
+      pieces.push({ ...F(r2(x - off), r2(z - L / 2), laneW, L, y), lane: left }, { ...F(r2(x + off), r2(z - L / 2), laneW, L, y), lane: 3 - left });
+      pieces.push(CURTAIN(r2(x - off), r2(z - L / 2), laneW, y, left), CURTAIN(r2(x + off), r2(z - L / 2), laneW, y, 3 - left));
+      on(L);
+      pieces.push(F(x, z - 2.5, wideW, 5, y), LOCK(x, r2(z - 3.2), wideW, y, col));
+      on(5);
+    }
+  }
   let rides = 0;
   function ride() {                                     // the sky train: on at one station, off at the next
     rides++;
@@ -628,12 +649,12 @@ function makeLevel(n) {
   }
   // Every other feature is the district's own, so it carries the district;
   // the rest are what came before. The Express draws on everything.
-  const ALL = ['bridge', 'slide', 'shuttle', 'boostJump', 'jump', 'jog', 'ramp', 'narrow', 'cross', 'ride'];
-  const OWN = [['jog', 'ramp', 'narrow', 'ramp', 'cross'], ['slide', 'shuttle', 'ride'], ['bridge'], ['jump', 'boostJump', 'boost'], ALL];
+  const ALL = ['bridge', 'slide', 'shuttle', 'boostJump', 'jump', 'jog', 'ramp', 'narrow', 'cross', 'ride', 'locks'];
+  const OWN = [['jog', 'ramp', 'narrow', 'ramp', 'cross'], ['slide', 'shuttle', 'ride'], ['bridge', 'bridge', 'locks'], ['jump', 'boostJump', 'boost'], ALL];
   const EARLIER = [['jog', 'narrow'], ['jog', 'ramp', 'narrow', 'cross'], ['jog', 'slide', 'shuttle', 'narrow', 'cross'],
-                   ['bridge', 'slide', 'shuttle', 'jog', 'cross'], ALL];
+                   ['bridge', 'slide', 'shuttle', 'jog', 'cross', 'locks'], ALL];
   // What a level opens with: its district's new thing, and a crossing where they begin.
-  const OPENER = ['jog', 'slide', 'bridge', 'jump', 'boostJump'], opener = n === 5 ? 'cross' : n === 13 ? 'ride' : OPENER[d];
+  const OPENER = ['jog', 'slide', 'bridge', 'jump', 'boostJump'], opener = n === 5 ? 'cross' : n === 13 ? 'ride' : n === 21 ? 'locks' : OPENER[d];
   const features = 2 + Math.round(k * 2) + d, length = 45 + 155 * g;
   straight(5, wide);
   for (let f = 0; f < features + 8 && (f < features || run < length); f++) {
@@ -650,6 +671,7 @@ function makeLevel(n) {
     else if (pick === 'boostJump') boostJump(wide);
     else if (pick === 'cross' && n >= 5) cross(w);
     else if (pick === 'ride') { if (n >= 13 && !rides) ride(); else shuttle(); }
+    else if (pick === 'locks') { if (n >= 21) locks(n >= 33 && r() < 0.5 ? 2 : 1); else bridge(w); }
     else jog(w);
     straight(r2(mix(6, 4, g) + r() * 3), r() < 0.5 ? wide : narrow);
   }
@@ -659,7 +681,7 @@ function makeLevel(n) {
 const LEVELS = Array.from({ length: 40 }, (_, i) => makeLevel(i + 1));
 
 let levelGroup = null;
-let colliders = [], ferries = [], holos = [], pads = [], crossings = [], riders = [], gates = [], goal = null, level = null;
+let colliders = [], ferries = [], holos = [], pads = [], crossings = [], riders = [], curtains = [], locks = [], gates = [], goal = null, level = null;
 
 function platformGeometry(w, h, d) {
   const g = new RoundedBoxGeometry(w, h, d, 3, Math.min(0.14, h / 2 - 0.01));
@@ -885,6 +907,93 @@ function animateRides() {
   }
 }
 
+/* COLOUR LOCKS (owner, 2026-09-27; the third of the three). The road forks
+   into two lanes with a curtain of light across each, one lime and one
+   violet; rolling through a curtain gives the marble its colour, which it
+   wears as a glow and a trail. Past the fork a wall of one colour crosses the
+   road and lets through only a marble of that colour: look ahead at the wall,
+   then pick the lane. A wrong pick is not a fall: go back up the other lane.
+   Lime and violet are used nowhere else, and differ in lightness, so they
+   stay apart for colour-blind players too. The marble's colour is kept at
+   each save ring. */
+const TINTS = [0x3FE8FF, 0xA8FF3E, 0x9D6BFF];           // none (the trail's own cyan), lime, violet
+const curtainTex = canvasTex(64, 128, (g) => {          // streaks of light, rising, over a faint sheet
+  g.fillStyle = 'rgb(46,46,46)'; g.fillRect(0, 0, 64, 128);
+  const r = seeded(17);
+  for (let i = 0; i < 14; i++) { g.fillStyle = `rgba(255,255,255,${0.25 + r() * 0.6})`; g.fillRect(r() * 62, 0, 1 + r() * 2.5, 128); }
+  const lg = g.createLinearGradient(0, 0, 0, 128);
+  lg.addColorStop(0, 'rgba(0,0,0,0)'); lg.addColorStop(1, 'rgba(0,0,0,0.6)');
+  g.fillStyle = lg; g.fillRect(0, 0, 64, 128);
+}, true);
+const fieldTex = canvasTex(128, 128, (g) => {           // a hexagon field
+  g.fillStyle = 'rgb(40,40,40)'; g.fillRect(0, 0, 128, 128);
+  g.strokeStyle = '#FFFFFF'; g.lineWidth = 3;
+  const hex = (cx, cy, r) => { g.beginPath(); for (let i = 0; i < 6; i++) { const a = Math.PI / 3 * i; g[i ? 'lineTo' : 'moveTo'](cx + r * Math.cos(a), cy + r * Math.sin(a)); } g.closePath(); g.stroke(); };
+  for (let row = -1; row < 4; row++) for (let col = -1; col < 3; col++) hex(col * 64 + (row % 2 ? 32 : 0) + 16, row * 37, 21);
+}, true);
+function buildCurtain(pc) {
+  const H = 1.5, mat = glowMat(TINTS[pc.col], 0.9, curtainTex);
+  const sheet = new Mesh(new PlaneGeometry(pc.w, H), mat);
+  sheet.material.side = DoubleSide;
+  sheet.position.set(pc.x, pc.y + H / 2, pc.z);
+  const bar = new Mesh(new BoxGeometry(pc.w + 0.1, 0.07, 0.07), new MeshBasicMaterial({ color: TINTS[pc.col], toneMapped: false }));
+  bar.position.set(pc.x, pc.y + H, pc.z);
+  levelGroup.add(sheet, bar);
+  curtains.push({ ...pc, mat, flash: 0 });
+}
+function buildLock(pc) {
+  const H = 1.8, w = pc.w + 0.3;
+  const mat = glowMat(TINTS[pc.col], 0.75, fieldTex.clone());
+  mat.map.repeat.set(w / 1.2, H / 1.2); mat.side = DoubleSide;
+  const wall = new Mesh(new PlaneGeometry(w, H), mat);
+  wall.position.set(pc.x, pc.y + H / 2, pc.z);
+  const frame = new MeshBasicMaterial({ color: TINTS[pc.col], toneMapped: false });
+  for (const [sx, sy, px, py] of [[w, 0.08, 0, H], [0.08, H, -w / 2, H / 2], [0.08, H, w / 2, H / 2]]) {
+    const b = new Mesh(new BoxGeometry(sx, sy, 0.1), frame);
+    b.position.set(pc.x + px, pc.y + py, pc.z);
+    levelGroup.add(b);
+  }
+  levelGroup.add(wall);
+  const q = new Quaternion();
+  locks.push({ mesh: wall, mat, pos: new Vector3(pc.x, pc.y + H / 2, pc.z), prev: new Vector3(), quat: q, inv: q.clone().invert(),
+               half: new Vector3(w / 2, H / 2, 0.12), delta: new Vector3(), ferry: null, lock: pc.col, flash: 0, buzzT: 0, z: pc.z });
+}
+// The marble wears its colour as a soft glow and in its trail.
+const aura = new Sprite(new SpriteMaterial({ map: dot, color: TINTS[1], transparent: true, opacity: 1,
+  blending: AdditiveBlending, depthWrite: false, toneMapped: false }));
+aura.scale.set(2.6, 2.6, 1); aura.visible = false;
+const auraRing = new Mesh(new RingGeometry(0.46, 0.62, 48), new MeshBasicMaterial({ color: TINTS[1], transparent: true, opacity: 0.95,
+  blending: AdditiveBlending, depthWrite: false, toneMapped: false }));
+auraRing.rotation.x = -Math.PI / 2; auraRing.visible = false;
+scene.add(aura, auraRing);
+function setTint(col) {
+  if (ball.tint === col) return;
+  ball.tint = col;
+  if (col) { aura.material.color.setHex(TINTS[col]); auraRing.material.color.setHex(TINTS[col]); }
+  if (lastTrail) lastTrail.mesh.material.color.setHex(TINTS[col]);
+}
+// Every physics step: a curtain crossed colours the marble; a wall of its own
+// colour, passed, answers with a ripple.
+function tintStep() {
+  for (const c of curtains) {
+    if (Math.abs(ball.p.z - c.z) < 0.2 && Math.abs(ball.p.x - c.x) < c.w / 2 + 0.1 && Math.abs(ball.p.y - R - c.y) < 0.8 && ball.tint !== c.col) {
+      setTint(c.col); c.flash = 1; sound('tint');
+    }
+  }
+  for (const c of locks) {
+    if (ball.tint === c.lock && Math.abs(ball.p.z - c.z) < 0.15 && Math.abs(ball.p.x - c.pos.x) < c.half.x && !c.passing) { c.passing = true; c.flash = 1; sound('pass'); }
+    if (Math.abs(ball.p.z - c.z) > 1) c.passing = false;
+  }
+}
+function animateTints(dt) {
+  aura.visible = auraRing.visible = !!ball.tint && !!renderer;
+  aura.position.copy(marble.position);
+  auraRing.position.set(marble.position.x, marble.position.y - R + 0.03, marble.position.z);
+  if (!REDUCED) curtainTex.offset.y -= dt * 0.6;
+  for (const c of curtains) { c.flash = Math.max(0, c.flash - dt * 2.5); c.mat.opacity = 0.9 + 0.1 * c.flash; }
+  for (const c of locks) { c.flash = Math.max(0, c.flash - dt * 2.5); c.buzzT = Math.max(0, c.buzzT - dt); c.mat.opacity = 0.75 + 0.25 * c.flash; }
+}
+
 // Where each car of a lane is along it, at time t: s runs the way the lane goes.
 const carS = (lane, i, t) => (((lane.speed * t + lane.phase * lane.len + lane.at[i]) % lane.len) + lane.len) % lane.len;
 function crossingGreen(X, t) {
@@ -930,6 +1039,8 @@ function animateCrossings() {
 }
 
 function buildPiece(pc) {
+  if (pc.t === 'curtain') { buildCurtain(pc); return; }
+  if (pc.t === 'lock') { buildLock(pc); return; }
   let h = THICK;
   const quat = new Quaternion(), center = new Vector3();
   let w = pc.w, d = pc.d;
@@ -956,6 +1067,7 @@ function buildPiece(pc) {
     c.ferry = { base: center.clone(), axis: pc.axis, amp: pc.amp, period: pc.period, dwell: pc.dwell, phase: pc.phase };
     ferries.push(c);
   }
+  if (pc.lane) c.lane = pc.lane;
   dressPiece(c, pc, w, d);
   if (c.holo) holoFaces(c);
   colliders.push(c);
@@ -994,7 +1106,7 @@ function loadLevel(n) {
   }
   levelGroup = new Group();
   scene.add(levelGroup);
-  colliders = []; ferries = []; holos = []; pads = []; crossings = []; riders = []; gates = [];
+  colliders = []; ferries = []; holos = []; pads = []; crossings = []; riders = []; curtains = []; locks = []; gates = [];
   for (const pc of level.pieces) buildPiece(pc);
   if (world.name !== 'void') setWorld(world.name);   // scenery that follows the course is rebuilt for it
   level.minTop = Math.min(...level.pieces.map((p) => (p.t === 'ramp' ? Math.min(p.y0, p.y1) : p.y)));
@@ -1009,6 +1121,7 @@ function loadLevel(n) {
   spawn.copy(startPos);
   ball.p.copy(startPos); ball.v.set(0, 0, 0); ball.spin.set(0, 0, 0);
   ball.grounded = true; ball.onFerry = null; ball.airT = 0; ball.boostT = 0; ball.jumpCD = 0; ball.hitT = 0;
+  setTint(0); spawnTint = 0;
   lastGroundY = sy;
   clock = 0; falls = 0; started = false;
   setState('play');
@@ -1052,7 +1165,8 @@ const BOOST_ACC = 34, VBOOST = 13, BOOST_T = 1, JUMP_UP = 9, JUMP_ON = 8;
 const STEP = 1 / 240;      // physics runs at 240 Hz whatever the display does
 
 const ball = { p: new Vector3(), v: new Vector3(), spin: new Vector3(), grounded: false,
-               onFerry: null, airT: 0, pad: null, boostT: 0, jumpCD: 0, onBoost: false, hitT: 0 };
+               onFerry: null, airT: 0, pad: null, boostT: 0, jumpCD: 0, onBoost: false, hitT: 0, tint: 0 };
+let spawnTint = 0;                                      // the marble's colour when it passed its last ring
 const startPos = new Vector3(), spawn = new Vector3();
 let lastGroundY = 0, simT = 0, acc = 0;
 
@@ -1066,6 +1180,7 @@ function collide(c, dt) {
   // A hologram holds the marble only while it is lit, and only from above: one
   // that lights up round a marble already falling through it lets it fall.
   if (c.holo && (!holoState(c.holo, simT).lit || ball.p.y - R < c.pos.y + c.half.y - 0.3)) return;
+  if (c.lock && ball.tint === c.lock) return;
   _L.subVectors(ball.p, c.pos).applyQuaternion(c.inv);
   const h = c.half;
   if (Math.abs(_L.x) > h.x + R || Math.abs(_L.y) > h.y + R || Math.abs(_L.z) > h.z + R) return;
@@ -1091,6 +1206,7 @@ function collide(c, dt) {
     const e = floor ? (rel < -7 ? 0.25 : 0) : 0.35;
     ball.v.addScaledVector(_N, -(1 + e) * rel);
     if (floor && rel < -4 && ball.airT > 0.12) { play('land'); shake = Math.max(shake, 0.12); }
+    else if (c.lock) { if (!c.buzzT) { sound('buzz'); c.buzzT = 0.35; } c.flash = 1; }
     else if (!floor && rel < -3) play('tick');
   }
   if (floor) { ball.grounded = true; if (c.ferry) ball.onFerry = c; if (c.pad) ball.pad = c.pad; }
@@ -1115,6 +1231,8 @@ function step(dt, ix, iz) {
   ball.grounded = false; ball.onFerry = null; ball.pad = null;
   for (const c of colliders) collide(c, dt);
   for (const c of riders) collide(c, dt);
+  for (const c of locks) collide(c, dt);
+  tintStep();
   ball.boostT = Math.max(0, ball.boostT - dt); ball.jumpCD = Math.max(0, ball.jumpCD - dt); ball.hitT = Math.max(0, ball.hitT - dt);
   for (const c of crossings) crossStep(c, simT);
   if (ball.pad === 'boost') {
@@ -1168,6 +1286,7 @@ function flyTo(dest) {
 }
 function arrive() {
   ball.p.copy(flight.to); ball.v.set(0, 0, 0);
+  setTint(spawnTint);
   ball.grounded = true; ball.airT = 0;
   lastGroundY = flight.to.y - R;
   sound('home');
@@ -1180,6 +1299,7 @@ function passGate(g) {
   g.mat.color.setHex(0x5DD39E); g.mat.emissive.setHex(0x5DD39E); g.mat.emissiveIntensity = 0.7;
   g.discMat.color.setHex(0x5DD39E); g.discMat.opacity = 0.22;
   spawn.set(g.pos.x, g.pos.y + R + 0.01, g.pos.z);
+  spawnTint = ball.tint;
   sound('unlock');
   if (world.glowGates) lightGate(g);
   else burst(g.pos.x, g.pos.y + 1.1, g.pos.z, 0x5DD39E, 26, 4);
@@ -1230,7 +1350,7 @@ function restartLevel() {
     g.discMat.color.setHex(gateColour()); g.discMat.opacity = 0.13;
   }
   clock = 0; falls = 0; started = false;
-  spawn.copy(startPos);
+  spawn.copy(startPos); spawnTint = 0; setTint(0);
   T().levelRestart(levelNo);
   if (state === 'play' || state === 'fall' || state === 'home') flyTo(startPos);
   else loadLevel(levelNo);
@@ -1295,6 +1415,7 @@ function update(dt, now) {
   animatePieces(dt);
   animateCrossings();
   animateRides();
+  animateTints(dt);
   updateSparks(dt);
   updateCamera(dt, false);
   updateSunPoint();
@@ -1623,6 +1744,7 @@ const NEWS = {
   9: 'Some pads move. Wait for one to line up with the path, then roll on',
   13: 'The sky train stops here. Roll onto its roof, and hold on when it moves',
   17: 'Bridges switch off and on. Cross while they are lit',
+  21: 'A wall lets through only its own colour. Take the lane that matches it',
   25: 'Yellow arrows speed you up. Yellow rings throw you over a gap',
   33: 'The Express: everything at once, on the longest courses',
 };
@@ -1653,6 +1775,7 @@ const RULES = [
   'The sky train stops at stations. Roll onto its roof, hold on as it pulls away, and roll off at the next station.',
   'See-through bridges switch off and on. Cross while they are lit. They flicker just before they go dark.',
   'Yellow arrows speed the marble up. Yellow rings throw it into the air, over the gap ahead.',
+  'Lime and violet walls let through only a marble of their own colour. Roll through a curtain of that colour first: it colours the marble.',
 ];
 function wrapText(text, maxW, size) {
   ctx.font = '500 ' + size + 'px Inter, sans-serif';
@@ -2985,7 +3108,8 @@ function neonCourse(style) {
   const M = neonMats[style] || (neonMats[style] = neonMaterials(style));
   for (const c of colliders) {
     if (c.holo) continue;
-    const [side, top] = c.ferry ? [M.ferrySide, M.ferryTop] : c.pad ? [M.padSide, M.padTop] : [M.side, M.top];
+    const [side, top] = c.ferry ? [M.ferrySide, M.ferryTop] : c.pad ? [M.padSide, M.padTop]
+      : c.lane ? [M.laneSide[c.lane], M.laneTop[c.lane]] : [M.side, M.top];
     c.mesh.material = [side, side, top, M.under, side, side]; setTopUV(c.mesh, false);
   }
   return neonStyle;
@@ -3020,6 +3144,11 @@ function neonMaterials(style) {
     ferrySide: new MeshStandardMaterial({ color: 0x0C1830, metalness: 0.5, roughness: 0.3, emissive: 0x5FB8FF, emissiveIntensity: 0.35 }),
     padTop: new MeshStandardMaterial({ color: 0x0A0F1E, metalness: 0.4, roughness: 0.3 }),
     padSide: new MeshStandardMaterial({ color: 0x1C1606, metalness: 0.5, roughness: 0.3, emissive: PAD_YELLOW, emissiveIntensity: 0.45 }),
+    // A lane of a colour lock glows in the colour its curtain gives.
+    laneTop: [null, 'rgba(150,255,60,0.95)', 'rgba(150,100,255,0.95)'].map((halo) => halo && new MeshStandardMaterial({
+      color: 0x0A0F1E, metalness: 0.4, roughness: 0.3, emissive: 0xFFFFFF, emissiveMap: neonGrid(3, 7, halo), emissiveIntensity: 1.4 })),
+    laneSide: [null, 0xA8FF3E, 0x9D6BFF].map((col) => col && new MeshStandardMaterial({
+      color: 0x10131C, metalness: 0.5, roughness: 0.3, emissive: col, emissiveIntensity: 0.4 })),
   };
 }
 
@@ -3148,6 +3277,7 @@ if (HARNESS) {
                     v: ball.v.toArray().map((v) => +v.toFixed(3)),
                     gates: gates.map((g) => g.passed), frames, frameMs: +frameMs.toFixed(1) }),
     reach: (n) => loadLevel(n),
+    tint: () => ball.tint,
     simT: () => +simT.toFixed(3),
     holos: () => holos.map((c) => { const h = holoState(c.holo, simT); return { lit: h.lit, t: +h.t.toFixed(3), left: +h.left.toFixed(3) }; }),
     crossings: () => crossings.map((c) => ({ green: c.cross.green, greenFor: c.cross.green ? +(simT - c.cross.greenSince).toFixed(3) : -1,
