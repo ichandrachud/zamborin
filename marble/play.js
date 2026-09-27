@@ -1139,26 +1139,11 @@ function buildRound(pc) {
   levelGroup.add(spinGrp, fixed);
   rounds.push({ pc, x, z, y, ri, ro, spin: pc.spin, spinGrp, gyro, rings });
 }
-// The marble against a roundabout: the ring's top and outer edge, and the island's wall and top.
+// The marble against a roundabout: the island's wall, top edge and top, then
+// the ring's top and outer edge. Both are checked every step, so a marble
+// pressed against the island still rides the ring.
 const _rn = new Vector3();
-function roundContact(Rd) {
-  const dx = ball.p.x - Rd.x, dz = ball.p.z - Rd.z, r = Math.hypot(dx, dz) || 1e-6, ux = dx / r, uz = dz / r;
-  if (r > Rd.ro + R + 0.05 || ball.p.y > Rd.y + ISLAND_H + R + 0.1 || ball.p.y < Rd.y - THICK - R) return;
-  let pen = 0, onRing = false;
-  if (r < Rd.ri + R && ball.p.y < Rd.y + ISLAND_H + R) {
-    if (r < Rd.ri && ball.p.y - R > Rd.y + ISLAND_H - 0.25) { _rn.set(0, 1, 0); pen = Rd.y + ISLAND_H + R - ball.p.y; }   // on the island's top
-    else if (ball.p.y > Rd.y + ISLAND_H) {                                        // its top edge
-      _rn.set(dx - ux * Rd.ri, ball.p.y - Rd.y - ISLAND_H, dz - uz * Rd.ri); const d = _rn.length();
-      if (d < R && d > 1e-6) { _rn.multiplyScalar(1 / d); pen = R - d; }
-    } else { _rn.set(ux, 0, uz); pen = Rd.ri + R - r; }                            // its wall
-  } else if (r <= Rd.ro) {                                                         // the ring's top
-    if (ball.p.y - Rd.y < R && ball.p.y - Rd.y > -0.3) { _rn.set(0, 1, 0); pen = Rd.y + R - ball.p.y; onRing = true; }
-  } else {                                                                         // its outer edge
-    const ey = clamp(ball.p.y, Rd.y - THICK, Rd.y);
-    _rn.set(dx - ux * Rd.ro, ball.p.y - ey, dz - uz * Rd.ro); const d = _rn.length();
-    if (d < R && d > 1e-6) { _rn.multiplyScalar(1 / d); pen = R - d; onRing = _rn.y > 0.55; }
-  }
-  if (pen <= 0) return;
+function roundPush(pen, onRing, Rd) {
   ball.p.addScaledVector(_rn, pen);
   const floor = _rn.y > 0.55, rel = ball.v.dot(_rn);
   if (rel < 0) {
@@ -1167,6 +1152,30 @@ function roundContact(Rd) {
     else if (!floor && rel < -3) play('tick');
   }
   if (floor) { ball.grounded = true; if (onRing) ball.onRound = Rd; }
+}
+function roundContact(Rd) {
+  let dx = ball.p.x - Rd.x, dz = ball.p.z - Rd.z, r = Math.hypot(dx, dz) || 1e-6;
+  if (r > Rd.ro + R + 0.05 || ball.p.y > Rd.y + ISLAND_H + R + 0.1 || ball.p.y < Rd.y - THICK - R) return;
+  if (r < Rd.ri + R && ball.p.y < Rd.y + ISLAND_H + R) {                          // the island
+    const ux = dx / r, uz = dz / r;
+    let pen = 0;
+    if (r < Rd.ri && ball.p.y - R > Rd.y + ISLAND_H - 0.25) { _rn.set(0, 1, 0); pen = Rd.y + ISLAND_H + R - ball.p.y; }   // on its top
+    else if (ball.p.y > Rd.y + ISLAND_H) {                                        // its top edge
+      _rn.set(dx - ux * Rd.ri, ball.p.y - Rd.y - ISLAND_H, dz - uz * Rd.ri); const d = _rn.length();
+      if (d < R && d > 1e-6) { _rn.multiplyScalar(1 / d); pen = R - d; }
+    } else { _rn.set(ux, 0, uz); pen = Rd.ri + R - r; }                            // its wall
+    if (pen > 0) {
+      roundPush(pen, false, Rd);
+      dx = ball.p.x - Rd.x; dz = ball.p.z - Rd.z; r = Math.hypot(dx, dz) || 1e-6;
+    }
+  }
+  if (r >= Rd.ri && r <= Rd.ro) {                                                 // the ring's top
+    if (ball.p.y - Rd.y < R && ball.p.y - Rd.y > -0.3) { _rn.set(0, 1, 0); roundPush(Rd.y + R - ball.p.y, true, Rd); }
+  } else if (r > Rd.ro) {                                                         // its outer edge
+    const ux = dx / r, uz = dz / r, ey = clamp(ball.p.y, Rd.y - THICK, Rd.y);
+    _rn.set(dx - ux * Rd.ro, ball.p.y - ey, dz - uz * Rd.ro); const d = _rn.length();
+    if (d < R && d > 1e-6) { _rn.multiplyScalar(1 / d); roundPush(R - d, _rn.y > 0.55, Rd); }
+  }
 }
 function animateRounds(dt) {
   for (const Rd of rounds) {
