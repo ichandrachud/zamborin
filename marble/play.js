@@ -187,6 +187,10 @@ const NEON_SOUNDS = {
   home() { voice('sine', 220, 880, 0.16, 0.05); voice('sine', 1760, 1760, 0.12, 0.025); voice('sine', 90, 60, 0.18, 0.08, 0.14); },
   boost() { voice('sawtooth', 160, 900, 0.32, 0.018); voice('sine', 440, 1320, 0.28, 0.04); },     // a speed strip: a rising rush
   jump() { voice('square', 260, 780, 0.16, 0.022); voice('sine', 520, 1560, 0.2, 0.05); },         // a jump pad: a quick spring upward
+  warp() {                                            // into a wormhole: a rising rush and a shimmer
+    voice('sawtooth', 110, 1600, 0.7, 0.018); voice('sine', 220, 1760, 0.6, 0.05);
+    voice('triangle', 1318.5, 2637, 0.5, 0.02, 0.3); voice('sine', 880, 880, 0.6, 0.03, 0.42);
+  },
   depart() {                                          // the train is about to go: a station chime, two notes down
     voice('sine', 659.25, 659.25, 0.5, 0.06); voice('sine', 523.25, 523.25, 0.7, 0.06, 0.32);
     voice('triangle', 1318.5, 1318.5, 0.3, 0.015); voice('triangle', 1046.5, 1046.5, 0.4, 0.015, 0.32);
@@ -201,7 +205,7 @@ const NEON_SOUNDS = {
 };
 // The city's version of a sound where it has one, the house sound elsewhere.
 function sound(name) {
-  if ((world.name === 'neon' || ['boost', 'jump', 'bump', 'depart', 'tint', 'pass', 'buzz'].includes(name)) && NEON_SOUNDS[name]) { if (sfx && sfx.isOn()) NEON_SOUNDS[name](); }
+  if ((world.name === 'neon' || ['boost', 'jump', 'bump', 'depart', 'tint', 'pass', 'buzz', 'warp'].includes(name)) && NEON_SOUNDS[name]) { if (sfx && sfx.isOn()) NEON_SOUNDS[name](); }
   else play(name === 'home' ? 'land' : name);
 }
 function ensureCitySound() {
@@ -531,6 +535,32 @@ const TRAIN_DECK = 18, TRAIN_H = 0.3;
    lets through only a marble of its own colour. Lane planks carry `lane`, the
    colour of their curtain. */
 const CURTAIN = (x, z, w, y, col) => ({ t: 'curtain', x, z, w, d: 0.1, y, col });
+/* WORMHOLES: WORM stands on the road. 'in' swallows the marble and carries
+   `pocket`, the course in the other world; 'exit' ends that course; 'out' is
+   its twin in the city, past a gap no marble can cross, where it comes back. */
+const WORM = (x, z, w, y, dir, pocket = null) => ({ t: 'worm', x, z, w, d: 0.3, y, dir, pocket });
+// The course through a wormhole's world: short, its own shapes, its own rule.
+function makePocket(n) {
+  const r = seeded(4242 + n * 131), g = (n - 1) / 39, W = (a, b) => mix(a, b, g);
+  const r2 = (v) => Math.round(v * 100) / 100;
+  const wide = r2(W(4, 2.6)), narrow = r2(Math.max(1.5, W(2.6, 1.6)));
+  const pieces = [F(0, 0, 5, 5)];
+  let x = 0, z = -2.5;
+  const straight = (len, w) => { pieces.push(F(x, r2(z - len / 2), w, len, 0)); z = r2(z - len); };
+  const jog = (w) => {
+    let dx = (r() < 0.5 ? -1 : 1) * (2.5 + r() * 2);
+    if (x + dx < -3 || x + dx > 9) dx = -dx;
+    pieces.push(F(r2(x + dx / 2), r2(z - w / 2), r2(Math.abs(dx) + w), w, 0));
+    x = r2(x + dx); z = r2(z - w);
+  };
+  straight(5, wide);
+  for (let f = 2 + Math.round(g * 3); f > 0; f--) {
+    if (r() < 0.55) jog(r() < 0.4 ? narrow : wide); else straight(r2(W(6, 10) + r() * 2), narrow);
+    straight(r2(4 + r() * 3), wide);
+  }
+  pieces.push(F(x, r2(z - 3.5), 5, 7, 0), WORM(x, r2(z - 4.5), 5, 0, 'exit'));
+  return { pieces, start: [0, 0, 1], world: 'crystal' };
+}
 const LOCK = (x, z, w, y, col) => ({ t: 'lock', x, z, w, d: 0.24, y, col });
 const TRAIN = (x, z, w, y, amp, period, dwell, phase, pull) => ({ t: 'train', x, z, w, d: TRAIN_DECK, y, axis: 'z', amp, period, dwell, phase, pull });
 const seeded = (seed) => () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
@@ -613,6 +643,16 @@ function makeLevel(n) {
       on(5);
     }
   }
+  let worms = 0;
+  function wormhole() {                                 // the road ends at a wormhole; past a gap, its twin
+    worms++;
+    straight(7, wide, true);                            // the approach, with a ring on it
+    pieces.push(WORM(x, r2(z + 1.4), wide, y, 'in', makePocket(n)));
+    on(14);                                             // nothing crosses this but the wormhole
+    const zOut = r2(z - 1.4);
+    straight(r2(8 + r() * 3), wide);
+    pieces.push(WORM(x, zOut, wide, y, 'out'));
+  }
   let rides = 0;
   function ride() {                                     // the sky train: on at one station, off at the next
     rides++;
@@ -649,12 +689,12 @@ function makeLevel(n) {
   }
   // Every other feature is the district's own, so it carries the district;
   // the rest are what came before. The Express draws on everything.
-  const ALL = ['bridge', 'slide', 'shuttle', 'boostJump', 'jump', 'jog', 'ramp', 'narrow', 'cross', 'ride', 'locks'];
-  const OWN = [['jog', 'ramp', 'narrow', 'ramp', 'cross'], ['slide', 'shuttle', 'ride'], ['bridge', 'bridge', 'locks'], ['jump', 'boostJump', 'boost'], ALL];
-  const EARLIER = [['jog', 'narrow'], ['jog', 'ramp', 'narrow', 'cross'], ['jog', 'slide', 'shuttle', 'narrow', 'cross'],
-                   ['bridge', 'slide', 'shuttle', 'jog', 'cross', 'locks'], ALL];
+  const ALL = ['bridge', 'slide', 'shuttle', 'boostJump', 'jump', 'jog', 'ramp', 'narrow', 'cross', 'ride', 'locks', 'wormhole'];
+  const OWN = [['jog', 'ramp', 'narrow', 'ramp', 'cross'], ['slide', 'shuttle', 'ride', 'wormhole'], ['bridge', 'bridge', 'locks'], ['jump', 'boostJump', 'boost'], ALL];
+  const EARLIER = [['jog', 'narrow'], ['jog', 'ramp', 'narrow', 'cross'], ['jog', 'slide', 'shuttle', 'narrow', 'cross', 'wormhole'],
+                   ['bridge', 'slide', 'shuttle', 'jog', 'cross', 'locks', 'wormhole'], ALL];
   // What a level opens with: its district's new thing, and a crossing where they begin.
-  const OPENER = ['jog', 'slide', 'bridge', 'jump', 'boostJump'], opener = n === 5 ? 'cross' : n === 13 ? 'ride' : n === 21 ? 'locks' : OPENER[d];
+  const OPENER = ['jog', 'slide', 'bridge', 'jump', 'boostJump'], opener = n === 5 ? 'cross' : n === 11 ? 'wormhole' : n === 13 ? 'ride' : n === 21 ? 'locks' : OPENER[d];
   const features = 2 + Math.round(k * 2) + d, length = 45 + 155 * g;
   straight(5, wide);
   for (let f = 0; f < features + 8 && (f < features || run < length); f++) {
@@ -672,6 +712,7 @@ function makeLevel(n) {
     else if (pick === 'cross' && n >= 5) cross(w);
     else if (pick === 'ride') { if (n >= 13 && !rides) ride(); else shuttle(); }
     else if (pick === 'locks') { if (n >= 21) locks(n >= 33 && r() < 0.5 ? 2 : 1); else bridge(w); }
+    else if (pick === 'wormhole') { if (n >= 11 && !worms) wormhole(); else jog(w); }
     else jog(w);
     straight(r2(mix(6, 4, g) + r() * 3), r() < 0.5 ? wide : narrow);
   }
@@ -681,7 +722,7 @@ function makeLevel(n) {
 const LEVELS = Array.from({ length: 40 }, (_, i) => makeLevel(i + 1));
 
 let levelGroup = null;
-let colliders = [], ferries = [], holos = [], pads = [], crossings = [], riders = [], curtains = [], locks = [], gates = [], goal = null, level = null;
+let colliders = [], ferries = [], holos = [], pads = [], crossings = [], riders = [], curtains = [], locks = [], wormholes = [], gates = [], goal = null, level = null;
 
 function platformGeometry(w, h, d) {
   const g = new RoundedBoxGeometry(w, h, d, 3, Math.min(0.14, h / 2 - 0.01));
@@ -994,6 +1035,118 @@ function animateTints(dt) {
   for (const c of locks) { c.flash = Math.max(0, c.flash - dt * 2.5); c.buzzT = Math.max(0, c.buzzT - dt); c.mat.opacity = 0.75 + 0.25 * c.flash; }
 }
 
+/* WORMHOLES (owner, 2026-09-27: "wormholes that put you in a completely
+   different world that you have to pass to get to the other side"; the
+   crystal canyon first). A ring of light standing across the road with a
+   swirl turning inside it. Roll in and the city gives way to the canyon in a
+   burst of light; the canyon's course ends at a second wormhole, which brings
+   the marble back out of the first one's twin, past a gap nothing else can
+   cross. Coming out, the twin closes behind the marble, so it never stands
+   between the camera and the marble. */
+const vortexTex = canvasTex(256, 256, (g) => {
+  const img = g.createImageData(256, 256);
+  for (let y = 0; y < 256; y++) for (let x = 0; x < 256; x++) {
+    const dx = (x - 127.5) / 128, dy = (y - 127.5) / 128, rr = Math.hypot(dx, dy), i = (y * 256 + x) * 4;
+    if (rr >= 1) { img.data[i + 3] = 255; continue; }
+    const arms = Math.pow(0.5 + 0.5 * Math.cos(3 * (Math.atan2(dy, dx) + 5.5 * rr)), 2);
+    const v = Math.min(1, arms * Math.pow(1 - rr, 0.5) * 0.85 + Math.exp(-rr * rr * 28));
+    const mid = Math.min(1, rr * 1.6), rim = Math.max(0, rr * 2 - 1);      // white core, violet, cyan at the rim
+    img.data[i] = v * (255 - 95 * mid - 80 * rim); img.data[i + 1] = v * (255 - 135 * mid + 90 * rim); img.data[i + 2] = v * 255; img.data[i + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+});
+function buildWormhole(pc) {
+  const rad = Math.max(1.5, pc.w / 2 + 0.4), grp = new Group();
+  const disc = new Mesh(new CircleGeometry(rad * 0.96, 64), glowMat(0xFFFFFF, 0.95, vortexTex));
+  disc.material.side = DoubleSide;
+  const ring = new Mesh(new TorusGeometry(rad, 0.1, 12, 72), new MeshBasicMaterial({ color: 0xEFE6FF, toneMapped: false }));
+  const halo = new Mesh(new TorusGeometry(rad, 0.3, 10, 72), glowMat(0xA78BFF, 0.4));
+  grp.add(disc, ring, halo);
+  grp.position.set(pc.x, pc.y + rad, pc.z);
+  levelGroup.add(grp);
+  const W = { pc, grp, disc, rad, open: 1, closing: false, spin: pc.dir === 'out' ? -1.4 : 1.4 };
+  wormholes.push(W);
+  if (pc.dir === 'out') { const twin = [...wormholes].reverse().find((o) => o.pc.dir === 'in' && !o.twin); if (twin) twin.twin = W; }
+}
+function animateWormholes(dt) {
+  for (const W of wormholes) {
+    if (!REDUCED) W.disc.rotation.z += dt * W.spin;
+    if (W.closing) W.open = Math.max(0, W.open - dt / 0.6);
+    W.grp.scale.setScalar(Math.max(0.001, ease(W.open)));
+    W.grp.visible = W.open > 0;
+  }
+}
+const inPortal = (W) => W.open > 0.5 && Math.abs(ball.p.z - W.pc.z) < 0.35 && Math.abs(ball.p.x - W.pc.x) < W.rad &&
+                        ball.p.y - R > W.pc.y - 0.5 && ball.p.y - R < W.pc.y + W.rad * 2;
+// The jump between worlds: the course left behind waits, hidden, until the
+// marble comes back.
+let pocket = null;
+const WARP_IN = 0.35, WARP_OUT = 0.5;
+const warp = { go: null, done: false };
+function startWarp(W) {
+  warp.go = W.pc.dir === 'in' ? () => enterPocket(W) : leavePocket;
+  warp.done = false;
+  ball.v.set(0, 0, 0); ball.onFerry = null;
+  sound('warp');
+  setState('warp');
+}
+function freeCourse(grp) {
+  for (const c of holos) for (const m of c.holoMats) m.dispose();
+  for (const c of pads) if (c.padFx.tex) c.padFx.tex.dispose();
+  for (const c of ferries) if (c.train) for (const t of c.train.model.userData.maps) t.dispose();
+  for (const c of locks) c.mat.map.dispose();
+  scene.remove(grp);
+  grp.traverse((o) => {
+    if (o.geometry) o.geometry.dispose();
+    if (o.material && !Array.isArray(o.material)) o.material.dispose();
+  });
+}
+function enterPocket(W) {
+  pocket = { colliders, ferries, holos, pads, crossings, riders, curtains, locks, wormholes, gates, goal, level, levelGroup,
+             world: world.name, from: W };
+  levelGroup.visible = false;
+  const P = W.pc.pocket;
+  levelGroup = new Group(); scene.add(levelGroup);
+  colliders = []; ferries = []; holos = []; pads = []; crossings = []; riders = []; curtains = []; locks = []; wormholes = []; gates = [];
+  goal = null;
+  level = { pieces: P.pieces, gates: [], start: P.start, world: P.world };
+  for (const pc of P.pieces) buildPiece(pc);
+  level.minTop = Math.min(...P.pieces.map((q) => q.y));
+  setWorld(P.world);
+  const [sx, sy, sz] = P.start;
+  spawn.set(sx, sy + R + 0.01, sz);
+  ball.p.copy(spawn); ball.v.set(0, 0, -2.5);
+  ball.grounded = true; ball.airT = 0; ball.boostT = 0; ball.hitT = 0;
+  lastGroundY = sy;
+  ripple(ball.p);
+}
+function leavePocket() {
+  freeCourse(levelGroup);
+  const S = pocket; pocket = null;
+  ({ colliders, ferries, holos, pads, crossings, riders, curtains, locks, wormholes, gates, goal, level, levelGroup } = S);
+  levelGroup.visible = true;
+  setWorld(S.world);
+  const out = S.from.twin;
+  // Come out of the twin, rolling on, and it closes behind; this is a place to come back to after a fall.
+  spawn.set(out.pc.x, out.pc.y + R + 0.01, out.pc.z - 1.2); spawnTint = ball.tint;
+  ball.p.copy(spawn); ball.v.set(0, 0, -3);
+  ball.grounded = true; ball.airT = 0;
+  lastGroundY = out.pc.y;
+  out.closing = true;
+  ripple(ball.p);
+}
+// A ring of light on the road where the marble comes out.
+const rippleMesh = new Mesh(new RingGeometry(0.8, 1, 64), glowMat(0xCFC0FF, 0));
+rippleMesh.rotation.x = -Math.PI / 2; rippleMesh.visible = false; scene.add(rippleMesh);
+let rippleT = 1;
+function ripple(p) { rippleMesh.position.set(p.x, p.y - R + 0.03, p.z); rippleT = 0; }
+function animateRipple(dt) {
+  rippleT = Math.min(1, rippleT + dt / 0.8);
+  rippleMesh.visible = rippleT < 1;
+  rippleMesh.scale.setScalar(0.4 + 2.6 * ease(rippleT));
+  rippleMesh.material.opacity = 0.9 * (1 - rippleT);
+}
+
 // Where each car of a lane is along it, at time t: s runs the way the lane goes.
 const carS = (lane, i, t) => (((lane.speed * t + lane.phase * lane.len + lane.at[i]) % lane.len) + lane.len) % lane.len;
 function crossingGreen(X, t) {
@@ -1039,6 +1192,7 @@ function animateCrossings() {
 }
 
 function buildPiece(pc) {
+  if (pc.t === 'worm') { buildWormhole(pc); return; }
   if (pc.t === 'curtain') { buildCurtain(pc); return; }
   if (pc.t === 'lock') { buildLock(pc); return; }
   let h = THICK;
@@ -1091,12 +1245,14 @@ function makeRing(x, y, z, isGoal) {
 }
 
 function loadLevel(n) {
+  if (pocket) { freeCourse(levelGroup); levelGroup = pocket.levelGroup; ({ holos, pads, ferries, locks } = pocket); pocket = null; }
   levelNo = Math.max(1, Math.min(LEVELS.length, n));
   level = LEVELS[levelNo - 1];
   if (levelGroup) {
     for (const c of holos) for (const m of c.holoMats) m.dispose();
     for (const c of pads) if (c.padFx.tex) c.padFx.tex.dispose();
     for (const c of ferries) if (c.train) for (const t of c.train.model.userData.maps) t.dispose();
+    for (const c of locks) c.mat.map.dispose();
     scene.remove(levelGroup);
     levelGroup.traverse((o) => {
       if (o.geometry) o.geometry.dispose();
@@ -1106,7 +1262,7 @@ function loadLevel(n) {
   }
   levelGroup = new Group();
   scene.add(levelGroup);
-  colliders = []; ferries = []; holos = []; pads = []; crossings = []; riders = []; curtains = []; locks = []; gates = [];
+  colliders = []; ferries = []; holos = []; pads = []; crossings = []; riders = []; curtains = []; locks = []; wormholes = []; gates = [];
   for (const pc of level.pieces) buildPiece(pc);
   if (world.name !== 'void') setWorld(world.name);   // scenery that follows the course is rebuilt for it
   level.minTop = Math.min(...level.pieces.map((p) => (p.t === 'ramp' ? Math.min(p.y0, p.y1) : p.y)));
@@ -1220,10 +1376,11 @@ function step(dt, ix, iz) {
     const T = ball.onFerry.train;                      // and a train pulls on what rides it
     if (T) ball.v[ball.onFerry.ferry.axis] -= ball.onFerry.ferry.a * T.pull * dt;
   }
-  const a = ball.grounded ? ACC_GROUND : ACC_AIR;
+  const WP = world.physics;                             // a world may grip differently: crystal is slippery
+  const a = ball.grounded ? (WP ? WP.acc : ACC_GROUND) : ACC_AIR;
   ball.v.x += ix * a * dt; ball.v.z += iz * a * dt;
   ball.v.y = Math.max(-30, ball.v.y - G * dt);
-  const k = Math.exp(-(ball.grounded ? DAMP_GROUND * (ball.boostT > 0 ? 0.35 : 1) : DAMP_AIR) * dt);
+  const k = Math.exp(-(ball.grounded ? (WP ? WP.damp : DAMP_GROUND) * (ball.boostT > 0 ? 0.35 : 1) : DAMP_AIR) * dt);
   ball.v.x *= k; ball.v.z *= k;
   const hs = Math.hypot(ball.v.x, ball.v.z), cap = VMAX + (VBOOST - VMAX) * clamp(ball.boostT / 0.5, 0, 1);
   if (hs > cap) { ball.v.x *= cap / hs; ball.v.z *= cap / hs; }
@@ -1340,6 +1497,8 @@ function startGoal() {
 let lastWasBest = false;
 
 function restartLevel() {
+  if (pocket && state !== 'warp') leavePocket();
+  for (const W of wormholes) { W.open = 1; W.closing = false; }
   for (const g of gates) {
     if (g.glow) {
       for (const m of Object.values(g.glow)) { g.grp.remove(m); m.geometry.dispose(); m.material.dispose(); }
@@ -1382,8 +1541,14 @@ function update(dt, now) {
 
   if (state === 'play') {
     for (const g of gates) if (!g.passed && crossed(g, 2.2)) passGate(g);
-    if (crossed(goal, 3.2)) startGoal();
+    for (const W of wormholes) if ((W.pc.dir === 'in' || W.pc.dir === 'exit') && inPortal(W)) { startWarp(W); break; }
+    if (state !== 'play') { /* into a wormhole */ }
+    else if (goal && crossed(goal, 3.2)) startGoal();
     else if (ball.p.y < level.minTop - 2.2) startFall();
+  } else if (state === 'warp') {
+    // The light swells, the worlds change behind it at its brightest, and it clears.
+    if (!warp.done && stateT >= WARP_IN) { warp.done = true; warp.go(); updateCamera(0, true); }
+    if (stateT >= WARP_IN + WARP_OUT) setState('play');
   } else if (state === 'fall') {
     if (stateT > 0.55) flyTo(spawn);
   } else if (state === 'home') {
@@ -1416,6 +1581,8 @@ function update(dt, now) {
   animateCrossings();
   animateRides();
   animateTints(dt);
+  animateWormholes(dt);
+  animateRipple(dt);
   updateSparks(dt);
   updateCamera(dt, false);
   updateSunPoint();
@@ -1442,6 +1609,7 @@ function animateRings(now, dt) {
       g.glow.pulse.material.opacity = 0.9 * (1 - p);
     }
   }
+  if (!goal) return;                         // a wormhole's world has no finish ring
   goal.ring.rotation.y += dt * 0.8;
   if (goal.t0) {
     const k = Math.min(1, (now - goal.t0) / 900);
@@ -1742,14 +1910,16 @@ function drawGhost(now) {
 const NEWS = {
   5: 'Flying cars cross the road. Wait at the line for the green light',
   9: 'Some pads move. Wait for one to line up with the path, then roll on',
+  11: 'A wormhole! Roll in to cross the crystal canyon, and come out on the far side',
   13: 'The sky train stops here. Roll onto its roof, and hold on when it moves',
   17: 'Bridges switch off and on. Cross while they are lit',
   21: 'A wall lets through only its own colour. Take the lane that matches it',
   25: 'Yellow arrows speed you up. Yellow rings throw you over a gap',
   33: 'The Express: everything at once, on the longest courses',
 };
+const POCKET_NEWS = { crystal: 'The crystal canyon: the road is slippery. Brake early' };
 function drawNews() {
-  const t = NEWS[levelNo];
+  const t = pocket ? POCKET_NEWS[level.world] : NEWS[levelNo];
   if (!t || state !== 'play' || ball.p.z < -12) return;
   const pad = MODE === 'mobile' ? PHONE_PAD : SIDE_PAD;
   const lines = wrapText(t, LW - 2 * pad - 36, 16);
@@ -1772,6 +1942,7 @@ const RULES = [
   'Roll off the edge and the marble flies back to the last green ring. The fall is counted, and nothing else is lost.',
   'Flying cars cross some roads. Wait at the line for the green light, then roll across.',
   'Some pads move. Wait for one to line up with the path, roll on, and ride it across.',
+  'A wormhole takes the marble to the crystal canyon, where the road is slippery. Cross it to come out on the far side.',
   'The sky train stops at stations. Roll onto its roof, hold on as it pulls away, and roll off at the next station.',
   'See-through bridges switch off and on. Cross while they are lit. They flicker just before they go dark.',
   'Yellow arrows speed the marble up. Yellow rings throw it into the air, over the gap ahead.',
@@ -1880,6 +2051,26 @@ function drawNoWorld() {
   ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
 }
 
+// The jump between worlds, on the screen: light swelling out of the marble,
+// rings rushing past, then clearing on the other world.
+function drawWarp() {
+  if (state !== 'warp') return;
+  const k = stateT < WARP_IN ? ease(stateT / WARP_IN) : 1 - ease(Math.min(1, (stateT - WARP_IN) / WARP_OUT));
+  const m = marbleOnScreen(), diag = Math.hypot(LW, LH);
+  const g = ctx.createRadialGradient(m.x, m.y, 0, m.x, m.y, diag * (0.2 + 1.1 * k));
+  g.addColorStop(0, `rgba(255,255,255,${k})`); g.addColorStop(0.3, `rgba(200,175,255,${0.97 * k})`);
+  g.addColorStop(0.65, `rgba(110,215,255,${0.9 * k})`); g.addColorStop(1, `rgba(24,12,60,${0.85 * k})`);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, LW, LH);
+  if (REDUCED) return;
+  ctx.save();
+  for (let i = 0; i < 7; i++) {
+    const p = (stateT * 2.4 + i / 7) % 1;
+    ctx.beginPath(); ctx.arc(m.x, m.y, p * diag * 0.85, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(255,255,255,${0.55 * k * (1 - p)})`; ctx.lineWidth = 2 + 12 * p; ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function drawHUD(now) {
   const s = hud.width / LW;
   ctx.setTransform(s, 0, 0, s, 0, 0);
@@ -1894,6 +2085,7 @@ function drawHUD(now) {
   drawControls();
   drawReadout();
   L.cardBody = null;
+  drawWarp();
   if (state === 'rules') drawCard('rules');
   else if (state === 'win') drawCard('win');
 }
@@ -2385,10 +2577,11 @@ const SKINS = {
   glass() { marble.material = glassMat; eye.visible = true; },
   // An amethyst: violet glass with a faceted crystal glowing at its heart.
   amethyst() {
-    marble.material = new MeshPhysicalMaterial({ color: 0xF2D2FF, transmission: 1, thickness: 0.8, ior: 1.54, roughness: 0.05,
-      attenuationColor: new Color(0xA040F0), attenuationDistance: 0.55, clearcoat: 1, envMap: envTex, envMapIntensity: 1.4 });
-    skinParts.add(new Mesh(new IcosahedronGeometry(R * 0.42, 0), new MeshStandardMaterial({
-      color: 0xFF8AEA, emissive: 0xFF3FD0, emissiveIntensity: 1.9, flatShading: true })));
+    // Clearer than before, so its glowing heart and the road beneath show through (the crystal canyon, 2026-09-27).
+    marble.material = new MeshPhysicalMaterial({ color: 0xFFFFFF, transmission: 1, thickness: 0.45, ior: 1.5, roughness: 0.03,
+      attenuationColor: new Color(0xD8C4FF), attenuationDistance: 2.4, clearcoat: 1, envMap: crystalEnvMap() || envTex, envMapIntensity: 1.8 });
+    skinParts.add(new Mesh(new IcosahedronGeometry(R * 0.34, 0), new MeshStandardMaterial({
+      color: 0xD8C0FF, emissive: 0xA070FF, emissiveIntensity: 1.7, roughness: 0.2, flatShading: true })));
   },
   // A white candy marble with rainbow sprinkles: bright on any coloured block.
   candy() {
@@ -2422,96 +2615,211 @@ function setMarbleSkin(name) {
 }
 function tintRings(gateCol, goalCol) {
   for (const g of gates) if (!g.passed) { g.mat.color.setHex(gateCol); g.mat.emissive.setHex(gateCol); g.discMat.color.setHex(gateCol); }
-  goal.mat.color.setHex(goalCol); goal.mat.emissive.setHex(goalCol); goal.discMat.color.setHex(goalCol);
+  if (goal) { goal.mat.color.setHex(goalCol); goal.mat.emissive.setHex(goalCol); goal.discMat.color.setHex(goalCol); }
 }
 const gateColour = () => (world.rings ? world.rings[0] : 0xFFFFFF);
 // Things fixed to a course piece ride with it, ferries included.
 function addDeco(c, obj) { (c.deco || (c.deco = [])).push(obj); c.mesh.add(obj); }
 const HIDDEN = new MeshBasicMaterial({ visible: false });
 
-// ---- 1. Crystal canyon at night: slate with glowing runes, pink crystals, an amethyst marble ----
-function glyph(g, x, y, k) {
-  g.beginPath();
-  if (k === 0) g.arc(x, y, 7, 0, Math.PI * 2);
-  else if (k === 1) { g.moveTo(x - 7, y - 7); g.lineTo(x + 7, y + 7); g.moveTo(x + 7, y - 7); g.lineTo(x - 7, y + 7); }
-  else if (k === 2) for (let a = 0; a < 3; a++) { g.moveTo(x - 7, y - 6 + a * 6); g.lineTo(x + 7, y - 6 + a * 6); }
-  else if (k === 3) { g.arc(x, y, 7, 0.4, Math.PI * 1.7); g.moveTo(x, y); g.lineTo(x + 6, y - 4); }
-  else { g.moveTo(x, y - 8); g.lineTo(x + 7, y + 6); g.lineTo(x - 7, y + 6); g.closePath(); }
-  g.stroke();
-}
-function runeTop(len, seed) {
-  const H = 1024, r = seeded(seed);
-  const map = canvasTex(256, H, (g) => {
-    g.fillStyle = '#2A3850'; g.fillRect(0, 0, 256, H);
+// ---- 1. The crystal canyon: where the wormholes lead ----
+/* THE CRYSTAL CANYON (owner, 2026-09-27: the wormholes lead here, and it "has
+   to be just as glowing and beautiful and compliment the style visually").
+   The neon city's sister world: the same dark depths filled with light below
+   the road, the same thin bright lines in a tight glow, in colours of its own.
+   The road is dark crystal glass under an ice-white faceted lattice, glossy
+   because it is slippery, its edges glowing violet; ice is the road's colour
+   and nothing else's here. Below it a forest of crystal spires rises from the
+   depths, dark at the root and bright at the tip, in violet, rose and deep
+   blue; a river of light winds far down; shards drift; sparkles rise. */
+let crystalEnv = null;
+function crystalEnvMap() {
+  if (crystalEnv || !renderer) return crystalEnv;
+  const t = canvasTex(512, 256, (g) => {
+    const lg = g.createLinearGradient(0, 0, 0, 256);
+    lg.addColorStop(0, '#05040F'); lg.addColorStop(0.45, '#1A1046'); lg.addColorStop(0.55, '#7A5CFF');
+    lg.addColorStop(0.62, '#1E1450'); lg.addColorStop(1, '#04030C');
+    g.fillStyle = lg; g.fillRect(0, 0, 512, 256);
+    const r = seeded(7);
     for (let i = 0; i < 70; i++) {
-      const x = r() * 256, y = r() * H, rad = 20 + r() * 60;
-      const rg = g.createRadialGradient(x, y, 0, x, y, rad);
-      rg.addColorStop(0, r() < 0.5 ? 'rgba(70,96,130,0.35)' : 'rgba(20,30,48,0.35)'); rg.addColorStop(1, 'rgba(0,0,0,0)');
-      g.fillStyle = rg; g.fillRect(x - rad, y - rad, rad * 2, rad * 2);
-    }
-    g.fillStyle = 'rgba(8,14,26,0.7)'; g.fillRect(30, 0, 3, H); g.fillRect(223, 0, 3, H);
-  });
-  const glow = canvasTex(256, H, (g) => {
-    g.fillStyle = '#000'; g.fillRect(0, 0, 256, H);
-    g.strokeStyle = '#FFF'; g.lineWidth = 3; g.lineCap = 'round';
-    const n = Math.max(3, Math.round(len * 1.3));
-    for (let i = 0; i < n; i++) {
-      const y = (i + 0.5) * H / n;
-      glyph(g, 15, y, (i * 3) % 5); glyph(g, 241, y, (i * 3 + 2) % 5);
+      const k = r();
+      g.fillStyle = k < 0.45 ? 'rgba(150,120,255,0.95)' : k < 0.7 ? 'rgba(255,130,225,0.9)' : 'rgba(190,245,255,0.95)';
+      g.fillRect(r() * 512, 60 + r() * 140, 2 + r() * 8, 4 + r() * 30);
     }
   });
-  return new MeshStandardMaterial({ map, roughness: 0.8, emissive: new Color(0x54E0FF), emissiveMap: glow, emissiveIntensity: 1.4 });
+  const pm = new PMREMGenerator(renderer);
+  crystalEnv = pm.fromEquirectangular(t).texture;
+  pm.dispose();
+  return crystalEnv;
 }
-const crystalMat = new MeshStandardMaterial({ color: 0xFFB8F2, emissive: 0xFF3FD0, emissiveIntensity: 1.1, roughness: 0.25, flatShading: true });
-function crystal(h, rad) {
-  const g = new Group();
-  const body = new Mesh(new CylinderGeometry(rad, rad * 0.9, h, 6), crystalMat); body.position.y = h / 2; g.add(body);
-  const tip = new Mesh(new ConeGeometry(rad, rad * 1.8, 6), crystalMat); tip.position.y = h + rad * 0.9; g.add(tip);
-  return g;
+// The road's top: a diamond lattice of facets, a thin bright core in a tight feather.
+function facetTex() {
+  return canvasTex(256, 256, (g) => {
+    g.fillStyle = '#000'; g.fillRect(0, 0, 256, 256);
+    const lattice = (wd, col, blur) => {
+      g.filter = blur ? `blur(${blur}px)` : 'none';
+      g.strokeStyle = col; g.lineWidth = wd; g.lineCap = 'round';
+      g.beginPath();
+      for (const [x0, y0, x1, y1] of [[0, 0, 256, 256], [256, 0, 0, 256], [128, 0, 256, 128], [0, 128, 128, 256], [128, 0, 0, 128], [256, 128, 128, 256]]) {
+        g.moveTo(x0, y0); g.lineTo(x1, y1);
+      }
+      g.stroke(); g.filter = 'none';
+    };
+    lattice(12, 'rgba(80,190,255,0.85)', 7);
+    lattice(2.5, '#F4FEFF', 0);
+  }, true);
 }
-function cluster(G, x, y, z, s, seed) {
-  const r = seeded(seed), c = new Group();
-  for (let i = 0; i < 6; i++) {
-    const k = crystal((1.2 + r() * 2.4) * s, (0.22 + r() * 0.2) * s);
-    k.rotation.set((r() - 0.5) * 1.2, r() * 6, (r() - 0.5) * 1.2);
-    k.position.set((r() - 0.5) * s, 0, (r() - 0.5) * s);
-    c.add(k);
-  }
-  const halo = new Sprite(new SpriteMaterial({ map: dot, color: 0xFF4FD8, transparent: true, opacity: 0.6, blending: AdditiveBlending, depthWrite: false }));
-  halo.scale.set(2.6 * s, 2.6 * s, 1); halo.position.y = 1.3 * s; halo.material.opacity = 0.45; c.add(halo);
-  const base = new Mesh(new IcosahedronGeometry(1, 0), new MeshStandardMaterial({ color: 0x2C4460, roughness: 0.95, flatShading: true }));
-  base.scale.set(1.3 * s, 0.7 * s, 1.3 * s); base.position.y = -0.2 * s; c.add(base);
-  c.position.set(x, y, z); G.add(c);
+// A crystal column: dark glass, with light running up each of its six edges,
+// brighter toward the top, and a bright band where it meets its tip.
+function spireTex() {
+  return canvasTex(192, 256, (g) => {
+    g.fillStyle = '#000'; g.fillRect(0, 0, 192, 256);
+    const lg = g.createLinearGradient(0, 256, 0, 0);
+    lg.addColorStop(0, 'rgba(255,255,255,0)'); lg.addColorStop(0.55, 'rgba(255,255,255,0.12)'); lg.addColorStop(1, 'rgba(255,255,255,1)');
+    for (let k = 0; k <= 6; k++) {
+      const x = k * 32;
+      g.fillStyle = lg; g.fillRect(x - 2, 0, 4, 256);                     // an edge, core
+      g.globalAlpha = 0.35; g.fillRect(x - 6, 0, 12, 256); g.globalAlpha = 1;   // and its feather
+    }
+    const band = g.createLinearGradient(0, 0, 0, 22);
+    band.addColorStop(0, 'rgba(255,255,255,0.9)'); band.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = band; g.fillRect(0, 0, 192, 22);
+  });
 }
+// A crystal tip: glowing from within, brightest at its point.
+function tipTex() {
+  return canvasTex(8, 128, (g) => {
+    const lg = g.createLinearGradient(0, 128, 0, 0);
+    lg.addColorStop(0, 'rgb(90,90,90)'); lg.addColorStop(1, '#FFF');
+    g.fillStyle = lg; g.fillRect(0, 0, 8, 128);
+  });
+}
+// Emissive times each instance's own colour, as the city's lit cubes do.
+function tintedGlow(mat, key) {
+  mat.onBeforeCompile = (sh) => {
+    sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>',
+      '#include <emissivemap_fragment>\n#if defined( USE_INSTANCING_COLOR ) || defined( USE_COLOR )\n  totalEmissiveRadiance *= vColor.rgb;\n#endif');
+  };
+  mat.customProgramCacheKey = () => key;
+  return mat;
+}
+const CRYSTAL_HUES = [0x8B6CFF, 0x8B6CFF, 0x8B6CFF, 0x5A7CFF, 0x5A7CFF, 0xFF7AD9];
 WORLDS_ADD('crystal', (w) => {
-  scene.background = gradientTex([[0, '#070F24'], [0.5, '#0C1E3C'], [1, '#101832']]);
-  scene.fog.color.setHex(0x0B1B33); scene.fog.near = 18; scene.fog.far = 90;
-  hemi.color.setHex(0x6A96D8); hemi.groundColor.setHex(0x2A1A40); hemi.intensity = 1.9;
-  sun.color.setHex(0xB8CCFF); sun.intensity = 2.3;
-  w.marble = 'amethyst'; w.rings = [0x54E0FF, 0xFF4FD8];
-  const G = w.group, r = seeded(12);
-  // Canyon walls: great low-poly boulders either side, mossed on top.
-  const rock = new MeshStandardMaterial({ color: 0x33506E, roughness: 0.95, flatShading: true });
-  const moss = new MeshStandardMaterial({ color: 0x3E9384, roughness: 0.9, flatShading: true });
-  for (const side of [-1, 1]) for (let i = 0; i < 10; i++) {
-    const b = new Mesh(new IcosahedronGeometry(1, 0), rock);
-    b.scale.set(7 + r() * 6, 20 + r() * 12, 7 + r() * 5);
-    b.position.set(side < 0 ? -14 - r() * 5 : 21 + r() * 5, -20 + r() * 5, 10 - i * 8.5); b.rotation.y = r() * 3; G.add(b);
-    const m = new Mesh(new IcosahedronGeometry(1, 0), moss);
-    m.scale.set(b.scale.x * 0.8, 1.6, b.scale.z * 0.8); m.position.set(b.position.x, b.position.y + b.scale.y * 0.86, b.position.z); G.add(m);
+  scene.background = gradientTex([[0, '#04030E'], [0.35, '#120B30'], [0.62, '#241556'], [0.82, '#140E3A'], [1, '#07051A']]);
+  scene.fog.color.setHex(0x0B0726); scene.fog.near = 22; scene.fog.far = 150;
+  hemi.color.setHex(0x7A70E0); hemi.groundColor.setHex(0x120A24); hemi.intensity = 0.85;
+  sun.color.setHex(0xD0DCFF); sun.intensity = 1.25;
+  w.marble = 'amethyst'; w.rings = [0x54E0FF, 0xFF6A3C]; w.glowGates = true;
+  w.physics = { acc: 10, damp: 0.4 };                     // crystal is slippery: less grip, and the marble slides on
+  const G = w.group, r = seeded(12), env = crystalEnvMap() || envTex;
+  const end = courseEnd(), deep = Math.min(-120, end - 120);
+  const m = new Matrix4(), q = new Quaternion(), pos = new Vector3(), sc = new Vector3(), col = new Color(), e = new Euler();
+  // The spire forest: hexagonal columns rising from the depths, each with a
+  // pointed tip; low under the road, taller further out.
+  const spireMat = tintedGlow(new MeshStandardMaterial({ color: 0x100C26, roughness: 0.16, metalness: 0.35, envMap: env, envMapIntensity: 0.8,
+    emissive: 0xFFFFFF, emissiveMap: spireTex(), emissiveIntensity: 1.25, flatShading: true }), 'crystal-spires');
+  const tipMat = tintedGlow(new MeshStandardMaterial({ color: 0x1A1440, roughness: 0.12, metalness: 0.3, envMap: env,
+    emissive: 0xFFFFFF, emissiveMap: tipTex(), emissiveIntensity: 1.5, flatShading: true }), 'crystal-tips');
+  // Clusters of two or three columns from one root, leaning apart, of different heights.
+  const cells = [];
+  for (let x = -70; x <= 80; x += 7) for (let z = 22; z >= deep; z -= 7) {
+    if (r() < 0.32) continue;
+    const near = x > -10 && x < 18 && z > end - 12;
+    const top = near ? -10 - r() * 22 : -5 - r() * 26 + (Math.abs(x - 3) > 36 ? r() * 16 : 0);
+    const hue = CRYSTAL_HUES[Math.floor(r() * CRYSTAL_HUES.length)], cx = x + r() * 3, cz = z + r() * 3;
+    for (let k = 1 + Math.floor(r() * 3); k > 0; k--) {
+      cells.push({ x: cx + (r() - 0.5) * 2.4, z: cz + (r() - 0.5) * 2.4, top: top - r() * 6, rad: 0.6 + r() * 1.3, hue,
+                   turn: r() * 6, lean: (r() - 0.5) * 0.5, lean2: (r() - 0.5) * 0.5 });
+    }
   }
-  const floor = new Mesh(new PlaneGeometry(200, 200), new MeshStandardMaterial({ color: 0x0B1626, roughness: 1 }));
-  floor.rotation.x = -Math.PI / 2; floor.position.set(0, -30, -40); G.add(floor);
-  // Crystals: on the canyon floor, on the walls, and close by the course.
-  for (let i = 0; i < 14; i++) cluster(G, -12 + r() * 32, -30, 6 - r() * 60, 2.2 + r() * 1.6, 100 + i);
-  for (const [x, y, z, s] of [[-12, -2, -12, 1.8], [19, -1, -26, 2], [-11, -4, -34, 1.6], [18, -6, -6, 1.4], [-4.2, -2.4, -6, 1.0], [9.4, -2.2, -18, 0.9], [1.6, -2.4, -31, 0.9]]) cluster(G, x, y, z, s, Math.round(x * 13 + z));
+  const bodies = new InstancedMesh(new CylinderGeometry(0.86, 1, 1, 6), spireMat, cells.length);
+  const tips = new InstancedMesh(new ConeGeometry(0.86, 1, 6), tipMat, cells.length);
+  const up = new Vector3();
+  cells.forEach((c, i) => {
+    const h = c.top + 80;
+    q.setFromEuler(e.set(c.lean, c.turn, c.lean2));
+    up.set(0, 1, 0).applyQuaternion(q);
+    // Lean about the column's top, so its tip stays where it was placed.
+    m.compose(pos.set(c.x, c.top, c.z).addScaledVector(up, -h / 2), q, sc.set(c.rad, h, c.rad)); bodies.setMatrixAt(i, m);
+    m.compose(pos.set(c.x, c.top, c.z).addScaledVector(up, c.rad * 0.9), q, sc.set(c.rad, c.rad * 1.8, c.rad)); tips.setMatrixAt(i, m);
+    bodies.setColorAt(i, col.setHex(c.hue)); tips.setColorAt(i, col.setHex(c.hue));
+  });
+  G.add(bodies, tips);
+  // A soft glow round the brightest tips near the road: a thin core, a tight feather.
+  const halos = new InstancedMesh(new PlaneGeometry(1, 1), new MeshBasicMaterial({ map: dot, transparent: true, opacity: 0.55,
+    blending: AdditiveBlending, depthWrite: false, toneMapped: false }), 90);
+  let hn = 0;
+  for (const c of cells) {
+    if (hn >= 90 || c.top < -26 || r() < 0.4) continue;
+    m.compose(pos.set(c.x, c.top + c.rad * 1.2, c.z), q.setFromEuler(e.set(-Math.PI / 2, 0, 0)), sc.set(c.rad * 4.2, c.rad * 4.2, 1));
+    halos.setMatrixAt(hn, m); halos.setColorAt(hn++, col.setHex(c.hue));
+  }
+  halos.count = hn; G.add(halos);
+  // The river of light, far down, winding under the road.
+  const flow = canvasTex(64, 256, (g) => {
+    g.fillStyle = '#000'; g.fillRect(0, 0, 64, 256);
+    const rr = seeded(23);
+    for (let i = 0; i < 40; i++) { g.fillStyle = `rgba(255,255,255,${0.2 + rr() * 0.6})`; g.fillRect(rr() * 60, rr() * 256, 1 + rr() * 3, 20 + rr() * 60); }
+    const lg = g.createLinearGradient(0, 0, 64, 0);
+    lg.addColorStop(0, 'rgba(0,0,0,1)'); lg.addColorStop(0.25, 'rgba(0,0,0,0)'); lg.addColorStop(0.75, 'rgba(0,0,0,0)'); lg.addColorStop(1, 'rgba(0,0,0,1)');
+    g.fillStyle = lg; g.fillRect(0, 0, 64, 256);
+  }, true);
+  const riverLen = 22 - deep, riverGeo = new PlaneGeometry(9, riverLen, 1, 80);
+  riverGeo.rotateX(-Math.PI / 2);
+  const rp = riverGeo.attributes.position;
+  for (let i = 0; i < rp.count; i++) rp.setX(i, rp.getX(i) + 7 * Math.sin(rp.getZ(i) * 0.045));
+  const river = new Mesh(riverGeo, new MeshBasicMaterial({ map: flow, color: 0x3FA8FF, transparent: true, opacity: 0.9,
+    blending: AdditiveBlending, depthWrite: false, toneMapped: false }));
+  flow.repeat.set(1, riverLen / 18);
+  river.position.set(3, -56, (22 + deep) / 2); G.add(river);
+  // Shards drifting in slow turns, kept below the road wherever it runs.
+  const shardMat = tintedGlow(new MeshStandardMaterial({ color: 0x1A1640, roughness: 0.15, metalness: 0.4, envMap: env,
+    emissive: 0xFFFFFF, emissiveIntensity: 0.65, flatShading: true }), 'crystal-shards');
+  const nShards = 46, shards = new InstancedMesh(new IcosahedronGeometry(1, 0), shardMat, nShards), drift = [];
+  for (let i = 0; i < nShards; i++) {
+    const x = -30 + r() * 66, z = 12 - r() * (12 - end + 30);
+    let y = -16 + r() * 26;
+    if (x > -12 && x < 20 && y > -4.5) y = -4.5 - r() * 10;
+    drift.push({ x, y, z, s: 0.25 + r() * 0.5, ph: r() * 6.3, spin: 0.2 + r() * 0.4 });
+    shards.setColorAt(i, col.setHex(CRYSTAL_HUES[i % CRYSTAL_HUES.length]));
+  }
+  G.add(shards);
+  // Sparkles rising out of the depths.
+  const nMotes = 420, moteArr = new Float32Array(nMotes * 3), moteCol = new Float32Array(nMotes * 3);
+  for (let i = 0; i < nMotes; i++) {
+    moteArr[i * 3] = -24 + r() * 56; moteArr[i * 3 + 1] = -40 + r() * 40; moteArr[i * 3 + 2] = 14 - r() * (14 - end + 20);
+    col.setHex(r() < 0.5 ? 0xB8A8FF : r() < 0.5 ? 0xFF9AE6 : 0xBFF6FF); moteCol.set([col.r, col.g, col.b], i * 3);
+  }
+  const moteGeo = new BufferGeometry();
+  moteGeo.setAttribute('position', new Float32BufferAttribute(moteArr, 3).setUsage(DynamicDrawUsage));
+  moteGeo.setAttribute('color', new Float32BufferAttribute(moteCol, 3));
+  const motes = new Points(moteGeo, new PointsMaterial({ size: 0.34, map: dot, vertexColors: true, transparent: true, opacity: 1,
+    blending: AdditiveBlending, depthWrite: false, toneMapped: false }));
+  motes.frustumCulled = false; G.add(motes);
+  let t = 0;
+  w.tick = (dt) => {
+    if (REDUCED) return;
+    t += dt;
+    for (let i = 0; i < nShards; i++) {
+      const d = drift[i];
+      pos.set(d.x + Math.sin(t * 0.3 + d.ph) * 0.8, d.y + Math.sin(t * 0.7 + d.ph) * 0.5, d.z);
+      q.setFromEuler(e.set(t * d.spin + d.ph, t * d.spin * 0.6, 0.4));
+      m.compose(pos, q, sc.set(d.s * 0.45, d.s * 1.6, d.s * 0.45)); shards.setMatrixAt(i, m);
+    }
+    shards.instanceMatrix.needsUpdate = true;
+    const a = moteGeo.attributes.position.array;
+    for (let i = 0; i < nMotes; i++) { a[i * 3 + 1] += dt * (0.35 + (i % 7) * 0.08); if (a[i * 3 + 1] > 1) a[i * 3 + 1] = -40; }
+    moteGeo.attributes.position.needsUpdate = true;
+    flow.offset.y -= dt * 0.12;
+    tipMat.emissiveIntensity = 1.5 + 0.2 * Math.sin(t * 0.9);
+  };
+  w.tick(0);
   w.restyle = () => {
-    const side = new MeshStandardMaterial({ color: 0x1E2A3C, roughness: 0.9 });
-    const under = new MeshStandardMaterial({ color: 0x141C2A, roughness: 1 });
-    colliders.forEach((c, i) => {
-      c.mesh.material = [side, side, runeTop(c.half.z * 2, 40 + i), under, side, side];
-      setTopUV(c.mesh, true);
-    });
+    const top = new MeshStandardMaterial({ color: 0x0B0C22, metalness: 0.25, roughness: 0.08, envMap: env, envMapIntensity: 1.1,
+      emissive: 0xFFFFFF, emissiveMap: facetTex(), emissiveIntensity: 1.35 });
+    const side = new MeshStandardMaterial({ color: 0x160E30, metalness: 0.4, roughness: 0.25, emissive: 0x8B6CFF, emissiveIntensity: 0.55 });
+    const under = new MeshStandardMaterial({ color: 0x06050F, roughness: 1 });
+    for (const c of colliders) { c.mesh.material = [side, side, top, under, side, side]; setTopUV(c.mesh, false); }
   };
 });
 
@@ -3271,7 +3579,8 @@ window.addEventListener('hashchange', worldFromHash);
 let fakeNow = 0;
 if (HARNESS) {
   window.__marble = {
-    state: () => ({ phase: state, level: levelNo, clock: +clock.toFixed(2), falls, started, everMoved,
+    state: () => ({ phase: state, level: levelNo, clock: +clock.toFixed(2), falls, started, everMoved, pocket: !!pocket,
+                    spawn: spawn.toArray().map((v) => +v.toFixed(2)),
                     LW, LH, mode: MODE, webgl: !!renderer, grounded: ball.grounded,
                     ball: ball.p.toArray().map((v) => +v.toFixed(3)),
                     v: ball.v.toArray().map((v) => +v.toFixed(3)),

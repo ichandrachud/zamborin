@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <title>Marble — A Zamborin Game</title>
-  <meta name="description" content="Roll a chrome marble along glowing courses high above a neon city. Forty levels of flying traffic, sky train rides, hologram bridges, colour locks and jumps, free in any browser." />
+  <meta name="description" content="Roll a chrome marble high above a neon city, and through wormholes to a crystal canyon. Forty levels of traffic, sky trains, hologram bridges and colour locks." />
   <meta name="theme-color" content="#0E1726" />
   <link rel="canonical" href="https://zamborin.com/marble/" />
   <link rel="icon" type="image/svg+xml" href="../images/zamborin-favicon.svg?v=2" />
@@ -18,14 +18,14 @@
   <meta property="og:site_name" content="Zamborin Games" />
   <meta property="og:url" content="https://zamborin.com/marble/" />
   <meta property="og:title" content="Marble — Roll it home" />
-  <meta property="og:description" content="Roll a chrome marble along glowing courses high above a neon city. Forty levels of flying traffic, sky train rides, hologram bridges, colour locks and jumps, free in any browser." />
+  <meta property="og:description" content="Roll a chrome marble high above a neon city, and through wormholes to a crystal canyon. Forty levels of traffic, sky trains, hologram bridges and colour locks." />
   <meta property="og:image" content="https://zamborin.com/images/marble-og.jpg" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta property="og:image:alt" content="A chrome marble at the edge of a glowing hologram bridge high above a neon city, under the word Marble in blue neon" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Marble — Roll it home" />
-  <meta name="twitter:description" content="Roll a chrome marble along glowing courses high above a neon city. Forty levels of flying traffic, sky train rides, hologram bridges, colour locks and jumps, free in any browser." />
+  <meta name="twitter:description" content="Roll a chrome marble high above a neon city, and through wormholes to a crystal canyon. Forty levels of traffic, sky trains, hologram bridges and colour locks." />
   <meta name="twitter:image" content="https://zamborin.com/images/marble-og.jpg" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -43,7 +43,7 @@
     "@context": "https://schema.org",
     "@type": "VideoGame",
     "name": "Marble",
-    "description": "Roll a chrome marble along glowing courses high above a neon city. Forty levels of flying traffic, sky train rides, hologram bridges, colour locks and jumps, free in any browser.",
+    "description": "Roll a chrome marble high above a neon city, and through wormholes to a crystal canyon. Forty levels of traffic, sky trains, hologram bridges and colour locks.",
     "url": "https://zamborin.com/marble/",
     "image": "https://zamborin.com/images/marble-og.jpg",
     "playMode": "SinglePlayer",
@@ -145,6 +145,7 @@
         <li><strong>Finish:</strong> roll through the orange ring at the end of the course.</li>
         <li><strong>Traffic:</strong> flying cars cross some roads. Wait at the line for the green light, then roll across. A car knocks the marble off the road.</li>
         <li><strong>Moving pads:</strong> pads with a blue grid carry you across gaps. Wait for one to stop at your end, roll on, and roll off when it stops at the other.</li>
+        <li><strong>Wormholes:</strong> a swirling ring of light on the road takes the marble to the crystal canyon. The crystal road there is slippery, so the marble slides: brake early. A wormhole at the canyon's far end brings you back to the city, on the far side of a gap nothing else can cross.</li>
         <li><strong>The sky train:</strong> it stops at stations. Roll onto the deck on its roof, hold on as it pulls away (the marble rolls back as it speeds up), and roll off at the next station.</li>
         <li><strong>Hologram bridges:</strong> see-through bridges switch off and on. Cross while they are lit. They flicker just before they go dark.</li>
         <li><strong>Speed strips and jump pads:</strong> yellow arrows speed the marble up, and yellow rings throw it into the air, over the gap ahead.</li>
@@ -159,13 +160,14 @@
         <li>Wait at the edge of a dark bridge. The moment it lights, go, and keep going.</li>
         <li>After a speed strip, ease off before the next turn.</li>
         <li>On the train, move to the middle of the deck before it leaves.</li>
+        <li>In the crystal canyon, let go well before a turn. The marble keeps sliding.</li>
         <li>Took the wrong lane at a colour lock? Go back up the other one: it changes your colour.</li>
       </ul>
 
       <h2>Frequently asked questions</h2>
       <p><strong>Is Marble free?</strong> Yes, completely free to play, with no account or download, in any modern browser on phone, tablet or desktop.</p>
       <p><strong>Does it work on mobile?</strong> Yes. Marble is built for touch first.</p>
-      <p><strong>How many levels are there?</strong> Forty, in five districts of the city. Downtown has turns, narrow paths, ramps and traffic crossings. Transit adds pads that move, and the sky train. The Holograms district adds bridges that switch off and on, and colour locks. Boost adds speed strips and jump pads. The Express puts all of them together on the longest courses.</p>
+      <p><strong>How many levels are there?</strong> Forty, in five districts of the city. Downtown has turns, narrow paths, ramps and traffic crossings. Transit adds pads that move, wormholes to the crystal canyon, and the sky train. The Holograms district adds bridges that switch off and on, and colour locks. Boost adds speed strips and jump pads. The Express puts all of them together on the longest courses.</p>
 
       <p>Prefer something slower? Try <a href="/bloom/">Bloom</a> or <a href="/kaleido/">Kaleido</a>, or browse <a href="/">all Zamborin games</a>.</p>
     </section>
@@ -192,7 +194,7 @@
   <script src="../shared/analytics.js?v=3"></script>
   <script src="../shared/embed.js?v=1"></script>
   <script defer src="../shared/ads.js?v=2"></script>
-  <script type="module" src="./play.js?v=4"></script>
+  <script type="module" src="./play.js?v=5"></script>
   <script>
     (() => {
       const btn = document.getElementById('focus-toggle');
