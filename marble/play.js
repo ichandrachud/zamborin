@@ -230,7 +230,16 @@ function ensureCitySound() {
   ns.connect(tf); tf.connect(tg);
   if (tp) { tg.connect(tp); tp.connect(out); } else tg.connect(out);
   ns.start();
-  citySound = { ac, pg, tg, tp };
+  // The wind between the towers: the same noise, higher and hollow, swelling
+  // just before a gust and through it, from the side it blows from.
+  const ws = ac.createBufferSource(); ws.buffer = nb; ws.loop = true; ws.playbackRate.value = 0.73;
+  const wf = ac.createBiquadFilter(); wf.type = 'bandpass'; wf.frequency.value = 760; wf.Q.value = 0.9;
+  const wg = ac.createGain(); wg.gain.value = 0;
+  const wp = ac.createStereoPanner ? ac.createStereoPanner() : null;
+  ws.connect(wf); wf.connect(wg);
+  if (wp) { wg.connect(wp); wp.connect(out); } else wg.connect(out);
+  ws.start();
+  citySound = { ac, pg, tg, tp, wf, wg, wp };
 }
 function updateCitySound() {
   const c = citySound;
@@ -243,6 +252,15 @@ function updateCitySound() {
     c.tg.gain.setTargetAtTime(Math.pow(Math.max(0, 1 - Math.hypot(dx, dy, dz) / 45), 2) * 0.09, t, 0.1);
     if (c.tp) c.tp.pan.setTargetAtTime(Math.max(-1, Math.min(1, dx / 25)), t, 0.1);
   } else c.tg.gain.setTargetAtTime(0, t, 0.1);
+  let wl = 0, wd = 0;                                   // the loudest gust near the marble
+  if (on) for (const W of winds) {
+    const near = Math.max(0, 1 - Math.max(0, Math.abs(ball.p.z - W.z) - W.d / 2) / 18);
+    const l = windState(W, simT).show * near;
+    if (l > wl) { wl = l; wd = W.dir; }
+  }
+  c.wg.gain.setTargetAtTime(0.11 * wl, t, 0.08);
+  c.wf.frequency.setTargetAtTime(560 + 520 * wl, t, 0.1);
+  if (c.wp) c.wp.pan.setTargetAtTime(-0.55 * wd, t, 0.2);
 }
 
 // ---------- ANALYTICS ----------
@@ -523,6 +541,12 @@ const FERRY = (x, z, w, d, y, axis, amp, period, dwell, phase = 0) => ({ t: 'fer
 const HOLO = (x, z, w, d, y, period, on, phase = 0) => ({ t: 'holo', x, z, w, d, y, period, on, phase });
 const BOOST = (x, z, w, d, y) => ({ t: 'boost', x, z, w, d, y });
 const JUMP = (x, z, w, d, y) => ({ t: 'jump', x, z, w, d, y });
+/* MAG is a maglev strip: road that pulls the marble sideways at `pull` m/s²
+   (plus is toward +x). WIND is road that gusts blow across, `force` m/s² along
+   `dir` (+1 or -1 in x), for `gust` seconds of every `period`, rising and
+   falling away, with a sign of each gust coming just before it. */
+const MAG = (x, z, w, d, y, pull) => ({ t: 'mag', x, z, w, d, y, pull });
+const WIND = (x, z, w, d, y, dir, force, period, gust, phase) => ({ t: 'wind', x, z, w, d, y, dir, force, period, gust, phase });
 // CROSS is a stretch of road that one or two lanes of flying cars cross.
 const CROSS = (x, z, w, d, y, lanes) => ({ t: 'cross', x, z, w, d, y, lanes });
 /* TRAIN is the sky train you ride: a deck on its roof, TRAIN_DECK long, that
@@ -722,6 +746,30 @@ function makeLevel(n) {
     pieces.push(CROSS(x, z - d / 2, w, d, y, two ? [lane(-0.8, 1), lane(0.8, -1)] : [lane(0, r() < 0.5 ? 1 : -1)]));
     on(d);
   }
+  /* MAGLEV STRIPS (owner, 2026-09-27: "proceed on the next 4 blocks and
+     obstacles"): road that pulls the marble toward one edge. Later, two
+     strips in a row that pull opposite ways. */
+  let magsN = 0, windsN = 0;
+  function maglev(w) {
+    const mw = r2(Math.max(w, 2)), pull = r2(W(6, 11));
+    let dir = r() < 0.5 ? -1 : 1;
+    for (let i = n >= 25 && r() < 0.5 ? 2 : 1; i > 0; i--) {
+      const len = r2(W(7, 10) + r() * 2);
+      pieces.push(MAG(x, r2(z - len / 2), mw, len, y, r2(dir * pull)));
+      on(len); dir = -dir;
+    }
+    straight(r2(3 + r() * 2), w);
+  }
+  /* WIND BETWEEN THE TOWERS: two towers stand beside the road with a gap
+     between them, and gusts blow out of the gap across the road. Straight
+     road before and after, where the towers stand. */
+  function gusts(w) {
+    const ww = r2(Math.max(w, 1.8)), len = r2(W(8, 11) + r() * 2), period = r2(W(4.4, 3.4) + r() * 0.8);
+    straight(4.5, ww);
+    pieces.push(WIND(x, r2(z - len / 2), ww, len, y, r() < 0.5 ? -1 : 1, r2(W(7, 12)), period, r2(W(1.8, 2.2)), r2(r() * period)));
+    on(len);
+    straight(r2(5 + r() * 2), ww);
+  }
   function boost(w) {                                   // a speed strip, and room to spend the speed
     pieces.push(BOOST(x, z - 1.5, w, 3, y)); on(3);
     straight(r2(14 + r() * 4), w);
@@ -743,7 +791,12 @@ function makeLevel(n) {
   const EARLIER = [['jog', 'narrow', 'fork'], ['jog', 'ramp', 'narrow', 'cross', 'fork'], ['jog', 'slide', 'shuttle', 'narrow', 'cross', 'wormhole', 'fork'],
                    ['bridge', 'slide', 'shuttle', 'jog', 'cross', 'locks', 'wormhole', 'fork'], ALL];
   // What a level opens with: its district's new thing, and a crossing where they begin.
-  const OPENER = ['jog', 'slide', 'bridge', 'jump', 'boostJump'], opener = n === 5 ? 'cross' : n === 7 ? 'fork' : n === 11 ? 'wormhole' : n === 13 ? 'ride' : n === 21 ? 'locks' : n === 27 ? 'loop' : OPENER[d];
+  const OPENER = ['jog', 'slide', 'bridge', 'jump', 'boostJump'], opener = n === 5 ? 'cross' : n === 7 ? 'fork' : n === 11 ? 'wormhole' : n === 13 ? 'ride'
+    : n === 15 ? 'mag' : n === 21 ? 'locks' : n === 23 ? 'wind' : n === 27 ? 'loop' : OPENER[d];
+  // The newer challenges join the draw from the level that brings each in, so
+  // the courses before it stay exactly as they were.
+  if (n >= 15) { OWN[1].push('mag'); EARLIER[2].push('mag'); EARLIER[3].push('mag'); ALL.push('mag'); }
+  if (n >= 23) { OWN[2].push('wind'); EARLIER[3].push('wind'); ALL.push('wind'); }
   const features = 2 + Math.round(k * 2) + d, length = 45 + 155 * g;
   straight(5, wide);
   for (let f = 0; f < features + 8 && (f < features || run < length); f++) {
@@ -764,6 +817,8 @@ function makeLevel(n) {
     else if (pick === 'wormhole') { if (n >= 11 && !worms) wormhole(); else jog(w); }
     else if (pick === 'fork') { if (n >= 7) fork(); else jog(w); }
     else if (pick === 'loop') { if (n >= 27 && loops < 2) loopDeLoop(); else boostJump(wide); }
+    else if (pick === 'mag') { if (magsN++ < 2) maglev(w); else jog(w); }
+    else if (pick === 'wind') { if (windsN++ < 2) gusts(w); else jog(w); }
     else jog(w);
     straight(r2(mix(6, 4, g) + r() * 3), r() < 0.5 ? wide : narrow);
   }
@@ -773,7 +828,7 @@ function makeLevel(n) {
 const LEVELS = Array.from({ length: 40 }, (_, i) => makeLevel(i + 1));
 
 let levelGroup = null;
-let colliders = [], ferries = [], holos = [], pads = [], crossings = [], riders = [], curtains = [], locks = [], wormholes = [], loopsIn = [], gates = [], goal = null, level = null;
+let colliders = [], ferries = [], holos = [], pads = [], crossings = [], riders = [], curtains = [], locks = [], wormholes = [], loopsIn = [], mags = [], winds = [], gates = [], goal = null, level = null;
 
 function platformGeometry(w, h, d) {
   const g = new RoundedBoxGeometry(w, h, d, 3, Math.min(0.14, h / 2 - 0.01));
@@ -845,6 +900,8 @@ function dressPiece(c, pc, w, d) {
     }
     pads.push(c);
   } else if (pc.t === 'cross') buildCrossing(c, pc, w, d);
+  else if (pc.t === 'mag') buildMag(c, pc, w, d);
+  else if (pc.t === 'wind') buildWind(c, pc, w, d);
   else if (pc.t === 'train') buildRide(c, pc, w, d);
 }
 // BoxGeometry's face order: +x, -x, +y (top), -y, +z, -z.
@@ -866,6 +923,99 @@ function animatePieces(dt) {
       m.scale.setScalar(c.padFx.R * (0.25 + 0.75 * p));
       m.material.opacity = REDUCED ? 0.8 : Math.sin(Math.PI * p);
     });
+  }
+}
+
+/* MAGLEV STRIPS (owner, 2026-09-27: "proceed on the next 4 blocks and
+   obstacles"). A strip of road with the train's maglev in it: cyan field lines
+   run across it the way it pulls, and the edge it pulls toward glows. On it
+   the marble is pulled sideways; hold the stick against the pull. */
+const magTex = canvasTex(128, 128, (g) => {              // chevrons pointing up the canvas, turned to point across the road
+  g.fillStyle = '#000'; g.fillRect(0, 0, 128, 128);
+  g.lineCap = 'round'; g.lineJoin = 'round';
+  g.filter = 'blur(5px)'; g.strokeStyle = 'rgba(60,220,255,0.85)'; g.lineWidth = 16;
+  g.beginPath(); g.moveTo(28, 86); g.lineTo(64, 50); g.lineTo(100, 86); g.stroke();
+  g.filter = 'none'; g.strokeStyle = '#E8FCFF'; g.lineWidth = 6;
+  g.beginPath(); g.moveTo(28, 86); g.lineTo(64, 50); g.lineTo(100, 86); g.stroke();
+}, true);
+function buildMag(c, pc, w, d) {
+  c.mag = pc.pull;
+  const t = magTex.clone();
+  t.repeat.set(Math.max(1, Math.round((d - 0.3) / 1.6)), Math.max(2, Math.round((w - 0.3) / 0.9)));
+  const deco = new Mesh(new PlaneGeometry(d - 0.3, w - 0.3), glowMat(0xFFFFFF, 0.95, t));
+  deco.rotation.set(-Math.PI / 2, 0, pc.pull > 0 ? -Math.PI / 2 : Math.PI / 2);   // arrows point the way it pulls
+  deco.position.y = c.half.y + 0.012;
+  c.mesh.add(deco);
+  const edge = new Mesh(new BoxGeometry(0.1, 0.06, d), new MeshBasicMaterial({ color: 0x5FE8FF, toneMapped: false }));
+  edge.position.set(Math.sign(pc.pull) * (w / 2 - 0.05), c.half.y + 0.03, 0);
+  c.mesh.add(edge);
+  c.magFx = { tex: t };
+  mags.push(c);
+}
+/* WIND BETWEEN THE TOWERS. Gusts blow across a stretch of road: streaks of
+   light stream across it the way the wind blows, faint just before a gust and
+   strong through it; between gusts the air is still. In a gust the marble is
+   pushed across, in the air too; wait for a lull, or lean into it. */
+const WIND_RAMP = 0.45, WIND_WARN = 0.8;
+function windState(W, t) {                              // how hard it blows now (0 to 1), and how close a gust is (for the streaks)
+  const u = (((t + W.phase) % W.period) + W.period) % W.period, sm = (v) => v * v * (3 - 2 * v);
+  let k = 0;
+  if (u < W.gust) k = u < WIND_RAMP ? sm(u / WIND_RAMP) : u > W.gust - WIND_RAMP ? sm((W.gust - u) / WIND_RAMP) : 1;
+  const warn = u > W.period - WIND_WARN ? (u - (W.period - WIND_WARN)) / WIND_WARN : 0;
+  return { k, show: Math.max(k, 0.3 * warn) };
+}
+const streakTex = canvasTex(256, 32, (g) => {            // a streak of air: a bright head, a tail that fades behind it
+  const lg = g.createLinearGradient(0, 0, 256, 0);
+  lg.addColorStop(0, 'rgba(255,255,255,0)'); lg.addColorStop(0.55, 'rgba(255,255,255,0.5)'); lg.addColorStop(0.97, 'rgba(255,255,255,1)'); lg.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = lg;
+  g.filter = 'blur(5px)'; g.globalAlpha = 0.55; g.fillRect(6, 10, 244, 12);     // a tight feather
+  g.filter = 'none'; g.globalAlpha = 1; g.fillRect(8, 14.5, 242, 3);            // and a thin bright core
+});
+let windStripes = null;                                 // the towers' lit floors, made once
+const TOWER_W = 3.4, TOWER_D = 3.4, TOWER_UP = 13, TOWER_OFF = 8.5;
+function buildWind(c, pc, w, d) {
+  // Two towers on the side the wind comes from, one at each end of the gap.
+  if (!windStripes) { windStripes = stripeTex(); windStripes.wrapS = windStripes.wrapT = RepeatWrapping; windStripes.repeat.set(1, 3); }   // floors a third as tall as the city's: a slim, tall tower
+  const face = new MeshStandardMaterial({ color: 0x0B1020, roughness: 0.6, emissive: 0xFF6A3C, emissiveMap: windStripes, emissiveIntensity: 1.3 });
+  const tx = pc.x - pc.dir * (w / 2 + TOWER_OFF + TOWER_W / 2), H = TOWER_UP + 70;
+  for (const tz of [pc.z + d / 2 + TOWER_D / 2, pc.z - d / 2 - TOWER_D / 2]) {
+    const t = new Mesh(new BoxGeometry(TOWER_W, H, TOWER_D), face);
+    t.position.set(tx, pc.y + TOWER_UP - H / 2, tz);
+    levelGroup.add(t);
+    const lamp = new Mesh(new SphereGeometry(0.3, 10, 8), new MeshBasicMaterial({ color: 0xFF2D48, toneMapped: false }));
+    lamp.position.set(tx, pc.y + TOWER_UP + 0.3, tz);
+    levelGroup.add(lamp);
+  }
+  const n = 64, streaks = new InstancedMesh(new PlaneGeometry(1, 0.2), glowMat(0xE4F8FF, 0, streakTex), n);
+  streaks.material.side = DoubleSide;
+  // The streaks stream out of the gap, across the road and on over the city.
+  const from = tx + pc.dir * TOWER_W / 2, to = pc.x + pc.dir * (w / 2 + 7);
+  const Wd = { dir: pc.dir, force: pc.force, period: pc.period, gust: pc.gust, phase: pc.phase,
+               x: pc.x, z: pc.z, w, d, y: pc.y, span: w + 8, from, to, streaks, bits: [] };
+  const r = seeded(1 + Math.abs(Math.round(pc.z * 13 + pc.x * 7)));      // a seed must be positive
+  for (let i = 0; i < n; i++) Wd.bits.push({ s: r(), z: pc.z + (r() - 0.5) * (d - 0.6), y: pc.y + 0.15 + r() * r() * 2.4, len: 2 + r() * 2.5, v: 0.8 + r() * 0.5 });
+  streaks.frustumCulled = false;
+  levelGroup.add(streaks);
+  winds.push(Wd);
+}
+function windPush(W) {                                  // the push on the marble here and now, in m/s² along x
+  if (Math.abs(ball.p.z - W.z) > W.d / 2 + 0.3 || Math.abs(ball.p.x - W.x) > W.span / 2 || ball.p.y < W.y - 1 || ball.p.y > W.y + 4) return 0;
+  return W.dir * W.force * windState(W, simT).k;
+}
+function animateMagsAndWinds(dt) {
+  for (const c of mags) if (!REDUCED) c.magFx.tex.offset.y -= dt * 1.2;          // the chevrons flow the way it pulls
+  const o = new Object3D();
+  for (const W of winds) {
+    const st = windState(W, simT), m = W.streaks;
+    m.material.opacity = st.show;
+    W.bits.forEach((b, i) => {
+      if (!REDUCED) b.s = (b.s + dt * b.v * (0.3 + 1.7 * st.show) * 18 / Math.abs(W.to - W.from)) % 1;   // about 18 m/s in a gust
+      o.position.set(W.from + (W.to - W.from) * b.s, b.y, b.z);
+      // Each streak grows in and dies away across the gap, and points the way it blows.
+      o.rotation.set(0, 0, 0); o.scale.set(W.dir * b.len * (0.4 + 0.8 * st.show) * Math.sin(Math.PI * b.s), 1, 1);
+      o.updateMatrix(); m.setMatrixAt(i, o.matrix);
+    });
+    m.instanceMatrix.needsUpdate = true;
   }
 }
 
@@ -1246,6 +1396,7 @@ function freeCourse(grp) {
   for (const c of pads) if (c.padFx.tex) c.padFx.tex.dispose();
   for (const c of ferries) if (c.train) for (const t of c.train.model.userData.maps) t.dispose();
   for (const c of locks) c.mat.map.dispose();
+  for (const c of mags) c.magFx.tex.dispose();
   scene.remove(grp);
   grp.traverse((o) => {
     if (o.geometry) o.geometry.dispose();
@@ -1253,12 +1404,12 @@ function freeCourse(grp) {
   });
 }
 function enterPocket(W) {
-  pocket = { colliders, ferries, holos, pads, crossings, riders, curtains, locks, wormholes, loopsIn, gates, goal, level, levelGroup,
+  pocket = { colliders, ferries, holos, pads, crossings, riders, curtains, locks, wormholes, loopsIn, mags, winds, gates, goal, level, levelGroup,
              world: world.name, from: W };
   levelGroup.visible = false;
   const P = W.pc.pocket;
   levelGroup = new Group(); scene.add(levelGroup);
-  colliders = []; ferries = []; holos = []; pads = []; crossings = []; riders = []; curtains = []; locks = []; wormholes = []; loopsIn = []; gates = [];
+  colliders = []; ferries = []; holos = []; pads = []; crossings = []; riders = []; curtains = []; locks = []; wormholes = []; loopsIn = []; mags = []; winds = []; gates = [];
   goal = null;
   level = { pieces: P.pieces, gates: [], start: P.start, world: P.world };
   for (const pc of P.pieces) buildPiece(pc);
@@ -1274,7 +1425,7 @@ function enterPocket(W) {
 function leavePocket() {
   freeCourse(levelGroup);
   const S = pocket; pocket = null;
-  ({ colliders, ferries, holos, pads, crossings, riders, curtains, locks, wormholes, loopsIn, gates, goal, level, levelGroup } = S);
+  ({ colliders, ferries, holos, pads, crossings, riders, curtains, locks, wormholes, loopsIn, mags, winds, gates, goal, level, levelGroup } = S);
   levelGroup.visible = true;
   setWorld(S.world);
   const out = S.from.twin;
@@ -1397,7 +1548,7 @@ function makeRing(x, y, z, isGoal) {
 }
 
 function loadLevel(n) {
-  if (pocket) { freeCourse(levelGroup); levelGroup = pocket.levelGroup; ({ holos, pads, ferries, locks } = pocket); pocket = null; }
+  if (pocket) { freeCourse(levelGroup); levelGroup = pocket.levelGroup; ({ holos, pads, ferries, locks, mags } = pocket); pocket = null; }
   levelNo = Math.max(1, Math.min(LEVELS.length, n));
   level = LEVELS[levelNo - 1];
   if (levelGroup) {
@@ -1405,6 +1556,7 @@ function loadLevel(n) {
     for (const c of pads) if (c.padFx.tex) c.padFx.tex.dispose();
     for (const c of ferries) if (c.train) for (const t of c.train.model.userData.maps) t.dispose();
     for (const c of locks) c.mat.map.dispose();
+    for (const c of mags) c.magFx.tex.dispose();
     scene.remove(levelGroup);
     levelGroup.traverse((o) => {
       if (o.geometry) o.geometry.dispose();
@@ -1414,7 +1566,7 @@ function loadLevel(n) {
   }
   levelGroup = new Group();
   scene.add(levelGroup);
-  colliders = []; ferries = []; holos = []; pads = []; crossings = []; riders = []; curtains = []; locks = []; wormholes = []; loopsIn = []; gates = [];
+  colliders = []; ferries = []; holos = []; pads = []; crossings = []; riders = []; curtains = []; locks = []; wormholes = []; loopsIn = []; mags = []; winds = []; gates = [];
   for (const pc of level.pieces) buildPiece(pc);
   if (world.name !== 'void') setWorld(world.name);   // scenery that follows the course is rebuilt for it
   level.minTop = Math.min(...level.pieces.map((p) => (p.t === 'ramp' ? Math.min(p.y0, p.y1) : p.y)));
@@ -1473,7 +1625,7 @@ const BOOST_ACC = 34, VBOOST = 13, BOOST_T = 1, JUMP_UP = 9, JUMP_ON = 8;
 const STEP = 1 / 240;      // physics runs at 240 Hz whatever the display does
 
 const ball = { p: new Vector3(), v: new Vector3(), spin: new Vector3(), grounded: false,
-               onFerry: null, airT: 0, pad: null, boostT: 0, jumpCD: 0, onBoost: false, hitT: 0, tint: 0, onLoop: null };
+               onFerry: null, airT: 0, pad: null, boostT: 0, jumpCD: 0, onBoost: false, hitT: 0, tint: 0, onLoop: null, mag: 0, push: 0 };
 let spawnTint = 0;                                      // the marble's colour when it passed its last ring
 const startPos = new Vector3(), spawn = new Vector3();
 let lastGroundY = 0, simT = 0, acc = 0;
@@ -1517,7 +1669,7 @@ function collide(c, dt) {
     else if (c.lock) { if (!c.buzzT) { sound('buzz'); c.buzzT = 0.35; } c.flash = 1; }
     else if (!floor && rel < -3) play('tick');
   }
-  if (floor) { ball.grounded = true; if (c.ferry) ball.onFerry = c; if (c.pad) ball.pad = c.pad; }
+  if (floor) { ball.grounded = true; if (c.ferry) ball.onFerry = c; if (c.pad) ball.pad = c.pad; if (c.mag) ball.mag = c.mag; }
 }
 
 function step(dt, ix, iz) {
@@ -1538,7 +1690,7 @@ function step(dt, ix, iz) {
   const hs = Math.hypot(ball.v.x, ball.v.z), cap = VMAX + (VBOOST - VMAX) * clamp(ball.boostT / 0.5, 0, 1);
   if (hs > cap && !ball.onLoop) { ball.v.x *= cap / hs; ball.v.z *= cap / hs; }
   ball.p.addScaledVector(ball.v, dt);
-  ball.grounded = false; ball.onFerry = null; ball.pad = null;
+  ball.grounded = false; ball.onFerry = null; ball.pad = null; ball.mag = 0;
   for (const c of colliders) collide(c, dt);
   for (const c of riders) collide(c, dt);
   for (const c of locks) collide(c, dt);
@@ -1547,6 +1699,10 @@ function step(dt, ix, iz) {
   tintStep();
   ball.boostT = Math.max(0, ball.boostT - dt); ball.jumpCD = Math.max(0, ball.jumpCD - dt); ball.hitT = Math.max(0, ball.hitT - dt);
   for (const c of crossings) crossStep(c, simT);
+  // Pushed across: by a maglev strip underfoot, and by any gust blowing here.
+  let push = ball.mag;
+  for (const W of winds) push += windPush(W);
+  ball.v.x += push * dt; ball.push = push;
   if (ball.pad === 'boost') {
     ball.v.z -= BOOST_ACC * dt; ball.boostT = BOOST_T;
     if (!ball.onBoost) sound('boost');
@@ -1738,6 +1894,7 @@ function update(dt, now) {
   animateTints(dt);
   animateWormholes(dt);
   animateRipple(dt);
+  animateMagsAndWinds(dt);
   updateSparks(dt);
   updateCamera(dt, false);
   updateSunPoint();
@@ -2081,8 +2238,10 @@ const NEWS = {
   9: 'Some pads move. Wait for one to line up with the path, then roll on',
   11: 'A wormhole! Roll in to cross the crystal canyon, and come out on the far side',
   13: 'The sky train stops here. Roll onto its roof, and hold on when it moves',
+  15: 'Maglev strips pull the marble to one side. Steer against the arrows',
   17: 'Bridges switch off and on. Cross while they are lit',
   21: 'A wall lets through only its own colour. Take the lane that matches it',
+  23: 'Wind blows between the towers. When the streaks come, lean into them',
   25: 'Yellow arrows speed you up. Yellow rings throw you over a gap',
   27: 'A loop! Hit the yellow arrows first, and it carries you round',
   33: 'The Express: everything at once, on the longest courses',
@@ -2115,6 +2274,8 @@ const RULES = [
   'Some pads move. Wait for one to line up with the path, roll on, and ride it across.',
   'A wormhole takes the marble to the crystal canyon, where the road is slippery. Cross it to come out on the far side.',
   'The sky train stops at stations. Roll onto its roof, hold on as it pulls away, and roll off at the next station.',
+  'Maglev strips pull the marble toward the edge their arrows point to. Steer the other way to stay on.',
+  'Gusts blow out of the gaps between towers. Streaks of light come just before each gust: lean into it, or wait for it to pass.',
   'See-through bridges switch off and on. Cross while they are lit. They flicker just before they go dark.',
   'Yellow arrows speed the marble up. Yellow rings throw it into the air, over the gap ahead.',
   'A loop carries the marble round if it comes in fast. Roll over the yellow arrows before it.',
@@ -3667,7 +3828,7 @@ function neonCourse(style) {
   const M = neonMats[style] || (neonMats[style] = neonMaterials(style));
   for (const c of colliders) {
     if (c.holo) continue;
-    const [side, top] = c.ferry ? [M.ferrySide, M.ferryTop] : c.pad ? [M.padSide, M.padTop]
+    const [side, top] = c.ferry ? [M.ferrySide, M.ferryTop] : c.pad ? [M.padSide, M.padTop] : c.mag ? [M.magSide, M.padTop]
       : c.lane ? [M.laneSide[c.lane], M.laneTop[c.lane]] : [M.side, M.top];
     c.mesh.material = [side, side, top, M.under, side, side]; setTopUV(c.mesh, false);
   }
@@ -3703,6 +3864,7 @@ function neonMaterials(style) {
     ferrySide: new MeshStandardMaterial({ color: 0x0C1830, metalness: 0.5, roughness: 0.3, emissive: 0x5FB8FF, emissiveIntensity: 0.35 }),
     padTop: new MeshStandardMaterial({ color: 0x0A0F1E, metalness: 0.4, roughness: 0.3 }),
     padSide: new MeshStandardMaterial({ color: 0x1C1606, metalness: 0.5, roughness: 0.3, emissive: PAD_YELLOW, emissiveIntensity: 0.45 }),
+    magSide: new MeshStandardMaterial({ color: 0x06141C, metalness: 0.5, roughness: 0.3, emissive: 0x34E0FF, emissiveIntensity: 0.45 }),
     // A lane of a colour lock glows in the colour its curtain gives.
     laneTop: [null, 'rgba(150,255,60,0.95)', 'rgba(150,100,255,0.95)'].map((halo) => halo && new MeshStandardMaterial({
       color: 0x0A0F1E, metalness: 0.4, roughness: 0.3, emissive: 0xFFFFFF, emissiveMap: neonGrid(3, 7, halo), emissiveIntensity: 1.4 })),
@@ -3830,7 +3992,7 @@ window.addEventListener('hashchange', worldFromHash);
 let fakeNow = 0;
 if (HARNESS) {
   window.__marble = {
-    state: () => ({ phase: state, level: levelNo, clock: +clock.toFixed(2), falls, started, everMoved, pocket: !!pocket,
+    state: () => ({ phase: state, level: levelNo, clock: +clock.toFixed(2), falls, started, everMoved, pocket: !!pocket, push: +ball.push.toFixed(3),
                     spawn: spawn.toArray().map((v) => +v.toFixed(2)),
                     LW, LH, mode: MODE, webgl: !!renderer, grounded: ball.grounded,
                     ball: ball.p.toArray().map((v) => +v.toFixed(3)),
@@ -3840,6 +4002,9 @@ if (HARNESS) {
     tint: () => ball.tint,
     simT: () => +simT.toFixed(3),
     holos: () => holos.map((c) => { const h = holoState(c.holo, simT); return { lit: h.lit, t: +h.t.toFixed(3), left: +h.left.toFixed(3) }; }),
+    winds: () => winds.map((W) => { const st = windState(W, simT); return { k: +st.k.toFixed(3), show: +st.show.toFixed(3), z: W.z, d: W.d }; }),
+    windDebug: () => winds.map((W) => { const m = W.streaks, e = []; for (let i = 0; i < 4; i++) { const a = new Matrix4(); m.getMatrixAt(i, a); e.push(a.elements.map((v) => +v.toFixed(2))); }
+      return { op: m.material.opacity, count: m.count, inScene: !!m.parent && !!m.parent.parent, from: W.from, to: W.to, e, map: !!m.material.map, vis: m.visible }; }),
     crossings: () => crossings.map((c) => ({ green: c.cross.green, greenFor: c.cross.green ? +(simT - c.cross.greenSince).toFixed(3) : -1,
                                              cars: c.cross.cars.map((k) => [+k.x.toFixed(2), k.lane.z]) })),
     // Fast checks: hold the clock, then run the game a step at a time with a
