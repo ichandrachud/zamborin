@@ -643,6 +643,32 @@ function makeLevel(n) {
       on(5);
     }
   }
+  /* FORKS (owner, 2026-09-27: "What about having loop de loops, forks and
+     wormholes"). The road splits in two and joins again: a narrow way straight
+     through, quicker and harder (later with a bridge that switches off on it),
+     and a wide way that swings out and back, longer and safer. The game keeps
+     each level's best time, so the choice is worth making. */
+  function fork() {
+    const off = 3.2, len = r2(W(16, 20)), wideW = r2(Math.max(2.4, wide));
+    const longLeft = x >= 3, xs = r2(x + (longLeft ? off : -off)), xl = r2(x + (longLeft ? -off : off));
+    pieces.push(F(x, z - 1.5, r2(2 * off + wideW), 3, y)); on(3);             // where it splits
+    const z0 = z;
+    if (n >= 17 && r() < 0.6) {                                              // the narrow way, with a bridge on it
+      const a = r2(len * 0.3), b = r2(len * 0.4), c = r2(len - a - b);
+      const lit = Math.max(b / 4.5 + 0.9, mix(3.4, 1.9, g)), dark = mix(1.2, 2.2, g);
+      pieces.push({ ...F(xs, r2(z0 - a / 2), narrow, a, y), branch: 'short' },
+                  { ...HOLO(xs, r2(z0 - a - b / 2), narrow, b, y, r2(lit + dark), r2(lit), r2(r() * (lit + dark))), branch: 'short' },
+                  { ...F(xs, r2(z0 - a - b - c / 2), narrow, c, y), branch: 'short' });
+    } else pieces.push({ ...F(xs, r2(z0 - len / 2), narrow, len, y), branch: 'short' });
+    const out = longLeft ? -1 : 1, sw = r2(2.4 + r()), l1 = 2.5, mid = r2(len - 5 - 2 * wideW);   // the wide way swings out and back
+    pieces.push({ ...F(xl, r2(z0 - l1 / 2), wideW, l1, y), branch: 'long' },
+                { ...F(r2(xl + out * sw / 2), r2(z0 - l1 - wideW / 2), r2(sw + wideW), wideW, y), branch: 'long' },
+                { ...F(r2(xl + out * sw), r2(z0 - l1 - wideW - mid / 2), wideW, mid, y), branch: 'long' },
+                { ...F(r2(xl + out * sw / 2), r2(z0 - l1 - wideW - mid - wideW / 2), r2(sw + wideW), wideW, y), branch: 'long' },
+                { ...F(xl, r2(z0 - len + l1 / 2), wideW, l1, y), branch: 'long' });
+    on(len);
+    pieces.push(F(x, z - 1.5, r2(2 * off + wideW), 3, y)); on(3);             // where it joins
+  }
   let worms = 0;
   function wormhole() {                                 // the road ends at a wormhole; past a gap, its twin
     worms++;
@@ -689,12 +715,12 @@ function makeLevel(n) {
   }
   // Every other feature is the district's own, so it carries the district;
   // the rest are what came before. The Express draws on everything.
-  const ALL = ['bridge', 'slide', 'shuttle', 'boostJump', 'jump', 'jog', 'ramp', 'narrow', 'cross', 'ride', 'locks', 'wormhole'];
+  const ALL = ['bridge', 'slide', 'shuttle', 'boostJump', 'jump', 'jog', 'ramp', 'narrow', 'cross', 'ride', 'locks', 'wormhole', 'fork'];
   const OWN = [['jog', 'ramp', 'narrow', 'ramp', 'cross'], ['slide', 'shuttle', 'ride', 'wormhole'], ['bridge', 'bridge', 'locks'], ['jump', 'boostJump', 'boost'], ALL];
-  const EARLIER = [['jog', 'narrow'], ['jog', 'ramp', 'narrow', 'cross'], ['jog', 'slide', 'shuttle', 'narrow', 'cross', 'wormhole'],
-                   ['bridge', 'slide', 'shuttle', 'jog', 'cross', 'locks', 'wormhole'], ALL];
+  const EARLIER = [['jog', 'narrow', 'fork'], ['jog', 'ramp', 'narrow', 'cross', 'fork'], ['jog', 'slide', 'shuttle', 'narrow', 'cross', 'wormhole', 'fork'],
+                   ['bridge', 'slide', 'shuttle', 'jog', 'cross', 'locks', 'wormhole', 'fork'], ALL];
   // What a level opens with: its district's new thing, and a crossing where they begin.
-  const OPENER = ['jog', 'slide', 'bridge', 'jump', 'boostJump'], opener = n === 5 ? 'cross' : n === 11 ? 'wormhole' : n === 13 ? 'ride' : n === 21 ? 'locks' : OPENER[d];
+  const OPENER = ['jog', 'slide', 'bridge', 'jump', 'boostJump'], opener = n === 5 ? 'cross' : n === 7 ? 'fork' : n === 11 ? 'wormhole' : n === 13 ? 'ride' : n === 21 ? 'locks' : OPENER[d];
   const features = 2 + Math.round(k * 2) + d, length = 45 + 155 * g;
   straight(5, wide);
   for (let f = 0; f < features + 8 && (f < features || run < length); f++) {
@@ -713,6 +739,7 @@ function makeLevel(n) {
     else if (pick === 'ride') { if (n >= 13 && !rides) ride(); else shuttle(); }
     else if (pick === 'locks') { if (n >= 21) locks(n >= 33 && r() < 0.5 ? 2 : 1); else bridge(w); }
     else if (pick === 'wormhole') { if (n >= 11 && !worms) wormhole(); else jog(w); }
+    else if (pick === 'fork') { if (n >= 7) fork(); else jog(w); }
     else jog(w);
     straight(r2(mix(6, 4, g) + r() * 3), r() < 0.5 ? wide : narrow);
   }
@@ -1909,6 +1936,7 @@ function drawGhost(now) {
    that opens its district, until the marble has rolled on a way. */
 const NEWS = {
   5: 'Flying cars cross the road. Wait at the line for the green light',
+  7: 'The road splits. The narrow way is quicker; the wide way is safer',
   9: 'Some pads move. Wait for one to line up with the path, then roll on',
   11: 'A wormhole! Roll in to cross the crystal canyon, and come out on the far side',
   13: 'The sky train stops here. Roll onto its roof, and hold on when it moves',
@@ -1939,6 +1967,7 @@ const RULES = [
   'Drag anywhere to roll the marble. The further you drag, the harder it rolls. On a computer the arrow keys work too.',
   'Roll through the orange ring at the end of the course to finish the level.',
   'Blue rings save your place. Roll through one and it turns green.',
+  'Where the road splits, the narrow way is quicker and the wide way is safer. Both lead on.',
   'Roll off the edge and the marble flies back to the last green ring. The fall is counted, and nothing else is lost.',
   'Flying cars cross some roads. Wait at the line for the green light, then roll across.',
   'Some pads move. Wait for one to line up with the path, roll on, and ride it across.',
