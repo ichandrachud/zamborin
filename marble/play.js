@@ -201,6 +201,11 @@ const NEON_SOUNDS = {
   pop() { voice('sine', 1100, 520, 0.14, 0.05); voice('triangle', 2200, 1400, 0.1, 0.012); },     // and out of it
   knock() { voice('sine', 190, 80, 0.14, 0.07); voice('triangle', 380, 150, 0.08, 0.025); },      // against a barrier or a crate
   clink() { voice('triangle', 1250, 930, 0.12, 0.03); voice('sine', 2500, 2100, 0.09, 0.014); },  // against a bollard
+  crack() { for (const [f, dl] of [[2600, 0], [3300, 0.04], [2100, 0.09]]) voice('square', f, f * 0.7, 0.05, 0.018, dl); },   // a crystal slab cracking
+  shatter() { for (let i = 0; i < 6; i++) voice('sine', 2200 + i * 380, 1400 + i * 200, 0.12 + i * 0.02, 0.03, i * 0.03); voice('triangle', 700, 200, 0.3, 0.03); },
+  burn() { voice('sawtooth', 320, 70, 0.45, 0.045); voice('square', 1300, 380, 0.3, 0.014); voice('sine', 140, 50, 0.3, 0.07); },   // caught by a flame
+  flame() { voice('sawtooth', 90, 300, 0.35, 0.02); voice('sine', 180, 520, 0.3, 0.02); },                                          // a jet lighting
+  blast() { voice('sine', 170, 50, 0.32, 0.1); voice('sawtooth', 420, 90, 0.35, 0.035); },                                         // hit by a fireball
   zap() {                                             // caught by a scanner
     voice('sawtooth', 1500, 90, 0.38, 0.045); voice('square', 760, 60, 0.3, 0.025); voice('sine', 2400, 380, 0.16, 0.02);
   },
@@ -217,7 +222,7 @@ const NEON_SOUNDS = {
 };
 // The city's version of a sound where it has one, the house sound elsewhere.
 function sound(name) {
-  if ((world.name === 'neon' || ['boost', 'jump', 'bump', 'depart', 'tint', 'pass', 'buzz', 'warp', 'tube', 'pop', 'power', 'zap', 'knock', 'clink'].includes(name)) && NEON_SOUNDS[name]) { if (sfx && sfx.isOn()) NEON_SOUNDS[name](); }
+  if ((world.name === 'neon' || ['boost', 'jump', 'bump', 'depart', 'tint', 'pass', 'buzz', 'warp', 'tube', 'pop', 'power', 'zap', 'knock', 'clink', 'crack', 'shatter', 'burn', 'flame', 'blast'].includes(name)) && NEON_SOUNDS[name]) { if (sfx && sfx.isOn()) NEON_SOUNDS[name](); }
   else play(name === 'home' ? 'land' : name);
 }
 function ensureCitySound() {
@@ -611,9 +616,68 @@ function makePocket(n) {
     pieces.push(F(r2(x + dx / 2), r2(z - w / 2), r2(Math.abs(dx) + w), w, 0));
     x = r2(x + dx); z = r2(z - w);
   };
+  // Crystals on the path: rows across a wider stretch, one gap in each, never straight on from the last.
+  const shardRows = () => {
+    const gap = r2(W(2, 1.6)), ow = r2(Math.max(3.6, 2 * gap + 0.9)), half = ow / 2, rows = 2 + Math.round(W(0, 2) + r()), sp = r2(W(5, 4.2));
+    straight(3, ow);
+    const L = r2(rows * sp + 1.6), z0 = z, path = [], points = [];
+    let side = r() < 0.5 ? -1 : 1;
+    for (let i = 0; i < rows; i++) {
+      const rz = r2(z0 - 1.6 - i * sp), gx = r2(x + side * (gap / 2 + 0.1 + r() * Math.max(0, half - gap - 0.2)));
+      side = -side;
+      path.push([gx, r2(rz + 1.4)], [gx, r2(rz - 1.4)]);
+      for (let px = gx - gap / 2 - 0.46; px >= x - half + 0.25; px -= 0.86) points.push([r2(px), r2(rz + (r() - 0.5) * 0.3), r2(0.4 + r() * 0.08)]);
+      for (let px = gx + gap / 2 + 0.46; px <= x + half - 0.25; px += 0.86) points.push([r2(px), r2(rz + (r() - 0.5) * 0.3), r2(0.4 + r() * 0.08)]);
+    }
+    path.push([x, r2(z0 - L + 0.2)]);
+    pieces.push({ ...F(x, r2(z0 - L / 2), ow, L, 0), gauntlet: true }, GAUNTLET('shard', x, r2(z0 - L / 2), ow, L, 0, path), SHARDS(points, 0, x, r2(z0 - L / 2), ow, L));
+    z = r2(z0 - L);
+    straight(r2(3 + r() * 2), ow);
+  };
+  // Fire jets: one line of vents, later two, the second going out a second after the first.
+  const fireLine = () => {
+    const ow = r2(Math.max(wide, 3)), two = n >= 24, d = two ? 7.4 : 3.8, period = r2(W(3.6, 3) + r() * 0.4), on = r2(Math.min(W(1.2, 1.5), period - 1.8));
+    straight(3.5, ow);
+    const ph = r2(r() * period), lines = [{ dz: r2(d / 2 - 1.2), period, on, phase: ph }];
+    if (two) lines.push({ dz: r2(d / 2 - 1.2 - 3.6), period, on, phase: r2(ph - 1.0) });
+    pieces.push(FLAMES(x, r2(z - d / 2), ow, d, 0, lines));
+    z = r2(z - d);
+    straight(r2(3.5 + r() * 2), ow);
+  };
+  // Fireballs rolling across, out of one cliff and into the other; later two lanes, opposite ways.
+  const fireCross = () => {
+    const ow = r2(Math.max(wide, 3)), two = n >= 33 && r() < 0.6, d = two ? 3.8 : 2.4, speed = r2(W(5.5, 7) + r() * 0.6);
+    const lane = (dz, dir) => {
+      const gaps = []; for (let i = 3 + Math.floor(r() * 2); i > 0; i--) gaps.push(r2(W(4, 3.3) + r() * W(2.6, 1.8)));
+      return { dz, dir, speed, gaps, phase: r2(r()) };
+    };
+    straight(3.5, ow);
+    pieces.push({ ...CROSS(x, r2(z - d / 2), ow, d, 0, two ? [lane(-0.8, 1), lane(0.8, -1)] : [lane(0, r() < 0.5 ? 1 : -1)]), fire: true });
+    z = r2(z - d);
+    straight(r2(3.5 + r() * 2), ow);
+  };
+  // A crystal bridge: slabs end to end over a gap; each cracks when rolled onto and drops away a moment later.
+  const crackBridge = () => {
+    const bw = r2(Math.max(narrow + 0.4, 2.2)), slabs = 2 + Math.round(W(0, 2) + r() * 0.6), sl = 2.2;
+    straight(4.5, Math.max(wide, bw));
+    for (let i = 0; i < slabs; i++) pieces.push({ ...F(x, r2(z - sl / 2 - i * sl), bw, sl, 0), crack: true });
+    z = r2(z - slabs * sl);
+    straight(r2(4.5 + r() * 2), Math.max(wide, bw));
+  };
   straight(5, wide);
+  const pool = ['path', 'path'];
+  if (n >= 11) pool.push('shards');
+  if (n >= 13) pool.push('fire');
+  if (n >= 20) pool.push('fireballs');
+  if (n >= 22) pool.push('crack');
+  const intro = { 11: 'shards', 13: 'fire', 20: 'fireballs', 22: 'crack' }[n];
   for (let f = 2 + Math.round(g * 3); f > 0; f--) {
-    if (r() < 0.55) jog(r() < 0.4 ? narrow : wide); else straight(r2(W(6, 10) + r() * 2), narrow);
+    const pick = intro && f === 2 + Math.round(g * 3) ? intro : pool[Math.floor(r() * pool.length)];
+    if (pick === 'shards') shardRows();
+    else if (pick === 'fire') fireLine();
+    else if (pick === 'fireballs') fireCross();
+    else if (pick === 'crack') crackBridge();
+    else { if (r() < 0.55) jog(r() < 0.4 ? narrow : wide); else straight(r2(W(6, 10) + r() * 2), narrow); }
     straight(r2(4 + r() * 3), wide);
   }
   pieces.push(F(x, r2(z - 3.5), 5, 7, 0), WORM(x, r2(z - 4.5), 5, 0, 'exit'));
@@ -640,6 +704,16 @@ const SWITCH = (x, z, y, link, jx, jz, cable) => ({ t: 'switch', x, z, y, link, 
 const POSTS = (points, y, x, z, w, d) => ({ t: 'posts', points, y, x, z, w, d });
 const BLOCK = (kind, x, z, w, d, h, y, yaw = 0) => ({ t: 'block', kind, x, z, w, d, h, y, yaw });
 const GAUNTLET = (kind, x, z, w, d, y, path) => ({ t: 'gauntlet', kind, x, z, w, d, y, path });
+/* THE CANYON'S OWN OBSTACLES (owner, 2026-09-27: "are there any obstacles in
+   the wormhole world? ... Some crystals lying on the path? some fire?"; chose
+   all four offered). SHARDS: crystal clusters grown up out of the road, one at
+   each of `points` ([x, z, radius]); x, z, w, d give the patch they stand in.
+   FLAMES: road with lines of fire vents across it, each line { dz, period,
+   on, phase }: flame for `on` seconds of every `period`. A flat piece with
+   `crack` is a crystal slab that cracks when rolled onto and drops away a
+   moment later. Rolling fireballs are a crossing with `fire`. */
+const SHARDS = (points, y, x, z, w, d) => ({ t: 'shards', points, y, x, z, w, d });
+const FLAMES = (x, z, w, d, y, lines) => ({ t: 'flames', x, z, w, d, y, lines });
 const POST_R = 0.16, POST_H = 0.85;
 /* SCAN is road swept by a scanner: a red bar of light that sweeps from side to
    side across it, a little past each edge, once every `period` seconds; with
@@ -1023,11 +1097,11 @@ const LEVELS = Array.from({ length: 40 }, (_, i) => makeLevel(i + 1));
    autopilot playing carefully earns none of them. The courses come
    from their seeds, so these hold until a course changes; then they must be
    raced again. */
-const STAR_TIMES = [23, 27, 22, 29, 25, 19, 25, 33, 33, 44, 54, 33, 66, 61, 51, 65, 60, 48, 44, 70,
-                    62, 69, 57, 60, 39, 39, 41, 46, 49, 52, 43, 48, 80, 82, 50, 75, 53, 77, 106, 60];
+const STAR_TIMES = [23, 27, 22, 29, 25, 19, 25, 33, 33, 44, 69, 33, 72, 61, 51, 72, 60, 48, 44, 89,
+                    72, 88, 57, 86, 39, 39, 41, 46, 49, 52, 43, 48, 87, 92, 50, 96, 53, 77, 116, 60];
 
 let levelGroup = null;
-let colliders = [], ferries = [], holos = [], pads = [], crossings = [], riders = [], curtains = [], locks = [], wormholes = [], loopsIn = [], mags = [], winds = [], rounds = [], tubes = [], switches = [], scans = [], posts = [], blinkers = [], gates = [], goal = null, level = null;
+let colliders = [], ferries = [], holos = [], pads = [], crossings = [], riders = [], curtains = [], locks = [], wormholes = [], loopsIn = [], mags = [], winds = [], rounds = [], tubes = [], switches = [], scans = [], posts = [], blinkers = [], flames = [], cracks = [], gates = [], goal = null, level = null;
 
 function platformGeometry(w, h, d) {
   const g = new RoundedBoxGeometry(w, h, d, 3, Math.min(0.14, h / 2 - 0.01));
@@ -1102,6 +1176,7 @@ function dressPiece(c, pc, w, d) {
   else if (pc.t === 'mag') buildMag(c, pc, w, d);
   else if (pc.t === 'wind') buildWind(c, pc, w, d);
   else if (pc.t === 'scan') buildScan(c, pc, w, d);
+  else if (pc.t === 'flames') buildFlames(c, pc, w, d);
   else if (pc.t === 'train') buildRide(c, pc, w, d);
 }
 // BoxGeometry's face order: +x, -x, +y (top), -y, +z, -z.
@@ -1507,6 +1582,232 @@ function animateBlocks() {
   }
 }
 
+// ---- CRYSTALS ON THE PATH: clusters of glowing crystal grown up out of the road, solid.
+function buildShards(pc) {
+  const geos = [3, 5, 8].map((k) => crystalPointGeo(k * 13)), lists = geos.map(() => []);
+  const mat = tintedGlow(new MeshStandardMaterial({ color: 0x0C0B08, roughness: 0.18, metalness: 0.45, envMap: crystalEnvMap() || envTex, envMapIntensity: 1.2,
+    emissive: 0xFFFFFF, emissiveMap: crystalEdgeTex(), emissiveIntensity: 1.8, flatShading: true }), 'shard-crystals');
+  const r = seeded(7 + Math.round(Math.abs(pc.z) * 13)), up = new Vector3(0, 1, 0), d0 = new Vector3(), m = new Matrix4(), q = new Quaternion();
+  for (const [x, z, rad] of pc.points) {
+    const hues = r() < 0.5 ? CANYON_YELLOWS : CANYON_REDS;
+    for (let k = 0; k < 5; k++) {                        // one tall point, and short ones leaning out round it
+      const main = k === 0, len = main ? 1.15 + r() * 0.5 : 0.45 + r() * 0.5, prad = len * (main ? 0.3 : 0.34), a = r() * 6.28, lean = main ? r() * 0.18 : 0.35 + r() * 0.35;
+      d0.set(Math.cos(a) * Math.sin(lean), Math.cos(lean), Math.sin(a) * Math.sin(lean));
+      q.setFromUnitVectors(up, d0).multiply(new Quaternion().setFromAxisAngle(up, r() * 6.28));
+      const off = main ? 0 : rad * 0.45;
+      m.compose(new Vector3(x + Math.cos(a) * off, pc.y - 0.05, z + Math.sin(a) * off), q, new Vector3(prad, len / 1.7, prad));
+      lists[k % 3].push([m.clone(), hues[Math.floor(r() * hues.length)]]);
+    }
+    const glow = new Mesh(new CircleGeometry(rad * 1.6, 24), glowMat(0xFFB030, 0.3, dot)); glow.rotation.x = -Math.PI / 2; glow.position.set(x, pc.y + 0.012, z);
+    levelGroup.add(glow);
+    posts.push({ x, z, y: pc.y, r: rad, h: 1.4 });
+  }
+  const col = new Color();
+  geos.forEach((g, k) => {
+    if (!lists[k].length) return;
+    const im = new InstancedMesh(g, mat, lists[k].length);
+    lists[k].forEach(([mm, hue], i) => { im.setMatrixAt(i, mm); im.setColorAt(i, col.setHex(hue)); });
+    im.castShadow = true; levelGroup.add(im);
+  });
+}
+// ---- FIRE JETS: vents across the road that blast flame in a rhythm, a glow and a hiss first.
+const FLAME_UP = 0.15, FLAME_DOWN = 0.22, FLAME_WARN = 0.65, FLAME_H = 3.2;
+// A tongue of flame, base at the bottom: a tapering body, white-yellow low, orange, red at the tip, with a bright core.
+const flameTex = canvasTex(64, 256, (g) => {
+  const body = () => { g.beginPath(); g.moveTo(32, 2); g.bezierCurveTo(46, 70, 60, 150, 54, 212); g.quadraticCurveTo(46, 252, 32, 252); g.quadraticCurveTo(18, 252, 10, 212); g.bezierCurveTo(4, 150, 18, 70, 32, 2); };
+  const lg = g.createLinearGradient(0, 256, 0, 0);
+  lg.addColorStop(0, 'rgba(255,245,200,1)'); lg.addColorStop(0.18, 'rgba(255,205,90,1)'); lg.addColorStop(0.5, 'rgba(255,120,30,0.9)'); lg.addColorStop(0.82, 'rgba(210,40,15,0.55)'); lg.addColorStop(1, 'rgba(160,20,10,0)');
+  g.filter = 'blur(4px)'; g.fillStyle = lg; body(); g.fill();
+  g.filter = 'blur(2px)';
+  const core = g.createLinearGradient(0, 256, 0, 60); core.addColorStop(0, 'rgba(255,255,240,1)'); core.addColorStop(0.5, 'rgba(255,240,170,0.8)'); core.addColorStop(1, 'rgba(255,200,80,0)');
+  g.fillStyle = core; g.beginPath(); g.moveTo(32, 60); g.bezierCurveTo(40, 120, 44, 190, 40, 226); g.quadraticCurveTo(32, 244, 24, 226); g.bezierCurveTo(20, 190, 24, 120, 32, 60); g.fill();
+  g.filter = 'none';
+});
+const slotTex = canvasTex(128, 32, (g) => {             // the vent's slots: dark iron, a glow in each slot
+  g.fillStyle = '#000'; g.fillRect(0, 0, 128, 32);
+  for (let x = 6; x < 128; x += 14) { g.fillStyle = 'rgba(255,120,40,0.9)'; g.fillRect(x, 9, 8, 14); g.fillStyle = 'rgba(255,230,160,1)'; g.fillRect(x + 2, 13, 4, 6); }
+}, true);
+function flameState(L, t) {                             // how high the flame stands now (0 to 1), and how long it has been out
+  const u = ((t + L.phase) % L.period + L.period) % L.period;
+  if (u < L.on) return { active: true, h: Math.min(1, u / FLAME_UP) * (u > L.on - FLAME_DOWN ? (L.on - u) / FLAME_DOWN : 1), offFor: -1, warn: false };
+  return { active: false, h: 0, offFor: u - L.on, warn: u > L.period - FLAME_WARN };
+}
+function buildFlames(c, pc, w, d) {
+  const F = { pc, x: pc.x, w, top: pc.y, lines: [] }, iron = new MeshStandardMaterial({ color: 0x1C1A18, metalness: 0.7, roughness: 0.45 });
+  const n = Math.max(3, Math.round(w / 0.5));
+  for (const L of pc.lines) {
+    const lz = pc.z + L.dz;
+    const grate = new Mesh(new BoxGeometry(w - 0.1, 0.04, 0.7), iron); grate.position.set(0, c.half.y + 0.012, L.dz); c.mesh.add(grate);
+    const t = slotTex.clone(); t.repeat.set(Math.round(w / 1.4), 1);
+    const slots = new Mesh(new PlaneGeometry(w - 0.2, 0.5), glowMat(0xFFFFFF, 0.5, t)); slots.rotation.x = -Math.PI / 2; slots.position.set(0, c.half.y + 0.036, L.dz); c.mesh.add(slots);
+    const glow = new Mesh(new PlaneGeometry(w + 1, 3.2), glowMat(0xFF6A1A, 0, dot)); glow.rotation.x = -Math.PI / 2; glow.position.set(0, c.half.y + 0.02, L.dz); c.mesh.add(glow);
+    const sprites = [];
+    for (let k = 0; k < n * 2; k++) {
+      const sp = new Sprite(new SpriteMaterial({ map: flameTex, transparent: true, blending: AdditiveBlending, depthWrite: false, opacity: k % 2 ? 0.9 : 0.75 }));
+      sp.position.set(pc.x - w / 2 + (Math.floor(k / 2) + 0.5) * w / n + (k % 2 ? 0.08 : -0.06), pc.y, lz); sp.visible = false; levelGroup.add(sp); sprites.push(sp);
+    }
+    const NS = 60, sArr = new Float32Array(NS * 3), sLife = new Float32Array(NS);
+    for (let k = 0; k < NS; k++) sArr[k * 3 + 1] = -999;
+    const sGeo = new BufferGeometry(); sGeo.setAttribute('position', new Float32BufferAttribute(sArr, 3).setUsage(DynamicDrawUsage));
+    const sparks = new Points(sGeo, new PointsMaterial({ size: 0.16, map: dot, color: 0xFFC060, transparent: true, blending: AdditiveBlending, depthWrite: false, toneMapped: false }));
+    sparks.frustumCulled = false; levelGroup.add(sparks);
+    F.lines.push({ ...L, z: lz, sprites, slots, tex: t, glow, lit: false, sGeo, sLife, next: 0 });
+  }
+  flames.push(F);
+}
+function flameStep() {
+  for (const F of flames) for (const L of F.lines) {
+    const st = flameState(L, simT);
+    if (st.active && !L.lit && Math.abs(ball.p.z - L.z) < 16) sound('flame');
+    L.lit = st.active;
+    if (!st.active || st.h < 0.35) continue;
+    if (Math.abs(ball.p.z - L.z) < 0.42 + R * 0.7 && Math.abs(ball.p.x - F.x) < F.w / 2 + 0.2 && ball.p.y - F.top < FLAME_H * 0.8 * st.h + 0.2) { burn(); return; }
+  }
+}
+function burn() {                                       // caught in the flame: a burst of fire, and back to the last ring
+  sound('burn'); shake = Math.max(shake, 0.3);
+  burst(ball.p.x, ball.p.y, ball.p.z, 0xFF6A1A, 34, 4.5);
+  burst(ball.p.x, ball.p.y, ball.p.z, 0xFFE08A, 14, 3);
+  ball.v.set(0, 0, 0);
+  startFall();
+}
+function animateFlames() {
+  for (const F of flames) for (const L of F.lines) {
+    const st = flameState(L, simT), flick = (k) => 0.85 + 0.15 * Math.sin(simT * 23 + k * 1.7) + 0.08 * Math.sin(simT * 41 + k);
+    const sputter = st.warn && !REDUCED;                // just before: little flames licking up
+    L.sprites.forEach((sp, k) => {
+      const inner = k % 2 === 1, size = inner ? 0.72 : 1;
+      const h = (st.active ? FLAME_H * st.h * flick(k) : sputter ? 0.55 * (0.5 + 0.5 * Math.sin(simT * 30 + k * 2.3)) : 0) * size;
+      sp.visible = h > 0.05;
+      sp.scale.set((inner ? 0.42 : 0.7) * (0.6 + 0.4 * Math.min(1, h)), h, 1); sp.position.y = F.top + h / 2 - 0.05;
+    });
+    const sa = L.sGeo.attributes.position.array;       // sparks thrown up while it burns
+    for (let k = 0; k < L.sLife.length; k++) {
+      if (L.sLife[k] > 0) { L.sLife[k] -= 1 / 60; sa[k * 3 + 1] += (2.2 + (k % 5) * 0.5) / 60; sa[k * 3] += Math.sin(simT * 7 + k) * 0.01; if (L.sLife[k] <= 0) sa[k * 3 + 1] = -999; }
+      else if (st.active && !REDUCED && (k + Math.floor(simT * 60)) % 9 === 0) { sa[k * 3] = F.x + (Math.random() - 0.5) * F.w; sa[k * 3 + 1] = F.top + 0.3; sa[k * 3 + 2] = L.z + (Math.random() - 0.5) * 0.4; L.sLife[k] = 0.6 + Math.random() * 0.5; }
+    }
+    L.sGeo.attributes.position.needsUpdate = true;
+    L.slots.material.opacity = st.active ? 1 : sputter ? 0.6 + 0.4 * Math.sin(simT * 25) : 0.35;
+    L.glow.material.opacity = st.active ? 0.55 * st.h : sputter ? 0.18 : 0;
+    if (!REDUCED) L.tex.offset.x = simT * 0.2;
+  }
+}
+// ---- CRACKING CRYSTAL BRIDGES: clear crystal slabs that crack when rolled onto, and drop a moment later.
+const CRACK_T = 0.9, CRACK_BACK = 3.2;
+const crackTex = canvasTex(256, 256, (g) => {           // jagged cracks from a point, bright
+  const r = seeded(29);
+  g.lineCap = 'round';
+  const branch = (x, y, a, len, wd) => {
+    if (len < 6 || wd < 0.6) return;
+    g.lineWidth = wd; g.strokeStyle = 'rgba(255,248,220,0.95)'; g.beginPath(); g.moveTo(x, y);
+    let px = x, py = y;
+    for (let k = 0; k < 5; k++) { px += Math.cos(a) * len / 5 + (r() - 0.5) * 8; py += Math.sin(a) * len / 5 + (r() - 0.5) * 8; g.lineTo(px, py); }
+    g.stroke();
+    branch(px, py, a + (r() - 0.5) * 1.4, len * 0.6, wd * 0.7);
+    if (r() < 0.6) branch(px, py, a + (r() < 0.5 ? 1 : -1) * (0.6 + r() * 0.6), len * 0.5, wd * 0.6);
+  };
+  for (let k = 0; k < 7; k++) branch(128, 128, k / 7 * 6.28 + r() * 0.5, 70 + r() * 40, 3.2);
+});
+const slabTex = canvasTex(256, 256, (g) => {            // pale crystal: soft facets, a bright rim
+  g.fillStyle = '#6E6450'; g.fillRect(0, 0, 256, 256);
+  const r = seeded(33);
+  for (let i = 0; i < 26; i++) { g.fillStyle = `rgba(${r() < 0.5 ? '255,236,190' : '140,120,80'},${0.12 + r() * 0.18})`; g.beginPath(); g.moveTo(r() * 256, r() * 256); g.lineTo(r() * 256, r() * 256); g.lineTo(r() * 256, r() * 256); g.fill(); }
+  g.strokeStyle = 'rgba(255,244,210,0.95)'; g.lineWidth = 6; g.strokeRect(3, 3, 250, 250);
+});
+function buildCrackSlab(c, pc, w, d) {
+  c.obstacle = 'crack';
+  c.crack = { state: 'whole', t0: 0, goneAt: 0, back: -9 };
+  const glass = new MeshStandardMaterial({ color: 0xFFF1D0, transparent: true, opacity: 0.62, roughness: 0.06, metalness: 0.15, envMap: crystalEnvMap() || envTex,
+    envMapIntensity: 1.5, emissive: 0xFFC860, emissiveIntensity: 0.22 });
+  const top = new MeshStandardMaterial({ map: slabTex, transparent: true, opacity: 0.8, roughness: 0.05, metalness: 0.2, envMap: crystalEnvMap() || envTex,
+    envMapIntensity: 1.3, emissive: 0xFFE0A0, emissiveMap: slabTex, emissiveIntensity: 0.55 });
+  c.mesh.material = [glass, glass, top, glass, glass, glass];
+  setTopUV(c.mesh, true);
+  const crackMesh = new Mesh(new PlaneGeometry(w - 0.1, d - 0.1), glowMat(0xFFFFFF, 0, crackTex)); crackMesh.rotation.x = -Math.PI / 2; crackMesh.position.y = c.half.y + 0.015;
+  c.mesh.add(crackMesh);
+  c.crackFx = { cracks: crackMesh, glass, top, base: c.mesh.position.clone() };
+  cracks.push(c);
+}
+function crackStep() {
+  for (const c of cracks) {
+    const K = c.crack;
+    if (K.state === 'cracking' && simT - K.t0 > CRACK_T) {
+      K.state = 'gone'; K.goneAt = simT; sound('shatter');
+      burst(c.pos.x, c.pos.y + c.half.y, c.pos.z, 0xFFE6A8, 26, 4); burst(c.pos.x, c.pos.y + c.half.y, c.pos.z, 0xFFB040, 12, 3);
+    } else if (K.state === 'gone' && simT - K.goneAt > CRACK_BACK) {
+      const over = Math.abs(ball.p.x - c.pos.x) < c.half.x + R && Math.abs(ball.p.z - c.pos.z) < c.half.z + R && ball.p.y > c.pos.y - 3;
+      if (!over) { K.state = 'whole'; K.back = simT; }
+    }
+  }
+}
+function animateCracks(dt) {
+  for (const c of cracks) {
+    const K = c.crack, fx = c.crackFx;
+    if (K.state === 'gone') {                            // falling away, fading
+      const u = simT - K.goneAt;
+      c.mesh.position.set(fx.base.x, fx.base.y - 4 * u * u, fx.base.z); c.mesh.rotation.set(u * 0.6, 0, u * 0.4);
+      c.mesh.visible = u < 1.4; fx.cracks.material.opacity = 1;
+      continue;
+    }
+    c.mesh.visible = true; c.mesh.rotation.set(0, 0, 0);
+    const k = K.state === 'cracking' ? Math.min(1, (simT - K.t0) / CRACK_T) : 0, shiver = K.state === 'cracking' && !REDUCED ? (Math.random() - 0.5) * 0.04 * k : 0;
+    c.mesh.position.set(fx.base.x + shiver, fx.base.y, fx.base.z + shiver);
+    fx.cracks.material.opacity = k;
+    const back = Math.min(1, (simT - K.back) / 0.4);   // grown back: fading in
+    fx.glass.opacity = 0.62 * back; fx.top.opacity = 0.8 * back;
+  }
+}
+// ---- ROLLING FIREBALLS: balls of fire rolling in stone channels, out of one cliff, across the road, into the other.
+const FB_R = 0.55;
+const lavaTex = canvasTex(128, 64, (g) => {
+  g.fillStyle = '#FF7A1A'; g.fillRect(0, 0, 128, 64);
+  const r = seeded(51);
+  for (let i = 0; i < 40; i++) { g.fillStyle = r() < 0.5 ? 'rgba(255,230,120,0.9)' : 'rgba(170,30,10,0.8)'; g.beginPath(); g.ellipse(r() * 128, r() * 64, 4 + r() * 12, 2 + r() * 6, r() * 3, 0, 7); g.fill(); }
+}, true);
+const scorchTex = canvasTex(128, 32, (g) => {
+  const lg = g.createLinearGradient(0, 0, 0, 32); lg.addColorStop(0, 'rgba(20,10,5,0)'); lg.addColorStop(0.5, 'rgba(20,10,5,0.75)'); lg.addColorStop(1, 'rgba(20,10,5,0)');
+  g.fillStyle = lg; g.fillRect(0, 0, 128, 32);
+  const r = seeded(9); for (let i = 0; i < 30; i++) { g.fillStyle = `rgba(255,${80 + r() * 100},20,${0.4 + r() * 0.5})`; g.fillRect(r() * 128, 12 + r() * 8, 2 + r() * 6, 1.5); }
+}, true);
+function buildFireCrossing(c, pc, w, d) {
+  const top = pc.y, near = pc.z + d / 2;
+  const X = { lanes: [], cars: [], lights: [], green: true, greenSince: 0, w, x: pc.x, top, fire: true, warn: 2.1 };
+  const stone = new MeshStandardMaterial({ color: 0x2E2620, roughness: 0.9 }), ballMat = new MeshBasicMaterial({ map: lavaTex, toneMapped: false });
+  pc.lanes.forEach((L, li) => {
+    const len = L.speed * L.gaps.reduce((a, b) => a + b, 0);
+    const lane = { ...L, z: pc.z + L.dz, len, at: [] };
+    let s = 0;
+    for (const gap of L.gaps) { lane.at.push(s); s += gap * L.speed; }
+    X.lanes.push(lane);
+    for (const sx of [-1, 1]) {                          // the channel either side: a stone ledge with embers along it
+      const ledge = new Mesh(new BoxGeometry(30, 0.5, 1.3), stone); ledge.position.set(pc.x + sx * (w / 2 + 15), top - 0.36, lane.z); ledge.receiveShadow = true; levelGroup.add(ledge);
+      const ember = new Mesh(new PlaneGeometry(30, 0.2), glowMat(0xFF6A1A, 0.9)); ember.rotation.x = -Math.PI / 2; ember.position.set(pc.x + sx * (w / 2 + 15), top - 0.1, lane.z); levelGroup.add(ember);
+    }
+    const scorch = new Mesh(new PlaneGeometry(w, 1.2), new MeshBasicMaterial({ map: scorchTex, transparent: true, depthWrite: false })); scorch.rotation.x = -Math.PI / 2; scorch.position.set(pc.x, top + 0.013, lane.z); levelGroup.add(scorch);
+    lane.at.forEach((_, i) => {
+      const grp = new Group(), ball2 = new Mesh(new SphereGeometry(FB_R, 24, 16), ballMat);
+      const halo = new Sprite(new SpriteMaterial({ map: dot, color: 0xFF8A2A, transparent: true, opacity: 0.9, blending: AdditiveBlending, depthWrite: false })); halo.scale.set(3.6, 3.6, 1);
+      grp.add(ball2, halo); levelGroup.add(grp);
+      const trail = [];
+      for (let k = 0; k < 5; k++) { const sp = new Sprite(new SpriteMaterial({ map: flameTex, transparent: true, blending: AdditiveBlending, depthWrite: false })); levelGroup.add(sp); trail.push(sp); }
+      X.cars.push({ mesh: grp, ball: ball2, trail, lane, i, x: 0 });
+    });
+  });
+  const line = new Mesh(new PlaneGeometry(w - 0.2, 0.09), glowMat(0xFFFFFF, 0.9));
+  line.rotation.x = -Math.PI / 2; line.position.set(pc.x, top + 0.02, near - 0.12); levelGroup.add(line);
+  const housingMat = new MeshStandardMaterial({ color: 0x241C16, metalness: 0.5, roughness: 0.4 });
+  for (const sx of [-1, 1]) {
+    const post = new Group();
+    const housing = new Mesh(new RoundedBoxGeometry(0.46, 0.46, 0.16, 2, 0.07), housingMat);
+    const lamp = new Mesh(new CircleGeometry(0.16, 28), new MeshBasicMaterial({ color: 0x3DFF8A, toneMapped: false })); lamp.position.z = 0.085;
+    const halo = new Mesh(new PlaneGeometry(1.2, 1.2), glowMat(0x3DFF8A, 0.8, dot)); halo.position.z = 0.09;
+    post.add(housing, lamp, halo); post.position.set(pc.x + sx * (w / 2 + 0.4), top + 1.15, near - 0.12); levelGroup.add(post);
+    X.lights.push({ lamp, halo });
+  }
+  c.cross = X;
+  crossings.push(c);
+}
+
 /* SCANNER LASERS (owner, 2026-09-27: "let's do the 3 you suggest"). A stretch
    of road between two red thresholds is swept by a scanner: a bar of red light
    standing on the road, a thin bright line along the surface with a curtain of
@@ -1756,6 +2057,7 @@ const laneTex = canvasTex(128, 32, (g) => {             // 4 m of lane: a faint 
 }, true);
 laneTex.repeat.set(15, 1);
 function buildCrossing(c, pc, w, d) {
+  if (pc.fire) { buildFireCrossing(c, pc, w, d); return; }
   if (!crossKit) crossKit = carKit(neonEnvMap() || envTex);
   const K = crossKit, top = pc.y, near = pc.z + d / 2;
   const X = { lanes: [], cars: [], lights: [], green: true, greenSince: 0, w, x: pc.x, top };
@@ -2126,12 +2428,12 @@ function freeCourse(grp) {
   });
 }
 function enterPocket(W) {
-  pocket = { colliders, ferries, holos, pads, crossings, riders, curtains, locks, wormholes, loopsIn, mags, winds, rounds, tubes, switches, scans, posts, blinkers, gates, goal, level, levelGroup,
+  pocket = { colliders, ferries, holos, pads, crossings, riders, curtains, locks, wormholes, loopsIn, mags, winds, rounds, tubes, switches, scans, posts, blinkers, flames, cracks, gates, goal, level, levelGroup,
              world: world.name, from: W };
   levelGroup.visible = false;
   const P = W.pc.pocket;
   levelGroup = new Group(); scene.add(levelGroup);
-  colliders = []; ferries = []; holos = []; pads = []; crossings = []; riders = []; curtains = []; locks = []; wormholes = []; loopsIn = []; mags = []; winds = []; rounds = []; tubes = []; switches = []; scans = []; posts = []; blinkers = []; gates = [];
+  colliders = []; ferries = []; holos = []; pads = []; crossings = []; riders = []; curtains = []; locks = []; wormholes = []; loopsIn = []; mags = []; winds = []; rounds = []; tubes = []; switches = []; scans = []; posts = []; blinkers = []; flames = []; cracks = []; gates = [];
   goal = null;
   level = { pieces: P.pieces, gates: [], start: P.start, world: P.world };
   for (const pc of P.pieces) buildPiece(pc);
@@ -2147,7 +2449,7 @@ function enterPocket(W) {
 function leavePocket() {
   freeCourse(levelGroup);
   const S = pocket; pocket = null;
-  ({ colliders, ferries, holos, pads, crossings, riders, curtains, locks, wormholes, loopsIn, mags, winds, rounds, tubes, switches, scans, posts, blinkers, gates, goal, level, levelGroup } = S);
+  ({ colliders, ferries, holos, pads, crossings, riders, curtains, locks, wormholes, loopsIn, mags, winds, rounds, tubes, switches, scans, posts, blinkers, flames, cracks, gates, goal, level, levelGroup } = S);
   levelGroup.visible = true;
   setWorld(S.world);
   const out = S.from.twin;
@@ -2175,10 +2477,10 @@ function animateRipple(dt) {
 const carS = (lane, i, t) => (((lane.speed * t + lane.phase * lane.len + lane.at[i]) % lane.len) + lane.len) % lane.len;
 function crossingGreen(X, t) {
   for (const lane of X.lanes) {
-    const Z = X.w / 2 + CAR_HX + R, mid = lane.len / 2;
+    const Z = X.w / 2 + (X.fire ? FB_R : CAR_HX) + R, mid = lane.len / 2;
     for (let i = 0; i < lane.at.length; i++) {
       const s = carS(lane, i, t);
-      if (s > mid - Z - lane.speed * CROSS_WARN && s < mid + Z) return false;
+      if (s > mid - Z - lane.speed * (X.warn || CROSS_WARN) && s < mid + Z) return false;
     }
   }
   return true;
@@ -2190,6 +2492,15 @@ function crossStep(c, t) {
     const L = car.lane, s = carS(L, car.i, t);
     car.x = X.x - L.dir * L.len / 2 + L.dir * s;
     if (ball.hitT > 0 || state !== 'play') continue;
+    if (X.fire) {                                       // a fireball: a sphere rolling in its channel
+      const dx = ball.p.x - car.x, dy = ball.p.y - (X.top + FB_R - 0.05), dz = ball.p.z - L.z, rr = R + FB_R - 0.05;
+      if (dx * dx + dy * dy + dz * dz < rr * rr) {
+        ball.v.set(L.dir * Math.max(10, L.speed * 1.4), 5, ball.v.z * 0.3);
+        ball.hitT = 0.6; ball.onFerry = null; shake = 0.4;
+        sound('blast'); burst(ball.p.x, ball.p.y, ball.p.z, 0xFF7A1A, 28, 4); burst(ball.p.x, ball.p.y, ball.p.z, 0xFFE08A, 12, 3);
+      }
+      continue;
+    }
     const cy = X.top + CAR_LIFT;
     const dx = ball.p.x - clamp(ball.p.x, car.x - CAR_HX, car.x + CAR_HX);
     const dy = ball.p.y - clamp(ball.p.y, cy - CAR_HY, cy + CAR_HY);
@@ -2207,7 +2518,17 @@ function crossStep(c, t) {
 function animateCrossings() {
   for (const c of crossings) {
     const X = c.cross;
-    for (const car of X.cars) car.mesh.position.set(car.x, X.top + CAR_LIFT, car.lane.z);
+    for (const car of X.cars) {
+      if (!X.fire) { car.mesh.position.set(car.x, X.top + CAR_LIFT, car.lane.z); continue; }
+      const y = X.top + FB_R - 0.05;
+      car.mesh.position.set(car.x, y, car.lane.z);
+      car.ball.rotation.z = -car.x / FB_R;               // rolling
+      car.trail.forEach((sp, k) => {                      // a tail of flame streaming out behind
+        sp.position.set(car.x - car.lane.dir * (0.45 + k * 0.42), y + 0.05 + k * 0.1, car.lane.z);
+        const f = 1 - k / car.trail.length, fl = 0.85 + 0.15 * Math.sin(simT * 17 + k + car.i);
+        sp.scale.set(1.3 * f * fl, 1.3 * f * fl, 1); sp.material.opacity = 0.8 * f;
+      });
+    }
     for (const L of X.lights) {
       const col = X.green ? 0x3DFF8A : 0xFF2D48;
       L.lamp.material.color.setHex(col); L.halo.material.color.setHex(col);
@@ -2224,6 +2545,7 @@ function buildPiece(pc) {
   if (pc.t === 'tube') { buildTube(pc); return; }
   if (pc.t === 'switch') { buildSwitch(pc); return; }
   if (pc.t === 'posts') { buildPosts(pc); return; }
+  if (pc.t === 'shards') { buildShards(pc); return; }
   if (pc.t === 'block') { buildBlock(pc); return; }
   if (pc.t === 'gauntlet') return;
   let h = THICK;
@@ -2253,6 +2575,7 @@ function buildPiece(pc) {
     ferries.push(c);
   }
   if (pc.lane) c.lane = pc.lane;
+  if (pc.crack) buildCrackSlab(c, pc, w, d);
   if (pc.dark !== undefined) {                          // a dark road: solid only once its switch is on
     const S = switches[pc.dark];
     c.power = S;
@@ -2309,7 +2632,7 @@ function loadLevel(n) {
   }
   levelGroup = new Group();
   scene.add(levelGroup);
-  colliders = []; ferries = []; holos = []; pads = []; crossings = []; riders = []; curtains = []; locks = []; wormholes = []; loopsIn = []; mags = []; winds = []; rounds = []; tubes = []; switches = []; scans = []; posts = []; blinkers = []; gates = [];
+  colliders = []; ferries = []; holos = []; pads = []; crossings = []; riders = []; curtains = []; locks = []; wormholes = []; loopsIn = []; mags = []; winds = []; rounds = []; tubes = []; switches = []; scans = []; posts = []; blinkers = []; flames = []; cracks = []; gates = [];
   for (const pc of level.pieces) buildPiece(pc);
   if (world.name !== 'void') setWorld(world.name);   // scenery that follows the course is rebuilt for it
   level.minTop = Math.min(...level.pieces.map((p) => (p.t === 'ramp' ? Math.min(p.y0, p.y1) : p.y)));
@@ -2385,6 +2708,7 @@ function collide(c, dt) {
   if (c.holo && (!holoState(c.holo, simT).lit || ball.p.y - R < c.pos.y + c.half.y - 0.3)) return;
   if (c.lock && ball.tint === c.lock) return;
   if (c.power && !c.power.on) return;                   // a dark road is not there until its switch is on
+  if (c.crack && c.crack.state === 'gone') return;       // a crystal slab that has dropped away
   _L.subVectors(ball.p, c.pos).applyQuaternion(c.inv);
   const h = c.half;
   if (Math.abs(_L.x) > h.x + R || Math.abs(_L.y) > h.y + R || Math.abs(_L.z) > h.z + R) return;
@@ -2414,7 +2738,10 @@ function collide(c, dt) {
     else if (c.obstacle && !floor) { if (rel < -1.2 && simT - knockT > 0.12) { knockT = simT; sound('knock'); } }
     else if (!floor && rel < -3) play('tick');
   }
-  if (floor) { ball.grounded = true; if (c.ferry) ball.onFerry = c; if (c.pad) ball.pad = c.pad; if (c.mag) ball.mag = c.mag; }
+  if (floor) {
+    ball.grounded = true; if (c.ferry) ball.onFerry = c; if (c.pad) ball.pad = c.pad; if (c.mag) ball.mag = c.mag;
+    if (c.crack && c.crack.state === 'whole') { c.crack.state = 'cracking'; c.crack.t0 = simT; sound('crack'); }
+  }
 }
 
 function step(dt, ix, iz) {
@@ -2451,6 +2778,8 @@ function step(dt, ix, iz) {
   if (tubes.length) tubeCatch();
   if (switches.length) switchStep();
   if (scans.length && state === 'play') scanStep();
+  if (flames.length && state === 'play') flameStep();
+  if (cracks.length) crackStep();
   ball.onLoop = null;
   for (const L of loopsIn) loopContact(L);
   tintStep();
@@ -2510,6 +2839,7 @@ function flyTo(dest) {
   if (REDUCED) arrive();
 }
 function arrive() {
+  for (const c of cracks) if (c.crack.state !== 'whole') { c.crack.state = 'whole'; c.crack.back = simT; }   // the bridges stand again
   ball.p.copy(flight.to); ball.v.set(0, 0, 0);
   setTint(spawnTint);
   ball.grounded = true; ball.airT = 0;
@@ -2671,6 +3001,8 @@ function update(dt, now) {
   animateTubes();
   animateSwitches(dt);
   animateScans();
+  animateFlames();
+  animateCracks(dt);
   animateBlocks();
   updateSparks(dt);
   updateCamera(dt, false);
@@ -3050,8 +3382,14 @@ const NEWS = {
   33: 'The Express: everything at once, on the longest courses',
 };
 const POCKET_NEWS = { crystal: 'The crystal canyon: the road is slippery. Brake early' };
+const POCKET_NEWS_AT = {                                 // where each canyon obstacle first appears
+  11: 'The crystal canyon: slippery, and crystals grow on the road. Line up early',
+  13: 'Fire jets! Wait for the flames to die, then go',
+  20: 'Fireballs roll across. Wait at the line for the green light',
+  22: 'Crystal bridges crack under you. Keep rolling, never stop on them',
+};
 function drawNews() {
-  const t = pocket ? POCKET_NEWS[level.world] : NEWS[levelNo];
+  const t = pocket ? (POCKET_NEWS_AT[levelNo] || POCKET_NEWS[level.world]) : NEWS[levelNo];
   if (!t || state !== 'play' || ball.p.z < -12) return;
   const pad = MODE === 'mobile' ? PHONE_PAD : SIDE_PAD;
   const lines = wrapText(t, LW - 2 * pad - 36, 16);
@@ -3079,6 +3417,7 @@ const RULES = [
   'Flying cars cross some roads. Wait at the line for the green light, then roll across.',
   'Some pads move. Wait for one to line up with the path, roll on, and ride it across.',
   'A wormhole takes the marble to the crystal canyon, where the road is slippery. Cross it to come out on the far side.',
+  'In the canyon: crystals grow on the road (steer through the gaps), fire jets flare in a rhythm (wait for the flames to die), fireballs roll across (wait for the green light), and crystal bridges crack under you (keep rolling).',
   'The sky train stops at stations. Roll onto its roof, hold on as it pulls away, and roll off at the next station.',
   'Maglev strips pull the marble toward the edge their arrows point to. Steer the other way to stay on.',
   'A roundabout turns and carries the marble round with it. Roll off onto the road that leads on; the others stop short at a red bar.',
@@ -7417,6 +7756,8 @@ if (HARNESS) {
     simT: () => +simT.toFixed(3),
     holos: () => holos.map((c) => { const h = holoState(c.holo, simT); return { lit: h.lit, t: +h.t.toFixed(3), left: +h.left.toFixed(3) }; }),
     switches: () => switches.map((S) => ({ on: S.on, x: S.pc.x, z: S.pc.z })),
+    flames: () => flames.map((F) => ({ lines: F.lines.map((L) => { const st = flameState(L, simT); return { active: st.active, h: +st.h.toFixed(2), offFor: +st.offFor.toFixed(3), z: L.z }; }) })),
+    cracks: () => cracks.map((c) => ({ state: c.crack.state, z: c.pos.z })),
     scans: () => scans.map((Sc) => ({ x: Sc.x, z: Sc.zc, d: Sc.d, w: Sc.w, A: Sc.A, period: Sc.period, phase: Sc.phase, bars: Sc.bars.length,
                                       at: Sc.bars.map((_, i) => +scanX(Sc, simT, i).toFixed(3)) })),
     winds: () => winds.map((W) => { const st = windState(W, simT); return { k: +st.k.toFixed(3), show: +st.show.toFixed(3), z: W.z, d: W.d }; }),
