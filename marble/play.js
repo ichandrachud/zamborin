@@ -3903,6 +3903,29 @@ function tintedGlow(mat, key) {
   mat.customProgramCacheKey = () => key;
   return mat;
 }
+// The same glow, with pulses of light racing forward along the canyon through
+// every crystal: a bright band every forty-five metres, rolling at about nine metres a second.
+function pulsingGlow(mat, key, time) {
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uTime = time;
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying float vWz;').replace('#include <begin_vertex>', `#include <begin_vertex>
+  {
+    vec4 wq = vec4(transformed, 1.0);
+    #ifdef USE_INSTANCING
+      wq = instanceMatrix * wq;
+    #endif
+    vWz = (modelMatrix * wq).z;
+  }`);
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vWz;\nuniform float uTime;').replace('#include <emissivemap_fragment>',
+      `#include <emissivemap_fragment>
+#if defined( USE_INSTANCING_COLOR ) || defined( USE_COLOR )
+  totalEmissiveRadiance *= vColor.rgb;
+#endif
+  totalEmissiveRadiance *= 0.7 + 1.5 * pow(max(0.0, sin(vWz * 0.14 + uTime * 1.2)), 6.0);`);
+  };
+  mat.customProgramCacheKey = () => key;
+  return mat;
+}
 // Rough dark rock: a ball pushed about by a noise that is the same wherever two
 // faces share a corner, so it has no cracks.
 function rockGeo(seed) {
@@ -3943,6 +3966,10 @@ WORLDS_ADD('crystal', (w) => {
     }
     return lo > hi ? null : [lo, hi];
   };
+  // Where the mine carts cross under the road, and where the spark geysers stand: kept clear of crystals.
+  const CROSS_Z = []; for (let z = -8; z > end + 8; z -= 20) CROSS_Z.push(z);
+  const VENT_Z = []; for (let z = -18; z > end + 6; z -= 20) VENT_Z.push(z);
+  const inLane = (z, pad) => CROSS_Z.some((c) => Math.abs(z - c) < pad) || VENT_Z.some((c) => Math.abs(z - c) < pad * 0.8);
   // CRYSTALS: clusters of irregular points from six shapes, one draw each.
   const kinds = [1, 2, 3, 4, 5, 6].map((k) => crystalPointGeo(k * 17)), lists = kinds.map(() => []);
   const addPoint = (x, y, z, d, len, rad, hue) => {
@@ -3997,26 +4024,29 @@ WORLDS_ADD('crystal', (w) => {
   for (let z = 14; z > deep; z -= 6) {
     span = reach(z + 8, z - 8) || span;
     for (let k = 0; k < 2; k++) {
-      const x = span[0] - 4 + r() * (span[1] - span[0] + 8);
+      const x = span[0] - 4 + r() * (span[1] - span[0] + 8), size = inLane(z, 5) ? 6 + r() * 8 : 10 + r() * 14;   // lower where the carts cross
       d0.set((r() - 0.5) * 0.3, 1, (r() - 0.5) * 0.3).normalize();
-      cluster(x, -40 + r() * 6, z + (r() - 0.5) * 3, d0, 10 + r() * 14, huesFor(), 2 + Math.floor(r() * 2));
+      cluster(x, -40 + r() * 6, z + (r() - 0.5) * 3, d0, size, huesFor(), 2 + Math.floor(r() * 2));
     }
   }
+  const tipsBeside = [];
   // Beside the road: clusters rising from below with their tips under the road's
   // level, so they line the way and can never stand in front of it.
   span = null;
   for (let z = 14; z > end - 6; z -= 3.2) {
     span = reach(z + 1.5, z - 1.5);
-    if (!span) continue;
+    if (!span || inLane(z, 4)) continue;
     for (const sd of [-1, 1]) {
       if (r() < 0.35) continue;
-      const edge = sd < 0 ? span[0] : span[1], size = 3 + r() * 4, lean = 0.1 + r() * 0.35;
+      const edge = sd < 0 ? span[0] : span[1], size = 3 + r() * 4, lean = 0.1 + r() * 0.35, cx = edge + sd * (1.6 + r() * 2), cz = z + (r() - 0.5) * 1.5;
       d0.set(sd * Math.sin(lean), Math.cos(lean), (r() - 0.5) * 0.3).normalize();
-      cluster(edge + sd * (1.6 + r() * 2), -1.4 - size * 1.05, z + (r() - 0.5) * 1.5, d0, size, huesFor(), 1 + Math.floor(r() * 2));
+      cluster(cx, -1.4 - size * 1.05, cz, d0, size, huesFor(), 1 + Math.floor(r() * 2));
+      tipsBeside.push([cx + d0.x * size * 0.3, -1.6, cz, sd]);
     }
   }
-  const crystalMat = tintedGlow(new MeshStandardMaterial({ color: 0x0C0B08, roughness: 0.18, metalness: 0.45, envMap: env, envMapIntensity: 1.2,
-    emissive: 0xFFFFFF, emissiveMap: crystalEdgeTex(), emissiveIntensity: 1.55, flatShading: true }), 'canyon-crystals');
+  const lifeT = { value: 0 };
+  const crystalMat = pulsingGlow(new MeshStandardMaterial({ color: 0x0C0B08, roughness: 0.18, metalness: 0.45, envMap: env, envMapIntensity: 1.2,
+    emissive: 0xFFFFFF, emissiveMap: crystalEdgeTex(), emissiveIntensity: 1.55, flatShading: true }), 'canyon-crystals', lifeT);
   kinds.forEach((geo, k) => {
     const list = lists[k];
     if (!list.length) return;
@@ -4053,14 +4083,254 @@ WORLDS_ADD('crystal', (w) => {
   const motes = new Points(moteGeo, new PointsMaterial({ size: 0.2, map: dot, vertexColors: true, transparent: true, opacity: 0.95,
     blending: AdditiveBlending, depthWrite: false, toneMapped: false }));
   motes.frustumCulled = false; G.add(motes);
+  // ---- THE CANYON ALIVE (owner, 2026-09-27: "increase the motion and moving elements in the crystal wormhole
+  // world"). The canyon is narrow, its cliffs a few metres off the road, so everything that moves is in the gap
+  // the camera looks down into, below the road or on the near cliff faces, never over the road.
+  const minTop = level ? level.minTop : 0, CT = Math.min(-6, minTop - 5);          // the carts' track, under the road
+  const spanAt = (z) => reach(z + 3, z - 3) || [-3, 3];
+  const glowSprite = (col2, size, op) => { const sp = new Sprite(new SpriteMaterial({ map: dot, color: col2, transparent: true, opacity: op, blending: AdditiveBlending, depthWrite: false })); sp.scale.set(size, size, 1); return sp; };
+  // MINE CARTS heaped with glowing crystal, out of a tunnel in one cliff, over a timber trestle under the road, into the other.
+  const timber = new MeshStandardMaterial({ color: 0x3A2A1E, roughness: 0.9 }), ironM = new MeshStandardMaterial({ color: 0x2A2A2C, metalness: 0.7, roughness: 0.4 });
+  const loadM = [0xFFC400, 0xFF4A2E].map((c) => new MeshStandardMaterial({ color: 0x0C0B08, roughness: 0.2, metalness: 0.4, envMap: env, emissive: c, emissiveMap: crystalEdgeTex(), emissiveIntensity: 1.9, flatShading: true }));
+  const trains = [];
+  for (const zc of CROSS_Z) {
+    const sp = spanAt(zc), xL = sp[0] - 5.2, xR = sp[1] + 5.2, len = xR - xL;
+    const deck = new Mesh(new BoxGeometry(len + 4, 0.3, 2.2), timber); deck.position.set((xL + xR) / 2, CT - 0.35, zc); G.add(deck);
+    for (let x = xL + 0.4; x < xR; x += 0.8) { const sl = new Mesh(new BoxGeometry(0.25, 0.14, 2), timber); sl.position.set(x, CT - 0.13, zc); G.add(sl); }
+    for (const dz of [-0.55, 0.55]) { const rail = new Mesh(new BoxGeometry(len + 4, 0.1, 0.1), ironM); rail.position.set((xL + xR) / 2, CT, zc + dz); G.add(rail); }
+    for (let x = xL + 2; x < xR - 1; x += 4) for (const dz of [-0.9, 0.9]) { const leg = new Mesh(new BoxGeometry(0.35, 34, 0.35), timber); leg.position.set(x, CT - 17.5, zc + dz); G.add(leg); }
+    for (const x of [xL, xR]) {                           // the tunnel mouths, timber-framed, a lamp over each
+      const hole = new Mesh(new BoxGeometry(1.2, 2.6, 2.8), new MeshBasicMaterial({ color: 0x000000 })); hole.position.set(x + (x < 0 ? -0.4 : 0.4), CT + 1.1, zc); G.add(hole);
+      for (const dz of [-1.5, 1.5]) { const post = new Mesh(new BoxGeometry(0.35, 3, 0.35), timber); post.position.set(x, CT + 1.2, zc + dz); G.add(post); }
+      const lintel = new Mesh(new BoxGeometry(0.4, 0.4, 3.4), timber); lintel.position.set(x, CT + 2.8, zc); G.add(lintel);
+      const lamp = glowSprite(0xFFB24A, 3, 0.8); lamp.position.set(x + (x < 0 ? 0.5 : -0.5), CT + 3.3, zc); G.add(lamp);
+    }
+    const dir = trains.length % 2 ? -1 : 1, carts = [];
+    for (let k = 0; k < 5; k++) {
+      const cart = new Group();
+      const bin = new Mesh(new BoxGeometry(1.7, 0.9, 1.2), ironM); bin.position.y = 0.75; cart.add(bin);
+      if (k === 0) { const lampF = glowSprite(0xFFF1C8, 2.4, 0.95); lampF.position.set(0.95, 0.9, 0); cart.add(lampF); }
+      for (const bx of [-0.6, 0.6]) { const band = new Mesh(new BoxGeometry(0.08, 0.95, 1.24), timber); band.position.set(bx, 0.75, 0); cart.add(band); }
+      for (const wx of [-0.55, 0.55]) for (const wz of [-0.55, 0.55]) { const wh = new Mesh(new CylinderGeometry(0.26, 0.26, 0.12, 12), ironM); wh.rotation.x = Math.PI / 2; wh.position.set(wx, 0.26, wz); cart.add(wh); }
+      for (let j = 0; j < 5; j++) { const cp = new Mesh(kinds[j % 6], loadM[(j + k) % 2]); cp.scale.set(0.28, 0.4 + r() * 0.25, 0.28); cp.position.set((r() - 0.5) * 1.1, 1.1, (r() - 0.5) * 0.7); cp.rotation.set((r() - 0.5) * 0.8, r() * 6, (r() - 0.5) * 0.8); cart.add(cp); }
+      const halo = glowSprite(k % 2 ? 0xFF6A3C : 0xFFC400, 3.4, 0.6); halo.position.y = 1.3; cart.add(halo);
+      cart.scale.setScalar(1.25); cart.position.set(0, CT, zc); G.add(cart); carts.push(cart);
+    }
+    trains.push({ carts, zc, xL: xL - 9, xR: xR + 9, dir, ph: r() });
+  }
+  // FLOATING CRYSTALS hovering in the gap, turning and bobbing, each with a faint halo.
+  const floaters = [], FIM = [new InstancedMesh(kinds[1], crystalMat, 16), new InstancedMesh(kinds[4], crystalMat, 16)];
+  for (let i = 0; i < 32; i++) {
+    const z = 10 - r() * (10 - end + 4), sp = spanAt(z), x = sp[0] - 3.8 + r() * (sp[1] - sp[0] + 7.6), y = -12 + r() * 13;
+    const near = courseTopNear(x, z, 2.2);
+    if (near !== null && y > near - 2.5) continue;                              // never in front of the road
+    const size = 0.7 + r() * 1.6, hue = (r() < 0.5 ? CANYON_YELLOWS : CANYON_REDS)[Math.floor(r() * 3)], im = FIM[i % 2], k = floaters.filter((f) => f.im === im).length;
+    if (k >= 16) continue;
+    im.setColorAt(k, col.setHex(hue));
+    const halo = glowSprite(hue, size * 3.2, 0.28); halo.position.set(x, y, z); G.add(halo);
+    floaters.push({ im, k, x, y, z, size, ax: new Vector3(r() - 0.5, 1, r() - 0.5).normalize(), sp: 0.3 + r() * 0.6, ph: r() * 6.3, halo });
+  }
+  for (const im of FIM) { im.count = floaters.filter((f) => f.im === im).length; G.add(im); }
+  // FALLS OF MOLTEN LIGHT pouring from cracks in the near cliff faces, down into the depths.
+  const pourT = canvasTex(32, 256, (g) => {
+    const rr = seeded(41);
+    for (let i = 0; i < 60; i++) { const x = rr() * 32, y = rr() * 256, ln = 20 + rr() * 70; const lg = g.createLinearGradient(0, y, 0, y + ln); lg.addColorStop(0, 'rgba(255,255,255,0)'); lg.addColorStop(0.5, `rgba(255,255,255,${0.35 + rr() * 0.6})`); lg.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = lg; g.fillRect(x, y, 1.5 + rr() * 3, ln); g.fillRect(x, y - 256, 1.5 + rr() * 3, ln); }
+  }, true);
+  const pours = [];
+  for (let i = 0, z = 4; z > end + 4 && i < 8; i++, z -= 12 + r() * 6) {
+    const sp = spanAt(z), sd = i % 2 ? 1 : -1, x = (sd < 0 ? sp[0] : sp[1]) + sd * 4.4, top = 1 + r() * 5, h = top + 44, hue = i % 3 ? 0xFFB020 : 0xFF5A24;
+    const pm = new MeshBasicMaterial({ map: pourT.clone(), color: hue, transparent: true, opacity: 0.9, blending: AdditiveBlending, depthWrite: false, side: DoubleSide, toneMapped: false });
+    pm.map.repeat.set(1, h / 16);
+    const pour = new Mesh(new PlaneGeometry(1.8, h), pm); pour.position.set(x, top - h / 2, z); pour.rotation.y = Math.PI / 2; G.add(pour);
+    const src = glowSprite(hue, 3.2, 0.9); src.position.set(x, top, z); G.add(src);
+    pours.push({ pm, src, ph: r() * 6 });
+  }
+  // FIREFLIES in swarms under the road, swirling.
+  const NS = 9, PER = 26, ffArr = new Float32Array(NS * PER * 3), ffCol = new Float32Array(NS * PER * 3), swarms = [];
+  for (let k = 0; k < NS; k++) {
+    const z = 6 - (k + 0.5) / NS * (6 - end), sp = spanAt(z);
+    swarms.push({ x: (sp[0] + sp[1]) / 2 + (k % 2 ? 1 : -1) * (sp[1] - sp[0]) * 0.5, y: Math.min(-2.5, minTop - 2.5) - r() * 3, z, rx: 2 + r() * 2.5, sp: 0.2 + r() * 0.3, ph: r() * 6.3,
+                  bits: Array.from({ length: PER }, () => ({ a: r() * 6.3, b: r() * 6.3, rad: 0.5 + r() * 1.8, w: 0.8 + r() * 1.6 })) });
+    for (let j = 0; j < PER; j++) { col.setHex(r() < 0.6 ? 0xC8FF5A : 0xFFE45A); ffCol.set([col.r, col.g, col.b], (k * PER + j) * 3); }
+  }
+  const ffGeo = new BufferGeometry(); ffGeo.setAttribute('position', new Float32BufferAttribute(ffArr, 3).setUsage(DynamicDrawUsage)); ffGeo.setAttribute('color', new Float32BufferAttribute(ffCol, 3));
+  const fireflies = new Points(ffGeo, new PointsMaterial({ size: 0.42, map: dot, vertexColors: true, transparent: true, blending: AdditiveBlending, depthWrite: false, toneMapped: false }));
+  fireflies.frustumCulled = false; G.add(fireflies);
+  // BATS: flocks swooping and jinking through the canyon below the road, dark against the glowing crystals.
+  const batGeo = (() => {
+    const g = new BufferGeometry();
+    g.setAttribute('position', new Float32BufferAttribute([0, 0, 0.15, -0.35, 0.05, 0.1, -0.75, 0.12, -0.15, -0.5, 0, -0.1, -0.3, 0.02, -0.2, 0, 0, -0.15,
+                                                            0, 0, 0.15, 0.35, 0.05, 0.1, 0.75, 0.12, -0.15, 0.5, 0, -0.1, 0.3, 0.02, -0.2, 0, 0, -0.15], 3));
+    g.setIndex([0, 1, 5, 1, 2, 3, 1, 3, 4, 1, 4, 5, 6, 11, 7, 7, 9, 8, 7, 10, 9, 7, 11, 10]);
+    g.computeVertexNormals();
+    return g;
+  })();
+  const NBAT = 30, bats = new InstancedMesh(batGeo, new MeshBasicMaterial({ color: 0x0A0606, side: DoubleSide }), NBAT), colonies = [];
+  for (let i = 0; i < NBAT; i++) {
+    const f = Math.floor(i / 10);
+    if (!colonies[f]) colonies[f] = { z0: 4 - (f + 0.5) / 3 * (4 - end), y: Math.min(-3, minTop - 3) - r() * 4, sp: 0.5 + r() * 0.3, ph: r() * 6.3 };
+    colonies[f].b = (colonies[f].b || []).concat([{ i, dx: (r() - 0.5) * 3, dy: (r() - 0.5) * 1.6, dz: (r() - 0.5) * 3, ph: r() * 6.3, flap: 14 + r() * 6 }]);
+  }
+  G.add(bats);
+  // LIGHTNING leaping between the crystals beside the road: now and then a crackling arc, flickering, then gone.
+  const SEGS = 14, arcs = [];
+  const arcCore = new MeshBasicMaterial({ color: 0xFFF6D8, transparent: true, blending: AdditiveBlending, depthWrite: false, side: DoubleSide, toneMapped: false });
+  const arcGlow = new MeshBasicMaterial({ color: 0xFFB040, transparent: true, opacity: 0.45, blending: AdditiveBlending, depthWrite: false, side: DoubleSide, toneMapped: false });
+  const ribbon = (mat) => {
+    const g = new BufferGeometry(), idx = [];
+    g.setAttribute('position', new Float32BufferAttribute(new Float32Array((SEGS + 1) * 6), 3).setUsage(DynamicDrawUsage));
+    for (let k = 0; k < SEGS; k++) { const i2 = k * 2; idx.push(i2, i2 + 1, i2 + 2, i2 + 1, i2 + 3, i2 + 2); }
+    g.setIndex(idx);
+    const mm = new Mesh(g, mat); mm.frustumCulled = false; mm.visible = false; G.add(mm); return mm;
+  };
+  for (let i = 0; i < tipsBeside.length && arcs.length < 16; i++) {
+    const A = tipsBeside[i], B = tipsBeside.find((t2, j) => j > i && t2[3] === A[3] && Math.abs(t2[2] - A[2]) > 2.5 && Math.abs(t2[2] - A[2]) < 9);
+    if (!B) continue;
+    const fA = glowSprite(0xFFD890, 2.2, 0), fB = glowSprite(0xFFD890, 2.2, 0); fA.position.set(A[0], A[1], A[2]); fB.position.set(B[0], B[1], B[2]); G.add(fA, fB);
+    arcs.push({ A, B, core: ribbon(arcCore), glow: ribbon(arcGlow), fA, fB, period: 2.2 + r() * 3.5, ph: r() * 6, jag: -1 });
+  }
+  const _ap = new Vector3(), _ad = new Vector3(), _ac = new Vector3(), _an = new Vector3();
+  const jagArc = (Ar, core, glow) => {                    // a fresh crooked path from A to B, bowed up a little
+    const pts = [];
+    for (let k = 0; k <= SEGS; k++) {
+      const u = k / SEGS, j = k === 0 || k === SEGS ? 0 : 0.38;
+      pts.push(new Vector3(Ar.A[0] + (Ar.B[0] - Ar.A[0]) * u + (r() - 0.5) * j, Ar.A[1] + Math.sin(Math.PI * u) * 1.1 + (r() - 0.5) * j, Ar.A[2] + (Ar.B[2] - Ar.A[2]) * u + (r() - 0.5) * j));
+    }
+    for (const [mesh, wd] of [[core, 0.07], [glow, 0.5]]) {
+      const arr = mesh.geometry.attributes.position.array;
+      pts.forEach((pt, k) => {
+        _ad.subVectors(pts[Math.min(SEGS, k + 1)], pts[Math.max(0, k - 1)]).normalize();
+        _ac.subVectors(camera.position, pt).normalize();
+        _an.crossVectors(_ad, _ac).normalize().multiplyScalar(wd / 2);
+        arr.set([pt.x + _an.x, pt.y + _an.y, pt.z + _an.z, pt.x - _an.x, pt.y - _an.y, pt.z - _an.z], k * 6);
+      });
+      mesh.geometry.attributes.position.needsUpdate = true;
+    }
+  };
+  // JELLYFISH OF LIGHT rising slowly out of the depths beside the road, bells pulsing, tendrils trailing.
+  const bellGeo = new SphereGeometry(1, 22, 10, 0, Math.PI * 2, 0, Math.PI / 2), tentGeo = new PlaneGeometry(0.22, 2.6, 1, 6);
+  tentGeo.translate(0, -1.3, 0);
+  const bellT = canvasTex(64, 64, (g) => { const rg = g.createRadialGradient(32, 24, 2, 32, 32, 36); rg.addColorStop(0, 'rgba(255,255,255,0.95)'); rg.addColorStop(0.55, 'rgba(255,255,255,0.3)'); rg.addColorStop(0.9, 'rgba(255,255,255,0.75)'); rg.addColorStop(1, 'rgba(255,255,255,0.2)'); g.fillStyle = rg; g.fillRect(0, 0, 64, 64); });
+  const tentT = canvasTex(16, 128, (g) => { const lg = g.createLinearGradient(0, 0, 0, 128); lg.addColorStop(0, 'rgba(255,255,255,0.95)'); lg.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = lg; g.fillRect(6, 0, 4, 128); });
+  const jellyHues = [0x7CFFB0, 0xFFE070, 0xFF8A5A];
+  const bellMats = jellyHues.map((h) => new MeshBasicMaterial({ map: bellT, color: h, transparent: true, opacity: 0.8, blending: AdditiveBlending, depthWrite: false, side: DoubleSide, toneMapped: false }));
+  const tentMats = jellyHues.map((h) => new MeshBasicMaterial({ map: tentT, color: h, transparent: true, opacity: 0.85, blending: AdditiveBlending, depthWrite: false, side: DoubleSide, toneMapped: false }));
+  const jellies = [];
+  for (let i = 0; i < 12; i++) {
+    const z = 2 - (i + 0.5) / 12 * (2 - end), sp = spanAt(z), sd = i % 2 ? 1 : -1, x = (sd < 0 ? sp[0] : sp[1]) + sd * (1.4 + r() * 1.8), h2 = i % 3;
+    const near = courseTopNear(x, z, 1.6), topY = (near === null ? 0 : near) - 1.8;
+    const grp = new Group(), bell = new Mesh(bellGeo, bellMats[h2]); grp.add(bell);
+    const tents = [];
+    for (let k = 0; k < 6; k++) { const tm = new Mesh(tentGeo, tentMats[h2]); const a2 = (k / 6) * 6.28; tm.position.set(Math.cos(a2) * 0.55, 0.05, Math.sin(a2) * 0.55); tm.rotation.y = -a2; grp.add(tm); tents.push(tm); }
+    const glow = glowSprite(jellyHues[h2], 5, 0.3); glow.position.y = 0.2; grp.add(glow);
+    grp.scale.setScalar(0.8 + r() * 0.5); G.add(grp);
+    jellies.push({ grp, bell, tents, x, z, y: topY - r() * 18, topY, ph: r() * 6.3, rate: 1.1 + r() * 0.5 });
+  }
+  // RIFTS: small wormholes torn open in the cliff faces, spinning, drawing streams of light in.
+  const rifts = [];
+  for (let i = 0, z = -5; z > end + 4 && i < 7; i++, z -= 11 + r() * 5) {
+    const sp = spanAt(z), sd = i % 2 ? -1 : 1, x = (sd < 0 ? sp[0] : sp[1]) + sd * 4.2, y = -2.5 - r() * 4, rad = 1.1 + r() * 0.5;
+    const disc = new Mesh(new CircleGeometry(rad, 48), glowMat(0xFFFFFF, 0.95, vortexTex)); disc.material.side = DoubleSide;
+    const ring = new Mesh(new TorusGeometry(rad, 0.08, 8, 48), new MeshBasicMaterial({ color: 0xEFE6FF, toneMapped: false }));
+    const halo = glowSprite(0xA78BFF, rad * 4.5, 0.5);
+    for (const o of [disc, ring]) { o.position.set(x, y, z); o.rotation.y = -sd * Math.PI / 2; G.add(o); }
+    halo.position.set(x - sd * 0.2, y, z); G.add(halo);
+    rifts.push({ disc, x, y, z, sd, rad, spin: (i % 2 ? 1 : -1) * 1.6 });
+  }
+  const PR = 28, rArr = new Float32Array(Math.max(1, rifts.length) * PR * 3), rCol = new Float32Array(Math.max(1, rifts.length) * PR * 3);
+  for (let i = 0; i < rArr.length / 3; i++) { col.setHex(i % 3 ? 0xD8C8FF : 0xFFFFFF); rCol.set([col.r, col.g, col.b], i * 3); }
+  const rGeo = new BufferGeometry(); rGeo.setAttribute('position', new Float32BufferAttribute(rArr, 3).setUsage(DynamicDrawUsage)); rGeo.setAttribute('color', new Float32BufferAttribute(rCol, 3));
+  const riftSparks = new Points(rGeo, new PointsMaterial({ size: 0.26, map: dot, vertexColors: true, transparent: true, blending: AdditiveBlending, depthWrite: false, toneMapped: false }));
+  riftSparks.frustumCulled = false; G.add(riftSparks);
+  // SPARK GEYSERS: vents on ledges below the road, each erupting now and then, the sparks falling back short of the road.
+  const vents = [];
+  for (let i = 0; i < VENT_Z.length; i++) {
+    const z = VENT_Z[i], sp = spanAt(z), sd = i % 2 ? 1 : -1, x = (sd < 0 ? sp[0] : sp[1]) + sd * (1.8 + r() * 1.2), y = Math.min(-8, minTop - 8);
+    const ledge = new Mesh(rocks[i % 3], rockMat); ledge.scale.set(1.6, 0.6, 1.4); ledge.position.set(x, y - 0.4, z); G.add(ledge);
+    const flash = glowSprite(0xFFD24A, 5, 0); flash.position.set(x, y + 0.6, z); G.add(flash);
+    vents.push({ x, y, z, period: 3.5 + r() * 2, ph: r() * 5, flash, fired: -1 });
+  }
+  const NG = 360, gArr = new Float32Array(NG * 3), gVel = new Float32Array(NG * 3), gLife = new Float32Array(NG);
+  for (let i = 0; i < NG; i++) gArr[i * 3 + 1] = -999;
+  const gGeo = new BufferGeometry(); gGeo.setAttribute('position', new Float32BufferAttribute(gArr, 3).setUsage(DynamicDrawUsage));
+  const sparks = new Points(gGeo, new PointsMaterial({ size: 0.36, map: dot, color: 0xFFC24A, transparent: true, blending: AdditiveBlending, depthWrite: false, toneMapped: false }));
+  sparks.frustumCulled = false; G.add(sparks);
+  let gNext = 0;
   let t = 0;
   w.tick = (dt) => {
     if (REDUCED) return;
-    t += dt;
+    t += dt; lifeT.value = t;
+    for (const T of trains) {                             // carts: across and away into the rock, round again
+      const L = T.xR - T.xL;
+      T.carts.forEach((c, k) => { const u = ((T.ph * L + t * 4.2 * T.dir - k * 2.6 * T.dir) % L + L) % L; c.position.x = T.xL + u; c.rotation.y = T.dir > 0 ? 0 : Math.PI; c.position.y = CT + Math.abs(Math.sin(t * 9 + k)) * 0.03; });
+    }
+    for (const F of floaters) {                           // floaters: turning slowly, bobbing
+      q.setFromAxisAngle(F.ax, t * F.sp + F.ph); const by = Math.sin(t * 0.8 + F.ph) * 0.45;
+      m.compose(pos.set(F.x, F.y + by, F.z), q, sc.set(F.size * 0.5, F.size, F.size * 0.5)); F.im.setMatrixAt(F.k, m); F.halo.position.y = F.y + by;
+    }
+    q.identity(); for (const im of FIM) im.instanceMatrix.needsUpdate = true;
+    for (const P of pours) { P.pm.map.offset.y = t * 1.6 + P.ph; P.src.material.opacity = 0.75 + 0.2 * Math.sin(t * 7 + P.ph); }
+    for (const C of colonies) {                            // bats: a figure-of-eight through the gap, jinking
+      const a2 = t * C.sp + C.ph, sp = spanAt(C.z0), cx = (sp[0] + sp[1]) / 2, hw = (sp[1] - sp[0]) / 2 + 3.5;
+      for (const B of C.b) {
+        const jx = Math.sin(t * 3.1 + B.ph) * 0.6, jy = Math.sin(t * 4.3 + B.ph) * 0.4;
+        const x = cx + Math.sin(a2) * hw + B.dx + jx, z = C.z0 + Math.sin(a2 * 2) * 9 + B.dz, y = C.y + B.dy + jy;
+        const yaw = Math.atan2(Math.cos(a2) * hw, Math.cos(a2 * 2) * 18);
+        q.setFromEuler(e.set(0, yaw, Math.sin(a2) * 0.4)); const fl = 0.25 + 0.75 * Math.abs(Math.sin(t * B.flap + B.ph));
+        m.compose(pos.set(x, y, z), q, sc.set(1.3, fl * 1.3, 1.3)); bats.setMatrixAt(B.i, m);
+      }
+    }
+    q.identity(); bats.instanceMatrix.needsUpdate = true;
+    for (const Ar of arcs) {                               // lightning: on for a moment every few seconds, re-crooked as it crackles
+      const u = ((t + Ar.ph) % Ar.period), on = u < 0.42 && (u < 0.12 || u > 0.18);
+      Ar.core.visible = Ar.glow.visible = on;
+      const fl = on ? 0.9 : Math.max(0, 0.6 - (u - 0.42) * 3);
+      Ar.fA.material.opacity = Ar.fB.material.opacity = u < 0.42 ? 0.9 : Math.max(0, fl);
+      if (on) { const j = Math.floor(u / 0.06); if (j !== Ar.jag) { Ar.jag = j; jagArc(Ar, Ar.core, Ar.glow); } }
+    }
+    for (const J of jellies) {                             // jellyfish: a slow rise that surges with each pulse of the bell, then round again
+      const pulse = Math.sin(t * J.rate * 2.4 + J.ph), squeeze = 0.5 + 0.5 * pulse;
+      J.y += dt * (0.25 + 0.75 * Math.max(0, pulse));
+      if (J.y > J.topY) J.y = J.topY - 20;
+      J.grp.position.set(J.x + Math.sin(t * 0.4 + J.ph) * 0.5, J.y, J.z + Math.cos(t * 0.33 + J.ph) * 0.5);
+      J.bell.scale.set(1 - 0.22 * squeeze, 0.75 + 0.3 * squeeze, 1 - 0.22 * squeeze);
+      J.tents.forEach((tm, k) => { tm.rotation.x = Math.sin(t * 2 + J.ph + k) * 0.25; tm.scale.y = 0.85 + 0.2 * (1 - squeeze); });
+      J.grp.visible = J.y > J.topY - 19.5;
+    }
+    const ra = rGeo.attributes.position.array;             // rifts: spinning, and light spiralling in
+    rifts.forEach((Rf, i) => {
+      Rf.disc.rotation.z = t * Rf.spin;
+      for (let k = 0; k < PR; k++) {
+        const u = ((t * 0.55 + k / PR) % 1), rr = Rf.rad * (0.2 + 2.6 * (1 - u)), a2 = k * 2.4 + u * 7 * Math.sign(Rf.spin), idx = (i * PR + k) * 3;
+        ra[idx] = Rf.x - Rf.sd * (0.15 + (1 - u) * 0.6); ra[idx + 1] = Rf.y + Math.sin(a2) * rr; ra[idx + 2] = Rf.z + Math.cos(a2) * rr;
+      }
+    });
+    rGeo.attributes.position.needsUpdate = true;
+    const fa = ffGeo.attributes.position.array;           // fireflies: each swarm drifts, each fly loops round its middle
+    swarms.forEach((S, k) => {
+      const cx = S.x + Math.sin(t * S.sp + S.ph) * S.rx, cz = S.z + Math.cos(t * S.sp * 0.7 + S.ph) * 3;
+      S.bits.forEach((B, j) => { const i3 = (k * PER + j) * 3, a2 = t * B.w + B.a; fa[i3] = cx + Math.cos(a2) * B.rad; fa[i3 + 1] = S.y + Math.sin(a2 * 1.3 + B.b) * B.rad * 0.6; fa[i3 + 2] = cz + Math.sin(a2) * B.rad; });
+    });
+    ffGeo.attributes.position.needsUpdate = true;
+    for (const V of vents) {                              // geysers: a flash, a fountain of sparks
+      const cyc = Math.floor((t + V.ph) / V.period), u = ((t + V.ph) % V.period);
+      V.flash.material.opacity = u < 0.5 ? (1 - u / 0.5) * 0.9 : 0;
+      if (cyc !== V.fired) {
+        V.fired = cyc;
+        for (let n = 0; n < 90; n++) { const i = gNext; gNext = (gNext + 1) % NG; gArr[i * 3] = V.x; gArr[i * 3 + 1] = V.y + 0.4; gArr[i * 3 + 2] = V.z; const a2 = r() * 6.3, sp2 = r() * 1.8; gVel[i * 3] = Math.cos(a2) * sp2; gVel[i * 3 + 1] = 7.5 + r() * 2.5; gVel[i * 3 + 2] = Math.sin(a2) * sp2; gLife[i] = 1.5 + r() * 0.6; }
+      }
+    }
+    for (let i = 0; i < NG; i++) {
+      if (gLife[i] <= 0) continue;
+      gLife[i] -= dt; gVel[i * 3 + 1] -= 10 * dt;
+      gArr[i * 3] += gVel[i * 3] * dt; gArr[i * 3 + 1] += gVel[i * 3 + 1] * dt; gArr[i * 3 + 2] += gVel[i * 3 + 2] * dt;
+      if (gLife[i] <= 0) gArr[i * 3 + 1] = -999;
+    }
+    gGeo.attributes.position.needsUpdate = true;
     const a = moteGeo.attributes.position.array;
     for (let i = 0; i < nMotes; i++) { a[i * 3 + 1] += dt * (0.3 + (i % 7) * 0.07); a[i * 3] += Math.sin(t * 0.7 + i) * dt * 0.15; if (a[i * 3 + 1] > 2) a[i * 3 + 1] = -40; }
     moteGeo.attributes.position.needsUpdate = true;
-    flow.offset.y -= dt * 0.1;
+    flow.offset.y -= dt * 0.35;
     crystalMat.emissiveIntensity = 1.55 + 0.12 * Math.sin(t * 0.9);
   };
   w.restyle = () => {
