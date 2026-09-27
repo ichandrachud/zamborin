@@ -2747,13 +2747,13 @@ function neonEnvMap() {
 }
 const SKINS = {
   glass() { marble.material = glassMat; eye.visible = true; },
-  // Clear quartz with a rose quartz heart, for the crystal canyon.
+  // Clear crystal with a red crystal heart, for the crystal canyon's green road.
   quartz() {
     marble.material = new MeshPhysicalMaterial({ color: 0xFFFFFF, transmission: 1, thickness: 0.45, ior: 1.54, roughness: 0.03,
-      attenuationColor: new Color(0xFFE2EE), attenuationDistance: 2.4, clearcoat: 1, iridescence: 0.4, iridescenceIOR: 1.3,
+      attenuationColor: new Color(0xFFE8D8), attenuationDistance: 2.4, clearcoat: 1,
       envMap: crystalEnvMap() || envTex, envMapIntensity: 1.6 });
     skinParts.add(new Mesh(new IcosahedronGeometry(R * 0.36, 0), new MeshStandardMaterial({
-      color: 0xFFC2DA, emissive: 0xFF7FB0, emissiveIntensity: 1.1, roughness: 0.25, flatShading: true })));
+      color: 0xFF7A60, emissive: 0xFF2A1A, emissiveIntensity: 1.8, roughness: 0.25, flatShading: true })));
   },
   // A white candy marble with rainbow sprinkles: bright on any coloured block.
   candy() {
@@ -2795,29 +2795,33 @@ function addDeco(c, obj) { (c.deco || (c.deco = [])).push(obj); c.mesh.add(obj);
 const HIDDEN = new MeshBasicMaterial({ visible: false });
 
 // ---- 1. The crystal canyon: where the wormholes lead ----
-/* THE CRYSTAL CANYON (owner, 2026-09-27: the wormholes lead here; it "has to be
-   just as glowing and beautiful and compliment the style visually", then,
-   with seven reference pictures, "make the crystal canyon look more quartz
-   like. Make it feel more like a canyon"). A deep canyon in daylight: banded
-   sandstone cliffs rise on both sides of the road and follow it, far enough
-   out never to hide it; quartz grows from the floor far below and out of the
-   cliffs, six-sided with pointed tips, in clear, rose, peach, citrine, aqua
-   and lilac, with a pearly rainbow sheen and a light of its own. The road is
-   polished milky quartz, and slippery; the marble is clear, with a rose
-   quartz heart. The city is night and neon; this is day and stone. */
+/* THE CRYSTAL CANYON. The owner's direction, in order (2026-09-27): the
+   wormholes lead here, and it "has to be just as glowing and beautiful and
+   compliment the style visually"; then "more quartz like ... more like a
+   canyon", with pictures that were for the crystals' SHAPES only; then, of a
+   washed-out daylight try: "Make them look like real crystals in cliffs in a
+   glowing neon world like our city ... where you are using orange, light
+   purple, cyan and black for the city, use yellows, greens, reds and black".
+   So: the city's night and its thin bright lines, in the canyon's own colours.
+   Dark cliffs rise on both sides and follow the road, far enough out never to
+   hide it. Real crystals grow from them, from the canyon floor and beside the
+   road: clusters of irregular points, uneven sides, a taper, a leaning tip,
+   a few big and many small, glowing along their edges and toward their tips,
+   in yellows and reds. A red river of light winds far down, and embers rise.
+   Green is the road's alone, as magenta is in the city: dark crystal glass
+   under a green facet lattice. The marble is clear with a red crystal heart. */
 let crystalEnv = null;
 function crystalEnvMap() {
   if (crystalEnv || !renderer) return crystalEnv;
   const t = canvasTex(512, 256, (g) => {
     const lg = g.createLinearGradient(0, 0, 0, 256);
-    lg.addColorStop(0, '#7FC0F0'); lg.addColorStop(0.42, '#DDEEFA'); lg.addColorStop(0.5, '#FFF4E4');
-    lg.addColorStop(0.58, '#E7C09C'); lg.addColorStop(1, '#8C6A6E');
+    lg.addColorStop(0, '#030402'); lg.addColorStop(0.45, '#0B1408'); lg.addColorStop(0.55, '#5A1A08');
+    lg.addColorStop(0.62, '#140605'); lg.addColorStop(1, '#020202');
     g.fillStyle = lg; g.fillRect(0, 0, 512, 256);
-    g.fillStyle = 'rgba(255,255,245,1)'; g.beginPath(); g.arc(150, 60, 18, 0, Math.PI * 2); g.fill();   // the sun
     const r = seeded(7);
-    for (let i = 0; i < 50; i++) {
-      g.fillStyle = ['rgba(255,190,215,0.9)', 'rgba(170,235,230,0.9)', 'rgba(255,230,160,0.9)', 'rgba(210,195,255,0.9)'][i % 4];
-      g.fillRect(r() * 512, 110 + r() * 90, 3 + r() * 10, 6 + r() * 26);
+    for (let i = 0; i < 70; i++) {
+      g.fillStyle = ['rgba(255,210,60,0.95)', 'rgba(255,70,50,0.95)', 'rgba(120,255,110,0.8)'][i % 3];
+      g.fillRect(r() * 512, 60 + r() * 140, 2 + r() * 8, 4 + r() * 28);
     }
   });
   const pm = new PMREMGenerator(renderer);
@@ -2825,7 +2829,7 @@ function crystalEnvMap() {
   pm.dispose();
   return crystalEnv;
 }
-// The road's top: a lattice of facets, faint, as in polished quartz.
+// The road's top: a diamond lattice of facets, a thin bright core in a tight green feather.
 function facetTex() {
   return canvasTex(256, 256, (g) => {
     g.fillStyle = '#000'; g.fillRect(0, 0, 256, 256);
@@ -2838,21 +2842,57 @@ function facetTex() {
       }
       g.stroke(); g.filter = 'none';
     };
-    lattice(12, 'rgba(255,140,210,0.8)', 6);
-    lattice(2.5, '#FFFFFF', 0);
+    lattice(12, 'rgba(60,255,90,0.9)', 7);
+    lattice(2.5, '#EFFFE8', 0);
   }, true);
 }
-// A quartz point's own light: soft at its root, bright toward its tip, and a
-// bright line down each of its six edges where the facets meet.
-function quartzGlowTex() {
-  return canvasTex(192, 256, (g) => {
+/* One crystal point, irregular as real ones are: six sides of uneven width
+   round a slightly lopsided section, a taper toward the top, and a pointed
+   end whose apex leans off the axis. Height about 1.7 at scale 1. UVs put the
+   sides in the left half of the texture and the pointed end's faces in the
+   right half, so both can glow along their edges. */
+function crystalPointGeo(seed) {
+  const r = seeded(seed), n = 6, ring = [], top = [], taper = 0.74 + r() * 0.18;
+  for (let i = 0; i < n; i++) {
+    const a = (i + (r() - 0.5) * 0.45) / n * Math.PI * 2, rad = 0.7 + r() * 0.42;
+    ring.push([Math.cos(a) * rad, 0, Math.sin(a) * rad]);
+    top.push([Math.cos(a) * rad * taper, 1, Math.sin(a) * rad * taper]);
+  }
+  const apex = [(r() - 0.5) * 0.4, 1.4 + r() * 0.6, (r() - 0.5) * 0.4];
+  const pos = [], uv = [];
+  const tri = (a, b, c, ua, ub, uc) => { pos.push(...a, ...b, ...c); uv.push(...ua, ...ub, ...uc); };
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    tri(ring[i], top[j], ring[j], [0.02, 0], [0.48, 1], [0.48, 0]);
+    tri(ring[i], top[i], top[j], [0.02, 0], [0.02, 1], [0.48, 1]);
+    tri(top[i], apex, top[j], [0.52, 0], [0.75, 1], [0.98, 0]);
+  }
+  const g = new BufferGeometry();
+  g.setAttribute('position', new Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new Float32BufferAttribute(uv, 2));
+  g.computeVertexNormals();
+  return g;
+}
+// A crystal's light: its edges bright (a thin core in a tight feather), a glow
+// rising along its sides, and its pointed end lit brightest at the tip.
+function crystalEdgeTex() {
+  return canvasTex(256, 256, (g) => {
+    g.fillStyle = '#000'; g.fillRect(0, 0, 256, 256);
     const lg = g.createLinearGradient(0, 256, 0, 0);
-    lg.addColorStop(0, 'rgb(34,34,34)'); lg.addColorStop(0.7, 'rgb(96,96,96)'); lg.addColorStop(1, 'rgb(230,230,230)');
-    g.fillStyle = lg; g.fillRect(0, 0, 192, 256);
-    for (let k = 0; k <= 6; k++) {
-      g.fillStyle = 'rgba(255,255,255,0.9)'; g.fillRect(k * 32 - 1.5, 0, 3, 256);
-      g.fillStyle = 'rgba(255,255,255,0.25)'; g.fillRect(k * 32 - 5, 0, 10, 256);
-    }
+    lg.addColorStop(0, 'rgba(255,255,255,0.03)'); lg.addColorStop(0.7, 'rgba(255,255,255,0.16)'); lg.addColorStop(1, 'rgba(255,255,255,0.4)');
+    g.fillStyle = lg; g.fillRect(0, 0, 128, 256);
+    const line = (pts, wide) => {
+      g.lineCap = 'round'; g.lineJoin = 'round';
+      g.filter = 'blur(5px)'; g.strokeStyle = 'rgba(255,255,255,0.75)'; g.lineWidth = wide;
+      g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.stroke();
+      g.filter = 'none'; g.strokeStyle = '#FFFFFF'; g.lineWidth = 3;
+      g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.stroke();
+    };
+    line([[4, 256], [4, 0]], 12); line([[124, 256], [124, 0]], 12);
+    const tip = g.createLinearGradient(0, 256, 0, 0);                  // the pointed end: brightest at its tip
+    tip.addColorStop(0, 'rgba(255,255,255,0.22)'); tip.addColorStop(1, 'rgba(255,255,255,0.85)');
+    g.fillStyle = tip; g.beginPath(); g.moveTo(133, 256); g.lineTo(192, 0); g.lineTo(251, 256); g.closePath(); g.fill();
+    line([[133, 256], [192, 0], [251, 256]], 12);
   });
 }
 // Emissive times each instance's own colour, as the city's lit cubes do.
@@ -2864,36 +2904,36 @@ function tintedGlow(mat, key) {
   mat.customProgramCacheKey = () => key;
   return mat;
 }
-// Rough rock: a ball pushed about by a noise that is the same wherever two faces
-// share a corner, so the rock has no cracks; banded like sandstone.
+// Rough dark rock: a ball pushed about by a noise that is the same wherever two
+// faces share a corner, so it has no cracks.
 function rockGeo(seed) {
   const g = new IcosahedronGeometry(1, 2), p = g.attributes.position, cols = [], c = new Color();
-  const bands = [0xF3E2C4, 0xE9B08C, 0xB5654C, 0xEFD2A8, 0xD89574, 0x9E5443, 0xF6E6CC, 0xCF8A66];
+  const tones = [0x3A2C24, 0x4A3528, 0x2E2620, 0x523A2C, 0x352B24, 0x42302A];
   const hash = (x, y, z) => { const v = Math.sin(x * 127.1 + y * 311.7 + z * 74.7 + seed * 13.3) * 43758.5453; return v - Math.floor(v); };
   for (let i = 0; i < p.count; i++) {
     const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
-    const k = 0.78 + 0.34 * hash(Math.round(x * 40), Math.round(y * 40), Math.round(z * 40));
+    const k = 0.76 + 0.36 * hash(Math.round(x * 40), Math.round(y * 40), Math.round(z * 40));
     p.setXYZ(i, x * k, y * k, z * k);
-    c.setHex(bands[Math.floor(((y + 1) * 3.5 + hash(Math.round(x * 3), 0, Math.round(z * 3)) * 0.8) % bands.length)]);
+    c.setHex(tones[Math.floor(hash(Math.round(x * 5), Math.round(y * 9), Math.round(z * 5)) * tones.length)]);
     cols.push(c.r, c.g, c.b);
   }
   g.setAttribute('color', new Float32BufferAttribute(cols, 3));
   g.computeVertexNormals();
   return g;
 }
-const QUARTZ = [0xEEF0FF, 0xF2EEFF, 0xFF8DBB, 0xFFA679, 0xFFD25A, 0x5FD6CC, 0xB297FF];
+const CANYON_YELLOWS = [0xFFC400, 0xFFD60A, 0xFFAA00], CANYON_REDS = [0xFF2E22, 0xFF4A2E, 0xE01A34];
 WORLDS_ADD('crystal', (w) => {
-  scene.background = gradientTex([[0, '#6BB5EE'], [0.3, '#B9DEF7'], [0.55, '#F7E7D7'], [0.8, '#E8C7B0'], [1, '#B99A94']]);
-  scene.fog.color.setHex(0xEFD9CB); scene.fog.near = 30; scene.fog.far = 170;
-  hemi.color.setHex(0xD6ECFF); hemi.groundColor.setHex(0x7A5A5E); hemi.intensity = 1.1;
-  sun.color.setHex(0xFFF1DC); sun.intensity = 3.3;
+  scene.background = gradientTex([[0, '#020201'], [0.4, '#060805'], [0.66, '#1A0806'], [0.82, '#0C0504'], [1, '#030202']]);
+  scene.fog.color.setHex(0x160806); scene.fog.near = 24; scene.fog.far = 125;
+  hemi.color.setHex(0x3A6A34); hemi.groundColor.setHex(0x8A2A10); hemi.intensity = 1.35;   // green from above, the red river's light from below
+  sun.color.setHex(0xFFE9C8); sun.intensity = 1.2;
   w.marble = 'quartz'; w.rings = [0x54E0FF, 0xFF6A3C]; w.glowGates = true;
-  w.physics = { acc: 10, damp: 0.4 };                     // polished quartz is slippery: less grip, and the marble slides on
+  w.physics = { acc: 10, damp: 0.4 };                     // crystal is slippery: less grip, and the marble slides on
   const G = w.group, r = seeded(12), env = crystalEnvMap() || envTex;
   const end = courseEnd(), deep = Math.min(-120, end - 90);
-  const m = new Matrix4(), q = new Quaternion(), pos = new Vector3(), sc = new Vector3(), col = new Color(), e = new Euler(), up = new Vector3();
-  // Where the road reaches across, over a stretch of the canyon, so the cliffs
-  // stand clear of every turn the road makes.
+  const m = new Matrix4(), q = new Quaternion(), pos = new Vector3(), sc = new Vector3(), col = new Color(), e = new Euler();
+  const up = new Vector3(0, 1, 0), dir = new Vector3(), side = new Vector3();
+  // Where the road reaches across over a stretch, so the cliffs clear its turns.
   const road = (level ? level.pieces : []).filter((p) => p.t !== 'worm' && p.t !== 'curtain' && p.t !== 'lock' && p.t !== 'loop');
   const reach = (z0, z1) => {
     let lo = 1e9, hi = -1e9;
@@ -2904,91 +2944,114 @@ WORLDS_ADD('crystal', (w) => {
     }
     return lo > hi ? null : [lo, hi];
   };
-  // THE CLIFFS: tall banded rock either side, from far below to high above.
-  const rockMat = new MeshStandardMaterial({ vertexColors: true, roughness: 0.92, flatShading: true, envMap: env, envMapIntensity: 0.25 });
-  const kinds = [rockGeo(1), rockGeo(2), rockGeo(3)], placed = [[], [], []];
+  // CRYSTALS: clusters of irregular points from six shapes, one draw each.
+  const kinds = [1, 2, 3, 4, 5, 6].map((k) => crystalPointGeo(k * 17)), lists = kinds.map(() => []);
+  const addPoint = (x, y, z, d, len, rad, hue) => {
+    q.setFromUnitVectors(up, d); q.multiply(new Quaternion().setFromAxisAngle(up, r() * 6.28));
+    m.compose(pos.set(x, y, z), q, sc.set(rad, len / 1.7, rad));
+    lists[Math.floor(r() * kinds.length)].push([m.clone(), hue]);
+  };
+  // A cluster: a few long points and many short ones, fanning out from one root.
+  const cluster = (x, y, z, d0, size, hues, big = 2) => {
+    for (let i = 0; i < big + 5 + Math.floor(r() * 6); i++) {
+      const main = i < big, spread = main ? 0.35 : 0.95, len = size * (main ? 0.65 + r() * 0.35 : 0.18 + r() * 0.35);
+      dir.set(d0.x + (r() - 0.5) * spread, d0.y + (r() - 0.5) * spread * 0.6, d0.z + (r() - 0.5) * spread).normalize();
+      const rad = len * (0.17 + r() * 0.12), hue = hues[Math.floor(r() * hues.length)];
+      addPoint(x + (r() - 0.5) * size * 0.25, y + (r() - 0.5) * size * 0.1, z + (r() - 0.5) * size * 0.25, dir, len, rad, hue);
+    }
+  };
+  const huesFor = () => (r() < 0.5 ? CANYON_YELLOWS : CANYON_REDS);
+  // THE CLIFFS: dark rock either side, from far below to high above, crystals growing out of them.
+  const rockMat = new MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0.1, flatShading: true, envMap: env, envMapIntensity: 0.5 });
+  const rocks = [rockGeo(1), rockGeo(2), rockGeo(3)], placed = [[], [], []];
   let span = [-3, 3];
-  const cliffs = [];
   for (let z = 18; z > deep; z -= 3.1) {
     span = reach(z + 16, z - 16) || span;
-    for (const side of [-1, 1]) {
-      const edge = side < 0 ? span[0] : span[1];
+    for (const sd of [-1, 1]) {
+      const edge = sd < 0 ? span[0] : span[1];
       for (const layer of [0, 1]) {
-        const x = edge + side * (layer ? 11 + r() * 5 : 4.6 + r() * 1.6), top = layer ? 18 + r() * 16 : 9 + r() * 13;
-        const sx = layer ? 5 + r() * 4 : 2.6 + r() * 2.2, sz = 2.6 + r() * 1.8, sy = (top + 50) / 2;
-        placed[Math.floor(r() * 3)].push([x + side * sx * 0.55, top - sy, z + r() * 1.5, sx, sy, sz, r() * 6]);
-        if (!layer) cliffs.push({ x, z, side, top });
+        const x = edge + sd * (layer ? 11 + r() * 5 : 4.8 + r() * 1.4), top = layer ? 16 + r() * 18 : 7 + r() * 13;
+        const sx = layer ? 5 + r() * 4 : 2.4 + r() * 2, sz = 2.6 + r() * 1.8, sy = (top + 50) / 2;
+        placed[Math.floor(r() * 3)].push([x + sd * sx * 0.55, top - sy, z + r() * 1.5, sx, sy, sz, r() * 6]);
+        if (layer && r() < 0.8) {                                    // the far cliffs glitter with crystal too
+          d0.set(-sd * (0.4 + r() * 0.5), 1, (r() - 0.5) * 0.5).normalize();
+          cluster(x - sd * 0.6, -6 + r() * 20, z, d0, 1.6 + r() * 2.6, huesFor(), 1);
+        }
+        if (!layer && r() < 0.9) {
+          // Out of the cliff face, leaning out over the canyon; above the road only
+          // as far as keeps its tips well clear of the road's edge.
+          const y = -12 + r() * 20, size = 2.2 + r() * 4.2;
+          const lean = y > -1.5 ? Math.asin(Math.min(0.95, 2.2 / size)) * r() : 0.3 + r() * 0.8;
+          d0.set(-sd * Math.sin(lean), Math.cos(lean), (r() - 0.5) * 0.4);
+          cluster(x - sd * 0.3, y, z + (r() - 0.5) * 2, d0, size, huesFor(), 1 + Math.floor(r() * 2));
+        }
       }
     }
   }
   placed.forEach((list, k) => {
-    const im = new InstancedMesh(kinds[k], rockMat, list.length);
+    const im = new InstancedMesh(rocks[k], rockMat, list.length);
     list.forEach(([x, y, z, sx, sy, sz, turn], i) => { m.compose(pos.set(x, y, z), q.setFromEuler(e.set(0, turn, 0)), sc.set(sx, sy, sz)); im.setMatrixAt(i, m); });
-    im.castShadow = false; im.receiveShadow = true;
     G.add(im);
   });
-  // The canyon floor, far down in the cliffs' shade.
-  const floor = new Mesh(new PlaneGeometry(260, 360), new MeshStandardMaterial({ color: 0x55424F, roughness: 1 }));
-  floor.rotation.x = -Math.PI / 2; floor.position.set(3, -44, (18 + deep) / 2); G.add(floor);
-  // QUARTZ: six-sided points with pointed tips, a pearly sheen, and a light of their own.
-  const quartzMat = tintedGlow(new MeshPhysicalMaterial({ color: 0xFFFFFF, roughness: 0.1, metalness: 0, envMap: env, envMapIntensity: 1.7,
-    clearcoat: 1, clearcoatRoughness: 0.04, iridescence: 1, iridescenceIOR: 1.45, iridescenceThicknessRange: [200, 600],
-    emissive: 0xFFFFFF, emissiveMap: quartzGlowTex(), emissiveIntensity: 0.38, flatShading: true }), 'canyon-quartz');
-  const points = [];
-  const grow = (x, y, z, len, rad, hue, lean, lean2, turn) => points.push({ x, y, z, len, rad, hue, lean, lean2, turn });
-  const hueAt = () => QUARTZ[Math.floor(r() * QUARTZ.length)];
-  // From the floor between the cliffs: clusters whose tips stay below the road.
+  // From the canyon floor far below: great clusters glowing up out of the dark.
   span = [-3, 3];
-  for (let z = 16; z > deep; z -= 4.2) {
-    span = reach(z + 6, z - 6) || span;
-    for (let k = 0; k < 3; k++) {
-      const x = span[0] - 3.5 + r() * (span[1] - span[0] + 7), hue = hueAt(), top = -3 - r() * 16;
-      for (let j = 1 + Math.floor(r() * 3); j > 0; j--) {
-        const len = 6 + r() * 16;
-        grow(x + (r() - 0.5) * 2.5, top - r() * 3 - len, z + (r() - 0.5) * 2.5, len, 0.5 + r() * 1.1, hue, (r() - 0.5) * 0.6, (r() - 0.5) * 0.6, r() * 6);
-      }
+  for (let z = 14; z > deep; z -= 6) {
+    span = reach(z + 8, z - 8) || span;
+    for (let k = 0; k < 2; k++) {
+      const x = span[0] - 4 + r() * (span[1] - span[0] + 8);
+      d0.set((r() - 0.5) * 0.3, 1, (r() - 0.5) * 0.3).normalize();
+      cluster(x, -40 + r() * 6, z + (r() - 0.5) * 3, d0, 10 + r() * 14, huesFor(), 2 + Math.floor(r() * 2));
     }
   }
-  // Right beside the road: big points rising from below, their tips just under
-  // the road's level, so they line the way and can never stand in front of it.
-  span = [-3, 3];
-  for (let z = 14; z > end - 6; z -= 2.6) {
-    span = reach(z + 1.5, z - 1.5) || null;
+  // Beside the road: clusters rising from below with their tips under the road's
+  // level, so they line the way and can never stand in front of it.
+  span = null;
+  for (let z = 14; z > end - 6; z -= 3.2) {
+    span = reach(z + 1.5, z - 1.5);
     if (!span) continue;
-    for (const side of [-1, 1]) {
-      if (r() < 0.25) continue;
-      const edge = side < 0 ? span[0] : span[1], hue = hueAt(), top = -1.3 - r() * 2.6;
-      for (let j = 1 + Math.floor(r() * 2); j > 0; j--) {
-        const rad = 0.55 + r() * 0.9, len = 5 + r() * 9, lean2 = side * (0.12 + r() * 0.3);
-        grow(edge + side * (1.4 + rad + r() * 2.2), top - len - rad * 1.7, z + (r() - 0.5) * 1.6, len, rad, hue, (r() - 0.5) * 0.3, lean2, r() * 6);
-      }
+    for (const sd of [-1, 1]) {
+      if (r() < 0.35) continue;
+      const edge = sd < 0 ? span[0] : span[1], size = 3 + r() * 4, lean = 0.1 + r() * 0.35;
+      d0.set(sd * Math.sin(lean), Math.cos(lean), (r() - 0.5) * 0.3).normalize();
+      cluster(edge + sd * (1.6 + r() * 2), -1.4 - size * 1.05, z + (r() - 0.5) * 1.5, d0, size, huesFor(), 1 + Math.floor(r() * 2));
     }
   }
-  // Out of the cliffs: big points leaning out over the canyon, clear of the road.
-  for (const c of cliffs) {
-    if (r() < 0.45) continue;
-    const hue = hueAt(), baseY = -8 + r() * 12;
-    for (let j = 1 + Math.floor(r() * 3); j > 0; j--) {
-      grow(c.x - c.side * 0.4, baseY + (r() - 0.5) * 3, c.z + (r() - 0.5) * 2, 3 + r() * 6, 0.45 + r() * 0.9, hue,
-           (r() - 0.5) * 0.4, c.side * (0.15 + r() * 0.3), r() * 6);
-    }
-  }
-  const bodies = new InstancedMesh(new CylinderGeometry(0.9, 1, 1, 6), quartzMat, points.length);
-  const tips = new InstancedMesh(new ConeGeometry(0.9, 1, 6), quartzMat, points.length);
-  points.forEach((c, i) => {
-    q.setFromEuler(e.set(c.lean, c.turn, c.lean2));
-    up.set(0, 1, 0).applyQuaternion(q);
-    m.compose(pos.set(c.x, c.y, c.z).addScaledVector(up, c.len / 2), q, sc.set(c.rad, c.len, c.rad)); bodies.setMatrixAt(i, m);
-    m.compose(pos.set(c.x, c.y, c.z).addScaledVector(up, c.len + c.rad * 0.85), q, sc.set(c.rad, c.rad * 1.7, c.rad)); tips.setMatrixAt(i, m);
-    bodies.setColorAt(i, col.setHex(c.hue)); tips.setColorAt(i, col.setHex(c.hue));
+  const crystalMat = tintedGlow(new MeshStandardMaterial({ color: 0x0C0B08, roughness: 0.18, metalness: 0.45, envMap: env, envMapIntensity: 1.2,
+    emissive: 0xFFFFFF, emissiveMap: crystalEdgeTex(), emissiveIntensity: 1.55, flatShading: true }), 'canyon-crystals');
+  kinds.forEach((geo, k) => {
+    const list = lists[k];
+    if (!list.length) return;
+    const im = new InstancedMesh(geo, crystalMat, list.length);
+    list.forEach(([mm, hue], i) => { im.setMatrixAt(i, mm); im.setColorAt(i, col.setHex(hue)); });
+    G.add(im);
   });
-  G.add(bodies, tips);
-  // Dust in the sunlight.
-  const nMotes = 260, moteArr = new Float32Array(nMotes * 3);
-  for (let i = 0; i < nMotes; i++) { moteArr[i * 3] = -10 + r() * 26; moteArr[i * 3 + 1] = -12 + r() * 20; moteArr[i * 3 + 2] = 14 - r() * (14 - end + 20); }
+  // The river of light far down: red, winding under the road.
+  const flow = canvasTex(64, 256, (g) => {
+    g.fillStyle = '#000'; g.fillRect(0, 0, 64, 256);
+    const rr = seeded(23);
+    for (let i = 0; i < 40; i++) { g.fillStyle = `rgba(255,255,255,${0.2 + rr() * 0.6})`; g.fillRect(rr() * 60, rr() * 256, 1 + rr() * 3, 20 + rr() * 60); }
+    const lg = g.createLinearGradient(0, 0, 64, 0);
+    lg.addColorStop(0, 'rgba(0,0,0,1)'); lg.addColorStop(0.25, 'rgba(0,0,0,0)'); lg.addColorStop(0.75, 'rgba(0,0,0,0)'); lg.addColorStop(1, 'rgba(0,0,0,1)');
+    g.fillStyle = lg; g.fillRect(0, 0, 64, 256);
+  }, true);
+  const riverLen = 22 - deep, riverGeo = new PlaneGeometry(10, riverLen, 1, 80);
+  riverGeo.rotateX(-Math.PI / 2);
+  const rp = riverGeo.attributes.position;
+  for (let i = 0; i < rp.count; i++) rp.setX(i, rp.getX(i) + 6 * Math.sin(rp.getZ(i) * 0.045));
+  const river = new Mesh(riverGeo, new MeshBasicMaterial({ map: flow, color: 0xFF3A1A, transparent: true, opacity: 0.95,
+    blending: AdditiveBlending, depthWrite: false, toneMapped: false }));
+  flow.repeat.set(1, riverLen / 18);
+  river.position.set(3, -44, (22 + deep) / 2); G.add(river);
+  // Embers rising out of the depths.
+  const nMotes = 380, moteArr = new Float32Array(nMotes * 3), moteCol = new Float32Array(nMotes * 3);
+  for (let i = 0; i < nMotes; i++) {
+    moteArr[i * 3] = -18 + r() * 44; moteArr[i * 3 + 1] = -40 + r() * 42; moteArr[i * 3 + 2] = 14 - r() * (14 - end + 20);
+    col.setHex(r() < 0.5 ? 0xFFD23A : 0xFF5A30); moteCol.set([col.r, col.g, col.b], i * 3);
+  }
   const moteGeo = new BufferGeometry();
   moteGeo.setAttribute('position', new Float32BufferAttribute(moteArr, 3).setUsage(DynamicDrawUsage));
-  const motes = new Points(moteGeo, new PointsMaterial({ size: 0.16, map: dot, color: 0xFFF3D6, transparent: true, opacity: 0.75,
+  moteGeo.setAttribute('color', new Float32BufferAttribute(moteCol, 3));
+  const motes = new Points(moteGeo, new PointsMaterial({ size: 0.2, map: dot, vertexColors: true, transparent: true, opacity: 0.95,
     blending: AdditiveBlending, depthWrite: false, toneMapped: false }));
   motes.frustumCulled = false; G.add(motes);
   let t = 0;
@@ -2996,20 +3059,20 @@ WORLDS_ADD('crystal', (w) => {
     if (REDUCED) return;
     t += dt;
     const a = moteGeo.attributes.position.array;
-    for (let i = 0; i < nMotes; i++) { a[i * 3 + 1] += dt * (0.12 + (i % 5) * 0.04); a[i * 3] += Math.sin(t * 0.4 + i) * dt * 0.1; if (a[i * 3 + 1] > 8) a[i * 3 + 1] = -12; }
+    for (let i = 0; i < nMotes; i++) { a[i * 3 + 1] += dt * (0.3 + (i % 7) * 0.07); a[i * 3] += Math.sin(t * 0.7 + i) * dt * 0.15; if (a[i * 3 + 1] > 2) a[i * 3 + 1] = -40; }
     moteGeo.attributes.position.needsUpdate = true;
-    quartzMat.emissiveIntensity = 0.38 + 0.06 * Math.sin(t * 0.8);
+    flow.offset.y -= dt * 0.1;
+    crystalMat.emissiveIntensity = 1.55 + 0.12 * Math.sin(t * 0.9);
   };
   w.restyle = () => {
-    const top = new MeshPhysicalMaterial({ color: 0xD9D0E8, roughness: 0.07, metalness: 0, envMap: env, envMapIntensity: 1.3,
-      clearcoat: 1, clearcoatRoughness: 0.03, iridescence: 0.9, iridescenceIOR: 1.5, iridescenceThicknessRange: [200, 500],
-      emissive: 0xFFFFFF, emissiveMap: facetTex(), emissiveIntensity: 0.6 });
-    const side = new MeshPhysicalMaterial({ color: 0xD8B8EE, roughness: 0.2, envMap: env, iridescence: 0.7, iridescenceIOR: 1.4,
-      emissive: 0xE08BFF, emissiveIntensity: 0.45 });
-    const under = new MeshStandardMaterial({ color: 0x9C8494, roughness: 1 });
-    for (const c of colliders) { c.mesh.material = [side, side, top, under, side, side]; setTopUV(c.mesh, false); }
+    const top = new MeshStandardMaterial({ color: 0x060A06, metalness: 0.35, roughness: 0.14, envMap: env, envMapIntensity: 1,
+      emissive: 0xFFFFFF, emissiveMap: facetTex(), emissiveIntensity: 1.4 });
+    const sideMat = new MeshStandardMaterial({ color: 0x0A140A, metalness: 0.45, roughness: 0.3, emissive: 0x3CFF6A, emissiveIntensity: 0.32 });
+    const under = new MeshStandardMaterial({ color: 0x040504, roughness: 1 });
+    for (const c of colliders) { c.mesh.material = [sideMat, sideMat, top, under, sideMat, sideMat]; setTopUV(c.mesh, false); }
   };
 });
+const d0 = new Vector3();
 
 // ---- 2. Toy blocks in the sky: a course of coloured blocks, block islands, big clouds, a candy marble ----
 const blockMat = new MeshStandardMaterial({ color: 0xFFFFFF, roughness: 0.5 });
