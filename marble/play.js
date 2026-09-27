@@ -199,6 +199,8 @@ const NEON_SOUNDS = {
   tint() { voice('sine', 880, 1320, 0.25, 0.05); voice('triangle', 1760, 2640, 0.2, 0.015, 0.04); },  // a curtain colours the marble
   tube() { voice('sawtooth', 140, 900, 0.5, 0.016); voice('sine', 330, 1320, 0.45, 0.045); },     // into a glass tube: drawn in with a rush
   pop() { voice('sine', 1100, 520, 0.14, 0.05); voice('triangle', 2200, 1400, 0.1, 0.012); },     // and out of it
+  knock() { voice('sine', 190, 80, 0.14, 0.07); voice('triangle', 380, 150, 0.08, 0.025); },      // against a barrier or a crate
+  clink() { voice('triangle', 1250, 930, 0.12, 0.03); voice('sine', 2500, 2100, 0.09, 0.014); },  // against a bollard
   zap() {                                             // caught by a scanner
     voice('sawtooth', 1500, 90, 0.38, 0.045); voice('square', 760, 60, 0.3, 0.025); voice('sine', 2400, 380, 0.16, 0.02);
   },
@@ -215,7 +217,7 @@ const NEON_SOUNDS = {
 };
 // The city's version of a sound where it has one, the house sound elsewhere.
 function sound(name) {
-  if ((world.name === 'neon' || ['boost', 'jump', 'bump', 'depart', 'tint', 'pass', 'buzz', 'warp', 'tube', 'pop', 'power', 'zap'].includes(name)) && NEON_SOUNDS[name]) { if (sfx && sfx.isOn()) NEON_SOUNDS[name](); }
+  if ((world.name === 'neon' || ['boost', 'jump', 'bump', 'depart', 'tint', 'pass', 'buzz', 'warp', 'tube', 'pop', 'power', 'zap', 'knock', 'clink'].includes(name)) && NEON_SOUNDS[name]) { if (sfx && sfx.isOn()) NEON_SOUNDS[name](); }
   else play(name === 'home' ? 'land' : name);
 }
 function ensureCitySound() {
@@ -629,6 +631,16 @@ const RB_RI = 2, RB_RO = 4.6, ISLAND_H = 0.7, RB_CF = 0.7;
    crossed until then. `cable` is the line of lights from the button to the
    dark road, as [x, z] corners. */
 const SWITCH = (x, z, y, link, jx, jz, cable) => ({ t: 'switch', x, z, y, link, jx, jz, cable, w: 1.6, d: 1.6 });
+/* OBSTACLES on the road. POSTS is a set of neon bollards, one at each of
+   `points` ([x, z]), standing on road at y; x, z, w, d give the patch they
+   stand in. BLOCK is one solid obstacle, a road barrier or a cargo crate, w by
+   d and h tall, standing at y (higher, on a stack), turned `yaw`. GAUNTLET
+   marks a stretch of them and carries `path`, the line a careful player takes
+   through the gaps. */
+const POSTS = (points, y, x, z, w, d) => ({ t: 'posts', points, y, x, z, w, d });
+const BLOCK = (kind, x, z, w, d, h, y, yaw = 0) => ({ t: 'block', kind, x, z, w, d, h, y, yaw });
+const GAUNTLET = (kind, x, z, w, d, y, path) => ({ t: 'gauntlet', kind, x, z, w, d, y, path });
+const POST_R = 0.16, POST_H = 0.85;
 /* SCAN is road swept by a scanner: a red bar of light that sweeps from side to
    side across it, a little past each edge, once every `period` seconds; with
    `bars` 2, a second bar sweeps the other way and they cross in the middle.
@@ -861,6 +873,53 @@ function makeLevel(n) {
     pieces.push({ ...F(x, r2(z - dl / 2), jw, dl, y), dark: k }); on(dl);
     straight(r2(4 + r() * 2), jw);
   }
+  /* OBSTACLES: a run-in, a wider stretch with rows across it and one way
+     through each, never straight on from the last, and a run-out. No ring
+     inside a stretch. Gaps narrow and rows close up through the game.
+     Bollards stand in gates; barriers leave their gap at alternate edges, so
+     the way snakes; crates lie in rows, some stacked, with the gap anywhere. */
+  let blocksN = 0;
+  function obstacles(kind) {
+    blocksN++;
+    // Wide enough that every gap can sit clear of the middle line, so no way through is straight on.
+    const gap = r2(kind === 'crate' ? W(1.7, 1.3) : W(1.6, 1.2)), ow = r2(Math.max(wide, 3.2, 2 * gap + 0.8)), half = ow / 2;
+    const rows = 3 + Math.round(W(0, 2) + r()), sp = r2(kind === 'crate' ? W(3.4, 2.9) : W(3.1, 2.5));
+    straight(3, ow);
+    const L = r2(rows * sp + 1.2), z0 = z, path = [], points = [], blocks = [];
+    let side = r() < 0.5 ? -1 : 1;
+    for (let i = 0; i < rows; i++) {
+      const rz = r2(z0 - 1.2 - i * sp);
+      const gx = r2(kind === 'barrier' ? x + side * (half - gap / 2) : x + side * (gap / 2 + 0.1 + r() * Math.max(0, half - gap - 0.2)));
+      side = -side;
+      path.push([gx, r2(rz + 1)], [gx, r2(rz - 1)]);
+      const a = gx - gap / 2, b = gx + gap / 2, lo = x - half, hi = x + half;
+      if (kind === 'bollard') {                         // posts out from the gap each way, too close together to pass
+        for (let px = a - POST_R; px >= lo + POST_R - 1e-6; px -= 0.62) points.push([r2(px), rz]);
+        for (let px = b + POST_R; px <= hi - POST_R + 1e-6; px += 0.62) points.push([r2(px), rz]);
+      } else if (kind === 'barrier') {                  // one barrier across the rest of the road
+        const bw = r2(ow - gap), bx = r2(gx < x ? (b + hi) / 2 : (lo + a) / 2);
+        blocks.push(BLOCK('barrier', bx, rz, bw, 0.34, 0.75, y));
+      } else {                                          // crates out from the gap each way, a hand's width apart, some stacked
+        for (const dir of [-1, 1]) {
+          let at = dir < 0 ? a : b, first = true;
+          for (;;) {
+            const left = dir < 0 ? at - lo : hi - at;
+            if (left < 0.5) break;
+            const sz = r2(Math.min(0.78 + r() * 0.27, left)), cx = r2(at + dir * sz / 2), h1 = r2(sz * 0.92);
+            blocks.push(BLOCK('crate', cx, r2(rz + (r() - 0.5) * 0.2), sz, sz, h1, y, first ? 0 : r2((r() - 0.5) * 0.24)));
+            if (r() < 0.3) { const s2 = r2(sz * 0.82); blocks.push(BLOCK('crate', cx, rz, s2, s2, r2(s2 * 0.92), r2(y + h1), r2((r() - 0.5) * 0.5))); }
+            at += dir * (sz + 0.06 + r() * 0.22); first = false;
+          }
+        }
+      }
+    }
+    path.push([x, r2(z0 - L + 0.2)]);                     // back to the middle for the road on
+    pieces.push({ ...F(x, r2(z0 - L / 2), ow, L, y), gauntlet: true }, GAUNTLET(kind, x, r2(z0 - L / 2), ow, L, y, path));
+    if (points.length) pieces.push(POSTS(points, y, x, r2(z0 - L / 2), ow, L));
+    pieces.push(...blocks);
+    on(L);
+    straight(r2(3 + r() * 2), ow);
+  }
   /* SCANNER LASERS: a little road to wait on, the scanned stretch, and on.
      Later the stretch is longer, the bar quicker, and from level 35 some have
      two bars. */
@@ -910,9 +969,12 @@ function makeLevel(n) {
                    ['bridge', 'slide', 'shuttle', 'jog', 'cross', 'locks', 'wormhole', 'fork'], ALL];
   // What a level opens with: its district's new thing, and a crossing where they begin.
   const OPENER = ['jog', 'slide', 'bridge', 'jump', 'boostJump'], opener = n === 5 ? 'cross' : n === 7 ? 'fork' : n === 11 ? 'wormhole' : n === 13 ? 'ride'
-    : n === 6 ? 'switch' : n === 15 ? 'mag' : n === 19 ? 'round' : n === 21 ? 'locks' : n === 23 ? 'wind' : n === 27 ? 'loop' : n === 29 ? 'tube' : n === 31 ? 'scan' : OPENER[d];
+    : n === 3 ? 'bollards' : n === 6 ? 'switch' : n === 8 ? 'barriers' : n === 12 ? 'crates' : n === 15 ? 'mag' : n === 19 ? 'round' : n === 21 ? 'locks' : n === 23 ? 'wind' : n === 27 ? 'loop' : n === 29 ? 'tube' : n === 31 ? 'scan' : OPENER[d];
   // The newer challenges join the draw from the level that brings each in, so
   // the courses before it stay exactly as they were.
+  if (n >= 3) { OWN[0].push('bollards'); EARLIER[1].push('bollards'); EARLIER[2].push('bollards'); EARLIER[3].push('bollards'); ALL.push('bollards'); }
+  if (n >= 8) { OWN[0].push('barriers'); EARLIER[1].push('barriers'); EARLIER[2].push('barriers'); EARLIER[3].push('barriers'); ALL.push('barriers'); }
+  if (n >= 12) { OWN[1].push('crates'); EARLIER[2].push('crates'); EARLIER[3].push('crates'); ALL.push('crates'); }
   if (n >= 6) { OWN[0].push('switch'); EARLIER[1].push('switch'); EARLIER[2].push('switch'); EARLIER[3].push('switch'); ALL.push('switch'); }
   if (n >= 15) { OWN[1].push('mag'); EARLIER[2].push('mag'); EARLIER[3].push('mag'); ALL.push('mag'); }
   if (n >= 19) { OWN[2].push('round'); EARLIER[3].push('round'); ALL.push('round'); }
@@ -945,6 +1007,7 @@ function makeLevel(n) {
     else if (pick === 'tube') { if (!tubesN) glassTube(); else boost(wide); }
     else if (pick === 'switch') { if (!switchesN) powerSwitch(); else jog(w); }
     else if (pick === 'scan') { if (scansN < 2) scanner(); else jog(w); }
+    else if (pick === 'bollards' || pick === 'barriers' || pick === 'crates') { if (blocksN < 2) obstacles(pick.slice(0, -1)); else jog(w); }
     else jog(w);
     straight(r2(mix(6, 4, g) + r() * 3), r() < 0.5 ? wide : narrow);
   }
@@ -956,14 +1019,15 @@ const LEVELS = Array.from({ length: 40 }, (_, i) => makeLevel(i + 1));
    a star time: finish under it and the level's star is yours. Each was set by
    the autopilot racing the course, quick and clean with no falls, by the
    quicker way at a fork, plus 6% (at least a second), rounded up to a whole
-   second. The autopilot playing carefully earns none of them. The courses come
+   second, and never more than half a second under its careful run, so the
+   autopilot playing carefully earns none of them. The courses come
    from their seeds, so these hold until a course changes; then they must be
    raced again. */
-const STAR_TIMES = [23, 27, 23, 19, 26, 18, 22, 20, 33, 39, 54, 43, 43, 48, 55, 56, 51, 42, 61, 61,
-                    47, 48, 41, 40, 63, 38, 38, 33, 71, 47, 68, 45, 39, 42, 42, 53, 53, 52, 60, 93];
+const STAR_TIMES = [23, 27, 22, 29, 25, 19, 25, 33, 33, 44, 54, 33, 66, 61, 51, 65, 60, 48, 44, 70,
+                    62, 69, 57, 60, 39, 39, 41, 46, 49, 52, 43, 48, 80, 82, 50, 75, 53, 77, 106, 60];
 
 let levelGroup = null;
-let colliders = [], ferries = [], holos = [], pads = [], crossings = [], riders = [], curtains = [], locks = [], wormholes = [], loopsIn = [], mags = [], winds = [], rounds = [], tubes = [], switches = [], scans = [], gates = [], goal = null, level = null;
+let colliders = [], ferries = [], holos = [], pads = [], crossings = [], riders = [], curtains = [], locks = [], wormholes = [], loopsIn = [], mags = [], winds = [], rounds = [], tubes = [], switches = [], scans = [], posts = [], blinkers = [], gates = [], goal = null, level = null;
 
 function platformGeometry(w, h, d) {
   const g = new RoundedBoxGeometry(w, h, d, 3, Math.min(0.14, h / 2 - 0.01));
@@ -1336,6 +1400,110 @@ function animateSwitches(dt) {
       S.dots.instanceColor.needsUpdate = true;
     }
     if (S.top) { S.top.emissiveIntensity = S.top0 * road; S.side.emissiveIntensity = S.side0 * Math.max(0.15, road); }
+  }
+}
+
+/* OBSTACLES ON THE ROAD (owner, 2026-09-27: "How about solid obstacles that sit
+   on the tracks that the marble has to go around carefully?"; chose neon
+   bollards, road barriers and cargo crates). Solid: the marble bounces off
+   with a knock, and a hard knock near the edge can throw it off the road.
+     bollards  short dark posts, a glowing band and cap, a pool of light at the
+               foot; in rows across the road, one gap in each
+     barriers  low road-works barriers, orange and white stripes lit in the
+               dark, a blinking amber lamp at each end; each leaves a gap at
+               one edge, the other edge next, so the way snakes
+     crates    dark cargo crates, glowing lavender edges, "this way up" arrows,
+               some stacked; one way through each row */
+const barrierTex = canvasTex(128, 64, (g) => {          // one tile, half a metre of barrier: stripes leaning the way
+  g.fillStyle = '#FF6A14'; g.fillRect(0, 0, 128, 64);
+  g.fillStyle = '#FFF1E2';
+  for (let i = -2; i < 5; i++) { g.beginPath(); g.moveTo(i * 32, 64); g.lineTo(i * 32 + 16, 64); g.lineTo(i * 32 + 48, 0); g.lineTo(i * 32 + 32, 0); g.closePath(); g.fill(); }
+  g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(0, 0, 128, 5); g.fillRect(0, 59, 128, 5);
+}, true);
+const crateFace = (arrows) => canvasTex(128, 128, (g) => {
+  g.fillStyle = '#000'; g.fillRect(0, 0, 128, 128);
+  g.fillStyle = 'rgba(200,170,255,0.14)';
+  for (let y = 18; y < 120; y += 17) g.fillRect(10, y, 108, 2);           // slats, faint
+  g.filter = 'blur(4px)'; g.strokeStyle = 'rgba(185,145,255,0.9)'; g.lineWidth = 11; g.strokeRect(6, 6, 116, 116);
+  g.filter = 'none'; g.strokeStyle = '#F0E8FF'; g.lineWidth = 3; g.strokeRect(6, 6, 116, 116);   // the glowing edge
+  if (arrows) {                                         // this way up
+    g.strokeStyle = 'rgba(225,205,255,0.85)'; g.lineWidth = 4; g.lineCap = 'round'; g.lineJoin = 'round';
+    for (const ax of [48, 80]) { g.beginPath(); g.moveTo(ax, 84); g.lineTo(ax, 48); g.moveTo(ax - 9, 57); g.lineTo(ax, 46); g.lineTo(ax + 9, 57); g.stroke(); }
+    g.fillStyle = 'rgba(225,205,255,0.85)'; g.fillRect(38, 90, 52, 4);
+  }
+});
+const crateSideTex = crateFace(true), crateTopTex = crateFace(false);
+function buildBlock(pc) {
+  const quat = new Quaternion().setFromEuler(new Euler(0, pc.yaw || 0, 0));
+  const center = new Vector3(pc.x, pc.y + pc.h / 2, pc.z), geo = new BoxGeometry(pc.w, pc.h, pc.d);
+  let mats;
+  const parts = [];
+  if (pc.kind === 'crate') {
+    const side = new MeshStandardMaterial({ color: 0x191824, roughness: 0.55, metalness: 0.2, emissive: 0xFFFFFF, emissiveMap: crateSideTex, emissiveIntensity: 1 });
+    const top = new MeshStandardMaterial({ color: 0x191824, roughness: 0.55, metalness: 0.2, emissive: 0xFFFFFF, emissiveMap: crateTopTex, emissiveIntensity: 1 });
+    mats = [side, side, top, top, side, side];
+  } else {
+    // The stripes run the length of each face, a tile to every half metre.
+    const uv = geo.attributes.uv;
+    for (let f = 0; f < 6; f++) {
+      const len = f < 2 ? pc.d : f < 4 ? pc.w : pc.w;
+      for (let i = f * 4; i < f * 4 + 4; i++) uv.setX(i, uv.getX(i) * len / 0.5);
+    }
+    const stripe = new MeshStandardMaterial({ color: 0x2A1A10, roughness: 0.5, emissive: 0xFFFFFF, emissiveMap: barrierTex, emissiveIntensity: 0.85 });
+    const top = new MeshStandardMaterial({ color: 0x1A1D26, roughness: 0.6, metalness: 0.3 });
+    mats = [stripe, stripe, top, top, stripe, stripe];
+    for (const e of [-1, 1]) {                          // a blinking amber lamp at each end
+      const lamp = new Mesh(new SphereGeometry(0.075, 12, 8), new MeshBasicMaterial({ color: 0xFFB23F, toneMapped: false }));
+      lamp.position.set(e * (pc.w / 2 - 0.12), pc.h / 2 + 0.07, 0);
+      const halo = new Sprite(new SpriteMaterial({ map: dot, color: 0xFFA12E, transparent: true, blending: AdditiveBlending, depthWrite: false }));
+      halo.scale.set(0.6, 0.6, 1); halo.position.copy(lamp.position);
+      blinkers.push({ lamp, halo, ph: (e > 0 ? 0.5 : 0) + (pc.x * 0.13 + pc.z * 0.07) % 1 });
+      parts.push(lamp, halo);
+    }
+  }
+  const mesh = new Mesh(geo, mats);
+  mesh.position.copy(center); mesh.quaternion.copy(quat); mesh.castShadow = true; mesh.receiveShadow = true;
+  for (const part of parts) mesh.add(part);
+  levelGroup.add(mesh);
+  colliders.push({ mesh, pos: center.clone(), prev: center.clone(), quat, inv: quat.clone().invert(),
+                   half: new Vector3(pc.w / 2, pc.h / 2, pc.d / 2), delta: new Vector3(), ferry: null, holo: null, pad: null, obstacle: pc.kind });
+}
+let postKit = null;                                     // a bollard's shapes and materials, made once
+function buildPosts(pc) {
+  if (!postKit) postKit = {
+    body: new CylinderGeometry(POST_R, POST_R * 1.1, POST_H, 20), band: new CylinderGeometry(POST_R + 0.012, POST_R + 0.012, 0.09, 20, 1, true),
+    cap: new CylinderGeometry(POST_R * 0.82, POST_R * 0.82, 0.025, 20), pool: new PlaneGeometry(1.15, 1.15), halo: new PlaneGeometry(0.75, 0.42),
+  };
+  const K = postKit, n = pc.points.length, o = new Object3D();
+  const body = new InstancedMesh(K.body, new MeshStandardMaterial({ color: 0x151A28, metalness: 0.75, roughness: 0.3, envMap: neonEnvMap() || envTex,
+    emissive: 0x34E0FF, emissiveIntensity: 0.07 }), n);
+  const light = new MeshBasicMaterial({ color: 0xC4F7FF, toneMapped: false });
+  const band = new InstancedMesh(K.band, light, n), cap = new InstancedMesh(K.cap, light, n);
+  const pool = new InstancedMesh(K.pool, glowMat(0x34E0FF, 0.5, dot), n), halo = new InstancedMesh(K.halo, glowMat(0x5FE8FF, 0.9, dot), n);
+  pc.points.forEach(([x, z], i) => {
+    const set = (m, y, rx = 0) => { o.position.set(x, pc.y + y, z); o.rotation.set(rx, 0, 0); o.updateMatrix(); m.setMatrixAt(i, o.matrix); };
+    set(body, POST_H / 2); set(band, POST_H * 0.72); set(cap, POST_H + 0.012); set(pool, 0.012, -Math.PI / 2); set(halo, POST_H * 0.72);
+    posts.push({ x, z, y: pc.y, r: POST_R, h: POST_H });
+  });
+  body.castShadow = true;
+  levelGroup.add(body, band, cap, pool, halo);
+}
+// A bollard: the marble against its side, pushed straight out from its middle.
+let knockT = -1;
+function postContact(P) {
+  const dx = ball.p.x - P.x, dz = ball.p.z - P.z, d = Math.hypot(dx, dz);
+  if (d >= P.r + R || d < 1e-6 || ball.p.y - R > P.y + P.h - 0.05 || ball.p.y + R < P.y) return;
+  const nx = dx / d, nz = dz / d, rel = ball.v.x * nx + ball.v.z * nz;
+  ball.p.x += nx * (P.r + R - d); ball.p.z += nz * (P.r + R - d);
+  if (rel < 0) {
+    ball.v.x -= 1.35 * rel * nx; ball.v.z -= 1.35 * rel * nz;
+    if (rel < -1.2 && simT - knockT > 0.12) { knockT = simT; sound('clink'); }
+  }
+}
+function animateBlocks() {
+  for (const B of blinkers) {
+    const on = REDUCED || ((simT * 1.1 + B.ph) % 1) < 0.5;
+    B.lamp.material.color.setHex(on ? 0xFFB23F : 0x3A2408); B.halo.material.opacity = on ? 1 : 0;
   }
 }
 
@@ -1950,6 +2118,7 @@ function freeCourse(grp) {
   for (const c of locks) c.mat.map.dispose();
   for (const c of mags) c.magFx.tex.dispose();
   for (const S of switches) if (S.top) { S.top.dispose(); S.side.dispose(); }
+  for (const c of colliders) if (c.obstacle) new Set(c.mesh.material).forEach((m) => m.dispose());
   scene.remove(grp);
   grp.traverse((o) => {
     if (o.geometry) o.geometry.dispose();
@@ -1957,12 +2126,12 @@ function freeCourse(grp) {
   });
 }
 function enterPocket(W) {
-  pocket = { colliders, ferries, holos, pads, crossings, riders, curtains, locks, wormholes, loopsIn, mags, winds, rounds, tubes, switches, scans, gates, goal, level, levelGroup,
+  pocket = { colliders, ferries, holos, pads, crossings, riders, curtains, locks, wormholes, loopsIn, mags, winds, rounds, tubes, switches, scans, posts, blinkers, gates, goal, level, levelGroup,
              world: world.name, from: W };
   levelGroup.visible = false;
   const P = W.pc.pocket;
   levelGroup = new Group(); scene.add(levelGroup);
-  colliders = []; ferries = []; holos = []; pads = []; crossings = []; riders = []; curtains = []; locks = []; wormholes = []; loopsIn = []; mags = []; winds = []; rounds = []; tubes = []; switches = []; scans = []; gates = [];
+  colliders = []; ferries = []; holos = []; pads = []; crossings = []; riders = []; curtains = []; locks = []; wormholes = []; loopsIn = []; mags = []; winds = []; rounds = []; tubes = []; switches = []; scans = []; posts = []; blinkers = []; gates = [];
   goal = null;
   level = { pieces: P.pieces, gates: [], start: P.start, world: P.world };
   for (const pc of P.pieces) buildPiece(pc);
@@ -1978,7 +2147,7 @@ function enterPocket(W) {
 function leavePocket() {
   freeCourse(levelGroup);
   const S = pocket; pocket = null;
-  ({ colliders, ferries, holos, pads, crossings, riders, curtains, locks, wormholes, loopsIn, mags, winds, rounds, tubes, switches, scans, gates, goal, level, levelGroup } = S);
+  ({ colliders, ferries, holos, pads, crossings, riders, curtains, locks, wormholes, loopsIn, mags, winds, rounds, tubes, switches, scans, posts, blinkers, gates, goal, level, levelGroup } = S);
   levelGroup.visible = true;
   setWorld(S.world);
   const out = S.from.twin;
@@ -2054,6 +2223,9 @@ function buildPiece(pc) {
   if (pc.t === 'round') { buildRound(pc); return; }
   if (pc.t === 'tube') { buildTube(pc); return; }
   if (pc.t === 'switch') { buildSwitch(pc); return; }
+  if (pc.t === 'posts') { buildPosts(pc); return; }
+  if (pc.t === 'block') { buildBlock(pc); return; }
+  if (pc.t === 'gauntlet') return;
   let h = THICK;
   const quat = new Quaternion(), center = new Vector3();
   let w = pc.w, d = pc.d;
@@ -2127,6 +2299,7 @@ function loadLevel(n) {
     for (const c of locks) c.mat.map.dispose();
     for (const c of mags) c.magFx.tex.dispose();
     for (const S of switches) if (S.top) { S.top.dispose(); S.side.dispose(); }
+    for (const c of colliders) if (c.obstacle) new Set(c.mesh.material).forEach((m) => m.dispose());
     scene.remove(levelGroup);
     levelGroup.traverse((o) => {
       if (o.geometry) o.geometry.dispose();
@@ -2136,7 +2309,7 @@ function loadLevel(n) {
   }
   levelGroup = new Group();
   scene.add(levelGroup);
-  colliders = []; ferries = []; holos = []; pads = []; crossings = []; riders = []; curtains = []; locks = []; wormholes = []; loopsIn = []; mags = []; winds = []; rounds = []; tubes = []; switches = []; scans = []; gates = [];
+  colliders = []; ferries = []; holos = []; pads = []; crossings = []; riders = []; curtains = []; locks = []; wormholes = []; loopsIn = []; mags = []; winds = []; rounds = []; tubes = []; switches = []; scans = []; posts = []; blinkers = []; gates = [];
   for (const pc of level.pieces) buildPiece(pc);
   if (world.name !== 'void') setWorld(world.name);   // scenery that follows the course is rebuilt for it
   level.minTop = Math.min(...level.pieces.map((p) => (p.t === 'ramp' ? Math.min(p.y0, p.y1) : p.y)));
@@ -2238,6 +2411,7 @@ function collide(c, dt) {
     ball.v.addScaledVector(_N, -(1 + e) * rel);
     if (floor && rel < -4 && ball.airT > 0.12) { play('land'); shake = Math.max(shake, 0.12); }
     else if (c.lock) { if (!c.buzzT) { sound('buzz'); c.buzzT = 0.35; } c.flash = 1; }
+    else if (c.obstacle && !floor) { if (rel < -1.2 && simT - knockT > 0.12) { knockT = simT; sound('knock'); } }
     else if (!floor && rel < -3) play('tick');
   }
   if (floor) { ball.grounded = true; if (c.ferry) ball.onFerry = c; if (c.pad) ball.pad = c.pad; if (c.mag) ball.mag = c.mag; }
@@ -2273,6 +2447,7 @@ function step(dt, ix, iz) {
   for (const c of riders) collide(c, dt);
   for (const c of locks) collide(c, dt);
   for (const Rd of rounds) roundContact(Rd);
+  for (const P of posts) postContact(P);
   if (tubes.length) tubeCatch();
   if (switches.length) switchStep();
   if (scans.length && state === 'play') scanStep();
@@ -2496,6 +2671,7 @@ function update(dt, now) {
   animateTubes();
   animateSwitches(dt);
   animateScans();
+  animateBlocks();
   updateSparks(dt);
   updateCamera(dt, false);
   updateSunPoint();
@@ -2853,11 +3029,14 @@ function drawGhost(now) {
 /* A new thing gets one line the first time it comes: at the start of the level
    that opens its district, until the marble has rolled on a way. */
 const NEWS = {
+  3: 'Bollards stand across the road. Steer through the gap in each row',
   5: 'Flying cars cross the road. Wait at the line for the green light',
   6: 'The road ahead is dark. Follow the lamps to its switch, roll over it, and come back',
+  8: 'Road works! Snake round the barriers, from one gap to the next',
   7: 'The road splits. The narrow way is quicker; the wide way is safer',
   9: 'Some pads move. Wait for one to line up with the path, then roll on',
   11: 'A wormhole! Roll in to cross the crystal canyon, and come out on the far side',
+  12: 'Cargo crates on the road. Find the way through each row',
   13: 'The sky train stops here. Roll onto its roof, and hold on when it moves',
   15: 'Maglev strips pull the marble to one side. Steer against the arrows',
   17: 'Bridges switch off and on. Cross while they are lit',
@@ -2895,6 +3074,7 @@ const RULES = [
   'Each level has a star time, shown by the star at the bottom. Finish under it to win the level\'s star.',
   'Where the road splits, the narrow way is quicker and the wide way is safer. Both lead on.',
   'Roll off the edge and the marble flies back to the last green ring. The fall is counted, and nothing else is lost.',
+  'Bollards, road barriers and cargo crates are solid. Steer through the gaps: a hard knock near the edge can throw the marble off the road.',
   'A dark road cannot be crossed. Follow the line of lamps down the side road to its switch and roll over it: the road lights up.',
   'Flying cars cross some roads. Wait at the line for the green light, then roll across.',
   'Some pads move. Wait for one to line up with the path, roll on, and ride it across.',
@@ -3104,6 +3284,7 @@ function setTopUV(mesh, perPiece) {
 }
 function restoreCourse() {
   for (const c of colliders) {
+    if (c.obstacle) continue;
     if (c.deco) { for (const d of c.deco) c.mesh.remove(d); c.deco = []; }
     c.mesh.material = faceMats(c.ferry ? ferryStone : stone); setTopUV(c.mesh, false);
     if (c.holo) holoFaces(c);
@@ -3320,7 +3501,7 @@ WORLDS_ADD('desk', (w) => {
   // Stacks of books hold the course up off the desk.
   const bookCols = [0x2F6F73, 0xC24A39, 0xE3A33B, 0x4F6FB5, 0x6A9F58, 0x8C5FB0, 0xD9774F];
   for (const c of colliders) {
-    if (c.ferry) continue;
+    if (c.ferry || c.obstacle) continue;
     let y = -9, k = 0;
     const top = c.pos.y - c.half.y;
     while (y < top - 0.05) {
@@ -3401,7 +3582,7 @@ WORLDS_ADD('lagoon', (w) => {
   // Light from the surface ripples over everything.
   const lagoonTop = stone[1].clone(); lagoonTop.emissive = new Color(0xCFF8FF); lagoonTop.emissiveMap = caus; lagoonTop.emissiveIntensity = 0.38;
   const lagoonStone = [stone[0], lagoonTop, stone[2]];
-  w.restyle = () => { for (const c of colliders) if (!c.ferry) c.mesh.material = faceMats(lagoonStone); };
+  w.restyle = () => { for (const c of colliders) if (!c.ferry && !c.obstacle) c.mesh.material = faceMats(lagoonStone); };
   w.tick = (dt) => { for (const t of [caus, causBed]) { t.offset.x += dt * 0.03; t.offset.y += dt * 0.017; } };
   const sand = canvasTex(256, 256, (g) => {
     g.fillStyle = '#E3D2A0'; g.fillRect(0, 0, 256, 256);
@@ -3869,7 +4050,7 @@ WORLDS_ADD('crystal', (w) => {
       emissive: 0xFFFFFF, emissiveMap: facetTex(), emissiveIntensity: 1.4 });
     const sideMat = new MeshStandardMaterial({ color: 0x0A140A, metalness: 0.45, roughness: 0.3, emissive: 0x3CFF6A, emissiveIntensity: 0.32 });
     const under = new MeshStandardMaterial({ color: 0x040504, roughness: 1 });
-    for (const c of colliders) { c.mesh.material = [sideMat, sideMat, top, under, sideMat, sideMat]; setTopUV(c.mesh, false); }
+    for (const c of colliders) { if (c.obstacle) continue; c.mesh.material = [sideMat, sideMat, top, under, sideMat, sideMat]; setTopUV(c.mesh, false); }
   };
 });
 const d0 = new Vector3();
@@ -4466,7 +4647,7 @@ function neonCourse(style) {
   neonStyle = style;
   const M = neonMats[style] || (neonMats[style] = neonMaterials(style));
   for (const c of colliders) {
-    if (c.holo) continue;
+    if (c.holo || c.obstacle) continue;
     if (c.power) {
       const S = c.power;
       if (S.top) { S.top.dispose(); S.side.dispose(); }
