@@ -539,10 +539,15 @@ const CURTAIN = (x, z, w, y, col) => ({ t: 'curtain', x, z, w, d: 0.1, y, col })
    `pocket`, the course in the other world; 'exit' ends that course; 'out' is
    its twin in the city, past a gap no marble can cross, where it comes back. */
 const WORM = (x, z, w, y, dir, pocket = null) => ({ t: 'worm', x, z, w, d: 0.3, y, dir, pocket });
-/* LOOP is a loop-de-loop: its bottom at (x, y, z), radius r, a band w wide
-   that steps `shift` across as it turns, so the road out runs beside the road
-   in. The road in ends at z; the road out starts at z, shift further over. */
-const LOOP = (x, z, w, y, r, shift) => ({ t: 'loop', x, z, w, d: 0.1, y, r, shift });
+/* LOOP is a loop-de-loop, shaped as the owner drew it (2026-09-27: "a gentle
+   curve that starts on the plane of the rail"): a long lead-in that leaves the
+   road flat and curves up, the loop, and a lead-out that comes down as gently.
+   Its band is w wide and steps `shift` across as it turns, so the road out
+   runs beside the road in. The road in ends at z; the road out starts LOOP_RUN
+   further on, shift further over. */
+const LOOP_R = 1.55, LOOP_RA = 5, LOOP_A = 0.72;
+const LOOP_RUN = Math.round(2 * (LOOP_RA - LOOP_R) * Math.sin(LOOP_A) * 100) / 100;
+const LOOP = (x, z, w, y, shift) => ({ t: 'loop', x, z, w, d: 0.1, y, shift });
 // The course through a wormhole's world: short, its own shapes, its own rule.
 function makePocket(n) {
   const r = seeded(4242 + n * 131), g = (n - 1) / 39, W = (a, b) => mix(a, b, g);
@@ -682,7 +687,8 @@ function makeLevel(n) {
     const lw = 2.2, shift = r2((x < 3 ? 1 : -1) * 2.9);
     pieces.push(BOOST(x, z - 1.5, lw, 3, y)); on(3);
     straight(3, lw);
-    pieces.push(LOOP(x, z, lw, y, 1.2, shift));
+    pieces.push(LOOP(x, z, lw, y, shift));
+    on(LOOP_RUN);
     x = r2(x + shift);
     straight(r2(9 + r() * 3), Math.min(wide, 2.6));
   }
@@ -1080,64 +1086,104 @@ function animateTints(dt) {
   for (const c of locks) { c.flash = Math.max(0, c.flash - dt * 2.5); c.buzzT = Math.max(0, c.buzzT - dt); c.mat.opacity = 0.75 + 0.25 * c.flash; }
 }
 
-/* THE LOOP, as a surface: the inside of a band turning once round an axis
-   along x, stepping across as it turns. The marble meets it as a curve, not
-   as a chain of flat boxes, so it keeps its speed all the way round. While on
-   it the marble is carried: the stick rests, nothing slows it but the climb,
-   and it follows the band across. The camera swings out to the side to show
-   the loop, which from behind would be a line, and swings back after. */
+/* THE LOOP, as a surface. In its own plane (u forward, y up) its line is three
+   arcs meeting without a kink: a lead-in of radius LOOP_RA from the flat road
+   turning up through LOOP_A, the loop of radius LOOP_R, and a lead-out that
+   mirrors the lead-in and lands flat. It is sampled finely, and the marble
+   meets the nearest sample's surface along its own normal, so it rolls round
+   a curve, not over a chain of boxes, and keeps its speed. Across the band it
+   steps over by `shift` from start to end. A marble that comes in fast (the
+   yellow arrows) is carried: on the steep part the stick rests, nothing slows
+   it, and it never drops below a pace that clears the top. The camera swings
+   out to the side to show the loop, and back. */
+function loopProfile() {
+  const pts = [], a = LOOP_A, Ra = LOOP_RA, r = LOOP_R, cu = (Ra - r) * Math.sin(a), cy = Ra - (Ra - r) * Math.cos(a);
+  let s = 0;
+  const add = (u, y, f) => { if (pts.length) { const q = pts[pts.length - 1]; s += Math.hypot(u - q[0], y - q[1]); } pts.push([u, y, f, s]); };
+  for (let f = 0; f < a; f += 0.02 / Ra) add(Ra * Math.sin(f), Ra - Ra * Math.cos(f), f);
+  for (let f = a; f < 2 * Math.PI - a; f += 0.02 / r) add(cu + r * Math.sin(f), cy - r * Math.cos(f), f);
+  for (let f = 2 * Math.PI - a; f <= 2 * Math.PI + 1e-9; f += 0.02 / Ra) add(2 * cu + Ra * Math.sin(f), Ra - Ra * Math.cos(f), f);
+  return { pts, len: s, top: cy + r };
+}
+const LOOP_PROFILE = loopProfile();
 function buildLoop(pc) {
-  const L = { cx: pc.x, cy: pc.y + pc.r, cz: pc.z, r: pc.r, shift: pc.shift, w: pc.w, y: pc.y };
-  const N = 96, T = 0.2, pos = [], uv = [], idx = [];
-  const at = (th, rad, side) => [pc.x + pc.shift * th / (2 * Math.PI) + side * pc.w / 2, L.cy - rad * Math.cos(th), pc.z - rad * Math.sin(th)];
-  const strip = (rad, flip, uAt) => {
-    const b = pos.length / 3;
-    for (let i = 0; i <= N; i++) {
-      const th = 2 * Math.PI * i / N, v = th * rad / 2;
-      pos.push(...at(th, rad, -1), ...at(th, rad, 1)); uv.push(uAt(-1), v, uAt(1), v);
-    }
-    for (let i = 0; i < N; i++) { const k = b + i * 2; if (flip) idx.push(k, k + 2, k + 1, k + 1, k + 2, k + 3); else idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2); }
+  const P = LOOP_PROFILE, L = { x0: pc.x, y0: pc.y, z0: pc.z, shift: pc.shift, w: pc.w, ride: false, cx: pc.x, cy: pc.y + LOOP_PROFILE.top / 2 };
+  // A point of the band: along it at sample i, across it at a (-1 to 1), lifted h off its surface.
+  const at = (i, a, h) => {
+    const [u, y, f, s] = P.pts[i], nx = -Math.sin(f), ny = Math.cos(f);
+    return [pc.x + pc.shift * s / P.len + a * pc.w / 2, pc.y + y + ny * h, pc.z - (u + nx * h)];
   };
-  strip(pc.r, false, (sd) => (sd + 1) * pc.w / 4);        // the inside, where the marble rolls
-  const g1 = new BufferGeometry();
-  g1.setAttribute('position', new Float32BufferAttribute(pos, 3)); g1.setAttribute('uv', new Float32BufferAttribute(uv, 2));
-  g1.setIndex(idx); g1.computeVertexNormals();
-  pos.length = 0; uv.length = 0; idx.length = 0;
-  strip(pc.r + T, true, (sd) => (sd + 1) * pc.w / 4);     // the outside
-  const g2 = new BufferGeometry();
-  g2.setAttribute('position', new Float32BufferAttribute(pos, 3)); g2.setAttribute('uv', new Float32BufferAttribute(uv, 2));
-  g2.setIndex(idx); g2.computeVertexNormals();
+  const idx = [], pos = [], uv = [];
+  const strip = (a0, h0, a1, h1, flip) => {
+    const b = pos.length / 3;
+    for (let i = 0; i < P.pts.length; i += 3) {
+      pos.push(...at(i, a0, h0), ...at(i, a1, h1));
+      const v = P.pts[i][3] / 2; uv.push((a0 + 1) * pc.w / 4, v, (a1 + 1) * pc.w / 4, v);
+    }
+    const n = (pos.length / 3 - b) / 2;
+    for (let i = 0; i < n - 1; i++) { const k = b + i * 2; if (flip) idx.push(k, k + 2, k + 1, k + 1, k + 2, k + 3); else idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2); }
+  };
+  const mesh = (flipSets) => {
+    pos.length = 0; uv.length = 0; idx.length = 0;
+    for (const f of flipSets) strip(...f);
+    const g = new BufferGeometry();
+    g.setAttribute('position', new Float32BufferAttribute(pos.slice(), 3)); g.setAttribute('uv', new Float32BufferAttribute(uv.slice(), 2));
+    g.setIndex(idx.slice()); g.computeVertexNormals();
+    return g;
+  };
   const M = neonMats.glowgrid || (neonMats.glowgrid = neonMaterials('glowgrid'));
-  const inner = new Mesh(g1, M.top), outer = new Mesh(g2, M.under);
-  inner.receiveShadow = true;
-  levelGroup.add(inner, outer);
-  // Bright edges along both sides of the band: short bars, one draw.
-  const edges = new InstancedMesh(new BoxGeometry(0.07, 0.07, 1.02), new MeshBasicMaterial({ color: 0xFF8AE8, toneMapped: false }), 2 * N);
+  const surface = new Mesh(mesh([[-1, 0, 1, 0, false]]), M.top);                  // where the marble rolls
+  const back = new Mesh(mesh([[-1, -0.18, 1, -0.18, true]]), M.top);               // the other side of the band, gridded too
+  const walls = new Mesh(mesh([[-1, 0, -1, 0.3, true], [1, 0, 1, 0.3, false], [-1, -0.18, -1, 0, true], [1, -0.18, 1, 0, false]]), M.side);
+  surface.receiveShadow = true;
+  levelGroup.add(surface, back, walls);
+  // A bright line along the top of each low wall.
+  const n = Math.floor(P.pts.length / 3), bars = new InstancedMesh(new BoxGeometry(0.06, 0.06, 1.02), new MeshBasicMaterial({ color: 0xFF8AE8, toneMapped: false }), 2 * n);
   const o = new Object3D();
   let k = 0;
-  for (const sd of [-1, 1]) for (let i = 0; i < N; i++) {
-    const a = at(2 * Math.PI * i / N, pc.r + T / 2, sd), b = at(2 * Math.PI * (i + 1) / N, pc.r + T / 2, sd);
-    o.position.set((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2);
-    o.lookAt(b[0], b[1], b[2]); o.scale.set(1, 1, Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]));
-    o.updateMatrix(); edges.setMatrixAt(k++, o.matrix);
+  for (const a of [-1, 1]) for (let i = 0; i + 3 < P.pts.length; i += 3) {
+    const p = at(i, a, 0.3), q = at(i + 3, a, 0.3);
+    o.position.set((p[0] + q[0]) / 2, (p[1] + q[1]) / 2, (p[2] + q[2]) / 2);
+    o.lookAt(q[0], q[1], q[2]); o.scale.set(1, 1, Math.hypot(q[0] - p[0], q[1] - p[1], q[2] - p[2]));
+    o.updateMatrix(); bars.setMatrixAt(k++, o.matrix);
   }
-  levelGroup.add(edges);
+  bars.count = k;
+  levelGroup.add(bars);
   loopsIn.push(L);
 }
 // Every physics step: the loop's surface against the marble.
 function loopContact(L) {
-  const dy = ball.p.y - L.cy, dz = ball.p.z - L.cz, rho = Math.hypot(dy, dz);
-  if (rho < L.r - R - 0.6 || rho > L.r + 0.5) return;
-  let th = Math.atan2(-dz, -dy); if (th < 0) th += 2 * Math.PI;
-  const xt = L.cx + L.shift * th / (2 * Math.PI);
-  if (Math.abs(ball.p.x - xt) > L.w / 2 + 0.1) return;
-  const pen = rho - (L.r - R);
-  if (pen <= 0) return;
-  const nY = -dy / rho, nZ = -dz / rho;                    // inward, toward the axis
-  ball.p.y += nY * pen; ball.p.z += nZ * pen;
-  const vn = ball.v.y * nY + ball.v.z * nZ;
-  if (vn < 0) { ball.v.y -= vn * nY; ball.v.z -= vn * nZ; }
-  if (th > 0.2 && th < 2 * Math.PI - 0.2) { ball.onLoop = L; ball.p.x = xt; ball.v.x = 0; }   // on the band: carried across with it
+  const P = LOOP_PROFILE, u = L.z0 - ball.p.z, yb = ball.p.y - L.y0;
+  if (u < -0.6 || u > LOOP_RUN + 3.4 || yb < -1.2 || yb > P.top + 1.2) { L.ride = false; return; }
+  let best = -1, bd = 1e9;
+  for (let i = 0; i < P.pts.length; i++) {
+    const [pu, py, , s] = P.pts[i];
+    if (Math.abs(ball.p.x - (L.x0 + L.shift * s / P.len)) > L.w / 2 + 0.12) continue;
+    const d = (u - pu) * (u - pu) + (yb - py) * (yb - py);
+    if (d < bd) { bd = d; best = i; }
+  }
+  if (best < 0 || bd > 1.2) return;
+  const [pu, py, f, s] = P.pts[best], nu = -Math.sin(f), ny = Math.cos(f);
+  const d = (u - pu) * nu + (yb - py) * ny;                  // how far off the surface, along its normal
+  if (d > R + 0.02 || d < R - 0.7) return;
+  const push = R - d;
+  if (push > 0) { ball.p.z -= nu * push; ball.p.y += ny * push; }
+  // Velocity in the loop's plane: forward (-z) and up.
+  let vu = -ball.v.z, vy = ball.v.y;
+  const vn = vu * nu + vy * ny;
+  if (vn < 0) { vu -= vn * nu; vy -= vn * ny; }
+  const steep = f > 0.35 && f < 2 * Math.PI - 0.35;
+  if (!steep) {
+    ball.grounded = true;                                    // the gentle ends are road
+    if (f < 0.35) L.ride = vu > 10;                          // coming in fast enough to be carried
+  } else {
+    ball.onLoop = L; ball.p.x = L.x0 + L.shift * s / P.len; ball.v.x = 0;
+    if (L.ride) {                                           // carried: never below a pace that clears the top
+      const sp = vu * Math.cos(f) + vy * Math.sin(f);
+      if (sp < 8.5) { vu += (8.5 - sp) * Math.cos(f); vy += (8.5 - sp) * Math.sin(f); }
+    }
+  }
+  ball.v.z = -vu; ball.v.y = vy;
 }
 
 /* WORMHOLES (owner, 2026-09-27: "wormholes that put you in a completely
@@ -1770,9 +1816,9 @@ function updateCamera(dt, snap) {
   if (ball.onLoop) loopAt = ball.onLoop;
   if (loopView > 0.001 && loopAt) {
     const L = loopAt, side = L.shift > 0 ? -1 : 1, k = ease(loopView);
-    _lp.set(L.cx + L.shift / 2 + side * 7.5, L.cy + 1.6, L.cz + 3.2);
+    _lp.set(L.x0 + L.shift / 2 + side * 9.5, L.cy + 2, L.z0 - LOOP_RUN / 2 + 4);
     camera.position.lerp(_lp, k);
-    _la.set(L.cx + L.shift / 2, L.cy, L.cz);
+    _la.set(L.x0 + L.shift / 2, L.cy, L.z0 - LOOP_RUN / 2);
     _lb.set(camFocus.x + sx, camY, camFocus.z - P.ahead).lerp(_la, k);
     camera.lookAt(_lb);
   }
