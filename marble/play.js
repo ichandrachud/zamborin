@@ -187,6 +187,10 @@ const NEON_SOUNDS = {
   home() { voice('sine', 220, 880, 0.16, 0.05); voice('sine', 1760, 1760, 0.12, 0.025); voice('sine', 90, 60, 0.18, 0.08, 0.14); },
   boost() { voice('sawtooth', 160, 900, 0.32, 0.018); voice('sine', 440, 1320, 0.28, 0.04); },     // a speed strip: a rising rush
   jump() { voice('square', 260, 780, 0.16, 0.022); voice('sine', 520, 1560, 0.2, 0.05); },         // a jump pad: a quick spring upward
+  depart() {                                          // the train is about to go: a station chime, two notes down
+    voice('sine', 659.25, 659.25, 0.5, 0.06); voice('sine', 523.25, 523.25, 0.7, 0.06, 0.32);
+    voice('triangle', 1318.5, 1318.5, 0.3, 0.015); voice('triangle', 1046.5, 1046.5, 0.4, 0.015, 0.32);
+  },
   bump() {                                            // a car meets the marble: a thud, and two notes of horn
     voice('sine', 170, 55, 0.3, 0.11); voice('triangle', 90, 40, 0.25, 0.05);
     voice('square', 466, 466, 0.1, 0.022, 0.06); voice('square', 370, 370, 0.16, 0.022, 0.2);
@@ -194,7 +198,7 @@ const NEON_SOUNDS = {
 };
 // The city's version of a sound where it has one, the house sound elsewhere.
 function sound(name) {
-  if ((world.name === 'neon' || name === 'boost' || name === 'jump' || name === 'bump') && NEON_SOUNDS[name]) { if (sfx && sfx.isOn()) NEON_SOUNDS[name](); }
+  if ((world.name === 'neon' || ['boost', 'jump', 'bump', 'depart'].includes(name)) && NEON_SOUNDS[name]) { if (sfx && sfx.isOn()) NEON_SOUNDS[name](); }
   else play(name === 'home' ? 'land' : name);
 }
 function ensureCitySound() {
@@ -514,6 +518,12 @@ const BOOST = (x, z, w, d, y) => ({ t: 'boost', x, z, w, d, y });
 const JUMP = (x, z, w, d, y) => ({ t: 'jump', x, z, w, d, y });
 // CROSS is a stretch of road that one or two lanes of flying cars cross.
 const CROSS = (x, z, w, d, y, lanes) => ({ t: 'cross', x, z, w, d, y, lanes });
+/* TRAIN is the sky train you ride: a deck on its roof, TRAIN_DECK long, that
+   runs to and fro along z between two stations as a ferry does, amp either
+   side of z. `pull` is how much of the train's own acceleration the marble
+   feels: it rolls back as the train pulls away and on as it brakes. */
+const TRAIN_DECK = 18, TRAIN_H = 0.3;
+const TRAIN = (x, z, w, y, amp, period, dwell, phase, pull) => ({ t: 'train', x, z, w, d: TRAIN_DECK, y, axis: 'z', amp, period, dwell, phase, pull });
 const seeded = (seed) => () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
 const mix = (a, b, t) => a + (b - a) * t;
 
@@ -541,9 +551,9 @@ function makeLevel(n) {
   let x = 0, y = 0, z = -2.5, run = 0, sinceSave = 0;
   const on = (len) => { z -= len; run += len; sinceSave += len; };
   const r2 = (v) => Math.round(v * 100) / 100;
-  function straight(len, w) {
+  function straight(len, w, ring = false) {
     pieces.push(F(x, z - len / 2, w, len, y));
-    if (sinceSave >= saveEvery && len >= 4) { gates.push([x, y, r2(z - len / 2)]); sinceSave = -len / 2; }
+    if ((ring || sinceSave >= saveEvery) && len >= 4) { gates.push([x, y, r2(z - len / 2)]); sinceSave = -len / 2; }
     on(len);
   }
   function jog(w) {                                     // a step sideways, two square turns
@@ -582,6 +592,15 @@ function makeLevel(n) {
     on(len);
     straight(r2(3 + r() * 2), w);
   }
+  let rides = 0;
+  function ride() {                                     // the sky train: on at one station, off at the next
+    rides++;
+    straight(6, wide, true);                            // the platform, with a ring on it
+    const D = r2(W(18, 26)), gap = D + TRAIN_DECK, runT = W(3.8, 3.0), dwellT = r2(W(3.8, 2.8));
+    pieces.push(TRAIN(x, r2(z - gap / 2), 1.8, y, r2(D / 2), r2(2 * dwellT + 2 * runT), dwellT, r2(r() * 6.28), r2(W(0.35, 0.8))));
+    on(gap);
+    straight(r2(6 + r() * 3), wide);                    // the next station
+  }
   function cross(w) {                                   // flying cars across the road, and a light to cross by
     const two = n >= 20 && r() < 0.35 + 0.4 * g;         // later, two lanes going opposite ways
     const d = two ? 3.8 : 2.4, speed = r2(W(7, 11) + r());
@@ -609,12 +628,12 @@ function makeLevel(n) {
   }
   // Every other feature is the district's own, so it carries the district;
   // the rest are what came before. The Express draws on everything.
-  const ALL = ['bridge', 'slide', 'shuttle', 'boostJump', 'jump', 'jog', 'ramp', 'narrow', 'cross'];
-  const OWN = [['jog', 'ramp', 'narrow', 'ramp', 'cross'], ['slide', 'shuttle'], ['bridge'], ['jump', 'boostJump', 'boost'], ALL];
+  const ALL = ['bridge', 'slide', 'shuttle', 'boostJump', 'jump', 'jog', 'ramp', 'narrow', 'cross', 'ride'];
+  const OWN = [['jog', 'ramp', 'narrow', 'ramp', 'cross'], ['slide', 'shuttle', 'ride'], ['bridge'], ['jump', 'boostJump', 'boost'], ALL];
   const EARLIER = [['jog', 'narrow'], ['jog', 'ramp', 'narrow', 'cross'], ['jog', 'slide', 'shuttle', 'narrow', 'cross'],
                    ['bridge', 'slide', 'shuttle', 'jog', 'cross'], ALL];
   // What a level opens with: its district's new thing, and a crossing where they begin.
-  const OPENER = ['jog', 'slide', 'bridge', 'jump', 'boostJump'], opener = n === 5 ? 'cross' : OPENER[d];
+  const OPENER = ['jog', 'slide', 'bridge', 'jump', 'boostJump'], opener = n === 5 ? 'cross' : n === 13 ? 'ride' : OPENER[d];
   const features = 2 + Math.round(k * 2) + d, length = 45 + 155 * g;
   straight(5, wide);
   for (let f = 0; f < features + 8 && (f < features || run < length); f++) {
@@ -630,6 +649,7 @@ function makeLevel(n) {
     else if (pick === 'jump') jump(wide);
     else if (pick === 'boostJump') boostJump(wide);
     else if (pick === 'cross' && n >= 5) cross(w);
+    else if (pick === 'ride') { if (n >= 13 && !rides) ride(); else shuttle(); }
     else jog(w);
     straight(r2(mix(6, 4, g) + r() * 3), r() < 0.5 ? wide : narrow);
   }
@@ -639,7 +659,7 @@ function makeLevel(n) {
 const LEVELS = Array.from({ length: 40 }, (_, i) => makeLevel(i + 1));
 
 let levelGroup = null;
-let colliders = [], ferries = [], holos = [], pads = [], crossings = [], gates = [], goal = null, level = null;
+let colliders = [], ferries = [], holos = [], pads = [], crossings = [], riders = [], gates = [], goal = null, level = null;
 
 function platformGeometry(w, h, d) {
   const g = new RoundedBoxGeometry(w, h, d, 3, Math.min(0.14, h / 2 - 0.01));
@@ -711,6 +731,7 @@ function dressPiece(c, pc, w, d) {
     }
     pads.push(c);
   } else if (pc.t === 'cross') buildCrossing(c, pc, w, d);
+  else if (pc.t === 'train') buildRide(c, pc, w, d);
 }
 // BoxGeometry's face order: +x, -x, +y (top), -y, +z, -z.
 function holoFaces(c) { const [side, top, under] = c.holoMats; c.mesh.material = [side, side, top, under, side, side]; }
@@ -796,6 +817,74 @@ function buildCrossing(c, pc, w, d) {
   c.cross = X;
   crossings.push(c);
 }
+/* RIDING THE SKY TRAIN (owner, 2026-09-27; the second of the three). The road
+   stops at a station and the sky train comes in along the road's line: the
+   same train as the city's, with a deck on its roof in the moving pads' pale
+   blue grid, so it reads as something you can ride. It waits, its amber
+   corner lights blink and a chime sounds just before it goes, and it runs to
+   the next station and waits there. The marble feels the train pull away and
+   brake (`pull`): hold on, or roll off the back. */
+function buildRide(c, pc, w, d) {
+  const model = trainModel(neonEnvMap() || envTex);
+  model.rotation.y = Math.PI / 2;                       // its length along z, the front toward -z
+  model.position.y = -TRAIN_H / 2 - 1.0;                // its roof under the deck
+  model.scale.z = 1.6;                                  // wider than the deck, so from above it reads as a train
+  c.mesh.add(model);
+  /* The roof falls away either side of the deck. Two sloping surfaces ride
+     with the train there, so a marble that slips off the deck's side rolls
+     off the roof rather than sinking into it. */
+  c.riders = [];
+  for (const sx of [-1, 1]) {
+    const q = new Quaternion().setFromEuler(new Euler(0, 0, -sx * 0.45));
+    const off = new Vector3(sx * 1.12, -0.32, 0);
+    const r = { pos: c.pos.clone().add(off), prev: new Vector3(), quat: q, inv: q.clone().invert(),
+                half: new Vector3(0.26, 0.05, d / 2), delta: new Vector3(), ferry: c.ferry, off };
+    c.riders.push(r); riders.push(r);
+  }
+  const beacons = [];
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+    const b = new Group();
+    const lamp = new Mesh(new CircleGeometry(0.11, 20), new MeshBasicMaterial({ color: 0xFFB23F, toneMapped: false }));
+    const halo = new Mesh(new PlaneGeometry(0.9, 0.9), glowMat(0xFFB23F, 0.8, dot));
+    lamp.rotation.x = halo.rotation.x = -Math.PI / 2; halo.position.y = 0.004;
+    b.add(lamp, halo);
+    b.position.set(sx * (w / 2 - 0.18), TRAIN_H / 2 + 0.014, sz * (d / 2 - 0.35));
+    c.mesh.add(b); beacons.push(b);
+  }
+  // The guideway between the stations, under the train's path.
+  const zA = pc.z + pc.amp + d / 2, zB = pc.z - pc.amp - d / 2, len = zA - zB;
+  const beam = new Mesh(new BoxGeometry(0.9, 0.45, len), new MeshStandardMaterial({ color: 0x1A2233, metalness: 0.65, roughness: 0.3,
+    envMap: neonEnvMap() || envTex, emissive: 0x34E0FF, emissiveIntensity: 0.06 }));
+  beam.position.set(pc.x, pc.y - TRAIN_H - 1.8 - 0.5, (zA + zB) / 2);
+  levelGroup.add(beam);
+  for (const sx of [-1, 1]) {
+    const rail = new Mesh(new BoxGeometry(0.06, 0.05, len), new MeshBasicMaterial({ color: 0x5FE8FF, toneMapped: false }));
+    rail.position.set(pc.x + sx * 0.3, pc.y - TRAIN_H - 1.8 - 0.25, (zA + zB) / 2);
+    levelGroup.add(rail);
+  }
+  c.train = { pull: pc.pull, model, beacons, warned: false };
+  c.ferry.v = 0; c.ferry.a = 0;
+}
+// At which end of its run a moving pad is waiting (1 the +amp end, -1 the other,
+// 0 moving), and for how much longer.
+function ferryStop(f, t) {
+  const u = ((t / f.period + f.phase / (2 * Math.PI)) % 1 + 1) % 1, a = f.dwell / f.period;
+  if (u < a) return { end: 1, left: (a - u) * f.period };
+  if (u >= 0.5 && u < 0.5 + a) return { end: -1, left: (0.5 + a - u) * f.period };
+  return { end: 0, left: 0 };
+}
+function animateRides() {
+  for (const c of ferries) {
+    if (!c.train) continue;
+    const st = ferryStop(c.ferry, simT), T = c.train;
+    const warn = st.end !== 0 && st.left < 1.2;
+    const on = warn && (REDUCED || Math.floor(st.left * 5) % 2 === 0);
+    for (const b of T.beacons) b.visible = on;
+    if (warn && !T.warned && ball.p.distanceTo(c.pos) < 30) sound('depart');
+    T.warned = warn;
+  }
+}
+
 // Where each car of a lane is along it, at time t: s runs the way the lane goes.
 const carS = (lane, i, t) => (((lane.speed * t + lane.phase * lane.len + lane.at[i]) % lane.len) + lane.len) % lane.len;
 function crossingGreen(X, t) {
@@ -841,7 +930,8 @@ function animateCrossings() {
 }
 
 function buildPiece(pc) {
-  const h = THICK, quat = new Quaternion(), center = new Vector3();
+  let h = THICK;
+  const quat = new Quaternion(), center = new Vector3();
   let w = pc.w, d = pc.d;
   if (pc.t === 'ramp') {
     const len = pc.z0 - pc.z1, dy = pc.y1 - pc.y0;
@@ -849,10 +939,13 @@ function buildPiece(pc) {
     quat.setFromEuler(new Euler(Math.atan2(dy, len), 0, 0));
     const up = new Vector3(0, 1, 0).applyQuaternion(quat);
     center.set(pc.x, (pc.y0 + pc.y1) / 2, (pc.z0 + pc.z1) / 2).addScaledVector(up, -h / 2);
+  } else if (pc.t === 'train') {
+    h = TRAIN_H;
+    center.set(pc.x, pc.y - h / 2, pc.z);
   } else {
     center.set(pc.x, pc.y - h / 2, pc.z);
   }
-  const isFerry = pc.t === 'ferry';
+  const isFerry = pc.t === 'ferry' || pc.t === 'train';
   const mesh = new Mesh(platformGeometry(w, h, d), faceMats(isFerry ? ferryStone : stone));
   mesh.position.copy(center); mesh.quaternion.copy(quat);
   mesh.castShadow = true; mesh.receiveShadow = true;
@@ -891,6 +984,7 @@ function loadLevel(n) {
   if (levelGroup) {
     for (const c of holos) for (const m of c.holoMats) m.dispose();
     for (const c of pads) if (c.padFx.tex) c.padFx.tex.dispose();
+    for (const c of ferries) if (c.train) for (const t of c.train.model.userData.maps) t.dispose();
     scene.remove(levelGroup);
     levelGroup.traverse((o) => {
       if (o.geometry) o.geometry.dispose();
@@ -900,7 +994,7 @@ function loadLevel(n) {
   }
   levelGroup = new Group();
   scene.add(levelGroup);
-  colliders = []; ferries = []; holos = []; pads = []; crossings = []; gates = [];
+  colliders = []; ferries = []; holos = []; pads = []; crossings = []; riders = []; gates = [];
   for (const pc of level.pieces) buildPiece(pc);
   if (world.name !== 'void') setWorld(world.name);   // scenery that follows the course is rebuilt for it
   level.minTop = Math.min(...level.pieces.map((p) => (p.t === 'ramp' ? Math.min(p.y0, p.y1) : p.y)));
@@ -939,6 +1033,10 @@ function updateFerry(c, t) {
   c.pos.copy(f.base);
   c.pos[f.axis] += f.amp * ferryAt(f, t);
   c.delta.subVectors(c.pos, c.prev);
+  if (c.train) {
+    const v = c.delta[f.axis] / STEP; f.a = t > STEP ? (v - f.v) / STEP : 0; f.v = v;
+    for (const r of c.riders) { r.prev.copy(r.pos); r.pos.copy(c.pos).add(r.off); r.delta.copy(c.delta); }
+  }
   c.mesh.position.copy(c.pos);
 }
 
@@ -1001,7 +1099,11 @@ function collide(c, dt) {
 function step(dt, ix, iz) {
   simT += dt;
   for (const c of ferries) updateFerry(c, simT);
-  if (ball.onFerry) ball.p.add(ball.onFerry.delta);      // a pad carries what rests on it
+  if (ball.onFerry) {
+    ball.p.add(ball.onFerry.delta);                    // a pad carries what rests on it
+    const T = ball.onFerry.train;                      // and a train pulls on what rides it
+    if (T) ball.v[ball.onFerry.ferry.axis] -= ball.onFerry.ferry.a * T.pull * dt;
+  }
   const a = ball.grounded ? ACC_GROUND : ACC_AIR;
   ball.v.x += ix * a * dt; ball.v.z += iz * a * dt;
   ball.v.y = Math.max(-30, ball.v.y - G * dt);
@@ -1012,6 +1114,7 @@ function step(dt, ix, iz) {
   ball.p.addScaledVector(ball.v, dt);
   ball.grounded = false; ball.onFerry = null; ball.pad = null;
   for (const c of colliders) collide(c, dt);
+  for (const c of riders) collide(c, dt);
   ball.boostT = Math.max(0, ball.boostT - dt); ball.jumpCD = Math.max(0, ball.jumpCD - dt); ball.hitT = Math.max(0, ball.hitT - dt);
   for (const c of crossings) crossStep(c, simT);
   if (ball.pad === 'boost') {
@@ -1191,6 +1294,7 @@ function update(dt, now) {
   animateRings(now, dt);
   animatePieces(dt);
   animateCrossings();
+  animateRides();
   updateSparks(dt);
   updateCamera(dt, false);
   updateSunPoint();
@@ -1517,6 +1621,7 @@ function drawGhost(now) {
 const NEWS = {
   5: 'Flying cars cross the road. Wait at the line for the green light',
   9: 'Some pads move. Wait for one to line up with the path, then roll on',
+  13: 'The sky train stops here. Roll onto its roof, and hold on when it moves',
   17: 'Bridges switch off and on. Cross while they are lit',
   25: 'Yellow arrows speed you up. Yellow rings throw you over a gap',
   33: 'The Express: everything at once, on the longest courses',
@@ -1545,6 +1650,7 @@ const RULES = [
   'Roll off the edge and the marble flies back to the last green ring. The fall is counted, and nothing else is lost.',
   'Flying cars cross some roads. Wait at the line for the green light, then roll across.',
   'Some pads move. Wait for one to line up with the path, roll on, and ride it across.',
+  'The sky train stops at stations. Roll onto its roof, hold on as it pulls away, and roll off at the next station.',
   'See-through bridges switch off and on. Cross while they are lit. They flicker just before they go dark.',
   'Yellow arrows speed the marble up. Yellow rings throw it into the air, over the gap ahead.',
 ];
@@ -2473,6 +2579,72 @@ function loft(len, prof, stations, around) {
   g.setIndex(idx); g.computeVertexNormals();
   return g;
 }
+/* The sky train as one model, for the city's line and for the train you ride.
+   Its length runs along x, the front at +x. */
+const TRAIN_LEN = 30, TRAIN_NOSE = 6;
+function trainModel(env) {
+  // The sky train: ONE body, lofted from nose to nose. Pearl white, a dark
+  // skirt, a cyan line along each side, windows on the sides only, a
+  // windscreen wrapped over each nose, white lights at the front and red at
+  // the back, and a cyan glow underneath where it floats over the track.
+  const TL = TRAIN_LEN, NOSE = TRAIN_NOSE;
+  const trainProf = (t) => {
+    const d = Math.min(t, 1 - t) * TL;
+    if (d >= NOSE) return { w: 0.9, top: 1.0, bot: -0.8 };
+    const k = d / NOSE, round = Math.sqrt(1 - (1 - k) * (1 - k));   // the roof sweeps down to a low tip
+    return { w: 0.9 * (0.02 + 0.98 * Math.sqrt(k)), top: -0.62 + 1.62 * round, bot: -0.8 + 0.2 * (1 - k) * (1 - k) };
+  };
+  // Texture space: u runs along the train (0 the back, 1 the front), v round
+  // its section from the bottom (0.25 the right side, 0.5 the roof, 0.75 the left).
+  const W = 2048, H = 256, noseU = NOSE / TL;
+  const band = (g, v0, v1, fill, u0 = 0, u1 = 1) => { g.fillStyle = fill; g.fillRect(u0 * W, (1 - v1) * H, (u1 - u0) * W, (v1 - v0) * H); };
+  const sides = [[0.253, 0.305], [0.695, 0.747]], stripes = [[0.222, 0.238], [0.762, 0.778]];
+  const trainMap = canvasTex(W, H, (g) => {
+    band(g, 0, 1, '#EEF2F8');
+    band(g, 0, 0.17, '#2A3244'); band(g, 0.83, 1, '#2A3244');                     // the dark skirt
+    for (const [a, b] of stripes) band(g, a, b, '#34C9E0');
+    for (const [a, b] of sides) {
+      band(g, a, b, '#16203A', noseU + 0.015, 1 - noseU - 0.015);                  // the window band, sides only
+      for (let x = (noseU + 0.03) * W, i = 0; x < (1 - noseU - 0.03) * W - 60; x += 92, i++) {
+        g.fillStyle = i % 5 === 2 ? '#0B1224' : '#BFEFFF';                         // every fifth a door
+        g.fillRect(x, (1 - b) * H + 2, 64, (b - a) * H - 4);
+      }
+    }
+    for (const [u0, u1] of [[0.04, noseU - 0.012], [1 - noseU + 0.012, 0.96]]) {  // windscreens over the noses
+      const gr = g.createLinearGradient(0, 0.25 * H, 0, 0.75 * H);
+      gr.addColorStop(0, '#0E1626'); gr.addColorStop(0.5, '#3A4C70'); gr.addColorStop(1, '#0E1626');
+      g.fillStyle = gr; g.fillRect(u0 * W, 0.28 * H, (u1 - u0) * W, 0.44 * H);
+    }
+  });
+  const trainGlow = canvasTex(W, H, (g) => {
+    band(g, 0, 1, '#000');
+    for (const [a, b] of stripes) band(g, a, b, '#1FA8C0');
+    for (const [a, b] of sides) for (let x = (noseU + 0.03) * W, i = 0; x < (1 - noseU - 0.03) * W - 60; x += 92, i++) {
+      if (i % 5 === 2) continue;
+      g.fillStyle = '#9FEFFF'; g.fillRect(x, (1 - b) * H + 2, 64, (b - a) * H - 4);
+    }
+    for (const v of [0.21, 0.79]) {                                               // headlights and tail lights
+      g.fillStyle = '#FFFFFF'; g.fillRect(0.975 * W, (1 - v - 0.02) * H, 0.018 * W, 0.04 * H);
+      g.fillStyle = '#FF2D48'; g.fillRect(0.007 * W, (1 - v - 0.02) * H, 0.018 * W, 0.04 * H);
+    }
+  });
+  const train = new Group();
+  train.userData.maps = [trainMap, trainGlow];
+  const trainBody = new Mesh(loft(TL, trainProf, 90, 36), new MeshStandardMaterial({ map: trainMap, emissive: 0xFFFFFF, emissiveMap: trainGlow,
+    emissiveIntensity: 1.1, metalness: 0.35, roughness: 0.3, envMap: env }));
+  train.add(trainBody);
+  const glowTex = canvasTex(64, 64, (g) => {
+    const lg = g.createLinearGradient(0, 0, 0, 64);
+    lg.addColorStop(0, 'rgba(0,0,0,1)'); lg.addColorStop(0.5, 'rgba(255,255,255,1)'); lg.addColorStop(1, 'rgba(0,0,0,1)');
+    g.fillStyle = lg; g.fillRect(0, 0, 64, 64);
+  });
+  const hover = new Mesh(new PlaneGeometry(TL - 8, 1.1), new MeshBasicMaterial({ map: glowTex, color: 0x34E0FF, transparent: true,
+    blending: AdditiveBlending, depthWrite: false, toneMapped: false }));
+  hover.rotation.x = -Math.PI / 2; hover.position.y = -0.92; train.add(hover);
+  train.userData.maps.push(glowTex);
+  return train;
+}
+
 /* A flying car's parts: a lofted body in its own paint, a dark glass canopy,
    LED strips across the nose and the tail, a soft cone of light ahead and a
    glow underneath. The city draws many at once with instancing; a crossing
@@ -2576,63 +2748,7 @@ function futureCity(G, tops, r) {
   }
   placeCars();
 
-  // The sky train: ONE body, lofted from nose to nose. Pearl white, a dark
-  // skirt, a cyan line along each side, windows on the sides only, a
-  // windscreen wrapped over each nose, white lights at the front and red at
-  // the back, and a cyan glow underneath where it floats over the track.
-  const TL = 30, NOSE = 6;
-  const trainProf = (t) => {
-    const d = Math.min(t, 1 - t) * TL;
-    if (d >= NOSE) return { w: 0.9, top: 1.0, bot: -0.8 };
-    const k = d / NOSE, round = Math.sqrt(1 - (1 - k) * (1 - k));   // the roof sweeps down to a low tip
-    return { w: 0.9 * (0.02 + 0.98 * Math.sqrt(k)), top: -0.62 + 1.62 * round, bot: -0.8 + 0.2 * (1 - k) * (1 - k) };
-  };
-  // Texture space: u runs along the train (0 the back, 1 the front), v round
-  // its section from the bottom (0.25 the right side, 0.5 the roof, 0.75 the left).
-  const W = 2048, H = 256, noseU = NOSE / TL;
-  const band = (g, v0, v1, fill, u0 = 0, u1 = 1) => { g.fillStyle = fill; g.fillRect(u0 * W, (1 - v1) * H, (u1 - u0) * W, (v1 - v0) * H); };
-  const sides = [[0.253, 0.305], [0.695, 0.747]], stripes = [[0.222, 0.238], [0.762, 0.778]];
-  const trainMap = canvasTex(W, H, (g) => {
-    band(g, 0, 1, '#EEF2F8');
-    band(g, 0, 0.17, '#2A3244'); band(g, 0.83, 1, '#2A3244');                     // the dark skirt
-    for (const [a, b] of stripes) band(g, a, b, '#34C9E0');
-    for (const [a, b] of sides) {
-      band(g, a, b, '#16203A', noseU + 0.015, 1 - noseU - 0.015);                  // the window band, sides only
-      for (let x = (noseU + 0.03) * W, i = 0; x < (1 - noseU - 0.03) * W - 60; x += 92, i++) {
-        g.fillStyle = i % 5 === 2 ? '#0B1224' : '#BFEFFF';                         // every fifth a door
-        g.fillRect(x, (1 - b) * H + 2, 64, (b - a) * H - 4);
-      }
-    }
-    for (const [u0, u1] of [[0.04, noseU - 0.012], [1 - noseU + 0.012, 0.96]]) {  // windscreens over the noses
-      const gr = g.createLinearGradient(0, 0.25 * H, 0, 0.75 * H);
-      gr.addColorStop(0, '#0E1626'); gr.addColorStop(0.5, '#3A4C70'); gr.addColorStop(1, '#0E1626');
-      g.fillStyle = gr; g.fillRect(u0 * W, 0.28 * H, (u1 - u0) * W, 0.44 * H);
-    }
-  });
-  const trainGlow = canvasTex(W, H, (g) => {
-    band(g, 0, 1, '#000');
-    for (const [a, b] of stripes) band(g, a, b, '#1FA8C0');
-    for (const [a, b] of sides) for (let x = (noseU + 0.03) * W, i = 0; x < (1 - noseU - 0.03) * W - 60; x += 92, i++) {
-      if (i % 5 === 2) continue;
-      g.fillStyle = '#9FEFFF'; g.fillRect(x, (1 - b) * H + 2, 64, (b - a) * H - 4);
-    }
-    for (const v of [0.21, 0.79]) {                                               // headlights and tail lights
-      g.fillStyle = '#FFFFFF'; g.fillRect(0.975 * W, (1 - v - 0.02) * H, 0.018 * W, 0.04 * H);
-      g.fillStyle = '#FF2D48'; g.fillRect(0.007 * W, (1 - v - 0.02) * H, 0.018 * W, 0.04 * H);
-    }
-  });
-  const train = new Group();
-  const trainBody = new Mesh(loft(TL, trainProf, 90, 36), new MeshStandardMaterial({ map: trainMap, emissive: 0xFFFFFF, emissiveMap: trainGlow,
-    emissiveIntensity: 1.1, metalness: 0.35, roughness: 0.3, envMap: env }));
-  train.add(trainBody);
-  const glowTex = canvasTex(64, 64, (g) => {
-    const lg = g.createLinearGradient(0, 0, 0, 64);
-    lg.addColorStop(0, 'rgba(0,0,0,1)'); lg.addColorStop(0.5, 'rgba(255,255,255,1)'); lg.addColorStop(1, 'rgba(0,0,0,1)');
-    g.fillStyle = lg; g.fillRect(0, 0, 64, 64);
-  });
-  const hover = new Mesh(new PlaneGeometry(TL - 8, 1.1), new MeshBasicMaterial({ map: glowTex, color: 0x34E0FF, transparent: true,
-    blending: AdditiveBlending, depthWrite: false, toneMapped: false }));
-  hover.rotation.x = -Math.PI / 2; hover.position.y = -0.92; train.add(hover);
+  const train = trainModel(env);
   train.position.set(-95, -5, TRAIN_Z); G.add(train);
   cityRefs.train = train;
   cityRefs.cars = () => cars.map((c) => { body.getMatrixAt(cars.indexOf(c), m); return new Vector3().setFromMatrixPosition(m).toArray(); });
