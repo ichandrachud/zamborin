@@ -11234,7 +11234,7 @@ requestAnimationFrame(frame);
    lagoon, space, crystal, blocks, valley), and #void is the dark void the
    game started with. */
 function worldFromHash() {
-  const [h, v] = location.hash.slice(1).split('-');
+  const [h, v, lv] = location.hash.slice(1).split('-');
   if (h === 'level') {                                  // #level-17 opens course 17, to look at one
     const n = parseInt(v, 10);
     if (n >= 1 && n <= LEVELS.length) loadLevel(n);
@@ -11245,7 +11245,11 @@ function worldFromHash() {
     neonStyle = ['grid', 'glowgrid', 'edges', 'frosted'].includes(v) ? v : 'glowgrid';   // #neon-edges and so on
     neonLive = v !== 'still';                                                            // #neon-still: the city unmoving
   }
-  if (name === 'tokyo' && TUBE_LOOKS[v]) tokyoTube = v;                                   // #tokyo-dragon and so on: the glass tube's look
+  if (name === 'tokyo' && TUBE_LOOKS[v]) {                                              // #tokyo-dragon and so on: the glass tube's look;
+    tokyoTube = v;                                                                        // #tokyo-dragon-29 opens course 29 with it
+    const n = parseInt(lv, 10);
+    if (n >= 1 && n <= LEVELS.length) loadLevel(n);
+  }
   setWorld(WORLDS[name] ? name : 'void');
 }
 worldFromHash();
