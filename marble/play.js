@@ -624,7 +624,7 @@ const LOOP_RUN = Math.round(2 * (LOOP_RA - LOOP_R) * Math.sin(LOOP_A) * 100) / 1
 const LOOP = (x, z, w, y, shift) => ({ t: 'loop', x, z, w, d: 0.1, y, shift });
 // The course through a wormhole's world: short, its own shapes, its own rule.
 function makePocket(n) {
-  const r = seeded(4242 + n * 131), g = (n - 1) / 39, W = (a, b) => mix(a, b, g);
+  const r = seeded(4242 + n * 131), g = Math.min(1, (n - 1) / 39), W = (a, b) => mix(a, b, g), e = Math.max(0, (n - 40) / 60);
   const r2 = (v) => Math.round(v * 100) / 100;
   const wide = r2(W(4, 2.6)), narrow = r2(Math.max(1.5, W(2.6, 1.6)));
   const pieces = [F(0, 0, 5, 5)];
@@ -691,7 +691,7 @@ function makePocket(n) {
   if (n >= 20) pool.push('fireballs');
   if (n >= 22) pool.push('crack');
   const intro = { 11: 'shards', 13: 'fire', 20: 'fireballs', 22: 'crack' }[n];
-  for (let f = 2 + Math.round(g * 3); f > 0; f--) {
+  for (let f = 2 + Math.round(g * 3) + Math.round(2 * e); f > 0; f--) {
     const pick = intro && f === 2 + Math.round(g * 3) ? intro : pool[Math.floor(r() * pool.length)];
     if (pick === 'shards') shardRows();
     else if (pick === 'fire') fireLine();
@@ -796,6 +796,14 @@ const LIGHT = { m: { mirror: '/' }, n: { mirror: '\\' }, S: { source: 'e' }, T: 
 const CHARGE = { C: { charger: 1 }, G: { ground: 1 }, F: { magnet: 1 }, E: { cgate: 1 } };
 const SWITCHES = { X: { switch: 'A' }, Y: { switch: 'B' }, Z: { switch: 'C' },
                    A: { sgate: 'A' }, a: { sgate: 'A', open: 1 }, B: { sgate: 'B' }, b: { sgate: 'B', open: 1 }, C: { sgate: 'C' }, c: { sgate: 'C', open: 1 } };
+// The squares past level 40 were found by a search that mixes the mechanics (pzgen.js: keys, switches, crates and plates,
+// charge, light), aimed at a number of steps that climbs with the level, rewarding dead ends and punishing clutter. One
+// legend serves them all.
+const GEN = { a: { key: 1 }, b: { key: 2 }, A: { keygate: 1 }, B: { keygate: 2 },
+              x: { switch: 'A' }, y: { switch: 'B' }, X: { sgate: 'A' }, Y: { sgate: 'B' }, u: { sgate: 'A', open: 1 }, v: { sgate: 'B', open: 1 },
+              W: { weight: 1 }, P: { plate: 'A' }, Q: { plate: 'B' }, G: { pgate: 'A' }, H: { pgate: 'B' },
+              z: { charger: 1 }, g: { ground: 1 }, f: { magnet: 1 }, E: { cgate: 1 },
+              m: { mirror: '/' }, n: { mirror: '\\' }, S: { source: 'e' }, T: { source: 'w' }, R: { receptor: 1 }, L: { lgate: 1 } };
 const PLAZAS = {
   // The first: the way out is locked, and its key is in a room whose door is round the far side.
   K1: { entry: 2, exit: 2, legend: KEYS, map: [
@@ -1085,6 +1093,907 @@ const PLAZAS = {
     '+ + + + + +',
     '|. . . . .|',
     '+-+-+ +-+-+'] },
+  // PAST 40
+  // The squares of levels 41-100 (found by pzgen.js, one for each level, each harder than the one before).
+  G41: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+A+-+-+',
+    '|.|.|. . .|',
+    '+-+ +-+ +A+',
+    'R. n . .|.|',
+    '+A+-+-+A+ +',
+    '|. n a|.|.T',
+    '+B+ +-+ + +',
+    '|a|m .A. .|',
+    '+ + +-+ + +',
+    '|. b .|. .|',
+    '+-+-+ +-+-+',
+  ] },
+  G42: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+B+-+-+',
+    '|b .|g|. .|',
+    '+ + + + +-+',
+    '|. .|f . a|',
+    '+-+ + +E+ +',
+    '|. a|.B.Bg|',
+    '+B+ +-+ +A+',
+    '|z|. .|. .|',
+    '+ + +-+-+ +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',
+  ] },
+  G43: { entry: 2, exit: 2, legend: GEN, map: [
+    '+R+-+G+-+-+',
+    '|. .|m .|.|',
+    '+ +-+ + +G+',
+    '|. . n|. .|',
+    '+ + +L+-+ +',
+    '|. . W .|n|',
+    '+ + + + + +',
+    '|. W . P .T',
+    '+ +H+ + + +',
+    '|QL. . . .|',
+    '+-+-+ +-+-+',
+  ] },
+  G44: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+G+-+-+',
+    '|. .|.X. .|',
+    '+ +-+ + + +',
+    '|P|.|.|. .|',
+    '+ + +G+-+v+',
+    '|. .|. .|x|',
+    '+ + + +X+ +',
+    '|. W . W .|',
+    '+u+ +-+ + +',
+    '|x . . y .|',
+    '+-+-+ +-+-+',
+  ] },
+  G45: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+A+-+-+',
+    '|a .|. .|.|',
+    '+ +-+-+A+ +',
+    '|. y a|. .|',
+    '+ +A+ +A+ +',
+    '|x .|. .|.|',
+    '+ +u+ + + +',
+    '|. .A. x .|',
+    '+ + + + +-+',
+    '|. b . . .|',
+    '+-+-+ +-+-+',
+  ] },
+  G46: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+G+-+-+',
+    '|.|.X. x x|',
+    '+ +-+-+X+ +',
+    '|. . W . .|',
+    '+ + + + + +',
+    '|P . . .Y.|',
+    '+-+ + +G+-+',
+    '|. . y|.|.|',
+    '+ + + +-+ +',
+    '|. . . .|.|',
+    '+-+-+ +-+-+',
+  ] },
+  G47: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+B+-+-+',
+    '|. bB.ux .|',
+    '+ + +-+ + +',
+    '|.|.|y .|.|',
+    '+ +-+ + +-+',
+    '|. a a xu.|',
+    '+ + +B+ + +',
+    '|.|. . . .|',
+    '+ +-+ + +Y+',
+    '|. . . . .|',
+    '+-+-+ +-+-+',
+  ] },
+  G48: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+G+-+-+',
+    '|.|.Hz|. f|',
+    '+ +-+ + +-+',
+    '|.|. W . .|',
+    '+ + + + + +',
+    '|P f f g .|',
+    '+ +-+ +-+ +',
+    '|g .|Q W .|',
+    '+ +G+ +-+G+',
+    '|. . . .H.|',
+    '+-+-+ +-+-+',
+  ] },
+  G49: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+A+-+-+',
+    '|.|a|.|. .|',
+    '+ + +A+ +-+',
+    '|.|gA.A.|.|',
+    '+-+ + + + +',
+    '|. . g . .|',
+    '+ +A+-+ + +',
+    '|.|.B. b .|',
+    '+-+ + +-+ +',
+    '|z a|. . .|',
+    '+-+-+ +-+-+',
+  ] },
+  G50: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+G+-+-+',
+    '|QH.G.|f .|',
+    '+ + + + +-+',
+    '|.|g g . .|',
+    '+ + + + + +',
+    '|.|WGf|. .|',
+    '+ + + + + +',
+    '|z . . P .|',
+    '+ + +E+ + +',
+    '|. . . W .|',
+    '+-+-+ +-+-+',
+  ] },
+  G51: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+Y+-+-+',
+    '|. m m . .|',
+    '+ +-+-+ + +',
+    'Rn .|n . .|',
+    '+ +-+u+ + +',
+    'S.|.|. . .|',
+    '+ +Y+v+ +v+',
+    '|.|y .X.|.|',
+    '+ + +-+-+-+',
+    '|x|. . . .|',
+    '+-+-+ +-+-+',
+  ] },
+  G52: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+H+-+-+',
+    '|Q . . .G.|',
+    '+-+ +-+ + +',
+    '|. .|.G. .|',
+    '+ + + + + +',
+    '|.G. . P .|',
+    '+ +G+ + +-+',
+    '|f z WGW g|',
+    '+ + + + + +',
+    '|f g|. .|.|',
+    '+-+-+ +-+-+',
+  ] },
+  G53: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+H+-+-+',
+    '|b a . . .|',
+    '+ + + +A+-+',
+    '|. W . .|.|',
+    '+ + + + + +',
+    '|. QB.|a|.|',
+    '+ + + +-+ +',
+    '|.G.|W|. .|',
+    '+-+A+ +A+ +',
+    '|P .|. . .|',
+    '+-+-+ +-+-+',
+  ] },
+  G54: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+H+-+-+',
+    '|m . . . m|',
+    '+ + +L+-+-+',
+    'R. . . n .|',
+    '+-+ + + + +',
+    '|. W|. . .T',
+    '+L+ + + +H+',
+    '|.H. W .|.|',
+    '+-+-+ + +-+',
+    '|.|. . Q|.|',
+    '+-+-+ +-+-+',
+  ] },
+  G55: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+B+-+-+',
+    'R. .|m|. .|',
+    '+A+-+ + +-+',
+    '|. .|.|. .|',
+    '+A+ + + + +',
+    'S. a . n a|',
+    '+ +-+-+-+ +',
+    '|m .B. b n|',
+    '+ + +-+ +-+',
+    '|.|. .|.|.|',
+    '+-+-+ +-+-+',
+  ] },
+  G56: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+A+-+-+',
+    '|.|. .|. y|',
+    '+-+-+ + + +',
+    '|x a|.|.|.|',
+    '+ +-+A+ + +',
+    '|.|.Ab .A.|',
+    '+ + +-+ + +',
+    '|.|x . .|a|',
+    '+X+ + +Y+-+',
+    '|. .|. .|.|',
+    '+-+-+ +-+-+',
+  ] },
+  G57: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+H+-+-+',
+    '|. . . . .|',
+    '+ + + +Y+G+',
+    '|. . x y P|',
+    '+ + + + +X+',
+    '|. Wu. W|x|',
+    '+-+ + + + +',
+    '|. . .G. Q|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',
+  ] },
+  G58: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+G+-+-+',
+    '|. . a . W|',
+    '+A+-+ + +-+',
+    '|. W . . .|',
+    '+ +-+ + +A+',
+    '|. .AQ .A.|',
+    '+ + + +A+-+',
+    '|. . b . .|',
+    '+-+-+ + +-+',
+    '|. P . .|.|',
+    '+-+-+ +-+-+',
+  ] },
+  G59: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+A+-+-+',
+    '|.|. x y .|',
+    '+-+ + +v+-+',
+    '|. .|. .|.|',
+    '+ + +-+X+ +',
+    '|.|g|. . .|',
+    '+-+-+ +-+A+',
+    '|f a|b z a|',
+    '+A+ + + +-+',
+    '|. .A.|.|.|',
+    '+ + + + + +',
+    '|. x|.|. .|',
+    '+-+-+ +-+-+',
+  ] },
+  G60: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+L+-+R+',
+    'S. .|. .|n|',
+    '+ + +-+ + +',
+    '|. . .|m .|',
+    '+X+ + + +-+',
+    '|n y a x|.|',
+    '+ +-+L+-+ +',
+    '|bux . . .|',
+    '+ +-+-+A+ +',
+    '|.|. . .Am|',
+    '+ + + + + +',
+    '|.|.|.|. a|',
+    '+-+-+ +-+-+',
+  ] },
+  G61: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+H+-+-+',
+    '|P W . . .|',
+    '+ + +Y+ +-+',
+    '|. .|W a y|',
+    '+ + + +-+G+',
+    '|.|a . Q .|',
+    '+ +-+ + + +',
+    '|x b . .|.|',
+    '+ + +A+X+-+',
+    '|. . .|.|.|',
+    '+-+-+ +-+ +',
+    '|.G.|. .|.|',
+    '+-+-+ +-+-+',
+  ] },
+  G62: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+A+-+-+',
+    '|. .Bn x .|',
+    '+ +-+-+-+ +',
+    '|. . . . m|',
+    '+ +-+-+X+-+',
+    'S. xA. m .|',
+    '+ + +-+ +-+',
+    '|.|b a y|.|',
+    '+ +-+ + +-+',
+    'R.|. .A. .|',
+    '+-+-+ +B+-+',
+    '|. . . .|.|',
+    '+-+-+ +-+-+',
+  ] },
+  G63: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+G+-+-+',
+    '|. .uQ .|.|',
+    '+-+ +-+ + +',
+    '|. yu.|W|P|',
+    '+X+X+ + + +',
+    '|.|.|.|. .|',
+    '+ +-+ + + +',
+    '|. .|. . x|',
+    '+-+-+ + + +',
+    '|.|. a bA.|',
+    '+ +-+ +-+ +',
+    '|. .|.|.|.|',
+    '+-+-+ +-+-+',
+  ] },
+  G64: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+A+-+-+',
+    '|. z . .|.|',
+    '+ + +-+ +u+',
+    '|. . . g f|',
+    '+ + +-+A+ +',
+    '|. bA.|.|.|',
+    '+-+ + +-+-+',
+    '|. y .|.A.|',
+    '+-+-+A+ + +',
+    '|.|. g|x .|',
+    '+ +-+ + +-+',
+    '|. . . a a|',
+    '+-+-+ +-+-+',
+  ] },
+  G65: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+Y+-+-+',
+    '|.B.|. .|.|',
+    '+-+ +-+X+ +',
+    '|. x b W .|',
+    '+X+-+-+-+ +',
+    '|. . a P .|',
+    '+B+-+A+-+ +',
+    '|y|. .|. x|',
+    '+-+-+ + + +',
+    '|. W . . .|',
+    '+ +-+-+ + +',
+    '|. . .|.|.|',
+    '+-+-+ +-+-+',
+  ] },
+  G66: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+A+-+-+',
+    '|. . f . .|',
+    '+ + + +E+-+',
+    '|z W|. g|.|',
+    '+-+ +-+-+-+',
+    '|. . . W P|',
+    '+-+ + + + +',
+    '|.|.|. .A.|',
+    '+ + +-+E+ +',
+    '|. .|.|. a|',
+    '+-+ +-+ + +',
+    '|f b .A.Ag|',
+    '+-+-+ +-+-+',
+  ] },
+  G67: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+G+-+-+',
+    '|. W .A.|.|',
+    '+-+ + +A+B+',
+    '|Q . b . .|',
+    '+ + + +A+-+',
+    '|. . . P a|',
+    '+-+-+ +-+-+',
+    '|. W . a .|',
+    '+ + + + + +',
+    '|.A. . . .|',
+    '+-+-+ +-+-+',
+  ] },
+  G68: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+B+-+-+',
+    '|m|. a|.|.|',
+    '+-+-+ +-+ +',
+    '|. . n n .|',
+    '+-+B+ + + +',
+    '|. .|.|. gR',
+    '+-+-+-+ + +',
+    '|. .|f .A.|',
+    '+ + +A+A+A+',
+    '|.|. g z aT',
+    '+ + + + +-+',
+    '|b m . . .|',
+    '+-+-+ +-+-+',
+  ] },
+  G69: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+A+-+-+',
+    '|.|. .A. .|',
+    '+ + +-+ + +',
+    '|.X. .|W .|',
+    '+ +G+-+ +-+',
+    '|. . . W .|',
+    '+ + +Y+ + +',
+    '|y P a|Q x|',
+    '+ +-+-+A+ +',
+    '|. . a b|.|',
+    '+ + + +-+ +',
+    '|.|. .|.|.|',
+    '+-+-+ +-+-+',
+  ] },
+  G70: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+G+-+-+',
+    'R. .|a . .|',
+    '+A+ + + + +',
+    '|.|.|.|. .T',
+    '+ +-+ +-+A+',
+    '|n W P m m|',
+    '+ + + +H+-+',
+    '|W|n . . .|',
+    '+ + + + + +',
+    '|. a . . Q|',
+    '+ + + + +-+',
+    '|.A. .A. .|',
+    '+-+-+ +-+-+',
+  ] },
+  G71: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+H+-+-+',
+    '|.|.|g|. y|',
+    '+ + + + + +',
+    '|. g|x . .|',
+    '+X+ + + +-+',
+    '|.|Q . . .|',
+    '+X+ +E+ + +',
+    '|x . . f|.|',
+    '+ +-+ +Y+ +',
+    '|WuW . . .|',
+    '+ + + +-+ +',
+    '|. z .|. f|',
+    '+-+-+ +-+-+',
+  ] },
+  G72: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+G+R+-+',
+    '|.L. . . .|',
+    '+ + + + + +',
+    '|. . x|.|.|',
+    '+ +-+ +-+ +',
+    '|W|nG. m x|',
+    '+ + +H+ + +',
+    '|n Q y . .|',
+    '+ + + + +-+',
+    '|. W|.|PX.|',
+    '+-+ +-+ +G+',
+    '|. . .|. .T',
+    '+-+-+ +-+-+',
+  ] },
+  G73: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+A+-+-+',
+    '|y g x|.|.|',
+    '+ +-+-+-+ +',
+    '|. . .A. z|',
+    '+-+-+-+-+X+',
+    '|. . a . .|',
+    '+ + + + + +',
+    '|a f . b .|',
+    '+ +A+-+-+ +',
+    '|.Bx|. f g|',
+    '+ + + +X+ +',
+    '|.|.|. . .|',
+    '+-+-+ +-+-+',
+  ] },
+  G74: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+B+-+-+',
+    '|z|g a|. .|',
+    '+ + +-+ +-+',
+    '|. . W .AP|',
+    '+ +-+ + +-+',
+    '|f .G. g .|',
+    '+-+B+A+-+ +',
+    '|. . . .|W|',
+    '+ + + +-+ +',
+    '|.|.B. . .|',
+    '+ + + +-+ +',
+    '|.|. .|a b|',
+    '+-+-+ +-+-+',
+  ] },
+  G75: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+E+-+-+',
+    '|.|. x xv.|',
+    '+ + + + + +',
+    '|. . . . g|',
+    '+ + + +G+-+',
+    '|f W f W .|',
+    '+ +-+ + + +',
+    '|. .Y. z .|',
+    '+X+-+ +-+X+',
+    '|. . . . .|',
+    '+ +-+ + + +',
+    '|P|y . .|.|',
+    '+-+-+ +-+-+',
+  ] },
+  G76: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+A+-+R+',
+    '|.|.Ab|a|.|',
+    '+-+-+ + +-+',
+    '|z|. m . .|',
+    '+ +-+E+ + +',
+    'S.|. .A. .|',
+    '+ + + +-+ +',
+    '|m nL.|. .|',
+    '+-+-+A+ +-+',
+    '|. n g|. .|',
+    '+ + + + + +',
+    '|. a .|f|.|',
+    '+-+-+ +-+-+',
+  ] },
+  G77: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+A+-+-+',
+    '|. . g . .|',
+    '+-+v+A+-+-+',
+    '|x|.|.|b .|',
+    '+ +-+B+-+ +',
+    '|x . g . .|',
+    '+ + +A+-+ +',
+    '|a . .|z .|',
+    '+-+-+ + +A+',
+    '|. . .|. .|',
+    '+-+ +-+ + +',
+    '|a . . y|.|',
+    '+-+-+ +-+-+',
+  ] },
+  G78: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+G+R+-+',
+    '|.|QG. n .|',
+    '+-+ +H+ + +',
+    '|.|. . .|.|',
+    '+G+-+-+ + +',
+    'Sx W . .un|',
+    '+ + +-+ +-+',
+    '|. . W P .|',
+    '+ + + + + +',
+    '|.|. mX. m|',
+    '+-+-+ +-+ +',
+    '|. . . .|.|',
+    '+-+-+ +-+-+',
+  ] },
+  G79: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+A+R+-+',
+    '|f|. .|.|.|',
+    '+ + +-+ + +',
+    '|.B.|. . .|',
+    '+-+B+-+ + +',
+    '|. . g m m|',
+    '+L+ +-+ + +',
+    '|. .|. z n|',
+    '+-+-+ + + +',
+    '|n . b . f|',
+    '+ +-+ + + +',
+    'S. .B.|.|a|',
+    '+ + +B+ +-+',
+    '|a|. .|. .|',
+    '+-+-+ +-+-+',
+  ] },
+  G80: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+E+-+-+',
+    '|. f . .|.|',
+    '+ + + +G+E+',
+    '|. . .|. .|',
+    '+-+-+-+ + +',
+    '|. g . m|W|',
+    '+-+ +-+-+ +',
+    '|z . . gL.|',
+    '+-+-+G+ + +',
+    '|. .|. . n|',
+    '+-+ + + + +',
+    'Sf W P . .|',
+    '+ + +-+ + +',
+    '|. f . .G.R',
+    '+-+-+ +-+-+',
+  ] },
+  G81: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+E+-+-+',
+    '|. .v. f .|',
+    '+ +-+-+ + +',
+    '|x y|. f .|',
+    '+ +-+ + + +',
+    '|. .Ya . .|',
+    '+-+-+-+ + +',
+    '|. . . . .|',
+    '+ +-+ + +-+',
+    '|.A.|fA. .|',
+    '+u+ + +-+ +',
+    '|.|. z|.|b|',
+    '+-+ + + + +',
+    '|.|.|. x a|',
+    '+-+-+ +-+-+',
+  ] },
+  G82: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+L+-+R+',
+    'Sf|g .|.|n|',
+    '+-+ + + + +',
+    '|. f .|. z|',
+    '+ +-+-+ + +',
+    '|.|.|. . m|',
+    '+X+ + +-+ +',
+    '|. . . .v.|',
+    '+ + +E+-+ +',
+    '|. n .|.|.|',
+    '+ +X+-+ + +',
+    '|. . x g|y|',
+    '+ + +-+ +Y+',
+    '|. .|. m .|',
+    '+-+-+ +-+-+',
+  ] },
+  G83: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+A+-+-+',
+    '|gY. g b z|',
+    '+ + +A+ + +',
+    '|.|.|. . a|',
+    '+u+-+-+-+-+',
+    '|.Bf . . .|',
+    '+ + + + + +',
+    '|.|.|. . .|',
+    '+ +-+ + + +',
+    '|. .|. . y|',
+    '+ +A+-+ + +',
+    '|.|x .|a|.|',
+    '+ + + +-+ +',
+    '|.|.|. . .|',
+    '+-+-+ +-+-+',
+  ] },
+  G84: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+E+R+-+',
+    '|. . . g y|',
+    '+ + + + +-+',
+    '|.|. . .|.|',
+    '+ + + +Y+ +',
+    '|f .uf|x .|',
+    '+ + + + +-+',
+    '|mL.|. .|.|',
+    '+-+-+ + + +',
+    '|z n|. n .|',
+    '+-+ +-+ +-+',
+    '|. x . m .|',
+    '+-+ +X+-+ +',
+    'S. .v. . .|',
+    '+-+-+ +-+-+',
+  ] },
+  G85: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+B+-+-+',
+    '|. .|g .|.|',
+    '+-+ + +-+ +',
+    '|. f QH. .|',
+    '+-+G+ + + +',
+    '|b|. W .|.|',
+    '+ + + +-+ +',
+    '|.|a|aA. .|',
+    '+A+ +-+-+ +',
+    '|P z W . .|',
+    '+-+ + + + +',
+    '|.|gA. . .|',
+    '+-+-+ +-+-+',
+  ] },
+  G86: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+H+-+-+',
+    '|y|.|.|.|Q|',
+    '+-+ + +A+ +',
+    '|.|.|a .|.|',
+    '+ +-+ + + +',
+    '|.|. b|W .|',
+    '+ + +-+ + +',
+    '|.Y.|.|.H.|',
+    '+A+ + + + +',
+    '|. . x . a|',
+    '+ +Y+ + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',
+  ] },
+  G87: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+L+R+-+',
+    '|.L.G.|.|.|',
+    '+-+ +-+ +-+',
+    '|.|. . .|.|',
+    '+-+-+ + + +',
+    '|. W y . .|',
+    '+u+ + +-+ +',
+    '|m .|P m .|',
+    '+ + + + +-+',
+    '|x . . x .|',
+    '+ +-+-+ + +',
+    'Sn|.|. . .|',
+    '+-+-+ +-+-+',
+  ] },
+  G88: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+X+-+-+',
+    '|.|. x .E.|',
+    '+ + +-+ + +',
+    '|g|.|.|. .|',
+    '+ +-+ +G+G+',
+    '|. .|.E.|.|',
+    '+ + + +-+ +',
+    '|. g y P .|',
+    '+-+ + +-+ +',
+    '|Q W .|. .|',
+    '+ + + +-+ +',
+    '|.|.|.|. z|',
+    '+ +-+ + + +',
+    '|f . . WYx|',
+    '+-+-+ +-+-+',
+  ] },
+  G89: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+B+-+-+',
+    '|. n . . .|',
+    '+ +A+B+-+-+',
+    '|. . W .H.|',
+    '+-+-+-+A+ +',
+    'S. .|. W m|',
+    '+ + + + + +',
+    '|.|. . m .R',
+    '+ +A+ + + +',
+    '|. a|b . Q|',
+    '+ +-+-+ + +',
+    '|. a . .|.|',
+    '+-+-+ +-+-+',
+  ] },
+  G90: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+G+-+-+',
+    '|. . a|.|b|',
+    '+ + + + + +',
+    '|W . W P|.|',
+    '+X+ + + +G+',
+    '|xX.|. . y|',
+    '+ + +-+ + +',
+    '|.|Q .G. .|',
+    '+ + + +-+ +',
+    '|. . .|.|x|',
+    '+ +-+-+-+ +',
+    '|.B. .|. .|',
+    '+ +-+ + + +',
+    '|. .|. . .|',
+    '+-+-+ +-+-+',
+  ] },
+  G91: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+R+B+-+-+',
+    '|. . . W .|',
+    '+-+ + + + +',
+    '|Q|. P|.Aa|',
+    '+ +G+A+ +-+',
+    '|. .|.|. .|',
+    '+ +-+-+ +-+',
+    'S. W n . .|',
+    '+ +-+A+-+-+',
+    '|m bL. . .|',
+    '+ +-+ +-+ +',
+    '|m . n .|a|',
+    '+ +-+-+ + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',
+  ] },
+  G92: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+Y+-+-+',
+    '|. y|x . nR',
+    '+ + + + + +',
+    '|.YxG. Q|n|',
+    '+-+-+ + + +',
+    '|m W .|.|.|',
+    '+ +-+ + +-+',
+    'S. W .u.|.|',
+    '+ + +-+ + +',
+    '|. . . . .|',
+    '+ +-+ + +-+',
+    '|P . . .|.|',
+    '+ + + + + +',
+    '|. .|.L.G.|',
+    '+-+-+ +-+-+',
+  ] },
+  G93: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+H+-+-+',
+    '|. W . . .|',
+    '+ + +-+-+ +',
+    '|.|P x|. .|',
+    '+ +Y+ + + +',
+    '|.|gEz .X.|',
+    '+ + +-+-+ +',
+    '|. . W . .|',
+    '+-+ +v+-+G+',
+    '|g . x|.|.|',
+    '+ + + + +-+',
+    '|f . . . .|',
+    '+ +-+ +-+-+',
+    '|Q y . .|.|',
+    '+-+-+ +-+-+',
+  ] },
+  G94: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+Y+-+-+',
+    '|. . .|. n|',
+    '+ + +-+ + +',
+    '|. . .|y|.|',
+    '+ +-+ +-+ +',
+    'Sa .|mu. mR',
+    '+ + +-+-+ +',
+    '|. . .|. .|',
+    '+-+ + +-+-+',
+    '|x .L.|. .|',
+    '+A+-+Y+ +-+',
+    '|b .L. n a|',
+    '+-+ +-+ + +',
+    '|. . . x .|',
+    '+-+-+ +-+-+',
+  ] },
+  G95: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+Y+-+-+',
+    '|. .|. . .|',
+    '+X+-+ + +-+',
+    '|n .|. m .|',
+    '+ + +-+G+ +',
+    '|.|. x . .|',
+    '+ + + +-+-+',
+    '|. .|W . .|',
+    '+ + +v+ + +',
+    '|m W P|x|.|',
+    '+ + +L+ +-+',
+    '|. .|. y .R',
+    '+-+ +-+-+-+',
+    '|.G. . . .T',
+    '+-+-+ +-+-+',
+  ] },
+  G96: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+H+-+-+',
+    '|x . . .|.|',
+    '+ + +-+ + +',
+    '|. W b .|.|',
+    '+-+ +X+-+ +',
+    '|a W yua .|',
+    '+ +A+ + +-+',
+    '|Q . . .|.|',
+    '+ + +-+ + +',
+    '|. x .|. .|',
+    '+-+ + + + +',
+    '|. . .|.A.|',
+    '+ +-+ +-+u+',
+    '|. .|. . .|',
+    '+-+-+ +-+-+',
+  ] },
+  G97: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+A+-+-+',
+    'R.|. . . .|',
+    '+H+A+ + +-+',
+    'S.|. .|W|.|',
+    '+B+ + + + +',
+    '|P|.|W .|.|',
+    '+-+-+ + + +',
+    '|m|. nA. .|',
+    '+-+ +A+ + +',
+    '|b m . . Q|',
+    '+ +-+-+ + +',
+    '|.|. a . .|',
+    '+ + + + + +',
+    '|a . .|.|.|',
+    '+-+-+ +-+-+',
+  ] },
+  G98: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+A+-+-+',
+    '|. .|y|a .R',
+    '+ + +B+ + +',
+    '|. . m . n|',
+    '+ +-+ +-+-+',
+    '|. .|x . .|',
+    '+-+-+-+-+ +',
+    '|. . xA. m|',
+    '+-+-+ +-+ +',
+    '|. . n|.|.|',
+    '+B+ + +-+-+',
+    '|. .ua . .|',
+    '+ + + + + +',
+    '|bA. . . .T',
+    '+-+-+ +-+-+',
+  ] },
+  G99: { entry: 2, exit: 2, legend: GEN, map: [
+    '+R+-+H+-+-+',
+    'S. .|xv.|.|',
+    '+ +-+ +-+ +',
+    '|. . . .|.|',
+    '+ + + + +-+',
+    '|m|. W . .|',
+    '+ +H+ +H+-+',
+    '|n . . . .|',
+    '+ + + +-+ +',
+    '|Q|P . . m|',
+    '+ +-+-+ + +',
+    '|.|y . . .|',
+    '+-+ +-+G+G+',
+    '|. n .|. .|',
+    '+-+-+ +-+-+',
+  ] },
+  G100: { entry: 2, exit: 2, legend: GEN, map: [
+    '+-+-+G+-+-+',
+    '|P . . y .|',
+    '+E+Y+-+ + +',
+    '|. . . .|.|',
+    '+X+ + + + +',
+    '|.|. Q|g|.|',
+    '+-+ + + + +',
+    '|. W|x|. .|',
+    '+ + + + +-+',
+    '|. x . z .|',
+    '+ + + +-+ +',
+    '|.u. f WX.|',
+    '+-+ + +-+-+',
+    '|. . .|f .|',
+    '+-+-+ +-+-+',
+  ] },
+  // PAST 40 END
   // The finales. The crate must hold the key room's door open, and then stands in the way out.
   F2: { entry: 2, exit: 2, legend: { W: { weight: 1 }, Q: { plate: 'B' }, B: { pgate: 'B' }, k: { key: 1 }, K: { keygate: 1 } }, map: [
     '+-+-+K+-+-+',
@@ -1123,6 +2032,7 @@ const PLAZA_AT = { 2: 'K1', 3: 'K2', 4: 'K2~', 5: 'K3', 6: 'K3~', 7: 'K4', 8: 'K
                    30: 'L1', 31: 'L2', 32: 'L3', 33: 'L4', 34: 'L2~', 35: 'L3~',
                    // The Express: the hardest of each, the other way round from before, and two that mix them
                    36: 'S4', 37: 'C4~', 38: 'L4~', 39: 'F2', 40: 'F1' };  // (S4 mirrored: its trap room on the other side from S3's)
+Object.assign(PLAZA_AT, { 41: 'G41', 42: 'G42', 43: 'G43', 44: 'G44', 45: 'G45', 46: 'G46', 47: 'G47', 48: 'G48', 49: 'G49', 50: 'G50', 51: 'G51', 52: 'G52', 53: 'G53', 54: 'G54', 55: 'G55', 56: 'G56', 57: 'G57', 58: 'G58', 59: 'G59', 60: 'G60', 61: 'G61', 62: 'G62', 63: 'G63', 64: 'G64', 65: 'G65', 66: 'G66', 67: 'G67', 68: 'G68', 69: 'G69', 70: 'G70', 71: 'G71', 72: 'G72', 73: 'G73', 74: 'G74', 75: 'G75', 76: 'G76', 77: 'G77', 78: 'G78', 79: 'G79', 80: 'G80', 81: 'G81', 82: 'G82', 83: 'G83', 84: 'G84', 85: 'G85', 86: 'G86', 87: 'G87', 88: 'G88', 89: 'G89', 90: 'G90', 91: 'G91', 92: 'G92', 93: 'G93', 94: 'G94', 95: 'G95', 96: 'G96', 97: 'G97', 98: 'G98', 99: 'G99', 100: 'G100' });   // past 40: a square of its own for each level
 function plazaLayout(id) {
   const flipped = id.endsWith('~'), T = PLAZAS[flipped ? id.slice(0, -1) : id];
   const cols = (T.map[0].length - 1) / 2, rows = (T.map.length - 1) / 2;
@@ -1164,14 +2074,36 @@ const mix = (a, b, t) => a + (b - a) * t;
    time. Across the forty, courses grow from about 45 m to about 200 m, paths
    narrow from 4 m to 1.3 m, the blue rings that save your place grow further
    apart, and the windows to cross a bridge or catch a pad shrink. Pieces are
-   listed in the order the marble meets them. */
-const DISTRICTS = ['Downtown', 'Transit', 'Holograms', 'Boost', 'Express'];
-function makeLevel(n) {
-  const r = seeded(9001 + n * 7919);
-  const d = Math.floor((n - 1) / 8), k = ((n - 1) % 8) / 7, g = (n - 1) / 39;
+   listed in the order the marble meets them.
+   AND ON TO A HUNDRED (owner, 2026-09-28: "the difficulty level of level 1 of
+   tokyo should be harder than the 50th level of the neon city. The levels will
+   increase in difficulty from level 1 to 100"; chose everything getting harder
+   together, one count from 1 to 100). Levels 1-40 stay exactly as they were.
+   From 41 each level is harder than the one before, all the way: the settings
+   stay at level 40's and e, how far past 40 a level is (0 to 1 at 100), pushes
+   them on, never past what the marble can do (8 m/s, 18 m/s2 of grip): wider
+   gaps between save rings, longer courses packed closer, narrower roads, less
+   time on the timed pieces, stronger pulls, quicker traffic, more of
+   everything, and a harder puzzle square at the end. 41-50 are the neon
+   city's last district, the Skyline; 51-100 are Tokyo, in five districts. */
+// Which of its courses each level past 40 plays: of 200 made from its seed, the one that keeps the climb steady, each
+// scoring harder than the level before, and 41 harder than any level from 1 to 40 (hazards weighted by how hard they
+// are to pass, narrow road, road between rings).
+const LEVEL_VARIANT = {
+  41: 52, 42: 196, 43: 146, 44: 1, 45: 20, 46: 78, 47: 23, 48: 60, 49: 106, 50: 50, 51: 148, 52: 111,
+  53: 117, 54: 149, 55: 77, 56: 173, 57: 66, 58: 125, 59: 197, 60: 108, 61: 2, 62: 80, 63: 73, 64: 193,
+  65: 64, 66: 75, 67: 81, 68: 7, 69: 7, 70: 72, 71: 83, 72: 23, 73: 185, 74: 196, 75: 177, 76: 156,
+  77: 189, 78: 48, 79: 90, 80: 168, 81: 191, 82: 26, 83: 18, 84: 198, 85: 172, 86: 97, 87: 136, 88: 138,
+  89: 141, 90: 155, 91: 197, 92: 88, 93: 47, 94: 157, 95: 121, 96: 102, 97: 33, 98: 46, 99: 6, 100: 117,
+};
+const DISTRICTS = ['Downtown', 'Transit', 'Holograms', 'Boost', 'Express', 'Skyline', 'Shibuya', 'Akihabara', 'Asakusa', 'Shinjuku', 'Tokyo Tower'];
+function makeLevel(n, variant = LEVEL_VARIANT[n] || 0) {
+  const r = seeded(9001 + n * 7919 + variant * 104729);
+  const d = n <= 40 ? Math.floor((n - 1) / 8) : 5 + Math.floor((n - 41) / 10), k = n <= 40 ? ((n - 1) % 8) / 7 : 1;
+  const g = Math.min(1, (n - 1) / 39), e = Math.max(0, (n - 40) / 60);   // past 40, the ladder climbs by e alone, so no level is easier than the last
   const W = (a, b) => mix(a, b, g);
-  const wide = W(4, 2.2), narrow = Math.max(1.3, W(2.5, 1.4) - 0.25 * k);
-  const saveEvery = W(15, 28);
+  const wide = W(4, 2.2) - 0.45 * e, narrow = Math.max(1.3 - 0.12 * e, W(2.5, 1.4) - 0.25 * k - 0.12 * e);
+  const saveEvery = W(15, 28) + 17 * e;
   const pieces = [F(0, 0, 5, 5)], gates = [];
   let x = 0, y = 0, z = -2.5, run = 0, sinceSave = 0;
   const on = (len) => { z -= len; run += len; sinceSave += len; };
@@ -1196,9 +2128,9 @@ function makeLevel(n) {
   }
   // A moving pad waits at each end of its run for about a second and a half
   // early on, under one late; the runs between get quicker too.
-  const dwell = r2(W(1.6, 0.9)), runT = W(2.4, 1.6), period = r2(2 * dwell + 2 * runT);
+  const dwell = r2(W(1.6, 0.9) - 0.1 * e), runT = W(2.4, 1.6) - 0.2 * e, period = r2(2 * dwell + 2 * runT);   // a wait under 0.8 s is a pad you cannot catch
   function slide() {                                    // a pad that carries you sideways, to a path further over
-    const amp = r2(W(2.6, 3.4));
+    const amp = r2(W(2.6, 3.4) + 0.6 * e);
     let dir = r() < 0.5 ? -1 : 1;
     if (x + 2 * amp * dir < -3 || x + 2 * amp * dir > 9) dir = -dir;
     pieces.push(FERRY(r2(x + amp * dir), z - 1.5, r2(Math.max(2.6, wide + 0.4)), 3, y, 'x', amp, period, dwell, r2(r() * 6.28)));
@@ -1206,13 +2138,13 @@ function makeLevel(n) {
     straight(r2(3 + r() * 2), wide);                    // somewhere to land
   }
   function shuttle() {                                  // a pad that carries you over a long gap
-    const gap = r2(W(6, 10)), pad = 3;
+    const gap = r2(W(6, 10) + 3 * e), pad = 3;
     pieces.push(FERRY(x, z - gap / 2, r2(wide + 0.4), pad, y, 'z', r2((gap - pad) / 2), period, dwell, r2(r() * 6.28)));
     on(gap);
     straight(r2(3 + r() * 2), wide);
   }
   function bridge(w) {                                  // a hologram bridge: cross while it is lit
-    const len = r2(W(4, 8)), lit = Math.max(len / 4.5 + 0.9, mix(3.4, 1.9, g)), dark = mix(1.2, 2.2, g);
+    const len = r2(W(4, 8) + 3 * e), lit = Math.max(len / 4.5 + 0.9 - 0.35 * e, mix(3.4, 1.9, g) - 0.35 * e), dark = mix(1.2, 2.2, g) + 0.8 * e;
     pieces.push(HOLO(x, z - len / 2, w, len, y, r2(lit + dark), r2(lit), r2(r() * (lit + dark))));
     on(len);
     straight(r2(3 + r() * 2), w);
@@ -1235,13 +2167,13 @@ function makeLevel(n) {
      and a wide way that swings out and back, longer and safer. The game keeps
      each level's best time, so the choice is worth making. */
   function fork() {
-    const off = 3.2, len = r2(W(16, 20)), wideW = r2(Math.max(2.4, wide));
+    const off = 3.2, len = r2(W(16, 20) + 4 * e), wideW = r2(Math.max(2.4, wide));
     const longLeft = x >= 3, xs = r2(x + (longLeft ? off : -off)), xl = r2(x + (longLeft ? -off : off));
     pieces.push(F(x, z - 1.5, r2(2 * off + wideW), 3, y)); on(3);             // where it splits
     const z0 = z;
-    if (n >= 17 && r() < 0.6) {                                              // the narrow way, with a bridge on it
+    if (n >= 17 && r() < 0.6 + 0.3 * e) {                                    // the narrow way, with a bridge on it
       const a = r2(len * 0.3), b = r2(len * 0.4), c = r2(len - a - b);
-      const lit = Math.max(b / 4.5 + 0.9, mix(3.4, 1.9, g)), dark = mix(1.2, 2.2, g);
+      const lit = Math.max(b / 4.5 + 0.9 - 0.35 * e, mix(3.4, 1.9, g) - 0.35 * e), dark = mix(1.2, 2.2, g) + 0.8 * e;
       pieces.push({ ...F(xs, r2(z0 - a / 2), narrow, a, y), branch: 'short' },
                   { ...HOLO(xs, r2(z0 - a - b / 2), narrow, b, y, r2(lit + dark), r2(lit), r2(r() * (lit + dark))), branch: 'short' },
                   { ...F(xs, r2(z0 - a - b - c / 2), narrow, c, y), branch: 'short' });
@@ -1283,20 +2215,21 @@ function makeLevel(n) {
   function ride() {                                     // the sky train: on at one station, off at the next
     rides++;
     straight(6, wide, true);                            // the platform, with a ring on it
-    const D = r2(W(18, 26)), gap = D + TRAIN_DECK, runT = W(3.8, 3.0), dwellT = r2(W(3.8, 2.8));
-    pieces.push(TRAIN(x, r2(z - gap / 2), 1.8, y, r2(D / 2), r2(2 * dwellT + 2 * runT), dwellT, r2(r() * 6.28), r2(W(0.35, 0.8))));
+    const D = r2(W(18, 26) + 6 * e), gap = D + TRAIN_DECK, runT = W(3.8, 3.0) - 0.3 * e, dwellT = r2(W(3.8, 2.8) - 0.4 * e);
+    pieces.push(TRAIN(x, r2(z - gap / 2), 1.8, y, r2(D / 2), r2(2 * dwellT + 2 * runT), dwellT, r2(r() * 6.28), r2(W(0.35, 0.8) + 0.08 * e)));
     on(gap);
     straight(r2(6 + r() * 3), wide);                    // the next station
   }
   function cross(w) {                                   // flying cars across the road, and a light to cross by
-    const two = n >= 20 && r() < 0.35 + 0.4 * g;         // later, two lanes going opposite ways
-    const d = two ? 3.8 : 2.4, speed = r2(W(7, 11) + r());
+    const two = n >= 20 && r() < 0.35 + 0.4 * g + 0.25 * e;   // later, two lanes going opposite ways, and past 64 sometimes three
+    const three = two && e > 0.4 && r() < 0.5;
+    const d = three ? 5.2 : two ? 3.8 : 2.4, speed = r2(W(7, 11) + 3 * e + r());
     const lane = (dz, dir) => {
       const gaps = [];                                  // seconds between cars, uneven, so some gaps are worth waiting for
-      for (let i = 3 + Math.floor(r() * 2); i > 0; i--) gaps.push(r2(W(3.4, 2.7) + r() * W(2.6, 1.8)));
+      for (let i = 3 + Math.floor(r() * 2); i > 0; i--) gaps.push(r2(W(3.4, 2.7) - 0.4 * e + r() * (W(2.6, 1.8) - 0.4 * e)));
       return { dz, dir, speed, gaps, phase: r2(r()) };
     };
-    pieces.push(CROSS(x, z - d / 2, w, d, y, two ? [lane(-0.8, 1), lane(0.8, -1)] : [lane(0, r() < 0.5 ? 1 : -1)]));
+    pieces.push(CROSS(x, z - d / 2, w, d, y, three ? [lane(-1.6, 1), lane(0, -1), lane(1.6, 1)] : two ? [lane(-0.8, 1), lane(0.8, -1)] : [lane(0, r() < 0.5 ? 1 : -1)]));
     on(d);
   }
   /* MAGLEV STRIPS (owner, 2026-09-27: "proceed on the next 4 blocks and
@@ -1304,10 +2237,10 @@ function makeLevel(n) {
      strips in a row that pull opposite ways. */
   let magsN = 0, windsN = 0;
   function maglev(w) {
-    const mw = r2(Math.max(w, 2)), pull = r2(W(6, 11));
+    const mw = r2(Math.max(w, 2)), pull = r2(W(6, 11) + 3 * e);
     let dir = r() < 0.5 ? -1 : 1;
-    for (let i = n >= 25 && r() < 0.5 ? 2 : 1; i > 0; i--) {
-      const len = r2(W(7, 10) + r() * 2);
+    for (let i = n >= 25 && r() < 0.5 + 0.4 * e ? 2 : 1; i > 0; i--) {
+      const len = r2(W(7, 10) + 3 * e + r() * 2);
       pieces.push(MAG(x, r2(z - len / 2), mw, len, y, r2(dir * pull)));
       on(len); dir = -dir;
     }
@@ -1317,9 +2250,9 @@ function makeLevel(n) {
      between them, and gusts blow out of the gap across the road. Straight
      road before and after, where the towers stand. */
   function gusts(w) {
-    const ww = r2(Math.max(w, 1.8)), len = r2(W(8, 11) + r() * 2), period = r2(W(4.4, 3.4) + r() * 0.8);
+    const ww = r2(Math.max(w, 1.8)), len = r2(W(8, 11) + 3 * e + r() * 2), period = r2(W(4.4, 3.4) - 0.3 * e + r() * 0.8);
     straight(4.5, ww);
-    pieces.push(WIND(x, r2(z - len / 2), ww, len, y, r() < 0.5 ? -1 : 1, r2(W(7, 12)), period, r2(W(1.8, 2.2)), r2(r() * period)));
+    pieces.push(WIND(x, r2(z - len / 2), ww, len, y, r() < 0.5 ? -1 : 1, r2(W(7, 12) + 2.5 * e), period, r2(W(1.8, 2.2)), r2(r() * period)));
     on(len);
     straight(r2(5 + r() * 2), ww);
   }
@@ -1329,7 +2262,7 @@ function makeLevel(n) {
   let roundsN = 0;
   function roundabout() {
     roundsN++;
-    const ew = r2(Math.max(2.2, narrow + 0.5)), ro = RB_RO, spin = r2(W(0.5, 0.8));
+    const ew = r2(Math.max(2.2, narrow + 0.5)), ro = RB_RO, spin = r2(W(0.5, 0.8) + 0.25 * e);
     straight(4, ew);                                    // the road in (a ring on it, if one is due)
     const cx = x, cz = r2(z - ro), side = r2(ro + 1.5 + ew / 2);
     const leads = ['N'];                                // a road out to the side must stay over the city's clear lane
@@ -1358,11 +2291,11 @@ function makeLevel(n) {
   function powerSwitch() {
     const k = switchesN++, jw = r2(Math.max(wide, 2.4)), sw = r2(Math.max(narrow, 1.8));
     straight(4, jw, true);                              // a ring before the junction: a fall comes back here
-    const side = x <= 3 ? 1 : -1, len = r2(W(4, 9) + r() * 2), zj = r2(z - jw / 2);
+    const side = x <= 3 ? 1 : -1, len = r2(W(4, 9) + 4 * e + r() * 2), zj = r2(z - jw / 2);
     pieces.push(F(x, zj, jw, jw, y));                   // the junction
     const a = r2(x + side * jw / 2), b = r2(a + side * len), px = r2(b + side * 1.3);
     pieces.push({ ...F(r2((a + b) / 2), zj, len, sw, y), detour: k }, { ...F(px, zj, 2.6, 2.6, y), detour: k });
-    const run0 = 2.5, dl = r2(W(4, 7)), cz = r2(zj + sw / 2 - 0.28), ex = r2(x + side * (jw / 2 - 0.28));
+    const run0 = 2.5, dl = r2(W(4, 7) + 3 * e), cz = r2(zj + sw / 2 - 0.28), ex = r2(x + side * (jw / 2 - 0.28));
     // The lamps: from the button along the near edge of the side road, then along the main road to the dark road.
     pieces.push(SWITCH(px, zj, y, k, x, zj, [[r2(px - side * 0.95), cz], [ex, cz], [ex, r2(z - jw - run0)]]));
     on(jw); run += 2 * (len + 1.3); sinceSave += 2 * (len + 1.3);
@@ -1379,8 +2312,8 @@ function makeLevel(n) {
   function obstacles(kind) {
     blocksN++;
     // Wide enough that every gap can sit clear of the middle line, so no way through is straight on.
-    const gap = r2(kind === 'crate' ? W(1.7, 1.3) : W(1.6, 1.2)), ow = r2(Math.max(wide, 3.2, 2 * gap + 0.8)), half = ow / 2;
-    const rows = 3 + Math.round(W(0, 2) + r()), sp = r2(kind === 'crate' ? W(3.4, 2.9) : W(3.1, 2.5));
+    const gap = r2(kind === 'crate' ? W(1.7, 1.3) - 0.15 * e : W(1.6, 1.2) - 0.12 * e), ow = r2(Math.max(wide, 3.2, 2 * gap + 0.8)), half = ow / 2;
+    const rows = 3 + Math.round(W(0, 2) + r()) + Math.round(3 * e), sp = r2(kind === 'crate' ? W(3.4, 2.9) - 0.45 * e : W(3.1, 2.5) - 0.35 * e);
     straight(3, ow);
     const L = r2(rows * sp + 1.2), z0 = z, path = [], points = [], blocks = [];
     let side = r() < 0.5 ? -1 : 1;
@@ -1425,8 +2358,8 @@ function makeLevel(n) {
     scansN++;
     // Every stretch leaves a fair window: with one bar, a side stays clear for over half its sweep; with two,
     // the middle clears between crossings, so those stretches are shorter and their sweep slower.
-    const two = n >= 35 && (scansN === 1 || r() < 0.5), sw = r2(Math.max(wide, 2.4));   // from 35, a level's first has two bars
-    const d = r2(two ? W(3.6, 4.4) : W(4, 5.5) + r() * 0.8), period = r2(W(4, 3.2) + r() * 0.5 + (two ? 0.4 : 0));
+    const two = n >= 35 && (scansN === 1 || r() < 0.5 + 0.4 * e), sw = r2(Math.max(wide, 2.4));   // from 35, a level's first has two bars
+    const d = r2(two ? W(3.6, 4.4) + 0.4 * e : W(4, 5.5) + 0.4 * e + r() * 0.8), period = r2(W(4, 3.2) - 0.15 * e + r() * 0.5 + (two ? 0.4 : 0));   // longer or quicker, and it cannot be run from a standing start
     straight(3, sw);
     pieces.push(SCAN(x, r2(z - d / 2), sw, d, y, period, r2(r() * period), two ? 2 : 1));
     on(d);
@@ -1495,12 +2428,18 @@ function makeLevel(n) {
   if (n >= 23) { OWN[2].push('wind'); EARLIER[3].push('wind'); ALL.push('wind'); }
   if (n >= 29) { OWN[3].push('tube'); ALL.push('tube'); }
   if (n >= 31) { OWN[3].push('scan'); ALL.push('scan', 'scan'); }      // the newest danger turns up often in the Express
-  const features = 2 + Math.round(k * 2) + d, length = 45 + 155 * g;
+  // Past 40, every district draws on everything, each with its favourites: the Skyline and Tokyo Tower all of it; Shibuya
+  // its crossings and road works; Akihabara its lanes, walkways, screens and crates; Asakusa its bridges and gates;
+  // Shinjuku its wind, loops, screens and rides.
+  OWN.push(ALL, ['cross', 'barriers', 'bollards', 'round', 'switch', 'cross'], ['locks', 'mag', 'scan', 'crates', 'slide'],
+           ['bridge', 'wormhole', 'round', 'bollards', 'fork', 'bridge'], ['wind', 'loop', 'scan', 'boostJump', 'ride', 'wind', 'bridge', 'tube'], ALL);
+  while (EARLIER.length < OWN.length) EARLIER.push(ALL);
+  const features = n <= 40 ? 2 + Math.round(k * 2) + d : 8 + Math.round(7 * e), length = 45 + 155 * g + 190 * e;
   straight(5, wide);
   for (let f = 0; f < features + 8 && (f < features || run < length); f++) {
     const pool = f % 2 ? EARLIER[d] : OWN[d];
-    const pick = f === 0 ? opener : pool[Math.floor(r() * pool.length)];
-    const w = r() < 0.3 + 0.35 * k ? narrow : wide;
+    const pick = f === 0 ? (n > 40 ? OWN[d][n % OWN[d].length] : opener) : pool[Math.floor(r() * pool.length)];
+    const w = r() < 0.3 + 0.35 * k + 0.2 * e ? narrow : wide;
     if (pick === 'ramp' && n >= 3) ramp(w);
     else if (pick === 'narrow' && n >= 4) straight(r2(W(6, 12) + r() * 2), narrow);
     else if (pick === 'slide') slide();
@@ -1510,26 +2449,26 @@ function makeLevel(n) {
     else if (pick === 'jump') jump(wide);
     else if (pick === 'boostJump') boostJump(wide);
     else if (pick === 'cross' && n >= 5) cross(w);
-    else if (pick === 'ride') { if (n >= 13 && !rides) ride(); else shuttle(); }
-    else if (pick === 'locks') { if (n >= 21) locks(n >= 33 && r() < 0.5 ? 2 : 1); else bridge(w); }
+    else if (pick === 'ride') { if (n >= 13 && rides < 1 + (e > 0.6 ? 1 : 0)) ride(); else shuttle(); }
+    else if (pick === 'locks') { if (n >= 21) locks(n >= 33 && r() < 0.5 + 0.3 * e ? (e > 0.5 && r() < 0.5 ? 3 : 2) : 1); else bridge(w); }
     else if (pick === 'wormhole') { if (n >= 11 && !worms) wormhole(); else jog(w); }
     else if (pick === 'fork') { if (n >= 7) fork(); else jog(w); }
-    else if (pick === 'loop') { if (n >= 27 && loops < 2) loopDeLoop(); else boostJump(wide); }
-    else if (pick === 'mag') { if (magsN++ < 2) maglev(w); else jog(w); }
-    else if (pick === 'wind') { if (windsN++ < 2) gusts(w); else jog(w); }
-    else if (pick === 'round') { if (!roundsN) roundabout(); else jog(w); }
+    else if (pick === 'loop') { if (n >= 27 && loops < 2 + (e > 0.5 ? 1 : 0)) loopDeLoop(); else boostJump(wide); }
+    else if (pick === 'mag') { if (magsN++ < 2 + (e > 0.4 ? 1 : 0)) maglev(w); else jog(w); }
+    else if (pick === 'wind') { if (windsN++ < 2 + (e > 0.4 ? 1 : 0)) gusts(w); else jog(w); }
+    else if (pick === 'round') { if (roundsN < 1 + (e > 0.5 ? 1 : 0)) roundabout(); else jog(w); }
     else if (pick === 'tube') { if (!tubesN) glassTube(); else boost(wide); }
-    else if (pick === 'switch') { if (!switchesN) powerSwitch(); else jog(w); }
-    else if (pick === 'scan') { if (scansN < 2) scanner(); else jog(w); }
-    else if (pick === 'bollards' || pick === 'barriers' || pick === 'crates') { if (blocksN < 2) obstacles(pick.slice(0, -1)); else jog(w); }
+    else if (pick === 'switch') { if (switchesN < 1 + (e > 0.3 ? 1 : 0)) powerSwitch(); else jog(w); }
+    else if (pick === 'scan') { if (scansN < 2 + Math.round(2 * e)) scanner(); else jog(w); }
+    else if (pick === 'bollards' || pick === 'barriers' || pick === 'crates') { if (blocksN < 2 + Math.round(2 * e)) obstacles(pick.slice(0, -1)); else jog(w); }
     else jog(w);
-    straight(r2(mix(6, 4, g) + r() * 3), r() < 0.5 ? wide : narrow);
+    straight(r2(mix(6, 4, g) - 1.5 * e + r() * (3 - 1.2 * e)), r() < 0.5 ? wide : narrow);
   }
   if (PLAZA_AT[n]) square(PLAZA_AT[n]);
   pieces.push(F(x, z - 3.5, 6, 7, y));                  // the finish, and the orange ring on it
   return { start: [0, 0, 1], gates, goal: [x, y, r2(z - 4)], pieces, district: DISTRICTS[d], length: Math.round(run + 7) };
 }
-const LEVELS = Array.from({ length: 40 }, (_, i) => makeLevel(i + 1));
+const LEVELS = Array.from({ length: 100 }, (_, i) => makeLevel(i + 1));
 /* TIME STARS (owner, 2026-09-27: "let's do the 3 you suggest"). Each level has
    a star time: finish under it and the level's star is yours. Each was set by
    the autopilot racing the course, quick and clean with no falls, by the
@@ -1539,9 +2478,13 @@ const LEVELS = Array.from({ length: 40 }, (_, i) => makeLevel(i + 1));
    from their seeds, so these hold until a course changes; then they must be
    raced again. In a puzzle square the autopilot takes the shortest way the
    search finds, so a star there is for a square you have already worked
-   out. (Raced again 2026-09-27, when every level from 2 gained its square.) */
+   out. (Raced again 2026-09-27, when every level from 2 gained its square;
+   41-100 raced 2026-09-28.) */
 const STAR_TIMES = [23, 45, 41, 48, 64, 58, 68, 77, 48, 71, 95, 74, 112, 77, 70, 105, 92, 59, 59, 113,
-                    95, 107, 70, 97, 60, 59, 67, 72, 82, 62, 55, 58, 102, 104, 60, 136, 86, 92, 139, 94];
+                    95, 107, 70, 97, 60, 59, 67, 72, 82, 62, 55, 58, 102, 104, 60, 136, 86, 92, 139, 94,
+                    95, 112, 89, 105, 110, 173, 87, 150, 164, 116, 133, 131, 113, 115, 193, 144, 125, 111, 196, 107,
+                    117, 120, 137, 130, 150, 132, 141, 127, 145, 124, 208, 219, 236, 208, 169, 198, 225, 191, 215, 151,
+                    165, 169, 129, 162, 160, 151, 171, 160, 177, 208, 187, 149, 217, 240, 245, 167, 214, 181, 269, 249];
 
 let levelGroup = null;
 let colliders = [], ferries = [], holos = [], pads = [], crossings = [], riders = [], curtains = [], locks = [], wormholes = [], loopsIn = [], mags = [], winds = [], rounds = [], tubes = [], switches = [], scans = [], posts = [], blinkers = [], flames = [], cracks = [], plazas = [], gates = [], goal = null, level = null;
@@ -3926,7 +4869,10 @@ function loadLevel(n) {
   scene.add(levelGroup);
   colliders = []; ferries = []; holos = []; pads = []; crossings = []; riders = []; curtains = []; locks = []; wormholes = []; loopsIn = []; mags = []; winds = []; rounds = []; tubes = []; switches = []; scans = []; posts = []; blinkers = []; flames = []; cracks = []; plazas = []; gates = [];
   for (const pc of level.pieces) buildPiece(pc);
-  if (world.name !== 'void') setWorld(world.name);   // scenery that follows the course is rebuilt for it
+  // The world follows the course: the neon city to 50, Tokyo from 51 (a world picked to look at, such as the hills, stays).
+  // Its scenery follows the course too, so it is rebuilt for it.
+  if (['neon', 'tokyo', 'dystopia'].includes(world.name)) setWorld(levelNo > 50 ? 'tokyo' : 'neon');
+  else if (world.name !== 'void') setWorld(world.name);
   level.minTop = Math.min(...level.pieces.map((p) => (p.t === 'ramp' ? Math.min(p.y0, p.y1) : p.y)));
   for (const [x, y, z] of level.gates) gates.push(makeRing(x, y, z, false));
   goal = makeRing(level.goal[0], level.goal[1], level.goal[2], true);
@@ -4545,7 +5491,7 @@ function act(k) {
 
 // ---------- HUD ----------
 const L = { hit: {}, cardBody: null };
-const SEP = '   ·   ';
+const SEP = '   ·   ', SEP_TIGHT = '  ·  ';
 const fmt = (s) => { const t = Math.floor(s); return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); };
 
 /* The one departure from the house pattern, and Tailwind's: a scrim behind
@@ -4598,18 +5544,20 @@ function drawReadout() {
   const phone = MODE === 'mobile', ly = LH - botBand() / 2, x0 = phone ? PHONE_PAD : SIDE_PAD;
   const room = phone ? LW - PHONE_PAD * 2 - 44 - 8 : LW - SIDE_PAD * 2;
   const lv = 'LEVEL ' + levelNo, tm = fmt(clock), fl = 'FALLS ' + falls, starT = STAR_TIMES[levelNo - 1], sT = fmt(starT);
-  const forms = [[lv, { t: 'TIME ' + tm, s: sT }, fl], [lv, { t: tm, s: sT }, fl], [lv, { t: tm, s: sT }], [lv, tm]];
+  // Before FALLS is dropped, the dots close up a little: LEVEL 100 on a phone needs a few pixels more.
+  const forms = [[SEP, [lv, { t: 'TIME ' + tm, s: sT }, fl]], [SEP, [lv, { t: tm, s: sT }, fl]], [SEP_TIGHT, [lv, { t: tm, s: sT }, fl]],
+                 [SEP, [lv, { t: tm, s: sT }]], [SEP, [lv, tm]]];
   ctx.font = '600 16px Inter, sans-serif';
-  const sepW = ctx.measureText(SEP).width;
   const segW = (g) => (typeof g === 'string' ? ctx.measureText(g).width : ctx.measureText(g.t).width + 11 + STAR_W + 5 + ctx.measureText(g.s).width);
-  const width = (f) => f.reduce((a, g, i) => a + segW(g) + (i ? sepW : 0), 0);
-  let form = forms[forms.length - 1];
-  for (const f of forms) if (width(f) <= room) { form = f; break; }
+  const width = ([sp, f]) => f.reduce((a, g, i) => a + segW(g) + (i ? ctx.measureText(sp).width : 0), 0);
+  let [sep, form] = forms[forms.length - 1];
+  for (const f of forms) if (width(f) <= room) { [sep, form] = f; break; }
+  const sepW = ctx.measureText(sep).width;
   ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = TOK.ink72;
   let x = x0;
   const have = !!save.stars[levelNo], still = clock < starT;
   form.forEach((g, i) => {
-    if (i) { ctx.fillText(SEP, x, ly); x += sepW; }
+    if (i) { ctx.fillText(sep, x, ly); x += sepW; }
     if (typeof g === 'string') { ctx.fillText(g, x, ly); x += segW(g); return; }
     ctx.fillText(g.t, x, ly);
     const sx = x + ctx.measureText(g.t).width + 11;
@@ -4617,7 +5565,7 @@ function drawReadout() {
     ctx.fillStyle = TOK.ink72; ctx.fillText(g.s, sx + STAR_W + 5, ly);          // the time stays readable; the star greys
     x += segW(g);
   });
-  const txt = form.map((g) => (typeof g === 'string' ? g : g.t + ' *' + g.s)).join(SEP);
+  const txt = form.map((g) => (typeof g === 'string' ? g : g.t + ' *' + g.s)).join(sep);
   L.readout = { text: txt, x: x0, w: x - x0 };
   if (phone) {
     // The sound switch, bare at the bottom right; no circle, but a full target.
@@ -4718,6 +5666,8 @@ const NEWS = {
   29: 'A glass tube! Roll into it, and it carries you over the city',
   31: 'A scanner sweeps the road. Roll down one side just after the red bar has left it',
   33: 'The Express: everything at once, on the longest courses',
+  41: 'The Skyline, the city at its hardest: everything at once, closer together and quicker',
+  51: 'Tokyo! Everything you know in its own form, and harder than anything in the neon city',
 };
 // The same notes where a world has dressed its pieces in its own look (the dystopian city: tokyoPieces).
 const NEWS_TOKYO = {
@@ -11100,9 +12050,10 @@ function worldFromHash() {
   if (h === 'level') {                                  // #level-17 opens course 17, to look at one
     const n = parseInt(v, 10);
     if (n >= 1 && n <= LEVELS.length) loadLevel(n);
-    if (world.name === 'neon') return;
   }
-  const name = h && h !== 'level' ? h : 'neon';
+  let name = h && h !== 'level' ? h : null;
+  if (name === 'tokyo' && levelNo <= 50) loadLevel(51);                            // #tokyo: Tokyo's first course
+  if (!name || ['neon', 'tokyo', 'dystopia'].includes(name)) name = levelNo > 50 ? 'tokyo' : 'neon';   // the world follows the course
   if (name === 'neon') {
     neonStyle = ['grid', 'glowgrid', 'edges', 'frosted'].includes(v) ? v : 'glowgrid';   // #neon-edges and so on
     neonLive = v !== 'still';                                                            // #neon-still: the city unmoving
