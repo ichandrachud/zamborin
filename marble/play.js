@@ -237,6 +237,7 @@ const NEON_SOUNDS = {
   scrape() { voice('sawtooth', 95, 62, 0.3, 0.035); voice('square', 150, 120, 0.26, 0.012); voice('sine', 70, 55, 0.3, 0.06); },           // a crate pushed
   glide() { voice('triangle', 1900, 2600, 0.32, 0.018); voice('sine', 3100, 2400, 0.4, 0.012, 0.04); voice('sine', 240, 200, 0.3, 0.02); },   // off across the ice
   crunch() { voice('sawtooth', 120, 70, 0.12, 0.03); voice('square', 260, 180, 0.08, 0.012, 0.02); voice('sine', 90, 60, 0.18, 0.05); },    // stopped by snow
+  pour() { for (let i = 0; i < 6; i++) voice('sine', 700 - i * 60 + Math.random() * 80, 300 - i * 20, 0.12, 0.035, i * 0.07); voice('sine', 120, 80, 0.6, 0.03); },   // a tank emptying
   tone() { const f = 523.25 * Math.pow(2, TONE_STEPS[toneK] / 12); voice('sine', f * 1.5, f, 0.05, 0.04); voice('triangle', f, f, 0.36, 0.07); voice('sine', 2 * f, 2 * f, 0.22, 0.018); voice('sine', f / 2, f / 2, 0.3, 0.035); },   // a drum of a tune
   note() { const f = 392 * Math.pow(2, NOTE_STEPS[noteK % NOTE_STEPS.length] / 12 + Math.floor(noteK / NOTE_STEPS.length)); voice('triangle', f, f, 0.22, 0.05); voice('sine', 2 * f, 2 * f, 0.16, 0.015); },   // a tile lit: each a step up
   click() { voice('square', 2200, 1400, 0.03, 0.035); voice('triangle', 520, 780, 0.16, 0.05, 0.03); voice('sine', 1040, 1560, 0.22, 0.03, 0.06); },   // a switch pressed
@@ -249,7 +250,7 @@ const NEON_SOUNDS = {
 };
 // The city's version of a sound where it has one, the house sound elsewhere.
 function sound(name) {
-  if ((world.name === 'neon' || ['boost', 'jump', 'bump', 'depart', 'tint', 'pass', 'buzz', 'key', 'gate', 'reset', 'click', 'thunk', 'scrape', 'whirr', 'charge', 'earth', 'glint', 'lit', 'unlit', 'warp', 'tube', 'pop', 'power', 'zap', 'knock', 'clink', 'crack', 'shatter', 'burn', 'flame', 'blast', 'glide', 'crunch', 'note', 'tone'].includes(name)) && NEON_SOUNDS[name]) { if (sfx && sfx.isOn()) NEON_SOUNDS[name](); }
+  if ((world.name === 'neon' || ['boost', 'jump', 'bump', 'depart', 'tint', 'pass', 'buzz', 'key', 'gate', 'reset', 'click', 'thunk', 'scrape', 'whirr', 'charge', 'earth', 'glint', 'lit', 'unlit', 'warp', 'tube', 'pop', 'power', 'zap', 'knock', 'clink', 'crack', 'shatter', 'burn', 'flame', 'blast', 'glide', 'crunch', 'note', 'tone', 'pour'].includes(name)) && NEON_SOUNDS[name]) { if (sfx && sfx.isOn()) NEON_SOUNDS[name](); }
   else play(name === 'home' ? 'land' : name);
 }
 function ensureCitySound() {
@@ -806,6 +807,8 @@ const SWITCHES = { X: { switch: 'A' }, Y: { switch: 'B' }, Z: { switch: 'C' },
 // The squares past level 40 were found by a search that mixes the mechanics (pzgen.js: keys, switches, crates and plates,
 // charge, light), aimed at a number of steps that climbs with the level, rewarding dead ends and punishing clutter. One
 // legend serves them all.
+const WATER_GAP = 8, WATER_UNIT = 0.42;                 // the boat's channel: how long, and how far a band of water raises it
+const WATER = { 1: { tank: 1 }, 2: { tank: 2 }, 3: { tank: 3 }, 4: { tank: 4 }, 5: { tank: 5 }, 6: { tank: 6 } };   // the boat: tanks, by what they hold
 const TWIN = { t: { twin: 1 }, p: { twinPad: 1 } };      // the twin: where it starts, its pad
 const TUNE = { a: { tone: 0 }, b: { tone: 1 }, c: { tone: 2 }, d: { tone: 3 }, e: { tone: 4 }, f: { tone: 5 } };   // the drums of a tune
 const PIT = { W: { weight: 1 }, _: { pit: 1 } };          // build a road: a crate, a gap it fills
@@ -2251,17 +2254,58 @@ const PLAZAS = {
     '+ + + +-+ + +',
     '|. . .|. . .|',
     '+-+ +-+-+-+-+'] },
+  // THE BOAT (owner, 2026-09-28, the sixth new puzzle: "add water to a channel that lets you take a boat"). Past the way
+  // out the road is missing: a deep channel, a boat at the bottom. Each tank (its digit: how many bands of water it
+  // holds) pours into the channel when its valve, the cell south of it, is rolled over. Fill it exactly to the line and
+  // the boat is level with the road: the bar across the way out drops, and the boat takes you over. (watergen.js)
+  H1: { entry: 2, exit: 2, water: 7, legend: WATER, map: [   // 7: two of three tanks
+    '+-+-+ +-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. 3 . . 5|',
+    '+ + + + + +',
+    '|. . . 2 .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+'] },
+  H2: { entry: 2, exit: 2, water: 11, legend: WATER, map: [  // 11: two of four, and the way north passes a wrong valve
+    '+-+-+ +-+-+',
+    '|5 . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. 6 1 . .|',
+    '+ + + + + +',
+    '|3 . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+'] },
+  H3: { entry: 2, exit: 2, water: 11, legend: WATER, map: [  // 11: three of five
+    '+-+-+ +-+-+',
+    '|. 4 . . .|',
+    '+ + + + + +',
+    '|5 . . . .|',
+    '+ + + + + +',
+    '|. . 3 . .|',
+    '+ + + + + +',
+    '|5 . . . .|',
+    '+ + + + + +',
+    '|. . . 1 .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+'] },
 };
 // PLAZAS END
 // Which square each level ends with; '~' mirrors it left to right.
 // The new puzzles, each tried first on a course of its own (#try-<kind>, #try-<kind>-tokyo), easy to hard.
-const TRY_COURSES = { ice: ['I1', 'I2', 'I3', 'I4'], road: ['P1', 'P2', 'P3'], tiles: ['T1', 'T2', 'T3'], tune: ['M1', 'M2', 'M3'], twin: ['D1', 'D2', 'D3'] },
-      TRY_TITLES = { ice: 'ICE MAZES', road: 'BUILD A ROAD', tiles: 'EVERY TILE', tune: 'THE TUNE', twin: 'THE TWIN' };
+const TRY_COURSES = { ice: ['I1', 'I2', 'I3', 'I4'], road: ['P1', 'P2', 'P3'], tiles: ['T1', 'T2', 'T3'], tune: ['M1', 'M2', 'M3'], twin: ['D1', 'D2', 'D3'], boat: ['H1', 'H2', 'H3'] },
+      TRY_TITLES = { ice: 'ICE MAZES', road: 'BUILD A ROAD', tiles: 'EVERY TILE', tune: 'THE TUNE', twin: 'THE TWIN', boat: 'THE BOAT' };
 const TRY_NEWS = { ice: 'Four ice mazes, easy to hard. On ice the marble slides until something stops it',
                    road: 'Three chasms. Push crates into the gaps to make a road across',
                    tiles: 'Light every tile. Each one crumbles behind you',
                    tune: 'Listen, then play it back. The way on opens when you do',
-                   twin: 'Your twin moves as your mirror. Stand at the way out while it stands on its pad' };
+                   twin: 'Your twin moves as your mirror. Stand at the way out while it stands on its pad',
+                   boat: 'Fill the channel exactly to the line, and the boat takes you over' };
 const PLAZA_AT = { 2: 'K1', 3: 'K2', 4: 'K2~', 5: 'K3', 6: 'K3~', 7: 'K4', 8: 'K4~', 9: 'S1', 10: 'S2', 11: 'S2~', 12: 'S3', 13: 'S4~',
                    14: 'W1', 15: 'W2', 16: 'W3', 17: 'W3~', 18: 'B1', 19: 'B2', 20: 'B3', 21: 'B3~', 22: 'B4', 23: 'B2~',
                    24: 'C1', 25: 'C2', 26: 'C2~', 27: 'C3', 28: 'C3~', 29: 'C4',
@@ -2272,7 +2316,7 @@ Object.assign(PLAZA_AT, { 41: 'G41', 42: 'G42', 43: 'G43', 44: 'G44', 45: 'G45',
 function plazaLayout(id) {
   const flipped = id.endsWith('~'), T = PLAZAS[flipped ? id.slice(0, -1) : id];
   const cols = (T.map[0].length - 1) / 2, rows = (T.map.length - 1) / 2;
-  if (!flipped) return { id, cols, rows, map: T.map, legend: T.legend, entry: T.entry, exit: T.exit, ice: T.ice, cover: T.cover, tune: T.tune, twin: T.twin };
+  if (!flipped) return { id, cols, rows, map: T.map, legend: T.legend, entry: T.entry, exit: T.exit, ice: T.ice, cover: T.cover, tune: T.tune, twin: T.twin, water: T.water };
   const legend = {};
   for (const [ch, v] of Object.entries(T.legend)) {                 // and anything that points turns with it
     const u = legend[ch] = { ...v };
@@ -2280,7 +2324,7 @@ function plazaLayout(id) {
     if (u.source === 'e' || u.source === 'w') u.source = u.source === 'e' ? 'w' : 'e';
     if ('tile' in u) u.tile = (u.tile & 5) | (u.tile & 2 ? 8 : 0) | (u.tile & 8 ? 2 : 0);
   }
-  return { id, cols, rows, map: T.map.map((l) => [...l].reverse().join('')), legend, entry: cols - 1 - T.entry, exit: cols - 1 - T.exit, ice: T.ice, cover: T.cover, tune: T.tune, twin: T.twin };
+  return { id, cols, rows, map: T.map.map((l) => [...l].reverse().join('')), legend, entry: cols - 1 - T.entry, exit: cols - 1 - T.exit, ice: T.ice, cover: T.cover, tune: T.tune, twin: T.twin, water: T.water };
 }
 // A square's map read into cells[r][c], edges h[k][c] (the south edge of row k) and v[r][c] (the west edge of column c).
 function plazaGrid(pc) {
@@ -2643,6 +2687,7 @@ function makeLevel(n, variant = LEVEL_VARIANT[n] || 0, test = null) {
     on(D); run += D;                                    // the way through a square is longer than the square
     x = r2(x0 + (T.exit + 0.5) * CELL);
     if (T.cover || T.twin) { pieces.push({ ...F(x, r2(z - 1.5), rw, 3, y), bridge: true }); on(3); }   // the bridge out: there once solved
+    if (T.water) on(WATER_GAP);                         // the channel: the road missing, the boat's crossing
     if (T.tune) {                                       // a ledge, a portal on it (open once the tune is played), the missing road, the far side
       straight(2.5, rw);
       const pz = r2(z + 0.9), gap = 7;
@@ -4317,6 +4362,7 @@ function buildPlaza(pc) {
   if (pc.cover) buildCover(P);
   if (pc.tune) buildTune(P);
   if (pc.twin) buildTwin(P);
+  if (pc.water) buildWater(P);
   // The gates.
   // (Each is named by its edge as the search names it: H c,k is the south edge of row k in column c; V c,r the west edge of column c in row r.)
   for (let k = 0; k <= P.rows; k++) for (let c = 0; c < P.cols; c++) if (G.h[k][c] && !plazaWall(G.h[k][c])) buildGate(P, G.h[k][c], X(c), P.z0 - k * CELL, true, 'H' + c + ',' + k);
@@ -4875,6 +4921,7 @@ function padEnter(P, c, r) {
     if (was !== P.charged) { sound(P.charged ? 'charge' : 'earth'); burst(ball.p.x, ball.p.y, ball.p.z, P.charged ? CHARGE_COL : GROUND_COL, 18, 3); }
   }
   if ('tone' in cell) tunePress(P, cell.tone);         // a drum of a tune
+  if (P.water) { const V = P.water.valves.find((q) => q.c === c && q.r === r); if (V) waterOpen(P, V); }   // a valve
   if ('switch' in cell) {                               // a switch: every gate of its letter flips
     const L = cell.switch;
     for (const g of P.gates) if (g.kind === 'switch' && g.letters.includes(L)) { g.state = g.state === 'open' ? 'shut' : 'open'; g.flash = 1; }
@@ -4911,6 +4958,7 @@ function resetPlaza(P, quiet) {
   }
   if (quiet) { for (const K of P.keys) K.t = 1; for (const g of P.gates) g.open = g.init === 'open' ? 1 : 0; }
   if (P.reset) P.reset.flash = 1;
+  if (P.water) { waterReset(P, quiet); if (!quiet) { sound('reset'); return; } }   // the tanks full, the channel empty
   if (quiet && (P.cov || P.twin)) {                    // a restart: unsolved again, the bridge gone
     if (P.cov) { P.covDone = false; resetCover(P); }
     if (P.twin) { P.twin.done = false; resetTwin(P); }
@@ -5010,6 +5058,149 @@ function buildIce(P) {
       }
     }
   }
+}
+/* THE BOAT (owner, 2026-09-28, the sixth new puzzle: "add water to a channel
+   that lets you take a boat"). Past the way out the road is missing: a deep
+   channel, a boat at its bottom. A tank's digit is how many bands of water it
+   holds, and its bands can be counted through its glass; rolled over, the
+   valve south of it pours them into the channel, and the boat rises a step for
+   each. Exactly to the line and the boat is level with the road: the bar across
+   the way out drops, and the boat, once the marble is on it, sails over. Too
+   much, and the bar stays down and the line turns red; the pad by the road
+   refills the tanks and empties the channel. */
+const valveTex = canvasTex(128, 128, (g) => {           // a valve wheel: a rim, four spokes, a hub
+  g.clearRect(0, 0, 128, 128); g.strokeStyle = '#FFFFFF'; g.lineCap = 'round';
+  g.lineWidth = 10; g.beginPath(); g.arc(64, 64, 44, 0, 6.28); g.stroke();
+  g.lineWidth = 8; for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2 + 0.4; g.beginPath(); g.moveTo(64, 64); g.lineTo(64 + 44 * Math.cos(a), 64 + 44 * Math.sin(a)); g.stroke(); }
+  g.fillStyle = '#FFFFFF'; g.beginPath(); g.arc(64, 64, 11, 0, 6.28); g.fill();
+});
+const WATER_COL = 0x3FB8FF;
+const PIPS = { 1: [[0, 0]], 2: [[-1, -1], [1, 1]], 3: [[-1, -1], [0, 0], [1, 1]], 4: [[-1, -1], [1, -1], [-1, 1], [1, 1]],
+               5: [[-1, -1], [1, -1], [0, 0], [-1, 1], [1, 1]], 6: [[-1, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [1, 1]] };
+const pipTex = {};                                      // a tank's lid: how much it holds, as a die shows it
+function tankLid(v) {
+  return pipTex[v] || (pipTex[v] = canvasTex(128, 128, (g) => {
+    g.fillStyle = '#0E2436'; g.beginPath(); g.arc(64, 64, 62, 0, 6.28); g.fill();
+    g.fillStyle = '#FFFFFF'; for (const [a, b] of PIPS[v]) { g.beginPath(); g.arc(64 + a * 30, 64 + b * 30, 13, 0, 6.28); g.fill(); }
+  }));
+}
+function buildWater(P) {
+  const G = P.grid, env = neonEnvMap() || envTex, target = P.pc.water;
+  const W = P.water = { target, want: 0, level: 0, tanks: [], valves: [], boat: null, bar: null, state: 'down', mats: {} };
+  W.mats.glass = new MeshStandardMaterial({ color: 0xCFEFFF, metalness: 0.1, roughness: 0.05, transparent: true, opacity: 0.28, envMap: env, envMapIntensity: 1.2 });
+  W.mats.band = new MeshBasicMaterial({ color: WATER_COL, toneMapped: false, transparent: true, opacity: 0.9 });
+  W.mats.water = new MeshStandardMaterial({ color: 0x1A6FB0, metalness: 0.2, roughness: 0.15, transparent: true, opacity: 0.8, envMap: env, emissive: 0x0E4A7A, emissiveIntensity: 0.5 });
+  for (let r = 0; r < P.rows; r++) for (let c = 0; c < P.cols; c++) {
+    const cell = G.cells[r][c];
+    if (!cell.tank) continue;
+    const v = cell.tank, h = 0.3 + v * 0.16, x = P.X(c), z = P.Z(r);
+    const glass = new Mesh(new CylinderGeometry(0.62, 0.62, h, 32, 1, true), W.mats.glass); glass.position.set(x, P.y + h / 2, z);
+    const cap = new Mesh(new CylinderGeometry(0.66, 0.66, 0.06, 32), P.mats.base); cap.position.set(x, P.y + h + 0.03, z);
+    const lidMat = new MeshBasicMaterial({ map: tankLid(v), transparent: true, toneMapped: false });
+    const lid = new Mesh(new CircleGeometry(0.6, 36), lidMat); lid.rotation.x = -Math.PI / 2; lid.position.set(x, P.y + h + 0.065, z);   // its pips, seen from above
+    const foot = new Mesh(new CylinderGeometry(0.7, 0.72, 0.08, 32), P.mats.base); foot.position.set(x, P.y + 0.04, z);
+    levelGroup.add(glass, cap, lid, foot);
+    const bands = [];                                   // one band to a unit of water, seen through the glass
+    for (let i = 0; i < v; i++) { const b = new Mesh(new CylinderGeometry(0.54, 0.54, 0.11, 28), W.mats.band); b.position.set(x, P.y + 0.14 + i * 0.16 + 0.055, z); levelGroup.add(b); bands.push(b); }
+    colliders.push({ mesh: glass, pos: glass.position.clone(), prev: glass.position.clone(), quat: new Quaternion(), inv: new Quaternion(),
+                     half: new Vector3(0.62, h / 2, 0.62), delta: new Vector3(), ferry: null, holo: null, pad: null, obstacle: 'tank' });
+    const T = { c, r, v, open: false, bands, drain: 0, lidMat };
+    W.tanks.push(T);
+    const vg = new Group(); vg.position.set(x, P.y, P.Z(r - 1));   // its valve, the cell south of it
+    const base = new Mesh(new CylinderGeometry(0.66, 0.72, 0.06, 40), P.mats.base); base.position.y = 0.03; base.receiveShadow = true;
+    const wheelMat = new MeshBasicMaterial({ color: WATER_COL, map: valveTex, transparent: true, depthWrite: false, toneMapped: false });
+    const wheel = new Mesh(new CircleGeometry(0.52, 40), wheelMat); wheel.rotation.x = -Math.PI / 2; wheel.position.y = 0.065;
+    const pool = new Mesh(new CircleGeometry(1.05, 40), glowMat(WATER_COL, 0.14, dot)); pool.rotation.x = -Math.PI / 2; pool.position.y = 0.012;
+    vg.add(base, wheel, pool); levelGroup.add(vg);
+    W.valves.push({ c, r: r - 1, tank: T, wheel, wheelMat, pool, spin: 0 });
+  }
+  // The channel past the way out: its walls, marks a band apart, the line (the road's own level), the water, the boat.
+  const x = P.X(P.pc.exit), z0 = P.z0 - P.rows * CELL, depth = target * WATER_UNIT + 0.8, zc = z0 - WATER_GAP / 2;
+  const wallMat = P.mats.wall;
+  for (const sx of [-1, 1]) {
+    const w = new Mesh(new BoxGeometry(0.3, depth, WATER_GAP), wallMat); w.position.set(x + sx * 1.6, P.y - depth / 2, zc); levelGroup.add(w);
+    for (let k = 1; k <= target + 2; k++) {             // the marks, and the line
+      const at = k === target, m = new Mesh(new BoxGeometry(0.04, at ? 0.08 : 0.03, at ? WATER_GAP - 0.2 : 0.5), new MeshBasicMaterial({ color: at ? 0xFFFFFF : 0x9FD8FF, toneMapped: false }));
+      m.position.set(x + sx * 1.44, P.y - (target - k) * WATER_UNIT - 0.18, at ? zc : z0 - 0.6); levelGroup.add(m);
+      if (at) W.line = (W.line || []).concat(m);
+    }
+  }
+  const floor = new Mesh(new BoxGeometry(3.2, 0.3, WATER_GAP), wallMat); floor.position.set(x, P.y - depth - 0.15, zc); levelGroup.add(floor);
+  W.sheet = new Mesh(new BoxGeometry(2.9, 0.04, WATER_GAP - 0.1), W.mats.water); levelGroup.add(W.sheet);
+  const boatMat = new MeshStandardMaterial({ color: 0x7A5230, roughness: 0.6, metalness: 0.05 }), trimMat = new MeshBasicMaterial({ color: 0xFFD8A0, toneMapped: false });
+  const boat = new Mesh(new BoxGeometry(2.2, 0.3, 2.4), boatMat);
+  const trim = new Mesh(new BoxGeometry(2.24, 0.02, 2.44), trimMat); trim.position.y = 0.16; boat.add(trim);
+  boat.castShadow = true; levelGroup.add(boat);
+  const col = { mesh: boat, pos: new Vector3(), prev: new Vector3(), quat: new Quaternion(), inv: new Quaternion(), half: new Vector3(1.1, 0.15, 1.2),
+                delta: new Vector3(), ferry: { boat: true }, holo: null, pad: null, obstacle: 'boat' };   // (an obstacle: no world repaints it as road)
+  colliders.push(col);
+  W.boat = { col, zNear: z0 - 1.25, zFar: z0 - WATER_GAP + 1.25, z: z0 - 1.25, x };
+  // The bar across the way out: down (gone) only while the boat is level with the road.
+  const bar = new Mesh(new BoxGeometry(CELL - 0.1, 0.9, 0.18), new MeshBasicMaterial({ color: 0xFF5A48, toneMapped: false, transparent: true, opacity: 0.85 }));
+  bar.position.set(x, P.y + 0.45, z0); levelGroup.add(bar);
+  const cv = document.createElement('canvas'); cv.width = 320; cv.height = 120;   // on it, how full: "4 / 7", big enough to read on a phone
+  const signTex = new CanvasTexture(cv); signTex.colorSpace = SRGBColorSpace;
+  const sign = new Mesh(new PlaneGeometry(2.8, 1.05), new MeshBasicMaterial({ map: signTex, transparent: true, depthWrite: false, toneMapped: false }));
+  sign.rotation.x = -Math.PI / 2; sign.position.set(x, P.y + 0.92, z0 + 0.05); levelGroup.add(sign);
+  W.sign = sign; W.shown = -1;
+  W.signDraw = () => {
+    const g = cv.getContext('2d'), over = W.want > W.target;
+    g.clearRect(0, 0, 320, 120); g.fillStyle = 'rgba(8,12,24,0.82)'; g.beginPath(); g.roundRect(4, 4, 312, 112, 28); g.fill();
+    g.font = '800 78px Inter, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillStyle = over ? '#FF6B5E' : '#FFFFFF'; g.fillText(W.want + ' / ' + W.target, 160, 64);
+    signTex.needsUpdate = true; W.shown = W.want;
+  };
+  const barCol = { mesh: bar, pos: bar.position.clone(), prev: bar.position.clone(), quat: new Quaternion(), inv: new Quaternion(), half: new Vector3(CELL / 2, 0.45, 0.09),
+                   delta: new Vector3(), ferry: null, holo: null, pad: null, wbar: W, obstacle: 'bar' };
+  colliders.push(barCol); W.bar = barCol;
+  waterPlace(P, true);
+}
+const waterDeck = (P, L) => P.y - (P.water.target - L) * WATER_UNIT;   // the boat's deck at water level L (the road's at the line)
+function waterPlace(P, snap) {
+  const W = P.water, B = W.boat, y = waterDeck(P, W.level) - 0.15;
+  B.col.prev.copy(B.col.pos); B.col.pos.set(B.x, y, B.z); if (snap) B.col.prev.copy(B.col.pos);
+  B.col.delta.subVectors(B.col.pos, B.col.prev); B.col.mesh.position.copy(B.col.pos);
+  W.sheet.position.set(B.x, y - 0.05, P.z0 - P.rows * CELL - WATER_GAP / 2);
+}
+function waterOpen(P, V) {                              // a valve: its tank pours out
+  const T = V.tank; V.spin = 1;
+  if (T.open) return;
+  T.open = true; P.water.want += T.v; sound('pour');
+}
+// Every physics step: the water finds its level, the boat with it; level with the road, the bar drops; the boat sails.
+function waterStep() {
+  for (const P of plazas) {
+    const W = P.water; if (!W) continue;
+    const d = W.want - W.level;
+    if (Math.abs(d) > 1e-4) W.level += Math.sign(d) * Math.min(Math.abs(d), STEP * 2.2);
+    const level = Math.abs(W.level - W.target) < 1e-3 && W.want === W.target;
+    if (W.state === 'down' && level) { W.state = 'docked'; sound('unlock'); burst(W.boat.x, P.y + 0.3, W.boat.zNear, 0xFFD8A0, 18, 2.6); }
+    if (W.state === 'docked' && !level) W.state = 'down';
+    if (W.state === 'docked' && ball.onFerry === W.boat.col) W.state = 'sailing';   // aboard: away
+    if (W.state === 'sailing') { W.boat.z = Math.max(W.boat.zFar, W.boat.z - STEP * 2.6); if (W.boat.z === W.boat.zFar) W.state = 'across'; }
+    waterPlace(P, false);
+  }
+}
+function waterReset(P, quiet) {                          // the tanks full again, the channel empty, the boat back at the bottom
+  const W = P.water;
+  for (const T of W.tanks) { T.open = false; T.drain = 0; for (const b of T.bands) b.visible = true; T.lidMat.opacity = 1; }
+  W.want = 0; if (quiet) W.level = 0;
+  W.state = 'down'; W.boat.z = W.boat.zNear; waterPlace(P, true);
+}
+function animateWater(P, dt) {
+  const W = P.water, over = W.want > W.target;
+  for (const T of W.tanks) {                            // an open tank empties, a band at a time from the top
+    if (!T.open) continue;
+    T.drain = Math.min(T.v, T.drain + dt * 2.2);
+    T.bands.forEach((b, i) => { b.visible = i < T.v - T.drain; });
+    T.lidMat.opacity = 0.35;                            // (poured: its pips dim)
+  }
+  for (const V of W.valves) { V.spin = Math.max(0, V.spin - dt * 1.5); V.wheel.rotation.z += dt * 6 * V.spin; V.wheelMat.opacity = V.tank.open ? 0.45 : 1; V.pool.material.opacity = V.tank.open ? 0.05 : 0.14 + 0.3 * V.spin; }
+  for (const m of W.line || []) m.material.color.setHex(over ? 0xFF3B30 : W.state !== 'down' ? 0x7DFFB0 : 0xFFFFFF);
+  const open = W.state !== 'down';
+  W.bar.mesh.visible = !open; W.sign.visible = !open;
+  if (W.shown !== W.want) W.signDraw();
+  W.sheet.material.opacity = W.level > 0.02 ? 0.8 : 0;
 }
 /* THE TWIN (owner, 2026-09-28, the fifth new puzzle). A wall down the middle
    of the square: you on the left, your twin, a marble of violet glass, on the
@@ -5403,6 +5594,7 @@ function animatePlazas(dt) {
     if (plazaAt === P && plazaView > 0.6) P.noteT += dt;   // how long its note has been up
     if (P.tune) animateTune(P, dt);
     if (P.twin) animateTwin(P, dt);
+    if (P.water) animateWater(P, dt);
   }
 }
 // The square the marble is in, or on the road into (with its reset pad).
@@ -5636,6 +5828,7 @@ function collide(c, dt) {
   if (c.pit && !c.pit.filled) return;                     // a gap no crate has filled
   if (c.bridge && !c.bridge.on) return;                   // a bridge not there yet
   if (c.gone) return;                                     // a tile that has crumbled
+  if (c.wbar && c.wbar.state !== 'down') return;          // the bar at the way out to the boat: down while the boat is level
   _L.subVectors(ball.p, c.pos).applyQuaternion(c.inv);
   const h = c.half;
   if (Math.abs(_L.x) > h.x + R || Math.abs(_L.y) > h.y + R || Math.abs(_L.z) > h.z + R) return;
@@ -5712,7 +5905,7 @@ function step(dt, ix, iz) {
   if (scans.length && state === 'play') scanStep();
   if (flames.length && state === 'play') flameStep();
   if (cracks.length) crackStep();
-  if (plazas.length) { plazaMove(); if (state === 'play') { plazaStep(); iceCatch(); portalStep(); } }
+  if (plazas.length) { plazaMove(); waterStep(); if (state === 'play') { plazaStep(); iceCatch(); portalStep(); } }
   ball.onLoop = null;
   for (const L of loopsIn) loopContact(L);
   tintStep();
@@ -5777,6 +5970,7 @@ function arrive() {
   for (const P of plazas) if (P.cov && flight.to.z > P.z0 - 0.1) resetCover(P);   // and the tiles of a square ahead
   for (const P of plazas) if (P.tune && !P.tune.done && flight.to.z > P.z0 - 0.1) Object.assign(P.tune, { at: 0, heard: false, play: null });   // a tune ahead, to hear again
   for (const P of plazas) if (P.twin && !P.twin.done && flight.to.z > P.z0 - 0.1) resetTwin(P);   // a twin ahead, home again
+  for (const P of plazas) if (P.water && P.water.state !== 'down' && flight.to.z > P.z0 - 0.1) { P.water.state = 'docked'; P.water.boat.z = P.water.boat.zNear; waterPlace(P, true); }   // the boat back to meet you
   ball.p.copy(flight.to); ball.v.set(0, 0, 0);
   setTint(spawnTint);
   ball.grounded = true; ball.airT = 0;
@@ -6434,6 +6628,9 @@ const PLAZA_NEWS = {
   D1: 'Your twin moves the mirror way. A wall stops one of you, not both',
   D2: 'Get out of step with your twin, then back in',
   D3: 'Walk it through in your head before the first push',
+  H1: 'Fill the channel to the line: the bar says how full. The dots on a tank are how much it holds',
+  H2: 'Too much and the boat floats too high. The pad by the road empties the channel',
+  H3: 'Which tanks make exactly the line? Mind which valves you roll over',
 };
 const PLAZA_NOTE_T = 7;
 function drawNews() {
@@ -12809,6 +13006,8 @@ if (HARNESS) {
                                       gates: P.gates.map((g) => ({ ek: g.ek, state: g.state })), crates: P.crates.map((W) => ({ c: W.c, r: W.r, moving: W.moving, sunk: !!W.sunk })),
                                       tune: P.tune && { seq: P.tune.seq, at: P.tune.at, done: P.tune.done, playing: !!P.tune.play, heard: P.tune.heard },
                                       twin: P.twin && { c: P.twin.c, r: P.twin.r, moving: P.twin.t < 1, done: P.twin.done, pad: P.twin.pad },
+                                      water: P.water && { target: P.water.target, want: P.water.want, level: +P.water.level.toFixed(3), state: P.water.state, boatZ: +P.water.boat.z.toFixed(2),
+                                                          tanks: P.water.tanks.map((T) => ({ c: T.c, r: T.r, v: T.v, open: T.open })) },
                                       tiles: P.tiles.map((T) => ({ c: T.c, r: T.r, mask: T.mask, moving: T.moving > 0 })), charged: P.charged, lit: P.lit,
                                       mirrors: P.mirrors.map((M) => ({ c: M.c, r: M.r, m: M.m })), stands: P.stands.map((s) => ({ c: s.c, r: s.r, n: s.key ? s.key.n : 0 })),
                                       view: +plazaView.toFixed(3), cam: P.cam && { pos: P.cam.pos.toArray().map((v) => +v.toFixed(2)), at: P.cam.at.toArray().map((v) => +v.toFixed(2)) } })),
