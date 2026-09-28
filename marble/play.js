@@ -4447,11 +4447,18 @@ function firstGesture() {
    every such event, anywhere on the page (the cover included), wakes it and
    starts a silent sound there and then, the old iPhone way. It keeps listening,
    because a phone call or another app can put the audio to sleep again. */
+let audioAwake = false;
+function audioIsAwake() {                                // tell the page, once: its cover need not ask for a tap
+  if (audioAwake) return;
+  audioAwake = true;
+  window.dispatchEvent(new Event('audio-awake'));
+}
 function wakeAudio() {
   if (!sfx) return;
   const ctx = sfx.ensureAudio();
-  if (!ctx || ctx.state === 'running') return;
-  try { ctx.resume().catch(() => {}); } catch (_) {}
+  if (!ctx) return;
+  if (ctx.state === 'running') { audioIsAwake(); return; }
+  try { ctx.resume().then(() => { if (ctx.state === 'running') audioIsAwake(); }).catch(() => {}); } catch (_) {}
   try { const s = ctx.createBufferSource(); s.buffer = ctx.createBuffer(1, 1, ctx.sampleRate); s.connect(ctx.destination); s.start(0); } catch (_) {}
 }
 for (const ev of ['pointerdown', 'touchstart', 'pointerup', 'touchend', 'click', 'keydown']) window.addEventListener(ev, wakeAudio, { capture: true, passive: true });

@@ -29,10 +29,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../shared/tokens.css?v=1" />
   <link rel="stylesheet" href="../shared/chrome.css?v=20" />
-  <link rel="stylesheet" href="./play.css?v=3" />
+  <link rel="stylesheet" href="./play.css?v=4" />
   <!-- The game and its 3D library, fetched side by side from the start: left to
        the import, the library would not be asked for until the game had arrived. -->
-  <link rel="modulepreload" href="./play.js?v=13" />
+  <link rel="modulepreload" href="./play.js?v=14" />
   <link rel="modulepreload" href="./assets/three-r186.min.js" />
   <!-- Google AdSense. The site earns from these pages; keep both lines. -->
   <meta name="google-adsense-account" content="ca-pub-9207689324865969">
@@ -237,7 +237,7 @@
   <script src="../shared/analytics.js?v=3"></script>
   <script src="../shared/embed.js?v=1"></script>
   <script defer src="../shared/ads.js?v=2"></script>
-  <script type="module" src="./play.js?v=13"></script>
+  <script type="module" src="./play.js?v=14"></script>
   <script>
     (() => {
       const btn = document.getElementById('focus-toggle');
@@ -261,7 +261,12 @@
       if (!splash) return;
       const fill = document.getElementById('splash-fill'), label = document.getElementById('splash-label');
       const t0 = performance.now();
-      let at = 0, ready = false, gone = false;
+      let at = 0, ready = false, gone = false, audioAwake = false;
+      // A phone lets sound start only from a finger lifting, so there the cover
+      // waits for one tap once the game is ready (owner, 2026-09-27: "Tap to play
+      // on phones"). Not in the test harness, where nothing taps.
+      const needTap = matchMedia('(pointer: coarse)').matches && !/[?&]harness=1(&|$)/.test(location.search);
+      window.addEventListener('audio-awake', () => { audioAwake = true; });
       const to = (k, secs) => {                          // move the bar to k, over secs
         if (k <= at) return;
         at = k;
@@ -289,9 +294,21 @@
           window.dispatchEvent(new CustomEvent('splash-done'));
         }, 850);
       };
+      const askForTap = () => {
+        if (gone) return;
+        if (!needTap || audioAwake) { finish(); return; }  // a tap while it loaded already woke the sound
+        to(1, 0.25);
+        label.textContent = 'Tap to play';
+        splash.classList.add('tap');
+        const go = () => { if (!gone) { splash.classList.remove('tap'); finish(); } };
+        // The game's own listener has already woken the sound in this same tap (it listens first).
+        splash.addEventListener('pointerup', go);
+        splash.addEventListener('touchend', go);
+        splash.addEventListener('click', go);
+      };
       window.addEventListener('game-ready', () => {
         ready = true;
-        setTimeout(finish, Math.max(0, 2000 - (performance.now() - t0)));
+        setTimeout(askForTap, Math.max(0, 2000 - (performance.now() - t0)));
       }, { once: true });
       // Taking very long: say so, rather than leave a bar that has stopped.
       setTimeout(() => { if (!ready) label.textContent = 'Still loading. A slow connection can take a while'; }, 20000);
