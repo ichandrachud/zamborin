@@ -232,6 +232,8 @@ const NEON_SOUNDS = {
   whirr() { voice('sawtooth', 120, 240, 0.42, 0.02); voice('square', 60, 80, 0.4, 0.012); voice('triangle', 880, 1320, 0.12, 0.03, 0.36); },   // a lever thrown, a section turning
   thunk() { voice('sine', 170, 85, 0.2, 0.09); voice('triangle', 440, 400, 0.08, 0.025); voice('sine', 660, 990, 0.25, 0.03, 0.06); },   // a plate pressed
   scrape() { voice('sawtooth', 95, 62, 0.3, 0.035); voice('square', 150, 120, 0.26, 0.012); voice('sine', 70, 55, 0.3, 0.06); },           // a crate pushed
+  glide() { voice('triangle', 1900, 2600, 0.32, 0.018); voice('sine', 3100, 2400, 0.4, 0.012, 0.04); voice('sine', 240, 200, 0.3, 0.02); },   // off across the ice
+  crunch() { voice('sawtooth', 120, 70, 0.12, 0.03); voice('square', 260, 180, 0.08, 0.012, 0.02); voice('sine', 90, 60, 0.18, 0.05); },    // stopped by snow
   click() { voice('square', 2200, 1400, 0.03, 0.035); voice('triangle', 520, 780, 0.16, 0.05, 0.03); voice('sine', 1040, 1560, 0.22, 0.03, 0.06); },   // a switch pressed
   reset() { voice('sawtooth', 1300, 150, 0.55, 0.016); voice('sine', 1760, 330, 0.5, 0.045); voice('sine', 220, 220, 0.3, 0.04, 0.45); },   // a square put back
   buzz() { voice('square', 110, 100, 0.22, 0.035); voice('sawtooth', 55, 50, 0.2, 0.03); },        // a wall of the other colour
@@ -242,7 +244,7 @@ const NEON_SOUNDS = {
 };
 // The city's version of a sound where it has one, the house sound elsewhere.
 function sound(name) {
-  if ((world.name === 'neon' || ['boost', 'jump', 'bump', 'depart', 'tint', 'pass', 'buzz', 'key', 'gate', 'reset', 'click', 'thunk', 'scrape', 'whirr', 'charge', 'earth', 'glint', 'lit', 'unlit', 'warp', 'tube', 'pop', 'power', 'zap', 'knock', 'clink', 'crack', 'shatter', 'burn', 'flame', 'blast'].includes(name)) && NEON_SOUNDS[name]) { if (sfx && sfx.isOn()) NEON_SOUNDS[name](); }
+  if ((world.name === 'neon' || ['boost', 'jump', 'bump', 'depart', 'tint', 'pass', 'buzz', 'key', 'gate', 'reset', 'click', 'thunk', 'scrape', 'whirr', 'charge', 'earth', 'glint', 'lit', 'unlit', 'warp', 'tube', 'pop', 'power', 'zap', 'knock', 'clink', 'crack', 'shatter', 'burn', 'flame', 'blast', 'glide', 'crunch'].includes(name)) && NEON_SOUNDS[name]) { if (sfx && sfx.isOn()) NEON_SOUNDS[name](); }
   else play(name === 'home' ? 'land' : name);
 }
 function ensureCitySound() {
@@ -799,6 +801,7 @@ const SWITCHES = { X: { switch: 'A' }, Y: { switch: 'B' }, Z: { switch: 'C' },
 // The squares past level 40 were found by a search that mixes the mechanics (pzgen.js: keys, switches, crates and plates,
 // charge, light), aimed at a number of steps that climbs with the level, rewarding dead ends and punishing clutter. One
 // legend serves them all.
+const ICE = { o: { rock: 1 }, s: { snow: 1 } };           // the ice mazes: a rock, snow (a hole is '#', a cell with no floor)
 const GEN = { a: { key: 1 }, b: { key: 2 }, A: { keygate: 1 }, B: { keygate: 2 },
               x: { switch: 'A' }, y: { switch: 'B' }, X: { sgate: 'A' }, Y: { sgate: 'B' }, u: { sgate: 'A', open: 1 }, v: { sgate: 'B', open: 1 },
               W: { weight: 1 }, P: { plate: 'A' }, Q: { plate: 'B' }, G: { pgate: 'A' }, H: { pgate: 'B' },
@@ -2023,9 +2026,71 @@ const PLAZAS = {
     '+ + + + + +',
     '|P . . . .|',
     '+-+-+ +-+-+'] },
+  // ICE MAZES (owner, 2026-09-28, the first of eight new puzzles on the road). The floor is ice: the marble slides until
+  // something stops it, 'o' a rock (a cell short of it), 's' snow (on it); over a hole, '#', it drops. Found by a search
+  // (icegen.js) for the fewest slides out, nowhere to get stuck, and a field that random pushing rarely gets out of.
+  I1: { entry: 2, exit: 2, ice: true, legend: ICE, map: [    // 4 slides: a rock stops you a cell short
+    '+-+-+ +-+-+',
+    '|. . . o .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . o . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+'] },
+  I2: { entry: 2, exit: 2, ice: true, legend: ICE, map: [    // 6 slides: snow stops you on it
+    '+-+-+ +-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. s s . o|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|o . . . .|',
+    '+ + + + + +',
+    '|. . o . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+'] },
+  I3: { entry: 2, exit: 2, ice: true, legend: ICE, map: [    // 9 slides, and holes
+    '+-+-+ +-+-+',
+    '|. . . o .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|# . . s .|',
+    '+ + + + + +',
+    '|. # . . o|',
+    '+ + + + + +',
+    '|. . o . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+'] },
+  I4: { entry: 2, exit: 2, ice: true, legend: ICE, map: [    // 14 slides
+    '+-+-+ +-+-+',
+    '|# . . o .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. s . . o|',
+    '+ + + + + +',
+    '|o . o . .|',
+    '+ + + + + +',
+    '|. . . o .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . o|',
+    '+-+-+ +-+-+'] },
 };
 // PLAZAS END
 // Which square each level ends with; '~' mirrors it left to right.
+// The new puzzles, each tried first on a course of its own (#try-<kind>, #try-<kind>-tokyo), easy to hard.
+const TRY_COURSES = { ice: ['I1', 'I2', 'I3', 'I4'] }, TRY_TITLES = { ice: 'ICE MAZES' };
+const TRY_NEWS = { ice: 'Four ice mazes, easy to hard. On ice the marble slides until something stops it' };
 const PLAZA_AT = { 2: 'K1', 3: 'K2', 4: 'K2~', 5: 'K3', 6: 'K3~', 7: 'K4', 8: 'K4~', 9: 'S1', 10: 'S2', 11: 'S2~', 12: 'S3', 13: 'S4~',
                    14: 'W1', 15: 'W2', 16: 'W3', 17: 'W3~', 18: 'B1', 19: 'B2', 20: 'B3', 21: 'B3~', 22: 'B4', 23: 'B2~',
                    24: 'C1', 25: 'C2', 26: 'C2~', 27: 'C3', 28: 'C3~', 29: 'C4',
@@ -2036,7 +2101,7 @@ Object.assign(PLAZA_AT, { 41: 'G41', 42: 'G42', 43: 'G43', 44: 'G44', 45: 'G45',
 function plazaLayout(id) {
   const flipped = id.endsWith('~'), T = PLAZAS[flipped ? id.slice(0, -1) : id];
   const cols = (T.map[0].length - 1) / 2, rows = (T.map.length - 1) / 2;
-  if (!flipped) return { id, cols, rows, map: T.map, legend: T.legend, entry: T.entry, exit: T.exit };
+  if (!flipped) return { id, cols, rows, map: T.map, legend: T.legend, entry: T.entry, exit: T.exit, ice: T.ice };
   const legend = {};
   for (const [ch, v] of Object.entries(T.legend)) {                 // and anything that points turns with it
     const u = legend[ch] = { ...v };
@@ -2044,7 +2109,7 @@ function plazaLayout(id) {
     if (u.source === 'e' || u.source === 'w') u.source = u.source === 'e' ? 'w' : 'e';
     if ('tile' in u) u.tile = (u.tile & 5) | (u.tile & 2 ? 8 : 0) | (u.tile & 8 ? 2 : 0);
   }
-  return { id, cols, rows, map: T.map.map((l) => [...l].reverse().join('')), legend, entry: cols - 1 - T.entry, exit: cols - 1 - T.exit };
+  return { id, cols, rows, map: T.map.map((l) => [...l].reverse().join('')), legend, entry: cols - 1 - T.entry, exit: cols - 1 - T.exit, ice: T.ice };
 }
 // A square's map read into cells[r][c], edges h[k][c] (the south edge of row k) and v[r][c] (the west edge of column c).
 function plazaGrid(pc) {
@@ -2097,7 +2162,7 @@ const LEVEL_VARIANT = {
   89: 141, 90: 155, 91: 197, 92: 88, 93: 47, 94: 157, 95: 121, 96: 102, 97: 33, 98: 46, 99: 6, 100: 117,
 };
 const DISTRICTS = ['Downtown', 'Transit', 'Holograms', 'Boost', 'Express', 'Skyline', 'Shibuya', 'Akihabara', 'Asakusa', 'Shinjuku', 'Tokyo Tower'];
-function makeLevel(n, variant = LEVEL_VARIANT[n] || 0) {
+function makeLevel(n, variant = LEVEL_VARIANT[n] || 0, test = null) {
   const r = seeded(9001 + n * 7919 + variant * 104729);
   const d = n <= 40 ? Math.floor((n - 1) / 8) : 5 + Math.floor((n - 41) / 10), k = n <= 40 ? ((n - 1) % 8) / 7 : 1;
   const g = Math.min(1, (n - 1) / 39), e = Math.max(0, (n - 40) / 60);   // past 40, the ladder climbs by e alone, so no level is easier than the last
@@ -2399,7 +2464,7 @@ function makeLevel(n, variant = LEVEL_VARIANT[n] || 0) {
     const T = plazaLayout(id), W = T.cols * CELL, D = T.rows * CELL, rw = 2.4, iw = r2(Math.max(rw, Math.min(wide, 3)));
     straight(5, iw, true);                              // the road in, with a ring on it
     const bs = x > 3 ? -1 : 1, bx = r2(x + bs * (iw / 2 + 1.1)), bz = r2(z + 2.5);
-    pieces.push({ ...F(bx, bz, 2.2, 2.2, y), bay: true }, { t: 'reset', x: bx, z: bz, y, w: 1.5, d: 1.5 });
+    if (!T.ice) pieces.push({ ...F(bx, bz, 2.2, 2.2, y), bay: true }, { t: 'reset', x: bx, z: bz, y, w: 1.5, d: 1.5 });   // (ice has nothing to reset)
     const x0 = r2(Math.min(14.5 - W, Math.max(-8.5, x - (T.entry + 0.5) * CELL))), ex = r2(x0 + (T.entry + 0.5) * CELL);
     if (Math.abs(ex - x) > 0.05) { pieces.push(F(r2((x + ex) / 2), r2(z - rw / 2), r2(Math.abs(ex - x) + rw), rw, y)); x = ex; on(rw); }
     straight(1.5, rw);
@@ -2435,6 +2500,13 @@ function makeLevel(n, variant = LEVEL_VARIANT[n] || 0) {
            ['bridge', 'wormhole', 'round', 'bollards', 'fork', 'bridge'], ['wind', 'loop', 'scan', 'boostJump', 'ride', 'wind', 'bridge', 'tube'], ALL);
   while (EARLIER.length < OWN.length) EARLIER.push(ALL);
   const features = n <= 40 ? 2 + Math.round(k * 2) + d : 8 + Math.round(7 * e), length = 45 + 155 * g + 190 * e;
+  if (test) {                                           // a course to try a new puzzle on (#try-ice): its puzzles in turn, easy to hard
+    straight(8, wide);
+    for (const id of TRY_COURSES[test]) { square(id); straight(8, wide); }
+    pieces.push(F(x, z - 3.5, 6, 7, y));
+    return { start: [0, 0, 1], gates, goal: [x, y, r2(z - 4)], pieces, district: DISTRICTS[d], length: Math.round(run + 7), test, title: TRY_TITLES[test],
+             star: Math.round((run + 7) / 1.6) };
+  }
   straight(5, wide);
   for (let f = 0; f < features + 8 && (f < features || run < length); f++) {
     const pool = f % 2 ? EARLIER[d] : OWN[d];
@@ -4063,6 +4135,7 @@ function buildPlaza(pc) {
     if (w && r0 < 0) r0 = r;
     if (!w && r0 >= 0) { const a = P.z0 - r0 * CELL + WALL_T / 2, b = P.z0 - r * CELL - WALL_T / 2; wallRun(P.x0 + c * CELL, (a + b) / 2, WALL_T, a - b); r0 = -1; }
   }
+  if (pc.ice) buildIce(P);
   // The gates.
   // (Each is named by its edge as the search names it: H c,k is the south edge of row k in column c; V c,r the west edge of column c in row r.)
   for (let k = 0; k <= P.rows; k++) for (let c = 0; c < P.cols; c++) if (G.h[k][c] && !plazaWall(G.h[k][c])) buildGate(P, G.h[k][c], X(c), P.z0 - k * CELL, true, 'H' + c + ',' + k);
@@ -4308,7 +4381,9 @@ function buildPlaza(pc) {
     drawBeam(P);
   }
   // The reset pad, on its bay beside the road in.
-  const rp = level.pieces.find((q) => q.t === 'reset');
+  let rp = null;                                        // its own: the nearest (a course may hold several squares)
+  for (const q of level.pieces) if (q.t === 'reset' && (!rp || Math.hypot(q.x - pc.x0, q.z - pc.z0) < Math.hypot(rp.x - pc.x0, rp.z - pc.z0))) rp = q;
+  if (rp && Math.hypot(rp.x - pc.x0, rp.z - pc.z0) > 12) rp = null;
   if (rp) {
     const grp = new Group(); grp.position.set(rp.x, rp.y, rp.z);
     const base = new Mesh(new CylinderGeometry(0.7, 0.78, 0.06, 48), P.mats.base); base.position.y = 0.03;
@@ -4627,6 +4702,161 @@ function resetPlaza(P, quiet) {
   if (P.reset) P.reset.flash = 1;
   if (!quiet) sound(moved ? 'reset' : 'tick');
 }
+/* ICE (owner, 2026-09-28: "a maze could be a very interesting addition"; the
+   first of eight new puzzles, on the road). The floor of an ice maze is black
+   ice: the marble slides until something stops it, a wall, a rock (a cell short
+   of it) or snow (on it); over a hole it drops, back to the ring before the
+   maze. At rest, it goes the way it is pointed, straight along the grid, and it
+   glides without turning. Out through the gap it came in by, it is back on the
+   road; out through the far gap, on its way. */
+const ICE_V = 5.2;
+const iceTex = canvasTex(256, 256, (g) => {             // a cell of black ice: frost cracks, a sheen, and a groove round its edge
+  const rg = g.createRadialGradient(128, 128, 10, 128, 128, 190);
+  rg.addColorStop(0, '#1E4C6E'); rg.addColorStop(1, '#10304B');
+  g.fillStyle = rg; g.fillRect(0, 0, 256, 256);
+  let sd = 7; const rn = () => ((sd = (sd * 16807) % 2147483647) / 2147483647);
+  g.lineCap = 'round';
+  for (let i = 0; i < 14; i++) {                        // cracks, branching a little
+    let x = rn() * 256, y = rn() * 256, a = rn() * 6.28;
+    g.strokeStyle = `rgba(170,232,255,${0.25 + rn() * 0.3})`; g.lineWidth = 0.8 + rn() * 1.4;
+    g.beginPath(); g.moveTo(x, y);
+    for (let k = 0; k < 4 + rn() * 4; k++) { a += (rn() - 0.5) * 1.3; x += Math.cos(a) * (8 + rn() * 18); y += Math.sin(a) * (8 + rn() * 18); g.lineTo(x, y); }
+    g.stroke();
+  }
+  g.globalAlpha = 0.07; g.fillStyle = '#FFFFFF';        // a sheen across it
+  g.beginPath(); g.moveTo(30, 256); g.lineTo(120, 0); g.lineTo(175, 0); g.lineTo(85, 256); g.fill();
+  g.globalAlpha = 1;
+  for (let i = 0; i < 40; i++) { g.fillStyle = `rgba(255,255,255,${0.3 + rn() * 0.5})`; g.fillRect(rn() * 256, rn() * 256, 1.5, 1.5); }
+  for (let i = 0; i < 9; i++) {                         // bubbles caught in it
+    g.strokeStyle = 'rgba(200,240,255,0.35)'; g.lineWidth = 1; g.beginPath(); g.arc(rn() * 256, rn() * 256, 2 + rn() * 5, 0, 6.28); g.stroke();
+  }
+  g.strokeStyle = 'rgba(165,225,255,0.55)'; g.lineWidth = 5; g.strokeRect(2.5, 2.5, 251, 251);   // the groove between cells
+});
+const snowTex = canvasTex(128, 128, (g) => {
+  g.fillStyle = '#FFFFFF'; g.fillRect(0, 0, 128, 128);
+  let sd = 11; const rn = () => ((sd = (sd * 16807) % 2147483647) / 2147483647);
+  for (let i = 0; i < 260; i++) { const v = 205 + Math.floor(rn() * 50); g.fillStyle = `rgb(${v},${v + 3 > 255 ? 255 : v + 3},255)`; g.fillRect(rn() * 128, rn() * 128, 2, 2); }
+});
+function buildIce(P) {
+  const G = P.grid, env = neonEnvMap() || envTex, pos = [], uv = [], nor = [], idx = [];
+  for (let r = 0; r < P.rows; r++) for (let c = 0; c < P.cols; c++) {        // the sheet: a quad to a cell, turned about
+    if (G.cells[r][c].void) continue;
+    const xa = P.x0 + c * CELL, xb = xa + CELL, za = P.z0 - r * CELL, zb = za - CELL, b = pos.length / 3, t = (c * 7 + r * 3) % 4;
+    const U = [[0, 0], [1, 0], [1, 1], [0, 1]];
+    [[xa, za], [xb, za], [xb, zb], [xa, zb]].forEach(([x, z], i) => { pos.push(x, P.y + 0.012, z); nor.push(0, 1, 0); uv.push(...U[(i + t) % 4]); });
+    idx.push(b, b + 1, b + 2, b, b + 2, b + 3);
+  }
+  const geo = new BufferGeometry();
+  geo.setAttribute('position', new Float32BufferAttribute(pos, 3)); geo.setAttribute('normal', new Float32BufferAttribute(nor, 3));
+  geo.setAttribute('uv', new Float32BufferAttribute(uv, 2)); geo.setIndex(idx);
+  P.mats.ice = new MeshStandardMaterial({ color: 0xFFFFFF, map: iceTex, roughness: 0.05, metalness: 0.3, envMap: env, envMapIntensity: 2.2,
+                                          emissive: 0xFFFFFF, emissiveMap: iceTex, emissiveIntensity: 0.45 });
+  const sheet = new Mesh(geo, P.mats.ice); sheet.receiveShadow = true; levelGroup.add(sheet);
+  P.iceSheet = sheet;
+  P.mats.rock = new MeshStandardMaterial({ color: 0xCFEBFF, roughness: 0.22, metalness: 0.08, emissive: 0x5FB8FF, emissiveIntensity: 0.35, flatShading: true, envMap: env });
+  P.mats.snow = new MeshStandardMaterial({ color: 0xFFFFFF, map: snowTex, roughness: 0.95, emissive: 0xC8D8F0, emissiveIntensity: 0.35 });
+  P.mats.hole = new MeshBasicMaterial({ color: 0xFF3048, toneMapped: false });
+  P.rocks = []; P.drifts = [];
+  for (let r = 0; r < P.rows; r++) for (let c = 0; c < P.cols; c++) {
+    const cell = G.cells[r][c], x = P.X(c), z = P.Z(r);
+    if (cell.rock) {                                    // a boulder of ice, a little different each time
+      const geo2 = new IcosahedronGeometry(0.66, 0), a = geo2.attributes.position;
+      let sd = 1 + c * 31 + r * 17; const rn = () => ((sd = (sd * 16807) % 2147483647) / 2147483647);
+      for (let i = 0; i < a.count; i++) { const k = 0.85 + rn() * 0.3; a.setXYZ(i, a.getX(i) * k, a.getY(i) * k, a.getZ(i) * k); }
+      geo2.computeVertexNormals();
+      const m = new Mesh(geo2, P.mats.rock); m.scale.set(1.1, 0.9, 1.1); m.rotation.y = rn() * 6.28;
+      m.position.set(x, P.y + 0.5, z); m.castShadow = true; levelGroup.add(m);
+      colliders.push({ mesh: m, pos: m.position.clone(), prev: m.position.clone(), quat: new Quaternion(), inv: new Quaternion(),
+                       half: new Vector3(0.7, 0.5, 0.7), delta: new Vector3(), ferry: null, holo: null, pad: null, obstacle: 'rock' });
+      P.rocks.push({ c, r, mesh: m });
+    }
+    if (cell.snow) {                                    // a drift of snow, low and soft: an uneven edge, lumps on top
+      const geo3 = new SphereGeometry(1, 36, 12, 0, Math.PI * 2, 0, Math.PI / 2), a = geo3.attributes.position;
+      const ph = c * 1.7 + r * 2.9;
+      for (let i = 0; i < a.count; i++) {
+        const px = a.getX(i), py = a.getY(i), pz = a.getZ(i), th = Math.atan2(pz, px);
+        const edge = 1 + 0.1 * Math.sin(3 * th + ph) + 0.06 * Math.sin(5 * th + 2 * ph), lump = 1 + 0.35 * Math.max(0, Math.sin(4 * th + ph) * Math.sin(py * 6 + ph));
+        a.setXYZ(i, px * edge, py * lump, pz * edge);
+      }
+      geo3.computeVertexNormals();
+      const m = new Mesh(geo3, P.mats.snow);
+      m.scale.set(0.9, 0.2, 0.9); m.position.set(x, P.y + 0.012, z); m.castShadow = true; m.receiveShadow = true; levelGroup.add(m);
+      P.drifts.push({ c, r, mesh: m });
+    }
+    if (cell.void) {                                    // a hole: a red rim round it
+      for (const [dx, dz, w, d] of [[0, 1, 1, 0], [0, -1, 1, 0], [1, 0, 0, 1], [-1, 0, 0, 1]]) {
+        const bar = new Mesh(new BoxGeometry(w ? CELL - 0.1 : 0.09, 0.05, d ? CELL - 0.1 : 0.09), P.mats.hole);
+        bar.position.set(x + dx * (CELL / 2 - 0.1), P.y + 0.03, z - dz * (CELL / 2 - 0.1)); levelGroup.add(bar);
+      }
+    }
+  }
+}
+// What lies the way (dc, dr) goes from cell (c, r) of an ice maze (r = -1: on the road before its gap): 'open', 'wall' or 'out'.
+function iceAhead(P, c, r, dc, dr) {
+  const G = P.grid, nc = c + dc, nr = r + dr;
+  let e;
+  if (dr) { if (c < 0 || c >= P.cols) return 'wall'; e = G.h[dr > 0 ? r + 1 : r]; e = e ? e[c] : 'wall'; }
+  else { if (r < 0 || r >= P.rows) return 'wall'; e = G.v[r][dc > 0 ? c + 1 : c]; }
+  if (e) return 'wall';                                 // (no gates on ice)
+  if (nr < 0 || nr >= P.rows || nc < 0 || nc >= P.cols) return 'out';
+  return G.cells[nr][nc].rock ? 'wall' : 'open';
+}
+// Onto the ice: wherever the marble rolls onto a maze, the ice takes it, sliding on the way it was going.
+function iceCatch() {
+  if (!ball.grounded) return;
+  for (const P of plazas) {
+    if (!P.pc.ice || Math.abs(ball.p.y - R - P.y) > 0.3) continue;
+    const fc = (ball.p.x - P.x0) / CELL, fr = (P.z0 - ball.p.z) / CELL, c = Math.floor(fc), r = Math.floor(fr);
+    if (c < 0 || c >= P.cols || r < 0 || r >= P.rows || P.grid.cells[r][c].void) continue;
+    const [dc, dr] = Math.abs(ball.v.x) > Math.abs(ball.v.z) ? [Math.sign(ball.v.x) || 1, 0] : [0, ball.v.z > 0 ? -1 : 1];
+    const pc = c - dc, pr = r - dr;                     // the cell it came from (or the road), and how far past its middle
+    const u = dc ? (ball.p.x - P.X(pc)) * dc : (P.Z(pr) - ball.p.z) * dr;
+    ball.ice = { P, c: pc, r: pr, dc, dr, u: clamp(u, 0, CELL), armed: false, last: [dc, dr], nudge: 0, nd: [0, 0] };
+    sound('glide');
+    return;
+  }
+}
+function iceStop(I, snow) {
+  I.dc = 0; I.dr = 0; I.u = 0;
+  sound(snow ? 'crunch' : 'knock');
+  if (snow) burst(ball.p.x, ball.p.y - R + 0.1, ball.p.z, 0xFFFFFF, 10, 1.6);
+}
+function iceStep(dt, ix, iz) {
+  const I = ball.ice, P = I.P;
+  if (!I.dc && !I.dr) {                                 // at rest: the stick sends it, straight along the grid
+    const m = Math.max(Math.abs(ix), Math.abs(iz));
+    if (m < 0.3) I.armed = true;                        // a push counts once the stick has been let go, or turned another way
+    else {
+      const [dc, dr] = Math.abs(ix) > Math.abs(iz) ? [Math.sign(ix), 0] : [0, iz < 0 ? 1 : -1];
+      if (I.armed || dc !== I.last[0] || dr !== I.last[1]) {
+        I.armed = false; I.last = [dc, dr];
+        if (iceAhead(P, I.c, I.r, dc, dr) === 'wall') { I.nudge = 0.16; I.nd = [dc, dr]; sound('bump'); }   // it will not go that way
+        else { I.dc = dc; I.dr = dr; I.u = 0; sound('glide'); }
+      }
+    }
+  } else {
+    I.u += ICE_V * dt;
+    for (;;) {
+      const nc = I.c + I.dc, nr = I.r + I.dr, out = nr < 0 || nr >= P.rows || nc < 0 || nc >= P.cols;
+      if (out && I.u >= CELL / 2 + 0.35 || !out && P.grid.cells[nr][nc].void && I.u >= CELL / 2 + 0.12) {
+        ball.v.set(I.dc * ICE_V, 0, -I.dr * ICE_V);    // off the ice: onto the road, or down the hole
+        ball.p.x = P.X(I.c) + I.dc * I.u; ball.p.z = P.Z(I.r) - I.dr * I.u;
+        ball.ice = null;
+        return;
+      }
+      if (I.u < CELL) break;
+      I.u -= CELL; I.c = nc; I.r = nr;                  // at the middle of the next cell
+      const cell = P.grid.cells[I.r][I.c];
+      if (cell.snow) { iceStop(I, true); break; }
+      if (iceAhead(P, I.c, I.r, I.dc, I.dr) === 'wall') { iceStop(I, false); break; }
+    }
+  }
+  I.nudge = Math.max(0, I.nudge - dt);
+  const nk = I.nudge > 0 ? 0.14 * Math.sin(Math.PI * I.nudge / 0.16) : 0;
+  ball.p.set(P.X(I.c) + I.dc * I.u + I.nd[0] * nk, P.y + R, P.Z(I.r) - I.dr * I.u - I.nd[1] * nk);
+  ball.v.set(I.dc * ICE_V, 0, -I.dr * ICE_V);
+  ball.grounded = true; ball.airT = 0; lastGroundY = P.y;
+}
 const _kp = new Vector3();
 function animatePlazas(dt) {
   for (const P of plazas) {
@@ -4845,12 +5075,12 @@ function makeRing(x, y, z, isGoal) {
   return { grp, ring, mat, disc, discMat, pos: new Vector3(x, y, z), passed: false, t0: 0 };
 }
 
-function loadLevel(n) {
+function loadLevel(n, custom = null) {
   // Loaded from inside a wormhole's world (a restart as the warp flashes), the level still belongs to the world it left.
   const home = pocket ? pocket.world : world.name;
   if (pocket) { freeCourse(levelGroup); levelGroup = pocket.levelGroup; ({ holos, pads, ferries, locks, mags, switches } = pocket); pocket = null; }
   levelNo = Math.max(1, Math.min(LEVELS.length, n));
-  level = LEVELS[levelNo - 1];
+  level = custom || LEVELS[levelNo - 1];                 // (custom: a course to try a new puzzle on)
   if (levelGroup) {
     for (const c of holos) for (const m of c.holoMats) m.dispose();
     for (const c of pads) if (c.padFx.tex) c.padFx.tex.dispose();
@@ -4886,13 +5116,13 @@ function loadLevel(n) {
   startPos.set(sx, sy + R + 0.01, sz);
   spawn.copy(startPos);
   ball.p.copy(startPos); ball.v.set(0, 0, 0); ball.spin.set(0, 0, 0);
-  ball.grounded = true; ball.onFerry = null; ball.airT = 0; ball.boostT = 0; ball.jumpCD = 0; ball.hitT = 0; ball.onLoop = null; ball.onRound = null; ball.tube = null;
+  ball.grounded = true; ball.onFerry = null; ball.airT = 0; ball.boostT = 0; ball.jumpCD = 0; ball.hitT = 0; ball.onLoop = null; ball.onRound = null; ball.tube = null; ball.ice = null;
   setTint(0); spawnTint = 0; loopView = 0; loopAt = null; plazaView = 0; plazaAt = null;
   lastGroundY = sy;
   clock = 0; falls = 0; started = false;
   setState('play');
   updateCamera(0, true);
-  save.level = levelNo; persist();
+  if (!level.test) { save.level = levelNo; persist(); }   // a try-out course is not a level: it keeps no place
   T().levelStart(levelNo);
 }
 
@@ -4931,7 +5161,7 @@ const BOOST_ACC = 34, VBOOST = 13, BOOST_T = 1, JUMP_UP = 9, JUMP_ON = 8;
 const STEP = 1 / 240;      // physics runs at 240 Hz whatever the display does
 
 const ball = { p: new Vector3(), v: new Vector3(), spin: new Vector3(), grounded: false, in: [0, 0],
-               onFerry: null, airT: 0, pad: null, boostT: 0, jumpCD: 0, onBoost: false, hitT: 0, tint: 0, onLoop: null, mag: 0, push: 0, onRound: null, tube: null };
+               onFerry: null, airT: 0, pad: null, boostT: 0, jumpCD: 0, onBoost: false, hitT: 0, tint: 0, onLoop: null, mag: 0, push: 0, onRound: null, tube: null, ice: null };
 let spawnTint = 0;                                      // the marble's colour when it passed its last ring
 const startPos = new Vector3(), spawn = new Vector3();
 let lastGroundY = 0, simT = 0, acc = 0;
@@ -4995,6 +5225,7 @@ function step(dt, ix, iz) {
   ball.in[0] = ix; ball.in[1] = iz;                     // the stick, for what leans on things (a crate)
   for (const c of ferries) updateFerry(c, simT);
   if (ball.tube) { rideTube(dt); for (const c of crossings) crossStep(c, simT); return; }   // in a tube, the tube steers
+  if (ball.ice) { iceStep(dt, ix, iz); for (const c of crossings) crossStep(c, simT); return; }   // on ice, the ice does
   if (ball.onFerry) {
     ball.p.add(ball.onFerry.delta);                    // a pad carries what rests on it
     const T = ball.onFerry.train;                      // and a train pulls on what rides it
@@ -5027,7 +5258,7 @@ function step(dt, ix, iz) {
   if (scans.length && state === 'play') scanStep();
   if (flames.length && state === 'play') flameStep();
   if (cracks.length) crackStep();
-  if (plazas.length) { plazaMove(); if (state === 'play') plazaStep(); }
+  if (plazas.length) { plazaMove(); if (state === 'play') { plazaStep(); iceCatch(); } }
   ball.onLoop = null;
   for (const L of loopsIn) loopContact(L);
   tintStep();
@@ -5051,7 +5282,8 @@ function step(dt, ix, iz) {
 
 // The marble turns as it rolls: angular velocity is up x velocity over radius.
 function spinMarble(dt) {
-  if (ball.grounded) ball.spin.set(ball.v.z, 0, -ball.v.x).multiplyScalar(1 / R);
+  if (ball.ice) ball.spin.multiplyScalar(Math.exp(-8 * dt));   // on ice it glides
+  else if (ball.grounded) ball.spin.set(ball.v.z, 0, -ball.v.x).multiplyScalar(1 / R);
   else ball.spin.multiplyScalar(Math.exp(-0.6 * dt));
   const w = ball.spin.length();
   if (w > 1e-4) {
@@ -5082,7 +5314,7 @@ function flyTo(dest) {
   flight.ctl.addVectors(flight.from, flight.to).multiplyScalar(0.5);
   flight.ctl.y = Math.max(flight.from.y, flight.to.y) + 4;
   flight.dur = Math.min(0.9, 0.45 + flight.from.distanceTo(flight.to) * 0.02);
-  ball.v.set(0, 0, 0); ball.onFerry = null; ball.boostT = 0; ball.hitT = 0;
+  ball.v.set(0, 0, 0); ball.onFerry = null; ball.boostT = 0; ball.hitT = 0; ball.ice = null;
   setState('home');
   if (REDUCED) arrive();
 }
@@ -5126,6 +5358,12 @@ function lightGate(g) {
   };
   g.discMat.opacity = 0.34;
 }
+const TRY = {};                                         // each try-out course, made when first asked for
+function loadTry(kind, tokyo) {
+  const n = tokyo ? 51 : 41, k = kind + (tokyo ? '-tokyo' : '');
+  loadLevel(n, TRY[k] || (TRY[k] = makeLevel(n, 0, kind)));
+}
+const starTime = () => (level.test ? level.star : STAR_TIMES[levelNo - 1]);
 function startGoal() {
   setState('goal');
   ball.v.set(0, 0, 0);
@@ -5133,10 +5371,11 @@ function startGoal() {
   sound('win');
   burst(goal.pos.x, goal.pos.y + 1.3, goal.pos.z, 0xFFD23F, 56, 6);
   burst(goal.pos.x, goal.pos.y + 1.3, goal.pos.z, 0xFFFFFF, 22, 5);
+  lastStar = clock < starTime();
+  if (level.test) { lastWasBest = false; return; }      // a try-out course keeps no times or stars
   const best = save.best[levelNo];
   if (!best || clock < best) save.best[levelNo] = clock;
   lastWasBest = !best || clock < best;
-  lastStar = clock < STAR_TIMES[levelNo - 1];
   if (lastStar) save.stars[levelNo] = 1;
   save.level = Math.min(LEVELS.length, levelNo + 1);
   persist();
@@ -5174,7 +5413,7 @@ function restartLevel() {
   for (const P of plazas) resetPlaza(P, true);
   T().levelRestart(levelNo);
   if (state === 'play' || state === 'fall' || state === 'home') flyTo(startPos);
-  else loadLevel(levelNo);
+  else loadLevel(levelNo, level.test ? level : null);
 }
 
 /* A ring counts when the marble crosses its line anywhere across the path,
@@ -5487,7 +5726,7 @@ function act(k) {
   else if (k === 'rules') { resume = state; resumeT = stateT; joy = null; keys.clear(); cardScroll = 0; setState('rules'); }
   else if (k === 'cta') {
     if (state === 'rules') { state = resume; stateT = resumeT; }   // back exactly where it paused
-    else if (state === 'win') { play('start'); loadLevel(levelNo >= LEVELS.length ? 1 : levelNo + 1); }
+    else if (state === 'win') { play('start'); if (level.test) loadLevel(levelNo, level); else loadLevel(levelNo >= LEVELS.length ? 1 : levelNo + 1); }
   }
 }
 
@@ -5545,7 +5784,7 @@ const STAR_W = 17;
 function drawReadout() {
   const phone = MODE === 'mobile', ly = LH - botBand() / 2, x0 = phone ? PHONE_PAD : SIDE_PAD;
   const room = phone ? LW - PHONE_PAD * 2 - 44 - 8 : LW - SIDE_PAD * 2;
-  const lv = 'LEVEL ' + levelNo, tm = fmt(clock), fl = 'FALLS ' + falls, starT = STAR_TIMES[levelNo - 1], sT = fmt(starT);
+  const lv = level.title || 'LEVEL ' + levelNo, tm = fmt(clock), fl = 'FALLS ' + falls, starT = starTime(), sT = fmt(starT);
   // Before FALLS is dropped, the dots close up a little: LEVEL 100 on a phone needs a few pixels more.
   const forms = [[SEP, [lv, { t: 'TIME ' + tm, s: sT }, fl]], [SEP, [lv, { t: tm, s: sT }, fl]], [SEP_TIGHT, [lv, { t: tm, s: sT }, fl]],
                  [SEP, [lv, { t: tm, s: sT }]], [SEP, [lv, tm]]];
@@ -5722,10 +5961,14 @@ const PLAZA_NEWS = {
   L4: 'The key is behind the light. The gate opens only while the crystal is lit',
   F2: 'The crate can hold the key room open. Then it is in your way',
   F1: 'A switch, a mirror and a key. Which first?',
+  I1: 'Ice: the marble slides until something stops it. A rock stops it a cell short',
+  I2: 'Snow stops the marble on it. Where can you stop?',
+  I3: 'Slide over a hole and you drop. Plan around them',
+  I4: 'Plan the whole way out before the first push',
 };
 const PLAZA_NOTE_T = 7;
 function drawNews() {
-  let t = pocket ? (POCKET_NEWS_AT[levelNo] || POCKET_NEWS[level.world]) : (world.news && world.news[levelNo]) || NEWS[levelNo], alpha = 1;
+  let t = pocket ? (POCKET_NEWS_AT[levelNo] || POCKET_NEWS[level.world]) : level.test ? TRY_NEWS[level.test] : (world.news && world.news[levelNo]) || NEWS[levelNo], alpha = 1;
   const Pz = !pocket && plazaAt && plazaView > 0.6 ? plazaAt : null, note = Pz && PLAZA_NEWS[Pz.pc.id.replace('~', '')];
   if (note && Pz.noteT < PLAZA_NOTE_T) { t = note; alpha = Math.min(1, (PLAZA_NOTE_T - Pz.noteT) / 0.6, Pz.noteT / 0.3); }
   else if (ball.p.z < -12) return;
@@ -5859,13 +6102,13 @@ function drawCard(kind) {
       const mid = c.px + c.pw / 2, best = save.best[levelNo];
       ctx.textAlign = 'center';
       ctx.fillStyle = TOK.ink90; ctx.font = '500 16px Inter, sans-serif';
-      ctx.fillText('Level ' + levelNo + ' of ' + LEVELS.length, mid, yy + 22);
+      ctx.fillText(level.test ? level.title : 'Level ' + levelNo + ' of ' + LEVELS.length, mid, yy + 22);
       ctx.fillStyle = TOK.text; ctx.font = '800 34px Inter, sans-serif';
       ctx.fillText(fmt(clock), mid, yy + 64);
       ctx.fillStyle = TOK.ink82; ctx.font = '600 16px Inter, sans-serif';
       ctx.fillText(lastWasBest ? 'Your best time' : 'Best ' + fmt(best || clock), mid, yy + 92);
       // The star: this run's, or the one already won, or the time to beat for it.
-      const st = STAR_TIMES[levelNo - 1], have = !!save.stars[levelNo];
+      const st = starTime(), have = !level.test && !!save.stars[levelNo];
       const line = lastStar ? 'Star earned: under ' + fmt(st) : have ? 'Your star, for under ' + fmt(st) : 'Beat ' + fmt(st) + ' for the star';
       ctx.font = '600 17px Inter, sans-serif';
       const lw = ctx.measureText(line).width, sx = mid - (lw + 24) / 2;
@@ -8766,6 +9009,12 @@ function tokyoPieces() {
       else if (m.material === P.mats.wall && m.parent !== levelGroup) tkSet(m, 'material', K.wood);   // a gate's posts
     });
     for (const W of P.crates) tkSet(W.mesh, 'material', K.chest);
+    if (P.rocks) for (const Rk of P.rocks) {            // an ice maze is a frozen garden pond: its rocks, pale granite stones
+      tkHide(Rk.mesh);                                  // (no snow on them: white is snow's, and snow does the opposite)
+      const mt = new Matrix4().compose(Rk.mesh.position.clone().setY(P.y + 0.46), Rk.mesh.quaternion, new Vector3(1.05, 1.05, 1.05));
+      const st = new Mesh(paintedModel([[Rk.mesh.geometry.clone(), 0xB3ADA2, mt]]), K.props); st.castShadow = true;
+      tkAdd(levelGroup, st);
+    }
     for (const g of P.gates) if (g.fieldMat) tkSet(g.fieldMat, 'map', K.shojiField);
     for (const M of P.magnets) tkSet(M.fieldMat, 'map', K.shojiField);
   }
@@ -12048,7 +12297,8 @@ requestAnimationFrame(frame);
    lagoon, space, crystal, blocks, valley), and #void is the dark void the
    game started with. */
 function worldFromHash() {
-  const [h, v] = location.hash.slice(1).split('-');
+  const [h, v, w] = location.hash.slice(1).split('-');
+  if (h === 'try' && TRY_COURSES[v]) { loadTry(v, w === 'tokyo'); setWorld(w === 'tokyo' ? 'tokyo' : 'neon'); return; }   // #try-ice, #try-ice-tokyo
   if (h === 'level') {                                  // #level-17 opens course 17, to look at one
     const n = parseInt(v, 10);
     if (n >= 1 && n <= LEVELS.length) loadLevel(n);
@@ -12077,8 +12327,9 @@ if (HARNESS) {
                     LW, LH, mode: MODE, webgl: !!renderer, grounded: ball.grounded,
                     ball: ball.p.toArray().map((v) => +v.toFixed(3)),
                     v: ball.v.toArray().map((v) => +v.toFixed(3)),
-                    gates: gates.map((g) => g.passed), frames, frameMs: +frameMs.toFixed(1) }),
-    reach: (n) => loadLevel(n),
+                    gates: gates.map((g) => g.passed), frames, frameMs: +frameMs.toFixed(1),
+                    ice: ball.ice && { c: ball.ice.c, r: ball.ice.r, moving: !!(ball.ice.dc || ball.ice.dr), x0: ball.ice.P.x0, z0: ball.ice.P.z0 } }),
+    reach: (n) => (typeof n === 'string' ? loadTry(n.split('-')[0], n.endsWith('-tokyo')) : loadLevel(n)),   // 41, or 'ice', 'ice-tokyo'
     tint: () => ball.tint,
     simT: () => +simT.toFixed(3),
     holos: () => holos.map((c) => { const h = holoState(c.holo, simT); return { lit: h.lit, t: +h.t.toFixed(3), left: +h.left.toFixed(3) }; }),
