@@ -2425,14 +2425,17 @@ function buildTube(pc) {
   const T = tubePath(P);
   // The glass: rings of vertices round the path, carried along it without twisting.
   const ringN = Math.floor(T.len / 0.2) + 1, seg = 20, pos = new Float32Array(ringN * seg * 3), idx = [];
+  const coord = new Float32Array(ringN * seg * 3), frame = new Float32Array(ringN * 3);   // metres along and the angle round (cos, sin); each ring's normal
   const nrm = new Vector3(1, 0, 0), bi = new Vector3(), t = new Vector3(), c = new Vector3();
   tubeDir(T, 0, t); nrm.set(-t.z, 0, t.x).normalize();
   for (let i = 0; i < ringN; i++) {
     const sI = Math.min(T.len, i * 0.2);
     tubeAt(T, sI, c); tubeDir(T, sI, t);
     nrm.addScaledVector(t, -nrm.dot(t)).normalize(); bi.crossVectors(t, nrm);
+    nrm.toArray(frame, i * 3);
     for (let j = 0; j < seg; j++) {
       const a = j / seg * Math.PI * 2, k = (i * seg + j) * 3;
+      coord[k] = sI; coord[k + 1] = Math.cos(a); coord[k + 2] = Math.sin(a);
       pos[k] = c.x + (nrm.x * Math.cos(a) + bi.x * Math.sin(a)) * TUBE_R;
       pos[k + 1] = c.y + (nrm.y * Math.cos(a) + bi.y * Math.sin(a)) * TUBE_R;
       pos[k + 2] = c.z + (nrm.z * Math.cos(a) + bi.z * Math.sin(a)) * TUBE_R;
@@ -2441,6 +2444,7 @@ function buildTube(pc) {
   }
   const geo = new BufferGeometry();
   geo.setAttribute('position', new Float32BufferAttribute(pos, 3)); geo.setIndex(idx); geo.computeVertexNormals();
+  geo.setAttribute('tubeCoord', new Float32BufferAttribute(coord, 3));
   const glass = new Mesh(geo, tubeGlassMat()); glass.renderOrder = 2;
   // Rings of light every 1.4 m, and a bigger one at each open end.
   const n = Math.floor(T.len / 1.4), rings = new InstancedMesh(new TorusGeometry(TUBE_R + 0.015, 0.03, 6, 40),
@@ -2459,7 +2463,7 @@ function buildTube(pc) {
   });
   levelGroup.add(glass, rings);
   const out = new Vector3(); tubeAt(T, 0, out);
-  tubes.push({ pc, T, rings, ringS: Array.from({ length: n }, (_, i) => (i + 0.5) * T.len / n), mouth: out, cap: 1.25, ends, halos, glass });
+  tubes.push({ pc, T, rings, ringS: Array.from({ length: n }, (_, i) => (i + 0.5) * T.len / n), mouth: out, cap: 1.25, ends, halos, glass, frame });
 }
 // Into a tube's mouth: any marble rolling over the road's end, at road height.
 function tubeCatch() {
@@ -4730,7 +4734,6 @@ const NEWS_TOKYO = {
   19: 'The stage turns. Ride it round, and roll off where the road leads on',
   21: 'A paper screen lets through only its own colour. Take the lane whose curtain matches it',
   23: 'Wind blows between the towers. When the carp streamers fly out, lean into it',
-  29: 'A tunnel of torii! Roll into it, and it carries you over the city',
   31: 'A gold screen slides across the road. Roll down one side just after it has passed',
 };
 const POCKET_NEWS = { crystal: 'The crystal canyon: the road is slippery. Brake early' };
@@ -4833,7 +4836,6 @@ const RULES_TOKYO = new Map(Object.entries({
   'A roundabout turns': 'A revolving stage turns and carries the marble round with it. Roll off onto the road that leads on; the others stop short at a red bar.',
   'Gusts blow': 'Gusts blow out of the gaps between towers. Just before each one the carp streamers fly out and streaks of air come: lean into it, or wait for it to pass.',
   'See-through bridges': 'Paper bridges light up and go dark. Cross while they are lit. They flicker just before they go dark.',
-  'A glass tube': 'A tunnel of torii carries the marble over the city to the road ahead. Just roll into it.',
   'A red scanner bar': 'A gold folding screen slides across some roads, and touching it sends the marble back to the last ring. Roll down one side just after it has passed. Where two screens slide, go down the middle just after they cross.',
   'Lime and violet walls': 'Lime and violet paper screens let through only a marble of their own colour. Roll through a curtain of that colour first: it colours the marble.',
 }).map(([k, v]) => [RULES.find((q) => q.startsWith(k)), v]));
@@ -7167,7 +7169,7 @@ function tokyoCourse() {
      wormholes       torii, sakura swirling in the gate
      roundabouts     a revolving stage, as kabuki has, round a garden of raked
                      gravel, a rock and a stone lantern
-     glass tubes     a tunnel of torii that light up as the marble runs through
+     glass tubes     a dragon, a paper lantern or a stream of koi (dressTube)
      scanners        a folding screen of gold leaf, a wave and pines painted on
                      it, sliding across the road
      switches        a lacquer button; the lamps along the cable are lanterns
@@ -7229,21 +7231,20 @@ function atlasModel(parts, white) {
 }
 const VERMILION = 0xE0402A, SUMI = 0x1C1A1A;
 /* A torii, its opening `open` wide and `high` to the underside of its tie
-   beam, standing on y = 0 (its pillars go on down `below`), facing along z;
-   `wing`, how far its beams reach out past the pillars. */
-function toriiParts(L, open, high, below = 0, rPil = 0.17, wing = 1) {
+   beam, standing on y = 0 (its pillars go on down `below`), facing along z. */
+function toriiParts(L, open, high, below = 0, rPil = 0.17) {
   const px = open / 2 + rPil, H = high + 0.5 + below;
   for (const s of [-1, 1]) {
     L.push([new CylinderGeometry(rPil * 0.9, rPil * 1.1, H, 12), VERMILION, placeAt(s * px, H / 2 - below, 0)]);
     L.push([new CylinderGeometry(rPil * 1.25, rPil * 1.25, 0.28, 12), SUMI, placeAt(s * px, 0.14, 0)]);   // the black foot at the road
   }
   const span = 2 * px;
-  L.push([new BoxGeometry(span + 0.9 * wing, 0.2, 0.18), VERMILION, placeAt(0, high + 0.1, 0)]);         // the tie beam, through the pillars
+  L.push([new BoxGeometry(span + 0.9, 0.2, 0.18), VERMILION, placeAt(0, high + 0.1, 0)]);                // the tie beam, through the pillars
   L.push([new BoxGeometry(0.16, 0.3, 0.14), VERMILION, placeAt(0, high + 0.35, 0)]);                     // its strut
   L.push([new BoxGeometry(0.44, 0.34, 0.06), SUMI, placeAt(0, high + 0.35, 0.1)]);                        // and the tablet on it
-  L.push([new BoxGeometry(span + 1.5 * wing, 0.16, 0.3), VERMILION, placeAt(0, high + 0.58, 0)]);
-  L.push([new BoxGeometry(span + 1.3 * wing, 0.2, 0.36), SUMI, placeAt(0, high + 0.76, 0)]);             // the black top beam
-  for (const s of [-1, 1]) L.push([new BoxGeometry(0.9 * wing, 0.18, 0.36), SUMI, placeAt(s * (span / 2 + 0.65 * wing + 0.3), high + 0.84, 0, 0, 0, s * 0.22)]);   // turned up at its ends
+  L.push([new BoxGeometry(span + 1.5, 0.16, 0.3), VERMILION, placeAt(0, high + 0.58, 0)]);
+  L.push([new BoxGeometry(span + 1.3, 0.2, 0.36), SUMI, placeAt(0, high + 0.76, 0)]);                    // the black top beam
+  for (const s of [-1, 1]) L.push([new BoxGeometry(0.9, 0.18, 0.36), SUMI, placeAt(s * (span / 2 + 0.95), high + 0.84, 0, 0, 0, s * 0.22)]);   // turned up at its ends
 }
 let tkKitMemo = null;
 function tkKit() {
@@ -7493,30 +7494,199 @@ function tkKit() {
     for (let y = 16; y < 58; y += 7) for (let x = (y % 14 ? 0 : 4); x < 132; x += 8) { g.beginPath(); g.arc(x, y, 4, Math.PI, 0); g.stroke(); }
     for (const u of [0.25, 0.75]) { g.fillStyle = '#FFFFFF'; g.beginPath(); g.arc(u * 128, 7, 4.5, 0, 7); g.fill(); g.fillStyle = '#101010'; g.beginPath(); g.arc(u * 128, 7, 2.2, 0, 7); g.fill(); }
   }) }));
-  // The torii of a glass tube, round its line (z), the tube's radius inside it.
-  const tr = [];
-  toriiParts(tr, 2 * TUBE_R + 0.1, 2 * TUBE_R + 0.12, 0, 0.065, 0.35);
-  K.toriiRing = G(paintedModel(tr.map(([g0, hex, mtx]) => [g0, hex, new Matrix4().makeTranslation(0, -TUBE_R - 0.1, 0).multiply(mtx)])));
-  K.toriiRingMat = M(new MeshBasicMaterial({ vertexColors: true }));
-  K.glass = (() => {                                        // the tube's glass, its rim warm
-    const m = new MeshStandardMaterial({ color: 0xFFE8D8, metalness: 0.1, roughness: 0.08, transparent: true, depthWrite: false, side: DoubleSide, envMap: env, envMapIntensity: 1.1 });
-    m.onBeforeCompile = (sh) => {
-      sh.fragmentShader = sh.fragmentShader.replace('#include <opaque_fragment>', `#include <opaque_fragment>
-  {
-    float rim = pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 2.4);
-    gl_FragColor.rgb += vec3(1.0, 0.72, 0.5) * rim * 0.7;
-    gl_FragColor.a = clamp(0.05 + 0.7 * rim, 0.0, 1.0);
-  }`);
-    };
-    m.customProgramCacheKey = () => 'tube-glass-tokyo';
-    m.userData.keep = true;
-    return m;
-  })();
   const ride = commuterModel(env, '#2E9A5A', 2);
   ride.traverse((o) => { if (o.geometry) o.geometry.userData.keep = true; if (o.material) o.material.userData.keep = true; });
   K.ride = ride;
   return tkKitMemo = K;
 }
+/* THE GLASS TUBE IN TOKYO. The owner, of the tunnel of torii: "The japanese
+   gates don't work on the tube as the gates don't twist and turn well. Can
+   you think of a different treatment for the tunnel? Just show me 3 options"
+   (2026-09-28). A gate has an up and a down, and the tube coils; each of
+   these is round all the way, so it looks right however the tube turns:
+     dragon    the tube is a festival dragon's body, jade scales edged in gold
+               that flash as the marble runs through; you roll into its open
+               mouth, and it breathes you out at its tail
+     lantern   one long paper lantern, bamboo ribs and red bands, lit from
+               inside, and the light runs along it with the marble
+     koi       a stream of water with koi swimming along it, foam spiralling
+               down it the way it flows
+   The look is drawn from where each point of the glass lies (tubeCoord: metres
+   along, and the cosine and sine of the angle round). Tried with #tokyo-dragon,
+   #tokyo-lantern and #tokyo-koi. */
+let tokyoTube = 'lantern';
+const TUBE_LOOKS = {
+  dragon: `
+  float ang = atan(vTube.z, vTube.y), rim = pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 2.0);
+  vec2 p = vec2(vTube.x / 0.42, ang / 6.28318 * 11.0);
+  p.y += mod(floor(p.x), 2.0) * 0.5;
+  vec2 f = fract(p);
+  float d = length(vec2(f.y - 0.5, f.x * 0.85));
+  float edge = 1.0 - smoothstep(0.025, 0.06, abs(d - 0.46));          // each scale's gold rim
+  float shade = smoothstep(0.46, 0.0, d);                                // and a sheen in its middle
+  float glow = exp(-pow((vTube.x - uAt) / 2.2, 2.0));                     // the scales flash as the marble passes
+  vec3 jade = vec3(0.07, 0.4, 0.25), gold = vec3(1.0, 0.76, 0.3);
+  vec3 c = mix(jade * (0.75 + 0.5 * shade + 0.5 * rim), gold, edge) + gold * glow * (0.3 + 0.7 * edge);
+  gl_FragColor = vec4(c + gl_FragColor.rgb * 0.15, clamp(0.42 + 0.5 * edge + 0.4 * rim + 0.15 * glow, 0.0, 0.97));`,
+  lantern: `
+  float s = vTube.x, rim = pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 2.0);
+  float dr = abs(fract(s / 0.3 + 0.5) - 0.5) * 0.3;                      // metres to the nearest bamboo rib
+  float rib = 1.0 - smoothstep(0.012, 0.026, dr);
+  float band = smoothstep(0.02, 0.05, 0.25 - abs(mod(s + 1.5, 3.0) - 1.5)); // a red band every 3 m
+  float cap = 1.0 - smoothstep(0.3, 0.36, min(s, uLen - s));             // black lacquer at each end
+  float glow = exp(-pow((s - uAt) / 2.2, 2.0));                           // the lantern lights up round the marble
+  vec3 c = mix(vec3(1.0, 0.84, 0.58), vec3(0.86, 0.14, 0.08), band);
+  float lit = 0.95 + 0.6 * glow;
+  c = c * lit + vec3(1.0, 0.66, 0.34) * (0.18 + glow * 0.6);
+  c = mix(c, vec3(0.26, 0.17, 0.1), rib);
+  c = mix(c, vec3(0.07, 0.06, 0.06), cap);
+  gl_FragColor = vec4(c, clamp(0.62 + 0.25 * rim + 0.4 * max(rib, cap) + 0.2 * band, 0.0, 0.97));`,
+  koi: `
+  float ang = atan(vTube.z, vTube.y), rim = pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 2.2);
+  float rip = sin(vTube.x * 5.0 - uTime * 3.0 + sin(ang * 3.0 + uTime * 1.3) * 1.2);
+  float caust = smoothstep(0.7, 1.0, rip);                                // light rippling down the water
+  float swirl = sin(vTube.x * 2.2 - ang * 2.0 - uTime * 4.0);             // foam spiralling down it, the way it flows
+  float foam = smoothstep(0.82, 0.97, swirl) * (0.6 + 0.4 * sin(vTube.x * 9.0 + ang * 5.0));
+  float glow = exp(-pow((vTube.x - uAt) / 2.0, 2.0));
+  vec3 water = mix(vec3(0.05, 0.3, 0.42), vec3(0.16, 0.55, 0.5), 0.5 + 0.5 * sin(ang + vTube.x * 0.3));
+  vec3 c = gl_FragColor.rgb * 0.25 + water * (0.5 + 0.6 * rim) + vec3(0.8, 1.0, 0.95) * (caust * 0.25 + glow * 0.25) + vec3(0.95, 1.0, 1.0) * foam * 0.8;
+  gl_FragColor = vec4(c, clamp(0.24 + 0.5 * rim + 0.12 * caust + 0.55 * foam + 0.1 * glow, 0.0, 0.92));`,
+};
+// What the level's note and the rules card say of the tube, in each look.
+const TUBE_WORDS = {
+  dragon: ['A dragon! Roll into its mouth, and it carries you over the city', 'A dragon carries the marble over the city to the road ahead. Just roll into its mouth.'],
+  lantern: ['A paper lantern! Roll into it, and it carries you over the city', 'A long paper lantern carries the marble over the city to the road ahead. Just roll into it.'],
+  koi: ['A stream in the sky! Roll into it, and it carries you over the city', 'A stream of water, koi and all, carries the marble over the city to the road ahead. Just roll into it.'],
+};
+function tokyoTubeGlass(style, len) {
+  const lantern = style === 'lantern', m = new MeshStandardMaterial({ color: 0xFFFFFF, roughness: lantern ? 0.9 : 0.08, metalness: 0.05,
+    transparent: true, depthWrite: false, side: DoubleSide, envMap: lantern ? null : tokyoEnvMap() || envTex, envMapIntensity: 1 });
+  const u = { uAt: { value: -99 }, uTime: { value: 0 }, uLen: { value: len } };
+  m.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, u);
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute vec3 tubeCoord;\nvarying vec3 vTube;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n  vTube = tubeCoord;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vTube;\nuniform float uAt, uTime, uLen;')
+      .replace('#include <opaque_fragment>', '#include <opaque_fragment>\n{' + TUBE_LOOKS[style] + '\n}');
+  };
+  m.customProgramCacheKey = () => 'tube-' + style;
+  m.userData.u = u;
+  return m;
+}
+// The dragon's head, snout toward +z, the tube's mouth at the origin between its jaws; and its tail, fins flaring on along +z.
+function dragonHead() {
+  const L = [], JADE = 0x2E8A5A, DARK = 0x1F6A44, GOLD = 0xE8B840, RED = 0xD8342A, ORANGE = 0xF07A2A, IVORY = 0xF4F0E6;
+  const add = (g, hex, ...a) => L.push([g, hex, placeAt(...a)]);
+  const ball = (r) => new SphereGeometry(r, 20, 14);
+  const toward = (g, hex, x, y, z, dx, dy, dz, sc = [1, 1, 1]) => {         // a shape set at (x, y, z), its y along (dx, dy, dz)
+    const q = new Quaternion().setFromUnitVectors(new Vector3(0, 1, 0), new Vector3(dx, dy, dz).normalize());
+    L.push([g, hex, new Matrix4().compose(new Vector3(x, y, z), q, new Vector3(...sc))]);
+  };
+  add(ball(1), JADE, 0, 1.1, -0.35, 0, 0, 0, 1.08, 0.86, 1.05);                  // the skull
+  add(ball(1), JADE, 0, 1.28, 0.95, 0, 0, 0, 0.8, 0.42, 1.3);                     // the long upper jaw
+  add(ball(1), GOLD, 0, 1.62, 0.8, 0, 0, 0, 0.3, 0.14, 1.15);                     // a gold ridge down it
+  add(ball(1), JADE, 0, 1.38, 2.0, 0, 0, 0, 0.5, 0.36, 0.42);                     // the nose
+  add(ball(1), DARK, 0, -1.02, 0.85, 0.28, 0, 0, 0.66, 0.24, 1.08);               // the lower jaw, dropped open
+  add(ball(1), RED, 0, -0.86, 1.0, 0.28, 0, 0, 0.36, 0.08, 0.72);                 // its tongue
+  for (const e of [-1, 1]) {
+    add(ball(0.11), SUMI, e * 0.22, 1.62, 2.18);                                  // nostrils
+    add(ball(1), DARK, e * 0.56, 1.62, 0.45, 0, 0, 0, 0.36, 0.26, 0.5);           // the brow over each eye
+    add(ball(0.26), 0xF6E27A, e * 0.72, 1.46, 0.72); add(ball(0.13), SUMI, e * 0.82, 1.5, 0.88);   // the eyes, gold, looking ahead
+    add(new ConeGeometry(0.06, 0.3, 6), IVORY, e * 0.5, 0.78, 1.55, Math.PI);     // fangs
+    add(new ConeGeometry(0.06, 0.26, 6), IVORY, e * 0.42, -0.78, 1.45);
+    for (let k = 0; k < 3; k++) toward(new ConeGeometry(0.13, 0.7, 8).translate(0, 0.35, 0), k % 2 ? ORANGE : RED, e * (0.5 + k * 0.12), 1.8, 0.55 - k * 0.3, e * 0.4, 0.5, -1);   // flame brows
+    toward(new ConeGeometry(0.12, 2.0, 10).translate(0, 1.0, 0), GOLD, e * 0.42, 1.9, -0.55, e * 0.35, 0.6, -0.8);   // antlers, swept back
+    toward(new ConeGeometry(0.07, 0.7, 8).translate(0, 0.35, 0), GOLD, e * 0.62, 2.45, -0.95, e * 0.8, 0.7, 0.1);
+    let x = e * 0.46, y = 1.32, z = 2.1;                                           // whiskers, curling out and down
+    for (let k = 0; k < 5; k++) {
+      const dx = e * (0.42 - k * 0.04), dy = -0.05 - k * 0.1, dz = 0.2 - k * 0.14, len = Math.hypot(dx, dy, dz);
+      toward(new CylinderGeometry(0.028 - k * 0.004, 0.032 - k * 0.004, len, 5).translate(0, len / 2, 0), GOLD, x, y, z, dx, dy, dz);
+      x += dx; y += dy; z += dz;
+    }
+  }
+  for (let k = 0; k < 4; k++) toward(new ConeGeometry(0.1, 0.8, 8).translate(0, 0.4, 0), k % 2 ? GOLD : IVORY, (k - 1.5) * 0.18, -1.2, 0.6, (k - 1.5) * 0.3, -1, -0.5);   // the beard
+  for (let k = 0; k < 13; k++) {                                                   // a mane of flames, streaming back round the head
+    const a = -Math.PI * 1.05 + k * Math.PI * 2.1 / 12, cx = Math.cos(a) * 0.95, cy = 1.0 + Math.sin(a) * 0.95;
+    toward(new ConeGeometry(0.28, 1.5, 8).translate(0, 0.75, 0), [RED, ORANGE, GOLD][k % 3], cx, cy, -1.0, Math.cos(a) * 0.55, Math.sin(a) * 0.55, -1);
+  }
+  return paintedModel(L);
+}
+function dragonTail() {
+  const L = [];
+  for (let k = 0; k < 8; k++) {                                                                           // fins round the tail's end
+    const a = k * Math.PI / 4, g = new ConeGeometry(0.34, 1.5, 3); g.translate(0, 0.75, 0);
+    const q = new Quaternion().setFromUnitVectors(new Vector3(0, 1, 0), new Vector3(Math.cos(a) * 0.9, Math.sin(a) * 0.9, 1).normalize());
+    L.push([g, k % 2 ? 0xD8342A : 0xE8B840, new Matrix4().compose(new Vector3(Math.cos(a) * (TUBE_R + 0.05), Math.sin(a) * (TUBE_R + 0.05), -0.2), q, new Vector3(1, 1, 0.25))]);
+  }
+  L.push([new TorusGeometry(TUBE_R + 0.06, 0.1, 8, 40), 0xE8B840, placeAt(0, 0, 0)]);
+  return paintedModel(L);
+}
+// A koi, head toward +z: white, a red patch at the head and one along the back, pale fins; tinted per fish.
+function koiFish() {
+  const L = [], add = (g, hex, ...a) => L.push([g, hex, placeAt(...a)]);
+  add(new SphereGeometry(1, 12, 8), 0xF6F2EA, 0, 0, 0, 0, 0, 0, 0.09, 0.07, 0.26);
+  add(new SphereGeometry(1, 10, 6), 0xE84A20, 0, 0.012, 0.13, 0, 0, 0, 0.075, 0.062, 0.1);
+  add(new SphereGeometry(1, 10, 6), 0xE84A20, 0.01, 0.018, -0.06, 0, 0, 0, 0.06, 0.058, 0.1);
+  add(new BoxGeometry(0.02, 0.13, 0.17), 0xF8C8A0, 0, 0, -0.33);
+  for (const e of [-1, 1]) add(new SphereGeometry(1, 8, 6), 0xF8D8C0, e * 0.09, -0.02, 0.08, 0, 0, e * 0.5, 0.07, 0.012, 0.05);
+  return paintedModel(L);
+}
+function dressTube(U, K, style) {
+  const T = U.T, mat = tokyoTubeGlass(style, T.len), u = mat.userData.u, at = new Vector3(), dir = new Vector3();
+  tkSet(U.glass, 'material', mat);
+  tkUndo.push(() => mat.dispose());
+  tkHide(...U.ends, ...U.halos);
+  const t0 = new Date().getTime() / 1000;
+  tkTick(() => {                                           // where the marble is along it, for the light that runs with it
+    u.uAt.value = ball.tube && ball.tube.U === U ? ball.tube.s : -99;
+    u.uTime.value = REDUCED ? 0 : new Date().getTime() / 1000 - t0;
+  });
+  const ends = [0, T.len].map((s) => ({ p: tubeAt(T, s, new Vector3()), d: tubeDir(T, Math.min(s, T.len - TUBE_DS), new Vector3()) }));
+  const place = (m, E, back) => { m.position.copy(E.p); m.lookAt(at.copy(E.p).addScaledVector(E.d, back ? -1 : 1)); return m; };
+  if (style === 'dragon') {
+    tkSet(U, 'pal', [0.45, 0.32, 0.08, 1, 0.86, 0.45]);   // gold bands between the scales, flaring as the marble passes
+    tkAdd(levelGroup, place(new Mesh(K.dragonHead || (K.dragonHead = keepGeo(dragonHead())), K.props), ends[0], true));
+    tkAdd(levelGroup, place(new Mesh(K.dragonTail || (K.dragonTail = keepGeo(dragonTail())), K.props), ends[1], false));
+  } else if (style === 'lantern') {
+    tkHide(U.rings);                                      // the ribs and bands are in the paper itself
+    for (const E of ends) {                               // a black lacquer hoop with a gold edge at each end
+      const g = new Group();
+      g.add(new Mesh(K.hoop || (K.hoop = keepGeo(new TorusGeometry(TUBE_R + 0.06, 0.11, 10, 48))), K.lacquer));
+      g.add(new Mesh(K.hoopEdge || (K.hoopEdge = keepGeo(new TorusGeometry(TUBE_R + 0.17, 0.03, 6, 48))), K.gold || (K.gold = keepMat(hazed(new MeshStandardMaterial({ color: 0xE8C050, metalness: 0.8, roughness: 0.3, envMap: tokyoEnvMap() || envTex }))))));
+      tkAdd(levelGroup, place(g, E, false));
+    }
+  } else {
+    tkHide(U.rings);                                      // no rings: the water flows, the foam spiralling down it
+    for (const E of ends) {                               // a crest of foam round each mouth, over a blue ring
+      const L = [[new TorusGeometry(TUBE_R + 0.1, 0.09, 8, 48), 0xF4FAFF, placeAt(0, 0, 0)], [new TorusGeometry(TUBE_R + 0.26, 0.07, 8, 48), 0x1E5A56, placeAt(0, 0, -0.12)]];
+      for (let k = 0; k < 14; k++) { const a = k * Math.PI / 7; L.push([new SphereGeometry(0.11, 8, 6), 0xFFFFFF, placeAt(Math.cos(a) * (TUBE_R + 0.2), Math.sin(a) * (TUBE_R + 0.2), 0.05)]); }
+      tkAdd(levelGroup, place(new Mesh(paintedModel(L), K.props), E, false));
+    }
+    const N = 20, fish = new InstancedMesh(K.koiFish || (K.koiFish = keepGeo(koiFish())), K.koiMatFish || (K.koiMatFish = keepMat(hazed(new MeshStandardMaterial({ vertexColors: true, roughness: 0.45 })))), N);
+    fish.frustumCulled = false;
+    const r = seeded(7 + Math.round(T.len * 10)), swim = [...Array(N)].map((_, i) => ({ s: i * T.len / N + r() * 2, a: r() * 6.28, w: (r() - 0.5) * 0.8, v: 1.4 + r(), ph: r() * 6 }));
+    const TINT = [[1, 1, 1], [1, 0.72, 0.3], [0.34, 0.33, 0.36], [1, 1, 1], [1, 0.85, 0.6]];
+    swim.forEach((F, i) => fish.setColorAt(i, new Color().setRGB(...TINT[i % TINT.length])));
+    tkAdd(levelGroup, fish);
+    const o = new Object3D(), nrm = new Vector3(), bi = new Vector3();
+    let last = performance.now();
+    tkTick(() => {                                         // they swim on down the stream and round it, the way the marble goes
+      const now = performance.now(), dt = Math.min(0.05, (now - last) / 1000); last = now;
+      swim.forEach((F, i) => {
+        if (!REDUCED) { F.s = (F.s + F.v * dt) % T.len; F.a += F.w * dt; }
+        const k = Math.min(Math.floor(F.s / 0.2), U.frame.length / 3 - 1);
+        tubeAt(T, F.s, o.position); tubeDir(T, F.s, dir);
+        nrm.fromArray(U.frame, k * 3); bi.crossVectors(dir, nrm);
+        o.position.addScaledVector(nrm, Math.cos(F.a) * 0.52).addScaledVector(bi, Math.sin(F.a) * 0.52);
+        o.lookAt(at.copy(o.position).add(dir)); o.rotateY(Math.sin(now / 1000 * 7 + F.ph) * 0.25); o.scale.setScalar(2);
+        o.updateMatrix(); fish.setMatrixAt(i, o.matrix);
+      });
+      fish.instanceMatrix.needsUpdate = true;
+    });
+  }
+}
+function keepGeo(g) { g.userData.keep = true; return g; }
+function keepMat(m) { m.userData.keep = true; return m; }
 function tokyoPieces() {
   const K = tkKit(), o = new Object3D();
   // BOLLARDS: a red paper lantern on each, one set of shapes for every bollard in the course.
@@ -7689,19 +7859,8 @@ function tokyoPieces() {
     tkAdd(fixed, new Mesh(paintedModel(g), K.props));
     tkAdd(fixed, new Mesh(paintedModel([[new BoxGeometry(0.2, 0.2, 0.2), 0xFFC878, placeAt(lx, H + 0.68, lz)]]), K.lit));
   }
-  // GLASS TUBES: a tunnel of torii.
-  for (const U of tubes) {
-    tkSet(U.rings, 'geometry', K.toriiRing); tkSet(U.rings, 'material', K.toriiRingMat); tkSet(U, 'pal', [0.55, 0.55, 0.55, 1, 1, 1]);
-    const im = U.rings.instanceMatrix, kept = im.array.slice(), zero = new Matrix4().makeScale(0, 0, 0);
-    for (let i = 1; i < U.rings.count; i += 2) U.rings.setMatrixAt(i, zero);   // a torii at every other ring
-    im.needsUpdate = true;
-    tkUndo.push(() => { im.array.set(kept); im.needsUpdate = true; });
-    tkHide(...U.ends, ...U.halos); tkSet(U.glass, 'material', K.glass);
-    for (const e of U.ends) {
-      const big = new Mesh(K.toriiRing, K.toriiRingMat.clone()); big.material.color.setRGB(0.9, 0.9, 0.9);
-      big.position.copy(e.position); big.quaternion.copy(e.quaternion); big.scale.setScalar(1.35); tkAdd(levelGroup, big);
-    }
-  }
+  // GLASS TUBES: a dragon, a paper lantern or a stream of koi (dressTube).
+  for (const U of tubes) dressTube(U, K, tokyoTube);
   // SCANNERS: a folding screen of gold, sliding across.
   for (const Sc of scans) {
     const n = Math.max(4, Math.round(Sc.d / 0.9)), pw = Sc.d / n, parts = [];
@@ -8380,6 +8539,7 @@ const tokyoDrift = (w) => {
   hemi.color.setHex(0x9CC4C8); hemi.groundColor.setHex(0x2E2622); hemi.intensity = 0.8;
   sun.color.setHex(0xFFD6B0); sun.intensity = 1.8;
   w.marble = 'temari'; w.rings = [0x34E0FF, 0xFF6A3C]; w.glowGates = true; w.news = NEWS_TOKYO; w.rules = RULES_TOKYO;
+  NEWS_TOKYO[29] = TUBE_WORDS[tokyoTube][0]; RULES_TOKYO.set(RULES.find((q) => q.startsWith('A glass tube')), TUBE_WORDS[tokyoTube][1]);
   w.restyle = tokyoCourse;
   const m = new Matrix4(), q = new Quaternion(), e = new Euler(), pos = new Vector3(), sc = new Vector3(), col = new Color(), up = new Vector3(0, 1, 0);
   const props = [], glows = [];                            // still shapes the light falls on, and ones that shine by themselves
@@ -11085,6 +11245,7 @@ function worldFromHash() {
     neonStyle = ['grid', 'glowgrid', 'edges', 'frosted'].includes(v) ? v : 'glowgrid';   // #neon-edges and so on
     neonLive = v !== 'still';                                                            // #neon-still: the city unmoving
   }
+  if (name === 'tokyo' && TUBE_LOOKS[v]) tokyoTube = v;                                   // #tokyo-dragon and so on: the glass tube's look
   setWorld(WORLDS[name] ? name : 'void');
 }
 worldFromHash();
@@ -11150,6 +11311,7 @@ if (HARNESS) {
     look: (name) => { setLook(name); return look; },
     eye: (style) => { buildEye(style); return eyeStyle; },
     world: (name) => setWorld(name),
+    tube: (style) => { if (TUBE_LOOKS[style]) tokyoTube = style; return setWorld(world.name); },
     skin: (name) => setMarbleSkin(name),
     neon: (style) => neonCourse(style),
     audio: () => citySound && { roll: roll ? +roll.g.gain.value.toFixed(4) : null, city: +citySound.pg.gain.value.toFixed(4),
