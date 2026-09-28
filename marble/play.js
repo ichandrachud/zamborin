@@ -4846,6 +4846,8 @@ function makeRing(x, y, z, isGoal) {
 }
 
 function loadLevel(n) {
+  // Loaded from inside a wormhole's world (a restart as the warp flashes), the level still belongs to the world it left.
+  const home = pocket ? pocket.world : world.name;
   if (pocket) { freeCourse(levelGroup); levelGroup = pocket.levelGroup; ({ holos, pads, ferries, locks, mags, switches } = pocket); pocket = null; }
   levelNo = Math.max(1, Math.min(LEVELS.length, n));
   level = LEVELS[levelNo - 1];
@@ -4871,8 +4873,8 @@ function loadLevel(n) {
   for (const pc of level.pieces) buildPiece(pc);
   // The world follows the course: the neon city to 50, Tokyo from 51 (a world picked to look at, such as the hills, stays).
   // Its scenery follows the course too, so it is rebuilt for it.
-  if (['neon', 'tokyo', 'dystopia'].includes(world.name)) setWorld(levelNo > 50 ? 'tokyo' : 'neon');
-  else if (world.name !== 'void') setWorld(world.name);
+  if (['neon', 'tokyo', 'dystopia'].includes(home)) setWorld(levelNo > 50 ? 'tokyo' : 'neon');
+  else if (home !== 'void' || world.name !== 'void') setWorld(home);
   level.minTop = Math.min(...level.pieces.map((p) => (p.t === 'ramp' ? Math.min(p.y0, p.y1) : p.y)));
   for (const [x, y, z] of level.gates) gates.push(makeRing(x, y, z, false));
   goal = makeRing(level.goal[0], level.goal[1], level.goal[2], true);
