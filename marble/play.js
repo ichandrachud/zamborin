@@ -806,6 +806,7 @@ const SWITCHES = { X: { switch: 'A' }, Y: { switch: 'B' }, Z: { switch: 'C' },
 // The squares past level 40 were found by a search that mixes the mechanics (pzgen.js: keys, switches, crates and plates,
 // charge, light), aimed at a number of steps that climbs with the level, rewarding dead ends and punishing clutter. One
 // legend serves them all.
+const TWIN = { t: { twin: 1 }, p: { twinPad: 1 } };      // the twin: where it starts, its pad
 const TUNE = { a: { tone: 0 }, b: { tone: 1 }, c: { tone: 2 }, d: { tone: 3 }, e: { tone: 4 }, f: { tone: 5 } };   // the drums of a tune
 const PIT = { W: { weight: 1 }, _: { pit: 1 } };          // build a road: a crate, a gap it fills
 const ICE = { o: { rock: 1 }, s: { snow: 1 } };           // the ice mazes: a rock, snow (a hole is '#', a cell with no floor)
@@ -2211,16 +2212,56 @@ const PLAZAS = {
     '+ + + + + +',
     '|. . . . .|',
     '+-+-+ +-+-+'] },
+  // THE TWIN (owner, 2026-09-28, the fifth new puzzle). A wall down the middle: you on the left, your twin on the right
+  // from 't'. Each push moves you a tile and your twin a tile the mirror way (east for you is west for it); a wall stops
+  // either alone. Stand at the way out while your twin stands on its pad 'p', and the bridge appears. (twingen.js)
+  D1: { entry: 1, exit: 1, twin: true, legend: TWIN, map: [   // 7 pushes
+    '+-+ +-+-+-+-+',
+    '|. . .|. . t|',
+    '+ + +-+ + + +',
+    '|. . .|. . p|',
+    '+ + + + + + +',
+    '|. . .|. . .|',
+    '+ + + + + + +',
+    '|. . .|. . .|',
+    '+-+ +-+-+-+-+'] },
+  D2: { entry: 1, exit: 1, twin: true, legend: TWIN, map: [   // 12 pushes
+    '+-+ +-+-+-+-+',
+    '|. . .|. . .|',
+    '+ + + + + + +',
+    '|. . .|t . .|',
+    '+ + + + + + +',
+    '|. . .|. . .|',
+    '+ + + + + + +',
+    '|. . .|. p .|',
+    '+ + + +-+ + +',
+    '|. . .|. . .|',
+    '+-+ +-+-+-+-+'] },
+  D3: { entry: 1, exit: 1, twin: true, legend: TWIN, map: [   // 18 pushes
+    '+-+ +-+-+-+-+',
+    '|. .|.|. . .|',
+    '+ + + + + + +',
+    '|. . .|. . t|',
+    '+ + + + + + +',
+    '|. . .|. . p|',
+    '+ + + + + + +',
+    '|. . .|. . .|',
+    '+ + + + + + +',
+    '|. . .|. . .|',
+    '+ + + +-+ + +',
+    '|. . .|. . .|',
+    '+-+ +-+-+-+-+'] },
 };
 // PLAZAS END
 // Which square each level ends with; '~' mirrors it left to right.
 // The new puzzles, each tried first on a course of its own (#try-<kind>, #try-<kind>-tokyo), easy to hard.
-const TRY_COURSES = { ice: ['I1', 'I2', 'I3', 'I4'], road: ['P1', 'P2', 'P3'], tiles: ['T1', 'T2', 'T3'], tune: ['M1', 'M2', 'M3'] },
-      TRY_TITLES = { ice: 'ICE MAZES', road: 'BUILD A ROAD', tiles: 'EVERY TILE', tune: 'THE TUNE' };
+const TRY_COURSES = { ice: ['I1', 'I2', 'I3', 'I4'], road: ['P1', 'P2', 'P3'], tiles: ['T1', 'T2', 'T3'], tune: ['M1', 'M2', 'M3'], twin: ['D1', 'D2', 'D3'] },
+      TRY_TITLES = { ice: 'ICE MAZES', road: 'BUILD A ROAD', tiles: 'EVERY TILE', tune: 'THE TUNE', twin: 'THE TWIN' };
 const TRY_NEWS = { ice: 'Four ice mazes, easy to hard. On ice the marble slides until something stops it',
                    road: 'Three chasms. Push crates into the gaps to make a road across',
                    tiles: 'Light every tile. Each one crumbles behind you',
-                   tune: 'Listen, then play it back. The way on opens when you do' };
+                   tune: 'Listen, then play it back. The way on opens when you do',
+                   twin: 'Your twin moves as your mirror. Stand at the way out while it stands on its pad' };
 const PLAZA_AT = { 2: 'K1', 3: 'K2', 4: 'K2~', 5: 'K3', 6: 'K3~', 7: 'K4', 8: 'K4~', 9: 'S1', 10: 'S2', 11: 'S2~', 12: 'S3', 13: 'S4~',
                    14: 'W1', 15: 'W2', 16: 'W3', 17: 'W3~', 18: 'B1', 19: 'B2', 20: 'B3', 21: 'B3~', 22: 'B4', 23: 'B2~',
                    24: 'C1', 25: 'C2', 26: 'C2~', 27: 'C3', 28: 'C3~', 29: 'C4',
@@ -2231,7 +2272,7 @@ Object.assign(PLAZA_AT, { 41: 'G41', 42: 'G42', 43: 'G43', 44: 'G44', 45: 'G45',
 function plazaLayout(id) {
   const flipped = id.endsWith('~'), T = PLAZAS[flipped ? id.slice(0, -1) : id];
   const cols = (T.map[0].length - 1) / 2, rows = (T.map.length - 1) / 2;
-  if (!flipped) return { id, cols, rows, map: T.map, legend: T.legend, entry: T.entry, exit: T.exit, ice: T.ice, cover: T.cover, tune: T.tune };
+  if (!flipped) return { id, cols, rows, map: T.map, legend: T.legend, entry: T.entry, exit: T.exit, ice: T.ice, cover: T.cover, tune: T.tune, twin: T.twin };
   const legend = {};
   for (const [ch, v] of Object.entries(T.legend)) {                 // and anything that points turns with it
     const u = legend[ch] = { ...v };
@@ -2239,7 +2280,7 @@ function plazaLayout(id) {
     if (u.source === 'e' || u.source === 'w') u.source = u.source === 'e' ? 'w' : 'e';
     if ('tile' in u) u.tile = (u.tile & 5) | (u.tile & 2 ? 8 : 0) | (u.tile & 8 ? 2 : 0);
   }
-  return { id, cols, rows, map: T.map.map((l) => [...l].reverse().join('')), legend, entry: cols - 1 - T.entry, exit: cols - 1 - T.exit, ice: T.ice, cover: T.cover, tune: T.tune };
+  return { id, cols, rows, map: T.map.map((l) => [...l].reverse().join('')), legend, entry: cols - 1 - T.entry, exit: cols - 1 - T.exit, ice: T.ice, cover: T.cover, tune: T.tune, twin: T.twin };
 }
 // A square's map read into cells[r][c], edges h[k][c] (the south edge of row k) and v[r][c] (the west edge of column c).
 function plazaGrid(pc) {
@@ -2594,14 +2635,14 @@ function makeLevel(n, variant = LEVEL_VARIANT[n] || 0, test = null) {
     const T = plazaLayout(id), W = T.cols * CELL, D = T.rows * CELL, rw = 2.4, iw = r2(Math.max(rw, Math.min(wide, 3)));
     straight(5, iw, true);                              // the road in, with a ring on it
     const bs = x > 3 ? -1 : 1, bx = r2(x + bs * (iw / 2 + 1.1)), bz = r2(z + 2.5);
-    if (!T.ice && !T.cover) pieces.push({ ...F(bx, bz, 2.2, 2.2, y), bay: true }, { t: 'reset', x: bx, z: bz, y, w: 1.5, d: 1.5 });   // (ice and tiles reset themselves)
+    if (!T.ice && !T.cover && !T.twin) pieces.push({ ...F(bx, bz, 2.2, 2.2, y), bay: true }, { t: 'reset', x: bx, z: bz, y, w: 1.5, d: 1.5 });   // (ice, tiles, twins reset themselves)
     const x0 = r2(Math.min(14.5 - W, Math.max(-8.5, x - (T.entry + 0.5) * CELL))), ex = r2(x0 + (T.entry + 0.5) * CELL);
     if (Math.abs(ex - x) > 0.05) { pieces.push(F(r2((x + ex) / 2), r2(z - rw / 2), r2(Math.abs(ex - x) + rw), rw, y)); x = ex; on(rw); }
     straight(1.5, rw);
     pieces.push({ t: 'plaza', ...T, x: r2(x0 + W / 2), z: r2(z - D / 2), w: W, d: D, y, x0, z0: r2(z) });
     on(D); run += D;                                    // the way through a square is longer than the square
     x = r2(x0 + (T.exit + 0.5) * CELL);
-    if (T.cover) { pieces.push({ ...F(x, r2(z - 1.5), rw, 3, y), bridge: true }); on(3); }   // the bridge out: there once every tile is lit
+    if (T.cover || T.twin) { pieces.push({ ...F(x, r2(z - 1.5), rw, 3, y), bridge: true }); on(3); }   // the bridge out: there once solved
     if (T.tune) {                                       // a ledge, a portal on it (open once the tune is played), the missing road, the far side
       straight(2.5, rw);
       const pz = r2(z + 0.9), gap = 7;
@@ -4275,6 +4316,7 @@ function buildPlaza(pc) {
   if (pc.ice) buildIce(P);
   if (pc.cover) buildCover(P);
   if (pc.tune) buildTune(P);
+  if (pc.twin) buildTwin(P);
   // The gates.
   // (Each is named by its edge as the search names it: H c,k is the south edge of row k in column c; V c,r the west edge of column c in row r.)
   for (let k = 0; k <= P.rows; k++) for (let c = 0; c < P.cols; c++) if (G.h[k][c] && !plazaWall(G.h[k][c])) buildGate(P, G.h[k][c], X(c), P.z0 - k * CELL, true, 'H' + c + ',' + k);
@@ -4869,6 +4911,11 @@ function resetPlaza(P, quiet) {
   }
   if (quiet) { for (const K of P.keys) K.t = 1; for (const g of P.gates) g.open = g.init === 'open' ? 1 : 0; }
   if (P.reset) P.reset.flash = 1;
+  if (quiet && (P.cov || P.twin)) {                    // a restart: unsolved again, the bridge gone
+    if (P.cov) { P.covDone = false; resetCover(P); }
+    if (P.twin) { P.twin.done = false; resetTwin(P); }
+    const B = coverBridge(P); if (B) { B.bridge.on = false; B.mesh.visible = false; }
+  }
   if (P.tune) {                                         // a restart: unplayed again; the pad by the road: play it again
     if (quiet) { Object.assign(P.tune, { at: 0, done: false, play: null, heard: false, wrong: 0 }); if (P.portal) { P.portal.open = false; P.portal.k = 0; P.portal.grp.visible = false; } }
     else { tuneReplay(P); return; }
@@ -4962,6 +5009,55 @@ function buildIce(P) {
         bar.position.set(x + dx * (CELL / 2 - 0.1), P.y + 0.03, z - dz * (CELL / 2 - 0.1)); levelGroup.add(bar);
       }
     }
+  }
+}
+/* THE TWIN (owner, 2026-09-28, the fifth new puzzle). A wall down the middle
+   of the square: you on the left, your twin, a marble of violet glass, on the
+   right. Each push moves you a tile, and your twin a tile the mirror way (east
+   for you is west for it); a wall stops either one alone, which is how the two
+   are put out of step. Stand at the way out while your twin stands on its pad,
+   and the bridge appears. Back out the way in, or a fall, and the twin is home. */
+const TWIN_COL = 0xB18CFF;
+function buildTwin(P) {
+  const G = P.grid, env = neonEnvMap() || envTex;
+  let start = null, pad = null;
+  for (let r = 0; r < P.rows; r++) for (let c = 0; c < P.cols; c++) { if (G.cells[r][c].twin) start = [c, r]; if (G.cells[r][c].twinPad) pad = [c, r]; }
+  const mesh = new Mesh(new SphereGeometry(R, 32, 18), new MeshStandardMaterial({ color: 0xD9CBFF, metalness: 0.3, roughness: 0.08, envMap: env, envMapIntensity: 1.4,
+                                                                           transparent: true, opacity: 0.9, emissive: 0x7A5CFF, emissiveIntensity: 0.7 }));
+  mesh.castShadow = true; mesh.position.set(P.X(start[0]), P.y + R, P.Z(start[1])); levelGroup.add(mesh);
+  const glow = new Mesh(new CircleGeometry(0.85, 40), glowMat(TWIN_COL, 0.45, dot));   // a glow under it, so it is seen on any floor
+  glow.rotation.x = -Math.PI / 2; glow.position.set(P.X(start[0]), P.y + 0.02, P.Z(start[1])); levelGroup.add(glow);
+  const ring = (c, r) => {                              // a violet ring: the twin's pad, and yours (the way out)
+    const g = new Group(); g.position.set(P.X(c), P.y, P.Z(r));
+    const m = new Mesh(new RingGeometry(0.7, 0.8, 48), glowMat(TWIN_COL, 0.85)); m.rotation.x = -Math.PI / 2; m.position.y = 0.02;
+    const pool = new Mesh(new CircleGeometry(1.05, 40), glowMat(TWIN_COL, 0.14, dot)); pool.rotation.x = -Math.PI / 2; pool.position.y = 0.014;
+    g.add(m, pool); levelGroup.add(g); return m;
+  };
+  P.twin = { c: start[0], r: start[1], c0: start[0], r0: start[1], fc: start[0], fr: start[1], t: 1, pad, mesh, glow, done: false,
+             rings: [ring(pad[0], pad[1]), ring(P.pc.exit, P.rows - 1)] };
+}
+function resetTwin(P) {
+  const T = P.twin; T.c = T.fc = T.c0; T.r = T.fr = T.r0; T.t = 1;
+  T.mesh.position.set(P.X(T.c), P.y + R, P.Z(T.r)); T.glow.position.set(P.X(T.c), P.y + 0.02, P.Z(T.r));
+}
+function animateTwin(P, dt) {
+  const T = P.twin;
+  if (T.t < 1) {
+    T.t = Math.min(1, T.t + dt * COVER_V / CELL);
+    const u = ease(T.t);
+    T.mesh.position.set(P.X(T.fc) + (P.X(T.c) - P.X(T.fc)) * u, P.y + R, P.Z(T.fr) + (P.Z(T.r) - P.Z(T.fr)) * u);
+    T.mesh.rotation.x -= (T.r - T.fr) * dt * COVER_V / R; T.mesh.rotation.z -= (T.c - T.fc) * dt * COVER_V / R;
+    T.glow.position.set(T.mesh.position.x, P.y + 0.02, T.mesh.position.z);
+  }
+  const I = ball.ice, here = I && I.P === P && !I.dc && !I.dr;
+  const on = here && I.c === P.pc.exit && I.r === P.rows - 1, its = T.t >= 1 && T.c === T.pad[0] && T.r === T.pad[1];
+  T.rings[0].material.opacity = its ? 1 : 0.6; T.rings[1].material.opacity = on ? 1 : 0.6;
+  if (!T.done && on && its) {                          // both on their pads: the bridge
+    T.done = true;
+    const B = coverBridge(P);
+    if (B) { B.bridge.on = true; B.mesh.visible = true; burst(B.pos.x, P.y + 0.3, B.pos.z, TWIN_COL, 30, 3.5); }
+    burst(T.mesh.position.x, T.mesh.position.y, T.mesh.position.z, TWIN_COL, 20, 3);
+    sound('unlock');
   }
 }
 /* THE TUNE (owner, 2026-09-28, the fourth new puzzle: "remember the tune").
@@ -5145,7 +5241,7 @@ function iceAhead(P, c, r, dc, dr) {
 function iceCatch() {
   if (!ball.grounded) return;
   for (const P of plazas) {
-    if (!(P.pc.ice || P.pc.cover) || Math.abs(ball.p.y - R - P.y) > 0.3) continue;
+    if (!(P.pc.ice || P.pc.cover || P.pc.twin) || Math.abs(ball.p.y - R - P.y) > 0.3) continue;
     const fc = (ball.p.x - P.x0) / CELL, fr = (P.z0 - ball.p.z) / CELL, c = Math.floor(fc), r = Math.floor(fr);
     if (c < 0 || c >= P.cols || r < 0 || r >= P.rows || P.grid.cells[r][c].void || (P.cov && P.cov[r * P.cols + c] === 2)) continue;
     const [dc, dr] = Math.abs(ball.v.x) > Math.abs(ball.v.z) ? [Math.sign(ball.v.x) || 1, 0] : [0, ball.v.z > 0 ? -1 : 1];
@@ -5166,22 +5262,25 @@ function iceStep(dt, ix, iz) {
   if (!I.dc && !I.dr) {                                 // at rest: the stick sends it, straight along the grid
     const m = Math.max(Math.abs(ix), Math.abs(iz));
     if (m < 0.3) I.armed = true;                        // a push counts once the stick has been let go, or turned another way
-    else {
+    else if (!(P.twin && P.twin.t < 1)) {                // (not while the twin is still moving)
       const [dc, dr] = Math.abs(ix) > Math.abs(iz) ? [Math.sign(ix), 0] : [0, iz < 0 ? 1 : -1];
       if (I.armed || dc !== I.last[0] || dr !== I.last[1]) {
         I.armed = false; I.last = [dc, dr];
-        if (iceAhead(P, I.c, I.r, dc, dr) === 'wall') { I.nudge = 0.16; I.nd = [dc, dr]; sound('bump'); }   // it will not go that way
+        const mine = iceAhead(P, I.c, I.r, dc, dr), T = P.twin, its = T && iceAhead(P, T.c, T.r, -dc, dr) === 'open';
+        if (its) { T.fc = T.c; T.fr = T.r; T.c -= dc; T.r += dr; T.t = 0; }   // the twin goes the mirror way
+        if (mine === 'wall') { I.nudge = 0.16; I.nd = [dc, dr]; if (!its) sound('bump'); }   // it will not go that way
         else { I.dc = dc; I.dr = dr; I.u = 0; if (P.pc.ice) sound('glide'); }
       }
     }
   } else {
-    const V = P.pc.cover ? COVER_V : ICE_V;
+    const V = P.pc.ice ? ICE_V : COVER_V;
     I.u += V * dt;
     for (;;) {
       const nc = I.c + I.dc, nr = I.r + I.dr, out = nr < 0 || nr >= P.rows || nc < 0 || nc >= P.cols;
       const hole = !out && (P.grid.cells[nr][nc].void || (P.cov && P.cov[nr * P.cols + nc] === 2));
       if (out && I.u >= CELL / 2 + 0.35 || hole && I.u >= CELL / 2 + 0.12) {
         if (P.pc.cover && out && nr < 0) resetCover(P);  // back out the way in: the tiles are all back
+        if (P.twin && out && nr < 0 && !P.twin.done) resetTwin(P);   // (and the twin is home)
         else if (P.pc.cover && out) coverArrive(P, nc, nr, I.c, I.r);   // (out over the bridge: the last tile goes too)
         ball.v.set(I.dc * V, 0, -I.dr * V);             // off the grid: onto the road, or down the hole
         ball.p.x = P.X(I.c) + I.dc * I.u; ball.p.z = P.Z(I.r) - I.dr * I.u;
@@ -5191,7 +5290,7 @@ function iceStep(dt, ix, iz) {
       if (I.u < CELL) break;
       const c0 = I.c, r0 = I.r;
       I.u -= CELL; I.c = nc; I.r = nr;                  // at the middle of the next cell
-      if (P.pc.cover) { coverArrive(P, I.c, I.r, c0, r0); I.dc = 0; I.dr = 0; I.u = 0; break; }   // a tile at a time
+      if (P.pc.cover || P.pc.twin) { if (P.pc.cover) coverArrive(P, I.c, I.r, c0, r0); I.dc = 0; I.dr = 0; I.u = 0; break; }   // a tile at a time
       const cell = P.grid.cells[I.r][I.c];
       if (cell.snow) { iceStop(I, true); break; }
       if (iceAhead(P, I.c, I.r, I.dc, I.dr) === 'wall') { iceStop(I, false); break; }
@@ -5200,7 +5299,7 @@ function iceStep(dt, ix, iz) {
   I.nudge = Math.max(0, I.nudge - dt);
   const nk = I.nudge > 0 ? 0.14 * Math.sin(Math.PI * I.nudge / 0.16) : 0;
   ball.p.set(P.X(I.c) + I.dc * I.u + I.nd[0] * nk, P.y + R, P.Z(I.r) - I.dr * I.u - I.nd[1] * nk);
-  const V2 = P.pc.cover ? COVER_V : ICE_V;
+  const V2 = P.pc.ice ? ICE_V : COVER_V;
   ball.v.set(I.dc * V2, 0, -I.dr * V2);
   ball.grounded = true; ball.airT = 0; lastGroundY = P.y;
 }
@@ -5303,6 +5402,7 @@ function animatePlazas(dt) {
     if (P.reset) { P.reset.flash = Math.max(0, P.reset.flash - dt * 2); P.reset.glyphMat.opacity = 0.7 + 0.3 * P.reset.flash; }
     if (plazaAt === P && plazaView > 0.6) P.noteT += dt;   // how long its note has been up
     if (P.tune) animateTune(P, dt);
+    if (P.twin) animateTwin(P, dt);
   }
 }
 // The square the marble is in, or on the road into (with its reset pad).
@@ -5676,6 +5776,7 @@ function arrive() {
   for (const c of cracks) if (c.crack.state !== 'whole') { c.crack.state = 'whole'; c.crack.back = simT; }   // the bridges stand again
   for (const P of plazas) if (P.cov && flight.to.z > P.z0 - 0.1) resetCover(P);   // and the tiles of a square ahead
   for (const P of plazas) if (P.tune && !P.tune.done && flight.to.z > P.z0 - 0.1) Object.assign(P.tune, { at: 0, heard: false, play: null });   // a tune ahead, to hear again
+  for (const P of plazas) if (P.twin && !P.twin.done && flight.to.z > P.z0 - 0.1) resetTwin(P);   // a twin ahead, home again
   ball.p.copy(flight.to); ball.v.set(0, 0, 0);
   setTint(spawnTint);
   ball.grounded = true; ball.airT = 0;
@@ -6330,6 +6431,9 @@ const PLAZA_NEWS = {
   M1: 'Listen to the drums, then roll over them in the same order',
   M2: 'Five notes this time. The pad by the road in plays it again',
   M3: 'Seven notes, and the drums stand in rows: go round, not over',
+  D1: 'Your twin moves the mirror way. A wall stops one of you, not both',
+  D2: 'Get out of step with your twin, then back in',
+  D3: 'Walk it through in your head before the first push',
 };
 const PLAZA_NOTE_T = 7;
 function drawNews() {
@@ -12704,6 +12808,7 @@ if (HARNESS) {
     plaza: () => plazas.map((P) => ({ held: P.held ? P.held.n : 0, onPad: P.onPad, x0: P.x0, z0: P.z0, y: P.y, cols: P.cols, rows: P.rows,
                                       gates: P.gates.map((g) => ({ ek: g.ek, state: g.state })), crates: P.crates.map((W) => ({ c: W.c, r: W.r, moving: W.moving, sunk: !!W.sunk })),
                                       tune: P.tune && { seq: P.tune.seq, at: P.tune.at, done: P.tune.done, playing: !!P.tune.play, heard: P.tune.heard },
+                                      twin: P.twin && { c: P.twin.c, r: P.twin.r, moving: P.twin.t < 1, done: P.twin.done, pad: P.twin.pad },
                                       tiles: P.tiles.map((T) => ({ c: T.c, r: T.r, mask: T.mask, moving: T.moving > 0 })), charged: P.charged, lit: P.lit,
                                       mirrors: P.mirrors.map((M) => ({ c: M.c, r: M.r, m: M.m })), stands: P.stands.map((s) => ({ c: s.c, r: s.r, n: s.key ? s.key.n : 0 })),
                                       view: +plazaView.toFixed(3), cam: P.cam && { pos: P.cam.pos.toArray().map((v) => +v.toFixed(2)), at: P.cam.at.toArray().map((v) => +v.toFixed(2)) } })),
