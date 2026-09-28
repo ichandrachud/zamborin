@@ -5002,7 +5002,7 @@ function disposeWorld(grp) {
   grp.traverse((o) => {
     if (o.geometry) o.geometry.dispose();
     for (const m of [].concat(o.material || [])) {
-      if (seen.has(m)) continue;
+      if (seen.has(m) || m.userData.keep) continue;       // a world's kit kept from course to course (the dystopian city's walls and signs)
       seen.add(m);
       for (const t of [m.map, m.emissiveMap, m.normalMap]) if (t && t.isCanvasTexture && t !== dot) t.dispose();
       m.dispose();
@@ -5471,8 +5471,8 @@ const SKINS = {
     });
     marble.material = new MeshPhysicalMaterial({ map: t, roughness: 0.22, clearcoat: 1, clearcoatRoughness: 0.05, envMap: envTex, envMapIntensity: 0.8 });
   },
-  // A chrome ball bearing for the wasteland, carrying its burning sky and its sand.
-  bearing() { marble.material = new MeshStandardMaterial({ color: 0xFFFFFF, metalness: 1, roughness: 0.07, envMap: wasteEnvMap() || envTex, envMapIntensity: 1.25 }); },
+  // Steel, polished, for the dystopian city: it carries the teal smog, the sunset and the lights.
+  steel() { marble.material = new MeshStandardMaterial({ color: 0xFFFFFF, metalness: 1, roughness: 0.06, envMap: tokyoEnvMap() || envTex, envMapIntensity: 1.3 }); },
   // Chrome, so the neon city runs across it.
   chrome() { marble.material = new MeshStandardMaterial({ color: 0xFFFFFF, metalness: 1, roughness: 0.05, envMap: neonEnvMap() || envTex, envMapIntensity: 1.4 }); },
   // Faceted, like everything in the low-poly valley.
@@ -6785,28 +6785,28 @@ WORLDS_ADD('valley', (w) => {
   };
 });
 
-// ---- 5. The wasteland: a dead city in the desert, the road warriors still racing through it ----
-/* THE DYSTOPIAN CITY, AS MAD MAX (owner, 2026-09-28: "When I watched the video
-   of the ball on the grates, it was a little uncomfortable on the eyes due to
-   the pattern. Also, can you make it look a little more dystopian? Like a
-   scene from Mad Max?", then the poster for Mad Max 2 as the reference: a
-   burning orange sky, the sun low and blazing, a dark road, a black V8 car
-   racing down it with its lights on). The camera looks down from above the
-   course, so this is the wasteland as a helicopter sees a chase. The course is
-   what is left of an elevated freeway: dark asphalt with worn white paint on
-   concrete, nothing fine or repeating on it to shimmer (the grates are gone).
-   Twenty-eight metres below, a desert road weaves under it along a valley
-   graded flat, and a convoy races up it toward you: a war rig hauling a tanker
-   with buggies and bikes round it, a hot rod and a ute behind, and the black
-   interceptor with its lights on, dust streaming behind them all. The
-   freeway's pillars and its shadow stand on the sand. Beyond the valley's
-   edge, concrete husks of the dead city are half-buried in dunes; a refinery
-   burns its flare beside its tanks; buttes of red rock stand out beyond;
-   wrecks, a bus on its side, drums, tyres, windpumps; dust devils wander,
-   vultures circle, oil drums burn. The distance fades into a haze that burns
-   brighter toward the low sun ahead (the light itself still comes from up and
-   to the left, DESIGN-SYSTEM 6). The marble is a chrome ball bearing. The
-   rings stay blue and orange, as every rule says. */
+// ---- 5. Neo-Tokyo: the dystopian city, the course an elevated rail through its streets ----
+/* THE DYSTOPIAN CITY (owner, 2026-09-28, of a first try in a Mad Max desert:
+   "This is not what I had in mind. I need it to match the richness of the
+   first neon city world we build. There need to be more buildings and the
+   whole world needs to look like a futuristic dystopia ... lots of buildings,
+   not in a desert, but a city landscape and the marble rail is an elevated
+   bridge going through the streets of the city. Transportation, monorail
+   metros etc. Imagine a dystopian tokyo 500 years into the future", with five
+   pictures: a canyon city of lantern-lit markets under mushroom towers; a
+   megacity of towers joined by giant tubes, swarms of craft over it; pagodas
+   under a hovering ship; white domed towers over an arched monorail and tall
+   kanji signboards; a tower of machinery venting smoke into a teal haze).
+   The course is an elevated rail down the middle of an avenue, level with the
+   sixth or seventh floor: pale concrete, a warm light along each edge.
+   Buildings line the avenue on both sides, some below the rail, some towering
+   over it: shopfronts at the street, then balconies, glass, white towers,
+   soot-black industry. Tall kanji signs stick out into the avenue; screens
+   play on the corners. Hover cars fill the street and fly lanes just below
+   the rail; two monorails run beside it; a metro crosses under it at the
+   side streets; drones patrol; lanterns hang over the market; sakura on the
+   pavements, shrines and gardens on the low roofs, stacks venting smoke.
+   Dusk: a teal smog that glows warm toward the sunset at the avenue's end. */
 // Texture coordinates from the world, for boxes that are never turned, so a
 // facade keeps one scale on a block of any size.
 function worldMapped(mat, scale, key) {
@@ -6847,9 +6847,9 @@ const birdGeo = (() => {                                  // a bird: two thin wi
    that burns brighter the nearer the eye looks toward the low sun, so the
    distance glows and near things stay crisp. The fog's own colour is the haze
    away from the sun. Each frame the sun's direction is carried into the
-   camera's view for the shader (wasteland only: other worlds keep plain fog). */
-const HAZE = { sun: { value: new Vector3(0, 0, -1) }, col: { value: new Color(0xFFD994) }, k: { value: 6 },
-               dir: new Vector3(-0.12, 0.02, -1).normalize() };
+   camera's view for the shader (this world only: the others keep plain fog). */
+const HAZE = { sun: { value: new Vector3(0, 0, -1) }, col: { value: new Color(0xFFB48E) }, k: { value: 3 },
+               dir: new Vector3(0.05, 0.06, -1).normalize() };
 function hazed(mat) {
   const prev = mat.onBeforeCompile, key = mat.customProgramCacheKey();
   mat.onBeforeCompile = (sh, rd) => {
@@ -6869,33 +6869,28 @@ function hazed(mat) {
   mat.customProgramCacheKey = () => 'haze|' + key;
   return mat;
 }
-/* THE FREEWAY'S PAINT, drawn by the shader from each slab's own size (its
-   halfSize attribute, set in wasteCourse): a worn white line along each side
-   and, on a slab wide enough for two lanes, a dashed line down the middle. A
-   line keeps its width on a slab of any size, and fades where it would be
-   thinner than a pixel rather than shimmer. */
-function roadPaint(mat, paint) {
+/* THE RAIL'S EDGE LIGHT, drawn by the shader from each slab's own size (its
+   halfSize attribute, set in tokyoCourse): a thin warm line a little in from
+   each side, in a soft glow. It keeps its width on a slab of any size and
+   fades where it would be thinner than a pixel rather than shimmer. */
+function edgeGlow(mat, col) {
+  const u = { value: new Color(col).multiplyScalar(1.6) };
   mat.onBeforeCompile = (sh) => {
-    sh.uniforms.uPaint = { value: new Color(paint) };
+    sh.uniforms.uGlow = u;
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nattribute vec2 halfSize;\nvarying vec2 vHalf;\nvarying vec2 vSlab;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\n  vHalf = halfSize; vSlab = position.xz;');
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform vec3 uPaint;\nvarying vec2 vHalf;\nvarying vec2 vSlab;')
-      .replace('#include <map_fragment>', `#include <map_fragment>
+      .replace('#include <common>', '#include <common>\nuniform vec3 uGlow;\nvarying vec2 vHalf;\nvarying vec2 vSlab;')
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
   if ( vHalf.x > 0.5 ) {
     float ex = vHalf.x - abs( vSlab.x ), fe = max( fwidth( ex ), 1e-4 );
-    float paint = ( 1.0 - smoothstep( 0.07 - fe, 0.07 + fe, abs( ex - 0.42 ) ) ) * clamp( 0.14 / fe, 0.0, 1.0 );
-    if ( vHalf.x > 1.9 ) {
-      float cx = abs( vSlab.x ), fc = max( fwidth( cx ), 1e-4 ), u = vSlab.y / 7.0, fu = max( fwidth( u ), 1e-4 ), f = fract( u );
-      float dash = smoothstep( 0.0, fu, f ) * ( 1.0 - smoothstep( 0.45 - fu, 0.45, f ) );
-      paint = max( paint, ( 1.0 - smoothstep( 0.06 - fc, 0.06 + fc, cx ) ) * clamp( 0.12 / fc, 0.0, 1.0 ) * dash );
-    }
-    float wear = smoothstep( 0.02, 0.06, texture2D( map, vMapUv * 2.3 + 0.37 ).g );
-    diffuseColor.rgb = mix( diffuseColor.rgb, uPaint, paint * ( 0.4 + 0.45 * wear ) );
+    float core = ( 1.0 - smoothstep( 0.045 - fe, 0.045 + fe, abs( ex - 0.3 ) ) ) * clamp( 0.09 / fe, 0.0, 1.0 );
+    float halo = exp( -pow( ( ex - 0.3 ) / 0.16, 2.0 ) ) * 0.3;
+    totalEmissiveRadiance += uGlow * max( core, halo );
   }`);
   };
-  mat.customProgramCacheKey = () => 'road-paint';
+  mat.customProgramCacheKey = () => 'edge-glow';
   return mat;
 }
 function setHalfSize(mesh) {
@@ -6919,86 +6914,122 @@ function blotches(g, W, H, r, n, r0, r1, cols) {
     }
   }
 }
-let wasteEnv = null;
-function wasteEnvMap() {                                   // the burning sky and the sand, for chrome and paint to carry
-  if (wasteEnv || !renderer) return wasteEnv;
+/* Texture coordinates from the world for the city's blocks, with the floors
+   counted up from the street, so every storey of every building lines up
+   (the street's height changes with the course: STREET is set by each
+   build). Sides run the way a reader looks at them, so the words on a
+   shopfront never read backwards. */
+const STREET = { value: 0 };
+function cityMapped(mat, sw, sh, dy) {
+  const u = { value: new Vector3(sw, sh, dy) };
+  mat.onBeforeCompile = (s) => {
+    s.uniforms.uCity = u; s.uniforms.uStreet = STREET;
+    s.vertexShader = s.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform vec3 uCity;\nuniform float uStreet;')
+      .replace('#include <uv_vertex>', `#include <uv_vertex>
+  {
+    vec4 wq = vec4( position, 1.0 );
+    #ifdef USE_INSTANCING
+      wq = instanceMatrix * wq;
+    #endif
+    wq = modelMatrix * wq;
+    vec2 wuv = abs( normal.y ) > 0.5 ? wq.xz * uCity.x
+      : vec2( ( abs( normal.x ) > 0.5 ? -sign( normal.x ) * wq.z : sign( normal.z ) * wq.x ) * uCity.x, ( wq.y - uStreet - uCity.z ) * uCity.y );
+    #ifdef USE_MAP
+      vMapUv = wuv;
+    #endif
+    #ifdef USE_EMISSIVEMAP
+      vEmissiveMapUv = wuv;
+    #endif
+  }`);
+  };
+  mat.customProgramCacheKey = () => 'city-mapped';
+  return mat;
+}
+let tokyoEnv = null;
+function tokyoEnvMap() {                                   // the smog's teal, the sunset, the city's lights: for chrome and glass
+  if (tokyoEnv || !renderer) return tokyoEnv;
   const t = canvasTex(512, 256, (g) => {
     const lg = g.createLinearGradient(0, 0, 0, 256);
-    lg.addColorStop(0, '#7A5048'); lg.addColorStop(0.08, '#B06A58'); lg.addColorStop(0.18, '#E09060'); lg.addColorStop(0.34, '#FFC888'); lg.addColorStop(0.47, '#FFE8C0');
-    lg.addColorStop(0.5, '#FFF4DC'); lg.addColorStop(0.52, '#9A6040'); lg.addColorStop(0.7, '#5A3A28'); lg.addColorStop(1, '#2A1C14');
+    lg.addColorStop(0, '#2A3C44'); lg.addColorStop(0.28, '#5A7E86'); lg.addColorStop(0.44, '#D8A88E'); lg.addColorStop(0.49, '#FFD8B4');
+    lg.addColorStop(0.52, '#2C3438'); lg.addColorStop(1, '#0E1214');
     g.fillStyle = lg; g.fillRect(0, 0, 512, 256);
-    const sg = g.createRadialGradient(128, 118, 2, 128, 118, 70);        // the sun, low and ahead (-z)
-    sg.addColorStop(0, 'rgba(255,250,230,1)'); sg.addColorStop(0.25, 'rgba(255,220,150,0.8)'); sg.addColorStop(1, 'rgba(255,190,110,0)');
+    const r = seeded(5);
+    for (let i = 0; i < 90; i++) {                         // the city's lights below the horizon
+      g.fillStyle = ['rgba(255,190,120,0.7)', 'rgba(255,214,170,0.7)', 'rgba(120,230,255,0.6)', 'rgba(255,190,120,0.7)'][i % 4];
+      g.fillRect(r() * 512, 136 + r() * 100, 2 + r() * 4, 2 + r() * 4);
+    }
+    const sg = g.createRadialGradient(128, 124, 2, 128, 124, 64);
+    sg.addColorStop(0, 'rgba(255,236,210,1)'); sg.addColorStop(1, 'rgba(255,190,140,0)');
     g.fillStyle = sg; g.fillRect(0, 0, 512, 256);
   });
   const pm = new PMREMGenerator(renderer);
-  wasteEnv = pm.fromEquirectangular(t).texture;
+  tokyoEnv = pm.fromEquirectangular(t).texture;
   pm.dispose(); t.dispose();
-  return wasteEnv;
+  return tokyoEnv;
 }
-/* The freeway's materials, made once and shared by every course. The asphalt
-   carries only broad, soft variation (worn patches, sealed cracks), one tile
-   to 8 m, so nothing repeats at a glance or shimmers as it scrolls past; the
-   sides are poured concrete, lightest along the lip. Pads that move are steel
-   plate with faded blue sides; speed strips, magnets and colour lanes keep
-   the colours that say what they are. */
-let wasteMats = null;
-function wasteMaterials() {
-  if (wasteMats) return wasteMats;
-  const r = seeded(83);
-  const asphalt = canvasTex(512, 512, (g) => {
-    g.fillStyle = '#3B3631'; g.fillRect(0, 0, 512, 512);
-    blotches(g, 512, 512, r, 40, 40, 130, ['96,88,78,0.32', '22,19,17,0.34', '128,96,66,0.18']);
-    blotches(g, 512, 512, r, 60, 8, 26, ['104,96,86,0.22', '26,23,20,0.3']);
-    for (let i = 0; i < 3; i++) {                          // patches where the road was once mended, darker and smoother
-      const w0 = 60 + r() * 110, h0 = 40 + r() * 90, x = r() * 512, y = r() * 512;
-      for (const dx of [-512, 0, 512]) for (const dy of [-512, 0, 512]) {
-        g.fillStyle = 'rgba(24,21,18,0.18)'; g.fillRect(x + dx, y + dy, w0, h0);
-      }
-    }
+/* The rail's materials, made once and shared by every course: pale concrete
+   in panels of 4 m (nothing fine to shimmer), a warm light along each edge
+   and on the lip of each side. Pads that move are steel with a cyan edge;
+   speed strips, magnets and colour lanes keep the colours that say what they
+   are. */
+let tokyoMats = null;
+function tokyoCourseMaterials() {
+  if (tokyoMats) return tokyoMats;
+  const r = seeded(29), env = tokyoEnvMap() || envTex;
+  const deck = canvasTex(512, 512, (g) => {
+    g.fillStyle = '#CFCAC0'; g.fillRect(0, 0, 512, 512);
+    blotches(g, 512, 512, r, 30, 30, 110, ['176,170,160,0.3', '228,224,216,0.3', '150,140,126,0.16']);
+    g.fillStyle = 'rgba(120,114,106,0.55)';
+    for (let k = 0; k < 4; k++) { g.fillRect(k * 128, 0, 2, 512); g.fillRect(0, k * 128, 512, 2); }
+    g.fillStyle = 'rgba(255,255,255,0.35)';
+    for (let k = 0; k < 4; k++) { g.fillRect(k * 128 + 2, 0, 1, 512); g.fillRect(0, k * 128 + 2, 512, 1); }
   }, true);
-  asphalt.repeat.set(0.25, 0.25);
-  const sideT = canvasTex(8, 64, (g) => {                  // the slab's edge: a lit lip, then concrete darkening to a stained foot
-    const lg = g.createLinearGradient(0, 0, 0, 64);
-    lg.addColorStop(0, '#E2D6C0'); lg.addColorStop(0.1, '#C4B49C'); lg.addColorStop(0.18, '#A69782'); lg.addColorStop(0.7, '#968873'); lg.addColorStop(1, '#6A5E50');
-    g.fillStyle = lg; g.fillRect(0, 0, 8, 64);
-  });
-  const plate = canvasTex(256, 256, (g) => {               // a moving pad: steel plate, rust in patches, a seam and its bolts
-    g.fillStyle = '#8C877E'; g.fillRect(0, 0, 256, 256);
-    blotches(g, 256, 256, r, 16, 16, 60, ['150,78,36,0.4', '70,64,56,0.3', '176,170,160,0.25']);
-    g.fillStyle = 'rgba(40,36,32,0.65)'; g.fillRect(0, 0, 256, 4); g.fillRect(0, 0, 4, 256);
-    g.fillStyle = 'rgba(44,40,36,0.85)';
-    for (const [x, y] of [[20, 20], [236, 20], [20, 236], [236, 236], [128, 20], [128, 236]]) { g.beginPath(); g.arc(x, y, 6, 0, 7); g.fill(); }
+  deck.repeat.set(0.125, 0.125);
+  const plate = canvasTex(256, 256, (g) => {               // a moving pad: brushed steel in plates
+    g.fillStyle = '#A8B0B4'; g.fillRect(0, 0, 256, 256);
+    blotches(g, 256, 256, r, 14, 20, 70, ['200,208,212,0.35', '120,128,132,0.3']);
+    g.fillStyle = 'rgba(40,46,50,0.6)'; g.fillRect(0, 0, 256, 3); g.fillRect(0, 0, 3, 256);
   }, true);
   plate.repeat.set(0.5, 0.5);
-  const yard = canvasTex(256, 256, (g) => {                // a puzzle square's floor: a poured slab to a cell, a joint all round
-    g.fillStyle = '#A39683'; g.fillRect(0, 0, 256, 256);
-    blotches(g, 256, 256, r, 12, 20, 60, ['120,110,96,0.35', '184,172,152,0.3', '130,90,60,0.15']);
-    g.strokeStyle = 'rgba(54,46,40,0.85)'; g.lineWidth = 8; g.strokeRect(4, 4, 248, 248);
-    g.strokeStyle = 'rgba(214,202,182,0.5)'; g.lineWidth = 2; g.strokeRect(10, 10, 236, 236);
+  const yard = canvasTex(256, 256, (g) => {                // a puzzle square's floor: a slab to a cell, a joint all round
+    g.fillStyle = '#C4BEB2'; g.fillRect(0, 0, 256, 256);
+    blotches(g, 256, 256, r, 12, 20, 60, ['150,144,134,0.3', '220,214,204,0.3']);
+    g.strokeStyle = 'rgba(70,66,60,0.8)'; g.lineWidth = 8; g.strokeRect(4, 4, 248, 248);
+    g.strokeStyle = 'rgba(255,236,206,0.6)'; g.lineWidth = 2; g.strokeRect(10, 10, 236, 236);
   });
-  const top = () => hazed(roadPaint(new MeshStandardMaterial({ map: asphalt, roughness: 0.86 }), 0xEEE6D2));
-  const side = () => hazed(new MeshStandardMaterial({ map: sideT, roughness: 0.95 }));
-  wasteMats = {
-    make: { top, side }, top: top(), side: side(),
-    padTop: hazed(new MeshStandardMaterial({ map: asphalt, roughness: 0.86 })),
-    ferryTop: hazed(new MeshStandardMaterial({ map: plate, roughness: 0.5, metalness: 0.5, envMap: wasteEnvMap() || envTex, envMapIntensity: 0.5 })),
-    ferrySide: hazed(new MeshStandardMaterial({ color: 0x4E7896, roughness: 0.6, metalness: 0.3 })),
-    padSide: hazed(new MeshStandardMaterial({ color: PAD_YELLOW, roughness: 0.6 })),
-    magSide: hazed(new MeshStandardMaterial({ color: 0x2FB6D8, roughness: 0.55, metalness: 0.3 })),
-    // A lane of a colour lock has its lines painted in the colour its curtain gives.
-    laneTop: [null, 0xB6F04C, 0xB48EFF].map((c) => c && hazed(roadPaint(new MeshStandardMaterial({ map: asphalt, roughness: 0.86 }), c))),
-    laneSide: [null, 0x8FD83A, 0x9A6BF0].map((c) => c && hazed(new MeshStandardMaterial({ color: c, roughness: 0.65 }))),
-    cellTop: hazed(new MeshStandardMaterial({ map: yard, roughness: 0.95 })),
+  const sideT = canvasTex(8, 64, (g) => {
+    const lg = g.createLinearGradient(0, 0, 0, 64);
+    lg.addColorStop(0, '#F2EEE6'); lg.addColorStop(0.12, '#C8C2B8'); lg.addColorStop(0.6, '#A8A298'); lg.addColorStop(1, '#6E6860');
+    g.fillStyle = lg; g.fillRect(0, 0, 8, 64);
+  });
+  const lip = (col) => canvasTex(8, 64, (g) => {           // light along the top of a side, gone a third of the way down
+    const lg = g.createLinearGradient(0, 0, 0, 64);
+    lg.addColorStop(0, col); lg.addColorStop(0.1, col); lg.addColorStop(0.3, '#000'); lg.addColorStop(1, '#000');
+    g.fillStyle = lg; g.fillRect(0, 0, 8, 64);
+  });
+  const top = () => hazed(edgeGlow(new MeshStandardMaterial({ map: deck, roughness: 0.78 }), 0xFFE2BC));
+  const side = (lipCol, map, color = 0xFFFFFF) => hazed(new MeshStandardMaterial({ map, color, roughness: 0.8, emissive: 0xFFFFFF, emissiveMap: lip(lipCol), emissiveIntensity: 1.4 }));
+  tokyoMats = {
+    make: { top, side: () => side('#FFE2BC', sideT) },
+    top: top(), side: side('#FFE2BC', sideT),
+    padTop: hazed(new MeshStandardMaterial({ map: deck, roughness: 0.78 })),
+    ferryTop: hazed(edgeGlow(new MeshStandardMaterial({ map: plate, roughness: 0.4, metalness: 0.6, envMap: env, envMapIntensity: 0.6 }), 0x6FE8FF)),
+    ferrySide: side('#9FF0FF', null, 0x3E6A80),
+    padSide: side('#FFE67A', null, PAD_YELLOW),
+    magSide: side('#9FF4FF', null, 0x2FB6D8),
+    // A lane of a colour lock has its edge light in the colour its curtain gives.
+    laneTop: [null, 0xB6F04C, 0xB48EFF].map((c) => c && hazed(edgeGlow(new MeshStandardMaterial({ map: deck, roughness: 0.78 }), c))),
+    laneSide: [null, ['#D8FF9A', 0x8FD83A], ['#D6C4FF', 0x9A6BF0]].map((l) => l && side(l[0], null, l[1])),
+    cellTop: hazed(new MeshStandardMaterial({ map: yard, roughness: 0.9 })),
   };
-  return wasteMats;
+  return tokyoMats;
 }
-/* The course in the wasteland. As in the city, the slabs cast no shadow (the
-   world far below takes none; its shadows are laid on the sand). A dark road
-   here is a ghost of a road, see-through until its switch is on, when it
-   fills in (animateSwitches, S.fade). */
-function wasteCourse() {
-  const M = wasteMaterials();
+/* The course in the city. As in the neon city, the slabs cast no shadow. A
+   dark road here is a ghost of a road, see-through until its switch is on,
+   when it fills in (animateSwitches, S.fade). */
+function tokyoCourse() {
+  const M = tokyoCourseMaterials();
   for (const c of colliders) {
     if (c.holo || c.obstacle) continue;
     c.mesh.castShadow = false;
@@ -7051,81 +7082,8 @@ const _wp = new Matrix4(), _wq = new Quaternion(), _we = new Euler(), _wv = new 
 // A matrix from a place, a turn and a size.
 const placeAt = (x, y, z, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1) =>
   _wp.compose(_wv.set(x, y, z), _wq.setFromEuler(_we.set(rx, ry, rz)), _ws.set(sx, sy, sz)).clone();
-// The parts of a model, in its own space: +x forward, y up, the ground at y = 0.
-const mB = (sx, sy, sz, hex, x, y, z, rx = 0, ry = 0, rz = 0) => [new BoxGeometry(sx, sy, sz), hex, placeAt(x, y, z, rx, ry, rz)];
-const mC = (rt, rb, h, seg, hex, x, y, z, rx = 0, ry = 0, rz = 0) => [new CylinderGeometry(rt, rb, h, seg), hex, placeAt(x, y, z, rx, ry, rz)];
-const mW = (rad, wd, x, z, hex = 0x171514) => [new CylinderGeometry(rad, rad, wd, 12), hex, placeAt(x, rad, z, Math.PI / 2)];
-const mS = (rad, hex, x, y, z) => [new SphereGeometry(rad, 10, 7), hex, placeAt(x, y, z)];
-const mK = (rad, h, hex, x, y, z, rx = 0, ry = 0, rz = 0) => [new ConeGeometry(rad, h, 6), hex, placeAt(x, y, z, rx, ry, rz)];
-const mL = (len, prof, hex, x) => [loft(len, prof, 22, 16), hex, placeAt(x, 0, 0)];
-/* THE VEHICLES of the chase. The black interceptor: a long bonnet with the
-   blower through it, side pipes, a spoiler, its lights on. A war rig hauling a
-   tanker, spikes on its bumper. A dune buggy, a hot rod with its engine out
-   in the air, a ute with a harpoon, and a bike and rider. */
-const VEHICLES = {
-  interceptor: () => [
-    mL(4.6, (t) => ({ w: 0.93 - 0.1 * Math.max(0, t - 0.86) / 0.14 - 0.06 * Math.max(0, 0.06 - t) / 0.06,
-                      top: t < 0.05 ? 0.84 + t * 2.8 : t > 0.6 ? 0.98 - 0.2 * Math.pow((t - 0.6) / 0.4, 1.6) : 0.98,
-                      bot: t < 0.03 || t > 0.97 ? 0.42 : 0.3 }), 0x161514, 0),
-    mL(2.2, (t) => ({ w: 0.74, bot: 0.86, top: 0.97 + 0.36 * Math.min(1, t / 0.42, (1 - t) / 0.3) }), 0x2E3844, -0.3),
-    mB(0.84, 0.05, 1.36, 0x161514, -0.28, 1.33, 0),
-    mB(0.56, 0.3, 0.46, 0xBDB7AB, 1.15, 1.04, 0), mB(0.44, 0.14, 0.52, 0x2A2622, 1.15, 1.25, 0),
-    mB(0.34, 0.06, 1.72, 0x161514, -2.2, 1.04, 0), mB(0.08, 0.28, 0.1, 0x161514, -2.2, 0.92, 0.72), mB(0.08, 0.28, 0.1, 0x161514, -2.2, 0.92, -0.72),
-    mC(0.07, 0.07, 1.6, 8, 0xB0AAA0, 0.25, 0.42, 0.97, 0, 0, Math.PI / 2), mC(0.07, 0.07, 1.6, 8, 0xB0AAA0, 0.25, 0.42, -0.97, 0, 0, Math.PI / 2),
-    mB(0.05, 0.14, 0.34, 0xF4EAD0, 2.31, 0.72, 0.56), mB(0.05, 0.14, 0.34, 0xF4EAD0, 2.31, 0.72, -0.56),
-    mB(0.05, 0.1, 0.5, 0x9A2014, -2.31, 0.8, 0.5), mB(0.05, 0.1, 0.5, 0x9A2014, -2.31, 0.8, -0.5),
-    mW(0.35, 0.32, 1.45, 0.84), mW(0.35, 0.32, 1.45, -0.84), mW(0.37, 0.36, -1.45, 0.84), mW(0.37, 0.36, -1.45, -0.84),
-  ],
-  rig: () => [
-    mB(15.6, 0.45, 2.1, 0x2A2420, -1.3, 0.95, 0),
-    mB(2.3, 2.2, 2.46, 0x3C2C22, 3.7, 2.35, 0), mB(0.08, 0.72, 2.2, 0x26303A, 4.86, 2.95, 0),
-    mB(1.3, 0.66, 0.05, 0x26303A, 3.8, 2.95, 1.24), mB(1.3, 0.66, 0.05, 0x26303A, 3.8, 2.95, -1.24),
-    mB(1.9, 1.15, 2.1, 0x3C2C22, 5.85, 1.85, 0), mB(0.12, 1.0, 1.7, 0xA29C92, 6.82, 1.8, 0),
-    mB(0.34, 0.36, 2.44, 0x5E4E3C, 6.95, 0.95, 0),
-    ...[-0.9, -0.45, 0, 0.45, 0.9].map((z) => mK(0.1, 0.9, 0x7A6A56, 7.45, 1.05, z, 0, 0, -Math.PI / 2)),
-    mC(0.14, 0.14, 2.7, 8, 0x8E887E, 2.45, 3.9, 1.05), mC(0.14, 0.14, 2.7, 8, 0x8E887E, 2.45, 3.9, -1.05),
-    mC(0.4, 0.4, 1.4, 12, 0xA29C92, 3.3, 1.15, 1.32, 0, 0, Math.PI / 2), mC(0.4, 0.4, 1.4, 12, 0xA29C92, 3.3, 1.15, -1.32, 0, 0, Math.PI / 2),
-    mC(1.28, 1.28, 9.2, 20, 0xAB9E8A, -3.7, 2.62, 0, 0, 0, Math.PI / 2),
-    mC(1.31, 1.31, 0.9, 20, 0x7C4A2C, -0.9, 2.62, 0, 0, 0, Math.PI / 2), mC(1.31, 1.31, 0.9, 20, 0x7C4A2C, -6.5, 2.62, 0, 0, 0, Math.PI / 2),
-    mB(8.8, 0.12, 0.6, 0x5A4A3A, -3.7, 3.94, 0),
-    mW(0.55, 0.42, 5.7, 1.1), mW(0.55, 0.42, 5.7, -1.1), mW(0.55, 0.9, 2.2, 0.9), mW(0.55, 0.9, 2.2, -0.9), mW(0.55, 0.9, 1.05, 0.9), mW(0.55, 0.9, 1.05, -0.9),
-    mW(0.55, 0.9, -6.9, 0.9), mW(0.55, 0.9, -6.9, -0.9), mW(0.55, 0.9, -8.1, 0.9), mW(0.55, 0.9, -8.1, -0.9),
-  ],
-  buggy: () => [
-    mB(3.3, 0.26, 1.5, 0xA8702E, 0, 0.56, 0), mB(1.0, 0.38, 1.24, 0xA8702E, 1.32, 0.78, 0, 0, 0, -0.22),
-    mB(0.9, 0.56, 1.0, 0x8E8678, -1.12, 0.98, 0), mC(0.08, 0.08, 0.9, 6, 0x8E8678, -1.42, 1.4, 0.34), mC(0.08, 0.08, 0.9, 6, 0x8E8678, -1.42, 1.4, -0.34),
-    mB(0.12, 0.95, 1.34, 0x3A3028, -0.55, 1.2, 0),
-    mB(0.46, 0.6, 0.5, 0x4A3526, 0.02, 0.98, 0), mS(0.19, 0x2A211A, 0.06, 1.46, 0),
-    mK(0.06, 0.6, 0x9E968A, 1.98, 0.8, 0.4, 0, 0, -Math.PI / 2), mK(0.06, 0.6, 0x9E968A, 1.98, 0.8, -0.4, 0, 0, -Math.PI / 2),
-    mW(0.5, 0.42, -1.05, 0.93), mW(0.5, 0.42, -1.05, -0.93), mW(0.36, 0.28, 1.2, 0.82), mW(0.36, 0.28, 1.2, -0.82),
-  ],
-  coupe: () => [
-    mL(4.3, (t) => ({ w: 0.88 - 0.06 * Math.max(0, t - 0.88) / 0.12, top: t < 0.05 ? 0.82 + t * 2 : t > 0.64 ? 0.93 - 0.12 * ((t - 0.64) / 0.36) : 0.93,
-                      bot: t < 0.03 || t > 0.97 ? 0.4 : 0.32 }), 0x80341F, 0),
-    mL(1.6, (t) => ({ w: 0.7, bot: 0.84, top: 0.92 + 0.26 * Math.min(1, t / 0.3, (1 - t) / 0.28) }), 0x262C33, -0.55),
-    mB(0.82, 0.44, 0.62, 0xA8A298, 1.25, 1.08, 0), mC(0.06, 0.06, 0.8, 6, 0xA8A298, 1.0, 1.5, 0.22), mC(0.06, 0.06, 0.8, 6, 0xA8A298, 1.0, 1.5, -0.22),
-    ...[-0.5, 0, 0.5].map((z) => mK(0.07, 0.7, 0x9E968A, 2.4, 0.62, z, 0, 0, -Math.PI / 2)),
-    mW(0.44, 0.42, -1.35, 0.86), mW(0.44, 0.42, -1.35, -0.86), mW(0.33, 0.26, 1.42, 0.8), mW(0.33, 0.26, 1.42, -0.8),
-  ],
-  ute: () => [
-    mB(4.7, 0.62, 1.8, 0x55706C, 0, 0.78, 0), mB(1.5, 0.72, 1.7, 0x55706C, 0.45, 1.45, 0), mB(0.06, 0.5, 1.5, 0x262C33, 1.21, 1.48, 0),
-    mB(1.3, 0.2, 1.76, 0x55706C, 1.72, 1.16, 0),
-    mB(2.0, 0.4, 0.08, 0x40585A, -1.3, 1.28, 0.86), mB(2.0, 0.4, 0.08, 0x40585A, -1.3, 1.28, -0.86), mB(0.08, 0.4, 1.8, 0x40585A, -2.31, 1.28, 0),
-    mC(0.07, 0.07, 2.3, 6, 0x2E2E2E, -1.35, 2.0, 0, 0, 0, 1.05),
-    mB(0.46, 0.7, 0.5, 0x4A3526, -0.9, 1.5, 0), mS(0.18, 0x2A211A, -0.9, 2.02, 0),
-    mW(0.4, 0.34, 1.55, 0.86), mW(0.4, 0.34, 1.55, -0.86), mW(0.4, 0.34, -1.55, 0.86), mW(0.4, 0.34, -1.55, -0.86),
-  ],
-  bike: () => [
-    mB(1.5, 0.34, 0.28, 0x2A2420, 0, 0.72, 0), mB(0.56, 0.28, 0.34, 0xA29C92, 0.26, 0.96, 0),
-    mB(0.08, 0.72, 0.14, 0x8E887E, 0.74, 0.66, 0, 0, 0, 0.35),
-    mB(0.42, 0.62, 0.44, 0x46301F, -0.14, 1.3, 0, 0, 0, -0.38), mS(0.17, 0x1C1C1C, 0.04, 1.7, 0),
-    mB(0.5, 0.1, 0.1, 0x46301F, 0.22, 1.36, 0.2), mB(0.5, 0.1, 0.1, 0x46301F, 0.22, 1.36, -0.2),
-    mW(0.34, 0.14, 0.74, 0), mW(0.34, 0.16, -0.72, 0),
-  ],
-};
-/* Dust (and smoke) that billows and thins: each puff ages through a few
-   layers, each drawn larger and fainter, so a plume grows and clears in a
-   handful of draws. */
+/* Smoke that billows and thins: each puff ages through a few layers, each
+   drawn larger and fainter, so a plume grows and clears in a handful of draws. */
 function makePlume(G, colour, sizes, opacities, cap, tex, order) {
   const layers = sizes.map((s, i) => {
     const geo = new BufferGeometry(), attr = new Float32BufferAttribute(cap * 3, 3).setUsage(DynamicDrawUsage), arr = attr.array;   // (the attribute's own array: it copies any it is given)
@@ -7137,13 +7095,13 @@ function makePlume(G, colour, sizes, opacities, cap, tex, order) {
   const parts = [];
   return {
     emit(x, y, z, vx, vy, vz, life) { if (parts.length < cap * layers.length) parts.push({ x, y, z, vx, vy, vz, age: 0, life }); },
-    step(dt, wind, floor) {
+    step(dt, wind) {
       const counts = layers.map(() => 0), drag = Math.exp(-1.3 * dt);
       for (let i = parts.length - 1; i >= 0; i--) {
         const p = parts[i];
         p.age += dt;
         if (p.age >= p.life) { parts[i] = parts[parts.length - 1]; parts.pop(); continue; }
-        p.x += (p.vx + wind) * dt; p.y = Math.max(floor, p.y + p.vy * dt); p.z += p.vz * dt;
+        p.x += (p.vx + wind) * dt; p.y += p.vy * dt; p.z += p.vz * dt;
         p.vx *= drag; p.vz *= drag;
         const k = Math.min(layers.length - 1, Math.floor(p.age / p.life * layers.length)), L = layers[k];
         if (counts[k] >= cap) continue;
@@ -7153,518 +7111,660 @@ function makePlume(G, colour, sizes, opacities, cap, tex, order) {
     },
   };
 }
+const JP = '"Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", "YuGothic", "Meiryo", "Noto Sans CJK JP", "Noto Sans JP", sans-serif';
+/* THE CITY'S KIT, made once and kept from course to course (userData.keep:
+   disposeWorld leaves it): five kinds of wall, a roof, the street, and an
+   atlas of signs. Walls are drawn in pairs, colour and light, so a window
+   lit at dusk glows in the same place it shows. */
+let tokyoKitMemo = null;
+function tokyoKit() {
+  if (tokyoKitMemo) return tokyoKitMemo;
+  const r = seeded(97), env = tokyoEnvMap() || envTex;
+  const kept = (t) => { t.userData.keep = true; return t; };
+  const pair = (W, H, draw) => {
+    const mk = () => { const c = document.createElement('canvas'); c.width = W; c.height = H; return c; };
+    const a = mk(), b = mk(), ga = a.getContext('2d'), gb = b.getContext('2d');
+    gb.fillStyle = '#000'; gb.fillRect(0, 0, W, H);
+    draw(ga, gb);
+    const tex = (c) => { const t = new CanvasTexture(c); t.colorSpace = SRGBColorSpace; t.wrapS = t.wrapT = RepeatWrapping; t.anisotropy = 4; return kept(t); };
+    return { map: tex(a), light: tex(b) };
+  };
+  const lit = (g, L, x, y, w, h, col, a = 0.55) => { L.fillStyle = col; L.fillRect(x, y, w, h); g.globalAlpha = a; g.fillStyle = col; g.fillRect(x, y, w, h); g.globalAlpha = 1; };
+  const WARM = ['#FFB468', '#FFCB8A', '#FF9E57', '#FFDDAA'];
+  // Apartments: balconies five storeys to a 16 m tile, a window lit in four, air conditioners, washing, plants.
+  const resi = pair(512, 512, (g, L) => {
+    g.fillStyle = '#59615F'; g.fillRect(0, 0, 512, 512);
+    blotches(g, 512, 512, r, 18, 30, 110, ['40,46,46,0.3', '120,126,122,0.2', '70,60,50,0.18']);
+    for (let i = 0; i < 26; i++) {
+      const x = r() * 512, y = r() * 512, h = 40 + r() * 140, lg = g.createLinearGradient(0, y, 0, y + h);
+      lg.addColorStop(0, 'rgba(24,28,28,0.35)'); lg.addColorStop(1, 'rgba(24,28,28,0)');
+      g.fillStyle = lg; g.fillRect(x, y, 4 + r() * 14, h);
+    }
+    const FH = 512 / 5, BW = 128;
+    for (let f = 0; f < 5; f++) for (let b = 0; b < 4; b++) {
+      const x = b * BW, y = f * FH, wx = x + 18, wy = y + 20, ww = BW - 36, wh = FH - 48;
+      g.fillStyle = '#161C1E'; g.fillRect(x + 10, y + 14, BW - 20, FH - 34);
+      if (r() < 0.42) {
+        lit(g, L, wx, wy, ww, wh, r() < 0.15 ? '#9FD8FF' : WARM[Math.floor(r() * 4)]);
+        if (r() < 0.5) { const cw = ww * (0.2 + r() * 0.5); L.fillStyle = 'rgba(0,0,0,0.6)'; L.fillRect(wx + (r() < 0.5 ? 0 : ww - cw), wy, cw, wh); }
+      } else { g.fillStyle = '#222C30'; g.fillRect(wx, wy, ww, wh); }
+      g.fillStyle = '#7F8786'; g.fillRect(x, y + FH - 14, BW, 10);
+      g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(x, y + FH - 4, BW, 4);
+      g.fillStyle = '#8C9493'; g.fillRect(x + 10, y + FH - 30, BW - 20, 3);
+      if (r() < 0.55) { g.fillStyle = '#B9BFBD'; g.fillRect(x + BW - 44, y + FH - 38, 26, 20); g.fillStyle = '#4A5052'; g.beginPath(); g.arc(x + BW - 31, y + FH - 28, 6, 0, 7); g.fill(); }
+      if (r() < 0.18) for (let k = 0; k < 4; k++) { g.fillStyle = ['#D8C8B0', '#8FA8C8', '#C87A6A', '#E8E0D0'][k]; g.fillRect(x + 24 + k * 14, y + FH - 28, 10, 12 + r() * 6); }
+      if (r() < 0.12) { g.fillStyle = '#4E7A48'; for (let k = 0; k < 4; k++) { g.beginPath(); g.arc(x + 20 + r() * 60, y + FH - 30, 5 + r() * 5, 0, 7); g.fill(); } }
+    }
+  });
+  // Offices: dark glass three storeys to a 12 m tile, panes lit cool or warm, spandrels, mullions.
+  const glass = pair(512, 512, (g, L) => {
+    const lg = g.createLinearGradient(0, 0, 512, 512);
+    lg.addColorStop(0, '#20343C'); lg.addColorStop(0.5, '#172830'); lg.addColorStop(1, '#2A4048');
+    g.fillStyle = lg; g.fillRect(0, 0, 512, 512);
+    const FH = 512 / 3;
+    for (let f = 0; f < 3; f++) {
+      for (let p = 0; p < 8; p++) if (r() < 0.4) lit(g, L, p * 64 + 3, f * FH + 26, 58, FH - 30, r() < 0.7 ? '#D6EEFF' : '#FFE2BC', 0.25);
+      g.fillStyle = '#2C383C'; g.fillRect(0, f * FH, 512, 24);
+      g.fillStyle = 'rgba(160,200,210,0.12)'; g.fillRect(0, f * FH + 24, 512, 3);
+    }
+    for (let p = 0; p <= 8; p++) { g.fillStyle = '#0C1416'; g.fillRect(p * 64 - 2, 0, 4, 512); L.fillStyle = '#000'; L.fillRect(p * 64 - 2, 0, 4, 512); }
+  });
+  // White towers: pale panels, a ribbon of windows to each storey, a strip of warm light under it, fins.
+  const white = pair(512, 512, (g, L) => {
+    g.fillStyle = '#D5D3CC'; g.fillRect(0, 0, 512, 512);
+    blotches(g, 512, 512, r, 12, 30, 90, ['170,168,160,0.3', '236,234,228,0.3', '120,110,96,0.15']);
+    const FH = 512 / 3;
+    for (let f = 0; f < 3; f++) {
+      const y = f * FH + 40, h = 62;
+      g.fillStyle = '#1D2A30'; g.fillRect(0, y, 512, h);
+      for (let s = 0; s < 8; s++) if (r() < 0.45) lit(g, L, s * 64 + 2, y + 2, 60, h - 4, r() < 0.6 ? '#FFE3BF' : '#DDF2FF', 0.3);
+      L.fillStyle = '#FFCF9A'; L.fillRect(0, y + h + 6, 512, 4);
+      g.fillStyle = '#FFE6C8'; g.fillRect(0, y + h + 6, 512, 4);
+      g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(0, y + h, 512, 6);
+    }
+    for (let v = 0; v < 4; v++) { g.fillStyle = '#ECEAE4'; g.fillRect(v * 128 + 60, 0, 10, 512); g.fillStyle = 'rgba(0,0,0,0.12)'; g.fillRect(v * 128 + 70, 0, 4, 512); }
+  });
+  // Old industry: soot-black brick and concrete, pipes up the wall, small windows glowing orange.
+  const grime = pair(512, 512, (g, L) => {
+    g.fillStyle = '#4A403A'; g.fillRect(0, 0, 512, 512);
+    blotches(g, 512, 512, r, 30, 20, 100, ['30,26,24,0.35', '110,70,48,0.25', '96,90,84,0.25']);
+    for (let f = 0; f < 5; f++) for (let k = 0; k < 5; k++) {
+      const x = k * 102 + 30, y = f * 102.4 + 28;
+      g.fillStyle = '#15110F'; g.fillRect(x, y, 44, 36);
+      if (r() < 0.32) lit(g, L, x + 3, y + 3, 38, 30, r() < 0.7 ? '#FF9A45' : '#FFD27A', 0.4);
+      g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(x, y + 36, 44, 16);
+    }
+    for (const px of [12, 238, 470]) {
+      const lg = g.createLinearGradient(px, 0, px + 16, 0);
+      lg.addColorStop(0, '#2A2622'); lg.addColorStop(0.4, '#8A8076'); lg.addColorStop(1, '#3A342E');
+      g.fillStyle = lg; g.fillRect(px, 0, 16, 512);
+      for (let y = 30; y < 512; y += 102.4) { g.fillStyle = '#2A2622'; g.fillRect(px - 3, y, 22, 6); }
+    }
+    g.fillStyle = '#6E665E'; g.fillRect(0, 300, 512, 10); g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(0, 310, 512, 4);
+  });
+  // The street's shopfronts, 6 m to the tile and fixed to the street: lit windows, awnings, a sign over each shop.
+  const SHOPS = ['ラーメン', 'コンビニ', '薬', '酒', 'カフェ', '花', '寿司', '電器', '本', '服', '茶', '肉', 'うどん', '質'];
+  const podium = pair(512, 256, (g, L) => {
+    const px = 512 / 12, Y = (mm) => 256 - mm * px;
+    g.fillStyle = '#3A4042'; g.fillRect(0, 0, 512, 256);
+    blotches(g, 512, 256, r, 14, 16, 60, ['24,28,30,0.4', '90,96,96,0.25']);
+    for (let s = 0; s < 3; s++) {
+      const x0 = s * 4 * px, w = 4 * px, wy0 = Y(2.9), wy1 = Y(0.2);
+      if (r() < 0.18) {
+        g.fillStyle = '#6A6E6E'; g.fillRect(x0 + 8, wy0, w - 16, wy1 - wy0);
+        g.fillStyle = 'rgba(0,0,0,0.16)'; for (let y = wy0; y < wy1; y += 10) g.fillRect(x0 + 8, y, w - 16, 2);
+      } else {
+        lit(g, L, x0 + 8, wy0, w - 16, wy1 - wy0, ['#FFE4BC', '#D8F4FF', '#FFC8E8', '#FFD08A', '#E8FFD8'][Math.floor(r() * 5)], 0.6);
+        L.fillStyle = 'rgba(0,0,0,0.35)'; for (const sy of [0.35, 0.6, 0.85]) L.fillRect(x0 + 12, wy0 + (wy1 - wy0) * sy, w - 24, 4);
+        L.fillStyle = 'rgba(0,0,0,0.55)'; for (let k = 0; k < 3; k++) L.fillRect(x0 + 20 + r() * (w - 50), wy1 - 34 - r() * 10, 10, 34);
+      }
+      g.fillStyle = ['#B8262E', '#1F5FA8', '#2E7D4F', '#E8E2D4', '#D8A020', '#6A3A8A'][Math.floor(r() * 6)];
+      g.fillRect(x0 + 4, Y(3.35), w - 8, Y(2.95) - Y(3.35));
+      g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(x0 + 4, Y(2.95), w - 8, 4);
+      const sc = ['#FF3B3B', '#FFD23F', '#3BD1FF', '#FF5FB0', '#FFFFFF', '#FF8A3A'][Math.floor(r() * 6)], sy0 = Y(4.3), sy1 = Y(3.5);
+      g.fillStyle = '#141414'; g.fillRect(x0 + 10, sy0, w - 20, sy1 - sy0);
+      const txt = SHOPS[Math.floor(r() * SHOPS.length)];
+      for (const c of [g, L]) {
+        c.fillStyle = sc; c.font = `900 ${Math.round((sy1 - sy0) * 0.72)}px ${JP}`; c.textAlign = 'center'; c.textBaseline = 'middle';
+        c.fillText(txt, x0 + w / 2, (sy0 + sy1) / 2 + 1, w - 30);
+      }
+    }
+    for (let k = 0; k < 6; k++) { const x = 20 + k * 82; g.fillStyle = '#1A2022'; g.fillRect(x, Y(5.7), 44, Y(4.8) - Y(5.7)); if (r() < 0.4) lit(g, L, x + 3, Y(5.6), 38, Y(4.9) - Y(5.6), WARM[Math.floor(r() * 4)], 0.4); }
+  });
+  const roofT = kept(canvasTex(256, 256, (g) => {
+    g.fillStyle = '#3E4446'; g.fillRect(0, 0, 256, 256);
+    blotches(g, 256, 256, r, 20, 16, 60, ['28,32,34,0.4', '96,102,100,0.3', '70,60,50,0.2']);
+    g.fillStyle = 'rgba(20,24,26,0.6)'; for (let i = 0; i < 4; i++) g.fillRect(r() * 220, r() * 220, 20 + r() * 20, 20 + r() * 20);
+  }, true));
+  const groundT = kept(canvasTex(512, 512, (g) => {        // asphalt, wet in patches
+    g.fillStyle = '#2C3234'; g.fillRect(0, 0, 512, 512);
+    blotches(g, 512, 512, r, 40, 30, 120, ['16,18,20,0.45', '62,68,70,0.3', '48,44,40,0.3']);
+  }, true));
+  /* THE SIGNS, in one atlas: sixteen tall ones that stick out into the avenue,
+     one character above another, and eight that run across a shopfront. Real
+     words a Tokyo street would carry, a few of them this city's own: oxygen,
+     rations, clean water, cyber-bodies, "under surveillance". */
+  const SV = [['ラーメン', '#C8202A', '#FFFFFF'], ['居酒屋', '#141414', '#FF6A3A', 1], ['薬局', '#F4F2EC', '#1E8F4E'], ['寿司', '#1B3F8A', '#FFFFFF'],
+              ['電脳', '#0E0E14', '#40E8FF', 1], ['監視中', '#F2C230', '#141414'], ['酸素', '#29B8C8', '#0E1A20'], ['義体', '#101014', '#FF4FC8', 1],
+              ['質屋', '#F4F0E6', '#141414'], ['喫茶', '#5A3A28', '#F8E6C8'], ['配給所', '#B01E24', '#FFFFFF'], ['浄水', '#1F66C8', '#FFFFFF'],
+              ['宿', '#6E1418', '#F2C45A'], ['両替', '#1E7A45', '#FFFFFF'], ['東京', '#FFFFFF', '#D0202A'], ['立入禁止', '#D8262E', '#FFFFFF']];
+  const SHZ = [['カラオケ', '#FF4FA0', '#FFFFFF'], ['ホテル', '#1B2A6E', '#FFD23F'], ['24時間', '#FFFFFF', '#D0202A'], ['営業中', '#1E8F4E', '#FFFFFF'],
+               ['空室', '#141414', '#40E8FF', 1], ['ゲーム', '#6A2AC8', '#FFFFFF'], ['地下鉄', '#1F66C8', '#FFFFFF'], ['出口', '#F2C230', '#141414']];
+  const AW = 1024, AH = 1280, uv = (x, y, w, h) => [x / AW, (x + w) / AW, 1 - (y + h) / AH, 1 - y / AH];
+  const atlas = kept(canvasTex(AW, AH, (g) => {
+    const panel = (x, y, w, h, [txt, bg, fg, neon], vertical) => {
+      g.fillStyle = bg; g.fillRect(x + 4, y + 4, w - 8, h - 8);
+      g.strokeStyle = neon ? fg : 'rgba(0,0,0,0.35)'; g.lineWidth = 6; g.strokeRect(x + 12, y + 12, w - 24, h - 24);
+      g.fillStyle = fg; g.textAlign = 'center'; g.textBaseline = 'middle';
+      if (neon) { g.shadowColor = fg; g.shadowBlur = 14; }
+      const chars = [...txt];
+      if (vertical) {
+        const step = (h - 64) / chars.length, sz = Math.min(92, step * 0.9);
+        g.font = `900 ${sz}px ${JP}`;
+        chars.forEach((ch, i) => {
+          const cy = y + 32 + (i + 0.5) * step;
+          if (ch === 'ー') { g.save(); g.translate(x + w / 2, cy); g.rotate(Math.PI / 2); g.fillText(ch, 0, 0); g.restore(); }   // the long mark stands upright in a column
+          else g.fillText(ch, x + w / 2, cy);
+        });
+      } else {
+        g.font = `900 ${Math.min(80, (w - 40) / chars.length * 1.05)}px ${JP}`;
+        g.fillText(txt, x + w / 2, y + h / 2 + 2, w - 34);
+      }
+      g.shadowBlur = 0;
+    };
+    SV.forEach((s, i) => panel((i % 8) * 128, Math.floor(i / 8) * 512, 128, 512, s, true));
+    SHZ.forEach((s, i) => panel((i % 4) * 256, 1024 + Math.floor(i / 4) * 128, 256, 128, s, false));
+  }));
+  const keepMat = (m) => { m.userData.keep = true; return m; };
+  const facade = (t, sw, sh, dy, extra = {}) => keepMat(hazed(cityMapped(new MeshStandardMaterial({ map: t.map, emissive: 0xFFFFFF, emissiveMap: t.light,
+    emissiveIntensity: 1.05, roughness: 0.85, ...extra }), sw, sh, dy)));
+  const roofMat = keepMat(hazed(cityMapped(new MeshStandardMaterial({ map: roofT, roughness: 0.95 }), 1 / 10, 1 / 10, 0)));
+  tokyoKitMemo = {
+    mats: {
+      resi: [facade(resi, 1 / 16, 1 / 16, 6), roofMat],
+      glass: [facade(glass, 1 / 12, 1 / 12, 6, { roughness: 0.3, metalness: 0.4, envMap: env, envMapIntensity: 0.7 }), roofMat],
+      white: [facade(white, 1 / 12, 1 / 12, 6, { roughness: 0.6 }), roofMat],
+      grime: [facade(grime, 1 / 16, 1 / 16, 6), roofMat],
+      podium: [facade(podium, 1 / 12, 1 / 6, 0), roofMat],
+    },
+    ground: keepMat(hazed(new MeshStandardMaterial({ map: groundT, roughness: 0.62, metalness: 0.2, envMap: env, envMapIntensity: 0.45 }))),
+    signs: keepMat(hazed(new MeshBasicMaterial({ map: atlas }))),
+    tall: SV.map((_, i) => uv((i % 8) * 128 + 4, Math.floor(i / 8) * 512 + 4, 120, 504)),
+    wide: SHZ.map((_, i) => uv((i % 4) * 256 + 4, 1024 + Math.floor(i / 4) * 128 + 4, 248, 120)),
+  };
+  return tokyoKitMemo;
+}
+/* THE SCREENS on the corners, two frames each, turning over now and then:
+   koi in dark water, 未来 ("future"), the watching eye 監視中 ("under
+   surveillance"), a steaming bowl of ramen, an air warning (大気汚染 危険,
+   "air pollution, danger"), a lucky cat waving. */
+const SCREENS = [
+  (g, k) => {
+    g.fillStyle = '#082440'; g.fillRect(0, 0, 256, 160);
+    g.strokeStyle = 'rgba(120,200,255,0.35)'; g.lineWidth = 2;
+    for (const [x, y, rr] of [[60, 40, 18 + k * 8], [200, 120, 26 - k * 8], [150, 30, 10 + k * 6]]) { g.beginPath(); g.arc(x, y, rr, 0, 7); g.stroke(); }
+    g.save(); g.translate(128 + (k ? 12 : -12), 84); g.rotate(k ? 0.35 : -0.2);
+    g.fillStyle = '#FF7A2A'; g.beginPath(); g.ellipse(0, 0, 54, 20, 0, 0, 7); g.fill();
+    g.fillStyle = '#FFF4E8'; g.beginPath(); g.ellipse(-8, -4, 26, 11, 0, 0, 7); g.fill();
+    g.fillStyle = '#FF7A2A'; g.beginPath(); g.moveTo(-48, 0); g.lineTo(-86, k ? -24 : -16); g.lineTo(-86, k ? 18 : 24); g.closePath(); g.fill();
+    g.fillStyle = '#141414'; g.beginPath(); g.arc(40, -5, 3, 0, 7); g.fill();
+    g.restore();
+  },
+  (g, k) => {
+    g.fillStyle = '#C8202A'; g.fillRect(0, 0, 256, 160);
+    g.fillStyle = '#FFFFFF'; g.font = `900 ${k ? 64 : 96}px ${JP}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(k ? '未来都市' : '未来', 128, 84, 236);
+    g.fillStyle = 'rgba(0,0,0,0.16)'; for (let y = 0; y < 160; y += 4) g.fillRect(0, y, 256, 2);
+  },
+  (g, k) => {
+    g.fillStyle = '#07080C'; g.fillRect(0, 0, 256, 160);
+    g.strokeStyle = '#F4F4F4'; g.lineWidth = 6;
+    g.beginPath(); g.moveTo(40, 70); g.quadraticCurveTo(128, k ? 30 : 10, 216, 70); g.quadraticCurveTo(128, k ? 110 : 130, 40, 70); g.stroke();
+    g.fillStyle = '#E8202A'; g.beginPath(); g.arc(128 + (k ? 26 : 0), 70, 26, 0, 7); g.fill();
+    g.fillStyle = '#050505'; g.beginPath(); g.arc(128 + (k ? 26 : 0), 70, 11, 0, 7); g.fill();
+    g.fillStyle = '#FFD23F'; g.font = `900 26px ${JP}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('監視中', 128, 142);
+  },
+  (g, k) => {
+    g.fillStyle = '#3A1A0C'; g.fillRect(0, 0, 256, 160);
+    g.fillStyle = '#D8262E'; g.beginPath(); g.moveTo(58, 88); g.quadraticCurveTo(128, 170, 198, 88); g.closePath(); g.fill();
+    g.fillStyle = '#F4E6C8'; g.fillRect(56, 84, 144, 8);
+    g.strokeStyle = '#FFE08A'; g.lineWidth = 3; for (let i = 0; i < 5; i++) { g.beginPath(); g.moveTo(80 + i * 22, 90); g.quadraticCurveTo(90 + i * 22, 70, 84 + i * 22, 56); g.stroke(); }
+    g.strokeStyle = 'rgba(255,255,255,0.8)'; g.lineWidth = 4;
+    for (const x of [96, 128, 160]) { g.beginPath(); g.moveTo(x, 50); g.bezierCurveTo(x - 12 + k * 20, 36, x + 12 - k * 20, 26, x, 10); g.stroke(); }
+    g.fillStyle = '#FFFFFF'; g.font = `900 24px ${JP}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('ラーメン', 128, 142);
+  },
+  (g, k) => {
+    g.fillStyle = '#0C1612'; g.fillRect(0, 0, 256, 160);
+    g.fillStyle = '#F4F4F4'; g.font = `900 36px ${JP}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('大気汚染', 128, 36);
+    for (let i = 0; i < 8; i++) { g.fillStyle = i < 6 ? (i < 3 ? '#FFD23F' : '#FF3B30') : '#2A2A2A'; g.fillRect(28 + i * 26, 64, 22, 30); }
+    g.fillStyle = k ? '#FF3B30' : '#5A1010'; g.font = `900 38px ${JP}`; g.fillText('危険', 128, 130);
+  },
+  (g, k) => {
+    g.fillStyle = '#F4E4C4'; g.fillRect(0, 0, 256, 160);
+    g.fillStyle = '#FFFFFF'; g.strokeStyle = '#1A1A1A'; g.lineWidth = 3;
+    g.beginPath(); g.ellipse(128, 112, 44, 40, 0, 0, 7); g.fill(); g.stroke();
+    g.beginPath(); g.arc(128, 62, 34, 0, 7); g.fill(); g.stroke();
+    for (const s of [-1, 1]) { g.beginPath(); g.moveTo(128 + s * 30, 44); g.lineTo(128 + s * 22, 22); g.lineTo(128 + s * 10, 34); g.fill(); g.stroke(); }
+    g.fillStyle = '#D8262E'; g.fillRect(96, 90, 64, 8);
+    g.fillStyle = '#F2C230'; g.beginPath(); g.arc(128, 104, 9, 0, 7); g.fill();
+    g.fillStyle = '#FFFFFF'; g.beginPath(); g.ellipse(176, k ? 48 : 70, 12, 20, 0, 0, 7); g.fill(); g.stroke();
+    g.fillStyle = '#1A1A1A'; for (const s of [-1, 1]) { g.beginPath(); g.arc(128 + s * 12, 58, 3.5, 0, 7); g.fill(); }
+  },
+];
 WORLDS_ADD('dystopia', (w) => {
-  const G = w.group, r = seeded(59), end = courseEnd(), live = !REDUCED;
+  const K = tokyoKit(), G = w.group, r = seeded(71), end = courseEnd(), live = !REDUCED, env = tokyoEnvMap() || envTex;
+  const pieces = level ? level.pieces : [];
   let lo = 0;
-  for (const p of level ? level.pieces : []) lo = Math.min(lo, p.t === 'ramp' ? Math.min(p.y0, p.y1) : (p.y || 0));
-  const GROUND = lo - 28, startCam = (level ? level.start[2] : 0) + 8.6;
-  // The sky: seen only when the view turns up (out beside a loop). In play the camera looks down, and the haze fills the top of the frame.
+  for (const p of pieces) lo = Math.min(lo, p.t === 'ramp' ? Math.min(p.y0, p.y1) : (p.y || 0));
+  const GROUND = lo - 26, startCam = (level ? level.start[2] : 0) + 8.6;
+  STREET.value = GROUND;
+  // The sky, seen only when the view turns up (out beside a loop): smog, teal above, warm where the sun has gone down.
   scene.background = coverTex(512, (g) => {
     const lg = g.createLinearGradient(0, 0, 0, 512);
-    lg.addColorStop(0, '#521808'); lg.addColorStop(0.3, '#93321A'); lg.addColorStop(0.55, '#D86A2C'); lg.addColorStop(0.7, '#F2A04E');
-    lg.addColorStop(0.78, '#FFD08A'); lg.addColorStop(0.82, '#E89A5A'); lg.addColorStop(1, '#B06A40');
+    lg.addColorStop(0, '#1E2E36'); lg.addColorStop(0.45, '#48666C'); lg.addColorStop(0.72, '#C8987E'); lg.addColorStop(0.8, '#F4BE96');
+    lg.addColorStop(0.86, '#6A7A78'); lg.addColorStop(1, '#2A3438');
     g.fillStyle = lg; g.fillRect(0, 0, 512, 512);
-    const sg = g.createRadialGradient(250, 392, 0, 250, 392, 190);
-    sg.addColorStop(0, 'rgba(255,252,236,1)'); sg.addColorStop(0.09, 'rgba(255,240,190,1)'); sg.addColorStop(0.12, 'rgba(255,214,140,0.8)');
-    sg.addColorStop(0.4, 'rgba(255,170,90,0.35)'); sg.addColorStop(1, 'rgba(255,150,80,0)');
-    g.fillStyle = sg; g.fillRect(0, 0, 512, 512);
   });
-  scene.fog.color.setHex(0xE2965A); scene.fog.near = 30; scene.fog.far = 300;
-  HAZE.col.value.setHex(0xFFEEC0); HAZE.k.value = 4;
-  hemi.color.setHex(0xE8A070); hemi.groundColor.setHex(0x3A2418); hemi.intensity = 0.65;
-  sun.color.setHex(0xFFB878); sun.intensity = 2.9;
-  w.marble = 'bearing'; w.rings = [0x34E0FF, 0xFF6A3C]; w.glowGates = true;
-  w.restyle = wasteCourse;
-  const sstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
-  const along = (t) => t * end;
-  const roadX = (z) => 3 + 11 * Math.sin(z / 27 + 0.6);
-  // The valley floor is graded flat for 30 m either side of the freeway; dunes rise beyond, and the valley's sides climb away.
-  const groundH = (x, z) => {
-    const off = Math.abs(x - 3), k = sstep(30, 60, off);
-    if (k === 0) return GROUND;
-    const d = 4.2 * Math.sin(x * 0.041 + Math.sin(z * 0.017) * 1.8) * Math.cos(z * 0.027 + x * 0.013)
-            + 2.4 * Math.sin((x * 0.7 + z) * 0.021 + 0.7) + 1.2 * Math.sin(x * 0.1 - z * 0.045);
-    return GROUND + k * (d + 5 + Math.max(0, off - 64) * 0.2);
-  };
-  const m = new Matrix4(), q = new Quaternion(), e = new Euler(), pos = new Vector3(), sc = new Vector3(), col = new Color();
-  const props = [];                                        // every still thing of plain colours, made into one mesh at the end
-  const place = (parts, x, y, z, rx = 0, ry = 0, rz = 0) => {     // turned about its own axes, then about the vertical
-    const M0 = placeAt(x, y, z, 0, ry, 0).multiply(placeAt(0, 0, 0, rx, 0, rz));
-    for (const [g, hex, mm] of parts) props.push([g, hex, M0.clone().multiply(mm)]);
-  };
-  const CONC = 0xA89A86, CONC_D = 0x8C7E6C, RUST = 0x7A3E22, IRON = 0x3A322C;
-  const WIND = (roadX(along(0.5)) > 3 ? -1 : 1) * 2.2;   // blowing out past the refinery's side, so its smoke leaves the course
-  const rs = Math.sign(WIND);
+  scene.fog.color.setHex(0x587478); scene.fog.near = 50; scene.fog.far = 360;
+  HAZE.col.value.setHex(0xFFB48E); HAZE.k.value = 3; HAZE.dir.set(0.05, 0.06, -1).normalize();
+  hemi.color.setHex(0x9CC4C8); hemi.groundColor.setHex(0x2E2622); hemi.intensity = 0.8;
+  sun.color.setHex(0xFFD6B0); sun.intensity = 1.8;
+  w.marble = 'steel'; w.rings = [0x34E0FF, 0xFF6A3C]; w.glowGates = true;
+  w.restyle = tokyoCourse;
+  const m = new Matrix4(), q = new Quaternion(), e = new Euler(), pos = new Vector3(), sc = new Vector3(), col = new Color(), up = new Vector3(0, 1, 0);
+  const props = [], glows = [];                            // still shapes the light falls on, and ones that shine by themselves
+  const box = (L, sx, sy, sz, hex, x, y, z, ry = 0) => L.push([new BoxGeometry(sx, sy, sz), hex, placeAt(x, y, z, 0, ry, 0)]);
+  const cyl = (L, rt, rb, h, seg, hex, x, y, z, rx = 0, rz = 0) => L.push([new CylinderGeometry(rt, rb, h, seg), hex, placeAt(x, y, z, rx, 0, rz)]);
 
-  // THE DESERT: one mesh of 5 m squares, its colour varied broadly across the valley so no tile repeats at a glance.
-  const Z0 = 70, Z1 = end - 340, X0 = 3 - 290, NX = 116, NZ = Math.ceil((Z0 - Z1) / 5);
-  const gp = new Float32Array((NX + 1) * (NZ + 1) * 3), gc = new Float32Array(gp.length), gu = new Float32Array((NX + 1) * (NZ + 1) * 2), gi = [];
-  for (let j = 0; j <= NZ; j++) for (let i = 0; i <= NX; i++) {
-    const x = X0 + i * 5, z = Z0 - j * 5, k = j * (NX + 1) + i;
-    gp[k * 3] = x; gp[k * 3 + 1] = groundH(x, z); gp[k * 3 + 2] = z;
-    gu[k * 2] = x / 48; gu[k * 2 + 1] = z / 48;
-    const n = 0.5 + 0.5 * Math.sin(x * 0.021 + Math.sin(z * 0.013) * 2) * Math.sin(z * 0.017 - x * 0.006), v = 0.8 + 0.28 * n;
-    gc[k * 3] = v * (1 + 0.06 * n); gc[k * 3 + 1] = v; gc[k * 3 + 2] = v * (1 - 0.08 * n);
+  // THE AVENUE: its middle and half-width from where the course runs, and the places its pieces need kept clear.
+  let minX = 1e9, maxX = -1e9;
+  const keep = [], streets = [];                           // keep: [x0, x1, z0, z1, 'all' | 'low', highest roof]
+  for (const p of pieces) {
+    let x0, x1, z0, z1;
+    if (p.t === 'plaza') { x0 = p.x0; x1 = p.x0 + p.cols * CELL; z0 = p.z0 - p.rows * CELL; z1 = p.z0; }
+    else if (p.x === undefined) continue;
+    else {
+      const hw = p.t === 'round' ? p.ro : (p.w || 4) / 2, sh = p.shift || 0, hd = p.t === 'round' ? p.ro : (p.d || 6) / 2;
+      x0 = p.x + Math.min(0, sh) - hw; x1 = p.x + Math.max(0, sh) + hw;
+      if (p.t === 'ramp') { z0 = Math.min(p.z0, p.z1); z1 = Math.max(p.z0, p.z1); } else { z0 = p.z - hd; z1 = p.z + hd; }
+    }
+    minX = Math.min(minX, x0); maxX = Math.max(maxX, x1);
+    if (p.t === 'wind') { const tx = p.x - p.dir * (p.w / 2 + TOWER_OFF + TOWER_W / 2); keep.push([tx - 3.5, tx + 3.5, z0 - 3, z1 + 3, 'all']); }
+    if (p.t === 'cross') streets.push([z1 + 5, z0 - 5]);          // a crossing's traffic runs down a side street
+    if (p.t === 'loop') {                                          // the camera swings out beside a loop: nothing tall there
+      const side = p.shift > 0 ? -1 : 1, cx = p.x + p.shift / 2;
+      keep.push([Math.min(cx + side * 4, cx + side * 16), Math.max(cx + side * 4, cx + side * 16), p.z - LOOP_RUN - 8, p.z + 8, 'low', p.y - 3]);
+    }
   }
-  for (let j = 0; j < NZ; j++) for (let i = 0; i < NX; i++) { const a = j * (NX + 1) + i, b = a + 1, c = a + NX + 1, d = c + 1; gi.push(a, b, c, b, d, c); }
-  const gg = new BufferGeometry();
-  gg.setAttribute('position', new Float32BufferAttribute(gp, 3)); gg.setAttribute('color', new Float32BufferAttribute(gc, 3)); gg.setAttribute('uv', new Float32BufferAttribute(gu, 2));
-  gg.setIndex(gi); gg.computeVertexNormals();
-  const sandT = canvasTex(512, 512, (g) => {
-    g.fillStyle = '#D2A27A'; g.fillRect(0, 0, 512, 512);
-    blotches(g, 512, 512, r, 34, 50, 150, ['236,204,164,0.3', '170,126,90,0.3', '196,116,74,0.2', '244,224,194,0.2']);
-    blotches(g, 512, 512, r, 110, 6, 22, ['160,118,84,0.28', '232,196,156,0.3', '134,110,84,0.22']);
-  }, true);
-  G.add(new Mesh(gg, hazed(new MeshStandardMaterial({ map: sandT, vertexColors: true, roughness: 1 }))));
+  if (minX > maxX) { minX = -4; maxX = 10; }
+  const CX = (minX + maxX) / 2, HW = Math.max(6, (maxX - minX) / 2 + 1.5), IN = HW + 7.5;   // the rail's band, and the building fronts
+  const Z_TOP = 70, Z_BOT = end - 330;
+  for (let z = 30 - r() * 25; z > Z_BOT; z -= 58 + r() * 26) streets.push([z + 7, z - 7]);
+  streets.sort((a, b) => b[0] - a[0]);
+  for (let i = streets.length - 1; i > 0; i--) if (streets[i][0] > streets[i - 1][1] - 6) { streets[i - 1][1] = Math.min(streets[i - 1][1], streets[i][1]); streets.splice(i, 1); }
+  const inStreet = (z0, z1) => streets.find(([hi, lowz]) => z0 < hi && z1 > lowz);
+  const keepHit = (x0, x1, z0, z1) => keep.find((k) => x1 > k[0] && x0 < k[1] && z1 > k[2] && z0 < k[3]);
 
-  // THE ROAD: two lanes of old asphalt weaving along the valley floor, under the freeway and out again, sand drifting over its edges.
-  const roadT = canvasTex(256, 512, (g) => {
-    g.fillStyle = '#302A25'; g.fillRect(0, 0, 256, 512);
-    blotches(g, 256, 512, r, 30, 20, 70, ['70,62,54,0.35', '18,15,13,0.35', '120,84,56,0.2']);
-    for (const u of [0.22, 0.34, 0.66, 0.78]) {            // wheel tracks, darker with oil
-      const lg = g.createLinearGradient(u * 256 - 14, 0, u * 256 + 14, 0);
-      lg.addColorStop(0, 'rgba(20,16,14,0)'); lg.addColorStop(0.5, 'rgba(20,16,14,0.35)'); lg.addColorStop(1, 'rgba(20,16,14,0)');
-      g.fillStyle = lg; g.fillRect(u * 256 - 14, 0, 28, 512);
-    }
-    g.fillStyle = 'rgba(226,212,178,0.6)'; g.fillRect(126, 0, 4, 190);          // the centre line: a dash in every 16 m
-    for (const [x0, x1] of [[0, 34], [256, 222]]) {
-      const lg = g.createLinearGradient(x0, 0, x1, 0);
-      lg.addColorStop(0, 'rgba(206,158,118,1)'); lg.addColorStop(1, 'rgba(206,158,118,0)');
-      g.fillStyle = lg; g.fillRect(Math.min(x0, x1), 0, 34, 512);
-    }
-    for (let i = 0; i < 16; i++) {                          // tongues of sand over the edge
-      const x = r() < 0.5 ? r() * 30 : 226 + r() * 30, y = r() * 512, rad = 14 + r() * 30;
-      for (const dy of [-512, 0, 512]) {
-        const rg = g.createRadialGradient(x, y + dy, 0, x, y + dy, rad);
-        rg.addColorStop(0, 'rgba(208,160,120,0.85)'); rg.addColorStop(1, 'rgba(208,160,120,0)');
-        g.fillStyle = rg; g.fillRect(x - rad, y + dy - rad, rad * 2, rad * 2);
+  // THE BUILDINGS: boxes of five kinds, each style one instanced mesh; a podium of shopfronts under every one.
+  const B = { resi: [], glass: [], white: [], grime: [], podium: [] }, tops = [];
+  const addBox = (style, cx, y0, cz, sx, h, sz, tint) => B[style].push([cx, y0 + h / 2, cz, sx, h, sz, tint]);
+  const sp = [], su = [], si = [];                          // the signs, as quads over the atlas
+  const quad = (cx, cy, cz, wdt, hgt, nx, nz, R) => {
+    const rx = nz, rz = -nx, b = sp.length / 3, hw = wdt / 2, hh = hgt / 2;
+    sp.push(cx - rx * hw, cy - hh, cz - rz * hw, cx + rx * hw, cy - hh, cz + rz * hw, cx + rx * hw, cy + hh, cz + rz * hw, cx - rx * hw, cy + hh, cz - rz * hw);
+    su.push(R[0], R[2], R[1], R[2], R[1], R[3], R[0], R[3]);
+    si.push(b, b + 1, b + 2, b, b + 2, b + 3);
+  };
+  const sign = (cx, cy, cz, wdt, hgt, nx, nz, R) => { quad(cx + nx * 0.03, cy, cz + nz * 0.03, wdt, hgt, nx, nz, R); quad(cx - nx * 0.03, cy, cz - nz * 0.03, wdt, hgt, -nx, -nz, R); };
+  const blossoms = [], stacks = [];                        // [x, y, z, size, colour]; the chimneys' tops
+  const NEON = [0x40E8FF, 0xFF4FA0, 0xFFB040, 0xB47CFF, 0xFF3B3B];
+  const roofStuff = (xa, xb, z0, z1, roof) => {            // what a low roof carries, seen from the rail
+    const n = 2 + Math.floor(r() * 3);
+    for (let k = 0; k < n; k++) {
+      const x = xa + 1.5 + r() * (xb - xa - 3), z = z0 + 1.5 + r() * (z1 - z0 - 3), kind = r();
+      if (kind < 0.3) box(props, 1.3, 0.9, 0.9, 0xB4BAB8, x, roof + 0.45, z, r() * 3);                      // an air conditioner
+      else if (kind < 0.48) { cyl(props, 0.9, 0.9, 1.6, 12, [0xC8B89A, 0x6A8AA8, 0x8A9A92][Math.floor(r() * 3)], x, roof + 1.7, z); for (const [dx, dz] of [[-0.6, -0.6], [0.6, -0.6], [-0.6, 0.6], [0.6, 0.6]]) box(props, 0.1, 0.9, 0.1, 0x3A3A3A, x + dx, roof + 0.45, z + dz); }   // a water tank on legs
+      else if (kind < 0.6) { cyl(props, 0.06, 0.08, 5, 5, 0x3A3E40, x, roof + 2.5, z); glows.push([new SphereGeometry(0.16, 6, 4), 0xFF2D48, placeAt(x, roof + 5.1, z)]); }   // a mast, its red lamp
+      else if (kind < 0.75) { for (let j = 0; j < 4; j++) blossoms.push([x + (r() - 0.5) * 2.4, roof + 1 + r() * 0.8, z + (r() - 0.5) * 2.4, 0.9 + r() * 0.6, r() < 0.5 ? 0 : 1]); cyl(props, 0.12, 0.16, 1.2, 5, 0x4A3A2E, x, roof + 0.6, z); }   // a garden, sakura or green
+      else if (kind < 0.86) {                                                                               // a shrine and its torii
+        box(props, 1.6, 1.3, 1.4, 0xE8E0D0, x, roof + 0.65, z); box(props, 2.0, 0.25, 1.8, 0x2A2E30, x, roof + 1.42, z);
+        for (const dx of [-0.9, 0.9]) cyl(props, 0.09, 0.09, 2.2, 6, 0xD8342A, x + dx, roof + 1.1, z + 1.8);
+        box(props, 2.5, 0.16, 0.24, 0xD8342A, x, roof + 2.25, z + 1.8); box(props, 2.1, 0.12, 0.2, 0xD8342A, x, roof + 1.85, z + 1.8);
+      } else {                                                                                              // a sign on a frame, lit
+        const R = K.wide[Math.floor(r() * K.wide.length)], sw = 4 + r() * 2;
+        sign(x, roof + 1.9, z, sw, sw / 2, 0, 1, R);
+        box(props, 0.12, 1.6, 0.12, 0x2A2A2E, x - sw * 0.4, roof + 0.8, z); box(props, 0.12, 1.6, 0.12, 0x2A2A2E, x + sw * 0.4, roof + 0.8, z);
       }
     }
-  }, true);
-  const RW = 4.2, rp = [], rn = [], ru = [], ri = [];
-  let vAcc = 0, lx = null, lz = null, nr = 0;
-  for (let z = Z0; z >= Z1; z -= 3) {
-    const x = roadX(z), tx = roadX(z - 1) - x, L = Math.hypot(tx, 1), nx = 1 / L, nz = tx / L;
-    if (lx !== null) vAcc += Math.hypot(x - lx, z - lz);
-    lx = x; lz = z;
-    rp.push(x - nx * RW, GROUND + 0.05, z - nz * RW, x + nx * RW, GROUND + 0.05, z + nz * RW);
-    rn.push(0, 1, 0, 0, 1, 0); ru.push(0, vAcc / 16, 1, vAcc / 16);
-    if (nr) { const a = (nr - 1) * 2; ri.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
-    nr++;
-  }
-  const roadGeo = new BufferGeometry();
-  roadGeo.setAttribute('position', new Float32BufferAttribute(rp, 3)); roadGeo.setAttribute('normal', new Float32BufferAttribute(rn, 3)); roadGeo.setAttribute('uv', new Float32BufferAttribute(ru, 2));
-  roadGeo.setIndex(ri);
-  G.add(new Mesh(roadGeo, hazed(new MeshStandardMaterial({ map: roadT, roughness: 0.92, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }))));
-
-  // SHADOWS on the valley floor, laid as soft-edged patches where the light (up and to the left) would throw them.
-  const SH = [-SUN_OFFSET.x / SUN_OFFSET.y, -SUN_OFFSET.z / SUN_OFFSET.y], SHL = Math.hypot(SH[0], SH[1]), SHA = Math.atan2(-SH[1], SH[0]);
-  const sp = [], scol = [], si = [];
-  const shade = (cx, cz, hx, hz, ang, fx, fz, a) => {
-    fx = Math.min(fx, hx); fz = Math.min(fz, hz);
-    const base = sp.length / 3, cs = Math.cos(ang), sn = Math.sin(ang), X = [-hx - fx, -hx + fx, hx - fx, hx + fx], Z = [-hz - fz, -hz + fz, hz - fz, hz + fz];
-    for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) {
-      sp.push(cx + X[i] * cs + Z[j] * sn, GROUND + 0.09, cz - X[i] * sn + Z[j] * cs);
-      scol.push(0.1, 0.04, 0.02, (i === 1 || i === 2) && (j === 1 || j === 2) ? a : 0);
+  };
+  // A building on the avenue: shopfronts, a body in one style, a tier on the tall ones, signs out over the street.
+  const building = (xa, xb, z0, z1, roof, s) => {
+    const cx = (xa + xb) / 2, cz = (z0 + z1) / 2, sx = xb - xa, sz = z1 - z0, tint = 0.68 + r() * 0.32, face = s < 0 ? xb : xa, into = -s;
+    addBox('podium', cx, GROUND, cz, sx, 6, sz, tint);
+    const style = roof > GROUND + 40 ? ['resi', 'glass', 'white', 'grime', 'resi'][Math.floor(r() * 5)] : ['resi', 'grime', 'resi', 'white'][Math.floor(r() * 4)];
+    if (roof > GROUND + 7) {
+      const inset = r() < 0.4 ? 0.7 : 0;
+      addBox(style, cx, GROUND + 6, cz, sx - inset * 2, roof - GROUND - 6, sz - inset * 2, tint);
+      if (roof > GROUND + 40 && r() < 0.5) { const h2 = 8 + r() * 26; addBox(style, cx - s * sx * 0.12, roof, cz, sx * 0.62, h2, sz * 0.66, tint); tops.push([cx, roof + h2, cz]); }
+      else tops.push([cx, roof, cz]);
     }
-    for (let j = 0; j < 3; j++) for (let i = 0; i < 3; i++) { const k = base + j * 4 + i; si.push(k, k + 4, k + 1, k + 1, k + 4, k + 5); }
+    const hi = Math.min(roof - 2, GROUND + 24), n = hi > GROUND + 11 ? 1 + Math.floor(r() * 2.6) : 0;
+    for (let k = 0; k < n; k++) {                          // tall signs sticking out into the avenue, facing along it
+      const R = K.tall[Math.floor(r() * K.tall.length)], hgt = 4.2 + r() * 2.2, wdt = hgt / 4;
+      const sy = GROUND + 6.8 + hgt / 2 + r() * Math.max(0, hi - GROUND - 7 - hgt), szz = z0 + 1 + r() * (sz - 2);
+      sign(face + into * (wdt / 2 + 0.25), sy, szz, wdt, hgt, 0, 1, R);
+      box(props, wdt + 0.3, 0.1, 0.1, 0x2A2A2E, face + into * (wdt / 2 + 0.15), sy + hgt / 2 + 0.06, szz);
+    }
+    if (r() < 0.6) sign(face + into * 0.12, GROUND + 4.95, cz, Math.min(sz - 1, 5 + r() * 3), 1.2, into, 0, K.wide[Math.floor(r() * K.wide.length)]);   // a sign along the shopfront
+    if (roof > lo + 2 && r() < 0.55) {                     // light up the corners that face the avenue
+      const c = NEON[Math.floor(r() * NEON.length)];
+      for (const zc of [z0 + 0.12, z1 - 0.12]) box(glows, 0.16, roof - GROUND - 7, 0.16, c, face + into * 0.1, (GROUND + 6.5 + roof) / 2, zc);
+    }
+    if (roof < lo - 3) {
+      roofStuff(xa, xb, z0, z1, roof);
+      if (s > 0 && stacks.length < 3 && r() < 0.2) {       // a chimney, downwind of the rail, venting
+        const x = cx + 2, h = 16 + r() * 8;
+        for (let k = 0; k < 3; k++) cyl(props, 1.0 - k * 0.1, 1.1 - k * 0.1, h / 3, 14, k % 2 ? 0xE8E4DC : 0xB8262E, x, roof + h / 6 + k * h / 3, cz);
+        stacks.push([x, roof + h + 0.5, cz]);
+      }
+    }
   };
+  // The front row: along the avenue, some under the rail and some towering over it.
+  for (const s of [-1, 1]) for (let z = Z_TOP; z > Z_BOT;) {
+    const wd = 7 + r() * 9, z1 = z, z0 = z - wd, st = inStreet(z0, z1);
+    if (st) { z = st[1]; continue; }
+    const depth = 10 + r() * 10, face = CX + s * (IN + (r() < 0.3 ? r() * 2.5 : 0));
+    const xa = s < 0 ? face - depth : face, xb = s < 0 ? face : face + depth, hit = keepHit(xa, xb, z0, z1);
+    if (hit && hit[4] === 'all') { z = z0 - 1; continue; }
+    let roof = r() < 0.5 ? GROUND + 9 + r() * 12 : GROUND + 30 + r() * 44;
+    if (hit) roof = Math.min(roof, hit[5]);
+    building(xa, xb, z0, z1, roof, s);
+    z = z0 - (r() < 0.25 ? 1.5 + r() * 3 : 0.3);
+  }
+  // The row behind: towers.
+  for (const s of [-1, 1]) for (let z = Z_TOP; z > Z_BOT;) {
+    const wd = 12 + r() * 18, z1 = z, z0 = z - wd, st = inStreet(z0, z1);
+    if (st) { z = st[1]; continue; }
+    const face = CX + s * (IN + 21 + r() * 6), depth = 16 + r() * 22, xa = s < 0 ? face - depth : face, xb = s < 0 ? face : face + depth;
+    const roof = GROUND + 50 + r() * 120, style = ['glass', 'white', 'resi', 'glass', 'grime'][Math.floor(r() * 5)], tint = 0.7 + r() * 0.3;
+    addBox('podium', (xa + xb) / 2, GROUND, (z0 + z1) / 2, xb - xa, 6, wd, tint);
+    addBox(style, (xa + xb) / 2, GROUND + 6, (z0 + z1) / 2, xb - xa, roof - GROUND - 6, wd, tint);
+    tops.push([(xa + xb) / 2, roof, (z0 + z1) / 2]);
+    z = z0 - 2 - r() * 4;
+  }
+  // The city beyond, in the smog: towers further out, and on past the course's end.
+  for (let i = 0; i < 150; i++) {
+    const s = r() < 0.5 ? -1 : 1, x = CX + s * (58 + r() * 190), z = Z_TOP - r() * (Z_TOP - Z_BOT + 60), wd = 16 + r() * 26;
+    if (inStreet(z - wd / 2, z + wd / 2) && Math.abs(x - CX) < 110) continue;
+    const roof = GROUND + 30 + r() * 200, style = ['glass', 'white', 'resi', 'grime'][Math.floor(r() * 4)];
+    addBox(style, x, GROUND, z, 14 + r() * 24, roof - GROUND, wd, 0.6 + r() * 0.4);
+    tops.push([x, roof, z]);
+  }
+  for (const [style, list] of Object.entries(B)) {
+    if (!list.length) continue;
+    const im = new InstancedMesh(twoGroupBox(), K.mats[style], list.length);
+    list.forEach(([x, y, z, sx, sy, sz, tint], i) => { m.compose(pos.set(x, y, z), q.identity(), sc.set(sx, sy, sz)); im.setMatrixAt(i, m); im.setColorAt(i, col.setRGB(tint, tint, tint)); });
+    G.add(im);
+  }
 
-  // THE FREEWAY'S PILLARS: a column and a cap under each stretch of deck, every 16 m or so, standing clear of the road.
-  const pillar = (x, z, top, capW) => {
-    if (Math.abs(x - roadX(z)) < 6.2) return;
-    const H = top - GROUND + 1, h = top - GROUND;
-    props.push(mB(1.6, H, 1.6, CONC, x, top - H / 2, z), mB(Math.max(2.2, capW), 1.1, 1.9, CONC_D, x, top - 0.55, z));
-    shade(x + SH[0] * h / 2, z + SH[1] * h / 2, h * SHL / 2, 0.8, SHA, 0.5, 0.5, 0.4);
-  };
+  // THE STREET: one wide floor of wet asphalt; pavements, lane lines and crossings on it.
+  const Wg = 640, Dg = Z_TOP - Z_BOT + 120, gg = new PlaneGeometry(Wg, Dg);
+  gg.rotateX(-Math.PI / 2);
+  const guv = gg.attributes.uv; for (let i = 0; i < guv.count; i++) guv.setXY(i, guv.getX(i) * Wg / 22, guv.getY(i) * Dg / 22);
+  const ground = new Mesh(gg, K.ground); ground.position.set(CX, GROUND, (Z_TOP + Z_BOT) / 2 - 20); G.add(ground);
+  const runs = [];                                         // the avenue between side streets
+  { let hi = Z_TOP; for (const [a, b] of streets) { if (a < hi) runs.push([hi, a]); hi = Math.min(hi, b); } if (hi > Z_BOT) runs.push([hi, Z_BOT]); }
+  const road = HW;                                         // the roadway's half width, under the rail
+  for (const [a, b] of runs) {
+    const zc = (a + b) / 2, len = a - b;
+    for (const s of [-1, 1]) box(props, 3.4, 0.3, len, 0x5E6462, CX + s * (IN - 1.7), GROUND + 0.15, zc);
+    for (let x = CX - road + 3.3; x < CX + road - 0.5; x += 3.3) {                                       // dashed lane lines
+      if (Math.abs(x - CX) < 0.6) continue;
+      for (let z = a - 3; z > b + 2; z -= 9) box(props, 0.14, 0.03, 3, 0xC8C8C0, x, GROUND + 0.02, z - 1.5);
+    }
+    box(props, 0.3, 0.03, len, 0xC8B040, CX, GROUND + 0.02, zc);                                          // the centre line
+  }
+  for (const [a, b] of streets) for (const zc of [a - 1.8, b + 1.8]) for (let x = CX - IN + 3.6; x < CX + IN - 3.4; x += 1.1) box(props, 0.55, 0.03, 3.2, 0xD2D2CA, x, GROUND + 0.02, zc);   // zebra crossings
+  // Street lamps along the kerbs, vending machines against the shops, and the light they throw on the wet street.
+  const pools = [];                                        // [x, z, size, colour]
+  for (const s of [-1, 1]) for (const [a, b] of runs) {
+    for (let z = a - 6; z > b + 4; z -= 17) {
+      const x = CX + s * (IN - 3.2);
+      cyl(props, 0.1, 0.14, 7.5, 6, 0x2E3436, x, GROUND + 3.75, z);
+      box(props, 1.6, 0.12, 0.16, 0x2E3436, x - s * 0.7, GROUND + 7.4, z);
+      box(glows, 0.9, 0.12, 0.3, 0xFFE6C0, x - s * 1.2, GROUND + 7.3, z);
+      pools.push([x - s * 1.4, z, 7, 0xFFC890]);
+    }
+    for (let z = a - 3; z > b + 3; z -= 4) pools.push([CX + s * (IN - 1.6), z - r() * 2, 4.5, [0xFFB468, 0x9FD8FF, 0xFF7FB0, 0xFFD890][Math.floor(r() * 4)]]);
+    for (let z = a - 4 - r() * 10; z > b + 3; z -= 14 + r() * 20) {
+      const x = CX + s * (IN - 0.45), n = 1 + Math.floor(r() * 3);
+      for (let k = 0; k < n; k++) box(glows, 0.75, 1.9, 0.9, [0xE8F4FF, 0x9FD8FF, 0xFF6A6A, 0xFFF0C8][Math.floor(r() * 4)], x, GROUND + 1.25, z - k * 0.95);
+    }
+  }
+  if (pools.length) {
+    const pm = new InstancedMesh(new PlaneGeometry(1, 1).rotateX(-Math.PI / 2), hazed(new MeshBasicMaterial({ map: dot, transparent: true, opacity: 0.22,
+      blending: AdditiveBlending, depthWrite: false })), pools.length);
+    pools.forEach(([x, z, s, c], i) => { m.compose(pos.set(x, GROUND + 0.06, z), q.identity(), sc.set(s, 1, s)); pm.setMatrixAt(i, m); pm.setColorAt(i, col.setHex(c)); });
+    pm.renderOrder = -1; G.add(pm);
+  }
+  // SKYWALKS across the avenue, below the rail: enclosed bridges, lit inside.
+  const walks = [];
+  for (const t of [0.3, 0.75]) {
+    const z = t * end - 6;
+    if (end > -80 && t > 0.5) continue;
+    if (inStreet(z - 3, z + 3)) continue;
+    walks.push(z);
+    box(props, IN * 2, 3.2, 3.2, 0x2C3238, CX, GROUND + 8.05, z);
+    for (const dz of [-1.62, 1.62]) box(glows, IN * 2 - 1, 0.7, 0.04, 0xFFD7A6, CX, GROUND + 8.3, z + dz);
+  }
+  const nearWalk = (z) => walks.some((wz) => Math.abs(wz - z) < 3.5);
+  // THE RAIL'S GANTRIES: it stands on pedestals on steel crossbeams over the avenue, each beam on a column at either kerb, so the traffic
+  // runs free beneath. Dark, and well below the rail, or from above a beam would read as more course.
+  const gz = [];
   for (const c of colliders) {
-    if (c.obstacle || c.holo || c.cell) continue;
-    const h = c.pos.y - GROUND, hx = c.half.x, hz = c.half.z;
-    if (c.ferry) continue;
-    shade(c.pos.x + SH[0] * h, c.pos.z + SH[1] * h, hx, hz, 0, 0.7, 0.3, 0.5);
-    const n = Math.abs(c.quat.x) > 1e-3 ? 1 : Math.max(1, Math.round(hz * 2 / 16));
-    for (let k = 0; k < n; k++) pillar(c.pos.x, c.pos.z + hz - (k + 0.5) * (hz * 2 / n), c.pos.y - c.half.y - 0.02, hx * 2 - 0.6);
+    if (c.obstacle || c.holo || c.cell || c.ferry) continue;
+    const hz = c.half.z, n = Math.abs(c.quat.x) > 1e-3 ? 1 : Math.max(1, Math.round(hz * 2 / 16));
+    for (let k = 0; k < n; k++) gz.push([c.pos.z + hz - (k + 0.5) * (hz * 2 / n), c.pos.y - c.half.y - 0.02]);
   }
-  for (const P of plazas) {                                 // a puzzle square: four pillars and one shadow
-    const wd = P.cols * CELL, dp = P.rows * CELL, cx = P.x0 + wd / 2, cz = P.z0 - dp / 2, h = P.y - GROUND;
-    shade(cx + SH[0] * h, cz + SH[1] * h, wd / 2, dp / 2, 0, 0.7, 0.7, 0.5);
-    for (const [ax, az] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) pillar(cx + ax * wd / 4, cz + az * dp / 4, P.y - THICK - 0.02, 2.4);
-  }
-
-  // THE REFINERY beside the valley: three tanks and a sphere, a pipe rack, a wall of scrap, and the flare stack burning off gas.
-  const zr = along(0.5), rOff = courseTopNear(3 + rs * 14, zr, 5) === null ? 0 : 6, fx = 3 + rs * (14 + rOff), tx0 = 3 + rs * (20 + rOff);
-  props.push(mC(0.6, 0.85, 20, 10, 0x6A625A, fx, GROUND + 10, zr), mB(2.6, 0.18, 2.6, IRON, fx, GROUND + 14, zr),
-             mC(0.68, 0.68, 0.8, 10, 0x4A4038, fx, GROUND + 20.1, zr));
-  for (const [k, dz] of [[0, -15], [1, -5.5], [2, 4]]) {
-    const y = GROUND, rad = 3.6 - k * 0.3;
-    props.push(mC(rad, rad, 6.5, 20, k === 1 ? 0xB9AC94 : 0xCBBEA6, tx0, y + 3.25, zr + dz), mC(rad + 0.05, rad + 0.05, 0.9, 20, RUST, tx0, y + 0.45, zr + dz),
-               mC(0.5, rad, 0.9, 20, 0xB4A68E, tx0, y + 6.95, zr + dz), mB(0.2, 6.6, 0.5, IRON, tx0 - rs * rad, y + 3.3, zr + dz));
-  }
-  props.push([new SphereGeometry(3.4, 24, 16), 0xC9BCA4, placeAt(tx0, GROUND + 4.2, zr + 13.5)]);
-  for (const [ax, az] of [[-1.8, 0], [1.8, 0], [0, -1.8], [0, 1.8]]) props.push(mC(0.15, 0.15, 3, 6, IRON, tx0 + ax, GROUND + 1.5, zr + 13.5 + az));
-  for (const y of [1.9, 2.5]) props.push(mC(0.22, 0.22, 34, 10, 0x8A7E6E, 3 + rs * rOff + rs * 15.8, GROUND + y, zr - 1, Math.PI / 2));
-  for (let dz = -16; dz <= 14; dz += 5) props.push(mB(0.2, 2.7, 1.4, IRON, 3 + rs * rOff + rs * 15.8, GROUND + 1.35, zr + dz));
-  for (let dz = -24; dz <= 22; dz += 2.6) {                 // the wall of scrap: sheets of rusted iron, leaning
-    const hh = 1.8 + r() * 1.4;
-    props.push(mB(0.12, hh, 2.8, r() < 0.5 ? RUST : 0x6E6458, 3 + rs * rOff + rs * 25.5, GROUND + hh / 2 - 0.1, zr + dz, (r() - 0.5) * 0.2, (r() - 0.5) * 0.3, (r() - 0.5) * 0.25));
-  }
-
-  // WINDPUMPS on the valley floor, a water tank beside each; their fans turn.
-  const pumps = [];
-  for (const [t, s] of [[0.2, -rs], [0.78, rs]]) {
-    const z = along(t);
-    let x = 3 + s * 12.5;
-    if (Math.abs(x - roadX(z)) < 6) x = 3 + s * 20;
-    if (Math.abs(x - roadX(z)) < 6 || (end > -70 && t > 0.5)) continue;
-    const H = 9;
-    for (const [ax, az] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
-      const dx = -ax * 0.95, dz = -az * 0.95, L = Math.hypot(dx, H, dz), rz0 = -Math.asin(dx / L), rx0 = Math.asin(dz / (L * Math.cos(rz0)));
-      props.push(mB(0.18, L, 0.18, IRON, x + ax * 1.2 + dx / 2, GROUND + H / 2, z + az * 1.2 + dz / 2, rx0, 0, rz0));
+  for (const P of plazas) for (const az of [-1, 1]) gz.push([P.z0 - P.rows * CELL / 2 + az * P.rows * CELL / 4, P.y - THICK - 0.02]);
+  gz.sort((a, b) => b[0] - a[0]);
+  let lastG = 1e9;
+  for (const [z, top] of gz) {
+    if (lastG - z < 14 || nearWalk(z)) continue;
+    lastG = z;
+    const beam = top - 3.2, H = beam - 0.45 - GROUND;
+    for (const s of [-1, 1]) box(props, 1.0, H, 1.0, 0x46505A, CX + s * (HW + 0.6), GROUND + H / 2, z);
+    box(props, 2 * HW + 2.0, 0.7, 0.7, 0x3E4850, CX, beam, z);
+    for (const c of colliders) {                           // a pedestal up to each stretch of rail above this beam
+      if (c.obstacle || c.holo || c.ferry || Math.abs(c.pos.z - z) > c.half.z || Math.abs(c.quat.x) > 1e-3) continue;
+      const ptop = c.pos.y - c.half.y - 0.02;
+      if (Math.abs(ptop - top) < 0.5) box(props, 0.9, ptop - beam - 0.45, 0.9, 0x39424A, c.pos.x, (ptop + beam + 0.45) / 2, z);
     }
-    for (const yy of [3, 6]) {
-      const hw = 1.2 - 0.95 * yy / H;
-      props.push(mB(hw * 2, 0.1, 0.1, IRON, x, GROUND + yy, z - hw), mB(hw * 2, 0.1, 0.1, IRON, x, GROUND + yy, z + hw),
-                 mB(0.1, 0.1, hw * 2, IRON, x - hw, GROUND + yy, z), mB(0.1, 0.1, hw * 2, IRON, x + hw, GROUND + yy, z));
-    }
-    props.push(mB(0.7, 0.5, 0.7, IRON, x, GROUND + H + 0.2, z), mB(0.06, 0.9, 2.2, 0xB8AE9C, x, GROUND + H + 0.4, z + 1.4),
-               mC(2.2, 2.2, 2, 18, 0x9A948A, x - s * 5, GROUND + 1, z + 2), mC(2.25, 2.25, 0.15, 18, 0x6E6A62, x - s * 5, GROUND + 2.05, z + 2));
-    pumps.push({ x, y: GROUND + H + 0.4, z: z - 0.5, a: r() * 6 });
   }
-  const fanGeo = paintedModel([mC(0.18, 0.18, 0.3, 8, IRON, 0, 0, 0, Math.PI / 2),
-    ...[...Array(16)].map((_, k) => { const a = k / 16 * Math.PI * 2; return [new BoxGeometry(0.34, 1.45, 0.04), 0xC8C0B0, placeAt(Math.sin(a) * 0.95, Math.cos(a) * 0.95, 0, 0, 0, -a)]; })]);
-  const fans = new InstancedMesh(fanGeo, hazed(new MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.4, side: DoubleSide })), Math.max(1, pumps.length));
-  fans.count = pumps.length; G.add(fans);
-  const placeFans = () => { pumps.forEach((P, i) => { m.compose(pos.set(P.x, P.y, P.z), q.setFromEuler(e.set(0, 0, P.a)), sc.set(1, 1, 1)); fans.setMatrixAt(i, m); }); fans.instanceMatrix.needsUpdate = true; };
+  // LANTERNS in rows along the shopfronts, under the eaves, where the izakaya are.
+  const lanterns = [];
+  for (const s of [-1, 1]) for (const [a, b] of runs) for (let z = a - 4 - r() * 12; z > b + 6; z -= 18 + r() * 22) {
+    const len = 6 + r() * 10, c = r() < 0.7 ? 0xFF3A2A : [0xFFF0D8, 0xFFB040][Math.floor(r() * 2)];
+    for (let k = 0; k < len; k += 1.3) lanterns.push([CX + s * (IN - 0.7), GROUND + 3.3, z - k, c]);
+  }
+  if (lanterns.length) {
+    const lm = new InstancedMesh(new SphereGeometry(0.26, 8, 6), hazed(new MeshBasicMaterial({ color: 0xFFFFFF })), lanterns.length);
+    lanterns.forEach(([x, y, z, c], i) => { m.compose(pos.set(x, y, z), q.identity(), sc.set(1, 1.35, 1)); lm.setMatrixAt(i, m); lm.setColorAt(i, col.setHex(c)); });
+    G.add(lm);
+  }
+  // SAKURA on the pavements.
+  for (const s of [-1, 1]) for (const [a, b] of runs) for (let z = a - 10 - r() * 10; z > b + 5; z -= 22 + r() * 16) {
+    const x = CX + s * (IN - 2.4);
+    cyl(props, 0.16, 0.24, 3.4, 6, 0x3A2A22, x, GROUND + 1.9, z);
+    for (let k = 0; k < 11; k++) blossoms.push([x + (r() - 0.5) * 3, GROUND + 3.6 + r() * 1.8, z + (r() - 0.5) * 3, 0.55 + r() * 0.5, 0]);
+  }
+  if (blossoms.length) {
+    const bm = new InstancedMesh(new IcosahedronGeometry(1, 1), hazed(new MeshStandardMaterial({ roughness: 0.9 })), blossoms.length);
+    blossoms.forEach(([x, y, z, s, kind], i) => {
+      m.compose(pos.set(x, y, z), q.setFromEuler(e.set(r() * 3, r() * 3, 0)), sc.set(s, s * 0.8, s)); bm.setMatrixAt(i, m);
+      bm.setColorAt(i, col.setHex(kind ? [0x4E7A48, 0x6A9A58][Math.floor(r() * 2)] : [0xFFC4D4, 0xFFAFC8, 0xFFE0E8, 0xF890B0][Math.floor(r() * 4)]));
+    });
+    G.add(bm);
+  }
 
-  // WRECKS by the road and out on the sand, rusted or burnt, some on their roofs; a bus on its side; oil drums, stacks of tyres, rocks and spinifex.
-  const dim = (hex, k) => col.setHex(hex).multiplyScalar(k).getHex();
-  const hulk = (hex) => {
-    const parts = [mB(4.3, 0.62, 1.8, hex, 0, 0.66, 0), mB(1.9, 0.56, 1.6, dim(hex, 0.62), -0.3, 1.24, 0), mB(1.3, 0.1, 1.7, dim(hex, 0.85), 1.4, 1.0, 0)];
-    for (const [wx, wz] of [[1.4, 0.82], [1.4, -0.82], [-1.4, 0.82], [-1.4, -0.82]]) if (r() < 0.6) parts.push(mW(0.34, 0.3, wx, wz));
-    return parts;
+  // THE MONORAILS, one on each side just outside the rail: a gunmetal beam with cyan guide lights, a train on each running both ways.
+  const Z_A = Z_TOP + 20, Z_B = Z_BOT - 20, MLEN = Z_A - Z_B;
+  const monos = [{ x: CX - (HW + 3), y: GROUND + 11, dir: -1 }, { x: CX + (HW + 3), y: GROUND + 14.5, dir: 1 }];
+  for (const M of monos) {
+    box(props, 1.1, 1.3, MLEN, 0x1C242A, M.x, M.y - 0.65, (Z_A + Z_B) / 2);
+    for (const dx of [-0.36, 0.36]) box(glows, 0.08, 0.06, MLEN, 0x40E8FF, M.x + dx, M.y + 0.03, (Z_A + Z_B) / 2);
+    for (let z = Z_A - 8; z > Z_B; z -= 22) {
+      if (nearWalk(z)) continue;
+      box(props, 0.9, M.y - 1.3 - GROUND, 0.9, 0x2A3238, M.x, GROUND + (M.y - 1.3 - GROUND) / 2, z);
+      box(props, 2.2, 0.5, 1.2, 0x2A3238, M.x, M.y - 1.55, z);
+    }
+  }
+  const TR = trainModel(env), trains = [];
+  const addTrain = (x, y, z, axis, dir, v) => {
+    const t = trains.length ? TR.clone() : TR;
+    t.rotation.y = axis === 'z' ? (dir < 0 ? Math.PI / 2 : -Math.PI / 2) : (dir > 0 ? 0 : Math.PI);
+    t.position.set(x, y, z); G.add(t); trains.push({ t, axis, dir, v });
   };
-  const drums = new InstancedMesh(new CylinderGeometry(0.3, 0.3, 0.9, 10), hazed(new MeshStandardMaterial({ roughness: 0.65, metalness: 0.3 })), 140);
-  const tyres = new InstancedMesh(new TorusGeometry(0.36, 0.14, 6, 12), hazed(new MeshStandardMaterial({ color: 0x24201C, roughness: 0.9 })), 180);
-  let nd = 0, nt = 0;
-  const fires = [];
-  const drum = (x, z, tipped, hex) => {
-    if (nd >= 140) return;
-    const y = groundH(x, z);
-    m.compose(pos.set(x, y + (tipped ? 0.3 : 0.45), z), q.setFromEuler(e.set(tipped ? Math.PI / 2 : 0, r() * 6, 0)), sc.set(1, 1, 1));
-    drums.setMatrixAt(nd, m); drums.setColorAt(nd++, col.setHex(hex));
-  };
-  const tyreStack = (x, z, n) => {
-    const y = groundH(x, z);
-    for (let k = 0; k < n && nt < 180; k++) {
-      m.compose(pos.set(x + (r() - 0.5) * 0.12, y + 0.14 + k * 0.27, z + (r() - 0.5) * 0.12), q.setFromEuler(e.set(Math.PI / 2 + (r() - 0.5) * 0.15, 0, (r() - 0.5) * 0.15)), sc.set(1, 1, 1));
-      tyres.setMatrixAt(nt++, m);
-    }
-  };
-  const DRUMS = [0x8A2A1A, 0x2A4A6A, 0xB08A2A, 0x3A3A36, 0x6A4A2A], WRECKS = [0x6E3A22, 0x2C2622, 0x7A6A50, 0x56605A, 0x8A4A2A];
-  for (let z = 20; z > end - 200; z -= 16 + r() * 16) {
-    const s = r() < 0.5 ? -1 : 1, x = roadX(z) + s * (5.6 + r() * 2.5);
-    if (Math.abs(x - 3) > 34) continue;
-    const kind = r();
-    if (kind < 0.4) {
-      const flip = r() < 0.25;
-      place(hulk(WRECKS[Math.floor(r() * WRECKS.length)]), x, GROUND + (flip ? 1.55 : 0), z, flip ? Math.PI : 0, r() * 6.3, (r() - 0.5) * 0.1);
-    } else if (kind < 0.75) {
-      const n = 2 + Math.floor(r() * 4), burning = r() < 0.5;
-      for (let k = 0; k < n; k++) drum(x + (r() - 0.5) * 2.2, z + (r() - 0.5) * 2.2, k > 0 && r() < 0.3, DRUMS[Math.floor(r() * DRUMS.length)]);
-      if (burning) { drum(x, z, false, 0x3A3A36); fires.push({ x, y: GROUND + 0.95, z, s: 1, ph: r() * 9 }); }
-    } else {
-      tyreStack(x, z, 3 + Math.floor(r() * 4)); if (r() < 0.6) tyreStack(x + 0.9, z + 0.4, 2 + Math.floor(r() * 3));
-    }
+  for (const M of monos) for (const k of [0, 1]) addTrain(M.x, M.y + 0.95, startCam - 60 - k * 150 - (M.dir > 0 ? 70 : 0), 'z', M.dir, 17);
+  // A METRO crossing under the rail at a side street or two, on a low viaduct.
+  const metroZ = streets.filter(([a, b]) => a - b >= 13 && a < 20 && b > end - 40).slice(0, 2).map(([a, b]) => (a + b) / 2);
+  for (const mz of metroZ) {
+    const my = GROUND + 6;
+    box(props, 340, 1.1, 5, 0x30383C, CX, my - 0.55, mz);
+    for (const dz of [-0.4, 0.4]) box(glows, 340, 0.06, 0.08, 0xFFB040, CX, my + 0.03, mz + dz);
+    for (let x = CX - 160; x <= CX + 160; x += 24) if (Math.abs(x - CX) > HW + 3) box(props, 1.2, my - 1.1 - GROUND, 1.2, 0x2A3238, x, GROUND + (my - 1.1 - GROUND) / 2, mz);
+    addTrain(CX - 120 + r() * 240, my + 0.95, mz, 'x', r() < 0.5 ? 1 : -1, 20);
   }
-  for (let i = 0; i < 12; i++) {                            // out on the sand, further off
-    const z = 20 + r() * (end - 120), x = 3 + (r() < 0.5 ? -1 : 1) * (13 + r() * 16);
-    if (Math.abs(x - roadX(z)) < 6) continue;
-    place(hulk(WRECKS[Math.floor(r() * WRECKS.length)]), x, groundH(x, z), z, 0, r() * 6.3, 0);
-  }
-  { const z = along(0.62), x = roadX(z) + (roadX(z) > 3 ? -8 : 8);   // a bus, on its side
-    place([mB(11, 2.4, 2.5, 0x86542E, 0, 1.55, 0), mB(10.4, 0.85, 2.54, 0x221A14, 0, 2.05, 0), mB(10.6, 0.2, 2.3, 0x6E4426, 0, 2.85, 0),
-           mW(0.5, 0.4, 3.6, 1.1), mW(0.5, 0.4, 3.6, -1.1), mW(0.5, 0.4, -3.4, 1.1), mW(0.5, 0.4, -3.4, -1.1)],
-          x, GROUND + 1.27, z, -Math.PI / 2, 0.5 + r() * 0.5, 0); }
-  for (let dz = -20; dz <= 20; dz += 4 + r() * 3) {         // drums and tyres by the refinery's wall
-    if (r() < 0.5) drum(3 + rs * rOff + rs * (23.5 + r()), zr + dz, r() < 0.2, DRUMS[Math.floor(r() * DRUMS.length)]); else tyreStack(3 + rs * rOff + rs * (23.8 + r()), zr + dz, 2 + Math.floor(r() * 4));
-  }
-  fires.push({ x: 3 + rs * rOff + rs * 23.4, y: GROUND + 0.95, z: zr - 7, s: 1.2, ph: 3 });
-  drums.count = nd; tyres.count = nt; G.add(drums, tyres);
-  const rocks = new InstancedMesh(new IcosahedronGeometry(1, 0), hazed(new MeshStandardMaterial({ color: 0x6E4632, roughness: 0.95, flatShading: true })), 34);
-  let nk = 0;
-  for (let i = 0; i < 120 && nk < 34; i++) {
-    const z = 30 + r() * (end - 100), x = 3 + (r() - 0.5) * 70;
-    if (Math.abs(x - roadX(z)) < 6) continue;
-    const s0 = 0.7 + r() * 1.6;
-    m.compose(pos.set(x, groundH(x, z) + s0 * 0.2, z), q.setFromEuler(e.set(r() * 3, r() * 3, r() * 3)), sc.set(s0 * (1 + r() * 0.8), s0 * 0.7, s0)); rocks.setMatrixAt(nk++, m);
-  }
-  rocks.count = nk; G.add(rocks);
-  // BUTTES of red rock standing out of the dunes beyond the valley, flat-topped, their sides in bands.
-  const butteT = canvasTex(64, 256, (g) => {
-    g.fillStyle = '#8E5436'; g.fillRect(0, 0, 64, 256);
-    for (let y = 0; y < 256; y += 6 + r() * 14) { g.fillStyle = `rgba(${r() < 0.5 ? '60,34,24' : '176,120,84'},${0.18 + r() * 0.2})`; g.fillRect(0, y, 64, 3 + r() * 6); }
-  }, true);
-  const buttes = new InstancedMesh(new CylinderGeometry(0.78, 1, 1, 7, 1), hazed(new MeshStandardMaterial({ map: butteT, roughness: 0.95, flatShading: true })), 16);
-  let nb2 = 0;
-  for (let z = 10; z > end - 260 && nb2 < 16; z -= 30 + r() * 30) {
-    const s0 = r() < 0.5 ? -1 : 1, off = 70 + r() * 70, x = 3 + s0 * off, rad = 12 + r() * 16, hgt = 18 + r() * 26;
-    m.compose(pos.set(x, groundH(x, z) - 3 + hgt / 2, z), q.setFromEuler(e.set(0, r() * 3, 0)), sc.set(rad, hgt, rad * (0.7 + r() * 0.5))); buttes.setMatrixAt(nb2++, m);
-  }
-  buttes.count = nb2; G.add(buttes);
 
-  // THE DEAD CITY: concrete husks half-buried in the dunes beyond the valley's edge, their windows empty, drifts of sand banked on them; closer together and taller past the course's end.
-  const facadeT = canvasTex(512, 512, (g) => {
-    g.fillStyle = '#B39C80'; g.fillRect(0, 0, 512, 512);
-    blotches(g, 512, 512, r, 26, 30, 120, ['150,128,104,0.35', '206,186,154,0.3', '126,82,54,0.22']);
-    for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) {
-      const x = i * 128 + 24 + (r() - 0.5) * 6, y = j * 128 + 34, ww = 78 + (r() - 0.5) * 10, wh = 58;
-      if (r() < 0.12) { g.fillStyle = 'rgba(120,96,74,0.5)'; g.fillRect(x, y, ww, wh); continue; }   // bricked up
-      const big = r() < 0.15 ? 18 : 0;                      // blown out wider
-      const sg = g.createLinearGradient(0, y - 46, 0, y + 4);
-      sg.addColorStop(0, 'rgba(38,28,22,0)'); sg.addColorStop(1, `rgba(38,28,22,${0.3 + r() * 0.3})`);
-      g.fillStyle = sg; g.fillRect(x - big / 2, y - 46, ww + big, 50);                          // soot above the opening
-      g.fillStyle = '#211812'; g.fillRect(x - big / 2, y - big / 3, ww + big, wh + big / 3);
-      g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(x - big / 2, y - big / 3, ww + big, 12);
-      g.fillStyle = 'rgba(214,176,128,0.55)'; g.fillRect(x - 3 - big / 2, y + wh, ww + 6 + big, 6);   // the sill, sand on it
-    }
-    g.fillStyle = 'rgba(110,90,70,0.3)'; for (let j = 0; j < 4; j++) g.fillRect(0, j * 128 + 116, 512, 5);
-  }, true);
-  const roofT = canvasTex(256, 256, (g) => {
-    g.fillStyle = '#A28A6E'; g.fillRect(0, 0, 256, 256);
-    blotches(g, 256, 256, r, 20, 20, 70, ['196,150,104,0.4', '120,98,78,0.35', '90,70,56,0.25']);
-  }, true);
-  const HCAP = 460, husks = new InstancedMesh(twoGroupBox(), [hazed(worldMapped(new MeshStandardMaterial({ map: facadeT, roughness: 0.95 }), 1 / 14, 'waste-facade')),
-    hazed(worldMapped(new MeshStandardMaterial({ map: roofT, roughness: 0.95 }), 1 / 9, 'waste-roof'))], HCAP);
-  const drifts = new InstancedMesh(new SphereGeometry(1, 14, 7, 0, Math.PI * 2, 0, Math.PI / 2), hazed(new MeshStandardMaterial({ color: 0xC89A72, roughness: 1 })), 220);
-  let nh = 0, nf = 0;
-  let grime = 1;
-  const block = (x, y, z, bw, bh, bd, rx, ry, rz) => {
-    if (nh >= HCAP) return;
-    m.compose(pos.set(x, y + bh / 2, z), q.setFromEuler(e.set(rx, ry, rz)), sc.set(bw, bh, bd)); husks.setMatrixAt(nh, m);
-    husks.setColorAt(nh++, col.setRGB(grime, grime * 0.94, grime * 0.88));
+  // THE TRAFFIC: hover cars on the street and cars flying lanes just below the rail, the neon city's cars in the city's own paint.
+  const lanes = [], nl = Math.max(1, Math.floor(road / 3.3));
+  for (let k = 0; k < nl; k++) for (const s of [-1, 1]) lanes.push({ axis: 'z', at: CX + s * (1.65 + k * 3.3), y: GROUND + 0.6, dir: s < 0 ? -1 : 1, v: 10 + r() * 5, n: 4 });
+  lanes.push({ axis: 'z', at: CX - (HW + 3), y: lo - 4.5, dir: -1, v: 16, n: 4 }, { axis: 'z', at: CX + (HW + 3), y: lo - 6.5, dir: 1, v: 15, n: 4 });
+  for (const [a, b] of streets) {
+    const zc = (a + b) / 2;
+    lanes.push({ axis: 'x', at: zc - 2, y: GROUND + 0.6, dir: 1, v: 11 + r() * 4, n: 1, from: CX - 100, to: CX + 100 },
+               { axis: 'x', at: zc + 2, y: GROUND + 0.6, dir: -1, v: 11 + r() * 4, n: 1, from: CX - 100, to: CX + 100 },
+               { axis: 'x', at: zc, y: lo - 8, dir: r() < 0.5 ? 1 : -1, v: 16, n: 1, from: CX - 100, to: CX + 100 });
+  }
+  const cars = [];
+  for (const L of lanes) for (let i = 0; i < L.n; i++) cars.push({ L, s: L.axis === 'z' ? startCam + 20 - (i + r() * 0.7) * 300 / L.n : L.from + (i + r() * 0.6) / L.n * (L.to - L.from) });
+  const CK = carKit(env), NC = cars.length;
+  const body = new InstancedMesh(CK.body, CK.paint(0xFFFFFF), NC), canopy = new InstancedMesh(CK.canopy, CK.canopyMat, NC);
+  const heads = new InstancedMesh(CK.head, CK.headMat, NC), tails = new InstancedMesh(CK.tail, CK.tailMat, NC);
+  const beams = new InstancedMesh(CK.beam, CK.beamMat, NC), tailGlow = new InstancedMesh(CK.tailGlow, CK.tailGlowMat, NC);
+  const under = new InstancedMesh(CK.under, CK.underMat(0xFFFFFF), NC);
+  const carParts = [body, canopy, heads, tails, under, beams, tailGlow];
+  for (const im of carParts) { im.frustumCulled = false; G.add(im); }
+  const TOKYO_PAINT = [0xE8ECEF, 0x2A2E34, 0xC8202A, 0xF2C230, 0x3A6A8A, 0xB8C0CC, 0x1E7A45, 0xFF8A3D];
+  cars.forEach((c, i) => { body.setColorAt(i, col.setHex(TOKYO_PAINT[i % TOKYO_PAINT.length])); under.setColorAt(i, col.setHex(i % 3 ? 0x40E8FF : 0xFFB040)); });
+  const carM = new Matrix4(), one = new Vector3(1, 1, 1);
+  const moveCars = (dt, camZ) => {
+    cars.forEach((c, i) => {
+      const L = c.L;
+      c.s += L.dir * L.v * dt;
+      if (L.axis === 'z') { if (c.s < camZ - 290) c.s += 320; else if (c.s > camZ + 30) c.s -= 320; }
+      else if (c.s > L.to) c.s = L.from; else if (c.s < L.from) c.s = L.to;
+      const dx = L.axis === 'x' ? L.dir : 0, dz = L.axis === 'z' ? L.dir : 0;
+      q.setFromAxisAngle(up, Math.atan2(-dz, dx));
+      carM.compose(pos.set(L.axis === 'x' ? c.s : L.at, L.y, L.axis === 'z' ? c.s : L.at), q, one);
+      body.setMatrixAt(i, carM);
+      canopy.setMatrixAt(i, m.multiplyMatrices(carM, CAR_AT.canopy)); under.setMatrixAt(i, m.multiplyMatrices(carM, CAR_AT.under));
+      heads.setMatrixAt(i, m.multiplyMatrices(carM, CAR_AT.head)); tails.setMatrixAt(i, m.multiplyMatrices(carM, CAR_AT.tail));
+      beams.setMatrixAt(i, m.multiplyMatrices(carM, CAR_AT.beam)); tailGlow.setMatrixAt(i, m.multiplyMatrices(carM, CAR_AT.tailGlow));
+    });
+    for (const im of carParts) im.instanceMatrix.needsUpdate = true;
   };
-  const husk = (x, z, bw, bd, h) => {
-    const gy = groundH(x, z), sink = 1.5 + r() * 3, ry = (r() - 0.5) * 0.3;
-    grime = r() < 0.2 ? 0.34 + r() * 0.12 : 0.62 + r() * 0.38;
-    block(x, gy - sink, z, bw, h + sink, bd, 0, ry, 0);
-    for (let k = 0, top = gy + h, tw = bw; k < 2 && r() < 0.65; k++) {   // a broken floor or two on top, pushed off and tilted
-      const h2 = 2.5 + r() * 5, f = 0.45 + r() * 0.4;
-      block(x + (r() - 0.5) * tw * 0.35, top - 0.3, z + (r() - 0.5) * bd * 0.35, tw * f, h2, bd * (0.45 + r() * 0.4), (r() - 0.5) * 0.24, ry, (r() - 0.5) * 0.24);
-      top += h2 - 0.3; tw *= f;
+  const moveTrains = (dt, camZ) => {
+    for (const T of trains) {
+      const p = T.t.position;
+      if (T.axis === 'z') {
+        p.z += T.dir * T.v * dt;
+        if (T.dir < 0 && p.z < camZ - 300) p.z = camZ + 40;
+        if (T.dir > 0 && p.z > camZ + 40) p.z = camZ - 300;
+      } else { p.x += T.dir * T.v * dt; if (p.x > CX + 150) p.x = CX - 150; if (p.x < CX - 150) p.x = CX + 150; }
     }
-    if (r() < 0.5) block(x + (r() - 0.5) * bw, gy - 1, z + (r() < 0.5 ? -1 : 1) * bd * 0.55, 3 + r() * 4, 2 + r() * 2.5, 3 + r() * 4, r() * 0.4, r() * 3, r() * 0.4);   // a fallen slab
-    if (nf < 220) {                                        // sand banked against the windward side
-      m.compose(pos.set(x - rs * bw * 0.45, gy - 0.3, z), q.setFromEuler(e.set(0, ry, 0)), sc.set(bw * 0.4, 1.6 + r() * 2.6, bd * 0.75)); drifts.setMatrixAt(nf++, m);
-    }
-    return gy + h;
   };
-  for (let z = 40; z > end - 90; z -= 16 + r() * 10) for (const s of [-1, 1]) {
-    if (r() < 0.3) continue;
-    const off = 36 + r() * 70;
-    if (s === rs && Math.abs(z - zr) < 30 && off < 44) continue;     // the refinery's ground
-    const top = husk(3 + s * off, z + (r() - 0.5) * 8, 10 + r() * 14, 10 + r() * 14, off < 55 ? 7 + r() * 12 : 10 + r() * 24);
-    if (r() < 0.08) fires.push({ x: 3 + s * off, y: top + 0.2, z, s: 1.6, ph: r() * 9 });
-  }
-  const smokes = [];
-  for (let z = end - 50; z > end - 300; z -= 14 + r() * 8) for (let k = 0; k < 6; k++) {
-    const x = 3 + (r() - 0.5) * 200;
-    if (Math.abs(x - 3) < 18 && z > end - 120) continue;        // the view past the goal stays open
-    const top = husk(x, z, 12 + r() * 16, 12 + r() * 16, 12 + r() * 30 + (Math.abs(x - 3) > 40 ? 12 : 0));
-    if (smokes.length < 2 && r() < 0.05) smokes.push({ x, y: top, z });
-  }
-  husks.count = nh; drifts.count = nf; G.add(husks, drifts);
 
-  // Everything still and plain-coloured, as one mesh; the shadows as another.
-  G.add(new Mesh(paintedModel(props), hazed(new MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0.05 }))));
-  const shg = new BufferGeometry();
-  shg.setAttribute('position', new Float32BufferAttribute(sp, 3)); shg.setAttribute('color', new Float32BufferAttribute(scol, 4)); shg.setIndex(si);
-  const shadowMesh = new Mesh(shg, hazed(new MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false })));
-  shadowMesh.renderOrder = -1; G.add(shadowMesh);
+  // DRONES patrolling the avenue below the rail, red and blue lamps blinking.
+  const droneGeo = paintedModel([[new CylinderGeometry(0.42, 0.5, 0.22, 12), 0x24282C, placeAt(0, 0, 0)],
+    ...[0, 1, 2, 3].map((k) => [new TorusGeometry(0.26, 0.04, 5, 14), 0x8A9094, placeAt(Math.cos(k * 1.5708 + 0.785) * 0.62, 0.08, Math.sin(k * 1.5708 + 0.785) * 0.62, Math.PI / 2)])]);
+  const ND = 10, drones = new InstancedMesh(droneGeo, hazed(new MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.5, envMap: env })), ND);
+  drones.frustumCulled = false; G.add(drones);
+  const dLampGeo = new BufferGeometry();
+  dLampGeo.setAttribute('position', new Float32BufferAttribute(ND * 3, 3).setUsage(DynamicDrawUsage));
+  dLampGeo.setAttribute('color', new Float32BufferAttribute(ND * 3, 3).setUsage(DynamicDrawUsage));
+  const dLamps = new Points(dLampGeo, new PointsMaterial({ size: 1.6, map: dot, vertexColors: true, transparent: true, blending: AdditiveBlending, depthWrite: false, fog: false }));
+  dLamps.frustumCulled = false; G.add(dLamps);
+  const dr = [...Array(ND)].map((_, i) => ({ x: CX + (i % 2 ? 1 : -1) * (HW + 5.2 + r() * 1.2), y: lo - 2.5 - r() * 5, z: startCam - 30 - i * 26, ph: r() * 9, v: 1 + r() * 2 }));
+  const moveDrones = (dt, t, camZ) => {
+    const dp = dLampGeo.attributes.position.array, dc = dLampGeo.attributes.color.array;
+    dr.forEach((D, i) => {
+      D.z -= D.v * dt;
+      if (D.z < camZ - 280) D.z += 300; else if (D.z > camZ + 20) D.z -= 300;
+      const x = D.x + Math.sin(t * 0.6 + D.ph) * 1.5, y = D.y + Math.sin(t * 1.3 + D.ph) * 0.5;
+      m.compose(pos.set(x, y, D.z), q.setFromEuler(e.set(0, t * 0.4 + D.ph, 0)), sc.set(1, 1, 1)); drones.setMatrixAt(i, m);
+      dp[i * 3] = x; dp[i * 3 + 1] = y - 0.18; dp[i * 3 + 2] = D.z;
+      const on = ((t * 1.5 + D.ph) % 1) < 0.5;
+      dc[i * 3] = on ? (i % 2 ? 0.25 : 1) : 0; dc[i * 3 + 1] = on ? (i % 2 ? 0.5 : 0.15) : 0; dc[i * 3 + 2] = on ? (i % 2 ? 1 : 0.1) : 0;
+    });
+    drones.instanceMatrix.needsUpdate = true; dLampGeo.attributes.position.needsUpdate = true; dLampGeo.attributes.color.needsUpdate = true;
+  };
 
-  // THE CHASE: three groups racing up the road toward you and on under the freeway. The war rig and its escort keep the right-hand side;
-  // a hot rod and a ute, and behind them the black interceptor, the left. A group that catches the one ahead on its side hangs back behind it.
-  const vehMat = hazed(new MeshStandardMaterial({ vertexColors: true, roughness: 0.42, metalness: 0.35, envMap: wasteEnvMap() || envTex, envMapIntensity: 0.9 }));
-  const kinds = {};
-  for (const [k, n] of [['interceptor', 1], ['rig', 1], ['buggy', 2], ['coupe', 1], ['ute', 1], ['bike', 3]]) {
-    const im = new InstancedMesh(paintedModel(VEHICLES[k]()), vehMat, n); im.frustumCulled = false; G.add(im);
-    kinds[k] = { im, used: 0 };
-  }
-  // [kind, metres ahead in the group, lane (across the road from its middle), dust a second, half length, half width, lights]
-  const groups = [
-    { v: 15, z: startCam - 120, side: 1, m: [['rig', 0, 1.8, 50, 8.6, 1.2, [6.95, 1.35, 0.95]], ['buggy', 13, 3.1, 26, 1.9, 0.9, [2.1, 0.8, 0.5]],
-                                           ['buggy', -12, 1.8, 26, 1.9, 0.9, [2.1, 0.8, 0.5]], ['bike', 5, 3.4, 14, 1.1, 0.3, [1.0, 0.95, 0]], ['bike', -18, 0.9, 14, 1.1, 0.3, [1.0, 0.95, 0]]] },
-    { v: 20, z: startCam - 190, side: -1, m: [['coupe', 0, -1.9, 28, 2.2, 0.9, [2.2, 0.66, 0.55]], ['ute', -10, -2.3, 28, 2.4, 0.9, [2.36, 0.9, 0.6]], ['bike', -4.5, -3.4, 14, 1.1, 0.3, [1.0, 0.95, 0]]] },
-    { v: 25, z: startCam - 262, side: -1, m: [['interceptor', 0, -2.0, 36, 2.3, 0.93, [2.33, 0.72, 0.56]]] },
-  ];
-  const veh = [];
-  for (const Gp of groups) {
-    Gp.front = Math.max(...Gp.m.map((M) => M[1])); Gp.back = Math.min(...Gp.m.map((M) => M[1])); Gp.cur = Gp.v;
-    for (const [kind, dz, lane, rate, hl, hw, lamp] of Gp.m) veh.push({ Gp, K: kinds[kind], i: kinds[kind].used++, dz, lane, rate, hl, hw, lamp, acc: 0, ph: r() * 9, bike: kind === 'bike' });
-  }
+  // SCREENS on the far corners of the side streets, turned toward the approach; two giant ones high on the towers behind.
+  const screens = [];
+  const addScreen = (x, y, z, wdt, hgt, ry, k) => {
+    const t = canvasTex(256, 320, (g) => { for (let f = 0; f < 2; f++) { g.save(); g.translate(0, f * 160); g.beginPath(); g.rect(0, 0, 256, 160); g.clip(); SCREENS[k % SCREENS.length](g, f); g.restore(); } });
+    t.repeat.set(1, 0.5); t.offset.set(0, 0.5);
+    const scr = new Mesh(new PlaneGeometry(wdt, hgt), hazed(new MeshBasicMaterial({ map: t })));
+    scr.position.set(x, y, z); scr.rotation.y = ry; G.add(scr);
+    const back = [new BoxGeometry(wdt + 0.5, hgt + 0.5, 0.4), 0x1A1E22, placeAt(x - Math.sin(ry) * 0.25, y, z - Math.cos(ry) * 0.25, 0, ry, 0)];
+    props.push(back);
+    screens.push({ t, ph: r() * 3, every: 1.1 + r() * 0.8 });
+  };
+  streets.filter(([a]) => a < 30).slice(0, 7).forEach(([a, b], i) => {
+    const s = i % 2 ? 1 : -1;
+    addScreen(CX + s * (IN + 4.5), GROUND + 15, b + 0.3, 8, 5, 0, i);
+  });
+  for (const s of [-1, 1]) addScreen(CX + s * (IN + 20.6), GROUND + 36, 0.45 * end - 30 * s, 16, 10, -s * (Math.PI / 2 - 0.55), s < 0 ? 4 : 1);
+  // STACKS on the low roofs downwind, venting smoke that leans away from the rail; red lamps on the tallest towers.
+  const WIND = 2.6;
   const puffT = canvasTex(64, 64, (g) => {
-    const rgr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
-    rgr.addColorStop(0, 'rgba(255,255,255,0.9)'); rgr.addColorStop(0.45, 'rgba(255,255,255,0.55)'); rgr.addColorStop(1, 'rgba(255,255,255,0)');
-    g.fillStyle = rgr; g.fillRect(0, 0, 64, 64);
+    const rg = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    rg.addColorStop(0, 'rgba(255,255,255,0.9)'); rg.addColorStop(0.45, 'rgba(255,255,255,0.55)'); rg.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = rg; g.fillRect(0, 0, 64, 64);
   });
-  const dust = makePlume(G, 0xE2BC8E, [2.8, 4.8, 7.2, 10], [0.55, 0.4, 0.26, 0.12], 420, puffT, 1);
-  const blobT = canvasTex(64, 64, (g) => {
-    const rgr = g.createRadialGradient(32, 32, 4, 32, 32, 32);
-    rgr.addColorStop(0, 'rgba(255,255,255,1)'); rgr.addColorStop(1, 'rgba(255,255,255,0)');
-    g.fillStyle = rgr; g.fillRect(0, 0, 64, 64);
-  });
-  const blobs = new InstancedMesh(new PlaneGeometry(1, 1).rotateX(-Math.PI / 2), hazed(new MeshBasicMaterial({ map: blobT, color: 0x1A0C06, transparent: true, opacity: 0.6, depthWrite: false })), veh.length);
-  blobs.frustumCulled = false; blobs.renderOrder = -1; G.add(blobs);
-  const nLamps = veh.reduce((s, V) => s + (V.lamp[2] ? 2 : 1), 0), lampGeo = new BufferGeometry();
-  lampGeo.setAttribute('position', new Float32BufferAttribute(nLamps * 3, 3).setUsage(DynamicDrawUsage));
-  const lampP = lampGeo.attributes.position.array;
-  const lamps = [[1.1, 1, 0xFFF4D6], [4.6, 0.3, 0xFFC878]].map(([s, o, c]) => {
-    const p = new Points(lampGeo, new PointsMaterial({ color: c, size: s, map: dot, transparent: true, opacity: o, blending: AdditiveBlending, depthWrite: false, fog: false }));
-    p.frustumCulled = false; p.renderOrder = 3; G.add(p); return p;
-  });
-  const _d = new Vector3();
-  const moveChase = (dt, t, camZ) => {
-    for (const Gp of groups) {                             // hang back behind a slower group ahead on the same side
-      let v = Gp.v;
-      for (const O of groups) if (O !== Gp && O.side === Gp.side && O.z > Gp.z) {
-        const gap = (O.z + O.back) - (Gp.z + Gp.front);
-        if (gap < 24) v = Math.min(v, O.cur + (gap - 12) * 0.8);
-      }
-      Gp.cur = Math.max(0, v);
-    }
-    for (const Gp of groups) {
-      Gp.z += Gp.cur * dt;
-      if (Gp.z + Gp.back > camZ + 30) {                    // gone under the camera: round again, out of the haze
-        let z = camZ - 250 - Math.random() * 60;
-        for (const O of groups) if (O !== Gp && O.side === Gp.side) z = Math.min(z, O.z + O.back - 40 - Gp.front);
-        Gp.z = z;
-      }
-    }
-    let li = 0;
-    veh.forEach((V, i) => {
-      const z = V.Gp.z + V.dz, wob = Math.sin(t * (V.bike ? 1.3 : 0.8) + V.ph) * (V.bike ? 0.5 : 0.3), x = roadX(z) + V.lane + wob;
-      const dxdz = (11 / 27) * Math.cos(z / 27 + 0.6) + Math.cos(t * 0.8 + V.ph) * 0.02, yaw = Math.atan2(-1, dxdz);
-      _d.set(dxdz, 0, 1).normalize();
-      m.compose(pos.set(x, GROUND + 0.05, z), q.setFromEuler(e.set(Math.sin(t * 7 + V.ph) * 0.012, yaw, Math.sin(t * 9 + V.ph) * 0.01 + (V.bike ? 0 : 0))), sc.set(1, 1, 1));
-      V.K.im.setMatrixAt(V.i, m);
-      m.compose(pos.set(x + SH[0] * 0.7, GROUND + 0.1, z + SH[1] * 0.7), q.setFromEuler(e.set(0, yaw, 0)), sc.set(V.hl * 2.3, 1, V.hw * 2.8)); blobs.setMatrixAt(i, m);
-      V.acc += V.rate * dt * (V.Gp.cur / V.Gp.v);
-      while (V.acc >= 1) {                                 // dust thrown up behind the back wheels
-        V.acc -= 1;
-        const s = (Math.random() - 0.5) * 2 * V.hw;
-        dust.emit(x - _d.x * V.hl + _d.z * s, GROUND + 0.35, z - _d.z * V.hl - _d.x * s,
-                  _d.x * V.Gp.cur * 0.12 + (Math.random() - 0.5) * 1.6, 0.35 + Math.random() * 0.7, _d.z * V.Gp.cur * 0.12 + (Math.random() - 0.5) * 1.2, 2.6 + Math.random() * 1.2);
-      }
-      const [lx0, ly, lz0] = V.lamp;
-      for (const sd of lz0 ? [-1, 1] : [0]) {
-        lampP[li++] = x + _d.x * lx0 + _d.z * lz0 * sd; lampP[li++] = GROUND + ly; lampP[li++] = z + _d.z * lx0 - _d.x * lz0 * sd;
-      }
-    });
-    for (const k in kinds) kinds[k].im.instanceMatrix.needsUpdate = true;
-    blobs.instanceMatrix.needsUpdate = true; lampGeo.attributes.position.needsUpdate = true;
-  };
+  const smoke = makePlume(G, 0x4A4E50, [4, 6.5, 9.5, 13], [0.45, 0.33, 0.2, 0.09], 90, puffT, 2);
+  const tall = tops.filter((tp) => tp[1] > lo + 30).slice(0, 40);
+  const lamps = new InstancedMesh(new SphereGeometry(0.45, 8, 6), new MeshBasicMaterial({ color: 0xFFFFFF, fog: false }), Math.max(1, tall.length));
+  tall.forEach(([x, y, z], i) => { m.compose(pos.set(x, y + 0.5, z), q.identity(), sc.set(1, 1, 1)); lamps.setMatrixAt(i, m); lamps.setColorAt(i, col.setHex(0xFF2D48)); });
+  lamps.count = tall.length; G.add(lamps);
+  const lampPh = tall.map(() => r() * 2);
+  // THE ARCOLOGY at the avenue's far end: a black tower with a ring of cold light.
+  { const ax = CX + 55, az = end - 240, ah = 300;
+    box(props, 70, ah, 70, 0x14181C, ax, GROUND + ah / 2, az);
+    glows.push([new TorusGeometry(26, 1.5, 10, 72), 0xBFF4FF, placeAt(ax, GROUND + 150, az + 35.2)]);
+    for (const dx of [-30, 30]) box(glows, 0.6, ah - 20, 0.6, 0x40E8FF, ax + dx, GROUND + (ah - 20) / 2, az + 35.4); }
 
-  // THE FLARE: a flame on the stack, flickering; its smoke, and smoke from two fires in the far city, leaning away on the wind.
-  const flameT = canvasTex(64, 128, (g) => {
-    const rgr = g.createRadialGradient(32, 92, 2, 32, 80, 60);
-    rgr.addColorStop(0, 'rgba(255,250,220,1)'); rgr.addColorStop(0.25, 'rgba(255,200,90,0.95)'); rgr.addColorStop(0.6, 'rgba(255,110,30,0.6)'); rgr.addColorStop(1, 'rgba(200,40,10,0)');
-    g.fillStyle = rgr; g.beginPath(); g.moveTo(32, 4); g.quadraticCurveTo(60, 70, 44, 118); g.quadraticCurveTo(32, 128, 20, 118); g.quadraticCurveTo(4, 70, 32, 4); g.fill();
-  });
-  const flame = new Sprite(new SpriteMaterial({ map: flameT, color: 0xFFFFFF, transparent: true, blending: AdditiveBlending, depthWrite: false, fog: false }));
-  flame.position.set(fx, GROUND + 22.6, zr); G.add(flame);
-  const flareGlow = new Sprite(new SpriteMaterial({ map: dot, color: 0xFF8A3A, transparent: true, opacity: 0.5, blending: AdditiveBlending, depthWrite: false, fog: false }));
-  flareGlow.scale.set(12, 12, 1); flareGlow.position.set(fx, GROUND + 21.8, zr); G.add(flareGlow);
-  const smoke = makePlume(G, 0x3A2E26, [2.6, 4.2, 6.2, 8.6], [0.42, 0.32, 0.2, 0.09], 90, puffT, 2);
-  smokes.unshift({ x: fx, y: GROUND + 24, z: zr });
-  // FIRES in oil drums and in the husks: flames of points, bright at the base and dying to nothing as they rise.
-  const FN = 12, fireGeo = new BufferGeometry();
-  fireGeo.setAttribute('position', new Float32BufferAttribute(Math.max(1, fires.length) * FN * 3, 3).setUsage(DynamicDrawUsage));
-  fireGeo.setAttribute('color', new Float32BufferAttribute(Math.max(1, fires.length) * FN * 3, 3).setUsage(DynamicDrawUsage));
-  const fireP = fireGeo.attributes.position.array, fireC = fireGeo.attributes.color.array;
-  const firePts = new Points(fireGeo, new PointsMaterial({ size: 1.3, map: puffT, vertexColors: true, transparent: true, blending: AdditiveBlending, depthWrite: false, fog: false }));
-  firePts.frustumCulled = false; firePts.renderOrder = 3; G.add(firePts);
-  const moveFires = (t) => {
-    let k = 0;
-    for (const F of fires) for (let i = 0; i < FN; i++) {
-      const u = ((t * 1.7 + i / FN + F.ph) % 1), a = i * 2.4 + t * 3;
-      fireP[k] = F.x + Math.cos(a) * 0.18 * F.s * (1 - u); fireP[k + 1] = F.y + u * 1.5 * F.s; fireP[k + 2] = F.z + Math.sin(a) * 0.18 * F.s * (1 - u);
-      const b = (1 - u) * (1 - u);
-      fireC[k] = 1.0 * b; fireC[k + 1] = (0.35 + 0.45 * (1 - u)) * b; fireC[k + 2] = 0.08 * b * (1 - u);
-      k += 3;
-    }
-    fireGeo.attributes.position.needsUpdate = true; fireGeo.attributes.color.needsUpdate = true;
-  };
-  // DUST DEVILS wandering up the valley, and low clouds of dust blown across it.
-  const DN = 200, devGeo = new BufferGeometry();
-  devGeo.setAttribute('position', new Float32BufferAttribute(2 * DN * 3, 3).setUsage(DynamicDrawUsage));
-  const devP = devGeo.attributes.position.array;
-  const devPts = new Points(devGeo, hazed(new PointsMaterial({ color: 0xE6C090, size: 4.4, map: puffT, transparent: true, opacity: 0.3, depthWrite: false })));
-  devPts.frustumCulled = false; devPts.renderOrder = 1; G.add(devPts);
-  const devils = [0, 1].map((i) => ({ x: 3 + (i ? 12 : -10), z: startCam - 80 - i * 80, vx: (r() - 0.5) * 1.2, vz: 0.8 + r(), ph: r() * 9 }));
-  const NCL = 40, clGeo = new BufferGeometry();
-  clGeo.setAttribute('position', new Float32BufferAttribute(NCL * 3, 3).setUsage(DynamicDrawUsage));
-  const clP = clGeo.attributes.position.array;
-  const clPts = new Points(clGeo, hazed(new PointsMaterial({ color: 0xE0AE7C, size: 18, map: puffT, transparent: true, opacity: 0.11, depthWrite: false })));
-  clPts.frustumCulled = false; clPts.renderOrder = 1; G.add(clPts);
-  const clouds = [...Array(NCL)].map(() => ({ x: 3 + (r() - 0.5) * 90, y: GROUND + 1 + r() * 3.5, z: startCam - 10 - r() * 260, v: 0.6 + r() * 0.8 }));
-  const moveAir = (dt, t, camZ) => {
-    let k = 0;
-    for (const D of devils) {
-      D.x += (D.vx + WIND * 0.4) * dt; D.z += D.vz * dt;
-      if (D.z > camZ - 16 || Math.abs(D.x - 3) > 24) { D.z = camZ - 90 - Math.random() * 90; D.x = 3 + (Math.random() - 0.5) * 30; D.vx = (Math.random() - 0.5) * 1.2; }
-      for (let i = 0; i < DN; i++) {
-        const h = ((i / DN) + t * 0.07 + D.ph) % 1, a = i * 2.39996 + t * (4 - h * 2), rad = 0.35 + h * h * 4.6, sway = Math.sin(t * 0.8 + D.ph + h * 3) * h * 1.8;
-        devP[k++] = D.x + Math.cos(a) * rad + sway; devP[k++] = GROUND + 0.2 + h * 20; devP[k++] = D.z + Math.sin(a) * rad;
-      }
-    }
-    devGeo.attributes.position.needsUpdate = true;
-    k = 0;
-    for (const C of clouds) {
-      C.x += WIND * C.v * dt;
-      if (C.x - 3 > 46) C.x -= 92; else if (C.x - 3 < -46) C.x += 92;
-      if (C.z > camZ + 10) C.z -= 270;
-      clP[k++] = C.x; clP[k++] = C.y; clP[k++] = C.z;
-    }
-    clGeo.attributes.position.needsUpdate = true;
-  };
-  // VULTURES, circling low over the valley ahead: broad wings held out flat, a head and a fanned tail, so from above they read as birds.
-  const vultureGeo = new BufferGeometry();
-  vultureGeo.setAttribute('position', new Float32BufferAttribute([
-    0, 0, 0.3, -1.3, 0.14, 0.02, -1.36, 0.14, -0.2, 0, 0, 0.3, -1.36, 0.14, -0.2, 0, 0, -0.26,        // the left wing
-    0, 0, 0.3, 1.36, 0.14, -0.2, 1.3, 0.14, 0.02, 0, 0, 0.3, 0, 0, -0.26, 1.36, 0.14, -0.2,           // the right wing
-    0, 0.02, 0.62, -0.13, 0, 0.2, 0.13, 0, 0.2,                                                      // the head
-    -0.13, 0, -0.2, -0.24, 0, -0.72, 0.24, 0, -0.72, -0.13, 0, -0.2, 0.24, 0, -0.72, 0.13, 0, -0.2,  // the tail
-  ], 3));
-  vultureGeo.computeVertexNormals();
-  const NB = 7, birds = new InstancedMesh(vultureGeo, hazed(new MeshStandardMaterial({ color: 0x2A1E16, side: DoubleSide, roughness: 1 })), NB);
-  birds.frustumCulled = false; G.add(birds);
-  const wheelsB = [{ x: 3 + (r() - 0.5) * 8, y: GROUND + 20, z: startCam - 60, rad: 8 }, { x: 3 + (r() - 0.5) * 8, y: GROUND + 22, z: startCam - 150, rad: 10 }];
-  const vult = [...Array(NB)].map((_, i) => ({ W: wheelsB[i % 2], ph: r() * 6.3, dr: (r() - 0.5) * 4, dy: (r() - 0.5) * 2 }));
-  const moveBirds = (t, camZ) => {
-    for (const W of wheelsB) if (W.z > camZ + 8) { W.z = camZ - 150 - Math.random() * 40; W.x = 3 + (Math.random() - 0.5) * 10; }
-    vult.forEach((B, i) => {
-      const a = t * 0.3 + B.ph, R0 = B.W.rad + B.dr;
-      m.compose(pos.set(B.W.x + Math.cos(a) * R0, B.W.y + B.dy + Math.sin(t * 0.5 + B.ph) * 0.5, B.W.z + Math.sin(a) * R0),
-                q.setFromEuler(e.set(0, -a, 0.3)), sc.set(1.5, 1.5 * (0.6 + 0.4 * Math.sin(t * 1.6 + B.ph * 3)), 1.5));
-      birds.setMatrixAt(i, m);
-    });
-    birds.instanceMatrix.needsUpdate = true;
-  };
-  let t = 0, building = true;
+  // Everything still, in one mesh lit by the world and one that shines.
+  G.add(new Mesh(paintedModel(props), hazed(new MeshStandardMaterial({ vertexColors: true, roughness: 0.75, metalness: 0.1 }))));
+  G.add(new Mesh(paintedModel(glows), hazed(new MeshBasicMaterial({ vertexColors: true }))));
+  const sg = new BufferGeometry();
+  sg.setAttribute('position', new Float32BufferAttribute(sp, 3)); sg.setAttribute('uv', new Float32BufferAttribute(su, 2)); sg.setIndex(si);
+  G.add(new Mesh(sg, K.signs));
+
+  let t = 0, warming = true;
   const step = (dt) => {                                   // everything that moves
     t += dt;
-    const camZ = building ? startCam : camera.position.z;
-    moveChase(dt, t, camZ);
-    dust.step(dt, WIND * 0.6, GROUND + 0.3);
-    for (const S of smokes) if (Math.random() < dt * (S.x === fx ? 9 : 5)) smoke.emit(S.x + (Math.random() - 0.5), S.y, S.z + (Math.random() - 0.5), 0, 1.4 + Math.random() * 0.6, 0, 5 + Math.random() * 2);
-    smoke.step(dt, WIND, GROUND);
-    moveFires(t); moveAir(dt, t, camZ); moveBirds(t, camZ);
-    for (const P of pumps) P.a += dt * 2.2;
-    placeFans();
-    const fl = 1 + 0.12 * Math.sin(t * 13) + 0.08 * Math.sin(t * 29 + 1);
-    flame.scale.set(2.6 * fl, 5.4 * (2 - fl), 1); flareGlow.material.opacity = 0.42 + 0.1 * Math.sin(t * 11);
+    const camZ = warming ? startCam : camera.position.z;
+    moveCars(dt, camZ); moveTrains(dt, camZ); moveDrones(dt, t, camZ);
+    for (const [x, y, z] of stacks) if (Math.random() < dt * 6) smoke.emit(x + (Math.random() - 0.5), y, z + (Math.random() - 0.5), 0, 2 + Math.random(), 0, 7 + Math.random() * 2);
+    smoke.step(dt, WIND);
+    for (const S of screens) S.t.offset.y = ((t + S.ph) % (S.every * 2)) < S.every ? 0.5 : 0;
+    tall.forEach((_, i) => lamps.setColorAt(i, col.setHex(((t + lampPh[i]) % 1.6) < 0.35 ? 0xFF2D48 : 0x2A060C)));
+    if (lamps.instanceColor) lamps.instanceColor.needsUpdate = true;
   };
-  for (let i = 0; i < 75; i++) step(1 / 25);               // open with the dust already in the air
-  building = false;
+  for (let i = 0; i < 60; i++) step(1 / 30);               // open with the traffic already moving and smoke in the air
+  warming = false;
   w.tick = (dt) => {
     camera.updateMatrixWorld();
     HAZE.sun.value.copy(HAZE.dir).transformDirection(camera.matrixWorldInverse);
