@@ -222,6 +222,8 @@ const NEON_SOUNDS = {
     voice('sawtooth', 240, 70, 0.5, 0.018, 0.38);
     [523.25, 659.25, 783.99].forEach((f, i) => voice('sine', f, f, 0.6, 0.035, 0.45 + i * 0.05));
   },
+  charge() { voice('sawtooth', 220, 1760, 0.35, 0.02); voice('square', 3000, 2400, 0.05, 0.012, 0.05); voice('sine', 880, 1320, 0.3, 0.04, 0.1); },   // charged
+  earth() { voice('sine', 880, 110, 0.4, 0.05); voice('sawtooth', 400, 60, 0.3, 0.012); },                                                      // grounded
   whirr() { voice('sawtooth', 120, 240, 0.42, 0.02); voice('square', 60, 80, 0.4, 0.012); voice('triangle', 880, 1320, 0.12, 0.03, 0.36); },   // a lever thrown, a section turning
   thunk() { voice('sine', 170, 85, 0.2, 0.09); voice('triangle', 440, 400, 0.08, 0.025); voice('sine', 660, 990, 0.25, 0.03, 0.06); },   // a plate pressed
   scrape() { voice('sawtooth', 95, 62, 0.3, 0.035); voice('square', 150, 120, 0.26, 0.012); voice('sine', 70, 55, 0.3, 0.06); },           // a crate pushed
@@ -235,7 +237,7 @@ const NEON_SOUNDS = {
 };
 // The city's version of a sound where it has one, the house sound elsewhere.
 function sound(name) {
-  if ((world.name === 'neon' || ['boost', 'jump', 'bump', 'depart', 'tint', 'pass', 'buzz', 'key', 'gate', 'reset', 'click', 'thunk', 'scrape', 'whirr', 'warp', 'tube', 'pop', 'power', 'zap', 'knock', 'clink', 'crack', 'shatter', 'burn', 'flame', 'blast'].includes(name)) && NEON_SOUNDS[name]) { if (sfx && sfx.isOn()) NEON_SOUNDS[name](); }
+  if ((world.name === 'neon' || ['boost', 'jump', 'bump', 'depart', 'tint', 'pass', 'buzz', 'key', 'gate', 'reset', 'click', 'thunk', 'scrape', 'whirr', 'charge', 'earth', 'warp', 'tube', 'pop', 'power', 'zap', 'knock', 'clink', 'crack', 'shatter', 'burn', 'flame', 'blast'].includes(name)) && NEON_SOUNDS[name]) { if (sfx && sfx.isOn()) NEON_SOUNDS[name](); }
   else play(name === 'home' ? 'land' : name);
 }
 function ensureCitySound() {
@@ -767,6 +769,10 @@ const TRAIN = (x, z, w, y, amp, period, dwell, phase, pull) => ({ t: 'train', x,
                   west, added); `lever` names the levers that turn it
      lever: L     a lever: roll over it to turn every section of lever L a
                   quarter turn clockwise
+     charger: 1   a pad that charges the marble; ground: 1 one that empties it
+     cgate: 1     a gate of lightning that only a charged marble passes
+     magnet: 1    a charged floor: like charges push apart, so a charged
+                  marble cannot roll onto it
    Every layout is solved by a search before it goes in (the same rules, in
    pzsolve), which also counts the traps: moves after which the way out can no
    longer be reached. The reset pad on a bay beside the road in puts the square
@@ -775,6 +781,7 @@ const CELL = 2.2, WALL_H = 0.7, WALL_T = 0.26;
 // PLAZAS START
 const KEYS = { a: { key: 1 }, b: { key: 2 }, c: { key: 3 }, A: { keygate: 1 }, B: { keygate: 2 }, C: { keygate: 3 } };
 const WEIGHTS = { W: { weight: 1 }, P: { plate: 'A' }, Q: { plate: 'B' }, A: { pgate: 'A' }, B: { pgate: 'B' } };
+const CHARGE = { C: { charger: 1 }, G: { ground: 1 }, F: { magnet: 1 }, E: { cgate: 1 } };
 const SWITCHES = { X: { switch: 'A' }, Y: { switch: 'B' }, Z: { switch: 'C' },
                    A: { sgate: 'A' }, a: { sgate: 'A', open: 1 }, B: { sgate: 'B' }, b: { sgate: 'B', open: 1 }, C: { sgate: 'C' }, c: { sgate: 'C', open: 1 } };
 const PLAZAS = {
@@ -964,11 +971,62 @@ const PLAZAS = {
     '+ + + + + +',
     ' # # . # # ',
     '+ + + + + +'] },
+  // Charge. The first: the way out lets only a charged marble through; the charger is off to one side.
+  C1: { entry: 2, exit: 2, legend: CHARGE, map: [
+    '+-+-+E+-+-+',
+    '|. . . . .|',
+    '+ +-+-+-+ +',
+    '|.|. . .|.|',
+    '+ +-+ +-+ +',
+    '|. . . . C|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+'] },
+  // Charge to get in; the charged floor turns you back: ground yourself, cross, and charge again.
+  C2: { entry: 2, exit: 2, legend: CHARGE, map: [
+    '+-+-+E+-+-+',
+    '|. . . . .|',
+    '+-+-+-+-+ +',
+    '|G . . F C|',
+    '+-+-+E+-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|C . . . .|',
+    '+-+-+ +-+-+'] },
+  // The key needs charge to reach, the way out needs none, and the only ground is in a room that opens onto it.
+  C3: { entry: 2, exit: 2, legend: { ...CHARGE, a: { key: 1 }, A: { keygate: 1 } }, map: [
+    '+-+-+A+-+-+',
+    '|G F .|. a|',
+    '+ + + + + +',
+    '|. .|F|. .|',
+    '+-+E+ +E+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|C . . . .|',
+    '+-+-+ +-+-+'] },
+  // Silver opens the charger's room, charge opens the gold key's, the way out needs none. The ground beside the gold key shuts you in.
+  C4: { entry: 2, exit: 2, legend: { ...CHARGE, a: { key: 1 }, b: { key: 2 }, A: { keygate: 1 }, B: { keygate: 2 } }, map: [
+    '+-+-+A+-+-+',
+    '|. C|.|G a|',
+    '+ + + + + +',
+    '|. .|F|. .|',
+    '+-+B+ +E+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|b . . . G|',
+    '+-+-+ +-+-+'] },
 };
 // PLAZAS END
 // Which square each level ends with; '~' mirrors it left to right.
 const PLAZA_AT = { 2: 'K1', 3: 'K2', 4: 'K2~', 5: 'K3', 6: 'K3~', 7: 'K4', 8: 'K4~', 9: 'S1', 10: 'S2', 11: 'S2~', 12: 'S3', 13: 'S4~',
-                   14: 'W1', 15: 'W2', 16: 'W3', 17: 'W3~', 18: 'B1', 19: 'B2', 20: 'B3', 21: 'B3~', 22: 'B4', 23: 'B2~' };  // (S4 mirrored: its trap room on the other side from S3's)
+                   14: 'W1', 15: 'W2', 16: 'W3', 17: 'W3~', 18: 'B1', 19: 'B2', 20: 'B3', 21: 'B3~', 22: 'B4', 23: 'B2~',
+                   24: 'C1', 25: 'C2', 26: 'C2~', 27: 'C3', 28: 'C3~', 29: 'C4' };  // (S4 mirrored: its trap room on the other side from S3's)
 function plazaLayout(id) {
   const flipped = id.endsWith('~'), T = PLAZAS[flipped ? id.slice(0, -1) : id];
   const cols = (T.map[0].length - 1) / 2, rows = (T.map.length - 1) / 2;
@@ -2537,6 +2595,17 @@ function tintStep() {
   }
 }
 function animateTints(dt) {
+  const charged = plazas.some((P) => P.charged);
+  if (charged) {                                        // charged: the aura in lightning yellow, flickering (over any colour)
+    aura.visible = auraRing.visible = !!renderer;
+    aura.material.color.setHex(CHARGE_COL); auraRing.material.color.setHex(CHARGE_COL);
+    aura.material.opacity = REDUCED ? 0.8 : 0.55 + 0.45 * Math.abs(Math.sin(simT * 23) * Math.sin(simT * 7));
+    aura.position.copy(marble.position);
+    auraRing.position.set(marble.position.x, marble.position.y - R + 0.03, marble.position.z);
+    return;
+  }
+  aura.material.opacity = 1;
+  if (ball.tint) { aura.material.color.setHex(TINTS[ball.tint]); auraRing.material.color.setHex(TINTS[ball.tint]); }
   aura.visible = auraRing.visible = !!ball.tint && !!renderer;
   aura.position.copy(marble.position);
   auraRing.position.set(marble.position.x, marble.position.y - R + 0.03, marble.position.z);
@@ -3069,6 +3138,39 @@ function buildPlaza(pc) {
     levelGroup.add(grp);
     P.levers.push({ c, r, letter: cell.lever, handle, faceMat, throwT: 0, side: 1 });
   }
+  // Chargers and grounds: round pads, a bolt or the sign for earth. Charged floors: plus signs, and a
+  // field over them that stands up when the marble is charged.
+  P.charges = []; P.magnets = []; P.charged = false; P.sparkT = 0;
+  for (let r = 0; r < P.rows; r++) for (let c = 0; c < P.cols; c++) {
+    const cell = G.cells[r][c];
+    if (cell.charger || cell.ground) {
+      const col = cell.charger ? CHARGE_COL : GROUND_COL, grp = new Group(); grp.position.set(X(c), P.y, Z(r));
+      const base = new Mesh(new CylinderGeometry(0.72, 0.8, 0.06, 48), P.mats.base); base.position.y = 0.03; base.receiveShadow = true;
+      const faceMat = new MeshBasicMaterial({ color: col, map: cell.charger ? boltTex : groundTex, transparent: true, blending: AdditiveBlending, depthWrite: false, toneMapped: false });
+      const face = new Mesh(new CircleGeometry(0.58, 40), faceMat); face.rotation.x = -Math.PI / 2; face.position.y = 0.064;
+      const ringMat = glowMat(col, 0.85), ring = new Mesh(new RingGeometry(0.64, 0.7, 48), ringMat); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.065;
+      const pool = new Mesh(new CircleGeometry(1.1, 48), glowMat(col, 0.16, dot)); pool.rotation.x = -Math.PI / 2; pool.position.y = 0.012;
+      grp.add(base, face, ring, pool);
+      levelGroup.add(grp);
+      P.charges.push({ c, r, kind: cell.charger ? 'charger' : 'ground', faceMat, ringMat, pool, flash: 0 });
+    }
+    if (cell.magnet) {
+      const grp = new Group(); grp.position.set(X(c), P.y, Z(r));
+      const plate = new Mesh(new PlaneGeometry(CELL - 0.2, CELL - 0.2), new MeshBasicMaterial({ color: CHARGE_COL, map: plusTex, transparent: true, opacity: 0.8, blending: AdditiveBlending, depthWrite: false, toneMapped: false }));
+      plate.rotation.x = -Math.PI / 2; plate.position.y = 0.014;
+      const fieldMat = glowMat(CHARGE_COL, 0, gateFieldTex); fieldMat.side = DoubleSide;
+      const field = new Mesh(new BoxGeometry(CELL - 0.3, 1.1, CELL - 0.3), fieldMat); field.position.y = 0.55; field.visible = false;
+      grp.add(plate, field);
+      levelGroup.add(grp);
+      const q = new Quaternion(), box = new Mesh(new BoxGeometry(0.1, 0.1, 0.1), Array(6).fill(HIDDEN));
+      box.visible = false; levelGroup.add(box);
+      const pos = new Vector3(X(c), P.y + 0.6, Z(r));
+      const M = { P, c, r, fieldMat, field, plateMat: plate.material, k: 0, buzzT: 0 };
+      colliders.push({ mesh: box, pos, prev: pos.clone(), quat: q, inv: q.clone(), half: new Vector3(CELL / 2 - 0.05, 0.6, CELL / 2 - 0.05),
+                       delta: new Vector3(), ferry: null, holo: null, pad: null, obstacle: 'magnet', magnet: M });
+      P.magnets.push(M);
+    }
+  }
   // The reset pad, on its bay beside the road in.
   const rp = level.pieces.find((q) => q.t === 'reset');
   if (rp) {
@@ -3128,11 +3230,33 @@ const weightTex = (top) => canvasTex(128, 128, (g) => { // a heavy crate's face:
   g.fillStyle = '#FFE2B8'; for (const [x, y] of [[16, 16], [112, 16], [16, 112], [112, 112]]) { g.beginPath(); g.arc(x, y, 3.5, 0, 7); g.fill(); }
 });
 const weightSideTex = weightTex(false), weightTopTex = weightTex(true);
+const CHARGE_COL = 0xFFE14A, GROUND_COL = 0x8CF5C8;
+const boltTex = canvasTex(128, 128, (g) => {            // a lightning bolt
+  g.fillStyle = '#000'; g.fillRect(0, 0, 128, 128);
+  const bolt = () => { g.beginPath(); g.moveTo(74, 10); g.lineTo(34, 70); g.lineTo(62, 70); g.lineTo(50, 118); g.lineTo(94, 52); g.lineTo(66, 52); g.closePath(); };
+  g.filter = 'blur(6px)'; g.fillStyle = 'rgba(255,255,255,0.7)'; bolt(); g.fill();
+  g.filter = 'none'; g.fillStyle = '#FFFFFF'; bolt(); g.fill();
+});
+const groundTex = canvasTex(128, 128, (g) => {          // the sign for earth: a stem and three bars, shorter and shorter
+  g.fillStyle = '#000'; g.fillRect(0, 0, 128, 128);
+  const draw = () => { g.fillRect(58, 14, 12, 44); g.fillRect(22, 58, 84, 11); g.fillRect(38, 78, 52, 11); g.fillRect(52, 98, 24, 11); };
+  g.filter = 'blur(6px)'; g.fillStyle = 'rgba(255,255,255,0.7)'; draw();
+  g.filter = 'none'; g.fillStyle = '#FFFFFF'; draw();
+});
+const plusTex = canvasTex(128, 128, (g) => {            // a charged floor: plus signs, and a lit edge
+  g.fillStyle = '#000'; g.fillRect(0, 0, 128, 128);
+  const draw = (w) => {
+    g.lineWidth = w; g.strokeRect(10, 10, 108, 108);
+    for (const [x, y] of [[40, 40], [88, 40], [40, 88], [88, 88]]) { g.beginPath(); g.moveTo(x - 13, y); g.lineTo(x + 13, y); g.moveTo(x, y - 13); g.lineTo(x, y + 13); g.stroke(); }
+  };
+  g.filter = 'blur(5px)'; g.strokeStyle = 'rgba(255,255,255,0.75)'; draw(9);
+  g.filter = 'none'; g.strokeStyle = '#FFFFFF'; draw(3.5);
+});
 const gateFieldTex = fieldTex.clone();
 gateFieldTex.repeat.set((CELL - WALL_T) / 1.1, GATE_H / 1.1);
 function buildGate(P, e, x, z, alongX, ek) {
-  const span = CELL - WALL_T, kind = 'keygate' in e ? 'key' : 'sgate' in e ? 'switch' : 'plate';
-  const need = e.keygate || 0, letters = e.sgate || e.pgate || '', col = kind === 'key' ? KEY_COLS[need] : LETTER_COLS[letters[0]];
+  const span = CELL - WALL_T, kind = 'keygate' in e ? 'key' : 'sgate' in e ? 'switch' : 'pgate' in e ? 'plate' : 'charge';
+  const need = e.keygate || 0, letters = e.sgate || e.pgate || '', col = kind === 'key' ? KEY_COLS[need] : kind === 'charge' ? CHARGE_COL : LETTER_COLS[letters[0]];
   const grp = new Group(); grp.position.set(x, P.y, z);
   if (!alongX) grp.rotation.y = Math.PI / 2;
   const barMat = new MeshBasicMaterial({ color: col, toneMapped: false, transparent: true });
@@ -3155,7 +3279,7 @@ function buildGate(P, e, x, z, alongX, ek) {
   sheet.material.side = DoubleSide; sheet.position.y = GATE_H / 2; (kind === 'key' ? bars : grp).add(sheet);
   // Its sign, lying over it: the shape of the key that opens it, or the letter of the switch that flips it.
   const signMat = kind === 'key' ? new MeshBasicMaterial({ color: col, toneMapped: false, transparent: true })
-    : new MeshBasicMaterial({ color: col, toneMapped: false, transparent: true, map: glyphTex(letters[0]), blending: AdditiveBlending, depthWrite: false });
+    : new MeshBasicMaterial({ color: col, toneMapped: false, transparent: true, map: kind === 'charge' ? boltTex : glyphTex(letters[0]), blending: AdditiveBlending, depthWrite: false });
   const sign = new Mesh(kind === 'key' ? bowGeo(need, 0.3, 0.055) : new PlaneGeometry(0.72, 0.72), signMat);
   sign.rotation.x = -Math.PI / 2; sign.position.y = GATE_H + 0.32;
   if (kind !== 'key' && !alongX) sign.rotation.z = -Math.PI / 2;   // a letter reads upright from the camera, whichever way the gate runs
@@ -3245,6 +3369,7 @@ function plazaStep() {
       if (down !== pl.on) { pl.on = down; pl.flash = 1; sound(down ? 'thunk' : 'tick'); }
     }
     for (const g of P.gates) if (g.kind === 'plate') g.state = P.plates.some((pl) => pl.on && g.letters.includes(pl.letter)) ? 'open' : 'shut';
+    for (const g of P.gates) if (g.kind === 'charge') g.state = P.charged ? 'open' : 'shut';
     if (on === P.onPad) continue;
     P.onPad = on;
     if (on === -2) resetPlaza(P, false);
@@ -3268,6 +3393,11 @@ function padEnter(P, c, r) {
     const lv = P.levers.find((q) => q.c === c && q.r === r); lv.throwT = 1; lv.side = -lv.side;
     sound('whirr');
   }
+  if (cell.charger || cell.ground) {                    // charged, or emptied
+    const was = P.charged; P.charged = !!cell.charger;
+    P.charges.find((q) => q.c === c && q.r === r).flash = 1;
+    if (was !== P.charged) { sound(P.charged ? 'charge' : 'earth'); burst(ball.p.x, ball.p.y, ball.p.z, P.charged ? CHARGE_COL : GROUND_COL, 18, 3); }
+  }
   if ('switch' in cell) {                               // a switch: every gate of its letter flips
     const L = cell.switch;
     for (const g of P.gates) if (g.kind === 'switch' && g.letters.includes(L)) { g.state = g.state === 'open' ? 'shut' : 'open'; g.flash = 1; }
@@ -3285,6 +3415,8 @@ function resetPlaza(P, quiet) {
     K.used = false; K.fade = 0; K.home.key = K; flyKey(K, K.home); K.model.visible = true; K.model.scale.setScalar(1);
   }
   for (const g of P.gates) if (g.state !== g.init) { g.state = g.init; g.t = 0; moved = true; }
+  if (P.charged) { P.charged = false; moved = true; }
+  for (const g of P.gates) if (g.kind === 'charge') g.state = 'shut';
   for (const T of P.tiles) if (T.mask !== T.mask0) {    // every section turned back
     moved = true;
     while (T.mask !== T.mask0) { T.mask = pzRotCW(T.mask); T.turn -= Math.PI / 2; }
@@ -3344,7 +3476,7 @@ function animatePlazas(dt) {
         g.sheetMat.opacity = 0.35 * (1 - g.open) + 0.4 * g.flash;
       } else {                                          // a field: out when open, its frame and letter left dim
         g.open += ((g.state === 'open' ? 1 : 0) - g.open) * (REDUCED ? 1 : 1 - Math.exp(-12 * dt));
-        const on = 1 - g.open, flick = REDUCED ? 1 : 0.9 + 0.1 * Math.sin(simT * 9 + g.x);
+        const on = g.kind === 'charge' ? 1 - 0.6 * g.open : 1 - g.open, flick = REDUCED ? 1 : 0.9 + 0.1 * Math.sin(simT * 9 + g.x);   // lightning never quite goes out
         g.fieldMat.opacity = 0.7 * on * flick + 0.25 * g.flash; g.field.visible = g.fieldMat.opacity > 0.01;
         g.sheetMat.opacity = 0.3 * on + 0.3 * g.flash;
         g.railMat.opacity = 0.35 + 0.65 * on;
@@ -3361,6 +3493,18 @@ function animatePlazas(dt) {
       lv.throwT = Math.max(0, lv.throwT - dt * 2.5);
       lv.handle.rotation.z += (0.55 * lv.side - lv.handle.rotation.z) * (REDUCED ? 1 : 1 - Math.exp(-14 * dt));   // thrown over, side to side
       lv.faceMat.opacity = 0.75 + 0.25 * lv.throwT;
+    }
+    for (const q of P.charges) { q.flash = Math.max(0, q.flash - dt * 2.2); q.ringMat.opacity = 0.6 + 0.4 * q.flash; q.pool.material.opacity = 0.14 + 0.35 * q.flash; }
+    for (const M of P.magnets) {                        // the field stands up while the marble is charged
+      M.buzzT = Math.max(0, M.buzzT - dt); M.k = Math.max(0, M.k - dt * 3);
+      const up = P.charged ? 1 : 0;
+      M.fieldMat.opacity += ((0.22 + 0.4 * M.k) * up - M.fieldMat.opacity) * (REDUCED ? 1 : 1 - Math.exp(-8 * dt));
+      M.field.visible = M.fieldMat.opacity > 0.01;
+      M.plateMat.opacity = 0.55 + 0.35 * up + (REDUCED ? 0 : 0.1 * Math.sin(simT * 7 + M.c));
+    }
+    if (P.charged) {                                    // the marble crackles
+      P.sparkT -= dt;
+      if (P.sparkT <= 0 && !REDUCED) { P.sparkT = 0.12 + Math.random() * 0.15; burst(marble.position.x, marble.position.y + 0.1, marble.position.z, CHARGE_COL, 3, 2.2); }
     }
     for (const pl of P.plates) {                        // down: sunk and bright
       pl.k += ((pl.on ? 1 : 0) - pl.k) * (REDUCED ? 1 : 1 - Math.exp(-16 * dt)); pl.flash = Math.max(0, pl.flash - dt * 2.5);
@@ -3596,6 +3740,7 @@ function collide(c, dt) {
   if (c.power && !c.power.on) return;                   // a dark road is not there until its switch is on
   if (c.crack && c.crack.state === 'gone') return;       // a crystal slab that has dropped away
   if (c.gate && c.gate.state === 'open') return;         // an open gate in a puzzle square
+  if (c.magnet && !c.magnet.P.charged) return;            // a charged floor pushes only a charged marble away
   if (c.arm && !c.arm.on) return;                         // a turning section's railing, on a side its road joins
   _L.subVectors(ball.p, c.pos).applyQuaternion(c.inv);
   const h = c.half;
@@ -3617,6 +3762,7 @@ function collide(c, dt) {
   _N.applyQuaternion(c.quat);
   ball.p.addScaledVector(_N, pen);
   if (c.gate) gateTouch(c.gate);
+  if (c.magnet && c.magnet.buzzT <= 0) { c.magnet.buzzT = 0.45; c.magnet.k = 1; sound('buzz'); }
   const floor = _N.y > 0.55;
   const rel = ball.v.dot(_N) - (c.ferry ? c.delta.dot(_N) / dt : 0);
   if (c.crate && !floor) crateTouch(c.crate, _N, rel);
@@ -4309,6 +4455,10 @@ const PLAZA_NEWS = {
   B2: 'No straight way over. Turn the bridges until they make a path',
   B3: 'One lever turns both bridges. The key is over one, the way out over the other',
   B4: 'The crossing turns with the lever. Key first, and mind which way you are cut off',
+  C1: 'Lightning gates let only a charged marble through. Find the charger',
+  C2: 'Like charges push apart: a charged marble cannot roll onto a charged floor',
+  C3: 'Charge to reach the key; no charge to reach the way out. Where can you ground?',
+  C4: 'Two keys, one charge. Do not ground yourself where you cannot charge again',
 };
 const PLAZA_NOTE_T = 7;
 function drawNews() {
@@ -4341,6 +4491,7 @@ const RULES = [
   'Switches: roll over a switch to flip every gate with its letter. Shut gates open and open gates shut, so a switch can shut the way you came. You can press a switch again.',
   'Crates and plates: a plate holds its gates open while something heavy is on it. Roll into a crate to push it one cell. A crate cannot be pulled, and never goes through a gate, so push it with care.',
   'Turning bridges: a lever turns every bridge with its letter a quarter turn clockwise. Roll over the lever again to turn them again. A bridge is open only where its lit road meets the side; railings close the rest.',
+  'Charge: a charger (a bolt) charges the marble and a ground pad empties it. Lightning gates let only a charged marble through. Charged floors (plus signs) push a charged marble away, the way like charges do.',
   'Stuck in a square? Roll over the reset pad beside the road into it, and the square goes back as it was.',
   'Each level has a star time, shown by the star at the bottom. Finish under it to win the level\'s star.',
   'Where the road splits, the narrow way is quicker and the wide way is safer. Both lead on.',
@@ -8701,7 +8852,7 @@ if (HARNESS) {
     cracks: () => cracks.map((c) => ({ state: c.crack.state, z: c.pos.z })),
     plaza: () => plazas.map((P) => ({ held: P.held ? P.held.n : 0, onPad: P.onPad, x0: P.x0, z0: P.z0, y: P.y, cols: P.cols, rows: P.rows,
                                       gates: P.gates.map((g) => ({ ek: g.ek, state: g.state })), crates: P.crates.map((W) => ({ c: W.c, r: W.r, moving: W.moving })),
-                                      tiles: P.tiles.map((T) => ({ c: T.c, r: T.r, mask: T.mask, moving: T.moving > 0 })), stands: P.stands.map((s) => ({ c: s.c, r: s.r, n: s.key ? s.key.n : 0 })),
+                                      tiles: P.tiles.map((T) => ({ c: T.c, r: T.r, mask: T.mask, moving: T.moving > 0 })), charged: P.charged, stands: P.stands.map((s) => ({ c: s.c, r: s.r, n: s.key ? s.key.n : 0 })),
                                       view: +plazaView.toFixed(3), cam: P.cam && { pos: P.cam.pos.toArray().map((v) => +v.toFixed(2)), at: P.cam.at.toArray().map((v) => +v.toFixed(2)) } })),
     scans: () => scans.map((Sc) => ({ x: Sc.x, z: Sc.zc, d: Sc.d, w: Sc.w, A: Sc.A, period: Sc.period, phase: Sc.phase, bars: Sc.bars.length,
                                       at: Sc.bars.map((_, i) => +scanX(Sc, simT, i).toFixed(3)) })),
