@@ -3,6 +3,10 @@
    --canvas-w / --canvas-h (set by play.js) keep the game-wrap square. */
 
 /* Splash artwork per mode. The .splash frame, cover-sizing and fade all
-   come from ../shared/chrome.css — we only supply the background image. */
-body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=4'); }
-body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=4'); }
+   come from ../shared/chrome.css — we only supply the background image.
+   The art is the owner's tulip bouquet of 2026-09-27 (masters in iCloud
+   source-assets/bloom/2026-09-27). The phone wordmark spans x 10.3%..89.7%
+   and y 67.6%..78.8% of the 1170x2532 art: 79% wide, inside the 82% that
+   survives a cover-crop on the narrowest phone worth designing for. */
+body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=5'); }
+body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=5'); }
