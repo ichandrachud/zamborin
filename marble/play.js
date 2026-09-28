@@ -97,6 +97,7 @@ function fitFullscreen() {
   } else { gameWrap.style.width = ''; gameWrap.style.height = ''; }
 }
 let cssW = 760, cssH = 600;
+const quality = { max: 2, ratio: 2, cap: 2, slow: 0, fast: 0, settle: 0, sinceUp: 99, shadows: true };   // the 3D view's resolution, which follows the phone (see adaptQuality)
 function resizeCanvases() {
   const rect = gameWrap.getBoundingClientRect();
   cssW = rect.width || LW; cssH = rect.height || LH;
@@ -107,7 +108,8 @@ function resizeCanvases() {
   if (renderer) {
     // Two, not three: a phone's third device pixel costs more than a third of
     // the frame time and nobody can see it on a moving scene.
-    renderer.setPixelRatio(Math.min(2, dpr));
+    quality.max = Math.min(2, dpr);
+    renderer.setPixelRatio(Math.min(quality.ratio, quality.max));
     renderer.setSize(cssW, cssH, false);
   }
   fitCamera();
@@ -1544,15 +1546,33 @@ const STAR_TIMES = [23, 45, 41, 48, 64, 58, 68, 77, 48, 71, 95, 74, 112, 77, 70,
 let levelGroup = null;
 let colliders = [], ferries = [], holos = [], pads = [], crossings = [], riders = [], curtains = [], locks = [], wormholes = [], loopsIn = [], mags = [], winds = [], rounds = [], tubes = [], switches = [], scans = [], posts = [], blinkers = [], flames = [], cracks = [], plazas = [], gates = [], goal = null, level = null;
 
+/* A slab: a rounded box, drawn in two calls rather than six. The box keeps
+   each face as its own run of vertices (+x, -x, +y, -y, +z, -z); the top's run
+   moves to the end, and the other five become one run in the sides' material
+   (the underside is never seen from above). A phone pays for every draw call,
+   and the course is made of slabs: this took about two thirds of the calls. */
 function platformGeometry(w, h, d) {
   const g = new RoundedBoxGeometry(w, h, d, 3, Math.min(0.14, h / 2 - 0.01));
+  const top = g.groups[2], n = g.attributes.position.count, order = [];
+  for (let i = 0; i < n; i++) if (i < top.start || i >= top.start + top.count) order.push(i);
+  for (let i = top.start; i < top.start + top.count; i++) order.push(i);
+  for (const name of ['position', 'normal', 'uv']) {
+    const a = g.attributes[name], k = a.itemSize, src = a.array, dst = new src.constructor(src.length);
+    order.forEach((from, to) => { for (let j = 0; j < k; j++) dst[to * k + j] = src[from * k + j]; });
+    a.array.set(dst);
+  }
+  g.clearGroups();
+  g.addGroup(0, n - top.count, 0);                        // sides and underside: material 0 (a side)
+  g.addGroup(n - top.count, top.count, 2);                // the top: material 2
+  g.userData.top = g.groups[1];
   // The top takes world-scale UVs, one tile to a metre, so a long plank and a
-  // square pad show the same tile. Group 2 is the +y face.
-  const pos = g.attributes.position, uv = g.attributes.uv, top = g.groups[2];
-  for (let i = top.start; i < top.start + top.count; i++) uv.setXY(i, pos.getX(i) / 2, pos.getZ(i) / 2);
+  // square pad show the same tile.
+  const pos = g.attributes.position, uv = g.attributes.uv, tg = g.userData.top;
+  for (let i = tg.start; i < tg.start + tg.count; i++) uv.setXY(i, pos.getX(i) / 2, pos.getZ(i) / 2);
   uv.needsUpdate = true;
   return g;
 }
+const topGroup = (g) => g.userData.top || g.groups[2];   // a slab's top face, however its faces are grouped
 
 /* THE PIECES THAT ACT ON THE MARBLE show what they do before they do it. A
    hologram bridge is see-through, flickers just before it switches off, and
@@ -2872,7 +2892,7 @@ function freeCourse(grp) {
   for (const c of locks) c.mat.map.dispose();
   for (const c of mags) c.magFx.tex.dispose();
   for (const S of switches) if (S.top) { S.top.dispose(); S.side.dispose(); }
-  for (const c of colliders) if (c.obstacle) new Set(c.mesh.material).forEach((m) => m.dispose());
+  for (const c of colliders) if (c.obstacle) new Set([].concat(c.mesh.material)).forEach((m) => m.dispose());
   scene.remove(grp);
   grp.traverse((o) => {
     if (o.geometry) o.geometry.dispose();
@@ -3066,7 +3086,7 @@ function buildPlaza(pc) {
   }
   // The walls, a straight run of wall edges at a time, each end reaching over the corner.
   const wallRun = (x, z, lx, lz) => {
-    const box = new Mesh(new BoxGeometry(lx, WALL_H, lz), Array(6).fill(P.mats.wall));
+    const box = new Mesh(new BoxGeometry(lx, WALL_H, lz), P.mats.wall);   // one material, one draw call
     box.position.set(x, P.y + WALL_H / 2, z); box.castShadow = true; box.receiveShadow = true;
     const L = Math.max(lx, lz), along = lx > lz;
     const line = new Mesh(new BoxGeometry(along ? L : 0.05, 0.02, along ? 0.05 : L), P.mats.line);
@@ -3880,7 +3900,7 @@ function loadLevel(n) {
     for (const c of locks) c.mat.map.dispose();
     for (const c of mags) c.magFx.tex.dispose();
     for (const S of switches) if (S.top) { S.top.dispose(); S.side.dispose(); }
-    for (const c of colliders) if (c.obstacle) new Set(c.mesh.material).forEach((m) => m.dispose());
+    for (const c of colliders) if (c.obstacle) new Set([].concat(c.mesh.material)).forEach((m) => m.dispose());
     scene.remove(levelGroup);
     levelGroup.traverse((o) => {
       if (o.geometry) o.geometry.dispose();
@@ -4932,7 +4952,7 @@ function coverTex(size, draw) { const t = canvasTex(size, size, draw); t.userDat
 
 // Top-face UVs, per mesh: world-scale tiles for stone, 0..1 across a piece for the desk's printed tops.
 function setTopUV(mesh, perPiece) {
-  const g = mesh.geometry, pos = g.attributes.position, uv = g.attributes.uv, top = g.groups[2];
+  const g = mesh.geometry, pos = g.attributes.position, uv = g.attributes.uv, top = topGroup(g);
   const hx = g.parameters.width / 2, hz = g.parameters.depth / 2;
   for (let i = top.start; i < top.start + top.count; i++) {
     if (perPiece) uv.setXY(i, (pos.getX(i) / hx + 1) / 2, (pos.getZ(i) / hz + 1) / 2);
@@ -4943,6 +4963,7 @@ function setTopUV(mesh, perPiece) {
 function restoreCourse() {
   for (const c of colliders) {
     if (c.obstacle) continue;
+    c.mesh.castShadow = true;                             // (the city turns this off again: see neonCourse)
     if (c.deco) { for (const d of c.deco) c.mesh.remove(d); c.deco = []; }
     c.mesh.material = faceMats(c.ferry ? ferryStone : stone); setTopUV(c.mesh, false);
     if (c.holo) holoFaces(c);
@@ -6572,9 +6593,9 @@ WORLDS_ADD('neon', (w) => {
    The owner chose A (2026-09-26), so it is the neon course now; the others
    stay on the link (#neon-grid, #neon-edges, #neon-frosted) to compare. */
 let neonStyle = 'glowgrid';
-function neonGrid(core, halo, haloCol) {
+function neonGrid(core, halo, haloCol, base = '#000') {
   return canvasTex(256, 256, (g) => {
-    g.fillStyle = '#000'; g.fillRect(0, 0, 256, 256);
+    g.fillStyle = base; g.fillRect(0, 0, 256, 256);
     const lines = (wd, col) => {
       g.fillStyle = col;
       for (const p of [0, 128, 256]) { g.fillRect(0, p - wd / 2, 256, wd); g.fillRect(p - wd / 2, 0, wd, 256); }
@@ -6594,6 +6615,10 @@ function neonCourse(style) {
   const M = neonMats[style] || (neonMats[style] = neonMaterials(style));
   for (const c of colliders) {
     if (c.holo || c.obstacle) continue;
+    // Nothing in the city far below takes a shadow, so the course's slabs casting
+    // them was a second drawing of every slab for nothing. The marble's shadow on
+    // the course is kept.
+    c.mesh.castShadow = false;
     if (c.power) {
       const S = c.power;
       if (S.top) { S.top.dispose(); S.side.dispose(); }
@@ -6611,9 +6636,21 @@ function neonMaterials(style) {
   const under = new MeshStandardMaterial({ color: 0x080C16, roughness: 1 });
   let top, side;
   if (style === 'glowgrid') {
+    /* Contrast (a player, 2026-09-27: "the contrast between the rail and the
+       background needs to be adjusted"). Measured on the painted pixels, the
+       glass between the lines was exactly as dark as the city round it (1.03:1),
+       and a slab's edge that fell between grid lines was not marked at all. So
+       the glass has a faint glow of its own, and every slab's sides carry a
+       light band, brightest along the top edge, so the course's outline is lit
+       wherever it runs (value, not a drawn outline). */
     top = new MeshStandardMaterial({ color: 0x0A0F1E, metalness: 0.4, roughness: 0.3, emissive: 0xFFFFFF,
-      emissiveMap: neonGrid(3, 7, 'rgba(255,60,210,0.95)'), emissiveIntensity: 1.5 });
-    side = new MeshStandardMaterial({ color: 0x140A24, metalness: 0.5, roughness: 0.3, emissive: 0xFF3FD0, emissiveIntensity: 0.3 });
+      emissiveMap: neonGrid(3, 7, 'rgba(255,60,210,0.95)', '#2C0C36'), emissiveIntensity: 1.5 });
+    side = new MeshStandardMaterial({ color: 0x140A24, metalness: 0.5, roughness: 0.3, emissive: 0xFFFFFF, emissiveIntensity: 1,
+      emissiveMap: canvasTex(8, 64, (g) => {
+        const lg = g.createLinearGradient(0, 0, 0, 64);
+        lg.addColorStop(0, 'rgb(255,170,240)'); lg.addColorStop(0.1, 'rgb(235,70,200)'); lg.addColorStop(0.4, 'rgb(90,18,80)'); lg.addColorStop(1, 'rgb(16,5,18)');
+        g.fillStyle = lg; g.fillRect(0, 0, 8, 64);
+      }) });
   } else if (style === 'edges') {
     top = new MeshStandardMaterial({ color: 0x0B1322, metalness: 0.4, roughness: 0.25, emissive: 0x34E0FF,
       emissiveMap: neonGrid(2, 0), emissiveIntensity: 0.22 });
@@ -6633,20 +6670,20 @@ function neonMaterials(style) {
   return {
     top, side, under,
     ferryTop: new MeshStandardMaterial({ color: 0x0A0F1E, metalness: 0.4, roughness: 0.3, emissive: 0xFFFFFF,
-      emissiveMap: neonGrid(3, 7, 'rgba(80,180,255,0.95)'), emissiveIntensity: 1.3 }),
+      emissiveMap: neonGrid(3, 7, 'rgba(80,180,255,0.95)', style === 'glowgrid' ? '#0C1C3A' : '#000'), emissiveIntensity: 1.3 }),
     ferrySide: new MeshStandardMaterial({ color: 0x0C1830, metalness: 0.5, roughness: 0.3, emissive: 0x5FB8FF, emissiveIntensity: 0.35 }),
     padTop: new MeshStandardMaterial({ color: 0x0A0F1E, metalness: 0.4, roughness: 0.3 }),
     padSide: new MeshStandardMaterial({ color: 0x1C1606, metalness: 0.5, roughness: 0.3, emissive: PAD_YELLOW, emissiveIntensity: 0.45 }),
     magSide: new MeshStandardMaterial({ color: 0x06141C, metalness: 0.5, roughness: 0.3, emissive: 0x34E0FF, emissiveIntensity: 0.45 }),
     // A lane of a colour lock glows in the colour its curtain gives.
-    laneTop: [null, 'rgba(150,255,60,0.95)', 'rgba(150,100,255,0.95)'].map((halo) => halo && new MeshStandardMaterial({
-      color: 0x0A0F1E, metalness: 0.4, roughness: 0.3, emissive: 0xFFFFFF, emissiveMap: neonGrid(3, 7, halo), emissiveIntensity: 1.4 })),
+    laneTop: [null, ['rgba(150,255,60,0.95)', '#122A0A'], ['rgba(150,100,255,0.95)', '#1A0E36']].map((l) => l && new MeshStandardMaterial({
+      color: 0x0A0F1E, metalness: 0.4, roughness: 0.3, emissive: 0xFFFFFF, emissiveMap: neonGrid(3, 7, l[0], style === 'glowgrid' ? l[1] : '#000'), emissiveIntensity: 1.4 })),
     laneSide: [null, 0xA8FF3E, 0x9D6BFF].map((col) => col && new MeshStandardMaterial({
       color: 0x10131C, metalness: 0.5, roughness: 0.3, emissive: col, emissiveIntensity: 0.4 })),
     // A puzzle square's floor: a tile to a cell, each with its own glowing edge.
     cellTop: new MeshStandardMaterial({ color: 0x0A0F1E, metalness: 0.4, roughness: 0.3, emissive: 0xFFFFFF, emissiveIntensity: 0.8,
       emissiveMap: canvasTex(256, 256, (g) => {
-        g.fillStyle = '#000'; g.fillRect(0, 0, 256, 256);
+        g.fillStyle = '#2C0C36'; g.fillRect(0, 0, 256, 256);                // the glass's own faint glow, as the course's
         g.filter = 'blur(6px)'; g.strokeStyle = 'rgba(255,60,210,0.9)'; g.lineWidth = 10; g.strokeRect(16, 16, 224, 224);
         g.filter = 'none'; g.strokeStyle = '#FFD6F4'; g.lineWidth = 3; g.strokeRect(16, 16, 224, 224);
         g.fillStyle = 'rgba(255,120,230,0.5)'; for (const [cx, cy] of [[16, 16], [240, 16], [16, 240], [240, 240]]) { g.beginPath(); g.arc(cx, cy, 5, 0, 7); g.fill(); }
@@ -8586,7 +8623,7 @@ WORLDS_ADD('study', (w) => {
       c.mesh.material = [side, side, top, M.under, side, side];
       setTopUV(c.mesh, book);
       if (!book && !eraser) {                             // the ruler's marks run along the piece
-        const gg = c.mesh.geometry, uv = gg.attributes.uv, P = gg.attributes.position, tg = gg.groups[2];
+        const gg = c.mesh.geometry, uv = gg.attributes.uv, P = gg.attributes.position, tg = topGroup(gg);
         const along = c.half.z >= c.half.x;
         // (turned a quarter turn when it runs along the way, never mirrored, so its numbers read)
         for (let k = tg.start; k < tg.start + tg.count; k++) uv.setXY(k, (along ? -P.getZ(k) : P.getX(k)) / 10 + 0.5, (along ? -P.getX(k) / (2 * c.half.x) : -P.getZ(k) / (2 * c.half.z)) + 0.5);
@@ -9020,14 +9057,46 @@ function dieTex() {
 
 // ---------- LOOP ----------
 let last = performance.now(), frames = 0, frameMs = 16.7, simHold = false;
+const perf = { update: 0, render: 0, stall: 0 };        // script time per frame, for the harness (and a test's stall)
+/* QUALITY FOLLOWS THE PHONE (a player, 2026-09-27: "there is a lag in the motion
+   on phones"; the owner's phone felt none). A phone that cannot keep up draws
+   fewer pixels: after the first three seconds, if frames come slower than about
+   48 a second for a second and a half, the 3D view's resolution steps down a
+   quarter, as far as the screen's own pixels; at full speed for eight seconds it
+   steps back up, and if that step brings the slowness straight back, it stays
+   down for good rather than flicker between the two. Still too slow at the
+   screen's own pixels, and the sun stops casting shadows. The controls and the
+   read-out stay sharp. */
+function adaptQuality(dt) {
+  if (frames < 180 || !renderer) return;
+  quality.sinceUp += dt;
+  if (quality.settle > 0) { quality.settle -= dt; return; }
+  if (frameMs > 21) { quality.slow += dt; quality.fast = 0; }
+  else if (frameMs < 18) { quality.fast += dt; quality.slow = 0; }      // full speed on a 60 Hz screen is 16.7
+  else { quality.slow = 0; quality.fast = 0; }
+  if (quality.slow > 1.5) {
+    quality.slow = 0; quality.settle = 1.5;
+    if (quality.sinceUp < 6) quality.cap = quality.ratio - 0.25;       // the last step up was one too many
+    if (quality.ratio > 1) { quality.ratio = Math.max(1, quality.ratio - 0.25); resizeCanvases(); }
+    else if (quality.shadows) { quality.shadows = false; sun.castShadow = false; }
+  } else if (quality.fast > 8 && quality.ratio < Math.min(quality.max, quality.cap)) {
+    quality.fast = 0; quality.settle = 1.5; quality.sinceUp = 0;
+    quality.ratio = Math.min(quality.max, quality.cap, quality.ratio + 0.25); resizeCanvases();
+  }
+}
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
-  frameMs += ((now - last) - frameMs) * 0.05;
+  if (now - last < 250) frameMs += ((now - last) - frameMs) * 0.05;   // a hidden tab's long gap is not a slow frame
   last = now; frames++;
   if (renderer) {
+    const t0 = performance.now();
     if (!simHold) update(dt, now);
+    const t1 = performance.now();
     renderer.render(scene, camera);
+    perf.update += (t1 - t0 - perf.update) * 0.05; perf.render += (performance.now() - t1 - perf.render) * 0.05;
+    if (perf.stall) { const until = performance.now() + perf.stall; while (performance.now() < until) { /* a test: a slow phone */ } }
+    adaptQuality(dt);
   }
   drawHUD(now);
   if (frames === 2) window.dispatchEvent(new Event('game-ready'));   // drawn, shaders built: the page may take the cover away
@@ -9142,6 +9211,12 @@ if (HARNESS) {
     trail: () => lastTrail && { n: lastTrail.pts.length, count: lastTrail.geo.drawRange.count, inScene: !!lastTrail.mesh.parent && !!lastTrail.mesh.parent.parent,
                                first: lastTrail.pts[0], last: lastTrail.pts[lastTrail.pts.length - 1] },
     quiet: () => { everMoved = true; },       // no drag hint, for stills
+    courseShown: (on) => { levelGroup.visible = !!on; return levelGroup.visible; },   // hide the course, to measure it against the city
+    stall: (ms) => { perf.stall = ms; return ms; },     // a test: make every frame this much slower, as a slow phone would be
+    perf: () => ({ update: +perf.update.toFixed(2), render: +perf.render.toFixed(2), frameMs: +frameMs.toFixed(1), calls: renderer && renderer.info.render.calls,
+                   quality: { ...quality },
+                   tris: renderer && renderer.info.render.triangles, colliders: colliders.length, shadow: renderer && renderer.shadowMap.enabled,
+                   ratio: renderer && renderer.getPixelRatio(), geometries: renderer && renderer.info.memory.geometries, textures: renderer && renderer.info.memory.textures }),
     closeup: (on) => {
       closeup = !!on;
       camera.fov = on ? 30 : camParams().fov; camera.updateProjectionMatrix();
