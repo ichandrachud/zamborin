@@ -222,6 +222,8 @@ const NEON_SOUNDS = {
     voice('sawtooth', 240, 70, 0.5, 0.018, 0.38);
     [523.25, 659.25, 783.99].forEach((f, i) => voice('sine', f, f, 0.6, 0.035, 0.45 + i * 0.05));
   },
+  thunk() { voice('sine', 170, 85, 0.2, 0.09); voice('triangle', 440, 400, 0.08, 0.025); voice('sine', 660, 990, 0.25, 0.03, 0.06); },   // a plate pressed
+  scrape() { voice('sawtooth', 95, 62, 0.3, 0.035); voice('square', 150, 120, 0.26, 0.012); voice('sine', 70, 55, 0.3, 0.06); },           // a crate pushed
   click() { voice('square', 2200, 1400, 0.03, 0.035); voice('triangle', 520, 780, 0.16, 0.05, 0.03); voice('sine', 1040, 1560, 0.22, 0.03, 0.06); },   // a switch pressed
   reset() { voice('sawtooth', 1300, 150, 0.55, 0.016); voice('sine', 1760, 330, 0.5, 0.045); voice('sine', 220, 220, 0.3, 0.04, 0.45); },   // a square put back
   buzz() { voice('square', 110, 100, 0.22, 0.035); voice('sawtooth', 55, 50, 0.2, 0.03); },        // a wall of the other colour
@@ -232,7 +234,7 @@ const NEON_SOUNDS = {
 };
 // The city's version of a sound where it has one, the house sound elsewhere.
 function sound(name) {
-  if ((world.name === 'neon' || ['boost', 'jump', 'bump', 'depart', 'tint', 'pass', 'buzz', 'key', 'gate', 'reset', 'click', 'warp', 'tube', 'pop', 'power', 'zap', 'knock', 'clink', 'crack', 'shatter', 'burn', 'flame', 'blast'].includes(name)) && NEON_SOUNDS[name]) { if (sfx && sfx.isOn()) NEON_SOUNDS[name](); }
+  if ((world.name === 'neon' || ['boost', 'jump', 'bump', 'depart', 'tint', 'pass', 'buzz', 'key', 'gate', 'reset', 'click', 'thunk', 'scrape', 'warp', 'tube', 'pop', 'power', 'zap', 'knock', 'clink', 'crack', 'shatter', 'burn', 'flame', 'blast'].includes(name)) && NEON_SOUNDS[name]) { if (sfx && sfx.isOn()) NEON_SOUNDS[name](); }
   else play(name === 'home' ? 'land' : name);
 }
 function ensureCitySound() {
@@ -754,6 +756,11 @@ const TRAIN = (x, z, w, y, amp, period, dwell, phase, pull) => ({ t: 'train', x,
      switch: L    a switch: roll over it to flip every gate of letter L
      sgate: L     a gate that switch L flips, shut to open and open to shut;
                   `open: 1` if it starts open
+     weight: 1    a crate. Roll into it to push it one cell, if the cell past
+                  it is clear floor with no wall or gate between (a crate
+                  never crosses a gate, open or shut)
+     plate: L     a plate: while something heavy is on it, its gates are open
+     pgate: L     a gate held open by plate L
    Every layout is solved by a search before it goes in (the same rules, in
    pzsolve), which also counts the traps: moves after which the way out can no
    longer be reached. The reset pad on a bay beside the road in puts the square
@@ -761,6 +768,7 @@ const TRAIN = (x, z, w, y, amp, period, dwell, phase, pull) => ({ t: 'train', x,
 const CELL = 2.2, WALL_H = 0.7, WALL_T = 0.26;
 // PLAZAS START
 const KEYS = { a: { key: 1 }, b: { key: 2 }, c: { key: 3 }, A: { keygate: 1 }, B: { keygate: 2 }, C: { keygate: 3 } };
+const WEIGHTS = { W: { weight: 1 }, P: { plate: 'A' }, Q: { plate: 'B' }, A: { pgate: 'A' }, B: { pgate: 'B' } };
 const SWITCHES = { X: { switch: 'A' }, Y: { switch: 'B' }, Z: { switch: 'C' },
                    A: { sgate: 'A' }, a: { sgate: 'A', open: 1 }, B: { sgate: 'B' }, b: { sgate: 'B', open: 1 }, C: { sgate: 'C' }, c: { sgate: 'C', open: 1 } };
 const PLAZAS = {
@@ -863,10 +871,50 @@ const PLAZAS = {
     '+ + + + + +',
     '|. . .|. X|',
     '+-+-+ +-+-+'] },
+  // Weights. The first: one crate, one plate; push it across, then up.
+  W1: { entry: 2, exit: 2, legend: WEIGHTS, map: [
+    '+-+-+A+-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . P|',
+    '+ + + + + +',
+    '|. W . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+'] },
+  // The plate is in a nook: the crate can go in from one side only.
+  W2: { entry: 2, exit: 2, legend: WEIGHTS, map: [
+    '+-+-+A+-+-+',
+    '|. . . .|P|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ +-+ + + +',
+    '|. W . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+'] },
+  // Two crates stacked in the way, two plates, two gates in a row: which crate goes where, and in what order?
+  W3: { entry: 2, exit: 2, legend: WEIGHTS, map: [
+    '+-+-+B+-+-+',
+    '|. .|.|. .|',
+    '+ + +A+ + +',
+    '|. . W . .|',
+    '+ + + + + +',
+    '|. . W . .|',
+    '+ + + +-+-+',
+    '|. . P . Q|',
+    '+-+ + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+'] },
 };
 // PLAZAS END
 // Which square each level ends with; '~' mirrors it left to right.
-const PLAZA_AT = { 2: 'K1', 3: 'K2', 4: 'K2~', 5: 'K3', 6: 'K3~', 7: 'K4', 8: 'K4~', 9: 'S1', 10: 'S2', 11: 'S2~', 12: 'S3', 13: 'S4~' };  // (S4 mirrored: its trap room on the other side from S3's)
+const PLAZA_AT = { 2: 'K1', 3: 'K2', 4: 'K2~', 5: 'K3', 6: 'K3~', 7: 'K4', 8: 'K4~', 9: 'S1', 10: 'S2', 11: 'S2~', 12: 'S3', 13: 'S4~',
+                   14: 'W1', 15: 'W2', 16: 'W3', 17: 'W3~' };  // (S4 mirrored: its trap room on the other side from S3's)
 function plazaLayout(id) {
   const flipped = id.endsWith('~'), T = PLAZAS[flipped ? id.slice(0, -1) : id];
   const cols = (T.map[0].length - 1) / 2, rows = (T.map.length - 1) / 2;
@@ -2865,6 +2913,44 @@ function buildPlaza(pc) {
     levelGroup.add(grp);
     P.switches.push({ c, r, letter: cell.switch, button, faceMat, ringMat, pool, press: 0 });
   }
+  // The plates: square, low, in their letter's colour; they sink when pressed.
+  P.plates = [];
+  for (let r = 0; r < P.rows; r++) for (let c = 0; c < P.cols; c++) {
+    const cell = G.cells[r][c];
+    if (!('plate' in cell)) continue;
+    const col = LETTER_COLS[cell.plate], grp = new Group(); grp.position.set(X(c), P.y, Z(r));
+    const frame = new Mesh(new BoxGeometry(1.66, 0.05, 1.66), P.mats.base); frame.position.y = 0.025; frame.receiveShadow = true;
+    const top = new Group();
+    const slabMat = new MeshStandardMaterial({ color: 0x1B2138, metalness: 0.6, roughness: 0.35, emissive: col, emissiveIntensity: 0.2 });
+    const slab = new Mesh(new BoxGeometry(1.36, 0.07, 1.36), slabMat); slab.position.y = 0.085; slab.receiveShadow = true;
+    const faceMat = new MeshBasicMaterial({ color: col, map: plateTex, transparent: true, opacity: 0.8, blending: AdditiveBlending, depthWrite: false, toneMapped: false });
+    const face = new Mesh(new PlaneGeometry(1.36, 1.36), faceMat); face.rotation.x = -Math.PI / 2; face.position.y = 0.122;
+    const glyphMat = new MeshBasicMaterial({ color: col, map: glyphTex(cell.plate), transparent: true, opacity: 0.8, blending: AdditiveBlending, depthWrite: false, toneMapped: false });
+    const glyph = new Mesh(new PlaneGeometry(0.66, 0.66), glyphMat); glyph.rotation.x = -Math.PI / 2; glyph.position.y = 0.124;
+    top.add(slab, face, glyph);
+    const pool = new Mesh(new CircleGeometry(1.15, 48), glowMat(col, 0.14, dot)); pool.rotation.x = -Math.PI / 2; pool.position.y = 0.012;
+    grp.add(frame, top, pool);
+    levelGroup.add(grp);
+    P.plates.push({ c, r, letter: cell.plate, top, slabMat, faceMat, glyphMat, pool, on: false, k: 0, flash: 0 });
+  }
+  // The crates: heavy, pushed a cell at a time.
+  P.crates = [];
+  for (let r = 0; r < P.rows; r++) for (let c = 0; c < P.cols; c++) {
+    if (!G.cells[r][c].weight) continue;
+    if (!P.mats.crate) {
+      const side = new MeshStandardMaterial({ color: 0x1A1612, metalness: 0.55, roughness: 0.45, emissive: 0xFFFFFF, emissiveMap: weightSideTex, emissiveIntensity: 1 });
+      const top = new MeshStandardMaterial({ color: 0x1A1612, metalness: 0.55, roughness: 0.45, emissive: 0xFFFFFF, emissiveMap: weightTopTex, emissiveIntensity: 1 });
+      P.mats.crate = [side, side, top, P.mats.base, side, side];
+    }
+    const mesh = new Mesh(new BoxGeometry(CRATE, CRATE_H, CRATE), P.mats.crate);
+    mesh.position.set(X(c), P.y + CRATE_H / 2, Z(r)); mesh.castShadow = true; mesh.receiveShadow = true;
+    levelGroup.add(mesh);
+    const W = { P, c, r, c0: c, r0: r, mesh, moving: false, t: 0, fc: c, fr: r, tc: c, tr: r, pushT: 0, blockT: -9 };
+    const q = new Quaternion();
+    W.col = { mesh, pos: mesh.position.clone(), prev: mesh.position.clone(), quat: q, inv: q.clone(), half: new Vector3(CRATE / 2, CRATE_H / 2, CRATE / 2),
+              delta: new Vector3(), ferry: null, holo: null, pad: null, obstacle: 'weight', crate: W };
+    colliders.push(W.col); P.crates.push(W);
+  }
   // The reset pad, on its bay beside the road in.
   const rp = level.pieces.find((q) => q.t === 'reset');
   if (rp) {
@@ -2891,11 +2977,33 @@ function glyphTex(ch) {
     g.filter = 'none'; g.fillStyle = '#FFFFFF'; g.fillText(ch, 64, 70);
   }));
 }
+const CRATE = 1.5, CRATE_H = 1.1, CRATE_SLIDE = 0.3;
+const plateTex = canvasTex(128, 128, (g) => {            // a pressure plate: a square with corner brackets
+  g.fillStyle = '#000'; g.fillRect(0, 0, 128, 128);
+  const draw = (w) => {
+    g.lineWidth = w; g.strokeRect(12, 12, 104, 104);
+    for (const [x, y, sx, sy] of [[4, 4, 1, 1], [124, 4, -1, 1], [4, 124, 1, -1], [124, 124, -1, -1]]) {
+      g.beginPath(); g.moveTo(x, y + sy * 22); g.lineTo(x, y); g.lineTo(x + sx * 22, y); g.stroke();
+    }
+  };
+  g.filter = 'blur(4px)'; g.strokeStyle = 'rgba(255,255,255,0.7)'; draw(8);
+  g.filter = 'none'; g.strokeStyle = '#FFFFFF'; draw(3);
+});
+const weightTex = (top) => canvasTex(128, 128, (g) => { // a heavy crate's face: a lit frame, a brace across it, rivets
+  g.fillStyle = '#000'; g.fillRect(0, 0, 128, 128);
+  const draw = (w, a) => {
+    g.strokeStyle = `rgba(255,178,80,${a})`; g.lineWidth = w; g.strokeRect(7, 7, 114, 114);
+    g.beginPath(); if (top) { g.moveTo(18, 18); g.lineTo(110, 110); g.moveTo(110, 18); g.lineTo(18, 110); } else { g.moveTo(18, 110); g.lineTo(110, 18); } g.stroke();
+  };
+  g.filter = 'blur(5px)'; draw(10, 0.8); g.filter = 'none'; draw(3.5, 1);
+  g.fillStyle = '#FFE2B8'; for (const [x, y] of [[16, 16], [112, 16], [16, 112], [112, 112]]) { g.beginPath(); g.arc(x, y, 3.5, 0, 7); g.fill(); }
+});
+const weightSideTex = weightTex(false), weightTopTex = weightTex(true);
 const gateFieldTex = fieldTex.clone();
 gateFieldTex.repeat.set((CELL - WALL_T) / 1.1, GATE_H / 1.1);
 function buildGate(P, e, x, z, alongX, ek) {
-  const span = CELL - WALL_T, kind = 'keygate' in e ? 'key' : 'switch';
-  const need = e.keygate || 0, letters = e.sgate || '', col = kind === 'key' ? KEY_COLS[need] : LETTER_COLS[letters[0]];
+  const span = CELL - WALL_T, kind = 'keygate' in e ? 'key' : 'sgate' in e ? 'switch' : 'plate';
+  const need = e.keygate || 0, letters = e.sgate || e.pgate || '', col = kind === 'key' ? KEY_COLS[need] : LETTER_COLS[letters[0]];
   const grp = new Group(); grp.position.set(x, P.y, z);
   if (!alongX) grp.rotation.y = Math.PI / 2;
   const barMat = new MeshBasicMaterial({ color: col, toneMapped: false, transparent: true });
@@ -2951,6 +3059,42 @@ function gateTouch(g) {
     sound('gate');
   } else if (g.buzzT <= 0) { sound('buzz'); g.buzzT = 0.45; g.flash = 1; }
 }
+/* Rolling into a crate: square on to one of its faces, it slides a cell the
+   way you push, if that cell is clear. A hard roll pushes at once; a gentle
+   one pushes after a moment of leaning on it (the stick held toward it). */
+const plazaEdge = (P, c, r, d) => (d === 'n' ? P.grid.h[r + 1][c] : d === 's' ? P.grid.h[r][c] : d === 'e' ? P.grid.v[r][c + 1] : P.grid.v[r][c]);
+function crateTouch(W, n, rel) {
+  if (W.moving || Math.abs(n.y) > 0.3) return;
+  const ax = Math.abs(n.x) > 0.9 ? 'x' : Math.abs(n.z) > 0.9 ? 'z' : null;
+  if (!ax) { W.pushT = 0; return; }                    // on a corner: no push
+  const dx = ax === 'x' ? -Math.sign(n.x) : 0, dz = ax === 'z' ? -Math.sign(n.z) : 0;
+  const lean = ball.in[0] * dx + ball.in[1] * dz;
+  if (-rel > 1.8) { W.pushT = 0; tryPush(W, dx, dz); return; }
+  W.pushT = lean > 0.45 ? W.pushT + STEP : 0;
+  if (W.pushT > 0.12) { W.pushT = 0; tryPush(W, dx, dz); }
+}
+function tryPush(W, dx, dz) {
+  const P = W.P, dc = dx, dr = -dz, tc = W.c + dc, tr = W.r + dr;
+  const dir = dc > 0 ? 'e' : dc < 0 ? 'w' : dr > 0 ? 'n' : 's';
+  const ok = tc >= 0 && tc < P.cols && tr >= 0 && tr < P.rows && plazaEdge(P, W.c, W.r, dir) === null &&
+             !P.grid.cells[tr][tc].void && !('tile' in P.grid.cells[tr][tc]) &&
+             !P.crates.some((o) => o !== W && ((o.c === tc && o.r === tr) || (o.moving && o.tc === tc && o.tr === tr)));
+  if (!ok) { if (simT - W.blockT > 0.5) { W.blockT = simT; sound('knock'); } return; }
+  W.moving = true; W.t = 0; W.fc = W.c; W.fr = W.r; W.tc = tc; W.tr = tr;
+  sound('scrape');
+}
+// Every physics step, whatever the marble is doing: crates in motion slide on.
+function plazaMove() {
+  for (const P of plazas) for (const W of P.crates) {
+    if (!W.moving) continue;
+    W.t = Math.min(1, W.t + STEP / CRATE_SLIDE);
+    const u = ease(W.t);
+    W.col.prev.copy(W.col.pos);
+    W.col.pos.set(P.X(W.fc) + (P.X(W.tc) - P.X(W.fc)) * u, P.y + CRATE_H / 2, P.Z(W.fr) + (P.Z(W.tr) - P.Z(W.fr)) * u);
+    W.mesh.position.copy(W.col.pos);
+    if (W.t >= 1) { W.moving = false; W.c = W.tc; W.r = W.tr; }
+  }
+}
 function flyKey(K, to) {
   K.from.copy(K.model.position); K.to = to; K.t = 0;
 }
@@ -2963,6 +3107,13 @@ function plazaStep() {
       if (c >= 0 && c < P.cols && r >= 0 && r < P.rows) { if (Math.hypot(ball.p.x - P.X(c), ball.p.z - P.Z(r)) < PAD_R) on = r * P.cols + c; }
       else if (P.reset && Math.hypot(ball.p.x - P.reset.x, ball.p.z - P.reset.z) < PAD_R) on = -2;
     }
+    for (const pl of P.plates) {                        // a plate is down under a crate, or under the marble
+      const byCrate = P.crates.some((W) => !W.moving && W.c === pl.c && W.r === pl.r);
+      const byMarble = ball.grounded && Math.abs(ball.p.y - R - P.y) < 0.3 && Math.hypot(ball.p.x - P.X(pl.c), ball.p.z - P.Z(pl.r)) < PAD_R;
+      const down = byCrate || byMarble;
+      if (down !== pl.on) { pl.on = down; pl.flash = 1; sound(down ? 'thunk' : 'tick'); }
+    }
+    for (const g of P.gates) if (g.kind === 'plate') g.state = P.plates.some((pl) => pl.on && g.letters.includes(pl.letter)) ? 'open' : 'shut';
     if (on === P.onPad) continue;
     P.onPad = on;
     if (on === -2) resetPlaza(P, false);
@@ -2997,6 +3148,12 @@ function resetPlaza(P, quiet) {
     K.used = false; K.fade = 0; K.home.key = K; flyKey(K, K.home); K.model.visible = true; K.model.scale.setScalar(1);
   }
   for (const g of P.gates) if (g.state !== g.init) { g.state = g.init; g.t = 0; moved = true; }
+  for (const W of P.crates) {                           // every crate back where it stood
+    if (W.c !== W.c0 || W.r !== W.r0 || W.moving) moved = true;
+    W.moving = false; W.c = W.fc = W.tc = W.c0; W.r = W.fr = W.tr = W.r0;
+    W.col.pos.set(P.X(W.c0), P.y + CRATE_H / 2, P.Z(W.r0)); W.col.prev.copy(W.col.pos); W.mesh.position.copy(W.col.pos);
+    if (!quiet) burst(W.col.pos.x, P.y + 0.3, W.col.pos.z, 0xFFB250, 10, 2);
+  }
   if (quiet) { for (const K of P.keys) K.t = 1; for (const g of P.gates) g.open = g.init === 'open' ? 1 : 0; }
   if (P.reset) P.reset.flash = 1;
   if (!quiet) sound(moved ? 'reset' : 'tick');
@@ -3050,6 +3207,13 @@ function animatePlazas(dt) {
         g.railMat.opacity = 0.35 + 0.65 * on;
         g.signMat.opacity = 0.45 + 0.55 * on + 0.4 * g.flash;
       }
+    }
+    for (const pl of P.plates) {                        // down: sunk and bright
+      pl.k += ((pl.on ? 1 : 0) - pl.k) * (REDUCED ? 1 : 1 - Math.exp(-16 * dt)); pl.flash = Math.max(0, pl.flash - dt * 2.5);
+      pl.top.position.y = -0.045 * pl.k;
+      pl.slabMat.emissiveIntensity = 0.2 + 0.9 * pl.k;
+      pl.faceMat.opacity = 0.65 + 0.35 * pl.k; pl.glyphMat.opacity = 0.65 + 0.35 * pl.k;
+      pl.pool.material.opacity = 0.12 + 0.3 * pl.k + 0.2 * pl.flash;
     }
     for (const S of P.switches) {                       // a press: the button dips and flares
       S.press = Math.max(0, S.press - dt * 2.2);
@@ -3258,7 +3422,7 @@ const VMAX = 8;            // horizontal speed cap, metres per second
 const BOOST_ACC = 34, VBOOST = 13, BOOST_T = 1, JUMP_UP = 9, JUMP_ON = 8;
 const STEP = 1 / 240;      // physics runs at 240 Hz whatever the display does
 
-const ball = { p: new Vector3(), v: new Vector3(), spin: new Vector3(), grounded: false,
+const ball = { p: new Vector3(), v: new Vector3(), spin: new Vector3(), grounded: false, in: [0, 0],
                onFerry: null, airT: 0, pad: null, boostT: 0, jumpCD: 0, onBoost: false, hitT: 0, tint: 0, onLoop: null, mag: 0, push: 0, onRound: null, tube: null };
 let spawnTint = 0;                                      // the marble's colour when it passed its last ring
 const startPos = new Vector3(), spawn = new Vector3();
@@ -3300,6 +3464,7 @@ function collide(c, dt) {
   if (c.gate) gateTouch(c.gate);
   const floor = _N.y > 0.55;
   const rel = ball.v.dot(_N) - (c.ferry ? c.delta.dot(_N) / dt : 0);
+  if (c.crate && !floor) crateTouch(c.crate, _N, rel);
   if (rel < 0) {
     const e = floor ? (rel < -7 ? 0.25 : 0) : 0.35;
     ball.v.addScaledVector(_N, -(1 + e) * rel);
@@ -3316,6 +3481,7 @@ function collide(c, dt) {
 
 function step(dt, ix, iz) {
   simT += dt;
+  ball.in[0] = ix; ball.in[1] = iz;                     // the stick, for what leans on things (a crate)
   for (const c of ferries) updateFerry(c, simT);
   if (ball.tube) { rideTube(dt); for (const c of crossings) crossStep(c, simT); return; }   // in a tube, the tube steers
   if (ball.onFerry) {
@@ -3350,7 +3516,7 @@ function step(dt, ix, iz) {
   if (scans.length && state === 'play') scanStep();
   if (flames.length && state === 'play') flameStep();
   if (cracks.length) crackStep();
-  if (plazas.length && state === 'play') plazaStep();
+  if (plazas.length) { plazaMove(); if (state === 'play') plazaStep(); }
   ball.onLoop = null;
   for (const L of loopsIn) loopContact(L);
   tintStep();
@@ -3981,6 +4147,9 @@ const PLAZA_NEWS = {
   S2: 'Which gates does each switch flip? You may need one twice',
   S3: 'Three switches, three rooms. Work out the order before you roll',
   S4: 'The same switches, and a door that shuts on you. Mind the order',
+  W1: 'A plate holds its gate open while something heavy sits on it. Push the crate onto it',
+  W2: 'A crate only goes where you push it. Get behind it first',
+  W3: 'Two crates, two plates. Which crate goes where, and which first?',
 };
 const PLAZA_NOTE_T = 7;
 function drawNews() {
@@ -4011,6 +4180,7 @@ const RULES = [
   'From level 2 the finish stands past a puzzle square, and its way out is shut. As you roll up to the square the camera rises to show all of it: look before you move.',
   'Keys: roll over a key to take it. You carry one at a time, so taking another leaves the one you held in its place. A gate opens for the key of its colour and shape, and keeps it: count your keys before you open a gate.',
   'Switches: roll over a switch to flip every gate with its letter. Shut gates open and open gates shut, so a switch can shut the way you came. You can press a switch again.',
+  'Crates and plates: a plate holds its gates open while something heavy is on it. Roll into a crate to push it one cell. A crate cannot be pulled, and never goes through a gate, so push it with care.',
   'Stuck in a square? Roll over the reset pad beside the road into it, and the square goes back as it was.',
   'Each level has a star time, shown by the star at the bottom. Finish under it to win the level\'s star.',
   'Where the road splits, the narrow way is quicker and the wide way is safer. Both lead on.',
@@ -8370,7 +8540,7 @@ if (HARNESS) {
     flames: () => flames.map((F) => ({ lines: F.lines.map((L) => { const st = flameState(L, simT); return { active: st.active, h: +st.h.toFixed(2), offFor: +st.offFor.toFixed(3), z: L.z }; }) })),
     cracks: () => cracks.map((c) => ({ state: c.crack.state, z: c.pos.z })),
     plaza: () => plazas.map((P) => ({ held: P.held ? P.held.n : 0, onPad: P.onPad, x0: P.x0, z0: P.z0, y: P.y, cols: P.cols, rows: P.rows,
-                                      gates: P.gates.map((g) => ({ ek: g.ek, state: g.state })), stands: P.stands.map((s) => ({ c: s.c, r: s.r, n: s.key ? s.key.n : 0 })),
+                                      gates: P.gates.map((g) => ({ ek: g.ek, state: g.state })), crates: P.crates.map((W) => ({ c: W.c, r: W.r, moving: W.moving })), stands: P.stands.map((s) => ({ c: s.c, r: s.r, n: s.key ? s.key.n : 0 })),
                                       view: +plazaView.toFixed(3), cam: P.cam && { pos: P.cam.pos.toArray().map((v) => +v.toFixed(2)), at: P.cam.at.toArray().map((v) => +v.toFixed(2)) } })),
     scans: () => scans.map((Sc) => ({ x: Sc.x, z: Sc.zc, d: Sc.d, w: Sc.w, A: Sc.A, period: Sc.period, phase: Sc.phase, bars: Sc.bars.length,
                                       at: Sc.bars.map((_, i) => +scanX(Sc, simT, i).toFixed(3)) })),
