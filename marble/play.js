@@ -801,6 +801,7 @@ const SWITCHES = { X: { switch: 'A' }, Y: { switch: 'B' }, Z: { switch: 'C' },
 // The squares past level 40 were found by a search that mixes the mechanics (pzgen.js: keys, switches, crates and plates,
 // charge, light), aimed at a number of steps that climbs with the level, rewarding dead ends and punishing clutter. One
 // legend serves them all.
+const PIT = { W: { weight: 1 }, _: { pit: 1 } };          // build a road: a crate, a gap it fills
 const ICE = { o: { rock: 1 }, s: { snow: 1 } };           // the ice mazes: a rock, snow (a hole is '#', a cell with no floor)
 const GEN = { a: { key: 1 }, b: { key: 2 }, A: { keygate: 1 }, B: { keygate: 2 },
               x: { switch: 'A' }, y: { switch: 'B' }, X: { sgate: 'A' }, Y: { sgate: 'B' }, u: { sgate: 'A', open: 1 }, v: { sgate: 'B', open: 1 },
@@ -2085,12 +2086,57 @@ const PLAZAS = {
     '+ + + + + +',
     '|. . . . o|',
     '+-+-+ +-+-+'] },
+  // BUILD A ROAD (owner, 2026-09-28, the second new puzzle: "push blocks to build a road"). A chasm of gaps '_' right
+  // across; a crate pushed into a gap drops in and fills it, and it is road after. Found by a search (fillgen.js).
+  P1: { entry: 2, exit: 2, legend: PIT, map: [             // 1 push: fill the gap, cross
+    '+-+-+ +-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|_ _ _ _ _|',
+    '+ + + + + +',
+    '|W . . W .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+'] },
+  P2: { entry: 2, exit: 2, legend: PIT, map: [             // 6 pushes: two rows of gaps, one crate over the other
+    '+-+-+ +-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|_ _ _ _ _|',
+    '+ + + + + +',
+    '|_ _ _ _ _|',
+    '+ + + +-+ +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. W W W .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+'] },
+  P3: { entry: 2, exit: 2, legend: PIT, map: [             // 10 pushes: four crates, and the order matters
+    '+-+-+ +-+-+',
+    '|. . . . _|',
+    '+ + + +-+ +',
+    '|_ _ _ _ _|',
+    '+ + + + + +',
+    '|_ _ _ _ _|',
+    '+ + + + + +',
+    '|. . . . W|',
+    '+ + + + + +',
+    '|. . . W .|',
+    '+ + + + + +',
+    '|W . . . W|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+'] },
 };
 // PLAZAS END
 // Which square each level ends with; '~' mirrors it left to right.
 // The new puzzles, each tried first on a course of its own (#try-<kind>, #try-<kind>-tokyo), easy to hard.
-const TRY_COURSES = { ice: ['I1', 'I2', 'I3', 'I4'] }, TRY_TITLES = { ice: 'ICE MAZES' };
-const TRY_NEWS = { ice: 'Four ice mazes, easy to hard. On ice the marble slides until something stops it' };
+const TRY_COURSES = { ice: ['I1', 'I2', 'I3', 'I4'], road: ['P1', 'P2', 'P3'] }, TRY_TITLES = { ice: 'ICE MAZES', road: 'BUILD A ROAD' };
+const TRY_NEWS = { ice: 'Four ice mazes, easy to hard. On ice the marble slides until something stops it',
+                   road: 'Three chasms. Push crates into the gaps to make a road across' };
 const PLAZA_AT = { 2: 'K1', 3: 'K2', 4: 'K2~', 5: 'K3', 6: 'K3~', 7: 'K4', 8: 'K4~', 9: 'S1', 10: 'S2', 11: 'S2~', 12: 'S3', 13: 'S4~',
                    14: 'W1', 15: 'W2', 16: 'W3', 17: 'W3~', 18: 'B1', 19: 'B2', 20: 'B3', 21: 'B3~', 22: 'B4', 23: 'B2~',
                    24: 'C1', 25: 'C2', 26: 'C2~', 27: 'C3', 28: 'C3~', 29: 'C4',
@@ -4110,7 +4156,7 @@ function buildPlaza(pc) {
   };
   // The floor: a slab to a cell.
   for (let r = 0; r < P.rows; r++) for (let c = 0; c < P.cols; c++) {
-    if (!G.cells[r][c].void && !('tile' in G.cells[r][c])) buildPiece({ t: 'flat', x: X(c), z: Z(r), w: CELL, d: CELL, y: P.y, cell: true });
+    if (!G.cells[r][c].void && !('tile' in G.cells[r][c])) buildPiece({ t: 'flat', x: X(c), z: Z(r), w: CELL, d: CELL, y: P.y, cell: true, pit: G.cells[r][c].pit });
   }
   // The walls, a straight run of wall edges at a time, each end reaching over the corner.
   const wallRun = (x, z, lx, lz) => {
@@ -4218,6 +4264,20 @@ function buildPlaza(pc) {
     W.col = { mesh, pos: mesh.position.clone(), prev: mesh.position.clone(), quat: q, inv: q.clone(), half: new Vector3(CRATE / 2, CRATE_H / 2, CRATE / 2),
               delta: new Vector3(), ferry: null, holo: null, pad: null, obstacle: 'weight', crate: W };
     colliders.push(W.col); P.crates.push(W);
+  }
+  // The gaps a crate can fill: an amber rim round each, the crates' own colour.
+  P.pits = [];
+  for (const col of colliders) if (col.pit && col.cell && Math.abs(col.pos.y + col.half.y - P.y) < 0.01) {
+    const c = Math.floor((col.pos.x - P.x0) / CELL), r = Math.floor((P.z0 - col.pos.z) / CELL);
+    if (c < 0 || c >= P.cols || r < 0 || r >= P.rows) continue;
+    if (!P.mats.pit) P.mats.pit = new MeshBasicMaterial({ color: 0xFFB250, toneMapped: false });
+    const rim = new Group();
+    for (const [dx, dz, w, d] of [[0, 1, 1, 0], [0, -1, 1, 0], [1, 0, 0, 1], [-1, 0, 0, 1]]) {
+      const bar = new Mesh(new BoxGeometry(w ? CELL - 0.1 : 0.09, 0.05, d ? CELL - 0.1 : 0.09), P.mats.pit);
+      bar.position.set(P.X(c) + dx * (CELL / 2 - 0.1), P.y + 0.03, P.Z(r) - dz * (CELL / 2 - 0.1)); rim.add(bar);
+    }
+    levelGroup.add(rim);
+    P.pits.push({ c, r, col, rim });
   }
   // The turning sections: a square of road over the gap on a pivot, lit along the road it makes, with a
   // railing on each side it does not join, the way a bridge has parapets. Only the joined sides are open.
@@ -4408,7 +4468,7 @@ function glyphTex(ch) {
     g.filter = 'none'; g.fillStyle = '#FFFFFF'; g.fillText(ch, 64, 70);
   }));
 }
-const CRATE = 1.5, CRATE_H = 1.1, CRATE_SLIDE = 0.3, TURN_T = 0.45, RAIL_H = 0.55;
+const CRATE = 1.5, CRATE_H = 1.1, CRATE_SLIDE = 0.3, CRATE_DROP = 0.22, TURN_T = 0.45, RAIL_H = 0.55;
 const turnGlyph = canvasTex(128, 128, (g) => {          // a lever's face: an arrow turning clockwise round the rim
   g.fillStyle = '#000'; g.fillRect(0, 0, 128, 128);
   const arrow = (w) => {
@@ -4540,7 +4600,7 @@ const plazaWall = (e) => e === 'wall' || !!(e && (e.source || e.receptor));   //
 const pzRotCW = (m) => ((m << 1) & 15) | (m >> 3);          // north to east, east to south, south to west, west to north
 const plazaEdge = (P, c, r, d) => (d === 'n' ? P.grid.h[r + 1][c] : d === 's' ? P.grid.h[r][c] : d === 'e' ? P.grid.v[r][c + 1] : P.grid.v[r][c]);
 function crateTouch(W, n, rel) {
-  if (W.moving || Math.abs(n.y) > 0.3) return;
+  if (W.moving || W.sunk || Math.abs(n.y) > 0.3) return;
   const ax = Math.abs(n.x) > 0.9 ? 'x' : Math.abs(n.z) > 0.9 ? 'z' : null;
   if (!ax) { W.pushT = 0; return; }                    // on a corner: no push
   const dx = ax === 'x' ? -Math.sign(n.x) : 0, dz = ax === 'z' ? -Math.sign(n.z) : 0;
@@ -4554,9 +4614,10 @@ function tryPush(W, dx, dz) {
   const dir = dc > 0 ? 'e' : dc < 0 ? 'w' : dr > 0 ? 'n' : 's';
   const ok = tc >= 0 && tc < P.cols && tr >= 0 && tr < P.rows && plazaEdge(P, W.c, W.r, dir) === null &&
              !P.grid.cells[tr][tc].void && !('tile' in P.grid.cells[tr][tc]) &&
-             !P.crates.some((o) => o !== W && ((o.c === tc && o.r === tr) || (o.moving && o.tc === tc && o.tr === tr)));
+             !P.crates.some((o) => o !== W && !o.sunk && ((o.c === tc && o.r === tr) || (o.moving && o.tc === tc && o.tr === tr)));
   if (!ok) { if (simT - W.blockT > 0.5) { W.blockT = simT; sound('knock'); } return; }
   W.moving = true; W.t = 0; W.fc = W.c; W.fr = W.r; W.tc = tc; W.tr = tr;
+  W.into = (P.pits || []).find((q) => q.c === tc && q.r === tr && !q.col.pit.filled) || null;   // over a gap: it will drop in
   sound('scrape');
 }
 /* The beam: from the lamp, straight on over walls and gates, turned by each
@@ -4603,12 +4664,25 @@ function plazaMove() {
   for (const P of plazas) for (const T of P.tiles) if (T.moving > 0) T.moving -= STEP;
   for (const P of plazas) for (const W of P.crates) {
     if (!W.moving) continue;
+    if (W.drop !== undefined) {                         // into the gap: down until its top is the road, and the gap is road
+      W.drop = Math.min(1, W.drop + STEP / CRATE_DROP);
+      W.col.prev.copy(W.col.pos); W.col.pos.y = P.y + CRATE_H / 2 - (CRATE_H - 0.006) * ease(W.drop); W.mesh.position.copy(W.col.pos);
+      if (W.drop >= 1) { W.moving = false; W.drop = undefined; }
+      continue;
+    }
     W.t = Math.min(1, W.t + STEP / CRATE_SLIDE);
     const u = ease(W.t);
     W.col.prev.copy(W.col.pos);
     W.col.pos.set(P.X(W.fc) + (P.X(W.tc) - P.X(W.fc)) * u, P.y + CRATE_H / 2, P.Z(W.fr) + (P.Z(W.tr) - P.Z(W.fr)) * u);
     W.mesh.position.copy(W.col.pos);
-    if (W.t >= 1) { W.moving = false; W.c = W.tc; W.r = W.tr; }
+    if (W.t >= 1) {
+      W.moving = false; W.c = W.tc; W.r = W.tr;
+      if (W.into) {                                     // it drops in: the gap is road from now
+        const G = W.into; W.into = null; W.sunk = G; W.moving = true; W.drop = 0;
+        G.col.pit.filled = true; G.col.mesh.visible = true; G.rim.visible = false;
+        sound('thunk'); burst(P.X(W.c), P.y + 0.2, P.Z(W.r), 0xFFB250, 16, 2.4);
+      }
+    }
   }
 }
 function flyKey(K, to) {
@@ -4692,9 +4766,10 @@ function resetPlaza(P, quiet) {
     T.moving = TURN_T; T.setArms();
     if (quiet) { T.moving = 0; T.shown = T.turn; }
   }
+  for (const G of P.pits || []) if (G.col.pit.filled) { G.col.pit.filled = false; G.col.mesh.visible = false; G.rim.visible = true; moved = true; }
   for (const W of P.crates) {                           // every crate back where it stood
     if (W.c !== W.c0 || W.r !== W.r0 || W.moving) moved = true;
-    W.moving = false; W.c = W.fc = W.tc = W.c0; W.r = W.fr = W.tr = W.r0;
+    W.moving = false; W.c = W.fc = W.tc = W.c0; W.r = W.fr = W.tr = W.r0; W.sunk = null; W.into = null; W.drop = undefined;
     W.col.pos.set(P.X(W.c0), P.y + CRATE_H / 2, P.Z(W.r0)); W.col.prev.copy(W.col.pos); W.mesh.position.copy(W.col.pos);
     if (!quiet) burst(W.col.pos.x, P.y + 0.3, W.col.pos.z, 0xFFB250, 10, 2);
   }
@@ -5039,6 +5114,7 @@ function buildPiece(pc) {
   }
   if (pc.lane) c.lane = pc.lane;
   if (pc.cell) c.cell = true;                           // a puzzle square's floor tile
+  if (pc.pit) { c.pit = { filled: false }; mesh.visible = false; }   // a gap: road only once a crate fills it
   if (pc.crack) buildCrackSlab(c, pc, w, d);
   if (pc.dark !== undefined) {                          // a dark road: solid only once its switch is on
     const S = switches[pc.dark];
@@ -5182,6 +5258,7 @@ function collide(c, dt) {
   if (c.gate && c.gate.state === 'open') return;         // an open gate in a puzzle square
   if (c.magnet && !c.magnet.P.charged) return;            // a charged floor pushes only a charged marble away
   if (c.arm && !c.arm.on) return;                         // a turning section's railing, on a side its road joins
+  if (c.pit && !c.pit.filled) return;                     // a gap no crate has filled
   _L.subVectors(ball.p, c.pos).applyQuaternion(c.inv);
   const h = c.half;
   if (Math.abs(_L.x) > h.x + R || Math.abs(_L.y) > h.y + R || Math.abs(_L.z) > h.z + R) return;
@@ -5965,6 +6042,9 @@ const PLAZA_NEWS = {
   I2: 'Snow stops the marble on it. Where can you stop?',
   I3: 'Slide over a hole and you drop. Plan around them',
   I4: 'Plan the whole way out before the first push',
+  P1: 'A crate pushed into a gap fills it. Then you can roll across',
+  P2: 'Two rows of gaps: push one crate over a filled gap into the next',
+  P3: 'Four crates. Which goes where, and in what order?',
 };
 const PLAZA_NOTE_T = 7;
 function drawNews() {
@@ -12337,7 +12417,7 @@ if (HARNESS) {
     flames: () => flames.map((F) => ({ lines: F.lines.map((L) => { const st = flameState(L, simT); return { active: st.active, h: +st.h.toFixed(2), offFor: +st.offFor.toFixed(3), z: L.z }; }) })),
     cracks: () => cracks.map((c) => ({ state: c.crack.state, z: c.pos.z })),
     plaza: () => plazas.map((P) => ({ held: P.held ? P.held.n : 0, onPad: P.onPad, x0: P.x0, z0: P.z0, y: P.y, cols: P.cols, rows: P.rows,
-                                      gates: P.gates.map((g) => ({ ek: g.ek, state: g.state })), crates: P.crates.map((W) => ({ c: W.c, r: W.r, moving: W.moving })),
+                                      gates: P.gates.map((g) => ({ ek: g.ek, state: g.state })), crates: P.crates.map((W) => ({ c: W.c, r: W.r, moving: W.moving, sunk: !!W.sunk })),
                                       tiles: P.tiles.map((T) => ({ c: T.c, r: T.r, mask: T.mask, moving: T.moving > 0 })), charged: P.charged, lit: P.lit,
                                       mirrors: P.mirrors.map((M) => ({ c: M.c, r: M.r, m: M.m })), stands: P.stands.map((s) => ({ c: s.c, r: s.r, n: s.key ? s.key.n : 0 })),
                                       view: +plazaView.toFixed(3), cam: P.cam && { pos: P.cam.pos.toArray().map((v) => +v.toFixed(2)), at: P.cam.at.toArray().map((v) => +v.toFixed(2)) } })),
