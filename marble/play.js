@@ -2794,7 +2794,14 @@ function buildLoop(pc) {
   }
   bars.count = k;
   levelGroup.add(bars);
+  L.look = { surface, back, walls, bars, w: pc.w };
   loopsIn.push(L);
+}
+// A loop dressed in a world's rail: the neon city's gridded glass is every world's default; Tokyo Drift gives it its gold rail.
+function loopLook(L, top, side, lineHex) {
+  const K = L.look;
+  if (!K) return;
+  K.surface.material = K.back.material = top; K.walls.material = side; K.bars.material.color.setHex(lineHex);
 }
 // Every physics step: the loop's surface against the marble.
 function loopContact(L) {
@@ -4987,6 +4994,8 @@ function setTopUV(mesh, perPiece) {
   uv.needsUpdate = true;
 }
 function restoreCourse() {
+  const NM = neonMats.glowgrid || (neonMats.glowgrid = neonMaterials('glowgrid'));
+  for (const L of loopsIn) loopLook(L, NM.top, NM.side, 0xFF8AE8);
   for (const c of colliders) {
     if (c.obstacle) continue;
     c.mesh.castShadow = true;                             // (the city turns this off again: see neonCourse)
@@ -6785,7 +6794,21 @@ WORLDS_ADD('valley', (w) => {
   };
 });
 
-// ---- 5. Neo-Tokyo: the dystopian city, the course an elevated rail through its streets ----
+// ---- 5. Tokyo Drift: the city, the course an elevated rail through its streets ----
+/* TOKYO DRIFT (owner, 2026-09-28, of the dystopian city below: "I like this
+   even though it is not dystopian. It just feels japanese. We can just call
+   this level Tokyo Drift. So now I want you to lean into the Tokyo and
+   Japanese iconography and symbolism and fill the world with that visual
+   language ... The loop needs to be the same material as the current gold
+   rail ... can we make the metro trail a little different than the last
+   world?"). So: a scramble crossing where the traffic stops and the crowd
+   crosses every way at once; a temple off the avenue (a great gate with its
+   giant red lantern, stone lanterns, the main hall, a five-storey pagoda);
+   tiled roofs curving up at the eaves on the low buildings; carp streamers on
+   the wind; sakura petals drifting across the rail; a festival down a side
+   street; the Great Wave on a wall; Tokyo Tower at the avenue's end and Fuji
+   on the horizon; a bullet train and a line-green commuter train; the signs
+   of an everyday Tokyo street. The link opens it as #tokyo (and #dystopia). */
 /* THE DYSTOPIAN CITY (owner, 2026-09-28, of a first try in a Mad Max desert:
    "This is not what I had in mind. I need it to match the richness of the
    first neon city world we build. There need to be more buildings and the
@@ -7022,8 +7045,25 @@ function tokyoCourseMaterials() {
     laneTop: [null, 0xB6F04C, 0xB48EFF].map((c) => c && hazed(edgeGlow(new MeshStandardMaterial({ map: deck, roughness: 0.78 }), c))),
     laneSide: [null, ['#D8FF9A', 0x8FD83A], ['#D6C4FF', 0x9A6BF0]].map((l) => l && side(l[0], null, l[1])),
     cellTop: hazed(new MeshStandardMaterial({ map: yard, roughness: 0.9 })),
+    // The loop in the same gold rail: pale concrete, a warm line a little in from each edge, its low walls lit warm.
+    loopTop: (w) => loopTops[w] || (loopTops[w] = hazed(new MeshStandardMaterial({ map: deck, roughness: 0.78, emissive: 0xFFFFFF, emissiveMap: loopLines(w) }))),
+    loopWall: hazed(new MeshStandardMaterial({ color: 0xE6DED0, roughness: 0.8, emissive: 0xFFD8A8, emissiveIntensity: 0.35 })),
   };
   return tokyoMats;
+}
+const loopTops = {};
+function loopLines(w) {                                   // across a loop's band (u 0 to w/2 in its uv), a warm line 0.3 m in from each edge
+  const t = canvasTex(256, 4, (g) => {
+    const img = g.createImageData(256, 4), f0 = 0.3 / w;
+    for (let x = 0; x < 256; x++) {
+      const f = x / 255, d = Math.min(Math.abs(f - f0), Math.abs(f - (1 - f0))) * w;   // metres from the nearer line
+      const k = Math.min(1, Math.exp(-d * d / 0.0025) + Math.exp(-d * d / 0.03) * 0.3) * 255;
+      for (let y = 0; y < 4; y++) { const i = (y * 256 + x) * 4; img.data[i] = k; img.data[i + 1] = k * 0.89; img.data[i + 2] = k * 0.74; img.data[i + 3] = 255; }
+    }
+    g.putImageData(img, 0, 0);
+  });
+  t.repeat.set(2 / w, 1);
+  return t;
 }
 /* The course in the city. As in the neon city, the slabs cast no shadow. A
    dark road here is a ghost of a road, see-through until its switch is on,
@@ -7046,6 +7086,7 @@ function tokyoCourse() {
     }
     c.mesh.material = [side, side, top, side, side, side]; setTopUV(c.mesh, !!c.cell);
   }
+  for (const L of loopsIn) loopLook(L, M.loopTop(L.look.w), M.loopWall, 0xFFE2BC);
 }
 // Many plain shapes, each placed by a matrix and given a colour, made into one geometry with vertex colours: many things in one draw.
 function paintedModel(parts) {
@@ -7110,6 +7151,87 @@ function makePlume(G, colour, sizes, opacities, cap, tex, order) {
       layers.forEach((L, k) => { L.geo.setDrawRange(0, counts[k]); L.geo.attributes.position.needsUpdate = true; });
     },
   };
+}
+/* TOKYO'S TRAINS, not the neon city's (owner: "can we make the metro trail a
+   little different than the last world?"). On the elevated lines beside the
+   rail, a bullet train: white, a long flat nose at each end, the blue stripe
+   under a row of lit windows. Crossing under it at the side streets, a
+   commuter train: stainless steel, a flat face, a band of line green. Both
+   are one lofted body each, +x forward, like the city's sky train. */
+const trainBand = (g, W, H, v0, v1, fill, u0 = 0, u1 = 1) => { g.fillStyle = fill; g.fillRect(u0 * W, (1 - v1) * H, (u1 - u0) * W, (v1 - v0) * H); };
+function shinkansenModel(env) {
+  const TL = 52, NOSE = 11, W = 2048, H = 256, nu = NOSE / TL, r = seeded(12);
+  const prof = (t) => {
+    const d = Math.min(t, 1 - t) * TL;
+    if (d >= NOSE) return { w: 1.25, top: 1.45, bot: -1.25 };
+    const k = d / NOSE;
+    return { w: 1.25 * (0.16 + 0.84 * Math.sqrt(k)), top: -0.8 + 2.25 * (1 - Math.pow(1 - k, 2.2)), bot: -1.25 + 0.3 * (1 - k) * (1 - k) };
+  };
+  const B = (g, ...a) => trainBand(g, W, H, ...a), sides = [[0.265, 0.315], [0.685, 0.735]], lit = [];
+  const map = canvasTex(W, H, (g) => {
+    B(g, 0, 1, '#F2F4F6');
+    B(g, 0, 0.1, '#5A6068'); B(g, 0.9, 1, '#5A6068');                          // the skirt over the bogies
+    for (const [a, b] of [[0.19, 0.235], [0.765, 0.81]]) B(g, a, b, '#1B4DA8');   // the blue stripe, and a thin one above it
+    for (const [a, b] of [[0.245, 0.252], [0.748, 0.755]]) B(g, a, b, '#1B4DA8');
+    for (const [a, b] of sides) {
+      B(g, a, b, '#26303C', nu + 0.02, 1 - nu - 0.02);
+      for (let x = (nu + 0.025) * W; x < (1 - nu - 0.025) * W - 20; x += 36) { g.fillStyle = '#39485A'; g.fillRect(x, (1 - b) * H + 2, 24, (b - a) * H - 4); lit.push(r() < 0.85); }
+    }
+    for (const u of [1 / 3, 2 / 3]) B(g, 0.1, 0.9, '#3A4048', u - 0.002, u + 0.002);   // where the cars meet
+    for (const [u0, u1] of [[nu * 0.42, nu * 0.8], [1 - nu * 0.8, 1 - nu * 0.42]]) {     // a cab windscreen on each nose
+      const gr = g.createLinearGradient(0, 0.36 * H, 0, 0.64 * H);
+      gr.addColorStop(0, '#101826'); gr.addColorStop(0.5, '#3A4C66'); gr.addColorStop(1, '#101826');
+      g.fillStyle = gr; g.fillRect(u0 * W, 0.36 * H, (u1 - u0) * W, 0.28 * H);
+    }
+  });
+  const glow = canvasTex(W, H, (g) => {
+    B(g, 0, 1, '#000');
+    let k = 0;
+    for (const [a, b] of sides) for (let x = (nu + 0.025) * W; x < (1 - nu - 0.025) * W - 20; x += 36) if (lit[k++]) { g.fillStyle = '#FFD9A8'; g.fillRect(x, (1 - b) * H + 2, 24, (b - a) * H - 4); }
+    for (const v of [0.205, 0.795]) { g.fillStyle = '#FFFFFF'; g.fillRect(0.984 * W, (1 - v - 0.02) * H, 0.012 * W, 0.04 * H); g.fillStyle = '#FF2D48'; g.fillRect(0.004 * W, (1 - v - 0.02) * H, 0.012 * W, 0.04 * H); }
+  });
+  const train = new Group();
+  train.add(new Mesh(loft(TL, prof, 110, 36), new MeshStandardMaterial({ map, emissive: 0xFFFFFF, emissiveMap: glow, metalness: 0.25, roughness: 0.3, envMap: env })));
+  return train;
+}
+function commuterModel(env) {
+  const TL = 54, NOSE = 1.6, W = 2048, H = 256, nu = NOSE / TL, r = seeded(18);
+  const prof = (t) => {
+    const d = Math.min(t, 1 - t) * TL;
+    if (d >= NOSE) return { w: 1.4, top: 1.55, bot: -1.2 };
+    if (d >= 0.25) { const k = (d - 0.25) / (NOSE - 0.25); return { w: 1.4 * (0.9 + 0.1 * k), top: 1.3 + 0.25 * k, bot: -1.15 - 0.05 * k }; }
+    const k = Math.sqrt(d / 0.25);                                             // a flat face, rounded into the body
+    return { w: 1.26 * k + 0.02, top: -0.2 + 1.5 * k, bot: -1.15 };
+  };
+  const B = (g, ...a) => trainBand(g, W, H, ...a), wins = [[0.255, 0.335], [0.665, 0.745]], lit = [];
+  const map = canvasTex(W, H, (g) => {
+    B(g, 0, 1, '#C4C9CC');
+    for (let x = 0; x < W; x += 12) { g.fillStyle = 'rgba(255,255,255,0.12)'; g.fillRect(x, 0, 2, H); }   // the corrugation of stainless steel
+    B(g, 0, 0.08, '#4A5056'); B(g, 0.92, 1, '#4A5056');
+    for (const [a, b] of [[0.345, 0.375], [0.625, 0.655]]) B(g, a, b, '#7DC242');   // the line green, under the roof
+    for (let car = 0; car < 3; car++) {
+      const u0 = car / 3, u1 = (car + 1) / 3;
+      for (const [a, b] of wins) for (let k = 0; k < 6; k++) {
+        const w0 = u0 + (u1 - u0) * (0.06 + k * 0.155), w1 = w0 + (u1 - u0) * 0.1;
+        if (w0 < nu + 0.005 || w1 > 1 - nu - 0.005) continue;
+        B(g, a, b, '#2A3440', w0, w1); lit.push([a, b, w0, w1, r() < 0.9]);
+      }
+      for (const [a0, a1] of [[0.09, 0.335], [0.665, 0.91]]) for (let k = 0; k < 4; k++) {   // doors, framed in green
+        const d0 = u0 + (u1 - u0) * (0.13 + k * 0.23);
+        B(g, a0, a1, '#7DC242', d0 - 0.002, d0 + 0.014); B(g, a0 + 0.01, a1 - 0.01, '#8E969C', d0, d0 + 0.012);
+      }
+      B(g, 0.08, 0.92, '#3A4048', u1 - 0.0015, u1 + 0.0015);
+    }
+    for (const [u0, u1] of [[0, nu * 0.95], [1 - nu * 0.95, 1]]) { B(g, 0.12, 0.88, '#16181C', u0, u1); B(g, 0.3, 0.7, '#7DC242', u0, u1); B(g, 0.34, 0.66, '#1E2A36', u0, u1); }   // the black face with its green band
+  });
+  const glow = canvasTex(W, H, (g) => {
+    B(g, 0, 1, '#000');
+    for (const [a, b, w0, w1, on] of lit) if (on) B(g, a, b, '#F4F6EE', w0, w1);
+    for (const v of [0.2, 0.8]) { B(g, v - 0.03, v + 0.03, '#FFFFFF', 0.996, 1); B(g, v - 0.03, v + 0.03, '#FF2D48', 0, 0.004); }
+  });
+  const train = new Group();
+  train.add(new Mesh(loft(TL, prof, 100, 28), new MeshStandardMaterial({ map, emissive: 0xFFFFFF, emissiveMap: glow, metalness: 0.55, roughness: 0.35, envMap: env })));
+  return train;
 }
 const JP = '"Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", "YuGothic", "Meiryo", "Noto Sans CJK JP", "Noto Sans JP", sans-serif';
 /* THE CITY'S KIT, made once and kept from course to course (userData.keep:
@@ -7245,11 +7367,11 @@ function tokyoKit() {
      words a Tokyo street would carry, a few of them this city's own: oxygen,
      rations, clean water, cyber-bodies, "under surveillance". */
   const SV = [['ラーメン', '#C8202A', '#FFFFFF'], ['居酒屋', '#141414', '#FF6A3A', 1], ['薬局', '#F4F2EC', '#1E8F4E'], ['寿司', '#1B3F8A', '#FFFFFF'],
-              ['電脳', '#0E0E14', '#40E8FF', 1], ['監視中', '#F2C230', '#141414'], ['酸素', '#29B8C8', '#0E1A20'], ['義体', '#101014', '#FF4FC8', 1],
-              ['質屋', '#F4F0E6', '#141414'], ['喫茶', '#5A3A28', '#F8E6C8'], ['配給所', '#B01E24', '#FFFFFF'], ['浄水', '#1F66C8', '#FFFFFF'],
-              ['宿', '#6E1418', '#F2C45A'], ['両替', '#1E7A45', '#FFFFFF'], ['東京', '#FFFFFF', '#D0202A'], ['立入禁止', '#D8262E', '#FFFFFF']];
+              ['焼き鳥', '#141414', '#FF4A3A', 1], ['天ぷら', '#F2C230', '#141414'], ['旅館', '#3A2A1E', '#F2E2C0'], ['蕎麦', '#101014', '#40E8FF', 1],
+              ['銭湯', '#F4F0E6', '#1F66C8'], ['喫茶', '#5A3A28', '#F8E6C8'], ['甘味処', '#B01E24', '#FFFFFF'], ['和菓子', '#1E7A45', '#FFFFFF'],
+              ['宿', '#6E1418', '#F2C45A'], ['酒場', '#141414', '#FF4FC8', 1], ['東京', '#FFFFFF', '#D0202A'], ['うどん', '#F4F2EC', '#C8202A']];
   const SHZ = [['カラオケ', '#FF4FA0', '#FFFFFF'], ['ホテル', '#1B2A6E', '#FFD23F'], ['24時間', '#FFFFFF', '#D0202A'], ['営業中', '#1E8F4E', '#FFFFFF'],
-               ['空室', '#141414', '#40E8FF', 1], ['ゲーム', '#6A2AC8', '#FFFFFF'], ['地下鉄', '#1F66C8', '#FFFFFF'], ['出口', '#F2C230', '#141414']];
+               ['渋谷', '#141414', '#40E8FF', 1], ['ゲーム', '#6A2AC8', '#FFFFFF'], ['地下鉄', '#1F66C8', '#FFFFFF'], ['出口', '#F2C230', '#141414']];
   const AW = 1024, AH = 1280, uv = (x, y, w, h) => [x / AW, (x + w) / AW, 1 - (y + h) / AH, 1 - y / AH];
   const atlas = kept(canvasTex(AW, AH, (g) => {
     const panel = (x, y, w, h, [txt, bg, fg, neon], vertical) => {
@@ -7295,9 +7417,9 @@ function tokyoKit() {
   return tokyoKitMemo;
 }
 /* THE SCREENS on the corners, two frames each, turning over now and then:
-   koi in dark water, 未来 ("future"), the watching eye 監視中 ("under
-   surveillance"), a steaming bowl of ramen, an air warning (大気汚染 危険,
-   "air pollution, danger"), a lucky cat waving. */
+   koi in dark water, 東京 ("Tokyo") then 渋谷 ("Shibuya"), Fuji at dusk, a
+   steaming bowl of ramen, a daruma (its second eye painted in when the wish
+   comes true), a lucky cat waving. */
 const SCREENS = [
   (g, k) => {
     g.fillStyle = '#082440'; g.fillRect(0, 0, 256, 160);
@@ -7312,17 +7434,18 @@ const SCREENS = [
   },
   (g, k) => {
     g.fillStyle = '#C8202A'; g.fillRect(0, 0, 256, 160);
-    g.fillStyle = '#FFFFFF'; g.font = `900 ${k ? 64 : 96}px ${JP}`; g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillText(k ? '未来都市' : '未来', 128, 84, 236);
+    g.fillStyle = '#FFFFFF'; g.font = `900 ${k ? 84 : 96}px ${JP}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(k ? '渋谷' : '東京', 128, 84, 236);
     g.fillStyle = 'rgba(0,0,0,0.16)'; for (let y = 0; y < 160; y += 4) g.fillRect(0, y, 256, 2);
   },
   (g, k) => {
-    g.fillStyle = '#07080C'; g.fillRect(0, 0, 256, 160);
-    g.strokeStyle = '#F4F4F4'; g.lineWidth = 6;
-    g.beginPath(); g.moveTo(40, 70); g.quadraticCurveTo(128, k ? 30 : 10, 216, 70); g.quadraticCurveTo(128, k ? 110 : 130, 40, 70); g.stroke();
-    g.fillStyle = '#E8202A'; g.beginPath(); g.arc(128 + (k ? 26 : 0), 70, 26, 0, 7); g.fill();
-    g.fillStyle = '#050505'; g.beginPath(); g.arc(128 + (k ? 26 : 0), 70, 11, 0, 7); g.fill();
-    g.fillStyle = '#FFD23F'; g.font = `900 26px ${JP}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('監視中', 128, 142);
+    const lg = g.createLinearGradient(0, 0, 0, 160);
+    lg.addColorStop(0, '#2A4A7A'); lg.addColorStop(0.62, '#F4A07A'); lg.addColorStop(1, '#F8D8A8');
+    g.fillStyle = lg; g.fillRect(0, 0, 256, 160);
+    g.fillStyle = '#E8402E'; g.beginPath(); g.arc(176, 72 + k * 8, 24, 0, 7); g.fill();
+    g.fillStyle = '#3A4A6A'; g.beginPath(); g.moveTo(16, 160); g.lineTo(104, 56); g.lineTo(152, 56); g.lineTo(240, 160); g.closePath(); g.fill();
+    g.fillStyle = '#F4F4F2'; g.beginPath(); g.moveTo(104, 56); g.lineTo(152, 56); g.lineTo(166, 74); g.lineTo(150, 70); g.lineTo(138, 82); g.lineTo(124, 70); g.lineTo(106, 78); g.lineTo(92, 72); g.closePath(); g.fill();
+    g.fillStyle = '#FFFFFF'; g.font = `900 22px ${JP}`; g.textAlign = 'left'; g.textBaseline = 'middle'; g.fillText('富士山', 12, 20);
   },
   (g, k) => {
     g.fillStyle = '#3A1A0C'; g.fillRect(0, 0, 256, 160);
@@ -7334,10 +7457,15 @@ const SCREENS = [
     g.fillStyle = '#FFFFFF'; g.font = `900 24px ${JP}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('ラーメン', 128, 142);
   },
   (g, k) => {
-    g.fillStyle = '#0C1612'; g.fillRect(0, 0, 256, 160);
-    g.fillStyle = '#F4F4F4'; g.font = `900 36px ${JP}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('大気汚染', 128, 36);
-    for (let i = 0; i < 8; i++) { g.fillStyle = i < 6 ? (i < 3 ? '#FFD23F' : '#FF3B30') : '#2A2A2A'; g.fillRect(28 + i * 26, 64, 22, 30); }
-    g.fillStyle = k ? '#FF3B30' : '#5A1010'; g.font = `900 38px ${JP}`; g.fillText('危険', 128, 130);
+    g.fillStyle = '#F4E6C8'; g.fillRect(0, 0, 256, 160);
+    g.fillStyle = '#C8202A'; g.beginPath(); g.ellipse(128, 88, 58, 64, 0, 0, 7); g.fill();
+    g.fillStyle = '#F8F0E0'; g.beginPath(); g.ellipse(128, 76, 34, 28, 0, 0, 7); g.fill();
+    g.strokeStyle = '#1A1A1A'; g.lineWidth = 3;
+    for (const sx of [-1, 1]) { g.beginPath(); g.arc(128 + sx * 14, 74, 9, 0, 7); g.stroke(); }
+    g.fillStyle = '#1A1A1A'; g.beginPath(); g.arc(114, 74, 5, 0, 7); g.fill();
+    if (k) { g.beginPath(); g.arc(142, 74, 5, 0, 7); g.fill(); }
+    for (const sx of [-1, 1]) { g.beginPath(); g.moveTo(128 + sx * 6, 60); g.quadraticCurveTo(128 + sx * 18, 52, 128 + sx * 28, 62); g.stroke(); }
+    g.fillStyle = '#F2C230'; g.font = `900 22px ${JP}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('福', 128, 126);
   },
   (g, k) => {
     g.fillStyle = '#F4E4C4'; g.fillRect(0, 0, 256, 160);
@@ -7351,7 +7479,7 @@ const SCREENS = [
     g.fillStyle = '#1A1A1A'; for (const s of [-1, 1]) { g.beginPath(); g.arc(128 + s * 12, 58, 3.5, 0, 7); g.fill(); }
   },
 ];
-WORLDS_ADD('dystopia', (w) => {
+const tokyoDrift = (w) => {
   const K = tokyoKit(), G = w.group, r = seeded(71), end = courseEnd(), live = !REDUCED, env = tokyoEnvMap() || envTex;
   const pieces = level ? level.pieces : [];
   let lo = 0;
@@ -7364,6 +7492,10 @@ WORLDS_ADD('dystopia', (w) => {
     lg.addColorStop(0, '#1E2E36'); lg.addColorStop(0.45, '#48666C'); lg.addColorStop(0.72, '#C8987E'); lg.addColorStop(0.8, '#F4BE96');
     lg.addColorStop(0.86, '#6A7A78'); lg.addColorStop(1, '#2A3438');
     g.fillStyle = lg; g.fillRect(0, 0, 512, 512);
+    g.fillStyle = 'rgba(88,104,120,0.85)'; g.beginPath(); g.moveTo(170, 420); g.quadraticCurveTo(250, 380, 282, 338); g.lineTo(322, 338);   // Fuji on the horizon
+    g.quadraticCurveTo(354, 380, 434, 420); g.closePath(); g.fill();
+    g.fillStyle = 'rgba(244,240,236,0.9)'; g.beginPath(); g.moveTo(282, 338); g.lineTo(322, 338); g.lineTo(334, 352); g.lineTo(320, 348); g.lineTo(310, 358);
+    g.lineTo(300, 348); g.lineTo(288, 356); g.lineTo(272, 350); g.closePath(); g.fill();
   });
   scene.fog.color.setHex(0x587478); scene.fog.near = 50; scene.fog.far = 360;
   HAZE.col.value.setHex(0xFFB48E); HAZE.k.value = 3; HAZE.dir.set(0.05, 0.06, -1).normalize();
@@ -7404,6 +7536,21 @@ WORLDS_ADD('dystopia', (w) => {
   for (let i = streets.length - 1; i > 0; i--) if (streets[i][0] > streets[i - 1][1] - 6) { streets[i - 1][1] = Math.min(streets[i - 1][1], streets[i][1]); streets.splice(i, 1); }
   const inStreet = (z0, z1) => streets.find(([hi, lowz]) => z0 < hi && z1 > lowz);
   const keepHit = (x0, x1, z0, z1) => keep.find((k) => x1 > k[0] && x0 < k[1] && z1 > k[2] && z0 < k[3]);
+  // TOKYO'S SET PIECES, each at its own side street or stretch of the avenue: a scramble crossing, a temple, a festival street, the Great Wave.
+  const ahead = streets.filter(([a]) => a < -20);
+  const SCR = ahead[0] || null;                            // the scramble crossing: the first side street ahead
+  const MATSURI = ahead.find((st) => st !== SCR) || null, WAVE = ahead.find((st) => st !== SCR && st !== MATSURI) || null;
+  let TEMPLE = null;                                       // a stretch at least 46 m long between side streets, on one side
+  {
+    let hi = Z_TOP; const gaps = [];
+    for (const [a, b] of streets) { if (a < hi) gaps.push([hi, a]); hi = Math.min(hi, b); }
+    const pick = gaps.filter(([a, b]) => a - b >= 46 && a < -10).sort((g1, g2) => Math.abs((g1[0] + g1[1]) / 2 - end * 0.55) - Math.abs((g2[0] + g2[1]) / 2 - end * 0.55))[0];
+    if (pick) {
+      const zc = (pick[0] + pick[1]) / 2, ts = r() < 0.5 ? -1 : 1, xa = CX + ts * IN, xb = CX + ts * (IN + 40);
+      TEMPLE = { s: ts, z0: zc - 21, z1: zc + 21 };
+      keep.push([Math.min(xa, xb) - 0.5, Math.max(xa, xb) + 0.5, TEMPLE.z0 - 1, TEMPLE.z1 + 1, 'all']);
+    }
+  }
 
   // THE BUILDINGS: boxes of five kinds, each style one instanced mesh; a podium of shopfronts under every one.
   const B = { resi: [], glass: [], white: [], grime: [], podium: [] }, tops = [];
@@ -7417,7 +7564,13 @@ WORLDS_ADD('dystopia', (w) => {
   };
   const sign = (cx, cy, cz, wdt, hgt, nx, nz, R) => { quad(cx + nx * 0.03, cy, cz + nz * 0.03, wdt, hgt, nx, nz, R); quad(cx - nx * 0.03, cy, cz - nz * 0.03, wdt, hgt, -nx, -nz, R); };
   const blossoms = [], stacks = [];                        // [x, y, z, size, colour]; the chimneys' tops
+  const roofs = [], koi = [];                              // tiled roofs [x, y, z, half x, height, half z, colour]; carp streamers
   const NEON = [0x40E8FF, 0xFF4FA0, 0xFFB040, 0xB47CFF, 0xFF3B3B];
+  const addKoi = (x, y, z) => {                             // a carp-streamer pole: black, red and blue carp on the wind
+    cyl(props, 0.08, 0.11, 11, 6, 0xD8D0C0, x, y + 5.5, z);
+    for (let k = 0; k < 4; k++) box(props, 0.9, 0.05, 0.05, 0xF2C230, x, y + 11, z, k * Math.PI / 4);
+    [4, 3.2, 2.6].forEach((L, k) => koi.push({ x, y: y + 10.1 - k * 1.45, z, L, c: [0x2A2A30, 0xD8342A, 0x2A5AB8][k], ph: r() * 9 }));
+  };
   const roofStuff = (xa, xb, z0, z1, roof) => {            // what a low roof carries, seen from the rail
     const n = 2 + Math.floor(r() * 3);
     for (let k = 0; k < n; k++) {
@@ -7461,7 +7614,9 @@ WORLDS_ADD('dystopia', (w) => {
       for (const zc of [z0 + 0.12, z1 - 0.12]) box(glows, 0.16, roof - GROUND - 7, 0.16, c, face + into * 0.1, (GROUND + 6.5 + roof) / 2, zc);
     }
     if (roof < lo - 3) {
-      roofStuff(xa, xb, z0, z1, roof);
+      if (r() < 0.45) roofs.push([cx, roof, cz, sx / 2, 2.2 + r() * 1.6, sz / 2, r() < 0.8 ? 0x3A4250 : 0x4E7A6A]);   // a tiled roof, the old way
+      else roofStuff(xa, xb, z0, z1, roof);
+      if (koi.length < 9 && r() < 0.12) addKoi(cx + (r() - 0.5) * sx * 0.3, roof, cz + (r() - 0.5) * sz * 0.3);
       if (s > 0 && stacks.length < 3 && r() < 0.2) {       // a chimney, downwind of the rail, venting
         const x = cx + 2, h = 16 + r() * 8;
         for (let k = 0; k < 3; k++) cyl(props, 1.0 - k * 0.1, 1.1 - k * 0.1, h / 3, 14, k % 2 ? 0xE8E4DC : 0xB8262E, x, roof + h / 6 + k * h / 3, cz);
@@ -7486,6 +7641,7 @@ WORLDS_ADD('dystopia', (w) => {
     const wd = 12 + r() * 18, z1 = z, z0 = z - wd, st = inStreet(z0, z1);
     if (st) { z = st[1]; continue; }
     const face = CX + s * (IN + 21 + r() * 6), depth = 16 + r() * 22, xa = s < 0 ? face - depth : face, xb = s < 0 ? face : face + depth;
+    if (keepHit(xa, xb, z0, z1)?.[4] === 'all') { z = z0 - 2; continue; }
     const roof = GROUND + 50 + r() * 120, style = ['glass', 'white', 'resi', 'glass', 'grime'][Math.floor(r() * 5)], tint = 0.7 + r() * 0.3;
     addBox('podium', (xa + xb) / 2, GROUND, (z0 + z1) / 2, xb - xa, 6, wd, tint);
     addBox(style, (xa + xb) / 2, GROUND + 6, (z0 + z1) / 2, xb - xa, roof - GROUND - 6, wd, tint);
@@ -7587,10 +7743,78 @@ WORLDS_ADD('dystopia', (w) => {
     const len = 6 + r() * 10, c = r() < 0.7 ? 0xFF3A2A : [0xFFF0D8, 0xFFB040][Math.floor(r() * 2)];
     for (let k = 0; k < len; k += 1.3) lanterns.push([CX + s * (IN - 0.7), GROUND + 3.3, z - k, c]);
   }
+  // A FESTIVAL down one side street: stalls under striped awnings, each with its lantern, and lanterns strung across overhead.
+  if (MATSURI) {
+    const zc = (MATSURI[0] + MATSURI[1]) / 2;
+    for (const s of [-1, 1]) for (let d = 4; d < 46; d += 3.3) {
+      const x = CX + s * (IN + d);
+      for (const side of [-1, 1]) {
+        const z = zc + side * 4.6;
+        box(props, 2.6, 1.1, 1.6, 0x6A4A32, x, GROUND + 0.55, z);
+        box(props, 2.9, 0.12, 2.1, [0xD8342A, 0x2A5AB8, 0xE8E0D0, 0xF2C230][Math.floor(r() * 4)], x, GROUND + 2.5, z - side * 0.2);
+        for (const dx of [-1.3, 1.3]) box(props, 0.08, 2.4, 0.08, 0x3A2A1E, x + dx, GROUND + 1.2, z + side * 0.7);
+        lanterns.push([x, GROUND + 2.05, z - side * 0.9, 0xFF3A2A]);
+      }
+      for (let k = -5; k <= 5.01; k += 1.25) lanterns.push([x, GROUND + 5.2 - 0.3 * (1 - (k / 5) ** 2), zc + k, Math.round(k / 1.25) % 3 ? 0xFF3A2A : 0xFFF0D8]);
+    }
+  }
   if (lanterns.length) {
     const lm = new InstancedMesh(new SphereGeometry(0.26, 8, 6), hazed(new MeshBasicMaterial({ color: 0xFFFFFF })), lanterns.length);
     lanterns.forEach(([x, y, z, c], i) => { m.compose(pos.set(x, y, z), q.identity(), sc.set(1, 1.35, 1)); lm.setMatrixAt(i, m); lm.setColorAt(i, col.setHex(c)); });
     G.add(lm);
+  }
+  // THE SCRAMBLE CROSSING: stripes corner to corner as well as across, like Shibuya's.
+  if (SCR) {
+    const [za, zb] = SCR, xL = CX - IN + 3.5, xR = CX + IN - 3.5;
+    for (const [x0, z0, x1, z1] of [[xL, za - 1.5, xR, zb + 1.5], [xR, za - 1.5, xL, zb + 1.5]]) {
+      const len = Math.hypot(x1 - x0, z1 - z0), dx = (x1 - x0) / len, dz = (z1 - z0) / len, ry = Math.atan2(-dx, -dz);
+      for (let k = 1.2; k < len - 1; k += 1.1) box(props, 3.4, 0.03, 0.55, 0xD2D2CA, x0 + dx * k, GROUND + 0.025, z0 + dz * k, ry);
+    }
+    for (const s of [-1, 1]) for (let z = zb + 1; z < za - 0.5; z += 1.1) box(props, 3.2, 0.03, 0.55, 0xD2D2CA, CX + s * (IN - 1.7), GROUND + 0.025, z);
+  }
+  // A torii: two vermilion pillars, a black cap over a red lintel, a tie beam; its beams run along its own x.
+  const torii = (x, y, z, ry, H, Wd) => {
+    for (const k of [-1, 1]) cyl(props, 0.28, 0.32, H, 10, 0xD8342A, x + Math.cos(ry) * k * Wd / 2, y + H / 2, z - Math.sin(ry) * k * Wd / 2);
+    box(props, Wd + 1.8, 0.42, 0.62, 0x1E1E22, x, y + H + 0.24, z, ry);
+    box(props, Wd + 1.4, 0.34, 0.5, 0xD8342A, x, y + H - 0.16, z, ry);
+    box(props, Wd + 0.5, 0.3, 0.34, 0xD8342A, x, y + H - 1.3, z, ry);
+  };
+  const toro = (x, y, z) => {                              // a stone lantern, its fire box lit
+    box(props, 0.72, 0.26, 0.72, 0x8E8A82, x, y + 0.13, z); cyl(props, 0.15, 0.19, 1.0, 8, 0x8E8A82, x, y + 0.76, z);
+    box(props, 0.62, 0.12, 0.62, 0x8E8A82, x, y + 1.32, z); box(glows, 0.42, 0.42, 0.42, 0xFFC878, x, y + 1.59, z);
+    roofs.push([x, y + 1.8, z, 0.44, 0.45, 0.44, 0x8E8A82]);
+  };
+  // THE TEMPLE: a gravel precinct off the avenue, a great gate with its giant red lantern, stone lanterns along the path, the main
+  // hall, a five-storey pagoda, sakura, a torii and a carp pole.
+  if (TEMPLE) {
+    const ts = TEMPLE.s, tz = (TEMPLE.z0 + TEMPLE.z1) / 2, tx = (d) => CX + ts * (IN + d), G0 = GROUND + 0.3;
+    box(props, 40, 0.3, 42, 0xB8B0A0, tx(20), GROUND + 0.15, tz);
+    for (const dz of [-3.4, 3.4]) for (const d of [0.8, 3.2]) cyl(props, 0.34, 0.38, 7, 10, 0xD8342A, tx(d), G0 + 3.5, tz + dz);
+    box(props, 3.4, 0.7, 8.4, 0x8A2A22, tx(2), G0 + 7.1, tz);
+    roofs.push([tx(2), G0 + 7.4, tz, 2.9, 3.1, 5.3, 0x3A4250]);
+    glows.push([new SphereGeometry(1.3, 18, 12), 0xE8402E, placeAt(tx(2), G0 + 4.3, tz, 0, 0, 0, 1, 1.5, 1)]);    // the giant red lantern
+    for (const dy of [-1.95, 1.95]) cyl(props, 0.95, 0.95, 0.3, 16, 0x1E1E22, tx(2), G0 + 4.3 + dy, tz);
+    for (let d = 8; d <= 22; d += 3.5) for (const dz of [-3.2, 3.2]) toro(tx(d), G0, tz + dz);
+    box(props, 12, 6.5, 16, 0xEEE6D8, tx(30), G0 + 3.25, tz);
+    for (let k = -3; k <= 3; k++) cyl(props, 0.3, 0.32, 6.5, 8, 0xD8342A, tx(23.8), G0 + 3.25, tz + k * 2.3);
+    roofs.push([tx(30), G0 + 6.4, tz, 8.2, 5.2, 10.4, 0x3E4854]);
+    const pz = tz - 12;                                     // the pagoda: five storeys, each under its own roof, a bronze spire
+    let py = G0;
+    box(props, 7.2, 1.2, 7.2, 0x9A948A, tx(14), py + 0.6, pz); py += 1.2;
+    for (let i = 0; i < 5; i++) {
+      const bw = 5 - i * 0.55;
+      box(props, bw, 3.2, bw, i % 2 ? 0xD8342A : 0xE8DCC8, tx(14), py + 1.6, pz);
+      roofs.push([tx(14), py + 3.0, pz, bw / 2 + 1.5, 1.5, bw / 2 + 1.5, 0x3A4250]);
+      py += 3.7;
+    }
+    cyl(props, 0.16, 0.28, 7, 8, 0x5A4A38, tx(14), py + 3.5, pz);
+    for (let k = 0; k < 9; k++) cyl(props, 0.55 - k * 0.03, 0.55 - k * 0.03, 0.1, 10, 0x6A5840, tx(14), py + 1 + k * 0.6, pz);
+    torii(tx(9), G0, tz + 12, Math.PI / 2, 6, 4.4);
+    for (const [d, dz] of [[10, 16], [21, 17], [34, -15], [8, -17], [36, 14]]) {
+      cyl(props, 0.18, 0.26, 3.4, 6, 0x3A2A22, tx(d), G0 + 1.7, tz + dz);
+      for (let k = 0; k < 12; k++) blossoms.push([tx(d) + (r() - 0.5) * 3.4, G0 + 3.5 + r() * 2, tz + dz + (r() - 0.5) * 3.4, 0.6 + r() * 0.55, 0]);
+    }
+    addKoi(tx(37), G0, tz + 19);
   }
   // SAKURA on the pavements.
   for (const s of [-1, 1]) for (const [a, b] of runs) for (let z = a - 10 - r() * 10; z > b + 5; z -= 22 + r() * 16) {
@@ -7607,45 +7831,83 @@ WORLDS_ADD('dystopia', (w) => {
     G.add(bm);
   }
 
-  // THE MONORAILS, one on each side just outside the rail: a gunmetal beam with cyan guide lights, a train on each running both ways.
-  const Z_A = Z_TOP + 20, Z_B = Z_BOT - 20, MLEN = Z_A - Z_B;
+  // THE TILED ROOFS: a hip roof whose slopes curve in and turn up at the eaves, the Japanese way, one instanced mesh for all.
+  if (roofs.length) {
+    const roofGeo = new LatheGeometry([[0.06, 1], [0.24, 0.8], [0.44, 0.56], [0.64, 0.33], [0.82, 0.14], [0.95, 0.04], [1.02, 0.02], [1.08, 0.07]].map(([a, b]) => new Vector2(a, b)), 4, Math.PI / 4);
+    const rm = new InstancedMesh(roofGeo, hazed(new MeshStandardMaterial({ roughness: 0.5, metalness: 0.25, flatShading: true, envMap: env, envMapIntensity: 0.4 })), roofs.length);
+    roofs.forEach(([x, y, z, hx, h, hz, c], i) => { m.compose(pos.set(x, y, z), q.identity(), sc.set(hx / 0.7071 * 1.06, h, hz / 0.7071 * 1.06)); rm.setMatrixAt(i, m); rm.setColorAt(i, col.setHex(c)); });
+    G.add(rm);
+  }
+  // KOINOBORI: carp streamers on the wind, fluttering, a scale pattern and an eye at the mouth.
+  const koiT = canvasTex(128, 64, (g) => {
+    g.fillStyle = '#F4F4F2'; g.fillRect(0, 0, 128, 64);
+    g.strokeStyle = 'rgba(40,40,48,0.45)'; g.lineWidth = 2;
+    for (let y = 16; y < 58; y += 7) for (let x = (y % 14 ? 0 : 4); x < 132; x += 8) { g.beginPath(); g.arc(x, y, 4, Math.PI, 0); g.stroke(); }
+    for (const u of [0.25, 0.75]) { g.fillStyle = '#FFFFFF'; g.beginPath(); g.arc(u * 128, 7, 4.5, 0, 7); g.fill(); g.fillStyle = '#101010'; g.beginPath(); g.arc(u * 128, 7, 2.2, 0, 7); g.fill(); }
+    g.fillStyle = 'rgba(255,255,255,0.9)'; g.fillRect(0, 0, 128, 2);
+  });
+  const koiMesh = new InstancedMesh(new CylinderGeometry(0.42, 0.2, 1, 12, 1, true).rotateZ(Math.PI / 2).translate(0.5, 0, 0),
+    hazed(new MeshStandardMaterial({ map: koiT, side: DoubleSide, roughness: 0.6 })), Math.max(1, koi.length));
+  koiMesh.count = koi.length; koiMesh.frustumCulled = false; G.add(koiMesh);
+  koi.forEach((K2, i) => koiMesh.setColorAt(i, col.setHex(K2.c)));
+  const moveKoi = (t) => {
+    koi.forEach((K2, i) => {
+      const f = Math.sin(t * 2.3 + K2.ph), br = 1 + 0.08 * Math.sin(t * 4 + K2.ph);
+      m.compose(pos.set(K2.x, K2.y, K2.z), q.setFromEuler(e.set(0.2 * f, 0.25 * Math.sin(t * 1.3 + K2.ph), -0.12 + 0.08 * Math.sin(t * 1.7 + K2.ph))), sc.set(K2.L, 0.24 * K2.L * br, 0.24 * K2.L * br));
+      koiMesh.setMatrixAt(i, m);
+    });
+    koiMesh.instanceMatrix.needsUpdate = true;
+  };
+  moveKoi(0);
+  // THE BULLET TRAIN LINES, one on each side just outside the rail: a concrete viaduct with parapets, piers, masts for the
+  // overhead wire; a bullet train on each, both ways. Grey and unlit, so none of it reads as more course.
+  const Z_A = Z_TOP + 20, Z_B = Z_BOT - 20, MLEN = Z_A - Z_B, zMid = (Z_A + Z_B) / 2;
   const monos = [{ x: CX - (HW + 3), y: GROUND + 11, dir: -1 }, { x: CX + (HW + 3), y: GROUND + 14.5, dir: 1 }];
   for (const M of monos) {
-    box(props, 1.1, 1.3, MLEN, 0x1C242A, M.x, M.y - 0.65, (Z_A + Z_B) / 2);
-    for (const dx of [-0.36, 0.36]) box(glows, 0.08, 0.06, MLEN, 0x40E8FF, M.x + dx, M.y + 0.03, (Z_A + Z_B) / 2);
-    for (let z = Z_A - 8; z > Z_B; z -= 22) {
+    const out = Math.sign(M.x - CX);
+    box(props, 3.4, 1.4, MLEN, 0x8E8C86, M.x, M.y - 0.7, zMid);
+    for (const dx of [-1.6, 1.6]) box(props, 0.2, 0.6, MLEN, 0x9C9A94, M.x + dx, M.y + 0.3, zMid);
+    for (let z = Z_A - 8; z > Z_B; z -= 25) {
       if (nearWalk(z)) continue;
-      box(props, 0.9, M.y - 1.3 - GROUND, 0.9, 0x2A3238, M.x, GROUND + (M.y - 1.3 - GROUND) / 2, z);
-      box(props, 2.2, 0.5, 1.2, 0x2A3238, M.x, M.y - 1.55, z);
+      box(props, 1.6, M.y - 1.4 - GROUND, 1.6, 0x8A8882, M.x, GROUND + (M.y - 1.4 - GROUND) / 2, z);
+      box(props, 4.2, 0.8, 1.8, 0x8A8882, M.x, M.y - 1.8, z);
+    }
+    for (let z = Z_A - 14; z > Z_B; z -= 28) {
+      box(props, 0.22, 4.4, 0.22, 0x5A6068, M.x + out * 1.5, M.y + 2.2, z);
+      box(props, 1.9, 0.12, 0.12, 0x5A6068, M.x + out * 0.55, M.y + 4.3, z);
     }
   }
-  const TR = trainModel(env), trains = [];
-  const addTrain = (x, y, z, axis, dir, v) => {
-    const t = trains.length ? TR.clone() : TR;
+  const trains = [], SHIN = shinkansenModel(env), COMM = commuterModel(env);
+  const addTrain = (model, x, y, z, axis, dir, v) => {
+    const t = trains.some((T) => T.model === model) ? model.clone() : model;
     t.rotation.y = axis === 'z' ? (dir < 0 ? Math.PI / 2 : -Math.PI / 2) : (dir > 0 ? 0 : Math.PI);
-    t.position.set(x, y, z); G.add(t); trains.push({ t, axis, dir, v });
+    t.position.set(x, y, z); G.add(t); trains.push({ t, model, axis, dir, v });
   };
-  for (const M of monos) for (const k of [0, 1]) addTrain(M.x, M.y + 0.95, startCam - 60 - k * 150 - (M.dir > 0 ? 70 : 0), 'z', M.dir, 17);
-  // A METRO crossing under the rail at a side street or two, on a low viaduct.
+  for (const M of monos) for (const k of [0, 1]) addTrain(SHIN, M.x, M.y + 1.65, startCam - 60 - k * 170 - (M.dir > 0 ? 80 : 0), 'z', M.dir, 24);
+  // A COMMUTER LINE crossing under the rail at a side street or two, on a low viaduct with its own masts.
   const metroZ = streets.filter(([a, b]) => a - b >= 13 && a < 20 && b > end - 40).slice(0, 2).map(([a, b]) => (a + b) / 2);
   for (const mz of metroZ) {
     const my = GROUND + 6;
-    box(props, 340, 1.1, 5, 0x30383C, CX, my - 0.55, mz);
-    for (const dz of [-0.4, 0.4]) box(glows, 340, 0.06, 0.08, 0xFFB040, CX, my + 0.03, mz + dz);
-    for (let x = CX - 160; x <= CX + 160; x += 24) if (Math.abs(x - CX) > HW + 3) box(props, 1.2, my - 1.1 - GROUND, 1.2, 0x2A3238, x, GROUND + (my - 1.1 - GROUND) / 2, mz);
-    addTrain(CX - 120 + r() * 240, my + 0.95, mz, 'x', r() < 0.5 ? 1 : -1, 20);
+    box(props, 340, 1.3, 4, 0x8E8C86, CX, my - 0.65, mz);
+    for (const dz of [-1.9, 1.9]) box(props, 340, 0.5, 0.2, 0x9C9A94, CX, my + 0.25, mz + dz);
+    for (let x = CX - 160; x <= CX + 160; x += 24) if (Math.abs(x - CX) > HW + 3) box(props, 1.4, my - 1.3 - GROUND, 1.4, 0x8A8882, x, GROUND + (my - 1.3 - GROUND) / 2, mz);
+    for (let x = CX - 156; x <= CX + 156; x += 26) {
+      if (monos.some((M) => Math.abs(x - M.x) < 5)) continue;
+      box(props, 0.2, 4.2, 0.2, 0x5A6068, x, my + 2.1, mz - 1.8); box(props, 0.12, 0.12, 1.8, 0x5A6068, x, my + 4.1, mz - 0.9);
+    }
+    addTrain(COMM, CX - 120 + r() * 240, my + 1.55, mz, 'x', r() < 0.5 ? 1 : -1, 16);
   }
-
   // THE TRAFFIC: hover cars on the street and cars flying lanes just below the rail, the neon city's cars in the city's own paint.
   const lanes = [], nl = Math.max(1, Math.floor(road / 3.3));
   for (let k = 0; k < nl; k++) for (const s of [-1, 1]) lanes.push({ axis: 'z', at: CX + s * (1.65 + k * 3.3), y: GROUND + 0.6, dir: s < 0 ? -1 : 1, v: 10 + r() * 5, n: 4 });
   lanes.push({ axis: 'z', at: CX - (HW + 3), y: lo - 4.5, dir: -1, v: 16, n: 4 }, { axis: 'z', at: CX + (HW + 3), y: lo - 6.5, dir: 1, v: 15, n: 4 });
-  for (const [a, b] of streets) {
-    const zc = (a + b) / 2;
-    lanes.push({ axis: 'x', at: zc - 2, y: GROUND + 0.6, dir: 1, v: 11 + r() * 4, n: 1, from: CX - 100, to: CX + 100 },
-               { axis: 'x', at: zc + 2, y: GROUND + 0.6, dir: -1, v: 11 + r() * 4, n: 1, from: CX - 100, to: CX + 100 },
-               { axis: 'x', at: zc, y: lo - 8, dir: r() < 0.5 ? 1 : -1, v: 16, n: 1, from: CX - 100, to: CX + 100 });
+  for (const st of streets) {
+    const zc = (st[0] + st[1]) / 2;
+    if (st !== SCR) lanes.push({ axis: 'x', at: zc - 2, y: GROUND + 0.6, dir: 1, v: 11 + r() * 4, n: 1, from: CX - 100, to: CX + 100 },
+                               { axis: 'x', at: zc + 2, y: GROUND + 0.6, dir: -1, v: 11 + r() * 4, n: 1, from: CX - 100, to: CX + 100 });
+    lanes.push({ axis: 'x', at: zc, y: lo - 8, dir: r() < 0.5 ? 1 : -1, v: 16, n: 1, from: CX - 100, to: CX + 100 });
   }
+  const SCR_T = 36, SCR_GO = 12;                           // the scramble's cycle: cars for 12 s, then everyone on foot, every way at once
   const cars = [];
   for (const L of lanes) for (let i = 0; i < L.n; i++) cars.push({ L, s: L.axis === 'z' ? startCam + 20 - (i + r() * 0.7) * 300 / L.n : L.from + (i + r() * 0.6) / L.n * (L.to - L.from) });
   const CK = carKit(env), NC = cars.length;
@@ -7658,10 +7920,17 @@ WORLDS_ADD('dystopia', (w) => {
   const TOKYO_PAINT = [0xE8ECEF, 0x2A2E34, 0xC8202A, 0xF2C230, 0x3A6A8A, 0xB8C0CC, 0x1E7A45, 0xFF8A3D];
   cars.forEach((c, i) => { body.setColorAt(i, col.setHex(TOKYO_PAINT[i % TOKYO_PAINT.length])); under.setColorAt(i, col.setHex(i % 3 ? 0x40E8FF : 0xFFB040)); });
   const carM = new Matrix4(), one = new Vector3(1, 1, 1);
-  const moveCars = (dt, camZ) => {
+  const streetLanes = lanes.filter((L) => L.axis === 'z' && L.y < GROUND + 1);
+  const moveCars = (dt, camZ, t) => {
+    if (SCR && (t % SCR_T) >= SCR_GO - 1) for (const L of streetLanes) {     // queue at the stop line while the crowd crosses
+      const line = L.dir < 0 ? SCR[0] + 1.2 : SCR[1] - 1.2;
+      cars.filter((c) => c.L === L && (L.dir < 0 ? c.s >= line - 0.2 && c.s < line + 70 : c.s <= line + 0.2 && c.s > line - 70))
+        .sort((a, b) => (L.dir < 0 ? a.s - b.s : b.s - a.s)).forEach((c, k) => { c.hold = L.dir < 0 ? line + k * 5.5 : line - k * 5.5; });
+    }
     cars.forEach((c, i) => {
       const L = c.L;
-      c.s += L.dir * L.v * dt;
+      if (c.hold !== undefined) { const nx = c.s + L.dir * L.v * dt; c.s = L.dir < 0 ? Math.max(nx, c.hold) : Math.min(nx, c.hold); c.hold = undefined; }
+      else c.s += L.dir * L.v * dt;
       if (L.axis === 'z') { if (c.s < camZ - 290) c.s += 320; else if (c.s > camZ + 30) c.s -= 320; }
       else if (c.s > L.to) c.s = L.from; else if (c.s < L.from) c.s = L.to;
       const dx = L.axis === 'x' ? L.dir : 0, dz = L.axis === 'z' ? L.dir : 0;
@@ -7710,6 +7979,52 @@ WORLDS_ADD('dystopia', (w) => {
     drones.instanceMatrix.needsUpdate = true; dLampGeo.attributes.position.needsUpdate = true; dLampGeo.attributes.color.needsUpdate = true;
   };
 
+  // PEOPLE: walking the pavements both ways, and a crowd at the scramble's four corners that crosses every way when the lights let them.
+  const personGeo = paintedModel([[new CylinderGeometry(0.2, 0.24, 1.2, 7), 0xFFFFFF, placeAt(0, 0.6, 0)], [new SphereGeometry(0.16, 8, 6), 0x2A221C, placeAt(0, 1.38, 0)]]);
+  const people = [], PCOL = [0x1E2226, 0xE8E8E4, 0x2A3A5A, 0x8A1E24, 0xD8C8A8, 0x3A5A3A, 0xE8A8B8, 0x4A4A50, 0x1E2226, 0x2A3A5A];
+  for (const s of [-1, 1]) for (let i = 0; i < 34; i++) people.push({ k: 'walk', x: CX + s * (IN - 1.7 + (r() - 0.5) * 2.2), z: startCam - r() * 170, v: (r() < 0.5 ? -1 : 1) * (1 + r() * 0.6) });
+  const corners = SCR ? [[CX - IN + 1.6, SCR[0] + 1.6], [CX + IN - 1.6, SCR[0] + 1.6], [CX - IN + 1.6, SCR[1] - 1.6], [CX + IN - 1.6, SCR[1] - 1.6]] : [];
+  if (SCR) for (let i = 0; i < 72; i++) { const c0 = i % 4; people.push({ k: 'scr', at: c0, to: -1, jx: (r() - 0.5) * 3, jz: (r() - 0.5) * 2.2, x: corners[c0][0], z: corners[c0][1], v: 1.3 + r() * 0.5, go: r() * 3, cyc: -1 }); }
+  for (const P of people) if (P.k === 'scr') { P.x += P.jx; P.z += P.jz; }
+  const crowd = new InstancedMesh(personGeo, hazed(new MeshStandardMaterial({ vertexColors: true, roughness: 0.85 })), people.length);
+  crowd.frustumCulled = false; G.add(crowd);
+  people.forEach((P, i) => crowd.setColorAt(i, col.setHex(PCOL[i % PCOL.length])));
+  const movePeople = (dt, t, camZ) => {
+    const cyc = Math.floor(t / SCR_T), ph = t % SCR_T, walk = ph >= SCR_GO;
+    people.forEach((P, i) => {
+      if (P.k === 'walk') {
+        P.z += P.v * dt;
+        if (P.z < camZ - 175) P.z += 190; else if (P.z > camZ + 15) P.z -= 190;
+      } else if (walk && P.to < 0 && P.cyc !== cyc && ph >= SCR_GO + P.go) { P.to = (P.at + 1 + Math.floor(Math.random() * 3)) % 4; P.cyc = cyc; }
+      else if (P.to >= 0) {
+        const tx = corners[P.to][0] + P.jx, tz = corners[P.to][1] + P.jz, dx = tx - P.x, dz = tz - P.z, d = Math.hypot(dx, dz);
+        if (d < 0.3) { P.at = P.to; P.to = -1; } else { P.x += dx / d * P.v * dt; P.z += dz / d * P.v * dt; }
+      }
+      m.compose(pos.set(P.x, GROUND + 0.02, P.z), q.identity(), sc.set(1, 1, 1)); crowd.setMatrixAt(i, m);
+    });
+    crowd.instanceMatrix.needsUpdate = true;
+  };
+  const petalT = canvasTex(32, 32, (g) => {
+    const rg = g.createRadialGradient(16, 16, 1, 16, 16, 14);
+    rg.addColorStop(0, 'rgba(255,255,255,1)'); rg.addColorStop(0.6, 'rgba(255,255,255,0.9)'); rg.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = rg; g.beginPath(); g.ellipse(16, 16, 13, 8, 0.6, 0, 7); g.fill();
+  });
+  const NPT = 220, petalGeo = new BufferGeometry();
+  petalGeo.setAttribute('position', new Float32BufferAttribute(NPT * 3, 3).setUsage(DynamicDrawUsage));
+  const petalPts = new Points(petalGeo, hazed(new PointsMaterial({ color: 0xFFC8D8, size: 0.55, map: petalT, transparent: true, depthWrite: false })));
+  petalPts.frustumCulled = false; petalPts.renderOrder = 2; G.add(petalPts);
+  const petals = [...Array(NPT)].map(() => ({ x: CX + (r() - 0.5) * 34, y: lo - 12 + r() * 20, z: startCam - 4 - r() * 70, v: 0.5 + r() * 0.6, ph: r() * 9 }));
+  const movePetals = (dt, t, camZ) => {                    // sakura petals drifting down across the rail on the breeze
+    const a = petalGeo.attributes.position.array;
+    petals.forEach((P, i) => {
+      P.y -= P.v * dt; P.x += (0.8 + Math.sin(t * 0.7 + P.ph) * 0.6) * dt; P.z += Math.cos(t * 0.5 + P.ph) * 0.3 * dt;
+      if (P.y < lo - 14) P.y += 22;
+      if (P.z > camZ - 3) P.z -= 70; else if (P.z < camZ - 75) P.z += 70;
+      if (P.x > CX + 18) P.x -= 36;
+      a[i * 3] = P.x; a[i * 3 + 1] = P.y; a[i * 3 + 2] = P.z;
+    });
+    petalGeo.attributes.position.needsUpdate = true;
+  };
   // SCREENS on the far corners of the side streets, turned toward the approach; two giant ones high on the towers behind.
   const screens = [];
   const addScreen = (x, y, z, wdt, hgt, ry, k) => {
@@ -7721,10 +8036,37 @@ WORLDS_ADD('dystopia', (w) => {
     props.push(back);
     screens.push({ t, ph: r() * 3, every: 1.1 + r() * 0.8 });
   };
-  streets.filter(([a]) => a < 30).slice(0, 7).forEach(([a, b], i) => {
+  streets.filter((st) => st[0] < 30 && st !== SCR).slice(0, 7).forEach(([a, b], i) => {
     const s = i % 2 ? 1 : -1;
     addScreen(CX + s * (IN + 4.5), GROUND + 15, b + 0.3, 8, 5, 0, i);
   });
+  if (SCR) for (const s of [-1, 1]) {                      // the scramble's screens, on every corner that faces the approach
+    addScreen(CX + s * (IN + 4.5), GROUND + 14, SCR[1] + 0.3, 8, 5, 0, s < 0 ? 0 : 3);
+    addScreen(CX + s * (IN + 9), GROUND + 24, SCR[1] + 0.3, 13, 8, 0, s < 0 ? 5 : 1);
+  }
+  if (WAVE) {                                              // the Great Wave, painted high on a wall over a side street
+    const t2 = canvasTex(512, 320, (g) => {
+      g.fillStyle = '#EDE3CC'; g.fillRect(0, 0, 512, 320);
+      g.fillStyle = '#E4D6B8'; for (let y = 0; y < 320; y += 6) g.fillRect(0, y, 512, 1);
+      g.fillStyle = '#F4F4F2'; g.beginPath(); g.moveTo(300, 250); g.lineTo(356, 196); g.lineTo(412, 250); g.closePath(); g.fill();       // Fuji, far off
+      g.fillStyle = '#5A6E8A'; g.beginPath(); g.moveTo(290, 262); g.lineTo(334, 216); g.lineTo(356, 206); g.lineTo(378, 216); g.lineTo(422, 262); g.closePath(); g.fill();
+      g.fillStyle = '#F4F4F2'; g.beginPath(); g.moveTo(340, 212); g.lineTo(356, 200); g.lineTo(372, 212); g.lineTo(364, 218); g.lineTo(356, 212); g.lineTo(348, 218); g.closePath(); g.fill();
+      const wave = (x0, y0, sc2, flip) => {                // a curling wave: deep blue, lighter inside, a claw of foam along its crest
+        g.save(); g.translate(x0, y0); g.scale(flip ? -sc2 : sc2, sc2);
+        g.fillStyle = '#1B3A6B'; g.beginPath(); g.moveTo(-120, 120); g.bezierCurveTo(-110, 20, -40, -70, 60, -80); g.bezierCurveTo(120, -84, 150, -40, 130, -10);
+        g.bezierCurveTo(110, -40, 70, -40, 50, -10); g.bezierCurveTo(30, 30, 40, 80, 60, 120); g.closePath(); g.fill();
+        g.fillStyle = '#4A78A8'; g.beginPath(); g.moveTo(-80, 120); g.bezierCurveTo(-70, 40, -20, -30, 40, -40); g.bezierCurveTo(10, -10, 0, 60, 20, 120); g.closePath(); g.fill();
+        g.fillStyle = '#F4F4F2';
+        for (let k = 0; k < 9; k++) { const a = -2.4 + k * 0.32, cx2 = 60 + Math.cos(a) * 70, cy2 = -10 + Math.sin(a) * 70; g.beginPath(); g.arc(cx2, cy2, 9, 0, 7); g.fill(); g.beginPath(); g.arc(cx2 + 7, cy2 + 5, 5, 0, 7); g.fill(); }
+        g.restore();
+      };
+      wave(150, 200, 1.1, false); wave(430, 260, 0.45, true);
+      g.fillStyle = '#1B3A6B'; g.fillRect(0, 296, 512, 24);
+    });
+    const s = 1, mural = new Mesh(new PlaneGeometry(20, 12.5), hazed(new MeshBasicMaterial({ map: t2 })));
+    mural.position.set(CX + s * (IN + 16), GROUND + 25, WAVE[1] + 0.3); G.add(mural);
+    props.push([new BoxGeometry(20.6, 13.1, 0.4), 0x2A2E32, placeAt(CX + s * (IN + 16), GROUND + 25, WAVE[1] + 0.05)]);
+  }
   for (const s of [-1, 1]) addScreen(CX + s * (IN + 20.6), GROUND + 36, 0.45 * end - 30 * s, 16, 10, -s * (Math.PI / 2 - 0.55), s < 0 ? 4 : 1);
   // STACKS on the low roofs downwind, venting smoke that leans away from the rail; red lamps on the tallest towers.
   const WIND = 2.6;
@@ -7739,12 +8081,21 @@ WORLDS_ADD('dystopia', (w) => {
   tall.forEach(([x, y, z], i) => { m.compose(pos.set(x, y + 0.5, z), q.identity(), sc.set(1, 1, 1)); lamps.setMatrixAt(i, m); lamps.setColorAt(i, col.setHex(0xFF2D48)); });
   lamps.count = tall.length; G.add(lamps);
   const lampPh = tall.map(() => r() * 2);
-  // THE ARCOLOGY at the avenue's far end: a black tower with a ring of cold light.
-  { const ax = CX + 55, az = end - 240, ah = 300;
-    box(props, 70, ah, 70, 0x14181C, ax, GROUND + ah / 2, az);
-    glows.push([new TorusGeometry(26, 1.5, 10, 72), 0xBFF4FF, placeAt(ax, GROUND + 150, az + 35.2)]);
-    for (const dx of [-30, 30]) box(glows, 0.6, ah - 20, 0.6, 0x40E8FF, ax + dx, GROUND + (ah - 20) / 2, az + 35.4); }
-
+  // TOKYO TOWER at the avenue's far end, lit orange and white against the dusk: four legs splayed to the ground, the body in bands.
+  {
+    const tx0 = CX + 34, tz0 = end - 240, ORANGE = 0xFF7A34, WHITE = 0xFFE8D2;
+    for (const [sx2, sz2] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      const dx = -sx2 * 10, dz = -sz2 * 10, H = 56, L = Math.hypot(dx, H, dz), rz0 = -Math.asin(dx / L), rx0 = Math.asin(dz / (L * Math.cos(rz0)));
+      glows.push([new BoxGeometry(2.4, L, 2.4), ORANGE, placeAt(tx0 + sx2 * 17 + dx / 2, GROUND + H / 2, tz0 + sz2 * 17 + dz / 2, rx0, 0, rz0)]);
+    }
+    glows.push([new BoxGeometry(16, 5, 16), WHITE, placeAt(tx0, GROUND + 58, tz0)]);
+    let y = GROUND + 60.5, r0 = 7;
+    for (const [h, r1, c] of [[24, 5.4, ORANGE], [4, 5.2, WHITE], [22, 3.8, ORANGE], [4, 3.6, WHITE], [18, 2.4, ORANGE], [4, 2.2, WHITE], [14, 1.2, ORANGE]]) {
+      glows.push([new CylinderGeometry(r1, r0, h, 4), c, placeAt(tx0, y + h / 2, tz0, 0, Math.PI / 4, 0)]); y += h; r0 = r1;
+    }
+    glows.push([new BoxGeometry(8, 3.5, 8), WHITE, placeAt(tx0, GROUND + 112, tz0)]);
+    glows.push([new CylinderGeometry(0.3, 0.9, 30, 6), WHITE, placeAt(tx0, y + 15, tz0)]);
+  }
   // Everything still, in one mesh lit by the world and one that shines.
   G.add(new Mesh(paintedModel(props), hazed(new MeshStandardMaterial({ vertexColors: true, roughness: 0.75, metalness: 0.1 }))));
   G.add(new Mesh(paintedModel(glows), hazed(new MeshBasicMaterial({ vertexColors: true }))));
@@ -7756,7 +8107,7 @@ WORLDS_ADD('dystopia', (w) => {
   const step = (dt) => {                                   // everything that moves
     t += dt;
     const camZ = warming ? startCam : camera.position.z;
-    moveCars(dt, camZ); moveTrains(dt, camZ); moveDrones(dt, t, camZ);
+    moveCars(dt, camZ, t); moveTrains(dt, camZ); moveDrones(dt, t, camZ); moveKoi(t); movePeople(dt, t, camZ); movePetals(dt, t, camZ);
     for (const [x, y, z] of stacks) if (Math.random() < dt * 6) smoke.emit(x + (Math.random() - 0.5), y, z + (Math.random() - 0.5), 0, 2 + Math.random(), 0, 7 + Math.random() * 2);
     smoke.step(dt, WIND);
     for (const S of screens) S.t.offset.y = ((t + S.ph) % (S.every * 2)) < S.every ? 0.5 : 0;
@@ -7771,7 +8122,9 @@ WORLDS_ADD('dystopia', (w) => {
     if (!live || cityRefs.frozen) return;
     step(Math.min(dt, 0.05));
   };
-});
+};
+WORLDS_ADD('tokyo', tokyoDrift);
+WORLDS_ADD('dystopia', tokyoDrift);
 
 // ---------- TREES, GROWN THE WAY EZ-TREE GROWS THEM ----------
 /* (owner, 2026-09-27: "I would like to see trees. can you make something like
