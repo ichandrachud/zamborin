@@ -1083,6 +1083,35 @@ const PLAZAS = {
     '+ + + + + +',
     '|. . . . .|',
     '+-+-+ +-+-+'] },
+  // The finales. The crate must hold the key room's door open, and then stands in the way out.
+  F2: { entry: 2, exit: 2, legend: { W: { weight: 1 }, Q: { plate: 'B' }, B: { pgate: 'B' }, k: { key: 1 }, K: { keygate: 1 } }, map: [
+    '+-+-+K+-+-+',
+    '|. .|.|. k|',
+    '+ + + +B+-+',
+    '|. . Q . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. W . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+'] },
+  // The switch opens the mirror's room and shuts the way out; the mirror lights the key's gate.
+  F1: { entry: 2, exit: 2, legend: { P: { switch: 'A' }, D: { sgate: 'A' }, d: { sgate: 'A', open: 1 }, S: { source: 'e' }, R: { receptor: 1 },
+                                     n: { mirror: '\\' }, L: { lgate: 1 }, k: { key: 1 }, K: { keygate: 1 } }, map: [
+    '+-+-+K+R+-+',
+    '|. .|.|. k|',
+    '+ + + +-+L+',
+    'S. .|.|n .|',
+    '+ + +d+D+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|P . . . .|',
+    '+-+-+ +-+-+'] },
 };
 // PLAZAS END
 // Which square each level ends with; '~' mirrors it left to right.
@@ -1090,8 +1119,8 @@ const PLAZA_AT = { 2: 'K1', 3: 'K2', 4: 'K2~', 5: 'K3', 6: 'K3~', 7: 'K4', 8: 'K
                    14: 'W1', 15: 'W2', 16: 'W3', 17: 'W3~', 18: 'B1', 19: 'B2', 20: 'B3', 21: 'B3~', 22: 'B4', 23: 'B2~',
                    24: 'C1', 25: 'C2', 26: 'C2~', 27: 'C3', 28: 'C3~', 29: 'C4',
                    30: 'L1', 31: 'L2', 32: 'L3', 33: 'L4', 34: 'L2~', 35: 'L3~',
-                   // The Express: the hardest of each, the other way round from before
-                   36: 'S4', 37: 'C4~', 38: 'L4~', 39: 'B4', 40: 'K4' };  // (S4 mirrored: its trap room on the other side from S3's)
+                   // The Express: the hardest of each, the other way round from before, and two that mix them
+                   36: 'S4', 37: 'C4~', 38: 'L4~', 39: 'F2', 40: 'F1' };  // (S4 mirrored: its trap room on the other side from S3's)
 function plazaLayout(id) {
   const flipped = id.endsWith('~'), T = PLAZAS[flipped ? id.slice(0, -1) : id];
   const cols = (T.map[0].length - 1) / 2, rows = (T.map.length - 1) / 2;
@@ -1506,9 +1535,11 @@ const LEVELS = Array.from({ length: 40 }, (_, i) => makeLevel(i + 1));
    second, and never more than half a second under its careful run, so the
    autopilot playing carefully earns none of them. The courses come
    from their seeds, so these hold until a course changes; then they must be
-   raced again. */
-const STAR_TIMES = [23, 27, 22, 29, 25, 19, 25, 33, 33, 44, 69, 33, 72, 61, 51, 72, 60, 48, 44, 89,
-                    72, 88, 57, 86, 39, 39, 41, 46, 49, 52, 43, 48, 87, 92, 50, 96, 53, 77, 116, 60];
+   raced again. In a puzzle square the autopilot takes the shortest way the
+   search finds, so a star there is for a square you have already worked
+   out. (Raced again 2026-09-27, when every level from 2 gained its square.) */
+const STAR_TIMES = [23, 45, 41, 48, 64, 58, 68, 77, 48, 71, 95, 74, 112, 77, 70, 105, 92, 59, 59, 113,
+                    95, 107, 70, 97, 60, 59, 67, 72, 82, 62, 55, 58, 102, 104, 60, 136, 86, 92, 139, 94];
 
 let levelGroup = null;
 let colliders = [], ferries = [], holos = [], pads = [], crossings = [], riders = [], curtains = [], locks = [], wormholes = [], loopsIn = [], mags = [], winds = [], rounds = [], tubes = [], switches = [], scans = [], posts = [], blinkers = [], flames = [], cracks = [], plazas = [], gates = [], goal = null, level = null;
@@ -4660,6 +4691,8 @@ const PLAZA_NEWS = {
   L2: 'Three mirrors. Trace the beam before you turn any',
   L3: 'Every time you roll under a mirror, it turns. Even on the way out',
   L4: 'The key is behind the light. The gate opens only while the crystal is lit',
+  F2: 'The crate can hold the key room open. Then it is in your way',
+  F1: 'A switch, a mirror and a key. Which first?',
 };
 const PLAZA_NOTE_T = 7;
 function drawNews() {

@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <title>Marble — A Zamborin Game</title>
-  <meta name="description" content="Roll a chrome marble high above a neon city, and through wormholes to a crystal canyon. Forty levels of traffic, sky trains, roundabouts, wind and glass tubes." />
+  <meta name="description" content="Roll a chrome marble over a neon city. Forty levels of traffic, sky trains and wormholes, each ending in a puzzle square of keys, switches, crates and light." />
   <meta name="theme-color" content="#0E1726" />
   <link rel="canonical" href="https://zamborin.com/marble/" />
   <link rel="icon" type="image/svg+xml" href="../images/zamborin-favicon.svg?v=2" />
@@ -18,14 +18,14 @@
   <meta property="og:site_name" content="Zamborin Games" />
   <meta property="og:url" content="https://zamborin.com/marble/" />
   <meta property="og:title" content="Marble — Roll it home" />
-  <meta property="og:description" content="Roll a chrome marble high above a neon city, and through wormholes to a crystal canyon. Forty levels of traffic, sky trains, roundabouts, wind and glass tubes." />
+  <meta property="og:description" content="Roll a chrome marble over a neon city. Forty levels of traffic, sky trains and wormholes, each ending in a puzzle square of keys, switches, crates and light." />
   <meta property="og:image" content="https://zamborin.com/images/marble-og.jpg" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta property="og:image:alt" content="A chrome marble at the edge of a glowing hologram bridge high above a neon city, under the word Marble in blue neon" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Marble — Roll it home" />
-  <meta name="twitter:description" content="Roll a chrome marble high above a neon city, and through wormholes to a crystal canyon. Forty levels of traffic, sky trains, roundabouts, wind and glass tubes." />
+  <meta name="twitter:description" content="Roll a chrome marble over a neon city. Forty levels of traffic, sky trains and wormholes, each ending in a puzzle square of keys, switches, crates and light." />
   <meta name="twitter:image" content="https://zamborin.com/images/marble-og.jpg" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -43,14 +43,14 @@
     "@context": "https://schema.org",
     "@type": "VideoGame",
     "name": "Marble",
-    "description": "Roll a chrome marble high above a neon city, and through wormholes to a crystal canyon. Forty levels of traffic, sky trains, roundabouts, wind and glass tubes.",
+    "description": "Roll a chrome marble over a neon city. Forty levels of traffic, sky trains and wormholes, each ending in a puzzle square of keys, switches, crates and light.",
     "url": "https://zamborin.com/marble/",
     "image": "https://zamborin.com/images/marble-og.jpg",
     "playMode": "SinglePlayer",
     "gamePlatform": "Web Browser",
     "applicationCategory": "Game",
     "operatingSystem": "Web",
-    "genre": ["Arcade","Skill"],
+    "genre": ["Arcade","Skill","Puzzle"],
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
     "publisher": { "@type": "Organization", "name": "Zamborin Games", "url": "https://zamborin.com/" }
   }
@@ -134,7 +134,7 @@
          bloom/ or kaleido/ for the shape and the length. -->
     <section class="game-info">
       <h1>Marble: roll it home</h1>
-      <p>A chrome marble, glowing courses high above a neon city, and a ring of light at the end of each one. Marble is the first 3D game on Zamborin: forty levels across five districts of the city, each course longer and harder than the one before.</p>
+      <p>A chrome marble, glowing courses high above a neon city, and a ring of light at the end of each one. Marble is the first 3D game on Zamborin: forty levels across five districts of the city, each course longer and harder than the one before. From level 2 a puzzle square stands before every finish, and its way out stays shut until you work it out.</p>
 
       <h2>How to play</h2>
       <p>Put a finger anywhere on the course and drag. The marble rolls the way you drag, and the further you drag, the harder it rolls.</p>
@@ -143,6 +143,13 @@
         <li><strong>Save your place:</strong> roll through a blue ring and it turns green. That is where you start again.</li>
         <li><strong>Fall off:</strong> the marble flies back to the last green ring, and the fall is counted.</li>
         <li><strong>Finish:</strong> roll through the orange ring at the end of the course.</li>
+        <li><strong>Puzzle squares:</strong> from level 2 the finish stands past a walled square whose way out is shut. As you roll up to it the camera rises to show the whole square: look before you move. Stuck? Roll over the reset pad beside the road in, and the square goes back as it was.</li>
+        <li><strong>Keys:</strong> roll over a key to take it. You carry one at a time, so taking another leaves the one you held in its place. A gate opens for the key of its colour and shape, and keeps it, so count your keys before you open a gate.</li>
+        <li><strong>Switches:</strong> a switch flips every gate with its letter, shut to open and open to shut, so it can shut the way you came. Roll over it again to flip them back.</li>
+        <li><strong>Crates and plates:</strong> a plate holds its gates open while something heavy is on it. Roll into a crate to push it one cell. A crate can't be pulled and never goes through a gate.</li>
+        <li><strong>Turning bridges:</strong> a lever turns every bridge with its letter a quarter turn clockwise. A bridge is open only where its lit road meets the side; railings close the rest.</li>
+        <li><strong>Charge:</strong> a bolt pad charges the marble and a ground pad empties it. Lightning gates let only a charged marble through, and floors marked with plus signs push a charged marble away, the way like charges do.</li>
+        <li><strong>Light:</strong> a lamp shines a beam across the square, over the walls. Roll under a mirror to turn it. A gate of light is open only while the beam reaches the crystal.</li>
         <li><strong>Stars:</strong> each level has a star time, shown beside the star at the bottom of the screen. Finish under it to win the level's star.</li>
         <li><strong>Obstacles:</strong> neon bollards, road-works barriers and cargo crates stand in rows across some roads, with one gap in each row. They're solid: steer through the gaps. A hard knock near the edge can throw the marble off the road.</li>
         <li><strong>Traffic:</strong> flying cars cross some roads. Wait at the line for the green light, then roll across. A car knocks the marble off the road.</li>
@@ -177,13 +184,16 @@
         <li>On a roundabout, aim for the road out and start rolling toward it a little before it comes round.</li>
         <li>At a scanner, wait at the red line and watch the bar go by once before you roll.</li>
         <li>Among obstacles, line up with each gap before you reach it and roll through it straight.</li>
+        <li>At a puzzle square, stop at the door and look before you roll: what does each gate need, and where is it?</li>
+        <li>Every pad works each time you roll onto it: a switch flips again, a mirror turns again.</li>
+        <li>Wedged a crate in a corner? The reset pad by the road in puts every crate back.</li>
         <li>Chasing a star? Take the narrow way at forks, and keep your speed on the straights.</li>
       </ul>
 
       <h2>Frequently asked questions</h2>
       <p><strong>Is Marble free?</strong> Yes, completely free to play, with no account or download, in any modern browser on phone, tablet or desktop.</p>
       <p><strong>Does it work on mobile?</strong> Yes. Marble is built for touch first.</p>
-      <p><strong>How many levels are there?</strong> Forty, in five districts of the city. Downtown has turns, narrow paths, ramps, neon bollards, road barriers, traffic crossings, power switches and forks in the road. Transit adds cargo crates, pads that move, wormholes to the crystal canyon, the sky train and maglev strips. The Holograms district adds bridges that switch off and on, roundabouts, colour locks and wind between the towers. Boost adds speed strips, jump pads, loop-de-loops, glass tubes and scanner lasers. The Express puts all of them together on the longest courses. Every level also has a star time: finish under it for the level's star.</p>
+      <p><strong>How many levels are there?</strong> Forty, in five districts of the city. Downtown has turns, narrow paths, ramps, neon bollards, road barriers, traffic crossings, power switches and forks in the road. Transit adds cargo crates, pads that move, wormholes to the crystal canyon, the sky train and maglev strips. The Holograms district adds bridges that switch off and on, roundabouts, colour locks and wind between the towers. Boost adds speed strips, jump pads, loop-de-loops, glass tubes and scanner lasers. The Express puts all of them together on the longest courses. From level 2 every course ends in a puzzle square: keys from level 2, switches from 9, crates from 14, turning bridges from 18, charge from 24 and light from 30, and the last levels mix them. Every level also has a star time: finish under it for the level's star.</p>
 
       <p>Prefer something slower? Try <a href="/bloom/">Bloom</a> or <a href="/kaleido/">Kaleido</a>, or browse <a href="/">all Zamborin games</a>.</p>
     </section>
@@ -210,7 +220,7 @@
   <script src="../shared/analytics.js?v=3"></script>
   <script src="../shared/embed.js?v=1"></script>
   <script defer src="../shared/ads.js?v=2"></script>
-  <script type="module" src="./play.js?v=10"></script>
+  <script type="module" src="./play.js?v=11"></script>
   <script>
     (() => {
       const btn = document.getElementById('focus-toggle');
