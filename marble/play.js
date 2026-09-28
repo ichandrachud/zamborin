@@ -1713,21 +1713,21 @@ function buildWind(c, pc, w, d) {
   // Two towers on the side the wind comes from, one at each end of the gap.
   if (!windStripes) { windStripes = stripeTex(); windStripes.wrapS = windStripes.wrapT = RepeatWrapping; windStripes.repeat.set(1, 3); }   // floors a third as tall as the city's: a slim, tall tower
   const face = new MeshStandardMaterial({ color: 0x0B1020, roughness: 0.6, emissive: 0xFF6A3C, emissiveMap: windStripes, emissiveIntensity: 1.3 });
-  const tx = pc.x - pc.dir * (w / 2 + TOWER_OFF + TOWER_W / 2), H = TOWER_UP + 70;
+  const tx = pc.x - pc.dir * (w / 2 + TOWER_OFF + TOWER_W / 2), H = TOWER_UP + 70, towers = [];
   for (const tz of [pc.z + d / 2 + TOWER_D / 2, pc.z - d / 2 - TOWER_D / 2]) {
     const t = new Mesh(new BoxGeometry(TOWER_W, H, TOWER_D), face);
     t.position.set(tx, pc.y + TOWER_UP - H / 2, tz);
     levelGroup.add(t);
     const lamp = new Mesh(new SphereGeometry(0.3, 10, 8), new MeshBasicMaterial({ color: 0xFF2D48, toneMapped: false }));
     lamp.position.set(tx, pc.y + TOWER_UP + 0.3, tz);
-    levelGroup.add(lamp);
+    levelGroup.add(lamp); towers.push(t, lamp);
   }
   const n = 64, streaks = new InstancedMesh(new PlaneGeometry(1, 0.2), glowMat(0xE4F8FF, 0, streakTex), n);
   streaks.material.side = DoubleSide;
   // The streaks stream out of the gap, across the road and on over the city.
   const from = tx + pc.dir * TOWER_W / 2, to = pc.x + pc.dir * (w / 2 + 7);
   const Wd = { dir: pc.dir, force: pc.force, period: pc.period, gust: pc.gust, phase: pc.phase,
-               x: pc.x, z: pc.z, w, d, y: pc.y, span: w + 8, from, to, streaks, bits: [] };
+               x: pc.x, z: pc.z, w, d, y: pc.y, span: w + 8, from, to, streaks, bits: [], towers };
   const r = seeded(1 + Math.abs(Math.round(pc.z * 13 + pc.x * 7)));      // a seed must be positive
   for (let i = 0; i < n; i++) Wd.bits.push({ s: r(), z: pc.z + (r() - 0.5) * (d - 0.6), y: pc.y + 0.15 + r() * r() * 2.4, len: 2 + r() * 2.5, v: 0.8 + r() * 0.5 });
   streaks.frustumCulled = false;
@@ -1932,7 +1932,7 @@ function animateSwitches(dt) {
       // The dark road flickers on as the light arrives, then holds.
       road = since < 0 ? 0.05 : REDUCED ? 1 : since < 0.08 ? 0.55 : since < 0.16 ? 0.08 : since < 0.28 ? 0.8 : since < 0.34 ? 0.25 : 1;
       for (const g of S.decals) g.material.opacity = since < 0 ? 0.45 : Math.max(0, 0.45 - since);
-      S.at.forEach((a, i) => S.dots.setColorAt(i, a <= reach ? DOT_ON : DOT_OFF));
+      S.at.forEach((a, i) => S.dots.setColorAt(i, a <= reach ? S.dotOn || DOT_ON : S.dotOff || DOT_OFF));
       S.dots.instanceColor.needsUpdate = true;
     }
     if (S.top && S.fade) { S.top.opacity = S.side.opacity = 0.28 + 0.72 * road; }             // the wasteland's ghost of a road fills in
@@ -2450,16 +2450,16 @@ function buildTube(pc) {
     tubeAt(T, sI, o.position); tubeDir(T, sI, t); o.quaternion.setFromUnitVectors(_tz, t); o.updateMatrix();
     rings.setMatrixAt(i, o.matrix); rings.setColorAt(i, col);
   }
-  const ends = [0, T.len].map((sI) => {
+  const halos = [], ends = [0, T.len].map((sI) => {
     const m = new Mesh(new TorusGeometry(TUBE_R + 0.12, 0.07, 10, 48), new MeshBasicMaterial({ color: 0x5FE8FF, toneMapped: false }));
     tubeAt(T, sI, m.position); tubeDir(T, sI, t); m.quaternion.setFromUnitVectors(_tz, t);
     const halo = new Mesh(new CircleGeometry(TUBE_R + 0.5, 40), glowMat(0x34E0FF, 0.35, dot));
     halo.position.copy(m.position); halo.quaternion.copy(m.quaternion);
-    levelGroup.add(m, halo); return m;
+    levelGroup.add(m, halo); halos.push(halo); return m;
   });
   levelGroup.add(glass, rings);
   const out = new Vector3(); tubeAt(T, 0, out);
-  tubes.push({ pc, T, rings, ringS: Array.from({ length: n }, (_, i) => (i + 0.5) * T.len / n), mouth: out, cap: 1.25, ends });
+  tubes.push({ pc, T, rings, ringS: Array.from({ length: n }, (_, i) => (i + 0.5) * T.len / n), mouth: out, cap: 1.25, ends, halos, glass });
 }
 // Into a tube's mouth: any marble rolling over the road's end, at road height.
 function tubeCatch() {
@@ -2490,13 +2490,14 @@ function rideTube(dt) {
   ball.v.copy(_tb).multiplyScalar(v);
   ball.grounded = false; ball.spin.set(_tb.z, 0, -_tb.x).multiplyScalar(v / R);
 }
+const TUBE_PAL = [0.16, 0.62, 0.75, 1, 1, 1];            // a ring's colour at rest, and lit (a world may give its own: U.pal)
 function animateTubes() {
   const col = new Color();
   for (const U of tubes) {
-    const at = ball.tube && ball.tube.U === U ? ball.tube.s : -99;
+    const at = ball.tube && ball.tube.U === U ? ball.tube.s : -99, p = U.pal || TUBE_PAL;
     U.ringS.forEach((sI, i) => {                        // a ring flares as the marble passes and fades behind it
       const d = at - sI, f = d > -1.2 && d < 7 ? (d < 0 ? 1 + d / 1.2 : Math.exp(-d / 2.2)) : 0;
-      U.rings.setColorAt(i, col.setRGB(0.16 + 0.84 * f, 0.62 + 0.38 * f, 0.75 + 0.25 * f));
+      U.rings.setColorAt(i, col.setRGB(p[0] + (p[3] - p[0]) * f, p[1] + (p[4] - p[1]) * f, p[2] + (p[5] - p[2]) * f));
     });
     U.rings.instanceColor.needsUpdate = true;
   }
@@ -2522,7 +2523,7 @@ function buildCrossing(c, pc, w, d) {
   if (pc.fire) { buildFireCrossing(c, pc, w, d); return; }
   if (!crossKit) crossKit = carKit(neonEnvMap() || envTex);
   const K = crossKit, top = pc.y, near = pc.z + d / 2;
-  const X = { lanes: [], cars: [], lights: [], green: true, greenSince: 0, w, x: pc.x, top };
+  const X = { lanes: [], cars: [], lights: [], parts: [], green: true, greenSince: 0, w, x: pc.x, top };
   pc.lanes.forEach((L, li) => {
     const len = L.speed * L.gaps.reduce((a, b) => a + b, 0);
     const lane = { ...L, z: pc.z + L.dz, len, at: [] };
@@ -2532,7 +2533,7 @@ function buildCrossing(c, pc, w, d) {
     // The lane in the air: a faint road with dashed edges, 60 m of it.
     const road = new Mesh(new PlaneGeometry(60, 2 * CAR_HZ + 0.2), glowMat(0xFFFFFF, 0.8, laneTex));
     road.rotation.x = -Math.PI / 2; road.position.set(pc.x, top + 0.02, lane.z);
-    levelGroup.add(road);
+    levelGroup.add(road); X.parts.push(road);
     lane.at.forEach((_, i) => {
       const car = new Group(), paintHex = CAR_PAINT[(li * 3 + i * 2) % CAR_PAINT.length];
       const add = (geo, mat, at) => { const m = new Mesh(geo, mat); if (at) { m.matrixAutoUpdate = false; m.matrix.copy(at); } car.add(m); return m; };
@@ -2548,7 +2549,7 @@ function buildCrossing(c, pc, w, d) {
   // The stop line, and a light floating over each side of it.
   const line = new Mesh(new PlaneGeometry(w - 0.2, 0.09), glowMat(0xFFFFFF, 0.9));
   line.rotation.x = -Math.PI / 2; line.position.set(pc.x, top + 0.02, near - 0.12);
-  levelGroup.add(line);
+  levelGroup.add(line); X.parts.push(line);
   const housingMat = new MeshStandardMaterial({ color: 0x141B2E, metalness: 0.5, roughness: 0.4 });
   for (const sx of [-1, 1]) {
     const post = new Group();
@@ -2605,12 +2606,13 @@ function buildRide(c, pc, w, d) {
     envMap: neonEnvMap() || envTex, emissive: 0x34E0FF, emissiveIntensity: 0.06 }));
   beam.position.set(pc.x, pc.y - TRAIN_H - 1.8 - 0.5, (zA + zB) / 2);
   levelGroup.add(beam);
+  const parts = [beam];
   for (const sx of [-1, 1]) {
     const rail = new Mesh(new BoxGeometry(0.06, 0.05, len), new MeshBasicMaterial({ color: 0x5FE8FF, toneMapped: false }));
     rail.position.set(pc.x + sx * 0.3, pc.y - TRAIN_H - 1.8 - 0.25, (zA + zB) / 2);
-    levelGroup.add(rail);
+    levelGroup.add(rail); parts.push(rail);
   }
-  c.train = { pull: pc.pull, model, beacons, warned: false };
+  c.train = { pull: pc.pull, model, beacons, warned: false, parts };
   c.ferry.v = 0; c.ferry.a = 0;
 }
 // At which end of its run a moving pad is waiting (1 the +amp end, -1 the other,
@@ -2665,7 +2667,7 @@ function buildCurtain(pc) {
   const bar = new Mesh(new BoxGeometry(pc.w + 0.1, 0.07, 0.07), new MeshBasicMaterial({ color: TINTS[pc.col], toneMapped: false }));
   bar.position.set(pc.x, pc.y + H, pc.z);
   levelGroup.add(sheet, bar);
-  curtains.push({ ...pc, mat, flash: 0 });
+  curtains.push({ ...pc, mat, flash: 0, parts: [sheet, bar] });
 }
 function buildLock(pc) {
   const H = 1.8, w = pc.w + 0.3;
@@ -2673,16 +2675,16 @@ function buildLock(pc) {
   mat.map.repeat.set(w / 1.2, H / 1.2); mat.side = DoubleSide;
   const wall = new Mesh(new PlaneGeometry(w, H), mat);
   wall.position.set(pc.x, pc.y + H / 2, pc.z);
-  const frame = new MeshBasicMaterial({ color: TINTS[pc.col], toneMapped: false });
+  const frame = new MeshBasicMaterial({ color: TINTS[pc.col], toneMapped: false }), frames = [];
   for (const [sx, sy, px, py] of [[w, 0.08, 0, H], [0.08, H, -w / 2, H / 2], [0.08, H, w / 2, H / 2]]) {
     const b = new Mesh(new BoxGeometry(sx, sy, 0.1), frame);
     b.position.set(pc.x + px, pc.y + py, pc.z);
-    levelGroup.add(b);
+    levelGroup.add(b); frames.push(b);
   }
   levelGroup.add(wall);
   const q = new Quaternion();
   locks.push({ mesh: wall, mat, pos: new Vector3(pc.x, pc.y + H / 2, pc.z), prev: new Vector3(), quat: q, inv: q.clone().invert(),
-               half: new Vector3(w / 2, H / 2, 0.12), delta: new Vector3(), ferry: null, lock: pc.col, flash: 0, buzzT: 0, z: pc.z });
+               half: new Vector3(w / 2, H / 2, 0.12), delta: new Vector3(), ferry: null, lock: pc.col, flash: 0, buzzT: 0, z: pc.z, frames });
 }
 // The marble wears its colour as a soft glow and in its trail.
 const aura = new Sprite(new SpriteMaterial({ map: dot, color: TINTS[1], transparent: true, opacity: 1,
@@ -2900,11 +2902,11 @@ function freeCourse(grp) {
   for (const c of locks) c.mat.map.dispose();
   for (const c of mags) c.magFx.tex.dispose();
   for (const S of switches) if (S.top) { S.top.dispose(); S.side.dispose(); }
-  for (const c of colliders) if (c.obstacle) new Set([].concat(c.mesh.material)).forEach((m) => m.dispose());
+  for (const c of colliders) if (c.obstacle) new Set([].concat(c.mesh.material)).forEach((m) => { if (!m.userData.keep) m.dispose(); });
   scene.remove(grp);
   grp.traverse((o) => {
-    if (o.geometry) o.geometry.dispose();
-    if (o.material && !Array.isArray(o.material)) o.material.dispose();
+    if (o.geometry && !o.geometry.userData.keep) o.geometry.dispose();
+    if (o.material && !Array.isArray(o.material) && !o.material.userData.keep) o.material.dispose();
   });
 }
 function enterPocket(W) {
@@ -3908,14 +3910,15 @@ function loadLevel(n) {
     for (const c of locks) c.mat.map.dispose();
     for (const c of mags) c.magFx.tex.dispose();
     for (const S of switches) if (S.top) { S.top.dispose(); S.side.dispose(); }
-    for (const c of colliders) if (c.obstacle) new Set([].concat(c.mesh.material)).forEach((m) => m.dispose());
+    for (const c of colliders) if (c.obstacle) new Set([].concat(c.mesh.material)).forEach((m) => { if (!m.userData.keep) m.dispose(); });
     scene.remove(levelGroup);
     levelGroup.traverse((o) => {
-      if (o.geometry) o.geometry.dispose();
-      // Stone is shared across levels; each ring owns its materials.
-      if (o.material && !Array.isArray(o.material)) o.material.dispose();
+      // Stone is shared across levels, and so is a world's kit (userData.keep); each ring owns its materials.
+      if (o.geometry && !o.geometry.userData.keep) o.geometry.dispose();
+      if (o.material && !Array.isArray(o.material) && !o.material.userData.keep) o.material.dispose();
     });
   }
+  tkUndo.length = 0;                                    // the course it dressed is gone
   levelGroup = new Group();
   scene.add(levelGroup);
   colliders = []; ferries = []; holos = []; pads = []; crossings = []; riders = []; curtains = []; locks = []; wormholes = []; loopsIn = []; mags = []; winds = []; rounds = []; tubes = []; switches = []; scans = []; posts = []; blinkers = []; flames = []; cracks = []; plazas = []; gates = [];
@@ -4300,6 +4303,7 @@ function update(dt, now) {
   animateCracks(dt);
   animateBlocks();
   animatePlazas(dt);
+  for (const f of tkTicks) f(dt);
   updateSparks(dt);
   updateCamera(dt, false);
   updateSunPoint();
@@ -4712,6 +4716,23 @@ const NEWS = {
   31: 'A scanner sweeps the road. Roll down one side just after the red bar has left it',
   33: 'The Express: everything at once, on the longest courses',
 };
+// The same notes where a world has dressed its pieces in its own look (the dystopian city: tokyoPieces).
+const NEWS_TOKYO = {
+  3: 'Lanterns stand across the road. Steer through the gap in each row',
+  5: 'Trams cross the road. Wait at the line while the red lights flash',
+  6: 'The road ahead is dark. Follow the lanterns to the switch, roll over it, and come back',
+  8: 'Road works! Snake round the barricades, from one gap to the next',
+  11: 'A torii gate! Roll through to cross the crystal canyon, and come out on the far side',
+  12: 'Wooden crates on the road. Find the way through each row',
+  13: 'The train stops here. Roll onto its roof, and hold on when it moves',
+  15: 'Moving walkways carry the marble to one side. Steer against the arrows',
+  17: 'Paper bridges light up and go dark. Cross while they are lit',
+  19: 'The stage turns. Ride it round, and roll off where the road leads on',
+  21: 'A paper screen lets through only its own colour. Take the lane whose curtain matches it',
+  23: 'Wind blows between the towers. When the carp streamers fly out, lean into it',
+  29: 'A tunnel of torii! Roll into it, and it carries you over the city',
+  31: 'A gold screen slides across the road. Roll down one side just after it has passed',
+};
 const POCKET_NEWS = { crystal: 'The crystal canyon: the road is slippery. Brake early' };
 const POCKET_NEWS_AT = {                                 // where each canyon obstacle first appears
   11: 'The crystal canyon: slippery, and crystals grow on the road. Line up early',
@@ -4749,7 +4770,7 @@ const PLAZA_NEWS = {
 };
 const PLAZA_NOTE_T = 7;
 function drawNews() {
-  let t = pocket ? (POCKET_NEWS_AT[levelNo] || POCKET_NEWS[level.world]) : NEWS[levelNo], alpha = 1;
+  let t = pocket ? (POCKET_NEWS_AT[levelNo] || POCKET_NEWS[level.world]) : (world.news && world.news[levelNo]) || NEWS[levelNo], alpha = 1;
   const Pz = !pocket && plazaAt && plazaView > 0.6 ? plazaAt : null, note = Pz && PLAZA_NEWS[Pz.pc.id.replace('~', '')];
   if (note && Pz.noteT < PLAZA_NOTE_T) { t = note; alpha = Math.min(1, (PLAZA_NOTE_T - Pz.noteT) / 0.6, Pz.noteT / 0.3); }
   else if (ball.p.z < -12) return;
@@ -4801,6 +4822,21 @@ const RULES = [
   'A red scanner bar sweeps across some roads, and touching it sends the marble back to the last ring. Roll down one side just after the bar has left it. Where two bars sweep, go down the middle just after they cross.',
   'Lime and violet walls let through only a marble of their own colour. Roll through a curtain of that colour first: it colours the marble.',
 ];
+// The same rules where a world has dressed its pieces in its own look (the dystopian city: tokyoPieces), keyed by how each begins.
+const RULES_TOKYO = new Map(Object.entries({
+  'Bollards, road barriers': 'Lanterns, road-works barricades and wooden crates are solid. Steer through the gaps: a hard knock near the edge can throw the marble off the road.',
+  'A dark road': 'A dark road cannot be crossed. Follow the line of lanterns down the side road to its switch and roll over it: the road lights up.',
+  'Flying cars': 'Little trams cross some roads. While one is coming the red lights flash and the arms come down: wait at the line, and roll across when they go up.',
+  'A wormhole': 'A torii gate takes the marble to the crystal canyon, where the road is slippery. Cross it to come out on the far side.',
+  'The sky train': 'The train stops at stations. Roll onto its roof, hold on as it pulls away, and roll off at the next station.',
+  'Maglev strips': 'Moving walkways carry the marble toward the edge their arrows point to. Steer the other way to stay on.',
+  'A roundabout turns': 'A revolving stage turns and carries the marble round with it. Roll off onto the road that leads on; the others stop short at a red bar.',
+  'Gusts blow': 'Gusts blow out of the gaps between towers. Just before each one the carp streamers fly out and streaks of air come: lean into it, or wait for it to pass.',
+  'See-through bridges': 'Paper bridges light up and go dark. Cross while they are lit. They flicker just before they go dark.',
+  'A glass tube': 'A tunnel of torii carries the marble over the city to the road ahead. Just roll into it.',
+  'A red scanner bar': 'A gold folding screen slides across some roads, and touching it sends the marble back to the last ring. Roll down one side just after it has passed. Where two screens slide, go down the middle just after they cross.',
+  'Lime and violet walls': 'Lime and violet paper screens let through only a marble of their own colour. Roll through a curtain of that colour first: it colours the marble.',
+}).map(([k, v]) => [RULES.find((q) => q.startsWith(k)), v]));
 function wrapText(text, maxW, size) {
   ctx.font = '500 ' + size + 'px Inter, sans-serif';
   const out = []; let line = '';
@@ -4817,7 +4853,7 @@ function cardLayout(kind) {
   const HEADER = 154, FOOTER = 98, viewTop = py + HEADER, viewH = Math.max(40, ph - HEADER - FOOTER);
   const items = [];
   if (kind === 'rules') {
-    for (const r of RULES) { const lines = wrapText(r, pw - 100, 16); items.push({ t: 'rule', lines, h: lines.length * 22 + 13 }); }
+    for (const r of RULES) { const lines = wrapText((world.rules && world.rules.get(r)) || r, pw - 100, 16); items.push({ t: 'rule', lines, h: lines.length * 22 + 13 }); }
   } else items.push({ t: 'won', h: 158 });
   let contentH = 0; for (const it of items) contentH += it.h;
   contentH = Math.max(0, contentH - 13);
@@ -4994,6 +5030,7 @@ function setTopUV(mesh, perPiece) {
   uv.needsUpdate = true;
 }
 function restoreCourse() {
+  tkUndoAll();                                          // whatever a world dressed the pieces in (the dystopian city: tokyoPieces)
   const NM = neonMats.glowgrid || (neonMats.glowgrid = neonMaterials('glowgrid'));
   for (const L of loopsIn) loopLook(L, NM.top, NM.side, 0xFF8AE8);
   for (const c of colliders) {
@@ -5480,6 +5517,9 @@ const SKINS = {
     });
     marble.material = new MeshPhysicalMaterial({ map: t, roughness: 0.22, clearcoat: 1, clearcoatRoughness: 0.05, envMap: envTex, envMapIntensity: 0.8 });
   },
+  // A temari, the Japanese thread ball, for Tokyo: red silk wound over, gold threads from pole to pole, a chrysanthemum of
+  // petals at each pole and zigzags round the middle; red on the pale rail, and every turn of it shows.
+  temari() { marble.material = new MeshStandardMaterial({ map: temariTex(), roughness: 0.62, envMap: tokyoEnvMap() || envTex, envMapIntensity: 0.35 }); },
   // Steel, polished, for the dystopian city: it carries the teal smog, the sunset and the lights.
   steel() { marble.material = new MeshStandardMaterial({ color: 0xFFFFFF, metalness: 1, roughness: 0.06, envMap: tokyoEnvMap() || envTex, envMapIntensity: 1.3 }); },
   // Chrome, so the neon city runs across it.
@@ -5490,6 +5530,27 @@ const SKINS = {
     marble.material = new MeshStandardMaterial({ color: 0xFF6B3D, roughness: 0.5, flatShading: true });
   },
 };
+let temariMemo = null;
+function temariTex() {
+  return temariMemo || (temariMemo = canvasTex(512, 256, (g) => {
+    g.fillStyle = '#B81E2C'; g.fillRect(0, 0, 512, 256);
+    g.fillStyle = 'rgba(255,255,255,0.07)'; for (let y = 0; y < 256; y += 3) g.fillRect(0, y, 512, 1);          // the wound silk
+    const petals = (top, cols) => {
+      for (let k = 0; k < 16; k++) {
+        const x0 = k * 32, x1 = x0 + 32, y = top ? 56 : 200, tip = top ? 70 : 186, pole = top ? 0 : 256;
+        g.fillStyle = cols[k % cols.length]; g.beginPath(); g.moveTo(x0, pole); g.lineTo(x1, pole); g.lineTo(x1, y); g.lineTo(x0 + 16, tip); g.lineTo(x0, y); g.closePath(); g.fill();
+      }
+    };
+    petals(true, ['#FFFFFF', '#F7A8C4', '#F2C230', '#2E8A5A']); petals(false, ['#2E8A5A', '#FFFFFF', '#F7A8C4', '#F2C230']);
+    g.lineWidth = 4; g.lineJoin = 'round';
+    for (const [col, off] of [['#FFFFFF', -6], ['#F2C230', 0], ['#2E8A5A', 6]]) {
+      g.strokeStyle = col; g.beginPath();
+      for (let x = 0; x <= 512; x += 16) g.lineTo(x, 128 + off + ((x / 16) % 2 ? 20 : -20));
+      g.stroke();
+    }
+    g.fillStyle = '#E8C050'; for (let k = 0; k < 8; k++) g.fillRect(k * 64 - 1.5, 0, 3, 256);
+  }));
+}
 function setMarbleSkin(name) {
   for (const m of [...skinParts.children]) skinParts.remove(m);
   eye.visible = false;
@@ -7087,6 +7148,653 @@ function tokyoCourse() {
     c.mesh.material = [side, side, top, side, side, side]; setTopUV(c.mesh, !!c.cell);
   }
   for (const L of loopsIn) loopLook(L, M.loopTop(L.look.w), M.loopWall, 0xFFE2BC);
+  tokyoPieces();
+}
+/* TOKYO'S OWN PIECES (owner, 2026-09-28: "can we make the obstacles and
+   challenges on the course more characteristic of this world and different
+   than the neon city?"). Every piece keeps its rules, its size and the
+   colours that mean something (yellow on the pads, lime and violet at the
+   locks, a key's metal, a letter's colour); only its look becomes Tokyo's:
+     bollards        red paper lanterns on posts, a pool of their light below
+     barriers        the kawaii barricades of Japanese road works: two of the
+                     city's mascots holding a red and white board between them
+     crates          dark cedar boxes, roped, a character brushed on each
+     crossings       level crossings: a little tram line crosses the rail; while
+                     it is not safe the crossbuck's red lamps flash by turns and
+                     the arms come down, and when it is they go up. 止まれ
+                     ("stop") is painted on the road before the line
+     hologram roads  paper screens lit from below, flickering like lanterns
+     wormholes       torii, sakura swirling in the gate
+     roundabouts     a revolving stage, as kabuki has, round a garden of raked
+                     gravel, a rock and a stone lantern
+     glass tubes     a tunnel of torii that light up as the marble runs through
+     scanners        a folding screen of gold leaf, a wave and pines painted on
+                     it, sliding across the road
+     switches        a lacquer button; the lamps along the cable are lanterns
+     colour lanes    noren to roll through; the lock a paper screen
+     maglev strips   a moving walkway, carrying the marble sideways
+     wind            a carp-streamer pole by the road: the carp stand out in a
+                     gust and hang in a lull
+     jump pads       a taiko drum's head
+     speed strips    yellow tactile paving down each edge
+     the sky train   a commuter train, as the city's own lines run
+     puzzle squares  walls of white plaster over black tiles set in a white
+                     lattice (namako walls), dark roof tiles along the top;
+                     cedar chests to push; stone bases; paper screens for
+                     gates; the turning sections little vermilion bridges.
+   The pieces are built as the neon city's; this dresses them after, hiding
+   the neon parts and adding its own, and lists what it changed so that
+   restoreCourse puts it back for any other world. */
+const tkUndo = [], tkTicks = [];
+const tkSet = (o, k, v) => { const old = o[k]; o[k] = v; tkUndo.push(() => { o[k] = old; }); };
+const tkColor = (c, hex) => { const old = c.getHex(); c.setHex(hex); tkUndo.push(() => c.setHex(old)); };
+const tkHide = (...list) => { for (const o of list) if (o && o.visible) { o.visible = false; tkUndo.push(() => { o.visible = true; }); } };
+function tkFree(o) {
+  o.traverse((k) => {
+    if (k.geometry && !k.geometry.userData.keep) k.geometry.dispose();
+    for (const m of [].concat(k.material || [])) if (!m.userData.keep) m.dispose();
+  });
+}
+const tkAdd = (parent, o) => { parent.add(o); tkUndo.push(() => { parent.remove(o); tkFree(o); }); return o; };
+const tkTick = (f) => { tkTicks.push(f); tkUndo.push(() => { const i = tkTicks.indexOf(f); if (i >= 0) tkTicks.splice(i, 1); }); };
+function tkUndoAll() { while (tkUndo.length) tkUndo.pop()(); }
+// Several shapes, each placed by a matrix, in one geometry: a colour to each, and texture from one atlas (rect: where its own
+// texture lies in the atlas; none, and it takes the atlas's white corner, so its colour is its own).
+function atlasModel(parts, white) {
+  let n = 0;
+  const flat = parts.map(([g0, hex, mtx, rect]) => {
+    const g = g0.index ? g0.toNonIndexed() : g0;
+    if (g !== g0) g0.dispose();
+    g.applyMatrix4(mtx); n += g.attributes.position.count;
+    return [g, hex, rect];
+  });
+  const P = new Float32Array(n * 3), N = new Float32Array(n * 3), C = new Float32Array(n * 3), U = new Float32Array(n * 2), col = new Color();
+  let o = 0;
+  for (const [g, hex, rect] of flat) {
+    const k = g.attributes.position.count, uv = g.attributes.uv;
+    P.set(g.attributes.position.array, o * 3); N.set(g.attributes.normal.array, o * 3);
+    col.setHex(hex);
+    for (let i = 0; i < k; i++) {
+      const j = o + i;
+      C[j * 3] = col.r; C[j * 3 + 1] = col.g; C[j * 3 + 2] = col.b;
+      U[j * 2] = rect ? rect[0] + (rect[1] - rect[0]) * uv.getX(i) : white[0];
+      U[j * 2 + 1] = rect ? rect[2] + (rect[3] - rect[2]) * uv.getY(i) : white[1];
+    }
+    o += k; g.dispose();
+  }
+  const geo = new BufferGeometry();
+  geo.setAttribute('position', new Float32BufferAttribute(P, 3)); geo.setAttribute('normal', new Float32BufferAttribute(N, 3));
+  geo.setAttribute('color', new Float32BufferAttribute(C, 3)); geo.setAttribute('uv', new Float32BufferAttribute(U, 2));
+  return geo;
+}
+const VERMILION = 0xE0402A, SUMI = 0x1C1A1A;
+/* A torii, its opening `open` wide and `high` to the underside of its tie
+   beam, standing on y = 0 (its pillars go on down `below`), facing along z;
+   `wing`, how far its beams reach out past the pillars. */
+function toriiParts(L, open, high, below = 0, rPil = 0.17, wing = 1) {
+  const px = open / 2 + rPil, H = high + 0.5 + below;
+  for (const s of [-1, 1]) {
+    L.push([new CylinderGeometry(rPil * 0.9, rPil * 1.1, H, 12), VERMILION, placeAt(s * px, H / 2 - below, 0)]);
+    L.push([new CylinderGeometry(rPil * 1.25, rPil * 1.25, 0.28, 12), SUMI, placeAt(s * px, 0.14, 0)]);   // the black foot at the road
+  }
+  const span = 2 * px;
+  L.push([new BoxGeometry(span + 0.9 * wing, 0.2, 0.18), VERMILION, placeAt(0, high + 0.1, 0)]);         // the tie beam, through the pillars
+  L.push([new BoxGeometry(0.16, 0.3, 0.14), VERMILION, placeAt(0, high + 0.35, 0)]);                     // its strut
+  L.push([new BoxGeometry(0.44, 0.34, 0.06), SUMI, placeAt(0, high + 0.35, 0.1)]);                        // and the tablet on it
+  L.push([new BoxGeometry(span + 1.5 * wing, 0.16, 0.3), VERMILION, placeAt(0, high + 0.58, 0)]);
+  L.push([new BoxGeometry(span + 1.3 * wing, 0.2, 0.36), SUMI, placeAt(0, high + 0.76, 0)]);             // the black top beam
+  for (const s of [-1, 1]) L.push([new BoxGeometry(0.9 * wing, 0.18, 0.36), SUMI, placeAt(s * (span / 2 + 0.65 * wing + 0.3), high + 0.84, 0, 0, 0, s * 0.22)]);   // turned up at its ends
+}
+let tkKitMemo = null;
+function tkKit() {
+  if (tkKitMemo) return tkKitMemo;
+  const env = tokyoEnvMap() || envTex, r = seeded(61);
+  const G = (g) => { g.userData.keep = true; return g; };
+  const M = (m) => { m.userData.keep = true; return hazed(m); };
+  const K = {};
+  K.props = M(new MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.1 }));
+  K.lit = M(new MeshBasicMaterial({ vertexColors: true }));
+  K.stone = M(new MeshStandardMaterial({ color: 0x55524E, roughness: 0.85 }));
+  K.wood = M(new MeshStandardMaterial({ color: 0x3E2C20, roughness: 0.7 }));
+  K.lacquer = M(new MeshStandardMaterial({ color: SUMI, roughness: 0.3, metalness: 0.2, envMap: env, envMapIntensity: 0.5 }));
+  K.vermilion = M(new MeshStandardMaterial({ color: VERMILION, roughness: 0.4, envMap: env, envMapIntensity: 0.4 }));
+  K.redLacquer = M(new MeshStandardMaterial({ color: 0xB0241E, roughness: 0.3, metalness: 0.2, envMap: env, envMapIntensity: 0.6 }));
+  K.concrete = M(new MeshStandardMaterial({ color: 0x8E8C86, roughness: 0.9 }));
+  K.steel = M(new MeshStandardMaterial({ color: 0x9AA2A8, roughness: 0.35, metalness: 0.8, envMap: env }));
+  K.yellow = M(new MeshStandardMaterial({ color: 0xF2C230, roughness: 0.5 }));
+
+  // A paper lantern on a post, lit from inside: white paper, ribbed, red at top and bottom, 祭 ("festival") in red on it. White,
+  // and bright, so it stands out from the pale rail (red paper measured 1.1:1 against it).
+  const lanternT = canvasTex(64, 128, (g) => {
+    const lg = g.createLinearGradient(0, 0, 0, 128);
+    lg.addColorStop(0, '#F6E2C0'); lg.addColorStop(0.5, '#FFF8EC'); lg.addColorStop(1, '#F6E2C0');
+    g.fillStyle = lg; g.fillRect(0, 0, 64, 128);
+    g.fillStyle = 'rgba(150,110,70,0.3)'; for (let y = 6; y < 128; y += 10) g.fillRect(0, y, 64, 2);
+    g.fillStyle = '#C8202A'; g.fillRect(0, 0, 64, 18); g.fillRect(0, 110, 64, 18);
+    g.font = `900 40px ${JP}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('祭', 16, 64); g.fillText('祭', 48, 64);
+  });
+  K.postGeo = G(new CylinderGeometry(0.06, 0.075, 0.44, 8).translate(0, 0.22, 0));
+  K.lanternGeo = G(new LatheGeometry([[0.11, 0], [0.145, 0.05], [0.158, 0.19], [0.145, 0.33], [0.11, 0.38]].map(([a, b]) => new Vector2(a, b)), 16));
+  K.lanternMat = M(new MeshStandardMaterial({ map: lanternT, emissive: 0xFFFFFF, emissiveMap: lanternT, emissiveIntensity: 1.0, roughness: 0.8 }));
+  K.capGeo = G(new CylinderGeometry(0.12, 0.12, 0.04, 14));
+  K.poolGeo = G(new PlaneGeometry(1.3, 1.3).rotateX(-Math.PI / 2));
+  K.poolMat = M(new MeshBasicMaterial({ map: dot, color: 0xFF9A50, transparent: true, opacity: 0.45, blending: AdditiveBlending, depthWrite: false }));
+
+  // Cedar boxes, dark, roped, a character brushed on: sake, rice, tea.
+  const crateSide = (ch) => canvasTex(128, 128, (g) => {
+    g.fillStyle = '#4A3122'; g.fillRect(0, 0, 128, 128);
+    for (let y = 0; y < 128; y += 32) { g.fillStyle = `rgba(${r() < 0.5 ? '255,220,180,0.06' : '0,0,0,0.12'})`; g.fillRect(0, y, 128, 32); g.fillStyle = 'rgba(0,0,0,0.4)'; g.fillRect(0, y, 128, 2); }
+    g.fillStyle = '#C8AE78'; for (const x of [18, 102]) g.fillRect(x, 0, 8, 128);                  // the rope
+    g.fillStyle = 'rgba(0,0,0,0.25)'; for (const x of [18, 102]) for (let y = 0; y < 128; y += 6) g.fillRect(x, y, 8, 2);
+    g.fillStyle = '#F4EEE2'; g.font = `900 62px ${JP}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(ch, 64, 68);
+  });
+  const crateTop = canvasTex(128, 128, (g) => {
+    g.fillStyle = '#553A28'; g.fillRect(0, 0, 128, 128);
+    for (let x = 0; x < 128; x += 32) { g.fillStyle = 'rgba(0,0,0,0.4)'; g.fillRect(x, 0, 2, 128); }
+    g.fillStyle = '#C8AE78'; g.fillRect(18, 0, 8, 128); g.fillRect(102, 0, 8, 128); g.fillRect(0, 60, 128, 8);
+  });
+  const top = M(new MeshStandardMaterial({ map: crateTop, roughness: 0.8 }));
+  K.crateMats = ['酒', '米', '茶'].map((ch) => { const s = M(new MeshStandardMaterial({ map: crateSide(ch), roughness: 0.8 })); return [s, s, top, top, s, s]; });
+
+  // The barricades' atlas: the four mascots' faces, drawn for a sphere (half as wide as tall, round the front), then a board's
+  // red and white stripes, then a white corner for everything painted plain.
+  const AW = 1024, AH = 768, uvr = (x, y, w, h) => [x / AW, (x + w) / AW, 1 - (y + h) / AH, 1 - y / AH];
+  const SKIN = ['#FFFBF2', '#FFC6D7', '#6CC24A', '#FFFDF8'];
+  K.atlas = canvasTex(AW, AH, (g) => {
+    for (let row = 0; row < 2; row++) for (let i = 0; i < 4; i++) {        // eyes open, then shut
+      g.fillStyle = SKIN[i]; g.fillRect(i * 256, row * 256, 256, 256);
+      g.save(); g.translate(i * 256 + 64, row * 256 + 128); g.scale(0.5, 1); MASCOTS[i](g, 78, row === 1, false); g.restore();
+    }
+    g.fillStyle = '#F4F0EA'; g.fillRect(0, 512, 1024, 128);
+    g.fillStyle = '#D42A26';
+    for (let x = -128; x < 1100; x += 64) { g.beginPath(); g.moveTo(x, 640); g.lineTo(x + 32, 640); g.lineTo(x + 96, 512); g.lineTo(x + 64, 512); g.closePath(); g.fill(); }
+    g.fillStyle = '#FFFFFF'; g.fillRect(960, 704, 64, 64);
+  });
+  K.faceRect = [0, 1, 2, 3].map((i) => uvr(i * 256 + 2, 2, 252, 252));
+  K.shutRect = [0, 1, 2, 3].map((i) => uvr(i * 256 + 2, 258, 252, 252));
+  K.stripeRect = uvr(0, 518, 1024, 116);
+  K.white = [(992 + 0.5) / AW, 1 - 736 / AH];
+  K.atlasMat = M(new MeshStandardMaterial({ vertexColors: true, map: K.atlas, roughness: 0.45 }));
+
+  // A little tram, cream over its line's colour, lit windows, a pantograph on the roof: +x forward, on the rails at y -0.42.
+  K.tram = [0xB8305A, 0x1E7A45, 0xC8541A, 0x1E4E9A].map((band) => {   // deep colours and a dark roof: it has to stand out on the pale deck
+    const b = [], l = [];
+    b.push([new BoxGeometry(2.24, 0.3, 0.96), band, placeAt(0, -0.2, 0)], [new BoxGeometry(2.2, 0.36, 0.94), 0xF2ECDC, placeAt(0, 0.12, 0)],
+           [new BoxGeometry(2.14, 0.08, 0.9), 0x34383C, placeAt(0, 0.33, 0)], [new BoxGeometry(2.25, 0.04, 0.97), band, placeAt(0, 0.28, 0)]);
+    for (const x of [-0.7, 0.7]) b.push([new BoxGeometry(0.56, 0.08, 0.8), 0x2A2C2E, placeAt(x, -0.38, 0)]);
+    for (const x of [-1.11, 1.11]) b.push([new BoxGeometry(0.03, 0.2, 0.7), 0x283038, placeAt(x, 0.13, 0)]);
+    for (const s of [-1, 1]) b.push([new BoxGeometry(0.02, 0.26, 0.02), 0x3A3C40, placeAt(s * 0.12, 0.49, 0, 0, 0, s * 0.5)]);
+    b.push([new BoxGeometry(0.03, 0.02, 0.5), 0x3A3C40, placeAt(0, 0.6, 0)]);
+    l.push([new BoxGeometry(1.86, 0.17, 0.955), 0xE8D2A8, placeAt(-0.02, 0.13, 0)], [new BoxGeometry(0.02, 0.06, 0.14), 0xFFF6DC, placeAt(1.125, -0.13, 0)],
+           [new BoxGeometry(0.02, 0.06, 0.14), 0xFF2A30, placeAt(-1.125, -0.13, 0)]);
+    return [G(paintedModel(b)), G(paintedModel(l))];
+  });
+
+  // Paper: a shoji's lattice over lit paper. Added to the light behind (the hologram roads, the screens of light), dark is clear.
+  K.shoji = canvasTex(256, 256, (g) => {
+    g.fillStyle = 'rgb(200,172,140)'; g.fillRect(0, 0, 256, 256);
+    blotches(g, 256, 256, r, 18, 10, 40, ['255,236,210,0.35', '150,120,90,0.2']);
+    g.fillStyle = '#000';
+    for (let x = 0; x <= 256; x += 64) g.fillRect(x - 3, 0, 6, 256);
+    for (let y = 0; y <= 256; y += 43) g.fillRect(0, y - 3, 256, 6);
+    for (const p of [0, 256]) { g.fillRect(p - 7, 0, 14, 256); g.fillRect(0, p - 7, 256, 14); }
+  }, true);
+  K.shojiField = canvasTex(256, 128, (g) => {                // a gate's screen: three panes by two, a frame round it
+    g.fillStyle = 'rgb(210,210,210)'; g.fillRect(0, 0, 256, 128);
+    g.fillStyle = '#000';
+    for (const x of [85, 171]) g.fillRect(x - 3, 0, 6, 128);
+    g.fillRect(0, 61, 256, 6); g.fillRect(0, 0, 256, 8); g.fillRect(0, 120, 256, 8); g.fillRect(0, 0, 8, 128); g.fillRect(248, 0, 8, 128);
+  });
+  K.shojiLock = canvasTex(128, 256, (g) => {                 // the lock's screen, lit paper in its colour, a dark lattice
+    g.fillStyle = '#FFFFFF'; g.fillRect(0, 0, 128, 256);
+    g.fillStyle = '#3A2A20';
+    for (const x of [0, 42, 85, 128]) g.fillRect(x - 4, 0, 8, 256);
+    for (let y = 0; y <= 256; y += 51.2) g.fillRect(0, y - 4, 128, 8);
+  }, true);
+
+  // Sakura swirling in a torii: pink and white petals in a spiral round a warm glow, dark (clear) outside.
+  K.swirl = M(new MeshBasicMaterial({ transparent: true, blending: AdditiveBlending, depthWrite: false, side: DoubleSide, opacity: 0.95,
+    map: canvasTex(256, 256, (g) => {
+      g.fillStyle = '#000'; g.fillRect(0, 0, 256, 256);
+      const rg = g.createRadialGradient(128, 128, 4, 128, 128, 124);
+      rg.addColorStop(0, 'rgba(255,236,226,0.95)'); rg.addColorStop(0.35, 'rgba(255,140,180,0.55)'); rg.addColorStop(0.8, 'rgba(160,50,110,0.25)'); rg.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = rg; g.fillRect(0, 0, 256, 256);
+      for (let arm = 0; arm < 5; arm++) for (let t = 0.08; t < 1; t += 0.035) {
+        const a = arm * 1.2566 + t * 5.2, rad = t * 118, x = 128 + Math.cos(a) * rad, y = 128 + Math.sin(a) * rad;
+        g.save(); g.translate(x, y); g.rotate(a + 1.2); g.globalAlpha = 0.9 * (1 - t * 0.6);
+        g.fillStyle = r() < 0.6 ? '#FFB8D0' : '#FFFFFF'; g.beginPath(); g.ellipse(0, 0, 6 + t * 6, 3 + t * 3, 0, 0, 7); g.fill();
+        g.restore();
+      }
+      g.globalAlpha = 1;
+    }) }));
+
+  // The revolving stage: planks of cypress radiating, a groove at each third, a lacquer band at the rim.
+  K.stage = M(new MeshStandardMaterial({ roughness: 0.55, map: canvasTex(1024, 1024, (g) => {
+    const px = 512 / RB_RO;
+    g.fillStyle = '#C8955E'; g.fillRect(0, 0, 1024, 1024);
+    for (let i = 0; i < 48; i++) {
+      const a0 = i * Math.PI / 24, a1 = a0 + Math.PI / 24;
+      g.fillStyle = i % 2 ? '#BE8950' : '#D2A068'; g.beginPath(); g.moveTo(512, 512); g.arc(512, 512, 512, a0, a1); g.closePath(); g.fill();
+      g.strokeStyle = 'rgba(60,34,18,0.6)'; g.lineWidth = 3; g.beginPath(); g.moveTo(512, 512); g.lineTo(512 + Math.cos(a0) * 512, 512 + Math.sin(a0) * 512); g.stroke();
+    }
+    g.strokeStyle = 'rgba(60,34,18,0.7)'; g.lineWidth = 5;
+    for (let k = 0; k <= 3; k++) { g.beginPath(); g.arc(512, 512, (RB_RI + (RB_RO - RB_RI) * k / 3) * px, 0, 7); g.stroke(); }
+    g.strokeStyle = '#B8322A'; g.lineWidth = 0.28 * px; g.beginPath(); g.arc(512, 512, (RB_RO - 0.14) * px, 0, 7); g.stroke();
+  }) }));
+  K.gravel = M(new MeshStandardMaterial({ roughness: 1, map: canvasTex(512, 512, (g) => {     // raked round, as a temple garden is
+    g.fillStyle = '#D6D2C8'; g.fillRect(0, 0, 512, 512);
+    g.strokeStyle = 'rgba(120,114,104,0.55)'; g.lineWidth = 3;
+    for (let rad = 12; rad < 256; rad += 13) { g.beginPath(); g.arc(256, 256, rad, 0, 7); g.stroke(); }
+    g.strokeStyle = '#5A7A44'; g.lineWidth = 22; g.beginPath(); g.arc(256, 256, 244, 0, 7); g.stroke();   // moss at the edge
+  }) }));
+  K.island = [K.stone, K.gravel, K.stone];
+
+  // A folding screen: gold leaf laid in squares, clouds, pines on the left and a wave on the right.
+  K.byobu = M(new MeshStandardMaterial({ vertexColors: true, roughness: 0.35, metalness: 0.45, envMap: env, envMapIntensity: 0.8,
+    map: canvasTex(1024, 256, (g) => {
+      for (let x = 0; x < 1024; x += 32) for (let y = 0; y < 256; y += 32) { g.fillStyle = ['#D8B25C', '#E0BC66', '#CFA852', '#DDB862'][Math.floor(r() * 4)]; g.fillRect(x, y, 32, 32); }
+      g.fillStyle = 'rgba(255,244,210,0.55)';
+      for (const [x, y, w] of [[120, 40, 260], [520, 70, 300], [300, 200, 240], [760, 30, 200]]) { g.beginPath(); g.ellipse(x, y, w / 2, 16, 0, 0, 7); g.fill(); }
+      g.strokeStyle = '#4A3424'; g.lineWidth = 12; g.lineCap = 'round';
+      g.beginPath(); g.moveTo(40, 256); g.bezierCurveTo(90, 180, 60, 120, 150, 90); g.stroke();
+      g.lineWidth = 6; g.beginPath(); g.moveTo(90, 150); g.lineTo(230, 120); g.moveTo(120, 100); g.lineTo(300, 70); g.stroke();
+      for (const [x, y, w] of [[230, 116, 70], [300, 66, 80], [160, 88, 60], [90, 150, 50], [250, 170, 60]]) {
+        g.fillStyle = '#26442C'; g.beginPath(); g.ellipse(x, y, w, 18, -0.1, 0, 7); g.fill();
+        g.fillStyle = '#3A5E3A'; g.beginPath(); g.ellipse(x - 6, y - 5, w * 0.7, 9, -0.1, 0, 7); g.fill();
+      }
+      g.fillStyle = '#1E3C78';
+      g.beginPath(); g.moveTo(560, 256); g.bezierCurveTo(600, 150, 700, 90, 800, 100); g.bezierCurveTo(880, 108, 900, 160, 870, 180);
+      g.bezierCurveTo(850, 150, 800, 150, 780, 180); g.bezierCurveTo(760, 210, 780, 240, 800, 256); g.closePath(); g.fill();
+      g.fillStyle = '#4A74B0'; g.beginPath(); g.moveTo(640, 256); g.bezierCurveTo(660, 180, 720, 130, 780, 128); g.bezierCurveTo(740, 160, 730, 220, 750, 256); g.closePath(); g.fill();
+      g.fillStyle = '#F6F2E8';
+      for (let k = 0; k < 8; k++) { const a = -2.6 + k * 0.32, x = 820 + Math.cos(a) * 60, y = 150 + Math.sin(a) * 55; g.beginPath(); g.arc(x, y, 8, 0, 7); g.fill(); }
+      g.fillStyle = '#1E3C78'; g.fillRect(860, 220, 164, 36);
+    }) }));
+
+  // Noren, the split curtain of a shop's door, in each lane's colour: a white crest, a darker hem, two slits (transparent).
+  K.noren = [null, 0x7CC22C, 0x7A52D6].map((hex) => hex && M(new MeshStandardMaterial({ alphaTest: 0.5, side: DoubleSide, roughness: 0.9,
+    emissive: hex, emissiveIntensity: 0.35, map: canvasTex(192, 128, (g) => {
+      const c = '#' + hex.toString(16).padStart(6, '0');
+      g.fillStyle = c; g.fillRect(0, 0, 192, 128);
+      g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(0, 0, 192, 14);
+      for (const x of [64, 128]) g.clearRect(x - 2, 20, 4, 108);
+      g.strokeStyle = '#FFFFFF'; g.lineWidth = 6; g.beginPath(); g.arc(96, 64, 26, 0, 7); g.stroke();
+      g.fillStyle = '#FFFFFF'; for (let k = 0; k < 5; k++) { const a = k * 1.2566 - Math.PI / 2; g.beginPath(); g.arc(96 + Math.cos(a) * 11, 64 + Math.sin(a) * 11, 8, 0, 7); g.fill(); }   // a plum-blossom crest
+    }) })));
+
+  // A moving walkway: a dark belt, soft grooves along the way it runs, white chevrons (pointing up the canvas, the way it carries).
+  K.belt = canvasTex(128, 128, (g) => {
+    g.fillStyle = '#34383C'; g.fillRect(0, 0, 128, 128);
+    g.fillStyle = 'rgba(255,255,255,0.05)'; for (let x = 4; x < 128; x += 16) g.fillRect(x, 0, 6, 128);
+    g.strokeStyle = '#EEF2F2'; g.lineWidth = 10; g.lineCap = 'round'; g.lineJoin = 'round';
+    g.beginPath(); g.moveTo(30, 84); g.lineTo(64, 50); g.lineTo(98, 84); g.stroke();
+  }, true);
+
+  // A taiko drum's head: cowhide, a dark rim with its studs, three commas turning round the middle.
+  K.taiko = M(new MeshStandardMaterial({ roughness: 0.7, map: canvasTex(256, 256, (g) => {
+    const rg = g.createRadialGradient(128, 128, 20, 128, 128, 128);
+    rg.addColorStop(0, '#EEDDB8'); rg.addColorStop(0.8, '#D8C094'); rg.addColorStop(0.86, '#3A2418'); rg.addColorStop(1, '#2A1A12');
+    g.fillStyle = rg; g.beginPath(); g.arc(128, 128, 127, 0, 7); g.fill();
+    g.fillStyle = '#C8A450'; for (let k = 0; k < 28; k++) { const a = k * Math.PI / 14; g.beginPath(); g.arc(128 + Math.cos(a) * 118, 128 + Math.sin(a) * 118, 3.5, 0, 7); g.fill(); }
+    for (let k = 0; k < 3; k++) {
+      g.save(); g.translate(128, 128); g.rotate(k * 2.0944);
+      g.fillStyle = '#B8261E'; g.beginPath(); g.arc(0, -22, 20, 0, 7); g.fill();
+      g.beginPath(); g.moveTo(-20, -22); g.bezierCurveTo(-22, -60, 20, -70, 46, -44); g.bezierCurveTo(20, -58, 4, -40, 20, -22); g.closePath(); g.fill();
+      g.restore();
+    }
+  }) }));
+  // Tactile paving, the yellow blocks of every Japanese platform: raised bars along the way to go.
+  K.tactile = M(new MeshStandardMaterial({ color: 0xFFFFFF, roughness: 0.7, map: canvasTex(64, 64, (g) => {
+    g.fillStyle = '#E8BA1E'; g.fillRect(0, 0, 64, 64);
+    g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(0, 62, 64, 2); g.fillRect(62, 0, 2, 64);
+    for (const x of [10, 26, 42]) { g.fillStyle = '#F8D448'; g.fillRect(x, 6, 10, 52); g.fillStyle = 'rgba(0,0,0,0.2)'; g.fillRect(x + 8, 6, 2, 52); }
+  }, true) }));
+
+  // A namako wall: white plaster over black tiles set on the diagonal in raised white joints; 1 m to a tile across, the wall's
+  // height up it. A dark roof of tiles goes along the top.
+  K.namako = M(new MeshStandardMaterial({ roughness: 0.85, map: canvasTex(256, 256, (g) => {
+    g.fillStyle = '#F0ECE2'; g.fillRect(0, 0, 256, 256);
+    blotches(g, 256, 110, r, 8, 10, 30, ['210,204,190,0.3']);
+    g.save(); g.beginPath(); g.rect(0, 110, 256, 146); g.clip();
+    g.fillStyle = '#34363C'; g.fillRect(0, 110, 256, 146);
+    g.strokeStyle = '#ECE8DE'; g.lineWidth = 12;             // square to the eye on the wall: 256 px is a metre along it, and its 0.7 m height up it
+    const run = 146 * 256 / 366;
+    for (let k = -4; k < 8; k++) { g.beginPath(); g.moveTo(k * 85.3, 110); g.lineTo(k * 85.3 + run, 256); g.stroke(); g.beginPath(); g.moveTo(k * 85.3, 256); g.lineTo(k * 85.3 + run, 110); g.stroke(); }
+    g.restore();
+    g.fillStyle = '#2A2622'; g.fillRect(0, 104, 256, 8);
+  }, true) }));
+  K.chest = (() => {                                        // a cedar chest to push: dark wood, iron at the corners, a ring handle
+    const side = canvasTex(128, 128, (g) => {
+      g.fillStyle = '#5A3A24'; g.fillRect(0, 0, 128, 128);
+      for (let y = 0; y < 128; y += 21) { g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(0, y, 128, 2); }
+      g.fillStyle = '#26221E';
+      for (const [x, y] of [[0, 0], [100, 0], [0, 100], [100, 100]]) g.fillRect(x, y, 28, 28);
+      g.strokeStyle = '#B08A3A'; g.lineWidth = 5; g.beginPath(); g.arc(64, 64, 16, 0, 7); g.stroke();
+      g.fillStyle = '#26221E'; g.fillRect(50, 40, 28, 12);
+    });
+    const topT = canvasTex(128, 128, (g) => {
+      g.fillStyle = '#5E3E28'; g.fillRect(0, 0, 128, 128);
+      for (let x = 0; x < 128; x += 32) { g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(x, 0, 2, 128); }
+      g.fillStyle = '#26221E'; g.fillRect(0, 0, 128, 10); g.fillRect(0, 118, 128, 10); g.fillRect(0, 0, 10, 128); g.fillRect(118, 0, 10, 128);
+    });
+    const s = M(new MeshStandardMaterial({ map: side, roughness: 0.7 })), t = M(new MeshStandardMaterial({ map: topT, roughness: 0.7 }));
+    return [s, s, t, t, s, s];
+  })();
+  K.deck = M(new MeshStandardMaterial({ roughness: 0.7, map: canvasTex(128, 128, (g) => {   // a little bridge's planks
+    g.fillStyle = '#9A7048'; g.fillRect(0, 0, 128, 128);
+    for (let y = 0; y < 128; y += 16) { g.fillStyle = y % 32 ? '#A57A50' : '#936A42'; g.fillRect(0, y, 128, 14); }
+  }) }));
+  K.dotGeo = G(new CylinderGeometry(0.07, 0.07, 0.17, 10).translate(0, 0.1, 0));   // a switch cable's little lantern
+  // Carp streamers: a cone of cloth, scales and an eye at the mouth, fixed at the mouth (x = 0) and streaming along +x.
+  K.koiGeo = G(new CylinderGeometry(0.42, 0.2, 1, 12, 1, true).rotateZ(Math.PI / 2).translate(0.5, 0, 0));
+  K.koiMat = M(new MeshStandardMaterial({ side: DoubleSide, roughness: 0.6, map: canvasTex(128, 64, (g) => {
+    g.fillStyle = '#F4F4F2'; g.fillRect(0, 0, 128, 64);
+    g.strokeStyle = 'rgba(40,40,48,0.45)'; g.lineWidth = 2;
+    for (let y = 16; y < 58; y += 7) for (let x = (y % 14 ? 0 : 4); x < 132; x += 8) { g.beginPath(); g.arc(x, y, 4, Math.PI, 0); g.stroke(); }
+    for (const u of [0.25, 0.75]) { g.fillStyle = '#FFFFFF'; g.beginPath(); g.arc(u * 128, 7, 4.5, 0, 7); g.fill(); g.fillStyle = '#101010'; g.beginPath(); g.arc(u * 128, 7, 2.2, 0, 7); g.fill(); }
+  }) }));
+  // The torii of a glass tube, round its line (z), the tube's radius inside it.
+  const tr = [];
+  toriiParts(tr, 2 * TUBE_R + 0.1, 2 * TUBE_R + 0.12, 0, 0.065, 0.35);
+  K.toriiRing = G(paintedModel(tr.map(([g0, hex, mtx]) => [g0, hex, new Matrix4().makeTranslation(0, -TUBE_R - 0.1, 0).multiply(mtx)])));
+  K.toriiRingMat = M(new MeshBasicMaterial({ vertexColors: true }));
+  K.glass = (() => {                                        // the tube's glass, its rim warm
+    const m = new MeshStandardMaterial({ color: 0xFFE8D8, metalness: 0.1, roughness: 0.08, transparent: true, depthWrite: false, side: DoubleSide, envMap: env, envMapIntensity: 1.1 });
+    m.onBeforeCompile = (sh) => {
+      sh.fragmentShader = sh.fragmentShader.replace('#include <opaque_fragment>', `#include <opaque_fragment>
+  {
+    float rim = pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 2.4);
+    gl_FragColor.rgb += vec3(1.0, 0.72, 0.5) * rim * 0.7;
+    gl_FragColor.a = clamp(0.05 + 0.7 * rim, 0.0, 1.0);
+  }`);
+    };
+    m.customProgramCacheKey = () => 'tube-glass-tokyo';
+    m.userData.keep = true;
+    return m;
+  })();
+  const ride = commuterModel(env, '#2E9A5A', 2);
+  ride.traverse((o) => { if (o.geometry) o.geometry.userData.keep = true; if (o.material) o.material.userData.keep = true; });
+  K.ride = ride;
+  return tkKitMemo = K;
+}
+function tokyoPieces() {
+  const K = tkKit(), o = new Object3D();
+  // BOLLARDS: a red paper lantern on each, one set of shapes for every bollard in the course.
+  if (postKit && posts.length) {
+    tkHide(...levelGroup.children.filter((m) => m.isInstancedMesh && [postKit.body, postKit.band, postKit.cap, postKit.pool, postKit.halo].includes(m.geometry)));
+    const n = posts.length, post = new InstancedMesh(K.postGeo, K.wood, n), lamp = new InstancedMesh(K.lanternGeo, K.lanternMat, n);
+    const caps = new InstancedMesh(K.capGeo, K.lacquer, n * 2), pool = new InstancedMesh(K.poolGeo, K.poolMat, n);
+    const set = (m, j, P, y) => { o.position.set(P.x, P.y + y, P.z); o.updateMatrix(); m.setMatrixAt(j, o.matrix); };
+    posts.forEach((P, i) => { set(post, i, P, 0); set(lamp, i, P, 0.43); set(caps, i * 2, P, 0.43); set(caps, i * 2 + 1, P, 0.81); set(pool, i, P, 0.013); });
+    post.castShadow = lamp.castShadow = true;
+    for (const m of [post, lamp, caps, pool]) tkAdd(levelGroup, m);
+  }
+  // BARRIERS and CRATES.
+  const figs = [];
+  let nb = 0, nc = 0;
+  for (const c of colliders) {
+    if (c.obstacle === 'crate') tkSet(c.mesh, 'material', K.crateMats[nc++ % K.crateMats.length]);
+    if (c.obstacle !== 'barrier') continue;
+    tkHide(c.mesh);
+    const w = c.half.x * 2, a = nb++ % 4, at = new Matrix4().compose(new Vector3(c.pos.x, c.pos.y - c.half.y, c.pos.z), c.quat, new Vector3(1, 1, 1));
+    const add = (g, hex, mtx, rect) => figs.push([g, hex, at.clone().multiply(mtx), rect]);
+    add(new BoxGeometry(w - 0.5, 0.34, 0.07), 0xFFFFFF, placeAt(0, 0.4, 0), K.stripeRect);
+    const body = [0xFFF6EA, 0xFFC0D2, 0x6CC24A, 0xFFFDF8][a];
+    for (const s of [-1, 1]) {
+      const x = s * (w / 2 - 0.25);
+      add(new BoxGeometry(0.5, 0.12, 0.34), 0x2A2C30, placeAt(x, 0.06, 0));   // the weighted black base it stands on: a dark footprint on the pale rail
+      add(new SphereGeometry(0.22, 16, 12), body, placeAt(x, 0.38, 0, 0, 0, 0, 1, 1.15, 0.75));
+      add(new SphereGeometry(0.07, 8, 6), a === 3 ? SUMI : body, placeAt(x - s * 0.21, 0.42, 0.05));   // a paw on the board
+      add(new SphereGeometry(0.24, 20, 14), 0xFFFFFF, placeAt(x, 0.72, 0), K.faceRect[a]);
+      if (a === 0) for (const e of [-1, 1]) add(new ConeGeometry(0.08, 0.17, 8), e < 0 ? 0xF0943A : 0x2E2824, placeAt(x + e * 0.13, 0.94, 0, 0, 0, -e * 0.35));
+      if (a === 1) for (const e of [-1, 1]) add(new SphereGeometry(0.06, 8, 8), 0xFFB4CB, placeAt(x + e * 0.09, 1.06, 0, 0, 0, -e * 0.25, 1, 3.4, 0.7));
+      if (a === 2) { add(new SphereGeometry(0.2, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), 0xF6F6F2, placeAt(x, 0.86, 0, -0.2)); add(new BoxGeometry(0.07, 0.07, 0.02), 0x1E9A48, placeAt(x, 0.98, 0.14)); }
+      if (a === 3) for (const e of [-1, 1]) add(new SphereGeometry(0.075, 10, 8), SUMI, placeAt(x + e * 0.16, 0.9, 0));
+    }
+  }
+  if (figs.length) { const m = new Mesh(atlasModel(figs, K.white), K.atlasMat); m.castShadow = true; tkAdd(levelGroup, m); }
+  // CROSSINGS: a little railway across the road, a crossbuck and an arm each side, 止まれ before the line.
+  const stopT = K.stopT || (K.stopT = canvasTex(256, 96, (g) => {
+    g.font = `900 76px ${JP}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.strokeStyle = 'rgba(40,36,32,0.75)'; g.lineWidth = 10; g.lineJoin = 'round'; g.strokeText('止まれ', 128, 50, 240);   // worn white paint, edged dark so it reads on the pale deck
+    g.fillStyle = '#FFFFFF'; g.fillText('止まれ', 128, 50, 240);
+  }));
+  for (const c of crossings) {
+    const X = c.cross;
+    if (X.fire) continue;
+    tkHide(...X.parts, ...X.lights.map((L) => L.lamp.parent));
+    const near = c.pos.z + c.half.z, top = X.top, parts = [];
+    for (const L of X.lanes) {
+      for (let x = -30; x <= 30; x += 0.55) parts.push([new BoxGeometry(0.14, 0.05, 1.3), 0x4A3A2C, placeAt(X.x + x, top + 0.025, L.z)]);
+      for (const dz of [-0.36, 0.36]) parts.push([new BoxGeometry(60, 0.06, 0.07), 0x8A9098, placeAt(X.x, top + 0.08, L.z + dz)]);
+      for (const s of [-1, 1]) parts.push([new BoxGeometry(30 - X.w / 2, 0.32, 1.1), 0x4E5660, placeAt(X.x + s * (X.w / 2 + (30 - X.w / 2) / 2), top - 0.16, L.z)]);
+    }
+    const arms = [], lamps = [new MeshBasicMaterial({ color: 0x3A0A0A }), new MeshBasicMaterial({ color: 0x3A0A0A })];
+    for (const s of [-1, 1]) {
+      const x = X.x + s * (X.w / 2 + 0.5), z = near - 0.12;
+      for (let k = 0; k < 6; k++) parts.push([new CylinderGeometry(0.05, 0.05, 0.3, 8), k % 2 ? 0x1A1A1A : 0xF2C230, placeAt(x, top + 0.15 + k * 0.3, z)]);
+      for (const e of [-1, 1]) {
+        parts.push([new BoxGeometry(0.66, 0.13, 0.03), 0x1A1A1A, placeAt(x, top + 1.98, z + 0.02, 0, 0, e * 0.6)]);
+        parts.push([new BoxGeometry(0.6, 0.08, 0.03), 0xF2C230, placeAt(x, top + 1.98, z + 0.04, 0, 0, e * 0.6)]);
+      }
+      parts.push([new BoxGeometry(0.56, 0.05, 0.05), 0x1A1A1A, placeAt(x, top + 1.55, z + 0.03)], [new BoxGeometry(0.2, 0.34, 0.2), 0x2A2A2A, placeAt(x, top + 1.1, z + 0.2)]);
+      for (const e of [-1, 1]) {
+        parts.push([new CylinderGeometry(0.1, 0.1, 0.05, 16), 0x1A1A1A, placeAt(x + e * 0.2, top + 1.55, z + 0.06, Math.PI / 2)]);
+        const lp = new Mesh(new CircleGeometry(0.075, 18), lamps[(e + s) / 2 === 0 ? 0 : 1]);
+        lp.position.set(x + e * 0.2, top + 1.55, z + 0.09); tkAdd(levelGroup, lp);
+      }
+      const arm = new Group(), L = X.w / 2 + 0.25;              // striped black and yellow, as every crossing's arm is
+      for (let k = 0; k < 6; k++) { const seg = new Mesh(new BoxGeometry(L / 6, 0.06, 0.05), k % 2 ? K.lacquer : K.yellow); seg.position.x = (k + 0.5) * L / 6; arm.add(seg); }
+      arm.position.set(x, top + 1.1, z + 0.32); arm.rotation.set(0, s > 0 ? Math.PI : 0, Math.PI / 2);
+      tkAdd(levelGroup, arm); arms.push(arm);
+    }
+    const stop = new Mesh(new PlaneGeometry(Math.min(2.4, X.w * 0.6), 0.9), new MeshBasicMaterial({ map: stopT, transparent: true, depthWrite: false }));
+    stop.rotation.x = -Math.PI / 2; stop.position.set(X.x, top + 0.016, near + 0.75); tkAdd(levelGroup, stop);
+    tkAdd(levelGroup, new Mesh(paintedModel(parts), K.props));
+    X.cars.forEach((car, i) => {
+      for (const ch of car.mesh.children) tkHide(ch);
+      const [bg, lg] = K.tram[(X.lanes.indexOf(car.lane) * 2 + i) % K.tram.length], g = new Group();
+      g.add(new Mesh(bg, K.props), new Mesh(lg, K.lit));
+      tkAdd(car.mesh, g);
+    });
+    let angle = Math.PI / 2;
+    tkTick((dt) => {                                       // the lamps flash by turns and the arms come down while it is not safe
+      const shut = !X.green, on = REDUCED || ((simT * 1.6) % 1) < 0.5;
+      lamps[0].color.setHex(shut && on ? 0xFF2A20 : 0x3A0A0A); lamps[1].color.setHex(shut && (REDUCED || !on) ? 0xFF2A20 : 0x3A0A0A);
+      const want = shut ? 0 : Math.PI / 2;
+      angle += (want - angle) * (REDUCED ? 1 : 1 - Math.exp(-6 * dt));
+      for (const a of arms) a.rotation.z = angle;
+    });
+  }
+  // HOLOGRAM ROADS: paper lit from below.
+  for (const c of holos) {
+    const old = c.holoMats, mats = [glowMat(0xFFB070, 0.5), glowMat(0xFFFFFF, 1, K.shoji), glowMat(0xFFB070, 0.2), glowMat(0xFFE6C4, 1)];
+    for (const ch of c.mesh.children) if (ch.material === old[3]) tkSet(ch, 'material', mats[3]);
+    c.holoMats = mats;
+    tkUndo.push(() => { c.holoMats = old; for (const m of mats) m.dispose(); });
+  }
+  // PADS: a jump pad is a taiko drum's head; a speed strip has yellow tactile paving down each edge.
+  for (const c of pads) {
+    const top = c.half.y;
+    if (c.pad === 'jump') {
+      for (const ch of c.mesh.children) if (!c.padFx.rings.includes(ch)) tkHide(ch);
+      const head = new Mesh(new CircleGeometry(c.padFx.R + 0.06, 48), K.taiko);
+      head.rotation.x = -Math.PI / 2; head.position.y = top + 0.006; tkAdd(c.mesh, head);
+    } else {
+      const d = c.half.z * 2 - 0.3;
+      for (const s of [-1, 1]) {
+        const g = new PlaneGeometry(0.32, d), uv = g.attributes.uv;
+        for (let i = 0; i < uv.count; i++) uv.setY(i, uv.getY(i) * d / 0.32);
+        const strip = new Mesh(g, K.tactile); strip.rotation.x = -Math.PI / 2; strip.position.set(s * (c.half.x - 0.3), top + 0.008, 0);
+        tkAdd(c.mesh, strip);
+      }
+    }
+  }
+  // MAGLEV STRIPS: a moving walkway.
+  for (const c of mags) {
+    const deco = c.mesh.children.find((m) => m.material && m.material.map === c.magFx.tex);
+    if (!deco) continue;
+    const t = K.belt.clone(); t.repeat.copy(c.magFx.tex.repeat);
+    const mat = hazed(new MeshStandardMaterial({ map: t, roughness: 0.55, metalness: 0.3 }));
+    tkSet(deco, 'material', mat); tkSet(c.magFx, 'tex', t);
+    tkUndo.push(() => { t.dispose(); mat.dispose(); });
+  }
+  // WIND: the towers in the city's walls, the streaks warm, and a carp-streamer pole on the windward edge.
+  if (winds.length) {
+    const TK = tokyoKit(), [f, rf] = TK.mats.white, koi = new InstancedMesh(K.koiGeo, K.koiMat, winds.length * 3), carps = [];
+    koi.frustumCulled = false;
+    const poleParts = [];
+    for (const W of winds) {
+      for (const t of W.towers) if (t.geometry.type === 'BoxGeometry') tkSet(t, 'material', [f, f, rf, rf, f, f]);
+      tkColor(W.streaks.material.color, 0xFFF2E0);
+      const px = W.x - W.dir * (W.w / 2 + 0.7);
+      poleParts.push([new CylinderGeometry(0.05, 0.07, 10, 8), 0xE8E2D4, placeAt(px, W.y + 0.5, W.z)], [new SphereGeometry(0.12, 10, 8), 0xE8C050, placeAt(px, W.y + 5.6, W.z)]);
+      for (let k = 0; k < 4; k++) poleParts.push([new BoxGeometry(0.7, 0.04, 0.04), 0xE8C050, placeAt(px, W.y + 5.3, W.z, 0, k * Math.PI / 4)]);
+      [[3.0, 0x2A2A30, 4.9], [2.4, 0xD8342A, 3.9], [1.9, 0x2A5AB8, 3.0]].forEach(([L, hex, y], k) => {
+        koi.setColorAt(carps.length, new Color(hex)); carps.push({ W, L, x: px, y: W.y + y, z: W.z, ph: k * 1.7 + W.z });
+      });
+    }
+    tkAdd(levelGroup, new Mesh(paintedModel(poleParts), K.props)); tkAdd(levelGroup, koi);
+    const e = new Euler(), q = new Quaternion(), p = new Vector3(), sc = new Vector3(), m = new Matrix4();
+    tkTick(() => {
+      carps.forEach((C, i) => {
+        const k = windState(C.W, simT).k, fl = REDUCED ? 0 : Math.sin(simT * 7 + C.ph) * (0.05 + 0.1 * k), br = 1 + (REDUCED ? 0 : 0.08 * Math.sin(simT * 5 + C.ph));
+        e.set(fl, C.W.dir > 0 ? 0 : Math.PI, -(1 - k) * 1.35 + fl * 0.5, 'YXZ');
+        m.compose(p.set(C.x, C.y, C.z), q.setFromEuler(e), sc.set(C.L * (0.9 + 0.1 * k), 0.24 * C.L * br, 0.24 * C.L * br));
+        koi.setMatrixAt(i, m);
+      });
+      koi.instanceMatrix.needsUpdate = true;
+    });
+  }
+  // WORMHOLES: a torii, sakura swirling in it.
+  for (const W of wormholes) {
+    const [disc, ring, halo] = W.grp.children;
+    tkHide(ring, halo); tkSet(disc, 'material', K.swirl);
+    const L = []; toriiParts(L, 2 * W.rad, 2 * W.rad + 0.05, 3.2);
+    tkAdd(W.grp, new Mesh(paintedModel(L.map(([g0, hex, mtx]) => [g0, hex, new Matrix4().makeTranslation(0, -W.rad, 0).multiply(mtx)])), K.props));
+  }
+  // ROUNDABOUTS: a revolving stage round a garden.
+  for (const Rd of rounds) {
+    const [top, rim, , lamps] = Rd.spinGrp.children, fixed = Rd.gyro.parent, [island, lip, glow] = fixed.children;
+    tkSet(top, 'material', K.stage); tkSet(rim, 'material', K.redLacquer); tkColor(lamps.material.color, 0xFFD49A);
+    tkHide(lip, glow, Rd.gyro); tkSet(island, 'material', K.island);
+    const g = [], H = ISLAND_H;
+    g.push([new IcosahedronGeometry(0.45, 0), 0x6A6660, placeAt(0.35, H + 0.18, -0.25, 0.3, 0.5, 0, 1.3, 0.75, 1)],
+           [new IcosahedronGeometry(0.3, 0), 0x5E5A54, placeAt(-0.45, H + 0.1, 0.45, 0.2, 1.1, 0, 1.1, 0.7, 1)],
+           [new SphereGeometry(0.5, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), 0x4E7A3A, placeAt(-0.7, H, -0.55, 0, 0, 0, 1.3, 0.4, 1.1)]);
+    const lx = 0.95, lz = 0.75;                            // a stone lantern
+    g.push([new BoxGeometry(0.34, 0.1, 0.34), 0x8E8A82, placeAt(lx, H + 0.05, lz)], [new CylinderGeometry(0.07, 0.09, 0.42, 8), 0x8E8A82, placeAt(lx, H + 0.31, lz)],
+           [new BoxGeometry(0.3, 0.06, 0.3), 0x8E8A82, placeAt(lx, H + 0.55, lz)], [new ConeGeometry(0.3, 0.2, 4), 0x7E7A72, placeAt(lx, H + 0.86, lz, 0, Math.PI / 4)],
+           [new SphereGeometry(0.05, 8, 6), 0x7E7A72, placeAt(lx, H + 0.99, lz)]);
+    tkAdd(fixed, new Mesh(paintedModel(g), K.props));
+    tkAdd(fixed, new Mesh(paintedModel([[new BoxGeometry(0.2, 0.2, 0.2), 0xFFC878, placeAt(lx, H + 0.68, lz)]]), K.lit));
+  }
+  // GLASS TUBES: a tunnel of torii.
+  for (const U of tubes) {
+    tkSet(U.rings, 'geometry', K.toriiRing); tkSet(U.rings, 'material', K.toriiRingMat); tkSet(U, 'pal', [0.55, 0.55, 0.55, 1, 1, 1]);
+    const im = U.rings.instanceMatrix, kept = im.array.slice(), zero = new Matrix4().makeScale(0, 0, 0);
+    for (let i = 1; i < U.rings.count; i += 2) U.rings.setMatrixAt(i, zero);   // a torii at every other ring
+    im.needsUpdate = true;
+    tkUndo.push(() => { im.array.set(kept); im.needsUpdate = true; });
+    tkHide(...U.ends, ...U.halos); tkSet(U.glass, 'material', K.glass);
+    for (const e of U.ends) {
+      const big = new Mesh(K.toriiRing, K.toriiRingMat.clone()); big.material.color.setRGB(0.9, 0.9, 0.9);
+      big.position.copy(e.position); big.quaternion.copy(e.quaternion); big.scale.setScalar(1.35); tkAdd(levelGroup, big);
+    }
+  }
+  // SCANNERS: a folding screen of gold, sliding across.
+  for (const Sc of scans) {
+    const n = Math.max(4, Math.round(Sc.d / 0.9)), pw = Sc.d / n, parts = [];
+    for (let k = 0; k < n; k++) {
+      const z = -Sc.d / 2 + (k + 0.5) * pw, x = k % 2 ? 0.05 : -0.05, ry = k % 2 ? 0.22 : -0.22;
+      parts.push([new BoxGeometry(0.04, SCAN_H - 0.08, pw), 0xFFFFFF, placeAt(x, SCAN_H / 2, z, 0, ry), [k / n, (k + 1) / n, 0, 1]]);
+      for (const y of [0.03, SCAN_H - 0.03]) parts.push([new BoxGeometry(0.06, 0.06, pw), SUMI, placeAt(x, y, z, 0, ry)]);
+      parts.push([new BoxGeometry(0.06, SCAN_H, 0.05), SUMI, placeAt(x, SCAN_H / 2, z - pw / 2 + 0.02, 0, ry)]);
+    }
+    parts.push([new BoxGeometry(0.06, SCAN_H, 0.05), SUMI, placeAt(0, SCAN_H / 2, Sc.d / 2 - 0.02)]);
+    const geo = atlasModel(parts, [0.999, 0.001]);
+    for (const g of Sc.bars) {
+      const [sheet, , , strands, ...nubs] = g.children;
+      tkHide(sheet, strands, ...nubs);                     // its line and its glow on the road stay, so from behind you see where it is
+      const m = new Mesh(geo, K.byobu); m.castShadow = true; tkAdd(g, m);
+    }
+  }
+  // SWITCHES: a lacquer button in gold; lanterns along the cable.
+  for (const S of switches) {
+    tkSet(S.button, 'material', K.redLacquer);
+    tkColor(S.faceMat.color, 0xFFD890); tkColor(S.ringMat.color, 0xFFC060); tkColor(S.halo.material.color, 0xFF9A40);
+    for (const g of S.decals) tkColor(g.material.color, 0xFFD8A0);
+    tkSet(S.dots, 'geometry', K.dotGeo); tkSet(S, 'dotOn', new Color(0xFFC878)); tkSet(S, 'dotOff', new Color(0x6A5646));
+    const paint = (on, off) => { S.at.forEach((a, i) => S.dots.setColorAt(i, S.on && a <= S.t * PULSE_V ? on : off)); S.dots.instanceColor.needsUpdate = true; };
+    paint(S.dotOn, S.dotOff);
+    tkUndo.push(() => paint(DOT_ON, DOT_OFF));
+  }
+  // COLOUR LANES: noren to roll through; the lock a paper screen in its colour.
+  for (const C of curtains) {
+    const [sheet, bar] = C.parts;
+    tkHide(sheet); tkSet(bar, 'material', K.wood);
+    const g = new PlaneGeometry(C.w, 1.15); g.translate(0, -0.575, 0);
+    const noren = new Mesh(g, K.noren[C.col]); noren.position.set(C.x, C.y + 1.5, C.z); tkAdd(levelGroup, noren);
+    tkTick(() => { noren.rotation.x = REDUCED ? 0 : 0.7 * C.flash * (0.6 + 0.4 * Math.sin(simT * 11)); });
+  }
+  for (const L of locks) {
+    const old = L.mat, t = K.shojiLock.clone(); t.repeat.set(Math.max(1, Math.round(L.half.x * 2 / 0.9)), 1);
+    const mat = new MeshBasicMaterial({ color: TINTS[L.lock], map: t, transparent: true, opacity: old.opacity, side: DoubleSide });
+    tkSet(L.mesh, 'material', mat); L.mat = mat;
+    tkUndo.push(() => { L.mat = old; t.dispose(); mat.dispose(); });
+    for (const f of L.frames) tkSet(f, 'material', K.wood);
+  }
+  // THE SKY TRAIN you ride: a commuter train, on a concrete guideway.
+  for (const c of ferries) {
+    if (!c.train) continue;
+    tkHide(c.train.model);
+    const t = K.ride.clone(); t.rotation.y = Math.PI / 2; t.position.y = -TRAIN_H / 2 - 1.58;
+    tkAdd(c.mesh, t);
+    const [beam, ...rails] = c.train.parts;
+    tkSet(beam, 'material', K.concrete); for (const rl of rails) tkSet(rl, 'material', K.steel);
+  }
+  // PUZZLE SQUARES.
+  const walls = colliders.filter((c) => c.obstacle === 'wall');
+  if (walls.length) {
+    const box = [], caps = [];
+    for (const c of walls) {
+      tkHide(c.mesh);
+      const { x: hx, y: hy, z: hz } = c.half, g = new BoxGeometry(hx * 2, hy * 2, hz * 2), p = g.attributes.position, n = g.attributes.normal, uv = g.attributes.uv;
+      for (let i = 0; i < p.count; i++) {                  // a tile to a metre along the wall, the wall's height up it
+        const wx = c.pos.x + p.getX(i), wz = c.pos.z + p.getZ(i), along = Math.abs(n.getX(i)) > 0.5 ? wz : wx;
+        uv.setXY(i, Math.abs(n.getY(i)) > 0.5 ? 0 : along, (p.getY(i) + hy) / (hy * 2));
+      }
+      g.translate(c.pos.x, c.pos.y, c.pos.z); box.push(g);
+      const L = Math.max(hx, hz) * 2 + 0.12, alongX = hx > hz, T = Math.min(hx, hz) * 2 + 0.16;
+      caps.push([new BoxGeometry(alongX ? L : T, 0.09, alongX ? T : L), 0x3A3F48, placeAt(c.pos.x, c.pos.y + hy + 0.045, c.pos.z)],
+                [new BoxGeometry(alongX ? L : 0.14, 0.07, alongX ? 0.14 : L), 0x2A2E36, placeAt(c.pos.x, c.pos.y + hy + 0.12, c.pos.z)]);
+    }
+    const mg = new BufferGeometry(), all = box.map((g) => g.toNonIndexed());
+    for (const name of ['position', 'normal', 'uv']) {
+      const k = all[0].attributes[name].itemSize, arr = new Float32Array(all.reduce((a, g) => a + g.attributes[name].count, 0) * k);
+      let at = 0; for (const g of all) { arr.set(g.attributes[name].array, at); at += g.attributes[name].array.length; }
+      mg.setAttribute(name, new Float32BufferAttribute(arr, k));
+    }
+    for (const g of [...box, ...all]) g.dispose();
+    const wm = new Mesh(mg, K.namako); wm.castShadow = wm.receiveShadow = true;
+    tkAdd(levelGroup, wm); tkAdd(levelGroup, new Mesh(paintedModel(caps), K.props));
+  }
+  for (const P of plazas) {
+    levelGroup.traverse((m) => { if (m.isMesh && (m.material === P.mats.line || m.material === P.mats.halo)) tkHide(m); });   // the walls' lit tops
+    const rails = new Set();
+    for (const T of P.tiles) T.grp.traverse((m) => {
+      if (m.material === P.mats.wall) { rails.add(m); tkSet(m, 'material', K.vermilion); }
+      else if (Array.isArray(m.material) && m.material[2] === P.mats.tile) tkSet(m, 'material', [K.vermilion, K.vermilion, K.deck, K.deck, K.vermilion, K.vermilion]);
+    });
+    levelGroup.traverse((m) => {
+      if (!m.isMesh || rails.has(m)) return;
+      if (m.material === P.mats.base) tkSet(m, 'material', K.stone);
+      else if (m.material === P.mats.wall && m.parent !== levelGroup) tkSet(m, 'material', K.wood);   // a gate's posts
+    });
+    for (const W of P.crates) tkSet(W.mesh, 'material', K.chest);
+    for (const g of P.gates) if (g.fieldMat) tkSet(g.fieldMat, 'map', K.shojiField);
+    for (const M of P.magnets) tkSet(M.fieldMat, 'map', K.shojiField);
+  }
 }
 // Many plain shapes, each placed by a matrix and given a colour, made into one geometry with vertex colours: many things in one draw.
 function paintedModel(parts) {
@@ -7152,50 +7860,110 @@ function makePlume(G, colour, sizes, opacities, cap, tex, order) {
     },
   };
 }
+/* KAWAII (owner, 2026-09-28: "Are there other elements you can add such as
+   anime, or the hello-kitty-like japanese elements"). The city's own mascots,
+   original characters and nobody else's: Mike the calico cat, Momo the pink
+   rabbit, Kero the frog in a site helmet (the green cross is the Japanese
+   sign for safety), Pan the panda and Musubi the rice ball. Each is a round
+   face with the eyes low and wide apart, big shining eyes, rosy cheeks and a
+   small mouth, drawn round (0, 0) with s the half-width of the face; `shut`
+   closes the eyes (a blink, a wink). They go on the trains, the screens, the
+   balloons over the festival and the barricades on the course. */
+const kEyes = (g, s, dx, y, rx, ry, shut) => {
+  for (const sx of [-1, 1]) {
+    const x = sx * dx * s;
+    if (shut) {                                            // a happy closed eye, curved up
+      g.strokeStyle = '#2A1E1C'; g.lineWidth = Math.max(1.2, 0.07 * s); g.lineCap = 'round';
+      g.beginPath(); g.arc(x, y * s + ry * 0.3 * s, rx * 1.1 * s, Math.PI + 0.5, -0.5); g.stroke();
+      continue;
+    }
+    g.fillStyle = '#2A1E1C'; g.beginPath(); g.ellipse(x, y * s, rx * s, ry * s, 0, 0, 7); g.fill();
+    g.fillStyle = '#FFFFFF'; g.beginPath(); g.arc(x - rx * 0.32 * s, y * s - ry * 0.38 * s, rx * 0.44 * s, 0, 7); g.fill();
+    g.beginPath(); g.arc(x + rx * 0.36 * s, y * s + ry * 0.42 * s, rx * 0.2 * s, 0, 7); g.fill();
+  }
+};
+const kCheeks = (g, s, dx, y) => { g.fillStyle = 'rgba(255,110,140,0.6)'; for (const sx of [-1, 1]) { g.beginPath(); g.ellipse(sx * dx * s, y * s, 0.17 * s, 0.1 * s, 0, 0, 7); g.fill(); } };
+const kLine = (g, s, w = 0.06) => { g.strokeStyle = '#3A2622'; g.lineWidth = Math.max(1, w * s); g.lineCap = 'round'; g.lineJoin = 'round'; };
+const MASCOTS = [
+  (g, s, shut, ears = true) => {                           // Mike, the calico cat
+    const ear = (sx, col) => {
+      g.fillStyle = col; g.beginPath(); g.moveTo(sx * 0.95 * s, -0.2 * s); g.lineTo(sx * 0.8 * s, -1.02 * s); g.lineTo(sx * 0.2 * s, -0.66 * s); g.closePath(); g.fill();
+      g.fillStyle = '#FFC4C4'; g.beginPath(); g.moveTo(sx * 0.8 * s, -0.36 * s); g.lineTo(sx * 0.73 * s, -0.84 * s); g.lineTo(sx * 0.38 * s, -0.63 * s); g.closePath(); g.fill();
+    };
+    if (ears) { ear(-1, '#F0943A'); ear(1, '#2E2824'); }
+    g.save(); g.fillStyle = '#FFFBF2'; g.beginPath(); g.ellipse(0, 0, s, 0.84 * s, 0, 0, 7); g.fill(); g.clip();
+    g.fillStyle = '#F0943A'; g.beginPath(); g.ellipse(-0.66 * s, -0.52 * s, 0.58 * s, 0.5 * s, 0.45, 0, 7); g.fill();   // an orange patch
+    g.fillStyle = '#2E2824'; g.beginPath(); g.ellipse(0.74 * s, -0.66 * s, 0.44 * s, 0.34 * s, -0.35, 0, 7); g.fill();   // and a black one
+    g.restore();
+    kEyes(g, s, 0.4, 0.1, 0.14, 0.19, shut); kCheeks(g, s, 0.66, 0.36);
+    g.fillStyle = '#F07A8A'; g.beginPath(); g.moveTo(-0.07 * s, 0.22 * s); g.lineTo(0.07 * s, 0.22 * s); g.lineTo(0, 0.29 * s); g.closePath(); g.fill();
+    kLine(g, s, 0.05);
+    for (const sx of [-1, 1]) { g.beginPath(); g.arc(sx * 0.075 * s, 0.31 * s, 0.075 * s, 0.15, Math.PI - 0.15); g.stroke(); }   // the mouth: ω
+    for (const k of [-1, 0, 1]) for (const sx of [-1, 1]) { g.beginPath(); g.moveTo(sx * 0.62 * s, 0.2 * s + k * 0.09 * s); g.lineTo(sx * 0.96 * s, 0.16 * s + k * 0.14 * s); g.stroke(); }
+  },
+  (g, s, shut, ears = true) => {                           // Momo, the pink rabbit, one ear flopped
+    if (ears) for (const sx of [-1, 1]) {
+      g.save(); g.translate(sx * 0.4 * s, -0.62 * s); g.rotate(sx > 0 ? 1.05 : -0.16);
+      g.fillStyle = '#FFB4CB'; g.beginPath(); g.ellipse(0, -0.56 * s, 0.25 * s, 0.62 * s, 0, 0, 7); g.fill();
+      g.fillStyle = '#FFE0E9'; g.beginPath(); g.ellipse(0, -0.54 * s, 0.12 * s, 0.46 * s, 0, 0, 7); g.fill();
+      g.restore();
+    }
+    g.fillStyle = '#FFC6D7'; g.beginPath(); g.ellipse(0, 0, s, 0.82 * s, 0, 0, 7); g.fill();
+    kEyes(g, s, 0.42, 0.08, 0.13, 0.18, shut); kCheeks(g, s, 0.66, 0.34);
+    g.fillStyle = '#E0607E'; g.beginPath(); g.ellipse(0, 0.22 * s, 0.07 * s, 0.05 * s, 0, 0, 7); g.fill();
+    kLine(g, s, 0.05); g.beginPath(); g.moveTo(0, 0.26 * s); g.lineTo(0, 0.33 * s); g.stroke();
+    for (const sx of [-1, 1]) { g.beginPath(); g.arc(sx * 0.08 * s, 0.31 * s, 0.08 * s, 0.4, Math.PI - 0.4); g.stroke(); }
+  },
+  (g, s, shut, ears = true) => {                           // Kero, the frog, in a white site helmet with the green cross
+    for (const sx of [-1, 1]) { g.fillStyle = '#6CC24A'; g.beginPath(); g.arc(sx * 0.5 * s, -0.46 * s, 0.36 * s, 0, 7); g.fill(); }
+    g.fillStyle = '#6CC24A'; g.beginPath(); g.ellipse(0, 0.08 * s, s, 0.72 * s, 0, 0, 7); g.fill();
+    if (ears) {
+      g.fillStyle = '#F6F6F2'; g.beginPath(); g.ellipse(0, -0.72 * s, 0.42 * s, 0.3 * s, 0, Math.PI, 0); g.fill();
+      g.fillRect(-0.52 * s, -0.74 * s, 1.04 * s, 0.08 * s);
+      g.fillStyle = '#1E9A48'; g.fillRect(-0.05 * s, -0.96 * s, 0.1 * s, 0.2 * s); g.fillRect(-0.1 * s, -0.91 * s, 0.2 * s, 0.1 * s);
+    }
+    for (const sx of [-1, 1]) {
+      g.fillStyle = '#FFFFFF'; g.beginPath(); g.arc(sx * 0.5 * s, -0.46 * s, 0.26 * s, 0, 7); g.fill();
+      if (shut) { kLine(g, s, 0.07); g.beginPath(); g.arc(sx * 0.5 * s, -0.4 * s, 0.14 * s, Math.PI + 0.5, -0.5); g.stroke(); }
+      else { g.fillStyle = '#2A1E1C'; g.beginPath(); g.arc(sx * 0.5 * s, -0.42 * s, 0.14 * s, 0, 7); g.fill(); g.fillStyle = '#FFFFFF'; g.beginPath(); g.arc(sx * 0.5 * s - 0.05 * s, -0.47 * s, 0.05 * s, 0, 7); g.fill(); }
+    }
+    kCheeks(g, s, 0.66, 0.3);
+    kLine(g, s, 0.06); g.beginPath(); g.arc(0, 0.06 * s, 0.4 * s, 0.35, Math.PI - 0.35); g.stroke();
+  },
+  (g, s, shut, ears = true) => {                           // Pan, the panda
+    if (ears) for (const sx of [-1, 1]) { g.fillStyle = '#26221F'; g.beginPath(); g.arc(sx * 0.74 * s, -0.6 * s, 0.28 * s, 0, 7); g.fill(); }
+    g.fillStyle = '#FFFDF8'; g.beginPath(); g.ellipse(0, 0, s, 0.84 * s, 0, 0, 7); g.fill();
+    for (const sx of [-1, 1]) { g.fillStyle = '#26221F'; g.beginPath(); g.ellipse(sx * 0.4 * s, 0.06 * s, 0.22 * s, 0.3 * s, sx * 0.55, 0, 7); g.fill(); }
+    if (shut) { g.strokeStyle = '#FFFFFF'; g.lineWidth = Math.max(1.2, 0.06 * s); g.lineCap = 'round'; for (const sx of [-1, 1]) { g.beginPath(); g.arc(sx * 0.4 * s, 0.1 * s, 0.1 * s, Math.PI + 0.5, -0.5); g.stroke(); } }
+    else for (const sx of [-1, 1]) {
+      g.fillStyle = '#FFFFFF'; g.beginPath(); g.arc(sx * 0.4 * s, 0.04 * s, 0.09 * s, 0, 7); g.fill();
+      g.fillStyle = '#26221F'; g.beginPath(); g.arc(sx * 0.4 * s + 0.02 * s, 0.06 * s, 0.05 * s, 0, 7); g.fill();
+    }
+    kCheeks(g, s, 0.68, 0.38);
+    g.fillStyle = '#26221F'; g.beginPath(); g.ellipse(0, 0.28 * s, 0.09 * s, 0.06 * s, 0, 0, 7); g.fill();
+    kLine(g, s, 0.05); for (const sx of [-1, 1]) { g.beginPath(); g.arc(sx * 0.07 * s, 0.36 * s, 0.07 * s, 0.2, Math.PI - 0.2); g.stroke(); }
+  },
+  (g, s, shut) => {                                        // Musubi, the rice ball, in its band of nori
+    g.fillStyle = '#FFFDF6'; g.beginPath();
+    g.moveTo(0, -0.95 * s); g.quadraticCurveTo(0.2 * s, -0.95 * s, 0.9 * s, 0.4 * s); g.quadraticCurveTo(1.02 * s, 0.84 * s, 0.5 * s, 0.84 * s);
+    g.lineTo(-0.5 * s, 0.84 * s); g.quadraticCurveTo(-1.02 * s, 0.84 * s, -0.9 * s, 0.4 * s); g.quadraticCurveTo(-0.2 * s, -0.95 * s, 0, -0.95 * s); g.fill();
+    g.save(); g.clip(); g.fillStyle = '#1E2A22'; g.fillRect(-0.42 * s, 0.46 * s, 0.84 * s, 0.5 * s); g.restore();
+    kEyes(g, s, 0.3, 0.06, 0.1, 0.14, shut); kCheeks(g, s, 0.5, 0.26);
+    kLine(g, s, 0.05); g.beginPath(); g.arc(0, 0.16 * s, 0.1 * s, 0.3, Math.PI - 0.3); g.stroke();
+  },
+];
 /* TOKYO'S TRAINS, not the neon city's (owner: "can we make the metro trail a
-   little different than the last world?"). On the elevated lines beside the
-   rail, a bullet train: white, a long flat nose at each end, the blue stripe
-   under a row of lit windows. Crossing under it at the side streets, a
-   commuter train: stainless steel, a flat face, a band of line green. Both
-   are one lofted body each, +x forward, like the city's sky train. */
+   little different than the last world?", then "can you make the train that
+   runs parallel to the tracks similar to the crosstown one so that it is
+   different than the neon city?"). Every train here is a commuter train:
+   stainless steel, a flat black face, a band in its line's colour, doors down
+   each side. Crossing under the rail at the side streets, the green line; on
+   the elevated lines beside it, the orange line, and a train wrapped all over
+   in pink with the city's mascots down its sides and sakura on its roof.
+   One lofted body each, +x forward. */
 const trainBand = (g, W, H, v0, v1, fill, u0 = 0, u1 = 1) => { g.fillStyle = fill; g.fillRect(u0 * W, (1 - v1) * H, (u1 - u0) * W, (v1 - v0) * H); };
-function shinkansenModel(env) {
-  const TL = 52, NOSE = 11, W = 2048, H = 256, nu = NOSE / TL, r = seeded(12);
-  const prof = (t) => {
-    const d = Math.min(t, 1 - t) * TL;
-    if (d >= NOSE) return { w: 1.25, top: 1.45, bot: -1.25 };
-    const k = d / NOSE;
-    return { w: 1.25 * (0.16 + 0.84 * Math.sqrt(k)), top: -0.8 + 2.25 * (1 - Math.pow(1 - k, 2.2)), bot: -1.25 + 0.3 * (1 - k) * (1 - k) };
-  };
-  const B = (g, ...a) => trainBand(g, W, H, ...a), sides = [[0.265, 0.315], [0.685, 0.735]], lit = [];
-  const map = canvasTex(W, H, (g) => {
-    B(g, 0, 1, '#F2F4F6');
-    B(g, 0, 0.1, '#5A6068'); B(g, 0.9, 1, '#5A6068');                          // the skirt over the bogies
-    for (const [a, b] of [[0.19, 0.235], [0.765, 0.81]]) B(g, a, b, '#1B4DA8');   // the blue stripe, and a thin one above it
-    for (const [a, b] of [[0.245, 0.252], [0.748, 0.755]]) B(g, a, b, '#1B4DA8');
-    for (const [a, b] of sides) {
-      B(g, a, b, '#26303C', nu + 0.02, 1 - nu - 0.02);
-      for (let x = (nu + 0.025) * W; x < (1 - nu - 0.025) * W - 20; x += 36) { g.fillStyle = '#39485A'; g.fillRect(x, (1 - b) * H + 2, 24, (b - a) * H - 4); lit.push(r() < 0.85); }
-    }
-    for (const u of [1 / 3, 2 / 3]) B(g, 0.1, 0.9, '#3A4048', u - 0.002, u + 0.002);   // where the cars meet
-    for (const [u0, u1] of [[nu * 0.42, nu * 0.8], [1 - nu * 0.8, 1 - nu * 0.42]]) {     // a cab windscreen on each nose
-      const gr = g.createLinearGradient(0, 0.36 * H, 0, 0.64 * H);
-      gr.addColorStop(0, '#101826'); gr.addColorStop(0.5, '#3A4C66'); gr.addColorStop(1, '#101826');
-      g.fillStyle = gr; g.fillRect(u0 * W, 0.36 * H, (u1 - u0) * W, 0.28 * H);
-    }
-  });
-  const glow = canvasTex(W, H, (g) => {
-    B(g, 0, 1, '#000');
-    let k = 0;
-    for (const [a, b] of sides) for (let x = (nu + 0.025) * W; x < (1 - nu - 0.025) * W - 20; x += 36) if (lit[k++]) { g.fillStyle = '#FFD9A8'; g.fillRect(x, (1 - b) * H + 2, 24, (b - a) * H - 4); }
-    for (const v of [0.205, 0.795]) { g.fillStyle = '#FFFFFF'; g.fillRect(0.984 * W, (1 - v - 0.02) * H, 0.012 * W, 0.04 * H); g.fillStyle = '#FF2D48'; g.fillRect(0.004 * W, (1 - v - 0.02) * H, 0.012 * W, 0.04 * H); }
-  });
-  const train = new Group();
-  train.add(new Mesh(loft(TL, prof, 110, 36), new MeshStandardMaterial({ map, emissive: 0xFFFFFF, emissiveMap: glow, metalness: 0.25, roughness: 0.3, envMap: env })));
-  return train;
-}
-function commuterModel(env) {
-  const TL = 54, NOSE = 1.6, W = 2048, H = 256, nu = NOSE / TL, r = seeded(18);
+function commuterModel(env, line = '#7DC242', cars = 3, wrap = false) {
+  const TL = 18 * cars, NOSE = 1.6, W = 2048, H = 256, nu = NOSE / TL, r = seeded(18 + cars + (wrap ? 5 : 0));
   const prof = (t) => {
     const d = Math.min(t, 1 - t) * TL;
     if (d >= NOSE) return { w: 1.4, top: 1.55, bot: -1.2 };
@@ -7205,24 +7973,36 @@ function commuterModel(env) {
   };
   const B = (g, ...a) => trainBand(g, W, H, ...a), wins = [[0.255, 0.335], [0.665, 0.745]], lit = [];
   const map = canvasTex(W, H, (g) => {
-    B(g, 0, 1, '#C4C9CC');
-    for (let x = 0; x < W; x += 12) { g.fillStyle = 'rgba(255,255,255,0.12)'; g.fillRect(x, 0, 2, H); }   // the corrugation of stainless steel
+    B(g, 0, 1, wrap ? '#F7B6CC' : '#C4C9CC');
+    if (!wrap) for (let x = 0; x < W; x += 12) { g.fillStyle = 'rgba(255,255,255,0.12)'; g.fillRect(x, 0, 2, H); }   // the corrugation of stainless steel
+    else {                                                                     // sakura all over the roof
+      for (let i = 0; i < 140; i++) {
+        const x = r() * W, y = (1 - 0.39 - r() * 0.22) * H, rr = 3 + r() * 3;
+        g.fillStyle = r() < 0.5 ? '#FFFFFF' : '#FF8AB0';
+        for (let p = 0; p < 5; p++) { const a = p * 1.2566 + x; g.beginPath(); g.arc(x + Math.cos(a) * rr * 0.6, y + Math.sin(a) * rr * 0.6, rr * 0.55, 0, 7); g.fill(); }
+      }
+    }
     B(g, 0, 0.08, '#4A5056'); B(g, 0.92, 1, '#4A5056');
-    for (const [a, b] of [[0.345, 0.375], [0.625, 0.655]]) B(g, a, b, '#7DC242');   // the line green, under the roof
-    for (let car = 0; car < 3; car++) {
-      const u0 = car / 3, u1 = (car + 1) / 3;
-      for (const [a, b] of wins) for (let k = 0; k < 6; k++) {
+    for (const [a, b] of [[0.345, 0.375], [0.625, 0.655]]) B(g, a, b, line);   // the line's colour, under the roof
+    for (let car = 0; car < cars; car++) {
+      const u0 = car / cars, u1 = (car + 1) / cars;
+      if (!wrap) for (const [a, b] of wins) for (let k = 0; k < 6; k++) {
         const w0 = u0 + (u1 - u0) * (0.06 + k * 0.155), w1 = w0 + (u1 - u0) * 0.1;
         if (w0 < nu + 0.005 || w1 > 1 - nu - 0.005) continue;
         B(g, a, b, '#2A3440', w0, w1); lit.push([a, b, w0, w1, r() < 0.9]);
       }
-      for (const [a0, a1] of [[0.09, 0.335], [0.665, 0.91]]) for (let k = 0; k < 4; k++) {   // doors, framed in green
+      for (const [a0, a1] of [[0.09, 0.335], [0.665, 0.91]]) for (let k = 0; k < 4; k++) {   // doors, framed in the line's colour
         const d0 = u0 + (u1 - u0) * (0.13 + k * 0.23);
-        B(g, a0, a1, '#7DC242', d0 - 0.002, d0 + 0.014); B(g, a0 + 0.01, a1 - 0.01, '#8E969C', d0, d0 + 0.012);
+        B(g, a0, a1, line, d0 - 0.002, d0 + 0.014); B(g, a0 + 0.01, a1 - 0.01, wrap ? '#FFE6EE' : '#8E969C', d0, d0 + 0.012);
+      }
+      if (wrap) for (let k = 0; k < 3; k++) {                                // a mascot between each pair of doors, upright on both sides
+        const u = u0 + (u1 - u0) * (0.245 + 0.008 * cars + k * 0.23), M = MASCOTS[(car * 3 + k) % 4], s = 0.105 * H;
+        g.save(); g.translate(u * W, (1 - 0.205) * H); M(g, s, false); g.restore();
+        g.save(); g.translate(u * W, (1 - 0.795) * H); g.rotate(Math.PI); M(g, s, false); g.restore();
       }
       B(g, 0.08, 0.92, '#3A4048', u1 - 0.0015, u1 + 0.0015);
     }
-    for (const [u0, u1] of [[0, nu * 0.95], [1 - nu * 0.95, 1]]) { B(g, 0.12, 0.88, '#16181C', u0, u1); B(g, 0.3, 0.7, '#7DC242', u0, u1); B(g, 0.34, 0.66, '#1E2A36', u0, u1); }   // the black face with its green band
+    for (const [u0, u1] of [[0, nu * 0.95], [1 - nu * 0.95, 1]]) { B(g, 0.12, 0.88, '#16181C', u0, u1); B(g, 0.3, 0.7, line, u0, u1); B(g, 0.34, 0.66, '#1E2A36', u0, u1); }   // the black face with its band
   });
   const glow = canvasTex(W, H, (g) => {
     B(g, 0, 1, '#000');
@@ -7230,7 +8010,8 @@ function commuterModel(env) {
     for (const v of [0.2, 0.8]) { B(g, v - 0.03, v + 0.03, '#FFFFFF', 0.996, 1); B(g, v - 0.03, v + 0.03, '#FF2D48', 0, 0.004); }
   });
   const train = new Group();
-  train.add(new Mesh(loft(TL, prof, 100, 28), new MeshStandardMaterial({ map, emissive: 0xFFFFFF, emissiveMap: glow, metalness: 0.55, roughness: 0.35, envMap: env })));
+  train.add(new Mesh(loft(TL, prof, 30 * cars + 10, 28), new MeshStandardMaterial({ map, emissive: 0xFFFFFF, emissiveMap: glow,
+    metalness: wrap ? 0.15 : 0.55, roughness: wrap ? 0.45 : 0.35, envMap: env })));
   return train;
 }
 const JP = '"Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", "YuGothic", "Meiryo", "Noto Sans CJK JP", "Noto Sans JP", sans-serif';
@@ -7479,6 +8260,103 @@ const SCREENS = [
     g.fillStyle = '#1A1A1A'; for (const s of [-1, 1]) { g.beginPath(); g.arc(128 + s * 12, 58, 3.5, 0, 7); g.fill(); }
   },
 ];
+/* THE CITY'S ANIME: Hana, a magical girl of its own (nobody else's): pink hair
+   cut in a bob, cat ears on her headband, big violet eyes, a sailor collar, a
+   star on a wand. Drawn round (0, 0), s the radius of her head; `wink` shuts
+   her right eye. */
+function animeGirl(g, s, wink) {
+  const hair = '#FF78B4', hairDark = '#E0508E';
+  g.fillStyle = hair; g.beginPath(); g.ellipse(0, 0.22 * s, 1.16 * s, 1.2 * s, 0, 0, 7); g.fill();                    // her hair, behind
+  for (const sx of [-1, 1]) {                                                                                         // cat ears on the headband
+    g.fillStyle = hair; g.beginPath(); g.moveTo(sx * 0.98 * s, -0.5 * s); g.lineTo(sx * 0.82 * s, -1.38 * s); g.lineTo(sx * 0.24 * s, -0.96 * s); g.closePath(); g.fill();
+    g.fillStyle = '#FFE0EE'; g.beginPath(); g.moveTo(sx * 0.84 * s, -0.66 * s); g.lineTo(sx * 0.78 * s, -1.16 * s); g.lineTo(sx * 0.42 * s, -0.92 * s); g.closePath(); g.fill();
+  }
+  g.fillStyle = '#FFE6D8'; g.beginPath(); g.ellipse(0, 0.16 * s, 0.88 * s, 0.84 * s, 0, 0, 7); g.fill();              // her face
+  g.fillStyle = hair; g.beginPath();                                                                                  // her fringe, in points
+  g.moveTo(-0.96 * s, 0.2 * s); g.quadraticCurveTo(-1.02 * s, -0.9 * s, 0, -0.98 * s); g.quadraticCurveTo(1.02 * s, -0.9 * s, 0.96 * s, 0.2 * s);
+  for (let k = 0; k <= 8; k++) { const x = 0.96 * s - k * 0.24 * s, y = k % 2 ? -0.02 * s : -0.34 * s + Math.abs(k - 4) * 0.02 * s; g.lineTo(x, y); }
+  g.closePath(); g.fill();
+  for (const sx of [-1, 1]) {                                                                                         // the locks down each side
+    g.beginPath(); g.moveTo(sx * 0.9 * s, -0.2 * s); g.quadraticCurveTo(sx * 1.02 * s, 0.5 * s, sx * 0.86 * s, 0.98 * s); g.lineTo(sx * 0.7 * s, 0.4 * s); g.closePath(); g.fill();
+  }
+  g.strokeStyle = hairDark; g.lineWidth = Math.max(1, 0.03 * s);
+  for (const x of [-0.5, -0.1, 0.3]) { g.beginPath(); g.moveTo(x * s, -0.9 * s); g.quadraticCurveTo((x - 0.05) * s, -0.6 * s, (x - 0.1) * s, -0.3 * s); g.stroke(); }
+  for (const sx of [-1, 1]) {                                                                                         // her eyes
+    const ex = sx * 0.37 * s, ey = 0.26 * s;
+    if (wink && sx > 0) {
+      g.strokeStyle = '#3A2030'; g.lineWidth = Math.max(1.5, 0.07 * s); g.lineCap = 'round';
+      g.beginPath(); g.moveTo(ex - 0.16 * s, ey - 0.02 * s); g.lineTo(ex, ey - 0.12 * s); g.lineTo(ex + 0.16 * s, ey - 0.02 * s); g.stroke();
+      continue;
+    }
+    g.fillStyle = '#FFFFFF'; g.beginPath(); g.ellipse(ex, ey, 0.19 * s, 0.25 * s, 0, 0, 7); g.fill();
+    const ig = g.createLinearGradient(0, ey - 0.24 * s, 0, ey + 0.24 * s);
+    ig.addColorStop(0, '#5A2FA8'); ig.addColorStop(0.6, '#9A6BEA'); ig.addColorStop(1, '#E0C8FF');
+    g.fillStyle = ig; g.beginPath(); g.ellipse(ex + sx * 0.01 * s, ey + 0.02 * s, 0.155 * s, 0.22 * s, 0, 0, 7); g.fill();
+    g.fillStyle = '#2A1440'; g.beginPath(); g.ellipse(ex + sx * 0.01 * s, ey, 0.075 * s, 0.12 * s, 0, 0, 7); g.fill();
+    g.fillStyle = '#FFFFFF'; g.beginPath(); g.arc(ex - 0.06 * s, ey - 0.09 * s, 0.065 * s, 0, 7); g.fill();
+    g.beginPath(); g.arc(ex + 0.06 * s, ey + 0.1 * s, 0.03 * s, 0, 7); g.fill();
+    g.strokeStyle = '#3A2030'; g.lineWidth = Math.max(1.5, 0.07 * s); g.lineCap = 'round';                            // the lash line, flicked out
+    g.beginPath(); g.ellipse(ex, ey, 0.2 * s, 0.26 * s, 0, Math.PI * 1.1, Math.PI * 1.9); g.stroke();
+    g.beginPath(); g.moveTo(ex + sx * 0.19 * s, ey - 0.12 * s); g.lineTo(ex + sx * 0.28 * s, ey - 0.2 * s); g.stroke();
+  }
+  g.fillStyle = 'rgba(255,110,140,0.5)'; for (const sx of [-1, 1]) { g.beginPath(); g.ellipse(sx * 0.58 * s, 0.52 * s, 0.14 * s, 0.07 * s, 0, 0, 7); g.fill(); }
+  g.fillStyle = '#C8384E'; g.beginPath(); g.moveTo(-0.1 * s, 0.6 * s); g.quadraticCurveTo(0, 0.76 * s, 0.1 * s, 0.6 * s); g.closePath(); g.fill();   // an open smile
+  g.fillStyle = '#1E2A5A'; g.beginPath(); g.moveTo(-0.9 * s, 1.35 * s); g.lineTo(-0.5 * s, 0.92 * s); g.lineTo(0, 1.3 * s); g.lineTo(0.5 * s, 0.92 * s); g.lineTo(0.9 * s, 1.35 * s); g.closePath(); g.fill();   // her sailor collar
+  g.strokeStyle = '#FFFFFF'; g.lineWidth = Math.max(1, 0.035 * s);
+  g.beginPath(); g.moveTo(-0.78 * s, 1.3 * s); g.lineTo(-0.48 * s, 1.0 * s); g.lineTo(0, 1.24 * s); g.lineTo(0.48 * s, 1.0 * s); g.lineTo(0.78 * s, 1.3 * s); g.stroke();
+  g.fillStyle = '#E0303A'; for (const sx of [-1, 1]) { g.beginPath(); g.moveTo(0, 1.28 * s); g.lineTo(sx * 0.28 * s, 1.16 * s); g.lineTo(sx * 0.24 * s, 1.44 * s); g.closePath(); g.fill(); }   // the bow
+}
+const star = (g, x, y, r1, r0, col) => {                  // a five-pointed star
+  g.fillStyle = col; g.beginPath();
+  for (let k = 0; k < 10; k++) { const a = -Math.PI / 2 + k * Math.PI / 5, rr = k % 2 ? r0 : r1; g[k ? 'lineTo' : 'moveTo'](x + Math.cos(a) * rr, y + Math.sin(a) * rr); }
+  g.closePath(); g.fill();
+};
+const sparkles = (g, W, H, seed, k) => {                  // twinkles that move between the two frames
+  const r = seeded(seed + k);
+  for (let i = 0; i < 9; i++) { const x = r() * W, y = r() * H, z = 3 + r() * 5; g.fillStyle = 'rgba(255,255,255,0.9)'; g.fillRect(x - z, y - 1, z * 2, 2); g.fillRect(x - 1, y - z, 2, z * 2); }
+};
+const kawaiiTitle = (g, txt, x, y, size, fill, edge) => {
+  g.font = `900 ${size}px ${JP}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.lineJoin = 'round'; g.strokeStyle = edge; g.lineWidth = size * 0.22; g.strokeText(txt, x, y); g.fillStyle = fill; g.fillText(txt, x, y);
+};
+// The screens' new frames: the mascots and Hana (the corner screens and the scramble's play them among the rest).
+const KAWAII_SCREENS = [
+  (g, k) => {                                              // Mike the cat, waving, then winking
+    const lg = g.createLinearGradient(0, 0, 0, 160); lg.addColorStop(0, '#FFE4EE'); lg.addColorStop(1, '#FFC4D8');
+    g.fillStyle = lg; g.fillRect(0, 0, 256, 160); sparkles(g, 256, 160, 5, k);
+    g.fillStyle = '#FFFBF2'; g.beginPath(); g.ellipse(128, 150, 50, 40, 0, 0, 7); g.fill();
+    g.save(); g.translate(128, 82); MASCOTS[0](g, 50, !!k); g.restore();
+    g.save(); g.translate(186, k ? 92 : 104); g.rotate(k ? -0.5 : -0.2); g.fillStyle = '#FFFBF2'; g.beginPath(); g.ellipse(0, 0, 13, 20, 0, 0, 7); g.fill(); g.restore();
+    kawaiiTitle(g, 'ミケ', 46, 34, 30, '#FFFFFF', '#E0508E');
+  },
+  (g, k) => {                                              // Hana, the city's own anime heroine, and her star
+    const lg = g.createLinearGradient(0, 0, 256, 160); lg.addColorStop(0, '#FFD6EC'); lg.addColorStop(1, '#C8B4FF');
+    g.fillStyle = lg; g.fillRect(0, 0, 256, 160); sparkles(g, 256, 160, 9, k);
+    g.save(); g.translate(96, 70); animeGirl(g, 46, !!k); g.restore();
+    g.strokeStyle = '#FFE070'; g.lineWidth = 4; g.beginPath(); g.moveTo(150, 140); g.lineTo(k ? 196 : 186, k ? 60 : 66); g.stroke();
+    star(g, k ? 198 : 188, k ? 56 : 62, 22, 9, '#FFE070');
+    kawaiiTitle(g, '魔法少女ハナ', 128, 146, 20, '#FFFFFF', '#8A3AB8');
+  },
+  (g, k) => {                                              // Momo the rabbit, and hearts
+    g.fillStyle = '#FFF0F6'; g.fillRect(0, 0, 256, 160);
+    for (let i = 0; i < 7; i++) { const x = 20 + i * 38, y = 30 + ((i + k) % 3) * 40; g.fillStyle = 'rgba(255,120,170,0.5)'; g.beginPath(); g.arc(x - 5, y, 6, 0, 7); g.arc(x + 5, y, 6, 0, 7); g.moveTo(x - 11, y + 2); g.lineTo(x, y + 14); g.lineTo(x + 11, y + 2); g.fill(); }
+    g.save(); g.translate(128, 96); MASCOTS[1](g, 42, !!k); g.restore();
+    kawaiiTitle(g, 'かわいい', 128, 26, 26, '#FF5FA2', '#FFFFFF');
+  },
+  (g, k) => {                                              // Kero the frog, safety first at the road works
+    g.fillStyle = '#E8F6DC'; g.fillRect(0, 0, 256, 160);
+    g.fillStyle = '#1E9A48'; g.fillRect(0, 138, 256, 22);
+    g.save(); g.translate(128, 84 + (k ? -4 : 0)); MASCOTS[2](g, 44, !!k); g.restore();
+    kawaiiTitle(g, '安全第一', 128, 149, 17, '#FFFFFF', '#1E9A48');
+  },
+  (g, k) => {                                              // Pan the panda, and bamboo
+    g.fillStyle = '#E6F4E0'; g.fillRect(0, 0, 256, 160);
+    g.fillStyle = '#6AAE50'; for (const x of [22, 44, 212, 234]) { g.fillRect(x, 0, 9, 160); for (let y = 20; y < 160; y += 36) g.fillRect(x - 1, y, 11, 3); }
+    g.save(); g.translate(128, 88); g.rotate(k ? 0.12 : -0.12); MASCOTS[3](g, 46, !!k); g.restore();
+    kawaiiTitle(g, 'パンダ', 128, 24, 22, '#26221F', '#FFFFFF');
+  },
+];
+SCREENS.push(...KAWAII_SCREENS);
 const tokyoDrift = (w) => {
   const K = tokyoKit(), G = w.group, r = seeded(71), end = courseEnd(), live = !REDUCED, env = tokyoEnvMap() || envTex;
   const pieces = level ? level.pieces : [];
@@ -7501,7 +8379,7 @@ const tokyoDrift = (w) => {
   HAZE.col.value.setHex(0xFFB48E); HAZE.k.value = 3; HAZE.dir.set(0.05, 0.06, -1).normalize();
   hemi.color.setHex(0x9CC4C8); hemi.groundColor.setHex(0x2E2622); hemi.intensity = 0.8;
   sun.color.setHex(0xFFD6B0); sun.intensity = 1.8;
-  w.marble = 'steel'; w.rings = [0x34E0FF, 0xFF6A3C]; w.glowGates = true;
+  w.marble = 'temari'; w.rings = [0x34E0FF, 0xFF6A3C]; w.glowGates = true; w.news = NEWS_TOKYO; w.rules = RULES_TOKYO;
   w.restyle = tokyoCourse;
   const m = new Matrix4(), q = new Quaternion(), e = new Euler(), pos = new Vector3(), sc = new Vector3(), col = new Color(), up = new Vector3(0, 1, 0);
   const props = [], glows = [];                            // still shapes the light falls on, and ones that shine by themselves
@@ -7563,9 +8441,9 @@ const tokyoDrift = (w) => {
     si.push(b, b + 1, b + 2, b, b + 2, b + 3);
   };
   const sign = (cx, cy, cz, wdt, hgt, nx, nz, R) => { quad(cx + nx * 0.03, cy, cz + nz * 0.03, wdt, hgt, nx, nz, R); quad(cx - nx * 0.03, cy, cz - nz * 0.03, wdt, hgt, -nx, -nz, R); };
-  const blossoms = [], stacks = [];                        // [x, y, z, size, colour]; the chimneys' tops
+  const blossoms = [], stacks = [], lowRoofs = [], fronts = [];   // [x, y, z, size, colour]; the chimneys' tops; clear low roofs; the front row
   const roofs = [], koi = [];                              // tiled roofs [x, y, z, half x, height, half z, colour]; carp streamers
-  const NEON = [0x40E8FF, 0xFF4FA0, 0xFFB040, 0xB47CFF, 0xFF3B3B];
+  const NEON = [0xFFB040, 0xFF5A3A, 0xFFE6C0, 0xFF8A3A, 0xFF3B3B];   // the corners lit warm, as paper and sign light is: cyan and violet were the neon city's
   const addKoi = (x, y, z) => {                             // a carp-streamer pole: black, red and blue carp on the wind
     cyl(props, 0.08, 0.11, 11, 6, 0xD8D0C0, x, y + 5.5, z);
     for (let k = 0; k < 4; k++) box(props, 0.9, 0.05, 0.05, 0xF2C230, x, y + 11, z, k * Math.PI / 4);
@@ -7614,7 +8492,8 @@ const tokyoDrift = (w) => {
       for (const zc of [z0 + 0.12, z1 - 0.12]) box(glows, 0.16, roof - GROUND - 7, 0.16, c, face + into * 0.1, (GROUND + 6.5 + roof) / 2, zc);
     }
     if (roof < lo - 3) {
-      if (r() < 0.45) roofs.push([cx, roof, cz, sx / 2, 2.2 + r() * 1.6, sz / 2, r() < 0.8 ? 0x3A4250 : 0x4E7A6A]);   // a tiled roof, the old way
+      const tiled = r() < 0.45, k0 = koi.length, s0 = stacks.length;
+      if (tiled) roofs.push([cx, roof, cz, sx / 2, 2.2 + r() * 1.6, sz / 2, r() < 0.8 ? 0x3A4250 : 0x4E7A6A]);   // a tiled roof, the old way
       else roofStuff(xa, xb, z0, z1, roof);
       if (koi.length < 9 && r() < 0.12) addKoi(cx + (r() - 0.5) * sx * 0.3, roof, cz + (r() - 0.5) * sz * 0.3);
       if (s > 0 && stacks.length < 3 && r() < 0.2) {       // a chimney, downwind of the rail, venting
@@ -7622,7 +8501,9 @@ const tokyoDrift = (w) => {
         for (let k = 0; k < 3; k++) cyl(props, 1.0 - k * 0.1, 1.1 - k * 0.1, h / 3, 14, k % 2 ? 0xE8E4DC : 0xB8262E, x, roof + h / 6 + k * h / 3, cz);
         stacks.push([x, roof + h + 0.5, cz]);
       }
+      if (!tiled && koi.length === k0 && stacks.length === s0) lowRoofs.push({ face, s, cz, sx, sz, roof });   // a clear roof, for a giant mascot
     }
+    fronts.push({ s, z0, z1, roof });
   };
   // The front row: along the avenue, some under the rail and some towering over it.
   for (const s of [-1, 1]) for (let z = Z_TOP; z > Z_BOT;) {
@@ -7859,8 +8740,9 @@ const tokyoDrift = (w) => {
     koiMesh.instanceMatrix.needsUpdate = true;
   };
   moveKoi(0);
-  // THE BULLET TRAIN LINES, one on each side just outside the rail: a concrete viaduct with parapets, piers, masts for the
-  // overhead wire; a bullet train on each, both ways. Grey and unlit, so none of it reads as more course.
+  // THE ELEVATED LINES, one on each side just outside the rail: a concrete viaduct with parapets, piers, masts for the
+  // overhead wire. Commuter trains on both, as on the line that crosses under: the orange line on the left, and on the right
+  // the pink train wrapped in the city's mascots. The viaducts grey and unlit, so none of it reads as more course.
   const Z_A = Z_TOP + 20, Z_B = Z_BOT - 20, MLEN = Z_A - Z_B, zMid = (Z_A + Z_B) / 2;
   const monos = [{ x: CX - (HW + 3), y: GROUND + 11, dir: -1 }, { x: CX + (HW + 3), y: GROUND + 14.5, dir: 1 }];
   for (const M of monos) {
@@ -7877,13 +8759,13 @@ const tokyoDrift = (w) => {
       box(props, 1.9, 0.12, 0.12, 0x5A6068, M.x + out * 0.55, M.y + 4.3, z);
     }
   }
-  const trains = [], SHIN = shinkansenModel(env), COMM = commuterModel(env);
+  const trains = [], COMM = commuterModel(env), LINES = [commuterModel(env, '#F26B21', 4), commuterModel(env, '#FF4F8E', 4, true)];
   const addTrain = (model, x, y, z, axis, dir, v) => {
     const t = trains.some((T) => T.model === model) ? model.clone() : model;
     t.rotation.y = axis === 'z' ? (dir < 0 ? Math.PI / 2 : -Math.PI / 2) : (dir > 0 ? 0 : Math.PI);
     t.position.set(x, y, z); G.add(t); trains.push({ t, model, axis, dir, v });
   };
-  for (const M of monos) for (const k of [0, 1]) addTrain(SHIN, M.x, M.y + 1.65, startCam - 60 - k * 170 - (M.dir > 0 ? 80 : 0), 'z', M.dir, 24);
+  monos.forEach((M, i) => { for (const k of [0, 1]) addTrain(LINES[i], M.x, M.y + 1.65, startCam - 60 - k * 170 - (M.dir > 0 ? 80 : 0), 'z', M.dir, 24); });
   // A COMMUTER LINE crossing under the rail at a side street or two, on a low viaduct with its own masts.
   const metroZ = streets.filter(([a, b]) => a - b >= 13 && a < 20 && b > end - 40).slice(0, 2).map(([a, b]) => (a + b) / 2);
   for (const mz of metroZ) {
@@ -7897,35 +8779,78 @@ const tokyoDrift = (w) => {
     }
     addTrain(COMM, CX - 120 + r() * 240, my + 1.55, mz, 'x', r() < 0.5 ? 1 : -1, 16);
   }
-  // THE TRAFFIC: hover cars on the street and cars flying lanes just below the rail, the neon city's cars in the city's own paint.
+  // THE TRAFFIC, Tokyo's own and on the ground (the flying cars were the neon city's): boxy little kei cars, sedans, taxis with
+  // the lamp on the roof lit, a bus in the kerb lanes, each throwing its headlights ahead of it on the wet street. Japan drives on
+  // the left. Each kind of car is one shape in two draws, its body and its lights, the paint set car by car.
   const lanes = [], nl = Math.max(1, Math.floor(road / 3.3));
-  for (let k = 0; k < nl; k++) for (const s of [-1, 1]) lanes.push({ axis: 'z', at: CX + s * (1.65 + k * 3.3), y: GROUND + 0.6, dir: s < 0 ? -1 : 1, v: 10 + r() * 5, n: 4 });
-  lanes.push({ axis: 'z', at: CX - (HW + 3), y: lo - 4.5, dir: -1, v: 16, n: 4 }, { axis: 'z', at: CX + (HW + 3), y: lo - 6.5, dir: 1, v: 15, n: 4 });
+  for (let k = 0; k < nl; k++) for (const s of [-1, 1]) lanes.push({ axis: 'z', at: CX + s * (1.65 + k * 3.3), dir: s < 0 ? -1 : 1, v: 10 + r() * 5, n: 4, kerb: k === nl - 1 });
   for (const st of streets) {
+    if (st === SCR) continue;
     const zc = (st[0] + st[1]) / 2;
-    if (st !== SCR) lanes.push({ axis: 'x', at: zc - 2, y: GROUND + 0.6, dir: 1, v: 11 + r() * 4, n: 1, from: CX - 100, to: CX + 100 },
-                               { axis: 'x', at: zc + 2, y: GROUND + 0.6, dir: -1, v: 11 + r() * 4, n: 1, from: CX - 100, to: CX + 100 });
-    lanes.push({ axis: 'x', at: zc, y: lo - 8, dir: r() < 0.5 ? 1 : -1, v: 16, n: 1, from: CX - 100, to: CX + 100 });
+    lanes.push({ axis: 'x', at: zc - 2, dir: 1, v: 11 + r() * 4, n: 1, from: CX - 100, to: CX + 100 },
+               { axis: 'x', at: zc + 2, dir: -1, v: 11 + r() * 4, n: 1, from: CX - 100, to: CX + 100 });
   }
   const SCR_T = 36, SCR_GO = 12;                           // the scramble's cycle: cars for 12 s, then everyone on foot, every way at once
-  const cars = [];
-  for (const L of lanes) for (let i = 0; i < L.n; i++) cars.push({ L, s: L.axis === 'z' ? startCam + 20 - (i + r() * 0.7) * 300 / L.n : L.from + (i + r() * 0.6) / L.n * (L.to - L.from) });
-  const CK = carKit(env), NC = cars.length;
-  const body = new InstancedMesh(CK.body, CK.paint(0xFFFFFF), NC), canopy = new InstancedMesh(CK.canopy, CK.canopyMat, NC);
-  const heads = new InstancedMesh(CK.head, CK.headMat, NC), tails = new InstancedMesh(CK.tail, CK.tailMat, NC);
-  const beams = new InstancedMesh(CK.beam, CK.beamMat, NC), tailGlow = new InstancedMesh(CK.tailGlow, CK.tailGlowMat, NC);
-  const under = new InstancedMesh(CK.under, CK.underMat(0xFFFFFF), NC);
-  const carParts = [body, canopy, heads, tails, under, beams, tailGlow];
-  for (const im of carParts) { im.frustumCulled = false; G.add(im); }
-  const TOKYO_PAINT = [0xE8ECEF, 0x2A2E34, 0xC8202A, 0xF2C230, 0x3A6A8A, 0xB8C0CC, 0x1E7A45, 0xFF8A3D];
-  cars.forEach((c, i) => { body.setColorAt(i, col.setHex(TOKYO_PAINT[i % TOKYO_PAINT.length])); under.setColorAt(i, col.setHex(i % 3 ? 0x40E8FF : 0xFFB040)); });
+  const PAINT = 0xFFFFFF, GLASS = 0x2A3238, TRIM = 0x3C4044, HEAD = 0xFFF2D8, TAIL = 0xFF2A30;
+  const wheel = (L, rad, x, z) => L.push([new CylinderGeometry(rad, rad, 0.2, 10), 0x141414, placeAt(x, rad, z, Math.PI / 2)]);
+  const sedan = (b, l) => {
+    box(b, 4.6, 0.6, 1.72, PAINT, 0, 0.56, 0); box(b, 2.3, 0.52, 1.56, GLASS, -0.3, 1.11, 0); box(b, 2.1, 0.08, 1.6, PAINT, -0.36, 1.4, 0);
+    for (const x of [2.32, -2.32]) box(b, 0.1, 0.24, 1.74, TRIM, x, 0.38, 0);
+    for (const x of [1.45, -1.45]) for (const z of [0.74, -0.74]) wheel(b, 0.3, x, z);
+    for (const z of [0.58, -0.58]) { box(l, 0.05, 0.1, 0.36, HEAD, 2.33, 0.72, z); box(l, 0.05, 0.12, 0.3, TAIL, -2.33, 0.76, z * 1.05); }
+  };
+  const KINDS = [
+    { len: 3.4, paint: [0xF4F2EC, 0xE8DCC0, 0xA8D8CC, 0xF6C0CC, 0x8FA0B0, 0xF4F2EC, 0x2A2E34, 0xDCD4EC], make: (b, l) => {   // a kei car: short, narrow, tall
+      box(b, 3.4, 0.72, 1.48, PAINT, 0, 0.58, 0); box(b, 2.66, 0.74, 1.42, GLASS, -0.28, 1.31, 0); box(b, 2.78, 0.1, 1.48, PAINT, -0.24, 1.72, 0);
+      for (const x of [1.72, -1.72]) box(b, 0.1, 0.26, 1.5, TRIM, x, 0.36, 0);
+      for (const x of [1.1, -1.1]) for (const z of [0.64, -0.64]) wheel(b, 0.27, x, z);
+      for (const z of [0.5, -0.5]) { box(l, 0.05, 0.13, 0.3, HEAD, 1.73, 0.74, z); box(l, 0.05, 0.22, 0.16, TAIL, -1.73, 0.86, z * 1.2); }
+    } },
+    { len: 4.6, paint: [0xECEEF0, 0x24282C, 0x9AA2AA, 0x3A4A6A, 0x7A1E24, 0xECEEF0], make: sedan },
+    { len: 4.6, paint: [0x1E2A44, 0x16161A, 0x1E2A44, 0xE8E4DA, 0x2E6A4A, 0xC8642A], make: (b, l) => { sedan(b, l); box(l, 0.24, 0.2, 0.52, 0xFFD890, -0.34, 1.54, 0); } },   // a taxi, its roof lamp lit
+    { len: 10.5, paint: [0xF4F4F0], make: (b, l) => {        // a bus: white, a green band, lit windows, the destination lit over the windscreen
+      box(b, 10.5, 2.1, 2.49, PAINT, 0, 1.4, 0); box(b, 10.3, 0.3, 2.4, 0xD4D6D8, 0, 2.6, 0); box(b, 10.52, 0.22, 2.51, 0x2E9A5A, 0, 1.12, 0);
+      box(b, 0.06, 1.1, 2.3, GLASS, 5.25, 1.78, 0);
+      for (const x of [3.4, -3.4]) for (const z of [1.1, -1.1]) wheel(b, 0.48, x, z);
+      box(l, 9.3, 0.8, 2.52, 0xC8B89A, -0.35, 1.86, 0); box(l, 0.05, 0.3, 1.6, 0xFFB040, 5.28, 2.36, 0);
+      for (const z of [0.95, -0.95]) { box(l, 0.05, 0.16, 0.3, HEAD, 5.28, 0.72, z); box(l, 0.05, 0.3, 0.2, TAIL, -5.28, 0.9, z); }
+    } },
+  ];
+  const cars = [], perKind = KINDS.map(() => 0);
+  for (const L of lanes) for (let i = 0; i < L.n; i++) {
+    const kind = L.kerb && i === 0 ? 3 : [0, 0, 1, 2, 2][Math.floor(r() * 5)];
+    cars.push({ L, kind, j: perKind[kind]++, len: KINDS[kind].len,
+                s: L.axis === 'z' ? startCam + 20 - (i + r() * 0.7) * 300 / L.n : L.from + (i + r() * 0.6) / L.n * (L.to - L.from) });
+  }
+  const bodyMat = hazed(new MeshStandardMaterial({ vertexColors: true, roughness: 0.38, metalness: 0.3, envMap: env, envMapIntensity: 0.7 }));
+  const lightMat = hazed(new MeshBasicMaterial({ vertexColors: true }));
+  const carIM = KINDS.map((K, k) => {
+    const b = [], l = []; K.make(b, l);
+    const body = new InstancedMesh(paintedModel(b), bodyMat, Math.max(1, perKind[k])), lit = new InstancedMesh(paintedModel(l), lightMat, Math.max(1, perKind[k]));
+    body.count = lit.count = perKind[k];
+    for (const im of [body, lit]) { im.frustumCulled = false; G.add(im); }
+    return { body, lit, beamAt: new Matrix4().makeTranslation(K.len / 2 + 3.4, 0.05, 0) };
+  });
+  cars.forEach((c) => { const K = KINDS[c.kind]; carIM[c.kind].body.setColorAt(c.j, col.setHex(K.paint[Math.floor(r() * K.paint.length)])); });
+  const coneT = canvasTex(128, 64, (g) => {                // headlights on the street: bright at the car, spreading and fading ahead
+    const img = g.createImageData(128, 64);
+    for (let y = 0; y < 64; y++) for (let x = 0; x < 128; x++) {
+      const u = x / 127, v = y / 63 - 0.5, half = 0.14 + 0.34 * u, k = Math.exp(-(v / half) * (v / half) * 3) * Math.pow(1 - u, 1.5) * Math.min(1, u / 0.05) * 170;
+      const i = (y * 128 + x) * 4; img.data[i] = img.data[i + 1] = img.data[i + 2] = k; img.data[i + 3] = 255;
+    }
+    g.putImageData(img, 0, 0);
+  });
+  const beams = new InstancedMesh(new PlaneGeometry(6.8, 3.2).rotateX(-Math.PI / 2), hazed(new MeshBasicMaterial({ map: coneT, color: 0xFFE4C0,
+    transparent: true, blending: AdditiveBlending, depthWrite: false })), cars.length);
+  beams.frustumCulled = false; beams.renderOrder = -1; G.add(beams);
   const carM = new Matrix4(), one = new Vector3(1, 1, 1);
-  const streetLanes = lanes.filter((L) => L.axis === 'z' && L.y < GROUND + 1);
+  const streetLanes = lanes.filter((L) => L.axis === 'z');
   const moveCars = (dt, camZ, t) => {
-    if (SCR && (t % SCR_T) >= SCR_GO - 1) for (const L of streetLanes) {     // queue at the stop line while the crowd crosses
+    if (SCR && (t % SCR_T) >= SCR_GO - 1) for (const L of streetLanes) {     // queue at the stop line while the crowd crosses, nose to tail
       const line = L.dir < 0 ? SCR[0] + 1.2 : SCR[1] - 1.2;
+      let at = 0;
       cars.filter((c) => c.L === L && (L.dir < 0 ? c.s >= line - 0.2 && c.s < line + 70 : c.s <= line + 0.2 && c.s > line - 70))
-        .sort((a, b) => (L.dir < 0 ? a.s - b.s : b.s - a.s)).forEach((c, k) => { c.hold = L.dir < 0 ? line + k * 5.5 : line - k * 5.5; });
+        .sort((a, b) => (L.dir < 0 ? a.s - b.s : b.s - a.s)).forEach((c) => { c.hold = line - L.dir * (at + c.len / 2); at += c.len + 1.4; });
     }
     cars.forEach((c, i) => {
       const L = c.L;
@@ -7933,15 +8858,14 @@ const tokyoDrift = (w) => {
       else c.s += L.dir * L.v * dt;
       if (L.axis === 'z') { if (c.s < camZ - 290) c.s += 320; else if (c.s > camZ + 30) c.s -= 320; }
       else if (c.s > L.to) c.s = L.from; else if (c.s < L.from) c.s = L.to;
-      const dx = L.axis === 'x' ? L.dir : 0, dz = L.axis === 'z' ? L.dir : 0;
+      const dx = L.axis === 'x' ? L.dir : 0, dz = L.axis === 'z' ? L.dir : 0, IM = carIM[c.kind];
       q.setFromAxisAngle(up, Math.atan2(-dz, dx));
-      carM.compose(pos.set(L.axis === 'x' ? c.s : L.at, L.y, L.axis === 'z' ? c.s : L.at), q, one);
-      body.setMatrixAt(i, carM);
-      canopy.setMatrixAt(i, m.multiplyMatrices(carM, CAR_AT.canopy)); under.setMatrixAt(i, m.multiplyMatrices(carM, CAR_AT.under));
-      heads.setMatrixAt(i, m.multiplyMatrices(carM, CAR_AT.head)); tails.setMatrixAt(i, m.multiplyMatrices(carM, CAR_AT.tail));
-      beams.setMatrixAt(i, m.multiplyMatrices(carM, CAR_AT.beam)); tailGlow.setMatrixAt(i, m.multiplyMatrices(carM, CAR_AT.tailGlow));
+      carM.compose(pos.set(L.axis === 'x' ? c.s : L.at, GROUND, L.axis === 'z' ? c.s : L.at), q, one);
+      IM.body.setMatrixAt(c.j, carM); IM.lit.setMatrixAt(c.j, carM);
+      beams.setMatrixAt(i, m.multiplyMatrices(carM, IM.beamAt));
     });
-    for (const im of carParts) im.instanceMatrix.needsUpdate = true;
+    for (const IM of carIM) IM.body.instanceMatrix.needsUpdate = IM.lit.instanceMatrix.needsUpdate = true;
+    beams.instanceMatrix.needsUpdate = true;
   };
   const moveTrains = (dt, camZ) => {
     for (const T of trains) {
@@ -7954,29 +8878,19 @@ const tokyoDrift = (w) => {
     }
   };
 
-  // DRONES patrolling the avenue below the rail, red and blue lamps blinking.
-  const droneGeo = paintedModel([[new CylinderGeometry(0.42, 0.5, 0.22, 12), 0x24282C, placeAt(0, 0, 0)],
-    ...[0, 1, 2, 3].map((k) => [new TorusGeometry(0.26, 0.04, 5, 14), 0x8A9094, placeAt(Math.cos(k * 1.5708 + 0.785) * 0.62, 0.08, Math.sin(k * 1.5708 + 0.785) * 0.62, Math.PI / 2)])]);
-  const ND = 10, drones = new InstancedMesh(droneGeo, hazed(new MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.5, envMap: env })), ND);
-  drones.frustumCulled = false; G.add(drones);
-  const dLampGeo = new BufferGeometry();
-  dLampGeo.setAttribute('position', new Float32BufferAttribute(ND * 3, 3).setUsage(DynamicDrawUsage));
-  dLampGeo.setAttribute('color', new Float32BufferAttribute(ND * 3, 3).setUsage(DynamicDrawUsage));
-  const dLamps = new Points(dLampGeo, new PointsMaterial({ size: 1.6, map: dot, vertexColors: true, transparent: true, blending: AdditiveBlending, depthWrite: false, fog: false }));
-  dLamps.frustumCulled = false; G.add(dLamps);
-  const dr = [...Array(ND)].map((_, i) => ({ x: CX + (i % 2 ? 1 : -1) * (HW + 5.2 + r() * 1.2), y: lo - 2.5 - r() * 5, z: startCam - 30 - i * 26, ph: r() * 9, v: 1 + r() * 2 }));
-  const moveDrones = (dt, t, camZ) => {
-    const dp = dLampGeo.attributes.position.array, dc = dLampGeo.attributes.color.array;
-    dr.forEach((D, i) => {
-      D.z -= D.v * dt;
-      if (D.z < camZ - 280) D.z += 300; else if (D.z > camZ + 20) D.z -= 300;
-      const x = D.x + Math.sin(t * 0.6 + D.ph) * 1.5, y = D.y + Math.sin(t * 1.3 + D.ph) * 0.5;
-      m.compose(pos.set(x, y, D.z), q.setFromEuler(e.set(0, t * 0.4 + D.ph, 0)), sc.set(1, 1, 1)); drones.setMatrixAt(i, m);
-      dp[i * 3] = x; dp[i * 3 + 1] = y - 0.18; dp[i * 3 + 2] = D.z;
-      const on = ((t * 1.5 + D.ph) % 1) < 0.5;
-      dc[i * 3] = on ? (i % 2 ? 0.25 : 1) : 0; dc[i * 3 + 1] = on ? (i % 2 ? 0.5 : 0.15) : 0; dc[i * 3 + 2] = on ? (i % 2 ? 1 : 0.1) : 0;
+  // CROWS, as every Tokyo street has, wheeling over the avenue below the rail.
+  const crows = new InstancedMesh(birdGeo, hazed(new MeshStandardMaterial({ color: 0x1E1E22, side: DoubleSide, roughness: 1 })), 10);
+  crows.frustumCulled = false; G.add(crows);
+  const crowList = [...Array(10)].map((_, i) => ({ x: CX + (r() - 0.5) * 2 * HW, y: lo - 5 - r() * 8, z: startCam - 25 - i * 28, rad: 5 + r() * 6, ph: r() * 6.3, sp: 0.35 + r() * 0.25 }));
+  const moveCrows = (t, camZ) => {
+    crowList.forEach((C, i) => {
+      if (C.z < camZ - 285) C.z += 300; else if (C.z > camZ + 15) C.z -= 300;
+      const a = t * C.sp + C.ph;
+      m.compose(pos.set(C.x + Math.cos(a) * C.rad, C.y + Math.sin(t + C.ph) * 0.8, C.z + Math.sin(a) * C.rad), q.setFromEuler(e.set(0, -a, 0)),
+        sc.set(1.3, (0.35 + 0.65 * Math.abs(Math.sin(t * 6 + C.ph))) * 1.3, 1.3));
+      crows.setMatrixAt(i, m);
     });
-    drones.instanceMatrix.needsUpdate = true; dLampGeo.attributes.position.needsUpdate = true; dLampGeo.attributes.color.needsUpdate = true;
+    crows.instanceMatrix.needsUpdate = true;
   };
 
   // PEOPLE: walking the pavements both ways, and a crowd at the scramble's four corners that crosses every way when the lights let them.
@@ -8036,13 +8950,14 @@ const tokyoDrift = (w) => {
     props.push(back);
     screens.push({ t, ph: r() * 3, every: 1.1 + r() * 0.8 });
   };
+  const cornerShows = [6, 2, 7, 0, 8, 3, 9];               // the cat, Fuji, Hana, koi, the rabbit, ramen, the frog
   streets.filter((st) => st[0] < 30 && st !== SCR).slice(0, 7).forEach(([a, b], i) => {
     const s = i % 2 ? 1 : -1;
-    addScreen(CX + s * (IN + 4.5), GROUND + 15, b + 0.3, 8, 5, 0, i);
+    addScreen(CX + s * (IN + 4.5), GROUND + 15, b + 0.3, 8, 5, 0, cornerShows[i]);
   });
   if (SCR) for (const s of [-1, 1]) {                      // the scramble's screens, on every corner that faces the approach
-    addScreen(CX + s * (IN + 4.5), GROUND + 14, SCR[1] + 0.3, 8, 5, 0, s < 0 ? 0 : 3);
-    addScreen(CX + s * (IN + 9), GROUND + 24, SCR[1] + 0.3, 13, 8, 0, s < 0 ? 5 : 1);
+    addScreen(CX + s * (IN + 4.5), GROUND + 14, SCR[1] + 0.3, 8, 5, 0, s < 0 ? 10 : 3);
+    addScreen(CX + s * (IN + 9), GROUND + 24, SCR[1] + 0.3, 13, 8, 0, s < 0 ? 7 : 1);
   }
   if (WAVE) {                                              // the Great Wave, painted high on a wall over a side street
     const t2 = canvasTex(512, 320, (g) => {
@@ -8067,7 +8982,98 @@ const tokyoDrift = (w) => {
     mural.position.set(CX + s * (IN + 16), GROUND + 25, WAVE[1] + 0.3); G.add(mural);
     props.push([new BoxGeometry(20.6, 13.1, 0.4), 0x2A2E32, placeAt(CX + s * (IN + 16), GROUND + 25, WAVE[1] + 0.05)]);
   }
-  for (const s of [-1, 1]) addScreen(CX + s * (IN + 20.6), GROUND + 36, 0.45 * end - 30 * s, 16, 10, -s * (Math.PI / 2 - 0.55), s < 0 ? 4 : 1);
+  for (const s of [-1, 1]) addScreen(CX + s * (IN + 20.6), GROUND + 36, 0.45 * end - 30 * s, 16, 10, -s * (Math.PI / 2 - 0.55), s < 0 ? 6 : 4);
+  // THE CITY'S MASCOTS, giant, up on the low roofs along the avenue as Tokyo's shops put theirs: Mike the calico cat beckoning
+  // with one paw, Momo, Kero in his helmet, Pan; every one of them blinks now and then, facing the rail.
+  const KT = tkKit(), giants = [];
+  {
+    let lastZ = 1e9, a = 0;
+    for (const L of lowRoofs.sort((p, q) => q.cz - p.cz)) {
+      if (giants.length >= 7 || L.cz > startCam - 12 || lastZ - L.cz < 36 || L.sx < 7 || L.sz < 7) continue;
+      if (keepHit(L.face - 5, L.face + 5, L.cz - 5, L.cz + 5)) continue;   // nothing tall where the camera swings out beside a loop
+      lastZ = L.cz;
+      const k = Math.max(0.7, Math.min(1.35, (lo + 2 - L.roof) / 8.8)), who = a++ % 4, P = [], body = [0xFFF6EA, 0xFFC0D2, 0x6CC24A, 0xFFFDF8][who];
+      const add = (g, hex, mtx, rect) => P.push([g, hex, mtx, rect]), limb = who === 3 ? SUMI : body;
+      add(new SphereGeometry(2.1, 24, 16), body, placeAt(0, 2.2, 0, 0, 0, 0, 1, 1.1, 0.9));
+      for (const e of [-1, 1]) add(new SphereGeometry(0.6, 12, 10), limb, placeAt(e * 1.2, 0.45, 1.4, 0, 0, 0, 1, 0.7, 1.2));
+      for (const e of who === 0 ? [-1] : [-1, 1]) add(new SphereGeometry(0.55, 12, 10), limb, placeAt(e * 1.75, 2.6, 1.0));
+      add(new SphereGeometry(2.0, 32, 24), 0xFFFFFF, placeAt(0, 5.4, 0), KT.faceRect[who]);
+      if (who === 0) {
+        for (const e of [-1, 1]) add(new ConeGeometry(0.67, 1.4, 12), e < 0 ? 0xF0943A : 0x2E2824, placeAt(e * 1.08, 7.1, 0, 0, 0, -e * 0.35));
+        add(new TorusGeometry(1.45, 0.18, 8, 32), 0xD8342A, placeAt(0, 3.95, 0.1, Math.PI / 2 - 0.2)); add(new SphereGeometry(0.34, 12, 10), 0xF2C230, placeAt(0, 3.7, 1.55));
+      }
+      if (who === 1) for (const e of [-1, 1]) add(new SphereGeometry(0.5, 12, 10), 0xFFB4CB, placeAt(e * 0.75, 8.2, 0, 0, 0, -e * (e > 0 ? 0.9 : 0.25), 1, 3.4, 0.7));
+      if (who === 2) { add(new SphereGeometry(1.67, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), 0xF6F6F2, placeAt(0, 6.55, 0, -0.2)); add(new BoxGeometry(0.6, 0.6, 0.1), 0x1E9A48, placeAt(0, 7.6, 1.18, -0.3)); }
+      if (who === 3) for (const e of [-1, 1]) add(new SphereGeometry(0.62, 12, 10), SUMI, placeAt(e * 1.33, 6.9, 0));
+      const grp = new Group(), x = L.face + L.s * 2.4 * k;
+      grp.add(new Mesh(atlasModel(P, KT.white), KT.atlasMat));
+      const blink = new Mesh(atlasModel([[new SphereGeometry(2.03, 32, 24), 0xFFFFFF, placeAt(0, 5.4, 0), KT.shutRect[who]]], KT.white), KT.atlasMat);
+      blink.visible = false; grp.add(blink);
+      let paw = null;
+      if (who === 0) {                                   // the beckoning paw, from the shoulder
+        paw = new Group(); paw.position.set(1.5, 3.3, 0.5);
+        paw.add(new Mesh(atlasModel([[new CylinderGeometry(0.45, 0.5, 1.7, 12), body, placeAt(0, 0.85, 0)], [new SphereGeometry(0.6, 12, 10), body, placeAt(0, 1.8, 0.1)]], KT.white), KT.atlasMat));
+        grp.add(paw);
+      }
+      grp.position.set(x, L.roof, L.cz); grp.rotation.y = -L.s * Math.PI / 4; grp.scale.setScalar(k);
+      G.add(grp); giants.push({ blink, paw, next: 1 + r() * 4, ph: r() * 6 });
+    }
+  }
+  // And as advertising balloons, tethered to the elevated lines' outer parapets, bobbing on the breeze beside the rail.
+  const first = Math.floor(r() * 4);                        // which mascot greets you first, course by course
+  for (let i = 0, z = startCam - 34; z > end - 40 && i < 8; z -= 62 + r() * 20, i++) {
+    const M = monos[i % 2], out = Math.sign(M.x - CX), who = (i + first) % 4, P = [], body = [0xFFF6EA, 0xFFC0D2, 0x6CC24A, 0xFFFDF8][who];
+    if (keepHit(M.x + out * 1.6 - 2.5, M.x + out * 1.6 + 2.5, z - 2.5, z + 2.5)) continue;
+    const add = (g, hex, mtx, rect) => P.push([g, hex, mtx, rect]);
+    add(new SphereGeometry(1.9, 32, 24), 0xFFFFFF, placeAt(0, 0, 0), KT.faceRect[who]);
+    add(new SphereGeometry(1.1, 16, 12), body, placeAt(0, -2.2, -0.2, 0, 0, 0, 1, 0.9, 0.9));
+    if (who === 0) for (const e of [-1, 1]) add(new ConeGeometry(0.64, 1.3, 12), e < 0 ? 0xF0943A : 0x2E2824, placeAt(e * 1.03, 1.62, 0, 0, 0, -e * 0.35));
+    if (who === 1) for (const e of [-1, 1]) add(new SphereGeometry(0.48, 12, 10), 0xFFB4CB, placeAt(e * 0.72, 2.6, 0, 0, 0, -e * (e > 0 ? 0.9 : 0.25), 1, 3.4, 0.7));
+    if (who === 2) { add(new SphereGeometry(1.6, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), 0xF6F6F2, placeAt(0, 1.1, 0, -0.2)); add(new BoxGeometry(0.56, 0.56, 0.1), 0x1E9A48, placeAt(0, 2.1, 1.1, -0.3)); }
+    if (who === 3) for (const e of [-1, 1]) add(new SphereGeometry(0.6, 12, 10), SUMI, placeAt(e * 1.27, 1.45, 0));
+    const grp = new Group(), y = lo - 2.2 + r() * 1.2, px = M.x + out * 1.6;
+    grp.add(new Mesh(atlasModel(P, KT.white), KT.atlasMat));
+    grp.position.set(px, y, z); grp.rotation.y = -out * 0.5; G.add(grp);
+    props.push([new CylinderGeometry(0.02, 0.02, y - 3.3 - M.y, 4), 0xE8E4DC, placeAt(px, (y - 3.3 + M.y) / 2, z)]);   // its tether
+    giants.push({ grp, y, ph: r() * 6, blink: null, next: 1e9 });
+  }
+  const moveGiants = (t) => {
+    for (const M of giants) {
+      if (M.grp) { M.grp.position.y = M.y + 0.35 * Math.sin(t * 0.9 + M.ph); M.grp.rotation.z = 0.06 * Math.sin(t * 0.7 + M.ph); continue; }
+      if (t > M.next + 0.16) M.next = t + 2.5 + Math.random() * 4;
+      M.blink.visible = t > M.next;
+      if (M.paw) M.paw.rotation.x = -0.25 + 0.45 * Math.sin(t * 2.6 + M.ph);
+    }
+  };
+  // ANIME POSTERS as tall as the buildings, on corners that face the approach, across the street from a corner screen: Hana,
+  // the city's own anime heroine, and the mascots all together.
+  const POSTERS = [
+    (g) => {
+      const lg = g.createLinearGradient(0, 0, 0, 384); lg.addColorStop(0, '#FFD0E6'); lg.addColorStop(1, '#B8A4FF');
+      g.fillStyle = lg; g.fillRect(0, 0, 256, 384); sparkles(g, 256, 384, 21, 0); sparkles(g, 256, 384, 23, 1);
+      g.save(); g.translate(128, 160); animeGirl(g, 82, false); g.restore();
+      g.strokeStyle = '#FFE070'; g.lineWidth = 6; g.beginPath(); g.moveTo(40, 320); g.lineTo(58, 214); g.stroke(); star(g, 60, 204, 30, 12, '#FFE070');
+      kawaiiTitle(g, '魔法少女', 128, 312, 40, '#FFFFFF', '#C8387E'); kawaiiTitle(g, 'ハナ', 128, 356, 44, '#FFE070', '#8A3AB8');
+      kawaiiTitle(g, '新シリーズ', 128, 30, 22, '#FFFFFF', '#E0508E');
+    },
+    (g) => {
+      g.fillStyle = '#FFF4C8'; g.fillRect(0, 0, 256, 384);
+      for (let y = 0; y < 384; y += 32) { g.fillStyle = y % 64 ? '#FFEAB0' : '#FFF4C8'; g.fillRect(0, y, 256, 32); }
+      [[0, 128, 110, 60], [1, 68, 214, 42], [2, 188, 214, 42], [3, 128, 292, 46]].forEach(([i, x, y, sz]) => { g.save(); g.translate(x, y); MASCOTS[i](g, sz, false); g.restore(); });
+      kawaiiTitle(g, 'なかよし', 128, 30, 36, '#FF5FA2', '#FFFFFF'); kawaiiTitle(g, 'トーキョー', 128, 360, 30, '#FFFFFF', '#E0508E');
+    },
+  ];
+  {
+    let n = 0;
+    streets.filter((st) => st[0] < 30 && st !== SCR).slice(0, 7).forEach(([, b], i) => {
+      const s = i % 2 ? -1 : 1, F = fronts.find((q) => q.s === s && Math.abs(q.z1 - b) < 0.5 && q.roof > GROUND + 30);
+      if (n >= POSTERS.length || i % 2 === 0 || !F) return;
+      const t = canvasTex(256, 384, POSTERS[n++]);
+      const pm = new Mesh(new PlaneGeometry(11, 16.5), hazed(new MeshBasicMaterial({ map: t })));
+      pm.position.set(CX + s * (IN + 6.5), GROUND + 19.5, b + 0.3); G.add(pm);
+      props.push([new BoxGeometry(11.6, 17.1, 0.3), 0x1A1E22, placeAt(CX + s * (IN + 6.5), GROUND + 19.5, b + 0.1)]);
+    });
+  }
   // STACKS on the low roofs downwind, venting smoke that leans away from the rail; red lamps on the tallest towers.
   const WIND = 2.6;
   const puffT = canvasTex(64, 64, (g) => {
@@ -8107,7 +9113,7 @@ const tokyoDrift = (w) => {
   const step = (dt) => {                                   // everything that moves
     t += dt;
     const camZ = warming ? startCam : camera.position.z;
-    moveCars(dt, camZ, t); moveTrains(dt, camZ); moveDrones(dt, t, camZ); moveKoi(t); movePeople(dt, t, camZ); movePetals(dt, t, camZ);
+    moveCars(dt, camZ, t); moveTrains(dt, camZ); moveCrows(t, camZ); moveKoi(t); moveGiants(t); movePeople(dt, t, camZ); movePetals(dt, t, camZ);
     for (const [x, y, z] of stacks) if (Math.random() < dt * 6) smoke.emit(x + (Math.random() - 0.5), y, z + (Math.random() - 0.5), 0, 2 + Math.random(), 0, 7 + Math.random() * 2);
     smoke.step(dt, WIND);
     for (const S of screens) S.t.offset.y = ((t + S.ph) % (S.every * 2)) < S.every ? 0.5 : 0;
