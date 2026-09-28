@@ -4438,6 +4438,24 @@ function firstGesture() {
   ensureRoll();
   ensureCitySound();
 }
+/* SOUND FROM THE FIRST LIFT OF A FINGER (owner, 2026-09-27: "The sound isn't
+   playing for the first 25-30 seconds"). A phone lets a page start sound only
+   from a touch that has ended (touchend, pointerup, click) or a key, and only
+   if the sound is started right there, in that event. The audio was built when
+   the first drag began, so it stayed held back ("suspended") until some sound
+   happened to start inside a tap: on an iPhone, NEXT at the end of level 1. So
+   every such event, anywhere on the page (the cover included), wakes it and
+   starts a silent sound there and then, the old iPhone way. It keeps listening,
+   because a phone call or another app can put the audio to sleep again. */
+function wakeAudio() {
+  if (!sfx) return;
+  const ctx = sfx.ensureAudio();
+  if (!ctx || ctx.state === 'running') return;
+  try { ctx.resume().catch(() => {}); } catch (_) {}
+  try { const s = ctx.createBufferSource(); s.buffer = ctx.createBuffer(1, 1, ctx.sampleRate); s.connect(ctx.destination); s.start(0); } catch (_) {}
+}
+for (const ev of ['pointerdown', 'touchstart', 'pointerup', 'touchend', 'click', 'keydown']) window.addEventListener(ev, wakeAudio, { capture: true, passive: true });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) wakeAudio(); });
 
 hud.addEventListener('pointerdown', (e) => {
   e.preventDefault();
