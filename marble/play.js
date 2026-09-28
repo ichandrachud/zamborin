@@ -1935,7 +1935,8 @@ function animateSwitches(dt) {
       S.at.forEach((a, i) => S.dots.setColorAt(i, a <= reach ? DOT_ON : DOT_OFF));
       S.dots.instanceColor.needsUpdate = true;
     }
-    if (S.top) { S.top.emissiveIntensity = S.top0 * road; S.side.emissiveIntensity = S.side0 * Math.max(0.15, road); }
+    if (S.top && S.fade) { S.top.opacity = S.side.opacity = 0.28 + 0.72 * road; }             // the wasteland's ghost of a road fills in
+    else if (S.top) { S.top.emissiveIntensity = S.top0 * road; S.side.emissiveIntensity = S.side0 * Math.max(0.15, road); }
   }
 }
 
@@ -5470,8 +5471,8 @@ const SKINS = {
     });
     marble.material = new MeshPhysicalMaterial({ map: t, roughness: 0.22, clearcoat: 1, clearcoatRoughness: 0.05, envMap: envTex, envMapIntensity: 0.8 });
   },
-  // Polished copper, warm against the grey concrete of the overgrown city.
-  copper() { marble.material = new MeshStandardMaterial({ color: 0xE08A5E, metalness: 1, roughness: 0.2, envMap: envTex, envMapIntensity: 1.2 }); },
+  // A chrome ball bearing for the wasteland, carrying its burning sky and its sand.
+  bearing() { marble.material = new MeshStandardMaterial({ color: 0xFFFFFF, metalness: 1, roughness: 0.07, envMap: wasteEnvMap() || envTex, envMapIntensity: 1.25 }); },
   // Chrome, so the neon city runs across it.
   chrome() { marble.material = new MeshStandardMaterial({ color: 0xFFFFFF, metalness: 1, roughness: 0.05, envMap: neonEnvMap() || envTex, envMapIntensity: 1.4 }); },
   // Faceted, like everything in the low-poly valley.
@@ -6647,7 +6648,7 @@ function neonCourse(style) {
     if (c.power) {
       const S = c.power;
       if (S.top) { S.top.dispose(); S.side.dispose(); }
-      S.top = M.top.clone(); S.side = M.side.clone(); S.top0 = M.top.emissiveIntensity; S.side0 = M.side.emissiveIntensity;
+      S.top = M.top.clone(); S.side = M.side.clone(); S.top0 = M.top.emissiveIntensity; S.side0 = M.side.emissiveIntensity; S.fade = false;
       c.mesh.material = [S.side, S.side, S.top, M.under, S.side, S.side]; setTopUV(c.mesh, false);
       continue;
     }
@@ -6784,17 +6785,28 @@ WORLDS_ADD('valley', (w) => {
   };
 });
 
-// ---- 5. The overgrown city: concrete towers of stacked blocks, gardens on every ledge, haze over water ----
-/* THE DYSTOPIAN CITY (owner, 2026-09-27: "What I like about the current city is
-   that it lends itself really well to this 3D world ... Things that are
-   visually rich. Things to consider: A dystopian city", with a picture of
-   brutalist towers overgrown with plants in morning haze over water). Towers
-   of stacked concrete blocks, each block pushed off the one below, their
-   faces a deep grid of windows with a few lit warm, gardens spilling over
-   every ledge and roof. Water far below; a pale warm haze that swallows the
-   far towers in layers; the sun a glow through it; birds wheeling; banks of
-   fog drifting between the towers. The course is pale concrete with a warm
-   strip of light along each edge, the marble polished copper. */
+// ---- 5. The wasteland: a dead city in the desert, the road warriors still racing through it ----
+/* THE DYSTOPIAN CITY, AS MAD MAX (owner, 2026-09-28: "When I watched the video
+   of the ball on the grates, it was a little uncomfortable on the eyes due to
+   the pattern. Also, can you make it look a little more dystopian? Like a
+   scene from Mad Max?", then the poster for Mad Max 2 as the reference: a
+   burning orange sky, the sun low and blazing, a dark road, a black V8 car
+   racing down it with its lights on). The camera looks down from above the
+   course, so this is the wasteland as a helicopter sees a chase. The course is
+   what is left of an elevated freeway: dark asphalt with worn white paint on
+   concrete, nothing fine or repeating on it to shimmer (the grates are gone).
+   Twenty-eight metres below, a desert road weaves under it along a valley
+   graded flat, and a convoy races up it toward you: a war rig hauling a tanker
+   with buggies and bikes round it, a hot rod and a ute behind, and the black
+   interceptor with its lights on, dust streaming behind them all. The
+   freeway's pillars and its shadow stand on the sand. Beyond the valley's
+   edge, concrete husks of the dead city are half-buried in dunes; a refinery
+   burns its flare beside its tanks; buttes of red rock stand out beyond;
+   wrecks, a bus on its side, drums, tyres, windpumps; dust devils wander,
+   vultures circle, oil drums burn. The distance fades into a haze that burns
+   brighter toward the low sun ahead (the light itself still comes from up and
+   to the left, DESIGN-SYSTEM 6). The marble is a chrome ball bearing. The
+   rings stay blue and orange, as every rule says. */
 // Texture coordinates from the world, for boxes that are never turned, so a
 // facade keeps one scale on a block of any size.
 function worldMapped(mat, scale, key) {
@@ -6825,380 +6837,839 @@ function worldMapped(mat, scale, key) {
   mat.customProgramCacheKey = () => key;
   return mat;
 }
-// A facade: a deep grid of windows in board-marked concrete, a few lit, a few
-// with plants on the sill. Returns the colour and the light of the same grid.
-function facadeTex(seed, cols, rows, band) {
-  const r = seeded(seed), W = 256, H = 256, cw = W / cols, ch = H / rows, lit = [];
-  const colour = canvasTex(W, H, (g) => {
-    g.fillStyle = '#9AA4A8'; g.fillRect(0, 0, W, H);
-    for (let i = 0; i < 1400; i++) {                  // the concrete's grain and stains
-      g.fillStyle = `rgba(${r() < 0.5 ? '60,66,70' : '215,218,214'},${0.04 + r() * 0.06})`;
-      g.fillRect(r() * W, r() * H, 1 + r() * 3, 1 + r() * 3);
-    }
-    for (let y = 0; y < H; y += 8) { g.fillStyle = 'rgba(70,76,80,0.08)'; g.fillRect(0, y, W, 1); }   // board marks
-    for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
-      if (band && j % 2) continue;                      // a banded facade: every other row solid
-      const x = i * cw, y = j * ch, m = cw * 0.2, top = ch * 0.18;
-      g.fillStyle = 'rgba(236,238,232,0.55)'; g.fillRect(x, y + ch - m * 0.5, cw, m * 0.5);        // the floor plate's lit edge
-      g.fillStyle = '#1C2226'; g.fillRect(x + m, y + top, cw - 2 * m, ch - top - m * 0.7);          // the deep recess
-      g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(x + m, y + top, m * 0.5, ch - top - m * 0.7);      // its shaded jamb
-      const lg = g.createLinearGradient(0, y + top, 0, y + ch);
-      lg.addColorStop(0, 'rgba(0,0,0,0.55)'); lg.addColorStop(1, 'rgba(0,0,0,0)');
-      g.fillStyle = lg; g.fillRect(x + m, y + top, cw - 2 * m, (ch - top) * 0.5);                 // its shadow under the lintel
-      g.fillStyle = 'rgba(40,46,50,0.9)'; g.fillRect(x + cw / 2 - 1, y + top, 2, ch - top - m * 0.7);   // a mullion
-      const on = r() < 0.12;
-      if (on) { g.fillStyle = 'rgba(255,214,150,0.85)'; g.fillRect(x + m + 2, y + top + 3, cw - 2 * m - 4, ch - top - m * 0.7 - 5); }
-      lit.push(on);
-      if (r() < 0.22) {                                 // a plant on the sill
-        g.fillStyle = ['#5E8B4A', '#7AA35A', '#4C7A3C'][Math.floor(r() * 3)];
-        for (let k = 0; k < 5; k++) { g.beginPath(); g.arc(x + m + r() * (cw - 2 * m), y + ch - m, 3 + r() * 5, 0, Math.PI * 2); g.fill(); }
-      }
-      g.fillStyle = 'rgba(230,232,228,0.35)'; g.fillRect(x + m * 0.6, y + ch - m * 0.75, cw - m * 1.2, 2);   // the sill's lit edge
-    }
-  }, true);
-  const light = canvasTex(W, H, (g) => {
-    g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
-    let k = 0;
-    for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
-      if (band && j % 2) continue;
-      const x = i * cw, y = j * ch, m = cw * 0.16, top = ch * 0.14;
-      if (lit[k++]) { g.fillStyle = '#FFC98A'; g.fillRect(x + m + 2, y + top + 3, cw - 2 * m - 4, ch - top - m * 0.7 - 5); }
-    }
-  }, true);
-  return { colour, light };
-}
-function roofSlab() {
-  return worldMapped(new MeshStandardMaterial({ map: roofTex(), roughness: 0.95 }), 1 / 7, 'dyst-slab');
-}
-function roofTex() {
-  const r = seeded(77);
-  return canvasTex(256, 256, (g) => {
-    g.fillStyle = '#9BA29E'; g.fillRect(0, 0, 256, 256);
-    for (let i = 0; i < 900; i++) {
-      g.fillStyle = `rgba(${r() < 0.5 ? '70,78,74' : '200,204,196'},${0.05 + r() * 0.08})`;
-      g.fillRect(r() * 256, r() * 256, 2 + r() * 6, 2 + r() * 6);
-    }
-    for (let i = 0; i < 2600; i++) {                   // moss in the slab's pores and along its cracks
-      g.fillStyle = `rgba(${86 + r() * 40},${116 + r() * 34},${64 + r() * 20},${0.10 + r() * 0.18})`;
-      const x = r() * 256, y = r() * 256; g.fillRect(x, y, 1 + r() * 2.5, 1 + r() * 2.5);
-    }
-    g.strokeStyle = 'rgba(64,74,60,0.35)'; g.lineWidth = 1.2;
-    for (let i = 0; i < 7; i++) { g.beginPath(); let x = r() * 256, y = r() * 256; g.moveTo(x, y); for (let k = 0; k < 6; k++) { x += (r() - 0.5) * 40; y += (r() - 0.5) * 40; g.lineTo(x, y); } g.stroke(); }
-  }, true);
-}
-// The course here: pale board-marked concrete, a warm strip of light along the top of each side.
-let dystMats = null;
-function dystopiaMaterials() {
-  if (dystMats) return dystMats;
-  const r = seeded(19);
-  const topT = canvasTex(256, 256, (g) => {                  // steel bar grating, worn bright where it is rolled on
-    g.fillStyle = '#23282B'; g.fillRect(0, 0, 256, 256);
-    for (let x = 0; x < 256; x += 16) {
-      const lg = g.createLinearGradient(x, 0, x + 10, 0);
-      lg.addColorStop(0, '#5D666A'); lg.addColorStop(0.5, '#8C969A'); lg.addColorStop(1, '#4A5256');
-      g.fillStyle = lg; g.fillRect(x + 2, 0, 10, 256);
-    }
-    for (let y = 0; y < 256; y += 64) { g.fillStyle = '#6B7477'; g.fillRect(0, y, 256, 5); g.fillStyle = 'rgba(0,0,0,0.4)'; g.fillRect(0, y + 5, 256, 2); }
-    for (let i = 0; i < 500; i++) { g.fillStyle = `rgba(${r() < 0.6 ? '150,96,60' : '210,220,222'},${0.05 + r() * 0.1})`; g.fillRect(r() * 256, r() * 256, 1 + r() * 4, 1 + r() * 4); }
-  }, true);
-  const sideT = canvasTex(64, 64, (g) => {
-    g.fillStyle = '#3A4145'; g.fillRect(0, 0, 64, 64);
-    for (let x = 0; x < 64; x += 16) { g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(x, 0, 2, 64); }
-  }, true);
-  const stripT = canvasTex(8, 64, (g) => {                 // dark but for the warm strip just under the top edge
-    g.fillStyle = '#000'; g.fillRect(0, 0, 8, 64);
-    g.filter = 'blur(3px)'; g.fillStyle = 'rgba(255,170,80,0.9)'; g.fillRect(0, 1, 8, 14);
-    g.filter = 'none'; g.fillStyle = '#FFE6C2'; g.fillRect(0, 4, 8, 5);
-  });
-  dystMats = {
-    top: new MeshStandardMaterial({ map: topT, roughness: 0.55, metalness: 0.55, envMap: envTex, envMapIntensity: 0.6 }),
-    side: new MeshStandardMaterial({ map: sideT, color: 0xFFFFFF, roughness: 0.6, metalness: 0.5, emissive: 0xFFFFFF, emissiveMap: stripT, emissiveIntensity: 1.6 }),
-    under: new MeshStandardMaterial({ color: 0x55534E, roughness: 1 }),
-    ferryTop: new MeshStandardMaterial({ color: 0x8FA3AE, metalness: 0.6, roughness: 0.35 }),
-    ferrySide: new MeshStandardMaterial({ color: 0x3F4D55, metalness: 0.6, roughness: 0.4, emissive: 0xFFFFFF, emissiveMap: stripT, emissiveIntensity: 1.1 }),
-  };
-  return dystMats;
-}
 const birdGeo = (() => {                                  // a bird: two thin wings in a shallow V
   const g = new BufferGeometry();
   g.setAttribute('position', new Float32BufferAttribute([0, 0, 0.12, -0.55, 0.12, -0.05, 0, 0, -0.12, 0, 0, 0.12, 0.55, 0.12, -0.05, 0, 0, -0.12], 3));
   g.computeVertexNormals();
   return g;
 })();
+/* HAZE WITH THE SUN IN IT. Far things fade as they do in fog, but into a haze
+   that burns brighter the nearer the eye looks toward the low sun, so the
+   distance glows and near things stay crisp. The fog's own colour is the haze
+   away from the sun. Each frame the sun's direction is carried into the
+   camera's view for the shader (wasteland only: other worlds keep plain fog). */
+const HAZE = { sun: { value: new Vector3(0, 0, -1) }, col: { value: new Color(0xFFD994) }, k: { value: 6 },
+               dir: new Vector3(-0.12, 0.02, -1).normalize() };
+function hazed(mat) {
+  const prev = mat.onBeforeCompile, key = mat.customProgramCacheKey();
+  mat.onBeforeCompile = (sh, rd) => {
+    prev.call(mat, sh, rd);
+    Object.assign(sh.uniforms, { uHazeSun: HAZE.sun, uHazeCol: HAZE.col, uHazeK: HAZE.k });
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <fog_pars_vertex>', '#include <fog_pars_vertex>\nvarying vec3 vHazeView;')
+      .replace('#include <fog_vertex>', '#include <fog_vertex>\n  vHazeView = mvPosition.xyz;');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <fog_pars_fragment>', '#include <fog_pars_fragment>\nvarying vec3 vHazeView;\nuniform vec3 uHazeSun, uHazeCol;\nuniform float uHazeK;')
+      .replace('#include <fog_fragment>', `#ifdef USE_FOG
+    float fogFactor = smoothstep( fogNear, fogFar, vFogDepth );
+    float hz = pow( max( dot( normalize( vHazeView ), uHazeSun ), 0.0 ), uHazeK );
+    gl_FragColor.rgb = mix( gl_FragColor.rgb, mix( fogColor, uHazeCol, hz ), fogFactor );
+  #endif`);
+  };
+  mat.customProgramCacheKey = () => 'haze|' + key;
+  return mat;
+}
+/* THE FREEWAY'S PAINT, drawn by the shader from each slab's own size (its
+   halfSize attribute, set in wasteCourse): a worn white line along each side
+   and, on a slab wide enough for two lanes, a dashed line down the middle. A
+   line keeps its width on a slab of any size, and fades where it would be
+   thinner than a pixel rather than shimmer. */
+function roadPaint(mat, paint) {
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uPaint = { value: new Color(paint) };
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute vec2 halfSize;\nvarying vec2 vHalf;\nvarying vec2 vSlab;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n  vHalf = halfSize; vSlab = position.xz;');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform vec3 uPaint;\nvarying vec2 vHalf;\nvarying vec2 vSlab;')
+      .replace('#include <map_fragment>', `#include <map_fragment>
+  if ( vHalf.x > 0.5 ) {
+    float ex = vHalf.x - abs( vSlab.x ), fe = max( fwidth( ex ), 1e-4 );
+    float paint = ( 1.0 - smoothstep( 0.07 - fe, 0.07 + fe, abs( ex - 0.42 ) ) ) * clamp( 0.14 / fe, 0.0, 1.0 );
+    if ( vHalf.x > 1.9 ) {
+      float cx = abs( vSlab.x ), fc = max( fwidth( cx ), 1e-4 ), u = vSlab.y / 7.0, fu = max( fwidth( u ), 1e-4 ), f = fract( u );
+      float dash = smoothstep( 0.0, fu, f ) * ( 1.0 - smoothstep( 0.45 - fu, 0.45, f ) );
+      paint = max( paint, ( 1.0 - smoothstep( 0.06 - fc, 0.06 + fc, cx ) ) * clamp( 0.12 / fc, 0.0, 1.0 ) * dash );
+    }
+    float wear = smoothstep( 0.02, 0.06, texture2D( map, vMapUv * 2.3 + 0.37 ).g );
+    diffuseColor.rgb = mix( diffuseColor.rgb, uPaint, paint * ( 0.4 + 0.45 * wear ) );
+  }`);
+  };
+  mat.customProgramCacheKey = () => 'road-paint';
+  return mat;
+}
+function setHalfSize(mesh) {
+  const g = mesh.geometry;
+  if (g.attributes.halfSize || !g.parameters) return;
+  const n = g.attributes.position.count, a = new Float32Array(n * 2), hx = g.parameters.width / 2, hz = g.parameters.depth / 2;
+  for (let i = 0; i < n; i++) { a[i * 2] = hx; a[i * 2 + 1] = hz; }
+  g.setAttribute('halfSize', new Float32BufferAttribute(a, 2));
+}
+// Soft blotches that wrap round the edges of a tile, so it repeats without a seam.
+function blotches(g, W, H, r, n, r0, r1, cols) {
+  for (let i = 0; i < n; i++) {
+    const x = r() * W, y = r() * H, rad = r0 + r() * (r1 - r0), c = cols[Math.floor(r() * cols.length)];
+    const c0 = `rgba(${c})`, c1 = `rgba(${c.slice(0, c.lastIndexOf(','))},0)`;
+    for (const dx of [-W, 0, W]) for (const dy of [-H, 0, H]) {
+      const cx = x + dx, cy = y + dy;
+      if (cx + rad < 0 || cx - rad > W || cy + rad < 0 || cy - rad > H) continue;
+      const rg = g.createRadialGradient(cx, cy, 0, cx, cy, rad);
+      rg.addColorStop(0, c0); rg.addColorStop(1, c1);
+      g.fillStyle = rg; g.fillRect(cx - rad, cy - rad, rad * 2, rad * 2);
+    }
+  }
+}
+let wasteEnv = null;
+function wasteEnvMap() {                                   // the burning sky and the sand, for chrome and paint to carry
+  if (wasteEnv || !renderer) return wasteEnv;
+  const t = canvasTex(512, 256, (g) => {
+    const lg = g.createLinearGradient(0, 0, 0, 256);
+    lg.addColorStop(0, '#7A5048'); lg.addColorStop(0.08, '#B06A58'); lg.addColorStop(0.18, '#E09060'); lg.addColorStop(0.34, '#FFC888'); lg.addColorStop(0.47, '#FFE8C0');
+    lg.addColorStop(0.5, '#FFF4DC'); lg.addColorStop(0.52, '#9A6040'); lg.addColorStop(0.7, '#5A3A28'); lg.addColorStop(1, '#2A1C14');
+    g.fillStyle = lg; g.fillRect(0, 0, 512, 256);
+    const sg = g.createRadialGradient(128, 118, 2, 128, 118, 70);        // the sun, low and ahead (-z)
+    sg.addColorStop(0, 'rgba(255,250,230,1)'); sg.addColorStop(0.25, 'rgba(255,220,150,0.8)'); sg.addColorStop(1, 'rgba(255,190,110,0)');
+    g.fillStyle = sg; g.fillRect(0, 0, 512, 256);
+  });
+  const pm = new PMREMGenerator(renderer);
+  wasteEnv = pm.fromEquirectangular(t).texture;
+  pm.dispose(); t.dispose();
+  return wasteEnv;
+}
+/* The freeway's materials, made once and shared by every course. The asphalt
+   carries only broad, soft variation (worn patches, sealed cracks), one tile
+   to 8 m, so nothing repeats at a glance or shimmers as it scrolls past; the
+   sides are poured concrete, lightest along the lip. Pads that move are steel
+   plate with faded blue sides; speed strips, magnets and colour lanes keep
+   the colours that say what they are. */
+let wasteMats = null;
+function wasteMaterials() {
+  if (wasteMats) return wasteMats;
+  const r = seeded(83);
+  const asphalt = canvasTex(512, 512, (g) => {
+    g.fillStyle = '#3B3631'; g.fillRect(0, 0, 512, 512);
+    blotches(g, 512, 512, r, 40, 40, 130, ['96,88,78,0.32', '22,19,17,0.34', '128,96,66,0.18']);
+    blotches(g, 512, 512, r, 60, 8, 26, ['104,96,86,0.22', '26,23,20,0.3']);
+    for (let i = 0; i < 3; i++) {                          // patches where the road was once mended, darker and smoother
+      const w0 = 60 + r() * 110, h0 = 40 + r() * 90, x = r() * 512, y = r() * 512;
+      for (const dx of [-512, 0, 512]) for (const dy of [-512, 0, 512]) {
+        g.fillStyle = 'rgba(24,21,18,0.18)'; g.fillRect(x + dx, y + dy, w0, h0);
+      }
+    }
+  }, true);
+  asphalt.repeat.set(0.25, 0.25);
+  const sideT = canvasTex(8, 64, (g) => {                  // the slab's edge: a lit lip, then concrete darkening to a stained foot
+    const lg = g.createLinearGradient(0, 0, 0, 64);
+    lg.addColorStop(0, '#E2D6C0'); lg.addColorStop(0.1, '#C4B49C'); lg.addColorStop(0.18, '#A69782'); lg.addColorStop(0.7, '#968873'); lg.addColorStop(1, '#6A5E50');
+    g.fillStyle = lg; g.fillRect(0, 0, 8, 64);
+  });
+  const plate = canvasTex(256, 256, (g) => {               // a moving pad: steel plate, rust in patches, a seam and its bolts
+    g.fillStyle = '#8C877E'; g.fillRect(0, 0, 256, 256);
+    blotches(g, 256, 256, r, 16, 16, 60, ['150,78,36,0.4', '70,64,56,0.3', '176,170,160,0.25']);
+    g.fillStyle = 'rgba(40,36,32,0.65)'; g.fillRect(0, 0, 256, 4); g.fillRect(0, 0, 4, 256);
+    g.fillStyle = 'rgba(44,40,36,0.85)';
+    for (const [x, y] of [[20, 20], [236, 20], [20, 236], [236, 236], [128, 20], [128, 236]]) { g.beginPath(); g.arc(x, y, 6, 0, 7); g.fill(); }
+  }, true);
+  plate.repeat.set(0.5, 0.5);
+  const yard = canvasTex(256, 256, (g) => {                // a puzzle square's floor: a poured slab to a cell, a joint all round
+    g.fillStyle = '#A39683'; g.fillRect(0, 0, 256, 256);
+    blotches(g, 256, 256, r, 12, 20, 60, ['120,110,96,0.35', '184,172,152,0.3', '130,90,60,0.15']);
+    g.strokeStyle = 'rgba(54,46,40,0.85)'; g.lineWidth = 8; g.strokeRect(4, 4, 248, 248);
+    g.strokeStyle = 'rgba(214,202,182,0.5)'; g.lineWidth = 2; g.strokeRect(10, 10, 236, 236);
+  });
+  const top = () => hazed(roadPaint(new MeshStandardMaterial({ map: asphalt, roughness: 0.86 }), 0xEEE6D2));
+  const side = () => hazed(new MeshStandardMaterial({ map: sideT, roughness: 0.95 }));
+  wasteMats = {
+    make: { top, side }, top: top(), side: side(),
+    padTop: hazed(new MeshStandardMaterial({ map: asphalt, roughness: 0.86 })),
+    ferryTop: hazed(new MeshStandardMaterial({ map: plate, roughness: 0.5, metalness: 0.5, envMap: wasteEnvMap() || envTex, envMapIntensity: 0.5 })),
+    ferrySide: hazed(new MeshStandardMaterial({ color: 0x4E7896, roughness: 0.6, metalness: 0.3 })),
+    padSide: hazed(new MeshStandardMaterial({ color: PAD_YELLOW, roughness: 0.6 })),
+    magSide: hazed(new MeshStandardMaterial({ color: 0x2FB6D8, roughness: 0.55, metalness: 0.3 })),
+    // A lane of a colour lock has its lines painted in the colour its curtain gives.
+    laneTop: [null, 0xB6F04C, 0xB48EFF].map((c) => c && hazed(roadPaint(new MeshStandardMaterial({ map: asphalt, roughness: 0.86 }), c))),
+    laneSide: [null, 0x8FD83A, 0x9A6BF0].map((c) => c && hazed(new MeshStandardMaterial({ color: c, roughness: 0.65 }))),
+    cellTop: hazed(new MeshStandardMaterial({ map: yard, roughness: 0.95 })),
+  };
+  return wasteMats;
+}
+/* The course in the wasteland. As in the city, the slabs cast no shadow (the
+   world far below takes none; its shadows are laid on the sand). A dark road
+   here is a ghost of a road, see-through until its switch is on, when it
+   fills in (animateSwitches, S.fade). */
+function wasteCourse() {
+  const M = wasteMaterials();
+  for (const c of colliders) {
+    if (c.holo || c.obstacle) continue;
+    c.mesh.castShadow = false;
+    setHalfSize(c.mesh);
+    let side, top;
+    if (c.power) {
+      const S = c.power;
+      if (S.top) { S.top.dispose(); S.side.dispose(); }
+      S.top = M.make.top(); S.side = M.make.side(); S.top.transparent = S.side.transparent = true; S.fade = true;
+      side = S.side; top = S.top;
+    } else {
+      [side, top] = c.ferry ? [M.ferrySide, M.ferryTop] : c.pad ? [M.padSide, M.padTop] : c.mag ? [M.magSide, M.padTop]
+        : c.lane ? [M.laneSide[c.lane], M.laneTop[c.lane]] : c.cell ? [M.side, M.cellTop] : [M.side, M.top];
+    }
+    c.mesh.material = [side, side, top, side, side, side]; setTopUV(c.mesh, !!c.cell);
+  }
+}
+// Many plain shapes, each placed by a matrix and given a colour, made into one geometry with vertex colours: many things in one draw.
+function paintedModel(parts) {
+  let n = 0;
+  const flat = parts.map(([g0, hex, mtx]) => {
+    const g = g0.index ? g0.toNonIndexed() : g0;
+    if (g !== g0) g0.dispose();
+    g.applyMatrix4(mtx); n += g.attributes.position.count;
+    return [g, hex];
+  });
+  const P = new Float32Array(n * 3), N = new Float32Array(n * 3), C = new Float32Array(n * 3), col = new Color();
+  let o = 0;
+  for (const [g, hex] of flat) {
+    const k = g.attributes.position.count;
+    P.set(g.attributes.position.array, o * 3); N.set(g.attributes.normal.array, o * 3);
+    col.setHex(hex);
+    for (let i = o; i < o + k; i++) { C[i * 3] = col.r; C[i * 3 + 1] = col.g; C[i * 3 + 2] = col.b; }
+    o += k; g.dispose();
+  }
+  const geo = new BufferGeometry();
+  geo.setAttribute('position', new Float32BufferAttribute(P, 3));
+  geo.setAttribute('normal', new Float32BufferAttribute(N, 3));
+  geo.setAttribute('color', new Float32BufferAttribute(C, 3));
+  return geo;
+}
+// A unit box with its faces in two groups, the sides and then the top and bottom: a facade and a roof in two draws.
+function twoGroupBox() {
+  const g = new BoxGeometry(1, 1, 1), idx = g.index.array, gr = g.groups, out = [];
+  for (const k of [0, 1, 4, 5, 2, 3]) for (let i = gr[k].start; i < gr[k].start + gr[k].count; i++) out.push(idx[i]);
+  g.setIndex(out); g.clearGroups(); g.addGroup(0, 24, 0); g.addGroup(24, 12, 1);
+  return g;
+}
+const _wp = new Matrix4(), _wq = new Quaternion(), _we = new Euler(), _wv = new Vector3(), _ws = new Vector3();
+// A matrix from a place, a turn and a size.
+const placeAt = (x, y, z, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1) =>
+  _wp.compose(_wv.set(x, y, z), _wq.setFromEuler(_we.set(rx, ry, rz)), _ws.set(sx, sy, sz)).clone();
+// The parts of a model, in its own space: +x forward, y up, the ground at y = 0.
+const mB = (sx, sy, sz, hex, x, y, z, rx = 0, ry = 0, rz = 0) => [new BoxGeometry(sx, sy, sz), hex, placeAt(x, y, z, rx, ry, rz)];
+const mC = (rt, rb, h, seg, hex, x, y, z, rx = 0, ry = 0, rz = 0) => [new CylinderGeometry(rt, rb, h, seg), hex, placeAt(x, y, z, rx, ry, rz)];
+const mW = (rad, wd, x, z, hex = 0x171514) => [new CylinderGeometry(rad, rad, wd, 12), hex, placeAt(x, rad, z, Math.PI / 2)];
+const mS = (rad, hex, x, y, z) => [new SphereGeometry(rad, 10, 7), hex, placeAt(x, y, z)];
+const mK = (rad, h, hex, x, y, z, rx = 0, ry = 0, rz = 0) => [new ConeGeometry(rad, h, 6), hex, placeAt(x, y, z, rx, ry, rz)];
+const mL = (len, prof, hex, x) => [loft(len, prof, 22, 16), hex, placeAt(x, 0, 0)];
+/* THE VEHICLES of the chase. The black interceptor: a long bonnet with the
+   blower through it, side pipes, a spoiler, its lights on. A war rig hauling a
+   tanker, spikes on its bumper. A dune buggy, a hot rod with its engine out
+   in the air, a ute with a harpoon, and a bike and rider. */
+const VEHICLES = {
+  interceptor: () => [
+    mL(4.6, (t) => ({ w: 0.93 - 0.1 * Math.max(0, t - 0.86) / 0.14 - 0.06 * Math.max(0, 0.06 - t) / 0.06,
+                      top: t < 0.05 ? 0.84 + t * 2.8 : t > 0.6 ? 0.98 - 0.2 * Math.pow((t - 0.6) / 0.4, 1.6) : 0.98,
+                      bot: t < 0.03 || t > 0.97 ? 0.42 : 0.3 }), 0x161514, 0),
+    mL(2.2, (t) => ({ w: 0.74, bot: 0.86, top: 0.97 + 0.36 * Math.min(1, t / 0.42, (1 - t) / 0.3) }), 0x2E3844, -0.3),
+    mB(0.84, 0.05, 1.36, 0x161514, -0.28, 1.33, 0),
+    mB(0.56, 0.3, 0.46, 0xBDB7AB, 1.15, 1.04, 0), mB(0.44, 0.14, 0.52, 0x2A2622, 1.15, 1.25, 0),
+    mB(0.34, 0.06, 1.72, 0x161514, -2.2, 1.04, 0), mB(0.08, 0.28, 0.1, 0x161514, -2.2, 0.92, 0.72), mB(0.08, 0.28, 0.1, 0x161514, -2.2, 0.92, -0.72),
+    mC(0.07, 0.07, 1.6, 8, 0xB0AAA0, 0.25, 0.42, 0.97, 0, 0, Math.PI / 2), mC(0.07, 0.07, 1.6, 8, 0xB0AAA0, 0.25, 0.42, -0.97, 0, 0, Math.PI / 2),
+    mB(0.05, 0.14, 0.34, 0xF4EAD0, 2.31, 0.72, 0.56), mB(0.05, 0.14, 0.34, 0xF4EAD0, 2.31, 0.72, -0.56),
+    mB(0.05, 0.1, 0.5, 0x9A2014, -2.31, 0.8, 0.5), mB(0.05, 0.1, 0.5, 0x9A2014, -2.31, 0.8, -0.5),
+    mW(0.35, 0.32, 1.45, 0.84), mW(0.35, 0.32, 1.45, -0.84), mW(0.37, 0.36, -1.45, 0.84), mW(0.37, 0.36, -1.45, -0.84),
+  ],
+  rig: () => [
+    mB(15.6, 0.45, 2.1, 0x2A2420, -1.3, 0.95, 0),
+    mB(2.3, 2.2, 2.46, 0x3C2C22, 3.7, 2.35, 0), mB(0.08, 0.72, 2.2, 0x26303A, 4.86, 2.95, 0),
+    mB(1.3, 0.66, 0.05, 0x26303A, 3.8, 2.95, 1.24), mB(1.3, 0.66, 0.05, 0x26303A, 3.8, 2.95, -1.24),
+    mB(1.9, 1.15, 2.1, 0x3C2C22, 5.85, 1.85, 0), mB(0.12, 1.0, 1.7, 0xA29C92, 6.82, 1.8, 0),
+    mB(0.34, 0.36, 2.44, 0x5E4E3C, 6.95, 0.95, 0),
+    ...[-0.9, -0.45, 0, 0.45, 0.9].map((z) => mK(0.1, 0.9, 0x7A6A56, 7.45, 1.05, z, 0, 0, -Math.PI / 2)),
+    mC(0.14, 0.14, 2.7, 8, 0x8E887E, 2.45, 3.9, 1.05), mC(0.14, 0.14, 2.7, 8, 0x8E887E, 2.45, 3.9, -1.05),
+    mC(0.4, 0.4, 1.4, 12, 0xA29C92, 3.3, 1.15, 1.32, 0, 0, Math.PI / 2), mC(0.4, 0.4, 1.4, 12, 0xA29C92, 3.3, 1.15, -1.32, 0, 0, Math.PI / 2),
+    mC(1.28, 1.28, 9.2, 20, 0xAB9E8A, -3.7, 2.62, 0, 0, 0, Math.PI / 2),
+    mC(1.31, 1.31, 0.9, 20, 0x7C4A2C, -0.9, 2.62, 0, 0, 0, Math.PI / 2), mC(1.31, 1.31, 0.9, 20, 0x7C4A2C, -6.5, 2.62, 0, 0, 0, Math.PI / 2),
+    mB(8.8, 0.12, 0.6, 0x5A4A3A, -3.7, 3.94, 0),
+    mW(0.55, 0.42, 5.7, 1.1), mW(0.55, 0.42, 5.7, -1.1), mW(0.55, 0.9, 2.2, 0.9), mW(0.55, 0.9, 2.2, -0.9), mW(0.55, 0.9, 1.05, 0.9), mW(0.55, 0.9, 1.05, -0.9),
+    mW(0.55, 0.9, -6.9, 0.9), mW(0.55, 0.9, -6.9, -0.9), mW(0.55, 0.9, -8.1, 0.9), mW(0.55, 0.9, -8.1, -0.9),
+  ],
+  buggy: () => [
+    mB(3.3, 0.26, 1.5, 0xA8702E, 0, 0.56, 0), mB(1.0, 0.38, 1.24, 0xA8702E, 1.32, 0.78, 0, 0, 0, -0.22),
+    mB(0.9, 0.56, 1.0, 0x8E8678, -1.12, 0.98, 0), mC(0.08, 0.08, 0.9, 6, 0x8E8678, -1.42, 1.4, 0.34), mC(0.08, 0.08, 0.9, 6, 0x8E8678, -1.42, 1.4, -0.34),
+    mB(0.12, 0.95, 1.34, 0x3A3028, -0.55, 1.2, 0),
+    mB(0.46, 0.6, 0.5, 0x4A3526, 0.02, 0.98, 0), mS(0.19, 0x2A211A, 0.06, 1.46, 0),
+    mK(0.06, 0.6, 0x9E968A, 1.98, 0.8, 0.4, 0, 0, -Math.PI / 2), mK(0.06, 0.6, 0x9E968A, 1.98, 0.8, -0.4, 0, 0, -Math.PI / 2),
+    mW(0.5, 0.42, -1.05, 0.93), mW(0.5, 0.42, -1.05, -0.93), mW(0.36, 0.28, 1.2, 0.82), mW(0.36, 0.28, 1.2, -0.82),
+  ],
+  coupe: () => [
+    mL(4.3, (t) => ({ w: 0.88 - 0.06 * Math.max(0, t - 0.88) / 0.12, top: t < 0.05 ? 0.82 + t * 2 : t > 0.64 ? 0.93 - 0.12 * ((t - 0.64) / 0.36) : 0.93,
+                      bot: t < 0.03 || t > 0.97 ? 0.4 : 0.32 }), 0x80341F, 0),
+    mL(1.6, (t) => ({ w: 0.7, bot: 0.84, top: 0.92 + 0.26 * Math.min(1, t / 0.3, (1 - t) / 0.28) }), 0x262C33, -0.55),
+    mB(0.82, 0.44, 0.62, 0xA8A298, 1.25, 1.08, 0), mC(0.06, 0.06, 0.8, 6, 0xA8A298, 1.0, 1.5, 0.22), mC(0.06, 0.06, 0.8, 6, 0xA8A298, 1.0, 1.5, -0.22),
+    ...[-0.5, 0, 0.5].map((z) => mK(0.07, 0.7, 0x9E968A, 2.4, 0.62, z, 0, 0, -Math.PI / 2)),
+    mW(0.44, 0.42, -1.35, 0.86), mW(0.44, 0.42, -1.35, -0.86), mW(0.33, 0.26, 1.42, 0.8), mW(0.33, 0.26, 1.42, -0.8),
+  ],
+  ute: () => [
+    mB(4.7, 0.62, 1.8, 0x55706C, 0, 0.78, 0), mB(1.5, 0.72, 1.7, 0x55706C, 0.45, 1.45, 0), mB(0.06, 0.5, 1.5, 0x262C33, 1.21, 1.48, 0),
+    mB(1.3, 0.2, 1.76, 0x55706C, 1.72, 1.16, 0),
+    mB(2.0, 0.4, 0.08, 0x40585A, -1.3, 1.28, 0.86), mB(2.0, 0.4, 0.08, 0x40585A, -1.3, 1.28, -0.86), mB(0.08, 0.4, 1.8, 0x40585A, -2.31, 1.28, 0),
+    mC(0.07, 0.07, 2.3, 6, 0x2E2E2E, -1.35, 2.0, 0, 0, 0, 1.05),
+    mB(0.46, 0.7, 0.5, 0x4A3526, -0.9, 1.5, 0), mS(0.18, 0x2A211A, -0.9, 2.02, 0),
+    mW(0.4, 0.34, 1.55, 0.86), mW(0.4, 0.34, 1.55, -0.86), mW(0.4, 0.34, -1.55, 0.86), mW(0.4, 0.34, -1.55, -0.86),
+  ],
+  bike: () => [
+    mB(1.5, 0.34, 0.28, 0x2A2420, 0, 0.72, 0), mB(0.56, 0.28, 0.34, 0xA29C92, 0.26, 0.96, 0),
+    mB(0.08, 0.72, 0.14, 0x8E887E, 0.74, 0.66, 0, 0, 0, 0.35),
+    mB(0.42, 0.62, 0.44, 0x46301F, -0.14, 1.3, 0, 0, 0, -0.38), mS(0.17, 0x1C1C1C, 0.04, 1.7, 0),
+    mB(0.5, 0.1, 0.1, 0x46301F, 0.22, 1.36, 0.2), mB(0.5, 0.1, 0.1, 0x46301F, 0.22, 1.36, -0.2),
+    mW(0.34, 0.14, 0.74, 0), mW(0.34, 0.16, -0.72, 0),
+  ],
+};
+/* Dust (and smoke) that billows and thins: each puff ages through a few
+   layers, each drawn larger and fainter, so a plume grows and clears in a
+   handful of draws. */
+function makePlume(G, colour, sizes, opacities, cap, tex, order) {
+  const layers = sizes.map((s, i) => {
+    const geo = new BufferGeometry(), attr = new Float32BufferAttribute(cap * 3, 3).setUsage(DynamicDrawUsage), arr = attr.array;   // (the attribute's own array: it copies any it is given)
+    geo.setAttribute('position', attr); geo.setDrawRange(0, 0);
+    const pts = new Points(geo, hazed(new PointsMaterial({ color: colour, size: s, map: tex, transparent: true, opacity: opacities[i], depthWrite: false })));
+    pts.frustumCulled = false; pts.renderOrder = order; G.add(pts);
+    return { geo, arr };
+  });
+  const parts = [];
+  return {
+    emit(x, y, z, vx, vy, vz, life) { if (parts.length < cap * layers.length) parts.push({ x, y, z, vx, vy, vz, age: 0, life }); },
+    step(dt, wind, floor) {
+      const counts = layers.map(() => 0), drag = Math.exp(-1.3 * dt);
+      for (let i = parts.length - 1; i >= 0; i--) {
+        const p = parts[i];
+        p.age += dt;
+        if (p.age >= p.life) { parts[i] = parts[parts.length - 1]; parts.pop(); continue; }
+        p.x += (p.vx + wind) * dt; p.y = Math.max(floor, p.y + p.vy * dt); p.z += p.vz * dt;
+        p.vx *= drag; p.vz *= drag;
+        const k = Math.min(layers.length - 1, Math.floor(p.age / p.life * layers.length)), L = layers[k];
+        if (counts[k] >= cap) continue;
+        L.arr[counts[k] * 3] = p.x; L.arr[counts[k] * 3 + 1] = p.y; L.arr[counts[k] * 3 + 2] = p.z; counts[k]++;
+      }
+      layers.forEach((L, k) => { L.geo.setDrawRange(0, counts[k]); L.geo.attributes.position.needsUpdate = true; });
+    },
+  };
+}
 WORLDS_ADD('dystopia', (w) => {
+  const G = w.group, r = seeded(59), end = courseEnd(), live = !REDUCED;
+  let lo = 0;
+  for (const p of level ? level.pieces : []) lo = Math.min(lo, p.t === 'ramp' ? Math.min(p.y0, p.y1) : (p.y || 0));
+  const GROUND = lo - 28, startCam = (level ? level.start[2] : 0) + 8.6;
+  // The sky: seen only when the view turns up (out beside a loop). In play the camera looks down, and the haze fills the top of the frame.
   scene.background = coverTex(512, (g) => {
     const lg = g.createLinearGradient(0, 0, 0, 512);
-    lg.addColorStop(0, '#C8D2D4'); lg.addColorStop(0.45, '#E6E3D8'); lg.addColorStop(0.75, '#EFE8DA'); lg.addColorStop(1, '#D9D5C9');
+    lg.addColorStop(0, '#521808'); lg.addColorStop(0.3, '#93321A'); lg.addColorStop(0.55, '#D86A2C'); lg.addColorStop(0.7, '#F2A04E');
+    lg.addColorStop(0.78, '#FFD08A'); lg.addColorStop(0.82, '#E89A5A'); lg.addColorStop(1, '#B06A40');
     g.fillStyle = lg; g.fillRect(0, 0, 512, 512);
-    const sg = g.createRadialGradient(390, 120, 4, 390, 120, 200);     // the sun, a glow through the haze
-    sg.addColorStop(0, 'rgba(255,248,232,1)'); sg.addColorStop(0.15, 'rgba(255,240,214,0.85)'); sg.addColorStop(1, 'rgba(255,236,206,0)');
+    const sg = g.createRadialGradient(250, 392, 0, 250, 392, 190);
+    sg.addColorStop(0, 'rgba(255,252,236,1)'); sg.addColorStop(0.09, 'rgba(255,240,190,1)'); sg.addColorStop(0.12, 'rgba(255,214,140,0.8)');
+    sg.addColorStop(0.4, 'rgba(255,170,90,0.35)'); sg.addColorStop(1, 'rgba(255,150,80,0)');
     g.fillStyle = sg; g.fillRect(0, 0, 512, 512);
   });
-  scene.fog.color.setHex(0xDCD8CC); scene.fog.near = 18; scene.fog.far = 120;
-  hemi.color.setHex(0xE9EEEE); hemi.groundColor.setHex(0x55605A); hemi.intensity = 1.05;
-  sun.color.setHex(0xFFE2B8); sun.intensity = 3.0;
-  w.marble = 'copper'; w.rings = [0xFFF1D6, 0xFF9A3C];
-  w.restyle = () => {
-    const M = dystopiaMaterials();
-    for (const c of colliders) {
-      if (c.holo || c.obstacle) continue;
-      const top = c.ferry ? M.ferryTop : M.top, side = c.ferry ? M.ferrySide : M.side;
-      c.mesh.material = [side, side, top, M.under, side, side]; setTopUV(c.mesh, false);
-    }
+  scene.fog.color.setHex(0xE2965A); scene.fog.near = 30; scene.fog.far = 300;
+  HAZE.col.value.setHex(0xFFEEC0); HAZE.k.value = 4;
+  hemi.color.setHex(0xE8A070); hemi.groundColor.setHex(0x3A2418); hemi.intensity = 0.65;
+  sun.color.setHex(0xFFB878); sun.intensity = 2.9;
+  w.marble = 'bearing'; w.rings = [0x34E0FF, 0xFF6A3C]; w.glowGates = true;
+  w.restyle = wasteCourse;
+  const sstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+  const along = (t) => t * end;
+  const roadX = (z) => 3 + 11 * Math.sin(z / 27 + 0.6);
+  // The valley floor is graded flat for 30 m either side of the freeway; dunes rise beyond, and the valley's sides climb away.
+  const groundH = (x, z) => {
+    const off = Math.abs(x - 3), k = sstep(30, 60, off);
+    if (k === 0) return GROUND;
+    const d = 4.2 * Math.sin(x * 0.041 + Math.sin(z * 0.017) * 1.8) * Math.cos(z * 0.027 + x * 0.013)
+            + 2.4 * Math.sin((x * 0.7 + z) * 0.021 + 0.7) + 1.2 * Math.sin(x * 0.1 - z * 0.045);
+    return GROUND + k * (d + 5 + Math.max(0, off - 64) * 0.2);
   };
-  const G = w.group, r = seeded(61), end = courseEnd(), cityEnd = Math.min(-200, end - 140), WATER = -44;
-  // The towers: one draw for each facade, one for the roofs.
-  const fa = facadeTex(5, 3, 3, false), fb = facadeTex(9, 2, 6, true), roofT = roofTex();
-  const facade = (f, key) => worldMapped(new MeshStandardMaterial({ map: f.colour, roughness: 0.92, emissive: 0xFFFFFF, emissiveMap: f.light, emissiveIntensity: 0.9 }), 1 / 7.2, key);
-  const roof = worldMapped(new MeshStandardMaterial({ map: roofT, roughness: 0.95 }), 1 / 7, 'dyst-roof');
-  const matsA = facade(fa, 'dyst-a'), matsB = facade(fb, 'dyst-b');
-  const box = new BoxGeometry(1, 1, 1), cap = 2400;
-  const A = new InstancedMesh(box, [matsA, matsA, roof, roof, matsA, matsA], cap), B = new InstancedMesh(box, [matsB, matsB, roof, roof, matsB, matsB], cap);
-  const LEAF_CAP = 22000;
-  const leafT = canvasTex(256, 128, (g) => {              // a clump's surface: many small leaves, lit and shaded
-    const rr = seeded(71);
-    g.fillStyle = '#9A9A9A'; g.fillRect(0, 0, 256, 128);
-    for (let i = 0; i < 900; i++) {
-      const v = 110 + rr() * 145;
-      g.fillStyle = `rgb(${v},${v},${v})`;
-      g.beginPath(); g.ellipse(rr() * 256, rr() * 128, 2.5 + rr() * 3.5, 1.5 + rr() * 2, rr() * 3.14, 0, Math.PI * 2); g.fill();
+  const m = new Matrix4(), q = new Quaternion(), e = new Euler(), pos = new Vector3(), sc = new Vector3(), col = new Color();
+  const props = [];                                        // every still thing of plain colours, made into one mesh at the end
+  const place = (parts, x, y, z, rx = 0, ry = 0, rz = 0) => {     // turned about its own axes, then about the vertical
+    const M0 = placeAt(x, y, z, 0, ry, 0).multiply(placeAt(0, 0, 0, rx, 0, rz));
+    for (const [g, hex, mm] of parts) props.push([g, hex, M0.clone().multiply(mm)]);
+  };
+  const CONC = 0xA89A86, CONC_D = 0x8C7E6C, RUST = 0x7A3E22, IRON = 0x3A322C;
+  const WIND = (roadX(along(0.5)) > 3 ? -1 : 1) * 2.2;   // blowing out past the refinery's side, so its smoke leaves the course
+  const rs = Math.sign(WIND);
+
+  // THE DESERT: one mesh of 5 m squares, its colour varied broadly across the valley so no tile repeats at a glance.
+  const Z0 = 70, Z1 = end - 340, X0 = 3 - 290, NX = 116, NZ = Math.ceil((Z0 - Z1) / 5);
+  const gp = new Float32Array((NX + 1) * (NZ + 1) * 3), gc = new Float32Array(gp.length), gu = new Float32Array((NX + 1) * (NZ + 1) * 2), gi = [];
+  for (let j = 0; j <= NZ; j++) for (let i = 0; i <= NX; i++) {
+    const x = X0 + i * 5, z = Z0 - j * 5, k = j * (NX + 1) + i;
+    gp[k * 3] = x; gp[k * 3 + 1] = groundH(x, z); gp[k * 3 + 2] = z;
+    gu[k * 2] = x / 48; gu[k * 2 + 1] = z / 48;
+    const n = 0.5 + 0.5 * Math.sin(x * 0.021 + Math.sin(z * 0.013) * 2) * Math.sin(z * 0.017 - x * 0.006), v = 0.8 + 0.28 * n;
+    gc[k * 3] = v * (1 + 0.06 * n); gc[k * 3 + 1] = v; gc[k * 3 + 2] = v * (1 - 0.08 * n);
+  }
+  for (let j = 0; j < NZ; j++) for (let i = 0; i < NX; i++) { const a = j * (NX + 1) + i, b = a + 1, c = a + NX + 1, d = c + 1; gi.push(a, b, c, b, d, c); }
+  const gg = new BufferGeometry();
+  gg.setAttribute('position', new Float32BufferAttribute(gp, 3)); gg.setAttribute('color', new Float32BufferAttribute(gc, 3)); gg.setAttribute('uv', new Float32BufferAttribute(gu, 2));
+  gg.setIndex(gi); gg.computeVertexNormals();
+  const sandT = canvasTex(512, 512, (g) => {
+    g.fillStyle = '#D2A27A'; g.fillRect(0, 0, 512, 512);
+    blotches(g, 512, 512, r, 34, 50, 150, ['236,204,164,0.3', '170,126,90,0.3', '196,116,74,0.2', '244,224,194,0.2']);
+    blotches(g, 512, 512, r, 110, 6, 22, ['160,118,84,0.28', '232,196,156,0.3', '134,110,84,0.22']);
+  }, true);
+  G.add(new Mesh(gg, hazed(new MeshStandardMaterial({ map: sandT, vertexColors: true, roughness: 1 }))));
+
+  // THE ROAD: two lanes of old asphalt weaving along the valley floor, under the freeway and out again, sand drifting over its edges.
+  const roadT = canvasTex(256, 512, (g) => {
+    g.fillStyle = '#302A25'; g.fillRect(0, 0, 256, 512);
+    blotches(g, 256, 512, r, 30, 20, 70, ['70,62,54,0.35', '18,15,13,0.35', '120,84,56,0.2']);
+    for (const u of [0.22, 0.34, 0.66, 0.78]) {            // wheel tracks, darker with oil
+      const lg = g.createLinearGradient(u * 256 - 14, 0, u * 256 + 14, 0);
+      lg.addColorStop(0, 'rgba(20,16,14,0)'); lg.addColorStop(0.5, 'rgba(20,16,14,0.35)'); lg.addColorStop(1, 'rgba(20,16,14,0)');
+      g.fillStyle = lg; g.fillRect(u * 256 - 14, 0, 28, 512);
+    }
+    g.fillStyle = 'rgba(226,212,178,0.6)'; g.fillRect(126, 0, 4, 190);          // the centre line: a dash in every 16 m
+    for (const [x0, x1] of [[0, 34], [256, 222]]) {
+      const lg = g.createLinearGradient(x0, 0, x1, 0);
+      lg.addColorStop(0, 'rgba(206,158,118,1)'); lg.addColorStop(1, 'rgba(206,158,118,0)');
+      g.fillStyle = lg; g.fillRect(Math.min(x0, x1), 0, 34, 512);
+    }
+    for (let i = 0; i < 16; i++) {                          // tongues of sand over the edge
+      const x = r() < 0.5 ? r() * 30 : 226 + r() * 30, y = r() * 512, rad = 14 + r() * 30;
+      for (const dy of [-512, 0, 512]) {
+        const rg = g.createRadialGradient(x, y + dy, 0, x, y + dy, rad);
+        rg.addColorStop(0, 'rgba(208,160,120,0.85)'); rg.addColorStop(1, 'rgba(208,160,120,0)');
+        g.fillStyle = rg; g.fillRect(x - rad, y + dy - rad, rad * 2, rad * 2);
+      }
     }
   }, true);
-  const leaves = new InstancedMesh(new IcosahedronGeometry(1, 2), new MeshStandardMaterial({ color: 0xFFFFFF, map: leafT, roughness: 0.85 }), LEAF_CAP);
-  const vineT = canvasTex(64, 256, (g) => {               // a curtain of leaves, thinning as it hangs
-    const rr = seeded(33);
-    for (let k = 0; k < 7; k++) {
-      let x = 6 + rr() * 52;
-      for (let y = 0; y < 256; y += 5) {
-        if (y > 60 + rr() * 196) break;
-        x += (rr() - 0.5) * 3;
-        g.fillStyle = ['#557F43', '#6E9A52', '#4A7039', '#86AD62'][Math.floor(rr() * 4)];
-        g.beginPath(); g.ellipse(x + (rr() - 0.5) * 6, y, 3 + rr() * 3, 2 + rr() * 2, rr() * 3, 0, Math.PI * 2); g.fill();
-      }
+  const RW = 4.2, rp = [], rn = [], ru = [], ri = [];
+  let vAcc = 0, lx = null, lz = null, nr = 0;
+  for (let z = Z0; z >= Z1; z -= 3) {
+    const x = roadX(z), tx = roadX(z - 1) - x, L = Math.hypot(tx, 1), nx = 1 / L, nz = tx / L;
+    if (lx !== null) vAcc += Math.hypot(x - lx, z - lz);
+    lx = x; lz = z;
+    rp.push(x - nx * RW, GROUND + 0.05, z - nz * RW, x + nx * RW, GROUND + 0.05, z + nz * RW);
+    rn.push(0, 1, 0, 0, 1, 0); ru.push(0, vAcc / 16, 1, vAcc / 16);
+    if (nr) { const a = (nr - 1) * 2; ri.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+    nr++;
+  }
+  const roadGeo = new BufferGeometry();
+  roadGeo.setAttribute('position', new Float32BufferAttribute(rp, 3)); roadGeo.setAttribute('normal', new Float32BufferAttribute(rn, 3)); roadGeo.setAttribute('uv', new Float32BufferAttribute(ru, 2));
+  roadGeo.setIndex(ri);
+  G.add(new Mesh(roadGeo, hazed(new MeshStandardMaterial({ map: roadT, roughness: 0.92, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }))));
+
+  // SHADOWS on the valley floor, laid as soft-edged patches where the light (up and to the left) would throw them.
+  const SH = [-SUN_OFFSET.x / SUN_OFFSET.y, -SUN_OFFSET.z / SUN_OFFSET.y], SHL = Math.hypot(SH[0], SH[1]), SHA = Math.atan2(-SH[1], SH[0]);
+  const sp = [], scol = [], si = [];
+  const shade = (cx, cz, hx, hz, ang, fx, fz, a) => {
+    fx = Math.min(fx, hx); fz = Math.min(fz, hz);
+    const base = sp.length / 3, cs = Math.cos(ang), sn = Math.sin(ang), X = [-hx - fx, -hx + fx, hx - fx, hx + fx], Z = [-hz - fz, -hz + fz, hz - fz, hz + fz];
+    for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) {
+      sp.push(cx + X[i] * cs + Z[j] * sn, GROUND + 0.09, cz - X[i] * sn + Z[j] * cs);
+      scol.push(0.1, 0.04, 0.02, (i === 1 || i === 2) && (j === 1 || j === 2) ? a : 0);
     }
+    for (let j = 0; j < 3; j++) for (let i = 0; i < 3; i++) { const k = base + j * 4 + i; si.push(k, k + 4, k + 1, k + 1, k + 4, k + 5); }
+  };
+
+  // THE FREEWAY'S PILLARS: a column and a cap under each stretch of deck, every 16 m or so, standing clear of the road.
+  const pillar = (x, z, top, capW) => {
+    if (Math.abs(x - roadX(z)) < 6.2) return;
+    const H = top - GROUND + 1, h = top - GROUND;
+    props.push(mB(1.6, H, 1.6, CONC, x, top - H / 2, z), mB(Math.max(2.2, capW), 1.1, 1.9, CONC_D, x, top - 0.55, z));
+    shade(x + SH[0] * h / 2, z + SH[1] * h / 2, h * SHL / 2, 0.8, SHA, 0.5, 0.5, 0.4);
+  };
+  for (const c of colliders) {
+    if (c.obstacle || c.holo || c.cell) continue;
+    const h = c.pos.y - GROUND, hx = c.half.x, hz = c.half.z;
+    if (c.ferry) continue;
+    shade(c.pos.x + SH[0] * h, c.pos.z + SH[1] * h, hx, hz, 0, 0.7, 0.3, 0.5);
+    const n = Math.abs(c.quat.x) > 1e-3 ? 1 : Math.max(1, Math.round(hz * 2 / 16));
+    for (let k = 0; k < n; k++) pillar(c.pos.x, c.pos.z + hz - (k + 0.5) * (hz * 2 / n), c.pos.y - c.half.y - 0.02, hx * 2 - 0.6);
+  }
+  for (const P of plazas) {                                 // a puzzle square: four pillars and one shadow
+    const wd = P.cols * CELL, dp = P.rows * CELL, cx = P.x0 + wd / 2, cz = P.z0 - dp / 2, h = P.y - GROUND;
+    shade(cx + SH[0] * h, cz + SH[1] * h, wd / 2, dp / 2, 0, 0.7, 0.7, 0.5);
+    for (const [ax, az] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) pillar(cx + ax * wd / 4, cz + az * dp / 4, P.y - THICK - 0.02, 2.4);
+  }
+
+  // THE REFINERY beside the valley: three tanks and a sphere, a pipe rack, a wall of scrap, and the flare stack burning off gas.
+  const zr = along(0.5), rOff = courseTopNear(3 + rs * 14, zr, 5) === null ? 0 : 6, fx = 3 + rs * (14 + rOff), tx0 = 3 + rs * (20 + rOff);
+  props.push(mC(0.6, 0.85, 20, 10, 0x6A625A, fx, GROUND + 10, zr), mB(2.6, 0.18, 2.6, IRON, fx, GROUND + 14, zr),
+             mC(0.68, 0.68, 0.8, 10, 0x4A4038, fx, GROUND + 20.1, zr));
+  for (const [k, dz] of [[0, -15], [1, -5.5], [2, 4]]) {
+    const y = GROUND, rad = 3.6 - k * 0.3;
+    props.push(mC(rad, rad, 6.5, 20, k === 1 ? 0xB9AC94 : 0xCBBEA6, tx0, y + 3.25, zr + dz), mC(rad + 0.05, rad + 0.05, 0.9, 20, RUST, tx0, y + 0.45, zr + dz),
+               mC(0.5, rad, 0.9, 20, 0xB4A68E, tx0, y + 6.95, zr + dz), mB(0.2, 6.6, 0.5, IRON, tx0 - rs * rad, y + 3.3, zr + dz));
+  }
+  props.push([new SphereGeometry(3.4, 24, 16), 0xC9BCA4, placeAt(tx0, GROUND + 4.2, zr + 13.5)]);
+  for (const [ax, az] of [[-1.8, 0], [1.8, 0], [0, -1.8], [0, 1.8]]) props.push(mC(0.15, 0.15, 3, 6, IRON, tx0 + ax, GROUND + 1.5, zr + 13.5 + az));
+  for (const y of [1.9, 2.5]) props.push(mC(0.22, 0.22, 34, 10, 0x8A7E6E, 3 + rs * rOff + rs * 15.8, GROUND + y, zr - 1, Math.PI / 2));
+  for (let dz = -16; dz <= 14; dz += 5) props.push(mB(0.2, 2.7, 1.4, IRON, 3 + rs * rOff + rs * 15.8, GROUND + 1.35, zr + dz));
+  for (let dz = -24; dz <= 22; dz += 2.6) {                 // the wall of scrap: sheets of rusted iron, leaning
+    const hh = 1.8 + r() * 1.4;
+    props.push(mB(0.12, hh, 2.8, r() < 0.5 ? RUST : 0x6E6458, 3 + rs * rOff + rs * 25.5, GROUND + hh / 2 - 0.1, zr + dz, (r() - 0.5) * 0.2, (r() - 0.5) * 0.3, (r() - 0.5) * 0.25));
+  }
+
+  // WINDPUMPS on the valley floor, a water tank beside each; their fans turn.
+  const pumps = [];
+  for (const [t, s] of [[0.2, -rs], [0.78, rs]]) {
+    const z = along(t);
+    let x = 3 + s * 12.5;
+    if (Math.abs(x - roadX(z)) < 6) x = 3 + s * 20;
+    if (Math.abs(x - roadX(z)) < 6 || (end > -70 && t > 0.5)) continue;
+    const H = 9;
+    for (const [ax, az] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      const dx = -ax * 0.95, dz = -az * 0.95, L = Math.hypot(dx, H, dz), rz0 = -Math.asin(dx / L), rx0 = Math.asin(dz / (L * Math.cos(rz0)));
+      props.push(mB(0.18, L, 0.18, IRON, x + ax * 1.2 + dx / 2, GROUND + H / 2, z + az * 1.2 + dz / 2, rx0, 0, rz0));
+    }
+    for (const yy of [3, 6]) {
+      const hw = 1.2 - 0.95 * yy / H;
+      props.push(mB(hw * 2, 0.1, 0.1, IRON, x, GROUND + yy, z - hw), mB(hw * 2, 0.1, 0.1, IRON, x, GROUND + yy, z + hw),
+                 mB(0.1, 0.1, hw * 2, IRON, x - hw, GROUND + yy, z), mB(0.1, 0.1, hw * 2, IRON, x + hw, GROUND + yy, z));
+    }
+    props.push(mB(0.7, 0.5, 0.7, IRON, x, GROUND + H + 0.2, z), mB(0.06, 0.9, 2.2, 0xB8AE9C, x, GROUND + H + 0.4, z + 1.4),
+               mC(2.2, 2.2, 2, 18, 0x9A948A, x - s * 5, GROUND + 1, z + 2), mC(2.25, 2.25, 0.15, 18, 0x6E6A62, x - s * 5, GROUND + 2.05, z + 2));
+    pumps.push({ x, y: GROUND + H + 0.4, z: z - 0.5, a: r() * 6 });
+  }
+  const fanGeo = paintedModel([mC(0.18, 0.18, 0.3, 8, IRON, 0, 0, 0, Math.PI / 2),
+    ...[...Array(16)].map((_, k) => { const a = k / 16 * Math.PI * 2; return [new BoxGeometry(0.34, 1.45, 0.04), 0xC8C0B0, placeAt(Math.sin(a) * 0.95, Math.cos(a) * 0.95, 0, 0, 0, -a)]; })]);
+  const fans = new InstancedMesh(fanGeo, hazed(new MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.4, side: DoubleSide })), Math.max(1, pumps.length));
+  fans.count = pumps.length; G.add(fans);
+  const placeFans = () => { pumps.forEach((P, i) => { m.compose(pos.set(P.x, P.y, P.z), q.setFromEuler(e.set(0, 0, P.a)), sc.set(1, 1, 1)); fans.setMatrixAt(i, m); }); fans.instanceMatrix.needsUpdate = true; };
+
+  // WRECKS by the road and out on the sand, rusted or burnt, some on their roofs; a bus on its side; oil drums, stacks of tyres, rocks and spinifex.
+  const dim = (hex, k) => col.setHex(hex).multiplyScalar(k).getHex();
+  const hulk = (hex) => {
+    const parts = [mB(4.3, 0.62, 1.8, hex, 0, 0.66, 0), mB(1.9, 0.56, 1.6, dim(hex, 0.62), -0.3, 1.24, 0), mB(1.3, 0.1, 1.7, dim(hex, 0.85), 1.4, 1.0, 0)];
+    for (const [wx, wz] of [[1.4, 0.82], [1.4, -0.82], [-1.4, 0.82], [-1.4, -0.82]]) if (r() < 0.6) parts.push(mW(0.34, 0.3, wx, wz));
+    return parts;
+  };
+  const drums = new InstancedMesh(new CylinderGeometry(0.3, 0.3, 0.9, 10), hazed(new MeshStandardMaterial({ roughness: 0.65, metalness: 0.3 })), 140);
+  const tyres = new InstancedMesh(new TorusGeometry(0.36, 0.14, 6, 12), hazed(new MeshStandardMaterial({ color: 0x24201C, roughness: 0.9 })), 180);
+  let nd = 0, nt = 0;
+  const fires = [];
+  const drum = (x, z, tipped, hex) => {
+    if (nd >= 140) return;
+    const y = groundH(x, z);
+    m.compose(pos.set(x, y + (tipped ? 0.3 : 0.45), z), q.setFromEuler(e.set(tipped ? Math.PI / 2 : 0, r() * 6, 0)), sc.set(1, 1, 1));
+    drums.setMatrixAt(nd, m); drums.setColorAt(nd++, col.setHex(hex));
+  };
+  const tyreStack = (x, z, n) => {
+    const y = groundH(x, z);
+    for (let k = 0; k < n && nt < 180; k++) {
+      m.compose(pos.set(x + (r() - 0.5) * 0.12, y + 0.14 + k * 0.27, z + (r() - 0.5) * 0.12), q.setFromEuler(e.set(Math.PI / 2 + (r() - 0.5) * 0.15, 0, (r() - 0.5) * 0.15)), sc.set(1, 1, 1));
+      tyres.setMatrixAt(nt++, m);
+    }
+  };
+  const DRUMS = [0x8A2A1A, 0x2A4A6A, 0xB08A2A, 0x3A3A36, 0x6A4A2A], WRECKS = [0x6E3A22, 0x2C2622, 0x7A6A50, 0x56605A, 0x8A4A2A];
+  for (let z = 20; z > end - 200; z -= 16 + r() * 16) {
+    const s = r() < 0.5 ? -1 : 1, x = roadX(z) + s * (5.6 + r() * 2.5);
+    if (Math.abs(x - 3) > 34) continue;
+    const kind = r();
+    if (kind < 0.4) {
+      const flip = r() < 0.25;
+      place(hulk(WRECKS[Math.floor(r() * WRECKS.length)]), x, GROUND + (flip ? 1.55 : 0), z, flip ? Math.PI : 0, r() * 6.3, (r() - 0.5) * 0.1);
+    } else if (kind < 0.75) {
+      const n = 2 + Math.floor(r() * 4), burning = r() < 0.5;
+      for (let k = 0; k < n; k++) drum(x + (r() - 0.5) * 2.2, z + (r() - 0.5) * 2.2, k > 0 && r() < 0.3, DRUMS[Math.floor(r() * DRUMS.length)]);
+      if (burning) { drum(x, z, false, 0x3A3A36); fires.push({ x, y: GROUND + 0.95, z, s: 1, ph: r() * 9 }); }
+    } else {
+      tyreStack(x, z, 3 + Math.floor(r() * 4)); if (r() < 0.6) tyreStack(x + 0.9, z + 0.4, 2 + Math.floor(r() * 3));
+    }
+  }
+  for (let i = 0; i < 12; i++) {                            // out on the sand, further off
+    const z = 20 + r() * (end - 120), x = 3 + (r() < 0.5 ? -1 : 1) * (13 + r() * 16);
+    if (Math.abs(x - roadX(z)) < 6) continue;
+    place(hulk(WRECKS[Math.floor(r() * WRECKS.length)]), x, groundH(x, z), z, 0, r() * 6.3, 0);
+  }
+  { const z = along(0.62), x = roadX(z) + (roadX(z) > 3 ? -8 : 8);   // a bus, on its side
+    place([mB(11, 2.4, 2.5, 0x86542E, 0, 1.55, 0), mB(10.4, 0.85, 2.54, 0x221A14, 0, 2.05, 0), mB(10.6, 0.2, 2.3, 0x6E4426, 0, 2.85, 0),
+           mW(0.5, 0.4, 3.6, 1.1), mW(0.5, 0.4, 3.6, -1.1), mW(0.5, 0.4, -3.4, 1.1), mW(0.5, 0.4, -3.4, -1.1)],
+          x, GROUND + 1.27, z, -Math.PI / 2, 0.5 + r() * 0.5, 0); }
+  for (let dz = -20; dz <= 20; dz += 4 + r() * 3) {         // drums and tyres by the refinery's wall
+    if (r() < 0.5) drum(3 + rs * rOff + rs * (23.5 + r()), zr + dz, r() < 0.2, DRUMS[Math.floor(r() * DRUMS.length)]); else tyreStack(3 + rs * rOff + rs * (23.8 + r()), zr + dz, 2 + Math.floor(r() * 4));
+  }
+  fires.push({ x: 3 + rs * rOff + rs * 23.4, y: GROUND + 0.95, z: zr - 7, s: 1.2, ph: 3 });
+  drums.count = nd; tyres.count = nt; G.add(drums, tyres);
+  const rocks = new InstancedMesh(new IcosahedronGeometry(1, 0), hazed(new MeshStandardMaterial({ color: 0x6E4632, roughness: 0.95, flatShading: true })), 34);
+  let nk = 0;
+  for (let i = 0; i < 120 && nk < 34; i++) {
+    const z = 30 + r() * (end - 100), x = 3 + (r() - 0.5) * 70;
+    if (Math.abs(x - roadX(z)) < 6) continue;
+    const s0 = 0.7 + r() * 1.6;
+    m.compose(pos.set(x, groundH(x, z) + s0 * 0.2, z), q.setFromEuler(e.set(r() * 3, r() * 3, r() * 3)), sc.set(s0 * (1 + r() * 0.8), s0 * 0.7, s0)); rocks.setMatrixAt(nk++, m);
+  }
+  rocks.count = nk; G.add(rocks);
+  // BUTTES of red rock standing out of the dunes beyond the valley, flat-topped, their sides in bands.
+  const butteT = canvasTex(64, 256, (g) => {
+    g.fillStyle = '#8E5436'; g.fillRect(0, 0, 64, 256);
+    for (let y = 0; y < 256; y += 6 + r() * 14) { g.fillStyle = `rgba(${r() < 0.5 ? '60,34,24' : '176,120,84'},${0.18 + r() * 0.2})`; g.fillRect(0, y, 64, 3 + r() * 6); }
+  }, true);
+  const buttes = new InstancedMesh(new CylinderGeometry(0.78, 1, 1, 7, 1), hazed(new MeshStandardMaterial({ map: butteT, roughness: 0.95, flatShading: true })), 16);
+  let nb2 = 0;
+  for (let z = 10; z > end - 260 && nb2 < 16; z -= 30 + r() * 30) {
+    const s0 = r() < 0.5 ? -1 : 1, off = 70 + r() * 70, x = 3 + s0 * off, rad = 12 + r() * 16, hgt = 18 + r() * 26;
+    m.compose(pos.set(x, groundH(x, z) - 3 + hgt / 2, z), q.setFromEuler(e.set(0, r() * 3, 0)), sc.set(rad, hgt, rad * (0.7 + r() * 0.5))); buttes.setMatrixAt(nb2++, m);
+  }
+  buttes.count = nb2; G.add(buttes);
+
+  // THE DEAD CITY: concrete husks half-buried in the dunes beyond the valley's edge, their windows empty, drifts of sand banked on them; closer together and taller past the course's end.
+  const facadeT = canvasTex(512, 512, (g) => {
+    g.fillStyle = '#B39C80'; g.fillRect(0, 0, 512, 512);
+    blotches(g, 512, 512, r, 26, 30, 120, ['150,128,104,0.35', '206,186,154,0.3', '126,82,54,0.22']);
+    for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) {
+      const x = i * 128 + 24 + (r() - 0.5) * 6, y = j * 128 + 34, ww = 78 + (r() - 0.5) * 10, wh = 58;
+      if (r() < 0.12) { g.fillStyle = 'rgba(120,96,74,0.5)'; g.fillRect(x, y, ww, wh); continue; }   // bricked up
+      const big = r() < 0.15 ? 18 : 0;                      // blown out wider
+      const sg = g.createLinearGradient(0, y - 46, 0, y + 4);
+      sg.addColorStop(0, 'rgba(38,28,22,0)'); sg.addColorStop(1, `rgba(38,28,22,${0.3 + r() * 0.3})`);
+      g.fillStyle = sg; g.fillRect(x - big / 2, y - 46, ww + big, 50);                          // soot above the opening
+      g.fillStyle = '#211812'; g.fillRect(x - big / 2, y - big / 3, ww + big, wh + big / 3);
+      g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(x - big / 2, y - big / 3, ww + big, 12);
+      g.fillStyle = 'rgba(214,176,128,0.55)'; g.fillRect(x - 3 - big / 2, y + wh, ww + 6 + big, 6);   // the sill, sand on it
+    }
+    g.fillStyle = 'rgba(110,90,70,0.3)'; for (let j = 0; j < 4; j++) g.fillRect(0, j * 128 + 116, 512, 5);
+  }, true);
+  const roofT = canvasTex(256, 256, (g) => {
+    g.fillStyle = '#A28A6E'; g.fillRect(0, 0, 256, 256);
+    blotches(g, 256, 256, r, 20, 20, 70, ['196,150,104,0.4', '120,98,78,0.35', '90,70,56,0.25']);
+  }, true);
+  const HCAP = 460, husks = new InstancedMesh(twoGroupBox(), [hazed(worldMapped(new MeshStandardMaterial({ map: facadeT, roughness: 0.95 }), 1 / 14, 'waste-facade')),
+    hazed(worldMapped(new MeshStandardMaterial({ map: roofT, roughness: 0.95 }), 1 / 9, 'waste-roof'))], HCAP);
+  const drifts = new InstancedMesh(new SphereGeometry(1, 14, 7, 0, Math.PI * 2, 0, Math.PI / 2), hazed(new MeshStandardMaterial({ color: 0xC89A72, roughness: 1 })), 220);
+  let nh = 0, nf = 0;
+  let grime = 1;
+  const block = (x, y, z, bw, bh, bd, rx, ry, rz) => {
+    if (nh >= HCAP) return;
+    m.compose(pos.set(x, y + bh / 2, z), q.setFromEuler(e.set(rx, ry, rz)), sc.set(bw, bh, bd)); husks.setMatrixAt(nh, m);
+    husks.setColorAt(nh++, col.setRGB(grime, grime * 0.94, grime * 0.88));
+  };
+  const husk = (x, z, bw, bd, h) => {
+    const gy = groundH(x, z), sink = 1.5 + r() * 3, ry = (r() - 0.5) * 0.3;
+    grime = r() < 0.2 ? 0.34 + r() * 0.12 : 0.62 + r() * 0.38;
+    block(x, gy - sink, z, bw, h + sink, bd, 0, ry, 0);
+    for (let k = 0, top = gy + h, tw = bw; k < 2 && r() < 0.65; k++) {   // a broken floor or two on top, pushed off and tilted
+      const h2 = 2.5 + r() * 5, f = 0.45 + r() * 0.4;
+      block(x + (r() - 0.5) * tw * 0.35, top - 0.3, z + (r() - 0.5) * bd * 0.35, tw * f, h2, bd * (0.45 + r() * 0.4), (r() - 0.5) * 0.24, ry, (r() - 0.5) * 0.24);
+      top += h2 - 0.3; tw *= f;
+    }
+    if (r() < 0.5) block(x + (r() - 0.5) * bw, gy - 1, z + (r() < 0.5 ? -1 : 1) * bd * 0.55, 3 + r() * 4, 2 + r() * 2.5, 3 + r() * 4, r() * 0.4, r() * 3, r() * 0.4);   // a fallen slab
+    if (nf < 220) {                                        // sand banked against the windward side
+      m.compose(pos.set(x - rs * bw * 0.45, gy - 0.3, z), q.setFromEuler(e.set(0, ry, 0)), sc.set(bw * 0.4, 1.6 + r() * 2.6, bd * 0.75)); drifts.setMatrixAt(nf++, m);
+    }
+    return gy + h;
+  };
+  for (let z = 40; z > end - 90; z -= 16 + r() * 10) for (const s of [-1, 1]) {
+    if (r() < 0.3) continue;
+    const off = 36 + r() * 70;
+    if (s === rs && Math.abs(z - zr) < 30 && off < 44) continue;     // the refinery's ground
+    const top = husk(3 + s * off, z + (r() - 0.5) * 8, 10 + r() * 14, 10 + r() * 14, off < 55 ? 7 + r() * 12 : 10 + r() * 24);
+    if (r() < 0.08) fires.push({ x: 3 + s * off, y: top + 0.2, z, s: 1.6, ph: r() * 9 });
+  }
+  const smokes = [];
+  for (let z = end - 50; z > end - 300; z -= 14 + r() * 8) for (let k = 0; k < 6; k++) {
+    const x = 3 + (r() - 0.5) * 200;
+    if (Math.abs(x - 3) < 18 && z > end - 120) continue;        // the view past the goal stays open
+    const top = husk(x, z, 12 + r() * 16, 12 + r() * 16, 12 + r() * 30 + (Math.abs(x - 3) > 40 ? 12 : 0));
+    if (smokes.length < 2 && r() < 0.05) smokes.push({ x, y: top, z });
+  }
+  husks.count = nh; drifts.count = nf; G.add(husks, drifts);
+
+  // Everything still and plain-coloured, as one mesh; the shadows as another.
+  G.add(new Mesh(paintedModel(props), hazed(new MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0.05 }))));
+  const shg = new BufferGeometry();
+  shg.setAttribute('position', new Float32BufferAttribute(sp, 3)); shg.setAttribute('color', new Float32BufferAttribute(scol, 4)); shg.setIndex(si);
+  const shadowMesh = new Mesh(shg, hazed(new MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false })));
+  shadowMesh.renderOrder = -1; G.add(shadowMesh);
+
+  // THE CHASE: three groups racing up the road toward you and on under the freeway. The war rig and its escort keep the right-hand side;
+  // a hot rod and a ute, and behind them the black interceptor, the left. A group that catches the one ahead on its side hangs back behind it.
+  const vehMat = hazed(new MeshStandardMaterial({ vertexColors: true, roughness: 0.42, metalness: 0.35, envMap: wasteEnvMap() || envTex, envMapIntensity: 0.9 }));
+  const kinds = {};
+  for (const [k, n] of [['interceptor', 1], ['rig', 1], ['buggy', 2], ['coupe', 1], ['ute', 1], ['bike', 3]]) {
+    const im = new InstancedMesh(paintedModel(VEHICLES[k]()), vehMat, n); im.frustumCulled = false; G.add(im);
+    kinds[k] = { im, used: 0 };
+  }
+  // [kind, metres ahead in the group, lane (across the road from its middle), dust a second, half length, half width, lights]
+  const groups = [
+    { v: 15, z: startCam - 120, side: 1, m: [['rig', 0, 1.8, 50, 8.6, 1.2, [6.95, 1.35, 0.95]], ['buggy', 13, 3.1, 26, 1.9, 0.9, [2.1, 0.8, 0.5]],
+                                           ['buggy', -12, 1.8, 26, 1.9, 0.9, [2.1, 0.8, 0.5]], ['bike', 5, 3.4, 14, 1.1, 0.3, [1.0, 0.95, 0]], ['bike', -18, 0.9, 14, 1.1, 0.3, [1.0, 0.95, 0]]] },
+    { v: 20, z: startCam - 190, side: -1, m: [['coupe', 0, -1.9, 28, 2.2, 0.9, [2.2, 0.66, 0.55]], ['ute', -10, -2.3, 28, 2.4, 0.9, [2.36, 0.9, 0.6]], ['bike', -4.5, -3.4, 14, 1.1, 0.3, [1.0, 0.95, 0]]] },
+    { v: 25, z: startCam - 262, side: -1, m: [['interceptor', 0, -2.0, 36, 2.3, 0.93, [2.33, 0.72, 0.56]]] },
+  ];
+  const veh = [];
+  for (const Gp of groups) {
+    Gp.front = Math.max(...Gp.m.map((M) => M[1])); Gp.back = Math.min(...Gp.m.map((M) => M[1])); Gp.cur = Gp.v;
+    for (const [kind, dz, lane, rate, hl, hw, lamp] of Gp.m) veh.push({ Gp, K: kinds[kind], i: kinds[kind].used++, dz, lane, rate, hl, hw, lamp, acc: 0, ph: r() * 9, bike: kind === 'bike' });
+  }
+  const puffT = canvasTex(64, 64, (g) => {
+    const rgr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    rgr.addColorStop(0, 'rgba(255,255,255,0.9)'); rgr.addColorStop(0.45, 'rgba(255,255,255,0.55)'); rgr.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = rgr; g.fillRect(0, 0, 64, 64);
   });
-  const vines = new InstancedMesh(new PlaneGeometry(1, 1), new MeshStandardMaterial({ map: vineT, alphaTest: 0.4, side: DoubleSide, roughness: 0.9 }), 2600);
-  const slabs = new InstancedMesh(new BoxGeometry(1, 1, 1), roofSlab(), 1600);
-  let nv = 0, ns = 0;
-  const hang = (x, top, z, face, bw, bd) => {             // vines down one face of a block, from its top edge
-    if (nv >= 2600) return;
-    const len = 2 + r() * 6, wid = 1 + r() * 2.5, along = (r() - 0.5) * ((face < 2 ? bd : bw) - wid);
-    const px = face === 0 ? x + bw / 2 + 0.06 : face === 1 ? x - bw / 2 - 0.06 : x + along;
-    const pz = face < 2 ? z + along : face === 2 ? z + bd / 2 + 0.06 : z - bd / 2 - 0.06;
-    q.setFromEuler(new Euler(0, face < 2 ? Math.PI / 2 : 0, 0));
-    m.compose(pos.set(px, top - len / 2, pz), q, sc.set(wid, len, 1)); vines.setMatrixAt(nv++, m);
-    q.identity();
-  };
-  const m = new Matrix4(), q = new Quaternion(), pos = new Vector3(), sc = new Vector3(), col = new Color();
-  const greens = [0x5E8B4A, 0x7AA35A, 0x4C7A3C, 0x93B86A, 0x6E9A52, 0xA4C27A];
-  let a = 0, b = 0, nl = 0;
-  const shrub = (x, y, z, s) => {
-    if (nl >= LEAF_CAP) return;
-    m.compose(pos.set(x, y, z), q, sc.set(s, s * (0.55 + r() * 0.35), s)); leaves.setMatrixAt(nl, m);
-    leaves.setColorAt(nl++, col.setHex(greens[Math.floor(r() * greens.length)]));
-  };
-  // A garden along a block's top: clumps round its edge, where the block above leaves room, and a few inside.
-  const garden = (x, top, z, bw, bd, over) => {
-    const n = Math.round((bw + bd) * 0.9);
-    for (let i = 0; i < n; i++) {
-      const t = r(), side = Math.floor(r() * 4), e = 0.6;
-      const px = side < 2 ? x - bw / 2 + t * bw : x + (side === 2 ? -1 : 1) * (bw / 2 - e);
-      const pz = side < 2 ? z + (side === 0 ? -1 : 1) * (bd / 2 - e) : z - bd / 2 + t * bd;
-      if (over && Math.abs(px - over[0]) < over[2] / 2 && Math.abs(pz - over[1]) < over[3] / 2) continue;   // under the next block
-      shrub(px, top + 0.2, pz, 0.45 + r() * 0.9);
+  const dust = makePlume(G, 0xE2BC8E, [2.8, 4.8, 7.2, 10], [0.55, 0.4, 0.26, 0.12], 420, puffT, 1);
+  const blobT = canvasTex(64, 64, (g) => {
+    const rgr = g.createRadialGradient(32, 32, 4, 32, 32, 32);
+    rgr.addColorStop(0, 'rgba(255,255,255,1)'); rgr.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = rgr; g.fillRect(0, 0, 64, 64);
+  });
+  const blobs = new InstancedMesh(new PlaneGeometry(1, 1).rotateX(-Math.PI / 2), hazed(new MeshBasicMaterial({ map: blobT, color: 0x1A0C06, transparent: true, opacity: 0.6, depthWrite: false })), veh.length);
+  blobs.frustumCulled = false; blobs.renderOrder = -1; G.add(blobs);
+  const nLamps = veh.reduce((s, V) => s + (V.lamp[2] ? 2 : 1), 0), lampGeo = new BufferGeometry();
+  lampGeo.setAttribute('position', new Float32BufferAttribute(nLamps * 3, 3).setUsage(DynamicDrawUsage));
+  const lampP = lampGeo.attributes.position.array;
+  const lamps = [[1.1, 1, 0xFFF4D6], [4.6, 0.3, 0xFFC878]].map(([s, o, c]) => {
+    const p = new Points(lampGeo, new PointsMaterial({ color: c, size: s, map: dot, transparent: true, opacity: o, blending: AdditiveBlending, depthWrite: false, fog: false }));
+    p.frustumCulled = false; p.renderOrder = 3; G.add(p); return p;
+  });
+  const _d = new Vector3();
+  const moveChase = (dt, t, camZ) => {
+    for (const Gp of groups) {                             // hang back behind a slower group ahead on the same side
+      let v = Gp.v;
+      for (const O of groups) if (O !== Gp && O.side === Gp.side && O.z > Gp.z) {
+        const gap = (O.z + O.back) - (Gp.z + Gp.front);
+        if (gap < 24) v = Math.min(v, O.cur + (gap - 12) * 0.8);
+      }
+      Gp.cur = Math.max(0, v);
     }
-    if (!over) {
-      for (let i = 0; i < n / 2; i++) shrub(x + (r() - 0.5) * bw * 0.8, top + 0.25, z + (r() - 0.5) * bd * 0.8, 0.6 + r() * 1.4);
-      for (let i = 0; i < 2; i++) if (r() < 0.5 && nl < LEAF_CAP - 8) {   // a tree: a crown of clumps on a short trunk
-        const tx = x + (r() - 0.5) * bw * 0.6, tz = z + (r() - 0.5) * bd * 0.6, th = 1.6 + r() * 1.8;
-        for (let k = 0; k < 6; k++) shrub(tx + (r() - 0.5) * 1.6, top + th + r() * 1.2, tz + (r() - 0.5) * 1.6, 0.8 + r() * 0.8);
-        trunks.push([tx, top, tz, th]);
+    for (const Gp of groups) {
+      Gp.z += Gp.cur * dt;
+      if (Gp.z + Gp.back > camZ + 30) {                    // gone under the camera: round again, out of the haze
+        let z = camZ - 250 - Math.random() * 60;
+        for (const O of groups) if (O !== Gp && O.side === Gp.side) z = Math.min(z, O.z + O.back - 40 - Gp.front);
+        Gp.z = z;
       }
     }
-  };
-  const trunks = [];
-  const tower = (x, z, topY, w0, d0) => {
-    const useA = r() < 0.55, blocks = [];
-    let y = WATER - 2;
-    while (y < topY - 0.5) {                            // stacked blocks, each thrust off the one below
-      const h = Math.min(topY - y, 3.2 + r() * 5.5);
-      const nw = Math.max(4, w0 + (r() - 0.5) * 6), nd = Math.max(4, d0 + (r() - 0.5) * 6);
-      blocks.push([x + (r() - 0.5) * 5, y, z + (r() - 0.5) * 5, nw, h, nd]);
-      y += h;
-    }
-    blocks.forEach(([bx, by, bz, bw, bh, bd], i) => {
-      m.compose(pos.set(bx, by + bh / 2, bz), q, sc.set(bw, bh, bd));
-      if (useA && a < cap) A.setMatrixAt(a++, m); else if (b < cap) B.setMatrixAt(b++, m);
-      if (i < blocks.length - 3) return;                // below the top three: lost in the haze anyway
-      const next = blocks[i + 1], top = by + bh;
-      garden(bx, top, bz, bw, bd, next ? [next[0], next[2], next[3], next[5]] : null);
-      for (let f = 0; f < 4; f++) if (r() < 0.5) hang(bx, top, bz, f, bw, bd);
-      if (bh > 4 && r() < 0.6 && ns < 1600) {             // a balcony slab thrust out of one face, planted
-        const f = Math.floor(r() * 4), sy = by + 1.5 + r() * (bh - 2.5), ext = 1.1 + r() * 0.9, len = 2 + r() * 3.5;
-        const px = f === 0 ? bx + bw / 2 + ext / 2 : f === 1 ? bx - bw / 2 - ext / 2 : bx + (r() - 0.5) * (bw - len);
-        const pz = f < 2 ? bz + (r() - 0.5) * (bd - len) : f === 2 ? bz + bd / 2 + ext / 2 : bz - bd / 2 - ext / 2;
-        m.compose(pos.set(px, sy, pz), q, f < 2 ? sc.set(ext, 0.35, len) : sc.set(len, 0.35, ext)); slabs.setMatrixAt(ns++, m);
-        for (let k = 0; k < 4; k++) shrub(px + (r() - 0.5) * (f < 2 ? ext : len) * 0.8, sy + 0.3, pz + (r() - 0.5) * (f < 2 ? len : ext) * 0.8, 0.5 + r() * 0.8);
-        if (r() < 0.6) hang(px, sy, pz, f, f < 2 ? ext : len, f < 2 ? len : ext);
+    let li = 0;
+    veh.forEach((V, i) => {
+      const z = V.Gp.z + V.dz, wob = Math.sin(t * (V.bike ? 1.3 : 0.8) + V.ph) * (V.bike ? 0.5 : 0.3), x = roadX(z) + V.lane + wob;
+      const dxdz = (11 / 27) * Math.cos(z / 27 + 0.6) + Math.cos(t * 0.8 + V.ph) * 0.02, yaw = Math.atan2(-1, dxdz);
+      _d.set(dxdz, 0, 1).normalize();
+      m.compose(pos.set(x, GROUND + 0.05, z), q.setFromEuler(e.set(Math.sin(t * 7 + V.ph) * 0.012, yaw, Math.sin(t * 9 + V.ph) * 0.01 + (V.bike ? 0 : 0))), sc.set(1, 1, 1));
+      V.K.im.setMatrixAt(V.i, m);
+      m.compose(pos.set(x + SH[0] * 0.7, GROUND + 0.1, z + SH[1] * 0.7), q.setFromEuler(e.set(0, yaw, 0)), sc.set(V.hl * 2.3, 1, V.hw * 2.8)); blobs.setMatrixAt(i, m);
+      V.acc += V.rate * dt * (V.Gp.cur / V.Gp.v);
+      while (V.acc >= 1) {                                 // dust thrown up behind the back wheels
+        V.acc -= 1;
+        const s = (Math.random() - 0.5) * 2 * V.hw;
+        dust.emit(x - _d.x * V.hl + _d.z * s, GROUND + 0.35, z - _d.z * V.hl - _d.x * s,
+                  _d.x * V.Gp.cur * 0.12 + (Math.random() - 0.5) * 1.6, 0.35 + Math.random() * 0.7, _d.z * V.Gp.cur * 0.12 + (Math.random() - 0.5) * 1.2, 2.6 + Math.random() * 1.2);
+      }
+      const [lx0, ly, lz0] = V.lamp;
+      for (const sd of lz0 ? [-1, 1] : [0]) {
+        lampP[li++] = x + _d.x * lx0 + _d.z * lz0 * sd; lampP[li++] = GROUND + ly; lampP[li++] = z + _d.z * lx0 - _d.x * lz0 * sd;
       }
     });
+    for (const k in kinds) kinds[k].im.instanceMatrix.needsUpdate = true;
+    blobs.instanceMatrix.needsUpdate = true; lampGeo.attributes.position.needsUpdate = true;
   };
-  // Cranes and masts left standing on the tallest roofs, rust red, and cables slung between towers.
-  const rust = new MeshStandardMaterial({ color: 0x8A4A30, roughness: 0.75, metalness: 0.4 });
-  const tops = [], minTop = level ? level.minTop : 0, TRAM_Y = Math.min(-9, minTop - 8), CABLE_Y = Math.min(-3.5, minTop - 4);
-  const CROSS_Z = []; for (let z = -28; z > cityEnd + 20; z -= 55) CROSS_Z.push(z);        // alternately a tram line and a cable-car line
-  for (let x = -84; x <= 90; x += 11) for (let z = 24; z >= cityEnd; z -= 11) {
-    if (r() < 0.28) continue;
-    const px = x + (r() - 0.5) * 4, pz = z + (r() - 0.5) * 4, off = Math.abs(px - 3);
-    if (CROSS_Z.some((cz) => Math.abs(pz - cz) < 7)) continue;                 // the crossings' lanes
-    // Low under the course, climbing past it only well out to the sides.
-    const topY = off < 15 ? -7 - r() * 16 : off < 26 ? -4 - r() * 18 + (r() < 0.35 ? 22 : 0) : -2 - r() * 10 + r() * 34;
-    tower(px, pz, topY, 6 + r() * 5, 6 + r() * 5);
-    tops.push([px, topY, pz]);
-  }
-  const cranes = new Group(), craneList = [];
-  for (const [x, y, z] of tops.filter((t) => t[1] > 4).slice(0, 7)) {
-    const c = new Group(), h = 9 + r() * 6, arm = 10 + r() * 6, turn = r() * 6.3;
-    const mast = new Mesh(new BoxGeometry(0.7, h, 0.7), rust); mast.position.y = h / 2;
-    const jib = new Mesh(new BoxGeometry(arm, 0.5, 0.5), rust); jib.position.set(arm / 2 - 3, h, 0);
-    const tip = new Mesh(new SphereGeometry(0.22, 8, 6), new MeshBasicMaterial({ color: 0xFF4A3A, toneMapped: false })); tip.position.set(arm - 3, h + 0.4, 0);
-    const line = new Mesh(new CylinderGeometry(0.04, 0.04, h * 0.6, 4), new MeshBasicMaterial({ color: 0x2A2A2A })); line.position.set(arm - 4.5, h - h * 0.3, 0);
-    c.add(mast, jib, tip, line); c.position.set(x, y, z); c.rotation.y = turn;
-    cranes.add(c); craneList.push({ c, sp: (r() < 0.5 ? -1 : 1) * (0.05 + r() * 0.08) });
-  }
-  G.add(cranes);
-  A.count = a; B.count = b; leaves.count = nl; vines.count = nv; slabs.count = ns;
-  slabs.castShadow = true; slabs.receiveShadow = true;
-  A.castShadow = B.castShadow = true; A.receiveShadow = B.receiveShadow = true;
-  G.add(A, B, leaves, vines, slabs);
-  const trunk = new InstancedMesh(new CylinderGeometry(0.12, 0.18, 1, 6), new MeshStandardMaterial({ color: 0x5A4A3A, roughness: 1 }), Math.max(1, trunks.length));
-  trunks.forEach(([x, y, z, h], i) => { m.compose(pos.set(x, y + h / 2, z), q, sc.set(1, h + 0.6, 1)); trunk.setMatrixAt(i, m); });
-  trunk.count = trunks.length; G.add(trunk);
-  // Walkways between towers, well below the course.
-  const beams = new InstancedMesh(box, new MeshStandardMaterial({ color: 0x9CA4A6, roughness: 0.9 }), 60);
-  let nb = 0;
-  for (let i = 0; i < 60; i++) {
-    const t1 = tops[Math.floor(r() * tops.length)], t2 = tops.find((t) => t !== t1 && Math.abs(t[0] - t1[0]) < 14 && Math.abs(t[2] - t1[2]) < 3 && t[0] > t1[0]);
-    if (!t2) continue;
-    const y = Math.min(t1[1], t2[1]) - 3 - r() * 12;
-    m.compose(pos.set((t1[0] + t2[0]) / 2, y, (t1[2] + t2[2]) / 2), q, sc.set(Math.abs(t2[0] - t1[0]), 0.8, 2.2));
-    beams.setMatrixAt(nb++, m);
-  }
-  beams.count = nb; G.add(beams);
-  // The water, far below.
-  const ripple = canvasTex(256, 256, (g) => {
-    g.fillStyle = '#6E9892'; g.fillRect(0, 0, 256, 256);
-    for (let i = 0; i < 180; i++) { g.fillStyle = `rgba(230,240,232,${0.05 + r() * 0.12})`; g.fillRect(r() * 256, r() * 256, 6 + r() * 30, 1.5); }
-  }, true);
-  ripple.repeat.set(30, 30);
-  const water = new Mesh(new PlaneGeometry(700, 700), new MeshStandardMaterial({ map: ripple, roughness: 0.25, metalness: 0.1 }));
-  water.rotation.x = -Math.PI / 2; water.position.set(0, WATER, (cityEnd + 20) / 2); G.add(water);
-  // Warm lamps at the towers' feet.
-  const lamps = new InstancedMesh(new SphereGeometry(0.35, 8, 6), new MeshBasicMaterial({ color: 0xFFD49A, toneMapped: false }), 300);
-  let nlp = 0;
-  for (const [x, , z] of tops) for (let k = 0; k < 3 && nlp < 300; k++) {
-    m.compose(pos.set(x + (r() - 0.5) * 9, WATER + 1.5, z + (r() - 0.5) * 9), q, sc.set(1, 1, 1)); lamps.setMatrixAt(nlp++, m);
-  }
-  lamps.count = nlp; G.add(lamps);
-  // Banks of fog between the towers, drifting.
-  const ct = cloudTex(), banks = [];
-  for (let i = 0; i < 26; i++) {
-    const sp = new Sprite(new SpriteMaterial({ map: ct, color: 0xF3EFE6, transparent: true, opacity: 0.55, depthWrite: false }));
-    const s = 30 + r() * 50;
-    sp.scale.set(s, s * 0.35, 1);
-    sp.position.set(-70 + r() * 150, -34 + r() * 26, 20 - r() * (20 - cityEnd));
-    G.add(sp); banks.push({ sp, v: 0.4 + r() * 0.8 });
-  }
-  // Birds, wheeling in loose flocks.
-  const flocks = [], nbirds = 30, birds = new InstancedMesh(birdGeo, new MeshStandardMaterial({ color: 0x4A5254, side: DoubleSide, roughness: 1 }), nbirds);
-  for (let i = 0; i < nbirds; i++) {
-    const f = Math.floor(i / 10);
-    if (!flocks[f]) flocks[f] = { x: 3 + (r() - 0.5) * 16, y: -9 - r() * 6, z: -30 - r() * 80, rad: 9 + r() * 8, sp: 0.18 + r() * 0.12 };
-    flocks[f].b = flocks[f].b || [];
-    flocks[f].b.push({ i, ph: r() * 6.3, dr: (r() - 0.5) * 5, dy: (r() - 0.5) * 3, flap: 5 + r() * 3 });
-  }
-  G.add(birds);
-  // TRAMS AND CABLE CARS crossing under the path, turn about: a viaduct with a tram running across, then a cable slung across with gondolas.
-  const conc = roofSlab(), X0 = -72, X1 = 78, xLen = X1 - X0;
-  const railM = new MeshBasicMaterial({ color: 0xFFC98A, toneMapped: false }), cableM = new MeshBasicMaterial({ color: 0x2B2F31 });
-  const tramT = canvasTex(256, 64, (g) => {
-    g.fillStyle = '#D9D2C0'; g.fillRect(0, 0, 256, 64); g.fillStyle = '#2F6F66'; g.fillRect(0, 44, 256, 20);
-    for (let x = 10; x < 250; x += 30) { g.fillStyle = '#FFD9A0'; g.fillRect(x, 10, 22, 22); g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(x, 10, 22, 4); }
+
+  // THE FLARE: a flame on the stack, flickering; its smoke, and smoke from two fires in the far city, leaning away on the wind.
+  const flameT = canvasTex(64, 128, (g) => {
+    const rgr = g.createRadialGradient(32, 92, 2, 32, 80, 60);
+    rgr.addColorStop(0, 'rgba(255,250,220,1)'); rgr.addColorStop(0.25, 'rgba(255,200,90,0.95)'); rgr.addColorStop(0.6, 'rgba(255,110,30,0.6)'); rgr.addColorStop(1, 'rgba(200,40,10,0)');
+    g.fillStyle = rgr; g.beginPath(); g.moveTo(32, 4); g.quadraticCurveTo(60, 70, 44, 118); g.quadraticCurveTo(32, 128, 20, 118); g.quadraticCurveTo(4, 70, 32, 4); g.fill();
   });
-  const tramM = new MeshStandardMaterial({ map: tramT, roughness: 0.5, emissive: 0xFFFFFF, emissiveMap: tramT, emissiveIntensity: 0.25 });
-  const gondT = canvasTex(64, 64, (g) => { g.fillStyle = '#C4502E'; g.fillRect(0, 0, 64, 64); g.fillStyle = '#FFE2B0'; g.fillRect(8, 12, 48, 26); g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(8, 12, 48, 5); });
-  const gondM = new MeshStandardMaterial({ map: gondT, roughness: 0.5, emissive: 0xFFFFFF, emissiveMap: gondT, emissiveIntensity: 0.3 });
-  const trams = [], gondolas = [];
-  CROSS_Z.forEach((cz, k) => {
-    if (k % 2 === 0) {                                   // a tram line
-      const deck = new Mesh(new BoxGeometry(xLen, 1.2, 3.6), conc); deck.position.set((X0 + X1) / 2, TRAM_Y - 0.6, cz); deck.receiveShadow = true; G.add(deck);
-      for (let x = X0 + 6; x < X1; x += 18) { const leg = new Mesh(new BoxGeometry(1.6, TRAM_Y - WATER, 1.6), conc); leg.position.set(x, (TRAM_Y + WATER) / 2, cz); G.add(leg); }
-      for (const sz of [-0.9, 0.9]) { const rail = new Mesh(new BoxGeometry(xLen, 0.1, 0.12), railM); rail.position.set((X0 + X1) / 2, TRAM_Y + 0.05, cz + sz); G.add(rail); }
-      for (const dir of [1, -1]) for (let c = 0; c < 3; c++) {
-        const car = new Mesh(new RoundedBoxGeometry(7, 2.4, 2.4, 2, 0.4), tramM); car.castShadow = true; G.add(car);
-        trams.push({ car, cz: cz + dir * 0.9, dir, off: c * 7.4, ph: (k * 0.37 + (dir > 0 ? 0 : 0.5)) % 1 });
-      }
-    } else {                                             // a cable-car line
-      for (const sz of [-1.2, 1.2]) { const cab = new Mesh(new CylinderGeometry(0.06, 0.06, xLen, 5), cableM); cab.rotation.z = Math.PI / 2; cab.position.set((X0 + X1) / 2, CABLE_Y, cz + sz); G.add(cab); }
-      for (const x of [X0 + 2, -32, 38, X1 - 2]) { const pylon = new Mesh(new BoxGeometry(1, CABLE_Y - WATER + 2, 1), rust); pylon.position.set(x, (CABLE_Y + WATER) / 2 + 1, cz); G.add(pylon); const arm = new Mesh(new BoxGeometry(0.6, 0.5, 3.4), rust); arm.position.set(x, CABLE_Y + 0.6, cz); G.add(arm); }
-      for (let i = 0; i < 8; i++) {
-        const g2 = new Group(), cab = new Mesh(new RoundedBoxGeometry(2.4, 2.2, 2.2, 2, 0.35), gondM); cab.position.y = -2.8; cab.castShadow = true;
-        const hanger = new Mesh(new BoxGeometry(0.12, 1.7, 0.12), rust); hanger.position.y = -0.9;
-        g2.add(cab, hanger); G.add(g2);
-        gondolas.push({ g: g2, cz: cz + (i % 2 ? 1.2 : -1.2), u: i / 8, dir: i % 2 ? 1 : -1 });
+  const flame = new Sprite(new SpriteMaterial({ map: flameT, color: 0xFFFFFF, transparent: true, blending: AdditiveBlending, depthWrite: false, fog: false }));
+  flame.position.set(fx, GROUND + 22.6, zr); G.add(flame);
+  const flareGlow = new Sprite(new SpriteMaterial({ map: dot, color: 0xFF8A3A, transparent: true, opacity: 0.5, blending: AdditiveBlending, depthWrite: false, fog: false }));
+  flareGlow.scale.set(12, 12, 1); flareGlow.position.set(fx, GROUND + 21.8, zr); G.add(flareGlow);
+  const smoke = makePlume(G, 0x3A2E26, [2.6, 4.2, 6.2, 8.6], [0.42, 0.32, 0.2, 0.09], 90, puffT, 2);
+  smokes.unshift({ x: fx, y: GROUND + 24, z: zr });
+  // FIRES in oil drums and in the husks: flames of points, bright at the base and dying to nothing as they rise.
+  const FN = 12, fireGeo = new BufferGeometry();
+  fireGeo.setAttribute('position', new Float32BufferAttribute(Math.max(1, fires.length) * FN * 3, 3).setUsage(DynamicDrawUsage));
+  fireGeo.setAttribute('color', new Float32BufferAttribute(Math.max(1, fires.length) * FN * 3, 3).setUsage(DynamicDrawUsage));
+  const fireP = fireGeo.attributes.position.array, fireC = fireGeo.attributes.color.array;
+  const firePts = new Points(fireGeo, new PointsMaterial({ size: 1.3, map: puffT, vertexColors: true, transparent: true, blending: AdditiveBlending, depthWrite: false, fog: false }));
+  firePts.frustumCulled = false; firePts.renderOrder = 3; G.add(firePts);
+  const moveFires = (t) => {
+    let k = 0;
+    for (const F of fires) for (let i = 0; i < FN; i++) {
+      const u = ((t * 1.7 + i / FN + F.ph) % 1), a = i * 2.4 + t * 3;
+      fireP[k] = F.x + Math.cos(a) * 0.18 * F.s * (1 - u); fireP[k + 1] = F.y + u * 1.5 * F.s; fireP[k + 2] = F.z + Math.sin(a) * 0.18 * F.s * (1 - u);
+      const b = (1 - u) * (1 - u);
+      fireC[k] = 1.0 * b; fireC[k + 1] = (0.35 + 0.45 * (1 - u)) * b; fireC[k + 2] = 0.08 * b * (1 - u);
+      k += 3;
+    }
+    fireGeo.attributes.position.needsUpdate = true; fireGeo.attributes.color.needsUpdate = true;
+  };
+  // DUST DEVILS wandering up the valley, and low clouds of dust blown across it.
+  const DN = 200, devGeo = new BufferGeometry();
+  devGeo.setAttribute('position', new Float32BufferAttribute(2 * DN * 3, 3).setUsage(DynamicDrawUsage));
+  const devP = devGeo.attributes.position.array;
+  const devPts = new Points(devGeo, hazed(new PointsMaterial({ color: 0xE6C090, size: 4.4, map: puffT, transparent: true, opacity: 0.3, depthWrite: false })));
+  devPts.frustumCulled = false; devPts.renderOrder = 1; G.add(devPts);
+  const devils = [0, 1].map((i) => ({ x: 3 + (i ? 12 : -10), z: startCam - 80 - i * 80, vx: (r() - 0.5) * 1.2, vz: 0.8 + r(), ph: r() * 9 }));
+  const NCL = 40, clGeo = new BufferGeometry();
+  clGeo.setAttribute('position', new Float32BufferAttribute(NCL * 3, 3).setUsage(DynamicDrawUsage));
+  const clP = clGeo.attributes.position.array;
+  const clPts = new Points(clGeo, hazed(new PointsMaterial({ color: 0xE0AE7C, size: 18, map: puffT, transparent: true, opacity: 0.11, depthWrite: false })));
+  clPts.frustumCulled = false; clPts.renderOrder = 1; G.add(clPts);
+  const clouds = [...Array(NCL)].map(() => ({ x: 3 + (r() - 0.5) * 90, y: GROUND + 1 + r() * 3.5, z: startCam - 10 - r() * 260, v: 0.6 + r() * 0.8 }));
+  const moveAir = (dt, t, camZ) => {
+    let k = 0;
+    for (const D of devils) {
+      D.x += (D.vx + WIND * 0.4) * dt; D.z += D.vz * dt;
+      if (D.z > camZ - 16 || Math.abs(D.x - 3) > 24) { D.z = camZ - 90 - Math.random() * 90; D.x = 3 + (Math.random() - 0.5) * 30; D.vx = (Math.random() - 0.5) * 1.2; }
+      for (let i = 0; i < DN; i++) {
+        const h = ((i / DN) + t * 0.07 + D.ph) % 1, a = i * 2.39996 + t * (4 - h * 2), rad = 0.35 + h * h * 4.6, sway = Math.sin(t * 0.8 + D.ph + h * 3) * h * 1.8;
+        devP[k++] = D.x + Math.cos(a) * rad + sway; devP[k++] = GROUND + 0.2 + h * 20; devP[k++] = D.z + Math.sin(a) * rad;
       }
     }
-  });
-  // DRONES: small craft with blinking lights, flying their rounds between the towers.
-  const droneM = new MeshStandardMaterial({ color: 0x2E3336, metalness: 0.6, roughness: 0.4 });
-  const drones = [];
-  for (let i = 0; i < 12; i++) {
-    const d = new Group(), body = new Mesh(new CylinderGeometry(0.45, 0.55, 0.25, 12), droneM); d.add(body);
-    for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2 + Math.PI / 4, rotor = new Mesh(new TorusGeometry(0.28, 0.04, 6, 16), droneM); rotor.rotation.x = Math.PI / 2; rotor.position.set(Math.cos(a) * 0.7, 0.1, Math.sin(a) * 0.7); d.add(rotor); }
-    const lamp = new Sprite(new SpriteMaterial({ map: dot, color: i % 2 ? 0xFF3B30 : 0x3BFF7A, transparent: true, blending: AdditiveBlending, depthWrite: false })); lamp.scale.set(1.3, 1.3, 1); lamp.position.y = -0.2; d.add(lamp);
-    G.add(d);
-    const side = i % 2 ? 1 : -1;
-    drones.push({ d, lamp, x: 3 + side * (5 + r() * 9), y: Math.min(-3, minTop - 3) - r() * 6, z: -10 - r() * (Math.abs(cityEnd) - 30), rx: 3 + r() * 4, rz: 5 + r() * 8, sp: (r() < 0.5 ? -1 : 1) * (0.3 + r() * 0.3), ph: r() * 6.3 });
-  }
-  // WATERFALLS pouring off the towers from burst pipes, into the water far below.
-  const fallT = canvasTex(64, 256, (g) => {
-    const rr = seeded(15);
-    g.fillStyle = 'rgba(0,0,0,0)'; g.clearRect(0, 0, 64, 256);
-    for (let i = 0; i < 70; i++) { const x = rr() * 64, y = rr() * 256, len = 20 + rr() * 60; const lg = g.createLinearGradient(0, y, 0, y + len); lg.addColorStop(0, 'rgba(230,242,245,0)'); lg.addColorStop(0.5, `rgba(235,245,248,${0.4 + rr() * 0.5})`); lg.addColorStop(1, 'rgba(230,242,245,0)'); g.fillStyle = lg; g.fillRect(x, y, 1.5 + rr() * 3, len); g.fillRect(x, y - 256, 1.5 + rr() * 3, len); }
-  }, true);
-  const falls = [];
-  for (const [x, y, z] of tops.filter((t) => Math.abs(t[0] - 3) > 8 && Math.abs(t[0] - 3) < 22 && t[1] > -22).slice(0, 12)) {
-    const h = y - 2 - WATER, fm = new MeshBasicMaterial({ map: fallT.clone(), transparent: true, opacity: 0.85, depthWrite: false, side: DoubleSide });
-    fm.map.repeat.set(1, h / 14);
-    const fall = new Mesh(new PlaneGeometry(1.6, h), fm); fall.position.set(x + (x < 3 ? 5.2 : -5.2), WATER + h / 2, z); fall.rotation.y = Math.PI / 2; G.add(fall);
-    const pipe = new Mesh(new CylinderGeometry(0.5, 0.5, 1.4, 12), rust); pipe.rotation.z = Math.PI / 2; pipe.position.set(x + (x < 3 ? 4.6 : -4.6), y - 1.4, z); G.add(pipe);
-    const foam = new Sprite(new SpriteMaterial({ map: dot, color: 0xFFFFFF, transparent: true, opacity: 0.6, depthWrite: false })); foam.scale.set(6, 2.5, 1); foam.position.set(fall.position.x, WATER + 0.8, z); G.add(foam);
-    falls.push(fm);
-  }
-  const e = new Euler(), live = !REDUCED;
-  const placeBirds = (t) => {
-    for (const F of flocks) for (const B of F.b) {
-      const aa = t * F.sp + B.ph * 0.15;
-      pos.set(F.x + Math.cos(aa) * (F.rad + B.dr), F.y + B.dy + Math.sin(t * 0.7 + B.ph) * 0.4, F.z + Math.sin(aa) * (F.rad + B.dr));
-      q.setFromEuler(e.set(0, -aa, 0));
-      const fl = 0.35 + 0.65 * Math.abs(Math.sin(t * B.flap + B.ph));
-      m.compose(pos, q, sc.set(0.8, fl * 0.8, 0.8)); birds.setMatrixAt(B.i, m);
+    devGeo.attributes.position.needsUpdate = true;
+    k = 0;
+    for (const C of clouds) {
+      C.x += WIND * C.v * dt;
+      if (C.x - 3 > 46) C.x -= 92; else if (C.x - 3 < -46) C.x += 92;
+      if (C.z > camZ + 10) C.z -= 270;
+      clP[k++] = C.x; clP[k++] = C.y; clP[k++] = C.z;
     }
+    clGeo.attributes.position.needsUpdate = true;
+  };
+  // VULTURES, circling low over the valley ahead: broad wings held out flat, a head and a fanned tail, so from above they read as birds.
+  const vultureGeo = new BufferGeometry();
+  vultureGeo.setAttribute('position', new Float32BufferAttribute([
+    0, 0, 0.3, -1.3, 0.14, 0.02, -1.36, 0.14, -0.2, 0, 0, 0.3, -1.36, 0.14, -0.2, 0, 0, -0.26,        // the left wing
+    0, 0, 0.3, 1.36, 0.14, -0.2, 1.3, 0.14, 0.02, 0, 0, 0.3, 0, 0, -0.26, 1.36, 0.14, -0.2,           // the right wing
+    0, 0.02, 0.62, -0.13, 0, 0.2, 0.13, 0, 0.2,                                                      // the head
+    -0.13, 0, -0.2, -0.24, 0, -0.72, 0.24, 0, -0.72, -0.13, 0, -0.2, 0.24, 0, -0.72, 0.13, 0, -0.2,  // the tail
+  ], 3));
+  vultureGeo.computeVertexNormals();
+  const NB = 7, birds = new InstancedMesh(vultureGeo, hazed(new MeshStandardMaterial({ color: 0x2A1E16, side: DoubleSide, roughness: 1 })), NB);
+  birds.frustumCulled = false; G.add(birds);
+  const wheelsB = [{ x: 3 + (r() - 0.5) * 8, y: GROUND + 20, z: startCam - 60, rad: 8 }, { x: 3 + (r() - 0.5) * 8, y: GROUND + 22, z: startCam - 150, rad: 10 }];
+  const vult = [...Array(NB)].map((_, i) => ({ W: wheelsB[i % 2], ph: r() * 6.3, dr: (r() - 0.5) * 4, dy: (r() - 0.5) * 2 }));
+  const moveBirds = (t, camZ) => {
+    for (const W of wheelsB) if (W.z > camZ + 8) { W.z = camZ - 150 - Math.random() * 40; W.x = 3 + (Math.random() - 0.5) * 10; }
+    vult.forEach((B, i) => {
+      const a = t * 0.3 + B.ph, R0 = B.W.rad + B.dr;
+      m.compose(pos.set(B.W.x + Math.cos(a) * R0, B.W.y + B.dy + Math.sin(t * 0.5 + B.ph) * 0.5, B.W.z + Math.sin(a) * R0),
+                q.setFromEuler(e.set(0, -a, 0.3)), sc.set(1.5, 1.5 * (0.6 + 0.4 * Math.sin(t * 1.6 + B.ph * 3)), 1.5));
+      birds.setMatrixAt(i, m);
+    });
     birds.instanceMatrix.needsUpdate = true;
   };
-  placeBirds(0);
-  let t = 0;
-  w.tick = (dt) => {
-    if (!live) return;
+  let t = 0, building = true;
+  const step = (dt) => {                                   // everything that moves
     t += dt;
-    placeBirds(t);
-    for (const B of banks) { B.sp.position.x += B.v * dt; if (B.sp.position.x > 90) B.sp.position.x = -80; }
-    for (const T of trams) { const u = ((T.ph + t * 0.06 * T.dir) % 1 + 1) % 1; T.car.position.set(X0 + u * xLen - T.off * T.dir, TRAM_Y + 1.35, T.cz); }
-    for (const Gd of gondolas) { const u = (((Gd.u + t * 0.03 * Gd.dir) % 1) + 1) % 1; Gd.g.position.set(X0 + u * xLen, CABLE_Y, Gd.cz); Gd.g.rotation.x = Math.sin(t * 1.3 + Gd.u * 9) * 0.05; }
-    for (const D of drones) { const a = t * D.sp + D.ph; D.d.position.set(D.x + Math.cos(a) * D.rx, D.y + Math.sin(t * 1.1 + D.ph) * 1.2, D.z + Math.sin(a) * D.rz); D.d.rotation.y = -a; D.lamp.material.opacity = ((t * 1.6 + D.ph) % 1) < 0.5 ? 1 : 0.15; }
-    for (const C of craneList) C.c.rotation.y += C.sp * dt;
-    for (const fm of falls) fm.map.offset.y = t * 1.4;
-    ripple.offset.x = t * 0.004; ripple.offset.y = t * 0.002;
+    const camZ = building ? startCam : camera.position.z;
+    moveChase(dt, t, camZ);
+    dust.step(dt, WIND * 0.6, GROUND + 0.3);
+    for (const S of smokes) if (Math.random() < dt * (S.x === fx ? 9 : 5)) smoke.emit(S.x + (Math.random() - 0.5), S.y, S.z + (Math.random() - 0.5), 0, 1.4 + Math.random() * 0.6, 0, 5 + Math.random() * 2);
+    smoke.step(dt, WIND, GROUND);
+    moveFires(t); moveAir(dt, t, camZ); moveBirds(t, camZ);
+    for (const P of pumps) P.a += dt * 2.2;
+    placeFans();
+    const fl = 1 + 0.12 * Math.sin(t * 13) + 0.08 * Math.sin(t * 29 + 1);
+    flame.scale.set(2.6 * fl, 5.4 * (2 - fl), 1); flareGlow.material.opacity = 0.42 + 0.1 * Math.sin(t * 11);
+  };
+  for (let i = 0; i < 75; i++) step(1 / 25);               // open with the dust already in the air
+  building = false;
+  w.tick = (dt) => {
+    camera.updateMatrixWorld();
+    HAZE.sun.value.copy(HAZE.dir).transformDirection(camera.matrixWorldInverse);
+    if (!live || cityRefs.frozen) return;
+    step(Math.min(dt, 0.05));
   };
 });
 
