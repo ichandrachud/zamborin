@@ -222,6 +222,7 @@ const NEON_SOUNDS = {
     voice('sawtooth', 240, 70, 0.5, 0.018, 0.38);
     [523.25, 659.25, 783.99].forEach((f, i) => voice('sine', f, f, 0.6, 0.035, 0.45 + i * 0.05));
   },
+  whirr() { voice('sawtooth', 120, 240, 0.42, 0.02); voice('square', 60, 80, 0.4, 0.012); voice('triangle', 880, 1320, 0.12, 0.03, 0.36); },   // a lever thrown, a section turning
   thunk() { voice('sine', 170, 85, 0.2, 0.09); voice('triangle', 440, 400, 0.08, 0.025); voice('sine', 660, 990, 0.25, 0.03, 0.06); },   // a plate pressed
   scrape() { voice('sawtooth', 95, 62, 0.3, 0.035); voice('square', 150, 120, 0.26, 0.012); voice('sine', 70, 55, 0.3, 0.06); },           // a crate pushed
   click() { voice('square', 2200, 1400, 0.03, 0.035); voice('triangle', 520, 780, 0.16, 0.05, 0.03); voice('sine', 1040, 1560, 0.22, 0.03, 0.06); },   // a switch pressed
@@ -234,7 +235,7 @@ const NEON_SOUNDS = {
 };
 // The city's version of a sound where it has one, the house sound elsewhere.
 function sound(name) {
-  if ((world.name === 'neon' || ['boost', 'jump', 'bump', 'depart', 'tint', 'pass', 'buzz', 'key', 'gate', 'reset', 'click', 'thunk', 'scrape', 'warp', 'tube', 'pop', 'power', 'zap', 'knock', 'clink', 'crack', 'shatter', 'burn', 'flame', 'blast'].includes(name)) && NEON_SOUNDS[name]) { if (sfx && sfx.isOn()) NEON_SOUNDS[name](); }
+  if ((world.name === 'neon' || ['boost', 'jump', 'bump', 'depart', 'tint', 'pass', 'buzz', 'key', 'gate', 'reset', 'click', 'thunk', 'scrape', 'whirr', 'warp', 'tube', 'pop', 'power', 'zap', 'knock', 'clink', 'crack', 'shatter', 'burn', 'flame', 'blast'].includes(name)) && NEON_SOUNDS[name]) { if (sfx && sfx.isOn()) NEON_SOUNDS[name](); }
   else play(name === 'home' ? 'land' : name);
 }
 function ensureCitySound() {
@@ -761,6 +762,11 @@ const TRAIN = (x, z, w, y, amp, period, dwell, phase, pull) => ({ t: 'train', x,
                   never crosses a gate, open or shut)
      plate: L     a plate: while something heavy is on it, its gates are open
      pgate: L     a gate held open by plate L
+     tile: m      a section of road over the gap ('#'), turning on a pivot:
+                  m is which sides it joins (1 north, 2 east, 4 south, 8
+                  west, added); `lever` names the levers that turn it
+     lever: L     a lever: roll over it to turn every section of lever L a
+                  quarter turn clockwise
    Every layout is solved by a search before it goes in (the same rules, in
    pzsolve), which also counts the traps: moves after which the way out can no
    longer be reached. The reset pad on a bay beside the road in puts the square
@@ -910,11 +916,59 @@ const PLAZAS = {
     '+-+ + + + +',
     '|. . . . .|',
     '+-+-+ +-+-+'] },
+  // Bridges. The first: one gap, one turning section, one lever.
+  B1: { entry: 2, exit: 2, legend: { L: { lever: 'A' }, 1: { tile: 10, lever: 'A' } }, map: [
+    '+-+-+ +-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    ' # # 1 # # ',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|L . . . .|',
+    '+-+-+ +-+-+'] },
+  // Two corners on one lever: no straight way over. Turn them until they make a zigzag.
+  B2: { entry: 2, exit: 2, legend: { L: { lever: 'A' }, 1: { tile: 12, lever: 'A' }, 2: { tile: 3, lever: 'A' } }, map: [
+    '+-+-+ +-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    ' # 1 2 # # ',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . L|',
+    '+-+-+ +-+-+'] },
+  // The key is over the gap on the left, the way out on the right, and the one lever turns both bridges.
+  B3: { entry: 2, exit: 2, legend: { L: { lever: 'A' }, 1: { tile: 5, lever: 'A' }, 2: { tile: 10, lever: 'A' }, a: { key: 1 }, A: { keygate: 1 } }, map: [
+    '+-+-+A+-+-+',
+    '|. . . . .|',
+    '+-+-+ + + +',
+    '|a .|. . .|',
+    '+ + + + + +',
+    ' # 1 # 2 # ',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|L . . . .|',
+    '+-+-+ +-+-+'] },
+  // The hub: a turning crossing over the city. The key to the west, the lever to the east, the way out north.
+  B4: { entry: 2, exit: 2, legend: { L: { lever: 'A' }, 1: { tile: 7, lever: 'A' }, a: { key: 1 }, A: { keygate: 1 } }, map: [
+    '+ + +A+ + +',
+    ' # # . # # ',
+    '+ + + + + +',
+    ' # # . # # ',
+    '+ + + + + +',
+    '|a . 1 L .|',
+    '+ + + + + +',
+    ' # # . # # ',
+    '+ + + + + +',
+    ' # # . # # ',
+    '+ + + + + +'] },
 };
 // PLAZAS END
 // Which square each level ends with; '~' mirrors it left to right.
 const PLAZA_AT = { 2: 'K1', 3: 'K2', 4: 'K2~', 5: 'K3', 6: 'K3~', 7: 'K4', 8: 'K4~', 9: 'S1', 10: 'S2', 11: 'S2~', 12: 'S3', 13: 'S4~',
-                   14: 'W1', 15: 'W2', 16: 'W3', 17: 'W3~' };  // (S4 mirrored: its trap room on the other side from S3's)
+                   14: 'W1', 15: 'W2', 16: 'W3', 17: 'W3~', 18: 'B1', 19: 'B2', 20: 'B3', 21: 'B3~', 22: 'B4', 23: 'B2~' };  // (S4 mirrored: its trap room on the other side from S3's)
 function plazaLayout(id) {
   const flipped = id.endsWith('~'), T = PLAZAS[flipped ? id.slice(0, -1) : id];
   const cols = (T.map[0].length - 1) / 2, rows = (T.map.length - 1) / 2;
@@ -2843,7 +2897,7 @@ function buildPlaza(pc) {
   };
   // The floor: a slab to a cell.
   for (let r = 0; r < P.rows; r++) for (let c = 0; c < P.cols; c++) {
-    if (!G.cells[r][c].void) buildPiece({ t: 'flat', x: X(c), z: Z(r), w: CELL, d: CELL, y: P.y, cell: true });
+    if (!G.cells[r][c].void && !('tile' in G.cells[r][c])) buildPiece({ t: 'flat', x: X(c), z: Z(r), w: CELL, d: CELL, y: P.y, cell: true });
   }
   // The walls, a straight run of wall edges at a time, each end reaching over the corner.
   const wallRun = (x, z, lx, lz) => {
@@ -2951,6 +3005,70 @@ function buildPlaza(pc) {
               delta: new Vector3(), ferry: null, holo: null, pad: null, obstacle: 'weight', crate: W };
     colliders.push(W.col); P.crates.push(W);
   }
+  // The turning sections: a square of road over the gap on a pivot, lit along the road it makes, with a
+  // railing on each side it does not join, the way a bridge has parapets. Only the joined sides are open.
+  P.tiles = [];
+  for (let r = 0; r < P.rows; r++) for (let c = 0; c < P.cols; c++) {
+    const cell = G.cells[r][c];
+    if (!('tile' in cell)) continue;
+    const col = LETTER_COLS[cell.lever[0]], grp = new Group(); grp.position.set(X(c), P.y, Z(r));
+    if (!P.mats.tile) {
+      P.mats.tile = new MeshStandardMaterial({ color: 0x0E1426, metalness: 0.5, roughness: 0.3 });
+      P.mats.tileEdge = new MeshStandardMaterial({ color: 0x141833, metalness: 0.4, roughness: 0.4, emissive: 0xFFFFFF, emissiveMap: wallGlowTex, emissiveIntensity: 0.8 });
+    }
+    const stripeMat = new MeshBasicMaterial({ color: col, toneMapped: false, transparent: true, opacity: 0.9 });
+    const haloMat = glowMat(col, 0.55, lineGlowTex), railTop = new MeshBasicMaterial({ color: col, toneMapped: false });
+    const deck = new Mesh(new BoxGeometry(CELL - 0.08, THICK, CELL - 0.08), [P.mats.tileEdge, P.mats.tileEdge, P.mats.tile, P.mats.tile, P.mats.tileEdge, P.mats.tileEdge]);
+    deck.position.y = -THICK / 2; deck.castShadow = true; deck.receiveShadow = true; grp.add(deck);
+    const hubMat = new MeshBasicMaterial({ color: col, map: glyphTex(cell.lever), transparent: true, blending: AdditiveBlending, depthWrite: false, toneMapped: false });
+    const hub = new Mesh(new CircleGeometry(0.34, 32), hubMat); hub.rotation.x = -Math.PI / 2; hub.position.y = 0.022; grp.add(hub);
+    for (const [bit, dx, dz] of [[1, 0, -1], [2, 1, 0], [4, 0, 1], [8, -1, 0]]) {
+      const alongX = !dx;
+      if (cell.tile & bit) {                             // the road, from the middle out to this side
+        const b = new Mesh(new BoxGeometry(dx ? 1.02 : 0.1, 0.02, dx ? 0.1 : 1.02), stripeMat); b.position.set(dx * 0.59, 0.012, dz * 0.59); grp.add(b);
+        const h = new Mesh(new PlaneGeometry(1.3, 0.7), haloMat); h.rotation.set(-Math.PI / 2, 0, dx ? 0 : Math.PI / 2); h.position.set(dx * 0.59, 0.02, dz * 0.59); grp.add(h);
+      } else {                                           // a railing along this side
+        const rail = new Mesh(new BoxGeometry(alongX ? CELL - 0.08 : 0.2, RAIL_H, alongX ? 0.2 : CELL - 0.08), P.mats.wall);
+        rail.position.set(dx * (CELL / 2 - 0.14), RAIL_H / 2, dz * (CELL / 2 - 0.14)); rail.castShadow = true; grp.add(rail);
+        const top = new Mesh(new BoxGeometry(alongX ? CELL - 0.08 : 0.05, 0.02, alongX ? 0.05 : CELL - 0.08), railTop);
+        top.position.set(dx * (CELL / 2 - 0.14), RAIL_H + 0.011, dz * (CELL / 2 - 0.14)); grp.add(top);
+      }
+    }
+    levelGroup.add(grp);
+    // For the marble: the deck, always; a railing on each side the road does not join.
+    const arms = [];
+    for (const [bit, dx, dz] of [[0, 0, 0], [1, 0, -1], [2, 1, 0], [4, 0, 1], [8, -1, 0]]) {
+      const q = new Quaternion(), box = new Mesh(new BoxGeometry(0.1, 0.1, 0.1), Array(6).fill(HIDDEN));
+      box.visible = false; levelGroup.add(box);
+      const pos = bit ? new Vector3(X(c) + dx * (CELL / 2 - 0.14), P.y + RAIL_H / 2, Z(r) + dz * (CELL / 2 - 0.14)) : new Vector3(X(c), P.y - THICK / 2, Z(r));
+      const half = bit ? new Vector3(dx ? 0.1 : CELL / 2, RAIL_H / 2, dx ? CELL / 2 : 0.1) : new Vector3(CELL / 2, THICK / 2, CELL / 2);
+      const col2 = { mesh: box, pos, prev: pos.clone(), quat: q, inv: q.clone(), delta: new Vector3(), ferry: null, holo: null, pad: null, obstacle: 'tile', half, arm: { bit, on: true } };
+      colliders.push(col2); arms.push(col2.arm);
+    }
+    const T = { c, r, lever: cell.lever, mask0: cell.tile, mask: cell.tile, grp, arms, turn: 0, shown: 0, stripeMat, hubMat };
+    T.setArms = () => { for (const a of T.arms) a.on = !a.bit || !(T.mask & a.bit); };   // a railing stands where the road does not join
+    T.setArms();
+    P.tiles.push(T);
+  }
+  // The levers: a disc with a turning arrow, its letter, and a handle that throws over each time.
+  P.levers = [];
+  for (let r = 0; r < P.rows; r++) for (let c = 0; c < P.cols; c++) {
+    const cell = G.cells[r][c];
+    if (!('lever' in cell) || 'tile' in cell) continue;
+    const col = LETTER_COLS[cell.lever], grp = new Group(); grp.position.set(X(c), P.y, Z(r));
+    const base = new Mesh(new CylinderGeometry(0.72, 0.8, 0.06, 48), P.mats.base); base.position.y = 0.03; base.receiveShadow = true;
+    const faceMat = new MeshBasicMaterial({ color: col, map: turnGlyph, transparent: true, blending: AdditiveBlending, depthWrite: false, toneMapped: false });
+    const face = new Mesh(new CircleGeometry(0.66, 48), faceMat); face.rotation.x = -Math.PI / 2; face.position.y = 0.064;
+    const letter = new Mesh(new CircleGeometry(0.3, 32), new MeshBasicMaterial({ color: col, map: glyphTex(cell.lever), transparent: true, blending: AdditiveBlending, depthWrite: false, toneMapped: false }));
+    letter.rotation.x = -Math.PI / 2; letter.position.y = 0.066;
+    const handle = new Group();
+    const stick = new Mesh(new CylinderGeometry(0.045, 0.045, 0.75, 10), P.mats.base); stick.position.y = 0.375;
+    const knob = new Mesh(new SphereGeometry(0.12, 16, 12), new MeshBasicMaterial({ color: col, toneMapped: false })); knob.position.y = 0.77;
+    handle.add(stick, knob); handle.position.set(0, 0.06, 0); handle.rotation.z = 0.55;
+    grp.add(base, face, letter, handle);
+    levelGroup.add(grp);
+    P.levers.push({ c, r, letter: cell.lever, handle, faceMat, throwT: 0, side: 1 });
+  }
   // The reset pad, on its bay beside the road in.
   const rp = level.pieces.find((q) => q.t === 'reset');
   if (rp) {
@@ -2977,7 +3095,18 @@ function glyphTex(ch) {
     g.filter = 'none'; g.fillStyle = '#FFFFFF'; g.fillText(ch, 64, 70);
   }));
 }
-const CRATE = 1.5, CRATE_H = 1.1, CRATE_SLIDE = 0.3;
+const CRATE = 1.5, CRATE_H = 1.1, CRATE_SLIDE = 0.3, TURN_T = 0.45, RAIL_H = 0.55;
+const turnGlyph = canvasTex(128, 128, (g) => {          // a lever's face: an arrow turning clockwise round the rim
+  g.fillStyle = '#000'; g.fillRect(0, 0, 128, 128);
+  const arrow = (w) => {
+    g.lineWidth = w; g.lineCap = 'round';
+    g.beginPath(); g.arc(64, 64, 50, -Math.PI * 0.85, Math.PI * 0.55); g.stroke();
+    const a = Math.PI * 0.55, tx = 64 + 50 * Math.cos(a), ty = 64 + 50 * Math.sin(a);
+    g.beginPath(); g.moveTo(tx + 16, ty - 6); g.lineTo(tx, ty); g.lineTo(tx + 3, ty - 18); g.stroke();
+  };
+  g.filter = 'blur(4px)'; g.strokeStyle = 'rgba(255,255,255,0.7)'; arrow(12);
+  g.filter = 'none'; g.strokeStyle = '#FFFFFF'; arrow(5);
+});
 const plateTex = canvasTex(128, 128, (g) => {            // a pressure plate: a square with corner brackets
   g.fillStyle = '#000'; g.fillRect(0, 0, 128, 128);
   const draw = (w) => {
@@ -3062,6 +3191,7 @@ function gateTouch(g) {
 /* Rolling into a crate: square on to one of its faces, it slides a cell the
    way you push, if that cell is clear. A hard roll pushes at once; a gentle
    one pushes after a moment of leaning on it (the stick held toward it). */
+const pzRotCW = (m) => ((m << 1) & 15) | (m >> 3);          // north to east, east to south, south to west, west to north
 const plazaEdge = (P, c, r, d) => (d === 'n' ? P.grid.h[r + 1][c] : d === 's' ? P.grid.h[r][c] : d === 'e' ? P.grid.v[r][c + 1] : P.grid.v[r][c]);
 function crateTouch(W, n, rel) {
   if (W.moving || Math.abs(n.y) > 0.3) return;
@@ -3083,8 +3213,9 @@ function tryPush(W, dx, dz) {
   W.moving = true; W.t = 0; W.fc = W.c; W.fr = W.r; W.tc = tc; W.tr = tr;
   sound('scrape');
 }
-// Every physics step, whatever the marble is doing: crates in motion slide on.
+// Every physics step, whatever the marble is doing: crates in motion slide on, and turning sections finish turning.
 function plazaMove() {
+  for (const P of plazas) for (const T of P.tiles) if (T.moving > 0) T.moving -= STEP;
   for (const P of plazas) for (const W of P.crates) {
     if (!W.moving) continue;
     W.t = Math.min(1, W.t + STEP / CRATE_SLIDE);
@@ -3131,6 +3262,12 @@ function padEnter(P, c, r) {
     s.flash = 1;
     sound('key');
   }
+  if ('lever' in cell && !('tile' in cell)) {           // a lever: every section of its letter turns a quarter, clockwise
+    const L = cell.lever;
+    for (const T of P.tiles) if (T.lever.includes(L)) { T.mask = pzRotCW(T.mask); T.turn -= Math.PI / 2; T.moving = TURN_T; T.setArms(); }
+    const lv = P.levers.find((q) => q.c === c && q.r === r); lv.throwT = 1; lv.side = -lv.side;
+    sound('whirr');
+  }
   if ('switch' in cell) {                               // a switch: every gate of its letter flips
     const L = cell.switch;
     for (const g of P.gates) if (g.kind === 'switch' && g.letters.includes(L)) { g.state = g.state === 'open' ? 'shut' : 'open'; g.flash = 1; }
@@ -3148,6 +3285,12 @@ function resetPlaza(P, quiet) {
     K.used = false; K.fade = 0; K.home.key = K; flyKey(K, K.home); K.model.visible = true; K.model.scale.setScalar(1);
   }
   for (const g of P.gates) if (g.state !== g.init) { g.state = g.init; g.t = 0; moved = true; }
+  for (const T of P.tiles) if (T.mask !== T.mask0) {    // every section turned back
+    moved = true;
+    while (T.mask !== T.mask0) { T.mask = pzRotCW(T.mask); T.turn -= Math.PI / 2; }
+    T.moving = TURN_T; T.setArms();
+    if (quiet) { T.moving = 0; T.shown = T.turn; }
+  }
   for (const W of P.crates) {                           // every crate back where it stood
     if (W.c !== W.c0 || W.r !== W.r0 || W.moving) moved = true;
     W.moving = false; W.c = W.fc = W.tc = W.c0; W.r = W.fr = W.tr = W.r0;
@@ -3207,6 +3350,17 @@ function animatePlazas(dt) {
         g.railMat.opacity = 0.35 + 0.65 * on;
         g.signMat.opacity = 0.45 + 0.55 * on + 0.4 * g.flash;
       }
+    }
+    for (const T of P.tiles) {                          // a section eases round to where it is turning to
+      T.shown += (T.turn - T.shown) * (REDUCED ? 1 : 1 - Math.exp(-10 * dt));
+      if (Math.abs(T.turn - T.shown) < 1e-3) T.shown = T.turn;
+      T.grp.rotation.y = T.shown;
+      T.stripeMat.opacity = T.moving > 0 ? 0.5 : 0.9;
+    }
+    for (const lv of P.levers) {
+      lv.throwT = Math.max(0, lv.throwT - dt * 2.5);
+      lv.handle.rotation.z += (0.55 * lv.side - lv.handle.rotation.z) * (REDUCED ? 1 : 1 - Math.exp(-14 * dt));   // thrown over, side to side
+      lv.faceMat.opacity = 0.75 + 0.25 * lv.throwT;
     }
     for (const pl of P.plates) {                        // down: sunk and bright
       pl.k += ((pl.on ? 1 : 0) - pl.k) * (REDUCED ? 1 : 1 - Math.exp(-16 * dt)); pl.flash = Math.max(0, pl.flash - dt * 2.5);
@@ -3442,6 +3596,7 @@ function collide(c, dt) {
   if (c.power && !c.power.on) return;                   // a dark road is not there until its switch is on
   if (c.crack && c.crack.state === 'gone') return;       // a crystal slab that has dropped away
   if (c.gate && c.gate.state === 'open') return;         // an open gate in a puzzle square
+  if (c.arm && !c.arm.on) return;                         // a turning section's railing, on a side its road joins
   _L.subVectors(ball.p, c.pos).applyQuaternion(c.inv);
   const h = c.half;
   if (Math.abs(_L.x) > h.x + R || Math.abs(_L.y) > h.y + R || Math.abs(_L.z) > h.z + R) return;
@@ -4150,6 +4305,10 @@ const PLAZA_NEWS = {
   W1: 'A plate holds its gate open while something heavy sits on it. Push the crate onto it',
   W2: 'A crate only goes where you push it. Get behind it first',
   W3: 'Two crates, two plates. Which crate goes where, and which first?',
+  B1: 'A lever turns the road over the gap a quarter turn. Line it up, then cross',
+  B2: 'No straight way over. Turn the bridges until they make a path',
+  B3: 'One lever turns both bridges. The key is over one, the way out over the other',
+  B4: 'The crossing turns with the lever. Key first, and mind which way you are cut off',
 };
 const PLAZA_NOTE_T = 7;
 function drawNews() {
@@ -4181,6 +4340,7 @@ const RULES = [
   'Keys: roll over a key to take it. You carry one at a time, so taking another leaves the one you held in its place. A gate opens for the key of its colour and shape, and keeps it: count your keys before you open a gate.',
   'Switches: roll over a switch to flip every gate with its letter. Shut gates open and open gates shut, so a switch can shut the way you came. You can press a switch again.',
   'Crates and plates: a plate holds its gates open while something heavy is on it. Roll into a crate to push it one cell. A crate cannot be pulled, and never goes through a gate, so push it with care.',
+  'Turning bridges: a lever turns every bridge with its letter a quarter turn clockwise. Roll over the lever again to turn them again. A bridge is open only where its lit road meets the side; railings close the rest.',
   'Stuck in a square? Roll over the reset pad beside the road into it, and the square goes back as it was.',
   'Each level has a star time, shown by the star at the bottom. Finish under it to win the level\'s star.',
   'Where the road splits, the narrow way is quicker and the wide way is safer. Both lead on.',
@@ -8540,7 +8700,8 @@ if (HARNESS) {
     flames: () => flames.map((F) => ({ lines: F.lines.map((L) => { const st = flameState(L, simT); return { active: st.active, h: +st.h.toFixed(2), offFor: +st.offFor.toFixed(3), z: L.z }; }) })),
     cracks: () => cracks.map((c) => ({ state: c.crack.state, z: c.pos.z })),
     plaza: () => plazas.map((P) => ({ held: P.held ? P.held.n : 0, onPad: P.onPad, x0: P.x0, z0: P.z0, y: P.y, cols: P.cols, rows: P.rows,
-                                      gates: P.gates.map((g) => ({ ek: g.ek, state: g.state })), crates: P.crates.map((W) => ({ c: W.c, r: W.r, moving: W.moving })), stands: P.stands.map((s) => ({ c: s.c, r: s.r, n: s.key ? s.key.n : 0 })),
+                                      gates: P.gates.map((g) => ({ ek: g.ek, state: g.state })), crates: P.crates.map((W) => ({ c: W.c, r: W.r, moving: W.moving })),
+                                      tiles: P.tiles.map((T) => ({ c: T.c, r: T.r, mask: T.mask, moving: T.moving > 0 })), stands: P.stands.map((s) => ({ c: s.c, r: s.r, n: s.key ? s.key.n : 0 })),
                                       view: +plazaView.toFixed(3), cam: P.cam && { pos: P.cam.pos.toArray().map((v) => +v.toFixed(2)), at: P.cam.at.toArray().map((v) => +v.toFixed(2)) } })),
     scans: () => scans.map((Sc) => ({ x: Sc.x, z: Sc.zc, d: Sc.d, w: Sc.w, A: Sc.A, period: Sc.period, phase: Sc.phase, bars: Sc.bars.length,
                                       at: Sc.bars.map((_, i) => +scanX(Sc, simT, i).toFixed(3)) })),
