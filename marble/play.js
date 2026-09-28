@@ -807,6 +807,18 @@ const SWITCHES = { X: { switch: 'A' }, Y: { switch: 'B' }, Z: { switch: 'C' },
 // The squares past level 40 were found by a search that mixes the mechanics (pzgen.js: keys, switches, crates and plates,
 // charge, light), aimed at a number of steps that climbs with the level, rewarding dead ends and punishing clutter. One
 // legend serves them all.
+/* PLANK CROSSINGS (owner, 2026-09-28, the seventh new puzzle: "floating planks on
+   a missing section of the road where tapping gives you the ability to jump on 4
+   lanes of alternating traffic of planks"). Four lanes of planks drift over a
+   river, each lane the other way from the one before; a tap hops the marble one
+   lane on. Close to the river of Frogger and Crossy Road, so it wears the world's
+   own planks. X1-X3: easy to hard (length: of a plank; count: to a lane). */
+const LANE = 2.4, LANES = 4, CROSS_W = 16, HOP_T = 0.42;
+const CROSSINGS = {
+  X1: { lanes: [{ v: 1.5, len: 3.8, n: 3 }, { v: 1.8, len: 3.6, n: 3 }, { v: 1.6, len: 3.8, n: 3 }, { v: 2.0, len: 3.4, n: 3 }] },
+  X2: { lanes: [{ v: 2.2, len: 3.2, n: 3 }, { v: 2.6, len: 3.0, n: 2 }, { v: 2.4, len: 3.2, n: 3 }, { v: 2.9, len: 2.8, n: 2 }] },
+  X3: { lanes: [{ v: 3.0, len: 2.8, n: 2 }, { v: 2.4, len: 2.6, n: 2 }, { v: 3.4, len: 2.6, n: 2 }, { v: 2.8, len: 2.4, n: 2 }] },
+};
 const WATER_GAP = 8, WATER_UNIT = 0.42;                 // the boat's channel: how long, and how far a band of water raises it
 const WATER = { 1: { tank: 1 }, 2: { tank: 2 }, 3: { tank: 3 }, 4: { tank: 4 }, 5: { tank: 5 }, 6: { tank: 6 } };   // the boat: tanks, by what they hold
 const TWIN = { t: { twin: 1 }, p: { twinPad: 1 } };      // the twin: where it starts, its pad
@@ -2298,14 +2310,15 @@ const PLAZAS = {
 // PLAZAS END
 // Which square each level ends with; '~' mirrors it left to right.
 // The new puzzles, each tried first on a course of its own (#try-<kind>, #try-<kind>-tokyo), easy to hard.
-const TRY_COURSES = { ice: ['I1', 'I2', 'I3', 'I4'], road: ['P1', 'P2', 'P3'], tiles: ['T1', 'T2', 'T3'], tune: ['M1', 'M2', 'M3'], twin: ['D1', 'D2', 'D3'], boat: ['H1', 'H2', 'H3'] },
-      TRY_TITLES = { ice: 'ICE MAZES', road: 'BUILD A ROAD', tiles: 'EVERY TILE', tune: 'THE TUNE', twin: 'THE TWIN', boat: 'THE BOAT' };
+const TRY_COURSES = { ice: ['I1', 'I2', 'I3', 'I4'], road: ['P1', 'P2', 'P3'], tiles: ['T1', 'T2', 'T3'], tune: ['M1', 'M2', 'M3'], twin: ['D1', 'D2', 'D3'], boat: ['H1', 'H2', 'H3'], planks: ['X1', 'X2', 'X3'] },
+      TRY_TITLES = { ice: 'ICE MAZES', road: 'BUILD A ROAD', tiles: 'EVERY TILE', tune: 'THE TUNE', twin: 'THE TWIN', boat: 'THE BOAT', planks: 'THE PLANKS' };
 const TRY_NEWS = { ice: 'Four ice mazes, easy to hard. On ice the marble slides until something stops it',
                    road: 'Three chasms. Push crates into the gaps to make a road across',
                    tiles: 'Light every tile. Each one crumbles behind you',
                    tune: 'Listen, then play it back. The way on opens when you do',
                    twin: 'Your twin moves as your mirror. Stand at the way out while it stands on its pad',
-                   boat: 'Fill the channel exactly to the line, and the boat takes you over' };
+                   boat: 'Fill the channel exactly to the line, and the boat takes you over',
+                   planks: 'Tap to hop onto the next lane of planks. Four lanes, then the far side' };
 const PLAZA_AT = { 2: 'K1', 3: 'K2', 4: 'K2~', 5: 'K3', 6: 'K3~', 7: 'K4', 8: 'K4~', 9: 'S1', 10: 'S2', 11: 'S2~', 12: 'S3', 13: 'S4~',
                    14: 'W1', 15: 'W2', 16: 'W3', 17: 'W3~', 18: 'B1', 19: 'B2', 20: 'B3', 21: 'B3~', 22: 'B4', 23: 'B2~',
                    24: 'C1', 25: 'C2', 26: 'C2~', 27: 'C3', 28: 'C3~', 29: 'C4',
@@ -2696,6 +2709,14 @@ function makeLevel(n, variant = LEVEL_VARIANT[n] || 0, test = null) {
     }
     straight(2, rw);
   }
+  function crossing(id) {                               // the road in (a ring), a ledge, four lanes of planks over the river, the far side
+    const rw = 2.4, d = LANES * LANE;
+    straight(5, rw, true); straight(1.5, rw);
+    pieces.push({ t: 'planks', id, x, z: r2(z - d / 2), y, w: CROSS_W, d, lanes: CROSSINGS[id].lanes });
+    on(d);
+    pieces.push(F(x, r2(z - 1.6), CROSS_W + 4, 3.2, y)); on(3.2);   // the far bank, the river's whole width and more: a hop off any plank lands on it
+    straight(4, rw);
+  }
   // Every other feature is the district's own, so it carries the district;
   // the rest are what came before. The Express draws on everything.
   const ALL = ['bridge', 'slide', 'shuttle', 'boostJump', 'jump', 'jog', 'ramp', 'narrow', 'cross', 'ride', 'locks', 'wormhole', 'fork', 'loop'];
@@ -2725,7 +2746,7 @@ function makeLevel(n, variant = LEVEL_VARIANT[n] || 0, test = null) {
   const features = n <= 40 ? 2 + Math.round(k * 2) + d : 8 + Math.round(7 * e), length = 45 + 155 * g + 190 * e;
   if (test) {                                           // a course to try a new puzzle on (#try-ice): its puzzles in turn, easy to hard
     straight(8, wide);
-    for (const id of TRY_COURSES[test]) { square(id); straight(8, wide); }
+    for (const id of TRY_COURSES[test]) { if (CROSSINGS[id]) crossing(id); else square(id); straight(8, wide); }
     pieces.push(F(x, z - 3.5, 6, 7, y));
     return { start: [0, 0, 1], gates, goal: [x, y, r2(z - 4)], pieces, district: DISTRICTS[d], length: Math.round(run + 7), test, title: TRY_TITLES[test],
              star: Math.round((run + 7) / 1.6) };
@@ -2782,6 +2803,7 @@ const STAR_TIMES = [23, 45, 41, 48, 64, 58, 68, 77, 48, 71, 95, 74, 112, 77, 70,
                     165, 169, 129, 162, 160, 151, 171, 160, 177, 208, 187, 149, 217, 240, 245, 167, 214, 181, 269, 249];
 
 let levelGroup = null;
+let crossZones = [];                                     // plank crossings: their lanes, and the camera's zone over each
 let colliders = [], ferries = [], holos = [], pads = [], crossings = [], riders = [], curtains = [], locks = [], wormholes = [], loopsIn = [], mags = [], winds = [], rounds = [], tubes = [], switches = [], scans = [], posts = [], blinkers = [], flames = [], cracks = [], plazas = [], gates = [], goal = null, level = null;
 
 /* A slab: a rounded box, drawn in two calls rather than six. The box keeps
@@ -4152,7 +4174,8 @@ function freeCourse(grp) {
 }
 function enterPocket(W) {
   pocket = { colliders, ferries, holos, pads, crossings, riders, curtains, locks, wormholes, loopsIn, mags, winds, rounds, tubes, switches, scans, posts, blinkers, flames, cracks, plazas, gates, goal, level, levelGroup,
-             world: world.name, from: W };
+             world: world.name, from: W, crossZones };
+  crossZones = [];
   levelGroup.visible = false;
   const P = W.pc.pocket;
   levelGroup = new Group(); scene.add(levelGroup);
@@ -4172,7 +4195,7 @@ function enterPocket(W) {
 function leavePocket() {
   freeCourse(levelGroup);
   const S = pocket; pocket = null;
-  ({ colliders, ferries, holos, pads, crossings, riders, curtains, locks, wormholes, loopsIn, mags, winds, rounds, tubes, switches, scans, posts, blinkers, flames, cracks, plazas, gates, goal, level, levelGroup } = S);
+  ({ colliders, ferries, holos, pads, crossings, riders, curtains, locks, wormholes, loopsIn, mags, winds, rounds, tubes, switches, scans, posts, blinkers, flames, cracks, plazas, gates, goal, level, levelGroup, crossZones } = S);
   levelGroup.visible = true;
   setWorld(S.world);
   const out = S.from.twin;
@@ -5059,6 +5082,66 @@ function buildIce(P) {
     }
   }
 }
+// A plank crossing: the river under it, its lanes, their planks (each one a moving platform, carrying what is on it).
+const driftTex = canvasTex(128, 64, (g) => {            // the way a plank drifts: a chevron on it
+  g.clearRect(0, 0, 128, 64); g.strokeStyle = '#FFFFFF'; g.lineWidth = 9; g.lineCap = 'round'; g.lineJoin = 'round';
+  for (const x0 of [36, 72]) { g.beginPath(); g.moveTo(x0, 14); g.lineTo(x0 + 18, 32); g.lineTo(x0, 50); g.stroke(); }
+});
+function buildPlanks(pc) {
+  const env = neonEnvMap() || envTex, nearZ = pc.z + pc.d / 2;
+  const wood = new MeshStandardMaterial({ color: 0x8A5A32, roughness: 0.7, metalness: 0.05 });
+  const edge = new MeshBasicMaterial({ color: 0xFFD8A0, toneMapped: false });
+  const water = new Mesh(new BoxGeometry(pc.w + 4, 0.1, pc.d + 0.6), new MeshStandardMaterial({ color: 0x154C78, metalness: 0.3, roughness: 0.12, envMap: env, transparent: true, opacity: 0.85, emissive: 0x0B3558, emissiveIntensity: 0.6 }));
+  water.position.set(pc.x, pc.y - 1.35, pc.z); levelGroup.add(water);
+  const Z = { pc, id: pc.id, cx: pc.x, nearZ, farZ: nearZ - pc.d, y: pc.y, lanes: [], x0: pc.x - pc.w / 2 - 0.4, z0: nearZ + 1.6, cols: (pc.w + 0.8) / CELL, rows: (pc.d + 1.6 + 1.2) / CELL, cam: null, noteT: 0 };
+  Z.pc.id = pc.id;
+  pc.lanes.forEach((L, k) => {
+    const dir = k % 2 ? -1 : 1, lane = { dir, v: L.v, len: L.len, n: L.n, phase: k * 3.7, planks: [], z: nearZ - (k + 0.5) * LANE };
+    for (let j = 0; j < L.n; j++) {
+      const mesh = new Mesh(new BoxGeometry(L.len, 0.25, 1.9), wood); mesh.castShadow = true; mesh.receiveShadow = true;
+      const trim = new Mesh(new BoxGeometry(L.len + 0.04, 0.02, 1.94), edge); trim.position.y = 0.13; mesh.add(trim);
+      const ar = new Mesh(new PlaneGeometry(0.9, 0.45), new MeshBasicMaterial({ map: driftTex, transparent: true, opacity: 0.55, depthWrite: false, toneMapped: false }));
+      ar.rotation.x = -Math.PI / 2; ar.rotation.z = dir > 0 ? 0 : Math.PI; ar.position.y = 0.135; mesh.add(ar);
+      levelGroup.add(mesh);
+      const col = { mesh, pos: new Vector3(), prev: new Vector3(), quat: new Quaternion(), inv: new Quaternion(), half: new Vector3(L.len / 2, 0.125, 0.95),
+                    delta: new Vector3(), ferry: { plank: true }, holo: null, pad: null, obstacle: 'plank', plank: lane };
+      colliders.push(col); lane.planks.push({ col, mesh, j });
+    }
+    Z.lanes.push(lane);
+  });
+  crossZones.push(Z);
+  planksPlace(Z, simT, true);
+}
+// Where plank j of a lane is at time t: its middle, and how far it has sunk (at either end of the lane it goes under).
+function plankAt(Z, L, j, t) {
+  const C = CROSS_W + L.len, u = (((L.v * t + j * C / L.n + L.phase) % C) + C) % C, xr = L.dir > 0 ? -C / 2 + u : C / 2 - u;
+  const out = Math.max(0, Math.abs(xr) + L.len / 2 - CROSS_W / 2), sink = Math.min(1, out / (L.len * 0.6));
+  return { x: Z.cx + xr, sink };
+}
+function planksPlace(Z, t, snap) {
+  for (const L of Z.lanes) for (const Q of L.planks) {
+    const A = plankAt(Z, L, Q.j, t), c = Q.col;
+    c.prev.copy(c.pos); c.pos.set(A.x, Z.y - 0.125 - 1.7 * A.sink * A.sink, L.z);
+    if (snap || Math.abs(c.pos.x - c.prev.x) > 2) c.prev.copy(c.pos);   // (round from one end to the other: no carry)
+    c.delta.subVectors(c.pos, c.prev); Q.mesh.position.copy(c.pos);
+  }
+}
+function planksStep() { for (const Z of crossZones) planksPlace(Z, simT, false); }
+// A tap: one lane on, in an arc that lands in the middle of the next lane (or on the far side), drifting as it drifted.
+let tapQueued = false;
+function tryHop() {
+  if (!ball.grounded || ball.ice || ball.tube || state !== 'play') return;
+  for (const Z of crossZones) {
+    if (Math.abs(ball.p.x - Z.cx) > CROSS_W / 2 + 1.2 || ball.p.z > Z.nearZ + 1.6 || ball.p.z < Z.farZ + 0.3) continue;
+    const k = ball.p.z > Z.nearZ ? -1 : Math.min(LANES - 1, Math.floor((Z.nearZ - ball.p.z) / LANE));
+    const tz = k + 1 < LANES ? Z.nearZ - (k + 1.5) * LANE : Z.farZ - 1.3;
+    const on = ball.onFerry && ball.onFerry.plank, vx = on ? on.v * on.dir : 0;
+    ball.v.set(vx, G * HOP_T / 2, (tz - ball.p.z) / HOP_T);
+    ball.grounded = false; ball.onFerry = null; ball.jumpCD = 0.3; ball.hop = true;
+    sound('jump');
+    return;
+  }
+}
 /* THE BOAT (owner, 2026-09-28, the sixth new puzzle: "add water to a channel
    that lets you take a boat"). Past the way out the road is missing: a deep
    channel, a boat at its bottom. A tank's digit is how many bands of water it
@@ -5596,9 +5679,15 @@ function animatePlazas(dt) {
     if (P.twin) animateTwin(P, dt);
     if (P.water) animateWater(P, dt);
   }
+  for (const Z of crossZones) {
+    if (plazaAt === Z && plazaView > 0.6) Z.noteT += dt;   // how long its note has been up
+  }
 }
 // The square the marble is in, or on the road into (with its reset pad).
 function plazaHere() {
+  for (const Z of crossZones) {                         // a plank crossing, and the ledge into it
+    if (ball.p.x > Z.x0 - 1.2 && ball.p.x < Z.x0 + Z.cols * CELL + 1.2 && ball.p.z < Z.z0 + 4 && ball.p.z > Z.farZ - 1.4) return Z;
+  }
   for (const P of plazas) {
     const W = P.cols * CELL, D = P.rows * CELL;
     if (ball.p.x > P.x0 - 1.2 && ball.p.x < P.x0 + W + 1.2 && ball.p.z < P.z0 + 5.8 && ball.p.z > P.z0 - D - 0.6) return P;
@@ -5652,6 +5741,7 @@ function buildPiece(pc) {
   if (pc.t === 'gauntlet' || pc.t === 'reset') return;   // a reset pad is built with its square
   if (pc.t === 'plaza') { buildPlaza(pc); return; }
   if (pc.t === 'portal') { buildPortal(pc); return; }
+  if (pc.t === 'planks') { buildPlanks(pc); return; }
   let h = THICK;
   const quat = new Quaternion(), center = new Vector3();
   let w = pc.w, d = pc.d;
@@ -5742,7 +5832,7 @@ function loadLevel(n, custom = null) {
   tkUndo.length = 0; tkTicks.length = 0;               // the course it dressed is gone, and what moved it each frame goes too
   levelGroup = new Group();
   scene.add(levelGroup);
-  colliders = []; ferries = []; holos = []; pads = []; crossings = []; riders = []; curtains = []; locks = []; wormholes = []; loopsIn = []; mags = []; winds = []; rounds = []; tubes = []; switches = []; scans = []; posts = []; blinkers = []; flames = []; cracks = []; plazas = []; gates = [];
+  colliders = []; ferries = []; holos = []; pads = []; crossings = []; riders = []; curtains = []; locks = []; wormholes = []; loopsIn = []; mags = []; winds = []; rounds = []; tubes = []; switches = []; scans = []; posts = []; blinkers = []; flames = []; cracks = []; plazas = []; gates = []; crossZones = [];
   for (const pc of level.pieces) buildPiece(pc);
   // The world follows the course: the neon city to 50, Tokyo from 51 (a world picked to look at, such as the hills, stays).
   // Its scenery follows the course too, so it is rebuilt for it.
@@ -5873,6 +5963,9 @@ function step(dt, ix, iz) {
   for (const c of ferries) updateFerry(c, simT);
   if (ball.tube) { rideTube(dt); for (const c of crossings) crossStep(c, simT); return; }   // in a tube, the tube steers
   if (ball.ice) { iceStep(dt, ix, iz); for (const c of crossings) crossStep(c, simT); return; }   // on ice, the ice does
+  if (crossZones.length) planksStep();
+  if (tapQueued) { tapQueued = false; tryHop(); }
+  if (ball.hop && ball.grounded && ball.airT === 0 && ball.v.y <= 0.01) { ball.hop = false; ball.v.x = 0; ball.v.z = 0; }   // a hop lands still: on a plank it rides, it does not roll off
   if (ball.onFerry) {
     ball.p.add(ball.onFerry.delta);                    // a pad carries what rests on it
     const T = ball.onFerry.train;                      // and a train pulls on what rides it
@@ -6327,13 +6420,13 @@ hud.addEventListener('pointerdown', (e) => {
     if (state === 'rules' && inBox(p, L.cardBody)) cardDrag = { id: e.pointerId, y: p.y, s: cardScroll };
     return;
   }
-  joy = { id: e.pointerId, ox: p.x, oy: p.y, x: p.x, y: p.y };
+  joy = { id: e.pointerId, ox: p.x, oy: p.y, x: p.x, y: p.y, sx: p.x, sy: p.y, t0: performance.now(), far: 0 };
   try { hud.setPointerCapture(e.pointerId); } catch (_) {}
 });
 hud.addEventListener('pointermove', (e) => {
   const p = toLogical(e);
   if (joy && e.pointerId === joy.id) {
-    joy.x = p.x; joy.y = p.y;
+    joy.x = p.x; joy.y = p.y; joy.far = Math.max(joy.far, Math.hypot(p.x - joy.sx, p.y - joy.sy));
     const dx = joy.x - joy.ox, dy = joy.y - joy.oy, m = Math.hypot(dx, dy);
     if (m > JR) { joy.ox = joy.x - dx / m * JR; joy.oy = joy.y - dy / m * JR; }
   }
@@ -6345,7 +6438,10 @@ function endPointer(e, cancelled) {
     const k = pressed.key; pressed = null;
     if (!cancelled && hitKey(p) === k) act(k);
   }
-  if (joy && e.pointerId === joy.id) joy = null;
+  if (joy && e.pointerId === joy.id) {
+    if (!cancelled && performance.now() - joy.t0 < 260 && joy.far < 14) tapQueued = true;   // a tap: a hop, at a plank crossing
+    joy = null;
+  }
   if (cardDrag && e.pointerId === cardDrag.id) cardDrag = null;
 }
 hud.addEventListener('pointerup', (e) => endPointer(e, false));
@@ -6365,6 +6461,7 @@ window.addEventListener('keydown', (e) => {
     if (!cardOpen()) { keys.add(k); e.preventDefault(); }
     else if (state === 'rules' && (k === 'up' || k === 'down')) { cardScroll += k === 'up' ? -40 : 40; e.preventDefault(); }
   } else if ((e.code === 'Enter' || e.code === 'Space') && cardOpen()) { e.preventDefault(); act('cta'); }
+  else if (e.code === 'Space' && !e.repeat) { firstGesture(); tapQueued = true; e.preventDefault(); }   // a hop
   else if (e.code === 'Escape' && state === 'rules') act('cta');
 });
 window.addEventListener('keyup', (e) => { const k = KEYMAP[e.code]; if (k) keys.delete(k); });
@@ -6631,6 +6728,9 @@ const PLAZA_NEWS = {
   H1: 'Fill the channel to the line: the bar says how full. The dots on a tank are how much it holds',
   H2: 'Too much and the boat floats too high. The pad by the road empties the channel',
   H3: 'Which tanks make exactly the line? Mind which valves you roll over',
+  X1: 'Tap to hop a lane. Ride a plank, and hop before it sinks at the end',
+  X2: 'Quicker lanes, fewer planks. Wait for your moment',
+  X3: 'Short planks, fast water. Look two lanes ahead',
 };
 const PLAZA_NOTE_T = 7;
 function drawNews() {
@@ -12994,7 +13094,10 @@ if (HARNESS) {
                     ball: ball.p.toArray().map((v) => +v.toFixed(3)),
                     v: ball.v.toArray().map((v) => +v.toFixed(3)),
                     gates: gates.map((g) => g.passed), frames, frameMs: +frameMs.toFixed(1),
-                    ice: ball.ice && { c: ball.ice.c, r: ball.ice.r, moving: !!(ball.ice.dc || ball.ice.dr), x0: ball.ice.P.x0, z0: ball.ice.P.z0 } }),
+                    ice: ball.ice && { c: ball.ice.c, r: ball.ice.r, moving: !!(ball.ice.dc || ball.ice.dr), x0: ball.ice.P.x0, z0: ball.ice.P.z0 },
+                    plank: !!(ball.onFerry && ball.onFerry.plank) }),
+    tap: () => { tapQueued = true; },
+    planks: () => crossZones.map((Z) => ({ cx: Z.cx, nearZ: Z.nearZ, farZ: Z.farZ, y: Z.y, lanes: Z.lanes.map((L) => ({ dir: L.dir, v: L.v, len: L.len, n: L.n, phase: L.phase, z: L.z })) })),
     reach: (n) => (typeof n === 'string' ? loadTry(n.split('-')[0], n.endsWith('-tokyo')) : loadLevel(n)),   // 41, or 'ice', 'ice-tokyo'
     tint: () => ball.tint,
     simT: () => +simT.toFixed(3),
