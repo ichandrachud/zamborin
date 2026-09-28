@@ -222,6 +222,7 @@ const NEON_SOUNDS = {
     voice('sawtooth', 240, 70, 0.5, 0.018, 0.38);
     [523.25, 659.25, 783.99].forEach((f, i) => voice('sine', f, f, 0.6, 0.035, 0.45 + i * 0.05));
   },
+  click() { voice('square', 2200, 1400, 0.03, 0.035); voice('triangle', 520, 780, 0.16, 0.05, 0.03); voice('sine', 1040, 1560, 0.22, 0.03, 0.06); },   // a switch pressed
   reset() { voice('sawtooth', 1300, 150, 0.55, 0.016); voice('sine', 1760, 330, 0.5, 0.045); voice('sine', 220, 220, 0.3, 0.04, 0.45); },   // a square put back
   buzz() { voice('square', 110, 100, 0.22, 0.035); voice('sawtooth', 55, 50, 0.2, 0.03); },        // a wall of the other colour
   bump() {                                            // a car meets the marble: a thud, and two notes of horn
@@ -231,7 +232,7 @@ const NEON_SOUNDS = {
 };
 // The city's version of a sound where it has one, the house sound elsewhere.
 function sound(name) {
-  if ((world.name === 'neon' || ['boost', 'jump', 'bump', 'depart', 'tint', 'pass', 'buzz', 'key', 'gate', 'reset', 'warp', 'tube', 'pop', 'power', 'zap', 'knock', 'clink', 'crack', 'shatter', 'burn', 'flame', 'blast'].includes(name)) && NEON_SOUNDS[name]) { if (sfx && sfx.isOn()) NEON_SOUNDS[name](); }
+  if ((world.name === 'neon' || ['boost', 'jump', 'bump', 'depart', 'tint', 'pass', 'buzz', 'key', 'gate', 'reset', 'click', 'warp', 'tube', 'pop', 'power', 'zap', 'knock', 'clink', 'crack', 'shatter', 'burn', 'flame', 'blast'].includes(name)) && NEON_SOUNDS[name]) { if (sfx && sfx.isOn()) NEON_SOUNDS[name](); }
   else play(name === 'home' ? 'land' : name);
 }
 function ensureCitySound() {
@@ -750,6 +751,9 @@ const TRAIN = (x, z, w, y, amp, period, dwell, phase, pull) => ({ t: 'train', x,
                   over it to take the key. You carry one at a time: the key you
                   held is left on the stand in its place
      keygate: n   a gate that key n opens, and keeps: one key, one gate
+     switch: L    a switch: roll over it to flip every gate of letter L
+     sgate: L     a gate that switch L flips, shut to open and open to shut;
+                  `open: 1` if it starts open
    Every layout is solved by a search before it goes in (the same rules, in
    pzsolve), which also counts the traps: moves after which the way out can no
    longer be reached. The reset pad on a bay beside the road in puts the square
@@ -757,6 +761,8 @@ const TRAIN = (x, z, w, y, amp, period, dwell, phase, pull) => ({ t: 'train', x,
 const CELL = 2.2, WALL_H = 0.7, WALL_T = 0.26;
 // PLAZAS START
 const KEYS = { a: { key: 1 }, b: { key: 2 }, c: { key: 3 }, A: { keygate: 1 }, B: { keygate: 2 }, C: { keygate: 3 } };
+const SWITCHES = { X: { switch: 'A' }, Y: { switch: 'B' }, Z: { switch: 'C' },
+                   A: { sgate: 'A' }, a: { sgate: 'A', open: 1 }, B: { sgate: 'B' }, b: { sgate: 'B', open: 1 }, C: { sgate: 'C' }, c: { sgate: 'C', open: 1 } };
 const PLAZAS = {
   // The first: the way out is locked, and its key is in a room whose door is round the far side.
   K1: { entry: 2, exit: 2, legend: KEYS, map: [
@@ -808,10 +814,59 @@ const PLAZAS = {
     '+-+ + + +-+',
     '|. a . b .|',
     '+-+-+ +-+-+'] },
+  // Switches. The first: one letter, two switches. A opens the way to the far side and shuts the
+  // way out; on the far side, A again.
+  S1: { entry: 2, exit: 2, legend: SWITCHES, map: [
+    '+-+-+a+-+-+',
+    '|. . . . X|',
+    '+ +-+-+-+-+',
+    '|.|. . . .|',
+    '+A+ + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|X . . . .|',
+    '+-+-+ +-+-+'] },
+  // A opens the room with B in it, and shuts the way to the exit: A, B, then A again.
+  S2: { entry: 2, exit: 2, legend: SWITCHES, map: [
+    '+-+-+B+-+-+',
+    '|X .|.|. Y|',
+    '+ +-+a+A+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+'] },
+  // Three switches, each opening the next room: A, B, C, and A once more for the way out.
+  S3: { entry: 2, exit: 2, legend: SWITCHES, map: [
+    '+-+-+C+-+-+',
+    '|Y .|.|. Z|',
+    '+ + + + + +',
+    '|. .|.|. .|',
+    '+-+A+a+B+-+',
+    '|. . . . .|',
+    '+ + + + +-+',
+    '|. . .|. .|',
+    '+ + + + + +',
+    '|. . .|. X|',
+    '+-+-+ +-+-+'] },
+  // As S3, but C shuts the room A stands in: press A the second time before C.
+  S4: { entry: 2, exit: 2, legend: SWITCHES, map: [
+    '+-+-+C+-+-+',
+    '|Y .|.|. Z|',
+    '+ + + + + +',
+    '|. .|.|. .|',
+    '+-+A+a+B+-+',
+    '|. . . . .|',
+    '+ + + +c+-+',
+    '|. . .|. .|',
+    '+ + + + + +',
+    '|. . .|. X|',
+    '+-+-+ +-+-+'] },
 };
 // PLAZAS END
 // Which square each level ends with; '~' mirrors it left to right.
-const PLAZA_AT = { 2: 'K1', 3: 'K2', 4: 'K2~', 5: 'K3', 6: 'K3~', 7: 'K4', 8: 'K4~' };
+const PLAZA_AT = { 2: 'K1', 3: 'K2', 4: 'K2~', 5: 'K3', 6: 'K3~', 7: 'K4', 8: 'K4~', 9: 'S1', 10: 'S2', 11: 'S2~', 12: 'S3', 13: 'S4~' };  // (S4 mirrored: its trap room on the other side from S3's)
 function plazaLayout(id) {
   const flipped = id.endsWith('~'), T = PLAZAS[flipped ? id.slice(0, -1) : id];
   const cols = (T.map[0].length - 1) / 2, rows = (T.map.length - 1) / 2;
@@ -2790,6 +2845,26 @@ function buildPlaza(pc) {
     }
     P.stands.push(s);
   }
+  // The switches: a round button with its letter, in its letter's colour.
+  P.switches = [];
+  for (let r = 0; r < P.rows; r++) for (let c = 0; c < P.cols; c++) {
+    const cell = G.cells[r][c];
+    if (!('switch' in cell)) continue;
+    const col = LETTER_COLS[cell.switch], grp = new Group(); grp.position.set(X(c), P.y, Z(r));
+    const base = new Mesh(new CylinderGeometry(0.72, 0.8, 0.06, 48), P.mats.base); base.position.y = 0.03; base.receiveShadow = true;
+    const button = new Group();
+    const cap = new Mesh(new CylinderGeometry(0.56, 0.6, 0.1, 48), new MeshStandardMaterial({ color: 0x1B2138, metalness: 0.6, roughness: 0.3, emissive: col, emissiveIntensity: 0.25 }));
+    cap.position.y = 0.11;
+    const faceMat = new MeshBasicMaterial({ color: col, map: glyphTex(cell.switch), transparent: true, blending: AdditiveBlending, depthWrite: false, toneMapped: false });
+    const face = new Mesh(new CircleGeometry(0.5, 40), faceMat); face.rotation.x = -Math.PI / 2; face.position.y = 0.162;
+    button.add(cap, face);
+    const ringMat = glowMat(col, 0.85), ring = new Mesh(new RingGeometry(0.66, 0.72, 48), ringMat);
+    ring.rotation.x = -Math.PI / 2; ring.position.y = 0.065;
+    const pool = new Mesh(new CircleGeometry(1.1, 48), glowMat(col, 0.18, dot)); pool.rotation.x = -Math.PI / 2; pool.position.y = 0.012;
+    grp.add(base, button, ring, pool);
+    levelGroup.add(grp);
+    P.switches.push({ c, r, letter: cell.switch, button, faceMat, ringMat, pool, press: 0 });
+  }
   // The reset pad, on its bay beside the road in.
   const rp = level.pieces.find((q) => q.t === 'reset');
   if (rp) {
@@ -2806,22 +2881,47 @@ function buildPlaza(pc) {
   plazas.push(P);
 }
 // A gate on an edge: bars across the doorway, a sheet of light between them, the sign of what opens it lying over it.
+const LETTER_COLS = { A: 0x4F8BFF, B: 0x3DE8A6, C: 0xFF5A8A };
+const glyphs = {};                                      // a letter, drawn once, lit in whatever colour it is given
+function glyphTex(ch) {
+  return glyphs[ch] || (glyphs[ch] = canvasTex(128, 128, (g) => {
+    g.fillStyle = '#000'; g.fillRect(0, 0, 128, 128);
+    g.font = '800 92px Inter, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.filter = 'blur(6px)'; g.fillStyle = 'rgba(255,255,255,0.75)'; g.fillText(ch, 64, 70);
+    g.filter = 'none'; g.fillStyle = '#FFFFFF'; g.fillText(ch, 64, 70);
+  }));
+}
+const gateFieldTex = fieldTex.clone();
+gateFieldTex.repeat.set((CELL - WALL_T) / 1.1, GATE_H / 1.1);
 function buildGate(P, e, x, z, alongX, ek) {
-  const span = CELL - WALL_T, need = e.keygate, col = KEY_COLS[need];
+  const span = CELL - WALL_T, kind = 'keygate' in e ? 'key' : 'switch';
+  const need = e.keygate || 0, letters = e.sgate || '', col = kind === 'key' ? KEY_COLS[need] : LETTER_COLS[letters[0]];
   const grp = new Group(); grp.position.set(x, P.y, z);
   if (!alongX) grp.rotation.y = Math.PI / 2;
-  const barMat = new MeshBasicMaterial({ color: col, toneMapped: false });
+  const barMat = new MeshBasicMaterial({ color: col, toneMapped: false, transparent: true });
   const bars = new Group();
-  for (let i = -2; i <= 2; i++) {
-    const b = new Mesh(new CylinderGeometry(0.04, 0.04, GATE_H, 10), barMat);
-    b.position.set(i * span / 5.4, GATE_H / 2, 0); bars.add(b);
+  let sheetMat, field = null, fieldMat = null;
+  if (kind === 'key') {                                 // bars that sink into the floor when the key turns
+    for (let i = -2; i <= 2; i++) {
+      const b = new Mesh(new CylinderGeometry(0.04, 0.04, GATE_H, 10), barMat);
+      b.position.set(i * span / 5.4, GATE_H / 2, 0); bars.add(b);
+    }
+    sheetMat = glowMat(col, 0.35, sheetTex);
+  } else {                                              // a field of light that switches off and on
+    fieldMat = glowMat(col, 0.75, gateFieldTex); fieldMat.side = DoubleSide;
+    field = new Mesh(new PlaneGeometry(span, GATE_H), fieldMat); field.position.y = GATE_H / 2;
+    grp.add(field);
+    sheetMat = glowMat(col, 0.3, sheetTex);
   }
-  const rail = new Mesh(new BoxGeometry(span, 0.07, 0.07), barMat); rail.position.y = GATE_H; bars.add(rail);
-  const sheetMat = glowMat(col, 0.35, sheetTex), sheet = new Mesh(new PlaneGeometry(span, GATE_H), sheetMat);
-  sheet.material.side = DoubleSide; sheet.position.y = GATE_H / 2; bars.add(sheet);
-  const signMat = new MeshBasicMaterial({ color: col, toneMapped: false, transparent: true });
-  const sign = new Mesh(bowGeo(need, 0.3, 0.055), signMat);
+  const rail = new Mesh(new BoxGeometry(span, 0.07, 0.07), barMat); rail.position.y = GATE_H; (kind === 'key' ? bars : grp).add(rail);
+  const sheet = new Mesh(new PlaneGeometry(span, GATE_H), sheetMat);
+  sheet.material.side = DoubleSide; sheet.position.y = GATE_H / 2; (kind === 'key' ? bars : grp).add(sheet);
+  // Its sign, lying over it: the shape of the key that opens it, or the letter of the switch that flips it.
+  const signMat = kind === 'key' ? new MeshBasicMaterial({ color: col, toneMapped: false, transparent: true })
+    : new MeshBasicMaterial({ color: col, toneMapped: false, transparent: true, map: glyphTex(letters[0]), blending: AdditiveBlending, depthWrite: false });
+  const sign = new Mesh(kind === 'key' ? bowGeo(need, 0.3, 0.055) : new PlaneGeometry(0.72, 0.72), signMat);
   sign.rotation.x = -Math.PI / 2; sign.position.y = GATE_H + 0.32;
+  if (kind !== 'key' && !alongX) sign.rotation.z = -Math.PI / 2;   // a letter reads upright from the camera, whichever way the gate runs
   const signGlow = new Mesh(new CircleGeometry(0.62, 32), glowMat(col, 0.35, dot));
   signGlow.rotation.x = -Math.PI / 2; signGlow.position.y = GATE_H + 0.3;
   const posts = [-1, 1].map((sx) => {
@@ -2830,7 +2930,9 @@ function buildGate(P, e, x, z, alongX, ek) {
   });
   grp.add(bars, sign, signGlow, ...posts);
   levelGroup.add(grp);
-  const g = { P, e, ek, need, col, x, z, alongX, state: 'shut', t: 0, open: 0, bars, sign, signMat, sheetMat, flash: 0, buzzT: 0 };
+  const init = e.open ? 'open' : 'shut';
+  const g = { P, e, ek, kind, need, letters, col, x, z, alongX, init, state: init, t: 0, open: init === 'open' ? 1 : 0, bars, sign, signMat, sheetMat,
+              field, fieldMat, railMat: barMat, flash: 0, buzzT: 0 };
   const q = new Quaternion(), box = new Mesh(new BoxGeometry(0.1, 0.1, 0.1), Array(6).fill(HIDDEN));
   box.position.set(x, P.y + GATE_H / 2, z); box.visible = false; levelGroup.add(box);
   colliders.push({ mesh: box, pos: box.position.clone(), prev: box.position.clone(), quat: q, inv: q.clone(), gate: g,
@@ -2842,7 +2944,7 @@ function buildGate(P, e, x, z, alongX, ek) {
 function gateTouch(g) {
   if (g.state !== 'shut') return;
   const P = g.P;
-  if (g.need && P.held && P.held.n === g.need) {
+  if (g.kind === 'key' && P.held && P.held.n === g.need) {
     const K = P.held; P.held = null;
     flyKey(K, g); K.used = true;
     g.state = 'opening'; g.t = 0;
@@ -2878,6 +2980,12 @@ function padEnter(P, c, r) {
     s.flash = 1;
     sound('key');
   }
+  if ('switch' in cell) {                               // a switch: every gate of its letter flips
+    const L = cell.switch;
+    for (const g of P.gates) if (g.kind === 'switch' && g.letters.includes(L)) { g.state = g.state === 'open' ? 'shut' : 'open'; g.flash = 1; }
+    P.switches.find((q) => q.c === c && q.r === r).press = 1;
+    sound('click');
+  }
 }
 // Back as it was: every key to its own stand, every gate shut.
 function resetPlaza(P, quiet) {
@@ -2888,8 +2996,8 @@ function resetPlaza(P, quiet) {
     if (K.used || K.to !== K.home) moved = true;
     K.used = false; K.fade = 0; K.home.key = K; flyKey(K, K.home); K.model.visible = true; K.model.scale.setScalar(1);
   }
-  for (const g of P.gates) if (g.state !== 'shut') { g.state = 'shut'; g.t = 0; moved = true; }
-  if (quiet) { for (const K of P.keys) K.t = 1; for (const g of P.gates) g.open = 0; }
+  for (const g of P.gates) if (g.state !== g.init) { g.state = g.init; g.t = 0; moved = true; }
+  if (quiet) { for (const K of P.keys) K.t = 1; for (const g of P.gates) g.open = g.init === 'open' ? 1 : 0; }
   if (P.reset) P.reset.flash = 1;
   if (!quiet) sound(moved ? 'reset' : 'tick');
 }
@@ -2925,14 +3033,29 @@ function animatePlazas(dt) {
     }
     for (const g of P.gates) {
       g.buzzT = Math.max(0, g.buzzT - dt); g.flash = Math.max(0, g.flash - dt * 3);
-      if (g.state === 'opening') { g.t += dt; if (g.t >= KEY_FLY + 0.22) g.state = 'open'; }
-      const target = g.state === 'shut' ? 0 : g.state === 'opening' ? Math.max(0, (g.t - KEY_FLY) / 0.45) : 1;
-      g.open += (Math.min(1, target) - g.open) * (REDUCED ? 1 : 1 - Math.exp(-14 * dt));
-      g.bars.position.y = -GATE_H * 1.02 * ease(g.open);
-      g.bars.visible = g.open < 0.99;
-      g.signMat.opacity = (1 - g.open) * (0.85 + 0.15 * Math.sin(simT * 4)) + 0.6 * g.flash;
-      g.sign.visible = g.signMat.opacity > 0.01;
-      g.sheetMat.opacity = 0.35 * (1 - g.open) + 0.4 * g.flash;
+      if (g.kind === 'key') {                           // the key flies in, then the bars sink
+        if (g.state === 'opening') { g.t += dt; if (g.t >= KEY_FLY + 0.22) g.state = 'open'; }
+        const target = g.state === 'shut' ? 0 : g.state === 'opening' ? Math.max(0, (g.t - KEY_FLY) / 0.45) : 1;
+        g.open += (Math.min(1, target) - g.open) * (REDUCED ? 1 : 1 - Math.exp(-14 * dt));
+        g.bars.position.y = -GATE_H * 1.02 * ease(g.open);
+        g.bars.visible = g.open < 0.99;
+        g.signMat.opacity = (1 - g.open) * (0.85 + 0.15 * Math.sin(simT * 4)) + 0.6 * g.flash;
+        g.sign.visible = g.signMat.opacity > 0.01;
+        g.sheetMat.opacity = 0.35 * (1 - g.open) + 0.4 * g.flash;
+      } else {                                          // a field: out when open, its frame and letter left dim
+        g.open += ((g.state === 'open' ? 1 : 0) - g.open) * (REDUCED ? 1 : 1 - Math.exp(-12 * dt));
+        const on = 1 - g.open, flick = REDUCED ? 1 : 0.9 + 0.1 * Math.sin(simT * 9 + g.x);
+        g.fieldMat.opacity = 0.7 * on * flick + 0.25 * g.flash; g.field.visible = g.fieldMat.opacity > 0.01;
+        g.sheetMat.opacity = 0.3 * on + 0.3 * g.flash;
+        g.railMat.opacity = 0.35 + 0.65 * on;
+        g.signMat.opacity = 0.45 + 0.55 * on + 0.4 * g.flash;
+      }
+    }
+    for (const S of P.switches) {                       // a press: the button dips and flares
+      S.press = Math.max(0, S.press - dt * 2.2);
+      S.button.position.y = -0.06 * Math.sin(Math.PI * Math.min(1, (1 - S.press) * 1.6)) * (S.press > 0 ? 1 : 0);
+      S.faceMat.opacity = 0.85 + 0.15 * S.press; S.ringMat.opacity = 0.6 + 0.4 * S.press;
+      S.pool.material.opacity = 0.16 + 0.4 * S.press;
     }
     if (P.reset) { P.reset.flash = Math.max(0, P.reset.flash - dt * 2); P.reset.glyphMat.opacity = 0.7 + 0.3 * P.reset.flash; }
     if (plazaAt === P && plazaView > 0.6) P.noteT += dt;   // how long its note has been up
@@ -3854,6 +3977,10 @@ const PLAZA_NEWS = {
   K2: 'One gold key, two gold gates. A gate keeps its key: pick the room you need',
   K3: 'Three gold gates, and only two gold keys. Look before you open one',
   K4: 'Count the copper gates, and the copper keys, before you open any',
+  S1: 'A switch flips every gate with its letter: shut ones open, open ones shut. Both switches here are A',
+  S2: 'Which gates does each switch flip? You may need one twice',
+  S3: 'Three switches, three rooms. Work out the order before you roll',
+  S4: 'The same switches, and a door that shuts on you. Mind the order',
 };
 const PLAZA_NOTE_T = 7;
 function drawNews() {
@@ -3883,6 +4010,7 @@ const RULES = [
   'Blue rings save your place. Roll through one and it turns green.',
   'From level 2 the finish stands past a puzzle square, and its way out is shut. As you roll up to the square the camera rises to show all of it: look before you move.',
   'Keys: roll over a key to take it. You carry one at a time, so taking another leaves the one you held in its place. A gate opens for the key of its colour and shape, and keeps it: count your keys before you open a gate.',
+  'Switches: roll over a switch to flip every gate with its letter. Shut gates open and open gates shut, so a switch can shut the way you came. You can press a switch again.',
   'Stuck in a square? Roll over the reset pad beside the road into it, and the square goes back as it was.',
   'Each level has a star time, shown by the star at the bottom. Finish under it to win the level\'s star.',
   'Where the road splits, the narrow way is quicker and the wide way is safer. Both lead on.',
