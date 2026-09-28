@@ -40,13 +40,44 @@ body.embed .play-row {
    an iPhone SE crops off the top; the marble clears the bottom crop too.
    A phone or tablet held sideways is still "mobile" but landscape, and there
    the tall art would be cut down to a strip through the middle, so it gets
-   the landscape art. */
+   the landscape art.
+
+   A 3D game takes seconds to arrive and build, so the cover stays up until the
+   game has drawn itself (index.html), and it must never be a blank while the
+   art itself is on its way: under each picture sits a tiny copy of it, inline
+   here (two thousand bytes), that shows the moment the page does. */
 .splash {
   --dusk: linear-gradient(180deg, #05040C 0%, #140A26 35%, #3A1238 62%, #1A0B22 100%);
+  --lq-mobile: url('data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA4KCw0LCQ4NDA0QDw4RFiQXFhQUFiwgIRokNC43NjMuMjI6QVNGOj1OPjIySGJJTlZYXV5dOEVmbWVabFNbXVn/2wBDAQ8QEBYTFioXFypZOzI7WVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVn/wAARCACAADsDASIAAhEBAxEB/8QAGwAAAQUBAQAAAAAAAAAAAAAABAABAgMFBgf/xAA3EAACAQMDAgMGAwcFAQAAAAABAgMABBEFEiETMSJBURQyYXGBkQZSsSNCU5Kh0fAVJHOCouH/xAAZAQADAQEBAAAAAAAAAAAAAAAAAgMEAQX/xAAlEQACAgICAgEEAwAAAAAAAAAAAQIRAyESMRNRBCNBgZFhsfD/2gAMAwEAAhEDEQA/APOaWKfFPtpwI4pVLFLbQBGlUttLFAEaVSxSoAcDmvR9N0nTZRpF3JDF+whjWWMgftWk9wkefJP2rzmpiaQYw7cYxyfLtTIScW+jtNL0mzfTbqGYW63F9JIlvvPjAXO3Z824Pypo7S0b8LLF0oWujaPMI+kBIWEhBcP34A930ri+q+Qd7ZXtz2pdWTg7244HPau2L437PQrnTrL2PTybaNQs1pgtCEDBgNwDfv57nPas7R9Ma31fVRcWTqyxs8KtbdQ46gGVQ9+K49p5WChpHIXsCx4qXtU+8P1pNwGAd5zRZzxuuyeogjULjcpU9Rsgx7COfy+XyobFSYlmLMSSe5PnTVwslSHxSp6KSxdgGZlC4znNdGSb6Bo43lcJGpdj2AHNEewSDhpbdX/KZRmrZybW2SGM4eVd0jDuR5D5edTt7N3gQiNCrAE5Ayc/HypqXRFuctx6AJoJIH2SoVbvz5/KoUbbEzBrN8kHJjz3Rh/ftVaWjPCJFZcHy86OPoaMn1LsGxT4oyTT5kYhipI470O0TqxUqxx6A0i2VcWjYlls+ifEjSH8vYUDc3cjKqBhsxxhaq4O7qtJjHBcbRn41W+XI8YfHHBJwPr2qs8lqiMHWg5rZ7uOO6RQYY4wJfEAV2//ADFVGQvHK4HhLLkgY298AD/O1PE8lvkG3k2yDlWJZXH+edXoIPYZm9mmC9RAV3H0Pnip8W32Nj5JVX9DQwsZBqOAIEyWORy4HbHxOKzozIzKiE5JwBnzomeV5oxFFC8cS+LYqnn4n1oeKORpF6XvjkHOMfejaVHYpuXKX3C52uY5HjmkVZQu7GRgijLWTNshZ1yRzzWfcQXDAyyiVj28QGP1ofDflb+bFNin49stHK4u10WsCpBcsnoXPU+woixtP9QvI4FlBU8u/T2hEGSzH5DNU+63C7MkDMXvMfr510dhC1no++R4kuLzgdZ/GsIPp6sw+y/GuLbpGSMHyVhEt1b7h09kcSgLHGpLbVHAHFTFxELB3JIXqAZKt6GgpupGgYXNnGc94gQf6irurK2knfeh8zefb3T8K2LI1pHt4vlZFFRSVIsF0kBEishKngd8/DvWFrGmRWNwrW8jPHJiSIBCSEPI8/Lt9K1Y0uZEOyVTjjgqB9sVLUrCW60Uuy75rI7htkC5iY85+TYP/Y1HMnKmY/k53kVyq1/vZzEu5l3FZiuf3zxn5VUFGOz/AEqzESsRKvSwffyX+nHFL/bDgXQx/wAdZ5JmKE4xVMI0SzGq6sIciODJeV8cpGBljn5frXQ3t7DdXDOkRjXASMdMeBAMKPoKs0jS3svw3tUql1qIDMWIG2IHgfU8/IVj6nB7NbyLDuZy4izkN5ZOMU0W4Ll7NWKCktoour6JHKxr1IwRl/dyPgCeapfWHEZjhCrDuz03GSTjk5AFVtAssFsZn6CHIMr8luOMAc4GAM/Gs3GDRbE8jb0zptOeyvQ5uDcxSKN21AGyPUZ5NaFjPpFpdJIJrp0OUkSSMbWRuGB59DXL2V0YkZOgkpXxoxOGjPqCP0rpgk9xHm1tIgu1HL4AZCfifiDTRnviykU5R5Adxoy6c13ElyrTxuTEhC7XQjKtz6g96z9uo/wbb7JW9+IbF738PQXtwM3Fg3RmbcCWjJ8JOPQ8VynsqfH+apyyKLpmR/Ek5N6/KCW167dg7kySbQpkdiTgdh8q0tMnt7jTXjuG6cksrbSOw8PP61mbdG/iXf8AKv8Aenmmg9lWCzLvCr9RhIMMDjHl5UOPJcWzZCTxvlaYbPps8DRSMDcKUIOwDIGcAZ5zxQlppze1KlzA/ScY3AnwA/vcdyPSr4dS3rw7wbNx3KR2wAgI8+RycedVRaxfFxiTfjkqe31qaWXptP8AZX6DVpNfoPsfw+pvl6pPQ3Erv8JcAelDatfzW95jpjptGoCMThlHbODVAvZrmHZsd5QxcurYOCNoHyyfrmobtMZVW4M+5BtymMH48/5jFNGMr5SexJTVeOHX8iTWpRHLCEWKKYbXEbEZHofUVVHFKUGL2JR5Bm5FWY0b1u/stMbfTHO4XbgHyZOf6VycHLdnIp/dp/ky6kjtGwZCVYeYqNKgylm7qMSAAT5DtV0lpdRQpLJE6RyZ2sRw2O+KpgGZBXT6yMaBpQ9Y5D/7NVirRox41ONs5jrMgKo7AHvjiqqc96VSezOxUqVKgD//2Q==');
+  --lq-desktop: url('data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA4KCw0LCQ4NDA0QDw4RFiQXFhQUFiwgIRokNC43NjMuMjI6QVNGOj1OPjIySGJJTlZYXV5dOEVmbWVabFNbXVn/2wBDAQ8QEBYTFioXFypZOzI7WVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVlZWVn/wAARCAA8AEwDASIAAhEBAxEB/8QAGwAAAgMBAQEAAAAAAAAAAAAAAgMABAUBBgf/xAA0EAACAgECBAMFBgcBAAAAAAABAgMRAAQSBSExQRMiUTJhcYGRBkKhscHhFBUjM3JzktH/xAAYAQADAQEAAAAAAAAAAAAAAAAAAgMBBP/EACIRAAICAgEEAwEAAAAAAAAAAAABAhEDIRIEEyIxQVFx0f/aAAwDAQACEQMRAD8A+dVkrCrJWUoDgUntk2H0z0P2X1GhhGui4g6pFqYlisiyLbmR8OvyzZ/m/CIuLDXhxsh0qQRRogY3uIPI0PZHP/LN4k3Np1R4XYausmw+mezh13DNNw3V8Pj1ClZXn8Nj7FFV2FhV+oB7HLcnFOGPHw1TqYQUoXZOwGEqb5eXzVyF31w4mdx/R4EISLo5ys9XBNp9J9m9Zol1kDT+IxPhzFRIpUVXl83fkazy9c8yh4uwKyVh1nKwoYbsG29vz3j8sGsba7aHh3/rN/XAIK0DyOZFlJJA1konLCaWZwrbaRvvXyGPMa6eNjG+6XcEtR0u+mUr7Efq0UnhkQAujqD3IIwaOaIj8NQQ24kgOvPmLo3688QkMTOyGYIQxUWO3rhSMV3TKuSsuDQvISIXWQjmQDgDSyB0VxtDsFB+JrCnV/BRwaEIQjgsgceh6Y2DSPMm5XjUXXmajmrF9n3ZyonU1fVR+pyrPwnw5WQ6iMFeXMf+ZDvRa0x1ilypo1OC8PQxzHUbmRUsFiCvyGFqI9ApT2AD1pF5flzxcwRotUYVTwHHkBG07q9oWbAHP6gfDErzLyIPcm/3P4YQbT2J1OFPzi9D553DNGHAiDeVegI/DG8N0WqkRp4lTYxKU5rcO9fD1wdDpDqtUIw4RAN0klmkUdSa/XvWN4lrZkaSPTH+HiiOxVqzQ99X3+vPvnRab8ieFKrmtFwcM1MTRGJIg+z2newLJ7Vz65iRRPDqykkaM6EqUkPInpmhwrXTzStDqJHY7aAYdABfXHcaiTw4NUqLchKyOD99RXu6ij9cJqLXiXy9tLljTX7syllm0sjAOoNbSR6Y5OITyGISuXiiNgEWMLQaSHUapV1TGOAqTvWqv0vpiJNKwZzECypZu/KQO9g8vniSbS36OeOS6gns2k4zFRUJJtN81KX9cMccbn4Ybb28kbdvXMMnUILaNUXubU/hhCIEm1N330u4/UcshDFCS16KZM+TE037/DsM8cl+NqV22bNUzftjL4eBykUfAkZnJGswMjCixJIXkMkkCLGzC7A9ctGkvRzzblKnJmlp+JSaeOWOFNN4UjA/1HG6gOQ93rnJ+JWh8aKKU0KYgEHkBVjMTL/BI0l4vpkkUMhcWCLBw1LTOrHNqoxLq8UdoGVPAiJAF9CaqhfWskvE9XqNO2nk1EBR2DUh5hhdV9SMx5+cz/HF9ML46Rk5N3GRq6kaUOoheM+Vd3iqd99/dgtapKI0idSp3mIkNV9xnIfMzqeirYwtMPEiWRub0Ru75KeS70GPp+LW/srEaYf245w/YtVfllwCFSQzadTfRmkjP/I5DA100ywhRK5RjzUmwcdow0mmVjJIt9lc0MfDtbIdWknr+H//2Q==');
   background-image: var(--dusk);
 }
-body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=1'), var(--dusk); }
-body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=1'),  var(--dusk); }
+body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=2'), var(--lq-desktop), var(--dusk); }
+body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=2'),  var(--lq-mobile), var(--dusk); }
 @media (orientation: landscape) {
-  body.mode-mobile .splash { background-image: url('./splash-desktop.jpg?v=1'), var(--dusk); }
+  body.mode-mobile .splash { background-image: url('./splash-desktop.jpg?v=2'), var(--lq-desktop), var(--dusk); }
+}
+/* The loading bar, low on the cover: it always moves, a step at a time as each
+   part of the game arrives and slowly in between, so a slow phone never looks
+   stuck. The fill is a transform, which the browser animates even while the
+   game is busy building the city. */
+.splash-load {
+  position: absolute; left: 50%; bottom: calc(3% + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  padding: 12px 22px 15px; border-radius: 16px;
+  background: rgba(10, 16, 28, 0.66);
+}
+/* The wide picture has the marble low in the middle, so there the bar sits in the bottom right corner. */
+body.mode-desktop .splash-load { left: auto; right: 18px; bottom: 16px; transform: none; }
+@media (orientation: landscape) {
+  body.mode-mobile .splash-load { left: auto; right: calc(14px + env(safe-area-inset-right, 0px)); bottom: 12px; transform: none; }
+}
+.splash-load-label { font: 600 16px/1.2 Inter, system-ui, -apple-system, sans-serif; color: rgba(255, 255, 255, 0.92); white-space: nowrap; }
+.splash-load-track { display: block; width: 184px; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.2); overflow: hidden; }
+.splash-load-fill {
+  display: block; width: 100%; height: 100%; border-radius: 3px; background: #FFFFFF;
+  box-shadow: 0 0 10px rgba(110, 200, 255, 0.9);
+  transform-origin: left center; transform: scaleX(var(--load, 0.06));
+  transition: transform var(--load-t, 6s) cubic-bezier(0.2, 0.7, 0.3, 1);
 }

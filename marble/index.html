@@ -29,7 +29,11 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../shared/tokens.css?v=1" />
   <link rel="stylesheet" href="../shared/chrome.css?v=20" />
-  <link rel="stylesheet" href="./play.css?v=2" />
+  <link rel="stylesheet" href="./play.css?v=3" />
+  <!-- The game and its 3D library, fetched side by side from the start: left to
+       the import, the library would not be asked for until the game had arrived. -->
+  <link rel="modulepreload" href="./play.js?v=12" />
+  <link rel="modulepreload" href="./assets/three-r186.min.js" />
   <!-- Google AdSense. The site earns from these pages; keep both lines. -->
   <meta name="google-adsense-account" content="ca-pub-9207689324865969">
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9207689324865969" crossorigin="anonymous"></script>
@@ -71,6 +75,19 @@
   </style>
 </head>
 <body class="game-content-page">
+  <!-- Phone or computer, decided before anything is drawn (play.js makes the same
+       test and sets the same sizes, exactly, once it has arrived), so the cover is
+       full size from the start, either way up, and asks for the right picture. -->
+  <script>
+    (() => {
+      const mobile = matchMedia('(pointer: coarse)').matches || (innerWidth > 0 && innerWidth < 768);
+      document.body.classList.add('mode-' + (mobile ? 'mobile' : 'desktop'));
+      if (mobile && innerWidth > 0 && innerHeight > 0) {
+        document.body.style.setProperty('--canvas-w', innerWidth + 'px');
+        document.body.style.setProperty('--canvas-h', innerHeight + 'px');
+      }
+    })();
+  </script>
   <header class="site-header">
     <a class="brand" href="/" aria-label="Zamborin Games home">
       <img class="brand-logo" src="../images/zamborin-logo.svg?v=2" alt="Zamborin" />
@@ -107,7 +124,9 @@
              two seconds while the city builds underneath. -->
         <canvas id="world" aria-hidden="true"></canvas>
         <canvas id="game" aria-label="Marble"></canvas>
-        <div id="splash" class="splash" aria-hidden="true"></div>
+        <div id="splash" class="splash" aria-hidden="true">
+          <div class="splash-load"><span class="splash-load-label" id="splash-label">Loading the city</span><span class="splash-load-track"><span class="splash-load-fill" id="splash-fill"></span></span></div>
+        </div>
       </div>
       <aside class="sidebar">
         <div class="ad-slot ad-medrec" aria-label="Advertisement">
@@ -218,7 +237,7 @@
   <script src="../shared/analytics.js?v=3"></script>
   <script src="../shared/embed.js?v=1"></script>
   <script defer src="../shared/ads.js?v=2"></script>
-  <script type="module" src="./play.js?v=11"></script>
+  <script type="module" src="./play.js?v=12"></script>
   <script>
     (() => {
       const btn = document.getElementById('focus-toggle');
@@ -230,15 +249,56 @@
       });
     })();
 
-    // Splash: 2 s reveal, 0.6 s fade, remove from DOM at 2.7 s, then tell play.js.
+    /* Splash. The house timing is a 2 s reveal and a 0.6 s fade, but a 3D game
+       takes longer than that to arrive and build its world, and a cover that
+       fades on a timer leaves an empty frame that looks broken (owner,
+       2026-09-27: "taking a long time to load and makes it seem like the game
+       is not working"). So the cover stays until the game says it has drawn
+       itself ('game-ready'), and never less than 2 s. The bar steps forward as
+       each file arrives and creeps in between. */
     (() => {
       const splash = document.getElementById('splash');
       if (!splash) return;
-      setTimeout(() => splash.classList.add('fading'), 2000);
-      setTimeout(() => {
-        splash.remove();
-        window.dispatchEvent(new CustomEvent('splash-done'));
-      }, 2700);
+      const fill = document.getElementById('splash-fill'), label = document.getElementById('splash-label');
+      const t0 = performance.now();
+      let at = 0, ready = false, gone = false;
+      const to = (k, secs) => {                          // move the bar to k, over secs
+        if (k <= at) return;
+        at = k;
+        fill.style.setProperty('--load-t', secs + 's');
+        fill.style.setProperty('--load', k);
+      };
+      requestAnimationFrame(() => to(0.3, 6));           // the first creep, while the files come in
+      const seen = new Set();
+      const onFile = (name) => {
+        if (/play\.js/.test(name)) seen.add('game');
+        if (/three-r186/.test(name)) seen.add('3d');
+        if (seen.size === 1) to(0.55, 2.5);
+        if (seen.size === 2) to(0.82, 4);                // both here: now the city is being built
+      };
+      try {
+        new PerformanceObserver((list) => { for (const e of list.getEntries()) onFile(e.name); }).observe({ type: 'resource', buffered: true });
+      } catch (_) {}
+      const finish = () => {
+        if (gone) return;
+        gone = true;
+        to(1, 0.25);
+        setTimeout(() => splash.classList.add('fading'), 250);
+        setTimeout(() => {
+          splash.remove();
+          window.dispatchEvent(new CustomEvent('splash-done'));
+        }, 850);
+      };
+      window.addEventListener('game-ready', () => {
+        ready = true;
+        setTimeout(finish, Math.max(0, 2000 - (performance.now() - t0)));
+      }, { once: true });
+      // Taking very long: say so, rather than leave a bar that has stopped.
+      setTimeout(() => { if (!ready) label.textContent = 'Still loading. A slow connection can take a while'; }, 20000);
+      // The game failed to start: say so, and how to try again.
+      window.addEventListener('error', (e) => {
+        if (!ready && /marble|three/.test(String(e.filename || ''))) label.textContent = 'Something went wrong. Reload the page to try again';
+      });
     })();
   </script>
   <script defer src="/_vercel/insights/script.js"></script>

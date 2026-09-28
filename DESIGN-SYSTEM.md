@@ -259,6 +259,12 @@ example. Measured across all 15 games: nothing clips in full screen.
   supplies only the two `background-image` rules, per mode.
 - Timing is fixed: reveal **2000ms**, fade **600ms**, removed from the DOM at
   **2700ms**, then `splash-done` fires.
+- **Exception, a game that takes seconds to arrive (Marble, 3D, 2026-09-27):** a
+  cover on a timer faded into an empty frame on a slow phone and the owner read it
+  as broken. There the cover stays until the game fires `game-ready` (never less
+  than 2000ms), carries a loading bar that steps forward as each file arrives, sits
+  over a tiny inline copy of the art so it is never blank, and the page knows its
+  mode (and the phone's frame size) before the game script arrives.
 - **Wordmark safe zone.** `cover` crops the sides. Maximum wordmark width as a
   share of image width is **0.38 / image aspect** — 60.8% on a 1200 x 1920.
   Check before shipping, and **fix the art, never the CSS.**

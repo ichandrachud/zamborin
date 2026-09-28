@@ -9030,6 +9030,7 @@ function frame(now) {
     renderer.render(scene, camera);
   }
   drawHUD(now);
+  if (frames === 2) window.dispatchEvent(new Event('game-ready'));   // drawn, shaders built: the page may take the cover away
 }
 
 // ---------- BOOT ----------
