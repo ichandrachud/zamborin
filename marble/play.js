@@ -4864,7 +4864,7 @@ function loadLevel(n) {
       if (o.material && !Array.isArray(o.material) && !o.material.userData.keep) o.material.dispose();
     });
   }
-  tkUndo.length = 0;                                    // the course it dressed is gone
+  tkUndo.length = 0; tkTicks.length = 0;               // the course it dressed is gone, and what moved it each frame goes too
   levelGroup = new Group();
   scene.add(levelGroup);
   colliders = []; ferries = []; holos = []; pads = []; crossings = []; riders = []; curtains = []; locks = []; wormholes = []; loopsIn = []; mags = []; winds = []; rounds = []; tubes = []; switches = []; scans = []; posts = []; blinkers = []; flames = []; cracks = []; plazas = []; gates = [];
