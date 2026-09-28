@@ -820,6 +820,7 @@ const CROSSINGS = {
   X3: { lanes: [{ v: 3.0, len: 2.8, n: 2 }, { v: 2.4, len: 2.6, n: 2 }, { v: 3.4, len: 2.6, n: 2 }, { v: 2.8, len: 2.4, n: 2 }] },
 };
 const WATER_GAP = 8, WATER_UNIT = 0.42;                 // the boat's channel: how long, and how far a band of water raises it
+const RIDDLE = { a: { choice: 0 }, b: { choice: 1 }, c: { choice: 2 }, d: { choice: 3 }, e: { choice: 4 } };   // the riddle's tiles
 const WATER = { 1: { tank: 1 }, 2: { tank: 2 }, 3: { tank: 3 }, 4: { tank: 4 }, 5: { tank: 5 }, 6: { tank: 6 } };   // the boat: tanks, by what they hold
 const TWIN = { t: { twin: 1 }, p: { twinPad: 1 } };      // the twin: where it starts, its pad
 const TUNE = { a: { tone: 0 }, b: { tone: 1 }, c: { tone: 2 }, d: { tone: 3 }, e: { tone: 4 }, f: { tone: 5 } };   // the drums of a tune
@@ -2306,19 +2307,58 @@ const PLAZAS = {
     '+ + + + + +',
     '|. . . . .|',
     '+-+-+ +-+-+'] },
+  // THE RIDDLE (owner, 2026-09-28, the eighth new puzzle: "solve a visual riddle"). A picture on the floor, one piece of
+  // it missing; a fence of tiles, each with a piece on it; roll onto the one that belongs and it holds, a wrong one falls
+  // away (back to the ring before, the tiles whole again). seq: a row that runs on; grid: rows and columns alike.
+  R1: { entry: 2, exit: 2, legend: RIDDLE, riddle: { seq: [['circle'], ['square'], ['circle'], ['square'], ['circle'], null],
+        choices: [['triangle'], ['circle'], ['square']], answer: 2 }, map: [   // two shapes by turns
+    '+-+-+ +-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|# a b c #|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+'] },
+  R2: { entry: 2, exit: 2, legend: RIDDLE, riddle: { seq: [['circle', 'red'], ['square', 'blue'], ['triangle', 'red'], ['circle', 'blue'], ['square', 'red'], null],
+        choices: [['triangle', 'red'], ['triangle', 'blue'], ['circle', 'red'], ['square', 'blue']], answer: 1 }, map: [   // shape and colour, each its own rhythm
+    '+-+-+ +-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|a b # c d|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+'] },
+  R3: { entry: 2, exit: 2, legend: RIDDLE, riddle: { grid: [[['circle', 'red'], ['square', 'blue'], ['triangle', 'yellow']],
+                                                           [['square', 'yellow'], ['triangle', 'red'], ['circle', 'blue']],
+                                                           [['triangle', 'blue'], ['circle', 'yellow'], null]],
+        choices: [['square', 'blue'], ['circle', 'red'], ['triangle', 'red'], ['square', 'yellow'], ['square', 'red']], answer: 4 }, map: [   // every row and column: each shape once, each colour once
+    '+-+-+ +-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|a b c d e|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+'] },
 };
 // PLAZAS END
 // Which square each level ends with; '~' mirrors it left to right.
 // The new puzzles, each tried first on a course of its own (#try-<kind>, #try-<kind>-tokyo), easy to hard.
-const TRY_COURSES = { ice: ['I1', 'I2', 'I3', 'I4'], road: ['P1', 'P2', 'P3'], tiles: ['T1', 'T2', 'T3'], tune: ['M1', 'M2', 'M3'], twin: ['D1', 'D2', 'D3'], boat: ['H1', 'H2', 'H3'], planks: ['X1', 'X2', 'X3'] },
-      TRY_TITLES = { ice: 'ICE MAZES', road: 'BUILD A ROAD', tiles: 'EVERY TILE', tune: 'THE TUNE', twin: 'THE TWIN', boat: 'THE BOAT', planks: 'THE PLANKS' };
+const TRY_COURSES = { ice: ['I1', 'I2', 'I3', 'I4'], road: ['P1', 'P2', 'P3'], tiles: ['T1', 'T2', 'T3'], tune: ['M1', 'M2', 'M3'], twin: ['D1', 'D2', 'D3'], boat: ['H1', 'H2', 'H3'], planks: ['X1', 'X2', 'X3'], riddle: ['R1', 'R2', 'R3'] },
+      TRY_TITLES = { ice: 'ICE MAZES', road: 'BUILD A ROAD', tiles: 'EVERY TILE', tune: 'THE TUNE', twin: 'THE TWIN', boat: 'THE BOAT', planks: 'THE PLANKS', riddle: 'THE RIDDLE' };
 const TRY_NEWS = { ice: 'Four ice mazes, easy to hard. On ice the marble slides until something stops it',
                    road: 'Three chasms. Push crates into the gaps to make a road across',
                    tiles: 'Light every tile. Each one crumbles behind you',
                    tune: 'Listen, then play it back. The way on opens when you do',
                    twin: 'Your twin moves as your mirror. Stand at the way out while it stands on its pad',
                    boat: 'Fill the channel exactly to the line, and the boat takes you over',
-                   planks: 'Tap to hop onto the next lane of planks. Four lanes, then the far side' };
+                   planks: 'Tap to hop onto the next lane of planks. Four lanes, then the far side',
+                   riddle: 'What is missing from the picture? Roll onto the tile that belongs' };
 const PLAZA_AT = { 2: 'K1', 3: 'K2', 4: 'K2~', 5: 'K3', 6: 'K3~', 7: 'K4', 8: 'K4~', 9: 'S1', 10: 'S2', 11: 'S2~', 12: 'S3', 13: 'S4~',
                    14: 'W1', 15: 'W2', 16: 'W3', 17: 'W3~', 18: 'B1', 19: 'B2', 20: 'B3', 21: 'B3~', 22: 'B4', 23: 'B2~',
                    24: 'C1', 25: 'C2', 26: 'C2~', 27: 'C3', 28: 'C3~', 29: 'C4',
@@ -2329,7 +2369,7 @@ Object.assign(PLAZA_AT, { 41: 'G41', 42: 'G42', 43: 'G43', 44: 'G44', 45: 'G45',
 function plazaLayout(id) {
   const flipped = id.endsWith('~'), T = PLAZAS[flipped ? id.slice(0, -1) : id];
   const cols = (T.map[0].length - 1) / 2, rows = (T.map.length - 1) / 2;
-  if (!flipped) return { id, cols, rows, map: T.map, legend: T.legend, entry: T.entry, exit: T.exit, ice: T.ice, cover: T.cover, tune: T.tune, twin: T.twin, water: T.water };
+  if (!flipped) return { id, cols, rows, map: T.map, legend: T.legend, entry: T.entry, exit: T.exit, ice: T.ice, cover: T.cover, tune: T.tune, twin: T.twin, water: T.water, riddle: T.riddle };
   const legend = {};
   for (const [ch, v] of Object.entries(T.legend)) {                 // and anything that points turns with it
     const u = legend[ch] = { ...v };
@@ -2337,7 +2377,7 @@ function plazaLayout(id) {
     if (u.source === 'e' || u.source === 'w') u.source = u.source === 'e' ? 'w' : 'e';
     if ('tile' in u) u.tile = (u.tile & 5) | (u.tile & 2 ? 8 : 0) | (u.tile & 8 ? 2 : 0);
   }
-  return { id, cols, rows, map: T.map.map((l) => [...l].reverse().join('')), legend, entry: cols - 1 - T.entry, exit: cols - 1 - T.exit, ice: T.ice, cover: T.cover, tune: T.tune, twin: T.twin, water: T.water };
+  return { id, cols, rows, map: T.map.map((l) => [...l].reverse().join('')), legend, entry: cols - 1 - T.entry, exit: cols - 1 - T.exit, ice: T.ice, cover: T.cover, tune: T.tune, twin: T.twin, water: T.water, riddle: T.riddle };
 }
 // A square's map read into cells[r][c], edges h[k][c] (the south edge of row k) and v[r][c] (the west edge of column c).
 function plazaGrid(pc) {
@@ -2692,7 +2732,7 @@ function makeLevel(n, variant = LEVEL_VARIANT[n] || 0, test = null) {
     const T = plazaLayout(id), W = T.cols * CELL, D = T.rows * CELL, rw = 2.4, iw = r2(Math.max(rw, Math.min(wide, 3)));
     straight(5, iw, true);                              // the road in, with a ring on it
     const bs = x > 3 ? -1 : 1, bx = r2(x + bs * (iw / 2 + 1.1)), bz = r2(z + 2.5);
-    if (!T.ice && !T.cover && !T.twin) pieces.push({ ...F(bx, bz, 2.2, 2.2, y), bay: true }, { t: 'reset', x: bx, z: bz, y, w: 1.5, d: 1.5 });   // (ice, tiles, twins reset themselves)
+    if (!T.ice && !T.cover && !T.twin && !T.riddle) pieces.push({ ...F(bx, bz, 2.2, 2.2, y), bay: true }, { t: 'reset', x: bx, z: bz, y, w: 1.5, d: 1.5 });   // (ice, tiles, twins reset themselves)
     const x0 = r2(Math.min(14.5 - W, Math.max(-8.5, x - (T.entry + 0.5) * CELL))), ex = r2(x0 + (T.entry + 0.5) * CELL);
     if (Math.abs(ex - x) > 0.05) { pieces.push(F(r2((x + ex) / 2), r2(z - rw / 2), r2(Math.abs(ex - x) + rw), rw, y)); x = ex; on(rw); }
     straight(1.5, rw);
@@ -4386,6 +4426,7 @@ function buildPlaza(pc) {
   if (pc.tune) buildTune(P);
   if (pc.twin) buildTwin(P);
   if (pc.water) buildWater(P);
+  if (pc.riddle) buildRiddle(P);
   // The gates.
   // (Each is named by its edge as the search names it: H c,k is the south edge of row k in column c; V c,r the west edge of column c in row r.)
   for (let k = 0; k <= P.rows; k++) for (let c = 0; c < P.cols; c++) if (G.h[k][c] && !plazaWall(G.h[k][c])) buildGate(P, G.h[k][c], X(c), P.z0 - k * CELL, true, 'H' + c + ',' + k);
@@ -4982,6 +5023,7 @@ function resetPlaza(P, quiet) {
   if (quiet) { for (const K of P.keys) K.t = 1; for (const g of P.gates) g.open = g.init === 'open' ? 1 : 0; }
   if (P.reset) P.reset.flash = 1;
   if (P.water) { waterReset(P, quiet); if (!quiet) { sound('reset'); return; } }   // the tanks full, the channel empty
+  if (P.riddle && quiet) { riddleRestore(P, true); for (const T of P.riddle.tiles) T.glyphMat.color.setHex(0xFFFFFF); }
   if (quiet && (P.cov || P.twin)) {                    // a restart: unsolved again, the bridge gone
     if (P.cov) { P.covDone = false; resetCover(P); }
     if (P.twin) { P.twin.done = false; resetTwin(P); }
@@ -5141,6 +5183,73 @@ function tryHop() {
     sound('jump');
     return;
   }
+}
+/* THE RIDDLE (owner, 2026-09-28, the eighth new puzzle: "solve a visual
+   riddle"). A picture laid on the floor of the square's first two rows, one
+   piece of it missing; beyond it a fence of tiles over the drop, each with a
+   piece on it. The one that belongs holds (it glows); a wrong one falls away
+   the moment the marble is on it, back to the ring before the square, and the
+   tiles are whole again. Nothing to count or push: only to see the rule. */
+const RIDDLE_COLS = { red: '#FF5A5A', blue: '#4F8BFF', yellow: '#FFD23F' };
+function drawShape(g, [shape, colour], cx, cy, r) {
+  g.fillStyle = colour ? RIDDLE_COLS[colour] : '#FFFFFF';
+  g.beginPath();
+  if (shape === 'circle') g.arc(cx, cy, r, 0, 6.28);
+  else if (shape === 'square') g.roundRect(cx - r * 0.88, cy - r * 0.88, r * 1.76, r * 1.76, r * 0.18);
+  else { g.moveTo(cx, cy - r); g.lineTo(cx + r * 0.95, cy + r * 0.75); g.lineTo(cx - r * 0.95, cy + r * 0.75); g.closePath(); }
+  g.fill();
+}
+function drawMissing(g, cx, cy, r) {                    // the missing piece: a dashed box with a question mark
+  g.setLineDash([14, 10]); g.strokeStyle = 'rgba(255,255,255,0.85)'; g.lineWidth = 6;
+  g.beginPath(); g.roundRect(cx - r, cy - r, 2 * r, 2 * r, r * 0.2); g.stroke(); g.setLineDash([]);
+  g.fillStyle = '#FFFFFF'; g.font = `800 ${Math.round(r * 1.3)}px Inter, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('?', cx, cy + r * 0.06);
+}
+function buildRiddle(P) {
+  const Q = P.pc.riddle, W = P.cols * CELL, H = 2 * CELL;
+  const mural = canvasTex(1024, Math.round(1024 * H / W), (g) => {
+    const w = 1024, h = Math.round(1024 * H / W);
+    g.fillStyle = 'rgba(10,14,28,0.86)'; g.beginPath(); g.roundRect(6, 6, w - 12, h - 12, 30); g.fill();
+    g.strokeStyle = 'rgba(255,255,255,0.35)'; g.lineWidth = 4; g.stroke();
+    if (Q.seq) {
+      const n = Q.seq.length, step = (w - 80) / n, r = Math.min(step * 0.36, h * 0.3);
+      Q.seq.forEach((it, i) => { const cx = 40 + step * (i + 0.5), cy = h / 2; if (it) drawShape(g, it, cx, cy, r); else drawMissing(g, cx, cy, r); });
+    } else {
+      const n = 3, cell = Math.min((h - 60) / n, 150), x0 = w * 0.23 - cell * 1.5, y0 = h / 2 - cell * 1.5, r = cell * 0.36;   // (to the left: the way in, up the middle, stays clear of it)
+      Q.grid.forEach((row, rr) => row.forEach((it, cc) => { const cx = x0 + cell * (cc + 0.5), cy = y0 + cell * (rr + 0.5); if (it) drawShape(g, it, cx, cy, r); else drawMissing(g, cx, cy, r); }));
+    }
+  });
+  const m = new Mesh(new PlaneGeometry(W - 0.3, H - 0.3), new MeshBasicMaterial({ map: mural, transparent: true, depthWrite: false, toneMapped: false }));
+  m.rotation.x = -Math.PI / 2; m.position.set(P.x0 + W / 2, P.y + 0.014, P.z0 - H / 2); levelGroup.add(m);
+  P.riddle = { tiles: [], solved: false };
+  for (let r = 0; r < P.rows; r++) for (let c = 0; c < P.cols; c++) {
+    const cell = P.grid.cells[r][c];
+    if (!('choice' in cell)) continue;
+    const it = Q.choices[cell.choice];
+    const tex = canvasTex(256, 256, (g) => {
+      g.fillStyle = 'rgba(10,14,28,0.9)'; g.beginPath(); g.roundRect(8, 8, 240, 240, 36); g.fill();
+      g.strokeStyle = 'rgba(255,255,255,0.4)'; g.lineWidth = 5; g.stroke();
+      drawShape(g, it, 128, 132, 78);
+    });
+    const glyphMat = new MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, toneMapped: false });
+    const glyph = new Mesh(new PlaneGeometry(1.9, 1.9), glyphMat); glyph.rotation.x = -Math.PI / 2; glyph.position.set(P.X(c), P.y + 0.016, P.Z(r)); levelGroup.add(glyph);
+    const slab = colliders.find((q) => q.cell && Math.abs(q.pos.x - P.X(c)) < 0.01 && Math.abs(q.pos.z - P.Z(r)) < 0.01);
+    P.riddle.tiles.push({ c, r, right: cell.choice === Q.answer, glyph, glyphMat, slab, gone: false, glow: 0 });
+  }
+}
+// Every physics step: onto a tile of the fence, it holds (the right one) or it goes.
+function riddleStep() {
+  for (const P of plazas) {
+    const Rd = P.riddle; if (!Rd || !ball.grounded || Math.abs(ball.p.y - R - P.y) > 0.3) continue;
+    const c = Math.floor((ball.p.x - P.x0) / CELL), r = Math.floor((P.z0 - ball.p.z) / CELL);
+    const T = Rd.tiles.find((q) => q.c === c && q.r === r);
+    if (!T || T.gone) continue;
+    if (T.right) { if (!Rd.solved) { Rd.solved = true; T.glow = 1; sound('unlock'); burst(P.X(c), P.y + 0.3, P.Z(r), 0xFFD23F, 22, 3); } }
+    else { T.gone = true; if (T.slab) { T.slab.gone = true; T.slab.mesh.visible = false; } T.glyph.visible = false; sound('crack'); burst(P.X(c), P.y + 0.05, P.Z(r), 0xFF5A5A, 16, 2.6); }
+  }
+}
+function riddleRestore(P, all) {                        // the fence whole again (a restart: unsolved too)
+  for (const T of P.riddle.tiles) { T.gone = false; if (T.slab) { T.slab.gone = false; T.slab.mesh.visible = true; } T.glyph.visible = true; }
+  if (all) P.riddle.solved = false;
 }
 /* THE BOAT (owner, 2026-09-28, the sixth new puzzle: "add water to a channel
    that lets you take a boat"). Past the way out the road is missing: a deep
@@ -5678,6 +5787,7 @@ function animatePlazas(dt) {
     if (P.tune) animateTune(P, dt);
     if (P.twin) animateTwin(P, dt);
     if (P.water) animateWater(P, dt);
+    if (P.riddle) for (const T of P.riddle.tiles) if (T.right && P.riddle.solved) T.glyphMat.color.setHex(0xFFE9A0);   // the right one, glowing
   }
   for (const Z of crossZones) {
     if (plazaAt === Z && plazaView > 0.6) Z.noteT += dt;   // how long its note has been up
@@ -5998,7 +6108,7 @@ function step(dt, ix, iz) {
   if (scans.length && state === 'play') scanStep();
   if (flames.length && state === 'play') flameStep();
   if (cracks.length) crackStep();
-  if (plazas.length) { plazaMove(); waterStep(); if (state === 'play') { plazaStep(); iceCatch(); portalStep(); } }
+  if (plazas.length) { plazaMove(); waterStep(); if (state === 'play') { plazaStep(); iceCatch(); portalStep(); riddleStep(); } }
   ball.onLoop = null;
   for (const L of loopsIn) loopContact(L);
   tintStep();
@@ -6063,6 +6173,7 @@ function arrive() {
   for (const P of plazas) if (P.cov && flight.to.z > P.z0 - 0.1) resetCover(P);   // and the tiles of a square ahead
   for (const P of plazas) if (P.tune && !P.tune.done && flight.to.z > P.z0 - 0.1) Object.assign(P.tune, { at: 0, heard: false, play: null });   // a tune ahead, to hear again
   for (const P of plazas) if (P.twin && !P.twin.done && flight.to.z > P.z0 - 0.1) resetTwin(P);   // a twin ahead, home again
+  for (const P of plazas) if (P.riddle && flight.to.z > P.z0 - 0.1) riddleRestore(P, false);   // a riddle ahead: its fence whole
   for (const P of plazas) if (P.water && P.water.state !== 'down' && flight.to.z > P.z0 - 0.1) { P.water.state = 'docked'; P.water.boat.z = P.water.boat.zNear; waterPlace(P, true); }   // the boat back to meet you
   ball.p.copy(flight.to); ball.v.set(0, 0, 0);
   setTint(spawnTint);
@@ -6731,6 +6842,9 @@ const PLAZA_NEWS = {
   X1: 'Tap to hop a lane. Ride a plank, and hop before it sinks at the end',
   X2: 'Quicker lanes, fewer planks. Wait for your moment',
   X3: 'Short planks, fast water. Look two lanes ahead',
+  R1: 'What comes next? Roll onto the tile that belongs. A wrong one falls away',
+  R2: 'Shape and colour each keep their own beat',
+  R3: 'Each row and each column has every shape and every colour once',
 };
 const PLAZA_NOTE_T = 7;
 function drawNews() {
