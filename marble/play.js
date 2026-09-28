@@ -177,6 +177,7 @@ function voice(type, f0, f1, dur, gain, delay = 0) { // one note, gliding from f
   g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
   o.connect(g); g.connect(out); o.start(t0); o.stop(t0 + dur + 0.05);
 }
+const NOTE_STEPS = [0, 2, 4, 7, 9]; let noteK = 0;      // the tiles' notes climb a pentatonic scale
 const NEON_SOUNDS = {
   unlock() {                                          // a blue ring: two notes a fifth apart, and their echo
     for (const [d, k] of [[0, 1], [0.16, 0.45]]) { voice('triangle', 1318.5, 1318.5, 0.22, 0.07 * k, d); voice('sine', 1975.5, 1975.5, 0.3, 0.06 * k, d + 0.09); }
@@ -234,6 +235,7 @@ const NEON_SOUNDS = {
   scrape() { voice('sawtooth', 95, 62, 0.3, 0.035); voice('square', 150, 120, 0.26, 0.012); voice('sine', 70, 55, 0.3, 0.06); },           // a crate pushed
   glide() { voice('triangle', 1900, 2600, 0.32, 0.018); voice('sine', 3100, 2400, 0.4, 0.012, 0.04); voice('sine', 240, 200, 0.3, 0.02); },   // off across the ice
   crunch() { voice('sawtooth', 120, 70, 0.12, 0.03); voice('square', 260, 180, 0.08, 0.012, 0.02); voice('sine', 90, 60, 0.18, 0.05); },    // stopped by snow
+  note() { const f = 392 * Math.pow(2, NOTE_STEPS[noteK % NOTE_STEPS.length] / 12 + Math.floor(noteK / NOTE_STEPS.length)); voice('triangle', f, f, 0.22, 0.05); voice('sine', 2 * f, 2 * f, 0.16, 0.015); },   // a tile lit: each a step up
   click() { voice('square', 2200, 1400, 0.03, 0.035); voice('triangle', 520, 780, 0.16, 0.05, 0.03); voice('sine', 1040, 1560, 0.22, 0.03, 0.06); },   // a switch pressed
   reset() { voice('sawtooth', 1300, 150, 0.55, 0.016); voice('sine', 1760, 330, 0.5, 0.045); voice('sine', 220, 220, 0.3, 0.04, 0.45); },   // a square put back
   buzz() { voice('square', 110, 100, 0.22, 0.035); voice('sawtooth', 55, 50, 0.2, 0.03); },        // a wall of the other colour
@@ -244,7 +246,7 @@ const NEON_SOUNDS = {
 };
 // The city's version of a sound where it has one, the house sound elsewhere.
 function sound(name) {
-  if ((world.name === 'neon' || ['boost', 'jump', 'bump', 'depart', 'tint', 'pass', 'buzz', 'key', 'gate', 'reset', 'click', 'thunk', 'scrape', 'whirr', 'charge', 'earth', 'glint', 'lit', 'unlit', 'warp', 'tube', 'pop', 'power', 'zap', 'knock', 'clink', 'crack', 'shatter', 'burn', 'flame', 'blast', 'glide', 'crunch'].includes(name)) && NEON_SOUNDS[name]) { if (sfx && sfx.isOn()) NEON_SOUNDS[name](); }
+  if ((world.name === 'neon' || ['boost', 'jump', 'bump', 'depart', 'tint', 'pass', 'buzz', 'key', 'gate', 'reset', 'click', 'thunk', 'scrape', 'whirr', 'charge', 'earth', 'glint', 'lit', 'unlit', 'warp', 'tube', 'pop', 'power', 'zap', 'knock', 'clink', 'crack', 'shatter', 'burn', 'flame', 'blast', 'glide', 'crunch', 'note'].includes(name)) && NEON_SOUNDS[name]) { if (sfx && sfx.isOn()) NEON_SOUNDS[name](); }
   else play(name === 'home' ? 'land' : name);
 }
 function ensureCitySound() {
@@ -2130,13 +2132,50 @@ const PLAZAS = {
     '+ + + + + +',
     '|. . . . .|',
     '+-+-+ +-+-+'] },
+  // COVER EVERY TILE (owner, 2026-09-28, the third new puzzle). A tile lights as the marble rolls onto it and crumbles
+  // when it leaves; once every tile is lit, a bridge appears at the way out. So: one route through every tile, ending
+  // at the way out. Each push rolls the marble one tile. Found by a search (covergen.js): T2 and T3 have one route only.
+  T1: { entry: 2, exit: 2, cover: true, legend: {}, map: [ // 15 tiles, two routes
+    '+-+-+ +-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+'] },
+  T2: { entry: 2, exit: 2, cover: true, legend: {}, map: [ // 20 tiles, one route
+    '+-+-+ +-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+ + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+'] },
+  T3: { entry: 2, exit: 2, cover: true, legend: {}, map: [ // 28 tiles, one route, round two holes
+    '+-+-+ +-+-+',
+    '|. . . . .|',
+    '+ + + +-+ +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|.|. . . .|',
+    '+ + + + + +',
+    '|. # . . .|',
+    '+ + + + + +',
+    '|. # . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+'] },
 };
 // PLAZAS END
 // Which square each level ends with; '~' mirrors it left to right.
 // The new puzzles, each tried first on a course of its own (#try-<kind>, #try-<kind>-tokyo), easy to hard.
-const TRY_COURSES = { ice: ['I1', 'I2', 'I3', 'I4'], road: ['P1', 'P2', 'P3'] }, TRY_TITLES = { ice: 'ICE MAZES', road: 'BUILD A ROAD' };
+const TRY_COURSES = { ice: ['I1', 'I2', 'I3', 'I4'], road: ['P1', 'P2', 'P3'], tiles: ['T1', 'T2', 'T3'] },
+      TRY_TITLES = { ice: 'ICE MAZES', road: 'BUILD A ROAD', tiles: 'EVERY TILE' };
 const TRY_NEWS = { ice: 'Four ice mazes, easy to hard. On ice the marble slides until something stops it',
-                   road: 'Three chasms. Push crates into the gaps to make a road across' };
+                   road: 'Three chasms. Push crates into the gaps to make a road across',
+                   tiles: 'Light every tile. Each one crumbles behind you' };
 const PLAZA_AT = { 2: 'K1', 3: 'K2', 4: 'K2~', 5: 'K3', 6: 'K3~', 7: 'K4', 8: 'K4~', 9: 'S1', 10: 'S2', 11: 'S2~', 12: 'S3', 13: 'S4~',
                    14: 'W1', 15: 'W2', 16: 'W3', 17: 'W3~', 18: 'B1', 19: 'B2', 20: 'B3', 21: 'B3~', 22: 'B4', 23: 'B2~',
                    24: 'C1', 25: 'C2', 26: 'C2~', 27: 'C3', 28: 'C3~', 29: 'C4',
@@ -2147,7 +2186,7 @@ Object.assign(PLAZA_AT, { 41: 'G41', 42: 'G42', 43: 'G43', 44: 'G44', 45: 'G45',
 function plazaLayout(id) {
   const flipped = id.endsWith('~'), T = PLAZAS[flipped ? id.slice(0, -1) : id];
   const cols = (T.map[0].length - 1) / 2, rows = (T.map.length - 1) / 2;
-  if (!flipped) return { id, cols, rows, map: T.map, legend: T.legend, entry: T.entry, exit: T.exit, ice: T.ice };
+  if (!flipped) return { id, cols, rows, map: T.map, legend: T.legend, entry: T.entry, exit: T.exit, ice: T.ice, cover: T.cover };
   const legend = {};
   for (const [ch, v] of Object.entries(T.legend)) {                 // and anything that points turns with it
     const u = legend[ch] = { ...v };
@@ -2155,7 +2194,7 @@ function plazaLayout(id) {
     if (u.source === 'e' || u.source === 'w') u.source = u.source === 'e' ? 'w' : 'e';
     if ('tile' in u) u.tile = (u.tile & 5) | (u.tile & 2 ? 8 : 0) | (u.tile & 8 ? 2 : 0);
   }
-  return { id, cols, rows, map: T.map.map((l) => [...l].reverse().join('')), legend, entry: cols - 1 - T.entry, exit: cols - 1 - T.exit, ice: T.ice };
+  return { id, cols, rows, map: T.map.map((l) => [...l].reverse().join('')), legend, entry: cols - 1 - T.entry, exit: cols - 1 - T.exit, ice: T.ice, cover: T.cover };
 }
 // A square's map read into cells[r][c], edges h[k][c] (the south edge of row k) and v[r][c] (the west edge of column c).
 function plazaGrid(pc) {
@@ -2510,13 +2549,14 @@ function makeLevel(n, variant = LEVEL_VARIANT[n] || 0, test = null) {
     const T = plazaLayout(id), W = T.cols * CELL, D = T.rows * CELL, rw = 2.4, iw = r2(Math.max(rw, Math.min(wide, 3)));
     straight(5, iw, true);                              // the road in, with a ring on it
     const bs = x > 3 ? -1 : 1, bx = r2(x + bs * (iw / 2 + 1.1)), bz = r2(z + 2.5);
-    if (!T.ice) pieces.push({ ...F(bx, bz, 2.2, 2.2, y), bay: true }, { t: 'reset', x: bx, z: bz, y, w: 1.5, d: 1.5 });   // (ice has nothing to reset)
+    if (!T.ice && !T.cover) pieces.push({ ...F(bx, bz, 2.2, 2.2, y), bay: true }, { t: 'reset', x: bx, z: bz, y, w: 1.5, d: 1.5 });   // (ice and tiles reset themselves)
     const x0 = r2(Math.min(14.5 - W, Math.max(-8.5, x - (T.entry + 0.5) * CELL))), ex = r2(x0 + (T.entry + 0.5) * CELL);
     if (Math.abs(ex - x) > 0.05) { pieces.push(F(r2((x + ex) / 2), r2(z - rw / 2), r2(Math.abs(ex - x) + rw), rw, y)); x = ex; on(rw); }
     straight(1.5, rw);
     pieces.push({ t: 'plaza', ...T, x: r2(x0 + W / 2), z: r2(z - D / 2), w: W, d: D, y, x0, z0: r2(z) });
     on(D); run += D;                                    // the way through a square is longer than the square
     x = r2(x0 + (T.exit + 0.5) * CELL);
+    if (T.cover) { pieces.push({ ...F(x, r2(z - 1.5), rw, 3, y), bridge: true }); on(3); }   // the bridge out: there once every tile is lit
     straight(2, rw);
   }
   // Every other feature is the district's own, so it carries the district;
@@ -4182,6 +4222,7 @@ function buildPlaza(pc) {
     if (!w && r0 >= 0) { const a = P.z0 - r0 * CELL + WALL_T / 2, b = P.z0 - r * CELL - WALL_T / 2; wallRun(P.x0 + c * CELL, (a + b) / 2, WALL_T, a - b); r0 = -1; }
   }
   if (pc.ice) buildIce(P);
+  if (pc.cover) buildCover(P);
   // The gates.
   // (Each is named by its edge as the search names it: H c,k is the south edge of row k in column c; V c,r the west edge of column c in row r.)
   for (let k = 0; k <= P.rows; k++) for (let c = 0; c < P.cols; c++) if (G.h[k][c] && !plazaWall(G.h[k][c])) buildGate(P, G.h[k][c], X(c), P.z0 - k * CELL, true, 'H' + c + ',' + k);
@@ -4866,6 +4907,83 @@ function buildIce(P) {
     }
   }
 }
+/* EVERY TILE (owner, 2026-09-28, the third new puzzle). A tile lights as the
+   marble rolls onto it and crumbles when it leaves; once every tile is lit, the
+   bridge out appears. Each push rolls the marble one tile (the ice's grid,
+   one step at a time), so the puzzle is the route, not the steering. A fall,
+   or rolling back out the way in, and the tiles are all back. Solved, it
+   stays solved: the tiles come back, the bridge stays. */
+const COVER_V = 4, COVER_DARK = new Color(0x4A3F78), COVER_LIT = new Color(0xFFC94A);
+const coverTileTex = canvasTex(128, 128, (g) => {       // a tile: a bright rim, a softer middle
+  g.fillStyle = '#FFFFFF'; g.fillRect(0, 0, 128, 128);
+  g.fillStyle = '#9A9A9A'; g.fillRect(10, 10, 108, 108);
+  const rg = g.createRadialGradient(64, 64, 8, 64, 64, 70); rg.addColorStop(0, '#CFCFCF'); rg.addColorStop(1, '#8A8A8A');
+  g.fillStyle = rg; g.fillRect(14, 14, 100, 100);
+});
+function buildCover(P) {
+  const G = P.grid, pos = [], uv = [], col = [], idx = [];
+  P.cov = []; P.covSlab = []; P.covLit = 0; P.covTotal = 0; P.covDone = false;
+  for (let r = 0; r < P.rows; r++) for (let c = 0; c < P.cols; c++) {
+    const i = r * P.cols + c;
+    if (G.cells[r][c].void) { P.cov[i] = -1; continue; }
+    P.cov[i] = 0; P.covTotal++;
+    const xa = P.x0 + c * CELL + 0.06, xb = xa + CELL - 0.12, za = P.z0 - r * CELL - 0.06, zb = za - CELL + 0.12, b = pos.length / 3;
+    [[xa, za, 0, 0], [xb, za, 1, 0], [xb, zb, 1, 1], [xa, zb, 0, 1]].forEach(([x, z, u, v]) => { pos.push(x, P.y + 0.014, z); uv.push(u, v); col.push(COVER_DARK.r, COVER_DARK.g, COVER_DARK.b); });
+    idx.push(b, b + 1, b + 2, b, b + 2, b + 3);
+    P.covSlab[i] = colliders.find((q) => q.cell && Math.abs(q.pos.x - P.X(c)) < 0.01 && Math.abs(q.pos.z - P.Z(r)) < 0.01);
+  }
+  const geo = new BufferGeometry();
+  geo.setAttribute('position', new Float32BufferAttribute(pos, 3)); geo.setAttribute('uv', new Float32BufferAttribute(uv, 2));
+  geo.setAttribute('color', new Float32BufferAttribute(col, 3)); geo.setIndex(idx);
+  P.covBase = pos.slice();                              // where each tile's corners are, to put them back
+  P.covMesh = new Mesh(geo, new MeshBasicMaterial({ map: coverTileTex, vertexColors: true, toneMapped: false }));
+  levelGroup.add(P.covMesh);
+  P.covQuad = [];                                       // which quad (four corners) each tile is
+  let q = 0; for (let i = 0; i < P.cov.length; i++) if (P.cov[i] !== -1) P.covQuad[i] = q++;
+}
+function coverBridge(P) {                              // the bridge out (built after its square, so found when it is wanted)
+  const bx = P.X(P.pc.exit), bz = P.z0 - P.rows * CELL - 1.5;
+  return colliders.find((q) => q.bridge && Math.abs(q.pos.x - bx) < 0.05 && Math.abs(q.pos.z - bz) < 0.05) || null;
+}
+function coverPaint(P, i, color, hide) {
+  const q = P.covQuad[i], g = P.covMesh.geometry, C = g.attributes.color, Pp = g.attributes.position;
+  for (let k = 0; k < 4; k++) {
+    C.setXYZ(q * 4 + k, color.r, color.g, color.b);
+    const j = (q * 4 + k) * 3;
+    if (hide) Pp.setXYZ(q * 4 + k, P.covBase[j], P.covBase[j + 1] - 40, P.covBase[j + 2]);
+    else Pp.setXYZ(q * 4 + k, P.covBase[j], P.covBase[j + 1], P.covBase[j + 2]);
+  }
+  C.needsUpdate = true; Pp.needsUpdate = true;
+}
+function coverArrive(P, c, r, c0, r0) {
+  if (P.covDone) return;
+  if (r0 >= 0 && r0 < P.rows && c0 >= 0 && c0 < P.cols) {   // the tile it left crumbles
+    const j = r0 * P.cols + c0;
+    if (P.cov[j] === 1) {
+      P.cov[j] = 2; coverPaint(P, j, COVER_LIT, true);
+      const S = P.covSlab[j]; if (S) { S.gone = true; S.mesh.visible = false; }
+      burst(P.X(c0), P.y + 0.05, P.Z(r0), 0xFFC94A, 14, 2.6); sound('crack');
+    }
+  }
+  const i = r * P.cols + c;
+  if (P.cov[i] !== 0) return;
+  P.cov[i] = 1; P.covLit++; coverPaint(P, i, COVER_LIT, false);
+  noteK = P.covLit - 1; sound('note');
+  if (P.covLit === P.covTotal) {                        // every tile lit: the bridge
+    P.covDone = true;
+    const B = coverBridge(P);
+    if (B) { B.bridge.on = true; B.mesh.visible = true; burst(B.pos.x, P.y + 0.3, B.pos.z, 0xFFC94A, 30, 3.5); }
+    sound('unlock');
+  }
+}
+function resetCover(P) {                                // every tile back; a square solved keeps its bridge
+  for (let i = 0; i < P.cov.length; i++) {
+    if (P.cov[i] === -1) continue;
+    P.cov[i] = P.covDone ? 1 : 0; coverPaint(P, i, P.covDone ? COVER_LIT : COVER_DARK, false);
+    const S = P.covSlab[i]; if (S) { S.gone = false; S.mesh.visible = true; }
+  }
+  if (!P.covDone) P.covLit = 0;
+}
 // What lies the way (dc, dr) goes from cell (c, r) of an ice maze (r = -1: on the road before its gap): 'open', 'wall' or 'out'.
 function iceAhead(P, c, r, dc, dr) {
   const G = P.grid, nc = c + dc, nr = r + dr;
@@ -4880,14 +4998,14 @@ function iceAhead(P, c, r, dc, dr) {
 function iceCatch() {
   if (!ball.grounded) return;
   for (const P of plazas) {
-    if (!P.pc.ice || Math.abs(ball.p.y - R - P.y) > 0.3) continue;
+    if (!(P.pc.ice || P.pc.cover) || Math.abs(ball.p.y - R - P.y) > 0.3) continue;
     const fc = (ball.p.x - P.x0) / CELL, fr = (P.z0 - ball.p.z) / CELL, c = Math.floor(fc), r = Math.floor(fr);
-    if (c < 0 || c >= P.cols || r < 0 || r >= P.rows || P.grid.cells[r][c].void) continue;
+    if (c < 0 || c >= P.cols || r < 0 || r >= P.rows || P.grid.cells[r][c].void || (P.cov && P.cov[r * P.cols + c] === 2)) continue;
     const [dc, dr] = Math.abs(ball.v.x) > Math.abs(ball.v.z) ? [Math.sign(ball.v.x) || 1, 0] : [0, ball.v.z > 0 ? -1 : 1];
     const pc = c - dc, pr = r - dr;                     // the cell it came from (or the road), and how far past its middle
     const u = dc ? (ball.p.x - P.X(pc)) * dc : (P.Z(pr) - ball.p.z) * dr;
     ball.ice = { P, c: pc, r: pr, dc, dr, u: clamp(u, 0, CELL), armed: false, last: [dc, dr], nudge: 0, nd: [0, 0] };
-    sound('glide');
+    if (P.pc.ice) sound('glide');
     return;
   }
 }
@@ -4906,21 +5024,27 @@ function iceStep(dt, ix, iz) {
       if (I.armed || dc !== I.last[0] || dr !== I.last[1]) {
         I.armed = false; I.last = [dc, dr];
         if (iceAhead(P, I.c, I.r, dc, dr) === 'wall') { I.nudge = 0.16; I.nd = [dc, dr]; sound('bump'); }   // it will not go that way
-        else { I.dc = dc; I.dr = dr; I.u = 0; sound('glide'); }
+        else { I.dc = dc; I.dr = dr; I.u = 0; if (P.pc.ice) sound('glide'); }
       }
     }
   } else {
-    I.u += ICE_V * dt;
+    const V = P.pc.cover ? COVER_V : ICE_V;
+    I.u += V * dt;
     for (;;) {
       const nc = I.c + I.dc, nr = I.r + I.dr, out = nr < 0 || nr >= P.rows || nc < 0 || nc >= P.cols;
-      if (out && I.u >= CELL / 2 + 0.35 || !out && P.grid.cells[nr][nc].void && I.u >= CELL / 2 + 0.12) {
-        ball.v.set(I.dc * ICE_V, 0, -I.dr * ICE_V);    // off the ice: onto the road, or down the hole
+      const hole = !out && (P.grid.cells[nr][nc].void || (P.cov && P.cov[nr * P.cols + nc] === 2));
+      if (out && I.u >= CELL / 2 + 0.35 || hole && I.u >= CELL / 2 + 0.12) {
+        if (P.pc.cover && out && nr < 0) resetCover(P);  // back out the way in: the tiles are all back
+        else if (P.pc.cover && out) coverArrive(P, nc, nr, I.c, I.r);   // (out over the bridge: the last tile goes too)
+        ball.v.set(I.dc * V, 0, -I.dr * V);             // off the grid: onto the road, or down the hole
         ball.p.x = P.X(I.c) + I.dc * I.u; ball.p.z = P.Z(I.r) - I.dr * I.u;
         ball.ice = null;
         return;
       }
       if (I.u < CELL) break;
+      const c0 = I.c, r0 = I.r;
       I.u -= CELL; I.c = nc; I.r = nr;                  // at the middle of the next cell
+      if (P.pc.cover) { coverArrive(P, I.c, I.r, c0, r0); I.dc = 0; I.dr = 0; I.u = 0; break; }   // a tile at a time
       const cell = P.grid.cells[I.r][I.c];
       if (cell.snow) { iceStop(I, true); break; }
       if (iceAhead(P, I.c, I.r, I.dc, I.dr) === 'wall') { iceStop(I, false); break; }
@@ -4929,7 +5053,8 @@ function iceStep(dt, ix, iz) {
   I.nudge = Math.max(0, I.nudge - dt);
   const nk = I.nudge > 0 ? 0.14 * Math.sin(Math.PI * I.nudge / 0.16) : 0;
   ball.p.set(P.X(I.c) + I.dc * I.u + I.nd[0] * nk, P.y + R, P.Z(I.r) - I.dr * I.u - I.nd[1] * nk);
-  ball.v.set(I.dc * ICE_V, 0, -I.dr * ICE_V);
+  const V2 = P.pc.cover ? COVER_V : ICE_V;
+  ball.v.set(I.dc * V2, 0, -I.dr * V2);
   ball.grounded = true; ball.airT = 0; lastGroundY = P.y;
 }
 const _kp = new Vector3();
@@ -5115,6 +5240,7 @@ function buildPiece(pc) {
   if (pc.lane) c.lane = pc.lane;
   if (pc.cell) c.cell = true;                           // a puzzle square's floor tile
   if (pc.pit) { c.pit = { filled: false }; mesh.visible = false; }   // a gap: road only once a crate fills it
+  if (pc.bridge) { c.bridge = { on: false }; mesh.visible = false; }   // the way out of a square of tiles: there once they are all lit
   if (pc.crack) buildCrackSlab(c, pc, w, d);
   if (pc.dark !== undefined) {                          // a dark road: solid only once its switch is on
     const S = switches[pc.dark];
@@ -5259,6 +5385,8 @@ function collide(c, dt) {
   if (c.magnet && !c.magnet.P.charged) return;            // a charged floor pushes only a charged marble away
   if (c.arm && !c.arm.on) return;                         // a turning section's railing, on a side its road joins
   if (c.pit && !c.pit.filled) return;                     // a gap no crate has filled
+  if (c.bridge && !c.bridge.on) return;                   // a bridge not there yet
+  if (c.gone) return;                                     // a tile that has crumbled
   _L.subVectors(ball.p, c.pos).applyQuaternion(c.inv);
   const h = c.half;
   if (Math.abs(_L.x) > h.x + R || Math.abs(_L.y) > h.y + R || Math.abs(_L.z) > h.z + R) return;
@@ -5359,7 +5487,7 @@ function step(dt, ix, iz) {
 
 // The marble turns as it rolls: angular velocity is up x velocity over radius.
 function spinMarble(dt) {
-  if (ball.ice) ball.spin.multiplyScalar(Math.exp(-8 * dt));   // on ice it glides
+  if (ball.ice && ball.ice.P.pc.ice) ball.spin.multiplyScalar(Math.exp(-8 * dt));   // on ice it glides
   else if (ball.grounded) ball.spin.set(ball.v.z, 0, -ball.v.x).multiplyScalar(1 / R);
   else ball.spin.multiplyScalar(Math.exp(-0.6 * dt));
   const w = ball.spin.length();
@@ -5397,6 +5525,7 @@ function flyTo(dest) {
 }
 function arrive() {
   for (const c of cracks) if (c.crack.state !== 'whole') { c.crack.state = 'whole'; c.crack.back = simT; }   // the bridges stand again
+  for (const P of plazas) if (P.cov && flight.to.z > P.z0 - 0.1) resetCover(P);   // and the tiles of a square ahead
   ball.p.copy(flight.to); ball.v.set(0, 0, 0);
   setTint(spawnTint);
   ball.grounded = true; ball.airT = 0;
@@ -6045,6 +6174,9 @@ const PLAZA_NEWS = {
   P1: 'A crate pushed into a gap fills it. Then you can roll across',
   P2: 'Two rows of gaps: push one crate over a filled gap into the next',
   P3: 'Four crates. Which goes where, and in what order?',
+  T1: 'Light every tile and a bridge appears. Each tile crumbles once you leave it',
+  T2: 'Only one way covers them all. Where must it end?',
+  T3: 'Holes and a wall. Plan the whole route first',
 };
 const PLAZA_NOTE_T = 7;
 function drawNews() {
