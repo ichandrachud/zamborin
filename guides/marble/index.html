@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Marble strategy: look before you roll — Zamborin</title>
+  <meta name="description" content="A practical Marble guide: steering with small drags, reading the course before it moves, the crystal canyon, and how to think through the puzzle squares of keys, switches, crates, bridges, charge and light." />
+  <meta name="theme-color" content="#0E1726" />
+  <link rel="canonical" href="https://zamborin.com/guides/marble/" />
+  <link rel="icon" type="image/svg+xml" href="/images/zamborin-favicon.svg?v=2" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:site_name" content="Zamborin Games" />
+  <meta property="og:url" content="https://zamborin.com/guides/marble/" />
+  <meta property="og:title" content="Marble strategy: look before you roll" />
+  <meta property="og:description" content="Steering with small drags, reading the course before it moves, and how to think through the puzzle squares." />
+  <meta property="og:image" content="https://zamborin.com/images/marble-og.jpg" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Marble strategy: look before you roll" />
+  <meta name="twitter:description" content="A practical strategy guide to Marble, the 3D marble game over a neon city." />
+  <meta name="twitter:image" content="https://zamborin.com/images/marble-og.jpg" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../shared/tokens.css?v=1" />
+  <link rel="stylesheet" href="../../shared/chrome.css?v=20" />
+  <style>
+    .guide { max-width: 760px; margin: 0 auto; padding: 40px 24px 80px; color: var(--text-dim); line-height: 1.7; font-size: 17px; }
+    .guide .crumbs { font-size: 14px; margin-bottom: 22px; color: var(--text-dim); }
+    .guide .crumbs a { color: #4DC3FF; text-decoration: none; display: inline-block; padding: 4px 0; }
+    .guide h1 { font-size: 38px; color: var(--text); font-weight: 800; margin: 0 0 6px; letter-spacing: -0.5px; line-height: 1.15; }
+    .guide .lede { font-size: 19px; color: var(--text); margin: 14px 0 8px; }
+    .guide h2 { font-size: 23px; color: var(--text); font-weight: 700; margin: 38px 0 10px; letter-spacing: -0.2px; }
+    .guide p { margin: 12px 0; }
+    .guide a { color: #4DC3FF; }
+    .guide strong { color: var(--text); font-weight: 600; }
+    .guide ul { margin: 12px 0; padding-left: 22px; }
+    .guide li { margin: 8px 0; }
+    .guide .cta { display: inline-block; margin-top: 8px; background: #4DC3FF; color: #06121e; font-weight: 700; text-decoration: none; padding: 13px 26px; border-radius: 10px; }
+    .guide .playbox { margin: 36px 0 8px; padding: 22px 24px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09); border-radius: 14px; }
+    .guide .playbox p { margin: 0 0 14px; color: var(--text); font-weight: 600; }
+    .guide .more { margin-top: 40px; padding-top: 22px; border-top: 1px solid rgba(255,255,255,0.09); font-size: 16px; }
+    .guide .more a { display: inline-block; padding: 4px 0; }
+    .guide table { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 16px; }
+    .guide th, .guide td { text-align: left; padding: 9px 12px; border-bottom: 1px solid rgba(255,255,255,0.09); }
+    .guide th { color: var(--text); font-weight: 700; }
+    @media (max-width: 720px) { .guide { padding: 28px 18px 56px; font-size: 16px; } .guide h1 { font-size: 30px; } }
+  </style>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "Marble strategy: look before you roll",
+    "about": "Marble 3D marble rolling game: steering, course reading and puzzle squares",
+    "description": "A practical Marble guide: steering with small drags, reading the course before it moves, the crystal canyon, and how to think through the puzzle squares of keys, switches, crates, bridges, charge and light.",
+    "author": { "@type": "Organization", "name": "Zamborin Games" },
+    "publisher": { "@type": "Organization", "name": "Zamborin Games", "url": "https://zamborin.com/" },
+    "mainEntityOfPage": "https://zamborin.com/guides/marble/"
+  }
+  </script>
+  <meta name="google-adsense-account" content="ca-pub-9207689324865969">
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9207689324865969" crossorigin="anonymous"></script>
+</head>
+<body class="lobby-page">
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="Zamborin Games home">
+      <img class="brand-logo" src="/images/zamborin-logo.svg?v=2" alt="Zamborin" />
+    </a>
+    <a class="back-link" href="/">Back to all games</a>
+  </header>
+
+  <main class="guide">
+    <nav class="crumbs"><a href="/">Home</a> &rsaquo; <a href="/guides/">Guides</a> &rsaquo; Marble</nav>
+
+    <h1>Marble strategy: look before you roll</h1>
+    <p class="lede">Marble has two halves. The course is a test of the hands: turns, gaps, traffic, wind, a sky train and a canyon of crystals, all high above a neon city. The square at the end of every course from level 2 is a test of the head: its way out is shut, and rolling faster will not open it. Most falls on the course come from moving too soon, and most wasted time in a square comes from the same thing.</p>
+
+    <h2>Steer with small drags</h2>
+    <p>The camera never turns. Drag up and the marble rolls away from you, drag down and it comes back, and that stays true on every level. How far you drag is how hard it rolls, so a short drag is a gentle nudge and a long one is full power.</p>
+    <p>The commonest mistake is holding a long drag into a turn. The marble carries its speed, and a narrow plank does not forgive it. <strong>Ease off before a turn, not in it</strong>, and save the long drags for the straights. After a speed strip, ease off early: the rush lasts about a second after you leave the arrows.</p>
+
+    <h2>A fall costs time, not progress</h2>
+    <p>Roll through a blue ring and it turns green: that is where you start again. Fall off and the marble flies back to the last green ring. The fall is counted, and nothing else is lost. So on a hard stretch the calm thing is to go at it cleanly the first time, but the second try is never far away.</p>
+
+    <h2>Everything that moves shows you first</h2>
+    <p>Nothing on the course surprises you if you watch it once. A moving pad waits at each end of its run, so roll on while it waits. A see-through bridge flickers just before it goes dark. A crossing's light turns green when the flying cars leave a gap. Streaks of light and a rising whoosh come just before a gust of wind. A scanner bar sweeps a steady rhythm. <strong>Stop at the line and watch one cycle</strong> before you commit: it costs a second or two and saves a fall.</p>
+    <p>At a fork, the narrow way is quicker and the wide way is safer. Both lead on, so take the wide way until you know the level, and the narrow way when you are chasing its star.</p>
+
+    <h2>The crystal canyon is slippery</h2>
+    <p>A wormhole on the road takes the marble to the crystal canyon, and its green crystal road has less grip than the city's. Let go well before a turn: the marble keeps sliding. The canyon has its own dangers, each with a rhythm to read: crystals growing out of the road, fire jets that flare and die, fireballs that roll across on a green light, and crystal bridges that crack under you and fall away. On those bridges the rule reverses: never stop.</p>
+
+    <h2>Puzzle squares: read the whole square first</h2>
+    <p>As you roll up to a square the camera rises to show all of it. That is the moment to stop. Before you move, answer two questions: <strong>what does each gate need, and where is it?</strong> A gate's sign floats over it: the shape of a key, a letter, a bolt of lightning or a sun. Everything you need is in view, and nothing is hidden.</p>
+    <p>If you get it wrong, the reset pad on the bay beside the road in puts the whole square back as it was: keys, gates, crates, bridges, charge and mirrors. It is there to be used.</p>
+
+    <h2>Keys: count before you open</h2>
+    <p>A gate opens for the key of its colour and shape, and it keeps the key. You carry one key at a time: take another and the one you held is left on that stand. So a key is a thing you spend. <strong>Count the gates of each colour and the keys of that colour</strong> before you open anything. When there are more gates than keys, one of those gates is meant to stay shut, and it is usually the one closest to hand.</p>
+
+    <h2>Switches: every gate of that letter flips</h2>
+    <p>A switch flips every gate with its letter: shut gates open and open gates shut. The trap is the gate you are not looking at. The switch that opens the room ahead can shut the corridor behind you, or the room the switch itself stands in. Work out where you will be standing after each press, and whether you can still get back to the switch you need next. Pressing a switch twice puts its gates back, so a switch is never a dead end on its own.</p>
+
+    <h2>Crates: think in pushes</h2>
+    <p>A plate holds its gates open while something heavy sits on it. Roll into a crate, square on to one of its sides, and it slides one cell. A crate cannot be pulled and never passes through a gate, so a crate pushed against a wall can only move along that wall, and a crate in a corner is stuck for good. Before each push, ask where you will need to stand for the next one. When two crates are involved, the one in the way usually has to move first.</p>
+
+    <h2>Turning bridges: count quarter turns</h2>
+    <p>A lever turns every bridge with its letter a quarter turn clockwise. A bridge is open only where its lit road meets the side; railings close the rest. Three quarter turns clockwise are one quarter turn back, so a lever always gets you where you want to go if you count. The subtle part is where you are standing: a turn that joins the next road can cut off the one you came in on, and that is sometimes exactly what you need.</p>
+
+    <h2>Charge: like charges push apart</h2>
+    <p>A bolt pad charges the marble, and it crackles yellow; a ground pad empties it. Lightning gates let only a charged marble through. Floors marked with plus signs push a charged marble away, and their field stands up while you are charged, so you can see it. That gives every route a sign: some stretches need you charged and some need you empty. <strong>Never ground yourself in a room that only charge can leave</strong>, unless it has another way out.</p>
+
+    <h2>Light: every mirror turns every time</h2>
+    <p>A lamp shines a beam across the square, over the walls. Rolling under a mirror turns it a quarter turn, and a gate of light is open only while the beam reaches the crystal. Trace the beam from the lamp before you turn anything. Then look at your route out: rolling under a mirror on the way out turns it again, and the gate shuts in front of you. Rolling back over it once more turns it back.</p>
+
+    <h2>What arrives when</h2>
+    <table>
+      <tr><th>Puzzle square</th><th>From level</th></tr>
+      <tr><td>Keys</td><td>2</td></tr>
+      <tr><td>Switches</td><td>9</td></tr>
+      <tr><td>Crates and plates</td><td>14</td></tr>
+      <tr><td>Turning bridges</td><td>18</td></tr>
+      <tr><td>Charge</td><td>24</td></tr>
+      <tr><td>Light</td><td>30</td></tr>
+      <tr><td>The hardest of each, and two that mix them</td><td>36 to 40</td></tr>
+    </table>
+
+    <h2>Stars</h2>
+    <p>Each level has a star time, shown beside the star at the bottom of the screen. It was set by a quick, clean run that knew the square's answer, so a star is for a level you have already worked out. Take the narrow way at forks, keep your speed on the straights, and in the square go straight to the answer.</p>
+
+    <h2>The short version</h2>
+    <ul>
+      <li><strong>Ease off before turns.</strong> Long drags are for straights.</li>
+      <li><strong>Watch one cycle</strong> of anything that moves before you commit.</li>
+      <li><strong>At a square, stop and read it all</strong>: what each gate needs and where it is.</li>
+      <li><strong>Count keys against gates</strong>; a gate keeps its key.</li>
+      <li><strong>Know where you will stand after each press, push or turn.</strong></li>
+      <li><strong>Every pad works each time you roll onto it</strong>, on the way out too.</li>
+      <li><strong>Use the reset pad</strong> when a square has gone wrong.</li>
+    </ul>
+
+    <div class="playbox">
+      <p>Ready to put it to work?</p>
+      <a class="cta" href="/marble/">Play Marble &rarr;</a>
+    </div>
+
+    <p class="more">More games: <a href="/kaleido/">Kaleido</a> &middot; <a href="/fathom/">Fathom</a> &middot; <a href="/">all Zamborin games</a> &middot; <a href="/guides/">all guides</a></p>
+  </main>
+
+  <footer class="site-footer">
+    <nav class="site-foot-nav">
+      <a href="/arcade/">Arcade</a>
+      <a href="/about/">About</a>
+      <a href="/guides/">Guides</a>
+      <a href="/privacy/">Privacy</a>
+      <a href="/contact/">Contact</a>
+    </nav>
+    <span>&copy; 2026 Zamborin. Games created by Indrajeet Chandrachud.</span>
+  </footer>
+  <script defer src="/_vercel/insights/script.js"></script>
+  <script defer src="/_vercel/speed-insights/script.js"></script>
+</body>
+</html>

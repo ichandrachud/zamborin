@@ -30,6 +30,17 @@ live, guide at `/guides/ballast/`, in `sitemap.xml`, `llms.txt`, the guides inde
 and the 404 page. Not yet in the status table below, because it has not had a full
 QC audit pass; that audit is itself an open item.
 
+**PREPARED 2026-09-27, NOT YET PUSHED: marble.** The first 3D game. Steps 1 to 6 of
+CONTRIBUTING are done on branch `marble` (worktree `~/Projects/zamborin-marble`):
+homepage card (first in the grid, pending the owner's say on where it goes),
+`/guides/marble/`, the guides hub, the 404 page, `sitemap.xml` (game, guide, and the home and hub
+`lastmod`), `llms.txt`, and the game page's link to its guide; `noindex` removed.
+Every level from 2 ends in a puzzle square (keys, switches, crates, bridges, charge,
+light); all 26 square layouts and their mirror images are solved by an exhaustive
+search, the autopilot finishes all 40 levels by both forks with no falls, skipping
+the square fails on all 39, and the star times were raced again. Goes live only
+when the owner says push. Step 7, resubmitting the sitemap, is the owner's.
+
 ## Open items
 
 The things that are known, deliberate and not yet done. Anything here has been
