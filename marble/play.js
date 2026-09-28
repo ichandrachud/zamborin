@@ -178,6 +178,8 @@ function voice(type, f0, f1, dur, gain, delay = 0) { // one note, gliding from f
   o.connect(g); g.connect(out); o.start(t0); o.stop(t0 + dur + 0.05);
 }
 const NOTE_STEPS = [0, 2, 4, 7, 9]; let noteK = 0;      // the tiles' notes climb a pentatonic scale
+const TONE_STEPS = [0, 2, 4, 7, 9, 12]; let toneK = 0;  // a tune's drums: each its own note and colour
+const TONE_COLS = [0xFF5A5A, 0xFFD23F, 0x3DDC84, 0x4F8BFF, 0xC061FF, 0x3FF0FF];
 const NEON_SOUNDS = {
   unlock() {                                          // a blue ring: two notes a fifth apart, and their echo
     for (const [d, k] of [[0, 1], [0.16, 0.45]]) { voice('triangle', 1318.5, 1318.5, 0.22, 0.07 * k, d); voice('sine', 1975.5, 1975.5, 0.3, 0.06 * k, d + 0.09); }
@@ -235,6 +237,7 @@ const NEON_SOUNDS = {
   scrape() { voice('sawtooth', 95, 62, 0.3, 0.035); voice('square', 150, 120, 0.26, 0.012); voice('sine', 70, 55, 0.3, 0.06); },           // a crate pushed
   glide() { voice('triangle', 1900, 2600, 0.32, 0.018); voice('sine', 3100, 2400, 0.4, 0.012, 0.04); voice('sine', 240, 200, 0.3, 0.02); },   // off across the ice
   crunch() { voice('sawtooth', 120, 70, 0.12, 0.03); voice('square', 260, 180, 0.08, 0.012, 0.02); voice('sine', 90, 60, 0.18, 0.05); },    // stopped by snow
+  tone() { const f = 523.25 * Math.pow(2, TONE_STEPS[toneK] / 12); voice('sine', f * 1.5, f, 0.05, 0.04); voice('triangle', f, f, 0.36, 0.07); voice('sine', 2 * f, 2 * f, 0.22, 0.018); voice('sine', f / 2, f / 2, 0.3, 0.035); },   // a drum of a tune
   note() { const f = 392 * Math.pow(2, NOTE_STEPS[noteK % NOTE_STEPS.length] / 12 + Math.floor(noteK / NOTE_STEPS.length)); voice('triangle', f, f, 0.22, 0.05); voice('sine', 2 * f, 2 * f, 0.16, 0.015); },   // a tile lit: each a step up
   click() { voice('square', 2200, 1400, 0.03, 0.035); voice('triangle', 520, 780, 0.16, 0.05, 0.03); voice('sine', 1040, 1560, 0.22, 0.03, 0.06); },   // a switch pressed
   reset() { voice('sawtooth', 1300, 150, 0.55, 0.016); voice('sine', 1760, 330, 0.5, 0.045); voice('sine', 220, 220, 0.3, 0.04, 0.45); },   // a square put back
@@ -246,7 +249,7 @@ const NEON_SOUNDS = {
 };
 // The city's version of a sound where it has one, the house sound elsewhere.
 function sound(name) {
-  if ((world.name === 'neon' || ['boost', 'jump', 'bump', 'depart', 'tint', 'pass', 'buzz', 'key', 'gate', 'reset', 'click', 'thunk', 'scrape', 'whirr', 'charge', 'earth', 'glint', 'lit', 'unlit', 'warp', 'tube', 'pop', 'power', 'zap', 'knock', 'clink', 'crack', 'shatter', 'burn', 'flame', 'blast', 'glide', 'crunch', 'note'].includes(name)) && NEON_SOUNDS[name]) { if (sfx && sfx.isOn()) NEON_SOUNDS[name](); }
+  if ((world.name === 'neon' || ['boost', 'jump', 'bump', 'depart', 'tint', 'pass', 'buzz', 'key', 'gate', 'reset', 'click', 'thunk', 'scrape', 'whirr', 'charge', 'earth', 'glint', 'lit', 'unlit', 'warp', 'tube', 'pop', 'power', 'zap', 'knock', 'clink', 'crack', 'shatter', 'burn', 'flame', 'blast', 'glide', 'crunch', 'note', 'tone'].includes(name)) && NEON_SOUNDS[name]) { if (sfx && sfx.isOn()) NEON_SOUNDS[name](); }
   else play(name === 'home' ? 'land' : name);
 }
 function ensureCitySound() {
@@ -803,6 +806,7 @@ const SWITCHES = { X: { switch: 'A' }, Y: { switch: 'B' }, Z: { switch: 'C' },
 // The squares past level 40 were found by a search that mixes the mechanics (pzgen.js: keys, switches, crates and plates,
 // charge, light), aimed at a number of steps that climbs with the level, rewarding dead ends and punishing clutter. One
 // legend serves them all.
+const TUNE = { a: { tone: 0 }, b: { tone: 1 }, c: { tone: 2 }, d: { tone: 3 }, e: { tone: 4 }, f: { tone: 5 } };   // the drums of a tune
 const PIT = { W: { weight: 1 }, _: { pit: 1 } };          // build a road: a crate, a gap it fills
 const ICE = { o: { rock: 1 }, s: { snow: 1 } };           // the ice mazes: a rock, snow (a hole is '#', a cell with no floor)
 const GEN = { a: { key: 1 }, b: { key: 2 }, A: { keygate: 1 }, B: { keygate: 2 },
@@ -2167,15 +2171,56 @@ const PLAZAS = {
     '+ + + + + +',
     '|. . . . .|',
     '+-+-+ +-+-+'] },
+  // REMEMBER THE TUNE (owner, 2026-09-28, the fourth new puzzle). Drums, each its own colour and note, play a tune as
+  // the marble comes in; roll over them in the same order and a portal opens over the missing road beyond. A wrong
+  // drum: they flash, and play it again. The pad by the road in plays it again too. Later, drums stand in rows, so the
+  // way from one to the next must go round the others.
+  M1: { entry: 2, exit: 2, tune: 'bac', legend: TUNE, map: [   // three drums, three notes
+    '+-+-+ +-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|a . b . c|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+'] },
+  M2: { entry: 2, exit: 2, tune: 'adbca', legend: TUNE, map: [ // four drums, five notes
+    '+-+-+ +-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . d . .|',
+    '+ + + + + +',
+    '|b . . . c|',
+    '+ + + + + +',
+    '|. . a . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+'] },
+  M3: { entry: 2, exit: 2, tune: 'cafbecd', legend: TUNE, map: [ // six drums in rows, seven notes: go round them
+    '+-+-+ +-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|d . e . f|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|a . b . c|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+'] },
 };
 // PLAZAS END
 // Which square each level ends with; '~' mirrors it left to right.
 // The new puzzles, each tried first on a course of its own (#try-<kind>, #try-<kind>-tokyo), easy to hard.
-const TRY_COURSES = { ice: ['I1', 'I2', 'I3', 'I4'], road: ['P1', 'P2', 'P3'], tiles: ['T1', 'T2', 'T3'] },
-      TRY_TITLES = { ice: 'ICE MAZES', road: 'BUILD A ROAD', tiles: 'EVERY TILE' };
+const TRY_COURSES = { ice: ['I1', 'I2', 'I3', 'I4'], road: ['P1', 'P2', 'P3'], tiles: ['T1', 'T2', 'T3'], tune: ['M1', 'M2', 'M3'] },
+      TRY_TITLES = { ice: 'ICE MAZES', road: 'BUILD A ROAD', tiles: 'EVERY TILE', tune: 'THE TUNE' };
 const TRY_NEWS = { ice: 'Four ice mazes, easy to hard. On ice the marble slides until something stops it',
                    road: 'Three chasms. Push crates into the gaps to make a road across',
-                   tiles: 'Light every tile. Each one crumbles behind you' };
+                   tiles: 'Light every tile. Each one crumbles behind you',
+                   tune: 'Listen, then play it back. The way on opens when you do' };
 const PLAZA_AT = { 2: 'K1', 3: 'K2', 4: 'K2~', 5: 'K3', 6: 'K3~', 7: 'K4', 8: 'K4~', 9: 'S1', 10: 'S2', 11: 'S2~', 12: 'S3', 13: 'S4~',
                    14: 'W1', 15: 'W2', 16: 'W3', 17: 'W3~', 18: 'B1', 19: 'B2', 20: 'B3', 21: 'B3~', 22: 'B4', 23: 'B2~',
                    24: 'C1', 25: 'C2', 26: 'C2~', 27: 'C3', 28: 'C3~', 29: 'C4',
@@ -2186,7 +2231,7 @@ Object.assign(PLAZA_AT, { 41: 'G41', 42: 'G42', 43: 'G43', 44: 'G44', 45: 'G45',
 function plazaLayout(id) {
   const flipped = id.endsWith('~'), T = PLAZAS[flipped ? id.slice(0, -1) : id];
   const cols = (T.map[0].length - 1) / 2, rows = (T.map.length - 1) / 2;
-  if (!flipped) return { id, cols, rows, map: T.map, legend: T.legend, entry: T.entry, exit: T.exit, ice: T.ice, cover: T.cover };
+  if (!flipped) return { id, cols, rows, map: T.map, legend: T.legend, entry: T.entry, exit: T.exit, ice: T.ice, cover: T.cover, tune: T.tune };
   const legend = {};
   for (const [ch, v] of Object.entries(T.legend)) {                 // and anything that points turns with it
     const u = legend[ch] = { ...v };
@@ -2194,7 +2239,7 @@ function plazaLayout(id) {
     if (u.source === 'e' || u.source === 'w') u.source = u.source === 'e' ? 'w' : 'e';
     if ('tile' in u) u.tile = (u.tile & 5) | (u.tile & 2 ? 8 : 0) | (u.tile & 8 ? 2 : 0);
   }
-  return { id, cols, rows, map: T.map.map((l) => [...l].reverse().join('')), legend, entry: cols - 1 - T.entry, exit: cols - 1 - T.exit, ice: T.ice, cover: T.cover };
+  return { id, cols, rows, map: T.map.map((l) => [...l].reverse().join('')), legend, entry: cols - 1 - T.entry, exit: cols - 1 - T.exit, ice: T.ice, cover: T.cover, tune: T.tune };
 }
 // A square's map read into cells[r][c], edges h[k][c] (the south edge of row k) and v[r][c] (the west edge of column c).
 function plazaGrid(pc) {
@@ -2557,6 +2602,12 @@ function makeLevel(n, variant = LEVEL_VARIANT[n] || 0, test = null) {
     on(D); run += D;                                    // the way through a square is longer than the square
     x = r2(x0 + (T.exit + 0.5) * CELL);
     if (T.cover) { pieces.push({ ...F(x, r2(z - 1.5), rw, 3, y), bridge: true }); on(3); }   // the bridge out: there once every tile is lit
+    if (T.tune) {                                       // a ledge, a portal on it (open once the tune is played), the missing road, the far side
+      straight(2.5, rw);
+      const pz = r2(z + 0.9), gap = 7;
+      on(gap);
+      pieces.push({ t: 'portal', x, z: pz, y, w: 2.4, d: 0.3, to: [x, y, r2(z - 1.5)] });   // (w, d: its footprint, for what measures the course)
+    }
     straight(2, rw);
   }
   // Every other feature is the district's own, so it carries the district;
@@ -4223,6 +4274,7 @@ function buildPlaza(pc) {
   }
   if (pc.ice) buildIce(P);
   if (pc.cover) buildCover(P);
+  if (pc.tune) buildTune(P);
   // The gates.
   // (Each is named by its edge as the search names it: H c,k is the south edge of row k in column c; V c,r the west edge of column c in row r.)
   for (let k = 0; k <= P.rows; k++) for (let c = 0; c < P.cols; c++) if (G.h[k][c] && !plazaWall(G.h[k][c])) buildGate(P, G.h[k][c], X(c), P.z0 - k * CELL, true, 'H' + c + ',' + k);
@@ -4780,6 +4832,7 @@ function padEnter(P, c, r) {
     P.charges.find((q) => q.c === c && q.r === r).flash = 1;
     if (was !== P.charged) { sound(P.charged ? 'charge' : 'earth'); burst(ball.p.x, ball.p.y, ball.p.z, P.charged ? CHARGE_COL : GROUND_COL, 18, 3); }
   }
+  if ('tone' in cell) tunePress(P, cell.tone);         // a drum of a tune
   if ('switch' in cell) {                               // a switch: every gate of its letter flips
     const L = cell.switch;
     for (const g of P.gates) if (g.kind === 'switch' && g.letters.includes(L)) { g.state = g.state === 'open' ? 'shut' : 'open'; g.flash = 1; }
@@ -4816,6 +4869,10 @@ function resetPlaza(P, quiet) {
   }
   if (quiet) { for (const K of P.keys) K.t = 1; for (const g of P.gates) g.open = g.init === 'open' ? 1 : 0; }
   if (P.reset) P.reset.flash = 1;
+  if (P.tune) {                                         // a restart: unplayed again; the pad by the road: play it again
+    if (quiet) { Object.assign(P.tune, { at: 0, done: false, play: null, heard: false, wrong: 0 }); if (P.portal) { P.portal.open = false; P.portal.k = 0; P.portal.grp.visible = false; } }
+    else { tuneReplay(P); return; }
+  }
   if (!quiet) sound(moved ? 'reset' : 'tick');
 }
 /* ICE (owner, 2026-09-28: "a maze could be a very interesting addition"; the
@@ -4905,6 +4962,96 @@ function buildIce(P) {
         bar.position.set(x + dx * (CELL / 2 - 0.1), P.y + 0.03, z - dz * (CELL / 2 - 0.1)); levelGroup.add(bar);
       }
     }
+  }
+}
+/* THE TUNE (owner, 2026-09-28, the fourth new puzzle: "remember the tune").
+   Drums, each its own colour and note, play a tune as the marble comes in
+   (once the camera has risen over them). Rolled over in the same order, a
+   portal opens on the ledge past the square and takes the marble over the
+   missing road. A wrong drum: they all flash and it plays again. The pad by
+   the road in plays it again too. While it plays, the drums do not count. */
+const TUNE_ON = 0.45, TUNE_GAP = 0.2;
+function buildTune(P) {
+  const G = P.grid, T = P.tune = { seq: [...P.pc.tune].map((ch) => P.pc.legend[ch].tone), drums: [], at: 0, done: false, play: null, heard: false, wrong: 0 };
+  for (let r = 0; r < P.rows; r++) for (let c = 0; c < P.cols; c++) {
+    const cell = G.cells[r][c];
+    if (!('tone' in cell)) continue;
+    const col = TONE_COLS[cell.tone], grp = new Group(); grp.position.set(P.X(c), P.y, P.Z(r));
+    const shell = new Mesh(new CylinderGeometry(0.74, 0.8, 0.16, 40), P.mats.base); shell.position.y = 0.08; shell.receiveShadow = true;
+    const headMat = new MeshBasicMaterial({ color: col, transparent: true, opacity: 0.58, toneMapped: false });
+    const head = new Mesh(new CircleGeometry(0.66, 40), headMat); head.rotation.x = -Math.PI / 2; head.position.y = 0.165;
+    const ringMat = glowMat(col, 0.7), ring = new Mesh(new RingGeometry(0.72, 0.8, 48), ringMat); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.17;
+    const pool = new Mesh(new CircleGeometry(1.15, 40), glowMat(col, 0.12, dot)); pool.rotation.x = -Math.PI / 2; pool.position.y = 0.012;
+    grp.add(shell, head, ring, pool); levelGroup.add(grp);
+    T.drums.push({ c, r, tone: cell.tone, head, headMat, ringMat, pool, k: 0, flash: 0 });
+  }
+}
+function buildPortal(pc) {                              // a ring of light on the ledge, shut until its tune is played
+  const P = plazas[plazas.length - 1];
+  const grp = new Group(); grp.position.set(pc.x, pc.y + 1.15, pc.z);
+  const ring = new Mesh(new TorusGeometry(1.05, 0.07, 12, 64), glowMat(0xDCCBFF, 0.95));
+  const halo = new Mesh(new TorusGeometry(1.05, 0.2, 10, 64), glowMat(0x9A7BFF, 0.3));
+  const disc = new Mesh(new CircleGeometry(1.0, 48), glowMat(0x7FE9FF, 0.35, dot));
+  grp.add(ring, halo, disc); grp.scale.setScalar(0.001); grp.visible = false; levelGroup.add(grp);
+  const far = new Mesh(new RingGeometry(0.8, 0.95, 48), glowMat(0xCFC0FF, 0.35));   // where it comes out: a faint ring over there
+  far.rotation.x = -Math.PI / 2; far.position.set(pc.to[0], pc.to[1] + 0.03, pc.to[2]); levelGroup.add(far);
+  P.portal = { pc, grp, disc, far, open: false, k: 0, lastZ: null };
+}
+function tunePress(P, tone) {
+  const T = P.tune, D = T.drums.find((q) => q.tone === tone);
+  D.flash = 1; toneK = tone; sound('tone');
+  if (T.done || T.play) return;                         // a tune played, or playing: a drum is just a drum
+  if (!T.heard) { T.play = { t: -0.4 }; return; }       // not heard yet: hear it first
+  if (tone === T.seq[T.at]) {
+    if (++T.at === T.seq.length) {                      // the whole tune: the portal opens
+      T.done = true;
+      if (P.portal) { P.portal.open = true; P.portal.grp.visible = true; burst(P.portal.pc.x, P.portal.pc.y + 1.2, P.portal.pc.z, 0xDCCBFF, 30, 3.5); }
+      for (const q of T.drums) q.flash = 1;
+      sound('unlock');
+    }
+  } else { T.at = 0; T.wrong = 1; sound('buzz'); T.play = { t: -1.3 }; }   // wrong: they flash, and it plays again
+}
+function tuneReplay(P) { if (P.tune && !P.tune.done) { P.tune.at = 0; P.tune.play = { t: -0.5 }; } }
+function animateTune(P, dt) {
+  const T = P.tune;
+  if (!T.heard && !T.play && !T.done && plazaAt === P && plazaView > 0.8 && state === 'play') T.play = { t: -0.3 };   // the camera is over it: play
+  let lit = -1;
+  if (T.play) {
+    const was = Math.floor(T.play.t / (TUNE_ON + TUNE_GAP));
+    T.play.t += dt;
+    const slot = Math.floor(T.play.t / (TUNE_ON + TUNE_GAP));
+    if (T.play.t >= 0 && slot < T.seq.length) {
+      if (slot !== was || T.play.t - dt < 0) { toneK = T.seq[slot]; sound('tone'); }
+      if (T.play.t - slot * (TUNE_ON + TUNE_GAP) < TUNE_ON) lit = T.seq[slot];
+    } else if (slot >= T.seq.length) { T.play = null; T.heard = true; }
+  }
+  T.wrong = Math.max(0, T.wrong - dt * 1.6);
+  for (const D of T.drums) {
+    D.flash = Math.max(0, D.flash - dt * 3);
+    D.k += ((D.tone === lit ? 1 : 0) - D.k) * (REDUCED ? 1 : 1 - Math.exp(-18 * dt));
+    const on = Math.max(D.k, D.flash);
+    D.headMat.color.setHex(T.wrong > 0.05 && Math.sin(T.wrong * 30) > 0 ? 0xFF2D48 : TONE_COLS[D.tone]);
+    D.headMat.opacity = 0.58 + 0.42 * on; D.pool.material.opacity = 0.14 + 0.45 * on; D.ringMat.opacity = 0.7 + 0.3 * on;   // each colour plain at rest, bright when it sounds
+    D.head.position.y = 0.165 - 0.05 * D.flash;
+  }
+  const Pt = P.portal;
+  if (Pt) {                                             // it grows open, and its middle turns
+    Pt.k += ((Pt.open ? 1 : 0) - Pt.k) * (REDUCED ? 1 : 1 - Math.exp(-5 * dt));
+    Pt.grp.scale.setScalar(Math.max(0.001, Pt.k)); Pt.grp.visible = Pt.k > 0.01;
+    Pt.disc.rotation.z += dt * 1.5;
+    Pt.far.material.opacity = 0.2 + 0.5 * Pt.k;
+  }
+}
+// Through an open portal: over the missing road, rolling on as it went in.
+function portalStep() {
+  for (const P of plazas) {
+    const Pt = P.portal; if (!Pt) continue;
+    const z0 = Pt.lastZ; Pt.lastZ = ball.p.z;
+    if (!Pt.open || z0 === null || !(z0 > Pt.pc.z && ball.p.z <= Pt.pc.z)) continue;
+    if (Math.abs(ball.p.x - Pt.pc.x) > 1.1 || Math.abs(ball.p.y - R - Pt.pc.y) > 1) continue;
+    burst(ball.p.x, ball.p.y, ball.p.z, 0xDCCBFF, 18, 3);
+    ball.p.set(Pt.pc.to[0], Pt.pc.to[1] + R + 0.01, Pt.pc.to[2]); ball.v.y = 0;
+    Pt.lastZ = ball.p.z; ripple(ball.p); sound('warp');
   }
 }
 /* EVERY TILE (owner, 2026-09-28, the third new puzzle). A tile lights as the
@@ -5155,6 +5302,7 @@ function animatePlazas(dt) {
     }
     if (P.reset) { P.reset.flash = Math.max(0, P.reset.flash - dt * 2); P.reset.glyphMat.opacity = 0.7 + 0.3 * P.reset.flash; }
     if (plazaAt === P && plazaView > 0.6) P.noteT += dt;   // how long its note has been up
+    if (P.tune) animateTune(P, dt);
   }
 }
 // The square the marble is in, or on the road into (with its reset pad).
@@ -5211,6 +5359,7 @@ function buildPiece(pc) {
   if (pc.t === 'block') { buildBlock(pc); return; }
   if (pc.t === 'gauntlet' || pc.t === 'reset') return;   // a reset pad is built with its square
   if (pc.t === 'plaza') { buildPlaza(pc); return; }
+  if (pc.t === 'portal') { buildPortal(pc); return; }
   let h = THICK;
   const quat = new Quaternion(), center = new Vector3();
   let w = pc.w, d = pc.d;
@@ -5463,7 +5612,7 @@ function step(dt, ix, iz) {
   if (scans.length && state === 'play') scanStep();
   if (flames.length && state === 'play') flameStep();
   if (cracks.length) crackStep();
-  if (plazas.length) { plazaMove(); if (state === 'play') { plazaStep(); iceCatch(); } }
+  if (plazas.length) { plazaMove(); if (state === 'play') { plazaStep(); iceCatch(); portalStep(); } }
   ball.onLoop = null;
   for (const L of loopsIn) loopContact(L);
   tintStep();
@@ -5526,6 +5675,7 @@ function flyTo(dest) {
 function arrive() {
   for (const c of cracks) if (c.crack.state !== 'whole') { c.crack.state = 'whole'; c.crack.back = simT; }   // the bridges stand again
   for (const P of plazas) if (P.cov && flight.to.z > P.z0 - 0.1) resetCover(P);   // and the tiles of a square ahead
+  for (const P of plazas) if (P.tune && !P.tune.done && flight.to.z > P.z0 - 0.1) Object.assign(P.tune, { at: 0, heard: false, play: null });   // a tune ahead, to hear again
   ball.p.copy(flight.to); ball.v.set(0, 0, 0);
   setTint(spawnTint);
   ball.grounded = true; ball.airT = 0;
@@ -6177,6 +6327,9 @@ const PLAZA_NEWS = {
   T1: 'Light every tile and a bridge appears. Each tile crumbles once you leave it',
   T2: 'Only one way covers them all. Where must it end?',
   T3: 'Holes and a wall. Plan the whole route first',
+  M1: 'Listen to the drums, then roll over them in the same order',
+  M2: 'Five notes this time. The pad by the road in plays it again',
+  M3: 'Seven notes, and the drums stand in rows: go round, not over',
 };
 const PLAZA_NOTE_T = 7;
 function drawNews() {
@@ -12550,6 +12703,7 @@ if (HARNESS) {
     cracks: () => cracks.map((c) => ({ state: c.crack.state, z: c.pos.z })),
     plaza: () => plazas.map((P) => ({ held: P.held ? P.held.n : 0, onPad: P.onPad, x0: P.x0, z0: P.z0, y: P.y, cols: P.cols, rows: P.rows,
                                       gates: P.gates.map((g) => ({ ek: g.ek, state: g.state })), crates: P.crates.map((W) => ({ c: W.c, r: W.r, moving: W.moving, sunk: !!W.sunk })),
+                                      tune: P.tune && { seq: P.tune.seq, at: P.tune.at, done: P.tune.done, playing: !!P.tune.play, heard: P.tune.heard },
                                       tiles: P.tiles.map((T) => ({ c: T.c, r: T.r, mask: T.mask, moving: T.moving > 0 })), charged: P.charged, lit: P.lit,
                                       mirrors: P.mirrors.map((M) => ({ c: M.c, r: M.r, m: M.m })), stands: P.stands.map((s) => ({ c: s.c, r: s.r, n: s.key ? s.key.n : 0 })),
                                       view: +plazaView.toFixed(3), cam: P.cam && { pos: P.cam.pos.toArray().map((v) => +v.toFixed(2)), at: P.cam.at.toArray().map((v) => +v.toFixed(2)) } })),
