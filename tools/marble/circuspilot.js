@@ -16,18 +16,26 @@ window.__cp = (() => {
   function plan(opts, r) {
     const C = H.course(), S = H.circ(), steps = [];
     const obs = [...S.rings.map((q, i) => ({ k: 'ring', i, ...q })), ...S.juggles.map((q, i) => ({ k: 'jug', i, ...q })), ...S.wheels.map((q, i) => ({ k: 'wheel', i, ...q })),
-                 ...S.cannons.map((q, i) => ({ k: 'cannon', i, ...q })), ...S.throwers.map((q, i) => ({ k: 'thrower', i, ...q, z: q.z + q.L / 2 }))].sort((a, b) => b.z - a.z);
+                 ...S.cannons.map((q, i) => ({ k: 'cannon', i, ...q })), ...S.throwers.map((q, i) => ({ k: 'thrower', i, ...q, z: q.z + q.L / 2 })),
+                 ...S.swings.map((q) => ({ k: 'swing', ...q, x: 0, z: q.z + q.gap / 2 })), ...S.wires.map((q) => ({ k: 'wire', ...q, z: q.z + q.len / 2 })),
+                 ...S.teeters.map((q) => ({ k: 'teeter', ...q, x: 0, z: q.z + 4 })), ...S.wods.map((q) => ({ k: 'wod', ...q, x: 0, z: q.z + 1.2 })),
+                 ...S.ferrises.map((q) => ({ k: 'ferris', ...q, x: 0, z: q.z + q.g }))].sort((a, b) => b.z - a.z);
     for (const o of obs) {
       if (opts.careless) steps.push({ go: [o.x || 0, o.z + (o.k === 'thrower' ? 1.5 : 3.2)], v: 3, r: 0.3, stop: true }, { pause: r() * 3.5 });   // careless: arrives at any moment
       if (o.k === 'ring') steps.push({ ring: o, careless: opts.careless });
       else if (o.k === 'jug') steps.push({ go: [0, o.z + 2.4], v: 3, r: 0.3, stop: !opts.careless, xo: !!opts.careless }, { jug: o, careless: opts.careless });
       else if (o.k === 'wheel') steps.push({ go: [o.x, o.z + 2.2], v: 3, r: 0.25, stop: !opts.careless }, { wheel: o, careless: opts.careless });
       else if (o.k === 'cannon') steps.push({ go: [o.x, o.z + 2.6], v: 3, r: 0.25, stop: !opts.careless }, { cannon: o, careless: opts.careless }, { flown: true });
-      else steps.push({ throw: o, careless: opts.careless });
+      else if (o.k === 'thrower') steps.push({ throw: o, careless: opts.careless });
+      else if (o.k === 'swing') steps.push({ go: [0, o.z + 1.0], v: 3, r: 0.25, stop: !opts.careless }, { swing: o, careless: opts.careless });
+      else if (o.k === 'wire') steps.push({ go: [0, o.z + 1.2], v: 2.5, r: 0.25, stop: !opts.careless }, { wire: o, careless: opts.careless });
+      else if (o.k === 'teeter') steps.push({ teeter: o, careless: opts.careless });
+      else if (o.k === 'wod') steps.push({ go: [0, o.z + 0.4], v: 2.5, r: 0.2, stop: !opts.careless }, { wod: o, careless: opts.careless });
+      else if (o.k === 'ferris') steps.push({ go: [0, o.z + o.e + 0.3], v: 2.5, r: 0.2, stop: !opts.careless }, { ferris: o, careless: opts.careless });
     }
     steps.push({ go: [C.goal[0], C.goal[2]], v: 5, r: 0.3 });
     let zNow = 99;
-    for (const st of steps) { const o = st.ring || st.jug || st.wheel || st.cannon || st.throw; st.z = st.go ? st.go[1] : o ? o.z + 2.6 : zNow; zNow = st.z; }
+    for (const st of steps) { const o = st.ring || st.jug || st.wheel || st.cannon || st.throw || st.swing || st.wire || st.teeter || st.wod || st.ferris; st.z = st.go ? st.go[1] : o ? o.z + 2.6 : zNow; zNow = st.z; }
     return steps;
   }
   function pilot(kind, opts) {
@@ -92,6 +100,69 @@ window.__cp = (() => {
         if (Math.abs(yawAt) < 0.05 && Math.abs(yawRate) > 0) st.going = true;
         const [ix, iz] = steer(s, K.x, K.z + 2.6, 0); return { ix, iz };
       }
+      if (st.swing) {                                    // on when the seat has just come to the near edge, off when it is at the far one
+        const T = S.swings.find((q) => Math.abs(q.z + q.gap / 2 - st.swing.z) < 0.01), near = T.z + T.gap / 2, far = T.z - T.gap / 2;
+        if (s.ball[2] < far - 1.2 && s.grounded) { i++; return { ix: 0, iz: 0 }; }
+        const u = (((H.simT() + T.phase) % T.period) + T.period) % T.period;
+        if (st.careless) { const [ix, iz] = steer(s, 0, far - 3, 3.5); return { ix, iz }; }
+        if (!st.on) {
+          if (u < 0.35 && Math.abs(T.a - T.amax) < 0.02) st.on = true;
+          if (!st.on) { const [ix, iz] = steer(s, 0, near + 1.0, 0); return { ix, iz }; }
+        }
+        if (!st.off) {                                    // ride: stay in the seat's middle until it holds at the far edge
+          if (Math.abs(T.a + T.amax) < 0.02 && s.ball[2] < T.z) st.off = true;
+          const [ix, iz] = steer(s, 0, T.seat[2], 2.5); return { ix, iz };
+        }
+        const [ix, iz] = steer(s, 0, far - 2.5, 3); return { ix, iz };
+      }
+      if (st.wire) {                                     // along the wire's middle, where it will be a moment on
+        const W = S.wires.find((q) => Math.abs(q.z + q.len / 2 - st.wire.z) < 0.01), end = W.z - W.len / 2 - 1.2;
+        if (s.ball[2] < end) { i++; return { ix: 0, iz: 0 }; }
+        const lead = 0.25, x = st.careless ? 0 : (W.sway ? W.sway * Math.sin(2 * Math.PI * (H.simT() + lead) / W.period) : 0);
+        const [ix, iz] = steer(s, x, s.ball[2] - 1.5, st.careless ? 3.5 : 2.2); return { ix, iz };
+      }
+      if (st.teeter) {                                   // onto the yellow spot, stop, and wait to be thrown up to the rail above
+        const T = S.teeters.find((q) => Math.abs(q.z + 4 - st.teeter.z) < 0.01);
+        if (s.ball[1] > T.y + T.up - 0.2 && s.grounded) { i++; return { ix: 0, iz: 0 }; }
+        if (!s.grounded) return { ix: 0, iz: 0 };
+        if (st.careless) { const [ix, iz] = steer(s, 0, T.farZ - 3, 4); return { ix, iz }; }
+        if (!st.on) {                                     // wait at the rail's end while the plank is over or coming back, or he is about to land
+          if (Math.hypot(s.ball[2] - (T.nearZ + 0.7), s.ball[0]) < 0.3 && sp < 0.4 && Math.abs(T.a - T.tilt) < 0.005 && T.toLand > 1.5) st.on = true;   // only once waiting at the rail's end
+          if (!st.on) { const [ix, iz] = steer(s, 0, T.nearZ + 0.7, 2); return { ix, iz }; }
+        }
+        const [ix, iz] = steer(s, 0, T.nearZ - 0.75, 3); return { ix, iz };
+      }
+      if (st.wod) {                                      // wait at the rail's end for a cage to come to the bottom, then in
+        const Wd = S.wods.find((q) => Math.abs(q.z + 1.2 - st.wod.z) < 0.01);
+        if (S.held) { st.inside = true; return { ix: 0, iz: 0 }; }
+        if (st.inside) { i++; return { ix: 0, iz: 0 }; }
+        if (st.careless || st.going) { st.going = true; const [ix, iz] = steer(s, 0, Wd.z - 0.2, 2.6); return { ix, iz }; }
+        const tArr = 0.55, a = ((Wd.ang + Wd.spin * tArr) % Math.PI + Math.PI) % Math.PI;   // a cage is at the bottom when the angle is a whole number of turns of pi
+        if (a < 0.08 || a > Math.PI - 0.02) st.going = true;
+        const [ix, iz] = steer(s, 0, Wd.z + 1.6, 0); return { ix, iz };
+      }
+      if (st.ferris) {                                   // from the rail's very end onto a car just past it, still level; off as one comes level beyond
+        const Fw = S.ferrises.find((q) => Math.abs(q.z + q.g - st.ferris.z) < 0.01), nearEnd = Fw.z + Fw.g + Fw.e, far = Fw.z - Fw.g - Fw.e;
+        if (s.ball[2] < far - 1.2 && s.grounded && s.ball[1] > Fw.y) { i++; return { ix: 0, iz: 0 }; }
+        if (st.careless && !st.on) { const [ix, iz] = steer(s, 0, far - 3, 3); if (s.ball[2] < nearEnd - 0.3) st.on = true; return { ix, iz }; }
+        const floorY = (c) => c[1] + 0.1;
+        if (!st.on) {
+          const car = (k, t) => { const a = -Fw.spin * t + Fw.phase + k * 2 * Math.PI / Fw.n; return [Fw.z + Fw.Rf * Math.cos(a), Fw.yc + Fw.Rf * Math.sin(a) - Fw.hang]; };
+          const T = H.simT() + 0.3;                         // where each car will be as we get there
+          for (let k = 0; k < Fw.n; k++) { const [cz, fy] = car(k, T); if (cz > nearEnd - 1.25 && cz < nearEnd - 0.75 && fy > Fw.y - 0.3 && fy < Fw.y + 0.02 && cz < Fw.z + Fw.g + 1) st.on = true; }
+          if (!st.on) { const [ix, iz] = steer(s, 0, nearEnd + 0.3, 0); return { ix, iz }; }
+          st.onT = 0;
+        }
+        if (st.onT !== undefined && st.onT < 0.45 && s.ball[2] > nearEnd - 1.6) { st.onT += dt; const [ix, iz] = steer(s, 0, s.ball[2] - 3, 3); return { ix, iz }; }   // across the join
+        const mine = Fw.cars.slice().sort((a, b) => Math.hypot(a[2] - s.ball[2], a[1] - s.ball[1]) - Math.hypot(b[2] - s.ball[2], b[1] - s.ball[1]))[0];
+        if (!st.off && mine[2] < Fw.z && Math.abs(mine[2] - (far + Fw.e)) < 0.35 && floorY(mine) > Fw.y - 0.06) st.off = true;
+        if (!st.off) {                                    // sit still in the car (it carries us); nudge toward its middle, relative to it
+          const want = Math.max(-1.2, Math.min(1.2, (mine[2] - s.ball[2]) * 1.5));
+          let ix = (0 - s.ball[0]) * 0.8 - s.v[0] * 0.7, iz = (want - s.v[2]) * 0.7; const m = Math.hypot(ix, iz); if (m > 1) { ix /= m; iz /= m; }
+          return { ix, iz };
+        }
+        const [ix, iz] = steer(s, 0, far - 2.5, 4.5); return { ix, iz };
+      }
       if (st.throw) {                                    // on through, but out of the way of each ball once it is thrown
         const T = S.throwers.find((q) => Math.abs(q.z + q.L / 2 - st.throw.z) < 0.01), end = T.z - T.L / 2 - 0.8;
         if (s.ball[2] < end) { i++; return { ix: 0, iz: 0 }; }
@@ -117,11 +188,11 @@ window.__cp = (() => {
     H.hold(true);
     const p = pilot(kind, opts), out = [];
     for (let tick = 0; tick < 60 * 120; tick++) {
-      const s = H.state(); out.push([tick, ...s.ball.map((v) => +v.toFixed(2)), +s.v[0].toFixed(2), +s.v[2].toFixed(2), s.phase]);
+      const s = H.state(), C = H.circ(); const near = (C.ferrises[0] ? C.ferrises[0].cars.map((c) => [c[1], c[2]]).sort((a, b) => Math.abs(a[1] - s.ball[2]) - Math.abs(b[1] - s.ball[2]))[0] : null); out.push([tick, ...s.ball.map((v) => +v.toFixed(2)), +s.v[1].toFixed(2), +s.v[2].toFixed(2), s.grounded ? 'g' : 'a', near, C.teeters[0] ? +C.teeters[0].toLand.toFixed(2) : null]);
       if (s.falls > 0) break;
       const o = p(1 / 60); if (o.done) break; H.drive(o.ix, o.iz, 1);
     }
-    H.hold(false); return out.slice(-40).filter((_, i) => i % 3 === 0);
+    H.hold(false); return out.slice(-36).filter((_, i) => i % 2 === 0);
   }
   function run(kind, opts = {}) {
     H.hold(true);

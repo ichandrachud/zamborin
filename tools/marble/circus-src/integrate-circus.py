@@ -28,5 +28,8 @@ rep("  animateSpace(dt); animateSpace2(dt);\n", "  animateSpace(dt); animateSpac
 rep("    if (TRY_SPACE[test]) for (const spec of TRY_SPACE[test])", "    if (TRY_CIRCUS[test]) for (const spec of TRY_CIRCUS[test]) { on(circLay(spec, pieces, x, y, z)); straight(8, wide); }   // the circus obstacles' try-outs\n    else if (TRY_SPACE[test]) for (const spec of TRY_SPACE[test])")
 rep("setWorld(TRY_SPACE[v] || SP_TRY.includes(v) ? 'pinball-chrome' : w === 'tokyo' ? 'tokyo' : 'neon'); return; }", "setWorld(TRY_CIRCUS[v] ? 'circus-tintoy' : TRY_SPACE[v] || SP_TRY.includes(v) ? 'pinball-chrome' : w === 'tokyo' ? 'tokyo' : 'neon'); return; }")
 rep("    tap: () => { tapQueued = true; },\n", "    tap: () => { tapQueued = true; },\n    circ: () => circState(),\n")
+rep("  for (const c of ferries) updateFerry(c, simT);\n", "  for (const c of ferries) updateFerry(c, simT);\n  circMove(dt);                                          // the circus's moving floors: a trapeze seat, a wire, a teeterboard, the Ferris cars\n")
+rep("  if (pc.t === 'thrower') { buildThrower(pc); return; }\n", "  if (pc.t === 'thrower') { buildThrower(pc); return; }\n  if (pc.t === 'trapeze') { buildTrapeze(pc); return; }\n  if (pc.t === 'wire') { buildWire(pc); return; }\n  if (pc.t === 'teeter') { buildTeeter(pc); return; }\n  if (pc.t === 'wod') { buildWod(pc); return; }\n  if (pc.t === 'ferris') { buildFerrisGap(pc); return; }\n")
+rep("{ on(circLay(spec, pieces, x, y, z)); straight(8, wide); }", "{ const L = circLay(spec, pieces, x, y, z); if (L.dy) y = cr2(y + L.dy); on(L.len || L); straight(8, wide); }")
 open(p, 'w').write(s)
 print('obstacles ok')

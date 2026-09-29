@@ -68,7 +68,7 @@ function circLay(spec, pieces, x, y, z) {
     pieces.push({ ...spec, x, z: cr2(z - spec.L / 2), y, w: 3.4, d: spec.L, side: 1, phase: 0.8 });
     return spec.L;
   }
-  return 0;
+  return circLay2(spec, pieces, x, y, z);
 }
 let cqFlameMemo = null;
 const cqFlameTex = () => cqFlameMemo || (cqFlameMemo = canvasTex(64, 64, (g) => {   // a lick of flame: white at its root, orange out to nothing
@@ -256,6 +256,7 @@ function cannonStep(dt) {
 }
 // Held in the cannon: drawn down the barrel for a moment, then fired.
 function circHeldStep(dt) {
+  if (ball.circ.wod) { wodHeld(dt); return; }              // in a cage of the Wheel of Death
   const H = ball.circ, C = H.C;
   H.t += dt;
   const yaw = canYaw(C, simT), M = canMouth(C, yaw), f = Math.min(1, H.t / 0.22);
@@ -320,6 +321,8 @@ function circStep(dt) {
   if (circ.wheels.length) kwheelStep();
   if (circ.cannons.length) cannonStep(dt);
   if (circ.throwers.length) throwerStep(dt);
+  if (circ.wods.length) wodStep();
+  if (circ.teeters.length) teeterStep();
 }
 // Each frame: the flames, the balls, the wheel, the cannon's swing, the thrower's wind-up.
 function animateCirc(dt) {
@@ -370,5 +373,6 @@ function circState() {
     cannons: circ.cannons.map((C) => { const yaw = canYaw(C, simT), S = canShot(C, yaw); return { x: C.pc.x, z: C.pc.z, land: C.pc.land, netW: C.pc.netW, yaw, atX: S.at.x, swing: C.pc.swing, period: C.pc.period, phase: C.pc.phase }; }),
     throwers: circ.throwers.map((T) => ({ z: T.pc.z, L: T.pc.L, period: T.pc.period, flight: T.pc.flight, balls: T.balls.map((b) => [b.at.x, b.at.z, simT - b.t0]) })),
     held: !!ball.circ,
+    ...circState2(),
   };
 }
