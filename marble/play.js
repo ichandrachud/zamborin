@@ -18143,30 +18143,46 @@ function introArt(kind, cx, y, w, h) {
 }
 function drawIntro() {
   const I = SP_INTRO[introKind]; if (!I) return;
-  const pw = Math.min(LW - 32, 470), padX = 26, art = 104;
-  ctx.font = '500 17px Inter, sans-serif';
-  const lines = I.lines.flatMap((t, i) => (i ? [''] : []).concat(wrapText(t, pw - 2 * padX, 17)));
-  const ph = 22 + 20 + 34 + 12 + art + 14 + lines.reduce((a, l) => a + (l ? 24 : 8), 0) + 16 + UI.CTA.h + 20;
-  const px = Math.round((LW - pw) / 2), py = Math.min(topBand() + 8, Math.max(8, LH - botBand() - ph - 10));   // at the top: the camera frames the square low on a phone
+  // It must fit (the smallest embed is 480 x 360): with its picture if there is room, without it if not, and at the
+  // smallest, a smaller heading and 16px text. Never below 16px.
+  const pw = Math.min(LW - 32, 470), padX = 26, room = LH - 16;
+  const layout = (art, small) => {
+    const fs = small ? 16 : 17, lead = small ? 21 : 24;
+    ctx.font = '500 ' + fs + 'px Inter, sans-serif';
+    const lines = I.lines.flatMap((t, i) => (i ? [''] : []).concat(wrapText(t, pw - 2 * padX, fs)));
+    const head = small ? 16 + 26 + 8 : 22 + 20 + 34 + 12;
+    const ph = head + (art ? art + 14 : 0) + lines.reduce((n, l) => n + (l ? lead : 6), 0) + (small ? 10 : 16) + UI.CTA.h + (small ? 14 : 20);
+    return { art, small, fs, lead, lines, head, ph };
+  };
+  let F = layout(104, false);
+  if (F.ph > room) F = layout(0, false);
+  if (F.ph > room) F = layout(0, true);
+  const ph = F.ph, px = Math.round((LW - pw) / 2), py = Math.max(8, Math.min(topBand() + 8, LH - botBand() - ph - 10, LH - ph - 8));   // at the top: the camera frames the square low on a phone
   ctx.save();
   ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 24; ctx.shadowOffsetY = 6;
   UI.roundRectPath(ctx, px, py, pw, ph, 22); ctx.fillStyle = TOK.bgCard; ctx.fill();
   ctx.shadowColor = 'transparent';
   ctx.strokeStyle = TOK.tint12; ctx.lineWidth = 1; UI.roundRectPath(ctx, px + 0.5, py + 0.5, pw - 1, ph - 1, 22); ctx.stroke();
-  let yy = py + 22;
-  ctx.fillStyle = TOK.accent2; ctx.font = '700 16px Inter, sans-serif'; ctx.textBaseline = 'alphabetic';
-  if (ctx.letterSpacing !== undefined) ctx.letterSpacing = '1.5px';
-  ctx.fillText('NEW PUZZLE', px + padX, yy + 15);
-  if (ctx.letterSpacing !== undefined) ctx.letterSpacing = '0px';
-  yy += 20;
-  ctx.fillStyle = TOK.text; ctx.font = '800 28px Inter, sans-serif'; ctx.fillText(I.title, px + padX, yy + 28);
-  yy += 34 + 12;
-  UI.roundRectPath(ctx, px + padX, yy, pw - 2 * padX, art, 14); ctx.fillStyle = TOK.tint07; ctx.fill();
-  introArt(introKind, px + pw / 2, yy + 10, pw - 2 * padX, art - 20);
-  yy += art + 14;
-  ctx.fillStyle = TOK.ink90; ctx.font = '500 17px Inter, sans-serif';
-  for (const l of lines) { if (l) { ctx.fillText(l, px + padX, yy + 17); yy += 24; } else yy += 8; }
-  yy += 16;
+  let yy = py + (F.small ? 16 : 22);
+  ctx.textBaseline = 'alphabetic';
+  if (!F.small) {
+    ctx.fillStyle = TOK.accent2; ctx.font = '700 16px Inter, sans-serif';
+    if (ctx.letterSpacing !== undefined) ctx.letterSpacing = '1.5px';
+    ctx.fillText('NEW PUZZLE', px + padX, yy + 15);
+    if (ctx.letterSpacing !== undefined) ctx.letterSpacing = '0px';
+    yy += 20;
+  }
+  ctx.fillStyle = TOK.text; ctx.font = F.small ? '800 22px Inter, sans-serif' : '800 28px Inter, sans-serif';
+  ctx.fillText(I.title, px + padX, yy + (F.small ? 22 : 28));
+  yy += F.small ? 26 + 8 : 34 + 12;
+  if (F.art) {
+    UI.roundRectPath(ctx, px + padX, yy, pw - 2 * padX, F.art, 14); ctx.fillStyle = TOK.tint07; ctx.fill();
+    introArt(introKind, px + pw / 2, yy + 10, pw - 2 * padX, F.art - 20);
+    yy += F.art + 14;
+  }
+  ctx.fillStyle = TOK.ink90; ctx.font = '500 ' + F.fs + 'px Inter, sans-serif';
+  for (const l of F.lines) { if (l) { ctx.fillText(l, px + padX, yy + F.fs); yy += F.lead; } else yy += 6; }
+  yy += F.small ? 10 : 16;
   L.hit.cta = UI.drawCTA(ctx, 'GOT IT', px + pw / 2, yy + UI.CTA.h / 2, TOK.accent);
   ctx.restore();
 }
