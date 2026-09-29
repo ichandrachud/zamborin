@@ -8898,6 +8898,7 @@ const SKINS = {
   // Chrome, so the neon city runs across it.
   chrome() { marble.material = new MeshStandardMaterial({ color: 0xFFFFFF, metalness: 1, roughness: 0.05, envMap: neonEnvMap() || envTex, envMapIntensity: 1.4 }); },
   // A pinball: polished steel, the machine's lamps running across it.
+  circus() { marble.material = new MeshStandardMaterial({ map: cqBallTex(), roughness: 0.28, metalness: 0.15, envMap: cqEnv(cqLook), envMapIntensity: 0.9 }); },   // a circus ball
   pinball() { marble.material = new MeshStandardMaterial({ color: 0xFFFFFF, metalness: 1, roughness: 0.05, envMap: pbEnvMap(pbLook) || envTex, envMapIntensity: 1.4 }); },
   // Faceted, like everything in the low-poly valley.
   faceted() {
@@ -18339,6 +18340,2145 @@ const INTRO_ART = {
   },
 };
 
+/* THE CIRCUS (owner, 2026-09-29: "the next world I want to build is a circus ... Show me image options first and then
+   we can decide what direction to go"). Three looks, built around the course as the other worlds are, for the owner
+   to choose from before any of it becomes track pieces:
+     bigtop   inside a long big top: red and cream canvas rising to a peak over each ring, king poles, bleachers of
+              people fading into the dark, strings of warm bulbs up the seams, spotlights sweeping the sawdust
+     tintoy   the same big top as a wind-up tin toy: printed tin in candy colours, rivets and tabs, keys in the backs
+              of the performers, a brighter, toy-shop light
+     midway   outside at dusk: the midway under strings of bulbs, booths with striped awnings, the big top beyond,
+              a Ferris wheel, a helter-skelter, a carousel, the sky going from amber to violet
+   All the art is our own (no circus's name or show). Animals are wind-up toys, not live ones. */
+const CIRCUS_LOOKS = ['bigtop', 'tintoy', 'midway'];
+const CQ = {
+  bigtop: { canvas: ['#B8202C', '#F2E4C4'], canvasDark: '#3A0C10', trim: '#D8A640', floor: '#7A5634', floorDot: ['#9A7248', '#5A3C22', '#C49A64'],
+            ring: '#7A4A26', curb: '#B8202C', curbTop: '#F2E4C4', pole: 0xE8D8B0, poleStripe: 0xB8202C, wood: 0x3A2418, seat: 0x5A3420,
+            bulb: 0xFFD9A0, bulbDim: 0x5A3A20, fog: [0x0C0503, 26, 120], bg: ['#030101', '#0C0503', '#1A0A06'], hemi: [0xFFC890, 0x1A0804, 0.32],
+            sun: [0xFFD8A8, 0.7], haze: [0xFF9A50, 2.2], spot: 0xFFF2D8, crowd: [0x6A3A30, 0x4A3A5A, 0x7A6A40, 0x3A4A5A, 0x8A5040, 0x5A5A5A],
+            deck: { base: '#F4E8CC', band: '#B8202C', stud: '#D8A640', side: 0x8A1A20 }, brass: 0xD8A640 },
+  tintoy: { canvas: ['#2AA89A', '#FFF1D2'], canvasDark: '#0A3A36', trim: '#F2C230', floor: '#E8D2A0', floorDot: ['#E85A4A', '#2AA89A', '#F2C230'],
+            ring: '#F2C230', curb: '#2A5AC8', curbTop: '#FFF1D2', pole: 0xF2C230, poleStripe: 0xE85A4A, wood: 0x2A5AC8, seat: 0xE85A4A,
+            bulb: 0xFFF4D8, bulbDim: 0x6A6050, fog: [0x2A2438, 50, 200], bg: ['#1A1428', '#3A2A48', '#5A3A58'], hemi: [0xFFF6EC, 0x3A3048, 1.3],
+            sun: [0xFFF4E4, 1.6], haze: [0xFFD8B0, 2], spot: 0xFFFFFF, crowd: [0xE85A4A, 0x2AA89A, 0xF2C230, 0x2A5AC8, 0xF4A0B0, 0xFFF1D2],
+            deck: { base: '#FFF1D2', band: '#E85A4A', stud: '#2A5AC8', side: 0x2A5AC8 }, brass: 0xF2C230 },
+  midway: { canvas: ['#C8202C', '#F4ECD8'], canvasDark: '#3A0C10', trim: '#E8B040', floor: '#4A3A2A', floorDot: ['#5A4A34', '#3A2E22', '#6A5A40'],
+            ring: '#5A4028', curb: '#C8202C', curbTop: '#F4ECD8', pole: 0xE8E0D0, poleStripe: 0xC8202C, wood: 0x5A3A22, seat: 0x7A4A28,
+            bulb: 0xFFD8A0, bulbDim: 0x4A3420, fog: [0x2A1E40, 45, 210], bg: ['#140E2A', '#3A2450', '#FF8A5A'], hemi: [0xFFB890, 0x1A1030, 0.5],
+            sun: [0xFFB070, 1.3], haze: [0xFF8A50, 3], spot: 0xFFF2D8, crowd: [0x6A3A30, 0x4A3A5A, 0x7A6A40, 0x3A4A5A, 0x8A5040, 0x5A5A5A],
+            deck: { base: '#EFE4CC', band: '#C8202C', stud: '#E8B040', side: 0xC8202C }, brass: 0xE8B040, lane: '#3A2C20' },
+};
+let cqLook = 'bigtop';
+const cqKits = {};
+// Everything a look draws once and keeps from course to course.
+function cqKit(look) {
+  if (cqKits[look]) return cqKits[look];
+  const C = CQ[look], keep = (m) => { m.userData.keep = true; return m; }, tin = look === 'tintoy';
+  const env = cqEnv(look);
+  // The canvas of the tent: gores of the two colours, a seam of bulbs' light down every fourth, darker towards the eaves.
+  const gores = canvasTex(1024, 512, (g) => {
+    const n = 16;
+    for (let i = 0; i < n; i++) { g.fillStyle = C.canvas[i % 2]; g.fillRect(i * 1024 / n, 0, 1024 / n + 1, 512); }
+    if (tin) {                                               // printed tin: stars on the pale gores, a halftone, a printed edge
+      const r = seeded(5);
+      for (let i = 1; i < n; i += 2) for (let k = 0; k < 7; k++) { g.fillStyle = C.trim; cqStar(g, i * 64 + 32 + (r() - 0.5) * 20, 30 + k * 70 + r() * 20, 9, 4); g.fill(); }
+      g.fillStyle = 'rgba(0,0,0,0.08)'; for (let y = 0; y < 512; y += 6) for (let x = (y / 6) % 2 ? 3 : 0; x < 1024; x += 6) g.fillRect(x, y, 2, 2);
+    }
+    g.fillStyle = pbLin(g, 0, 0, 0, 512, [[0, 'rgba(0,0,0,0)'], [0.55, 'rgba(0,0,0,0.1)'], [1, 'rgba(0,0,0,0.55)']]); g.fillRect(0, 0, 1024, 512);
+    for (let i = 0; i <= n; i++) { g.fillStyle = 'rgba(40,10,8,0.35)'; g.fillRect(i * 1024 / n - 2, 0, 4, 512); }
+  });
+  gores.wrapS = RepeatWrapping;
+  // The sidewall: upright stripes, a scalloped band at the top.
+  const wallT = canvasTex(512, 256, (g) => {
+    for (let i = 0; i < 16; i++) { g.fillStyle = C.canvas[i % 2]; g.fillRect(i * 32, 0, 33, 256); }
+    g.fillStyle = C.trim; g.fillRect(0, 0, 512, 22);
+    for (let x = 0; x < 512; x += 32) { g.fillStyle = C.canvas[0]; g.beginPath(); g.arc(x + 16, 22, 16, 0, Math.PI); g.fill(); }
+    g.fillStyle = pbLin(g, 0, 0, 0, 256, [[0, 'rgba(0,0,0,0)'], [1, 'rgba(0,0,0,0.6)']]); g.fillRect(0, 0, 512, 256);
+  }, true);
+  // The sawdust floor (or printed tin, or trodden earth), and the ring's raked sawdust.
+  const floorT = canvasTex(512, 512, (g) => {
+    g.fillStyle = C.floor; g.fillRect(0, 0, 512, 512);
+    const r = seeded(9);
+    if (tin) { for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) { g.fillStyle = (x + y) % 2 ? '#F2DDB0' : '#E4C890'; g.fillRect(x * 64, y * 64, 64, 64); }
+      for (let i = 0; i < 64; i++) { g.fillStyle = C.floorDot[i % 3]; g.beginPath(); g.arc((i % 8) * 64 + 32, Math.floor(i / 8) * 64 + 32, 6, 0, 7); g.fill(); } }
+    else {
+      for (let i = 0; i < 40; i++) { const x = r() * 512, y = r() * 512; g.fillStyle = pbRad(g, x, y, 0, 40 + r() * 60, [[0, 'rgba(255,220,160,0.12)'], [1, 'rgba(0,0,0,0)']]); g.fillRect(x - 100, y - 100, 200, 200); }
+      for (let i = 0; i < 26000; i++) { g.fillStyle = C.floorDot[Math.floor(r() * 3)]; g.fillRect(r() * 512, r() * 512, 1 + r() * 1.6, 1 + r() * 1.2); }
+    }
+  }, true);
+  const ringT = canvasTex(512, 512, (g) => {
+    g.fillStyle = C.ring; g.fillRect(0, 0, 512, 512);
+    const r = seeded(11);
+    if (tin) { for (let k = 0; k < 12; k++) { g.fillStyle = k % 2 ? '#F2C230' : '#E85A4A'; g.beginPath(); g.moveTo(256, 256); g.arc(256, 256, 256, k * Math.PI / 6, (k + 1) * Math.PI / 6); g.fill(); }
+      g.fillStyle = '#FFF1D2'; cqStar(g, 256, 256, 90, 38); g.fill(); }
+    else {
+      for (let i = 0; i < 6000; i++) { g.fillStyle = C.floorDot[Math.floor(r() * 3)]; g.fillRect(r() * 512, r() * 512, 1 + r() * 2, 1 + r() * 1.5); }
+      g.strokeStyle = 'rgba(40,20,8,0.25)'; g.lineWidth = 3; for (let k = 20; k < 256; k += 14) { g.beginPath(); g.arc(256, 256, k, 0, Math.PI * 2); g.stroke(); }   // raked
+      g.fillStyle = 'rgba(255,230,180,0.35)'; cqStar(g, 256, 256, 70, 30); g.fill();
+    }
+  });
+  // The ring curb: the look's colour, a pale top, stars along it (tin: rivets and a printed band).
+  const curbT = canvasTex(1024, 64, (g) => {
+    g.fillStyle = C.curb; g.fillRect(0, 0, 1024, 64); g.fillStyle = C.curbTop; g.fillRect(0, 0, 1024, 14);
+    for (let x = 32; x < 1024; x += 64) { g.fillStyle = C.trim; if (tin) { pbCircle(g, x, 40, 5); g.fill(); } else { cqStar(g, x, 40, 13, 5.5); g.fill(); } }
+  }, true);
+  // The rail: painted boards (or printed tin, or a boardwalk), a band down each edge, studs in it.
+  const deckT = canvasTex(256, 256, (g) => {
+    const D = C.deck; g.fillStyle = D.base; g.fillRect(0, 0, 256, 256);
+    if (look === 'midway') { for (let y = 0; y < 256; y += 32) { g.fillStyle = y % 64 ? '#E6DAC0' : '#EFE4CC'; g.fillRect(0, y, 256, 30); g.fillStyle = 'rgba(60,40,20,0.35)'; g.fillRect(0, y + 30, 256, 2); } }
+    else { g.fillStyle = 'rgba(0,0,0,0.06)'; for (let y = 0; y < 256; y += 32) g.fillRect(0, y + 30, 256, 2); }
+    if (tin) { g.fillStyle = D.band; for (let k = 0; k < 4; k++) { cqStar(g, 64 + (k % 2) * 128, 32 + k * 64, 14, 6); g.fill(); } }
+  }, true);
+  const runT = canvasTex(256, 512, (g) => {
+    if (look === 'midway') { for (let y = 0; y < 512; y += 24) { g.fillStyle = (y / 24) % 2 ? '#3A2C20' : '#44342A'; g.fillRect(0, y, 256, 22); g.fillStyle = '#1A1208'; g.fillRect(0, y + 22, 256, 2); } return; }
+    g.fillStyle = tin ? '#2A5AC8' : '#7A0E16'; g.fillRect(0, 0, 256, 512);
+    g.fillStyle = tin ? '#FFF1D2' : '#D8A640'; g.fillRect(0, 0, 18, 512); g.fillRect(238, 0, 18, 512);
+    g.fillStyle = tin ? '#E85A4A' : '#5A0A10'; g.fillRect(22, 0, 8, 512); g.fillRect(226, 0, 8, 512);
+    for (let y = 64; y < 512; y += 128) { g.fillStyle = tin ? '#F2C230' : 'rgba(216,166,64,0.55)'; cqStar(g, 128, y, 44, 18); g.fill(); g.strokeStyle = tin ? '#FFF1D2' : 'rgba(216,166,64,0.4)'; g.lineWidth = 4; pbCircle(g, 128, y, 56); g.stroke(); }
+    if (!tin) { const r = seeded(29); for (let i = 0; i < 3000; i++) { g.fillStyle = `rgba(0,0,0,${r() * 0.18})`; g.fillRect(r() * 256, r() * 512, 1, 2); } }
+  }, true);
+  const edgeT = canvasTex(64, 256, (g) => { g.fillStyle = C.deck.band; g.fillRect(0, 0, 64, 256); g.fillStyle = C.deck.stud; for (let y = 16; y < 256; y += 32) { pbCircle(g, 32, y, 7); g.fill(); } }, true);
+  const std = (o) => keep(hazed(new MeshStandardMaterial(o)));
+  const K = {
+    env,
+    canvas: std({ map: gores, side: DoubleSide, roughness: tin ? 0.35 : 0.9, metalness: tin ? 0.45 : 0, envMap: env, envMapIntensity: tin ? 0.8 : 0.2, emissive: 0xFFFFFF, emissiveMap: gores, emissiveIntensity: tin ? 0.18 : 0.12 }),
+    wall: std({ map: wallT, side: DoubleSide, roughness: 0.9, metalness: tin ? 0.4 : 0, envMap: env, envMapIntensity: 0.3, emissive: 0xFFFFFF, emissiveMap: wallT, emissiveIntensity: 0.08 }),
+    floor: std({ map: floorT, roughness: 0.95, metalness: tin ? 0.3 : 0 }),
+    ring: std({ map: ringT, roughness: 0.9, metalness: tin ? 0.3 : 0 }),
+    curb: std({ map: curbT, roughness: 0.5, metalness: tin ? 0.6 : 0.1, envMap: env, envMapIntensity: 0.6 }),
+    paint: std({ vertexColors: true, roughness: tin ? 0.35 : 0.55, metalness: tin ? 0.5 : 0.05, envMap: env, envMapIntensity: tin ? 0.9 : 0.4 }),
+    metal: std({ vertexColors: true, roughness: 0.25, metalness: 1, envMap: env, envMapIntensity: 1.2 }),
+    lit: keep(new MeshBasicMaterial({ vertexColors: true, toneMapped: false })),
+    deckTop: std({ map: deckT, roughness: tin ? 0.3 : 0.55, metalness: tin ? 0.55 : 0.05, envMap: env, envMapIntensity: 0.7 }),
+    deckSide: std({ map: edgeT, roughness: 0.4, metalness: tin ? 0.6 : 0.2, envMap: env, envMapIntensity: 0.8 }),
+    deckUnder: std({ color: 0x1A0E0A, roughness: 0.9 }),
+    runner: std({ map: runT, roughness: 0.85, metalness: tin ? 0.4 : 0, envMap: env, envMapIntensity: tin ? 0.6 : 0.1 }),
+    figs: keep(new MeshStandardMaterial({ map: cqFigures(look), alphaTest: 0.35, side: DoubleSide, roughness: tin ? 0.3 : 0.7, metalness: tin ? 0.4 : 0,
+                                         envMap: env, envMapIntensity: tin ? 0.9 : 0.2, emissive: 0xFFFFFF, emissiveMap: cqFigures(look), emissiveIntensity: 0.2 })),
+    posters: keep(new MeshStandardMaterial({ map: cqPosters(look), roughness: 0.8, emissive: 0xFFFFFF, emissiveMap: cqPosters(look), emissiveIntensity: 0.25 })),
+    curtain: std({ map: cqCurtain(look), roughness: 0.85, side: DoubleSide, emissive: 0xFFFFFF, emissiveMap: cqCurtain(look), emissiveIntensity: 0.1 }),
+    halo: keep(new MeshBasicMaterial({ map: pbGlow(), transparent: true, blending: AdditiveBlending, depthWrite: false, toneMapped: false })),
+    cone: keep(new MeshBasicMaterial({ map: cqConeTex(), color: C.spot, transparent: true, opacity: 0.16, blending: AdditiveBlending, depthWrite: false, side: DoubleSide, toneMapped: false })),
+  };
+  K.gores = gores;
+  return (cqKits[look] = K);
+}
+function cqStar(g, x, y, r1, r2, n = 5) { g.beginPath(); for (let i = 0; i < n * 2; i++) { const a = -Math.PI / 2 + i * Math.PI / n, rr = i % 2 ? r2 : r1; g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); } g.closePath(); }
+const cqEnvs = {};
+function cqEnv(look) {                                     // warm bulbs in the dark, for the brass and the tin to shine with
+  if (cqEnvs[look] || !renderer) return cqEnvs[look] || envTex;
+  const C = CQ[look];
+  const t = canvasTex(512, 256, (g) => {
+    g.fillStyle = pbLin(g, 0, 0, 0, 256, [[0, C.bg[0]], [0.5, C.bg[1]], [1, C.bg[2]]]); g.fillRect(0, 0, 512, 256);
+    const r = seeded(23);
+    for (let i = 0; i < 140; i++) { const x = r() * 512, y = 20 + r() * 150; g.fillStyle = pbRad(g, x, y, 0, 5 + r() * 8, [[0, '#FFFFFF'], [0.4, '#FFD9A0'], [1, 'rgba(0,0,0,0)']]); g.fillRect(x - 14, y - 14, 28, 28); }
+    for (let k = 0; k < 16; k++) { g.fillStyle = k % 2 ? 'rgba(200,40,40,0.35)' : 'rgba(240,220,190,0.25)'; g.fillRect(k * 32, 0, 32, 60); }
+  });
+  const pm = new PMREMGenerator(renderer);
+  cqEnvs[look] = pm.fromEquirectangular(t).texture; pm.dispose(); t.dispose();
+  return cqEnvs[look];
+}
+let cqConeMemo = null;
+function cqConeTex() {                                      // a spotlight's beam: bright at the lamp, fading down, soft at the edges
+  return cqConeMemo || (cqConeMemo = canvasTex(64, 256, (g) => {
+    for (let x = 0; x < 64; x++) { const e = Math.sin(Math.PI * x / 64); g.fillStyle = pbLin(g, 0, 0, 0, 256, [[0, `rgba(255,255,255,${0.9 * e})`], [1, `rgba(255,255,255,${0.15 * e})`]]); g.fillRect(x, 0, 1, 256); }
+  }));
+}
+// The heavy curtain at the performers' entrance: velvet folds, a gold fringe and tie-backs.
+function cqCurtain(look) {
+  const C = CQ[look];
+  return canvasTex(512, 512, (g) => {
+    const base = look === 'tintoy' ? '#E85A4A' : '#8A1018';
+    g.fillStyle = base; g.fillRect(0, 0, 512, 512);
+    for (let x = 0; x < 512; x += 32) { g.fillStyle = pbLin(g, x, 0, x + 32, 0, [[0, 'rgba(0,0,0,0.45)'], [0.5, 'rgba(255,220,200,0.18)'], [1, 'rgba(0,0,0,0.45)']]); g.fillRect(x, 0, 32, 512); }
+    g.fillStyle = C.trim; g.fillRect(0, 0, 512, 40);
+    for (let x = 0; x < 512; x += 8) { g.fillRect(x, 40, 4, 22 + (x % 16 ? 0 : 8)); }
+    g.fillRect(0, 490, 512, 22);
+  });
+}
+
+// ---- THE PERFORMERS, printed like lithographed tin: sixteen in a 4 x 4 atlas of 512 cells ----
+//   0 ringmaster  1 clown with balloons  2 aerialist  3 juggler  4 strongman  5 clown cartwheeling  6 elephant on a drum
+//   7 unicyclist  8 carousel horse  9 lion on a pedestal  10 fire-breather  11 stilt-walker  12 seal with a ball
+//   13 bear on a ball  14 monkey with cymbals  15 tiger on a pedestal
+// Every shape is printed the way a tin toy is (owner, 2026-09-29: the tin toy look "falls way short of the richness of
+// characters"): a flat colour, a pattern, a flat darker tone down its far side eased in with halftone dots, a narrow
+// shine, and a dark key line round it.
+const CQ_ROWS = 4, INK = '#2A1638';
+const cqFigMemo = {};
+function cqFigures(look) {
+  if (cqFigMemo[look]) return cqFigMemo[look];
+  const t = canvasTex(2048, 2048, (G) => {
+    const cells = [cqRingmaster, cqClown, cqAerialist, cqJuggler, cqStrongman, cqTumbler, cqElephant, cqUnicyclist,
+                   cqHorse, cqLion, cqFireBreather, cqStilts, cqSeal, cqBear, cqMonkey, cqTiger];
+    cells.forEach((f, i) => { G.save(); G.translate((i % 4) * 512, Math.floor(i / 4) * 512); G.beginPath(); G.rect(0, 0, 512, 512); G.clip(); f(G); G.restore(); });
+  });
+  return (cqFigMemo[look] = t);
+}
+const TAU = Math.PI * 2, SKIN = '#F6CFA8';
+const tlPoly = (g, ...p) => () => { g.beginPath(); g.moveTo(p[0], p[1]); for (let i = 2; i < p.length; i += 2) g.lineTo(p[i], p[i + 1]); g.closePath(); };
+const tlEll = (g, x, y, rx, ry, a = 0) => () => { g.beginPath(); g.ellipse(x, y, rx, ry, a, 0, TAU); };
+const tlRR = (g, x, y, w, h, r) => () => { g.beginPath(); g.roundRect(x, y, w, h, r); };
+const tlPath = (g, d) => () => { g.beginPath(); d(); g.closePath(); };
+function tlHalf(g, x0, y0, x1, y1, col, step = 8) {         // halftone dots, growing towards x1
+  g.fillStyle = col;
+  for (let j = 0, y = y0; y < y1; y += step, j++) for (let x = x0 + (j % 2) * step / 2; x < x1; x += step) {
+    const r = step * 0.56 * (x - x0) / (x1 - x0); if (r > 0.5) { g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill(); }
+  }
+}
+// Print a shape: its colour; inside it a pattern, the far side's second tone and the shine; then the key line.
+function tl(g, path, fill, o = {}) {
+  path(); g.fillStyle = fill; g.fill();
+  const b = o.box;
+  if (o.pat || b) {
+    g.save(); path(); g.clip();
+    if (o.pat) o.pat();
+    if (b && o.shade !== false) {
+      const w = b[2] - b[0], h = b[3] - b[1];
+      tlHalf(g, b[0] + w * 0.44, b[1] - 4, b[0] + w * 0.64, b[3] + 4, 'rgba(42,22,56,0.3)', Math.max(6, Math.min(10, w / 12)));
+      g.fillStyle = 'rgba(42,22,56,0.27)'; g.fillRect(b[0] + w * 0.64, b[1] - 20, w, h + 40);
+      g.fillStyle = 'rgba(255,255,255,0.3)'; g.fillRect(b[0] + w * 0.13, b[1] - 20, Math.max(3, w * 0.07), h + 40);
+    }
+    g.restore();
+  }
+  if (o.line !== false) { path(); g.lineJoin = 'round'; g.lineCap = 'round'; g.lineWidth = o.lw || 5; g.strokeStyle = INK; g.stroke(); }
+}
+// An arm or a leg: a round-ended stroke inside its key line, with a shine down it.
+function tlLimb(g, pts, w, col, shine = true) {
+  g.lineCap = 'round'; g.lineJoin = 'round';
+  g.beginPath(); g.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) g.lineTo(pts[i], pts[i + 1]);
+  g.strokeStyle = INK; g.lineWidth = w + Math.min(10, 3 + w * 0.3); g.stroke(); g.strokeStyle = col; g.lineWidth = w; g.stroke();
+  if (shine && w > 12) { g.save(); g.translate(-w * 0.2, -w * 0.1); g.strokeStyle = 'rgba(255,255,255,0.28)'; g.lineWidth = w * 0.2; g.stroke(); g.restore(); }
+}
+const tlDots = (g, b, col, r, s) => () => { g.fillStyle = col; for (let j = 0, y = b[1]; y < b[3] + s; y += s, j++) for (let x = b[0] + (j % 2) * s / 2; x < b[2] + s; x += s) { g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill(); } };
+const tlStripes = (g, b, cols, w, across = false) => () => { for (let i = 0, v = across ? b[1] : b[0]; v < (across ? b[3] : b[2]); v += w, i++) { g.fillStyle = cols[i % cols.length]; if (across) g.fillRect(b[0], v, b[2] - b[0], w); else g.fillRect(v, b[1], w, b[3] - b[1]); } };
+const tlDiamonds = (g, b, col, s) => () => { g.fillStyle = col; for (let j = 0, y = b[1]; y < b[3] + s; y += s / 2, j++) for (let x = b[0] + (j % 2) * s / 2; x < b[2] + s; x += s) { g.beginPath(); g.moveTo(x, y - s / 2); g.lineTo(x + s / 4, y); g.lineTo(x, y + s / 2); g.lineTo(x - s / 4, y); g.closePath(); g.fill(); } };
+const tlChecks = (g, b, col, s) => () => { g.fillStyle = col; for (let j = 0, y = b[1]; y < b[3]; y += s, j++) for (let x = b[0] + (j % 2) * s; x < b[2]; x += s * 2) g.fillRect(x, y, s, s); };
+const tlStarPat = (g, b, col, r, s) => () => { g.fillStyle = col; for (let j = 0, y = b[1]; y < b[3] + s; y += s, j++) for (let x = b[0] + (j % 2) * s / 2; x < b[2] + s; x += s) { cqStar(g, x, y, r, r * 0.45); g.fill(); } };
+const tlSpots = (g, b, s) => () => { const r = seeded(Math.round(b[0] * 7 + b[1])); for (let y = b[1]; y < b[3]; y += s) for (let x = b[0]; x < b[2]; x += s) { const px = x + r() * s * 0.6, py = y + r() * s * 0.6; g.fillStyle = '#5A3010'; g.beginPath(); g.ellipse(px, py, s * 0.28, s * 0.22, r() * 3, 0, TAU); g.fill(); g.fillStyle = '#C8782A'; g.beginPath(); g.ellipse(px, py, s * 0.13, s * 0.1, 0, 0, TAU); g.fill(); } };
+// A face: cheeks, eyes with a glint, brows, a nose (a red ball on a clown), a smile.
+function tlFace(g, x, y, r, o = {}) {
+  tl(g, tlEll(g, x, y, r, r * 1.04), o.skin || SKIN, { box: [x - r, y - r, x + r, y + r] });
+  g.fillStyle = 'rgba(232,80,100,0.42)'; for (const s of [-1, 1]) { g.beginPath(); g.ellipse(x + s * r * 0.54, y + r * 0.3, r * 0.2, r * 0.13, 0, 0, TAU); g.fill(); }
+  for (const s of [-1, 1]) {
+    const ex = x + s * r * 0.34, ey = y - r * 0.08;
+    if (o.marks) { g.fillStyle = o.marks; g.beginPath(); g.moveTo(ex, ey - r * 0.46); g.lineTo(ex + r * 0.1, ey); g.lineTo(ex, ey + r * 0.4); g.lineTo(ex - r * 0.1, ey); g.closePath(); g.fill(); }
+    g.fillStyle = '#FFFFFF'; g.beginPath(); g.ellipse(ex, ey, r * 0.16, r * 0.2, 0, 0, TAU); g.fill(); g.lineWidth = 2.5; g.strokeStyle = INK; g.stroke();
+    g.fillStyle = INK; g.beginPath(); g.arc(ex + r * 0.03, ey + r * 0.03, r * 0.095, 0, TAU); g.fill();
+    g.fillStyle = '#FFFFFF'; g.beginPath(); g.arc(ex + r * 0.07, ey - r * 0.03, r * 0.035, 0, TAU); g.fill();
+    g.strokeStyle = INK; g.lineWidth = 3.5; g.beginPath(); g.arc(ex, ey - r * 0.12, r * 0.24, Math.PI * 1.25, Math.PI * 1.75); g.stroke();
+  }
+  if (o.nose) { tl(g, tlEll(g, x, y + r * 0.2, r * 0.21, r * 0.19), o.nose, { lw: 3 }); g.fillStyle = 'rgba(255,255,255,0.75)'; g.beginPath(); g.arc(x - r * 0.07, y + r * 0.13, r * 0.055, 0, TAU); g.fill(); }
+  else { g.strokeStyle = INK; g.lineWidth = 3; g.beginPath(); g.arc(x, y + r * 0.1, r * 0.08, 0.3, Math.PI - 0.3); g.stroke(); }
+  g.fillStyle = o.mouth || '#C8202C'; g.beginPath(); g.arc(x, y + r * 0.4, r * (o.grin || 0.26), 0.12, Math.PI - 0.12); g.closePath(); g.fill(); g.lineWidth = 3; g.strokeStyle = INK; g.stroke();
+}
+function tlGlove(g, x, y, r = 17) { tl(g, tlEll(g, x, y, r, r * 0.9), '#FFFFFF', { lw: 4 }); g.strokeStyle = INK; g.lineWidth = 2.5; for (const d of [-0.35, 0, 0.35]) { g.beginPath(); g.moveTo(x + d * r, y - r * 0.2); g.lineTo(x + d * r, y + r * 0.6); g.stroke(); } }
+function tlStar(g, x, y, r, col = '#F2C230') { cqStar(g, x, y, r, r * 0.45); g.fillStyle = col; g.fill(); g.lineWidth = Math.max(2, r * 0.18); g.lineJoin = 'round'; g.strokeStyle = INK; g.stroke(); }
+// A printed drum for a performer to stand on: a top, a band of stars or diamonds, gold rims.
+function tlDrum(g, x, y, rx, h, col, band = '#F2C230', kind = 'stars') {
+  const box = [x - rx, y, x + rx, y + h];
+  tl(g, tlPath(g, () => { g.moveTo(x - rx, y); g.lineTo(x - rx, y + h); g.ellipse(x, y + h, rx, rx * 0.22, 0, Math.PI, 0, true); g.lineTo(x + rx, y); }), col, { box,
+    pat: () => { if (kind === 'stars') for (let k = 0; k < 5; k++) { cqStar(g, x - rx * 0.8 + k * rx * 0.4, y + h * 0.5, h * 0.2, h * 0.09); g.fillStyle = band; g.fill(); }
+                 else { g.strokeStyle = band; g.lineWidth = 5; for (let k = -6; k < 7; k++) { g.beginPath(); g.moveTo(x + k * rx * 0.3, y); g.lineTo(x + k * rx * 0.3 + h, y + h); g.moveTo(x + k * rx * 0.3 + h, y); g.lineTo(x + k * rx * 0.3, y + h); g.stroke(); } } } });
+  tl(g, tlRR(g, x - rx - 4, y - 4, rx * 2 + 8, 14, 6), band, { lw: 4 }); tl(g, tlRR(g, x - rx - 4, y + h - 8, rx * 2 + 8, 14, 6), band, { lw: 4 });
+  tl(g, tlEll(g, x, y - 2, rx, rx * 0.2), '#FFF1D2', { lw: 4 });
+}
+function tlBall(g, x, y, r, cols) {                          // a beach ball: gores of colour, a white pole, a shine
+  tl(g, tlEll(g, x, y, r, r), cols[0], { box: [x - r, y - r, x + r, y + r], pat: () => { cols.forEach((c, k) => { g.fillStyle = c; g.beginPath(); g.ellipse(x, y, r * Math.abs(Math.cos(k * 0.6)) + 1, r + 2, 0, 0, TAU); g.fill(); }); } });
+  tl(g, tlEll(g, x - r * 0.1, y - r * 0.55, r * 0.22, r * 0.14), '#FFFFFF', { lw: 3 });
+}
+
+function cqRingmaster(g) {
+  tl(g, tlPoly(g, 210, 290, 302, 290, 326, 424, 288, 404, 256, 330, 224, 404, 186, 424), '#9A1424', { box: [186, 290, 326, 424] });   // the tails, behind
+  tl(g, tlPoly(g, 214, 292, 298, 292, 302, 420, 266, 420, 256, 346, 246, 420, 210, 420), '#FFF6E8', { box: [210, 292, 302, 420] });   // white breeches
+  for (const x of [229, 284]) {
+    tl(g, tlRR(g, x - 22, 412, 44, 78, 8), '#231A2E', { box: [x - 22, 412, x + 22, 490] });
+    tl(g, tlRR(g, x - 26, 404, 52, 20, 6), '#F2C230', { lw: 4, pat: tlDots(g, [x - 26, 404, x + 26, 424], '#C8902A', 3, 9) });
+  }
+  tl(g, tlEll(g, 222, 494, 32, 11), '#231A2E'); tl(g, tlEll(g, 290, 494, 32, 11), '#231A2E');
+  tlLimb(g, [212, 204, 182, 262, 172, 318], 30, '#A8182A');                                              // the arm down, with the whip
+  g.strokeStyle = INK; g.lineWidth = 4; g.beginPath(); g.moveTo(170, 330); g.bezierCurveTo(110, 420, 70, 360, 58, 470); g.stroke();
+  tl(g, tlRR(g, 164, 314, 12, 36, 4), '#5A3A22', { lw: 3 }); tlGlove(g, 172, 322);
+  tl(g, tlPoly(g, 202, 176, 310, 176, 320, 300, 192, 300), '#C8242C', { box: [192, 176, 320, 300] });    // the coat
+  tl(g, tlPoly(g, 236, 178, 276, 178, 256, 222), '#FFF6E8', { lw: 4 });                                   // shirt front, bow tie
+  tl(g, tlPoly(g, 240, 182, 256, 190, 272, 182, 272, 198, 256, 190, 240, 198), '#231A2E', { lw: 3 });
+  for (const y of [228, 248, 268, 288]) {                                                                // gold frogging across the chest
+    g.strokeStyle = INK; g.lineWidth = 9; g.beginPath(); g.moveTo(214, y); g.lineTo(298, y); g.stroke(); g.strokeStyle = '#F2C230'; g.lineWidth = 4.5; g.stroke();
+    for (const s of [-1, 1]) tl(g, tlEll(g, 256 + s * 44, y, 7, 7), '#F2C230', { lw: 3 });
+  }
+  tl(g, tlEll(g, 230, 206, 9, 9), '#2A6AE8', { lw: 3 }); tlStar(g, 230, 206, 6, '#F2C230');                // a medal
+  for (const s of [-1, 1]) {                                                                             // epaulettes, with fringe
+    const x = 256 + s * 58;
+    g.strokeStyle = INK; g.lineWidth = 6; for (let k = -3; k <= 3; k++) { g.beginPath(); g.moveTo(x + k * 6, 184); g.lineTo(x + k * 6 + s * 3, 208); g.stroke(); }
+    g.strokeStyle = '#F2C230'; g.lineWidth = 3; for (let k = -3; k <= 3; k++) { g.beginPath(); g.moveTo(x + k * 6, 184); g.lineTo(x + k * 6 + s * 3, 208); g.stroke(); }
+    tl(g, tlEll(g, x, 182, 26, 12), '#F2C230', { lw: 4 });
+  }
+  tlLimb(g, [306, 196, 356, 152, 406, 122], 30, '#C8242C');                                             // the arm raised, presenting
+  tl(g, tlRR(g, 396, 108, 22, 26, 6), '#F2C230', { lw: 3 }); tlGlove(g, 420, 112, 18);
+  tl(g, tlPath(g, () => { g.moveTo(222, 150); g.quadraticCurveTo(210, 190, 234, 176); g.lineTo(234, 140); }), '#4A2414', { lw: 3 });   // sideburns
+  tl(g, tlPath(g, () => { g.moveTo(290, 150); g.quadraticCurveTo(302, 190, 278, 176); g.lineTo(278, 140); }), '#4A2414', { lw: 3 });
+  tlFace(g, 256, 146, 38, { grin: 0.2 });
+  tl(g, tlPath(g, () => { g.moveTo(256, 160); g.bezierCurveTo(236, 150, 214, 158, 204, 146); g.bezierCurveTo(206, 168, 236, 176, 256, 166); g.bezierCurveTo(276, 176, 306, 168, 308, 146); g.bezierCurveTo(298, 158, 276, 150, 256, 160); }), '#4A2414', { lw: 3 });   // the moustache
+  tl(g, tlPoly(g, 218, 106, 294, 106, 300, 22, 212, 22), '#231A2E', { box: [212, 22, 300, 106] });       // the top hat
+  tl(g, tlRR(g, 216, 82, 80, 18, 2), '#C8242C', { lw: 3 }); tlStar(g, 256, 91, 9);
+  tl(g, tlEll(g, 256, 108, 60, 10), '#231A2E', { lw: 4 });
+}
+function cqClown(g, noBalloons) {
+  if (!noBalloons) {
+    const bs = [[380, 58, '#E8303A'], [432, 96, '#2A6AE8'], [396, 128, '#F2C230']];
+    g.strokeStyle = INK; g.lineWidth = 2; for (const [bx, by] of bs) { g.beginPath(); g.moveTo(bx, by + 34); g.quadraticCurveTo(bx - 20, by + 120, 318, 300); g.stroke(); }   // held behind his back
+    for (const [bx, by, c] of bs) { tl(g, tlEll(g, bx, by, 28, 34), c, { box: [bx - 28, by - 34, bx + 28, by + 34] }); tl(g, tlPoly(g, bx - 6, by + 40, bx + 6, by + 40, bx, by + 32), c, { lw: 3 }); }
+  }
+  if (!noBalloons) { tlLimb(g, [212, 222, 160, 284, 214, 336], 34, '#2A6AE8'); tlLimb(g, [300, 222, 352, 284, 298, 336], 34, '#F2C230'); }   // arms folded behind him: only the elbows show
+  tl(g, tlEll(g, 204, 490, 52, 19), '#E8303A', { box: [152, 471, 256, 509] }); tl(g, tlEll(g, 308, 490, 52, 19), '#E8303A', { box: [256, 471, 360, 509] });
+  const b = [148, 204, 364, 474];
+  tl(g, tlPath(g, () => { g.moveTo(206, 204); g.lineTo(306, 204); g.quadraticCurveTo(368, 330, 338, 470); g.lineTo(268, 470); g.lineTo(256, 392); g.lineTo(244, 470); g.lineTo(174, 470); g.quadraticCurveTo(144, 330, 206, 204); }), '#F2C230',
+     { box: b, pat: tlDiamonds(g, b, '#2A6AE8', 52) });                                                 // the baggy suit, harlequin
+  for (const x of [209, 303]) for (let k = 0; k < 5; k++) tl(g, tlEll(g, x - 28 + k * 14, 470, 10, 8), '#FFFFFF', { lw: 3 });   // ruffles at the ankles
+  for (const y of [256, 306, 356]) { tl(g, tlEll(g, 256, y, 14, 14), '#E8303A', { lw: 4 }); g.fillStyle = 'rgba(255,255,255,0.7)'; g.beginPath(); g.arc(252, y - 4, 4, 0, TAU); g.fill(); }
+  if (noBalloons) {                                                                                     // cartwheeling: arms out
+    tlLimb(g, [208, 226, 162, 262, 128, 300], 34, '#2A6AE8'); tlLimb(g, [304, 226, 340, 216, 360, 206], 34, '#F2C230');
+    tlGlove(g, 124, 304, 19); tlGlove(g, 364, 204, 19);
+  }
+  for (let k = 0; k < 14; k++) { const a = Math.PI + (k + 0.5) * Math.PI / 14; tl(g, tlEll(g, 256 + Math.cos(a) * 64, 208 + Math.sin(a) * 18 + 10, 13, 10, a), '#FFFFFF', { lw: 3 }); }   // the ruff
+  tl(g, tlEll(g, 256, 212, 68, 20), '#FFFFFF', { lw: 4, pat: () => { g.strokeStyle = '#C8C0D8'; g.lineWidth = 2; for (let k = 0; k < 18; k++) { g.beginPath(); g.moveTo(256, 212); g.lineTo(256 + Math.cos(k * TAU / 18) * 80, 212 + Math.sin(k * TAU / 18) * 30); g.stroke(); } } });
+  for (const s of [-1, 1]) for (let k = 0; k < 3; k++) tl(g, tlEll(g, 256 + s * (44 + k * 6), 136 + k * 18, 20, 18), '#FF7A20', { lw: 3 });   // curly hair
+  tlFace(g, 256, 158, 44, { skin: '#FFF8F0', nose: '#E8303A', grin: 0.36, marks: '#2A6AE8' });
+  tl(g, tlPoly(g, 220, 124, 292, 124, 262, 30), '#2AA89A', { box: [220, 30, 292, 124], pat: tlDots(g, [220, 30, 292, 124], '#FFF1D2', 5, 18) });   // the cone hat
+  tl(g, tlEll(g, 262, 28, 14, 14), '#E8303A', { lw: 4 });
+  tl(g, tlEll(g, 256, 124, 42, 8), '#FFF1D2', { lw: 3 });
+}
+function cqAerialist(g) {
+  g.strokeStyle = INK; g.lineWidth = 5; for (const x of [200, 312]) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, 60); g.stroke(); } g.strokeStyle = '#FFF1D2'; g.lineWidth = 2; for (const x of [200, 312]) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, 60); g.stroke(); }
+  tl(g, tlRR(g, 188, 56, 136, 12, 6), '#F2C230', { lw: 4 });                                              // the bar
+  tlLimb(g, [238, 204, 226, 72], 20, SKIN); tlLimb(g, [274, 204, 286, 72], 20, SKIN);
+  tlLimb(g, [244, 318, 236, 472], 24, '#F4B0C0'); tlLimb(g, [268, 318, 280, 472], 24, '#F4B0C0');        // tights
+  tl(g, tlEll(g, 234, 482, 13, 20), '#F4B0C0', { lw: 3 }); tl(g, tlEll(g, 282, 482, 13, 20), '#F4B0C0', { lw: 3 });
+  const b = [220, 190, 292, 322];
+  tl(g, tlPoly(g, 222, 192, 290, 192, 284, 300, 256, 322, 228, 300), '#2A4AE8', { box: b, pat: tlStarPat(g, b, '#FFF1D2', 6, 20) });   // the leotard
+  for (let k = 0; k < 9; k++) tl(g, tlEll(g, 202 + k * 13.5, 306 + Math.abs(k - 4) * 1.5, 12, 9), k % 2 ? '#F48AB0' : '#FFB8D0', { lw: 3 });   // the tutu
+  tl(g, tlEll(g, 256, 300, 60, 12), '#F48AB0', { lw: 3, pat: tlDots(g, [196, 288, 316, 312], '#FFFFFF', 2.5, 10) });
+  tlFace(g, 256, 160, 30, { grin: 0.22 });
+  tl(g, tlPath(g, () => { g.arc(256, 152, 32, Math.PI * 1.05, Math.PI * 1.95); g.lineTo(256, 140); }), '#6A3418', { lw: 3 });   // hair
+  tl(g, tlEll(g, 256, 118, 16, 14), '#6A3418', { lw: 3 });
+  tl(g, tlPath(g, () => { g.moveTo(262, 112); g.bezierCurveTo(300, 60, 330, 70, 336, 40); g.bezierCurveTo(320, 84, 296, 96, 270, 120); }), '#F48AB0', { lw: 3 });   // a plume
+}
+function cqJuggler(g) {
+  const clubs = [[150, 130, -0.8], [196, 60, -0.3], [256, 34, 0.2], [316, 60, 0.7], [362, 130, 1.2]];
+  for (const [x, y, a] of clubs) {                                                                        // five clubs in the air
+    g.save(); g.translate(x, y); g.rotate(a);
+    tl(g, tlPath(g, () => { g.moveTo(-4, 30); g.lineTo(-5, 4); g.quadraticCurveTo(-16, -18, 0, -32); g.quadraticCurveTo(16, -18, 5, 4); g.lineTo(4, 30); }), '#FFF6E8', { lw: 3, pat: tlStripes(g, [-20, -34, 20, 34], ['#FFF6E8', '#E8303A'], 8, true) });
+    tl(g, tlEll(g, 0, 32, 7, 5), '#E8303A', { lw: 3 });
+    g.restore();
+  }
+  const tb = [208, 318, 304, 470];
+  tl(g, tlPoly(g, 212, 318, 300, 318, 304, 468, 264, 468, 256, 370, 248, 468, 208, 468), '#2A2A6A', { box: tb, pat: tlStripes(g, tb, ['#2A2A6A', '#FFF1D2'], 10) });   // striped trousers
+  tl(g, tlEll(g, 226, 484, 30, 12), '#231A2E'); tl(g, tlEll(g, 288, 484, 30, 12), '#231A2E');
+  tlLimb(g, [220, 214, 184, 170, 166, 150], 30, '#FFF6E8'); tlLimb(g, [292, 214, 328, 170, 346, 150], 30, '#FFF6E8');   // puffed sleeves, arms up
+  tlGlove(g, 164, 146); tlGlove(g, 348, 146);
+  tl(g, tlRR(g, 214, 190, 84, 134, 12), '#FFF6E8', { box: [214, 190, 298, 324] });                          // the shirt, the waistcoat over it
+  tl(g, tlPoly(g, 214, 196, 244, 196, 256, 250, 268, 196, 298, 196, 298, 322, 214, 322), '#2AA86A', { box: [214, 196, 298, 322], pat: tlDots(g, [214, 196, 298, 322], '#1A7A4A', 3, 11) });
+  for (const y of [264, 286, 308]) tl(g, tlEll(g, 256, y, 6, 6), '#F2C230', { lw: 3 });
+  tl(g, tlPoly(g, 238, 196, 256, 206, 274, 196, 274, 214, 256, 206, 238, 214), '#E8303A', { lw: 3 });
+  tlFace(g, 256, 152, 34);
+  tl(g, tlEll(g, 256, 124, 44, 9), '#231A2E', { lw: 4 }); tl(g, tlPath(g, () => { g.moveTo(228, 124); g.quadraticCurveTo(226, 82, 256, 80); g.quadraticCurveTo(286, 82, 284, 124); }), '#231A2E', { box: [226, 80, 286, 124] });
+  tl(g, tlRR(g, 229, 110, 54, 9, 2), '#E8303A', { lw: 3 });
+}
+function cqStrongman(g) {
+  tlLimb(g, [234, 350, 222, 468], 40, '#231A2E'); tlLimb(g, [280, 350, 292, 468], 40, '#231A2E');
+  tl(g, tlRR(g, 196, 460, 50, 36, 8), '#8A4A1A', { lw: 4 }); tl(g, tlRR(g, 268, 460, 50, 36, 8), '#8A4A1A', { lw: 4 });
+  tlLimb(g, [200, 206, 156, 150, 138, 98], 42, SKIN); tlLimb(g, [312, 206, 356, 150, 374, 98], 42, SKIN);   // arms up to the bar
+  for (const x of [148, 364]) tl(g, tlRR(g, x - 26, 112, 52, 18, 6), '#E8303A', { lw: 4 });                // wristbands
+  const cb = [178, 176, 334, 356];
+  tl(g, tlEll(g, 256, 262, 78, 92), SKIN, { box: cb });                                                    // the barrel chest
+  tl(g, tlPath(g, () => { g.moveTo(190, 236); g.quadraticCurveTo(256, 222, 322, 236); g.lineTo(326, 336); g.quadraticCurveTo(256, 356, 186, 336); }), '#E8A840', { box: cb, pat: tlSpots(g, cb, 26) });   // a leopard singlet
+  for (const s of [-1, 1]) tlLimb(g, [256 + s * 44, 238, 256 + s * 50, 196], 12, '#E8A840', false);
+  tl(g, tlRR(g, 186, 326, 140, 26, 6), '#6A3A1A', { lw: 4 }); tl(g, tlRR(g, 238, 322, 36, 34, 6), '#F2C230', { lw: 4 });   // belt and buckle
+  tl(g, tlRR(g, 60, 80, 392, 16, 8), '#8A8A98', { lw: 4 });                                                 // the barbell
+  for (const x of [72, 440]) { tl(g, tlEll(g, x, 88, 52, 52), '#231A2E', { box: [x - 52, 36, x + 52, 140] }); tl(g, tlEll(g, x, 88, 14, 14), '#8A8A98', { lw: 3 }); }
+  pbWord(g, '1000', 72, 118, 22, '#FFF1D2', null); pbWord(g, '1000', 440, 118, 22, '#FFF1D2', null);
+  tlFace(g, 256, 158, 36, { grin: 0.2 });
+  tl(g, tlPath(g, () => { g.moveTo(256, 170); g.bezierCurveTo(230, 160, 206, 170, 196, 150); g.bezierCurveTo(196, 184, 232, 186, 256, 178); g.bezierCurveTo(280, 186, 316, 184, 316, 150); g.bezierCurveTo(306, 170, 282, 160, 256, 170); }), '#231A2E', { lw: 3 });   // a handlebar moustache
+  g.strokeStyle = INK; g.lineWidth = 5; g.beginPath(); g.arc(262, 118, 10, Math.PI * 0.2, Math.PI * 1.6); g.stroke();   // the one curl
+}
+function cqTumbler(g) { g.save(); g.translate(256, 256); g.rotate(Math.PI * 0.85); g.translate(-256, -256); cqClown(g, true); g.restore(); }
+function cqElephant(g) {
+  tlDrum(g, 256, 392, 118, 96, '#E8303A', '#F2C230', 'lattice');
+  const body = '#8AA4CC', b = [130, 200, 400, 390];
+  tl(g, tlPath(g, () => { g.moveTo(140, 280); g.quadraticCurveTo(150, 190, 280, 200); g.quadraticCurveTo(360, 206, 362, 290); g.lineTo(356, 330); g.lineTo(150, 330); }), body, { box: b });
+  g.strokeStyle = INK; g.lineWidth = 6; g.beginPath(); g.moveTo(144, 270); g.quadraticCurveTo(110, 290, 118, 330); g.stroke();   // the tail
+  for (const [x, up] of [[168, 0], [214, 0], [300, 1], [340, 0]]) {                                           // legs, one raised
+    tl(g, tlRR(g, x - 22, up ? 290 : 300, 44, up ? 60 : 94, 10), body, { box: [x - 22, 300, x + 22, 394] });
+    for (const d of [-10, 2, 14]) tl(g, tlEll(g, x + d - 2, up ? 346 : 390, 5, 4), '#FFF1D2', { lw: 2 });
+  }
+  const sb = [186, 196, 318, 300];
+  tl(g, tlPoly(g, 196, 206, 306, 200, 318, 296, 186, 300), '#E8303A', { box: sb, pat: tlDiamonds(g, sb, '#C8202C', 40) });   // the saddle blanket, fringed
+  for (let x = 190; x < 318; x += 10) tlLimb(g, [x, 298, x, 314], 3, '#F2C230', false);
+  tlStar(g, 252, 248, 22);
+  tl(g, tlEll(g, 360, 232, 64, 58), body, { box: [296, 174, 424, 290] });                                    // the head
+  tl(g, tlPath(g, () => { g.moveTo(398, 262); g.quadraticCurveTo(440, 300, 432, 360); g.quadraticCurveTo(470, 350, 468, 300); g.quadraticCurveTo(470, 270, 456, 260); g.quadraticCurveTo(448, 300, 420, 240); }), body, { lw: 5 });   // the trunk, curled up
+  g.strokeStyle = 'rgba(42,22,56,0.45)'; g.lineWidth = 2.5; for (let k = 0; k < 6; k++) { g.beginPath(); g.moveTo(426 + k * 6, 278 + k * 12); g.lineTo(446 + k * 4, 272 + k * 12); g.stroke(); }
+  tl(g, tlPath(g, () => { g.moveTo(402, 270); g.quadraticCurveTo(420, 286, 414, 302); g.quadraticCurveTo(396, 290, 394, 272); }), '#FFF6E8', { lw: 3 });   // the tusk
+  tl(g, tlEll(g, 318, 236, 38, 54, 0.2), '#7A94BC', { box: [280, 182, 356, 290] }); tl(g, tlEll(g, 320, 240, 24, 38, 0.2), '#F4A8B8', { lw: 3 });   // the ear
+  g.fillStyle = '#FFFFFF'; g.beginPath(); g.ellipse(378, 222, 10, 12, 0, 0, TAU); g.fill(); g.lineWidth = 2.5; g.strokeStyle = INK; g.stroke();
+  g.fillStyle = INK; g.beginPath(); g.arc(380, 224, 5, 0, TAU); g.fill();
+  tl(g, tlPath(g, () => { g.moveTo(320, 184); g.quadraticCurveTo(360, 162, 406, 186); g.lineTo(400, 200); g.quadraticCurveTo(360, 180, 326, 198); }), '#F2C230', { lw: 4, pat: tlDots(g, [320, 160, 410, 200], '#C8902A', 3, 10) });   // headdress
+  tl(g, tlEll(g, 364, 186, 10, 12), '#E8303A', { lw: 3 });
+  tl(g, tlPath(g, () => { g.moveTo(364, 176); g.bezierCurveTo(350, 120, 380, 100, 372, 70); g.bezierCurveTo(398, 110, 380, 140, 372, 178); }), '#2AA89A', { lw: 3 });
+}
+function cqUnicyclist(g) {
+  tl(g, tlEll(g, 256, 446, 56, 56), '#E8303A', { lw: 5 }); tl(g, tlEll(g, 256, 446, 46, 46), '#FFF1D2', { lw: 4 });   // the wheel
+  g.strokeStyle = INK; g.lineWidth = 3; for (let k = 0; k < 12; k++) { const a = k * TAU / 12; g.beginPath(); g.moveTo(256, 446); g.lineTo(256 + Math.cos(a) * 46, 446 + Math.sin(a) * 46); g.stroke(); }
+  tl(g, tlEll(g, 256, 446, 9, 9), '#F2C230', { lw: 3 });
+  tlLimb(g, [256, 446, 256, 340], 8, '#8A8A98', false); tl(g, tlRR(g, 230, 328, 52, 14, 6), '#231A2E', { lw: 3 });
+  tlLimb(g, [244, 334, 222, 390, 238, 430], 22, '#E8303A'); tlLimb(g, [268, 334, 282, 400, 272, 460], 22, '#2A4AE8');   // legs pedalling, one each colour
+  const b = [222, 196, 290, 340];
+  tl(g, tlPoly(g, 222, 198, 290, 198, 284, 338, 228, 338), '#F2C230', { box: b, pat: tlChecks(g, b, '#E8303A', 17) });
+  for (const s of [-1, 1]) {                                                                            // arms out, a fan in each hand
+    tlLimb(g, [256 + s * 32, 214, 256 + s * 86, 232, 256 + s * 128, 222], 18, '#F2C230');
+    const fx = 256 + s * 150;
+    tl(g, tlPath(g, () => { g.moveTo(fx - s * 20, 226); g.arc(fx, 214, 36, s > 0 ? Math.PI * 1.1 : Math.PI * 1.9, s > 0 ? Math.PI * 0.1 : Math.PI * -0.9 + TAU, s < 0); }), '#2AA89A', { lw: 3, pat: () => { g.strokeStyle = '#FFF1D2'; g.lineWidth = 3; for (let k = 0; k < 7; k++) { const a = Math.PI + k * Math.PI / 6; g.beginPath(); g.moveTo(fx - s * 20, 226); g.lineTo(fx + Math.cos(a) * 60 * s, 214 + Math.sin(a) * 60); g.stroke(); } } });
+  }
+  tlFace(g, 256, 164, 30);
+  tl(g, tlRR(g, 234, 118, 44, 24, 5), '#E8303A', { lw: 4 }); tlLimb(g, [256, 118, 276, 96], 3, '#F2C230', false); tl(g, tlEll(g, 278, 94, 6, 6), '#F2C230', { lw: 2 });   // a pillbox hat, its tassel
+}
+function cqHorse(g) {
+  tl(g, tlRR(g, 248, 0, 16, 512, 6), '#F2C230', { lw: 4, pat: () => { g.strokeStyle = '#C8902A'; g.lineWidth = 5; for (let y = -20; y < 530; y += 22) { g.beginPath(); g.moveTo(248, y); g.lineTo(264, y + 14); g.stroke(); } } });   // the brass pole
+  const w = '#FFF6EC', b = [120, 220, 390, 340];
+  tlLimb(g, [170, 300, 128, 372, 150, 416], 24, w); tlLimb(g, [196, 304, 186, 380, 204, 424], 24, w);       // hind legs
+  tlLimb(g, [318, 296, 372, 342, 358, 382], 24, w); tlLimb(g, [300, 302, 332, 360, 318, 400], 24, w);       // forelegs, raised
+  for (const [x, y] of [[152, 424], [206, 430], [356, 390], [316, 408]]) tl(g, tlEll(g, x, y, 12, 9), '#F2C230', { lw: 3 });
+  tl(g, tlEll(g, 250, 282, 124, 58, -0.08), w, { box: b, pat: tlDots(g, b, '#D8D0E4', 7, 26) });          // the body, dappled
+  tl(g, tlPath(g, () => { g.moveTo(318, 262); g.quadraticCurveTo(344, 170, 380, 140); g.lineTo(418, 176); g.quadraticCurveTo(380, 210, 370, 290); }), w, { box: [318, 140, 418, 290] });   // neck
+  tl(g, tlEll(g, 410, 150, 54, 28, -0.55), w, { box: [356, 110, 464, 190] });                               // head
+  g.fillStyle = INK; g.beginPath(); g.arc(408, 138, 6, 0, TAU); g.fill(); g.beginPath(); g.arc(446, 178, 4, 0, TAU); g.fill();
+  g.save(); g.translate(410, 150); g.rotate(-0.55); g.strokeStyle = INK; g.lineWidth = 8; g.beginPath(); g.moveTo(-16, -26); g.lineTo(-16, 26); g.moveTo(-16, 8); g.lineTo(46, 8); g.stroke();   // the bridle
+  g.strokeStyle = '#F2C230'; g.lineWidth = 4; g.stroke(); g.restore();
+  tl(g, tlPoly(g, 384, 112, 398, 82, 404, 116), w, { lw: 3 });                                             // ear
+  for (let k = 0; k < 7; k++) tl(g, tlEll(g, 352 - k * 10, 150 + k * 18, 22, 12, -0.9), k % 2 ? '#2AA89A' : '#F2C230', { lw: 3 });   // the mane, in curls
+  const sb = [196, 222, 310, 300];
+  tl(g, tlPoly(g, 204, 228, 300, 222, 310, 296, 196, 300), '#E8303A', { box: sb, pat: tlStarPat(g, sb, '#F2C230', 7, 26) });   // the saddle, jewelled
+  tl(g, tlRR(g, 192, 292, 122, 14, 5), '#F2C230', { lw: 3 }); tl(g, tlEll(g, 254, 300, 10, 10), '#2A6AE8', { lw: 3 });
+  for (let k = 0; k < 5; k++) tl(g, tlEll(g, 124 - k * 4, 272 + k * 22, 18, 12, 1.2), k % 2 ? '#2AA89A' : '#F2C230', { lw: 3 });   // the tail
+}
+function cqLion(g) {
+  tlDrum(g, 256, 404, 96, 84, '#2A4AE8', '#F2C230', 'stars');
+  const tan = '#E8A040', b = [184, 240, 330, 404];
+  g.strokeStyle = INK; g.lineWidth = 14; g.beginPath(); g.moveTo(308, 380); g.bezierCurveTo(380, 390, 420, 340, 400, 292); g.stroke(); g.strokeStyle = tan; g.lineWidth = 8; g.stroke();   // the tail
+  tl(g, tlEll(g, 400, 288, 13, 16), '#8A3A10', { lw: 3 });
+  tl(g, tlEll(g, 256, 330, 72, 80), tan, { box: b });                                                        // the body, sitting up
+  tl(g, tlEll(g, 256, 346, 38, 50), '#F8D8A0', { line: false });
+  tlLimb(g, [224, 360, 214, 400], 30, tan); tlLimb(g, [290, 340, 332, 296, 350, 262], 28, tan);            // a paw raised
+  for (const [x, y] of [[214, 404], [352, 256]]) tl(g, tlEll(g, x, y, 17, 14), '#F8D8A0', { lw: 3 });
+  for (let ring = 0; ring < 2; ring++) for (let k = 0; k < 18; k++) {                                      // the mane, two rings of flames
+    const a = (k + ring * 0.5) * TAU / 18, R = 70 - ring * 16;
+    tl(g, tlPath(g, () => { g.moveTo(256 + Math.cos(a - 0.2) * 40, 206 + Math.sin(a - 0.2) * 40); g.lineTo(256 + Math.cos(a) * R, 206 + Math.sin(a) * R); g.lineTo(256 + Math.cos(a + 0.2) * 40, 206 + Math.sin(a + 0.2) * 40); }), ring ? '#E8702A' : '#A8401A', { lw: 3 });
+  }
+  tlFace(g, 256, 206, 44, { skin: tan, mouth: '#8A2A1A', grin: 0.18 });
+  tl(g, tlEll(g, 242, 226, 16, 12), '#FFF1D2', { lw: 2.5 }); tl(g, tlEll(g, 270, 226, 16, 12), '#FFF1D2', { lw: 2.5 });
+  tl(g, tlPoly(g, 244, 212, 268, 212, 256, 226), '#5A2A1A', { lw: 3 });
+  for (const s of [-1, 1]) tl(g, tlEll(g, 256 + s * 34, 170, 12, 12), tan, { lw: 3 });
+}
+function cqFireBreather(g) {
+  for (const [rr, c] of [[72, '#E8401A'], [52, '#F2901A'], [32, '#F8D040'], [14, '#FFFBE8']]) {            // the plume of fire
+    tl(g, tlPath(g, () => { g.moveTo(286, 160); g.bezierCurveTo(340, 130 - rr * 0.6, 400, 40 - rr * 0.3, 470, 60 - rr * 0.4); g.bezierCurveTo(490, 110, 420, 130 + rr * 0.4, 286, 168); }), c, { lw: rr > 60 ? 4 : 0, line: rr > 60 });
+    tl(g, tlEll(g, 440, 80, rr * 0.85, rr * 0.6, -0.4), c, { line: rr > 60, lw: 4 });
+  }
+  const pb = [200, 320, 312, 470];
+  tl(g, tlPath(g, () => { g.moveTo(212, 320); g.lineTo(300, 320); g.quadraticCurveTo(326, 400, 304, 466); g.lineTo(266, 466); g.lineTo(256, 380); g.lineTo(246, 466); g.lineTo(208, 466); g.quadraticCurveTo(186, 400, 212, 320); }), '#6A2A9A', { box: pb, pat: tlDots(g, pb, '#9A5AD0', 4, 16) });   // loose trousers
+  tl(g, tlEll(g, 226, 480, 28, 12), '#F2C230'); tl(g, tlEll(g, 288, 480, 28, 12), '#F2C230');
+  tlLimb(g, [214, 206, 186, 260, 190, 310], 26, '#D8905A'); tlLimb(g, [298, 206, 332, 170, 342, 132], 26, '#D8905A');   // bare arms, the torch held up
+  tl(g, tlRR(g, 338, 70, 10, 76, 4), '#6A3A1A', { lw: 3 }); tl(g, tlEll(g, 343, 66, 12, 18), '#F8D040', { lw: 3 }); tl(g, tlEll(g, 343, 70, 6, 10), '#FFFBE8', { line: false });
+  const vb = [212, 192, 300, 326];
+  tl(g, tlRR(g, 214, 192, 84, 134, 14), '#D8905A', { box: vb });
+  tl(g, tlPoly(g, 214, 196, 240, 196, 250, 324, 214, 324), '#F2C230', { box: vb, pat: tlDiamonds(g, vb, '#C8202C', 24) }); tl(g, tlPoly(g, 298, 196, 272, 196, 262, 324, 298, 324), '#F2C230', { box: vb, pat: tlDiamonds(g, vb, '#C8202C', 24) });   // an open waistcoat
+  tl(g, tlRR(g, 206, 306, 100, 26, 8), '#C8202C', { lw: 4 }); tl(g, tlPoly(g, 290, 318, 318, 360, 296, 364), '#C8202C', { lw: 3 });   // the sash
+  tlFace(g, 256, 158, 32, { skin: '#D8905A', grin: 0.14 });
+  tl(g, tlEll(g, 256, 124, 42, 26), '#2AA89A', { box: [214, 98, 298, 150], pat: () => { g.strokeStyle = '#1A7A6A'; g.lineWidth = 4; for (let k = 0; k < 5; k++) { g.beginPath(); g.arc(256, 150, 20 + k * 8, Math.PI * 1.1, Math.PI * 1.9); g.stroke(); } } });   // the turban
+  tl(g, tlEll(g, 256, 118, 10, 12), '#E8303A', { lw: 3 }); tl(g, tlPath(g, () => { g.moveTo(256, 108); g.bezierCurveTo(250, 70, 276, 60, 270, 36); g.bezierCurveTo(290, 70, 270, 90, 262, 110); }), '#FFF6E8', { lw: 3 });
+}
+function cqStilts(g) {
+  for (const [x, c] of [[228, '#E8303A'], [284, '#C8202C']]) { const b = [x - 16, 196, x + 16, 490]; tl(g, tlRR(g, x - 16, 196, 32, 294, 10), c, { box: b, pat: tlStripes(g, b, [c, '#FFF6E8'], 26, true) }); }   // long striped legs
+  tl(g, tlRR(g, 206, 486, 44, 16, 6), '#231A2E'); tl(g, tlRR(g, 262, 486, 44, 16, 6), '#231A2E');
+  tl(g, tlPoly(g, 212, 92, 300, 92, 318, 214, 288, 204, 256, 150, 224, 204, 194, 214), '#2A4AE8', { box: [194, 92, 318, 214] });   // a tailcoat
+  tl(g, tlPoly(g, 240, 94, 272, 94, 256, 140), '#FFF6E8', { lw: 3 });
+  for (const y of [110, 130, 150]) for (const s of [-1, 1]) tl(g, tlEll(g, 256 + s * 22, y + 10, 5, 5), '#F2C230', { lw: 2.5 });
+  tlLimb(g, [214, 104, 170, 70, 140, 76], 18, '#2A4AE8'); tlLimb(g, [298, 104, 342, 70, 372, 76], 18, '#2A4AE8');
+  tlGlove(g, 134, 78, 13); tlGlove(g, 378, 78, 13);
+  tlFace(g, 256, 62, 26);
+  tl(g, tlPoly(g, 236, 40, 276, 40, 280, 4, 232, 4), '#E8303A', { box: [232, 4, 280, 40], pat: tlStripes(g, [232, 4, 280, 40], ['#E8303A', '#FFF6E8'], 10) });
+  tl(g, tlEll(g, 256, 42, 36, 7), '#231A2E', { lw: 3 });
+}
+function cqSeal(g) {
+  tlDrum(g, 256, 410, 84, 76, '#E8303A', '#F2C230', 'stars');
+  const sl = '#4A6A8A', b = [170, 150, 340, 412];
+  tl(g, tlPath(g, () => { g.moveTo(190, 410); g.bezierCurveTo(170, 330, 214, 250, 262, 200); g.bezierCurveTo(284, 176, 300, 150, 296, 128); g.bezierCurveTo(320, 132, 334, 160, 322, 196); g.bezierCurveTo(308, 250, 300, 330, 330, 410); }), sl, { box: b });   // the body, arching up
+  tl(g, tlPath(g, () => { g.moveTo(220, 400); g.bezierCurveTo(210, 330, 240, 270, 272, 226); g.bezierCurveTo(284, 280, 280, 340, 300, 400); }), '#8AA8C0', { line: false });   // the paler belly
+  tl(g, tlPath(g, () => { g.moveTo(236, 300); g.quadraticCurveTo(190, 320, 170, 360); g.quadraticCurveTo(210, 350, 250, 330); }), sl, { lw: 4 });   // a flipper
+  tl(g, tlEll(g, 306, 126, 22, 20), sl, { lw: 4 }); tl(g, tlEll(g, 316, 108, 12, 9, -0.6), '#2A3A4A', { lw: 3 });   // the head, nose up
+  g.fillStyle = INK; g.beginPath(); g.arc(300, 124, 5, 0, TAU); g.fill();
+  tl(g, tlRR(g, 262, 190, 50, 14, 6), '#E8303A', { lw: 3 }); tl(g, tlPoly(g, 286, 196, 270, 186, 270, 208), '#E8303A', { lw: 3 }); tl(g, tlPoly(g, 290, 196, 306, 186, 306, 208), '#E8303A', { lw: 3 });   // a collar and bow
+  tlBall(g, 330, 56, 46, ['#E8303A', '#F2C230', '#2A6AE8', '#FFF6E8', '#2AA86A']);
+}
+function cqBear(g) {
+  const bb = [166, 352, 346, 506];
+  tl(g, tlEll(g, 256, 430, 88, 76), '#2A4AE8', { box: bb, pat: () => { g.fillStyle = '#E8303A'; g.fillRect(166, 410, 180, 34); for (let k = 0; k < 5; k++) { cqStar(g, 188 + k * 34, 380 + (k % 2) * 90, 12, 5); g.fillStyle = '#FFF6E8'; g.fill(); } } });   // the big ball
+  const br = '#9A5A2A', b = [182, 150, 330, 360];
+  tlLimb(g, [228, 330, 222, 358], 34, br); tlLimb(g, [284, 330, 290, 358], 34, br);
+  tl(g, tlEll(g, 256, 262, 72, 88), br, { box: b }); tl(g, tlEll(g, 256, 280, 42, 56), '#D8A070', { line: false });
+  tlLimb(g, [196, 230, 150, 250, 118, 226], 30, br); tlLimb(g, [316, 230, 362, 250, 394, 226], 30, br);   // arms out for balance
+  tl(g, tlRR(g, 216, 186, 80, 16, 6), '#F2C230', { lw: 3 }); tl(g, tlEll(g, 256, 208, 10, 10), '#F2C230', { lw: 3 });   // a collar with a bell
+  for (const s of [-1, 1]) { tl(g, tlEll(g, 256 + s * 32, 104, 16, 16), br, { lw: 4 }); tl(g, tlEll(g, 256 + s * 32, 104, 8, 8), '#D8A070', { line: false }); }
+  tlFace(g, 256, 142, 42, { skin: br, mouth: '#6A2A1A', grin: 0.16 });
+  tl(g, tlEll(g, 256, 160, 20, 14), '#D8A070', { lw: 3 }); tl(g, tlEll(g, 256, 154, 8, 6), INK, { line: false });
+  tl(g, tlPoly(g, 232, 104, 280, 104, 274, 74, 238, 74), '#C8202C', { box: [232, 74, 280, 104] });       // a fez and its tassel
+  tlLimb(g, [256, 76, 286, 90, 290, 112], 3, '#231A2E', false); tl(g, tlEll(g, 290, 116, 6, 8), '#F2C230', { lw: 2 });
+}
+function cqMonkey(g) {
+  tlDrum(g, 256, 420, 78, 70, '#2AA86A', '#F2C230', 'stars');
+  const fur = '#7A4A2A';
+  g.strokeStyle = INK; g.lineWidth = 16; g.beginPath(); g.moveTo(236, 400); g.bezierCurveTo(160, 420, 130, 330, 170, 300); g.bezierCurveTo(190, 290, 196, 320, 180, 326); g.stroke();   // the tail, curled
+  g.strokeStyle = fur; g.lineWidth = 9; g.stroke();
+  tlLimb(g, [236, 350, 226, 416], 24, fur); tlLimb(g, [276, 350, 286, 416], 24, fur);
+  const b = [212, 226, 300, 358];
+  tl(g, tlRR(g, 212, 226, 88, 132, 16), '#E8303A', { box: b });                                            // a little red jacket
+  for (const y of [248, 276, 304, 332]) for (const s of [-1, 1]) tl(g, tlEll(g, 256 + s * 16, y, 5, 5), '#F2C230', { lw: 2.5 });
+  tl(g, tlRR(g, 212, 226, 88, 14, 6), '#F2C230', { lw: 3 });
+  for (const s of [-1, 1]) {                                                                             // cymbals, held apart
+    tlLimb(g, [256 + s * 40, 244, 256 + s * 90, 228, 256 + s * 116, 196], 20, '#E8303A');
+    tl(g, tlEll(g, 256 + s * 134, 180, 40, 14, s * 1.1), '#F2C230', { box: [256 + s * 134 - 40, 140, 256 + s * 134 + 40, 220] });
+  }
+  for (const s of [-1, 1]) { tl(g, tlEll(g, 256 + s * 44, 176, 16, 18), fur, { lw: 4 }); tl(g, tlEll(g, 256 + s * 44, 176, 8, 10), '#F4C8A0', { line: false }); }
+  tlFace(g, 256, 178, 38, { skin: fur, mouth: '#8A2A1A', grin: 0.2 });
+  tl(g, tlEll(g, 256, 190, 26, 20), '#F4C8A0', { line: false }); g.fillStyle = INK; for (const s of [-1, 1]) { g.beginPath(); g.arc(256 + s * 5, 184, 2.5, 0, TAU); g.fill(); }
+  g.strokeStyle = INK; g.lineWidth = 3; g.beginPath(); g.arc(256, 192, 10, 0.3, Math.PI - 0.3); g.stroke();
+  tl(g, tlPoly(g, 234, 144, 278, 144, 272, 112, 240, 112), '#C8202C', { box: [234, 112, 278, 144] });
+  tlLimb(g, [256, 114, 284, 128, 288, 146], 3, '#231A2E', false); tl(g, tlEll(g, 288, 150, 5, 7), '#F2C230', { lw: 2 });
+}
+function cqTiger(g) {
+  tlDrum(g, 256, 404, 96, 84, '#F2C230', '#E8303A', 'lattice');
+  const or = '#F2902A', b = [184, 236, 330, 404];
+  g.strokeStyle = INK; g.lineWidth = 14; g.beginPath(); g.moveTo(200, 380); g.bezierCurveTo(120, 390, 110, 320, 140, 290); g.stroke(); g.strokeStyle = or; g.lineWidth = 8; g.stroke();   // the tail
+  g.strokeStyle = INK; g.lineWidth = 9; for (const t of [0.3, 0.55, 0.8]) { const x = 200 - 60 * t - 10 * t * t, y = 380 - 50 * t * t; g.beginPath(); g.moveTo(x - 4, y - 6); g.lineTo(x + 4, y + 6); g.stroke(); }
+  tl(g, tlEll(g, 256, 326, 70, 80), or, { box: b, pat: () => { g.fillStyle = INK; for (let k = 0; k < 6; k++) { const y = 262 + k * 24; for (const s of [-1, 1]) { g.beginPath(); g.moveTo(256 + s * 72, y); g.quadraticCurveTo(256 + s * 40, y + 6, 256 + s * 26, y + 16); g.quadraticCurveTo(256 + s * 44, y + 14, 256 + s * 72, y + 12); g.fill(); } } } });
+  tl(g, tlEll(g, 256, 344, 36, 52), '#FFF6E8', { line: false });
+  tlLimb(g, [226, 360, 218, 400], 30, or); tlLimb(g, [286, 360, 294, 400], 30, or);
+  for (const x of [218, 294]) tl(g, tlEll(g, x, 404, 17, 13), '#FFF6E8', { lw: 3 });
+  for (const s of [-1, 1]) { tl(g, tlPoly(g, 256 + s * 22, 180, 256 + s * 50, 150, 256 + s * 52, 196), or, { lw: 4 }); tl(g, tlPoly(g, 256 + s * 30, 182, 256 + s * 46, 164, 256 + s * 46, 190), '#FFF6E8', { line: false }); }
+  tlFace(g, 256, 214, 48, { skin: or, mouth: '#8A2A1A', grin: 0.14 });
+  g.fillStyle = INK; for (const s of [-1, 1]) for (let k = 0; k < 3; k++) { g.beginPath(); g.moveTo(256 + s * 46, 196 + k * 14); g.lineTo(256 + s * 26, 202 + k * 12); g.lineTo(256 + s * 46, 204 + k * 14); g.fill(); }
+  g.beginPath(); g.moveTo(246, 170); g.lineTo(256, 196); g.lineTo(266, 170); g.fill();
+  tl(g, tlEll(g, 244, 236, 16, 12), '#FFF6E8', { lw: 2.5 }); tl(g, tlEll(g, 268, 236, 16, 12), '#FFF6E8', { lw: 2.5 });
+  tl(g, tlPoly(g, 246, 222, 266, 222, 256, 234), '#E86A7A', { lw: 3 });
+}
+function cqLimb(g, x0, y0, x1, y1, w, col) { g.strokeStyle = col; g.lineCap = 'round'; g.lineWidth = w; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke(); }
+// ---- SIDESHOW BANNERS: four painted canvases along the tent's walls, 2 x 2 in a 1024 atlas ----
+const cqPostMemo = {};
+function cqPosters(look) {
+  if (cqPostMemo[look]) return cqPostMemo[look];
+  const C = CQ[look];
+  const t = canvasTex(1024, 1024, (g) => {
+    const acts = [['STRONGMAN', '#B01C24', (x, y) => { cqLimb(g, x - 120, y, x + 120, y, 14, '#2A2A30'); for (const s of [-1, 1]) { g.fillStyle = '#1A1A1E'; pbCircle(g, x + s * 130, y, 50); g.fill(); } }],
+                  ['FIRE EATER', '#E86A20', (x, y) => { for (const [r, c] of [[80, '#FFB040'], [55, '#FFE080'], [30, '#FFFFFF']]) { g.fillStyle = c; g.beginPath(); g.moveTo(x - r * 0.7, y + 60); g.quadraticCurveTo(x - r, y - r * 0.4, x, y - r * 1.5); g.quadraticCurveTo(x + r, y - r * 0.4, x + r * 0.7, y + 60); g.fill(); } }],
+                  ['HIGH WIRE', '#2A4AC8', (x, y) => { cqLimb(g, x - 190, y + 40, x + 190, y + 40, 5, '#F4F0E8'); g.fillStyle = '#F4F0E8'; g.fillRect(x - 14, y - 70, 28, 110); pbCircle(g, x, y - 90, 22); g.fill(); cqLimb(g, x - 120, y - 30, x + 120, y - 50, 6, '#D8A640'); }],
+                  ['MAGIC', '#5A2A8A', (x, y) => { g.fillStyle = '#1A1210'; g.fillRect(x - 60, y - 70, 120, 110); g.fillRect(x - 90, y + 30, 180, 18); for (let k = 0; k < 6; k++) { g.fillStyle = C.trim; cqStar(g, x - 150 + k * 60, y - 110 + (k % 2) * 30, 14, 6); g.fill(); } }]];
+    acts.forEach(([name, col, pic], i) => {
+      const ox = (i % 2) * 512, oy = Math.floor(i / 2) * 512;
+      g.fillStyle = '#F2E4C4'; g.fillRect(ox, oy, 512, 512);
+      g.fillStyle = col; g.fillRect(ox + 18, oy + 18, 476, 476);
+      g.fillStyle = pbRad(g, ox + 256, oy + 280, 30, 300, [[0, 'rgba(255,240,200,0.55)'], [1, 'rgba(0,0,0,0.25)']]); g.fillRect(ox + 18, oy + 18, 476, 476);
+      g.strokeStyle = C.trim; g.lineWidth = 8; g.strokeRect(ox + 34, oy + 34, 444, 444);
+      pic(ox + 256, oy + 300);
+      pbWord(g, name, ox + 256, oy + 100, name.length > 8 ? 58 : 72, '#F2E4C4', '#1A0A06', 0.12);
+    });
+  });
+  return (cqPostMemo[look] = t);
+}
+
+// ---- THE WORLD ----
+const CQ_BAY = 64, CQ_DROP = 9;                            // a big top every 64 m along the course; the sawdust 9 m under the rail
+function circusWorld(w, look) {
+  cqLook = look;
+  const C = CQ[look], K = cqKit(look), G = w.group, r = seeded(71 + CIRCUS_LOOKS.indexOf(look) * 13), end = courseEnd(), tin = look === 'tintoy', out = look === 'midway', live = !REDUCED;
+  const pieces = level ? level.pieces : [];
+  let lo = 0, hi = -1e9, minX = 1e9, maxX = -1e9;
+  for (const p of pieces) {
+    lo = Math.min(lo, p.t === 'ramp' ? Math.min(p.y0, p.y1) : (p.y || 0)); hi = Math.max(hi, p.t === 'ramp' ? Math.max(p.y0, p.y1) : (p.y || 0));
+    if (p.t === 'plaza') { minX = Math.min(minX, p.x0); maxX = Math.max(maxX, p.x0 + p.cols * CELL); }
+    else if (p.x !== undefined) { const hw = p.t === 'round' ? p.ro : (p.w || 4) / 2, sh = p.shift || 0; minX = Math.min(minX, p.x + Math.min(0, sh) - hw); maxX = Math.max(maxX, p.x + Math.max(0, sh) + hw); }
+  }
+  if (minX > maxX) { minX = -4; maxX = 10; }
+  if (hi < lo) hi = lo;
+  // The canvas must clear the camera over the highest part of the course: it rides some 9 m over the rail.
+  // So must it clear the camera that climbs over a puzzle square to show the whole of it.
+  const high = cqHighCams(), camTop = high.reduce((m, c) => Math.max(m, c.pos.y), -1e9);
+  const FL = lo - CQ_DROP, SKY = Math.max(FL + 17, hi + 13, camTop + 5), OV = SKY - 17, CX = (minX + maxX) / 2, HW = Math.max(6, (maxX - minX) / 2 + 1), Z_TOP = 70, Z_BOT = end - 130;
+  scene.background = coverTex(512, (g) => cqSky(g, look));
+  scene.fog.color.setHex(C.fog[0]); scene.fog.near = C.fog[1]; scene.fog.far = C.fog[2];
+  camera.far = C.fog[2] + 30; camera.updateProjectionMatrix();          // nothing past the fog's end is drawn: it could not be seen
+  HAZE.col.value.setHex(C.haze[0]); HAZE.k.value = C.haze[1]; HAZE.dir.set(0, out ? 0.12 : 0.3, -1).normalize();
+  hemi.color.setHex(C.hemi[0]); hemi.groundColor.setHex(C.hemi[1]); hemi.intensity = C.hemi[2];
+  sun.color.setHex(C.sun[0]); sun.intensity = C.sun[1];
+  w.marble = 'circus'; w.rings = [0x34E0FF, 0xFF6A3C];
+  w.restyle = () => circusCourse(look);
+  const paint = cqChunks(), metal = cqChunks(), lit = cqChunks(), tick = [];
+  const bulbs = [];                                         // [x, y, z, string, index along it]
+  const figs = [];                                          // cut-outs that turn to face the camera
+  // A painted cut-out from the atlas, standing on its feet at (x, y, z), h tall.
+  const fig = (cell, x, y, z, h, face = true) => {
+    const u0 = (cell % 4) / 4, v1 = 1 - Math.floor(cell / 4) / CQ_ROWS, geo = new PlaneGeometry(h, h);
+    const uv = geo.attributes.uv; for (let i = 0; i < 4; i++) uv.setXY(i, u0 + uv.getX(i) / 4, v1 - (1 - uv.getY(i)) / CQ_ROWS);
+    geo.translate(0, h / 2, 0);
+    const m = new Mesh(geo, K.figs); m.position.set(x, y, z); G.add(m);
+    if (face) figs.push(m);
+    return m;
+  };
+  const bays = []; for (let z = Z_TOP - 30; z > Z_BOT; z -= CQ_BAY) bays.push(z);
+
+  // THE FLOOR: sawdust (printed tin, trodden earth) under everything, with a ring under every big top.
+  const floor = new Mesh(new PlaneGeometry(out ? 600 : 120, Z_TOP - Z_BOT + 200), K.floor);
+  floor.rotation.x = -Math.PI / 2; floor.position.set(CX, FL, (Z_TOP + Z_BOT) / 2);
+  K.floor.map.repeat.set((out ? 600 : 120) / 8, (Z_TOP - Z_BOT + 200) / 8); floor.userData.ground = true; G.add(floor);
+  const ringAt = (x, z, rad = 6.5) => {
+    const disc = new Mesh(new CircleGeometry(rad, 48), K.ring); disc.rotation.x = -Math.PI / 2; disc.position.set(x, FL + 0.02, z); disc.userData.ground = true; G.add(disc);
+    const curb = new Mesh(new LatheGeometry([new Vector2(rad, 0), new Vector2(rad + 0.6, 0), new Vector2(rad + 0.6, 0.55), new Vector2(rad, 0.55), new Vector2(rad, 0)], 64), K.curb);
+    K.curb.map.repeat.set(6, 1); curb.position.set(x, FL, z); G.add(curb);
+    for (let k = 0; k < 24; k++) { const a = k / 24 * Math.PI * 2; bulbs.push([x + Math.cos(a) * (rad + 0.3), FL + 0.7, z + Math.sin(a) * (rad + 0.3), -1, k]); }   // footlights round the curb
+  };
+
+  if (!out) {
+    // THE BIG TOPS: an oval of canvas over each ring, rising to its peak over the course, bulbs up every fourth seam.
+    const RX = 52, RZ = 40, EAVE = SKY, PEAK = SKY + 29, n = 14;
+    const prof = []; for (let k = 0; k <= n; k++) { const f = k / n; prof.push(new Vector2(RZ * (1 - f) + 2.2 * f, EAVE + (PEAK - EAVE) * Math.pow(f, 1.7))); }
+    const heightAt = (rad) => { const f = Math.max(0, Math.min(1, (RZ - rad) / (RZ - 2.2))); return EAVE + (PEAK - EAVE) * Math.pow(f, 1.7); };
+    K.gores.repeat.set(2, 1);
+    for (const zc of bays) {
+      const dome = new Mesh(new LatheGeometry(prof, 56), K.canvas); dome.scale.set(RX / RZ, 1, 1); dome.position.set(CX, 0, zc); G.add(dome);
+      metal.geo(new TorusGeometry(2.3, 0.35, 8, 24), placeAt(CX, PEAK - 0.2, zc, Math.PI / 2, 0, 0), C.brass);   // the bale ring at the peak
+      for (let s = 0; s < 8; s++) {                          // bulbs down eight seams
+        const a = s / 8 * Math.PI * 2 + Math.PI / 16;
+        for (let k = 0; k < 26; k++) { const rad = 3 + (RZ - 3) * k / 25, y = heightAt(rad) - 0.4; bulbs.push([CX + Math.cos(a) * rad * RX / RZ, y, zc + Math.sin(a) * rad, s + zc * 10, k]); }
+      }
+      for (let k = 0; k < 44; k++) { const a = k / 44 * Math.PI * 2; bulbs.push([CX + Math.cos(a) * (RX - 0.5), EAVE - 0.6, zc + Math.sin(a) * (RZ - 0.5), 99, k]); }   // round the eaves
+      for (const s of [-1, 1]) {                             // the king poles either side of the course, rigging up to the peak
+        const px = CX + s * (HW + 7), top = heightAt(Math.abs(px - CX) * RZ / RX);
+        paint.geo(new CylinderGeometry(0.45, 0.55, top - FL, 12), placeAt(px, (top + FL) / 2, zc), C.pole);
+        for (let y = FL + 2; y < top - 1; y += 3) paint.geo(new CylinderGeometry(0.47, 0.47, 1.1, 12), placeAt(px, y, zc), C.poleStripe);
+        metal.geo(new CylinderGeometry(0.06, 0.06, Math.hypot(px - CX, top - PEAK) + 0.5, 4), placeAt((px + CX) / 2, (top + PEAK) / 2, zc, 0, 0, Math.atan2(px - CX, PEAK - top)), 0x8A7A60);
+        metal.geo(new BoxGeometry(1.6, 0.5, 1.2), placeAt(px - s * 0.9, top - 4, zc), 0x2A2A2E);   // a spotlight fixture
+        cqSpot(G, K, tick, px - s * 0.9, top - 4.3, zc, CX, FL, zc, 5 + r() * 3, r() * 6, live);
+      }
+      ringAt(CX, zc);
+    }
+    // THE TRACK under the whole rail, as round a circus's rings: darker sawdust between painted curbs, footlights along them.
+    const tLen = Z_TOP - Z_BOT, tMid = (Z_TOP + Z_BOT) / 2, TW = HW + 3;
+    const track = new Mesh(new PlaneGeometry(TW * 1.3, tLen), K.runner); track.rotation.x = -Math.PI / 2; track.position.set(CX, FL + 0.01, tMid); K.runner.map.repeat.set(1, tLen / (TW * 2.6)); track.userData.ground = true; G.add(track);   // the runner
+    if (!tin) for (const s of [-1, 1]) {
+      paint.geo(new BoxGeometry(0.6, 0.55, tLen), placeAt(CX + s * TW, FL + 0.27, tMid), tin ? 0x2A5AC8 : 0x8A1A20);
+      paint.geo(new BoxGeometry(0.64, 0.08, tLen), placeAt(CX + s * TW, FL + 0.58, tMid), tin ? 0xFFF1D2 : 0xF2E4C4);
+      for (let z = Z_TOP; z > Z_BOT; z -= 3) bulbs.push([CX + s * TW, FL + 0.8, z, -1, Math.round(z / 3)]);
+    }
+    // Under and around every ring, close to the path: a warm pool of light, balance balls on pedestals, hoops, a clown car, ladders, trunks.
+    bays.forEach((zc, i) => {
+      const pool = new Mesh(new CircleGeometry(12, 40), new MeshBasicMaterial({ map: pbGlow(), color: tin ? 0xFFF0D0 : 0xFFD8A0, transparent: true, opacity: tin ? 0.3 : 0.85, blending: AdditiveBlending, depthWrite: false, toneMapped: false }));
+      pool.rotation.x = -Math.PI / 2; pool.position.set(CX, FL + 0.04, zc); G.add(pool);
+      if (!tin) cqRingProps(paint, metal, C, CX, FL, zc, TW, i, tin, r);
+      // Garlands of bulbs swagged across between the king poles, high over the course, and along each side to the next pair.
+      const x0 = CX - (HW + 7), x1 = CX + (HW + 7), gy = OV + 20;
+      for (let k = 1; k < 24; k++) { const f = k / 24; bulbs.push([x0 + (x1 - x0) * f, gy - 3.5 * Math.sin(Math.PI * f), zc, 600 + i, k]); }
+      for (const s of [-1, 1]) for (let k = 1; k < 20; k++) { const f = k / 20; bulbs.push([CX + s * (HW + 7), gy - 4 * Math.sin(Math.PI * f), zc - f * CQ_BAY, 700 + i * 2 + s, k]); }
+    });
+    // The sidewalls, the bleachers stepping up to them, a crowd on the bleachers fading into the dark.
+    const len = Z_TOP - Z_BOT, midZ = (Z_TOP + Z_BOT) / 2;
+    if (!tin) for (const s of [-1, 1]) {
+      const wall = new Mesh(new PlaneGeometry(len, 18), K.wall); K.wall.map.repeat.set(len / 16, 1);
+      wall.rotation.y = s * -Math.PI / 2; wall.position.set(CX + s * RX, FL + 9, midZ); G.add(wall);
+      for (let k = 0; k < 9; k++) {
+        const x0 = CX + s * (HW + 14 + k * 3.6), y = FL + 1.3 * (k + 1);
+        paint.geo(new BoxGeometry(3.6, 1.3 * (k + 1), len), placeAt(x0 + s * 1.8, FL + 0.65 * (k + 1), midZ), k % 2 ? C.wood : C.seat);
+      }
+    }
+    if (!tin) cqCrowd(G, C, CX, HW, FL, Z_TOP, Z_BOT, r);
+    else for (const s of [-1, 1]) { const wall = new Mesh(new PlaneGeometry(len, SKY - FL + 1), K.wall); K.wall.map.repeat.set(len / 16, 1); wall.rotation.y = s * -Math.PI / 2; wall.position.set(CX + s * RX, (SKY + FL) / 2, midZ); G.add(wall); }
+    // Painted sideshow banners high on the walls, and the performers' entrance: a curtain in a gilded arch.
+    if (!tin) for (const [i, zc] of bays.entries()) for (const s of [-1, 1]) {
+      const b = new Mesh(new PlaneGeometry(6, 6), K.posters); const cell = (i * 2 + (s > 0 ? 1 : 0)) % 4;
+      const uv = b.geometry.attributes.uv; for (let q = 0; q < 4; q++) uv.setXY(q, (cell % 2) * 0.5 + uv.getX(q) * 0.5, 1 - Math.floor(cell / 2) * 0.5 - (1 - uv.getY(q)) * 0.5);
+      b.rotation.y = s * -Math.PI / 2; b.position.set(CX + s * (RX - 0.3), FL + 13.5, zc + 18); G.add(b);
+      if ((i + (s > 0 ? 1 : 0)) % 2) {
+        const cur = new Mesh(new PlaneGeometry(9, 11), K.curtain); cur.rotation.y = s * -Math.PI / 2; cur.position.set(CX + s * (RX - 0.4), FL + 5.5, zc - 14); G.add(cur);
+        metal.geo(new TorusGeometry(4.8, 0.3, 8, 24, Math.PI), placeAt(CX + s * (RX - 0.6), FL + 9, zc - 14, 0, Math.PI / 2, 0), C.brass);
+      }
+    }
+  } else cqMidway(G, K, C, paint, metal, lit, bulbs, tick, fig, CX, HW, FL, Z_TOP, Z_BOT, r, live);
+
+  // THE ACTS, in the rings and over the course.
+  const acts = out ? [] : bays.slice(0, 4);
+  if (tin) {                                                   // the tin toy fills its floor itself; over it, the trapeze and the wire
+    cqTinKit(K);
+    bays.forEach((zc, i) => { if (i % 2) cqTrapeze(G, K, C, paint, metal, tick, fig, CX, OV, zc, HW, live); else cqHighWire(G, K, C, metal, tick, fig, CX, OV, zc, HW, live); });
+    cqTinFill({ G, K, C, paint, metal, lit, tick, fig, FL, live, r }, CX, HW, Z_TOP, Z_BOT, bays, bulbs, pieces, high);
+  } else acts.forEach((zc, i) => {
+    if (i === 0) {                                             // the ringmaster in the first ring; a clown beside; the human cannon aimed over the course
+      fig(0, CX - 2, FL, zc + 1, 4.2); fig(1, CX + 3, FL, zc - 2, 3.6);
+      cqCannon(G, K, C, paint, metal, tick, fig, CX + HW + 9, FL, zc - 16, CX - HW - 14, FL + 0.5, zc - 16, live);
+      cqCarousel(G, K, C, paint, metal, lit, tick, fig, CX - HW - 11, FL, zc + 12, tin, live);
+    } else if (i === 1) {                                      // the flying trapeze over the course; a juggler and a strongman below
+      cqTrapeze(G, K, C, paint, metal, tick, fig, CX, OV, zc, HW, live);
+      cqJuggle(G, K, tick, fig, CX - 2, FL, zc + 2, live); fig(4, CX + 3, FL, zc - 1, 3.8);
+      cqCalliope(G, K, C, paint, metal, lit, tick, CX + HW + 13, FL, zc + 10, live);
+    } else if (i === 2) {                                      // a unicyclist crossing on the high wire; clowns tumbling; the fire-breather
+      cqHighWire(G, K, C, metal, tick, fig, CX, OV, zc, HW, live);
+      const tumbler = fig(5, CX + 2, FL, zc, 3.4); tick.push((dt, t) => { tumbler.position.x = CX + 2 + Math.sin(t * 0.8) * 4; });
+      fig(10, CX - 3, FL, zc + 2, 3.8); fig(tin ? 6 : 11, CX - HW - 8, FL, zc - 8, tin ? 4 : 7);
+    } else {
+      fig(tin ? 9 : 1, CX, FL, zc, tin ? 4 : 3.6); fig(tin ? 6 : 3, CX + 3, FL, zc + 2, tin ? 4 : 3.8);
+      cqBandstand(G, K, C, paint, metal, CX - HW - 12, FL, zc, live);
+    }
+  });
+  cqBalloons(G, tick, CX, HW, FL, Z_TOP, Z_BOT, r, live);
+  cqDust(G, C, tick, FL, live);
+
+  // The bulbs: one set of shapes, their glow as points; each string chases, the footlights breathe.
+  const nb = bulbs.length, bm = new InstancedMesh(new IcosahedronGeometry(0.2, 0), new MeshBasicMaterial({ color: 0xFFFFFF, toneMapped: false }), nb);
+  const o = new Object3D(), bc = new Color(C.bulb), dim = new Color(C.bulbDim), gp = new Float32Array(nb * 3), gc = new Float32Array(nb * 3);
+  bulbs.forEach(([x, y, z], i) => { o.position.set(x, y, z); o.updateMatrix(); bm.setMatrixAt(i, o.matrix); bm.setColorAt(i, bc); gp.set([x, y, z], i * 3); gc.set([bc.r, bc.g, bc.b], i * 3); });
+  bm.frustumCulled = false; G.add(bm);
+  const gg = new BufferGeometry(); gg.setAttribute('position', new Float32BufferAttribute(gp, 3)); gg.setAttribute('color', new Float32BufferAttribute(gc, 3));
+  const glowPts = new Points(gg, new PointsMaterial({ size: 2.2, map: pbGlow(), vertexColors: true, transparent: true, opacity: 0.55, blending: AdditiveBlending, depthWrite: false, toneMapped: false }));
+  glowPts.frustumCulled = false; G.add(glowPts);
+  const tmp = new Color();
+  tick.push((dt, t) => {
+    if (!live) return;
+    const ca = gg.attributes.color;
+    bulbs.forEach(([, , , s, k], i) => {
+      const on = s === -1 ? 0.7 + 0.3 * Math.sin(t * 2 + k * 0.5) : s === 99 ? ((((t * 3 - k * 0.25) % 1) + 1) % 1 < 0.6 ? 1 : 0.35) : ((((t * 1.6 - k / 6) % 1) + 1) % 1 < 0.5 ? 1 : 0.45);
+      tmp.copy(dim).lerp(bc, on); bm.setColorAt(i, tmp); ca.setXYZ(i, tmp.r * on, tmp.g * on, tmp.b * on);
+    });
+    bm.instanceColor.needsUpdate = true; ca.needsUpdate = true;
+  });
+
+  for (const [b, mat] of [[paint, K.paint], [metal, K.metal], [lit, K.lit]]) for (const m of b.meshes(mat)) G.add(m);
+  let T = 0;
+  w.tick = (dt) => {
+    T += dt;
+    for (const f of tick) f(dt, T, camera.position.z);
+    for (const m of figs) m.rotation.y = Math.atan2(camera.position.x - m.position.x, camera.position.z - m.position.z);
+  };
+}
+// What stands round a ring, near the path: pedestals with big striped balls, a stack of hoops, a clown car, a ladder, trunks.
+function cqRingProps(paint, metal, C, CX, FL, zc, TW, i, tin, r) {
+  const side = i % 2 ? 1 : -1, stripe = [C.poleStripe, tin ? 0xFFF1D2 : 0xF2E4C4];
+  for (const [dx, dz] of [[side * (TW - 2.2), 8.5], [-side * (TW - 2), -9]]) {           // a pedestal (a striped drum) and a balance ball on it
+    for (let k = 0; k < 4; k++) paint.geo(new CylinderGeometry(1.3, 1.3, 0.5, 20), placeAt(CX + dx, FL + 0.25 + k * 0.5, zc + dz), stripe[k % 2]);
+    const B = 1.3; for (let k = 0; k < 8; k++) paint.geo(new SphereGeometry(B, 16, 8, k * Math.PI / 4, Math.PI / 4), placeAt(CX + dx, FL + 2 + B, zc + dz), [C.poleStripe, 0x2A5AC8, 0xF2C230, 0xF2E4C4][k % 4]);
+  }
+  for (let k = 0; k < 5; k++) metal.geo(new TorusGeometry(1.1, 0.08, 6, 24), placeAt(CX - side * (TW - 1.5), FL + 0.1 + k * 0.17, zc + 3, Math.PI / 2, 0, 0), [C.brass, 0xE0302A, 0x2A8AD8, 0xF2C230, 0x2AB88A][k]);   // hoops, stacked
+  const cx = CX + side * (TW - 3.5), cz = zc - 2;                                         // the clown car: a tiny round car, wheels too big
+  paint.geo(new BoxGeometry(1.6, 1.0, 2.6), placeAt(cx, FL + 1.0, cz), tin ? 0xE85A4A : 0xE0302A);
+  paint.geo(new SphereGeometry(0.85, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), placeAt(cx, FL + 1.5, cz - 0.1), tin ? 0x2AA89A : 0xF2C230);
+  for (const [wx, wz] of [[-0.9, -0.9], [0.9, -0.9], [-0.9, 0.9], [0.9, 0.9]]) metal.geo(new TorusGeometry(0.42, 0.16, 8, 16), placeAt(cx + wx, FL + 0.55, cz + wz, 0, Math.PI / 2, 0), 0x1A1A1E);
+  metal.geo(new TorusGeometry(0.22, 0.06, 6, 12), placeAt(cx, FL + 1.3, cz - 1.35), C.brass);                   // the horn
+  for (const s of [-1, 1]) metal.geo(new CylinderGeometry(0.06, 0.06, 6, 6), placeAt(CX + side * (TW + 1.8) + s * 0.35, FL + 2.8, zc + 14, 0.25, 0, 0), 0xC8B890);   // a ladder, leaning
+  for (let k = 0; k < 9; k++) metal.geo(new CylinderGeometry(0.04, 0.04, 0.7, 4), placeAt(CX + side * (TW + 1.8), FL + 0.4 + k * 0.62, zc + 14 - 0.15 - k * 0.155, 0, 0, Math.PI / 2), 0xC8B890);
+  for (let k = 0; k < 3; k++) paint.geo(new BoxGeometry(1.4, 1.0, 1.0), placeAt(CX - side * (TW + 1.6), FL + 0.5 + (k === 2 ? 1 : 0), zc - 12 + (k === 2 ? 0.5 : k * 1.1)), [0x5A3A22, 0x3A2A5A, C.poleStripe][k]);   // prop trunks
+}
+// The sky beyond the tent (its darkness), or the midway's dusk.
+function cqSky(g, look) {
+  const C = CQ[look];
+  g.fillStyle = pbLin(g, 0, 0, 0, 512, [[0, C.bg[0]], [0.55, C.bg[1]], [1, C.bg[2]]]); g.fillRect(0, 0, 512, 512);
+  if (look === 'midway') {
+    const r = seeded(4); for (let i = 0; i < 140; i++) { g.fillStyle = `rgba(255,255,255,${0.3 + r() * 0.6})`; g.fillRect(r() * 512, r() * 240, 1.5, 1.5); }
+    g.fillStyle = pbRad(g, 300, 470, 10, 200, [[0, 'rgba(255,200,120,0.9)'], [1, 'rgba(255,120,60,0)']]); g.fillRect(0, 280, 512, 232);
+  }
+}
+// A spotlight on a king pole: a beam and its pool, sweeping the sawdust round the ring.
+function cqSpot(G, K, tick, x, y, z, cx, fl, cz, rad, ph, live) {
+  const cone = new Mesh(new CylinderGeometry(0.35, 1, 1, 24, 1, true), K.cone), pool = new Mesh(new CircleGeometry(2.6, 32), K.halo);
+  pool.rotation.x = -Math.PI / 2; G.add(cone, pool);
+  const q = new Quaternion(), up = new Vector3(0, 1, 0), d = new Vector3();
+  const place = (t) => {
+    const tx = cx + Math.cos(t * 0.35 + ph) * rad, tz = cz + Math.sin(t * 0.5 + ph) * rad * 0.8;
+    d.set(x - tx, y - fl, z - tz); const L = d.length(); d.normalize();
+    q.setFromUnitVectors(up, d); cone.quaternion.copy(q); cone.scale.set(3.2, L, 3.2); cone.position.set((x + tx) / 2, (y + fl) / 2, (z + tz) / 2);
+    pool.position.set(tx, fl + 0.05, tz);
+  };
+  place(0); if (live) tick.push((dt, t) => place(t));
+}
+// The crowd: one shape (head and shoulders), many coats, row on row, the far ones in the dark.
+function cqCrowd(G, C, CX, HW, FL, Z_TOP, Z_BOT, r) {
+  const B = pbBuild(); B.geo(new IcosahedronGeometry(0.24, 0), placeAt(0, 0.95, 0), 0xF2C6A0); B.geo(new BoxGeometry(0.62, 0.7, 0.4), placeAt(0, 0.45, 0), 0xFFFFFF);
+  const geo = B.done(), spots = [];
+  for (const s of [-1, 1]) for (let k = 1; k < 9; k++) for (let z = Z_TOP - 10; z > Z_BOT + 10; z -= 1.25) if (r() < 0.82) spots.push([CX + s * (HW + 14 + k * 3.6 + 1.2 + (r() - 0.5) * 0.8), FL + 1.3 * (k + 1), z + (r() - 0.5) * 0.4, s]);
+  const mesh = new InstancedMesh(geo, new MeshStandardMaterial({ vertexColors: true, roughness: 0.9 }), spots.length), o = new Object3D(), col = new Color();
+  spots.forEach(([x, y, z, s], i) => { o.position.set(x, y, z); o.rotation.set(0, s > 0 ? -Math.PI / 2 : Math.PI / 2, 0); o.scale.setScalar(0.9 + r() * 0.25); o.updateMatrix(); mesh.setMatrixAt(i, o.matrix); col.setHex(C.crowd[Math.floor(r() * C.crowd.length)]).multiplyScalar(0.55 + r() * 0.35); mesh.setColorAt(i, col); });
+  mesh.frustumCulled = false; G.add(mesh);
+}
+// THE HUMAN CANNON: a brass barrel on a painted wagon aimed over the course; every few seconds it fires an aerialist in
+// an arc over the rail into the net across the way, with a puff of smoke and a burst of confetti.
+function cqCannon(G, K, C, paint, metal, tick, fig, x, fl, z, nx, ny, nz, live) {
+  const dir = Math.atan2(nx - x, nz - z), el = 0.62, L = 7;
+  paint.geo(new BoxGeometry(4.2, 1.6, 6.5), placeAt(x, fl + 1.6, z, 0, dir, 0), C.poleStripe);
+  for (const [dx, dz] of [[-2.2, -2], [2.2, -2], [-2.2, 2], [2.2, 2]]) { const c = Math.cos(dir), s = Math.sin(dir); metal.geo(new TorusGeometry(0.9, 0.18, 8, 20), placeAt(x + dx * c + dz * s, fl + 0.9, z - dx * s + dz * c, 0, dir + Math.PI / 2, 0), C.brass); }
+  const barrel = new Group(); barrel.position.set(x, fl + 2.8, z); barrel.rotation.set(0, dir, 0); G.add(barrel);
+  const Bb = pbBuild(); Bb.geo(new CylinderGeometry(1.0, 1.35, L, 28), placeAt(0, L / 2, 0), C.brass);
+  for (const f of [0.15, 0.5, 0.92]) Bb.geo(new TorusGeometry(1.0 + 0.35 * (1 - f) + 0.08, 0.14, 8, 28), placeAt(0, L * f, 0, Math.PI / 2, 0, 0), 0x8A1A20);
+  const tube = new Mesh(Bb.done(), K.metal); tube.rotation.x = Math.PI / 2 - el; barrel.add(tube);
+  const stars = new Mesh(new CylinderGeometry(1.02, 1.37, L * 0.5, 28, 1, true), new MeshBasicMaterial({ map: cqStarsTex(), transparent: true, toneMapped: false }));
+  stars.position.y = L * 0.45; tube.add(stars);
+  const net = pbBuild(); net.geo(new BoxGeometry(7, 0.2, 9), placeAt(nx, ny + 2.5, nz, 0, dir, 0), 0x3A3A40);
+  for (const [dx, dz] of [[-3.4, -4.4], [3.4, -4.4], [-3.4, 4.4], [3.4, 4.4]]) net.geo(new CylinderGeometry(0.15, 0.15, 2.6, 6), placeAt(nx + dx, ny + 1.3, nz + dz), 0x8A7A60);
+  G.add(new Mesh(net.done(), K.paint));
+  const flyer = fig(2, x, fl, z, 3.2, false); flyer.visible = false;
+  const smoke = new Mesh(new CircleGeometry(2.4, 24), new MeshBasicMaterial({ map: pbGlow(), color: 0xE8DCC8, transparent: true, opacity: 0, depthWrite: false }));
+  G.add(smoke);
+  const confetti = cqConfetti(G);
+  const mouth = new Vector3(x + Math.sin(dir) * Math.cos(el) * L, fl + 2.8 + Math.sin(el) * L, z + Math.cos(dir) * Math.cos(el) * L);
+  if (!live) return;
+  tick.push((dt, t) => {
+    const u = t % 7;                                          // a shot every seven seconds: the flight takes two
+    tube.position.z = u < 0.2 ? -0.6 * (1 - u / 0.2) : 0;
+    flyer.visible = u < 2;
+    if (u < 2) { const f = u / 2; flyer.position.set(mouth.x + (nx - mouth.x) * f, mouth.y + (ny + 3 - mouth.y) * f + 14 * Math.sin(Math.PI * f), mouth.z + (nz - mouth.z) * f); flyer.rotation.set(0, dir + Math.PI / 2, -Math.PI / 2 + f * Math.PI); }
+    smoke.position.copy(mouth); smoke.position.y += u * 1.2; smoke.scale.setScalar(1 + u * 1.5); smoke.material.opacity = Math.max(0, 0.6 - u * 0.4);
+    smoke.quaternion.copy(camera.quaternion);
+    if (u < dt * 1.5) confetti.burst(mouth, 160);
+  });
+  tick.push((dt) => confetti.step(dt));
+}
+let cqStarsMemo = null;
+const cqStarsTex = () => cqStarsMemo || (cqStarsMemo = canvasTex(256, 128, (g) => { g.clearRect(0, 0, 256, 128); g.fillStyle = '#FFF4D8'; for (let i = 0; i < 8; i++) { cqStar(g, 16 + i * 32, 40 + (i % 2) * 44, 12, 5); g.fill(); } }));
+// Confetti: a few hundred scraps of colour, bursting out and fluttering down.
+function cqConfetti(G) {
+  const N = 400, pos = new Float32Array(N * 3).fill(-999), col = new Float32Array(N * 3), vel = new Float32Array(N * 3), life = new Float32Array(N);
+  const cols = [[1, 0.3, 0.3], [1, 0.85, 0.2], [0.3, 0.8, 1], [0.4, 1, 0.5], [1, 0.5, 0.9], [1, 1, 1]];
+  for (let i = 0; i < N; i++) col.set(cols[i % cols.length], i * 3);
+  const geo = new BufferGeometry(); geo.setAttribute('position', new Float32BufferAttribute(pos, 3)); geo.setAttribute('color', new Float32BufferAttribute(col, 3));
+  const pts = new Points(geo, new PointsMaterial({ size: 0.28, vertexColors: true, toneMapped: false })); pts.frustumCulled = false; G.add(pts);
+  let next = 0;
+  return {
+    burst(at, n) { const p = geo.attributes.position.array; for (let k = 0; k < n; k++) { const i = next; next = (next + 1) % N; p[i * 3] = at.x; p[i * 3 + 1] = at.y; p[i * 3 + 2] = at.z;
+      const a = Math.random() * 6.3, e = Math.random(); vel[i * 3] = Math.cos(a) * 6 * e; vel[i * 3 + 1] = 5 + Math.random() * 7; vel[i * 3 + 2] = Math.sin(a) * 6 * e; life[i] = 4 + Math.random() * 2; } },
+    step(dt) { const p = geo.attributes.position.array; for (let i = 0; i < N; i++) { if (life[i] <= 0) continue; life[i] -= dt;
+      vel[i * 3 + 1] = Math.max(-1.6, vel[i * 3 + 1] - 9 * dt); vel[i * 3] *= 0.985; vel[i * 3 + 2] *= 0.985;
+      p[i * 3] += (vel[i * 3] + Math.sin(life[i] * 7 + i) * 0.8) * dt; p[i * 3 + 1] += vel[i * 3 + 1] * dt; p[i * 3 + 2] += vel[i * 3 + 2] * dt; if (life[i] <= 0) p[i * 3 + 1] = -999; }
+      geo.attributes.position.needsUpdate = true; },
+  };
+}
+// THE CAROUSEL: a striped canopy on a centre pole, painted horses rising and falling as it turns.
+function cqCarousel(G, K, C, paint, metal, lit, tick, fig, x, fl, z, tin, live, cuts = null) {
+  const grp = new Group(); grp.position.set(x, fl, z); G.add(grp);
+  const B = pbBuild();
+  B.geo(new CylinderGeometry(5.6, 5.8, 0.6, 32), placeAt(0, 0.3, 0), C.poleStripe);
+  B.geo(new CylinderGeometry(0.5, 0.5, 6.5, 12), placeAt(0, 3.5, 0), C.brass);
+  for (let k = 0; k < 16; k++) B.geo(new ConeGeometry(6.4, 2.4, 3, 1, true, k / 16 * Math.PI * 2, Math.PI * 2 / 16), placeAt(0, 7.6, 0), k % 2 ? 0xF2E4C4 : C.poleStripe);
+  B.geo(new CylinderGeometry(6.2, 6.2, 0.8, 32, 1, true), placeAt(0, 6.2, 0), C.brass);
+  for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2; B.geo(new CylinderGeometry(0.07, 0.07, 5.4, 6), placeAt(Math.cos(a) * 4.4, 3.4, Math.sin(a) * 4.4), C.brass); }   // the brass poles, turning with it
+  const body = new Mesh(B.done(), K.paint); grp.add(body);
+  const horses = [];
+  if (cuts) {                                                // in a batch: each horse works out where the turning carousel has it
+    for (let k = 0; k < 8; k++) { const a0 = k / 8 * Math.PI * 2; cuts.add({ cell: 8, x, y: fl + 1.2, z, h: 2.6, yaw: -a0, key: false, ph0: 0,
+      anim: (t, e) => { const A = a0 - (live ? t * 0.45 : 0); e.x = x + Math.cos(A) * 4.4; e.z = z + Math.sin(A) * 4.4; e.yaw = -A; e.y = fl + 1.2 + (live ? 0.5 * Math.sin(t * 2.2 + k * 1.3) : 0); } }); }
+    if (live) tick.push((dt, t) => { grp.rotation.y = t * 0.45; });
+    return;
+  }
+  for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2, h = fig(8, 0, 0, 0, 2.6, false); G.remove(h); grp.add(h); h.position.set(Math.cos(a) * 4.4, 1.2, Math.sin(a) * 4.4); h.rotation.y = -a; horses.push([h, a]); }
+  if (!live) return;
+  tick.push((dt, t) => { grp.rotation.y = t * 0.45; horses.forEach(([h, a], k) => { h.position.y = 1.2 + 0.5 * Math.sin(t * 2.2 + k * 1.3); }); });
+}
+// THE FLYING TRAPEZE: two small boards high on the king poles, a bar swinging between them across the course, an aerialist on it.
+function cqTrapeze(G, K, C, paint, metal, tick, fig, CX, fl, zc, HW, live) {
+  const y = fl + 27, piv = new Group(); piv.position.set(CX, y + 9, zc - 6); G.add(piv);
+  for (const s of [-1, 1]) paint.geo(new BoxGeometry(2.4, 0.3, 2), placeAt(CX + s * (HW + 5.5), y - 2, zc - 6), C.poleStripe);
+  const B = pbBuild(); for (const dz of [-0.9, 0.9]) B.geo(new CylinderGeometry(0.04, 0.04, 9, 4), placeAt(0, -4.5, dz), 0xE8E0D0);
+  B.geo(new CylinderGeometry(0.09, 0.09, 2, 8), placeAt(0, -9, 0, Math.PI / 2, 0, 0), C.brass);
+  piv.add(new Mesh(B.done(), K.metal));
+  const flyer = fig(2, 0, 0, 0, 3.4, false); G.remove(flyer); piv.add(flyer); flyer.position.set(0, -12.4, 0);
+  if (live) tick.push((dt, t) => { piv.rotation.z = Math.sin(t * 1.1) * 0.95; });
+}
+// THE HIGH WIRE: a wire between the poles high over the course, a unicyclist crossing and coming back.
+function cqHighWire(G, K, C, metal, tick, fig, CX, fl, zc, HW, live) {
+  const y = fl + 22, x0 = CX - HW - 7, x1 = CX + HW + 7;
+  metal.geo(new CylinderGeometry(0.04, 0.04, x1 - x0, 4), placeAt(CX, y, zc + 4, 0, 0, Math.PI / 2), 0xD8D8E0);
+  const u = fig(7, CX, y, zc + 4, 2.6, false);
+  if (live) tick.push((dt, t) => { u.position.x = CX + Math.sin(t * 0.3) * (HW + 4); u.rotation.z = Math.sin(t * 2.3) * 0.08; });
+}
+// THE JUGGLER, with three clubs going round in the air.
+function cqJuggle(G, K, tick, fig, x, fl, z, live) {
+  fig(3, x, fl, z, 3.8);
+  const clubs = [0, 1, 2].map((k) => { const m = new Mesh(new CylinderGeometry(0.06, 0.16, 0.6, 8), new MeshStandardMaterial({ color: [0xF4F0E8, 0xE0302A, 0x2A8A5A][k], roughness: 0.4 })); G.add(m); return m; });
+  if (!live) return;
+  tick.push((dt, t) => clubs.forEach((m, k) => { const f = ((t * 0.9 + k / 3) % 1), s = f < 0.5 ? 1 : -1, g = f < 0.5 ? f * 2 : (f - 0.5) * 2;
+    m.position.set(x + s * (0.9 - 1.8 * g), fl + 3.3 + Math.sin(Math.PI * g) * 2.2, z + 0.3); m.rotation.z = t * 9 + k; }));
+}
+// THE CALLIOPE: a painted wagon with rows of brass pipes, puffing steam as it plays.
+function cqCalliope(G, K, C, paint, metal, lit, tick, x, fl, z, live) {
+  paint.geo(new BoxGeometry(4, 3, 7), placeAt(x, fl + 2.6, z), C.poleStripe);
+  paint.geo(new BoxGeometry(4.3, 0.3, 7.3), placeAt(x, fl + 4.2, z), C.brass);
+  for (const dz of [-2.6, 2.6]) for (const dx of [-2.1, 2.1]) metal.geo(new TorusGeometry(1.1, 0.15, 8, 20), placeAt(x + dx, fl + 1.1, z + dz, 0, Math.PI / 2, 0), C.brass);
+  const tops = [];
+  for (let row = 0; row < 2; row++) for (let k = 0; k < 9; k++) { const h = 1 + Math.abs(k - 4) * 0.3 + row * 0.4, px = x - 0.8 + row * 1.6, pz = z - 3 + k * 0.75; metal.geo(new CylinderGeometry(0.16, 0.16, h, 10), placeAt(px, fl + 4.35 + h / 2, pz), C.brass); tops.push([px, fl + 4.35 + h, pz]); }
+  const puffs = tops.map(() => { const m = new Mesh(new CircleGeometry(0.5, 16), new MeshBasicMaterial({ map: pbGlow(), color: 0xF4F0E8, transparent: true, opacity: 0, depthWrite: false })); G.add(m); return m; });
+  if (!live) return;
+  tick.push((dt, t) => puffs.forEach((m, k) => { const f = ((t * 0.7 + k * 0.137) % 1); m.position.set(tops[k][0], tops[k][1] + f * 3, tops[k][2]); m.scale.setScalar(0.6 + f * 2.2); m.material.opacity = 0.5 * (1 - f); m.quaternion.copy(camera.quaternion); }));
+}
+// THE BANDSTAND: a little stage with a big drum, a tuba, cymbals.
+function cqBandstand(G, K, C, paint, metal, x, fl, z) {
+  paint.geo(new CylinderGeometry(5, 5.3, 1.2, 24), placeAt(x, fl + 0.6, z), C.wood);
+  paint.geo(new CylinderGeometry(1.3, 1.3, 1.1, 24), placeAt(x - 1.5, fl + 2.4, z, Math.PI / 2, 0, 0), 0xF2E4C4);
+  metal.geo(new TorusGeometry(1.32, 0.12, 8, 24), placeAt(x - 1.5, fl + 2.4, z - 0.55), C.brass);
+  metal.geo(new TorusGeometry(0.9, 0.35, 10, 20), placeAt(x + 1.8, fl + 2.6, z), C.brass);
+  metal.geo(new ConeGeometry(0.9, 1.4, 20, 1, true), placeAt(x + 2.4, fl + 3.6, z, 0, 0, -0.6), C.brass);
+  for (const dx of [-3, 0.2]) metal.geo(new CylinderGeometry(0.8, 0.8, 0.05, 20), placeAt(x + dx, fl + 3.4, z + 1.6, 0.2, 0, 0), C.brass);
+}
+// Balloons drifting up out of sight, all along the course, from beside it.
+function cqBalloons(G, tick, CX, HW, FL, Z_TOP, Z_BOT, r, live) {
+  const N = 90, geo = new IcosahedronGeometry(0.55, 1); geo.scale(1, 1.2, 1);
+  const mesh = new InstancedMesh(geo, new MeshStandardMaterial({ roughness: 0.25, metalness: 0.1 }), N), o = new Object3D(), col = new Color(), B = [];
+  const cols = [0xE0302A, 0xF2C230, 0x2A8AD8, 0x2AB88A, 0xE85AA8, 0xF4F0E8];
+  for (let i = 0; i < N; i++) { const s = r() < 0.5 ? -1 : 1; B.push({ x: CX + s * (HW + 3 + r() * 10), z: Z_TOP - r() * (Z_TOP - Z_BOT), y: FL + r() * 40, v: 0.8 + r() * 0.8, ph: r() * 6 }); col.setHex(cols[i % cols.length]); mesh.setColorAt(i, col); }
+  mesh.frustumCulled = false; G.add(mesh);
+  const place = (t) => { B.forEach((b, i) => { const y = FL + ((b.y - FL + t * b.v) % 42); o.position.set(b.x + Math.sin(t * 0.5 + b.ph) * 0.6, y, b.z); o.updateMatrix(); mesh.setMatrixAt(i, o.matrix); }); mesh.instanceMatrix.needsUpdate = true; };
+  place(0); if (live) tick.push((dt, t) => place(t));
+}
+// Sawdust in the air: motes drifting in the light about the camera.
+function cqDust(G, C, tick, FL, live) {
+  const N = 700, p = new Float32Array(N * 3), r = seeded(19);
+  for (let i = 0; i < N; i++) p.set([(r() - 0.5) * 60, FL + r() * 30, -r() * 80], i * 3);
+  const geo = new BufferGeometry(); geo.setAttribute('position', new Float32BufferAttribute(p, 3));
+  const pts = new Points(geo, new PointsMaterial({ size: 0.09, color: C.bulb, transparent: true, opacity: 0.6, blending: AdditiveBlending, depthWrite: false, toneMapped: false }));
+  pts.frustumCulled = false; G.add(pts);
+  tick.push((dt, t, camZ) => { pts.position.set(camera.position.x, 0, camZ + 10); if (live) pts.rotation.y = Math.sin(t * 0.05) * 0.2; });
+}
+// The rail dressed as the circus's own: printed tin boards with a studded band down each side. The pieces that mean
+// something keep their meaning colours, as in every world: a pad's sides yellow, a moving platform cyan, a magnet strip's
+// sides cyan, the colour lanes lime and violet, a puzzle square's floor in panels; a switched road fades in.
+const cqCourseMemo = {};
+function cqCourseMats(look) {
+  if (cqCourseMemo[look]) return cqCourseMemo[look];
+  const C = CQ[look], D = C.deck, tin = look === 'tintoy', env = cqEnv(look);
+  const print = (base, star, lines) => canvasTex(256, 256, (g) => {
+    g.fillStyle = base; g.fillRect(0, 0, 256, 256);
+    if (look === 'midway') { for (let y = 0; y < 256; y += 32) { g.fillStyle = y % 64 ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)'; g.fillRect(0, y, 256, 30); g.fillStyle = 'rgba(60,40,20,0.35)'; g.fillRect(0, y + 30, 256, 2); } }
+    else { g.fillStyle = lines; for (let y = 0; y < 256; y += 32) g.fillRect(0, y + 30, 256, 2); }
+    if (tin) { g.fillStyle = star; for (let k = 0; k < 4; k++) { cqStar(g, 64 + (k % 2) * 128, 32 + k * 64, 14, 6); g.fill(); } }
+  }, true);
+  const band = (col, stud) => canvasTex(64, 256, (g) => { g.fillStyle = col; g.fillRect(0, 0, 64, 256); g.fillStyle = stud; for (let y = 16; y < 256; y += 32) { pbCircle(g, 32, y, 7); g.fill(); } }, true);
+  const cellT = canvasTex(256, 256, (g) => {                // a puzzle square's floor: a printed panel to a cell
+    g.fillStyle = D.base; g.fillRect(0, 0, 256, 256);
+    g.strokeStyle = D.band; g.lineWidth = 12; g.strokeRect(6, 6, 244, 244); g.strokeStyle = D.stud; g.lineWidth = 4; g.strokeRect(22, 22, 212, 212);
+    g.fillStyle = D.stud; for (const [x, y] of [[22, 22], [234, 22], [22, 234], [234, 234]]) { pbCircle(g, x, y, 8); g.fill(); }
+    if (tin) { g.fillStyle = D.band; cqStar(g, 128, 128, 30, 13); g.fill(); }
+  });
+  const std = (o) => keepMat(hazed(new MeshStandardMaterial({ roughness: tin ? 0.3 : 0.55, metalness: tin ? 0.5 : 0.05, envMap: env, envMapIntensity: 0.7, ...o })));
+  const top = (base = D.base, star = D.band) => std({ map: print(base, star, 'rgba(0,0,0,0.06)') });
+  const side = (col = D.band, stud = D.stud) => std({ map: band(col, stud), roughness: 0.4, metalness: tin ? 0.6 : 0.2, envMap: env, envMapIntensity: 0.8 });
+  const hex = (n) => '#' + n.toString(16).padStart(6, '0');
+  return (cqCourseMemo[look] = {
+    make: { top: () => top(), side: () => side() },
+    top: top(), side: side(), under: std({ color: 0x1A0E0A, roughness: 0.9, metalness: 0 }),
+    padTop: top(), padSide: side(hex(PAD_YELLOW), '#FFF1D2'),
+    ferryTop: top('#D8F6FF', '#1A8AB8'), ferrySide: side('#2FB6D8', '#FFF1D2'), magSide: side('#2FB6D8', '#FFF1D2'),
+    laneTop: [null, top('#E4F8C4', '#5A9A1A'), top('#E8DEFF', '#6A3AC8')], laneSide: [null, side('#8FD83A', '#FFF1D2'), side('#9A6BF0', '#FFF1D2')],
+    cellTop: std({ map: cellT }),
+  });
+}
+function circusCourse(look) {
+  const M = cqCourseMats(look);
+  for (const c of colliders) {
+    if (c.holo || c.obstacle) continue;
+    c.mesh.castShadow = false;
+    if (c.power) {
+      const S = c.power;
+      if (S.top) { S.top.dispose(); S.side.dispose(); }
+      S.top = M.make.top(); S.side = M.make.side(); S.top.transparent = S.side.transparent = true; S.fade = true;
+      c.mesh.material = [S.side, S.side, S.top, M.under, S.side, S.side]; setTopUV(c.mesh, false);
+      continue;
+    }
+    const [side, top] = c.ferry ? [M.ferrySide, M.ferryTop] : c.pad ? [M.padSide, M.padTop] : c.mag ? [M.magSide, M.padTop]
+      : c.lane ? [M.laneSide[c.lane], M.laneTop[c.lane]] : c.cell ? [M.side, M.cellTop] : [M.side, M.top];
+    c.mesh.material = [side, side, top, M.under, side, side]; setTopUV(c.mesh, !!c.cell);
+  }
+  for (const L of loopsIn) loopLook(L, M.top, M.side, CQ[look].bulb);
+  circusPieces(look);                                         // every piece as the circus's own
+}
+
+// ---- THE MIDWAY AT DUSK: the course over the fairground, booths along both sides, the big top beyond ----
+function cqMidway(G, K, C, paint, metal, lit, bulbs, tick, fig, CX, HW, FL, Z_TOP, Z_BOT, r, live) {
+  const awn = [[0xC8202C, 0xF4ECD8], [0x2A6AD8, 0xF4ECD8], [0x2AA86A, 0xF4ECD8], [0xE8B040, 0x8A1A20]];
+  // Booths: a body, a striped awning, a counter with prizes, a painted sign; every other one lit inside.
+  for (const s of [-1, 1]) for (let z = Z_TOP - 10, i = 0; z > Z_BOT + 10; z -= 11, i++) {
+    const x = CX + s * (HW + 2.5), col = awn[(i + (s > 0 ? 2 : 0)) % 4];   // right under the edges of the rail, where the camera looks
+    paint.geo(new BoxGeometry(7, 3.6, 8), placeAt(x + s * 1.5, FL + 1.8, z), 0x3A2418);
+    for (let k = 0; k < 8; k++) paint.geo(new BoxGeometry(2.4, 0.12, 1.02), placeAt(x - s * 1.8, FL + 4.2 - 0.0, z - 3.5 + k, 0, 0, s * 0.35), col[k % 2]);   // the awning's stripes
+    paint.geo(new BoxGeometry(0.8, 1.2, 7.6), placeAt(x - s * 1.6, FL + 0.6, z), col[0]);
+    for (let k = 0; k < 6; k++) lit.geo(new SphereGeometry(0.22, 8, 6), placeAt(x - s * 1.6, FL + 1.45, z - 3 + k * 1.2), [0xFF5A5A, 0xFFD23F, 0x5AC8FF, 0x7AF08A, 0xFF8AD8, 0xFFFFFF][k]);
+    const sign = new Mesh(new PlaneGeometry(4, 4), K.posters); const cell = (i + (s > 0 ? 1 : 0)) % 4;
+    const uv = sign.geometry.attributes.uv; for (let q = 0; q < 4; q++) uv.setXY(q, (cell % 2) * 0.5 + uv.getX(q) * 0.5, 1 - Math.floor(cell / 2) * 0.5 - (1 - uv.getY(q)) * 0.5);
+    sign.rotation.y = s * -Math.PI / 2; sign.position.set(x - s * 0.9, FL + 5.8, z); G.add(sign);
+    for (let k = 0; k < 7; k++) bulbs.push([x - s * 2.9, FL + 3.4, z - 3.6 + k * 1.2, 200 + i, k]);   // bulbs along the awning's edge
+  }
+  const lane = new Mesh(new PlaneGeometry(HW * 2 - 2, Z_TOP - Z_BOT), K.runner); K.runner.map.repeat.set(1, (Z_TOP - Z_BOT) / 10); lane.rotation.x = -Math.PI / 2; lane.position.set(CX, FL + 0.02, (Z_TOP + Z_BOT) / 2); G.add(lane);
+  for (let z = Z_TOP; z > Z_BOT; z -= 12) for (let k = 1; k < 12; k++) { const f = k / 12; bulbs.push([CX - HW + 2 + (HW * 2 - 4) * f, FL + 6.4 - 1.4 * Math.sin(Math.PI * f), z, 800 + z, k]); }   // strung low across the lane
+  // Tall poles along both sides with strings of bulbs swagged between them, just clear of the course.
+  for (const s of [-1, 1]) {
+    for (let z = Z_TOP; z > Z_BOT; z -= 16) {
+      const x = CX + s * (HW + 3), top = FL + 12.5;
+      paint.geo(new CylinderGeometry(0.18, 0.24, top - FL, 8), placeAt(x, (top + FL) / 2, z), C.pole);
+      lit.geo(new SphereGeometry(0.3, 8, 6), placeAt(x, top + 0.3, z), C.bulb);
+      for (let k = 1; k < 16; k++) { const f = k / 16; bulbs.push([x, top - 3.2 * Math.sin(Math.PI * f), z - f * 16, 300 + s + z, k]); }
+      for (let k = 1; k < 10; k++) { const f = k / 10, x2 = CX + s * (HW + 16); bulbs.push([x + (x2 - x) * f, top - 2.5 * Math.sin(Math.PI * f), z, 400 + z, k]); }
+    }
+  }
+  // The big top beyond the booths: striped canvas, flags, bulbs up its seams; one every 200 m, on alternate sides.
+  for (let z = Z_TOP - 60, i = 0; z > Z_BOT - 60; z -= 200, i++) {
+    const s = i % 2 ? 1 : -1, x = CX + s * 52, rad = 26, eave = FL + 11, peak = FL + 34;
+    const prof = []; for (let k = 0; k <= 12; k++) { const f = k / 12; prof.push(new Vector2(rad * (1 - f) + 1.5 * f, eave + (peak - eave) * Math.pow(f, 1.5))); }
+    const roof = new Mesh(new LatheGeometry(prof, 48), K.canvas); roof.position.set(x, 0, z); G.add(roof);
+    const wall = new Mesh(new CylinderGeometry(rad, rad, eave - FL, 48, 1, true), K.wall); wall.position.set(x, (eave + FL) / 2, z); G.add(wall);
+    paint.geo(new CylinderGeometry(0.4, 0.4, 8, 8), placeAt(x, peak + 4, z), C.pole);
+    paint.geo(new BoxGeometry(0.1, 1.6, 2.6), placeAt(x, peak + 7, z + 1.3), C.poleStripe);
+    for (let sm = 0; sm < 12; sm++) { const a = sm / 12 * Math.PI * 2; for (let k = 0; k < 14; k++) { const f = k / 13, rr = rad * (1 - f) + 1.5 * f; bulbs.push([x + Math.cos(a) * rr, eave + (peak - eave) * Math.pow(f, 1.5) + 0.3, z + Math.sin(a) * rr, 500 + sm + i * 20, k]); } }
+  }
+  // The Ferris wheel, turning slowly, its rim of bulbs; the helter-skelter; the carousel; the high striker.
+  const fx = CX + 34, fz = Z_TOP - 120, FR = 17;
+  const wheel = new Group(); wheel.position.set(fx, FL + FR + 3, fz); wheel.rotation.y = Math.PI / 2; G.add(wheel);
+  const WB = pbBuild();
+  for (const dz of [-1.2, 1.2]) WB.geo(new TorusGeometry(FR, 0.25, 8, 64), placeAt(0, 0, dz), 0xE8E0D0);
+  for (let k = 0; k < 16; k++) { const a = k / 16 * Math.PI * 2; for (const dz of [-1.2, 1.2]) WB.geo(new CylinderGeometry(0.1, 0.1, FR, 4), placeAt(Math.cos(a) * FR / 2, Math.sin(a) * FR / 2, dz, 0, 0, a + Math.PI / 2), 0xC8C0B0); }
+  wheel.add(new Mesh(WB.done(), K.metal));
+  for (const s of [-1, 1]) metal.geo(new CylinderGeometry(0.4, 0.6, FR + 5, 8), placeAt(fx + s * 0, FL + (FR + 3) / 2, fz + s * 6, s * 0.3, 0, 0), 0xC8C0B0);
+  const wp = [], wc = [];
+  for (let k = 0; k < 96; k++) { const a = k / 96 * Math.PI * 2; wp.push(Math.cos(a) * FR, Math.sin(a) * FR, 1.3); const c = new Color([0xFFD9A0, 0xFF6A5A, 0x6AC8FF][k % 3]); wc.push(c.r, c.g, c.b); }
+  const wg = new BufferGeometry(); wg.setAttribute('position', new Float32BufferAttribute(wp, 3)); wg.setAttribute('color', new Float32BufferAttribute(wc, 3));
+  wheel.add(new Points(wg, new PointsMaterial({ size: 1.4, map: pbGlow(), vertexColors: true, transparent: true, blending: AdditiveBlending, depthWrite: false, toneMapped: false })));
+  const cars = [];
+  for (let k = 0; k < 12; k++) { const g = new Mesh(new BoxGeometry(2, 1.6, 1.8), new MeshStandardMaterial({ color: awn[k % 4][0], roughness: 0.5 })); G.add(g); cars.push([g, k / 12 * Math.PI * 2]); }
+  const placeCars = (t) => cars.forEach(([g, a0]) => { const a = a0 + t * 0.12; g.position.set(fx, FL + FR + 3 + Math.sin(a) * FR - 1.4, fz + Math.cos(a) * FR); });
+  placeCars(0); if (live) tick.push((dt, t) => { wheel.rotation.x = t * 0.12; placeCars(t); });
+  // The helter-skelter: a striped tower, the slide winding down round it, a pointed roof and a flag.
+  const hx = CX - 22, hz = Z_TOP - 80;
+  for (let k = 0; k < 10; k++) paint.geo(new CylinderGeometry(3, 3.2, 2, 20), placeAt(hx, FL + 1 + k * 2, hz), k % 2 ? 0xF4ECD8 : 0xC8202C);
+  paint.geo(new ConeGeometry(4, 4, 20), placeAt(hx, FL + 22, hz), 0x2A6AD8);
+  for (let k = 0; k < 120; k++) { const f = k / 120, a = f * Math.PI * 8; paint.geo(new BoxGeometry(1.8, 0.2, 1.1), placeAt(hx + Math.cos(a) * 4.2, FL + 19 - f * 18, hz + Math.sin(a) * 4.2, 0, -a, -0.35), 0xE8B040); }
+  // The high striker: ring the bell. A puck shoots up the pole now and then.
+  const sx = CX + HW + 20, sz = Z_TOP - 40;
+  paint.geo(new BoxGeometry(0.8, 11, 0.5), placeAt(sx, FL + 5.5, sz), 0xF4ECD8);
+  for (let k = 0; k < 10; k++) paint.geo(new BoxGeometry(0.86, 0.9, 0.52), placeAt(sx, FL + 1 + k * 1.05, sz), [0x2AA86A, 0x2AA86A, 0xE8B040, 0xE8B040, 0xE8B040, 0xE86A20, 0xE86A20, 0xC8202C, 0xC8202C, 0xC8202C][k]);
+  metal.geo(new SphereGeometry(0.7, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), placeAt(sx, FL + 11.6, sz), C.brass);
+  const puck = new Mesh(new BoxGeometry(0.5, 0.3, 0.5), new MeshBasicMaterial({ color: 0xFFFFFF, toneMapped: false })); G.add(puck);
+  if (live) tick.push((dt, t) => { const u = (t % 5) / 5, f = u < 0.3 ? Math.sin(Math.PI * u / 0.3) : 0; puck.position.set(sx, FL + 0.6 + f * 10.6, sz + 0.4); });
+  cqCarousel(G, K, C, paint, metal, lit, tick, fig, CX - HW - 12, FL, Z_TOP - 25, false, live);
+  fig(11, CX + HW + 9, FL, Z_TOP - 16, 7); fig(10, CX - HW - 9, FL, Z_TOP - 50, 3.8); fig(1, CX + HW + 10, FL, Z_TOP - 62, 3.6);
+  // Fairgoers along the lanes between the booths.
+  cqCrowd(G, C, CX, HW - 10, FL - 1.3, Z_TOP, Z_BOT, r);
+}
+// The marble as a circus ball: red, a navy band of white stars round its middle, gold at the poles.
+let cqBallMemo = null;
+function cqBallTex() {
+  return cqBallMemo || (cqBallMemo = canvasTex(512, 256, (g) => {
+    g.fillStyle = '#C8202C'; g.fillRect(0, 0, 512, 256);
+    g.fillStyle = '#1A2A6A'; g.fillRect(0, 88, 512, 80);
+    g.fillStyle = '#FFFFFF'; for (let i = 0; i < 8; i++) { cqStar(g, 32 + i * 64, 128, 24, 10); g.fill(); }
+    g.fillStyle = '#E8B040'; g.fillRect(0, 0, 512, 22); g.fillRect(0, 234, 512, 22);
+    g.fillStyle = '#F4ECD8'; g.fillRect(0, 80, 512, 8); g.fillRect(0, 168, 512, 8);
+  }));
+}
+
+// ---- BATCHES: the tin circus has hundreds of things, and a phone should draw them in a handful of calls ----
+// (It drew 420-650 calls a frame against the pinball world's 184.) Every cut-out, its key, the animals in the wagons and
+// the horses on the carousels are one instanced plane (each instance told which cell of the atlas to print); the bikes,
+// the train cars and the Ferris wheel cars are instanced by shape; tents, boards, signs and globe mesh are merged; the
+// smoke is one cloud of points.
+// A merged build cut into lengths of the course, so the camera's frustum can drop the lengths it cannot see (merged
+// whole, a long level drew every tent and globe along it every frame).
+function cqChunks(len = 48) {
+  const parts = new Map(), at = (z) => { const k = Math.floor(z / len); if (!parts.has(k)) parts.set(k, pbBuild()); return parts.get(k); };
+  return {
+    geo(g, m, hex) { at(m.elements[14]).geo(g, m, hex); },
+    tri(a, b, c, ...rest) { at((a[2] + b[2] + c[2]) / 3).tri(a, b, c, ...rest); },
+    count() { let n = 0; for (const b of parts.values()) n += b.count(); return n; },
+    meshes(mat) { const out = []; for (const b of parts.values()) if (b.count()) out.push(new Mesh(b.done(), mat)); return out; },
+  };
+}
+let cqIBA = null;                                        // the instanced-attribute class, borrowed: the bundle does not export it
+const cqIBAOf = () => cqIBA || (cqIBA = new InstancedMesh(new BufferGeometry(), undefined, 1).instanceMatrix.constructor);
+const cqCellMats = {};
+function cqCellMat(base) {                               // a copy of a figure material that prints each instance's own cell
+  if (cqCellMats[base.uuid]) return cqCellMats[base.uuid];
+  const m = base.clone(); m.userData.keep = true;
+  m.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader.replace('#include <uv_pars_vertex>', '#include <uv_pars_vertex>\nattribute vec2 cellOff;')
+      .replace('#include <uv_vertex>', '#include <uv_vertex>\n#ifdef USE_MAP\n  vMapUv = uv * 0.25 + cellOff;\n#endif\n#ifdef USE_EMISSIVEMAP\n  vEmissiveMapUv = uv * 0.25 + cellOff;\n#endif');
+  };
+  m.customProgramCacheKey = () => 'cq-cell';
+  return (cqCellMats[base.uuid] = m);
+}
+function cqBatches(Z) {
+  const { K, live } = Z;
+  const cuts = [], bikes = [], trains = [], ferris = [], smoke = [];
+  Z.cuts = { add: (e) => { cuts.push(e); return e; } };
+  Z.bikes = bikes; Z.trains = trains; Z.ferris = ferris; Z.smoke = smoke;
+  Z.merge = { canvas: cqChunks(), grid: cqChunks(), posters: cqChunks(), boards: cqChunks(), signs: cqChunks() };
+  // The cars of every tin train and every Ferris wheel, by shape (built once).
+  return () => {
+    const { G, C, tick } = Z, IBA = cqIBAOf(), q = new Quaternion(), q2 = new Quaternion(), eu = new Euler(0, 0, 0, 'YXZ'), p = new Vector3(), s = new Vector3(), M = new Matrix4(), o3 = new Vector3(), zAx = new Vector3(0, 0, 1);
+    const steps = [];
+    // The cut-outs: a front, a darker back just behind it (the tin's edge), a key turning in the back of the wound ones.
+    if (cuts.length) {
+      const n = cuts.length, geo = new PlaneGeometry(1, 1); geo.translate(0, 0.5, 0);
+      const off = new Float32Array(n * 2); cuts.forEach((e, i) => { off[i * 2] = (e.cell % 4) / 4; off[i * 2 + 1] = 1 - (Math.floor(e.cell / 4) + 1) / 4; });
+      geo.setAttribute('cellOff', new IBA(off, 2));
+      const front = new InstancedMesh(geo, cqCellMat(K.figs), n), back = new InstancedMesh(geo, cqCellMat(K.figsBack), n);
+      const keyed = cuts.filter((e) => e.key).length, keys = new InstancedMesh(cqKeyGeo(C), K.metal, Math.max(1, keyed));
+      if (!keyed) keys.visible = false;
+      for (const m of [front, back, keys]) { m.frustumCulled = false; G.add(m); }
+      steps.push((t) => {
+        let ki = 0;
+        cuts.forEach((e, i) => {
+          if (e.anim) e.anim(t, e);
+          eu.set(0, e.yaw, e.key && live ? Math.sin(t * 2.1 + e.ph0) * 0.03 : (e.roll || 0)); q.setFromEuler(eu);
+          const fl = e.flip || 1;
+          p.set(e.x, e.y, e.z); s.set(e.h * fl, e.h, 1); M.compose(p, q, s); front.setMatrixAt(i, M);
+          o3.set(0, -e.h * 0.003, -Math.max(0.08, e.h * 0.012)).applyQuaternion(q); p.add(o3);
+          s.set(e.h * 1.012 * fl, e.h * 1.008, 1); M.compose(p, q, s); back.setMatrixAt(i, M);
+          if (e.key) {
+            o3.set(0, e.h * 0.42, -0.2).applyQuaternion(q); p.set(e.x, e.y, e.z).add(o3);
+            q2.setFromAxisAngle(zAx, t * 1.3 + e.ph0); q2.premultiply(q);
+            const k = Math.max(0.6, e.h / 9); s.set(k, k, k); M.compose(p, q2, s); keys.setMatrixAt(ki++, M);
+          }
+        });
+        front.instanceMatrix.needsUpdate = back.instanceMatrix.needsUpdate = keys.instanceMatrix.needsUpdate = true;
+      });
+    }
+    // The globes' riders, a batch per colour, and their headlamps in one more.
+    if (bikes.length) {
+      const geos = cqBikeGeos(), per = [0, 1, 2].map((c) => bikes.filter((b) => b.col === c));
+      const meshes = per.map((L, c) => { const m = new InstancedMesh(geos[c], K.paint, Math.max(1, L.length)); m.visible = L.length > 0; m.frustumCulled = false; G.add(m); return m; });
+      const lampGeo = new CircleGeometry(0.55, 12); lampGeo.translate(0, 0.55, 0.75);
+      const lamps = new InstancedMesh(lampGeo, K.glowWhite, bikes.length); lamps.frustumCulled = false; G.add(lamps);
+      const B = new Matrix4(), up = new Vector3(), fw = new Vector3(), sd = new Vector3(), u = new Vector3();
+      steps.push((t) => {
+        let li = 0;
+        per.forEach((L, c) => { L.forEach((b, i) => {
+          const th = b.p0 + b.w * t, cs = Math.cos(th), sn = Math.sin(th);
+          u.copy(b.a).multiplyScalar(cs).addScaledVector(b.b, sn);
+          fw.copy(b.a).multiplyScalar(-sn).addScaledVector(b.b, cs).multiplyScalar(Math.sign(b.w));
+          up.copy(u).negate(); sd.crossVectors(up, fw); B.makeBasis(sd, up, fw); q.setFromRotationMatrix(B);
+          p.set(b.x, b.cy, b.z).addScaledVector(u, b.R - 0.05); s.setScalar(b.R / 3.6); M.compose(p, q, s);
+          meshes[c].setMatrixAt(i, M); lamps.setMatrixAt(li++, M);
+        }); meshes[c].instanceMatrix.needsUpdate = true; });
+        lamps.instanceMatrix.needsUpdate = true;
+      });
+    }
+    // The trains: four kinds of car, each a batch across every train.
+    if (trains.length) {
+      const geos = cqTrainGeos(), meshes = geos.map((g) => { const m = new InstancedMesh(g, K.paint, trains.length); m.frustumCulled = false; G.add(m); return m; });
+      steps.push((t) => {
+        trains.forEach((T, i) => { for (let k = 0; k < 4; k++) { const [px, pz, yaw] = T.car(t, k); eu.set(0, yaw, 0); q.setFromEuler(eu); p.set(px, T.y + 0.15, pz); s.set(1, 1, 1); M.compose(p, q, s); meshes[k].setMatrixAt(i, M); } });
+        for (const m of meshes) m.instanceMatrix.needsUpdate = true;
+      });
+    }
+    // The Ferris wheels' cars, a batch per colour.
+    if (ferris.length) {
+      const geos = cqFerrisCarGeos(), cars = [0, 1, 2, 3].map(() => []);
+      ferris.forEach((F) => { for (let k = 0; k < 12; k++) cars[k % 4].push([F, k / 12 * TAU]); });
+      const meshes = cars.map((L, c) => { const m = new InstancedMesh(geos[c], K.paint, L.length); m.frustumCulled = false; G.add(m); return m; });
+      steps.push((t) => {
+        cars.forEach((L, c) => { L.forEach(([F, a0], i) => { const a = a0 + t * 0.14; p.set(F.x + Math.cos(a) * F.R, F.cy + Math.sin(a) * F.R, F.z); M.makeTranslation(p.x, p.y, p.z); meshes[c].setMatrixAt(i, M); }); meshes[c].instanceMatrix.needsUpdate = true; });
+      });
+    }
+    // Smoke: each emitter puffs five rising, growing, fading puffs; all of them one cloud of points.
+    if (smoke.length) {
+      const N = smoke.length * 5, pos = new Float32Array(N * 3), col = new Float32Array(N * 4);
+      const geo = new BufferGeometry(); geo.setAttribute('position', new Float32BufferAttribute(pos, 3)); geo.setAttribute('color', new Float32BufferAttribute(col, 4));
+      const pts = new Points(geo, new PointsMaterial({ size: 2.6, map: pbGlow(), vertexColors: true, transparent: true, depthWrite: false }));
+      pts.frustumCulled = false; G.add(pts);
+      steps.push((t) => {
+        const P = geo.attributes.position.array, Cc = geo.attributes.color.array;
+        smoke.forEach((e, j) => { const b = e.at(t); for (let k = 0; k < 5; k++) { const u = (((t * (e.rate || 0.9) + k / 5 + j * 0.13) % 1) + 1) % 1, i = j * 5 + k;
+          P[i * 3] = b[0] + (e.drift || 0) * u; P[i * 3 + 1] = b[1] + u * (e.rise || 3); P[i * 3 + 2] = b[2];
+          Cc[i * 4] = 1; Cc[i * 4 + 1] = 0.97; Cc[i * 4 + 2] = 0.93; Cc[i * 4 + 3] = (e.op || 0.6) * (1 - u) * (b[3] === undefined ? 1 : b[3]); } });
+        geo.attributes.position.needsUpdate = true; geo.attributes.color.needsUpdate = true;
+      });
+    }
+    // The merged, textured things.
+    for (const [k, mat] of [['canvas', K.canvas], ['grid', K.grid], ['posters', K.posters], ['boards', K.boards], ['signs', K.signs]]) for (const m of Z.merge[k].meshes(mat)) G.add(m);
+    const all = (t) => { for (const f of steps) f(t); };
+    all(0); if (live) tick.push((dt, t) => all(t));
+  };
+}
+// The shapes the batches share, built once.
+let cqBikeGeoMemo = null;
+function cqBikeGeos() {
+  return cqBikeGeoMemo || (cqBikeGeoMemo = [0xE8303A, 0x2A4AE8, 0xF2C230].map((col) => {
+    const B = pbBuild();
+    for (const dz of [-0.6, 0.6]) B.geo(new TorusGeometry(0.3, 0.1, 4, 10), placeAt(0, 0.34, dz, 0, Math.PI / 2, 0), 0x231A2E);
+    B.geo(new BoxGeometry(0.26, 0.34, 1.1), placeAt(0, 0.52, 0), col);
+    B.geo(new BoxGeometry(0.38, 0.55, 0.4), placeAt(0, 0.95, -0.12), 0xFFF1D2);
+    B.geo(new IcosahedronGeometry(0.22, 1), placeAt(0, 1.34, 0), col);
+    B.geo(new BoxGeometry(0.62, 0.07, 0.07), placeAt(0, 0.9, 0.42), 0x8A8A98);
+    return B.done();
+  }));
+}
+let cqTrainGeoMemo = null;
+function cqTrainGeos() {
+  if (cqTrainGeoMemo) return cqTrainGeoMemo;
+  const mk = (build) => { const B = pbBuild(); build(B); return B.done(); };
+  const wheelsOf = (B, L) => { for (const dz of [-L * 0.3, L * 0.3]) for (const s of [-0.62, 0.62]) B.geo(new CylinderGeometry(0.42, 0.42, 0.16, 16), placeAt(s, 0.45, dz, 0, 0, Math.PI / 2), 0xE8303A); };
+  return (cqTrainGeoMemo = [
+    mk((B) => { wheelsOf(B, 3.6); B.geo(new BoxGeometry(1.5, 0.35, 3.8), placeAt(0, 0.7, 0), 0x231A2E);
+      B.geo(new CylinderGeometry(0.72, 0.72, 2.2, 20), placeAt(0, 1.5, 0.6, Math.PI / 2, 0, 0), 0xE8303A);
+      for (const f of [-0.3, 0.3, 0.9]) B.geo(new CylinderGeometry(0.76, 0.76, 0.14, 20), placeAt(0, 1.5, 0.6 + f, Math.PI / 2, 0, 0), 0xF2C230);
+      B.geo(new BoxGeometry(1.6, 1.9, 1.3), placeAt(0, 1.8, -1.1), 0x2A4AE8); B.geo(new BoxGeometry(1.8, 0.2, 1.6), placeAt(0, 2.85, -1.1), 0xF2C230);
+      B.geo(new CylinderGeometry(0.28, 0.2, 1.1, 12), placeAt(0, 2.5, 1.2), 0x231A2E); B.geo(new CylinderGeometry(0.42, 0.3, 0.3, 12), placeAt(0, 3.1, 1.2), 0xF2C230);
+      B.geo(new ConeGeometry(0.7, 0.6, 4), placeAt(0, 0.6, 2.05, -Math.PI / 2, Math.PI / 4, 0), 0xF2C230); }),
+    mk((B) => { wheelsOf(B, 3.4); B.geo(new BoxGeometry(1.6, 0.3, 3.4), placeAt(0, 0.7, 0), 0x2AA89A);
+      for (let k = 0; k < 7; k++) B.geo(new CylinderGeometry(0.04, 0.04, 1.6, 4), placeAt(0.78, 1.65, -1.5 + k * 0.5), 0xF2C230);
+      B.geo(new BoxGeometry(1.4, 1.7, 3.2), placeAt(-0.1, 1.7, 0), 0x3A2448); B.geo(new BoxGeometry(1.8, 0.2, 3.6), placeAt(0, 2.6, 0), 0xE8303A); }),
+    mk((B) => { wheelsOf(B, 3.4); B.geo(new BoxGeometry(1.6, 0.3, 3.4), placeAt(0, 0.7, 0), 0xF2C230);
+      for (const [dz, col] of [[-1, 0xE8303A], [0, 0x2A6AE8], [1, 0x2AA86A]]) B.geo(new SphereGeometry(0.55, 14, 10), placeAt(0, 1.4, dz), col); }),
+    mk((B) => { wheelsOf(B, 3.6); B.geo(new BoxGeometry(1.6, 1.8, 3.6), placeAt(0, 1.55, 0), 0x6A2A9A);
+      for (let k = 0; k < 3; k++) B.geo(new BoxGeometry(1.64, 0.6, 0.6), placeAt(0, 1.8, -1.1 + k * 1.1), 0xFFF1D2);
+      B.geo(new BoxGeometry(1.8, 0.2, 3.9), placeAt(0, 2.5, 0), 0xF2C230); }),
+  ]);
+}
+let cqFerrisCarMemo = null;
+const cqFerrisCarGeos = () => cqFerrisCarMemo || (cqFerrisCarMemo = [0xE8303A, 0x2A4AE8, 0xF2C230, 0x2AA89A].map((col) => {
+  const B = pbBuild(); B.geo(new BoxGeometry(2, 1.3, 1.6), placeAt(0, -1.2, 0), col); B.geo(new ConeGeometry(1.4, 0.7, 4), placeAt(0, -0.2, 0, 0, Math.PI / 4, 0), 0xFFF1D2); B.geo(new CylinderGeometry(0.05, 0.05, 1, 4), placeAt(0, 0.3, 0), 0xF2C230);
+  return B.done();
+}));
+
+// ---- THE TIN TOY CIRCUS, FILLED ----
+// Owner, 2026-09-29, choosing the tin toy look: "the audience should not exist. Rather this should be filled completely
+// with the world of circus objects and characters. Large cutouts. Motorcycle cages, painted animal cages, lights,
+// marquees etc." The play camera never sees above its own height, so everything that matters stands on the floor round
+// the rail and under it, packed close: giant tin cut-outs of the performers, globes with motorcycles looping inside, cage
+// wagons with animals pacing, marquee boards in bulbs, sideshow tents, light towers, a tin train round every ring.
+
+// The marquee boards: eight in a 1024 atlas, two across and four down, each 512 x 256, an arched board with its words.
+const CQ_SIGNS = [['CIRCUS', '#E8303A', '#F2C230'], ['BIG TOP', '#2A4AE8', '#FFF1D2'], ['WONDERS', '#2AA89A', '#F2C230'], ['DAREDEVILS', '#231A2E', '#F2C230'],
+                  ['WILD BEASTS', '#C8202C', '#FFF1D2'], ['THIS WAY', '#F2C230', '#C8202C'], ['PARADE', '#6A2A9A', '#F2C230'], ['TICKETS', '#E8303A', '#FFF1D2']];
+const cqArch = (t) => [(1 - t) * (1 - t) * 24 + 2 * (1 - t) * t * 256 + t * t * 488, (1 - t) * (1 - t) * 84 - 2 * (1 - t) * t * 68 + t * t * 84];
+let cqSignMemo = null;
+function cqSigns() {
+  return cqSignMemo || (cqSignMemo = canvasTex(1024, 1024, (g) => {
+    CQ_SIGNS.forEach(([word, bg, fg], i) => {
+      g.save(); g.translate((i % 2) * 512, Math.floor(i / 2) * 256);
+      const shape = () => { g.beginPath(); g.moveTo(24, 84); g.quadraticCurveTo(256, -68, 488, 84); g.lineTo(488, 240); g.lineTo(24, 240); g.closePath(); };
+      tl(g, shape, bg, { lw: 9, box: [24, 8, 488, 240], pat: () => {
+        g.fillStyle = 'rgba(255,255,255,0.13)'; for (let k = 0; k < 18; k++) { const a = Math.PI + k * Math.PI / 18; g.beginPath(); g.moveTo(256, 250); g.arc(256, 250, 420, a, a + Math.PI / 36); g.closePath(); g.fill(); }
+      } });
+      g.save(); g.translate(256, 150); g.scale(0.9, 0.8); g.translate(-256, -150); shape(); g.restore(); g.strokeStyle = fg; g.lineWidth = 6; g.stroke();
+      const size = Math.min(92, 520 / Math.max(4, word.length));
+      pbWord(g, word, 262, 158, size, INK, null); pbWord(g, word, 256, 152, size, fg, INK, 0.16);
+      if (word === 'THIS WAY') { tl(g, tlPoly(g, 150, 214, 330, 214, 330, 200, 372, 222, 330, 244, 330, 230, 150, 230), '#FFF1D2', { lw: 4 }); }
+      else for (const x of [66, 446]) tlStar(g, x, 190, 18, fg);
+      g.restore();
+    });
+  }));
+}
+// The cage wagons' boards: four in a 1024 atlas, each 1024 x 256: the name between gilded scrolls.
+const CQ_WAGONS = [['LIONS', 9, 0xC8202C], ['TIGERS', 15, 0x2A4AE8], ['BEARS', 13, 0x2AA89A], ['MONKEYS', 14, 0x6A2A9A]];
+let cqWagMemo = null;
+function cqWagonBoards() {
+  return cqWagMemo || (cqWagMemo = canvasTex(1024, 1024, (g) => {
+    CQ_WAGONS.forEach(([word, , col], i) => {
+      g.save(); g.translate(0, i * 256);
+      const hex = '#' + col.toString(16).padStart(6, '0');
+      tl(g, tlRR(g, 10, 30, 1004, 196, 30), hex, { lw: 8, box: [10, 30, 1014, 226], pat: tlDots(g, [10, 30, 1014, 226], 'rgba(255,255,255,0.1)', 6, 22) });
+      g.strokeStyle = '#F2C230'; g.lineWidth = 8; g.beginPath(); g.roundRect(34, 50, 956, 156, 20); g.stroke();
+      for (const s of [-1, 1]) {                                          // gilded scrolls at each end
+        const cx = 512 + s * 400;
+        for (const [r, w] of [[46, 14], [30, 10], [16, 8]]) { g.strokeStyle = INK; g.lineWidth = w + 6; g.beginPath(); g.arc(cx, 128, r, 0, Math.PI * 1.6); g.stroke(); g.strokeStyle = '#F2C230'; g.lineWidth = w; g.stroke(); }
+      }
+      pbWord(g, word, 518, 136, 118, INK, null, 0, 900, 8); pbWord(g, word, 512, 130, 118, '#FFF1D2', INK, 0.12, 900, 8);
+      g.restore();
+    });
+  }));
+}
+// A wagon wheel: a gold rim, spokes in red and yellow, a hub.
+let cqWheelMemo = null;
+const cqWheelTex = () => cqWheelMemo || (cqWheelMemo = canvasTex(256, 256, (g) => {
+  g.fillStyle = '#231A2E'; pbCircle(g, 128, 128, 128); g.fill();
+  g.fillStyle = '#F2C230'; pbCircle(g, 128, 128, 120); g.fill();
+  for (let k = 0; k < 14; k++) { const a = k * TAU / 14; g.fillStyle = k % 2 ? '#E8303A' : '#F2C230'; g.beginPath(); g.moveTo(128, 128); g.arc(128, 128, 100, a, a + TAU / 14); g.closePath(); g.fill(); }
+  g.strokeStyle = INK; g.lineWidth = 5; pbCircle(g, 128, 128, 100); g.stroke(); pbCircle(g, 128, 128, 120); g.stroke();
+  tl(g, tlEll(g, 128, 128, 26, 26), '#FFF1D2', { lw: 5 }); tl(g, tlEll(g, 128, 128, 10, 10), '#E8303A', { lw: 3 });
+}));
+// The steel mesh of a globe, a fine grid on clear.
+let cqGridMemo = null;
+const cqGridTex = () => cqGridMemo || (cqGridMemo = canvasTex(512, 256, (g) => {
+  g.clearRect(0, 0, 512, 256); g.strokeStyle = 'rgba(220,226,240,1)'; g.lineWidth = 2.5;
+  for (let x = 0; x <= 512; x += 16) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, 256); g.stroke(); }
+  for (let y = 0; y <= 256; y += 16) { g.beginPath(); g.moveTo(0, y); g.lineTo(512, y); g.stroke(); }
+}, true));
+function cqTinKit(K) {
+  if (K.signs) return K;
+  const keep = (m) => { m.userData.keep = true; return m; };
+  K.signs = keep(new MeshStandardMaterial({ map: cqSigns(), alphaTest: 0.4, side: DoubleSide, roughness: 0.35, metalness: 0.3, envMap: K.env, envMapIntensity: 0.6, emissive: 0xFFFFFF, emissiveMap: cqSigns(), emissiveIntensity: 0.28 }));
+  K.boards = keep(new MeshStandardMaterial({ map: cqWagonBoards(), roughness: 0.35, metalness: 0.3, envMap: K.env, envMapIntensity: 0.6, emissive: 0xFFFFFF, emissiveMap: cqWagonBoards(), emissiveIntensity: 0.2 }));
+  K.wheel = keep(new MeshStandardMaterial({ map: cqWheelTex(), roughness: 0.35, metalness: 0.4, envMap: K.env, envMapIntensity: 0.7 }));
+  K.grid = keep(new MeshStandardMaterial({ map: cqGridTex(), alphaTest: 0.3, side: DoubleSide, roughness: 0.2, metalness: 1, envMap: K.env, envMapIntensity: 1.3, color: 0xDDE2F0 }));
+  K.figsBack = keep(new MeshStandardMaterial({ map: K.figs.map, alphaTest: 0.35, side: DoubleSide, color: 0x6A5A48, roughness: 0.3, metalness: 0.8, envMap: K.env, envMapIntensity: 0.9 }));
+  K.glowWhite = keep(new MeshBasicMaterial({ map: pbGlow(), color: 0xFFF4D8, transparent: true, blending: AdditiveBlending, depthWrite: false, toneMapped: false }));
+  return K;
+}
+// A cell of the figures' atlas as a plane h tall, standing on its lower edge.
+function cqCellGeo(cell, h) {
+  const geo = new PlaneGeometry(h, h), uv = geo.attributes.uv, u0 = (cell % 4) / 4, v1 = 1 - Math.floor(cell / 4) / CQ_ROWS;
+  for (let i = 0; i < 4; i++) uv.setXY(i, u0 + uv.getX(i) / 4, v1 - (1 - uv.getY(i)) / CQ_ROWS);
+  geo.translate(0, h / 2, 0); return geo;
+}
+// The wind-up key, one shape for all: a shaft and two loops, turning.
+let cqKeyGeoMemo = null;
+function cqKeyGeo(C) {
+  if (cqKeyGeoMemo) return cqKeyGeoMemo;
+  const B = pbBuild();
+  B.geo(new CylinderGeometry(0.12, 0.12, 1.3, 6, 1, true), placeAt(0, 0, -0.65, Math.PI / 2, 0, 0), C.brass);
+  for (const s of [-1, 1]) B.geo(new TorusGeometry(0.42, 0.13, 5, 12), placeAt(s * 0.5, 0, -1.35, 0, Math.PI / 2, 0), C.brass);
+  B.geo(new IcosahedronGeometry(0.2, 0), placeAt(0, 0, -1.35), C.brass);
+  return (cqKeyGeoMemo = B.done());
+}
+// A GIANT CUT-OUT: a performer printed on a sheet of tin h tall, its edge showing, on a printed plinth, a key in its back
+// turning, rocking a little on its feet the way a wind-up toy does.
+function cqCut(Z, cell, x, z, h, yaw = 0, key = true) {
+  const { G, K, C, paint, FL, tick, live } = Z, ph = Math.max(0.5, h * 0.07), pw = h * 0.5;
+  paint.geo(new BoxGeometry(pw, ph, Math.max(0.8, h * 0.1)), placeAt(x, FL + ph / 2, z, 0, yaw, 0), [0xE8303A, 0x2A4AE8, 0x2AA89A, 0xF2C230][cell % 4]);
+  paint.geo(new BoxGeometry(pw + 0.1, ph * 0.25, Math.max(0.8, h * 0.1) + 0.1), placeAt(x, FL + ph * 0.8, z, 0, yaw, 0), 0xF2C230);
+  return Z.cuts.add({ cell, x, y: FL + ph, z, h, yaw, key, ph0: x * 0.37 + z * 0.11 });
+}
+// A GLOBE with motorcycles looping inside: a frame of steel hoops, a fine mesh, on a striped drum; two or three riders
+// on great circles through it, headlamps lit.
+function cqGlobe(Z, x, z, R, standH) {
+  const { G, K, C, paint, metal, lit, tick, live, FL, r } = Z, cy = FL + standH + R;
+  for (let k = 0; k < 4; k++) paint.geo(new CylinderGeometry(R * 0.52, R * 0.6, standH / 4, 28), placeAt(x, FL + standH * (k + 0.5) / 4, z), k % 2 ? 0xFFF1D2 : 0xE8303A);
+  metal.geo(new TorusGeometry(R * 0.55, 0.12, 6, 36), placeAt(x, FL + standH, z, Math.PI / 2, 0, 0), C.brass);
+  for (let k = 0; k < 6; k++) metal.geo(new TorusGeometry(R, 0.08, 3, 32), placeAt(x, cy, z, 0, k * Math.PI / 6, 0), 0xD8DCE8);
+  for (const f of [-0.75, -0.4, 0, 0.4, 0.75]) metal.geo(new TorusGeometry(R * Math.sqrt(1 - f * f), 0.08, 3, 32), placeAt(x, cy + R * f, z, Math.PI / 2, 0, 0), 0xD8DCE8);
+  metal.geo(new SphereGeometry(0.35, 10, 8), placeAt(x, cy + R, z), C.brass);
+  Z.merge.grid.geo(new SphereGeometry(R, 32, 18), placeAt(x, cy, z), 0xFFFFFF); K.grid.map.repeat.set(3, 3);
+  const n = 2 + (r() < 0.5 ? 1 : 0);
+  for (let i = 0; i < n; i++) {
+    const nrm = new Vector3(r() - 0.5, r() - 0.5, r() - 0.5).normalize(), a = new Vector3(0, 1, 0).cross(nrm).normalize(), b = nrm.clone().cross(a);
+    Z.bikes.push({ x, cy, z, R, a, b, p0: r() * TAU, w: (1.6 + r() * 0.7) * (r() < 0.5 ? 1 : -1), col: i % 3 });
+  }
+}
+// A CAGE WAGON: a painted body on four sunburst wheels, gilt posts, brass bars down its front, its name on a board over
+// them, and inside an animal pacing up and down. sc scales the whole wagon.
+function cqWagon(Z, x, z, kind, bulbs, sc = 1) {
+  const { G, K, C, paint, metal, wheels, tick, live, FL } = Z, [, cell, col] = CQ_WAGONS[kind];
+  const P = (dx, dy, dz, rx = 0, ry = 0, rz = 0) => placeAt(x + dx * sc, FL + dy * sc, z + dz * sc, rx, ry, rz, sc, sc, sc);
+  const L = 7.4, D = 3.2, y0 = 1.5, H = 3.8, top = y0 + H;
+  paint.geo(new BoxGeometry(L, 0.5, D), P(0, y0 - 0.1, 0), col);                                     // the chassis
+  paint.geo(new BoxGeometry(L + 0.2, 0.14, D + 0.2), P(0, y0 + 0.16, 0), 0xF2C230);
+  paint.geo(new BoxGeometry(L - 0.4, 0.1, D - 0.4), P(0, y0 + 0.25, 0), 0xE8C070);                   // straw
+  paint.geo(new BoxGeometry(L, H, 0.2), P(0, y0 + H / 2, -D / 2 + 0.1), 0x3A2448);                   // the back, dark inside
+  for (const e of [-1, 1]) paint.geo(new BoxGeometry(0.4, H, D), P(e * (L / 2 - 0.2), y0 + H / 2, 0), col);   // the ends
+  paint.geo(new BoxGeometry(L + 0.5, 0.4, D + 0.5), P(0, top + 0.2, 0), col);                        // the roof, its gilt cornice
+  paint.geo(new BoxGeometry(L + 0.8, 0.18, D + 0.8), P(0, top + 0.45, 0), 0xF2C230);
+  paint.geo(new BoxGeometry(L - 1.4, 0.7, D - 0.6), P(0, top + 0.85, 0), col);
+  for (const e of [-1, 1]) for (const d of [-1, 1]) metal.geo(new CylinderGeometry(0.16, 0.16, H, 10), P(e * (L / 2 - 0.1), y0 + H / 2, d * (D / 2 + 0.05)), C.brass);   // gilt posts
+  for (let bx = -L / 2 + 0.7; bx <= L / 2 - 0.6; bx += 0.42) metal.geo(new CylinderGeometry(0.05, 0.05, H - 1.3, 6), P(bx, y0 + (H - 1.3) / 2 + 0.2, D / 2), C.brass);   // bars
+  metal.geo(new BoxGeometry(L - 0.4, 0.1, 0.1), P(0, y0 + 0.35, D / 2), C.brass);
+  const bg = new PlaneGeometry((L - 0.5) * sc, 1.2 * sc), uv = bg.attributes.uv;
+  for (let q = 0; q < 4; q++) uv.setXY(q, uv.getX(q), 1 - kind * 0.25 - (1 - uv.getY(q)) * 0.25);
+  Z.merge.boards.geo(bg, placeAt(x, FL + (top - 0.65) * sc, z + (D / 2 + 0.06) * sc), 0xFFFFFF);
+  for (const e of [-1, 1]) for (const d of [-1, 1]) wheels.geo(new CylinderGeometry(1.2, 1.2, 0.24, 28), P(e * (L / 2 - 1.5), 1.2, d * (D / 2 + 0.2), Math.PI / 2, 0, 0), 0xFFFFFF);
+  for (let k = 0; k < 12; k++) bulbs.push([x + (-L / 2 + 0.3 + k * (L - 0.6) / 11) * sc, FL + (top + 0.62) * sc, z + (D / 2 + 0.45) * sc, 900 + Math.round(x + z), k]);
+  const p0 = x + z, amp = (L / 2 - 2) * sc;                                                           // the animal, pacing
+  Z.cuts.add({ cell, x, y: FL + (y0 + 0.2) * sc, z: z - 0.2 * sc, h: 3.3 * sc, yaw: 0, key: false, ph0: 0,
+               anim: live ? (t, e) => { e.x = x + Math.sin(t * 0.45 + p0) * amp; e.flip = Math.cos(t * 0.45 + p0) >= 0 ? 1 : -1; } : null });
+}
+// A MARQUEE BOARD on two striped posts, bulbs all round its edge.
+function cqSign(Z, i, x, z, w, postH, bulbs) {
+  const { G, K, paint, FL } = Z, hg = w / 2, base = FL + postH;
+  for (const s of [-1, 1]) for (let k = 0; k < 6; k++) paint.geo(new CylinderGeometry(0.2, 0.2, (postH + hg * 0.5) / 6, 10), placeAt(x + s * w * 0.36, FL + (k + 0.5) * (postH + hg * 0.5) / 6, z - 0.25), k % 2 ? 0xFFF1D2 : 0xE8303A);
+  paint.geo(new BoxGeometry(w * 0.92, hg * 0.62, 0.24), placeAt(x, base + hg * 0.33, z - 0.16), 0x231A2E);
+  const bg = new PlaneGeometry(w, hg), uv = bg.attributes.uv;
+  for (let q = 0; q < 4; q++) uv.setXY(q, (i % 2) * 0.5 + uv.getX(q) * 0.5, 1 - Math.floor(i / 2) * 0.25 - (1 - uv.getY(q)) * 0.25);
+  Z.merge.signs.geo(bg, placeAt(x, base + hg / 2, z), 0xFFFFFF);
+  const at = (X, Y) => [x + (X / 512 - 0.5) * w, base + (1 - Y / 256) * hg, z + 0.14], id = 1000 + Math.round(x * 3 + z);
+  const n = Math.max(10, Math.round(w * 1.6));
+  for (let k = 0; k <= n; k++) bulbs.push([...at(...cqArch(k / n)), id, k]);
+  for (let k = 1; k < 5; k++) { bulbs.push([...at(24, 84 + k * 31), id, n + k]); bulbs.push([...at(488, 84 + k * 31), id, n + 10 - k]); }
+  for (let k = 0; k <= n * 0.6; k++) bulbs.push([...at(24 + k * 464 / (n * 0.6), 240), id, n + 10 + k]);
+}
+// A MARQUEE STAR or ARROW (owner: "might want to add some marquee lights here and there"): a painted tin plate on a
+// striped pole, bulbs all round its edge chasing each other; the arrow points on, up the screen.
+function cqMarquee(Z, x, z, u, arrow, bulbs) {
+  const { paint, FL } = Z, poleH = 6 * u, R = 2.2 * u, cy = FL + poleH + R, id = 1400 + Math.round(x * 3 + z), d = 0.09;
+  for (let k = 0; k < 6; k++) paint.geo(new CylinderGeometry(0.16 * u, 0.16 * u, (poleH + R * 0.4) / 6, 8), placeAt(x, FL + (k + 0.5) * (poleH + R * 0.4) / 6, z - 0.2), k % 2 ? 0xFFF1D2 : 0x2A4AE8);
+  const out = arrow ? [[0, 1.1], [0.85, 0.15], [0.36, 0.15], [0.36, -1.0], [-0.36, -1.0], [-0.36, 0.15], [-0.85, 0.15]]
+                    : Array.from({ length: 10 }, (_, i) => { const a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? 0.45 : 1; return [Math.cos(a) * rr, -Math.sin(a) * rr]; });
+  const P = out.map(([a, b]) => [x + a * R, cy + b * R]), face = arrow ? 0xE8303A : 0xF2C230, rim = arrow ? 0xF2C230 : 0xE8303A;
+  for (let i = 0; i < P.length; i++) {
+    const [ax, ay] = P[i], [bx, by] = P[(i + 1) % P.length];
+    paint.tri([x, cy, z + d], [ax, ay, z + d], [bx, by, z + d], [0, 0, 1], [0, 0, 1], [0, 0, 1], face);
+    paint.tri([x, cy, z - d], [bx, by, z - d], [ax, ay, z - d], [0, 0, -1], [0, 0, -1], [0, 0, -1], face);
+    let nx = by - ay, ny = -(bx - ax); const L = Math.hypot(nx, ny) || 1; nx /= L; ny /= L; if (nx * ((ax + bx) / 2 - x) + ny * ((ay + by) / 2 - cy) < 0) { nx = -nx; ny = -ny; }
+    const n = [nx, ny, 0];
+    paint.tri([ax, ay, z - d], [bx, by, z - d], [bx, by, z + d], n, n, n, rim); paint.tri([ax, ay, z - d], [bx, by, z + d], [ax, ay, z + d], n, n, n, rim);
+    const steps = Math.max(1, Math.round(Math.hypot(bx - ax, by - ay) / (0.5 * u)));
+    for (let k = 0; k < steps; k++) { const f = k / steps; bulbs.push([ax + (bx - ax) * f, ay + (by - ay) * f, z + d + 0.12, id, i * 20 + k]); }
+  }
+}
+// A SIDESHOW TENT: a striped round wall and roof, a scalloped valance with bulbs, a flag, a painted banner at its door.
+function cqTent(Z, x, z, rad, h, poster, bulbs) {
+  const { G, K, C, paint, metal, FL } = Z, eave = FL + h * 0.5;
+  Z.merge.canvas.geo(new CylinderGeometry(rad, rad, h * 0.5, 32, 1, true), placeAt(x, FL + h * 0.25, z), 0xFFFFFF);
+  Z.merge.canvas.geo(new ConeGeometry(rad * 1.12, h * 0.5, 32, 1, true), placeAt(x, eave + h * 0.25, z), 0xFFFFFF);
+  for (let k = 0; k < 20; k++) { const a = k * TAU / 20; paint.geo(new SphereGeometry(rad * 0.18, 10, 6, 0, TAU, Math.PI / 2, Math.PI / 2), placeAt(x + Math.cos(a) * rad * 1.1, eave + 0.05, z + Math.sin(a) * rad * 1.1), k % 2 ? 0xF2C230 : 0xE8303A); }
+  for (let k = 0; k < 30; k++) { const a = k * TAU / 30; bulbs.push([x + Math.cos(a) * rad * 1.13, eave - rad * 0.18, z + Math.sin(a) * rad * 1.13, 1200 + Math.round(x + z), k]); }
+  metal.geo(new CylinderGeometry(0.08, 0.08, 1.6, 6), placeAt(x, eave + h * 0.5 + 0.6, z), C.brass);
+  paint.geo(new ConeGeometry(0.45, 1.2, 3), placeAt(x + 0.6, eave + h * 0.5 + 1.1, z, 0, 0, -Math.PI / 2), 0xE8303A);
+  paint.geo(new BoxGeometry(rad * 0.7, h * 0.4, 0.3), placeAt(x, FL + h * 0.2, z + rad - 0.1), 0x231A2E);   // the door
+  const bg = new PlaneGeometry(rad * 0.9, rad * 0.9), uv = bg.attributes.uv;
+  for (let q = 0; q < 4; q++) uv.setXY(q, (poster % 2) * 0.5 + uv.getX(q) * 0.5, 1 - Math.floor(poster / 2) * 0.5 - (1 - uv.getY(q)) * 0.5);
+  Z.merge.posters.geo(bg, placeAt(x + rad * 0.62, FL + h * 0.28, z + rad * 0.82, 0, 0.6, 0), 0xFFFFFF);
+}
+// A LIGHT TOWER: a lattice mast, a bank of big bulbs at the top facing the course.
+function cqTower(Z, x, z, H, face, bulbs) {
+  const { metal, paint, FL } = Z;
+  for (const [dx, dz] of [[-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5], [0.5, 0.5]]) metal.geo(new CylinderGeometry(0.07, 0.07, H, 5), placeAt(x + dx, FL + H / 2, z + dz), 0xE8303A);
+  for (let y = 1; y < H; y += 1.4) for (const [a, dx, dz] of [[0, 0, -0.5], [0, 0, 0.5], [Math.PI / 2, -0.5, 0], [Math.PI / 2, 0.5, 0]]) metal.geo(new CylinderGeometry(0.04, 0.04, 1.5, 4), placeAt(x + dx, FL + y + 0.6, z + dz, 0, a, 0.75), 0xF2C230);
+  paint.geo(new BoxGeometry(3.4, 2.4, 0.4), placeAt(x, FL + H + 1, z, 0, face, 0), 0x231A2E);
+  paint.geo(new BoxGeometry(3.6, 0.2, 0.6), placeAt(x, FL + H + 2.3, z, 0, face, 0), 0xF2C230);
+  const c = Math.cos(face), s = Math.sin(face);
+  for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++) { const lx = -1.2 + i * 0.8; bulbs.push([x + lx * c + 0.3 * s, FL + H + 0.3 + j * 0.7, z - lx * s + 0.3 * c, -2, i + j]); }
+}
+// Props to fill between: stacked drums and a ball; giant juggling pins; stacked trunks; a star on a stick.
+function cqProp(Z, x, z, kind) {
+  const { paint, metal, C, FL, r } = Z;
+  if (kind === 0) {
+    let y = FL; for (const [rad, hh, col] of [[1.5, 1.2, 0xE8303A], [1.1, 1.0, 0x2A4AE8], [0.8, 0.8, 0xF2C230]]) { paint.geo(new CylinderGeometry(rad, rad, hh, 24), placeAt(x, y + hh / 2, z), col); metal.geo(new TorusGeometry(rad, 0.08, 6, 28), placeAt(x, y + hh, z, Math.PI / 2, 0, 0), C.brass); y += hh; }
+    for (let k = 0; k < 6; k++) paint.geo(new SphereGeometry(0.9, 16, 10, k * TAU / 6, TAU / 6), placeAt(x, y + 0.9, z), [0xE8303A, 0xFFF1D2, 0x2A6AE8, 0xF2C230, 0x2AA86A, 0xFFF1D2][k]);
+  } else if (kind === 1) {
+    for (let k = 0; k < 3; k++) { const px = x + (k - 1) * 1.2, h = 2.6 + (k % 2) * 0.6, lean = (k - 1) * 0.12;
+      paint.geo(new CylinderGeometry(0.22, 0.55, h * 0.6, 14), placeAt(px, FL + h * 0.3, z, 0, 0, lean), 0xFFF1D2);
+      paint.geo(new SphereGeometry(0.58, 14, 10), placeAt(px - lean * h * 0.55, FL + h * 0.62, z), 0xFFF1D2);
+      paint.geo(new CylinderGeometry(0.18, 0.2, h * 0.36, 10), placeAt(px - lean * h * 0.8, FL + h * 0.85, z, 0, 0, lean), 0xE8303A);
+      paint.geo(new CylinderGeometry(0.6, 0.6, 0.2, 14), placeAt(px - lean * h * 0.4, FL + h * 0.45, z), 0x2A4AE8); }
+  } else if (kind === 2) {
+    for (let k = 0; k < 3; k++) { const col = [0x6A2A9A, 0xE8303A, 0x2AA89A][k], w = 2.4 - k * 0.4, px = x + (r() - 0.5) * 0.4, py = FL + 0.6 + k * 1.1;
+      paint.geo(new BoxGeometry(w, 1.1, 1.3), placeAt(px, py, z, 0, (r() - 0.5) * 0.4, 0), col); metal.geo(new BoxGeometry(w + 0.06, 0.12, 1.36), placeAt(px, py + 0.3, z), C.brass); }
+  } else {
+    metal.geo(new CylinderGeometry(0.1, 0.1, 6, 6), placeAt(x, FL + 3, z), C.brass);
+    for (let k = 0; k < 5; k++) paint.geo(new ConeGeometry(0.5, 1.6, 4), placeAt(x + Math.cos(-Math.PI / 2 + k * TAU / 5) * 0.8, FL + 6.6 - Math.sin(-Math.PI / 2 + k * TAU / 5) * 0.8, z, 0, 0, -Math.PI / 2 + k * TAU / 5 - Math.PI / 2), 0xF2C230);
+    paint.geo(new SphereGeometry(0.7, 12, 8), placeAt(x, FL + 6.6, z), 0xF2C230);
+  }
+}
+// A WHEEL OF DEATH: an A-frame, and on its axle an arm turning end over end with a hoop at each end, a tumbler in one.
+function cqWheelOfDeath(Z, x, z, bulbs) {
+  const { G, K, C, paint, metal, tick, live, FL, fig } = Z, ay = FL + 7.5, arm = 5.6;
+  for (const s of [-1, 1]) for (const d of [-1, 1]) metal.geo(new CylinderGeometry(0.16, 0.2, 8.2, 8), placeAt(x + s * 2.2, FL + 3.8, z + d * 0.9, 0, 0, s * 0.3), 0xE8303A);
+  paint.geo(new CylinderGeometry(3.4, 3.6, 0.5, 28), placeAt(x, FL + 0.25, z), 0x2A4AE8);
+  const rot = new Group(); rot.position.set(x, ay, z); G.add(rot);
+  const B = pbBuild();
+  B.geo(new BoxGeometry(arm * 2, 0.5, 0.5), placeAt(0, 0, 0), 0xF2C230);
+  for (const s of [-1, 1]) { B.geo(new TorusGeometry(1.5, 0.14, 8, 32), placeAt(s * arm, 0, 0), 0xE8303A); B.geo(new TorusGeometry(1.5, 0.14, 8, 32), placeAt(s * arm, 0, 0.8), 0xE8303A);
+    for (let k = 0; k < 8; k++) { const a = k * TAU / 8; B.geo(new CylinderGeometry(0.05, 0.05, 0.8, 4), placeAt(s * arm + Math.cos(a) * 1.5, Math.sin(a) * 1.5, 0.4, Math.PI / 2, 0, 0), 0xF2C230); } }
+  B.geo(new CylinderGeometry(0.45, 0.45, 1.2, 16), placeAt(0, 0, 0.3, Math.PI / 2, 0, 0), C.brass);
+  rot.add(new Mesh(B.done(), K.metal));
+  const t1 = new Mesh(cqCellGeo(5, 2.6), K.figs); t1.position.set(arm, -1.3, 0.4); rot.add(t1);
+  if (live) tick.push((dt, t) => { rot.rotation.z = t * 0.7; t1.rotation.z = -t * 0.7 + Math.sin(t * 3) * 0.5; });
+  for (let k = 0; k < 16; k++) { const a = k * TAU / 16; bulbs.push([x + Math.cos(a) * 3.5, FL + 0.6, z + Math.sin(a) * 3.5, 1300 + Math.round(x + z), k]); }
+}
+// A TIN TRAIN on an oval of track round a ring, under the course: an engine puffing, a cage car, a flatcar of balls, a coach.
+function cqTrain(Z, cx, zc, ax, az) {
+  const { G, K, C, paint, metal, tick, live, FL } = Z, y = FL + 0.12, N = 180;
+  const pt = (a) => [cx + ax * Math.cos(a), zc + az * Math.sin(a)];
+  for (let k = 0; k < N; k++) {
+    const a0 = k * TAU / N, a1 = (k + 1) * TAU / N, [x0, z0] = pt(a0), [x1, z1] = pt(a1), mx = (x0 + x1) / 2, mz = (z0 + z1) / 2, len = Math.hypot(x1 - x0, z1 - z0), yaw = Math.atan2(x1 - x0, z1 - z0);
+    const nx = Math.cos(yaw), nz = -Math.sin(yaw);
+    for (const s of [-0.55, 0.55]) metal.geo(new BoxGeometry(0.12, 0.16, len + 0.04), placeAt(mx + nx * s, y + 0.12, mz + nz * s, 0, yaw, 0), 0xC8CCD8);
+    if (k % 2 === 0) paint.geo(new BoxGeometry(1.7, 0.1, 0.3), placeAt(mx, y, mz, 0, yaw, 0), 0x8A4A2A);
+  }
+  const R = (ax + az) / 2, gap = 4.1 / R, w = -3.6 / R, p0 = zc * 0.1;
+  const car = (t, k) => { const a = p0 + w * t + k * gap, [px, pz] = pt(a); return [px, pz, Math.atan2(ax * Math.sin(a), -az * Math.cos(a))]; };
+  Z.trains.push({ y, car });
+  Z.cuts.add({ cell: 9, x: 0, y: 0, z: 0, h: 1.6, yaw: 0, key: false, ph0: 0,                           // a lion riding in the cage car
+               anim: (t, e) => { const [px, pz, yaw] = car(live ? t : 0, 1); e.x = px + Math.cos(yaw) * 0.5; e.z = pz - Math.sin(yaw) * 0.5; e.y = y + 1; e.yaw = yaw + Math.PI / 2; } });
+  Z.smoke.push({ at: (t) => { const [px, pz, yaw] = car(live ? t : 0, 0); return [px + Math.sin(yaw) * 1.2, y + 3.4, pz + Math.cos(yaw) * 1.2]; } });
+}
+// A FERRIS WHEEL in tin: two rims, spokes, twelve cars swinging level, bulbs round the rim; it faces the course.
+function cqFerris(Z, fx, fz, FR, bulbPts) {
+  const { G, K, metal, tick, live, FL } = Z, cyy = FL + FR + 2.5;
+  const wheel = new Group(); wheel.position.set(fx, cyy, fz); G.add(wheel);
+  const WB = pbBuild();
+  for (const dz of [-1, 1]) { WB.geo(new TorusGeometry(FR, 0.22, 8, 72), placeAt(0, 0, dz), 0xE8303A); WB.geo(new TorusGeometry(FR * 0.55, 0.16, 8, 48), placeAt(0, 0, dz), 0xF2C230); }
+  for (let k = 0; k < 16; k++) { const a = k / 16 * TAU; for (const dz of [-1, 1]) WB.geo(new CylinderGeometry(0.09, 0.09, FR, 4), placeAt(Math.cos(a) * FR / 2, Math.sin(a) * FR / 2, dz, 0, 0, a + Math.PI / 2), 0xFFF1D2); }
+  WB.geo(new CylinderGeometry(0.6, 0.6, 2.6, 16), placeAt(0, 0, 0, Math.PI / 2, 0, 0), 0xF2C230);
+  wheel.add(new Mesh(WB.done(), K.metal));
+  for (const s of [-1, 1]) for (const d of [-1, 1]) metal.geo(new CylinderGeometry(0.3, 0.4, FR + 3.4, 8), placeAt(fx + s * (FR * 0.3), FL + (FR + 2.5) / 2, fz + d * 1.4, 0, 0, s * 0.3), 0x2A4AE8);
+  const wp = [], wc = [];
+  for (let k = 0; k < 72; k++) { const a = k / 72 * TAU; wp.push(Math.cos(a) * FR, Math.sin(a) * FR, 1.25); const c = new Color([0xFFF4D8, 0xFF7A6A, 0x7AD8FF, 0xFFE070][k % 4]); wc.push(c.r, c.g, c.b); }
+  const wg = new BufferGeometry(); wg.setAttribute('position', new Float32BufferAttribute(wp, 3)); wg.setAttribute('color', new Float32BufferAttribute(wc, 3));
+  const pts = new Points(wg, new PointsMaterial({ size: 1.5, map: pbGlow(), vertexColors: true, transparent: true, blending: AdditiveBlending, depthWrite: false, toneMapped: false }));
+  pts.frustumCulled = false; wheel.add(pts);
+  Z.ferris.push({ x: fx, cy: cyy, z: fz, R: FR });
+  if (live) tick.push((dt, t) => { wheel.rotation.z = t * 0.14; });
+}
+// A HELTER-SKELTER: a striped tower, the slide winding down round it, a pointed roof, a flag.
+function cqHelter(Z, hx, hz, H) {
+  const { paint, FL } = Z, n = Math.round(H / 2);
+  for (let k = 0; k < n; k++) paint.geo(new CylinderGeometry(2.8, 3, 2, 24), placeAt(hx, FL + 1 + k * 2, hz), k % 2 ? 0xFFF1D2 : 0xE8303A);
+  paint.geo(new ConeGeometry(3.8, 4.2, 24), placeAt(hx, FL + n * 2 + 2.1, hz), 0x2A4AE8);
+  paint.geo(new ConeGeometry(0.6, 1.6, 3), placeAt(hx + 0.7, FL + n * 2 + 4.8, hz, 0, 0, -Math.PI / 2), 0xF2C230);
+  for (let k = 0; k < 110; k++) { const f = k / 110, a = f * Math.PI * 7; paint.geo(new BoxGeometry(1.7, 0.2, 1.1), placeAt(hx + Math.cos(a) * 3.9, FL + n * 2 - 1 - f * (n * 2 - 2), hz + Math.sin(a) * 3.9, 0, -a, -0.3), k % 2 ? 0xF2C230 : 0xE8962A); }
+}
+// A CANNON on a painted carriage, aimed up at the tent: now and then a bang of smoke and confetti.
+function cqTinCannon(Z, x, z, aim) {
+  const { G, K, C, paint, metal, tick, live, FL } = Z, el = 0.7, L = 6;
+  paint.geo(new BoxGeometry(3.6, 1.4, 5.4), placeAt(x, FL + 1.6, z, 0, aim, 0), 0x2A4AE8);
+  paint.geo(new BoxGeometry(3.8, 0.2, 5.6), placeAt(x, FL + 2.35, z, 0, aim, 0), 0xF2C230);
+  const c = Math.cos(aim), s = Math.sin(aim);
+  for (const [dx, dz] of [[-1.9, -1.6], [1.9, -1.6], [-1.9, 1.6], [1.9, 1.6]]) Z.wheels.geo(new CylinderGeometry(0.9, 0.9, 0.2, 24), placeAt(x + dx * c + dz * s, FL + 0.9, z - dx * s + dz * c, 0, aim, Math.PI / 2), 0xFFFFFF);
+  const B = pbBuild(); B.geo(new CylinderGeometry(0.85, 1.15, L, 28), placeAt(0, L / 2, 0), C.brass);
+  for (const f of [0.1, 0.5, 0.93]) B.geo(new TorusGeometry(0.95 + 0.25 * (1 - f), 0.13, 8, 28), placeAt(0, L * f, 0, Math.PI / 2, 0, 0), 0xE8303A);
+  const tube = new Mesh(B.done(), K.metal); tube.position.set(x, FL + 2.6, z); G.add(tube);
+  tube.rotation.set(-(Math.PI / 2 - el), aim, 0, 'YXZ');
+  const mouth = new Vector3(0, L, 0).applyEuler(tube.rotation).add(tube.position);
+  const p0 = (x + z) % 5;
+  Z.smoke.push({ at: (t) => [mouth.x, mouth.y, mouth.z, Math.max(0, 1 - ((t + p0) % 6) / 2)], rate: 1.6, rise: 2.5, op: 0.8 });
+  if (!live) return;
+  const confetti = cqConfetti(G);
+  tick.push((dt, t) => { const u = (t + p0) % 6; if (u < dt * 1.5) confetti.burst(mouth, 140); confetti.step(dt); });
+}
+
+// THE FILL: along both edges of the course, then further out, then under it between the rings.
+// Where nothing tall may stand: beside a loop (the camera swings out there), round a wind tower, beside a tube.
+function cqKeepZones(pieces) {
+  const keep = [];
+  for (const p of pieces) {
+    if (p.x === undefined) continue;
+    const hd = (p.d || 6) / 2;
+    if (p.t === 'wind') { const tx = p.x - p.dir * (p.w / 2 + TOWER_OFF + TOWER_W / 2); keep.push([tx - 4.5, tx + 4.5, p.z - hd - 3, p.z + hd + 3]); }
+    if (p.t === 'loop') { const side = p.shift > 0 ? -1 : 1, cx = p.x + p.shift / 2; keep.push([Math.min(cx + side * 3, cx + side * 18), Math.max(cx + side * 3, cx + side * 18), p.z - LOOP_RUN - 10, p.z + 10]); }
+    if (p.t === 'tube') { const cx = p.x + p.side * 6.5; keep.push([cx - 7.5, cx + 7.5, p.z - p.gap - 3, p.z + 3]); }
+  }
+  return keep;
+}
+// WHAT THE CAMERA MUST SEE. Owner, 2026-09-29: "make the cutouts and some elements rise above the height of the rail
+// ... they seem like small objects right now". Nothing may hide the course, so rather than keep everything under the
+// rail, trace the camera's sight lines: from where it rides (behind and above the marble, on a phone and on a desktop)
+// to the course ahead, and note over each metre of floor how low the lowest line passes. A thing may stand only as tall
+// as that; beside a straight run nothing crosses, so it may tower over the rail.
+function cqSightCaps(pieces, x0, x1, z0, z1, extra = [], high = []) {
+  const Q = 2, W = Math.ceil((x1 - x0) * Q), D = Math.ceil((z1 - z0) * Q), cap = new Float32Array(W * D).fill(1e9), pts = [];   // half-metre squares
+  for (const p of pieces) {
+    let bx0, bx1, bz0, bz1, yAt;
+    if (p.t === 'plaza') { bx0 = p.x0; bx1 = p.x0 + p.cols * CELL; bz0 = p.z0 - p.rows * CELL; bz1 = p.z0; yAt = () => p.y; }
+    else if (p.t === 'ramp') { const hw = (p.w || 4) / 2; bx0 = p.x - hw; bx1 = p.x + hw; bz0 = Math.min(p.z0, p.z1); bz1 = Math.max(p.z0, p.z1); yAt = (z) => p.y0 + (p.y1 - p.y0) * (z - p.z0) / ((p.z1 - p.z0) || 1); }
+    else if (p.x === undefined || typeof p.y !== 'number' || typeof p.z !== 'number') continue;
+    else {
+      const hw = p.t === 'round' ? p.ro : (p.w || 4) / 2, hd = p.t === 'round' ? p.ro : (p.d || 6) / 2, sh = p.shift || 0;
+      const ax = p.amp && p.axis === 'x' ? p.amp : 0, az = p.amp && p.axis === 'z' ? p.amp : 0;
+      bx0 = p.x + Math.min(0, sh) - hw - ax; bx1 = p.x + Math.max(0, sh) + hw + ax; bz0 = p.z - hd - az; bz1 = p.z + hd + az; yAt = () => p.y;
+    }
+    const xs = bx1 - bx0 < 1.6 ? [(bx0 + bx1) / 2] : [bx0 + 0.5, (bx0 + bx1) / 2, bx1 - 0.5];
+    for (let z = bz1; z >= bz0 - 0.01; z -= Math.max(1, Math.min(3, (bz1 - bz0) / 2))) for (const x of xs) pts.push([x, yAt(z) + 0.45, z]);
+  }
+  const targets = pts.concat(extra).sort((a, b) => b[2] - a[2]);
+  pts.sort((a, b) => b[2] - a[2]);
+  const mark = (ax, ay, az, bx, by, bz) => {
+    const n = Math.ceil(Math.hypot(bx - ax, bz - az) / 0.3);
+    for (let k = 0; k <= n; k++) {
+      const t = k / n, i = Math.floor((ax + (bx - ax) * t - x0) * Q), j = Math.floor((az + (bz - az) * t - z0) * Q);
+      if (i < 0 || j < 0 || i >= W || j >= D) continue;
+      const y = ay + (by - ay) * t, q = j * W + i; if (y < cap[q]) cap[q] = y;
+    }
+  };
+  for (const [cx, cy, cz] of pts) for (const [h, back] of [[9.2, 8.6], [6, 7.8]]) {
+    const ex = cx, ey = cy + h, ez = cz + back;
+    for (const [tx, ty, tz] of targets) { if (tz > ez - 3.5) continue; if (tz < ez - 130) break; mark(ex, ey, ez, tx, ty, tz); }
+  }
+  for (const c of high) for (const [tx, ty, tz] of targets) if (tx > c.x0 && tx < c.x1 && tz > c.z0 && tz < c.z1) mark(c.pos.x, c.pos.y, c.pos.z, tx, ty, tz);
+  // The lowest line over a footprint, with half a metre of slack round it.
+  return (x, z, hw, hd) => { let m = 1e9; for (let i = Math.floor((x - hw - 0.5 - x0) * Q); i <= Math.floor((x + hw + 0.5 - x0) * Q); i++) for (let j = Math.floor((z - hd - 0.5 - z0) * Q); j <= Math.floor((z + hd + 0.5 - z0) * Q); j++) if (i >= 0 && j >= 0 && i < W && j < D) m = Math.min(m, cap[j * W + i]); return m; };
+}
+// The cameras that climb: over a puzzle square or a plank crossing the view goes up and back to show all of it. Where it
+// goes depends on the screen, so work it out for a tall phone, a phone on its side and a desktop.
+function cqHighCams() {
+  const out = [], sw = cssW, sh = cssH, fov = camera.fov, all = [...plazas, ...crossZones];
+  for (const [w, h, f] of [[390, 844, 60], [844, 390, 48], [760, 600, 48]]) {
+    cssW = w; cssH = h; camera.fov = f;
+    for (const P of all) { P.cam = null; const c = plazaCam(P); out.push({ pos: c.pos.clone(), x0: P.x0 - 1, x1: P.x0 + P.cols * CELL + 1, z0: P.z0 - P.rows * CELL - 1, z1: P.z0 + 1, at: c.at.clone() }); }
+  }
+  cssW = sw; cssH = sh; camera.fov = fov;
+  for (const P of all) P.cam = null;
+  return out;
+}
+// How far each performer's paint reaches either side of its sheet's middle, as a share of its height, measured off the atlas.
+let cqBoundsMemo = null;
+function cqCellBounds(K) {
+  if (cqBoundsMemo) return cqBoundsMemo;
+  const d = K.figs.map.image.getContext('2d').getImageData(0, 0, 2048, 2048).data, out = [];
+  for (let c = 0; c < 16; c++) {
+    const ox = (c % 4) * 512, oy = Math.floor(c / 4) * 512; let mn = 512, mx = 0;
+    for (let y = 0; y < 512; y += 2) for (let x = 0; x < 512; x += 2) if (d[((oy + y) * 2048 + ox + x) * 4 + 3] > 90) { if (x < mn) mn = x; if (x > mx) mx = x; }
+    out.push(Math.max(256 - mn, mx - 256, 40) / 512);
+  }
+  return (cqBoundsMemo = out);
+}
+function cqTinFill(Z, CX, HW, Z_TOP, Z_BOT, bays, bulbs, pieces, high) {
+  const keep = cqKeepZones(pieces), { r, FL, G, K, paint } = Z, LOW = FL + 8;   // LOW: under the lowest rail, whatever the sight lines say
+  Z.wheels = cqChunks();
+  const finish = cqBatches(Z);
+  const z0 = Z_TOP - 40, z1 = Z_BOT + 60;
+  // The course's own tall things (wind towers, posts, loops) must stay in sight too: aim lines at their bodies as well.
+  const extra = [], v = new Vector3(), lo = FL + CQ_DROP;
+  scene.updateMatrixWorld(true);
+  scene.traverse((o) => {
+    if (!o.isMesh || o.isInstancedMesh || o === marble || !o.visible) return;
+    if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+    const bb = o.geometry.boundingBox, mn = [1e9, 1e9, 1e9], mx = [-1e9, -1e9, -1e9];
+    for (const x of [bb.min.x, bb.max.x]) for (const y of [bb.min.y, bb.max.y]) for (const z of [bb.min.z, bb.max.z]) { v.set(x, y, z).applyMatrix4(o.matrixWorld); for (let k = 0; k < 3; k++) { mn[k] = Math.min(mn[k], v.getComponent(k)); mx[k] = Math.max(mx[k], v.getComponent(k)); } }
+    if (mx[0] - mn[0] > 30 || mx[2] - mn[2] > 60 || mx[1] - Math.max(mn[1], FL) < 1.5) return;
+    for (let y = Math.max(mn[1], FL + 0.5); y <= mx[1] + 0.01; y += Math.max(1.5, (mx[1] - Math.max(mn[1], FL)) / 5)) for (const x of [mn[0], (mn[0] + mx[0]) / 2, mx[0]]) for (const z of [mn[2], mx[2]]) extra.push([x, y, z]);
+  });
+  const sight = cqSightCaps(pieces, CX - HW - 70, CX + HW + 70, z1 - 30, z0 + 30, extra, high);
+  // A plan of the floor in metre squares: whatever stands reserves its ground, and nothing stands on another's.
+  const occ = new Set(), key = (i, j) => i * 100003 + j;
+  const any = (x, z, hw, hd, f) => { for (let i = Math.floor(x - hw); i <= Math.floor(x + hw); i++) for (let j = Math.floor(z - hd); j <= Math.floor(z + hd); j++) if (f(key(i, j))) return true; return false; };
+  // How tall a thing may stand on this ground: under every sight line (0.8 m clear), and low beside loops and towers.
+  const room = (x, z, hw, hd) => {
+    if (any(x, z, hw, hd, (k) => occ.has(k))) return -1;
+    let top = sight(x, z, hw, hd) - 0.8;
+    if (keep.some((k) => x + hw > k[0] && x - hw < k[1] && z + hd > k[2] && z - hd < k[3])) top = Math.min(top, LOW);
+    return top - FL;
+  };
+  const take = (x, z, hw, hd) => any(x, z, hw, hd, (k) => { occ.add(k); return false; });
+  // Each piece's ground, and so the course's own edges at any z.
+  const boxes = [];
+  for (const p of pieces) {
+    if (p.t === 'plaza') { boxes.push([p.x0, p.x0 + p.cols * CELL, p.z0 - p.rows * CELL, p.z0]); continue; }
+    if (p.x === undefined) continue;
+    const hw = p.t === 'round' ? p.ro : (p.w || 4) / 2, sh = p.shift || 0, hd = p.t === 'round' ? p.ro : (p.d || 6) / 2;
+    const zz = p.t === 'ramp' ? [Math.min(p.z0, p.z1), Math.max(p.z0, p.z1)] : [p.z - hd, p.z + hd];
+    boxes.push([p.x + Math.min(0, sh) - hw, p.x + Math.max(0, sh) + hw, zz[0], zz[1]]);
+  }
+  const edges = (z, span) => { let a = 1e9, b = -1e9; for (const q of boxes) if (z + span > q[2] - 0.5 && z - span < q[3] + 0.5) { a = Math.min(a, q[0]); b = Math.max(b, q[1]); } return a <= b ? [a, b] : null; };
+  let cutI = 0, lowI = 0, sigI = 0, wagI = 0, tentI = 0;
+  const reach = cqCellBounds(K), cutFp = (cell, h, yaw) => { const w = reach[cell] * h; return [w * Math.cos(yaw) + 0.3, Math.max(1.3, w * Math.abs(Math.sin(yaw)) + 0.4)]; };
+  const bigCells = [0, 1, 4, 3, 10, 11, 6, 13, 14, 12, 9, 15, 7, 2], lowCells = [12, 13, 14, 6, 9, 15, 1, 3, 7, 0, 4, 11];
+  // THE KINDS, each given the room it has: [its ground's half-width and half-depth at size u (0 smallest .. 1 largest),
+  // the height it reaches at u, how to build it at u]. A thing is placed at the largest size that fits under the lines.
+  const kinds = {
+    cut: { lo: 5.2, hi: 17, fp: (h) => cutFp(h > 9 ? bigCells[cutI % bigCells.length] : lowCells[lowI % lowCells.length], h, 0.32), top: (h) => h * 1.08 + 0.3, build: (x, z, h, s) => cqCut(Z, h > 9 ? bigCells[cutI++ % bigCells.length] : lowCells[lowI++ % lowCells.length], x, z, h, -s * 0.32) },
+    globe: { lo: 2.6, hi: 4.6, fp: (R) => [R + 0.4, R + 0.4], top: (R) => R * 2.9 + 0.4, build: (x, z, R) => cqGlobe(Z, x, z, R, R * 0.9) },
+    tent: { lo: 3, hi: 5, fp: (R) => [R * 1.15 + 0.3, R * 1.15 + 0.3], top: (R) => R * 3.4 + 1.8, build: (x, z, R) => cqTent(Z, x, z, R, R * 3.4, tentI++ % 4, bulbs) },
+    sign: { lo: 5.4, hi: 9, fp: (w) => [w * 0.5 + 0.2, 0.9], top: (w) => w * 1.55, build: (x, z, w) => cqSign(Z, sigI++ % CQ_SIGNS.length, x, z, w, w * 1.05, bulbs) },
+    wagon: { lo: 1, hi: 1.5, fp: (u) => [4.1 * u, 2.4 * u], top: (u) => 6.6 * u, build: (x, z, u) => cqWagon(Z, x, z, wagI++ % CQ_WAGONS.length, bulbs, u) },
+    prop: { lo: 1, hi: 1, fp: () => [1.8, 1.6], top: () => 7.4, build: (x, z) => cqProp(Z, x, z, Math.floor(r() * 4)) },
+    marq: { lo: 0.8, hi: 1.4, fp: (u) => [2.4 * u, 0.9], top: (u) => 10.8 * u, build: (x, z, u) => cqMarquee(Z, x, z, u, r() < 0.4, bulbs) },
+  };
+  // Place a kind beside an edge at xEdge (s: which side), as large as the room allows; return the depth it took.
+  // With no edge given, it hugs the course's own edge along the ground it would take.
+  const place = (name, xEdge, z, s, want = 1) => {
+    const k = kinds[name];
+    for (let f = want; f >= -0.01; f -= 0.2) {
+      const u = k.lo + (k.hi - k.lo) * Math.max(0, f), [hw, hd] = k.fp(u), zc = z - hd;
+      let xe = xEdge;
+      if (xe === null) { const e = edges(zc, hd); xe = e ? (s > 0 ? e[1] : e[0]) : CX + s * HW; }
+      const x = xe + s * (hw + 1.1);
+      const h = room(x, zc, hw, hd);
+      if (h < 0) return 0;
+      if (h >= k.top(u)) { take(x, zc, hw, hd); k.build(x, zc, u, s); return hd * 2; }
+    }
+    return 0;
+  };
+  // Round every ring: a tin train on its oval, the ring's own performers standing in it.
+  const troupe = [[0, 1, 4], [3, 6, 14], [13, 12, 2], [10, 9, 7]];
+  bays.forEach((zc, i) => {
+    const ax = HW + 3.4, az = 13;
+    take(CX, zc, 7.5, 7.5); troupe[i % 4].forEach((cell, j) => cqCut(Z, cell, CX + (j - 1) * 4, zc + (j === 1 ? -2 : 1), 4.6 + (j === 1 ? 0.6 : 0), 0, false));
+    for (let k = 0; k < 64; k++) { const a = k * TAU / 64; take(CX + ax * Math.cos(a), zc + az * Math.sin(a), 1.6, 1.6); }
+    cqTrain(Z, CX, zc, ax, az);
+  });
+  // Lane nought, hugging the course's own edges all the way along: big where the sight lines leave room, smaller where not.
+  const lane0 = ['cut', 'globe', 'marq', 'tent', 'cut', 'wagon', 'sign', 'cut', 'globe', 'marq', 'prop', 'cut', 'tent', 'wagon'];
+  for (const s of [-1, 1]) {
+    let li = s > 0 ? 5 : 0;
+    for (let z = z0; z > z1;) {
+      if (!edges(z - 3, 3)) { z -= 2; continue; }
+      const got = place(lane0[li % lane0.length], null, z, s, 0.6 + r() * 0.4);
+      if (got) { li++; z -= got + 0.8; } else z -= 1.5;
+    }
+  }
+  // Marquee lights along the edges: striped poles close by the course, strings of bulbs swagged between them, only
+  // where every sight line passes above the string.
+  let fid = 1600;
+  for (const s of [-1, 1]) {
+    let prev = null;
+    for (let z = z0 - 3; z > z1; z -= 10) {
+      const e = edges(z, 0.5); if (!e) { prev = null; continue; }
+      const x = (s > 0 ? e[1] : e[0]) + s * 0.9, H = Math.min(11.5, room(x, z, 0.35, 0.35));
+      if (H < 7) { prev = null; continue; }
+      take(x, z, 0.35, 0.35);
+      for (let k = 0; k < 5; k++) paint.geo(new CylinderGeometry(0.11, 0.13, H / 5, 8), placeAt(x, FL + (k + 0.5) * H / 5, z), k % 2 ? 0xFFF1D2 : 0xE8303A);
+      paint.geo(new SphereGeometry(0.3, 10, 8), placeAt(x, FL + H + 0.2, z), 0xF2C230);
+      const top = FL + H;
+      if (prev && Math.abs(prev[1] - z) < 14) {
+        const mx = (x + prev[0]) / 2, mz = (z + prev[1]) / 2, hw = Math.abs(x - prev[0]) / 2 + 0.2, hd = Math.abs(z - prev[1]) / 2;
+        if (sight(mx, mz, hw, hd) - 0.8 >= Math.max(top, prev[2])) {
+          fid++;
+          for (let k = 1; k < 16; k++) { const f = k / 16; bulbs.push([prev[0] + (x - prev[0]) * f, prev[2] + (top - prev[2]) * f - 1.3 * Math.sin(Math.PI * f), prev[1] + (z - prev[1]) * f, fid, k]); }
+        }
+      }
+      prev = [x, z, top];
+    }
+  }
+  // Lane one, just beyond: the tall set pieces again, and the Wheel of Death, light towers, cannons.
+  const tallA = ['cut', 'globe', 'wagon', 'cut', 'sign', 'tent', 'cut', 'wheel', 'wagon', 'cut', 'tower', 'cannon'];
+  for (const s of [-1, 1]) {
+    let ci = s > 0 ? 3 : 0;
+    for (let z = z0 - (s > 0 ? 5 : 0); z > z1;) {
+      const e = CX + s * (HW + 3.5), kind = tallA[ci % tallA.length];
+      let got = 0;
+      if (kind === 'wheel') { const x = e + s * 7.8, h = room(x, z - 1.8, 7.6, 1.8); if (h >= 15) { take(x, z - 1.8, 7.6, 1.8); cqWheelOfDeath(Z, x, z - 1.8, bulbs); got = 3.6; } }
+      else if (kind === 'tower') { const x = e + s * 1.8, H = 15 + r() * 4, hh = room(x, z - 1.2, 1.9, 1.2); if (hh >= H + 3) { take(x, z - 1.2, 1.9, 1.2); cqTower(Z, x, z - 1.2, H, -s * 0.5, bulbs); got = 2.4; } }
+      else if (kind === 'cannon') { const x = e + s * 3.4, h = room(x, z - 3.2, 3, 3.2); if (h >= 9) { take(x, z - 3.2, 3, 3.2); cqTinCannon(Z, x, z - 3.2, s > 0 ? Math.PI * 0.8 : -Math.PI * 0.8); got = 6.4; } }
+      else got = place(kind, e, z, s, 1);
+      if (got) { ci++; z -= got + 1; const px = e + s * 0.2; if (room(px, z - 1.6, 1.8, 1.6) >= 7.4) { take(px, z - 1.6, 1.8, 1.6); cqProp(Z, px, z - 1.6, Math.floor(r() * 4)); } z -= 3.4; }
+      else z -= 2;
+    }
+  }
+  // Lane two, beyond: the biggest things, a Ferris wheel, helter-skelters, carousels, the largest cut-outs, tents.
+  for (const s of [-1, 1]) {
+    let k = s > 0 ? 2 : 0;
+    const e = CX + s * (HW + 19);
+    for (let z = z0 - (s > 0 ? 14 : 2); z > z1;) {
+      const kind = ['ferris', 'bigcut', 'helter', 'tent', 'carousel', 'bigcut', 'globe'][k % 7];
+      let ok = false, adv = 0;
+      const fits = (x, zc, hw, hd, top) => { if (room(x, zc, hw, hd) < top) return false; take(x, zc, hw, hd); return true; };
+      if (kind === 'ferris') { const x = e + s * 12; if ((ok = fits(x, z - 3, 13, 2.5, 28))) cqFerris(Z, x, z - 3, 12, bulbs); adv = 10; }
+      else if (kind === 'bigcut') { const h = 18 + r() * 6, cell = bigCells[cutI % bigCells.length], [hw, hd] = cutFp(cell, h, 0.3), x = e + s * hw; if ((ok = fits(x, z - hd, hw, hd, h * 1.1))) { cutI++; cqCut(Z, cell, x, z - hd, h, -s * 0.3); } adv = hd * 2 + 4; }
+      else if (kind === 'helter') { const x = e + s * 5; if ((ok = fits(x, z - 5, 5, 5, 34))) cqHelter(Z, x, z - 5, 22 + r() * 6); adv = 13; }
+      else if (kind === 'tent') { const x = e + s * 8; if ((ok = fits(x, z - 8, 8, 8, 26))) cqTent(Z, x, z - 8, 7, 22, tentI++ % 4, bulbs); adv = 18; }
+      else if (kind === 'carousel') { const x = e + s * 7; if ((ok = fits(x, z - 7, 6.5, 6.5, 9))) cqCarousel(G, K, Z.C, paint, Z.metal, Z.lit, Z.tick, Z.fig, x, FL, z - 7, true, Z.live, Z.cuts); adv = 16; }
+      else { const x = e + s * 6; if ((ok = fits(x, z - 7, 6.4, 6.4, 18))) cqGlobe(Z, x, z - 7, 6, 4.5); adv = 16; }
+      if (ok) { k++; z -= adv; } else z -= 3;
+    }
+  }
+  // Under the course, wherever the floor is still bare: whatever fits under the lines there, which is not much.
+  for (let z = z0, k = 0; z > z1; z -= 4, k++) for (let x = CX - HW + 2 + (k % 2) * 3; x < CX + HW - 1; x += 6) {
+    const kind = ['wagon', 'globe', 'cut', 'prop', 'cut'][(((k * 7 + Math.round(x)) % 5) + 5) % 5];
+    place(kind, x - 2, z + 2, 1, 0.4);
+  }
+  for (const m of Z.wheels.meshes(K.wheel)) G.add(m);
+  finish();
+}
+
+// ---- THE CIRCUS'S OWN PIECES (owner, 2026-09-29: "let's proceed with building the game") ----
+// Every piece the city built, dressed as the tin circus's own, as chromePieces does for the pinball machine: the neon
+// parts hidden, the circus's added, all of it listed (tk*) so restoreCourse puts the city back for any other world.
+//   bollards      giant juggling pins          barriers    striped tin hurdles, bulbs along the top
+//   crates        tin circus trunks            crossings   CLOWN CARS, out of little striped garages either side
+//   holo roads    magic glass, stars in it     jump pads   springboards (the yellow rings stay: they mean a jump)
+//   speed strips  arrows of yellow bulbs       magnets     tin horseshoe magnets along the edge they pull to
+//   wind          big tin fans on striped pylons, turning faster before a gust
+//   wormholes     MAGICIAN'S CABINETS round the swirl       roundabouts  CAROUSELS
+//   glass tubes   red, cream and gold hoops    scanners    SPOTLIGHTS, the beam down to the rail
+//   switches      a big red button             colour lanes stage curtains in their colour, gold fringe
+//   sky train     a painted circus carriage    puzzle squares  striped ring walls, trunks to push
+function cqPieceKit(look) {
+  const K = cqKit(look); if (K.pk) return K.pk;
+  const std = (o) => keepMat(hazed(new MeshStandardMaterial({ roughness: 0.32, metalness: 0.5, envMap: K.env, envMapIntensity: 0.9, ...o })));
+  const trunkT = canvasTex(256, 256, (g) => {               // a tin trunk: a painted panel, brass bands, a star on the lid
+    g.fillStyle = '#6A2A9A'; g.fillRect(0, 0, 256, 256);
+    g.fillStyle = 'rgba(255,255,255,0.08)'; for (let k = 0; k < 256; k += 16) g.fillRect(k, 0, 8, 256);
+    g.fillStyle = '#F2C230'; g.fillRect(0, 0, 256, 18); g.fillRect(0, 238, 256, 18); g.fillRect(0, 0, 18, 256); g.fillRect(238, 0, 18, 256); g.fillRect(118, 0, 20, 256);
+    g.fillStyle = '#C8902A'; for (const [x, y] of [[9, 9], [247, 9], [9, 247], [247, 247], [128, 9], [128, 247]]) { pbCircle(g, x, y, 6); g.fill(); }
+    tlStar(g, 64, 128, 30); tlStar(g, 192, 128, 30, '#E8303A');
+  });
+  const carouselT = canvasTex(512, 512, (g) => {            // a carousel's floor: sectors in red and cream, a gold ring, bulbs
+    for (let k = 0; k < 24; k++) { const a = k * TAU / 24; g.fillStyle = k % 2 ? '#FFF1D2' : '#E8303A'; g.beginPath(); g.moveTo(256, 256); g.arc(256, 256, 256, a, a + TAU / 24); g.closePath(); g.fill(); }
+    g.strokeStyle = '#F2C230'; g.lineWidth = 16; pbCircle(g, 256, 256, 240); g.stroke(); g.strokeStyle = INK; g.lineWidth = 4; pbCircle(g, 256, 256, 248); g.stroke(); pbCircle(g, 256, 256, 232); g.stroke();
+    g.fillStyle = '#FFFFFF'; for (let k = 0; k < 48; k++) { const a = k * TAU / 48; pbCircle(g, 256 + Math.cos(a) * 240, 256 + Math.sin(a) * 240, 5); g.fill(); }
+  });
+  const starsT = canvasTex(128, 128, (g) => { g.clearRect(0, 0, 128, 128); const r = seeded(9); for (let i = 0; i < 9; i++) { g.fillStyle = r() < 0.5 ? '#FFFFFF' : '#FFE08A'; cqStar(g, r() * 128, r() * 128, 4 + r() * 7, 2 + r() * 2); g.fill(); } }, true);
+  const bulbArrowT = canvasTex(64, 64, (g) => {             // a chevron of bulbs, for a speed strip
+    g.clearRect(0, 0, 64, 64); g.fillStyle = '#FFE070';
+    for (let k = -3; k <= 3; k++) { const x = 32 + k * 7, y = 20 + Math.abs(k) * 7; pbCircle(g, x, y, 3.4); g.fill(); pbCircle(g, x, y + 14, 3.4); g.fill(); }
+  }, true);
+  const velvetT = canvasTex(64, 128, (g) => {               // stage curtain: folds, and a gold fringe along the foot (tinted by the lane's colour)
+    for (let x = 0; x < 64; x++) { const v = 0.6 + 0.4 * Math.cos(x / 64 * TAU * 3); g.fillStyle = `rgb(${Math.round(255 * v)},${Math.round(255 * v)},${Math.round(255 * v)})`; g.fillRect(x, 0, 1, 112); }
+    g.fillStyle = '#FFE08A'; g.fillRect(0, 112, 64, 16); g.fillStyle = '#C8902A'; for (let x = 2; x < 64; x += 5) g.fillRect(x, 116, 2, 12);
+  }, true);
+  const sunT = canvasTex(256, 256, (g) => {                 // a springboard's face: a sunburst, the middle clear for the pad's own rings
+    for (let k = 0; k < 16; k++) { const a = k * TAU / 16; g.fillStyle = k % 2 ? '#F2C230' : '#E8303A'; g.beginPath(); g.moveTo(128, 128); g.arc(128, 128, 128, a, a + TAU / 16); g.closePath(); g.fill(); }
+  });
+  return (K.pk = {
+    trunk: std({ map: trunkT }), gold: std({ color: 0xF2C230, metalness: 0.9, roughness: 0.22 }), red: std({ color: 0xE8303A }),
+    cream: std({ color: 0xFFF1D2, metalness: 0.3 }), dark: std({ color: 0x2A1E36, metalness: 0.3, roughness: 0.6 }), stripe: std({ color: 0xFFFFFF }),
+    carousel: std({ map: carouselT, metalness: 0.35 }), sun: std({ map: sunT, metalness: 0.3 }), starsT, bulbArrowT, velvetT,
+  });
+}
+// Shapes built once: a juggling pin (a bollard's size), a clown car in four paints.
+let cqPinMemo = null;
+function cqPinGeo() {
+  if (cqPinMemo) return cqPinMemo;
+  const B = pbBuild(), h = POST_H, r = POST_R;
+  const prof = [[0.75, 0], [1.05, 0.05], [1.25, 0.25], [1.2, 0.45], [0.75, 0.62], [0.55, 0.72], [0.7, 0.86], [0.6, 0.96], [0, 1]].map(([a, b]) => new Vector2(a * r, b * h));
+  B.geo(new LatheGeometry(prof, 16), placeAt(0, 0, 0), 0xFFF6EC);
+  for (const f of [0.32, 0.4]) B.geo(new TorusGeometry(r * 1.24, 0.03, 5, 16), placeAt(0, h * f, 0, Math.PI / 2, 0, 0), 0xE8303A);
+  B.geo(new TorusGeometry(r * 0.58, 0.035, 5, 16), placeAt(0, h * 0.72, 0, Math.PI / 2, 0, 0), 0x2A4AE8);
+  B.geo(new IcosahedronGeometry(r * 0.62, 1), placeAt(0, h * 0.94, 0), 0xE8303A);
+  return (cqPinMemo = B.done());
+}
+const cqCarMemo = {};
+function cqClownCarGeo(k) {
+  if (cqCarMemo[k]) return cqCarMemo[k];
+  const B = pbBuild(), col = [0xE8303A, 0x2A4AE8, 0xF2C230, 0x2AA89A][k % 4], trim = [0xF2C230, 0xF2C230, 0xE8303A, 0xF2C230][k % 4];
+  B.geo(new BoxGeometry(1.7, 0.42, 0.9), placeAt(-0.1, -0.02, 0), col);                  // the body, short and tall, the front round
+  B.geo(new SphereGeometry(0.46, 14, 10, 0, TAU, 0, Math.PI / 2), placeAt(0.72, 0.05, 0, 0, 0, -Math.PI / 2, 1, 1, 0.98), col);
+  B.geo(new BoxGeometry(1.74, 0.07, 0.94), placeAt(-0.1, 0.2, 0), trim);
+  B.geo(new BoxGeometry(0.9, 0.36, 0.86), placeAt(-0.3, 0.36, 0), col);                  // the seat's back, where the clown stands
+  for (const sx of [-0.62, 0.62]) for (const sz of [-0.5, 0.5]) {                       // wheels too big for it
+    B.geo(new CylinderGeometry(0.32, 0.32, 0.16, 16), placeAt(sx, -0.14, sz, Math.PI / 2, 0, 0), 0x231A2E);
+    B.geo(new CylinderGeometry(0.14, 0.14, 0.18, 12), placeAt(sx, -0.14, sz, Math.PI / 2, 0, 0), 0xF2C230);
+  }
+  B.geo(new ConeGeometry(0.12, 0.34, 10, 1, true), placeAt(0.5, 0.42, 0.3, 0, 0, -Math.PI / 2), 0xF2C230);   // the horn, and its bulb
+  B.geo(new SphereGeometry(0.09, 8, 6), placeAt(0.3, 0.42, 0.3), 0xE8303A);
+  return (cqCarMemo[k] = B.done());
+}
+function circusPieces(look) {
+  const K = cqKit(look), PK = cqPieceKit(look), o = new Object3D();
+  const metal = pbBuild(), paint = pbBuild(), lit = pbBuild(), bulbs = [];
+  // BOLLARDS: giant juggling pins.
+  if (postKit && posts.length) {
+    tkHide(...levelGroup.children.filter((m) => m.isInstancedMesh && [postKit.body, postKit.band, postKit.cap, postKit.pool, postKit.halo].includes(m.geometry)));
+    const pin = new InstancedMesh(cqPinGeo(), K.paint, posts.length);
+    posts.forEach((P, i) => { o.position.set(P.x, P.y, P.z); o.rotation.set(0, i * 0.7, 0); o.updateMatrix(); pin.setMatrixAt(i, o.matrix); });
+    pin.castShadow = true; tkAdd(levelGroup, pin);
+  }
+  // BARRIERS: a hurdle of red and cream boards between gold posts, bulbs along its top. CRATES: tin trunks.
+  for (const c of colliders) {
+    if (c.obstacle === 'crate') tkSet(c.mesh, 'material', PK.trunk);
+    if (c.obstacle !== 'barrier') continue;
+    tkHide(c.mesh);
+    const w = c.half.x * 2, h = c.half.y * 2, at = new Matrix4().compose(new Vector3(c.pos.x, c.pos.y - c.half.y, c.pos.z), c.quat, new Vector3(1, 1, 1));
+    const put = (Bd, g, mtx, hex) => Bd.geo(g, at.clone().multiply(mtx), hex);
+    for (const s of [-1, 1]) { put(metal, new CylinderGeometry(0.09, 0.12, h + 0.25, 10), placeAt(s * (w / 2 - 0.12), (h + 0.25) / 2, 0), 0xF2C230); put(lit, new SphereGeometry(0.13, 10, 8), placeAt(s * (w / 2 - 0.12), h + 0.3, 0), 0xFFE070); }
+    const n = Math.max(3, Math.round((w - 0.3) / 0.45));
+    for (let k = 0; k < n; k++) put(paint, new BoxGeometry((w - 0.3) / n + 0.005, h * 0.62, c.half.z * 2), placeAt(-(w - 0.3) / 2 + (k + 0.5) * (w - 0.3) / n, h * 0.5, 0), k % 2 ? 0xFFF1D2 : 0xE8303A);
+    for (let k = 0; k < n; k++) { const p = new Vector3(-(w - 0.3) / 2 + (k + 0.5) * (w - 0.3) / n, h * 0.84, c.half.z + 0.02).applyMatrix4(at); bulbs.push(p.toArray()); }
+  }
+  // CROSSINGS: clown cars. Each lane gets a checkered strip across the rail and a little striped garage at each end;
+  // each car is a clown car with a clown standing in it; a row of bulbs at the stop line shows green, or red running.
+  for (const c of crossings) {
+    const X = c.cross;
+    if (X.fire) continue;
+    tkHide(...X.parts, ...X.lights.map((L) => L.lamp.parent));
+    const near = c.pos.z + c.half.z, top = X.top;
+    for (const L of X.lanes) {
+      const strip = new Mesh(new PlaneGeometry(X.w + 1.2, 2 * CAR_HZ + 0.3), glowMat(0xFFFFFF, 0.35, cqCheckTex()));
+      strip.material.map = cqCheckTex().clone(); strip.material.map.repeat.set((X.w + 1.2) / 0.6, 2); strip.material.map.needsUpdate = true;
+      strip.rotation.x = -Math.PI / 2; strip.position.set(X.x, top + 0.02, L.z); tkAdd(levelGroup, strip);
+      for (const s of [-1, 1]) {                            // the garage the cars come out of: striped walls, a pointed roof, a dark door to the road
+        const gx = X.x + s * (X.w / 2 + 2.6);
+        for (let k = 0; k < 5; k++) paint.geo(new BoxGeometry(1.7, 0.36, 1.5), placeAt(gx, top + 0.18 + k * 0.36, L.z), k % 2 ? 0xFFF1D2 : 0x2A4AE8);
+        paint.geo(new ConeGeometry(1.3, 0.9, 4), placeAt(gx, top + 2.25, L.z, 0, Math.PI / 4, 0), 0xE8303A);
+        paint.geo(new BoxGeometry(0.06, 1.2, 1.1), placeAt(gx - s * 0.86, top + 0.6, L.z), 0x1A1024);
+        for (let k = 0; k < 5; k++) bulbs.push([gx - s * 0.9, top + 1.45, L.z - 0.6 + k * 0.3]);
+      }
+    }
+    X.cars.forEach((car, i) => {
+      for (const ch of car.mesh.children) tkHide(ch);
+      const g = new Group(), body = new Mesh(cqClownCarGeo(i + (X.lanes.indexOf(car.lane) * 2)), K.paint);
+      const clown = new Mesh(cqCellGeo(1, 1.2), K.figs); clown.position.set(-0.3, 0.1, 0); clown.rotation.y = -car.mesh.rotation.y;   // he faces the camera whichever way the car goes
+      g.add(body, clown); tkAdd(car.mesh, g);
+      tkTick(() => { if (!REDUCED) g.position.y = Math.abs(Math.sin(simT * 9 + i)) * 0.06; });   // bouncing along
+    });
+    const n = Math.max(3, Math.floor(X.w / 0.5)), row = new InstancedMesh(new SphereGeometry(0.11, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), new MeshBasicMaterial({ color: 0xFFFFFF, toneMapped: false }), n);
+    for (let i = 0; i < n; i++) { o.position.set(X.x - X.w / 2 + (i + 0.5) * X.w / n, top, near - 0.2); o.rotation.set(0, 0, 0); o.updateMatrix(); row.setMatrixAt(i, o.matrix); row.setColorAt(i, new Color(0x3DFF8A)); }
+    tkAdd(levelGroup, row);
+    const col = new Color();
+    tkTick(() => {
+      const on = REDUCED || ((simT * 2) % 1) < 0.5;
+      for (let i = 0; i < n; i++) row.setColorAt(i, X.green ? col.setHex(0x3DFF8A) : col.setHex(((i + Math.floor(simT * 12)) % 3 === 0) && on ? 0xFFE0D0 : 0xFF2A20));
+      row.instanceColor.needsUpdate = true;
+    });
+  }
+  // HOLOGRAM ROADS: magic glass, gold at its edges, stars in it.
+  for (const c of holos) {
+    const old = c.holoMats, mats = [glowMat(0xFFC86A, 0.5), glowMat(0xFFFFFF, 1, PK.starsT), glowMat(0xFFC86A, 0.2), glowMat(0xFFF4C2, 1)];
+    mats[1].map = PK.starsT.clone(); mats[1].map.repeat.set(Math.max(1, c.half.x * 2 / 1.2), Math.max(1, c.half.z * 2 / 1.2)); mats[1].map.needsUpdate = true;
+    for (const ch of c.mesh.children) if (ch.material === old[3]) tkSet(ch, 'material', mats[3]);
+    c.holoMats = mats;
+    tkUndo.push(() => { c.holoMats = old; for (const m of mats) { if (m.map && m.map !== PK.starsT) m.map.dispose(); m.dispose(); } });
+  }
+  // PADS: a jump pad is a springboard (a sunburst face under its yellow rings, a gold rim); a speed strip, arrows of bulbs.
+  for (const c of pads) {
+    const top = c.half.y;
+    if (c.pad === 'jump') {
+      for (const ch of c.mesh.children) if (!c.padFx.rings.includes(ch)) tkHide(ch);
+      const R0 = c.padFx.R + 0.06;
+      const rim = new Mesh(new TorusGeometry(R0, 0.08, 8, 48), PK.gold); rim.rotation.x = Math.PI / 2; rim.position.y = top + 0.02; tkAdd(c.mesh, rim);
+      const face = new Mesh(new CircleGeometry(R0 - 0.02, 48), PK.sun); face.rotation.x = -Math.PI / 2; face.position.y = top + 0.004; tkAdd(c.mesh, face);
+      const core = new Mesh(new CircleGeometry(0.22, 24), glowMat(0xFFF4C2, 1)); core.rotation.x = -Math.PI / 2; core.position.y = top + 0.01; tkAdd(c.mesh, core);
+    } else {
+      const deco = c.mesh.children.find((m) => m.material && m.material.map === c.padFx.tex);
+      if (!deco) continue;
+      const t = PK.bulbArrowT.clone(); t.repeat.copy(c.padFx.tex.repeat); t.needsUpdate = true;
+      const mat = glowMat(0xFFFFFF, 1, t);
+      tkSet(deco, 'material', mat); tkSet(c.padFx, 'tex', t);
+      tkUndo.push(() => { t.dispose(); mat.dispose(); });
+    }
+  }
+  // MAGNET STRIPS: tin horseshoe magnets along the edge the strip pulls to, open end to the rail.
+  for (const c of mags) {
+    const s = Math.sign(c.mag), d = c.half.z * 2, n = Math.max(1, Math.floor(d / 1.3)), at = new Matrix4().compose(c.pos, c.quat, new Vector3(1, 1, 1));
+    for (let k = 0; k < n; k++) {
+      const z = -d / 2 + (k + 0.5) * d / n, m = (dx, dy, dz, rx, ry, rz) => at.clone().multiply(placeAt(s * (c.half.x + dx), c.half.y + dy, z + dz, rx, ry, rz));
+      paint.geo(new TorusGeometry(0.24, 0.09, 8, 16, Math.PI), m(0.34, 0.14, 0, Math.PI / 2, 0, s > 0 ? -Math.PI / 2 : Math.PI / 2), 0xE8303A);
+      for (const e of [-1, 1]) metal.geo(new BoxGeometry(0.2, 0.18, 0.18), m(0.12, 0.14, e * 0.24, 0, 0, 0), 0xD8DCE8);
+    }
+  }
+  // WIND: big tin fans. The towers go; at each, a fan on a striped pylon faces across the road, its blades turning faster
+  // as a gust gathers, its middle glowing with it.
+  for (const W of winds) {
+    tkHide(...W.towers);
+    tkColor(W.streaks.material.color, 0xFFF6E0);
+    const heads = [];
+    for (const t of W.towers) {
+      if (t.geometry.type !== 'BoxGeometry') continue;
+      const x = t.position.x + W.dir * TOWER_W / 2, y = W.y + 1.3, z = t.position.z;
+      for (let k = 0; k < 6; k++) paint.geo(new CylinderGeometry(0.28, 0.3, 2, 10), placeAt(x - W.dir * 0.9, y - 1.3 - k * 2, z), k % 2 ? 0xFFF1D2 : 0xE8303A);
+      paint.geo(new CylinderGeometry(0.62, 0.72, 1.2, 18), placeAt(x - W.dir * 0.9, y, z, 0, 0, Math.PI / 2), 0x2A4AE8);   // the motor
+      const head = new Group(); head.position.set(x + W.dir * 0.1, y, z); head.rotation.y = W.dir * Math.PI / 2;   // its face toward the road
+      const cage = pbBuild();
+      for (const rr of [0.7, 1.25, 1.75]) cage.geo(new TorusGeometry(rr, 0.04, 5, 32), placeAt(0, 0, 0.35), 0xF2C230);
+      for (let k = 0; k < 12; k++) { const a = k * TAU / 12; cage.geo(new CylinderGeometry(0.03, 0.03, 1.75, 4), placeAt(Math.cos(a) * 0.88, Math.sin(a) * 0.88, 0.35, 0, 0, a + Math.PI / 2), 0xF2C230); }
+      cage.geo(new TorusGeometry(1.78, 0.09, 8, 40), placeAt(0, 0, 0.3), 0xF2C230);
+      head.add(new Mesh(cage.done(), K.metal));
+      const blades = new Group(), bl = pbBuild();
+      for (let k = 0; k < 4; k++) { const a = k * TAU / 4; bl.geo(new SphereGeometry(0.62, 12, 8), placeAt(Math.cos(a) * 0.85, Math.sin(a) * 0.85, 0.1, 0, 0, a, 1, 0.45, 0.12), k % 2 ? 0xE8303A : 0xFFF1D2); }
+      bl.geo(new SphereGeometry(0.26, 12, 8), placeAt(0, 0, 0.2), 0xF2C230);
+      blades.add(new Mesh(bl.done(), K.paint)); head.add(blades);
+      const glow = new Mesh(new CircleGeometry(0.5, 24), glowMat(0xFFE08A, 0.2)); glow.position.z = 0.36; head.add(glow);
+      tkAdd(levelGroup, head); heads.push([blades, glow]);
+    }
+    let ang = 0;
+    tkTick((dt) => { const st = windState(W, simT); ang += dt * (1.5 + 14 * st.show); for (const [b, g] of heads) { if (!REDUCED) b.rotation.z = ang; g.material.opacity = 0.15 + 0.85 * st.show; } });
+  }
+  // WORMHOLES: magician's cabinets. The swirl is the cabinet's doorway: purple posts with gold stars, a crested top,
+  // red drapes tied back either side, bulbs round the door.
+  for (const W of wormholes) {
+    const [disc, ring, halo] = W.grp.children;
+    tkHide(ring, halo); tkColor(disc.material.color, 0xE8D8FF);
+    const B = pbBuild(), R = W.rad, id = 1700;
+    for (const s of [-1, 1]) {
+      B.geo(new BoxGeometry(0.5, R * 2 + 0.5, 0.6), placeAt(s * (R + 0.3), -0.25, 0), 0x5A2A8A);
+      B.geo(new BoxGeometry(0.58, 0.2, 0.68), placeAt(s * (R + 0.3), -R - 0.4, 0), 0xF2C230);
+      B.geo(new ConeGeometry(0.55, R * 1.8, 8, 1, true), placeAt(s * (R - 0.15), -0.2, 0.15, 0, 0, s * 0.18, 1, 1, 0.35), 0xC8202C);   // a drape
+    }
+    B.geo(new BoxGeometry(R * 2 + 1.3, 0.6, 0.7), placeAt(0, R + 0.25, 0), 0x5A2A8A);
+    B.geo(new BoxGeometry(R * 2 + 1.5, 0.14, 0.78), placeAt(0, R + 0.58, 0), 0xF2C230);
+    B.geo(new CylinderGeometry(R * 0.7, R * 0.7, 0.4, 24, 1, false, -Math.PI / 2, Math.PI), placeAt(0, R + 0.62, 0, Math.PI / 2, 0, 0), 0x5A2A8A);   // the crest
+    B.geo(new SphereGeometry(0.2, 10, 8), placeAt(0, R + 1.35, 0), 0xF2C230);
+    const cab = new Mesh(B.done(), K.paint); tkAdd(W.grp, cab);
+    const lamps = new InstancedMesh(new IcosahedronGeometry(0.09, 0), new MeshBasicMaterial({ color: 0xFFE8A0, toneMapped: false }), 24);
+    for (let k = 0; k < 24; k++) { const a = k / 24 * TAU; o.position.set(Math.cos(a) * (R + 0.02), Math.sin(a) * (R + 0.02), 0.35); o.rotation.set(0, 0, 0); o.updateMatrix(); lamps.setMatrixAt(k, o.matrix); }
+    tkAdd(W.grp, lamps);
+    for (const s of [-1, 1]) for (let k = 0; k < 4; k++) { const st = new Mesh(new CircleGeometry(0.12, 5), new MeshBasicMaterial({ color: 0xF2C230, toneMapped: false })); st.position.set(s * (R + 0.3), -R + 0.3 + k * R * 0.55, 0.31); tkAdd(W.grp, st); }
+  }
+  // ROUNDABOUTS: carousels. The floor in red and cream sectors with a gold ring of bulbs; over the island in the middle
+  // (never ridden), a little striped canopy on a brass pole.
+  for (const Rd of rounds) {
+    const [top, rim, , lamps] = Rd.spinGrp.children, fixed = Rd.gyro.parent, [island, lip, glow] = fixed.children;
+    tkSet(top, 'material', PK.carousel); tkSet(rim, 'material', PK.gold); tkColor(lamps.material.color, 0xFFE8A0);
+    tkHide(lip, glow, Rd.gyro); tkSet(island, 'material', PK.red);
+    const cap = new Group(), B = pbBuild(), ri = Rd.ri;
+    B.geo(new CylinderGeometry(0.1, 0.1, 1.4, 10), placeAt(0, ISLAND_H + 0.7, 0), 0xF2C230);
+    for (let k = 0; k < 12; k++) B.geo(new ConeGeometry(ri * 0.85, 0.7, 3, 1, true, k / 12 * TAU, TAU / 12), placeAt(0, ISLAND_H + 1.65, 0), k % 2 ? 0xFFF1D2 : 0xE8303A);
+    B.geo(new CylinderGeometry(ri * 0.85, ri * 0.85, 0.16, 24, 1, true), placeAt(0, ISLAND_H + 1.25, 0), 0xF2C230);
+    B.geo(new SphereGeometry(0.14, 10, 8), placeAt(0, ISLAND_H + 2.08, 0), 0xF2C230);
+    cap.add(new Mesh(B.done(), K.paint)); tkAdd(fixed, cap);
+    tkTick((dt) => { if (!REDUCED) cap.rotation.y += dt * 0.6 * Math.sign(Rd.spin || 1); });
+  }
+  // GLASS TUBES: the rings red, cream and gold; gold hoops at each end.
+  for (const U of tubes) {
+    tkSet(U, 'pal', [0.91, 0.19, 0.23, 1, 0.88, 0.45]);   // red at rest, gold as the marble passes
+    for (const e of U.ends) tkColor(e.material.color, 0xFFE8A0);
+    for (const e of U.ends) { const h = new Mesh(new TorusGeometry(TUBE_R + 0.2, 0.12, 10, 40), PK.gold); h.position.copy(e.position); h.quaternion.copy(e.quaternion); tkAdd(levelGroup, h); }
+  }
+  // SCANNERS: spotlights. A tin lamp on a yoke rides each bar, its beam down to the rail; the red line on the rail stays.
+  for (const Sc of scans) {
+    const d = Sc.d, hy = SCAN_H + 1.25;
+    for (const g of Sc.bars) {
+      const [sheet, core, glow, strands, ...nubs] = g.children;
+      tkHide(sheet, core, glow, ...nubs); tkColor(strands.material.color, 0xFFF0B0);
+      const S = pbBuild();
+      S.geo(new CylinderGeometry(0.42, 0.34, 0.8, 16, 1, true), placeAt(0, hy + 0.1, 0), 0x2A4AE8);
+      S.geo(new TorusGeometry(0.42, 0.06, 6, 20), placeAt(0, hy - 0.3, 0, Math.PI / 2, 0, 0), 0xF2C230);
+      for (const s of [-1, 1]) S.geo(new BoxGeometry(0.08, 0.7, 0.12), placeAt(s * 0.52, hy + 0.25, 0), 0xF2C230);
+      S.geo(new BoxGeometry(1.12, 0.1, 0.12), placeAt(0, hy + 0.62, 0), 0xF2C230);
+      tkAdd(g, new Mesh(S.done(), K.paint));
+      const lens = new Mesh(new CircleGeometry(0.36, 20), new MeshBasicMaterial({ color: 0xFFF6D8, toneMapped: false })); lens.rotation.x = Math.PI / 2; lens.position.y = hy - 0.31; tkAdd(g, lens);
+      const cone = new Mesh(new CylinderGeometry(0.36, 1, hy - 0.35, 28, 1, true), glowMat(0xFFF0B0, 0.4, cqConeTex()));
+      cone.material.side = DoubleSide; cone.scale.set(0.34, 1, d / 2); cone.position.y = (hy - 0.35) / 2; tkAdd(g, cone);
+      const foot = new Mesh(new CircleGeometry(1, 32), glowMat(0xFFF4C2, 0.75, dot)); foot.rotation.x = -Math.PI / 2; foot.scale.set(0.5, d / 2, 1); foot.position.y = 0.03; tkAdd(g, foot);
+    }
+  }
+  // SWITCHES: a big red button in a gold ring; gold bulbs along the cable.
+  for (const S of switches) {
+    tkSet(S.button, 'material', PK.red);
+    tkColor(S.faceMat.color, 0xFFE08A); tkColor(S.ringMat.color, 0xF2C230); tkColor(S.halo.material.color, 0xFFC040);
+    for (const g of S.decals) tkColor(g.material.color, 0xFFE8B0);
+    tkSet(S, 'dotOn', new Color(0xFFE070)); tkSet(S, 'dotOff', new Color(0x4A3A2A));
+    const paintDots = (on, off) => { S.at.forEach((a, i) => S.dots.setColorAt(i, S.on && a <= S.t * PULSE_V ? on : off)); S.dots.instanceColor.needsUpdate = true; };
+    paintDots(S.dotOn, S.dotOff);
+    tkUndo.push(() => paintDots(DOT_ON, DOT_OFF));
+  }
+  // COLOUR LANES: stage curtains in the lane's own colour (lime, violet), gold fringe, on a gold rod between striped posts.
+  for (const C of curtains) {
+    const [sheet, bar] = C.parts;
+    const t = PK.velvetT.clone(); t.repeat.set(Math.max(1, C.w / 1.2), 1); t.needsUpdate = true;
+    const m = glowMat(TINTS[C.col], 0.92, t); m.side = DoubleSide;
+    tkSet(sheet, 'material', m); tkSet(C, 'mat', m); tkSet(bar, 'material', PK.gold);
+    tkUndo.push(() => { t.dispose(); m.dispose(); });
+    for (const s of [-1, 1]) {
+      for (let k = 0; k < 4; k++) paint.geo(new CylinderGeometry(0.09, 0.09, 0.42, 8), placeAt(C.x + s * (C.w / 2 + 0.12), C.y + 0.21 + k * 0.42, C.z), k % 2 ? 0xFFF1D2 : 0xE8303A);
+      lit.geo(new SphereGeometry(0.12, 10, 8), placeAt(C.x + s * (C.w / 2 + 0.12), C.y + 1.8, C.z), TINTS[C.col]);
+    }
+  }
+  for (const L of locks) for (const f of L.frames) tkSet(f, 'material', PK.gold);
+  // THE SKY TRAIN you ride: a painted circus carriage on a gold guideway.
+  for (const c of ferries) {
+    if (!c.train) continue;
+    tkHide(c.train.model);
+    const Sh = pbBuild(), Ld = TRAIN_DECK, y0 = -TRAIN_H / 2 - 1.05;
+    Sh.geo(new BoxGeometry(2.3, 1.6, Ld - 1), placeAt(0, y0 - 0.2, 0), 0xE8303A);
+    Sh.geo(new BoxGeometry(2.4, 0.16, Ld - 0.8), placeAt(0, y0 + 0.62, 0), 0xF2C230);
+    Sh.geo(new BoxGeometry(2.4, 0.16, Ld - 0.8), placeAt(0, y0 - 1.0, 0), 0xF2C230);
+    for (let k = 0; k < 6; k++) for (const s of [-1, 1]) Sh.geo(new CylinderGeometry(0.34, 0.34, 0.14, 5), placeAt(s * 1.18, y0 - 0.2, -Ld / 2 + 2 + k * (Ld - 4) / 5, 0, 0, Math.PI / 2), 0xF2C230);
+    for (const e of [-1, 1]) for (const s of [-1, 1]) Sh.geo(new CylinderGeometry(0.55, 0.55, 0.2, 16), placeAt(s * 1.1, y0 - 1.1, e * (Ld / 2 - 2.4), 0, 0, Math.PI / 2), 0x231A2E);
+    tkAdd(c.mesh, new Mesh(Sh.done(), K.paint));
+    const [beam, ...rails] = c.train.parts;
+    tkSet(beam, 'material', PK.gold);
+  }
+  // PUZZLE SQUARES: walls of red and cream, gold where the tiles' walls are, a dark base, tin trunks to push.
+  for (const c of colliders) if (c.obstacle === 'wall') tkSet(c.mesh, 'material', PK.red);
+  for (const P of plazas) {
+    levelGroup.traverse((m) => { if (m.isMesh && (m.material === P.mats.line || m.material === P.mats.halo)) tkHide(m); });
+    for (const T of P.tiles) T.grp.traverse((m) => {
+      if (m.material === P.mats.wall) tkSet(m, 'material', PK.gold);
+      else if (Array.isArray(m.material) && m.material[2] === P.mats.tile) tkSet(m, 'material', [PK.gold, PK.gold, cqCourseMats(look).cellTop, PK.dark, PK.gold, PK.gold]);
+    });
+    levelGroup.traverse((m) => {
+      if (!m.isMesh) return;
+      if (m.material === P.mats.base) tkSet(m, 'material', PK.dark);
+      else if (m.material === P.mats.wall && m.parent !== levelGroup) tkSet(m, 'material', PK.gold);
+    });
+    for (const W of P.crates) if (!W.sat) tkSet(W.mesh, 'material', PK.trunk);
+  }
+  if (bulbs.length) {                                       // the pieces' own bulbs, softly lit
+    const bm = new InstancedMesh(new IcosahedronGeometry(0.09, 0), new MeshBasicMaterial({ color: 0xFFE8A0, toneMapped: false }), bulbs.length);
+    bulbs.forEach(([x, y, z], i) => { o.position.set(x, y, z); o.rotation.set(0, 0, 0); o.updateMatrix(); bm.setMatrixAt(i, o.matrix); });
+    tkAdd(levelGroup, bm);
+  }
+  if (metal.count()) tkAdd(levelGroup, new Mesh(metal.done(), K.metal));
+  if (paint.count()) tkAdd(levelGroup, new Mesh(paint.done(), K.paint));
+  if (lit.count()) tkAdd(levelGroup, new Mesh(lit.done(), K.lit));
+}
+let cqCheckMemo = null;
+const cqCheckTex = () => cqCheckMemo || (cqCheckMemo = canvasTex(64, 64, (g) => { g.fillStyle = '#E8303A'; g.fillRect(0, 0, 64, 64); g.fillStyle = '#FFF1D2'; g.fillRect(0, 0, 32, 32); g.fillRect(32, 32, 32, 32); }, true));
+
+// HARNESS: does anything of the world hide the course? From the camera's own place over points all along the course,
+// render the course alone (red on black), then again with the world in front of it (the world black, keeping its
+// cut-out shapes); a red pixel that turns black is course the world hides. This checks the drawn meshes, not the
+// footprints the fill planned with, so it catches a banner or an arm that reaches further than its plan.
+if (HARNESS) window.__cqHide = (step = 3, sabotage = false, show = false) => {
+  const G = world.group; if (!G || !renderer || !level) return null;
+  let sab = null;                                         // the null test: a post planted beside the course's middle, tall enough to hide it
+  if (sabotage) { const f = level.pieces.filter((p) => p.t === 'flat')[Math.floor(level.pieces.filter((p) => p.t === 'flat').length / 2)]; sab = new Mesh(new BoxGeometry(1.5, 14, 1.5), new MeshStandardMaterial()); sab.position.set(f.x + (f.w || 4) / 2 + 1, f.y, f.z - 4); G.add(sab); }
+  const gl = renderer.getContext(), Wd = renderer.domElement.width, Ht = renderer.domElement.height;
+  const A = new Uint8Array(Wd * Ht * 4), B = new Uint8Array(Wd * Ht * 4);
+  const red = new MeshBasicMaterial({ color: 0xFF0000, fog: false, toneMapped: false }), blacks = new Map(), saved = [];
+  const inG = (o) => { for (let p = o; p; p = p.parent) if (p === G) return true; return false; };
+  const blackOf = (m) => {
+    if (!blacks.has(m.uuid)) {
+      const b = new MeshBasicMaterial({ color: 0x000000, map: m.alphaTest ? m.map : null, alphaTest: m.alphaTest || 0, side: m.side, fog: false, toneMapped: false });
+      if (m.customProgramCacheKey && m.customProgramCacheKey() === 'cq-cell') { b.onBeforeCompile = m.onBeforeCompile; b.customProgramCacheKey = () => 'cq-cell-black'; }   // a batched cut-out prints its own cell
+      blacks.set(m.uuid, b);
+    }
+    return blacks.get(m.uuid);
+  };
+  scene.traverse((o) => {
+    if (!(o.isMesh || o.isPoints || o.isSprite)) return;
+    saved.push([o, o.material, o.visible]);
+    if (o === G) return;
+    if (inG(o)) {
+      const m = o.material;
+      if (o.isPoints || o.isSprite || Array.isArray(m) || m.blending === AdditiveBlending || (m.transparent && !m.alphaTest)) o.visible = false;
+      else o.material = blackOf(m);
+    } else if (o.isMesh) o.material = red; else o.visible = false;
+  });
+  // The floor stays in both renders (course below it, such as a wind tower's foot, is not the world hiding anything).
+  const above = G.children.filter((o) => !o.userData.ground), aboveVis = above.map((o) => o.visible);
+  const bg = scene.background, fog = scene.fog, cc = new Color(), ca = renderer.getClearAlpha(), fov = camera.fov;
+  renderer.getClearColor(cc); scene.background = null; scene.fog = null; renderer.setClearColor(0x000000, 1);
+  const P = camParams(); camera.fov = P.fov; camera.updateProjectionMatrix();
+  const pts = [];
+  for (const p of level.pieces) {
+    if (p.t === 'ramp') { for (let z = Math.max(p.z0, p.z1); z >= Math.min(p.z0, p.z1); z -= step) pts.push([p.x, p.y0 + (p.y1 - p.y0) * (z - p.z0) / ((p.z1 - p.z0) || 1), z]); continue; }
+    if (p.x === undefined || typeof p.y !== 'number' || typeof p.z !== 'number') continue;
+    const hd = p.t === 'round' ? p.ro : (p.d || 6) / 2, hw = p.t === 'round' ? p.ro : (p.w || 4) / 2;
+    for (let z = p.z + hd; z >= p.z - hd - 0.01; z -= step) for (const dx of hw > 1.5 ? [-hw + 0.6, 0, hw - 0.6] : [0]) pts.push([p.x + dx, p.y, z]);
+  }
+  let worst = 0, worstAt = null, bad = 0, worstImg = null, worstView = null;
+  const out = [], views = pts.map(([x, y, z]) => [x, y, z, [x, y + P.h, z + P.back], [x, y, z - P.ahead]]);
+  for (const c of cqHighCams()) views.push([c.at.x, c.at.y, c.at.z, c.pos.toArray(), c.at.toArray()]);   // the climbing cameras too (all screen shapes; the one this screen uses is among them)
+  for (const [x, y, z, cp, ca2] of views) {
+    camera.position.set(...cp); camera.lookAt(...ca2);
+    for (const o of above) o.visible = false; renderer.render(scene, camera); gl.readPixels(0, 0, Wd, Ht, gl.RGBA, gl.UNSIGNED_BYTE, A);
+    above.forEach((o, i) => { o.visible = aboveVis[i]; }); renderer.render(scene, camera); gl.readPixels(0, 0, Wd, Ht, gl.RGBA, gl.UNSIGNED_BYTE, B);
+    let n = 0, hid = 0;
+    for (let i = 0; i < A.length; i += 12) if (A[i] > 128) { n++; if (B[i] < 128) hid++; }
+    const f = n ? hid / n : 0;
+    if (f > worst) { worst = f; worstAt = [+x.toFixed(1), +y.toFixed(1), +z.toFixed(1)]; worstView = [cp, ca2];
+      if (show) { const d = new Uint8ClampedArray(Wd * Ht * 4); for (let r = 0; r < Ht; r++) for (let c = 0; c < Wd; c++) { const i = ((Ht - 1 - r) * Wd + c) * 4, o = (r * Wd + c) * 4, a = A[i] > 128, b = B[i] > 128; d[o] = a && !b ? 255 : a ? 90 : 0; d[o + 1] = a && !b ? 230 : a ? 90 : 0; d[o + 2] = a && !b ? 0 : a ? 90 : 0; d[o + 3] = 255; } worstImg = d; } }
+    if (f > 0.002) { bad++; if (out.length < 8) out.push([+x.toFixed(1), +z.toFixed(1), +(f * 100).toFixed(2)]); }
+  }
+  for (const [o, m, v] of saved) { o.material = m; o.visible = v; }
+  for (const o of above) o.visible = true;
+  if (sab) G.remove(sab);
+  for (const m of blacks.values()) m.dispose(); red.dispose();
+  scene.background = bg; scene.fog = fog; renderer.setClearColor(cc, ca); camera.fov = fov; camera.updateProjectionMatrix();
+  if (show && worstImg) {                                  // the worst view: yellow is course hidden, grey course seen; beside it, the view as drawn
+    const [x, y, z] = worstAt, c1 = document.createElement('canvas'); c1.width = Wd; c1.height = Ht; c1.getContext('2d').putImageData(new ImageData(worstImg, Wd, Ht), 0, 0);
+    camera.fov = P.fov; camera.updateProjectionMatrix(); camera.position.set(...worstView[0]); camera.lookAt(...worstView[1]); renderer.render(scene, camera);
+    const c2 = document.createElement('canvas'); c2.width = Wd; c2.height = Ht; c2.getContext('2d').drawImage(renderer.domElement, 0, 0);
+    camera.fov = fov; camera.updateProjectionMatrix();
+    const box = document.createElement('div'); box.style.cssText = 'position:fixed;inset:0;z-index:99999;display:flex;background:#000';
+    for (const c of [c1, c2]) { c.style.cssText = 'width:50%;height:100%;object-fit:contain'; box.appendChild(c); }
+    document.body.appendChild(box);
+  }
+  return { cams: views.length, bad, worstPct: +(worst * 100).toFixed(3), worstAt, first: out };
+};
+// HARNESS: what one frame of the world costs to draw, from the play camera where it stands now.
+if (HARNESS) window.__cqCost = () => {
+  if (!renderer) return null;
+  const t0 = performance.now(); renderer.info.autoReset = false; renderer.info.reset(); renderer.render(scene, camera); const ms = performance.now() - t0;
+  const i = renderer.info, G = world.group; let meshes = 0, ticks = 0; if (G) G.traverse((o) => { if (o.isMesh || o.isPoints) meshes++; });
+  renderer.info.autoReset = true;
+  return { calls: i.render.calls, tris: i.render.triangles, meshes, geos: i.memory.geometries, texs: i.memory.textures, ms: +ms.toFixed(1) };
+};
+if (HARNESS) window.__cqSnap = () => { updateCamera(0, true); return camera.position.toArray().map((v) => +v.toFixed(1)); };
+// HARNESS: the same, split: the course and the rest with the world hidden, then everything.
+if (HARNESS) window.__cqCostSplit = () => {
+  const G = world.group; if (!renderer || !G) return null;
+  const one = () => { renderer.info.autoReset = false; renderer.info.reset(); renderer.render(scene, camera); const r = { calls: renderer.info.render.calls, tris: renderer.info.render.triangles }; renderer.info.autoReset = true; return r; };
+  G.visible = false; const course = one(); G.visible = true; const all = one();
+  return { course, world: { calls: all.calls - course.calls, tris: all.tris - course.tris }, shadows: renderer.shadowMap.enabled };
+};
+// HARNESS: which kinds of piece each level has (and its obstacles), to find a level that shows a given piece.
+if (HARNESS) window.__cqKinds = () => LEVELS.map((L, i) => [i + 1, [...new Set(L.pieces.map((p) => p.t + (p.kind ? ':' + p.kind : '') + (p.pad ? ':' + p.pad : '') + (p.lane ? ':lane' : '') + (p.dark !== undefined ? ':dark' : '')))]]);
+
+for (const look of CIRCUS_LOOKS) WORLDS_ADD('circus-' + look, (w) => circusWorld(w, look));
+
 // ---------- TREES, GROWN THE WAY EZ-TREE GROWS THEM ----------
 /* (owner, 2026-09-27: "I would like to see trees. can you make something like
    this https://www.eztree.dev/", with a picture of one: an oak-like tree, a
@@ -20283,6 +22423,12 @@ requestAnimationFrame(frame);
 function worldFromHash() {
   const [h, v, w] = location.hash.slice(1).split('-');
   if (h === 'try' && TRY_COURSES[v]) { loadTry(v, w === 'tokyo'); setWorld(TRY_SPACE[v] || SP_TRY.includes(v) ? 'pinball-chrome' : w === 'tokyo' ? 'tokyo' : 'neon'); return; }   // #try-ice, #try-ice-tokyo
+  if (h === 'circus') {                                 // #circus-bigtop, #circus-tintoy, #circus-midway (course 27, or the one named: #circus-midway-12)
+    const n = parseInt(w, 10);
+    loadLevel(n >= 1 && n <= LEVELS.length ? n : 27);
+    setWorld('circus-' + (CIRCUS_LOOKS.includes(v) ? v : 'bigtop'));
+    return;
+  }
   if (h === 'pinball') {                                // #pinball-chrome, #pinball-arcade, #pinball-golden (course 27, or the one named: #pinball-golden-12)
     const n = parseInt(w, 10);
     loadLevel(n >= 1 && n <= LEVELS.length ? n : 27);

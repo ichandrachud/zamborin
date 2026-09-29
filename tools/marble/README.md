@@ -14,3 +14,10 @@ the length of a run (`shoot.mjs`, `SERVE_DIR`/`SERVE_PORT`), and read the game t
   `mk-pb13.js` wrote the ladders block of play.js (Object.assign(PLAZAS, { SN1 ...), SP_ROAD_AT, SP_PLAZA_AT);
   to change a ladder, regenerate and replace that block.
 - Clips: `puzclip.sh`, `lvclip.sh`, `spaceclip.sh` record JPEG bursts and `encode.sh` makes a webm (Playwright's ffmpeg).
+- THE CIRCUS (levels 151-200, being built): its source is `circus-src/` (cq1-kit ... cq9-pieces), put into main's
+  play.js at `4af344d` by `circus-src/build-circus.sh` (the chunks go in before the valley's trees, then
+  `integrate-circus.py` adds the marble skin, the `#circus-tintoy-N` link and setWorld's far plane). Stills:
+  `tinshots.sh outdir N tag` (phone, desktop, two wide views); `pieceshots.sh outdir tag 22:cross 27:wind ...` (each
+  piece from just behind it); `cqhide.sh tintoy 1 12 63` (renders the course red and the world black from every camera,
+  the climbing ones over puzzle squares too, and counts the course the world hides; `SAB=true` plants a post to prove it
+  sees; `__cqHide(3, false, true)` shows the worst view).
