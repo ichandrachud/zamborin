@@ -27,7 +27,7 @@ Object.assign(TRY_NEWS, {
   trapeze: 'The trapeze seat waits at each edge. Roll on at one end, off at the other',
   wire: 'The high wire sways and does not carry you. Stay on it',
   teeter: 'Sit on the yellow spot: when the strongman lands, you are thrown up to the rail above',
-  wod: 'Roll into a cage as it comes to the bottom; it lifts you up and over',
+  wod: 'Wait on the yellow spot at the end of the rail: a cage scoops you up and carries you over',
   ferris: 'Board a car going down at the edge; step off as it comes level with the far side',
   circus2: 'The circus rides: the trapeze, the high wire, the teeterboard, the Wheel of Death and the Ferris wheel',
 });
@@ -210,24 +210,37 @@ function buildWod(pc) {
     B.geo(new TorusGeometry(WOD_CUP, 0.06, 6, 24), placeAt(0, e * pc.arm, 0, Math.PI / 2, 0, 0), 0xF2C230);
   }
   Wd.rot.add(new Mesh(B.done(), K.metal));
+  // Where you wait (owner, 2026-09-29: "the marble is not getting caught in the cage"): a yellow spot on the rail's last
+  // metre and a half, flashing as a cage comes down. A cage on its way down past it scoops up whatever sits there.
+  Wd.spotZ = pc.z + 1.1 + 0.75;
+  Wd.spot = new Mesh(new CircleGeometry(0.62, 32), new MeshBasicMaterial({ color: PAD_YELLOW, toneMapped: false, transparent: true, opacity: 0.85 }));
+  Wd.spot.rotation.x = -Math.PI / 2; Wd.spot.position.set(pc.x, pc.y + 0.02, Wd.spotZ); levelGroup.add(Wd.spot);
   circ.wods.push(Wd);
 }
 // A cage's centre, for the cage at the arm's end k (0, 1): at the bottom when the angle has it straight down.
 function wodCage(Wd, k, t) { const a = wodAngle(Wd, t) + k * Math.PI; return new Vector3(Wd.pc.x, Wd.ay - Wd.pc.arm * Math.cos(a), Wd.pc.z - Wd.pc.arm * Math.sin(a)); }
+// The angle of cage k from straight down, from -PI to PI (below zero: still coming down toward the rail).
+const wodDown = (Wd, k, t) => { const a = ((wodAngle(Wd, t) + k * Math.PI) % TAU + TAU) % TAU; return a > Math.PI ? a - TAU : a; };
 function wodStep() {
   for (const Wd of circ.wods) {
     if (ball.circ) continue;
-    if (Math.abs(ball.p.x - Wd.pc.x) > 1 || Math.abs(ball.p.z - Wd.pc.z) > 1.2 || ball.p.y > Wd.pc.y + 1.2) continue;
+    if (Math.abs(ball.p.x - Wd.pc.x) > 1 || ball.p.y > Wd.pc.y + 1.2) continue;
+    const onSpot = ball.p.z < Wd.spotZ + 0.8 && ball.p.z > Wd.spotZ - 1.0, inCage = Math.abs(ball.p.z - Wd.pc.z) < 1.2;
+    if (!onSpot && !inCage) continue;
     for (let k = 0; k < 2; k++) {
-      const C = wodCage(Wd, k, simT);
-      if (C.distanceTo(ball.p) < WOD_CUP * 0.9 && C.y < Wd.pc.y + WOD_CUP) { ball.circ = { wod: Wd, k, t: 0 }; sound('thunk'); return; }
+      const C = wodCage(Wd, k, simT), a = wodDown(Wd, k, simT);
+      if ((onSpot && a > -0.3 && a < 0.12) || (C.distanceTo(ball.p) < WOD_CUP * 0.9 && C.y < Wd.pc.y + WOD_CUP)) {
+        ball.circ = { wod: Wd, k, t: 0, from: ball.p.clone() }; ball.v.set(0, 0, 0); sound('thunk'); return;
+      }
     }
   }
 }
 // Carried in the cage, up and over; let go at the top, rolling on onto the rail above.
 function wodHeld(dt) {
   const H = ball.circ, Wd = H.wod, a = ((wodAngle(Wd, simT) + H.k * Math.PI) % TAU + TAU) % TAU;
-  const C = wodCage(Wd, H.k, simT); ball.p.copy(C); ball.v.set(0, 0, 0);
+  const C = wodCage(Wd, H.k, simT); H.t += dt;
+  if (H.from && H.t < 0.3) ball.p.lerpVectors(H.from, C, ease(H.t / 0.3)); else ball.p.copy(C);   // drawn into the cage, not snapped
+  ball.v.set(0, 0, 0);
   if (a > Math.PI - 0.05 && a < Math.PI + 1) { ball.circ = null; ball.p.set(Wd.pc.x, Wd.pc.y + Wd.pc.up + R + 0.05, Wd.pc.z - 1.2); ball.v.set(0, 0, -2.4); sound('pop'); }
 }
 
@@ -284,7 +297,11 @@ function circMove(dt) {
   for (const T of circ.teeters) teeterPlace(T, dt);
   if (circ.teeters.length) animateTeeter();
   for (const Fw of circ.ferrises) ferrisPlace(Fw, simT);
-  for (const Wd of circ.wods) Wd.rot.rotation.x = -wodAngle(Wd, simT);
+  for (const Wd of circ.wods) {
+    Wd.rot.rotation.x = -wodAngle(Wd, simT);
+    const soon = Math.min(...[0, 1].map((k) => { const a = wodDown(Wd, k, simT); return a < -0.3 ? -0.3 - a : 9; }));   // how far the next cage has to come
+    Wd.spot.material.opacity = !REDUCED && soon < 0.9 ? 0.5 + 0.45 * Math.abs(Math.sin(simT * 10)) : 0.85;
+  }
 }
 function circStep2() { if (circ.wods.length) wodStep(); }
 function circState2() {

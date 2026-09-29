@@ -302,7 +302,7 @@ function circusPieces(look) {
       if (m.material === P.mats.base) tkSet(m, 'material', PK.dark);
       else if (m.material === P.mats.wall && m.parent !== levelGroup) tkSet(m, 'material', PK.gold);
     });
-    for (const W of P.crates) if (!W.sat) tkSet(W.mesh, 'material', PK.trunk);
+    for (const W of P.crates) if (!W.sat && !W.cz) tkSet(W.mesh, 'material', PK.trunk);   // (the circus puzzles' pieces are dressed already)
   }
   if (bulbs.length) {                                       // the pieces' own bulbs, softly lit
     const bm = new InstancedMesh(new IcosahedronGeometry(0.09, 0), new MeshBasicMaterial({ color: 0xFFE8A0, toneMapped: false }), bulbs.length);

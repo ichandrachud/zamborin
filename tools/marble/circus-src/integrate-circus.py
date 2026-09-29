@@ -36,3 +36,14 @@ rep("  if (peekCam) { camera.position.set(...peekCam.pos); camera.lookAt(...peek
 rep("    else if (ball.p.y < level.minTop - 2.2) startFall();", "    else if (ball.p.y < level.minTop - 2.2 && !ball.circ) startFall();   // not while carried: a coaster's drop goes deeper than any rail")
 open(p, 'w').write(s)
 print('obstacles ok')
+# THE CIRCUS PUZZLES (cq13): a circus kind of puzzle square is handed to its cz twin by each of the space puzzles' hooks;
+# the pieces the circus's squares push go through czPush; their try-outs open in the circus.
+for f, args in [('spBuild', 'P'), ('spBuilt', 'P'), ('spPad', 'P, c, r, cell'), ('spStep', 'P'), ('spReset', 'P, quiet'), ('spArrive', 'P'), ('spAnimate', 'P, dt'), ('spState', 'P')]:
+    tw = {'spArrive': 'czLanded'}.get(f, 'cz' + f[2:])
+    test = "CZ_KINDS.has(P.pc.sp.kind)" if f == 'spBuild' else "P.spz.cz"
+    rep("function %s(%s) {\n" % (f, args), "function %s(%s) {\n  if (%s) return %s(%s);   // a circus puzzle (cq13)\n" % (f, args, test, tw, args))
+rep("  if (W.sat) { satPush(W, dx, dz); return; }        // a satellite glides on\n", "  if (W.sat) { satPush(W, dx, dz); return; }        // a satellite glides on\n  if (W.cz) { czPush(W, dx, dz); return; }          // a circus piece: its own rules\n")
+rep("      if (W.sat) satArrive(W);\n", "      if (W.sat) satArrive(W);\n      if (W.cz) czArrive(W);\n")
+rep("setWorld(TRY_CIRCUS[v] ? 'circus-tintoy'", "setWorld(TRY_CIRCUS[v] || CZ_TRY.includes(v) ? 'circus-tintoy'")
+open(p, 'w').write(s)
+print('puzzles ok')

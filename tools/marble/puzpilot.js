@@ -105,10 +105,48 @@ window.__pp = (() => {
     }
     return null;
   }
+  // The circus's push puzzles (the clown car, the pyramid, the scales): the fewest pushes, by the same search as
+  // tools/marble/puz/circpush.js, from the pieces where they are now. [piece's cell, direction, the cell behind] first.
+  function czPlan(q, g, marble, exitOnly) {
+    const cols = q.cols, rows = q.rows, fixed = new Set(q.fixed.map(([c, r]) => r * cols + c)), car = q.car ? { i: q.car.r * cols + q.car.c, door: q.car.door } : null;
+    const D = { n: [0, 1], s: [0, -1], e: [1, 0], w: [-1, 0] }, OPP = { n: 's', s: 'n', e: 'w', w: 'e' };
+    const live = q.pieces.map((p, k) => ({ k, v: p.v, i: p.gone ? -1 : p.r * cols + p.c }));
+    const spots = q.spots ? q.spots.map(([c, r]) => r * cols + c) : [], panL = new Set((q.panL || []).map(([c, r]) => r * cols + c)), panR = new Set((q.panR || []).map(([c, r]) => r * cols + c));
+    const step = (i, d) => { const c = i % cols, r = (i / cols) | 0, [dc, dr] = D[d], nc = c + dc, nr = r + dr; return nc < 0 || nc >= cols || nr < 0 || nr >= rows || g.wall(c, r, d) ? -1 : nr * cols + nc; };
+    const reach = (occ, from) => { const seen = new Set([from]), Q = [from]; while (Q.length) { const i = Q.pop(); for (const d in D) { const j = step(i, d); if (j < 0 || seen.has(j) || occ.has(j) || fixed.has(j)) continue; seen.add(j); Q.push(j); } } return seen; };
+    const exitCell = (rows - 1) * cols + q.exit;
+    const goal = (P, reg) => {
+      if (!reg.has(exitCell)) return false;
+      if (exitOnly) return true;                          // solved already: only the way out to clear
+      if (q.kind === 'clowncar') return P.every((i) => i < 0);
+      if (q.kind === 'pyramid') return spots.every((s) => P.includes(s));
+      let L = q.offL, R = q.offR, n = 0; P.forEach((i, k) => { if (panL.has(i)) { L += live[k].v; n++; } if (panR.has(i)) { R += live[k].v; n++; } }); return n > 0 && L === R;
+    };
+    const canon = (P) => { const out = P.slice(), byV = {}; live.forEach((p, k) => (byV[p.v] = byV[p.v] || []).push(k)); for (const ks of Object.values(byV)) { const s2 = ks.map((k) => out[k]).sort((a, b) => a - b); ks.forEach((k, j) => { out[k] = s2[j]; }); } return out; };
+    const K = (P, reg) => P.join(',') + '|' + Math.min(...reg);
+    const P0 = canon(live.map((p) => p.i)), r0 = reach(new Set(P0.filter((i) => i >= 0)), marble), seen = new Map([[K(P0, r0), null]]), Q = [[P0, r0]];
+    for (let h = 0; h < Q.length && h < 300000; h++) {
+      const [P, reg] = Q[h];
+      if (goal(P, reg)) { let k = K(P, reg), st = null; while (seen.get(k)) { st = seen.get(k); k = st.from; } return st ? st.push : 'done'; }
+      const occ = new Set(P.filter((i) => i >= 0));
+      P.forEach((i, k) => {
+        if (i < 0) return;
+        for (const d in D) {
+          const b = step(i, OPP[d]); if (b < 0 || !reg.has(b)) continue;
+          let t = step(i, d); if (t < 0 || occ.has(t)) continue;
+          if (car && t === car.i) { if (car.door !== OPP[d]) continue; t = -1; } else if (fixed.has(t)) continue;
+          const P2 = canon(P.map((x, j) => (j === k ? t : x))), reg2 = reach(new Set(P2.filter((x) => x >= 0)), i), kk = K(P2, reg2);
+          if (seen.has(kk)) continue;
+          seen.set(kk, { from: K(P, reg), push: [i % cols, (i / cols) | 0, d, b % cols, (b / cols) | 0] }); Q.push([P2, reg2]);
+        }
+      });
+    }
+    return null;
+  }
   // One tick inside a square: the stick, or { fail } (a careless run that has given up).
   function inner(q, g, s, st, at, outZ, dt, opts, R, rnd) {
     const out = (v = 3) => {                           // to the way out, then through it
-      if (at[0] === q.exit && at[1] === q.rows - 1) { const [ix, iz] = steer(s, g.X(q.exit), outZ - 2, v, true); return { ix, iz }; }
+      if ((at[0] === q.exit && at[1] === q.rows - 1) || at[1] >= q.rows) { const [ix, iz] = steer(s, g.X(q.exit), outZ - 2, v, true); return { ix, iz }; }   // (or through it already)
       const w = toward(q, g, s, [q.exit, q.rows - 1], st.block || (() => false), v); return w ? { ix: w.ix, iz: w.iz } : { ix: 0, iz: 0 };
     };
     if (q.kind === 'stars') {
@@ -224,6 +262,58 @@ window.__pp = (() => {
       }
       const [ix, iz] = steer(s, g.X(c), g.Z(r), 3.2, true); return { ix, iz };   // and roll into it
     }
+    if (q.kind === 'clowncar' || q.kind === 'pyramid' || q.kind === 'scales') {
+      const fixedAt = (c, r) => q.fixed.some(([a, b]) => a === c && b === r), occ = (c, r) => q.pieces.some((u) => !u.gone && u.c === c && u.r === r) || fixedAt(c, r);
+      st.block = occ;
+      const clear = q.done && (at[1] >= q.rows || bfs(q, g, at, [q.exit, q.rows - 1], occ));
+      if (clear) return out();
+      const moving = q.pieces.find((u) => u.moving);
+      if (moving || st.brake > 0) {                     // a push under way: ease off, back into the cell behind
+        st.brake = moving ? 0.3 : st.brake - dt;
+        const [ix, iz] = steer(s, st.bx !== undefined ? g.X(st.bx) : s.ball[0], st.bz !== undefined ? g.Z(st.bz) : s.ball[2], 1.5); st.push = null; return { ix, iz };
+      }
+      if (!st.push) {
+        if (opts.careless) {                            // any push the marble can make, at random, twelve at most
+          st.n = (st.n || 0) + 1; if (st.n > 12) return { fail: true };
+          const opts2 = [];
+          for (const u of q.pieces) if (!u.gone) for (const [d, dc, dr] of DIRS) { const bc = u.c - dc, br = u.r - dr, tc = u.c + dc, tr = u.r + dr;
+            if (bc >= 0 && bc < q.cols && br >= 0 && br < q.rows && !occ(bc, br) && !g.wall(u.c, u.r, { n: 's', s: 'n', e: 'w', w: 'e' }[d]) && tc >= 0 && tc < q.cols && tr >= 0 && tr < q.rows && !g.wall(u.c, u.r, d)
+                && (!occ(tc, tr) || (q.car && q.car.c === tc && q.car.r === tr)) && bfs(q, g, at, [bc, br], occ)) opts2.push([u.c, u.r, d, bc, br]); }
+          st.push = opts2[Math.floor(rnd() * opts2.length)];
+        } else { st.push = czPlan(q, g, at[1] * q.cols + at[0], q.done); if (st.push && st.push !== 'done') R.note += ' ' + st.push[0] + ',' + st.push[1] + st.push[2]; }
+        if (!st.push || st.push === 'done') { st.push = null; return { ix: 0, iz: 0 }; }
+        st.bx = st.push[3]; st.bz = st.push[4]; st.ram = false;
+      }
+      const [c, r, d, bc, br] = st.push;
+      if (!st.ram) {                                    // to the cell behind it, and stop there
+        if (at[0] !== bc || at[1] !== br) { const w = toward(q, g, s, [bc, br], occ, 2.6); return w ? { ix: w.ix, iz: w.iz } : { ix: 0, iz: 0 }; }
+        const [ix, iz, dd] = steer(s, g.X(bc), g.Z(br), 1.5);
+        if (dd < 0.25 && Math.hypot(s.v[0], s.v[2]) < 0.4) st.ram = true;
+        return { ix, iz };
+      }
+      const [ix, iz] = steer(s, g.X(c), g.Z(r), 3.2, true); return { ix, iz };   // and roll into it
+    }
+    if (q.kind === 'shells') {                           // wait below the pads; when they light, the pad of the cup with the star
+      const padAt = (c, r) => q.pads.some(([a, b]) => a === c && b === r), tableAt = (c, r) => q.slots.some(([a, b]) => a === c && b === r);
+      st.block = (c, r) => padAt(c, r) || tableAt(c, r);
+      if (q.done) return out();
+      const wr = q.pads[0][1] - 1, fresh = q.phase === 'pick' && st.last !== 'pick';
+      st.last = q.phase;
+      if (q.phase !== 'pick') { const w = toward(q, g, s, [q.entry, wr], st.block, 2.4); return w ? { ix: w.ix, iz: w.iz } : { ix: 0, iz: 0 }; }
+      if (fresh) {                                      // (careless: any cup, four goes at most)
+        if (opts.careless) { st.tries = (st.tries || 0) + 1; if (st.tries > 4) return { fail: true }; st.slot = Math.floor(rnd() * q.slots.length); } else st.slot = q.prizeSlot;
+      }
+      const [pc, pr] = q.pads.find(([c]) => c === q.slots[st.slot][0]);
+      if (at[1] < pr && at[0] !== pc) { const w = toward(q, g, s, [pc, wr], st.block, 2.6); return w ? { ix: w.ix, iz: w.iz } : { ix: 0, iz: 0 }; }
+      const [ix, iz] = steer(s, g.X(pc), g.Z(pr), 2.2); return { ix, iz };   // up into its bay, onto the middle of it
+    }
+    if (q.kind === 'knives') {                           // wait on the way in while he throws; then across on the boards he missed
+      const hit = (c, r) => q.targets.some(([a, b]) => a === c && b === r);
+      if (q.phase !== 'cross' && !q.done) { const [ix, iz] = steer(s, g.X(q.entry), g.Z(0), 2); return { ix, iz }; }
+      if (opts.careless) { st.falls0 = st.falls0 === undefined ? H.state().falls : st.falls0; st.block = () => false; }
+      else st.block = hit;
+      return out(2.6);
+    }
     return { ix: 0, iz: 0 };
   }
   // ---- the pilot ----
@@ -299,6 +389,6 @@ window.__pp = (() => {
     requestAnimationFrame(tick);
     return 'showing';
   }
-  return { run, show, control };
+  return { run, show, control, pilot };
 })();
 'puzzle pilot ready';

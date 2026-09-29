@@ -6110,6 +6110,7 @@ function crateTouch(W, n, rel) {
 }
 function tryPush(W, dx, dz) {
   if (W.sat) { satPush(W, dx, dz); return; }        // a satellite glides on
+  if (W.cz) { czPush(W, dx, dz); return; }          // a circus piece: its own rules
   const P = W.P, dc = dx, dr = -dz, tc = W.c + dc, tr = W.r + dr;
   const dir = dc > 0 ? 'e' : dc < 0 ? 'w' : dr > 0 ? 'n' : 's';
   const ok = tc >= 0 && tc < P.cols && tr >= 0 && tr < P.rows && plazaEdge(P, W.c, W.r, dir) === null &&
@@ -6178,6 +6179,7 @@ function plazaMove() {
     if (W.t >= 1) {
       W.moving = false; W.c = W.tc; W.r = W.tr;
       if (W.sat) satArrive(W);
+      if (W.cz) czArrive(W);
       if (W.into) {                                     // it drops in: the gap is road from now
         const G = W.into; W.into = null; W.sunk = G; W.moving = true; W.drop = 0;
         G.col.pit.filled = true; G.col.mesh.visible = true; G.rim.visible = false;
@@ -15617,6 +15619,7 @@ function spIslands(P) {
 // ---- BUILDING ----
 // Before the gates and crates are built: each kind's own pieces.
 function spBuild(P) {
+  if (CZ_KINDS.has(P.pc.sp.kind)) return czBuild(P);   // a circus puzzle (cq13)
   const kind = P.pc.sp.kind, G = P.grid, CK = chromeKit(), top = P.y + 0.016;
   const S = P.spz = { kind, done: false }; P.sp = P.pc.sp;   // (P.sp: what the square's hooks look for)
   const each = (key, fn) => { for (let r = 0; r < P.rows; r++) for (let c = 0; c < P.cols; c++) if (key in G.cells[r][c]) fn(G.cells[r][c], c, r, P.X(c), P.Z(r)); };
@@ -15763,6 +15766,7 @@ function spBuild(P) {
 const keep2 = (m) => { m.userData.keep = true; return m; };
 // After everything: the doors, and the satellites (built as crates, then dressed).
 function spBuilt(P) {
+  if (P.spz.cz) return czBuilt(P);   // a circus puzzle (cq13)
   const S = P.spz, CK = chromeKit(), K = pbKit('chrome');
   for (const g of P.gates) {
     if (g.kind !== 'space') continue;
@@ -15811,6 +15815,7 @@ function spBuilt(P) {
 
 // ---- PLAYING ----
 function spPad(P, c, r, cell) {
+  if (P.spz.cz) return czPad(P, c, r, cell);   // a circus puzzle (cq13)
   const S = P.spz;
   if (S.kind === 'stars' && 'star' in cell) {
     const s = S.at[r * P.cols + c];
@@ -15882,6 +15887,7 @@ function spLaunch(P) {
 }
 // Every physics step in play: the doors, and the tank's leak.
 function spStep(P) {
+  if (P.spz.cz) return czStep(P);   // a circus puzzle (cq13)
   const S = P.spz;
   if (S.kind === 'fuel') {
     S.tank = Math.max(0, S.tank - S.leak * STEP); S.buzz = Math.max(0, S.buzz - STEP * 1.5);
@@ -15913,6 +15919,7 @@ function satArrive(W) {
 }
 // The square as it was (the pad by the road in, or a restart). Says whether anything moved.
 function spReset(P, quiet) {
+  if (P.spz.cz) return czReset(P, quiet);   // a circus puzzle (cq13)
   const S = P.spz; let moved = false;
   if (S.kind === 'stars') { for (const s of S.stars) { if (s.lit !== s.lit0) moved = true; s.lit = s.lit0; if (quiet) s.k = s.lit ? 1 : 0; else s.flash = 1; } S.done = false; }
   if (S.kind === 'fuel') spArrive(P);
@@ -15923,12 +15930,14 @@ function spReset(P, quiet) {
 }
 // Back at the ring before the square after a fall: the tank is empty and every cell full again.
 function spArrive(P) {
+  if (P.spz.cz) return czLanded(P);   // a circus puzzle (cq13)
   const S = P.spz;
   if (S.kind === 'fuel') { S.tank = 0; for (const q of S.cells) q.wait = 0; }
 }
 
 // ---- EVERY FRAME ----
 function spAnimate(P, dt) {
+  if (P.spz.cz) return czAnimate(P, dt);   // a circus puzzle (cq13)
   const S = P.spz, e = (rate) => (REDUCED ? 1 : 1 - Math.exp(-rate * dt));
   for (const g of P.gates) {                              // the blast doors slide apart as the gate opens
     if (!g.door) continue;
@@ -16015,6 +16024,7 @@ function spAnimate(P, dt) {
 const _spc = new Color();
 // For the pilot and the tests: what a square is doing.
 function spState(P) {
+  if (P.spz.cz) return czState(P);   // a circus puzzle (cq13)
   const S = P.spz, o = { kind: S.kind, x0: P.x0, z0: P.z0, y: P.y, cols: P.cols, rows: P.rows, map: P.pc.map, entry: P.pc.entry, exit: P.pc.exit, done: !!(S.done || (P.tune && P.tune.done)) };
   if (S.kind === 'stars') o.stars = S.stars.map((s) => ({ c: s.c, r: s.r, id: s.id, lit: s.lit, nb: s.nb.map((t) => t.id) }));
   if (S.kind === 'fuel') Object.assign(o, { tank: +S.tank.toFixed(3), line: S.line, leak: S.leak, gap: S.gap, launched: S.launched, pad: [S.pad.c, S.pad.r],
@@ -20392,7 +20402,7 @@ function circusPieces(look) {
       if (m.material === P.mats.base) tkSet(m, 'material', PK.dark);
       else if (m.material === P.mats.wall && m.parent !== levelGroup) tkSet(m, 'material', PK.gold);
     });
-    for (const W of P.crates) if (!W.sat) tkSet(W.mesh, 'material', PK.trunk);
+    for (const W of P.crates) if (!W.sat && !W.cz) tkSet(W.mesh, 'material', PK.trunk);   // (the circus puzzles' pieces are dressed already)
   }
   if (bulbs.length) {                                       // the pieces' own bulbs, softly lit
     const bm = new InstancedMesh(new IcosahedronGeometry(0.09, 0), new MeshBasicMaterial({ color: 0xFFE8A0, toneMapped: false }), bulbs.length);
@@ -20816,7 +20826,7 @@ Object.assign(TRY_NEWS, {
   trapeze: 'The trapeze seat waits at each edge. Roll on at one end, off at the other',
   wire: 'The high wire sways and does not carry you. Stay on it',
   teeter: 'Sit on the yellow spot: when the strongman lands, you are thrown up to the rail above',
-  wod: 'Roll into a cage as it comes to the bottom; it lifts you up and over',
+  wod: 'Wait on the yellow spot at the end of the rail: a cage scoops you up and carries you over',
   ferris: 'Board a car going down at the edge; step off as it comes level with the far side',
   circus2: 'The circus rides: the trapeze, the high wire, the teeterboard, the Wheel of Death and the Ferris wheel',
 });
@@ -20999,24 +21009,37 @@ function buildWod(pc) {
     B.geo(new TorusGeometry(WOD_CUP, 0.06, 6, 24), placeAt(0, e * pc.arm, 0, Math.PI / 2, 0, 0), 0xF2C230);
   }
   Wd.rot.add(new Mesh(B.done(), K.metal));
+  // Where you wait (owner, 2026-09-29: "the marble is not getting caught in the cage"): a yellow spot on the rail's last
+  // metre and a half, flashing as a cage comes down. A cage on its way down past it scoops up whatever sits there.
+  Wd.spotZ = pc.z + 1.1 + 0.75;
+  Wd.spot = new Mesh(new CircleGeometry(0.62, 32), new MeshBasicMaterial({ color: PAD_YELLOW, toneMapped: false, transparent: true, opacity: 0.85 }));
+  Wd.spot.rotation.x = -Math.PI / 2; Wd.spot.position.set(pc.x, pc.y + 0.02, Wd.spotZ); levelGroup.add(Wd.spot);
   circ.wods.push(Wd);
 }
 // A cage's centre, for the cage at the arm's end k (0, 1): at the bottom when the angle has it straight down.
 function wodCage(Wd, k, t) { const a = wodAngle(Wd, t) + k * Math.PI; return new Vector3(Wd.pc.x, Wd.ay - Wd.pc.arm * Math.cos(a), Wd.pc.z - Wd.pc.arm * Math.sin(a)); }
+// The angle of cage k from straight down, from -PI to PI (below zero: still coming down toward the rail).
+const wodDown = (Wd, k, t) => { const a = ((wodAngle(Wd, t) + k * Math.PI) % TAU + TAU) % TAU; return a > Math.PI ? a - TAU : a; };
 function wodStep() {
   for (const Wd of circ.wods) {
     if (ball.circ) continue;
-    if (Math.abs(ball.p.x - Wd.pc.x) > 1 || Math.abs(ball.p.z - Wd.pc.z) > 1.2 || ball.p.y > Wd.pc.y + 1.2) continue;
+    if (Math.abs(ball.p.x - Wd.pc.x) > 1 || ball.p.y > Wd.pc.y + 1.2) continue;
+    const onSpot = ball.p.z < Wd.spotZ + 0.8 && ball.p.z > Wd.spotZ - 1.0, inCage = Math.abs(ball.p.z - Wd.pc.z) < 1.2;
+    if (!onSpot && !inCage) continue;
     for (let k = 0; k < 2; k++) {
-      const C = wodCage(Wd, k, simT);
-      if (C.distanceTo(ball.p) < WOD_CUP * 0.9 && C.y < Wd.pc.y + WOD_CUP) { ball.circ = { wod: Wd, k, t: 0 }; sound('thunk'); return; }
+      const C = wodCage(Wd, k, simT), a = wodDown(Wd, k, simT);
+      if ((onSpot && a > -0.3 && a < 0.12) || (C.distanceTo(ball.p) < WOD_CUP * 0.9 && C.y < Wd.pc.y + WOD_CUP)) {
+        ball.circ = { wod: Wd, k, t: 0, from: ball.p.clone() }; ball.v.set(0, 0, 0); sound('thunk'); return;
+      }
     }
   }
 }
 // Carried in the cage, up and over; let go at the top, rolling on onto the rail above.
 function wodHeld(dt) {
   const H = ball.circ, Wd = H.wod, a = ((wodAngle(Wd, simT) + H.k * Math.PI) % TAU + TAU) % TAU;
-  const C = wodCage(Wd, H.k, simT); ball.p.copy(C); ball.v.set(0, 0, 0);
+  const C = wodCage(Wd, H.k, simT); H.t += dt;
+  if (H.from && H.t < 0.3) ball.p.lerpVectors(H.from, C, ease(H.t / 0.3)); else ball.p.copy(C);   // drawn into the cage, not snapped
+  ball.v.set(0, 0, 0);
   if (a > Math.PI - 0.05 && a < Math.PI + 1) { ball.circ = null; ball.p.set(Wd.pc.x, Wd.pc.y + Wd.pc.up + R + 0.05, Wd.pc.z - 1.2); ball.v.set(0, 0, -2.4); sound('pop'); }
 }
 
@@ -21073,7 +21096,11 @@ function circMove(dt) {
   for (const T of circ.teeters) teeterPlace(T, dt);
   if (circ.teeters.length) animateTeeter();
   for (const Fw of circ.ferrises) ferrisPlace(Fw, simT);
-  for (const Wd of circ.wods) Wd.rot.rotation.x = -wodAngle(Wd, simT);
+  for (const Wd of circ.wods) {
+    Wd.rot.rotation.x = -wodAngle(Wd, simT);
+    const soon = Math.min(...[0, 1].map((k) => { const a = wodDown(Wd, k, simT); return a < -0.3 ? -0.3 - a : 9; }));   // how far the next cage has to come
+    Wd.spot.material.opacity = !REDUCED && soon < 0.9 ? 0.5 + 0.45 * Math.abs(Math.sin(simT * 10)) : 0.85;
+  }
 }
 function circStep2() { if (circ.wods.length) wodStep(); }
 function circState2() {
@@ -21369,6 +21396,1981 @@ function circState3() {
     horses: circ.horses.length,
   };
 }
+/* THE CIRCUS PUZZLES (owner, 2026-09-29, the circus's third stage: seven picked for its puzzle squares, "Getting out of a
+   house of mirrors" (the owner's own), balance scales, the shell game, the knife thrower, ticket turnstiles, the clown
+   car and the acrobat pyramid). Each is a kind of puzzle square, laid and played as the space puzzles are (the same
+   hooks, P.sp and P.spz: spBuild and the rest hand a circus kind to its cz twin), dressed as the tin circus's own. The
+   way out is a stage curtain that parts once the square is solved; the pad on the bay beside the road in puts the
+   square back as it was. Every layout was found by a search in tools/marble/puz/ (circpush.js and the rest), which
+   also checks that the careless way does not work.
+     clowncar  push the clowns into the little car. They get in only through its back door, where the white arrows
+               point in; every other side of the car is a wall. All of them in, and it honks
+     pyramid   push the acrobats onto the gold stars. On every star, they climb into a pyramid
+     scales    push the weights onto the scale's two pans until it hangs level: the same kilos each side (a pan may
+               hold an anvil already, its kilos on the board over it) */
+const CZG = { spgate: 1 };                                 // the way out (a space gate underneath, dressed as a curtain)
+const CZ_CAR_L = { '=': CZG, k: { weight: 1, clown: 1 }, x: { drum: 1 }, N: { car: 'n' }, S: { car: 's' }, E: { car: 'e' }, W: { car: 'w' } };
+const CZ_PYR_L = { '=': CZG, a: { weight: 1, acro: 1 }, A: { weight: 1, acro: 1, spot: 1 }, o: { spot: 1 }, x: { drum: 1 } };
+const CZ_SCL_L = { '=': CZG, l: { pan: 'l' }, r: { pan: 'r' }, '^': { post: 1 }, x: { drum: 1 } };
+for (let k = 1; k <= 9; k++) CZ_SCL_L[k] = { weight: 1, kg: k };
+const CZ_KINDS = new Set(['clowncar', 'pyramid', 'scales']);
+const CZ_PUSH = new Set(['clowncar', 'pyramid', 'scales']);
+const CZ_OPP = { n: 's', s: 'n', e: 'w', w: 'e' }, CZ_DIR = { n: [0, 1], s: [0, -1], e: [1, 0], w: [-1, 0] };
+const CZ_TRY = [];                                          // the circus puzzles' try-outs (filled with the ladders)
+const CZ_PARTS = {};                                        // the kinds the later files add: { build, pad, step, reset, landed, animate, state }
+
+// ---- THE KIT: the tin circus's materials, and the shapes the puzzles share ----
+let czKitMemo = null;
+function czKit() {
+  if (czKitMemo) return czKitMemo;
+  const K = cqKit('tintoy'), PK = cqPieceKit('tintoy');
+  const std = (o) => keepMat(hazed(new MeshStandardMaterial({ roughness: 0.35, metalness: 0.5, envMap: K.env, envMapIntensity: 0.9, ...o })));
+  const spotT = canvasTex(256, 256, (g) => {                // an acrobat's star: a gold star in a cream disc, a red ring round it
+    g.clearRect(0, 0, 256, 256);
+    g.fillStyle = '#E8303A'; pbCircle(g, 128, 128, 124); g.fill();
+    g.fillStyle = '#FFF1D2'; pbCircle(g, 128, 128, 104); g.fill();
+    g.fillStyle = '#F2C230'; cqStar(g, 128, 134, 88, 36); g.fill();
+    g.strokeStyle = INK; g.lineWidth = 5; cqStar(g, 128, 134, 88, 36); g.stroke();
+  });
+  const arrowT = canvasTex(128, 128, (g) => {               // the car's back door: white chevrons, inked, pointing in
+    g.clearRect(0, 0, 128, 128);
+    for (let k = 0; k < 2; k++) {
+      const y = 84 - k * 38; g.beginPath(); g.moveTo(20, y + 14); g.lineTo(64, y - 14); g.lineTo(108, y + 14); g.lineTo(108, y + 30); g.lineTo(64, y + 2); g.lineTo(20, y + 30); g.closePath();
+      g.fillStyle = '#FFFFFF'; g.fill(); g.strokeStyle = INK; g.lineWidth = 5; g.stroke();
+    }
+  });
+  const panT = canvasTex(512, 256, (g) => {                 // a pan of the scale: brass, a raised rim, a cross-hatch where the weights stand
+    g.fillStyle = '#C8902A'; g.fillRect(0, 0, 512, 256);
+    g.fillStyle = pbRad(g, 256, 128, 10, 300, [[0, '#F8D870'], [1, '#B07A1E']]); g.fillRect(8, 8, 496, 240);
+    g.strokeStyle = 'rgba(90,50,10,0.35)'; g.lineWidth = 3; for (let x = 24; x < 512; x += 24) { g.beginPath(); g.moveTo(x, 12); g.lineTo(x - 40, 244); g.stroke(); }
+    g.strokeStyle = INK; g.lineWidth = 8; g.strokeRect(6, 6, 500, 244); g.beginPath(); g.moveTo(256, 10); g.lineTo(256, 246); g.stroke();
+  });
+  return (czKitMemo = { K, PK,
+    velvet: std({ color: 0xD8283A, map: PK.velvetT, side: DoubleSide, roughness: 0.85, metalness: 0.05 }),
+    iron: std({ color: 0x2E2A36, metalness: 0.75, roughness: 0.3 }),
+    spot: keepMat(new MeshBasicMaterial({ map: spotT, transparent: true, depthWrite: false })),
+    spotGlow: keepMat(new MeshBasicMaterial({ map: pbGlow(), color: 0xFFD860, transparent: true, opacity: 0, blending: AdditiveBlending, depthWrite: false, toneMapped: false })),
+    arrow: keepMat(new MeshBasicMaterial({ map: arrowT, transparent: true, depthWrite: false })),
+    pan: std({ map: panT, metalness: 0.35, roughness: 0.35, emissive: 0xFFFFFF, emissiveMap: panT, emissiveIntensity: 0.3 }),
+  });
+}
+const czNums = {};
+function czNumTex(n) {                                     // a number, inked on a cream disc with a gold ring (the weights, the scale's boards)
+  return czNums[n] || (czNums[n] = canvasTex(128, 128, (g) => {
+    g.clearRect(0, 0, 128, 128);
+    g.fillStyle = '#F2C230'; pbCircle(g, 64, 64, 62); g.fill(); g.fillStyle = '#FFF1D2'; pbCircle(g, 64, 64, 52); g.fill();
+    g.fillStyle = INK; g.font = '800 ' + (String(n).length > 1 ? 58 : 72) + 'px Inter, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(String(n), 64, 68);
+  }));
+}
+const czDrums = {};
+function czDrumGeo(k, h, rad) {                            // a circus pedestal: painted panels, gold bands top and foot
+  const key = k + ':' + h + ':' + rad; if (czDrums[key]) return czDrums[key];
+  const B = pbBuild(), [a, b] = [[0xE8303A, 0xFFF1D2], [0x2A4AE8, 0xF2C230], [0x2AA89A, 0xFFF1D2], [0xE85A4A, 0x2A5AC8]][k % 4];
+  for (let i = 0; i < 12; i++) B.geo(new CylinderGeometry(rad, rad, h, 2, 1, true, i * TAU / 12, TAU / 12), placeAt(0, h / 2, 0), i % 2 ? a : b);
+  for (const y of [0.05, h - 0.05]) B.geo(new CylinderGeometry(rad + 0.04, rad + 0.04, 0.1, 24), placeAt(0, y, 0), 0xF2C230);
+  B.geo(new CylinderGeometry(rad, rad, 0.02, 24), placeAt(0, h, 0), a);
+  return (czDrums[key] = B.done());
+}
+// A fixed thing on a cell: stops the marble (and whatever is pushed) like a wall.
+function czBlock(P, x, y, z, hx, hy, hz, tag) {
+  const box = new Mesh(new BoxGeometry(0.1, 0.1, 0.1), HIDDEN); box.visible = false; levelGroup.add(box);
+  const pos = new Vector3(x, y, z), q = new Quaternion();
+  colliders.push({ mesh: box, pos, prev: pos.clone(), quat: q, inv: q.clone(), half: new Vector3(hx, hy, hz), delta: new Vector3(), ferry: null, holo: null, pad: null, obstacle: tag });
+}
+// A figure from the tin atlas, standing on a pushed piece and leaning back a little toward the camera over the square.
+function czFigure(cell, h) {
+  const m = new Mesh(cqCellGeo(cell, h), czKit().K.figs); m.rotation.x = -0.9; m.castShadow = true; levelGroup.add(m); return m;
+}
+
+// ---- BUILDING ----
+function czBuild(P) {
+  const kind = P.pc.sp.kind, G = P.grid, Z = czKit(), top = P.y + 0.016;
+  const S = P.spz = { kind, done: false, cz: true, push: CZ_PUSH.has(kind), fixed: [], cheer: 0 }; P.sp = P.pc.sp;
+  const each = (key, fn) => { for (let r = 0; r < P.rows; r++) for (let c = 0; c < P.cols; c++) if (key in G.cells[r][c]) fn(G.cells[r][c], c, r, P.X(c), P.Z(r)); };
+  each('drum', (cell, c, r, x, z) => {                     // a tall drum: nothing gets past it
+    const m = new Mesh(czDrumGeo(c + r, 1.3, 0.82), Z.K.paint); m.position.set(x, P.y, z); m.castShadow = true; levelGroup.add(m);
+    czBlock(P, x, P.y + 0.65, z, 0.84, 0.65, 0.84, 'czfix'); S.fixed.push([c, r]);
+  });
+  if (kind === 'clowncar') {
+    each('car', (cell, c, r, x, z) => {
+      const grp = new Group(); grp.position.set(x, P.y, z); levelGroup.add(grp);
+      const deck = new Mesh(czDrumGeo(3, 0.26, 1.0), Z.K.paint); grp.add(deck);
+      const car = new Mesh(cqClownCarGeo(0), Z.K.paint); car.scale.setScalar(1.15); car.position.y = 0.26 + 0.46 * 1.15; car.castShadow = true;
+      car.rotation.y = { n: -Math.PI / 2, s: Math.PI / 2, e: Math.PI, w: 0 }[cell.car]; grp.add(car);   // its back (the door) toward the door's side
+      const [dc, dr] = CZ_DIR[cell.car], arrow = new Mesh(new PlaneGeometry(1.0, 1.0), Z.arrow);   // on the deck behind it, pointing in
+      arrow.rotation.set(-Math.PI / 2, 0, Math.atan2(-dc, -dr)); arrow.position.set(dc * 0.62, 0.275, -dr * 0.62); grp.add(arrow);
+      czBlock(P, x, P.y + 0.7, z, 0.98, 0.7, 0.98, 'czfix');
+      S.car = { c, r, door: cell.car, grp, car, bounce: 0, y0: car.position.y }; S.fixed.push([c, r]);
+    });
+  }
+  if (kind === 'pyramid') {
+    S.spots = [];
+    each('spot', (cell, c, r, x, z) => {
+      const m = spDisc(x, top, z, 0.98, Z.spot), glow = spDisc(x, top + 0.004, z, 1.1, Z.spotGlow.clone());
+      levelGroup.add(m, glow); S.spots.push({ c, r, x, z, glow, k: 0 });
+    });
+  }
+  if (kind === 'scales') {
+    S.panL = []; S.panR = []; const an = P.pc.sp.anvil || '';
+    S.offL = an[0] === 'l' ? +an.slice(1) : 0; S.offR = an[0] === 'r' ? +an.slice(1) : 0; S.L = S.offL; S.R = S.offR; S.n = 0;
+    each('pan', (cell, c, r) => (cell.pan === 'l' ? S.panL : S.panR).push([c, r]));
+    each('post', (cell, c, r, x, z) => {                  // the post: a striped column, the beam on top, a board at each end with the pan's kilos
+      const col = new Mesh(czDrumGeo(1, 2.6, 0.34), Z.K.paint); col.position.set(x, P.y, z); col.castShadow = true;
+      const foot = new Mesh(czDrumGeo(0, 0.3, 0.8), Z.K.paint); foot.position.set(x, P.y, z);
+      levelGroup.add(col, foot);
+      czBlock(P, x, P.y + 0.65, z, 0.84, 0.65, 0.84, 'czfix'); S.fixed.push([c, r]);
+      const beam = new Group(); beam.position.set(x, P.y + 2.72, z); levelGroup.add(beam);
+      const B = pbBuild(), arm = 1.5 * CELL - 0.2;
+      B.geo(new BoxGeometry(2 * arm, 0.14, 0.14), placeAt(0, 0, 0), 0xF2C230);
+      B.geo(new SphereGeometry(0.2, 12, 8), placeAt(0, 0, 0), 0xE8303A);
+      B.geo(new ConeGeometry(0.16, 0.5, 4), placeAt(0, 0.34, 0), 0xF2C230);   // the pointer: straight up when it is level
+      for (const s of [-1, 1]) { B.geo(new SphereGeometry(0.12, 10, 8), placeAt(s * arm, 0, 0), 0xF2C230); B.geo(new CylinderGeometry(0.03, 0.03, 0.5, 6), placeAt(s * arm, -0.25, 0), 0xF2C230); }
+      beam.add(new Mesh(B.done(), Z.K.metal));
+      S.boards = [-1, 1].map((s) => {                     // hanging from each end, kept upright: the pan's kilos
+        const hang = new Group(); hang.position.set(s * arm, -0.5, 0); beam.add(hang);
+        const mat = new MeshBasicMaterial({ map: czNumTex(0), transparent: true, depthWrite: false }), board = new Mesh(new CircleGeometry(0.56, 32), mat);
+        board.position.y = -0.42; board.rotation.x = -0.5; hang.add(board);
+        const halo = new Mesh(new CircleGeometry(0.72, 32), keepMat(new MeshBasicMaterial({ map: pbGlow(), color: 0xFFD860, transparent: true, opacity: 0, blending: AdditiveBlending, depthWrite: false, toneMapped: false })));
+        halo.position.set(0, -0.42, -0.02); halo.rotation.x = -0.5; hang.add(halo);
+        const off = s < 0 ? S.offL : S.offR;
+        if (off) {                                        // an anvil on this end already, its kilos inked on its side
+          const A = pbBuild();
+          A.geo(new BoxGeometry(0.5, 0.14, 0.26), placeAt(0, 0.1, 0), 0x3A3440); A.geo(new BoxGeometry(0.22, 0.12, 0.2), placeAt(0, 0.23, 0), 0x3A3440);
+          A.geo(new BoxGeometry(0.62, 0.12, 0.3), placeAt(0.04, 0.34, 0), 0x3A3440); A.geo(new ConeGeometry(0.1, 0.24, 6), placeAt(0.44, 0.34, 0, 0, 0, -Math.PI / 2), 0x3A3440);
+          const anvil = new Mesh(A.done(), Z.K.metal); anvil.position.set(0, 0.16, -0.12); hang.add(anvil);   // on top of its board
+        }
+        return { hang, mat, halo, shown: -1 };
+      });
+      S.beam = { beam, tilt: 0 };
+    });
+    for (const L of [S.panL, S.panR]) {                   // the pans: a brass dish under both cells of each
+      const x = (P.X(L[0][0]) + P.X(L[L.length - 1][0])) / 2, z = P.Z(L[0][1]), w = L.length * CELL - 0.24;
+      const m = new Mesh(new BoxGeometry(w, 0.05, CELL - 0.24), Z.pan); m.position.set(x, P.y + 0.027, z); m.receiveShadow = true; levelGroup.add(m);
+    }
+  }
+  if (CZ_PARTS[kind]) CZ_PARTS[kind].build(P);
+}
+// After everything: the curtain on the way out, and the pieces to push dressed as the circus's own.
+function czBuilt(P) {
+  const S = P.spz, Z = czKit();
+  for (const g of P.gates) {
+    if (g.kind !== 'space') continue;
+    const grp = g.sign.parent, span = CELL - WALL_T, H = GATE_H + 0.1;
+    for (const m of [...grp.children]) if (m.material !== P.mats.wall) grp.remove(m);   // all but the posts
+    const leaves = [-1, 1].map((s) => {
+      const L = new Group(); grp.add(L);
+      const geo = new PlaneGeometry(span / 2, H, 10, 1), p = geo.attributes.position;
+      for (let i = 0; i < p.count; i++) p.setZ(i, 0.05 * Math.sin((p.getX(i) / (span / 2) + 0.5) * TAU * 2.5));   // folds
+      geo.computeVertexNormals(); geo.translate(-s * span / 4, H / 2, 0);   // hung from its outer edge
+      const cloth = new Mesh(geo, Z.velvet); cloth.castShadow = true; L.add(cloth); L.position.x = s * span / 2;
+      return { L, s };
+    });
+    const B = pbBuild();                                   // the pelmet: red, a gold band, scallops; bulbs along it
+    B.geo(new BoxGeometry(span + 0.36, 0.3, 0.2), placeAt(0, H + 0.12, 0), 0xE8303A);
+    B.geo(new BoxGeometry(span + 0.4, 0.07, 0.24), placeAt(0, H + 0.26, 0), 0xF2C230);
+    for (let k = 0; k < 6; k++) B.geo(new CylinderGeometry(0.13, 0.13, 0.2, 12, 1, false, 0, Math.PI), placeAt(-span / 2 + (k + 0.5) * span / 6, H - 0.03, 0, Math.PI / 2, 0, 0), 0xF2C230);
+    const pel = new Mesh(B.done(), Z.K.paint); pel.castShadow = true; grp.add(pel);
+    const lamps = [];
+    for (let k = 0; k < 5; k++) {
+      const m = new Mesh(new SphereGeometry(0.075, 10, 8), new MeshBasicMaterial({ color: 0x5A4A30, toneMapped: false }));
+      m.position.set((k - 2) * span / 5.5, H + 0.13, 0.12); grp.add(m); lamps.push(m);
+    }
+    g.door = { leaves, lamps, span, cz: true };
+  }
+  if (!S.push) return;
+  P.crates.forEach((W, i) => {
+    const cell = P.grid.cells[W.r0][W.c0];
+    W.cz = true; W.mesh.material = HIDDEN; W.mesh.castShadow = false;
+    if (cell.kg) {                                        // a strongman's weight: iron, its kilos on a disc on top
+      W.kg = cell.kg;
+      const body = new Mesh(new CylinderGeometry(0.56, 0.72, 0.86, 24), Z.iron); body.position.y = -CRATE_H / 2 + 0.43; body.castShadow = true;
+      const band = new Mesh(new CylinderGeometry(0.62, 0.66, 0.1, 24), Z.PK.gold); band.position.y = -CRATE_H / 2 + 0.66;
+      const face = new Mesh(new CircleGeometry(0.5, 32), keepMat(new MeshBasicMaterial({ map: czNumTex(cell.kg) }))); face.rotation.x = -Math.PI / 2; face.position.y = -CRATE_H / 2 + 0.87;
+      W.mesh.add(body, band, face);
+      return;
+    }
+    const body = new Mesh(czDrumGeo(cell.clown ? 0 : 1 + (i % 3), 0.7, 0.72), Z.K.paint); body.position.y = -CRATE_H / 2; body.castShadow = true; W.mesh.add(body);
+    W.figCell = cell.clown ? 1 : [4, 5, 2, 4][i % 4]; W.fig = czFigure(W.figCell, 2.3);
+    W.figK = 0; W.hop = -1;
+  });
+}
+
+// ---- PLAYING ----
+function czPad(P, c, r, cell) { const X = CZ_PARTS[P.spz.kind]; if (X) X.pad(P, c, r, cell); }
+// Pushed: a cell the way it is pushed, if that cell is free floor; into the clown car only through its door.
+function czPush(W, dx, dz) {
+  const P = W.P, dc = dx, dr = -dz, tc = W.c + dc, tr = W.r + dr, dir = dc > 0 ? 'e' : dc < 0 ? 'w' : dr > 0 ? 'n' : 's';
+  const knock = () => { if (simT - W.blockT > 0.5) { W.blockT = simT; sound('knock'); } };
+  if (tc < 0 || tc >= P.cols || tr < 0 || tr >= P.rows || plazaEdge(P, W.c, W.r, dir) !== null) return knock();
+  const cell = P.grid.cells[tr][tc];
+  if (P.crates.some((o) => o !== W && !o.inCar && ((o.c === tc && o.r === tr) || (o.moving && o.tc === tc && o.tr === tr)))) return knock();
+  if ('car' in cell) { if (CZ_OPP[cell.car] !== dir) return knock(); W.intoCar = true; }   // the door faces back the way the clown comes
+  else if (cell.void || cell.drum || cell.post) return knock();
+  W.moving = true; W.t = 0; W.fc = W.c; W.fr = W.r; W.tc = tc; W.tr = tr; W.into = null; W.slideT = undefined;
+  sound('scrape');
+}
+function czArrive(W) {
+  const P = W.P, S = P.spz;
+  if (W.intoCar) {                                        // in: the marble cannot touch it now; its figure hops in and is gone
+    W.intoCar = false; W.inCar = true; W.docked = true; W.hop = 0;
+    W.col.pos.y = P.y - 50; W.col.prev.copy(W.col.pos); W.mesh.visible = false;
+    S.car.bounce = 1; sound('thunk'); burst(P.X(W.c), P.y + 1.2, P.Z(W.r), 0xF2C230, 12, 2.4);
+  }
+}
+function czCheer(P) {                                     // solved: confetti in the circus's colours
+  const S = P.spz; S.cheer = 1;
+  const x = P.X(P.cols / 2 - 0.5), z = P.Z(P.rows / 2 - 0.5);
+  for (const col of [0xE8303A, 0xF2C230, 0x2A4AE8, 0x2AA89A]) burst(x, P.y + 2.4, z, col, 14, 4.5);
+}
+// Every physics step in play: whether it is solved, and the curtain.
+function czStep(P) {
+  const S = P.spz;
+  if (CZ_PARTS[S.kind]) { CZ_PARTS[S.kind].step(P); return; }
+  if (S.kind === 'scales') {
+    let L = S.offL, R = S.offR, n = 0;
+    for (const W of P.crates) {
+      if (W.moving) continue;
+      if (S.panL.some(([c, r]) => c === W.c && r === W.r)) { L += W.kg; n++; }
+      if (S.panR.some(([c, r]) => c === W.c && r === W.r)) { R += W.kg; n++; }
+    }
+    S.L = L; S.R = R; S.n = n;
+  }
+  if (!S.done) {
+    if (S.kind === 'clowncar') S.done = P.crates.every((W) => W.inCar);
+    if (S.kind === 'pyramid') S.done = S.spots.every((q) => P.crates.some((W) => !W.moving && W.c === q.c && W.r === q.r));
+    if (S.kind === 'scales') S.done = S.n > 0 && S.L === S.R && !P.crates.some((W) => W.moving);
+    if (S.done) {
+      sound('unlock'); czCheer(P);
+      if (S.kind === 'pyramid') { S.pyr = 0; czPyramidSlots(P); }
+      if (S.kind === 'clowncar') S.car.honk = 1;
+    }
+  }
+  for (const g of P.gates) if (g.kind === 'space') { const was = g.state; g.state = S.done ? 'open' : 'shut'; if (was === 'shut' && g.state === 'open') sound('door'); }
+}
+// Where each acrobat goes in the pyramid, over the middle of the stars: the heaviest along the foot, the lightest on top.
+function czPyramidSlots(P) {
+  const S = P.spz, A = P.crates, n = A.length, cx = S.spots.reduce((a, q) => a + q.x, 0) / S.spots.length, cz = S.spots.reduce((a, q) => a + q.z, 0) / S.spots.length;
+  const rows = n <= 1 ? [1] : n === 2 ? [1, 1] : n === 3 ? [2, 1] : n <= 5 ? [n - 2, 2] : [3, 2, 1];
+  const order = A.slice().sort((a, b) => [4, 5, 2].indexOf(a.figCell) - [4, 5, 2].indexOf(b.figCell)); let k = 0;
+  rows.forEach((m, j) => { for (let i = 0; i < m; i++) { const W = order[k++]; if (W) W.slot = new Vector3(cx + (i - (m - 1) / 2) * 0.62, P.y + 0.7 + j * 1.05, cz + 0.05 * j); } });
+}
+// The square as it was (the pad by the road in, or a restart). Says whether anything moved.
+function czReset(P, quiet) {
+  const S = P.spz; let moved = false;
+  if (CZ_PARTS[S.kind]) return CZ_PARTS[S.kind].reset(P, quiet);
+  if (S.push) for (const W of P.crates) {                 // (the crates themselves are put back by resetPlaza)
+    if (W.inCar) moved = true;
+    W.inCar = false; W.intoCar = false; W.docked = false; W.hop = -1; W.mesh.visible = true; W.slot = null;
+    if (W.fig) { W.fig.visible = true; W.fig.scale.setScalar(1); }
+  }
+  if (S.done && S.push) moved = true;
+  if (S.push) { S.done = false; S.pyr = undefined; }
+  return moved;
+}
+function czLanded(P) { const X = CZ_PARTS[P.spz.kind]; if (X) X.landed(P); }
+
+// ---- EVERY FRAME ----
+function czAnimate(P, dt) {
+  const S = P.spz, e = (rate) => (REDUCED ? 1 : 1 - Math.exp(-rate * dt));
+  S.cheer = Math.max(0, S.cheer - dt);
+  for (const g of P.gates) {                              // the curtain parts, gathering to each side; the bulbs over it light
+    if (!g.door || !g.door.cz) continue;
+    const u = ease(clamp(g.open, 0, 1)), D = g.door, sc = 1 - 0.8 * u;
+    for (const { L, s } of D.leaves) { L.scale.x = sc; L.position.x = s * D.span / 2; }
+    D.lamps.forEach((m, i) => m.material.color.setHex(S.done ? (REDUCED || ((simT * 4 + i) | 0) % 2 ? 0xFFE8A0 : 0xFFB850) : g.flash > 0.05 ? 0xFF6A5A : 0x5A4A30));
+  }
+  if (CZ_PARTS[S.kind]) { CZ_PARTS[S.kind].animate(P, dt); return; }
+  if (!S.push) return;
+  for (const W of P.crates) {
+    if (!W.fig) continue;
+    const F = W.fig;
+    if (W.hop >= 0) {                                     // into the car: a hop over its side and down, smaller and smaller
+      W.hop = Math.min(1, W.hop + dt / 0.45);
+      const u = W.hop, x = P.X(S.car.c), z = P.Z(S.car.r);
+      F.position.set(x, P.y + 0.7 + Math.sin(Math.PI * u) * 1.1 - 0.5 * u, z + 0.1);
+      F.scale.setScalar(Math.max(0.001, 1 - u * 0.9)); F.visible = u < 1;
+      if (u >= 1) W.hop = -2;
+      continue;
+    }
+    if (W.hop === -2) continue;
+    if (W.slot && S.pyr !== undefined) {                  // the pyramid: each leaps to its place in turn
+      const i = P.crates.indexOf(W), u = ease(clamp(S.pyr * 1.6 - i * 0.25, 0, 1)), from = _czv.set(W.mesh.position.x, P.y + 0.7, W.mesh.position.z + 0.1);
+      F.position.lerpVectors(from, W.slot, u); F.position.y += Math.sin(Math.PI * u) * 1.2;
+      continue;
+    }
+    F.position.set(W.mesh.position.x, P.y + 0.7, W.mesh.position.z + 0.1);
+  }
+  if (S.pyr !== undefined) S.pyr = Math.min(2, S.pyr + dt);
+  if (S.kind === 'clowncar') {
+    const C = S.car; C.bounce = Math.max(0, C.bounce - dt * 2.5); C.honk = Math.max(0, (C.honk || 0) - dt * 0.8);
+    C.car.position.y = C.y0 + (REDUCED ? 0 : 0.18 * Math.sin(Math.PI * C.bounce) + 0.12 * Math.abs(Math.sin(simT * 18)) * C.honk);
+  }
+  if (S.kind === 'pyramid') for (const q of S.spots) {
+    const on = P.crates.some((W) => !W.moving && W.c === q.c && W.r === q.r) ? 1 : 0;
+    q.k += (on - q.k) * e(8); q.glow.material.opacity = 0.55 * q.k + (S.done ? 0.25 * Math.sin(simT * 6) ** 2 : 0);
+  }
+  if (S.kind === 'scales' && S.beam) {
+    const want = clamp((S.L - S.R) * 0.07, -0.3, 0.3);    // the heavier side down
+    S.beam.tilt += (want - S.beam.tilt) * e(4); S.beam.beam.rotation.z = S.beam.tilt;
+    [S.L, S.R].forEach((v, i) => {
+      const B = S.boards[i]; B.hang.rotation.z = -S.beam.tilt;
+      if (B.shown !== v) { B.shown = v; B.mat.map = czNumTex(v); B.mat.needsUpdate = true; }
+      B.halo.material.opacity = S.done ? 0.6 + 0.3 * Math.sin(simT * 6) : S.L === S.R && S.n ? 0.4 : 0;
+    });
+  }
+}
+const _czv = new Vector3();
+// For the pilot and the tests: what a square is doing.
+function czState(P) {
+  const S = P.spz, o = { kind: S.kind, x0: P.x0, z0: P.z0, y: P.y, cols: P.cols, rows: P.rows, map: P.pc.map, entry: P.pc.entry, exit: P.pc.exit, done: !!S.done, sp: P.pc.sp };
+  if (S.push) Object.assign(o, { pieces: P.crates.map((W) => ({ c: W.c, r: W.r, v: W.kg || 1, moving: !!W.moving, gone: !!W.inCar })), fixed: S.fixed,
+                                  car: S.car ? { c: S.car.c, r: S.car.r, door: S.car.door } : null, spots: S.spots ? S.spots.map((q) => [q.c, q.r]) : null,
+                                  panL: S.panL || null, panR: S.panR || null, offL: S.offL || 0, offR: S.offR || 0, L: S.L, R: S.R });
+  if (CZ_PARTS[S.kind]) CZ_PARTS[S.kind].state(P, o);
+  return o;
+}
+/* THE CIRCUS PUZZLES, the two to watch:
+     shells  the shell game. The magician lifts the cup with the gold star under it, puts it down, and shuffles the
+             cups. When the pads in front of them light, roll onto the pad of the cup you think it is under. The
+             wrong cup: he shows where it was, and you are sent back to watch again from the start (a guess costs
+             something). Later squares take two or three rounds, more swaps, quicker hands, and two pairs at once
+     knives  the knife thrower stands on the wall. He throws a knife into every target that counts, lets you look,
+             and pulls them out; the rope across the way in drops, and every board looks the same again. Roll across
+             on the boards he did not hit: onto one he did, and a knife pins you and sends you back (he throws them
+             again for you, and the pad by the road has him throw them again)
+   Both begin when the marble rolls in, and again after a fall. */
+const CZ_SHL_L = { '=': CZG, t: { table: 1 }, p: { pick: 1 } };
+const CZ_KNF_L = { '=': CZG, o: { target: 1 } };
+
+function czKit2() {
+  const Z = czKit(); if (Z.cup) return Z;
+  const std = (o) => keepMat(hazed(new MeshStandardMaterial({ roughness: 0.35, metalness: 0.5, envMap: Z.K.env, envMapIntensity: 0.9, ...o })));
+  const cupT = canvasTex(256, 128, (g) => {               // a cup: red tin, white spots, gold bands top and foot
+    g.fillStyle = '#E8303A'; g.fillRect(0, 0, 256, 128);
+    g.fillStyle = '#FFF1D2'; for (let y = 0; y < 3; y++) for (let x = 0; x < 8; x++) { pbCircle(g, x * 32 + (y % 2) * 16 + 8, 30 + y * 30, 7); g.fill(); }
+    g.fillStyle = '#F2C230'; g.fillRect(0, 0, 256, 12); g.fillRect(0, 112, 256, 16);
+  }, true);
+  const starT = canvasTex(128, 128, (g) => { g.clearRect(0, 0, 128, 128); g.fillStyle = '#F2C230'; cqStar(g, 64, 68, 58, 24); g.fill(); g.strokeStyle = INK; g.lineWidth = 5; cqStar(g, 64, 68, 58, 24); g.stroke(); });
+  const boardT = canvasTex(256, 256, (g) => {             // a knife thrower's board: wood, a painted bullseye (every one the same)
+    g.clearRect(0, 0, 256, 256);
+    g.fillStyle = '#B07A3E'; pbCircle(g, 128, 128, 124); g.fill();
+    g.strokeStyle = 'rgba(80,40,10,0.35)'; g.lineWidth = 3; for (let y = 20; y < 256; y += 18) { g.beginPath(); g.moveTo(0, y); g.lineTo(256, y + 6); g.stroke(); }
+    for (const [r, c] of [[96, '#FFF1D2'], [72, '#E8303A'], [48, '#FFF1D2'], [24, '#E8303A']]) { g.fillStyle = c; pbCircle(g, 128, 128, r); g.fill(); }
+    g.strokeStyle = INK; g.lineWidth = 6; pbCircle(g, 128, 128, 121); g.stroke();
+  });
+  const feltT = canvasTex(256, 64, (g) => {               // the magician's table: red velvet with a gold fringe
+    g.fillStyle = '#A81C28'; g.fillRect(0, 0, 256, 64);
+    g.fillStyle = 'rgba(0,0,0,0.18)'; for (let x = 0; x < 256; x += 16) g.fillRect(x, 0, 8, 50);
+    g.fillStyle = '#F2C230'; g.fillRect(0, 48, 256, 6); g.fillStyle = '#C8902A'; for (let x = 2; x < 256; x += 6) g.fillRect(x, 54, 3, 10);
+  }, true);
+  return Object.assign(Z, {
+    cup: std({ map: cupT, metalness: 0.45 }), star: keepMat(new MeshBasicMaterial({ map: starT, transparent: true, depthWrite: false, toneMapped: false })),
+    board: keepMat(new MeshStandardMaterial({ map: boardT, transparent: true, roughness: 0.7, metalness: 0, depthWrite: false })),
+    felt: std({ map: feltT, roughness: 0.8, metalness: 0.05 }), tabletop: std({ color: 0x1E5A3A, roughness: 0.8, metalness: 0.05 }),
+    steel: std({ color: 0xE6ECF4, metalness: 1, roughness: 0.15 }),
+    padRing: () => keepMat(new MeshBasicMaterial({ color: PAD_YELLOW, transparent: true, opacity: 0.25, toneMapped: false })),
+    rope: std({ color: 0xC8202C, roughness: 0.6, metalness: 0.1 }),
+  });
+}
+let czKnifeGeoMemo = null;
+function czKnifeGeo() {                                   // a knife, its tip at the origin, pointing down
+  if (czKnifeGeoMemo) return czKnifeGeoMemo;
+  const B = pbBuild();
+  B.geo(new BoxGeometry(0.1, 0.62, 0.025), placeAt(0, 0.31, 0), 0xE6ECF4);
+  B.geo(new ConeGeometry(0.05, 0.12, 4), placeAt(0, -0.02, 0, Math.PI, 0, 0, 1, 1, 0.3), 0xE6ECF4);
+  B.geo(new BoxGeometry(0.26, 0.05, 0.07), placeAt(0, 0.64, 0), 0xF2C230);
+  B.geo(new CylinderGeometry(0.045, 0.05, 0.36, 8), placeAt(0, 0.84, 0), 0xE8303A);
+  B.geo(new SphereGeometry(0.06, 8, 6), placeAt(0, 1.03, 0), 0xF2C230);
+  return (czKnifeGeoMemo = B.done());
+}
+const czSeeded = (seed) => { let s = seed % 2147483646 + 1; const f = () => ((s = (s * 16807) % 2147483647) / 2147483647); f(); f(); f(); return f; };   // (the first few draws of a small seed are small: skipped)
+
+function czBuild2(P) {
+  const S = P.spz, Z = czKit2(), sp = P.pc.sp, G = P.grid, top = P.y + 0.016;
+  const each = (key, fn) => { for (let r = 0; r < P.rows; r++) for (let c = 0; c < P.cols; c++) if (key in G.cells[r][c]) fn(G.cells[r][c], c, r, P.X(c), P.Z(r)); };
+  if (S.kind === 'shells') {
+    const slots = []; each('table', (cell, c, r) => slots.push([c, r]));
+    const tr = slots[0][1], x0 = P.X(slots[0][0]), x1 = P.X(slots[slots.length - 1][0]), z = P.Z(tr), w = x1 - x0 + CELL - 0.3, H = 0.8;
+    const cloth = new Mesh(new BoxGeometry(w, H, CELL - 0.4), [Z.felt, Z.felt, Z.tabletop, Z.felt, Z.felt, Z.felt]); cloth.position.set((x0 + x1) / 2, P.y + H / 2, z); cloth.castShadow = true; cloth.receiveShadow = true;
+    levelGroup.add(cloth);
+    czBlock(P, (x0 + x1) / 2, P.y + H / 2, z, w / 2, H / 2, (CELL - 0.4) / 2, 'czfix');
+    const mag = czFigure(0, 2.8); mag.position.set((x0 + x1) / 2, P.y + 0.02, z - CELL / 2 + 0.05); mag.rotation.x = -0.75;   // the magician, behind the table
+    const star = new Mesh(new PlaneGeometry(0.8, 0.8), Z.star); star.rotation.x = -Math.PI / 2; levelGroup.add(star);
+    const cups = slots.map(([c], i) => {
+      const grp = new Group(); levelGroup.add(grp);
+      const body = new Mesh(new CylinderGeometry(0.4, 0.58, 0.95, 28, 1, true), Z.cup); body.position.y = 0.475; body.castShadow = true;
+      const lid = new Mesh(new CircleGeometry(0.4, 28), Z.PK.gold); lid.rotation.x = -Math.PI / 2; lid.position.y = 0.95;
+      const knob = new Mesh(new SphereGeometry(0.13, 12, 8), Z.PK.gold); knob.position.y = 1.02;
+      grp.add(body, lid, knob);
+      return { grp, slot: i, from: i, lift: 0, want: 0 };
+    });
+    const pads = [];
+    each('pick', (cell, c, r, x, zz) => {
+      const ringMat = Z.padRing(), ring = spRing(x, top + 0.004, zz, 0.62, 0.8, ringMat), dotM = spDisc(x, top + 0.006, zz, 0.24, ringMat);
+      levelGroup.add(ring, dotM); pads.push({ c, r, ringMat, flash: 0 });
+    });
+    Object.assign(S, { slots, tableY: P.y + H, z, cups, star, pads, phase: 'idle', t: 0, round: 0, rounds: sp.rounds || 1, shows: 0, swaps: [], si: 0, prize: 0, picked: -1,
+                       swapT: sp.swapT || 0.8, nSwaps: sp.swaps || 3, pairs: sp.pairs || 0 });
+    czShellsPlace(P);
+  }
+  if (S.kind === 'knives') {
+    S.targets = []; S.knives = [];
+    for (let r = 1; r < P.rows; r++) for (let c = 0; c < P.cols; c++) {   // a board on every cell past the way in: all alike
+      if (G.cells[r][c].void) continue;
+      levelGroup.add(spDisc(P.X(c), top + 0.003, P.Z(r), 0.92, Z.board));
+      if (!G.cells[r][c].target) continue;
+      const glow = spDisc(P.X(c), top + 0.006, P.Z(r), 1.05, keepMat(new MeshBasicMaterial({ map: pbGlow(), color: 0xFF3A2A, transparent: true, opacity: 0, blending: AdditiveBlending, depthWrite: false, toneMapped: false })));
+      levelGroup.add(glow); S.targets.push({ c, r, glow, k: 0 });
+    }
+    const side = sp.side === 'w' ? -1 : 1, wx = side > 0 ? P.x0 + P.cols * CELL : P.x0, mr = Math.floor(P.rows / 2), tz = P.Z(mr);
+    const stand = new Mesh(czDrumGeo(2, 0.5, 0.5), Z.K.paint); stand.position.set(wx, P.y + WALL_H, tz); levelGroup.add(stand);
+    const man = czFigure(3, 2.6); man.position.set(wx, P.y + WALL_H + 0.5, tz); man.rotation.x = -0.75;
+    S.hand = new Vector3(wx - side * 0.3, P.y + WALL_H + 2.2, tz);
+    const rng = czSeeded((sp.seed || 1) * 977 + P.rows);
+    S.order = S.targets.map((t) => [rng(), t]).sort((a, b) => a[0] - b[0]).map((a) => a[1]);
+    for (let i = 0; i < S.targets.length + 1; i++) {        // one for every target, and one for you
+      const m = new Mesh(czKnifeGeo(), Z.K.paint); m.scale.setScalar(1.6); m.visible = false; m.castShadow = true; levelGroup.add(m);
+      S.knives.push({ m, t: -1, to: null, back: 0 });
+    }
+    const ropeZ = P.z0 - CELL, rope = new Mesh(new CylinderGeometry(0.07, 0.07, P.cols * CELL - 0.3, 10), Z.rope);   // the rope over the edge past the way in
+    rope.rotation.z = Math.PI / 2; rope.position.set(P.x0 + P.cols * CELL / 2, P.y + 0.75, ropeZ); levelGroup.add(rope);
+    const posts = [0.12, P.cols * CELL - 0.12].map((dx) => { const m = new Mesh(new CylinderGeometry(0.07, 0.07, 0.9, 10), Z.PK.gold); m.position.set(P.x0 + dx, P.y + 0.45, ropeZ); levelGroup.add(m); return m; });
+    const box = new Mesh(new BoxGeometry(0.1, 0.1, 0.1), HIDDEN); box.visible = false; levelGroup.add(box);
+    const pos = new Vector3(P.x0 + P.cols * CELL / 2, P.y + 0.6, ropeZ), q = new Quaternion();
+    S.ropeCol = { mesh: box, pos, prev: pos.clone(), quat: q, inv: q.clone(), half: new Vector3(P.cols * CELL / 2, 0.6, 0.12), delta: new Vector3(), ferry: null, holo: null, pad: null, obstacle: 'czfix' };
+    colliders.push(S.ropeCol);
+    Object.assign(S, { rope, posts, ropeK: 1, phase: 'idle', t: 0, throwT: sp.throwT || 0.4, hold: sp.hold || 1.5, hit: null, shown: 0 });
+  }
+}
+// The cups where their slots are (the star under the prize cup).
+function czShellsPlace(P) {
+  const S = P.spz;
+  for (const C of S.cups) { const [c] = S.slots[C.slot]; C.grp.position.set(P.X(c), S.tableY, S.z); C.from = C.slot; }
+}
+// A new shuffle: n swaps of two slots (or two pairs at once), never the same pair twice running.
+function czShellsShuffle(P) {
+  const S = P.spz, n = S.slots.length, rng = czSeeded((P.pc.sp.seed || 1) * 131 + S.round * 17 + S.shows * 7919), out = [];
+  let last = '';
+  for (let k = 0; k < S.nSwaps; k++) {
+    let sw;
+    for (let t = 0; t < 20; t++) {
+      if (S.pairs && n >= 4 && rng() < 0.5) { const p = [[0, 1, 2, 3], [0, 2, 1, 3], [0, 3, 1, 2]][Math.floor(rng() * 3)]; sw = [[p[0], p[1]], [p[2], p[3]]]; }
+      else { const a = Math.floor(rng() * n); let b = Math.floor(rng() * (n - 1)); if (b >= a) b++; sw = [[Math.min(a, b), Math.max(a, b)]]; }
+      if (JSON.stringify(sw) !== last) break;
+    }
+    last = JSON.stringify(sw); out.push(sw);
+  }
+  S.swaps = out; S.si = 0;
+}
+function czShellsStart(P) {
+  const S = P.spz;
+  S.shows = (S.shows || 0) + 1;                            // every show a new shuffle, even after a fall (so it cannot be learnt by heart)
+  S.phase = 'show'; S.t = 0; S.picked = -1; S.prize = Math.floor(czSeeded((P.pc.sp.seed || 1) * 7 + S.round * 3 + S.shows * 101)() * S.cups.length);
+  czShellsShuffle(P);
+}
+function czPad2(P, c, r, cell) {
+  const S = P.spz;
+  if (S.kind === 'shells' && cell.pick && S.phase === 'pick') {
+    const slot = S.slots.findIndex(([sc]) => sc === c), C = S.cups.find((u) => u.slot === slot);
+    S.picked = S.cups.indexOf(C); C.want = 1; S.phase = 'reveal'; S.t = 0; S.right = S.picked === S.prize;
+    const pd = S.pads.find((q) => q.c === c && q.r === r); if (pd) pd.flash = 1;
+    sound(S.right ? 'key' : 'buzz');
+  }
+}
+function czStep2(P) {
+  const S = P.spz;
+  const inside = ball.grounded && ball.p.z < P.z0 - 0.3 && ball.p.z > P.z0 - P.rows * CELL && ball.p.x > P.x0 && ball.p.x < P.x0 + P.cols * CELL && Math.abs(ball.p.y - R - P.y) < 0.3;
+  if (S.kind === 'shells') {
+    S.t += STEP;
+    if (S.phase === 'idle' && inside && !S.done) czShellsStart(P);
+    if (S.phase === 'show') {                             // the star shown: its cup up, then down
+      const C = S.cups[S.prize]; C.want = S.t > 0.3 && S.t < 1.6 ? 1 : 0;
+      if (S.t > 2.1) { S.phase = 'shuffle'; S.t = 0; }
+    }
+    if (S.phase === 'shuffle') {
+      if (S.t >= S.swapT) {                               // a swap done: the cups in their new slots
+        for (const [a, b] of S.swaps[S.si]) { const A = S.cups.find((u) => u.slot === a), B = S.cups.find((u) => u.slot === b); A.slot = b; B.slot = a; }
+        czShellsPlace(P); S.si++; S.t = 0;
+        if (S.si >= S.swaps.length) { S.phase = 'pick'; sound('tick'); }
+      }
+    }
+    if (S.phase === 'reveal') {
+      if (!S.right && S.t > 0.5) S.cups[S.prize].want = 1; // the wrong one: where it really was, and back you go
+      if (!S.right && S.t > 1.5) { S.phase = 'idle'; ball.v.set(0, 0, 0); startFall(); return; }
+      if (S.right && S.t > 1.3) {
+        for (const C of S.cups) C.want = 0;
+        S.round++; if (S.round >= S.rounds) { S.done = true; S.phase = 'won'; sound('unlock'); czCheer(P); } else { S.phase = 'wait'; S.t = 0; }
+      }
+    }
+    if (S.phase === 'wait' && S.t > 0.7) czShellsStart(P);
+  }
+  if (S.kind === 'knives') {
+    S.t += STEP;
+    if (S.phase === 'idle' && inside) { S.phase = 'show'; S.t = 0; S.shown = 0; for (const K of S.knives) { K.t = -1; K.m.visible = false; } }
+    if (S.phase === 'show') {                             // one knife after another, each into its board
+      while (S.shown < S.order.length && S.t >= S.shown * S.throwT) { const K = S.knives[S.shown]; K.to = S.order[S.shown]; K.t = 0; K.back = 0; S.shown++; }
+      if (S.shown >= S.order.length && S.t >= S.order.length * S.throwT + 0.3) { S.phase = 'hold'; S.t = 0; }
+    }
+    if (S.phase === 'hold' && S.t >= S.hold) { S.phase = 'pull'; S.t = 0; for (const K of S.knives) if (K.to) K.back = 0.0001; sound('whirr'); }
+    if (S.phase === 'pull' && S.t >= 0.5) { S.phase = 'cross'; S.t = 0; sound('click'); }
+    if (S.phase === 'cross' && !S.done && ball.grounded && !S.hit) {
+      const c = Math.floor((ball.p.x - P.x0) / CELL), r = Math.floor((P.z0 - ball.p.z) / CELL);
+      const dx = Math.abs(ball.p.x - P.X(c)), dz = Math.abs(ball.p.z - P.Z(r)), deep = dx < CELL / 2 - 0.3 && dz < CELL / 2 - 0.3;
+      if (deep && S.targets.some((t) => t.c === c && t.r === r)) {   // on a target: a knife, and back you go
+        const K = S.knives[S.knives.length - 1]; K.to = { c, r, ball: true }; K.t = 0; K.back = 0; S.hit = { t: 0 }; sound('knock');
+      }
+      if (r === P.rows - 1 && c === P.pc.exit && deep) { S.done = true; sound('unlock'); }
+    }
+    if (S.hit) { S.hit.t += STEP; if (S.hit.t > 0.2) { S.hit = null; ball.v.set(0, 0, 0); startFall(); } }
+  }
+  const open = S.kind === 'knives' ? S.phase === 'cross' : S.done;
+  for (const g of P.gates) if (g.kind === 'space') { const was = g.state; g.state = open ? 'open' : 'shut'; if (was === 'shut' && g.state === 'open') sound('door'); }
+}
+// As it was: nothing shown, nothing thrown (a fall, the pad by the road, a restart).
+function czReset2(P, quiet) {
+  const S = P.spz, moved = S.phase !== 'idle' || S.done;
+  S.phase = 'idle'; S.t = 0; S.done = false;
+  if (S.kind === 'shells') { S.round = 0; for (const C of S.cups) { C.want = 0; if (quiet) C.lift = 0; } for (let i = 0; i < S.cups.length; i++) S.cups[i].slot = i; czShellsPlace(P); }
+  if (S.kind === 'knives') { S.hit = null; S.shown = 0; for (const K of S.knives) { K.t = -1; K.to = null; K.m.visible = false; } }
+  return moved;
+}
+function czLanded2(P) { czReset2(P, true); }
+function czAnimate2(P, dt) {
+  const S = P.spz, e = (rate) => (REDUCED ? 1 : 1 - Math.exp(-rate * dt));
+  if (S.kind === 'shells') {
+    const u = S.phase === 'shuffle' ? ease(clamp(S.t / S.swapT, 0, 1)) : 0, moving = S.phase === 'shuffle' ? S.swaps[S.si] || [] : [];
+    for (const C of S.cups) {
+      C.lift += (C.want - C.lift) * e(9);
+      let x = P.X(S.slots[C.slot][0]), z = S.z;
+      for (const [a, b] of moving) {                       // round each other: one in front, one behind
+        if (C.slot !== a && C.slot !== b) continue;
+        const to = C.slot === a ? b : a, xa = P.X(S.slots[C.slot][0]), xb = P.X(S.slots[to][0]), mx = (xa + xb) / 2, rx = (xb - xa) / 2, ang = Math.PI * u;
+        x = mx - rx * Math.cos(ang); z = S.z + (C.slot === a ? 1 : -1) * Math.min(0.55, Math.abs(rx) * 0.5) * Math.sin(ang);
+      }
+      C.grp.position.set(x, S.tableY + 1.1 * C.lift, z);
+    }
+    const P0 = S.cups[S.prize].grp.position, showStar = S.cups[S.prize].lift > 0.05 || S.phase === 'won';
+    S.star.visible = showStar; S.star.position.set(P0.x, S.tableY + 0.012, P0.z); S.star.rotation.z += dt * 1.5;
+    const lit = S.phase === 'pick';
+    for (const pd of S.pads) { pd.flash = Math.max(0, pd.flash - dt * 2); pd.ringMat.opacity = lit ? (REDUCED ? 0.9 : 0.65 + 0.3 * Math.sin(simT * 7)) : 0.18 + 0.6 * pd.flash; }
+  }
+  if (S.kind === 'knives') {
+    S.ropeK += ((S.phase === 'cross' || S.done ? 0 : 1) - S.ropeK) * e(6);      // the rope drops for the crossing
+    S.rope.position.y = P.y + 0.75 * S.ropeK - 0.05; S.rope.visible = S.ropeK > 0.05;
+    for (const m of S.posts) m.scale.y = Math.max(0.05, S.ropeK);
+    S.ropeCol.pos.y = S.ropeK > 0.5 ? P.y + 0.6 : P.y - 50; S.ropeCol.prev.copy(S.ropeCol.pos);
+    for (const K of S.knives) {
+      if (!K.to || K.t < 0) continue;
+      K.t += dt;
+      const to = K.to.ball ? _czv.set(ball.p.x, P.y, ball.p.z) : _czv.set(P.X(K.to.c), P.y, P.Z(K.to.r)), f = 0.22;
+      const u = Math.min(1, K.t / f);
+      if (K.back > 0) {                                    // pulled back to his hand
+        K.back = Math.min(1, K.back + dt / 0.35); const b = ease(K.back);
+        K.m.position.lerpVectors(to, S.hand, b); K.m.position.y += Math.sin(Math.PI * b) * 0.8; K.m.rotation.set(0, 0, 0);
+        K.m.visible = K.back < 1; if (K.back >= 1) { K.to = null; K.t = -1; }
+        continue;
+      }
+      K.m.visible = true;
+      K.m.position.lerpVectors(S.hand, to, u); K.m.position.y += Math.sin(Math.PI * u) * 1.2 * (1 - u * 0.3);
+      K.m.rotation.set(u < 1 ? -Math.PI / 2 + u * 1.2 : 0.35, 0, u < 1 ? 0 : 0.2);
+      if (u >= 1 && !K.stuck) { K.stuck = true; if (!K.to.ball) sound('thunk'); }
+      if (u < 1) K.stuck = false;
+    }
+    for (const T of S.targets) {                           // the board glows red while a knife is in it
+      const inIt = S.knives.some((K) => K.to && !K.to.ball && K.to === T && K.stuck && !(K.back > 0));
+      T.k += ((inIt ? 1 : 0) - T.k) * e(inIt ? 14 : 5); T.glow.material.opacity = 0.75 * T.k;
+    }
+  }
+}
+function czState2(P, o) {
+  const S = P.spz;
+  if (S.kind === 'shells') Object.assign(o, { phase: S.phase, round: S.round, rounds: S.rounds, prizeSlot: S.cups[S.prize].slot, slots: S.slots, pads: S.pads.map((q) => [q.c, q.r]) });
+  if (S.kind === 'knives') Object.assign(o, { phase: S.phase, targets: S.targets.map((t) => [t.c, t.r]) });
+  return o;
+}
+for (const k of ['shells', 'knives']) { CZ_KINDS.add(k); CZ_PARTS[k] = { build: czBuild2, pad: czPad2, step: czStep2, reset: czReset2, landed: czLanded2, animate: czAnimate2, state: czState2 }; }
+
+/* THE CIRCUS PUZZLES' LADDERS: 22 layouts of each, easy to hard, each found by a search (tools/marble/puz/gencirc*.js)
+   and played through by the pilot. Written by tools/marble/puz/mk-circ.js: change the ladders there. */
+Object.assign(PLAZAS, {
+  CK1: { entry: 2, exit: 2, legend: CZ_CAR_L, sp: {kind: 'clowncar'}, map: [
+    '+-+-+=+-+-+',
+    '|. E . k .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CK2: { entry: 2, exit: 1, legend: CZ_CAR_L, sp: {kind: 'clowncar'}, map: [
+    '+-+=+-+-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . k .|',
+    '+ + + + + +',
+    '|. . . . N|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CK3: { entry: 2, exit: 1, legend: CZ_CAR_L, sp: {kind: 'clowncar'}, map: [
+    '+-+=+-+-+-+',
+    '|. . . W .|',
+    '+ + + + + +',
+    '|. . . k .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CK4: { entry: 2, exit: 3, legend: CZ_CAR_L, sp: {kind: 'clowncar'}, map: [
+    '+-+-+-+=+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . k .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+ + + + +',
+    '|x . . . W|',
+    '+-+-+ +-+-+',] },
+  CK5: { entry: 2, exit: 2, legend: CZ_CAR_L, sp: {kind: 'clowncar'}, map: [
+    '+-+-+=+-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|E . . . .|',
+    '+ + + + + +',
+    '|. . . k .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|x . .|. .|',
+    '+-+-+ +-+-+',] },
+  CK6: { entry: 2, exit: 1, legend: CZ_CAR_L, sp: {kind: 'clowncar'}, map: [
+    '+-+=+-+-+-+',
+    '|. . . . W|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|x . . k .|',
+    '+ + + +-+ +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CK7: { entry: 2, exit: 1, legend: CZ_CAR_L, sp: {kind: 'clowncar'}, map: [
+    '+-+=+-+-+-+',
+    '|. . k . W|',
+    '+ + + + + +',
+    '|. x . . .|',
+    '+ + + + + +',
+    '|. . . k .|',
+    '+-+ + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CK8: { entry: 2, exit: 1, legend: CZ_CAR_L, sp: {kind: 'clowncar'}, map: [
+    '+-+=+-+-+-+',
+    '|. . . W .|',
+    '+ + + + + +',
+    '|x . k k .|',
+    '+ +-+ + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CK9: { entry: 2, exit: 2, legend: CZ_CAR_L, sp: {kind: 'clowncar'}, map: [
+    '+-+-+=+-+-+',
+    '|. . . S .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . k . .|',
+    '+ + + + + +',
+    '|. . . k .|',
+    '+ + + + + +',
+    '|. x . . .|',
+    '+-+-+ +-+-+',] },
+  CK10: { entry: 2, exit: 2, legend: CZ_CAR_L, sp: {kind: 'clowncar'}, map: [
+    '+-+-+=+-+-+',
+    '|x . . . .|',
+    '+ + + + + +',
+    '|. . k|k .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . N .|',
+    '+-+-+ +-+-+',] },
+  CK11: { entry: 2, exit: 2, legend: CZ_CAR_L, sp: {kind: 'clowncar'}, map: [
+    '+-+-+=+-+-+',
+    '|. . . .|.|',
+    '+ + + + + +',
+    '|. k . k .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|x . . . N|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CK12: { entry: 2, exit: 1, legend: CZ_CAR_L, sp: {kind: 'clowncar'}, map: [
+    '+-+=+-+-+-+',
+    '|. . . . .|',
+    '+ + + +-+ +',
+    '|. . k x .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. k . . N|',
+    '+-+ + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CK13: { entry: 2, exit: 3, legend: CZ_CAR_L, sp: {kind: 'clowncar'}, map: [
+    '+-+-+-+=+-+',
+    '|. . . . S|',
+    '+ + + + + +',
+    '|. k . . .|',
+    '+ + + + + +',
+    '|. k . . .|',
+    '+ + + + + +',
+    '|. . . . x|',
+    '+ +-+ + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CK14: { entry: 2, exit: 1, legend: CZ_CAR_L, sp: {kind: 'clowncar'}, map: [
+    '+-+=+-+-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . k .|',
+    '+ + +-+ + +',
+    '|. k . . .|',
+    '+ + + + + +',
+    '|.|. . . x|',
+    '+ + + + + +',
+    '|. . . W .|',
+    '+-+-+ +-+-+',] },
+  CK15: { entry: 2, exit: 2, legend: CZ_CAR_L, sp: {kind: 'clowncar'}, map: [
+    '+-+-+=+-+-+',
+    '|.|. . . .|',
+    '+ + + + + +',
+    '|. k . .|.|',
+    '+ + + + + +',
+    '|. N . . x|',
+    '+ + + + + +',
+    '|. k k . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CK16: { entry: 2, exit: 2, legend: CZ_CAR_L, sp: {kind: 'clowncar'}, map: [
+    '+-+-+=+-+-+',
+    '|. . . .|.|',
+    '+ + + + + +',
+    '|. . . k .|',
+    '+ + + + + +',
+    '|. . W k .|',
+    '+ + + + + +',
+    '|. k . .|.|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. x . . .|',
+    '+-+-+ +-+-+',] },
+  CK17: { entry: 2, exit: 3, legend: CZ_CAR_L, sp: {kind: 'clowncar'}, map: [
+    '+-+-+-+=+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|S . k . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ +-+ + + +',
+    '|k . . . .|',
+    '+ + + + + +',
+    '|. . . k .|',
+    '+ + + +-+ +',
+    '|. x . . .|',
+    '+-+-+ +-+-+',] },
+  CK18: { entry: 2, exit: 2, legend: CZ_CAR_L, sp: {kind: 'clowncar'}, map: [
+    '+-+-+=+-+-+',
+    '|. . . x .|',
+    '+ + + + + +',
+    '|. k . . .|',
+    '+-+ + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . k k .|',
+    '+ + + + + +',
+    '|N . . . .|',
+    '+-+ + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CK19: { entry: 2, exit: 3, legend: CZ_CAR_L, sp: {kind: 'clowncar'}, map: [
+    '+-+-+-+=+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|.|x . . .|',
+    '+ + + + + +',
+    '|. k . . .|',
+    '+ + + + + +',
+    '|.|k . . .|',
+    '+ + + +-+ +',
+    '|. k . . .|',
+    '+ + + + + +',
+    '|E . . x .|',
+    '+-+-+ +-+-+',] },
+  CK20: { entry: 2, exit: 2, legend: CZ_CAR_L, sp: {kind: 'clowncar'}, map: [
+    '+-+-+=+-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. k .|.|.|',
+    '+ + + + + +',
+    '|. k . k .|',
+    '+ + + + + +',
+    '|. . . . x|',
+    '+ + + +-+ +',
+    '|x . . W .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CK21: { entry: 2, exit: 2, legend: CZ_CAR_L, sp: {kind: 'clowncar'}, map: [
+    '+-+-+=+-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . k .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + +-+ + +',
+    '|. k x .|.|',
+    '+ + + + + +',
+    '|. . . . x|',
+    '+ + + + + +',
+    '|. k . W .|',
+    '+-+-+ +-+-+',] },
+  CK22: { entry: 2, exit: 3, legend: CZ_CAR_L, sp: {kind: 'clowncar'}, map: [
+    '+-+-+-+=+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|E . .|. .|',
+    '+ + + + + +',
+    '|. k . . .|',
+    '+ + + + + +',
+    '|. k k x .|',
+    '+ + + + + +',
+    '|. . . . x|',
+    '+ + + + +-+',
+    '|.|. . . .|',
+    '+-+-+ +-+-+',] },
+  CP1: { entry: 2, exit: 1, legend: CZ_PYR_L, sp: {kind: 'pyramid'}, map: [
+    '+-+=+-+-+-+',
+    '|. . o . .|',
+    '+ + + + + +',
+    '|. . . a .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CP2: { entry: 2, exit: 2, legend: CZ_PYR_L, sp: {kind: 'pyramid'}, map: [
+    '+-+-+=+-+-+',
+    '|. o . . .|',
+    '+ + + + + +',
+    '|. . . a .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CP3: { entry: 2, exit: 3, legend: CZ_PYR_L, sp: {kind: 'pyramid'}, map: [
+    '+-+-+-+=+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . a .|',
+    '+ + + + + +',
+    '|. o . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CP4: { entry: 2, exit: 3, legend: CZ_PYR_L, sp: {kind: 'pyramid'}, map: [
+    '+-+-+-+=+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . a . .|',
+    '+ + + + + +',
+    '|. . . . o|',
+    '+ + + + + +',
+    '|. . . a o|',
+    '+-+-+ +-+-+',] },
+  CP5: { entry: 2, exit: 3, legend: CZ_PYR_L, sp: {kind: 'pyramid'}, map: [
+    '+-+-+-+=+-+',
+    '|. o o . .|',
+    '+ + + + + +',
+    '|. a . . .|',
+    '+ + + + + +',
+    '|. a . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CP6: { entry: 2, exit: 1, legend: CZ_PYR_L, sp: {kind: 'pyramid'}, map: [
+    '+-+=+-+-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|o o . a .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. a . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CP7: { entry: 2, exit: 1, legend: CZ_PYR_L, sp: {kind: 'pyramid'}, map: [
+    '+-+=+-+-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. a a x .|',
+    '+ +-+ + + +',
+    '|. o . . .|',
+    '+ + + + + +',
+    '|. o . . .|',
+    '+-+-+ +-+-+',] },
+  CP8: { entry: 2, exit: 3, legend: CZ_PYR_L, sp: {kind: 'pyramid'}, map: [
+    '+-+-+-+=+-+',
+    '|o o . . x|',
+    '+ + + + + +',
+    '|a . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ +-+ + + +',
+    '|. . . a .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CP9: { entry: 2, exit: 3, legend: CZ_PYR_L, sp: {kind: 'pyramid'}, map: [
+    '+-+-+-+=+-+',
+    '|. . . .|.|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. a x a .|',
+    '+ + + + + +',
+    '|. . . . o|',
+    '+ + + + + +',
+    '|. . . . o|',
+    '+-+-+ +-+-+',] },
+  CP10: { entry: 2, exit: 1, legend: CZ_PYR_L, sp: {kind: 'pyramid'}, map: [
+    '+-+=+-+-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . a . .|',
+    '+ + + + + +',
+    '|. a . . .|',
+    '+ + + + + +',
+    '|. x . o .|',
+    '+ +-+ + + +',
+    '|. . . o .|',
+    '+-+-+ +-+-+',] },
+  CP11: { entry: 2, exit: 1, legend: CZ_PYR_L, sp: {kind: 'pyramid'}, map: [
+    '+-+=+-+-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . .|. .|',
+    '+ + + + + +',
+    '|. a a . .|',
+    '+ + + + + +',
+    '|o o . . .|',
+    '+ + + + + +',
+    '|o . . a .|',
+    '+-+-+ +-+-+',] },
+  CP12: { entry: 2, exit: 3, legend: CZ_PYR_L, sp: {kind: 'pyramid'}, map: [
+    '+-+-+-+=+-+',
+    '|. . . . o|',
+    '+ + + + + +',
+    '|. . a o o|',
+    '+ +-+ + + +',
+    '|. . a . .|',
+    '+ + + + + +',
+    '|. . . . a|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CP13: { entry: 2, exit: 3, legend: CZ_PYR_L, sp: {kind: 'pyramid'}, map: [
+    '+-+-+-+=+-+',
+    '|o o o . .|',
+    '+ + + + + +',
+    '|. . a . .|',
+    '+ + + + + +',
+    '|. . a . .|',
+    '+ + + + + +',
+    '|a . .|. .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CP14: { entry: 2, exit: 3, legend: CZ_PYR_L, sp: {kind: 'pyramid'}, map: [
+    '+-+-+-+=+-+',
+    '|o . . . .|',
+    '+ + + + + +',
+    '|o . . . .|',
+    '+ + + + + +',
+    '|o . a . .|',
+    '+ + + + + +',
+    '|a . . a .|',
+    '+ + + + + +',
+    '|. . .|. .|',
+    '+-+-+ +-+-+',] },
+  CP15: { entry: 2, exit: 2, legend: CZ_PYR_L, sp: {kind: 'pyramid'}, map: [
+    '+-+-+=+-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. a a .|a|',
+    '+ + + + + +',
+    '|. . . .|o|',
+    '+ + + + + +',
+    '|. . . . o|',
+    '+ + + + + +',
+    '|. x . . o|',
+    '+-+-+ +-+-+',] },
+  CP16: { entry: 2, exit: 1, legend: CZ_PYR_L, sp: {kind: 'pyramid'}, map: [
+    '+-+=+-+-+-+',
+    '|. . x . .|',
+    '+ + + + + +',
+    '|. . a a .|',
+    '+ + + + + +',
+    '|o a . . .|',
+    '+ + + + + +',
+    '|o . . . .|',
+    '+ + +-+ + +',
+    '|o . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CP17: { entry: 2, exit: 2, legend: CZ_PYR_L, sp: {kind: 'pyramid'}, map: [
+    '+-+-+=+-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|a . . . x|',
+    '+ + + + + +',
+    '|. . . a .|',
+    '+ + +-+ + +',
+    '|o . . a|.|',
+    '+ + + + + +',
+    '|o . . . .|',
+    '+ + + + + +',
+    '|o . . . .|',
+    '+-+-+ +-+-+',] },
+  CP18: { entry: 2, exit: 2, legend: CZ_PYR_L, sp: {kind: 'pyramid'}, map: [
+    '+-+-+=+-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . a|',
+    '+ + + + + +',
+    '|. . . x .|',
+    '+-+ + + + +',
+    '|. a|a . o|',
+    '+ + + + + +',
+    '|. . . o o|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CP19: { entry: 2, exit: 2, legend: CZ_PYR_L, sp: {kind: 'pyramid'}, map: [
+    '+-+-+=+-+-+',
+    '|x . . . .|',
+    '+ + + + + +',
+    '|.|. . a .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|o o|. . .|',
+    '+ + + + + +',
+    '|o a . a .|',
+    '+ + + + + +',
+    '|o . . a .|',
+    '+-+-+ +-+-+',] },
+  CP20: { entry: 2, exit: 3, legend: CZ_PYR_L, sp: {kind: 'pyramid'}, map: [
+    '+-+-+-+=+-+',
+    '|. . . . o|',
+    '+ + + + + +',
+    '|. .|a o o|',
+    '+ + + + + +',
+    '|. . a a|o|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. a . . .|',
+    '+ + + + + +',
+    '|. x . . .|',
+    '+-+-+ +-+-+',] },
+  CP21: { entry: 2, exit: 1, legend: CZ_PYR_L, sp: {kind: 'pyramid'}, map: [
+    '+-+=+-+-+-+',
+    '|. .|. . .|',
+    '+ + + + + +',
+    '|x . . . .|',
+    '+ + + + + +',
+    '|. . a a .|',
+    '+ + + + + +',
+    '|. o . a .|',
+    '+ + + + + +',
+    '|o o . . .|',
+    '+ + + +-+ +',
+    '|o . . a .|',
+    '+-+-+ +-+-+',] },
+  CP22: { entry: 2, exit: 1, legend: CZ_PYR_L, sp: {kind: 'pyramid'}, map: [
+    '+-+=+-+-+-+',
+    '|. . . . .|',
+    '+ + + +-+ +',
+    '|. a . a .|',
+    '+ + + + + +',
+    '|o a . a .|',
+    '+ + + + + +',
+    '|o|. . . .|',
+    '+ + + + + +',
+    '|o o . x .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CS1: { entry: 2, exit: 3, legend: CZ_SCL_L, sp: {kind: 'scales', anvil: 'l3'}, map: [
+    '+-+-+-+=+-+',
+    '|. . . . 6|',
+    '+ + + + + +',
+    '|l l ^ r r|',
+    '+ + + + + +',
+    '|. 3 . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CS2: { entry: 2, exit: 1, legend: CZ_SCL_L, sp: {kind: 'scales', anvil: 'r3'}, map: [
+    '+-+=+-+-+-+',
+    '|. . . . 1|',
+    '+ + + + + +',
+    '|l l ^ r r|',
+    '+ + + + + +',
+    '|. . . 3 .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CS3: { entry: 2, exit: 2, legend: CZ_SCL_L, sp: {kind: 'scales', anvil: 'r3'}, map: [
+    '+-+-+=+-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|l l ^ r r|',
+    '+ + + + + +',
+    '|. . . 3 .|',
+    '+ + + + + +',
+    '|5 . . . .|',
+    '+-+-+ +-+-+',] },
+  CS4: { entry: 2, exit: 3, legend: CZ_SCL_L, sp: {kind: 'scales', anvil: 'r4'}, map: [
+    '+-+-+-+=+-+',
+    '|. . 6 . .|',
+    '+ + + + + +',
+    '|l l ^ r r|',
+    '+ + + + + +',
+    '|. . . 4 .|',
+    '+ + + + + +',
+    '|1 . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CS5: { entry: 2, exit: 3, legend: CZ_SCL_L, sp: {kind: 'scales', anvil: 'l4'}, map: [
+    '+-+-+-+=+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|l l ^ r r|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|4 4 . . .|',
+    '+ + + + + +',
+    '|1 . . . .|',
+    '+-+-+ +-+-+',] },
+  CS6: { entry: 2, exit: 1, legend: CZ_SCL_L, sp: {kind: 'scales', anvil: 'r4'}, map: [
+    '+-+=+-+-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|2 . . 1 .|',
+    '+ + + + + +',
+    '|l l ^ r r|',
+    '+ + + + + +',
+    '|. . . 2 .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CS7: { entry: 2, exit: 1, legend: CZ_SCL_L, sp: {kind: 'scales', anvil: 'l5'}, map: [
+    '+-+=+-+-+-+',
+    '|. . .|. .|',
+    '+ + + + + +',
+    '|. 2 . . .|',
+    '+ + + + + +',
+    '|l l ^ r r|',
+    '+ + + + + +',
+    '|. 6 . 1 .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CS8: { entry: 2, exit: 3, legend: CZ_SCL_L, sp: {kind: 'scales', anvil: 'l5'}, map: [
+    '+-+-+-+=+-+',
+    '|. . . . .|',
+    '+ + +-+ + +',
+    '|. . 6 1 .|',
+    '+ + + + + +',
+    '|l l ^ r r|',
+    '+ + + + + +',
+    '|3 . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CS9: { entry: 2, exit: 1, legend: CZ_SCL_L, sp: {kind: 'scales', anvil: 'r5'}, map: [
+    '+-+=+-+-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|l l ^ r r|',
+    '+ + + + + +',
+    '|. 1 1 . .|',
+    '+ + + + + +',
+    '|.|. . 6 .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CS10: { entry: 2, exit: 2, legend: CZ_SCL_L, sp: {kind: 'scales', anvil: 'r5'}, map: [
+    '+-+-+=+-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . 1 . .|',
+    '+ + + + + +',
+    '|l l ^ r r|',
+    '+ + + + + +',
+    '|. . .|6 .|',
+    '+ + + + + +',
+    '|. . . . 3|',
+    '+-+-+ +-+-+',] },
+  CS11: { entry: 2, exit: 3, legend: CZ_SCL_L, sp: {kind: 'scales', anvil: 'r6'}, map: [
+    '+-+-+-+=+-+',
+    '|.|. . . .|',
+    '+ + + + + +',
+    '|. 2 . 5 .|',
+    '+ + + + + +',
+    '|l l ^ r r|',
+    '+ + + + + +',
+    '|. . . 4 5|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CS12: { entry: 2, exit: 3, legend: CZ_SCL_L, sp: {kind: 'scales', anvil: 'r6'}, map: [
+    '+-+-+-+=+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. 5 2 4 .|',
+    '+ + + + + +',
+    '|l l ^ r r|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. 5 . . .|',
+    '+-+-+ +-+-+',] },
+  CS13: { entry: 2, exit: 2, legend: CZ_SCL_L, sp: {kind: 'scales', anvil: 'l6'}, map: [
+    '+-+-+=+-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|l l ^ r r|',
+    '+ + + + + +',
+    '|. 3 . 2 .|',
+    '+ + + + + +',
+    '|2 . . 5 .|',
+    '+ + + + + +',
+    '|.|. . . .|',
+    '+-+-+ +-+-+',] },
+  CS14: { entry: 2, exit: 3, legend: CZ_SCL_L, sp: {kind: 'scales', anvil: 'l6'}, map: [
+    '+-+-+-+=+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . 3 2 .|',
+    '+ + + + + +',
+    '|l|l ^ r r|',
+    '+ + + + + +',
+    '|. 5 . . .|',
+    '+ + + + + +',
+    '|2 . . . .|',
+    '+-+-+ +-+-+',] },
+  CS15: { entry: 2, exit: 1, legend: CZ_SCL_L, sp: {kind: 'scales', anvil: 'r7'}, map: [
+    '+-+=+-+-+-+',
+    '|. . 5 . .|',
+    '+ + + + + +',
+    '|4 . 5 4 .|',
+    '+ + + + + +',
+    '|. . . . 1|',
+    '+ + + + + +',
+    '|l l ^ r r|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CS16: { entry: 2, exit: 1, legend: CZ_SCL_L, sp: {kind: 'scales', anvil: 'r7'}, map: [
+    '+-+=+-+-+-+',
+    '|. . 3 . .|',
+    '+ + + + + +',
+    '|l l ^|r r|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + +-+',
+    '|. 6 6 5 .|',
+    '+ + + + + +',
+    '|. . . . 3|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CS17: { entry: 2, exit: 2, legend: CZ_SCL_L, sp: {kind: 'scales', anvil: 'l7'}, map: [
+    '+-+-+=+-+-+',
+    '|. 5 . . .|',
+    '+ + + + + +',
+    '|. 4 . . .|',
+    '+ + + + + +',
+    '|l l|^ r r|',
+    '+ + + + + +',
+    '|. . 4 . .|',
+    '+ + + + + +',
+    '|. 5 . 1 .|',
+    '+-+ + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CS18: { entry: 2, exit: 3, legend: CZ_SCL_L, sp: {kind: 'scales', anvil: 'r7'}, map: [
+    '+-+-+-+=+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. 5 . . .|',
+    '+ + + + + +',
+    '|l l ^ r r|',
+    '+-+ + + + +',
+    '|. . 6 6 .|',
+    '+ + + + + +',
+    '|. . . 3 .|',
+    '+ + + +-+ +',
+    '|. . . . 3|',
+    '+-+-+ +-+-+',] },
+  CS19: { entry: 2, exit: 1, legend: CZ_SCL_L, sp: {kind: 'scales', anvil: 'l8'}, map: [
+    '+-+=+-+-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|l l ^ r r|',
+    '+ + + + + +',
+    '|. 2 1 2|.|',
+    '+ + + + + +',
+    '|. . 5 . .|',
+    '+-+ + + + +',
+    '|. . . . 4|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CS20: { entry: 2, exit: 3, legend: CZ_SCL_L, sp: {kind: 'scales', anvil: 'l8'}, map: [
+    '+-+-+-+=+-+',
+    '|. . 5 . .|',
+    '+ + + + + +',
+    '|. . 5 . .|',
+    '+ + + + + +',
+    '|. . 4 6 .|',
+    '+ + + + + +',
+    '|l l ^ r r|',
+    '+ + + + + +',
+    '|. 6 .|. .|',
+    '+ + + + + +',
+    '|. . .|. .|',
+    '+-+-+ +-+-+',] },
+  CS21: { entry: 2, exit: 2, legend: CZ_SCL_L, sp: {kind: 'scales', anvil: 'r8'}, map: [
+    '+-+-+=+-+-+',
+    '|. . . . .|',
+    '+ + + + +-+',
+    '|. . 5 4 .|',
+    '+ + + + +-+',
+    '|. . 1 . 2|',
+    '+ + + + + +',
+    '|l l ^ r r|',
+    '+ + + + + +',
+    '|. . . 2 .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CS22: { entry: 2, exit: 1, legend: CZ_SCL_L, sp: {kind: 'scales', anvil: 'l8'}, map: [
+    '+-+=+-+-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. 4 1 . .|',
+    '+ + + + + +',
+    '|l l ^ r r|',
+    '+ + +-+ + +',
+    '|2 5|. . 2|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CH1: { entry: 2, exit: 0, legend: CZ_SHL_L, sp: {kind: 'shells', swaps: 3, swapT: 0.95, rounds: 1, pairs: 0, seed: 8287}, map: [
+    '+=+-+-+-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. t t t .|',
+    '+ + + + + +',
+    '|.|p|p|p|.|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CH2: { entry: 2, exit: 0, legend: CZ_SHL_L, sp: {kind: 'shells', swaps: 4, swapT: 0.92, rounds: 1, pairs: 0, seed: 1895}, map: [
+    '+=+-+-+-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. t t t .|',
+    '+ + + + + +',
+    '|.|p|p|p|.|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CH3: { entry: 2, exit: 2, legend: CZ_SHL_L, sp: {kind: 'shells', swaps: 5, swapT: 0.9, rounds: 1, pairs: 0, seed: 4795}, map: [
+    '+-+-+=+-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. t t t .|',
+    '+ + + + + +',
+    '|.|p|p|p|.|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CH4: { entry: 2, exit: 0, legend: CZ_SHL_L, sp: {kind: 'shells', swaps: 6, swapT: 0.87, rounds: 1, pairs: 0, seed: 6769}, map: [
+    '+=+-+-+-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. t t t .|',
+    '+ + + + + +',
+    '|.|p|p|p|.|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CH5: { entry: 2, exit: 2, legend: CZ_SHL_L, sp: {kind: 'shells', swaps: 3, swapT: 0.85, rounds: 2, pairs: 0, seed: 4886}, map: [
+    '+-+-+=+-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. t t t .|',
+    '+ + + + + +',
+    '|.|p|p|p|.|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CH6: { entry: 2, exit: 2, legend: CZ_SHL_L, sp: {kind: 'shells', swaps: 4, swapT: 0.82, rounds: 2, pairs: 0, seed: 5724}, map: [
+    '+-+-+=+-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. t t t .|',
+    '+ + + + + +',
+    '|.|p|p|p|.|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CH7: { entry: 2, exit: 2, legend: CZ_SHL_L, sp: {kind: 'shells', swaps: 4, swapT: 0.79, rounds: 2, pairs: 0, seed: 2179}, map: [
+    '+-+-+=+-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. t t t .|',
+    '+ + + + + +',
+    '|.|p|p|p|.|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CH8: { entry: 2, exit: 4, legend: CZ_SHL_L, sp: {kind: 'shells', swaps: 5, swapT: 0.77, rounds: 2, pairs: 0, seed: 6372}, map: [
+    '+-+-+-+-+=+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. t t t .|',
+    '+ + + + + +',
+    '|.|p|p|p|.|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CH9: { entry: 2, exit: 2, legend: CZ_SHL_L, sp: {kind: 'shells', swaps: 5, swapT: 0.74, rounds: 2, pairs: 0, seed: 485}, map: [
+    '+-+-+=+-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. t t t .|',
+    '+ + + + + +',
+    '|.|p|p|p|.|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CH10: { entry: 2, exit: 2, legend: CZ_SHL_L, sp: {kind: 'shells', swaps: 6, swapT: 0.71, rounds: 2, pairs: 0, seed: 4212}, map: [
+    '+-+-+=+-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. t t t .|',
+    '+ + + + + +',
+    '|.|p|p|p|.|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CH11: { entry: 2, exit: 2, legend: CZ_SHL_L, sp: {kind: 'shells', swaps: 5, swapT: 0.69, rounds: 2, pairs: 0, seed: 7267}, map: [
+    '+-+-+=+-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. t t t .|',
+    '+ + + + + +',
+    '|.|p|p|p|.|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CH12: { entry: 2, exit: 0, legend: CZ_SHL_L, sp: {kind: 'shells', swaps: 6, swapT: 0.66, rounds: 2, pairs: 0, seed: 4618}, map: [
+    '+=+-+-+-+-+-+',
+    '|. . . . . .|',
+    '+ + + + + + +',
+    '|. t t t t .|',
+    '+ + + + + + +',
+    '|.|p|p|p|p|.|',
+    '+ + + + + + +',
+    '|. . . . . .|',
+    '+ + + + + + +',
+    '|. . . . . .|',
+    '+-+-+ +-+-+-+',] },
+  CH13: { entry: 2, exit: 2, legend: CZ_SHL_L, sp: {kind: 'shells', swaps: 7, swapT: 0.64, rounds: 2, pairs: 0, seed: 6197}, map: [
+    '+-+-+=+-+-+-+',
+    '|. . . . . .|',
+    '+ + + + + + +',
+    '|. t t t t .|',
+    '+ + + + + + +',
+    '|.|p|p|p|p|.|',
+    '+ + + + + + +',
+    '|. . . . . .|',
+    '+ + + + + + +',
+    '|. . . . . .|',
+    '+-+-+ +-+-+-+',] },
+  CH14: { entry: 2, exit: 5, legend: CZ_SHL_L, sp: {kind: 'shells', swaps: 4, swapT: 0.61, rounds: 3, pairs: 0, seed: 5197}, map: [
+    '+-+-+-+-+-+=+',
+    '|. . . . . .|',
+    '+ + + + + + +',
+    '|. t t t t .|',
+    '+ + + + + + +',
+    '|.|p|p|p|p|.|',
+    '+ + + + + + +',
+    '|. . . . . .|',
+    '+ + + + + + +',
+    '|. . . . . .|',
+    '+-+-+ +-+-+-+',] },
+  CH15: { entry: 2, exit: 2, legend: CZ_SHL_L, sp: {kind: 'shells', swaps: 5, swapT: 0.58, rounds: 3, pairs: 0, seed: 8176}, map: [
+    '+-+-+=+-+-+-+',
+    '|. . . . . .|',
+    '+ + + + + + +',
+    '|. t t t t .|',
+    '+ + + + + + +',
+    '|.|p|p|p|p|.|',
+    '+ + + + + + +',
+    '|. . . . . .|',
+    '+ + + + + + +',
+    '|. . . . . .|',
+    '+-+-+ +-+-+-+',] },
+  CH16: { entry: 2, exit: 5, legend: CZ_SHL_L, sp: {kind: 'shells', swaps: 5, swapT: 0.56, rounds: 3, pairs: 0, seed: 3019}, map: [
+    '+-+-+-+-+-+=+',
+    '|. . . . . .|',
+    '+ + + + + + +',
+    '|. t t t t .|',
+    '+ + + + + + +',
+    '|.|p|p|p|p|.|',
+    '+ + + + + + +',
+    '|. . . . . .|',
+    '+ + + + + + +',
+    '|. . . . . .|',
+    '+-+-+ +-+-+-+',] },
+  CH17: { entry: 2, exit: 2, legend: CZ_SHL_L, sp: {kind: 'shells', swaps: 6, swapT: 0.53, rounds: 3, pairs: 0, seed: 2991}, map: [
+    '+-+-+=+-+-+-+',
+    '|. . . . . .|',
+    '+ + + + + + +',
+    '|. t t t t .|',
+    '+ + + + + + +',
+    '|.|p|p|p|p|.|',
+    '+ + + + + + +',
+    '|. . . . . .|',
+    '+ + + + + + +',
+    '|. . . . . .|',
+    '+-+-+ +-+-+-+',] },
+  CH18: { entry: 2, exit: 0, legend: CZ_SHL_L, sp: {kind: 'shells', swaps: 6, swapT: 0.5, rounds: 3, pairs: 1, seed: 2679}, map: [
+    '+=+-+-+-+-+-+',
+    '|. . . . . .|',
+    '+ + + + + + +',
+    '|. t t t t .|',
+    '+ + + + + + +',
+    '|.|p|p|p|p|.|',
+    '+ + + + + + +',
+    '|. . . . . .|',
+    '+ + + + + + +',
+    '|. . . . . .|',
+    '+-+-+ +-+-+-+',] },
+  CH19: { entry: 2, exit: 5, legend: CZ_SHL_L, sp: {kind: 'shells', swaps: 7, swapT: 0.48, rounds: 3, pairs: 1, seed: 2654}, map: [
+    '+-+-+-+-+-+=+',
+    '|. . . . . .|',
+    '+ + + + + + +',
+    '|. t t t t .|',
+    '+ + + + + + +',
+    '|.|p|p|p|p|.|',
+    '+ + + + + + +',
+    '|. . . . . .|',
+    '+ + + + + + +',
+    '|. . . . . .|',
+    '+-+-+ +-+-+-+',] },
+  CH20: { entry: 2, exit: 2, legend: CZ_SHL_L, sp: {kind: 'shells', swaps: 8, swapT: 0.45, rounds: 3, pairs: 1, seed: 5017}, map: [
+    '+-+-+=+-+-+-+',
+    '|. . . . . .|',
+    '+ + + + + + +',
+    '|. t t t t .|',
+    '+ + + + + + +',
+    '|.|p|p|p|p|.|',
+    '+ + + + + + +',
+    '|. . . . . .|',
+    '+ + + + + + +',
+    '|. . . . . .|',
+    '+-+-+ +-+-+-+',] },
+  CH21: { entry: 2, exit: 2, legend: CZ_SHL_L, sp: {kind: 'shells', swaps: 9, swapT: 0.43, rounds: 3, pairs: 1, seed: 7901}, map: [
+    '+-+-+=+-+-+-+',
+    '|. . . . . .|',
+    '+ + + + + + +',
+    '|. t t t t .|',
+    '+ + + + + + +',
+    '|.|p|p|p|p|.|',
+    '+ + + + + + +',
+    '|. . . . . .|',
+    '+ + + + + + +',
+    '|. . . . . .|',
+    '+-+-+ +-+-+-+',] },
+  CH22: { entry: 2, exit: 0, legend: CZ_SHL_L, sp: {kind: 'shells', swaps: 10, swapT: 0.4, rounds: 3, pairs: 1, seed: 2462}, map: [
+    '+=+-+-+-+-+-+',
+    '|. . . . . .|',
+    '+ + + + + + +',
+    '|. t t t t .|',
+    '+ + + + + + +',
+    '|.|p|p|p|p|.|',
+    '+ + + + + + +',
+    '|. . . . . .|',
+    '+ + + + + + +',
+    '|. . . . . .|',
+    '+-+-+ +-+-+-+',] },
+  CN1: { entry: 2, exit: 3, legend: CZ_KNF_L, sp: {kind: 'knives', throwT: 0.42, hold: 1.8, side: 'e', seed: 7153}, map: [
+    '+-+-+-+=+-+',
+    '|o . . . o|',
+    '+ + + + + +',
+    '|o . o o o|',
+    '+ + + + + +',
+    '|o . o o o|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CN2: { entry: 2, exit: 1, legend: CZ_KNF_L, sp: {kind: 'knives', throwT: 0.41, hold: 1.8, side: 'e', seed: 8049}, map: [
+    '+-+=+-+-+-+',
+    '|o . o o o|',
+    '+ + + + + +',
+    '|o . o o o|',
+    '+ + + + + +',
+    '|. . o o o|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CN3: { entry: 2, exit: 0, legend: CZ_KNF_L, sp: {kind: 'knives', throwT: 0.4, hold: 1.7, side: 'e', seed: 2806}, map: [
+    '+=+-+-+-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|o o o o .|',
+    '+ + + + + +',
+    '|o o o . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CN4: { entry: 2, exit: 3, legend: CZ_KNF_L, sp: {kind: 'knives', throwT: 0.39, hold: 1.7, side: 'e', seed: 86}, map: [
+    '+-+-+-+=+-+',
+    '|. . . . o|',
+    '+ + + + + +',
+    '|. o o o o|',
+    '+ + + + + +',
+    '|. . o o o|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CN5: { entry: 2, exit: 3, legend: CZ_KNF_L, sp: {kind: 'knives', throwT: 0.38, hold: 1.6, side: 'w', seed: 3133}, map: [
+    '+-+-+-+=+-+',
+    '|o o o . .|',
+    '+ + + + + +',
+    '|o o . o .|',
+    '+ + + + + +',
+    '|o o . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CN6: { entry: 2, exit: 2, legend: CZ_KNF_L, sp: {kind: 'knives', throwT: 0.37, hold: 1.6, side: 'w', seed: 6404}, map: [
+    '+-+-+=+-+-+',
+    '|o . . . .|',
+    '+ + + + + +',
+    '|o o o o .|',
+    '+ + + + + +',
+    '|o o . . .|',
+    '+ + + + + +',
+    '|o o . o o|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CN7: { entry: 2, exit: 1, legend: CZ_KNF_L, sp: {kind: 'knives', throwT: 0.36, hold: 1.5, side: 'w', seed: 7826}, map: [
+    '+-+=+-+-+-+',
+    '|o . . . .|',
+    '+ + + + + +',
+    '|o o o o .|',
+    '+ + + + + +',
+    '|o o o . .|',
+    '+ + + + + +',
+    '|. o o . o|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CN8: { entry: 2, exit: 0, legend: CZ_KNF_L, sp: {kind: 'knives', throwT: 0.35, hold: 1.5, side: 'w', seed: 8734}, map: [
+    '+=+-+-+-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|o . o o .|',
+    '+ + + + + +',
+    '|o o o . .|',
+    '+ + + + + +',
+    '|o o o . o|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CN9: { entry: 2, exit: 0, legend: CZ_KNF_L, sp: {kind: 'knives', throwT: 0.34, hold: 1.4, side: 'e', seed: 4812}, map: [
+    '+=+-+-+-+-+',
+    '|. o o o o|',
+    '+ + + + + +',
+    '|. . . o o|',
+    '+ + + + + +',
+    '|. o . . o|',
+    '+ + + + + +',
+    '|o o o . o|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CN10: { entry: 2, exit: 2, legend: CZ_KNF_L, sp: {kind: 'knives', throwT: 0.33, hold: 1.4, side: 'e', seed: 3976}, map: [
+    '+-+-+=+-+-+',
+    '|o o . . .|',
+    '+ + + + + +',
+    '|o o o o .|',
+    '+ + + + + +',
+    '|. o . . .|',
+    '+ + + + + +',
+    '|. . . o o|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CN11: { entry: 2, exit: 1, legend: CZ_KNF_L, sp: {kind: 'knives', throwT: 0.32, hold: 1.3, side: 'w', seed: 3792}, map: [
+    '+-+=+-+-+-+',
+    '|o . . o o|',
+    '+ + + + + +',
+    '|o o . . o|',
+    '+ + + + + +',
+    '|o o o . .|',
+    '+ + + + + +',
+    '|o o . . o|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CN12: { entry: 2, exit: 3, legend: CZ_KNF_L, sp: {kind: 'knives', throwT: 0.3, hold: 1.3, side: 'e', seed: 6874}, map: [
+    '+-+-+-+=+-+',
+    '|o o o . o|',
+    '+ + + + + +',
+    '|o o o . o|',
+    '+ + + + + +',
+    '|o . . . o|',
+    '+ + + + + +',
+    '|o . o o o|',
+    '+ + + + + +',
+    '|o . . o .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CN13: { entry: 2, exit: 4, legend: CZ_KNF_L, sp: {kind: 'knives', throwT: 0.29, hold: 1.2, side: 'e', seed: 8703}, map: [
+    '+-+-+-+-+=+',
+    '|o o o o .|',
+    '+ + + + + +',
+    '|o o . . .|',
+    '+ + + + + +',
+    '|o . . o o|',
+    '+ + + + + +',
+    '|. . o o o|',
+    '+ + + + + +',
+    '|. o . o .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CN14: { entry: 2, exit: 1, legend: CZ_KNF_L, sp: {kind: 'knives', throwT: 0.28, hold: 1.2, side: 'e', seed: 1421}, map: [
+    '+-+=+-+-+-+',
+    '|o . o . o|',
+    '+ + + + + +',
+    '|o . . . .|',
+    '+ + + + + +',
+    '|o . o o .|',
+    '+ + + + + +',
+    '|o o o . .|',
+    '+ + + + + +',
+    '|o . . . o|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CN15: { entry: 2, exit: 4, legend: CZ_KNF_L, sp: {kind: 'knives', throwT: 0.27, hold: 1.1, side: 'e', seed: 803}, map: [
+    '+-+-+-+-+=+',
+    '|. o . . .|',
+    '+ + + + + +',
+    '|. . . o o|',
+    '+ + + + + +',
+    '|. o o . o|',
+    '+ + + + + +',
+    '|. . . . o|',
+    '+ + + + + +',
+    '|o o o . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CN16: { entry: 2, exit: 1, legend: CZ_KNF_L, sp: {kind: 'knives', throwT: 0.26, hold: 1.1, side: 'e', seed: 4235}, map: [
+    '+-+=+-+-+-+',
+    '|o . . o o|',
+    '+ + + + + +',
+    '|. . o o o|',
+    '+ + + + + +',
+    '|. o o o o|',
+    '+ + + + + +',
+    '|. . o . o|',
+    '+ + + + + +',
+    '|o . . . o|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CN17: { entry: 2, exit: 0, legend: CZ_KNF_L, sp: {kind: 'knives', throwT: 0.25, hold: 1, side: 'e', seed: 6563}, map: [
+    '+=+-+-+-+-+',
+    '|. o o o o|',
+    '+ + + + + +',
+    '|. . . o o|',
+    '+ + + + + +',
+    '|. o . . .|',
+    '+ + + + + +',
+    '|o o . o .|',
+    '+ + + + + +',
+    '|o o o . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CN18: { entry: 2, exit: 2, legend: CZ_KNF_L, sp: {kind: 'knives', throwT: 0.24, hold: 1, side: 'w', seed: 4810}, map: [
+    '+-+-+=+-+-+',
+    '|o . . . .|',
+    '+ + + + + +',
+    '|o o o o .|',
+    '+ + + + + +',
+    '|o o o . .|',
+    '+ + + + + +',
+    '|o o . . o|',
+    '+ + + + + +',
+    '|. . . o o|',
+    '+ + + + + +',
+    '|o . o o o|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CN19: { entry: 2, exit: 1, legend: CZ_KNF_L, sp: {kind: 'knives', throwT: 0.23, hold: 0.9, side: 'w', seed: 350}, map: [
+    '+-+=+-+-+-+',
+    '|o . . o o|',
+    '+ + + + + +',
+    '|o o . o o|',
+    '+ + + + + +',
+    '|o . . . o|',
+    '+ + + + + +',
+    '|. . o o o|',
+    '+ + + + + +',
+    '|. o o . o|',
+    '+ + + + + +',
+    '|. . . . o|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CN20: { entry: 2, exit: 1, legend: CZ_KNF_L, sp: {kind: 'knives', throwT: 0.22, hold: 0.9, side: 'w', seed: 6413}, map: [
+    '+-+=+-+-+-+',
+    '|o . . o o|',
+    '+ + + + + +',
+    '|o o . . o|',
+    '+ + + + + +',
+    '|o o o . .|',
+    '+ + + + + +',
+    '|o . . . o|',
+    '+ + + + + +',
+    '|o . o . o|',
+    '+ + + + + +',
+    '|. . o o o|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CN21: { entry: 2, exit: 4, legend: CZ_KNF_L, sp: {kind: 'knives', throwT: 0.21, hold: 0.8, side: 'w', seed: 4963}, map: [
+    '+-+-+-+-+=+',
+    '|o o o . .|',
+    '+ + + + + +',
+    '|o o . . o|',
+    '+ + + + + +',
+    '|. . . o o|',
+    '+ + + + + +',
+    '|o . o o o|',
+    '+ + + + + +',
+    '|o . . . o|',
+    '+ + + + + +',
+    '|. o o . o|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CN22: { entry: 2, exit: 4, legend: CZ_KNF_L, sp: {kind: 'knives', throwT: 0.2, hold: 0.8, side: 'e', seed: 1080}, map: [
+    '+-+-+-+-+=+',
+    '|o o o o .|',
+    '+ + + + + +',
+    '|o o . . .|',
+    '+ + + + + +',
+    '|o . . o .|',
+    '+ + + + + +',
+    '|. . o o o|',
+    '+ + + + + +',
+    '|. o o o o|',
+    '+ + + + + +',
+    '|. . . o .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+});
+Object.assign(TRY_COURSES, {"clowncar":["CK1","CK11","CK22"],"lck0":["CK1","CK2","CK3","CK4","CK5","CK6","CK7"],"lck1":["CK8","CK9","CK10","CK11","CK12","CK13","CK14","CK15"],"lck2":["CK16","CK17","CK18","CK19","CK20","CK21","CK22"],"pyramid":["CP1","CP11","CP22"],"lcp0":["CP1","CP2","CP3","CP4","CP5","CP6","CP7"],"lcp1":["CP8","CP9","CP10","CP11","CP12","CP13","CP14","CP15"],"lcp2":["CP16","CP17","CP18","CP19","CP20","CP21","CP22"],"scales":["CS1","CS11","CS22"],"lcs0":["CS1","CS2","CS3","CS4","CS5","CS6","CS7"],"lcs1":["CS8","CS9","CS10","CS11","CS12","CS13","CS14","CS15"],"lcs2":["CS16","CS17","CS18","CS19","CS20","CS21","CS22"],"shells":["CH1","CH11","CH22"],"lch0":["CH1","CH2","CH3","CH4","CH5","CH6","CH7"],"lch1":["CH8","CH9","CH10","CH11","CH12","CH13","CH14","CH15"],"lch2":["CH16","CH17","CH18","CH19","CH20","CH21","CH22"],"knifethrower":["CN1","CN11","CN22"],"lcn0":["CN1","CN2","CN3","CN4","CN5","CN6","CN7"],"lcn1":["CN8","CN9","CN10","CN11","CN12","CN13","CN14","CN15"],"lcn2":["CN16","CN17","CN18","CN19","CN20","CN21","CN22"],"cpuzzles":["CK11","CP11","CS11","CH11","CN11"]});
+CZ_TRY.push(...["clowncar","lck0","lck1","lck2","pyramid","lcp0","lcp1","lcp2","scales","lcs0","lcs1","lcs2","shells","lch0","lch1","lch2","knifethrower","lcn0","lcn1","lcn2","cpuzzles"]);
+Object.assign(TRY_TITLES, {"clowncar":"THE CLOWN CAR","lck0":"THE CLOWN CAR 1-7","lck1":"THE CLOWN CAR 8-15","lck2":"THE CLOWN CAR 16-22","pyramid":"THE ACROBAT PYRAMID","lcp0":"THE ACROBAT PYRAMID 1-7","lcp1":"THE ACROBAT PYRAMID 8-15","lcp2":"THE ACROBAT PYRAMID 16-22","scales":"THE BALANCE SCALES","lcs0":"THE BALANCE SCALES 1-7","lcs1":"THE BALANCE SCALES 8-15","lcs2":"THE BALANCE SCALES 16-22","shells":"THE SHELL GAME","lch0":"THE SHELL GAME 1-7","lch1":"THE SHELL GAME 8-15","lch2":"THE SHELL GAME 16-22","knifethrower":"THE KNIFE THROWER","lcn0":"THE KNIFE THROWER 1-7","lcn1":"THE KNIFE THROWER 8-15","lcn2":"THE KNIFE THROWER 16-22","cpuzzles":"CIRCUS PUZZLES"});
+Object.assign(TRY_NEWS, {"clowncar":"Push the clowns into the little car. They get in only through its back door. Three squares, easy to hard","pyramid":"Push the acrobats onto the gold stars, and they climb into a pyramid. Three squares, easy to hard","scales":"Push weights onto the two pans until the scale hangs level. Three squares, easy to hard","shells":"Watch the cup with the gold star as the magician shuffles, then roll onto its pad. Three squares, easy to hard","knifethrower":"Watch where the knives land. Then cross on the boards he did not hit. Three squares, easy to hard","cpuzzles":"The circus puzzles, one after another"});
+Object.assign(PLAZA_NEWS, {"CK1":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK2":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK3":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK4":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK5":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK6":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK7":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK8":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK9":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK10":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK11":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK12":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK13":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK14":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK15":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK16":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK17":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK18":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK19":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK20":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK21":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK22":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CP1":"Push an acrobat onto every gold star. The pad by the road puts them back","CP2":"Push an acrobat onto every gold star. The pad by the road puts them back","CP3":"Push an acrobat onto every gold star. The pad by the road puts them back","CP4":"Push an acrobat onto every gold star. The pad by the road puts them back","CP5":"Push an acrobat onto every gold star. The pad by the road puts them back","CP6":"Push an acrobat onto every gold star. The pad by the road puts them back","CP7":"Push an acrobat onto every gold star. The pad by the road puts them back","CP8":"Push an acrobat onto every gold star. The pad by the road puts them back","CP9":"Push an acrobat onto every gold star. The pad by the road puts them back","CP10":"Push an acrobat onto every gold star. The pad by the road puts them back","CP11":"Push an acrobat onto every gold star. The pad by the road puts them back","CP12":"Push an acrobat onto every gold star. The pad by the road puts them back","CP13":"Push an acrobat onto every gold star. The pad by the road puts them back","CP14":"Push an acrobat onto every gold star. The pad by the road puts them back","CP15":"Push an acrobat onto every gold star. The pad by the road puts them back","CP16":"Push an acrobat onto every gold star. The pad by the road puts them back","CP17":"Push an acrobat onto every gold star. The pad by the road puts them back","CP18":"Push an acrobat onto every gold star. The pad by the road puts them back","CP19":"Push an acrobat onto every gold star. The pad by the road puts them back","CP20":"Push an acrobat onto every gold star. The pad by the road puts them back","CP21":"Push an acrobat onto every gold star. The pad by the road puts them back","CP22":"Push an acrobat onto every gold star. The pad by the road puts them back","CS1":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS2":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS3":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS4":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS5":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS6":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS7":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS8":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS9":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS10":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS11":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS12":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS13":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS14":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS15":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS16":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS17":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS18":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS19":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS20":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS21":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS22":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CH1":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH2":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH3":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH4":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH5":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH6":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH7":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH8":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH9":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH10":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH11":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH12":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH13":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH14":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH15":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH16":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH17":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH18":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH19":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH20":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH21":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH22":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CN1":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN2":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN3":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN4":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN5":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN6":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN7":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN8":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN9":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN10":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN11":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN12":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN13":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN14":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN15":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN16":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN17":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN18":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN19":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN20":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN21":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN22":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again"});
 
 // HARNESS: does anything of the world hide the course? From the camera's own place over points all along the course,
 // render the course alone (red on black), then again with the world in front of it (the world black, keeping its
@@ -23406,7 +25408,7 @@ requestAnimationFrame(frame);
    game started with. */
 function worldFromHash() {
   const [h, v, w] = location.hash.slice(1).split('-');
-  if (h === 'try' && TRY_COURSES[v]) { loadTry(v, w === 'tokyo'); setWorld(TRY_CIRCUS[v] ? 'circus-tintoy' : TRY_SPACE[v] || SP_TRY.includes(v) ? 'pinball-chrome' : w === 'tokyo' ? 'tokyo' : 'neon'); return; }   // #try-ice, #try-ice-tokyo
+  if (h === 'try' && TRY_COURSES[v]) { loadTry(v, w === 'tokyo'); setWorld(TRY_CIRCUS[v] || CZ_TRY.includes(v) ? 'circus-tintoy' : TRY_SPACE[v] || SP_TRY.includes(v) ? 'pinball-chrome' : w === 'tokyo' ? 'tokyo' : 'neon'); return; }   // #try-ice, #try-ice-tokyo
   if (h === 'circus') {                                 // #circus-bigtop, #circus-tintoy, #circus-midway (course 27, or the one named: #circus-midway-12)
     const n = parseInt(w, 10);
     loadLevel(n >= 1 && n <= LEVELS.length ? n : 27);
