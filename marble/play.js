@@ -3598,7 +3598,7 @@ Object.assign(PLAZA_AT, { 41: 'G41', 42: 'G42', 43: 'G43', 44: 'G44', 45: 'G45',
 function plazaLayout(id) {
   const flipped = id.endsWith('~'), T = PLAZAS[flipped ? id.slice(0, -1) : id];
   const cols = (T.map[0].length - 1) / 2, rows = (T.map.length - 1) / 2;
-  if (!flipped) return { id, cols, rows, map: T.map, legend: T.legend, entry: T.entry, exit: T.exit, ice: T.ice, cover: T.cover, tune: T.tune, twin: T.twin, water: T.water, riddle: T.riddle };
+  if (!flipped) return { id, cols, rows, map: T.map, legend: T.legend, entry: T.entry, exit: T.exit, ice: T.ice, cover: T.cover, tune: T.tune, twin: T.twin, water: T.water, riddle: T.riddle, sp: T.sp };
   const legend = {};
   for (const [ch, v] of Object.entries(T.legend)) {                 // and anything that points turns with it
     const u = legend[ch] = { ...v };
@@ -3606,7 +3606,7 @@ function plazaLayout(id) {
     if (u.source === 'e' || u.source === 'w') u.source = u.source === 'e' ? 'w' : 'e';
     if ('tile' in u) u.tile = (u.tile & 5) | (u.tile & 2 ? 8 : 0) | (u.tile & 8 ? 2 : 0);
   }
-  return { id, cols, rows, map: T.map.map((l) => [...l].reverse().join('')), legend, entry: cols - 1 - T.entry, exit: cols - 1 - T.exit, ice: T.ice, cover: T.cover, tune: T.tune, twin: T.twin, water: T.water, riddle: T.riddle };
+  return { id, cols, rows, map: T.map.map((l) => [...l].reverse().join('')), legend, entry: cols - 1 - T.entry, exit: cols - 1 - T.exit, ice: T.ice, cover: T.cover, tune: T.tune, twin: T.twin, water: T.water, riddle: T.riddle, sp: T.sp };
 }
 // A square's map read into cells[r][c], edges h[k][c] (the south edge of row k) and v[r][c] (the west edge of column c).
 function plazaGrid(pc) {
@@ -3961,7 +3961,7 @@ function makeLevel(n, variant = LEVEL_VARIANT[n] || 0, test = null) {
     const T = plazaLayout(id), W = T.cols * CELL, D = T.rows * CELL, rw = 2.4, iw = r2(Math.max(rw, Math.min(wide, 3)));
     straight(5, iw, true);                              // the road in, with a ring on it
     const bs = x > 3 ? -1 : 1, bx = r2(x + bs * (iw / 2 + 1.1)), bz = r2(z + 2.5);
-    if (!T.ice && !T.cover && !T.twin && !T.riddle) pieces.push({ ...F(bx, bz, 2.2, 2.2, y), bay: true }, { t: 'reset', x: bx, z: bz, y, w: 1.5, d: 1.5 });   // (ice, tiles, twins reset themselves)
+    if (!T.ice && !T.cover && !T.twin && !T.riddle && !(T.sp && T.sp.kind === 'fuel')) pieces.push({ ...F(bx, bz, 2.2, 2.2, y), bay: true }, { t: 'reset', x: bx, z: bz, y, w: 1.5, d: 1.5 });   // (ice, tiles, twins reset themselves)
     const x0 = r2(Math.min(14.5 - W, Math.max(-8.5, x - (T.entry + 0.5) * CELL))), ex = r2(x0 + (T.entry + 0.5) * CELL);
     if (Math.abs(ex - x) > 0.05) { pieces.push(F(r2((x + ex) / 2), r2(z - rw / 2), r2(Math.abs(ex - x) + rw), rw, y)); x = ex; on(rw); }
     straight(1.5, rw);
@@ -3970,7 +3970,8 @@ function makeLevel(n, variant = LEVEL_VARIANT[n] || 0, test = null) {
     x = r2(x0 + (T.exit + 0.5) * CELL);
     if (T.cover || T.twin) { pieces.push({ ...F(x, r2(z - 1.5), rw, 3, y), bridge: true }); on(3); }   // the bridge out: there once solved
     if (T.water) on(WATER_GAP);                         // the channel: the road missing, the boat's crossing
-    if (T.tune) {                                       // a ledge, a portal on it (open once the tune is played), the missing road, the far side
+    if (T.sp && T.sp.gap) { on(T.sp.gap); pieces.push(F(x, r2(z - 2.5), 5, 5, y)); on(5); }   // refuel and launch: the gap the pad throws you over, and the landing
+    if (T.tune && !T.sp) {                              // a ledge, a portal on it (open once the tune is played), the missing road, the far side
       straight(2.5, rw);
       const pz = r2(z + 0.9), gap = 7;
       on(gap);
@@ -5672,6 +5673,7 @@ function buildPlaza(pc) {
   if (pc.twin) buildTwin(P);
   if (pc.water) buildWater(P);
   if (pc.riddle) buildRiddle(P);
+  if (pc.sp) spBuild(P);
   // The gates.
   // (Each is named by its edge as the search names it: H c,k is the south edge of row k in column c; V c,r the west edge of column c in row r.)
   for (let k = 0; k <= P.rows; k++) for (let c = 0; c < P.cols; c++) if (G.h[k][c] && !plazaWall(G.h[k][c])) buildGate(P, G.h[k][c], X(c), P.z0 - k * CELL, true, 'H' + c + ',' + k);
@@ -5945,6 +5947,7 @@ function buildPlaza(pc) {
     levelGroup.add(grp);
     P.reset = { x: rp.x, z: rp.z, glyphMat, flash: 0 };
   }
+  if (pc.sp) spBuilt(P);
   plazas.push(P);
 }
 // A gate on an edge: bars across the doorway, a sheet of light between them, the sign of what opens it lying over it.
@@ -6025,9 +6028,9 @@ const plusTex = canvasTex(128, 128, (g) => {            // a charged floor: plus
 const gateFieldTex = fieldTex.clone();
 gateFieldTex.repeat.set((CELL - WALL_T) / 1.1, GATE_H / 1.1);
 function buildGate(P, e, x, z, alongX, ek) {
-  const span = CELL - WALL_T, kind = 'keygate' in e ? 'key' : 'sgate' in e ? 'switch' : 'pgate' in e ? 'plate' : 'cgate' in e ? 'charge' : 'light';
+  const span = CELL - WALL_T, kind = 'spgate' in e ? 'space' : 'keygate' in e ? 'key' : 'sgate' in e ? 'switch' : 'pgate' in e ? 'plate' : 'cgate' in e ? 'charge' : 'light';
   const need = e.keygate || 0, letters = e.sgate || e.pgate || '';
-  const col = kind === 'key' ? KEY_COLS[need] : kind === 'charge' ? CHARGE_COL : kind === 'light' ? LIGHT_COL : LETTER_COLS[letters[0]];
+  const col = kind === 'space' ? 0x9FEFFF : kind === 'key' ? KEY_COLS[need] : kind === 'charge' ? CHARGE_COL : kind === 'light' ? LIGHT_COL : LETTER_COLS[letters[0]];
   const grp = new Group(); grp.position.set(x, P.y, z);
   if (!alongX) grp.rotation.y = Math.PI / 2;
   const barMat = new MeshBasicMaterial({ color: col, toneMapped: false, transparent: true });
@@ -6050,7 +6053,7 @@ function buildGate(P, e, x, z, alongX, ek) {
   sheet.material.side = DoubleSide; sheet.position.y = GATE_H / 2; (kind === 'key' ? bars : grp).add(sheet);
   // Its sign, lying over it: the shape of the key that opens it, or the letter of the switch that flips it.
   const signMat = kind === 'key' ? new MeshBasicMaterial({ color: col, toneMapped: false, transparent: true })
-    : new MeshBasicMaterial({ color: col, toneMapped: false, transparent: true, map: kind === 'charge' ? boltTex : kind === 'light' ? sunTex : glyphTex(letters[0]), blending: AdditiveBlending, depthWrite: false });
+    : new MeshBasicMaterial({ color: col, toneMapped: false, transparent: true, map: kind === 'charge' || kind === 'space' ? boltTex : kind === 'light' ? sunTex : glyphTex(letters[0]), blending: AdditiveBlending, depthWrite: false });
   const sign = new Mesh(kind === 'key' ? bowGeo(need, 0.3, 0.055) : new PlaneGeometry(0.72, 0.72), signMat);
   sign.rotation.x = -Math.PI / 2; sign.position.y = GATE_H + 0.32;
   if (kind !== 'key' && !alongX) sign.rotation.z = -Math.PI / 2;   // a letter reads upright from the camera, whichever way the gate runs
@@ -6090,7 +6093,7 @@ const plazaWall = (e) => e === 'wall' || !!(e && (e.source || e.receptor));   //
 const pzRotCW = (m) => ((m << 1) & 15) | (m >> 3);          // north to east, east to south, south to west, west to north
 const plazaEdge = (P, c, r, d) => (d === 'n' ? P.grid.h[r + 1][c] : d === 's' ? P.grid.h[r][c] : d === 'e' ? P.grid.v[r][c + 1] : P.grid.v[r][c]);
 function crateTouch(W, n, rel) {
-  if (W.moving || W.sunk || Math.abs(n.y) > 0.3) return;
+  if (W.moving || W.sunk || W.docked || Math.abs(n.y) > 0.3) return;
   const ax = Math.abs(n.x) > 0.9 ? 'x' : Math.abs(n.z) > 0.9 ? 'z' : null;
   if (!ax) { W.pushT = 0; return; }                    // on a corner: no push
   const dx = ax === 'x' ? -Math.sign(n.x) : 0, dz = ax === 'z' ? -Math.sign(n.z) : 0;
@@ -6100,6 +6103,7 @@ function crateTouch(W, n, rel) {
   if (W.pushT > 0.12) { W.pushT = 0; tryPush(W, dx, dz); }
 }
 function tryPush(W, dx, dz) {
+  if (W.sat) { satPush(W, dx, dz); return; }        // a satellite glides on
   const P = W.P, dc = dx, dr = -dz, tc = W.c + dc, tr = W.r + dr;
   const dir = dc > 0 ? 'e' : dc < 0 ? 'w' : dr > 0 ? 'n' : 's';
   const ok = tc >= 0 && tc < P.cols && tr >= 0 && tr < P.rows && plazaEdge(P, W.c, W.r, dir) === null &&
@@ -6160,13 +6164,14 @@ function plazaMove() {
       if (W.drop >= 1) { W.moving = false; W.drop = undefined; }
       continue;
     }
-    W.t = Math.min(1, W.t + STEP / CRATE_SLIDE);
+    W.t = Math.min(1, W.t + STEP / (W.slideT || CRATE_SLIDE));
     const u = ease(W.t);
     W.col.prev.copy(W.col.pos);
     W.col.pos.set(P.X(W.fc) + (P.X(W.tc) - P.X(W.fc)) * u, P.y + CRATE_H / 2, P.Z(W.fr) + (P.Z(W.tr) - P.Z(W.fr)) * u);
     W.mesh.position.copy(W.col.pos);
     if (W.t >= 1) {
       W.moving = false; W.c = W.tc; W.r = W.tr;
+      if (W.sat) satArrive(W);
       if (W.into) {                                     // it drops in: the gap is road from now
         const G = W.into; W.into = null; W.sunk = G; W.moving = true; W.drop = 0;
         G.col.pit.filled = true; G.col.mesh.visible = true; G.rim.visible = false;
@@ -6195,6 +6200,7 @@ function plazaStep() {
     }
     for (const g of P.gates) if (g.kind === 'plate') g.state = P.plates.some((pl) => pl.on && g.letters.includes(pl.letter)) ? 'open' : 'shut';
     for (const g of P.gates) if (g.kind === 'charge') g.state = P.charged ? 'open' : 'shut';
+    if (P.sp) spStep(P);
     if (on === P.onPad) continue;
     P.onPad = on;
     if (on === -2) resetPlaza(P, false);
@@ -6237,6 +6243,7 @@ function padEnter(P, c, r) {
     P.switches.find((q) => q.c === c && q.r === r).press = 1;
     sound('click');
   }
+  if (P.sp) spPad(P, c, r, cell);
 }
 // Back as it was: every key to its own stand, every gate shut.
 function resetPlaza(P, quiet) {
@@ -6265,6 +6272,7 @@ function resetPlaza(P, quiet) {
     W.col.pos.set(P.X(W.c0), P.y + CRATE_H / 2, P.Z(W.r0)); W.col.prev.copy(W.col.pos); W.mesh.position.copy(W.col.pos);
     if (!quiet) burst(W.col.pos.x, P.y + 0.3, W.col.pos.z, 0xFFB250, 10, 2);
   }
+  if (P.sp && spReset(P, quiet)) moved = true;
   if (quiet) { for (const K of P.keys) K.t = 1; for (const g of P.gates) g.open = g.init === 'open' ? 1 : 0; }
   if (P.reset) P.reset.flash = 1;
   if (P.water) { waterReset(P, quiet); if (!quiet) { sound('reset'); return; } }   // the tanks full, the channel empty
@@ -7040,6 +7048,7 @@ function animatePlazas(dt) {
     if (P.tune) animateTune(P, dt);
     if (P.twin) animateTwin(P, dt);
     if (P.water) animateWater(P, dt);
+    if (P.sp) spAnimate(P, dt);
     if (P.riddle) for (const T of P.riddle.tiles) if (T.right && P.riddle.solved) T.glyphMat.color.setHex(0xFFE9A0);   // the right one, glowing
   }
   for (const Z of crossZones) {
@@ -7437,6 +7446,7 @@ function arrive() {
   for (const P of plazas) if (P.tune && !P.tune.done && flight.to.z > P.z0 - 0.1) Object.assign(P.tune, { at: 0, heard: false, play: null });   // a tune ahead, to hear again
   for (const P of plazas) if (P.twin && !P.twin.done && flight.to.z > P.z0 - 0.1) resetTwin(P);   // a twin ahead, home again
   for (const P of plazas) if (P.riddle && flight.to.z > P.z0 - 0.1) riddleRestore(P, false);   // a riddle ahead: its fence whole
+  for (const P of plazas) if (P.sp && flight.to.z > P.z0 - 0.1) spArrive(P);   // a space puzzle ahead: its tank empty
   for (const P of plazas) if (P.water && P.water.state !== 'down' && flight.to.z > P.z0 - 0.1) { P.water.state = 'docked'; P.water.boat.z = P.water.boat.zNear; waterPlace(P, true); }   // the boat back to meet you
   ball.p.copy(flight.to); ball.v.set(0, 0, 0);
   setTint(spawnTint);
@@ -14716,7 +14726,7 @@ function chromePieces() {
       if (m.material === P.mats.base) tkSet(m, 'material', CK.dark);
       else if (m.material === P.mats.wall && m.parent !== levelGroup) tkSet(m, 'material', CK.chrome);
     });
-    for (const W of P.crates) tkSet(W.mesh, 'material', CK.pod);
+    for (const W of P.crates) if (!W.sat) tkSet(W.mesh, 'material', CK.pod);
   }
   if (metal.count()) tkAdd(levelGroup, new Mesh(metal.done(), K.metal));
   if (paint.count()) tkAdd(levelGroup, new Mesh(paint.done(), K.paint));
@@ -15095,6 +15105,7 @@ function ionStep() {
   }
 }
 function heldStep(dt) {                                   // held on the magnet, drawn to its middle, then flung
+  if (ball.held.fn) { ball.held.fn(dt); return; }        // (or flying through a wormhole of the space puzzles)
   const Hd = ball.held, M = Hd.M;
   Hd.t += dt;
   const k = Math.min(1, Hd.t / 0.25);
@@ -15253,6 +15264,754 @@ Object.assign(TRY_SPACE, { space: [TRY_SPACE.blackhole[1], TRY_SPACE.clamps[1], 
 Object.assign(TRY_COURSES, { space: [] });
 Object.assign(TRY_TITLES, { space: 'NEW OBSTACLES' });
 Object.assign(TRY_NEWS, { space: 'The new obstacles, one after another: a black hole, docking clamps, the ion field, droids and a volcano' });
+
+/* THE SPACE PUZZLES (owner, 2026-09-29, the chrome machine's third stage: the
+   five picked were light the constellation, refuel and launch, wormholes,
+   satellites into orbit and airlock code). Each is a kind of puzzle square,
+   laid and played as the city's are: the camera rises over it, the pad on the
+   bay beside the road in puts it back as it was, and the way out is a blast
+   door that slides open once it is solved. Each has a try-out course, easy to
+   hard, and every layout was solved by a search before it went in (the
+   search also checks that the careless way does not work):
+     stars      roll onto a star: it, and every star joined to it by a line,
+                flips from dark to lit or lit to dark. Light them all (the
+                lights-out puzzle, on a constellation)
+     fuel       a fuel cell fills a third of the tank, and the tank leaks. The
+                launch pad fires only with the tank over the line: fill up
+                close to it, not on the way in
+     wormholes  roll into a scoop and you come out of the lit exit of its
+                colour, wherever that is; a flag of a colour swaps which of its
+                two exits is lit. Islands with space between them
+     orbit      a satellite, pushed, glides until something stops it; stopped
+                on a dock it stays docked. Dock every one
+     airlock    the keys flash the code, then you roll over them in the same
+                order: the tune's rules, with digits on keys, and a lamp over
+                the door for each digit you have right */
+const SP_COLS = [0x3FE0FF, 0xFF5AC8, 0xF4F6FF];          // the wormholes' colours: cyan, pink, white (none that means something else)
+const STAR_LIT = 0xF4FAFF, STAR_DARK = 0x3A4868, STAR_EDGE = 0x8FA2CC, STAR_GLOW = 0x8FD4FF;
+const SPG = { spgate: 1 };                                // the way out: a blast door
+const SP_STAR_L = { '=': SPG };
+for (const ch of 'abcdefgh') { SP_STAR_L[ch] = { star: ch }; SP_STAR_L[ch.toUpperCase()] = { star: ch, lit: 1 }; }
+const SP_FUEL_L = { o: { fuel: 1 }, L: { launch: 1 } };
+const SP_HOLE_L = { a: { scoop: 0 }, b: { scoop: 1 }, c: { scoop: 2 }, A: { out: 0, lit: 1 }, B: { out: 1, lit: 1 }, C: { out: 2, lit: 1 },
+                    D: { out: 0 }, E: { out: 1 }, F: { out: 2 }, f: { flag: 0 }, g: { flag: 1 }, h: { flag: 2 } };
+const SP_ORBIT_L = { '=': SPG, s: { weight: 1, sat: 1 }, o: { dock: 1 }, x: { astro: 1 } };
+const SP_AIR_L = { '=': SPG, a: { tone: 0 }, b: { tone: 1 }, c: { tone: 2 }, d: { tone: 3 }, e: { tone: 4 }, f: { tone: 5 } };
+Object.assign(PLAZAS, {
+  // THE CONSTELLATION. The first: four in a chain; the ends light it (a star in the middle undoes its neighbours).
+  N1: { entry: 2, exit: 2, legend: SP_STAR_L, sp: { kind: 'stars', lines: 'ab bc cd' }, map: [
+    '+-+-+=+-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. b . c .|',
+    '+ + + + + +',
+    '|a . . . d|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+'] },
+  // A kite with a tail, one star lit already: b, d and e (and straight up the middle flips c: all but one lit).
+  N2: { entry: 2, exit: 2, legend: SP_STAR_L, sp: { kind: 'stars', lines: 'ab bc cd da ce ef' }, map: [
+    '+-+-+=+-+-+',
+    '|. . . . f|',
+    '+ + + + + +',
+    '|. b . . .|',
+    '+ + + + + +',
+    '|A . c . e|',
+    '+ + + + + +',
+    '|. d . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+'] },
+  // The hunter: head, shoulders, a belt of three, knees; the head lit. Five stars to roll over (a, b, d, f, g).
+  N3: { entry: 2, exit: 3, legend: SP_STAR_L, sp: { kind: 'stars', lines: 'ha hb ac be cd de cf eg' }, map: [
+    '+-+-+-+=+-+',
+    '|. . H . .|',
+    '+ + + + + +',
+    '|a . . . b|',
+    '+ + + + + +',
+    '|. . . e .|',
+    '+ + + + + +',
+    '|. . d . .|',
+    '+ + + + + +',
+    '|. c . . .|',
+    '+ + + + + +',
+    '|f . . . g|',
+    '+-+-+ +-+-+'] },
+  // REFUEL AND LAUNCH. The first: open floor, time to spare.
+  U1: { entry: 2, exit: 2, legend: SP_FUEL_L, sp: { kind: 'fuel', leak: 0.025, line: 0.8, gap: 7, recharge: 8 }, map: [
+    '+-+-+ +-+-+',
+    '|o . L . o|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. o . o .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+'] },
+  // Two cells by the way in, one out on the right, and three in a line up the left to the pad: those three are the ones that count.
+  U2: { entry: 2, exit: 2, legend: SP_FUEL_L, sp: { kind: 'fuel', leak: 0.036, line: 0.8, gap: 7, recharge: 8 }, map: [
+    '+-+-+ +-+-+',
+    '|. o L . .|',
+    '+ + + + + +',
+    '|o . . . o|',
+    '+ + + + + +',
+    '|o . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. o . o .|',
+    '+-+-+ +-+-+'] },
+  // Walls: the pad is reached from below only, and the three that make it are round the far corner.
+  U3: { entry: 2, exit: 2, legend: SP_FUEL_L, sp: { kind: 'fuel', leak: 0.045, line: 0.8, gap: 7, recharge: 8 }, map: [
+    '+-+-+ +-+-+',
+    '|. . L|o o|',
+    '+ +-+ + + +',
+    '|. .|. . o|',
+    '+ + +-+-+ +',
+    '|o . . . .|',
+    '+-+-+ + + +',
+    '|. . .|. .|',
+    '+ + + + + +',
+    '|o . o . .|',
+    '+ + + + + +',
+    '|. o . . o|',
+    '+-+-+ +-+-+'] },
+  // WORMHOLES. The first: one colour. Its scoop brings you back round, until its flag lights the far exit.
+  V1: { entry: 2, exit: 2, legend: SP_HOLE_L, sp: { kind: 'wormholes' }, map: [
+    '+-+-+ +-+-+',
+    '|. . D . .|',
+    '+ + + + + +',
+    ' # # # # # ',
+    '+ + + + + +',
+    '|. a . A f|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+'] },
+  // Two colours, two islands in the middle: the flag you need is always on the island after. (Every island has a free cell,
+  // so each flag and scoop can be reached without rolling over another.)
+  V2: { entry: 2, exit: 2, legend: SP_HOLE_L, sp: { kind: 'wormholes' }, map: [
+    '+-+-+ +-+-+',
+    '|. . E . .|',
+    '+ + + + + +',
+    ' # # # # # ',
+    '+ + + + + +',
+    '|f .|#|. g|',
+    '+ + + + + +',
+    '|a A|#|D b|',
+    '+ + + + + +',
+    ' # # # # # ',
+    '+ + + + + +',
+    '|B . . . a|',
+    '+-+-+ +-+-+'] },
+  // Three colours: the island in the middle is reached only with the pink flag on the right thrown, and the white one too.
+  V3: { entry: 2, exit: 2, legend: SP_HOLE_L, sp: { kind: 'wormholes' }, map: [
+    '+-+-+ +-+-+',
+    '|. . F . .|',
+    '+ + + + + +',
+    ' # # # # # ',
+    '+ + + + + +',
+    '|c f|E|g h|',
+    '+ + + + + +',
+    '|A .|c|C b|',
+    '+ + + + + +',
+    ' # # # # # ',
+    '+ + + + + +',
+    '|B . . D a|',
+    '+-+-+ +-+-+'] },
+  // SATELLITES INTO ORBIT. The first: one satellite, one dock; the asteroid stops it in line (two pushes).
+  O1: { entry: 2, exit: 2, legend: SP_ORBIT_L, sp: { kind: 'orbit' }, map: [
+    '+-+-+=+-+-+',
+    '|. . . o .|',
+    '+ + + + + +',
+    '|. s . . x|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+'] },
+  // Two: each stops the other (five pushes; two in a hundred random pushers get there).
+  O2: { entry: 2, exit: 2, legend: SP_ORBIT_L, sp: { kind: 'orbit' }, map: [
+    '+-+-+=+-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. s . s .|',
+    '+ + + + + +',
+    '|. x . . .|',
+    '+ + + + + +',
+    '|o . . . .|',
+    '+ + +-+ + +',
+    '|. . . . o|',
+    '+-+-+ +-+-+'] },
+  // Three (seven pushes, and nearly every wrong push is the end: the pad by the road puts them back).
+  O3: { entry: 2, exit: 2, legend: SP_ORBIT_L, sp: { kind: 'orbit' }, map: [
+    '+-+-+=+-+-+',
+    '|. . . . o|',
+    '+ + + + + +',
+    '|o . . . .|',
+    '+ + + + + +',
+    '|. .|x s .|',
+    '+-+ + + + +',
+    '|. . . . o|',
+    '+ + + + + +',
+    '|. s . s .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+'] },
+  // THE AIRLOCK. Three keys, a code of four.
+  A1: { entry: 2, exit: 2, legend: SP_AIR_L, tune: 'bacb', sp: { kind: 'airlock' }, map: [
+    '+-+-+=+-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. a . c .|',
+    '+ + + + + +',
+    '|. . b . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+'] },
+  // Four keys, a code of five.
+  A2: { entry: 2, exit: 2, legend: SP_AIR_L, tune: 'cadbc', sp: { kind: 'airlock' }, map: [
+    '+-+-+=+-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. c . d .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. a . b .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+'] },
+  // Six keys, a code of six: go round the keys, not over them.
+  A3: { entry: 2, exit: 2, legend: SP_AIR_L, tune: 'ebfadc', sp: { kind: 'airlock' }, map: [
+    '+-+-+=+-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|d . e . f|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|a . b . c|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+'] },
+});
+const SP_TRY = ['stars', 'fuel', 'wormholes', 'orbit', 'airlock', 'puzzles'];
+Object.assign(TRY_COURSES, { stars: ['N1', 'N2', 'N3'], fuel: ['U1', 'U2', 'U3'], wormholes: ['V1', 'V2', 'V3'], orbit: ['O1', 'O2', 'O3'], airlock: ['A1', 'A2', 'A3'],
+                             puzzles: ['N2', 'U2', 'V2', 'O2', 'A2'] });
+Object.assign(TRY_TITLES, { stars: 'THE CONSTELLATION', fuel: 'REFUEL AND LAUNCH', wormholes: 'WORMHOLES', orbit: 'SATELLITES', airlock: 'THE AIRLOCK', puzzles: 'NEW PUZZLES' });
+Object.assign(TRY_NEWS, {
+  stars: 'Three constellations. Roll onto a star: it and the stars joined to it flip. Light them all',
+  fuel: 'Fill the tank at the fuel cells, then take the launch pad over the gap. The tank leaks',
+  wormholes: 'Roll into a scoop to come out of the lit exit of its colour. Flags swap which exit is lit',
+  orbit: 'Push each satellite onto a dock. A satellite glides until something stops it',
+  airlock: 'Watch the keys flash the code, then roll over them in the same order',
+  puzzles: 'The five new puzzles, one after another: stars, fuel, wormholes, satellites and the airlock',
+});
+Object.assign(PLAZA_NEWS, {
+  N1: 'Roll onto a star: it and every star joined to it by a line flip, dark to lit or lit to dark. Light them all',
+  N2: 'One star is lit already. Rolling straight through flips the one in the middle',
+  N3: 'Eight stars. Work in from the ends of the lines',
+  U1: 'Each fuel cell fills a third of the tank. Over the line, the launch pad throws you over the gap',
+  U2: 'The tank leaks. Fill up close to the pad, not on the way in',
+  U3: 'Which three cells can you take and still reach the pad in time?',
+  V1: 'A scoop sends you to the lit exit of its colour. Its flag swaps which exit is lit',
+  V2: 'Two colours. Throw a flag, then take a scoop',
+  V3: 'Three colours. Think two islands ahead',
+  O1: 'Push the satellite onto the dock. It glides until something stops it',
+  O2: 'Two satellites. One can stop the other',
+  O3: 'Three. A satellite in a corner is stuck: the pad by the road puts them back',
+  A1: 'Watch the code, then roll over the keys in the same order. The pad by the road shows it again',
+  A2: 'A code of five. A wrong key and it plays again',
+  A3: 'Six keys. Go round them, not over',
+});
+
+// ---- SHARED PARTS ----
+function spStarPath(g, cx, cy, r1, r2) {
+  g.beginPath();
+  for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? r2 : r1; g.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); }
+  g.closePath();
+}
+let spTexMemo = null;
+function spTex() {
+  if (spTexMemo) return spTexMemo;
+  const T = spTexMemo = {};
+  T.star = canvasTex(128, 128, (g) => { g.fillStyle = '#FFF'; spStarPath(g, 64, 66, 60, 25); g.fill(); });
+  T.starEdge = canvasTex(128, 128, (g) => { g.strokeStyle = '#FFF'; g.lineWidth = 6; g.lineJoin = 'round'; spStarPath(g, 64, 66, 57, 24); g.stroke(); });
+  T.chev = canvasTex(128, 128, (g) => {                   // the launch pad: three chevrons, up the rail (drawn on black: they add light)
+    g.fillStyle = '#000'; g.fillRect(0, 0, 128, 128);
+    for (let k = 0; k < 3; k++) { const y = 96 - k * 30; g.beginPath(); g.moveTo(20, y + 14); g.lineTo(64, y - 14); g.lineTo(108, y + 14); g.lineTo(108, y + 26); g.lineTo(64, y - 2); g.lineTo(20, y + 26); g.closePath(); g.fillStyle = '#FFF'; g.fill(); }
+  });
+  T.shape = [0, 1, 2].map((k) => canvasTex(128, 128, (g) => {   // each wormhole colour has its own shape too: a circle, a triangle, a square
+    g.fillStyle = '#000'; g.fillRect(0, 0, 128, 128); g.fillStyle = '#FFF';
+    if (k === 0) { g.beginPath(); g.arc(64, 64, 38, 0, 7); g.fill(); }
+    else if (k === 1) { g.beginPath(); g.moveTo(64, 22); g.lineTo(108, 100); g.lineTo(20, 100); g.closePath(); g.fill(); }
+    else g.fillRect(28, 28, 72, 72);
+  }));
+  T.dash = canvasTex(256, 256, (g) => {                  // a dock: an orbit, dashed, and a cross in the middle
+    g.strokeStyle = '#FFF'; g.lineWidth = 10; g.setLineDash([22, 16]); g.beginPath(); g.arc(128, 128, 112, 0, 7); g.stroke();
+    g.setLineDash([]); g.lineWidth = 6; g.beginPath(); g.arc(128, 128, 64, 0, 7); g.stroke();
+    g.beginPath(); g.moveTo(128, 40); g.lineTo(128, 216); g.moveTo(40, 128); g.lineTo(216, 128); g.stroke();
+  });
+  T.panel = canvasTex(64, 128, (g) => {                   // a solar panel: blue cells in a silver frame
+    g.fillStyle = '#C8D4E2'; g.fillRect(0, 0, 64, 128);
+    for (let y = 0; y < 8; y++) for (let x = 0; x < 4; x++) { g.fillStyle = (x + y) % 2 ? '#1E4AB8' : '#2A5CD0'; g.fillRect(3 + x * 15, 3 + y * 15.5, 13, 13.5); }
+  });
+  T.hazard = canvasTex(128, 32, (g) => {                  // a kerb: black and amber stripes
+    g.fillStyle = '#16181E'; g.fillRect(0, 0, 128, 32); g.fillStyle = '#FF8A3C';
+    for (let x = -32; x < 160; x += 32) { g.beginPath(); g.moveTo(x, 32); g.lineTo(x + 16, 32); g.lineTo(x + 32, 0); g.lineTo(x + 16, 0); g.closePath(); g.fill(); }
+  }, true);
+  return T;
+}
+const spDisc = (x, y, z, rad, mat) => { const m = new Mesh(new CircleGeometry(rad, 40), mat); m.rotation.x = -Math.PI / 2; m.position.set(x, y, z); return m; };
+const spRing = (x, y, z, r0, r1, mat) => { const m = new Mesh(new RingGeometry(r0, r1, 48), mat); m.rotation.x = -Math.PI / 2; m.position.set(x, y, z); return m; };
+// The islands of a square: the cells the marble can roll between (no wall, no void, no door between them).
+function spIslands(P) {
+  const isl = Array(P.cols * P.rows).fill(-1); let n = 0;
+  for (let i = 0; i < isl.length; i++) {
+    const c0 = i % P.cols, r0 = Math.floor(i / P.cols);
+    if (isl[i] >= 0 || P.grid.cells[r0][c0].void) continue;
+    const q = [i]; isl[i] = n;
+    while (q.length) {
+      const j = q.pop(), c = j % P.cols, r = Math.floor(j / P.cols);
+      for (const [d, dc, dr] of [['n', 0, 1], ['s', 0, -1], ['e', 1, 0], ['w', -1, 0]]) {
+        const nc = c + dc, nr = r + dr;
+        if (nc < 0 || nc >= P.cols || nr < 0 || nr >= P.rows || plazaEdge(P, c, r, d) !== null) continue;
+        const k = nr * P.cols + nc; if (isl[k] >= 0 || P.grid.cells[nr][nc].void) continue;
+        isl[k] = n; q.push(k);
+      }
+    }
+    n++;
+  }
+  return isl;
+}
+
+// ---- BUILDING ----
+// Before the gates and crates are built: each kind's own pieces.
+function spBuild(P) {
+  const kind = P.pc.sp.kind, G = P.grid, CK = chromeKit(), top = P.y + 0.016;
+  const S = P.spz = { kind, done: false }; P.sp = P.pc.sp;   // (P.sp: what the square's hooks look for)
+  const each = (key, fn) => { for (let r = 0; r < P.rows; r++) for (let c = 0; c < P.cols; c++) if (key in G.cells[r][c]) fn(G.cells[r][c], c, r, P.X(c), P.Z(r)); };
+  if (kind === 'stars') {
+    const T = spTex(); S.stars = []; S.at = {};
+    each('star', (cell, c, r, x, z) => {
+      const grp = new Group();
+      const base = spDisc(x, top, z, 0.95, CK.dark), rim = new Mesh(new TorusGeometry(0.95, 0.05, 8, 48), CK.chrome);
+      rim.rotation.x = Math.PI / 2; rim.position.set(x, top + 0.02, z);
+      const halo = spDisc(x, top + 0.004, z, 0.92, glowMat(STAR_GLOW, 0, dot));
+      const fillMat = new MeshBasicMaterial({ color: STAR_DARK, map: T.star, transparent: true, toneMapped: false, depthWrite: false });
+      const edgeMat = new MeshBasicMaterial({ color: STAR_EDGE, map: T.starEdge, transparent: true, toneMapped: false, depthWrite: false });
+      const fill = new Mesh(new PlaneGeometry(1.5, 1.5), fillMat), edge = new Mesh(new PlaneGeometry(1.5, 1.5), edgeMat);
+      for (const m of [fill, edge]) { m.rotation.x = -Math.PI / 2; m.position.set(x, top + 0.01, z); }
+      edge.position.y += 0.002;
+      const sparkle = new Mesh(new PlaneGeometry(2.4, 2.4), glowMat(STAR_GLOW, 0, T.starEdge)); sparkle.rotation.x = -Math.PI / 2; sparkle.position.set(x, top + 0.014, z);
+      grp.add(base, rim, halo, fill, edge, sparkle); levelGroup.add(grp);
+      const s = { id: cell.star, c, r, x, z, lit: !!cell.lit, lit0: !!cell.lit, nb: [], fillMat, edgeMat, halo, sparkle, fill, k: cell.lit ? 1 : 0, flash: 0 };
+      S.stars.push(s); S.at[r * P.cols + c] = s;
+    });
+    const byId = Object.fromEntries(S.stars.map((s) => [s.id, s]));
+    S.lines = [];
+    for (const [a, b] of P.pc.sp.lines.split(' ').map((p) => [...p])) {
+      const A = byId[a], B = byId[b]; A.nb.push(B); B.nb.push(A);
+      const dx = B.x - A.x, dz = B.z - A.z, L = Math.hypot(dx, dz) - 2 * 0.98;       // from rim to rim
+      const mat = new MeshBasicMaterial({ color: 0x24365E, toneMapped: false });
+      const m = new Mesh(new PlaneGeometry(0.11, L), mat); m.rotation.order = 'YXZ';      // laid flat, then turned to run from star to star
+      m.rotation.set(-Math.PI / 2, Math.atan2(dx, dz), 0); m.position.set((A.x + B.x) / 2, top + 0.003, (A.z + B.z) / 2);
+      const glow = new Mesh(new PlaneGeometry(0.34, L), glowMat(0x5FB8FF, 0)); glow.rotation.copy(m.rotation); glow.position.copy(m.position); glow.position.y += 0.002;
+      levelGroup.add(m, glow);
+      S.lines.push({ A, B, mat, glow, k: 0 });
+    }
+  }
+  if (kind === 'fuel') {
+    const T = spTex(), sp = P.pc.sp;
+    Object.assign(S, { tank: 0, shown: 0, gain: 1 / 3, leak: sp.leak, line: sp.line, recharge: sp.recharge, gap: sp.gap, cells: [], pad: null, launched: 0, buzz: 0 });
+    each('fuel', (cell, c, r, x, z) => {
+      const base = spDisc(x, top, z, 0.8, CK.dark), rim = new Mesh(new TorusGeometry(0.8, 0.05, 8, 40), CK.chrome); rim.rotation.x = Math.PI / 2; rim.position.set(x, top + 0.02, z);
+      const coreMat = new MeshBasicMaterial({ color: 0x5FE8FF, toneMapped: false });
+      const core = new Mesh(new CylinderGeometry(0.34, 0.34, 0.46, 24), coreMat); core.position.set(x, top + 0.29, z);
+      const caps = [new Mesh(new CylinderGeometry(0.42, 0.44, 0.1, 24), CK.chrome), new Mesh(new TorusGeometry(0.37, 0.05, 8, 28), CK.chrome)];
+      caps[0].position.set(x, top + 0.05, z); caps[1].rotation.x = Math.PI / 2; caps[1].position.set(x, top + 0.53, z);
+      const glow = spDisc(x, top + 0.006, z, 0.78, glowMat(0x5FE8FF, 0.5, dot));
+      const timer = spRing(x, top + 0.01, z, 0.62, 0.72, glowMat(0x9FEFFF, 0));
+      levelGroup.add(base, rim, core, ...caps, glow, timer);
+      S.cells.push({ c, r, x, z, coreMat, glow, timer, wait: 0, flash: 0 });
+    });
+    each('launch', (cell, c, r, x, z) => {
+      const base = spDisc(x, top, z, 0.95, CK.dark), rim = new Mesh(new TorusGeometry(0.95, 0.06, 8, 48), CK.chrome); rim.rotation.x = Math.PI / 2; rim.position.set(x, top + 0.02, z);
+      const chevMat = glowMat(0xFFD23F, 0.25, T.chev), chev = new Mesh(new PlaneGeometry(1.4, 1.4), chevMat); chev.rotation.x = -Math.PI / 2; chev.position.set(x, top + 0.01, z);
+      const ringMat = glowMat(0xFFD23F, 0.2), ring = spRing(x, top + 0.012, z, 0.8, 0.9, ringMat);
+      levelGroup.add(base, rim, chev, ring);
+      S.pad = { c, r, x, z, chevMat, ringMat };
+    });
+    // The kerb across the way out, the edge of the gap: the launch clears it, nothing else does.
+    const ex = P.X(P.pc.exit), ez = P.z0 - P.rows * CELL, span = CELL - WALL_T;
+    const kerb = new Mesh(new BoxGeometry(span, 0.55, 0.24), [CK.dark, CK.dark, CK.chrome, CK.dark, keep2(new MeshBasicMaterial({ map: T.hazard, toneMapped: false })), CK.dark]);
+    kerb.position.set(ex, P.y + 0.275, ez + 0.12); levelGroup.add(kerb);
+    const q = new Quaternion();
+    colliders.push({ mesh: kerb, pos: kerb.position.clone(), prev: kerb.position.clone(), quat: q, inv: q.clone(), half: new Vector3(span / 2, 0.275, 0.12),
+                     delta: new Vector3(), ferry: null, holo: null, pad: null, obstacle: 'kerb' });
+    // The tank: a glass tube on the wall beside the way out, lit to how full it is, a white ring at the line.
+    const gx = P.X(Math.min(P.cols - 1, P.pc.exit + 1)), gy = P.y + WALL_H, gz = ez, H = 2.4;
+    const glass = new Mesh(new CylinderGeometry(0.36, 0.36, H, 24, 1, true), CK.glassDome); glass.position.set(gx, gy + H / 2 + 0.1, gz);
+    const fuelMat = new MeshBasicMaterial({ color: 0x5FE8FF, toneMapped: false }), fuel = new Mesh(new CylinderGeometry(0.3, 0.3, 1, 20), fuelMat);
+    fuel.position.set(gx, gy + 0.1, gz);
+    const capB = new Mesh(new CylinderGeometry(0.44, 0.5, 0.2, 24), CK.chrome); capB.position.set(gx, gy + 0.05, gz);
+    const capT = new Mesh(new CylinderGeometry(0.44, 0.44, 0.16, 24), CK.chrome); capT.position.set(gx, gy + H + 0.18, gz);
+    const lineY = gy + 0.1 + H * sp.line, mark = new Mesh(new TorusGeometry(0.4, 0.05, 8, 32), new MeshBasicMaterial({ color: 0xFFFFFF, toneMapped: false }));
+    mark.rotation.x = Math.PI / 2; mark.position.set(gx, lineY, gz);
+    const markGlow = new Mesh(new TorusGeometry(0.42, 0.14, 8, 32), glowMat(0xFFD23F, 0)); markGlow.rotation.x = Math.PI / 2; markGlow.position.copy(mark.position);
+    levelGroup.add(glass, fuel, capB, capT, mark, markGlow);
+    S.gauge = { fuel, fuelMat, H, y0: gy + 0.1, markGlow };
+  }
+  if (kind === 'wormholes') {
+    const T = spTex(); S.isl = spIslands(P); S.items = []; S.lit = [0, 0, 0]; S.lit0 = [0, 0, 0]; S.outs = [[], [], []];
+    each('scoop', (cell, c, r, x, z) => {
+      const col = SP_COLS[cell.scoop];
+      const base = spDisc(x, top, z, 0.9, CK.dark), hole = spDisc(x, top + 0.004, z, 0.62, new MeshBasicMaterial({ color: 0x000000 }));
+      const rim = new Mesh(new TorusGeometry(0.7, 0.08, 10, 48), new MeshBasicMaterial({ color: col, toneMapped: false })); rim.rotation.x = Math.PI / 2; rim.position.set(x, top + 0.03, z);
+      const rings = [0, 1, 2].map(() => spRing(x, top + 0.008, z, 0.56, 0.62, glowMat(col, 0)));
+      levelGroup.add(base, hole, rim, ...rings);
+      S.items.push({ t: 'scoop', col: cell.scoop, c, r, x, z, rings });
+    });
+    each('out', (cell, c, r, x, z) => {
+      const col = SP_COLS[cell.out];
+      const base = spDisc(x, top, z, 0.9, CK.dark), rim = new Mesh(new TorusGeometry(0.72, 0.06, 8, 48), CK.chrome); rim.rotation.x = Math.PI / 2; rim.position.set(x, top + 0.02, z);
+      const lampMat = new MeshBasicMaterial({ color: col, toneMapped: false, transparent: true }), lamp = spRing(x, top + 0.01, z, 0.5, 0.68, lampMat);
+      const signMat = new MeshBasicMaterial({ color: col, map: T.shape[cell.out], transparent: true, blending: AdditiveBlending, depthWrite: false, toneMapped: false });
+      const sign = new Mesh(new PlaneGeometry(0.62, 0.62), signMat); sign.rotation.x = -Math.PI / 2; sign.position.set(x, top + 0.012, z);
+      const beamMat = glowMat(col, 0), beam = new Mesh(new CylinderGeometry(0.5, 0.62, 3.2, 24, 1, true), beamMat); beam.position.set(x, top + 1.6, z);
+      levelGroup.add(base, rim, lamp, sign, beam);
+      const q = { t: 'out', col: cell.out, c, r, x, z, lampMat, signMat, beamMat, beam, k: cell.lit ? 1 : 0, flash: 0 };
+      if (cell.lit) S.lit0[cell.out] = S.outs[cell.out].length;
+      S.outs[cell.out].push(q); S.items.push(q);
+    });
+    S.lit = S.lit0.slice(); S.goal = S.isl[(P.rows - 1) * P.cols + P.pc.exit];
+    each('flag', (cell, c, r, x, z) => {
+      const col = SP_COLS[cell.flag];
+      const base = spDisc(x, top, z, 0.8, CK.dark), ringMat = glowMat(col, 0.7), ring = spRing(x, top + 0.01, z, 0.66, 0.74, ringMat);
+      const signMat = new MeshBasicMaterial({ color: col, map: T.shape[cell.flag], transparent: true, blending: AdditiveBlending, depthWrite: false, toneMapped: false });
+      const sign = new Mesh(new PlaneGeometry(0.5, 0.5), signMat); sign.rotation.x = -Math.PI / 2; sign.position.set(x - 0.2, top + 0.012, z + 0.18);
+      const pole = new Mesh(new CylinderGeometry(0.045, 0.045, 1.6, 8), CK.chrome); pole.position.set(x + 0.3, top + 0.8, z - 0.1);
+      const flag = new Group(); flag.position.set(x + 0.3, top + 1.34, z - 0.1);
+      const cloth = new Mesh(new PlaneGeometry(0.8, 0.5), new MeshBasicMaterial({ color: col, side: DoubleSide, toneMapped: false })); cloth.position.x = 0.42; flag.add(cloth);
+      levelGroup.add(base, ring, sign, pole, flag);
+      S.items.push({ t: 'flag', col: cell.flag, c, r, x, z, flag, ringMat, turn: 0, flash: 0 });
+    });
+  }
+  if (kind === 'orbit') {
+    const T = spTex(); S.docks = []; S.astro = new Set();
+    each('dock', (cell, c, r, x, z) => {
+      const base = spDisc(x, top, z, 0.98, CK.dark);
+      const ringMat = new MeshBasicMaterial({ color: 0x5FE0FF, map: T.dash, transparent: true, depthWrite: false, toneMapped: false });
+      const ring = new Mesh(new PlaneGeometry(1.9, 1.9), ringMat); ring.rotation.x = -Math.PI / 2; ring.position.set(x, top + 0.008, z);
+      const glow = spDisc(x, top + 0.004, z, 0.96, glowMat(0x5FE0FF, 0, dot));
+      levelGroup.add(base, ring, glow);
+      S.docks.push({ c, r, x, z, ring, ringMat, glow, full: false, k: 0 });
+    });
+    each('astro', (cell, c, r, x, z) => {                 // an asteroid: fixed, it stops a satellite and the marble
+      const rock = new Mesh(CK.meteorGeo, CK.rock); rock.scale.set(3.1, 2.2, 3.1); rock.position.set(x, P.y + 0.55, z);
+      rock.rotation.set(0.4, c * 1.3 + r, 0.2); rock.castShadow = true; levelGroup.add(rock);
+      const q = new Quaternion();
+      colliders.push({ mesh: rock, pos: new Vector3(x, P.y + 0.55, z), prev: new Vector3(x, P.y + 0.55, z), quat: q, inv: q.clone(), half: new Vector3(0.78, 0.55, 0.78),
+                       delta: new Vector3(), ferry: null, holo: null, pad: null, obstacle: 'astro' });
+      S.astro.add(r * P.cols + c);
+    });
+  }
+  if (kind === 'airlock') {                               // the tune's drums become keys: a digit on each, lit in its colour when it sounds
+    S.keys = [];
+    for (const D of P.tune.drums) {
+      const grp = D.head.parent; for (const m of grp.children) m.visible = false;
+      const x = P.X(D.c), z = P.Z(D.r), col = 0x7FE8FF;   // one colour for every key: the digits tell them apart
+      const cap = new Mesh(new RoundedBoxGeometry(1.36, 0.16, 1.36, 3, 0.06), CK.dark); cap.position.set(x, P.y + 0.08, z);
+      const edgeMat = glowMat(col, 0.35), edge = spRing(x, P.y + 0.012, z, 0.84, 1.0, edgeMat);
+      const faceMat = new MeshBasicMaterial({ color: 0xFFFFFF, map: glyphTex(String(D.tone + 1)), transparent: true, blending: AdditiveBlending, depthWrite: false, toneMapped: false });
+      const face = new Mesh(new PlaneGeometry(1.0, 1.0), faceMat); face.rotation.x = -Math.PI / 2; face.position.set(x, P.y + 0.165, z);
+      const glow = spDisc(x, P.y + 0.166, z, 0.62, glowMat(col, 0, dot));
+      levelGroup.add(cap, edge, face, glow);
+      S.keys.push({ D, cap, edgeMat, faceMat, glow });
+    }
+  }
+}
+const keep2 = (m) => { m.userData.keep = true; return m; };
+// After everything: the doors, and the satellites (built as crates, then dressed).
+function spBuilt(P) {
+  const S = P.spz, CK = chromeKit(), K = pbKit('chrome');
+  for (const g of P.gates) {
+    if (g.kind !== 'space') continue;
+    const grp = g.sign.parent, span = CELL - WALL_T;
+    for (const m of [...grp.children]) if (m.material !== P.mats.wall) grp.remove(m);   // all but the posts
+    const stripMat = new MeshBasicMaterial({ color: 0x9FEFFF, toneMapped: false, transparent: true, opacity: 0.4 });
+    const leaves = [-1, 1].map((s) => {
+      const L = new Group();
+      const plate = new Mesh(new BoxGeometry(span / 2 - 0.02, GATE_H, 0.14), CK.white); plate.position.y = GATE_H / 2; plate.castShadow = true;
+      const band = new Mesh(new BoxGeometry(span / 2 - 0.02, 0.2, 0.16), CK.dark); band.position.y = GATE_H * 0.55;
+      const strip = new Mesh(new BoxGeometry(span / 2 - 0.12, 0.06, 0.18), stripMat); strip.position.y = GATE_H * 0.55;
+      const edgeBar = new Mesh(new BoxGeometry(0.05, GATE_H, 0.16), CK.dark); edgeBar.position.set(-s * (span / 4 - 0.035), GATE_H / 2, 0);
+      L.add(plate, band, strip, edgeBar); grp.add(L); return { L, s };
+    });
+    const lintel = new Mesh(new BoxGeometry(span + 0.2, 0.16, 0.2), CK.chrome); lintel.position.y = GATE_H + 0.1; grp.add(lintel);
+    // Over the door: a lamp for each digit of an airlock's code (lit as you get them right), or one lamp for any other square.
+    const n = S.kind === 'airlock' ? P.tune.seq.length : 1, lamps = [];
+    for (let i = 0; i < n; i++) {
+      const m = new Mesh(new SphereGeometry(0.09, 12, 8), new MeshBasicMaterial({ color: 0x2A3448, toneMapped: false }));
+      m.position.set((i - (n - 1) / 2) * 0.26, GATE_H + 0.26, 0); grp.add(m); lamps.push(m);
+    }
+    g.door = { leaves, stripMat, lamps, span };
+  }
+  if (S.kind === 'orbit') {
+    const T = spTex(), panelMat = keep2(new MeshStandardMaterial({ map: T.panel, metalness: 0.6, roughness: 0.3, envMap: CK.env, envMapIntensity: 1 }));
+    for (const W of P.crates) {
+      if (!P.grid.cells[W.r0][W.c0].sat) continue;
+      W.sat = true; W.mesh.material = HIDDEN; W.mesh.castShadow = false;
+      const B = pbBuild(), foil = 0xD8A640;                // a satellite of our own: a gold body, a dish, an antenna, legs
+      B.geo(new BoxGeometry(1.0, 0.8, 1.0), placeAt(0, -0.02, 0), foil);
+      for (const h of [0.39, -0.43]) B.geo(new BoxGeometry(1.06, 0.07, 1.06), placeAt(0, h, 0), 0xE6EEF8);
+      B.geo(new LatheGeometry([new Vector2(0.02, 0), new Vector2(0.36, 0.12), new Vector2(0.5, 0.3), new Vector2(0.48, 0.32), new Vector2(0.02, 0.07)], 24), placeAt(0.08, 0.44, 0.08, 0.35, 0, 0.2), 0xF4F8FF);
+      B.geo(new CylinderGeometry(0.025, 0.025, 0.6, 6), placeAt(-0.3, 0.7, -0.26), 0xB8C8DC);
+      for (const s of [-1, 1]) {
+        B.geo(new CylinderGeometry(0.035, 0.035, 0.14, 6), placeAt(s * 0.57, 0.22, 0, 0, 0, Math.PI / 2), 0xB8C8DC);
+        for (const t of [-1, 1]) B.geo(new CylinderGeometry(0.03, 0.05, 0.12, 6), placeAt(s * 0.38, -0.5, t * 0.38), 0x8A9CB8);
+      }
+      const body = new Mesh(B.done(), K.metal); body.castShadow = true;
+      const panels = [-1, 1].map((s) => { const p = new Mesh(new BoxGeometry(0.36, 0.035, 0.84), panelMat); p.position.set(s * 0.82, 0.22, 0); p.castShadow = true; return p; });
+      const lampMat = new MeshBasicMaterial({ color: 0xF4F8FF, toneMapped: false }), lamp = new Mesh(new SphereGeometry(0.08, 10, 8), lampMat); lamp.position.set(-0.3, 1.02, -0.26);
+      W.mesh.add(body, ...panels, lamp);
+      W.satMats = { lampMat }; W.docked = false;
+    }
+  }
+}
+
+// ---- PLAYING ----
+function spPad(P, c, r, cell) {
+  const S = P.spz;
+  if (S.kind === 'stars' && 'star' in cell) {
+    const s = S.at[r * P.cols + c];
+    if (S.done) { s.flash = 1; return; }                  // lit for good: a twinkle
+    for (const t of [s, ...s.nb]) { t.lit = !t.lit; t.flash = 1; }
+    sound(s.lit ? 'star' : 'unstar');
+    if (S.stars.every((t) => t.lit)) {
+      S.done = true; sound('unlock');
+      for (const t of S.stars) burst(t.x, P.y + 0.3, t.z, STAR_GLOW, 10, 2.4);
+    }
+  }
+  if (S.kind === 'fuel') {
+    if (cell.fuel) {
+      const q = S.cells.find((u) => u.c === c && u.r === r);
+      if (q.wait > 0) return;
+      S.tank = Math.min(1, S.tank + S.gain); q.wait = S.recharge; q.flash = 1;
+      sound('fuel'); burst(q.x, P.y + 0.5, q.z, 0x5FE8FF, 12, 2.4);
+    }
+    if (cell.launch) {
+      if (S.tank >= S.line) spLaunch(P);
+      else if (S.buzz <= 0) { S.buzz = 1; sound('buzz'); }
+    }
+  }
+  if (S.kind === 'wormholes') {
+    const it = S.items.find((q) => q.c === c && q.r === r);
+    if (!it) return;
+    if (it.t === 'flag') {
+      S.lit[it.col] ^= 1; it.flash = 1; it.turn += Math.PI;
+      for (const q of S.outs[it.col]) q.flash = 1;
+      sound('flag');
+    }
+    if (it.t === 'scoop') {
+      const to = S.outs[it.col][S.lit[it.col]];
+      if (!to) return;
+      ball.held = { fn: spFly, P, t: 0, p0: ball.p.clone(), from: new Vector3(it.x, P.y, it.z), to: new Vector3(to.x, P.y, to.z), out: to, col: SP_COLS[it.col], trail: 0 };
+      ball.v.set(0, 0, 0); sound('scoop');
+    }
+  }
+}
+// Through a wormhole: down the scoop, over the square in a streak of its colour, up out of the exit.
+const SP_SINK = 0.28, SP_FLY = 0.62;
+function spFly(dt) {
+  const H = ball.held, a = H.from, b = H.to;
+  H.t += dt; ball.v.set(0, 0, 0);
+  if (H.t < SP_SINK) {
+    const k = H.t / SP_SINK;
+    ball.p.set(mix(H.p0.x, a.x, Math.min(1, k * 1.6)), a.y + R - 1.1 * k * k, mix(H.p0.z, a.z, Math.min(1, k * 1.6)));
+    return;
+  }
+  const k = Math.min(1, (H.t - SP_SINK) / SP_FLY);
+  ball.p.set(mix(a.x, b.x, k), a.y + R - 1.1 * (1 - k) + 5.5 * Math.sin(Math.PI * k), mix(a.z, b.z, k));
+  H.trail -= dt;
+  if (H.trail <= 0 && !REDUCED) { H.trail = 0.025; burst(ball.p.x, ball.p.y, ball.p.z, H.col, 2, 0.8); }
+  if (k >= 1) {
+    ball.held = null;
+    ball.p.set(b.x, b.y + R + 0.02, b.z); ball.v.set(0, 3.2, 0); ball.grounded = false;
+    H.out.flash = 1; burst(b.x, b.y + 0.4, b.z, H.col, 18, 3); sound('popout');
+    const S = H.P.spz; if (!S.done && S.isl[H.out.r * H.P.cols + H.out.c] === S.goal) { S.done = true; sound('unlock'); }   // over to the way out
+  }
+}
+// The launch: up and over the gap, onto the middle of the landing beyond (the air's drag counted in).
+function spLaunch(P) {
+  const S = P.spz, tx = P.X(P.pc.exit), tz = P.z0 - P.rows * CELL - S.gap - 2.5;
+  const dx = tx - ball.p.x, dz = tz - ball.p.z, D = Math.hypot(dx, dz), v0 = VMAX * 0.995, k = DAMP_AIR;
+  const t = -Math.log(1 - D * k / v0) / k;
+  ball.v.set(dx / D * v0, G * t / 2, dz / D * v0); ball.grounded = false; ball.p.y += 0.05;
+  S.tank = 0; S.launched++;
+  sound('launch'); burst(S.pad.x, P.y + 0.3, S.pad.z, 0xFFD23F, 30, 4); shake = Math.max(shake, 0.2);
+}
+// Every physics step in play: the doors, and the tank's leak.
+function spStep(P) {
+  const S = P.spz;
+  if (S.kind === 'fuel') {
+    S.tank = Math.max(0, S.tank - S.leak * STEP); S.buzz = Math.max(0, S.buzz - STEP * 1.5);
+    for (const q of S.cells) if (q.wait > 0) { q.wait -= STEP; if (q.wait <= 0) q.flash = 1; }
+  }
+  if (S.kind === 'airlock') S.done = P.tune.done;
+  for (const g of P.gates) if (g.kind === 'space') { const was = g.state; g.state = S.done ? 'open' : 'shut'; if (was === 'shut' && g.state === 'open') sound('door'); }
+}
+// Pushed: it glides until the next cell is off the square, behind a wall, a gap, a rock or another satellite.
+function satPush(W, dx, dz) {
+  const P = W.P, dc = dx, dr = -dz, dir = dc > 0 ? 'e' : dc < 0 ? 'w' : dr > 0 ? 'n' : 's';
+  let c = W.c, r = W.r, n = 0;
+  for (;;) {
+    const nc = c + dc, nr = r + dr;
+    if (nc < 0 || nc >= P.cols || nr < 0 || nr >= P.rows || plazaEdge(P, c, r, dir) !== null || P.grid.cells[nr][nc].void) break;
+    if (P.spz.astro.has(nr * P.cols + nc) || P.crates.some((o) => o !== W && ((o.c === nc && o.r === nr) || (o.moving && o.tc === nc && o.tr === nr)))) break;
+    c = nc; r = nr; n++;
+  }
+  if (!n) { if (simT - W.blockT > 0.5) { W.blockT = simT; sound('knock'); } return; }
+  W.moving = true; W.t = 0; W.fc = W.c; W.fr = W.r; W.tc = c; W.tr = r; W.into = null; W.slideT = 0.1 + 0.15 * n;
+  sound('thrust'); burst(W.col.pos.x - dx * 0.7, P.y + 0.5, W.col.pos.z - dz * 0.7, 0x9FEFFF, 10, 1.6);
+}
+function satArrive(W) {
+  const P = W.P, S = P.spz, d = S.docks.find((q) => q.c === W.c && q.r === W.r);
+  if (!d) { sound('knock'); return; }
+  W.docked = true; d.full = true;
+  burst(d.x, P.y + 0.6, d.z, 0x5FE0FF, 20, 3); sound('dock');
+  if (S.docks.every((q) => q.full)) { S.done = true; sound('unlock'); }
+}
+// The square as it was (the pad by the road in, or a restart). Says whether anything moved.
+function spReset(P, quiet) {
+  const S = P.spz; let moved = false;
+  if (S.kind === 'stars') { for (const s of S.stars) { if (s.lit !== s.lit0) moved = true; s.lit = s.lit0; if (quiet) s.k = s.lit ? 1 : 0; else s.flash = 1; } S.done = false; }
+  if (S.kind === 'fuel') spArrive(P);
+  if (S.kind === 'wormholes') { for (let i = 0; i < 3; i++) if (S.lit[i] !== S.lit0[i]) { S.lit[i] = S.lit0[i]; moved = true; } for (const q of S.items) q.flash = 1; }
+  if (S.kind === 'orbit') { for (const W of P.crates) W.docked = false; for (const d of S.docks) d.full = false; S.done = false; }
+  if (S.kind === 'airlock' && quiet) S.done = false;
+  return moved;
+}
+// Back at the ring before the square after a fall: the tank is empty and every cell full again.
+function spArrive(P) {
+  const S = P.spz;
+  if (S.kind === 'fuel') { S.tank = 0; for (const q of S.cells) q.wait = 0; }
+}
+
+// ---- EVERY FRAME ----
+function spAnimate(P, dt) {
+  const S = P.spz, e = (rate) => (REDUCED ? 1 : 1 - Math.exp(-rate * dt));
+  for (const g of P.gates) {                              // the blast doors slide apart as the gate opens
+    if (!g.door) continue;
+    const u = ease(clamp(g.open, 0, 1)), D = g.door;
+    for (const { L, s } of D.leaves) L.position.x = s * (D.span / 4 + u * (D.span / 2 - 0.06));
+    D.stripMat.opacity = 0.35 + 0.65 * u + 0.5 * g.flash;
+    D.stripMat.color.setHex(g.flash > 0.05 ? 0xFF8A8A : 0x9FEFFF);
+    if (S.kind !== 'airlock') D.lamps[0].material.color.setHex(S.done ? 0x9FEFFF : 0x2A3448);
+  }
+  if (S.kind === 'stars') {
+    for (const s of S.stars) {
+      s.k += ((s.lit ? 1 : 0) - s.k) * e(10); s.flash = Math.max(0, s.flash - dt * 2.2);
+      s.fillMat.color.setHex(STAR_DARK).lerp(_spc.setHex(STAR_LIT), s.k);
+      s.edgeMat.color.setHex(STAR_EDGE).lerp(_spc.setHex(0xFFFFFF), s.k);
+      s.halo.material.opacity = 0.75 * s.k + 0.3 * s.flash;
+      s.sparkle.material.opacity = (REDUCED ? 0.3 : 0.2 + 0.15 * Math.sin(simT * 3 + s.c * 2 + s.r)) * s.k + 0.5 * s.flash;
+      s.sparkle.rotation.z += dt * 0.4 * s.k;
+      const sc = 1 + 0.12 * s.flash; s.fill.scale.setScalar(sc);
+    }
+    for (const L of S.lines) {                           // a line glows once both its stars are lit
+      L.k += ((L.A.lit && L.B.lit ? 1 : 0) - L.k) * e(8);
+      L.mat.color.setHex(0x24365E).lerp(_spc.setHex(0x2F7BFF), L.k); L.glow.material.opacity = 0.45 * L.k;
+    }
+  }
+  if (S.kind === 'fuel') {
+    S.shown += (S.tank - S.shown) * e(12);
+    const Gg = S.gauge, h = Math.max(0.001, S.shown * Gg.H), armed = S.tank >= S.line;
+    Gg.fuel.scale.y = h; Gg.fuel.position.y = Gg.y0 + h / 2;
+    Gg.fuelMat.color.setHex(armed ? 0x9FFFF0 : 0x5FE8FF);
+    Gg.markGlow.material.opacity = armed ? (REDUCED ? 0.6 : 0.4 + 0.3 * Math.sin(simT * 8)) : 0;
+    for (const q of S.cells) {
+      q.flash = Math.max(0, q.flash - dt * 2);
+      const ready = q.wait <= 0, f = ready ? 1 : 1 - q.wait / S.recharge;
+      q.coreMat.color.setHex(ready ? 0x5FE8FF : 0x16324A).lerp(_spc.setHex(0xFFFFFF), 0.6 * q.flash);
+      q.glow.material.opacity = ready ? 0.45 + 0.2 * q.flash : 0.05;
+      q.timer.material.opacity = ready ? 0 : 0.25 + 0.45 * f;
+      q.timer.scale.setScalar(ready ? 1 : 0.4 + 0.6 * f);
+    }
+    const pd = S.pad, pulse = REDUCED ? 1 : 0.75 + 0.25 * Math.sin(simT * 9);
+    pd.chevMat.opacity = armed ? 0.95 * pulse : 0.22 + 0.5 * S.buzz;
+    pd.chevMat.color.setHex(S.buzz > 0.05 && !armed ? 0xFF8A8A : 0xFFD23F);
+    pd.ringMat.opacity = armed ? 0.9 * pulse : 0.2;
+  }
+  if (S.kind === 'wormholes') {
+    for (const q of S.items) {
+      q.flash = Math.max(0, (q.flash || 0) - dt * 2.2);
+      if (q.t === 'scoop') q.rings.forEach((m, i) => {    // rings drawn down into it
+        const p = REDUCED ? 0.5 : ((simT * 0.9 + i / 3) % 1);
+        m.scale.setScalar(1.25 - 0.6 * p); m.material.opacity = 0.8 * Math.sin(Math.PI * p);
+      });
+      if (q.t === 'out') {                               // the lit exit of each colour: bright, with a beam of its colour standing on it
+        const on = S.outs[q.col][S.lit[q.col]] === q ? 1 : 0;
+        q.k += (on - q.k) * e(8);
+        q.lampMat.opacity = 0.25 + 0.75 * q.k; q.signMat.opacity = 0.3 + 0.7 * q.k + 0.3 * q.flash;
+        q.beamMat.opacity = (REDUCED ? 0.3 : 0.24 + 0.08 * Math.sin(simT * 4 + q.c)) * q.k + 0.3 * q.flash; q.beam.visible = q.beamMat.opacity > 0.01;
+      }
+      if (q.t === 'flag') {                              // thrown: the flag swings to the other side
+        q.flag.rotation.y += (q.turn - q.flag.rotation.y) * e(10);
+        q.ringMat.opacity = 0.6 + 0.4 * q.flash;
+      }
+    }
+  }
+  if (S.kind === 'orbit') {
+    for (const d of S.docks) {
+      d.k += ((d.full ? 1 : 0) - d.k) * e(6);
+      d.ringMat.color.setHex(0x5FE0FF).lerp(_spc.setHex(0xFFFFFF), d.k);
+      d.ring.rotation.z += dt * (0.3 + 1.2 * d.k); d.glow.material.opacity = 0.7 * d.k;
+    }
+    for (const W of P.crates) if (W.sat) W.satMats.lampMat.color.setHex(W.docked ? 0x5FE0FF : (REDUCED || (simT * 2 + W.c0) % 1 < 0.5) ? 0xF4F8FF : 0x3A4050);
+  }
+  if (S.kind === 'airlock') {
+    const T = P.tune, lamps = (P.gates.find((g) => g.door) || {}).door;
+    for (const K of S.keys) {
+      const on = Math.max(K.D.k, K.D.flash);
+      K.edgeMat.opacity = 0.35 + 0.65 * on; K.glow.material.opacity = 0.85 * on;
+      K.faceMat.color.setHex(T.wrong > 0.05 && Math.sin(T.wrong * 30) > 0 ? 0xFF6A6A : 0xFFFFFF);
+    }
+    if (lamps) {                                          // over the door: a lamp for each digit, lit as you get them right (all of them in turn as the code plays)
+      const slot = T.play && T.play.t >= 0 ? Math.floor(T.play.t / (TUNE_ON + TUNE_GAP)) : -1;
+      lamps.lamps.forEach((m, i) => m.material.color.setHex(T.done || i < T.at ? 0x9FEFFF : i === slot ? 0xFFFFFF : 0x2A3448));
+    }
+  }
+}
+const _spc = new Color();
+// For the pilot and the tests: what a square is doing.
+function spState(P) {
+  const S = P.spz, o = { kind: S.kind, x0: P.x0, z0: P.z0, y: P.y, cols: P.cols, rows: P.rows, map: P.pc.map, entry: P.pc.entry, exit: P.pc.exit, done: !!(S.done || (P.tune && P.tune.done)) };
+  if (S.kind === 'stars') o.stars = S.stars.map((s) => ({ c: s.c, r: s.r, id: s.id, lit: s.lit, nb: s.nb.map((t) => t.id) }));
+  if (S.kind === 'fuel') Object.assign(o, { tank: +S.tank.toFixed(3), line: S.line, leak: S.leak, gap: S.gap, launched: S.launched, pad: [S.pad.c, S.pad.r],
+                                            cells: S.cells.map((q) => ({ c: q.c, r: q.r, ready: q.wait <= 0 })) });
+  if (S.kind === 'wormholes') Object.assign(o, { lit: S.lit.slice(), isl: S.isl, flying: !!(ball.held && ball.held.fn === spFly),
+                                                 items: S.items.map((q) => ({ t: q.t, col: q.col, c: q.c, r: q.r })), outs: S.outs.map((L) => L.map((q) => [q.c, q.r])) });
+  if (S.kind === 'orbit') Object.assign(o, { sats: P.crates.filter((W) => W.sat).map((W) => ({ c: W.c, r: W.r, moving: W.moving, docked: !!W.docked })),
+                                             docks: S.docks.map((d) => ({ c: d.c, r: d.r, full: d.full })), astro: [...S.astro] });
+  if (S.kind === 'airlock') Object.assign(o, { seq: P.tune.seq, at: P.tune.at, heard: P.tune.heard, playing: !!P.tune.play, wrong: P.tune.wrong > 0.05,
+                                               keys: P.tune.drums.map((D) => ({ c: D.c, r: D.r, tone: D.tone })) });
+  return o;
+}
+Object.assign(PB_SOUNDS, {
+  star() { [1760, 2349, 2637].forEach((f, i) => pbVoice('sine', f, f, 0.5, 0.035, 0, i * 0.05)); pbVoice('triangle', 880, 880, 0.3, 0.03); },   // a star lights
+  unstar() { pbVoice('sine', 1320, 660, 0.25, 0.04); pbVoice('triangle', 440, 330, 0.2, 0.03); },                      // and goes out
+  fuel() { pbVoice('sine', 180, 520, 0.35, 0.07); pbVoice('triangle', 700, 1400, 0.25, 0.03, 0, 0.05); },              // a cell pours into the tank
+  launch() { pbVoice('sawtooth', 70, 600, 0.6, 0.05); pbVoice('sine', 110, 55, 0.4, 0.12); pbVoice('triangle', 900, 2400, 0.5, 0.03, 0, 0.1); },   // the pad fires
+  scoop() { pbVoice('sine', 700, 90, 0.35, 0.08); pbVoice('triangle', 2000, 400, 0.3, 0.02); },                         // down a scoop
+  popout() { pbVoice('sine', 200, 900, 0.18, 0.07); pbVoice('square', 1200, 2400, 0.08, 0.015); },                      // out of an exit
+  flag() { pbVoice('square', 600, 900, 0.07, 0.03); pbVoice('sine', 1200, 1200, 0.15, 0.03, 0, 0.06); },
+  thrust() { pbVoice('sawtooth', 220, 90, 0.3, 0.03); pbVoice('sine', 160, 60, 0.35, 0.06); },                          // a satellite fires off
+  dock() { pbVoice('square', 300, 150, 0.08, 0.05); [988, 1319].forEach((f, i) => pbVoice('triangle', f, f, 0.3, 0.04, 0, 0.1 + i * 0.08)); },   // and docks
+  door() { pbVoice('sawtooth', 110, 60, 0.5, 0.04); pbVoice('sine', 90, 50, 0.6, 0.08); pbVoice('square', 1600, 1600, 0.05, 0.02, 0, 0.45); },   // a blast door slides open
+});
 
 // ---------- TREES, GROWN THE WAY EZ-TREE GROWS THEM ----------
 /* (owner, 2026-09-27: "I would like to see trees. can you make something like
@@ -17197,7 +17956,7 @@ requestAnimationFrame(frame);
    game started with. */
 function worldFromHash() {
   const [h, v, w] = location.hash.slice(1).split('-');
-  if (h === 'try' && TRY_COURSES[v]) { loadTry(v, w === 'tokyo'); setWorld(TRY_SPACE[v] ? 'pinball-chrome' : w === 'tokyo' ? 'tokyo' : 'neon'); return; }   // #try-ice, #try-ice-tokyo
+  if (h === 'try' && TRY_COURSES[v]) { loadTry(v, w === 'tokyo'); setWorld(TRY_SPACE[v] || SP_TRY.includes(v) ? 'pinball-chrome' : w === 'tokyo' ? 'tokyo' : 'neon'); return; }   // #try-ice, #try-ice-tokyo
   if (h === 'pinball') {                                // #pinball-chrome, #pinball-arcade, #pinball-golden (course 27, or the one named: #pinball-golden-12)
     const n = parseInt(w, 10);
     loadLevel(n >= 1 && n <= LEVELS.length ? n : 27);
@@ -17236,6 +17995,7 @@ if (HARNESS) {
                     ice: ball.ice && { c: ball.ice.c, r: ball.ice.r, moving: !!(ball.ice.dc || ball.ice.dr), x0: ball.ice.P.x0, z0: ball.ice.P.z0 },
                     plank: !!(ball.onFerry && ball.onFerry.plank) }),
     tap: () => { tapQueued = true; },
+    spz: () => plazas.filter((P) => P.sp).map(spState),
     space: () => ({ holes: space.holes.map((H) => ({ x: H.x, z: H.z, y: H.y, reach: H.reach, drain: H.drain, pull: H.pull })),
                     clamps: space.clamps.map((C) => { const st = clampState(C, simT); return { x: C.x, z: C.z, w: C.w, f: st.f, left: st.left, period: C.period, closed: C.closed, phase: C.phase }; }), sucked: !!ball.sucked,
                     ions: space.ions.map((M) => { const st = ionState(M, simT), u = (((simT + M.phase) % M.period) + M.period) % M.period; return { x: M.x, z: M.z, on: st.on, always: M.always, side: M.side, offLeft: st.on ? 0 : M.period - M.on - u }; }), held: !!ball.held,
