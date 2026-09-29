@@ -7566,7 +7566,7 @@ const crossed = (m, halfW) => Math.abs(ball.p.z - m.pos.z) < 0.6 && Math.abs(bal
 const ease = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
 
 function update(dt, now) {
-  if (state === 'rules') return;              // the world holds still behind the card
+  if (state === 'rules' || state === 'intro') return;   // the world holds still behind the card
   stateT += dt;
   const [ix, iz] = readInput();
   if ((ix || iz) && state === 'play') {
@@ -7639,6 +7639,7 @@ function update(dt, now) {
   for (const f of tkTicks) f(dt);
   updateSparks(dt);
   updateCamera(dt, false);
+  spIntroMaybe();                                     // a space puzzle met for the first time: how it works
   updateSunPoint();
   if (world.tick) world.tick(dt);
   updateRoll();
@@ -7771,7 +7772,7 @@ function toLogical(e) {
   return { x: (e.clientX - rect.left) * (LW / rect.width), y: (e.clientY - rect.top) * (LH / rect.height) };
 }
 const inBox = (p, b) => b && p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h;
-const cardOpen = () => state === 'rules' || state === 'win';
+const cardOpen = () => state === 'rules' || state === 'win' || state === 'intro';
 function hitKey(p) {
   // While a card is up only its button answers; the controls under the scrim are asleep.
   const keysUp = cardOpen() ? ['cta'] : ['restart', 'rules', 'sound'];
@@ -7861,7 +7862,7 @@ window.addEventListener('keydown', (e) => {
     else if (state === 'rules' && (k === 'up' || k === 'down')) { cardScroll += k === 'up' ? -40 : 40; e.preventDefault(); }
   } else if ((e.code === 'Enter' || e.code === 'Space') && cardOpen()) { e.preventDefault(); act('cta'); }
   else if (e.code === 'Space' && !e.repeat) { firstGesture(); tapQueued = true; e.preventDefault(); }   // a hop
-  else if (e.code === 'Escape' && state === 'rules') act('cta');
+  else if (e.code === 'Escape' && (state === 'rules' || state === 'intro')) act('cta');
 });
 window.addEventListener('keyup', (e) => { const k = KEYMAP[e.code]; if (k) keys.delete(k); });
 window.addEventListener('blur', () => { keys.clear(); joy = null; });
@@ -7872,7 +7873,7 @@ function act(k) {
   if (k === 'restart') restartLevel();
   else if (k === 'rules') { resume = state; resumeT = stateT; joy = null; keys.clear(); cardScroll = 0; setState('rules'); }
   else if (k === 'cta') {
-    if (state === 'rules') { state = resume; stateT = resumeT; }   // back exactly where it paused
+    if (state === 'rules' || state === 'intro') { state = resume; stateT = resumeT; }   // back exactly where it paused
     else if (state === 'win') { play('start'); if (level.test) loadLevel(levelNo, level); else loadLevel(levelNo >= LEVELS.length ? 1 : levelNo + 1); }
   }
 }
@@ -8358,6 +8359,7 @@ function drawHUD(now) {
   drawWarp();
   if (state === 'rules') drawCard('rules');
   else if (state === 'win') drawCard('win');
+  else if (state === 'intro') drawIntro();
 }
 
 // ---------- WORLDS (mock-ups for the owner, 2026-09-26) ----------
@@ -14373,7 +14375,7 @@ const PB_NOISE = {
   kick: (k, p) => { pbVoice('sine', 130, 55, 0.22, 0.12 * k, p); pbVoice('square', 700, 300, 0.06, 0.02 * k, p); },
 };
 function pbNoise(list, camZ) {
-  if (!list.length || !sfx || !sfx.isOn() || state === 'rules') return;
+  if (!list.length || !sfx || !sfx.isOn() || state === 'rules' || state === 'intro') return;
   const now = performance.now();
   for (const [kind, x, z] of list) {
     if (now - pbLastNoise < 140) return;
@@ -18016,6 +18018,133 @@ for (let n = 101; n <= 150; n++) LEVELS.push(makeLevel(n, PIN_VARIANT[n]));
 // under the careful run), 2026-09-29.
 STAR_TIMES.push(75, 85, 69, 88, 102, 90, 99, 115, 108, 128, 117, 112, 115, 124, 124, 109, 129, 117, 123, 147, 132, 162, 169, 178, 188, 162, 209, 203, 190, 220, 226, 199, 174, 213, 190, 165, 304, 276, 231, 238, 165, 249, 200, 248, 264, 176, 244, 258, 315, 311);   // (made here: they need the puzzles and obstacles above)
 
+/* FIRST-TIME INSTRUCTIONS (owner, 2026-09-29, on the constellation: "puzzles floating instructions the first time. I am
+   not sure what to do here"). The first time the camera rises over each kind of space puzzle, the world holds still and
+   a card floats over the top of the screen, most of the square still in view below it: what the puzzle wants, in plain
+   words, a small picture of the rule, and GOT IT. It sits at the top: on a phone the camera frames the square low. Once per kind, per device (save.seen). The note at the top of the
+   square then gives its own tip, as before. Off in the test harness unless turned on (__marble.intros(true)), so the
+   autopilots are not held up by it. */
+const SP_INTRO = {
+  stars: { title: 'The constellation', lines: ['Roll onto a star: it flips, and so does every star joined to it by a line. Dark stars light up, lit stars go dark.', 'Light every star to open the door. Rolling onto a star again undoes it.'] },
+  fuel: { title: 'Refuel and launch', lines: ['Roll over the fuel cells: each fills a third of the tank beside the pad, and the tank slowly leaks.', 'Reach the launch pad with the tank over the white line, and it throws you over the gap. Fill up close to the pad.'] },
+  wormholes: { title: 'Wormholes', lines: ['Roll into a scoop and you shoot out of the lit exit of the same colour, wherever it is.', 'A flag swaps which exit of its colour is lit. Get to the island with the way out.'] },
+  orbit: { title: 'Satellites', lines: ['Roll into a satellite to push it. It glides until something stops it: a wall, a rock or another satellite.', 'Stop one on every dock to open the door. Stuck? The pad beside the road puts them back.'] },
+  airlock: { title: 'The airlock', lines: ['Watch the keys light up one after another. Then roll over them in the same order, going round the others.', 'A lamp over the door lights for each one you get right. A wrong key, and the code plays again.'] },
+};
+let introKind = null, introsOn = !HARNESS;
+function spIntroMaybe() {
+  if (!introsOn || state !== 'play' || pocket || !plazaAt || !plazaAt.spz || plazaView < 0.93) return;   // once the camera has all but settled over it
+  const k = plazaAt.spz.kind;
+  save.seen = save.seen || {};
+  if (save.seen[k] || !SP_INTRO[k]) return;
+  save.seen[k] = 1; persist();
+  introKind = k; resume = state; resumeT = stateT; joy = null; keys.clear();
+  setState('intro');
+}
+// The pieces' own colours (game art, as drawn in the square), for the pictures.
+const IA = { disc: '#1A2640', rim: '#C8D4E2', starDark: '#3A4868', starEdge: '#8FA2CC', starLit: '#F4FAFF', lineDark: '#3A4E7A', lineLit: '#2F7BFF',
+             marble: '#E6EEF8', cyan: '#3FE0FF', pink: '#FF5AC8', fuel: '#5FE8FF', spent: '#16324A', pad: '#FFD23F', gold: '#D8A640', panel: '#2A5CD0',
+             wall: '#8A9CB8', floor: '#2A3A5A', key: '#7FE8FF' };
+function introStar(x, y, r, lit) {
+  ctx.beginPath(); ctx.arc(x, y, r + 5, 0, Math.PI * 2); ctx.fillStyle = IA.disc; ctx.fill();
+  ctx.lineWidth = 2; ctx.strokeStyle = IA.rim; ctx.stroke();
+  drawStarIcon(x, y + 1, r, true, lit ? IA.starLit : IA.starDark);
+  if (!lit) drawStarIcon(x, y + 1, r, false, IA.starEdge);
+}
+function introMarble(x, y, r = 6) { ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fillStyle = IA.marble; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = IA.disc; ctx.stroke(); }
+function introArrow(x0, y0, x1, y1, col = TOK.ink72) {
+  ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+  const a = Math.atan2(y1 - y0, x1 - x0); ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x1 - 9 * Math.cos(a - 0.5), y1 - 9 * Math.sin(a - 0.5)); ctx.lineTo(x1 - 9 * Math.cos(a + 0.5), y1 - 9 * Math.sin(a + 0.5)); ctx.closePath(); ctx.fill();
+}
+// A small picture of the rule, in a box w wide and h high centred on cx.
+function introArt(kind, cx, y, w, h) {
+  const my = y + h / 2;
+  ctx.save(); ctx.lineCap = 'round';
+  if (kind === 'stars') {                                 // three stars joined in a row, all dark; roll onto the middle: all three lit
+    const g = Math.min(46, w / 9), row = (x0, lit, on) => {
+      ctx.lineWidth = 4; ctx.strokeStyle = lit ? IA.lineLit : IA.lineDark;
+      ctx.beginPath(); ctx.moveTo(x0 - g, my); ctx.lineTo(x0 + g, my); ctx.stroke();
+      for (const k of [-1, 0, 1]) introStar(x0 + k * g, my, 13, lit);
+      if (on) introMarble(x0, my - 26);
+    };
+    row(cx - w * 0.27, false, true); introArrow(cx - 14, my, cx + 14, my); row(cx + w * 0.27, true, false);
+    introMarble(cx + w * 0.27, my);
+  } else if (kind === 'fuel') {                           // three cells into the tank, over the line; the pad throws you over the gap
+    const x0 = cx - w * 0.36;
+    for (let i = 0; i < 3; i++) { const x = x0 + i * 26; ctx.beginPath(); ctx.arc(x, my + 14, 10, 0, Math.PI * 2); ctx.fillStyle = IA.disc; ctx.fill(); ctx.beginPath(); ctx.arc(x, my + 14, 6.5, 0, Math.PI * 2); ctx.fillStyle = IA.fuel; ctx.fill(); }
+    introArrow(x0 + 64, my + 6, x0 + 88, my - 6);
+    const tx = cx - 12, th = h - 14, ty = y + 7;
+    UI.roundRectPath(ctx, tx - 13, ty, 26, th, 10); ctx.fillStyle = IA.disc; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = IA.rim; ctx.stroke();
+    const f = 0.88; UI.roundRectPath(ctx, tx - 8, ty + th - 5 - (th - 10) * f, 16, (th - 10) * f, 6); ctx.fillStyle = IA.fuel; ctx.fill();
+    ctx.fillStyle = '#FFFFFF'; ctx.fillRect(tx - 17, ty + 5 + (th - 10) * 0.2 - 1.5, 34, 3);
+    const px = cx + w * 0.2, py = my + 18;
+    ctx.beginPath(); ctx.arc(px, py, 14, 0, Math.PI * 2); ctx.fillStyle = IA.disc; ctx.fill();
+    ctx.strokeStyle = IA.pad; ctx.lineWidth = 3; for (const d of [-5, 3]) { ctx.beginPath(); ctx.moveTo(px - 7, py + d + 4); ctx.lineTo(px, py + d - 3); ctx.lineTo(px + 7, py + d + 4); ctx.stroke(); }
+    ctx.setLineDash([5, 5]); ctx.strokeStyle = TOK.ink72; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(px + 6, py - 14); ctx.quadraticCurveTo(px + w * 0.16, y - 6, px + w * 0.3, py - 4); ctx.stroke(); ctx.setLineDash([]);
+    introMarble(px + w * 0.3, py - 10);
+  } else if (kind === 'wormholes') {                      // a scoop sends you to the lit exit of its colour; the dark one is passed by
+    const sx = cx - w * 0.33;
+    ctx.beginPath(); ctx.arc(sx, my + 12, 17, 0, Math.PI * 2); ctx.fillStyle = '#000'; ctx.fill(); ctx.lineWidth = 4; ctx.strokeStyle = IA.cyan; ctx.stroke();
+    introMarble(sx - 26, my + 12); introArrow(sx - 18, my + 12, sx - 10, my + 12);
+    const lx = cx + w * 0.12, dx = cx + w * 0.36;
+    for (const [x, lit] of [[lx, true], [dx, false]]) {
+      ctx.beginPath(); ctx.arc(x, my + 12, 17, 0, Math.PI * 2); ctx.fillStyle = IA.disc; ctx.fill();
+      ctx.globalAlpha = lit ? 1 : 0.35; ctx.lineWidth = 5; ctx.strokeStyle = IA.cyan; ctx.beginPath(); ctx.arc(x, my + 12, 12, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1;
+      if (lit) { ctx.fillStyle = 'rgba(63,224,255,0.25)'; ctx.fillRect(x - 12, y - 2, 24, my + 2 - y); }
+    }
+    ctx.setLineDash([5, 5]); ctx.strokeStyle = TOK.ink72; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(sx + 8, my - 2); ctx.quadraticCurveTo((sx + lx) / 2, y - 8, lx - 6, my - 4); ctx.stroke(); ctx.setLineDash([]);
+    introMarble(lx, my - 8);
+  } else if (kind === 'orbit') {                          // a satellite pushed along a row glides until the wall stops it, on the dock
+    const cw = Math.min(40, (w * 0.8) / 5), x0 = cx - cw * 2.5;
+    for (let i = 0; i < 5; i++) { ctx.fillStyle = IA.floor; ctx.fillRect(x0 + i * cw + 1, my - cw / 2 + 8, cw - 2, cw - 2); }
+    ctx.fillStyle = IA.wall; ctx.fillRect(x0 + 5 * cw, my - cw / 2 + 4, 6, cw + 6);
+    const dx = x0 + 4.5 * cw; ctx.setLineDash([4, 4]); ctx.lineWidth = 2.5; ctx.strokeStyle = IA.cyan; ctx.beginPath(); ctx.arc(dx, my + 7, cw * 0.36, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+    const sat = (x, a) => { ctx.globalAlpha = a; ctx.fillStyle = IA.panel; ctx.fillRect(x - cw * 0.46, my + 3, cw * 0.92, 7); ctx.fillStyle = IA.gold; ctx.fillRect(x - cw * 0.2, my - 4, cw * 0.4, cw * 0.4); ctx.globalAlpha = 1; };
+    sat(x0 + 1.5 * cw, 0.35); sat(dx, 1);
+    introMarble(x0 + 0.5 * cw, my + 7); introArrow(x0 + 2.2 * cw, my - cw * 0.5, x0 + 3.8 * cw, my - cw * 0.5);
+  } else if (kind === 'airlock') {                        // the code the keys flash, then the same keys in the same order
+    const code = [2, 1, 3], kx = (d) => cx + (d - 2) * 54;
+    for (let d = 1; d <= 3; d++) {
+      UI.roundRectPath(ctx, kx(d) - 17, my - 4, 34, 34, 7); ctx.fillStyle = IA.disc; ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = IA.key; ctx.stroke();
+      ctx.fillStyle = '#FFFFFF'; ctx.font = '800 18px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(d), kx(d), my + 13);
+    }
+    ctx.fillStyle = TOK.ink90; ctx.font = '700 17px Inter, sans-serif'; ctx.fillText(code.join('   '), cx, y + 10);
+    ctx.setLineDash([5, 5]); ctx.strokeStyle = TOK.ink72; ctx.lineWidth = 2; ctx.beginPath();
+    ctx.moveTo(kx(2), my - 8); ctx.quadraticCurveTo((kx(2) + kx(1)) / 2, my - 26, kx(1), my - 8); ctx.moveTo(kx(1), my + 34); ctx.quadraticCurveTo(kx(2), my + 52, kx(3), my + 34); ctx.stroke(); ctx.setLineDash([]);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  }
+  ctx.restore();
+}
+function drawIntro() {
+  const I = SP_INTRO[introKind]; if (!I) return;
+  const pw = Math.min(LW - 32, 470), padX = 26, art = 104;
+  ctx.font = '500 17px Inter, sans-serif';
+  const lines = I.lines.flatMap((t, i) => (i ? [''] : []).concat(wrapText(t, pw - 2 * padX, 17)));
+  const ph = 22 + 20 + 34 + 12 + art + 14 + lines.reduce((a, l) => a + (l ? 24 : 8), 0) + 16 + UI.CTA.h + 20;
+  const px = Math.round((LW - pw) / 2), py = Math.min(topBand() + 8, Math.max(8, LH - botBand() - ph - 10));   // at the top: the camera frames the square low on a phone
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 24; ctx.shadowOffsetY = 6;
+  UI.roundRectPath(ctx, px, py, pw, ph, 22); ctx.fillStyle = TOK.bgCard; ctx.fill();
+  ctx.shadowColor = 'transparent';
+  ctx.strokeStyle = TOK.tint12; ctx.lineWidth = 1; UI.roundRectPath(ctx, px + 0.5, py + 0.5, pw - 1, ph - 1, 22); ctx.stroke();
+  let yy = py + 22;
+  ctx.fillStyle = TOK.accent2; ctx.font = '700 16px Inter, sans-serif'; ctx.textBaseline = 'alphabetic';
+  if (ctx.letterSpacing !== undefined) ctx.letterSpacing = '1.5px';
+  ctx.fillText('NEW PUZZLE', px + padX, yy + 15);
+  if (ctx.letterSpacing !== undefined) ctx.letterSpacing = '0px';
+  yy += 20;
+  ctx.fillStyle = TOK.text; ctx.font = '800 28px Inter, sans-serif'; ctx.fillText(I.title, px + padX, yy + 28);
+  yy += 34 + 12;
+  UI.roundRectPath(ctx, px + padX, yy, pw - 2 * padX, art, 14); ctx.fillStyle = TOK.tint07; ctx.fill();
+  introArt(introKind, px + pw / 2, yy + 10, pw - 2 * padX, art - 20);
+  yy += art + 14;
+  ctx.fillStyle = TOK.ink90; ctx.font = '500 17px Inter, sans-serif';
+  for (const l of lines) { if (l) { ctx.fillText(l, px + padX, yy + 17); yy += 24; } else yy += 8; }
+  yy += 16;
+  L.hit.cta = UI.drawCTA(ctx, 'GOT IT', px + pw / 2, yy + UI.CTA.h / 2, TOK.accent);
+  ctx.restore();
+}
+
 // ---------- TREES, GROWN THE WAY EZ-TREE GROWS THEM ----------
 /* (owner, 2026-09-27: "I would like to see trees. can you make something like
    this https://www.eztree.dev/", with a picture of one: an oak-like tree, a
@@ -19999,6 +20128,7 @@ if (HARNESS) {
                     plank: !!(ball.onFerry && ball.onFerry.plank) }),
     tap: () => { tapQueued = true; },
     spz: () => plazas.filter((P) => P.sp).map(spState),
+    intros: (on) => { introsOn = !!on; if (on === 'reset') { save.seen = {}; persist(); introsOn = true; } return introsOn; },
     variantOf: (n, v) => JSON.parse(JSON.stringify(makeLevel(n, v))),
     useVariant: (n, v) => { LEVELS[n - 1] = makeLevel(n, v); return v; },
     space: () => ({ holes: space.holes.map((H) => ({ x: H.x, z: H.z, y: H.y, reach: H.reach, drain: H.drain, pull: H.pull })),
