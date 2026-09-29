@@ -61,7 +61,7 @@ function circLay2(spec, pieces, x, y, z) {
     pieces.push({ ...spec, x, z: cr2(zc), y, w: FC_W, d: 2 * (spec.g + e), phase: 0 });
     return 4 + 2 * (spec.g + e) + 5;
   }
-  return 0;
+  return circLay3(spec, pieces, x, y, z);
 }
 // A floor that moves: a box collider moved before the marble each step; `carry` makes it carry what stands on it.
 function circMover(mesh, w, h, d, carry, tag) {

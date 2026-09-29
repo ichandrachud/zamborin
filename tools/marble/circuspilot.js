@@ -19,7 +19,8 @@ window.__cp = (() => {
                  ...S.cannons.map((q, i) => ({ k: 'cannon', i, ...q })), ...S.throwers.map((q, i) => ({ k: 'thrower', i, ...q, z: q.z + q.L / 2 })),
                  ...S.swings.map((q) => ({ k: 'swing', ...q, x: 0, z: q.z + q.gap / 2 })), ...S.wires.map((q) => ({ k: 'wire', ...q, z: q.z + q.len / 2 })),
                  ...S.teeters.map((q) => ({ k: 'teeter', ...q, x: 0, z: q.z + 4 })), ...S.wods.map((q) => ({ k: 'wod', ...q, x: 0, z: q.z + 1.2 })),
-                 ...S.ferrises.map((q) => ({ k: 'ferris', ...q, x: 0, z: q.z + q.g }))].sort((a, b) => b.z - a.z);
+                 ...S.ferrises.map((q) => ({ k: 'ferris', ...q, x: 0, z: q.z + q.g })),
+                 ...S.chases.map((q) => ({ k: 'chase', ...q, x: 0 })), ...S.mirrors.map((q) => ({ k: 'mirror', ...q })), ...S.coasters.map((q) => ({ k: 'coaster', ...q, x: 0 }))].sort((a, b) => b.z - a.z);
     for (const o of obs) {
       if (opts.careless) steps.push({ go: [o.x || 0, o.z + (o.k === 'thrower' ? 1.5 : 3.2)], v: 3, r: 0.3, stop: true }, { pause: r() * 3.5 });   // careless: arrives at any moment
       if (o.k === 'ring') steps.push({ ring: o, careless: opts.careless });
@@ -31,11 +32,20 @@ window.__cp = (() => {
       else if (o.k === 'wire') steps.push({ go: [0, o.z + 1.2], v: 2.5, r: 0.25, stop: !opts.careless }, { wire: o, careless: opts.careless });
       else if (o.k === 'teeter') steps.push({ teeter: o, careless: opts.careless });
       else if (o.k === 'wod') steps.push({ go: [0, o.z + 0.4], v: 2.5, r: 0.2, stop: !opts.careless }, { wod: o, careless: opts.careless });
+      else if (o.k === 'chase') steps.push({ chase: o, careless: opts.careless });
+      else if (o.k === 'mirror') {                             // through each partition's gap, clear of the trapdoor in front of it
+        const x0 = o.x - o.w / 2, x1 = o.x + o.w / 2;
+        if (opts.careless) steps.push({ go: [o.x, o.z - o.d - 1], v: 3, r: 0.4, stuck: 12 });
+        else for (let k = 0; k < o.parts; k++) { const zc = o.z - 4.2 * (k + 0.75), side = k % 2 ? 1 : -1, gx = side < 0 ? x1 - 0.62 : x0 + 0.62;
+          steps.push({ go: [gx, zc + 0.9], v: 2.2, r: 0.3 }, { go: [gx, zc - 0.9], v: 2.2, r: 0.3 }); }
+        steps.push({ go: [o.x, o.z - o.d - 0.5], v: 2.5, r: 0.4 });
+      }
+      else if (o.k === 'coaster') steps.push({ go: [0, o.z + 1.2], v: 2.5, r: 0.25, stop: !opts.careless }, { coaster: o, careless: opts.careless });
       else if (o.k === 'ferris') steps.push({ go: [0, o.z + o.e + 0.3], v: 2.5, r: 0.2, stop: !opts.careless }, { ferris: o, careless: opts.careless });
     }
     steps.push({ go: [C.goal[0], C.goal[2]], v: 5, r: 0.3 });
     let zNow = 99;
-    for (const st of steps) { const o = st.ring || st.jug || st.wheel || st.cannon || st.throw || st.swing || st.wire || st.teeter || st.wod || st.ferris; st.z = st.go ? st.go[1] : o ? o.z + 2.6 : zNow; zNow = st.z; }
+    for (const st of steps) { const o = st.ring || st.jug || st.wheel || st.cannon || st.throw || st.swing || st.wire || st.teeter || st.wod || st.ferris || st.chase || st.coaster; st.z = st.go ? st.go[1] : o ? o.z + 2.6 : zNow; zNow = st.z; }
     return steps;
   }
   function pilot(kind, opts) {
@@ -163,6 +173,21 @@ window.__cp = (() => {
         }
         const [ix, iz] = steer(s, 0, far - 2.5, 4.5); return { ix, iz };
       }
+      if (st.chase) {                                    // flat out down the middle, round the pins on the side away from each
+        const Ch = S.chases.find((q) => Math.abs(q.z - st.chase.z) < 0.01), end = Ch.z - Ch.d - 1.5;
+        if (s.ball[2] < end) { i++; return { ix: 0, iz: 0 }; }
+        if (st.careless) { const [ix, iz] = steer(s, 0, end - 2, 3.6); return { ix, iz }; }
+        let tx = 0; if (Ch.pins) for (let k = 0; k < Ch.pins; k++) { const pz = Ch.z - Ch.d * (k + 1) / (Ch.pins + 1), px = k % 2 ? 0.75 : -0.75; if (pz < s.ball[2] + 0.5 && pz > s.ball[2] - 3.5) { tx = -px; break; } }
+        const [ix, iz] = steer(s, tx, s.ball[2] - 4, 8); return { ix, iz };
+      }
+      if (st.coaster) {                                  // wait at the station for a car with time left, roll in, ride
+        const Co = S.coasters.find((q) => Math.abs(q.z - st.coaster.z) < 0.01);
+        if (S.held) { st.inside = true; return { ix: 0, iz: 0 }; }
+        if (st.inside) { i++; return { ix: 0, iz: 0 }; }
+        if (st.careless || st.going) { st.going = true; const [ix, iz] = steer(s, 0, Co.z - 1, 2.5); return { ix, iz }; }
+        if (Co.wait && Co.left > 1.2) st.going = true;
+        const [ix, iz] = steer(s, 0, Co.z + 1.2, 0); return { ix, iz };
+      }
       if (st.throw) {                                    // on through, but out of the way of each ball once it is thrown
         const T = S.throwers.find((q) => Math.abs(q.z + q.L / 2 - st.throw.z) < 0.01), end = T.z - T.L / 2 - 0.8;
         if (s.ball[2] < end) { i++; return { ix: 0, iz: 0 }; }
@@ -177,6 +202,7 @@ window.__cp = (() => {
         }
         const [ix, iz] = steer(s, tx, tz, v); return { ix, iz };
       }
+      if (st.stuck) { st.tt = (st.tt || 0) + dt; if (st.tt > st.stuck) return { done: { kind, won: false, stuck: true, falls: s.falls, log } }; }
       const [ix, iz, d] = steer(s, st.xo ? s.ball[0] : st.go[0], st.go[1], st.v);
       if (d < st.r && (!st.stop || sp < 0.4)) i++;
       return { ix, iz };

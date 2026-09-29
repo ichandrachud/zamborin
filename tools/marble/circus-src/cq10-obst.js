@@ -257,6 +257,7 @@ function cannonStep(dt) {
 // Held in the cannon: drawn down the barrel for a moment, then fired.
 function circHeldStep(dt) {
   if (ball.circ.wod) { wodHeld(dt); return; }              // in a cage of the Wheel of Death
+  if (ball.circ.coaster) { coasterHeld(dt); return; }      // riding the roller coaster
   const H = ball.circ, C = H.C;
   H.t += dt;
   const yaw = canYaw(C, simT), M = canMouth(C, yaw), f = Math.min(1, H.t / 0.22);
@@ -323,9 +324,11 @@ function circStep(dt) {
   if (circ.throwers.length) throwerStep(dt);
   if (circ.wods.length) wodStep();
   if (circ.teeters.length) teeterStep();
+  circStep3(dt);
 }
 // Each frame: the flames, the balls, the wheel, the cannon's swing, the thrower's wind-up.
 function animateCirc(dt) {
+  animateCirc3();
   const o = new Object3D();
   for (const F of circ.rings) {
     const x = fringX(F, simT); F.grp.position.x = x;
@@ -374,5 +377,6 @@ function circState() {
     throwers: circ.throwers.map((T) => ({ z: T.pc.z, L: T.pc.L, period: T.pc.period, flight: T.pc.flight, balls: T.balls.map((b) => [b.at.x, b.at.z, simT - b.t0]) })),
     held: !!ball.circ,
     ...circState2(),
+    ...circState3(),
   };
 }

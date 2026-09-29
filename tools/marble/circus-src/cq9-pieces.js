@@ -225,6 +225,7 @@ function circusPieces(look) {
     B.geo(new CylinderGeometry(ri * 0.85, ri * 0.85, 0.16, 24, 1, true), placeAt(0, ISLAND_H + 1.25, 0), 0xF2C230);
     B.geo(new SphereGeometry(0.14, 10, 8), placeAt(0, ISLAND_H + 2.08, 0), 0xF2C230);
     cap.add(new Mesh(B.done(), K.paint)); tkAdd(fixed, cap);
+    carouselHorses(Rd);                                      // and horses riding round on it
     tkTick((dt) => { if (!REDUCED) cap.rotation.y += dt * 0.6 * Math.sign(Rd.spin || 1); });
   }
   // GLASS TUBES: the rings red, cream and gold; gold hoops at each end.

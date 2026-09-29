@@ -31,5 +31,8 @@ rep("    tap: () => { tapQueued = true; },\n", "    tap: () => { tapQueued = tru
 rep("  for (const c of ferries) updateFerry(c, simT);\n", "  for (const c of ferries) updateFerry(c, simT);\n  circMove(dt);                                          // the circus's moving floors: a trapeze seat, a wire, a teeterboard, the Ferris cars\n")
 rep("  if (pc.t === 'thrower') { buildThrower(pc); return; }\n", "  if (pc.t === 'thrower') { buildThrower(pc); return; }\n  if (pc.t === 'trapeze') { buildTrapeze(pc); return; }\n  if (pc.t === 'wire') { buildWire(pc); return; }\n  if (pc.t === 'teeter') { buildTeeter(pc); return; }\n  if (pc.t === 'wod') { buildWod(pc); return; }\n  if (pc.t === 'ferris') { buildFerrisGap(pc); return; }\n")
 rep("{ on(circLay(spec, pieces, x, y, z)); straight(8, wide); }", "{ const L = circLay(spec, pieces, x, y, z); if (L.dy) y = cr2(y + L.dy); on(L.len || L); straight(8, wide); }")
+rep("  if (pc.t === 'ferris') { buildFerrisGap(pc); return; }\n", "  if (pc.t === 'ferris') { buildFerrisGap(pc); return; }\n  if (pc.t === 'chase') { buildChase(pc); return; }\n  if (pc.t === 'mirror') { buildMirror(pc); return; }\n  if (pc.t === 'coaster') { buildCoaster(pc); return; }\n")
+rep("  if (peekCam) { camera.position.set(...peekCam.pos); camera.lookAt(...peekCam.at); }", "  circCam(dt);                                         // in the circus's house of mirrors, swung round\n  if (peekCam) { camera.position.set(...peekCam.pos); camera.lookAt(...peekCam.at); }")
+rep("    else if (ball.p.y < level.minTop - 2.2) startFall();", "    else if (ball.p.y < level.minTop - 2.2 && !ball.circ) startFall();   // not while carried: a coaster's drop goes deeper than any rail")
 open(p, 'w').write(s)
 print('obstacles ok')
