@@ -4028,7 +4028,8 @@ function makeLevel(n, variant = LEVEL_VARIANT[n] || 0, test = null) {
   }
   if (test) {                                           // a course to try a new puzzle on (#try-ice): its puzzles in turn, easy to hard
     straight(8, wide);
-    for (const id of TRY_COURSES[test]) { if (CROSSINGS[id]) crossing(id); else square(id); straight(8, wide); }
+    if (TRY_SPACE[test]) for (const spec of TRY_SPACE[test]) { const L = spaceLay(spec, pieces, x, y, z); if (L.dx) x = r2(x + L.dx); on(L.len || L); straight(8, wide); }   // the space obstacles' try-outs
+    else for (const id of TRY_COURSES[test]) { if (CROSSINGS[id]) crossing(id); else square(id); straight(8, wide); }
     pieces.push(F(x, z - 3.5, 6, 7, y));
     return { start: [0, 0, 1], gates, goal: [x, y, r2(z - 4)], pieces, district: DISTRICTS[d], length: Math.round(run + 7), test, title: TRY_TITLES[test],
              star: Math.round((run + 7) / 1.6) };
@@ -7091,6 +7092,11 @@ function plazaCam(P) {
 
 function buildPiece(pc) {
   if (pc.t === 'loop') { buildLoop(pc); return; }
+  if (pc.t === 'hole') { buildHole(pc); return; }
+  if (pc.t === 'clamp') { buildClamp(pc); return; }
+  if (pc.t === 'ion') { buildIon(pc); return; }
+  if (pc.t === 'droids') { buildDroids(pc); return; }
+  if (pc.t === 'erupt') { buildErupt(pc); return; }
   if (pc.t === 'worm') { buildWormhole(pc); return; }
   if (pc.t === 'curtain') { buildCurtain(pc); return; }
   if (pc.t === 'lock') { buildLock(pc); return; }
@@ -7195,6 +7201,7 @@ function loadLevel(n, custom = null) {
   levelGroup = new Group();
   scene.add(levelGroup);
   colliders = []; ferries = []; holos = []; pads = []; crossings = []; riders = []; curtains = []; locks = []; wormholes = []; loopsIn = []; mags = []; winds = []; rounds = []; tubes = []; switches = []; scans = []; posts = []; blinkers = []; flames = []; cracks = []; plazas = []; gates = []; crossZones = [];
+  spaceReset();
   for (const pc of level.pieces) buildPiece(pc);
   // The world follows the course: the neon city to 50, Tokyo from 51 (a world picked to look at, such as the hills, stays).
   // Its scenery follows the course too, so it is rebuilt for it.
@@ -7321,6 +7328,8 @@ function collide(c, dt) {
 
 function step(dt, ix, iz) {
   simT += dt;
+  if (ball.sucked) { if (state === 'fall') { swallowStep(dt); return; } ball.sucked = null; }   // down a black hole's drain
+  if (ball.held) { if (state === 'play') { heldStep(dt); return; } ball.held = null; }         // held by a magnet
   ball.in[0] = ix; ball.in[1] = iz;                     // the stick, for what leans on things (a crate)
   for (const c of ferries) updateFerry(c, simT);
   if (ball.tube) { rideTube(dt); for (const c of crossings) crossStep(c, simT); return; }   // in a tube, the tube steers
@@ -7358,6 +7367,8 @@ function step(dt, ix, iz) {
   if (tubes.length) tubeCatch();
   if (switches.length) switchStep();
   if (scans.length && state === 'play') scanStep();
+  if (!pocket && state === 'play') { if (space.holes.length) holeStep(dt); if (space.clamps.length) clampStep(); if (space.ions.length) ionStep(); }
+  if (!pocket) { if (space.droids.length) droidStep(dt); if (space.erupts.length) eruptStep(); }
   if (flames.length && state === 'play') flameStep();
   if (cracks.length) crackStep();
   if (plazas.length) { plazaMove(); waterStep(); if (state === 'play') { plazaStep(); iceCatch(); portalStep(); riddleStep(); } }
@@ -7609,6 +7620,7 @@ function update(dt, now) {
   animateCracks(dt);
   animateBlocks();
   animatePlazas(dt);
+  animateSpace(dt); animateSpace2(dt);
   for (const f of tkTicks) f(dt);
   updateSparks(dt);
   updateCamera(dt, false);
@@ -13460,7 +13472,7 @@ function pbCourseMats(look) {
 // Where a slab's prints go: down its middle, as big as it is wide (within reason), a few metres apart; none on the pieces that mean something.
 function pbArtInfo(c, k) {
   const g = c.mesh.geometry, n = g.attributes.position.count, w = c.half.x * 2, d = c.half.z * 2;
-  const plain = !(c.ferry || c.pad || c.mag || c.lane || c.cell || c.power || c.train);
+  const plain = !(c.ferry || c.pad || c.mag || c.lane || c.cell || c.power || c.train) && !space.holes.some((H) => Math.abs(H.x - c.pos.x) < 0.05 && Math.abs(H.z - c.pos.z) < 0.05);   // nothing printed under a black hole
   const size = clamp(w - 0.3, 1.1, 3.4), gap = Math.max(5, size * 2);
   const count = plain && d >= size + 0.4 ? Math.max(1, Math.floor((d - 0.4) / gap)) : 0;
   const a = new Float32Array(n * 4);
@@ -13900,6 +13912,7 @@ function pinballWorld(w, look) {
     G.add(rm);
   }
   const ballMesh = new InstancedMesh(new SphereGeometry(PB_BR, 24, 16), K.ball, Math.max(1, ballsAt()));
+  ballMesh.frustumCulled = false;                           // the balls roam the whole machine
   G.add(ballMesh);
 
   // PLAY: the loose balls roll, bounce off walls, bumpers and slingshots, knock down targets, and meet the flippers.
@@ -14827,6 +14840,419 @@ const POCKET_NEWS_AT_MOON = {
   22: 'Glass bridges crack under you. Keep rolling, never stop on them',
 };
 RULES_CHROME.set(RULES.find((q) => q.startsWith('In the canyon')), 'On the moon playfield: crystals grow on the rail (steer through the gaps), volcanic vents erupt in a rhythm (wait for the eruption to die), lava bombs roll across (wait for the green light), and glass bridges crack under you (keep rolling).');
+
+/* THE SPACE OBSTACLES (owner, 2026-09-29: "On the rail itself I want to see
+   obstacles, puzzles and tasks and tactics that are characteristic of the
+   pinball world", taking inspiration from Godzilla, Space Cadet, Medieval
+   Madness, Twilight Zone, Attack from Mars and Jurassic Park; the chrome
+   machine's theme is space). Each is our own, and each has its own try-out
+   course (#try-blackhole, #try-clamps ...), easy to hard:
+     black hole   a whirlpool in the rail pulls the marble toward a drain at
+                  its middle (Space Cadet's gravity well); ride round the rim
+     clamps       docking clamps snap shut across the rail on a beat (the
+                  snapping jaws of Jurassic Park's T. rex, Godzilla's grab);
+                  roll through between snaps
+   A try-out course is laid by spaceLay from TRY_SPACE, one spec after another. */
+const space = { holes: [], clamps: [] };
+function spaceReset() { for (const k in space) space[k] = []; ball.sucked = null; }
+const TRY_SPACE = {
+  blackhole: [{ t: 'hole', s: 7.2, pull: 7, swirl: 2.5, drain: 0.5 }, { t: 'hole', s: 6.6, pull: 10, swirl: 3.5, drain: 0.6 }, { t: 'hole', s: 6.0, pull: 13, swirl: 5, drain: 0.7 }],
+  // Open long enough to cross from a standstill (about 0.7 s) with room to spare, even at the hardest: 1.95, 1.45 and 1.35 s.
+  clamps: [{ t: 'clamp', w: 3.2, period: 3.4, closed: 0.8, phase: 0 }, { t: 'clamp', w: 2.8, period: 3.0, closed: 0.9, phase: 1.1 },
+           { t: 'clamp', w: 2.6, period: 2.9, closed: 0.9, phase: 0.3, twin: 1.2 }],
+};
+// Lay one obstacle at the course's end (x, y, z runs on toward -z); returns how far it runs.
+function spaceLay(spec, pieces, x, y, z) {
+  if (spec.t === 'hole') {
+    pieces.push(F(x, z - spec.s / 2, spec.s, spec.s, y), { ...spec, x, z: z - spec.s / 2, y, w: spec.s, d: spec.s });
+    return spec.s;
+  }
+  if (spec.t === 'clamp') {
+    const L = spec.twin ? 9 : 6;
+    pieces.push(F(x, z - L / 2, spec.w, L, y));
+    pieces.push({ ...spec, x, z: z - (spec.twin ? 2.6 : L / 2), y, d: CLAMP_D });
+    if (spec.twin) pieces.push({ ...spec, x, z: z - 2.6 - spec.twin * 3.2, y, d: CLAMP_D, phase: spec.phase + 0.7, twin: 0 });
+    return L;
+  }
+  return 0;
+}
+
+// ---- THE BLACK HOLE ----
+let holeTexMemo = null;
+function holeTex() {                                      // the accretion disc: arms of hot light spiralling in to a black middle
+  return holeTexMemo || (holeTexMemo = canvasTex(512, 512, (g) => {
+    g.fillStyle = '#000'; g.fillRect(0, 0, 512, 512);
+    g.fillStyle = pbRad(g, 256, 256, 30, 256, [[0, 'rgba(255,200,120,0.9)'], [0.25, 'rgba(255,120,40,0.55)'], [0.6, 'rgba(120,60,200,0.25)'], [1, 'rgba(0,0,0,0)']]);
+    g.fillRect(0, 0, 512, 512);
+    g.lineCap = 'round';
+    for (let arm = 0; arm < 5; arm++) for (let k = 0; k < 3; k++) {
+      g.strokeStyle = k === 0 ? 'rgba(255,240,210,0.9)' : k === 1 ? 'rgba(255,150,60,0.6)' : 'rgba(150,120,255,0.35)';
+      g.lineWidth = [4, 10, 18][k]; g.beginPath();
+      for (let t = 0; t <= 1; t += 0.01) { const a = arm / 5 * Math.PI * 2 + t * 5.2, rr = 250 - t * 200; g.lineTo(256 + Math.cos(a) * rr, 256 + Math.sin(a) * rr); }
+      g.stroke();
+    }
+    const r = seeded(61); for (let i = 0; i < 300; i++) { const a = r() * 7, rr = 60 + r() * 190; g.fillStyle = `rgba(255,${200 + r() * 55},${150 + r() * 100},${0.4 + r() * 0.6})`; g.fillRect(256 + Math.cos(a) * rr, 256 + Math.sin(a) * rr, 2, 2); }
+  }));
+}
+function buildHole(pc) {
+  const H = { pc, x: pc.x, z: pc.z, y: pc.y, reach: pc.s * 0.5, pull: pc.pull, swirl: pc.swirl, drain: pc.drain, grp: new Group() };
+  const top = pc.y + 0.013;
+  const disc = new Mesh(new CircleGeometry(pc.s * 0.47, 64), glowMat(0xFFFFFF, 0.95, holeTex())); disc.rotation.x = -Math.PI / 2; disc.position.y = top;
+  const core = new Mesh(new CircleGeometry(pc.drain, 40), new MeshBasicMaterial({ color: 0x000000 })); core.rotation.x = -Math.PI / 2; core.position.y = top + 0.006;
+  const horizon = new Mesh(new TorusGeometry(pc.drain + 0.06, 0.05, 8, 48), new MeshBasicMaterial({ color: 0xFFE6C0, toneMapped: false })); horizon.rotation.x = Math.PI / 2; horizon.position.y = top + 0.02;
+  const lens = new Mesh(new TorusGeometry(pc.drain * 1.9, 0.025, 6, 64), glowMat(0xCFE0FF, 0.7)); lens.rotation.x = Math.PI / 2; lens.position.y = top + 0.03;
+  const rim = new Mesh(new TorusGeometry(pc.s * 0.47, 0.06, 8, 72), new MeshBasicMaterial({ color: 0x7FE8FF, toneMapped: false })); rim.rotation.x = Math.PI / 2; rim.position.y = top + 0.02;
+  H.disc = disc; H.lens = lens;
+  // Motes of light drawn in, faster as they near the middle.
+  const n = 60, motes = new InstancedMesh(new PlaneGeometry(0.09, 0.09).rotateX(-Math.PI / 2), new MeshBasicMaterial({ color: 0xFFE0B0, toneMapped: false }), n), r = seeded(3 + Math.round(Math.abs(pc.z) * 7));
+  H.motes = motes; H.mote = Array.from({ length: n }, () => ({ a: r() * 7, rr: pc.drain + r() * (pc.s * 0.45 - pc.drain) }));
+  H.grp.add(disc, core, horizon, lens, rim, motes); H.grp.position.set(pc.x, 0, pc.z);
+  levelGroup.add(H.grp);
+  space.holes.push(H);
+}
+function holeStep(dt) {
+  for (const H of space.holes) {
+    const dx = ball.p.x - H.x, dz = ball.p.z - H.z, r = Math.hypot(dx, dz);
+    if (r > H.reach || Math.abs(ball.p.y - R - H.y) > 0.45) continue;
+    if (r < H.drain) {                                    // swallowed: it spirals in and is gone, and flies home
+      ball.sucked = { H, t: 0, r0: r, a: Math.atan2(dz, dx) };
+      sound('swallow'); startFall();
+      return;
+    }
+    const k = Math.pow(1 - r / H.reach, 0.8), ux = -dx / Math.max(r, 1e-4), uz = -dz / Math.max(r, 1e-4);
+    ball.v.x += (ux * H.pull - uz * H.swirl) * k * dt;    // in toward the drain, and round the way the disc turns
+    ball.v.z += (uz * H.pull + ux * H.swirl) * k * dt;
+  }
+}
+function swallowStep(dt) {                                // the marble's last moments, spiralling down the drain
+  const S = ball.sucked, H = S.H;
+  S.t += dt; S.a += dt * (6 + S.t * 20);
+  const rr = S.r0 * Math.max(0, 1 - S.t / 0.35);
+  ball.p.set(H.x + Math.cos(S.a) * rr, H.y + R - Math.min(3, S.t * S.t * 9), H.z + Math.sin(S.a) * rr);
+  ball.v.set(0, 0, 0);
+}
+
+// ---- DOCKING CLAMPS ----
+const CLAMP_D = 1.3, CLAMP_SHUT = 0.2, CLAMP_OPEN = 0.45, CLAMP_WARN = 0.8;
+function clampState(C, t) {                               // how open the jaws are (1 open, 0 shut), and whether they are about to shut
+  const u = (((t + C.phase) % C.period) + C.period) % C.period, openFor = C.period - CLAMP_SHUT - C.closed - CLAMP_OPEN;
+  if (u < openFor) return { f: 1, warn: u > openFor - CLAMP_WARN, left: openFor - u };
+  if (u < openFor + CLAMP_SHUT) return { f: 1 - (u - openFor) / CLAMP_SHUT, warn: true, left: 0 };
+  if (u < openFor + CLAMP_SHUT + C.closed) return { f: 0, warn: true, left: 0 };
+  return { f: (u - openFor - CLAMP_SHUT - C.closed) / CLAMP_OPEN, warn: false, left: 0 };
+}
+function buildClamp(pc) {
+  const C = { pc, x: pc.x, z: pc.z, y: pc.y, w: pc.w, period: pc.period, closed: pc.closed, phase: pc.phase, jaws: [], lamps: [] };
+  const CK = chromeKit(), K = pbKit('chrome'), open = pc.w / 2 + 1.1;
+  for (const s of [-1, 1]) {
+    // The fixed frame beside the rail: a housing on a pylon, the piston it drives.
+    const B = pbBuild();
+    B.geo(new BoxGeometry(1.6, 1.4, CLAMP_D + 0.8), placeAt(s * (open + 1.5), pc.y + 0.55, pc.z), 0x8A9CB8);
+    B.geo(new CylinderGeometry(0.22, 0.28, 10, 8), placeAt(s * (open + 1.5), pc.y - 5, pc.z), 0xB8C8DC);
+    B.geo(new CylinderGeometry(0.16, 0.16, 1.6, 12), placeAt(s * (open + 0.6), pc.y + 0.55, pc.z, 0, 0, Math.PI / 2), 0xE6EEF8);
+    const frame = new Mesh(B.done(), K.metal); frame.position.x = pc.x; levelGroup.add(frame);
+    // The jaw: a steel block, rubber-faced, hazard stripes along its top, teeth, that slides in to shut.
+    const J = pbBuild(), jd = CLAMP_D, jh = 1.05;
+    J.geo(new BoxGeometry(1.2, jh, jd), placeAt(s * 0.6, jh / 2, 0), 0xC8D4E2);
+    for (let k = 0; k < 5; k++) J.geo(new BoxGeometry(0.2, 0.06, jd * 0.92), placeAt(s * (0.12 + k * 0.24), jh + 0.03, 0, 0, 0, 0), k % 2 ? 0x16181E : 0xFF8A3C);
+    J.geo(new BoxGeometry(0.14, jh * 0.8, jd * 0.9), placeAt(-s * 0.02, jh * 0.45, 0), 0x2A52A8);
+    for (let k = 0; k < 4; k++) J.geo(new ConeGeometry(0.1, 0.28, 4), placeAt(-s * 0.16, 0.22 + k * 0.22, -jd * 0.3 + (k % 2) * jd * 0.6, 0, 0, s * Math.PI / 2), 0xF4F8FF);
+    const jaw = new Mesh(J.done(), K.paint); levelGroup.add(jaw);
+    const lamp = new Mesh(new SphereGeometry(0.13, 12, 8), new MeshBasicMaterial({ color: 0x3A2408, toneMapped: false }));
+    lamp.position.set(s * 0.6, jh + 0.14, 0); jaw.add(lamp);
+    C.jaws.push({ jaw, s, open }); C.lamps.push(lamp);
+  }
+  const glowStrip = new Mesh(new PlaneGeometry(pc.w, CLAMP_D), glowMat(0xFF2A20, 0, dot)); glowStrip.rotation.x = -Math.PI / 2; glowStrip.position.set(pc.x, pc.y + 0.02, pc.z);
+  levelGroup.add(glowStrip); C.strip = glowStrip;
+  space.clamps.push(C);
+}
+function clampStep() {
+  for (const C of space.clamps) {
+    if (Math.abs(ball.p.z - C.z) > CLAMP_D / 2 + R * 0.6 || Math.abs(ball.p.y - R - C.y) > 1 || Math.abs(ball.p.x - C.x) > C.w / 2 + 0.5) continue;
+    const st = clampState(C, simT), gap = (C.w / 2 + 1.1) * st.f;   // where each jaw's face stands from the middle
+    if (Math.abs(ball.p.x - C.x) > gap - R) { crush(); return; }
+  }
+}
+function crush() {                                        // caught: a clang, sparks, and back to the last ring
+  sound('clamp'); shake = Math.max(shake, 0.3);
+  burst(ball.p.x, ball.p.y, ball.p.z, 0xFFB070, 24, 4); burst(ball.p.x, ball.p.y, ball.p.z, 0xFFFFFF, 10, 3);
+  ball.v.set(0, 0, 0); startFall();
+}
+function animateSpace(dt) {
+  for (const H of space.holes) {
+    if (!REDUCED) { H.disc.rotation.z -= dt * 0.9; H.lens.scale.setScalar(1 + 0.04 * Math.sin(simT * 3)); }
+    const o = new Object3D();
+    H.mote.forEach((m, i) => {
+      if (!REDUCED) { m.rr -= dt * (0.4 + 2.4 / Math.max(0.3, m.rr)); m.a += dt * (1 + 3 / Math.max(0.3, m.rr)); if (m.rr < H.drain) { m.rr = H.reach * (0.8 + Math.random() * 0.15); m.a = Math.random() * 7; } }
+      o.position.set(Math.cos(m.a) * m.rr, H.y + 0.03, Math.sin(m.a) * m.rr); o.updateMatrix(); H.motes.setMatrixAt(i, o.matrix);
+    });
+    H.motes.instanceMatrix.needsUpdate = true;
+  }
+  for (const C of space.clamps) {
+    const st = clampState(C, simT);
+    for (const J of C.jaws) J.jaw.position.set(C.x + J.s * (R * 0.2 + (J.open - R * 0.2) * st.f), C.y, C.z);
+    const blink = REDUCED || ((simT * 5) % 1) < 0.5;
+    for (const L of C.lamps) L.material.color.setHex(st.f < 1 ? 0xFF2A20 : st.warn && blink ? 0xFFB23F : 0x3A2408);
+    C.strip.material.opacity = st.f < 1 ? 0.55 * (1 - st.f) + 0.2 : st.warn ? 0.25 : 0;
+  }
+}
+Object.assign(PB_SOUNDS, {
+  swallow() { pbVoice('sine', 520, 40, 0.9, 0.09); pbVoice('sawtooth', 200, 30, 0.8, 0.02); pbVoice('triangle', 1600, 200, 0.5, 0.02); },   // down the drain of a black hole
+  clamp() { pbVoice('square', 160, 60, 0.12, 0.08); pbVoice('sine', 90, 40, 0.3, 0.12); pbVoice('triangle', 2400, 1200, 0.08, 0.03); },   // the clamps slam on you
+});
+Object.assign(TRY_COURSES, { blackhole: [], clamps: [] });
+Object.assign(TRY_TITLES, { blackhole: 'BLACK HOLES', clamps: 'DOCKING CLAMPS' });
+Object.assign(TRY_NEWS, {
+  blackhole: 'Black holes pull you toward the drain in the middle. Ride round the rim, never across',
+  clamps: 'Docking clamps snap shut across the rail. Their lamps flash amber before they do: go just after they open',
+});
+
+/* MORE SPACE OBSTACLES:
+     ion field    magnets in the rail switch on and off; one that is on grabs the
+                  marble, holds it, and flings it sideways (Twilight Zone's
+                  Powerfield, Godzilla's Magna Grab). Pass while they are off, or
+                  ride a fling across a gap on purpose
+     droids       little hover-droids of our own patrol across the rail and drift
+                  toward the marble; a droid that meets it shoves it
+     eruptions    a volcano beside the rail lobs lava bombs onto it; a glowing
+                  ring shows where each will land, a second before it does */
+Object.assign(space, { ions: [], droids: [], erupts: [] });
+Object.assign(TRY_SPACE, {
+  ion: [{ t: 'ion', w: 3.2, L: 7, mags: [0], period: 3.2, on: 1.2, phase: 0 },
+        { t: 'ion', w: 3.0, L: 11, mags: [-2.6, 2.6], period: 3.0, on: 1.3, phase: 0.2 },
+        { t: 'ionjump', w: 3.0, side: 1 }],
+  // Each guards one half of the rail, sides taking turns (a slalom); on the harder ones they lean across toward you as you pass.
+  // 5 m apart, then 4.4: room to swing from one side of the rail to the other between them.
+  droids: [{ t: 'droids', w: 3.0, L: 15, n: 3, speed: 1.4, home: 0 }, { t: 'droids', w: 2.8, L: 20, n: 4, speed: 1.8, home: 1.0 },
+           { t: 'droids', w: 2.6, L: 22, n: 5, speed: 2.2, home: 1.4 }],
+  erupt: [{ t: 'erupt', w: 3.4, L: 12, side: 1, period: 3.4, bombs: 2 }, { t: 'erupt', w: 3.0, L: 14, side: -1, period: 3.0, bombs: 3 },
+          { t: 'erupt', w: 2.8, L: 16, side: 1, period: 2.6, bombs: 4 }],
+});
+Object.assign(TRY_COURSES, { ion: [], droids: [], erupt: [] });
+Object.assign(TRY_TITLES, { ion: 'THE ION FIELD', droids: 'THE DROIDS', erupt: 'ERUPTIONS' });
+Object.assign(TRY_NEWS, {
+  ion: 'Magnets grab you and fling you sideways. Pass them while they are dark; the last one flings you across the gap on purpose',
+  droids: 'Droids patrol the rail and come for you. A droid shoves you: slip past, and steer against the shove',
+  erupt: 'The volcano lobs lava bombs onto the rail. A glowing ring shows where each will land: keep out of it',
+});
+const ION_CATCH = 0.95, ION_WARN = 0.7, ION_HOLD = 0.75;
+const _spaceLay0 = spaceLay;
+spaceLay = function (spec, pieces, x, y, z) {
+  if (spec.t === 'ion') {
+    pieces.push(F(x, z - spec.L / 2, spec.w, spec.L, y));
+    spec.mags.forEach((dz, k) => pieces.push({ t: 'ion', x, z: z - spec.L / 2 + dz, y, d: 1.6, w: spec.w, period: spec.period, on: spec.on, phase: spec.phase + k * spec.period / 2, side: k % 2 ? -1 : 1 }));
+    return spec.L;
+  }
+  if (spec.t === 'ionjump') {                             // the road ends at a magnet that is always on; the way on is a lane 5.2 m to the side
+    const side = spec.side, x2 = x + side * 5.2;          // a gap of 1.9 m: too wide to roll across
+    pieces.push(F(x, z - 3, spec.w, 6, y));
+    pieces.push({ t: 'ion', x, z: z - 4.6, y, d: 1.6, w: spec.w, period: 1, on: 1, phase: 0, side, always: true });
+    pieces.push(F(x2, z - 7, 3.6, 14, y));                 // the landing lane: wide, lined with rubber on its far side
+    pieces.push({ t: 'block', kind: 'barrier', x: x2 + side * 1.95, z: z - 7, y, w: 0.3, h: 0.7, d: 14 });
+    pieces.push(F(x2, z - 17, 3.0, 6, y));
+    return { len: 20, dx: side * 5.2 };                  // the course goes on from the lane beside
+  }
+  if (spec.t === 'droids') {
+    pieces.push(F(x, z - spec.L / 2, spec.w, spec.L, y), { ...spec, x, z: z - spec.L / 2, y, d: spec.L });
+    return spec.L;
+  }
+  if (spec.t === 'erupt') {
+    pieces.push(F(x, z - spec.L / 2, spec.w, spec.L, y), { ...spec, x, z: z - spec.L / 2, y, d: spec.L });
+    return spec.L;
+  }
+  return _spaceLay0(spec, pieces, x, y, z);
+};
+
+// ---- THE ION FIELD ----
+function ionState(M, t) {                                 // on (catching), warming (about to), or off
+  if (M.always) return { on: true, warm: 1 };
+  const u = (((t + M.phase) % M.period) + M.period) % M.period, offFor = M.period - M.on;
+  return u >= offFor ? { on: true, warm: 1 } : { on: false, warm: u > offFor - ION_WARN ? (u - (offFor - ION_WARN)) / ION_WARN : 0 };
+}
+function buildIon(pc) {
+  const M = { pc, x: pc.x, z: pc.z, y: pc.y, period: pc.period, on: pc.on, phase: pc.phase, side: pc.side, always: !!pc.always, grp: new Group() };
+  const top = pc.y + 0.014, CK = chromeKit();
+  const plate = new Mesh(new CircleGeometry(1.0, 40), CK.dark); plate.rotation.x = -Math.PI / 2; plate.position.y = top;
+  const coil = new Mesh(new TorusGeometry(0.95, 0.07, 8, 48), CK.chrome); coil.rotation.x = Math.PI / 2; coil.position.y = top + 0.03;
+  const core = new Mesh(new CircleGeometry(0.42, 32), new MeshBasicMaterial({ color: 0x1A3A5A, toneMapped: false })); core.rotation.x = -Math.PI / 2; core.position.y = top + 0.005;
+  const rings = [0, 1, 2].map(() => { const m = new Mesh(new RingGeometry(0.86, 1, 48), glowMat(0x5FC8FF, 0)); m.rotation.x = -Math.PI / 2; m.position.y = top + 0.008; return m; });
+  // An arrow the way it flings, painted beside it.
+  const arrow = new Mesh(new PlaneGeometry(0.9, 0.9), glowMat(0x9FEFFF, 0.8, CK.insArrow)); arrow.rotation.set(-Math.PI / 2, 0, -M.side * Math.PI / 2);
+  arrow.position.set(M.side * 1.35, top + 0.01, 0);
+  M.grp.add(plate, coil, core, ...rings, arrow); M.grp.position.set(pc.x, 0, pc.z);
+  M.core = core; M.rings = rings;
+  levelGroup.add(M.grp);
+  space.ions.push(M);
+}
+function ionStep() {
+  for (const M of space.ions) {
+    if (!ionState(M, simT).on) continue;
+    const dx = ball.p.x - M.x, dz = ball.p.z - M.z;
+    if (Math.hypot(dx, dz) < ION_CATCH && Math.abs(ball.p.y - R - M.y) < 0.3 && ball.grounded) {
+      ball.held = { M, t: 0, from: ball.p.clone() }; ball.v.set(0, 0, 0); sound('grab');
+      return;
+    }
+  }
+}
+function heldStep(dt) {                                   // held on the magnet, drawn to its middle, then flung
+  const Hd = ball.held, M = Hd.M;
+  Hd.t += dt;
+  const k = Math.min(1, Hd.t / 0.25);
+  ball.p.set(Hd.from.x + (M.x - Hd.from.x) * k, M.y + R + 0.12 * Math.sin(Math.min(1, Hd.t / ION_HOLD) * Math.PI), Hd.from.z + (M.z - Hd.from.z) * k);
+  ball.v.set(0, 0, 0);
+  if (Hd.t >= ION_HOLD) { ball.held = null; ball.v.set(M.side * 10.8, 5.6, -0.6); ball.grounded = false; sound('fling'); burst(ball.p.x, ball.p.y, ball.p.z, 0x9FEFFF, 18, 3); }
+}
+
+// ---- THE DROIDS ----
+const DROID_R = 0.3;
+let droidKitMemo = null;
+function droidGeo() {                                     // a droid of our own: a white dome on a dark skirt, an orange band, a visor, fins, an antenna
+  if (droidKitMemo) return droidKitMemo;
+  const B = pbBuild();
+  B.geo(new SphereGeometry(DROID_R, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2), placeAt(0, -0.02, 0, 0, 0, 0, 1, 1.15, 1), 0xF2F6FC);
+  B.geo(new CylinderGeometry(DROID_R, DROID_R * 0.72, 0.16, 20), placeAt(0, -0.1, 0), 0x1A2640);
+  B.geo(new TorusGeometry(DROID_R * 0.98, 0.035, 6, 24), placeAt(0, -0.01, 0, Math.PI / 2, 0, 0), 0xFF8A3C);
+  B.geo(new BoxGeometry(DROID_R * 1.3, 0.11, 0.1), placeAt(0, 0.13, DROID_R * 0.82), 0x10223E);
+  for (const s of [-1, 1]) B.geo(new BoxGeometry(0.05, 0.16, 0.24), placeAt(s * (DROID_R + 0.02), -0.06, 0, 0, 0, s * 0.35), 0x2F7BFF);
+  B.geo(new CylinderGeometry(0.018, 0.018, 0.2, 6), placeAt(0.1, DROID_R + 0.12, 0), 0xB8C8DC);
+  B.geo(new SphereGeometry(0.045, 8, 6), placeAt(0.1, DROID_R + 0.23, 0), 0xFF8A3C);
+  return (droidKitMemo = { geo: B.done() });
+}
+function buildDroids(pc) {
+  const r = seeded(11 + Math.round(Math.abs(pc.z) * 17)), K = pbKit('chrome');
+  const n = pc.n, body = new InstancedMesh(droidGeo().geo, K.paint, n), eyes = new InstancedMesh(new SphereGeometry(0.075, 10, 8), new MeshBasicMaterial({ color: 0x7FF4FF, toneMapped: false }), n);
+  const halos = new InstancedMesh(new RingGeometry(0.3, 0.5, 24).rotateX(-Math.PI / 2), glowMat(0x7FE8FF, 0.7), n);
+  body.geometry.userData.keep = true;
+  const D = { pc, x: pc.x, z: pc.z, y: pc.y, w: pc.w, L: pc.L, body, eyes, halos, bots: [] };
+  for (let k = 0; k < n; k++) { const side = k % 2 ? -1 : 1; D.bots.push({ side, z: pc.z + pc.L / 2 - (k + 0.5) * pc.L / n, x: pc.x + side * (0.35 + r() * (pc.w / 2 - 0.45)), dir: r() < 0.5 ? -1 : 1, speed: pc.speed * (0.8 + r() * 0.4), home: pc.home, bob: r() * 6, vx: 0 }); }
+  for (const m of [body, eyes, halos]) m.frustumCulled = false;   // they move: bounds taken where they first stood would hide them
+  levelGroup.add(body, eyes, halos);
+  space.droids.push(D);
+}
+function droidMove(D, dt) {                               // each patrols its own half of the rail; a marble drawing near pulls it in, up to the middle
+  for (const b of D.bots) {
+    const lo = b.side > 0 ? 0.35 : -(D.w / 2 - 0.1), hi = b.side > 0 ? D.w / 2 - 0.1 : -0.35;
+    const near = b.home > 0 && ball.p.z - b.z < 3 && ball.p.z - b.z > -0.2 && state === 'play';   // a marble coming at it, not one gone by
+    let vx = b.dir * b.speed, lo2 = lo, hi2 = hi;
+    if (near) { vx = clamp(ball.p.x - b.x, -1, 1) * b.home * 2.2; if (b.side > 0) lo2 = 0.1; else hi2 = -0.1; }   // up to the middle line, never over: the far lane stays open
+    b.x += vx * dt; b.vx = vx;
+    if (b.x > D.x + hi2) { b.x = D.x + hi2; b.dir = -1; } else if (b.x < D.x + lo2) { b.x = D.x + lo2; b.dir = 1; }
+  }
+}
+function droidStep(dt) {
+  for (const D of space.droids) {
+    droidMove(D, dt);
+    for (const b of D.bots) {
+      const dx = ball.p.x - b.x, dz = ball.p.z - b.z, dy = ball.p.y - (D.y + R + 0.05), d = Math.hypot(dx, dz, dy);
+      if (d >= R + DROID_R || d < 1e-6) continue;
+      const nx = dx / d, nz = dz / d, over = R + DROID_R - d;
+      ball.p.x += nx * over; ball.p.z += nz * over;
+      const rel = (ball.v.x - b.vx) * nx + ball.v.z * nz;
+      if (rel < 0.5) {                                    // a shove: away from the droid, and hard
+        ball.v.x += nx * (6.2 - rel); ball.v.z += nz * (6.2 - rel) * 0.5; ball.v.y += 1.2;   // a shove, and a little hop off the rail's grip
+        if (simT - knockT > 0.25) { knockT = simT; sound('droid'); }
+      }
+    }
+  }
+}
+
+// ---- ERUPTIONS ----
+const ERUPT_WARN = 1.1, BOMB_R = 1.0;
+function eruptBombs(E, n) {                               // where eruption n's bombs land, and when (each a little after the one before)
+  const r = seeded(7 + n * 131 + Math.round(Math.abs(E.z) * 3)), out = [];
+  for (let k = 0; k < E.bombs; k++) out.push({ x: E.x + (r() - 0.5) * (E.w - 0.6), z: E.z + (r() - 0.5) * (E.L - 2), t: n * E.period + 1.3 + k * 0.35 });
+  return out;
+}
+function buildErupt(pc) {
+  const E = { pc, x: pc.x, z: pc.z, y: pc.y, w: pc.w, L: pc.L, side: pc.side, period: pc.period, bombs: pc.bombs, n: -1, list: [], rings: [], rocks: [] };
+  const vx = pc.x + pc.side * (pc.w / 2 + 6.5), vz = pc.z, base = pc.y - 8;
+  E.cx = vx; E.cy = pc.y + 3.2; E.cz = vz;
+  const B = pbBuild(), Lv = pbBuild(), Hc = pc.y + 3.2 - base;   // the volcano: a cone of rust-dark rock from the playfield, lava running down it, a glowing crater
+  B.geo(new ConeGeometry(4.2, Hc, 14, 4, true), placeAt(vx, (pc.y + 3.2 + base) / 2, vz), 0x6A4034);
+  B.geo(new TorusGeometry(1.1, 0.35, 8, 20), placeAt(vx, pc.y + 3.1, vz, Math.PI / 2, 0, 0), 0x4A2A20);
+  for (let k = 0; k < 7; k++) {                           // lava streams from the rim down its flanks
+    const a = k / 7 * Math.PI * 2 + 0.3, len = Hc * (0.45 + 0.35 * ((k * 37) % 10) / 10), slope = Math.atan2(4.2 - 1.1, Hc);
+    Lv.geo(new CylinderGeometry(0.1, 0.22, len, 5), new Matrix4().compose(new Vector3(vx + Math.cos(a) * (1.1 + Math.tan(slope) * len / 2 + 0.05), pc.y + 3.2 - len / 2, vz + Math.sin(a) * (1.1 + Math.tan(slope) * len / 2 + 0.05)),
+      new Quaternion().setFromEuler(new Euler(Math.sin(a) * slope, 0, -Math.cos(a) * slope)), new Vector3(1, 1, 1)), k % 2 ? 0xFF7A2A : 0xFFB040);
+  }
+  levelGroup.add(new Mesh(B.done(), pbKit('chrome').paint), new Mesh(Lv.done(), pbKit('chrome').lit));
+  const smoke = new Mesh(new PlaneGeometry(4, 4), glowMat(0xFF6A2A, 0.5, dot)); smoke.position.set(vx, pc.y + 4.2, vz); smoke.rotation.x = -0.9; levelGroup.add(smoke);
+  const crater = new Mesh(new CircleGeometry(1.0, 24), new MeshBasicMaterial({ color: 0xFF7A2A, toneMapped: false })); crater.rotation.x = -Math.PI / 2; crater.position.set(vx, pc.y + 3.15, vz);
+  levelGroup.add(crater); E.crater = crater;
+  const CK = chromeKit();
+  for (let k = 0; k < pc.bombs * 3; k++) {
+    const ring = new Mesh(new RingGeometry(BOMB_R - 0.16, BOMB_R, 40), new MeshBasicMaterial({ color: 0xFF3A10, transparent: true, opacity: 0, depthWrite: false, toneMapped: false })); ring.rotation.x = -Math.PI / 2;
+    ring.add(new Mesh(new CircleGeometry(BOMB_R - 0.16, 32), new MeshBasicMaterial({ color: 0xFF5A1A, transparent: true, opacity: 0.18, depthWrite: false, toneMapped: false })));
+    levelGroup.add(ring); E.rings.push(ring);
+    const rock = new Mesh(CK.meteorGeo, CK.rock); rock.scale.setScalar(0.7); rock.visible = false; levelGroup.add(rock); E.rocks.push(rock);
+  }
+  space.erupts.push(E);
+}
+function eruptStep() {
+  for (const E of space.erupts) {
+    const m0 = Math.floor((simT - 1.3) / E.period);
+    if (m0 !== E.n) {                                     // the bombs of the last eruption, this one and the next, each landing in turn
+      E.n = m0; E.list = [m0 - 1, m0, m0 + 1].flatMap((m) => eruptBombs(E, m).map((b) => ({ ...b, hit: b.t < simT - 1e-6, heard: b.t - ERUPT_WARN < simT - 1e-6 })));
+    }
+    for (const b of E.list) {
+      if (!b.heard && simT >= b.t - ERUPT_WARN) { b.heard = true; if (Math.abs(ball.p.z - E.z) < 30) sound('erupt'); }
+      if (b.hit || simT < b.t) continue;
+      b.hit = true;
+      burst(b.x, E.y + 0.2, b.z, 0xFF7A2A, 26, 4); burst(b.x, E.y + 0.2, b.z, 0xFFE0A0, 10, 3);
+      if (Math.abs(ball.p.z - E.z) < 30) sound('bomb');
+      if (state === 'play' && Math.hypot(ball.p.x - b.x, ball.p.z - b.z) < BOMB_R + R * 0.5 && Math.abs(ball.p.y - R - E.y) < 0.8) {
+        ball.v.set(Math.sign(ball.p.x - b.x || 1) * 6, 6, 0); shake = Math.max(shake, 0.3); startFall();   // blown off the rail
+      }
+    }
+  }
+}
+function animateSpace2(dt) {
+  const o = new Object3D();
+  for (const M of space.ions) {
+    const st = ionState(M, simT);
+    M.core.material.color.setHex(st.on ? 0x9FEFFF : st.warm > 0 ? 0x3A7ABA : 0x1A3A5A);
+    M.rings.forEach((m, i) => {                           // rings drawn in while it warms and while it is on
+      const p = REDUCED ? 0.5 : ((simT * 1.4 + i / 3) % 1);
+      m.scale.setScalar(1 - 0.6 * p); m.material.opacity = (st.on ? 0.9 : st.warm * 0.7) * Math.sin(Math.PI * p);
+    });
+  }
+  for (const D of space.droids) {
+    if (state !== 'play') droidMove(D, dt);               // (in play they move with the physics)
+    D.bots.forEach((b, i) => {
+      const y = D.y + R + 0.12 + (REDUCED ? 0 : 0.06 * Math.sin(simT * 3 + b.bob));
+      o.position.set(b.x, y, b.z); o.rotation.set(0, Math.atan2(ball.p.x - b.x, ball.p.z - b.z), clamp(-b.vx * 0.12, -0.35, 0.35)); o.updateMatrix(); D.body.setMatrixAt(i, o.matrix);
+      o.position.set(b.x + Math.sin(o.rotation.y) * (DROID_R * 0.88 + 0.03), y + 0.13, b.z + Math.cos(o.rotation.y) * (DROID_R * 0.88 + 0.03)); o.rotation.set(0, 0, 0); o.updateMatrix(); D.eyes.setMatrixAt(i, o.matrix);
+      o.position.set(b.x, D.y + 0.03, b.z); o.updateMatrix(); D.halos.setMatrixAt(i, o.matrix);
+    });
+    D.body.instanceMatrix.needsUpdate = D.eyes.instanceMatrix.needsUpdate = D.halos.instanceMatrix.needsUpdate = true;
+  }
+  for (const E of space.erupts) {
+    E.crater.material.color.setHex(((simT - 1.3) % E.period + E.period) % E.period < 0.4 ? 0xFFE0A0 : 0xFF7A2A);
+    E.list.forEach((b, k) => {
+      const ring = E.rings[k], rock = E.rocks[k], until = b.t - simT;
+      if (!ring) return;
+      ring.position.set(b.x, E.y + 0.03, b.z);
+      ring.material.opacity = until > 0 && until < ERUPT_WARN ? 0.5 + 0.45 * (REDUCED ? 1 : Math.abs(Math.sin(simT * 12))) : 0; ring.visible = ring.material.opacity > 0;
+      if (until > 0 && until < ERUPT_WARN) {             // the bomb in the air, from the crater to where it lands
+        const f = 1 - until / ERUPT_WARN;
+        rock.visible = true; rock.position.set(E.cx + (b.x - E.cx) * f, E.cy + (E.y + 0.35 - E.cy) * f + 6 * Math.sin(Math.PI * f), E.cz + (b.z - E.cz) * f);
+        rock.rotation.x += dt * 5;
+      } else rock.visible = false;
+    });
+  }
+}
+Object.assign(PB_SOUNDS, {
+  grab() { pbVoice('sawtooth', 90, 180, 0.3, 0.03); pbVoice('sine', 220, 660, 0.25, 0.05); },                 // a magnet takes hold
+  fling() { pbVoice('square', 300, 1200, 0.18, 0.03); pbVoice('sine', 880, 1760, 0.2, 0.04); },              // and throws
+  droid() { pbVoice('square', 1400, 900, 0.06, 0.035); pbVoice('square', 1800, 1300, 0.06, 0.03, 0, 0.08); pbVoice('sine', 180, 90, 0.15, 0.08); },   // a droid shoves you, beeping
+  erupt() { pbVoice('sawtooth', 60, 40, 0.8, 0.05); pbVoice('sine', 80, 50, 0.9, 0.08); },                   // the volcano rumbles
+  bomb() { pbVoice('sine', 140, 50, 0.35, 0.1); pbVoice('square', 400, 90, 0.15, 0.02); },                    // a bomb lands
+});
+// All the new obstacles on one course, in the middle of each ladder: the one link to try them all.
+Object.assign(TRY_SPACE, { space: [TRY_SPACE.blackhole[1], TRY_SPACE.clamps[1], TRY_SPACE.ion[1], TRY_SPACE.ion[2], TRY_SPACE.droids[1], TRY_SPACE.erupt[1]] });
+Object.assign(TRY_COURSES, { space: [] });
+Object.assign(TRY_TITLES, { space: 'NEW OBSTACLES' });
+Object.assign(TRY_NEWS, { space: 'The new obstacles, one after another: a black hole, docking clamps, the ion field, droids and a volcano' });
 
 // ---------- TREES, GROWN THE WAY EZ-TREE GROWS THEM ----------
 /* (owner, 2026-09-27: "I would like to see trees. can you make something like
@@ -16771,7 +17197,7 @@ requestAnimationFrame(frame);
    game started with. */
 function worldFromHash() {
   const [h, v, w] = location.hash.slice(1).split('-');
-  if (h === 'try' && TRY_COURSES[v]) { loadTry(v, w === 'tokyo'); setWorld(w === 'tokyo' ? 'tokyo' : 'neon'); return; }   // #try-ice, #try-ice-tokyo
+  if (h === 'try' && TRY_COURSES[v]) { loadTry(v, w === 'tokyo'); setWorld(TRY_SPACE[v] ? 'pinball-chrome' : w === 'tokyo' ? 'tokyo' : 'neon'); return; }   // #try-ice, #try-ice-tokyo
   if (h === 'pinball') {                                // #pinball-chrome, #pinball-arcade, #pinball-golden (course 27, or the one named: #pinball-golden-12)
     const n = parseInt(w, 10);
     loadLevel(n >= 1 && n <= LEVELS.length ? n : 27);
@@ -16810,6 +17236,11 @@ if (HARNESS) {
                     ice: ball.ice && { c: ball.ice.c, r: ball.ice.r, moving: !!(ball.ice.dc || ball.ice.dr), x0: ball.ice.P.x0, z0: ball.ice.P.z0 },
                     plank: !!(ball.onFerry && ball.onFerry.plank) }),
     tap: () => { tapQueued = true; },
+    space: () => ({ holes: space.holes.map((H) => ({ x: H.x, z: H.z, y: H.y, reach: H.reach, drain: H.drain, pull: H.pull })),
+                    clamps: space.clamps.map((C) => { const st = clampState(C, simT); return { x: C.x, z: C.z, w: C.w, f: st.f, left: st.left, period: C.period, closed: C.closed, phase: C.phase }; }), sucked: !!ball.sucked,
+                    ions: space.ions.map((M) => { const st = ionState(M, simT), u = (((simT + M.phase) % M.period) + M.period) % M.period; return { x: M.x, z: M.z, on: st.on, always: M.always, side: M.side, offLeft: st.on ? 0 : M.period - M.on - u }; }), held: !!ball.held,
+                    droids: space.droids.map((D) => ({ x: D.x, z: D.z, w: D.w, L: D.L, bots: D.bots.map((b) => [+b.x.toFixed(2), +b.z.toFixed(2), +b.vx.toFixed(2)]) })),
+                    erupts: space.erupts.map((E) => ({ x: E.x, z: E.z, w: E.w, L: E.L, warn: E.list.filter((b) => !b.hit && b.t - simT < ERUPT_WARN + 0.4).map((b) => [+b.x.toFixed(2), +b.z.toFixed(2), +(b.t - simT).toFixed(2)]) })) }),
     planks: () => crossZones.map((Z) => ({ cx: Z.cx, nearZ: Z.nearZ, farZ: Z.farZ, y: Z.y, lanes: Z.lanes.map((L) => ({ dir: L.dir, v: L.v, len: L.len, n: L.n, phase: L.phase, z: L.z })) })),
     reach: (n) => (typeof n === 'string' ? loadTry(n.split('-')[0], n.endsWith('-tokyo')) : loadLevel(n)),   // 41, or 'ice', 'ice-tokyo'
     tint: () => ball.tint,
