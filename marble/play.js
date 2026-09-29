@@ -13309,67 +13309,168 @@ function pbBumperShape(kind) {
     }),
   };
 }
-/* THE COURSE IN EACH LOOK: a pinball ramp's own materials, the edge light the
-   Tokyo rail uses (edgeGlow) in the look's colour. Pads, magnets and the
-   colour lanes keep the colours that say what they are. */
-const pbRails = {}, loopTopsPB = {};
+/* THE COURSE IN EACH LOOK (owner, 2026-09-29: "pinball machines usually have
+   shiny surfaces. The rail almost looks wooden ... make the rail be made of
+   shiny coated metal. Also have some illustrations along the way as you'd see
+   on the surface of a pinball machine"). The rail is polished metal under a
+   clear coat, cool silver in the chrome machine, bright steel in the arcade,
+   warm nickel on the golden table, reflecting an arcade's ceiling lights (the
+   room environment, whose soft panels give a flat surface its broad shine) and
+   lit along its edges as the Tokyo rail is. Printed on it every few metres, as
+   a playfield is printed under its coat, is the look's own art: its six
+   figures and two words (railArt). Ink is not metal, so where the art is the
+   surface turns from mirror to print. Pads, magnets, colour lanes, moving pads
+   and the puzzle squares carry no art, so nothing printed is ever taken for a
+   rule; they keep the colours that say what they are. */
+const pbRails = {}, loopTopsPB = {}, pbRailArts = {};
 const keepMat = (m) => { m.userData.keep = true; return m; };
+const PB_WORDS = { chrome: [['BONUS', '#2F7BFF', '#E8F6FF'], ['2X', '#FF8A3C', '#FFFFFF']], arcade: [['EXTRA BALL', '#E8322E', '#FFFFFF'], ['LOCK', '#1A9A94', '#FFFFFF']],
+                   golden: [['SPECIAL', '#C81E14', '#FFE6A0'], ['BONUS', '#2A3A8A', '#FFD84A']] };
+function pbRailArt(look) {                                 // eight prints, 256 square: the six figures and two words in a badge
+  if (pbRailArts[look]) return pbRailArts[look];
+  const L = PB[look], t = canvasTex(1024, 512, (g) => {
+    L.figs.slice(0, 6).forEach((f, i) => {
+      const one = document.createElement('canvas'); one.width = one.height = 512; f(one.getContext('2d'));
+      g.drawImage(one, (i % 4) * 256 + 3, Math.floor(i / 4) * 256 + 3, 250, 250);
+    });
+    PB_WORDS[look].forEach(([word, fill, ink], k) => {
+      const ox = (2 + k) * 256, oy = 256;
+      g.save(); g.translate(ox + 128, oy + 128);
+      g.beginPath(); g.roundRect(-118, -54, 236, 108, 54); g.fillStyle = '#0E1116'; g.fill();
+      g.beginPath(); g.roundRect(-110, -46, 220, 92, 46); g.fillStyle = fill; g.fill();
+      g.strokeStyle = 'rgba(255,255,255,0.55)'; g.lineWidth = 4; g.beginPath(); g.roundRect(-100, -36, 200, 72, 36); g.stroke();
+      const size = word.length > 6 ? 34 : word.length > 3 ? 46 : 64;
+      pbWord(g, word, 0, 3, size, ink, '#0E1116', 0.14);
+      for (const s of [-1, 1]) star(g, s * 94, -60, 13, 5.5, ink);
+      g.restore();
+    });
+  });
+  t.anisotropy = 8;
+  return (pbRailArts[look] = t);
+}
+/* A rail top: coated metal, lit edges, and the prints. Each slab says, in its
+   own `artInfo` (set by pbCourse), how big its prints are, how far apart, how
+   many, and which it starts from; they run down its middle, their tops toward
+   -z, so they read the right way up as the marble rolls on. */
+const pbRailEnvs = {};
+function pbRailEnvMap(look) {                              // what the rail's coat reflects: a dark hall, rows of bright ceiling panels, the machine's glow low down
+  if (pbRailEnvs[look] || !renderer) return pbRailEnvs[look] || null;
+  const tint = { chrome: ['#0A1424', '#7FD8FF'], arcade: ['#0E0A0A', '#FF9A5A'], golden: ['#140C06', '#FFC878'] }[look];
+  const t = canvasTex(1024, 512, (g) => {
+    const lg = g.createLinearGradient(0, 0, 0, 512);
+    lg.addColorStop(0, '#050608'); lg.addColorStop(0.42, tint[0]); lg.addColorStop(0.5, tint[1]); lg.addColorStop(0.56, tint[0]); lg.addColorStop(1, '#030304');
+    g.fillStyle = lg; g.fillRect(0, 0, 1024, 512);
+    for (let row = 0; row < 5; row++) for (let k = 0; k < 16; k++) {                     // a grid of ceiling panels from high overhead down to low, softly edged
+      const y = 30 + row * 42, h = 16 + row * 5, x = k * 64 + (row % 2) * 32 + 8;
+      g.filter = 'blur(4px)'; g.fillStyle = `rgba(255,255,255,${0.95 - row * 0.08})`; g.fillRect(x, y, 48, h); g.filter = 'none';
+    }
+    g.filter = 'blur(3px)'; g.fillStyle = tint[1]; for (let k = 0; k < 8; k++) g.fillRect(k * 128 + 20, 236, 90, 5); g.filter = 'none';   // the machine's lamps, low
+  });
+  const pm = new PMREMGenerator(renderer);
+  pbRailEnvs[look] = pm.fromEquirectangular(t).texture;
+  pm.dispose(); t.dispose();
+  return pbRailEnvs[look];
+}
+function pbRailTop(opts, edgeCol, art, stripe) {
+  const mat = new MeshPhysicalMaterial(opts), glow = { value: new Color(edgeCol).multiplyScalar(1.6) }, tex = { value: art }, pin = { value: new Color(stripe) };
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uGlow = glow; sh.uniforms.uArt = tex; sh.uniforms.uPin = pin;
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute vec2 halfSize;\nattribute vec4 artInfo;\nvarying vec2 vHalf;\nvarying vec2 vSlab;\nvarying vec4 vArt;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n  vHalf = halfSize; vSlab = position.xz; vArt = artInfo;');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform vec3 uGlow, uPin;\nuniform sampler2D uArt;\nvarying vec2 vHalf;\nvarying vec2 vSlab;\nvarying vec4 vArt;')
+      .replace('#include <map_fragment>', `#include <map_fragment>
+  float artMask = 0.0; vec3 artCol = vec3(0.0);
+  if ( vArt.z > 0.5 ) {
+    float S = vArt.y, n = vArt.z, sz = vArt.x, z0 = -( n - 1.0 ) * 0.5 * S;
+    float k = clamp( floor( ( vSlab.y - z0 ) / S + 0.5 ), 0.0, n - 1.0 );
+    vec2 p = vec2( vSlab.x / sz + 0.5, ( z0 + k * S - vSlab.y ) / sz + 0.5 );
+    if ( p.x > 0.0 && p.x < 1.0 && p.y > 0.0 && p.y < 1.0 ) {
+      float slot = mod( vArt.w + k, 8.0 );
+      vec4 a = texture2D( uArt, vec2( ( mod( slot, 4.0 ) + p.x ) * 0.25, 0.5 - floor( slot / 4.0 ) * 0.5 + p.y * 0.5 ) );
+      artMask = a.a; artCol = a.rgb;
+      diffuseColor.rgb = mix( diffuseColor.rgb, a.rgb, a.a );
+    }
+  }
+  if ( vHalf.x > 0.9 ) {                              // a printed pinstripe, two lines, inside each lit edge
+    float ex = vHalf.x - abs( vSlab.x ), fe = max( fwidth( ex ), 1e-4 );
+    float line = max( 1.0 - smoothstep( 0.025 - fe, 0.025 + fe, abs( ex - 0.58 ) ), 1.0 - smoothstep( 0.012 - fe, 0.012 + fe, abs( ex - 0.68 ) ) ) * clamp( 0.05 / fe, 0.0, 1.0 );
+    artMask = max( artMask, line ); artCol = mix( artCol, uPin, line );
+    diffuseColor.rgb = mix( diffuseColor.rgb, uPin, line );
+  }`)
+      .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\n  metalnessFactor = mix( metalnessFactor, 0.0, artMask );')
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n  roughnessFactor = mix( roughnessFactor, 0.22, artMask );')
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+  totalEmissiveRadiance = mix( totalEmissiveRadiance, artCol * 0.42, artMask );
+  if ( vHalf.x > 0.5 ) {
+    float ex = vHalf.x - abs( vSlab.x ), fe = max( fwidth( ex ), 1e-4 );
+    float core = ( 1.0 - smoothstep( 0.045 - fe, 0.045 + fe, abs( ex - 0.3 ) ) ) * clamp( 0.09 / fe, 0.0, 1.0 );
+    float halo = exp( -pow( ( ex - 0.3 ) / 0.16, 2.0 ) ) * 0.3;
+    totalEmissiveRadiance += uGlow * max( core, halo );
+  }`);
+  };
+  mat.customProgramCacheKey = () => 'pb-rail';
+  return mat;
+}
 function pbCourseMats(look) {
   if (pbRails[look]) return pbRails[look];
-  const r = seeded(51), env = pbEnvMap(look) || envTex;
-  let deck, topO, edge, sideO, lipCol;
-  if (look === 'chrome') {                               // blue glass, lit from beneath, fine ribs across it
-    deck = canvasTex(256, 256, (g) => {
-      g.fillStyle = pbLin(g, 0, 0, 256, 0, [[0, '#6AAAE8'], [0.5, '#A2D4FA'], [1, '#6AAAE8']]); g.fillRect(0, 0, 256, 256);
-      g.fillStyle = 'rgba(210,240,255,0.22)'; for (let y = 0; y < 256; y += 16) g.fillRect(0, y, 256, 2);
-      g.fillStyle = 'rgba(10,30,70,0.22)'; for (let y = 8; y < 256; y += 16) g.fillRect(0, y, 256, 1);
-    }, true);
-    topO = { map: deck, roughness: 0.12, metalness: 0.3, envMap: env, envMapIntensity: 0.9, emissive: 0x4A96E4, emissiveIntensity: 0.9 };
-    edge = 0x9FF2FF; sideO = { color: 0xE4EEF8, metalness: 1, roughness: 0.15, envMap: env, envMapIntensity: 1.2 }; lipCol = '#BFF6FF';
-  } else if (look === 'arcade') {                        // brushed steel, as a ramp's metal flap is
-    deck = canvasTex(256, 256, (g) => {
-      g.fillStyle = '#E4E9EC'; g.fillRect(0, 0, 256, 256);
-      for (let i = 0; i < 700; i++) { g.fillStyle = r() < 0.5 ? 'rgba(255,255,255,0.18)' : 'rgba(60,70,80,0.1)'; g.fillRect(r() * 256, r() * 256, 30 + r() * 140, 1 + r() * 1.2); }   // brushed across
-      g.fillStyle = 'rgba(30,36,42,0.35)'; g.fillRect(0, 0, 256, 2);
-    }, true);
-    topO = { map: deck, roughness: 0.36, metalness: 0.45, envMap: env, envMapIntensity: 0.8, emissive: 0x5A5E62, emissiveIntensity: 0.9 };
-    edge = 0xFF8A40; sideO = { color: 0x2A3038, metalness: 0.7, roughness: 0.3, envMap: env, envMapIntensity: 0.8 }; lipCol = '#FFB070';
-  } else {                                               // ivory lacquer on wood, a red pinstripe, as an old table's lane guides
-    deck = canvasTex(256, 256, (g) => {
-      g.fillStyle = '#F4EAD2'; g.fillRect(0, 0, 256, 256);
-      for (let i = 0; i < 60; i++) { g.strokeStyle = `rgba(170,130,80,${0.05 + r() * 0.08})`; g.lineWidth = 1 + r() * 2; g.beginPath(); const x = r() * 256; g.moveTo(x, 0); g.bezierCurveTo(x + 10, 80, x - 10, 170, x + 4, 256); g.stroke(); }
-      g.fillStyle = 'rgba(200,40,24,0.45)'; g.fillRect(0, 126, 256, 3);
-    }, true);
-    topO = { map: deck, roughness: 0.28, metalness: 0.05, envMap: env, envMapIntensity: 0.5, emissive: 0x4A3E2E, emissiveIntensity: 0.8 };
-    edge = 0xFFB050; sideO = { color: 0x4A2410, metalness: 0.1, roughness: 0.5, envMap: env, envMapIntensity: 0.4 }; lipCol = '#FFD08A';
-  }
-  deck.repeat.set(0.25, 0.25);
+  const r = seeded(51), room = pbRailEnvMap(look) || envTex, art = pbRailArt(look);
+  // Per look: the metal's colour, the sheen it keeps in the dark, its edge light, the lip along its sides.
+  // Chrome and steel are bare polished metal under the coat; the golden table's rail is ivory enamel on metal (as an old
+  // table's rails were painted), bright enough to stand off its gold playfield.
+  const S = { chrome: { base: '#E4EEFA', col: 0xC8DCF4, sheen: 0x2E5A8A, k: 0.6, metal: 0.85, rough: 0.2, edge: 0x9FF2FF, lip: '#BFF6FF', side: 0xB8C8DC, pin: 0x2F7BFF },
+              arcade: { base: '#F2F4F6', col: 0xE2E6EA, sheen: 0x50555C, k: 0.85, metal: 0.85, rough: 0.2, edge: 0xFF8A40, lip: '#FFB070', side: 0x5A626C, pin: 0xE8322E },
+              golden: { base: '#FBF3E2', col: 0xFFF6E6, sheen: 0x6A5A44, k: 0.75, metal: 0.25, rough: 0.3, edge: 0xFFB050, lip: '#FFD08A', side: 0x8A7A60, pin: 0xC81E14 } }[look];
+  // Flakes of metal under the coat, and a seam every 4 m, so the eye sees the rail slide by.
+  const deck = canvasTex(256, 256, (g) => {
+    g.fillStyle = S.base; g.fillRect(0, 0, 256, 256);
+    const fl = look === 'golden' ? 0.25 : 1;             // enamel is smooth; bare metal shows a fine flake
+    for (let i = 0; i < 1800; i++) { g.fillStyle = r() < 0.5 ? `rgba(255,255,255,${(0.02 + r() * 0.03) * fl})` : `rgba(40,44,52,${(0.015 + r() * 0.02) * fl})`; g.fillRect(r() * 256, r() * 256, 1.2, 1.2); }
+    g.fillStyle = 'rgba(20,24,30,0.55)'; g.fillRect(0, 0, 256, 3);
+    g.fillStyle = 'rgba(255,255,255,0.55)'; g.fillRect(0, 3, 256, 1.5);
+  }, true);
+  deck.repeat.set(0.5, 0.5);
+  const topO = { map: deck, color: S.col, metalness: S.metal, roughness: S.rough, clearcoat: 1, clearcoatRoughness: 0.03, envMap: room, envMapIntensity: 1.6, emissive: S.sheen, emissiveIntensity: S.k };
+  const sideO = { color: S.side, metalness: 0.95, roughness: 0.12, envMap: room, envMapIntensity: 1.4 };
   const lip = (col) => canvasTex(8, 64, (g) => { const lg = g.createLinearGradient(0, 0, 0, 64); lg.addColorStop(0, col); lg.addColorStop(0.12, col); lg.addColorStop(0.35, '#000'); lg.addColorStop(1, '#000'); g.fillStyle = lg; g.fillRect(0, 0, 8, 64); });
-  const top = (col = edge) => hazed(edgeGlow(new MeshStandardMaterial(topO), col));
-  const side = (lc = lipCol, color) => hazed(new MeshStandardMaterial({ ...sideO, ...(color !== undefined ? { color } : {}), emissive: 0xFFFFFF, emissiveMap: lip(lc), emissiveIntensity: 1.3 }));
-  const cellT = canvasTex(256, 256, (g) => {             // a puzzle square's floor: a panel to a cell, in the look's deck
+  const top = (col = S.edge) => hazed(pbRailTop(topO, col, art, S.pin));
+  const side = (lc = S.lip, color) => hazed(new MeshStandardMaterial({ ...sideO, ...(color !== undefined ? { color } : {}), emissive: 0xFFFFFF, emissiveMap: lip(lc), emissiveIntensity: 1.3 }));
+  const cellT = canvasTex(256, 256, (g) => {             // a puzzle square's floor: a panel of the same metal to a cell
     g.drawImage(deck.image, 0, 0); g.strokeStyle = 'rgba(0,0,0,0.55)'; g.lineWidth = 10; g.strokeRect(5, 5, 246, 246);
-    g.strokeStyle = lipCol; g.lineWidth = 3; g.strokeRect(14, 14, 228, 228);
+    g.strokeStyle = S.lip; g.lineWidth = 3; g.strokeRect(14, 14, 228, 228);
   });
   pbRails[look] = {
     make: { top, side },
     top: top(), side: side(),
-    padTop: hazed(new MeshStandardMaterial(topO)), padSide: side('#FFE67A', PAD_YELLOW),
+    padTop: hazed(new MeshPhysicalMaterial(topO)), padSide: side('#FFE67A', PAD_YELLOW),
     ferryTop: top(0x6FE8FF), ferrySide: side('#9FF0FF', 0x3E6A80), magSide: side('#9FF4FF', 0x2FB6D8),
     laneTop: [null, top(0xB6F04C), top(0xB48EFF)], laneSide: [null, side('#D8FF9A', 0x8FD83A), side('#D6C4FF', 0x9A6BF0)],
-    cellTop: hazed(new MeshStandardMaterial({ ...topO, map: cellT })),
-    loopTop: (w) => loopTopsPB[look + w] || (loopTopsPB[look + w] = keepMat(hazed(new MeshStandardMaterial({ ...topO, emissive: 0xFFFFFF, emissiveMap: loopLines(w), emissiveIntensity: 1 })))),
-    loopWall: hazed(new MeshStandardMaterial({ ...sideO, emissive: edge, emissiveIntensity: 0.4 })),
-    edge,
+    cellTop: hazed(new MeshPhysicalMaterial({ ...topO, map: cellT })),
+    loopTop: (w) => loopTopsPB[look + w] || (loopTopsPB[look + w] = keepMat(hazed(new MeshPhysicalMaterial({ ...topO, emissive: 0xFFFFFF, emissiveMap: loopLines(w), emissiveIntensity: 1 })))),
+    loopWall: hazed(new MeshStandardMaterial({ ...sideO, emissive: S.edge, emissiveIntensity: 0.4 })),
+    edge: S.edge,
   };
   return pbRails[look];
 }
+// Where a slab's prints go: down its middle, as big as it is wide (within reason), a few metres apart; none on the pieces that mean something.
+function pbArtInfo(c, k) {
+  const g = c.mesh.geometry, n = g.attributes.position.count, w = c.half.x * 2, d = c.half.z * 2;
+  const plain = !(c.ferry || c.pad || c.mag || c.lane || c.cell || c.power || c.train);
+  const size = clamp(w - 0.3, 1.1, 3.4), gap = Math.max(5, size * 2);
+  const count = plain && d >= size + 0.4 ? Math.max(1, Math.floor((d - 0.4) / gap)) : 0;
+  const a = new Float32Array(n * 4);
+  for (let i = 0; i < n; i++) a.set([size, gap, count, k % 8], i * 4);
+  g.setAttribute('artInfo', new Float32BufferAttribute(a, 4));
+}
 function pbCourse(look) {
   const M = pbCourseMats(look);
+  let k = 0;
   for (const c of colliders) {
     if (c.holo || c.obstacle) continue;
     c.mesh.castShadow = false;
     setHalfSize(c.mesh);
+    pbArtInfo(c, k); k += 3;
     let side, top;
     if (c.power) {
       const S = c.power;
