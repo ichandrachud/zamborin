@@ -5464,10 +5464,11 @@ function enterPocket(W) {
   levelGroup = new Group(); scene.add(levelGroup);
   colliders = []; ferries = []; holos = []; pads = []; crossings = []; riders = []; curtains = []; locks = []; wormholes = []; loopsIn = []; mags = []; winds = []; rounds = []; tubes = []; switches = []; scans = []; posts = []; blinkers = []; flames = []; cracks = []; plazas = []; gates = [];
   goal = null;
-  level = { pieces: P.pieces, gates: [], start: P.start, world: P.world };
+  const other = pbWorld(pocket.world) ? 'pinball-moon' : P.world;   // the pinball world's wormholes lead to its moon playfield
+  level = { pieces: P.pieces, gates: [], start: P.start, world: other };
   for (const pc of P.pieces) buildPiece(pc);
   level.minTop = Math.min(...P.pieces.map((q) => q.y));
-  setWorld(P.world);
+  setWorld(other);
   const [sx, sy, sz] = P.start;
   spawn.set(sx, sy + R + 0.01, sz);
   ball.p.copy(spawn); ball.v.set(0, 0, -2.5);
@@ -8112,7 +8113,7 @@ const PLAZA_NEWS = {
 };
 const PLAZA_NOTE_T = 7;
 function drawNews() {
-  let t = pocket ? (POCKET_NEWS_AT[levelNo] || POCKET_NEWS[level.world]) : level.test ? TRY_NEWS[level.test] : (world.news && world.news[levelNo]) || NEWS[levelNo], alpha = 1;
+  let t = pocket ? ((level.world === 'pinball-moon' ? POCKET_NEWS_AT_MOON : POCKET_NEWS_AT)[levelNo] || POCKET_NEWS[level.world]) : level.test ? TRY_NEWS[level.test] : (world.news && world.news[levelNo]) || NEWS[levelNo], alpha = 1;
   const Pz = !pocket && plazaAt && plazaView > 0.6 ? plazaAt : null, note = Pz && PLAZA_NEWS[Pz.pc.id.replace('~', '')];
   if (note && Pz.noteT < PLAZA_NOTE_T) { t = note; alpha = Math.min(1, (PLAZA_NOTE_T - Pz.noteT) / 0.6, Pz.noteT / 0.3); }
   else if (ball.p.z < -12) return;
@@ -12751,7 +12752,7 @@ PB.chrome = {
   gi: 0xBFEFFF, ins: [0x3FE8FF, 0x5A8CFF, 0xE8F6FF, 0xFF8A3C, 0x3FE8FF, 0x9F7BFF],
   rubber: 0x16305A, post: 0xDCE6F2, postCap: 0xFF8A3C, flipper: { bat: 0xF2F7FF, rubber: 0x2F7BFF },
   sling: { top: 0x2F7BFF, glow: 0x7FE8FF }, wallCol: 0x1A2A40, guide: 0x9AB0CC, capCol: 0xDCE6F2, apron: 0x14243A,
-  bumper: 'dome', ramps: 'tube', acrylic: 'rgba(170,230,255,0.75)',
+  bumper: 'dome', ramps: 'tube', acrylic: 'rgba(170,230,255,0.75)', railSkip: [3],
   sky(g) {
     g.fillStyle = pbLin(g, 0, 0, 0, 512, [[0, '#010308'], [0.45, '#08203E'], [0.72, '#2A6AA8'], [0.8, '#BFEFFF'], [0.86, '#1A3A60'], [1, '#040A14']]);
     g.fillRect(0, 0, 512, 512);
@@ -13324,17 +13325,19 @@ function pbBumperShape(kind) {
    rule; they keep the colours that say what they are. */
 const pbRails = {}, loopTopsPB = {}, pbRailArts = {};
 const keepMat = (m) => { m.userData.keep = true; return m; };
-const PB_WORDS = { chrome: [['BONUS', '#2F7BFF', '#E8F6FF'], ['2X', '#FF8A3C', '#FFFFFF']], arcade: [['EXTRA BALL', '#E8322E', '#FFFFFF'], ['LOCK', '#1A9A94', '#FFFFFF']],
+const PB_WORDS = { chrome: [['BONUS', '#2F7BFF', '#E8F6FF'], ['2X', '#FF8A3C', '#FFFFFF'], ['LAUNCH', '#1A3A8A', '#9FEFFF']], arcade: [['EXTRA BALL', '#E8322E', '#FFFFFF'], ['LOCK', '#1A9A94', '#FFFFFF']],
                    golden: [['SPECIAL', '#C81E14', '#FFE6A0'], ['BONUS', '#2A3A8A', '#FFD84A']] };
 function pbRailArt(look) {                                 // eight prints, 256 square: the six figures and two words in a badge
   if (pbRailArts[look]) return pbRailArts[look];
   const L = PB[look], t = canvasTex(1024, 512, (g) => {
-    L.figs.slice(0, 6).forEach((f, i) => {
+    // Figures that could be taken for a ball on the rail (the comet: a round head and a tail) are left for the cut-outs; words take their place.
+    const figs = L.figs.slice(0, 6).filter((_, i) => !(L.railSkip || []).includes(i)), words = PB_WORDS[look], at = (k) => [(k % 4) * 256, Math.floor(k / 4) * 256];
+    figs.forEach((f, i) => {
       const one = document.createElement('canvas'); one.width = one.height = 512; f(one.getContext('2d'));
-      g.drawImage(one, (i % 4) * 256 + 3, Math.floor(i / 4) * 256 + 3, 250, 250);
+      const [ox, oy] = at(i); g.drawImage(one, ox + 3, oy + 3, 250, 250);
     });
-    PB_WORDS[look].forEach(([word, fill, ink], k) => {
-      const ox = (2 + k) * 256, oy = 256;
+    words.slice(0, 8 - figs.length).forEach(([word, fill, ink], k) => {
+      const [ox, oy] = at(figs.length + k);
       g.save(); g.translate(ox + 128, oy + 128);
       g.beginPath(); g.roundRect(-118, -54, 236, 108, 54); g.fillStyle = '#0E1116'; g.fill();
       g.beginPath(); g.roundRect(-110, -46, 220, 92, 46); g.fillStyle = fill; g.fill();
@@ -13355,7 +13358,7 @@ function pbRailArt(look) {                                 // eight prints, 256 
 const pbRailEnvs = {};
 function pbRailEnvMap(look) {                              // what the rail's coat reflects: a dark hall, rows of bright ceiling panels, the machine's glow low down
   if (pbRailEnvs[look] || !renderer) return pbRailEnvs[look] || null;
-  const tint = { chrome: ['#0A1424', '#7FD8FF'], arcade: ['#0E0A0A', '#FF9A5A'], golden: ['#140C06', '#FFC878'] }[look];
+  const tint = { chrome: ['#0A1424', '#7FD8FF'], arcade: ['#0E0A0A', '#FF9A5A'], golden: ['#140C06', '#FFC878'], moon: ['#140604', '#FF9A5A'] }[look];
   const t = canvasTex(1024, 512, (g) => {
     const lg = g.createLinearGradient(0, 0, 0, 512);
     lg.addColorStop(0, '#050608'); lg.addColorStop(0.42, tint[0]); lg.addColorStop(0.5, tint[1]); lg.addColorStop(0.56, tint[0]); lg.addColorStop(1, '#030304');
@@ -13421,7 +13424,8 @@ function pbCourseMats(look) {
   // table's rails were painted), bright enough to stand off its gold playfield.
   const S = { chrome: { base: '#E4EEFA', col: 0xC8DCF4, sheen: 0x2E5A8A, k: 0.6, metal: 0.85, rough: 0.2, edge: 0x9FF2FF, lip: '#BFF6FF', side: 0xB8C8DC, pin: 0x2F7BFF },
               arcade: { base: '#F2F4F6', col: 0xE2E6EA, sheen: 0x50555C, k: 0.85, metal: 0.85, rough: 0.2, edge: 0xFF8A40, lip: '#FFB070', side: 0x5A626C, pin: 0xE8322E },
-              golden: { base: '#FBF3E2', col: 0xFFF6E6, sheen: 0x6A5A44, k: 0.75, metal: 0.25, rough: 0.3, edge: 0xFFB050, lip: '#FFD08A', side: 0x8A7A60, pin: 0xC81E14 } }[look];
+              golden: { base: '#FBF3E2', col: 0xFFF6E6, sheen: 0x6A5A44, k: 0.75, metal: 0.25, rough: 0.3, edge: 0xFFB050, lip: '#FFD08A', side: 0x8A7A60, pin: 0xC81E14 },
+              moon: { base: '#F0E8E4', col: 0xE8DCD4, sheen: 0x5A3A2E, k: 0.6, metal: 0.85, rough: 0.2, edge: 0xFFB070, lip: '#FFD0A0', side: 0x9A8A84, pin: 0xFF5A2A } }[look];
   // Flakes of metal under the coat, and a seam every 4 m, so the eye sees the rail slide by.
   const deck = canvasTex(256, 256, (g) => {
     g.fillStyle = S.base; g.fillRect(0, 0, 256, 256);
@@ -13484,6 +13488,7 @@ function pbCourse(look) {
     c.mesh.material = [side, side, top, side, side, side]; setTopUV(c.mesh, !!c.cell);
   }
   for (const L of loopsIn) loopLook(L, M.loopTop(L.look.w), M.loopWall, M.edge);
+  if (look === 'chrome' || look === 'moon') chromePieces();   // the chosen look's own pieces: nothing of the neon city left
 }
 
 /* THE MACHINE, built round each course. Positions on a table are (x across
@@ -13511,6 +13516,8 @@ function pinballWorld(w, look) {
   sun.color.setHex(L.sun[0]); sun.intensity = L.sun[1];
   w.marble = 'pinball'; w.rings = [0x34E0FF, 0xFF6A3C]; w.glowGates = true;
   w.restyle = () => pbCourse(look);
+  if (look === 'chrome' || look === 'moon') { w.news = NEWS_CHROME; w.rules = RULES_CHROME; }
+  if (look === 'moon') w.physics = { acc: 10, damp: 0.4 };   // as slippery as the canyon it stands in for: the same courses, the same grip
   const m = new Matrix4(), q = new Quaternion(), e = new Euler(), pos = new Vector3(), sc = new Vector3(), col = new Color();
 
   // THE COURSE'S BAND, and the places its pieces need kept clear (as in Tokyo): the camera swings out beside a loop; wind towers stand beside the road.
@@ -14066,7 +14073,7 @@ function pbSpecials(look, W) {
   const { G, K, L, r, A, PF, BY, tables, balls, boards, lamp, metal, lit, gi, tick, keepHit, glowTube, chase } = W;
   const slot = (T) => [T.cx - T.rs * (A + 8), T.zb - 20];   // the set piece's place: beside the avenue, on the bumpers' side, near the flippers
   const m = new Matrix4(), q = new Quaternion(), e = new Euler(), pos = new Vector3(), sc = new Vector3(), col = new Color();
-  if (look === 'chrome') {
+  if (look === 'chrome' || look === 'moon') {
     // A disc on each table, spinning, lit rays on chrome.
     const discT = canvasTex(256, 256, (g) => {
       g.fillStyle = '#C8D6E8'; g.fillRect(0, 0, 256, 256);
@@ -14280,7 +14287,7 @@ function pbSpecials(look, W) {
 function pbWalls(look, W) {
   const { G, K, L, CX, TW, PF, Z_TOP, Z_BOT, paint, metal, tick, gi } = W;
   const m = new Matrix4(), col = new Color(), z0 = Z_TOP + 40, z1 = Z_BOT - 40, len = z0 - z1, zc = (z0 + z1) / 2;
-  if (look === 'chrome') {                                 // walls of chrome pipes, stepping outward as they rise, strips of light between
+  if (look === 'chrome' || look === 'moon') {             // walls of chrome pipes, stepping outward as they rise, strips of light between
     for (const s of [-1, 1]) {
       for (let k = 0; k < 7; k++) metal.geo(new CylinderGeometry(0.95, 0.95, len, 14), placeAt(CX + s * (TW + 1 + k * k * 0.35), PF + 1.2 + k * 2.6, zc, Math.PI / 2, 0, 0), 0xE4EEF8);
       for (let k = 0; k < 3; k++) W.glow.geo(new BoxGeometry(0.2, 0.3, len), placeAt(CX + s * (TW + 1.2 + (k * 2 + 1) ** 2 * 0.35 * 0.35), PF + 2.5 + k * 5.2, zc), k === 1 ? 0xFF8A3C : 0x7FE8FF);
@@ -14361,6 +14368,465 @@ const PB_SOUNDS = {
   drop() { pbVoice('sine', 480, 60, 0.7, 0.08); pbVoice('square', 240, 40, 0.5, 0.015, 0, 0.05); },   // off the rail: down the drain
   home() { pbVoice('sawtooth', 70, 400, 0.18, 0.02); pbVoice('sine', 220, 110, 0.12, 0.08, 0, 0.16); pbVoice('triangle', 880, 1760, 0.15, 0.02, 0, 0.2); },   // the plunger: drawn back, let go
 };
+
+/* THE CHROME MACHINE'S OWN PIECES (owner, 2026-09-29: "I like chrome machine
+   the best. I am still seeing elements from neon city. Can you remove those and
+   make this only from the pinball world?"; its theme is space and spaceships).
+   Every piece keeps its rules, its size and the colours that mean something
+   (yellow on the pads, lime and violet at the locks, a key's metal, a letter's
+   colour, red where a piece sends you back); only its look becomes the
+   machine's. As tokyoPieces does, this dresses the pieces after the neon build,
+   hiding the neon parts and adding its own, and lists what it changed (tkUndo)
+   so that restoreCourse puts it back for any other world.
+     bollards        chrome posts, a rubber ring, an orange lamp on top
+     barriers        rubber between two chrome posts, a row of target faces
+     crates          cargo pods: chrome panels, a hazard band, a lit window
+     crossings       METEOR SHOWERS: meteors cross the rail in waves; a strip of
+                     lamps before the crossing is green while it is safe, red
+                     and flashing while one is coming
+     hologram roads  force-field bridges of blue light
+     jump pads       launch pads; speed strips, rows of lit arrow inserts
+     maglev strips   an ion stream, magnet coils along the edge it pulls to
+     wind            THRUSTERS: rocket nozzles beside the road; they glow up
+                     just before each blast
+     wormholes       a chrome ring of lamps round the swirl; the other side is
+                     the machine's moon playfield ('pinball-moon')
+     roundabouts     an orbit round a little ringed planet
+     glass tubes     blue glass, chrome hoops at each end
+     scanners        TRACTOR BEAMS: a saucer sweeps across, its beam to the rail
+     switches        a chrome button, cyan lamps along the cable
+     colour lanes    the curtains hang from chrome emitters; locks framed in chrome
+     the sky train   a shuttle you ride, on a chrome guideway
+     puzzle squares  chrome walls lit along the top, pods to push, steel floors */
+let chromeKitMemo = null;
+function chromeKit() {
+  if (chromeKitMemo) return chromeKitMemo;
+  const env = pbRailEnvMap('chrome') || pbEnvMap('chrome') || envTex, keep = (m) => { m.userData.keep = true; return m; };
+  const std = (o) => keep(hazed(new MeshStandardMaterial(o)));
+  const pod = (top) => canvasTex(128, 128, (g) => {       // a cargo pod's face: brushed panel, rivets, a hazard band, a lit window
+    g.fillStyle = '#C8D4E2'; g.fillRect(0, 0, 128, 128);
+    const r = seeded(top ? 5 : 9);
+    for (let i = 0; i < 160; i++) { g.fillStyle = r() < 0.5 ? 'rgba(255,255,255,0.2)' : 'rgba(40,50,70,0.12)'; g.fillRect(r() * 128, r() * 128, 20 + r() * 50, 1); }
+    g.strokeStyle = '#4A5A74'; g.lineWidth = 4; g.strokeRect(3, 3, 122, 122);
+    g.fillStyle = '#2A3448'; for (const [x, y] of [[10, 10], [118, 10], [10, 118], [118, 118]]) { pbCircle(g, x, y, 3.5); g.fill(); }
+    if (top) { g.strokeStyle = '#6A7A94'; g.lineWidth = 3; g.strokeRect(28, 28, 72, 72); g.beginPath(); g.moveTo(28, 64); g.lineTo(100, 64); g.stroke(); return; }
+    g.save(); g.beginPath(); g.rect(6, 78, 116, 20); g.clip();
+    g.fillStyle = '#16181E'; g.fillRect(6, 78, 116, 20); g.fillStyle = '#FF8A3C';
+    for (let x = -20; x < 140; x += 18) { g.beginPath(); g.moveTo(x, 98); g.lineTo(x + 9, 98); g.lineTo(x + 19, 78); g.lineTo(x + 10, 78); g.closePath(); g.fill(); }
+    g.restore();
+    g.fillStyle = '#10223E'; g.beginPath(); g.roundRect(34, 22, 60, 40, 12); g.fill();
+    g.fillStyle = pbRad(g, 64, 42, 2, 34, [[0, '#DFFAFF'], [0.5, '#5FD8FF'], [1, '#0E3A6A']]); g.beginPath(); g.roundRect(38, 26, 52, 32, 10); g.fill();
+  });
+  const podSide = pod(false), podTop = pod(true);
+  const hexT = canvasTex(128, 128, (g) => {               // a force field: hexagons of light over a faint glow
+    g.fillStyle = 'rgb(10,40,70)'; g.fillRect(0, 0, 128, 128);
+    g.strokeStyle = 'rgba(160,235,255,0.9)'; g.lineWidth = 3;
+    const hex = (cx, cy, rr) => { g.beginPath(); for (let i = 0; i < 6; i++) { const a = Math.PI / 3 * i; g[i ? 'lineTo' : 'moveTo'](cx + rr * Math.cos(a), cy + rr * Math.sin(a)); } g.closePath(); g.stroke(); };
+    for (let row = -1; row < 5; row++) for (let col = -1; col < 4; col++) hex(col * 48 + (row % 2 ? 24 : 0), row * 28, 16);
+  }, true);
+  const insArrow = canvasTex(128, 128, (g) => {           // speed strips: yellow arrow inserts, a bright middle, a pale bezel (drawn on black: they add light)
+    g.fillStyle = '#000'; g.fillRect(0, 0, 128, 128);
+    const path = () => { g.beginPath(); g.moveTo(64, 14); g.lineTo(108, 62); g.lineTo(84, 62); g.lineTo(84, 112); g.lineTo(44, 112); g.lineTo(44, 62); g.lineTo(20, 62); g.closePath(); };
+    g.save(); path(); g.clip(); g.fillStyle = pbRad(g, 64, 60, 4, 60, [[0, '#FFFBE0'], [0.35, '#FFD23F'], [1, '#B8860A']]); g.fillRect(0, 0, 128, 128); g.restore();
+    path(); g.lineWidth = 5; g.strokeStyle = '#FFF4C8'; g.stroke();
+  }, true);
+  const planetT = canvasTex(256, 128, (g) => {            // the roundabout's little planet: bands of blue and white
+    const r = seeded(21);
+    for (let y = 0; y < 128; y += 4) { g.fillStyle = ['#3A78D0', '#8FC8FF', '#1E4A9A', '#CFE8FF', '#5A96E8'][Math.floor(r() * 5)]; g.fillRect(0, y, 256, 4 + r() * 6); }
+    g.fillStyle = 'rgba(255,140,60,0.8)'; pbEll(g, 170, 70, 18, 9); g.fill();
+  });
+  const polar = canvasTex(1024, 1024, (g) => {            // the orbit ring's grid, in the machine's blue
+    g.fillStyle = '#0A1830'; g.fillRect(0, 0, 1024, 1024);
+    const px = 512 / RB_RO, lines = (wd, col) => {
+      g.strokeStyle = col; g.lineWidth = wd;
+      for (let i = 0; i <= 3; i++) { g.beginPath(); g.arc(512, 512, (RB_RI + (RB_RO - RB_RI) * i / 3) * px - (i === 3 ? wd / 2 : 0), 0, 2 * Math.PI); g.stroke(); }
+      for (let i = 0; i < 20; i++) { const a = i * Math.PI / 10, c = Math.cos(a), s = Math.sin(a); g.beginPath(); g.moveTo(512 + c * RB_RI * px, 512 + s * RB_RI * px); g.lineTo(512 + c * RB_RO * px, 512 + s * RB_RO * px); g.stroke(); }
+    };
+    g.filter = 'blur(7px)'; lines(11, 'rgba(90,200,255,0.9)'); g.filter = 'none'; lines(3, '#E8FAFF');
+  });
+  polar.anisotropy = 4;
+  const beamT = canvasTex(64, 128, (g) => {               // a tractor beam: pale green light, strongest at the rail, streaked
+    const lg = g.createLinearGradient(0, 0, 0, 128); lg.addColorStop(0, 'rgba(255,255,255,0.35)'); lg.addColorStop(1, 'rgba(255,255,255,1)');
+    g.fillStyle = lg; g.fillRect(0, 0, 64, 128);
+    const r = seeded(33); for (let i = 0; i < 10; i++) { g.fillStyle = `rgba(0,0,0,${0.2 + r() * 0.3})`; g.fillRect(r() * 64, 0, 1 + r() * 3, 128); }
+  });
+  const crack = canvasTex(128, 64, (g) => {               // a meteor: dark rock, glowing seams
+    g.fillStyle = '#000'; g.fillRect(0, 0, 128, 64);
+    const r = seeded(41); g.lineCap = 'round';
+    for (let i = 0; i < 14; i++) { let x = r() * 128, y = r() * 64; g.strokeStyle = r() < 0.5 ? '#FF7A2A' : '#FFD27A'; g.lineWidth = 1 + r() * 2.5; g.beginPath(); g.moveTo(x, y); for (let k = 0; k < 4; k++) { x += (r() - 0.5) * 30; y += (r() - 0.5) * 20; g.lineTo(x, y); } g.stroke(); }
+  });
+  const flameT = canvasTex(128, 32, (g) => {              // a meteor's tail: white at its head, orange, gone behind
+    const lg = g.createLinearGradient(0, 0, 128, 0);
+    lg.addColorStop(0, 'rgba(255,90,20,0)'); lg.addColorStop(0.55, 'rgba(255,120,40,0.6)'); lg.addColorStop(0.9, 'rgba(255,220,150,1)'); lg.addColorStop(1, 'rgba(255,255,255,1)');
+    g.fillStyle = lg; g.filter = 'blur(3px)'; g.beginPath(); g.moveTo(0, 16); g.quadraticCurveTo(80, 2, 128, 5); g.lineTo(128, 27); g.quadraticCurveTo(80, 30, 0, 16); g.fill();
+  });
+  const wallT = canvasTex(64, 64, (g) => {                // a square's wall: a steel panel, a blue lamp line along its top
+    const lg = g.createLinearGradient(0, 0, 0, 64); lg.addColorStop(0, '#9FEFFF'); lg.addColorStop(0.1, '#3AA8E8'); lg.addColorStop(0.3, '#000'); lg.addColorStop(1, '#000');
+    g.fillStyle = lg; g.fillRect(0, 0, 64, 64);
+  });
+  chromeKitMemo = {
+    env,
+    chrome: std({ color: 0xE6EEF8, metalness: 1, roughness: 0.14, envMap: env, envMapIntensity: 1.4 }),
+    dark: std({ color: 0x1A2640, metalness: 0.7, roughness: 0.28, envMap: env, envMapIntensity: 0.9 }),
+    rubber: std({ color: 0x2A52A8, roughness: 0.6, metalness: 0.05 }),
+    white: std({ color: 0xF4F8FF, roughness: 0.25, metalness: 0.2, envMap: env, envMapIntensity: 0.8 }),
+    orange: keep(new MeshBasicMaterial({ color: 0xFF8A3C, toneMapped: false })),
+    cyan: keep(new MeshBasicMaterial({ color: 0x9FEFFF, toneMapped: false })),
+    glassDome: keep(new MeshStandardMaterial({ color: 0x9FDFFF, metalness: 0.2, roughness: 0.05, transparent: true, opacity: 0.7, envMap: env, envMapIntensity: 1.2, emissive: 0x3A8ACC, emissiveIntensity: 0.4 })),
+    pod: [podSide, podSide, podTop, podTop, podSide, podSide].map((t) => std({ map: t, metalness: 0.7, roughness: 0.25, envMap: env, envMapIntensity: 1.1 })),
+    rock: std({ color: 0x4A4650, roughness: 0.85, metalness: 0.2, emissive: 0xFFFFFF, emissiveMap: crack, emissiveIntensity: 1.3, flatShading: true }),
+    flame: keep(new MeshBasicMaterial({ map: flameT, transparent: true, blending: AdditiveBlending, depthWrite: false, side: DoubleSide, toneMapped: false })),
+    ring: std({ color: 0x0A1830, metalness: 0.5, roughness: 0.3, emissive: 0xFFFFFF, emissiveMap: polar, emissiveIntensity: 1.3 }),
+    planet: std({ map: planetT, roughness: 0.5, metalness: 0.1, emissive: 0x2A5AA0, emissiveIntensity: 0.3 }),
+    wall: std({ color: 0x8A9CB8, metalness: 0.85, roughness: 0.22, envMap: env, envMapIntensity: 1.2, emissive: 0xFFFFFF, emissiveMap: wallT, emissiveIntensity: 1.2 }),
+    hexT, insArrow, beamT,
+    meteorGeo: (() => { const g = new IcosahedronGeometry(0.5, 1), p = g.attributes.position, r = seeded(12);
+      for (let i = 0; i < p.count; i++) { const k = 0.82 + r() * 0.3; p.setXYZ(i, p.getX(i) * k * 1.15, p.getY(i) * k, p.getZ(i) * k); }
+      g.computeVertexNormals(); g.userData.keep = true; return g; })(),
+  };
+  return chromeKitMemo;
+}
+// A saucer of our own: a chrome disc, a glass dome, lamps round its rim. For the tractor beams.
+function saucerParts(B, y, rad) {
+  B.geo(new LatheGeometry([new Vector2(0.01, -0.16), new Vector2(rad * 0.55, -0.2), new Vector2(rad, -0.02), new Vector2(rad * 0.98, 0.04), new Vector2(rad * 0.5, 0.16), new Vector2(0.01, 0.2)], 32), placeAt(0, y, 0), 0xE6EEF8);
+}
+function chromePieces() {
+  const CK = chromeKit(), K = pbKit('chrome'), o = new Object3D();
+  const metal = pbBuild(), paint = pbBuild(), lit = pbBuild();
+  // BOLLARDS: chrome posts, a rubber ring, an orange lamp on top.
+  if (postKit && posts.length) {
+    tkHide(...levelGroup.children.filter((m) => m.isInstancedMesh && [postKit.body, postKit.band, postKit.cap, postKit.pool, postKit.halo].includes(m.geometry)));
+    const n = posts.length, body = new InstancedMesh(new CylinderGeometry(POST_R * 0.9, POST_R * 1.15, POST_H, 16), CK.chrome, n);
+    const ring = new InstancedMesh(new TorusGeometry(POST_R + 0.06, 0.07, 8, 20), CK.rubber, n);
+    const cap = new InstancedMesh(new SphereGeometry(POST_R * 1.15, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), CK.orange, n);
+    const pool = new InstancedMesh(new PlaneGeometry(1.1, 1.1), glowMat(0xFF8A3C, 0.4, dot), n);
+    const set = (m, j, P, y, rx = 0) => { o.position.set(P.x, P.y + y, P.z); o.rotation.set(rx, 0, 0); o.updateMatrix(); m.setMatrixAt(j, o.matrix); };
+    posts.forEach((P, i) => { set(body, i, P, POST_H / 2); set(ring, i, P, POST_H * 0.42, Math.PI / 2); set(cap, i, P, POST_H); set(pool, i, P, 0.013, -Math.PI / 2); });
+    body.castShadow = true;
+    for (const m of [body, ring, cap, pool]) tkAdd(levelGroup, m);
+  }
+  // BARRIERS: rubber stretched between two chrome posts, a row of target faces along it. CRATES: cargo pods.
+  for (const c of colliders) {
+    if (c.obstacle === 'crate') tkSet(c.mesh, 'material', CK.pod);
+    if (c.obstacle !== 'barrier') continue;
+    tkHide(c.mesh);
+    const w = c.half.x * 2, h = c.half.y * 2, at = new Matrix4().compose(new Vector3(c.pos.x, c.pos.y - c.half.y, c.pos.z), c.quat, new Vector3(1, 1, 1));
+    const put = (Bd, g, mtx, hex) => Bd.geo(g, at.clone().multiply(mtx), hex);
+    for (const s of [-1, 1]) {
+      put(metal, new CylinderGeometry(0.1, 0.13, h + 0.2, 12), placeAt(s * (w / 2 - 0.13), (h + 0.2) / 2, 0), 0xE6EEF8);
+      put(lit, new SphereGeometry(0.12, 12, 8), placeAt(s * (w / 2 - 0.13), h + 0.24, 0), 0xFF8A3C);
+    }
+    put(paint, new BoxGeometry(w - 0.3, h * 0.55, c.half.z * 2), placeAt(0, h * 0.45, 0), 0x2A52A8);
+    const n = Math.max(2, Math.floor((w - 0.5) / 0.55));
+    for (let k = 0; k < n; k++) put(lit, new BoxGeometry(0.4, h * 0.35, 0.06), placeAt(-(n - 1) * 0.275 + k * 0.55, h * 0.45, c.half.z + 0.01), k % 2 ? 0x7FE8FF : 0xF4F8FF);
+  }
+  // CROSSINGS: meteor showers.
+  for (const c of crossings) {
+    const X = c.cross;
+    if (X.fire) continue;
+    tkHide(...X.parts, ...X.lights.map((L) => L.lamp.parent));
+    const near = c.pos.z + c.half.z, top = X.top;
+    for (const L of X.lanes) {                             // where they cross: a faint trail of glowing grit across the rail
+      const band = new Mesh(new PlaneGeometry(X.w + 1.2, 2 * CAR_HZ + 0.3), glowMat(0xFF6A2A, 0.18, dot));
+      band.rotation.x = -Math.PI / 2; band.position.set(X.x, top + 0.02, L.z); tkAdd(levelGroup, band);
+      for (const s of [-1, 1]) {                           // a launcher beside the rail at each end of the lane: a chrome barrel, lit inside
+        const bx = X.x + s * (X.w / 2 + 3.2);
+        metal.geo(new CylinderGeometry(0.75, 0.9, 1.6, 20, 1, true), placeAt(bx, top + CAR_LIFT, L.z, 0, 0, Math.PI / 2), 0xE6EEF8);
+        metal.geo(new TorusGeometry(0.8, 0.12, 8, 24), placeAt(bx - s * 0.8, top + CAR_LIFT, L.z, 0, Math.PI / 2, 0), 0xDCE6F2);
+        lit.geo(new CircleGeometry(0.72, 20), placeAt(bx + s * 0.3, top + CAR_LIFT, L.z, 0, -s * Math.PI / 2, 0), 0xFF6A2A);
+        metal.geo(new CylinderGeometry(0.14, 0.18, 9, 8), placeAt(bx, top + CAR_LIFT - 5, L.z), 0xB8C8DC);
+      }
+    }
+    X.cars.forEach((car) => {                              // each car is a meteor: rock with glowing seams, a tail of fire behind it
+      for (const ch of car.mesh.children) tkHide(ch);
+      const g = new Group(), rock = new Mesh(CK.meteorGeo, CK.rock);
+      rock.scale.setScalar(1.05); rock.position.set(0.25, 0, 0);
+      const tail = new Mesh(new PlaneGeometry(2.6, 0.9), CK.flame); tail.position.set(-1.0, 0, 0);
+      const tail2 = tail.clone(); tail2.rotation.x = Math.PI / 2;
+      g.add(rock, tail, tail2); tkAdd(car.mesh, g);
+      tkTick((dt) => { if (!REDUCED) rock.rotation.set(rock.rotation.x + dt * 2.2, rock.rotation.y + dt * 1.3, 0); });
+    });
+    const n = Math.max(3, Math.floor(X.w / 0.5)), strip = new InstancedMesh(new SphereGeometry(0.1, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), new MeshBasicMaterial({ color: 0xFFFFFF, toneMapped: false }), n);
+    for (let i = 0; i < n; i++) { o.position.set(X.x - X.w / 2 + (i + 0.5) * X.w / n, top, near - 0.2); o.rotation.set(0, 0, 0); o.updateMatrix(); strip.setMatrixAt(i, o.matrix); strip.setColorAt(i, new Color(0x3DFF8A)); }
+    tkAdd(levelGroup, strip);
+    const col = new Color();
+    tkTick(() => {                                          // green while it is safe; red, running across, while a meteor comes
+      const on = REDUCED || ((simT * 2) % 1) < 0.5;
+      for (let i = 0; i < n; i++) strip.setColorAt(i, X.green ? col.setHex(0x3DFF8A) : col.setHex(((i + Math.floor(simT * 12)) % 3 === 0) && on ? 0xFFE0D0 : 0xFF2A20));
+      strip.instanceColor.needsUpdate = true;
+    });
+  }
+  // HOLOGRAM ROADS: force-field bridges.
+  for (const c of holos) {
+    const old = c.holoMats, mats = [glowMat(0x5FC8FF, 0.5), glowMat(0xFFFFFF, 1, CK.hexT), glowMat(0x5FC8FF, 0.2), glowMat(0xDFF8FF, 1)];
+    mats[1].map = CK.hexT.clone(); mats[1].map.repeat.set(Math.max(1, c.half.x * 2 / 1.2), Math.max(1, c.half.z * 2 / 1.2));
+    for (const ch of c.mesh.children) if (ch.material === old[3]) tkSet(ch, 'material', mats[3]);
+    c.holoMats = mats;
+    tkUndo.push(() => { c.holoMats = old; for (const m of mats) { if (m.map && m.map !== CK.hexT) m.map.dispose(); m.dispose(); } });
+  }
+  // PADS: a jump pad is a launch pad (hazard stripes round its yellow rings); a speed strip is a run of lit yellow arrow inserts.
+  for (const c of pads) {
+    const top = c.half.y;
+    if (c.pad === 'jump') {
+      for (const ch of c.mesh.children) if (!c.padFx.rings.includes(ch)) tkHide(ch);
+      const R0 = c.padFx.R + 0.06;
+      const rim = new Mesh(new TorusGeometry(R0, 0.07, 8, 48), CK.chrome); rim.rotation.x = Math.PI / 2; rim.position.y = top + 0.02; tkAdd(c.mesh, rim);
+      const dish = new Mesh(new CircleGeometry(R0 - 0.02, 48), CK.dark); dish.rotation.x = -Math.PI / 2; dish.position.y = top + 0.004; tkAdd(c.mesh, dish);
+      const core = new Mesh(new CircleGeometry(0.22, 24), glowMat(0xFFF4C2, 1)); core.rotation.x = -Math.PI / 2; core.position.y = top + 0.01; tkAdd(c.mesh, core);
+    } else {
+      const deco = c.mesh.children.find((m) => m.material && m.material.map === c.padFx.tex);
+      if (!deco) continue;
+      const t = CK.insArrow.clone(); t.repeat.copy(c.padFx.tex.repeat);
+      const mat = glowMat(0xFFFFFF, 1, t);
+      tkSet(deco, 'material', mat); tkSet(c.padFx, 'tex', t);
+      tkUndo.push(() => { t.dispose(); mat.dispose(); });
+    }
+  }
+  // MAGLEV STRIPS: an ion stream; magnet coils along the edge it pulls to.
+  for (const c of mags) {
+    const s = Math.sign(c.mag), d = c.half.z * 2, n = Math.max(1, Math.floor(d / 1.3));
+    for (let k = 0; k < n; k++) {
+      const z = -d / 2 + (k + 0.5) * d / n, at = new Matrix4().compose(c.pos, c.quat, new Vector3(1, 1, 1));
+      metal.geo(new CylinderGeometry(0.2, 0.2, 0.7, 14), at.clone().multiply(placeAt(s * (c.half.x + 0.22), c.half.y + 0.12, z, Math.PI / 2)), 0xE6EEF8);
+      lit.geo(new TorusGeometry(0.21, 0.05, 6, 16), at.clone().multiply(placeAt(s * (c.half.x + 0.22), c.half.y + 0.12, z)), 0x5FE8FF);
+    }
+  }
+  // WIND: thrusters. The towers go; a rocket nozzle on a pylon at each, pointing across the road, glowing up before a blast.
+  for (const W of winds) {
+    tkHide(...W.towers);
+    tkColor(W.streaks.material.color, 0xCFEFFF);
+    const glows = [];
+    for (const t of W.towers) {
+      if (t.geometry.type !== 'BoxGeometry') continue;
+      const x = t.position.x + W.dir * TOWER_W / 2, y = W.y + 1.3, z = t.position.z;
+      const bell = new LatheGeometry([new Vector2(0.45, 0), new Vector2(0.55, 0.3), new Vector2(0.9, 1.1), new Vector2(1.35, 1.9), new Vector2(1.45, 2.0)], 24);
+      metal.geo(bell, placeAt(x, y, z, 0, 0, -W.dir * Math.PI / 2), 0xE6EEF8);
+      metal.geo(new CylinderGeometry(0.75, 0.75, 1.6, 18), placeAt(x - W.dir * 0.8, y, z, 0, 0, Math.PI / 2), 0x8A9CB8);
+      metal.geo(new CylinderGeometry(0.25, 0.3, 12, 8), placeAt(x - W.dir * 0.8, y - 6.6, z), 0xB8C8DC);
+      const g = new Mesh(new CircleGeometry(1.3, 24), glowMat(0x9FDFFF, 0.2)); g.position.set(x + W.dir * 1.95, y, z); g.rotation.y = W.dir * Math.PI / 2;
+      tkAdd(levelGroup, g); glows.push(g);
+    }
+    tkTick(() => { const st = windState(W, simT); for (const g of glows) g.material.opacity = 0.15 + 0.85 * st.show; });
+  }
+  // WORMHOLES: a chrome ring of lamps round the swirl.
+  for (const W of wormholes) {
+    const [disc, ring, halo] = W.grp.children;
+    tkHide(ring, halo); tkColor(disc.material.color, 0xBFE8FF);
+    const frame = new Group();
+    frame.add(new Mesh(new TorusGeometry(W.rad, 0.16, 12, 72), CK.chrome));
+    const n = 24, lamps = new InstancedMesh(new SphereGeometry(0.07, 8, 6), CK.orange, n);
+    for (let k = 0; k < n; k++) { const a = k / n * Math.PI * 2; o.position.set(Math.cos(a) * (W.rad + 0.2), Math.sin(a) * (W.rad + 0.2), 0.08); o.rotation.set(0, 0, 0); o.updateMatrix(); lamps.setMatrixAt(k, o.matrix); }
+    frame.add(lamps);
+    tkAdd(W.grp, frame);
+  }
+  // ROUNDABOUTS: an orbit round a little ringed planet.
+  for (const Rd of rounds) {
+    const [top, rim, , lamps] = Rd.spinGrp.children, fixed = Rd.gyro.parent, [island, lip, glow] = fixed.children;
+    tkSet(top, 'material', CK.ring); tkSet(rim, 'material', CK.chrome); tkColor(lamps.material.color, 0xFFB070);
+    tkHide(lip, glow, Rd.gyro); tkSet(island, 'material', CK.dark);
+    const planet = new Group(), H = ISLAND_H;
+    planet.add(new Mesh(new SphereGeometry(0.75, 32, 20), CK.planet));
+    const band = new Mesh(new TorusGeometry(1.15, 0.08, 6, 48), CK.orange); band.rotation.x = Math.PI / 2 - 0.35; planet.add(band);
+    planet.position.y = H + 0.85; tkAdd(fixed, planet);
+    tkTick((dt) => { if (!REDUCED) planet.rotation.y += dt * 0.4; });
+  }
+  // GLASS TUBES: blue glass, the rings in the machine's blue and white, chrome hoops at each end.
+  for (const U of tubes) {
+    tkSet(U, 'pal', [0.1, 0.35, 0.7, 0.85, 0.97, 1]);
+    for (const e of U.ends) tkColor(e.material.color, 0xBFEFFF);
+    for (const e of U.ends) { const h = new Mesh(new TorusGeometry(TUBE_R + 0.2, 0.12, 10, 40), CK.chrome); h.position.copy(e.position); h.quaternion.copy(e.quaternion); tkAdd(levelGroup, h); }
+  }
+  // SCANNERS: tractor beams. A saucer rides each bar, its beam fanning down to the rail; the red line on the rail stays, so from behind you see where it is.
+  for (const Sc of scans) {
+    const d = Sc.d, hy = SCAN_H + 1.25;
+    for (const g of Sc.bars) {
+      const [sheet, core, glow, strands, ...nubs] = g.children;
+      tkHide(sheet, core, glow, ...nubs); tkColor(strands.material.color, 0x7FFFB8);   // green strands, so the beam reads from behind
+      const S = pbBuild(); saucerParts(S, hy, 0.95);
+      const sm = new Mesh(S.done(), K.metal); tkAdd(g, sm);
+      const dome = new Mesh(new SphereGeometry(0.42, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2), CK.glassDome); dome.position.y = hy + 0.12; tkAdd(g, dome);
+      const rl = new InstancedMesh(new SphereGeometry(0.06, 8, 6), CK.orange, 10);
+      for (let k = 0; k < 10; k++) { const a = k / 10 * Math.PI * 2; o.position.set(Math.cos(a) * 0.9, hy - 0.04, Math.sin(a) * 0.9); o.rotation.set(0, 0, 0); o.updateMatrix(); rl.setMatrixAt(k, o.matrix); }
+      tkAdd(g, rl);
+      // The beam: a cone of green light from the saucer down to the rail, thin across (as the danger is) and as long as the bar
+      // along it, so it reads from behind as well as from the side.
+      const cone = new Mesh(new CylinderGeometry(0.4, 1, hy - 0.15, 28, 1, true), glowMat(0x7FFFB8, 0.45, CK.beamT));
+      cone.material.side = DoubleSide; cone.scale.set(0.34, 1, d / 2); cone.position.y = (hy - 0.15) / 2; tkAdd(g, cone);
+      const foot = new Mesh(new CircleGeometry(1, 32), glowMat(0x9FFFD0, 0.8, dot)); foot.rotation.x = -Math.PI / 2; foot.scale.set(0.5, d / 2, 1); foot.position.y = 0.03; tkAdd(g, foot);
+      tkTick(() => { if (!REDUCED) sm.rotation.y = simT * 3; });
+    }
+  }
+  // SWITCHES: a chrome button, cyan lamps along the cable.
+  for (const S of switches) {
+    tkSet(S.button, 'material', CK.chrome);
+    tkColor(S.faceMat.color, 0x9FEFFF); tkColor(S.ringMat.color, 0x7FE8FF); tkColor(S.halo.material.color, 0x3FA8FF);
+    for (const g of S.decals) tkColor(g.material.color, 0xBFEFFF);
+    tkSet(S, 'dotOn', new Color(0x9FEFFF)); tkSet(S, 'dotOff', new Color(0x243A5A));
+    const paintDots = (on, off) => { S.at.forEach((a, i) => S.dots.setColorAt(i, S.on && a <= S.t * PULSE_V ? on : off)); S.dots.instanceColor.needsUpdate = true; };
+    paintDots(S.dotOn, S.dotOff);
+    tkUndo.push(() => paintDots(DOT_ON, DOT_OFF));
+  }
+  // COLOUR LANES: the curtains hang from chrome emitters; the locks are framed in chrome.
+  for (const C of curtains) {
+    const [, bar] = C.parts;
+    tkSet(bar, 'material', CK.chrome);
+    for (const s of [-1, 1]) { metal.geo(new CylinderGeometry(0.09, 0.11, 1.6, 10), placeAt(C.x + s * (C.w / 2 + 0.08), C.y + 0.8, C.z), 0xE6EEF8); lit.geo(new SphereGeometry(0.1, 10, 8), placeAt(C.x + s * (C.w / 2 + 0.08), C.y + 1.62, C.z), TINTS[C.col]); }
+  }
+  for (const L of locks) for (const f of L.frames) tkSet(f, 'material', CK.chrome);
+  // THE SKY TRAIN you ride: a shuttle of our own on a chrome guideway.
+  for (const c of ferries) {
+    if (!c.train) continue;
+    tkHide(c.train.model);
+    const Sh = pbBuild(), Ld = TRAIN_DECK, y0 = -TRAIN_H / 2 - 1.05;
+    Sh.geo(CapsuleOrCylinder(0.95, Ld - 2), placeAt(0, y0, 0, Math.PI / 2), 0xF2F6FC);
+    Sh.geo(new ConeGeometry(0.95, 2.6, 20), placeAt(0, y0, -Ld / 2 - 0.2, -Math.PI / 2), 0xF2F6FC);
+    for (const s of [-1, 1]) Sh.slab([[s * 0.8, -3], [s * 3.4, 3.5], [s * 3.4, 5.2], [s * 0.8, 5.6]], [s * 1.8, 3.5], y0 - 0.12, y0 + 0.06, 0xDCE6F2);
+    Sh.slab([[-0.08, 4], [0.08, 4], [0.08, 7.8], [-0.08, 7.8]], [0, 5.9], y0, y0 + 2.2, 0x2F7BFF);
+    Sh.geo(new BoxGeometry(2.0, 0.12, Ld - 3), placeAt(0, y0 + 0.2, 0.6), 0x2F7BFF);
+    for (const s of [-1, 1]) Sh.geo(new CylinderGeometry(0.42, 0.55, 0.9, 16), placeAt(s * 0.5, y0, Ld / 2 - 0.1, Math.PI / 2), 0x8A9CB8);
+    const sh = new Mesh(Sh.done(), K.metal); tkAdd(c.mesh, sh);
+    const glass = new Mesh(new SphereGeometry(0.7, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), CK.glassDome); glass.scale.set(1, 0.7, 1.8); glass.position.set(0, y0 + 0.55, -Ld / 2 + 3.2); tkAdd(c.mesh, glass);
+    for (const s of [-1, 1]) { const f = new Mesh(new CircleGeometry(0.4, 16), glowMat(0x7FD8FF, 0.9)); f.position.set(s * 0.5, y0, Ld / 2 + 0.36); tkAdd(c.mesh, f); }
+    const [beam, ...rails] = c.train.parts;
+    tkSet(beam, 'material', CK.chrome); for (const rl of rails) tkSet(rl, 'material', CK.cyan);
+  }
+  // PUZZLE SQUARES: chrome walls lit along the top, steel parts, cargo pods to push.
+  for (const c of colliders) if (c.obstacle === 'wall') tkSet(c.mesh, 'material', CK.wall);
+  for (const P of plazas) {
+    levelGroup.traverse((m) => { if (m.isMesh && (m.material === P.mats.line || m.material === P.mats.halo)) tkHide(m); });
+    for (const T of P.tiles) T.grp.traverse((m) => {
+      if (m.material === P.mats.wall) tkSet(m, 'material', CK.chrome);
+      else if (Array.isArray(m.material) && m.material[2] === P.mats.tile) tkSet(m, 'material', [CK.chrome, CK.chrome, pbCourseMats('chrome').cellTop, CK.dark, CK.chrome, CK.chrome]);
+    });
+    levelGroup.traverse((m) => {
+      if (!m.isMesh) return;
+      if (m.material === P.mats.base) tkSet(m, 'material', CK.dark);
+      else if (m.material === P.mats.wall && m.parent !== levelGroup) tkSet(m, 'material', CK.chrome);
+    });
+    for (const W of P.crates) tkSet(W.mesh, 'material', CK.pod);
+  }
+  if (metal.count()) tkAdd(levelGroup, new Mesh(metal.done(), K.metal));
+  if (paint.count()) tkAdd(levelGroup, new Mesh(paint.done(), K.paint));
+  if (lit.count()) tkAdd(levelGroup, new Mesh(lit.done(), K.lit));
+}
+// A shuttle's body: a cylinder with a rounded end (the trimmed three.js has no CapsuleGeometry).
+function CapsuleOrCylinder(r, len) { return new CylinderGeometry(r, r * 0.92, len, 24); }
+// The machine's words for its pieces, in the level notes and on the rules card.
+const NEWS_CHROME = {
+  3: 'Chrome posts stand across the rail. Steer through the gap in each row',
+  5: 'A meteor shower crosses the rail. Wait while the lamps are red; go when they turn green',
+  6: 'The rail ahead is dark. Follow the lamps to its switch, roll over it, and come back',
+  8: 'Rubber bumpers! Snake round them, from one gap to the next',
+  11: 'A wormhole! Roll in to cross the moon playfield, and come out on the far side',
+  12: 'Cargo pods on the rail. Find the way through each row',
+  13: 'The shuttle stops here. Roll onto its back, and hold on when it moves',
+  15: 'Ion streams pull the marble to one side. Steer against the arrows',
+  17: 'Force-field bridges switch off and on. Cross while they are lit',
+  19: 'The orbit turns round its planet. Ride it round, and roll off where the rail leads on',
+  21: 'A force field lets through only its own colour. Take the lane that matches it',
+  23: 'Thrusters blast across the rail. When they glow, lean into the blast',
+  25: 'Yellow arrows speed you up. Launch pads throw you over a gap',
+  29: 'A glass tube! Roll into it, and it carries you over the machine',
+  31: 'A tractor beam sweeps the rail. Roll down one side just after the saucer has left it',
+};
+const RULES_CHROME = new Map(Object.entries({
+  'Bollards, road barriers': 'Chrome posts, rubber bumpers and cargo pods are solid. Steer through the gaps: a hard knock near the edge can throw the marble off the rail.',
+  'A dark road': 'A dark stretch of rail cannot be crossed. Follow the line of lamps down the side rail to its switch and roll over it: the rail lights up.',
+  'Flying cars': 'Meteor showers cross some rails. While a meteor is coming the lamps before it flash red: wait, and roll across when they turn green.',
+  'A wormhole': 'A wormhole takes the marble to the machine\'s moon playfield. Cross it to come out on the far side.',
+  'The sky train': 'The shuttle stops at stations. Roll onto its back, hold on as it pulls away, and roll off at the next station.',
+  'Maglev strips': 'Ion streams pull the marble toward the edge their arrows point to. Steer the other way to stay on.',
+  'A roundabout turns': 'An orbit ring turns round its planet and carries the marble with it. Roll off onto the rail that leads on; the others stop short at a red bar.',
+  'Gusts blow': 'Thrusters beside the rail blast across it. They glow up just before each blast: lean into it, or wait for it to pass.',
+  'See-through bridges': 'Force-field bridges switch off and on. Cross while they are lit. They flicker just before they go dark.',
+  'A glass tube': 'A glass tube carries the marble over the machine to the rail ahead. Just roll into it.',
+  'A red scanner bar': 'A saucer sweeps its tractor beam across some rails, and the beam sends the marble back to the last ring. Roll down one side just after it has passed. Where two sweep, go down the middle just after they cross.',
+  'Lime and violet walls': 'Lime and violet force fields let through only a marble of their own colour. Roll through a curtain of that colour first: it colours the marble.',
+}).map(([k, v]) => [RULES.find((q) => q.startsWith(k)), v]));
+
+/* THE MOON PLAYFIELD: where the chrome machine's wormholes lead (in place of
+   the neon city's crystal canyon). The same machine on a volcanic moon: black
+   basalt cracked with glowing lava, craters, a ringed planet low in its sky.
+   Its rail is as slippery as the canyon's was (the same courses, the same
+   grip); its fire jets are volcanic vents and its fireballs lava bombs. */
+PB.moon = {
+  ...PB.chrome,
+  env: { stops: [[0, '#050202'], [0.3, '#3A0E06'], [0.46, '#FF8A3C'], [0.5, '#FFFFFF'], [0.55, '#8A1A0A'], [0.8, '#1A0604'], [1, '#030101']], lights: 90,
+         cols: ['#FF8A3C', '#FFFFFF', '#FFD27A', '#FF4A1A', '#9FDFFF'] },
+  fog: [0x1A0806, 60, 300], hemi: [0xFFB890, 0x1A0604, 0.85], sun: [0xFFD8B0, 1.5], haze: [0xFF7A3A, 3],
+  gi: 0xFFD8B0, ins: [0xFF6A2A, 0xFFD23F, 0xFFF0E0, 0x5FC8FF, 0xFF3A2A, 0xFFB43A],
+  rubber: 0x5A1A10, postCap: 0x5FC8FF, flipper: { bat: 0xF2F2F2, rubber: 0xFF5A2A },
+  sling: { top: 0xFF5A2A, glow: 0xFFB070 }, wallCol: 0x2A1410, guide: 0x9A8C88, capCol: 0xDCD2CC, apron: 0x1A0A08,
+  sky(g) {
+    g.fillStyle = pbLin(g, 0, 0, 0, 512, [[0, '#020101'], [0.6, '#12060A'], [0.78, '#3A1206'], [0.82, '#FF8A3C'], [0.86, '#200806'], [1, '#050202']]);
+    g.fillRect(0, 0, 512, 512);
+    const r = seeded(7); for (let i = 0; i < 160; i++) { g.fillStyle = `rgba(255,255,255,${0.3 + r() * 0.7})`; g.fillRect(r() * 512, r() * 380, 1.5, 1.5); }
+    g.fillStyle = pbRad(g, 340, 330, 10, 110, [[0, '#9FC8FF'], [0.7, '#3A5A9A'], [1, 'rgba(20,30,60,0)']]); pbCircle(g, 340, 330, 110); g.fill();
+    g.strokeStyle = 'rgba(255,200,150,0.7)'; g.lineWidth = 8; g.beginPath(); g.ellipse(340, 330, 190, 34, -0.2, 0, Math.PI * 2); g.stroke();
+  },
+  floor(g, r) {                                          // basalt, cracked, the lava glowing in the cracks; craters
+    const S = 1024;
+    g.fillStyle = '#1A0E0C'; g.fillRect(0, 0, S, S);
+    for (let i = 0; i < 12; i++) pbWrap(S, r() * S, r() * S, 240, (x, y) => { g.fillStyle = pbRad(g, x, y, 0, 240, [[0, 'rgba(90,30,14,0.4)'], [1, 'rgba(0,0,0,0)']]); g.fillRect(x - 240, y - 240, 480, 480); });
+    for (let i = 0; i < 26; i++) {                     // craters: a dark bowl, a pale rim on the side the light comes from
+      const x = r() * S, y = r() * S, rr = 14 + r() * 50;
+      pbWrap(S, x, y, rr + 6, (cx, cy) => {
+        g.fillStyle = 'rgba(0,0,0,0.45)'; pbCircle(g, cx, cy, rr); g.fill();
+        g.strokeStyle = 'rgba(200,150,130,0.35)'; g.lineWidth = 4; g.beginPath(); g.arc(cx, cy, rr, Math.PI * 1.05, Math.PI * 1.95); g.stroke();
+      });
+    }
+    g.lineCap = 'round';
+    for (let i = 0; i < 30; i++) {                     // lava in the cracks: a wide glow, a bright core
+      let x = r() * S, y = r() * S; const pts = [[x, y]];
+      for (let k = 0; k < 6; k++) { x += (r() - 0.5) * 120; y += (r() - 0.5) * 120; pts.push([x, y]); }
+      for (const [w, c] of [[12, 'rgba(255,80,20,0.35)'], [4, 'rgba(255,170,60,0.9)'], [1.5, 'rgba(255,240,200,1)']]) {
+        g.strokeStyle = c; g.lineWidth = w;
+        for (const dx of [-S, 0, S]) for (const dy of [-S, 0, S]) { g.beginPath(); pts.forEach(([px, py], j) => (j ? g.lineTo(px + dx, py + dy) : g.moveTo(px + dx, py + dy))); g.stroke(); }
+      }
+    }
+  },
+  decals: [
+    (g) => {                                             // a volcano seen from above: its cone in rings, the crater glowing
+      for (let k = 8; k >= 1; k--) { g.fillStyle = k % 2 ? 'rgba(60,24,16,0.9)' : 'rgba(40,16,12,0.9)'; pbCircle(g, 512, 512, k * 58); g.fill(); }
+      g.fillStyle = pbRad(g, 512, 512, 0, 150, [[0, '#FFF6D0'], [0.3, '#FFB040'], [0.7, '#E8401A'], [1, 'rgba(120,20,10,0)']]); pbCircle(g, 512, 512, 150); g.fill();
+      g.strokeStyle = 'rgba(255,120,40,0.8)'; g.lineWidth = 10; g.lineCap = 'round';
+      for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2 + 0.3; g.beginPath(); g.moveTo(512 + Math.cos(a) * 140, 512 + Math.sin(a) * 140); g.quadraticCurveTo(512 + Math.cos(a + 0.3) * 300, 512 + Math.sin(a + 0.3) * 300, 512 + Math.cos(a) * 460, 512 + Math.sin(a) * 460); g.stroke(); }
+    },
+    (g) => {                                             // a crater field, lit from one side
+      const r = seeded(19);
+      for (let i = 0; i < 18; i++) {
+        const x = 120 + r() * 780, y = 120 + r() * 780, rr = 30 + r() * 110;
+        g.fillStyle = 'rgba(8,4,4,0.6)'; pbCircle(g, x, y, rr); g.fill();
+        g.strokeStyle = 'rgba(230,190,170,0.55)'; g.lineWidth = 7; g.beginPath(); g.arc(x, y, rr, Math.PI * 1.05, Math.PI * 1.95); g.stroke();
+        g.strokeStyle = 'rgba(0,0,0,0.5)'; g.lineWidth = 7; g.beginPath(); g.arc(x, y, rr, 0.1, Math.PI * 0.9); g.stroke();
+      }
+    },
+    (g) => {                                             // a river of lava down the table
+      g.lineCap = 'round';
+      for (const [w, c] of [[180, 'rgba(255,70,20,0.3)'], [90, 'rgba(255,130,40,0.85)'], [34, 'rgba(255,220,140,1)']]) {
+        g.strokeStyle = c; g.lineWidth = w; g.beginPath(); g.moveTo(300, 1024); g.bezierCurveTo(100, 700, 900, 520, 620, 260); g.bezierCurveTo(500, 150, 560, 60, 600, 0); g.stroke();
+      }
+    },
+    (g) => {                                             // the moon base: a dome, its landing ring, a rover's tracks
+      g.strokeStyle = 'rgba(160,210,255,0.8)'; g.lineWidth = 14; pbCircle(g, 512, 512, 380); g.stroke();
+      g.setLineDash([40, 30]); g.lineWidth = 6; pbCircle(g, 512, 512, 440); g.stroke(); g.setLineDash([]);
+      g.fillStyle = pbRad(g, 480, 470, 10, 220, [[0, '#E8F6FF'], [0.6, '#6AA8E8'], [1, '#1A3A6A']]); pbCircle(g, 512, 512, 220); g.fill();
+      pbWord(g, 'BASE', 512, 520, 110, '#FFFFFF', '#0E1A30', 0.12);
+      g.strokeStyle = 'rgba(0,0,0,0.5)'; g.lineWidth = 10;
+      for (const s of [-1, 1]) { g.beginPath(); g.moveTo(100 + s * 20, 1000); g.bezierCurveTo(200 + s * 20, 800, 160 + s * 20, 700, 300 + s * 20, 640); g.stroke(); }
+    },
+  ],
+};
+PB_WORDS.moon = [['LAVA', '#E8322E', '#FFF0E0'], ['2X', '#FF8A3C', '#FFFFFF'], ['ORBIT', '#1A3A8A', '#9FEFFF']];
+WORLDS_ADD('pinball-moon', (w) => pinballWorld(w, 'moon'));
+POCKET_NEWS['pinball-moon'] = 'The moon playfield: the rail is slippery here. Brake early';
+const POCKET_NEWS_AT_MOON = {
+  11: 'The moon playfield: slippery, and crystals grow on the rail. Line up early',
+  13: 'Volcanic vents! Wait for the eruption to die, then go',
+  20: 'Lava bombs roll across. Wait at the line for the green light',
+  22: 'Glass bridges crack under you. Keep rolling, never stop on them',
+};
+RULES_CHROME.set(RULES.find((q) => q.startsWith('In the canyon')), 'On the moon playfield: crystals grow on the rail (steer through the gaps), volcanic vents erupt in a rhythm (wait for the eruption to die), lava bombs roll across (wait for the green light), and glass bridges crack under you (keep rolling).');
 
 // ---------- TREES, GROWN THE WAY EZ-TREE GROWS THEM ----------
 /* (owner, 2026-09-27: "I would like to see trees. can you make something like
@@ -16309,7 +16775,7 @@ function worldFromHash() {
   if (h === 'pinball') {                                // #pinball-chrome, #pinball-arcade, #pinball-golden (course 27, or the one named: #pinball-golden-12)
     const n = parseInt(w, 10);
     loadLevel(n >= 1 && n <= LEVELS.length ? n : 27);
-    setWorld('pinball-' + (PB_LOOKS.includes(v) ? v : 'chrome'));
+    setWorld('pinball-' + (PB_LOOKS.includes(v) || v === 'moon' ? v : 'chrome'));
     return;
   }
   if (h === 'level') {                                  // #level-17 opens course 17, to look at one
