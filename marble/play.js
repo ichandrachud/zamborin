@@ -7873,7 +7873,7 @@ function act(k) {
   if (k === 'restart') restartLevel();
   else if (k === 'rules') { resume = state; resumeT = stateT; joy = null; keys.clear(); cardScroll = 0; setState('rules'); }
   else if (k === 'cta') {
-    if (state === 'rules' || state === 'intro') { state = resume; stateT = resumeT; }   // back exactly where it paused
+    if ((state === 'rules' || state === 'intro') && !introNext()) { state = resume; stateT = resumeT; }   // back exactly where it paused (after the last card, if there are several)
     else if (state === 'win') { play('start'); if (level.test) loadLevel(levelNo, level); else loadLevel(levelNo >= LEVELS.length ? 1 : levelNo + 1); }
   }
 }
@@ -18019,11 +18019,13 @@ for (let n = 101; n <= 150; n++) LEVELS.push(makeLevel(n, PIN_VARIANT[n]));
 STAR_TIMES.push(75, 85, 69, 88, 102, 90, 99, 115, 108, 128, 117, 112, 115, 124, 124, 109, 129, 117, 123, 147, 132, 162, 169, 178, 188, 162, 209, 203, 190, 220, 226, 199, 174, 213, 190, 165, 304, 276, 231, 238, 165, 249, 200, 248, 264, 176, 244, 258, 315, 311);   // (made here: they need the puzzles and obstacles above)
 
 /* FIRST-TIME INSTRUCTIONS (owner, 2026-09-29, on the constellation: "puzzles floating instructions the first time. I am
-   not sure what to do here"). The first time the camera rises over each kind of space puzzle, the world holds still and
-   a card floats over the top of the screen, most of the square still in view below it: what the puzzle wants, in plain
-   words, a small picture of the rule, and GOT IT. It sits at the top: on a phone the camera frames the square low. Once per kind, per device (save.seen). The note at the top of the
-   square then gives its own tip, as before. Off in the test harness unless turned on (__marble.intros(true)), so the
-   autopilots are not held up by it. */
+   not sure what to do here"; then "add the same type of cards for puzzles from levels 1-150"). The first time the camera
+   settles over each kind of puzzle (the city's squares and road puzzles, the plank crossings, the space puzzles), the
+   world holds still and a card floats at the top of the screen, the square in view below it (on a phone the camera
+   frames the square low): what the puzzle wants, in plain words, a small picture of the rule, and GOT IT. A square with
+   several kinds new to the player shows a card for each in turn. Once per kind, per device (save.seen); the square's
+   note then gives its tip as before. Off in the test harness unless turned on (__marble.intros(true); 'reset' clears
+   what has been seen), so the autopilots are not held up by it. */
 const SP_INTRO = {
   stars: { title: 'The constellation', lines: ['Roll onto a star: it flips, and so does every star joined to it by a line. Dark stars light up, lit stars go dark.', 'Light every star to open the door. Rolling onto a star again undoes it.'] },
   fuel: { title: 'Refuel and launch', lines: ['Roll over the fuel cells: each fills a third of the tank beside the pad, and the tank slowly leaks.', 'Reach the launch pad with the tank over the white line, and it throws you over the gap. Fill up close to the pad.'] },
@@ -18031,15 +18033,38 @@ const SP_INTRO = {
   orbit: { title: 'Satellites', lines: ['Roll into a satellite to push it. It glides until something stops it: a wall, a rock or another satellite.', 'Stop one on every dock to open the door. Stuck? The pad beside the road puts them back.'] },
   airlock: { title: 'The airlock', lines: ['Watch the keys light up one after another. Then roll over them in the same order, going round the others.', 'A lamp over the door lights for each one you get right. A wrong key, and the code plays again.'] },
 };
-let introKind = null, introsOn = !HARNESS;
+let introKind = null, introQueue = [], introsOn = !HARNESS;
+// Which kinds of puzzle a square holds (a mixed square from level 36 holds several), or a plank crossing.
+function introKinds(Z) {
+  if (crossZones.includes(Z)) return ['planks'];
+  if (Z.spz) return [Z.spz.kind];
+  const k = [];
+  if (Z.twin) k.push('twin'); else if (Z.cov) k.push('tiles'); else if (Z.pc && Z.pc.ice) k.push('ice');
+  if (Z.tune) k.push('tune');
+  if (Z.water) k.push('boat');
+  if (Z.riddle) k.push('riddle');
+  if (Z.stands && Z.stands.length) k.push('keys');
+  if (Z.switches && Z.switches.length) k.push('switches');
+  if (Z.pits && Z.pits.length) k.push('road'); else if (Z.plates && Z.plates.length) k.push('crates');
+  if (Z.tiles && Z.tiles.length) k.push('bridges');
+  if ((Z.charges && Z.charges.length) || (Z.magnets && Z.magnets.length)) k.push('charge');
+  if (Z.source) k.push('light');
+  return k;
+}
 function spIntroMaybe() {
-  if (!introsOn || state !== 'play' || pocket || !plazaAt || !plazaAt.spz || plazaView < 0.93) return;   // once the camera has all but settled over it
-  const k = plazaAt.spz.kind;
+  if (!introsOn || state !== 'play' || pocket || !plazaAt || plazaView < 0.93) return;   // once the camera has all but settled over it
   save.seen = save.seen || {};
-  if (save.seen[k] || !SP_INTRO[k]) return;
-  save.seen[k] = 1; persist();
-  introKind = k; resume = state; resumeT = stateT; joy = null; keys.clear();
+  const fresh = introKinds(plazaAt).filter((k) => SP_INTRO[k] && !save.seen[k]);
+  if (!fresh.length) return;
+  for (const k of fresh) save.seen[k] = 1;
+  persist();
+  introKind = fresh[0]; introQueue = fresh.slice(1); resume = state; resumeT = stateT; joy = null; keys.clear();
   setState('intro');
+}
+function introNext() {                                   // GOT IT with another kind to explain: the next card
+  if (state !== 'intro' || !introQueue.length) return false;
+  introKind = introQueue.shift();
+  return true;
 }
 // The pieces' own colours (game art, as drawn in the square), for the pictures.
 const IA = { disc: '#1A2640', rim: '#C8D4E2', starDark: '#3A4868', starEdge: '#8FA2CC', starLit: '#F4FAFF', lineDark: '#3A4E7A', lineLit: '#2F7BFF',
@@ -18059,6 +18084,7 @@ function introArrow(x0, y0, x1, y1, col = TOK.ink72) {
 // A small picture of the rule, in a box w wide and h high centred on cx.
 function introArt(kind, cx, y, w, h) {
   const my = y + h / 2;
+  if (INTRO_ART[kind]) { ctx.save(); ctx.lineCap = 'round'; INTRO_ART[kind](cx, y, w, h, my); ctx.restore(); return; }   // the city's (pb15)
   ctx.save(); ctx.lineCap = 'round';
   if (kind === 'stars') {                                 // three stars joined in a row, all dark; roll onto the middle: all three lit
     const g = Math.min(46, w / 9), row = (x0, lit, on) => {
@@ -18144,6 +18170,158 @@ function drawIntro() {
   L.hit.cta = UI.drawCTA(ctx, 'GOT IT', px + pw / 2, yy + UI.CTA.h / 2, TOK.accent);
   ctx.restore();
 }
+
+/* THE CITY'S PUZZLES ON THE SAME CARDS (owner, 2026-09-29: "add the same type of cards for puzzles from levels 1-150").
+   The six kinds of puzzle square (keys from level 2, switches 9, crates 14, turning bridges 18, charge 24, light 30;
+   mixed from 36, and each mixed square shows the card for any of its kinds not yet seen, one after another) and the
+   eight road puzzles from 41 (ice, build a road, every tile, the tune, the twin, the boat, the planks, the riddle).
+   Each card says the rule as the rules card does, in fewer words, with a picture drawn from the pieces' own colours. */
+Object.assign(SP_INTRO, {
+  keys: { title: 'Keys', lines: ['The way out is locked. Roll over a key to pick it up; you carry one at a time, and taking another leaves yours in its place.', 'A gate opens for a key of its own colour and shape, and keeps it. Count keys against gates first.'] },
+  switches: { title: 'Switches', lines: ['Roll over a switch to flip every gate with its letter: shut gates open, open gates shut.', 'A switch can shut the way you came. You can press it again.'] },
+  crates: { title: 'Crates and plates', lines: ['A plate holds its gates open while something heavy sits on it.', 'Roll into a crate, square on, to push it one cell. A crate cannot be pulled, so push with care.'] },
+  bridges: { title: 'Turning bridges', lines: ['A lever turns every bridge with its letter a quarter turn clockwise. Roll over it again for another turn.', 'A bridge joins only where its lit road meets the side.'] },
+  charge: { title: 'Charge', lines: ['A bolt pad charges the marble and a ground pad empties it. Lightning gates let only a charged marble through.', 'Floors marked with plus signs push a charged marble away.'] },
+  light: { title: 'Light', lines: ['A lamp shines a beam across the square, over the walls. Roll under a mirror to turn it a quarter turn.', 'A gate of light is open only while the beam reaches the crystal.'] },
+  ice: { title: 'Ice maze', lines: ['On ice the marble slides until something stops it: a wall, snow, or a rock (a cell short of it). Over a hole it drops.', 'Plan each slide. Out through the far gap and you are on your way.'] },
+  road: { title: 'Build a road', lines: ['The road has gaps. Push a crate into a gap and it fills it, and you can roll across.', 'A crate cannot be pulled: count the crates against the gaps before you push.'] },
+  tiles: { title: 'Every tile', lines: ['Each tile lights as you roll onto it and crumbles when you leave. Each push rolls you one tile.', 'Light every tile and the bridge out appears. Usually only one route covers them all.'] },
+  tune: { title: 'The tune', lines: ['Listen: the drums play a tune. Then roll over them in the same order, going round the others.', 'A wrong drum, and the tune plays again. The pad by the road plays it again too.'] },
+  twin: { title: 'The twin', lines: ['Your twin moves the mirror way: when you roll right it rolls left. A wall stops one of you, not the other.', 'Stand at the way out while your twin stands on its pad, and the bridge appears.'] },
+  boat: { title: 'The boat', lines: ['Roll over a valve to pour its tank into the channel. The dots on a tank show how much it holds.', 'Fill the channel exactly to the line and the boat carries you across. Too much? The pad by the road empties it.'] },
+  planks: { title: 'The planks', lines: ['Planks drift across the river, each lane the other way from the one before. Tap to hop onto the next lane.', 'Hop before your plank drifts off the end. Four lanes, then the far bank.'] },
+  riddle: { title: 'The riddle', lines: ['What is missing from the picture? Find the pattern: shape, colour, and later how many.', 'Roll onto the tile that belongs. A wrong one falls away.'] },
+});
+// The pieces' own colours in the city (game art), for the pictures.
+const IC = { gold: '#FFC83D', letA: '#4F8BFF', crate: '#FFB250', charge: '#FFE14A', ground: '#8CF5C8', beam: '#FFF0C8', crystal: '#9FF2FF',
+             ice: '#9CCFEF', rock: '#6A7A8A', lit: '#FFC94A', dark: '#4A3F78', water: '#3FB8FF', twin: '#B18CFF', plank: '#B07A48', river: '#1E4A78',
+             tones: ['#FF5A5A', '#FFD23F', '#3DDC84'], riddle: ['#FF5A5A', '#4F8BFF'] };
+const icCell = (x, y, s, fill) => { UI.roundRectPath(ctx, x - s / 2, y - s / 2, s, s, 5); ctx.fillStyle = fill; ctx.fill(); };
+function icGate(x, y, h, col, open) {                     // two posts; a field between them while it is shut, a dashed doorway once open
+  ctx.fillStyle = IA.wall; ctx.fillRect(x - 17, y - h / 2, 5, h); ctx.fillRect(x + 12, y - h / 2, 5, h);
+  if (open) { ctx.setLineDash([3, 4]); ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.strokeRect(x - 12, y - h / 2 + 2, 24, h - 4); ctx.setLineDash([]); }
+  else { ctx.globalAlpha = 0.75; ctx.fillStyle = col; ctx.fillRect(x - 12, y - h / 2 + 2, 24, h - 4); ctx.globalAlpha = 1; }
+}
+function icKey(x, y, col) {
+  ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 3.5;
+  ctx.beginPath(); ctx.arc(x - 10, y, 7, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillRect(x - 3, y - 2, 20, 4); ctx.fillRect(x + 9, y + 2, 3, 6); ctx.fillRect(x + 14, y + 2, 3, 4);
+}
+function icLetter(x, y, r, col, ch) {
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fillStyle = IA.disc; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = col; ctx.stroke();
+  ctx.fillStyle = col; ctx.font = '800 16px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(ch, x, y + 1);
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+}
+function icCrate(x, y, s) {
+  UI.roundRectPath(ctx, x - s / 2, y - s / 2, s, s, 4); ctx.fillStyle = '#2A2016'; ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = IC.crate; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x - s / 2 + 5, y - s / 2 + 5); ctx.lineTo(x + s / 2 - 5, y + s / 2 - 5); ctx.moveTo(x + s / 2 - 5, y - s / 2 + 5); ctx.lineTo(x - s / 2 + 5, y + s / 2 - 5); ctx.stroke();
+}
+const INTRO_ART = {
+  keys(cx, y, w, h, my) {                                  // a gold key, carried to the gold gate, which opens and keeps it
+    icKey(cx - w * 0.3, my + 4, IC.gold); introMarble(cx - w * 0.3 - 3, my + 22);
+    introArrow(cx - w * 0.12, my + 4, cx + w * 0.02, my + 4);
+    icGate(cx + w * 0.2, my + 6, 46, IC.gold, true); icKey(cx + w * 0.2 + 2, my - 26, IC.gold);
+  },
+  switches(cx, y, w, h, my) {                              // switch A; a gate A that was shut opens, one that was open shuts
+    icLetter(cx - w * 0.33, my + 4, 17, IC.letA, 'A'); introMarble(cx - w * 0.33, my - 20);
+    introArrow(cx - w * 0.2, my + 4, cx - w * 0.08, my + 4);
+    icGate(cx + w * 0.02, my + 6, 42, IC.letA, false); introArrow(cx + w * 0.08, my + 6, cx + w * 0.14, my + 6); icGate(cx + w * 0.22, my + 6, 42, IC.letA, true);
+    icLetter(cx + w * 0.12, my - 26, 12, IC.letA, 'A');
+  },
+  crates(cx, y, w, h, my) {                                // push the crate onto the plate: its gate opens
+    const s = 36, x0 = cx - 1.5 * s - 20;
+    for (let i = 0; i < 4; i++) icCell(x0 + i * s, my + 6, s - 3, IA.floor);
+    introMarble(x0, my + 6); icCrate(x0 + s, my + 6, 26); introArrow(x0 + s + 16, my - 16, x0 + 2 * s + 6, my - 16);
+    ctx.strokeStyle = IC.letA; ctx.lineWidth = 2.5; ctx.strokeRect(x0 + 2 * s - 12, my - 6, 24, 24);
+    icGate(x0 + 3 * s + 14, my + 6, 42, IC.letA, true);
+  },
+  bridges(cx, y, w, h, my) {                               // the lever turns the bridge a quarter turn: its road now joins
+    icLetter(cx - w * 0.33, my + 4, 17, IC.letA, 'A');
+    ctx.strokeStyle = TOK.ink72; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(cx - w * 0.33, my + 4, 25, -2.4, 0.4); ctx.stroke();
+    const tile = (x, across) => { icCell(x, my + 6, 42, IA.floor); ctx.fillStyle = IC.letA; if (across) ctx.fillRect(x - 21, my + 3, 42, 6); else ctx.fillRect(x - 3, my - 15, 6, 42); };
+    tile(cx - w * 0.04, false); introArrow(cx + w * 0.06, my + 6, cx + w * 0.14, my + 6); tile(cx + w * 0.26, true);
+  },
+  charge(cx, y, w, h, my) {                                // the bolt charges the marble, and the lightning gate lets it through
+    ctx.beginPath(); ctx.arc(cx - w * 0.33, my + 6, 18, 0, Math.PI * 2); ctx.fillStyle = IA.disc; ctx.fill();
+    ctx.fillStyle = IC.charge; ctx.beginPath(); const bx = cx - w * 0.33, by = my + 6;
+    ctx.moveTo(bx + 3, by - 12); ctx.lineTo(bx - 6, by + 2); ctx.lineTo(bx, by + 2); ctx.lineTo(bx - 3, by + 13); ctx.lineTo(bx + 7, by - 2); ctx.lineTo(bx + 1, by - 2); ctx.closePath(); ctx.fill();
+    introArrow(cx - w * 0.2, my + 6, cx - w * 0.1, my + 6);
+    ctx.beginPath(); ctx.arc(cx, my + 6, 13, 0, Math.PI * 2); ctx.fillStyle = 'rgba(255,225,74,0.35)'; ctx.fill(); introMarble(cx, my + 6, 7);
+    introArrow(cx + w * 0.08, my + 6, cx + w * 0.16, my + 6);
+    icGate(cx + w * 0.28, my + 6, 44, IC.charge, true);
+    ctx.strokeStyle = IC.charge; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(cx + w * 0.28 - 4, my - 14); ctx.lineTo(cx + w * 0.28 + 4, my - 2); ctx.lineTo(cx + w * 0.28 - 4, my + 10); ctx.lineTo(cx + w * 0.28 + 4, my + 22); ctx.stroke();
+  },
+  light(cx, y, w, h, my) {                                 // the lamp's beam, turned by a mirror, reaches the crystal
+    const lx = cx - w * 0.36, mx = cx + w * 0.04, ty = y + 8;
+    ctx.beginPath(); ctx.arc(lx, my + 12, 11, 0, Math.PI * 2); ctx.fillStyle = IC.beam; ctx.fill();
+    ctx.strokeStyle = IC.beam; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(lx + 11, my + 12); ctx.lineTo(mx, my + 12); ctx.lineTo(mx, ty + 10); ctx.stroke();
+    ctx.strokeStyle = '#E6EEF8'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(mx - 13, my + 25); ctx.lineTo(mx + 13, my - 1); ctx.stroke();
+    ctx.fillStyle = IC.crystal; ctx.beginPath(); ctx.moveTo(mx, ty - 6); ctx.lineTo(mx + 9, ty + 4); ctx.lineTo(mx, ty + 14); ctx.lineTo(mx - 9, ty + 4); ctx.closePath(); ctx.fill();
+    introMarble(mx + 30, my + 12); ctx.strokeStyle = TOK.ink72; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(mx, my + 12, 22, -0.6, 0.9); ctx.stroke();
+    icGate(cx + w * 0.34, my + 6, 42, IC.beam, true);
+  },
+  ice(cx, y, w, h, my) {                                   // on ice: one push, and it slides to the cell before the rock
+    const s = 36, x0 = cx - 2 * s;
+    for (let i = 0; i < 5; i++) icCell(x0 + i * s, my + 6, s - 3, IC.ice);
+    ctx.fillStyle = IC.rock; ctx.beginPath(); ctx.arc(x0 + 4 * s, my + 6, 12, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 0.4; introMarble(x0, my + 6); ctx.globalAlpha = 1; introMarble(x0 + 3 * s, my + 6);
+    introArrow(x0 + 12, my - 18, x0 + 3 * s - 4, my - 18);
+  },
+  road(cx, y, w, h, my) {                                  // a crate pushed into the gap fills it, and the road goes on
+    const s = 34, x0 = cx - 2 * s;
+    for (let i = 0; i < 5; i++) if (i !== 2) icCell(x0 + i * s, my + 6, s - 3, IA.floor);
+    ctx.strokeStyle = IC.crate; ctx.lineWidth = 2; ctx.strokeRect(x0 + 2 * s - 14, my - 8, 28, 28); ctx.fillStyle = '#05080F'; ctx.fillRect(x0 + 2 * s - 12, my - 6, 24, 24);
+    introMarble(x0, my + 6); icCrate(x0 + s, my + 6, 24); introArrow(x0 + s + 14, my - 16, x0 + 2 * s + 4, my - 16);
+  },
+  tiles(cx, y, w, h, my) {                                 // the tile under the marble lit, those behind it crumbled, one route through the rest
+    const s = 30, x0 = cx - 1.5 * s, y0 = my - s / 2 + 6;
+    const grid = [[0, 0, 0, 0], [2, 2, 1, 0]];               // top row, bottom row: 2 crumbled (left behind), 1 lit (under the marble), 0 still to go
+    grid.forEach((row, r) => row.forEach((v, c) => { const x = x0 + c * s, yy = y0 + r * s; icCell(x, yy, s - 3, v === 1 ? IC.lit : v === 2 ? '#05080F' : IC.dark);
+      if (v === 2) { ctx.setLineDash([3, 3]); ctx.strokeStyle = '#3A4460'; ctx.lineWidth = 1.5; ctx.strokeRect(x - (s - 3) / 2 + 1, yy - (s - 3) / 2 + 1, s - 5, s - 5); ctx.setLineDash([]); } }));   // crumbled: a gap
+    introMarble(x0 + 2 * s, y0 + s);
+    ctx.setLineDash([4, 4]); ctx.strokeStyle = TOK.ink72; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x0 + 2 * s + 10, y0 + s); ctx.lineTo(x0 + 3 * s, y0 + s); ctx.lineTo(x0 + 3 * s, y0); ctx.lineTo(x0, y0); ctx.stroke(); ctx.setLineDash([]);   // the one route through the rest
+  },
+  tune(cx, y, w, h, my) {                                  // the drums play a tune; roll over them in the same order
+    const order = [1, 0, 2], dx = (i) => cx + (i - 1) * 56;
+    order.forEach((d, i) => { ctx.beginPath(); ctx.arc(cx - 26 + i * 26, y + 8, 7, 0, Math.PI * 2); ctx.fillStyle = IC.tones[d]; ctx.fill(); });
+    for (let d = 0; d < 3; d++) { ctx.beginPath(); ctx.arc(dx(d), my + 16, 18, 0, Math.PI * 2); ctx.fillStyle = IA.disc; ctx.fill(); ctx.lineWidth = 4; ctx.strokeStyle = IC.tones[d]; ctx.stroke(); }
+    ctx.setLineDash([5, 5]); ctx.strokeStyle = TOK.ink72; ctx.lineWidth = 2; ctx.beginPath();
+    ctx.moveTo(dx(1), my - 4); ctx.quadraticCurveTo((dx(1) + dx(0)) / 2, my - 18, dx(0), my - 4); ctx.moveTo(dx(0), my + 36); ctx.quadraticCurveTo(dx(1), my + 50, dx(2), my + 36); ctx.stroke(); ctx.setLineDash([]);
+  },
+  twin(cx, y, w, h, my) {                                  // a wall down the middle; you roll one way, your twin the other
+    ctx.fillStyle = IA.wall; ctx.fillRect(cx - 3, y + 2, 6, h - 4);
+    introMarble(cx - w * 0.18, my + 6, 8); introArrow(cx - w * 0.3, my + 6, cx - w * 0.24, my + 6); introArrow(cx - w * 0.14, my + 6, cx - w * 0.06, my + 6);
+    ctx.beginPath(); ctx.arc(cx + w * 0.18, my + 6, 8, 0, Math.PI * 2); ctx.fillStyle = IC.twin; ctx.fill();
+    introArrow(cx + w * 0.14, my + 6, cx + w * 0.06, my + 6, IC.twin);
+  },
+  boat(cx, y, w, h, my) {                                  // two tanks poured into the channel, exactly to the line: the boat is level
+    const tank = (x, n) => { UI.roundRectPath(ctx, x - 13, y + 4, 26, h - 16, 6); ctx.fillStyle = IA.disc; ctx.fill(); ctx.strokeStyle = IA.rim; ctx.lineWidth = 2; ctx.stroke();
+      for (let i = 0; i < n; i++) { ctx.fillStyle = IC.water; ctx.beginPath(); ctx.arc(x, y + h - 20 - i * 12, 4, 0, Math.PI * 2); ctx.fill(); } };
+    tank(cx - w * 0.36, 2); tank(cx - w * 0.22, 3);
+    introArrow(cx - w * 0.12, my + 4, cx - w * 0.02, my + 4);
+    const x0 = cx + w * 0.02, cw = w * 0.34;
+    ctx.fillStyle = '#05080F'; ctx.fillRect(x0, y + 4, cw, h - 8); ctx.fillStyle = 'rgba(63,184,255,0.55)'; ctx.fillRect(x0, y + 22, cw, h - 26);
+    ctx.fillStyle = '#FFFFFF'; ctx.fillRect(x0 - 4, y + 21, cw + 8, 2.5);
+    ctx.fillStyle = IC.plank; ctx.beginPath(); ctx.moveTo(x0 + cw * 0.25, y + 12); ctx.lineTo(x0 + cw * 0.75, y + 12); ctx.lineTo(x0 + cw * 0.66, y + 22); ctx.lineTo(x0 + cw * 0.34, y + 22); ctx.closePath(); ctx.fill();
+  },
+  planks(cx, y, w, h, my) {                                // lanes drifting opposite ways; a tap hops you to the next lane
+    const lh = (h - 8) / 3;
+    for (let i = 0; i < 3; i++) {
+      const yy = y + 4 + i * lh; ctx.fillStyle = IC.river; ctx.fillRect(cx - w * 0.38, yy + 2, w * 0.76, lh - 4);
+      ctx.fillStyle = IC.plank; for (const px of i % 2 ? [-0.3, 0.12] : [-0.12, 0.26]) ctx.fillRect(cx + px * w - 22, yy + 5, 44, lh - 10);
+      introArrow(cx + (i % 2 ? 0.34 : -0.34) * w, yy + lh / 2, cx + (i % 2 ? 0.26 : -0.26) * w, yy + lh / 2);
+    }
+    introMarble(cx - 0.12 * w, y + 4 + 2.5 * lh); introArrow(cx - 0.12 * w, y + 4 + 2 * lh + 2, cx - 0.12 * w, y + 4 + 1.5 * lh + 4);
+  },
+  riddle(cx, y, w, h, my) {                                // circle, square, circle, square ... what comes next? the tile that belongs
+    const sh = (x, yy, sq, col) => { ctx.fillStyle = col; if (sq) ctx.fillRect(x - 10, yy - 10, 20, 20); else { ctx.beginPath(); ctx.arc(x, yy, 11, 0, Math.PI * 2); ctx.fill(); } };
+    const x0 = cx - w * 0.36, g = w * 0.12;
+    for (let i = 0; i < 5; i++) { icCell(x0 + i * g, my, 32, IA.floor); sh(x0 + i * g, my, i % 2 === 1, IC.riddle[i % 2]); }
+    icCell(x0 + 5 * g, my, 32, IA.floor); ctx.fillStyle = TOK.accent2; ctx.font = '800 20px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('?', x0 + 5 * g, my + 1);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    ctx.strokeStyle = TOK.accent2; ctx.lineWidth = 2.5; UI.roundRectPath(ctx, x0 + 5 * g - 18, my + 22, 36, 30, 6); ctx.stroke(); sh(x0 + 5 * g, my + 37, true, IC.riddle[1]);
+  },
+};
 
 // ---------- TREES, GROWN THE WAY EZ-TREE GROWS THEM ----------
 /* (owner, 2026-09-27: "I would like to see trees. can you make something like
