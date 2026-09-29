@@ -250,6 +250,7 @@ const NEON_SOUNDS = {
 };
 // The city's version of a sound where it has one, the house sound elsewhere.
 function sound(name) {
+  if (pbWorld(world.name) && PB_SOUNDS[name]) { if (sfx && sfx.isOn()) PB_SOUNDS[name](); return; }
   if ((world.name === 'neon' || ['boost', 'jump', 'bump', 'depart', 'tint', 'pass', 'buzz', 'key', 'gate', 'reset', 'click', 'thunk', 'scrape', 'whirr', 'charge', 'earth', 'glint', 'lit', 'unlit', 'warp', 'tube', 'pop', 'power', 'zap', 'knock', 'clink', 'crack', 'shatter', 'burn', 'flame', 'blast', 'glide', 'crunch', 'note', 'tone', 'pour'].includes(name)) && NEON_SOUNDS[name]) { if (sfx && sfx.isOn()) NEON_SOUNDS[name](); }
   else play(name === 'home' ? 'land' : name);
 }
@@ -8866,6 +8867,8 @@ const SKINS = {
   steel() { marble.material = new MeshStandardMaterial({ color: 0xFFFFFF, metalness: 1, roughness: 0.06, envMap: tokyoEnvMap() || envTex, envMapIntensity: 1.3 }); },
   // Chrome, so the neon city runs across it.
   chrome() { marble.material = new MeshStandardMaterial({ color: 0xFFFFFF, metalness: 1, roughness: 0.05, envMap: neonEnvMap() || envTex, envMapIntensity: 1.4 }); },
+  // A pinball: polished steel, the machine's lamps running across it.
+  pinball() { marble.material = new MeshStandardMaterial({ color: 0xFFFFFF, metalness: 1, roughness: 0.05, envMap: pbEnvMap(pbLook) || envTex, envMapIntensity: 1.4 }); },
   // Faceted, like everything in the low-poly valley.
   faceted() {
     marble.geometry = new IcosahedronGeometry(R, 1);
@@ -12499,6 +12502,1765 @@ const tokyoDrift = (w) => {
 WORLDS_ADD('tokyo', tokyoDrift);
 WORLDS_ADD('dystopia', tokyoDrift);
 
+// ---------- THE PINBALL WORLD: three looks to choose from (owner, 2026-09-28) ----------
+/* The owner: "imagine being inside a pinball machine. Except you want to stay
+   on the rail and not get bumped off by the different objects you'd find in a
+   pinball machine ... The lights the sounds ... Oversized graphics, long loops,
+   jumps ... this should also still feel like a city, but not a city. The
+   billboards would be moving cut outs." With five pictures; from them the owner
+   chose three looks to see built:
+     chrome   a machine nobody could build (pictures 3 and 4): chrome and blue
+              glass, walls of pipes, orange-lit domes, balls racing in tubes
+     arcade   a real table at night (pictures 1 and 2): a black playfield full of
+              lit inserts, teal against orange and red, red flippers, wire ramps,
+              dot-matrix screens; its art is our own deep-sea treasure hunt
+     golden   a 1970s table (picture 5): mushroom bumpers, warm bulbs, rubber
+              rings, score drums and a prize wheel; its art our own big top
+   The rail runs high over a giant playfield and the machine's parts stand in for
+   the city: bumpers and targets are its buildings, ramps and tubes its raised
+   roads, giant steel balls its traffic, cut-outs on posts its billboards. The
+   marble is a small steel ball among them. The playfield repeats as a run of
+   TABLES up the course, each seen from its flipper end as a player sees one:
+   flippers, slingshots and lanes, targets, bumpers, the lanes at the top. The
+   balls play them: flipped up, kicked by bumpers and slingshots, round the ramps
+   and down to the flippers again. Nothing may hide the course: the playfield is
+   PB_DROP under the rail's lowest stretch, and nothing near the rail stands
+   higher than 4 m under it. #pinball-chrome, #pinball-arcade and #pinball-golden
+   open a look (on course 27, or the one named after it: #pinball-arcade-12). */
+const PB_LOOKS = ['chrome', 'arcade', 'golden'];
+const PB_BR = 1.4, PB_DROP = 8, PB_AL = 72;              // the machine's balls (three times the marble), the drop to the playfield, one table's length
+let pbLook = 'chrome';
+const pbWorld = (name) => name.startsWith('pinball-');
+
+// Shapes merged into one geometry, a colour to each: a whole machine's worth of still parts in one draw.
+function pbBuild() {
+  // Growing typed arrays, not plain ones: a machine is a million numbers, and a phone should not have to collect them twice.
+  const buf = (k) => ({ a: new Float32Array(k * 4096), n: 0 });
+  const P = buf(3), N = buf(3), C = buf(3), U = buf(2), col = new Color(), _a = new Vector3(), _b = new Vector3(), _n = new Vector3();
+  const put = (B, x, y, z) => {
+    if (B.n + 3 > B.a.length) { const b = new Float32Array(B.a.length * 2); b.set(B.a); B.a = b; }
+    B.a[B.n++] = x; B.a[B.n++] = y; if (z !== undefined) B.a[B.n++] = z;
+  };
+  const vert = (px, py, pz, nx, ny, nz, u, v) => { put(P, px, py, pz); put(N, nx, ny, nz); put(C, col.r, col.g, col.b); put(U, u, v); };
+  const B = {
+    // One triangle, turned so its face agrees with the normals given (its winding is worked out, not trusted).
+    tri(a, b, c, na, nb, nc, hex, ua = [0, 0], ub = [1, 0], uc = [0, 1]) {
+      _a.set(b[0] - a[0], b[1] - a[1], b[2] - a[2]); _b.set(c[0] - a[0], c[1] - a[1], c[2] - a[2]); _n.crossVectors(_a, _b);
+      const flip = _n.x * (na[0] + nb[0] + nc[0]) + _n.y * (na[1] + nb[1] + nc[1]) + _n.z * (na[2] + nb[2] + nc[2]) < 0;
+      col.setHex(hex);
+      vert(a[0], a[1], a[2], na[0], na[1], na[2], ua[0], ua[1]);
+      if (flip) { vert(c[0], c[1], c[2], nc[0], nc[1], nc[2], uc[0], uc[1]); vert(b[0], b[1], b[2], nb[0], nb[1], nb[2], ub[0], ub[1]); }
+      else { vert(b[0], b[1], b[2], nb[0], nb[1], nb[2], ub[0], ub[1]); vert(c[0], c[1], c[2], nc[0], nc[1], nc[2], uc[0], uc[1]); }
+    },
+    // A three.js shape, placed by a matrix.
+    geo(g0, mtx, hex) {
+      const g = g0.index ? g0.toNonIndexed() : g0;
+      if (g !== g0) g0.dispose();
+      g.applyMatrix4(mtx);
+      const p = g.attributes.position.array, n = g.attributes.normal.array, uv = g.attributes.uv ? g.attributes.uv.array : null;
+      col.setHex(hex);
+      for (let i = 0; i < p.length / 3; i++) vert(p[i * 3], p[i * 3 + 1], p[i * 3 + 2], n[i * 3], n[i * 3 + 1], n[i * 3 + 2], uv ? uv[i * 2] : 0, uv ? uv[i * 2 + 1] : 0);
+      g.dispose();
+    },
+    // A profile carried along a path: prof is [[across, up, normal across, normal up], ...] in each frame's side and up.
+    sweep(F, prof, hex, uScale = 0.125) {
+      const V = F.map((f) => prof.map(([sx, sy, nx, ny]) => [
+        [f.p.x + f.b.x * sx + f.n.x * sy, f.p.y + f.b.y * sx + f.n.y * sy, f.p.z + f.b.z * sx + f.n.z * sy],
+        [f.b.x * nx + f.n.x * ny, f.b.y * nx + f.n.y * ny, f.b.z * nx + f.n.z * ny]]));
+      for (let i = 0; i + 1 < F.length; i++) for (let j = 0; j + 1 < prof.length; j++) {
+        const a = V[i][j], b = V[i + 1][j], c = V[i + 1][j + 1], d = V[i][j + 1];
+        const ua = [F[i].s * uScale, j / (prof.length - 1)], ub = [F[i + 1].s * uScale, ua[1]], uc = [ub[0], (j + 1) / (prof.length - 1)], ud = [ua[0], uc[1]];
+        B.tri(a[0], b[0], c[0], a[1], b[1], c[1], hex, ua, ub, uc);
+        B.tri(a[0], c[0], d[0], a[1], c[1], d[1], hex, ua, uc, ud);
+      }
+    },
+    // A flat outline, as a slab from y0 up to y1 (outline [[x, z], ...] round a point `o` that sees every corner).
+    slab(pts, o, y0, y1, hex, sideHex = hex) {
+      let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9;
+      for (const [x, z] of pts) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z); }
+      const uv = (x, z) => [(x - x0) / Math.max(1e-6, x1 - x0), 1 - (z - z0) / Math.max(1e-6, z1 - z0)], up = [0, 1, 0];
+      for (let i = 0; i < pts.length; i++) {
+        const [ax, az] = pts[i], [bx, bz] = pts[(i + 1) % pts.length];
+        B.tri([o[0], y1, o[1]], [ax, y1, az], [bx, y1, bz], up, up, up, hex, uv(o[0], o[1]), uv(ax, az), uv(bx, bz));
+        let nx = bz - az, nz = -(bx - ax); const L = Math.hypot(nx, nz) || 1; nx /= L; nz /= L;
+        if (nx * ((ax + bx) / 2 - o[0]) + nz * ((az + bz) / 2 - o[1]) < 0) { nx = -nx; nz = -nz; }
+        const n = [nx, 0, nz];
+        B.tri([ax, y0, az], [bx, y0, bz], [bx, y1, bz], n, n, n, sideHex, [0, 0], [1, 0], [1, 1]);
+        B.tri([ax, y0, az], [bx, y1, bz], [ax, y1, az], n, n, n, sideHex, [0, 0], [1, 1], [0, 1]);
+      }
+    },
+    // A wall of thickness th along a polyline on the playfield.
+    wall(line, th, y0, y1, hex, topHex = hex) {
+      for (let i = 0; i + 1 < line.length; i++) {
+        const [ax, az] = line[i], [bx, bz] = line[i + 1], len = Math.hypot(bx - ax, bz - az);
+        if (len < 1e-3) continue;
+        B.geo(new BoxGeometry(th, y1 - y0, len + th * 0.9), placeAt((ax + bx) / 2, (y0 + y1) / 2, (az + bz) / 2, 0, Math.atan2(bx - ax, bz - az), 0), hex);
+        if (topHex !== hex) B.geo(new BoxGeometry(th * 1.3, 0.12, len + th), placeAt((ax + bx) / 2, y1 + 0.06, (az + bz) / 2, 0, Math.atan2(bx - ax, bz - az), 0), topHex);
+      }
+    },
+    count: () => P.n / 3,
+    done() {
+      const g = new BufferGeometry();
+      g.setAttribute('position', new Float32BufferAttribute(P.a.slice(0, P.n), 3)); g.setAttribute('normal', new Float32BufferAttribute(N.a.slice(0, N.n), 3));
+      g.setAttribute('color', new Float32BufferAttribute(C.a.slice(0, C.n), 3)); g.setAttribute('uv', new Float32BufferAttribute(U.a.slice(0, U.n), 2));
+      return g;
+    },
+  };
+  return B;
+}
+// Frames along a path every `step` metres, kept upright (side level, up as near up as the path allows): for ramps, wires and tubes.
+const _pbUp = new Vector3(0, 1, 0);
+function pbFrames(T, step) {
+  const n = Math.max(2, Math.ceil(T.len / step) + 1), F = [];
+  for (let i = 0; i < n; i++) {
+    const s = T.len * i / (n - 1), p = tubeAt(T, s, new Vector3()), t = tubeDir(T, s, new Vector3());
+    const b = new Vector3().crossVectors(t, _pbUp);
+    if (b.lengthSq() < 1e-6) b.set(1, 0, 0);
+    b.normalize();
+    F.push({ s, p, t, b, n: new Vector3().crossVectors(b, t).normalize() });
+  }
+  return F;
+}
+// A round profile for a wire or a tube, of radius rad round (ox, oy) in the frame.
+const pbRound = (rad, seg, ox = 0, oy = 0) => Array.from({ length: seg + 1 }, (_, k) => { const a = k / seg * Math.PI * 2; return [ox + rad * Math.cos(a), oy + rad * Math.sin(a), Math.cos(a), Math.sin(a)]; });
+// A lamp's emissive light (or a lit part's) scaled by its instance colour, so a lamp's brightness is simply its colour.
+function pbLit(mat, key) {
+  mat.onBeforeCompile = (sh) => {
+    sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>',
+      '#include <emissivemap_fragment>\n#if defined( USE_INSTANCING_COLOR ) || defined( USE_COLOR )\n  totalEmissiveRadiance *= vColor.rgb;\n#endif');
+  };
+  mat.customProgramCacheKey = () => 'pb-lit-' + key;
+  return mat;
+}
+// The world a look's chrome reflects: a painted panorama, made once.
+const pbEnvs = {};
+function pbEnvMap(look) {
+  if (pbEnvs[look] || !renderer) return pbEnvs[look] || null;
+  const L = PB[look];
+  const t = canvasTex(512, 256, (g) => {
+    const lg = g.createLinearGradient(0, 0, 0, 256);
+    for (const [k, c] of L.env.stops) lg.addColorStop(k, c);
+    g.fillStyle = lg; g.fillRect(0, 0, 512, 256);
+    const r = seeded(17);
+    for (let i = 0; i < L.env.lights; i++) {                  // the machine's lamps, and its long strip lights
+      const c = L.env.cols[i % L.env.cols.length], x = r() * 512, y = 40 + r() * 170;
+      if (i % 5 === 0) { g.fillStyle = c; g.fillRect(x, y, 30 + r() * 90, 3 + r() * 3); continue; }
+      const rg = g.createRadialGradient(x, y, 0, x, y, 4 + r() * 10);
+      rg.addColorStop(0, '#FFFFFF'); rg.addColorStop(0.35, c); rg.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = rg; g.fillRect(x - 16, y - 16, 32, 32);
+    }
+  });
+  const pm = new PMREMGenerator(renderer);
+  pbEnvs[look] = pm.fromEquirectangular(t).texture;
+  pm.dispose(); t.dispose();
+  return pbEnvs[look];
+}
+// Soft light for a lamp's glow and the pools it throws: a bright middle falling away, and no hard edge.
+let pbGlowTex = null;
+const pbGlow = () => pbGlowTex || (pbGlowTex = canvasTex(64, 64, (g) => {
+  const rg = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  rg.addColorStop(0, 'rgba(255,255,255,1)'); rg.addColorStop(0.25, 'rgba(255,255,255,0.55)'); rg.addColorStop(0.6, 'rgba(255,255,255,0.12)'); rg.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = rg; g.fillRect(0, 0, 64, 64);
+}));
+/* THE INSERTS: the lamps set into a playfield under clear plastic, each a
+   shape (a round, an arrow, a triangle, a star, a bar) drawn once in grey: a
+   bright middle where the bulb is, the plastic's own colour toward its edge,
+   facets in the plastic, and a pale bezel ring round it. Each lamp's instance
+   colour paints it, and dims it when it is off (dark plastic, never black). */
+let pbInsertMemo = null;
+function pbInsertTex() {
+  if (pbInsertMemo) return pbInsertMemo;
+  const path = {
+    round: (g) => { g.beginPath(); g.arc(64, 64, 54, 0, Math.PI * 2); },
+    arrow: (g) => { g.beginPath(); g.moveTo(64, 6); g.lineTo(118, 70); g.lineTo(86, 70); g.lineTo(86, 122); g.lineTo(42, 122); g.lineTo(42, 70); g.lineTo(10, 70); g.closePath(); },
+    tri: (g) => { g.beginPath(); g.moveTo(64, 10); g.lineTo(120, 112); g.lineTo(8, 112); g.closePath(); },
+    star: (g) => { g.beginPath(); for (let k = 0; k < 10; k++) { const a = -Math.PI / 2 + k * Math.PI / 5, rr = k % 2 ? 24 : 58; g.lineTo(64 + rr * Math.cos(a), 66 + rr * Math.sin(a)); } g.closePath(); },
+    bar: (g) => { g.beginPath(); g.roundRect ? g.roundRect(34, 8, 60, 112, 22) : g.rect(34, 8, 60, 112); },
+  };
+  pbInsertMemo = {};
+  for (const [k, draw] of Object.entries(path)) {
+    pbInsertMemo[k] = canvasTex(128, 128, (g) => {
+      g.save(); draw(g); g.clip();
+      const cy = k === 'tri' ? 78 : k === 'arrow' ? 60 : 64;
+      const rg = g.createRadialGradient(64, cy, 2, 64, cy, 62);
+      rg.addColorStop(0, '#FFFFFF'); rg.addColorStop(0.3, '#F2F2F2'); rg.addColorStop(0.7, '#9C9C9C'); rg.addColorStop(1, '#6A6A6A');
+      g.fillStyle = rg; g.fillRect(0, 0, 128, 128);
+      g.strokeStyle = 'rgba(255,255,255,0.22)'; g.lineWidth = 2;               // the facets moulded in the plastic
+      for (let rr = 14; rr < 64; rr += 11) { g.beginPath(); g.arc(64, cy, rr, 0, Math.PI * 2); g.stroke(); }
+      g.fillStyle = 'rgba(255,255,255,0.55)'; g.beginPath(); g.ellipse(50, cy - 20, 16, 7, -0.5, 0, Math.PI * 2); g.fill();   // a glint
+      g.restore();
+      g.lineJoin = 'round'; draw(g); g.lineWidth = 7; g.strokeStyle = '#3A3A3A'; g.stroke();    // the bezel: a dark seat, a pale ring on it
+      draw(g); g.lineWidth = 3; g.strokeStyle = '#E8E8E8'; g.stroke();
+    });
+  }
+  return pbInsertMemo;
+}
+
+/* THE LOOKS. Each look is its own palette and its own art: the playfield's
+   paint (a tile of 32 m, and four big pieces laid under each table), the
+   figures on its cut-outs, its bumpers' caps, its flippers and rubber, its
+   light, and the course in its materials. All the art is our own. */
+const PB = {};
+const pbInk = (g, w = 10, c = '#0E1116') => { g.lineWidth = w; g.strokeStyle = c; g.lineJoin = 'round'; g.lineCap = 'round'; };
+const pbLin = (g, x0, y0, x1, y1, stops) => { const lg = g.createLinearGradient(x0, y0, x1, y1); for (const [k, c] of stops) lg.addColorStop(k, c); return lg; };
+const pbRad = (g, x, y, r0, r1, stops, fx = x, fy = y) => { const rg = g.createRadialGradient(fx, fy, r0, x, y, r1); for (const [k, c] of stops) rg.addColorStop(k, c); return rg; };
+const pbFill = (g, fill, ink = true) => { g.fillStyle = fill; g.fill(); if (ink) g.stroke(); };
+const pbCircle = (g, x, y, r) => { g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); };
+const pbEll = (g, x, y, rx, ry, rot = 0) => { g.beginPath(); g.ellipse(x, y, rx, ry, rot, 0, Math.PI * 2); };
+const pbPoly = (g, pts) => { g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); };
+// Chrome, painted: a bright sky in the top half, a dark horizon band, the ground coming up bright again.
+const pbChromeStops = (a = '#F6FBFF', b = '#A8C0DE', c = '#2E4668', d = '#E4F0FF', e = '#7890B4') => [[0, a], [0.38, b], [0.5, c], [0.62, d], [1, e]];
+// Halftone: dots growing along a band, the print's shading.
+function pbDots(g, x0, y0, w, h, col, step, vertical, rMax) {
+  g.fillStyle = col;
+  for (let y = y0; y < y0 + h; y += step) for (let x = x0 + ((y / step) % 2 ? step / 2 : 0); x < x0 + w; x += step) {
+    const k = vertical ? (y - y0) / h : (x - x0) / w, rr = rMax * k;
+    if (rr > 0.4) { g.beginPath(); g.arc(x, y, rr, 0, Math.PI * 2); g.fill(); }
+  }
+}
+function pbRays(g, cx, cy, n, r0, r1, cols, rot = 0) {
+  for (let k = 0; k < n; k++) {
+    const a0 = rot + k / n * Math.PI * 2, a1 = rot + (k + 1) / n * Math.PI * 2;
+    g.fillStyle = cols[k % cols.length]; g.beginPath();
+    g.moveTo(cx + Math.cos(a0) * r0, cy + Math.sin(a0) * r0); g.lineTo(cx + Math.cos(a0) * r1, cy + Math.sin(a0) * r1);
+    g.lineTo(cx + Math.cos(a1) * r1, cy + Math.sin(a1) * r1); g.lineTo(cx + Math.cos(a1) * r0, cy + Math.sin(a1) * r0); g.closePath(); g.fill();
+  }
+}
+const PB_FONT = 'Inter, "Arial Black", "Helvetica Neue", Arial, sans-serif';
+function pbWord(g, txt, x, y, size, fill, edge, ew = 0.16, weight = 900, track = 0) {
+  g.font = `${weight} ${size}px ${PB_FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+  if ('letterSpacing' in g) g.letterSpacing = `${track}px`;
+  g.lineJoin = 'round';
+  if (edge) { g.strokeStyle = edge; g.lineWidth = size * ew; g.strokeText(txt, x, y); }
+  g.fillStyle = fill; g.fillText(txt, x, y);
+  if ('letterSpacing' in g) g.letterSpacing = '0px';
+}
+// Draw a shape at each place it wraps to, so a tile repeats without a seam.
+function pbWrap(S, x, y, rad, draw) {
+  for (const dx of [-S, 0, S]) for (const dy of [-S, 0, S]) {
+    if (x + dx + rad < 0 || x + dx - rad > S || y + dy + rad < 0 || y + dy - rad > S) continue;
+    draw(x + dx, y + dy);
+  }
+}
+
+// ---- CHROME: a machine nobody could build ----
+PB.chrome = {
+  env: { stops: [[0, '#02060E'], [0.3, '#0E2A4E'], [0.46, '#9FE4FF'], [0.5, '#FFFFFF'], [0.55, '#2A5A8A'], [0.8, '#0A1A30'], [1, '#02050A']], lights: 90,
+         cols: ['#7FE8FF', '#FFFFFF', '#FF9A4A', '#5AA8FF', '#BFEFFF'] },
+  fog: [0x061328, 70, 330], hemi: [0x8FC0FF, 0x08101E, 0.85], sun: [0xD6E8FF, 1.5], haze: [0x8FE0FF, 3.5],
+  gi: 0xBFEFFF, ins: [0x3FE8FF, 0x5A8CFF, 0xE8F6FF, 0xFF8A3C, 0x3FE8FF, 0x9F7BFF],
+  rubber: 0x16305A, post: 0xDCE6F2, postCap: 0xFF8A3C, flipper: { bat: 0xF2F7FF, rubber: 0x2F7BFF },
+  sling: { top: 0x2F7BFF, glow: 0x7FE8FF }, wallCol: 0x1A2A40, guide: 0x9AB0CC, capCol: 0xDCE6F2, apron: 0x14243A,
+  bumper: 'dome', ramps: 'tube', acrylic: 'rgba(170,230,255,0.75)',
+  sky(g) {
+    g.fillStyle = pbLin(g, 0, 0, 0, 512, [[0, '#010308'], [0.45, '#08203E'], [0.72, '#2A6AA8'], [0.8, '#BFEFFF'], [0.86, '#1A3A60'], [1, '#040A14']]);
+    g.fillRect(0, 0, 512, 512);
+    for (let k = 0; k < 7; k++) {                        // the dome's rings of light far up the machine
+      g.strokeStyle = `rgba(160,235,255,${0.5 - k * 0.06})`; g.lineWidth = 5 - k * 0.5;
+      g.beginPath(); g.ellipse(256, 300, 90 + k * 34, 26 + k * 10, 0, Math.PI, 2 * Math.PI); g.stroke();
+    }
+    const r = seeded(5);
+    for (let i = 0; i < 70; i++) { g.fillStyle = r() < 0.2 ? 'rgba(255,160,90,0.9)' : 'rgba(170,230,255,0.8)'; g.fillRect(r() * 512, 340 + r() * 150, 2 + r() * 6, 2 + r() * 3); }
+  },
+  floor(g, r) {                                          // dark blue steel, brushed; panel seams, fine traces, a fleck of red paint
+    const S = 1024;
+    g.fillStyle = '#0B1B33'; g.fillRect(0, 0, S, S);
+    for (let i = 0; i < 1400; i++) {
+      const y = r() * S, w = 60 + r() * 380, x = r() * S, h = 1 + r() * 2.5;
+      g.fillStyle = r() < 0.55 ? `rgba(120,170,235,${0.03 + r() * 0.05})` : `rgba(0,4,12,${0.1 + r() * 0.12})`;
+      pbWrap(S, x + w / 2, y, w / 2 + 2, (cx, cy) => g.fillRect(cx - w / 2, cy, w, h));
+    }
+    g.strokeStyle = 'rgba(0,6,16,0.8)'; g.lineWidth = 4;              // plates, 8 m square, each seam with a light bevel below it
+    for (let k = 0; k <= 4; k++) { g.beginPath(); g.moveTo(0, k * 256); g.lineTo(S, k * 256); g.moveTo(k * 256, 0); g.lineTo(k * 256, S); g.stroke(); }
+    g.strokeStyle = 'rgba(140,200,255,0.18)'; g.lineWidth = 2;
+    for (let k = 0; k <= 4; k++) { g.beginPath(); g.moveTo(0, k * 256 + 3); g.lineTo(S, k * 256 + 3); g.moveTo(k * 256 + 3, 0); g.lineTo(k * 256 + 3, S); g.stroke(); }
+    for (let k = 0; k < 16; k++) for (const [x, y] of [[k % 4 * 256 + 12, Math.floor(k / 4) * 256 + 12]]) { g.fillStyle = 'rgba(190,220,255,0.35)'; pbCircle(g, x, y, 4); g.fill(); }   // rivets
+    for (let i = 0; i < 26; i++) {                     // traces in faint cyan, turning square corners, each ending at a pad
+      let x = Math.floor(r() * 32) * 32, y = Math.floor(r() * 32) * 32;
+      g.strokeStyle = `rgba(90,210,255,${0.12 + r() * 0.12})`; g.lineWidth = 3; g.beginPath(); g.moveTo(x, y);
+      for (let k = 0; k < 5; k++) { if (r() < 0.5) x += (r() < 0.5 ? -1 : 1) * 32 * (1 + Math.floor(r() * 4)); else y += (r() < 0.5 ? -1 : 1) * 32 * (1 + Math.floor(r() * 4)); g.lineTo(x, y); }
+      g.stroke(); g.fillStyle = 'rgba(120,230,255,0.35)'; pbCircle(g, x, y, 7); g.fill();
+    }
+    for (let i = 0; i < 40; i++) { g.fillStyle = `rgba(220,40,50,${0.25 + r() * 0.3})`; pbCircle(g, r() * S, r() * S, 1 + r() * 4); g.fill(); }
+  },
+  decals: [
+    (g) => {                                             // nested chevrons, pointing up the table
+      for (let k = 0; k < 5; k++) {
+        const y = 150 + k * 150, w = 470 - k * 30, t = 70 - k * 6;
+        g.fillStyle = pbLin(g, 0, y, 0, y + 260, [[0, `rgba(240,250,255,${0.95 - k * 0.12})`], [0.6, `rgba(120,190,255,${0.7 - k * 0.1})`], [1, 'rgba(40,90,180,0)']]);
+        pbPoly(g, [[512, y], [512 + w, y + 260], [512 + w - t * 1.6, y + 260], [512, y + t * 1.3], [512 - w + t * 1.6, y + 260], [512 - w, y + 260]]); g.fill();
+      }
+      g.strokeStyle = 'rgba(120,230,255,0.8)'; g.lineWidth = 4; g.setLineDash([18, 14]);
+      g.beginPath(); g.moveTo(512, 60); g.lineTo(512, 980); g.stroke(); g.setLineDash([]);
+    },
+    (g) => {                                             // the reactor: rings of light, ticks, a hot core
+      g.fillStyle = pbRad(g, 512, 512, 0, 480, [[0, 'rgba(255,190,120,0.9)'], [0.12, 'rgba(255,120,60,0.6)'], [0.3, 'rgba(30,90,180,0.35)'], [1, 'rgba(10,30,60,0)']]);
+      g.fillRect(0, 0, 1024, 1024);
+      for (const [rr, w, a] of [[150, 10, 0.95], [230, 5, 0.7], [330, 16, 0.55], [420, 4, 0.8], [470, 8, 0.4]]) { g.strokeStyle = `rgba(140,235,255,${a})`; g.lineWidth = w; pbCircle(g, 512, 512, rr); g.stroke(); }
+      for (let k = 0; k < 72; k++) { const a = k / 72 * Math.PI * 2, r0 = k % 6 ? 380 : 350; g.strokeStyle = 'rgba(200,245,255,0.8)'; g.lineWidth = k % 6 ? 3 : 6; g.beginPath(); g.moveTo(512 + Math.cos(a) * r0, 512 + Math.sin(a) * r0); g.lineTo(512 + Math.cos(a) * 404, 512 + Math.sin(a) * 404); g.stroke(); }
+      for (let k = 0; k < 3; k++) { const a = k / 3 * Math.PI * 2 - 0.4; g.fillStyle = '#FF9A4A'; pbCircle(g, 512 + Math.cos(a) * 330, 512 + Math.sin(a) * 330, 22); g.fill(); }
+    },
+    (g) => {                                             // a ringed planet, printed on the steel
+      g.save(); g.translate(512, 512);
+      g.strokeStyle = 'rgba(255,190,130,0.8)'; g.lineWidth = 34; g.beginPath(); g.ellipse(0, 0, 470, 120, -0.35, Math.PI, 2 * Math.PI); g.stroke();
+      pbCircle(g, 0, 0, 300); g.fillStyle = pbRad(g, 0, 0, 20, 300, [[0, '#9FD8FF'], [0.55, '#3A78D0'], [1, '#0E2A60']], -110, -120); g.fill();
+      g.save(); pbCircle(g, 0, 0, 300); g.clip();
+      for (let k = -6; k < 7; k++) { g.fillStyle = k % 2 ? 'rgba(255,255,255,0.12)' : 'rgba(0,20,60,0.18)'; g.save(); g.rotate(-0.35); g.fillRect(-320, k * 48, 640, 22 + (k % 3) * 8); g.restore(); }
+      g.restore();
+      g.strokeStyle = 'rgba(255,200,140,0.95)'; g.lineWidth = 34; g.beginPath(); g.ellipse(0, 0, 470, 120, -0.35, 0, Math.PI); g.stroke();
+      g.strokeStyle = 'rgba(255,240,220,0.9)'; g.lineWidth = 6; g.beginPath(); g.ellipse(0, 0, 440, 104, -0.35, 0, Math.PI); g.stroke();
+      g.restore();
+    },
+    (g) => {                                             // the circuit: a board of traces and chips, lit along its lines
+      const r = seeded(77);
+      g.fillStyle = 'rgba(30,70,130,0.35)'; g.fillRect(112, 112, 800, 800);
+      g.strokeStyle = 'rgba(140,220,255,0.7)'; g.lineWidth = 6; g.strokeRect(112, 112, 800, 800);
+      for (let i = 0; i < 40; i++) {
+        let x = 140 + Math.floor(r() * 24) * 32, y = 140 + Math.floor(r() * 24) * 32;
+        g.strokeStyle = `rgba(110,225,255,${0.45 + r() * 0.4})`; g.lineWidth = 5; g.beginPath(); g.moveTo(x, y);
+        for (let k = 0; k < 4; k++) { if (k % 2) x = Math.min(880, Math.max(140, x + (r() < 0.5 ? -1 : 1) * 64 * (1 + Math.floor(r() * 3)))); else y = Math.min(880, Math.max(140, y + (r() < 0.5 ? -1 : 1) * 64 * (1 + Math.floor(r() * 3)))); g.lineTo(x, y); }
+        g.stroke(); g.fillStyle = '#BFF4FF'; pbCircle(g, x, y, 9); g.fill();
+      }
+      for (const [x, y, w, h] of [[300, 380, 180, 120], [560, 560, 220, 140], [380, 660, 120, 120]]) {
+        g.fillStyle = '#0A1426'; g.fillRect(x, y, w, h); g.strokeStyle = '#9FDFFF'; g.lineWidth = 4; g.strokeRect(x, y, w, h);
+        g.fillStyle = '#FF9A4A'; g.fillRect(x + 12, y + 12, 18, 18);
+      }
+    },
+  ],
+  figs: [
+    (g) => {                                             // Bolt, a robot of our own
+      pbInk(g, 11);
+      g.beginPath(); g.moveTo(186, 124); g.lineTo(150, 52); g.moveTo(326, 124); g.lineTo(362, 52); g.stroke();
+      for (const x of [150, 362]) { pbCircle(g, x, 46, 22); pbFill(g, pbRad(g, x, 46, 2, 22, [[0, '#FFF4E0'], [0.4, '#FFA24A'], [1, '#C8501A']], x - 7, 40)); }
+      for (const s of [-1, 1]) { pbEll(g, 256 + s * 150, 236, 34, 70); pbFill(g, pbLin(g, 0, 170, 0, 300, pbChromeStops())); }
+      g.beginPath(); g.roundRect(118, 112, 276, 254, 64); pbFill(g, pbLin(g, 0, 112, 0, 366, pbChromeStops()));
+      g.beginPath(); g.roundRect(146, 164, 220, 96, 40); pbFill(g, pbLin(g, 0, 164, 0, 260, [[0, '#0A1A34'], [1, '#12305A']]));
+      for (const s of [-1, 1]) { g.beginPath(); g.roundRect(256 + s * 52 - 34, 190, 68, 42, 21); g.fillStyle = pbRad(g, 256 + s * 52, 211, 2, 40, [[0, '#FFFFFF'], [0.4, '#7FF0FF'], [1, '#1A9AD8']]); g.fill(); }
+      g.fillStyle = 'rgba(255,255,255,0.28)'; g.beginPath(); g.roundRect(160, 172, 190, 16, 8); g.fill();
+      g.beginPath(); g.roundRect(186, 286, 140, 52, 18); pbFill(g, '#1A2A44');
+      g.strokeStyle = '#9FB8D8'; g.lineWidth = 7; for (let k = 0; k < 5; k++) { g.beginPath(); g.moveTo(208 + k * 24, 296); g.lineTo(208 + k * 24, 328); g.stroke(); }
+      for (const [x, y] of [[146, 140], [366, 140], [146, 338], [366, 338]]) { pbInk(g, 5); pbCircle(g, x, y, 10); pbFill(g, '#E8F2FF'); }
+      g.fillStyle = 'rgba(255,255,255,0.7)'; g.beginPath(); g.ellipse(180, 138, 34, 10, -0.5, 0, Math.PI * 2); g.fill();
+      pbInk(g, 11); g.beginPath(); g.roundRect(196, 366, 120, 60, 14); pbFill(g, pbLin(g, 0, 366, 0, 426, pbChromeStops()));
+      g.beginPath(); g.roundRect(128, 420, 256, 56, 24); pbFill(g, pbLin(g, 0, 420, 0, 476, [[0, '#3A8CFF'], [1, '#123A8A']]));
+      g.fillStyle = '#FF9A4A'; for (let k = 0; k < 4; k++) { pbCircle(g, 176 + k * 54, 448, 10); g.fill(); }
+    },
+    (g) => {                                             // a rocket, climbing on a white flame
+      g.fillStyle = pbRad(g, 256, 420, 4, 110, [[0, '#FFFFFF'], [0.3, '#FFE7A0'], [0.6, '#FF8A30'], [1, 'rgba(255,60,30,0)']], 256, 400);
+      g.beginPath(); g.moveTo(206, 380); g.quadraticCurveTo(256, 560, 306, 380); g.closePath(); g.fill();
+      pbInk(g, 11);
+      for (const s of [-1, 1]) { pbPoly(g, [[256 + s * 60, 280], [256 + s * 128, 410], [256 + s * 118, 440], [256 + s * 56, 392]]); pbFill(g, pbLin(g, 256 + s * 60, 0, 256 + s * 128, 0, [[0, '#4A9AFF'], [1, '#0E3A9A']])); }
+      g.beginPath(); g.moveTo(256, 34); g.bezierCurveTo(330, 110, 330, 250, 316, 392); g.lineTo(196, 392); g.bezierCurveTo(182, 250, 182, 110, 256, 34); g.closePath();
+      pbFill(g, pbLin(g, 188, 0, 324, 0, [[0, '#5A7094'], [0.25, '#E8F2FF'], [0.45, '#FFFFFF'], [0.7, '#9AB2D2'], [1, '#3A4E6E']]));
+      g.save(); g.clip(); g.fillStyle = '#FF8A3C'; g.fillRect(150, 318, 220, 30); g.fillStyle = '#2F7BFF'; g.fillRect(150, 110, 220, 22); g.restore();
+      g.beginPath(); g.moveTo(196, 392); g.lineTo(316, 392); g.stroke();
+      pbCircle(g, 256, 210, 44); pbFill(g, pbLin(g, 0, 166, 0, 254, pbChromeStops()));
+      pbCircle(g, 256, 210, 28); pbFill(g, pbRad(g, 256, 210, 2, 28, [[0, '#7FE8FF'], [0.6, '#1A5AA8'], [1, '#08204A']], 246, 200));
+      g.fillStyle = 'rgba(255,255,255,0.8)'; pbEll(g, 246, 200, 10, 5, -0.6); g.fill();
+      pbInk(g, 9); g.beginPath(); g.moveTo(256, 392); g.lineTo(256, 470); g.stroke();
+    },
+    (g) => {                                             // a ringed planet and its moon
+      g.save(); g.translate(256, 262);
+      pbInk(g, 10);
+      g.lineWidth = 40; g.strokeStyle = '#0E1116'; g.beginPath(); g.ellipse(0, 0, 232, 62, -0.3, Math.PI, 2 * Math.PI); g.stroke();
+      g.lineWidth = 28; g.strokeStyle = pbLin(g, -232, 0, 232, 0, [[0, '#FFB070'], [0.5, '#FFF0DC'], [1, '#FF8A3C']]); g.beginPath(); g.ellipse(0, 0, 232, 62, -0.3, Math.PI, 2 * Math.PI); g.stroke();
+      pbInk(g, 10); pbCircle(g, 0, 0, 150); pbFill(g, pbRad(g, 0, 0, 10, 150, [[0, '#BFEAFF'], [0.5, '#4A8CE8'], [1, '#12306E']], -54, -60));
+      g.save(); pbCircle(g, 0, 0, 146); g.clip(); g.rotate(-0.3);
+      for (let k = -4; k < 5; k++) { g.fillStyle = k % 2 ? 'rgba(255,255,255,0.18)' : 'rgba(8,24,70,0.25)'; g.fillRect(-160, k * 34, 320, 16); }
+      g.restore();
+      g.lineWidth = 40; g.strokeStyle = '#0E1116'; g.beginPath(); g.ellipse(0, 0, 232, 62, -0.3, 0, Math.PI); g.stroke();
+      g.lineWidth = 28; g.strokeStyle = pbLin(g, -232, 0, 232, 0, [[0, '#FFB070'], [0.5, '#FFF0DC'], [1, '#FF8A3C']]); g.beginPath(); g.ellipse(0, 0, 232, 62, -0.3, 0, Math.PI); g.stroke();
+      g.restore();
+      pbInk(g, 8); pbCircle(g, 412, 96, 38); pbFill(g, pbRad(g, 412, 96, 2, 38, [[0, '#FFFFFF'], [1, '#8FA8C8']], 400, 84));
+      for (const [x, y, s] of [[90, 90, 16], [120, 430, 12], [430, 420, 18], [60, 300, 10]]) { g.fillStyle = '#E8F8FF'; pbPoly(g, [[x, y - s], [x + s * 0.3, y - s * 0.3], [x + s, y], [x + s * 0.3, y + s * 0.3], [x, y + s], [x - s * 0.3, y + s * 0.3], [x - s, y], [x - s * 0.3, y - s * 0.3]]); g.fill(); }
+    },
+    (g) => {                                             // a comet, its tail streaming
+      for (let k = 0; k < 7; k++) {
+        const w = 70 - k * 8;
+        g.fillStyle = pbLin(g, 330, 150, 60, 470, [[0, `rgba(230,250,255,${0.95 - k * 0.1})`], [0.5, `rgba(90,200,255,${0.8 - k * 0.1})`], [1, 'rgba(40,90,200,0.5)']]);
+        g.beginPath(); g.moveTo(330 + w * 0.7, 150 + w * 0.7 - k * 8); g.quadraticCurveTo(200 - k * 10, 330 + k * 14, 50 + k * 22, 470 - k * 4);
+        g.quadraticCurveTo(170 - k * 6, 290 + k * 10, 330 - w * 0.7, 150 - w * 0.7 + k * 6); g.closePath(); g.fill();
+      }
+      pbInk(g, 10); pbCircle(g, 340, 150, 82); pbFill(g, pbRad(g, 340, 150, 4, 82, [[0, '#FFFFFF'], [0.35, '#FFE0A0'], [0.7, '#FF8A30'], [1, '#C8401A']], 320, 128));
+      g.strokeStyle = 'rgba(80,30,10,0.6)'; g.lineWidth = 6;
+      for (const [x, y, s] of [[360, 170, 16], [310, 130, 10], [372, 118, 8]]) { pbCircle(g, x, y, s); g.stroke(); }
+      g.fillStyle = '#FFFFFF'; for (const [x, y] of [[440, 60], [470, 250], [230, 70], [120, 200]]) { pbCircle(g, x, y, 6); g.fill(); }
+    },
+    (g) => {                                             // a pilot's helmet, the sunset in its visor
+      pbInk(g, 11);
+      g.beginPath(); g.roundRect(150, 380, 212, 70, 26); pbFill(g, pbLin(g, 0, 380, 0, 450, pbChromeStops()));
+      pbCircle(g, 256, 236, 176); pbFill(g, pbRad(g, 256, 236, 20, 180, [[0, '#FFFFFF'], [0.6, '#DCE8F6'], [1, '#8FA4C2']], 190, 160));
+      g.fillStyle = '#FF8A3C'; g.save(); pbCircle(g, 256, 236, 170); g.clip(); g.fillRect(90, 60, 340, 26); g.restore();
+      g.beginPath(); g.ellipse(256, 250, 132, 104, 0, 0, Math.PI * 2);
+      pbFill(g, pbLin(g, 0, 150, 0, 350, [[0, '#0E1C44'], [0.45, '#3A5AB0'], [0.62, '#FF9A50'], [0.72, '#FFD890'], [0.8, '#2A1A3A'], [1, '#0A0A1A']]));
+      g.fillStyle = 'rgba(255,255,255,0.55)'; g.beginPath(); g.ellipse(200, 200, 50, 18, -0.6, 0, Math.PI * 2); g.fill();
+      pbInk(g, 9); g.beginPath(); g.moveTo(400, 150); g.lineTo(440, 96); g.stroke(); g.fillStyle = '#FF8A3C'; pbCircle(g, 442, 92, 12); g.fill(); g.stroke();
+    },
+    (g) => {                                             // a flying saucer and its beam
+      g.fillStyle = pbLin(g, 0, 270, 0, 480, [[0, 'rgba(160,240,255,0.85)'], [1, 'rgba(90,200,255,0.5)']]);
+      pbPoly(g, [[200, 290], [312, 290], [400, 480], [112, 480]]); g.fill();
+      pbInk(g, 11);
+      g.beginPath(); g.ellipse(256, 186, 96, 90, 0, Math.PI, 2 * Math.PI); g.closePath(); pbFill(g, pbRad(g, 256, 186, 6, 110, [[0, '#E8FDFF'], [0.5, '#7FD8FF'], [1, '#1A5AA8']], 220, 130));
+      g.beginPath(); g.ellipse(256, 222, 222, 64, 0, 0, Math.PI * 2); pbFill(g, pbLin(g, 0, 160, 0, 286, pbChromeStops('#FFFFFF', '#B8CCE6', '#3A5074', '#DDEAFF', '#58709A')));
+      g.beginPath(); g.ellipse(256, 262, 120, 28, 0, 0, Math.PI); pbFill(g, '#1A2A44');
+      for (let k = 0; k < 9; k++) { const a = Math.PI * (0.08 + k * 0.105); pbCircle(g, 256 - Math.cos(a) * 196, 226 + Math.sin(a) * 44, 11); g.fillStyle = k % 2 ? '#FF9A4A' : '#9FF0FF'; g.fill(); }
+      g.fillStyle = 'rgba(255,255,255,0.8)'; g.beginPath(); g.ellipse(214, 134, 26, 12, -0.5, 0, Math.PI * 2); g.fill();
+    },
+  ],
+  cap(u, v) { return null; },
+};
+
+// ---- ARCADE: a real table at night, its art our own deep-sea treasure hunt ----
+PB.arcade = {
+  env: { stops: [[0, '#020406'], [0.34, '#0A2A30'], [0.46, '#2EE6D6'], [0.5, '#FFFFFF'], [0.54, '#FF6A2A'], [0.7, '#1A0A0A'], [1, '#020202']], lights: 110,
+         cols: ['#2EE6D6', '#FF6A2A', '#FF3A3A', '#FFD23F', '#FFFFFF', '#FF4FA8'] },
+  fog: [0x061014, 60, 300], hemi: [0x9FE8E0, 0x140808, 0.75], sun: [0xFFE6D0, 1.4], haze: [0xFF9A6A, 3],
+  gi: 0xFFE2B8, ins: [0xFF6A2A, 0x2EE6D6, 0xFF3A3A, 0xFFD23F, 0xFFFFFF, 0x3AA8FF, 0xFF4FA8],
+  rubber: 0xF4F0E8, post: 0xC8E8F0, postCap: 0xFF3A3A, flipper: { bat: 0xE8322E, rubber: 0xF6F2EA },
+  sling: { top: 0xFF6A2A, glow: 0xFFB070 }, wallCol: 0x0C1216, guide: 0x5A6A72, capCol: 0xC8D4DC, apron: 0x101418,
+  bumper: 'pop', ramps: 'wire', acrylic: 'rgba(255,255,255,0.7)',
+  sky(g) {
+    g.fillStyle = pbLin(g, 0, 0, 0, 512, [[0, '#020304'], [0.5, '#0A1A20'], [0.74, '#1E4A4E'], [0.8, '#FF9A6A'], [0.86, '#2A1010'], [1, '#050303']]);
+    g.fillRect(0, 0, 512, 512);
+    const r = seeded(9);                                // the arcade beyond the glass: other machines' lights, out of focus
+    for (let i = 0; i < 60; i++) {
+      const x = r() * 512, y = 250 + r() * 200, rr = 6 + r() * 22;
+      g.fillStyle = pbRad(g, x, y, 0, rr, [[0, ['rgba(46,230,214,0.5)', 'rgba(255,106,42,0.5)', 'rgba(255,79,168,0.45)', 'rgba(255,210,63,0.45)'][i % 4]], [1, 'rgba(0,0,0,0)']]);
+      g.fillRect(x - rr, y - rr, rr * 2, rr * 2);
+    }
+  },
+  floor(g, r) {                                          // glossy black over deep water: caustic light, bubbles, halftone
+    const S = 1024;
+    g.fillStyle = '#060D10'; g.fillRect(0, 0, S, S);
+    for (let i = 0; i < 16; i++) pbWrap(S, r() * S, r() * S, 260, (x, y) => { g.fillStyle = pbRad(g, x, y, 0, 260, [[0, 'rgba(20,90,96,0.35)'], [1, 'rgba(0,0,0,0)']]); g.fillRect(x - 260, y - 260, 520, 520); });
+    g.lineWidth = 2.5;
+    for (let i = 0; i < 90; i++) {                    // caustics: bright wavering lines, the way light plays on a sea floor
+      const x0 = r() * S, y0 = r() * S, L = 60 + r() * 140, a = r() * Math.PI;
+      g.strokeStyle = `rgba(90,240,225,${0.08 + r() * 0.14})`;
+      pbWrap(S, x0, y0, L, (x, y) => { g.beginPath(); g.moveTo(x, y); g.bezierCurveTo(x + Math.cos(a) * L * 0.3 + 20, y + Math.sin(a) * L * 0.3 - 20, x + Math.cos(a) * L * 0.7 - 20, y + Math.sin(a) * L * 0.7 + 20, x + Math.cos(a) * L, y + Math.sin(a) * L); g.stroke(); });
+    }
+    for (let i = 0; i < 70; i++) {                    // bubbles
+      const x = r() * S, y = r() * S, rr = 3 + r() * 11;
+      pbWrap(S, x, y, rr + 2, (cx, cy) => { g.strokeStyle = 'rgba(160,255,245,0.35)'; g.lineWidth = 2; pbCircle(g, cx, cy, rr); g.stroke(); g.fillStyle = 'rgba(220,255,250,0.4)'; pbCircle(g, cx - rr * 0.35, cy - rr * 0.35, rr * 0.25); g.fill(); });
+    }
+    for (let i = 0; i < 5; i++) { const x = r() * 800, y = r() * 800; pbDots(g, x, y, 220, 160, 'rgba(255,90,40,0.16)', 16, r() < 0.5, 6); }
+  },
+  decals: [
+    (g) => {                                             // sonar: rings, a sweep, the blips of treasure
+      for (let k = 1; k <= 5; k++) { g.strokeStyle = `rgba(46,230,214,${0.85 - k * 0.1})`; g.lineWidth = 6; pbCircle(g, 512, 512, k * 92); g.stroke(); }
+      g.fillStyle = pbRad(g, 512, 512, 0, 470, [[0, 'rgba(46,230,214,0.5)'], [1, 'rgba(46,230,214,0.05)']]);
+      g.beginPath(); g.moveTo(512, 512); g.arc(512, 512, 470, -1.9, -1.1); g.closePath(); g.fill();
+      g.strokeStyle = 'rgba(46,230,214,0.6)'; g.lineWidth = 4; g.beginPath(); g.moveTo(40, 512); g.lineTo(984, 512); g.moveTo(512, 40); g.lineTo(512, 984); g.stroke();
+      for (const [x, y, c] of [[640, 300, '#FF6A2A'], [380, 660, '#FFD23F'], [700, 690, '#FF3A3A']]) { g.fillStyle = c; pbCircle(g, x, y, 20); g.fill(); g.strokeStyle = c; g.lineWidth = 4; pbCircle(g, x, y, 38); g.stroke(); }
+    },
+    (g) => {                                             // JACKPOT in a burst
+      g.fillStyle = '#E8322E'; pbPoly(g, Array.from({ length: 32 }, (_, k) => { const a = k / 32 * Math.PI * 2, rr = k % 2 ? 330 : 470; return [512 + Math.cos(a) * rr, 512 + Math.sin(a) * rr * 0.72]; })); g.fill();
+      g.fillStyle = '#FFD23F'; pbPoly(g, Array.from({ length: 32 }, (_, k) => { const a = k / 32 * Math.PI * 2 + 0.1, rr = k % 2 ? 290 : 410; return [512 + Math.cos(a) * rr, 512 + Math.sin(a) * rr * 0.72]; })); g.fill();
+      g.fillStyle = '#FF6A2A'; pbEll(g, 512, 512, 330, 190); g.fill();
+      pbWord(g, 'JACKPOT', 512, 520, 150, '#FFFFFF', '#1A0A08', 0.14);
+      pbDots(g, 200, 330, 620, 80, 'rgba(255,255,255,0.35)', 20, true, 7);
+    },
+    (g) => {                                             // a compass rose, north up the table
+      g.save(); g.translate(512, 512);
+      g.strokeStyle = 'rgba(255,210,63,0.8)'; g.lineWidth = 10; pbCircle(g, 0, 0, 420); g.stroke(); g.lineWidth = 4; pbCircle(g, 0, 0, 380); g.stroke();
+      for (let k = 0; k < 8; k++) {
+        const a = k * Math.PI / 4 - Math.PI / 2, L = k % 2 ? 250 : 400, w = k % 2 ? 50 : 80;
+        for (const s of [-1, 1]) { g.fillStyle = (k % 2 ? ['#2EE6D6', '#1A8A84'] : ['#FF6A2A', '#B8401A'])[s > 0 ? 0 : 1]; g.beginPath(); g.moveTo(0, 0); g.lineTo(Math.cos(a) * L, Math.sin(a) * L); g.lineTo(Math.cos(a + s * 0.5) * w, Math.sin(a + s * 0.5) * w); g.closePath(); g.fill(); }
+      }
+      for (const [t, a] of [['N', -Math.PI / 2], ['E', 0], ['S', Math.PI / 2], ['W', Math.PI]]) pbWord(g, t, Math.cos(a) * 460, Math.sin(a) * 460, 70, '#FFD23F', '#1A0A08', 0.12);
+      g.fillStyle = '#FFFFFF'; pbCircle(g, 0, 0, 26); g.fill();
+      g.restore();
+    },
+    (g) => {                                             // the treasure map's trail, to an X
+      g.strokeStyle = 'rgba(255,210,63,0.9)'; g.lineWidth = 14; g.setLineDash([30, 26]); g.lineCap = 'round';
+      g.beginPath(); g.moveTo(160, 950); g.bezierCurveTo(90, 640, 700, 760, 520, 520); g.bezierCurveTo(360, 300, 760, 260, 800, 150); g.stroke(); g.setLineDash([]);
+      g.strokeStyle = '#E8322E'; g.lineWidth = 34; g.beginPath(); g.moveTo(740, 90); g.lineTo(860, 210); g.moveTo(860, 90); g.lineTo(740, 210); g.stroke();
+      g.fillStyle = 'rgba(46,230,214,0.25)'; pbEll(g, 300, 330, 160, 100, 0.3); g.fill();
+      g.strokeStyle = 'rgba(46,230,214,0.7)'; g.lineWidth = 6; pbEll(g, 300, 330, 160, 100, 0.3); g.stroke();
+    },
+  ],
+  figs: [
+    (g) => {                                             // a shark
+      pbInk(g, 11);
+      pbPoly(g, [[330, 222], [372, 88], [408, 96], [400, 226]]); pbFill(g, pbLin(g, 0, 90, 0, 230, [[0, '#2A5A6A'], [1, '#4A8A9A']]));
+      pbPoly(g, [[438, 260], [500, 150], [504, 180], [476, 270], [506, 380], [492, 392]]); pbFill(g, '#3A7484');
+      g.beginPath(); g.moveTo(40, 280); g.bezierCurveTo(90, 190, 260, 170, 440, 250); g.bezierCurveTo(470, 262, 470, 300, 440, 312); g.bezierCurveTo(300, 380, 110, 380, 40, 300); g.closePath();
+      pbFill(g, pbLin(g, 0, 180, 0, 370, [[0, '#2E6272'], [0.5, '#5A9AAA'], [0.62, '#F2F6F4'], [1, '#C8D8D4']]));
+      pbPoly(g, [[250, 320], [226, 412], [300, 330]]); pbFill(g, '#3A7484');
+      g.beginPath(); g.moveTo(44, 284); g.quadraticCurveTo(110, 300, 170, 290); g.quadraticCurveTo(110, 340, 52, 306); g.closePath(); pbFill(g, '#8A1A1A');
+      g.fillStyle = '#FFFFFF'; for (let k = 0; k < 5; k++) { pbPoly(g, [[64 + k * 22, 290], [74 + k * 22, 306], [84 + k * 22, 292]]); g.fill(); pbPoly(g, [[70 + k * 20, 318], [79 + k * 20, 304], [88 + k * 20, 316]]); g.fill(); }
+      pbCircle(g, 130, 248, 14); pbFill(g, '#0E1116'); g.fillStyle = '#FFFFFF'; pbCircle(g, 126, 244, 4); g.fill();
+      g.strokeStyle = 'rgba(14,17,22,0.7)'; g.lineWidth = 5; for (let k = 0; k < 3; k++) { g.beginPath(); g.moveTo(190 + k * 16, 250); g.quadraticCurveTo(184 + k * 16, 272, 192 + k * 16, 292); g.stroke(); }
+    },
+    (g) => {                                             // an octopus, arms curling
+      pbInk(g, 11);
+      const arm = (x0, y0, x1, y1, cx, cy, w) => {
+        g.lineWidth = w + 11; g.strokeStyle = '#0E1116'; g.beginPath(); g.moveTo(x0, y0); g.quadraticCurveTo(cx, cy, x1, y1); g.stroke();
+        g.lineWidth = w; g.strokeStyle = '#E8502A'; g.beginPath(); g.moveTo(x0, y0); g.quadraticCurveTo(cx, cy, x1, y1); g.stroke();
+        g.fillStyle = '#FFD0A8'; for (let k = 1; k < 5; k++) { const t = k / 5, x = (1 - t) * (1 - t) * x0 + 2 * t * (1 - t) * cx + t * t * x1, y = (1 - t) * (1 - t) * y0 + 2 * t * (1 - t) * cy + t * t * y1; pbCircle(g, x, y + w * 0.2, w * 0.18); g.fill(); }
+        pbInk(g, 11);
+      };
+      arm(200, 300, 60, 440, 80, 300, 34); arm(312, 300, 452, 440, 432, 300, 34); arm(220, 320, 150, 480, 240, 420, 30); arm(292, 320, 360, 480, 272, 420, 30);
+      arm(180, 290, 40, 250, 90, 360, 26); arm(332, 290, 472, 250, 422, 360, 26);
+      g.beginPath(); g.moveTo(256, 50); g.bezierCurveTo(400, 50, 410, 240, 340, 310); g.quadraticCurveTo(256, 350, 172, 310); g.bezierCurveTo(102, 240, 112, 50, 256, 50); g.closePath();
+      pbFill(g, pbRad(g, 256, 180, 20, 200, [[0, '#FF9A5A'], [0.6, '#E8502A'], [1, '#A82A1A']], 210, 110));
+      g.fillStyle = 'rgba(255,220,180,0.5)'; for (const [x, y, s] of [[200, 120, 12], [310, 100, 9], [290, 160, 7], [220, 180, 8]]) { pbCircle(g, x, y, s); g.fill(); }
+      for (const s of [-1, 1]) { pbInk(g, 8); pbEll(g, 256 + s * 50, 250, 34, 40); pbFill(g, '#FFFFFF'); pbCircle(g, 256 + s * 44, 256, 17); pbFill(g, '#0E1116', false); g.fillStyle = '#FFFFFF'; pbCircle(g, 256 + s * 40, 250, 5); g.fill(); }
+    },
+    (g) => {                                             // a diver's brass helmet
+      pbInk(g, 11);
+      g.beginPath(); g.roundRect(120, 360, 272, 90, 30); pbFill(g, pbLin(g, 0, 360, 0, 450, [[0, '#FFE08A'], [0.4, '#D89A30'], [1, '#7A4A10']]));
+      g.fillStyle = '#0E1116'; for (let k = 0; k < 6; k++) { pbCircle(g, 150 + k * 42, 404, 8); g.fill(); }
+      pbCircle(g, 256, 228, 168); pbFill(g, pbRad(g, 256, 228, 20, 170, [[0, '#FFF0B0'], [0.4, '#E8B040'], [0.8, '#A86A18'], [1, '#6A3A08']], 196, 150));
+      for (const s of [-1, 1]) { pbCircle(g, 256 + s * 140, 238, 40); pbFill(g, pbRad(g, 256 + s * 140, 238, 2, 40, [[0, '#9FFFF2'], [0.6, '#1A7A74'], [1, '#08302E']])); }
+      pbCircle(g, 256, 232, 94); pbFill(g, pbLin(g, 0, 138, 0, 326, [[0, '#FFE08A'], [1, '#8A5A14']]));
+      pbCircle(g, 256, 232, 70); pbFill(g, pbRad(g, 256, 232, 4, 70, [[0, '#BFFFF6'], [0.4, '#2EB8AE'], [1, '#062A2A']], 236, 210));
+      g.strokeStyle = '#6A4A10'; g.lineWidth = 7; for (const a of [0, Math.PI / 2]) { g.beginPath(); g.moveTo(256 - Math.cos(a) * 70, 232 - Math.sin(a) * 70); g.lineTo(256 + Math.cos(a) * 70, 232 + Math.sin(a) * 70); g.stroke(); }
+      g.fillStyle = '#FFFFFF'; pbEll(g, 232, 206, 14, 8, -0.6); g.fill();
+      g.fillStyle = 'rgba(255,255,255,0.6)'; pbEll(g, 180, 128, 44, 16, -0.7); g.fill();
+    },
+    (g) => {                                             // a treasure chest, open and spilling
+      pbInk(g, 11);
+      g.beginPath(); g.moveTo(108, 236); g.lineTo(130, 110); g.quadraticCurveTo(256, 60, 382, 110); g.lineTo(404, 236); g.closePath(); pbFill(g, pbLin(g, 0, 90, 0, 236, [[0, '#8A4A1A'], [1, '#4A2208']]));
+      g.fillStyle = '#FFD23F'; for (let k = 0; k < 22; k++) { const x = 140 + (k * 37) % 230, y = 250 - (k % 4) * 18; pbCircle(g, x, y, 24); g.fill(); g.stroke(); }
+      for (const [x, y, c] of [[190, 206, '#2EE6D6'], [300, 200, '#E8322E'], [250, 186, '#3AA8FF']]) { pbPoly(g, [[x, y - 26], [x + 22, y], [x, y + 26], [x - 22, y]]); pbFill(g, c); }
+      g.beginPath(); g.rect(96, 260, 320, 190); pbFill(g, pbLin(g, 0, 260, 0, 450, [[0, '#A85A22'], [1, '#5A2A0A']]));
+      g.fillStyle = '#E8B040'; for (const x of [96, 236, 376]) { g.fillRect(x, 260, 40, 190); g.strokeRect(x, 260, 40, 190); }
+      g.beginPath(); g.roundRect(226, 300, 60, 70, 10); pbFill(g, '#FFD23F'); pbCircle(g, 256, 330, 10); pbFill(g, '#0E1116', false);
+      g.fillStyle = '#FFFFFF'; for (const [x, y] of [[150, 170], [370, 150], [256, 120]]) { pbPoly(g, [[x, y - 18], [x + 5, y - 5], [x + 18, y], [x + 5, y + 5], [x, y + 18], [x - 5, y + 5], [x - 18, y], [x - 5, y - 5]]); g.fill(); }
+    },
+    (g) => {                                             // a yellow submarine of our own, and its bubbles
+      pbInk(g, 11);
+      g.beginPath(); g.roundRect(186, 110, 130, 110, 30); pbFill(g, pbLin(g, 0, 110, 0, 220, [[0, '#FFE87A'], [1, '#D8A020']]));
+      g.beginPath(); g.moveTo(262, 110); g.lineTo(262, 50); g.lineTo(300, 50); g.stroke();
+      g.beginPath(); g.ellipse(250, 290, 210, 100, 0, 0, Math.PI * 2); pbFill(g, pbLin(g, 0, 190, 0, 390, [[0, '#FFF0A0'], [0.5, '#FFD23F'], [1, '#B87A10']]));
+      g.beginPath(); g.moveTo(44, 290); g.lineTo(10, 230); g.lineTo(10, 350); g.closePath(); pbFill(g, '#E8322E');
+      for (let k = 0; k < 3; k++) { pbCircle(g, 170 + k * 80, 290, 30); pbFill(g, '#D8A020'); pbCircle(g, 170 + k * 80, 290, 20); pbFill(g, pbRad(g, 170 + k * 80, 290, 2, 20, [[0, '#BFFFF6'], [1, '#1A6A6A']], 164 + k * 80, 284)); }
+      g.strokeStyle = 'rgba(191,255,246,0.9)'; g.lineWidth = 5; for (const [x, y, s] of [[470, 200, 18], [440, 140, 12], [480, 90, 22], [446, 40, 10]]) { pbCircle(g, x, y, s); g.stroke(); }
+      g.fillStyle = '#E8322E'; g.fillRect(90, 380, 320, 10);
+    },
+    (g) => {                                             // a jellyfish, glowing
+      g.lineCap = 'round';
+      for (let k = 0; k < 7; k++) {
+        const x = 150 + k * 36; g.strokeStyle = k % 2 ? 'rgba(255,120,200,0.95)' : 'rgba(120,255,240,0.95)'; g.lineWidth = 12;
+        g.beginPath(); g.moveTo(x, 250); for (let y = 250; y < 490; y += 20) g.lineTo(x + Math.sin(y / 30 + k) * 18, y); g.stroke();
+      }
+      pbInk(g, 11);
+      g.beginPath(); g.moveTo(80, 260); g.bezierCurveTo(80, 40, 432, 40, 432, 260);
+      for (let k = 0; k < 8; k++) g.quadraticCurveTo(432 - (k + 0.5) * 44, 300, 432 - (k + 1) * 44, 260);
+      g.closePath(); pbFill(g, pbRad(g, 256, 160, 20, 220, [[0, '#FFE6F6'], [0.45, '#FF7ACB'], [1, '#8A2A9A']], 210, 110));
+      g.fillStyle = 'rgba(255,255,255,0.5)'; for (const [x, y, s] of [[190, 120, 20], [250, 100, 12], [320, 150, 16]]) { pbCircle(g, x, y, s); g.fill(); }
+      g.strokeStyle = 'rgba(255,255,255,0.5)'; g.lineWidth = 5; g.beginPath(); g.moveTo(130, 230); g.bezierCurveTo(160, 120, 350, 120, 380, 230); g.stroke();
+    },
+  ],
+};
+
+// ---- GOLDEN: a 1970s table, its art our own big top ----
+PB.golden = {
+  env: { stops: [[0, '#0A0502'], [0.32, '#3A1E0A'], [0.46, '#FFD890'], [0.5, '#FFFFFF'], [0.55, '#C8401A'], [0.72, '#2A1206'], [1, '#050201']], lights: 120,
+         cols: ['#FFD890', '#FFB040', '#FF5A2A', '#FFFFFF', '#FFE6B0'] },
+  fog: [0x160C06, 55, 280], hemi: [0xFFD8A0, 0x2A1208, 0.8], sun: [0xFFE2B8, 1.7], haze: [0xFFB860, 3],
+  gi: 0xFFD49A, ins: [0xFF3A2A, 0xFFB43A, 0x3ADC6A, 0x4A9AFF, 0xFFF0D0, 0xFF6A2A],
+  rubber: 0xF8F4EA, post: 0xE8E0D0, postCap: 0xFFB43A, flipper: { bat: 0xFBF6EC, rubber: 0xD8231C },
+  sling: { top: 0xD8231C, glow: 0xFFC870 }, wallCol: 0x3A200E, guide: 0xC89A5A, capCol: 0xE8D8B8, apron: 0x2A0E08,
+  bumper: 'mushroom', ramps: 'orbit', acrylic: 'rgba(255,248,230,0.8)',
+  sky(g) {
+    g.fillStyle = pbLin(g, 0, 0, 0, 512, [[0, '#050201'], [0.5, '#1E0E06'], [0.74, '#5A2A10'], [0.8, '#FFC878'], [0.86, '#2A1006'], [1, '#050201']]);
+    g.fillRect(0, 0, 512, 512);
+    const r = seeded(13);                              // a fairground at night beyond the glass: strings of bulbs, out of focus
+    for (let s = 0; s < 5; s++) {
+      const y0 = 280 + s * 36;
+      for (let x = 0; x < 512; x += 14) { const y = y0 + Math.sin(x / 80 + s) * 16, rr = 5 + r() * 5; g.fillStyle = pbRad(g, x, y, 0, rr, [[0, 'rgba(255,220,150,0.8)'], [1, 'rgba(255,160,60,0)']]); g.fillRect(x - rr, y - rr, rr * 2, rr * 2); }
+    }
+  },
+  floor(g, r) {                                          // warm gold, the print's red and black flourishes, stars and halftone
+    const S = 1024;
+    g.fillStyle = '#6E3C14'; g.fillRect(0, 0, S, S);
+    for (let i = 0; i < 14; i++) pbWrap(S, r() * S, r() * S, 280, (x, y) => { g.fillStyle = pbRad(g, x, y, 0, 280, [[0, 'rgba(255,190,110,0.2)'], [1, 'rgba(255,190,110,0)']]); g.fillRect(x - 280, y - 280, 560, 560); });
+    for (let i = 0; i < 22; i++) {                    // flourishes: swirls of red with a black shadow line
+      const x = r() * S, y = r() * S, rr = 40 + r() * 70, a0 = r() * 6;
+      pbWrap(S, x, y, rr * 2.2, (cx, cy) => {
+        for (const [c, w, o] of [['rgba(30,10,4,0.55)', 13, 4], ['rgba(200,40,24,0.8)', 9, 0]]) {
+          g.strokeStyle = c; g.lineWidth = w; g.lineCap = 'round'; g.beginPath();
+          for (let t = 0; t < 1; t += 0.02) { const a = a0 + t * 9, rr2 = rr * (1.9 - t * 1.6); g.lineTo(cx + o + Math.cos(a) * rr2, cy + o + Math.sin(a) * rr2); }
+          g.stroke();
+        }
+      });
+    }
+    for (let i = 0; i < 40; i++) { const x = r() * S, y = r() * S, s = 7 + r() * 14; pbWrap(S, x, y, s, (cx, cy) => star(g, cx, cy, s, s * 0.42, r() < 0.5 ? 'rgba(255,248,220,0.85)' : 'rgba(210,40,24,0.8)')); }
+    for (let i = 0; i < 6; i++) { const x = r() * 800, y = r() * 800; pbDots(g, x, y, 220, 160, 'rgba(90,20,6,0.25)', 14, r() < 0.5, 5.5); }
+  },
+  decals: [
+    (g) => {                                             // a sunburst of red and gold round a medallion
+      g.save(); pbCircle(g, 512, 512, 480); g.clip();
+      pbRays(g, 512, 512, 36, 0, 520, ['#D8231C', '#FFC84A']);
+      g.restore();
+      g.strokeStyle = '#1A0804'; g.lineWidth = 12; pbCircle(g, 512, 512, 480); g.stroke();
+      pbInk(g, 12); pbCircle(g, 512, 512, 190); pbFill(g, pbRad(g, 512, 512, 10, 190, [[0, '#FFF6DC'], [1, '#E8B060']], 470, 460));
+      star(g, 512, 520, 150, 62, '#D8231C'); pbInk(g, 8); g.stroke();
+    },
+    (g) => {                                             // a ribbon: SPECIAL WHEN LIT
+      pbInk(g, 12);
+      for (const s of [-1, 1]) { pbPoly(g, [[512 + s * 380, 470], [512 + s * 500, 470], [512 + s * 450, 540], [512 + s * 500, 610], [512 + s * 380, 610]]); pbFill(g, '#9A160E'); }
+      g.beginPath(); g.moveTo(130, 430); g.quadraticCurveTo(512, 360, 894, 430); g.lineTo(894, 590); g.quadraticCurveTo(512, 520, 130, 590); g.closePath(); pbFill(g, pbLin(g, 0, 380, 0, 600, [[0, '#FF4A30'], [1, '#B81A10']]));
+      g.save(); g.translate(512, 488); g.scale(1, 0.95); pbWord(g, 'SPECIAL WHEN LIT', 0, 0, 74, '#FFE6A0', '#3A0A04', 0.14); g.restore();
+      for (const x of [300, 512, 724]) star(g, x, 690, 46, 19, '#FFF0C8');
+      for (const x of [300, 512, 724]) star(g, x, 300, 30, 12, '#D8231C');
+    },
+    (g) => {                                             // the big top seen from above: red and cream canvas round its king pole
+      pbRays(g, 512, 512, 20, 30, 470, ['#C81E14', '#FFF2D8']);
+      g.strokeStyle = '#1A0804'; g.lineWidth = 14; pbCircle(g, 512, 512, 470); g.stroke();
+      for (let k = 0; k < 20; k++) { const a = k / 20 * Math.PI * 2; g.fillStyle = '#FFC84A'; pbCircle(g, 512 + Math.cos(a) * 470, 512 + Math.sin(a) * 470, 18); g.fill(); g.lineWidth = 5; g.stroke(); }
+      pbInk(g, 10); pbCircle(g, 512, 512, 60); pbFill(g, '#FFC84A');
+      g.strokeStyle = 'rgba(26,8,4,0.5)'; g.lineWidth = 4; for (let k = 0; k < 20; k++) { const a = k / 20 * Math.PI * 2; g.beginPath(); g.moveTo(512 + Math.cos(a) * 60, 512 + Math.sin(a) * 60); g.lineTo(512 + Math.cos(a) * 470, 512 + Math.sin(a) * 470); g.stroke(); }
+    },
+    (g) => {                                             // 1000 WHEN LIT, in a ring of stars
+      for (let k = 0; k < 14; k++) { const a = k / 14 * Math.PI * 2; star(g, 512 + Math.cos(a) * 400, 512 + Math.sin(a) * 400, 40, 16, k % 2 ? '#FFF0C8' : '#D8231C'); }
+      pbInk(g, 12); pbCircle(g, 512, 512, 300); pbFill(g, pbRad(g, 512, 512, 20, 300, [[0, '#2A3A8A'], [1, '#101A4A']]));
+      g.strokeStyle = '#FFC84A'; g.lineWidth = 10; pbCircle(g, 512, 512, 270); g.stroke();
+      pbWord(g, '1000', 512, 490, 190, '#FFD84A', '#1A0804', 0.1);
+      pbWord(g, 'WHEN LIT', 512, 640, 64, '#FFF0C8', null);
+    },
+  ],
+  figs: [
+    (g) => {                                             // the strongman
+      pbInk(g, 11);
+      g.lineWidth = 16; g.beginPath(); g.moveTo(40, 96); g.lineTo(472, 96); g.stroke();
+      for (const x of [58, 454]) { pbInk(g, 10); pbCircle(g, x, 96, 56); pbFill(g, pbRad(g, x, 96, 4, 56, [[0, '#4A4A4A'], [1, '#0E0E0E']], x - 18, 76)); g.fillStyle = '#FFF0C8'; g.font = `900 30px ${PB_FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('1000', x, 98); }
+      pbInk(g, 11);
+      for (const s of [-1, 1]) { g.beginPath(); g.moveTo(256 + s * 70, 250); g.quadraticCurveTo(256 + s * 150, 200, 256 + s * 150, 104); g.lineWidth = 52; g.strokeStyle = '#0E1116'; g.stroke(); g.lineWidth = 38; g.strokeStyle = '#F2B48A'; g.stroke(); }
+      pbInk(g, 11);
+      g.beginPath(); g.moveTo(170, 250); g.quadraticCurveTo(256, 226, 342, 250); g.lineTo(320, 470); g.lineTo(192, 470); g.closePath(); pbFill(g, '#F2B48A');
+      g.save(); g.beginPath(); g.moveTo(186, 300); g.lineTo(326, 300); g.lineTo(318, 470); g.lineTo(194, 470); g.closePath(); g.clip();
+      for (let k = 0; k < 8; k++) { g.fillStyle = k % 2 ? '#FFF2D8' : '#C81E14'; g.fillRect(180, 300 + k * 22, 150, 22); }
+      g.restore(); g.beginPath(); g.moveTo(186, 300); g.lineTo(326, 300); g.lineTo(318, 470); g.lineTo(194, 470); g.closePath(); g.stroke();
+      g.beginPath(); g.rect(190, 420, 132, 26); pbFill(g, '#1A1A1A'); g.fillStyle = '#FFC84A'; g.fillRect(244, 424, 24, 18);
+      pbCircle(g, 256, 200, 56); pbFill(g, pbRad(g, 256, 200, 4, 60, [[0, '#FFD6B4'], [1, '#D8906A']], 240, 180));
+      g.fillStyle = '#1A0E08'; g.beginPath(); g.moveTo(208, 226); g.quadraticCurveTo(256, 196, 304, 226); g.quadraticCurveTo(320, 214, 322, 196); g.quadraticCurveTo(300, 240, 256, 218); g.quadraticCurveTo(212, 240, 190, 196); g.quadraticCurveTo(192, 214, 208, 226); g.fill();
+      for (const s of [-1, 1]) { g.fillStyle = '#0E1116'; pbCircle(g, 256 + s * 20, 188, 7); g.fill(); }
+      g.fillStyle = '#1A0E08'; g.beginPath(); g.arc(256, 176, 56, Math.PI * 1.08, Math.PI * 1.92); g.lineTo(256, 160); g.closePath(); g.fill();
+    },
+    (g) => {                                             // a lion, friendly
+      pbInk(g, 10);
+      g.beginPath(); for (let k = 0; k < 28; k++) { const a = k / 28 * Math.PI * 2, rr = k % 2 ? 170 : 222; g.lineTo(256 + Math.cos(a) * rr, 262 + Math.sin(a) * rr); } g.closePath();
+      pbFill(g, pbRad(g, 256, 262, 60, 222, [[0, '#FFB030'], [0.6, '#E8701A'], [1, '#A83A0A']]));
+      g.beginPath(); for (let k = 0; k < 20; k++) { const a = k / 20 * Math.PI * 2 + 0.16, rr = k % 2 ? 140 : 176; g.lineTo(256 + Math.cos(a) * rr, 262 + Math.sin(a) * rr); } g.closePath(); pbFill(g, '#D85A14');
+      for (const s of [-1, 1]) { pbCircle(g, 256 + s * 92, 158, 30); pbFill(g, '#FFC878'); }
+      pbCircle(g, 256, 270, 122); pbFill(g, pbRad(g, 256, 270, 10, 122, [[0, '#FFE8B0'], [1, '#F2B460']], 236, 236));
+      g.beginPath(); g.ellipse(256, 322, 62, 48, 0, 0, Math.PI * 2); pbFill(g, '#FFF6E0');
+      pbPoly(g, [[232, 290], [280, 290], [256, 318]]); pbFill(g, '#5A2A1A');
+      g.beginPath(); g.moveTo(256, 318); g.lineTo(256, 338); g.moveTo(226, 346); g.quadraticCurveTo(256, 364, 286, 346); g.stroke();
+      for (const s of [-1, 1]) { pbInk(g, 8); pbEll(g, 256 + s * 46, 244, 20, 26); pbFill(g, '#FFFFFF'); g.fillStyle = '#1A2A5A'; pbCircle(g, 256 + s * 42, 250, 12); g.fill(); g.fillStyle = '#FFFFFF'; pbCircle(g, 256 + s * 38, 244, 4); g.fill(); }
+      g.strokeStyle = '#5A2A1A'; g.lineWidth = 4; for (const s of [-1, 1]) for (let k = 0; k < 3; k++) { g.beginPath(); g.moveTo(256 + s * 40, 320 + k * 10); g.lineTo(256 + s * 96, 308 + k * 16); g.stroke(); }
+    },
+    (g) => {                                             // the ringmaster's hat and cane, and stars
+      pbInk(g, 12);
+      g.lineWidth = 26; g.strokeStyle = '#0E1116'; g.beginPath(); g.moveTo(90, 460); g.lineTo(420, 110); g.stroke();
+      g.lineWidth = 14; g.strokeStyle = '#FFF2D8'; g.beginPath(); g.moveTo(90, 460); g.lineTo(420, 110); g.stroke();
+      pbInk(g, 10); pbCircle(g, 424, 104, 22); pbFill(g, '#FFC84A');
+      pbInk(g, 12);
+      g.beginPath(); g.ellipse(250, 380, 190, 44, -0.08, 0, Math.PI * 2); pbFill(g, '#1A1A22');
+      g.beginPath(); g.moveTo(152, 380); g.lineTo(168, 110); g.quadraticCurveTo(250, 80, 332, 110); g.lineTo(348, 380); g.closePath(); pbFill(g, pbLin(g, 150, 0, 350, 0, [[0, '#2A2A36'], [0.35, '#5A5A6A'], [0.55, '#2A2A34'], [1, '#0E0E14']]));
+      g.beginPath(); g.moveTo(156, 316); g.lineTo(344, 316); g.lineTo(346, 360); g.lineTo(154, 360); g.closePath(); pbFill(g, '#C81E14');
+      star(g, 250, 214, 58, 24, '#FFC84A'); g.lineWidth = 6; g.stroke();
+      for (const [x, y, s] of [[70, 110, 34], [440, 300, 30], [110, 290, 22]]) { star(g, x, y, s, s * 0.42, '#FFF0C8'); pbInk(g, 6); g.stroke(); }
+    },
+    (g) => {                                             // a hot-air balloon, striped
+      pbInk(g, 11);
+      g.beginPath(); g.moveTo(206, 420); g.lineTo(180, 332); g.moveTo(306, 420); g.lineTo(332, 332); g.stroke();
+      g.beginPath(); g.roundRect(196, 410, 120, 70, 14); pbFill(g, pbLin(g, 0, 410, 0, 480, [[0, '#C8864A'], [1, '#6A3A14']]));
+      g.strokeStyle = 'rgba(26,8,4,0.6)'; g.lineWidth = 4; for (let k = 0; k < 4; k++) { g.beginPath(); g.moveTo(206 + k * 34, 414); g.lineTo(206 + k * 34, 476); g.stroke(); }
+      pbInk(g, 11);
+      const shape = () => { g.beginPath(); g.moveTo(256, 30); g.bezierCurveTo(430, 30, 440, 220, 330, 330); g.lineTo(182, 330); g.bezierCurveTo(72, 220, 82, 30, 256, 30); g.closePath(); };
+      shape(); g.save(); g.clip();
+      for (let k = 0; k < 8; k++) { g.fillStyle = k % 2 ? '#FFF2D8' : '#D8231C'; g.beginPath(); g.moveTo(256, 30); g.bezierCurveTo(256 + (k - 4) * 60, 60, 256 + (k - 4) * 60, 250, 256 + (k - 4) * 18, 330); g.lineTo(256 + (k - 3) * 18, 330); g.bezierCurveTo(256 + (k - 3) * 60, 250, 256 + (k - 3) * 60, 60, 256, 30); g.fill(); }
+      g.fillStyle = 'rgba(255,200,74,0.9)'; g.fillRect(60, 250, 400, 30);
+      g.fillStyle = pbRad(g, 180, 110, 0, 200, [[0, 'rgba(255,255,255,0.4)'], [1, 'rgba(0,0,0,0.25)']]); g.fillRect(0, 0, 512, 400);
+      g.restore(); shape(); g.stroke();
+    },
+    (g) => {                                             // an elephant balancing on a ball
+      pbInk(g, 11);
+      pbCircle(g, 256, 390, 96); pbFill(g, '#FFF2D8');
+      g.save(); pbCircle(g, 256, 390, 96); g.clip(); for (let k = 0; k < 6; k++) { g.fillStyle = ['#D8231C', '#FFC84A', '#3A7AE8'][k % 3]; g.beginPath(); g.ellipse(256, 390, 96 - k * 2, 30 + k * 16, 0, 0, Math.PI * 2); g.lineWidth = 16; g.strokeStyle = g.fillStyle; g.stroke(); } g.restore();
+      pbInk(g, 11); pbCircle(g, 256, 390, 96); g.stroke();
+      for (const x of [206, 300]) { g.beginPath(); g.roundRect(x - 22, 250, 44, 60, 12); pbFill(g, '#9AA0AE'); }
+      g.beginPath(); g.ellipse(256, 222, 118, 84, 0, 0, Math.PI * 2); pbFill(g, pbRad(g, 256, 222, 10, 130, [[0, '#C8CED8'], [1, '#7A8290']], 230, 190));
+      g.beginPath(); g.moveTo(140, 190); g.bezierCurveTo(60, 120, 40, 40, 100, 40); g.stroke();
+      g.beginPath(); g.ellipse(360, 150, 64, 60, 0, 0, Math.PI * 2); pbFill(g, pbRad(g, 360, 150, 6, 70, [[0, '#D8DEE6'], [1, '#8A92A0']], 344, 130));
+      g.beginPath(); g.ellipse(318, 150, 44, 66, 0.2, 0, Math.PI * 2); pbFill(g, pbLin(g, 280, 0, 350, 0, [[0, '#FFB0C0'], [1, '#9AA0AE']]));
+      g.lineWidth = 36; g.strokeStyle = '#0E1116'; g.beginPath(); g.moveTo(410, 170); g.quadraticCurveTo(470, 150, 460, 60); g.stroke();
+      g.lineWidth = 24; g.strokeStyle = '#A8B0BC'; g.beginPath(); g.moveTo(410, 170); g.quadraticCurveTo(470, 150, 460, 60); g.stroke();
+      pbInk(g, 8); pbCircle(g, 374, 132, 9); pbFill(g, '#0E1116', false);
+      g.beginPath(); g.moveTo(210, 146); g.lineTo(256, 96); g.lineTo(302, 146); g.closePath(); pbFill(g, '#D8231C'); star(g, 256, 90, 18, 8, '#FFC84A');
+    },
+    (g) => {                                             // the circus cannon, firing a star
+      for (let k = 0; k < 10; k++) { const a = -0.9 + k * 0.2; g.strokeStyle = k % 2 ? '#FFC84A' : '#FF5A2A'; g.lineWidth = 12; g.beginPath(); g.moveTo(380 + Math.cos(a) * 40, 120 + Math.sin(a) * 40); g.lineTo(380 + Math.cos(a) * 120, 120 + Math.sin(a) * 120); g.stroke(); }
+      star(g, 380, 120, 70, 30, '#FFF0C8'); pbInk(g, 8); g.stroke();
+      pbInk(g, 12);
+      g.save(); g.translate(230, 330); g.rotate(-0.72);
+      g.beginPath(); g.moveTo(-150, -58); g.lineTo(150, -44); g.lineTo(150, 44); g.lineTo(-150, 58); g.closePath(); pbFill(g, pbLin(g, 0, -58, 0, 58, [[0, '#FF6A4A'], [0.45, '#D8231C'], [1, '#7A0A06']]));
+      for (const x of [-100, 0, 100]) { g.beginPath(); g.rect(x - 12, -60, 24, 120); pbFill(g, '#FFC84A'); }
+      g.beginPath(); g.ellipse(150, 0, 14, 46, 0, 0, Math.PI * 2); pbFill(g, '#1A0804');
+      g.restore();
+      for (const x of [150, 300]) { pbCircle(g, x, 420, 56); pbFill(g, '#FFC84A'); pbCircle(g, x, 420, 16); pbFill(g, '#7A0A06'); for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2; g.beginPath(); g.moveTo(x, 420); g.lineTo(x + Math.cos(a) * 52, 420 + Math.sin(a) * 52); g.stroke(); } }
+    },
+  ],
+};
+
+/* A LOOK'S KIT: its textures and materials, made the first time the look is
+   shown and kept from course to course (userData.keep), since the playfield's
+   paint and the cut-outs' art take a moment to draw. */
+const pbKits = {};
+function pbKit(look) {
+  if (pbKits[look]) return pbKits[look];
+  const L = PB[look], env = pbEnvMap(look) || envTex, keep = (m) => { m.userData.keep = true; return m; };
+  const floorT = canvasTex(1024, 1024, (g) => L.floor(g, seeded(31)), true);
+  floorT.anisotropy = 8;
+  const decalT = canvasTex(2048, 2048, (g) => L.decals.forEach((d, i) => { g.save(); g.translate((i % 2) * 1024, Math.floor(i / 2) * 1024); d(g); g.restore(); }));
+  // The cut-outs: each figure drawn alone, then set in clear acrylic a little bigger than it (a margin you can see the light in).
+  const figT = canvasTex(2048, 1024, (g) => L.figs.forEach((f, i) => {
+    const one = document.createElement('canvas'); one.width = one.height = 512; f(one.getContext('2d'));
+    const edge = document.createElement('canvas'); edge.width = edge.height = 512; const eg = edge.getContext('2d');
+    for (let k = 0; k < 20; k++) { const a = k / 20 * Math.PI * 2; eg.drawImage(one, Math.cos(a) * 12, Math.sin(a) * 12); }
+    eg.globalCompositeOperation = 'source-in'; eg.fillStyle = L.acrylic; eg.fillRect(0, 0, 512, 512);
+    const ox = (i % 4) * 512, oy = Math.floor(i / 4) * 512;
+    g.save(); g.translate(ox + 20, oy + 20); g.scale(472 / 512, 472 / 512); g.drawImage(edge, 0, 0); g.drawImage(one, 0, 0); g.restore();
+  }));
+  const std = (o) => keep(hazed(new MeshStandardMaterial(o)));
+  const K = {
+    env,
+    floor: std({ map: floorT, roughness: 0.3, metalness: 0.2, envMap: env, envMapIntensity: 0.6 }),
+    decal: std({ map: decalT, transparent: true, depthWrite: false, roughness: 0.3, metalness: 0.15, envMap: env, envMapIntensity: 0.5,
+                 polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }),
+    figs: keep(new MeshStandardMaterial({ map: figT, alphaTest: 0.4, side: DoubleSide, roughness: 0.3, metalness: 0.05,
+                                          emissive: 0xFFFFFF, emissiveMap: figT, emissiveIntensity: 0.32, envMap: env, envMapIntensity: 0.3 })),
+    metal: std({ vertexColors: true, metalness: 1, roughness: 0.14, envMap: env, envMapIntensity: 1.3 }),
+    paint: std({ vertexColors: true, metalness: 0.15, roughness: 0.42, envMap: env, envMapIntensity: 0.5 }),
+    glow: keep(hazed(new MeshBasicMaterial({ vertexColors: true, toneMapped: false }))),
+    ball: keep(new MeshStandardMaterial({ color: 0xFFFFFF, metalness: 1, roughness: 0.05, envMap: env, envMapIntensity: 1.4 })),
+    lit: keep(pbLit(new MeshStandardMaterial({ color: 0xFFFFFF, vertexColors: true, roughness: 0.3, metalness: 0.1, emissive: 0xFFFFFF, emissiveIntensity: 0.9,
+                                               envMap: env, envMapIntensity: 0.4 }), look + '-lit')),
+    flash: keep(new MeshBasicMaterial({ color: 0xFFFFFF, toneMapped: false })),
+    halo: keep(new MeshBasicMaterial({ map: pbGlow(), transparent: true, blending: AdditiveBlending, depthWrite: false, toneMapped: false })),
+    giGlow: keep(new PointsMaterial({ size: 2.4, map: pbGlow(), vertexColors: true, transparent: true, blending: AdditiveBlending, depthWrite: false, toneMapped: false })),
+    ins: {},
+  };
+  const insT = pbInsertTex();
+  for (const k of Object.keys(insT)) K.ins[k] = keep(new MeshBasicMaterial({ map: insT[k], alphaTest: 0.5, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8 }));
+  // A bumper's lit part (its body and cap) takes one texture across its turned profile: u runs round it, v up the profile.
+  const B = pbBumperShape(L.bumper);
+  K.bumperTex = canvasTex(256, 256, B.paint);
+  K.bumperLit = keep(pbLit(new MeshStandardMaterial({ map: K.bumperTex, roughness: 0.25, metalness: 0.05, emissive: 0xFFFFFF, emissiveMap: K.bumperTex,
+                                                      emissiveIntensity: 0.75, envMap: env, envMapIntensity: 0.5 }), look + '-bumper'));
+  K.bumperShape = B;
+  return (pbKits[look] = K);
+}
+/* THE BUMPERS, one shape to each look, turned on a lathe: a dark or chrome
+   base and skirt (metal) and the part that lights (body and cap). The lit
+   part's texture is painted by position on the profile: v below `capAt` is
+   the body, above it the cap, drawn from the rim in to the middle, so a star
+   can be drawn by angle (u) and radius. */
+function pbBumperShape(kind) {
+  const V = (x, y) => new Vector2(x, y);
+  const lobes = (u, n) => 0.5 + 0.5 * Math.cos(u * Math.PI * 2 * n);   // a star's points round the cap
+  // Paint the lit part by where each row of the texture falls on the profile (a lathe's v steps one point at a time):
+  // 'body' up to the cap, 'under' beneath the cap's brim, 'top' from the rim in to the middle (rf, 1 at the rim, 0 in the middle).
+  const painter = (lit, bodyEnd, fn) => (g) => {
+    const n = lit.length, rim = lit.reduce((bi, p, i) => (p.x > lit[bi].x ? i : bi), 0), img = g.createImageData(256, 256), c = new Color();
+    for (let y = 0; y < 256; y++) {
+      const v = 1 - y / 255, f = v * (n - 1), i = Math.min(n - 2, Math.floor(f)), k = f - i;
+      const x = lit[i].x + (lit[i + 1].x - lit[i].x) * k, h = (lit[i].y + (lit[i + 1].y - lit[i].y) * k) / lit[n - 1].y;
+      const reg = f >= rim ? 'top' : f >= bodyEnd ? 'under' : 'body', rf = x / lit[rim].x;
+      for (let xx = 0; xx < 256; xx++) {
+        fn(xx / 255, reg, rf, h, c);
+        const o = (y * 256 + xx) * 4; img.data[o] = c.r * 255; img.data[o + 1] = c.g * 255; img.data[o + 2] = c.b * 255; img.data[o + 3] = 255;
+      }
+    }
+    g.putImageData(img, 0, 0);
+  };
+  if (kind === 'dome') {                                 // the chrome machine: a glass dome lit orange from within, on a chrome ring
+    const lit = [V(2.85, 0.95), V(2.8, 1.5), V(2.6, 2.4), V(2.2, 3.2), V(1.5, 3.8), V(0.7, 4.1), V(0.01, 4.2)];
+    return { r: 3.1, h: 4.2, lit, metal: [V(0.01, 0), V(3.3, 0), V(3.5, 0.35), V(3.3, 0.9), V(2.9, 1.05), V(2.8, 1.0)],
+      paint: painter(lit, 0, (u, reg, rf, h, c) => { const k = Math.pow(1 - rf, 1.3); c.setRGB(1, 0.45 + 0.5 * k, 0.12 + 0.75 * k * k); if (rf > 0.93) c.setRGB(0.55, 0.75, 1); else if (rf > 0.9) c.multiplyScalar(0.55); }) };   // hot white at the crown, a ring of blue glass at its foot
+  }
+  if (kind === 'mushroom') {                             // the golden table: a cream stem lit warm, a big red cap with a gold star, a cream rim
+    const lit = [V(1.85, 0.9), V(1.8, 2.6), V(2.4, 2.9), V(3.8, 3.2), V(3.95, 3.6), V(3.6, 4.2), V(2.6, 4.7), V(1.3, 4.95), V(0.01, 5.02)];
+    return { r: 3.9, h: 5.0, lit, metal: [V(0.01, 0), V(2.9, 0), V(3.0, 0.25), V(2.2, 0.55), V(3.3, 0.8), V(3.35, 0.95), V(1.9, 0.95)],
+      paint: painter(lit, 1, (u, reg, rf, h, c) => {
+        if (reg === 'body') { c.setRGB(1, 0.84, 0.58); return; }
+        if (reg === 'under') { c.setRGB(0.55, 0.08, 0.05); return; }
+        if (rf > 0.9) { c.setRGB(0.98, 0.92, 0.78); return; }
+        if (rf > 0.84) { c.setRGB(0.12, 0.04, 0.02); return; }
+        c.setRGB(0.86, 0.12, 0.08);
+        if (rf < 0.2 + 0.55 * Math.pow(lobes(u, 5), 3)) c.setRGB(1, 0.8, 0.22);
+        if (rf < 0.12) c.setRGB(0.98, 0.92, 0.78);
+      }) };
+  }
+  const lit = [V(2.05, 1.0), V(2.05, 3.3), V(3.3, 3.4), V(3.35, 3.95), V(2.8, 4.25), V(1.4, 4.4), V(0.01, 4.42)];
+  return {                                                // a pop bumper, as a real table has: a coloured body lit from within, a white cap with a star
+    r: 3.3, h: 4.4, lit, metal: [V(0.01, 0), V(3.1, 0), V(3.2, 0.4), V(1.9, 0.62), V(3.35, 0.9), V(3.4, 1.05), V(2.05, 1.05)],
+    paint: painter(lit, 1, (u, reg, rf, h, c) => {
+      if (reg === 'body') { const rib = Math.abs(Math.sin(u * Math.PI * 24)) > 0.85 ? 0.7 : 1; c.setRGB(0.1 * rib, (0.75 + 0.2 * h) * rib, (0.7 + 0.2 * h) * rib); return; }
+      if (reg === 'under') { c.setRGB(0.9, 0.9, 0.88); return; }
+      if (rf > 0.88) { c.setRGB(0.96, 0.96, 0.94); return; }
+      c.setRGB(0.97, 0.95, 0.9);
+      if (rf < 0.16 + 0.6 * Math.pow(lobes(u, 6), 2.4)) c.setRGB(1, 0.42, 0.12);
+      if (rf < 0.14) c.setRGB(1, 0.85, 0.2);
+    }),
+  };
+}
+/* THE COURSE IN EACH LOOK: a pinball ramp's own materials, the edge light the
+   Tokyo rail uses (edgeGlow) in the look's colour. Pads, magnets and the
+   colour lanes keep the colours that say what they are. */
+const pbRails = {}, loopTopsPB = {};
+const keepMat = (m) => { m.userData.keep = true; return m; };
+function pbCourseMats(look) {
+  if (pbRails[look]) return pbRails[look];
+  const r = seeded(51), env = pbEnvMap(look) || envTex;
+  let deck, topO, edge, sideO, lipCol;
+  if (look === 'chrome') {                               // blue glass, lit from beneath, fine ribs across it
+    deck = canvasTex(256, 256, (g) => {
+      g.fillStyle = pbLin(g, 0, 0, 256, 0, [[0, '#6AAAE8'], [0.5, '#A2D4FA'], [1, '#6AAAE8']]); g.fillRect(0, 0, 256, 256);
+      g.fillStyle = 'rgba(210,240,255,0.22)'; for (let y = 0; y < 256; y += 16) g.fillRect(0, y, 256, 2);
+      g.fillStyle = 'rgba(10,30,70,0.22)'; for (let y = 8; y < 256; y += 16) g.fillRect(0, y, 256, 1);
+    }, true);
+    topO = { map: deck, roughness: 0.12, metalness: 0.3, envMap: env, envMapIntensity: 0.9, emissive: 0x4A96E4, emissiveIntensity: 0.9 };
+    edge = 0x9FF2FF; sideO = { color: 0xE4EEF8, metalness: 1, roughness: 0.15, envMap: env, envMapIntensity: 1.2 }; lipCol = '#BFF6FF';
+  } else if (look === 'arcade') {                        // brushed steel, as a ramp's metal flap is
+    deck = canvasTex(256, 256, (g) => {
+      g.fillStyle = '#E4E9EC'; g.fillRect(0, 0, 256, 256);
+      for (let i = 0; i < 700; i++) { g.fillStyle = r() < 0.5 ? 'rgba(255,255,255,0.18)' : 'rgba(60,70,80,0.1)'; g.fillRect(r() * 256, r() * 256, 30 + r() * 140, 1 + r() * 1.2); }   // brushed across
+      g.fillStyle = 'rgba(30,36,42,0.35)'; g.fillRect(0, 0, 256, 2);
+    }, true);
+    topO = { map: deck, roughness: 0.36, metalness: 0.45, envMap: env, envMapIntensity: 0.8, emissive: 0x5A5E62, emissiveIntensity: 0.9 };
+    edge = 0xFF8A40; sideO = { color: 0x2A3038, metalness: 0.7, roughness: 0.3, envMap: env, envMapIntensity: 0.8 }; lipCol = '#FFB070';
+  } else {                                               // ivory lacquer on wood, a red pinstripe, as an old table's lane guides
+    deck = canvasTex(256, 256, (g) => {
+      g.fillStyle = '#F4EAD2'; g.fillRect(0, 0, 256, 256);
+      for (let i = 0; i < 60; i++) { g.strokeStyle = `rgba(170,130,80,${0.05 + r() * 0.08})`; g.lineWidth = 1 + r() * 2; g.beginPath(); const x = r() * 256; g.moveTo(x, 0); g.bezierCurveTo(x + 10, 80, x - 10, 170, x + 4, 256); g.stroke(); }
+      g.fillStyle = 'rgba(200,40,24,0.45)'; g.fillRect(0, 126, 256, 3);
+    }, true);
+    topO = { map: deck, roughness: 0.28, metalness: 0.05, envMap: env, envMapIntensity: 0.5, emissive: 0x4A3E2E, emissiveIntensity: 0.8 };
+    edge = 0xFFB050; sideO = { color: 0x4A2410, metalness: 0.1, roughness: 0.5, envMap: env, envMapIntensity: 0.4 }; lipCol = '#FFD08A';
+  }
+  deck.repeat.set(0.25, 0.25);
+  const lip = (col) => canvasTex(8, 64, (g) => { const lg = g.createLinearGradient(0, 0, 0, 64); lg.addColorStop(0, col); lg.addColorStop(0.12, col); lg.addColorStop(0.35, '#000'); lg.addColorStop(1, '#000'); g.fillStyle = lg; g.fillRect(0, 0, 8, 64); });
+  const top = (col = edge) => hazed(edgeGlow(new MeshStandardMaterial(topO), col));
+  const side = (lc = lipCol, color) => hazed(new MeshStandardMaterial({ ...sideO, ...(color !== undefined ? { color } : {}), emissive: 0xFFFFFF, emissiveMap: lip(lc), emissiveIntensity: 1.3 }));
+  const cellT = canvasTex(256, 256, (g) => {             // a puzzle square's floor: a panel to a cell, in the look's deck
+    g.drawImage(deck.image, 0, 0); g.strokeStyle = 'rgba(0,0,0,0.55)'; g.lineWidth = 10; g.strokeRect(5, 5, 246, 246);
+    g.strokeStyle = lipCol; g.lineWidth = 3; g.strokeRect(14, 14, 228, 228);
+  });
+  pbRails[look] = {
+    make: { top, side },
+    top: top(), side: side(),
+    padTop: hazed(new MeshStandardMaterial(topO)), padSide: side('#FFE67A', PAD_YELLOW),
+    ferryTop: top(0x6FE8FF), ferrySide: side('#9FF0FF', 0x3E6A80), magSide: side('#9FF4FF', 0x2FB6D8),
+    laneTop: [null, top(0xB6F04C), top(0xB48EFF)], laneSide: [null, side('#D8FF9A', 0x8FD83A), side('#D6C4FF', 0x9A6BF0)],
+    cellTop: hazed(new MeshStandardMaterial({ ...topO, map: cellT })),
+    loopTop: (w) => loopTopsPB[look + w] || (loopTopsPB[look + w] = keepMat(hazed(new MeshStandardMaterial({ ...topO, emissive: 0xFFFFFF, emissiveMap: loopLines(w), emissiveIntensity: 1 })))),
+    loopWall: hazed(new MeshStandardMaterial({ ...sideO, emissive: edge, emissiveIntensity: 0.4 })),
+    edge,
+  };
+  return pbRails[look];
+}
+function pbCourse(look) {
+  const M = pbCourseMats(look);
+  for (const c of colliders) {
+    if (c.holo || c.obstacle) continue;
+    c.mesh.castShadow = false;
+    setHalfSize(c.mesh);
+    let side, top;
+    if (c.power) {
+      const S = c.power;
+      if (S.top) { S.top.dispose(); S.side.dispose(); }
+      S.top = M.make.top(); S.side = M.make.side(); S.top.transparent = S.side.transparent = true; S.fade = true;
+      side = S.side; top = S.top;
+    } else {
+      [side, top] = c.ferry ? [M.ferrySide, M.ferryTop] : c.pad ? [M.padSide, M.padTop] : c.mag ? [M.magSide, M.padTop]
+        : c.lane ? [M.laneSide[c.lane], M.laneTop[c.lane]] : c.cell ? [M.side, M.cellTop] : [M.side, M.top];
+    }
+    c.mesh.material = [side, side, top, side, side, side]; setTopUV(c.mesh, !!c.cell);
+  }
+  for (const L of loopsIn) loopLook(L, M.loopTop(L.look.w), M.loopWall, M.edge);
+}
+
+/* THE MACHINE, built round each course. Positions on a table are (x across
+   from the table's middle, u up the table from its bottom edge): a table
+   starts at z = zb and runs PB_AL up the course (toward -z), so z = zb - u.
+     u 0-5     the apron, with its cards
+     u 5-13    the flippers (pivots at x = +-8.5, u 9), the drain between them
+     u 12-22   the slingshots, and the inlanes beside them
+     u 22-44   the middle: lamps up the centre, targets, a spinner, the ramps' mouths
+     u 44-60   three bumpers
+     u 60-72   the lanes at the top, under the arch */
+const PB_TILT = 7, PB_KICK = 15, PB_FLIP_V = 30;         // the table's slope (m/s2 toward the flippers), a bumper's and a slingshot's kick, a flipper's shot
+function pinballWorld(w, look) {
+  pbLook = look;
+  const L = PB[look], K = pbKit(look), G = w.group, r = seeded(113 + PB_LOOKS.indexOf(look) * 7), end = courseEnd(), live = !REDUCED;
+  const pieces = level ? level.pieces : [];
+  let lo = 0;
+  for (const p of pieces) lo = Math.min(lo, p.t === 'ramp' ? Math.min(p.y0, p.y1) : (p.y || 0));
+  const PF = lo - PB_DROP, BY = PF + PB_BR;               // the playfield, and the height a ball's middle rolls at
+  const startCam = (level ? level.start[2] : 0) + 8.6;
+  scene.background = coverTex(512, (g) => L.sky(g));
+  scene.fog.color.setHex(L.fog[0]); scene.fog.near = L.fog[1]; scene.fog.far = L.fog[2];
+  HAZE.col.value.setHex(L.haze[0]); HAZE.k.value = L.haze[1]; HAZE.dir.set(0, 0.05, -1).normalize();
+  hemi.color.setHex(L.hemi[0]); hemi.groundColor.setHex(L.hemi[1]); hemi.intensity = L.hemi[2];
+  sun.color.setHex(L.sun[0]); sun.intensity = L.sun[1];
+  w.marble = 'pinball'; w.rings = [0x34E0FF, 0xFF6A3C]; w.glowGates = true;
+  w.restyle = () => pbCourse(look);
+  const m = new Matrix4(), q = new Quaternion(), e = new Euler(), pos = new Vector3(), sc = new Vector3(), col = new Color();
+
+  // THE COURSE'S BAND, and the places its pieces need kept clear (as in Tokyo): the camera swings out beside a loop; wind towers stand beside the road.
+  let minX = 1e9, maxX = -1e9;
+  const keep = [];
+  for (const p of pieces) {
+    let x0, x1, z0, z1;
+    if (p.t === 'plaza') { x0 = p.x0; x1 = p.x0 + p.cols * CELL; z0 = p.z0 - p.rows * CELL; z1 = p.z0; }
+    else if (p.x === undefined) continue;
+    else {
+      const hw = p.t === 'round' ? p.ro : (p.w || 4) / 2, sh = p.shift || 0, hd = p.t === 'round' ? p.ro : (p.d || 6) / 2;
+      x0 = p.x + Math.min(0, sh) - hw; x1 = p.x + Math.max(0, sh) + hw;
+      if (p.t === 'ramp') { z0 = Math.min(p.z0, p.z1); z1 = Math.max(p.z0, p.z1); } else { z0 = p.z - hd; z1 = p.z + hd; }
+    }
+    minX = Math.min(minX, x0); maxX = Math.max(maxX, x1);
+    if (p.t === 'wind') { const tx = p.x - p.dir * (p.w / 2 + TOWER_OFF + TOWER_W / 2); keep.push([tx - 4, tx + 4, z0 - 3, z1 + 3]); }
+    if (p.t === 'loop') { const side = p.shift > 0 ? -1 : 1, cx = p.x + p.shift / 2; keep.push([Math.min(cx + side * 3, cx + side * 16), Math.max(cx + side * 3, cx + side * 16), p.z - LOOP_RUN - 8, p.z + 8]); }
+    if (p.t === 'tube') { const cx = p.x + p.side * 6.5; keep.push([cx - 7, cx + 7, p.z - p.gap - 2, p.z + 2]); }
+  }
+  if (minX > maxX) { minX = -4; maxX = 10; }
+  const CX = (minX + maxX) / 2, HW = Math.max(5, (maxX - minX) / 2 + 1), A = HW + 1.5, AW = A + 28, TW = AW + 6;   // the course's band; the avenue under it; a table's half-width; the machine's walls
+  const BS = K.bumperShape, BSC = look === 'golden' ? 1.35 : 1.6;                // the bumpers, oversized
+  const keepHit = (x0, x1, z0, z1) => keep.some((k) => x1 > k[0] && x0 < k[1] && z1 > k[2] && z0 < k[3]);
+  const Z_TOP = 46, Z_BOT = end - 160;
+
+  const paint = pbBuild(), metal = pbBuild(), glow = pbBuild(), lit = pbBuild(), decals = pbBuild(), glassParts = pbBuild();
+  const lamps = [], bumps = [], flips = [], slings = [], drops = [], spins = [], balls = [], loops = [], boards = [], tables = [];
+  const gi = [];                                             // the small white bulbs that light a table: [x, y, z]
+  const tick = [];                                           // what each look adds that moves: f(dt, t, camZ)
+
+  // A lamp set in the playfield: its shape, place, size, turn (0 points up the table), colour, and its show.
+  const lamp = (shape, x, z, sx, sz, rot, hex, show) => lamps.push({ shape, x, z, sx, sz, rot, c: new Color(hex), show, v: 0 });
+  const chase = (k, n, rate, ph = 0) => (t) => ((((t * rate + ph - k / n) % 1) + 1) % 1 < 0.3 ? 1 : 0);
+  const blink = (period, ph, duty = 0.5) => (t) => ((((t + ph) % period) + period) % period < period * duty ? 1 : 0);
+  const solid = () => 1;
+  // A decal from the atlas, laid on the playfield: slot 0-3, its middle, size and turn.
+  const decal = (slot, x, z, size, rot = 0) => {
+    const u0 = (slot % 2) * 0.5, v1 = 1 - Math.floor(slot / 2) * 0.5, c = Math.cos(rot), s = Math.sin(rot), h = size / 2;
+    const P = [[-h, -h], [h, -h], [h, h], [-h, h]].map(([a, b]) => [x + a * c - b * s, PF + 0.02, z + a * s + b * c]);
+    const UV = [[u0, v1], [u0 + 0.5, v1], [u0 + 0.5, v1 - 0.5], [u0, v1 - 0.5]], up = [0, 1, 0];
+    decals.tri(P[0], P[1], P[2], up, up, up, 0xFFFFFF, UV[0], UV[1], UV[2]);
+    decals.tri(P[0], P[2], P[3], up, up, up, 0xFFFFFF, UV[0], UV[2], UV[3]);
+  };
+  // A post: chrome, a rubber ring round it, a bulb on top.
+  const post = (x, z, hgt = 2.4, ring = true) => {
+    metal.geo(new CylinderGeometry(0.34, 0.4, hgt, 10), placeAt(x, PF + hgt / 2, z), L.post);
+    if (ring) paint.geo(new TorusGeometry(0.72, 0.3, 8, 16), placeAt(x, PF + 1.15, z, Math.PI / 2, 0, 0), L.rubber);
+    lit.geo(new SphereGeometry(0.34, 10, 8), placeAt(x, PF + hgt + 0.15, z), L.postCap);
+    gi.push([x, PF + hgt + 0.2, z]);
+  };
+  // A wall along a line on the playfield: the look's wall, a metal cap along its top, bulbs along it now and then.
+  const wallLine = (line, hgt = 1.7, bulbs = 0) => {
+    paint.wall(line, 0.45, PF, PF + hgt, L.guide);
+    metal.wall(line, 0.2, PF + hgt, PF + hgt + 0.16, L.capCol);
+    if (bulbs) for (let i = 0; i + 1 < line.length; i++) {
+      const [ax, az] = line[i], [bx, bz] = line[i + 1], n = Math.floor(Math.hypot(bx - ax, bz - az) / bulbs);
+      for (let k = 1; k <= n; k++) gi.push([ax + (bx - ax) * k / (n + 1), PF + hgt + 0.45, az + (bz - az) * k / (n + 1)]);
+    }
+  };
+
+  // THE FLOOR: one sheet under everything, its paint tiled every 32 m.
+  {
+    const x0 = CX - TW - 30, x1 = CX + TW + 30, z0 = Z_BOT - 40, z1 = Z_TOP + 60, gg = new PlaneGeometry(x1 - x0, z1 - z0);
+    gg.rotateX(-Math.PI / 2);
+    const uv = gg.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * (x1 - x0) / 32, uv.getY(i) * (z1 - z0) / 32);
+    const fl = new Mesh(gg, K.floor); fl.position.set((x0 + x1) / 2, PF, (z0 + z1) / 2); G.add(fl);
+  }
+
+  // THE TABLES, one after another up the course. Under the rail's band (the avenue, |x| < A) only low things: lamps, flippers,
+  // slingshots, the balls rolling across. The tall things stand beside it, as a city's buildings stand beside its street: on one
+  // side the table's ramp, climbing to the rail's height and back (its raised road); on the other its bumpers, big as buildings,
+  // and the look's own set piece. Each table has them the other way round from the one before.
+  let ti = 0;
+  for (let zb = Z_TOP; zb > Z_BOT; zb -= PB_AL, ti++) {
+    const X = (x) => CX + x, Z = (u) => zb - u, rs = ti % 2 ? -1 : 1, bs = -rs;   // the ramp's side, and the bumpers'
+    const T = { zb, i: ti, rs, cx: X(0), bumps: [], slings: [], drops: [], flips: [], free: [], saucers: [], aims: [] };
+    tables.push(T);
+    // The apron: a dark plate across the bottom.
+    paint.slab([[X(-12.5), Z(0)], [X(12.5), Z(0)], [X(11), Z(5)], [X(-11), Z(5)]], [X(0), Z(2.5)], PF, PF + 0.9, L.apron);
+    metal.wall([[X(-12.5), Z(0)], [X(12.5), Z(0)]], 0.3, PF + 0.9, PF + 1.1, L.capCol);
+    // Flippers.
+    for (const s of [-1, 1]) {
+      const F = { px: X(s * 8.5), pz: Z(9), s, a: 0, t: -9, table: T };
+      flips.push(F); T.flips.push(F);
+      metal.geo(new CylinderGeometry(0.5, 0.5, 1.6, 10), placeAt(F.px, PF + 0.8, F.pz), L.capCol);
+    }
+    // Slingshots: a triangle, its kicking face toward the middle of the table; rubber along it, a lit plastic on top.
+    for (const s of [-1, 1]) {
+      const Ap = [X(s * 12.2), Z(12.5)], Bp = [X(s * 12.2), Z(21)], C = [X(s * 8.4), Z(13.2)], o = [X(s * 11), Z(15.5)];
+      paint.slab([Ap, Bp, C], o, PF, PF + 1.5, L.wallCol);
+      lit.slab([Ap, Bp, C], o, PF + 1.5, PF + 1.8, L.sling.top);
+      paint.wall([Bp, C], 0.55, PF + 0.3, PF + 1.3, L.rubber);
+      const S = { a: Bp, b: C, flash: 0, s }; slings.push(S); T.slings.push(S);
+      for (const P of [Ap, Bp, C]) post(P[0], P[1], 2.2, false);
+    }
+    // The walls: from the flippers out to the table's sides, up the sides, over the arch at the top.
+    for (const s of [-1, 1]) wallLine([[X(s * AW), Z(34)], [X(s * 16.8), Z(16)], [X(s * 10.6), Z(9.5)]], 1.7, 3.4);
+    const arch = [];
+    for (let k = 0; k <= 24; k++) { const a = k / 24 * Math.PI; arch.push([X(-AW * Math.cos(a)), Z(60 + 11 * Math.sin(a))]); }
+    wallLine([[X(-AW), Z(34)], [X(-AW), Z(60)], ...arch.slice(1), [X(AW), Z(34)]], 1.7, 4);
+    // Lane guides at the top, a post on each, and a lamp in each lane.
+    for (const x of [-8, -2.7, 2.7, 8]) { paint.wall([[X(x), Z(59)], [X(x), Z(65)]], 0.5, PF, PF + 1.8, L.wallCol); post(X(x), Z(59), 2.2); }
+    [-5.35, 0, 5.35].forEach((x, k) => lamp('round', X(x), Z(62.5), 2.2, 2.2, 0, L.ins[k % 3], chase(k, 3, 0.8, ti * 0.2)));
+    // BUMPERS, big as buildings, on their side; triangles of lamps pointing at each; bars on the floor leading in to them.
+    for (const [x, u] of [[A + 5.5, 40], [A + 17, 47], [A + 6, 56]]) {
+      const bx = X(bs * x), bz = Z(u);
+      if (keepHit(bx - 7, bx + 7, bz - 7, bz + 7)) continue;
+      const Bm = { x: bx, z: bz, flash: 0, kick: 0, table: T }; bumps.push(Bm); T.bumps.push(Bm); T.aims.push([bx, bz]);
+      for (let k = 0; k < 4; k++) {
+        const a = k / 4 * Math.PI * 2 + Math.PI / 4, rr = BS.r * BSC + 2.4;
+        lamp('tri', bx + Math.cos(a) * rr, bz + Math.sin(a) * rr, 2.2, 2.2, Math.atan2(Math.cos(a), Math.sin(a)), L.ins[3], () => Math.min(1, Bm.flash * 3));
+      }
+    }
+    for (let k = 0; k < 5; k++) lamp('bar', X(bs * (A + 1.5 + k * 1.6)), Z(31 + k * 0.8), 1.1, 2.6, bs * 0.5, L.ins[(k + 1) % L.ins.length], chase(k, 5, 1.2, ti * 0.2));
+    // Up the middle, under the rail: a lamp to shoot again, an arrow, five rounds that chase up the table, a big star or arrow.
+    lamp('round', X(0), Z(7), 1.8, 1.8, 0, L.ins[2], blink(0.8, ti * 0.3, 0.5));
+    lamp('arrow', X(0), Z(17.5), 2.8, 3.6, 0, L.ins[0], chase(0, 2, 1.2));
+    for (let k = 0; k < 5; k++) lamp('round', X(0), Z(27 + k * 3.6), 2.5, 2.5, 0, L.ins[(k + ti) % L.ins.length], chase(k, 5, 0.9, ti * 0.37));
+    lamp(look === 'golden' ? 'star' : 'arrow', X(0), Z(48), 3.8, 4.6, 0, L.ins[1], blink(1.6, ti * 0.5, 0.6));
+    for (const s of [-1, 1]) for (let k = 0; k < 4; k++) lamp('bar', X(s * (4.6 + k * 0.4)), Z(29 + k * 3.4), 1.1, 2.4, -s * 0.15, L.ins[(k + 2) % L.ins.length], chase(k, 4, 1.1, s * 0.25));
+    // The big pieces of paint: one under the avenue near the top, one in its middle, one under the bumpers.
+    decal(ti % 2 ? 1 : 0, X(0), Z(55), 26, 0);
+    decal(2 + (ti % 2), X(0), Z(36), 20, 0);
+    decal((ti + 1) % 4, X(bs * (A + 12)), Z(47), 34, 0);
+    decal((ti + 3) % 4, X(rs * (A + 6)), Z(12), 18, rs * 0.3);
+    // Tall posts beside the avenue, each with a big bulb on top: the machine's street lamps. Runs of small lamps along both its edges,
+    // chasing up the table the way the course runs.
+    for (const [s, u] of [[rs, 14], [bs, 14], [bs, 66], [rs, 68], [rs, 32], [bs, 30]]) post(X(s * (A + 1.8)), Z(u), 5.5);
+    for (const s of [-1, 1]) for (let k = 0; k < 14; k++) { const u = 8 + k * 4.4; if (u > 22 && u < 26) continue; lamp('round', X(s * (A - 0.6)), Z(u), 1.1, 1.1, 0, L.ins[s > 0 ? 0 : 1], chase(k, 14, 0.5, ti * 0.13)); }
+    // Standup targets along the avenue's edge on the bumpers' side: a lit face each, low.
+    for (let k = 0; k < 3; k++) {
+      const x = X(bs * (A + 1)), z = Z(44 + k * 3.2);
+      paint.geo(new BoxGeometry(0.5, 2.2, 2.4), placeAt(x, PF + 1.1, z), 0x1A1A1A);
+      lit.geo(new BoxGeometry(0.2, 1.8, 2.0), placeAt(x - bs * 0.32, PF + 1.2, z), L.ins[(k + ti) % 3]);
+      metal.geo(new CylinderGeometry(0.1, 0.1, 1.2, 6), placeAt(x + bs * 0.5, PF + 0.6, z), 0xC8D0D8);
+    }
+    // On the ramp's side, between its two lanes: drop targets (the chrome machine has its spinning disc there instead).
+    if (look !== 'chrome') {
+      const u0 = look === 'golden' ? 30 : 26;
+      for (let k = 0; k < 4; k++) {
+        const D = { x: X(rs * (A + 7.5)), z: Z(u0 + k * 2.9), yaw: Math.PI / 2, down: 0, hit: false, table: T, n: k }; drops.push(D); T.drops.push(D);
+        lamp('bar', X(rs * (A + 5.3)), D.z, 0.9, 1.8, Math.PI / 2, L.ins[k % 3], () => (D.hit ? 1 : 0.15));
+      }
+      paint.wall([[X(rs * (A + 8.5)), Z(u0 - 1.5)], [X(rs * (A + 8.5)), Z(u0 + 10.5)]], 0.5, PF, PF + 3.2, L.wallCol);
+      T.aims.push([X(rs * (A + 5)), Z(u0 + 4.5)]);
+    }
+    // THE BALLS IN PLAY on this table: two or three, loose among the bumpers and slingshots.
+    for (let k = 0; k < (look === 'golden' ? 3 : 2); k++) {
+      const b = { x: X(bs * (A + 4 + r() * 16)), z: Z(30 + r() * 25), vx: (r() - 0.5) * 12, vz: -8 - r() * 10, y: BY, mode: 'free', table: T };
+      balls.push(b); T.free.push(b);
+    }
+  }
+  const tableOf = (z) => tables.find((T) => z <= T.zb && z > T.zb - PB_AL) || null;
+
+  // THE BUMPERS: a metal base and skirt, and the lit body and cap, each one instanced draw.
+  const bumpMetal = new InstancedMesh(new LatheGeometry(BS.metal, 28), K.metal, bumps.length);
+  const bumpLit = new InstancedMesh(new LatheGeometry(BS.lit, 36), K.bumperLit, bumps.length);
+  bumpMetal.geometry.setAttribute('color', new Float32BufferAttribute(new Float32Array(bumpMetal.geometry.attributes.position.count * 3).fill(0.82), 3));
+  bumps.forEach((Bm, i) => {
+    m.compose(pos.set(Bm.x, PF, Bm.z), q.identity(), sc.set(BSC, BSC, BSC)); bumpMetal.setMatrixAt(i, m); bumpLit.setMatrixAt(i, m);
+    bumpLit.setColorAt(i, col.setRGB(1, 1, 1)); gi.push([Bm.x, PF + 0.4, Bm.z]);
+  });
+  G.add(bumpMetal, bumpLit);
+
+  // THE FLIPPERS: a bat of the look's colour on its rubber, a cap on the pivot; one shape, turned for each.
+  const flipGeo = (() => {
+    const Bf = pbBuild(), out = (rr, x0) => { const P = []; for (let k = 0; k <= 12; k++) { const a = Math.PI / 2 + k / 12 * Math.PI; P.push([x0 + Math.cos(a) * rr, Math.sin(a) * rr]); } return P; };   // round the pivot's far side
+    const shape = (r0, r1) => { const A = out(r0, 0), Bq = []; for (let k = 0; k <= 12; k++) { const a = -Math.PI / 2 + k / 12 * Math.PI; Bq.push([7.5 + Math.cos(a) * r1, Math.sin(a) * r1]); } return [...A, ...Bq]; };
+    Bf.slab(shape(1.3, 0.62), [3.2, 0], 0.15, 0.85, L.flipper.rubber);
+    Bf.slab(shape(1.12, 0.46), [3.2, 0], 0.3, 1.35, L.flipper.bat);
+    Bf.geo(new CylinderGeometry(0.55, 0.55, 0.3, 14), placeAt(0, 1.45, 0), 0xE8ECF0);
+    return Bf.done();
+  })();
+  const flipMesh = new InstancedMesh(flipGeo, K.paint, flips.length);
+  G.add(flipMesh);
+  const flipAngle = (F) => {                                 // rest points down and in; up points up and in
+    const rest = 0.5, up = -0.52, a = rest + (up - rest) * F.a;
+    return F.s < 0 ? -a : Math.PI + a;
+  };
+  const drawFlips = () => {
+    flips.forEach((F, i) => { m.compose(pos.set(F.px, PF, F.pz), q.setFromEuler(e.set(0, flipAngle(F), 0)), sc.set(1, 1, 1)); flipMesh.setMatrixAt(i, m); });
+    flipMesh.instanceMatrix.needsUpdate = true;
+  };
+
+  // THE SLINGSHOTS' LIGHT: a strip along each kicking face that flashes as it kicks.
+  const slingMesh = new InstancedMesh(new BoxGeometry(1, 1, 1), K.flash, slings.length);
+  slings.forEach((S, i) => {
+    const dx = S.b[0] - S.a[0], dz = S.b[1] - S.a[1], len = Math.hypot(dx, dz);
+    S.m = new Matrix4().compose(new Vector3((S.a[0] + S.b[0]) / 2, PF + 1.95, (S.a[1] + S.b[1]) / 2), new Quaternion().setFromEuler(new Euler(0, Math.atan2(dx, dz), 0)), new Vector3(0.35, 0.18, len * 0.9));
+    slingMesh.setMatrixAt(i, S.m); slingMesh.setColorAt(i, col.setHex(L.sling.glow));
+    let nx = dz / len, nz = -dx / len;                       // the face's normal, toward the middle of its table
+    const tb = tableOf((S.a[1] + S.b[1]) / 2);
+    if (tb && nx * (tb.cx - S.a[0]) < 0) { nx = -nx; nz = -nz; }
+    S.nx = nx; S.nz = nz;
+  });
+  G.add(slingMesh);
+
+  // THE DROP TARGETS: a face each, dropping into the playfield when a ball hits it; the bank comes back up once all are down.
+  const dropT = canvasTex(64, 64, (g) => {
+    g.fillStyle = '#' + new Color(L.ins[0]).getHexString(); g.fillRect(0, 0, 64, 64);
+    g.fillStyle = 'rgba(255,255,255,0.9)'; pbPoly(g, [[32, 10], [52, 38], [40, 38], [40, 54], [24, 54], [24, 38], [12, 38]]); g.fill();
+    g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(0, 58, 64, 6);
+  });
+  const dropMat = new MeshStandardMaterial({ map: dropT, roughness: 0.4, metalness: 0.1, emissive: 0xFFFFFF, emissiveMap: dropT, emissiveIntensity: 0.25 });
+  const dropMesh = drops.length ? new InstancedMesh(new BoxGeometry(2.5, 2.8, 0.5), dropMat, drops.length) : null;
+  const drawDrops = () => {
+    if (!dropMesh) return;
+    drops.forEach((D, i) => { m.compose(pos.set(D.x, PF + 1.4 - D.down * 2.9, D.z), q.setFromEuler(e.set(0, D.yaw, 0)), sc.set(1, 1, 1)); dropMesh.setMatrixAt(i, m); });
+    dropMesh.instanceMatrix.needsUpdate = true;
+  };
+  if (dropMesh) G.add(dropMesh);
+
+  // THE BALLS: giant steel balls, one instanced draw for every ball in the machine (loose, on ramps, in tubes, on lifts).
+  const ballsAt = () => balls.length;
+
+  /* THE RAMPS: each table has one, fed by a flipper. A ball flipped at it runs
+     up the playfield into the ramp's mouth beside the avenue, climbs to the
+     rail's height, turns at the top, runs back down an outer lane, dives under
+     the rail across the table and drops into the far inlane, on to that same
+     flipper, which flips it again: a loop the balls ride round and round, the
+     flipper firing as each one reaches it. The chrome machine's ramps are
+     glass tubes, the arcade's are wire; the golden table (older than ramps)
+     sends its balls round an orbit lane on the playfield instead. */
+  const wireProf = [];
+  for (const [ox, oy] of [[-1.05, -1.02], [1.05, -1.02], [-1.5, 0.15], [1.5, 0.15]]) wireProf.push(pbRound(0.11, 6, ox, oy));
+  const tubeRings = [];
+  function glowTube(Fr) {                                    // a glass tube along frames, rings of light round it every few metres
+    glassParts.sweep(Fr, pbRound(1.8, 14), 0xFFFFFF);
+    for (let i = 0; i < Fr.length; i += 8) tubeRings.push(Fr[i]);
+  }
+  tables.forEach((T) => {
+    const s = T.rs, X = (x) => T.cx + s * x, Z = (u) => T.zb - u;
+    const pts = look === 'golden'
+      ? [[-3, 8.2, 0], [0.5, 18, 0], [A + 0.5, 27, 0], [A + 3, 36, 0], [A + 3.5, 50, 0], [A + 5, 60, 0], [A + 9, 66, 0], [A + 13, 62, 0], [A + 14, 52, 0], [A + 13.5, 40, 0],
+         [A + 11, 28, 0], [A + 6, 23.5, 0], [A + 1, 22.5, 0], [-(A - 1), 22.5, 0], [-14.3, 21, 0], [-14.3, 17.5, 0], [-13.6, 14, 0], [-10.6, 11, 0], [-7, 9.4, 0]]
+      : [[-3, 8.2, 0], [0.5, 18, 0], [A + 0.5, 29, 0], [A + 3, 35, 0.4], [A + 3.5, 43, 3], [A + 3.8, 51, 6], [A + 4.2, 58, 7.8], [A + 5.8, 63.5, 8.6], [A + 8, 66, 8.8],
+         [A + 10.4, 63.5, 8.5], [A + 11.5, 57, 7.6], [A + 11.5, 46, 5.8], [A + 10.8, 36, 4.4], [A + 7, 28, 3.6], [A + 2, 24.5, 2.8], [0, 23.8, 2.6], [-(A - 1), 23.5, 2.5],
+         [-14.3, 21.5, 1.7], [-14.3, 17.5, 0.1], [-13.6, 14, 0], [-10.6, 11, 0], [-7, 9.4, 0]];
+    const P = pts.map(([x, u, h]) => [X(x), BY + h, Z(u)]);
+    P.push(P[0].slice());
+    const path = tubePath(P);
+    const fire = (() => {                                     // the moment on the loop a ball reaches its flipper
+      let best = 0, bd = 1e9; const v = new Vector3();
+      for (let sI = 0; sI < path.len; sI += 0.25) { tubeAt(path, sI, v); const d = Math.hypot(v.x - X(-5.2), v.z - Z(8.8)); if (d < bd) { bd = d; best = sI; } }
+      return best;
+    })();
+    const F = T.flips.find((f) => f.s === -s);
+    const Lp = { path, fire, flip: F, balls: [], table: T };
+    loops.push(Lp);
+    const n = look === 'golden' ? 2 : 3;
+    for (let k = 0; k < n; k++) { const b = { x: 0, y: BY, z: 0, s: path.len * (k / n + r() * 0.08), v: 22, mode: 'loop', loop: Lp }; balls.push(b); Lp.balls.push(b); }
+    // The raised stretch, from the mouth round to the inlane: where the ball is off the playfield.
+    const raised = [];
+    { let on = -1; const v = new Vector3(); for (let sI = 0; sI <= path.len; sI += 0.5) { tubeAt(path, sI, v); const up = v.y - BY > 0.2; if (up && on < 0) on = sI; if (!up && on >= 0) { raised.push([Math.max(0, on - 3), sI + 2]); on = -1; } } }
+    for (const [s0, s1] of raised) {
+      const sub = { pts: path.pts.slice(Math.floor(s0 / TUBE_DS) * 3, Math.ceil(s1 / TUBE_DS) * 3 + 3) };
+      sub.n = sub.pts.length / 3; sub.len = (sub.n - 1) * TUBE_DS;
+      const Fr = pbFrames(sub, 0.9);
+      if (look === 'arcade') {
+        for (const prof of wireProf) metal.sweep(Fr, prof, 0xE8EEF4);
+        for (let i = 0; i < Fr.length; i += 3) {             // ribs, a U of wire under the ball every few metres
+          const f = Fr[i], mm = new Matrix4().makeBasis(f.b, f.n.clone().negate(), f.t).setPosition(f.p);
+          metal.geo(new TorusGeometry(1.55, 0.09, 5, 14, Math.PI), mm, 0xDCE4EC);
+        }
+      } else glowTube(Fr);
+      for (let i = 5; i < Fr.length - 5; i += 9) {              // posts holding it up
+        const f = Fr[i], hgt = f.p.y - PB_BR - 0.3 - PF;
+        if (hgt > 1.5) metal.geo(new CylinderGeometry(0.16, 0.2, hgt, 6), placeAt(f.p.x, PF + hgt / 2, f.p.z), 0xC8D0D8);
+      }
+    }
+    // Arrows along the shot, chasing toward the ramp's mouth.
+    for (let k = 0; k < 3; k++) { const v = new Vector3(), d = new Vector3(); tubeAt(path, 8 + k * 7, v); tubeDir(path, 8 + k * 7, d); lamp('arrow', v.x, v.z, 2.4, 3.2, Math.atan2(-d.x, -d.z), L.ins[k % 2 ? 0 : 1], chase(k, 3, 1.4)); }
+  });
+
+  // THE CUT-OUTS. Flat plastics over the slingshots and the top lanes (seen from above, as a player sees them), and upright
+  // billboards on tall posts beside the rail that move: turning, swinging, bobbing on a spring, rocking.
+  const nf = L.figs.length, kinds = ['turn', 'swing', 'bob', 'rock'];
+  tables.forEach((T) => {
+    const X = (x) => T.cx + x, Z = (u) => T.zb - u, rs = T.rs, bs = -rs;
+    for (const s of [-1, 1]) boards.push({ fig: (T.i * 2 + (s > 0 ? 1 : 0)) % nf, x: X(s * 11.2), y: PF + 3.1, z: Z(17.5), size: 7.5, flat: true, rot: 0 });
+    boards.push({ fig: (T.i + 3) % nf, x: X(0), y: PF + 2.6, z: Z(66.5), size: 8, flat: true, rot: 0 });
+    for (const [x, u, base, size, k] of [[rs * (A + 7.5), 50, PF + 11.4, 8, 0], [bs * (A + 5.5), 67, PF + 4.5, 9, 1]]) {
+      const bx = X(x), bz = Z(u);
+      if (keepHit(bx - 5, bx + 5, bz - 5, bz + 5)) continue;
+      metal.geo(new CylinderGeometry(0.3, 0.36, base - PF + size * 0.35, 8), placeAt(bx, PF + (base - PF + size * 0.35) / 2, bz + 0.35), 0xC8D0D8);
+      boards.push({ fig: (T.i * 3 + k * 2) % nf, x: bx, y: base + size / 2, z: bz, size, flat: false, kind: kinds[(T.i + k) % 4], ph: r() * 6 });
+    }
+  });
+
+  // WHAT EACH LOOK HAS OF ITS OWN.
+  pbSpecials(look, { G, K, L, r, CX, HW, A, TW, PF, BY, Z_TOP, Z_BOT, tables, balls, boards, lamp, post, paint, metal, lit, glow, gi, tick, keepHit, glowTube, tubeRings, loops, chase, blink, solid, wireProf });
+
+  const boardGeo = new BufferGeometry();
+  const bP = new Float32BufferAttribute(new Float32Array(boards.length * 12), 3).setUsage(DynamicDrawUsage);
+  const bN = new Float32BufferAttribute(new Float32Array(boards.length * 12), 3).setUsage(DynamicDrawUsage);
+  const bU = new Float32BufferAttribute(new Float32Array(boards.length * 8), 2), bI = [];
+  boards.forEach((Bd, i) => {
+    const u0 = (Bd.fig % 4) * 0.25, v0 = 1 - Math.floor(Bd.fig / 4) * 0.5;
+    bU.array.set([u0, v0 - 0.5, u0 + 0.25, v0 - 0.5, u0 + 0.25, v0, u0, v0], i * 8);
+    bI.push(i * 4, i * 4 + 1, i * 4 + 2, i * 4, i * 4 + 2, i * 4 + 3);
+  });
+  boardGeo.setAttribute('position', bP); boardGeo.setAttribute('normal', bN); boardGeo.setAttribute('uv', bU); boardGeo.setIndex(bI);
+  const boardMesh = new Mesh(boardGeo, K.figs); boardMesh.frustumCulled = false; G.add(boardMesh);
+  const _bx = new Vector3(), _by = new Vector3(), _bn = new Vector3(), _bq = new Quaternion();
+  const drawBoards = (t) => {
+    const P = bP.array, N = bN.array;
+    boards.forEach((Bd, i) => {
+      const h = Bd.size / 2;
+      let cx = Bd.x, cy = Bd.y, cz = Bd.z;
+      if (Bd.flat) { _bx.set(1, 0, 0); _by.set(0, 0, -1); _bn.set(0, 1, 0); }
+      else {
+        e.set(-0.28, 0, 0);                                  // leaning back a little, toward the camera above
+        if (Bd.kind === 'turn') e.y = t * 0.45 + Bd.ph;
+        else if (Bd.kind === 'swing') e.z = 0.32 * Math.sin(t * 1.3 + Bd.ph);
+        else if (Bd.kind === 'rock') e.z = 0.2 * Math.sin(t * 2.1 + Bd.ph);
+        else if (Bd.kind === 'glide') { const a = t * Bd.rate + Bd.ph; cx += Bd.amp * Math.sin(a); e.y = Math.cos(a) > 0 ? Math.PI : 0; e.x = -0.5; e.z = 0.06 * Math.sin(t * 3 + Bd.ph); }
+        else if (Bd.kind === 'still') { /* as it stands */ }
+        else if (Bd.kind === 'bob') { cy += 0.7 * Math.abs(Math.sin(t * 2.4 + Bd.ph)); e.z = 0.08 * Math.sin(t * 4.8 + Bd.ph); }
+        _bq.setFromEuler(e); _bx.set(1, 0, 0).applyQuaternion(_bq); _by.set(0, 1, 0).applyQuaternion(_bq); _bn.set(0, 0, 1).applyQuaternion(_bq);
+        if (Bd.kind === 'swing') { cx += -_by.x * h + 0; cy += h - _by.y * h; cz += -_by.z * h; }   // it hangs from the top of its post
+      }
+      const c = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+      c.forEach(([a, b], k) => {
+        P[i * 12 + k * 3] = cx + (_bx.x * a + _by.x * b) * h; P[i * 12 + k * 3 + 1] = cy + (_bx.y * a + _by.y * b) * h; P[i * 12 + k * 3 + 2] = cz + (_bx.z * a + _by.z * b) * h;
+        N[i * 12 + k * 3] = _bn.x; N[i * 12 + k * 3 + 1] = _bn.y; N[i * 12 + k * 3 + 2] = _bn.z;
+      });
+    });
+    bP.needsUpdate = true; bN.needsUpdate = true;
+  };
+
+
+  // THE WALLS of the machine, far out at either side.
+  pbWalls(look, { G, K, L, r, CX, TW, PF, Z_TOP, Z_BOT, paint, metal, glow, tick, gi });
+
+  // THE LAMPS, one instanced draw a shape, and a soft pool of light under each when it is lit.
+  const insMeshes = {};
+  for (const k of Object.keys(K.ins)) {
+    const list = lamps.filter((Lm) => Lm.shape === k);
+    if (!list.length) continue;
+    const im = new InstancedMesh(new PlaneGeometry(1, 1).rotateX(-Math.PI / 2), K.ins[k], list.length);
+    list.forEach((Lm, i) => { Lm.i = i; m.compose(pos.set(Lm.x, PF + 0.04, Lm.z), q.setFromEuler(e.set(0, Lm.rot, 0)), sc.set(Lm.sx, 1, Lm.sz)); im.setMatrixAt(i, m); im.setColorAt(i, Lm.c); });
+    G.add(im); insMeshes[k] = im;
+  }
+  const haloMesh = new InstancedMesh(new PlaneGeometry(1, 1).rotateX(-Math.PI / 2), K.halo, lamps.length);
+  lamps.forEach((Lm, i) => { const s = Math.max(Lm.sx, Lm.sz) * 2.6; m.compose(pos.set(Lm.x, PF + 0.07, Lm.z), q.identity(), sc.set(s, 1, s)); haloMesh.setMatrixAt(i, m); haloMesh.setColorAt(i, col.setRGB(0, 0, 0)); });
+  haloMesh.renderOrder = 1; G.add(haloMesh);
+  const lampSpeed = look === 'golden' ? 9 : 30;             // an old table's bulbs warm up and fade; LEDs snap
+  const drawLamps = (t, dt) => {
+    const k = 1 - Math.exp(-lampSpeed * dt), wave = (t * 45) % 260;
+    lamps.forEach((Lm, i) => {
+      const sweep = Math.abs(((Lm.z - Z_TOP + wave) % 260 + 260) % 260 - 20) < 7 ? 1 : 0;   // now and then a sweep of light runs up the whole machine
+      Lm.v += (Math.max(Lm.show(t), sweep) - Lm.v) * k;
+      insMeshes[Lm.shape].setColorAt(Lm.i, col.copy(Lm.c).multiplyScalar(0.2 + 0.95 * Lm.v));
+      haloMesh.setColorAt(i, col.copy(Lm.c).multiplyScalar(0.55 * Lm.v));
+    });
+    for (const im of Object.values(insMeshes)) im.instanceColor.needsUpdate = true;
+    haloMesh.instanceColor.needsUpdate = true;
+  };
+
+  // THE GENERAL ILLUMINATION: small warm or cool bulbs on the posts and along the walls, each with its glow.
+  const giMesh = new InstancedMesh(new SphereGeometry(0.2, 8, 6), K.flash, gi.length);
+  const gp = new Float32Array(gi.length * 3), gc = new Float32Array(gi.length * 3);   // their glow: points that always face the eye (a flat card seen edge-on is a streak)
+  gi.forEach(([x, y, z], i) => {
+    m.compose(pos.set(x, y, z), q.identity(), sc.set(1, 1, 1)); giMesh.setMatrixAt(i, m); giMesh.setColorAt(i, col.setHex(L.gi).multiplyScalar(1.6));
+    gp.set([x, y, z], i * 3); col.setHex(L.gi).multiplyScalar(0.6); gc.set([col.r, col.g, col.b], i * 3);
+  });
+  const gg = new BufferGeometry(); gg.setAttribute('position', new Float32BufferAttribute(gp, 3)); gg.setAttribute('color', new Float32BufferAttribute(gc, 3));
+  const giHalo = new Points(gg, K.giGlow);
+  G.add(giMesh, giHalo);
+
+  // Everything still, in four draws: paint, metal, lit plastic, and what shines by itself; the decals, and the glass.
+  G.add(new Mesh(paint.done(), K.paint), new Mesh(metal.done(), K.metal), new Mesh(lit.done(), K.lit), new Mesh(decals.done(), K.decal));
+  if (glow.count()) G.add(new Mesh(glow.done(), K.glow));
+  if (glassParts.count()) {
+    const gl = new Mesh(glassParts.done(), pbTubeGlass(look)); gl.renderOrder = 3; G.add(gl);
+  }
+  if (tubeRings.length) {
+    const rm = new InstancedMesh(new TorusGeometry(1.86, 0.1, 6, 20), K.flash, tubeRings.length);
+    tubeRings.forEach((f, i) => { m.makeBasis(f.b, f.n, f.t).setPosition(f.p); rm.setMatrixAt(i, m); rm.setColorAt(i, col.setHex(look === 'chrome' ? 0x7FE8FF : 0xFFB070)); });
+    G.add(rm);
+  }
+  const ballMesh = new InstancedMesh(new SphereGeometry(PB_BR, 24, 16), K.ball, Math.max(1, ballsAt()));
+  G.add(ballMesh);
+
+  // PLAY: the loose balls roll, bounce off walls, bumpers and slingshots, knock down targets, and meet the flippers.
+  const sounds = [];                                         // what went bang near the camera this frame: [kind, x, z]
+  const bang = (kind, x, z) => sounds.push([kind, x, z]);
+  const segHit = (b, ax, az, bx, bz, rad) => {              // how far a ball's middle is inside a segment's reach, and the way out
+    const dx = bx - ax, dz = bz - az, L2 = dx * dx + dz * dz, t = clamp(((b.x - ax) * dx + (b.z - az) * dz) / L2, 0, 1);
+    const px = ax + dx * t, pz = az + dz * t, ox = b.x - px, oz = b.z - pz, d = Math.hypot(ox, oz);
+    return d < rad && d > 1e-6 ? [ox / d, oz / d, rad - d] : null;
+  };
+  const bounce = (b, nx, nz, over, rest, kick) => {
+    b.x += nx * over; b.z += nz * over;
+    const vn = b.vx * nx + b.vz * nz;
+    if (vn < 0) { b.vx -= (1 + rest) * vn * nx; b.vz -= (1 + rest) * vn * nz; }
+    if (kick) { b.vx += nx * kick; b.vz += nz * kick; }
+  };
+  const aim = (b, T) => {                                    // a flipper's shot: up the table, at a bumper or the targets
+    const [tx0, tz0] = T.aims.length ? T.aims[Math.floor(Math.random() * T.aims.length)] : [T.cx, T.zb - 50];
+    const tx = tx0 + (Math.random() - 0.5) * 6, tz = tz0 + (Math.random() - 0.5) * 6, dx = tx - b.x, dz = tz - b.z, d = Math.hypot(dx, dz);
+    const v = PB_FLIP_V * (0.95 + Math.random() * 0.3);
+    b.vx = dx / d * v; b.vz = dz / d * v;
+  };
+  const stepFree = (b, h) => {
+    const T = b.table, R0 = PB_BR;
+    b.vz += PB_TILT * h;
+    const sp = Math.hypot(b.vx, b.vz); if (sp > 38) { b.vx *= 38 / sp; b.vz *= 38 / sp; }
+    b.x += b.vx * h; b.z += b.vz * h;
+    const u = T.zb - b.z, x = b.x - T.cx;
+    // the walls: straight sides, the arch, and the diagonals down to the flippers
+    const ax = Math.abs(x);
+    if (u > 34 && u < 60 && ax > AW - R0 - 0.3) bounce(b, -Math.sign(x), 0, ax - (AW - R0 - 0.3), 0.55, 0);
+    if (u >= 60) { const ea = AW - R0, eb = 11 - R0, ex = x / ea, eu = (u - 60) / eb, k = ex * ex + eu * eu; if (k > 1) { const nx = -ex / ea, nu = -eu / eb, L2 = Math.hypot(nx, nu); bounce(b, nx / L2, -nu / L2, (Math.sqrt(k) - 1) * 6, 0.55, 0); } }
+    for (const s of [-1, 1]) for (const [a, c] of [[[AW, 34], [16.8, 16]], [[16.8, 16], [10.6, 9.5]]]) {
+      const hit = segHit(b, T.cx + s * a[0], T.zb - a[1], T.cx + s * c[0], T.zb - c[1], R0 + 0.3);
+      if (hit) bounce(b, hit[0], hit[1], hit[2], 0.5, 0);
+    }
+    for (const Bm of T.bumps) {
+      const dx = b.x - Bm.x, dz = b.z - Bm.z, d = Math.hypot(dx, dz), rr = BS.r * BSC + R0 - 0.6;
+      if (d < rr && d > 1e-6) { bounce(b, dx / d, dz / d, rr - d, 0.4, PB_KICK); if (Bm.flash < 0.5) { Bm.flash = 1; Bm.kick = 1; bang('bumper', Bm.x, Bm.z); } }
+    }
+    for (const S of T.slings) {
+      const hit = segHit(b, S.a[0], S.a[1], S.b[0], S.b[1], R0 + 0.45);
+      if (hit) { const kick = hit[0] * S.nx + hit[1] * S.nz > 0.5; bounce(b, hit[0], hit[1], hit[2], 0.4, kick ? PB_KICK * 0.9 : 0); if (kick && S.flash < 0.5) { S.flash = 1; bang('sling', b.x, b.z); } }
+    }
+    for (const D of T.drops) {
+      if (D.hit) continue;
+      const hit = segHit(b, D.x, D.z - 1.3, D.x, D.z + 1.3, R0 + 0.25);
+      if (hit) { bounce(b, hit[0], hit[1], hit[2], 0.3, 0); D.hit = true; bang('drop', D.x, D.z); }
+    }
+    for (const Sc of T.saucers || []) {                      // a kick-out hole: a ball rolling over it drops in, sits, and is kicked out
+      if (Sc.held || Math.hypot(b.x - Sc.x, b.z - Sc.z) > 1.3) continue;
+      Sc.held = b; b.mode = 'held'; b.x = Sc.x; b.z = Sc.z; b.vx = b.vz = 0; b.hold = 1.4 + Math.random(); b.saucer = Sc; bang('saucer', Sc.x, Sc.z); return;
+    }
+    for (const o of T.free) {                                // one ball against another
+      if (o === b) continue;
+      const dx = b.x - o.x, dz = b.z - o.z, d = Math.hypot(dx, dz);
+      if (d < 2 * R0 && d > 1e-6) {
+        const nx = dx / d, nz = dz / d, over = (2 * R0 - d) / 2; b.x += nx * over; b.z += nz * over; o.x -= nx * over; o.z -= nz * over;
+        const rv = (b.vx - o.vx) * nx + (b.vz - o.vz) * nz;
+        if (rv < 0) { b.vx -= rv * nx; b.vz -= rv * nz; o.vx += rv * nx; o.vz += rv * nz; }
+      }
+    }
+    // the flippers: a ball coming down to them is flipped straight back up the table
+    const u2 = T.zb - b.z, x2 = b.x - T.cx;
+    if (u2 < 12.5 && Math.abs(x2) < 10.5 && b.vz > 0) {
+      const F = T.flips.find((f) => f.s === (x2 < 0 ? -1 : 1));
+      if (F.t < 0 || F.a < 0.3) { F.t = 0; bang('flip', F.px, F.pz); }
+      b.z = Math.min(b.z, T.zb - 10.5); aim(b, T);
+    }
+    if (u2 < 4) { b.z = T.zb - 50; b.x = T.cx - T.rs * (A + 14); b.vz = 4; b.vx = 0; }   // never lost: a new ball at the top of the table
+  };
+  const stepPath = (b, dt) => {
+    if (b.mode === 'loop') {
+      const Lp = b.loop, y = tubeAt(Lp.path, b.s, pos).y;
+      b.v = Math.sqrt(Math.max(49, 24 * 24 - 2 * 16 * (y - BY)));   // slower as it climbs, quicker as it comes down
+      const s0 = b.s; b.s += b.v * dt;
+      if (s0 < Lp.fire && b.s >= Lp.fire) { Lp.flip.t = 0; bang('flip', Lp.flip.px, Lp.flip.pz); }
+      if (b.s >= Lp.path.len) b.s -= Lp.path.len;
+      tubeAt(Lp.path, b.s, pos); b.x = pos.x; b.y = pos.y; b.z = pos.z;
+      for (const Sp of Lp.table.spinners || []) if (Math.hypot(Sp.x - b.x, Sp.z - b.z) < 2) Sp.w = 16;
+    } else if (b.mode === 'line') {
+      b.s = (b.s + b.v * dt) % b.line.path.len;
+      tubeAt(b.line.path, b.s, pos); b.x = pos.x; b.y = pos.y; b.z = pos.z;
+    } else if (b.step) b.step(b, dt);
+  };
+  const spinBalls = () => {
+    balls.forEach((b, i) => { m.compose(pos.set(b.x, b.mode === 'free' ? BY : b.y, b.z), q.identity(), sc.set(1, 1, 1)); ballMesh.setMatrixAt(i, m); });
+    ballMesh.instanceMatrix.needsUpdate = true;
+  };
+  let tNow = 0;
+  const step = (dt, camZ) => {
+    tNow += dt;
+    for (const b of balls) {
+      if (b.mode === 'free') {
+        if (Math.abs(b.table.zb - PB_AL / 2 - camZ) > 150) continue;   // only the tables near the camera play
+        const n = Math.ceil(dt / (1 / 240));
+        for (let k = 0; k < n; k++) stepFree(b, dt / n);
+      } else if (b.mode === 'held') {
+        b.hold -= dt;
+        if (b.hold <= 0) {                                   // kicked out, down toward the middle of the table
+          const Sc = b.saucer; Sc.held = null; Sc.flash = 1; b.mode = 'free';
+          const dx = b.table.cx - Sc.x, dz = 14; const d = Math.hypot(dx, dz); b.vx = dx / d * 20; b.vz = dz / d * 20; b.x += b.vx * 0.12; b.z += b.vz * 0.12;
+          bang('kick', Sc.x, Sc.z);
+        }
+      } else stepPath(b, dt);
+    }
+    for (const F of flips) {                                 // up fast, hold a moment, back down
+      if (F.t < 0) { F.a = 0; continue; }
+      F.t += dt; F.a = F.t < 0.06 ? F.t / 0.06 : F.t < 0.2 ? 1 : Math.max(0, 1 - (F.t - 0.2) / 0.18);
+      if (F.t > 0.4) F.t = -1;
+    }
+    bumps.forEach((Bm, i) => {
+      Bm.flash = Math.max(0, Bm.flash - dt * 3.2); Bm.kick = Math.max(0, Bm.kick - dt * 8);
+      const k = 1 + Bm.flash * 1.8;
+      bumpLit.setColorAt(i, col.setRGB(k, k, k));
+      m.compose(pos.set(Bm.x, PF - Bm.kick * 0.5, Bm.z), q.identity(), sc.set(BSC, BSC, BSC)); bumpLit.setMatrixAt(i, m);
+    });
+    bumpLit.instanceColor.needsUpdate = true; bumpLit.instanceMatrix.needsUpdate = true;
+    slings.forEach((S, i) => { S.flash = Math.max(0, S.flash - dt * 4); slingMesh.setColorAt(i, col.setHex(L.sling.glow).multiplyScalar(0.35 + 1.4 * S.flash)); });
+    slingMesh.instanceColor.needsUpdate = true;
+    for (const T of tables) {
+      if (T.drops.length && T.drops.every((D) => D.hit)) { T.reset = (T.reset || 0) + dt; if (T.reset > 1.6) { for (const D of T.drops) D.hit = false; T.reset = 0; bang('reset', T.drops[0].x, T.drops[0].z); } }
+    }
+    for (const D of drops) D.down += ((D.hit ? 1 : 0) - D.down) * Math.min(1, dt * (D.hit ? 18 : 6));
+    for (const f of tick) f(dt, tNow, camZ);
+    drawFlips(); drawDrops(); spinBalls(); drawLamps(tNow, dt); drawBoards(tNow);
+    pbNoise(sounds, camZ); sounds.length = 0;
+  };
+  for (let i = 0; i < 90; i++) step(1 / 30, startCam);       // open with the balls already in play
+  sounds.length = 0;
+  cityRefs.pinball = { balls, tables, bumps, flips, lamps, boards };
+  w.tick = (dt) => {
+    camera.updateMatrixWorld();
+    HAZE.sun.value.copy(HAZE.dir).transformDirection(camera.matrixWorldInverse);
+    if (!live || cityRefs.frozen) return;
+    step(Math.min(dt, 0.05), camera.position.z);
+  };
+}
+let pbGlass = {};
+function pbTubeGlass(look) {                                   // glass, clear where you look through it and bright where you see it edge-on
+  if (pbGlass[look]) return pbGlass[look];
+  const tint = look === 'chrome' ? [0.35, 0.8, 1.0] : [1.0, 0.7, 0.4];
+  const mat = new MeshStandardMaterial({ color: look === 'chrome' ? 0x9FDFFF : 0xFFD0A0, metalness: 0.1, roughness: 0.06, transparent: true, depthWrite: false,
+                                         side: DoubleSide, envMap: pbEnvMap(look) || envTex, envMapIntensity: 1.2 });
+  mat.onBeforeCompile = (sh) => {
+    sh.fragmentShader = sh.fragmentShader.replace('#include <opaque_fragment>', `#include <opaque_fragment>
+  {
+    float rim = pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 2.2);
+    gl_FragColor.rgb += vec3(${tint.join(', ')}) * rim * 0.75;
+    gl_FragColor.a = clamp(0.16 + 0.7 * rim, 0.0, 1.0);
+  }`);
+  };
+  mat.customProgramCacheKey = () => 'pb-glass-' + look;
+  mat.userData.keep = true;
+  return (pbGlass[look] = mat);
+}
+WORLDS_ADD('pinball-chrome', (w) => pinballWorld(w, 'chrome'));
+WORLDS_ADD('pinball-arcade', (w) => pinballWorld(w, 'arcade'));
+WORLDS_ADD('pinball-golden', (w) => pinballWorld(w, 'golden'));
+
+/* WHAT EACH LOOK HAS OF ITS OWN, beyond the tables every look shares:
+     chrome   a spinning disc on each table; lift towers beside the rail, balls
+              climbing a spiral round a lit core and dropping down a glass one
+     arcade   dot-matrix screens beside the rail (a shark swims across them,
+              JACKPOT flashes, MULTIBALL); a shark cut-out gliding to and fro
+              over each table; spinners in the ramps' mouths
+     golden   score drums in wooden boxes beside the rail, rolling on as the
+              score climbs; a prize wheel; kick-out holes that hold a ball and
+              spit it out */
+function pbSpecials(look, W) {
+  const { G, K, L, r, A, PF, BY, tables, balls, boards, lamp, metal, lit, gi, tick, keepHit, glowTube, chase } = W;
+  const slot = (T) => [T.cx - T.rs * (A + 8), T.zb - 20];   // the set piece's place: beside the avenue, on the bumpers' side, near the flippers
+  const m = new Matrix4(), q = new Quaternion(), e = new Euler(), pos = new Vector3(), sc = new Vector3(), col = new Color();
+  if (look === 'chrome') {
+    // A disc on each table, spinning, lit rays on chrome.
+    const discT = canvasTex(256, 256, (g) => {
+      g.fillStyle = '#C8D6E8'; g.fillRect(0, 0, 256, 256);
+      pbRays(g, 128, 128, 16, 20, 130, ['#EAF4FF', '#7A92B8']);
+      g.strokeStyle = '#1A2A44'; g.lineWidth = 6; pbCircle(g, 128, 128, 122); g.stroke();
+      g.fillStyle = '#FF8A3C'; pbCircle(g, 128, 128, 22); g.fill();
+      for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2; g.fillStyle = '#7FE8FF'; pbCircle(g, 128 + Math.cos(a) * 96, 128 + Math.sin(a) * 96, 7); g.fill(); }
+    });
+    const discMat = new MeshStandardMaterial({ map: discT, metalness: 0.9, roughness: 0.2, envMap: K.env, envMapIntensity: 1.1, emissive: 0xFFFFFF, emissiveMap: discT, emissiveIntensity: 0.12 });
+    const discs = tables.map((T) => ({ x: T.cx + T.rs * (A + 7.5), z: T.zb - 31 }));
+    const dm = new InstancedMesh(new CylinderGeometry(3.8, 3.8, 0.3, 40), discMat, discs.length);
+    G.add(dm);
+    discs.forEach((D) => metal.geo(new TorusGeometry(3.95, 0.22, 6, 40), placeAt(D.x, PF + 0.15, D.z, Math.PI / 2, 0, 0), 0xDCE6F2));
+    tick.push((dt, t) => { discs.forEach((D, i) => { m.compose(pos.set(D.x, PF + 0.12, D.z), q.setFromEuler(e.set(0, t * 1.8, 0)), sc.set(1, 1, 1)); dm.setMatrixAt(i, m); }); dm.instanceMatrix.needsUpdate = true; });
+    // LIFT TOWERS beside the rail, one every other table: balls ride up an open spiral of chrome round a glowing core, and come down a glass one.
+    const coreMat = new MeshBasicMaterial({ color: 0x7FE8FF, toneMapped: false });
+    tables.forEach((T) => {
+      const [cx, cz] = slot(T), top = PF + 12;
+      if (keepHit(cx - 5, cx + 5, cz - 5, cz + 5)) return;
+      const up = [], dn = [];
+      for (let k = 0; k <= 48; k++) { const a = k / 48 * Math.PI * 6; up.push([cx + Math.cos(a) * 3.4, BY + (top - BY) * k / 48, cz + Math.sin(a) * 3.4]); }
+      for (let k = 0; k <= 24; k++) { const a = Math.PI * 6 - k / 24 * Math.PI * 4; dn.push([cx + Math.cos(a) * 1.9, top + 0.5 - (top + 0.5 - BY) * k / 24, cz + Math.sin(a) * 1.9]); }
+      const U = tubePath(up), D = tubePath(dn), FU = pbFrames(U, 0.5);
+      for (const [ox, oy] of [[-1.05, -1.02], [1.05, -1.02], [1.5, 0.15]]) metal.sweep(FU, pbRound(0.1, 5, ox, oy), 0xE8EEF4);
+      glowTube(pbFrames(D, 0.6));
+      const core = new Mesh(new CylinderGeometry(0.9, 0.9, top - PF + 1.2, 16), coreMat); core.position.set(cx, (top + PF + 1.2) / 2, cz); G.add(core);
+      for (let k = 0; k < 5; k++) metal.geo(new TorusGeometry(1.2, 0.18, 6, 20), placeAt(cx, PF + 1 + k * 2.4, cz, Math.PI / 2, 0, 0), 0xDCE6F2);
+      metal.geo(new CylinderGeometry(4.2, 4.6, 0.8, 24), placeAt(cx, PF + 0.4, cz), 0x8A9AB0);
+      const total = U.len + D.len;
+      for (let k = 0; k < 4; k++) {
+        const b = { x: cx, y: BY, z: cz, s: total * k / 4, mode: 'lift', step: (bb, dt) => {
+          const onUp = bb.s < U.len; bb.s += (onUp ? 4.5 : 12) * dt; if (bb.s >= total) bb.s -= total;
+          if (bb.s < U.len) tubeAt(U, bb.s, pos); else tubeAt(D, bb.s - U.len, pos);
+          bb.x = pos.x; bb.y = pos.y; bb.z = pos.z;
+        } };
+        balls.push(b);
+      }
+      gi.push([cx, top + 1.4, cz]);
+    });
+    // Orange lamps in a ring round each disc, chasing.
+    discs.forEach((D, di) => { for (let k = 0; k < 10; k++) { const a = k / 10 * Math.PI * 2; lamp('round', D.x + Math.cos(a) * 5.3, D.z + Math.sin(a) * 5.3, 1.2, 1.2, 0, 0xFF8A3C, chase(k, 10, 0.7, di * 0.3)); } });
+  }
+  if (look === 'arcade') {
+    // DOT-MATRIX SCREENS: frames drawn as rows of orange dots, 128 by 32 of them; each screen steps through a show of its own.
+    const FR = 8, dmdT = canvasTex(512, 128 * FR, (g) => {
+      g.fillStyle = '#0A0604'; g.fillRect(0, 0, 512, 128 * FR);
+      const src = document.createElement('canvas'); src.width = 128; src.height = 32; const s = src.getContext('2d');
+      const frame = (f, draw) => {
+        s.fillStyle = '#000'; s.fillRect(0, 0, 128, 32); s.fillStyle = '#FFF'; s.strokeStyle = '#FFF'; draw(s);
+        const px = s.getImageData(0, 0, 128, 32).data;
+        for (let y = 0; y < 32; y++) for (let x = 0; x < 128; x++) {
+          const v = px[(y * 128 + x) * 4] / 255, k = Math.round(v * 3) / 3;
+          g.fillStyle = k > 0 ? `rgba(255,${Math.round(96 + 90 * k)},${Math.round(24 + 40 * k)},${0.25 + 0.75 * k})` : 'rgba(80,30,8,0.35)';
+          g.beginPath(); g.arc(x * 4 + 2, f * 128 + y * 4 + 2, 1.6, 0, Math.PI * 2); g.fill();
+        }
+      };
+      const shark = (s2, x) => { s2.beginPath(); s2.moveTo(x, 18); s2.quadraticCurveTo(x + 14, 8, x + 34, 14); s2.lineTo(x + 40, 8); s2.lineTo(x + 38, 16); s2.lineTo(x + 44, 22); s2.lineTo(x + 34, 20); s2.quadraticCurveTo(x + 14, 26, x, 18); s2.fill(); s2.fillRect(x + 16, 6, 3, 6); s2.fillStyle = '#000'; s2.fillRect(x + 5, 15, 2, 2); s2.fillStyle = '#FFF'; };
+      for (let k = 0; k < 4; k++) frame(k, (s2) => { shark(s2, 100 - k * 30); for (let b = 0; b < 5; b++) { s2.fillStyle = '#888'; s2.beginPath(); s2.arc(14 + b * 25 + k * 3, 26 - ((b * 7 + k * 5) % 22), 1.4, 0, 7); s2.fill(); } s2.fillStyle = '#FFF'; });
+      frame(4, (s2) => { s2.font = '900 22px ' + PB_FONT; s2.textAlign = 'center'; s2.textBaseline = 'middle'; s2.fillText('JACKPOT', 64, 17); });
+      frame(5, (s2) => { s2.fillRect(0, 0, 128, 32); s2.fillStyle = '#000'; s2.font = '900 22px ' + PB_FONT; s2.textAlign = 'center'; s2.textBaseline = 'middle'; s2.fillText('JACKPOT', 64, 17); });
+      frame(6, (s2) => { s2.font = '900 17px ' + PB_FONT; s2.textAlign = 'center'; s2.textBaseline = 'middle'; s2.fillText('MULTIBALL', 64, 17); });
+      frame(7, (s2) => { s2.fillStyle = '#AAA'; s2.fillRect(18, 12, 30, 16); s2.fillStyle = '#FFF'; s2.fillRect(16, 6, 34, 8); s2.font = '800 13px ' + PB_FONT; s2.textAlign = 'left'; s2.textBaseline = 'middle'; s2.fillText('TREASURE', 56, 12); s2.fillText('x 5', 56, 24); for (let k = 0; k < 6; k++) s2.fillRect(8 + k * 9, 2 + (k % 2) * 2, 2, 2); });
+    });
+    const dmdMat = new MeshBasicMaterial({ map: dmdT, toneMapped: false });
+    const SHOW = [[0, 0.22], [1, 0.22], [2, 0.22], [3, 0.22], [0, 0.22], [1, 0.22], [2, 0.22], [3, 0.22], [4, 0.3], [5, 0.3], [4, 0.3], [5, 0.3], [6, 1.2], [7, 1.4]];
+    const showLen = SHOW.reduce((a, [, d]) => a + d, 0);
+    const screens = [];
+    tables.forEach((T) => {
+      const [x, z] = slot(T);
+      if (keepHit(x - 7, x + 7, z - 3, z + 3)) return;
+      const y = PF + 7.4;
+      metal.geo(new BoxGeometry(13.4, 4.4, 0.6), placeAt(x, y, z + 0.35, -0.5, 0, 0), 0x2A2E34);
+      for (const dx of [-4.5, 4.5]) metal.geo(new CylinderGeometry(0.25, 0.3, y - PF - 1.6, 8), placeAt(x + dx, PF + (y - PF - 1.6) / 2, z + 1), 0xC8D0D8);
+      screens.push({ x, y, z, ph: r() * showLen });
+    });
+    if (screens.length) {
+      const sg = new BufferGeometry(), sp = [], su = new Float32BufferAttribute(new Float32Array(screens.length * 8), 2).setUsage(DynamicDrawUsage), si = [];
+      const upX = 0, upY = Math.cos(0.5), upZ = -Math.sin(0.5), nY = Math.sin(0.5), nZ = Math.cos(0.5);   // the stand leans back: its up, and its face's normal
+      screens.forEach((S, i) => {
+        const cy = S.y + nY * 0.32, cz = S.z + 0.35 + nZ * 0.32;
+        for (const [a, b] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) sp.push(S.x + a * 6.4 + b * 1.9 * upX, cy + b * 1.9 * upY, cz + b * 1.9 * upZ);
+        si.push(i * 4, i * 4 + 1, i * 4 + 2, i * 4, i * 4 + 2, i * 4 + 3);
+      });
+      sg.setAttribute('position', new Float32BufferAttribute(sp, 3)); sg.setAttribute('uv', su); sg.setIndex(si);
+      const sm = new Mesh(sg, dmdMat); sm.frustumCulled = false; G.add(sm);
+      tick.push((dt, t) => {
+        screens.forEach((S, i) => {
+          let u = (t + S.ph) % showLen, f = 0;
+          for (const [fr, d] of SHOW) { if (u < d) { f = fr; break; } u -= d; }
+          const v1 = 1 - f / FR, v0 = v1 - 1 / FR;
+          su.array.set([0, v0, 1, v0, 1, v1, 0, v1], i * 8);
+        });
+        su.needsUpdate = true;
+      });
+    }
+    // A shark cut-out gliding to and fro over each table, on a chrome rod.
+    tables.forEach((T) => {
+      const z = T.zb - 30, y = PF + 6.4, x = T.cx - T.rs * (A + 14);
+      metal.geo(new CylinderGeometry(0.16, 0.16, 20, 8), placeAt(x, y + 3.2, z + 0.4, 0, 0, Math.PI / 2), 0xC8D0D8);
+      for (const dx of [-10, 10]) metal.geo(new CylinderGeometry(0.2, 0.24, y + 3.2 - PF, 8), placeAt(x + dx, PF + (y + 3.2 - PF) / 2, z + 0.4), 0xC8D0D8);
+      boards.push({ fig: 0, x, y, z, size: 7, flat: false, kind: 'glide', amp: 7, rate: 0.35 + r() * 0.1, ph: r() * 6 });
+    });
+    // SPINNERS in each ramp's mouth: a plate on an axle between two posts, whirling as a ball goes through.
+    const spinT = canvasTex(64, 64, (g) => { g.fillStyle = '#E8ECF0'; g.fillRect(0, 0, 64, 64); g.fillStyle = '#FF3A3A'; g.fillRect(0, 20, 64, 24); g.fillStyle = '#FFD23F'; star(g, 32, 32, 12, 5, '#FFD23F'); });
+    const spinMat = new MeshStandardMaterial({ map: spinT, metalness: 0.6, roughness: 0.25, envMap: K.env, envMapIntensity: 0.8 });
+    const spinners = [];
+    W.loops.forEach((Lp) => {
+      const v = new Vector3(), d = new Vector3();
+      let s0 = 0; for (let sI = 0; sI < Lp.path.len; sI += 0.5) { tubeAt(Lp.path, sI, v); if (v.y - BY > 0.25) { s0 = sI; break; } }
+      tubeAt(Lp.path, Math.max(0, s0 - 4), v); tubeDir(Lp.path, Math.max(0, s0 - 4), d);
+      const yaw = Math.atan2(d.x, d.z), Sp = { x: v.x, z: v.z, yaw, a: 0, w: 0 };
+      spinners.push(Sp); (Lp.table.spinners || (Lp.table.spinners = [])).push(Sp);
+      for (const sd of [-1, 1]) metal.geo(new CylinderGeometry(0.14, 0.14, 4.4, 6), placeAt(v.x + Math.cos(yaw) * sd * 1.9, PF + 2.2, v.z - Math.sin(yaw) * sd * 1.9), 0xDCE4EC);
+      metal.geo(new CylinderGeometry(0.1, 0.1, 3.8, 6), placeAt(v.x, PF + 4.2, v.z, 0, yaw, Math.PI / 2), 0xDCE4EC);
+    });
+    if (spinners.length) {
+      const sm = new InstancedMesh(new BoxGeometry(3.2, 2.4, 0.12).translate(0, -1.2, 0), spinMat, spinners.length); G.add(sm);
+      tick.push((dt) => {
+        spinners.forEach((Sp, i) => {
+          Sp.a += Sp.w * dt; Sp.w *= Math.exp(-0.9 * dt);
+          m.compose(pos.set(Sp.x, PF + 4.2, Sp.z), q.setFromEuler(e.set(Sp.a, Sp.yaw, 0, 'YXZ')), sc.set(1, 1, 1)); sm.setMatrixAt(i, m);
+        });
+        sm.instanceMatrix.needsUpdate = true;
+      });
+    }
+  }
+  if (look === 'golden') {
+    // SCORE DRUMS: a wooden box beside the rail on each table, six drums in a window, rolling on to the next score.
+    const digT = canvasTex(64, 640, (g) => {
+      g.fillStyle = '#F4ECD8'; g.fillRect(0, 0, 64, 640);
+      for (let k = 0; k < 10; k++) { g.fillStyle = '#1A0E08'; g.font = `900 52px ${PB_FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(String((10 - k) % 10), 32, k * 64 + 34); }
+    });
+    const drumMat = new MeshStandardMaterial({ map: digT, roughness: 0.5, emissive: 0xFFE8C0, emissiveMap: digT, emissiveIntensity: 0.35 });
+    const reels = [];
+    tables.forEach((T) => {
+      if (T.i % 2) return;
+      const [x, z] = slot(T), y = PF + 7.4;
+      if (keepHit(x - 7, x + 7, z - 3, z + 3)) return;
+      const box = { x, y, z, score: Math.floor(r() * 40000) * 10, shown: [], next: r() * 2 };
+      // The box: walnut, a gold frame round the window, painted panels either side of it.
+      W.paint.geo(new BoxGeometry(13, 4.6, 2.2), placeAt(x, y, z - 0.6, -0.45, 0, 0), 0x5A2E12);
+      metal.geo(new BoxGeometry(11.2, 2.4, 0.3), placeAt(x, y + 0.05, z + 0.45, -0.45, 0, 0), 0xE8B84A);
+      for (const dx of [-5.2, 5.2]) metal.geo(new CylinderGeometry(0.3, 0.36, y - PF - 1.8, 8), placeAt(x + dx, PF + (y - PF - 1.8) / 2, z), 0xC8B070);
+      for (let k = 0; k < 6; k++) { box.shown.push(0); reels.push({ box, k, a: 0, x: x - 4.3 + k * 1.72, y, z }); }
+      reels.forEach((R) => { R.lean = -0.45; });
+      boards.push({ fig: T.i % L.figs.length, x, y: y + 5.2, z: z - 1.4, size: 6, flat: false, kind: 'still', ph: 0 });
+    });
+    if (reels.length) {
+      const dg = new CylinderGeometry(0.72, 0.72, 1.45, 20), duv = dg.attributes.uv;
+      for (let i = 0; i < duv.count; i++) duv.setXY(i, duv.getY(i), duv.getX(i));          // the digits run round the drum, not along it
+      const rm = new InstancedMesh(dg.rotateZ(Math.PI / 2), drumMat, reels.length); G.add(rm);
+      tick.push((dt, t) => {
+        for (const R of reels) {
+          const B = R.box;
+          if (R.k === 0) { B.next -= dt; if (B.next <= 0) { B.score += [100, 1000, 500, 10, 50000][Math.floor(Math.random() * 5)]; B.next = 1.2 + Math.random() * 2.2; } }
+          const digit = Math.floor(B.score / Math.pow(10, 5 - R.k)) % 10, want = digit / 10 * Math.PI * 2;
+          let d = want - (R.a % (Math.PI * 2)); if (d < 0) d += Math.PI * 2;
+          R.a += Math.min(d, dt * 7);
+        }
+        reels.forEach((R, i) => { m.compose(pos.set(R.x, R.y + 0.05, R.z + 0.2), q.setFromEuler(e.set(R.lean - R.a + Math.PI / 2 - 0.05, 0, 0)), sc.set(1, 1, 1)); rm.setMatrixAt(i, m); });
+        rm.instanceMatrix.needsUpdate = true;
+      });
+    }
+    // THE PRIZE WHEEL, on every other table across from the drums: it spins up, runs down ticking, rests, spins again.
+    const wheelT = canvasTex(512, 512, (g) => {
+      const segs = ['100', '★', '500', '1000', '50', '★', '5000', '200', 'EXTRA', '★', '2500', '10'];
+      for (let k = 0; k < 12; k++) {
+        const a0 = k / 12 * Math.PI * 2 - Math.PI / 2, a1 = (k + 1) / 12 * Math.PI * 2 - Math.PI / 2;
+        g.fillStyle = ['#D8231C', '#FFF2D8', '#2A5AC8', '#FFC84A'][k % 4]; g.beginPath(); g.moveTo(256, 256); g.arc(256, 256, 236, a0, a1); g.closePath(); g.fill();
+        g.save(); g.translate(256, 256); g.rotate((a0 + a1) / 2 + Math.PI / 2);
+        pbWord(g, segs[k], 0, -170, segs[k].length > 3 ? 34 : 46, k % 4 === 1 || k % 4 === 3 ? '#7A0A06' : '#FFF6DC', null);
+        g.restore();
+      }
+      g.strokeStyle = '#1A0804'; g.lineWidth = 8; pbCircle(g, 256, 256, 238); g.stroke();
+      g.fillStyle = '#E8B84A'; pbCircle(g, 256, 256, 250); g.lineWidth = 14; g.strokeStyle = '#E8B84A'; g.stroke();
+      for (let k = 0; k < 24; k++) { const a = k / 24 * Math.PI * 2; g.fillStyle = k % 2 ? '#FFF6DC' : '#FFD890'; pbCircle(g, 256 + Math.cos(a) * 246, 256 + Math.sin(a) * 246, 8); g.fill(); }
+      g.fillStyle = '#E8B84A'; pbCircle(g, 256, 256, 40); g.fill(); star(g, 256, 256, 30, 12, '#D8231C');
+    });
+    const wheelMat = new MeshStandardMaterial({ map: wheelT, roughness: 0.4, metalness: 0.1, emissive: 0xFFFFFF, emissiveMap: wheelT, emissiveIntensity: 0.35, side: DoubleSide });
+    const wheels = [];
+    tables.forEach((T) => {
+      if (T.i % 2 === 0) return;
+      const [x, z] = slot(T), y = PF + 7;
+      if (keepHit(x - 6, x + 6, z - 2, z + 2)) return;
+      const mesh = new Mesh(new CircleGeometry(5, 48), wheelMat); mesh.position.set(x, y, z); G.add(mesh);
+      metal.geo(new CylinderGeometry(0.35, 0.45, y - PF, 8), placeAt(x, PF + (y - PF) / 2, z - 0.4), 0xC8B070);
+      lit.geo(new ConeGeometry(0.5, 1.4, 3), placeAt(x, y + 5.5, z + 0.2, Math.PI, 0, 0), 0xFFE6A0);
+      wheels.push({ mesh, a: r() * 6, w: 0, rest: r() * 3 });
+    });
+    tick.push((dt) => {
+      for (const Wh of wheels) {
+        if (Wh.w < 0.05) { Wh.w = 0; Wh.rest -= dt; if (Wh.rest <= 0) { Wh.w = 5 + Math.random() * 3; Wh.rest = 2 + Math.random() * 2; } }
+        else Wh.w *= Math.exp(-0.45 * dt);
+        Wh.a += Wh.w * dt; Wh.mesh.rotation.z = -Wh.a;
+      }
+    });
+    // KICK-OUT HOLES: a ring in the playfield, one to each table on the side away from the drop targets.
+    tables.forEach((T) => {
+      const s = T.rs, Sc = { x: T.cx + s * (A + 7.5), z: T.zb - 44, held: null, flash: 0 };
+      T.saucers.push(Sc);
+      metal.geo(new TorusGeometry(1.45, 0.3, 8, 24), placeAt(Sc.x, PF + 0.12, Sc.z, Math.PI / 2, 0, 0), 0xE8D8B8);
+      W.paint.geo(new CircleGeometry(1.3, 24), placeAt(Sc.x, PF + 0.03, Sc.z, -Math.PI / 2, 0, 0), 0x140804);
+      for (let k = 0; k < 3; k++) lamp('star', Sc.x - s * (2.8 + k * 2.4), Sc.z - 1 - k * 1.1, 1.8, 1.8, 0, L.ins[k % 3], () => (Sc.held ? 1 : 0.1));
+    });
+    // Stars along the orbit lanes, chasing the way the balls run.
+    W.loops.forEach((Lp) => { const v = new Vector3(); for (let k = 0; k < 8; k++) { tubeAt(Lp.path, 26 + k * 7, v); lamp('star', v.x, v.z, 1.6, 1.6, 0, L.ins[k % 2 ? 1 : 4], chase(k, 8, 0.8)); } });
+  }
+}
+/* THE MACHINE'S SIDES, far out left and right: seen down the length of the
+   machine ahead, closing in the way a corridor does, and beside a loop. */
+function pbWalls(look, W) {
+  const { G, K, L, CX, TW, PF, Z_TOP, Z_BOT, paint, metal, tick, gi } = W;
+  const m = new Matrix4(), col = new Color(), z0 = Z_TOP + 40, z1 = Z_BOT - 40, len = z0 - z1, zc = (z0 + z1) / 2;
+  if (look === 'chrome') {                                 // walls of chrome pipes, stepping outward as they rise, strips of light between
+    for (const s of [-1, 1]) {
+      for (let k = 0; k < 7; k++) metal.geo(new CylinderGeometry(0.95, 0.95, len, 14), placeAt(CX + s * (TW + 1 + k * k * 0.35), PF + 1.2 + k * 2.6, zc, Math.PI / 2, 0, 0), 0xE4EEF8);
+      for (let k = 0; k < 3; k++) W.glow.geo(new BoxGeometry(0.2, 0.3, len), placeAt(CX + s * (TW + 1.2 + (k * 2 + 1) ** 2 * 0.35 * 0.35), PF + 2.5 + k * 5.2, zc), k === 1 ? 0xFF8A3C : 0x7FE8FF);
+      for (let z = z0; z > z1; z -= 24) metal.geo(new BoxGeometry(1.4, 20, 1.4), placeAt(CX + s * (TW + 5), PF + 10, z), 0x9AAEC8);
+    }
+  } else if (look === 'arcade') {                          // black walls, a strip of lights along the top that runs in colours
+    for (const s of [-1, 1]) {
+      paint.geo(new BoxGeometry(1.2, 9, len), placeAt(CX + s * (TW + 0.6), PF + 4.5, zc), L.wallCol);
+      metal.geo(new BoxGeometry(1.6, 0.5, len), placeAt(CX + s * (TW + 0.6), PF + 9.2, zc), L.capCol);
+    }
+    const n = Math.floor(len / 1.6), leds = new InstancedMesh(new BoxGeometry(0.35, 0.35, 1.1), K.flash, n * 2);
+    for (let i = 0; i < n * 2; i++) { const s = i < n ? -1 : 1, z = z0 - (i % n) * 1.6; m.makeTranslation(CX + s * (TW - 0.1), PF + 8.4, z); leds.setMatrixAt(i, m); }
+    G.add(leds);
+    const cols = [0xFF6A2A, 0x2EE6D6, 0xFF3A3A, 0xFFD23F, 0xFF4FA8];
+    tick.push((dt, t) => {
+      for (let i = 0; i < n * 2; i++) { const k = (i % n) / 6 + t * 3; leds.setColorAt(i, col.setHex(cols[Math.floor(k / 4) % cols.length]).multiplyScalar(0.25 + 1.2 * (k % 1 < 0.5 ? 1 : 0))); }
+      leds.instanceColor.needsUpdate = true;
+    });
+  } else {                                                  // wood, a chrome rail along the top, a row of bulbs
+    for (const s of [-1, 1]) {
+      paint.geo(new BoxGeometry(1.6, 7, len), placeAt(CX + s * (TW + 0.8), PF + 3.5, zc), L.wallCol);
+      metal.geo(new BoxGeometry(2.0, 0.6, len), placeAt(CX + s * (TW + 0.8), PF + 7.3, zc), 0xE8E4DC);
+      for (let z = z0; z > z1; z -= 5) gi.push([CX + s * (TW - 0.3), PF + 6, z]);
+    }
+  }
+}
+
+/* THE MACHINE'S SOUNDS. What the balls do near the camera is heard, from its
+   side, quieter the further off it is: a bumper's thump, a slingshot's snap, a
+   flipper's clack, a drop target's thunk; on the golden table a bumper rings a
+   bell, as the old tables' chimes did. At most a few a second, so it never
+   turns to noise. The course's own sounds become a machine's: a ring is a
+   chime, the finish the knocker and a run, a fall the drain, home the plunger. */
+let pbLastNoise = 0;
+function pbVoice(type, f0, f1, dur, gain, pan = 0, delay = 0) {
+  const out = sfx && sfx.out && sfx.out();
+  if (!out || !sfx.isOn()) return;
+  const ac = out.context, t0 = ac.currentTime + delay;
+  const o = ac.createOscillator(), g = ac.createGain(), p = ac.createStereoPanner ? ac.createStereoPanner() : null;
+  o.type = type; o.frequency.setValueAtTime(f0, t0);
+  if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, t0 + dur);
+  g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(gain, t0 + 0.005);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g);
+  if (p) { p.pan.value = clamp(pan, -1, 1); g.connect(p); p.connect(out); } else g.connect(out);
+  o.start(t0); o.stop(t0 + dur + 0.05);
+}
+const PB_NOISE = {
+  bumper: (k, p) => { pbVoice('sine', 150, 60, 0.18, 0.12 * k, p); pbVoice('square', 900, 420, 0.05, 0.02 * k, p); if (pbLook === 'golden') { pbVoice('sine', 1568, 1568, 0.9, 0.035 * k, p, 0.01); pbVoice('sine', 3136, 3136, 0.5, 0.01 * k, p, 0.01); } else if (pbLook === 'chrome') pbVoice('triangle', 1200, 2400, 0.12, 0.02 * k, p); },
+  sling: (k, p) => { pbVoice('square', 520, 180, 0.07, 0.04 * k, p); pbVoice('sine', 200, 90, 0.1, 0.07 * k, p); },
+  flip: (k, p) => { pbVoice('square', 180, 90, 0.05, 0.035 * k, p); pbVoice('sine', 110, 70, 0.08, 0.05 * k, p); },
+  drop: (k, p) => { pbVoice('sine', 240, 70, 0.14, 0.08 * k, p); pbVoice('triangle', 600, 300, 0.06, 0.02 * k, p); },
+  reset: (k, p) => { pbVoice('sawtooth', 90, 180, 0.25, 0.03 * k, p); pbVoice('square', 60, 60, 0.2, 0.02 * k, p, 0.05); },
+  saucer: (k, p) => { pbVoice('sine', 180, 120, 0.2, 0.08 * k, p); if (pbLook === 'golden') pbVoice('sine', 1046.5, 1046.5, 0.7, 0.03 * k, p, 0.05); },
+  kick: (k, p) => { pbVoice('sine', 130, 55, 0.22, 0.12 * k, p); pbVoice('square', 700, 300, 0.06, 0.02 * k, p); },
+};
+function pbNoise(list, camZ) {
+  if (!list.length || !sfx || !sfx.isOn() || state === 'rules') return;
+  const now = performance.now();
+  for (const [kind, x, z] of list) {
+    if (now - pbLastNoise < 140) return;
+    const d = Math.hypot(x - camera.position.x, (z - camZ) * 0.8), k = Math.pow(Math.max(0, 1 - d / 48), 2);
+    if (k < 0.08 || !PB_NOISE[kind]) continue;
+    pbLastNoise = now;
+    PB_NOISE[kind](k, (x - camera.position.x) / 22);
+  }
+}
+const PB_SOUNDS = {
+  unlock() {                                            // a ring: the machine's chime, three notes up (a bell on the old table, a bright ping in the others)
+    if (pbLook === 'golden') [[1046.5, 0], [1318.5, 0.09], [1568, 0.18]].forEach(([f, d]) => { pbVoice('sine', f, f, 1.1, 0.06, 0, d); pbVoice('sine', f * 2.76, f * 2.76, 0.4, 0.012, 0, d); });
+    else [[1318.5, 0], [1760, 0.07], [2637, 0.14]].forEach(([f, d]) => { pbVoice('triangle', f, f, 0.3, 0.05, 0, d); pbVoice('sine', f / 2, f / 2, 0.2, 0.03, 0, d); });
+  },
+  win() {                                               // the finish: the knocker's bang, then a run up and a chord
+    pbVoice('sine', 90, 40, 0.3, 0.16); pbVoice('square', 300, 80, 0.06, 0.05);
+    [523.25, 659.25, 783.99, 1046.5, 1318.5].forEach((f, i) => pbVoice(pbLook === 'golden' ? 'sine' : 'triangle', f, f, 0.35, 0.06, 0, 0.18 + i * 0.07));
+    [523.25, 783.99, 1046.5].forEach((f) => pbVoice('sine', f, f, 1.1, 0.03, 0, 0.6));
+  },
+  drop() { pbVoice('sine', 480, 60, 0.7, 0.08); pbVoice('square', 240, 40, 0.5, 0.015, 0, 0.05); },   // off the rail: down the drain
+  home() { pbVoice('sawtooth', 70, 400, 0.18, 0.02); pbVoice('sine', 220, 110, 0.12, 0.08, 0, 0.16); pbVoice('triangle', 880, 1760, 0.15, 0.02, 0, 0.2); },   // the plunger: drawn back, let go
+};
+
 // ---------- TREES, GROWN THE WAY EZ-TREE GROWS THEM ----------
 /* (owner, 2026-09-27: "I would like to see trees. can you make something like
    this https://www.eztree.dev/", with a picture of one: an oak-like tree, a
@@ -14443,6 +16205,12 @@ requestAnimationFrame(frame);
 function worldFromHash() {
   const [h, v, w] = location.hash.slice(1).split('-');
   if (h === 'try' && TRY_COURSES[v]) { loadTry(v, w === 'tokyo'); setWorld(w === 'tokyo' ? 'tokyo' : 'neon'); return; }   // #try-ice, #try-ice-tokyo
+  if (h === 'pinball') {                                // #pinball-chrome, #pinball-arcade, #pinball-golden (course 27, or the one named: #pinball-golden-12)
+    const n = parseInt(w, 10);
+    loadLevel(n >= 1 && n <= LEVELS.length ? n : 27);
+    setWorld('pinball-' + (PB_LOOKS.includes(v) ? v : 'chrome'));
+    return;
+  }
   if (h === 'level') {                                  // #level-17 opens course 17, to look at one
     const n = parseInt(v, 10);
     if (n >= 1 && n <= LEVELS.length) loadLevel(n);
