@@ -25,6 +25,7 @@ function circusWorld(w, look) {
   sun.color.setHex(C.sun[0]); sun.intensity = C.sun[1];
   w.marble = 'circus'; w.rings = [0x34E0FF, 0xFF6A3C];
   w.restyle = () => circusCourse(look);
+  w.news = NEWS_CIRCUS; w.rules = RULES_CIRCUS;              // the notes and rules in the circus's words (cq18)
   const paint = cqChunks(), metal = cqChunks(), lit = cqChunks(), tick = [];
   const bulbs = [];                                         // [x, y, z, string, index along it]
   const figs = [];                                          // cut-outs that turn to face the camera

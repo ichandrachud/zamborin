@@ -151,7 +151,7 @@ function juggleStep() {
   for (const J of circ.juggles) {
     if (Math.abs(ball.p.z - J.z) > 2) continue;
     for (const b of jugBalls(J, simT)) {
-      if (Math.hypot(ball.p.x - b.x, ball.p.y - b.y, ball.p.z - b.z) < JUG_BALL + R - 0.04) {
+      if (Math.hypot(ball.p.x - b.x, ball.p.y - b.y, ball.p.z - b.z) < JUG_BALL + R - 0.14) {   // (a little grace: a marble on its own spot is clear of a ball landing on the next)
         burst(ball.p.x, ball.p.y + 0.3, ball.p.z, 0xFFFFFF, 16, 3); sound('clamp'); shake = Math.max(shake, 0.25);
         ball.v.set(0, 0, 0); startFall(); return;
       }
@@ -372,11 +372,11 @@ function animateCirc(dt) {
 // What the harness reads, for the autopilot.
 function circState() {
   return {
-    rings: circ.rings.map((F) => ({ x: fringX(F, simT), z: F.z, r: F.pc.r, ft: F.pc.ft, slide: F.pc.slide || 0, period: F.pc.period || 0, phase: F.pc.phase, cx: F.pc.x })),
-    juggles: circ.juggles.map((J) => ({ z: J.z, spots: J.spots.map((S) => S.x), balls: jugBalls(J, simT).map((b) => [b.x, b.y, b.u]), period: J.pc.period, n: J.pc.n, phase: J.pc.phase })),
-    wheels: circ.wheels.map((W) => ({ x: W.x, y: W.y, z: W.z, rc: W.rc, rh: W.pc.rh, holes: W.pc.holes, ang: kwAngle(W, simT), spin: W.pc.spin * W.pc.dir })),
-    cannons: circ.cannons.map((C) => { const yaw = canYaw(C, simT), S = canShot(C, yaw); return { x: C.pc.x, z: C.pc.z, land: C.pc.land, netW: C.pc.netW, yaw, atX: S.at.x, swing: C.pc.swing, period: C.pc.period, phase: C.pc.phase }; }),
-    throwers: circ.throwers.map((T) => ({ z: T.pc.z, L: T.pc.L, period: T.pc.period, flight: T.pc.flight, balls: T.balls.map((b) => [b.at.x, b.at.z, simT - b.t0]) })),
+    rings: circ.rings.map((F) => ({ px: F.pc.x, x: fringX(F, simT), z: F.z, r: F.pc.r, ft: F.pc.ft, slide: F.pc.slide || 0, period: F.pc.period || 0, phase: F.pc.phase, cx: F.pc.x })),
+    juggles: circ.juggles.map((J) => ({ px: J.pc.x, z: J.z, spots: J.spots.map((S) => S.x), balls: jugBalls(J, simT).map((b) => [b.x, b.y, b.u]), period: J.pc.period, n: J.pc.n, phase: J.pc.phase })),
+    wheels: circ.wheels.map((W) => ({ px: W.x, x: W.x, y: W.y, z: W.z, rc: W.rc, rh: W.pc.rh, holes: W.pc.holes, ang: kwAngle(W, simT), spin: W.pc.spin * W.pc.dir })),
+    cannons: circ.cannons.map((C) => { const yaw = canYaw(C, simT), S = canShot(C, yaw); return { px: C.pc.x, x: C.pc.x, z: C.pc.z, land: C.pc.land, netW: C.pc.netW, yaw, atX: S.at.x, swing: C.pc.swing, period: C.pc.period, phase: C.pc.phase }; }),
+    throwers: circ.throwers.map((T) => ({ px: T.pc.x, z: T.pc.z, L: T.pc.L, period: T.pc.period, flight: T.pc.flight, balls: T.balls.map((b) => [b.at.x, b.at.z, simT - b.t0]) })),
     held: !!ball.circ,
     ...circState2(),
     ...circState3(),

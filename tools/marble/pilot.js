@@ -38,6 +38,13 @@ window.__pilot = (() => {
     for (let i = 1; i < P.length; i++) {
       const p = P[i];
       const near = p.t === 'ramp' ? p.z0 : p.z + p.d / 2, far = p.t === 'ramp' ? p.z1 : p.z - p.d / 2;
+      if (p.czSeg !== undefined) {                       // a circus act (151-200) and the rails laid with it: the circus pilot's own controller
+        const seg = [p]; while (i + 1 < P.length && P[i + 1].czSeg === p.czSeg) seg.push(P[++i]);
+        const act = seg.find((q) => q.t !== 'flat' && q.t !== 'posts') || p, top = Math.max(...seg.filter((q) => q.t === 'flat').map((q) => q.z + q.d / 2));   // (by its rails: a chase's or a coaster's z is where it starts)
+        steps.push({ k: 'cpob', why: 'circus ' + act.t, seg, z: +top.toFixed(2) });
+        lx = act.x;
+        continue;
+      }
       if (p.t === 'planks') {                            // a plank crossing: hop lane to lane when the landing is sure
         steps.push({ k: 'planks', why: 'planks', p: opts.carelessHop || skip(p) ? { ...p, _careless: true } : p });
         lx = p.x;
@@ -466,6 +473,7 @@ window.__pilot = (() => {
   }
   function decide(st, s, F, HO, t, CR) {
     if (st.k === 'sppuz') { if (!st.ctl) st.ctl = window.__pp.control(st.p, {}); const o = st.ctl(s, 1 / 60); if (o.done) st.R = o.R; return [o.ix, o.iz, !!o.done]; }
+    if (st.k === 'cpob') { if (!st.ctl) st.ctl = window.__cp.control(st.seg); const o = st.ctl(s, 1 / 60); return [o.ix, o.iz, !!o.done]; }
     if (st.k === 'spob') { if (!st.ctl) st.ctl = window.__spc.control(st.p); const o = st.ctl(s, 1 / 60); return [o.ix, o.iz, !!o.done]; }
     if (st.k === 'planks') {
       const p = st.p, nz = p.z + p.d / 2, Z = H.planks().find((q) => Math.abs(q.nearZ - nz) < 0.02), now = H.simT(), b = s.ball;

@@ -46,5 +46,13 @@ out += `});\n`;
 tries.cpuzzles = one; titles.cpuzzles = 'CIRCUS PUZZLES'; news.cpuzzles = 'The circus puzzles, one after another';
 out += `Object.assign(TRY_COURSES, ${JSON.stringify(tries)});\nCZ_TRY.push(...${JSON.stringify(Object.keys(tries))});\n`;
 out += `Object.assign(TRY_TITLES, ${JSON.stringify(titles)});\nObject.assign(TRY_NEWS, ${JSON.stringify(news)});\nObject.assign(PLAZA_NEWS, ${JSON.stringify(notes)});\n`;
+// The schedule for 151-200: the seven kinds in turn, three to a level (two on the road, one in the square at the
+// finish), each kind a step harder every time it comes.
+const cycle = ['CK', 'CH', 'CT', 'CP', 'CN', 'CM', 'CS'], seen = Object.fromEntries(cycle.map((k) => [k, 0])), road = {}, sq = {};
+for (let i = 0; i < 50; i++) {
+  const ids = [0, 1, 2].map((k) => { const K = cycle[(3 * i + k) % 7]; return K + (++seen[K]); });
+  road[151 + i] = ids.slice(0, 2); sq[151 + i] = ids[2];
+}
+out += `const CZ_ROAD_AT = ${JSON.stringify(road)};\nconst CZ_PLAZA_AT = ${JSON.stringify(sq)};\n`;
 fs.writeFileSync(path.join(__dirname, '../circus-src/cq14-ladders.js'), out);
 console.log('written', out.length, 'chars;', Object.keys(tries).join(' '));

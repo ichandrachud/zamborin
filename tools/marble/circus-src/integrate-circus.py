@@ -49,3 +49,22 @@ rep("function buildGate(P, e, x, z, alongX, ek) {\n", "function buildGate(P, e, 
 rep("  if (c.gate) gateTouch(c.gate);\n", "  if (c.gate) { if (c.gate.cz) czTouch(c.gate, _N); else gateTouch(c.gate); }\n")
 open(p, 'w').write(s)
 print('puzzles ok')
+# LEVELS 151-200 (cq18, cq19): made as the pinball machine's are, on the circus's own curve, acts and puzzles; the world
+# follows the course.
+rep("  if (pin) n = pinEff(pin);\n", "  if (pin) n = pin > 150 ? czEff(pin) : pinEff(pin);   // (151-200, the circus, the same way on its own curve)\n")
+rep("(pin ? SP_ROAD_AT[pin] : ROAD_AT[n])", "(pin ? (pin > 150 ? CZ_ROAD_AT : SP_ROAD_AT)[pin] : ROAD_AT[n])")
+rep("    const pool = pin ? pinPool(pin, f) :", "    const pool = pin ? (pin > 150 ? czPool(pin, f) : pinPool(pin, f)) :")
+rep("    let pick = pin && f === 0 ? pinOpener(pin) :", "    let pick = pin && f === 0 ? (pin > 150 ? czOpener(pin) : pinOpener(pin)) :")
+rep("    if (pin && pick in PIN_SPACE && spaceN >= pinSpaceMax(pin)) pick = 'jog';   // enough of the new obstacles for one level\n",
+    "    if (pin && pick in PIN_SPACE && spaceN >= pinSpaceMax(pin)) pick = 'jog';   // enough of the new obstacles for one level\n    if (pin > 150 && pick in CZ_OBS && spaceN >= czActMax(pin)) pick = 'jog';     // (or of the circus's acts)\n")
+rep("    if (pin && pick in PIN_SPACE) { spaceN++;", "    if (pin > 150 && pick in CZ_OBS) { spaceN++; const L = czLayAct(pick, pin, r, pieces, x, y, z); if (L.dy) y = r2(y + L.dy); on(L.len || L); }   // the circus's own acts\n    else if (pin && pick in PIN_SPACE) { spaceN++;")
+rep("  const endSq = pin ? SP_PLAZA_AT[pin] : PLAZA_AT[n];", "  const endSq = pin ? (pin > 150 ? CZ_PLAZA_AT : SP_PLAZA_AT)[pin] : PLAZA_AT[n];")
+rep("district: pin ? PIN_DISTRICTS[pinDistrict(pin)]", "district: pin > 150 ? CZ_DISTRICTS[czDistrict(pin)] : pin ? PIN_DISTRICTS[pinDistrict(pin)]")
+rep("  if (['neon', 'tokyo', 'dystopia', 'pinball-chrome'].includes(home)) setWorld(levelNo > 100 ? 'pinball-chrome' :", "  if (['neon', 'tokyo', 'dystopia', 'pinball-chrome', 'circus-tintoy'].includes(home)) setWorld(levelNo > 150 ? 'circus-tintoy' : levelNo > 100 ? 'pinball-chrome' :")
+rep("name = levelNo > 100 ? 'pinball-chrome' : levelNo > 50 ? 'tokyo' : 'neon';   // the world follows the course", "name = levelNo > 150 ? 'circus-tintoy' : levelNo > 100 ? 'pinball-chrome' : levelNo > 50 ? 'tokyo' : 'neon';   // the world follows the course")
+open(p, 'w').write(s)
+print('levels ok')
+# THE CIRCUS'S SOUNDS (cq20)
+rep("function sound(name) {\n", "function sound(name) {\n  if (world.name.startsWith('circus') && CZ_SOUNDS[name]) { if (sfx && sfx.isOn()) CZ_SOUNDS[name](); return; }   // the circus's own (cq20)\n")
+open(p, 'w').write(s)
+print('sounds ok')

@@ -275,9 +275,9 @@ function circStep3(dt) {
 function animateCirc3() { animateMirrors(); animateCoasters(); animateHorses(); }
 function circState3() {
   return {
-    chases: circ.chases.map((Ch) => ({ z: Ch.pc.z, d: Ch.pc.d, state: Ch.state, car: [Ch.x, Ch.z], speed: Ch.pc.speed, pins: Ch.pc.pins })),
-    mirrors: circ.mirrors.map((M) => ({ z: M.zs, d: M.pc.d, w: M.pc.w, parts: M.pc.parts, x: M.pc.x, traps: M.traps })),
-    coasters: circ.coasters.map((Co) => { const C = coasterCar(Co, simT); return { z: Co.pc.z, zEnd: Co.pc.zEnd, wait: C.wait, left: C.left || 0, d: C.d, y: Co.pc.y }; }),
+    chases: circ.chases.map((Ch) => ({ px: Ch.pc.x, z: Ch.pc.z, d: Ch.pc.d, state: Ch.state, car: [Ch.x, Ch.z], speed: Ch.pc.speed, pins: Ch.pc.pins })),
+    mirrors: circ.mirrors.map((M) => ({ px: M.pc.x, z: M.zs, d: M.pc.d, w: M.pc.w, parts: M.pc.parts, x: M.pc.x, traps: M.traps })),
+    coasters: circ.coasters.map((Co) => { const C = coasterCar(Co, simT); return { px: Co.pc.x, z: Co.pc.z, zEnd: Co.pc.zEnd, wait: C.wait, left: C.left || 0, d: C.d, y: Co.pc.y }; }),
     horses: circ.horses.length,
   };
 }

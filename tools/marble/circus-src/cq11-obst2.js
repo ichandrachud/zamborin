@@ -307,11 +307,11 @@ function circMove(dt) {
 function circStep2() { if (circ.wods.length) wodStep(); }
 function circState2() {
   return {
-    swings: circ.swings.map((T) => ({ z: T.pc.z, gap: T.pc.gap, a: trapAngle(T, simT), amax: T.g.a, seat: T.c.pos.toArray().map((v) => +v.toFixed(2)), period: T.pc.period, dwell: T.pc.dwell, phase: T.pc.phase })),
-    wires: circ.wires.map((W) => ({ z: W.pc.z, len: W.pc.len, bw: W.pc.bw, x: W.c.pos.x, sway: W.pc.sway, period: W.pc.period })),
-    teeters: circ.teeters.map((T) => ({ z: T.pc.z, L: T.pc.L, a: T.a, tilt: T.pc.tilt, nearZ: T.nearZ, farZ: T.farZ, toLand: teeterJump(T, simT).toLand, y: T.pc.y, up: T.pc.up, pos: T.c.pos.toArray().map((v) => +v.toFixed(3)), q: T.c.quat.toArray().map((v) => +v.toFixed(3)), py: T.py })),
-    wods: circ.wods.map((Wd) => ({ z: Wd.pc.z, ang: wodAngle(Wd, simT), spin: Wd.pc.spin, arm: Wd.pc.arm, y: Wd.pc.y, drawn: [-1, 1].map((e) => { Wd.rot.updateMatrixWorld(true); return Wd.rot.localToWorld(new Vector3(0, e * Wd.pc.arm, 0)).toArray().map((v) => +v.toFixed(2)); }), cage: [0, 1].map((k) => wodCage(Wd, k, simT).toArray().map((v) => +v.toFixed(2))) })),
-    ferrises: circ.ferrises.map((Fw) => ({ z: Fw.pc.z, g: Fw.pc.g, e: FC_D / 2 + 0.05, y: Fw.pc.y, yc: Fw.yc, Rf: Fw.pc.Rf, spin: Fw.pc.spin, phase: Fw.pc.phase, n: Fw.pc.n, hang: FC_HANG,
+    swings: circ.swings.map((T) => ({ px: T.pc.x, z: T.pc.z, gap: T.pc.gap, a: trapAngle(T, simT), amax: T.g.a, seat: T.c.pos.toArray().map((v) => +v.toFixed(2)), period: T.pc.period, dwell: T.pc.dwell, phase: T.pc.phase })),
+    wires: circ.wires.map((W) => ({ px: W.pc.x, z: W.pc.z, len: W.pc.len, bw: W.pc.bw, x: W.c.pos.x, sway: W.pc.sway, period: W.pc.period })),
+    teeters: circ.teeters.map((T) => ({ px: T.pc.x, period: T.pc.period, z: T.pc.z, L: T.pc.L, a: T.a, tilt: T.pc.tilt, nearZ: T.nearZ, farZ: T.farZ, toLand: teeterJump(T, simT).toLand, y: T.pc.y, up: T.pc.up, pos: T.c.pos.toArray().map((v) => +v.toFixed(3)), q: T.c.quat.toArray().map((v) => +v.toFixed(3)), py: T.py })),
+    wods: circ.wods.map((Wd) => ({ px: Wd.pc.x, z: Wd.pc.z, ang: wodAngle(Wd, simT), spin: Wd.pc.spin, arm: Wd.pc.arm, y: Wd.pc.y, drawn: [-1, 1].map((e) => { Wd.rot.updateMatrixWorld(true); return Wd.rot.localToWorld(new Vector3(0, e * Wd.pc.arm, 0)).toArray().map((v) => +v.toFixed(2)); }), cage: [0, 1].map((k) => wodCage(Wd, k, simT).toArray().map((v) => +v.toFixed(2))) })),
+    ferrises: circ.ferrises.map((Fw) => ({ px: Fw.pc.x, z: Fw.pc.z, g: Fw.pc.g, e: FC_D / 2 + 0.05, y: Fw.pc.y, yc: Fw.yc, Rf: Fw.pc.Rf, spin: Fw.pc.spin, phase: Fw.pc.phase, n: Fw.pc.n, hang: FC_HANG,
                                           cars: Fw.cars.map((c) => c.c.pos.toArray().map((v) => +v.toFixed(2))) })),
   };
 }
