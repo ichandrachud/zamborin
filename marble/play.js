@@ -6034,6 +6034,7 @@ const plusTex = canvasTex(128, 128, (g) => {            // a charged floor: plus
 const gateFieldTex = fieldTex.clone();
 gateFieldTex.repeat.set((CELL - WALL_T) / 1.1, GATE_H / 1.1);
 function buildGate(P, e, x, z, alongX, ek) {
+  if (e.czturn || e.czglass) { czEdge(P, e, x, z, alongX, ek); return; }   // a circus turnstile, or a pane of the house of mirrors (cq16)
   const span = CELL - WALL_T, kind = 'spgate' in e ? 'space' : 'keygate' in e ? 'key' : 'sgate' in e ? 'switch' : 'pgate' in e ? 'plate' : 'cgate' in e ? 'charge' : 'light';
   const need = e.keygate || 0, letters = e.sgate || e.pgate || '';
   const col = kind === 'space' ? 0x9FEFFF : kind === 'key' ? KEY_COLS[need] : kind === 'charge' ? CHARGE_COL : kind === 'light' ? LIGHT_COL : LETTER_COLS[letters[0]];
@@ -7337,7 +7338,7 @@ function collide(c, dt) {
   }
   _N.applyQuaternion(c.quat);
   ball.p.addScaledVector(_N, pen);
-  if (c.gate) gateTouch(c.gate);
+  if (c.gate) { if (c.gate.cz) czTouch(c.gate, _N); else gateTouch(c.gate); }
   if (c.magnet && c.magnet.buzzT <= 0) { c.magnet.buzzT = 0.45; c.magnet.k = 1; sound('buzz'); }
   const floor = _N.y > 0.55;
   const rel = ball.v.dot(_N) - (c.ferry ? c.delta.dot(_N) / dt : 0);
@@ -20390,7 +20391,7 @@ function circusPieces(look) {
     tkSet(beam, 'material', PK.gold);
   }
   // PUZZLE SQUARES: walls of red and cream, gold where the tiles' walls are, a dark base, tin trunks to push.
-  for (const c of colliders) if (c.obstacle === 'wall') tkSet(c.mesh, 'material', PK.red);
+  for (const c of colliders) if (c.obstacle === 'wall' && !c.mesh.userData.cz) tkSet(c.mesh, 'material', PK.red);   // (the house of mirrors' walls are mirrors)
   for (const P of plazas) {
     levelGroup.traverse((m) => { if (m.isMesh && (m.material === P.mats.line || m.material === P.mats.halo)) tkHide(m); });
     for (const T of P.tiles) T.grp.traverse((m) => {
@@ -20673,6 +20674,8 @@ function cannonStep(dt) {
 }
 // Held in the cannon: drawn down the barrel for a moment, then fired.
 function circHeldStep(dt) {
+  circMove(dt);                                            // the rides go on turning while one carries you (owner: "the wheel and the ball
+                                                            // are not in unison": the Wheel of Death stood still once it had you)
   if (ball.circ.wod) { wodHeld(dt); return; }              // in a cage of the Wheel of Death
   if (ball.circ.coaster) { coasterHeld(dt); return; }      // riding the roller coaster
   const H = ball.circ, C = H.C;
@@ -21016,9 +21019,10 @@ function buildWod(pc) {
   Wd.spot.rotation.x = -Math.PI / 2; Wd.spot.position.set(pc.x, pc.y + 0.02, Wd.spotZ); levelGroup.add(Wd.spot);
   circ.wods.push(Wd);
 }
-// A cage's centre, for the cage at the arm's end k (0, 1): at the bottom when the angle has it straight down.
-function wodCage(Wd, k, t) { const a = wodAngle(Wd, t) + k * Math.PI; return new Vector3(Wd.pc.x, Wd.ay - Wd.pc.arm * Math.cos(a), Wd.pc.z - Wd.pc.arm * Math.sin(a)); }
-// The angle of cage k from straight down, from -PI to PI (below zero: still coming down toward the rail).
+// A cage's centre, for the cage at the arm's end k (0, 1): at the bottom when the angle has it straight down. It turns as
+// the wheel is drawn: along the bottom toward the rail you wait on, up over it, and over the top heading on (-z).
+function wodCage(Wd, k, t) { const a = wodAngle(Wd, t) + k * Math.PI; return new Vector3(Wd.pc.x, Wd.ay - Wd.pc.arm * Math.cos(a), Wd.pc.z + Wd.pc.arm * Math.sin(a)); }
+// The angle of cage k from straight down, from -PI to PI (below zero: still coming down, on the far side of the gap).
 const wodDown = (Wd, k, t) => { const a = ((wodAngle(Wd, t) + k * Math.PI) % TAU + TAU) % TAU; return a > Math.PI ? a - TAU : a; };
 function wodStep() {
   for (const Wd of circ.wods) {
@@ -21028,19 +21032,19 @@ function wodStep() {
     if (!onSpot && !inCage) continue;
     for (let k = 0; k < 2; k++) {
       const C = wodCage(Wd, k, simT), a = wodDown(Wd, k, simT);
-      if ((onSpot && a > -0.3 && a < 0.12) || (C.distanceTo(ball.p) < WOD_CUP * 0.9 && C.y < Wd.pc.y + WOD_CUP)) {
+      if ((onSpot && a > 0.1 && a < 1.3 && C.distanceTo(ball.p) < 1.05) || (C.distanceTo(ball.p) < WOD_CUP * 0.9 && C.y < Wd.pc.y + WOD_CUP)) {   // rising past the spot: scooped up
         ball.circ = { wod: Wd, k, t: 0, from: ball.p.clone() }; ball.v.set(0, 0, 0); sound('thunk'); return;
       }
     }
   }
 }
-// Carried in the cage, up and over; let go at the top, rolling on onto the rail above.
+// Carried in the cage, up and over; just past the top, heading on, it hops off onto the rail above (no jump in where it is).
 function wodHeld(dt) {
   const H = ball.circ, Wd = H.wod, a = ((wodAngle(Wd, simT) + H.k * Math.PI) % TAU + TAU) % TAU;
   const C = wodCage(Wd, H.k, simT); H.t += dt;
   if (H.from && H.t < 0.3) ball.p.lerpVectors(H.from, C, ease(H.t / 0.3)); else ball.p.copy(C);   // drawn into the cage, not snapped
   ball.v.set(0, 0, 0);
-  if (a > Math.PI - 0.05 && a < Math.PI + 1) { ball.circ = null; ball.p.set(Wd.pc.x, Wd.pc.y + Wd.pc.up + R + 0.05, Wd.pc.z - 1.2); ball.v.set(0, 0, -2.4); sound('pop'); }
+  if (a > Math.PI + 0.28 && a < Math.PI + 1.2) { ball.circ = null; ball.v.set(0, 3.2, -Math.max(2.6, Wd.pc.spin * Wd.pc.arm)); ball.grounded = false; sound('pop'); }
 }
 
 // ---- THE FERRIS WHEEL ----
@@ -21097,8 +21101,8 @@ function circMove(dt) {
   if (circ.teeters.length) animateTeeter();
   for (const Fw of circ.ferrises) ferrisPlace(Fw, simT);
   for (const Wd of circ.wods) {
-    Wd.rot.rotation.x = -wodAngle(Wd, simT);
-    const soon = Math.min(...[0, 1].map((k) => { const a = wodDown(Wd, k, simT); return a < -0.3 ? -0.3 - a : 9; }));   // how far the next cage has to come
+    Wd.rot.rotation.x = -wodAngle(Wd, simT);                  // (wodCage turns the same way: owner, "the wheel and the ball are not in unison")
+    const soon = Math.min(...[0, 1].map((k) => { const a = wodDown(Wd, k, simT); return a < 0.3 ? 0.3 - a : 9; }));   // how far the next cage has to come
     Wd.spot.material.opacity = !REDUCED && soon < 0.9 ? 0.5 + 0.45 * Math.abs(Math.sin(simT * 10)) : 0.85;
   }
 }
@@ -21108,7 +21112,7 @@ function circState2() {
     swings: circ.swings.map((T) => ({ z: T.pc.z, gap: T.pc.gap, a: trapAngle(T, simT), amax: T.g.a, seat: T.c.pos.toArray().map((v) => +v.toFixed(2)), period: T.pc.period, dwell: T.pc.dwell, phase: T.pc.phase })),
     wires: circ.wires.map((W) => ({ z: W.pc.z, len: W.pc.len, bw: W.pc.bw, x: W.c.pos.x, sway: W.pc.sway, period: W.pc.period })),
     teeters: circ.teeters.map((T) => ({ z: T.pc.z, L: T.pc.L, a: T.a, tilt: T.pc.tilt, nearZ: T.nearZ, farZ: T.farZ, toLand: teeterJump(T, simT).toLand, y: T.pc.y, up: T.pc.up, pos: T.c.pos.toArray().map((v) => +v.toFixed(3)), q: T.c.quat.toArray().map((v) => +v.toFixed(3)), py: T.py })),
-    wods: circ.wods.map((Wd) => ({ z: Wd.pc.z, ang: wodAngle(Wd, simT), spin: Wd.pc.spin, arm: Wd.pc.arm, y: Wd.pc.y })),
+    wods: circ.wods.map((Wd) => ({ z: Wd.pc.z, ang: wodAngle(Wd, simT), spin: Wd.pc.spin, arm: Wd.pc.arm, y: Wd.pc.y, drawn: [-1, 1].map((e) => { Wd.rot.updateMatrixWorld(true); return Wd.rot.localToWorld(new Vector3(0, e * Wd.pc.arm, 0)).toArray().map((v) => +v.toFixed(2)); }), cage: [0, 1].map((k) => wodCage(Wd, k, simT).toArray().map((v) => +v.toFixed(2))) })),
     ferrises: circ.ferrises.map((Fw) => ({ z: Fw.pc.z, g: Fw.pc.g, e: FC_D / 2 + 0.05, y: Fw.pc.y, yc: Fw.yc, Rf: Fw.pc.Rf, spin: Fw.pc.spin, phase: Fw.pc.phase, n: Fw.pc.n, hang: FC_HANG,
                                           cars: Fw.cars.map((c) => c.c.pos.toArray().map((v) => +v.toFixed(2))) })),
   };
@@ -21989,6 +21993,223 @@ function czState2(P, o) {
   return o;
 }
 for (const k of ['shells', 'knives']) { CZ_KINDS.add(k); CZ_PARTS[k] = { build: czBuild2, pad: czPad2, step: czStep2, reset: czReset2, landed: czLanded2, animate: czAnimate2, state: czState2 }; }
+/* THE CIRCUS PUZZLES, the two to find a way through:
+     tickets  golden tickets lie about the square, one to a board; roll over one to pick it up (the number over the
+              marble is how many you hold). A turnstile in a doorway (a cabinet and a red and white arm across it)
+              takes the tickets on its sign once, from either side, and its arm lifts and stays up; the way out is a turnstile too. There are never enough tickets for every
+              turnstile: pay for the right ones, in an order that gets you to the tickets behind them. Roll into a
+              turnstile and lean on it to pay. Short: it buzzes. Wrong ones paid: the pad by the road puts it back
+      mirrors  getting out of the house of mirrors (the owner's own). A striped roof over the whole maze, and you see
+              only through the hole round the marble; the walls are mirrors, and some doorways are glass you cannot
+              see until you bump into it (it cracks, so you know it next time). Find the way out */
+const CZ_TKT_L = { t: { ticket: 1 } };
+for (let k = 1; k <= 5; k++) CZ_TKT_L[k] = { czturn: k };
+const CZ_MIR_L = { '=': CZG, g: { czglass: 1 } };
+
+function czKit3() {
+  const Z = czKit2(); if (Z.ticket) return Z;
+  const std = (o) => keepMat(hazed(new MeshStandardMaterial({ roughness: 0.35, metalness: 0.5, envMap: Z.K.env, envMapIntensity: 0.9, ...o })));
+  const ticketT = canvasTex(256, 128, (g) => {            // a golden ticket: ADMIT ONE, a star, a perforated stub
+    g.clearRect(0, 0, 256, 128);
+    g.fillStyle = '#F2C230'; UI.roundRectPath(g, 6, 10, 244, 108, 12); g.fill();
+    g.strokeStyle = INK; g.lineWidth = 5; UI.roundRectPath(g, 6, 10, 244, 108, 12); g.stroke();
+    g.fillStyle = '#FFF1D2'; g.fillRect(24, 26, 150, 76); g.fillStyle = '#E8303A'; cqStar(g, 214, 64, 26, 11); g.fill();
+    g.setLineDash([6, 6]); g.beginPath(); g.moveTo(186, 14); g.lineTo(186, 114); g.stroke(); g.setLineDash([]);
+    g.fillStyle = INK; g.font = '800 30px Inter, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('ADMIT', 99, 50); g.fillText('ONE', 99, 82);
+  });
+  const roofT = canvasTex(256, 256, (g) => {              // the house of mirrors' roof: striped canvas, stars, a scalloped seam
+    for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? '#FFF1D2' : '#6A2A9A'; g.fillRect(i * 32, 0, 32, 256); }
+    const r = seeded(4); g.fillStyle = '#F2C230'; for (let i = 0; i < 10; i++) { cqStar(g, r() * 256, r() * 256, 9, 4); g.fill(); }
+  }, true);
+  const crackT = canvasTex(128, 128, (g) => {             // glass, cracked where you hit it
+    g.clearRect(0, 0, 128, 128); g.strokeStyle = 'rgba(255,255,255,0.95)'; g.lineWidth = 2.5; const r = seeded(12);
+    for (let k = 0; k < 9; k++) { g.beginPath(); g.moveTo(64, 64); let x = 64, y = 64; const a = k * TAU / 9 + r() * 0.4; for (let s = 0; s < 4; s++) { x += Math.cos(a + (r() - 0.5) * 0.6) * 16; y += Math.sin(a + (r() - 0.5) * 0.6) * 16; g.lineTo(x, y); } g.stroke(); }
+    g.beginPath(); g.arc(64, 64, 14, 0, TAU); g.stroke(); g.beginPath(); g.arc(64, 64, 32, 0.4, 2.2); g.stroke();
+  });
+  return Object.assign(Z, {
+    ticket: keepMat(new MeshBasicMaterial({ map: ticketT, transparent: true, side: DoubleSide, depthWrite: false })),
+    mirror: std({ color: 0xE8F0FF, metalness: 1, roughness: 0.04, envMapIntensity: 1.6 }),
+    glass: keepMat(new MeshStandardMaterial({ color: 0xCFF4FF, metalness: 0.9, roughness: 0.05, envMap: Z.K.env, envMapIntensity: 1.2, transparent: true, opacity: 0.16, depthWrite: false, side: DoubleSide })),
+    crack: crackT, roofT,
+    arm: std({ color: 0xE8303A, metalness: 0.6, roughness: 0.25 }),
+  });
+}
+const czHeldTex = {};
+function czHeldTexOf(n) {                                  // over the marble: a ticket and how many you hold
+  return czHeldTex[n] || (czHeldTex[n] = canvasTex(192, 96, (g) => {
+    g.clearRect(0, 0, 192, 96);
+    g.fillStyle = 'rgba(26,14,40,0.82)'; UI.roundRectPath(g, 4, 8, 184, 80, 30); g.fill();
+    g.fillStyle = '#F2C230'; UI.roundRectPath(g, 20, 26, 70, 44, 8); g.fill(); g.fillStyle = '#E8303A'; cqStar(g, 55, 48, 13, 6); g.fill();
+    g.fillStyle = '#FFFFFF'; g.font = '800 46px Inter, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(String(n), 138, 50);
+  }));
+}
+const czPriceTex = {};
+function czPriceTexOf(n, paid) {                           // a turnstile's sign: a ticket and its price, or a tick once paid
+  const k = paid ? 'ok' : n;
+  return czPriceTex[k] || (czPriceTex[k] = canvasTex(128, 128, (g) => {
+    g.clearRect(0, 0, 128, 128);
+    g.fillStyle = paid ? '#2AA89A' : '#F2C230'; pbCircle(g, 64, 64, 62); g.fill(); g.fillStyle = '#FFF1D2'; pbCircle(g, 64, 64, 52); g.fill();
+    if (paid) { g.strokeStyle = '#2AA89A'; g.lineWidth = 14; g.lineCap = 'round'; g.beginPath(); g.moveTo(36, 66); g.lineTo(56, 86); g.lineTo(94, 42); g.stroke(); return; }
+    g.fillStyle = '#F2C230'; UI.roundRectPath(g, 18, 28, 34, 24, 4); g.fill(); g.strokeStyle = INK; g.lineWidth = 3; UI.roundRectPath(g, 18, 28, 34, 24, 4); g.stroke();
+    g.fillStyle = INK; g.font = '800 64px Inter, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(String(n), 76, 76);
+  }));
+}
+
+// An edge of a square that is a circus thing, not a gate: a turnstile, or a pane of glass.
+function czEdge(P, e, x, z, alongX, ek) {
+  const Z = czKit3(), span = CELL - WALL_T, grp = new Group(); grp.position.set(x, P.y, z); if (!alongX) grp.rotation.y = Math.PI / 2; levelGroup.add(grp);
+  const g = { P, e, ek, cz: true, x, z, alongX, state: 'shut', open: 0, flash: 0, buzzT: 0, pushT: 0, grp };
+  if (e.czturn) {
+    g.kind = 'czturn'; g.price = e.czturn;
+    const B = pbBuild();                                   // the stand at one side: a tin cabinet, a gold cap
+    B.geo(new BoxGeometry(0.36, 0.95, 0.5), placeAt(-span / 2 + 0.2, 0.475, 0), 0xE8303A);
+    B.geo(new BoxGeometry(0.42, 0.08, 0.56), placeAt(-span / 2 + 0.2, 0.99, 0), 0xF2C230);
+    B.geo(new CylinderGeometry(0.1, 0.1, 0.12, 12), placeAt(-span / 2 + 0.44, 0.62, 0, 0, 0, Math.PI / 2), 0xF2C230);
+    const stand = new Mesh(B.done(), Z.K.paint); stand.castShadow = true; grp.add(stand);
+    g.arms = new Group(); g.arms.position.set(-span / 2 + 0.44, 0.62, 0); grp.add(g.arms);   // the arm across the doorway, red and white, lifting once paid
+    const L = span - 0.5, arm = new Mesh(new CylinderGeometry(0.06, 0.06, L, 10), Z.arm); arm.rotation.z = Math.PI / 2; arm.position.x = L / 2; arm.castShadow = true; g.arms.add(arm);
+    for (let k = 1; k <= 3; k++) { const band = new Mesh(new CylinderGeometry(0.065, 0.065, 0.14, 10), Z.PK.cream); band.rotation.z = Math.PI / 2; band.position.x = L * k / 4; g.arms.add(band); }
+    g.signMat = new SpriteMaterial({ map: czPriceTexOf(g.price, false), transparent: true, depthWrite: false });
+    const sign = new Sprite(g.signMat); sign.scale.set(0.8, 0.8, 1); sign.position.set(-span / 2 + 0.2, 1.5, 0); grp.add(sign); g.sign = sign;
+    if (ek === 'H' + P.pc.exit + ',' + P.rows) P.spz.exitTurn = g;   // the way out
+  } else {
+    g.kind = 'czglass';
+    const pane = new Mesh(new BoxGeometry(span, 1.4, 0.04), Z.glass); pane.position.y = 0.7; grp.add(pane);
+    g.crackMat = new MeshBasicMaterial({ map: Z.crack, transparent: true, opacity: 0, depthWrite: false, side: DoubleSide });
+    const crack = new Mesh(new PlaneGeometry(1.2, 1.2), g.crackMat); crack.position.set(0, 0.6, 0.03); grp.add(crack);
+  }
+  const q = new Quaternion(), box = new Mesh(new BoxGeometry(0.1, 0.1, 0.1), HIDDEN); box.visible = false; levelGroup.add(box);
+  colliders.push({ mesh: box, pos: new Vector3(x, P.y + 0.7, z), prev: new Vector3(x, P.y + 0.7, z), quat: q, inv: q.clone(), gate: g,
+                   half: alongX ? new Vector3(span / 2, 0.7, 0.1) : new Vector3(0.1, 0.7, span / 2), delta: new Vector3(), ferry: null, holo: null, pad: null, obstacle: 'gate' });
+  (P.czEdges = P.czEdges || []).push(g);
+}
+// Touching one (n: out of it, toward the marble): a turnstile takes its tickets if you lean into it, and a pane cracks.
+function czTouch(g, n) {
+  const P = g.P, S = P.spz;
+  if (g.kind === 'czglass') { if (!g.cracked) { g.cracked = 1; sound('knock'); } g.flash = 1; return; }
+  if (g.state !== 'shut' || !S) return;
+  const lean = -(ball.in[0] * n.x + ball.in[1] * n.z), hit = -(ball.v.x * n.x + ball.v.z * n.z);
+  g.pushT = lean > 0.45 ? g.pushT + STEP : 0;
+  if (hit < 1.4 && g.pushT < 0.12) return;
+  g.pushT = 0;
+  if (S.held >= g.price) {                                 // paid: it turns once, and stays open
+    S.held -= g.price; g.state = 'open'; g.spin = 0; g.signMat.map = czPriceTexOf(g.price, true); g.signMat.needsUpdate = true;
+    sound('key'); burst(g.x, P.y + 1.2, g.z, 0xF2C230, 12, 2.4);
+    if (g === S.exitTurn) S.done = true;
+  } else if (g.buzzT <= 0) { g.buzzT = 0.45; g.flash = 1; sound('buzz'); }
+}
+
+function czBuild3(P) {
+  const S = P.spz, Z = czKit3(), G = P.grid;
+  if (S.kind === 'tickets') {
+    S.tickets = []; S.held = 0;
+    for (let r = 0; r < P.rows; r++) for (let c = 0; c < P.cols; c++) {
+      if (!G.cells[r][c].ticket) continue;
+      const m = new Mesh(new PlaneGeometry(1.1, 0.55), Z.ticket); m.position.set(P.X(c), P.y + 0.7, P.Z(r)); m.rotation.x = -0.9; levelGroup.add(m);
+      const glow = spDisc(P.X(c), P.y + 0.02, P.Z(r), 0.8, keepMat(new MeshBasicMaterial({ map: pbGlow(), color: 0xFFD860, transparent: true, opacity: 0.45, blending: AdditiveBlending, depthWrite: false, toneMapped: false })));
+      levelGroup.add(glow); S.tickets.push({ c, r, m, glow, taken: false, fly: -1 });
+    }
+    S.badge = new Sprite(new SpriteMaterial({ map: czHeldTexOf(0), transparent: true, depthWrite: false, depthTest: false })); S.badge.scale.set(1.4, 0.7, 1); S.badge.renderOrder = 5; S.badge.visible = false; levelGroup.add(S.badge);
+    S.shownHeld = 0;
+  }
+  if (S.kind === 'mirrors') {
+    // The maze's walls are mirrors, twice as tall as a square's (to the eye: the marble still stops at the wall it always did).
+    for (const c of colliders) {
+      if (c.obstacle !== 'wall' || c.pos.x < P.x0 - 0.3 || c.pos.x > P.x0 + P.cols * CELL + 0.3 || c.pos.z > P.z0 + 0.3 || c.pos.z < P.z0 - P.rows * CELL - 0.3 || Math.abs(c.pos.y - P.y - WALL_H / 2) > 0.05) continue;
+      c.mesh.userData.cz = true; c.mesh.material = Z.mirror; c.mesh.scale.y = 1.4 / WALL_H; c.mesh.position.y = P.y + 0.7;
+    }
+    // The roof, and the hole in it where the marble is (worked out each frame along the line from the marble to the camera).
+    const W = P.cols * CELL, D = P.rows * CELL, yr = P.y + 1.75;
+    const mat = keepMat(new MeshStandardMaterial({ map: Z.roofT, roughness: 0.6, metalness: 0.2, envMap: Z.K.env, envMapIntensity: 0.5, emissive: 0xFFFFFF, emissiveMap: Z.roofT, emissiveIntensity: 0.25 }));
+    Z.roofT.repeat.set(W / 4, D / 4);
+    const U = { uHole: { value: new Vector3(0, -99, 0) }, uR: { value: 2.3 } };
+    mat.onBeforeCompile = (sh) => {
+      Object.assign(sh.uniforms, U);
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vCzW;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvCzW = (modelMatrix * vec4(position, 1.0)).xyz;');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vCzW;\nuniform vec3 uHole;\nuniform float uR;')
+        .replace('void main() {', 'void main() {\n  if (distance(vCzW.xz, uHole.xz) < uR) discard;');
+    };
+    mat.customProgramCacheKey = () => 'czroof';
+    const roof = new Mesh(new PlaneGeometry(W + 0.3, D + 0.3), mat); roof.rotation.x = -Math.PI / 2; roof.position.set(P.x0 + W / 2, yr, P.z0 - D / 2); roof.renderOrder = 2; levelGroup.add(roof);
+    const rim = new Mesh(new RingGeometry(2.3, 2.45, 48), keepMat(new MeshBasicMaterial({ color: 0xF2C230, toneMapped: false }))); rim.rotation.x = -Math.PI / 2; levelGroup.add(rim);
+    Object.assign(S, { roof, rim, U, yr, x1: P.x0 + W, z1: P.z0 - D });
+    const B = pbBuild();                                   // bulbs round the roof's edge
+    for (let i = 0; i <= 2 * (P.cols + P.rows); i++) {
+      const u = i / (2 * (P.cols + P.rows)), per = 2 * (W + D), d = u * per;
+      const [bx, bz] = d < W ? [P.x0 + d, P.z0] : d < W + D ? [P.x0 + W, P.z0 - (d - W)] : d < 2 * W + D ? [P.x0 + W - (d - W - D), P.z0 - D] : [P.x0, P.z0 - D + (d - 2 * W - D)];
+      B.geo(new SphereGeometry(0.09, 8, 6), placeAt(bx, yr + 0.05, bz), 0xFFE8A0);
+    }
+    levelGroup.add(new Mesh(B.done(), Z.K.lit));
+  }
+}
+function czPad3(P, c, r, cell) {
+  const S = P.spz;
+  if (S.kind === 'tickets' && cell.ticket) {
+    const T = S.tickets.find((q) => q.c === c && q.r === r);
+    if (T && !T.taken) { T.taken = true; T.fly = 0; S.held++; sound('tick'); }
+  }
+}
+function czStep3(P) {
+  const S = P.spz;
+  if (S.kind === 'mirrors' && !S.done) {
+    const c = Math.floor((ball.p.x - P.x0) / CELL), r = Math.floor((P.z0 - ball.p.z) / CELL);
+    if (c === P.pc.exit && r === P.rows - 1) { S.done = true; sound('unlock'); }
+  }
+  for (const g of P.gates) if (g.kind === 'space') g.state = 'open';   // the house of mirrors' curtain is open: finding it is the puzzle
+  for (const g of P.czEdges || []) { g.buzzT = Math.max(0, g.buzzT - STEP); }
+}
+function czReset3(P, quiet) {
+  const S = P.spz; let moved = false;
+  if (S.kind === 'tickets') {
+    if (S.held || S.tickets.some((T) => T.taken)) moved = true;
+    S.held = 0; S.done = false;
+    for (const T of S.tickets) { T.taken = false; T.fly = -1; T.m.visible = true; T.glow.visible = true; T.m.scale.setScalar(1); }
+    for (const g of P.czEdges || []) if (g.kind === 'czturn' && g.state === 'open') { moved = true; g.state = 'shut'; g.signMat.map = czPriceTexOf(g.price, false); g.signMat.needsUpdate = true; g.spin = 0; g.arms.rotation.z = 0; }
+  }
+  if (S.kind === 'mirrors' && quiet) S.done = false;       // (the cracks stay: you found that glass)
+  return moved;
+}
+function czLanded3() {}
+function czAnimate3(P, dt) {
+  const S = P.spz;
+  for (const g of P.czEdges || []) {
+    g.flash = Math.max(0, g.flash - dt * 2.5);
+    if (g.kind === 'czglass') { g.crackMat.opacity = g.cracked ? 0.85 : 0; continue; }
+    if (g.state === 'open') {                              // paid: the arm swings up
+      g.spin = Math.min(1, (g.spin || 0) + dt / 0.5); g.arms.rotation.z = Math.PI / 2 * ease(g.spin);
+    }
+    g.sign.scale.setScalar(0.8 * (1 + 0.25 * g.flash)); g.signMat.color.setHex(g.flash > 0.05 ? 0xFF8A7A : 0xFFFFFF);
+  }
+  if (S.kind === 'tickets') {
+    for (const T of S.tickets) {
+      if (T.fly >= 0) {                                    // taken: into the marble
+        T.fly = Math.min(1, T.fly + dt / 0.3); const u = ease(T.fly);
+        T.m.position.lerp(marble.position, u); T.m.scale.setScalar(Math.max(0.01, 1 - u)); T.glow.visible = false;
+        if (T.fly >= 1) { T.m.visible = false; T.fly = -1; }
+        continue;
+      }
+      if (!T.taken) { T.m.position.y = P.y + 0.7 + (REDUCED ? 0 : 0.08 * Math.sin(simT * 2.4 + T.c + T.r)); T.m.position.x = P.X(T.c); T.m.position.z = P.Z(T.r); }
+    }
+    const inside = ball.p.x > P.x0 - 1 && ball.p.x < P.x0 + P.cols * CELL + 1 && ball.p.z < P.z0 + 1.5 && ball.p.z > P.z0 - P.rows * CELL - 1;
+    S.badge.visible = inside && state === 'play';
+    if (S.shownHeld !== S.held) { S.shownHeld = S.held; S.badge.material.map = czHeldTexOf(S.held); S.badge.material.needsUpdate = true; }
+    S.badge.position.set(marble.position.x, marble.position.y + 1.15, marble.position.z);
+  }
+  if (S.kind === 'mirrors') {
+    const m = marble.position, cp = camera.position, k = (S.yr - m.y) / Math.max(0.1, cp.y - m.y);
+    const hx = m.x + (cp.x - m.x) * k, hz = m.z + (cp.z - m.z) * k, near = m.x > P.x0 - 3 && m.x < S.x1 + 3 && m.z < P.z0 + 4 && m.z > S.z1 - 3;
+    S.U.uHole.value.set(hx, S.yr, hz); S.rim.position.set(hx, S.yr + 0.01, hz); S.rim.visible = near;
+    if (!near) S.U.uHole.value.y = -99, S.U.uHole.value.x = 1e5;
+  }
+}
+function czState3(P, o) {
+  const S = P.spz;
+  if (S.kind === 'tickets') Object.assign(o, { held: S.held, tickets: S.tickets.map((T) => [T.c, T.r, T.taken ? 1 : 0]),
+    turns: (P.czEdges || []).filter((g) => g.kind === 'czturn').map((g) => ({ ek: g.ek, price: g.price, open: g.state === 'open', exit: g === S.exitTurn })) });
+  if (S.kind === 'mirrors') Object.assign(o, { glass: (P.czEdges || []).filter((g) => g.kind === 'czglass').map((g) => g.ek) });
+  return o;
+}
+for (const k of ['tickets', 'mirrors']) { CZ_KINDS.add(k); CZ_PARTS[k] = { build: czBuild3, pad: czPad3, step: czStep3, reset: czReset3, landed: czLanded3, animate: czAnimate3, state: czState3 }; }
 
 /* THE CIRCUS PUZZLES' LADDERS: 22 layouts of each, easy to hard, each found by a search (tools/marble/puz/gencirc*.js)
    and played through by the pilot. Written by tools/marble/puz/mk-circ.js: change the ladders there. */
@@ -23365,12 +23586,592 @@ Object.assign(PLAZAS, {
     '+ + + + + +',
     '|. . . . .|',
     '+-+-+ +-+-+',] },
+  CT1: { entry: 2, exit: 1, legend: CZ_TKT_L, sp: {kind: 'tickets'}, map: [
+    '+-+1+-+-+-+',
+    '|.1. . . .|',
+    '+ + + + + +',
+    '|.|. . .|.|',
+    '+1+-+-+1+3+',
+    '|. . . t .|',
+    '+ + + + + +',
+    '|. t . . t|',
+    '+-+-+ +-+-+',] },
+  CT2: { entry: 2, exit: 2, legend: CZ_TKT_L, sp: {kind: 'tickets'}, map: [
+    '+-+-+1+-+-+',
+    '|.1t . . .|',
+    '+2+1+3+-+-+',
+    '|. . . . .|',
+    '+ +-+ +-+1+',
+    '|. . .|. .|',
+    '+ + + + + +',
+    '|t . .|t .|',
+    '+-+-+ +-+-+',] },
+  CT3: { entry: 2, exit: 3, legend: CZ_TKT_L, sp: {kind: 'tickets'}, map: [
+    '+-+-+-+1+-+',
+    '|. . . t .|',
+    '+2+3+-+-+1+',
+    '|.|.1. . t|',
+    '+ + + + + +',
+    '|.2.|. . .|',
+    '+3+-+1+-+-+',
+    '|. t . . .|',
+    '+-+-+ +-+-+',] },
+  CT4: { entry: 2, exit: 0, legend: CZ_TKT_L, sp: {kind: 'tickets'}, map: [
+    '+2+-+-+-+-+',
+    '|t . .1. .|',
+    '+1+-+2+-+1+',
+    '|.|t . . .|',
+    '+ + + + + +',
+    '|. t . t .|',
+    '+3+2+ +-+-+',
+    '|. .|. . .|',
+    '+ + + + + +',
+    '|. .2. . .|',
+    '+-+-+ +-+-+',] },
+  CT5: { entry: 2, exit: 4, legend: CZ_TKT_L, sp: {kind: 'tickets'}, map: [
+    '+-+-+-+-+2+',
+    '|.3. . .|.|',
+    '+2+2+ + +1+',
+    '|. t3.|. .|',
+    '+ + + + + +',
+    '|. .|.|. .|',
+    '+-+2+ +-+ +',
+    '|. . t2. .|',
+    '+ + + + + +',
+    '|t . .|t .|',
+    '+-+-+ +-+-+',] },
+  CT6: { entry: 2, exit: 0, legend: CZ_TKT_L, sp: {kind: 'tickets'}, map: [
+    '+1+-+-+-+-+',
+    '|. . . . .|',
+    '+-+1+1+3+-+',
+    '|t .2. . .|',
+    '+ + + + + +',
+    '|. .|. . .|',
+    '+-+1+-+-+-+',
+    '|t . t . .|',
+    '+-+-+1+-+ +',
+    '|. .|. t3.|',
+    '+-+-+ +-+-+',] },
+  CT7: { entry: 2, exit: 3, legend: CZ_TKT_L, sp: {kind: 'tickets'}, map: [
+    '+-+-+-+1+-+',
+    '|. .3. t|.|',
+    '+ + + + + +',
+    '|. .|. .|.|',
+    '+-+3+2+-+1+',
+    '|. . . . t|',
+    '+-+2+-+-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. t . t t|',
+    '+-+-+ +-+-+',] },
+  CT8: { entry: 2, exit: 4, legend: CZ_TKT_L, sp: {kind: 'tickets'}, map: [
+    '+-+-+-+-+2+',
+    '|. . . t .|',
+    '+ + + + + +',
+    '|. t . . .|',
+    '+-+1+1+3+-+',
+    '|. .3t3. .|',
+    '+1+-+ +-+2+',
+    '|.2. . t .|',
+    '+-+3+-+1+-+',
+    '|t . . . .|',
+    '+-+-+ +-+-+',] },
+  CT9: { entry: 2, exit: 0, legend: CZ_TKT_L, sp: {kind: 'tickets'}, map: [
+    '+1+-+-+-+-+',
+    '|. t .1. .|',
+    '+-+-+2+3+-+',
+    '|. . . . t|',
+    '+2+-+-+ +2+',
+    '|.3t . .2.|',
+    '+1+-+1+2+3+',
+    '|t1t .1. .|',
+    '+ + + + + +',
+    '|.|. .|. .|',
+    '+-+-+ +-+-+',] },
+  CT10: { entry: 2, exit: 3, legend: CZ_TKT_L, sp: {kind: 'tickets'}, map: [
+    '+-+-+-+1+-+',
+    '|. .3. . .|',
+    '+1+-+2+-+-+',
+    '|. .|t . .|',
+    '+ + + + + +',
+    '|t t1. . .|',
+    '+3+ +-+-+-+',
+    '|t . . . .|',
+    '+1+2+2+-+1+',
+    '|. . . t2.|',
+    '+-+-+ +-+-+',] },
+  CT11: { entry: 2, exit: 4, legend: CZ_TKT_L, sp: {kind: 'tickets'}, map: [
+    '+-+-+-+-+2+',
+    '|. .|. . .|',
+    '+ + + + + +',
+    '|. .1t . .|',
+    '+-+3+-+-+1+',
+    '|t .2. . .|',
+    '+ + + + + +',
+    '|. .|. . .|',
+    '+-+2+1+-+-+',
+    '|. . t t t|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CT12: { entry: 2, exit: 3, legend: CZ_TKT_L, sp: {kind: 'tickets'}, map: [
+    '+-+-+-+1+-+',
+    '|. .1t . .|',
+    '+1+3+-+-+3+',
+    '|.|.3. . .|',
+    '+-+2+-+2+ +',
+    '|. .1t t3t|',
+    '+ + + + + +',
+    '|. .|. .|t|',
+    '+-+3+ +-+1+',
+    '|. .|. . .|',
+    '+ + + + + +',
+    '|. .1. . .|',
+    '+-+-+ +-+-+',] },
+  CT13: { entry: 2, exit: 4, legend: CZ_TKT_L, sp: {kind: 'tickets'}, map: [
+    '+-+-+-+-+1+',
+    '|.3. . . .|',
+    '+2+3+2+-+-+',
+    '|. . . . .|',
+    '+ +-+-+-+-+',
+    '|. t . t .|',
+    '+ + + + + +',
+    '|. . . . .|',
+    '+-+-+1+1+-+',
+    '|. . t1. .|',
+    '+ + + + + +',
+    '|. . .|t t|',
+    '+-+-+ +-+-+',] },
+  CT14: { entry: 2, exit: 3, legend: CZ_TKT_L, sp: {kind: 'tickets'}, map: [
+    '+-+-+-+2+-+',
+    '|. .1. . .|',
+    '+3+-+2+-+1+',
+    '|. . . .|.|',
+    '+ + + + + +',
+    '|. . . .3.|',
+    '+-+-+-+2+1+',
+    '|. . . .2t|',
+    '+ + + + + +',
+    '|. t . t|.|',
+    '+ +-+ +-+1+',
+    '|.1t . . t|',
+    '+-+-+ +-+-+',] },
+  CT15: { entry: 2, exit: 4, legend: CZ_TKT_L, sp: {kind: 'tickets'}, map: [
+    '+-+-+-+-+2+',
+    '|. . . . t|',
+    '+ + + + + +',
+    '|. . . t .|',
+    '+-+-+-+2+ +',
+    '|. t . .2.|',
+    '+-+3+-+ +1+',
+    '|. . .2. t|',
+    '+ +-+2+-+2+',
+    '|.2t . t .|',
+    '+ + + + + +',
+    '|.|. . . .|',
+    '+-+-+ +-+-+',] },
+  CT16: { entry: 2, exit: 3, legend: CZ_TKT_L, sp: {kind: 'tickets'}, map: [
+    '+-+-+-+1+-+',
+    '|. . .3. t|',
+    '+1+-+2+-+1+',
+    '|.1. . . t|',
+    '+3+1+2+2+-+',
+    '|. .1.|. .|',
+    '+-+1+ +2+ +',
+    '|t . t .3.|',
+    '+2+-+-+-+-+',
+    '|. . . .3.|',
+    '+ + + + + +',
+    '|. t . t|.|',
+    '+-+-+ +-+-+',] },
+  CT17: { entry: 2, exit: 4, legend: CZ_TKT_L, sp: {kind: 'tickets'}, map: [
+    '+-+-+-+-+1+',
+    '|. . .|. .|',
+    '+ + + + + +',
+    '|. . .2. .|',
+    '+2+3+1+-+1+',
+    '|t2.3t . .|',
+    '+ + + + + +',
+    '|.|.|. . .|',
+    '+2+ +2+-+1+',
+    '|. . . .1t|',
+    '+1+-+-+-+2+',
+    '|t t . . t|',
+    '+-+-+ +-+-+',] },
+  CT18: { entry: 2, exit: 3, legend: CZ_TKT_L, sp: {kind: 'tickets'}, map: [
+    '+-+-+-+2+-+',
+    '|.1t3. . .|',
+    '+3+-+-+-+ +',
+    '|. t . . .|',
+    '+-+1+-+-+1+',
+    '|t t3t . .|',
+    '+-+2+-+1+-+',
+    '|. .|. . .|',
+    '+ + + + + +',
+    '|. .2. . .|',
+    '+2+-+ +1+-+',
+    '|t . .1. .|',
+    '+-+-+ +-+-+',] },
+  CT19: { entry: 2, exit: 3, legend: CZ_TKT_L, sp: {kind: 'tickets'}, map: [
+    '+-+-+-+2+-+',
+    '|. . . . .|',
+    '+-+2+-+-+-+',
+    '|. t . . .|',
+    '+3+-+-+-+ +',
+    '|t . t .|.|',
+    '+ + + + + +',
+    '|. . . t .|',
+    '+2+2+-+-+2+',
+    '|t2. . .|.|',
+    '+ + + + + +',
+    '|.|. . .1.|',
+    '+1+-+-+-+3+',
+    '|. t . t .|',
+    '+-+-+ +-+-+',] },
+  CT20: { entry: 2, exit: 0, legend: CZ_TKT_L, sp: {kind: 'tickets'}, map: [
+    '+2+-+-+-+-+',
+    '|. . . . t|',
+    '+-+1+-+3+-+',
+    '|. t .1. .|',
+    '+2+-+ +-+-+',
+    '|. t2. . .|',
+    '+2+ +2+-+-+',
+    '|t2.1t . .|',
+    '+1+ +-+ +-+',
+    '|.1. . t .|',
+    '+3+-+-+-+1+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|. t . . .|',
+    '+-+-+ +-+-+',] },
+  CT21: { entry: 2, exit: 2, legend: CZ_TKT_L, sp: {kind: 'tickets'}, map: [
+    '+-+-+2+-+-+',
+    '|t . .3. .|',
+    '+3+-+-+-+-+',
+    '|t . .|. .|',
+    '+ + + + + +',
+    '|t . .1. .|',
+    '+ +3+1+-+2+',
+    '|.1.2. . .|',
+    '+1+ +-+-+3+',
+    '|. . . .1.|',
+    '+1+-+-+-+1+',
+    '|. t . . .|',
+    '+ + + + + +',
+    '|t . . t t|',
+    '+-+-+ +-+-+',] },
+  CT22: { entry: 2, exit: 4, legend: CZ_TKT_L, sp: {kind: 'tickets'}, map: [
+    '+-+-+-+-+1+',
+    '|.3. . . .|',
+    '+2+3+-+-+1+',
+    '|. . t t1.|',
+    '+ + + + + +',
+    '|. t . .|.|',
+    '+-+3+-+-+3+',
+    '|. . t . .|',
+    '+-+ +2+-+-+',
+    '|. .|. . t|',
+    '+ +-+2+-+-+',
+    '|. . . . .|',
+    '+ + + + + +',
+    '|t . . t .|',
+    '+-+-+ +-+-+',] },
+  CM1: { entry: 2, exit: 4, legend: CZ_MIR_L, sp: {kind: 'mirrors'}, map: [
+    '+-+-+-+-+=+',
+    '|. .|. . .|',
+    '+ +-+ +-+ +',
+    '|.|. . .|.|',
+    '+ + +g+-+ +',
+    '|. . .|. .|',
+    '+ +-+ + + +',
+    '|. .|. .|.|',
+    '+-+-+ +-+-+',] },
+  CM2: { entry: 2, exit: 0, legend: CZ_MIR_L, sp: {kind: 'mirrors'}, map: [
+    '+=+-+-+-+-+',
+    '|. . . .|.|',
+    '+ +-+-+ + +',
+    '|.|. .|.|.|',
+    '+ +g+ + + +',
+    '|. .|. .|.|',
+    '+ + +-+ + +',
+    '|.|. . . .|',
+    '+-+-+ +-+-+',] },
+  CM3: { entry: 2, exit: 0, legend: CZ_MIR_L, sp: {kind: 'mirrors'}, map: [
+    '+=+-+-+-+-+',
+    '|. . . . .|',
+    '+ + +-+-+ +',
+    '|.|.g. .g.|',
+    '+ + + + + +',
+    '|.|.|. .|.|',
+    '+ +-+ + + +',
+    '|. . .|.|.|',
+    '+ +-+ + + +',
+    '|. .|. .g.|',
+    '+-+-+ +-+-+',] },
+  CM4: { entry: 2, exit: 0, legend: CZ_MIR_L, sp: {kind: 'mirrors'}, map: [
+    '+=+-+-+-+-+',
+    '|. . . .|.|',
+    '+ +-+-+ + +',
+    '|. . .|.|.|',
+    '+ + + + + +',
+    '|. .|.g.g.|',
+    '+ +-+ + + +',
+    '|.|. . .g.|',
+    '+ + +-+ + +',
+    '|.|. .|. .|',
+    '+-+-+ +-+-+',] },
+  CM5: { entry: 2, exit: 1, legend: CZ_MIR_L, sp: {kind: 'mirrors'}, map: [
+    '+-+=+-+-+-+',
+    '|. . . .|.|',
+    '+ +-+-+ + +',
+    '|.|. .|.|.|',
+    '+ +-+ + + +',
+    '|. .g. .g.|',
+    '+g+ + + + +',
+    '|. .|. . .|',
+    '+ + +g+ + +',
+    '|. . .|. .|',
+    '+ +-+ +-+ +',
+    '|. .|.|. .|',
+    '+-+-+ +-+-+',] },
+  CM6: { entry: 2, exit: 3, legend: CZ_MIR_L, sp: {kind: 'mirrors'}, map: [
+    '+-+-+-+=+-+',
+    '|. . . . .|',
+    '+ +g+-+ + +',
+    '|. . . .|.|',
+    '+ +-+-+-+ +',
+    '|. . . .|.|',
+    '+-+ +-+g+ +',
+    '|. .|. .|.|',
+    '+ +-+ + + +',
+    '|. .|.|. .|',
+    '+-+-+ +-+-+',] },
+  CM7: { entry: 2, exit: 1, legend: CZ_MIR_L, sp: {kind: 'mirrors'}, map: [
+    '+-+=+-+-+-+',
+    '|. .|. . .|',
+    '+ + +-+ + +',
+    '|.g. .|. .|',
+    '+ +g+ + +g+',
+    '|.|.|.|. .|',
+    '+ + + +-+ +',
+    '|.|.g. . .|',
+    '+ + +g+ + +',
+    '|.|. . . .|',
+    '+ + +-+-+-+',
+    '|.|. . . .|',
+    '+ +-+-+ + +',
+    '|. . .|. .|',
+    '+-+-+ +-+-+',] },
+  CM8: { entry: 2, exit: 0, legend: CZ_MIR_L, sp: {kind: 'mirrors'}, map: [
+    '+=+-+-+-+-+',
+    '|.g. . . .|',
+    '+ + +-+-+ +',
+    '|. . . . .|',
+    '+ +-+ + +-+',
+    '|. .|.|. .|',
+    '+ + +g+ + +',
+    '|.|. .|.|.|',
+    '+ +g+ + + +',
+    '|. .|.|. .|',
+    '+-+ + + + +',
+    '|. .|. .|.|',
+    '+ +g+-+-+ +',
+    '|. . .g. .|',
+    '+-+-+ +-+-+',] },
+  CM9: { entry: 2, exit: 3, legend: CZ_MIR_L, sp: {kind: 'mirrors'}, map: [
+    '+-+-+-+=+-+',
+    '|.|. . . .|',
+    '+ + + +-+-+',
+    '|.|.|.g. .|',
+    '+ + + + + +',
+    '|. . . .|.|',
+    '+ +-+-+-+ +',
+    '|. . .|. .|',
+    '+-+ +-+ + +',
+    '|. .|. .g.|',
+    '+-+-+ +-+-+',] },
+  CM10: { entry: 2, exit: 2, legend: CZ_MIR_L, sp: {kind: 'mirrors'}, map: [
+    '+-+-+=+-+-+',
+    '|. . . . .|',
+    '+-+ +-+-+ +',
+    '|. . . . .|',
+    '+ +-+-+-+ +',
+    '|. .|. .g.|',
+    '+ + + + + +',
+    '|.|.|.|. .|',
+    '+ + +-+ +g+',
+    '|.|. .|. .|',
+    '+-+-+ +-+-+',] },
+  CM11: { entry: 2, exit: 0, legend: CZ_MIR_L, sp: {kind: 'mirrors'}, map: [
+    '+=+-+-+-+-+',
+    '|. . . . .|',
+    '+-+-+ +g+ +',
+    '|. . .g. .|',
+    '+ +-+-+ + +',
+    '|.|. . .g.|',
+    '+ + +-+ + +',
+    '|. . .|.|.|',
+    '+ +-+ + + +',
+    '|. .|. .|.|',
+    '+-+-+ +-+-+',] },
+  CM12: { entry: 2, exit: 1, legend: CZ_MIR_L, sp: {kind: 'mirrors'}, map: [
+    '+-+=+-+-+-+',
+    '|. . . . .|',
+    '+ +-+ +-+ +',
+    '|. .|. .|.|',
+    '+ +-+ + + +',
+    '|.g. .|.|.|',
+    '+ + +-+ + +',
+    '|.|. .|. .|',
+    '+ +g+ +-+-+',
+    '|.|.|. . .|',
+    '+ + +g+-+ +',
+    '|. . . . .|',
+    '+-+-+ +-+-+',] },
+  CM13: { entry: 2, exit: 2, legend: CZ_MIR_L, sp: {kind: 'mirrors'}, map: [
+    '+-+-+=+-+-+',
+    '|. . . . .|',
+    '+ +g+ + + +',
+    '|.g.|. .g.|',
+    '+ + + +-+ +',
+    '|. . . .|.|',
+    '+-+-+g+-+ +',
+    '|. . . . .|',
+    '+ +-+-+-+ +',
+    '|. . .|. .|',
+    '+ +-+ + +-+',
+    '|. .|. . .|',
+    '+-+-+ +-+-+',] },
+  CM14: { entry: 2, exit: 3, legend: CZ_MIR_L, sp: {kind: 'mirrors'}, map: [
+    '+-+-+-+=+-+',
+    '|. . . .|.|',
+    '+ +-+-+ + +',
+    '|. . . .|.|',
+    '+ +-+ +-+ +',
+    '|. .|. . .|',
+    '+ + +-+-+ +',
+    '|. . . .g.|',
+    '+ +g+g+ +-+',
+    '|. . .|. .|',
+    '+-+ +-+-+ +',
+    '|. .|. . .|',
+    '+-+-+ +-+-+',] },
+  CM15: { entry: 2, exit: 4, legend: CZ_MIR_L, sp: {kind: 'mirrors'}, map: [
+    '+-+-+-+-+=+',
+    '|. . . . .|',
+    '+-+-+-+ + +',
+    '|. . .|.g.|',
+    '+ +g+ +-+ +',
+    '|. . . .|.|',
+    '+ + + + + +',
+    '|. . .|. .|',
+    '+ +-+ +-+-+',
+    '|. .g. . .|',
+    '+-+ +-+-+ +',
+    '|.|.g. . .|',
+    '+ + + +-+ +',
+    '|. .g.|. .|',
+    '+-+-+ +-+-+',] },
+  CM16: { entry: 2, exit: 0, legend: CZ_MIR_L, sp: {kind: 'mirrors'}, map: [
+    '+=+-+-+-+-+',
+    '|. . . . .|',
+    '+ +-+-+g+-+',
+    '|.|. .|. .|',
+    '+ + + + + +',
+    '|. .|.|.|.|',
+    '+ + + + + +',
+    '|. .|.|.|.|',
+    '+g+ + + + +',
+    '|. .|. .|.|',
+    '+g+g+ +-+ +',
+    '|. . . . .|',
+    '+ +g+-+ + +',
+    '|. . .|. .|',
+    '+-+-+ +-+-+',] },
+  CM17: { entry: 2, exit: 0, legend: CZ_MIR_L, sp: {kind: 'mirrors'}, map: [
+    '+=+-+-+-+-+',
+    '|. . . .|.|',
+    '+ +-+-+ + +',
+    '|.g. .g.|.|',
+    '+ + + + + +',
+    '|. .|. .|.|',
+    '+ +-+-+ + +',
+    '|.|. .|. .|',
+    '+ + + +-+ +',
+    '|.|. .|.|.|',
+    '+ + + + + +',
+    '|. .g.|. .|',
+    '+-+-+ +-+-+',] },
+  CM18: { entry: 2, exit: 4, legend: CZ_MIR_L, sp: {kind: 'mirrors'}, map: [
+    '+-+-+-+-+=+',
+    '|.g. . . .|',
+    '+ + + +-+ +',
+    '|. .|. .|.|',
+    '+g+-+ + + +',
+    '|. . . .|.|',
+    '+ + +-+-+ +',
+    '|. . . .|.|',
+    '+ + +-+ + +',
+    '|.|.|. .g.|',
+    '+ + + +-+ +',
+    '|. .|.g. .|',
+    '+-+-+ +-+-+',] },
+  CM19: { entry: 2, exit: 3, legend: CZ_MIR_L, sp: {kind: 'mirrors'}, map: [
+    '+-+-+-+=+-+',
+    '|. . . . .|',
+    '+ + +-+-+ +',
+    '|.|. . .g.|',
+    '+ +-+-+ + +',
+    '|. . .|.g.|',
+    '+-+g+ + + +',
+    '|. . .|. .|',
+    '+ +-+-+-+ +',
+    '|. . . . .|',
+    '+ +-+-+ +-+',
+    '|. . .|. .|',
+    '+-+-+ +-+-+',] },
+  CM20: { entry: 2, exit: 2, legend: CZ_MIR_L, sp: {kind: 'mirrors'}, map: [
+    '+-+-+=+-+-+',
+    '|. . . . .|',
+    '+ +-+-+-+g+',
+    '|.|. . . .|',
+    '+ + +-+-+ +',
+    '|. . .|. .|',
+    '+ + +-+ + +',
+    '|. .|. .|.|',
+    '+-+-+ +-+-+',] },
+  CM21: { entry: 2, exit: 1, legend: CZ_MIR_L, sp: {kind: 'mirrors'}, map: [
+    '+-+=+-+-+-+',
+    '|. . .|. .|',
+    '+ +-+ + + +',
+    '|. .|.g. .|',
+    '+ + + + +-+',
+    '|.|. .|. .|',
+    '+ + +-+-+ +',
+    '|.|. . .|.|',
+    '+ + +-+ + +',
+    '|.|. . .g.|',
+    '+ +-+g+ + +',
+    '|. . .g. .|',
+    '+-+-+ +-+-+',] },
+  CM22: { entry: 2, exit: 0, legend: CZ_MIR_L, sp: {kind: 'mirrors'}, map: [
+    '+=+-+-+-+-+',
+    '|. . . . .|',
+    '+g+ + +-+-+',
+    '|. .|.|. .|',
+    '+ +-+g+ + +',
+    '|.|. .|. .|',
+    '+ + + + + +',
+    '|.|. . .|.|',
+    '+ + +g+-+ +',
+    '|. .|. . .|',
+    '+-+-+ +-+-+',] },
 });
-Object.assign(TRY_COURSES, {"clowncar":["CK1","CK11","CK22"],"lck0":["CK1","CK2","CK3","CK4","CK5","CK6","CK7"],"lck1":["CK8","CK9","CK10","CK11","CK12","CK13","CK14","CK15"],"lck2":["CK16","CK17","CK18","CK19","CK20","CK21","CK22"],"pyramid":["CP1","CP11","CP22"],"lcp0":["CP1","CP2","CP3","CP4","CP5","CP6","CP7"],"lcp1":["CP8","CP9","CP10","CP11","CP12","CP13","CP14","CP15"],"lcp2":["CP16","CP17","CP18","CP19","CP20","CP21","CP22"],"scales":["CS1","CS11","CS22"],"lcs0":["CS1","CS2","CS3","CS4","CS5","CS6","CS7"],"lcs1":["CS8","CS9","CS10","CS11","CS12","CS13","CS14","CS15"],"lcs2":["CS16","CS17","CS18","CS19","CS20","CS21","CS22"],"shells":["CH1","CH11","CH22"],"lch0":["CH1","CH2","CH3","CH4","CH5","CH6","CH7"],"lch1":["CH8","CH9","CH10","CH11","CH12","CH13","CH14","CH15"],"lch2":["CH16","CH17","CH18","CH19","CH20","CH21","CH22"],"knifethrower":["CN1","CN11","CN22"],"lcn0":["CN1","CN2","CN3","CN4","CN5","CN6","CN7"],"lcn1":["CN8","CN9","CN10","CN11","CN12","CN13","CN14","CN15"],"lcn2":["CN16","CN17","CN18","CN19","CN20","CN21","CN22"],"cpuzzles":["CK11","CP11","CS11","CH11","CN11"]});
-CZ_TRY.push(...["clowncar","lck0","lck1","lck2","pyramid","lcp0","lcp1","lcp2","scales","lcs0","lcs1","lcs2","shells","lch0","lch1","lch2","knifethrower","lcn0","lcn1","lcn2","cpuzzles"]);
-Object.assign(TRY_TITLES, {"clowncar":"THE CLOWN CAR","lck0":"THE CLOWN CAR 1-7","lck1":"THE CLOWN CAR 8-15","lck2":"THE CLOWN CAR 16-22","pyramid":"THE ACROBAT PYRAMID","lcp0":"THE ACROBAT PYRAMID 1-7","lcp1":"THE ACROBAT PYRAMID 8-15","lcp2":"THE ACROBAT PYRAMID 16-22","scales":"THE BALANCE SCALES","lcs0":"THE BALANCE SCALES 1-7","lcs1":"THE BALANCE SCALES 8-15","lcs2":"THE BALANCE SCALES 16-22","shells":"THE SHELL GAME","lch0":"THE SHELL GAME 1-7","lch1":"THE SHELL GAME 8-15","lch2":"THE SHELL GAME 16-22","knifethrower":"THE KNIFE THROWER","lcn0":"THE KNIFE THROWER 1-7","lcn1":"THE KNIFE THROWER 8-15","lcn2":"THE KNIFE THROWER 16-22","cpuzzles":"CIRCUS PUZZLES"});
-Object.assign(TRY_NEWS, {"clowncar":"Push the clowns into the little car. They get in only through its back door. Three squares, easy to hard","pyramid":"Push the acrobats onto the gold stars, and they climb into a pyramid. Three squares, easy to hard","scales":"Push weights onto the two pans until the scale hangs level. Three squares, easy to hard","shells":"Watch the cup with the gold star as the magician shuffles, then roll onto its pad. Three squares, easy to hard","knifethrower":"Watch where the knives land. Then cross on the boards he did not hit. Three squares, easy to hard","cpuzzles":"The circus puzzles, one after another"});
-Object.assign(PLAZA_NEWS, {"CK1":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK2":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK3":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK4":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK5":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK6":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK7":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK8":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK9":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK10":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK11":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK12":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK13":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK14":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK15":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK16":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK17":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK18":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK19":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK20":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK21":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK22":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CP1":"Push an acrobat onto every gold star. The pad by the road puts them back","CP2":"Push an acrobat onto every gold star. The pad by the road puts them back","CP3":"Push an acrobat onto every gold star. The pad by the road puts them back","CP4":"Push an acrobat onto every gold star. The pad by the road puts them back","CP5":"Push an acrobat onto every gold star. The pad by the road puts them back","CP6":"Push an acrobat onto every gold star. The pad by the road puts them back","CP7":"Push an acrobat onto every gold star. The pad by the road puts them back","CP8":"Push an acrobat onto every gold star. The pad by the road puts them back","CP9":"Push an acrobat onto every gold star. The pad by the road puts them back","CP10":"Push an acrobat onto every gold star. The pad by the road puts them back","CP11":"Push an acrobat onto every gold star. The pad by the road puts them back","CP12":"Push an acrobat onto every gold star. The pad by the road puts them back","CP13":"Push an acrobat onto every gold star. The pad by the road puts them back","CP14":"Push an acrobat onto every gold star. The pad by the road puts them back","CP15":"Push an acrobat onto every gold star. The pad by the road puts them back","CP16":"Push an acrobat onto every gold star. The pad by the road puts them back","CP17":"Push an acrobat onto every gold star. The pad by the road puts them back","CP18":"Push an acrobat onto every gold star. The pad by the road puts them back","CP19":"Push an acrobat onto every gold star. The pad by the road puts them back","CP20":"Push an acrobat onto every gold star. The pad by the road puts them back","CP21":"Push an acrobat onto every gold star. The pad by the road puts them back","CP22":"Push an acrobat onto every gold star. The pad by the road puts them back","CS1":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS2":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS3":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS4":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS5":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS6":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS7":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS8":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS9":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS10":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS11":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS12":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS13":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS14":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS15":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS16":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS17":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS18":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS19":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS20":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS21":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS22":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CH1":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH2":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH3":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH4":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH5":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH6":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH7":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH8":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH9":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH10":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH11":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH12":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH13":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH14":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH15":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH16":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH17":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH18":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH19":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH20":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH21":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH22":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CN1":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN2":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN3":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN4":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN5":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN6":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN7":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN8":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN9":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN10":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN11":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN12":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN13":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN14":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN15":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN16":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN17":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN18":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN19":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN20":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN21":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN22":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again"});
+Object.assign(TRY_COURSES, {"clowncar":["CK1","CK11","CK22"],"lck0":["CK1","CK2","CK3","CK4","CK5","CK6","CK7"],"lck1":["CK8","CK9","CK10","CK11","CK12","CK13","CK14","CK15"],"lck2":["CK16","CK17","CK18","CK19","CK20","CK21","CK22"],"pyramid":["CP1","CP11","CP22"],"lcp0":["CP1","CP2","CP3","CP4","CP5","CP6","CP7"],"lcp1":["CP8","CP9","CP10","CP11","CP12","CP13","CP14","CP15"],"lcp2":["CP16","CP17","CP18","CP19","CP20","CP21","CP22"],"scales":["CS1","CS11","CS22"],"lcs0":["CS1","CS2","CS3","CS4","CS5","CS6","CS7"],"lcs1":["CS8","CS9","CS10","CS11","CS12","CS13","CS14","CS15"],"lcs2":["CS16","CS17","CS18","CS19","CS20","CS21","CS22"],"shells":["CH1","CH11","CH22"],"lch0":["CH1","CH2","CH3","CH4","CH5","CH6","CH7"],"lch1":["CH8","CH9","CH10","CH11","CH12","CH13","CH14","CH15"],"lch2":["CH16","CH17","CH18","CH19","CH20","CH21","CH22"],"knifethrower":["CN1","CN11","CN22"],"lcn0":["CN1","CN2","CN3","CN4","CN5","CN6","CN7"],"lcn1":["CN8","CN9","CN10","CN11","CN12","CN13","CN14","CN15"],"lcn2":["CN16","CN17","CN18","CN19","CN20","CN21","CN22"],"tickets":["CT1","CT11","CT22"],"lct0":["CT1","CT2","CT3","CT4","CT5","CT6","CT7"],"lct1":["CT8","CT9","CT10","CT11","CT12","CT13","CT14","CT15"],"lct2":["CT16","CT17","CT18","CT19","CT20","CT21","CT22"],"mirrormaze":["CM1","CM11","CM22"],"lcm0":["CM1","CM2","CM3","CM4","CM5","CM6","CM7"],"lcm1":["CM8","CM9","CM10","CM11","CM12","CM13","CM14","CM15"],"lcm2":["CM16","CM17","CM18","CM19","CM20","CM21","CM22"],"cpuzzles":["CK11","CP11","CS11","CH11","CN11","CT11","CM11"]});
+CZ_TRY.push(...["clowncar","lck0","lck1","lck2","pyramid","lcp0","lcp1","lcp2","scales","lcs0","lcs1","lcs2","shells","lch0","lch1","lch2","knifethrower","lcn0","lcn1","lcn2","tickets","lct0","lct1","lct2","mirrormaze","lcm0","lcm1","lcm2","cpuzzles"]);
+Object.assign(TRY_TITLES, {"clowncar":"THE CLOWN CAR","lck0":"THE CLOWN CAR 1-7","lck1":"THE CLOWN CAR 8-15","lck2":"THE CLOWN CAR 16-22","pyramid":"THE ACROBAT PYRAMID","lcp0":"THE ACROBAT PYRAMID 1-7","lcp1":"THE ACROBAT PYRAMID 8-15","lcp2":"THE ACROBAT PYRAMID 16-22","scales":"THE BALANCE SCALES","lcs0":"THE BALANCE SCALES 1-7","lcs1":"THE BALANCE SCALES 8-15","lcs2":"THE BALANCE SCALES 16-22","shells":"THE SHELL GAME","lch0":"THE SHELL GAME 1-7","lch1":"THE SHELL GAME 8-15","lch2":"THE SHELL GAME 16-22","knifethrower":"THE KNIFE THROWER","lcn0":"THE KNIFE THROWER 1-7","lcn1":"THE KNIFE THROWER 8-15","lcn2":"THE KNIFE THROWER 16-22","tickets":"TICKET TURNSTILES","lct0":"TICKET TURNSTILES 1-7","lct1":"TICKET TURNSTILES 8-15","lct2":"TICKET TURNSTILES 16-22","mirrormaze":"THE HOUSE OF MIRRORS","lcm0":"THE HOUSE OF MIRRORS 1-7","lcm1":"THE HOUSE OF MIRRORS 8-15","lcm2":"THE HOUSE OF MIRRORS 16-22","cpuzzles":"CIRCUS PUZZLES"});
+Object.assign(TRY_NEWS, {"clowncar":"Push the clowns into the little car. They get in only through its back door. Three squares, easy to hard","pyramid":"Push the acrobats onto the gold stars, and they climb into a pyramid. Three squares, easy to hard","scales":"Push weights onto the two pans until the scale hangs level. Three squares, easy to hard","shells":"Watch the cup with the gold star as the magician shuffles, then roll onto its pad. Three squares, easy to hard","knifethrower":"Watch where the knives land. Then cross on the boards he did not hit. Three squares, easy to hard","tickets":"Pick up tickets and pay the turnstiles. There are never enough for all of them. Three squares, easy to hard","mirrormaze":"Find the way out of the house of mirrors. You see only round the marble, and some doorways are glass. Three squares, easy to hard","cpuzzles":"The circus puzzles, one after another"});
+Object.assign(PLAZA_NEWS, {"CK1":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK2":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK3":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK4":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK5":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK6":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK7":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK8":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK9":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK10":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK11":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK12":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK13":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK14":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK15":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK16":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK17":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK18":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK19":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK20":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK21":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CK22":"Push every clown into the car. They get in only through its back door, where the white arrows point in","CP1":"Push an acrobat onto every gold star. The pad by the road puts them back","CP2":"Push an acrobat onto every gold star. The pad by the road puts them back","CP3":"Push an acrobat onto every gold star. The pad by the road puts them back","CP4":"Push an acrobat onto every gold star. The pad by the road puts them back","CP5":"Push an acrobat onto every gold star. The pad by the road puts them back","CP6":"Push an acrobat onto every gold star. The pad by the road puts them back","CP7":"Push an acrobat onto every gold star. The pad by the road puts them back","CP8":"Push an acrobat onto every gold star. The pad by the road puts them back","CP9":"Push an acrobat onto every gold star. The pad by the road puts them back","CP10":"Push an acrobat onto every gold star. The pad by the road puts them back","CP11":"Push an acrobat onto every gold star. The pad by the road puts them back","CP12":"Push an acrobat onto every gold star. The pad by the road puts them back","CP13":"Push an acrobat onto every gold star. The pad by the road puts them back","CP14":"Push an acrobat onto every gold star. The pad by the road puts them back","CP15":"Push an acrobat onto every gold star. The pad by the road puts them back","CP16":"Push an acrobat onto every gold star. The pad by the road puts them back","CP17":"Push an acrobat onto every gold star. The pad by the road puts them back","CP18":"Push an acrobat onto every gold star. The pad by the road puts them back","CP19":"Push an acrobat onto every gold star. The pad by the road puts them back","CP20":"Push an acrobat onto every gold star. The pad by the road puts them back","CP21":"Push an acrobat onto every gold star. The pad by the road puts them back","CP22":"Push an acrobat onto every gold star. The pad by the road puts them back","CS1":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS2":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS3":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS4":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS5":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS6":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS7":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS8":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS9":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS10":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS11":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS12":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS13":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS14":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS15":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS16":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS17":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS18":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS19":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS20":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS21":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CS22":"Level the scale: the same kilos on each pan. The boards over the pans add them up","CH1":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH2":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH3":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH4":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH5":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH6":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH7":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH8":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH9":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH10":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH11":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH12":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH13":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH14":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH15":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH16":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH17":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH18":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH19":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH20":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH21":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CH22":"Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back","CN1":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN2":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN3":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN4":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN5":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN6":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN7":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN8":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN9":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN10":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN11":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN12":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN13":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN14":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN15":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN16":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN17":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN18":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN19":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN20":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN21":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CN22":"Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again","CT1":"Each turnstile takes the tickets on its sign, once. There are not enough for all of them: choose. The pad by the road puts it back","CT2":"Each turnstile takes the tickets on its sign, once. There are not enough for all of them: choose. The pad by the road puts it back","CT3":"Each turnstile takes the tickets on its sign, once. There are not enough for all of them: choose. The pad by the road puts it back","CT4":"Each turnstile takes the tickets on its sign, once. There are not enough for all of them: choose. The pad by the road puts it back","CT5":"Each turnstile takes the tickets on its sign, once. There are not enough for all of them: choose. The pad by the road puts it back","CT6":"Each turnstile takes the tickets on its sign, once. There are not enough for all of them: choose. The pad by the road puts it back","CT7":"Each turnstile takes the tickets on its sign, once. There are not enough for all of them: choose. The pad by the road puts it back","CT8":"Each turnstile takes the tickets on its sign, once. There are not enough for all of them: choose. The pad by the road puts it back","CT9":"Each turnstile takes the tickets on its sign, once. There are not enough for all of them: choose. The pad by the road puts it back","CT10":"Each turnstile takes the tickets on its sign, once. There are not enough for all of them: choose. The pad by the road puts it back","CT11":"Each turnstile takes the tickets on its sign, once. There are not enough for all of them: choose. The pad by the road puts it back","CT12":"Each turnstile takes the tickets on its sign, once. There are not enough for all of them: choose. The pad by the road puts it back","CT13":"Each turnstile takes the tickets on its sign, once. There are not enough for all of them: choose. The pad by the road puts it back","CT14":"Each turnstile takes the tickets on its sign, once. There are not enough for all of them: choose. The pad by the road puts it back","CT15":"Each turnstile takes the tickets on its sign, once. There are not enough for all of them: choose. The pad by the road puts it back","CT16":"Each turnstile takes the tickets on its sign, once. There are not enough for all of them: choose. The pad by the road puts it back","CT17":"Each turnstile takes the tickets on its sign, once. There are not enough for all of them: choose. The pad by the road puts it back","CT18":"Each turnstile takes the tickets on its sign, once. There are not enough for all of them: choose. The pad by the road puts it back","CT19":"Each turnstile takes the tickets on its sign, once. There are not enough for all of them: choose. The pad by the road puts it back","CT20":"Each turnstile takes the tickets on its sign, once. There are not enough for all of them: choose. The pad by the road puts it back","CT21":"Each turnstile takes the tickets on its sign, once. There are not enough for all of them: choose. The pad by the road puts it back","CT22":"Each turnstile takes the tickets on its sign, once. There are not enough for all of them: choose. The pad by the road puts it back","CM1":"Find the way out. You see only round the marble; glass cracks when you bump it, so you know it next time","CM2":"Find the way out. You see only round the marble; glass cracks when you bump it, so you know it next time","CM3":"Find the way out. You see only round the marble; glass cracks when you bump it, so you know it next time","CM4":"Find the way out. You see only round the marble; glass cracks when you bump it, so you know it next time","CM5":"Find the way out. You see only round the marble; glass cracks when you bump it, so you know it next time","CM6":"Find the way out. You see only round the marble; glass cracks when you bump it, so you know it next time","CM7":"Find the way out. You see only round the marble; glass cracks when you bump it, so you know it next time","CM8":"Find the way out. You see only round the marble; glass cracks when you bump it, so you know it next time","CM9":"Find the way out. You see only round the marble; glass cracks when you bump it, so you know it next time","CM10":"Find the way out. You see only round the marble; glass cracks when you bump it, so you know it next time","CM11":"Find the way out. You see only round the marble; glass cracks when you bump it, so you know it next time","CM12":"Find the way out. You see only round the marble; glass cracks when you bump it, so you know it next time","CM13":"Find the way out. You see only round the marble; glass cracks when you bump it, so you know it next time","CM14":"Find the way out. You see only round the marble; glass cracks when you bump it, so you know it next time","CM15":"Find the way out. You see only round the marble; glass cracks when you bump it, so you know it next time","CM16":"Find the way out. You see only round the marble; glass cracks when you bump it, so you know it next time","CM17":"Find the way out. You see only round the marble; glass cracks when you bump it, so you know it next time","CM18":"Find the way out. You see only round the marble; glass cracks when you bump it, so you know it next time","CM19":"Find the way out. You see only round the marble; glass cracks when you bump it, so you know it next time","CM20":"Find the way out. You see only round the marble; glass cracks when you bump it, so you know it next time","CM21":"Find the way out. You see only round the marble; glass cracks when you bump it, so you know it next time","CM22":"Find the way out. You see only round the marble; glass cracks when you bump it, so you know it next time"});
 
 // HARNESS: does anything of the world hide the course? From the camera's own place over points all along the course,
 // render the course alone (red on black), then again with the world in front of it (the world black, keeping its

@@ -314,6 +314,64 @@ window.__pp = (() => {
       else st.block = hit;
       return out(2.6);
     }
+    if (q.kind === 'tickets') {                          // every ticket in reach; then the next turnstile the search pays for
+      const M = q.map, rows = q.rows, cols = q.cols, hE = (k, c) => M[2 * (rows - k)][2 * c + 1], vE = (r, c) => M[2 * (rows - 1 - r) + 1][2 * c];
+      const edgeName = (c, r, d) => (d === 'n' ? 'H' + c + ',' + (r + 1) : d === 's' ? 'H' + c + ',' + r : d === 'e' ? 'V' + (c + 1) + ',' + r : 'V' + c + ',' + r);
+      const ch = (c, r, d) => (d === 'n' ? hE(r + 1, c) : d === 's' ? hE(r, c) : d === 'e' ? vE(r, c + 1) : vE(r, c));
+      const turn = {}; for (const t of q.turns) turn[t.ek] = t;
+      const g2 = Object.assign({}, g, { wall: (c, r, d) => { const x = ch(c, r, d); if (x === ' ') return false; const t = turn[edgeName(c, r, d)]; return !(t && t.open); } });
+      if (q.done || st.out) { st.out = true; return out.call ? (() => { const w = at[1] >= rows || (at[0] === q.exit && at[1] === rows - 1) ? null : toward(q, g2, s, [q.exit, rows - 1], () => false, 3); if (w) return { ix: w.ix, iz: w.iz }; const [ix, iz] = steer(s, g.X(q.exit), outZ - 2, 3, true); return { ix, iz }; })() : { ix: 0, iz: 0 }; }
+      const reach = (wallf) => { const seen = new Set([at[0] + ',' + at[1]]), Q = [at]; while (Q.length) { const [c, r] = Q.pop(); for (const [d, dc, dr] of DIRS) { const nc = c + dc, nr = r + dr; if (nc < 0 || nc >= cols || nr < 0 || nr >= rows || wallf(c, r, d)) continue; const k = nc + ',' + nr; if (!seen.has(k)) { seen.add(k); Q.push([nc, nr]); } } } return seen; };
+      const reg = reach(g2.wall), loose = q.tickets.filter(([c, r, tk]) => !tk && reg.has(c + ',' + r));
+      if (loose.length) {                                // pick up what is in reach, nearest first
+        const near = loose.map(([c, r]) => ({ c, r, p: bfs(q, g2, at, [c, r], () => false) })).filter((o) => o.p).sort((a, b) => a.p.length - b.p.length)[0];
+        const w = near && toward(q, g2, s, [near.c, near.r], () => false, 2.8); return w ? { ix: w.ix, iz: w.iz } : { ix: 0, iz: 0 };
+      }
+      if (!st.pay || turn[st.pay.ek].open) {
+        const shut = q.turns.filter((t) => !t.open);
+        const sideIn = (t) => { const [a, b] = t.ek.slice(1).split(',').map(Number), cells = t.ek[0] === 'H' ? [[a, b - 1], [a, b]] : [[a - 1, b], [a, b]]; return cells.filter(([c, r]) => r >= 0 && r < rows && c >= 0 && c < cols && reg.has(c + ',' + r)).map(([c, r]) => ({ c, r, other: cells.find((x) => x[0] !== c || x[1] !== r) })); };
+        const can = shut.filter((t) => t.price <= q.held && sideIn(t).length && (t.exit || !sideIn(t).every((sd) => reg.has(sd.other[0] + ',' + sd.other[1]))));
+        if (opts.careless) { st.n = (st.n || 0) + 1; if (!can.length || st.n > 8) return { fail: true }; st.pay = can[Math.floor(rnd() * can.length)]; }
+        else {                                           // the search, from here: the fewest turnstiles still to pay
+          const idx = new Map(shut.map((t, i) => [t.ek, i])), tickAt = new Set(q.tickets.filter(([c, r, tk]) => !tk).map(([c, r]) => c + ',' + r));
+          const regionOf = (paid) => reach((c, r, d) => { const x = ch(c, r, d); if (x === ' ') return false; const t = turn[edgeName(c, r, d)]; if (!t) return true; return !(t.open || (idx.has(t.ek) && paid >> idx.get(t.ek) & 1)); });
+          const heldOf = (paid, rg) => q.held + [...tickAt].filter((k) => rg.has(k)).length - shut.reduce((a, t, i) => a + (paid >> i & 1 ? t.price : 0), 0);
+          const exitI = shut.findIndex((t) => t.exit), seen = new Map([[0, null]]), Q = [0]; let win = null;
+          for (let h = 0; h < Q.length && win === null; h++) {
+            const sgn = Q[h], rg = regionOf(sgn), hd = heldOf(sgn, rg);
+            if (exitI >= 0 && sgn >> exitI & 1) { win = sgn; break; }
+            shut.forEach((t, i) => {
+              if (sgn >> i & 1 || t.price > hd) return;
+              const [a, b] = t.ek.slice(1).split(',').map(Number), cells = t.ek[0] === 'H' ? [[a, b - 1], [a, b]] : [[a - 1, b], [a, b]];
+              if (!cells.some(([c, r]) => rg.has(c + ',' + r))) return;
+              const s2 = sgn | (1 << i); if (!seen.has(s2)) { seen.set(s2, { from: sgn, i }); Q.push(s2); }
+            });
+          }
+          let first = null; for (let k = win; k !== null && seen.get(k); k = seen.get(k).from) first = shut[seen.get(k).i];
+          if (!first) return { ix: 0, iz: 0 };
+          st.pay = first; R.note += ' ' + first.ek;
+        }
+      }
+      const [sd] = (() => { const t = st.pay, [a, b] = t.ek.slice(1).split(',').map(Number), cells = t.ek[0] === 'H' ? [[a, b - 1], [a, b]] : [[a - 1, b], [a, b]];
+        return cells.filter(([c, r]) => r >= 0 && r < rows && reg.has(c + ',' + r)).map(([c, r]) => ({ c, r, other: cells.find((x) => x[0] !== c || x[1] !== r) })); })();
+      if (!sd) { st.pay = null; return { ix: 0, iz: 0 }; }
+      if (at[0] !== sd.c || at[1] !== sd.r) { const w = toward(q, g2, s, [sd.c, sd.r], () => false, 2.8); return w ? { ix: w.ix, iz: w.iz } : { ix: 0, iz: 0 }; }
+      const [ox, oz] = sd.other[1] >= rows ? [g.X(sd.c), g.Z(sd.r) - CELL] : [g.X(sd.other[0]), g.Z(sd.other[1])];
+      const [ix, iz] = steer(s, ox, oz, 3.2, true); return { ix, iz };   // and lean into it
+    }
+    if (q.kind === 'mirrors') {                          // a new board where there is one, nearest the way out first; else back the least-used way (careless: at random)
+      if (at[1] >= q.rows) return out();
+      if (at[0] === q.exit && at[1] === q.rows - 1) return out();
+      st.visits = st.visits || {};
+      const k = at + '', dx = g.X(at[0]) - s.ball[0], dz = g.Z(at[1]) - s.ball[2];
+      if (!st.to || (st.to[0] === at[0] && st.to[1] === at[1] && Math.hypot(dx, dz) < 0.5)) {
+        if (st.last !== k) { st.visits[k] = (st.visits[k] || 0) + 1; st.last = k; }
+        const nx = DIRS.filter(([d, dc, dr]) => { const a = at[0] + dc, b = at[1] + dr; return a >= 0 && a < q.cols && b >= 0 && b < q.rows && !g.wall(at[0], at[1], d); }).map(([, dc, dr]) => [at[0] + dc, at[1] + dr]);
+        if (opts.careless) st.to = nx[Math.floor(rnd() * nx.length)];
+        else st.to = nx.sort((a, b) => ((st.visits[a + ''] || 0) - (st.visits[b + ''] || 0)) || (Math.abs(a[0] - q.exit) + (q.rows - 1 - a[1])) - (Math.abs(b[0] - q.exit) + (q.rows - 1 - b[1])))[0];
+      }
+      const [ix, iz] = steer(s, g.X(st.to[0]), g.Z(st.to[1]), 2.6); return { ix, iz };
+    }
     return { ix: 0, iz: 0 };
   }
   // ---- the pilot ----

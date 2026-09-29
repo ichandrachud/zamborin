@@ -45,5 +45,7 @@ for f, args in [('spBuild', 'P'), ('spBuilt', 'P'), ('spPad', 'P, c, r, cell'), 
 rep("  if (W.sat) { satPush(W, dx, dz); return; }        // a satellite glides on\n", "  if (W.sat) { satPush(W, dx, dz); return; }        // a satellite glides on\n  if (W.cz) { czPush(W, dx, dz); return; }          // a circus piece: its own rules\n")
 rep("      if (W.sat) satArrive(W);\n", "      if (W.sat) satArrive(W);\n      if (W.cz) czArrive(W);\n")
 rep("setWorld(TRY_CIRCUS[v] ? 'circus-tintoy'", "setWorld(TRY_CIRCUS[v] || CZ_TRY.includes(v) ? 'circus-tintoy'")
+rep("function buildGate(P, e, x, z, alongX, ek) {\n", "function buildGate(P, e, x, z, alongX, ek) {\n  if (e.czturn || e.czglass) { czEdge(P, e, x, z, alongX, ek); return; }   // a circus turnstile, or a pane of the house of mirrors (cq16)\n")
+rep("  if (c.gate) gateTouch(c.gate);\n", "  if (c.gate) { if (c.gate.cz) czTouch(c.gate, _N); else gateTouch(c.gate); }\n")
 open(p, 'w').write(s)
 print('puzzles ok')

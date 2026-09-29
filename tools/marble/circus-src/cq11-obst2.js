@@ -217,9 +217,10 @@ function buildWod(pc) {
   Wd.spot.rotation.x = -Math.PI / 2; Wd.spot.position.set(pc.x, pc.y + 0.02, Wd.spotZ); levelGroup.add(Wd.spot);
   circ.wods.push(Wd);
 }
-// A cage's centre, for the cage at the arm's end k (0, 1): at the bottom when the angle has it straight down.
-function wodCage(Wd, k, t) { const a = wodAngle(Wd, t) + k * Math.PI; return new Vector3(Wd.pc.x, Wd.ay - Wd.pc.arm * Math.cos(a), Wd.pc.z - Wd.pc.arm * Math.sin(a)); }
-// The angle of cage k from straight down, from -PI to PI (below zero: still coming down toward the rail).
+// A cage's centre, for the cage at the arm's end k (0, 1): at the bottom when the angle has it straight down. It turns as
+// the wheel is drawn: along the bottom toward the rail you wait on, up over it, and over the top heading on (-z).
+function wodCage(Wd, k, t) { const a = wodAngle(Wd, t) + k * Math.PI; return new Vector3(Wd.pc.x, Wd.ay - Wd.pc.arm * Math.cos(a), Wd.pc.z + Wd.pc.arm * Math.sin(a)); }
+// The angle of cage k from straight down, from -PI to PI (below zero: still coming down, on the far side of the gap).
 const wodDown = (Wd, k, t) => { const a = ((wodAngle(Wd, t) + k * Math.PI) % TAU + TAU) % TAU; return a > Math.PI ? a - TAU : a; };
 function wodStep() {
   for (const Wd of circ.wods) {
@@ -229,19 +230,19 @@ function wodStep() {
     if (!onSpot && !inCage) continue;
     for (let k = 0; k < 2; k++) {
       const C = wodCage(Wd, k, simT), a = wodDown(Wd, k, simT);
-      if ((onSpot && a > -0.3 && a < 0.12) || (C.distanceTo(ball.p) < WOD_CUP * 0.9 && C.y < Wd.pc.y + WOD_CUP)) {
+      if ((onSpot && a > 0.1 && a < 1.3 && C.distanceTo(ball.p) < 1.05) || (C.distanceTo(ball.p) < WOD_CUP * 0.9 && C.y < Wd.pc.y + WOD_CUP)) {   // rising past the spot: scooped up
         ball.circ = { wod: Wd, k, t: 0, from: ball.p.clone() }; ball.v.set(0, 0, 0); sound('thunk'); return;
       }
     }
   }
 }
-// Carried in the cage, up and over; let go at the top, rolling on onto the rail above.
+// Carried in the cage, up and over; just past the top, heading on, it hops off onto the rail above (no jump in where it is).
 function wodHeld(dt) {
   const H = ball.circ, Wd = H.wod, a = ((wodAngle(Wd, simT) + H.k * Math.PI) % TAU + TAU) % TAU;
   const C = wodCage(Wd, H.k, simT); H.t += dt;
   if (H.from && H.t < 0.3) ball.p.lerpVectors(H.from, C, ease(H.t / 0.3)); else ball.p.copy(C);   // drawn into the cage, not snapped
   ball.v.set(0, 0, 0);
-  if (a > Math.PI - 0.05 && a < Math.PI + 1) { ball.circ = null; ball.p.set(Wd.pc.x, Wd.pc.y + Wd.pc.up + R + 0.05, Wd.pc.z - 1.2); ball.v.set(0, 0, -2.4); sound('pop'); }
+  if (a > Math.PI + 0.28 && a < Math.PI + 1.2) { ball.circ = null; ball.v.set(0, 3.2, -Math.max(2.6, Wd.pc.spin * Wd.pc.arm)); ball.grounded = false; sound('pop'); }
 }
 
 // ---- THE FERRIS WHEEL ----
@@ -298,8 +299,8 @@ function circMove(dt) {
   if (circ.teeters.length) animateTeeter();
   for (const Fw of circ.ferrises) ferrisPlace(Fw, simT);
   for (const Wd of circ.wods) {
-    Wd.rot.rotation.x = -wodAngle(Wd, simT);
-    const soon = Math.min(...[0, 1].map((k) => { const a = wodDown(Wd, k, simT); return a < -0.3 ? -0.3 - a : 9; }));   // how far the next cage has to come
+    Wd.rot.rotation.x = -wodAngle(Wd, simT);                  // (wodCage turns the same way: owner, "the wheel and the ball are not in unison")
+    const soon = Math.min(...[0, 1].map((k) => { const a = wodDown(Wd, k, simT); return a < 0.3 ? 0.3 - a : 9; }));   // how far the next cage has to come
     Wd.spot.material.opacity = !REDUCED && soon < 0.9 ? 0.5 + 0.45 * Math.abs(Math.sin(simT * 10)) : 0.85;
   }
 }
@@ -309,7 +310,7 @@ function circState2() {
     swings: circ.swings.map((T) => ({ z: T.pc.z, gap: T.pc.gap, a: trapAngle(T, simT), amax: T.g.a, seat: T.c.pos.toArray().map((v) => +v.toFixed(2)), period: T.pc.period, dwell: T.pc.dwell, phase: T.pc.phase })),
     wires: circ.wires.map((W) => ({ z: W.pc.z, len: W.pc.len, bw: W.pc.bw, x: W.c.pos.x, sway: W.pc.sway, period: W.pc.period })),
     teeters: circ.teeters.map((T) => ({ z: T.pc.z, L: T.pc.L, a: T.a, tilt: T.pc.tilt, nearZ: T.nearZ, farZ: T.farZ, toLand: teeterJump(T, simT).toLand, y: T.pc.y, up: T.pc.up, pos: T.c.pos.toArray().map((v) => +v.toFixed(3)), q: T.c.quat.toArray().map((v) => +v.toFixed(3)), py: T.py })),
-    wods: circ.wods.map((Wd) => ({ z: Wd.pc.z, ang: wodAngle(Wd, simT), spin: Wd.pc.spin, arm: Wd.pc.arm, y: Wd.pc.y })),
+    wods: circ.wods.map((Wd) => ({ z: Wd.pc.z, ang: wodAngle(Wd, simT), spin: Wd.pc.spin, arm: Wd.pc.arm, y: Wd.pc.y, drawn: [-1, 1].map((e) => { Wd.rot.updateMatrixWorld(true); return Wd.rot.localToWorld(new Vector3(0, e * Wd.pc.arm, 0)).toArray().map((v) => +v.toFixed(2)); }), cage: [0, 1].map((k) => wodCage(Wd, k, simT).toArray().map((v) => +v.toFixed(2))) })),
     ferrises: circ.ferrises.map((Fw) => ({ z: Fw.pc.z, g: Fw.pc.g, e: FC_D / 2 + 0.05, y: Fw.pc.y, yc: Fw.yc, Rf: Fw.pc.Rf, spin: Fw.pc.spin, phase: Fw.pc.phase, n: Fw.pc.n, hang: FC_HANG,
                                           cars: Fw.cars.map((c) => c.c.pos.toArray().map((v) => +v.toFixed(2))) })),
   };

@@ -256,6 +256,8 @@ function cannonStep(dt) {
 }
 // Held in the cannon: drawn down the barrel for a moment, then fired.
 function circHeldStep(dt) {
+  circMove(dt);                                            // the rides go on turning while one carries you (owner: "the wheel and the ball
+                                                            // are not in unison": the Wheel of Death stood still once it had you)
   if (ball.circ.wod) { wodHeld(dt); return; }              // in a cage of the Wheel of Death
   if (ball.circ.coaster) { coasterHeld(dt); return; }      // riding the roller coaster
   const H = ball.circ, C = H.C;

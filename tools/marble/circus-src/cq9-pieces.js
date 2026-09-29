@@ -290,7 +290,7 @@ function circusPieces(look) {
     tkSet(beam, 'material', PK.gold);
   }
   // PUZZLE SQUARES: walls of red and cream, gold where the tiles' walls are, a dark base, tin trunks to push.
-  for (const c of colliders) if (c.obstacle === 'wall') tkSet(c.mesh, 'material', PK.red);
+  for (const c of colliders) if (c.obstacle === 'wall' && !c.mesh.userData.cz) tkSet(c.mesh, 'material', PK.red);   // (the house of mirrors' walls are mirrors)
   for (const P of plazas) {
     levelGroup.traverse((m) => { if (m.isMesh && (m.material === P.mats.line || m.material === P.mats.halo)) tkHide(m); });
     for (const T of P.tiles) T.grp.traverse((m) => {

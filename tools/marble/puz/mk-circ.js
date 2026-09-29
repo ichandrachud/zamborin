@@ -14,6 +14,10 @@ const KINDS = [
    'Keep your eye on the cup with the star. When the pads light, roll onto the pad in front of it. The wrong cup sends you back'],
   ['knives', 'CN', 'CZ_KNF_L', 'THE KNIFE THROWER', 'Watch where the knives land. Then cross on the boards he did not hit',
    'Remember the boards he hits. Cross on the others: a knife sends you back, and he throws again'],
+  ['tickets', 'CT', 'CZ_TKT_L', 'TICKET TURNSTILES', 'Pick up tickets and pay the turnstiles. There are never enough for all of them',
+   'Each turnstile takes the tickets on its sign, once. There are not enough for all of them: choose. The pad by the road puts it back'],
+  ['mirrors', 'CM', 'CZ_MIR_L', 'THE HOUSE OF MIRRORS', 'Find the way out of the house of mirrors. You see only round the marble, and some doorways are glass',
+   'Find the way out. You see only round the marble; glass cracks when you bump it, so you know it next time'],
 ];
 const TRY_KEY = { knives: 'knifethrower', mirrors: 'mirrormaze' };
 let out = `
