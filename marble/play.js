@@ -331,7 +331,15 @@ T().init('marble');
 // ---------- SAVE ----------
 const SAVE_KEY = 'zamborin-marble.v1';
 function loadSave() {
-  try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s && s.level) { s.best = s.best || {}; s.stars = s.stars || {}; return s; } } catch (_) {}
+  try {
+    const s = JSON.parse(localStorage.getItem(SAVE_KEY));
+    if (s && typeof s === 'object' && Number.isFinite(+s.level) && +s.level >= 1) {   // (a save that is not one starts afresh)
+      s.level = Math.floor(+s.level);
+      for (const k of ['best', 'stars', 'seen']) if (s[k] !== undefined && (!s[k] || typeof s[k] !== 'object')) delete s[k];
+      s.best = s.best || {}; s.stars = s.stars || {};
+      return s;
+    }
+  } catch (_) {}
   return { level: 1, best: {}, stars: {} };
 }
 const save = loadSave();
@@ -5458,12 +5466,12 @@ function freeCourse(grp) {
   for (const c of ferries) if (c.train) for (const t of c.train.model.userData.maps) t.dispose();
   for (const c of locks) c.mat.map.dispose();
   for (const c of mags) c.magFx.tex.dispose();
-  for (const S of switches) if (S.top) { S.top.dispose(); S.side.dispose(); }
+  for (const S of switches) if (S.top) { freeMat(S.top); freeMat(S.side); }
   for (const c of colliders) if (c.obstacle) new Set([].concat(c.mesh.material)).forEach((m) => { if (!m.userData.keep) m.dispose(); });
   scene.remove(grp);
   grp.traverse((o) => {
     if (o.geometry && !o.geometry.userData.keep) o.geometry.dispose();
-    if (o.material && !Array.isArray(o.material) && !o.material.userData.keep) o.material.dispose();
+    if (o.material && !Array.isArray(o.material) && !o.material.userData.keep) freeMat(o.material);   // (its pictures too: cq23)
   });
 }
 function enterPocket(W) {
@@ -7218,18 +7226,19 @@ function loadLevel(n, custom = null) {
   levelNo = Math.max(1, Math.min(LEVELS.length, n));
   level = custom || LEVELS[levelNo - 1];                 // (custom: a course to try a new puzzle on)
   if (levelGroup) {
+    tkUndoAll();                                        // (the dressing undone first, so what it swapped out is freed with the course: cq23)
     for (const c of holos) for (const m of c.holoMats) m.dispose();
     for (const c of pads) if (c.padFx.tex) c.padFx.tex.dispose();
     for (const c of ferries) if (c.train) for (const t of c.train.model.userData.maps) t.dispose();
     for (const c of locks) c.mat.map.dispose();
     for (const c of mags) c.magFx.tex.dispose();
-    for (const S of switches) if (S.top) { S.top.dispose(); S.side.dispose(); }
+    for (const S of switches) if (S.top) { freeMat(S.top); freeMat(S.side); }
     for (const c of colliders) if (c.obstacle) new Set([].concat(c.mesh.material)).forEach((m) => { if (!m.userData.keep) m.dispose(); });
     scene.remove(levelGroup);
     levelGroup.traverse((o) => {
       // Stone is shared across levels, and so is a world's kit (userData.keep); each ring owns its materials.
       if (o.geometry && !o.geometry.userData.keep) o.geometry.dispose();
-      if (o.material && !Array.isArray(o.material) && !o.material.userData.keep) o.material.dispose();
+      if (o.material && !Array.isArray(o.material) && !o.material.userData.keep) freeMat(o.material);   // (its pictures too: cq23)
     });
   }
   tkUndo.length = 0; tkTicks.length = 0;               // the course it dressed is gone, and what moved it each frame goes too
@@ -7846,6 +7855,7 @@ hud.addEventListener('pointerdown', (e) => {
     if (state === 'rules' && inBox(p, L.cardBody)) cardDrag = { id: e.pointerId, y: p.y, s: cardScroll };
     return;
   }
+  if (joy && joy.id !== e.pointerId) { tap2 = { id: e.pointerId, t0: performance.now(), sx: p.x, sy: p.y, far: 0 }; return; }
   joy = { id: e.pointerId, ox: p.x, oy: p.y, x: p.x, y: p.y, sx: p.x, sy: p.y, t0: performance.now(), far: 0 };
   try { hud.setPointerCapture(e.pointerId); } catch (_) {}
 });
@@ -7857,6 +7867,7 @@ hud.addEventListener('pointermove', (e) => {
     if (m > JR) { joy.ox = joy.x - dx / m * JR; joy.oy = joy.y - dy / m * JR; }
   }
   if (cardDrag && e.pointerId === cardDrag.id) cardScroll = cardDrag.s + (cardDrag.y - p.y);
+  if (tap2 && e.pointerId === tap2.id) tap2.far = Math.max(tap2.far, Math.hypot(p.x - tap2.sx, p.y - tap2.sy));
 });
 function endPointer(e, cancelled) {
   const p = toLogical(e);
@@ -7869,7 +7880,9 @@ function endPointer(e, cancelled) {
     joy = null;
   }
   if (cardDrag && e.pointerId === cardDrag.id) cardDrag = null;
+  if (tap2 && e.pointerId === tap2.id) { if (!cancelled && performance.now() - tap2.t0 < 260 && tap2.far < 14) tapQueued = true; tap2 = null; }
 }
+let tap2 = null;                                        // a second finger while the first steers: only ever a hop
 hud.addEventListener('pointerup', (e) => endPointer(e, false));
 hud.addEventListener('pointercancel', (e) => endPointer(e, true));
 hud.addEventListener('wheel', (e) => {
@@ -7886,12 +7899,13 @@ window.addEventListener('keydown', (e) => {
     firstGesture();
     if (!cardOpen()) { keys.add(k); e.preventDefault(); }
     else if (state === 'rules' && (k === 'up' || k === 'down')) { cardScroll += k === 'up' ? -40 : 40; e.preventDefault(); }
+    else if (e.code.startsWith('Arrow')) e.preventDefault();   // (a card is up: the arrows still must not scroll the page round the game)
   } else if ((e.code === 'Enter' || e.code === 'Space') && cardOpen()) { e.preventDefault(); act('cta'); }
   else if (e.code === 'Space' && !e.repeat) { firstGesture(); tapQueued = true; e.preventDefault(); }   // a hop
   else if (e.code === 'Escape' && (state === 'rules' || state === 'intro')) act('cta');
 });
 window.addEventListener('keyup', (e) => { const k = KEYMAP[e.code]; if (k) keys.delete(k); });
-window.addEventListener('blur', () => { keys.clear(); joy = null; });
+window.addEventListener('blur', () => { keys.clear(); joy = null; tap2 = null; });
 
 function act(k) {
   if (k === 'sound') { if (sfx) sfx.setOn(!sfx.isOn()); play('click'); return; }
@@ -8248,7 +8262,8 @@ function wrapText(text, maxW, size) {
 function cardLayout(kind) {
   const pw = Math.min(LW - 56, 470), ph = Math.min(LH - 20, 420);
   const px = Math.round((LW - pw) / 2), py = Math.max(10, Math.round((LH - ph) / 2));
-  const HEADER = 154, FOOTER = 98, viewTop = py + HEADER, viewH = Math.max(40, ph - HEADER - FOOTER);
+  // (the header takes a line more for an opening that needs three: cq23)
+  const subtitle = cardSubtitle(kind), HEADER = 154 + 24 * Math.max(0, Math.min(3, wrapText(subtitle, pw - 68, 17).length) - 2), FOOTER = 98, viewTop = py + HEADER, viewH = Math.max(40, ph - HEADER - FOOTER);
   const items = [];
   if (kind === 'rules') {
     for (const r of RULES) { const lines = wrapText((world.rules && world.rules.get(r)) || r, pw - 100, 16); items.push({ t: 'rule', lines, h: lines.length * 22 + 13 }); }
@@ -8262,10 +8277,7 @@ function cardLayout(kind) {
     ctaCy: py + ph - FOOTER + 16 + UI.CTA.h / 2,
     title: kind === 'rules' ? 'MARBLE' : 'CLEARED',
     cta: kind === 'rules' ? 'PLAY' : last ? 'PLAY AGAIN' : 'NEXT',
-    subtitle: kind === 'rules' ? 'Roll the marble along the course and through the orange ring.'
-      : last ? 'That was the last of the forty courses.'
-      : falls === 0 ? 'The whole course without a single fall.'
-      : 'Home, with ' + falls + (falls === 1 ? ' fall' : ' falls') + ' on the way.',
+    subtitle,
   };
 }
 function fadeEdge(c, top) {
@@ -8290,7 +8302,7 @@ function drawCard(kind) {
   ctx.fillStyle = TOK.text; ctx.font = '800 40px Inter, sans-serif'; ctx.textBaseline = 'alphabetic';
   ctx.fillText(c.title, c.px + 34, c.py + 34 + 34);
   ctx.fillStyle = TOK.ink82;
-  const sub = wrapText(c.subtitle, c.pw - 68, 17).slice(0, 2);
+  const sub = wrapText(c.subtitle, c.pw - 68, 17).slice(0, 3);
   ctx.font = '600 17px Inter, sans-serif';
   for (let i = 0; i < sub.length; i++) ctx.fillText(sub[i], c.px + 34, c.py + 34 + 54 + 17 + i * 24);
 
@@ -10120,7 +10132,7 @@ function neonCourse(style) {
     c.mesh.castShadow = false;
     if (c.power) {
       const S = c.power;
-      if (S.top) { S.top.dispose(); S.side.dispose(); }
+      if (S.top) { freeMat(S.top); freeMat(S.side); }
       S.top = M.top.clone(); S.side = M.side.clone(); S.top0 = M.top.emissiveIntensity; S.side0 = M.side.emissiveIntensity; S.fade = false;
       c.mesh.material = [S.side, S.side, S.top, M.under, S.side, S.side]; setTopUV(c.mesh, false);
       continue;
@@ -10541,7 +10553,7 @@ function tokyoCourse() {
     let side, top;
     if (c.power) {
       const S = c.power;
-      if (S.top) { S.top.dispose(); S.side.dispose(); }
+      if (S.top) { freeMat(S.top); freeMat(S.side); }
       S.top = M.make.top(); S.side = M.make.side(); S.top.transparent = S.side.transparent = true; S.fade = true;
       side = S.side; top = S.top;
     } else {
@@ -13535,7 +13547,7 @@ function pbCourse(look) {
     let side, top;
     if (c.power) {
       const S = c.power;
-      if (S.top) { S.top.dispose(); S.side.dispose(); }
+      if (S.top) { freeMat(S.top); freeMat(S.side); }
       S.top = M.make.top(); S.side = M.make.side(); S.top.transparent = S.side.transparent = true; S.fade = true;
       side = S.side; top = S.top;
     } else {
@@ -19326,7 +19338,7 @@ function circusCourse(look) {
     c.mesh.castShadow = false;
     if (c.power) {
       const S = c.power;
-      if (S.top) { S.top.dispose(); S.side.dispose(); }
+      if (S.top) { freeMat(S.top); freeMat(S.side); }
       S.top = M.make.top(); S.side = M.make.side(); S.top.transparent = S.side.transparent = true; S.fade = true;
       c.mesh.material = [S.side, S.side, S.top, M.under, S.side, S.side]; setTopUV(c.mesh, false);
       continue;
@@ -24407,6 +24419,14 @@ const RULES_CIRCUS = new Map(Object.entries({
   'A wormhole': 'A magician\'s cabinet takes the marble into a maze of mirrors. Find the cabinet at its far end, and out you come on the far side.',
   'In the canyon': 'In the mirror maze every mirror shows another corridor, and some doorways are clear glass: bump one and it cracks, so you know it next time. The view turns with the marble, and dragging up rolls the way you face. Keep one wall on the same side and follow it to the way out.',
   'The sky train': 'The circus train stops at its stations. Roll onto its carriage, hold on as it pulls away, and roll off at the next station.',
+  'A dark road': 'A dark stretch of rail cannot be crossed. Follow the line of lamps down the side rail to its big red button and roll over it: the rail lights up.',
+  'Flying cars': 'Clown cars cross some rails. While one is coming the bulbs at the stop line run red: wait, and roll across when they turn green.',
+  'Maglev strips': 'Tin horseshoe magnets pull the marble toward the edge they stand on. Steer the other way to stay on.',
+  'A roundabout turns': 'A carousel turns and carries the marble round with it. Roll off onto the rail that leads on; the others stop short at a red bar.',
+  'Gusts blow': 'Big tin fans blow gusts across the rail. A fan spins faster just before each gust: lean into it, or wait for it to pass.',
+  'See-through bridges': 'Bridges of magic glass switch off and on. Cross while they are lit. They flicker just before they go dark.',
+  'A red scanner bar': 'A spotlight sweeps its beam across some rails, and the beam sends the marble back to the last ring. Roll down one side just after it has passed. Where two sweep, go down the middle just after they cross.',
+  'Lime and violet walls': 'Lime and violet walls let through only a marble of their own colour. Roll through a stage curtain of that colour first: it colours the marble.',
 }).map(([k, v]) => [RULES.find((q) => q.startsWith(k)), v]));   // (keyed by the whole rule, as the card looks them up: the machine's are)
 for (const [k, v] of RULES_CHROME) if (!RULES_CIRCUS.has(k)) RULES_CIRCUS.set(k, v.replace(/the machine/g, 'the circus').replace(/The machine/g, 'The circus'));
 RULES.push(
@@ -24671,7 +24691,15 @@ function czMazeFree(x, z, dx, dz, maxD) {
 }
 let czFovOn = false;
 function czMazeCam(dt, snap) {
-  if (!czMazeActive()) { if (czFovOn) { czFovOn = false; fitCamera(); } return; }
+  if (!czMazeActive()) {
+    if (czFovOn) { czFovOn = false; fitCamera(); }
+    if (czPlanar || czEnv) {                                  // out of the maze: its mirrors' pictures go (made again on the next maze)
+      if (czPlanar) for (const S of czPlanar.slots) { S.rt.dispose(); S.m.dispose(); }
+      if (czEnv) { for (const T of czEnv.T) T.dispose(); czEnv.pm.dispose(); }
+      czPlanar = null; czEnv = null; czEnvAt = null; czMazeNow = null;
+    }
+    return;
+  }
   const fov = camParams().fov + 28;                           // wider inside: on a phone the walls either side would be out of view
   if (camera.fov !== fov) { camera.fov = fov; camera.updateProjectionMatrix(); czFovOn = true; }
   const sp = Math.hypot(ball.v.x, ball.v.z);
@@ -24792,6 +24820,33 @@ function czMazePlanar() {
 function czMazeAnimate(dt) {
   if (!czMazeActive()) return;
   for (const g of czMazeNow.panes) { g.flash = Math.max(0, g.flash - dt * 2.5); g.crackMat.opacity = g.cracked ? 0.8 + 0.2 * g.flash : 0; }
+}
+/* THE STORE AUDIT'S FIXES (2026-09-30: the owner, "go through the entire game and check for any bugs or errors ... from
+   the POV of this getting versioned and submitted to App Store, Play store, game distribution and crazy games"). Each
+   is wired into the game by integrate-circus.py; what they are:
+   - freeMat: a course's materials were freed at a level's end but not their pictures (three frees a material, never its
+     textures), so a long session kept a few on the GPU for every level played.
+   - sleepAudio: nothing ever suspended the sound, so the city's hum, the roll and the wind played on with the game
+     hidden (the frame loop stops, and the last volume holds): a store reviewer's first test.
+   - cardSubtitle: the one place the cards' opening lines are written, so the card's header can grow a line for them on
+     a narrow phone (the rules card's third line was dropped at 320 and 375 wide); and level 200's card said "the last
+     of the forty courses". */
+function freeMat(m) {
+  for (const t of [m.map, m.emissiveMap, m.alphaMap, m.bumpMap]) if (t && t.isCanvasTexture && t !== dot) t.dispose();   // (a picture shared with a kit is only sent to the GPU again when next drawn)
+  m.dispose();
+}
+function sleepAudio() {
+  const o = sfx && sfx.out && sfx.out();
+  if (o && o.context && o.context.state === 'running') o.context.suspend().catch(() => {});
+}
+document.addEventListener('visibilitychange', () => { if (document.hidden) sleepAudio(); });
+window.addEventListener('pagehide', sleepAudio);
+hud.addEventListener('contextmenu', (e) => e.preventDefault());   // (a right-click or a long press on the game is not a menu)
+function cardSubtitle(kind) {
+  return kind === 'rules' ? 'Roll the marble along the course and through the orange ring.'
+    : levelNo >= LEVELS.length ? 'That was the last of the two hundred courses.'
+    : falls === 0 ? 'The whole course without a single fall.'
+    : 'Home, with ' + falls + (falls === 1 ? ' fall' : ' falls') + ' on the way.';
 }
 // The circus's fifty, after everything they are made of. Which of its seeds each level plays: of ninety, the ones whose
 // difficulty score (tools/marble/czscore.js, the best path over ninety seeds each) climbs steadily from 151 to 200.
@@ -26825,7 +26880,7 @@ function frame(now) {
 setCanvasVars();
 fitFullscreen();
 resizeCanvases();
-loadLevel(save.level || 1);
+loadLevel(Math.min(LEVELS.length, save.level || 1));
 window.addEventListener('resize', onResize);
 window.addEventListener('orientationchange', () => setTimeout(onResize, 100));
 window.addEventListener('load', onResize);

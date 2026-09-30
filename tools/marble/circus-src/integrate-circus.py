@@ -86,3 +86,34 @@ rep("  circCam(dt);                                         // in the circus's h
 rep("    renderer.render(scene, camera);\n    perf.update +=", "    czMazePlanar();                                    // the mirror maze's mirrors, drawn for this view\n    renderer.render(scene, camera);\n    perf.update +=")
 open(p, 'w').write(s)
 print('maze ok')
+
+# ---- the store audit's fixes (cq23-audit.js), 2026-09-30 ----
+rep("      if (o.material && !Array.isArray(o.material) && !o.material.userData.keep) o.material.dispose();\n", "      if (o.material && !Array.isArray(o.material) && !o.material.userData.keep) freeMat(o.material);   // (its pictures too: cq23)\n")
+rep("    if (o.material && !Array.isArray(o.material) && !o.material.userData.keep) o.material.dispose();\n", "    if (o.material && !Array.isArray(o.material) && !o.material.userData.keep) freeMat(o.material);   // (its pictures too: cq23)\n")
+rep("  const HEADER = 154, FOOTER = 98, viewTop = py + HEADER,", "  // (the header takes a line more for an opening that needs three: cq23)\n  const subtitle = cardSubtitle(kind), HEADER = 154 + 24 * Math.max(0, Math.min(3, wrapText(subtitle, pw - 68, 17).length) - 2), FOOTER = 98, viewTop = py + HEADER,")
+rep("""    subtitle: kind === 'rules' ? 'Roll the marble along the course and through the orange ring.'
+      : last ? 'That was the last of the forty courses.'
+      : falls === 0 ? 'The whole course without a single fall.'
+      : 'Home, with ' + falls + (falls === 1 ? ' fall' : ' falls') + ' on the way.',
+""", "    subtitle,\n")
+rep("  const sub = wrapText(c.subtitle, c.pw - 68, 17).slice(0, 2);", "  const sub = wrapText(c.subtitle, c.pw - 68, 17).slice(0, 3);")
+# a second finger: the first keeps the stick, and a quick tap of the second is a hop (it used to take the stick over,
+# and lifting it stopped the marble with the first still down)
+rep("  joy = { id: e.pointerId, ox: p.x, oy: p.y,", "  if (joy && joy.id !== e.pointerId) { tap2 = { id: e.pointerId, t0: performance.now(), sx: p.x, sy: p.y, far: 0 }; return; }\n  joy = { id: e.pointerId, ox: p.x, oy: p.y,")
+rep("  if (cardDrag && e.pointerId === cardDrag.id) cardScroll = cardDrag.s + (cardDrag.y - p.y);\n});", "  if (cardDrag && e.pointerId === cardDrag.id) cardScroll = cardDrag.s + (cardDrag.y - p.y);\n  if (tap2 && e.pointerId === tap2.id) tap2.far = Math.max(tap2.far, Math.hypot(p.x - tap2.sx, p.y - tap2.sy));\n});")
+rep("  if (cardDrag && e.pointerId === cardDrag.id) cardDrag = null;\n}", "  if (cardDrag && e.pointerId === cardDrag.id) cardDrag = null;\n  if (tap2 && e.pointerId === tap2.id) { if (!cancelled && performance.now() - tap2.t0 < 260 && tap2.far < 14) tapQueued = true; tap2 = null; }\n}\nlet tap2 = null;                                        // a second finger while the first steers: only ever a hop")
+rep("window.addEventListener('blur', () => { keys.clear(); joy = null; });", "window.addEventListener('blur', () => { keys.clear(); joy = null; tap2 = null; });")
+# the arrows scrolled the page round the game (the host page, in a portal's frame) while a card was up
+rep("    else if (state === 'rules' && (k === 'up' || k === 'down')) { cardScroll += k === 'up' ? -40 : 40; e.preventDefault(); }\n", "    else if (state === 'rules' && (k === 'up' || k === 'down')) { cardScroll += k === 'up' ? -40 : 40; e.preventDefault(); }\n    else if (e.code.startsWith('Arrow')) e.preventDefault();   // (a card is up: the arrows still must not scroll the page round the game)\n")
+# a save that parses but is not a save (a level that is not a whole number) stopped the game at boot, every time
+rep("  try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s && s.level) { s.best = s.best || {}; s.stars = s.stars || {}; return s; } } catch (_) {}",
+    "  try {\n    const s = JSON.parse(localStorage.getItem(SAVE_KEY));\n    if (s && typeof s === 'object' && Number.isFinite(+s.level) && +s.level >= 1) {   // (a save that is not one starts afresh)\n      s.level = Math.floor(+s.level);\n      for (const k of ['best', 'stars', 'seen']) if (s[k] !== undefined && (!s[k] || typeof s[k] !== 'object')) delete s[k];\n      s.best = s.best || {}; s.stars = s.stars || {};\n      return s;\n    }\n  } catch (_) {}")
+rep("loadLevel(save.level || 1);", "loadLevel(Math.min(LEVELS.length, save.level || 1));")
+# a switch's lit sides are made afresh for each dressing, each with its own glow picture, and only the materials were
+# ever freed (Tokyo's scenery alone left two pictures on the GPU at every level)
+rep("{ S.top.dispose(); S.side.dispose(); }", "{ freeMat(S.top); freeMat(S.side); }", 5)
+# a world's dressing was forgotten, not undone, when a level ended in the same world: what it had swapped out (Tokyo's
+# locks, belts and paper roads took the city's) was never freed. Undone first, the course's own go with the rest.
+rep("  if (levelGroup) {\n    for (const c of holos) for (const m of c.holoMats) m.dispose();", "  if (levelGroup) {\n    tkUndoAll();                                        // (the dressing undone first, so what it swapped out is freed with the course: cq23)\n    for (const c of holos) for (const m of c.holoMats) m.dispose();")
+open(p, 'w').write(s)
+print('audit ok')

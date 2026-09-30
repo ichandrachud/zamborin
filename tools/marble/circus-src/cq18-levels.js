@@ -86,6 +86,14 @@ const RULES_CIRCUS = new Map(Object.entries({
   'A wormhole': 'A magician\'s cabinet takes the marble into a maze of mirrors. Find the cabinet at its far end, and out you come on the far side.',
   'In the canyon': 'In the mirror maze every mirror shows another corridor, and some doorways are clear glass: bump one and it cracks, so you know it next time. The view turns with the marble, and dragging up rolls the way you face. Keep one wall on the same side and follow it to the way out.',
   'The sky train': 'The circus train stops at its stations. Roll onto its carriage, hold on as it pulls away, and roll off at the next station.',
+  'A dark road': 'A dark stretch of rail cannot be crossed. Follow the line of lamps down the side rail to its big red button and roll over it: the rail lights up.',
+  'Flying cars': 'Clown cars cross some rails. While one is coming the bulbs at the stop line run red: wait, and roll across when they turn green.',
+  'Maglev strips': 'Tin horseshoe magnets pull the marble toward the edge they stand on. Steer the other way to stay on.',
+  'A roundabout turns': 'A carousel turns and carries the marble round with it. Roll off onto the rail that leads on; the others stop short at a red bar.',
+  'Gusts blow': 'Big tin fans blow gusts across the rail. A fan spins faster just before each gust: lean into it, or wait for it to pass.',
+  'See-through bridges': 'Bridges of magic glass switch off and on. Cross while they are lit. They flicker just before they go dark.',
+  'A red scanner bar': 'A spotlight sweeps its beam across some rails, and the beam sends the marble back to the last ring. Roll down one side just after it has passed. Where two sweep, go down the middle just after they cross.',
+  'Lime and violet walls': 'Lime and violet walls let through only a marble of their own colour. Roll through a stage curtain of that colour first: it colours the marble.',
 }).map(([k, v]) => [RULES.find((q) => q.startsWith(k)), v]));   // (keyed by the whole rule, as the card looks them up: the machine's are)
 for (const [k, v] of RULES_CHROME) if (!RULES_CIRCUS.has(k)) RULES_CIRCUS.set(k, v.replace(/the machine/g, 'the circus').replace(/The machine/g, 'The circus'));
 RULES.push(

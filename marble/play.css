@@ -18,8 +18,20 @@
   position: relative;
   z-index: 1;
   cursor: grab;
+  -webkit-touch-callout: none;   /* a long press on the game is a held stick, never the phone's picture menu */
 }
 #game:active { cursor: grabbing; }
+
+/* The embed mark, top right here: bottom left, where shared/chrome.css puts it, is Marble's read-out (LEVEL, the
+   clock, the star), and the two were drawn over each other in every embed. The top right is the one empty corner. */
+body.embed .embed-mark {
+  left: auto; bottom: auto;
+  top: calc(10px + env(safe-area-inset-top, 0px));
+  right: calc(12px + env(safe-area-inset-right, 0px));
+}
+@media (max-width: 720px) {
+  body.embed .embed-mark { top: calc(8px + env(safe-area-inset-top, 0px)); right: calc(8px + env(safe-area-inset-right, 0px)); }
+}
 
 /* Clear of the notch and the status bar: the same insets play.js takes off
    the frame's size, so the frame sits exactly in what is left. */

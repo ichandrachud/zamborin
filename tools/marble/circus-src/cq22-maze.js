@@ -146,7 +146,15 @@ function czMazeFree(x, z, dx, dz, maxD) {
 }
 let czFovOn = false;
 function czMazeCam(dt, snap) {
-  if (!czMazeActive()) { if (czFovOn) { czFovOn = false; fitCamera(); } return; }
+  if (!czMazeActive()) {
+    if (czFovOn) { czFovOn = false; fitCamera(); }
+    if (czPlanar || czEnv) {                                  // out of the maze: its mirrors' pictures go (made again on the next maze)
+      if (czPlanar) for (const S of czPlanar.slots) { S.rt.dispose(); S.m.dispose(); }
+      if (czEnv) { for (const T of czEnv.T) T.dispose(); czEnv.pm.dispose(); }
+      czPlanar = null; czEnv = null; czEnvAt = null; czMazeNow = null;
+    }
+    return;
+  }
   const fov = camParams().fov + 28;                           // wider inside: on a phone the walls either side would be out of view
   if (camera.fov !== fov) { camera.fov = fov; camera.updateProjectionMatrix(); czFovOn = true; }
   const sp = Math.hypot(ball.v.x, ball.v.z);

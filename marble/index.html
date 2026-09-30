@@ -29,10 +29,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../shared/tokens.css?v=1" />
   <link rel="stylesheet" href="../shared/chrome.css?v=20" />
-  <link rel="stylesheet" href="./play.css?v=4" />
+  <link rel="stylesheet" href="./play.css?v=5" />
   <!-- The game and its 3D library, fetched side by side from the start: left to
        the import, the library would not be asked for until the game had arrived. -->
-  <link rel="modulepreload" href="./play.js?v=17" />
+  <link rel="modulepreload" href="./play.js?v=18" />
   <link rel="modulepreload" href="./assets/three-r186.min.js" />
   <!-- Google AdSense. The site earns from these pages; keep both lines. -->
   <meta name="google-adsense-account" content="ca-pub-9207689324865969">
@@ -149,7 +149,7 @@
          bloom/ or kaleido/ for the shape and the length. -->
     <section class="game-info">
       <h1>Marble: roll it home</h1>
-      <p>A chrome marble, glowing courses high above a neon city, and a ring of light at the end of each one. Marble is the first 3D game on Zamborin: two hundred levels, fifty across the neon city, fifty through Tokyo, fifty inside a pinball machine and fifty round a tin toy circus, each course harder than the one before; the pinball machine and the circus each start gentler, then climb again. Each world brings its own obstacles and its own puzzles, and its own world behind the wormholes: the crystal canyon, the moon playfield and, in the circus, a maze of mirrors. From level 2 a puzzle square stands before every finish, and its way out stays shut until you work it out. From level 41 two more puzzles stand on the road before it.</p>
+      <p>A chrome marble, glowing courses high above a neon city, and a ring of light at the end of each one. Marble is the first 3D game on Zamborin: two hundred levels, fifty across the neon city, fifty through Tokyo, fifty inside a pinball machine and fifty round a tin toy circus, each course harder than the one before; the pinball machine and the circus each start gentler, then climb again. The pinball machine and the circus each bring their own obstacles and puzzles, and each world has its own place behind the wormholes: the crystal canyon for the city and Tokyo, the moon playfield in the pinball machine, and in the circus a maze of mirrors. From level 2 a puzzle square stands before every finish, and its way out stays shut until you work it out. From level 41 two more puzzles stand on the road before it.</p>
 
       <h2>How to play</h2>
       <p>Put a finger anywhere on the course and drag. The marble rolls the way you drag, and the further you drag, the harder it rolls.</p>
@@ -245,7 +245,7 @@
   <script src="../shared/analytics.js?v=3"></script>
   <script src="../shared/embed.js?v=1"></script>
   <script defer src="../shared/ads.js?v=2"></script>
-  <script type="module" src="./play.js?v=17"></script>
+  <script type="module" src="./play.js?v=18"></script>
   <script>
     (() => {
       const btn = document.getElementById('focus-toggle');
@@ -322,7 +322,7 @@
       setTimeout(() => { if (!ready) label.textContent = 'Still loading. A slow connection can take a while'; }, 20000);
       // The game failed to start: say so, and how to try again.
       window.addEventListener('error', (e) => {
-        if (!ready && /marble|three/.test(String(e.filename || ''))) label.textContent = 'Something went wrong. Reload the page to try again';
+        if (!ready && /play\.js|three-r186/.test(String(e.filename || ''))) label.textContent = 'Something went wrong. Reload the page to try again';   // (the game's own two files, by name: a portal's copy has no 'marble' in its address)
       });
     })();
   </script>

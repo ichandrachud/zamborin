@@ -87,7 +87,7 @@ function manifest(html) {
     const base = ref.split('/').pop();
     if (NEVER_SHIP.has(base)) continue;
     if (ref.startsWith('../shared/')) shared.add(base);
-    else if (ref.startsWith('./'))    game.add(base);
+    else if (ref.startsWith('./'))    game.add(ref.slice(2));   // the path inside the game's folder (Marble keeps three.js in ./assets/)
   }
   // assets requested at runtime rather than declared in the markup
   for (const f of [...game].filter(f => /\.(js|css)$/.test(f))) {

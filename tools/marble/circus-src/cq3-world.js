@@ -395,7 +395,7 @@ function circusCourse(look) {
     c.mesh.castShadow = false;
     if (c.power) {
       const S = c.power;
-      if (S.top) { S.top.dispose(); S.side.dispose(); }
+      if (S.top) { freeMat(S.top); freeMat(S.side); }
       S.top = M.make.top(); S.side = M.make.side(); S.top.transparent = S.side.transparent = true; S.fade = true;
       c.mesh.material = [S.side, S.side, S.top, M.under, S.side, S.side]; setTopUV(c.mesh, false);
       continue;
