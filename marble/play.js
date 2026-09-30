@@ -26654,11 +26654,15 @@ function worldFromHash() {
     setWorld('pinball-' + (PB_LOOKS.includes(v) || v === 'moon' ? v : 'chrome'));
     return;
   }
+  if (h === 'hall') {                                   // #hall: into the circus's hall of mirrors (cq21): level 198, and through its cabinet as soon as it is being played
+    loadLevel(198);
+    let tries = 0; const go = setInterval(() => { const W = wormholes.find((o) => o.pc.dir === 'in'); if (pocket || !W || ++tries > 1000) { clearInterval(go); return; } if (state === 'play') { clearInterval(go); startWarp(W); } }, 300);
+  }
   if (h === 'level') {                                  // #level-17 opens course 17, to look at one
     const n = parseInt(v, 10);
     if (n >= 1 && n <= LEVELS.length) loadLevel(n);
   }
-  let name = h && h !== 'level' ? h : null;
+  let name = h && h !== 'level' && h !== 'hall' ? h : null;
   if (name === 'tokyo' && levelNo <= 50) loadLevel(51);                            // #tokyo: Tokyo's first course
   if (!name || ['neon', 'tokyo', 'dystopia'].includes(name)) name = levelNo > 150 ? 'circus-tintoy' : levelNo > 100 ? 'pinball-chrome' : levelNo > 50 ? 'tokyo' : 'neon';   // the world follows the course
   if (name === 'neon') {
