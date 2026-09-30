@@ -68,3 +68,7 @@ print('levels ok')
 rep("function sound(name) {\n", "function sound(name) {\n  if (world.name.startsWith('circus') && CZ_SOUNDS[name]) { if (sfx && sfx.isOn()) CZ_SOUNDS[name](); return; }   // the circus's own (cq20)\n")
 open(p, 'w').write(s)
 print('sounds ok')
+# THE HALL OF MIRRORS (cq21): the circus's wormholes lead there
+rep("  const other = pbWorld(pocket.world) ? 'pinball-moon' : P.world;", "  const other = pocket.world.startsWith('circus') ? 'circus-mirrors' : pbWorld(pocket.world) ? 'pinball-moon' : P.world;   // the circus's to its hall of mirrors (cq21)")
+open(p, 'w').write(s)
+print('hall ok')
