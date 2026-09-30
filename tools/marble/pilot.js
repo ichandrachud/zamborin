@@ -45,6 +45,19 @@ window.__pilot = (() => {
         lx = act.x;
         continue;
       }
+      if (p.t === 'czmaze') {                            // the circus's mirror maze: the way through it, cell to cell (the pilot knows the maze; a player has the mirrors)
+        const X = (c) => +(p.x0 + (c + 0.5) * p.cs).toFixed(2), W = new Map(p.walls), key = (c, r, d) => (d === 'n' ? 'h,' + c + ',' + (r + 1) : d === 's' ? 'h,' + c + ',' + r : d === 'e' ? 'v,' + (c + 1) + ',' + r : 'v,' + c + ',' + r);
+        const prev = new Map([[p.entry + ',0', null]]), Q = [[p.entry, 0]];
+        while (Q.length) { const [c, r] = Q.shift(); if (c === p.exit && r === p.rows - 1) break;
+          for (const [d, dc, dr] of [['n', 0, 1], ['s', 0, -1], ['e', 1, 0], ['w', -1, 0]]) { const a = c + dc, b = r + dr; if (a < 0 || a >= p.cols || b < 0 || b >= p.rows || W.has(key(c, r, d)) || prev.has(a + ',' + b)) continue; prev.set(a + ',' + b, c + ',' + r); Q.push([a, b]); } }
+        const cells = []; for (let k = p.exit + ',' + (p.rows - 1); k; k = prev.get(k)) cells.unshift(k.split(',').map(Number));
+        for (let j = 1; j < cells.length; j++) {           // to each corner (and the last cell), slowing for the turn
+          const [c, r] = cells[j], nx = cells[j + 1], turn = !nx || (nx[0] - c) !== (c - cells[j - 1][0]) || (nx[1] - r) !== (r - cells[j - 1][1]);
+          if (turn) go(X(c), +(p.z0 - (r + 0.5) * p.cs).toFixed(2), 2.6, 0.35, 'maze');
+        }
+        lx = X(p.exit);
+        continue;
+      }
       if (p.t === 'planks') {                            // a plank crossing: hop lane to lane when the landing is sure
         steps.push({ k: 'planks', why: 'planks', p: opts.carelessHop || skip(p) ? { ...p, _careless: true } : p });
         lx = p.x;

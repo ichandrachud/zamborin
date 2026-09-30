@@ -1,6 +1,7 @@
 /* THE HALL OF MIRRORS (owner, 2026-09-30: "in circus the warp zone was supposed to be a hall of mirrors"): where the
    circus's magician's cabinets lead, as the pinball machine's wormholes lead to its moon playfield and the city's to
-   the crystal canyon. The same warp courses and their rule (the floor is polished: as slippery as the canyon), in a
+   the crystal canyon. SUPERSEDED the same day by the maze (cq22: "I meant a maze of mirrors where it feels like it is
+   impossible to get out"): this world is now only the maze's air, the maze its course. What follows was the first go. The same warp courses and their rule (the floor is polished: as slippery as the canyon), in a
    long hall: tall gilt mirrors down both sides, and in them the rail and the marble again and again (each mirror is
    faint glass with the hall's reflection built behind it: the rail's decks, the marble and the far wall's frames
    mirrored across it, and once more in the mirror opposite); more mirrors standing at angles on the floor below the
@@ -34,95 +35,18 @@ function czMirrorKit() {
 }
 function czMirrorHall(w) {
   cqLook = 'tintoy';
-  const K = cqKit('tintoy'), M = czMirrorKit(), G = w.group, end = courseEnd(), pieces = level ? level.pieces : [], live = !REDUCED, r = seeded(313);
-  let lo = 0, hi = -1e9, minX = 1e9, maxX = -1e9;
-  for (const p of pieces) {
-    if (typeof p.y === 'number') { lo = Math.min(lo, p.y); hi = Math.max(hi, p.y); }
-    if (typeof p.x === 'number') { const hw = (p.w || 4) / 2; minX = Math.min(minX, p.x - hw); maxX = Math.max(maxX, p.x + hw); }
-  }
-  if (minX > maxX) { minX = -4; maxX = 6; }
-  if (hi < lo) hi = lo;
-  const FL = lo - CQ_DROP, xL = minX - 3.5, xR = maxX + 3.5, Dx = 2 * (xR - xL), CX = (xL + xR) / 2, Z_TOP = 25, Z_BOT = end - 45, TOP = hi + 15, LEN = Z_TOP - Z_BOT;
-  scene.background = coverTex(512, (g) => { g.fillStyle = pbLin(g, 0, 0, 0, 512, [[0, '#0A0410'], [0.5, '#1E0A1E'], [1, '#0A0410']]); g.fillRect(0, 0, 512, 512); });
-  scene.fog.color.setHex(0x160A1C); scene.fog.near = 35; scene.fog.far = 150;
-  camera.far = 180; camera.updateProjectionMatrix();
-  HAZE.col.value.setHex(0x8A3A7A); HAZE.k.value = 1.4; HAZE.dir.set(0, 0.25, -1).normalize();
-  hemi.color.setHex(0xFFE8DA); hemi.groundColor.setHex(0x2A1024); hemi.intensity = 1.0;
-  sun.color.setHex(0xFFF0DC); sun.intensity = 1.35;
+  const G = w.group;
+  scene.background = coverTex(64, (g) => { g.fillStyle = '#041412'; g.fillRect(0, 0, 64, 64); });
+  scene.fog.color.setHex(0x062220); scene.fog.near = 7; scene.fog.far = 45;   // (the far corridors, and the corridors in the mirrors, fade into a dark sea green)
+  camera.far = 60; camera.updateProjectionMatrix();
+  HAZE.col.value.setHex(0x2A8A80); HAZE.k.value = 0.6; HAZE.dir.set(0, 0.2, -1).normalize();
+  hemi.color.setHex(0xE8FFFA); hemi.groundColor.setHex(0x3A6A66); hemi.intensity = 1.25;
+  sun.color.setHex(0xF4FFFC); sun.intensity = 0.9;
   w.marble = 'circus'; w.rings = [0x34E0FF, 0xFF6A3C];
   w.restyle = () => { circusCourse('tintoy'); czMirrorPieces(); };
   w.news = NEWS_CIRCUS; w.rules = RULES_CIRCUS;
-  w.physics = { acc: 10, damp: 0.4 };                       // the floor is polished: as slippery as the canyon it stands in for
-  const tick = [], bulbs = [];
-
-  // The floor, the ceiling.
-  const floor = new Mesh(new PlaneGeometry(Dx * 3, LEN + 60), M.floor); floor.rotation.x = -Math.PI / 2; floor.position.set(CX, FL, (Z_TOP + Z_BOT) / 2);
-  M.floor.map.repeat.set(Dx * 3 / 6, (LEN + 60) / 6); floor.userData.ground = true; G.add(floor);
-  const ceil = new Mesh(new PlaneGeometry(Dx * 3, LEN + 60), M.velvet); ceil.rotation.x = Math.PI / 2; ceil.position.set(CX, TOP, (Z_TOP + Z_BOT) / 2);
-  M.velvet.map.repeat.set(Dx * 3 / 10, (LEN + 60) / 10); G.add(ceil);
-
-  // The mirror walls: glass panels in gilt frames down both sides, and their images in each other.
-  const PW = 3.2, H = TOP - FL, glass = pbBuild(), frames = pbBuild();
-  const wall = (B, x, face, withGlass) => {
-    for (let z = Z_TOP; z > Z_BOT; z -= PW) {
-      if (withGlass) glass.geo(new PlaneGeometry(PW - 0.3, H - 1.2), placeAt(x, FL + H / 2, z - PW / 2, 0, face * Math.PI / 2, 0), 0xFFFFFF);
-      B.geo(new BoxGeometry(0.34, H, 0.3), placeAt(x, FL + H / 2, z, 0, 0, 0), 0xD8A640);                       // a gilt pilaster between panels
-      B.geo(new CylinderGeometry(0.3, 0.3, 0.2, 12), placeAt(x - face * 0.1, TOP - 0.9, z - PW / 2, 0, 0, Math.PI / 2), 0xF2C230);   // a rosette over the panel
-      if (withGlass) for (let k = 0; k < 3; k++) bulbs.push([x - face * 0.25, TOP - 0.45, z - PW * (k + 0.5) / 3, k]);
-    }
-    B.geo(new BoxGeometry(0.5, 0.5, LEN), placeAt(x, TOP - 0.25, (Z_TOP + Z_BOT) / 2), 0xC8902A);   // the cornice
-    B.geo(new BoxGeometry(0.5, 0.6, LEN), placeAt(x, FL + 0.3, (Z_TOP + Z_BOT) / 2), 0xC8902A);     // the skirting
-  };
-  wall(frames, xL, 1, true); wall(frames, xR, -1, true);
-  const images = pbBuild();                                  // the far wall, as each mirror shows it, and the near one twice over
-  wall(images, 2 * xR - xL, -1, false); wall(images, 2 * xL - xR, 1, false); wall(images, xR + Dx, -1, false); wall(images, xL - Dx, 1, false);
-  G.add(new Mesh(glass.done(), M.glass));
-  G.add(new Mesh(frames.done(), K.metal));
-  G.add(new Mesh(images.done(), K.metal));
-
-  // The rail, as the mirrors show it: its decks mirrored across each wall, and again in the wall opposite.
-  const ghosts = pbBuild();
-  for (const p of pieces) {
-    if (p.t !== 'flat' || typeof p.x !== 'number') continue;
-    for (const gx of [2 * xR - p.x, 2 * xL - p.x, p.x + Dx, p.x - Dx]) ghosts.geo(new BoxGeometry(p.w, 0.5, p.d), placeAt(gx, (p.y || 0) - 0.25, p.z), 0xFFFFFF);
-  }
-  if (ghosts.count()) G.add(new Mesh(ghosts.done(), M.ghost));
-  // And the marble, as the mirrors show it.
-  const twins = [0, 1, 2, 3].map(() => { const m = new Mesh(marble.geometry, marble.material); G.add(m); return m; });
-  tick.push(() => {
-    const p = marble.position, xs = [2 * xR - p.x, 2 * xL - p.x, p.x + Dx, p.x - Dx];
-    twins.forEach((m, i) => { m.material = marble.material; m.position.set(xs[i], p.y, p.z); m.quaternion.copy(marble.quaternion); if (i === 0 || i === 1) m.scale.set(-1, 1, 1); m.visible = marble.visible; });
-  });
-
-  // Mirrors standing at angles on the floor, below the rail: the maze the hall is.
-  const stand = pbBuild(), standF = pbBuild();
-  for (let z = Z_TOP - 6; z > Z_BOT; z -= 5 + r() * 4) for (let k = 0; k < 2; k++) {
-    const x = xL + 2 + r() * (xR - xL - 4), yaw = r() * Math.PI, h = 4.5 + r() * 2.5, wdt = 2.2 + r() * 1.2;
-    if (FL + h > lo - 1.5) continue;                          // never up to the rail
-    stand.geo(new BoxGeometry(wdt, h, 0.06), placeAt(x, FL + h / 2, z, 0, yaw, 0), 0xFFFFFF);
-    standF.geo(new BoxGeometry(wdt + 0.24, 0.16, 0.16), placeAt(x, FL + h + 0.08, z, 0, yaw, 0), 0xD8A640);
-    for (const s of [-1, 1]) standF.geo(new BoxGeometry(0.14, h, 0.14), placeAt(x + Math.cos(yaw) * s * (wdt / 2 + 0.07), FL + h / 2, z - Math.sin(yaw) * s * (wdt / 2 + 0.07), 0, yaw, 0), 0xD8A640);
-  }
-  if (stand.count()) { G.add(new Mesh(stand.done(), M.silver)); G.add(new Mesh(standF.done(), K.metal)); }
-
-  // Bulbs along the cornices, chasing; their glow.
-  const nb = bulbs.length, bm = new InstancedMesh(new IcosahedronGeometry(0.16, 0), new MeshBasicMaterial({ color: 0xFFFFFF, toneMapped: false }), nb);
-  const o = new Object3D(), bc = new Color(0xFFE6B0), dim = new Color(0x6A4A30), gp = new Float32Array(nb * 3), gc = new Float32Array(nb * 3);
-  bulbs.forEach(([x, y, z], i) => { o.position.set(x, y, z); o.updateMatrix(); bm.setMatrixAt(i, o.matrix); bm.setColorAt(i, bc); gp.set([x, y, z], i * 3); gc.set([bc.r, bc.g, bc.b], i * 3); });
-  bm.frustumCulled = false; G.add(bm);
-  const gg = new BufferGeometry(); gg.setAttribute('position', new Float32BufferAttribute(gp, 3)); gg.setAttribute('color', new Float32BufferAttribute(gc, 3));
-  const glowPts = new Points(gg, new PointsMaterial({ size: 1.8, map: pbGlow(), vertexColors: true, transparent: true, opacity: 0.55, blending: AdditiveBlending, depthWrite: false, toneMapped: false }));
-  glowPts.frustumCulled = false; G.add(glowPts);
-  const tmp = new Color();
-  tick.push((dt, t) => {
-    if (!live) return;
-    const ca = gg.attributes.color;
-    bulbs.forEach(([, , , k], i) => { const on = ((((t * 1.8 - i / 9) % 1) + 1) % 1) < 0.5 ? 1 : 0.45; tmp.copy(dim).lerp(bc, on); bm.setColorAt(i, tmp); ca.setXYZ(i, tmp.r * on, tmp.g * on, tmp.b * on); });
-    bm.instanceColor.needsUpdate = true; ca.needsUpdate = true;
-    for (const b of czMirrorBalls) b.rotation.y += dt * 2.4;
-  });
-  let T = 0;
-  w.tick = (dt) => { T += dt; for (const f of tick) f(dt, T); };
+  const glow = new Mesh(new PlaneGeometry(400, 400), new MeshBasicMaterial({ color: 0x041412 })); glow.rotation.x = -Math.PI / 2; glow.position.y = -30; G.add(glow);
+  w.tick = (dt) => { czMazeAnimate(dt); };
 }
 // The warp course's own pieces, as the hall's: shards of mirror, mirror balls, silvered glass.
 function czMirrorPieces() {
@@ -146,4 +70,4 @@ function czMirrorPieces() {
   }
 }
 WORLDS_ADD('circus-mirrors', (w) => czMirrorHall(w));
-POCKET_NEWS['circus-mirrors'] = 'The hall of mirrors: the floor is polished, so brake early. Only one of those marbles is you';
+POCKET_NEWS['circus-mirrors'] = 'The hall of mirrors: find the way out. Every mirror shows another corridor, and some doorways are glass';

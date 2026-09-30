@@ -90,7 +90,7 @@ function czEdge(P, e, x, z, alongX, ek) {
 }
 // Touching one (n: out of it, toward the marble): a turnstile takes its tickets if you lean into it, and a pane cracks.
 function czTouch(g, n) {
-  const P = g.P, S = P.spz;
+  const P = g.P, S = P && P.spz;                            // (the maze's panes belong to no square)
   if (g.kind === 'czglass') { if (!g.cracked) { g.cracked = 1; sound('knock'); } g.flash = 1; return; }
   if (g.state !== 'shut' || !S) return;
   const lean = -(ball.in[0] * n.x + ball.in[1] * n.z), hit = -(ball.v.x * n.x + ball.v.z * n.z);

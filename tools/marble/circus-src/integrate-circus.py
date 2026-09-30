@@ -78,3 +78,11 @@ rep("  if (h === 'level') {                                  // #level-17 opens 
 rep("  let name = h && h !== 'level' ? h : null;", "  let name = h && h !== 'level' && h !== 'hall' ? h : null;")
 open(p, 'w').write(s)
 print('hall link ok')
+# THE MIRROR MAZE (cq22): a circus cabinet's world is a maze; its piece, the stick and the camera inside it
+rep("    pieces.push(WORM(x, r2(z + 1.4), wide, y, 'in', makePocket(n)));", "    pieces.push(WORM(x, r2(z + 1.4), wide, y, 'in', pin > 150 ? czMazePocket(pin) : makePocket(n)));   // (the circus's: a mirror maze, cq22)")
+rep("  if (pc.t === 'coaster') { buildCoaster(pc); return; }\n", "  if (pc.t === 'coaster') { buildCoaster(pc); return; }\n  if (pc.t === 'czmaze') { buildCzMaze(pc); return; }\n")
+rep("  const [ix, iz] = readInput();\n", "  const [ix, iz] = czMazeInput(readInput());              // (in the mirror maze the stick turns with the camera)\n")
+rep("  circCam(dt);                                         // in the circus's house of mirrors, swung round\n", "  circCam(dt);                                         // in the circus's house of mirrors, swung round\n  czMazeCam(dt, snap);                                 // inside the mirror maze: low, looking the way it rolls\n")
+rep("    renderer.render(scene, camera);\n    perf.update +=", "    czMazePlanar();                                    // the mirror maze's mirrors, drawn for this view\n    renderer.render(scene, camera);\n    perf.update +=")
+open(p, 'w').write(s)
+print('maze ok')
