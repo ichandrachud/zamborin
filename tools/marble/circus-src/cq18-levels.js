@@ -76,7 +76,7 @@ const NEWS_CIRCUS = {
   171: 'A clown throws balls at you. Change pace after each throw so it lands clear',
   174: 'The house of mirrors turns you round. Through each gap, clear of the trapdoors',
   177: 'Past the yellow line a clown car chases you. Reach the far end first',
-  181: 'The rail is broken: board a Ferris wheel car going down, and step off as it comes level beyond',
+  181: 'The rail is broken: wait on the yellow spot, roll into the Ferris wheel car when the wheel stops, and roll off when it stops beside the far rail',
   184: 'Sit on the teeterboard\'s yellow spot: when the strongman lands, you are thrown up to the rail above',
   187: 'The Wheel of Death: wait on the yellow spot, and a cage scoops you up and over',
   191: 'The roller coaster! Wait at the station for a car, roll in, and hold on. The grand finale has everything',
@@ -90,6 +90,6 @@ for (const [k, v] of RULES_CHROME) if (!RULES_CIRCUS.has(k)) RULES_CIRCUS.set(k,
 RULES.push(
   'From level 151 the course runs through the circus, with three circus puzzles in each level. Clown car: push the clowns in through its back door. Acrobat pyramid: push an acrobat onto every gold star. Balance scales: push weights onto the pans until both sides weigh the same.',
   'Shell game: follow the cup with the star and roll onto its pad; the wrong cup sends you back. Knife thrower: remember the boards he hits and cross on the others. Ticket turnstiles: pay the right turnstiles, there are never enough tickets for all. House of mirrors: find the way out; you see only round the marble, and some doorways are glass.',
-  'The circus acts: go through rings of fire at their middle; pass the juggler just after a spot\'s ball has gone up; reach the knife wheel as a hole comes to the bottom; ride the trapeze and the Ferris wheel from edge to edge; keep to the high wire\'s middle; wait on the yellow spots of the teeterboard and the Wheel of Death; roll into the cannon as it points at the net; outrun the clown car.',
+  'The circus acts: go through rings of fire at their middle; pass the juggler just after a spot\'s ball has gone up; reach the knife wheel as a hole comes to the bottom; ride the trapeze from edge to edge; roll on and off the Ferris wheel only while it stands still; keep to the high wire\'s middle; wait on the yellow spots of the teeterboard and the Wheel of Death; roll into the cannon as it points at the net; outrun the clown car.',
 );
 for (const K of ['CK', 'CP', 'CS', 'CH', 'CN', 'CT', 'CM']) for (let i = 1; i <= 22; i++) if (PLAZAS[K + i] && !PLAZA_NEWS[K + i]) PLAZA_NEWS[K + i] = PLAZA_NEWS[K + '1'];

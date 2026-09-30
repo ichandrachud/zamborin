@@ -20680,7 +20680,8 @@ function cannonStep(dt) {
 function circHeldStep(dt) {
   circMove(dt);                                            // the rides go on turning while one carries you (owner: "the wheel and the ball
                                                             // are not in unison": the Wheel of Death stood still once it had you)
-  if (ball.circ.wod) { wodHeld(dt); return; }              // in a cage of the Wheel of Death
+  if (ball.circ.wod) { wodHeld(dt); return; }
+  if (ball.circ.ferris) { ferrisHeld(dt); return; }         // in a Ferris wheel car while the wheel turns              // in a cage of the Wheel of Death
   if (ball.circ.coaster) { coasterHeld(dt); return; }      // riding the roller coaster
   const H = ball.circ, C = H.C;
   H.t += dt;
@@ -20748,6 +20749,7 @@ function circStep(dt) {
   if (circ.throwers.length) throwerStep(dt);
   if (circ.wods.length) wodStep();
   if (circ.teeters.length) teeterStep();
+  if (circ.ferrises.length) ferrisStep();
   circStep3(dt);
 }
 // Each frame: the flames, the balls, the wheel, the cannon's swing, the thrower's wind-up.
@@ -20812,10 +20814,16 @@ function circState() {
      high wire      a narrow beam over a drop, swaying from side to side; it does not carry you. Stay on it.
      teeterboard    a plank on a fulcrum, a strongman on a perch by its far end: sit on the yellow spot at the near end,
                     and when he jumps down on the far end you are thrown up to the rail above. Anywhere else, thrown off.
-     Wheel of Death an arm turning end over end with a cage at each end; roll into a cage as it comes to the bottom and
-                    it lifts you up and over to a rail two arms higher. No cage there, and you drop.
-     Ferris wheel   a broken rail, a Ferris wheel standing in the gap: board a car as it passes the edge going down,
-                    and step off as it comes level with the far side going up. Stay on, and you go round again.
+     Wheel of Death an arm turning end over end with a cage at each end; wait on the yellow spot at the rail's end and
+                    a cage scoops you up and over to a rail two arms higher. Roll on into the gap, and you drop.
+     Ferris wheel   a broken rail, a Ferris wheel standing in the gap, turning in steps and stopping between them (owner,
+                    2026-09-30: "rotate the ferris wheel the other way so that the ball is lifted. Right now it is very
+                    hard to tell when to get on and off", and "the cradle above hides the exact moment"). The rails are
+                    above the hub, and the gap as wide as makes every stop leave one car level with each end: wait on
+                    the yellow spot, roll on when it stops (the car you board is the highest on your side, nothing
+                    hangs over it), and it lifts you over the top in two steps to the far rail; roll off when it
+                    stops there. While the wheel turns, the car holds whatever sits in it (ball.circ), so a step
+                    cannot throw the marble out; stay on, and you go round.
    Each moving floor is a collider moved before the marble each step (circMove); a trapeze seat and a Ferris car carry
    what stands on them (as a ferry does), the wire and the teeterboard do not. */
 Object.assign(circ, { swings: [], wires: [], teeters: [], wods: [], ferrises: [], movers: [] });
@@ -20824,7 +20832,7 @@ Object.assign(TRY_CIRCUS, {
   wire: [{ t: 'wire', len: 8, bw: 0.62, sway: 0, period: 4 }, { t: 'wire', len: 10, bw: 0.56, sway: 0.3, period: 4.4 }, { t: 'wire', len: 12, bw: 0.5, sway: 0.45, period: 3.8 }],
   teeter: [{ t: 'teeter', L: 7, bw: 1.8, tilt: 0.18, period: 4.6, up: 3.5 }, { t: 'teeter', L: 7.5, bw: 1.5, tilt: 0.2, period: 4.0, up: 4.2 }, { t: 'teeter', L: 8, bw: 1.3, tilt: 0.22, period: 3.5, up: 5 }],
   wod: [{ t: 'wod', arm: 3.2, spin: 0.55 }, { t: 'wod', arm: 3.4, spin: 0.7 }, { t: 'wod', arm: 3.6, spin: 0.85 }],
-  ferris: [{ t: 'ferris', g: 3.2, Rf: 8, n: 8, spin: 0.22 }, { t: 'ferris', g: 3.8, Rf: 8, n: 7, spin: 0.27 }, { t: 'ferris', g: 4.4, Rf: 8.5, n: 6, spin: 0.32 }],
+  ferris: [{ t: 'ferris', n: 6, m: 2, Rf: 5.2, move: 2.1, dwell: 2.4 }, { t: 'ferris', n: 6, m: 2, Rf: 5.2, move: 1.9, dwell: 1.8 }, { t: 'ferris', n: 6, m: 2, Rf: 5.3, move: 1.7, dwell: 1.3 }],
 });
 TRY_CIRCUS.circus2 = [TRY_CIRCUS.trapeze[1], TRY_CIRCUS.wire[1], TRY_CIRCUS.teeter[1], TRY_CIRCUS.wod[1], TRY_CIRCUS.ferris[1]];
 Object.assign(TRY_COURSES, { trapeze: [], wire: [], teeter: [], wod: [], ferris: [], circus2: [] });
@@ -20834,7 +20842,7 @@ Object.assign(TRY_NEWS, {
   wire: 'The high wire sways and does not carry you. Stay on it',
   teeter: 'Sit on the yellow spot: when the strongman lands, you are thrown up to the rail above',
   wod: 'Wait on the yellow spot at the end of the rail: a cage scoops you up and carries you over',
-  ferris: 'Board a car going down at the edge; step off as it comes level with the far side',
+  ferris: 'Wait on the yellow spot. Roll into a car when the wheel stops; roll off when your car stops beside the far rail',
   circus2: 'The circus rides: the trapeze, the high wire, the teeterboard, the Wheel of Death and the Ferris wheel',
 });
 const TRAP_L = 9, TRAP_D = 2.0, TRAP_W = 2.2, WOD_CUP = 0.95, FC_W = 2.0, FC_D = 1.7, FC_HANG = 1.2;
@@ -20863,6 +20871,7 @@ function circLay2(spec, pieces, x, y, z) {
   }
   if (spec.t === 'ferris') {
     // The rail stops half a car short of where a car's floor is level with it, either side, so a car never meets it.
+    spec = { ...spec, g: ferrisG(spec) };
     flat(z - 2, 4, y, FC_W); const e = FC_D / 2 + 0.05, zc = z - 4 - spec.g - e; flat(zc - spec.g - e - 2.5, 5, y, FC_W);
     pieces.push({ ...spec, x, z: cr2(zc), y, w: FC_W, d: 2 * (spec.g + e), phase: 0 });
     return 4 + 2 * (spec.g + e) + 5;
@@ -21052,8 +21061,18 @@ function wodHeld(dt) {
 }
 
 // ---- THE FERRIS WHEEL ----
-function ferrisGeom(pc) { const s = Math.sqrt(Math.max(0.1, 1 - (pc.g / pc.Rf) ** 2)); return { yc: pc.y + FC_HANG + pc.Rf * s + 0.1 }; }
-const ferrisAngle = (Fw, t, k) => -Fw.pc.spin * t + Fw.pc.phase + k * TAU / Fw.pc.n;   // the bottom moves on, toward -z
+// A car stops level with the near rail at angle A (above the hub, toward +z) and, m steps of the n on, level with the
+// far rail at PI - A: m * TAU / n = PI - 2A. So A, and from it how far each rail's end is from the hub, g = Rf cos A.
+// The hub is below the rails, so the car you board is the highest on your side: none hangs over it.
+const ferrisA = (pc) => Math.PI / 2 - Math.PI * clamp(pc.m, 1, pc.n / 2 - 0.5) / pc.n;
+const ferrisG = (pc) => Math.round(pc.Rf * Math.cos(ferrisA(pc)) * 100) / 100;
+function ferrisGeom(pc) { return { yc: pc.y + FC_HANG - pc.Rf * Math.sin(ferrisA(pc)) }; }   // (a car's floor level with the rail at A)
+// Where the wheel is: a step of a car's spacing in `move` seconds (easing in and out), then still for `dwell`. The angle
+// grows: a car at the near rail rises, over the top, and down to the far rail.
+function ferrisSteps(Fw, t) { const P = Fw.pc.move + Fw.pc.dwell, u = t + (Fw.pc.phase || 0), k = Math.floor(u / P), f = clamp((u - k * P) / Fw.pc.move, 0, 1); return k + f * f * (3 - 2 * f); }
+const ferrisBase = (Fw, t) => ferrisA(Fw.pc) + ferrisSteps(Fw, t) * TAU / Fw.pc.n;
+const ferrisAngle = (Fw, t, k) => ferrisBase(Fw, t) + k * TAU / Fw.pc.n;
+function ferrisStill(Fw, t) { const P = Fw.pc.move + Fw.pc.dwell, u = ((t + (Fw.pc.phase || 0)) % P + P) % P; return { still: u >= Fw.pc.move, left: u >= Fw.pc.move ? P - u : 0, until: u >= Fw.pc.move ? 0 : Fw.pc.move - u }; }
 function buildFerrisGap(pc) {
   const { K, PK } = circMat(), { yc } = ferrisGeom(pc), Fw = { pc, yc, cars: [] };
   Fw.wheel = new Group(); Fw.wheel.position.set(pc.x, yc, pc.z); levelGroup.add(Fw.wheel);
@@ -21084,6 +21103,9 @@ function buildFerrisGap(pc) {
     const yoke = new Mesh(new CylinderGeometry(0.05, 0.05, FC_W, 6), cqPieceKit(cqLook).gold); yoke.rotation.z = Math.PI / 2; yoke.position.y = FC_HANG + 0.25; walls.add(yoke);
     Fw.cars.push(car);
   }
+  // A yellow spot at each end of the broken rail: wait on the near one; the far one is where you roll off to.
+  Fw.spots = [1, -1].map((s) => { const m = new Mesh(new CircleGeometry(0.55, 32), new MeshBasicMaterial({ color: PAD_YELLOW, toneMapped: false, transparent: true, opacity: 0.9 }));
+    m.rotation.x = -Math.PI / 2; m.position.set(pc.x, pc.y + 0.02, pc.z + s * (pc.g + FC_D / 2 + 0.05 + 0.75)); levelGroup.add(m); return m; });
   circ.ferrises.push(Fw); ferrisPlace(Fw, 0, true);
 }
 function ferrisPlace(Fw, t, snap) {
@@ -21094,7 +21116,8 @@ function ferrisPlace(Fw, t, snap) {
     for (const [lc, e] of car.lips) moveTo(lc, Fw.pc.x, py + 0.06, pz + e * (FC_D / 2 - 0.04));
     if (snap) for (const c of [car.c, ...car.walls.map((w) => w[0]), ...car.lips.map((w) => w[0])]) { c.prev.copy(c.pos); c.delta.set(0, 0, 0); }
   }
-  Fw.wheel.rotation.x = -(-Fw.pc.spin * t + Fw.pc.phase);
+  Fw.wheel.rotation.x = -ferrisBase(Fw, t);
+  if (Fw.spots) { const S = ferrisStill(Fw, t); for (const m of Fw.spots) m.material.opacity = S.still ? (REDUCED || S.left > 0.6 || ((t * 8) | 0) % 2 ? 0.95 : 0.35) : 0.3; }   // bright while it stands still (blinking as it is about to go)
 }
 
 // Before the marble moves each step: every moving floor to where it is now.
@@ -21110,14 +21133,33 @@ function circMove(dt) {
     Wd.spot.material.opacity = !REDUCED && soon < 0.9 ? 0.5 + 0.45 * Math.abs(Math.sin(simT * 10)) : 0.85;
   }
 }
-function circStep2() { if (circ.wods.length) wodStep(); }
+function circStep2() { if (circ.wods.length) wodStep(); }   // (circStep steps the wheels itself)
+// While the wheel turns, a car holds the marble sitting in it (as the Wheel of Death's cage does): it moves with the
+// car, exactly, and is let go when the wheel stops with the car beside either rail.
+function ferrisStep() {
+  if (ball.circ) return;
+  for (const Fw of circ.ferrises) {
+    if (ferrisStill(Fw, simT).still) continue;
+    for (const car of Fw.cars) {
+      const p = car.c.pos, top = p.y + 0.1;
+      if (Math.abs(ball.p.x - p.x) < FC_W / 2 && Math.abs(ball.p.z - p.z) < FC_D / 2 && ball.p.y > top && ball.p.y < top + 0.9) {
+        ball.circ = { ferris: Fw, car, off: new Vector3(ball.p.x - p.x, R + 0.005, ball.p.z - p.z) }; ball.v.set(0, 0, 0); return;
+      }
+    }
+  }
+}
+function ferrisHeld() {
+  const H = ball.circ, p = H.car.c.pos;
+  ball.p.set(p.x + H.off.x, p.y + 0.1 + H.off.y, p.z + H.off.z); ball.v.set(0, 0, 0);
+  if (ferrisStill(H.ferris, simT).still && Math.abs(p.y + 0.1 - H.ferris.pc.y) < 0.05) { ball.circ = null; ball.grounded = true; }   // let go only beside a rail (at the top, or underneath, it holds on)
+}
 function circState2() {
   return {
     swings: circ.swings.map((T) => ({ px: T.pc.x, z: T.pc.z, gap: T.pc.gap, a: trapAngle(T, simT), amax: T.g.a, seat: T.c.pos.toArray().map((v) => +v.toFixed(2)), period: T.pc.period, dwell: T.pc.dwell, phase: T.pc.phase })),
     wires: circ.wires.map((W) => ({ px: W.pc.x, z: W.pc.z, len: W.pc.len, bw: W.pc.bw, x: W.c.pos.x, sway: W.pc.sway, period: W.pc.period })),
     teeters: circ.teeters.map((T) => ({ px: T.pc.x, period: T.pc.period, z: T.pc.z, L: T.pc.L, a: T.a, tilt: T.pc.tilt, nearZ: T.nearZ, farZ: T.farZ, toLand: teeterJump(T, simT).toLand, y: T.pc.y, up: T.pc.up, pos: T.c.pos.toArray().map((v) => +v.toFixed(3)), q: T.c.quat.toArray().map((v) => +v.toFixed(3)), py: T.py })),
     wods: circ.wods.map((Wd) => ({ px: Wd.pc.x, z: Wd.pc.z, ang: wodAngle(Wd, simT), spin: Wd.pc.spin, arm: Wd.pc.arm, y: Wd.pc.y, drawn: [-1, 1].map((e) => { Wd.rot.updateMatrixWorld(true); return Wd.rot.localToWorld(new Vector3(0, e * Wd.pc.arm, 0)).toArray().map((v) => +v.toFixed(2)); }), cage: [0, 1].map((k) => wodCage(Wd, k, simT).toArray().map((v) => +v.toFixed(2))) })),
-    ferrises: circ.ferrises.map((Fw) => ({ px: Fw.pc.x, z: Fw.pc.z, g: Fw.pc.g, e: FC_D / 2 + 0.05, y: Fw.pc.y, yc: Fw.yc, Rf: Fw.pc.Rf, spin: Fw.pc.spin, phase: Fw.pc.phase, n: Fw.pc.n, hang: FC_HANG,
+    ferrises: circ.ferrises.map((Fw) => ({ px: Fw.pc.x, z: Fw.pc.z, g: Fw.pc.g, e: FC_D / 2 + 0.05, y: Fw.pc.y, yc: Fw.yc, Rf: Fw.pc.Rf, n: Fw.pc.n, m: Fw.pc.m, move: Fw.pc.move, dwell: Fw.pc.dwell, ...ferrisStill(Fw, simT), hang: FC_HANG,
                                           cars: Fw.cars.map((c) => c.c.pos.toArray().map((v) => +v.toFixed(2))) })),
   };
 }
@@ -24353,7 +24395,7 @@ const NEWS_CIRCUS = {
   171: 'A clown throws balls at you. Change pace after each throw so it lands clear',
   174: 'The house of mirrors turns you round. Through each gap, clear of the trapdoors',
   177: 'Past the yellow line a clown car chases you. Reach the far end first',
-  181: 'The rail is broken: board a Ferris wheel car going down, and step off as it comes level beyond',
+  181: 'The rail is broken: wait on the yellow spot, roll into the Ferris wheel car when the wheel stops, and roll off when it stops beside the far rail',
   184: 'Sit on the teeterboard\'s yellow spot: when the strongman lands, you are thrown up to the rail above',
   187: 'The Wheel of Death: wait on the yellow spot, and a cage scoops you up and over',
   191: 'The roller coaster! Wait at the station for a car, roll in, and hold on. The grand finale has everything',
@@ -24367,7 +24409,7 @@ for (const [k, v] of RULES_CHROME) if (!RULES_CIRCUS.has(k)) RULES_CIRCUS.set(k,
 RULES.push(
   'From level 151 the course runs through the circus, with three circus puzzles in each level. Clown car: push the clowns in through its back door. Acrobat pyramid: push an acrobat onto every gold star. Balance scales: push weights onto the pans until both sides weigh the same.',
   'Shell game: follow the cup with the star and roll onto its pad; the wrong cup sends you back. Knife thrower: remember the boards he hits and cross on the others. Ticket turnstiles: pay the right turnstiles, there are never enough tickets for all. House of mirrors: find the way out; you see only round the marble, and some doorways are glass.',
-  'The circus acts: go through rings of fire at their middle; pass the juggler just after a spot\'s ball has gone up; reach the knife wheel as a hole comes to the bottom; ride the trapeze and the Ferris wheel from edge to edge; keep to the high wire\'s middle; wait on the yellow spots of the teeterboard and the Wheel of Death; roll into the cannon as it points at the net; outrun the clown car.',
+  'The circus acts: go through rings of fire at their middle; pass the juggler just after a spot\'s ball has gone up; reach the knife wheel as a hole comes to the bottom; ride the trapeze from edge to edge; roll on and off the Ferris wheel only while it stands still; keep to the high wire\'s middle; wait on the yellow spots of the teeterboard and the Wheel of Death; roll into the cannon as it points at the net; outrun the clown car.',
 );
 for (const K of ['CK', 'CP', 'CS', 'CH', 'CN', 'CT', 'CM']) for (let i = 1; i <= 22; i++) if (PLAZAS[K + i] && !PLAZA_NEWS[K + i]) PLAZA_NEWS[K + i] = PLAZA_NEWS[K + '1'];
 // ---- THE CIRCUS'S OWN SOUNDS (as the pinball machine has its own): a calliope's chime for a ring, a fanfare over a
@@ -24410,9 +24452,9 @@ const CZ_SOUNDS = {
 const CZ_VARIANT = {151:8, 152:52, 153:83, 154:5, 155:42, 156:40, 157:73, 158:42, 159:59, 160:17, 161:72, 162:15, 163:62, 164:3, 165:72, 166:32, 167:36, 168:9, 169:9, 170:44, 171:9, 172:27, 173:13, 174:2, 175:69, 176:65, 177:60, 178:43, 179:45, 180:62, 181:53, 182:40, 183:79, 184:61, 185:54, 186:60, 187:38, 188:83, 189:66, 190:55, 191:70, 192:67, 193:79, 194:65, 195:50, 196:20, 197:86, 198:85, 199:46, 200:79};
 for (let n = 151; n <= 200; n++) LEVELS.push(makeLevel(n, CZ_VARIANT[n] || 0));
 // Their star times, raced as the machine's were (quick and clean, the short way at a fork, +6% or a second, rounded up,
-// and under the careful run), 2026-09-30; 199 raced a touch slower (at 7 the autopilot clipped a carousel horse).
+// and under the careful run), 2026-09-30; 190 and 199 raced a touch slower (at 7 the autopilot clipped a carousel horse); the Ferris levels raced again 2026-09-30 after the wheel was rebuilt.
 if (STAR_TIMES.length !== 150) throw new Error('star times: ' + STAR_TIMES.length + ' before the circus');
-STAR_TIMES.push(84, 85, 103, 101, 108, 108, 133, 132, 116, 149, 139, 148, 156, 141, 163, 171, 167, 155, 173, 179, 176, 165, 151, 214, 182, 195, 175, 189, 198, 171, 325, 232, 310, 206, 238, 301, 272, 305, 283, 310, 243, 303, 273, 227, 353, 232, 274, 343, 265, 276);
+STAR_TIMES.push(84, 85, 103, 101, 108, 108, 133, 132, 116, 149, 139, 148, 156, 141, 163, 171, 167, 155, 173, 179, 176, 165, 151, 214, 182, 195, 175, 189, 198, 171, 335, 232, 322, 211, 238, 306, 272, 305, 283, 322, 243, 303, 277, 227, 353, 232, 274, 343, 265, 276);
 
 // HARNESS: does anything of the world hide the course? From the camera's own place over points all along the course,
 // render the course alone (red on black), then again with the world in front of it (the world black, keeping its

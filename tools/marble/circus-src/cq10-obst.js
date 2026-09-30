@@ -258,7 +258,8 @@ function cannonStep(dt) {
 function circHeldStep(dt) {
   circMove(dt);                                            // the rides go on turning while one carries you (owner: "the wheel and the ball
                                                             // are not in unison": the Wheel of Death stood still once it had you)
-  if (ball.circ.wod) { wodHeld(dt); return; }              // in a cage of the Wheel of Death
+  if (ball.circ.wod) { wodHeld(dt); return; }
+  if (ball.circ.ferris) { ferrisHeld(dt); return; }         // in a Ferris wheel car while the wheel turns              // in a cage of the Wheel of Death
   if (ball.circ.coaster) { coasterHeld(dt); return; }      // riding the roller coaster
   const H = ball.circ, C = H.C;
   H.t += dt;
@@ -326,6 +327,7 @@ function circStep(dt) {
   if (circ.throwers.length) throwerStep(dt);
   if (circ.wods.length) wodStep();
   if (circ.teeters.length) teeterStep();
+  if (circ.ferrises.length) ferrisStep();
   circStep3(dt);
 }
 // Each frame: the flames, the balls, the wheel, the cannon's swing, the thrower's wind-up.

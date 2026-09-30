@@ -156,27 +156,25 @@ window.__cp = (() => {
         if (a < 0.08 || a > Math.PI - 0.02) st.going = true;
         const [ix, iz] = steer(s, st.wod.px, Wd.z + 1.6, 0); return { ix, iz };
       }
-      if (st.ferris) {                                   // from the rail's very end onto a car just past it, still level; off as one comes level beyond
+      if (st.ferris) {                                   // on while the wheel stands with a car at the rail's end; off when that car stands at the far one
         const Fw = S.ferrises.find((q) => Math.abs(q.z + q.g - st.ferris.z) < 0.01), nearEnd = Fw.z + Fw.g + Fw.e, far = Fw.z - Fw.g - Fw.e;
-        if (s.ball[2] < far - 1.2 && s.grounded && s.ball[1] > Fw.y) { i++; return { ix: 0, iz: 0 }; }
+        if (s.ball[2] < far - 1.2 && s.grounded && s.ball[1] > Fw.y - 0.3) { i++; return { ix: 0, iz: 0 }; }
         if (st.careless && !st.on) { const [ix, iz] = steer(s, st.ferris.px, far - 3, 3); if (s.ball[2] < nearEnd - 0.3) st.on = true; return { ix, iz }; }
-        const floorY = (c) => c[1] + 0.1;
-        if (!st.on) {
-          const car = (k, t) => { const a = -Fw.spin * t + Fw.phase + k * 2 * Math.PI / Fw.n; return [Fw.z + Fw.Rf * Math.cos(a), Fw.yc + Fw.Rf * Math.sin(a) - Fw.hang]; };
-          const T = H.simT() + 0.3;                         // where each car will be as we get there
-          for (let k = 0; k < Fw.n; k++) { const [cz, fy] = car(k, T); if (cz > nearEnd - 1.25 && cz < nearEnd - 0.75 && fy > Fw.y - 0.3 && fy < Fw.y + 0.02 && cz < Fw.z + Fw.g + 1) st.on = true; }
-          if (!st.on) { const [ix, iz] = steer(s, st.ferris.px, nearEnd + 0.3, 0); return { ix, iz }; }
-          st.onT = 0;
+        if (!st.on) {                                     // on the yellow spot until it stops, with time enough to get in
+          if (Fw.still && Fw.left > 1.0 && Math.abs(s.ball[2] - (nearEnd + 0.75)) < 0.5 && sp < 0.6) st.on = true;
+          if (!st.on) { const [ix, iz] = steer(s, st.ferris.px, nearEnd + 0.75, 2); return { ix, iz }; }
         }
-        if (st.onT !== undefined && st.onT < 0.45 && s.ball[2] > nearEnd - 1.6) { st.onT += dt; const [ix, iz] = steer(s, st.ferris.px, s.ball[2] - 3, 3); return { ix, iz }; }   // across the join
+        if (!st.inside) {                                 // into the middle of the car standing at the rail's end
+          const [ix, iz] = steer(s, st.ferris.px, Fw.z + Fw.g, 2.6); if (Math.abs(s.ball[2] - (Fw.z + Fw.g)) < 0.3) st.inside = true; return { ix, iz };
+        }
         const mine = Fw.cars.slice().sort((a, b) => Math.hypot(a[2] - s.ball[2], a[1] - s.ball[1]) - Math.hypot(b[2] - s.ball[2], b[1] - s.ball[1]))[0];
-        if (!st.off && mine[2] < Fw.z && Math.abs(mine[2] - (far + Fw.e)) < 0.35 && floorY(mine) > Fw.y - 0.06) st.off = true;
+        if (!st.off && Fw.still && Fw.left > 0.9 && Math.abs(mine[2] - (Fw.z - Fw.g)) < 0.2 && Math.abs(mine[1] + 0.1 - Fw.y) < 0.08) st.off = true;   // (a car's position is its floor's middle, 0.1 under its top)
         if (!st.off) {                                    // sit still in the car (it carries us); nudge toward its middle, relative to it
           const want = Math.max(-1.2, Math.min(1.2, (mine[2] - s.ball[2]) * 1.5));
           let ix = (Fw.px - s.ball[0]) * 0.8 - s.v[0] * 0.7, iz = (want - s.v[2]) * 0.7; const m = Math.hypot(ix, iz); if (m > 1) { ix /= m; iz /= m; }
           return { ix, iz };
         }
-        const [ix, iz] = steer(s, st.ferris.px, far - 2.5, 4.5); return { ix, iz };
+        const [ix, iz] = steer(s, st.ferris.px, far - 2.5, 3); return { ix, iz };
       }
       if (st.chase) {                                    // flat out down the middle, round the pins on the side away from each
         const Ch = S.chases.find((q) => Math.abs(q.z - st.chase.z) < 0.01), end = Ch.z - Ch.d - 1.5;
