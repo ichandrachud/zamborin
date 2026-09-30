@@ -83,9 +83,10 @@ const NEWS_CIRCUS = {
 };
 const RULES_CIRCUS = new Map(Object.entries({
   'Bollards, road barriers': 'Juggling pins, striped hurdles and circus trunks are solid. Steer through the gaps: a hard knock near the edge can throw the marble off the rail.',
-  'A wormhole': 'A magician\'s cabinet takes the marble through: roll into its swirl, and out you come on the far side.',
+  'A wormhole': 'A magician\'s cabinet takes the marble into a maze of mirrors. Find the cabinet at its far end, and out you come on the far side.',
+  'In the canyon': 'In the mirror maze every mirror shows another corridor, and some doorways are clear glass: bump one and it cracks, so you know it next time. The view turns with the marble, and dragging up rolls the way you face. Keep one wall on the same side and follow it to the way out.',
   'The sky train': 'The circus train stops at its stations. Roll onto its carriage, hold on as it pulls away, and roll off at the next station.',
-}));
+}).map(([k, v]) => [RULES.find((q) => q.startsWith(k)), v]));   // (keyed by the whole rule, as the card looks them up: the machine's are)
 for (const [k, v] of RULES_CHROME) if (!RULES_CIRCUS.has(k)) RULES_CIRCUS.set(k, v.replace(/the machine/g, 'the circus').replace(/The machine/g, 'The circus'));
 RULES.push(
   'From level 151 the course runs through the circus, with three circus puzzles in each level. Clown car: push the clowns in through its back door. Acrobat pyramid: push an acrobat onto every gold star. Balance scales: push weights onto the pans until both sides weigh the same.',
