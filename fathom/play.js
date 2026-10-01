@@ -92,6 +92,28 @@
   const SFX_GAIN = 2.2;
   const sfx = window.ZSFX ? window.ZSFX.create({ storageKey: 'zam.fathom.sfx', gain: SFX_GAIN }) : null;
 
+  /* A phone starts sound only inside a touch that has ENDED, or a click or a
+     key. Fathom makes its audio on the drag's pointerdown, which does not
+     count, so on an iPhone the context was born suspended and nothing ever
+     woke it: no sound at all on a phone (owner, CrazyGames QA, 2026-10-01;
+     Marble met the same thing on 2026-09-27). So every lift, tap and key
+     resumes it, and starts a one-sample silent buffer, which is what iOS
+     wants, until it is running; and again whenever the page comes back. */
+  function wakeAudio() {
+    const ac = sfx && sfx.ensureAudio();
+    if (!ac || ac.state === 'running') return;
+    try { ac.resume(); } catch (_) {}
+    try {
+      const src = ac.createBufferSource();
+      src.buffer = ac.createBuffer(1, 1, 22050);
+      src.connect(ac.destination); src.start(0);
+    } catch (_) {}
+  }
+  for (const type of ['pointerup', 'touchend', 'click', 'keydown']) {
+    window.addEventListener(type, wakeAudio, { capture: true, passive: true });
+  }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) wakeAudio(); });
+
   /* ---------- PORTAL ----------
      Harmless when there is no portal, which is every visit to zamborin.com.
      An ad silences the MASTER BUS, never sfx.setOn(): setOn writes the
