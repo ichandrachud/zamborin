@@ -1042,7 +1042,7 @@
   // ---------- SIM DRIVE ----------
   let lastNow = performance.now();
   let holdFullWas = false, tooHardWas = false;
-  let lastBlub = 0, lastGrind = 0, lastGlug = 0, lastWhirr = 0;
+  let lastBlub = 0, lastGrind = 0;
   let airLowWas = '';
 
   function inputNow() {
@@ -1093,34 +1093,22 @@
   }
 
   function audioFeedback(now) {
-    /* Blowing is the most-held verb in the game; its sound must be a calm
-       low bubbling, never a crackle. One soft blub every quarter second. */
-    if (run._blowing && sfx && now - lastBlub > 240) {
+    /* Moving is the most-held thing in the game; its sound must be a calm
+       low bubbling, never a crackle. One soft blub every quarter second,
+       whichever way the sub is driving: blowing up, flooding down or
+       thrusting sideways (owner, 2026-10-01: "the bubble sound is the right
+       sound when going in any direction"). Only the climb used to have it,
+       so a dive was silent. A first try gave the dive a wash of noise and
+       the thrust a whirr, and short noise bursts read as the hull BANGING
+       into something in open water, so every direction shares the blub. Not
+       while the drill or a push is working: those have their own voices. */
+    const cutting = run._digging || (run.pushTarget && !run.pushTarget.blocked);
+    const driving = run._blowing || ((run._flooding || run._thrusting) && !cutting);
+    if (driving && sfx && now - lastBlub > 240) {
       lastBlub = now;
       sfx.tone(230 + vr() * 90, 0.09, 0.022, 'sine');
     }
     if (run._blowing) spawnBubbles(2, run.x, run.y - 3, 6, 8, 16);
-    /* EVERY DIRECTION HAS A VOICE (owner, 2026-10-01: "sub should make sound
-       in all directions"). Diving drew rings and made no sound, and so did
-       driving sideways, while only the climb bubbled. Neither speaks over the
-       drill, which has its own voice for the same keys.
-       Flooding: water rushing into the tanks, a wash of low noise every
-       quarter second with a soft glug under it, pitched below the blub so
-       down sounds lower than up. The wash is what carries on a phone, whose
-       speaker drops most of what sits under 200 Hz.
-       Thrust: the propeller, a quiet quick whirr. It is held more than any
-       other verb, so it sits under the blub and the drill. */
-    const cutting = run._digging || (run.pushTarget && !run.pushTarget.blocked);
-    if (run._flooding && !cutting && sfx && now - lastGlug > 260) {
-      lastGlug = now;
-      sfx.noise(0.16, 520 + vr() * 90, 0.7, 0.018);
-      sfx.tone(175 + vr() * 30, 0.1, 0.016, 'sine');
-    }
-    if (run._thrusting && !cutting && sfx && now - lastWhirr > 130) {
-      lastWhirr = now;
-      sfx.tone(150 + vr() * 14, 0.09, 0.010, 'triangle');
-      sfx.noise(0.06, 1150 + vr() * 150, 1.2, 0.007);
-    }
     if (run._flooding && vr() < 0.35 && rings.length < 12) {
       rings.push({ x: run.x + (vr() - 0.5) * 4, y: run.y + 2.4, r: 1.2, life: 0.6 });
     }
