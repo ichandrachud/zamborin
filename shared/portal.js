@@ -43,9 +43,13 @@
 
   var hooks = { onPause: null, onResume: null, isMuted: null, setMuted: null };
   /* CrazyGames v3 must be init()ed before anything else is called, and init is
-     ASYNC. gameplayStart survives that because nobody presses Play inside the
-     first tick, but loadingStart is called during boot and would be thrown
-     away. Hold the promise and let the boot-time calls queue behind it. */
+     ASYNC. Until it settles, on their site (not in the local SDK, which is
+     ready at once) even READING SDK.game, SDK.ad or SDK.data throws. Fathom
+     reports gameplayStart on its first frame, before init, and that throw went
+     up through the game's frame loop and froze it for good (CrazyGames QA,
+     2026-10-01); Comb never met it because it waited for a PLAY press. So
+     every read goes through part(), and every call to the game module queues
+     behind the init promise. */
   var ready = null;
   var pendingReward = null;
   var wasMuted = false;
@@ -54,7 +58,13 @@
   function gd()  { return (typeof root.gdsdk !== 'undefined' && root.gdsdk) || null; }
   function cg()  { return (root.CrazyGames && root.CrazyGames.SDK) || null; }
   // Read on every call, like SDK.game: never hold on to a module object.
-  function data() { var c = cg(); return (c && c.data) || null; }
+  // A module read before init throws, so it answers null instead.
+  function part(k) {
+    var c = cg();
+    if (!c) return null;
+    try { return c[k] || null; } catch (e) { return null; }
+  }
+  function data() { return part('data'); }
   function name() { return cg() ? 'crazygames' : (gd() ? 'gd' : null); }
 
   /* Every ad path goes through these two, including the failure paths. An ad
@@ -81,8 +91,8 @@
      SDK actually uses. */
   function afterReady(fn) {
     function go() {
-      var c = cg();
-      if (c && c.game) { try { fn(c.game); } catch (e) {} }
+      var g = part('game');
+      if (g) { try { fn(g); } catch (e) {} }
     }
     if (ready && ready.then) { ready.then(go, go); } else { go(); }
   }
@@ -133,11 +143,11 @@
       function win()  { if (!done) { done = true; restore(); try { ok && ok(); } catch (e) {} } }
       function fail(r) { if (!done) { done = true; restore(); try { no && no(r || 'unavailable'); } catch (e) {} } }
 
-      var c = cg();
-      if (c && c.ad && c.ad.requestAd) {
+      var ad = part('ad');
+      if (ad && ad.requestAd) {
         suspend();
         try {
-          c.ad.requestAd('rewarded', {
+          ad.requestAd('rewarded', {
             adStarted: function () { suspend(); },
             adFinished: function () { win(); },
             adError: function (e) { fail((e && e.code) || 'error'); }
@@ -173,11 +183,11 @@
       var fired = false;
       function end() { if (!fired) { fired = true; restore(); try { done && done(); } catch (e) {} } }
 
-      var c = cg();
-      if (c && c.ad && c.ad.requestAd) {
+      var ad = part('ad');
+      if (ad && ad.requestAd) {
         suspend();
         try {
-          c.ad.requestAd('midgame', {
+          ad.requestAd('midgame', {
             adStarted: function () { suspend(); },
             adFinished: end,
             // `adCooldown` is CrazyGames telling us it is too soon. That is a
@@ -242,15 +252,10 @@
     },
 
     // CrazyGames uses these to decide when its own ad breaks are acceptable.
-    // GD has no equivalent and does not mind being told nothing.
-    gameplayStart: function () {
-      var c = cg();
-      if (c && c.game && c.game.gameplayStart) { try { c.game.gameplayStart(); } catch (e) {} }
-    },
-    gameplayStop: function () {
-      var c = cg();
-      if (c && c.game && c.game.gameplayStop) { try { c.game.gameplayStop(); } catch (e) {} }
-    },
+    // GD has no equivalent and does not mind being told nothing. Queued behind
+    // init like the loading pair, so one sent on the first frame still arrives.
+    gameplayStart: function () { afterReady(function (g) { if (g.gameplayStart) g.gameplayStart(); }); },
+    gameplayStop:  function () { afterReady(function (g) { if (g.gameplayStop)  g.gameplayStop();  }); },
   };
 
   root.ZAM_PORTAL = api;

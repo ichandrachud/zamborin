@@ -1061,9 +1061,15 @@
      where the mute is re-applied, because the audio bus only exists after
      the player's first tap. */
   let portalLive = false;
+  /* Not live until the splash has lifted. CrazyGames times the load up to the
+     first gameplayStart, so it has to follow loadingStop, which the splash's
+     end sends; on its first frame Fathom used to report play under a splash
+     nobody could play through. */
+  let splashGone = !document.getElementById('splash');
+  window.addEventListener('splash-done', () => { splashGone = true; }, { once: true });
   function syncPortal() {
     applyMute();
-    const live = !card && !adPaused;
+    const live = splashGone && !card && !adPaused;
     if (live === portalLive) return;
     portalLive = live;
     if (portal) { if (live) portal.gameplayStart(); else portal.gameplayStop(); }
