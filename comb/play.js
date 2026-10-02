@@ -591,6 +591,20 @@
      and answers `adCooldown` when it disagrees, which portal.js swallows. */
   const onGD = () => { const P = window.ZAM_PORTAL; return !!P && P.name === 'gd'; };
   let gdAdBusy = false;
+  /* GAMEDISTRIBUTION ONLY: a mid-roll on every way out of a level. Their review
+     declined activation on 2026-10-02 because only NEXT asked for one: their
+     guide wants a mid-roll on every non-gameplay button (Replay, Next, Menu),
+     and their SDK decides how often one actually plays, so every exit asks and
+     most are quietly refused. Every caller is the canvas's click, which follows
+     the touch or mouse up their ads must sit behind. A second tap while an ad
+     plays is ignored rather than asking twice. Anywhere else, then() at once. */
+  function gdMidroll(then) {
+    if (!onGD()) { then(); return; }
+    if (gdAdBusy) return;
+    gdAdBusy = true;
+    T().track('interstitial_shown', { level: levelNo });
+    window.ZAM_PORTAL.interstitial(() => { gdAdBusy = false; then(); });
+  }
   function maybeInterstitial(then) {
     completions++;
     // GameDistribution's ads must sit behind a tap, so there the ad is asked
@@ -2201,22 +2215,11 @@
           openLevel(levelNo + 1);
           if (G.tierOf(levelNo) !== wasTier) play('unlock');
         };
-        /* GAMEDISTRIBUTION ONLY: the between-levels ad plays on this tap,
-           which is where their guide puts a mid-roll (a Next button, behind a
-           mouse or touch up). Their SDK decides how often one actually shows,
-           so it is asked for on every NEXT. A second tap while it plays is
-           ignored rather than asking twice. */
-        if (onGD()) {
-          if (gdAdBusy) return;
-          gdAdBusy = true;
-          T().track('interstitial_shown', { level: levelNo });
-          window.ZAM_PORTAL.interstitial(() => { gdAdBusy = false; next(); });
-          return;
-        }
-        next();
+        // GameDistribution's mid-roll; anywhere else straight on.
+        gdMidroll(next);
         return;
       }
-      if (inBox(p, L.hit.map)) { phase = 'map'; draw(); return; }
+      if (inBox(p, L.hit.map)) { gdMidroll(() => { phase = 'map'; draw(); }); return; }
       return;
     }
 
@@ -2237,20 +2240,21 @@
     if (phase === 'map') {
       // A drag that scrolled the map is not a tap on whatever it ended over.
       if (mapDragged) { mapDragged = false; return; }
-      if (inBox(p, L.hit.daily)) { openLevel(0, { daily: true }); return; }
+      if (inBox(p, L.hit.daily)) { gdMidroll(() => openLevel(0, { daily: true })); return; }
       for (let i = 0; i < LEVELS; i++) {
         const h = L.hit['lv' + i];
         if (!inBox(p, h)) continue;
         if (!h.open) { play('error'); return; }   // locked, and says so
-        openLevel(h.n);
+        gdMidroll(() => openLevel(h.n));
         return;
       }
       return;
     }
 
-    if (inBox(p, L.hit.map)) { phase = 'map'; draw(); return; }
+    if (inBox(p, L.hit.map)) { gdMidroll(() => { phase = 'map'; draw(); }); return; }
     if (inBox(p, L.hit.undo)) { undo(); return; }
-    if (inBox(p, L.hit.restart)) { restart(); return; }
+    // A Restart with nothing on the board does nothing, so it asks for no ad.
+    if (inBox(p, L.hit.restart)) { if (history.length) gdMidroll(restart); else restart(); return; }
     // A dimmed pill is still clickable, so the guard lives in the handler and
     // the analytics call sits BELOW it.
     if (inBox(p, L.hit.hint)) {
