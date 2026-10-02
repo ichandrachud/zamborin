@@ -121,7 +121,9 @@ function onResize() {
 
 // ---------- AUDIO ----------
 // Gain 2.4, as Tailwind: the fleet is mixed about 4x too quiet (DESIGN-SYSTEM 9).
-const sfx = window.ZSFX ? window.ZSFX.create({ storageKey: 'zamborin-marble.sound', gain: 2.4 }) : null;
+// A function, and `let`: a sound the phone will not give back is replaced (renewAudio).
+const makeSfx = () => (window.ZSFX ? window.ZSFX.create({ storageKey: 'zamborin-marble.sound', gain: 2.4 }) : null);
+let sfx = makeSfx();
 const play = (name) => { if (sfx) sfx.play(name); };
 
 /* THE ROLL. A marble you cannot hear rolling feels like a picture sliding over
@@ -7843,11 +7845,51 @@ function wakeAudio() {
   try { const s = ctx.createBufferSource(); s.buffer = ctx.createBuffer(1, 1, ctx.sampleRate); s.connect(ctx.destination); s.start(0); } catch (_) {}
 }
 for (const ev of ['pointerdown', 'touchstart', 'pointerup', 'touchend', 'click', 'keydown']) window.addEventListener(ev, wakeAudio, { capture: true, passive: true });
-document.addEventListener('visibilitychange', () => { if (!document.hidden) wakeAudio(); });
+/* SOUND THAT COMES BACK (owner, 2026-10-02, on the iPhone app: "If I am playing
+   a game but temporarily switch to a different app like gmail or instagram and
+   go back to the game, the sound stops"). Leaving the app, iOS puts the sound to
+   sleep itself ("interrupted"), and asking it to wake can be answered with a
+   sound that never comes back: still asleep, or "running" with its clock
+   stopped. So on every return the game watches the sound's clock for a moment,
+   waking it while it sleeps; if the clock has not moved within about two
+   seconds, that sound is thrown away and a new one built, with the roll and the
+   city's voices on it. A healthy return passes in under a second, untouched. */
+let audioWatch = 0;
+function watchAudio() {
+  clearInterval(audioWatch);
+  let last = -1, ticks = 0;
+  audioWatch = setInterval(() => {
+    const o = sfx && sfx.out(), ctx = o && o.context;
+    if (!ctx || document.hidden) { clearInterval(audioWatch); return; }   // no sound made yet, or gone again
+    if (ctx.state === 'running' && last >= 0 && ctx.currentTime > last + 0.05) { clearInterval(audioWatch); return; }   // its clock moves: it is back
+    last = ctx.state === 'running' ? ctx.currentTime : -1;
+    if (ctx.state !== 'running') wakeAudio();
+    if (++ticks >= 6) { clearInterval(audioWatch); renewAudio(); }
+  }, 400);
+}
+function renewAudio() {
+  const o = sfx && sfx.out(), old = o && o.context;
+  if (!old) return;
+  sfx = makeSfx();
+  roll = null; citySound = null;
+  try { old.close().catch(() => {}); } catch (_) {}
+  firstGesture();                                      // the new sound, the roll and the city's voices on it
+  wakeAudio();
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { wakeAudio(); watchAudio(); } });
+window.addEventListener('focus', watchAudio);
+window.addEventListener('pageshow', watchAudio);
 
 hud.addEventListener('pointerdown', (e) => {
   e.preventDefault();
   firstGesture();
+  /* A FINGER THAT IS GONE NO LONGER STEERS (owner, 2026-10-02, on the iPad: "The
+     ball keeps dropping in the opposite direction"). A drag whose lift never
+     arrived (on the iPad, it ended outside the window) left the stick held, so
+     the marble rolled on by itself, back off the course, two thousand times, and
+     every touch after it counted as a second finger: a hop. A first finger down
+     (isPrimary: no other is on the glass) means every earlier one has gone. */
+  if (e.isPrimary) { joy = null; tap2 = null; pressed = null; cardDrag = null; }
   const p = toLogical(e);
   const k = hitKey(p);
   if (k) { pressed = { key: k, id: e.pointerId }; return; }
@@ -7885,6 +7927,7 @@ function endPointer(e, cancelled) {
 let tap2 = null;                                        // a second finger while the first steers: only ever a hop
 hud.addEventListener('pointerup', (e) => endPointer(e, false));
 hud.addEventListener('pointercancel', (e) => endPointer(e, true));
+hud.addEventListener('lostpointercapture', (e) => endPointer(e, true));   // (after a pointerup this finds nothing left to end)
 hud.addEventListener('wheel', (e) => {
   if (state !== 'rules') return;
   e.preventDefault();
@@ -7905,7 +7948,9 @@ window.addEventListener('keydown', (e) => {
   else if (e.code === 'Escape' && (state === 'rules' || state === 'intro')) act('cta');
 });
 window.addEventListener('keyup', (e) => { const k = KEYMAP[e.code]; if (k) keys.delete(k); });
-window.addEventListener('blur', () => { keys.clear(); joy = null; tap2 = null; });
+const letGo = () => { keys.clear(); joy = null; tap2 = null; };
+window.addEventListener('blur', letGo);
+document.addEventListener('visibilitychange', () => { if (document.hidden) letGo(); });   // another app: nothing is held on return
 
 function act(k) {
   if (k === 'sound') { if (sfx) sfx.setOn(!sfx.isOn()); play('click'); return; }
