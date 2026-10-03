@@ -51,7 +51,7 @@ function list(parts) { return parts.length < 2 ? parts.join('') : parts.slice(0,
 const atoms = (n, el) => `${WORD[n]} ${nameOf(el)} atom${n > 1 ? 's' : ''}`;
 // a formula, read as tokens: an element with its count, or a bracketed group with its count
 function tokens(formula) {
-  const s = formula.replace(/[₀-₉]/g, (d) => SUB.indexOf(d)), out = [];
+  const s = formula.replace(/[\u2080-\u2089]/g, (d) => SUB.indexOf(d)), out = [];
   const re = /\(([^)]+)\)(\d*)|([A-Z][a-z]?)(\d*)/g; let m;
   while ((m = re.exec(s))) out.push(m[1] ? { group: m[1], n: +(m[2] || 1) } : { el: m[3], n: +(m[4] || 1) });
   return out;
