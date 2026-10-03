@@ -24,7 +24,7 @@
 
 import {
   WebGLRenderer, Scene, PerspectiveCamera, HemisphereLight, DirectionalLight,
-  Mesh, Group, SphereGeometry, TorusGeometry, CylinderGeometry, PlaneGeometry, LatheGeometry, Vector2,
+  Mesh, Group, SphereGeometry, CylinderGeometry, PlaneGeometry, LatheGeometry, Vector2,
   BufferGeometry, Float32BufferAttribute, Points, PointsMaterial,
   MeshPhysicalMaterial, MeshBasicMaterial, Sprite, SpriteMaterial, CanvasTexture,
   SRGBColorSpace, Color, Vector3, Quaternion, Euler, NeutralToneMapping,
@@ -108,6 +108,9 @@ const TUNE = {
   /* A made molecule glows and turns in front of you, then flies up into the
      target (owner, 2026-10-02: "glow and rotate for 2 seconds"). */
   spinMs: 2000, flyMs: 1100,
+  /* Everything floating revolves slowly round you (owner, 2026-10-03: "the molecules could be revolving around"),
+     a turn in about three minutes, so the space shows it goes all the way round. Radians a second. */
+  revolve: 0.035,
 };
 const STEP = 1 / 60;
 // The checks may run the world faster (?harness=1&speed=3): more steps a frame, nothing else changes.
@@ -157,6 +160,7 @@ function resizeCanvases() {
   renderer.setSize(cssW, cssH, false);
   fitCamera();
   fitLegend();
+  fitScrim();
 }
 function onResize() { setCanvasVars(); fitFullscreen(); resizeCanvases(); }
 
@@ -217,10 +221,10 @@ function glow(color, size, opacity) {
   return s;
 }
 
-/* AN EMPTY SPACE: nothing but a soft gradient at infinity, drifting motes for
-   depth, and two faint rings far below that keep a horizon to turn against.
-   No planet, no stars-and-station look (owner: "an empty space, not space as
-   in outer space above the earth"). */
+/* AN EMPTY SPACE: nothing but a soft gradient at infinity and drifting motes for
+   depth. No planet, no stars-and-station look (owner: "an empty space, not space
+   as in outer space above the earth"), and no rings (owner, 2026-10-03: not the
+   rings that tell you to turn; the atoms revolving round you do that). */
 const space = SPACE.moleculator;
 const voidTex = canvasTex(1024, 512, (g, w, h) => {
   const gr = g.createLinearGradient(0, 0, 0, h);
@@ -247,11 +251,32 @@ const env = (() => {
   for (let i = 0; i < 1500; i++) { const r = 4 + R() * 70, an = R() * Math.PI * 2, y = (R() - 0.5) * 70; p.push(Math.cos(an) * r, y, Math.sin(an) * r); }
   const mg = new BufferGeometry(); mg.setAttribute('position', new Float32BufferAttribute(p, 3));
   scene.add(new Points(mg, new PointsMaterial({ size: 0.11, color: space.mote, map: DOT, transparent: true, depthWrite: false, opacity: 0.85, blending: AdditiveBlending })));
-  for (const [y, w, o] of [[-22, 0.18, 0.45], [-40, 0.1, 0.25]]) {
-    const ring = new Mesh(new TorusGeometry(140, w, 6, 240), new MeshBasicMaterial({ color: space.ring, transparent: true, opacity: o, toneMapped: false }));
-    ring.rotation.x = Math.PI / 2; ring.position.y = y; scene.add(ring);
+}
+/* OUT OF FOCUS WITH DISTANCE (owner, 2026-10-03: "as many atoms as possible floating", the far ones "out of focus as
+   they go further out", "the closest ones clearest and easiest to grab"). A soft disc of an atom's colour stands in for
+   its blur: a level's atom fades into one the further it is from you, and far beyond reach a field of them, out of
+   focus, fills the space all round. They revolve with everything else and cannot be grabbed. */
+const BOKEH = canvasTex(128, 128, (g, w) => {
+  const r = g.createRadialGradient(w / 2, w / 2, 0, w / 2, w / 2, w / 2);
+  r.addColorStop(0, 'rgba(255,255,255,0.95)'); r.addColorStop(0.55, 'rgba(255,255,255,0.8)');
+  r.addColorStop(0.85, 'rgba(255,255,255,0.28)'); r.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = r; g.fillRect(0, 0, w, w);
+});
+const FOCUS = { sharp: 30, soft: 72 };   // radii from you: sharp to here, fully out of focus by there
+const farField = new Group(); scene.add(farField);
+{
+  const R = mulberry(77), els = ['H', 'H', 'O', 'C', 'N', 'Cl', 'H', 'O', 'Na', 'C', 'Mg', 'Ca'];
+  for (let i = 0; i < 180; i++) {
+    // a direction evenly over the whole sphere, beyond the room the level's atoms keep to
+    const z = R() * 2 - 1, a = R() * Math.PI * 2, rr = Math.sqrt(1 - z * z), dist = (80 + R() * 70) * U;
+    const el = els[Math.floor(R() * els.length)];
+    const s = new Sprite(new SpriteMaterial({ map: BOKEH, color: new Color(ART[el].hi), transparent: true, depthWrite: false, opacity: 0.18 + R() * 0.26 }));
+    const size = (el === 'H' ? 0.78 : 1) * U * (3.4 + R() * 1.8);
+    s.scale.set(size, size, 1); s.position.set(Math.cos(a) * rr * dist, z * dist, Math.sin(a) * rr * dist);
+    farField.add(s);
   }
 }
+
 // The light rides with you: up and slightly left of wherever you look (DESIGN-SYSTEM 6).
 scene.add(new HemisphereLight(0x9AB8FF, 0x101624, 0.7));
 const sun = new DirectionalLight(0xFFF4E4, 2.4), rim = new DirectionalLight(space.rim, 1.2);
@@ -324,15 +349,19 @@ function flareGeo(r, endRad) {
 function makeView(a) {
   const el = a.el, r = rOf(el), hi = new Color(ART[el].hi).getHex();
   const g = new Group();
-  const ball = new Mesh(cached('ball' + r, () => new SphereGeometry(r, 40, 28)), ballMat(el));
+  // its own glass (ball and hands), so it can go out of focus on its own as it gets further from you
+  const own = ballMat(el).clone();
+  const ball = new Mesh(cached('ball' + r, () => new SphereGeometry(r, 40, 28)), own);
   const halo = glow(hi, r * 2.7, 0.38);
   const letter = new Sprite(letterMat(el)); letter.scale.set(r * letterBase(el), r * letterBase(el), 1); letter.renderOrder = 50;
-  g.add(ball, halo, letter);
+  const blur = new Sprite(new SpriteMaterial({ map: BOKEH, color: new Color(ART[el].hi), transparent: true, depthWrite: false, opacity: 0 }));
+  blur.visible = false;
+  g.add(ball, halo, letter, blur);
   const L = r * (TUNE.hand - ARM.reach - 0.1);
   const hands = [];
   for (let i = 0; i < M.ELEMENTS[el].hands; i++) {
-    const flare = new Mesh(flareGeo(r, ARM.base * r), ballMat(el));
-    const arm = new Mesh(cached('stem' + r, () => new CylinderGeometry(ARM.end * r, ARM.base * r, L, 14)), ballMat(el));
+    const flare = new Mesh(flareGeo(r, ARM.base * r), own);
+    const arm = new Mesh(cached('stem' + r, () => new CylinderGeometry(ARM.end * r, ARM.base * r, L, 14)), own);
     const tip = new Mesh(cached('tip' + r, () => new SphereGeometry(0.17 * r, 14, 10)), tipMat(WHITE_TIP));
     const tg = glow(hi, 0.9 * r, 0.7);
     g.add(flare, arm, tip, tg);
@@ -341,7 +370,7 @@ function makeView(a) {
   scene.add(g);
   const R = Math.random;
   return {
-    id: a.id, el, r, g, ball, halo, letter, hands,
+    id: a.id, el, r, g, ball, halo, letter, hands, blur, own,
     frame: 'world',              // 'world', or 'cam' while you hold it (then pos is in front of you)
     pos: new Vector3(), wp: new Vector3(), prev: new Vector3(), vel: new Vector3(),
     q: new Quaternion().setFromEuler(new Euler(R() * 6.3, R() * 6.3, R() * 6.3)), w: new Vector3(),
@@ -432,7 +461,8 @@ function drawBond(bv) {
   });
 }
 function clearWorld() {
-  for (const v of V.values()) scene.remove(v.g);
+  // each atom's own glass and blur go with it (a level change must not leave materials behind)
+  for (const v of V.values()) { scene.remove(v.g); v.own.dispose(); v.ball.material.dispose(); v.blur.material.dispose(); }
   for (const bv of bondViews.values()) for (const m of bv.meshes.concat(bv.flares)) scene.remove(m);
   V.clear(); bondViews.clear();
   for (const t of trail) t.s.visible = false;
@@ -467,14 +497,60 @@ const ovCam = new PerspectiveCamera(30, 1, 1, 4000);
 ov.add(new HemisphereLight(0x9AB8FF, 0x101624, 0.8));
 const ovSun = new DirectionalLight(0xFFF4E4, 2.2); ovSun.position.set(-40, 30, 40); ov.add(ovSun);
 let legend = { h: 120, group: null, strip: null, mols: [], pulse: -1e9 };
-const stripTex = canvasTex(512, 128, (g, w, h) => {
-  const r = 30;
-  const path = () => { g.beginPath(); g.roundRect(1, 1, w - 2, h - 2, r); };
-  const gr = g.createLinearGradient(0, 0, 0, h);
-  gr.addColorStop(0, 'rgba(255,255,255,0.10)'); gr.addColorStop(1, 'rgba(255,255,255,0.04)');
-  path(); g.fillStyle = gr; g.fill();
-  path(); g.strokeStyle = 'rgba(255,255,255,0.12)'; g.lineWidth = 2; g.stroke();
-});
+/* THE GOALS, AT THE TOP (owner, 2026-10-03: the flat strip "does not match the rest of the visual language"; the
+   pause sign "makes it seem like it is an animation or a video"). Each thing to make is an ORB, the same glass shell
+   as the reaction sphere and the agents in the studies, with the molecule floating in it and its name and formula
+   under it; a made one's shell turns gold. The menu is a small plain orb at the top left. */
+const hexA = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; };
+const SHELL = { a: '#FF2E6E', b: '#22C8F0', dark: '#140A1E' }, DONE_SHELL = { a: '#FFC24A', b: '#FF7A3A', dark: '#1E1006' };
+const INK_DONE = '#9EC2FF';       // a made goal's name: the Moleculator's own light blue
+const orbLayers = {};
+// A dark ball whose edge glows in a band of colour (bright, nearly invisible, bright, nearly invisible), a crisp edge,
+// a soft light outside it, the whole feathered before the canvas's own edge (the studies' shell, as drawn there).
+function paintOrb(g, S, o) {
+  const c = S / 2, R = S * o.R, cols = o.cols;
+  g.clearRect(0, 0, S, S);
+  if (o.outer > 0) {
+    g.globalCompositeOperation = 'lighter';
+    for (const [col, ang] of [[cols.a, -Math.PI / 2], [cols.b, Math.PI * 0.8]]) {
+      const x = c + Math.cos(ang) * R * 0.85, y = c + Math.sin(ang) * R * 0.85, gr0 = g.createRadialGradient(x, y, 0, x, y, R * 0.95);
+      gr0.addColorStop(0, hexA(col, 0.28 * o.outer)); gr0.addColorStop(1, hexA(col, 0)); g.fillStyle = gr0; g.fillRect(0, 0, S, S);
+    }
+    g.globalCompositeOperation = 'source-over';
+  }
+  let gr = g.createRadialGradient(c - R * 0.15, c - R * 0.2, 0, c, c, R);
+  gr.addColorStop(0, `rgba(14,14,26,${o.body})`); gr.addColorStop(1, `rgba(6,6,14,${Math.min(1, o.body + 0.2)})`);
+  g.fillStyle = gr; g.beginPath(); g.arc(c, c, R, 0, Math.PI * 2); g.fill();
+  const L = orbLayers[S] || (orbLayers[S] = Object.assign(document.createElement('canvas'), { width: S, height: S })), q = L.getContext('2d');
+  q.globalCompositeOperation = 'source-over'; q.clearRect(0, 0, S, S);
+  if (q.createConicGradient) {
+    const cg = q.createConicGradient(-Math.PI / 2, c, c);
+    for (const [k, col] of [[0, cols.a], [0.1, cols.a], [0.22, cols.dark], [0.38, cols.dark], [0.52, cols.b], [0.7, cols.b], [0.8, cols.dark], [0.88, cols.dark], [1, cols.a]]) cg.addColorStop(k, col);
+    q.fillStyle = cg;
+  } else q.fillStyle = cols.a;
+  q.beginPath(); q.arc(c, c, R, 0, Math.PI * 2); q.fill();
+  q.globalCompositeOperation = 'destination-in';
+  gr = q.createRadialGradient(c, c, 0, c, c, R);
+  gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(0.58, 'rgba(0,0,0,0)'); gr.addColorStop(0.8, 'rgba(0,0,0,0.25)');
+  gr.addColorStop(0.93, 'rgba(0,0,0,0.62)'); gr.addColorStop(0.985, 'rgba(0,0,0,0.78)'); gr.addColorStop(1, 'rgba(0,0,0,0.7)');
+  q.fillStyle = gr; q.fillRect(0, 0, S, S); q.globalCompositeOperation = 'source-over';
+  g.globalCompositeOperation = 'lighter'; g.drawImage(L, 0, 0);
+  g.strokeStyle = 'rgba(255,255,255,0.16)'; g.lineWidth = Math.max(1, S / 300); g.beginPath(); g.arc(c, c, R * 0.992, 0, Math.PI * 2); g.stroke();
+  g.globalCompositeOperation = 'destination-in';
+  const fe = g.createRadialGradient(c, c, S * 0.38, c, c, S * 0.5); fe.addColorStop(0, 'rgba(0,0,0,1)'); fe.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = fe; g.fillRect(0, 0, S, S);
+  g.globalCompositeOperation = 'source-over';
+}
+const MENU_ORB = (() => { const c = Object.assign(document.createElement('canvas'), { width: 128, height: 128 }); paintOrb(c.getContext('2d'), 128, { cols: SHELL, R: 0.36, body: 0.7, outer: 0.35 }); return c; })();
+/* Where the goals sit, in the frame's units: one in the middle, two or three side by side (clear of the menu orb).
+   `wrap` is the room for each one's name. */
+const GOAL_Y = 46;
+function goalLayout(n) {
+  const mob = MODE === 'mobile';
+  if (n <= 1) return [{ x: LW / 2, R: mob ? 40 : 44, wrap: LW - 80 }];
+  if (n === 2) { const sp = mob ? 88 : 130; return [-1, 1].map((k) => ({ x: LW / 2 + k * sp, R: mob ? 34 : 40, wrap: sp * 2 - 16 })); }
+  const sp = mob ? 115 : 180, cx = LW / 2 + (mob ? 20 : 0);
+  return [-1, 0, 1].map((k) => ({ x: cx + k * sp, R: mob ? 28 : 36, wrap: sp - 6 }));
+}
 const shapes = new Map();
 function molecule3d(key) {
   if (!shapes.has(key)) shapes.set(key, shapeOf(key));
@@ -503,16 +579,18 @@ function shapeOf(key) {
   return { els: T.els, p, bonds };
 }
 function buildLegend() {
-  if (legend.group) ov.remove(legend.group);
+  if (legend.group) { ov.remove(legend.group); for (const m of legend.mols) { m.map.dispose(); m.orb.material.dispose(); } }
   const G = new Group(); ov.add(G);
   legend.group = G; legend.mols = []; legend.pending = 0;
   for (const t of st.targets) {
     const m = molecule3d(t.key), g = new Group();
-    // its own materials, so dimming a made target never dims an atom in the space
+    // its own materials, so nothing done to a goal ever touches an atom in the space
     const own = new Map(), mine = (k, make) => { if (!own.has(k)) own.set(k, make().clone()); return own.get(k); };
+    let ext = 0;
     m.els.forEach((el, i) => {
       const b = new Mesh(cached('ball' + rOf(el), () => new SphereGeometry(rOf(el), 40, 28)), mine('b' + el, () => ballMat(el)));
       b.position.copy(m.p[i]).multiplyScalar(U); b.scale.setScalar(0.74); g.add(b);
+      ext = Math.max(ext, m.p[i].length() * U + rOf(el) * 0.74);
     });
     for (const [i, j, o] of m.bonds) {
       const a = m.p[i].clone().multiplyScalar(U), b = m.p[j].clone().multiplyScalar(U);
@@ -522,26 +600,29 @@ function buildLegend() {
       const rad = o > 1 ? 0.085 * U : 0.12 * U;
       for (const off of offs) for (const [el, k] of [[m.els[i], 0.25], [m.els[j], 0.75]]) {
         const s = new Mesh(cached('stick' + rad, () => new CylinderGeometry(rad, rad, 1, 10)), mine('s' + el, () => stickMat(el)));
-        s.material.transparent = true;
         s.quaternion.setFromUnitVectors(Y_UP, d); s.scale.set(1, L / 2, 1);
         s.position.copy(a).addScaledVector(d, L * k).addScaledVector(side, off);
         g.add(s);
       }
     }
-    const box = { w: 0, h: 0 };
-    for (const q of m.p) { box.w = Math.max(box.w, Math.abs(q.x) * U + U); box.h = Math.max(box.h, Math.abs(q.y) * U + U); }
-    G.add(g);
-    legend.mols.push({ key: t.key, g, box });
+    // the orb, behind the molecule (and hidden by it)
+    const cv = Object.assign(document.createElement('canvas'), { width: 256, height: 256 }), map = new CanvasTexture(cv); map.colorSpace = SRGBColorSpace;
+    const orb = new Sprite(new SpriteMaterial({ map, transparent: true, depthWrite: false, toneMapped: false })); orb.renderOrder = -1;
+    G.add(orb, g);
+    const rec = { key: t.key, g, ext: ext || U, orb, cv, map, done: null };
+    paintGoal(rec, false);
+    legend.mols.push(rec);
   }
-  const strip = new Mesh(new PlaneGeometry(1, 1), new MeshBasicMaterial({ map: stripTex, transparent: true, depthWrite: false, toneMapped: false }));
-  strip.renderOrder = -1; G.add(strip);
-  legend.strip = strip;
   fitLegend();
 }
-/* The legend's room, in the frame's units: a strip along the top, right of the
-   pause button and level with it. The molecule sits in its upper part (`mol`
-   is the molecule's middle, from the top of the strip); the name below. */
-const LEGEND = { top: 10, h: 100, mol: 38, label: 78 };
+function paintGoal(m, done) {
+  m.done = done;
+  paintOrb(m.cv.getContext('2d'), 256, { cols: done ? DONE_SHELL : SHELL, R: 0.36, body: 0.6, outer: done ? 0.95 : 0.45 });
+  m.map.needsUpdate = true;
+}
+/* The legend's room, in the frame's units: a band along the top, the goals' orbs in it (`GOAL_Y` from its top), their
+   names under them drawn on the 2D layer. */
+const LEGEND = { top: 10, h: 100 };
 function fitLegend() {
   /* The legend has its own small camera over that room, set so one world unit
      is one CSS pixel at the legend's depth. */
@@ -553,28 +634,30 @@ function fitLegend() {
   legend.D = (vh / 2) / Math.tan((ovCam.fov / 2) * Math.PI / 180);
   ovCam.position.set(0, 0, legend.D); ovCam.lookAt(0, 0, 0);
   if (!legend.group) return;
-  const pb = pauseBox();
-  const left = pb.x + pb.w + 12, right = LW - (MODE === 'mobile' ? 16 : 30);
-  const stripW = right - left, stripH = LEGEND.h;
-  const cx = (left + right) / 2 - LW / 2;
-  // the strip sits behind the molecule, so it is scaled up by its extra distance to be stripW across on screen
-  const behind = (legend.D + 40) / legend.D;
-  legend.strip.scale.set(stripW * k * behind, stripH * k * behind, 1);
-  legend.strip.position.set(cx * k * behind, 0, -40);
-  // the molecules side by side, as large as the room lets them be (a ball no bigger than 15px)
-  const n = legend.mols.length, gap = 18, molH = 52;
-  const wSum = legend.mols.reduce((s, m) => s + m.box.w * 2, 0);
-  const sc = Math.min((stripW - 36 - gap * (n - 1)) / Math.max(1e-3, wSum),
-                      molH / Math.max(1e-3, Math.max(...legend.mols.map((m) => m.box.h * 2))),
-                      15 / U) * k;
-  let x = cx * k - ((wSum * sc) + gap * k * (n - 1)) / 2;
-  const y = (LEGEND.h / 2 - LEGEND.mol) * k;
-  for (const m of legend.mols) {
-    m.g.scale.setScalar(sc); m.g.userData.base = sc;
-    m.g.position.set(x + m.box.w * sc, y, 0);
-    x += m.box.w * 2 * sc + gap * k;
-  }
-  legend.cx = cx; legend.w = stripW;
+  const lay = goalLayout(legend.mols.length), behind = (legend.D + 120) / legend.D, y = (LEGEND.h / 2 - GOAL_Y) * k;
+  legend.mols.forEach((m, i) => {
+    const L = lay[i], x = (L.x - LW / 2) * k, os = L.R / 0.36 * k * behind;
+    m.orb.scale.set(os, os, 1); m.orb.position.set(x * behind, y * behind, -120);
+    const sc = L.R * 0.72 * k / m.ext;      // the molecule fills the orb's middle
+    m.g.scale.setScalar(sc); m.g.userData.base = sc; m.g.position.set(x, y, 0);
+  });
+  legend.lay = lay;
+}
+
+/* A soft dark fade over the top of the space (as in the studies): atoms drifting under the goals go quiet there
+   instead of crowding their names. Not a strip: no edge, only the space getting darker. Drawn between the world and
+   the goals. */
+const scrim = { s: new Scene(), c: new PerspectiveCamera(6, 1, 1, 100000), mesh: null };
+function fitScrim() {
+  const D = (cssH / 2) / Math.tan(3 * Math.PI / 180);
+  scrim.c.aspect = cssW / Math.max(1, cssH); scrim.c.position.set(0, 0, D); scrim.c.lookAt(0, 0, 0); scrim.c.updateProjectionMatrix();
+  if (scrim.mesh) { scrim.s.remove(scrim.mesh); scrim.mesh.material.map.dispose(); scrim.mesh.material.dispose(); }
+  const end = Math.min(0.5, (LEGEND.top + GOAL_Y + 44 + 64) / LH);    // fades out just below the goals' names
+  const map = canvasTex(4, 256, (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h);
+    gr.addColorStop(0, 'rgba(2,4,10,0.92)'); gr.addColorStop(end * 0.55, 'rgba(2,4,10,0.78)'); gr.addColorStop(end, 'rgba(2,4,10,0)'); gr.addColorStop(1, 'rgba(2,4,10,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, w, h); });
+  scrim.mesh = new Mesh(new PlaneGeometry(cssW, cssH), new MeshBasicMaterial({ map, transparent: true, depthTest: false, depthWrite: false, toneMapped: false }));
+  scrim.s.add(scrim.mesh);
 }
 
 // ---------- LEVEL ----------
@@ -630,7 +713,7 @@ function segDist(p, a, b) {
    `near`, a little more than half of them in the half you face at the start.
    One atom you need waits straight ahead, a little high, on a clear line (as
    the owner's frame), and every atom you need has a clear line in from some
-   way you can face. Placed from the level's seed, so a level is always the
+   way you can face. The rest are all round you, above and below as well. Placed from the level's seed, so a level is always the
    same place. A 3D layout per level, checked by a search and then played, is
    the real job and is not done: see the handoff. */
 const FRONT = (() => {
@@ -662,7 +745,8 @@ function placeAtoms(ids, leadId, seed, variant, hazards) {
         // a little over half in the view you start with, the rest all the way round
         const front = i < rest.length * 0.55;
         const yaw = front ? (R() - 0.5) * 2 * FRONT.yaw : (R() - 0.5) * 360;
-        const pitch = Math.asin((R() * 2 - 1) * Math.sin((front ? FRONT.pitch : 32) * Math.PI / 180)) * 180 / Math.PI;
+        // the rest all round you, above and below too (owner, 2026-10-03: atoms everywhere you can look)
+        const pitch = Math.asin((R() * 2 - 1) * Math.sin((front ? FRONT.pitch : 72) * Math.PI / 180)) * 180 / Math.PI;
         const p = at(yaw, pitch, near + R() * (far - near));
         let ok = true;
         for (const q of pos.values()) if (q.distanceTo(p) < keep) { ok = false; break; }
@@ -716,7 +800,8 @@ function placeAtoms(ids, leadId, seed, variant, hazards) {
   return best;
 }
 
-let placement = null, hazardIds = [];
+let placement = null, hazardIds = [], opening = null, splashGone = false;
+window.addEventListener('splash-done', () => { splashGone = true; if (opening && opening.t0 === Infinity) opening.t0 = clock() + 600; });
 function startLevel(n, variant) {
   levelNo = n;
   LEVEL = LIST[n - 1];
@@ -750,6 +835,14 @@ function startLevel(n, variant) {
   previews.clear(); helpCache.clear();
   aura = null; auraSprite.visible = false;
   look.yaw = 0; look.pitch = 0; look.vy = 0; look.vp = 0; look.pos.set(0, 0, 0); look.drift = null;
+  /* THE OPENING (owner, 2026-10-03: "the first onboarding session could show that the user pans to find the right
+     molecule"). The very first time, you start facing away from the atom to take, and a finger drags the view round to
+     it; then the ring shows the tap. Any touch hands the view straight back to you. */
+  opening = null;
+  if (!HARNESS && n === 1 && !doneSet().size && !save.opened) {
+    look.yaw = Math.PI; opening = { t0: splashGone ? clock() + 700 : Infinity, ms: 1900 };   // it starts once the cover has gone
+    save.opened = true; try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (_) { /* private window */ }
+  }
   gyroReset();
   levelT0 = clock();
   updateCamera(0);
@@ -760,7 +853,8 @@ function startLevel(n, variant) {
 
 // ---------- LOOKING, TURNING, DRIFTING ----------
 const look = { yaw: 0, pitch: 0, vy: 0, vp: 0, pos: new Vector3(), drift: null };
-const PITCH_MAX = 80 * Math.PI / 180;
+// you may look up to straight overhead and down to straight below, and up stays up (owner, 2026-10-03)
+const PITCH_MAX = 88 * Math.PI / 180;
 const gyro = { on: false, q: new Quaternion(), yawOff: 0, pitchOff: 0, fresh: false, last: 0 };
 function gyroReset() { gyro.fresh = true; }
 const zee = new Vector3(0, 0, 1), qX = new Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5));
@@ -794,6 +888,11 @@ function askOrientation() {
   } else listen();
 }
 function updateCamera(dt) {
+  if (opening) {
+    const k = opening.t0 === Infinity ? 0 : Math.max(0, Math.min(1, (clock() - opening.t0) / opening.ms));
+    look.yaw = Math.PI * (1 - k * k * (3 - 2 * k));
+    if (k >= 1) opening = null;
+  }
   if (dt > 0 && !drag.active) {
     // a flick keeps turning a moment
     look.yaw += look.vy * dt; look.pitch += look.vp * dt;
@@ -869,12 +968,12 @@ function bondAtoms(a, b) {
   // whatever touches what you hold becomes part of it
   if (held.has(a) || held.has(b)) { for (const id of group) { toCam(id); held.add(id); } }
   if (ev.done && ev.done.kind === 'required') {
-    startLift(ev.done.ids);
+    startLift(ev.done.ids, ev.done.key);
     for (const id of ev.done.ids) held.delete(id);
     setTimeout(SND.lift, 120);
   } else if (ev.done) {
     // finished, and not on the list: it is used up, and lets go of you
-    for (const id of ev.done.ids) { toWorld(id); held.delete(id); const v = view(id); v.ball.material = ballMat(v.el, true); v.halo.visible = false; v.letter.material = mat('letterw' + v.el, () => { const m = letterMat(v.el).clone(); m.opacity = 0.5; return m; }); }
+    for (const id of ev.done.ids) { toWorld(id); held.delete(id); const v = view(id); v.ball.material = ballMat(v.el, true).clone(); v.halo.visible = false; v.letter.material = mat('letterw' + v.el, () => { const m = letterMat(v.el).clone(); m.opacity = 0.5; return m; }); }
     setTimeout(SND.waste, 60);
   }
   if (ev.lost) setTimeout(SND.lost, 90);
@@ -994,7 +1093,7 @@ function glideStep(dt) {
 // ---------- LIFT, WIN, FAIL ----------
 const liftTimes = () => (REDUCED ? { spin: 0, fly: 0 } : { spin: TUNE.spinMs, fly: TUNE.flyMs });
 let aura = null;
-function startLift(ids) {
+function startLift(ids, key) {
   /* The molecule is kept in front of you while it celebrates: each atom's place
      is held relative to your view, so it turns with you if you turn. */
   const now = clock(), { spin, fly } = liftTimes();
@@ -1002,7 +1101,8 @@ function startLift(ids) {
   const locals = ids.map((id) => view(id).wp.clone().sub(cam.position).applyQuaternion(inv));
   const mid = locals.reduce((m, q) => m.add(q), new Vector3()).multiplyScalar(1 / locals.length);
   const size = Math.max(...locals.map((q) => q.distanceTo(mid))) + U * 2;
-  ids.forEach((id, i) => { const v = view(id); v.lift = { t0: now, spin, fly, local: locals[i], mid, size }; v.frame = 'lift'; });
+  const goal = Math.max(0, st.targets.findIndex((t) => t.key === key));      // which orb it flies to
+  ids.forEach((id, i) => { const v = view(id); v.lift = { t0: now, spin, fly, local: locals[i], mid, size, goal }; v.frame = 'lift'; });
   aura = { t0: now, spin, mid, size };
   legend.pending = now + spin + fly;
 }
@@ -1021,8 +1121,20 @@ function simStep(dt) {
   if (!card) heldSweep();
   if (glide) glideStep(dt);
   if (!REDUCED) thermal(dt);
+  revolve(dt);
   relax();
   for (const v of V.values()) if (v.frame === 'cam') worldOf(v, v.wp);
+}
+// The whole floating world turns about the room's upright axis, rigidly, so a level's lines stay as they were placed.
+function revolve(dt) {
+  const a = TUNE.revolve * dt;
+  if (!a) return;
+  const q = new Quaternion().setFromAxisAngle(Y_UP, a);
+  for (const v of V.values()) {
+    if (v.frame !== 'world' || v.lift || st.atoms[v.id].status === 'gone' || (glide && glide.ids.has(v.id))) continue;
+    v.pos.applyQuaternion(q); v.vel.applyQuaternion(q); v.q.premultiply(q);
+  }
+  farField.rotation.y += a;
 }
 function gauss() { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }
 function thermal(dt) {
@@ -1097,7 +1209,8 @@ const camDir = new Vector3();
 function drawWorld(now) {
   camDir.set(0, 0, -1).applyQuaternion(cam.quaternion);
   const camInv = cam.quaternion.clone().invert();
-  const legendAt = rayDir({ x: LW / 2 + (legend.cx || 0), y: LEGEND.top + LEGEND.mol }).multiplyScalar(14).applyQuaternion(camInv);   // in front of you
+  // where each goal's orb is, in front of you
+  const goalAt = (legend.lay || goalLayout(1)).map((L) => rayDir({ x: L.x, y: LEGEND.top + GOAL_Y }).multiplyScalar(14).applyQuaternion(camInv));
   const pairs = new Map();
   if (glide && glide.to >= 0) { pairs.set(glide.lead, glide.to); pairs.set(glide.to, glide.lead); }
   for (const v of V.values()) {
@@ -1118,7 +1231,7 @@ function drawWorld(now) {
           if (!L.landed) { L.landed = true; if (sfx) sfx.play('finish'); }
           v.g.visible = false; v.wp.copy(cam.position); continue;
         }
-        q.copy(L.local).lerp(legendAt, e);
+        q.copy(L.local).lerp(goalAt[L.goal] || goalAt[0], e);
         scale = 1 - 0.75 * e; v.fade = 1 - Math.max(0, (k - 0.6) / 0.4);
         v.halo.material.opacity = 0.38 * v.fade;
       }
@@ -1132,7 +1245,12 @@ function drawWorld(now) {
       v.g.position.addScaledVector(tmpA.set(1, 0, 0).applyQuaternion(cam.quaternion), Math.sin((now - v.shake) / 26) * 0.22 * k);
     }
     v.g.scale.setScalar(scale);
-    v.ball.material.opacity = v.fade;
+    // out of focus with distance: the glass fades into a soft disc of its own colour; the nearest stay sharp
+    const fd = v.lift ? 0 : Math.max(0, Math.min(1, (tmpA.copy(p).sub(cam.position).length() / U - FOCUS.sharp) / (FOCUS.soft - FOCUS.sharp)));
+    const blurK = fd * fd * (3 - 2 * fd);
+    v.ball.material.opacity = v.own.opacity = v.fade * (1 - 0.82 * blurK);
+    v.blur.visible = blurK > 0.02;
+    if (v.blur.visible) { const bs = v.r * (2.1 + 1.4 * blurK); v.blur.scale.set(bs, bs, 1); v.blur.material.opacity = 0.8 * blurK * v.fade; }
     /* the letter sits on the face toward you, never too small to read, and in front of
        the atom's own sticks: a bond turned toward you used to cross it (owner, 2026-10-03) */
     v.letter.position.copy(tmpA.copy(cam.position).sub(p).normalize().multiplyScalar(v.r * 1.7));
@@ -1147,7 +1265,8 @@ function drawWorld(now) {
     v.hands.forEach((h, i) => {
       const d = dirs[i];
       const on = !!d && !v.lift;
-      h.arm.visible = h.flare.visible = h.tip.visible = h.tg.visible = on;
+      h.arm.visible = h.flare.visible = on;
+      h.tip.visible = h.tg.visible = on && blurK < 0.6;     // out of focus, the bright tips go first
       if (!on) return;
       const len = v.r * TUNE.hand, L = v.r * (TUNE.hand - ARM.reach - 0.1);
       h.flare.quaternion.setFromUnitVectors(Y_UP, d);
@@ -1159,7 +1278,7 @@ function drawWorld(now) {
       h.tip.material = tipMat(green ? GREEN_TIP : amber ? AMBER_TIP : WHITE_TIP);
       h.tg.material.color.set(green ? GREEN_TIP : amber ? AMBER_TIP : ART[v.el].hi);
       const s = (green ? 1.9 : 0.9) * v.r; h.tg.scale.set(s, s, 1);
-      h.tg.material.opacity = green ? 0.95 : 0.7;
+      h.tg.material.opacity = (green ? 0.95 : 0.7) * (1 - blurK);
     });
   }
   if (aura) {
@@ -1210,30 +1329,26 @@ function drawLegend(now) {
   if (legend.pending && now >= legend.pending) { legend.pulse = now; legend.pending = 0; }
   if (now - legend.pulse < 600) pulse = Math.sin((now - legend.pulse) / 600 * Math.PI) * 0.12;
   legend.mols.forEach((m, i) => {
-    const t = st.targets[i], made = (st.made[t.key] || 0) >= t.n && !legend.pending;   // lit until the molecule lands
+    const t = st.targets[i], made = (st.made[t.key] || 0) >= t.n && !legend.pending;   // gold once the molecule has landed
+    if (made !== m.done) paintGoal(m, made);
     m.g.rotation.set(0.25, sway, 0);
     m.g.scale.setScalar(m.g.userData.base * (1 + pulse));
-    m.g.traverse((o) => { if (o.material) o.material.opacity = made ? 0.35 : 1; });
   });
 }
 
 // ---------- THE CHROME ----------
 const hits = {};
-// The one control in play, level with the legend (this game's exception to DESIGN-SYSTEM 4.2).
-const pauseBox = () => ({ x: MODE === 'mobile' ? 16 : 30, y: LEGEND.top + LEGEND.h / 2 - 22, w: 44, h: 44 });
+// The one control in play: a small plain orb at the top left, level with the goals; it opens the menu card.
+const pauseBox = () => ({ x: MODE === 'mobile' ? 16 : 30, y: LEGEND.top + GOAL_Y - 22, w: 44, h: 44 });
 function drawPause() {
-  const b = pauseBox(), cx = b.x + 22, cy = b.y + 22;
-  UI.drawRound(ctx, cx, cy);
-  // the pause mark, in the controls' own ink (drawIcon has no pause)
-  ctx.fillStyle = UI.PILL.text;
-  UI.roundRectPath(ctx, cx - 6.5, cy - 7.5, 4.5, 15, 1.5); ctx.fill();
-  UI.roundRectPath(ctx, cx + 2, cy - 7.5, 4.5, 15, 1.5); ctx.fill();
+  const b = pauseBox(), cx = b.x + 22, cy = b.y + 22, sz = 21 / 0.36;
+  ctx.drawImage(MENU_ORB, cx - sz / 2, cy - sz / 2, sz, sz);
   hits.pause = b;
 }
 
 // The verb shown at rest (DESIGN-SYSTEM 10.1): a soft ring taps the atom to pull in, until the first input.
 function drawHint(now) {
-  if (firstInput || card || menu || map || hintId < 0 || !live(hintId) || held.has(hintId)) return;
+  if (firstInput || opening || card || menu || map || hintId < 0 || !live(hintId) || held.has(hintId)) return;
   const s = screenOf(view(hintId));
   if (!s) return;
   for (let k = 0; k < 2; k++) {
@@ -1442,35 +1557,44 @@ function wrap(s, x, y, w, lh, max) {
   if (line) ctx.fillText(line, x, y + n * lh);
 }
 
-/* The name under the target, with the formula in brackets (owner, 2026-10-02):
-   "Aluminium oxide (Al₂O₃)". Measured against the strip, with shorter forms. */
-function legendLabel() {
-  const ts = st.targets;
-  const name = (t) => { const m = M.MOLECULES[t.key]; return m.name[0].toUpperCase() + m.name.slice(1); };
-  const count = (t) => (t.n > 1 ? ` ×${t.n}` : '');
-  return [
-    ts.map((t, i) => `${i ? name(t).toLowerCase() : name(t)} (${formulaOf(t.key)})${count(t)}`).join(' + '),
-    ts.map((t) => `${formulaOf(t.key)}${count(t)}`).join(' + '),
-  ];
+/* Each goal's name under its orb, with the formula in brackets (owner, 2026-10-02): "Aluminium oxide (Al₂O₃)", and
+   how many when more than one. With two or three goals the name wraps in its own room, the formula on the last line. */
+function goalLines(t, wrapW, n) {
+  const m = M.MOLECULES[t.key], name = m.name[0].toUpperCase() + m.name.slice(1), tail = `(${formulaOf(t.key)})${t.n > 1 ? ` ×${t.n}` : ''}`;
+  if (n <= 1 && ctx.measureText(`${name} ${tail}`).width <= wrapW) return [`${name} ${tail}`];
+  const lines = []; let cur = '';
+  for (const wd of name.split(' ')) { const tr = cur ? cur + ' ' + wd : wd; if (!cur || ctx.measureText(tr).width <= wrapW) cur = tr; else { lines.push(cur); cur = wd; } }
+  if (ctx.measureText(`${cur} ${tail}`).width <= wrapW) lines.push(`${cur} ${tail}`); else lines.push(cur, tail);
+  return lines;
 }
 function drawLegendLabel() {
-  if (!legend.group || menu || map || (card && clock() >= card.showAt)) return;
-  ctx.font = '700 16px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  const room = legend.w - 28, forms = legendLabel();
-  const text = forms.find((f) => ctx.measureText(f).width <= room) || forms[forms.length - 1];
-  const done = st.targets.every((t) => (st.made[t.key] || 0) >= t.n) && !legend.pending;
-  ctx.fillStyle = done ? TOK.ink72 : TOK.text;
-  fitText(text, LW / 2 + legend.cx, LEGEND.top + LEGEND.label, room);
+  if (!legend.group || !legend.lay || menu || map || (card && clock() >= card.showAt)) return;
+  ctx.font = '600 16px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const n = st.targets.length;
+  st.targets.forEach((t, i) => {
+    const L = legend.lay[i], done = legend.mols[i] && legend.mols[i].done;
+    ctx.fillStyle = done ? INK_DONE : TOK.text;
+    goalLines(t, L.wrap, n).forEach((ln, j) => fitText(ln, L.x, LEGEND.top + GOAL_Y + L.R + 20 + j * 19, L.wrap));
+  });
   ctx.textAlign = 'left';
-  legend.labelText = text;
 }
 
+function drawOpening(now) {
+  if (!opening) return;
+  const a = (now - opening.t0) / opening.ms;          // below 0 the finger arrives, above 1 it lifts
+  if (a < -0.3 || a > 1.15) return;
+  const k = Math.max(0, Math.min(1, a)), e = k * k * (3 - 2 * k), x = LW * (0.74 - 0.48 * e), y = LH * 0.6;
+  const show = Math.min(1, (a + 0.3) / 0.25) * (1 - Math.max(0, (a - 1) / 0.15)), r = 18 * (a >= 0 && a <= 1 ? 0.86 : 1.1);
+  ctx.fillStyle = `rgba(255,255,255,${0.22 * show})`; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = `rgba(255,255,255,${0.8 * show})`; ctx.lineWidth = 2; ctx.stroke();
+}
 function drawHud(now) {
   const k = hud.width / LW;
   ctx.setTransform(k, 0, 0, k, 0, 0);
   ctx.clearRect(0, 0, LW, LH);
   for (const key in hits) delete hits[key];
   drawHint(now);
+  drawOpening(now);
   drawLegendLabel();
   if ((!card || now < card.showAt) && !map) drawPause();
   if (map) drawMap();
@@ -1587,6 +1711,7 @@ hud.addEventListener('pointerdown', (e) => {
   if (card) return;
   if (menu) { menuDown(p, e); return; }
   if (inBox(p, hits.pause)) { SND.pick(); menu = { scroll: 0 }; look.drift = null; return; }
+  opening = null;
   Object.assign(drag, { active: true, id: e.pointerId, x0: p.x, y0: p.y, x: p.x, y: p.y, t0: clock(), mode: 'pending', lastX: p.x, lastY: p.y, lastT: clock() });
   look.vy = look.vp = 0;
   try { hud.setPointerCapture(e.pointerId); } catch (_) {}
@@ -1675,6 +1800,7 @@ function frame() {
   renderer.setViewport(0, 0, cssW, cssH); renderer.setScissorTest(false);
   renderer.clear();
   renderer.render(scene, cam);
+  if (!menu && !map) { renderer.clearDepth(); renderer.render(scrim.s, scrim.c); }
   // the target, over the top of the frame
   if (!menu && !map && !(card && now >= card.showAt)) {
     const k = cssW / LW, vh = LEGEND.h * k, vy = cssH - (LEGEND.top + LEGEND.h) * k;
@@ -1857,7 +1983,7 @@ function planMove(careless) {
     const yaw0 = Math.atan2(-d.x, -d.z), pitch0 = Math.atan2(d.y, Math.hypot(d.x, d.z));
     const heads = careless ? [HEADS[0]] : PILOT_HEADS;
     for (const [oy, op] of heads) {
-      const yaw = yaw0 + oy, pitch = Math.max(-1.2, Math.min(1.2, pitch0 + op));
+      const yaw = yaw0 + oy, pitch = Math.max(-1.5, Math.min(1.5, pitch0 + op));
       if (careless) { if (!onScreenAt(c.t, yaw, pitch)) continue; }
       else if (!clearAt(c.t, yaw, pitch)) continue;
       let path = [], extra = 0;
