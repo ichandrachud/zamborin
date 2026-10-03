@@ -533,8 +533,10 @@ function fitLegend() {
   const left = pb.x + pb.w + 12, right = LW - (MODE === 'mobile' ? 16 : 30);
   const stripW = right - left, stripH = LEGEND.h;
   const cx = (left + right) / 2 - LW / 2;
-  legend.strip.scale.set(stripW * k, stripH * k, 1);
-  legend.strip.position.set(cx * k, 0, -40);
+  // the strip sits behind the molecule, so it is scaled up by its extra distance to be stripW across on screen
+  const behind = (legend.D + 40) / legend.D;
+  legend.strip.scale.set(stripW * k * behind, stripH * k * behind, 1);
+  legend.strip.position.set(cx * k * behind, 0, -40);
   // the molecules side by side, as large as the room lets them be (a ball no bigger than 15px)
   const n = legend.mols.length, gap = 18, molH = 52;
   const wSum = legend.mols.reduce((s, m) => s + m.box.w * 2, 0);
