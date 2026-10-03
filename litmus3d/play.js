@@ -103,7 +103,10 @@ const TUNE = {
   room: 62,                     // nothing goes further from the middle than this, you included
   driftSpeed: 6,                // when you hold to drift
   holdMs: 260, tapPx: 9,
-  cardWinMs: 1500, cardFailMs: 1500, liftMs: 1100,
+  cardFailMs: 1500, cardAfterMs: 500,
+  /* A made molecule glows and turns in front of you, then flies up into the
+     target (owner, 2026-10-02: "glow and rotate for 2 seconds"). */
+  spinMs: 2000, flyMs: 1100,
 };
 const STEP = 1 / 60;
 
@@ -270,12 +273,29 @@ const armMat = (el) => mat('arm' + el, () => new MeshPhysicalMaterial({
 }));
 const tipMat = (hex) => mat('tip' + hex, () => new MeshBasicMaterial({ color: hex, toneMapped: false }));
 const letterTex = new Map();
+/* THE LETTERS. A far atom's letter was a few pixels tall and could not be read
+   (owner, 2026-10-02: "a little bigger"). Each letter is drawn large in its
+   texture, sized on the atom as before when the atom is near, and grown as the
+   atom gets further away so its capitals never stand under LETTER.cap pixels,
+   up to a size that still sits on the ball. */
+const LETTER = { cap: 11, font: (el) => (el.length > 1 ? 72 : 88), max: 1.9 };
+const capOf = (el) => 0.727 * LETTER.font(el) / 128;      // Inter's capital height, as a share of the texture
+const letterBase = (el) => (el.length > 1 ? 0.97 : 0.91);  // radii: the size the letters had, near
+const letterDraws = [];
 function letterMat(el) {
-  return mat('letter' + el, () => new SpriteMaterial({ transparent: true, depthWrite: false, map: canvasTex(128, 128, (g, w) => {
-    g.fillStyle = ART[el].ink; g.font = `700 ${el.length > 1 ? 56 : 64}px Inter, sans-serif`;
-    g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(el, w / 2, w / 2 + 3);
-  }) }));
+  return mat('letter' + el, () => {
+    const draw = (g, w) => {
+      g.clearRect(0, 0, w, w);
+      g.fillStyle = ART[el].ink; g.font = `700 ${LETTER.font(el)}px Inter, sans-serif`;
+      g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(el, w / 2, w / 2 + 4);
+    };
+    const map = canvasTex(128, 128, draw);
+    letterDraws.push(() => { draw(map.image.getContext('2d'), 128); map.needsUpdate = true; });
+    return new SpriteMaterial({ transparent: true, depthWrite: false, map });
+  });
 }
+// A letter drawn before Inter arrived is in the system face: draw them again once it is here.
+if (document.fonts) document.fonts.load('700 72px Inter').then(() => letterDraws.forEach((f) => f())).catch(() => {});
 const Y_UP = new Vector3(0, 1, 0), X_AXIS = new Vector3(1, 0, 0);
 
 /* An atom's look: glossy glass, a tight glow of its own colour, slim tapered
@@ -286,7 +306,7 @@ function makeView(a) {
   const g = new Group();
   const ball = new Mesh(cached('ball' + r, () => new SphereGeometry(r, 40, 28)), ballMat(el));
   const halo = glow(hi, r * 2.7, 0.38);
-  const letter = new Sprite(letterMat(el)); letter.scale.set(r * 1.25, r * 1.25, 1);
+  const letter = new Sprite(letterMat(el)); letter.scale.set(r * letterBase(el), r * letterBase(el), 1);
   g.add(ball, halo, letter);
   const L = r * (TUNE.hand - 0.85);
   const hands = [];
@@ -396,6 +416,8 @@ function clearWorld() {
 const trail = [];
 for (let i = 0; i < 28; i++) { const s = glow(0xFFFFFF, 1, 0); s.visible = false; scene.add(s); trail.push({ s, t0: 0, life: 0, size: 1 }); }
 let trailNext = 0;
+// a soft light behind a molecule as it is made
+const auraSprite = glow(0xBFE3FF, 1, 0); auraSprite.visible = false; scene.add(auraSprite);
 function dropTrail(p, el, r) {
   const t = trail[trailNext++ % trail.length];
   t.s.position.copy(p); t.s.material.color.set(ART[el].hi); t.s.visible = true;
@@ -456,7 +478,7 @@ function shapeOf(key) {
 function buildLegend() {
   if (legend.group) ov.remove(legend.group);
   const G = new Group(); ov.add(G);
-  legend.group = G; legend.mols = [];
+  legend.group = G; legend.mols = []; legend.pending = 0;
   for (const t of st.targets) {
     const m = molecule3d(t.key), g = new Group();
     // its own materials, so dimming a made target never dims an atom in the space
@@ -648,6 +670,7 @@ function startLevel(n) {
   placement = placeAtoms(floating, lead, LEVEL.seed);
   hintId = lead;
   glide = null; card = null; menu = null; refused = null;
+  aura = null; auraSprite.visible = false;
   look.yaw = 0; look.pitch = 0; look.vy = 0; look.vp = 0; look.pos.set(0, 0, 0); look.drift = null;
   gyroReset();
   levelT0 = clock();
@@ -873,19 +896,25 @@ function glideStep(dt) {
 }
 
 // ---------- LIFT, WIN, FAIL ----------
+const liftTimes = () => (REDUCED ? { spin: 0, fly: 0 } : { spin: TUNE.spinMs, fly: TUNE.flyMs });
+let aura = null;
 function startLift(ids) {
-  const now = clock();
-  for (const id of ids) {
-    const v = view(id);
-    v.lift = { t0: now, from: v.wp.clone() };
-    toWorld(id);
-  }
-  legend.pending = now + TUNE.liftMs;
+  /* The molecule is kept in front of you while it celebrates: each atom's place
+     is held relative to your view, so it turns with you if you turn. */
+  const now = clock(), { spin, fly } = liftTimes();
+  const inv = cam.quaternion.clone().invert();
+  const locals = ids.map((id) => view(id).wp.clone().sub(cam.position).applyQuaternion(inv));
+  const mid = locals.reduce((m, q) => m.add(q), new Vector3()).multiplyScalar(1 / locals.length);
+  const size = Math.max(...locals.map((q) => q.distanceTo(mid))) + U * 2;
+  ids.forEach((id, i) => { const v = view(id); v.lift = { t0: now, spin, fly, local: locals[i], mid, size }; v.frame = 'lift'; });
+  aura = { t0: now, spin, mid, size };
+  legend.pending = now + spin + fly;
 }
 function endLevel() {
   const r = st.result;
   glide = null; look.drift = null;
-  card = { kind: r.kind, showAt: clock() + (r.kind === 'win' ? TUNE.cardWinMs : TUNE.cardFailMs), sounded: false, scroll: 0 };
+  const { spin, fly } = liftTimes();
+  card = { kind: r.kind, showAt: clock() + (r.kind === 'win' ? spin + fly + TUNE.cardAfterMs : TUNE.cardFailMs), sounded: false, scroll: 0 };
 }
 
 // ---------- THE STEP ----------
@@ -970,17 +999,34 @@ function relax() {
 const camDir = new Vector3();
 function drawWorld(now) {
   camDir.set(0, 0, -1).applyQuaternion(cam.quaternion);
-  const legendAt = rayDir({ x: LW / 2 + (legend.cx || 0), y: LEGEND.top + LEGEND.mol }).multiplyScalar(14).add(cam.position);
+  const camInv = cam.quaternion.clone().invert();
+  const legendAt = rayDir({ x: LW / 2 + (legend.cx || 0), y: LEGEND.top + LEGEND.mol }).multiplyScalar(14).applyQuaternion(camInv);   // in front of you
   const pairs = new Map();
   if (glide && glide.to >= 0) { pairs.set(glide.lead, glide.to); pairs.set(glide.to, glide.lead); }
   for (const v of V.values()) {
     const a = st.atoms[v.id];
     let p = v.wp, scale = 1;
     if (v.lift) {
-      const t = Math.min(1, (now - v.lift.t0) / TUNE.liftMs), e = t * t * (3 - 2 * t);
-      p = tmpB.copy(v.lift.from).lerp(legendAt, e);
-      scale = 1 - 0.75 * e; v.fade = 1 - Math.max(0, (t - 0.6) / 0.4);
-      if (t >= 1) { v.g.visible = false; continue; }
+      const L = v.lift, t = now - L.t0, q = tmpB;
+      if (t < L.spin) {
+        // one slow turn about your view's up, swelling a little, its glow brightening and easing
+        const k = t / L.spin, e = k * k * (3 - 2 * k), swell = Math.sin(k * Math.PI);
+        q.copy(L.local).sub(L.mid).applyAxisAngle(Y_UP, e * Math.PI * 2).multiplyScalar(1 + 0.08 * swell).add(L.mid);
+        v.halo.visible = true;
+        const hs = v.r * (2.7 + 2.4 * swell); v.halo.scale.set(hs, hs, 1);
+        v.halo.material.opacity = 0.38 + 0.5 * swell;
+      } else {
+        const k = L.fly ? Math.min(1, (t - L.spin) / L.fly) : 1, e = k * k * (3 - 2 * k);
+        if (k >= 1) {
+          if (!L.landed) { L.landed = true; if (sfx) sfx.play('finish'); }
+          v.g.visible = false; v.wp.copy(cam.position); continue;
+        }
+        q.copy(L.local).lerp(legendAt, e);
+        scale = 1 - 0.75 * e; v.fade = 1 - Math.max(0, (k - 0.6) / 0.4);
+        v.halo.material.opacity = 0.38 * v.fade;
+      }
+      p = q.applyQuaternion(cam.quaternion).add(cam.position);
+      v.wp.copy(p);
     } else if (a.status === 'gone') { v.g.visible = false; continue; }
     v.g.visible = true;
     v.g.position.copy(p);
@@ -990,8 +1036,12 @@ function drawWorld(now) {
     }
     v.g.scale.setScalar(scale);
     v.ball.material.opacity = v.fade;
-    // the letter sits on the face toward you
+    // the letter sits on the face toward you, never too small to read
     v.letter.position.copy(tmpA.copy(cam.position).sub(p).normalize().multiplyScalar(v.r * 1.04));
+    const depth = Math.max(0.5, tmpA.copy(p).sub(cam.position).dot(camDir));
+    const perUnit = (LH / 2) / (depth * Math.tan((FOV / 2) * Math.PI / 180));   // frame pixels per world unit there
+    const ls = Math.min(v.r * LETTER.max, Math.max(v.r * letterBase(v.el), LETTER.cap / capOf(v.el) / perUnit));
+    v.letter.scale.set(ls, ls, 1);
     const dirs = a.status === 'live' ? handDirs(v) : [];
     const partner = pairs.get(v.id);
     if (partner != null && dirs.length) dirs[0] = tmpC.copy(view(partner).wp).sub(p).normalize().clone();
@@ -1012,6 +1062,17 @@ function drawWorld(now) {
       const s = (green ? 1.9 : 0.9) * v.r; h.tg.scale.set(s, s, 1);
       h.tg.material.opacity = green ? 0.95 : 0.7;
     });
+  }
+  if (aura) {
+    const t = now - aura.t0;
+    if (t >= aura.spin) { auraSprite.visible = false; aura = null; }
+    else {
+      const swell = Math.sin((t / aura.spin) * Math.PI);
+      auraSprite.visible = true;
+      auraSprite.position.copy(aura.mid).applyQuaternion(cam.quaternion).add(cam.position);
+      const s = aura.size * (2.2 + 0.6 * swell); auraSprite.scale.set(s, s, 1);
+      auraSprite.material.opacity = 0.42 * swell;
+    }
   }
   for (const bv of bondViews.values()) drawBond(bv);
   for (const t of trail) {
@@ -1036,7 +1097,7 @@ function drawLegend(now) {
   if (legend.pending && now >= legend.pending) { legend.pulse = now; legend.pending = 0; }
   if (now - legend.pulse < 600) pulse = Math.sin((now - legend.pulse) / 600 * Math.PI) * 0.12;
   legend.mols.forEach((m, i) => {
-    const t = st.targets[i], made = (st.made[t.key] || 0) >= t.n;
+    const t = st.targets[i], made = (st.made[t.key] || 0) >= t.n && !legend.pending;   // lit until the molecule lands
     m.g.rotation.set(0.25, sway, 0);
     m.g.scale.setScalar(m.g.userData.base * (1 + pulse));
     m.g.traverse((o) => { if (o.material) o.material.opacity = made ? 0.35 : 1; });
@@ -1284,7 +1345,7 @@ function drawLegendLabel() {
   ctx.font = '700 16px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   const room = legend.w - 28, forms = legendLabel();
   const text = forms.find((f) => ctx.measureText(f).width <= room) || forms[forms.length - 1];
-  const done = st.targets.every((t) => (st.made[t.key] || 0) >= t.n);
+  const done = st.targets.every((t) => (st.made[t.key] || 0) >= t.n) && !legend.pending;
   ctx.fillStyle = done ? TOK.ink72 : TOK.text;
   fitText(text, LW / 2 + legend.cx, LEGEND.top + LEGEND.label, room);
   ctx.textAlign = 'left';
