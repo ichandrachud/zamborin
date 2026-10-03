@@ -294,7 +294,8 @@ function letterMat(el) {
     };
     const map = canvasTex(128, 128, draw);
     letterDraws.push(() => { draw(map.image.getContext('2d'), 128); map.needsUpdate = true; });
-    return new SpriteMaterial({ transparent: true, depthWrite: false, map });
+    // drawn last and over everything (drawWorld hides it behind a nearer atom), and a sprite always stands upright
+    return new SpriteMaterial({ transparent: true, depthWrite: false, depthTest: false, map });
   });
 }
 // A letter drawn before Inter arrived is in the system face: draw them again once it is here.
@@ -309,7 +310,7 @@ function makeView(a) {
   const g = new Group();
   const ball = new Mesh(cached('ball' + r, () => new SphereGeometry(r, 40, 28)), ballMat(el));
   const halo = glow(hi, r * 2.7, 0.38);
-  const letter = new Sprite(letterMat(el)); letter.scale.set(r * letterBase(el), r * letterBase(el), 1);
+  const letter = new Sprite(letterMat(el)); letter.scale.set(r * letterBase(el), r * letterBase(el), 1); letter.renderOrder = 50;
   g.add(ball, halo, letter);
   const L = r * (TUNE.hand - 0.85);
   const hands = [];
@@ -1149,6 +1150,7 @@ function drawWorld(now) {
     }
   }
   for (const bv of bondViews.values()) drawBond(bv);
+  lettersFace();
   for (const t of trail) {
     if (!t.s.visible) continue;
     const k = (now - t.t0) / t.life;
@@ -1162,6 +1164,19 @@ function drawWorld(now) {
     if (k >= 1) { f.s.visible = false; continue; }
     f.s.material.opacity = 0.9 * (1 - k);
     const s = U * (2 + 4 * k); f.s.scale.set(s, s, 1);
+  }
+}
+/* LETTERS, ALWAYS LEGIBLE (owner, 2026-10-03: "all letters on top of the atoms
+   must be clearly legible and always vertical"). A letter is drawn over
+   everything, so no stick, glow or trail crosses it; it shows only when no
+   nearer atom covers its own atom's middle on the screen. */
+function lettersFace() {
+  const seen = [];
+  for (const v of V.values()) { if (!v.g.visible) continue; const s = screenOf(v); if (s) seen.push({ v, x: s.x, y: s.y, r: s.r * v.g.scale.x, z: s.z }); else v.letter.visible = false; }
+  for (const A of seen) {
+    let hidden = A.v.g.scale.x < 0.45 || A.v.fade < 0.3;
+    for (const B of seen) { if (hidden) break; if (B !== A && B.z < A.z - 0.05 && Math.hypot(A.x - B.x, A.y - B.y) < B.r * 0.92) hidden = true; }
+    A.v.letter.visible = !hidden;
   }
 }
 function drawLegend(now) {
