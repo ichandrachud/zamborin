@@ -24,7 +24,7 @@
 
 import {
   WebGLRenderer, Scene, PerspectiveCamera, HemisphereLight, DirectionalLight,
-  Mesh, Group, SphereGeometry, TorusGeometry, CylinderGeometry, PlaneGeometry,
+  Mesh, Group, SphereGeometry, TorusGeometry, CylinderGeometry, PlaneGeometry, LatheGeometry, Vector2,
   BufferGeometry, Float32BufferAttribute, Points, PointsMaterial,
   MeshPhysicalMaterial, MeshBasicMaterial, Sprite, SpriteMaterial, CanvasTexture,
   SRGBColorSpace, Color, Vector3, Quaternion, Euler, NeutralToneMapping,
@@ -271,9 +271,6 @@ const ballMat = (el, waste) => mat('ball' + el + (waste ? 'w' : ''), () => {
   return new MeshPhysicalMaterial({ color: c, roughness: 0.1, clearcoat: 1, clearcoatRoughness: 0.02, envMap: env,
     envMapIntensity: waste ? 0.5 : 1.5, emissive: base, emissiveIntensity: waste ? 0 : 0.1, transparent: true });
 });
-const armMat = (el) => mat('arm' + el, () => new MeshPhysicalMaterial({
-  color: new Color(ART[el].hi).lerp(new Color(ART[el].lo), 0.3), roughness: 0.18, metalness: 0.5, clearcoat: 1, envMap: env, envMapIntensity: 1.3,
-}));
 const tipMat = (hex) => mat('tip' + hex, () => new MeshBasicMaterial({ color: hex, toneMapped: false }));
 const letterTex = new Map();
 /* THE LETTERS. A far atom's letter was a few pixels tall and could not be read
@@ -302,9 +299,28 @@ function letterMat(el) {
 if (document.fonts) document.fonts.load('700 72px Inter').then(() => letterDraws.forEach((f) => f())).catch(() => {});
 const Y_UP = new Vector3(0, 1, 0), X_AXIS = new Vector3(1, 0, 0);
 
-/* An atom's look: glossy glass, a tight glow of its own colour, slim tapered
-   hands with small glowing tips (owner, 2026-10-02). The hands shown are its
-   FREE hands; a bond is drawn as a stick between two atoms. */
+/* THE JOIN (owner, 2026-10-03: the arm stuck on the atom "feels a little
+   amateurish / unreal"). An arm or a bond is not pushed into its atom: it is
+   drawn out of it, as glass is pulled, a smooth flare leaving the ball along the
+   ball's own curve and narrowing into a slim stem, all in the atom's own glass,
+   so atom and arm read as one piece. Built along +Y from the atom's centre. */
+const ARM = { reach: 1.32, base: 0.085, end: 0.06 };   // the flare ends this many radii out; the stem's radii, in radii
+function flareGeo(r, endRad) {
+  return cached('flare' + r.toFixed(4) + ':' + endRad.toFixed(4), () => {
+    const phi = 36 * Math.PI / 180, on = (a, k) => new Vector2(r * k * Math.sin(a), r * k * Math.cos(a));
+    const p0 = on(phi, 1), c = p0.clone().add(new Vector2(-Math.cos(phi), Math.sin(phi)).multiplyScalar(0.42 * r)), p2 = new Vector2(endRad, ARM.reach * r);
+    const pts = [on(phi + 0.12, 0.97)];   // it starts just under the surface, so there is no seam
+    for (let i = 0; i <= 18; i++) {
+      const t = i / 18, a = (1 - t) * (1 - t), b = 2 * (1 - t) * t, k = t * t;
+      pts.push(new Vector2(a * p0.x + b * c.x + k * p2.x, a * p0.y + b * c.y + k * p2.y));
+    }
+    return new LatheGeometry(pts, 36);
+  });
+}
+
+/* An atom's look: glossy glass, a tight glow of its own colour, slim hands drawn
+   out of it with small glowing tips (owner, 2026-10-02). The hands shown are its
+   FREE hands; a bond is drawn as a glass rod between two atoms. */
 function makeView(a) {
   const el = a.el, r = rOf(el), hi = new Color(ART[el].hi).getHex();
   const g = new Group();
@@ -312,14 +328,15 @@ function makeView(a) {
   const halo = glow(hi, r * 2.7, 0.38);
   const letter = new Sprite(letterMat(el)); letter.scale.set(r * letterBase(el), r * letterBase(el), 1); letter.renderOrder = 50;
   g.add(ball, halo, letter);
-  const L = r * (TUNE.hand - 0.85);
+  const L = r * (TUNE.hand - ARM.reach - 0.1);
   const hands = [];
   for (let i = 0; i < M.ELEMENTS[el].hands; i++) {
-    const arm = new Mesh(cached('arm' + r, () => new CylinderGeometry(0.07 * r, 0.13 * r, L, 12)), armMat(el));
+    const flare = new Mesh(flareGeo(r, ARM.base * r), ballMat(el));
+    const arm = new Mesh(cached('stem' + r, () => new CylinderGeometry(ARM.end * r, ARM.base * r, L, 14)), ballMat(el));
     const tip = new Mesh(cached('tip' + r, () => new SphereGeometry(0.17 * r, 14, 10)), tipMat(WHITE_TIP));
     const tg = glow(hi, 0.9 * r, 0.7);
-    g.add(arm, tip, tg);
-    hands.push({ arm, tip, tg });
+    g.add(flare, arm, tip, tg);
+    hands.push({ flare, arm, tip, tg });
   }
   scene.add(g);
   const R = Math.random;
@@ -378,15 +395,17 @@ const stickMat = (el) => mat('stick' + el, () => new MeshPhysicalMaterial({
 }));
 function addBondView(a, b, order) {
   const key = Math.min(a, b) + '-' + Math.max(a, b);
-  const rad = order > 1 ? 0.085 * U : 0.12 * U;
-  const meshes = [];
+  const rad = order > 1 ? 0.085 * U : 0.12 * U, spread = order === 1 ? 0 : order === 2 ? 0.16 * U : 0.22 * U;
+  const meshes = [], flares = [];
   for (let k = 0; k < order; k++) {
     for (const id of [a, b]) {
-      const m = new Mesh(cached('stick' + rad, () => new CylinderGeometry(rad, rad, 1, 10)), stickMat(view(id).el));
+      const m = new Mesh(cached('stick' + rad, () => new CylinderGeometry(rad, rad, 1, 12)), ballMat(view(id).el));
       scene.add(m); meshes.push(m);
     }
   }
-  bondViews.set(key, { a, b, order, meshes });
+  // each end is drawn out of its atom, wide enough to hold all the bond's rods
+  for (const id of [a, b]) { const v = view(id), f = new Mesh(flareGeo(v.r, spread + rad), ballMat(v.el)); scene.add(f); flares.push(f); }
+  bondViews.set(key, { a, b, order, meshes, flares });
 }
 function drawBond(bv) {
   const A = view(bv.a), B = view(bv.b);
@@ -407,10 +426,14 @@ function drawBond(bv) {
       m.visible = fade > 0.02 && A.g.visible && B.g.visible;
     }
   }
+  [[A, d, bv.flares[0]], [B, tmpC.copy(d).negate(), bv.flares[1]]].forEach(([v, dir, f]) => {
+    f.position.copy(v.g.position); f.quaternion.setFromUnitVectors(Y_UP, dir); f.scale.setScalar(v.g.scale.x);
+    f.visible = fade > 0.02 && A.g.visible && B.g.visible;
+  });
 }
 function clearWorld() {
   for (const v of V.values()) scene.remove(v.g);
-  for (const bv of bondViews.values()) for (const m of bv.meshes) scene.remove(m);
+  for (const bv of bondViews.values()) for (const m of bv.meshes.concat(bv.flares)) scene.remove(m);
   V.clear(); bondViews.clear();
   for (const t of trail) t.s.visible = false;
 }
@@ -1124,11 +1147,12 @@ function drawWorld(now) {
     v.hands.forEach((h, i) => {
       const d = dirs[i];
       const on = !!d && !v.lift;
-      h.arm.visible = h.tip.visible = h.tg.visible = on;
+      h.arm.visible = h.flare.visible = h.tip.visible = h.tg.visible = on;
       if (!on) return;
-      const len = v.r * TUNE.hand, L = v.r * (TUNE.hand - 0.85);
-      h.arm.position.copy(d).multiplyScalar(v.r * 0.85 + L / 2);
-      h.arm.quaternion.setFromUnitVectors(Y_UP, d);
+      const len = v.r * TUNE.hand, L = v.r * (TUNE.hand - ARM.reach - 0.1);
+      h.flare.quaternion.setFromUnitVectors(Y_UP, d);
+      h.arm.position.copy(d).multiplyScalar(v.r * ARM.reach + L / 2);
+      h.arm.quaternion.copy(h.flare.quaternion);
       h.tip.position.copy(d).multiplyScalar(len);
       h.tg.position.copy(h.tip.position);
       const green = partner != null && i === 0;
