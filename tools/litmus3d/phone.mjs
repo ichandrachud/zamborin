@@ -69,6 +69,7 @@ ${splashScript[0]}
 <script>${noScriptClose(read('shared/ui.js'))}</script>
 <script>${noScriptClose(read('chemistry/model.js'))}</script>
 <script>${noScriptClose(read('chemistry/levels.js'))}</script>
+<script>${noScriptClose(read('litmus3d/places.js'))}</script>
 <script>${noScriptClose(three)}</script>
 <script>${noScriptClose(play)}</script>
 `;

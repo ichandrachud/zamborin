@@ -49,6 +49,7 @@ const TOK = {
   bgCard: '#131F36', line: '#1F2D4A',
   text: '#FFFFFF', textDim: '#C5CFE0', ink92: 'rgba(255,255,255,0.92)', ink90: 'rgba(255,255,255,0.90)',
   ink82: 'rgba(255,255,255,0.82)', ink72: 'rgba(255,255,255,0.72)',
+  tint03: 'rgba(255,255,255,0.03)', tint07: 'rgba(255,255,255,0.07)',
   tint10: 'rgba(255,255,255,0.10)', tint12: 'rgba(255,255,255,0.12)',
   green: '#5DD39E',
   scrim: 'rgba(10,16,28,0.88)', scrimWin: 'rgba(10,16,28,0.82)',
@@ -109,6 +110,8 @@ const TUNE = {
   spinMs: 2000, flyMs: 1100,
 };
 const STEP = 1 / 60;
+// The checks may run the world faster (?harness=1&speed=3): more steps a frame, nothing else changes.
+const SPEED = HARNESS ? Math.max(1, Math.min(6, +(new URLSearchParams(location.search).get('speed')) || 1)) : 1;
 
 // ---------- CANVASES ----------
 let LW = 760, LH = 600;
@@ -550,7 +553,22 @@ function fitLegend() {
 
 // ---------- LEVEL ----------
 const LIST = MODE === 'mobile' ? LV.mobile : LV.desktop;
-let levelNo = (() => { const m = location.hash.match(/level-(\d+)/); const n = m ? +m[1] : 60; return Math.max(1, Math.min(LIST.length, n)); })();
+/* PROGRESS. The phone and the desktop play different level sets (as /chemistry/),
+   so each keeps its own record. Levels open in order; a returning player lands
+   on the first level not yet done (DESIGN-SYSTEM 10.1). */
+const SAVE_KEY = 'zam.litmus3d.progress';
+let save = (() => { try { const v = JSON.parse(localStorage.getItem(SAVE_KEY) || '{}'); return v && typeof v === 'object' ? v : {}; } catch (_) { return {}; } })();
+const doneSet = () => new Set((save[MODE] && save[MODE].done) || []);
+function markDone(n) {
+  const d = doneSet(); d.add(n);
+  save[MODE] = { done: [...d].sort((a, b) => a - b), last: n };
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (_) { /* private window: play on unsaved */ }
+}
+const isOpen = (n) => n === 1 || doneSet().has(n) || doneSet().has(n - 1);
+function firstUndone() { const d = doneSet(); for (let n = 1; n <= LIST.length; n++) if (!d.has(n)) return n; return LIST.length; }
+// Which 3D placement each level uses: tools/litmus3d/levels.mjs picks the first one its checks pass.
+const PLACES = (window.LITMUS3D_PLACES && window.LITMUS3D_PLACES[MODE]) || [];
+let levelNo = (() => { const m = location.hash.match(/level-(\d+)/); const n = m ? +m[1] : firstUndone(); return Math.max(1, Math.min(LIST.length, n)); })();
 let LEVEL = null, st = null;
 let held = new Set();         // the atoms you hold: they float in front of you and turn with you
 let glide = null;             // an atom on its way in
@@ -595,8 +613,13 @@ const FRONT = (() => {
   const hHalf = Math.atan(Math.tan(vHalf * Math.PI / 180) * aspect) * 180 / Math.PI;
   return { yaw: Math.max(20, hHalf * 1.15), pitch: vHalf * 0.72 };
 })();
-function placeAtoms(ids, leadId, seed) {
-  const R = mulberry(seed * 9973 + 1), origin = new Vector3();
+/* The headings a player turns to for a pull: the atom a little above the middle
+   of the view, or a little off to one side. The placement's check and the pilot
+   use the same ones, so a line the check calls clear is one the pilot can take. */
+const HEADS = [[0, 0.1], [0, 0.22], [0.12, 0.1], [-0.12, 0.1], [0, 0], [0.24, 0.1], [-0.24, 0.1], [0.12, 0.22], [-0.12, 0.22], [0, -0.1]];
+const VIEW_ASPECT = MODE === 'mobile' ? 390 / 844 : 760 / 600;   // the frame the levels are placed for
+function placeAtoms(ids, leadId, seed, variant, hazards) {
+  const R = mulberry(seed * 9973 + 1 + variant * 7919), origin = new Vector3();
   const near = TUNE.near * U, far = TUNE.far * U, keep = TUNE.keep * U * 1.15;
   const needEls = new Set();
   for (const t of st.targets) for (const el of M.MOLECULES[t.key].els) needEls.add(el);
@@ -618,27 +641,45 @@ function placeAtoms(ids, leadId, seed) {
         if (ok || tries === 499) { pos.set(id, p); break; }
       }
     });
-    // every atom a target needs has a clear line in from some heading
+    /* THE LESSON'S HAZARDS, ON THE OBVIOUS LINE. Each hazard the level names
+       (the hydrogen that takes the chlorine meant for the iron) waits on the
+       straight line an atom you need would take if you simply faced it and
+       tapped, so the careless pull loses it and turning finds the clear one
+       (a careful player is never left without a line: checked below). Never
+       on the first atom's line, which the hint points at. */
+    const wanted = ids.filter((id) => id !== leadId && !hazards.includes(id) && needEls.has(st.atoms[id].el));
+    hazards.forEach((h, i) => {
+      if (!wanted.length) return;
+      const t = wanted[(i + Math.floor(R() * wanted.length)) % wanted.length], tp = pos.get(t);
+      // the heading of a player who faces the atom and taps (HEADS[0])
+      const yaw = Math.atan2(-tp.x, -tp.z), pitch = Math.atan2(tp.y, Math.hypot(tp.x, tp.z)) + HEADS[0][1];
+      const a = holdWorld(yaw, pitch, origin, new Vector3());
+      const side = new Vector3(R() - 0.5, R() - 0.5, R() - 0.5).cross(tp.clone().sub(a)).normalize();
+      const p = tp.clone().lerp(a, 0.3 + R() * 0.3).addScaledVector(side, R() * TUNE.capture * U * 0.5);
+      if (p.length() > (TUNE.bubble + 4) * U) pos.set(h, p);
+    });
+    /* Every atom a target needs has a clear line in from a heading where it is
+       on screen to be tapped (HEADS), from where you start. */
+    const reach = TUNE.snap * U * 1.2, anchor = new Vector3(), half = Math.tan((FOV / 2) * Math.PI / 180), q = new Quaternion();
+    const clearFrom = (id, heads) => {
+      const p = pos.get(id), yaw0 = Math.atan2(-p.x, -p.z), pitch0 = Math.atan2(p.y, Math.hypot(p.x, p.z));
+      for (const [oy, op] of heads) {
+        const yaw = yaw0 + oy, pitch = pitch0 + op;
+        const d = p.clone().applyQuaternion(q.setFromEuler(new Euler(pitch, yaw, 0, 'YXZ')).invert());
+        if (d.z > -1 || Math.abs(d.y / -d.z) > half * 0.8 || Math.abs(d.x / -d.z) > half * VIEW_ASPECT * 0.8) continue;
+        holdWorld(yaw, pitch, origin, anchor);
+        if (![...pos].some(([o, w]) => o !== id && segDist(w, p, anchor) < reach)) return true;
+      }
+      return false;
+    };
     let open = 0, needed = 0;
-    const capture = TUNE.capture * U * 1.1, anchor = new Vector3();
     for (const id of ids) {
       if (!needEls.has(st.atoms[id].el)) continue;
       needed++;
-      let clear = false;
-      for (let k = 0; k < 24 && !clear; k++) for (const pitch of [-0.3, 0, 0.3]) {
-        holdWorld(k * Math.PI / 12, pitch, origin, anchor);
-        let hit = false;
-        for (const [o, q] of pos) { if (o !== id && segDist(q, pos.get(id), anchor) < capture) { hit = true; break; } }
-        if (!hit) { clear = true; break; }
-      }
-      if (clear) open++;
+      if (clearFrom(id, HEADS)) open++;
     }
-    // and the lead's line is clear from the start
-    let leadClear = leadId < 0;
-    if (leadId >= 0) {
-      holdWorld(0, 0, origin, anchor);
-      leadClear = ![...pos].some(([o, q]) => o !== leadId && segDist(q, pos.get(leadId), anchor) < capture);
-    }
+    // and the lead's line is clear from the start, as the hint shows it
+    const leadClear = leadId < 0 || clearFrom(leadId, HEADS.slice(0, 2));
     const score = open + (leadClear ? 1 : 0);
     if (!best || score > best.score) best = { pos, score, attempt };
     if (open === needed && leadClear) break;
@@ -647,8 +688,8 @@ function placeAtoms(ids, leadId, seed) {
   return best;
 }
 
-let placement = null;
-function startLevel(n) {
+let placement = null, hazardIds = [];
+function startLevel(n, variant) {
   levelNo = n;
   LEVEL = LIST[n - 1];
   clearWorld();
@@ -667,9 +708,18 @@ function startLevel(n) {
     const v = view(first); v.frame = 'cam'; v.pos.copy(HOLD);
     for (const id of floating) { const pv = M.preview(st, first, id); if (pv && !pv.lost) { lead = id; break; } }
   }
-  placement = placeAtoms(floating, lead, LEVEL.seed);
+  // the atoms that are the level's named hazards (levels.js `hazards`), one per entry
+  hazardIds = [];
+  for (const el of LEVEL.hazards || []) {
+    const id = floating.find((k) => k !== lead && st.atoms[k].el === el && !hazardIds.includes(k));
+    if (id != null) hazardIds.push(id);
+  }
+  const vnt = variant != null ? variant : (PLACES[n - 1] || 0);
+  placement = placeAtoms(floating, lead, LEVEL.seed, vnt, hazardIds);
+  placement.variant = vnt;
   hintId = lead;
-  glide = null; card = null; menu = null; refused = null;
+  glide = null; card = null; menu = null; map = null; refused = null;
+  previews.clear(); helpCache.clear();
   aura = null; auraSprite.visible = false;
   look.yaw = 0; look.pitch = 0; look.vy = 0; look.vp = 0; look.pos.set(0, 0, 0); look.drift = null;
   gyroReset();
@@ -760,7 +810,10 @@ function toWorld(id) {
 }
 
 // ---------- GRABS ----------
-const previews = new Map();
+/* Answers about pairs of atoms, keyed by their ids and the state's version.
+   Both start again with every level: ids and versions start again too, and a
+   previous level's answer would otherwise be read as this one's. */
+const previews = new Map(), helpCache = new Map();
 function previewOf(a, b) {
   const key = Math.min(a, b) + ':' + Math.max(a, b) + ':' + st.version;
   if (!previews.has(key)) { if (previews.size > 400) previews.clear(); previews.set(key, M.preview(st, a, b)); }
@@ -779,6 +832,7 @@ function bondAtoms(a, b) {
   const mid = tmpA.copy(A.wp).add(B.wp).multiplyScalar(0.5).clone();
   const ev = M.bond(st, a, b);
   if (!ev) return null;
+  if (HARNESS) bondLog.push(`${st.atoms[a].el}${held.has(a) ? '(held)' : glide && glide.ids.has(a) ? '(pulled)' : ''}-${st.atoms[b].el}${held.has(b) ? '(held)' : glide && glide.ids.has(b) ? '(pulled)' : ''}x${ev.order}${ev.done ? ' ' + ev.done.kind : ''}${ev.lost ? ' LOST' : ''}`);
   previews.clear();
   addBondView(a, b, ev.order);
   flashAt(mid);
@@ -843,6 +897,20 @@ function pull(id) {
   glide = { ids: new Set(piece), lead: best ? best.t : id, to: best ? best.h : -1, v: 0, t0: clock(), trailT: 0 };
   firstInput = true;
   SND.glide();
+}
+/* LET GO (owner, 2026-10-02): tap what you hold and it floats off where it
+   is, a little aside so the next atom you call in does not meet it, and your
+   hand is empty. Tap any atom then and it comes to your hand. It is how a
+   piece is built on its own and joined later (an O-H for Al(OH)3). */
+function letGo() {
+  if (glide || !held.size || card) return;
+  const side = tmpA.set(1, 0.45, 0).applyQuaternion(cam.quaternion).normalize().multiplyScalar(3.4);
+  for (const id of held) { toWorld(id); view(id).vel.copy(side); }
+  const first = view([...held][0]);
+  flashAt(first.wp.clone());
+  held.clear();
+  firstInput = true;
+  if (sfx) sfx.play('pop');
 }
 function refuse(id) {
   // a refusal answers visibly: the atom shakes where it is, its hands flash amber
@@ -914,6 +982,7 @@ function endLevel() {
   const r = st.result;
   glide = null; look.drift = null;
   const { spin, fly } = liftTimes();
+  if (r.kind === 'win') markDone(levelNo);
   card = { kind: r.kind, showAt: clock() + (r.kind === 'win' ? spin + fly + TUNE.cardAfterMs : TUNE.cardFailMs), sounded: false, scroll: 0 };
 }
 
@@ -1120,7 +1189,7 @@ function drawPause() {
 
 // The verb shown at rest (DESIGN-SYSTEM 10.1): a soft ring taps the atom to pull in, until the first input.
 function drawHint(now) {
-  if (firstInput || card || menu || hintId < 0 || !live(hintId) || held.has(hintId)) return;
+  if (firstInput || card || menu || map || hintId < 0 || !live(hintId) || held.has(hintId)) return;
   const s = screenOf(view(hintId));
   if (!s) return;
   for (let k = 0; k < 2; k++) {
@@ -1152,8 +1221,8 @@ function aroundYou() {
 }
 const formulaOf = (key) => M.MOLECULES[key].formula;
 const HOW = MODE === 'mobile'
-  ? [['Drag', ' to look round you'], ['Tap an atom', ' to pull it in'], ['Hold', ' to drift toward it']]
-  : [['Drag', ' to look round you'], ['Click an atom', ' to pull it in'], ['Hold', ' to drift toward it']];
+  ? [['Drag', ' to look round you'], ['Tap an atom', ' to pull it in'], ['Hold', ' to drift toward it'], ['Tap what you hold', ' to let it go']]
+  : [['Drag', ' to look round you'], ['Click an atom', ' to pull it in'], ['Hold', ' to drift toward it'], ['Click what you hold', ' to let it go']];
 /* Every line of the card is placed here once, as an offset in its zone, and
    drawMenu only draws what this says, so the fit check measures what is drawn. */
 function menuLayout() {
@@ -1315,7 +1384,7 @@ function drawCard(now) {
   ctx.font = '600 17px Inter, sans-serif'; ctx.fillStyle = TOK.ink82;
   const sub = card.kind === 'win' ? LEVEL.note : 'An atom grabbed a hand the molecule needed on its way in. Turn for a clear line and try again.';
   wrap(sub, x + 34, y + 34 + 54 + 14, pw - 68, 24, 4);
-  hits.cta = UI.drawCTA(ctx, card.kind === 'win' ? 'Play again' : 'Try again', cx, y + ph - 32 - 25, ACCENT);
+  hits.cta = UI.drawCTA(ctx, card.kind === 'win' ? (levelNo < LIST.length ? 'Next level' : 'Play again') : 'Try again', cx, y + ph - 32 - 25, ACCENT);
   card.box = { x, y, w: pw, h: ph };
 }
 function wrap(s, x, y, w, lh, max) {
@@ -1341,7 +1410,7 @@ function legendLabel() {
   ];
 }
 function drawLegendLabel() {
-  if (!legend.group || menu || (card && clock() >= card.showAt)) return;
+  if (!legend.group || menu || map || (card && clock() >= card.showAt)) return;
   ctx.font = '700 16px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   const room = legend.w - 28, forms = legendLabel();
   const text = forms.find((f) => ctx.measureText(f).width <= room) || forms[forms.length - 1];
@@ -1359,9 +1428,85 @@ function drawHud(now) {
   for (const key in hits) delete hits[key];
   drawHint(now);
   drawLegendLabel();
-  if (!card || now < card.showAt) drawPause();
-  if (menu) drawMenu();
+  if ((!card || now < card.showAt) && !map) drawPause();
+  if (map) drawMap();
+  else if (menu) drawMenu();
   drawCard(now);
+}
+
+// ---------- THE LEVEL MAP ----------
+/* Every Moleculator level as a numbered cell: done, the next one, open, or
+   not yet. On a phone the map shows the levels and nothing else (DESIGN-SYSTEM
+   4.4): picking one is how you leave it. The desktop map keeps a band at the
+   top with a way back to the menu. */
+let map = null;   // { scroll, press, cells }
+function mapLayout() {
+  const band = MODE === 'mobile' ? 0 : 56, pad = MODE === 'mobile' ? 16 : 30;
+  const top = band + 12, availW = LW - pad * 2;
+  const cols = Math.max(4, Math.min(10, Math.round(availW / 68)));
+  const cw = availW / cols, ch = Math.max(52, Math.min(68, cw * 0.92));
+  const rows = Math.ceil(LIST.length / cols), viewH = LH - top - 12;
+  const contentH = rows * ch;
+  return { band, pad, top, cols, cw, ch, rows, viewH, contentH, scrollMax: Math.max(0, contentH - viewH) };
+}
+function openMap() {
+  const L = mapLayout(), row = Math.floor((firstUndone() - 1) / L.cols);
+  map = { scroll: Math.max(0, Math.min(L.scrollMax, row * L.ch - L.viewH / 2 + L.ch / 2)), press: null, cells: [] };
+}
+function drawMap() {
+  const L = mapLayout(), d = doneSet(), next = firstUndone();
+  map.scroll = Math.max(0, Math.min(L.scrollMax, map.scroll));
+  ctx.fillStyle = TOK.scrim; ctx.fillRect(0, 0, LW, LH);
+  if (L.band) {
+    hits.mapBack = UI.drawPill(ctx, 'Back', L.pad + 40, L.band / 2);
+    ctx.textBaseline = 'middle'; ctx.textAlign = 'right';
+    ctx.font = '600 16px Inter, sans-serif'; ctx.fillStyle = TOK.ink72;
+    ctx.fillText(`MOLECULATOR   ·   ${d.size} OF ${LIST.length} DONE`, LW - L.pad, L.band / 2 + 1);
+    ctx.textAlign = 'left';
+  }
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0, L.top, LW, L.viewH); ctx.clip();
+  map.cells = [];
+  for (let i = 0; i < LIST.length; i++) {
+    const n = i + 1, x = L.pad + (i % L.cols) * L.cw, y = L.top + Math.floor(i / L.cols) * L.ch - map.scroll;
+    if (y + L.ch < L.top || y > L.top + L.viewH) continue;
+    const b = { x: x + 4, y: y + 4, w: L.cw - 8, h: L.ch - 8, n };
+    const open = isOpen(n), done = d.has(n);
+    UI.roundRectPath(ctx, b.x, b.y, b.w, b.h, 14);
+    ctx.fillStyle = done ? ACCENT : open ? TOK.tint07 : TOK.tint03; ctx.fill();
+    if (n === next || (open && !done)) {
+      ctx.lineWidth = n === next ? 2 : 1.5; ctx.strokeStyle = n === next ? TOK.text : UI.PILL.border;
+      UI.roundRectPath(ctx, b.x + 0.5, b.y + 0.5, b.w - 1, b.h - 1, 14); ctx.stroke();
+    }
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '700 18px Inter, sans-serif'; ctx.fillStyle = open ? TOK.text : UI.PILL.textDim;
+    ctx.fillText(String(n), b.x + b.w / 2, b.y + b.h / 2 + 1);
+    map.cells.push(b);
+  }
+  ctx.restore();
+  ctx.textAlign = 'left';
+  const fadeTo = (y, up) => { const g = ctx.createLinearGradient(0, y, 0, y + 20); g.addColorStop(up ? 0 : 1, 'rgba(10,16,28,0.9)'); g.addColorStop(up ? 1 : 0, 'rgba(10,16,28,0)'); ctx.fillStyle = g; ctx.fillRect(0, y, LW, 20); };
+  if (map.scroll > 0) fadeTo(L.top, true);
+  if (map.scroll < L.scrollMax) fadeTo(L.top + L.viewH - 20, false);
+  map.box = L;
+}
+function mapDown(p, e) {
+  if (inBox(p, hits.mapBack)) { SND.pick(); map = null; return; }
+  map.press = { y0: p.y, s0: map.scroll, moved: false, x: p.x, y: p.y };
+  try { hud.setPointerCapture(e.pointerId); } catch (_) {}
+}
+function mapMove(p) {
+  const pr = map.press;
+  if (Math.abs(p.y - pr.y0) > TUNE.tapPx) pr.moved = true;
+  if (pr.moved) map.scroll = pr.s0 - (p.y - pr.y0);
+}
+function mapUp(p) {
+  const pr = map.press; map.press = null;
+  if (pr.moved) return;
+  const c = map.cells.find((b) => inBox(p, b));
+  if (!c) return;
+  if (!isOpen(c.n)) { SND.refuse(); return; }
+  SND.pick(); startLevel(c.n);
 }
 
 // ---------- INPUT ----------
@@ -1374,7 +1519,7 @@ const inBox = (p, b) => b && p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y
 function atomAt(p) {
   let best = null;
   for (const v of V.values()) {
-    if (!live(v.id) || held.has(v.id) || v.lift) continue;
+    if (!live(v.id) || v.lift) continue;
     const s = screenOf(v);
     if (!s) continue;
     const hit = Math.max(26, s.r * 1.7), d = Math.hypot(s.x - p.x, s.y - p.y);
@@ -1390,7 +1535,11 @@ function wake() {
 hud.addEventListener('pointerdown', (e) => {
   if (drag.active) return;
   const p = pt(e);
-  if (card && clock() >= card.showAt) { if (inBox(p, hits.cta)) { SND.pick(); startLevel(levelNo); } return; }
+  if (card && clock() >= card.showAt) {
+    if (inBox(p, hits.cta)) { SND.pick(); startLevel(card.kind === 'win' && levelNo < LIST.length ? levelNo + 1 : levelNo); }
+    return;
+  }
+  if (map) { mapDown(p, e); return; }
   if (card) return;
   if (menu) { menuDown(p, e); return; }
   if (inBox(p, hits.pause)) { SND.pick(); menu = { scroll: 0 }; look.drift = null; return; }
@@ -1400,9 +1549,13 @@ hud.addEventListener('pointerdown', (e) => {
 });
 hud.addEventListener('pointermove', (e) => {
   if (menu && menu.drag) { const p = pt(e); menu.scroll = menu.drag.s0 - (p.y - menu.drag.y0); return; }
+  if (map && map.press) { mapMove(pt(e)); return; }
   if (!drag.active || e.pointerId !== drag.id) return;
   const p = pt(e);
-  if (drag.mode === 'pending' && Math.hypot(p.x - drag.x0, p.y - drag.y0) > TUNE.tapPx) { drag.mode = 'look'; firstInput = true; }
+  if (drag.mode === 'pending' && Math.hypot(p.x - drag.x0, p.y - drag.y0) > TUNE.tapPx) {
+    // a drag after all: the view follows the finger from where it first touched, not from where the drag was recognised
+    drag.mode = 'look'; firstInput = true; drag.x = drag.x0; drag.y = drag.y0;
+  }
   if (drag.mode === 'look') {
     // drag the space: it follows the finger, a full screen height is the view's height
     const k = (FOV * Math.PI / 180) / LH;
@@ -1416,12 +1569,13 @@ hud.addEventListener('pointermove', (e) => {
 });
 function endPointer(e) {
   if (menu && menu.drag) { menu.drag = null; return; }
+  if (map && map.press) { mapUp(pt(e)); return; }
   if (!drag.active || e.pointerId !== drag.id) return;
   drag.active = false;
   wake();
   if (drag.mode === 'pending') {
     const id = atomAt({ x: drag.x0, y: drag.y0 });
-    if (id != null) pull(id);
+    if (id != null) { if (held.has(id)) letGo(); else pull(id); }
   }
   if (drag.mode === 'drift') look.drift = null;
   if (drag.mode === 'look' && clock() - drag.lastT > 60) look.vy = look.vp = 0;
@@ -1430,7 +1584,10 @@ function endPointer(e) {
 hud.addEventListener('pointerup', endPointer);
 hud.addEventListener('pointercancel', endPointer);
 for (const ev of ['touchend', 'pointerup', 'click']) window.addEventListener(ev, () => wake(), { passive: true });
-hud.addEventListener('wheel', (e) => { if (menu) { menu.scroll = (menu.scroll || 0) + e.deltaY; e.preventDefault(); } }, { passive: false });
+hud.addEventListener('wheel', (e) => {
+  if (map) { map.scroll += e.deltaY; e.preventDefault(); }
+  else if (menu) { menu.scroll = (menu.scroll || 0) + e.deltaY; e.preventDefault(); }
+}, { passive: false });
 function rayDir(p) {
   return new Vector3((p.x / LW) * 2 - 1, 1 - (p.y / LH) * 2, 0.5).unproject(cam).sub(cam.position).normalize();
 }
@@ -1445,7 +1602,7 @@ function menuDown(p, e) {
   const L = menu.box;
   if (inBox(p, hits.resume)) { SND.pick(); menu = null; return; }
   if (inBox(p, hits.restart)) { SND.pick(); startLevel(levelNo); return; }
-  if (inBox(p, hits.levels)) { SND.pick(); menu.note = clock(); return; }
+  if (inBox(p, hits.levels)) { SND.pick(); openMap(); return; }
   if (inBox(p, hits.sound)) { SND.toggle(); return; }
   if (L && p.y > L.y + L.headerH && p.y < L.y + L.headerH + L.viewH && inBox(p, { x: L.x, y: L.y, w: L.pw, h: L.ph })) {
     menu.drag = { y0: p.y, s0: menu.scroll || 0 };
@@ -1453,7 +1610,7 @@ function menuDown(p, e) {
   }
 }
 window.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' || e.key === 'p') { if (card) return; menu = menu ? null : { scroll: 0 }; }
+  if (e.key === 'Escape' || e.key === 'p') { if (card) return; if (map) { map = null; return; } menu = menu ? null : { scroll: 0 }; }
 });
 
 // ---------- THE LOOP ----------
@@ -1463,11 +1620,11 @@ function frame() {
   const now = clock();
   let dt = Math.min(0.1, (now - last) / 1000); last = now;
   holdCheck();
-  if (!menu) {
-    acc += dt;
+  if (!menu && !map) {
+    acc += dt * SPEED;
     let n = 0;
-    while (acc >= STEP && n < 6) { simStep(STEP); acc -= STEP; n++; }
-    if (n === 6) acc = 0;
+    while (acc >= STEP && n < 6 * SPEED) { simStep(STEP); acc -= STEP; n++; }
+    if (n === 6 * SPEED) acc = 0;
   } else updateCamera(0);
   drawWorld(now);
   drawLegend(now);
@@ -1475,7 +1632,7 @@ function frame() {
   renderer.clear();
   renderer.render(scene, cam);
   // the target, over the top of the frame
-  if (!menu && !(card && now >= card.showAt)) {
+  if (!menu && !map && !(card && now >= card.showAt)) {
     const k = cssW / LW, vh = LEGEND.h * k, vy = cssH - (LEGEND.top + LEGEND.h) * k;
     renderer.clearDepth();
     renderer.setScissorTest(true);
@@ -1503,94 +1660,198 @@ requestAnimationFrame(frame);
 if (HARNESS) {
   window.__litmus3d = {
     state: () => ({ LW, LH, MODE, level: levelNo, hint: hintId, held: [...held], glide: !!glide, result: st.result, made: st.made,
-      card: card && card.kind, menu: !!menu, yaw: look.yaw, pitch: look.pitch, placement: placement && { attempt: placement.attempt, score: placement.score } }),
+      card: card && card.kind, menu: !!menu, map: !!map, yaw: look.yaw, pitch: look.pitch, variant: placement && placement.variant,
+      placement: placement && { attempt: placement.attempt, score: placement.score }, hazards: hazardIds }),
     atoms: () => [...V.values()].map((v) => { const s = screenOf(v); return { id: v.id, el: v.el, status: st.atoms[v.id].status, free: st.atoms[v.id].free, held: held.has(v.id), screen: s && { x: Math.round(s.x), y: Math.round(s.y), r: +s.r.toFixed(1) }, dist: +v.wp.distanceTo(cam.position).toFixed(2) }; }),
     hits: () => JSON.parse(JSON.stringify(hits)),
     look: (yaw, pitch) => { look.yaw = yaw; look.pitch = pitch; look.vy = look.vp = 0; },
     menu: (on) => { menu = on ? { scroll: 0 } : null; },
+    map: (on) => { if (on) openMap(); else map = null; },
     quiet: () => { firstInput = true; },
     freeze: () => { for (const v of V.values()) { v.vel.set(0, 0, 0); v.w.set(0, 0, 0); } },
     menuFit: () => { if (!menu || !menu.box) return null; const L = menu.box; return { fits: L.headerH + L.viewH + L.footerH === L.ph && L.y >= 0 && L.y + L.ph <= LH, cardH: L.ph, frameH: LH, viewportH: L.viewH, contentH: L.bodyH, scrollMax: L.scrollMax }; },
-    level: (n) => startLevel(n),
-    /* THE PILOT, for checks only. aim() picks the next atom that helps and a
-       heading from which it has a clear line in, and from which turning there
-       sweeps what you hold past nothing it could grab; turnStep() gives the
-       next drag (frame units) that turns you there, and tapPoint() where to
-       tap. The checks press the screen; nothing here moves the game. */
-    aim: () => { pilot = aimNext(); return pilot && { id: pilot.id, el: st.atoms[pilot.id].el, turn: +(pilot.dyaw * 180 / Math.PI).toFixed(1), tries: pilot.tries }; },
-    turnStep: () => {
-      if (!pilot) return null;
-      const k = (FOV * Math.PI / 180) / LH;
-      let dy = wrapAngle(pilot.yaw - look.yaw) / k, dp = (pilot.pitch - look.pitch) / k;
-      if (Math.abs(dy) < 2 && Math.abs(dp) < 2) return null;
-      dy = Math.max(-LW * 0.7, Math.min(LW * 0.7, dy)); dp = Math.max(-LH * 0.5, Math.min(LH * 0.5, dp));
-      const x0 = LW / 2 - dy / 2, y0 = LH * 0.62 - dp / 2;
-      return [x0, y0, x0 + dy, y0 + dp];
+    level: (n, variant) => { startLevel(n, variant); firstInput = true; pilot = null; pilotLast = -1; bondLog.length = 0; return { level: levelNo, variant: placement.variant, score: placement.score }; },
+    progress: () => JSON.parse(JSON.stringify(save)),
+    /* THE PILOT, for checks only. next() says what a player would do now: drag
+       to turn (frame units), tap an atom (to pull it in, or to let go of what is
+       held), wait, or that it is done or stuck. The check performs every drag
+       and tap as real touch or mouse events; nothing here moves the game.
+       Careful: an atom that helps, from a heading where its straight line in,
+       and the turn to get there, pass nothing it could grab. Careless: the
+       nearest atom that helps, faced straight on, as a player who just taps
+       what they see. */
+    next: (careless) => pilotNext(!!careless),
+    helps: (a, b) => helps(a, b),
+    // for a stuck pilot: for atom `id`, every heading tried, and what blocks it
+    why: (id) => {
+      const out = [], tp = view(id).wp, d = tp.clone().sub(cam.position);
+      const yaw0 = Math.atan2(-d.x, -d.z), pitch0 = Math.atan2(d.y, Math.hypot(d.x, d.z));
+      for (let oy = -0.6; oy <= 0.61; oy += 0.15) for (let op = -0.4; op <= 0.41; op += 0.2) {
+        const yaw = yaw0 + oy, pitch = pitch0 + op;
+        out.push([+oy.toFixed(2), +op.toFixed(2), onScreenAt(id, yaw, pitch) ? (clearAt(id, yaw, pitch) ? (sweepClear(look.yaw, look.pitch, yaw, pitch) ? 'ok' : 'sweep') : 'line') : 'off']);
+      }
+      return { el: st.atoms[id].el, dist: +d.length().toFixed(1), held: [...held].map((h) => st.atoms[h].el), out: out.filter((o) => o[2] !== 'off').map((o) => o.join(' ')).join(' | ') };
     },
-    tapPoint: () => { const v = pilot && view(pilot.id); const p = v && screenOf(v); return p && [p.x, p.y]; },
-    pilot: () => pilot,
   };
 }
-let pilot = null;
+let pilot = null, pilotLast = -1, lastCands = [];
+const bondLog = [];
 const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
-function aimNext() {
-  const helps = [];
+function pilotNext(careless) {
+  if (!st) return { type: 'wait' };
+  if (card) return { type: 'done', result: st.result && st.result.kind, bonds: bondLog.slice() };
+  if (st.result || glide || menu || map) {
+    const g = glide && { lead: st.atoms[glide.lead].el + glide.lead, to: glide.to, dist: +view(glide.lead).wp.distanceTo(glide.to >= 0 ? view(glide.to).wp : holdWorld(look.yaw, look.pitch, cam.position, new Vector3())).toFixed(2), v: +glide.v.toFixed(2), ids: [...glide.ids] };
+    return { type: 'wait', why: st.result ? 'result' : glide ? 'glide' : menu ? 'menu' : 'map', glide: g };
+  }
+  if (pilot && pilot.kind === 'pull' && (!live(pilot.id) || held.has(pilot.id))) pilot = null;
+  if (pilot && pilot.kind === 'letgo' && !held.has(pilot.id)) pilot = null;
+  if (!pilot) { pilot = planMove(careless); if (!pilot) return { type: 'stuck' }; }
+  const k = (FOV * Math.PI / 180) / LH;
+  // the way there: any headings to pass first (over the top of the crowd), then the pull's own
+  while (pilot.path && pilot.path.length) {
+    const [wy, wp] = pilot.path[0];
+    if (Math.abs(wrapAngle(wy - look.yaw)) / k > 12 || Math.abs(wp - look.pitch) / k > 12) break;
+    pilot.path.shift();
+  }
+  const [ty, tpch] = pilot.path && pilot.path.length ? pilot.path[0] : [pilot.yaw, pilot.pitch];
+  let dy = wrapAngle(ty - look.yaw) / k, dp = (tpch - look.pitch) / k;
+  if (Math.abs(dy) > 12 || Math.abs(dp) > 12) {
+    dy = Math.max(-LW * 0.7, Math.min(LW * 0.7, dy)); dp = Math.max(-LH * 0.45, Math.min(LH * 0.45, dp));
+    const x0 = LW / 2 - dy / 2, y0 = LH * 0.62 - dp / 2;
+    return { type: 'drag', pts: [x0, y0, x0 + dy, y0 + dp] };
+  }
+  const move = pilot; pilot = null;
+  const sp = screenOf(view(move.id));
+  if (!sp) return { type: 'wait' };
+  if (move.kind === 'letgo') pilotLast = M.groupOf(st, move.id)[0];
+  return { type: 'tap', pt: [sp.x, sp.y], kind: move.kind, el: st.atoms[move.id].el, id: move.id, cands: lastCands, held: [...held].map((h) => st.atoms[h].el + h) };
+}
+// the pair a tap on `id` would make: its free hand (the tapped atom's first) and the nearest of yours it can take
+function pairFor(id) {
+  const piece = M.groupOf(st, id);
+  for (const t of [id, ...piece.filter((x) => x !== id)]) {
+    if (!st.atoms[t].free) continue;
+    let best = null;
+    for (const h of held) {
+      if (!st.atoms[h].free || !M.canBond(st, t, h)) continue;
+      const d = view(t).wp.distanceTo(view(h).wp);
+      if (!best || d < best.d) best = { t, h, d };
+    }
+    if (best) return best;
+  }
+  return null;
+}
+/* A grab helps when it loses nothing AND what it makes is part of a target:
+   a molecule on the list, or a piece some target can still grow from (the
+   green palm of /chemistry/). Making a salt nobody asked for loses nothing
+   either, and helps nobody. */
+function helps(a, b) {
+  const key = Math.min(a, b) + ':' + Math.max(a, b) + ':' + st.version;
+  if (helpCache.has(key)) return helpCache.get(key);
+  if (helpCache.size > 600) helpCache.clear();
+  let ok = false;
+  if (M.canBond(st, a, b)) {
+    const c = M.clone(st), ev = M.bond(c, a, b);
+    if (ev && !ev.lost) {
+      if (ev.done) ok = ev.done.kind === 'required';
+      else { const f = c.analysis.fragments.find((fr) => fr.ids.includes(a)); ok = !!(f && f.green); }
+    }
+  }
+  helpCache.set(key, ok);
+  return ok;
+}
+function planMove(careless) {
+  const cands = [];
   for (const v of V.values()) {
     const t = v.id;
-    if (!live(t) || held.has(t) || !st.atoms[t].free) continue;
+    if (!live(t) || held.has(t) || v.lift || !st.atoms[t].free) continue;
     if (held.size) {
+      const pr = pairFor(t);
+      if (!pr || !helps(pr.h, pr.t)) continue;
+      cands.push({ t, size: M.groupOf(st, t).length });
+    } else {
+      // an empty hand: fetch something that has a helpful partner out there
+      const piece = new Set(M.groupOf(st, t));
+      if (piece.has(pilotLast) && V.size > piece.size + 1) continue;
       let ok = false;
-      for (const h of held) { if (!st.atoms[h].free) continue; const pv = previewOf(h, t); if (pv && !pv.lost) ok = true; }
-      if (!ok) continue;
+      for (const u of V.values()) {
+        if (piece.has(u.id) || !live(u.id) || !st.atoms[u.id].free) continue;
+        if (helps(t, u.id)) { ok = true; break; }
+      }
+      if (ok) cands.push({ t, size: piece.size });
     }
-    helps.push(t);
   }
-  const at = cam.position.clone(), tries = { tried: 0 };
   let best = null;
-  for (const t of helps) {
-    const tp = view(t).wp, d = tp.clone().sub(at);
+  lastCands = cands.map((c) => st.atoms[c.t].el + c.t);
+  for (const c of cands) {
+    const tp = view(c.t).wp, d = tp.clone().sub(cam.position);
     const yaw0 = Math.atan2(-d.x, -d.z), pitch0 = Math.atan2(d.y, Math.hypot(d.x, d.z));
-    for (const oy of [0, 0.12, -0.12, 0.24, -0.24]) for (const op of [0.1, 0.22, 0, -0.1]) {
-      tries.tried++;
+    const heads = careless ? [HEADS[0]] : HEADS;
+    for (const [oy, op] of heads) {
       const yaw = yaw0 + oy, pitch = Math.max(-1.2, Math.min(1.2, pitch0 + op));
-      if (!clearAt(t, yaw, pitch) || !sweepClear(yaw, pitch)) continue;
-      const turn = Math.abs(wrapAngle(yaw - look.yaw)) + Math.abs(pitch - look.pitch);
-      if (!best || turn < best.turn) best = { id: t, yaw, pitch, turn, dyaw: wrapAngle(yaw - look.yaw), tries: tries.tried };
+      if (careless) { if (!onScreenAt(c.t, yaw, pitch)) continue; }
+      else if (!clearAt(c.t, yaw, pitch)) continue;
+      let path = [], extra = 0;
+      if (!careless && !sweepClear(look.yaw, look.pitch, yaw, pitch)) {
+        // straight round would carry what you hold through the crowd: look up (or down), turn there, come back
+        path = null;
+        for (const P of [1.15, -1.15]) {
+          if (sweepClear(look.yaw, look.pitch, look.yaw, P) && sweepClear(look.yaw, P, yaw, P) && sweepClear(yaw, P, yaw, pitch)) {
+            path = [[look.yaw, P], [yaw, P]]; extra = Math.abs(P - look.pitch) + Math.abs(P - pitch); break;
+          }
+        }
+        if (!path) continue;
+      }
+      const turn = Math.abs(wrapAngle(yaw - look.yaw)) + Math.abs(pitch - look.pitch) + extra - (held.size ? 0 : c.size * 0.3);
+      if (!best || turn < best.turn) best = { kind: 'pull', id: c.t, yaw, pitch, turn, path };
+      break;
     }
   }
-  return best;
+  if (best) return best;
+  // nothing to pull: let go of what you hold, and build elsewhere
+  if (held.size) { const id = [...held][0]; return { kind: 'letgo', id, yaw: look.yaw, pitch: look.pitch }; }
+  return null;
 }
 // where an atom held in front of you would be, facing (yaw, pitch)
 function heldAt(id, yaw, pitch, out) {
   return out.copy(view(id).pos).applyEuler(new Euler(pitch, yaw, 0, 'YXZ')).add(cam.position);
 }
-function clearAt(t, yaw, pitch) {
-  // on screen, and nothing it could grab within reach of its straight line in
+function onScreenAt(t, yaw, pitch) {
   const q = new Quaternion().setFromEuler(new Euler(pitch, yaw, 0, 'YXZ'));
-  const d = view(t).wp.clone().sub(cam.position).applyQuaternion(q.clone().invert());
+  const d = view(t).wp.clone().sub(cam.position).applyQuaternion(q.invert());
   if (d.z > -1) return false;
   const half = Math.tan((FOV / 2) * Math.PI / 180);
-  if (Math.abs(d.y / -d.z) > half * 0.8 || Math.abs(d.x / -d.z) > half * (cssW / cssH) * 0.8) return false;
-  let h = -1, hd = 1e9; const hp = new Vector3();
-  for (const id of held) { if (!st.atoms[id].free || !M.canBond(st, t, id)) continue; heldAt(id, yaw, pitch, hp); const dd = hp.distanceTo(view(t).wp); if (dd < hd) { hd = dd; h = id; } }
-  const goal = held.size ? heldAt(h, yaw, pitch, new Vector3()) : holdWorld(yaw, pitch, cam.position, new Vector3());
+  return Math.abs(d.y / -d.z) < half * 0.8 && Math.abs(d.x / -d.z) < half * (cssW / cssH) * 0.8;
+}
+function clearAt(t, yaw, pitch) {
+  // on screen, and nothing it could grab within reach of its straight line in
+  if (!onScreenAt(t, yaw, pitch)) return false;
+  const pr = held.size ? pairFor(t) : null;
+  const goal = pr ? heldAt(pr.h, yaw, pitch, new Vector3()) : holdWorld(yaw, pitch, cam.position, new Vector3());
   const piece = new Set(M.groupOf(st, t));
   for (const o of V.values()) {
     if (piece.has(o.id) || held.has(o.id) || !live(o.id) || !st.atoms[o.id].free) continue;
-    for (const x of piece) { const r = reachOf(x, o.id); if (r && segDist(o.wp, view(x).wp, goal) < r * 1.2) return false; }
+    for (const x of piece) {
+      if (!st.atoms[x].free) continue;
+      if (helps(x, o.id)) continue;   // a grab that helps may happen on the way
+      const r = reachOf(x, o.id), from = view(x).wp, to = goal.clone().add(from).sub(view(pr ? pr.t : t).wp);
+      if (r && segDist(o.wp, from, to) < r * 1.2) return false;
+    }
   }
   return true;
 }
-function sweepClear(yaw, pitch) {
-  // turning there carries what you hold past nothing it could grab
-  const dyaw = wrapAngle(yaw - look.yaw), dp = pitch - look.pitch, p = new Vector3();
-  for (let i = 1; i <= 30; i++) {
-    const y = look.yaw + dyaw * i / 30, pt = look.pitch + dp * i / 30;
+function sweepClear(y0, p0, yaw, pitch) {
+  // turning from (y0, p0) to (yaw, pitch) carries what you hold past nothing it could grab to harm
+  const dyaw = wrapAngle(yaw - y0), dp = pitch - p0, p = new Vector3();
+  const n = Math.max(6, Math.ceil((Math.abs(dyaw) + Math.abs(dp)) / 0.05));
+  for (let i = 1; i <= n; i++) {
+    const y = y0 + dyaw * i / n, pt = p0 + dp * i / n;
     for (const h of held) {
       if (!st.atoms[h].free) continue;
       heldAt(h, y, pt, p);
       for (const o of V.values()) {
-        if (held.has(o.id) || !live(o.id) || !st.atoms[o.id].free) continue;
+        if (held.has(o.id) || !live(o.id) || !st.atoms[o.id].free || helps(h, o.id)) continue;
         const r = reachOf(h, o.id); if (r && p.distanceTo(o.wp) < r * 1.2) return false;
       }
     }
