@@ -193,6 +193,18 @@ switch at its right end. Sections 4.2 to 4.5 say what goes in each.
 > inset by its width there. A read-out too long for the room between the last
 > control and that edge drops the chapter's name before it drops the level.
 
+> **Litmus in 3D (`/litmus3d/`), by the owner, 2026-10-02.** A first-person
+> game breaks this rule on purpose: "once in game mode, only the game should be
+> on screen". In play there are **no bands, no read-out and one control**: a
+> round pause button (`ZAM_UI.drawRound`, 44 across, the pause mark in the
+> controls' own ink) at the side margin, level with the one legend, which is
+> the target molecule on a faint glass strip along the top with its name and
+> formula under it. Everything the bands would carry (chapter and level, what
+> to make with the count, the atoms around you, how to play, Restart, Levels,
+> Sound) is in the menu card the pause button opens: the rules modal's box,
+> three zones, the middle scrolling, Resume as its one CTA. The cards, buttons
+> and type are still the house's. Do not copy this to a 2D game.
+
 Playfield, both modes:
 
 ```js
