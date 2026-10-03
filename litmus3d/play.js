@@ -617,6 +617,8 @@ const FRONT = (() => {
    of the view, or a little off to one side. The placement's check and the pilot
    use the same ones, so a line the check calls clear is one the pilot can take. */
 const HEADS = [[0, 0.1], [0, 0.22], [0.12, 0.1], [-0.12, 0.1], [0, 0], [0.24, 0.1], [-0.24, 0.1], [0.12, 0.22], [-0.12, 0.22], [0, -0.1]];
+// The pilot may also look further up or down for a line; the placement's check keeps to HEADS.
+const PILOT_HEADS = HEADS.concat([[0, 0.35], [0.12, 0.35], [-0.12, 0.35], [0.24, 0.22], [-0.24, 0.22], [0, -0.25], [0.12, -0.1], [-0.12, -0.1]]);
 const VIEW_ASPECT = MODE === 'mobile' ? 390 / 844 : 760 / 600;   // the frame the levels are placed for
 function placeAtoms(ids, leadId, seed, variant, hazards) {
   const R = mulberry(seed * 9973 + 1 + variant * 7919), origin = new Vector3();
@@ -1670,7 +1672,7 @@ if (HARNESS) {
     quiet: () => { firstInput = true; },
     freeze: () => { for (const v of V.values()) { v.vel.set(0, 0, 0); v.w.set(0, 0, 0); } },
     menuFit: () => { if (!menu || !menu.box) return null; const L = menu.box; return { fits: L.headerH + L.viewH + L.footerH === L.ph && L.y >= 0 && L.y + L.ph <= LH, cardH: L.ph, frameH: LH, viewportH: L.viewH, contentH: L.bodyH, scrollMax: L.scrollMax }; },
-    level: (n, variant) => { startLevel(n, variant); firstInput = true; pilot = null; pilotLast = -1; bondLog.length = 0; return { level: levelNo, variant: placement.variant, score: placement.score }; },
+    level: (n, variant) => { startLevel(n, variant); firstInput = true; pilot = null; pilotLast = -1; pilotDrifts = 0; bondLog.length = 0; return { level: levelNo, variant: placement.variant, score: placement.score }; },
     progress: () => JSON.parse(JSON.stringify(save)),
     /* THE PILOT, for checks only. next() says what a player would do now: drag
        to turn (frame units), tap an atom (to pull it in, or to let go of what is
@@ -1694,7 +1696,7 @@ if (HARNESS) {
     },
   };
 }
-let pilot = null, pilotLast = -1, lastCands = [];
+let pilot = null, pilotLast = -1, lastCands = [], pilotDrifts = 0;
 const bondLog = [];
 const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 function pilotNext(careless) {
@@ -1706,7 +1708,26 @@ function pilotNext(careless) {
   }
   if (pilot && pilot.kind === 'pull' && (!live(pilot.id) || held.has(pilot.id))) pilot = null;
   if (pilot && pilot.kind === 'letgo' && !held.has(pilot.id)) pilot = null;
-  if (!pilot) { pilot = planMove(careless); if (!pilot) return { type: 'stuck' }; }
+  if (!pilot) {
+    pilot = planMove(careless);
+    if (!pilot && !held.size && !careless && pilotDrifts < 6 && lastCands.length) {
+      /* No clear line from here: drift toward the nearest atom that is wanted, as
+         a player would, so its line in is short. An empty hand grabs nothing on
+         the way. Face it first, then hold on it. */
+      const ids = lastCands.map((c) => +c.replace(/^\D+/, '')).filter((id) => live(id));
+      ids.sort((a, b) => view(a).wp.distanceTo(cam.position) - view(b).wp.distanceTo(cam.position));
+      const id = ids[0], d = view(id).wp.clone().sub(cam.position);
+      if (d.length() > TUNE.hold * U + 3) {
+        pilotDrifts++;
+        pilot = { kind: 'drift', id, yaw: Math.atan2(-d.x, -d.z), pitch: Math.atan2(d.y, Math.hypot(d.x, d.z)), path: [] };
+      }
+    }
+    if (!pilot) {
+      // why: for each atom it wanted, what stood in the way at each heading
+      const why = lastCands.map((c) => { const id = +c.replace(/^\D+/, ''); const r = window.__litmus3d.why(id); return c + ' d' + r.dist + ': ' + r.out; });
+      return { type: 'stuck', held: [...held].map((h) => st.atoms[h].el + h), why };
+    }
+  }
   const k = (FOV * Math.PI / 180) / LH;
   // the way there: any headings to pass first (over the top of the crowd), then the pull's own
   while (pilot.path && pilot.path.length) {
@@ -1724,6 +1745,11 @@ function pilotNext(careless) {
   const move = pilot; pilot = null;
   const sp = screenOf(view(move.id));
   if (!sp) return { type: 'wait' };
+  if (move.kind === 'drift') {
+    // hold long enough to drift a few metres' worth, no further than the hold distance from it
+    const far = view(move.id).wp.distanceTo(cam.position) - TUNE.hold * U - 2;
+    return { type: 'hold', pt: [sp.x, sp.y], ms: Math.round(Math.max(380, Math.min(1400, 300 + far / (TUNE.driftSpeed * U * SPEED) * 1000))), el: st.atoms[move.id].el };
+  }
   if (move.kind === 'letgo') pilotLast = M.groupOf(st, move.id)[0];
   return { type: 'tap', pt: [sp.x, sp.y], kind: move.kind, el: st.atoms[move.id].el, id: move.id, cands: lastCands, held: [...held].map((h) => st.atoms[h].el + h) };
 }
@@ -1787,7 +1813,7 @@ function planMove(careless) {
   for (const c of cands) {
     const tp = view(c.t).wp, d = tp.clone().sub(cam.position);
     const yaw0 = Math.atan2(-d.x, -d.z), pitch0 = Math.atan2(d.y, Math.hypot(d.x, d.z));
-    const heads = careless ? [HEADS[0]] : HEADS;
+    const heads = careless ? [HEADS[0]] : PILOT_HEADS;
     for (const [oy, op] of heads) {
       const yaw = yaw0 + oy, pitch = Math.max(-1.2, Math.min(1.2, pitch0 + op));
       if (careless) { if (!onScreenAt(c.t, yaw, pitch)) continue; }
@@ -1836,7 +1862,7 @@ function clearAt(t, yaw, pitch) {
       if (!st.atoms[x].free) continue;
       if (helps(x, o.id)) continue;   // a grab that helps may happen on the way
       const r = reachOf(x, o.id), from = view(x).wp, to = goal.clone().add(from).sub(view(pr ? pr.t : t).wp);
-      if (r && segDist(o.wp, from, to) < r * 1.2) return false;
+      if (r && segDist(o.wp, from, to) < r * 1.35) return false;   // room for the drift while it comes in
     }
   }
   return true;

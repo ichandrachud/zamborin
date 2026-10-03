@@ -92,6 +92,7 @@ async function worker(levels, results) {
       const act = await ev(`__litmus3d.next(${careless})`);
       if (opt.verbose) console.log(n, variant, careless ? 'careless' : 'careful', JSON.stringify(act).slice(0, 160));
       if (act.type === 'done') return { won: act.result === 'win', result: act.result, moves: log.length, ms: Date.now() - t0, log, bonds: act.bonds, info: JSON.parse(info) };
+      if (act.type === 'stuck' && opt.verbose) console.log(n, variant, 'STUCK', JSON.stringify(act).slice(0, 1500));
       if (act.type === 'stuck') return { won: false, result: 'stuck', moves: log.length, ms: Date.now() - t0, log, info: JSON.parse(info) };
       if (act.type === 'wait') {
         waited = (waited || 0) + 1;
@@ -100,6 +101,13 @@ async function worker(levels, results) {
       }
       waited = 0;
       if (act.type === 'drag') { await dragBy(act.pts); await sleep(60); continue; }
+      if (act.type === 'hold') {
+        log.push('drift to ' + act.el);
+        const [cx, cy] = px(act.pt[0], act.pt[1]);
+        if (mobile) { await S('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: cx, y: cy, id: 4 }] }); await sleep(act.ms); await S('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); }
+        else { await S('Input.dispatchMouseEvent', { type: 'mouseMoved', x: cx, y: cy }); await S('Input.dispatchMouseEvent', { type: 'mousePressed', x: cx, y: cy, button: 'left', clickCount: 1 }); await sleep(act.ms); await S('Input.dispatchMouseEvent', { type: 'mouseReleased', x: cx, y: cy, button: 'left', clickCount: 1 }); }
+        await sleep(200); continue;
+      }
       if (act.type === 'tap') { log.push((act.kind === 'letgo' ? 'let go ' : '') + act.el); await tap(act.pt); await sleep(140); }
     }
     return { won: false, result: 'timeout', moves: log.length, ms: Date.now() - t0, log, info: JSON.parse(info) };
