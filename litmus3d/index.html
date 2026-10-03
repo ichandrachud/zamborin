@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <title>Litmus — A Zamborin Game</title>
+  <!-- In development: not linked from anywhere and not to be indexed (CONTRIBUTING, "Prototypes"). -->
+  <meta name="robots" content="noindex" />
+  <meta name="description" content="Float in an empty dark space with atoms all around you. Turn to find them, tap one to pull it in, and build the molecule." />
+  <meta name="theme-color" content="#0E1726" />
+  <link rel="icon" type="image/svg+xml" href="../images/zamborin-favicon.svg?v=2" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../shared/tokens.css?v=1" />
+  <link rel="stylesheet" href="../shared/chrome.css?v=20" />
+  <link rel="stylesheet" href="./play.css?v=1" />
+  <link rel="modulepreload" href="./play.js?v=1" />
+  <link rel="modulepreload" href="./assets/three-r186.min.js" />
+</head>
+<body>
+  <!-- Phone or computer, decided before anything is drawn (play.js makes the same
+       test), so the cover is full size from the start. -->
+  <script>
+    (() => {
+      const mobile = matchMedia('(pointer: coarse)').matches || (innerWidth > 0 && innerWidth < 768);
+      document.body.classList.add('mode-' + (mobile ? 'mobile' : 'desktop'));
+      if (mobile && innerWidth > 0 && innerHeight > 0) {
+        document.body.style.setProperty('--canvas-w', innerWidth + 'px');
+        document.body.style.setProperty('--canvas-h', innerHeight + 'px');
+      }
+    })();
+  </script>
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="Zamborin Games home">
+      <img class="brand-logo" src="../images/zamborin-logo.svg?v=2" alt="Zamborin" />
+    </a>
+    <div class="header-right">
+      <button id="focus-toggle" class="focus-btn" type="button" aria-label="Play fullscreen" aria-pressed="false">
+        <svg class="icon-enter" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="4 9 4 4 9 4"/>
+          <polyline points="20 9 20 4 15 4"/>
+          <polyline points="4 15 4 20 9 20"/>
+          <polyline points="20 15 20 20 15 20"/>
+        </svg>
+        <svg class="icon-exit" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M6 6l12 12M18 6L6 18"/>
+        </svg>
+      </button>
+      <a class="back-link" href="/">Back to all games</a>
+    </div>
+  </header>
+
+  <main class="page">
+    <section class="play-row">
+      <div class="game-wrap">
+        <!-- The 3D space is WebGL on #world. The pause button and every card are
+             the house canvas UI on #game, laid over it. -->
+        <canvas id="world" aria-hidden="true"></canvas>
+        <canvas id="game" aria-label="Litmus"></canvas>
+        <div id="splash" class="splash" aria-hidden="true">
+          <div class="splash-load"><span class="splash-load-label" id="splash-label">Loading the atoms</span><span class="splash-load-track"><span class="splash-load-fill" id="splash-fill"></span></span></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <nav class="site-foot-nav">
+      <a href="/">Games</a>
+      <a href="/guides/">Guides</a>
+      <a href="/about/">About</a>
+      <a href="/privacy/">Privacy</a>
+      <a href="/terms/">Terms</a>
+      <a href="/contact/">Contact</a>
+    </nav>
+    <span>© 2026 Zamborin. Games created by Indrajeet Chandrachud.</span>
+  </footer>
+
+  <!-- Shared toolkit, then Litmus's own rules and levels, unchanged from /chemistry/. -->
+  <script src="../shared/sfx.js?v=5"></script>
+  <script src="../shared/ui.js?v=2"></script>
+  <script src="../shared/embed.js?v=1"></script>
+  <script src="../chemistry/model.js?v=7"></script>
+  <script src="../chemistry/levels.js?v=11"></script>
+  <script type="module" src="./play.js?v=1"></script>
+  <script>
+    (() => {
+      const btn = document.getElementById('focus-toggle');
+      btn.addEventListener('click', () => {
+        const on = document.body.classList.toggle('focus-mode');
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        btn.setAttribute('aria-label', on ? 'Exit fullscreen' : 'Play fullscreen');
+        setTimeout(() => window.dispatchEvent(new Event('resize')), 60);
+      });
+    })();
+    /* The cover stays until the game says it has drawn itself ('game-ready'),
+       never less than 2 s, as Marble's. On a phone it then waits for one tap:
+       sound can start only from a finger lifting, and on an iPhone that same tap
+       is where the game asks to follow the phone's movement. */
+    (() => {
+      const splash = document.getElementById('splash');
+      if (!splash) return;
+      const fill = document.getElementById('splash-fill'), label = document.getElementById('splash-label');
+      const t0 = performance.now();
+      let at = 0, ready = false, gone = false;
+      const needTap = matchMedia('(pointer: coarse)').matches && !/[?&]harness=1(&|$)/.test(location.search);
+      const to = (k, secs) => {
+        if (k <= at) return;
+        at = k;
+        fill.style.setProperty('--load-t', secs + 's');
+        fill.style.setProperty('--load', k);
+      };
+      requestAnimationFrame(() => to(0.3, 6));
+      const seen = new Set();
+      const onFile = (name) => {
+        if (/play\.js/.test(name)) seen.add('game');
+        if (/three-r186/.test(name)) seen.add('3d');
+        if (seen.size === 1) to(0.55, 2.5);
+        if (seen.size === 2) to(0.82, 4);
+      };
+      try {
+        new PerformanceObserver((list) => { for (const e of list.getEntries()) onFile(e.name); }).observe({ type: 'resource', buffered: true });
+      } catch (_) {}
+      const finish = () => {
+        if (gone) return;
+        gone = true;
+        to(1, 0.25);
+        setTimeout(() => splash.classList.add('fading'), 250);
+        setTimeout(() => {
+          splash.remove();
+          window.dispatchEvent(new CustomEvent('splash-done'));
+        }, 850);
+      };
+      const askForTap = () => {
+        if (gone) return;
+        if (!needTap) { finish(); return; }
+        to(1, 0.25);
+        label.textContent = 'Tap to play';
+        splash.classList.add('tap');
+        const go = () => { if (!gone) { splash.classList.remove('tap'); finish(); } };
+        splash.addEventListener('pointerup', go);
+        splash.addEventListener('touchend', go);
+        splash.addEventListener('click', go);
+      };
+      window.addEventListener('game-ready', () => {
+        ready = true;
+        setTimeout(askForTap, Math.max(0, 2000 - (performance.now() - t0)));
+      }, { once: true });
+      setTimeout(() => { if (!ready) label.textContent = 'Still loading. A slow connection can take a while'; }, 20000);
+      window.addEventListener('error', (e) => {
+        if (!ready && /play\.js|three-r186/.test(String(e.filename || ''))) label.textContent = 'Something went wrong. Reload the page to try again';
+      });
+    })();
+  </script>
+</body>
+</html>
