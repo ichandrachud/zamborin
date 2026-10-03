@@ -1,8 +1,9 @@
 // Pack Litmus in 3D into one self-contained page for a private phone link (a
 // claude.ai Artifact), the way Marble's test links were shared. Everything is
 // inlined: the house CSS, shared/sfx.js and ui.js, /chemistry/'s model.js and
-// levels.js, the three.js bundle (its exports become window.__THREE) and
-// play.js (its import becomes a read of that). The game is laid out as an
+// levels.js, the placements, the What-you-built cards (cards.js, learn.js),
+// the three.js bundle (its exports become window.__THREE) and play.js (its
+// import becomes a read of that). The game is laid out as an
 // embed: it fills the window, with no site header or footer.
 // usage: node tools/litmus3d/phone.mjs <out.html>
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -70,6 +71,8 @@ ${splashScript[0]}
 <script>${noScriptClose(read('chemistry/model.js'))}</script>
 <script>${noScriptClose(read('chemistry/levels.js'))}</script>
 <script>${noScriptClose(read('litmus3d/places.js'))}</script>
+<script>${noScriptClose(read('litmus3d/cards.js'))}</script>
+<script>${noScriptClose(read('litmus3d/learn.js'))}</script>
 <script>${noScriptClose(three)}</script>
 <script>${noScriptClose(play)}</script>
 `;

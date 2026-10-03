@@ -1111,7 +1111,7 @@ function endLevel() {
   glide = null; look.drift = null;
   const { spin, fly } = liftTimes();
   if (r.kind === 'win') markDone(levelNo);
-  card = { kind: r.kind, showAt: clock() + (r.kind === 'win' ? spin + fly + TUNE.cardAfterMs : TUNE.cardFailMs), sounded: false, scroll: 0 };
+  card = { kind: r.kind, showAt: clock() + (r.kind === 'win' ? spin + fly + TUNE.cardAfterMs : TUNE.cardFailMs), sounded: false, scroll: 0, tab: 0, electrons: false };
 }
 
 // ---------- THE STEP ----------
@@ -1531,6 +1531,7 @@ function fitText(s, x, y, room) {
 function drawCard(now) {
   if (!card || now < card.showAt) return;
   if (!card.sounded) { card.sounded = true; (card.kind === 'win' ? SND.win : SND.fail)(); }
+  if (card.kind === 'win') { drawLearn(); return; }
   const pw = Math.min(LW - 56, 470), ph = Math.min(LH - 20, 300);
   const x = (LW - pw) / 2, y = Math.max(10, (LH - ph) / 2);
   ctx.fillStyle = card.kind === 'win' ? TOK.scrimWin : TOK.scrim; ctx.fillRect(0, 0, LW, LH);
@@ -1538,12 +1539,10 @@ function drawCard(now) {
   const cx = LW / 2;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.font = '800 34px Inter, sans-serif'; ctx.fillStyle = TOK.text;
-  const title = card.kind === 'win' ? `${st.targets.map((t) => formulaOf(t.key)).join(' + ')} made` : 'Not this time';
-  ctx.fillText(title, cx, y + 34 + 24);
+  ctx.fillText('Not this time', cx, y + 34 + 24);
   ctx.font = '600 17px Inter, sans-serif'; ctx.fillStyle = TOK.ink82;
-  const sub = card.kind === 'win' ? LEVEL.note : 'An atom grabbed a hand the molecule needed on its way in. Turn for a clear line and try again.';
-  wrap(sub, x + 34, y + 34 + 54 + 14, pw - 68, 24, 4);
-  hits.cta = UI.drawCTA(ctx, card.kind === 'win' ? (levelNo < LIST.length ? 'Next level' : 'Play again') : 'Try again', cx, y + ph - 32 - 25, ACCENT);
+  wrap('An atom grabbed a hand the molecule needed on its way in. Turn for a clear line and try again.', x + 34, y + 34 + 54 + 14, pw - 68, 24, 4);
+  hits.cta = UI.drawCTA(ctx, 'Try again', cx, y + ph - 32 - 25, ACCENT);
   card.box = { x, y, w: pw, h: ph };
 }
 function wrap(s, x, y, w, lh, max) {
@@ -1555,6 +1554,249 @@ function wrap(s, x, y, w, lh, max) {
     else line = t;
   }
   if (line) ctx.fillText(line, x, y + n * lh);
+}
+
+/* ---------- WHAT YOU BUILT ----------
+   After a won level, a card for each molecule it asked for (owner, 2026-10-03),
+   in a science textbook's words (learn.js, cards.js): what the formula says,
+   the molecule in its real shape with the angle a textbook gives, or its
+   electrons as a dot-and-cross diagram, and one everyday fact. A level that
+   asked for several molecules has a tab for each. When it is too tall for the
+   frame its middle scrolls (DESIGN-SYSTEM 5.3). Wide frames set the picture
+   beside the words. */
+const LEARN = window.LitmusLearn;
+const LC = { pad: 22, text: 16, line: 22, diag: 190, diagWide: 230, col: 300 };
+const elInk = (el) => (el === 'H' ? '#E8EEF8' : ART[el].hi);
+/* The molecule as the space draws it, glossy glass, rendered once into a
+   picture by a small renderer of its own (a texture cannot cross between two
+   renderers, so it has its own light and its own glass). */
+let iconKit = null;
+const icons = new Map();
+function molIcon(key) {
+  if (icons.has(key)) return icons.get(key);
+  const S = 512;
+  if (!iconKit) {
+    const cv = document.createElement('canvas'); cv.width = cv.height = S;
+    const r = new WebGLRenderer({ canvas: cv, antialias: true, alpha: true, preserveDrawingBuffer: true });
+    r.setClearColor(0x000000, 0); r.toneMapping = NeutralToneMapping; r.toneMappingExposure = 1.05;
+    const pm = new PMREMGenerator(r), es = new Scene();
+    es.add(new Mesh(new SphereGeometry(50, 32, 16), new MeshBasicMaterial({ color: 0x0C1426, side: BackSide })));
+    const bx = new Mesh(new PlaneGeometry(34, 22), new MeshBasicMaterial({ color: 0xFFFFFF })); bx.position.set(-26, 26, 18); bx.lookAt(0, 0, 0); es.add(bx);
+    const rp = new Mesh(new PlaneGeometry(40, 10), new MeshBasicMaterial({ color: 0x8A6AFF })); rp.position.set(24, 6, -30); rp.lookAt(0, 0, 0); es.add(rp);
+    const envI = pm.fromScene(es, 0.02).texture; pm.dispose();
+    const sc = new Scene();
+    sc.add(new HemisphereLight(0x9AB8FF, 0x101624, 0.7));
+    const sun = new DirectionalLight(0xFFF4E4, 2.4); sun.position.set(-40, 30, 20); sc.add(sun);
+    const rim = new DirectionalLight(0x8A6AFF, 1.2); rim.position.set(20, 10, -60); sc.add(rim);
+    const glass = new Map();
+    const G = (el) => { if (!glass.has(el)) { const base = new Color(ART[el].hi).lerp(new Color(ART[el].lo), 0.5);
+      glass.set(el, new MeshPhysicalMaterial({ color: new Color(ART[el].hi).lerp(base, 0.28), roughness: 0.1, clearcoat: 1, clearcoatRoughness: 0.02,
+        envMap: envI, envMapIntensity: 1.5, emissive: base, emissiveIntensity: 0.1 })); } return glass.get(el); };
+    iconKit = { cv, r, sc, G, cam: new PerspectiveCamera(26, 1, 0.1, 400) };
+  }
+  const { cv, r, sc, G, cam: c2 } = iconKit;
+  const s = LEARN.shape3d(key), B = TUNE.bond * U;
+  const at = s.els.map((el, i) => ({ el, p: new Vector3(...s.p[i]).multiplyScalar(B), r: rOf(el) }));
+  // centred on its outline
+  let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+  for (const a of at) { x0 = Math.min(x0, a.p.x - a.r); x1 = Math.max(x1, a.p.x + a.r); y0 = Math.min(y0, a.p.y - a.r); y1 = Math.max(y1, a.p.y + a.r); }
+  const mid = new Vector3((x0 + x1) / 2, (y0 + y1) / 2, 0), ext = Math.max(x1 - x0, y1 - y0) / 2;
+  for (const a of at) a.p.sub(mid);
+  const g = new Group(); sc.add(g);
+  for (const a of at) { const b = new Mesh(cached('ball' + a.r, () => new SphereGeometry(a.r, 40, 28)), G(a.el)); b.position.copy(a.p); g.add(b); }
+  for (const [i, j, o] of s.bonds) {
+    const A = at[i], Bn = at[j], L = Bn.p.distanceTo(A.p), d = Bn.p.clone().sub(A.p).normalize();
+    if (o === 1) {
+      // a single bond drawn out of each atom as pulled glass, as in the space
+      for (const [a, dir] of [[A, d], [Bn, d.clone().negate()]]) {
+        const rad = ARM.base * U, q = new Quaternion().setFromUnitVectors(Y_UP, dir);
+        const fl = new Mesh(flareGeo(a.r, rad), G(a.el)); fl.position.copy(a.p); fl.quaternion.copy(q); g.add(fl);
+        const stm = new Mesh(cached('stick' + rad, () => new CylinderGeometry(rad, rad, 1, 12)), G(a.el));
+        stm.quaternion.copy(q); stm.scale.set(1, L / 2, 1); stm.position.copy(a.p).addScaledVector(dir, L / 4); g.add(stm);
+      }
+      continue;
+    }
+    // a double or triple bond as two or three rods side by side, as the goals draw them
+    const side = d.clone().cross(new Vector3(0, 0, 1)).normalize(), rad = 0.085 * U;
+    for (const off of o === 2 ? [-0.16 * U, 0.16 * U] : [-0.22 * U, 0, 0.22 * U]) for (const [a, k] of [[A, 0.25], [Bn, 0.75]]) {
+      const stm = new Mesh(cached('stick' + rad, () => new CylinderGeometry(rad, rad, 1, 10)), G(a.el));
+      stm.quaternion.setFromUnitVectors(Y_UP, d); stm.scale.set(1, L / 2, 1);
+      stm.position.copy(A.p).addScaledVector(d, L * k).addScaledVector(side, off); g.add(stm);
+    }
+  }
+  c2.position.set(0, 0, ext / Math.tan(13 * Math.PI / 180) * 1.12); c2.lookAt(0, 0, 0); c2.updateMatrixWorld(); c2.updateProjectionMatrix();
+  // each letter upright in front of its atom, unless a nearer atom covers it
+  for (const a of at) {
+    const hid = at.some((b) => b !== a && b.p.z > a.p.z + 0.1 && Math.hypot(b.p.x - a.p.x, b.p.y - a.p.y) < b.r * 0.8);
+    if (hid) continue;
+    const lt = new Sprite(letterMat(a.el)); const k = a.r * letterBase(a.el);
+    lt.scale.set(k, k, 1); lt.position.copy(a.p).add(new Vector3(0, 0, a.r * 1.3)); lt.renderOrder = 50; g.add(lt);
+  }
+  r.render(sc, c2);
+  const spots = at.map((a) => { const q = a.p.clone().project(c2); return { x: (q.x + 1) / 2, y: (1 - q.y) / 2 }; });
+  sc.remove(g);
+  const img = document.createElement('canvas'); img.width = img.height = S; img.getContext('2d').drawImage(cv, 0, 0);
+  const out = { img, spots, arc: s.arc };
+  icons.set(key, out);
+  return out;
+}
+function textLines(s, w) {
+  const out = []; let cur = '';
+  for (const wd of s.split(' ')) { const t = cur ? cur + ' ' + wd : wd; if (!cur || ctx.measureText(t).width <= w) cur = t; else { out.push(cur); cur = wd; } }
+  if (cur) out.push(cur);
+  return out;
+}
+/* Every line of the card is placed here once, and drawLearn draws only what
+   this says, so learnFit measures what is drawn. */
+function learnLayout() {
+  const wide = LW >= 640, keys = st.targets.map((t) => t.key), key = keys[card.tab] || keys[0], c = LEARN.card(key);
+  const pw = wide ? Math.min(LW - 40, 720) : Math.min(LW - 24, 470), x = Math.round((LW - pw) / 2), P = LC.pad, inner = pw - 2 * P;
+  const textW = wide ? inner - LC.col - 24 : inner;
+  ctx.font = `500 ${LC.text}px Inter, sans-serif`;
+  const read = textLines(c.read, textW), say = textLines(card.electrons ? c.electrons : c.atoms, textW), fact = textLines(c.fact, textW);
+  // the header: the title with its kind of bonding beside it (or under it, if there is no room), the name, the tabs
+  ctx.font = '700 24px Inter, sans-serif'; const titleW = ctx.measureText('What you built').width;
+  ctx.font = '600 16px Inter, sans-serif'; const kickW = ctx.measureText(c.kicker).width + 24;
+  const head = {}; let h = P;
+  head.title = h + 15;
+  if (titleW + 16 + kickW <= inner) { head.kick = { x: x + P + inner - kickW, y: h, w: kickW }; h += 30; }
+  else { h += 30 + 8; head.kick = { x: x + P, y: h, w: kickW }; h += 30; }
+  h += 8; head.name = h + 13; h += 26;
+  if (c.also) { head.also = h + 11; h += 22; }
+  if (keys.length > 1) {
+    ctx.font = '600 16px Inter, sans-serif';
+    head.tabs = []; let tx = x + P; h += 10;
+    for (const k of keys) { const w = ctx.measureText(M.MOLECULES[k].formula).width + 28; head.tabs.push({ x: tx, y: h, w, h: 36 }); tx += w + 8; }
+    h += 36;
+  }
+  const headerH = h + 14;
+  // the legend under the diagram: which mark is whose
+  const legW = wide ? LC.col : inner, leg = [];
+  if (card.electrons) {
+    ctx.font = '600 16px Inter, sans-serif';
+    let row = [], rw = 0;
+    for (const [m, el, nm] of c.legend) {
+      const w = ctx.measureText(`${m} ${nm}`).width;
+      if (row.length && rw + 16 + w > legW) { leg.push(row); row = []; rw = 0; }
+      row.push({ m, el, nm, w }); rw += (row.length > 1 ? 16 : 0) + w;
+    }
+    if (row.length) leg.push(row);
+  }
+  // the body, in its own offsets: the picture (and its switch), what the formula says, the bonding, the everyday fact
+  const body = {}; let y = 0;
+  const pic = (y0) => {
+    let q = y0; body.diag = { y: q, h: wide ? LC.diagWide : LC.diag }; q += body.diag.h + 6;
+    body.leg = leg.map(() => { const r = q + 11; q += LC.line; return r; }); if (leg.length) q += 6;
+    body.toggle = q; q += 40;
+    return q;
+  };
+  const words = (y0) => {
+    let q = y0;
+    body.read = read.map(() => { const r = q + 11; q += LC.line; return r; }); q += 12;
+    body.say = say.map(() => { const r = q + 11; q += LC.line; return r; }); q += 14;
+    body.every = q + 11; q += LC.line + 4;
+    body.fact = fact.map(() => { const r = q + 11; q += LC.line; return r; });
+    return q;
+  };
+  if (wide) y = Math.max(pic(0), words(0));
+  else {
+    // one column: the reading, the picture and its switch, the bonding, the fact
+    body.read = read.map(() => { const r = y + 11; y += LC.line; return r; }); y += 12;
+    y = pic(y) + 14;
+    body.say = say.map(() => { const r = y + 11; y += LC.line; return r; }); y += 14;
+    body.every = y + 11; y += LC.line + 4;
+    body.fact = fact.map(() => { const r = y + 11; y += LC.line; return r; });
+  }
+  const bodyH = y + 12;
+  const footerH = 16 + 50 + P;
+  const ph = Math.min(LH - 12, headerH + bodyH + footerH), top = Math.max(6, Math.round((LH - ph) / 2)), viewH = ph - headerH - footerH;
+  return { wide, key, c, keys, x, y: top, pw, ph, P, inner, textW, read, say, fact, leg, head, headerH, body, bodyH, footerH, viewH, scrollMax: Math.max(0, bodyH - viewH) };
+}
+function drawLearn() {
+  const L = learnLayout(), { c } = L, lx = L.x + L.P;
+  ctx.fillStyle = TOK.scrimWin; ctx.fillRect(0, 0, LW, LH);
+  drawCardBox(L.x, L.y, L.pw, L.ph);
+  ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+  // header
+  ctx.font = '700 24px Inter, sans-serif'; ctx.fillStyle = TOK.text; ctx.fillText('What you built', lx, L.y + L.head.title);
+  const k = L.head.kick;
+  UI.roundRectPath(ctx, k.x, L.y + k.y, k.w, 30, 15); ctx.strokeStyle = INK_DONE; ctx.lineWidth = 1.2; ctx.stroke();
+  ctx.font = '600 16px Inter, sans-serif'; ctx.fillStyle = INK_DONE; ctx.fillText(c.kicker, k.x + 12, L.y + k.y + 15);
+  ctx.font = '700 20px Inter, sans-serif'; ctx.fillStyle = TOK.text; ctx.fillText(c.name, lx, L.y + L.head.name);
+  const nw = ctx.measureText(c.name + ' ').width;
+  ctx.font = '600 20px Inter, sans-serif'; ctx.fillStyle = INK_DONE; ctx.fillText(c.formula, lx + nw + 4, L.y + L.head.name);
+  if (c.also) { ctx.font = '500 16px Inter, sans-serif'; ctx.fillStyle = TOK.textDim; ctx.fillText(`Also called ${c.also}`, lx, L.y + L.head.also); }
+  if (L.head.tabs) L.head.tabs.forEach((b, i) => {
+    const on = i === card.tab, bb = { x: b.x, y: L.y + b.y, w: b.w, h: b.h };
+    UI.roundRectPath(ctx, bb.x, bb.y, bb.w, bb.h, 18);
+    if (on) { ctx.fillStyle = INK_DONE; ctx.fill(); } else { ctx.strokeStyle = TOK.tint12; ctx.lineWidth = 1.2; ctx.stroke(); }
+    ctx.font = '600 16px Inter, sans-serif'; ctx.fillStyle = on ? TOK.bgCard : TOK.ink90; ctx.textAlign = 'center';
+    ctx.fillText(M.MOLECULES[L.keys[i]].formula, bb.x + bb.w / 2, bb.y + bb.h / 2 + 1); ctx.textAlign = 'left';
+    hits['tab' + i] = bb;
+  });
+  // body, scrolled
+  const by = L.y + L.headerH;
+  ctx.fillStyle = TOK.tint10; ctx.fillRect(lx, by - 1, L.inner, 1);
+  ctx.save(); ctx.beginPath(); ctx.rect(L.x, by, L.pw, L.viewH); ctx.clip();
+  const sc = card.scroll = Math.max(0, Math.min(L.scrollMax, card.scroll || 0)), at = (dy) => by + dy - sc;
+  const tx = L.wide ? lx + LC.col + 24 : lx, colCx = L.wide ? lx + LC.col / 2 : L.x + L.pw / 2, colW = L.wide ? LC.col : L.inner;
+  ctx.font = `500 ${LC.text}px Inter, sans-serif`; ctx.fillStyle = TOK.ink82;
+  L.read.forEach((ln, i) => ctx.fillText(ln, tx, at(L.body.read[i])));
+  // the picture: the atoms in their real shape, with the angle a textbook gives, or their electrons
+  const D = L.body.diag, dcy = at(D.y + D.h / 2);
+  if (card.electrons) LEARN.drawElectrons(ctx, L.key, colCx, dcy, colW - 20, D.h - 16, elInk, 'Inter, sans-serif');
+  else {
+    const ic = molIcon(L.key), sz = Math.min(colW, D.h + 40), ix = colCx - sz / 2, iy = dcy - sz / 2;
+    ctx.drawImage(ic.img, ix, iy, sz, sz);
+    if (ic.arc && c.angle) {
+      const [o, a, b] = ic.arc.map((i) => [ix + ic.spots[i].x * sz, iy + ic.spots[i].y * sz]);
+      const a1 = Math.atan2(a[1] - o[1], a[0] - o[0]), a2 = Math.atan2(b[1] - o[1], b[0] - o[0]);
+      let m = Math.atan2(Math.sin(a1) + Math.sin(a2), Math.cos(a1) + Math.cos(a2)), half = Math.abs(Math.atan2(Math.sin(a2 - a1), Math.cos(a2 - a1))) / 2;
+      if (Math.hypot(Math.sin(a1) + Math.sin(a2), Math.cos(a1) + Math.cos(a2)) < 0.05) { m = Math.PI / 2; half = Math.PI / 2; }   // a straight line: the half circle below
+      const rA = Math.min(34, sz * 0.12);
+      ctx.strokeStyle = INK_DONE; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(o[0], o[1], rA, m - half, m + half); ctx.stroke();
+      ctx.font = '600 16px Inter, sans-serif'; ctx.fillStyle = INK_DONE; ctx.textAlign = 'center';
+      ctx.fillText(c.angle, o[0] + Math.cos(m) * (rA + 16), o[1] + Math.sin(m) * (rA + 14));
+      ctx.textAlign = 'left';
+    }
+  }
+  // which mark is whose, in each element's colour
+  ctx.font = '600 16px Inter, sans-serif'; ctx.textAlign = 'left';
+  L.leg.forEach((row, i) => {
+    const w = row.reduce((s, it) => s + it.w, 0) + 16 * (row.length - 1); let xx = colCx - w / 2;
+    for (const it of row) { ctx.fillStyle = elInk(it.el); ctx.fillText(`${it.m} ${it.nm}`, xx, at(L.body.leg[i])); xx += it.w + 16; }
+  });
+  // the switch between the two views
+  const lbl = card.electrons ? 'See the atoms' : 'See the electrons', bw = ctx.measureText(lbl).width + 36, tb = { x: colCx - bw / 2, y: at(L.body.toggle), w: bw, h: 40 };
+  UI.roundRectPath(ctx, tb.x, tb.y, tb.w, tb.h, 20); ctx.fillStyle = 'rgba(158,194,255,0.14)'; ctx.fill(); ctx.strokeStyle = INK_DONE; ctx.lineWidth = 1.2; ctx.stroke();
+  ctx.fillStyle = INK_DONE; ctx.textAlign = 'center'; ctx.fillText(lbl, colCx, tb.y + 21); ctx.textAlign = 'left';
+  if (tb.y + tb.h > by && tb.y < by + L.viewH) hits.toggle = tb;
+  ctx.font = `500 ${LC.text}px Inter, sans-serif`; ctx.fillStyle = TOK.text;
+  L.say.forEach((ln, i) => ctx.fillText(ln, tx, at(L.body.say[i])));
+  ctx.font = '600 16px Inter, sans-serif'; ctx.fillStyle = INK_DONE; ctx.fillText('Everyday', tx, at(L.body.every));
+  ctx.font = `500 ${LC.text}px Inter, sans-serif`; ctx.fillStyle = TOK.ink90;
+  L.fact.forEach((ln, i) => ctx.fillText(ln, tx, at(L.body.fact[i])));
+  ctx.restore();
+  if (sc > 0) fade(L.x, by, L.pw, 20, true);
+  if (sc < L.scrollMax) fade(L.x, by + L.viewH - 20, L.pw, 20, false);
+  // footer: build it again, or on
+  const fy = by + L.viewH;
+  ctx.fillStyle = TOK.tint10; ctx.fillRect(lx, fy, L.inner, 1);
+  const half = (L.inner - 12) / 2, cy = fy + 16 + 25;
+  hits.again = UI.drawPill(ctx, 'Build again', lx + half / 2, cy, { w: half });
+  hits.cta = UI.drawCTA(ctx, levelNo < LIST.length ? 'Next level' : 'Play again', lx + half + 12 + half / 2, cy, ACCENT, half);
+  card.box = L;
+}
+function learnDown(p, e) {
+  if (inBox(p, hits.cta)) { SND.pick(); startLevel(levelNo < LIST.length ? levelNo + 1 : levelNo); return; }
+  if (inBox(p, hits.again)) { SND.pick(); startLevel(levelNo); return; }
+  for (let i = 0; i < st.targets.length; i++) if (inBox(p, hits['tab' + i])) { SND.pick(); card.tab = i; card.scroll = 0; return; }
+  if (inBox(p, hits.toggle)) { SND.pick(); card.electrons = !card.electrons; return; }
+  const L = card.box;
+  if (L && p.y > L.y + L.headerH && p.y < L.y + L.headerH + L.viewH && inBox(p, { x: L.x, y: L.y, w: L.pw, h: L.ph })) {
+    card.drag = { y0: p.y, s0: card.scroll || 0 };
+    try { hud.setPointerCapture(e.pointerId); } catch (_) {}
+  }
 }
 
 /* Each goal's name under its orb, with the formula in brackets (owner, 2026-10-02): "Aluminium oxide (Al₂O₃)", and
@@ -1704,7 +1946,8 @@ hud.addEventListener('pointerdown', (e) => {
   if (drag.active) return;
   const p = pt(e);
   if (card && clock() >= card.showAt) {
-    if (inBox(p, hits.cta)) { SND.pick(); startLevel(card.kind === 'win' && levelNo < LIST.length ? levelNo + 1 : levelNo); }
+    if (card.kind === 'win') learnDown(p, e);
+    else if (inBox(p, hits.cta)) { SND.pick(); startLevel(levelNo); }
     return;
   }
   if (map) { mapDown(p, e); return; }
@@ -1718,6 +1961,7 @@ hud.addEventListener('pointerdown', (e) => {
 });
 hud.addEventListener('pointermove', (e) => {
   if (menu && menu.drag) { const p = pt(e); menu.scroll = menu.drag.s0 - (p.y - menu.drag.y0); return; }
+  if (card && card.drag) { const p = pt(e); card.scroll = card.drag.s0 - (p.y - card.drag.y0); return; }
   if (map && map.press) { mapMove(pt(e)); return; }
   if (!drag.active || e.pointerId !== drag.id) return;
   const p = pt(e);
@@ -1738,6 +1982,7 @@ hud.addEventListener('pointermove', (e) => {
 });
 function endPointer(e) {
   if (menu && menu.drag) { menu.drag = null; return; }
+  if (card && card.drag) { card.drag = null; return; }
   if (map && map.press) { mapUp(pt(e)); return; }
   if (!drag.active || e.pointerId !== drag.id) return;
   drag.active = false;
@@ -1756,6 +2001,7 @@ for (const ev of ['touchend', 'pointerup', 'click']) window.addEventListener(ev,
 hud.addEventListener('wheel', (e) => {
   if (map) { map.scroll += e.deltaY; e.preventDefault(); }
   else if (menu) { menu.scroll = (menu.scroll || 0) + e.deltaY; e.preventDefault(); }
+  else if (card && clock() >= card.showAt) { card.scroll = (card.scroll || 0) + e.deltaY; e.preventDefault(); }
 }, { passive: false });
 function rayDir(p) {
   return new Vector3((p.x / LW) * 2 - 1, 1 - (p.y / LH) * 2, 0.5).unproject(cam).sub(cam.position).normalize();
@@ -1830,7 +2076,7 @@ requestAnimationFrame(frame);
 if (HARNESS) {
   window.__litmus3d = {
     state: () => ({ LW, LH, MODE, level: levelNo, hint: hintId, held: [...held], glide: !!glide, result: st.result, made: st.made,
-      card: card && card.kind, menu: !!menu, map: !!map, yaw: look.yaw, pitch: look.pitch, variant: placement && placement.variant,
+      card: card && card.kind, targets: st.targets.length, menu: !!menu, map: !!map, yaw: look.yaw, pitch: look.pitch, variant: placement && placement.variant,
       placement: placement && { attempt: placement.attempt, score: placement.score }, hazards: hazardIds }),
     atoms: () => [...V.values()].map((v) => { const s = screenOf(v); return { id: v.id, el: v.el, status: st.atoms[v.id].status, free: st.atoms[v.id].free, held: held.has(v.id), screen: s && { x: Math.round(s.x), y: Math.round(s.y), r: +s.r.toFixed(1) }, dist: +v.wp.distanceTo(cam.position).toFixed(2) }; }),
     hits: () => JSON.parse(JSON.stringify(hits)),
@@ -1840,6 +2086,19 @@ if (HARNESS) {
     quiet: () => { firstInput = true; },
     freeze: () => { for (const v of V.values()) { v.vel.set(0, 0, 0); v.w.set(0, 0, 0); } },
     menuFit: () => { if (!menu || !menu.box) return null; const L = menu.box; return { fits: L.headerH + L.viewH + L.footerH === L.ph && L.y >= 0 && L.y + L.ph <= LH, cardH: L.ph, frameH: LH, viewportH: L.viewH, contentH: L.bodyH, scrollMax: L.scrollMax }; },
+    // the won card for the current level, at a tab and a view; and what it measures
+    learn: (tab = 0, electrons = false) => { card = { kind: 'win', showAt: 0, sounded: true, scroll: 0, tab, electrons }; },
+    learnFit: () => {
+      if (!card || !card.box) return null;
+      const L = card.box; ctx.font = `500 ${LC.text}px Inter, sans-serif`;
+      const widest = Math.max(...[...L.read, ...L.say, ...L.fact].map((s) => ctx.measureText(s).width));
+      const legendW = Math.max(0, ...L.leg.map((row) => row.reduce((s, it) => s + it.w, 0) + 16 * (row.length - 1)));
+      ctx.font = '700 24px Inter, sans-serif'; const tw = ctx.measureText('What you built').width;
+      const k = L.head.kick, headerFits = k.y > L.P + 1 || L.x + L.P + tw + 8 <= k.x;
+      const tabsFit = !L.head.tabs || L.head.tabs.every((b) => b.x + b.w <= L.x + L.pw - L.P);
+      return { key: L.key, fits: L.headerH + L.viewH + L.footerH === L.ph && L.y >= 0 && L.y + L.ph <= LH && L.viewH > 120, headerFits: headerFits && tabsFit,
+        cardH: L.ph, frameH: LH, viewH: L.viewH, bodyH: L.bodyH, scrollMax: L.scrollMax, widest, textW: L.textW, legendW, colW: L.wide ? LC.col : L.inner };
+    },
     level: (n, variant) => { startLevel(n, variant); firstInput = true; pilot = null; pilotLast = -1; pilotDrifts = 0; bondLog.length = 0; return { level: levelNo, variant: placement.variant, score: placement.score }; },
     progress: () => JSON.parse(JSON.stringify(save)),
     /* THE PILOT, for checks only. next() says what a player would do now: drag
