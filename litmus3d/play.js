@@ -1109,8 +1109,9 @@ function drawWorld(now) {
     }
     v.g.scale.setScalar(scale);
     v.ball.material.opacity = v.fade;
-    // the letter sits on the face toward you, never too small to read
-    v.letter.position.copy(tmpA.copy(cam.position).sub(p).normalize().multiplyScalar(v.r * 1.04));
+    /* the letter sits on the face toward you, never too small to read, and in front of
+       the atom's own sticks: a bond turned toward you used to cross it (owner, 2026-10-03) */
+    v.letter.position.copy(tmpA.copy(cam.position).sub(p).normalize().multiplyScalar(v.r * 1.7));
     const depth = Math.max(0.5, tmpA.copy(p).sub(cam.position).dot(camDir));
     const perUnit = (LH / 2) / (depth * Math.tan((FOV / 2) * Math.PI / 180));   // frame pixels per world unit there
     const ls = Math.min(v.r * LETTER.max, Math.max(v.r * letterBase(v.el), LETTER.cap / capOf(v.el) / perUnit));
