@@ -36,7 +36,9 @@ splashScript[0] = '<script>\n    ' + splashScript[0];
 const wrap = page.match(/<div class="game-wrap">[\s\S]*?<\/div>\s*<\/div>\s*<\/div>/);
 if (!wrap) throw new Error('game-wrap not found');
 
-const css = [read('shared/tokens.css'), read('shared/chrome.css'), read('litmus3d/play.css')].join('\n')
+// the cover's art, inlined: a one-page link has no files beside it
+const jpg = (f) => `url('data:image/jpeg;base64,${readFileSync(root + 'litmus3d/' + f).toString('base64')}')`;
+const css = [read('shared/tokens.css'), read('shared/chrome.css'), read('litmus3d/play.css').replace(/url\('\.\/(splash-(?:mobile|desktop)\.jpg)\?v=\d+'\)/g, (m, f) => jpg(f))].join('\n')
   .replace(/@import[^;]+;/g, '');
 const noScriptClose = (s) => s.replace(/<\/script/gi, '<\\/script');
 
