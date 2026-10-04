@@ -80,14 +80,19 @@ const NEVER_SHIP = new Set(['analytics.js', 'ads.js', 'embed.js']);
    ads.js        — contract 2.6.8, no third-party advertising
    embed.js      — it appends a link home, and 2.6.7 forbids outbound links */
 
+/* A game may also load another game's rules: Litmus in 3D plays /chemistry/'s model.js, levels.js and lab.js
+   unchanged. Such a file travels in a folder of the same name beside index.html, byte-for-byte, its path flattened
+   as shared/'s is. */
+const SIBLINGS = new Set(['chemistry']);
 function manifest(html) {
-  const game = new Set(), shared = new Set();
+  const game = new Set(), shared = new Set(), sibling = new Set();
   for (const m of html.matchAll(/(?:src|href)="(?!https?:|\/)([^"?]+)/g)) {
     const ref = m[1];
     if (ref.startsWith('../images/')) continue;            // nothing links home
     const base = ref.split('/').pop();
     if (NEVER_SHIP.has(base)) continue;
     if (ref.startsWith('../shared/')) shared.add(base);
+    else if (SIBLINGS.has(ref.split('/')[1]) && ref.startsWith('../')) sibling.add(ref.slice(3));
     else if (ref.startsWith('./'))    game.add(ref.slice(2));   // the path inside the game's folder (Marble keeps three.js in ./assets/)
   }
   // assets requested at runtime rather than declared in the markup
@@ -97,7 +102,7 @@ function manifest(html) {
       game.add(m[1].split('?')[0]);
     }
   }
-  return { game: [...game], shared: [...shared] };
+  return { game: [...game], shared: [...shared], sibling: [...sibling] };
 }
 
 let cuts = 0;
@@ -118,6 +123,7 @@ for (const f of MAN.game) {
   cpSync(join(ROOT, GAME, f), join(OUT, f));
 }
 for (const f of MAN.shared) cpSync(join(ROOT, 'shared', f), join(OUT, 'shared', f));
+for (const f of MAN.sibling) { mkdirSync(dirname(join(OUT, f)), { recursive: true }); cpSync(join(ROOT, f), join(OUT, f)); }
 if (existsSync(join(ROOT, GAME, 'assets'))) {
   cpSync(join(ROOT, GAME, 'assets'), join(OUT, 'assets'), { recursive: true });
 }
@@ -200,6 +206,7 @@ h = cut(h, /\s*<style>[\s\S]*?<\/style>/g, 'inline game-info styles');
 // Flatten the shared paths now that shared/ sits beside index.html.
 if (!h.includes('../shared/')) throw new Error('expected ../shared/ paths to rewrite');
 h = h.replace(/\.\.\/shared\//g, './shared/');
+for (const d of SIBLINGS) h = h.split(`../${d}/`).join(`./${d}/`);
 
 // Embed layout without embed.js: set the classes it would have set. On <html>
 // too, so the chrome never flashes before <body> exists.

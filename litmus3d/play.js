@@ -759,6 +759,49 @@ function firstUndone() { const d = doneSet(); for (let n = 1; n <= LIST.length; 
 // Which 3D placement each level uses: tools/litmus3d/levels.mjs picks the first one its checks pass.
 const PLACES = (window.LITMUS3D_PLACES && window.LITMUS3D_PLACES[MODE]) || [];
 let levelNo = (() => { const m = location.hash.match(/level-(\d+)/); const n = m ? +m[1] : firstUndone(); return Math.max(1, Math.min(LIST.length, n)); })();
+/* ---------- THE DAILY (NEW-GAME-PROMPT 9; owner, 2026-10-04: "Daily molecule") ----------
+   One molecule a day in the Moleculator, the same for everyone: the date (UTC) picks it from the molecules a level makes
+   on its own in both sets (48), in an order that runs through them all before any comes back. Its atoms are dealt from
+   that level's recipe with the day's own seed, and each day's 3D placement was played and won by the pilot before it
+   shipped (dailies.js, tools/litmus3d/levels.mjs --daily). A streak counts days in a row; only the daily moves it. A
+   returning player lands on it until it is done; a new one starts at level 1. */
+const DAY_MS = 86400000, DAILY_EPOCH = Date.UTC(2026, 9, 4);      // day 0: 4 October 2026
+const dayOf = (ms) => Math.floor((ms - DAILY_EPOCH) / DAY_MS);
+const TODAY = dayOf(Date.now());
+const DAILY_KEYS = (() => {
+  const one = (set) => new Set(set.filter((L) => L.targets.length === 1 && L.targets[0][1] === 1).map((L) => L.targets[0][0]));
+  const a = one(LV.mobile), b = one(LV.desktop);
+  return [...a].filter((k) => b.has(k)).sort();
+})();
+function dailyKey(day) {
+  const n = DAILY_KEYS.length, cycle = Math.floor(day / n), pos = ((day % n) + n) % n;
+  let x = (cycle * 7919 + 2026) | 0;
+  const r = () => { x = (x + 0x6D2B79F5) | 0; let t = Math.imul(x ^ (x >>> 15), 1 | x); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  const order = DAILY_KEYS.slice();
+  for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
+  return order[pos];
+}
+// a day's code (dailies.js): its deal of atoms times ten, plus its placement; a deal past the first is a fresh seed
+function dailyLevel(day, code) {
+  const key = dailyKey(day), base = LIST.find((L) => L.targets.length === 1 && L.targets[0][0] === key && L.targets[0][1] === 1);
+  return LV.withCrowd(Object.assign({}, base, { seed: 50000 + day + 7919 * Math.floor((code || 0) / 10) }), base.crowd[0]);
+}
+const DAILY_PLACES = (window.LITMUS3D_DAILIES && window.LITMUS3D_DAILIES[MODE]) || [];
+const dailyCode = (day) => DAILY_PLACES[day] || 0;
+const dailyDate = (day) => new Date(DAILY_EPOCH + day * DAY_MS).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }).replace(',', '').toUpperCase();
+const dailyDone = () => !!(save.daily && save.daily.last === TODAY);
+let dailyOn = false, dailyDay = TODAY;
+function markDaily() {
+  if (dailyDay !== TODAY || dailyDone()) return;     // an old day, or today's again: the streak stays
+  const d = save.daily || {};
+  save.daily = { last: TODAY, streak: d.last === TODAY - 1 ? (d.streak || 0) + 1 : 1 };
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (_) { /* private window: play on unsaved */ }
+}
+let dailyCodeNow = 0;
+function startDaily(code, day) { dailyDay = day != null ? day : TODAY; dailyCodeNow = code != null ? code : dailyCode(dailyDay); startLevel(levelNo, dailyCodeNow % 10, true); }
+// after a level, what comes next: the daily again if it was lost, else the ladder
+const nextFromCard = (won) => betweenLevels(() => (dailyOn ? (won ? startLevel(firstUndone()) : startDaily()) : startLevel(won && levelNo < LIST.length ? levelNo + 1 : levelNo)), won);
+const againFromCard = () => betweenLevels(() => (dailyOn ? startDaily() : startLevel(levelNo)), false);
 let LEVEL = null, st = null;
 let held = new Set();         // the atoms you hold: they float in front of you and turn with you
 let glide = null;             // an atom on its way in
@@ -883,9 +926,10 @@ function placeAtoms(ids, leadId, seed, variant, hazards) {
 
 let placement = null, hazardIds = [], opening = null, splashGone = false;
 window.addEventListener('splash-done', () => { splashGone = true; if (opening && opening.t0 === Infinity) opening.t0 = clock() + 600; });
-function startLevel(n, variant) {
+function startLevel(n, variant, isDaily) {
   levelNo = n;
-  LEVEL = LIST[n - 1];
+  dailyOn = !!isDaily && !REACTOR;
+  LEVEL = dailyOn ? dailyLevel(dailyDay, dailyCodeNow) : LIST[n - 1];
   clearWorld();
   if (REACTOR) {
     st = RX.start(LEVEL, n);
@@ -917,7 +961,7 @@ function startLevel(n, variant) {
     const id = floating.find((k) => k !== lead && st.atoms[k].el === el && !hazardIds.includes(k));
     if (id != null) hazardIds.push(id);
   }
-  const vnt = variant != null ? variant : (PLACES[n - 1] || 0);
+  const vnt = variant != null ? variant : dailyOn ? dailyCodeNow % 10 : (PLACES[n - 1] || 0);
   placement = placeAtoms(floating, lead, LEVEL.seed, vnt, hazardIds);
   placement.variant = vnt;
   hintId = lead;
@@ -1206,7 +1250,7 @@ function endLevel(rr) {
   const r = st.result;
   glide = null; look.drift = null;
   const { spin, fly } = liftTimes();
-  if (r.kind === 'win') markDone(levelNo);
+  if (r.kind === 'win') { if (dailyOn) markDaily(); else markDone(levelNo); }
   card = { kind: r.kind, showAt: clock() + (r.kind === 'win' ? spin + fly + TUNE.cardAfterMs : TUNE.cardFailMs), sounded: false, scroll: 0, tab: 0, electrons: false };
 }
 
@@ -1563,7 +1607,7 @@ function drawMenu() {
   const cx = L.x + L.pw / 2, lx = L.x + MENU.pad;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.font = `800 ${MENU.kick}px Inter, sans-serif`; ctx.fillStyle = TOK.textDim;
-  ctx.fillText(`${CHAPTER_NAME}  ·  LEVEL ${levelNo}`, cx, L.y + L.head.kick);
+  ctx.fillText(dailyOn ? `DAILY  ·  ${dailyDate(dailyDay)}` : `${CHAPTER_NAME}  ·  LEVEL ${levelNo}`, cx, L.y + L.head.kick);
   drawMiniMolecule(st.targets[0].key, cx, L.y + L.head.pic, L.inner * 0.8, 60);
   ctx.font = `800 ${MENU.make}px Inter, sans-serif`; ctx.fillStyle = TOK.text;
   if (menu.note && clock() - menu.note < 2400) {
@@ -1767,6 +1811,8 @@ function textLines(s, w) {
 }
 /* Every line of the card is placed here once, and drawLearn draws only what
    this says, so learnFit measures what is drawn. */
+// a daily's card says the streak where the others say what you built
+const learnTitle = () => (dailyOn && save.daily && dailyDay === TODAY ? `Daily done · ${save.daily.streak} in a row` : 'What you built');
 function learnLayout() {
   const wide = LW >= 640, keys = st.targets.map((t) => t.key), key = keys[card.tab] || keys[0], c = LEARN.card(key);
   const pw = wide ? Math.min(LW - 40, 720) : Math.min(LW - 24, 470), x = Math.round((LW - pw) / 2), P = LC.pad, inner = pw - 2 * P;
@@ -1774,7 +1820,7 @@ function learnLayout() {
   ctx.font = `500 ${LC.text}px Inter, sans-serif`;
   const read = textLines(c.read, textW), say = textLines(card.electrons ? c.electrons : c.atoms, textW), fact = textLines(c.fact, textW);
   // the header: the title with its kind of bonding beside it (or under it, if there is no room), the name, the tabs
-  ctx.font = '700 24px Inter, sans-serif'; const titleW = ctx.measureText('What you built').width;
+  ctx.font = '700 24px Inter, sans-serif'; const titleW = ctx.measureText(learnTitle()).width;
   ctx.font = '600 16px Inter, sans-serif'; const kickW = ctx.measureText(c.kicker).width + 24;
   const head = {}; let h = P;
   head.title = h + 15;
@@ -1837,7 +1883,7 @@ function drawLearn() {
   drawCardBox(L.x, L.y, L.pw, L.ph);
   ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
   // header
-  ctx.font = '700 24px Inter, sans-serif'; ctx.fillStyle = TOK.text; ctx.fillText('What you built', lx, L.y + L.head.title);
+  ctx.font = '700 24px Inter, sans-serif'; ctx.fillStyle = TOK.text; ctx.fillText(learnTitle(), lx, L.y + L.head.title);
   const k = L.head.kick;
   UI.roundRectPath(ctx, k.x, L.y + k.y, k.w, 30, 15); ctx.strokeStyle = INK_DONE; ctx.lineWidth = 1.2; ctx.stroke();
   ctx.font = '600 16px Inter, sans-serif'; ctx.fillStyle = INK_DONE; ctx.fillText(c.kicker, k.x + 12, L.y + k.y + 15);
@@ -2000,8 +2046,8 @@ function drawReactorCard() {
   card.box = L;
 }
 function rcDown(p, e) {
-  if (inBox(p, hits.cta)) { SND.pick(); startLevel(levelNo < LIST.length ? levelNo + 1 : levelNo); return; }
-  if (inBox(p, hits.again)) { SND.pick(); startLevel(levelNo); return; }
+  if (inBox(p, hits.cta)) { SND.pick(); nextFromCard(true); return; }
+  if (inBox(p, hits.again)) { SND.pick(); againFromCard(); return; }
   const n = RX.steps().length;
   for (let i = 0; i < n; i++) if (inBox(p, hits['tab' + i])) { SND.pick(); card.tab = i; card.scroll = 0; return; }
   const L = card.box;
@@ -2011,8 +2057,8 @@ function rcDown(p, e) {
   }
 }
 function learnDown(p, e) {
-  if (inBox(p, hits.cta)) { SND.pick(); startLevel(levelNo < LIST.length ? levelNo + 1 : levelNo); return; }
-  if (inBox(p, hits.again)) { SND.pick(); startLevel(levelNo); return; }
+  if (inBox(p, hits.cta)) { SND.pick(); nextFromCard(true); return; }
+  if (inBox(p, hits.again)) { SND.pick(); againFromCard(); return; }
   for (let i = 0; i < st.targets.length; i++) if (inBox(p, hits['tab' + i])) { SND.pick(); card.tab = i; card.scroll = 0; return; }
   if (inBox(p, hits.toggle)) { SND.pick(); card.electrons = !card.electrons; return; }
   const L = card.box;
@@ -2112,6 +2158,11 @@ function drawMap() {
   ctx.fillStyle = TOK.scrim; ctx.fillRect(0, 0, LW, LH);
   if (L.band) {
     hits.mapBack = UI.drawPill(ctx, 'Back', L.pad + 40, L.band / 2);
+    if (CHAPTER === 'moleculator') {
+      const label = dailyDone() ? `Daily done · ${save.daily.streak} in a row` : 'Daily molecule';
+      const w = UI.pillWidth(ctx, label);
+      hits.mapDaily = UI.drawPill(ctx, label, L.pad + 80 + 16 + w / 2, L.band / 2);
+    }
     ctx.textBaseline = 'middle'; ctx.textAlign = 'right';
     ctx.font = '600 16px Inter, sans-serif'; ctx.fillStyle = TOK.ink72;
     ctx.fillText(`${CHAPTER_NAME}   ·   ${d.size} OF ${LIST.length} DONE`, LW - L.pad, L.band / 2 + 1);
@@ -2157,6 +2208,7 @@ function drawMap() {
 }
 function mapDown(p, e) {
   if (inBox(p, hits.mapBack)) { SND.pick(); map = null; return; }
+  if (inBox(p, hits.mapDaily)) { SND.pick(); startDaily(); return; }
   // the other chapter: its own address (its space is built for it)
   for (const id of ['moleculator', 'reactor', 'carbon']) if (inBox(p, hits['chap_' + id])) {
     SND.pick();
@@ -2212,7 +2264,7 @@ hud.addEventListener('pointerdown', (e) => {
   const p = pt(e);
   if (card && clock() >= card.showAt) {
     if (card.kind === 'win') (REACTOR ? rcDown : learnDown)(p, e);
-    else if (inBox(p, hits.cta)) { SND.pick(); startLevel(card.kind === 'win' && levelNo < LIST.length ? levelNo + 1 : levelNo); }
+    else if (inBox(p, hits.cta)) { SND.pick(); nextFromCard(card.kind === 'win'); }
     return;
   }
   if (map) { mapDown(p, e); return; }
@@ -2285,7 +2337,7 @@ function holdCheck() {
 function menuDown(p, e) {
   const L = menu.box;
   if (inBox(p, hits.resume)) { SND.pick(); menu = null; return; }
-  if (inBox(p, hits.restart)) { SND.pick(); startLevel(levelNo); return; }
+  if (inBox(p, hits.restart)) { SND.pick(); againFromCard(); return; }
   if (inBox(p, hits.levels)) { SND.pick(); openMap(); return; }
   if (inBox(p, hits.sound)) { SND.toggle(); return; }
   if (L && p.y > L.y + L.headerH && p.y < L.y + L.headerH + L.viewH && inBox(p, { x: L.x, y: L.y, w: L.pw, h: L.ph })) {
@@ -2297,6 +2349,39 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' || e.key === 'p') { if (card) return; if (map) { map = null; return; } menu = menu ? null : { scroll: 0 }; }
 });
 
+// ---------- THE PORTAL (NEW-GAME-PROMPT 8; shared/portal.js) ----------
+/* Harmless on zamborin.com, where there is no portal and every call does nothing. In a portal package the game is
+   paused and silenced for the whole of an ad (restoring the player's own sound setting after), play is reported as it
+   starts and stops (a card, the menu or the map up is not play), and an ad may come only between levels: as Comb, on
+   CrazyGames every third level won from level 4, two minutes apart, never the daily; on GameDistribution a mid-roll is
+   asked on each way out of a card, which their review wants. Never on the menu or the map. */
+const portal = window.ZAM_PORTAL;
+let adPaused = false, playingNow = false, completions = 0, lastAd = 0, adBusy = false;
+if (portal) {
+  portal.init({
+    onPause: () => { adPaused = true; },
+    onResume: () => { adPaused = false; },
+    isMuted: () => (sfx ? !sfx.isOn() : false),
+    setMuted: (m) => { if (sfx) sfx.setOn(!m); },
+  });
+  portal.loadingStart();
+  window.addEventListener('splash-done', () => portal.loadingStop(), { once: true });
+}
+function reportPlaying() {
+  const on = !!portal && !document.getElementById('splash') && !card && !menu && !map && !adPaused;
+  if (on === playingNow) return;
+  playingNow = on;
+  if (on) portal.gameplayStart(); else portal.gameplayStop();
+}
+function betweenLevels(then, won) {
+  if (!portal || !portal.name) { then(); return; }
+  if (portal.name === 'gd') { if (adBusy) return; adBusy = true; portal.interstitial(() => { adBusy = false; then(); }); return; }
+  if (won) completions++;
+  const now = Date.now();
+  if (won && !dailyOn && levelNo >= 4 && completions % 3 === 0 && now - lastAd > 120000) { lastAd = now; portal.interstitial(then); return; }
+  then();
+}
+
 // ---------- THE LOOP ----------
 const clock = () => performance.now();
 let last = clock(), acc = 0, ready = false;
@@ -2304,7 +2389,8 @@ function frame() {
   const now = clock();
   let dt = Math.min(0.1, (now - last) / 1000); last = now;
   holdCheck();
-  if (!menu && !map) {
+  reportPlaying();
+  if (!menu && !map && !adPaused) {
     acc += dt * SPEED;
     let n = 0;
     while (acc >= STEP && n < 6 * SPEED) { simStep(STEP); acc -= STEP; n++; }
@@ -2337,7 +2423,8 @@ for (const ev of ['resize', 'orientationchange', 'splash-done', 'load']) window.
 if (window.visualViewport) window.visualViewport.addEventListener('resize', onResize);
 setCanvasVars(); fitFullscreen();
 const rect0 = gameWrap.getBoundingClientRect(); cssW = rect0.width || LW; cssH = rect0.height || LH;
-startLevel(levelNo);
+if (CHAPTER === 'moleculator' && !/level-\d+/.test(location.hash) && doneSet().size > 0 && !dailyDone()) startDaily();
+else startLevel(levelNo);
 resizeCanvases();
 document.fonts && document.fonts.ready.then(() => {});
 requestAnimationFrame(frame);
@@ -2372,7 +2459,7 @@ if (HARNESS) {
       const L = card.box; ctx.font = `500 ${LC.text}px Inter, sans-serif`;
       const widest = Math.max(...[...L.read, ...L.say, ...L.fact].map((s) => ctx.measureText(s).width));
       const legendW = Math.max(0, ...L.leg.map((row) => row.reduce((s, it) => s + it.w, 0) + 16 * (row.length - 1)));
-      ctx.font = '700 24px Inter, sans-serif'; const tw = ctx.measureText('What you built').width;
+      ctx.font = '700 24px Inter, sans-serif'; const tw = ctx.measureText(learnTitle()).width;
       const k = L.head.kick, headerFits = k.y > L.P + 1 || L.x + L.P + tw + 8 <= k.x;
       const tabsFit = !L.head.tabs || L.head.tabs.every((b) => b.x + b.w <= L.x + L.pw - L.P);
       return { key: L.key, fits: L.headerH + L.viewH + L.footerH === L.ph && L.y >= 0 && L.y + L.ph <= LH && L.viewH > 120, headerFits: headerFits && tabsFit,
@@ -2380,6 +2467,8 @@ if (HARNESS) {
     },
     level: (n, variant) => { if (REACTOR) { startLevel(n); firstInput = true; return { level: levelNo }; } startLevel(n, variant); firstInput = true; pilot = null; pilotLast = -1; pilotDrifts = 0; bondLog.length = 0; return { level: levelNo, variant: placement.variant, score: placement.score }; },
     progress: () => JSON.parse(JSON.stringify(save)),
+    daily: (day, variant) => { startDaily(variant, day); firstInput = true; pilot = null; pilotLast = -1; pilotDrifts = 0; bondLog.length = 0; return { level: levelNo, day, key: dailyKey(day), variant: placement.variant, score: placement.score }; },
+    dailyInfo: () => ({ today: TODAY, keys: DAILY_KEYS.length, key: dailyKey(TODAY), on: dailyOn, done: dailyDone(), save: save.daily || null }),
     /* THE PILOT, for checks only. next() says what a player would do now: drag
        to turn (frame units), tap an atom (to pull it in, or to let go of what is
        held), wait, or that it is done or stuck. The check performs every drag

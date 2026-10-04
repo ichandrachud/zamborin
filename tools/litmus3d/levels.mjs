@@ -22,6 +22,8 @@ import { setTimeout as sleep } from 'node:timers/promises';
 const [mode, a, b, outFile] = process.argv.slice(2);
 const opt = Object.fromEntries(process.argv.slice(6).map((s) => { const [k, v] = s.replace(/^--/, '').split('='); return [k, v === undefined ? true : v]; }));
 const CHAPTER = ['reactor', 'carbon'].includes(opt.chapter) ? opt.chapter : null;   // the Reactor and the Carbon Chamber play the same sphere
+// --daily: the "levels" are days of the daily molecule, counted from 4 October 2026 (level 1 = day 0)
+const DAILY = !!opt.daily && !CHAPTER;
 const TRIES = CHAPTER ? 1 : +(opt.tries || 4), CARELESS = +(opt.careless ?? 1), WORKERS = +(opt.workers || 4), SPEED = +(opt.speed || 3);
 const root = new URL('../../', import.meta.url).pathname;
 const mobile = mode === 'mobile';
@@ -86,7 +88,7 @@ async function worker(levels, results) {
     }
   }
   async function play(n, variant, careless) {
-    const info = await ev(`JSON.stringify(__litmus3d.level(${n}, ${variant}))`);
+    const info = await ev(DAILY ? `JSON.stringify(__litmus3d.daily(${n - 1}, ${variant}))` : `JSON.stringify(__litmus3d.level(${n}, ${variant}))`);
     const log = [];
     let waited = 0;
     const t0 = Date.now();
@@ -117,7 +119,9 @@ async function worker(levels, results) {
   }
   for (const n of levels) {
     const row = { level: n, tries: [] };
-    for (let v = 0; v < TRIES; v++) {
+    // a daily that no placement wins tries a fresh deal of its atoms (code = deal x 10 + placement)
+    const codes = DAILY ? [0, 1, 2].flatMap((k) => [...Array(TRIES).keys()].map((v) => k * 10 + v)) : [...Array(TRIES).keys()];
+    for (const v of codes) {
       let r;
       try { r = await play(n, v, false); } catch (e) { r = { won: false, result: 'error ' + e.message.slice(0, 120) }; }
       row.tries.push({ variant: v, won: r.won, result: r.result, moves: r.moves, ms: r.ms, log: r.log && r.log.join(' '), bonds: r.bonds });
@@ -157,7 +161,16 @@ try {
   const won = results.filter((r) => r.variant != null);
   const carelessLost = won.filter((r) => r.careless && r.careless.some((c) => !c.won));
   console.log(`\n${mode}: ${won.length} of ${results.length} levels won by the careful pilot; careless lost on ${carelessLost.length} of ${won.length}; page errors ${errors.length}`);
-  if (opt.write && !CHAPTER) {
+  if (opt.write && DAILY) {
+    const file = root + 'litmus3d/dailies.js', src = readFileSync(file, 'utf8');
+    const cur = JSON.parse(src.match(/window\.LITMUS3D_DAILIES = (\{[\s\S]*?\});/)[1].replace(/(\w+):/g, '"$1":'));
+    const list = cur[mode] || [];
+    for (const r of results) if (r.variant != null) list[r.level - 1] = r.variant;
+    for (let i = 0; i < list.length; i++) if (list[i] == null) list[i] = 0;
+    cur[mode] = list;
+    writeFileSync(file, src.replace(/window\.LITMUS3D_DAILIES = \{[\s\S]*?\};/, `window.LITMUS3D_DAILIES = { mobile: [${(cur.mobile || []).join(',')}], desktop: [${(cur.desktop || []).join(',')}] };`));
+    console.log('wrote', file);
+  } else if (opt.write && !CHAPTER) {
     const file = root + 'litmus3d/places.js', src = readFileSync(file, 'utf8');
     const cur = JSON.parse(src.match(/window\.LITMUS3D_PLACES = (\{[\s\S]*?\});/)[1].replace(/(\w+):/g, '"$1":'));
     const list = cur[mode] || [];

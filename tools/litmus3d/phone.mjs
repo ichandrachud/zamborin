@@ -74,6 +74,7 @@ ${splashScript[0]}
 <script>${noScriptClose(read('chemistry/model.js'))}</script>
 <script>${noScriptClose(read('chemistry/levels.js'))}</script>
 <script>${noScriptClose(read('litmus3d/places.js'))}</script>
+<script>${noScriptClose(read('litmus3d/dailies.js'))}</script>
 <script>${noScriptClose(read('litmus3d/cards.js'))}</script>
 <script>${noScriptClose(read('litmus3d/learn.js'))}</script>
 <script>${noScriptClose(read('chemistry/lab.js'))}</script>
