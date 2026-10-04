@@ -33,7 +33,7 @@ const profile = `/tmp/litmus3d-cards-${PORT}`;
 mkdirSync(profile, { recursive: true });
 const DEBUG = 9300 + Math.floor(Math.random() * 300);
 const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', [
-  '--headless=new', `--remote-debugging-port=${DEBUG}`, `--user-data-dir=${profile}`, '--no-first-run',
+  '--headless=new', '--mute-audio', `--remote-debugging-port=${DEBUG}`, `--user-data-dir=${profile}`, '--no-first-run',
   '--ignore-gpu-blocklist', '--enable-unsafe-swiftshader', 'about:blank',
 ], { stdio: 'ignore' });
 let ws, id = 0;
