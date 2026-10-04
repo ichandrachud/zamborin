@@ -752,8 +752,19 @@ const RX = REACTOR && window.ReactorScene ? window.ReactorScene({
   goalWorld: (i) => { const L = (legend.lay || goalLayout(1))[i] || goalLayout(1)[0]; return rayDir({ x: L.x, y: LEGEND.top + GOAL_Y }).multiplyScalar(14).add(cam.position); },
   hold: () => { legend.pending = Infinity; },
   landed: () => { legend.pending = clock(); SND.goal(); },
+  moved: () => { moves++; },
   ended: (r) => endLevel(r),
 }) : null;
+
+// ---------- ANALYTICS ----------
+// The site's play counters (shared/analytics.js), kept as the 2D game kept them: one level number across the chapters
+// (the Moleculator 1-100, the Reactor 101-160, the Carbon Chamber 161-200), and 0 for the daily molecule, as Comb does.
+// A move is a bond made, or a reaction or a wrong agent in the sphere.
+const NOOP = { init() {}, levelStart() {}, levelComplete() {}, levelRestart() {}, track() {} };
+const TRACK = () => (window.ZAM_TRACK || NOOP);
+TRACK().init('litmus');
+const trackedLevel = () => (dailyOn ? 0 : { moleculator: 0, reactor: 100, carbon: 160 }[CHAPTER] + levelNo);
+let moves = 0;
 
 // ---------- LEVEL ----------
 // the Reactor's 60 levels are one list for both (litmus/reactor-levels.js)
@@ -817,12 +828,13 @@ function markDaily() {
   const d = save.daily || {};
   save.daily = { last: TODAY, streak: d.last === TODAY - 1 ? (d.streak || 0) + 1 : 1 };
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (_) { /* private window: play on unsaved */ }
+  TRACK().track('daily_played', { streak: save.daily.streak });
 }
 let dailyCodeNow = 0;
 function startDaily(code, day) { dailyDay = day != null ? day : TODAY; dailyCodeNow = code != null ? code : dailyCode(dailyDay); startLevel(levelNo, dailyCodeNow % 10, true); }
 // after a level, what comes next: the daily again if it was lost, else the ladder
 const nextFromCard = (won) => betweenLevels(() => (dailyOn ? (won ? startLevel(firstUndone()) : startDaily()) : startLevel(won && levelNo < LIST.length ? levelNo + 1 : levelNo)), won);
-const againFromCard = () => betweenLevels(() => (dailyOn ? startDaily() : startLevel(levelNo)), false);
+const againFromCard = () => { if (!card || card.kind !== 'win') TRACK().levelRestart(trackedLevel()); betweenLevels(() => (dailyOn ? startDaily() : startLevel(levelNo)), false); };
 let LEVEL = null, st = null;
 let held = new Set();         // the atoms you hold: they float in front of you and turn with you
 let glide = null;             // an atom on its way in
@@ -951,6 +963,7 @@ function startLevel(n, variant, isDaily) {
   levelNo = n;
   dailyOn = !!isDaily && !REACTOR;
   LEVEL = dailyOn ? dailyLevel(dailyDay, dailyCodeNow) : LIST[n - 1];
+  moves = 0; TRACK().levelStart(trackedLevel());
   clearWorld();
   if (REACTOR) {
     st = RX.start(LEVEL, n);
@@ -1114,6 +1127,7 @@ function bondAtoms(a, b) {
   const mid = tmpA.copy(A.wp).add(B.wp).multiplyScalar(0.5).clone();
   const ev = M.bond(st, a, b);
   if (!ev) return null;
+  moves++;
   if (HARNESS) bondLog.push(`${st.atoms[a].el}${held.has(a) ? '(held)' : glide && glide.ids.has(a) ? '(pulled)' : ''}-${st.atoms[b].el}${held.has(b) ? '(held)' : glide && glide.ids.has(b) ? '(pulled)' : ''}x${ev.order}${ev.done ? ' ' + ev.done.kind : ''}${ev.lost ? ' LOST' : ''}`);
   previews.clear();
   addBondView(a, b, ev.order);
@@ -1264,14 +1278,14 @@ function startLift(ids, key) {
 function endLevel(rr) {
   if (REACTOR) {
     if (card) return;
-    if (rr.kind === 'win') markDone(levelNo);
+    if (rr.kind === 'win') { markDone(levelNo); TRACK().levelComplete(trackedLevel(), moves); }
     card = { kind: rr.kind, why: rr.why, showAt: clock() + (rr.kind === 'win' ? 700 : TUNE.cardFailMs), sounded: false, scroll: 0, tab: 0, electrons: false };
     return;
   }
   const r = st.result;
   glide = null; look.drift = null;
   const { spin, fly } = liftTimes();
-  if (r.kind === 'win') { if (dailyOn) markDaily(); else markDone(levelNo); }
+  if (r.kind === 'win') { if (dailyOn) markDaily(); else markDone(levelNo); TRACK().levelComplete(trackedLevel(), moves); }
   card = { kind: r.kind, showAt: clock() + (r.kind === 'win' ? spin + fly + TUNE.cardAfterMs : TUNE.cardFailMs), sounded: false, scroll: 0, tab: 0, electrons: false };
 }
 
@@ -2295,7 +2309,7 @@ hud.addEventListener('pointerdown', (e) => {
   const p = pt(e);
   if (card && clock() >= card.showAt) {
     if (card.kind === 'win') (REACTOR ? rcDown : learnDown)(p, e);
-    else if (inBox(p, hits.cta)) { SND.pick(); nextFromCard(card.kind === 'win'); }
+    else if (inBox(p, hits.cta)) { SND.pick(); againFromCard(); }     // a lost level: Try again
     return;
   }
   if (map) { mapDown(p, e); return; }

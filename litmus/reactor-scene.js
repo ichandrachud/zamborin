@@ -602,6 +602,7 @@ window.ReactorScene = function (host) {
   function startBounce(a, ev) {
     busy = { kind: 'bounce' };
     bounce = { a, t0: tNow, ev };
+    host.moved();
     host.SND.bounce(0.8, ev.poured ? 2.4 : 0);     // nothing, as it reaches the glass; and poured away as it leaves
   }
   function stepBounce() {
@@ -643,6 +644,7 @@ window.ReactorScene = function (host) {
   }
   function startRun(ev, agent) {
     busy = { kind: 'run' };
+    host.moved();
     const r = ev.reaction, L = agent ? LOOK[agent.name] : MEET;
     const o = agent ? 0.8 : 0;
     const T = { t0: tNow, swirl: tNow + o + 0.3, dis: tNow + o + 1.2, cloud: tNow + o + 1.7, reform: tNow + o + 3.4, bond: tNow + o + 3.95, flash: tNow + o + 4.25,

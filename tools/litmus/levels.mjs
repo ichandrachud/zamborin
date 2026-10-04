@@ -10,7 +10,8 @@
 // it too, so the report says which levels punish a careless pull.
 //
 // usage: node tools/litmus/levels.mjs <mobile|desktop> <first> <last> <out.json>
-//        [--tries=4] [--careless=1] [--workers=4] [--speed=3] [--chapter=reactor]
+//        [--tries=4] [--careless=1] [--workers=4] [--speed=3] [--chapter=reactor] [--track]
+// --track prints, for each level, the analytics events the page sent while it was played.
 // The Reactor (--chapter=reactor) has no placements to try: one try a level, and --write is ignored.
 // Serves the repo for the length of the run. Writes litmus/places.js only
 // with --write.
@@ -65,6 +66,8 @@ async function worker(levels, results) {
   const W = mobile ? 390 : 1280, H = mobile ? 844 : 800;
   await S('Emulation.setDeviceMetricsOverride', { width: W, height: H, deviceScaleFactor: 1, mobile });
   await S('Emulation.setTouchEmulationEnabled', { enabled: mobile, maxTouchPoints: mobile ? 5 : 1 });
+  // --track: keep every event the site's analytics would send (shared/analytics.js sends through window.va)
+  if (opt.track) await S('Page.addScriptToEvaluateOnNewDocument', { source: 'window.__va = []; window.va = (k, e) => window.__va.push(e);' });
   await S('Page.navigate', { url: `http://localhost:${PORT}/litmus/?harness=1&speed=${SPEED}${CHAPTER ? '&chapter=' + CHAPTER : ''}#level-1` });
   await sleep(5000);
   const ev = async (expr) => { const r = await S('Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true }); if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description || r.exceptionDetails.text); return r.result.value; };
@@ -135,7 +138,9 @@ async function worker(levels, results) {
         row.careless.push({ won: r.won, result: r.result, moves: r.moves, log: r.log && r.log.join(' '), bonds: r.bonds });
       }
     }
+    if (opt.track) row.events = await ev('window.__va.splice(0).map((e) => e.name + (e.data && e.data.level != null ? ` ${e.data.level}` : "") + (e.data && e.data.moves != null ? ` moves ${e.data.moves}` : "") + (e.data && e.data.streak != null ? ` streak ${e.data.streak}` : ""))');
     results.push(row);
+    if (opt.track) console.log(`${mode} ${n} sent: ${row.events.join(' | ')}`);
     console.log(`${mode} ${n}: ` + (row.variant != null ? `won on placement ${row.variant}` : 'NOT WON') +
       ` [${row.tries.map((t) => (t.won ? 'W' : t.result[0])).join('')}]` + (row.careless ? ` careless ${row.careless.map((c) => (c.won ? 'W' : c.result)).join(',')}` : ''));
   }
