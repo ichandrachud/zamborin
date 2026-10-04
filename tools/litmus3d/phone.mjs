@@ -69,6 +69,7 @@ ${wrap[0]}
 </section></main>
 ${splashScript[0]}
 <script>${noScriptClose(read('shared/sfx.js'))}</script>
+<script>${noScriptClose(read('litmus3d/sound.js'))}</script>
 <script>${noScriptClose(read('shared/ui.js'))}</script>
 <script>${noScriptClose(read('chemistry/model.js'))}</script>
 <script>${noScriptClose(read('chemistry/levels.js'))}</script>

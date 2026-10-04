@@ -587,7 +587,7 @@ window.ReactorScene = function (host) {
     const a = agents[i]; if (!a) return { ok: false };
     const ev = X.pickAgent(S, a.name);
     if (!ev.ok) return ev;
-    host.SND.pick();
+    host.SND.agent();      // it flies into the sphere
     if (ev.reaction) startRun(ev, a);
     else startBounce(a, ev);
     return ev;
@@ -598,7 +598,7 @@ window.ReactorScene = function (host) {
   function startBounce(a, ev) {
     busy = { kind: 'bounce' };
     bounce = { a, t0: tNow, ev };
-    host.SND.refuse();
+    host.SND.bounce(0.8, ev.poured ? 2.4 : 0);     // nothing, as it reaches the glass; and poured away as it leaves
   }
   function stepBounce() {
     const b = bounce, t = tNow - b.t0, a = b.a;
@@ -662,7 +662,7 @@ window.ReactorScene = function (host) {
     waits = waits.filter((id) => !ev.poured.includes(id));
     run = { ev, r, agent, L, T, ins, outs, map, eq: equation(r), inAtoms, dust: makeDust(inAtoms, L.pal) };
     steps.push({ r, agent: agent ? agent.name : null });
-    if (agent) host.SND.glide();
+    host.SND.reaction(o);     // on this timeline: swirl, dust, re-form, flash, fly
   }
   const DUSTC = (el) => new Color(ART[el] ? ART[el].hi : '#FFFFFF');
   function makeDust(inAtoms, pal) {

@@ -195,27 +195,30 @@ function resizeCanvases() {
 function onResize() { setCanvasVars(); fitFullscreen(); resizeCanvases(); }
 
 // ---------- AUDIO ----------
-// A lab at night, as /chemistry/: quiet and precise.
+// The game's own sound, DEEP SPACE (owner, 2026-10-04: "more different than every other Zamborin game"): soft bells
+// and slow pads in a ringing room, in litmus3d/sound.js, on the shared engine's context and its Sound on/off.
 const sfx = window.ZSFX ? window.ZSFX.create({ storageKey: 'zam.litmus3d.sfx', gain: 3 }) : null;
+const LS = sfx && window.LitmusSound ? window.LitmusSound(sfx) : null;
 const PITCH = { H: 1175, O: 988, N: 784, C: 587, F: 1047, Cl: 880, Na: 698, K: 698, Mg: 659, Ca: 523, Al: 622, Fe: 440, Zn: 554, Cu: 494 };
 const SND = {
-  on:     () => !!(sfx && sfx.isOn()),
-  ready:  () => { if (sfx) sfx.ensureAudio(); },
-  toggle: () => { if (sfx) { sfx.setOn(!sfx.isOn()); if (sfx.isOn()) sfx.play('click'); } },
-  pick:   () => { if (sfx) sfx.play('tick'); },
-  glide:  () => { if (sfx) { sfx.tone(392, 0.22, 0.02, 'sine'); setTimeout(() => sfx.tone(523, 0.26, 0.018, 'sine'), 90); } },
-  clasp:  (el, n) => {
-    if (!sfx) return;
-    for (let i = 0; i < Math.min(3, n); i++) {
-      setTimeout(() => { sfx.woodClack(PITCH[el] * 0.5, 0.06, 0.12); sfx.tone(PITCH[el], 0.09, 0.03, 'triangle'); }, i * 55);
-    }
-  },
-  refuse: () => { if (sfx) { sfx.tone(196, 0.12, 0.05, 'sine'); setTimeout(() => sfx.tone(165, 0.14, 0.04, 'sine'), 70); } },
-  waste:  () => { if (sfx) sfx.play('thump'); },
-  lift:   () => { if (sfx) sfx.play('success'); },
-  lost:   () => { if (sfx) sfx.tone(196, 0.16, 0.05, 'sine'); },
-  win:    () => { if (sfx) sfx.play('win'); },
-  fail:   () => { if (sfx) sfx.play('fail'); },
+  on:       () => !!(sfx && sfx.isOn()),
+  ready:    () => { if (sfx) sfx.ensureAudio(); },
+  toggle:   () => { if (sfx) { sfx.setOn(!sfx.isOn()); if (sfx.isOn() && LS) LS.tap(); } },
+  pick:     () => { if (LS) LS.tap(); },
+  glide:    () => { if (LS) LS.glide(); },
+  release:  () => { if (LS) LS.release(); },
+  clasp:    (el, n) => { if (LS) LS.bond(PITCH[el] || 660, n); },
+  refuse:   () => { if (LS) LS.refuse(); },
+  waste:    () => { if (LS) LS.lost(); },
+  lift:     () => { if (LS) LS.made(); },
+  lost:     () => { if (LS) LS.lost(); },
+  goal:     () => { if (LS) LS.goal(); },
+  win:      () => { if (LS) LS.won(); },
+  fail:     () => { if (LS) LS.lostLevel(); },
+  // the sphere's (reactor-scene.js): the agent flying in, the reaction on its timeline, a wrong agent and a pour
+  agent:    () => { if (LS) LS.agent(); },
+  reaction: (o) => { if (LS) LS.reaction(o); },
+  bounce:   (at, poured) => { if (LS) LS.bounce(at, poured); },
 };
 
 // ---------- THE WORLD ----------
@@ -727,7 +730,7 @@ const RX = REACTOR && window.ReactorScene ? window.ReactorScene({
   // where goal i's orb is, in the world, and its molecule landing there
   goalWorld: (i) => { const L = (legend.lay || goalLayout(1))[i] || goalLayout(1)[0]; return rayDir({ x: L.x, y: LEGEND.top + GOAL_Y }).multiplyScalar(14).add(cam.position); },
   hold: () => { legend.pending = Infinity; },
-  landed: () => { legend.pending = clock(); if (sfx) sfx.play('finish'); },
+  landed: () => { legend.pending = clock(); SND.goal(); },
   ended: (r) => endLevel(r),
 }) : null;
 
@@ -1118,7 +1121,7 @@ function letGo() {
   flashAt(first.wp.clone());
   held.clear();
   firstInput = true;
-  if (sfx) sfx.play('pop');
+  SND.release();
 }
 function refuse(id) {
   // a refusal answers visibly: the atom shakes where it is, its hands flash amber
@@ -1317,7 +1320,7 @@ function drawWorld(now) {
       } else {
         const k = L.fly ? Math.min(1, (t - L.spin) / L.fly) : 1, e = k * k * (3 - 2 * k);
         if (k >= 1) {
-          if (!L.landed) { L.landed = true; if (sfx) sfx.play('finish'); }
+          if (!L.landed) { L.landed = true; SND.goal(); }
           v.g.visible = false; v.wp.copy(cam.position); continue;
         }
         q.copy(L.local).lerp(goalAt[L.goal] || goalAt[0], e);
