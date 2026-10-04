@@ -1,7 +1,7 @@
 /* ============================================================
    Litmus in 3D · the Moleculator's "What you built" cards
 
-   One entry per molecule a Moleculator level asks for (55). The card's own
+   One entry per molecule a Moleculator level asks for (56). The card's own
    words are a science textbook's (owner, 2026-10-03: "don't say hands, use
    scientific text book language"). Each entry:
      name   the textbook name, where it differs from the game's (the game's
@@ -18,6 +18,7 @@
             (Zamborin/Game Briefs/3D-IDEAS/LITMUS_MOLECULE_FACTS.md, in iCloud)
    ============================================================ */
 window.LITMUS3D_CARDS = {
+  'hydrogen-gas':         { kind: 'covalent', shape: 'linear', fact: 'The lightest gas: with only 7% of the density of air, it once lifted balloons and airships.' },
   'water':                { kind: 'covalent', shape: 'bent', angle: 104.5, fact: 'Water is the only common substance found naturally on Earth as a solid, a liquid and a gas.' },
   'salt':                 { kind: 'ionic', fact: 'Table salt. Seawater tastes salty because sodium chloride is dissolved in it.' },
   'hydrogen-chloride':    { kind: 'covalent', shape: 'linear', fact: 'Dissolved in water it is hydrochloric acid; your stomach makes this acid to help digest food.' },

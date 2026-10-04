@@ -736,7 +736,13 @@ const RX = REACTOR && window.ReactorScene ? window.ReactorScene({
 
 // ---------- LEVEL ----------
 // the Reactor's 60 levels are one list for both (litmus3d/reactor-levels.js)
-const LIST = CHAPTER === 'carbon' ? window.CARBON_LEVELS : REACTOR ? window.REACTOR_LEVELS : MODE === 'mobile' ? LV.mobile : LV.desktop;
+/* The phone's first two levels were both water (owner, 2026-10-04: "The first 2 levels are both H2O"). The 2D game's
+   levels.js stays as it is (the live /chemistry/ plays it); here phone level 2 makes hydrogen gas, keeping its lesson:
+   the hydrogen you hold grabs the first hand it touches, and the sodium on the way is the trap. */
+const OWN = { mobile: { 2: { targets: [['hydrogen-gas', 1]], avail: { H: 1 }, needs: ['H'] } } };
+// a changed level's atoms are dealt again from its recipe (levels.js withCrowd), as the 2D game deals them
+const moleculator = (set) => set.map((L, i) => { const o = (OWN[MODE] || {})[i + 1]; return o ? LV.withCrowd(Object.assign({}, L, o), L.crowd[0]) : L; });
+const LIST = CHAPTER === 'carbon' ? window.CARBON_LEVELS : REACTOR ? window.REACTOR_LEVELS : moleculator(MODE === 'mobile' ? LV.mobile : LV.desktop);
 /* PROGRESS. The phone and the desktop play different level sets (as /chemistry/),
    so each keeps its own record. Levels open in order; a returning player lands
    on the first level not yet done (DESIGN-SYSTEM 10.1). */

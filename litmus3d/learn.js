@@ -128,7 +128,7 @@ function bondingWords(key) {
     }
   }
   let fam = '';
-  if (Object.keys(c).every((e) => e === 'C' || e === 'H')) {
+  if (c.C && Object.keys(c).every((e) => e === 'C' || e === 'H')) {     // a hydrocarbon has carbon: H₂ is not one
     const top = Math.max(...t.adj.flat().map(([, o]) => o));
     fam = top === 1 ? ' All its bonds are single bonds: it is a saturated hydrocarbon, an alkane.'
       : top === 2 ? ' It is an unsaturated hydrocarbon, an alkene.' : ' It is an unsaturated hydrocarbon, an alkyne.';
@@ -355,8 +355,8 @@ function flatLayout(key, aspect) {
     let r0;
     if (k === 0) { g.forEach((_, i) => { g[i] = [L.atoms[i].x, L.atoms[i].y]; }); }
     else {
-      const heavy = t.els.map((e, i) => i).filter((i) => t.els[i] !== 'H');
-      r0 = heavy[Math.floor(rnd() * heavy.length)]; g[r0] = [0, 0]; taken.add('0,0');
+      const heavy = t.els.map((e, i) => i).filter((i) => t.els[i] !== 'H'), from0 = heavy.length ? heavy : t.els.map((e, i) => i);   // H₂ has no heavy atom
+      r0 = from0[Math.floor(rnd() * from0.length)]; g[r0] = [0, 0]; taken.add('0,0');
       const q = [r0];
       for (let qi = 0; qi < q.length; qi++) {
         const u = q[qi];
