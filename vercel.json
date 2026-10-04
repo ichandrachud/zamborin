@@ -17,6 +17,31 @@
       "permanent": true
     },
     {
+      "source": "/chemistry",
+      "destination": "/litmus/",
+      "permanent": true
+    },
+    {
+      "source": "/chemistry/",
+      "destination": "/litmus/",
+      "permanent": true
+    },
+    {
+      "source": "/chemistry/index.html",
+      "destination": "/litmus/",
+      "permanent": true
+    },
+    {
+      "source": "/guides/chemistry",
+      "destination": "/guides/litmus/",
+      "permanent": true
+    },
+    {
+      "source": "/guides/chemistry/",
+      "destination": "/guides/litmus/",
+      "permanent": true
+    },
+    {
       "source": "/tailwind-boost",
       "destination": "/tailwind/",
       "permanent": false

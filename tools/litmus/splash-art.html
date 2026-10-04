@@ -1,14 +1,14 @@
 <!doctype html>
 <!--
-  Litmus in 3D: the splash art (litmus3d/splash-mobile.jpg and splash-desktop.jpg), rendered, not painted.
+  Litmus in 3D: the splash art (litmus/splash-mobile.jpg and splash-desktop.jpg), rendered, not painted.
   Owner, 2026-10-03: "a beautiful abstract image ... with the word Litmus on it using an interesting font";
   the word in Audiowide, the owner's pick of eight. Geodesic glass molecules: a sharp six-ring among soft ones,
   the depth of field composited from three layers (far, middle, near), each blurred on a 2D canvas.
-  Render (the page draws once; serve this folder and shoot it with tools/litmus3d/shoot.mjs):
-    SERVE_DIR=tools/litmus3d SERVE_PORT=5431 node tools/litmus3d/shoot.mjs <out> \
+  Render (the page draws once; serve this folder and shoot it with tools/litmus/shoot.mjs):
+    SERVE_DIR=tools/litmus SERVE_PORT=5431 node tools/litmus/shoot.mjs <out> \
       '[{"name":"mobile","url":"http://localhost:5431/splash-art.html","w":390,"h":844,"dpr":3,"wait":9000},
         {"name":"desktop","url":"http://localhost:5431/splash-art.html","w":760,"h":600,"dpr":2,"wait":9000}]'
-  then save each PNG as JPEG (quality 86) over litmus3d/splash-*.jpg, and its 24x52 / 40x32 copy into play.css.
+  then save each PNG as JPEG (quality 86) over litmus/splash-*.jpg, and its 24x52 / 40x32 copy into play.css.
 -->
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Litmus splash art</title>
@@ -206,6 +206,7 @@ const STY = {
   Monoton: ['400', 0.04, 'LITMUS', 0.13], Audiowide: ['400', 0.12, 'LITMUS', 0.12],
 }[font] || ['400', 0.1, 'Litmus', 0.13];
 T.innerHTML = '<span>' + STY[2] + '</span>';
+if (Q.has('notitle')) T.style.visibility = 'hidden';   // the homepage card's picture: no word, the card names it
 const fs = (portrait ? W : H * 1.25) * STY[3];
 T.style.font = `${STY[0]} ${fs}px '${font}', sans-serif`;
 T.style.letterSpacing = STY[1] + 'em'; T.style.paddingLeft = STY[1] + 'em';

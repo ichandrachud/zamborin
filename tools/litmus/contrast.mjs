@@ -1,9 +1,9 @@
 // Contrast on the painted pixel (NEW-GAME-PROMPT 6 and 10): every word Litmus in 3D draws, measured against what is
 // actually painted around it, on the play screens of each chapter, the menu, the level map and every kind of card, on a
 // phone and in the desktop frame. The game lists what it draws in one frame (__litmus3d.texts()); this saves a
-// screenshot beside that list, and tools/litmus3d/contrast.py measures each word: its colour (with its alpha laid over
+// screenshot beside that list, and tools/litmus/contrast.py measures each word: its colour (with its alpha laid over
 // what is behind it) against the lightest of the pixels round its box, so a light patch behind a word counts.
-// usage: node tools/litmus3d/contrast.mjs <outdir> && python3 tools/litmus3d/contrast.py <outdir>
+// usage: node tools/litmus/contrast.mjs <outdir> && python3 tools/litmus/contrast.py <outdir>
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
@@ -66,7 +66,7 @@ async function run() {
     await S('Page.enable'); await S('Runtime.enable');
     await S('Emulation.setDeviceMetricsOverride', { width: F.w, height: F.h, deviceScaleFactor: 1, mobile: F.touch });
     await S('Emulation.setTouchEmulationEnabled', { enabled: F.touch, maxTouchPoints: F.touch ? 5 : 1 });
-    await S('Page.navigate', { url: `http://localhost:${PORT}/litmus3d/?harness=1${chapter === 'moleculator' ? '' : '&chapter=' + chapter}#level-1` });
+    await S('Page.navigate', { url: `http://localhost:${PORT}/litmus/?harness=1${chapter === 'moleculator' ? '' : '&chapter=' + chapter}#level-1` });
     await sleep(5000);
     const ev = async (expr) => { const r = await S('Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true }); if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description || r.exceptionDetails.text); return r.result.value; };
     for (const [ch, name, setup] of SCREENS) {

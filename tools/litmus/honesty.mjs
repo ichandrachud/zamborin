@@ -1,5 +1,5 @@
 // What happens in real life that the game must either have or keep out of a level: shared by the Reactor's and the
-// Carbon Chamber's level checks (tools/litmus3d/reactor-levels.mjs, carbon-levels.mjs). Sources: iCloud
+// Carbon Chamber's level checks (tools/litmus/reactor-levels.mjs, carbon-levels.mjs). Sources: iCloud
 // Zamborin/Game Briefs/3D-IDEAS/LITMUS_REACTOR_AGENTS.md and LITMUS_CARBON_AGENTS.md.
 export function honesty(C) {
   /* ---------- WHAT AN AGENT COULD REALLY DO ----------

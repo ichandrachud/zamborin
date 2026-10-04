@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Litmus strategy: read the molecule, then plan the reaction — Zamborin</title>
+  <meta name="description" content="A practical Litmus strategy guide: counting bonds to find a molecule's centre, clearing the line before you pull an atom in, working backwards from the goal in the Reactor, choosing the right agent, and the four agents of the Carbon Chamber." />
+  <meta name="theme-color" content="#0E1726" />
+  <link rel="canonical" href="https://zamborin.com/guides/litmus/" />
+  <link rel="icon" type="image/svg+xml" href="/images/zamborin-favicon.svg?v=2" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:site_name" content="Zamborin Games" />
+  <meta property="og:url" content="https://zamborin.com/guides/litmus/" />
+  <meta property="og:title" content="Litmus strategy: read the molecule, then plan the reaction" />
+  <meta property="og:description" content="How to read a molecule, pull atoms in safely, work backwards from a goal and pick the right agent in Litmus." />
+  <meta property="og:image" content="https://zamborin.com/images/litmus-og.jpg" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Litmus strategy: read the molecule, then plan the reaction" />
+  <meta name="twitter:description" content="A practical strategy guide to Litmus, chemistry all around you." />
+  <meta name="twitter:image" content="https://zamborin.com/images/litmus-og.jpg" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../shared/tokens.css?v=1" />
+  <link rel="stylesheet" href="../../shared/chrome.css?v=20" />
+  <style>
+    .guide { max-width: 760px; margin: 0 auto; padding: 40px 24px 80px; color: var(--text-dim); line-height: 1.7; font-size: 17px; }
+    .guide .crumbs { font-size: 14px; margin-bottom: 22px; color: var(--text-dim); }
+    .guide .crumbs a { color: #4DC3FF; text-decoration: none; display: inline-block; padding: 4px 0; }  /* W18: 14px type gives a 17px link, under the 24px of WCAG 2.5.8. These are
+       navigation, not links inside a sentence, so the inline exemption does not
+       apply. inline-block is what makes the padding count toward height. */
+    .guide h1 { font-size: 38px; color: var(--text); font-weight: 800; margin: 0 0 6px; letter-spacing: -0.5px; line-height: 1.15; }
+    .guide .lede { font-size: 19px; color: var(--text); margin: 14px 0 8px; }
+    .guide h2 { font-size: 23px; color: var(--text); font-weight: 700; margin: 38px 0 10px; letter-spacing: -0.2px; }
+    .guide p { margin: 12px 0; }
+    .guide a { color: #4DC3FF; }
+    .guide strong { color: var(--text); font-weight: 600; }
+    .guide ul { margin: 12px 0; padding-left: 22px; }
+    .guide li { margin: 8px 0; }
+    .guide .cta { display: inline-block; margin-top: 8px; background: #4DC3FF; color: #06121e; font-weight: 700; text-decoration: none; padding: 13px 26px; border-radius: 10px; }
+    .guide .playbox { margin: 36px 0 8px; padding: 22px 24px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09); border-radius: 14px; }
+    .guide .playbox p { margin: 0 0 14px; color: var(--text); font-weight: 600; }
+    .guide .more { margin-top: 40px; padding-top: 22px; border-top: 1px solid rgba(255,255,255,0.09); font-size: 16px; }
+    /* W18: these are a row of navigation links formatted as a paragraph, not
+
+       links inside prose, so the inline exemption does not cover them. 15px type
+
+       gave an 18px target against the 24px of WCAG 2.5.8. */
+
+    .guide .more a { display: inline-block; padding: 4px 0; }
+    .guide table { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 16px; }
+    .guide th, .guide td { text-align: left; padding: 9px 12px; border-bottom: 1px solid rgba(255,255,255,0.09); }
+    .guide th { color: var(--text); font-weight: 700; }
+    @media (max-width: 720px) { .guide { padding: 28px 18px 56px; font-size: 16px; } .guide h1 { font-size: 30px; } }
+  </style>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "Litmus strategy: read the molecule, then plan the reaction",
+    "about": "Litmus chemistry puzzle strategy",
+    "description": "A practical Litmus strategy guide: counting bonds to find a molecule's centre, clearing the line before you pull an atom in, working backwards from the goal in the Reactor, choosing the right agent, and the four agents of the Carbon Chamber.",
+    "author": { "@type": "Organization", "name": "Zamborin Games" },
+    "publisher": { "@type": "Organization", "name": "Zamborin Games", "url": "https://zamborin.com/" },
+    "mainEntityOfPage": "https://zamborin.com/guides/litmus/"
+  }
+  </script>
+  <meta name="google-adsense-account" content="ca-pub-9207689324865969">
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9207689324865969" crossorigin="anonymous"></script>
+</head>
+<body class="lobby-page">
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="Zamborin Games home">
+      <img class="brand-logo" src="/images/zamborin-logo.svg?v=2" alt="Zamborin" />
+    </a>
+    <a class="back-link" href="/">Back to all games</a>
+  </header>
+
+  <main class="guide">
+    <nav class="crumbs"><a href="/">Home</a> &rsaquo; <a href="/guides/">Guides</a> &rsaquo; Litmus</nav>
+    <h1>Litmus strategy: read the molecule, then plan the reaction</h1>
+    <p class="lede">Litmus puts you in an empty dark space with atoms and molecules floating all around you. In the Moleculator you build molecules atom by atom, in the Reactor you react whole compounds in a glass sphere, and in the Carbon Chamber you do the same with carbon. Each one looks like a question of chemistry, and each one is really a question of order: what to make first, and what to keep out of the way while you do.</p>
+
+    <h2>Count the bonds before you tap anything</h2>
+    <p>Every atom forms a fixed number of bonds. Hydrogen, chlorine, sodium and potassium form one. Oxygen, magnesium and calcium form two. Iron, aluminium and nitrogen form three, and carbon forms four. A molecule is finished when every bond it can make is made, and not before.</p>
+    <p>So read the goal as arithmetic. Water is an oxygen with two bonds and two hydrogens with one each: three atoms, and the oxygen is the one everything joins. <strong>The atom with the most bonds is the centre of its molecule.</strong> You start each level holding one atom. If it is a one-bond atom and the centre is out there in the space, tap what you hold to let it go, then tap the centre: it comes to your empty hand, and you build outward from it.</p>
+
+    <h2>Moleculator: clear the line before you tap</h2>
+    <p>Tap an atom and it glides straight to the one you hold. A free bond grabs the first atom it comes near, all the way along that line, and it does not care what you meant. A hydrogen pulled past the chlorine you were saving for later becomes hydrogen chloride on the way in.</p>
+    <ul>
+      <li><strong>Turn first.</strong> Drag to look round, all the way round and up and down. Before you tap, turn until nothing sits on the line between what you hold and what you want. The atom that would ruin a level is often waiting on the most obvious line.</li>
+      <li><strong>Drift closer.</strong> Hold a finger down to drift toward what you are looking at, which changes every line in the space.</li>
+      <li><strong>Two metals never bond.</strong> A sodium can pass right by a magnesium. What a metal has to steer around is the non-metals.</li>
+      <li><strong>Build a piece on its own.</strong> Some molecules need a part made first: an O&ndash;H for aluminium hydroxide, say. Let go of what you hold, build the piece, then bring it to the rest.</li>
+    </ul>
+    <p>Anything you finish that is not a goal turns grey and stays in the space as waste. That is not fatal. What costs you the level is using up an atom a goal needed, because there is always just enough and never a spare.</p>
+
+    <h2>Reactor: work backwards from the goal</h2>
+    <p>In the Reactor, do not ask what the molecules around you could make. Ask what the goal is made from, then what makes those. Ammonia is nitrogen and hydrogen, so it starts from nitrogen gas and hydrogen gas. Once you know the last reaction, the rest of the level is finding its ingredients, and sometimes making one of them first.</p>
+    <p>Tap a molecule and it glides into the glass sphere, which holds four. Some reactions go the moment their molecules meet: an acid and a base, a carbonate and an acid, two solutions that make a solid. Others need an agent, one of the four orbs at the bottom.</p>
+
+    <h2>Pick the agent the reaction really needs</h2>
+    <p>The agents are the ones a school lab or a factory uses, so what you know from chemistry lessons is what works here.</p>
+    <ul>
+      <li><strong>Iron</strong> makes ammonia from nitrogen and hydrogen: the Haber process.</li>
+      <li><strong>Vanadium(V) oxide</strong> makes sulphur trioxide from sulphur dioxide and oxygen: the Contact process.</li>
+      <li><strong>Nickel</strong> turns methane and steam into hydrogen and carbon monoxide.</li>
+      <li><strong>Manganese(IV) oxide</strong> breaks hydrogen peroxide down into water and oxygen.</li>
+      <li><strong>Platinum</strong> is the catalytic converter: carbon monoxide and nitrogen monoxide become carbon dioxide and nitrogen.</li>
+      <li><strong>Heat</strong> breaks carbonates down and splits ammonium chloride, and lets hydrogen or magnesium take the oxygen from copper oxide.</li>
+      <li><strong>Spark</strong> sets hydrogen, methane and carbon monoxide burning in oxygen, and joins nitrogen and oxygen as lightning does.</li>
+      <li><strong>Light</strong> sets hydrogen and chlorine off, splits silver halides, and swaps a hydrogen on methane for a chlorine.</li>
+      <li><strong>Electricity</strong> splits water, brine and copper chloride: electrolysis.</li>
+    </ul>
+    <p>A catalyst comes back after the reaction. A spark, light or electricity is used up in the flash.</p>
+
+    <h2>Two chances, so think before you pick</h2>
+    <p>A wrong agent bounces off the sphere and costs one of your two chances. A wrong agent with no chances left pours the reaction away, and the level is lost. Before you pick, say what the reaction is. If you cannot, look at the goal again.</p>
+
+    <h2>Keep what you will need</h2>
+    <p>Whatever a goal wants flies up into its orb. Anything else a reaction makes waits above the sphere. Tap it to put it back in, or drag it away to keep it for later. Whatever is still waiting when the next reaction starts is lost, and in a two-step level that can be the ingredient you needed.</p>
+
+    <h2>The molecules you did not need are real too</h2>
+    <p>Plenty of what floats around you is not part of the answer, and all of it reacts the way it really would. Put a spare base in with your only acid and the acid is gone. Know what will come out before anything goes in.</p>
+
+    <h2>Carbon Chamber: four agents for carbon</h2>
+    <p>The Carbon Chamber always offers the same four agents, so the question is which one this step needs.</p>
+    <ul>
+      <li><strong>Nickel</strong> adds hydrogen across a double bond: an alkene becomes an alkane.</li>
+      <li><strong>Acid</strong> is a catalyst. It adds steam across a double bond to make an alcohol, joins an alcohol and an acid into an ester, and splits an ester back with water.</li>
+      <li><strong>Heat</strong> is heating under reflux: a haloalkane or an ester with an alkali, or an alcohol with hydrobromic acid.</li>
+      <li><strong>Oxidiser</strong> is acidified potassium dichromate, which turns from orange to green as it works. It turns an alcohol into its acid, and takes methanoic acid all the way to carbon dioxide and water.</li>
+    </ul>
+    <p>Some carbon reactions need no agent at all. Bromine and the hydrogen halides add across a double bond as they meet, and the acids keep all their ordinary chemistry, so vinegar still fizzes with baking soda and still neutralises a base.</p>
+
+    <h2>The daily molecule</h2>
+    <p>Each day there is one molecule to build, the same for everyone. Build it to keep your streak going. A streak counts days in a row, and only the daily moves it.</p>
+
+    <h2>When a level goes wrong</h2>
+    <p>Restart is always in the menu at the top left. Every level, and each daily molecule, has been played and won through real taps before it goes out, so there is always a way through.</p>
+
+    <h2>The short version</h2>
+    <ul>
+      <li>Count the bonds. The atom with the most is the centre.</li>
+      <li>Let go and start from the centre if you are holding the wrong atom.</li>
+      <li>Turn until the line is clear, then tap.</li>
+      <li>In the Reactor, work backwards from the goal.</li>
+      <li>Pick the agent a real lab would use. You have two chances.</li>
+      <li>Keep a product you will need before the next reaction starts.</li>
+      <li>In the Carbon Chamber, ask which of the four agents this step needs.</li>
+    </ul>
+
+    <div class="playbox">
+      <p>Ready to put it to work?</p>
+      <a class="cta" href="/litmus/">Play Litmus &rarr;</a>
+    </div>
+
+    <p class="more">More games: <a href="/marble/">Marble</a> &middot; <a href="/comb/">Comb</a> &middot; <a href="/">all Zamborin games</a> &middot; <a href="/guides/">all guides</a></p>
+  </main>
+
+  <footer class="site-footer">
+    <nav class="site-foot-nav">
+      <a href="/arcade/">Arcade</a>
+      <a href="/about/">About</a>
+      <a href="/guides/">Guides</a>
+      <a href="/privacy/">Privacy</a>
+      <a href="/contact/">Contact</a>
+    </nav>
+    <span>&copy; 2026 Zamborin. Games created by Indrajeet Chandrachud.</span>
+  </footer>
+  <script defer src="/_vercel/insights/script.js"></script>
+  <script defer src="/_vercel/speed-insights/script.js"></script>
+</body>
+</html>

@@ -1,7 +1,7 @@
-# Contrast on the painted pixel for Litmus in 3D: reads tools/litmus3d/contrast.mjs's screenshots and word lists. Each
+# Contrast on the painted pixel for Litmus in 3D: reads tools/litmus/contrast.mjs's screenshots and word lists. Each
 # word's colour is laid over the pixels round its box (its own alpha), and measured against the lightest of those pixels
 # (the 90th percentile, so one stray bright pixel does not decide it): WCAG's ratio, 4.5 for text under 24px (18.66px
-# bold), 3 above. usage: python3 tools/litmus3d/contrast.py <outdir>
+# bold), 3 above. usage: python3 tools/litmus/contrast.py <outdir>
 import sys, json, re
 from PIL import Image
 out = sys.argv[1]

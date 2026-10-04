@@ -5,16 +5,16 @@
 // the three.js bundle (its exports become window.__THREE) and play.js (its
 // import becomes a read of that). The game is laid out as an
 // embed: it fills the window, with no site header or footer.
-// usage: node tools/litmus3d/phone.mjs <out.html>
+// usage: node tools/litmus/phone.mjs <out.html>
 import { readFileSync, writeFileSync } from 'node:fs';
 
 const root = new URL('../../', import.meta.url).pathname;
 const read = (p) => readFileSync(root + p, 'utf8');
 const out = process.argv[2];
-if (!out) { console.error('usage: node tools/litmus3d/phone.mjs <out.html>'); process.exit(1); }
+if (!out) { console.error('usage: node tools/litmus/phone.mjs <out.html>'); process.exit(1); }
 
 // three.js: `export{a as B,...}` at the end becomes `window.__THREE={B:a,...}`, inside its own scope.
-let three = read('litmus3d/assets/three-r186.min.js');
+let three = read('litmus/assets/three-r186.min.js');
 const at = three.lastIndexOf('export{');
 const end = three.indexOf('}', at);
 const names = three.slice(at + 7, end).split(',').map((s) => {
@@ -23,12 +23,12 @@ const names = three.slice(at + 7, end).split(',').map((s) => {
 });
 three = '(function(){' + three.slice(0, at) + ';window.__THREE={' + names.join(',') + '};' + three.slice(end + 1) + '})();';
 
-let play = read('litmus3d/play.js');
+let play = read('litmus/play.js');
 const imp = play.match(/import \{([\s\S]*?)\} from '\.\/assets\/three-r186\.min\.js';/);
 if (!imp) throw new Error('play.js import not found');
 play = '(function(){\n' + play.replace(imp[0], `const {${imp[1]}} = window.__THREE;`) + '\n})();';
 
-const page = read('litmus3d/index.html');
+const page = read('litmus/index.html');
 // the cover's own script (index.html), from its comment to the end of its <script>
 const splashScript = page.match(/\/\* The cover stays[\s\S]*?<\/script>/);
 if (!splashScript) throw new Error('splash script not found');
@@ -37,8 +37,8 @@ const wrap = page.match(/<div class="game-wrap">[\s\S]*?<\/div>\s*<\/div>\s*<\/d
 if (!wrap) throw new Error('game-wrap not found');
 
 // the cover's art, inlined: a one-page link has no files beside it
-const jpg = (f) => `url('data:image/jpeg;base64,${readFileSync(root + 'litmus3d/' + f).toString('base64')}')`;
-const css = [read('shared/tokens.css'), read('shared/chrome.css'), read('litmus3d/play.css').replace(/url\('\.\/(splash-(?:mobile|desktop)\.jpg)\?v=\d+'\)/g, (m, f) => jpg(f))].join('\n')
+const jpg = (f) => `url('data:image/jpeg;base64,${readFileSync(root + 'litmus/' + f).toString('base64')}')`;
+const css = [read('shared/tokens.css'), read('shared/chrome.css'), read('litmus/play.css').replace(/url\('\.\/(splash-(?:mobile|desktop)\.jpg)\?v=\d+'\)/g, (m, f) => jpg(f))].join('\n')
   .replace(/@import[^;]+;/g, '');
 const noScriptClose = (s) => s.replace(/<\/script/gi, '<\\/script');
 
@@ -69,20 +69,20 @@ ${wrap[0]}
 </section></main>
 ${splashScript[0]}
 <script>${noScriptClose(read('shared/sfx.js'))}</script>
-<script>${noScriptClose(read('litmus3d/sound.js'))}</script>
+<script>${noScriptClose(read('litmus/sound.js'))}</script>
 <script>${noScriptClose(read('shared/ui.js'))}</script>
 <script>${noScriptClose(read('chemistry/model.js'))}</script>
 <script>${noScriptClose(read('chemistry/levels.js'))}</script>
-<script>${noScriptClose(read('litmus3d/places.js'))}</script>
-<script>${noScriptClose(read('litmus3d/dailies.js'))}</script>
-<script>${noScriptClose(read('litmus3d/cards.js'))}</script>
-<script>${noScriptClose(read('litmus3d/learn.js'))}</script>
+<script>${noScriptClose(read('litmus/places.js'))}</script>
+<script>${noScriptClose(read('litmus/dailies.js'))}</script>
+<script>${noScriptClose(read('litmus/cards.js'))}</script>
+<script>${noScriptClose(read('litmus/learn.js'))}</script>
 <script>${noScriptClose(read('chemistry/lab.js'))}</script>
-<script>${noScriptClose(read('litmus3d/reactor-chem.js'))}</script>
-<script>${noScriptClose(read('litmus3d/reactor-levels.js'))}</script>
-<script>${noScriptClose(read('litmus3d/carbon-levels.js'))}</script>
-<script>${noScriptClose(read('litmus3d/reactor-scene.js'))}</script>
-<script>${noScriptClose(read('litmus3d/reactor-cards.js'))}</script>
+<script>${noScriptClose(read('litmus/reactor-chem.js'))}</script>
+<script>${noScriptClose(read('litmus/reactor-levels.js'))}</script>
+<script>${noScriptClose(read('litmus/carbon-levels.js'))}</script>
+<script>${noScriptClose(read('litmus/reactor-scene.js'))}</script>
+<script>${noScriptClose(read('litmus/reactor-cards.js'))}</script>
 <script>${noScriptClose(three)}</script>
 <script>${noScriptClose(play)}</script>
 `;

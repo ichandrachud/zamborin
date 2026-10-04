@@ -44,8 +44,8 @@ const HARNESS = /[?&]harness=1(&|$)/.test(location.search);
 // for making the cover art only: the world alone, none of the play's controls or goals
 const COVER = HARNESS && /[?&]cover=1(&|$)/.test(location.search);
 /* THE CHAPTER (owner, 2026-10-03: "Build all 3 sequentially, moleculator, reactor, carbon chamber"). Each is its own
-   address, as its space's colour and light are built once: the Moleculator at /litmus3d/, the Reactor at
-   /litmus3d/?chapter=reactor (or carbon), or #reactor where a page cannot change its address (a private phone link).
+   address, as its space's colour and light are built once: the Moleculator at /litmus/, the Reactor at
+   /litmus/?chapter=reactor (or carbon), or #reactor where a page cannot change its address (a private phone link).
    The Carbon Chamber plays on the Reactor's sphere (reactor-scene.js) with its own agents, levels and space. */
 const CHAPTER = (() => {
   const q = new URLSearchParams(location.search).get('chapter');
@@ -199,7 +199,7 @@ function onResize() { setCanvasVars(); fitFullscreen(); resizeCanvases(); }
 
 // ---------- AUDIO ----------
 // The game's own sound, DEEP SPACE (owner, 2026-10-04: "more different than every other Zamborin game"): soft bells
-// and slow pads in a ringing room, in litmus3d/sound.js, on the shared engine's context and its Sound on/off.
+// and slow pads in a ringing room, in litmus/sound.js, on the shared engine's context and its Sound on/off.
 const sfx = window.ZSFX ? window.ZSFX.create({ storageKey: 'zam.litmus3d.sfx', gain: 3 }) : null;
 const LS = sfx && window.LitmusSound ? window.LitmusSound(sfx) : null;
 const PITCH = { H: 1175, O: 988, N: 784, C: 587, F: 1047, Cl: 880, Na: 698, K: 698, Mg: 659, Ca: 523, Al: 622, Fe: 440, Zn: 554, Cu: 494 };
@@ -756,7 +756,7 @@ const RX = REACTOR && window.ReactorScene ? window.ReactorScene({
 }) : null;
 
 // ---------- LEVEL ----------
-// the Reactor's 60 levels are one list for both (litmus3d/reactor-levels.js)
+// the Reactor's 60 levels are one list for both (litmus/reactor-levels.js)
 /* The phone's first two levels were both water (owner, 2026-10-04: "The first 2 levels are both H2O"). The 2D game's
    levels.js stays as it is (the live /chemistry/ plays it); here phone level 2 makes hydrogen gas, keeping its lesson:
    the hydrogen you hold grabs the first hand it touches, and the sodium on the way is the trap. */
@@ -777,14 +777,14 @@ function markDone(n) {
 }
 const isOpen = (n) => n === 1 || doneSet().has(n) || doneSet().has(n - 1);
 function firstUndone() { const d = doneSet(); for (let n = 1; n <= LIST.length; n++) if (!d.has(n)) return n; return LIST.length; }
-// Which 3D placement each level uses: tools/litmus3d/levels.mjs picks the first one its checks pass.
+// Which 3D placement each level uses: tools/litmus/levels.mjs picks the first one its checks pass.
 const PLACES = (window.LITMUS3D_PLACES && window.LITMUS3D_PLACES[MODE]) || [];
 let levelNo = (() => { const m = location.hash.match(/level-(\d+)/); const n = m ? +m[1] : firstUndone(); return Math.max(1, Math.min(LIST.length, n)); })();
 /* ---------- THE DAILY (NEW-GAME-PROMPT 9; owner, 2026-10-04: "Daily molecule") ----------
    One molecule a day in the Moleculator, the same for everyone: the date (UTC) picks it from the molecules a level makes
    on its own in both sets (48), in an order that runs through them all before any comes back. Its atoms are dealt from
    that level's recipe with the day's own seed, and each day's 3D placement was played and won by the pilot before it
-   shipped (dailies.js, tools/litmus3d/levels.mjs --daily). A streak counts days in a row; only the daily moves it. A
+   shipped (dailies.js, tools/litmus/levels.mjs --daily). A streak counts days in a row; only the daily moves it. A
    returning player lands on it until it is done; a new one starts at level 1. */
 const DAY_MS = 86400000, DAILY_EPOCH = Date.UTC(2026, 9, 4);      // day 0: 4 October 2026
 const dayOf = (ms) => Math.floor((ms - DAILY_EPOCH) / DAY_MS);
@@ -1707,7 +1707,7 @@ function fitText(s, x, y, room) {
   ctx.fillText(t + '…', x, y);
   return { w: ctx.measureText(t + '…').width, cut: true };
 }
-let drawnNames = [];      // the goals' names as last drawn, for the window sweep (tools/litmus3d/sizes.mjs)
+let drawnNames = [];      // the goals' names as last drawn, for the window sweep (tools/litmus/sizes.mjs)
 
 // THE RESULT CARD, after the board has answered (DESIGN-SYSTEM 10.2): the rules modal's box.
 function drawCard(now) {
@@ -2327,7 +2327,7 @@ hud.addEventListener('pointermove', (e) => {
     look.vy = (p.x - drag.lastX) * k / dt; look.vp = (p.y - drag.lastY) * k / dt;
     drag.lastX = p.x; drag.lastY = p.y; drag.lastT = now;
   }
-  if (drag.mode === 'drift') look.drift.dir.copy(rayDir(p));
+  if (drag.mode === 'drift' && look.drift) look.drift.dir.copy(rayDir(p));   // the level may have ended mid-drift
   drag.x = p.x; drag.y = p.y;
 });
 function endPointer(e) {
@@ -2499,7 +2499,7 @@ if (HARNESS) {
     level: (n, variant) => { if (REACTOR) { startLevel(n); firstInput = true; return { level: levelNo }; } startLevel(n, variant); firstInput = true; pilot = null; pilotLast = -1; pilotDrifts = 0; bondLog.length = 0; return { level: levelNo, variant: placement.variant, score: placement.score }; },
     progress: () => JSON.parse(JSON.stringify(save)),
     /* every word the 2D layer draws in the next frame, with its box (CSS pixels) and colour: for the contrast check on
-       the painted pixel (tools/litmus3d/contrast.mjs) */
+       the painted pixel (tools/litmus/contrast.mjs) */
     texts: () => new Promise((done) => {
       const out = [], draw = ctx.fillText, box = hud.getBoundingClientRect();     // in the page: the canvas sits below the header
       let frames = 0;
@@ -2519,7 +2519,7 @@ if (HARNESS) {
     }),
     // a result card that is not a win, for the contrast check
     failCard: (why) => { card = { kind: 'fail', why: why || null, showAt: 0, sounded: true, scroll: 0, tab: 0, electrons: false }; },
-    // where everything on the play screen is, in frame units, for the window sweep (tools/litmus3d/sizes.mjs)
+    // where everything on the play screen is, in frame units, for the window sweep (tools/litmus/sizes.mjs)
     geom: () => ({
       LW, LH, cssW, cssH, winW: innerWidth, winH: innerHeight, mode: MODE, chapter: CHAPTER, level: levelNo,
       pause: hits.pause || null,

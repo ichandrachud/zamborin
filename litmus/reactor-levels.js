@@ -1,4 +1,4 @@
-/* Litmus in 3D · the Reactor's levels. Written by tools/litmus3d/reactor-levels.mjs:
+/* Litmus in 3D · the Reactor's levels. Written by tools/litmus/reactor-levels.mjs:
    edit the list there and run it with --write. Each level: the goals, the
    molecules floating round you, the four agent orbs (the needed ones first). */
 window.REACTOR_LEVELS = [

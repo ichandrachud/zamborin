@@ -8,7 +8,7 @@
 //   - the sphere is inside the frame, clear of the goals' names above and of the chances above the agents;
 //   - the agents and their names do not meet.
 // Every level of each chapter at the three tightest windows; a spread of levels at the rest.
-// usage: node tools/litmus3d/sizes.mjs [quick]     Serves the repo for the length of the run.
+// usage: node tools/litmus/sizes.mjs [quick]     Serves the repo for the length of the run.
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import { readFileSync, existsSync, mkdirSync } from 'node:fs';
@@ -102,7 +102,7 @@ async function run() {
       await S('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: !!touch });
       await S('Emulation.setTouchEmulationEnabled', { enabled: !!touch, maxTouchPoints: touch ? 5 : 1 });
       const q = `harness=1${site || touch ? '' : '&embed=1'}${chapter === 'moleculator' ? '' : '&chapter=' + chapter}`;
-      await S('Page.navigate', { url: `http://localhost:${PORT}/litmus3d/?${q}#level-1` });
+      await S('Page.navigate', { url: `http://localhost:${PORT}/litmus/?${q}#level-1` });
       await sleep(5000);
       const ev = async (expr) => { const r = await S('Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true }); if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description || r.exceptionDetails.text); return r.result.value; };
       const frames = '(new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))))';

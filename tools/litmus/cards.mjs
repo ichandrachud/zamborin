@@ -4,7 +4,7 @@
 // or a line of its words is wider than its column. Saves a screenshot of any
 // card named with --shots (e.g. --shots=1,16,50).
 //
-// usage: node tools/litmus3d/cards.mjs <outdir> [--shots=1,16] [--first=1] [--last=100] [--chapter=reactor]
+// usage: node tools/litmus/cards.mjs <outdir> [--shots=1,16] [--first=1] [--last=100] [--chapter=reactor]
 // The Reactor's "What just happened" cards are measured for each level's reactions as the shortest way takes them,
 // one tab for each.
 // Serves the repo for the length of the run.
@@ -70,7 +70,7 @@ async function run() {
     await S('Page.enable'); await S('Runtime.enable');
     await S('Emulation.setDeviceMetricsOverride', { width: F.w, height: F.h, deviceScaleFactor: 2, mobile: F.mobile });
     await S('Emulation.setTouchEmulationEnabled', { enabled: F.mobile, maxTouchPoints: F.mobile ? 5 : 1 });
-    await S('Page.navigate', { url: `http://localhost:${PORT}/litmus3d/?harness=1${F.embed ? '&embed=1' : ''}${RX ? '&chapter=' + RX : ''}#level-1` });
+    await S('Page.navigate', { url: `http://localhost:${PORT}/litmus/?harness=1${F.embed ? '&embed=1' : ''}${RX ? '&chapter=' + RX : ''}#level-1` });
     await sleep(5000);
     const ev = async (expr) => { const r = await S('Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true }); if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description || r.exceptionDetails.text); return r.result.value; };
     const frames = '(new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))))';

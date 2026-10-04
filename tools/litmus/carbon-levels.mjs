@@ -11,8 +11,8 @@
 // Then, as the Reactor's (owner, 2026-10-03: "a lot of molecules floating"),
 // honest decoys: real molecules that give no shorter way, need no other agent,
 // and meet nothing the level can hold in a way real chemistry would and the
-// game would not (tools/litmus3d/honesty.mjs).
-// usage: node tools/litmus3d/carbon-levels.mjs [--write]
+// game would not (tools/litmus/honesty.mjs).
+// usage: node tools/litmus/carbon-levels.mjs [--write]
 import { createRequire } from 'node:module';
 import { writeFileSync } from 'node:fs';
 import { honesty } from './honesty.mjs';
@@ -22,7 +22,7 @@ global.self = global; global.window = global;
 global.ChemModel = require(root + 'chemistry/model.js');
 global.ChemLab = require(root + 'chemistry/lab.js');
 const LV = require(root + 'chemistry/levels.js');
-const C = require(root + 'litmus3d/reactor-chem.js');
+const C = require(root + 'litmus/reactor-chem.js');
 C.setChapter('carbon');
 const AGENTS = ['nickel', 'acid', 'heat', 'oxidiser'];
 const { realButMissing } = honesty(C);
@@ -129,7 +129,7 @@ console.log(`\n${out.length} levels; steps: ${agentSteps} with an agent, ${meetS
 for (const p of problems) console.log('PROBLEM', p);
 if (process.argv.includes('--write') && !problems.length) {
   const body = out.map((L) => `  { targets: ${JSON.stringify(L.targets)}, space: ${JSON.stringify(L.space)}, agents: ${JSON.stringify(L.agents)}, seed: ${L.seed} },`).join('\n');
-  writeFileSync(root + 'litmus3d/carbon-levels.js', `/* Litmus in 3D · the Carbon Chamber's levels. Written by tools/litmus3d/carbon-levels.mjs from
+  writeFileSync(root + 'litmus/carbon-levels.js', `/* Litmus in 3D · the Carbon Chamber's levels. Written by tools/litmus/carbon-levels.mjs from
    /chemistry/levels.js (organic, desktop set), with the owner's two changes (the Oxidiser in place of oxygen
    molecules, and level 9 on hydrobromic acid) and honest decoys. Each level: the goals, the molecules round you,
    the four agents. */
@@ -137,5 +137,5 @@ window.CARBON_LEVELS = [
 ${body}
 ];
 `);
-  console.log('wrote litmus3d/carbon-levels.js');
+  console.log('wrote litmus/carbon-levels.js');
 }

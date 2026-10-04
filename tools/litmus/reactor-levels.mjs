@@ -1,12 +1,12 @@
 // The Reactor's 60 levels for Litmus in 3D: written here, checked here, and
-// written out to litmus3d/reactor-levels.js.
+// written out to litmus/reactor-levels.js.
 //
 // Owner, 2026-10-03: four agent orbs a level (the right one or ones, and
 // decoys from all nine), and HALF AND HALF: about half the steps need an
 // agent, half go as the molecules meet.
 //
 // For every level the check finds a shortest way to make the goals with the
-// level's own agents (litmus3d/reactor-chem.js's search), and says:
+// level's own agents (litmus/reactor-chem.js's search), and says:
 //   - the steps, each with its agent or "meet";
 //   - that no goal is in the space already;
 //   - HONEST DECOYS: an agent shown but not needed must do nothing real to
@@ -15,14 +15,14 @@
 //   - HONEST PAIRS: no two molecules the level can hold may react in real life
 //     unless the game has that reaction (lab.js leaves out pairs that need two
 //     of one molecule, like magnesium with hydrochloric acid).
-// usage: node tools/litmus3d/reactor-levels.mjs [--write]
+// usage: node tools/litmus/reactor-levels.mjs [--write]
 import { createRequire } from 'node:module';
 import { writeFileSync } from 'node:fs';
 const require = createRequire(import.meta.url);
 const root = new URL('../../', import.meta.url).pathname;
 global.self = global;
 global.ChemLab = require(root + 'chemistry/lab.js');
-const C = require(root + 'litmus3d/reactor-chem.js');
+const C = require(root + 'litmus/reactor-chem.js');
 
 /* ---------- THE LEVELS ----------
    targets | the molecules floating round you. `name*n` is n of them. Agents
@@ -191,12 +191,12 @@ for (const p of problems) console.log('PROBLEM', p);
 
 if (process.argv.includes('--write') && !problems.length) {
   const body = out.map((L) => `  { targets: ${JSON.stringify(L.targets)}, space: ${JSON.stringify(L.space)}, agents: ${JSON.stringify(L.agents)}, seed: ${L.n * 37 + 11} },`).join('\n');
-  writeFileSync(root + 'litmus3d/reactor-levels.js', `/* Litmus in 3D · the Reactor's levels. Written by tools/litmus3d/reactor-levels.mjs:
+  writeFileSync(root + 'litmus/reactor-levels.js', `/* Litmus in 3D · the Reactor's levels. Written by tools/litmus/reactor-levels.mjs:
    edit the list there and run it with --write. Each level: the goals, the
    molecules floating round you, the four agent orbs (the needed ones first). */
 window.REACTOR_LEVELS = [
 ${body}
 ];
 `);
-  console.log('wrote litmus3d/reactor-levels.js');
+  console.log('wrote litmus/reactor-levels.js');
 }

@@ -6,26 +6,23 @@
   <title>Litmus — A Zamborin Game</title>
   <meta name="description" content="Float in an empty dark space with atoms and molecules all around you. Turn to find them, tap to pull them in, and build molecules, run real reactions in a glass sphere and make carbon compounds." />
   <meta name="theme-color" content="#0E1726" />
-  <link rel="canonical" href="https://zamborin.com/litmus3d/" />
+  <link rel="canonical" href="https://zamborin.com/litmus/" />
   <link rel="icon" type="image/svg+xml" href="../images/zamborin-favicon.svg?v=2" />
-  <!-- REMOVE THIS LINE ONLY WHEN THE GAME SHIPS (CONTRIBUTING, "Prototypes"). Its address and name beside the 2D
-       Litmus at /chemistry/ are the owner's to settle first. -->
-  <meta name="robots" content="noindex" />
 
   <!-- Open Graph / Twitter -->
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Zamborin Games" />
-  <meta property="og:url" content="https://zamborin.com/litmus3d/" />
+  <meta property="og:url" content="https://zamborin.com/litmus/" />
   <meta property="og:title" content="Litmus — Chemistry all around you" />
   <meta property="og:description" content="Float in an empty dark space with atoms and molecules all around you. Turn to find them, tap to pull them in, and build molecules, run real reactions in a glass sphere and make carbon compounds." />
-  <meta property="og:image" content="https://zamborin.com/images/litmus3d-og.jpg" />
+  <meta property="og:image" content="https://zamborin.com/images/litmus-og.jpg" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta property="og:image:alt" content="Glowing glass molecules floating in the dark, a sharp ring of atoms among soft ones, under the word Litmus" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Litmus — Chemistry all around you" />
   <meta name="twitter:description" content="Float in an empty dark space with atoms and molecules all around you. Turn to find them, tap to pull them in, and build molecules, run real reactions in a glass sphere and make carbon compounds." />
-  <meta name="twitter:image" content="https://zamborin.com/images/litmus3d-og.jpg" />
+  <meta name="twitter:image" content="https://zamborin.com/images/litmus-og.jpg" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -33,7 +30,7 @@
   <link rel="stylesheet" href="../shared/tokens.css?v=1" />
   <link rel="stylesheet" href="../shared/chrome.css?v=20" />
   <link rel="stylesheet" href="./play.css?v=5" />
-  <link rel="modulepreload" href="./play.js?v=16" />
+  <link rel="modulepreload" href="./play.js?v=17" />
   <link rel="modulepreload" href="./assets/three-r186.min.js" />
   <!-- Google AdSense. The site earns from these pages; keep both lines. -->
   <meta name="google-adsense-account" content="ca-pub-9207689324865969">
@@ -45,8 +42,8 @@
     "@type": "VideoGame",
     "name": "Litmus",
     "description": "Float in an empty dark space with atoms and molecules all around you. Turn to find them, tap to pull them in, and build molecules, run real reactions in a glass sphere and make carbon compounds.",
-    "url": "https://zamborin.com/litmus3d/",
-    "image": "https://zamborin.com/images/litmus3d-og.jpg",
+    "url": "https://zamborin.com/litmus/",
+    "image": "https://zamborin.com/images/litmus-og.jpg",
     "playMode": "SinglePlayer",
     "gamePlatform": "Web Browser",
     "applicationCategory": "Game",
@@ -164,7 +161,9 @@
       <p><strong>Does it work on mobile?</strong> Yes. Litmus is built for touch as well as mouse.</p>
       <p><strong>How do I win a level?</strong> Make every goal shown at the top of the screen.</p>
       <p><strong>Is every level solvable?</strong> Yes. Every level, and each daily molecule for the year ahead, is played and won through real taps on a phone and on a computer before it goes out.</p>
-      <p>Prefer it flat? Play the original <a href="/chemistry/">Litmus</a>, or try <a href="/marble/">Marble</a>, or browse <a href="/">all Zamborin games</a>.</p>
+      <!-- The game links FORWARD to its guide (the template's rule). -->
+      <p class="guide-cta"><a href="/guides/litmus/">Stuck? Read the Litmus strategy guide <span aria-hidden="true">&rarr;</span></a></p>
+      <p>Enjoy a good thinking puzzle? Try <a href="/marble/">Marble</a> or <a href="/comb/">Comb</a>, or browse <a href="/">all Zamborin games</a>.</p>
     </section>
   </main>
 
@@ -203,7 +202,7 @@
   <script src="./carbon-levels.js?v=1"></script>
   <script src="./reactor-scene.js?v=12"></script>
   <script src="./reactor-cards.js?v=3"></script>
-  <script type="module" src="./play.js?v=16"></script>
+  <script type="module" src="./play.js?v=17"></script>
   <script>
     (() => {
       const btn = document.getElementById('focus-toggle');

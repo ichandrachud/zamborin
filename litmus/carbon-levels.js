@@ -1,4 +1,4 @@
-/* Litmus in 3D · the Carbon Chamber's levels. Written by tools/litmus3d/carbon-levels.mjs from
+/* Litmus in 3D · the Carbon Chamber's levels. Written by tools/litmus/carbon-levels.mjs from
    /chemistry/levels.js (organic, desktop set), with the owner's two changes (the Oxidiser in place of oxygen
    molecules, and level 9 on hydrobromic acid) and honest decoys. Each level: the goals, the molecules round you,
    the four agents. */

@@ -9,10 +9,10 @@
 // (faces the atom it wants and taps, no looking for a clear line) then plays
 // it too, so the report says which levels punish a careless pull.
 //
-// usage: node tools/litmus3d/levels.mjs <mobile|desktop> <first> <last> <out.json>
+// usage: node tools/litmus/levels.mjs <mobile|desktop> <first> <last> <out.json>
 //        [--tries=4] [--careless=1] [--workers=4] [--speed=3] [--chapter=reactor]
 // The Reactor (--chapter=reactor) has no placements to try: one try a level, and --write is ignored.
-// Serves the repo for the length of the run. Writes litmus3d/places.js only
+// Serves the repo for the length of the run. Writes litmus/places.js only
 // with --write.
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
@@ -65,7 +65,7 @@ async function worker(levels, results) {
   const W = mobile ? 390 : 1280, H = mobile ? 844 : 800;
   await S('Emulation.setDeviceMetricsOverride', { width: W, height: H, deviceScaleFactor: 1, mobile });
   await S('Emulation.setTouchEmulationEnabled', { enabled: mobile, maxTouchPoints: mobile ? 5 : 1 });
-  await S('Page.navigate', { url: `http://localhost:${PORT}/litmus3d/?harness=1&speed=${SPEED}${CHAPTER ? '&chapter=' + CHAPTER : ''}#level-1` });
+  await S('Page.navigate', { url: `http://localhost:${PORT}/litmus/?harness=1&speed=${SPEED}${CHAPTER ? '&chapter=' + CHAPTER : ''}#level-1` });
   await sleep(5000);
   const ev = async (expr) => { const r = await S('Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true }); if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description || r.exceptionDetails.text); return r.result.value; };
   const rect = await ev(`(() => { const r = document.getElementById('game').getBoundingClientRect(); const s = __litmus3d.state(); return { x: r.left, y: r.top, kx: r.width / s.LW, ky: r.height / s.LH }; })()`);
@@ -162,7 +162,7 @@ try {
   const carelessLost = won.filter((r) => r.careless && r.careless.some((c) => !c.won));
   console.log(`\n${mode}: ${won.length} of ${results.length} levels won by the careful pilot; careless lost on ${carelessLost.length} of ${won.length}; page errors ${errors.length}`);
   if (opt.write && DAILY) {
-    const file = root + 'litmus3d/dailies.js', src = readFileSync(file, 'utf8');
+    const file = root + 'litmus/dailies.js', src = readFileSync(file, 'utf8');
     const cur = JSON.parse(src.match(/window\.LITMUS3D_DAILIES = (\{[\s\S]*?\});/)[1].replace(/(\w+):/g, '"$1":'));
     const list = cur[mode] || [];
     for (const r of results) if (r.variant != null) list[r.level - 1] = r.variant;
@@ -171,7 +171,7 @@ try {
     writeFileSync(file, src.replace(/window\.LITMUS3D_DAILIES = \{[\s\S]*?\};/, `window.LITMUS3D_DAILIES = { mobile: [${(cur.mobile || []).join(',')}], desktop: [${(cur.desktop || []).join(',')}] };`));
     console.log('wrote', file);
   } else if (opt.write && !CHAPTER) {
-    const file = root + 'litmus3d/places.js', src = readFileSync(file, 'utf8');
+    const file = root + 'litmus/places.js', src = readFileSync(file, 'utf8');
     const cur = JSON.parse(src.match(/window\.LITMUS3D_PLACES = (\{[\s\S]*?\});/)[1].replace(/(\w+):/g, '"$1":'));
     const list = cur[mode] || [];
     for (const r of results) if (r.variant != null) list[r.level - 1] = r.variant;
