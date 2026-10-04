@@ -49,7 +49,7 @@ window.ReactorScene = function (host) {
     return V((x / LW * 2 - 1) * hw, (1 - y / LH * 2) * hh, -d);
   }
   const pxAt = (px, d) => { const { LH } = host.frame(); return px / LH * 2 * d * Math.tan(cam.fov * Math.PI / 360); };
-  let SPH = V(0, -2.4, -D), SR = 2.15, AG = [];
+  let SPH = V(0, -2.4, -D), SR = 2.15, AG = [], BAND = null;   // BAND: where the dark fade under the space starts, and where it is full (above the chances)
   function layout() {
     const { LW, LH } = host.frame(), mob = MODE === 'mobile';
     // the sphere a little below the middle; its foot clear of the chances above the agents
@@ -57,6 +57,7 @@ window.ReactorScene = function (host) {
     SPH = local(LW / 2, sy, D); SR = pxAt(rpx, D);
     const ay = LH - (mob ? 104 : 86), sp = Math.min(LW / 4.3, mob ? 92 : 128);
     AG = [0, 1, 2, 3].map((i) => ({ x: LW / 2 + (i - 1.5) * sp, y: ay, r: mob ? 30 : 32 }));
+    BAND = { top: sy + rpx, full: ay - AG[0].r - 32 };
     if (glass) placeGlass();
     agents.forEach((a, i) => placeAgent(a, i));
   }
@@ -287,6 +288,8 @@ window.ReactorScene = function (host) {
     const L = LOOK[name], a = { name, i, cv, map, orb, look: null, home: V(0, 0, 0), size: 1, out: null, dim: 1 };
     rig.add(orb);
     if (L.crystal) { a.look = crystal(L.crystal[0], L.crystal[1], 23 + i * 7, 1); rig.add(a.look); }
+    // the agents at rest are drawn after the dark fade at the foot of the screen (play.js), so it never dims them
+    orb.layers.set(1); if (a.look) a.look.traverse((o) => o.layers.set(1));
     // the agent itself, travelling into the sphere: its burst of light (and crystal)
     const bcv = Object.assign(document.createElement('canvas'), { width: 256, height: 256 }), bmap = new CanvasTexture(bcv); bmap.colorSpace = SRGBColorSpace;
     a.burst = { cv: bcv, map: bmap, sp: new Sprite(new SpriteMaterial({ map: bmap, transparent: true, depthWrite: false, blending: AdditiveBlending, toneMapped: false })) };
@@ -407,7 +410,9 @@ window.ReactorScene = function (host) {
   function toWorld(m) { if (m.g.parent === scene) return; const w = V(0, 0, 0); m.g.getWorldPosition(w); rig.remove(m.g); scene.add(m.g); m.pos.copy(w); m.q.premultiply(rig.quaternion); }
 
   /* ---------- PLACING THE LEVEL ----------
-     The molecules float all round you, above and below as well, far enough to read, none behind another. */
+     The molecules float all round you, above and below as well, far enough to read, none behind another: a nearer
+     ring and a farther one, every one of them sharp (owner, 2026-10-03: a lot of molecules, like the flat game's bench,
+     not a blur), so wherever you look there are several. */
   function placeSpace(ids, seed) {
     const R = rnd(seed * 977 + 5), n = ids.length, out = [];
     for (let i = 0; i < n; i++) {
@@ -416,13 +421,14 @@ window.ReactorScene = function (host) {
         // the first two in front of you, inside a phone's narrow view, the rest anywhere round
         const half = MODE === 'mobile' ? 0.17 : 0.34;
         const yaw = i < 2 ? (i === 0 ? -half : half) + (R() - 0.5) * 0.08 : R() * Math.PI * 2;
-        const pitch = i < 2 ? 0.12 + (R() - 0.5) * 0.25 : (R() - 0.5) * 1.3;
+        // the first two above the sphere, never behind it
+        const pitch = i < 2 ? 0.24 + (R() - 0.5) * 0.12 : (R() - 0.5) * 1.3;
         const dir = V(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
         const sep = Math.min(...out.map((o) => o.dir.angleTo(dir)), 9);
         if (!best || sep > best.sep) best = { dir, sep };
-        if (sep > 0.55) break;
+        if (sep > (n > 30 ? 0.3 : n > 16 ? 0.4 : 0.55)) break;
       }
-      out.push({ dir: best.dir, dist: (15 + R() * 4) });
+      out.push({ dir: best.dir, dist: i < 2 ? 15 + R() * 2 : (i % 3 === 0 ? 21 + R() * 4 : 14 + R() * 4) });
     }
     return out;
   }
@@ -440,7 +446,11 @@ window.ReactorScene = function (host) {
     const ids = S.pieces.map((p) => p.id), spots = placeSpace(ids, lv.seed || n);
     ids.forEach((id, i) => {
       const m = makeMol(id, S.pieces[id].key); mols.set(id, m); scene.add(m.g);
-      m.pos.copy(spots[i].dir).multiplyScalar(spots[i].dist); m.q.setFromEuler(new Euler(Math.random() * 6, Math.random() * 6, Math.random() * 6));
+      // a level may say where each floats ([yaw, pitch, distance]: the cover's scene does)
+      const at = lv.place && lv.place[i];
+      if (at) { const [yaw, pitch, dist] = at; m.pos.set(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch)).multiplyScalar(dist); }
+      else m.pos.copy(spots[i].dir).multiplyScalar(spots[i].dist);
+      m.q.setFromEuler(new Euler(Math.random() * 6, Math.random() * 6, Math.random() * 6));
     });
     busy = null; run = null; bounce = null; waits = []; poured = null; steps = [];
     return S;
@@ -757,7 +767,7 @@ window.ReactorScene = function (host) {
     tNow += dt;
     rig.position.copy(cam.position); rig.quaternion.copy(cam.quaternion);
     // the space revolves round you, slowly; each molecule turns
-    const rev = REDUCED ? 0 : 0.035 * dt, q = new Quaternion().setFromAxisAngle(Y_UP, rev);
+    const rev = REDUCED || cover ? 0 : 0.035 * dt, q = new Quaternion().setFromAxisAngle(Y_UP, rev);
     for (const m of mols.values()) {
       if (m.anim) {
         const A = m.anim, k = Math.min(1, (tNow - A.t0) / A.ms), e = ease(k);
@@ -780,7 +790,7 @@ window.ReactorScene = function (host) {
   }
 
   /* ---------- EVERY FRAME ---------- */
-  let paintTick = 0;
+  let paintTick = 0, cover = false;
   function draw(now) {
     const t = tNow;
     for (const m of mols.values()) {
@@ -793,7 +803,8 @@ window.ReactorScene = function (host) {
       if (paintTick % 3 === i % 3) paintAgent(a, t);
       const tried = S.tried.has(a.name), op = a.out ? 0.25 : tried ? 0.35 : 1;
       a.orb.material.opacity = op;
-      if (a.look) { a.look.rotation.set(0.5 + Math.sin(t * 0.4) * 0.3, 0.4 + t * 0.35, 0.2); a.look.userData.mat.opacity = a.out ? 0.22 : op; a.look.visible = true; }
+      if (a.look) { a.look.rotation.set(0.5 + Math.sin(t * 0.4) * 0.3, 0.4 + t * 0.35, 0.2); a.look.userData.mat.opacity = a.out ? 0.22 : op; a.look.visible = !cover; }
+      a.orb.visible = !cover;
     });
     // the sphere: it warms toward the agent's colours, glows while it works, flashes as the bonds close; a wrong agent drains it
     const R0 = run, L = R0 ? R0.L : null, T = R0 ? R0.T : null;
@@ -825,7 +836,7 @@ window.ReactorScene = function (host) {
     void now;
   }
   // every letter upright and legible: hidden behind a nearer atom, and for a molecule behind the sphere (owner rule)
-  const sp1 = V(0, 0, 0);
+  const sp1 = V(0, 0, 0), sp2 = V(0, 0, 0);
   function lettersFace() {
     const { LW, LH } = host.frame(), HALF = Math.tan(cam.fov * Math.PI / 360), seen = [];
     const sc = SPH.clone().applyQuaternion(rig.quaternion).add(rig.position), [scx, scy] = proj(sc), sR = SR / (SPH.length() * HALF) * (LH / 2) + 6, far = SPH.length() + SR + 0.5;
@@ -833,6 +844,9 @@ window.ReactorScene = function (host) {
       if (!m.g.visible) continue;
       for (const a of m.atoms) {
         a.ball.getWorldPosition(sp1); const d = sp1.distanceTo(cam.position), q = sp1.clone().project(cam);
+        // the letter on its own atom's face toward you, in front of its sticks (as the Moleculator's): it was left at
+        // the molecule's middle, so NaOH's three letters stacked on its oxygen and a lone atom's sat off its centre
+        a.letter.position.copy(m.g.worldToLocal(sp2.copy(cam.position).sub(sp1).normalize().multiplyScalar(a.r * 0.8 * m.k * 1.7).add(sp1)));
         if (q.z > 1) { a.letter.visible = false; continue; }
         const x = (q.x + 1) / 2 * LW, y = (1 - q.y) / 2 * LH, r = (a.r * a.ball.scale.x * m.k) / (d * HALF) * (LH / 2);
         let hidden = a.ball.scale.x < 0.35 || r < 4;
@@ -857,13 +871,22 @@ window.ReactorScene = function (host) {
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     // formulas under floating molecules in view
     ctx.font = '600 16px Inter, sans-serif';
+    const { LH } = host.frame(), HALF = Math.tan(cam.fov * Math.PI / 360), k = ctx.getTransform().a;
+    const sc = SPH.clone().applyQuaternion(rig.quaternion).add(rig.position), [scx, scy] = proj(sc), sR = SR / (SPH.length() * HALF) * (LH / 2), far = SPH.length() + SR + 0.5;
     for (const m of mols.values()) {
       if (m.where !== 'space' || m.anim || !m.g.visible) continue;
       const c = V(0, 0, 0); m.g.getWorldPosition(c); const [x, y, z] = proj(c); if (z > 1) continue;
-      const d = c.distanceTo(cam.position), px = m.ext * m.k / (d * Math.tan(cam.fov * Math.PI / 360)) * (host.frame().LH / 2);
+      const d = c.distanceTo(cam.position), px = m.ext * m.k / (d * HALF) * (LH / 2);
       const ly = y + px + 14;
       if (x < -40 || x > LW + 40) continue;
-      ctx.fillStyle = 'rgba(255,255,255,0.86)'; ctx.fillText(X.SPECIES[m.key].formula, x, ly);
+      // under the dark fades at the top and the foot, the name goes as dark as its molecule
+      const a = 0.86 * (1 - Math.max(host.shade(y), host.shade(ly))); if (a < 0.03) continue;
+      const text = X.SPECIES[m.key].formula;
+      if (d > far && Math.hypot(x - scx, y - scy) < sR) {
+        // seen through the sphere's frosted back, the name blurs as its molecule does (a shadow cast from off the canvas)
+        ctx.save(); ctx.shadowColor = `rgba(255,255,255,${(a * 0.7).toFixed(3)})`; ctx.shadowBlur = 7 * k; ctx.shadowOffsetX = 4000 * k;
+        ctx.fillStyle = '#fff'; ctx.fillText(text, x - 4000, ly); ctx.restore();
+      } else { ctx.fillStyle = `rgba(255,255,255,${a.toFixed(3)})`; ctx.fillText(text, x, ly); }
     }
     // the agents' names, wrapped to two lines where they must be
     agents.forEach((a, i) => {
@@ -972,6 +995,14 @@ window.ReactorScene = function (host) {
 
   return {
     start, step, draw, hud, tap, pressWaiting, dropWaiting, dragWaiting, pilot, layout, equation: eqNow,
+    band: () => { if (!BAND) layout(); return BAND; },
+    // the frame changed size (full screen, or a phone turned): everything that rides with you moves to its new place
+    relayout: () => {
+      layout();
+      if (!S || busy || run) return;
+      for (const sl of sphereSlots()) { const m = mols.get(sl.id); if (m && !m.anim) { m.pos.copy(sl.p); m.k = sl.k; } }
+      waits.forEach((id, j) => { const m = mols.get(id); if (m && !m.anim) { m.pos.copy(arcAt(j)); m.k = 0.42 * SR / 2.15; } });
+    },
     state: () => S, busy: () => !!busy || !!run, clear, steps: () => steps.slice(),
     // where a new player's eye should go first: a molecule in view that the shortest way needs
     hintAt: () => {
@@ -996,6 +1027,8 @@ window.ReactorScene = function (host) {
       paintShell(cv.getContext('2d'), S2, { cols: L.cols, R: 0.36, body: 0.5, outer: 0.45, inside: (q, c, R) => { const off = insideOf(name, 1.3), k = R / (0.47 * S2) * 1.15; q.drawImage(off, c - S2 * k / 2, c - S2 * k / 2, S2 * k, S2 * k); } }); return cv; },
     // for checks and frames only: the same moves a tap makes
     put: (id) => tapMolecule(id), agent: (name) => pickAgent(S.agents.indexOf(name)),
+    // the cover: no agent orbs at the bottom (the agent in use still shows in the sphere)
+    setCover: (on) => { cover = on; },
     // the card's steps as the shortest way would take them (checks only: to measure every level's card unplayed)
     planSteps: () => { const counts = {}, owed = {}; for (const p of S.pieces) counts[p.key] = (counts[p.key] || 0) + 1; for (const t of S.targets) owed[t.key] = t.n;
       steps = (X.bestPlan(counts, owed, S.agents).plan || []).map((r) => ({ r, agent: r.agent ? (S.agents.includes(r.agent) ? r.agent : r.also.find((a) => S.agents.includes(a))) : null })); return steps.length; },

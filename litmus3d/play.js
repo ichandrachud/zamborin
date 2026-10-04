@@ -41,11 +41,20 @@ const MODE = (matchMedia('(pointer: coarse)').matches ||
 document.body.classList.add('mode-' + MODE);
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const HARNESS = /[?&]harness=1(&|$)/.test(location.search);
+// for making the cover art only: the world alone, none of the play's controls or goals
+const COVER = HARNESS && /[?&]cover=1(&|$)/.test(location.search);
 /* THE CHAPTER (owner, 2026-10-03: "Build all 3 sequentially, moleculator, reactor, carbon chamber"). Each is its own
    address, as its space's colour and light are built once: the Moleculator at /litmus3d/, the Reactor at
-   /litmus3d/?chapter=reactor, or #reactor where a page cannot change its address (a private phone link). */
-const CHAPTER = new URLSearchParams(location.search).get('chapter') === 'reactor' || /(^#|-)reactor(-|$)/.test(location.hash) ? 'reactor' : 'moleculator';
-const REACTOR = CHAPTER === 'reactor';
+   /litmus3d/?chapter=reactor (or carbon), or #reactor where a page cannot change its address (a private phone link).
+   The Carbon Chamber plays on the Reactor's sphere (reactor-scene.js) with its own agents, levels and space. */
+const CHAPTER = (() => {
+  const q = new URLSearchParams(location.search).get('chapter');
+  for (const c of ['reactor', 'carbon']) if (q === c || new RegExp(`(^#|-)${c}(-|$)`).test(location.hash)) return c;
+  return 'moleculator';
+})();
+const REACTOR = CHAPTER !== 'moleculator';       // the sphere's chapters: the Reactor and the Carbon Chamber
+const CHAPTER_NAME = { moleculator: 'MOLECULATOR', reactor: 'REACTOR', carbon: 'CARBON CHAMBER' }[CHAPTER];
+if (REACTOR && window.ReactorChem) window.ReactorChem.setChapter(CHAPTER);
 
 // ---------- TOKENS ----------
 // Canvas cannot read CSS variables, so the chrome's tokens are restated here,
@@ -93,6 +102,12 @@ const SPACE = {
     stops: ['#03050C', '#0B1830', '#02040A'],
     glows: [[0.25, 0.5, 0.22, 'rgba(40,96,190,0.35)'], [0.75, 0.5, 0.22, 'rgba(60,70,170,0.28)'], [0.5, 0.52, 0.18, 'rgba(30,110,170,0.22)']],
     mote: 0xA8C8FF, ring: 0x3A6AB8, rim: 0x8A6AFF, envRim: 0x5A9AFF,
+  },
+  // the Carbon Chamber's WINE (owner, 2026-10-03: for the Carbon Chamber only)
+  carbon: {
+    stops: ['#0A0306', '#2C0C1E', '#050204'],
+    glows: [[0.25, 0.5, 0.22, 'rgba(190,50,110,0.28)'], [0.75, 0.5, 0.22, 'rgba(140,40,120,0.24)'], [0.5, 0.52, 0.18, 'rgba(200,70,100,0.2)']],
+    mote: 0xFFC2DC, ring: 0xA83A70, rim: 0xFF8AC0, envRim: 0xFF8AC0,
   },
   reactor: {
     stops: ['#0B0605', '#2A140C', '#060303'],
@@ -174,6 +189,7 @@ function resizeCanvases() {
   renderer.setSize(cssW, cssH, false);
   fitCamera();
   fitLegend();
+  if (RX) RX.relayout();   // the Reactor's sphere, agents and their names follow the frame (full screen)
   fitScrim();
 }
 function onResize() { setCanvasVars(); fitFullscreen(); resizeCanvases(); }
@@ -278,6 +294,9 @@ const BOKEH = canvasTex(128, 128, (g, w) => {
 });
 const FOCUS = { sharp: 30, soft: 72 };   // radii from you: sharp to here, fully out of focus by there
 const farField = new Group(); scene.add(farField);
+// the Reactor's space is filled with real molecules instead, sharp and tappable (owner, 2026-10-03: "the rest are blurred.
+// that doesn't work"; "a lot of molecules floating just like the V1 flat game"): no blurred field there
+farField.visible = !REACTOR;
 {
   const R = mulberry(77), els = ['H', 'H', 'O', 'C', 'N', 'Cl', 'H', 'O', 'Na', 'C', 'Mg', 'Ca'];
   for (let i = 0; i < 180; i++) {
@@ -295,6 +314,7 @@ const farField = new Group(); scene.add(farField);
 scene.add(new HemisphereLight(0x9AB8FF, 0x101624, 0.7));
 const sun = new DirectionalLight(0xFFF4E4, 2.4), rim = new DirectionalLight(space.rim, 1.2);
 scene.add(sun, sun.target, rim, rim.target);
+for (const o of scene.children) if (o.isLight) o.layers.enable(1);   // they light the Reactor's agents too, drawn on layer 1
 const SUN_AT = new Vector3(-40, 30, 20), RIM_AT = new Vector3(20, 10, -60);
 
 // ---------- ATOM PIECES ----------
@@ -554,7 +574,6 @@ function paintOrb(g, S, o) {
   const fe = g.createRadialGradient(c, c, S * 0.38, c, c, S * 0.5); fe.addColorStop(0, 'rgba(0,0,0,1)'); fe.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = fe; g.fillRect(0, 0, S, S);
   g.globalCompositeOperation = 'source-over';
 }
-const MENU_ORB = (() => { const c = Object.assign(document.createElement('canvas'), { width: 128, height: 128 }); paintOrb(c.getContext('2d'), 128, { cols: SHELL, R: 0.36, body: 0.7, outer: 0.35 }); return c; })();
 /* Where the goals sit, in the frame's units: one in the middle, two or three side by side (clear of the menu orb).
    `wrap` is the room for each one's name. */
 const GOAL_Y = 46;
@@ -668,13 +687,29 @@ function fitLegend() {
    instead of crowding their names. Not a strip: no edge, only the space getting darker. Drawn between the world and
    the goals. */
 const scrim = { s: new Scene(), c: new PerspectiveCamera(6, 1, 1, 100000), mesh: null };
+// how dark the fade is at height y of the frame (0 to 1): names drawn over the space go as dark as what they name
+function shadeAt(y) {
+  const t = y / LH, st = scrim.stops || [[0, 0], [1, 0]];
+  for (let i = 1; i < st.length; i++) if (t <= st[i][0]) { const [a, p] = st[i - 1], [b, q] = st[i]; return b > a ? p + (q - p) * Math.max(0, (t - a) / (b - a)) : q; }
+  return st[st.length - 1][1];
+}
 function fitScrim() {
   const D = (cssH / 2) / Math.tan(3 * Math.PI / 180);
   scrim.c.aspect = cssW / Math.max(1, cssH); scrim.c.position.set(0, 0, D); scrim.c.lookAt(0, 0, 0); scrim.c.updateProjectionMatrix();
   if (scrim.mesh) { scrim.s.remove(scrim.mesh); scrim.mesh.material.map.dispose(); scrim.mesh.material.dispose(); }
   const end = Math.min(0.5, (LEGEND.top + GOAL_Y + 44 + 64) / LH);    // fades out just below the goals' names
-  const map = canvasTex(4, 256, (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h);
-    gr.addColorStop(0, 'rgba(2,4,10,0.92)'); gr.addColorStop(end * 0.55, 'rgba(2,4,10,0.78)'); gr.addColorStop(end, 'rgba(2,4,10,0)'); gr.addColorStop(1, 'rgba(2,4,10,0)');
+  scrim.stops = [[0, 0.92], [end * 0.55, 0.78], [end, 0]];
+  if (REACTOR) {   // the Reactor's goals keep a darker band: dark down past their names, gone 90px below (owner, 2026-10-03)
+    const nm = LEGEND.top + GOAL_Y + 44;
+    scrim.stops = [[0, 0.94], [(nm + 14) / LH, 0.86], [(nm + 50) / LH, 0.42], [(nm + 90) / LH, 0]];
+  }
+  // the Reactor's agents sit at the foot: the space darkens again from under the sphere, so what floats there goes
+  // quiet behind them instead of running into them (owner, 2026-10-03). The agents are drawn after it.
+  const band = RX && RX.band();
+  if (band) { const a = Math.max(scrim.stops[scrim.stops.length - 1][0] + 0.02, (band.top - 12) / LH), b = Math.max(a + 0.04, band.full / LH); scrim.stops.push([a, 0], [(a + b) / 2, 0.42], [b, 0.82], [1, 0.92]); }
+  else scrim.stops.push([1, 0]);
+  const map = canvasTex(4, 512, (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h);
+    for (const [k, al] of scrim.stops) gr.addColorStop(k, `rgba(2,4,10,${al})`);
     g.fillStyle = gr; g.fillRect(0, 0, w, h); });
   scrim.mesh = new Mesh(new PlaneGeometry(cssW, cssH), new MeshBasicMaterial({ map, transparent: true, depthTest: false, depthWrite: false, toneMapped: false }));
   scrim.s.add(scrim.mesh);
@@ -688,7 +723,7 @@ const RX = REACTOR && window.ReactorScene ? window.ReactorScene({
     BoxGeometry, RoundedBoxGeometry, PlaneGeometry, MeshPhysicalMaterial, MeshBasicMaterial, BufferGeometry, Float32BufferAttribute, Points, PointsMaterial,
     AdditiveBlending, BackSide, DoubleSide, PMREMGenerator, Scene },
   scene, cam, renderer, U, ART, rOf, ballMat, stickMat, letterMat, letterBase, cached, DOT, MODE, REDUCED, Y_UP, SND,
-  clock: () => clock(), frame: () => ({ LW, LH }),
+  clock: () => clock(), frame: () => ({ LW, LH }), shade: (y) => (menu || map || COVER ? 0 : shadeAt(y)),
   // where goal i's orb is, in the world, and its molecule landing there
   goalWorld: (i) => { const L = (legend.lay || goalLayout(1))[i] || goalLayout(1)[0]; return rayDir({ x: L.x, y: LEGEND.top + GOAL_Y }).multiplyScalar(14).add(cam.position); },
   hold: () => { legend.pending = Infinity; },
@@ -698,11 +733,11 @@ const RX = REACTOR && window.ReactorScene ? window.ReactorScene({
 
 // ---------- LEVEL ----------
 // the Reactor's 60 levels are one list for both (litmus3d/reactor-levels.js)
-const LIST = REACTOR ? window.REACTOR_LEVELS : MODE === 'mobile' ? LV.mobile : LV.desktop;
+const LIST = CHAPTER === 'carbon' ? window.CARBON_LEVELS : REACTOR ? window.REACTOR_LEVELS : MODE === 'mobile' ? LV.mobile : LV.desktop;
 /* PROGRESS. The phone and the desktop play different level sets (as /chemistry/),
    so each keeps its own record. Levels open in order; a returning player lands
    on the first level not yet done (DESIGN-SYSTEM 10.1). */
-const SAVE_KEY = REACTOR ? 'zam.litmus3d.reactor' : 'zam.litmus3d.progress';
+const SAVE_KEY = { moleculator: 'zam.litmus3d.progress', reactor: 'zam.litmus3d.reactor', carbon: 'zam.litmus3d.carbon' }[CHAPTER];
 let save = (() => { try { const v = JSON.parse(localStorage.getItem(SAVE_KEY) || '{}'); return v && typeof v === 'object' ? v : {}; } catch (_) { return {}; } })();
 const doneSet = () => new Set((save[MODE] && save[MODE].done) || []);
 function markDone(n) {
@@ -1394,9 +1429,17 @@ function drawLegend(now) {
 const hits = {};
 // The one control in play: a small plain orb at the top left, level with the goals; it opens the menu card.
 const pauseBox = () => ({ x: MODE === 'mobile' ? 16 : 30, y: LEGEND.top + GOAL_Y - 22, w: 44, h: 44 });
+/* The menu: a hamburger, three short rounded lines and nothing behind them (owner, 2026-10-03: "show a menu
+   hamburger", "no bubble behind the hamburger"). A soft dark shadow keeps it readable over a bright molecule. */
 function drawPause() {
-  const b = pauseBox(), cx = b.x + 22, cy = b.y + 22, sz = 21 / 0.36;
-  ctx.drawImage(MENU_ORB, cx - sz / 2, cy - sz / 2, sz, sz);
+  const b = pauseBox(), cx = b.x + 22, cy = b.y + 22;
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 6;
+  ctx.strokeStyle = TOK.text; ctx.lineWidth = 2.6; ctx.lineCap = 'round';
+  ctx.beginPath();
+  for (const dy of [-7, 0, 7]) { ctx.moveTo(cx - 10, cy + dy); ctx.lineTo(cx + 10, cy + dy); }
+  ctx.stroke();
+  ctx.restore();
   hits.pause = b;
 }
 
@@ -1511,7 +1554,7 @@ function drawMenu() {
   const cx = L.x + L.pw / 2, lx = L.x + MENU.pad;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.font = `800 ${MENU.kick}px Inter, sans-serif`; ctx.fillStyle = TOK.textDim;
-  ctx.fillText(`${REACTOR ? 'REACTOR' : 'MOLECULATOR'}  ·  LEVEL ${levelNo}`, cx, L.y + L.head.kick);
+  ctx.fillText(`${CHAPTER_NAME}  ·  LEVEL ${levelNo}`, cx, L.y + L.head.kick);
   drawMiniMolecule(st.targets[0].key, cx, L.y + L.head.pic, L.inner * 0.8, 60);
   ctx.font = `800 ${MENU.make}px Inter, sans-serif`; ctx.fillStyle = TOK.text;
   if (menu.note && clock() - menu.note < 2400) {
@@ -2015,6 +2058,7 @@ function drawHud(now) {
   ctx.setTransform(k, 0, 0, k, 0, 0);
   ctx.clearRect(0, 0, LW, LH);
   for (const key in hits) delete hits[key];
+  if (COVER) return;
   if (!REACTOR) { drawHint(now); drawOpening(now); }
   else if (!firstInput && !card && !menu && !map) {
     // the Reactor's first-tap ring, until your first touch (as the Moleculator's)
@@ -2061,13 +2105,13 @@ function drawMap() {
     hits.mapBack = UI.drawPill(ctx, 'Back', L.pad + 40, L.band / 2);
     ctx.textBaseline = 'middle'; ctx.textAlign = 'right';
     ctx.font = '600 16px Inter, sans-serif'; ctx.fillStyle = TOK.ink72;
-    ctx.fillText(`${REACTOR ? 'REACTOR' : 'MOLECULATOR'}   ·   ${d.size} OF ${LIST.length} DONE`, LW - L.pad, L.band / 2 + 1);
+    ctx.fillText(`${CHAPTER_NAME}   ·   ${d.size} OF ${LIST.length} DONE`, LW - L.pad, L.band / 2 + 1);
     ctx.textAlign = 'left';
   }
   {
-    const names = [['moleculator', 'Moleculator'], ['reactor', 'Reactor']], w = Math.min(160, (LW - L.pad * 2 - 10) / 2);
+    const names = [['moleculator', 'Moleculator'], ['reactor', 'Reactor'], ['carbon', MODE === 'mobile' ? 'Carbon' : 'Carbon Chamber']], w = Math.min(160, (LW - L.pad * 2 - 20) / 3);
     names.forEach(([id, label], i) => {
-      const cx = LW / 2 + (i - 0.5) * (w + 10), on = id === CHAPTER;
+      const cx = LW / 2 + (i - 1) * (w + 10), on = id === CHAPTER;
       if (on) {
         const b = { x: cx - w / 2, y: L.chap.y - 20, w, h: 40 };
         UI.roundRectPath(ctx, b.x, b.y, b.w, b.h, 20); ctx.fillStyle = ACCENT; ctx.fill();
@@ -2105,12 +2149,12 @@ function drawMap() {
 function mapDown(p, e) {
   if (inBox(p, hits.mapBack)) { SND.pick(); map = null; return; }
   // the other chapter: its own address (its space is built for it)
-  for (const id of ['moleculator', 'reactor']) if (inBox(p, hits['chap_' + id])) {
+  for (const id of ['moleculator', 'reactor', 'carbon']) if (inBox(p, hits['chap_' + id])) {
     SND.pick();
     const q = new URLSearchParams(location.search);
     q.delete('chapter');
     // by the address's # part, which every page can change, then a fresh start in that chapter's space
-    history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '') + (id === 'reactor' ? '#reactor' : '#'));
+    history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '') + (id === 'moleculator' ? '#' : '#' + id));
     location.reload();
     return;
   }
@@ -2262,9 +2306,10 @@ function frame() {
   renderer.setViewport(0, 0, cssW, cssH); renderer.setScissorTest(false);
   renderer.clear();
   renderer.render(scene, cam);
-  if (!menu && !map) { renderer.clearDepth(); renderer.render(scrim.s, scrim.c); }
+  if (!menu && !map && !COVER) { renderer.clearDepth(); renderer.render(scrim.s, scrim.c); }
+  if (REACTOR) { cam.layers.set(1); renderer.render(scene, cam); cam.layers.set(0); }   // the agents, over the fade
   // the target, over the top of the frame
-  if (!menu && !map && !(card && now >= card.showAt)) {
+  if (!menu && !map && !COVER && !(card && now >= card.showAt)) {
     const k = cssW / LW, vh = LEGEND.h * k, vy = cssH - (LEGEND.top + LEGEND.h) * k;
     renderer.clearDepth();
     renderer.setScissorTest(true);
@@ -2311,6 +2356,7 @@ if (HARNESS) {
       ctx.font = '700 22px Inter, sans-serif'; const eqW = Math.max(...L.eq.map((s) => ctx.measureText(s).width));
       return { fits: L.headerH + L.viewH + L.footerH === L.ph && L.y >= 0 && L.y + L.ph <= LH && L.viewH > 120, widest: Math.max(widest, eqW), inner: L.inner, scrollMax: L.scrollMax, steps: L.steps.length };
     },
+    shade: (y) => shadeAt(y),
     rcCard: (tab = 0) => { card = { kind: 'win', showAt: 0, sounded: true, scroll: 0, tab, electrons: false }; },
     learnFit: () => {
       if (!card || !card.box) return null;
@@ -2334,6 +2380,8 @@ if (HARNESS) {
        nearest atom that helps, faced straight on, as a player who just taps
        what they see. */
     next: (careless) => (REACTOR ? (card ? { type: 'done', result: card.kind } : menu || map ? { type: 'wait' } : RX.pilot(!!careless)) : pilotNext(!!careless)),
+    // the cover's scene: a level of your own making, its molecules where you put them ([yaw, pitch, distance] each)
+    rxCustom: (lv) => { if (!REACTOR) return null; LEVEL = lv; st = RX.start(lv, 1); card = null; menu = null; map = null; firstInput = true; RX.setCover(COVER); return st.pieces.length; },
     rxPut: (id) => RX.put(id), rxAgent: (name) => RX.agent(name), rxPlanSteps: () => RX.planSteps(),
     reactor: () => REACTOR && { molecules: RX.molecules(), agents: RX.agentsAt(), chances: st.chances, made: st.made, zones: st.pieces.map((p) => p.zone), busy: RX.busy() },
     helps: (a, b) => helps(a, b),

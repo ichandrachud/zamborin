@@ -136,8 +136,17 @@ function realButMissing(a, b) {
     pair(is('sulphur-trioxide'), t('base'));
 }
 
+/* The molecules a decoy is chosen from: the bench's common ones (the flat game's dish), each checked per level. */
+const DECOYS = ['water', 'nitrogen', 'oxygen', 'hydrogen', 'carbon-dioxide', 'sodium-chloride', 'potassium-chloride', 'sodium-nitrate',
+  'potassium-nitrate', 'sodium-sulphate', 'calcium-chloride', 'magnesium-sulphate', 'zinc-sulphate', 'copper-sulphate', 'sodium-carbonate',
+  'calcium-carbonate', 'ammonia', 'methane', 'hydrochloric-acid', 'nitric-acid', 'sulphuric-acid', 'sodium-hydroxide', 'calcium-hydroxide',
+  'magnesium', 'zinc', 'copper', 'copper-oxide', 'zinc-oxide', 'magnesium-oxide', 'calcium-oxide', 'chlorine', 'bromine', 'sodium-bromide',
+  'potassium-bromide', 'carbon-monoxide', 'calcium-sulphate', 'magnesium-chloride', 'zinc-chloride', 'copper-chloride', 'ammonium-chloride',
+  'sodium-hydrogencarbonate', 'hydrobromic-acid', 'silver', 'iron', 'chloromethane'];
+
 /* ---------- THE CHECK ---------- */
-const ALL = Object.keys(C.AGENTS);
+// the Reactor's nine (the Carbon Chamber's Acid and Oxidiser are its own)
+const ALL = ['heat', 'spark', 'light', 'electricity', 'platinum', 'iron', 'nickel', 'vanadium', 'manganese'];
 const parse = (s) => s.split(/\s+/).filter(Boolean).flatMap((w) => { const [k, n] = w.split('*'); return Array(+(n || 1)).fill(k); });
 function mulberry(a) { return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 const out = [], problems = [];
@@ -167,15 +176,54 @@ LEVELS.forEach(([tg, sp], i) => {
   if (!q.plan) problems.push(`${n}: cannot be made with ${agents.join(', ')}`);
   const steps = (q.plan || []).map((r) => r.agent || 'meet');
   steps.forEach((x) => (x === 'meet' ? meetSteps++ : agentSteps++));
+  /* A LOT OF MOLECULES FLOATING, as the flat game's bench (owner, 2026-10-03: "only the molecules needed for the
+     equation" read wrong). Each level gets decoys: real molecules, tappable, that must not give the level a shorter
+     way, must not change which agents it needs, must not turn a decoy agent into a right one, and must not meet
+     anything the level can hold in a way real chemistry would and the game would not. */
+  const want = n <= 5 ? 28 : 38, decoys = [];
+  const shortest = q.plan ? q.plan.length : 0;
+  const tryWith = (extra) => {
+    const sp2 = space.concat(extra), c2 = sp2.reduce((m, k) => (m[k] = (m[k] || 0) + 1, m), {});
+    const p2 = C.bestPlan(c2, owed, agents);
+    if (!p2.plan || p2.plan.length < shortest) return false;
+    const need2 = new Set(p2.plan.filter((r) => r.agent).map((r) => r.agent));
+    if ([...need2].some((a) => !need.includes(a))) return false;
+    const h2 = C.closure(sp2, need);
+    for (const a of agents) if (!need.includes(a) && (COULD[a](h2) || C.levelReactions([...h2], [a]).some((r) => r.agent === a || r.also.includes(a)))) return false;
+    const hold2 = [...C.closure(sp2, agents)];
+    for (let x = 0; x < hold2.length; x++) for (let y = x; y < hold2.length; y++) if (realButMissing(hold2[x], hold2[y])) return false;
+    // the first five levels are for learning: their extras react with nothing at all, so no first tap is a trap
+    if (n <= 5) { const k = extra[extra.length - 1]; if (hold2.some((h) => C.reactionIn([k, h], null) || C.reactionIn([k, k], null))) return false; }
+    return true;
+  };
+  const RD = mulberry(n * 104729 + 17), dpool = DECOYS.slice().sort(() => RD() - 0.5);
+  for (const k of dpool) {
+    if (decoys.length >= want) break;
+    if (targets.some(([t]) => t === k)) continue;             // a goal never floats ready-made
+    if ([...space, ...decoys].filter((x) => x === k).length >= 4) continue;
+    if (tryWith(decoys.concat(k))) decoys.push(k);
+  }
+  // a second pass takes more of the ones that fit, so the space is as full as the flat game's bench
+  for (const k of dpool.concat(dpool, dpool)) {
+    if (decoys.length >= want) break;
+    if (!decoys.includes(k) || [...space, ...decoys].filter((x) => x === k).length >= 4) continue;
+    if (tryWith(decoys.concat(k))) decoys.push(k);
+  }
+  if (decoys.length < want - 16) problems.push(`${n}: only ${decoys.length} decoys fit`);
+  else if (decoys.length < want) console.log(`note: level ${n} takes ${decoys.length} decoys (most of the bench reacts with what it holds)`);
+  /* The order they float in: the first two in front of you. The first three levels put what they need there, to
+     learn on; after that everything is shuffled, so what you need may be behind you. */
+  let floatOrder = space.concat(decoys);
+  if (n > 3) { const RS = mulberry(n * 31337 + 3); floatOrder = floatOrder.map((k) => [RS(), k]).sort((a, b) => a[0] - b[0]).map(([, k]) => k); }
   // honest pairs, among everything the level can hold
-  const hold = [...C.closure(space, agents)];
+  const hold = [...C.closure(floatOrder, agents)];
   for (let a = 0; a < hold.length; a++) for (let b = a; b < hold.length; b++) {
     if (realButMissing(hold[a], hold[b])) problems.push(`${n}: ${hold[a]} and ${hold[b]} react in real life, not in the game`);
   }
-  out.push({ n, targets, space, agents, steps, plan: (q.plan || []).map((r) => r.id) });
+  out.push({ n, targets, space: floatOrder, agents, steps, decoys: decoys.length, plan: (q.plan || []).map((r) => r.id) });
 });
 
-for (const L of out) console.log(String(L.n).padStart(2), L.steps.join(' > ').padEnd(30), '|', L.targets.map(([k, c]) => k + (c > 1 ? '×' + c : '')).join(', ').padEnd(26), '|', L.agents.join(', '));
+for (const L of out) console.log(String(L.n).padStart(2), L.steps.join(' > ').padEnd(30), '|', L.targets.map(([k, c]) => k + (c > 1 ? '×' + c : '')).join(', ').padEnd(26), '|', String(L.space.length).padStart(2), 'floating |', L.agents.join(', '));
 console.log(`\n${out.length} levels; steps: ${agentSteps} with an agent, ${meetSteps} as they meet`);
 console.log('agents shown:', JSON.stringify(used));
 for (const p of problems) console.log('PROBLEM', p);

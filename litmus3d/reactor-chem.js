@@ -35,7 +35,15 @@ const AGENTS = {
   nickel:      { name: 'Nickel', catalyst: true },
   vanadium:    { name: 'Vanadium(V) oxide', short: 'Vanadium oxide', catalyst: true },
   manganese:   { name: 'Manganese(IV) oxide', short: 'Manganese dioxide', catalyst: true },
+  // the Carbon Chamber's own two (owner, 2026-10-03; iCloud 3D-IDEAS/LITMUS_CARBON_AGENTS.md)
+  acid:        { name: 'Acid', catalyst: true },
+  oxidiser:    { name: 'Oxidiser' },
 };
+/* THE CHAPTER. The Carbon Chamber plays on the same sphere with its four agents, Nickel, Acid, Heat and Oxidiser:
+   lab.js's organic pairs take the agent a school lab gives them, an alcohol becomes its acid with the Oxidiser, and an
+   alcohol and hydrochloric acid do not react (too slow in a lab). The Reactor is the default. */
+let CHAPTER = 'reactor';
+function setChapter(c) { CHAPTER = c === 'carbon' ? 'carbon' : 'reactor'; pairCache.clear(); }
 
 /* ---------- THE MOLECULES ----------
    lab.js's, and the few the agent reactions add. Drawn as lab.js draws: atoms
@@ -78,7 +86,7 @@ const SPECIES = Object.assign({}, LAB.SPECIES);
    platinum lights hydrogen; a flame sets off hydrogen and chlorine). `row`: the
    research table's row. */
 const R = [];
-const ag = (id, ins, out, agent, also, row) => R.push({ id, in: ins, out, agent, also: also || [], row });
+const ag = (id, ins, out, agent, also, row, extra) => R.push({ id, in: ins, out, agent, also: also || [], row, extra });
 ag('haber', [['nitrogen', 1], ['hydrogen', 3]], ['ammonia', 'ammonia'], 'iron', [], 1);
 ag('steam-reforming', [['methane', 1], ['water', 1]], ['carbon-monoxide', 'hydrogen', 'hydrogen', 'hydrogen'], 'nickel', [], 2);
 ag('contact', [['sulphur-dioxide', 2], ['oxygen', 1]], ['sulphur-trioxide', 'sulphur-trioxide'], 'vanadium', ['platinum'], 3);
@@ -117,6 +125,10 @@ ag('bleach', [['chlorine', 1], ['sodium-hydroxide', 2]], ['sodium-chlorate-i', '
 ag('sulphurous-acid', [['sulphur-dioxide', 1], ['water', 1]], ['sulphurous-acid'], null, [], 'link');
 ag('sulphur-trioxide-and-alkali', [['sulphur-trioxide', 1], ['sodium-hydroxide', 2]], ['sodium-sulphate', 'water'], null, [], 'link');
 ag('carbon-dioxide-and-alkali', [['carbon-dioxide', 1], ['sodium-hydroxide', 1]], ['sodium-hydrogencarbonate'], null, [], 'link');
+/* The Oxidiser (acidified potassium dichromate, warmed) turns an alcohol into its acid: the oxygen comes from the agent,
+   written 2[O] (CH₃CH₂OH + 2[O] → CH₃COOH + H₂O), so the atoms balance with what the agent gives. */
+[['methanol', 'methanoic-acid'], ['ethanol', 'ethanoic-acid'], ['propanol', 'propanoic-acid']].forEach(([alc, acid]) =>
+  ag(alc + '-oxidised', [[alc, 1]], [acid, 'water'], 'oxidiser', [], 'carbon', { O: 2 }));
 const RX = {}; R.forEach((r) => { RX[r.id] = r; });
 
 /* lab.js's own pairs go as they meet, except the two kinds a school lab warms
@@ -127,6 +139,22 @@ function warmed(a, b, r) {
   const t = (k) => SPECIES[k].tags;
   return (t(a).includes('ammonium') && t(b).includes('strong-base')) || (t(b).includes('ammonium') && t(a).includes('strong-base'));
 }
+/* The Carbon Chamber's agents for lab.js's organic pairs (LITMUS_CARBON_AGENTS.md): nickel for hydrogen onto a double
+   bond; an acid catalyst for steam onto one, for making an ester and for splitting it with water; heat (under reflux,
+   or warmed) for an alcohol with hydrobromic acid, a haloalkane or an ester with alkali. Bromine and the hydrogen halides
+   add to an alkene as they meet. */
+function organicAgent(a, b) {
+  const kind = (k) => SPECIES[k].carbon && SPECIES[k].carbon.kind, t = (k, x) => SPECIES[k].tags.includes(x);
+  const pair = (p, q) => (p(a) && q(b)) || (p(b) && q(a));
+  const is = (key) => (k) => k === key, of = (kd) => (k) => kind(k) === kd, tag = (x) => (k) => t(k, x);
+  if (pair(of('alkene'), is('hydrogen'))) return 'nickel';
+  if (pair(of('alkene'), is('water'))) return 'acid';
+  if (pair(of('alcohol'), tag('carboxylic-acid'))) return 'acid';
+  if (pair(of('ester'), is('water'))) return 'acid';
+  if (pair(of('ester'), tag('strong-base')) || pair(of('haloalkane'), tag('strong-base')) || pair(of('dihalo'), tag('strong-base'))) return 'heat';
+  if (pair(of('alcohol'), tag('hydrogen-halide'))) return 'heat';
+  return undefined;     // not organic: as the Reactor
+}
 const pairCache = new Map();
 function pairReaction(a, b) {
   const k = a < b ? a + '+' + b : b + '+' + a;
@@ -134,11 +162,21 @@ function pairReaction(a, b) {
   let out = null;
   if (LAB.SPECIES[a] && LAB.SPECIES[b]) {
     const r = LAB.reactionFor(a, b);
-    if (r) out = { id: 'lab:' + k, in: a === b ? [[a, 2]] : [[a, 1], [b, 1]], out: r.products.slice(), agent: warmed(a, b, r) ? 'heat' : null, also: [], row: 'lab', kind: r.kind };
+    const kind = (x) => SPECIES[x].carbon && SPECIES[x].carbon.kind;
+    const alcoholWith = (x) => (kind(a) === 'alcohol' && b === x) || (kind(b) === 'alcohol' && a === x);
+    // in the Carbon Chamber the Oxidiser does the oxidising, and hydrochloric acid is too slow with an alcohol
+    const skip = CHAPTER === 'carbon' && (alcoholWith('oxygen') || alcoholWith('hydrochloric-acid'));
+    if (r && !skip) {
+      const org = CHAPTER === 'carbon' ? organicAgent(a, b) : undefined;
+      const agent = org !== undefined ? org : (CHAPTER === 'carbon' && warmedCarbonFree(r) ? null : warmed(a, b, r) ? 'heat' : null);
+      out = { id: 'lab:' + k, in: a === b ? [[a, 2]] : [[a, 1], [b, 1]], out: r.products.slice(), agent, also: [], row: 'lab', kind: r.kind };
+    }
   }
   pairCache.set(k, out);
   return out;
 }
+// the carbon research found a carboxylic acid with quicklime, an alkali, a carbonate or ammonia needs no warming
+function warmedCarbonFree(r) { return [r.a, r.b].some((k) => SPECIES[k].tags.includes('carboxylic-acid') || SPECIES[k].tags.includes('weak-acid-salt')); }
 
 /* ---------- CHECKS ----------
    Every reaction must balance, atom for atom. */
@@ -149,6 +187,7 @@ function atomsOf(list) {
 }
 function balanced(r) {
   const a = atomsOf(r.in), outs = {};
+  for (const [el, n] of Object.entries(r.extra || {})) a[el] = (a[el] || 0) + n;     // what the agent itself gives
   for (const k of r.out) outs[k] = (outs[k] || 0) + 1;
   const b = atomsOf(Object.entries(outs));
   return Object.keys({ ...a, ...b }).every((el) => a[el] === b[el]);
@@ -288,14 +327,20 @@ function analyse(s) {
   const counts = {};
   for (const p of s.pieces) if (p.zone === 'space' || p.zone === 'sphere' || p.zone === 'waiting') counts[p.key] = (counts[p.key] || 0) + 1;
   const left = total - made;
-  const best = left ? bestPlan(counts, owed, s.agents).best : 0;
-  return { total, made, best, won: left === 0, over: left > 0 && best < left, why: 'cannot' };
+  const bp = left ? bestPlan(counts, owed, s.agents) : { best: 0 };
+  // a search that ran out of room proves nothing: the level is lost only when the search finished and says so
+  return { total, made, best: bp.best, won: left === 0, over: left > 0 && bp.best < left && !bp.exhausted, why: 'cannot' };
 }
 /* The search, also the level checker's: from these molecules, the most of what
    is owed that can be made, and one shortest way to make it all. */
 function bestPlan(counts, owed, agents) {
   const tkeys = Object.keys(owed);
-  const rxs = levelReactions(Object.keys(counts), agents);
+  /* Only what can lead to a goal counts: the goals, what a reaction making one of them takes, and so on back. A
+     molecule that leads nowhere (a decoy) and a reaction that makes nothing wanted are left out of the search. */
+  const all = levelReactions(Object.keys(counts), agents), rel = new Set(tkeys);
+  for (let grew = true; grew;) { grew = false; for (const r of all) if (r.out.some((k) => rel.has(k))) for (const [k] of r.in) if (!rel.has(k)) { rel.add(k); grew = true; } }
+  const rxs = all.filter((r) => r.out.some((k) => rel.has(k)));
+  counts = Object.fromEntries(Object.entries(counts).filter(([k]) => rel.has(k)));
   const keys = [...new Set([...Object.keys(counts), ...rxs.flatMap((r) => [...r.in.map(([k]) => k), ...r.out]), ...tkeys])];
   const idx = new Map(keys.map((k, i) => [k, i]));
   const RR = rxs.map((r) => ({ r, in: r.in.map(([k, n]) => [idx.get(k), n]), out: r.out.map((k) => idx.get(k)) }));
@@ -330,7 +375,7 @@ function bestPlan(counts, owed, agents) {
     }
     frontier = next;
   }
-  return { best, plan };
+  return { best, plan, exhausted: plan === null && budget <= 0 };
 }
 function trace(seen, key) {
   const steps = [];
@@ -338,6 +383,6 @@ function trace(seen, key) {
   return steps;
 }
 
-return { AGENTS, SPECIES, REACTIONS: R, RX, SPHERE, CHANCES, pairReaction, reactionIn, balanced, atomsOf,
+return { AGENTS, SPECIES, REACTIONS: R, RX, SPHERE, CHANCES, setChapter, chapter: () => CHAPTER, pairReaction, reactionIn, balanced, atomsOf,
   createReactor, toSphere, toSpace, pickAgent, analyse, bestPlan, closure, levelReactions };
 }));

@@ -30,10 +30,23 @@ body.embed .play-row {
   padding-right: env(safe-area-inset-right, 0px);
 }
 
-/* The cover. There is no art yet, so the cover is the Moleculator's own dark
-   space; it stays until the game has drawn itself (index.html), as Marble's. */
+/* The cover (DESIGN-SYSTEM 3), as Marble's: the art per mode, over a tiny inline copy of it (shown the moment the
+   page is), over the dark it is drawn on. The art (owner, 2026-10-03: "a beautiful abstract image ... with the word
+   Litmus on it") is rendered in three.js: geodesic glass molecules, a sharp ring among soft ones, warm sparks; the
+   word in Audiowide (the owner's pick of eight). It stays until the game has drawn itself (index.html).
+
+   Mobile art is 1170 x 2532. Its word is 60% of the width, inside the 82% safe zone (0.38 / 0.462), and sits 13% to
+   20% down, clear of the 8.9% an iPhone SE crops off the top. A phone held sideways gets the landscape art. */
 .splash {
-  background-image: radial-gradient(ellipse at 50% 55%, #10264A 0%, #0B1830 45%, #03050C 100%);
+  --dark: radial-gradient(ellipse at 50% 55%, #0A2244 0%, #03101F 45%, #010308 100%);
+  --lq-mobile: url('data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAA0ABgDASIAAhEBAxEB/8QAGQAAAwEBAQAAAAAAAAAAAAAAAAMEAgUH/8QAJxAAAgICAQQBAwUAAAAAAAAAAQIDEQAEIQUSMVFBE3GBIjJCYfD/xAAXAQEBAQEAAAAAAAAAAAAAAAACAQMA/8QAGhEBAQEBAQEBAAAAAAAAAAAAAQACESESUf/aAAwDAQACEQMRAD8A80CM37QT9hjG1p14aGRTV8oRxjdTYn13JgbtLAAntB4sH5/sA5UnWOpRoY49uQx3dEAg0K+R6AzQILc2SJ4yBIjISLAYVxhlW1s7fUZkM7tM6r2LxzXrjDO5d9fs6Z2WSIFeylogD4xs2kYtb6i+G9sLr7Yzp86TyqNhDI5/SoC+L9fnH7h2tTcCbMZQxNYiIqhm4DYKlF0+OWIvsJQ7QRzfq/xhmuoLMZQVUqCtEBr8e8ML54VD69aTXnlQBYyQVNgjOrq7s0u5W53M8v8AJz/rGczWs7Yh11DM57RzVnHbMrTuEkapI7DUPnJnXJbz2x1CaQTyRs5euLJ8YZKJQkckbRKzNVMfK16wwa11nnPCWzssxZTRB4zf137XPHcx5PzhhhKsgnDDDJK//9k=');
+  --lq-desktop: url('data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAgACgDASIAAhEBAxEB/8QAGwAAAgMAAwAAAAAAAAAAAAAAAAMCBAUBBgf/xAAsEAACAQQABQEHBQAAAAAAAAABAgMABBESBRMhMUEiBjJRYXGBkRahsdHw/8QAFwEBAQEBAAAAAAAAAAAAAAAAAgMAAf/EAB0RAAIBBAMAAAAAAAAAAAAAAAABEgIDERMhMUH/2gAMAwEAAhEDEQA/APNMVfj4PdvcyW+I1eMoGLSAAbe71+9KYwqAEQMc5JNaiXF9fKzG8cmNQQp+I6gfbHn4VZUZJOvHJX/TfEzkpCsiDfLo4K+ggN1+pFQi9n+ISxySLGmsQYtlxnoSDgeeqmrto3EHieGS7uY4XBYqGwGJzn+TXDXvF8mZr6XUjll9hkrk5x58n80tYdhji0cwCY40/einXmi6xwuSgHYEkZooNJCTbCzh3ZmZtQgzUeYdySfxU+dEluXjJE4OCD7uv91U5pyD0yPlXZYNFtnYCFuODiRrmMSxvqIcYZvnSxBJHYyCeZURuwDD/YyKx+c7tuSBjGSPFNvbhZQmsjuwGGJ7U9npN2+khZdAq+kMe5zRSWlzGqaqNSfUB1P1oqUi0T//2Q==');
+  background-image: var(--dark);
+}
+body.mode-desktop .splash { background-image: url('./splash-desktop.jpg?v=1'), var(--lq-desktop), var(--dark); }
+body.mode-mobile  .splash { background-image: url('./splash-mobile.jpg?v=1'),  var(--lq-mobile), var(--dark); }
+@media (orientation: landscape) {
+  body.mode-mobile .splash { background-image: url('./splash-desktop.jpg?v=1'), var(--lq-desktop), var(--dark); }
 }
 .splash-load {
   position: absolute; left: 50%; bottom: calc(6% + env(safe-area-inset-bottom, 0px));
@@ -41,6 +54,11 @@ body.embed .play-row {
   display: flex; flex-direction: column; align-items: center; gap: 10px;
   padding: 12px 22px 15px; border-radius: 16px;
   background: rgba(10, 16, 28, 0.66);
+}
+/* on the landscape art the bar goes to the corner, as Marble's, clear of the molecule in the middle */
+body.mode-desktop .splash-load { left: auto; right: 18px; bottom: 16px; transform: none; }
+@media (orientation: landscape) {
+  body.mode-mobile .splash-load { left: auto; right: calc(14px + env(safe-area-inset-right, 0px)); bottom: 12px; transform: none; }
 }
 .splash-load-label { font: 600 16px/1.2 Inter, system-ui, -apple-system, sans-serif; color: rgba(255, 255, 255, 0.92); white-space: nowrap; }
 .splash-load-track { display: block; width: 184px; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.2); overflow: hidden; }

@@ -1,0 +1,216 @@
+<!doctype html>
+<!--
+  Litmus in 3D: the splash art (litmus3d/splash-mobile.jpg and splash-desktop.jpg), rendered, not painted.
+  Owner, 2026-10-03: "a beautiful abstract image ... with the word Litmus on it using an interesting font";
+  the word in Audiowide, the owner's pick of eight. Geodesic glass molecules: a sharp six-ring among soft ones,
+  the depth of field composited from three layers (far, middle, near), each blurred on a 2D canvas.
+  Render (the page draws once; serve this folder and shoot it with tools/litmus3d/shoot.mjs):
+    SERVE_DIR=tools/litmus3d SERVE_PORT=5431 node tools/litmus3d/shoot.mjs <out> \
+      '[{"name":"mobile","url":"http://localhost:5431/splash-art.html","w":390,"h":844,"dpr":3,"wait":9000},
+        {"name":"desktop","url":"http://localhost:5431/splash-art.html","w":760,"h":600,"dpr":2,"wait":9000}]'
+  then save each PNG as JPEG (quality 86) over litmus3d/splash-*.jpg, and its 24x52 / 40x32 copy into play.css.
+-->
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Litmus splash art</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syncopate:wght@400;700&family=Major+Mono+Display&family=Megrim&family=Unbounded:wght@200;300;600&family=Michroma&family=Comfortaa:wght@300&family=Monoton&family=Audiowide&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; height: 100%; background: #010309; overflow: hidden; }
+  canvas { display: block; }
+  #title { position: absolute; left: 0; right: 0; text-align: center; color: #F2FAFF; pointer-events: none; white-space: nowrap; }
+</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+</head><body>
+<div id="title"></div>
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+const Q = new URLSearchParams(location.search), num = (k, d) => (Q.has(k) ? +Q.get(k) : d);
+const W = innerWidth, H = innerHeight, portrait = H > W;
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(devicePixelRatio); renderer.setSize(W, H);
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = num('exp', 0.95);
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const cam = new THREE.PerspectiveCamera(portrait ? 46 : 36, W / H, 0.1, 200);
+cam.position.set(0, 0, 12); cam.lookAt(0, 0, 0);
+
+// the dark: deep navy, a faint blue light behind the middle
+let BGC = null;
+{
+  const c = document.createElement('canvas'); c.width = 512; c.height = 512; const g = c.getContext('2d');
+  const gr = g.createLinearGradient(0, 0, 0, 512); gr.addColorStop(0, '#010308'); gr.addColorStop(0.5, '#03101F'); gr.addColorStop(1, '#010207');
+  g.fillStyle = gr; g.fillRect(0, 0, 512, 512);
+  const r = g.createRadialGradient(256, portrait ? 300 : 280, 0, 256, portrait ? 300 : 280, 300); r.addColorStop(0, 'rgba(20,90,170,0.35)'); r.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = r; g.fillRect(0, 0, 512, 512);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; scene.background = t; BGC = c;
+}
+let seed = num('seed', 7);
+const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+const DOT = (() => { const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+  const r = g.createRadialGradient(64, 64, 0, 64, 64, 64); r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.2, 'rgba(255,255,255,0.8)'); r.addColorStop(0.45, 'rgba(255,255,255,0.18)'); r.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = r; g.fillRect(0, 0, 128, 128); return new THREE.CanvasTexture(c); })();
+
+scene.add(new THREE.HemisphereLight(0x6fb8ff, 0x010409, 0.35));
+const key = new THREE.DirectionalLight(0xd8f2ff, 1.1); key.position.set(-4, 6, 8); scene.add(key);
+const back = new THREE.DirectionalLight(0x3a8cff, 0.9); back.position.set(5, -3, -6); scene.add(back);
+
+const CYAN = new THREE.Color(0x5FD0FF), ICE = new THREE.Color(0xC8F4FF), WARM = new THREE.Color(0xFF9A3C);
+function rimMat(color, power, strength) {
+  const m = new THREE.MeshBasicMaterial({ color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+  m.onBeforeCompile = (sh) => {
+    sh.vertexShader = 'varying vec3 vN; varying vec3 vV;\n' + sh.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\n vN = normalize(normalMatrix * normal); vV = normalize(-mvPosition.xyz);');
+    sh.fragmentShader = 'varying vec3 vN; varying vec3 vV;\n' + sh.fragmentShader.replace('#include <opaque_fragment>',
+      `float f = pow(1.0 - clamp(dot(normalize(vN), normalize(vV)), 0.0, 1.0), ${power.toFixed(1)}); gl_FragColor = vec4(outgoingLight * f * ${strength.toFixed(2)}, f);`);
+  };
+  return m;
+}
+// glass: a dark see-through body (it hides what is behind a little), a bright edge, a geodesic wire, lights at its corners
+// glossy, not mirror-sharp: a mirror-sharp highlight is a pinpoint so bright the glow turns it into a square
+const bodyMat = new THREE.MeshPhysicalMaterial({ color: 0x041A33, roughness: num('rough', 0.4), metalness: 0, transparent: true, opacity: 0.5, clearcoat: 0.6, clearcoatRoughness: num('ccr', 0.35), depthWrite: true });
+const rimM = rimMat(CYAN, 2.6, 0.9), wireM = new THREE.LineBasicMaterial({ color: 0x7FDCFF, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false });
+function node(p, r, warm, detail) {
+  const g = new THREE.Group(); g.position.copy(p);
+  g.add(new THREE.Mesh(new THREE.SphereGeometry(r, 48, 32), bodyMat));
+  g.add(new THREE.Mesh(new THREE.SphereGeometry(r * 1.01, 48, 32), rimM));
+  const ico = new THREE.IcosahedronGeometry(r * 1.012, detail ?? 2);
+  g.add(new THREE.LineSegments(new THREE.WireframeGeometry(ico), wireM));
+  const pos = ico.attributes.position, seen = new Set(), pts = [], col = [], glint = [];
+  for (let i = 0; i < pos.count; i++) {
+    const k = `${pos.getX(i).toFixed(3)},${pos.getY(i).toFixed(3)},${pos.getZ(i).toFixed(3)}`; if (seen.has(k)) continue; seen.add(k);
+    if (rnd() < 0.55) {
+      if (rnd() < 0.15) glint.push(pos.getX(i), pos.getY(i), pos.getZ(i));   // a few glints: larger and round
+      else { pts.push(pos.getX(i), pos.getY(i), pos.getZ(i)); const c = ICE.clone().multiplyScalar(0.5 + rnd() * 0.5); col.push(c.r, c.g, c.b); }
+    }
+  }
+  const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3)); pg.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.add(new THREE.Points(pg, new THREE.PointsMaterial({ size: r * 0.2, map: DOT, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })));
+  const gg = new THREE.BufferGeometry(); gg.setAttribute('position', new THREE.Float32BufferAttribute(glint, 3));
+  g.add(new THREE.Points(gg, new THREE.PointsMaterial({ size: r * 0.6, map: DOT, color: 0xE8FAFF, transparent: true, opacity: num('go', 0.9), blending: THREE.AdditiveBlending, depthWrite: false })));
+  if (warm) {   // a warm core, as if something burns inside
+    for (const [s, c, o] of [[r * 1.9, WARM, 0.55], [r * 0.9, new THREE.Color(0xFFC27A), 0.9], [r * 0.32, new THREE.Color(0xFFF4E0), 1]]) {
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: DOT, color: c, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, depthTest: false, opacity: o })); sp.scale.setScalar(s); sp.renderOrder = 10; g.add(sp);
+    }
+  }
+  scene.add(g); return g;
+}
+function bond(a, b, ra, rb) {
+  const d = b.clone().sub(a), u = d.clone().normalize(), q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), u);
+  const rad = Math.min(ra, rb) * 0.18, len = d.length() - ra * 0.9 - rb * 0.9; if (len <= 0) return;
+  const at = a.clone().add(u.clone().multiplyScalar(ra * 0.9 + len / 2));
+  const geo = new THREE.CylinderGeometry(rad, rad, len, 16, 1, true);
+  for (const m of [bodyMat, rimMat(CYAN, 1.8, 0.8)]) { const t = new THREE.Mesh(geo, m); t.position.copy(at); t.quaternion.copy(q); scene.add(t); }
+  const e = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.CylinderGeometry(rad * 1.04, rad * 1.04, len, 6, 2, true), 1), wireM);
+  e.position.copy(at); e.quaternion.copy(q); scene.add(e);
+}
+const V = (x, y, z) => new THREE.Vector3(x, y, z);
+/* a molecule from a list of atoms (x, y, z in bond lengths, radius) and bonds, placed, turned and scaled */
+function molecule(atoms, bonds, at, rot, s, warm = [], detail) {
+  const e = new THREE.Euler(...rot), P = atoms.map(([x, y, z, r]) => ({ p: V(x, y, z).applyEuler(e).multiplyScalar(s).add(at), r: r * s }));
+  const n0 = scene.children.length;
+  P.forEach((A, i) => node(A.p, A.r, warm.includes(i), detail));
+  for (const [i, j] of bonds) bond(P[i].p, P[j].p, P[i].r, P[j].r);
+  // a molecule is in or out of focus as a whole, by where its middle is
+  for (const o of scene.children.slice(n0)) o.userData.layer = at.z < -4 ? 1 : at.z > 2.5 ? 3 : 2;
+  return P;
+}
+// shapes: a six-ring with three arms (one longer), and a zig-zag chain with side atoms
+const hx = (k, R = 1) => [R * Math.cos(Math.PI / 6 + k * Math.PI / 3), R * Math.sin(Math.PI / 6 + k * Math.PI / 3), 0];
+const RING = { atoms: [], bonds: [] };
+for (let k = 0; k < 6; k++) { RING.atoms.push([...hx(k), 0.28]); RING.bonds.push([k, (k + 1) % 6]); }
+for (const [k, n] of [[0, 2], [2, 1], [4, 1]]) {
+  let prev = k, [x, y] = hx(k, 2), dx = x - hx(k)[0], dy = y - hx(k)[1];
+  for (let j = 0; j < n; j++) {
+    const ang = j % 2 ? 0.55 : 0, c = Math.cos(ang), s = Math.sin(ang), px = x + j * (dx * c - dy * s), py = y + j * (dx * s + dy * c);
+    RING.atoms.push([px, py, j ? 0.35 : 0, j ? 0.2 : 0.24]); RING.bonds.push([prev, RING.atoms.length - 1]); prev = RING.atoms.length - 1;
+  }
+}
+function CHAIN(n, side) {
+  const atoms = [], bonds = [];
+  for (let i = 0; i < n; i++) { atoms.push([i * 0.87, i % 2 ? 0.5 : 0, Math.sin(i * 0.9) * 0.3, 0.27]); if (i) bonds.push([i - 1, i]); }
+  for (const i of side) { atoms.push([i * 0.87, i % 2 ? 1.5 : -1, 0.2, 0.19]); bonds.push([i, atoms.length - 1]); }
+  return { atoms, bonds };
+}
+const C5 = CHAIN(5, [1, 3]), C4 = CHAIN(4, [2]), C3 = CHAIN(3, []);
+const HERO = portrait ? V(0.1, -0.6, 0) : V(1.0, -0.7, 0);
+if (portrait) {
+  molecule(RING.atoms, RING.bonds, HERO, [0.55, -0.35, 0.3], 1.2, [3], 2);                 // the hero, sharp
+  molecule(C5.atoms, C5.bonds, V(-3.6, 3.2, -10), [0.3, 0.4, -0.5], 1.5, [], 1);           // far, soft
+  molecule(C4.atoms, C4.bonds, V(3.8, -3.5, -14), [0.2, -0.6, 0.6], 1.7, [], 1);
+  molecule(C4.atoms, C4.bonds, V(-1.5, -9.0, -12), [0.5, 0.3, 1.2], 1.6, [1], 1);
+  molecule(C3.atoms, C3.bonds, V(-1.5, -2.7, 5), [0.4, 0.2, 0.9], 0.9, [], 1);             // near the lens, at the edges
+  molecule(C3.atoms, C3.bonds, V(1.5, 1.2, 5), [0.2, 0.9, -0.7], 0.8, [], 1);
+} else {
+  molecule(RING.atoms, RING.bonds, HERO, [0.55, -0.35, 0.3], 1.45, [3], 2);
+  molecule(C5.atoms, C5.bonds, V(-7, 2.5, -10), [0.3, 0.4, -0.5], 1.6, [], 1);
+  molecule(C4.atoms, C4.bonds, V(7.5, -2.5, -13), [0.2, -0.6, 0.6], 1.7, [], 1);
+  molecule(C4.atoms, C4.bonds, V(-6.5, -6, -9), [0.5, 0.3, 1.2], 1.6, [1], 1);
+  molecule(C3.atoms, C3.bonds, V(-2.8, -2.0, 5), [0.4, 0.2, 0.9], 0.9, [], 1);
+  molecule(C3.atoms, C3.bonds, V(2.9, 1.5, 5), [0.2, 0.9, -0.7], 0.8, [], 1);
+}
+// lone glass beads far off and near the lens: they become soft discs out of focus
+for (let i = 0; i < 12; i++) {
+  const near = false, z = -10 - rnd() * 10, span = (12 - z) * Math.tan((portrait ? 23 : 18) * Math.PI / 180);
+  const x = (rnd() - 0.5) * 2 * span * (portrait ? 0.46 : 1.27), y = (rnd() - 0.5) * 2 * span;
+  const q = V(x, y, z).project(cam);                  // none behind the word: it keeps a clear dark band
+  if (q.y > 0.38 && q.y < 0.92 && Math.abs(q.x) < 0.8) continue;
+  node(V(x, y, z), near ? 0.5 + rnd() * 0.4 : 0.4 + rnd() * 0.5, rnd() < 0.2, 1);
+}
+// a faint web of points and threads far back, dust, and a few warm sparks drifting near the hero
+{
+  const N = 140, P = [];
+  for (let i = 0; i < N; i++) P.push(V((rnd() - 0.5) * 34, (rnd() - 0.5) * 34, -6 - rnd() * 16));
+  const seg = [];
+  for (let i = 0; i < N; i++) for (let j = i + 1; j < N; j++) if (P[i].distanceTo(P[j]) < 3.2 && rnd() < 0.55) seg.push(P[i].x, P[i].y, P[i].z, P[j].x, P[j].y, P[j].z);
+  const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(seg, 3));
+  scene.add(Object.assign(new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: 0x2E8FD8, transparent: true, opacity: 0.14, blending: THREE.AdditiveBlending, depthWrite: false })), { userData: { far: true } }));
+  const pts = []; for (const p of P) pts.push(p.x, p.y, p.z);
+  for (let i = 0; i < 500; i++) pts.push((rnd() - 0.5) * 34, (rnd() - 0.5) * 36, -3 - rnd() * 18);
+  const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+  scene.add(Object.assign(new THREE.Points(pg, new THREE.PointsMaterial({ size: 0.08, map: DOT, color: 0x8FDCFF, transparent: true, opacity: 0.75, blending: THREE.AdditiveBlending, depthWrite: false })), { userData: { far: true } }));
+  const hero = HERO, sp = [];
+  for (let i = 0; i < 26; i++) { const a = rnd() * 6.28, d = 1.8 + rnd() * 3.2; sp.push(hero.x + Math.cos(a) * d, hero.y + Math.sin(a) * d * 1.2, (rnd() - 0.5) * 6); }
+  const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.Float32BufferAttribute(sp, 3));
+  scene.add(new THREE.Points(sg, new THREE.PointsMaterial({ size: num('spark', 0.22), map: DOT, color: 0xFFA04A, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })));
+}
+
+/* Depth of field as a photographer would composite it: the far things, the hero, and the near things each drawn
+   alone (on black, with their glow), the far and near layers given a true soft blur, all added together over the dark. */
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, cam));
+composer.addPass(new UnrealBloomPass(new THREE.Vector2(W, H), num('bloom', 0.9), num('brad', 0.45), num('bth', 0.4)));
+composer.addPass(new OutputPass());
+for (const o of scene.children) {
+  const z = o.position.z, L = o.userData.layer || (o.userData.far || z < -4 ? 1 : z > 2.5 ? 3 : 2);
+  if (o.isLight) o.layers.enableAll(); else o.traverse((q) => q.layers.set(L));
+}
+scene.background = null; renderer.setClearColor(0x000000, 1);
+const gl = renderer.domElement, out = document.createElement('canvas'); out.width = gl.width; out.height = gl.height;
+const o2 = out.getContext('2d'), S = Math.min(out.width, out.height);
+o2.drawImage(BGC, 0, 0, out.width, out.height);
+for (const [L, blur] of [[1, S * num('fb', 0.008)], [2, 0], [3, S * num('nb', 0.03)]]) {
+  cam.layers.set(L); composer.render();
+  o2.save(); o2.globalCompositeOperation = 'lighter'; o2.filter = blur ? `blur(${blur.toFixed(1)}px)` : 'none'; o2.drawImage(gl, 0, 0); o2.restore();
+}
+out.style.width = W + 'px'; out.style.height = H + 'px'; gl.replaceWith(out);
+
+// the word, in the face asked for, glowing as the glass does
+const T = document.getElementById('title'), font = Q.get('font') || 'Audiowide';
+const STY = {
+  Syncopate: ['700', 0.2, 'LITMUS', 0.11], 'Major Mono Display': ['400', 0.06, 'litmus', 0.14], Megrim: ['400', 0.04, 'Litmus', 0.17],
+  Unbounded: ['300', 0.1, 'LITMUS', 0.12], Michroma: ['400', 0.18, 'LITMUS', 0.1], Comfortaa: ['300', 0.08, 'litmus', 0.16],
+  Monoton: ['400', 0.04, 'LITMUS', 0.13], Audiowide: ['400', 0.12, 'LITMUS', 0.12],
+}[font] || ['400', 0.1, 'Litmus', 0.13];
+T.innerHTML = '<span>' + STY[2] + '</span>';
+const fs = (portrait ? W : H * 1.25) * STY[3];
+T.style.font = `${STY[0]} ${fs}px '${font}', sans-serif`;
+T.style.letterSpacing = STY[1] + 'em'; T.style.paddingLeft = STY[1] + 'em';
+T.style.top = (portrait ? H * 0.13 : H * 0.14) + 'px';   // phone: clear of the 8.9% an iPhone SE crops off the top
+T.style.textShadow = '0 0 4px rgba(170,235,255,0.85), 0 0 18px rgba(80,190,255,0.55), 0 0 46px rgba(40,140,255,0.4)';
+document.fonts.ready.then(() => { const r = T.firstChild.getBoundingClientRect(); window.__title = { w: r.width, frac: r.width / W, x: r.left, y: r.top, h: r.height }; document.title = 'ready'; });
+</script>
+</body></html>
