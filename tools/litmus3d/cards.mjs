@@ -15,8 +15,8 @@ import { setTimeout as sleep } from 'node:timers/promises';
 
 const [outDir] = process.argv.slice(2);
 const opt = Object.fromEntries(process.argv.slice(3).map((s) => { const [k, v] = s.replace(/^--/, '').split('='); return [k, v === undefined ? true : v]; }));
-const RX = opt.chapter === 'reactor';
-const FIRST = +(opt.first || 1), LAST = +(opt.last || (RX ? 60 : 100)), SHOTS = new Set(String(opt.shots || '').split(',').filter(Boolean).map(Number));
+const RX = ['reactor', 'carbon'].includes(opt.chapter) ? opt.chapter : null;
+const FIRST = +(opt.first || 1), LAST = +(opt.last || (RX === 'carbon' ? 40 : RX ? 60 : 100)), SHOTS = new Set(String(opt.shots || '').split(',').filter(Boolean).map(Number));
 const root = new URL('../../', import.meta.url).pathname;
 mkdirSync(outDir, { recursive: true });
 
@@ -63,7 +63,7 @@ async function run() {
     await S('Page.enable'); await S('Runtime.enable');
     await S('Emulation.setDeviceMetricsOverride', { width: F.w, height: F.h, deviceScaleFactor: 2, mobile: F.mobile });
     await S('Emulation.setTouchEmulationEnabled', { enabled: F.mobile, maxTouchPoints: F.mobile ? 5 : 1 });
-    await S('Page.navigate', { url: `http://localhost:${PORT}/litmus3d/?harness=1${RX ? '&chapter=reactor' : ''}#level-1` });
+    await S('Page.navigate', { url: `http://localhost:${PORT}/litmus3d/?harness=1${RX ? '&chapter=' + RX : ''}#level-1` });
     await sleep(5000);
     const ev = async (expr) => { const r = await S('Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true }); if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description || r.exceptionDetails.text); return r.result.value; };
     const frames = '(new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))))';

@@ -135,6 +135,53 @@ window.ReactorScene = function (host) {
     haze(g, c, R * 0.4, [[0, 'rgba(250,240,255,1)'], [0.3, 'rgba(210,180,255,0.85)'], [1, 'rgba(140,100,255,0)']]);
     g.globalCompositeOperation = 'source-over';
   }
+  // the Carbon Chamber's own two, from its study (iCloud 3D-IDEAS/concepts/sources/litmus_carbon_study.js)
+  /* ACID (the catalyst for making an ester: a few drops of concentrated sulphuric acid): a glowing drop, falling in slow
+     drips that ring outward, small bubbles rising. */
+  function paintAcid(g, S, t) {
+    const c = S / 2, R = S * 0.47;
+    g.clearRect(0, 0, S, S); g.globalCompositeOperation = 'lighter';
+    haze(g, c, R, [[0, 'rgba(200,240,90,0.42)'], [0.5, 'rgba(60,200,140,0.16)'], [1, 'rgba(40,160,120,0)']]);
+    // a ripple ring where each drip lands
+    const ph = (t * 0.45) % 1, ry = c + R * 0.42;
+    g.strokeStyle = `rgba(214,242,90,${0.55 * (1 - ph)})`; g.lineWidth = S / 160; g.beginPath(); g.ellipse(c, ry, R * 0.12 + R * 0.45 * ph, (R * 0.12 + R * 0.45 * ph) * 0.32, 0, 0, Math.PI * 2); g.stroke();
+    // the drop: a teardrop, lit from the upper left, swelling a little as it gathers
+    const sw = 1 + 0.06 * Math.sin(t * 2.2), dh = R * 0.62 * sw, dw = R * 0.36 * sw, dy = c - R * 0.08;
+    const gr = g.createRadialGradient(c - dw * 0.3, dy + dh * 0.05, 0, c, dy + dh * 0.1, dh * 0.6);
+    gr.addColorStop(0, 'rgba(250,255,220,0.95)'); gr.addColorStop(0.35, 'rgba(214,242,90,0.85)'); gr.addColorStop(1, 'rgba(60,190,120,0.25)');
+    g.fillStyle = gr; g.beginPath(); g.moveTo(c, dy - dh * 0.55);
+    g.bezierCurveTo(c + dw * 0.25, dy - dh * 0.2, c + dw, dy + dh * 0.05, c + dw, dy + dh * 0.22);
+    g.bezierCurveTo(c + dw, dy + dh * 0.45, c + dw * 0.55, dy + dh * 0.6, c, dy + dh * 0.6);
+    g.bezierCurveTo(c - dw * 0.55, dy + dh * 0.6, c - dw, dy + dh * 0.45, c - dw, dy + dh * 0.22);
+    g.bezierCurveTo(c - dw, dy + dh * 0.05, c - dw * 0.25, dy - dh * 0.2, c, dy - dh * 0.55); g.fill();
+    // bubbles rising round it
+    for (let i = 0; i < 9; i++) {
+      const q = (t * (0.18 + (i % 4) * 0.04) + i * 0.137) % 1, x = c + Math.sin(i * 7.31) * R * 0.62, y = c + R * 0.5 - q * R * 1.05, r = S / 110 * (0.7 + (i % 3) * 0.4);
+      g.strokeStyle = `rgba(220,255,200,${0.6 * Math.sin(q * Math.PI)})`; g.lineWidth = S / 300; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.stroke();
+    }
+    g.globalCompositeOperation = 'source-over';
+  }
+  /* OXIDISER (acidified potassium dichromate, warmed: it oxidises an alcohol to its acid, and turns from orange to green as
+     it does). A slow swirl of orange liquid light, its edges drifting toward green and back. */
+  function paintOxidiser(g, S, t) {
+    const c = S / 2, R = S * 0.47, k = 0.5 + 0.5 * Math.sin(t * 0.35);
+    const mixC = (a, b, u) => a.map((v, i) => Math.round(v + (b[i] - v) * u)).join(',');
+    const OR = [255, 138, 42], GR = [63, 200, 106];
+    g.clearRect(0, 0, S, S); g.globalCompositeOperation = 'lighter';
+    haze(g, c, R, [[0, `rgba(${mixC(OR, GR, 0.15 * k)},0.45)`], [0.5, `rgba(${mixC(OR, GR, 0.4 * k)},0.16)`], [1, 'rgba(60,40,10,0)']]);
+    // swirls of liquid light, each a wide soft glow under a brighter core, their ends tapering into the haze
+    for (let i = 0; i < 6; i++) {
+      const a0 = i * 1.047 + t * 0.1, r0 = R * (0.2 + 0.11 * i), len = 1.6 + 0.5 * Math.sin(t * 0.4 + i * 1.3), u = Math.min(1, k * (0.25 + i * 0.16)), col = mixC(OR, GR, u);
+      const N = 16 + i * 10;      // more along the longer outer swirls, so they read as one stroke
+      for (let j = 0; j < N; j++) {
+        const f = j / (N - 1), a = a0 + f * len, taper = Math.sin(f * Math.PI), x = c + Math.cos(a) * r0, y = c + Math.sin(a) * r0;
+        const rr = S / 22 * (1.2 - i * 0.12) * (0.4 + 0.6 * taper), gq = g.createRadialGradient(x, y, 0, x, y, rr);
+        gq.addColorStop(0, `rgba(${col},${0.32 * taper})`); gq.addColorStop(1, `rgba(${col},0)`); g.fillStyle = gq; g.fillRect(x - rr, y - rr, rr * 2, rr * 2);
+      }
+    }
+    haze(g, c, R * 0.36, [[0, 'rgba(255,240,210,0.95)'], [0.35, `rgba(${mixC(OR, GR, 0.2 * k)},0.7)`], [1, 'rgba(255,138,42,0)']]);
+    g.globalCompositeOperation = 'source-over';
+  }
   // a catalyst: its crystal sits in front; behind it a burst of its own light, rays and glints
   function metalBurst(tint, deep) {
     return (g, S, t) => {
@@ -199,6 +246,9 @@ window.ReactorScene = function (host) {
     nickel:      { cols: { a: '#6AF0D8', b: '#9AD8FF' }, paint: metalBurst('200,255,240', '110,190,200'), crystal: [0xDCE0E6, 1], pal: [0xEAFFF8, 0x9AF0D8, 0x6AD8C8, 0x9AD8FF, 0xC8FFF0, 0xFFFFFF], aura: 0x8AF0E0 },
     vanadium:    { cols: { a: '#FFB030', b: '#FF7A1A' }, paint: metalBurst('255,190,90', '230,110,30'), crystal: [0xD07A2A, 0.35], pal: [0xFFE0A0, 0xFFB030, 0xFF8A1A, 0xFF6A1A, 0xFFC870, 0xFFF0D0], aura: 0xFFA040 },
     manganese:   { cols: { a: '#C08A6A', b: '#8A5AE0' }, paint: metalBurst('220,190,255', '130,90,200'), crystal: [0x2A2422, 0.85], pal: [0xE8D0C0, 0xC08A6A, 0x8A5AE0, 0x6A4AC0, 0xB07AFF, 0xF0E0D8], aura: 0xB08AE0 },
+    // the Carbon Chamber's (owner, 2026-10-03): a catalyst's drop that comes back, and the dichromate, used up as it turns green
+    acid:        { cols: { a: '#D6F25A', b: '#3AD8A0' }, paint: paintAcid, pal: [0xFFF2A8, 0xC8F07A, 0x6AE0B0, 0x5AC8F0, 0xB08AFF, 0xFFB0D0], aura: 0xC8F07A },
+    oxidiser:    { cols: { a: '#FF8A2A', b: '#3FC86A' }, paint: paintOxidiser, pal: [0xFFF0D0, 0xFFB04A, 0xFF8A2A, 0xC8D060, 0x6AD88A, 0x3FC86A], aura: 0xFFA050, spent: true },
   };
   const MEET = { pal: [0xFFFFFF, 0xDDEEFF, 0xFFE6F0, 0xE6ECFF, 0xF4F0FF, 0xFFFFFF], aura: 0xF4ECFF, cols: { a: '#FFD6E6', b: '#D6F2FF' } };
   const SHELL = { a: '#FF2E6E', b: '#22C8F0' };
@@ -471,10 +521,14 @@ window.ReactorScene = function (host) {
   const SLOTS = { 1: [[0, 0.05, 0]], 2: [[-0.42, 0.18, 0.1], [0.42, -0.16, -0.05]], 3: [[-0.4, 0.3, 0.1], [0.42, 0.24, -0.1], [0, -0.38, 0.12]],
     4: [[-0.35, 0.26, 0.12], [0.4, 0.35, -0.12], [0.33, -0.3, 0.16], [-0.26, -0.37, -0.14]] };
   const inScale = (n) => (n <= 2 ? 0.62 : n === 3 ? 0.55 : 0.48);
+  /* a molecule's size inside: the same for small ones, but a big one (the Carbon Chamber's esters) is shrunk until it
+     fits its share of the glass, `room` sphere radii from its middle */
+  const fitK = (m, base, room) => Math.min(base, room * SR / Math.max(0.01, m.ext));
+  const ROOM_IN = { 1: 0.8, 2: 0.5, 3: 0.46, 4: 0.42 }, ROOM_OUT = { 1: 0.8, 2: 0.5, 3: 0.44, 4: 0.4, 5: 0.36 }, ROOM_WAIT = 0.42;
   // what is in the sphere as you see it (the rules may already have reacted it: it still glides in first)
   function sphereSlots() {
     const inside = [...mols.values()].filter((m) => m.where === 'sphere').map((m) => m.id), n = inside.length;
-    return inside.map((id, i) => ({ id, p: SPH.clone().add(V(...SLOTS[Math.max(1, n)][i]).multiplyScalar(SR)), k: inScale(n) * SR / 2.15 }));
+    return inside.map((id, i) => ({ id, p: SPH.clone().add(V(...SLOTS[Math.max(1, n)][i]).multiplyScalar(SR)), k: fitK(mols.get(id), inScale(n) * SR / 2.15, ROOM_IN[Math.max(1, n)]) }));
   }
   // places above the sphere, on an arc of light, for what waits
   const ARCA = [Math.PI / 2 + 0.6, Math.PI / 2 - 0.6, Math.PI / 2, Math.PI / 2 + 1.15, Math.PI / 2 - 1.15];
@@ -527,7 +581,8 @@ window.ReactorScene = function (host) {
     host.SND.pick(); resettleWaits(); afterMove();
   }
   function resettle() { const slots = sphereSlots(); for (const s of slots) glideTo(mols.get(s.id), s.p, s.k, 350, null); }
-  function resettleWaits() { waits.forEach((id, j) => glideTo(mols.get(id), arcAt(j), 0.42 * SR / 2.15, 350, null)); }
+  const waitK = (m) => fitK(m, 0.42 * SR / 2.15, ROOM_WAIT);
+  function resettleWaits() { waits.forEach((id, j) => glideTo(mols.get(id), arcAt(j), waitK(mols.get(id)), 350, null)); }
   function pickAgent(i) {
     const a = agents[i]; if (!a) return { ok: false };
     const ev = X.pickAgent(S, a.name);
@@ -580,7 +635,7 @@ window.ReactorScene = function (host) {
   function equation(r) {
     const side = (list) => list.map(([k, n]) => (n > 1 ? n : '') + X.SPECIES[k].formula).join(' + ');
     const outs = {}; for (const k of r.out) outs[k] = (outs[k] || 0) + 1;
-    return side(r.in) + ' → ' + side(Object.entries(outs));
+    return side(r.in) + (r.give ? ' + ' + r.give : '') + ' → ' + side(Object.entries(outs));   // the Oxidiser's [O]
   }
   function startRun(ev, agent) {
     busy = { kind: 'run' };
@@ -596,7 +651,7 @@ window.ReactorScene = function (host) {
       4: [[-0.38, 0.3, 0.1], [0.38, 0.3, -0.1], [0.38, -0.3, 0.1], [-0.38, -0.3, -0.1]], 5: [[-0.42, 0.3, 0], [0.42, 0.3, 0], [0, 0, 0.1], [-0.42, -0.32, 0], [0.42, -0.32, 0]] };
     const free = inAtoms.slice(), map = new Map();
     outs.forEach((m, j) => {
-      m.pos.copy(SPH).add(V(...OUT[Math.min(5, n)][j]).multiplyScalar(SR)); m.k = (n <= 2 ? 0.62 : n <= 3 ? 0.52 : 0.44) * SR / 2.15;
+      m.pos.copy(SPH).add(V(...OUT[Math.min(5, n)][j]).multiplyScalar(SR)); m.k = fitK(m, (n <= 2 ? 0.62 : n <= 3 ? 0.52 : 0.44) * SR / 2.15, ROOM_OUT[Math.min(5, Math.max(1, n))]);
       m.q.setFromEuler(new Euler(0.2 * j, 0.5 * j, 0.1)); m.g.visible = false;
       for (const a of m.atoms) { const i = free.findIndex((f) => f.a.el === a.el); const src = free.splice(i >= 0 ? i : 0, 1)[0]; map.set(a, src); }
     });
@@ -745,7 +800,7 @@ window.ReactorScene = function (host) {
           glideTo(m, to, m.k * 0.35, (T.land - T.fly) * 1000, () => { host.landed(gi); m.g.visible = false; m.where = 'goal'; });
         } else {
           const jw = waits.length; waits.push(m.id); m.where = 'waiting';
-          glideTo(m, arcAt(jw), 0.42 * SR / 2.15, (T.land - T.fly) * 1000, null);
+          glideTo(m, arcAt(jw), waitK(m), (T.land - T.fly) * 1000, null);
         }
       }
     });
@@ -1001,7 +1056,7 @@ window.ReactorScene = function (host) {
       layout();
       if (!S || busy || run) return;
       for (const sl of sphereSlots()) { const m = mols.get(sl.id); if (m && !m.anim) { m.pos.copy(sl.p); m.k = sl.k; } }
-      waits.forEach((id, j) => { const m = mols.get(id); if (m && !m.anim) { m.pos.copy(arcAt(j)); m.k = 0.42 * SR / 2.15; } });
+      waits.forEach((id, j) => { const m = mols.get(id); if (m && !m.anim) { m.pos.copy(arcAt(j)); m.k = waitK(m); } });
     },
     state: () => S, busy: () => !!busy || !!run, clear, steps: () => steps.slice(),
     // where a new player's eye should go first: a molecule in view that the shortest way needs

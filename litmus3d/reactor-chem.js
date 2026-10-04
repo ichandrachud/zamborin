@@ -86,7 +86,7 @@ const SPECIES = Object.assign({}, LAB.SPECIES);
    platinum lights hydrogen; a flame sets off hydrogen and chlorine). `row`: the
    research table's row. */
 const R = [];
-const ag = (id, ins, out, agent, also, row, extra) => R.push({ id, in: ins, out, agent, also: also || [], row, extra });
+const ag = (id, ins, out, agent, also, row, extra, give) => R.push({ id, in: ins, out, agent, also: also || [], row, extra, give });
 ag('haber', [['nitrogen', 1], ['hydrogen', 3]], ['ammonia', 'ammonia'], 'iron', [], 1);
 ag('steam-reforming', [['methane', 1], ['water', 1]], ['carbon-monoxide', 'hydrogen', 'hydrogen', 'hydrogen'], 'nickel', [], 2);
 ag('contact', [['sulphur-dioxide', 2], ['oxygen', 1]], ['sulphur-trioxide', 'sulphur-trioxide'], 'vanadium', ['platinum'], 3);
@@ -105,7 +105,7 @@ ag('hydrogen-burns', [['hydrogen', 2], ['oxygen', 1]], ['water', 'water'], 'spar
 ag('methane-burns', [['methane', 1], ['oxygen', 2]], ['carbon-dioxide', 'water', 'water'], 'spark', ['heat'], 17);
 ag('lightning', [['nitrogen', 1], ['oxygen', 1]], ['nitrogen-monoxide', 'nitrogen-monoxide'], 'spark', ['heat'], 18);
 ag('carbon-monoxide-burns', [['carbon-monoxide', 2], ['oxygen', 1]], ['carbon-dioxide', 'carbon-dioxide'], 'spark', ['heat', 'platinum'], 'link');
-ag('hydrogen-bromide', [['hydrogen', 1], ['bromine', 1]], ['hydrobromic-acid', 'hydrobromic-acid'], 'spark', [], 19);
+ag('hydrogen-bromide', [['hydrogen', 1], ['bromine', 1]], ['hydrobromic-acid', 'hydrobromic-acid'], 'spark', ['heat'], 19);   // heated, 200-400 °C, they react too ("Links added for honesty")
 ag('hydrogen-chloride', [['hydrogen', 1], ['chlorine', 1]], ['hydrochloric-acid', 'hydrochloric-acid'], 'light', ['spark'], 20);
 ag('silver-bromide-light', [['silver-bromide', 2]], ['silver', 'silver', 'bromine'], 'light', [], 21);
 ag('silver-chloride-light', [['silver-chloride', 2]], ['silver', 'silver', 'chlorine'], 'light', [], 21);
@@ -128,7 +128,15 @@ ag('carbon-dioxide-and-alkali', [['carbon-dioxide', 1], ['sodium-hydroxide', 1]]
 /* The Oxidiser (acidified potassium dichromate, warmed) turns an alcohol into its acid: the oxygen comes from the agent,
    written 2[O] (CH₃CH₂OH + 2[O] → CH₃COOH + H₂O), so the atoms balance with what the agent gives. */
 [['methanol', 'methanoic-acid'], ['ethanol', 'ethanoic-acid'], ['propanol', 'propanoic-acid']].forEach(([alc, acid]) =>
-  ag(alc + '-oxidised', [[alc, 1]], [acid, 'water'], 'oxidiser', [], 'carbon', { O: 2 }));
+  ag(alc + '-oxidised', [[alc, 1]], [acid, 'water'], 'oxidiser', [], 'carbon', { O: 2 }, '2[O]'));
+/* What else the Oxidiser really oxidises among the Carbon Chamber's molecules, so tapping it is never a false bounce
+   (LITMUS_CARBON_AGENTS.md, "What else the Oxidiser does"): methanoic acid, the one acid here that oxidises further,
+   goes on to carbon dioxide; bromide is oxidised to bromine (the test for bromide), a salt's metal ending as its
+   sulphate from the agent's sulphuric acid. */
+ag('methanoic-acid-oxidised', [['methanoic-acid', 1]], ['carbon-dioxide', 'water'], 'oxidiser', [], 'carbon', { O: 1 }, '[O]');
+ag('hydrobromic-acid-oxidised', [['hydrobromic-acid', 2]], ['bromine', 'water'], 'oxidiser', [], 'carbon', { O: 1 }, '[O]');
+ag('sodium-bromide-oxidised', [['sodium-bromide', 2]], ['bromine', 'sodium-sulphate', 'water'], 'oxidiser', [], 'carbon', { H: 2, S: 1, O: 5 }, 'H₂SO₄ + [O]');
+ag('potassium-bromide-oxidised', [['potassium-bromide', 2]], ['bromine', 'potassium-sulphate', 'water'], 'oxidiser', [], 'carbon', { H: 2, S: 1, O: 5 }, 'H₂SO₄ + [O]');
 const RX = {}; R.forEach((r) => { RX[r.id] = r; });
 
 /* lab.js's own pairs go as they meet, except the two kinds a school lab warms
@@ -147,12 +155,13 @@ function organicAgent(a, b) {
   const kind = (k) => SPECIES[k].carbon && SPECIES[k].carbon.kind, t = (k, x) => SPECIES[k].tags.includes(x);
   const pair = (p, q) => (p(a) && q(b)) || (p(b) && q(a));
   const is = (key) => (k) => k === key, of = (kd) => (k) => kind(k) === kd, tag = (x) => (k) => t(k, x);
-  if (pair(of('alkene'), is('hydrogen'))) return 'nickel';
-  if (pair(of('alkene'), is('water'))) return 'acid';
-  if (pair(of('alcohol'), tag('carboxylic-acid'))) return 'acid';
-  if (pair(of('ester'), is('water'))) return 'acid';
-  if (pair(of('ester'), tag('strong-base')) || pair(of('haloalkane'), tag('strong-base')) || pair(of('dihalo'), tag('strong-base'))) return 'heat';
-  if (pair(of('alcohol'), tag('hydrogen-halide'))) return 'heat';
+  // the agent, and how a lab or works really does it (the card says so)
+  if (pair(of('alkene'), is('hydrogen'))) return { agent: 'nickel', how: 'nickel' };
+  if (pair(of('alkene'), is('water'))) return { agent: 'acid', how: 'phosphoric' };
+  if (pair(of('alcohol'), tag('carboxylic-acid'))) return { agent: 'acid', how: 'sulphuric' };
+  if (pair(of('ester'), is('water'))) return { agent: 'acid', how: 'dilute' };
+  if (pair(of('ester'), tag('strong-base')) || pair(of('haloalkane'), tag('strong-base')) || pair(of('dihalo'), tag('strong-base'))) return { agent: 'heat', how: 'reflux' };
+  if (pair(of('alcohol'), tag('hydrogen-halide'))) return { agent: 'heat', how: 'warm' };
   return undefined;     // not organic: as the Reactor
 }
 const pairCache = new Map();
@@ -168,8 +177,8 @@ function pairReaction(a, b) {
     const skip = CHAPTER === 'carbon' && (alcoholWith('oxygen') || alcoholWith('hydrochloric-acid'));
     if (r && !skip) {
       const org = CHAPTER === 'carbon' ? organicAgent(a, b) : undefined;
-      const agent = org !== undefined ? org : (CHAPTER === 'carbon' && warmedCarbonFree(r) ? null : warmed(a, b, r) ? 'heat' : null);
-      out = { id: 'lab:' + k, in: a === b ? [[a, 2]] : [[a, 1], [b, 1]], out: r.products.slice(), agent, also: [], row: 'lab', kind: r.kind };
+      const agent = org !== undefined ? org.agent : (CHAPTER === 'carbon' && warmedCarbonFree(r) ? null : warmed(a, b, r) ? 'heat' : null);
+      out = { id: 'lab:' + k, in: a === b ? [[a, 2]] : [[a, 1], [b, 1]], out: r.products.slice(), agent, also: [], row: 'lab', kind: r.kind, how: org && org.how };
     }
   }
   pairCache.set(k, out);
@@ -306,12 +315,13 @@ function levelReactions(keys, agents) {
   }
   return list;
 }
-function closure(keys, agents) {
+// everything a level can come to hold; `gone`: goals it can make no more of than they want, which fly to them and stay
+function closure(keys, agents, gone) {
   const have = new Set(keys);
   for (let grew = true; grew;) {
     grew = false;
     const arr = [...have];
-    const add = (r) => { for (const k of r.out) if (!have.has(k)) { have.add(k); grew = true; } };
+    const add = (r) => { for (const k of r.out) if (!have.has(k) && !(gone && gone.has(k))) { have.add(k); grew = true; } };
     for (const r of R) if ((!r.agent || agents.includes(r.agent) || r.also.some((a) => agents.includes(a))) && r.in.every(([k]) => have.has(k))) add(r);
     for (let i = 0; i < arr.length; i++) for (let j = i; j < arr.length; j++) {
       const r = pairReaction(arr[i], arr[j]);

@@ -23,6 +23,13 @@
     light: 'Light gives the energy that starts the reaction.',
     electricity: 'An electric current splits the compound: this is electrolysis.',
     none: 'No agent: these react as soon as they meet.',
+    // the Carbon Chamber's (iCloud 3D-IDEAS/LITMUS_CARBON_AGENTS.md: each as a school lab or industry really does it)
+    oxidiser: 'The oxidising agent, acidified potassium dichromate(VI), gives the oxygen, written [O]. It turns from orange to green as it is used up.',
+    nickel: 'Nickel is a catalyst: it increases the rate of reaction without being used up. The mixture is heated to about 150 °C.',
+    phosphoric: 'Phosphoric acid is the catalyst: it increases the rate of reaction without being used up. Industry uses steam at 300 °C and 60–70 atmospheres.',
+    sulphuric: 'A few drops of concentrated sulphuric acid are the catalyst, and the mixture is warmed.',
+    dilute: 'A dilute acid is the catalyst, and the mixture is heated under reflux.',
+    reflux: 'The mixture is heated under reflux: it boils, and its vapour cools and drips back, so nothing escapes.',
   };
   // per reaction: its topic, which of the agent's jobs, and a line from the real world (research row)
   const CARD = {
@@ -61,11 +68,20 @@
     'carbon-monoxide-burns':     { topic: 'Combustion', world: 'Carbon monoxide burns with a pale blue flame.' },                                                       // link
     'silver-bromide-falls':      { topic: 'Precipitation', world: 'Silver bromide does not dissolve: it falls out of the liquid as a cream solid.' },
     'silver-chloride-falls':     { topic: 'Precipitation', world: 'Silver chloride does not dissolve: it falls out of the liquid as a white solid.' },
+    // the Carbon Chamber's Oxidiser (LITMUS_CARBON_AGENTS.md)
+    'methanol-oxidised':         { topic: 'Oxidation' },
+    'ethanol-oxidised':          { topic: 'Oxidation', world: 'Wine left open turns to vinegar the same way: bacteria use oxygen from the air.' },
+    'propanol-oxidised':         { topic: 'Oxidation' },
+    'methanoic-acid-oxidised':   { topic: 'Oxidation', world: 'Methanoic acid is easily oxidised on, all the way to carbon dioxide and water.' },
+    'hydrobromic-acid-oxidised': { topic: 'Halogens', world: 'Acidified dichromate is a strong enough oxidising agent to free bromine from a bromide, but not chlorine from a chloride.' },
+    'sodium-bromide-oxidised':   { topic: 'Halogens', world: 'Acidified dichromate is a strong enough oxidising agent to free bromine from a bromide, but not chlorine from a chloride.' },
+    'potassium-bromide-oxidised':{ topic: 'Halogens', world: 'Acidified dichromate is a strong enough oxidising agent to free bromine from a bromide, but not chlorine from a chloride.' },
   };
   // the atoms of one side, in the order the left side first has them, so the two sides read alike
-  function atomsLine(list, order) {
+  function atomsLine(list, order, extra) {
     const c = {};
     for (const [key, n] of list) for (const a of X.SPECIES[key].atoms) c[a.el] = (c[a.el] || 0) + n;
+    for (const [el, n] of Object.entries(extra || {})) { c[el] = (c[el] || 0) + n; if (!order.includes(el)) order.push(el); }
     const els = Object.keys(c).sort((a, b) => order.indexOf(a) - order.indexOf(b));
     return els.map((el) => `${c[el]} ${el}`).join(', ');
   }
@@ -88,17 +104,22 @@
       job = JOB.none;
     } else {
       const A = X.AGENTS[agent];
-      if (A.catalyst) job = JOB.catalyst(A.name);
+      if (r.how && JOB[r.how]) job = JOB[r.how];     // the Carbon Chamber's: how a lab really does it
+      else if (A.catalyst) job = JOB.catalyst(A.name);
       else if (agent === 'heat') job = r.id.startsWith('lab:') ? JOB.warm : JOB[C.job || 'heat'];
       else job = JOB[agent];
       if (r.id.startsWith('lab:') && !topic) { const e = LAB.explain(r.in[0][0], (r.in[1] || r.in[0])[0]); if (e) { topic = e.title; world = world || e.words; } }
     }
+    /* what the agent itself gives (the Oxidiser's oxygen, written [O]; with a bromide, its sulphuric acid too):
+       in the equation, the words and the atoms counted, so the two sides still balance */
+    const give = r.give ? ` + ${r.give}` : '', giveWords = r.give ? (/H₂SO₄/.test(r.give) ? ' + sulphuric acid + oxygen from the oxidising agent' : ' + oxygen from the oxidising agent') : '';
     return {
       topic: topic || 'Reactions', agent,
-      words: `${word(r.in, r.id)} → ${word(outs, r.id)}`,
-      equation: `${sym(r.in)} → ${sym(outs)}`,
+      words: `${word(r.in, r.id)}${giveWords} → ${word(outs, r.id)}`,
+      equation: `${sym(r.in)}${give} → ${sym(outs)}`,
       atoms: (() => { const order = []; for (const [k] of r.in) for (const a of X.SPECIES[k].atoms) if (!order.includes(a.el)) order.push(a.el);
-        return `${atomsLine(r.in, order)} on the left; ${atomsLine(outs, order)} on the right.`; })(),
+        const left = atomsLine(r.in, order, r.extra);
+        return `${left} on the left${r.give ? ', counting what the oxidising agent gives' : ''}; ${atomsLine(outs, order)} on the right.`; })(),
       mass: 'The same atoms on each side, only rearranged: this is conservation of mass.',
       job, world,
       tab: sym(outs).replace(/ \+ /g, '+').slice(0, 14),

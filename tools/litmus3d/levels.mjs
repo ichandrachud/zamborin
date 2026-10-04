@@ -21,7 +21,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 
 const [mode, a, b, outFile] = process.argv.slice(2);
 const opt = Object.fromEntries(process.argv.slice(6).map((s) => { const [k, v] = s.replace(/^--/, '').split('='); return [k, v === undefined ? true : v]; }));
-const CHAPTER = opt.chapter === 'reactor' ? 'reactor' : null;
+const CHAPTER = ['reactor', 'carbon'].includes(opt.chapter) ? opt.chapter : null;   // the Reactor and the Carbon Chamber play the same sphere
 const TRIES = CHAPTER ? 1 : +(opt.tries || 4), CARELESS = +(opt.careless ?? 1), WORKERS = +(opt.workers || 4), SPEED = +(opt.speed || 3);
 const root = new URL('../../', import.meta.url).pathname;
 const mobile = mode === 'mobile';
@@ -97,6 +97,7 @@ async function worker(levels, results) {
       if (act.type === 'stuck' && opt.verbose) console.log(n, variant, 'STUCK', JSON.stringify(act).slice(0, 1500));
       if (act.type === 'stuck') return { won: false, result: 'stuck', moves: log.length, ms: Date.now() - t0, log, info: JSON.parse(info) };
       if (act.type === 'wait') {
+        step--;     // waiting for an animation is not a move: a five-step chain spent its 160 on waits (the time cap still holds)
         waited = (waited || 0) + 1;
         if (waited === 200) console.log(`${n} ${variant} long wait: ${JSON.stringify(act)}`);
         await sleep(90); continue;
