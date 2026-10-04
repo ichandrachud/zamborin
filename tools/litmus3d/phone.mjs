@@ -73,6 +73,11 @@ ${splashScript[0]}
 <script>${noScriptClose(read('litmus3d/places.js'))}</script>
 <script>${noScriptClose(read('litmus3d/cards.js'))}</script>
 <script>${noScriptClose(read('litmus3d/learn.js'))}</script>
+<script>${noScriptClose(read('chemistry/lab.js'))}</script>
+<script>${noScriptClose(read('litmus3d/reactor-chem.js'))}</script>
+<script>${noScriptClose(read('litmus3d/reactor-levels.js'))}</script>
+<script>${noScriptClose(read('litmus3d/reactor-scene.js'))}</script>
+<script>${noScriptClose(read('litmus3d/reactor-cards.js'))}</script>
 <script>${noScriptClose(three)}</script>
 <script>${noScriptClose(play)}</script>
 `;

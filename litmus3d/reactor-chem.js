@@ -115,7 +115,7 @@ ag('nitrogen-dioxide', [['nitrogen-monoxide', 2], ['oxygen', 1]], ['nitrogen-dio
    really does (sources in LITMUS_REACTOR_AGENTS.md, "Links added for honesty"). */
 ag('bleach', [['chlorine', 1], ['sodium-hydroxide', 2]], ['sodium-chlorate-i', 'sodium-chloride', 'water'], null, [], 'link');
 ag('sulphurous-acid', [['sulphur-dioxide', 1], ['water', 1]], ['sulphurous-acid'], null, [], 'link');
-ag('sulphur-trioxide-and-alkali', [['sulphur-trioxide', 1], ['sodium-hydroxide', 1]], ['sodium-hydrogen-sulphate'], null, [], 'link');
+ag('sulphur-trioxide-and-alkali', [['sulphur-trioxide', 1], ['sodium-hydroxide', 2]], ['sodium-sulphate', 'water'], null, [], 'link');
 ag('carbon-dioxide-and-alkali', [['carbon-dioxide', 1], ['sodium-hydroxide', 1]], ['sodium-hydrogencarbonate'], null, [], 'link');
 const RX = {}; R.forEach((r) => { RX[r.id] = r; });
 

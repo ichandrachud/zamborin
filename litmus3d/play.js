@@ -28,7 +28,7 @@ import {
   BufferGeometry, Float32BufferAttribute, Points, PointsMaterial,
   MeshPhysicalMaterial, MeshBasicMaterial, Sprite, SpriteMaterial, CanvasTexture,
   SRGBColorSpace, Color, Vector3, Quaternion, Euler, NeutralToneMapping,
-  PMREMGenerator, AdditiveBlending, BackSide,
+  PMREMGenerator, AdditiveBlending, BackSide, DoubleSide, BoxGeometry, RoundedBoxGeometry,
 } from './assets/three-r186.min.js';
 
 const M = window.ChemModel, LV = window.ChemLevels, UI = window.ZAM_UI;
@@ -41,6 +41,11 @@ const MODE = (matchMedia('(pointer: coarse)').matches ||
 document.body.classList.add('mode-' + MODE);
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const HARNESS = /[?&]harness=1(&|$)/.test(location.search);
+/* THE CHAPTER (owner, 2026-10-03: "Build all 3 sequentially, moleculator, reactor, carbon chamber"). Each is its own
+   address, as its space's colour and light are built once: the Moleculator at /litmus3d/, the Reactor at
+   /litmus3d/?chapter=reactor, or #reactor where a page cannot change its address (a private phone link). */
+const CHAPTER = new URLSearchParams(location.search).get('chapter') === 'reactor' || /(^#|-)reactor(-|$)/.test(location.hash) ? 'reactor' : 'moleculator';
+const REACTOR = CHAPTER === 'reactor';
 
 // ---------- TOKENS ----------
 // Canvas cannot read CSS variables, so the chrome's tokens are restated here,
@@ -74,16 +79,25 @@ const ART = {
   Fe: { hi: '#CF986D', lo: '#6C3D1F', ink: '#FFFFFF' },
   Zn: { hi: '#ABBDCD', lo: '#3B566B', ink: '#FFFFFF' },
   Cu: { hi: '#F0A878', lo: '#8A3B12', ink: '#FFFFFF' },
+  // the Reactor's (sulphur and bromine as /chemistry/ draws them; silver new)
+  S:  { hi: '#BAA952', lo: '#765F0B', ink: '#3A2E00' },
+  Br: { hi: '#E0785A', lo: '#6E2414', ink: '#FFFFFF' },
+  Ag: { hi: '#E3E6EA', lo: '#7C8591', ink: '#1E2233' },
 };
 const GREEN_TIP = 0x5DF0A8, WHITE_TIP = 0xEAF4FF, AMBER_TIP = 0xFFB25C;
 
-/* EACH CHAPTER HAS ITS OWN COLOUR OF SPACE (owner, 2026-10-02). Only the
-   Moleculator's is drawn: the dark navy of the frames. */
+/* EACH CHAPTER HAS ITS OWN COLOUR OF SPACE (owner, 2026-10-02): the
+   Moleculator's dark navy; the Reactor's EMBER (owner's pick, 2026-10-03). */
 const SPACE = {
   moleculator: {
     stops: ['#03050C', '#0B1830', '#02040A'],
     glows: [[0.25, 0.5, 0.22, 'rgba(40,96,190,0.35)'], [0.75, 0.5, 0.22, 'rgba(60,70,170,0.28)'], [0.5, 0.52, 0.18, 'rgba(30,110,170,0.22)']],
-    mote: 0xA8C8FF, ring: 0x3A6AB8, rim: 0x8A6AFF,
+    mote: 0xA8C8FF, ring: 0x3A6AB8, rim: 0x8A6AFF, envRim: 0x5A9AFF,
+  },
+  reactor: {
+    stops: ['#0B0605', '#2A140C', '#060303'],
+    glows: [[0.25, 0.5, 0.22, 'rgba(200,90,40,0.28)'], [0.75, 0.5, 0.22, 'rgba(170,70,50,0.22)'], [0.5, 0.52, 0.18, 'rgba(210,120,50,0.2)']],
+    mote: 0xFFD2A8, ring: 0xB0603A, rim: 0xFFA070, envRim: 0xFFA070,
   },
 };
 
@@ -225,7 +239,7 @@ function glow(color, size, opacity) {
    depth. No planet, no stars-and-station look (owner: "an empty space, not space
    as in outer space above the earth"), and no rings (owner, 2026-10-03: not the
    rings that tell you to turn; the atoms revolving round you do that). */
-const space = SPACE.moleculator;
+const space = SPACE[CHAPTER];
 const voidTex = canvasTex(1024, 512, (g, w, h) => {
   const gr = g.createLinearGradient(0, 0, 0, h);
   gr.addColorStop(0, space.stops[0]); gr.addColorStop(0.5, space.stops[1]); gr.addColorStop(1, space.stops[2]);
@@ -243,7 +257,7 @@ const env = (() => {
   const s = new Scene();
   s.add(new Mesh(new SphereGeometry(50, 32, 16), new MeshBasicMaterial({ map: voidTex, side: BackSide })));
   const box = new Mesh(new PlaneGeometry(34, 22), new MeshBasicMaterial({ color: 0xFFFFFF })); box.position.set(-26, 26, 18); box.lookAt(0, 0, 0); s.add(box);
-  const rimP = new Mesh(new PlaneGeometry(40, 10), new MeshBasicMaterial({ color: 0x5A9AFF })); rimP.position.set(24, 6, -30); rimP.lookAt(0, 0, 0); s.add(rimP);
+  const rimP = new Mesh(new PlaneGeometry(40, 10), new MeshBasicMaterial({ color: space.envRim })); rimP.position.set(24, 6, -30); rimP.lookAt(0, 0, 0); s.add(rimP);
   const pm = new PMREMGenerator(renderer); const t = pm.fromScene(s, 0.02).texture; pm.dispose(); return t;
 })();
 {
@@ -557,6 +571,12 @@ function molecule3d(key) {
   return shapes.get(key);
 }
 function shapeOf(key) {
+  // a Reactor molecule: lab.js's picture, as the space draws it
+  if (REACTOR) {
+    const sp = window.ReactorChem.SPECIES[key];
+    const p = sp.atoms.map((a, i) => new Vector3(a.x * 2.6, -a.y * 2.6, ((i * 0.37) % 1 - 0.5) * 0.65));
+    return { els: sp.atoms.map((a) => a.el), p, bonds: sp.bonds.map((b) => [b.a, b.b, b.order]) };
+  }
   /* The target's true shape, roughly: its flat layout (model.js) relaxed in
      three dimensions so bonds are even and atoms stand apart. */
   const T = M.MOLECULES[key], lay = M.layoutMolecule(key), R = mulberry(key.length * 97 + 5);
@@ -660,12 +680,29 @@ function fitScrim() {
   scrim.s.add(scrim.mesh);
 }
 
+// ---------- THE REACTOR'S SCENE ----------
+/* reactor-scene.js plays the Reactor in this world (as /chemistry/'s lab-scene.js plays it there): it is handed the
+   camera, the materials and the goal orbs, and tells this file when a product lands and when the level ends. */
+const RX = REACTOR && window.ReactorScene ? window.ReactorScene({
+  THREE: { Vector3, Quaternion, Euler, Color, Group, Mesh, Sprite, SpriteMaterial, CanvasTexture, SRGBColorSpace, SphereGeometry, CylinderGeometry,
+    BoxGeometry, RoundedBoxGeometry, PlaneGeometry, MeshPhysicalMaterial, MeshBasicMaterial, BufferGeometry, Float32BufferAttribute, Points, PointsMaterial,
+    AdditiveBlending, BackSide, DoubleSide, PMREMGenerator, Scene },
+  scene, cam, renderer, U, ART, rOf, ballMat, stickMat, letterMat, letterBase, cached, DOT, MODE, REDUCED, Y_UP, SND,
+  clock: () => clock(), frame: () => ({ LW, LH }),
+  // where goal i's orb is, in the world, and its molecule landing there
+  goalWorld: (i) => { const L = (legend.lay || goalLayout(1))[i] || goalLayout(1)[0]; return rayDir({ x: L.x, y: LEGEND.top + GOAL_Y }).multiplyScalar(14).add(cam.position); },
+  hold: () => { legend.pending = Infinity; },
+  landed: () => { legend.pending = clock(); if (sfx) sfx.play('finish'); },
+  ended: (r) => endLevel(r),
+}) : null;
+
 // ---------- LEVEL ----------
-const LIST = MODE === 'mobile' ? LV.mobile : LV.desktop;
+// the Reactor's 60 levels are one list for both (litmus3d/reactor-levels.js)
+const LIST = REACTOR ? window.REACTOR_LEVELS : MODE === 'mobile' ? LV.mobile : LV.desktop;
 /* PROGRESS. The phone and the desktop play different level sets (as /chemistry/),
    so each keeps its own record. Levels open in order; a returning player lands
    on the first level not yet done (DESIGN-SYSTEM 10.1). */
-const SAVE_KEY = 'zam.litmus3d.progress';
+const SAVE_KEY = REACTOR ? 'zam.litmus3d.reactor' : 'zam.litmus3d.progress';
 let save = (() => { try { const v = JSON.parse(localStorage.getItem(SAVE_KEY) || '{}'); return v && typeof v === 'object' ? v : {}; } catch (_) { return {}; } })();
 const doneSet = () => new Set((save[MODE] && save[MODE].done) || []);
 function markDone(n) {
@@ -806,6 +843,15 @@ function startLevel(n, variant) {
   levelNo = n;
   LEVEL = LIST[n - 1];
   clearWorld();
+  if (REACTOR) {
+    st = RX.start(LEVEL, n);
+    card = null; menu = null; map = null; glide = null; opening = null; hintId = -1;
+    look.yaw = 0; look.pitch = 0; look.vy = 0; look.vp = 0; look.pos.set(0, 0, 0); look.drift = null;
+    gyroReset(); levelT0 = clock(); updateCamera(0);
+    legend.pending = 0;
+    buildLegend();
+    return;
+  }
   st = M.createState(LEVEL);
   // The panel's atoms float with the others (owner, 2026-10-02): you hold the first.
   const spare = [];
@@ -1106,7 +1152,13 @@ function startLift(ids, key) {
   aura = { t0: now, spin, mid, size };
   legend.pending = now + spin + fly;
 }
-function endLevel() {
+function endLevel(rr) {
+  if (REACTOR) {
+    if (card) return;
+    if (rr.kind === 'win') markDone(levelNo);
+    card = { kind: rr.kind, why: rr.why, showAt: clock() + (rr.kind === 'win' ? 700 : TUNE.cardFailMs), sounded: false, scroll: 0, tab: 0, electrons: false };
+    return;
+  }
   const r = st.result;
   glide = null; look.drift = null;
   const { spin, fly } = liftTimes();
@@ -1116,6 +1168,7 @@ function endLevel() {
 
 // ---------- THE STEP ----------
 function simStep(dt) {
+  if (REACTOR) { updateCamera(dt); RX.step(dt); return; }
   updateCamera(dt);
   for (const v of V.values()) { v.prev.copy(v.wp); if (v.frame === 'cam') worldOf(v, v.wp); }
   if (!card) heldSweep();
@@ -1207,6 +1260,7 @@ function relax() {
 // ---------- DRAWING THE WORLD ----------
 const camDir = new Vector3();
 function drawWorld(now) {
+  if (REACTOR) { RX.draw(now); return; }
   camDir.set(0, 0, -1).applyQuaternion(cam.quaternion);
   const camInv = cam.quaternion.clone().invert();
   // where each goal's orb is, in front of you
@@ -1374,19 +1428,28 @@ function screenOf(v) {
    as the rules modal: the header and the footer stay, the middle scrolls. */
 const MENU = { pad: 26, kick: 16, make: 26, head: 18, row: 34, bullet: 17, lineH: 26 };
 function aroundYou() {
+  if (REACTOR) {
+    // the molecules floating round you, by formula, each with a ball of its first atom other than hydrogen
+    const n = {};
+    for (const p of st.pieces) if (p.zone === 'space') n[p.key] = (n[p.key] || 0) + 1;
+    return Object.keys(n).map((k) => { const sp = window.ReactorChem.SPECIES[k], a = sp.atoms.find((x) => x.el !== 'H') || sp.atoms[0]; return [a.el, n[k], sp.formula]; });
+  }
   const n = {};
   for (const a of st.atoms) if (a.status === 'live' && !held.has(a.id)) n[a.el] = (n[a.el] || 0) + 1;
   return M.ORDER.filter((el) => n[el]).map((el) => [el, n[el]]);
 }
-const formulaOf = (key) => M.MOLECULES[key].formula;
-const HOW = MODE === 'mobile'
+const molInfo = (key) => (REACTOR ? window.ReactorChem.SPECIES[key] : M.MOLECULES[key]);
+const formulaOf = (key) => molInfo(key).formula;
+const HOW = REACTOR
+  ? [['Drag', ' to look round you'], [MODE === 'mobile' ? 'Tap a molecule' : 'Click a molecule', ' to put it in the sphere'], [MODE === 'mobile' ? 'Tap an agent' : 'Click an agent', ' to start a reaction'], ['Two chances', ' a level at the agent']]
+  : MODE === 'mobile'
   ? [['Drag', ' to look round you'], ['Tap an atom', ' to pull it in'], ['Hold', ' to drift toward it'], ['Tap what you hold', ' to let it go']]
   : [['Drag', ' to look round you'], ['Click an atom', ' to pull it in'], ['Hold', ' to drift toward it'], ['Click what you hold', ' to let it go']];
 /* Every line of the card is placed here once, as an offset in its zone, and
    drawMenu only draws what this says, so the fit check measures what is drawn. */
 function menuLayout() {
   const pw = Math.min(LW - 32, 470), x = Math.round((LW - pw) / 2), inner = pw - MENU.pad * 2;
-  const chips = aroundYou().map(([el, k]) => ({ el, label: `${el} ×${k}`, w: 0 }));
+  const chips = aroundYou().map(([el, k, f]) => ({ el, label: `${f || el} ×${k}`, w: 0 }));
   ctx.font = `600 ${MENU.bullet + 1}px Inter, sans-serif`;
   for (const c of chips) c.w = 22 + 10 + ctx.measureText(c.label).width + 22;
   const rows = []; let row = [], rw = 0;
@@ -1448,7 +1511,7 @@ function drawMenu() {
   const cx = L.x + L.pw / 2, lx = L.x + MENU.pad;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.font = `800 ${MENU.kick}px Inter, sans-serif`; ctx.fillStyle = TOK.textDim;
-  ctx.fillText(`MOLECULATOR  ·  LEVEL ${levelNo}`, cx, L.y + L.head.kick);
+  ctx.fillText(`${REACTOR ? 'REACTOR' : 'MOLECULATOR'}  ·  LEVEL ${levelNo}`, cx, L.y + L.head.kick);
   drawMiniMolecule(st.targets[0].key, cx, L.y + L.head.pic, L.inner * 0.8, 60);
   ctx.font = `800 ${MENU.make}px Inter, sans-serif`; ctx.fillStyle = TOK.text;
   if (menu.note && clock() - menu.note < 2400) {
@@ -1531,7 +1594,7 @@ function fitText(s, x, y, room) {
 function drawCard(now) {
   if (!card || now < card.showAt) return;
   if (!card.sounded) { card.sounded = true; (card.kind === 'win' ? SND.win : SND.fail)(); }
-  if (card.kind === 'win') { drawLearn(); return; }
+  if (card.kind === 'win') { if (REACTOR) drawReactorCard(); else drawLearn(); return; }
   const pw = Math.min(LW - 56, 470), ph = Math.min(LH - 20, 300);
   const x = (LW - pw) / 2, y = Math.max(10, (LH - ph) / 2);
   ctx.fillStyle = card.kind === 'win' ? TOK.scrimWin : TOK.scrim; ctx.fillRect(0, 0, LW, LH);
@@ -1539,10 +1602,14 @@ function drawCard(now) {
   const cx = LW / 2;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.font = '800 34px Inter, sans-serif'; ctx.fillStyle = TOK.text;
-  ctx.fillText('Not this time', cx, y + 34 + 24);
+  const words = !REACTOR ? ['Not this time', 'An atom grabbed a hand the molecule needed on its way in. Turn for a clear line and try again.', 'Try again']
+    : card.kind === 'win' ? ['Made', `${st.targets.map((t) => formulaOf(t.key)).join(' + ')}. Every goal made.`, levelNo < LIST.length ? 'Next level' : 'Play again']
+    : card.why === 'agent' ? ['Poured away', 'A wrong agent with no chances left: the reaction was poured away.', 'Try again']
+    : ['Not this time', 'What the goals need can no longer be made: something they need was used up or lost.', 'Try again'];
+  ctx.fillText(words[0], cx, y + 34 + 24);
   ctx.font = '600 17px Inter, sans-serif'; ctx.fillStyle = TOK.ink82;
-  wrap('An atom grabbed a hand the molecule needed on its way in. Turn for a clear line and try again.', x + 34, y + 34 + 54 + 14, pw - 68, 24, 4);
-  hits.cta = UI.drawCTA(ctx, 'Try again', cx, y + ph - 32 - 25, ACCENT);
+  wrap(words[1], x + 34, y + 34 + 54 + 14, pw - 68, 24, 4);
+  hits.cta = UI.drawCTA(ctx, words[2], cx, y + ph - 32 - 25, ACCENT);
   card.box = { x, y, w: pw, h: ph };
 }
 function wrap(s, x, y, w, lh, max) {
@@ -1787,6 +1854,110 @@ function drawLearn() {
   hits.cta = UI.drawCTA(ctx, levelNo < LIST.length ? 'Next level' : 'Play again', lx + half + 12 + half / 2, cy, ACCENT, half);
   card.box = L;
 }
+/* ---------- WHAT JUST HAPPENED (the Reactor) ----------
+   After a won Reactor level, a card for each reaction it took (reactor-cards.js): its topic; the word and the
+   balanced equation; the atoms counted on each side and what that shows; what the agent did, beside the agent (iron
+   drawn as the Moleculator draws it, owner 2026-10-03); a line from the real world. Several reactions, a tab each. */
+function rcLayout() {
+  const steps = RX.steps(), tab = Math.min(card.tab, steps.length - 1), step = steps[tab];
+  const c = window.ReactorCards.card(step.r, step.agent);
+  const pw = Math.min(LW - 24, 520), x = Math.round((LW - pw) / 2), P = LC.pad, inner = pw - 2 * P;
+  ctx.font = '700 24px Inter, sans-serif'; const titleW = ctx.measureText('What just happened').width;
+  ctx.font = '600 16px Inter, sans-serif'; const kickW = ctx.measureText(c.topic).width + 24;
+  const head = {}; let h = P;
+  head.title = h + 15;
+  if (titleW + 16 + kickW <= inner) { head.kick = { x: x + P + inner - kickW, y: h, w: kickW }; h += 30; }
+  else { h += 30 + 8; head.kick = { x: x + P, y: h, w: kickW }; h += 30; }
+  if (steps.length > 1) {
+    ctx.font = '600 16px Inter, sans-serif';
+    head.tabs = []; let tx = x + P; h += 12;
+    steps.forEach((s0, i) => { const label = `${i + 1}`, w = Math.max(44, ctx.measureText(label).width + 28); head.tabs.push({ x: tx, y: h, w, h: 36, label }); tx += w + 8; });
+    h += 36;
+  }
+  const headerH = h + 14;
+  ctx.font = `500 ${LC.text}px Inter, sans-serif`;
+  const words = textLines(c.words, inner), atoms = textLines(c.atoms, inner), mass = textLines(c.mass, inner);
+  const jobW = inner - 64, job = textLines(c.job, jobW), world = c.world ? textLines(c.world, inner) : [];
+  ctx.font = '700 22px Inter, sans-serif'; const eq = textLines(c.equation, inner);
+  const body = {}; let y = 0;
+  const lines = (arr, lh = LC.line) => arr.map(() => { const r = y + lh / 2; y += lh; return r; });
+  body.words = lines(words); y += 6;
+  body.eq = lines(eq, 30); y += 12;
+  body.atoms = lines(atoms); y += 4;
+  body.mass = lines(mass); y += 16;
+  const jobTop = y; body.job = lines(job); y = Math.max(y, jobTop + 52); body.jobTop = jobTop; y += 14;
+  if (world.length) { body.wl = y + 11; y += LC.line + 4; body.world = lines(world); }
+  const bodyH = y + 12, footerH = 16 + 50 + P;
+  const ph = Math.min(LH - 12, headerH + bodyH + footerH), top = Math.max(6, Math.round((LH - ph) / 2)), viewH = ph - headerH - footerH;
+  return { c, steps, x, y: top, pw, ph, P, inner, head, headerH, body, bodyH, footerH, viewH, words, eq, atoms, mass, job, world, scrollMax: Math.max(0, bodyH - viewH) };
+}
+const rcAgentImg = new Map();
+function drawReactorCard() {
+  const L = rcLayout(), { c } = L, lx = L.x + L.P;
+  ctx.fillStyle = TOK.scrimWin; ctx.fillRect(0, 0, LW, LH);
+  drawCardBox(L.x, L.y, L.pw, L.ph);
+  ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+  ctx.font = '700 24px Inter, sans-serif'; ctx.fillStyle = TOK.text; ctx.fillText('What just happened', lx, L.y + L.head.title);
+  const k = L.head.kick;
+  UI.roundRectPath(ctx, k.x, L.y + k.y, k.w, 30, 15); ctx.strokeStyle = INK_DONE; ctx.lineWidth = 1.2; ctx.stroke();
+  ctx.font = '600 16px Inter, sans-serif'; ctx.fillStyle = INK_DONE; ctx.fillText(c.topic, k.x + 12, L.y + k.y + 15);
+  if (L.head.tabs) L.head.tabs.forEach((b, i) => {
+    const on = i === card.tab, bb = { x: b.x, y: L.y + b.y, w: b.w, h: b.h };
+    UI.roundRectPath(ctx, bb.x, bb.y, bb.w, bb.h, 18);
+    if (on) { ctx.fillStyle = INK_DONE; ctx.fill(); } else { ctx.strokeStyle = TOK.tint12; ctx.lineWidth = 1.2; ctx.stroke(); }
+    ctx.font = '600 16px Inter, sans-serif'; ctx.fillStyle = on ? TOK.bgCard : TOK.ink90; ctx.textAlign = 'center';
+    ctx.fillText(b.label, bb.x + bb.w / 2, bb.y + bb.h / 2 + 1); ctx.textAlign = 'left';
+    hits['tab' + i] = bb;
+  });
+  const by = L.y + L.headerH;
+  ctx.fillStyle = TOK.tint10; ctx.fillRect(lx, by - 1, L.inner, 1);
+  ctx.save(); ctx.beginPath(); ctx.rect(L.x, by, L.pw, L.viewH); ctx.clip();
+  const sc = card.scroll = Math.max(0, Math.min(L.scrollMax, card.scroll || 0)), at = (dy) => by + dy - sc;
+  ctx.font = `500 ${LC.text}px Inter, sans-serif`; ctx.fillStyle = TOK.ink82;
+  L.words.forEach((ln, i) => ctx.fillText(ln, lx, at(L.body.words[i])));
+  ctx.font = '700 22px Inter, sans-serif'; ctx.fillStyle = INK_DONE;
+  L.eq.forEach((ln, i) => ctx.fillText(ln, lx, at(L.body.eq[i])));
+  ctx.font = `500 ${LC.text}px Inter, sans-serif`; ctx.fillStyle = TOK.ink90;
+  L.atoms.forEach((ln, i) => ctx.fillText(ln, lx, at(L.body.atoms[i])));
+  L.mass.forEach((ln, i) => ctx.fillText(ln, lx, at(L.body.mass[i])));
+  // the agent: iron as the Moleculator draws it; the others their own orb; none, a quiet ring
+  const ax = lx + 24, ay = at(L.body.jobTop + 24);
+  if (c.agent === 'iron') {
+    const g = ctx.createRadialGradient(ax - 7, ay - 8, 2, ax, ay, 22); g.addColorStop(0, ART.Fe.hi); g.addColorStop(1, ART.Fe.lo);
+    ctx.beginPath(); ctx.arc(ax, ay, 22, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill();
+    ctx.font = '700 18px Inter, sans-serif'; ctx.fillStyle = ART.Fe.ink; ctx.textAlign = 'center'; ctx.fillText('Fe', ax, ay + 1); ctx.textAlign = 'left';
+  } else if (c.agent) {
+    if (!rcAgentImg.has(c.agent)) rcAgentImg.set(c.agent, RX.agentImage(c.agent));
+    ctx.drawImage(rcAgentImg.get(c.agent), ax - 34, ay - 34, 68, 68);
+  } else { ctx.strokeStyle = TOK.tint12; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(ax, ay, 20, 0, Math.PI * 2); ctx.stroke(); }
+  ctx.font = `500 ${LC.text}px Inter, sans-serif`; ctx.fillStyle = TOK.text;
+  L.job.forEach((ln, i) => ctx.fillText(ln, lx + 64, at(L.body.job[i])));
+  if (L.world.length) {
+    ctx.font = '600 16px Inter, sans-serif'; ctx.fillStyle = INK_DONE; ctx.fillText('In the real world', lx, at(L.body.wl));
+    ctx.font = `500 ${LC.text}px Inter, sans-serif`; ctx.fillStyle = TOK.ink90;
+    L.world.forEach((ln, i) => ctx.fillText(ln, lx, at(L.body.world[i])));
+  }
+  ctx.restore();
+  if (sc > 0) fade(L.x, by, L.pw, 20, true);
+  if (sc < L.scrollMax) fade(L.x, by + L.viewH - 20, L.pw, 20, false);
+  const fy = by + L.viewH;
+  ctx.fillStyle = TOK.tint10; ctx.fillRect(lx, fy, L.inner, 1);
+  const half = (L.inner - 12) / 2, cy = fy + 16 + 25;
+  hits.again = UI.drawPill(ctx, 'Build again', lx + half / 2, cy, { w: half });
+  hits.cta = UI.drawCTA(ctx, levelNo < LIST.length ? 'Next level' : 'Play again', lx + half + 12 + half / 2, cy, ACCENT, half);
+  card.box = L;
+}
+function rcDown(p, e) {
+  if (inBox(p, hits.cta)) { SND.pick(); startLevel(levelNo < LIST.length ? levelNo + 1 : levelNo); return; }
+  if (inBox(p, hits.again)) { SND.pick(); startLevel(levelNo); return; }
+  const n = RX.steps().length;
+  for (let i = 0; i < n; i++) if (inBox(p, hits['tab' + i])) { SND.pick(); card.tab = i; card.scroll = 0; return; }
+  const L = card.box;
+  if (L && p.y > L.y + L.headerH && p.y < L.y + L.headerH + L.viewH && inBox(p, { x: L.x, y: L.y, w: L.pw, h: L.ph })) {
+    card.drag = { y0: p.y, s0: card.scroll || 0 };
+    try { hud.setPointerCapture(e.pointerId); } catch (_) {}
+  }
+}
 function learnDown(p, e) {
   if (inBox(p, hits.cta)) { SND.pick(); startLevel(levelNo < LIST.length ? levelNo + 1 : levelNo); return; }
   if (inBox(p, hits.again)) { SND.pick(); startLevel(levelNo); return; }
@@ -1802,7 +1973,7 @@ function learnDown(p, e) {
 /* Each goal's name under its orb, with the formula in brackets (owner, 2026-10-02): "Aluminium oxide (Al₂O₃)", and
    how many when more than one. With two or three goals the name wraps in its own room, the formula on the last line. */
 function goalLines(t, wrapW, n) {
-  const m = M.MOLECULES[t.key], name = m.name[0].toUpperCase() + m.name.slice(1), tail = `(${formulaOf(t.key)})${t.n > 1 ? ` ×${t.n}` : ''}`;
+  const m = molInfo(t.key), name = m.name[0].toUpperCase() + m.name.slice(1), tail = `(${formulaOf(t.key)})${t.n > 1 ? ` ×${t.n}` : ''}`;
   if (n <= 1 && ctx.measureText(`${name} ${tail}`).width <= wrapW) return [`${name} ${tail}`];
   const lines = []; let cur = '';
   for (const wd of name.split(' ')) { const tr = cur ? cur + ' ' + wd : wd; if (!cur || ctx.measureText(tr).width <= wrapW) cur = tr; else { lines.push(cur); cur = wd; } }
@@ -1812,6 +1983,15 @@ function goalLines(t, wrapW, n) {
 function drawLegendLabel() {
   if (!legend.group || !legend.lay || menu || map || (card && clock() >= card.showAt)) return;
   ctx.font = '600 16px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  // during a reaction its equation stands in place of the goals' names (the agent is never written over the arrow)
+  const eq = REACTOR && RX.equation();
+  if (eq) {
+    const L0 = legend.lay[0];
+    ctx.font = '700 18px Inter, sans-serif'; ctx.fillStyle = TOK.text;
+    fitText(eq, LW / 2, LEGEND.top + GOAL_Y + L0.R + 22, LW - 40);
+    ctx.textAlign = 'left';
+    return;
+  }
   const n = st.targets.length;
   st.targets.forEach((t, i) => {
     const L = legend.lay[i], done = legend.mols[i] && legend.mols[i].done;
@@ -1835,9 +2015,18 @@ function drawHud(now) {
   ctx.setTransform(k, 0, 0, k, 0, 0);
   ctx.clearRect(0, 0, LW, LH);
   for (const key in hits) delete hits[key];
-  drawHint(now);
-  drawOpening(now);
+  if (!REACTOR) { drawHint(now); drawOpening(now); }
+  else if (!firstInput && !card && !menu && !map) {
+    // the Reactor's first-tap ring, until your first touch (as the Moleculator's)
+    const h = RX.hintAt();
+    if (h) for (let k = 0; k < 2; k++) {
+      const t = ((now - levelT0) / 1400 + k * 0.5) % 1;
+      ctx.beginPath(); ctx.arc(h.x, h.y, h.r * 1.1 + t * 26, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(255,255,255,${0.55 * (1 - t)})`; ctx.lineWidth = 2; ctx.stroke();
+    }
+  }
   drawLegendLabel();
+  if (REACTOR && !menu && !map && !(card && now >= card.showAt)) RX.hud(ctx, TOK);
   if ((!card || now < card.showAt) && !map) drawPause();
   if (map) drawMap();
   else if (menu) drawMenu();
@@ -1852,12 +2041,13 @@ function drawHud(now) {
 let map = null;   // { scroll, press, cells }
 function mapLayout() {
   const band = MODE === 'mobile' ? 0 : 56, pad = MODE === 'mobile' ? 16 : 30;
-  const top = band + 12, availW = LW - pad * 2;
+  // the chapters, as two pills above the levels: the one you are in, and the other to go to
+  const chap = { y: band + 12 + 20 }, top = band + 12 + 52, availW = LW - pad * 2;
   const cols = Math.max(4, Math.min(10, Math.round(availW / 68)));
   const cw = availW / cols, ch = Math.max(52, Math.min(68, cw * 0.92));
   const rows = Math.ceil(LIST.length / cols), viewH = LH - top - 12;
   const contentH = rows * ch;
-  return { band, pad, top, cols, cw, ch, rows, viewH, contentH, scrollMax: Math.max(0, contentH - viewH) };
+  return { band, pad, chap, top, cols, cw, ch, rows, viewH, contentH, scrollMax: Math.max(0, contentH - viewH) };
 }
 function openMap() {
   const L = mapLayout(), row = Math.floor((firstUndone() - 1) / L.cols);
@@ -1871,8 +2061,20 @@ function drawMap() {
     hits.mapBack = UI.drawPill(ctx, 'Back', L.pad + 40, L.band / 2);
     ctx.textBaseline = 'middle'; ctx.textAlign = 'right';
     ctx.font = '600 16px Inter, sans-serif'; ctx.fillStyle = TOK.ink72;
-    ctx.fillText(`MOLECULATOR   ·   ${d.size} OF ${LIST.length} DONE`, LW - L.pad, L.band / 2 + 1);
+    ctx.fillText(`${REACTOR ? 'REACTOR' : 'MOLECULATOR'}   ·   ${d.size} OF ${LIST.length} DONE`, LW - L.pad, L.band / 2 + 1);
     ctx.textAlign = 'left';
+  }
+  {
+    const names = [['moleculator', 'Moleculator'], ['reactor', 'Reactor']], w = Math.min(160, (LW - L.pad * 2 - 10) / 2);
+    names.forEach(([id, label], i) => {
+      const cx = LW / 2 + (i - 0.5) * (w + 10), on = id === CHAPTER;
+      if (on) {
+        const b = { x: cx - w / 2, y: L.chap.y - 20, w, h: 40 };
+        UI.roundRectPath(ctx, b.x, b.y, b.w, b.h, 20); ctx.fillStyle = ACCENT; ctx.fill();
+        ctx.font = '700 15px Inter, sans-serif'; ctx.fillStyle = TOK.text; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(label, cx, L.chap.y + 1);
+        ctx.textAlign = 'left';
+      } else hits['chap_' + id] = UI.drawPill(ctx, label, cx, L.chap.y, { w });
+    });
   }
   ctx.save();
   ctx.beginPath(); ctx.rect(0, L.top, LW, L.viewH); ctx.clip();
@@ -1902,6 +2104,16 @@ function drawMap() {
 }
 function mapDown(p, e) {
   if (inBox(p, hits.mapBack)) { SND.pick(); map = null; return; }
+  // the other chapter: its own address (its space is built for it)
+  for (const id of ['moleculator', 'reactor']) if (inBox(p, hits['chap_' + id])) {
+    SND.pick();
+    const q = new URLSearchParams(location.search);
+    q.delete('chapter');
+    // by the address's # part, which every page can change, then a fresh start in that chapter's space
+    history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '') + (id === 'reactor' ? '#reactor' : '#'));
+    location.reload();
+    return;
+  }
   map.press = { y0: p.y, s0: map.scroll, moved: false, x: p.x, y: p.y };
   try { hud.setPointerCapture(e.pointerId); } catch (_) {}
 }
@@ -1946,8 +2158,8 @@ hud.addEventListener('pointerdown', (e) => {
   if (drag.active) return;
   const p = pt(e);
   if (card && clock() >= card.showAt) {
-    if (card.kind === 'win') learnDown(p, e);
-    else if (inBox(p, hits.cta)) { SND.pick(); startLevel(levelNo); }
+    if (card.kind === 'win') (REACTOR ? rcDown : learnDown)(p, e);
+    else if (inBox(p, hits.cta)) { SND.pick(); startLevel(card.kind === 'win' && levelNo < LIST.length ? levelNo + 1 : levelNo); }
     return;
   }
   if (map) { mapDown(p, e); return; }
@@ -1956,6 +2168,7 @@ hud.addEventListener('pointerdown', (e) => {
   if (inBox(p, hits.pause)) { SND.pick(); menu = { scroll: 0 }; look.drift = null; return; }
   opening = null;
   Object.assign(drag, { active: true, id: e.pointerId, x0: p.x, y0: p.y, x: p.x, y: p.y, t0: clock(), mode: 'pending', lastX: p.x, lastY: p.y, lastT: clock() });
+  drag.carry = REACTOR ? RX.pressWaiting(p) : null;
   look.vy = look.vp = 0;
   try { hud.setPointerCapture(e.pointerId); } catch (_) {}
 });
@@ -1967,8 +2180,9 @@ hud.addEventListener('pointermove', (e) => {
   const p = pt(e);
   if (drag.mode === 'pending' && Math.hypot(p.x - drag.x0, p.y - drag.y0) > TUNE.tapPx) {
     // a drag after all: the view follows the finger from where it first touched, not from where the drag was recognised
-    drag.mode = 'look'; firstInput = true; drag.x = drag.x0; drag.y = drag.y0;
+    drag.mode = drag.carry != null ? 'carry' : 'look'; firstInput = true; drag.x = drag.x0; drag.y = drag.y0;
   }
+  if (drag.mode === 'carry') { RX.dragWaiting(drag.carry, rayDir(p).applyQuaternion(cam.quaternion.clone().invert())); drag.x = p.x; drag.y = p.y; return; }
   if (drag.mode === 'look') {
     // drag the space: it follows the finger, a full screen height is the view's height
     const k = (FOV * Math.PI / 180) / LH;
@@ -1987,10 +2201,12 @@ function endPointer(e) {
   if (!drag.active || e.pointerId !== drag.id) return;
   drag.active = false;
   wake();
-  if (drag.mode === 'pending') {
+  if (drag.mode === 'pending' && REACTOR) { if (RX.tap({ x: drag.x0, y: drag.y0 })) firstInput = true; }
+  else if (drag.mode === 'pending') {
     const id = atomAt({ x: drag.x0, y: drag.y0 });
     if (id != null) { if (held.has(id)) letGo(); else pull(id); }
   }
+  if (drag.mode === 'carry') RX.dropWaiting(drag.carry, { x: drag.x, y: drag.y }, rayDir({ x: drag.x, y: drag.y }));
   if (drag.mode === 'drift') look.drift = null;
   if (drag.mode === 'look' && clock() - drag.lastT > 60) look.vy = look.vp = 0;
   drag.mode = null;
@@ -2008,7 +2224,7 @@ function rayDir(p) {
 }
 function holdCheck() {
   // held still long enough: drift toward what is under the finger
-  if (drag.active && drag.mode === 'pending' && clock() - drag.t0 > TUNE.holdMs && !card && !menu) {
+  if (!REACTOR && drag.active && drag.mode === 'pending' && clock() - drag.t0 > TUNE.holdMs && !card && !menu) {
     drag.mode = 'drift'; firstInput = true;
     look.drift = { dir: rayDir({ x: drag.x, y: drag.y }), v: 0 };
   }
@@ -2076,7 +2292,7 @@ requestAnimationFrame(frame);
 if (HARNESS) {
   window.__litmus3d = {
     state: () => ({ LW, LH, MODE, level: levelNo, hint: hintId, held: [...held], glide: !!glide, result: st.result, made: st.made,
-      card: card && card.kind, targets: st.targets.length, menu: !!menu, map: !!map, yaw: look.yaw, pitch: look.pitch, variant: placement && placement.variant,
+      card: card && card.kind, targets: st.targets.length, chapter: CHAPTER, menu: !!menu, map: !!map, yaw: look.yaw, pitch: look.pitch, variant: placement && placement.variant,
       placement: placement && { attempt: placement.attempt, score: placement.score }, hazards: hazardIds }),
     atoms: () => [...V.values()].map((v) => { const s = screenOf(v); return { id: v.id, el: v.el, status: st.atoms[v.id].status, free: st.atoms[v.id].free, held: held.has(v.id), screen: s && { x: Math.round(s.x), y: Math.round(s.y), r: +s.r.toFixed(1) }, dist: +v.wp.distanceTo(cam.position).toFixed(2) }; }),
     hits: () => JSON.parse(JSON.stringify(hits)),
@@ -2088,6 +2304,14 @@ if (HARNESS) {
     menuFit: () => { if (!menu || !menu.box) return null; const L = menu.box; return { fits: L.headerH + L.viewH + L.footerH === L.ph && L.y >= 0 && L.y + L.ph <= LH, cardH: L.ph, frameH: LH, viewportH: L.viewH, contentH: L.bodyH, scrollMax: L.scrollMax }; },
     // the won card for the current level, at a tab and a view; and what it measures
     learn: (tab = 0, electrons = false) => { card = { kind: 'win', showAt: 0, sounded: true, scroll: 0, tab, electrons }; },
+    rcFit: () => {
+      if (!card || !card.box || !REACTOR) return null;
+      const L = card.box; ctx.font = `500 ${LC.text}px Inter, sans-serif`;
+      const widest = Math.max(...[...L.words, ...L.atoms, ...L.mass, ...L.world].map((s) => ctx.measureText(s).width), ...L.job.map((s) => ctx.measureText(s).width + 64));
+      ctx.font = '700 22px Inter, sans-serif'; const eqW = Math.max(...L.eq.map((s) => ctx.measureText(s).width));
+      return { fits: L.headerH + L.viewH + L.footerH === L.ph && L.y >= 0 && L.y + L.ph <= LH && L.viewH > 120, widest: Math.max(widest, eqW), inner: L.inner, scrollMax: L.scrollMax, steps: L.steps.length };
+    },
+    rcCard: (tab = 0) => { card = { kind: 'win', showAt: 0, sounded: true, scroll: 0, tab, electrons: false }; },
     learnFit: () => {
       if (!card || !card.box) return null;
       const L = card.box; ctx.font = `500 ${LC.text}px Inter, sans-serif`;
@@ -2099,7 +2323,7 @@ if (HARNESS) {
       return { key: L.key, fits: L.headerH + L.viewH + L.footerH === L.ph && L.y >= 0 && L.y + L.ph <= LH && L.viewH > 120, headerFits: headerFits && tabsFit,
         cardH: L.ph, frameH: LH, viewH: L.viewH, bodyH: L.bodyH, scrollMax: L.scrollMax, widest, textW: L.textW, legendW, colW: L.wide ? LC.col : L.inner };
     },
-    level: (n, variant) => { startLevel(n, variant); firstInput = true; pilot = null; pilotLast = -1; pilotDrifts = 0; bondLog.length = 0; return { level: levelNo, variant: placement.variant, score: placement.score }; },
+    level: (n, variant) => { if (REACTOR) { startLevel(n); firstInput = true; return { level: levelNo }; } startLevel(n, variant); firstInput = true; pilot = null; pilotLast = -1; pilotDrifts = 0; bondLog.length = 0; return { level: levelNo, variant: placement.variant, score: placement.score }; },
     progress: () => JSON.parse(JSON.stringify(save)),
     /* THE PILOT, for checks only. next() says what a player would do now: drag
        to turn (frame units), tap an atom (to pull it in, or to let go of what is
@@ -2109,7 +2333,9 @@ if (HARNESS) {
        and the turn to get there, pass nothing it could grab. Careless: the
        nearest atom that helps, faced straight on, as a player who just taps
        what they see. */
-    next: (careless) => pilotNext(!!careless),
+    next: (careless) => (REACTOR ? (card ? { type: 'done', result: card.kind } : menu || map ? { type: 'wait' } : RX.pilot(!!careless)) : pilotNext(!!careless)),
+    rxPut: (id) => RX.put(id), rxAgent: (name) => RX.agent(name), rxPlanSteps: () => RX.planSteps(),
+    reactor: () => REACTOR && { molecules: RX.molecules(), agents: RX.agentsAt(), chances: st.chances, made: st.made, zones: st.pieces.map((p) => p.zone), busy: RX.busy() },
     helps: (a, b) => helps(a, b),
     // for a stuck pilot: for atom `id`, every heading tried, and what blocks it
     why: (id) => {
