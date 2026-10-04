@@ -698,37 +698,58 @@ function fitLegend() {
   legend.lay = lay;
 }
 
-/* A soft dark fade over the top of the space (as in the studies): atoms drifting under the goals go quiet there
-   instead of crowding their names. Not a strip: no edge, only the space getting darker. Drawn between the world and
-   the goals. */
-const scrim = { s: new Scene(), c: new PerspectiveCamera(6, 1, 1, 100000), mesh: null };
-// how dark the fade is at height y of the frame (0 to 1): names drawn over the space go as dark as what they name
-function shadeAt(y) {
-  const t = y / LH, st = scrim.stops || [[0, 0], [1, 0]];
-  for (let i = 1; i < st.length; i++) if (t <= st[i][0]) { const [a, p] = st[i - 1], [b, q] = st[i]; return b > a ? p + (q - p) * Math.max(0, (t - a) / (b - a)) : q; }
-  return st[st.length - 1][1];
+/* THE FADES: soft dark pools behind what is drawn over the space, and nowhere else (owner, 2026-10-04: the gradient
+   "only in the shaded area"): the menu button, each goal with its name (or the equation in their place during a
+   reaction), and the row of agents with their chances. Each pool is an oval round its box, dark through the middle and
+   fading to nothing at its rim, so no straight side shows; where two meet, the darker wins. A molecule drifting under one goes quiet there instead of crowding what is written over
+   it. Drawn between the world and the goals. */
+const scrim = { s: new Scene(), c: new PerspectiveCamera(6, 1, 1, 100000), mesh: null, cv: null, tex: null, boxes: [], key: '' };
+const POOL_SOFT = 80, POOL_CORE = 0.7;   // frame units past the box to the oval's rim; how far out it stays fully dark
+let drawnEq = null;                       // the equation's box as last drawn
+function poolBoxes() {
+  const out = [{ ...pauseBox(), a: 0.85 }];
+  (legend.lay || []).forEach((L, i) => {
+    const cy = LEGEND.top + GOAL_Y;
+    let x0 = L.x - L.R, x1 = L.x + L.R, y1 = cy + L.R;
+    for (const n of drawnNames) if (n.goal === i) { x0 = Math.min(x0, n.x); x1 = Math.max(x1, n.x + n.w); y1 = Math.max(y1, n.y + n.h); }
+    out.push({ x: x0, y: cy - L.R, w: x1 - x0, h: y1 - cy + L.R, a: 0.9 });
+  });
+  if (drawnEq) out.push({ ...drawnEq, a: 0.9 });
+  const band = RX && RX.band();
+  if (band) out.push({ x: band.left, y: band.full, w: band.right - band.left, h: LH - band.full, a: 0.9, lid: band.top - 12 });   // it stops under the sphere
+  return out;
 }
+function poolAt(x, y, boxes) {
+  let m = 0;
+  for (const b of boxes) {
+    const rx = b.w * 0.575 + POOL_SOFT, ry = Math.min(b.h * 0.575 + POOL_SOFT, b.lid != null ? b.y + b.h / 2 - b.lid : Infinity);
+    const r = Math.hypot((x - b.x - b.w / 2) / rx, (y - b.y - b.h / 2) / ry), t = Math.max(0, (r - POOL_CORE) / (1 - POOL_CORE));
+    if (t < 1) m = Math.max(m, b.a * (1 - t * t * (3 - 2 * t)));
+  }
+  return m;
+}
+// how dark the fade is at (x, y) of the frame (0 to 1): names drawn over the space go as dark as what they name
+function shadeAt(x, y) { return poolAt(x, y, scrim.boxes); }
 function fitScrim() {
   const D = (cssH / 2) / Math.tan(3 * Math.PI / 180);
   scrim.c.aspect = cssW / Math.max(1, cssH); scrim.c.position.set(0, 0, D); scrim.c.lookAt(0, 0, 0); scrim.c.updateProjectionMatrix();
-  if (scrim.mesh) { scrim.s.remove(scrim.mesh); scrim.mesh.material.map.dispose(); scrim.mesh.material.dispose(); }
-  const end = Math.min(0.5, (LEGEND.top + GOAL_Y + 44 + 64) / LH);    // fades out just below the goals' names
-  scrim.stops = [[0, 0.92], [end * 0.55, 0.78], [end, 0]];
-  if (REACTOR) {   // the Reactor's goals keep a darker band: dark down past their names, gone 90px below (owner, 2026-10-03)
-    const nm = LEGEND.top + GOAL_Y + 44;
-    const tail = Math.min(90, LH * 0.12);     // a short window keeps more of its height clear
-    scrim.stops = [[0, 0.94], [(nm + 14) / LH, 0.86], [(nm + 14 + tail * 0.4) / LH, 0.42], [(nm + 14 + tail) / LH, 0]];
-  }
-  // the Reactor's agents sit at the foot: the space darkens again from under the sphere, so what floats there goes
-  // quiet behind them instead of running into them (owner, 2026-10-03). The agents are drawn after it.
-  const band = RX && RX.band();
-  if (band) { const a = Math.max(scrim.stops[scrim.stops.length - 1][0] + 0.02, (band.top - 12) / LH), b = Math.max(a + 0.04, band.full / LH); scrim.stops.push([a, 0], [(a + b) / 2, 0.42], [b, 0.82], [1, 0.92]); }
-  else scrim.stops.push([1, 0]);
-  const map = canvasTex(4, 512, (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h);
-    for (const [k, al] of scrim.stops) gr.addColorStop(k, `rgba(2,4,10,${al})`);
-    g.fillStyle = gr; g.fillRect(0, 0, w, h); });
-  scrim.mesh = new Mesh(new PlaneGeometry(cssW, cssH), new MeshBasicMaterial({ map, transparent: true, depthTest: false, depthWrite: false, toneMapped: false }));
+  if (scrim.mesh) { scrim.s.remove(scrim.mesh); scrim.tex.dispose(); scrim.mesh.material.dispose(); scrim.mesh.geometry.dispose(); }
+  scrim.tex = canvasTex(Math.ceil(LW / 4), Math.ceil(LH / 4), () => {});   // a quarter of the frame: the pools are soft
+  scrim.cv = scrim.tex.image; scrim.key = '';
+  scrim.mesh = new Mesh(new PlaneGeometry(cssW, cssH), new MeshBasicMaterial({ map: scrim.tex, transparent: true, depthTest: false, depthWrite: false, toneMapped: false }));
   scrim.s.add(scrim.mesh);
+}
+// each frame: repaint the pools only when what they sit behind has moved (a new level, a resize, the equation)
+function updateScrim() {
+  const boxes = poolBoxes(), key = boxes.map((b) => [b.x, b.y, b.w, b.h, b.a * 100].map(Math.round).join()).join('|');
+  if (key === scrim.key) return;
+  scrim.key = key; scrim.boxes = boxes;
+  const g = scrim.cv.getContext('2d'), W = scrim.cv.width, H = scrim.cv.height, img = g.createImageData(W, H), d = img.data;
+  for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+    const o = (j * W + i) * 4;
+    d[o] = 2; d[o + 1] = 4; d[o + 2] = 10; d[o + 3] = Math.round(255 * poolAt((i + 0.5) / W * LW, (j + 0.5) / H * LH, boxes));
+  }
+  g.putImageData(img, 0, 0); scrim.tex.needsUpdate = true;
 }
 
 // ---------- THE REACTOR'S SCENE ----------
@@ -739,7 +760,7 @@ const RX = REACTOR && window.ReactorScene ? window.ReactorScene({
     BoxGeometry, RoundedBoxGeometry, PlaneGeometry, MeshPhysicalMaterial, MeshBasicMaterial, BufferGeometry, Float32BufferAttribute, Points, PointsMaterial,
     AdditiveBlending, BackSide, DoubleSide, PMREMGenerator, Scene },
   scene, cam, renderer, U, ART, rOf, ballMat, stickMat, letterMat, letterBase, cached, DOT, MODE, REDUCED, Y_UP, SND,
-  clock: () => clock(), frame: () => ({ LW, LH }), shade: (y) => (menu || map || COVER ? 0 : shadeAt(y)),
+  clock: () => clock(), frame: () => ({ LW, LH }), shade: (x, y) => (menu || map || COVER ? 0 : shadeAt(x, y)),
   // where the goals' names end (two lines when there are several goals, which may wrap)
   goalsBottom: (targets) => {
     const n = Math.max(1, targets.length), lay = goalLayout(n);
@@ -2125,10 +2146,12 @@ function drawLegendLabel() {
   if (eq) {
     const L0 = legend.lay[0];
     ctx.font = '700 18px Inter, sans-serif'; ctx.fillStyle = TOK.text;
-    fitText(eq, LW / 2, LEGEND.top + GOAL_Y + L0.R + 22, LW - 40);
+    const y = LEGEND.top + GOAL_Y + L0.R + 22, f = fitText(eq, LW / 2, y, LW - 40);
+    drawnEq = { x: LW / 2 - f.w / 2, y: y - 12, w: f.w, h: 24 };
     ctx.textAlign = 'left';
     return;
   }
+  drawnEq = null;
   const n = st.targets.length;
   drawnNames = [];
   st.targets.forEach((t, i) => {
@@ -2446,7 +2469,7 @@ function frame() {
   renderer.setViewport(0, 0, cssW, cssH); renderer.setScissorTest(false);
   renderer.clear();
   renderer.render(scene, cam);
-  if (!menu && !map && !COVER) { renderer.clearDepth(); renderer.render(scrim.s, scrim.c); }
+  if (!menu && !map && !COVER) { updateScrim(); renderer.clearDepth(); renderer.render(scrim.s, scrim.c); }
   if (REACTOR) { cam.layers.set(1); renderer.render(scene, cam); cam.layers.set(0); }   // the agents, over the fade
   // the target, over the top of the frame
   if (!menu && !map && !COVER && !(card && now >= card.showAt)) {
@@ -2497,7 +2520,7 @@ if (HARNESS) {
       ctx.font = '700 22px Inter, sans-serif'; const eqW = Math.max(...L.eq.map((s) => ctx.measureText(s).width));
       return { fits: L.headerH + L.viewH + L.footerH === L.ph && L.y >= 0 && L.y + L.ph <= LH && L.viewH > 120, widest: Math.max(widest, eqW), inner: L.inner, scrollMax: L.scrollMax, steps: L.steps.length };
     },
-    shade: (y) => shadeAt(y),
+    shade: (x, y) => shadeAt(x, y),
     rcCard: (tab = 0) => { card = { kind: 'win', showAt: 0, sounded: true, scroll: 0, tab, electrons: false }; },
     learnFit: () => {
       if (!card || !card.box) return null;

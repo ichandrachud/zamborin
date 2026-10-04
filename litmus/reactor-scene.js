@@ -49,7 +49,7 @@ window.ReactorScene = function (host) {
     return V((x / LW * 2 - 1) * hw, (1 - y / LH * 2) * hh, -d);
   }
   const pxAt = (px, d) => { const { LH } = host.frame(); return px / LH * 2 * d * Math.tan(cam.fov * Math.PI / 360); };
-  let SPH = V(0, -2.4, -D), SR = 2.15, AG = [], BAND = null;   // BAND: where the dark fade under the space starts, and where it is full (above the chances)
+  let SPH = V(0, -2.4, -D), SR = 2.15, AG = [], BAND = null;   // BAND: the sphere's foot, and the agents' row with their chances (the dark pool behind them, play.js)
   function layout() {
     const { LW, LH } = host.frame(), mob = MODE === 'mobile';
     const ay = LH - (mob ? 104 : 86), sp = Math.min((LW - 16) / 4, mob ? 92 : 128);
@@ -61,7 +61,7 @@ window.ReactorScene = function (host) {
     rpx = Math.max(24, Math.min(rpx, (bottom - top) / 2));
     const sy = Math.max(top + rpx, Math.min(mob ? LH * 0.6 : LH * 0.52, bottom - rpx));
     SPH = local(LW / 2, sy, D); SR = pxAt(rpx, D);
-    BAND = { top: sy + rpx, full: ay - AG[0].r - 32 };
+    BAND = { top: sy + rpx, full: ay - AG[0].r - 32, left: AG[0].x - sp / 2, right: AG[3].x + sp / 2 };
     if (glass) placeGlass();
     agents.forEach((a, i) => placeAgent(a, i));
   }
@@ -950,9 +950,9 @@ window.ReactorScene = function (host) {
       const d = c.distanceTo(cam.position), px = m.ext * m.k / (d * HALF) * (LH / 2);
       const ly = y + px + 14;
       if (x < -40 || x > LW + 40) continue;
-      // under the dark fades at the top and the foot, the name goes as dark as its molecule
+      // under a dark pool (the goals', the agents'), the name goes as dark as its molecule
       // and once too faint to read (AA on the painted pixel, owner's rule), it is not drawn at all
-      const a = 0.86 * (1 - Math.max(host.shade(y), host.shade(ly))); if (a < 0.6) continue;
+      const a = 0.86 * (1 - Math.max(host.shade(x, y), host.shade(x, ly))); if (a < 0.6) continue;
       const text = X.SPECIES[m.key].formula;
       if (d > far && Math.hypot(x - scx, y - scy) < sR) {
         // seen through the sphere's frosted back, the name blurs as its molecule does (a shadow cast from off the canvas)
