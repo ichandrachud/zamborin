@@ -20,6 +20,9 @@
   -webkit-touch-callout: none;   /* a long press is a drift, never the phone's picture menu */
 }
 #game:active { cursor: grabbing; }
+/* On a phone the frame is the screen (play.js sizes the wrap to it); the canvas fills it, so a frame laid out taller than
+   a short screen (never under 450) is scaled to fit rather than cropped. */
+body.mode-mobile #game { width: 100%; height: 100%; }
 
 /* Clear of the notch and the status bar: the same insets play.js takes off the
    frame's size, so the frame sits exactly in what is left. */

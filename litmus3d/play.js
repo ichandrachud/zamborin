@@ -167,6 +167,9 @@ function setCanvasVars() {
   if (MODE === 'mobile') { LW = w || 390; LH = h || 844; }
   else if (fullWindow() && w > 0 && h > 0) { LW = Math.max(760, w); LH = Math.round(LW * h / w); }
   else { LW = 760; LH = 600; }
+  /* Never laid out shorter than 450, as /chemistry/: a phone on its side or a small embed (480x360) is drawn at 450
+     tall and scaled to fit, so the goals, the sphere and the agents all have their room. */
+  if ((MODE === 'mobile' || fullWindow()) && LH < 450 && w > 0 && h > 0) { LH = 450; LW = Math.round(450 * w / h); }
   document.body.style.setProperty('--canvas-w', LW + 'px');
   document.body.style.setProperty('--canvas-h', LH + 'px');
 }
@@ -580,12 +583,21 @@ function paintOrb(g, S, o) {
 /* Where the goals sit, in the frame's units: one in the middle, two or three side by side (clear of the menu orb).
    `wrap` is the room for each one's name. */
 const GOAL_Y = 46;
+/* The goals along the top: as far apart as designed, but each orb clear of the menu button and the edge, and each name
+   in its own strip (lo to hi) so it never meets a neighbour's or leaves the frame (a 320-wide phone, a portal's
+   800x450). A name too wide for its strip shows its formula instead (goalLines). */
 function goalLayout(n) {
   const mob = MODE === 'mobile';
-  if (n <= 1) return [{ x: LW / 2, R: mob ? 40 : 44, wrap: LW - 80 }];
-  if (n === 2) { const sp = mob ? 88 : 130; return [-1, 1].map((k) => ({ x: LW / 2 + k * sp, R: mob ? 34 : 40, wrap: sp * 2 - 16 })); }
-  const sp = mob ? 115 : 180, cx = LW / 2 + (mob ? 20 : 0);
-  return [-1, 0, 1].map((k) => ({ x: cx + k * sp, R: mob ? 28 : 36, wrap: sp - 6 }));
+  if (n <= 1) return [{ x: LW / 2, R: mob ? 40 : 44, wrap: LW - 80, lo: 40, hi: LW - 40 }];
+  const m = pauseBox(), left = m.x + m.w + 8, right = LW - 8;
+  const R = n === 2 ? (mob ? 34 : 40) : (mob ? 28 : 36), want = n === 2 ? (mob ? 88 : 130) : (mob ? 115 : 180);
+  const sp = Math.min(want, (right - left - 2 * R) / 2), ks = n === 2 ? [-1, 1] : [-1, 0, 1];
+  const cx = Math.max(left + sp + R, Math.min(right - sp - R, LW / 2 + (n === 3 && mob ? 20 : 0)));
+  const xs = ks.map((k) => cx + k * sp);
+  return xs.map((x, i) => {
+    const lo = i === 0 ? 8 : (xs[i - 1] + x) / 2 + 4, hi = i === xs.length - 1 ? LW - 8 : (x + xs[i + 1]) / 2 - 4;
+    return { x, R, lo, hi, wrap: Math.min(n === 2 ? sp * 2 - 16 : sp - 6, hi - lo) };
+  });
 }
 const shapes = new Map();
 function molecule3d(key) {
@@ -704,7 +716,8 @@ function fitScrim() {
   scrim.stops = [[0, 0.92], [end * 0.55, 0.78], [end, 0]];
   if (REACTOR) {   // the Reactor's goals keep a darker band: dark down past their names, gone 90px below (owner, 2026-10-03)
     const nm = LEGEND.top + GOAL_Y + 44;
-    scrim.stops = [[0, 0.94], [(nm + 14) / LH, 0.86], [(nm + 50) / LH, 0.42], [(nm + 90) / LH, 0]];
+    const tail = Math.min(90, LH * 0.12);     // a short window keeps more of its height clear
+    scrim.stops = [[0, 0.94], [(nm + 14) / LH, 0.86], [(nm + 14 + tail * 0.4) / LH, 0.42], [(nm + 14 + tail) / LH, 0]];
   }
   // the Reactor's agents sit at the foot: the space darkens again from under the sphere, so what floats there goes
   // quiet behind them instead of running into them (owner, 2026-10-03). The agents are drawn after it.
@@ -727,6 +740,14 @@ const RX = REACTOR && window.ReactorScene ? window.ReactorScene({
     AdditiveBlending, BackSide, DoubleSide, PMREMGenerator, Scene },
   scene, cam, renderer, U, ART, rOf, ballMat, stickMat, letterMat, letterBase, cached, DOT, MODE, REDUCED, Y_UP, SND,
   clock: () => clock(), frame: () => ({ LW, LH }), shade: (y) => (menu || map || COVER ? 0 : shadeAt(y)),
+  // where the goals' names end (two lines when there are several goals, which may wrap)
+  goalsBottom: (targets) => {
+    const n = Math.max(1, targets.length), lay = goalLayout(n);
+    ctx.save(); ctx.font = '600 16px Inter, sans-serif';
+    const lines = Math.max(1, ...targets.map((t, i) => goalLines(t, lay[i].wrap, n).length));
+    ctx.restore();
+    return LEGEND.top + GOAL_Y + lay[0].R + 20 + 19 * (lines - 1) + 10;
+  },
   // where goal i's orb is, in the world, and its molecule landing there
   goalWorld: (i) => { const L = (legend.lay || goalLayout(1))[i] || goalLayout(1)[0]; return rayDir({ x: L.x, y: LEGEND.top + GOAL_Y }).multiplyScalar(14).add(cam.position); },
   hold: () => { legend.pending = Infinity; },
@@ -1680,11 +1701,13 @@ function fade(x, y, w, h, top) {
 }
 // A string that can grow is measured against its room, shortest form last (DESIGN-SYSTEM 10.3).
 function fitText(s, x, y, room) {
-  if (ctx.measureText(s).width <= room) { ctx.fillText(s, x, y); return; }
+  if (ctx.measureText(s).width <= room) { ctx.fillText(s, x, y); return { w: ctx.measureText(s).width, cut: false }; }
   // (centred or left-aligned alike: the text is cut, never the position)
   let t = s; while (t.length > 1 && ctx.measureText(t + '…').width > room) t = t.slice(0, -1);
   ctx.fillText(t + '…', x, y);
+  return { w: ctx.measureText(t + '…').width, cut: true };
 }
+let drawnNames = [];      // the goals' names as last drawn, for the window sweep (tools/litmus3d/sizes.mjs)
 
 // THE RESULT CARD, after the board has answered (DESIGN-SYSTEM 10.2): the rules modal's box.
 function drawCard(now) {
@@ -2076,6 +2099,8 @@ function goalLines(t, wrapW, n) {
   const lines = []; let cur = '';
   for (const wd of name.split(' ')) { const tr = cur ? cur + ' ' + wd : wd; if (!cur || ctx.measureText(tr).width <= wrapW) cur = tr; else { lines.push(cur); cur = wd; } }
   if (ctx.measureText(`${cur} ${tail}`).width <= wrapW) lines.push(`${cur} ${tail}`); else lines.push(cur, tail);
+  // the shorter form, when a word of the name will not fit its strip: the formula alone
+  if (lines.some((ln) => ctx.measureText(ln).width > wrapW)) return [`${formulaOf(t.key)}${t.n > 1 ? ` ×${t.n}` : ''}`];
   return lines;
 }
 function drawLegendLabel() {
@@ -2091,10 +2116,16 @@ function drawLegendLabel() {
     return;
   }
   const n = st.targets.length;
+  drawnNames = [];
   st.targets.forEach((t, i) => {
     const L = legend.lay[i], done = legend.mols[i] && legend.mols[i].done;
     ctx.fillStyle = done ? INK_DONE : TOK.text;
-    goalLines(t, L.wrap, n).forEach((ln, j) => fitText(ln, L.x, LEGEND.top + GOAL_Y + L.R + 20 + j * 19, L.wrap));
+    goalLines(t, L.wrap, n).forEach((ln, j) => {
+      // centred under its orb, slid inward only as far as its strip needs
+      const w = Math.min(ctx.measureText(ln).width, L.wrap), x = Math.max(L.lo + w / 2, Math.min(L.hi - w / 2, L.x));
+      const y = LEGEND.top + GOAL_Y + L.R + 20 + j * 19, f = fitText(ln, x, y, L.wrap);
+      drawnNames.push({ text: ln, x: x - f.w / 2, y: y - 10, w: f.w, h: 20, cut: f.cut, goal: i });
+    });
   });
   ctx.textAlign = 'left';
 }
@@ -2195,7 +2226,7 @@ function drawMap() {
       UI.roundRectPath(ctx, b.x + 0.5, b.y + 0.5, b.w - 1, b.h - 1, 14); ctx.stroke();
     }
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.font = '700 18px Inter, sans-serif'; ctx.fillStyle = open ? TOK.text : UI.PILL.textDim;
+    ctx.font = '700 18px Inter, sans-serif'; ctx.fillStyle = open ? TOK.text : 'rgba(255,255,255,0.6)';   // locked: dimmer, still AA
     ctx.fillText(String(n), b.x + b.w / 2, b.y + b.h / 2 + 1);
     map.cells.push(b);
   }
@@ -2467,6 +2498,35 @@ if (HARNESS) {
     },
     level: (n, variant) => { if (REACTOR) { startLevel(n); firstInput = true; return { level: levelNo }; } startLevel(n, variant); firstInput = true; pilot = null; pilotLast = -1; pilotDrifts = 0; bondLog.length = 0; return { level: levelNo, variant: placement.variant, score: placement.score }; },
     progress: () => JSON.parse(JSON.stringify(save)),
+    /* every word the 2D layer draws in the next frame, with its box (CSS pixels) and colour: for the contrast check on
+       the painted pixel (tools/litmus3d/contrast.mjs) */
+    texts: () => new Promise((done) => {
+      const out = [], draw = ctx.fillText, box = hud.getBoundingClientRect();     // in the page: the canvas sits below the header
+      let frames = 0;
+      ctx.fillText = function (t, x, y, ...rest) {
+        if (frames > 0) return draw.call(this, t, x, y, ...rest);     // one frame's words only
+        const m = this.getTransform(), w = this.measureText(String(t)).width, size = +((this.font.match(/(\d+(?:\.\d+)?)px/) || [])[1] || 16);
+        const al = this.textAlign, bl = this.textBaseline;
+        const x0 = al === 'center' ? x - w / 2 : al === 'right' || al === 'end' ? x - w : x;
+        const y0 = bl === 'middle' ? y - size * 0.5 : bl === 'top' ? y : bl === 'bottom' ? y - size : y - size * 0.78;
+        const sx = m.a / (hud.width / cssW), sy = m.d / (hud.height / cssH);
+        const yy = box.top + (m.f / (hud.height / cssH)) + y0 * sy, xx = box.left + (m.e / (hud.width / cssW)) + x0 * sx;
+        const shown = yy + size * sy > box.top && yy < box.bottom && xx + w * sx > box.left && xx < box.right;   // drawn outside the canvas: not seen
+        if (shown && String(t).trim()) out.push({ text: String(t), x: box.left + (m.e / (hud.width / cssW)) + x0 * sx, y: box.top + (m.f / (hud.height / cssH)) + y0 * sy, w: w * sx, h: size * sy, size: size * sy, color: String(this.fillStyle), alpha: this.globalAlpha, font: this.font });
+        return draw.call(this, t, x, y, ...rest);
+      };
+      requestAnimationFrame(() => { frames = 0; requestAnimationFrame(() => { frames = 1; requestAnimationFrame(() => { ctx.fillText = draw; done(out); }); }); });
+    }),
+    // a result card that is not a win, for the contrast check
+    failCard: (why) => { card = { kind: 'fail', why: why || null, showAt: 0, sounded: true, scroll: 0, tab: 0, electrons: false }; },
+    // where everything on the play screen is, in frame units, for the window sweep (tools/litmus3d/sizes.mjs)
+    geom: () => ({
+      LW, LH, cssW, cssH, winW: innerWidth, winH: innerHeight, mode: MODE, chapter: CHAPTER, level: levelNo,
+      pause: hits.pause || null,
+      goals: (legend.lay || []).map((L) => ({ x: L.x, y: LEGEND.top + GOAL_Y, R: L.R })),
+      names: drawnNames.slice(),
+      sphere: REACTOR ? RX.geom() : null,
+    }),
     daily: (day, variant) => { startDaily(variant, day); firstInput = true; pilot = null; pilotLast = -1; pilotDrifts = 0; bondLog.length = 0; return { level: levelNo, day, key: dailyKey(day), variant: placement.variant, score: placement.score }; },
     dailyInfo: () => ({ today: TODAY, keys: DAILY_KEYS.length, key: dailyKey(TODAY), on: dailyOn, done: dailyDone(), save: save.daily || null }),
     /* THE PILOT, for checks only. next() says what a player would do now: drag

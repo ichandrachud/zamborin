@@ -52,11 +52,15 @@ window.ReactorScene = function (host) {
   let SPH = V(0, -2.4, -D), SR = 2.15, AG = [], BAND = null;   // BAND: where the dark fade under the space starts, and where it is full (above the chances)
   function layout() {
     const { LW, LH } = host.frame(), mob = MODE === 'mobile';
-    // the sphere a little below the middle; its foot clear of the chances above the agents
-    const sy = mob ? LH * 0.6 : LH * 0.52, rpx = mob ? Math.min(LW * 0.31, LH * 0.155) : LH * 0.17;
-    SPH = local(LW / 2, sy, D); SR = pxAt(rpx, D);
-    const ay = LH - (mob ? 104 : 86), sp = Math.min(LW / 4.3, mob ? 92 : 128);
+    const ay = LH - (mob ? 104 : 86), sp = Math.min((LW - 16) / 4, mob ? 92 : 128);
     AG = [0, 1, 2, 3].map((i) => ({ x: LW / 2 + (i - 1.5) * sp, y: ay, r: mob ? 30 : 32 }));
+    /* the sphere a little below the middle, but always in the room between the goals' names and the chances above the
+       agents: in a short window (a portal's 800x450, a small phone) it shrinks and rises rather than sit on the chances */
+    const top = host.goalsBottom(S ? S.targets : []) + 14, bottom = ay - AG[0].r - 22 - 8 - 14;
+    let rpx = mob ? Math.min(LW * 0.31, LH * 0.155) : LH * 0.17;
+    rpx = Math.max(24, Math.min(rpx, (bottom - top) / 2));
+    const sy = Math.max(top + rpx, Math.min(mob ? LH * 0.6 : LH * 0.52, bottom - rpx));
+    SPH = local(LW / 2, sy, D); SR = pxAt(rpx, D);
     BAND = { top: sy + rpx, full: ay - AG[0].r - 32 };
     if (glass) placeGlass();
     agents.forEach((a, i) => placeAgent(a, i));
@@ -921,6 +925,16 @@ window.ReactorScene = function (host) {
      The agents' names under their orbs, the two chances above them, a floating molecule's formula under it, and
      during a reaction its equation in place of the goals' names (the agent never over the arrow: the player
      works it out). */
+  /* Each agent's name as lines: its name (two-word names wrap); and, if any two neighbours' names would meet (a 320-wide
+     phone), every catalyst by its symbol instead (Pt, Fe, Ni, V₂O₅, MnO₂): the shorter form, never a cut word. */
+  function agentNames(c) {
+    const sp = AG.length > 1 ? AG[1].x - AG[0].x : 999, wrapAt = MODE === 'mobile' ? 88 : 120;
+    const linesOf = (name) => { const w = name.split(' '); return c.measureText(name).width > wrapAt && w.length > 1 ? [w.slice(0, -1).join(' '), w[w.length - 1]] : [name]; };
+    const widest = (lines) => Math.max(...lines.map((l) => c.measureText(l).width));
+    const full = agents.map((a) => linesOf(X.AGENTS[a.name].short || X.AGENTS[a.name].name));
+    const clash = (L) => L.some((l, i) => i > 0 && (widest(L[i - 1]) + widest(l)) / 2 + 6 > sp);
+    return clash(full) ? agents.map((a, i) => (X.AGENTS[a.name].sym ? [X.AGENTS[a.name].sym] : full[i])) : full;
+  }
   function hud(ctx, TOK) {
     const { LW } = host.frame();
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -935,7 +949,8 @@ window.ReactorScene = function (host) {
       const ly = y + px + 14;
       if (x < -40 || x > LW + 40) continue;
       // under the dark fades at the top and the foot, the name goes as dark as its molecule
-      const a = 0.86 * (1 - Math.max(host.shade(y), host.shade(ly))); if (a < 0.03) continue;
+      // and once too faint to read (AA on the painted pixel, owner's rule), it is not drawn at all
+      const a = 0.86 * (1 - Math.max(host.shade(y), host.shade(ly))); if (a < 0.6) continue;
       const text = X.SPECIES[m.key].formula;
       if (d > far && Math.hypot(x - scx, y - scy) < sR) {
         // seen through the sphere's frosted back, the name blurs as its molecule does (a shadow cast from off the canvas)
@@ -943,12 +958,11 @@ window.ReactorScene = function (host) {
         ctx.fillStyle = '#fff'; ctx.fillText(text, x - 4000, ly); ctx.restore();
       } else { ctx.fillStyle = `rgba(255,255,255,${a.toFixed(3)})`; ctx.fillText(text, x, ly); }
     }
-    // the agents' names, wrapped to two lines where they must be
-    agents.forEach((a, i) => {
-      const p = AG[i]; if (!p) return;
-      const name = X.AGENTS[a.name].short || X.AGENTS[a.name].name, words = name.split(' ');
-      ctx.fillStyle = S.tried.has(a.name) ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.92)'; ctx.font = '600 16px Inter, sans-serif';
-      const lines = ctx.measureText(name).width > (MODE === 'mobile' ? 88 : 120) && words.length > 1 ? [words.slice(0, -1).join(' '), words[words.length - 1]] : [name];
+    // the agents' names, wrapped to two lines where they must be, or their symbols where neighbours would meet
+    ctx.font = '600 16px Inter, sans-serif';
+    agentNames(ctx).forEach((lines, i) => {
+      const p = AG[i], a = agents[i]; if (!p) return;
+      ctx.fillStyle = S.tried.has(a.name) ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.92)';     // tried: dimmer, still AA
       lines.forEach((ln, k) => ctx.fillText(ln, p.x, p.y + p.r + 16 + k * 19));
     });
     // two chances, as small orbs above the agents: a spent one goes dark
@@ -1051,6 +1065,18 @@ window.ReactorScene = function (host) {
   return {
     start, step, draw, hud, tap, pressWaiting, dropWaiting, dragWaiting, pilot, layout, equation: eqNow,
     band: () => { if (!BAND) layout(); return BAND; },
+    // the sphere, the agents with their names and the chances, on the screen (frame units): for the window sweep
+    geom: () => {
+      const { LH } = host.frame(), HALF = Math.tan(cam.fov * Math.PI / 360);
+      const sc = SPH.clone().applyQuaternion(rig.quaternion).add(rig.position), [x, y] = proj(sc), r = SR / (SPH.length() * HALF) * (LH / 2);
+      const c = document.createElement('canvas').getContext('2d'); c.font = '600 16px Inter, sans-serif';
+      const names = agentNames(c);
+      const ags = agents.map((a, i) => {
+        const p = AG[i];
+        return { x: p.x, y: p.y, r: p.r, lines: names[i].map((ln, k) => ({ text: ln, w: c.measureText(ln).width, y: p.y + p.r + 16 + k * 19 })) };
+      });
+      return { x, y, r, agents: ags, chancesY: AG[0] ? AG[0].y - AG[0].r - 22 : 0 };
+    },
     // the frame changed size (full screen, or a phone turned): everything that rides with you moves to its new place
     relayout: () => {
       layout();

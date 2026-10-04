@@ -48,6 +48,13 @@ const FRAMES = [
   { name: 'phone-390x844', w: 390, h: 844, mobile: true },
   { name: 'phone-375x667', w: 375, h: 667, mobile: true },
   { name: 'desktop', w: 1280, h: 800, mobile: false },
+  // --frames=all: the narrowest phone, a portal's touch window, a small window and a big embed (sizes.mjs's tightest)
+  ...(opt.frames === 'all' ? [
+    { name: 'phone-320x568', w: 320, h: 568, mobile: true },
+    { name: 'touch-800x450', w: 800, h: 450, mobile: true },
+    { name: 'small-480x360', w: 480, h: 360, mobile: false },
+    { name: 'embed-1920x1080', w: 1920, h: 1080, mobile: false, embed: true },
+  ] : []),
 ];
 const fails = [], rows = [];
 async function run() {
@@ -63,7 +70,7 @@ async function run() {
     await S('Page.enable'); await S('Runtime.enable');
     await S('Emulation.setDeviceMetricsOverride', { width: F.w, height: F.h, deviceScaleFactor: 2, mobile: F.mobile });
     await S('Emulation.setTouchEmulationEnabled', { enabled: F.mobile, maxTouchPoints: F.mobile ? 5 : 1 });
-    await S('Page.navigate', { url: `http://localhost:${PORT}/litmus3d/?harness=1${RX ? '&chapter=' + RX : ''}#level-1` });
+    await S('Page.navigate', { url: `http://localhost:${PORT}/litmus3d/?harness=1${F.embed ? '&embed=1' : ''}${RX ? '&chapter=' + RX : ''}#level-1` });
     await sleep(5000);
     const ev = async (expr) => { const r = await S('Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true }); if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description || r.exceptionDetails.text); return r.result.value; };
     const frames = '(new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))))';
