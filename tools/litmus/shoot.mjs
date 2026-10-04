@@ -27,7 +27,7 @@ const shots = JSON.parse(shotsJson);
 mkdirSync(outDir, { recursive: true });
 const PORT = 9400 + Math.floor(Math.random() * 400);
 const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', [
-  '--headless=new', '--mute-audio', `--remote-debugging-port=${PORT}`, `--user-data-dir=${outDir}/.profile-${PORT}`,
+  '--headless=new', '--mute-audio', '--disable-audio-output', `--remote-debugging-port=${PORT}`, `--user-data-dir=${outDir}/.profile-${PORT}`,
   '--no-first-run', '--no-default-browser-check', '--ignore-gpu-blocklist', '--enable-unsafe-swiftshader',
   '--autoplay-policy=no-user-gesture-required', 'about:blank',
 ], { stdio: 'ignore' });

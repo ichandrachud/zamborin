@@ -43,7 +43,7 @@ const profile = `/tmp/litmus3d-levels-${PORT}`;
 mkdirSync(profile, { recursive: true });
 const DEBUG = 9300 + Math.floor(Math.random() * 300);
 const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', [
-  '--headless=new', '--mute-audio', `--remote-debugging-port=${DEBUG}`, `--user-data-dir=${profile}`, '--no-first-run',
+  '--headless=new', '--mute-audio', '--disable-audio-output', `--remote-debugging-port=${DEBUG}`, `--user-data-dir=${profile}`, '--no-first-run',
   '--ignore-gpu-blocklist', '--enable-unsafe-swiftshader', '--disable-background-timer-throttling',
   '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows', 'about:blank',
 ], { stdio: 'ignore' });
