@@ -698,46 +698,62 @@ function fitLegend() {
   legend.lay = lay;
 }
 
-/* THE FADES: soft dark pools behind what is drawn over the space, and nowhere else (owner, 2026-10-04: the gradient
+/* THE FADES: soft pools behind what is drawn over the space, and nowhere else (owner, 2026-10-04: the gradient
    "only in the shaded area"): the menu button, each goal with its name (or the equation in their place during a
-   reaction), and the row of agents with their chances. Each pool is an oval round its box, dark through the middle and
-   fading to nothing at its rim, so no straight side shows; where two meet, the darker wins. A molecule drifting under one goes quiet there instead of crowding what is written over
-   it. Drawn between the world and the goals. */
-const scrim = { s: new Scene(), c: new PerspectiveCamera(6, 1, 1, 100000), mesh: null, cv: null, tex: null, boxes: [], key: '' };
-const POOL_SOFT = 80, POOL_CORE = 0.7;   // frame units past the box to the oval's rim; how far out it stays fully dark
+   reaction), and the row of agents with their chances. Each is an oval round its box, full through the middle and
+   fading to nothing at its rim; where two meet, the stronger wins. A pool is the space itself, not a dark patch (owner:
+   "the mask in the same colour as the background"): the space's own sphere drawn again over the world, as much as the
+   pool is strong, so a molecule drifting behind a goal fades into the space instead of crowding its name. Drawn
+   between the world and the goals. */
+const scrim = { s: new Scene(), mesh: null, cv: null, tex: null, boxes: [], key: '', uni: { poolMap: { value: null }, poolRes: { value: new Vector2(1, 1) } } };
+{
+  const m = new MeshBasicMaterial({ map: voidTex, side: BackSide, transparent: true, depthTest: false, depthWrite: false, toneMapped: false });
+  // as the space is drawn, each pixel keeps only as much of it as the pool is strong there (the pools' map, screen-wide)
+  m.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, scrim.uni);
+    sh.fragmentShader = 'uniform sampler2D poolMap;\nuniform vec2 poolRes;\n' + sh.fragmentShader.replace('#include <opaque_fragment>',
+      '#include <opaque_fragment>\n\tgl_FragColor.a *= texture2D(poolMap, gl_FragCoord.xy / poolRes).a;');
+  };
+  scrim.mesh = new Mesh(dome.geometry, m); scrim.mesh.rotation.copy(dome.rotation); scrim.s.add(scrim.mesh);
+}
+const POOL_FEATHER = 130;                // frame units from the oval round a box, where the pool is full, to where it has gone
+const POOL_UNDER = 60;                   // under the goals the fade is short: the atoms in play below them stay in sight
 let drawnEq = null;                       // the equation's box as last drawn
 function poolBoxes() {
-  const out = [{ ...pauseBox(), a: 0.85 }];
+  const out = [{ ...pauseBox(), a: 0.85, down: POOL_UNDER }];
   (legend.lay || []).forEach((L, i) => {
     const cy = LEGEND.top + GOAL_Y;
     let x0 = L.x - L.R, x1 = L.x + L.R, y1 = cy + L.R;
     for (const n of drawnNames) if (n.goal === i) { x0 = Math.min(x0, n.x); x1 = Math.max(x1, n.x + n.w); y1 = Math.max(y1, n.y + n.h); }
-    out.push({ x: x0, y: cy - L.R, w: x1 - x0, h: y1 - cy + L.R, a: 0.9 });
+    out.push({ x: x0, y: cy - L.R, w: x1 - x0, h: y1 - cy + L.R, a: 0.9, down: POOL_UNDER });
   });
-  if (drawnEq) out.push({ ...drawnEq, a: 0.9 });
+  if (drawnEq) out.push({ ...drawnEq, a: 0.9, down: POOL_UNDER });
   const band = RX && RX.band();
-  if (band) out.push({ x: band.left, y: band.full, w: band.right - band.left, h: LH - band.full, a: 0.9, lid: band.top - 12 });   // it stops under the sphere
+  // the agents' fade stops under the sphere (at least 30 to fade in)
+  if (band) out.push({ x: band.left, y: band.full, w: band.right - band.left, h: LH - band.full, a: 0.9, up: Math.max(30, Math.min(POOL_FEATHER, band.full - band.top + 6)) });
   return out;
 }
 function poolAt(x, y, boxes) {
   let m = 0;
   for (const b of boxes) {
-    const rx = b.w * 0.575 + POOL_SOFT, ry = Math.min(b.h * 0.575 + POOL_SOFT, b.lid != null ? b.y + b.h / 2 - b.lid : Infinity);
-    const r = Math.hypot((x - b.x - b.w / 2) / rx, (y - b.y - b.h / 2) / ry), t = Math.max(0, (r - POOL_CORE) / (1 - POOL_CORE));
-    if (t < 1) m = Math.max(m, b.a * (1 - t * t * (3 - 2 * t)));
+    // full inside an oval just round the box, gone at an oval POOL_FEATHER further out (less above or below where the
+    // box says so), the step between them eased at both ends so no rim shows
+    const dx = x - b.x - b.w / 2, dy = y - b.y - b.h / 2;
+    const ix = b.w * 0.6 + 8, iy = b.h / 2 + 6, ox = ix + POOL_FEATHER, oy = iy + ((dy < 0 ? b.up : b.down) ?? POOL_FEATHER);
+    const rin = Math.hypot(dx / ix, dy / iy), rout = Math.hypot(dx / ox, dy / oy);
+    if (rout >= 1) continue;
+    const t = rin <= 1 ? 0 : (1 - 1 / rin) / (1 / rout - 1 / rin);
+    m = Math.max(m, b.a * (1 - t * t * t * (t * (6 * t - 15) + 10)));
   }
   return m;
 }
-// how dark the fade is at (x, y) of the frame (0 to 1): names drawn over the space go as dark as what they name
+// how strong the pools are at (x, y) of the frame (0 to 1): names drawn over the space fade as what they name
 function shadeAt(x, y) { return poolAt(x, y, scrim.boxes); }
 function fitScrim() {
-  const D = (cssH / 2) / Math.tan(3 * Math.PI / 180);
-  scrim.c.aspect = cssW / Math.max(1, cssH); scrim.c.position.set(0, 0, D); scrim.c.lookAt(0, 0, 0); scrim.c.updateProjectionMatrix();
-  if (scrim.mesh) { scrim.s.remove(scrim.mesh); scrim.tex.dispose(); scrim.mesh.material.dispose(); scrim.mesh.geometry.dispose(); }
+  if (scrim.tex) scrim.tex.dispose();
   scrim.tex = canvasTex(Math.ceil(LW / 4), Math.ceil(LH / 4), () => {});   // a quarter of the frame: the pools are soft
   scrim.cv = scrim.tex.image; scrim.key = '';
-  scrim.mesh = new Mesh(new PlaneGeometry(cssW, cssH), new MeshBasicMaterial({ map: scrim.tex, transparent: true, depthTest: false, depthWrite: false, toneMapped: false }));
-  scrim.s.add(scrim.mesh);
+  scrim.uni.poolMap.value = scrim.tex; renderer.getDrawingBufferSize(scrim.uni.poolRes.value);
 }
 // each frame: repaint the pools only when what they sit behind has moved (a new level, a resize, the equation)
 function updateScrim() {
@@ -747,7 +763,7 @@ function updateScrim() {
   const g = scrim.cv.getContext('2d'), W = scrim.cv.width, H = scrim.cv.height, img = g.createImageData(W, H), d = img.data;
   for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
     const o = (j * W + i) * 4;
-    d[o] = 2; d[o + 1] = 4; d[o + 2] = 10; d[o + 3] = Math.round(255 * poolAt((i + 0.5) / W * LW, (j + 0.5) / H * LH, boxes));
+    d[o] = d[o + 1] = d[o + 2] = 255; d[o + 3] = Math.round(255 * poolAt((i + 0.5) / W * LW, (j + 0.5) / H * LH, boxes));
   }
   g.putImageData(img, 0, 0); scrim.tex.needsUpdate = true;
 }
@@ -2469,7 +2485,7 @@ function frame() {
   renderer.setViewport(0, 0, cssW, cssH); renderer.setScissorTest(false);
   renderer.clear();
   renderer.render(scene, cam);
-  if (!menu && !map && !COVER) { updateScrim(); renderer.clearDepth(); renderer.render(scrim.s, scrim.c); }
+  if (!menu && !map && !COVER) { updateScrim(); renderer.render(scrim.s, cam); }
   if (REACTOR) { cam.layers.set(1); renderer.render(scene, cam); cam.layers.set(0); }   // the agents, over the fade
   // the target, over the top of the frame
   if (!menu && !map && !COVER && !(card && now >= card.showAt)) {
