@@ -9,7 +9,7 @@
 //   - the agents and their names do not meet.
 // Every level of each chapter at the three tightest windows; a spread of levels at the rest.
 // usage: node tools/litmus/sizes.mjs [quick]     Serves the repo for the length of the run.
-import { spawn } from 'node:child_process';
+import { launch } from '../chrome.mjs';
 import { createServer } from 'node:http';
 import { readFileSync, existsSync, mkdirSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -28,7 +28,7 @@ const server = createServer((req, res) => {
 const profile = `/tmp/litmus3d-sizes-${PORT}`;
 mkdirSync(profile, { recursive: true });
 const DEBUG = 9300 + Math.floor(Math.random() * 300);
-const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', [
+const chrome = launch([
   '--headless=new', '--mute-audio', '--disable-audio-output', `--remote-debugging-port=${DEBUG}`, `--user-data-dir=${profile}`, '--no-first-run',
   '--ignore-gpu-blocklist', '--enable-unsafe-swiftshader', 'about:blank',
 ], { stdio: 'ignore' });

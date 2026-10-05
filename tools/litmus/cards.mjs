@@ -8,7 +8,7 @@
 // The Reactor's "What just happened" cards are measured for each level's reactions as the shortest way takes them,
 // one tab for each.
 // Serves the repo for the length of the run.
-import { spawn } from 'node:child_process';
+import { launch } from '../chrome.mjs';
 import { createServer } from 'node:http';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -32,7 +32,7 @@ const server = createServer((req, res) => {
 const profile = `/tmp/litmus3d-cards-${PORT}`;
 mkdirSync(profile, { recursive: true });
 const DEBUG = 9300 + Math.floor(Math.random() * 300);
-const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', [
+const chrome = launch([
   '--headless=new', '--mute-audio', '--disable-audio-output', `--remote-debugging-port=${DEBUG}`, `--user-data-dir=${profile}`, '--no-first-run',
   '--ignore-gpu-blocklist', '--enable-unsafe-swiftshader', 'about:blank',
 ], { stdio: 'ignore' });

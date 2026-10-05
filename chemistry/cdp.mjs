@@ -2,21 +2,20 @@
    for the harnesses beside this file. Instruments, not the site: .mjs is not
    served by the deployment.
 
-   Needs Google Chrome in /Applications and the game on a local server:
+   Needs chrome-headless-shell (see tools/chrome.mjs) and the game on a local server:
    CHEM_BASE defaults to the chemistry worktree's preview port. */
-import { spawn } from 'child_process';
 import fs from 'fs';
+import { launch } from '../tools/chrome.mjs';
 
 export const BASE = process.env.CHEM_BASE || 'http://localhost:5291/chemistry/';
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 
 /* Open a page at a size. Resolves to { send, ev, toPage, errors, navigate, close }.
    mobile: true emulates a touch phone, so (pointer: coarse) matches. */
 export async function openPage({ w, h, dpr = 1, mobile = false, url, settle = 3400 }) {
   const port = 9300 + Math.floor(Math.random() * 600);
   const dir = `/tmp/chem-cdp-${port}`;
-  const chrome = spawn(CHROME, ['--headless=new', `--remote-debugging-port=${port}`, '--no-first-run',
+  const chrome = launch(['--headless=new', `--remote-debugging-port=${port}`, '--no-first-run',
     '--no-default-browser-check', `--user-data-dir=${dir}`, '--hide-scrollbars', '--mute-audio', 'about:blank'],
     { stdio: 'ignore' });
   const kill = () => { chrome.kill('SIGKILL'); try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) {} };

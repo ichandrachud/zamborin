@@ -15,7 +15,7 @@
 // The Reactor (--chapter=reactor) has no placements to try: one try a level, and --write is ignored.
 // Serves the repo for the length of the run. Writes litmus/places.js only
 // with --write.
-import { spawn } from 'node:child_process';
+import { launch } from '../chrome.mjs';
 import { createServer } from 'node:http';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -42,7 +42,7 @@ const server = createServer((req, res) => {
 const profile = `/tmp/litmus3d-levels-${PORT}`;
 mkdirSync(profile, { recursive: true });
 const DEBUG = 9300 + Math.floor(Math.random() * 300);
-const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', [
+const chrome = launch([
   '--headless=new', '--mute-audio', '--disable-audio-output', `--remote-debugging-port=${DEBUG}`, `--user-data-dir=${profile}`, '--no-first-run',
   '--ignore-gpu-blocklist', '--enable-unsafe-swiftshader', '--disable-background-timer-throttling',
   '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows', 'about:blank',

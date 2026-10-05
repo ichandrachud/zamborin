@@ -1,6 +1,7 @@
 # Marble's measuring tools
 
-Instruments, not the site (`/tools/` is in `.vercelignore`). They run headless Chrome against the repo folder served for
+Instruments, not the site (`/tools/` is in `.vercelignore`). They run headless Chrome (Playwright's chrome-headless-shell
+through `tools/chrome.mjs`, never the owner's own Chrome: see that file) against the repo folder served for
 the length of a run (`shoot.mjs`, `SERVE_DIR`/`SERVE_PORT`), and read the game through `?harness=1` (`window.__marble`).
 
 - `pilot.js` (+ `pzsolve.js`): the level autopilot. `__pilot.fast(n)` steps the game by hand; `__pilot.live(n)` drives

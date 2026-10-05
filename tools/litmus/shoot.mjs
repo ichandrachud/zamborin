@@ -4,7 +4,7 @@
 // expression giving a point in the frame's units and presses it through real
 // touch (or mouse) events, held for `ms` (a hold is a drift).
 // usage: node shoot.mjs <outdir> <json list of shots>
-import { spawn } from 'node:child_process';
+import { launch } from '../chrome.mjs';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
 
@@ -26,7 +26,7 @@ if (process.env.SERVE_DIR) {
 const shots = JSON.parse(shotsJson);
 mkdirSync(outDir, { recursive: true });
 const PORT = 9400 + Math.floor(Math.random() * 400);
-const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', [
+const chrome = launch([
   '--headless=new', '--mute-audio', '--disable-audio-output', `--remote-debugging-port=${PORT}`, `--user-data-dir=${outDir}/.profile-${PORT}`,
   '--no-first-run', '--no-default-browser-check', '--ignore-gpu-blocklist', '--enable-unsafe-swiftshader',
   '--autoplay-policy=no-user-gesture-required', 'about:blank',
