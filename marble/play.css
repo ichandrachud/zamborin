@@ -105,3 +105,9 @@ body.mode-desktop .splash-load { left: auto; right: 18px; bottom: 16px; transfor
   transform-origin: left center; transform: scaleX(var(--load, 0.06));
   transition: transform var(--load-t, 6s) cubic-bezier(0.2, 0.7, 0.3, 1);
 }
+
+/* The App Store badge under the opening paragraph: Apple's artwork as supplied, 50 high (Apple's minimum is 40),
+   with more than a quarter of its height clear on every side. */
+.app-badge { display: flex; align-items: center; flex-wrap: wrap; gap: 14px 18px; margin: 22px 0 6px; }
+.app-badge a { display: block; padding: 0; line-height: 0; }
+.app-badge img { display: block; width: 150px; height: 50px; }
