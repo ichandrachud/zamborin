@@ -8536,7 +8536,24 @@ function setWorld(name) {
     if (world.rings) tintRings(world.rings[0], world.rings[1]);
   }
   fitBackground();
+  warmShaders();
   return world.name;
+}
+
+/* Every material the world will show, built as soon as it is set. three.js builds
+   a material's shader the first time it is drawn, and on an iPhone the city's
+   shiny one took a second or two, a few seconds into the title screen, when its
+   first piece came into view (owner, 2026-10-28: "freezes for a couple of
+   seconds", in the app and on the site alike). compileAsync builds them all now,
+   off the page's thread where the browser can, and the world holds still until
+   they are done: at the start the cover is still up, so nothing is seen to stop. */
+let warming = 0;
+function warmShaders() {
+  if (!renderer) return;
+  const n = ++warming;
+  const done = () => { if (warming === n) warming = 0; };
+  renderer.compileAsync(scene, camera).catch(() => {}).then(done);
+  setTimeout(done, 8000);                                // a lost GPU context never answers: never hold the game for it
 }
 
 // ---- 1. Sunny hills: a bright sky, a sparkling sea far below, islands with palms and a waterfall ----
@@ -26904,6 +26921,7 @@ function adaptQuality(dt) {
 }
 function frame(now) {
   requestAnimationFrame(frame);
+  if (warming) { last = now; return; }                 // the world's shaders are still being built
   const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
   if (now - last < 250) frameMs += ((now - last) - frameMs) * 0.05;   // a hidden tab's long gap is not a slow frame
   last = now; frames++;
