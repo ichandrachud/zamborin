@@ -613,7 +613,10 @@
     if (k < 0) return;
     try { canvas.setPointerCapture?.(e.pointerId); } catch (err) { /* pointer already gone */ }
     const pk = linkOf[k];
-    drag = { k, p: pk, prev: Math.atan2(dy, dx), start: visAng[k], startP: pk >= 0 ? visAng[pk] : 0, moved: false };
+    // start is where the ring is HEADING, always an exact sector; vis0 is where it is drawn. A tap that lands while
+    // an earlier tap is still turning the ring used to rewind to the half-turned angle and nudge from there,
+    // leaving the ring between sectors with nothing downstream lit (three quick taps broke the board).
+    drag = { k, p: pk, prev: Math.atan2(dy, dx), start: targAng[k], startP: pk >= 0 ? targAng[pk] : 0, vis0: visAng[k], moved: false };
     hoverRing = k;
     ensureAnim();
   }
@@ -631,7 +634,7 @@
     const k = drag.k, p = linkOf[k];
     visAng[k] += d; targAng[k] = visAng[k];
     if (p >= 0) { visAng[p] -= d; targAng[p] = visAng[p]; }   // drag one, watch its partner counter-turn
-    if (Math.abs(visAng[k] - drag.start) > STEP * 0.28) drag.moved = true;
+    if (Math.abs(visAng[k] - drag.vis0) > STEP * 0.28) drag.moved = true;
     // tick() also does this, but recompute here so a drag still gives feedback
     // if rAF is being throttled (embedded webviews, background tabs).
     const now = performance.now();
@@ -652,8 +655,8 @@
       if (p >= 0) targAng[p] = Math.round(visAng[p] / STEP) * STEP;
       if (d) { moves += Math.abs(d); history.push({ k, d }); }
     } else {
-      visAng[k] = start; targAng[k] = start;           // rewind
-      if (p >= 0) { visAng[p] = startP; targAng[p] = startP; }
+      targAng[k] = start;                              // rewind to the sector it was heading for; tick() eases it there
+      if (p >= 0) targAng[p] = startP;
       if (commit) applyDelta(k, 1, true);              // a tap: nudge one step clockwise
     }
     // Touch has no hover, so nothing would ever clear the highlight and the band
@@ -1231,7 +1234,7 @@
     get state() {
       const [w, t] = bulbCount();
       return {
-        level, S, m: M, P, K, rings: off.slice(), moves, phase, lit: w, bulbsTotal: t, par, award,
+        level, S, m: M, P, K, rings: off.slice(), aligned: alignOK.every(Boolean), geom: { CX, CY, LW, LH, ringR: ringR.slice() }, moves, phase, lit: w, bulbsTotal: t, par, award,
         score: { total: score.total, cleared: score.cleared, best: score.best },
         litNodes: nodeLit.reduce((a, r) => a + r.reduce((x, v) => x + (v ? 1 : 0), 0), 0),
         hubSpokes: hubSpk.reduce((a, b) => a + b, 0), arcCount: arcs.map(r => r.reduce((a, b) => a + b, 0)),
