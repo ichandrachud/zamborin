@@ -135,10 +135,19 @@ const VOICE = {
     this.ctx = ctx;
 
     // a long noise buffer, looped — the air
+    // PINK, not white (owner, 2026-10-30: "I was never a fan of the sounds"). White noise has as much energy in
+    // every octave's top as its bottom and through any filter it still reads as static; pink falls 3 dB an octave,
+    // which is how wind actually sounds. Paul Kellet's filter, the standard way to make it.
     const len = Math.floor(ctx.sampleRate * 2);
     const buf = ctx.createBuffer(1, len, ctx.sampleRate);
     const d = buf.getChannelData(0);
-    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+    for (let i = 0; i < len; i++) {
+      const w = Math.random() * 2 - 1;
+      b0 = 0.99886 * b0 + w * 0.0555179; b1 = 0.99332 * b1 + w * 0.0750759; b2 = 0.96900 * b2 + w * 0.1538520;
+      b3 = 0.86650 * b3 + w * 0.3104856; b4 = 0.55000 * b4 + w * 0.5329522; b5 = -0.7616 * b5 - w * 0.0168980;
+      d[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + w * 0.5362) * 0.11; b6 = w * 0.115926;
+    }
     const src = ctx.createBufferSource();
     src.buffer = buf; src.loop = true;
     // LOWPASS, not bandpass. A band centred at 700 keeps the noise energy in
@@ -196,6 +205,26 @@ const VOICE = {
     bsrc.start(0);
     this.bedGain = bg2;
 
+    // THE PROPELLER. The six aeroplanes spin their propellers in flight now, so the air carries a soft toy-engine
+    // hum: a low sawtooth, rounded off by a lowpass, pulsed at the blades' rate so it purrs rather than drones.
+    const po = ctx.createOscillator(); po.type = 'sawtooth'; po.frequency.value = 40;
+    const pf = ctx.createBiquadFilter(); pf.type = 'lowpass'; pf.frequency.value = 340; pf.Q.value = 0.7;
+    const pam = ctx.createGain(); pam.gain.value = 0.6;
+    const plfo = ctx.createOscillator(); plfo.frequency.value = 22; const pdep = ctx.createGain(); pdep.gain.value = 0.4;
+    plfo.connect(pdep); pdep.connect(pam.gain);
+    const pg = ctx.createGain(); pg.gain.value = 0;
+    po.connect(pf); pf.connect(pam); pam.connect(pg); pg.connect(SFX.out() || ctx.destination); po.start(0); plfo.start(0);
+    this.propOsc = po; this.propLfo = plfo; this.propGain = pg; this.propFilt = pf;
+
+    // THE WHEELS ON GRASS, from touchdown until it stops: low pink noise that slows and darkens with the aeroplane,
+    // with the small unevenness of a field in it. This is the landing now, instead of a single thump.
+    const rsrc = ctx.createBufferSource(); rsrc.buffer = buf; rsrc.loop = true; rsrc.playbackRate.value = 0.7;
+    const rf = ctx.createBiquadFilter(); rf.type = 'lowpass'; rf.frequency.value = 400; rf.Q.value = 0.5;
+    const rg = ctx.createGain(); rg.gain.value = 0;
+    rsrc.connect(rf); rf.connect(rg); rg.connect(SFX.out() || ctx.destination); rsrc.start(0);
+    this.rollGain = rg; this.rollFilt = rf;
+    this.pink = buf;
+
     this.ready = true;
   },
 
@@ -208,10 +237,19 @@ const VOICE = {
     node.linearRampToValueAtTime(v, now + (t || 0.06));
   },
 
-  flight(speed, alt) {
+  flight(speed, alt, ground) {
     if (!this.ready) return;
     const on = SFX.isOn();
     const s = Math.max(0, Math.min(1, speed / 60));
+    // the propeller: it hums with the airspeed, and swells for a moment after a boost
+    const now = this.ctx.currentTime, surge = Math.max(0, (this.boostUntil || 0) - now) / 1.6;
+    this.set(this.propGain.gain, on && !ground ? 0.010 + 0.014 * s + 0.05 * surge : (on && ground ? 0.006 * s : 0), 0.12);
+    this.set(this.propOsc.frequency, 30 + 34 * s + 38 * surge, 0.12);
+    this.set(this.propLfo.frequency, 14 + 26 * s + 20 * surge, 0.12);
+    // the wheels, only while they are on the grass; a little uneven, as a field is
+    const r = Math.max(0, Math.min(1, speed / 26));
+    this.set(this.rollGain.gain, on && ground ? (0.030 + 0.055 * r) * (0.85 + Math.random() * 0.3) : 0, ground ? 0.08 : 0.15);
+    this.set(this.rollFilt.frequency, 160 + 520 * r, 0.1);
     // Cut back after the master gain went to 2.4: at the old coefficients the
     // rush peaked at 0.25 into the limiter and was the loudest sustained thing
     // in the game by a distance, which is what made it harsh rather than fast.
@@ -246,6 +284,61 @@ const VOICE = {
     this.set(this.rushGain.gain, 0, 0.25);
     this.set(this.bodyGain.gain, 0, 0.25);
     this.set(this.stretchGain.gain, 0, 0.08);
+    if (this.propGain) this.set(this.propGain.gain, 0, 0.6);
+    if (this.rollGain) this.set(this.rollGain.gain, 0, 0.5);
+  },
+
+  // ---- one-shots, made here so they belong with the held voices (owner, 2026-10-30) ----
+  // A note shaped like a struck thing: a quick attack and a long exponential fall, never a step.
+  note(freq, at, dur, gain, type, attack, to) {
+    const c = this.ctx, o = c.createOscillator(), g = c.createGain();
+    o.type = type || 'sine'; o.frequency.setValueAtTime(freq, at);
+    if (to) o.frequency.exponentialRampToValueAtTime(to, at + dur * 0.8);
+    g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(gain, at + (attack || 0.008));
+    g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+    o.connect(g); g.connect(SFX.out() || c.destination); o.start(at); o.stop(at + dur + 0.05);
+  },
+  air(at, dur, gain, f0, f1, q) {
+    const c = this.ctx, src = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
+    src.buffer = this.pink; f.type = 'bandpass'; f.Q.value = q || 0.7;
+    f.frequency.setValueAtTime(f0, at); f.frequency.exponentialRampToValueAtTime(f1, at + dur);
+    g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(gain, at + dur * 0.3);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+    src.connect(f); f.connect(g); g.connect(SFX.out() || c.destination); src.start(at, Math.random()); src.stop(at + dur + 0.05);
+  },
+  // The band letting go: a deep rubber thwum, and the aeroplane's rush away.
+  thwum(pull) {
+    if (!this.ready || !SFX.isOn()) return;
+    const t = this.ctx.currentTime;
+    this.note(150 + 60 * pull, t, 0.34, 0.16 + 0.06 * pull, 'sine', 0.005, 48);
+    this.note(300 + 120 * pull, t, 0.12, 0.03, 'triangle', 0.003, 120);
+    this.air(t + 0.02, 0.5, 0.10 + 0.05 * pull, 450, 1500, 0.6);
+  },
+  // Touchdown: the tyres kissing the grass, twice and softly. The rolling that follows is the held voice above.
+  kiss(speed) {
+    if (!this.ready || !SFX.isOn()) return;
+    const t = this.ctx.currentTime, s = Math.max(0.3, Math.min(1, speed / 35));
+    this.note(78, t, 0.22, 0.05 * s, 'sine', 0.018);
+    this.air(t, 0.18, 0.04 * s, 380, 220, 0.8);
+    this.note(84, t + 0.11, 0.18, 0.03 * s, 'sine', 0.02);
+  },
+  // A boost: the engine opens up for a moment.
+  boost() {
+    if (!this.ready || !SFX.isOn()) return;
+    const t = this.ctx.currentTime; this.boostUntil = t + 1.6;
+    this.air(t, 0.7, 0.07, 700, 1600, 0.5);
+  },
+  // The flight is over: a warm bell, three rising notes for a new best and one gentle one otherwise.
+  chime(best) {
+    if (!this.ready || !SFX.isOn()) return;
+    const t = this.ctx.currentTime + 0.05;
+    const notes = best ? [523.25, 659.25, 783.99] : [587.33];
+    notes.forEach((f, i) => {
+      const at = t + i * 0.13;
+      this.note(f, at, 1.6, 0.05, 'sine', 0.012);
+      this.note(f * 2, at, 0.9, 0.012, 'sine', 0.01);
+      this.note(f * 2.76, at, 0.5, 0.005, 'sine', 0.006);
+    });
   },
 
   // Called every frame. A bed held at one level reads as hiss rather than
@@ -313,19 +406,11 @@ window.addEventListener('gd-resume', () => VOICE.adResume());
 
 // The snap: the band letting go, then the airframe leaving the arm. Two events
 // a few milliseconds apart, because a single burst reads as a click, not a snap.
-function snapSound(pull) {
-  if (!SFX.isOn()) return;
-  SFX.noise(0.055, 1500 + 900 * pull, 1.1, 0.16 + 0.10 * pull);
-  SFX.tone(190 - 50 * pull, 0.11, 0.10, 'square');
-  setTimeout(() => SFX.noise(0.20, 520, 0.8, 0.07 + 0.05 * pull), 35);
-}
-// Touchdown: one thump for the undercarriage, then grass under the wheels.
-function touchSound(speed) {
-  if (!SFX.isOn()) return;
-  const s = Math.max(0, Math.min(1, speed / 40));
-  SFX.tone(105, 0.16, 0.09 + 0.05 * s, 'sine');
-  SFX.noise(0.34, 300, 0.6, 0.05 + 0.06 * s);
-}
+// (2026-10-30: the snap was a square-wave click and a hiss; now VOICE.thwum, a rubber band and a rush of air.)
+function snapSound(pull) { VOICE.thwum(pull); }
+// Touchdown. The owner (2026-10-30): "it sounds like a tin can has crashed on a pavement. It is not the sound of a
+// plane gracefully landing." Now a soft tyre kiss, and the grass rolling under the wheels until it stops.
+function touchSound(speed) { VOICE.kiss(speed); }
 const KEY = 'zamborin.tailwind.bests';
 function loadBests() {
   try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { return {}; }
@@ -637,7 +722,7 @@ function fit() {
   if (row) row.style.height = (!wide || focus) ? H + 'px' : '';
   resizeCanvas();
   groundY = Math.round(H * (1 - GROUND_FRAC));
-  if (S.phase !== 'fly' && S.phase !== 'rest') { S.ppm = S.ppmTarget = restPPM(); }
+  if (S.phase !== 'fly' && S.phase !== 'rest') { S.ppm = S.ppmTarget = lockPPM(); }
 }
 // The first measurement on a handset is taken while the splash is up and the
 // address bar is still settling, and this file had no way to correct it — every
@@ -700,7 +785,7 @@ function onDown(e) {
       S.boostLeft = 0;
       S.boostAt = tNow;
       S.boostFlash = performance.now();
-      SFX.play('click');
+      VOICE.boost();
     }
     return;
   }
@@ -1459,6 +1544,21 @@ function chase(wx, wy, k, dt) {
   if (hiCam > loCam && S.camY > hiCam) S.camY = hiCam;
 }
 
+// THE PLANE STAYS PUT; THE WORLD MOVES (owner, 2026-10-30): "the plane always needs to stay in the center of the
+// screen and everything else moves. The position of the plane and the position/angle of the camera in relation to
+// the plane should always stay constant." So one zoom, the plane a quarter of the frame's width, held at the middle
+// of the play area in every phase, with no easing to lag it. The horizon stays level (the owner's choice); the
+// aeroplane pitches about its own centre. The zooms and chases above are kept for the painted 2D fallback's history
+// but nothing calls them now.
+const LOCK_PLANE_FRAC = 0.25;
+const lockPPM = () => (LOCK_PLANE_FRAC * scaleRefW()) / PLANE_LEN_M;
+function lockOn(wx, wy) {
+  S.ppm = S.ppmTarget = lockPPM();
+  const yMid = (HUD_H() + (H - BAR_H)) / 2;
+  S.camX = wx - (W * 0.5) / S.ppm;
+  S.camY = wy - (groundY - yMid) / S.ppm;
+}
+
 function follow(wx, wy, k, leadFrac, dt) {
   // aiming needs room to the LEFT of the post for the drawn-back plane; flying
   // needs room to the right for where it is going
@@ -1492,22 +1592,19 @@ function frame(now) {
     // happening rather than an approximation of it
     const q2 = sample(tr, t + 0.06);
     const spd = Math.hypot(q2.x - q.x, q2.y - q.y) / 0.06;
-    VOICE.flight(spd, q.y);
+    VOICE.flight(spd, q.y, q.y <= M.build(S.plane).gearH + 0.4);
     S.spd = spd; S.alt = q.y;
     if (!S.touched && q.y <= M.build(S.plane).gearH + 0.4) {
       S.touched = true; touchSound(spd);
     }
-    const z = zoomForAlt(q.y - (M.build(S.plane).gearH || 0));
-    S.ppmTarget = z * restPPM();
-    S.bgZoomTarget = bgForZoom(z);
-    chase(q.x, q.y, 0.14, dt);
+    lockOn(q.x, q.y);
     if (!S.beatBest && S.best > 0 && q.x > S.best) S.beatBest = true;
     if (t >= tr[tr.length - 1].t) {
       S.dist = S.flight.dist;
       if (S.dist > S.best) { S.best = S.dist; S.beatBest = true; }
       S.phase = 'rest';
       VOICE.hush();
-      SFX.play(S.beatBest ? 'success' : 'drop');
+      VOICE.chime(S.beatBest);
     }
     pp = { x: sx(q.x), y: sy(q.y) }; pw = q;
     // measured HERE, after chase() has moved the camera, because this is the
@@ -1521,9 +1618,7 @@ function frame(now) {
     // 0.62 of the rest shot on height alone; stopping is what asks the camera to
     // come the rest of the way in, so it reads as settling on the result rather
     // than as a dolly fighting an aeroplane that is still moving.
-    S.ppmTarget = LAND_IN * restPPM();
-    S.bgZoomTarget = bgForZoom(LAND_IN);
-    chase(e.x, 0, 0.10, dt);
+    lockOn(e.x, e.y);
     pp = { x: sx(e.x), y: sy(e.y) }; pth = e.th; pw = e;
   } else {
     // The catapult IS the meter. The aeroplane's own attitude shows the aim
@@ -1545,28 +1640,20 @@ function frame(now) {
       S.angle = M.CFG.ANG_MIN + (M.CFG.ANG_MAX - M.CFG.ANG_MIN) * tri(S.meterT, ANG_SWEEP);
       VOICE.stretch(S.pull, true);      // loaded and locked, no longer drawing
     }
-    follow(0, M.CFG.LAUNCH_H, 0.16, 0.70, dt);
-    // ONE RIGID ASSEMBLY, HUNG OFF THE SCREW. The band runs from the screw out
-    // to the aeroplane and the aeroplane lies ALONG it, nose pointing back up
-    // the band — which is the way it will travel when the sling lets go. Draw
-    // changes the length; aim rotates the whole thing about the screw. Nothing
-    // is positioned independently of anything else, which is what was wrong
-    // before: the aeroplane was anchored at its own point, clamped upward out
-    // of the field on steep aims, and rotated on a separate rule, so the band
-    // crossed the fuselage at an angle nothing was holding it at.
-    const o = pad();                       // the screw, not a second anchor
-    const a = S.angle * Math.PI / 180;
-    const ar = art();
-    const halfH = (PLANE_LEN_M * S.ppm) *
-      (ar && ar.ok ? ar.img.naturalHeight / ar.img.naturalWidth : 0.5) / 2;
-    // slack length, so it sits just off the screw with nothing drawn
-    let r = PLANE_LEN_M * S.ppm * 0.30 + Math.max(0, Math.min(1, S.pull)) * maxDrag();
-    // A steep aim swings the aeroplane down towards the field. Shortening the
-    // draw is what the ground would really do, and it keeps the assembly rigid;
-    // clamping the aeroplane upward instead is what bent it before.
-    const floor = sy(0) - halfH * 0.5;
-    if (Math.sin(a) > 0.001) r = Math.min(r, Math.max(0, (floor - o.y) / Math.sin(a)));
-    pp = { x: o.x - Math.cos(a) * r, y: o.y + Math.sin(a) * r };
+    // ONE RIGID ASSEMBLY, HUNG OFF THE SCREW: the band runs from the screw out to the aeroplane and the aeroplane
+    // lies along it, nose back up the band. Draw changes the length; aim swings the whole thing about the screw.
+    // Worked in world metres now that the camera rides the aeroplane: the plane is placed, then the camera.
+    // NEVER INTO THE GROUND (owner, 2026-10-30: "when the plane is on the sling and user is choosing the angle, the
+    // plane tends to go into the ground"). A steep aim swings it down toward the field, so the draw is shortened
+    // until the plane's LOWEST point, tail or wheels at that angle, clears the grass; before, only its middle did.
+    const a = S.angle * Math.PI / 180, ox = TREE_X, oy = M.CFG.PIVOT_H;
+    const ar = art(), aspect = ar && ar.ok ? ar.img.naturalWidth / ar.img.naturalHeight : 2;
+    let r = PLANE_LEN_M * 0.30 + Math.max(0, Math.min(1, S.pull)) * maxDrag() / lockPPM();
+    const below = (PLANE_LEN_M / 2) * Math.sin(a) + (PLANE_LEN_M / aspect / 2) * Math.cos(a) + 0.35;
+    if (Math.sin(a) > 0.001) r = Math.min(r, Math.max(0, (oy - below) / Math.sin(a)));
+    const wx = ox - Math.cos(a) * r, wy = oy - Math.sin(a) * r;
+    lockOn(wx, wy);
+    pp = { x: sx(wx), y: sy(wy) };
     pth = a;
   }
 

@@ -267,6 +267,8 @@ function start() {
     const P = PLANES[v.key];
     if (P && v.pose) {
       P.pose.visible = true; P.pose.position.set(v.pose.x, v.pose.y, 0); P.pose.rotation.set(0, 0, v.pose.th);
+      // (for the test harness: the lowest point of the drawn aeroplane, from its real geometry)
+      if (window.__tailwindProbe) { P.pose.updateMatrixWorld(true); window.__w3last = { low: new T.Box3().setFromObject(P.model).min.y }; }
       spin += dt * (v.flying ? 42 : 0); if (P.prop) P.prop.rotation.x = spin;
     }
     // The bands: stretched to the pouch behind the tail while loading and aiming; slack off the prongs once it has gone.
