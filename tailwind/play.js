@@ -85,11 +85,12 @@ const WIND_MIN = -15, WIND_MAX = 3;
 // Tunable from the query string so a setting can be tried without a redeploy:
 //   ?dv=10&stroke=1.5      dv is the impulse in m/s, stroke is the burn length
 const QS_ = new URLSearchParams(location.search);
-const BOOST_DV     = Math.max(0, Number(QS_.get('dv')) || 80);
+// (scaled with the model's HEFT, so the boost does to the heavier aeroplane what it did to the light one)
+const BOOST_DV     = Math.max(0, Number(QS_.get('dv')) || 80 * Math.sqrt(M.CFG.HEFT || 1));
 const BOOST_STROKE = Math.max(0.1, Number(QS_.get('stroke')) || 16);
 function rollWind() {
   const t = Math.random();
-  return Math.round((WIND_MIN + (WIND_MAX - WIND_MIN) * t) * 2) / 2;
+  return Math.round((WIND_MIN + (WIND_MAX - WIND_MIN) * t) * Math.sqrt(M.CFG.HEFT || 1) * 2) / 2;   // (HEFT: as above)
 }
 
 const STATS = [

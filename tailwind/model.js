@@ -178,8 +178,14 @@ const CFG = {
   LAUNCH_H: 8.35,     // = PIVOT_H + how far the centre sits above the band
   PLANE_LEN: 5.72,    // metres nose to tail; the renderer draws to this
   GEAR_H: 1.58,       // fallback ride height when a plane has no aspect
-  E_MIN: 588,         // joules stored in the catapult at pull 0
-  E_MAX: 2600,        // and at pull 1
+  // HEFT (owner, 2026-10-30: "the physics feels off, like a paper plane would follow. It doesn't feel like a metal
+  // plane is getting shot into the sky"). Measured, every plane's best flight spent 25 of its 35 s sinking down a
+  // steady glide at 22 m/s: paper. HEFT scales the whole flight up as a heavier machine flies it (wing loading and
+  // catapult energy by HEFT, so every speed by its square root and the shape unchanged), and balance.js then re-solves
+  // the drags so the distances come back to where they were: the same game, flown faster, heavier and in less time.
+  HEFT: 2.2,
+  get E_MIN() { return 588 * this.HEFT; },    // joules stored in the catapult at pull 0
+  get E_MAX() { return 2600 * this.HEFT; },   // and at pull 1
   ANG_MIN: 6,         // launch angle range, degrees
   ANG_MAX: 89,
   A_STALL: 14,        // degrees of angle of attack before Cl collapses
@@ -187,7 +193,7 @@ const CFG = {
   // An aeroplane gliding in at 14:1 arrives at barely 2 m/s of sink and simply
   // rolls on. Only a genuinely steep arrival should bounce, so this threshold
   // sits well above a normal approach — at 1.2 every landing ended in a thud.
-  BOUNCE_MIN_VY: 6.0, // slower vertical arrivals settle onto the wheels
+  get BOUNCE_MIN_VY() { return 6.0 * Math.sqrt(this.HEFT); }, // slower vertical arrivals settle onto the wheels
   FLEX_CL: 6.00,      // how much lift the wing washes out once past its limit
   FLEX_CD: 1.60,      // and how much drag the flexing costs
   TAU_PATH: 0.85,     // seconds for the path to settle onto its target
@@ -199,7 +205,7 @@ const CFG = {
   BEND_STROKE: 0.60,  // how much longer the whip makes the stroke, fraction
   BEND_TILT: 14,      // degrees steeper than aimed, at full bend
   BEND_DROP: 2.4,     // metres of release height given up, at full bend
-  WING_LOAD: 19,      // kg/m², fleet-wide. This is the "metal, not paper" dial.
+  get WING_LOAD() { return 19 * this.HEFT; },   // kg/m², fleet-wide. This is the "metal, not paper" dial.
   ROLL_MU: 0.62,      // wheel/grass rolling resistance during the run-out
 };
 function configure(o) { Object.assign(CFG, o); return CFG; }
@@ -219,6 +225,7 @@ const D2R = Math.PI / 180;
 // runs 0.19 on Zephyr to 0.96 on Cyclone. Re-solve with `node tailwind/balance.js`
 // if weight or lift ever move.
 const PLANES = {
+  // (drags re-solved by balance.js 900 for HEFT 2.2, 2026-10-30; the fleet 895-907 m)
   // weight / lift / drag / tough, 0..1, exactly as the pick screen shows them,
   // plus the sprite's own aspect so the aeroplane stands on its wheels whatever
   // shape it is. weight, lift and tough are chosen to match what each aircraft
@@ -226,12 +233,12 @@ const PLANES = {
   // the boxy one really is a brick. drag is not chosen: balance.js solves it so
   // that every aeroplane can reach roughly the same distance by a different
   // launch, which is what makes this a choice rather than a ranking.
-  Lacerta: { weight: 0.25, lift: 0.85, drag: 0.51, tough: 0.30, aspect: 2.35 },
-  Sirocco: { weight: 0.70, lift: 0.35, drag: 0.15, tough: 0.65, aspect: 1.74 },
-  Tempest: { weight: 0.90, lift: 0.55, drag: 0.19, tough: 0.90, aspect: 2.16 },
-  Tsunami: { weight: 0.60, lift: 0.75, drag: 0.30, tough: 0.55, aspect: 1.72 },
-  Vesper:  { weight: 0.45, lift: 0.50, drag: 0.28, tough: 0.45, aspect: 1.90 },
-  Zephyr:  { weight: 0.80, lift: 0.30, drag: 0.13, tough: 0.80, aspect: 2.43 },
+  Lacerta: { weight: 0.25, lift: 0.85, drag: 1.00, tough: 0.30, aspect: 2.35 },
+  Sirocco: { weight: 0.70, lift: 0.35, drag: 0.43, tough: 0.65, aspect: 1.74 },
+  Tempest: { weight: 0.90, lift: 0.55, drag: 0.51, tough: 0.90, aspect: 2.16 },
+  Tsunami: { weight: 0.60, lift: 0.75, drag: 0.67, tough: 0.55, aspect: 1.72 },
+  Vesper:  { weight: 0.45, lift: 0.50, drag: 0.63, tough: 0.45, aspect: 1.90 },
+  Zephyr:  { weight: 0.80, lift: 0.30, drag: 0.41, tough: 0.80, aspect: 2.43 },
 };
 
 
@@ -540,7 +547,9 @@ function fly(plane, angleDeg, pull, opts = {}) {
 
       // attitude is simply path plus incidence; the aeroplane points where it
       // is going, tilted by however much wing it is currently using
-      theta = ng + cl / clA;
+      // (HEFT: a third of it. A light wing hangs nose-high on its incidence and mushes down like paper; a heavy one
+      // flies with its nose on the path, which is most of what reads as weight)
+      theta = ng + 0.35 * cl / clA;
     } else {
       // It comes down on its undercarriage and rolls. Rolling resistance is a
       // constant deceleration; the airframe's own drag is quadratic and does
@@ -575,7 +584,7 @@ function fly(plane, angleDeg, pull, opts = {}) {
         // can ever produce the impact goes plastic instead, so the aeroplane
         // lands and rolls out. Below 22 m/s this is exactly 1.0, which is why
         // 9,702 of 9,702 unboosted flights are unchanged to the last decimal.
-        const HARD_VY = 22, DEAD_VY = 45;
+        const HARD_VY = 22 * Math.sqrt(CFG.HEFT), DEAD_VY = 45 * Math.sqrt(CFG.HEFT);
         const soft = (-vy) <= HARD_VY ? 1
                    : Math.max(0, (DEAD_VY - (-vy)) / (DEAD_VY - HARD_VY));
         vy = -vy * p.rest * soft;
@@ -593,6 +602,9 @@ function fly(plane, angleDeg, pull, opts = {}) {
   }
 
   if (wantTrace) trace.push({ x, y, th: theta, t });
+  // A steep arrival into a strong headwind can stop it dead before it has rocked level, and it was left standing on
+  // its nose. It settles onto its wheels over a moment instead (the replay eases between the two).
+  if (wantTrace && grounded && Math.abs(theta) > 0.02) trace.push({ x, y, th: 0, t: t + 0.45 });
   // apexAt is the shape number: the fraction of the run spent climbing. A late
   // apex is the steep-up-steep-down arc of a thrown brick; an early one is a
   // climb followed by a long glide, which is the shape this game wants.
