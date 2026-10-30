@@ -426,6 +426,9 @@ for (const f of FLEET) {
   ART[f.key] = { img: im, ok: false };
 }
 const art = () => ART[S.plane];
+// The 3D world (world3d.js) photographs each aeroplane side on once its models are in, and those portraits take
+// the paintings' place on the pick cards and in the sling's measurements, so the cards show the planes you fly.
+window.addEventListener('tailwind-art', (e) => { const d = e.detail; if (d && ART[d.key]) ART[d.key] = { img: d.img, ok: true }; });
 
 // Scenery. The backdrop is one wide strip carrying mountains, a treeline and a
 // field; the sky is a plain vertical gradient, so it stretches to any size
@@ -452,12 +455,20 @@ const bgImg = new Image(); let bgOK = false;
 bgImg.onload = () => { bgOK = true; };
 bgImg.fetchPriority = 'low';
 let backdropAsked = false;
-function loadBackdrop() {
+function loadBackdrop(force) {
+  // The painted backdrop is only the fallback now: while the 3D world is on its way or running, its megabyte is not
+  // fetched at all. If the 3D world gives up (no WebGL, a failed load) it is fetched then, and if its files never
+  // arrive at all, so that nothing can even say it failed, the deadline below fetches it anyway.
+  const w3 = window.TAILWIND_3D;
+  if (!force && window.TAILWIND_3D_WANTED && !(w3 && w3.failed)) return;
+  if (force && w3 && w3.ready) return;
   if (backdropAsked) return;
   backdropAsked = true;
   bgImg.src = './assets/background.webp';
 }
 setTimeout(loadBackdrop, 4000);
+window.addEventListener('tailwind-3d-failed', () => loadBackdrop());
+setTimeout(() => loadBackdrop(true), 9000);
 
 let W = FRAME_W, H = FRAME_H, groundY = 0, wide = true;
 
@@ -1560,6 +1571,19 @@ function frame(now) {
   }
 
   const aiming = S.phase === 'aim' || S.phase === 'setAng' || S.phase === 'setPull';
+  // THE WORLD IN 3D (world3d.js), once it is ready: it draws sky, valley, slingshot and aeroplane under this canvas
+  // from this camera, so this canvas only carries the marks and read-outs. The aeroplane's place is handed over in
+  // world metres, worked back from the screen point every phase above already computes.
+  const w3 = window.TAILWIND_3D;
+  if (w3 && w3.ready) {
+    ctx.clearRect(0, 0, W, H);
+    w3.render({ W, H, scale: SCALE, camX: S.camX, camY: S.camY, ppm: S.ppm, groundY, key: S.plane,
+      pose: pp ? { x: S.camX + pp.x / S.ppm, y: S.camY + (groundY - pp.y) / S.ppm, th: pth } : null,
+      aiming, flying: S.phase === 'fly', pivot: { x: TREE_X, y: M.CFG.PIVOT_H } });
+    bestLine(); hud();
+    requestAnimationFrame(frame);
+    return;
+  }
   sky(); bestLine();
   if (pw) shadow(pw.x, pw.y);
   // Always behind the trunk, which is what sells the trunk as standing in the

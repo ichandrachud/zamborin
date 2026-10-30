@@ -29,6 +29,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../shared/tokens.css?v=1" />
   <link rel="stylesheet" href="../shared/chrome.css?v=20" />
+  <link rel="modulepreload" href="./assets/three-r186.min.js" />
   <link rel="stylesheet" href="./play.css?v=5" />
   <!-- Google AdSense -->
   <meta name="google-adsense-account" content="ca-pub-9207689324865969">
@@ -204,7 +205,12 @@
   <script src="../shared/embed.js?v=1"></script>
   <script defer src="../shared/ads.js?v=2"></script>
   <script src="./model.js?v=12"></script>
-  <script src="./play.js?v=85"></script>
+  <script>
+    // The 3D world (world3d.js) is drawn wherever WebGL is; elsewhere play.js keeps its painted world.
+    window.TAILWIND_3D_WANTED = (() => { try { const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')); } catch (e) { return false; } })();
+  </script>
+  <script src="./play.js?v=86"></script>
+  <script type="module" src="./world3d.js?v=1"></script>
   <script>
     (() => {
       const btn = document.getElementById('focus-toggle');
