@@ -3,7 +3,7 @@
 export {
   WebGLRenderer, Scene, PerspectiveCamera, OrthographicCamera, Fog, Color, HemisphereLight, DirectionalLight,
   Mesh, Group, Object3D, InstancedMesh, BoxGeometry, CylinderGeometry, SphereGeometry, TorusGeometry, PlaneGeometry,
-  LatheGeometry, BufferGeometry, BufferAttribute, Float32BufferAttribute,
+  LatheGeometry, IcosahedronGeometry, ConeGeometry, CircleGeometry, ShapeGeometry, Shape, Quaternion, Matrix4, BufferGeometry, BufferAttribute, Float32BufferAttribute,
   MeshStandardMaterial, MeshPhysicalMaterial, MeshBasicMaterial, CanvasTexture, RepeatWrapping, SRGBColorSpace,
   Vector2, Vector3, Box3, MathUtils, NeutralToneMapping, DoubleSide, PMREMGenerator, PCFShadowMap,
   WebGLRenderTarget, HalfFloatType, DepthTexture,
