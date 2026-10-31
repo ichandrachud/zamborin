@@ -28,7 +28,7 @@ const M = window.TAILWIND_MODEL;
 // The six aircraft, in the order they appear on the pick screen. The blurb says
 // how each one wants to be flown, because that is the actual decision — every
 // plane in the fleet tops out within 1% of the same distance, and what differs
-// is the launch that gets it there (best draw runs 0.51 to 0.80). Flying one on
+// is the launch that gets it there (best draw runs 0.51 to 0.85). Flying one on
 // another's launch costs up to half the distance.
 const FLEET = [
   { key: 'Lacerta', file: 'lacerta.webp', blurb: 'Long wing, light bones. The most forgiving to aim — but it will not take a hard draw.' },
@@ -88,6 +88,15 @@ const QS_ = new URLSearchParams(location.search);
 // (scaled with the model's HEFT, so the boost does to the heavier aeroplane what it did to the light one)
 const BOOST_DV     = Math.max(0, Number(QS_.get('dv')) || 80 * Math.sqrt(M.CFG.HEFT || 1));
 const BOOST_STROKE = Math.max(0.1, Number(QS_.get('stroke')) || 16);
+// THE SWEET SPOT, GRADED. Every release is judged against the best this aeroplane can do in today's wind (the
+// model's peak(), found while the player is still looking at the sling). A perfect one lets go clean (model.js,
+// CLEAN_AT) and flies further; great and good are said out loud so you know how close you were, and in which flight.
+const GRADES = [[M.CFG.CLEAN_AT, 'PERFECT'], [0.90, 'GREAT'], [0.80, 'GOOD']];
+const gradeOf = (q) => { for (const [at, g] of GRADES) if (q >= at) return g; return null; };
+// And the landing, by the angle it came in at (model.js, SKIP_MAX and DIG_FREE).
+// Into a strong headwind even the best launch meets the ground steeply, so DUG IN is kept for the really steep ones.
+const DUG_AT = M.CFG.DIG_FREE + 10;
+const landingOf = (f) => f.skipped ? 'SKIPPED AND SLID' : f.touchGam > DUG_AT ? 'DUG IN' : 'LANDED';
 function rollWind() {
   const t = Math.random();
   return Math.round((WIND_MIN + (WIND_MAX - WIND_MIN) * t) * Math.sqrt(M.CFG.HEFT || 1) * 2) / 2;   // (HEFT: as above)
@@ -322,6 +331,22 @@ const VOICE = {
     this.note(78, t, 0.22, 0.05 * s, 'sine', 0.018);
     this.air(t, 0.18, 0.04 * s, 380, 220, 0.8);
     this.note(84, t + 0.11, 0.18, 0.03 * s, 'sine', 0.02);
+  },
+  // A release graded against today's best (owner, 2026-10-30, after Pingu Throw): the sweet spot has to be felt. A
+  // clean, bright crack for a perfect one, with a ring over it; a smaller tap for great; nothing for the rest.
+  crack(grade) {
+    if (!this.ready || !SFX.isOn() || !grade || grade === 'GOOD') return;
+    const t = this.ctx.currentTime + 0.03, perfect = grade === 'PERFECT';
+    this.note(1350, t, 0.07, perfect ? 0.06 : 0.035, 'triangle', 0.002, 700);
+    this.air(t, 0.09, perfect ? 0.06 : 0.03, 2600, 1800, 1.4);
+    if (perfect) { this.note(1046.5, t + 0.04, 0.9, 0.03, 'sine', 0.006); this.note(1568, t + 0.04, 0.6, 0.012, 'sine', 0.006); }
+  },
+  // A landing that digs in: a dull thump into turf, nothing like the kiss.
+  dig(speed) {
+    if (!this.ready || !SFX.isOn()) return;
+    const t = this.ctx.currentTime, s = Math.max(0.4, Math.min(1, speed / 40));
+    this.note(56, t, 0.32, 0.10 * s, 'sine', 0.006, 38);
+    this.air(t, 0.35, 0.07 * s, 500, 160, 0.6);
   },
   // A boost: the engine opens up for a moment.
   boost() {
@@ -781,7 +806,7 @@ function onDown(e) {
       const tNow = (performance.now() - S.flightStart) / 1000;
       S.flight = M.fly(S.plane, S.angle, S.pull, {
         trace: true, wind: S.wind,
-        boost: { t: tNow, dv: BOOST_DV }, boostStroke: BOOST_STROKE
+        boost: { t: tNow, dv: BOOST_DV }, boostStroke: BOOST_STROKE, clean: S.clean
       });
       S.boostLeft = 0;
       S.boostAt = tNow;
@@ -833,15 +858,24 @@ function resetToAim() {
   S.meterT = 0; S.angle = M.CFG.ANG_MIN; S.pull = 0;   // slack, and lying level
   VOICE.hush();
   S.wind = rollWind();                  // fresh conditions every attempt
+  // today's best launch, worked out after this frame has painted, while the player is still looking at the sling
+  S.peak = null; S.grade = null; S.clean = false; S.callAt = 0; S.landAt = 0;
+  const want = { plane: S.plane, wind: S.wind };
+  setTimeout(() => { if (S.plane === want.plane && S.wind === want.wind && !S.peak) S.peak = M.peak(want.plane, want.wind); }, 60);
   S.dist = 0; S.beatBest = false;
   S.ppmTarget = restPPM();
   S.bgZoomTarget = 1;
 }
 function launch() {
-  S.flight = M.fly(S.plane, S.angle, S.pull, { trace: true, wind: S.wind });
+  if (!S.peak) S.peak = M.peak(S.plane, S.wind);
+  S.quality = M.quality(S.plane, S.angle, S.pull, S.wind, S.peak);
+  S.grade = gradeOf(S.quality); S.clean = S.grade === 'PERFECT';
+  S.callAt = performance.now();
+  VOICE.crack(S.grade);
+  S.flight = M.fly(S.plane, S.angle, S.pull, { trace: true, wind: S.wind, clean: S.clean });
   S.flightStart = performance.now();
   S.phase = 'fly';
-  S.beatBest = false; S.dist = 0; S.touched = false;
+  S.beatBest = false; S.dist = 0; S.touched = false; S.reTouched = false;
   S.bgZoomTarget = BG_ZOOM;
   S.ppmTarget = flyPPM();
 }
@@ -1204,6 +1238,56 @@ function drawBoostHud() {
 }
 
 
+// THE CALLS: how the release went, as it leaves the sling, and how the landing went, from touchdown to the end. Same
+// backing and type as the boost read-out. They sit just under the top band, where nothing else lives in flight.
+function callPill(text, sub, col, y, alpha) {
+  if (alpha <= 0.01) return;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.font = '800 16px Inter, system-ui, sans-serif';
+  const tw = ctx.measureText(text).width;
+  ctx.font = '600 12px Inter, system-ui, sans-serif';
+  const sw = sub ? ctx.measureText(sub).width + 14 : 0;
+  const w = tw + sw + 32, h = 34, x0 = (W - w) / 2, rr = h / 2;
+  ctx.fillStyle = 'rgba(10,16,28,0.62)';
+  ctx.beginPath();
+  ctx.moveTo(x0 + rr, y); ctx.arcTo(x0 + w, y, x0 + w, y + h, rr); ctx.arcTo(x0 + w, y + h, x0, y + h, rr);
+  ctx.arcTo(x0, y + h, x0, y, rr); ctx.arcTo(x0, y, x0 + w, y, rr); ctx.closePath(); ctx.fill();
+  ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+  ctx.font = '800 16px Inter, system-ui, sans-serif'; ctx.fillStyle = col;
+  ctx.fillText(text, x0 + 16, y + h / 2 + 1);
+  if (sub) {
+    ctx.font = '600 12px Inter, system-ui, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.70)';
+    ctx.fillText(sub, x0 + 16 + tw + 14, y + h / 2 + 1);
+  }
+  ctx.restore();
+}
+function drawCalls() {
+  const now = performance.now(), y = HUD_H() + 12;
+  const col = (g) => g === 'PERFECT' ? '#FFD23F' : g === 'GREAT' ? '#FFFFFF' : 'rgba(255,255,255,0.75)';   // --accent-2
+  const f = S.flight;
+  if (S.phase === 'rest' && f) {
+    // the verdict, held: how it left and how it came down
+    const parts = [];
+    if (S.grade) parts.push(S.grade + ' RELEASE');
+    parts.push(landingOf(f));
+    // above the button bar, clear of the BEST marker's label at the top of the field
+    callPill(parts.join('  \u00b7  '), f.slide >= 1 ? 'slid ' + Math.round(f.slide) + ' m' : '',
+             S.grade === 'PERFECT' ? col('PERFECT') : '#FFFFFF', H - BAR_H - 50, 1);
+    return;
+  }
+  if (S.phase !== 'fly' || !f) return;
+  if (S.touched) {
+    const k = Math.min(1, (now - S.landAt) / 250);
+    const slid = Math.max(0, S.dist - f.touchX);
+    callPill(landingOf(f), slid >= 1 ? Math.round(slid) + ' m' : '',
+             f.touchGam > DUG_AT ? 'rgba(255,255,255,0.75)' : '#FFFFFF', y, k);
+  } else if (S.grade) {
+    const age = now - S.callAt, k = age < 1600 ? 1 : Math.max(0, 1 - (age - 1600) / 500);
+    callPill(S.grade + ' RELEASE', S.clean ? 'clean, more speed' : '', col(S.grade), y, k);
+  }
+}
+
 // Speaker drawn as paths. House rule: flat vector glyphs, never an emoji.
 // T3: the OFF state was white at 0.34, which measured 3.10 over the bar where the
 // grass is behind it but 2.90 over mid sky and 2.70 over bright sky, and the bar
@@ -1334,6 +1418,7 @@ function hud() {
   // --- control row along the foot ------------------------------------------
   // Nothing to press while it is in the air, so nothing is drawn: the bar and
   // its buttons leave entirely and the flight has the frame to itself.
+  drawCalls();
   if (S.phase === 'fly') { S.btn = null; S.chg = null; S.snd = null;
     drawBoostHud();
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; return; }
@@ -1596,7 +1681,12 @@ function frame(now) {
     VOICE.flight(spd, q.y, q.y <= M.build(S.plane).gearH + 0.4);
     S.spd = spd; S.alt = q.y;
     if (!S.touched && q.y <= M.build(S.plane).gearH + 0.4) {
-      S.touched = true; touchSound(spd);
+      S.touched = true; S.landAt = now;
+      if (S.flight.touchGam > DUG_AT) VOICE.dig(spd); else touchSound(spd);
+    }
+    // a skip comes back down: the second, softer kiss
+    if (S.touched && !S.reTouched && S.flight.skipped && now - S.landAt > 250 && q.y <= M.build(S.plane).gearH + 0.05) {
+      S.reTouched = true; touchSound(spd * 0.6);
     }
     lockOn(q.x, q.y);
     if (!S.beatBest && S.best > 0 && q.x > S.best) S.beatBest = true;
@@ -1696,7 +1786,9 @@ window.__tailwind = {
     return { phase: S.phase, dist: S.dist, best: S.best, spd: S.spd, alt: S.alt,
              boostLeft: S.boostLeft, boostAt: S.boostAt,
              screenX: S.screenX, screenY: S.screenY, minScreenY: S.minScreenY,
-             camY: S.camY, ppm: S.ppm, W, H, plane: S.plane, wind: S.wind };
+             camY: S.camY, ppm: S.ppm, W, H, plane: S.plane, wind: S.wind,
+             grade: S.grade, quality: S.quality, peak: S.peak,
+             landing: S.flight ? { gam: S.flight.touchGam, skipped: S.flight.skipped, slide: S.flight.slide } : null };
   },
   get cfg() { return { dv: BOOST_DV, stroke: BOOST_STROKE }; },
   // does the aeroplane stay inside the frame for the WHOLE flight?

@@ -207,6 +207,20 @@ const CFG = {
   BEND_DROP: 2.4,     // metres of release height given up, at full bend
   get WING_LOAD() { return 19 * this.HEFT; },   // kg/m², fleet-wide. This is the "metal, not paper" dial.
   ROLL_MU: 0.62,      // wheel/grass rolling resistance during the run-out
+  // THE LANDING DECIDES THE LAST FIFTH (owner, 2026-10-30, after Pingu Throw: a throw is not over until it stops).
+  // How the aeroplane meets the strip now matters as much as how it left the sling. Measured at the moment of contact
+  // on the balanced fleet, best launches arrive at 13-16° and the whole input space at 8-90° (most between 8 and 20),
+  // so the bands below split that:
+  //   shallower than SKIP_MAX and still fast: it skips once, a hop off the wheels, and comes down sliding
+  //   up to DIG_FREE it keeps all its ground speed; steeper, it digs in and loses up to 1 - DIG_MIN of it by DIG_SPAN
+  //   the run-out friction scales from SLIDE_MIN (a kiss) at SLIDE_FROM degrees to 1 (a thump) SLIDE_SPAN later
+  SKIP_MAX: 17, SKIP_V: 24, SKIP_K: 0.20,
+  DIG_FREE: 18, DIG_SPAN: 30, DIG_MIN: 0.35,
+  SLIDE_MIN: 0.45, SLIDE_FROM: 10, SLIDE_SPAN: 20,
+  // A CLEAN RELEASE. A launch within this fraction of the best the plane can do in today's wind is a perfect one,
+  // and the band lets go clean: CLEAN_E more energy, with no extra load on the airframe. The sweet spot was always
+  // there in the physics; this makes hitting it something you feel, the way a perfect swing feels.
+  CLEAN_AT: 0.97, CLEAN_E: 0.08,
 };
 function configure(o) { Object.assign(CFG, o); return CFG; }
 
@@ -225,7 +239,8 @@ const D2R = Math.PI / 180;
 // runs 0.19 on Zephyr to 0.96 on Cyclone. Re-solve with `node tailwind/balance.js`
 // if weight or lift ever move.
 const PLANES = {
-  // (drags re-solved by balance.js 900 for HEFT 2.2, 2026-10-30; the fleet 895-907 m)
+  // (drags re-solved by balance.js 975 for HEFT 2.2 and the landing slide, 2026-10-30; the fleet 971-978 m.
+  //  Lacerta sits at drag 1.00 and cannot be slowed further, which is what sets the target)
   // weight / lift / drag / tough, 0..1, exactly as the pick screen shows them,
   // plus the sprite's own aspect so the aeroplane stands on its wheels whatever
   // shape it is. weight, lift and tough are chosen to match what each aircraft
@@ -234,11 +249,11 @@ const PLANES = {
   // that every aeroplane can reach roughly the same distance by a different
   // launch, which is what makes this a choice rather than a ranking.
   Lacerta: { weight: 0.25, lift: 0.85, drag: 1.00, tough: 0.30, aspect: 2.35 },
-  Sirocco: { weight: 0.70, lift: 0.35, drag: 0.43, tough: 0.65, aspect: 1.74 },
-  Tempest: { weight: 0.90, lift: 0.55, drag: 0.51, tough: 0.90, aspect: 2.16 },
-  Tsunami: { weight: 0.60, lift: 0.75, drag: 0.67, tough: 0.55, aspect: 1.72 },
-  Vesper:  { weight: 0.45, lift: 0.50, drag: 0.63, tough: 0.45, aspect: 1.90 },
-  Zephyr:  { weight: 0.80, lift: 0.30, drag: 0.41, tough: 0.80, aspect: 2.43 },
+  Sirocco: { weight: 0.70, lift: 0.35, drag: 0.45, tough: 0.65, aspect: 1.74 },
+  Tempest: { weight: 0.90, lift: 0.55, drag: 0.52, tough: 0.90, aspect: 2.16 },
+  Tsunami: { weight: 0.60, lift: 0.75, drag: 0.68, tough: 0.55, aspect: 1.72 },
+  Vesper:  { weight: 0.45, lift: 0.50, drag: 0.64, tough: 0.45, aspect: 1.90 },
+  Zephyr:  { weight: 0.80, lift: 0.30, drag: 0.42, tough: 0.80, aspect: 2.43 },
 };
 
 
@@ -373,7 +388,10 @@ function fly(plane, angleDeg, pull, opts = {}) {
   // through pull and bend — whip.js needs that, because a timed release sets the
   // speed and the arc length from the swing rather than from a drawn band. Both
   // default to the normal derivation, so nothing changes unless they are passed.
-  const v0 = opts.v0 != null ? opts.v0 : Math.sqrt(2 * E / p.m);
+  const vDrawn = opts.v0 != null ? opts.v0 : Math.sqrt(2 * E / p.m);
+  // opts.clean: the band let go clean (see CLEAN_E). The extra speed is free of load, so strain is worked out from
+  // the drawn speed, not this one.
+  const v0 = opts.clean ? vDrawn * Math.sqrt(1 + CFG.CLEAN_E) : vDrawn;
   const stroke = opts.stroke != null ? opts.stroke
                : CFG.STROKE * (1 + CFG.BEND_STROKE * bend);
   const a0 = (angleDeg + CFG.BEND_TILT * bend) * D2R;
@@ -390,7 +408,7 @@ function fly(plane, angleDeg, pull, opts = {}) {
   // slower from the same energy) and the limit rises with how it is built.
   // Without this every plane in the fleet wanted the identical launch, 43° and
   // pull 0.96, and picking one was picking a number rather than a way to fly.
-  const nLaunch = (v0 * v0) / (2 * stroke * CFG.G);
+  const nLaunch = (vDrawn * vDrawn) / (2 * stroke * CFG.G);
   let strain = Math.max(0, Math.min(1.2, (nLaunch - p.nLaunch) / p.nLaunch));
   let clA, cd0, clTrim, LD, glideAngle, vTrim;
   function deriveFromStrain() {
@@ -415,6 +433,8 @@ function fly(plane, angleDeg, pull, opts = {}) {
   let t = 0, grounded = false, bounces = 0, apex = y, stalled = false, flex = 0;
   let departed = false, depTime = 0;   // below stall speed, and for how long
   let apexX = 0, touchdown = 0;   // where the arc tops out, and where it lands
+  // the first touch: its angle and speed, whether it skipped, and the run-out friction it earned
+  let contact = false, touchGam = 0, touchV = 0, skipped = false, slideK = 1, touchX = 0;
   const trace = wantTrace ? [{ x, y, th: theta, t }] : null;
 
   const dt = CFG.DT, g = CFG.G;
@@ -558,7 +578,7 @@ function fly(plane, angleDeg, pull, opts = {}) {
       // the flight — the plane arriving nearly level is what earns it.
       const va = vx - wind;                      // airspeed along the ground run
       const qbar = 0.5 * CFG.RHO * p.S * va * va;
-      const fr = CFG.ROLL_MU * p.mu * g + Math.sign(va || 1) * (qbar * (cd0 + 0.34)) / p.m;
+      const fr = CFG.ROLL_MU * slideK * p.mu * g + Math.sign(va || 1) * (qbar * (cd0 + 0.34)) / p.m;
       vx = Math.max(0, vx - fr * dt);
       vy = 0;
       // Once the wheels are down the aeroplane settles level and stays there,
@@ -574,7 +594,23 @@ function fly(plane, angleDeg, pull, opts = {}) {
 
     if (y <= p.gearH) {
       y = p.gearH;
-      if (!grounded && vy < -CFG.BOUNCE_MIN_VY) {
+      let hop = false;
+      if (!contact) {
+        // THE FIRST TOUCH is read once, by the angle it comes in at over the ground (see SKIP_MAX above).
+        contact = true; touchX = x;
+        touchGam = Math.atan2(-vy, Math.max(0.1, vx)) / D2R;
+        touchV = Math.hypot(vx, vy);
+        const over = Math.max(0, Math.min(1, (touchGam - CFG.DIG_FREE) / CFG.DIG_SPAN));
+        vx *= 1 - (1 - CFG.DIG_MIN) * over;
+        slideK = CFG.SLIDE_MIN + (1 - CFG.SLIDE_MIN) * Math.max(0, Math.min(1, (touchGam - CFG.SLIDE_FROM) / CFG.SLIDE_SPAN));
+        if (touchGam < CFG.SKIP_MAX && vx > CFG.SKIP_V) {
+          vy = CFG.SKIP_K * vx * (0.4 + 0.6 * (1 - touchGam / CFG.SKIP_MAX));
+          skipped = hop = true;
+        }
+      }
+      if (hop) {
+        // skipping: off the wheels again, nothing else to do this step
+      } else if (!grounded && vy < -CFG.BOUNCE_MIN_VY) {
         // A HARD ARRIVAL IS A HEAVY LANDING, NOT A BOUNCY ONE. An UNBOOSTED
         // flight never bounces more than once, measured: 390 flights, 221 with
         // none and 169 with exactly one, and its hardest arrival anywhere in the
@@ -611,6 +647,7 @@ function fly(plane, angleDeg, pull, opts = {}) {
   return { dist: x, t, apex, apexX, bounces, stalled, flex, strain, depTime, trace,
            apexAt: x > 0 ? apexX / x : 0,
            roll: touchdown ? (x - touchdown) / x : 0,
+           touchGam, touchV, touchX, skipped, slide: contact ? x - touchX : 0,
            boostSpent, boostAtV, boostStrain };
 }
 
@@ -642,5 +679,35 @@ function best(plane, coarse = 40) {
   return out;
 }
 
-return { CFG, configure, PLANES, build, fly, best, coeffs, angleAt, D2R };
+// THE SWEET SPOT, cheaply, for the game rather than the harness. best() costs seconds; this runs at a coarser step
+// (judging a launch against a peak found on the same step keeps the ratio honest) and a coarser grid refined twice,
+// so it can run while the player is still aiming. peak(plane, wind) -> { dist, angle, pull };
+// quality(plane, angle, pull, wind, pk) -> this launch as a fraction of that peak.
+const PEAK_DT = 0.01;
+function onStep(fn) { const keep = CFG.DT; CFG.DT = PEAK_DT; try { return fn(); } finally { CFG.DT = keep; } }
+function peak(plane, wind) {
+  const p = build(plane);
+  return onStep(() => {
+    let out = { dist: -1, angle: CFG.ANG_MIN, pull: 0 };
+    let a0 = CFG.ANG_MIN, a1 = CFG.ANG_MAX, p0 = 0, p1 = 1, n = 12;
+    for (let pass = 0; pass < 3; pass++) {
+      for (let i = 0; i <= n; i++) for (let j = 0; j <= n; j++) {
+        const a = a0 + (a1 - a0) * i / n, pu = p0 + (p1 - p0) * j / n;
+        const d = fly(p, a, pu, { wind }).dist;
+        if (d > out.dist) out = { dist: d, angle: a, pull: pu };
+      }
+      const da = (a1 - a0) / n, dp = (p1 - p0) / n;
+      a0 = Math.max(CFG.ANG_MIN, out.angle - da); a1 = Math.min(CFG.ANG_MAX, out.angle + da);
+      p0 = Math.max(0, out.pull - dp); p1 = Math.min(1, out.pull + dp);
+      n = 6;
+    }
+    return out;
+  });
+}
+function quality(plane, angle, pull, wind, pk) {
+  const k = pk || peak(plane, wind);
+  return onStep(() => Math.min(1, fly(build(plane), angle, pull, { wind }).dist / Math.max(1, k.dist)));
+}
+
+return { CFG, configure, PLANES, build, fly, best, coeffs, angleAt, D2R, peak, quality };
 }));
