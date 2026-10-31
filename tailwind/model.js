@@ -434,7 +434,7 @@ function fly(plane, angleDeg, pull, opts = {}) {
   let departed = false, depTime = 0;   // below stall speed, and for how long
   let apexX = 0, touchdown = 0;   // where the arc tops out, and where it lands
   // the first touch: its angle and speed, whether it skipped, and the run-out friction it earned
-  let contact = false, touchGam = 0, touchV = 0, skipped = false, slideK = 1, touchX = 0;
+  let contact = false, touchGam = 0, touchV = 0, skipped = false, slideK = 1, touchX = 0, touchT = 0;
   const trace = wantTrace ? [{ x, y, th: theta, t }] : null;
 
   const dt = CFG.DT, g = CFG.G;
@@ -597,7 +597,7 @@ function fly(plane, angleDeg, pull, opts = {}) {
       let hop = false;
       if (!contact) {
         // THE FIRST TOUCH is read once, by the angle it comes in at over the ground (see SKIP_MAX above).
-        contact = true; touchX = x;
+        contact = true; touchX = x; touchT = t;
         touchGam = Math.atan2(-vy, Math.max(0.1, vx)) / D2R;
         touchV = Math.hypot(vx, vy);
         const over = Math.max(0, Math.min(1, (touchGam - CFG.DIG_FREE) / CFG.DIG_SPAN));
@@ -647,7 +647,7 @@ function fly(plane, angleDeg, pull, opts = {}) {
   return { dist: x, t, apex, apexX, bounces, stalled, flex, strain, depTime, trace,
            apexAt: x > 0 ? apexX / x : 0,
            roll: touchdown ? (x - touchdown) / x : 0,
-           touchGam, touchV, touchX, skipped, slide: contact ? x - touchX : 0,
+           touchGam, touchV, touchX, touchT, skipped, slide: contact ? x - touchX : 0,
            boostSpent, boostAtV, boostStrain };
 }
 

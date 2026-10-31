@@ -97,6 +97,29 @@ const gradeOf = (q) => { for (const [at, g] of GRADES) if (q >= at) return g; re
 // Into a strong headwind even the best launch meets the ground steeply, so DUG IN is kept for the really steep ones.
 const DUG_AT = M.CFG.DIG_FREE + 10;
 const landingOf = (f) => f.skipped ? 'SKIPPED AND SLID' : f.touchGam > DUG_AT ? 'DUG IN' : 'LANDED';
+// THE PACE OF A GO (owner, 2026-10-30: "it still doesn't have the speed of the Pingu game. Not the satisfaction or
+// regret"). Measured, a go took 40 s and more, three quarters of it a steady glide, and the verdict came at the end.
+// The physics is untouched; the REPLAY is not. The hit and the first second of climb play in real time, the glide in
+// the middle is fast-forwarded so it lasts about CRUISE_S on screen, the approach and the touch play in real time again,
+// and the slide runs quick. A whole flight is now about nine seconds.
+const LAUNCH_SIM = 1.1, LAND_SIM = 1.4, CRUISE_S = 3.5, SLIDE_S = 1.8;
+const smooth = (a, b, x) => { const u = Math.max(0, Math.min(1, (x - a) / (b - a))); return u * u * (3 - 2 * u); };
+function playRate(f, t) {
+  const tt = f.touchT || f.t;
+  const cruise = Math.max(0, tt - LAUNCH_SIM - LAND_SIM);
+  const fast = Math.max(1, cruise / CRUISE_S);
+  if (t >= tt) return 1 + (Math.max(1, (f.t - tt) / SLIDE_S) - 1) * smooth(tt + 0.5, tt + 1.4, t);
+  return 1 + (fast - 1) * smooth(LAUNCH_SIM, LAUNCH_SIM + 0.8, t) * (1 - smooth(tt - LAND_SIM - 2.5, tt - LAND_SIM, t));
+}
+// THE HIT: the frame holds for a beat at the release and the world jolts, both scaled by how good it was, so a clean
+// strike lands in the hand before the aeroplane has gone anywhere.
+const HIT = { PERFECT: [150, 0.55], GREAT: [90, 0.32], GOOD: [60, 0.18], none: [30, 0.08] };
+// THE MISS, named at once: which of the two taps cost the most, and which way.
+function missOf(pk, angle, pull, wind) {
+  const qA = M.quality(S.plane, angle, pk.pull, wind, pk), qP = M.quality(S.plane, pk.angle, pull, wind, pk);
+  if (1 - qA >= 1 - qP) return angle > pk.angle ? 'aimed too high' : 'aimed too low';
+  return pull > pk.pull ? 'drew too hard' : 'drew too soft';
+}
 function rollWind() {
   const t = Math.random();
   return Math.round((WIND_MIN + (WIND_MAX - WIND_MIN) * t) * Math.sqrt(M.CFG.HEFT || 1) * 2) / 2;   // (HEFT: as above)
@@ -803,7 +826,7 @@ function onDown(e) {
   if (S.phase === 'fly') {
     if (S.boostLeft > 0 && S.flight) {
       e.preventDefault();
-      const tNow = (performance.now() - S.flightStart) / 1000;
+      const tNow = S.simT;
       S.flight = M.fly(S.plane, S.angle, S.pull, {
         trace: true, wind: S.wind,
         boost: { t: tNow, dv: BOOST_DV }, boostStroke: BOOST_STROKE, clean: S.clean
@@ -831,8 +854,8 @@ function onDown(e) {
   }
   if (hitSound(p)) { SFX.setOn(!SFX.isOn()); if (SFX.isOn()) SFX.play('click'); return; }
   if (hitChange(p)) { SFX.play('click'); S.phase = 'pick'; S.flight = null; VOICE.hush(); return; }
-  if (S.phase === 'rest') {           // nothing but the button is live here
-    if (hitBtn(p)) {
+  if (S.phase === 'rest') {           // anywhere but the two pills goes again: one tap, no button to find
+    if (now0() - S.restAt > 350) {
       SFX.play('click');
       if (GD.due()) GD.show();          // midroll: between launches, never during
       resetToAim();
@@ -851,17 +874,29 @@ function onDown(e) {
 // the page underneath.
 function onMove(e) { if (S.phase === 'setAng' || S.phase === 'setPull') e.preventDefault(); }
 function onUp(e)   { if (S.phase === 'setAng' || S.phase === 'setPull') e.preventDefault(); }
+const now0 = () => performance.now();
 function resetToAim() {
   S.phase = 'aim'; S.flight = null;
   S.boostLeft = 1; S.boostAt = null; S.boostFlash = 0; S.spd = 0;
   S.alt = 0; S.screenY = 0; S.screenX = 0; S.minScreenY = null;
   S.meterT = 0; S.angle = M.CFG.ANG_MIN; S.pull = 0;   // slack, and lying level
   VOICE.hush();
-  S.wind = rollWind();                  // fresh conditions every attempt
-  // today's best launch, worked out after this frame has painted, while the player is still looking at the sling
-  S.peak = null; S.grade = null; S.clean = false; S.callAt = 0; S.landAt = 0;
+  // fresh conditions every attempt, rolled and solved on the rest screen while the last result was being read
+  const ready = S.next && S.next.plane === S.plane;
+  S.wind = ready ? S.next.wind : rollWind();
+  S.peak = ready && S.next.peak ? S.next.peak : null;
+  S.next = null;
+  S.grade = null; S.clean = false; S.callAt = 0; S.landAt = 0; S.miss = null; S.freezeUntil = 0; S.shake = 0;
+  // the band starts drawing by itself a beat after the plane is in the sling, so a go is two taps, not three. If
+  // today's best is not solved yet it is solved first, so the sweep never stutters under it.
+  S.autoAt = 0;
   const want = { plane: S.plane, wind: S.wind };
-  setTimeout(() => { if (S.plane === want.plane && S.wind === want.wind && !S.peak) S.peak = M.peak(want.plane, want.wind); }, 60);
+  if (S.peak) S.autoAt = now0() + 300;
+  else setTimeout(() => {
+    if (S.plane !== want.plane || S.wind !== want.wind) return;
+    if (!S.peak) S.peak = M.peak(want.plane, want.wind);
+    S.autoAt = now0() + 250;
+  }, 40);
   S.dist = 0; S.beatBest = false;
   S.ppmTarget = restPPM();
   S.bgZoomTarget = 1;
@@ -871,9 +906,12 @@ function launch() {
   S.quality = M.quality(S.plane, S.angle, S.pull, S.wind, S.peak);
   S.grade = gradeOf(S.quality); S.clean = S.grade === 'PERFECT';
   S.callAt = performance.now();
+  S.miss = S.grade === 'PERFECT' ? null : missOf(S.peak, S.angle, S.pull, S.wind);
+  const hit = HIT[S.grade || 'none'];
+  S.freezeUntil = S.callAt + hit[0]; S.shake = hit[1]; S.shakeAt = S.callAt;
   VOICE.crack(S.grade);
   S.flight = M.fly(S.plane, S.angle, S.pull, { trace: true, wind: S.wind, clean: S.clean });
-  S.flightStart = performance.now();
+  S.flightStart = performance.now(); S.simT = 0;
   S.phase = 'fly';
   S.beatBest = false; S.dist = 0; S.touched = false; S.reTouched = false;
   S.bgZoomTarget = BG_ZOOM;
@@ -1060,7 +1098,39 @@ function sky() {
   }
 }
 
+// WHERE PERFECT WOULD HAVE LANDED, from the moment you let go: a gold flag on the strip, so a launch that falls short
+// of it falls short in front of you. (A perfect release lets go clean and passes it.)
+function perfectLine() {
+  if (!S.peak || !(S.phase === 'fly' || S.phase === 'rest')) return;
+  const x = sx(S.peak.dist);
+  if (x < -80) return;
+  if (x > W - 8) {
+    // still ahead and off the frame: a gold pointer at the right edge, with how far there is to go
+    const y = Math.min(groundY - 34, H - BAR_H - 140), left = Math.round(S.peak.dist - S.dist);   // clear of the verdict
+    ctx.fillStyle = '#FFD23F';
+    ctx.beginPath(); ctx.moveTo(W - 8, y); ctx.lineTo(W - 22, y - 9); ctx.lineTo(W - 22, y + 9); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(10,16,28,0.62)';
+    ctx.font = '800 12px Inter, system-ui, sans-serif';
+    const label = 'PERFECT  ' + left + ' m', tw = ctx.measureText(label).width;
+    ctx.fillRect(W - 30 - tw - 14, y - 12, tw + 14, 24);
+    ctx.fillStyle = '#FFD23F'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ctx.fillText(label, W - 37, y + 1);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    return;
+  }
+  ctx.strokeStyle = '#FFD23F';                          // --accent-2
+  ctx.lineWidth = 3; ctx.setLineDash([10, 6]);
+  ctx.beginPath(); ctx.moveTo(x, HUD_H() + 54); ctx.lineTo(x, groundY); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = INK;                                  // type over the sky takes ink, as the BEST label does
+  ctx.font = '800 12px Inter, system-ui, sans-serif';
+  const near = x > W - 150;
+  ctx.textAlign = near ? 'right' : 'left';
+  ctx.fillText('PERFECT ' + Math.round(S.peak.dist) + ' m', x + (near ? -6 : 6), HUD_H() + 62);
+  ctx.textAlign = 'left';
+}
 function bestLine() {
+  perfectLine();
   if (S.best <= 0) return;
   const x = sx(S.best);
   if (x < -80 || x > W + 80) return;
@@ -1274,6 +1344,11 @@ function drawCalls() {
     // above the button bar, clear of the BEST marker's label at the top of the field
     callPill(parts.join('  \u00b7  '), f.slide >= 1 ? 'slid ' + Math.round(f.slide) + ' m' : '',
              S.grade === 'PERFECT' ? col('PERFECT') : '#FFFFFF', H - BAR_H - 50, 1);
+    // and the regret, said plainly: what it cost, and which tap
+    if (S.miss && S.peak) {
+      const short = Math.round(S.peak.dist - f.dist);
+      if (short > 0) callPill(short + ' m SHORT OF PERFECT', S.miss, 'rgba(255,255,255,0.80)', H - BAR_H - 92, 1);
+    }
     return;
   }
   if (S.phase !== 'fly' || !f) return;
@@ -1284,7 +1359,10 @@ function drawCalls() {
              f.touchGam > DUG_AT ? 'rgba(255,255,255,0.75)' : '#FFFFFF', y, k);
   } else if (S.grade) {
     const age = now - S.callAt, k = age < 1600 ? 1 : Math.max(0, 1 - (age - 1600) / 500);
-    callPill(S.grade + ' RELEASE', S.clean ? 'clean, more speed' : '', col(S.grade), y, k);
+    callPill(S.grade + ' RELEASE', S.clean ? 'clean, more speed' : S.miss || '', col(S.grade), y, k);
+  } else if (S.miss) {
+    const age = now - S.callAt, k = age < 1600 ? 1 : Math.max(0, 1 - (age - 1600) / 500);
+    callPill('MISSED IT', S.miss, 'rgba(255,255,255,0.75)', y, k);
   }
 }
 
@@ -1457,7 +1535,7 @@ function hud() {
       // sits on lit grass, not on the bar, so it takes dark ink and a light
       // backing rather than the band's white
       ctx.font = '600 14px Inter, system-ui, sans-serif';
-      const msg = S.phase === 'aim'     ? 'tap to draw the band'
+      const msg = S.phase === 'aim'     ? 'get ready'
                 : S.phase === 'setPull' ? 'tap to set the force'
                 :                         'tap to launch';
       ctx.fillStyle = 'rgba(255,255,255,0.65)';
@@ -1667,11 +1745,13 @@ function frame(now) {
   VOICE.bed(S.phase === 'fly');
 
   if (S.phase === 'pick') { drawPick(); requestAnimationFrame(frame); return; }
+  if (S.phase === 'aim' && S.autoAt && now >= S.autoAt) { S.phase = 'setPull'; S.meterT = 0; S.pull = 0; S.autoAt = 0; }
 
   let pp = null, pth = 0, pw = null;   // screen pos, pitch, world pos
   if (S.phase === 'fly') {
     const tr = S.flight.trace;
-    const t = (now - S.flightStart) / 1000;
+    if (now >= S.freezeUntil) S.simT += dt * playRate(S.flight, S.simT);
+    const t = S.simT;
     const q = sample(tr, t);
     S.dist = q.x; pth = q.th;
     // airspeed straight off the trace, so the rush tracks what is actually
@@ -1693,8 +1773,11 @@ function frame(now) {
     if (t >= tr[tr.length - 1].t) {
       S.dist = S.flight.dist;
       if (S.dist > S.best) { S.best = S.dist; S.beatBest = true; }
-      S.phase = 'rest';
+      S.phase = 'rest'; S.restAt = now;
       VOICE.hush();
+      // the next go's wind, and its best launch, solved now while this result is on screen
+      const nx = { plane: S.plane, wind: rollWind(), peak: null }; S.next = nx;
+      setTimeout(() => { if (S.next === nx) nx.peak = M.peak(nx.plane, nx.wind); }, 450);
       VOICE.chime(S.beatBest);
     }
     pp = { x: sx(q.x), y: sy(q.y) }; pw = q;
@@ -1755,7 +1838,10 @@ function frame(now) {
   const w3 = window.TAILWIND_3D;
   if (w3 && w3.ready) {
     ctx.clearRect(0, 0, W, H);
-    w3.render({ W, H, scale: SCALE, camX: S.camX, camY: S.camY, ppm: S.ppm, groundY, key: S.plane,
+    // the jolt of the hit: the camera, not the chrome, and gone in a third of a second
+    const sk = S.shake ? S.shake * Math.max(0, 1 - (now - S.shakeAt) / 320) : 0;
+    const jx = sk ? sk * Math.sin(now * 0.11) : 0, jy = sk ? sk * Math.cos(now * 0.083) : 0;
+    w3.render({ W, H, scale: SCALE, camX: S.camX + jx, camY: S.camY + jy, ppm: S.ppm, groundY, key: S.plane,
       pose: pp ? { x: S.camX + pp.x / S.ppm, y: S.camY + (groundY - pp.y) / S.ppm, th: pth } : null,
       aiming, flying: S.phase === 'fly', pivot: { x: TREE_X, y: M.CFG.PIVOT_H } });
     bestLine(); hud();
@@ -1787,7 +1873,7 @@ window.__tailwind = {
              boostLeft: S.boostLeft, boostAt: S.boostAt,
              screenX: S.screenX, screenY: S.screenY, minScreenY: S.minScreenY,
              camY: S.camY, ppm: S.ppm, W, H, plane: S.plane, wind: S.wind,
-             grade: S.grade, quality: S.quality, peak: S.peak,
+             grade: S.grade, quality: S.quality, peak: S.peak, miss: S.miss, simT: S.simT,
              landing: S.flight ? { gam: S.flight.touchGam, skipped: S.flight.skipped, slide: S.flight.slide } : null };
   },
   get cfg() { return { dv: BOOST_DV, stroke: BOOST_STROKE }; },
